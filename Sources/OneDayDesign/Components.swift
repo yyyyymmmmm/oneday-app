@@ -322,9 +322,9 @@ public struct InlineError: View {
 /// 色不进填充（卡 4「percentRow 填充去主色蓝」口径）。
 public struct DataBar: View {
     public var fraction: Double
-    public var height: CGFloat = OneDayMetrics.barHeight
+    public var height: CGFloat = 6
 
-    public init(fraction: Double, height: CGFloat = OneDayMetrics.barHeight) {
+    public init(fraction: Double, height: CGFloat = 6) {
         self.fraction = fraction
         self.height = height
     }
