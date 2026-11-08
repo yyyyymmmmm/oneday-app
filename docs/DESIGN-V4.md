@@ -524,3 +524,87 @@ Muse 长文输入态截图追加三点——顶部渐隐、输入多行时
   site.didichou.oneday，与定版一致。
 - 键盘态观感终审归用户真机（分工不变）：重点看拼音
   组合态发送舱是否贴着文字长、两键是否锚在编辑行。
+
+## 12. 0.2.8 热修：焦点拆桥＋尺寸实测对齐
+
+0.2.7 真机验收出两问题，本节只记这两件的定因与处置：
+P0 点输入框键盘弹不出来（0.2.7 新回归，0.2.6 真机打字
+正常）；P1 输入框单行高与底栏图标墨迹按真机实测对齐
+Muse。本节数值口径一律以渲染后量测为准（真机优先），
+不再采信 config 数字与二手像素换算（§11.3 的教训）。
+
+### 12.1 P0 定因：焦点桥把关（hitTest 链审计）
+
+定因：**@FocusState 边沿桥把关**。0.2.7 的聚焦路径是
+「UIKit 点按聚焦 → delegate 回写 @FocusState → ChatView
+重渲染 → updateUIView 边沿比对 → become/resign」——原生
+聚焦须经 SwiftUI 焦点状态往返批准，而 SwiftUI 焦点引擎
+对整个层级的第一响应者有自己的仲裁账：representable 在
+引擎图外成为第一响应者时，其账面值（无 .focused 注册、
+仅靠 delegate 异步回写）顶不掉引擎的「无焦点」认定，
+更新一到即被 resign。证据链：0.2.6 纯 SwiftUI TextField
+（经 .focused 正式登记在引擎内）真机聚焦正常；0.2.7 前
+任三轮 CI 依次排除占位覆盖层、手势挂载点后聚焦仍被吃，
+剩下的唯一聚焦治理差异就是这座桥；0.2.7 真机同症复现，
+与「测试工具问题」的旧结论冲突，真机优先、旧结论作废。
+
+hitTest 链审计（文本视图区域自上而下逐层，本次逐个读
+代码核对）：①占位符 UILabel——文本视图内部子视图，
+isUserInteractionEnabled=false，不吃触摸；②glassEffect
+——施加在 composerRow 本体的渲染层（非叠加视图），同行
+的＋键/发送键点按一直正常，证明该层不挡同行子视图触
+摸；③HStack/VStack/bottomBar/safeAreaInset 宿主——无任
+何手势与覆盖层；④消息列表内容栈的 onTapGesture——挂在
+LazyVStack 子树，与发送舱（inset 子树）不同命中域；
+ScrollView 的交互收起 pan 需位移才触发、不吞点按；⑤
+抽屉 scrim 关闭时 allowsHitTesting(false)、面板偏移出
+屏、左缘 24pt 热区不与输入框区域重叠；⑥topFade 在顶
+部且 allowsHitTesting(false)；⑦文本视图本体配置
+isEditable/isUserInteractionEnabled 均为真（0.2.8 起显式
+写死）。结论：命中路径干净，病灶不在触摸、在聚焦批准
+通道——拆桥（§12.2）。
+
+### 12.2 修法：聚焦回归 UIKit 原生
+
+- ComposerTextView 删除 isFocused 焦点桥与边沿逻辑；
+  updateUIView 永不碰第一响应者。点按由 UITextView 原
+  生 becomeFirstResponder 完成——文本视图是自身区域内
+  最上层可交互元素，手指与它之间无手势/覆盖层（§12.1）。
+- SwiftUI 侧状态只观察：Coordinator 的 didBegin/didEnd
+  Editing 经 onFocusChange 回写 ChatView 的普通 @State，
+  无任何视图据它把关聚焦。
+- 程序化通道：新增 ComposerFocusHandle（弱引用文本视
+  图＋pending 兜底）——点消息区空白收键盘、演示自检聚
+  焦都经它直达本体，不经 SwiftUI 状态。
+- 响应链自检（演示模式限定）：启动参数
+  -odDemoFocusComposer 叠加 -odDemoMode 时，ChatView 落
+  稳后经句柄程序化聚焦；ScreenshotTests.test07 断言系
+  统键盘升起并留 kb-focus-selfcheck 附件。聚焦由 App 本
+  体发起，不依赖 XCUI 合成点按——不构成点按聚焦调试；
+  生产启动永不带此参数，真机点按终审归用户。
+
+### 12.3 P1 定案：按实测改基数
+
+量测基线（用户同机同批真机截图，主代理逐个量，402×
+874pt@3x，误差 ±2pt）：输入框单行总高 Muse 约 45 /
+OneDay 0.2.7 约 60；底栏图标墨迹高 Muse 约 24 /
+OneDay 约 33；底栏总高两边同约 64–66（不动）。
+
+- 输入框：ComposerLayout 改基数——行高 22.5→20（字体
+  改固定 16pt 系统字体，ComposerTextView 不再随
+  Dynamic Type 漂移）、文本纵向边距 16→10、两键直径
+  36→30、行纵向边距 16 不变；单行总高＝max(20＋10,
+  30)＋16＝46，落目标带 45–46。54.5 旧规格作废。多行
+  自此基数按行递增，6 行封顶内滚逻辑不变；单测四态
+  已同步新数（46/46/86/146）。
+- 底栏图标：渲染管线（44pt 画布＋alwaysTemplate）不变
+  时，墨迹高与 config 点数严格线性。按真机基线 33→
+  目标 24（系数 ≈0.73）反推：双气泡 12→9、其余 15→
+  11。§11.3 的「config 12/15 墨迹 23–24」系 CI 截图像
+  素换算的错误量测，自此作废；本版以截图环渲染图复量
+  为准（见 §12.4），再偏再修。
+
+### 12.4 验收数值
+
+（CI 跑完后回填：构建 run、单测数、解包版本、焦点自
+检结果、底栏墨迹复量值。）

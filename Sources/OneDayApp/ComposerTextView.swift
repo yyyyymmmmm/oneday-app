@@ -20,11 +20,25 @@ import UIKit
 /// 真实行高，封顶／内滚／形状判据的算术归 OneDayCore
 /// 的 ComposerLayout 纯逻辑（单测把守）；玻璃行高＝本
 /// 视图高＋固定边距，不存在第二方提议能把盒子撑开。
+///
+/// 0.2.8 焦点拆桥（DESIGN-V4 §12）：0.2.7 的 @FocusState
+/// 边沿桥是真机「点输入框键盘弹不出」的定案元凶——UIKit
+/// 原生聚焦必须先经 SwiftUI 焦点状态往返批准，而 SwiftUI
+/// 焦点引擎对层级内第一响应者有自己的仲裁，representable
+/// 在引擎图外成为第一响应者会被其账面值顶掉（前任三轮 CI
+/// 在命中路径已干净后仍聚焦不能、真机同症）。本版起聚焦
+/// 只走 UIKit 原生通道：点按由文本视图自己 becomeFirst-
+/// Responder，SwiftUI 侧状态仅经 delegate 回调观察回写、
+/// 不把关；程序化收起/聚焦经 ComposerFocusHandle 直达
+/// 文本视图。文本视图是自身区域内最上层的可交互元素，
+/// 它与手指之间不隔任何手势与覆盖层（审计全文 §12.1）。
 struct ComposerTextView: UIViewRepresentable {
     @Binding var text: String
-    /// 焦点桥：与 ChatView 的 @FocusState 双向同步
-    ///（FocusState 的投影是其专属 Binding 类型）
-    var isFocused: FocusState<Bool>.Binding
+    /// 程序化焦点句柄：makeUIView 时登记文本视图本体，
+    /// ChatView 经它收起键盘/演示自检聚焦，不经 SwiftUI 状态
+    var focusHandle: ComposerFocusHandle
+    /// 焦点观察回调（delegate 回写，只观察不把关）
+    var onFocusChange: (Bool) -> Void
     /// 内容实测高（未封顶）回调：驱动多行形状判据
     var onMeasuredHeight: (CGFloat) -> Void
 
@@ -32,15 +46,25 @@ struct ComposerTextView: UIViewRepresentable {
         Coordinator(parent: self)
     }
 
+    /// 正文口径（0.2.8，DESIGN-V4 §12.3）：固定 16pt 系统
+    /// 字体，行高约 20——与 Muse 输入行看齐（其文字行约
+    /// 20pt）；ComposerLayout.lineHeight=20 与此同口径。
+    /// 不再跟随 Dynamic Type 放大，否则单行规格随系统字
+    /// 号档漂移、量高口径与排版口径脱钩
+    private static var bodyFont: UIFont { .systemFont(ofSize: 16) }
+
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView()
         textView.delegate = context.coordinator
-        textView.font = .preferredFont(forTextStyle: .body)
-        textView.adjustsFontForContentSizeCategory = true
+        // 可编辑与可交互是默认值，此处显式写死（§12.1 审计
+        // 项④：配置层不给聚焦留任何含糊）
+        textView.isEditable = true
+        textView.isUserInteractionEnabled = true
+        textView.font = Self.bodyFont
         textView.backgroundColor = .clear
         textView.textColor = .label
         textView.typingAttributes = [
-            .font: UIFont.preferredFont(forTextStyle: .body),
+            .font: Self.bodyFont,
             .foregroundColor: UIColor.label,
         ]
         // 内边距归零：间距由 SwiftUI 侧 padding 统一承担，
@@ -59,7 +83,7 @@ struct ComposerTextView: UIViewRepresentable {
         // 接收触摸，亦显式关闭
         let placeholder = UILabel()
         placeholder.text = "发消息…"
-        placeholder.font = .preferredFont(forTextStyle: .body)
+        placeholder.font = Self.bodyFont
         placeholder.textColor = .tertiaryLabel
         placeholder.isUserInteractionEnabled = false
         placeholder.translatesAutoresizingMaskIntoConstraints = false
@@ -74,6 +98,8 @@ struct ComposerTextView: UIViewRepresentable {
         ])
         context.coordinator.placeholderLabel = placeholder
         placeholder.isHidden = !(text.isEmpty)
+        // 登记进焦点句柄：程序化聚焦/收起从此直达本体
+        focusHandle.attach(textView)
         return textView
     }
 
@@ -85,21 +111,9 @@ struct ComposerTextView: UIViewRepresentable {
         }
         context.coordinator.placeholderLabel?.isHidden =
             !(textView.text?.isEmpty ?? true)
-        // 焦点桥边沿触发：只在期望值相对上次已知状态变化时
-        // 才驱动第一响应者。电平触发会在「UIKit 已聚焦、
-        // delegate 回写未达」的窗口里被任意一次 SwiftUI 更新
-        // 误伤 resign（0.2.7 首轮 CI 实证：点按聚焦被吃掉，
-        // 键盘未起）；delegate 回调与 becomeFirstResponder
-        // 同步发生，边沿记录后该窗口不存在
-        let desired = isFocused.wrappedValue
-        if desired != context.coordinator.lastFocus {
-            context.coordinator.lastFocus = desired
-            if desired, !textView.isFirstResponder {
-                textView.becomeFirstResponder()
-            } else if !desired, textView.isFirstResponder {
-                textView.resignFirstResponder()
-            }
-        }
+        // 0.2.8：updateUIView 不再碰第一响应者（焦点桥已拆，
+        // 见文件头注）。聚焦/失焦只由 UIKit 原生通道与
+        // focusHandle 决定，SwiftUI 更新永不批准也不驳回
         refreshScroll(textView)
     }
 
@@ -137,8 +151,6 @@ struct ComposerTextView: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: ComposerTextView
-        /// 焦点桥的上次已知状态（边沿触发用，见 updateUIView）
-        var lastFocus = false
         /// 占位符子标签（makeUIView 时挂上）
         weak var placeholderLabel: UILabel?
 
@@ -154,14 +166,43 @@ struct ComposerTextView: UIViewRepresentable {
             parent.refreshScroll(textView)
         }
 
+        // 焦点只观察回写（0.2.8 拆桥）：delegate 是事实源，
+        // SwiftUI 侧状态跟随它变，不反过来批准它
         func textViewDidBeginEditing(_ textView: UITextView) {
-            lastFocus = true
-            parent.isFocused.wrappedValue = true
+            parent.onFocusChange(true)
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
-            lastFocus = false
-            parent.isFocused.wrappedValue = false
+            parent.onFocusChange(false)
         }
+    }
+}
+
+/// 发送舱焦点句柄（0.2.8）：ChatView 与文本视图本体之间
+/// 的程序化焦点通道——收起键盘（点消息区空白）与演示模
+/// 式程序化聚焦自检都经它直达 UITextView，不经任何
+/// SwiftUI 焦点状态。视图未就绪时先记 pending，登记时补上。
+final class ComposerFocusHandle {
+    private weak var textView: UITextView?
+    private var pendingFocus = false
+
+    func attach(_ textView: UITextView) {
+        self.textView = textView
+        if pendingFocus {
+            pendingFocus = false
+            textView.becomeFirstResponder()
+        }
+    }
+
+    func focus() {
+        if let textView {
+            textView.becomeFirstResponder()
+        } else {
+            pendingFocus = true
+        }
+    }
+
+    func dismiss() {
+        textView?.resignFirstResponder()
     }
 }

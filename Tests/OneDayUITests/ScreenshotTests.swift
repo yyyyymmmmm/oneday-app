@@ -135,4 +135,23 @@ final class ScreenshotTests: XCTestCase {
         waitText(app, "主题")
         capture("06-settings")
     }
+
+    /// 07 焦点响应链自检（0.2.8，DESIGN-V4 §12.2）：带
+    /// -odDemoFocusComposer 启动，App 本体落稳后程序化聚焦
+    /// 发送舱——断言系统键盘升起，证明「窗口→文本视图→
+    /// 第一响应者→键盘」整条链通。聚焦由 App 发起而非
+    /// XCUI 合成点按（后者驱动不了 representable 聚焦是
+    /// 工具侧限制，§11.4），故本测试不构成点按聚焦调试。
+    /// 附件名 kb- 前缀，工作流按既有规则导出供人工看图。
+    func test07ComposerFocusSelfCheck() {
+        let app = launch(["-odDemoMode", "-odDemoFocusComposer"])
+        waitText(app, "一切正常")
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(
+            keyboard.waitForExistence(timeout: 15),
+            "程序化聚焦后键盘未升起：焦点响应链不通"
+        )
+        settle(0.6)
+        capture("kb-focus-selfcheck")
+    }
 }

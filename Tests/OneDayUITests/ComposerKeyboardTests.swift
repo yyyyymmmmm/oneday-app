@@ -6,16 +6,18 @@ import XCTest
 /// 0.2.7 处置（§11.4）：本文件原有的键盘态断言（点按聚焦 →
 /// 键盘升起 → 各态量高）已删除。原因：发送舱文本视图换成
 /// UIViewRepresentable 后，XCUI 的合成点按无法可靠驱动其
-/// 聚焦（前任施工方多轮 CI 实证，真机上点按聚焦与输入均
-/// 正常，问题只在测试工具侧）；按既定验收分工，键盘态
-/// 观感由用户真机终审，高度算术由 OneDayCore 的
-/// ComposerLayoutTests 单测把守（空／单行／多行／上限
-/// 四态）。本文件只保留不需要聚焦即可量测的静止态断言：
-/// ①胶囊推导高＝＋键底边 − 输入框上沿 ＋ 24（＋键恒在
-/// 胶囊内左下、输入框上沿距胶囊上沿恒 16），须为单行
-/// 规格 54±4；②防撕裂不变量：＋键底边 − 输入框底边
-/// ＝ 8±3（两键 .bottom 锚在 field 底行）；③缺陷 B：
-/// 标题胶囊（按钮「切换模型」）宽 ≤ 202。
+/// 聚焦；按既定验收分工，键盘态观感由用户真机终审，高
+/// 度算术由 OneDayCore 的 ComposerLayoutTests 单测把守
+/// （空／单行／多行／上限四态）。焦点响应链另有 App 本体
+/// 程序化聚焦自检（ScreenshotTests.test07，0.2.8 §12.2）。
+/// 本文件只保留不需要聚焦即可量测的静止态断言：
+/// ①胶囊推导高＝＋键底边 − 输入框上沿 ＋ 21（＋键恒在
+/// 胶囊内左下；输入框上沿距胶囊上沿＝行边距 8＋文本边
+/// 距 5＝13，＋键底边距胶囊下沿 8），须为 0.2.8 单行规
+/// 格 46（目标带 45–46，§12.3 改基数）；②防撕裂不变量：
+/// ＋键底边 − 输入框底边 ＝文本下边距 5±3（两键 .bottom
+/// 锚在 field 底行）；③缺陷 B：标题胶囊（按钮「切换模
+/// 型」）宽 ≤ 202。
 /// 诊断截图（kb-idle）随附件导出，只作定位证据、不进留档。
 final class ComposerKeyboardTests: XCTestCase {
     override func setUpWithError() throws {
@@ -57,7 +59,7 @@ final class ComposerKeyboardTests: XCTestCase {
         let headerCapsule = app.buttons["切换模型"]
 
         func capsuleHeight() -> CGFloat {
-            attach.frame.maxY - field.frame.minY + 24
+            attach.frame.maxY - field.frame.minY + 21
         }
         func anchorGap() -> CGFloat {
             attach.frame.maxY - field.frame.maxY
@@ -69,17 +71,17 @@ final class ComposerKeyboardTests: XCTestCase {
         print("[MEASURE] idle headerCapsuleWidth=\(headerCapsule.frame.width)")
         capture("kb-idle")
 
-        XCTAssertLessThanOrEqual(
-            capsuleHeight(), 58,
-            "静止态发送舱膨胀：推导高 \(capsuleHeight())，应为单行规格 54±4"
+        XCTAssertTrue(
+            (43...49).contains(capsuleHeight()),
+            "静止态发送舱高异常：推导高 \(capsuleHeight())，应为单行规格 46（目标带 45–46）"
         )
         XCTAssertTrue(
-            (18...30).contains(field.frame.height),
-            "静止态输入框单行高异常：\(field.frame.height)（自量高单行约 22.5）"
+            (17...24).contains(field.frame.height),
+            "静止态输入框单行高异常：\(field.frame.height)（自量高单行约 20，16pt 字体口径）"
         )
         XCTAssertTrue(
-            (5...11).contains(anchorGap()),
-            "防撕裂不变量破：＋键底边−输入框底边＝\(anchorGap())，应约 8"
+            (2...8).contains(anchorGap()),
+            "防撕裂不变量破：＋键底边−输入框底边＝\(anchorGap())，应约 5（文本下边距）"
         )
         XCTAssertLessThanOrEqual(
             headerCapsule.frame.width, 202,

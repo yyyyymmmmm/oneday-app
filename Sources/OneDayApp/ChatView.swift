@@ -52,7 +52,12 @@ struct ChatView: View {
     @State private var showPhotoPicker = false
     @State private var showCamera = false
     @State private var showFileImporter = false
-    @FocusState private var composerFocused: Bool
+    /// 0.2.8 拆桥（DESIGN-V4 §12）：焦点不再经 @FocusState
+    /// 把关——本状态只是 delegate 回调的观察回写（当前无
+    /// 视图据它分支，留作事实通道）；程序化收起/聚焦经
+    /// composerFocusHandle 直达文本视图本体
+    @State private var composerFocused = false
+    @State private var composerFocusHandle = ComposerFocusHandle()
     /// 0.2.2：模型选择器（顶栏副题点开，列表服务端拉取）
     @State private var showModelPicker = false
     /// 抽屉身份块与服务端会话组的数据（开抽屉时拉取）
@@ -165,6 +170,9 @@ struct ChatView: View {
         }
         .task {
             await startDemoStreamIfNeeded()
+        }
+        .task {
+            await focusComposerForDemoSelfCheckIfNeeded()
         }
         .task {
             await appState.refreshModelCatalog()
@@ -371,7 +379,10 @@ struct ChatView: View {
             // 不能（CI 三轮实证）。发送舱不是消息区，本就不
             // 该由它管辖
             .onTapGesture {
-                composerFocused = false
+                // 0.2.8：收键盘经焦点句柄直达文本视图本体
+                //（resignFirstResponder），不写任何 SwiftUI
+                // 焦点状态；失焦事实由 delegate 回调回写
+                composerFocusHandle.dismiss()
             }
         }
         // 滚动边距：顶为悬浮顶栏让出首屏位置（滚动时内容
@@ -566,10 +577,11 @@ struct ChatView: View {
     /// 发送舱（0.2.4 定形，DESIGN-V4 §8；承载沿革见 §10/§11）：
     /// 一颗完整的系统玻璃胶囊——＋键裸符号坐在胶囊内左、右端
     /// 状态机在胶囊内右；附件条在胶囊上方、实色小件，不入玻璃。
-    /// 对位规格：文本视图纵向内边距 8＋正文行高约 22＝单行
-    /// field 高 38，与 36pt 两键在 HStack(.bottom) 里的中心差
-    /// 约 1pt（视觉居中）；多行时两键底边与 field 底边齐平，
-    /// 锚在最后一行。胶囊单行总高＝38＋舱内纵向边距 16＝54。
+    /// 对位规格（0.2.8 改基数，§12.3）：正文行高 20＋文本纵
+    /// 向边距 10＝文本侧 30，与 30pt 两键在 HStack(.bottom)
+    /// 里同高（中心重合）；多行时两键底边与 field 底边齐平，
+    /// 锚在最后一行。胶囊单行总高＝30＋行纵向边距 16＝46
+    ///（算术归 ComposerLayout 单一口径）。
     /// 0.2.7 高度权威换代（§11）：纵向 TextField 换自量高
     /// UITextView（ComposerTextView），高度只由文本布局决定；
     /// 玻璃改裸 glassEffect 施加在行本体（容器/union 撤销）。
@@ -613,7 +625,10 @@ struct ChatView: View {
                     // 命中路径，见 ComposerTextView 注）
                     ComposerTextView(
                         text: $input,
-                        isFocused: $composerFocused,
+                        focusHandle: composerFocusHandle,
+                        onFocusChange: { focused in
+                            composerFocused = focused
+                        },
                         onMeasuredHeight: { height in
                             // 多行判据走 ComposerLayout 统一
                             // 口径（实测高跨过 1.5 行，§11）
@@ -622,7 +637,11 @@ struct ChatView: View {
                         }
                     )
                     .padding(.horizontal, OneDayMetrics.spacingS)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                    // 纵向 5＝ComposerLayout.textVerticalInsets
+                    // 的一半（0.2.8 基数：单行总高 46 的构成
+                    // 之一，见 ComposerLayout 注，不许在此
+                    // 另写数字漂移）
+                    .padding(.vertical, ComposerLayout.textVerticalInsets / 2)
                     trailingControl
                 }
                 .padding(.horizontal, OneDayMetrics.spacingS)
@@ -652,25 +671,30 @@ struct ChatView: View {
         }
     }
 
-    /// 停止键：36pt 主题填充小圆盘＋白方块（与发送键同径同
-    /// 位）；0.2.5 按简报口径去掉一切多余描边——本来就只有
-    /// 实色盘，本轮保持
+    /// 停止键：主题填充小圆盘＋白方块（与发送键同径同位，
+    /// 直径走 ComposerLayout.buttonHeight，0.2.8 由 36 改
+    /// 30，见 §12.3）；0.2.5 按简报口径去掉一切多余描边——
+    /// 本来就只有实色盘，本轮保持
     private var stopButton: some View {
         Button {
             sendTask?.cancel()
         } label: {
             Image(systemName: "stop.fill")
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(Color.white)
-                .frame(width: 36, height: 36)
+                .frame(
+                    width: ComposerLayout.buttonHeight,
+                    height: ComposerLayout.buttonHeight
+                )
                 .background(Palette.primaryFill, in: Circle())
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel("停止生成")
     }
 
-    /// 发送键：36pt 小圆盘保留实色（玻璃胶囊内的对比通行
-    /// 做法，承 DESIGN-V4 §4 对比条款）；填充取主题档
+    /// 发送键：小圆盘保留实色（玻璃胶囊内的对比通行做法，
+    /// 承 DESIGN-V4 §4 对比条款；直径走 ComposerLayout
+    /// .buttonHeight，0.2.8 由 36 改 30）；填充取主题档
     /// primaryFill——按 0.2.5 口径，腾讯蓝退出底栏后只留在
     /// 发送键与链接等内容强调位，本键即其一，不取墨色盘
     private var sendArrowButton: some View {
@@ -678,9 +702,12 @@ struct ChatView: View {
             send()
         } label: {
             Image(systemName: "arrow.up")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color.white)
-                .frame(width: 36, height: 36)
+                .frame(
+                    width: ComposerLayout.buttonHeight,
+                    height: ComposerLayout.buttonHeight
+                )
                 .background(Palette.primaryFill, in: Circle())
         }
         .buttonStyle(.odPressable)
@@ -695,9 +722,12 @@ struct ChatView: View {
             // 语音输入未接入：占位符号，点按无动作
         } label: {
             Image(systemName: "mic")
-                .font(.system(size: 18, weight: .regular))
+                .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(Palette.ink)
-                .frame(width: 36, height: 36)
+                .frame(
+                    width: ComposerLayout.buttonHeight,
+                    height: ComposerLayout.buttonHeight
+                )
                 .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
@@ -727,9 +757,12 @@ struct ChatView: View {
             // 融合（胶囊玻璃里再套一圈圆是嵌套毛病）；＋号
             // 直接坐在发送舱胶囊的玻璃里，与 Muse 一致
             Image(systemName: "plus")
-                .font(.system(size: 18, weight: .regular))
+                .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(Palette.ink)
-                .frame(width: 36, height: 36)
+                .frame(
+                    width: ComposerLayout.buttonHeight,
+                    height: ComposerLayout.buttonHeight
+                )
                 .contentShape(Circle())
         }
         .accessibilityLabel("添加附件")
@@ -1282,6 +1315,24 @@ struct ChatView: View {
         sendTask = Task {
             await runStream(thread: thread, messages: context)
         }
+    }
+
+    /// 演示模式焦点自检（0.2.8，DESIGN-V4 §12.2）：启动参数
+    /// -odDemoFocusComposer 时，界面落稳后经焦点句柄程序化
+    /// 聚焦发送舱——截图环的对应 UI 测试断言键盘升起，证明
+    /// 「窗口→文本视图→第一响应者→键盘」响应链通。只走演
+    /// 示模式（生产启动参数永不带此项，正常路径第一行返回）。
+    /// 注意这不是 XCUI 点按聚焦：聚焦由 App 本体发起，绕开
+    /// 测试工具的合成点按（其驱动不了 representable 是已
+    /// 知的工具侧限制，见 §11.4）
+    private func focusComposerForDemoSelfCheckIfNeeded() async {
+        guard DemoMode.current.isDemo, DemoMode.focusComposerOnLaunch else {
+            return
+        }
+        // 等首帧与种子落稳，句柄登记完成后聚焦（句柄自身
+        // 亦有 pending 兜底，双保险）
+        try? await Task.sleep(for: .milliseconds(900))
+        composerFocusHandle.focus()
     }
 
     /// 演示模式：种子对话的最后一句用户消息由假客户端流式回完，

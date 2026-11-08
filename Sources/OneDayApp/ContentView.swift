@@ -111,20 +111,24 @@ struct ContentView: View {
     /// 墨色照常生效。
     /// 0.2.7 按官方口径再校准（DESIGN-V4 §11.0）：定案标准
     /// 改为「字形墨迹高 23–25pt」——HIG《Tab bars》指向的
-    /// Apple Design Resources 字形规格约 25pt。实测 SF 符号
-    /// 在底栏的墨迹系统性大于 config 点数且逐字形不同，故
-    /// 逐字形反推 config 并两轮实测收敛：config 21 时双气
-    /// 泡 ≈37pt（系数 ≈1.8）、folder ≈28pt（≈1.35）；首轮
-    /// 校准（双气泡 14/folder 17）后 CI 同法复量仍 ≈27pt
-    /// （实测系数 1.9/1.6），再收一档定案：双气泡 12、其余
-    /// 15，墨迹落 23–24pt。字形烘焙进固定 44×44pt 透明画
-    /// 布居中绘制：四个条目位图同尺寸，系统排版基准一致、
-    /// 只缩墨迹不动槽位与热区；烘焙图须显式
+    /// Apple Design Resources 字形规格约 25pt。0.2.7 当时
+    /// 以 config 双气泡 12／其余 15 定案并报墨迹 23–24，
+    /// 但其量测出自 CI 截图的像素换算，与真机不符（见下）。
+    /// 0.2.8 真机实测校准（DESIGN-V4 §12.3）：用户同机同
+    /// 批真机截图由主代理逐个量过——0.2.7（config 12/15）
+    /// 真机墨迹高约 33pt，Muse 同机约 24pt。渲染管线
+    /// （44pt 画布→系统底栏）不变时墨迹与 config 严格线
+    /// 性，按目标 24 反推系数 24/33≈0.73：双气泡 12→9、
+    /// 其余 15→11，预期墨迹 ≈24。教训在案：图标尺寸只认
+    /// 渲染后量测（真机为准、模拟器截图次之），不认
+    /// config 数字与二手换算。字形烘焙进固定 44×44pt 透
+    /// 明画布居中绘制：四个条目位图同尺寸，系统排版基准
+    /// 一致、只缩墨迹不动槽位与热区；烘焙图须显式
     /// .alwaysTemplate（渲染器产物默认 original，tint 会
     /// 失效）。
     private func tabSymbol(_ name: String) -> Image {
         let pointSize: CGFloat =
-            name == "bubble.left.and.bubble.right" ? 12 : 15
+            name == "bubble.left.and.bubble.right" ? 9 : 11
         let configuration = UIImage.SymbolConfiguration(
             pointSize: pointSize, weight: .regular
         )

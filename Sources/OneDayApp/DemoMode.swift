@@ -8,6 +8,10 @@ import SwiftData
 ///   密码与密钥为占位假串，SecureField 里只显示圆点），供截
 ///   未连接态。点「测试并连接」会走 DemoHermesClient 的假探活
 ///   成功进主界面，全程不碰网络与钥匙串。
+/// - `-odDemoFocusComposer`（0.2.8，与 -odDemoMode 叠加）：
+///   焦点响应链自检——进主界面落稳后 App 本体程序化聚焦
+///   发送舱，截图环断言键盘升起（DESIGN-V4 §12.2）。生产
+///   启动永不带此参数。
 enum DemoMode: Equatable {
     case off
     case connected
@@ -25,6 +29,11 @@ enum DemoMode: Equatable {
     }
 
     var isDemo: Bool { self != .off }
+
+    /// 焦点自检开关（正交于模式本体，只在演示态被消费）
+    static var focusComposerOnLaunch: Bool {
+        ProcessInfo.processInfo.arguments.contains("-odDemoFocusComposer")
+    }
 }
 
 /// 演示样本对话的播种：内存库每次启动都是空的，播一份拟真多轮
