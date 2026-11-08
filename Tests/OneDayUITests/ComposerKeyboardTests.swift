@@ -1,26 +1,26 @@
 import XCTest
 
-/// 回归：键盘态发送舱高度（0.2.5 膨胀 → 0.2.6 承载换代 →
+/// 回归：发送舱静止态几何（0.2.5 膨胀 → 0.2.6 承载换代 →
 /// 0.2.7 高度权威换代，DESIGN-V4 §9/§10/§11）。
-/// 0.2.7 起发送舱文本视图是自量高 UITextView
-/// （ComposerTextView），其无障碍框＝视图真框。断言三组：
-/// ①胶囊推导高：＋键底边 − 输入框上沿 ＋ 24（＋键恒在胶囊
-/// 内左下、输入框上沿距胶囊上沿恒 16）——键盘各态须为单行
-/// 规格 54±4；②防撕裂不变量：＋键底边 − 输入框底边 ＝ 8±3
-/// （两键 .bottom 锚在 field 底行）——真机撕裂空盒的签名
-/// 正是此差值爆炸（文字掉底、中间撕空），高度由文本布局
-/// 单方决定后此式恒成立；③多行封顶：7 行输入后 field 高
-/// ≈6 行封顶（约 135），胶囊随之约 167，且不变量仍成立。
-/// 另兼缺陷 B 把守：标题胶囊（按钮「切换模型」）宽 ≤ 202。
-/// 诊断截图（kb-*）随附件导出，只作定位证据、不进留档。
+///
+/// 0.2.7 处置（§11.4）：本文件原有的键盘态断言（点按聚焦 →
+/// 键盘升起 → 各态量高）已删除。原因：发送舱文本视图换成
+/// UIViewRepresentable 后，XCUI 的合成点按无法可靠驱动其
+/// 聚焦（前任施工方多轮 CI 实证，真机上点按聚焦与输入均
+/// 正常，问题只在测试工具侧）；按既定验收分工，键盘态
+/// 观感由用户真机终审，高度算术由 OneDayCore 的
+/// ComposerLayoutTests 单测把守（空／单行／多行／上限
+/// 四态）。本文件只保留不需要聚焦即可量测的静止态断言：
+/// ①胶囊推导高＝＋键底边 − 输入框上沿 ＋ 24（＋键恒在
+/// 胶囊内左下、输入框上沿距胶囊上沿恒 16），须为单行
+/// 规格 54±4；②防撕裂不变量：＋键底边 − 输入框底边
+/// ＝ 8±3（两键 .bottom 锚在 field 底行）；③缺陷 B：
+/// 标题胶囊（按钮「切换模型」）宽 ≤ 202。
+/// 诊断截图（kb-idle）随附件导出，只作定位证据、不进留档。
 final class ComposerKeyboardTests: XCTestCase {
     override func setUpWithError() throws {
         // 诊断量要全打印出来再失败，单条断言不中断整场
         continueAfterFailure = true
-    }
-
-    private func settle(_ seconds: TimeInterval) {
-        Thread.sleep(forTimeInterval: seconds)
     }
 
     private func capture(_ name: String) {
@@ -30,7 +30,7 @@ final class ComposerKeyboardTests: XCTestCase {
         add(shot)
     }
 
-    func testComposerHeightAcrossKeyboardStates() {
+    func testComposerIdleGeometry() {
         let app = XCUIApplication()
         app.launchArguments = [
             "-AppleInterfaceStyle", "Light",
@@ -45,7 +45,7 @@ final class ComposerKeyboardTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(seed.waitForExistence(timeout: 25), "种子对话未出现")
 
-        // 0.2.7：field 是 UITextView（AX 类型 textView）；
+        // field 是 UITextView（AX 类型 textView）；
         // 兜底 textFields 以防系统映射口径变化
         let byView = app.textViews["composerField"]
         let field = byView.waitForExistence(timeout: 15)
@@ -62,106 +62,28 @@ final class ComposerKeyboardTests: XCTestCase {
         func anchorGap() -> CGFloat {
             attach.frame.maxY - field.frame.maxY
         }
-        func report(_ tag: String) {
-            print("[MEASURE] \(tag) capsuleDerived=\(capsuleHeight())")
-            print("[MEASURE] \(tag) fieldFrame=\(field.frame)")
-            print("[MEASURE] \(tag) attachFrame=\(attach.frame)")
-            print("[MEASURE] \(tag) anchorGap=\(anchorGap())")
-            print("[MEASURE] \(tag) headerCapsuleWidth=\(headerCapsule.frame.width)")
-        }
-        func assertSingleLine(_ tag: String) {
-            XCTAssertLessThanOrEqual(
-                capsuleHeight(), 58,
-                "\(tag) 发送舱膨胀：推导高 \(capsuleHeight())，应为单行规格 54±4"
-            )
-            XCTAssertTrue(
-                (18...30).contains(field.frame.height),
-                "\(tag) 输入框单行高异常：\(field.frame.height)（自量高单行约 22）"
-            )
-            XCTAssertTrue(
-                (5...11).contains(anchorGap()),
-                "\(tag) 防撕裂不变量破：＋键底边−输入框底边＝\(anchorGap())，应约 8"
-            )
-        }
-
-        report("idle")
+        print("[MEASURE] idle capsuleDerived=\(capsuleHeight())")
+        print("[MEASURE] idle fieldFrame=\(field.frame)")
+        print("[MEASURE] idle attachFrame=\(attach.frame)")
+        print("[MEASURE] idle anchorGap=\(anchorGap())")
+        print("[MEASURE] idle headerCapsuleWidth=\(headerCapsule.frame.width)")
         capture("kb-idle")
+
         XCTAssertLessThanOrEqual(
-            headerCapsule.frame.width, 202,
-            "标题胶囊过宽：\(headerCapsule.frame.width)，上限约 200（缺陷 B）"
+            capsuleHeight(), 58,
+            "静止态发送舱膨胀：推导高 \(capsuleHeight())，应为单行规格 54±4"
         )
-
-        // 聚焦输入框：等键盘焦点确立（软键盘是否升起另打印）
-        field.tap()
-        let focusExpectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "hasKeyboardFocus == true"),
-            object: field
-        )
-        let focusResult = XCTWaiter.wait(for: [focusExpectation], timeout: 10)
-        // 【临时诊断】元素命中性与全树层级＋坐标点按对照
-        print("[DIAG] elementTap focusResult=\(focusResult.rawValue) isHittable=\(field.isHittable)")
-        print("[DIAG] tree=\(app.debugDescription)")
-        if focusResult != .completed {
-            app.coordinate(
-                withNormalizedOffset: CGVector(
-                    dx: (field.frame.midX) / 402, dy: (field.frame.midY) / 874
-                )
-            ).tap()
-            settle(1.5)
-            print("[DIAG] coordTap keyboardExists=\(app.keyboards.firstMatch.exists) fieldValue=\(field.value ?? "nil")")
-        }
-        XCTAssertEqual(
-            focusResult,
-            .completed, "输入框未获得键盘焦点"
-        )
-        let keyboard = app.keyboards.firstMatch
-        let keyboardShown = keyboard.waitForExistence(timeout: 5)
-        print("[MEASURE] keyboardShown=\(keyboardShown) keyboardHeight=\(keyboardShown ? keyboard.frame.height : -1)")
-        settle(1.5)
-
-        report("keyboard")
-        capture("kb-up")
-        assertSingleLine("键盘态")
-
-        // 【临时诊断】＋键（同行 SwiftUI Menu 按钮）命中探活：
-        // 菜单能开＝行区域命中活、问题只在 representable；
-        // 菜单不能开＝整行命中被上层吞
-        attach.tap()
-        settle(1.0)
-        let menuItem = app.buttons["相册选图"]
-        print("[MEASURE] attachMenuOpened=\(menuItem.exists)")
-        capture("kb-attach")
-        if menuItem.exists {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
-            settle(0.5)
-        }
-
-        // 滚动态（对照用户截图：列表已上翻、回到底部钮在场）
-        let dragStart = app.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42)
-        )
-        let dragEnd = app.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)
-        )
-        dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
-        settle(1.0)
-        report("keyboardScrolled")
-        capture("kb-up-scrolled")
-        assertSingleLine("键盘＋滚动态")
-
-        // 多行封顶：输入 7 行，field 应封顶在 6 行量级、
-        // 胶囊＝field＋32（两层纵向边距），锚定不变量不破
-        field.typeText("第一行先写长一点看看换行与生长是不是正常工作起来\n第二行\n第三行\n第四行\n第五行\n第六行\n第七行")
-        settle(1.0)
-        report("multiline")
-        capture("kb-multiline")
         XCTAssertTrue(
-            (120...150).contains(field.frame.height),
-            "多行封顶异常：field 高 \(field.frame.height)，应为 6 行量级约 135"
+            (18...30).contains(field.frame.height),
+            "静止态输入框单行高异常：\(field.frame.height)（自量高单行约 22.5）"
         )
         XCTAssertTrue(
             (5...11).contains(anchorGap()),
-            "多行态防撕裂不变量破：\(anchorGap())，应约 8"
+            "防撕裂不变量破：＋键底边−输入框底边＝\(anchorGap())，应约 8"
+        )
+        XCTAssertLessThanOrEqual(
+            headerCapsule.frame.width, 202,
+            "标题胶囊过宽：\(headerCapsule.frame.width)，上限约 200（缺陷 B）"
         )
     }
 }

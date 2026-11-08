@@ -1,20 +1,25 @@
+import OneDayCore
 import SwiftUI
 import UIKit
 
 /// 0.2.7 发送舱文本视图（DESIGN-V4 §11）：自量高 UITextView。
 ///
-/// 换代缘由：SwiftUI 的纵向 TextField（底层 UITextView 被嵌
-/// 在 SwiftUI 的尺寸提议协商里）在真机「键盘＋拼音 marked
-/// text」组合态下被撑成约 139pt 的撕裂空盒（首行顶盒顶、
-/// 编辑行掉盒底），而模拟器以三种构造（编程 marked text×
-/// 默认玻璃/裸玻璃两路、真实拼音键盘＋候选条）逐环量测均
-/// 不复现——提议协商的结果依赖真机布局通道，无从在本地
-/// 锁死。改走成熟聊天库（InputBarAccessoryView 的
-/// InputTextView 一脉）的架构：高度只有一个权威来源——
-/// 文本视图自己的布局管理器。sizeThatFits 以提议宽度量
-/// 当前文本（含 marked 段，与 IME 同路）的真实行高，上限
-/// 6 行封顶后内滚；玻璃行的高＝本视图高＋固定边距，逐字
-/// 决定，不存在第二方提议能把盒子撑开或撕裂。
+/// 换代缘由（§11.1 定案）：0.2.6 的纵向 TextField 是发送舱
+/// 高度链上唯一没有权威量高者的一环——其理想高由 SwiftUI
+/// 与内嵌可滚动 UITextView 协商产生，链上其余各环的
+/// fixedSize 只把子视图理想高原样上传。真机键盘升起的
+/// 安全区重排＋拼音 marked text 组合期间，该协商把 2 行
+/// 文字的理想高贪大至上限量级（真机截图量测盒高约 140pt，
+/// 文字仅 2 行），整舱随之膨胀、两键被 HStack(.bottom)
+/// 钉在盒底、首行顶在盒顶——撕裂空盒。模拟器布局通道不
+/// 产生该提议，三路构造均不复现。
+/// 改走成熟聊天库的量高架构（Exyte/Chat 与 InputBar-
+/// AccessoryView 的 InputTextView 一脉）：高度只有一个
+/// 权威来源——文本视图自己的布局管理器。sizeThatFits
+/// 以提议宽度量当前文本（含 marked 段，与 IME 同路）的
+/// 真实行高，封顶／内滚／形状判据的算术归 OneDayCore
+/// 的 ComposerLayout 纯逻辑（单测把守）；玻璃行高＝本
+/// 视图高＋固定边距，不存在第二方提议能把盒子撑开。
 struct ComposerTextView: UIViewRepresentable {
     @Binding var text: String
     /// 焦点桥：与 ChatView 的 @FocusState 双向同步
@@ -23,16 +28,12 @@ struct ComposerTextView: UIViewRepresentable {
     /// 内容实测高（未封顶）回调：驱动多行形状判据
     var onMeasuredHeight: (CGFloat) -> Void
 
-    /// 6 行封顶（正文行高约 22.5pt）
-    private static var maxTextHeight: CGFloat { 22.5 * 6 }
-
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = ProbeTextView()
-        print("[DIAG] ComposerTextView makeUIView")
+        let textView = UITextView()
         textView.delegate = context.coordinator
         textView.font = .preferredFont(forTextStyle: .body)
         textView.adjustsFontForContentSizeCategory = true
@@ -102,15 +103,26 @@ struct ComposerTextView: UIViewRepresentable {
         refreshScroll(textView)
     }
 
-    /// 高度权威：以提议宽度量文本真实高度，6 行封顶
+    /// 高度权威：以提议宽度量文本真实高度（含 marked 段），
+    /// 封顶口径走 ComposerLayout；未封顶实测值另行回调，
+    /// 供 ChatView 判多行形状
     func sizeThatFits(
         _ proposal: ProposedViewSize,
         uiView textView: UITextView,
         context: Context
     ) -> CGSize? {
-        // 【临时二分】最小实现：不用 sizeThatFits 量高，
-        // 回固定单行高验证 representable 本体命中/聚焦
-        return CGSize(width: proposal.width ?? 200, height: 22)
+        guard let width = proposal.width, width > 0 else { return nil }
+        let fitted = textView.sizeThatFits(
+            CGSize(width: width, height: .greatestFiniteMagnitude)
+        )
+        let reported = fitted.height
+        DispatchQueue.main.async {
+            onMeasuredHeight(reported)
+        }
+        return CGSize(
+            width: width,
+            height: ComposerLayout.cappedTextHeight(measured: fitted.height)
+        )
     }
 
     /// 过上限才内滚（在文本变化与回写时刷新，不在量高里改状态）
@@ -119,7 +131,8 @@ struct ComposerTextView: UIViewRepresentable {
         let fitted = textView.sizeThatFits(
             CGSize(width: textView.bounds.width, height: .greatestFiniteMagnitude)
         )
-        textView.isScrollEnabled = fitted.height > Self.maxTextHeight
+        textView.isScrollEnabled =
+            ComposerLayout.shouldScroll(measured: fitted.height)
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -142,7 +155,6 @@ struct ComposerTextView: UIViewRepresentable {
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
-            print("[DIAG] textViewDidBeginEditing")
             lastFocus = true
             parent.isFocused.wrappedValue = true
         }
@@ -151,39 +163,5 @@ struct ComposerTextView: UIViewRepresentable {
             lastFocus = false
             parent.isFocused.wrappedValue = false
         }
-    }
-}
-
-/// 0.2.7 临时诊断（定位点按不聚焦，定案后删）：App 进程
-/// 的 print 不进 xcodebuild 日志，改自显通道——把命中与
-/// 聚焦路径的每一站写进文本视图自身的文字，kb-up 截图
-/// 与 AX value 直接可读
-final class ProbeTextView: UITextView {
-    static var pointCount = 0
-
-    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        Self.pointCount += 1
-        return super.point(inside: point, with: event)
-    }
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        text = "P\(Self.pointCount) TB"
-        super.touchesBegan(touches, with: event)
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        text = (text ?? "") + " TE"
-        super.touchesEnded(touches, with: event)
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        text = (text ?? "") + " TC"
-        super.touchesCancelled(touches, with: event)
-    }
-
-    override func becomeFirstResponder() -> Bool {
-        let result = super.becomeFirstResponder()
-        text = (text ?? "") + " BFR=\(result)"
-        return result
     }
 }

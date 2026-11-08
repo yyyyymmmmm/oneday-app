@@ -59,8 +59,8 @@ struct ChatView: View {
     @State private var drawerStatus: ServerStatus?
     @State private var drawerServerSessions: [ServerSession] = []
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
-    /// GlassEffectContainer＋union 已随探针定案撤销（§11：
-    /// 玻璃容器不是膨胀源，且 Session 219 忌玻璃叠玻璃）
+    /// GlassEffectContainer＋union 撤销（§11：容器在新承载
+    /// 下不再承担布局，且 Session 219 忌玻璃叠玻璃）
     /// 0.2.6 多行形状变形（0.2.7 起判据改由 ComposerTextView
     /// 的内容实测高驱动，见 composerRow）：跨过单行阈值后
     /// 发送舱玻璃由 Capsule 改固定圆角矩形（见 inputBar）
@@ -587,10 +587,10 @@ struct ChatView: View {
                 attachmentsStrip
             }
             // 0.2.7：玻璃裸施加在行本体——GlassEffectContainer
-            // 与 union 已撤销（探针证其非膨胀源，§11）
-            // 【临时诊断：玻璃层是否吞触摸——本轮注释玻璃】
+            // 与 union 已撤销（§10 承载换代后容器不再承担
+            // 布局，裸施加即可，§11）
             composerRow
-            // .glassEffect(.regular, in: composerShape)
+                .glassEffect(.regular, in: composerShape)
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
@@ -615,8 +615,10 @@ struct ChatView: View {
                         text: $input,
                         isFocused: $composerFocused,
                         onMeasuredHeight: { height in
-                            // 单行实测约 22.5；跨过 1.5 行即多行
-                            composerMultiline = height > 33
+                            // 多行判据走 ComposerLayout 统一
+                            // 口径（实测高跨过 1.5 行，§11）
+                            composerMultiline =
+                                ComposerLayout.isMultiline(measured: height)
                         }
                     )
                     .padding(.horizontal, OneDayMetrics.spacingS)
