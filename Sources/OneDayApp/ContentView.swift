@@ -105,14 +105,14 @@ struct ContentView: View {
         .fontWeight(colorScheme == .dark ? .light : .regular)
     }
 
-    /// 底栏字形（0.2.9 确定性路线，DESIGN-V4 §13）：
-    /// 图由 OneDayCore.TabBarSymbols 构造——SF Symbol 以
-    /// 显式 pointSize 按目标字形高 24pt 定标生成（alpha
-    /// 包围盒定标、无画布无缩放环节），字形高由构造保
-    /// 证、单测断言 24±2 定案。生成图是位图、无符号变体
-    /// 可换，0.2.5 的选中态 .fill 切换问题天然免疫；位图
-    /// 按 alpha 模板渲染，.tint 墨色照常生效；点击热区是
-    /// tab 条目本身、不随字形变化。
+    /// 底栏字形（0.3.1 系统直渲，DESIGN-V4 §16）：
+    /// 图由 OneDayCore.TabBarSymbols 按定版配置
+    /// （22pt／.regular／.medium）从系统符号渲染器
+    /// 直出——是真正的符号图，TabView 以符号身份走系
+    /// 统管线渲染，最终度量归系统。0.2.9 的预渲染定
+    /// 标路线已删：几何定标管不住描边观感、位图进栏还
+    /// 被二次缩放（四轮真机打回定因与止损条款在
+    /// §16）。点击热区是 tab 条目本身、不随字形变化。
     private func tabSymbol(_ name: String) -> Image {
         Image(uiImage: TabBarSymbols.image(named: name))
     }

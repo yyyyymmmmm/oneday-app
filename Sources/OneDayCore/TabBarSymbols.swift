@@ -1,18 +1,29 @@
 import UIKit
 
-/// 底栏字形（0.2.9 确定性路线，DESIGN-V4 §13）：SF Symbol
-/// 以显式 pointSize 生成，字形高度由构造本身保证——先以
-/// 参考尺寸（100pt）生成、量其 alpha 包围盒高，再按目标
-/// 高线性定标 pointSize 重新生成。无画布、无留白缩放环
-/// 节：成品图的字形高就是目标值本身。目标 24pt 对齐
-/// Muse 底栏字形规格（用户口径「和 Muse 一样」）。
-/// 定案凭据是单元测试（TabBarSymbolsTests）：以同一
-/// alpha 量法断言四个字形高 24±2——测试绿即尺寸定案，
-/// 与任何截图/渲染环境无关。
+/// 底栏字形（0.3.1 系统直渲路线，DESIGN-V4 §16）：
+/// 0.2.9 的「确定性构造」（按 alpha 包围盒定标 pointSize
+/// 生成 UIImage 再喂原生栏）真机仍不过——几何定标只管得
+/// 住字形框高，管不住描边观感，且预渲染图进 TabView 后
+/// 还要被二次缩放。本轮删尽预渲染：图直接由系统符号渲
+/// 染器按定版 SymbolConfiguration 出（pointSize 22／
+/// weight .regular／scale .medium），UITabBar 以符号图
+/// 身份走系统管线渲染，最终度量归系统。本轮可钉的只有
+/// 配置本身——单测（TabBarSymbolsTests）钉配置三值与
+/// 符号清单，不再有任何 alpha 量高逻辑。
+/// pointSize 22 的锚：0.2.9 口径对齐量得真机 Muse 字
+/// 形 ≈21.7–22.3pt（取代早期 24 的粗量）。
 public enum TabBarSymbols {
-    /// 目标字形高（pt）
-    public static let glyphHeight: CGFloat = 24
-    /// 四个底栏条目的系统符号名（与 ContentView 条目同序）
+    /// 定版配置：字号（pt）。对齐 Muse 真机字形实测
+    public static let pointSize: CGFloat = 22
+    /// 定版配置：字重。Muse 为细线条 regular，不许加粗凑数
+    public static let weight: UIImage.SymbolWeight = .regular
+    /// 定版配置：符号缩放档
+    public static let scale: UIImage.SymbolScale = .medium
+
+    /// 四个底栏条目的系统符号名（与 ContentView 条目同序）。
+    /// 四枚基础符号本身即目录中最轻的线条（outline）设
+    /// 计：bubble 与 folder 另有 .fill 变体（§9 禁用在
+    /// 案），无更细的 design variant 可换（§16 记档）。
     public static let names = [
         "bubble.left.and.bubble.right",
         "chart.line.uptrend.xyaxis",
@@ -20,85 +31,17 @@ public enum TabBarSymbols {
         "slider.horizontal.3",
     ]
 
-    /// 四个条目的成品图预计算表（static let：构造一次、
-    /// 并发安全；字形高 == glyphHeight，构造保证）
-    private static let table: [String: UIImage] = {
-        var result: [String: UIImage] = [:]
-        for name in names {
-            result[name] = construct(named: name)
-        }
-        return result
-    }()
+    /// 定版符号配置：全仓底栏符号只许从这一份出，
+    /// 单测钉死其三值来源（pointSize／weight／scale）
+    public static let configuration = UIImage.SymbolConfiguration(
+        pointSize: pointSize, weight: weight, scale: scale
+    )
 
-    /// 按名取底栏图（表外名字按同一构造法即时生成）
+    /// 按名取底栏图：系统符号渲染器按定版配置直出，
+    /// 不做任何测量、定标或二次加工；模板渲染保证底栏
+    /// .tint 墨色生效（0.2.7 教训）
     public static func image(named name: String) -> UIImage {
-        table[name] ?? construct(named: name)
-    }
-
-    private static func construct(named name: String) -> UIImage {
-        let reference = symbol(named: name, pointSize: 100)
-        let referenceHeight = alphaBounds(of: reference).height
-        if referenceHeight > 0 {
-            return symbol(
-                named: name,
-                pointSize: 100 * glyphHeight / referenceHeight
-            )
-        }
-        return reference
-    }
-
-    private static func symbol(
-        named name: String, pointSize: CGFloat
-    ) -> UIImage {
-        let configuration = UIImage.SymbolConfiguration(
-            pointSize: pointSize, weight: .regular
-        )
-        return (UIImage(systemName: name, withConfiguration: configuration)
+        (UIImage(systemName: name, withConfiguration: configuration)
             ?? UIImage()).withRenderingMode(.alwaysTemplate)
-    }
-
-    /// 图的 alpha 包围盒（pt）：位图化后逐像素扫 alpha≥16
-    /// 的行列界。字形本体高度，与屏幕尺寸、底栏渲染环境
-    /// 无关——这是「构造即定案」的量法本体，工厂定标与单
-    /// 测断言共用同一份实现，不许各写一份。
-    public static func alphaBounds(of image: UIImage) -> CGRect {
-        let scale: CGFloat = 3
-        let size = image.size
-        guard size.width > 0, size.height > 0 else { return .zero }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = scale
-        format.opaque = false
-        let raster = UIGraphicsImageRenderer(size: size, format: format)
-            .image { _ in image.draw(at: .zero) }
-        guard let cgImage = raster.cgImage else { return .zero }
-        let w = cgImage.width
-        let h = cgImage.height
-        var pixels = [UInt8](repeating: 0, count: w * h * 4)
-        guard let context = CGContext(
-            data: &pixels, width: w, height: h,
-            bitsPerComponent: 8, bytesPerRow: w * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return .zero }
-        context.draw(
-            cgImage, in: CGRect(x: 0, y: 0, width: w, height: h)
-        )
-        var minRow = h, maxRow = -1, minCol = w, maxCol = -1
-        for row in 0..<h {
-            let rowBase = row * w * 4
-            for col in 0..<w where pixels[rowBase + col * 4 + 3] >= 16 {
-                if row < minRow { minRow = row }
-                if row > maxRow { maxRow = row }
-                if col < minCol { minCol = col }
-                if col > maxCol { maxCol = col }
-            }
-        }
-        guard maxRow >= 0 else { return .zero }
-        return CGRect(
-            x: CGFloat(minCol) / scale,
-            y: CGFloat(minRow) / scale,
-            width: CGFloat(maxCol - minCol + 1) / scale,
-            height: CGFloat(maxRow - minRow + 1) / scale
-        )
     }
 }

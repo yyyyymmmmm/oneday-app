@@ -965,3 +965,63 @@ System 家族图标资产选定后自托管 Lottie JSON 接入
   （Qwen 冷启唤醒链路尤其要真机验一遍——客户端规
   格已按研究口径实现，网关 303 既有缺陷在服务端
   侧、未修，归部署线）。
+
+## 16. 0.3.1 定案：底栏图标改系统直渲＋原生栏止损条款
+
+### 16.1 四轮不过的定因与本轮定法
+
+底栏图标自 0.2.5 起四轮真机打回（线条化→预渲染
+定标→HIG 口径→0.2.9 确定性构造）。0.2.9 的 alpha
+包围盒定标在单测层无懈可击，真机仍被判「大小不
+对」：同图双卡量测字形高已接近（OneDay 约 26 单位
+vs Muse 约 22 单位，卡片缩放口径仅供参考），真
+正的差在**描边**——Muse 是细线条 regular 字重，
+OneDay 观感更粗、更「大坨」。定因：几何定标只管得
+住字形框高，管不住两件事——①字重/描边的观感；
+②预渲染位图进原生 TabView 后被当普通位图二次缩
+放，构造层的精确数在渲染层被改写。本轮定法：
+
+- **删除 TabBarSymbols 的烘焙路线**（construct 定
+  标、alphaBounds 量法、预计算表全删），图标改由
+  系统符号渲染器直出：`UIImage(systemName:with-
+  Configuration:)`，成品保留符号图身份
+  （isSymbolImage），UITabBar 走符号管线渲染、
+  最终度量归系统。消费侧维持 ContentView 的
+  `Image(uiImage:)` 通道——选此路而非纯
+  `Image(systemName:)`，是为让定版配置真实驱动渲
+  染且可被单测钉住。
+- **SymbolConfiguration 定版**：pointSize **22**／
+  weight **.regular**／scale **.medium**，全仓底栏
+  符号只许从 TabBarSymbols.configuration 这一份
+  出。22 的锚是 0.2.9 口径对齐量得的真机 Muse
+  字形 ≈21.7–22.3pt，取代 §11/§13 早期 24 的粗
+  量；weight 钉 regular——不许加粗凑数，也不许
+  降到 light 伪造纤细（目录基础符号的设计字重即
+  regular）。
+- **符号变体核查（记档）**：四枚维持现选
+  （bubble.left.and.bubble.right／chart.line.
+  uptrend.xyaxis／folder／slider.horizontal.3）。
+  四枚基础符号本身即 SF Symbols 目录中最轻的线
+  条设计；bubble 与 folder 另有 .fill 变体（§9
+  禁用在案），目录内不存在更细的 outline design
+  variant 可换——「仍粗先查变体」的核查结论是无
+  变体可换，粗细只能由配置与系统管线决定。
+
+### 16.2 单测口径
+
+TabBarSymbolsTests 改写：只钉可钉的——符号名清
+单（四枚、与条目同序）、配置三值（22／.regular
+／.medium，以独立同值配置的渲染尺寸作行为面钉
+住）、成品为系统符号图且模板渲染。0.2.9 的
+alpha 量高断言与确定性构造断言随烘焙路线一并删
+除。交付标准不变：构建绿＋单测，不碰截图（工作
+流已删）。
+
+### 16.3 止损条款（用户口径，本节为凭）
+
+**这是原生底栏的最后一轮。** 若 0.3.1 真机仍判
+不过，下一版直接**自绘底栏**（字形尺寸、字重、
+选择胶囊全部自控），不再回原生栏调参。本轮遵
+令未提前自绘。
+
+### 16.4 验收数值（构建后回填）

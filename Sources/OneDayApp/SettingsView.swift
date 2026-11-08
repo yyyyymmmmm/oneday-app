@@ -293,7 +293,7 @@ struct SettingsView: View {
 
     private var aboutGroup: some View {
         groupBlock("关于") {
-            infoRow(label: "OneDay 版本", value: "0.3.0", mono: true)
+            infoRow(label: "OneDay 版本", value: "0.3.1", mono: true)
             GroupDivider(inset: OneDayMetrics.spacingM)
             infoRow(
                 label: "服务端",
