@@ -721,7 +721,7 @@ struct ChatView: View {
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                Text("\(session.messageCount) 条 · \(Self.threadDateText(session.startedDate))")
+                Text("\(session.messageCount) 条 · \(AdminFormat.short(session.startedDate))")
                     .font(TypeScale.monoFootnote)
                     .foregroundStyle(Palette.inkMuted)
             }
