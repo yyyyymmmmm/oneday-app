@@ -9,6 +9,11 @@ import XCTest
 /// 断言：键盘态胶囊高 ≤ 58（单行规格 54±4）且输入框单行
 /// 高 ≤ 26（一行文本约 22）。诊断截图（kb-*）随附件导出，
 /// 只作定位证据、不进 docs/shots 留档。
+/// 承载换代后（0.2.6：发送区由覆盖式 ZStack 改列表
+/// .safeAreaInset 承载，DESIGN-V4 §10）本测试在新结构上
+/// 继续把守同一规格；测量锚点（＋键无障碍标签、field 本体
+/// 标识 composerField）与推导式未迁移、未改口径。
+/// 另兼缺陷 B 把守：标题胶囊（按钮「切换模型」）宽 ≤ 202。
 final class ComposerKeyboardTests: XCTestCase {
     override func setUpWithError() throws {
         // 诊断量要全打印出来再失败，单条断言不中断整场
@@ -59,6 +64,10 @@ final class ComposerKeyboardTests: XCTestCase {
 
         report("idle")
         capture("kb-idle")
+        XCTAssertLessThanOrEqual(
+            headerCapsule.frame.width, 202,
+            "标题胶囊过宽：\(headerCapsule.frame.width)，上限约 200（缺陷 B）"
+        )
 
         // 聚焦输入框：等键盘焦点确立（软键盘是否升起另打印）
         field.tap()

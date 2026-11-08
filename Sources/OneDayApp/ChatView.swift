@@ -63,11 +63,11 @@ struct ChatView: View {
     /// 融入——它改裸符号直接坐在胶囊玻璃里，union 只剩
     /// 胶囊本体，命名空间保留备用
     @Namespace private var composerGlass
-    /// 0.2.4 覆盖式布局：底部悬浮层实测高度，驱动消息列表的
-    /// 底部滚动边距（不走 safeAreaInset 留位，那是预留空地）
-    @State private var bottomOverlayHeight: CGFloat = 150
-    /// 原生底栏在屏幕底部的占位（悬浮胶囊高＋下沿距＋间距），
-    /// 底部悬浮层与抽屉面板按它抬升/让位
+    /// 0.2.6 多行形状变形：输入框实测高度跨过单行阈值后
+    /// 发送舱玻璃由 Capsule 改固定圆角矩形（见 inputBar）
+    @State private var composerMultiline = false
+    /// 原生底栏在屏幕底部的占位，抽屉面板底部按它留位避让
+    /// 服务器行（0.2.6 起发送舱已不在覆盖层、不再用它抬升）
     private let tabBarZone: CGFloat = 76
 
     private var currentThread: ChatThread? {
@@ -95,26 +95,37 @@ struct ChatView: View {
         }
     }
 
-    // MARK: - 覆盖式主面（0.2.4 重叠架构）
+    // MARK: - 主面（0.2.6 承载换代：发送区回到布局流）
 
-    /// 聊天主面：消息列表全幅铺满（顶到底），顶栏与底部
-    /// 发送舱都是悬浮覆盖层——消息滚动时从玻璃背后穿过、
-    /// 透出模糊字影（对照 Muse 的重叠架构，DESIGN-V4 §8）。
-    /// 列表的上下滚动边距按悬浮层高度给出，保证首尾消息
-    /// 能滚到玻璃上方不被永久遮挡；不用 safeAreaInset 给
-    /// 发送舱留位（那是预留空地、没有重叠）。
-    /// 原 NavigationStack＋toolbar 在此撤销：栈内无任何
-    /// push 依赖（全仓核查），顶栏改悬浮覆盖层实现。
+    /// 聊天主面：顶栏仍是悬浮覆盖层（玻璃三件套＋渐隐带，
+    /// 见 topFade）；底部发送区 0.2.6 起退出覆盖层、回到
+    /// 布局流——消息列表加 .safeAreaInset(edge: .bottom)
+    /// 承载发送舱（见 messageList）。换代原因：0.2.4/0.2.5
+    /// 连着两版在覆盖式 ZStack 里跟键盘打架（键盘弹起态
+    /// 发送舱膨胀成空玻璃泡，真机实证），根子是自研悬浮层
+    /// 在跟系统的键盘布局通道抢地盘；调研 Exyte/Chat、
+    /// Stream Chat SwiftUI、MessageKit 三家成熟方案后定案
+    /// 走「列表＋发送区同处布局流」的系统通道（Exyte 与
+    /// Stream 的共识结构，调研与取舍全文见 DESIGN-V4 §10）：
+    /// 键盘升起时系统安全区把发送区整段顶到键盘上方、交互
+    /// 收起跟随安全区动画，高度永远只由内容在单次布局里
+    /// 决定，不再有全屏提议经覆盖层污染胶囊的链路。
+    /// 取舍如实记：键盘收起态消息不再从发送舱背后流过
+    /// （inset 是留位不是覆盖），换来键盘联动的系统级精确
+    /// 与高度问题的整类消除；玻璃胶囊的长相不变（胶囊是
+    /// 内容、不是布局机制）。
+    /// 原 NavigationStack＋toolbar 在 0.2.4 已撤销：栈内无
+    /// 任何 push 依赖（全仓核查），顶栏以悬浮覆盖层实现。
     private var chatSurface: some View {
         ScrollViewReader { proxy in
-            ZStack(alignment: .bottom) {
-                messageList(proxy)
-                bottomOverlay(proxy)
-            }
+            messageList(proxy)
         }
         .background(Palette.pageBG)
         .overlay(alignment: .top) {
-            headerBar
+            ZStack(alignment: .top) {
+                topFade
+                headerBar
+            }
         }
         .photosPicker(
             isPresented: $showPhotoPicker,
@@ -165,6 +176,32 @@ struct ChatView: View {
         }
     }
 
+    /// 顶部渐隐带（0.2.6，对照 Muse 顶栏背后的磨砂渐隐）：
+    /// 一层自上而下的 pageBG 渐变，只作淡出遮罩——不做实色
+    /// 顶栏、不带分界线。系统 .scrollEdgeEffectStyle(.soft)
+    /// 在白底上单独不可感（0.2.5 已挂、真机仍见文字清晰撞
+    /// 到胶囊周围），故由这层带子承担实际淡出。几何按诊断
+    /// 图实测点位定（iPhone 17：忽略顶部安全区后带子覆盖
+    /// 物理 0–128pt；顶栏胶囊占约 68–115pt，静止时首条消息
+    /// 起于约 138pt）：渐变 0–90% 全不透明——文字滚到胶囊/
+    /// 角钮一线（≤115pt）之前已完全淡出；90%–100% 在 13pt
+    /// 内降到全透明，带尾止于 128pt、不触静止首条消息。
+    /// 不吃手势。
+    private var topFade: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Palette.pageBG, location: 0),
+                .init(color: Palette.pageBG, location: 0.9),
+                .init(color: Palette.pageBG.opacity(0), location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 128)
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
+    }
+
     /// 悬浮顶栏：左右系统玻璃角钮＋居中标题/模型胶囊，浮在
     /// 内容之上、无底色、无分界线，内容可滚到角钮背后。
     /// 角钮用系统 .glass 按钮样式＋.buttonBorderShape
@@ -210,7 +247,10 @@ struct ChatView: View {
                 }
                 .padding(.horizontal, OneDayMetrics.spacingSM + 2)
                 .padding(.vertical, 6)
-                .frame(maxWidth: 240)
+                // 0.2.6 缺陷 B：胶囊贴合内容（两行文字自然宽
+                // ＋内边距），上限由 240 收至 200，与左右角钮
+                // 留出明确间隙（0.2.5 真机实测约占屏宽 65%）
+                .frame(maxWidth: 200)
                 .glassEffect(.regular.interactive(), in: Capsule())
             }
             .buttonStyle(.plain)
@@ -235,11 +275,14 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
-    /// 底部悬浮层：回到底部钮＋错误/提示条＋发送舱，自下
-    /// 而上叠在消息之上；整体抬升到原生底栏上方
-    /// （tabBarZone），实测高度回写 bottomOverlayHeight
-    /// 驱动列表底部滚动边距。
-    private func bottomOverlay(_ proxy: ScrollViewProxy) -> some View {
+    /// 底部发送区（0.2.6 起由消息列表的 .safeAreaInset
+    /// 承载，不再是覆盖层）：回到底部钮＋错误/提示条＋发送
+    /// 舱，自下而上排在列表下方的安全区留位里。键盘收起时
+    /// 留位贴原生底栏上方；键盘升起时系统安全区扩张、整段
+    /// 被顶到键盘上方（系统通道，见 chatSurface 换代注）。
+    /// 高度只认内容：本 VStack 与发送舱各环保留 fixedSize
+    /// 断环（0.2.5），在布局流里是双保险。
+    private func bottomBar(_ proxy: ScrollViewProxy) -> some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             if !isNearBottom && currentThread != nil {
                 HStack {
@@ -257,16 +300,8 @@ struct ChatView: View {
             }
             inputBar
         }
-        // 悬浮层自身也只认内容高度：实测高度回写 content
-        // Margins 的前提是它不被全屏提议污染（0.2.5 根因注）
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.bottom, tabBarZone)
         .animation(MotionTokens.swap, value: isNearBottom)
-        .onGeometryChange(for: CGFloat.self) { geometry in
-            geometry.size.height
-        } action: { _, newHeight in
-            bottomOverlayHeight = newHeight
-        }
     }
 
     /// 回到底部：系统 .glass 圆钮（0.2.4 换原生玻璃，撤掉
@@ -327,18 +362,24 @@ struct ChatView: View {
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingS)
         }
-        // 覆盖式布局的滚动边距：顶为悬浮顶栏让出首屏位置
-        // （滚动时内容从其背后穿过）；底为悬浮层实测高度，
-        // 保证最后一条消息能滚到发送舱上方不被永久遮挡。
-        // 0.2.5：顶边距随中心胶囊高度上调（56→64）；另加
-        // 系统 scroll-edge 柔和渐隐——内容滚到顶栏区域时
-        // 先淡出再到达玻璃层，不与标题胶囊硬撞
+        // 滚动边距：顶为悬浮顶栏让出首屏位置（滚动时内容
+        // 从其背后穿过、经 topFade 渐隐带淡出）；底只留与
+        // 发送舱的小间隙——发送区本体已由下方 safeAreaInset
+        // 留位（0.2.6），不再按悬浮层实测高度给边距。
+        // .scrollEdgeEffectStyle(.soft) 保留，与渐隐带并用
+        // （白底上单独不可感、带子承担实际淡出，见 topFade）
         .contentMargins(.top, 64, for: .scrollContent)
         .scrollEdgeEffectStyle(.soft, for: .top)
-        .contentMargins(
-            .bottom, bottomOverlayHeight + OneDayMetrics.spacingS,
-            for: .scrollContent
-        )
+        .contentMargins(.bottom, OneDayMetrics.spacingS, for: .scrollContent)
+        // 0.2.6 承载换代核心：发送区进列表的底部安全区
+        // 留位——Exyte/Stream 式「列表＋发送区同处布局流」
+        // （DESIGN-V4 §10）。键盘避让自此走系统安全区通道：
+        // 键盘升起留位随安全区顶到键盘上方、交互收起跟随，
+        // 发送舱高度只由内容决定（回归测试
+        // ComposerKeyboardTests 在此结构上继续把守 54±4）
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            bottomBar(proxy)
+        }
         .scrollDismissesKeyboard(.interactively)
         .onScrollGeometryChange(for: Bool.self) { geometry in
             geometry.contentSize.height - geometry.contentOffset.y
@@ -537,6 +578,18 @@ struct ChatView: View {
     /// 的中心差约 1pt（视觉居中）；多行时两键底边与 field
     /// 底边齐平，锚在最后一行。胶囊单行总高＝38＋舱内纵
     /// 向边距 16＝54（约 52 规格）
+    /// 0.2.6 承载换代（DESIGN-V4 §10）：本舱已不在覆盖式
+    /// ZStack 里——由列表 .safeAreaInset 承载（见
+    /// messageList/chatSurface），键盘避让走系统安全区
+    /// 通道；上方 fixedSize 断环保留作双保险。另加形状
+    /// 变形：单行 Capsule、多行 RoundedRectangle(24,
+    /// continuous)，由 field 实测高度驱动（见 composerShape）。
+    private var composerShape: AnyShape {
+        composerMultiline
+            ? AnyShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            : AnyShape(Capsule())
+    }
+
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             if !attachments.isEmpty {
@@ -559,13 +612,26 @@ struct ChatView: View {
                         // 提议确定高度时会把提议值当自身高度——
                         // fixedSize 把它的高度锁回内容理想值
                         .fixedSize(horizontal: false, vertical: true)
+                        // 0.2.6 多行形状判据：field 实测高（含其
+                        // 纵向 padding 8×2）单行 38，跨过 44 即
+                        // 多行——驱动玻璃形状变形（见下）
+                        .onGeometryChange(for: CGFloat.self) { geometry in
+                            geometry.size.height
+                        } action: { _, newHeight in
+                            composerMultiline = newHeight > 44
+                        }
                     trailingControl
                 }
                 .padding(.horizontal, OneDayMetrics.spacingS)
                 .padding(.vertical, OneDayMetrics.spacingS)
                 .fixedSize(horizontal: false, vertical: true)
-                .glassEffect(.regular, in: Capsule())
+                // 0.2.6 形状随行数变形（对照 Muse 多行态）：
+                // 单行 Capsule、多行固定圆角 24 圆角矩形——
+                // Capsule 拉长成体育场形大气球是用户点名
+                // 「内容多了为什么变这样」的形状根源
+                .glassEffect(.regular, in: composerShape)
                 .glassEffectUnion(id: "composer", namespace: composerGlass)
+                .animation(.easeInOut(duration: 0.18), value: composerMultiline)
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)

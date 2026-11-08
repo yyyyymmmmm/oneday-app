@@ -50,8 +50,7 @@ struct ContentView: View {
                 }
             )
             .tabItem {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .symbolVariant(.none)
+                tabSymbol("bubble.left.and.bubble.right")
                     .accessibilityLabel("聊天")
                     .accessibilityIdentifier("tab.chat")
             }
@@ -71,8 +70,7 @@ struct ContentView: View {
             .tabItem {
                 // 0.2.5：原 gauge.with.dots.needle.33percent 是
                 // 带实心圆点的粗字形，换细线条的趋势线图
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .symbolVariant(.none)
+                tabSymbol("chart.line.uptrend.xyaxis")
                     .accessibilityLabel("总览")
                     .accessibilityIdentifier("tab.overview")
             }
@@ -80,8 +78,7 @@ struct ContentView: View {
 
             FilesView()
                 .tabItem {
-                    Image(systemName: "folder")
-                        .symbolVariant(.none)
+                    tabSymbol("folder")
                         .accessibilityLabel("文件")
                         .accessibilityIdentifier("tab.files")
                 }
@@ -91,13 +88,33 @@ struct ContentView: View {
                 .tabItem {
                     // 0.2.5：gearshape 是实心剪影、无更细的同义
                     // 齿轮符号，换线条体的滑杆组（偏好设置字形）
-                    Image(systemName: "slider.horizontal.3")
-                        .symbolVariant(.none)
+                    tabSymbol("slider.horizontal.3")
                         .accessibilityLabel("设置")
                         .accessibilityIdentifier("tab.settings")
                 }
                 .tag(MainTab.settings)
         }
         .tint(Palette.ink)
+    }
+
+    /// 0.2.6 检查项 C＋底栏图标再小一号：tab 图标改预渲染
+    /// UIImage——以 SymbolConfiguration(pointSize: 21,
+    /// weight: .regular) 在生成时就把字形烘焙死。
+    /// 核查结论（真机 0.2.5 截图 folder 与选中态聊天仍读作
+    /// 实心黑块）：SwiftUI 的 .symbolVariant(.none) 没有锁住
+    /// 底栏渲染——UITabBar 在选中态仍按自己的规则换 .fill
+    /// 变体、且 tab 图标点数不受 SwiftUI font/配置控制
+    /// （系统默认约 26–28pt 视觉）。预渲染位图没有变体可
+    /// 换：两态同一张线条字形，根除 fill 切换；点数 21 落
+    /// 在用户直令的 20–22 目标带内，点击热区是 tab 条目
+    /// 本身、不随字形缩小。位图按 alpha 模板渲染，.tint
+    /// 墨色照常生效。
+    private func tabSymbol(_ name: String) -> Image {
+        let configuration = UIImage.SymbolConfiguration(
+            pointSize: 21, weight: .regular
+        )
+        let image = UIImage(systemName: name, withConfiguration: configuration)
+            ?? UIImage()
+        return Image(uiImage: image)
     }
 }
