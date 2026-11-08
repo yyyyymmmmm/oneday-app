@@ -87,9 +87,13 @@ final class ScreenshotTests: XCTestCase {
         waitText(app, "帮我看看服务器状态")
         capture("04-overview")
 
-        // 文件（0.2.2 交付物库）：影音网格为先（§6 形态分工）
+        // 文件（0.2.2 交付物库）：影音网格为先（§6 形态分工）；
+        // 分段标签是按钮不是 staticText，直接等控件出现
         app.buttons["tab.files"].tap()
-        waitText(app, "影音")
+        XCTAssertTrue(
+            app.segmentedControls.buttons["影音"].waitForExistence(timeout: 20),
+            "未等到分段控件：影音"
+        )
         settle()
         capture("05-files")
 
