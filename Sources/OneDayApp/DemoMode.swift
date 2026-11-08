@@ -1,17 +1,17 @@
 import Foundation
 import SwiftData
 
-/// 截图验收环的演示模式：只由启动参数触发，正常启动零影响。
+/// 演示模式：只由启动参数触发，正常启动零影响。
 /// - `-odDemoMode`：直接进已连接状态，五页全用本地静态样本驱动，
 ///   不连任何服务器、不读写 Keychain、不落真实数据（内存库）。
 /// - `-odDemoConnect`：停在连接页，字段预填展示值（账号 admin，
-///   密码与密钥为占位假串，SecureField 里只显示圆点），供截
-///   未连接态。点「测试并连接」会走 DemoHermesClient 的假探活
-///   成功进主界面，全程不碰网络与钥匙串。
-/// - `-odDemoFocusComposer`（0.2.8，与 -odDemoMode 叠加）：
-///   焦点响应链自检——进主界面落稳后 App 本体程序化聚焦
-///   发送舱，截图环断言键盘升起（DESIGN-V4 §12.2）。生产
-///   启动永不带此参数。
+///   密码与密钥为占位假串，SecureField 里只显示圆点）。点「测试
+///   并连接」会走 DemoHermesClient 的假探活成功进主界面，全程
+///   不碰网络与钥匙串。
+/// 注：本模式原为已停用的 CI 截图验收环服务；截图环与自检
+/// 脚手架已按用户令根除（DESIGN-V4 §13），本枚举与种子数据
+/// 保留——它们只在显式启动参数下激活、生产路径恒为 .off，
+/// 留作本地人工演示/调试入口，不属于交付验收路径。
 enum DemoMode: Equatable {
     case off
     case connected
@@ -29,42 +29,11 @@ enum DemoMode: Equatable {
     }
 
     var isDemo: Bool { self != .off }
-
-    /// 焦点自检开关（正交于模式本体，只在演示态被消费）
-    static var focusComposerOnLaunch: Bool {
-        ProcessInfo.processInfo.arguments.contains("-odDemoFocusComposer")
-    }
-
-    /// `-odDemoComposerText <two|four|wrap>`：向发送舱注入
-    /// 定长文本当多行量测台（DESIGN-V4 §13）。仅演示模
-    /// 式由 ChatView 消费，生产无此行为。
-    static var composerTextCase: String? {
-        let args = ProcessInfo.processInfo.arguments
-        guard let idx = args.firstIndex(of: "-odDemoComposerText"),
-              idx + 1 < args.count else { return nil }
-        return args[idx + 1]
-    }
-
-    /// 注入文本（行数可预期）：two＝短句 2 行、four＝短
-    /// 句 4 行、wrap＝37 字单行长句、在发送舱宽度下缠绕
-    /// 3 行。
-    static func composerText(for caseName: String) -> String? {
-        switch caseName {
-        case "two":
-            return "量测两行甲班\n量测两行乙班"
-        case "four":
-            return "量测四行甲班\n量测四行乙班\n量测四行丙班\n量测四行丁班"
-        case "wrap":
-            return "量测长句缠绕排版验证文字自然增长四季轮换工作日程安排与提醒事项同步完成存档"
-        default:
-            return nil
-        }
-    }
 }
 
 /// 演示样本对话的播种：内存库每次启动都是空的，播一份拟真多轮
-/// 对话（状态询问 → 代码块 → 长回复 → 收尾），让聊天页截图能同
-/// 时看到用户气泡、助手裸排、代码块与长文。最后一句用户消息的
+/// 对话（状态询问 → 代码块 → 长回复 → 收尾），让聊天演示页能
+/// 同时看到用户气泡、助手裸排、代码块与长文。最后一句用户消息的
 /// 回复不在种子里，由演示模式开流补上（截流式帧用）。
 enum DemoSeeder {
     @MainActor

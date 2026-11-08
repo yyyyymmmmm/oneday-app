@@ -44,7 +44,7 @@ struct ChatView: View {
     @State private var drawerDrag: CGFloat = 0
     /// 消息区是否贴近底部：决定自动跟随滚动与「回到底部」钮
     @State private var isNearBottom = true
-    /// 演示模式自动开流只跑一次（截图环截流式帧用）
+    /// 演示模式自动开流只跑一次（演示态展示流式效果用）
     @State private var demoStreamStarted = false
     /// 0.2.1 附件与键盘：待发附件、三种选择器开关、输入焦点
     @State private var attachments: [PendingAttachment] = []
@@ -170,12 +170,6 @@ struct ChatView: View {
         }
         .task {
             await startDemoStreamIfNeeded()
-        }
-        .task {
-            await focusComposerForDemoSelfCheckIfNeeded()
-        }
-        .task {
-            await injectDemoComposerTextIfNeeded()
         }
         .task {
             await appState.refreshModelCatalog()
@@ -401,8 +395,8 @@ struct ChatView: View {
         // 留位——Exyte/Stream 式「列表＋发送区同处布局流」
         // （DESIGN-V4 §10）。键盘避让自此走系统安全区通道：
         // 键盘升起留位随安全区顶到键盘上方、交互收起跟随，
-        // 发送舱高度只由内容决定（回归测试
-        // ComposerKeyboardTests 在此结构上继续把守 54±4）
+        // 发送舱高度只由内容决定（高度口径归 Composer-
+        // Layout/ComposerTextMetrics 纯逻辑＋单测把守，§13）
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomBar(proxy)
         }
@@ -1321,48 +1315,16 @@ struct ChatView: View {
         }
     }
 
-    /// 演示模式焦点自检（0.2.8，DESIGN-V4 §12.2）：启动参数
-    /// -odDemoFocusComposer 时，界面落稳后经焦点句柄程序化
-    /// 聚焦发送舱——截图环的对应 UI 测试断言键盘升起，证明
-    /// 「窗口→文本视图→第一响应者→键盘」响应链通。只走演
-    /// 示模式（生产启动参数永不带此项，正常路径第一行返回）。
-    /// 注意这不是 XCUI 点按聚焦：聚焦由 App 本体发起，绕开
-    /// 测试工具的合成点按（其驱动不了 representable 是已
-    /// 知的工具侧限制，见 §11.4）
-    private func focusComposerForDemoSelfCheckIfNeeded() async {
-        guard DemoMode.current.isDemo, DemoMode.focusComposerOnLaunch else {
-            return
-        }
-        // 等首帧与种子落稳，句柄登记完成后聚焦（句柄自身
-        // 亦有 pending 兜底，双保险）
-        try? await Task.sleep(for: .milliseconds(900))
-        composerFocusHandle.focus()
-    }
-
-    /// 演示专用（DESIGN-V4 §13）：`-odDemoComposerText
-    /// <two|four|wrap>` 指定时把定长文本注入发送舱，UI
-    /// 测试据字段与胶囊的渲染帧量多行高度。生产包启动参
-    /// 数永不带此项，正常路径第一行返回。
-    private func injectDemoComposerTextIfNeeded() async {
-        guard let caseName = DemoMode.composerTextCase,
-              let text = DemoMode.composerText(for: caseName)
-        else { return }
-        try? await Task.sleep(for: .milliseconds(800))
-        if input.isEmpty { input = text }
-    }
-
     /// 演示模式：种子对话的最后一句用户消息由假客户端流式回完，
-    /// 让截图环能截到「半截回复＋流式光标」的静止帧。正常模式
+    /// 演示态能看到「半截回复＋流式光标」的流式效果。正常模式
     /// 直接返回，零影响。
     private func startDemoStreamIfNeeded() async {
         guard DemoMode.current.isDemo, !demoStreamStarted else {
             return
         }
-        // 0.2.7 演示流稳健性（DESIGN-V4 §11.6）：test02 在
-        // 截图环整套里等流式文本超时、单独跑却绿——跨测试
-        // 状态污染/整套负载下 .task 与种子落定更慢。等待改
-        // 有界长预算（线程与连接态齐备才开流，上限 20s），
-        // 演示专用路径，正常模式第一行已返回
+        // 演示流稳健性（DESIGN-V4 §11.6 历史）：等待改有界
+        // 长预算（线程与连接态齐备才开流，上限 20s），演示
+        // 专用路径，正常模式第一行已返回
         for _ in 0..<80 where currentThread == nil {
             try? await Task.sleep(for: .milliseconds(250))
         }

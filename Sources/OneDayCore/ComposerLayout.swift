@@ -44,6 +44,21 @@ public enum ComposerLayout {
     /// 锚——单行时文本侧与键侧同高，键再大胶囊必超规格
     public static let buttonHeight: CGFloat = 30
 
+    /// 横向 chrome 合计（容器宽 → 文本视图宽的扣减，
+    /// 0.2.9 宽度同源审计，DESIGN-V4 §13）：inputBar 横
+    /// 向边距 12×2＝24＋composerRow 横向边距 8×2＝16＋
+    /// 两键直径 30×2＝60＋HStack 间距 8×2＝16＋字段横
+    /// 向边距 8×2＝16，合计 132。逐项对应 ChatView 的
+    /// padding/frame 定义（spacingSM 12、spacingS 8、
+    /// buttonHeight 30）——改那边的几何必同步改这里，
+    /// 量测宽与布局宽共用这一份扣减表
+    public static let horizontalChrome: CGFloat = 132
+
+    /// 文本视图宽（量测与布局同源的那个宽度）
+    public static func textWidth(forContainerWidth width: CGFloat) -> CGFloat {
+        max(width - horizontalChrome, 0)
+    }
+
     /// 空文本也按一行计：量高下限为一行
     public static func effectiveTextHeight(measured: CGFloat) -> CGFloat {
         max(measured, lineHeight)

@@ -71,23 +71,13 @@ let project = Project(
             sources: ["Tests/OneDayCoreTests/**"],
             dependencies: [.target(name: "OneDayCore")]
         ),
-        .target(
-            name: "OneDayUITests",
-            destinations: .iOS,
-            product: .uiTests,
-            bundleId: "site.didichou.oneday.uitests",
-            deploymentTargets: iOS26,
-            infoPlist: .default,
-            sources: ["Tests/OneDayUITests/**"],
-            dependencies: [.target(name: "OneDayApp")]
-        ),
     ],
     schemes: [
         .scheme(
             name: "OneDayApp",
             shared: true,
             buildAction: .buildAction(targets: ["OneDayApp"]),
-            testAction: .targets(["OneDayCoreTests", "OneDayUITests"]),
+            testAction: .targets(["OneDayCoreTests"]),
             runAction: .runAction(executable: "OneDayApp")
         ),
     ]

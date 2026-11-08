@@ -15,11 +15,13 @@ import UIKit
 /// 产生该提议，三路构造均不复现。
 /// 改走成熟聊天库的量高架构（Exyte/Chat 与 InputBar-
 /// AccessoryView 的 InputTextView 一脉）：高度只有一个
-/// 权威来源——文本视图自己的布局管理器。sizeThatFits
-/// 以提议宽度量当前文本（含 marked 段，与 IME 同路）的
-/// 真实行高，封顶／内滚／形状判据的算术归 OneDayCore
-/// 的 ComposerLayout 纯逻辑（单测把守）；玻璃行高＝本
-/// 视图高＋固定边距，不存在第二方提议能把盒子撑开。
+/// 权威来源——文本布局本身。
+/// 0.2.9 纯逻辑定案（DESIGN-V4 §13）：行数由 OneDayCore
+/// 的 ComposerTextMetrics 以 TextKit（NSLayoutManager）
+/// 在与实际布局完全相同的字体（单一来源 bodyFont）与
+/// 宽度（sizeThatFits 的布局提议宽）下数出，胶囊高只
+/// 由 ComposerLayout 纯函数决定（单测把守）；玻璃行高
+/// ＝本视图高＋固定边距，不存在第二方提议能把盒子撑开。
 ///
 /// 0.2.8 焦点拆桥（DESIGN-V4 §12）：0.2.7 的 @FocusState
 /// 边沿桥是真机「点输入框键盘弹不出」的定案元凶——UIKit
@@ -46,13 +48,14 @@ struct ComposerTextView: UIViewRepresentable {
         Coordinator(parent: self)
     }
 
-    /// 正文口径（0.2.8，DESIGN-V4 §12.3）：固定 16pt 系统
-    /// 字体——与 Muse 输入行看齐（其文字行约 20pt）；
-    /// ComposerLayout.lineHeight=19.17 是该字体的 CI 帧实
-    /// 测行高（0.2.9 校准，§13.2），与此同口径。
-    /// 不再跟随 Dynamic Type 放大，否则单行规格随系统字
-    /// 号档漂移、量高口径与排版口径脱钩
-    private static var bodyFont: UIFont { .systemFont(ofSize: 16) }
+    /// 正文口径：固定 16pt 系统字体——与 Muse 输入行看
+    /// 齐（其文字行约 20pt）。字体单一来源在 OneDayCore
+    /// 的 ComposerTextMetrics（量测与渲染共用，不许在此
+    /// 另立一份）；ComposerLayout.lineHeight=19.17 是该
+    /// 字体的实测行高、与 bodyFont.lineHeight 的一致性
+    /// 由单测把守（§13）。不再跟随 Dynamic Type 放大，
+    /// 否则单行规格随系统字号档漂移、量高与排版脱钩
+    private static var bodyFont: UIFont { ComposerTextMetrics.bodyFont }
 
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView()
@@ -118,36 +121,38 @@ struct ComposerTextView: UIViewRepresentable {
         refreshScroll(textView)
     }
 
-    /// 高度权威：以提议宽度量文本真实高度（含 marked 段），
-    /// 封顶口径走 ComposerLayout；未封顶实测值另行回调，
-    /// 供 ChatView 判多行形状
+    /// 高度权威（0.2.9 纯逻辑定案，§13）：行数由
+    /// ComposerTextMetrics 以 TextKit 在提议宽（＝实际布
+    /// 局宽）与单一来源字体下数出（含 marked 段——组合
+    /// 文本同在 textView.text 里，与 IME 同路），高度只
+    /// 经 ComposerLayout 纯函数封顶；未封顶实测值另行
+    /// 回调，供 ChatView 判多行形状
     func sizeThatFits(
         _ proposal: ProposedViewSize,
         uiView textView: UITextView,
         context: Context
     ) -> CGSize? {
         guard let width = proposal.width, width > 0 else { return nil }
-        let fitted = textView.sizeThatFits(
-            CGSize(width: width, height: .greatestFiniteMagnitude)
+        let reported = ComposerTextMetrics.textHeight(
+            for: textView.text ?? "", width: width
         )
-        let reported = fitted.height
         DispatchQueue.main.async {
             onMeasuredHeight(reported)
         }
         return CGSize(
             width: width,
-            height: ComposerLayout.cappedTextHeight(measured: fitted.height)
+            height: ComposerLayout.cappedTextHeight(measured: reported)
         )
     }
 
     /// 过上限才内滚（在文本变化与回写时刷新，不在量高里改状态）
     private func refreshScroll(_ textView: UITextView) {
         guard textView.bounds.width > 0 else { return }
-        let fitted = textView.sizeThatFits(
-            CGSize(width: textView.bounds.width, height: .greatestFiniteMagnitude)
+        let fitted = ComposerTextMetrics.textHeight(
+            for: textView.text ?? "", width: textView.bounds.width
         )
         textView.isScrollEnabled =
-            ComposerLayout.shouldScroll(measured: fitted.height)
+            ComposerLayout.shouldScroll(measured: fitted)
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {

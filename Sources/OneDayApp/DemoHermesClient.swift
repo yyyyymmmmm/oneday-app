@@ -56,9 +56,8 @@ struct DemoHermesClient: HermesClientProtocol {
         ["deepseek-flash", "deepseek-v4-pro", "deepseek-chat"]
     }
 
-    /// 演示流式：把定稿回复逐字慢速产出，让截图环能截到
-    /// 「已出半截字＋流式光标」的静止帧；总时长约 14 秒
-    ///（首轮 5 秒版实测在 CI 里截到的是已完成帧，故放慢）。
+    /// 演示流式：把定稿回复逐字慢速产出，演示态能看到
+    /// 「已出半截字＋流式光标」的流式效果；总时长约 14 秒。
     func chatStream(
         config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage]
     ) -> AsyncThrowingStream<String, Error> {

@@ -1,3 +1,4 @@
+import OneDayCore
 import OneDayDesign
 import SwiftUI
 
@@ -97,58 +98,15 @@ struct ContentView: View {
         .tint(Palette.ink)
     }
 
-    /// 0.2.6 检查项 C＋底栏图标再小一号：tab 图标改预渲染
-    /// UIImage——以 SymbolConfiguration(pointSize: 21,
-    /// weight: .regular) 在生成时就把字形烘焙死。
-    /// 核查结论（真机 0.2.5 截图 folder 与选中态聊天仍读作
-    /// 实心黑块）：SwiftUI 的 .symbolVariant(.none) 没有锁住
-    /// 底栏渲染——UITabBar 在选中态仍按自己的规则换 .fill
-    /// 变体、且 tab 图标点数不受 SwiftUI font/配置控制
-    /// （系统默认约 26–28pt 视觉）。预渲染位图没有变体可
-    /// 换：两态同一张线条字形，根除 fill 切换；点数 21 落
-    /// 在用户直令的 20–22 目标带内，点击热区是 tab 条目
-    /// 本身、不随字形缩小。位图按 alpha 模板渲染，.tint
-    /// 墨色照常生效。
-    /// 0.2.7 按官方口径再校准（DESIGN-V4 §11.0）：定案标准
-    /// 改为「字形墨迹高 23–25pt」——HIG《Tab bars》指向的
-    /// Apple Design Resources 字形规格约 25pt。0.2.7 当时
-    /// 以 config 双气泡 12／其余 15 定案并报墨迹 23–24，
-    /// 但其量测出自 CI 截图的像素换算，与真机不符（见下）。
-    /// 0.2.8 真机实测校准（DESIGN-V4 §12.3）：用户同机同
-    /// 批真机截图由主代理逐个量过——0.2.7（config 12/15）
-    /// 图标尺寸定案（DESIGN-V4 §13.1，量测口径对齐后）：
-    /// 同一套 PIL 量法（底栏带、灰度 <110、包围盒、选中
-    /// 胶囊底色在阈值外）量三图——CI 与真机同 config 墨
-    /// 迹差约 1.31×（真机大），混用口径是前三轮修不对的
-    /// 深层原因；校准只认真机锚点：0.2.6 真机（config 21
-    /// 无画布）墨迹 气泡 30.3／其余 23.0–25.3，Muse 真
-    /// 机字形实测约 22（非目测的 24）。目标取 23（Muse
-    /// 实测与 24±2 规格的中点），按真机锚线性反推：其余
-    /// 21→20、气泡 21→16；预测真机墨迹约 23、CI 复量约
-    /// 17（只验相对增量）。字形烘焙进固定 44×44pt 透明画
-    /// 布居中绘制：四个条目位图同尺寸，系统排版基准一
-    /// 致、只缩墨迹不动槽位与热区；烘焙图须显式
-    /// .alwaysTemplate（渲染器产物默认 original，tint 会
-    /// 失效）。
+    /// 底栏字形（0.2.9 确定性路线，DESIGN-V4 §13）：
+    /// 图由 OneDayCore.TabBarSymbols 构造——SF Symbol 以
+    /// 显式 pointSize 按目标字形高 24pt 定标生成（alpha
+    /// 包围盒定标、无画布无缩放环节），字形高由构造保
+    /// 证、单测断言 24±2 定案。生成图是位图、无符号变体
+    /// 可换，0.2.5 的选中态 .fill 切换问题天然免疫；位图
+    /// 按 alpha 模板渲染，.tint 墨色照常生效；点击热区是
+    /// tab 条目本身、不随字形变化。
     private func tabSymbol(_ name: String) -> Image {
-        let pointSize: CGFloat =
-            name == "bubble.left.and.bubble.right" ? 16 : 20
-        let configuration = UIImage.SymbolConfiguration(
-            pointSize: pointSize, weight: .regular
-        )
-        let glyph = UIImage(systemName: name, withConfiguration: configuration)
-            ?? UIImage()
-        let canvas = CGSize(width: 44, height: 44)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 3
-        let baked = UIGraphicsImageRenderer(size: canvas, format: format)
-            .image { _ in
-                glyph.draw(at: CGPoint(
-                    x: (canvas.width - glyph.size.width) / 2,
-                    y: (canvas.height - glyph.size.height) / 2
-                ))
-            }
-            .withRenderingMode(.alwaysTemplate)
-        return Image(uiImage: baked)
+        Image(uiImage: TabBarSymbols.image(named: name))
     }
 }
