@@ -113,13 +113,7 @@ struct SettingsView: View {
 
     private var serverGroup: some View {
         groupBlock("服务器与连接", isFirst: true) {
-            navRow(
-                icon: "server.rack", title: "当前服务器",
-                value: appState.config?.host ?? "—",
-                route: .serverDetail,
-                valueStyle: .monoFootnote,
-                dot: status.map { Palette.stateColor($0.gatewayState) }
-            )
+            serverRow
             GroupDivider(inset: OneDayMetrics.dividerInset)
             navRow(
                 icon: "rectangle.stack.person.crop", title: "档案 Profile",
@@ -128,6 +122,40 @@ struct SettingsView: View {
             GroupDivider(inset: OneDayMetrics.dividerInset)
             disconnectRow
         }
+    }
+
+    /// 当前服务器行：两行式（标题＋主机名）——主机名是长标识，
+    /// 单行值位在图标＋标题＋状态点＋箭头的竞争下必截断
+    /// （0.2.0/0.2.1 两轮截图实证），改两行后完整可读
+    private var serverRow: some View {
+        Button {
+            path.append(.serverDetail)
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                rowIcon("server.rack")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("当前服务器")
+                        .font(TypeScale.body)
+                        .foregroundStyle(Palette.ink)
+                    Text(appState.config?.host ?? "—")
+                        .font(TypeScale.monoFootnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
+                if let status {
+                    StatusDot(color: Palette.stateColor(status.gatewayState))
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.inkMuted)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var disconnectRow: some View {
