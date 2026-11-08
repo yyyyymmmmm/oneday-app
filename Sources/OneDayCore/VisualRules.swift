@@ -59,14 +59,19 @@ public enum TextShaping {
         let bindCount = closingPunctuation.contains(chars[chars.count - 1])
             ? 3 : 2
         guard chars.count > bindCount else { return paragraph }
-        var result = chars
-        // 在倒数第 bindCount 个字形之前插入 WORD JOINER，
-        // 把最后 bindCount 个字形绑成不可断单元
-        result.insert(
-            Character(wordJoiner),
-            at: chars.count - bindCount
-        )
-        return String(result)
+        // WORD JOINER 插在尾部字形「之间」（逐对绑定）：
+        // 它禁止两侧断行，把最后 bindCount 个字形锁成
+        // 不可断单元——要防的是最后一字被断行孤立，绑
+        // 定点必须落在尾部内部而非尾部之前（0.3.0 首轮
+        // 单测以此定案：插在尾前时末字仍可被断开）
+        var result = ""
+        for (index, character) in chars.enumerated() {
+            if index >= chars.count - bindCount + 1 {
+                result += wordJoiner
+            }
+            result.append(character)
+        }
+        return result
     }
 
     /// 全文版：按空行分段，逐段整形后拼回（段内换行不动）

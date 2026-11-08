@@ -23,15 +23,15 @@ final class VisualRulesTests: XCTestCase {
         XCTAssertEqual(TextShaping.prettyWrap("好"), "好")
     }
 
-    /// 条 8：末字为句末标点时绑三个字形
+    /// 条 8：末字为句末标点时绑三个字形（尾内逐对绑）
     func testPrettyWrapBindsThreeBeforeClosingPunctuation() {
         let shaped = TextShaping.prettyWrap("已经处理完了。")
-        XCTAssertEqual(shaped, "已经处理\u{2060}完了。")
+        XCTAssertEqual(shaped, "已经处理完\u{2060}了\u{2060}。")
     }
 
     /// 条 8：含换行的行不整形；文档版逐行施加
     func testPrettyWrapDocumentAppliesPerLine() {
         let doc = TextShaping.prettyWrapDocument("第一行文字\n第二行")
-        XCTAssertEqual(doc, "第一行文\u{2060}字\n第\u{2060}二行")
+        XCTAssertEqual(doc, "第一行文\u{2060}字\n第二\u{2060}行")
     }
 }
