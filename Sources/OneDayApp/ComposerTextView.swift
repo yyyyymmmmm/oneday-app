@@ -108,18 +108,9 @@ struct ComposerTextView: UIViewRepresentable {
         uiView textView: UITextView,
         context: Context
     ) -> CGSize? {
-        guard let width = proposal.width, width > 0 else { return nil }
-        let fitted = textView.sizeThatFits(
-            CGSize(width: width, height: .greatestFiniteMagnitude)
-        )
-        let reported = fitted.height
-        DispatchQueue.main.async {
-            onMeasuredHeight(reported)
-        }
-        return CGSize(
-            width: width,
-            height: min(fitted.height, Self.maxTextHeight)
-        )
+        // 【临时二分】最小实现：不用 sizeThatFits 量高，
+        // 回固定单行高验证 representable 本体命中/聚焦
+        return CGSize(width: proposal.width ?? 200, height: 22)
     }
 
     /// 过上限才内滚（在文本变化与回写时刷新，不在量高里改状态）
