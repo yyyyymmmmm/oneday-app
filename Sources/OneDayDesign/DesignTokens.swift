@@ -36,6 +36,8 @@ public enum TypeScale {
     public static let monoCallout = Font.system(.callout, design: .monospaced)
     /// 等宽元信息（计数）
     public static let monoFootnote = Font.system(.footnote, design: .monospaced)
+    /// 等宽最弱信息（窄行内的标识符，如抽屉底行模型名）
+    public static let monoCaption = Font.system(.caption, design: .monospaced)
     /// 等宽代码
     public static let monoCode = Font.system(.footnote, design: .monospaced)
 }

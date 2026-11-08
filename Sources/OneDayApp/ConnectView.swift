@@ -82,11 +82,16 @@ struct ConnectView: View {
         .background(Palette.pageBG)
         .onAppear {
             if DemoMode.current == .connectPage {
-                // 演示预填：出现在首帧之后赋值，SecureField
-                // 圆点与行高都正常（init 预填会触发渲染缺陷）
-                username = "admin"
-                password = "demo-password"
-                apiKey = "demo-api-key"
+                // 演示预填：延迟到字段完成首帧布局后再赋值——
+                // init 预填与 onAppear 同帧赋值都试过，SecureField
+                // 圆点仍不渲染（0.1.3 前两轮截图实证）；延迟赋值
+                // 与粘贴/自动填充同路径，圆点与行高恢复正常
+                Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    username = "admin"
+                    password = "demo-password"
+                    apiKey = "demo-api-key"
+                }
             }
             withAnimation(MotionTokens.resolved(MotionTokens.entrance, reduceMotion: reduceMotion)) {
                 appeared = true

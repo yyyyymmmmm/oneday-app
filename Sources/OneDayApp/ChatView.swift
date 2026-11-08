@@ -449,18 +449,20 @@ struct ChatView: View {
                 setDrawer(false)
                 onOpenSettings()
             } label: {
-                HStack(spacing: OneDayMetrics.spacingS) {
+                HStack(spacing: OneDayMetrics.spacingXS) {
                     StatusDot(color: Palette.success)
                     Text(appState.config?.host ?? "未连接")
-                        .font(TypeScale.body)
+                        .font(TypeScale.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
-                    Spacer(minLength: OneDayMetrics.spacingS)
+                        .layoutPriority(1)
+                    Spacer(minLength: OneDayMetrics.spacingXS)
                     Text(appState.modelID)
-                        .font(TypeScale.monoFootnote)
+                        .font(TypeScale.monoCaption)
                         .foregroundStyle(Palette.inkMuted)
+                        .lineLimit(1)
                 }
-                .padding(.horizontal, OneDayMetrics.spacingM)
+                .padding(.horizontal, OneDayMetrics.spacingSM)
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 .contentShape(Rectangle())
             }
