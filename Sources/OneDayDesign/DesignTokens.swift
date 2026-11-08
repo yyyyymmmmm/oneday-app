@@ -1,11 +1,44 @@
 import SwiftUI
 
-// MARK: - 设计令牌（自礼记 DesignTokens 移植，纪律原文沿用）
-// 定版融合句：「纸墨为体，玻璃为用。」内容层（卡/列表/表单/消息）
-// 永远纸墨平面、零玻璃；玻璃只活在功能层（发送键、行动条、次按钮、
-// 指示器），且染色只许走主题强调令牌（Palette.primary /
+// MARK: - 设计令牌（v2 定版，见 docs/DESIGN-V2.md）
+// 定版融合句沿礼记：「纸墨为体，玻璃为用。」内容层（分组、列表、
+// 表单、消息）永远纸墨平面、零玻璃零阴影零描边；玻璃只活在功能
+// 层（发送键），且染色只许走主题强调令牌（Palette.primary /
 // primaryFill），禁止写死 hex。
-// 礼记的金额语义双色与衬线白名单不属于本 App，未移植。
+
+// MARK: - 字阶（定版 §3.1：一个家族、七档、三字重）
+
+/// 字体角色令牌：页面只许引用这里，不许自选字号字重。
+/// 家族只有一个（系统 SF Pro，中文落 PingFang SC）；等宽角色只
+/// 给四类真实数据：版本号、计数、时间、代码块。
+public enum TypeScale {
+    /// 每屏唯一的排版时刻（总览状态头）
+    public static let display = Font.title.weight(.semibold)
+    /// 页内大标题（连接页字标）
+    public static let title = Font.title2.weight(.semibold)
+    /// 行标题、按钮文字
+    public static let headline = Font.headline
+    /// 正文与助手回答
+    public static let body = Font.body
+    /// 次级正文（字段值、步骤名）
+    public static let callout = Font.callout
+    /// 说明文字（空态、错误正文）
+    public static let subhead = Font.subheadline
+    /// 元信息
+    public static let footnote = Font.footnote
+    /// 分区标题：medium、句首大写、无字距（禁大写 eyebrow）
+    public static let label = Font.footnote.weight(.medium)
+    /// 最弱信息（时间戳）
+    public static let caption = Font.caption
+    /// 等宽正文（版本号、host 等读数）
+    public static let monoBody = Font.system(.body, design: .monospaced)
+    /// 等宽次级（模型名等标识符读数）
+    public static let monoCallout = Font.system(.callout, design: .monospaced)
+    /// 等宽元信息（计数）
+    public static let monoFootnote = Font.system(.footnote, design: .monospaced)
+    /// 等宽代码
+    public static let monoCode = Font.system(.footnote, design: .monospaced)
+}
 
 // MARK: - Mat 材质三档（玻璃染色纪律）
 
@@ -48,9 +81,9 @@ public extension View {
     }
 }
 
-// MARK: - Elevation 两档
+// MARK: - Elevation（定版 §3.4：只剩浮层一档，内容层零阴影）
 
-/// 阴影规格令牌：全 App 阴影只许引用这两档。
+/// 阴影规格令牌。
 public struct ShadowSpec: Sendable {
     public let opacity: Double
     public let radius: CGFloat
@@ -64,10 +97,8 @@ public struct ShadowSpec: Sendable {
 }
 
 public enum Elevation {
-    /// 卡档：贴面卡片的轻投影
-    public static let card = ShadowSpec(opacity: 0.06, radius: 12, y: 4)
-    /// 浮档：浮层与悬浮控件
-    public static let floating = ShadowSpec(opacity: 0.18, radius: 14, y: 6)
+    /// 浮档：只给浮空输入区与浮空控件（中性黑、带 y 偏移的软影）
+    public static let floating = ShadowSpec(opacity: 0.14, radius: 16, y: 6)
 }
 
 public extension View {
@@ -85,15 +116,19 @@ public enum CornerRadius {
     }
 }
 
-// MARK: - Motion 曲线与行为令牌（值沿礼记审计枚举）
+// MARK: - Motion 白名单（定版 §3.6：四条，只动 opacity/transform）
 
 public enum MotionTokens {
-    /// 按压：一切点按反馈
-    public static let press = Animation.snappy(duration: 0.22, extraBounce: 0.05)
-    /// 液体弹簧：分段指示器滑移、Tab 形变等跟手位移
-    public static let liquidSpring = Animation.interactiveSpring(response: 0.34, dampingFraction: 0.72)
-    /// 页面交叉淡化：内容切换的默认过渡
-    public static let pageCrossfade = Animation.easeInOut(duration: 0.25)
+    /// press：一切点按反馈（150ms 内出）
+    public static let press = Animation.easeOut(duration: 0.15)
+    /// swap：内容替换、错误出现、步骤状态变化
+    public static let swap = Animation.easeInOut(duration: 0.2)
+    /// indicator：指示器滑移（无额外弹跳的弹簧）
+    public static let indicator = Animation.spring(response: 0.35, dampingFraction: 0.85)
+    /// entrance：每屏至多一次入场
+    public static let entrance = Animation.easeOut(duration: 0.45)
+    /// 页面交叉淡化（滚动跟随等既有调用点沿用 swap 时长口径）
+    public static let pageCrossfade = Animation.easeInOut(duration: 0.2)
 
     /// Reduce Motion 降级口径：开启时返回 nil（调用方以
     /// withAnimation(resolved) 包裹，nil 即瞬时切换）；Reduce

@@ -5,6 +5,9 @@ import SwiftUI
 
 /// 聊天页：本地会话（SwiftData）＋ /v1/chat/completions 流式。
 /// 上下文取当前会话最近 20 条；停止生成保留已生成的半截回复。
+/// v2 视觉（docs/DESIGN-V2.md §3.5）：助手回答裸排在底色上（学
+/// ChatGPT/Claude 的共识）、用户是浅染气泡、输入区是浮空胶囊，
+/// 流式光标是本页的签名细节、也是全页唯一的蓝色时刻之一。
 struct ChatView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -70,7 +73,7 @@ struct ChatView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
+                LazyVStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
                     if let thread = currentThread {
                         ForEach(thread.sortedEntries) { entry in
                             bubble(entry)
@@ -78,17 +81,24 @@ struct ChatView: View {
                         }
                     }
                     if let streamingText {
-                        streamingBubble(streamingText)
+                        streamingRow(streamingText)
                             .id("streaming")
                     }
                     if currentThread == nil && !isStreaming {
-                        emptyState
+                        EmptyState(
+                            icon: "bubble.left.and.bubble.right",
+                            title: "和你的 Hermes 聊聊",
+                            message: "消息经你自己的服务器发给 Agent，记录只存这台手机。"
+                        )
+                        .padding(.top, OneDayMetrics.spacingXXL)
                     }
                     Color.clear
                         .frame(height: 1)
                         .id("bottom")
                 }
-                .padding(OneDayMetrics.spacingM)
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingS)
             }
             .onChange(of: currentThread?.sortedEntries.count) { _, _ in
                 scrollToBottom(proxy)
@@ -105,127 +115,81 @@ struct ChatView: View {
         }
     }
 
+    @ViewBuilder
     private func bubble(_ entry: ChatEntry) -> some View {
-        HStack {
-            if entry.role == "user" {
-                Spacer(minLength: OneDayMetrics.spacingXL)
+        if entry.role == "user" {
+            HStack {
+                Spacer(minLength: 44)
+                Text(entry.content)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        Palette.primaryTint,
+                        in: RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
+                    )
             }
-            Group {
-                if entry.role == "user" {
-                    Text(entry.content)
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                        .padding(.horizontal, OneDayMetrics.spacingSM)
-                        .padding(.vertical, OneDayMetrics.spacingS)
-                        .background(
-                            Palette.primaryTint,
-                            in: RoundedRectangle(
-                                cornerRadius: OneDayMetrics.cardCorner
-                            )
-                        )
-                } else {
-                    MarkdownText(entry.content)
-                        .padding(.horizontal, OneDayMetrics.spacingSM)
-                        .padding(.vertical, OneDayMetrics.spacingS)
-                        .background(
-                            Palette.surface,
-                            in: RoundedRectangle(
-                                cornerRadius: OneDayMetrics.cardCorner
-                            )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: OneDayMetrics.cardCorner)
-                                .strokeBorder(Palette.line, lineWidth: 1)
-                        )
-                }
-            }
-            if entry.role != "user" {
-                Spacer(minLength: OneDayMetrics.spacingXL)
-            }
+        } else {
+            MarkdownText(entry.content)
         }
     }
 
-    private func streamingBubble(_ text: String) -> some View {
-        HStack {
-            Group {
-                if text.isEmpty {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        ProgressView()
-                        Text("正在思考…")
-                            .font(.callout)
-                            .foregroundStyle(Palette.sub)
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingSM)
-                    .padding(.vertical, OneDayMetrics.spacingS)
-                } else {
-                    MarkdownText(text)
-                        .padding(.horizontal, OneDayMetrics.spacingSM)
-                        .padding(.vertical, OneDayMetrics.spacingS)
-                }
+    @ViewBuilder
+    private func streamingRow(_ text: String) -> some View {
+        if text.isEmpty {
+            TypingDots()
+                .padding(.vertical, OneDayMetrics.spacingXS)
+        } else {
+            HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
+                MarkdownText(text)
+                StreamingCaret()
             }
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(cornerRadius: OneDayMetrics.cardCorner)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: OneDayMetrics.cardCorner)
-                    .strokeBorder(Palette.line, lineWidth: 1)
-            )
-            Spacer(minLength: OneDayMetrics.spacingXL)
         }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: OneDayMetrics.spacingS) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.largeTitle)
-                .foregroundStyle(Palette.primary)
-            Text("和你的 Hermes 聊聊")
-                .font(.headline)
-                .foregroundStyle(Palette.ink)
-            Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
-                .font(.footnote)
-                .foregroundStyle(Palette.sub)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, OneDayMetrics.spacingXL)
     }
 
     // MARK: - 输入与错误
 
     private func errorBanner(_ message: String) -> some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
-            Image(systemName: "exclamationmark.triangle")
-            Text(message)
-                .font(.footnote)
-            Spacer()
-            Button {
-                errorMessage = nil
-            } label: {
-                Image(systemName: "xmark")
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Palette.hairline)
+                .frame(height: 1)
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Palette.danger)
+                    .accessibilityHidden(true)
+                Text(message)
+                    .font(TypeScale.subhead)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+                Button {
+                    errorMessage = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .accessibilityLabel("关闭")
             }
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.vertical, OneDayMetrics.spacingS)
         }
-        .foregroundStyle(Palette.danger)
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .background(Palette.surface)
+        .background(Palette.pageBG)
     }
 
     private var inputBar: some View {
         HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
             TextField("发消息…", text: $input, axis: .vertical)
                 .lineLimit(1...5)
-                .padding(.horizontal, OneDayMetrics.spacingSM)
-                .padding(.vertical, OneDayMetrics.spacingS)
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .padding(.vertical, OneDayMetrics.spacingSM)
                 .background(
                     Palette.surface,
-                    in: RoundedRectangle(cornerRadius: OneDayMetrics.cardCorner)
+                    in: RoundedRectangle(cornerRadius: OneDayMetrics.composerCorner)
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: OneDayMetrics.cardCorner)
-                        .strokeBorder(Palette.line, lineWidth: 1)
-                )
+                .odElevation(Elevation.floating)
             Button {
                 if isStreaming {
                     sendTask?.cancel()
@@ -234,7 +198,7 @@ struct ChatView: View {
                 }
             } label: {
                 Image(systemName: isStreaming ? "stop.fill" : "arrow.up")
-                    .font(.body.weight(.bold))
+                    .font(.body.weight(.semibold))
                     .frame(
                         width: OneDayMetrics.minTapTarget,
                         height: OneDayMetrics.minTapTarget
@@ -244,8 +208,9 @@ struct ChatView: View {
             .disabled(!isStreaming && input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel(isStreaming ? "停止生成" : "发送")
         }
-        .padding(OneDayMetrics.spacingSM)
-        .background(Palette.surface)
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.top, OneDayMetrics.spacingS)
+        .padding(.bottom, OneDayMetrics.spacingS)
     }
 
     // MARK: - 历史会话
@@ -258,14 +223,18 @@ struct ChatView: View {
                         currentThreadID = thread.id
                         showHistory = false
                     } label: {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                             Text(thread.title)
-                                .font(.body)
+                                .font(TypeScale.body)
                                 .foregroundStyle(Palette.ink)
                                 .lineLimit(1)
-                            Text("\(thread.entries.count) 条 · \(thread.updatedAt.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.caption)
-                                .foregroundStyle(Palette.sub)
+                            HStack(spacing: OneDayMetrics.spacingS) {
+                                Text("\(thread.entries.count) 条")
+                                    .font(TypeScale.monoFootnote)
+                                Text(thread.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                                    .font(TypeScale.caption)
+                            }
+                            .foregroundStyle(Palette.inkMuted)
                         }
                     }
                 }
@@ -368,5 +337,50 @@ struct ChatView: View {
         }
         streamingText = nil
         sendTask = nil
+    }
+}
+
+/// 三点指示：未出字时的等待信号（安静的弱色圆点错峰，
+/// Reduce Motion 时静止）。不进气泡、不配卡片。
+private struct TypingDots: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.05)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 5) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(Palette.inkMuted)
+                        .frame(width: 6, height: 6)
+                        .opacity(opacity(at: t, index: index))
+                }
+            }
+        }
+        .accessibilityLabel("正在生成")
+    }
+
+    private func opacity(at t: TimeInterval, index: Int) -> Double {
+        if reduceMotion { return 0.6 }
+        let wave = sin(t * 3.2 - Double(index) * 0.7)
+        return 0.3 + 0.7 * max(0, wave) * max(0, wave)
+    }
+}
+
+/// 流式光标：文末的 accent 小块，0.9 秒阶梯闪烁——它是「正在
+/// 生成」的活信号，也是聊天页的签名细节。Reduce Motion 时静止。
+private struct StreamingCaret: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.45)) { context in
+            let on = reduceMotion
+                || Int(context.date.timeIntervalSinceReferenceDate / 0.45) % 2 == 0
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Palette.primary)
+                .frame(width: 7, height: 16)
+                .opacity(on ? 1 : 0.15)
+        }
+        .accessibilityHidden(true)
     }
 }

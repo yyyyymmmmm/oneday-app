@@ -5,13 +5,23 @@ import SwiftUI
 /// 首次启动连接页：填服务器地址、面板账号密码、API 密钥，
 /// 「测试并连接」跑三步探活，全过才进主界面（凭据落 Keychain
 /// 在 AppState.connect 内、且只在全过后落）。
+/// v2 视觉（docs/DESIGN-V2.md §3.5）：字标裸排、字段走分组行式、
+/// 探活是安静清单、主按钮是全屏唯一的蓝色时刻。
 struct ConnectView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var serverText = "https://hermes.didichou.site"
     @State private var username = ""
     @State private var password = ""
     @State private var apiKey = ""
+
+    private enum Field: Hashable {
+        case server, username, password, apiKey
+    }
+
+    @FocusState private var focusedField: Field?
+    @State private var appeared = false
 
     private enum StepState {
         case active
@@ -34,119 +44,116 @@ struct ConnectView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
+            VStack(alignment: .leading, spacing: 0) {
                 brandBlock
-                formCard
+                    .padding(.top, OneDayMetrics.spacingXL)
+                formGroup
+                    .padding(.top, OneDayMetrics.spacingXL)
                 if !stepStates.isEmpty {
-                    probeCard
+                    probeGroup
+                        .padding(.top, OneDayMetrics.spacingL)
                 }
                 if let errorMessage {
-                    Text(errorMessage)
-                        .font(.callout)
-                        .foregroundStyle(Palette.danger)
+                    InlineError(errorMessage)
+                        .padding(.top, OneDayMetrics.spacingL)
                 }
                 Button("测试并连接") {
                     Task { await submit() }
                 }
                 .buttonStyle(.odPrimary)
                 .disabled(!canSubmit)
-                .opacity(canSubmit ? 1 : 0.5)
+                .padding(.top, OneDayMetrics.spacingL)
                 Text("凭据只存这台手机的钥匙串，不经过任何第三方。服务器需为 Hermes v0.23.0。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.sub)
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+                    .padding(.top, OneDayMetrics.spacingM)
             }
-            .padding(OneDayMetrics.spacingL)
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.bottom, OneDayMetrics.spacingL)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared || reduceMotion ? 0 : 6)
         }
         .background(Palette.pageBG)
+        .onAppear {
+            withAnimation(MotionTokens.resolved(MotionTokens.entrance, reduceMotion: reduceMotion)) {
+                appeared = true
+            }
+        }
     }
 
     // MARK: - 区块
 
     private var brandBlock: some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Palette.primaryFill)
-                .frame(width: 52, height: 52)
-                .overlay(
-                    Text("1")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                )
-            VStack(alignment: .leading, spacing: 2) {
-                Text("OneDay")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(Palette.ink)
-                Text("连接你的 Hermes 服务器")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.sub)
-            }
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            Text("OneDay")
+                .font(TypeScale.display)
+                .foregroundStyle(Palette.ink)
+            Text("连接你的 Hermes 服务器")
+                .font(TypeScale.subhead)
+                .foregroundStyle(Palette.inkSecondary)
         }
     }
 
-    private var formCard: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
-            field(label: "服务器地址") {
+    private var formGroup: some View {
+        VStack(spacing: 0) {
+            FieldRow(label: "服务器地址", isActive: focusedField == .server) {
                 TextField("https://hermes.didichou.site", text: $serverText)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .focused($focusedField, equals: .server)
             }
-            field(label: "面板账号") {
+            GroupDivider(inset: OneDayMetrics.spacingM)
+            FieldRow(label: "面板账号", isActive: focusedField == .username) {
                 TextField("Dashboard 用户名", text: $username)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .focused($focusedField, equals: .username)
             }
-            field(label: "面板密码") {
+            GroupDivider(inset: OneDayMetrics.spacingM)
+            FieldRow(label: "面板密码", isActive: focusedField == .password) {
                 SecureField("Dashboard 密码", text: $password)
+                    .focused($focusedField, equals: .password)
             }
-            field(label: "API 密钥") {
+            GroupDivider(inset: OneDayMetrics.spacingM)
+            FieldRow(label: "API 密钥", isActive: focusedField == .apiKey) {
                 SecureField("API Server 的密钥", text: $apiKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .focused($focusedField, equals: .apiKey)
             }
         }
-        .odCard()
+        .odGroup()
     }
 
-    private func field<Content: View>(
-        label: String, @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-            Text(label)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Palette.sub)
-            content()
-                .padding(.horizontal, OneDayMetrics.spacingSM)
-                .frame(minHeight: OneDayMetrics.minTapTarget)
-                .background(
-                    Palette.pageBG,
-                    in: RoundedRectangle(cornerRadius: OneDayMetrics.controlCorner)
-                )
-        }
-    }
-
-    private var probeCard: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            ForEach(ProbeStep.allCases, id: \.rawValue) { step in
+    private var probeGroup: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(ProbeStep.allCases.enumerated()), id: \.element.rawValue) { index, step in
+                if index > 0 {
+                    GroupDivider(inset: 42)
+                }
                 HStack(spacing: OneDayMetrics.spacingS) {
                     stepIcon(step)
+                        .frame(width: 18, alignment: .center)
                     Text(step.label)
-                        .font(.callout)
+                        .font(TypeScale.callout)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     if stepStates[step] == .done {
                         Text("通过")
-                            .font(.caption)
+                            .font(TypeScale.footnote)
                             .foregroundStyle(Palette.success)
                     } else if stepStates[step] == .failed {
                         Text("失败")
-                            .font(.caption)
+                            .font(TypeScale.footnote)
                             .foregroundStyle(Palette.danger)
                     }
                 }
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .frame(minHeight: OneDayMetrics.minTapTarget)
             }
         }
-        .odCard()
+        .odGroup()
     }
 
     @ViewBuilder
@@ -154,16 +161,19 @@ struct ConnectView: View {
         switch stepStates[step] {
         case .done:
             Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 15))
                 .foregroundStyle(Palette.success)
         case .failed:
             Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 15))
                 .foregroundStyle(Palette.danger)
         case .active:
             ProgressView()
                 .frame(width: 18, height: 18)
         case nil:
             Image(systemName: "circle")
-                .foregroundStyle(Palette.sub)
+                .font(.system(size: 15))
+                .foregroundStyle(Palette.inkMuted)
         }
     }
 

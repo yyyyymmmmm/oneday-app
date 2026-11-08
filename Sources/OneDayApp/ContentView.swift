@@ -18,6 +18,6 @@ struct ContentView: View {
                 SettingsView()
             }
         }
-        .tint(Palette.primary)
+        .tint(Palette.ink)
     }
 }

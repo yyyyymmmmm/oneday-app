@@ -70,27 +70,28 @@ struct MarkdownText: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .paragraph(let text):
                     inline(text)
-                        .font(.body)
+                        .font(TypeScale.body)
+                        .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                 case .heading(let text, let level):
                     inline(text)
-                        .font(level == 1 ? .title3.weight(.bold) : .headline)
+                        .font(level == 1 ? TypeScale.title : TypeScale.headline)
                         .foregroundStyle(Palette.ink)
                 case .code(let code):
                     Text(code)
-                        .font(.system(.footnote, design: .monospaced))
+                        .font(TypeScale.monoCode)
                         .foregroundStyle(Palette.ink)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(OneDayMetrics.spacingSM)
                         .background(
-                            Palette.pageBG,
+                            Palette.fieldFill,
                             in: RoundedRectangle(
-                                cornerRadius: OneDayMetrics.controlCorner
+                                cornerRadius: OneDayMetrics.codeCorner
                             )
                         )
                         .textSelection(.enabled)

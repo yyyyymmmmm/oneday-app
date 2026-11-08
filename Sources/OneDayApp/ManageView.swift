@@ -3,6 +3,8 @@ import SwiftUI
 
 /// 管理页：里程碑 2 的入口结构先行，各模块接口路径摸排后逐个点亮
 /// （清单见 docs/API-SURFACE.md 的「待摸排」节）。
+/// v2 视觉（docs/DESIGN-V2.md §3.5）：行式列表、图标墨色一列、
+/// 「开发中」是安静的等宽文字，不进胶囊。
 struct ManageView: View {
     private struct Module: Identifiable {
         let id = UUID()
@@ -22,40 +24,33 @@ struct ManageView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    ForEach(modules) { module in
-                        HStack(spacing: OneDayMetrics.spacingSM) {
-                            Image(systemName: module.icon)
-                                .font(.title3)
-                                .foregroundStyle(Palette.primary)
-                                .frame(width: 32)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(module.title)
-                                    .font(.body)
-                                    .foregroundStyle(Palette.ink)
-                                Text(module.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(Palette.sub)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    SectionLabel("模块")
+                    VStack(spacing: 0) {
+                        ForEach(Array(modules.enumerated()), id: \.element.id) { index, module in
+                            if index > 0 {
+                                GroupDivider(inset: 56)
                             }
-                            Spacer()
-                            Text("开发中")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(Palette.sub)
-                                .padding(.horizontal, OneDayMetrics.spacingS)
-                                .padding(.vertical, OneDayMetrics.spacingXS)
-                                .background(
-                                    Palette.primaryTint,
-                                    in: Capsule()
-                                )
+                            ContentRow(
+                                icon: module.icon,
+                                title: module.title,
+                                subtitle: module.subtitle,
+                                trailing: "开发中"
+                            )
                         }
-                        .padding(.vertical, OneDayMetrics.spacingXS)
                     }
-                } header: {
-                    Text("全部功能将在里程碑 2 逐个点亮")
+                    .odGroup()
+                    .padding(.top, OneDayMetrics.spacingS)
+                    Text("全部功能将在里程碑 2 逐个点亮。")
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkMuted)
+                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXL)
             }
-            .scrollContentBackground(.hidden)
             .background(Palette.pageBG)
             .navigationTitle("管理")
         }

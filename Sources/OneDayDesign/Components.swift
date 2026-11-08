@@ -1,24 +1,42 @@
 import SwiftUI
 
-// MARK: - 纸墨平面基础组件（内容层零玻璃；玻璃只走 DesignTokens 的 Mat）
+// MARK: - v2 组件层（定版 §3.5：每个组件全 App 只有一种实现）
+// 内容层分离只靠留白、发丝线、一级表面差——零描边、零阴影、
+// 零万能卡。玻璃与阴影各只有一个合法住所：发送键与浮空输入区。
 
 public extension View {
-    /// 卡面：容器底＋卡圆角＋描边＋卡档投影。内容层一律走它成面，
-    /// 不许各页自拼 background/shadow。
-    func odCard(padding: CGFloat = OneDayMetrics.cardPadding) -> some View {
+    /// 分组容器：surface 底＋容器圆角，零描边零阴影（定版 §3.4）。
+    /// 行与分隔线由内容自行排入（行走 ContentRow/FieldRow，
+    /// 分隔走 GroupDivider），容器本身不加内边距。
+    func odGroup() -> some View {
         self
-            .padding(padding)
-            .background(Palette.surface, in: RoundedRectangle(cornerRadius: OneDayMetrics.cardCorner))
-            .overlay(
-                RoundedRectangle(cornerRadius: OneDayMetrics.cardCorner)
-                    .strokeBorder(Palette.line, lineWidth: 1)
+            .background(
+                Palette.surface,
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
             )
-            .odElevation(Elevation.card)
+            .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner))
     }
 }
 
-/// 分区标题：次文字小字，页面内分区统一口径
-public struct SectionHeader: View {
+/// 分组内发丝线：内缩至全页同一条对齐线（定版 §3.2）。
+public struct GroupDivider: View {
+    private let inset: CGFloat
+
+    public init(inset: CGFloat = OneDayMetrics.dividerInset) {
+        self.inset = inset
+    }
+
+    public var body: some View {
+        Rectangle()
+            .fill(Palette.hairline)
+            .frame(height: 1)
+            .padding(.leading, inset)
+    }
+}
+
+/// 分区标题：13 medium、次色、句首大写、无字距。
+/// 禁止大写 eyebrow（Hallmark Floor 9 / Impeccable 禁令）。
+public struct SectionLabel: View {
     private let title: String
 
     public init(_ title: String) {
@@ -27,56 +45,216 @@ public struct SectionHeader: View {
 
     public var body: some View {
         Text(title)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(Palette.sub)
-            .textCase(.uppercase)
+            .font(TypeScale.label)
+            .foregroundStyle(Palette.inkSecondary)
     }
 }
 
-/// 状态丸：状态点＋文字，底走状态色浅染（12% 不透明）
-public struct StatusPill: View {
-    private let text: String
+/// 状态点：只许出现在状态位（总览状态头、平台行），永远与状态
+/// 文字成对，本身不单独传意（定版 §3.5）。
+public struct StatusDot: View {
     private let color: Color
 
-    public init(text: String, color: Color) {
-        self.text = text
+    public init(color: Color) {
         self.color = color
     }
 
     public var body: some View {
-        HStack(spacing: OneDayMetrics.spacingXS) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-            Text(text)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Palette.ink)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingS)
-        .padding(.vertical, OneDayMetrics.spacingXS)
-        .background(color.opacity(0.12), in: Capsule())
+        Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+            .accessibilityHidden(true)
     }
 }
 
-/// 主按钮样式：填充深档底＋白字（白字对 primaryFill 双底对比
-/// 9.40:1 / 6.54:1，见 Palette 验算）。只给每屏唯一主操作。
+/// 内容行：图标槽 28 等宽一列、标题＋副题、右侧安静的等宽元信息。
+public struct ContentRow: View {
+    private let icon: String?
+    private let title: String
+    private let subtitle: String?
+    private let trailing: String?
+
+    public init(
+        icon: String? = nil,
+        title: String,
+        subtitle: String? = nil,
+        trailing: String? = nil
+    ) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing
+    }
+
+    public var body: some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+                    .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            if let trailing {
+                Text(trailing)
+                    .font(TypeScale.monoFootnote)
+                    .foregroundStyle(Palette.inkMuted)
+            }
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(minHeight: OneDayMetrics.rowHeight)
+        .contentShape(Rectangle())
+    }
+}
+
+/// 字段行（分组容器内）：标签在上、本体在下，行底无框，
+/// 靠容器与发丝线成界（定版 §3.5）。
+public struct FieldRow<Content: View>: View {
+    private let label: String
+    private let isActive: Bool
+    private let content: Content
+
+    public init(
+        label: String,
+        isActive: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.label = label
+        self.isActive = isActive
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(TypeScale.label)
+                .foregroundStyle(isActive ? Palette.ink : Palette.inkSecondary)
+            content
+                .font(TypeScale.body)
+                .foregroundStyle(Palette.ink)
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .padding(.vertical, OneDayMetrics.spacingSM)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}
+
+/// 主按钮：填充深档＋白字，每屏至多一个（定版 §3.5）。
+/// 禁用态＝填充降至 35%，不整钮降透明。
 public struct PrimaryButtonStyle: ButtonStyle {
     public init() {}
 
     public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.body.weight(.semibold))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: OneDayMetrics.minTapTarget)
-            .background(
-                Palette.primaryFill,
-                in: RoundedRectangle(cornerRadius: OneDayMetrics.controlCorner)
-            )
-            .opacity(configuration.isPressed ? 0.85 : 1)
+        PrimaryButtonBody(configuration: configuration)
+    }
+
+    private struct PrimaryButtonBody: View {
+        let configuration: Configuration
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
+                .font(TypeScale.headline)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: OneDayMetrics.primaryButtonHeight)
+                .background(
+                    isEnabled
+                        ? Palette.primaryFill
+                        : Palette.primaryFill.opacity(0.35),
+                    in: RoundedRectangle(cornerRadius: OneDayMetrics.buttonCorner)
+                )
+                .opacity(configuration.isPressed ? 0.85 : 1)
+        }
     }
 }
 
 public extension ButtonStyle where Self == PrimaryButtonStyle {
     static var odPrimary: PrimaryButtonStyle { PrimaryButtonStyle() }
+}
+
+/// 次按钮：surface 面＋墨字，靠一级表面差成面（定版 §3.5）。
+public struct SecondaryButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(TypeScale.body)
+            .foregroundStyle(Palette.ink)
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.minTapTarget)
+            .background(
+                Palette.surface,
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.buttonCorner)
+            )
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+public extension ButtonStyle where Self == SecondaryButtonStyle {
+    static var odSecondary: SecondaryButtonStyle { SecondaryButtonStyle() }
+}
+
+/// 空态：图标弱色 light、标题 semibold、说明次色，整页至多一个。
+public struct EmptyState: View {
+    private let icon: String
+    private let title: String
+    private let message: String
+
+    public init(icon: String, title: String, message: String) {
+        self.icon = icon
+        self.title = title
+        self.message = message
+    }
+
+    public var body: some View {
+        VStack(spacing: OneDayMetrics.spacingS) {
+            Image(systemName: icon)
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(Palette.inkMuted)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(TypeScale.headline)
+                .foregroundStyle(Palette.ink)
+            Text(message)
+                .font(TypeScale.subhead)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// 行内错误：语义色图标＋墨色正文说清问题，恢复动作由调用方
+/// 紧随其后放文字按钮（定版 §3.5）。
+public struct InlineError: View {
+    private let message: String
+
+    public init(_ message: String) {
+        self.message = message
+    }
+
+    public var body: some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 15))
+                .foregroundStyle(Palette.danger)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(TypeScale.subhead)
+                .foregroundStyle(Palette.ink)
+        }
+    }
 }

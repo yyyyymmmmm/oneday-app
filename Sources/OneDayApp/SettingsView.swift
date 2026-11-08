@@ -35,7 +35,7 @@ struct SettingsView: View {
                     .disabled(isRetesting)
                     if let retestResult {
                         Text(retestResult)
-                            .font(.footnote)
+                            .font(TypeScale.footnote)
                             .foregroundStyle(retestFailed ? Palette.danger : Palette.success)
                     }
                     Button(role: .destructive) {
@@ -45,13 +45,14 @@ struct SettingsView: View {
                     }
                 }
                 Section("关于") {
-                    infoRow(label: "OneDay 版本", value: "0.1.0（里程碑 1）")
+                    infoRow(label: "OneDay 版本", value: "0.1.1")
                     infoRow(label: "服务端要求", value: "Hermes v0.23.0")
                     Text("OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机。")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.sub)
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkMuted)
                 }
             }
+            .listRowBackground(Palette.surface)
             .scrollContentBackground(.hidden)
             .background(Palette.pageBG)
             .navigationTitle("设置")
@@ -73,10 +74,12 @@ struct SettingsView: View {
     private func infoRow(label: String, value: String) -> some View {
         HStack {
             Text(label)
+                .font(TypeScale.body)
                 .foregroundStyle(Palette.ink)
             Spacer()
             Text(value)
-                .foregroundStyle(Palette.sub)
+                .font(TypeScale.callout)
+                .foregroundStyle(Palette.inkSecondary)
                 .textSelection(.enabled)
         }
     }
