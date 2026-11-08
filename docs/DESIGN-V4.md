@@ -1505,3 +1505,80 @@ icons/oneday/（Logo 技能横评定案，见记忆）。
   md5 一致、Assets.car 已随包打出。
 - 真机终审归用户：发送舱中性玻璃、用户气泡中性
   面、caret 蓝、设置页细线行与身份头、新图标。
+
+## §20 0.3.5「图标补全＋回车重影定因＋点空白收键盘」（build 20）
+
+### 20.1 回车重影定因（录屏实证）
+
+录屏路径：单行打「测试」→ 回车插入换行 → 续打组合
+输入，发送舱数帧内呈双层——旧单行胶囊盖在多行几何
+上、再跳成圆角矩形才落定。定因两条合谋：
+
+1. 形状是离散两态（Capsule ↔ RoundedRectangle 24），
+   由 @State composerMultiline 驱动；该状态由
+   ComposerBarLayout 在 sizeThatFits 内经主队列异步
+   回写。布局本轮已按多行几何落位（Layout 内部
+   metrics 同步算形态），形状隔一拍才换：滞后帧里
+   Capsule 以新高（≈79）渲染＝半径≈39 的体育场形
+   盖住多行内容，状态落定后跳成圆角矩形。
+2. composerRow 上的 .animation(value: composerMul-
+   tiline) 把这场迟到的形状切换又拉成时长动画，两
+   段落定肉眼可辨。
+
+修法（同帧化＋连续化）：
+
+- 圆角半径改胶囊实测高的连续函数 ComposerLayout
+  .cornerRadius(forCapsuleHeight:cap:)＝min(高/2,
+  cap)：单行高 46→23 与 Capsule 几何等价，多行在
+  cap＝composerCorner（24）饱和；实测高经 composer-
+  Row 的 onGeometryChange 在布局周期内回写（连续
+  量、非离散形态）。形状与高度同源同帧，无可滞后
+  之物。
+- 删除：@State composerMultiline、ComposerBarLayout
+  的 onModeChange/Cache/主队列异步派发、composerRow
+  的 .animation(value: composerMultiline)。
+- 文本视图身份：ComposerBarLayout 子视图序恒定
+  [＋键， 文本， 右端]、无条件分支包裹文本视图——
+  UIViewRepresentable 全程同一 UITextView 实例，
+  形态切换只改它的 frame；updateUIView 在 marked
+  组合期间不回写 text（既有守卫），回车触发的切
+  换不丢 marked 段与光标。代码层证据：形态/高度
+  是文本的纯函数（无状态、无迟滞）——Composer-
+  TextMetricsTests 的 testTypingSequenceModeIs-
+  MonotonicAndPure（录屏同路径逐步量测：单调跨形
+  态、重复量测逐次相等）与 ComposerLayoutTests
+  的 testCornerRadiusIsContinuousAcrossModes（形
+  态边界两侧半径差 <1pt）把守。
+
+### 20.2 点空白不收键盘定因
+
+收键盘手势（.onTapGesture）自 0.2.1 起挂消息内容
+栈（LazyVStack）——挂点是对的（挂 ScrollView 本体
+会吞发送舱点按，0.2.7 实证），但栈帧只裹住已有消
+息：会话短时下半屏大片空白、气泡两侧窄于栈宽的区
+域都落在栈外，点下去不命中。修法只补命中域：内容
+栈帧 maxWidth .infinity、minHeight＝列表可视高
+（onScrollGeometryChange 回写的 containerSize.
+height）− 上下 contentMargins（64／spacingS），对
+齐 .topLeading；手势类型、挂点、与行内既有交互
+（链接、代码块复制钮）的仲裁关系一律不动，不误
+收。滚动收键盘（scrollDismissesKeyboard .inter-
+actively）保留——礼记三件套的「点消息区收」与
+「滚动收」两件齐备（第三件附件栏收起钮归键盘附
+件栏形态，本 App 发送舱在布局流内、不适用）。
+
+### 20.3 图标补全（与礼记同构）
+
+0.3.4 的 AppIcon.appiconset 只有两条错位条目
+（iphone 1024x1024@1x＋ios-marketing），同安装路
+径下礼记（19 张全尺寸显式清单）正常、OneDay 不显
+示。按礼记结构补全套：自定版素材 oneday-appicon
+-1024.png（1024×1024 RGB）以 Lanczos 缩放生成
+19 张 Icon-App-*（iphone 20@2x/3x、29@1x/2x/3x、
+40@2x/3x、60@2x/3x；ipad 20@1x/2x、29@1x/2x、
+40@1x/2x、76@1x/2x、83.5@2x；ios-marketing
+1024），Contents.json 与礼记逐字同构，旧 icon-
+1024.png 削除。构建后解包验 Assets.car 在位（见
+§20.4 回填）。
+
+### 20.4 验收（待回填）

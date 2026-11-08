@@ -47,6 +47,10 @@ struct ChatView: View {
     @State private var drawerDrag: CGFloat = 0
     /// 消息区是否贴近底部：决定自动跟随滚动与「回到底部」钮
     @State private var isNearBottom = true
+    /// 列表可视高（0.3.5，§20）：onScrollGeometryChange
+    /// 回写，喂消息内容栈的撑满 minHeight——点空白收键
+    /// 盘的命中域（见 messageList 撑满注）
+    @State private var listViewportHeight: CGFloat = 0
     /// 演示模式自动开流只跑一次（演示态展示流式效果用）
     @State private var demoStreamStarted = false
     /// 0.2.1 附件与键盘：待发附件、三种选择器开关、输入焦点
@@ -69,11 +73,13 @@ struct ChatView: View {
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
     /// GlassEffectContainer＋union 撤销（§11：容器在新承载
     /// 下不再承担布局，且 Session 219 忌玻璃叠玻璃）
-    /// 0.2.6 多行形状变形（0.3.3 起判据由 ComposerBar-
-    /// Layout 的窄宽量测经 onModeChange 回写，见
-    /// composerRow）：跨过单行阈值后发送舱玻璃由
-    /// Capsule 改固定圆角矩形（见 inputBar）
-    @State private var composerMultiline = false
+    /// 发送舱实测高（0.3.5，§20）：由 composerRow 的
+    /// onGeometryChange 在布局周期内回写，只喂玻璃圆角
+    /// 的连续半径函数（ComposerLayout.cornerRadius）。
+    /// 0.2.6–0.3.4 的离散形态状态 composerMultiline 已
+    /// 撤销——它由 Layout 内异步回写、滞后布局一拍，是
+    /// 0.3.4 真机回车重影的定因（见 §20.1）
+    @State private var composerCapsuleHeight: CGFloat = 46
     /// 原生底栏在屏幕底部的占位，抽屉面板底部按它留位避让
     /// 服务器行（0.2.6 起发送舱已不在覆盖层、不再用它抬升；
     /// 0.3.2 数值收进 OneDayMetrics.tabBarZone 具名令牌）
@@ -402,6 +408,20 @@ struct ChatView: View {
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingS)
+            // 命中域撑满（0.3.5，§20.2）：内容栈帧宽撑满、
+            // 高至少撑到列表可视高（容器高 − 上下 content-
+            // Margins 64／spacingS）。0.3.4 前栈帧只裹住
+            // 已有消息：消息不足一屏时下半屏空白、气泡两
+            // 侧窄于栈宽的空白都落在栈外，点下去什么都不
+            // 发生——「点空白不收键盘」的定因。内容超高
+            // 时 minHeight 不起作用、原行为不变
+            .frame(
+                maxWidth: .infinity,
+                minHeight: max(
+                    0, listViewportHeight - 64 - OneDayMetrics.spacingS
+                ),
+                alignment: .topLeading
+            )
             // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
             // 收起由 scrollDismissesKeyboard 承接）。0.2.7 起
             // 本手势只挂内容栈、不再挂 ScrollView 本体：
@@ -412,6 +432,9 @@ struct ChatView: View {
             // 换自量高 UITextView 后点按被本手势吞掉、聚焦
             // 不能（CI 三轮实证）。发送舱不是消息区，本就不
             // 该由它管辖
+            // 0.3.5：手势类型与挂点不变（与行内按钮/链接的
+            // 既有仲裁关系不动、不误收），只补命中域——
+            // 见上方撑满注（§20.2）
             .onTapGesture {
                 // 0.2.8：收键盘经焦点句柄直达文本视图本体
                 //（resignFirstResponder），不写任何 SwiftUI
@@ -443,6 +466,13 @@ struct ChatView: View {
                 - geometry.containerSize.height < 140
         } action: { _, nearBottom in
             isNearBottom = nearBottom
+        }
+        // 列表可视高回写（0.3.5）：喂内容栈的撑满
+        // minHeight（点空白收键盘命中域，见栈内撑满注）
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.containerSize.height
+        } action: { _, newHeight in
+            listViewportHeight = newHeight
         }
         // 「点空白收键盘」手势在内容栈上（见 messageList 内注），
         // 不挂 ScrollView 本体——其命中域含发送舱 inset
@@ -676,14 +706,18 @@ struct ChatView: View {
     /// 0.2.7 高度权威换代（§11）：纵向 TextField 换自量高
     /// UITextView（ComposerTextView），高度只由文本布局决定；
     /// 玻璃改裸 glassEffect 施加在行本体（容器/union 撤销）。
-    /// 形状变形保留：单行 Capsule、多行 RoundedRectangle(24,
-    /// continuous)，判据＝文本实测高跨过单行阈值。
+    /// 形状（0.3.5 改定，§20）：圆角半径＝胶囊实测高
+    /// 的连续函数（单行与 Capsule 几何等价、多行封顶
+    /// composerCorner）；旧「单行 Capsule／多行固定圆
+    /// 角矩形」的离散两态已废——它滞后布局一拍出重影。
     private var composerShape: AnyShape {
-        composerMultiline
-            ? AnyShape(RoundedRectangle(
-                cornerRadius: OneDayMetrics.composerCorner, style: .continuous
-            ))
-            : AnyShape(Capsule())
+        AnyShape(RoundedRectangle(
+            cornerRadius: ComposerLayout.cornerRadius(
+                forCapsuleHeight: composerCapsuleHeight,
+                cap: OneDayMetrics.composerCorner
+            ),
+            style: .continuous
+        ))
     }
 
     private var inputBar: some View {
@@ -741,19 +775,14 @@ struct ChatView: View {
     /// 夹文字、全部底对齐，0.2.8 定版尺寸不动）；多行形
     /// 态文字区全宽在上随行生长、按钮行钉在胶囊底部行
     /// （学 Muse/ChatGPT 本体与 Exyte/Stream Composer
-    /// 的成熟结构）。形态判据恒以窄宽量测为准、经
-    /// Layout 缓存回写 composerMultiline（只驱动玻璃形
-    /// 状与 swap 动画）；Layout 保持子视图身份，形态切
-    /// 换不重建 UITextView、焦点不丢。高度全走
+    /// 的成熟结构）。形态判据恒以窄宽量测为准、只活在
+    /// Layout 内部决定子视图落位，不外泄为视图状态；
+    /// 玻璃形状不读形态、只读实测高的连续半径（0.3.5，
+    /// §20）；Layout 保持子视图身份，形态切换不重建
+    /// UITextView、焦点不丢。高度全走
     /// ComposerLayout.capsuleHeight(narrow:full:) 纯函数
     private var composerRow: some View {
-        ComposerBarLayout(
-            onModeChange: { newValue in
-                if composerMultiline != newValue {
-                    composerMultiline = newValue
-                }
-            }
-        ) {
+        ComposerBarLayout {
             attachButton
             // 0.2.7：SwiftUI 纵向 TextField 换自量高
             // UITextView（ComposerTextView）——高度由
@@ -774,19 +803,21 @@ struct ChatView: View {
             trailingControl
         }
         .fixedSize(horizontal: false, vertical: true)
-        // 0.2.6 形状随行数变形（对照 Muse 多行态）：
-        // 单行 Capsule、多行固定圆角矩形——Capsule
-        // 拉长成体育场形大气球是用户点名「内容多了
-        // 为什么变这样」的形状根源；玻璃本体由
-        // inputBar 施加，形状定义在 composerShape。
-        // 0.3.2：0.18 内联曲线收编 MotionTokens.swap
-        // 并经 resolved 出口（审查 M-3＋动效纪律）
-        .animation(
-            MotionTokens.resolved(
-                MotionTokens.swap, reduceMotion: reduceMotion
-            ),
-            value: composerMultiline
-        )
+        // 实测高在布局周期内回写（0.3.5，§20）：只喂玻
+        // 璃圆角的连续半径（见 composerShape），高度本
+        // 身不经任何动画——形态切换一帧落定。0.2.6–
+        // 0.3.4 的离散形状动画（.animation(value:
+        // composerMultiline)＋异步形态状态）已整条撤
+        // 销：回车跨行时布局先落多行几何、形状隔一拍
+        // 才跟，旧 Capsule 被拉成体育场形盖住新几何再
+        // 跳成圆角矩形——录屏里的双层重影（定因 §20.1）
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { _, newHeight in
+            if abs(newHeight - composerCapsuleHeight) > 0.5 {
+                composerCapsuleHeight = newHeight
+            }
+        }
     }
 
 /// 发送舱布局（0.3.3 上文下钮）：子视图序固定为
@@ -802,17 +833,13 @@ struct ChatView: View {
 ///   文本底与按钮行顶之间 9（字段纵距 5＋行距 4），
 ///   总高与 capsuleHeight 的分解逐项对上
 /// 形态判据恒以窄宽量测走 isMultiline、总高走
-/// capsuleHeight(narrow:full:)；形态经缓存＋主队列异
-/// 步回写 onModeChange（不在布局中改状态）；Layout 保
+/// capsuleHeight(narrow:full:)；形态只活在布局内部
+/// （0.3.5 起不再回写任何视图状态，§20.1）；Layout 保
 /// 持子视图身份，切换不重建 UITextView、焦点不丢
 private struct ComposerBarLayout: Layout {
-    var onModeChange: (Bool) -> Void
-
-    final class Cache {
-        var mode: Bool?
-    }
-
-    func makeCache(subviews: Subviews) -> Cache { Cache() }
+    // 0.3.5（§20.1）：形态回写通道（onModeChange＋
+    // Cache＋主队列异步派发）整条撤销——异步回写滞后
+    // 布局一拍，是回车重影的合谋者
 
     /// 量测：文本子视图在窄宽/全宽各 sizeThatFits 一次
     /// （ComposerTextView 的 sizeThatFits 以提议宽返回封
@@ -848,16 +875,10 @@ private struct ComposerBarLayout: Layout {
     func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout Cache
+        cache: inout Void
     ) -> CGSize {
         let rowWidth = proposal.width ?? 0
         let m = metrics(rowWidth: rowWidth, subviews: subviews)
-        if cache.mode != m.multiline {
-            cache.mode = m.multiline
-            let callback = onModeChange
-            let mode = m.multiline
-            DispatchQueue.main.async { callback(mode) }
-        }
         return CGSize(width: rowWidth, height: m.totalHeight)
     }
 
@@ -865,7 +886,7 @@ private struct ComposerBarLayout: Layout {
         in bounds: CGRect,
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout Cache
+        cache: inout Void
     ) {
         let containerWidth = bounds.width + ComposerLayout.inputBarChrome
         let m = metrics(rowWidth: bounds.width, subviews: subviews)

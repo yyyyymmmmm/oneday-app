@@ -132,4 +132,20 @@ public enum ComposerLayout {
     public static func textHeight(forLineCount lines: Int) -> CGFloat {
         lineHeight * CGFloat(max(lines, 1))
     }
+
+    /// 胶囊圆角半径（0.3.5，DESIGN-V4 §20）：半径是胶囊
+    /// 总高的连续函数 min(高/2, cap)——单行高 46 时为
+    /// 23，与 Capsule 几何等价（半径＝高/2 的圆角矩形
+    /// 就是胶囊）；高度增长后半径在 cap 处饱和。形状自
+    /// 此没有离散的「单行/多行」两态：0.3.4 真机回车重
+    /// 影的定因正是离散形状（Capsule ↔ 固定圆角矩形）
+    /// 由异步回写的形态状态驱动、滞后布局一拍——滞后
+    /// 帧里 Capsule 被拉到多行高上成体育场形盖住新几
+    /// 何，状态落定再跳成圆角矩形（两段落定）。半径走
+    /// 连续函数后，形状与高度同源同帧、无可滞后之物。
+    public static func cornerRadius(
+        forCapsuleHeight height: CGFloat, cap: CGFloat
+    ) -> CGFloat {
+        min(max(height, 0) / 2, cap)
+    }
 }

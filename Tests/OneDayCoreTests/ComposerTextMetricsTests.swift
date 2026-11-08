@@ -89,4 +89,41 @@ final class ComposerTextMetricsTests: XCTestCase {
             46, accuracy: 0.001
         )
     }
+
+    /// 输入序列（0.3.5，§20.1）：复刻真机录屏路径
+    /// 「测试」→ 回车成行 → 组合输入续打——胶囊高全程
+    /// 单调不减（形态只向前跨、不回跳）；同文本重复量
+    /// 测逐次相等（量测是纯函数：无状态、无迟滞）。
+    /// 切换路径的视图身份建立在此之上：几何只由文本
+    /// 决定，文本视图全程同一实例、只改 frame，marked
+    /// 段与光标无从被「换视图」丢掉
+    func testTypingSequenceModeIsMonotonicAndPure() {
+        let steps = ["", "测", "测试", "测试\n", "测试\nh", "测试\n好"]
+        let heights = steps.map {
+            ComposerTextMetrics.capsuleHeight(
+                for: $0, containerWidth: 402
+            )
+        }
+        XCTAssertEqual(heights[0], 46, accuracy: 0.001)
+        XCTAssertEqual(heights[2], 46, accuracy: 0.001)
+        for i in 1..<heights.count {
+            XCTAssertGreaterThanOrEqual(
+                heights[i], heights[i - 1],
+                "第 \(i) 步胶囊高 \(heights[i]) 小于前步 \(heights[i - 1])（形态回跳）"
+            )
+        }
+        XCTAssertEqual(heights[4], 98.34, accuracy: 1)
+        XCTAssertEqual(heights[5], heights[4], accuracy: 0.001)
+        for s in steps {
+            XCTAssertEqual(
+                ComposerTextMetrics.capsuleHeight(
+                    for: s, containerWidth: 402
+                ),
+                ComposerTextMetrics.capsuleHeight(
+                    for: s, containerWidth: 402
+                ),
+                accuracy: 0.001
+            )
+        }
+    }
 }

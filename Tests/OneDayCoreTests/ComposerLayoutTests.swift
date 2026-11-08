@@ -108,4 +108,61 @@ final class ComposerLayoutTests: XCTestCase {
         XCTAssertEqual(ComposerLayout.horizontalChromeMultiline, 56)
         XCTAssertEqual(ComposerLayout.inputBarChrome, 24)
     }
+
+    /// 圆角连续函数（0.3.5，§20.1）：单行高 46 → 半径
+    /// 23（与 Capsule 几何等价）；48 起在 cap 饱和；全
+    /// 程单调不减；形态边界两侧（单行可达最大高 ↔ 多
+    /// 行最小高）的半径差 <1pt——形状跨形态无可感知
+    /// 跳变，是「无旧形状盖新几何」的数值证据
+    func testCornerRadiusIsContinuousAcrossModes() {
+        let cap: CGFloat = 24
+        XCTAssertEqual(
+            ComposerLayout.cornerRadius(
+                forCapsuleHeight: 46, cap: cap
+            ),
+            23, accuracy: 0.001
+        )
+        XCTAssertEqual(
+            ComposerLayout.cornerRadius(
+                forCapsuleHeight: 48, cap: cap
+            ),
+            24, accuracy: 0.001
+        )
+        XCTAssertEqual(
+            ComposerLayout.cornerRadius(
+                forCapsuleHeight: 175.02, cap: cap
+            ),
+            24, accuracy: 0.001
+        )
+        XCTAssertEqual(
+            ComposerLayout.cornerRadius(
+                forCapsuleHeight: 0, cap: cap
+            ),
+            0, accuracy: 0.001
+        )
+        var previous: CGFloat = -1
+        for h in stride(from: CGFloat(0), through: 200, by: 3.7) {
+            let r = ComposerLayout.cornerRadius(
+                forCapsuleHeight: h, cap: cap
+            )
+            XCTAssertGreaterThanOrEqual(r, previous)
+            previous = r
+        }
+        let singleMax = ComposerLayout.capsuleHeight(
+            narrowMeasured: ComposerLayout.multilineThreshold,
+            fullMeasured: ComposerLayout.multilineThreshold
+        )
+        let multiMin = ComposerLayout.capsuleHeight(
+            narrowMeasured: ComposerLayout.textHeight(forLineCount: 2),
+            fullMeasured: ComposerLayout.textHeight(forLineCount: 1)
+        )
+        let delta = abs(
+            ComposerLayout.cornerRadius(
+                forCapsuleHeight: singleMax, cap: cap
+            ) - ComposerLayout.cornerRadius(
+                forCapsuleHeight: multiMin, cap: cap
+            )
+        )
+        XCTAssertLessThan(delta, 1)
+    }
 }
