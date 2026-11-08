@@ -37,6 +37,20 @@ final class ScreenshotTests: XCTestCase {
         )
     }
 
+    /// 页签点按（0.2.4 原生 TabView）：条目名称只在无障碍
+    /// 标签里，标识与标签双通道匹配，先到先点
+    private func tapTab(_ app: XCUIApplication, id: String, label: String) {
+        let predicate = NSPredicate(
+            format: "identifier == %@ OR label == %@", id, label
+        )
+        let button = app.buttons.matching(predicate).firstMatch
+        XCTAssertTrue(
+            button.waitForExistence(timeout: 20),
+            "未等到页签：\(label)"
+        )
+        button.tap()
+    }
+
     /// 等动效落稳（抽屉弹簧 0.35s 口径，留足余量再截图）
     private func settle(_ seconds: TimeInterval = 0.9) {
         Thread.sleep(forTimeInterval: seconds)
@@ -67,6 +81,18 @@ final class ScreenshotTests: XCTestCase {
         // 聊天（默认落点）：种子对话落稳、演示流式行进中段再截
         waitText(app, "一切正常")
         waitText(app, "先从定时任务模块动手", timeout: 25)
+        // 0.2.4 重叠架构硬指标：上滑一截，让消息文字滚到
+        // 发送舱与底栏背后——截图里必须能看见文字透过玻璃
+        // 的模糊影（静止停在底部时内容边距会把末条顶到
+        // 玻璃上方，天然无重叠，故主动制造滚动中段）
+        let dragStart = app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)
+        )
+        let dragEnd = app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.36)
+        )
+        dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
+        settle(0.6)
         capture("02-chat")
 
         // 抽屉（0.2.1 重做）：身份块＋时间分组＋服务端会话组
@@ -82,14 +108,14 @@ final class ScreenshotTests: XCTestCase {
         settle(0.6)
 
         // 总览（五段；状态头可点进状态屏，本环不点）
-        app.buttons["tab.overview"].tap()
+        tapTab(app, id: "tab.overview", label: "总览")
         waitText(app, "今日 Token")
         waitText(app, "帮我看看服务器状态")
         capture("04-overview")
 
         // 文件（0.2.2 交付物库）：影音网格为先（§6 形态分工）；
         // 分段标签是按钮不是 staticText，直接等控件出现
-        app.buttons["tab.files"].tap()
+        tapTab(app, id: "tab.files", label: "文件")
         XCTAssertTrue(
             app.segmentedControls.buttons["影音"].waitForExistence(timeout: 20),
             "未等到分段控件：影音"
@@ -104,7 +130,7 @@ final class ScreenshotTests: XCTestCase {
         capture("05b-files-list")
 
         // 设置（0.2.1 分组目录）：等智能体组与外观组行到位
-        app.buttons["tab.settings"].tap()
+        tapTab(app, id: "tab.settings", label: "设置")
         waitText(app, "定时任务")
         waitText(app, "主题")
         capture("06-settings")

@@ -1,17 +1,22 @@
-import Combine
 import OneDayDesign
 import SwiftUI
-import UIKit
 
 /// 底部四格（聊天／总览／文件／设置；IA 不动）。
-/// 0.2.3（docs/DESIGN-V4.md §2，Liquid Glass 定版）：底栏改
-/// iOS 26 玻璃悬浮胶囊——仅图标无线条文字（无障碍标签保留），
-/// 选中态＝浅灰高亮胶囊＋墨色图标＋4pt 主题微点；栏以 overlay
-/// 悬浮于内容上（玻璃半透明才有意义），抽屉打开或键盘弹起时
-/// 隐藏，页面内容以 safeAreaInset 预留下沿空间。
-/// 四页常驻挂载（opacity 切换）保各自状态，与 TabView 行为一致。
-/// 深链口径不变：AgentRoute 落点统一是设置格，SettingsRoute
-/// 不变；聊天第一格默认。
+/// 0.2.4：底栏回归 SwiftUI 原生 TabView——iOS 26 由系统亲自
+/// 渲染 Liquid Glass：材质折光、边缘高光、滚动收起、键盘
+/// 联动全走系统。0.2.2 的自绘贴底栏、0.2.3 的自绘玻璃悬浮
+/// 栏，连同键盘通知监听、frame 级下沿预留、opacity 页切换
+/// 一并删除，不在自绘件上打补丁。
+/// 只要图标不要文字：tabItem 只放线条图标（系统 image-only
+/// 条目形态），名称只进无障碍标签；选中着色走系统 tint
+/// 通道（.tint = 主题 primary，系统允许的主题色入口）。
+/// 0.2.3 的自绘浅灰胶囊＋4pt 微点没有系统挂钩，按「冲突时
+/// 系统优先」撤销，取舍在案（DESIGN-V4 §8）。
+/// 层级与避让全部服从系统默认：聊天抽屉（页内覆盖层）打开
+/// 时底栏按系统层级浮于其上；键盘弹起时由系统处理；各页
+/// 滚动内容经系统安全区延伸到底栏之下，从玻璃背后流过。
+/// 深链口径不变：AgentRoute / SettingsRoute 落点仍是设置格；
+/// 聊天第一格默认落点。
 struct ContentView: View {
     enum MainTab: Hashable {
         case chat
@@ -22,137 +27,57 @@ struct ContentView: View {
 
     @Environment(AppState.self) private var appState
     @State private var selection: MainTab = .chat
-    /// 键盘可见性（底栏避让口径，DESIGN-V4 §2）：弹起即藏栏
-    @State private var keyboardVisible = false
-
-    private var barHidden: Bool {
-        appState.drawerPresented || keyboardVisible
-    }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ZStack {
-                ChatView(
-                    onOpenSettings: { selection = .settings },
-                    onOpenServerSession: { id in
-                        appState.pendingAgentRoute = .serverSessionDetail(id)
-                        selection = .settings
-                    }
-                )
-                .odTabPage(selection == .chat)
-
-                OverviewView(
-                    onOpenAgent: { route in
-                        appState.pendingAgentRoute = route
-                        selection = .settings
-                    },
-                    onOpenSettings: { route in
-                        appState.pendingSettingsRoute = route
-                        selection = .settings
-                    },
-                    onOpenChat: { selection = .chat }
-                )
-                .odTabPage(selection == .overview)
-
-                FilesView()
-                    .odTabPage(selection == .files)
-
-                SettingsView()
-                    .odTabPage(selection == .settings)
+        TabView(selection: $selection) {
+            ChatView(
+                onOpenSettings: { selection = .settings },
+                onOpenServerSession: { id in
+                    appState.pendingAgentRoute = .serverSessionDetail(id)
+                    selection = .settings
+                }
+            )
+            .tabItem {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .accessibilityLabel("聊天")
+                    .accessibilityIdentifier("tab.chat")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // 下沿预留必须落到 frame 级：safeAreaInset 只改安全区，
-            // 聊天页的 GeometryReader 按 frame 布局会让发送舱与
-            // 悬浮栏重叠（0.2.3 首轮截图实证）；栏隐藏时同步归零，
-            // 抽屉 scrim 得以完整覆盖全屏
-            .padding(.bottom, barHidden ? 0 : 76)
-            .animation(.easeInOut(duration: 0.18), value: selection)
+            .tag(MainTab.chat)
 
-            if !barHidden {
-                glassTabBar
-                    .padding(.bottom, 10)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            OverviewView(
+                onOpenAgent: { route in
+                    appState.pendingAgentRoute = route
+                    selection = .settings
+                },
+                onOpenSettings: { route in
+                    appState.pendingSettingsRoute = route
+                    selection = .settings
+                },
+                onOpenChat: { selection = .chat }
+            )
+            .tabItem {
+                Image(systemName: "gauge.with.dots.needle.33percent")
+                    .accessibilityLabel("总览")
+                    .accessibilityIdentifier("tab.overview")
             }
+            .tag(MainTab.overview)
+
+            FilesView()
+                .tabItem {
+                    Image(systemName: "folder")
+                        .accessibilityLabel("文件")
+                        .accessibilityIdentifier("tab.files")
+                }
+                .tag(MainTab.files)
+
+            SettingsView()
+                .tabItem {
+                    Image(systemName: "gearshape")
+                        .accessibilityLabel("设置")
+                        .accessibilityIdentifier("tab.settings")
+                }
+                .tag(MainTab.settings)
         }
-        .animation(.easeInOut(duration: 0.18), value: barHidden)
         .tint(Palette.primary)
-        .onReceive(
-            NotificationCenter.default.publisher(
-                for: UIResponder.keyboardWillShowNotification
-            )
-        ) { _ in
-            keyboardVisible = true
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(
-                for: UIResponder.keyboardWillHideNotification
-            )
-        ) { _ in
-            keyboardVisible = false
-        }
-    }
-
-    // MARK: - 玻璃悬浮栏（仅图标）
-
-    private var glassTabBar: some View {
-        HStack(spacing: 4) {
-            tabButton(
-                .chat, id: "tab.chat", title: "聊天",
-                icon: "bubble.left.and.bubble.right"
-            )
-            tabButton(
-                .overview, id: "tab.overview", title: "总览",
-                icon: "gauge.with.dots.needle.33percent"
-            )
-            tabButton(
-                .files, id: "tab.files", title: "文件",
-                icon: "folder"
-            )
-            tabButton(
-                .settings, id: "tab.settings", title: "设置",
-                icon: "gearshape"
-            )
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        // 玻璃在布局之后施加（LG 审查清单：modifier order）
-        .glassEffect(.regular, in: Capsule())
-    }
-
-    private func tabButton(
-        _ tab: MainTab, id: String, title: String, icon: String
-    ) -> some View {
-        let selected = selection == tab
-        return Button {
-            selection = tab
-        } label: {
-            VStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: 21, weight: selected ? .medium : .regular))
-                Circle()
-                    .fill(selected ? Palette.primary : Color.clear)
-                    .frame(width: 4, height: 4)
-            }
-            .foregroundStyle(selected ? Palette.ink : Palette.inkMuted)
-            .frame(width: 62, height: 44)
-            .background(
-                selected ? Palette.fieldFill : Color.clear,
-                in: Capsule()
-            )
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.odPressable)
-        .accessibilityIdentifier(id)
-        .accessibilityLabel(title)
-    }
-}
-
-private extension View {
-    /// 常驻挂载的页切换：不可见页不响应点按、不进无障碍树
-    func odTabPage(_ active: Bool) -> some View {
-        self
-            .opacity(active ? 1 : 0)
-            .allowsHitTesting(active)
-            .accessibilityHidden(!active)
     }
 }

@@ -56,6 +56,15 @@ struct ChatView: View {
     /// 抽屉身份块与服务端会话组的数据（开抽屉时拉取）
     @State private var drawerStatus: ServerStatus?
     @State private var drawerServerSessions: [ServerSession] = []
+    /// 0.2.4：发送舱玻璃融合的命名空间（GlassEffectContainer
+    /// 内胶囊与＋键以同一 union id 融成一颗玻璃）
+    @Namespace private var composerGlass
+    /// 0.2.4 覆盖式布局：底部悬浮层实测高度，驱动消息列表的
+    /// 底部滚动边距（不走 safeAreaInset 留位，那是预留空地）
+    @State private var bottomOverlayHeight: CGFloat = 150
+    /// 原生底栏在屏幕底部的占位（悬浮胶囊高＋下沿距＋间距），
+    /// 底部悬浮层与抽屉面板按它抬升/让位
+    private let tabBarZone: CGFloat = 76
 
     private var currentThread: ChatThread? {
         threads.first { $0.id == currentThreadID } ?? threads.first
@@ -76,212 +85,260 @@ struct ChatView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                NavigationStack {
-                    VStack(spacing: 0) {
-                        messageList
-                        if let errorMessage {
-                            errorBanner(errorMessage)
-                        }
-                        if let notice {
-                            noticeBar(notice)
-                        }
-                        inputBar
-                    }
-                    .background(Palette.pageBG)
-                    .photosPicker(
-                        isPresented: $showPhotoPicker,
-                        selection: $photoItem,
-                        matching: .images
-                    )
-                    .onChange(of: photoItem) { _, item in
-                        guard let item else { return }
-                        photoItem = nil
-                        Task { await loadPickedPhoto(item) }
-                    }
-                    .fileImporter(
-                        isPresented: $showFileImporter,
-                        allowedContentTypes: [.item],
-                        allowsMultipleSelection: true
-                    ) { result in
-                        loadPickedFiles(result)
-                    }
-                    .fullScreenCover(isPresented: $showCamera) {
-                        CameraPicker(
-                            onImage: { data in
-                                showCamera = false
-                                appendImage(data)
-                            },
-                            onCancel: { showCamera = false }
-                        )
-                        .ignoresSafeArea()
-                    }
-                    .onChange(of: drawerOpen) { _, open in
-                        if open {
-                            Task { await loadDrawerData() }
-                        }
-                    }
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            // 0.2.3（DESIGN-V4 §3）：玻璃圆钮＋墨色
-                            // 线条图标（LG：.buttonStyle(.glass)）
-                            Button {
-                                setDrawer(true)
-                            } label: {
-                                // .buttonStyle(.glass) 会按自身内距把
-                                // 钮拉成长胶囊（首轮截图实证）；改
-                                // glassEffect 直接作用于 36×36 圆
-                                Image(systemName: "sidebar.left")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(Palette.ink)
-                                    .frame(width: 36, height: 36)
-                                    .glassEffect(.regular.interactive(), in: Circle())
-                            }
-                            .buttonStyle(.odPressable)
-                            .accessibilityLabel("会话列表")
-                        }
-                        ToolbarItem(placement: .principal) {
-                            VStack(spacing: 1) {
-                                Text(currentThread?.title ?? "聊天")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(Palette.ink)
-                                    .lineLimit(1)
-                                Button {
-                                    showModelPicker = true
-                                } label: {
-                                    HStack(spacing: 3) {
-                                        Text(displayModelName)
-                                            .font(TypeScale.caption)
-                                            .lineLimit(1)
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 9, weight: .bold))
-                                    }
-                                    .foregroundStyle(Palette.inkSecondary)
-                                }
-                                .accessibilityLabel("切换模型")
-                            }
-                        }
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                newThread()
-                            } label: {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(Palette.ink)
-                                    .frame(width: 36, height: 36)
-                                    .glassEffect(.regular.interactive(), in: Circle())
-                            }
-                            .buttonStyle(.odPressable)
-                            .accessibilityLabel("新建会话")
-                        }
-                    }
-                    .onAppear {
-                        if currentThreadID == nil {
-                            currentThreadID = threads.first?.id
-                        }
-                    }
-                    .task {
-                        await startDemoStreamIfNeeded()
-                    }
-                    .task {
-                        await appState.refreshModelCatalog()
-                    }
-                    .sheet(isPresented: $showModelPicker) {
-                        ModelPickerSheet()
-                            .presentationDetents([.medium])
-                    }
-                }
+                chatSurface
                 drawerOverlay(width: min(geo.size.width * 0.82, 340))
             }
         }
     }
 
+    // MARK: - 覆盖式主面（0.2.4 重叠架构）
+
+    /// 聊天主面：消息列表全幅铺满（顶到底），顶栏与底部
+    /// 发送舱都是悬浮覆盖层——消息滚动时从玻璃背后穿过、
+    /// 透出模糊字影（对照 Muse 的重叠架构，DESIGN-V4 §8）。
+    /// 列表的上下滚动边距按悬浮层高度给出，保证首尾消息
+    /// 能滚到玻璃上方不被永久遮挡；不用 safeAreaInset 给
+    /// 发送舱留位（那是预留空地、没有重叠）。
+    /// 原 NavigationStack＋toolbar 在此撤销：栈内无任何
+    /// push 依赖（全仓核查），顶栏改悬浮覆盖层实现。
+    private var chatSurface: some View {
+        ScrollViewReader { proxy in
+            ZStack(alignment: .bottom) {
+                messageList(proxy)
+                bottomOverlay(proxy)
+            }
+        }
+        .background(Palette.pageBG)
+        .overlay(alignment: .top) {
+            headerBar
+        }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $photoItem,
+            matching: .images
+        )
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            photoItem = nil
+            Task { await loadPickedPhoto(item) }
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            loadPickedFiles(result)
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker(
+                onImage: { data in
+                    showCamera = false
+                    appendImage(data)
+                },
+                onCancel: { showCamera = false }
+            )
+            .ignoresSafeArea()
+        }
+        .onChange(of: drawerOpen) { _, open in
+            if open {
+                Task { await loadDrawerData() }
+            }
+        }
+        .onAppear {
+            if currentThreadID == nil {
+                currentThreadID = threads.first?.id
+            }
+        }
+        .task {
+            await startDemoStreamIfNeeded()
+        }
+        .task {
+            await appState.refreshModelCatalog()
+        }
+        .sheet(isPresented: $showModelPicker) {
+            ModelPickerSheet()
+                .presentationDetents([.medium])
+        }
+    }
+
+    /// 悬浮顶栏：左右系统玻璃角钮＋居中标题/模型行，浮在
+    /// 内容之上、无底色、无分界线，内容可滚到角钮背后。
+    /// 角钮用系统 .glass 按钮样式＋.buttonBorderShape
+    /// (.circle)，不再自绘 glassEffect 圆（0.2.3 的权宜件）。
+    private var headerBar: some View {
+        HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
+            Button {
+                setDrawer(true)
+            } label: {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("会话列表")
+
+            Spacer()
+
+            VStack(spacing: 1) {
+                Text(currentThread?.title ?? "聊天")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Button {
+                    showModelPicker = true
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(displayModelName)
+                            .font(TypeScale.caption)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .foregroundStyle(Palette.inkSecondary)
+                }
+                .accessibilityLabel("切换模型")
+            }
+
+            Spacer()
+
+            Button {
+                newThread()
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("新建会话")
+        }
+        .padding(.horizontal, OneDayMetrics.pageGutter)
+        .padding(.top, OneDayMetrics.spacingS)
+        .padding(.bottom, OneDayMetrics.spacingS)
+    }
+
+    /// 底部悬浮层：回到底部钮＋错误/提示条＋发送舱，自下
+    /// 而上叠在消息之上；整体抬升到原生底栏上方
+    /// （tabBarZone），实测高度回写 bottomOverlayHeight
+    /// 驱动列表底部滚动边距。
+    private func bottomOverlay(_ proxy: ScrollViewProxy) -> some View {
+        VStack(spacing: OneDayMetrics.spacingS) {
+            if !isNearBottom && currentThread != nil {
+                HStack {
+                    Spacer()
+                    scrollToBottomButton(proxy)
+                }
+                .padding(.trailing, OneDayMetrics.spacingM)
+                .transition(.opacity.combined(with: .scale(scale: 0.85)))
+            }
+            if let errorMessage {
+                errorBanner(errorMessage)
+            }
+            if let notice {
+                noticeBar(notice)
+            }
+            inputBar
+        }
+        .padding(.bottom, tabBarZone)
+        .animation(MotionTokens.swap, value: isNearBottom)
+        .onGeometryChange(for: CGFloat.self) { geometry in
+            geometry.size.height
+        } action: { _, newHeight in
+            bottomOverlayHeight = newHeight
+        }
+    }
+
+    /// 回到底部：系统 .glass 圆钮（0.2.4 换原生玻璃，撤掉
+    /// 此前的实色底＋自绘阴影浮钮）
+    private func scrollToBottomButton(_ proxy: ScrollViewProxy) -> some View {
+        Button {
+            scrollToBottom(proxy)
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .frame(width: 34, height: 34)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel("回到底部")
+    }
+
     // MARK: - 消息列表
 
-    private var messageList: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
-                    if let thread = currentThread {
-                        ForEach(thread.sortedEntries) { entry in
-                            bubble(entry)
-                                .id(entry.id)
-                        }
+    private func messageList(_ proxy: ScrollViewProxy) -> some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
+                if let thread = currentThread {
+                    ForEach(thread.sortedEntries) { entry in
+                        bubble(entry)
+                            .id(entry.id)
                     }
-                    if let streamingText {
-                        streamingRow(streamingText)
-                            .id("streaming")
-                    }
-                    if currentThread == nil && !isStreaming {
-                        // 空状态收敛（DESIGN-V4 §5）：小图标＋
-                        // 两行字，不占大块视觉重量
-                        VStack(spacing: OneDayMetrics.spacingS) {
-                            Image(systemName: "bubble.left.and.bubble.right")
-                                .font(.system(size: 26, weight: .light))
-                                .foregroundStyle(Palette.inkMuted)
-                            Text("和你的 Hermes 聊聊")
-                                .font(TypeScale.callout)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(Palette.ink)
-                            Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
-                                .font(TypeScale.caption)
-                                .foregroundStyle(Palette.inkMuted)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, OneDayMetrics.spacingXL)
-                    }
-                    Color.clear
-                        .frame(height: 1)
-                        .id("bottom")
                 }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentSize.height - geometry.contentOffset.y
-                    - geometry.containerSize.height < 140
-            } action: { _, nearBottom in
-                isNearBottom = nearBottom
-            }
-            .onTapGesture {
-                // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
-                // 收起由 scrollDismissesKeyboard 承接）
-                composerFocused = false
-            }
-            .onChange(of: currentThread?.sortedEntries.count) { _, _ in
-                // 用户已上翻看历史时不强拉回底（0.2.2 交互专项）
-                if isNearBottom {
-                    scrollToBottom(proxy)
+                if let streamingText {
+                    streamingRow(streamingText)
+                        .id("streaming")
                 }
-            }
-            .onChange(of: streamingText) { _, _ in
-                if isNearBottom {
-                    scrollToBottom(proxy)
-                }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if !isNearBottom && currentThread != nil {
-                    Button {
-                        scrollToBottom(proxy)
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .semibold))
+                if currentThread == nil && !isStreaming {
+                    // 空状态收敛（DESIGN-V4 §5）：小图标＋
+                    // 两行字，不占大块视觉重量
+                    VStack(spacing: OneDayMetrics.spacingS) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 26, weight: .light))
+                            .foregroundStyle(Palette.inkMuted)
+                        Text("和你的 Hermes 聊聊")
+                            .font(TypeScale.callout)
+                            .fontWeight(.semibold)
                             .foregroundStyle(Palette.ink)
-                            .frame(width: 34, height: 34)
-                            .background(Palette.surface, in: Circle())
-                            .odElevation(Elevation.floating)
+                        Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
+                            .font(TypeScale.caption)
+                            .foregroundStyle(Palette.inkMuted)
+                            .multilineTextAlignment(.center)
                     }
-                    .buttonStyle(.odPressable)
-                    .padding(.trailing, OneDayMetrics.spacingM)
-                    .padding(.bottom, OneDayMetrics.spacingS)
-                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
-                    .accessibilityLabel("回到底部")
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, OneDayMetrics.spacingXL)
                 }
+                Color.clear
+                    .frame(height: 1)
+                    .id("bottom")
             }
-            .animation(MotionTokens.swap, value: isNearBottom)
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.top, OneDayMetrics.spacingM)
+            .padding(.bottom, OneDayMetrics.spacingS)
+        }
+        // 覆盖式布局的滚动边距：顶为悬浮顶栏让出首屏位置
+        // （滚动时内容从其背后穿过）；底为悬浮层实测高度，
+        // 保证最后一条消息能滚到发送舱上方不被永久遮挡
+        .contentMargins(.top, 56, for: .scrollContent)
+        .contentMargins(
+            .bottom, bottomOverlayHeight + OneDayMetrics.spacingS,
+            for: .scrollContent
+        )
+        .scrollDismissesKeyboard(.interactively)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentSize.height - geometry.contentOffset.y
+                - geometry.containerSize.height < 140
+        } action: { _, nearBottom in
+            isNearBottom = nearBottom
+        }
+        .onTapGesture {
+            // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
+            // 收起由 scrollDismissesKeyboard 承接）
+            composerFocused = false
+        }
+        .onChange(of: currentThread?.sortedEntries.count) { _, _ in
+            // 用户已上翻看历史时不强拉回底（0.2.2 交互专项）
+            if isNearBottom {
+                scrollToBottom(proxy)
+            }
+        }
+        .onChange(of: streamingText) { _, _ in
+            if isNearBottom {
+                scrollToBottom(proxy)
+            }
         }
     }
 
@@ -404,28 +461,31 @@ struct ChatView: View {
             || !attachments.isEmpty
     }
 
-    /// 发送舱（0.2.3，DESIGN-V4 §4）：整行入玻璃胶囊，输入框
-    /// 自身底色/阴影撤掉（玻璃即容器）；附件条在胶囊上方实色
+    /// 发送舱（0.2.4，DESIGN-V4 §8）：一颗完整的系统玻璃
+    /// 胶囊——GlassEffectContainer 内胶囊本体与＋键玻璃圆以
+    /// 同一 union id 融合（对照 Muse 输入区：＋在胶囊内左、
+    /// 发送在胶囊内右）；发送键保持实色小圆保对比。附件条
+    /// 在胶囊上方、实色小件，不入玻璃
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             if !attachments.isEmpty {
                 attachmentsStrip
             }
-            HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
-                attachButton
-                TextField("发消息…", text: $input, axis: .vertical)
-                    .lineLimit(1...5)
-                    .focused($composerFocused)
-                    .padding(.horizontal, OneDayMetrics.spacingS)
-                    .padding(.vertical, OneDayMetrics.spacingSM)
-                sendButton
+            GlassEffectContainer(spacing: OneDayMetrics.spacingS) {
+                HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
+                    attachButton
+                    TextField("发消息…", text: $input, axis: .vertical)
+                        .lineLimit(1...5)
+                        .focused($composerFocused)
+                        .padding(.horizontal, OneDayMetrics.spacingS)
+                        .padding(.vertical, OneDayMetrics.spacingSM)
+                    sendButton
+                }
+                .padding(.horizontal, OneDayMetrics.spacingS)
+                .padding(.vertical, OneDayMetrics.spacingS)
+                .glassEffect(.regular, in: Capsule())
+                .glassEffectUnion(id: "composer", in: composerGlass)
             }
-            .padding(.horizontal, OneDayMetrics.spacingS)
-            .padding(.vertical, OneDayMetrics.spacingS)
-            .glassEffect(
-                .regular,
-                in: RoundedRectangle(cornerRadius: 28)
-            )
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
@@ -480,6 +540,8 @@ struct ChatView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 36, height: 36)
+                .glassEffect(.regular.interactive(), in: Circle())
+                .glassEffectUnion(id: "composer", in: composerGlass)
         }
         .accessibilityLabel("添加附件")
     }
@@ -618,8 +680,9 @@ struct ChatView: View {
     }
 
     /// 抽屉覆盖层：scrim（全开 0.4 黑）＋面板（宽 82%、上限
-    /// 340）＋左缘唤出手势层。面板盖住导航栏、止于标签栏之上
-    /// （标签栏属 ContentView，抽屉不越界盖它）。
+    /// 340）＋左缘唤出手势层。面板盖住聊天主面与悬浮顶栏；
+    /// 原生底栏属系统层级、浮于抽屉之上（0.2.4 起服从系统
+    /// 默认），面板底部以 tabBarZone 留位避让服务器行。
     @ViewBuilder
     private func drawerOverlay(width: CGFloat) -> some View {
         // 跟手偏移：基准位（开 0 / 合 -width-8）＋拖拽量（按方向钳制）
@@ -656,6 +719,10 @@ struct ChatView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             drawerServerRow
+            // 0.2.4：原生底栏按系统层级浮于抽屉之上，面板
+            // 底部留出底栏占位，服务器行不被玻璃栏遮挡
+            Color.clear
+                .frame(height: tabBarZone)
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
