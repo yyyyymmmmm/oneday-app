@@ -1259,6 +1259,7 @@ struct GatewayView: View {
             titleVisibility: .visible
         ) {
             Button(dialogButton, role: pendingAction == "stop" ? .destructive : nil) {
+                Haptics.medium()
                 if let action = pendingAction {
                     Task { await perform(action) }
                 }

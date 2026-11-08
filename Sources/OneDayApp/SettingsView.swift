@@ -396,7 +396,7 @@ struct SettingsView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     private func infoRow(label: String, value: String, mono: Bool = false) -> some View {

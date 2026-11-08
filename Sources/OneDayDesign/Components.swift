@@ -207,6 +207,24 @@ public extension ButtonStyle where Self == SecondaryButtonStyle {
     static var odSecondary: SecondaryButtonStyle { SecondaryButtonStyle() }
 }
 
+/// 行/钮按压态（0.2.2 动效专项）：.plain 行默认无任何按压反馈，
+/// 本样式补齐——按下时轻降透明＋微缩，松手弹簧回位。只服务
+/// 状态感知（让用户看清点中了），参数登记于 DESIGN-V3-NOTES §7。
+public struct PressableButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.55 : 1)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(MotionTokens.press, value: configuration.isPressed)
+    }
+}
+
+public extension ButtonStyle where Self == PressableButtonStyle {
+    static var odPressable: PressableButtonStyle { PressableButtonStyle() }
+}
+
 /// 空态：图标弱色 light、标题 semibold、说明次色，整页至多一个。
 public struct EmptyState: View {
     private let icon: String

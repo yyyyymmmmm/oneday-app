@@ -55,6 +55,7 @@ struct ContentView: View {
                     .odTabPage(selection == .settings)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.18), value: selection)
 
             if !appState.drawerPresented {
                 tabBar
@@ -114,7 +115,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .accessibilityIdentifier(id)
         .accessibilityLabel(title)
     }

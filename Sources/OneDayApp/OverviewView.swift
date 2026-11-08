@@ -280,7 +280,7 @@ struct OverviewView: View {
             .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     // MARK: - 3 待办面（无异常不渲染，绝不占位造假）

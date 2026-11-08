@@ -57,6 +57,7 @@ struct FilesView: View {
                 titleVisibility: .visible
             ) {
                 Button("删除", role: .destructive) {
+                    Haptics.medium()
                     if let item = pendingDelete {
                         Task { await delete(item) }
                     }
@@ -157,7 +158,7 @@ struct FilesView: View {
             .frame(minHeight: 46)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .contextMenu {
             Button {
                 Task { await download(item.entry) }

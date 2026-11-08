@@ -132,3 +132,22 @@ Hermes 数据根 /opt/data 被服务端锁定。实查产出落点：
 六张图逐张过五条规则：①有无品牌色大面积填充 ②图标是否全线条
 ③行密度/字重是否克制 ④容器是否轻、chrome 是否跨层 ⑤该页形态
 是否区别于其他页。
+
+## 7. 动效与交互登记（0.2.2 专项）
+
+口径（承礼记教训）：动效只服务状态感知——让用户看清发生了什么；
+不炫技、不堆叠。每处登记场景/曲线/时长，手感终审在真机。
+
+| 场景 | 实现 | 曲线/参数 |
+|---|---|---|
+| 抽屉开合 | MotionTokens.indicator 弹簧 | spring(response 0.35, damping 0.85)，Reduce Motion 瞬时 |
+| 抽屉拖拽 | 跟手实时位移（横向分量>纵向才接管）＋松手按 predictedEndTranslation 预测位移判开合（阈值 30% 宽），scrim 透明度随进度 0→0.4 | 同上弹簧归位 |
+| 页签切换 | 四页常驻 opacity 交叉淡化 | easeInOut 0.18s |
+| 页面 push/pop | 系统 NavigationStack 默认过渡 | 系统 |
+| 行/钮按压 | PressableButtonStyle（.odPressable）：opacity 0.55＋scale 0.985 | MotionTokens.press（easeOut 0.15s） |
+| 回到底部钮 | 出现/消失 opacity＋scale 0.85 组合过渡；上翻时流式不再强拉回底 | MotionTokens.swap（easeInOut 0.2s） |
+| 流式光标/打字点 | 既有实现保留（0.9s 阶梯闪烁/三点错峰，Reduce Motion 静止） | 见 ChatView |
+| 触觉（UIImpact） | light：发送消息、抽屉吸附（状态变化时）；medium：删除会话/删除交付物确认、网关启停/重启确认 | 系统发生器，不给普通点按与滚动 |
+
+未做（登记为已知取舍）：消息气泡入场过渡（LazyVStack 内 transition
+收益低、易掉帧，本轮不加）；深色模式动效差异（无）。

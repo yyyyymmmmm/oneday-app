@@ -37,6 +37,11 @@ struct ChatView: View {
     /// 抽屉开合与抽屉内搜索词
     @State private var drawerOpen = false
     @State private var drawerQuery = ""
+    /// 抽屉跟手拖拽的实时位移（0.2.2 动效专项：拖动跟随、
+    /// 松手按预测位移弹簧归位，不再只判阈值瞬移）
+    @State private var drawerDrag: CGFloat = 0
+    /// 消息区是否贴近底部：决定自动跟随滚动与「回到底部」钮
+    @State private var isNearBottom = true
     /// 演示模式自动开流只跑一次（截图环截流式帧用）
     @State private var demoStreamStarted = false
     /// 0.2.1 附件与键盘：待发附件、三种选择器开关、输入焦点
@@ -215,17 +220,48 @@ struct ChatView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             }
             .scrollDismissesKeyboard(.interactively)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentSize.height - geometry.contentOffset.y
+                    - geometry.containerSize.height < 140
+            } action: { _, nearBottom in
+                isNearBottom = nearBottom
+            }
             .onTapGesture {
                 // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
                 // 收起由 scrollDismissesKeyboard 承接）
                 composerFocused = false
             }
             .onChange(of: currentThread?.sortedEntries.count) { _, _ in
-                scrollToBottom(proxy)
+                // 用户已上翻看历史时不强拉回底（0.2.2 交互专项）
+                if isNearBottom {
+                    scrollToBottom(proxy)
+                }
             }
             .onChange(of: streamingText) { _, _ in
-                scrollToBottom(proxy)
+                if isNearBottom {
+                    scrollToBottom(proxy)
+                }
             }
+            .overlay(alignment: .bottomTrailing) {
+                if !isNearBottom && currentThread != nil {
+                    Button {
+                        scrollToBottom(proxy)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Palette.ink)
+                            .frame(width: 34, height: 34)
+                            .background(Palette.surface, in: Circle())
+                            .odElevation(Elevation.floating)
+                    }
+                    .buttonStyle(.odPressable)
+                    .padding(.trailing, OneDayMetrics.spacingM)
+                    .padding(.bottom, OneDayMetrics.spacingS)
+                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                    .accessibilityLabel("回到底部")
+                }
+            }
+            .animation(MotionTokens.swap, value: isNearBottom)
         }
     }
 
@@ -393,6 +429,7 @@ struct ChatView: View {
                     in: Circle()
                 )
         }
+        .buttonStyle(.odPressable)
         .disabled(!isStreaming && !canSend)
         .accessibilityLabel(isStreaming ? "停止生成" : "发送")
     }
@@ -523,14 +560,40 @@ struct ChatView: View {
 
     // MARK: - 会话抽屉（0.1.3，定版 §7）
 
-    /// 开合统一走定版弹簧（indicator），Reduce Motion 时瞬时。
+    /// 开合统一走定版弹簧（indicator：response 0.35 / damping
+    /// 0.85），Reduce Motion 时瞬时。状态真正变化时给一次轻
+    /// 触觉（吸附感）；拖拽回弹（状态不变）不震。
     private func setDrawer(_ open: Bool) {
+        if open != drawerOpen {
+            Haptics.light()
+        }
         withAnimation(
             MotionTokens.resolved(MotionTokens.indicator, reduceMotion: reduceMotion)
         ) {
             drawerOpen = open
+            drawerDrag = 0
         }
         appState.drawerPresented = open
+    }
+
+    /// 抽屉拖拽（开/合共用）：跟手实时位移，松手按预测位移
+    /// （含速度）决定开合，弹簧归位由 setDrawer 承接。横向分量
+    /// 必须大于纵向才接管，避免与面板内纵向滚动打架。
+    private func drawerDragGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { value in
+                if abs(value.translation.width) > abs(value.translation.height) {
+                    drawerDrag = value.translation.width
+                }
+            }
+            .onEnded { value in
+                let projected = value.predictedEndTranslation.width
+                if drawerOpen {
+                    setDrawer(projected > -width * 0.3)
+                } else {
+                    setDrawer(projected > width * 0.3)
+                }
+            }
     }
 
     /// 抽屉覆盖层：scrim（全开 0.4 黑）＋面板（宽 82%、上限
@@ -538,33 +601,27 @@ struct ChatView: View {
     /// （标签栏属 ContentView，抽屉不越界盖它）。
     @ViewBuilder
     private func drawerOverlay(width: CGFloat) -> some View {
+        // 跟手偏移：基准位（开 0 / 合 -width-8）＋拖拽量（按方向钳制）
+        let base = drawerOpen ? 0 : -width - 8
+        let clampedDrag = drawerOpen
+            ? min(max(drawerDrag, -width), 0)
+            : min(max(drawerDrag, 0), width)
+        let offsetX = base + clampedDrag
+        // scrim 透明度随开合进度走，拖动时不跳变
+        let progress = 1 - min(max(-offsetX, 0), width) / width
         Color.black
-            .opacity(drawerOpen ? 0.4 : 0)
+            .opacity(0.4 * progress)
             .allowsHitTesting(drawerOpen)
             .onTapGesture { setDrawer(false) }
         drawerPanel(width: width)
-            .offset(x: drawerOpen ? 0 : -width - 8)
-            .gesture(
-                DragGesture(minimumDistance: 24)
-                    .onEnded { value in
-                        if value.translation.width < -48 {
-                            setDrawer(false)
-                        }
-                    }
-            )
+            .offset(x: offsetX)
+            .gesture(drawerDragGesture(width: width))
         if !drawerOpen {
-            // 左缘 24pt 热区：右滑唤出，不挡正文纵向滚动
+            // 左缘 24pt 热区：右滑跟手唤出，不挡正文纵向滚动
             Color.clear
                 .frame(width: 24)
                 .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 16)
-                        .onEnded { value in
-                            if value.translation.width > 48 {
-                                setDrawer(true)
-                            }
-                        }
-                )
+                .gesture(drawerDragGesture(width: width))
         }
     }
 
@@ -779,7 +836,7 @@ struct ChatView: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
     }
 
@@ -829,7 +886,7 @@ struct ChatView: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
         .contextMenu {
             Button(role: .destructive) {
@@ -873,6 +930,7 @@ struct ChatView: View {
     }
 
     private func deleteThread(_ thread: ChatThread) {
+        Haptics.medium()
         if thread.id == currentThreadID {
             currentThreadID = nil
         }
@@ -903,6 +961,7 @@ struct ChatView: View {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let pending = attachments
         guard !isStreaming, !text.isEmpty || !pending.isEmpty else { return }
+        Haptics.light()
         input = ""
         attachments = []
         errorMessage = nil
