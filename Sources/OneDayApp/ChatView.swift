@@ -484,7 +484,7 @@ struct ChatView: View {
                 .padding(.horizontal, OneDayMetrics.spacingS)
                 .padding(.vertical, OneDayMetrics.spacingS)
                 .glassEffect(.regular, in: Capsule())
-                .glassEffectUnion(id: "composer", in: composerGlass)
+                .glassEffectUnion(id: "composer", namespace: composerGlass)
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
@@ -541,7 +541,7 @@ struct ChatView: View {
                 .foregroundStyle(Palette.ink)
                 .frame(width: 36, height: 36)
                 .glassEffect(.regular.interactive(), in: Circle())
-                .glassEffectUnion(id: "composer", in: composerGlass)
+                .glassEffectUnion(id: "composer", namespace: composerGlass)
         }
         .accessibilityLabel("添加附件")
     }
