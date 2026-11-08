@@ -123,8 +123,8 @@ struct ChatView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
-                            // 0.2.2 定版规格（DESIGN-V3-NOTES §3）：
-                            // 36pt 圆形材质底，不再裸图标
+                            // 0.2.3（DESIGN-V4 §3）：玻璃圆钮＋墨色
+                            // 线条图标（LG：.buttonStyle(.glass)）
                             Button {
                                 setDrawer(true)
                             } label: {
@@ -132,8 +132,8 @@ struct ChatView: View {
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundStyle(Palette.ink)
                                     .frame(width: 36, height: 36)
-                                    .background(Palette.fieldFill, in: Circle())
                             }
+                            .buttonStyle(.glass)
                             .accessibilityLabel("会话列表")
                         }
                         ToolbarItem(placement: .principal) {
@@ -162,7 +162,11 @@ struct ChatView: View {
                                 newThread()
                             } label: {
                                 Image(systemName: "square.and.pencil")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Palette.ink)
+                                    .frame(width: 36, height: 36)
                             }
+                            .buttonStyle(.glass)
                             .accessibilityLabel("新建会话")
                         }
                     }
@@ -204,12 +208,23 @@ struct ChatView: View {
                             .id("streaming")
                     }
                     if currentThread == nil && !isStreaming {
-                        EmptyState(
-                            icon: "bubble.left.and.bubble.right",
-                            title: "和你的 Hermes 聊聊",
-                            message: "消息经你自己的服务器发给 Agent，记录只存这台手机。"
-                        )
-                        .padding(.top, OneDayMetrics.spacingXXL)
+                        // 空状态收敛（DESIGN-V4 §5）：小图标＋
+                        // 两行字，不占大块视觉重量
+                        VStack(spacing: OneDayMetrics.spacingS) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 26, weight: .light))
+                                .foregroundStyle(Palette.inkMuted)
+                            Text("和你的 Hermes 聊聊")
+                                .font(TypeScale.callout)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Palette.ink)
+                            Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
+                                .font(TypeScale.caption)
+                                .foregroundStyle(Palette.inkMuted)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, OneDayMetrics.spacingXL)
                     }
                     Color.clear
                         .frame(height: 1)
@@ -384,6 +399,8 @@ struct ChatView: View {
             || !attachments.isEmpty
     }
 
+    /// 发送舱（0.2.3，DESIGN-V4 §4）：整行入玻璃胶囊，输入框
+    /// 自身底色/阴影撤掉（玻璃即容器）；附件条在胶囊上方实色
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             if !attachments.isEmpty {
@@ -394,15 +411,16 @@ struct ChatView: View {
                 TextField("发消息…", text: $input, axis: .vertical)
                     .lineLimit(1...5)
                     .focused($composerFocused)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.horizontal, OneDayMetrics.spacingS)
                     .padding(.vertical, OneDayMetrics.spacingSM)
-                    .background(
-                        Palette.surface,
-                        in: RoundedRectangle(cornerRadius: OneDayMetrics.composerCorner)
-                    )
-                    .odElevation(Elevation.floating)
                 sendButton
             }
+            .padding(.horizontal, OneDayMetrics.spacingS)
+            .padding(.vertical, OneDayMetrics.spacingS)
+            .glassEffect(
+                .regular,
+                in: RoundedRectangle(cornerRadius: 28)
+            )
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
@@ -457,8 +475,6 @@ struct ChatView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 36, height: 36)
-                .background(Palette.surface, in: Circle())
-                .odElevation(Elevation.floating)
         }
         .accessibilityLabel("添加附件")
     }

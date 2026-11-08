@@ -46,19 +46,19 @@ public enum Palette {
 
     // —— 表面（近中性，只差一级） ——
     /// 页面底：近中性纸色
-    public static let pageBG = dyn(0xF7F8FA, 0x0E1116)
+    public static let pageBG = dyn(0xFFFFFF, 0x0B0B0D)
     /// 分组容器面
-    public static let surface = dyn(0xFFFFFF, 0x171B21)
+    public static let surface = dyn(0xFFFFFF, 0x17181C)
     /// 字段面：比容器再降一级（输入字段、代码块）
-    public static let fieldFill = dyn(0xF1F3F6, 0x1E242C)
+    public static let fieldFill = dyn(0xF2F2F2, 0x232428)
 
     // —— 文字三角色 ——
     /// 主文字
-    public static let ink = dyn(0x191D23, 0xEDF0F4)
+    public static let ink = dyn(0x1A1A1E, 0xF2F2F4)
     /// 次文字
-    public static let inkSecondary = dyn(0x47525F, 0xA9B3BF)
+    public static let inkSecondary = dyn(0x4A4A4E, 0xAEAEB4)
     /// 弱文字：只用于元信息（计数、时间、占位性说明）
-    public static let inkMuted = dyn(0x66727F, 0x7E8894)
+    public static let inkMuted = dyn(0x6E6E73, 0x7C7C82)
 
     /// 发丝线：墨色低 alpha 推导（浅 8% / 深 12%），不用固定灰，
     /// 两套外观下都保持「看得见的线、不是一道杠」（Pro Rules）。

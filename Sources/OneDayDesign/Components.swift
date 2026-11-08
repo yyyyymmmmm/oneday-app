@@ -14,6 +14,12 @@ public extension View {
                 Palette.surface,
                 in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
             )
+            .overlay(
+                // 0.2.3（DESIGN-V4 §1）：页面底回归纯白后，分组面
+                // 改靠 0.5pt 发丝线成面，不再靠底色对比
+                RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
+                    .stroke(Palette.hairline, lineWidth: 0.5)
+            )
             .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner))
     }
 }
