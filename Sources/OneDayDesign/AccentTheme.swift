@@ -42,7 +42,9 @@ public enum AccentTheme: String, CaseIterable, Identifiable, Sendable {
         case .deepBlue:
             return (0x003CAB, 0x5B8DEF, 0x002A66, 0x003CAB, 0xD9E1FF, 0x16233F)
         case .inkBlack:
-            return (0x1F1F24, 0xEDF0F4, 0x000000, 0x454C55, 0xECECF1, 0x23282F)
+            // 主填充原为 #000，0.3.0 起禁纯黑（§14 条 1），
+            // 改近黑墨色 0x111114，视觉无差、口径合规
+            return (0x1F1F24, 0xEDF0F4, 0x111114, 0x454C55, 0xECECF1, 0x23282F)
         case .purple:
             return (0xAF52DE, 0xBF5AF2, 0x8E3DB8, 0xAF52DE, 0xF6E9FB, 0x2C2145)
         case .green:

@@ -9,6 +9,7 @@ import SwiftUI
 /// 探活是安静清单、主按钮是全屏唯一的蓝色时刻。
 struct ConnectView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var serverText = "https://hermes.didichou.site"
@@ -102,7 +103,7 @@ struct ConnectView: View {
     private var brandBlock: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             Text("OneDay")
-                .font(TypeScale.display)
+                .font(TypeScale.display(for: colorScheme))
                 .foregroundStyle(Palette.ink)
             Text("连接你的 Hermes 服务器")
                 .font(TypeScale.subhead)

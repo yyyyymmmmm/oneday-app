@@ -32,6 +32,9 @@ struct ChatView: View {
     @State private var input = ""
     /// 非 nil 表示正在生成：值是已累积的流式文本
     @State private var streamingText: String?
+    /// Qwen 冷启唤醒重试中（0.3.0 接线，§15）：等待行亮
+    /// 「模型唤醒中」提示
+    @State private var isWakingModel = false
     @State private var sendTask: Task<Void, Never>?
     @State private var errorMessage: String?
     /// 0.2.1：非错误提示（如文件附件未发送说明），可关闭
@@ -80,14 +83,13 @@ struct ChatView: View {
 
     private var isStreaming: Bool { streamingText != nil }
 
-    /// 顶栏/抽屉展示的模型名：优先服务端默认模型（/api/config
-    /// 拉取）；未拉到时 /v1 的 hermes-agent 是路由伪名，显示
-    /// 「服务端默认模型」不把伪名当真名展示
+    /// 顶栏/抽屉展示的模型名（0.3.0 接线，§15）：展示本地
+    /// 聊天选择（ChatModels 写死三项的展示名）——顶栏选的
+    /// 就是逐请求发出的那个模型，名实一致；服务端默认
+    /// （defaultModel）是设置页管理面口径，不再冒充聊天
+    /// 模型展示
     private var displayModelName: String {
-        if let model = appState.defaultModel, !model.isEmpty {
-            return model
-        }
-        return appState.modelID == "hermes-agent" ? "服务端默认模型" : appState.modelID
+        ChatModels.displayName(for: appState.chatModel)
     }
 
     var body: some View {
@@ -305,7 +307,9 @@ struct ChatView: View {
             inputBar
         }
         .fixedSize(horizontal: false, vertical: true)
-        .animation(MotionTokens.swap, value: isNearBottom)
+        // 条 9（§14）：回到底部钮的出入是小动作类，动画走
+        // 定版 microSpring（380/18 微弹）
+        .animation(MotionTokens.microSpring, value: isNearBottom)
     }
 
     /// 回到底部：系统 .glass 圆钮（0.2.4 换原生玻璃，撤掉
@@ -444,7 +448,9 @@ struct ChatView: View {
                             )
                     }
                     if !entry.content.isEmpty {
-                        Text(entry.content)
+                        // 条 8（§14）：段落渲染前过断行整形
+                        // （尾行孤字防护，TextShaping 纯函数）
+                        Text(TextShaping.prettyWrapDocument(entry.content))
                             .font(TypeScale.body)
                             .foregroundStyle(Palette.ink)
                             .padding(.horizontal, 14)
@@ -490,15 +496,26 @@ struct ChatView: View {
     private func streamingRow(_ text: String) -> some View {
         if text.isEmpty {
             assistantBubble {
-                TypingDots()
+                if isWakingModel {
+                    // Qwen 冷启唤醒中（0.3.0 接线，§15）：明示
+                    // 状态，不让用户对着三个点干等
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        TypingDots()
+                        Text("模型唤醒中，冷启动约 1–3 分钟…")
+                            .font(TypeScale.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
                     .padding(.vertical, OneDayMetrics.spacingXS)
+                } else {
+                    TypingDots()
+                        .padding(.vertical, OneDayMetrics.spacingXS)
+                }
             }
         } else {
             assistantBubble {
-                HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
-                    MarkdownText(text)
-                    StreamingCaret()
-                }
+                // 条 4（§14）：流式走渐显组件逐字入场；
+                // Markdown 只在落盘成品上渲染
+                StreamingText(text)
             }
         }
     }
@@ -593,7 +610,9 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
-            if !attachments.isEmpty {
+            // 条 7（§14）：附件条的出现/消失走平滑高度
+            // 动画（SmoothExpand，0fr→1fr 等价），禁跳变
+            SmoothExpand(isExpanded: !attachments.isEmpty) {
                 attachmentsStrip
             }
             // 0.2.7：玻璃裸施加在行本体——GlassEffectContainer
@@ -601,6 +620,21 @@ struct ChatView: View {
             // 布局，裸施加即可，§11）
             composerRow
                 .glassEffect(.regular, in: composerShape)
+                // 条 2（§14）：聚焦禁描边——聚焦态不加任何
+                // stroke，改以加深的双环阴影表达（近环定界
+                // 半径 6、远环扩散半径 18），随焦点观察态
+                // 切换；静止态只留极淡的浮起影
+                .shadow(
+                    color: Color(hex: 0x0A0A0C)
+                        .opacity(composerFocused ? 0.13 : 0.05),
+                    radius: composerFocused ? 6 : 10, y: 2
+                )
+                .shadow(
+                    color: Color(hex: 0x0A0A0C)
+                        .opacity(composerFocused ? 0.10 : 0.04),
+                    radius: composerFocused ? 18 : 14, y: 6
+                )
+                .animation(MotionTokens.swap, value: composerFocused)
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
@@ -863,15 +897,16 @@ struct ChatView: View {
 
     // MARK: - 会话抽屉（0.1.3，定版 §7）
 
-    /// 开合统一走定版弹簧（indicator：response 0.35 / damping
-    /// 0.85），Reduce Motion 时瞬时。状态真正变化时给一次轻
-    /// 触觉（吸附感）；拖拽回弹（状态不变）不震。
+    /// 开合统一走条 9 定版拖拽弹簧（dragSpring：stiffness
+    /// 1200 / damping 80、零回弹，0.3.0 §14——抽屉属拖拽类
+    /// 交互），Reduce Motion 时瞬时。状态真正变化时给一次
+    /// 轻触觉（吸附感）；拖拽回弹（状态不变）不震。
     private func setDrawer(_ open: Bool) {
         if open != drawerOpen {
             Haptics.light()
         }
         withAnimation(
-            MotionTokens.resolved(MotionTokens.indicator, reduceMotion: reduceMotion)
+            MotionTokens.resolved(MotionTokens.dragSpring, reduceMotion: reduceMotion)
         ) {
             drawerOpen = open
             drawerDrag = 0
@@ -913,8 +948,10 @@ struct ChatView: View {
         let offsetX = base + clampedDrag
         // scrim 透明度随开合进度走，拖动时不跳变
         let progress = 1 - min(max(-offsetX, 0), width) / width
-        Color.black
-            .opacity(0.4 * progress)
+        // 遮罩走 Palette.scrim（§14 条 1 四层阶梯的层 4，
+        // 墨色推导、不用纯黑），透明度随开合进度走
+        Palette.scrim
+            .opacity(progress)
             .allowsHitTesting(drawerOpen)
             .onTapGesture { setDrawer(false) }
         drawerPanel(width: width)
@@ -1348,27 +1385,56 @@ struct ChatView: View {
             return
         }
         var accumulated = ""
-        do {
-            let stream = appState.client.chatStream(
-                config: config, apiKey: apiKey,
-                model: appState.modelID, messages: messages
-            )
-            for try await delta in stream {
-                accumulated += delta
-                streamingText = accumulated
-            }
-        } catch {
-            // 停止生成（cancelled）不报错：已生成的半截照常落盘
-            if let hermesError = error as? HermesError {
-                if case .cancelled = hermesError {
-                    // 用户主动停止，静默收尾
-                } else {
-                    errorMessage = hermesError.userMessage
+        var retried = false
+        while true {
+            do {
+                let stream = appState.client.chatStream(
+                    config: config, apiKey: apiKey,
+                    model: appState.chatModel, messages: messages
+                )
+                for try await delta in stream {
+                    accumulated += delta
+                    streamingText = accumulated
                 }
-            } else {
-                errorMessage = "发送失败，请稍后再试。"
+                break
+            } catch {
+                // Qwen 冷启唤醒重试（0.3.0 接线，DESIGN-V4
+                // §15）：自部署模型休眠后首请求常在网关冷启
+                // 期失败（冷启竞速实测口径）——尚未产出任何
+                // 字时自动重试一次并亮唤醒提示；已产出则照
+                // 常收尾不重发（防重复内容）；用户停止不重试
+                var shouldRetry = false
+                if accumulated.isEmpty, !retried,
+                   appState.chatModel == ChatModels.coldStartID {
+                    if let hermesError = error as? HermesError {
+                        if case .cancelled = hermesError {
+                            shouldRetry = false
+                        } else {
+                            shouldRetry = true
+                        }
+                    } else {
+                        shouldRetry = true
+                    }
+                }
+                if shouldRetry {
+                    retried = true
+                    isWakingModel = true
+                    continue
+                }
+                // 停止生成（cancelled）不报错：已生成的半截照常落盘
+                if let hermesError = error as? HermesError {
+                    if case .cancelled = hermesError {
+                        // 用户主动停止，静默收尾
+                    } else {
+                        errorMessage = hermesError.userMessage
+                    }
+                } else {
+                    errorMessage = "发送失败，请稍后再试。"
+                }
+                break
             }
         }
+        isWakingModel = false
         if !accumulated.isEmpty {
             modelContext.insert(
                 ChatEntry(role: "assistant", content: accumulated, thread: thread)
@@ -1477,70 +1543,40 @@ private struct TypingDots: View {
     }
 }
 
-/// 流式光标：文末的 accent 小块，0.9 秒阶梯闪烁——它是「正在
-/// 生成」的活信号，也是聊天页的签名细节。Reduce Motion 时静止。
-private struct StreamingCaret: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 0.45)) { context in
-            let on = reduceMotion
-                || Int(context.date.timeIntervalSinceReferenceDate / 0.45) % 2 == 0
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Palette.primary)
-                .frame(width: 7, height: 16)
-                .opacity(on ? 1 : 0.15)
-        }
-        .accessibilityHidden(true)
-    }
-}
+/// 流式光标已移至 StreamingText.swift（与流式渐显组件
+/// 同文件，文末词元同流排布）。
 
 
-/// 模型选择器（0.2.4 口径）：列表只含上游模型
-/// （AppState.availableModels，数据源见 ModelCatalog：
-/// /api/model/options 优先、用量回落、网关别名硬排除）；
-/// 点选即切换服务端默认模型（写回走 /api/config，写入前
-/// 有候选集校验）。无数据时明确提示，不给手输框。
+/// 模型选择器（0.3.0 接线，DESIGN-V4 §15）：列表是
+/// App 内写死三项（ChatModels：DeepSeek Flash / V4 Pro
+/// / 自部署 Qwen3-30B），点选只写本地选择——逐请求生
+/// 效（请求带 provider=custom 切上游），不改服务端默
+/// 认、不发任何请求。0.2.4 的服务端目录拼装＋改默认
+/// 口径就此撤销（理由见 ChatModels 文件头）。
 private struct ModelPickerSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
-
-    @State private var errorMessage: String?
-    @State private var switching: String?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if appState.availableModels.isEmpty {
-                        EmptyState(
-                            icon: "cpu",
-                            title: "暂无可用模型",
-                            message: "服务端没有返回上游模型列表（/api/model/options 与用量记录均为空），请先在服务端配置模型。"
-                        )
-                        .padding(.top, OneDayMetrics.spacingXXL)
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(
-                                Array(appState.availableModels.enumerated()),
-                                id: \.element
-                            ) { index, model in
-                                if index > 0 {
-                                    GroupDivider(inset: OneDayMetrics.spacingM)
-                                }
-                                modelRow(model)
+                    VStack(spacing: 0) {
+                        ForEach(
+                            Array(ChatModels.items.enumerated()),
+                            id: \.element.id
+                        ) { index, item in
+                            if index > 0 {
+                                GroupDivider(inset: OneDayMetrics.spacingM)
                             }
+                            modelRow(item)
                         }
-                        .odGroup()
-                        Text("列表来自服务端上游模型目录（/api/model/options），网关别名（如 hermes-agent）不可选。切换改的是服务端默认模型，新会话生效；正在进行的对话不切换。")
-                            .font(TypeScale.footnote)
-                            .foregroundStyle(Palette.inkMuted)
-                            .padding(.top, OneDayMetrics.spacingM)
                     }
-                    if let errorMessage {
-                        InlineError(errorMessage)
-                            .padding(.top, OneDayMetrics.spacingL)
-                    }
+                    .odGroup()
+                    Text("选择只保存在这台手机上，下一条消息立即生效；不会修改服务端默认模型。Qwen3-30B 是自部署模型，休眠后第一次提问会自动唤醒（约 1–3 分钟）。")
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkMuted)
+                        .padding(.top, OneDayMetrics.spacingM)
                 }
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.top, OneDayMetrics.spacingM)
@@ -1554,47 +1590,28 @@ private struct ModelPickerSheet: View {
                     Button("完成") { dismiss() }
                 }
             }
-            .task {
-                await appState.refreshModelCatalog()
-            }
         }
     }
 
-    private func modelRow(_ model: String) -> some View {
-        let isCurrent = model == appState.defaultModel
+    private func modelRow(_ item: ChatModels.Item) -> some View {
+        let isCurrent = item.id == appState.chatModel
         return Button {
-            guard !isCurrent, switching == nil else { return }
-            switching = model
-            Task {
-                do {
-                    try await appState.setDefaultModel(model)
-                    dismiss()
-                } catch {
-                    errorMessage = (error as? HermesError)?.userMessage
-                        ?? "切换失败，请稍后再试。"
-                }
-                switching = nil
-            }
+            appState.selectChatModel(item.id)
+            dismiss()
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model)
-                        .font(TypeScale.monoCallout)
+                    Text(item.displayName)
+                        .font(TypeScale.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
-                    // 别名注记（实测映射，见 ModelCatalog）：
-                    // 老名字能跑但实际按上游新名运行，行内说清
-                    if let runtime = ModelCatalog.aliasRuntime[model] {
-                        Text("别名 · 将按 \(runtime) 运行")
-                            .font(TypeScale.footnote)
-                            .foregroundStyle(Palette.inkMuted)
-                            .lineLimit(1)
-                    }
+                    Text(item.note)
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkMuted)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                if switching == model {
-                    ProgressView()
-                } else if isCurrent {
+                if isCurrent {
                     Image(systemName: "checkmark")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Palette.primary)

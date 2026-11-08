@@ -44,17 +44,37 @@ public enum Palette {
         #endif
     }
 
-    // —— 表面（近中性，只差一级） ——
-    /// 页面底：近中性纸色
+    // —— 表面四层阶梯（0.3.0，DESIGN-V4 §14 条 1：禁黑框
+    // 与 #000，背景靠层间明度差 1–3% 的微差分层） ——
+    // 浅色明度阶梯：页面 100 → 卡片 98.4 → 浮层 95.9 →
+    // 字段 94.9（级差 1.6/2.5/1.0）；深色：4.5 → 7.3 →
+    // 9.6 → 11.2（级差 2.8/2.3/1.6）。层 4 遮罩单列
+    // （scrim，墨色 alpha、不取 #000）。
+    /// 层 1 页面底：近中性纸色
     public static let pageBG = dyn(0xFFFFFF, 0x0B0B0D)
-    /// 分组容器面
-    public static let surface = dyn(0xFFFFFF, 0x17181C)
-    /// 字段面：比容器再降一级（输入字段、代码块）
-    public static let fieldFill = dyn(0xF2F2F2, 0x232428)
-    /// 助手消息泡面（0.2.5）：#F4F4F5 量级的浅灰软填充，让助手
-    /// 消息在页面底上有界（对照 Muse 的助手泡形态）；泡内
-    /// 代码块用 fieldFill 再深一阶，保持层级
-    public static let bubbleFill = dyn(0xF4F4F5, 0x1E1F24)
+    /// 层 2 卡片/分组容器面
+    public static let surface = dyn(0xFAFAFB, 0x121214)
+    /// 层 3 浮层面（助手消息泡、浮起控件底）
+    public static let bubbleFill = dyn(0xF4F4F5, 0x17181B)
+    /// 层 3.5 字段面：比浮层再降一级（输入字段、代码块）
+    public static let fieldFill = dyn(0xF2F2F2, 0x1B1C1F)
+    /// 四层阶梯的语义别名（新代码按层引用，旧令牌同值）
+    public static var layerPage: Color { pageBG }
+    public static var layerCard: Color { surface }
+    public static var layerOverlay: Color { bubbleFill }
+    /// 层 4 遮罩：抽屉/弹层背后的压暗层，墨色推导不用 #000
+    public static var scrim: Color {
+        #if canImport(UIKit)
+        return Color(uiColor: UIColor(dynamicProvider: { traits in
+            if traits.userInterfaceStyle == .dark {
+                return UIColor(hex: 0x050506).withAlphaComponent(0.55)
+            }
+            return UIColor(hex: 0x1A1A1E).withAlphaComponent(0.32)
+        }))
+        #else
+        return Color(hex: 0x1A1A1E, alpha: 0.32)
+        #endif
+    }
 
     // —— 文字三角色 ——
     /// 主文字

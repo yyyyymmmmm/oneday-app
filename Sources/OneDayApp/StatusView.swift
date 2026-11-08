@@ -13,6 +13,7 @@ import SwiftUI
 /// 结论，见 0.2.1 汇报）。
 struct StatusView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
     var onOpenSession: (String) -> Void = { _ in }
 
     @State private var segment = 0
@@ -56,7 +57,7 @@ struct StatusView: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text("Hermes")
-                    .font(TypeScale.title)
+                    .font(TypeScale.title(for: colorScheme))
                     .foregroundStyle(Palette.ink)
                 StatusDot(color: status.map { Palette.stateColor($0.gatewayState) }
                     ?? Palette.inkMuted)

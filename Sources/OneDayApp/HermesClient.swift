@@ -350,11 +350,18 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-                    let payload: [String: Any] = [
+                    var payload: [String: Any] = [
                         "model": model,
                         "stream": true,
                         "messages": messages.map { ["role": $0.role, "content": $0.content] },
                     ]
+                    // 逐请求切上游（0.3.0 接线，DESIGN-V4 §15）：
+                    // 清单内模型带 provider=custom——网关裸
+                    // model 不认、带此字段才按名落上游渠道
+                    // （服务器实测口径，见 ChatModels 文件头）
+                    if let provider = ChatModels.providerField(for: model) {
+                        payload["provider"] = provider
+                    }
                     request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
                     let (bytes, response) = try await session.bytes(for: request)

@@ -1,3 +1,4 @@
+import OneDayCore
 import OneDayDesign
 import SwiftUI
 
@@ -7,6 +8,7 @@ import SwiftUI
 /// 完整 CommonMark（表格、嵌套列表）留待后续按需升级。
 struct MarkdownText: View {
     let content: String
+    @Environment(\.colorScheme) private var colorScheme
 
     init(_ content: String) {
         self.content = content
@@ -74,13 +76,17 @@ struct MarkdownText: View {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .paragraph(let text):
-                    inline(text)
+                    // 条 8（§14）：段落渲染前过断行整形
+                    // （尾行孤字防护）
+                    inline(TextShaping.prettyWrapDocument(text))
                         .font(TypeScale.body)
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                 case .heading(let text, let level):
                     inline(text)
-                        .font(level == 1 ? TypeScale.title : TypeScale.headline)
+                        .font(level == 1
+                            ? TypeScale.title(for: colorScheme)
+                            : TypeScale.headline)
                         .foregroundStyle(Palette.ink)
                 case .code(let code):
                     Text(code)
@@ -95,6 +101,12 @@ struct MarkdownText: View {
                             )
                         )
                         .textSelection(.enabled)
+                        // 条 10（§14）：代码块复制钮——对勾
+                        // 确认态 2.5s 自隐（CopyButton 共用件）
+                        .overlay(alignment: .topTrailing) {
+                            CopyButton(text: code)
+                                .padding(2)
+                        }
                 }
             }
         }

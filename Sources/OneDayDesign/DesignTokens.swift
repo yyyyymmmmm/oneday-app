@@ -1,3 +1,4 @@
+import OneDayCore
 import SwiftUI
 
 // MARK: - 设计令牌（v2 定版，见 docs/DESIGN-V2.md）
@@ -40,6 +41,43 @@ public enum TypeScale {
     public static let monoCaption = Font.system(.caption, design: .monospaced)
     /// 等宽代码
     public static let monoCode = Font.system(.footnote, design: .monospaced)
+
+    // —— 条 3 暗色降档变体（0.3.0，§14）：带权字体在暗色
+    // 环境下经 VisualWeight 降一档；调用点以 colorScheme
+    // 传入。未带权的字体（body/callout 等）由根环境
+    // fontWeight 在暗色统一降档（ContentView 施加），两
+    // 路合起来覆盖「所有文字」。
+    public static func display(for scheme: ColorScheme) -> Font {
+        Font.title.weight(.od(css: 600, scheme: scheme))
+    }
+    public static func title(for scheme: ColorScheme) -> Font {
+        Font.title2.weight(.od(css: 600, scheme: scheme))
+    }
+    public static func label(for scheme: ColorScheme) -> Font {
+        Font.footnote.weight(.od(css: 500, scheme: scheme))
+    }
+}
+
+public extension Font.Weight {
+    /// CSS 量纲字重（100–900）→ SwiftUI 字重；暗色环境
+    /// 按 §14 条 3 降一档（映射表在 OneDayCore.VisualWeight，
+    /// 单测把守）
+    static func od(css: Int, scheme: ColorScheme) -> Font.Weight {
+        let grade = scheme == .dark
+            ? VisualWeight.steppedDown(css)
+            : VisualWeight.nearestGrade(css)
+        switch grade {
+        case 100: return .ultraLight
+        case 200: return .thin
+        case 300: return .light
+        case 500: return .medium
+        case 600: return .semibold
+        case 700: return .bold
+        case 800: return .heavy
+        case 900: return .black
+        default: return .regular
+        }
+    }
 }
 
 // MARK: - Mat 材质三档（玻璃染色纪律）
@@ -105,7 +143,11 @@ public enum Elevation {
 
 public extension View {
     func odElevation(_ shadow: ShadowSpec) -> some View {
-        self.shadow(color: .black.opacity(shadow.opacity), radius: shadow.radius, y: shadow.y)
+        // 阴影色不用纯黑（§14 条 1）：近黑墨色同效
+        self.shadow(
+            color: Color(hex: 0x0A0A0C).opacity(shadow.opacity),
+            radius: shadow.radius, y: shadow.y
+        )
     }
 }
 
@@ -131,6 +173,18 @@ public enum MotionTokens {
     public static let entrance = Animation.easeOut(duration: 0.45)
     /// 页面交叉淡化（滚动跟随等既有调用点沿用 swap 时长口径）
     public static let pageCrossfade = Animation.easeInOut(duration: 0.2)
+    /// 条 9 定版弹簧·拖拽类（0.3.0，§14）：stiffness
+    /// 1200 / damping 80，零回弹——抽屉拖动跟随与归位、
+    /// 一切拖拽类交互走它
+    public static let dragSpring = Animation.interpolatingSpring(
+        stiffness: 1200, damping: 80
+    )
+    /// 条 9 定版弹簧·小动作（0.3.0，§14）：stiffness
+    /// 380 / damping 18，微弹——点赞类点按反馈、徽标与
+    /// 浮钮的出现/跳动走它
+    public static let microSpring = Animation.interpolatingSpring(
+        stiffness: 380, damping: 18
+    )
 
     /// Reduce Motion 降级口径：开启时返回 nil（调用方以
     /// withAnimation(resolved) 包裹，nil 即瞬时切换）；Reduce

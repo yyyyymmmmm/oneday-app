@@ -826,3 +826,90 @@ damping: 18)；拖拽类（会话抽屉拖动、滑动手势跟随）
 （Task 计时、可取消，重复点按重置计时）；施加于代
 码块复制、消息复制等全部复制点。
 
+
+## 15. 0.3.0 实施记录：视觉十条对账与模型接线
+
+### 15.1 视觉十条逐条对账（与 §14 对应）
+
+1. **黑框/#000＋四层分层**：Palette 改四层阶梯（浅
+   100/98.4/95.9/94.9、深 4.5/7.3/9.6/11.2，级差均
+   1–3%）；层 4 遮罩为 Palette.scrim（墨色 alpha）——
+   抽屉 scrim 自 Color.black 换入；AccentTheme 的
+   0x000000 改 0x111114；Elevation 阴影色自 .black 改
+   0x0A0A0C。落地后全仓 grep：0x000000/Color.black
+   零残留（构建后自证）。
+2. **聚焦禁描边**：发送舱聚焦态无任何 stroke 新增；
+   composerRow 按 composerFocused 加深双环阴影（近
+   环 .13α/r6/y2、远环 .10α/r18/y6；静止态淡影
+   .05/.04），swap 动画过渡。
+3. **暗色字重降一档**：两路覆盖——带权字体走
+   TypeScale 的 (for: ColorScheme) 变体（display/
+   title/label，映射表 OneDayCore.VisualWeight，单
+   测把守）；未带权文字走 ContentView 根 fontWeight
+   环境（暗色 .light）。UIKit 输入正文不在 SwiftUI
+   环境内，不受影响（如实注记）。
+4. **流式渐显**：新组件 StreamingText——词元化
+   （CJK 逐字、拉丁按词）后以 TokenFlow 换行布局排
+   布；新词元 blur 6→0＋opacity、120ms、同批增量
+   序号×30ms 错峰；光标作末尾词元同流。落盘成品回
+   MarkdownText 静态渲染。
+5. **图标光学对齐**：iconOpticalOffset（0.125em≈
+   body 处 2pt）修饰符入 OneDayDesign，施加于共用行
+   组件 ContentRow 的图标位——全部经该组件的行项一
+   致生效；散点图标后续新增同行点位须走此修饰（组
+   件层纪律）。
+6. **等宽数字**：tabularDigits()（monospacedDigit）
+   入口＋ContentRow.trailing 读数位施加；Mono 字阶
+   （monoFootnote 等）本就等宽、双保险。时间戳走
+   ContentRow/状态组件同一出口。
+7. **平滑高度展开**：SmoothExpand 组件（实测高
+   0↔全高插值＋clipped，0fr→1fr 等价）入设计层并
+   施加于发送舱附件条的出现/消失；全 App 后续折叠
+   只许用它。
+8. **断行 pretty**：等价近似——TextShaping 纯函数
+   以 WORD JOINER 绑尾字形（末行 ≥2 字形、句末标
+   点绑三），施加于 MarkdownText 段落与用户气泡。
+   近似边界：不做行长均衡（balance）；绑定不估行
+   宽，保证的是孤字情形结构性消除（函数文件头注
+   已写明，单测把守）。
+9. **弹簧定版**：MotionTokens.dragSpring
+   （1200/80）/microSpring（380/18）定版；抽屉归位
+   自 indicator 换 dragSpring；回到底部钮出入动画
+   换 microSpring。其余 press/swap/entrance 等时基
+   动画非弹簧类、保留（非拖拽非点按反馈，不在条
+   9 两支口径内）。
+10. **复制反馈**：CopyButton 共用组件（doc.on.doc
+    →checkmark、Palette.success、2.5s Task 计时自
+    隐、重复点按重置），施加于 MarkdownText 代码
+    块右上。全 App 此前无任何复制点，本条同时补齐
+    代码块复制能力本身。
+
+### 15.2 模型选择接线（研究口径见 ChatModels 文件头）
+
+- 清单：OneDayCore.ChatModels 写死三项（deepseek-
+  flash / deepseek-v4-pro / Qwen/Qwen3-30B-A3B-
+  Instruct-2507-FP8），含展示名与说明；单测钉顺序、
+  provider 口径与初始选择优先级。
+- 选择：AppState.chatModel（UserDefaults 持久化），
+  初始＝已存选择 > 服务端默认（须在清单内）> flash；
+  selectChatModel 只写本地、不发请求。顶栏胶囊展示
+  名改读 chatModel 展示名（名实一致）；选择器整表
+  重写为三项本地点选。服务端默认管理（设置页
+  setDefaultModel）与 ModelCatalog 原样保留、互不
+  干扰。
+- 请求：chatStream 请求体对清单内模型加
+  "provider": "custom"（HermesClient 组包处按
+  ChatModels.providerField 决定）。
+- Qwen 冷启：超时沿用既有 600s（≥研究口径
+  240s）；runStream 对 chatModel==coldStartID 且零
+  增量失败时自动重试 1 次，重试期间等待行亮「模
+  型唤醒中，冷启动约 1–3 分钟…」；已产出内容不重
+  试（防重复）。
+- 严禁项守纪：不发「/model xxx」文本；hermes-agent
+  不进聊天候选（清单写死、providerField 对它返
+  nil、顶栏不再展示它）。
+
+### 15.3 验收数值
+
+（构建后回填：build run、单测总数、解包 0.3.0/15、
+#000 残留 grep 自证。）

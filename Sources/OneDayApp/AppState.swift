@@ -32,6 +32,22 @@ final class AppState {
     private(set) var username: String?
     /// 对话模型 id：探活第三步从 /v1/models 取第一个，缺失时回退实测值
     private(set) var modelID: String = "hermes-agent"
+    /// 聊天模型（0.3.0 接线，DESIGN-V4 §15）：写死三项
+    /// （ChatModels）、本地选择、逐请求生效（请求带
+    /// provider=custom 切上游）；与服务端默认模型
+    /// （defaultModel，设置页管理面口径）互不干扰。
+    /// 持久化于 UserDefaults，初始口径见 ChatModels
+    private(set) var chatModel: String = ChatModels.initialSelection(
+        stored: UserDefaults.standard.string(forKey: "chatModelID"),
+        serverDefault: nil
+    )
+
+    /// 选择聊天模型（本地生效，不发网络请求、不改服务端）
+    func selectChatModel(_ id: String) {
+        guard ChatModels.contains(id) else { return }
+        chatModel = id
+        UserDefaults.standard.set(id, forKey: "chatModelID")
+    }
     /// 服务端默认模型（0.2.2 获取制）：自 /api/config 的 model 键
     /// 拉取，聊天页顶栏与抽屉身份块展示它；切换走 setDefaultModel
     private(set) var defaultModel: String?
@@ -197,6 +213,13 @@ final class AppState {
             try await client.rawConfig(config: config)
         }), let current = raw["model"]?.stringValue {
             defaultModel = current
+            // 聊天模型初始播种（0.3.0）：用户没选过时，若
+            // 服务端默认在写死清单内则以它为初始选择
+            if UserDefaults.standard.string(forKey: "chatModelID") == nil {
+                chatModel = ChatModels.initialSelection(
+                    stored: nil, serverDefault: current
+                )
+            }
         }
         var aliases = Set<String>()
         if let apiKey,

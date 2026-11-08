@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - v2 组件层（定版 §3.5：每个组件全 App 只有一种实现）
 // 内容层分离只靠留白、发丝线、一级表面差——零描边、零阴影、
@@ -44,6 +47,7 @@ public struct GroupDivider: View {
 /// 禁止大写 eyebrow（Hallmark Floor 9 / Impeccable 禁令）。
 public struct SectionLabel: View {
     private let title: String
+    @Environment(\.colorScheme) private var colorScheme
 
     public init(_ title: String) {
         self.title = title
@@ -51,7 +55,8 @@ public struct SectionLabel: View {
 
     public var body: some View {
         Text(title)
-            .font(TypeScale.label)
+            // 条 3（§14）：暗色字重降一档的变体入口
+            .font(TypeScale.label(for: colorScheme))
             .foregroundStyle(Palette.inkSecondary)
     }
 }
@@ -99,6 +104,8 @@ public struct ContentRow: View {
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+                    // 条 5（§14）：图标相对文字下移 0.125em
+                    .iconOpticalOffset()
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {
@@ -115,6 +122,8 @@ public struct ContentRow: View {
             if let trailing {
                 Text(trailing)
                     .font(TypeScale.monoFootnote)
+                    // 条 6（§14）：读数位等宽数字防抖
+                    .tabularDigits()
                     .foregroundStyle(Palette.inkMuted)
             }
         }
@@ -130,6 +139,7 @@ public struct FieldRow<Content: View>: View {
     private let label: String
     private let isActive: Bool
     private let content: Content
+    @Environment(\.colorScheme) private var colorScheme
 
     public init(
         label: String,
@@ -144,7 +154,7 @@ public struct FieldRow<Content: View>: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(TypeScale.label)
+                .font(TypeScale.label(for: colorScheme))
                 .foregroundStyle(isActive ? Palette.ink : Palette.inkSecondary)
             content
                 .font(TypeScale.body)
@@ -280,5 +290,94 @@ public struct InlineError: View {
                 .font(TypeScale.subhead)
                 .foregroundStyle(Palette.ink)
         }
+    }
+}
+
+// MARK: - 视觉纪律组件（0.3.0，DESIGN-V4 §14）
+
+public extension View {
+    /// 条 5 光学对齐：图标相对同行文字下移 0.125em。
+    /// em 以该行字号计——body 16pt 处约 2pt。图标与文字
+    /// 同行的点位统一走此修饰，不逐处手算
+    func iconOpticalOffset(fontSize: CGFloat = 16) -> some View {
+        offset(y: fontSize * 0.125)
+    }
+
+    /// 条 6 等宽数字：数字一律 tabular，防宽度抖动。
+    /// 含数字的 Text 统一施加（时间/计数/金额/读数）
+    func tabularDigits() -> some View {
+        monospacedDigit()
+    }
+}
+
+/// 条 10 复制反馈：点按复制 → 对勾确认态，2.5s 自动
+/// 消失（重复点按重置计时）。全 App 复制点只许用它，
+/// 不许各处自写一套反馈
+public struct CopyButton: View {
+    private let text: String
+    private let iconSize: CGFloat
+    @State private var copied = false
+    @State private var resetTask: Task<Void, Never>?
+
+    public init(text: String, iconSize: CGFloat = 13) {
+        self.text = text
+        self.iconSize = iconSize
+    }
+
+    public var body: some View {
+        Button {
+            UIPasteboard.general.string = text
+            copied = true
+            resetTask?.cancel()
+            resetTask = Task {
+                try? await Task.sleep(for: .seconds(2.5))
+                if !Task.isCancelled { copied = false }
+            }
+        } label: {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: iconSize, weight: .medium))
+                .foregroundStyle(
+                    copied ? Palette.success : Palette.inkSecondary
+                )
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(copied ? "已复制" : "复制")
+    }
+}
+
+/// 条 7 平滑高度展开（Grid 0fr→1fr 的 SwiftUI 等价）：
+/// 内容实测高在后台量得，容器高度在 0 ↔ 实测高之间动
+/// 画插值并裁剪——展开/收起全程平滑、禁跳变。折叠类交
+/// 互只许用它
+public struct SmoothExpand<Content: View>: View {
+    private let isExpanded: Bool
+    private let content: Content
+    @State private var contentHeight: CGFloat = 0
+
+    public init(
+        isExpanded: Bool, @ViewBuilder content: () -> Content
+    ) {
+        self.isExpanded = isExpanded
+        self.content = content()
+    }
+
+    public var body: some View {
+        content
+            .fixedSize(horizontal: false, vertical: true)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { contentHeight = proxy.size.height }
+                        .onChange(of: proxy.size.height) { _, newValue in
+                            contentHeight = newValue
+                        }
+                }
+            }
+            .frame(height: isExpanded ? contentHeight : 0, alignment: .top)
+            .clipped()
+            .animation(MotionTokens.swap, value: isExpanded)
     }
 }

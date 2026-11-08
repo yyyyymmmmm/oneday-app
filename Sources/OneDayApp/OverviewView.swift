@@ -12,6 +12,7 @@ import SwiftUI
 /// 该段，不整页报错。
 struct OverviewView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \ChatThread.updatedAt, order: .reverse) private var localThreads: [ChatThread]
 
     var onOpenAgent: (AgentRoute) -> Void = { _ in }
@@ -108,7 +109,7 @@ struct OverviewView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 StatusDot(color: Palette.stateColor(status.gatewayState))
                 Text(stateWord(status))
-                    .font(TypeScale.display)
+                    .font(TypeScale.display(for: colorScheme))
                     .foregroundStyle(isAbnormal(status) ? Palette.danger : Palette.ink)
             }
             .padding(.top, OneDayMetrics.spacingS)

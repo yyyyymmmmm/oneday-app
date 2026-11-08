@@ -39,6 +39,7 @@ struct ContentView: View {
     }
 
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
     @State private var selection: MainTab = .chat
 
     var body: some View {
@@ -96,6 +97,12 @@ struct ContentView: View {
                 .tag(MainTab.settings)
         }
         .tint(Palette.ink)
+        // 条 3（§14）未带权文字的降档通道：暗色环境下根
+        // fontWeight 降一档（regular→light），未显式带权
+        // 的 Text 全量继承；带权字体走 TypeScale 的
+        // (for:) 变体（VisualWeight 映射）。UIKit 文本
+        // 视图（输入框正文）不在此环境内、不受影响
+        .fontWeight(colorScheme == .dark ? .light : .regular)
     }
 
     /// 底栏字形（0.2.9 确定性路线，DESIGN-V4 §13）：
