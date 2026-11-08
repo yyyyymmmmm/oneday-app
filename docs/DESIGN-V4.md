@@ -1581,4 +1581,16 @@ actively）保留——礼记三件套的「点消息区收」与
 1024.png 削除。构建后解包验 Assets.car 在位（见
 §20.4 回填）。
 
-### 20.4 验收（待回填）
+### 20.4 验收（已回填）
+
+- 构建 run 42531079998 一轮全绿（含 Unit tests 步
+  TEST SUCCEEDED）；单测 78 条全过（76＋新增 2：
+  半径连续性、输入序列单调/纯函数）。解包实测
+  0.3.5／20／site.didichou.oneday；IPA 在
+  ~/workspace/your_files/oneday-v0.3.5/OneDay-0.3.5
+  .ipa（2,074,559 字节）。
+- 图标解包验：Assets.car 116,296 字节在位，内含
+  Icon-App 全套 rendition（19 条目／15 个唯一文件
+  名，与礼记 appiconset 同构）。
+- 真机终审归用户：主屏图标显示、回车跨行无重影、
+  点消息区空白收键盘。
