@@ -13,6 +13,10 @@ import SwiftUI
 struct StreamingText: View {
     let text: String
 
+    init(_ text: String) {
+        self.text = text
+    }
+
     @State private var tokens: [String] = []
     @State private var visible: Set<Int> = []
 
