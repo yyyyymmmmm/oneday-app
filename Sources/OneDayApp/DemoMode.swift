@@ -1,0 +1,105 @@
+import Foundation
+import SwiftData
+
+/// 截图验收环的演示模式：只由启动参数触发，正常启动零影响。
+/// - `-odDemoMode`：直接进已连接状态，五页全用本地静态样本驱动，
+///   不连任何服务器、不读写 Keychain、不落真实数据（内存库）。
+/// - `-odDemoConnect`：停在连接页，字段预填展示值（账号 admin，
+///   密码与密钥为占位假串，SecureField 里只显示圆点），供截
+///   未连接态。点「测试并连接」会走 DemoHermesClient 的假探活
+///   成功进主界面，全程不碰网络与钥匙串。
+enum DemoMode: Equatable {
+    case off
+    case connected
+    case connectPage
+
+    static var current: DemoMode {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-odDemoConnect") {
+            return .connectPage
+        }
+        if arguments.contains("-odDemoMode") {
+            return .connected
+        }
+        return .off
+    }
+
+    var isDemo: Bool { self != .off }
+}
+
+/// 演示样本对话的播种：内存库每次启动都是空的，播一份拟真多轮
+/// 对话（状态询问 → 代码块 → 长回复 → 收尾），让聊天页截图能同
+/// 时看到用户气泡、助手裸排、代码块与长文。最后一句用户消息的
+/// 回复不在种子里，由演示模式开流补上（截流式帧用）。
+enum DemoSeeder {
+    @MainActor
+    static func seedIfNeeded(context: ModelContext) {
+        let existing = (try? context.fetch(FetchDescriptor<ChatThread>())) ?? []
+        guard existing.isEmpty else { return }
+
+        let thread = ChatThread(title: "帮我看看服务器状态")
+        context.insert(thread)
+
+        let base = Date().addingTimeInterval(-25 * 60)
+        let samples: [(role: String, content: String)] = [
+            ("user", "帮我看看服务器现在的状态，顺便确认 Hermes 还在正常跑。"),
+            ("assistant", [
+                "刚查过，一切正常：",
+                "",
+                "网关运行中，API 服务已连接，健康检查返回 ok；当前模型是 deepseek-chat，工具集 hermes-cli 已加载。",
+                "",
+                "内存和磁盘都在正常区间，暂时没有要处理的事。",
+            ].joined(separator: "\n")),
+            ("user", "把手动查状态的命令发我一份，我存到备忘录里。"),
+            ("assistant", [
+                "存这两条就够了，第一条看健康、第二条看容器：",
+                "",
+                "```bash",
+                "# 健康检查（免登录）",
+                "curl -s https://hermes.didichou.site/health",
+                "",
+                "# 容器状态",
+                "docker ps --filter name=hermes",
+                "```",
+                "",
+                "第一条返回 `{\"status\": \"ok\"}` 就是活着；第二条看 STATUS 列，是 Up 就行。",
+            ].joined(separator: "\n")),
+            ("user", "OneDay 的管理页，接下来先做哪个模块最值？"),
+            ("assistant", [
+                "先做定时任务，我的排序理由有三条：",
+                "",
+                "一是离日常最近。节点巡检、证书到期提醒这类事本质都是定时任务，手机上能看列表、能暂停、能立即触发一次，价值当天就兑现。",
+                "",
+                "二是接口最完整。/api/cron/jobs 的增删改查、暂停、恢复、触发和运行记录都是现成的，照着规格接就行，不用拼凑，翻车概率最低。",
+                "",
+                "三是它能顺带验证管理页的整套交互——列表、详情、危险操作二次确认——这套交互跑通之后，技能和会话模块只是换数据源。记忆涉及提供方切换，误操作影响面最大，放最后。",
+            ].joined(separator: "\n")),
+            ("user", "好，就按你说的顺序来。"),
+        ]
+        for (index, sample) in samples.enumerated() {
+            let entry = ChatEntry(role: sample.role, content: sample.content, thread: thread)
+            entry.createdAt = base.addingTimeInterval(Double(index * 47))
+            context.insert(entry)
+        }
+        thread.createdAt = base
+        thread.updatedAt = base.addingTimeInterval(Double((samples.count - 1) * 47))
+
+        // 第二条旧会话：抽屉历史列表的行节奏靠它（时间在主会话之前）
+        let earlier = ChatThread(title: "下雨天节点会不会掉线")
+        context.insert(earlier)
+        let earlierBase = base.addingTimeInterval(-26 * 3600)
+        let earlierSamples: [(role: String, content: String)] = [
+            ("user", "昨晚洛川雨挺大，几个节点还稳吗？"),
+            ("assistant", "三个节点都在线，握手延迟比平时高一些，还在降级线以内，不用处理。明早我再复查一遍。"),
+        ]
+        for (index, sample) in earlierSamples.enumerated() {
+            let entry = ChatEntry(role: sample.role, content: sample.content, thread: earlier)
+            entry.createdAt = earlierBase.addingTimeInterval(Double(index * 47))
+            context.insert(entry)
+        }
+        earlier.createdAt = earlierBase
+        earlier.updatedAt = earlierBase.addingTimeInterval(47)
+
+        try? context.save()
+    }
+}

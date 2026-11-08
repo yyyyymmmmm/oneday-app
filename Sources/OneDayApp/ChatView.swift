@@ -8,9 +8,15 @@ import SwiftUI
 /// v2 视觉（docs/DESIGN-V2.md §3.5）：助手回答裸排在底色上（学
 /// ChatGPT/Claude 的共识）、用户是浅染气泡、输入区是浮空胶囊，
 /// 流式光标是本页的签名细节、也是全页唯一的蓝色时刻之一。
+/// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
+/// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
 struct ChatView: View {
+    /// 抽屉底部服务器行点按 → 切到设置格（ContentView 注入）
+    var onOpenSettings: () -> Void = {}
+
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \ChatThread.updatedAt, order: .reverse) private var threads: [ChatThread]
 
     @State private var currentThreadID: UUID?
@@ -19,7 +25,11 @@ struct ChatView: View {
     @State private var streamingText: String?
     @State private var sendTask: Task<Void, Never>?
     @State private var errorMessage: String?
-    @State private var showHistory = false
+    /// 抽屉开合与抽屉内搜索词
+    @State private var drawerOpen = false
+    @State private var drawerQuery = ""
+    /// 演示模式自动开流只跑一次（截图环截流式帧用）
+    @State private var demoStreamStarted = false
 
     private var currentThread: ChatThread? {
         threads.first { $0.id == currentThreadID } ?? threads.first
@@ -28,42 +38,48 @@ struct ChatView: View {
     private var isStreaming: Bool { streamingText != nil }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                messageList
-                if let errorMessage {
-                    errorBanner(errorMessage)
-                }
-                inputBar
-            }
-            .background(Palette.pageBG)
-            .navigationTitle(currentThread?.title ?? "聊天")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showHistory = true
-                    } label: {
-                        Image(systemName: "list.bullet")
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                NavigationStack {
+                    VStack(spacing: 0) {
+                        messageList
+                        if let errorMessage {
+                            errorBanner(errorMessage)
+                        }
+                        inputBar
                     }
-                    .accessibilityLabel("历史会话")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        newThread()
-                    } label: {
-                        Image(systemName: "square.and.pencil")
+                    .background(Palette.pageBG)
+                    .navigationTitle(currentThread?.title ?? "聊天")
+                    .navigationSubtitle(appState.modelID)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                setDrawer(true)
+                            } label: {
+                                Image(systemName: "sidebar.left")
+                            }
+                            .accessibilityLabel("会话列表")
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                newThread()
+                            } label: {
+                                Image(systemName: "square.and.pencil")
+                            }
+                            .accessibilityLabel("新建会话")
+                        }
                     }
-                    .accessibilityLabel("新建会话")
+                    .onAppear {
+                        if currentThreadID == nil {
+                            currentThreadID = threads.first?.id
+                        }
+                    }
+                    .task {
+                        await startDemoStreamIfNeeded()
+                    }
                 }
-            }
-            .sheet(isPresented: $showHistory) {
-                historySheet
-            }
-            .onAppear {
-                if currentThreadID == nil {
-                    currentThreadID = threads.first?.id
-                }
+                drawerOverlay(width: min(geo.size.width * 0.82, 340))
             }
         }
     }
@@ -213,51 +229,167 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
-    // MARK: - 历史会话
+    // MARK: - 会话抽屉（0.1.3，定版 §7）
 
-    private var historySheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if threads.isEmpty {
-                        Text("暂无历史会话")
-                            .font(TypeScale.footnote)
-                            .foregroundStyle(Palette.inkMuted)
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(
-                                Array(threads.enumerated()),
-                                id: \.element.id
-                            ) { index, thread in
-                                if index > 0 {
-                                    GroupDivider(inset: OneDayMetrics.spacingM)
-                                }
-                                historyRow(thread)
-                            }
-                        }
-                        .odGroup()
-                    }
-                }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingXL)
-            }
-            .background(Palette.pageBG)
-            .navigationTitle("历史会话")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { showHistory = false }
-                }
-            }
+    /// 开合统一走定版弹簧（indicator），Reduce Motion 时瞬时。
+    private func setDrawer(_ open: Bool) {
+        withAnimation(
+            MotionTokens.resolved(MotionTokens.indicator, reduceMotion: reduceMotion)
+        ) {
+            drawerOpen = open
         }
-        .presentationDetents([.medium, .large])
     }
 
-    private func historyRow(_ thread: ChatThread) -> some View {
+    /// 抽屉覆盖层：scrim（全开 0.4 黑）＋面板（宽 82%、上限
+    /// 340）＋左缘唤出手势层。面板盖住导航栏、止于标签栏之上
+    /// （标签栏属 ContentView，抽屉不越界盖它）。
+    @ViewBuilder
+    private func drawerOverlay(width: CGFloat) -> some View {
+        Color.black
+            .opacity(drawerOpen ? 0.4 : 0)
+            .allowsHitTesting(drawerOpen)
+            .onTapGesture { setDrawer(false) }
+        drawerPanel(width: width)
+            .offset(x: drawerOpen ? 0 : -width - 8)
+            .gesture(
+                DragGesture(minimumDistance: 24)
+                    .onEnded { value in
+                        if value.translation.width < -48 {
+                            setDrawer(false)
+                        }
+                    }
+            )
+        if !drawerOpen {
+            // 左缘 24pt 热区：右滑唤出，不挡正文纵向滚动
+            Color.clear
+                .frame(width: 24)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 16)
+                        .onEnded { value in
+                            if value.translation.width > 48 {
+                                setDrawer(true)
+                            }
+                        }
+                )
+        }
+    }
+
+    private func drawerPanel(width: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            drawerSearchField
+            drawerNewChatRow
+            ScrollView {
+                drawerList
+            }
+            drawerServerRow
+        }
+        .frame(width: width)
+        .frame(maxHeight: .infinity)
+        .background(Palette.surface)
+    }
+
+    private var drawerSearchField: some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15))
+                .foregroundStyle(Palette.inkMuted)
+                .accessibilityHidden(true)
+            TextField("搜索会话", text: $drawerQuery)
+                .font(TypeScale.body)
+                .foregroundStyle(Palette.ink)
+            if !drawerQuery.isEmpty {
+                Button {
+                    drawerQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Palette.inkMuted)
+                }
+                .accessibilityLabel("清空搜索")
+            }
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .frame(minHeight: OneDayMetrics.minTapTarget)
+        .background(
+            Palette.fieldFill,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.fieldCorner)
+        )
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .padding(.top, OneDayMetrics.spacingM)
+    }
+
+    private var drawerNewChatRow: some View {
         Button {
+            newThread()
+            setDrawer(false)
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: "square.and.pencil")
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                    .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+                    .accessibilityHidden(true)
+                Text("新建会话")
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.top, OneDayMetrics.spacingS)
+    }
+
+    private var filteredThreads: [ChatThread] {
+        let query = drawerQuery.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return threads }
+        return threads.filter { thread in
+            thread.title.localizedCaseInsensitiveContains(query)
+                || thread.entries.contains {
+                    $0.content.localizedCaseInsensitiveContains(query)
+                }
+        }
+    }
+
+    /// 分段口径（框架定版）：先按来源分段——本机会话是里程碑 1
+    /// 的真实数据（最近更新在前）；服务端会话待里程碑 2 接
+    /// /api/sessions 后点亮，先以安静文字占位，不伪造列表。
+    private var drawerList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("本机会话")
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .padding(.top, OneDayMetrics.spacingL)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            if filteredThreads.isEmpty {
+                Text(drawerQuery.isEmpty ? "暂无会话" : "没有匹配的会话")
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+            }
+            ForEach(filteredThreads) { thread in
+                drawerThreadRow(thread)
+            }
+            SectionLabel("服务端会话")
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .padding(.top, OneDayMetrics.spacingL)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            Text("将在里程碑 2 接入后列在这里")
+                .font(TypeScale.footnote)
+                .foregroundStyle(Palette.inkMuted)
+                .padding(.horizontal, OneDayMetrics.spacingM)
+        }
+        .padding(.bottom, OneDayMetrics.spacingL)
+    }
+
+    /// 会话行：与旧历史行同信息量（标题＋条数＋时间），当前会话
+    /// 以一级面差衬底（学两家参照的选中行填充，不用蓝色）。
+    private func drawerThreadRow(_ thread: ChatThread) -> some View {
+        let isCurrent = thread.id == currentThread?.id
+        return Button {
             currentThreadID = thread.id
-            showHistory = false
+            setDrawer(false)
         } label: {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(thread.title)
@@ -272,18 +404,58 @@ struct ChatView: View {
                 }
                 .foregroundStyle(Palette.inkMuted)
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.horizontal, OneDayMetrics.spacingSM)
             .padding(.vertical, OneDayMetrics.spacingSM)
-            .frame(maxWidth: .infinity, minHeight: OneDayMetrics.rowHeight, alignment: .leading)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: OneDayMetrics.rowHeight,
+                alignment: .leading
+            )
+            .background(
+                isCurrent ? Palette.fieldFill : Color.clear,
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.fieldCorner)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, OneDayMetrics.spacingS)
         .contextMenu {
             Button(role: .destructive) {
                 deleteThread(thread)
             } label: {
                 Label("删除会话", systemImage: "trash")
             }
+        }
+    }
+
+    /// 底部固定服务器行：两家参照的「底部账号行」在 OneDay 的
+    /// 对应物——状态点＋服务器名＋当前模型，点按去设置页。
+    private var drawerServerRow: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Palette.hairline)
+                .frame(height: 1)
+            Button {
+                setDrawer(false)
+                onOpenSettings()
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    StatusDot(color: Palette.success)
+                    Text(appState.config?.host ?? "未连接")
+                        .font(TypeScale.body)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Text(appState.modelID)
+                        .font(TypeScale.monoFootnote)
+                        .foregroundStyle(Palette.inkMuted)
+                }
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .frame(minHeight: OneDayMetrics.rowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("服务器设置")
         }
     }
 
@@ -333,6 +505,24 @@ struct ChatView: View {
         sendTask = Task {
             await runStream(thread: thread, messages: context)
         }
+    }
+
+    /// 演示模式：种子对话的最后一句用户消息由假客户端流式回完，
+    /// 让截图环能截到「半截回复＋流式光标」的静止帧。正常模式
+    /// 直接返回，零影响。
+    private func startDemoStreamIfNeeded() async {
+        guard DemoMode.current.isDemo, !demoStreamStarted,
+              let thread = currentThread else {
+            return
+        }
+        demoStreamStarted = true
+        // 等种子渲染落稳再开流，截图窗口对齐流式中段
+        try? await Task.sleep(for: .seconds(1))
+        let context = thread.sortedEntries.suffix(20).map {
+            ChatMessage(role: $0.role, content: $0.content)
+        }
+        streamingText = ""
+        await runStream(thread: thread, messages: context)
     }
 
     private func runStream(thread: ChatThread, messages: [ChatMessage]) async {

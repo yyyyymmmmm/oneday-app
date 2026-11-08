@@ -1,0 +1,93 @@
+name: Screenshots (demo mode)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/shots-013]
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "Project.swift"
+      - "Tuist.swift"
+      - ".github/workflows/screenshots.yml"
+
+jobs:
+  shots:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode
+        run: xcodebuild -version
+
+      - name: Install Tuist
+        run: brew install tuist
+
+      - name: Generate project
+        run: tuist generate --no-open
+
+      - name: UI tests (screenshots, demo mode)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project OneDay.xcodeproj \
+            -scheme OneDayApp \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -only-testing:OneDayUITests \
+            -resultBundlePath build/shots.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee shots-full.log
+          grep -E "error:|Test Case|Executed|TEST" shots-full.log | head -40 || true
+
+      - name: Export screenshot attachments
+        if: always()
+        run: |
+          mkdir -p shots-out shots-final
+          xcrun xcresulttool export attachments \
+            --path build/shots.xcresult \
+            --output-path shots-out
+          ls -la shots-out || true
+          python3 - <<'PY'
+          import glob, json, os, shutil
+
+          out_dir, final_dir = "shots-out", "shots-final"
+          wanted = ["01-connect", "02-chat", "03-chat-sidebar", "04-overview", "05-manage", "06-settings"]
+          found = {}
+
+          manifest = os.path.join(out_dir, "manifest.json")
+          if os.path.exists(manifest):
+              data = json.load(open(manifest))
+              entries = data if isinstance(data, list) else data.get("tests", [])
+              for entry in entries:
+                  for att in entry.get("attachments", []):
+                      human = att.get("suggestedHumanReadableName", "")
+                      exported = att.get("exportedFileName", "")
+                      for name in wanted:
+                          if name in human:
+                              src = os.path.join(out_dir, exported)
+                              if os.path.exists(src):
+                                  found[name] = src
+
+          # 兜底：manifest 对不上时，任何文件名带目标前缀的 PNG 都收
+          if len(found) < len(wanted):
+              for path in glob.glob(os.path.join(out_dir, "**", "*.png"), recursive=True):
+                  base = os.path.basename(path)
+                  for name in wanted:
+                      if base.startswith(name) and name not in found:
+                          found[name] = path
+
+          for name, src in found.items():
+              shutil.copy(src, os.path.join(final_dir, name + ".png"))
+          print("exported:", sorted(os.listdir(final_dir)))
+          missing = [n for n in wanted if n not in found]
+          if missing:
+              print("MISSING:", missing)
+          PY
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oneday-shots
+          path: shots-final/*.png
+          if-no-files-found: error

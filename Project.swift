@@ -8,8 +8,8 @@ let project = Project(
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1",
-        "MARKETING_VERSION": "0.1.2",
-        "CURRENT_PROJECT_VERSION": "3",
+        "MARKETING_VERSION": "0.1.3",
+        "CURRENT_PROJECT_VERSION": "4",
     ]),
     targets: [
         .target(
@@ -43,8 +43,8 @@ let project = Project(
                 // 版本号直写 Info.plist（沿礼记 v4.4 实证口径）：Tuist 默认
                 // 模板不把工程设置的 MARKETING_VERSION 展开进 plist，
                 // 只写字面量才进包。
-                "CFBundleShortVersionString": "0.1.2",
-                "CFBundleVersion": "3",
+                "CFBundleShortVersionString": "0.1.3",
+                "CFBundleVersion": "4",
                 "ITSAppUsesNonExemptEncryption": false,
                 "UILaunchScreen": ["UIColorName": "LaunchBackground"],
                 // 自托管场景：允许连接局域网内的自建服务器（http）。
@@ -71,13 +71,23 @@ let project = Project(
             sources: ["Tests/OneDayCoreTests/**"],
             dependencies: [.target(name: "OneDayCore")]
         ),
+        .target(
+            name: "OneDayUITests",
+            destinations: .iOS,
+            product: .uiTests,
+            bundleId: "site.didichou.oneday.uitests",
+            deploymentTargets: iOS26,
+            infoPlist: .default,
+            sources: ["Tests/OneDayUITests/**"],
+            dependencies: [.target(name: "OneDayApp")]
+        ),
     ],
     schemes: [
         .scheme(
             name: "OneDayApp",
             shared: true,
             buildAction: .buildAction(targets: ["OneDayApp"]),
-            testAction: .targets(["OneDayCoreTests"]),
+            testAction: .targets(["OneDayCoreTests", "OneDayUITests"]),
             runAction: .runAction(executable: "OneDayApp")
         ),
     ]

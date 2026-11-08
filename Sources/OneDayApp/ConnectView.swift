@@ -16,6 +16,17 @@ struct ConnectView: View {
     @State private var password = ""
     @State private var apiKey = ""
 
+    init() {
+        // 连接页演示态（-odDemoConnect）：预填展示值供截图——
+        // 账号 admin；密码与密钥是占位假串，SecureField 只显圆点，
+        // 不含任何真实凭据（演示探活也走假客户端，不出设备）。
+        if DemoMode.current == .connectPage {
+            _username = State(initialValue: "admin")
+            _password = State(initialValue: "demo-password")
+            _apiKey = State(initialValue: "demo-api-key")
+        }
+    }
+
     private enum Field: Hashable {
         case server, username, password, apiKey
     }

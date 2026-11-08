@@ -34,10 +34,25 @@ final class AppState {
     private(set) var modelID: String = "hermes-agent"
 
     let client: HermesClientProtocol
+    /// 演示模式（截图验收环）：为真时不读不写 Keychain、
+    /// 不发网络请求（客户端已被替换为 DemoHermesClient）。
+    let isDemo: Bool
 
-    init(client: HermesClientProtocol = HermesClient()) {
+    init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
-        restore()
+        isDemo = demoMode.isDemo
+        switch demoMode {
+        case .connected:
+            // 演示会话：地址与账号只是展示数据，密钥由假客户端消化
+            config = ServerConfig(rawInput: "https://hermes.didichou.site")
+            username = "admin"
+            phase = .connected
+        case .connectPage:
+            // 停在连接页：保持未连接，字段预填在 ConnectView 侧
+            break
+        case .off:
+            restore()
+        }
     }
 
     // MARK: - 启动恢复
@@ -58,11 +73,14 @@ final class AppState {
     }
 
     var apiKey: String? {
-        KeychainStore.read(account: CredentialKey.apiKey)
+        // 演示假值：只会被递给 DemoHermesClient，不出设备
+        if isDemo { return "demo-api-key" }
+        return KeychainStore.read(account: CredentialKey.apiKey)
     }
 
     private var password: String? {
-        KeychainStore.read(account: CredentialKey.password)
+        if isDemo { return "demo-password" }
+        return KeychainStore.read(account: CredentialKey.password)
     }
 
     // MARK: - 三步探活并连接
@@ -89,10 +107,13 @@ final class AppState {
         if let first = ids.first {
             modelID = first
         }
-        KeychainStore.save(config.baseString, account: CredentialKey.baseURL)
-        KeychainStore.save(username, account: CredentialKey.username)
-        KeychainStore.save(password, account: CredentialKey.password)
-        KeychainStore.save(apiKey, account: CredentialKey.apiKey)
+        // 演示模式不落 Keychain：假凭据写进去会污染真实连接
+        if !isDemo {
+            KeychainStore.save(config.baseString, account: CredentialKey.baseURL)
+            KeychainStore.save(username, account: CredentialKey.username)
+            KeychainStore.save(password, account: CredentialKey.password)
+            KeychainStore.save(apiKey, account: CredentialKey.apiKey)
+        }
         self.config = config
         self.username = username
         phase = .connected
@@ -137,6 +158,13 @@ final class AppState {
     /// 断开连接：清 Keychain 与该服务器 cookie，回连接页。
     /// 本地聊天记录保留（是用户数据，删除口子在聊天页历史里）。
     func disconnect() {
+        if isDemo {
+            // 演示模式只复位状态：不动 Keychain、不清 cookie
+            config = nil
+            username = nil
+            phase = .needsConnection
+            return
+        }
         if let config {
             client.clearCookies(config: config)
         }

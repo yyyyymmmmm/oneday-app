@@ -140,7 +140,7 @@ struct SettingsView: View {
                 .padding(.top, 28)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                infoRow(label: "OneDay 版本", value: "0.1.2", mono: true)
+                infoRow(label: "OneDay 版本", value: "0.1.3", mono: true)
                 GroupDivider(inset: OneDayMetrics.spacingM)
                 infoRow(label: "服务端要求", value: "Hermes v0.23.0", mono: true)
                 GroupDivider(inset: OneDayMetrics.spacingM)
