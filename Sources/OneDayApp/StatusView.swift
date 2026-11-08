@@ -78,7 +78,7 @@ struct StatusView: View {
         case "error", "failed": word = "异常"
         default: word = status == nil ? "状态读取中" : "未知状态"
         }
-        let model = appState.modelID == "hermes-agent" ? "服务端默认模型" : appState.modelID
+        let model = appState.defaultModel ?? (appState.modelID == "hermes-agent" ? "服务端默认模型" : appState.modelID)
         return "\(word) · \(model)"
     }
 

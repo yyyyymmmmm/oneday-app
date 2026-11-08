@@ -32,6 +32,12 @@ final class AppState {
     private(set) var username: String?
     /// 对话模型 id：探活第三步从 /v1/models 取第一个，缺失时回退实测值
     private(set) var modelID: String = "hermes-agent"
+    /// 服务端默认模型（0.2.2 获取制）：自 /api/config 的 model 键
+    /// 拉取，聊天页顶栏与抽屉身份块展示它；切换走 setDefaultModel
+    private(set) var defaultModel: String?
+    /// 可切换模型目录（0.2.2）：config 当前值 ∪ /v1/models ∪
+    /// 近 30 天用量出现过的模型，全部服务端拉取、无手输入口
+    private(set) var availableModels: [String] = []
 
     let client: HermesClientProtocol
     /// 演示模式（截图验收环）：为真时不读不写 Keychain、
@@ -56,6 +62,8 @@ final class AppState {
             // 三处展示（顶栏副题/抽屉服务器行/设置）一致；假客户端
             // 不校验模型名，生产路径的 modelID 仍以 /v1/models 为准
             modelID = "deepseek-chat"
+            defaultModel = "deepseek-chat"
+            availableModels = ["deepseek-chat", "deepseek-reasoner", "hermes-agent"]
             phase = .connected
         case .connectPage:
             // 停在连接页：保持未连接，字段预填在 ConnectView 侧
@@ -163,6 +171,65 @@ final class AppState {
             } catch HermesError.unexpectedStatus(_, let retryStatus) where retryStatus == 401 {
                 throw HermesError.sessionExpired
             }
+        }
+    }
+
+    // MARK: - 模型目录（0.2.2 获取制）
+
+    /// 刷新默认模型与可切换目录：当前值来自 /api/config，
+    /// 候选并集 /v1/models 与近 30 天用量模型（全部 GET 拉取）
+    func refreshModelCatalog() async {
+        guard phase == .connected else { return }
+        if let raw = try? await performAdmin({ client, config in
+            try await client.rawConfig(config: config)
+        }), let current = raw["model"]?.stringValue {
+            defaultModel = current
+        }
+        var ordered: [String] = []
+        var seen = Set<String>()
+        func add(_ model: String?) {
+            guard let model, !model.isEmpty, seen.insert(model).inserted else { return }
+            ordered.append(model)
+        }
+        add(defaultModel)
+        if let apiKey,
+           let ids = try? await performAdmin({ client, config in
+               try await client.models(config: config, apiKey: apiKey)
+           }) {
+            ids.forEach { add($0) }
+        }
+        if let analytics = try? await performAdmin({ client, config in
+            try await client.modelAnalytics(config: config, days: 30)
+        }) {
+            analytics.models.forEach { add($0.model) }
+        }
+        if !ordered.isEmpty {
+            availableModels = ordered
+        }
+    }
+
+    /// 切换服务端默认模型：读全量 config → 只改 model 键 →
+    /// 整包写回（PUT /api/config 既有写接口，演示/单测验证，
+    /// 不对生产执行）
+    func setDefaultModel(_ model: String) async throws {
+        var raw = try await performAdmin { client, config in
+            try await client.rawConfig(config: config)
+        }
+        raw["model"] = .string(model)
+        try await performAdmin { client, config in
+            try await client.updateConfig(config: config, newConfig: raw)
+        }
+        defaultModel = model
+        if !availableModels.contains(model) {
+            availableModels.insert(model, at: 0)
+        }
+    }
+
+    /// 设置页在本页内写回 config 后同步内存态（避免两处口径漂移）
+    func noteDefaultModel(_ model: String) {
+        defaultModel = model
+        if !availableModels.contains(model) {
+            availableModels.insert(model, at: 0)
         }
     }
 

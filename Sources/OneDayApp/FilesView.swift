@@ -4,15 +4,26 @@ import OneDayDesign
 import SwiftUI
 import UIKit
 
-/// 文件格（0.2.1 新增，仿 Muse 资源库）：顶部分段
-/// 「文件／影音」。文件＝服务端工作区（GET /api/files，
-/// 根被服务端 locked_root 锁在数据目录内）目录浏览＋预览、
-/// 下载到本地、删除（带确认）；影音＝按 mime/扩展名过滤的
-/// 图片/视频/音频，网格缩略图浏览、点开预览。
-/// 数据口径全部来自 2026-11-08 生产实查回执（见
-/// HermesFilesModels.swift 的结构注释）。
+/// 文件格（0.2.2 改版「交付物库」）：撤掉 0.2.1 的服务端目录树
+/// 浏览器，改为聚合 Hermes 的产出/交付文件。数据源实查结论
+/// （2026-11-08 生产 GET /api/files 全树，见
+/// docs/DESIGN-V3-NOTES.md §5）：产出落点＝cache/{images,
+/// videos,audio,documents,screenshots,scratch}、cron/output、
+/// image_cache、audio_cache 与数据根的散文件；其余目录是
+/// 系统区（config/logs/backups/sessions 等），不属交付物。
+/// 文件与会话之间没有关联字段——来源只标到产出目录级，
+/// 不编造会话溯源。
+/// 分段：文件＝文档与其他交付文件列表（名/来源/时间/大小，
+/// 可预览/下载/删除）；影音＝交付的图片/视频/音频网格。
 struct FilesView: View {
+    @Environment(AppState.self) private var appState
+
     @State private var segment = 0
+    @State private var deliverables: [Deliverable]?
+    @State private var loadError: String?
+    @State private var pendingDelete: Deliverable?
+    @State private var shareItem: FileShareItem?
+    @State private var notice: String?
 
     var body: some View {
         NavigationStack {
@@ -25,76 +36,83 @@ struct FilesView: View {
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.vertical, OneDayMetrics.spacingS)
                 if segment == 0 {
-                    DirectoryListView(path: nil)
+                    fileList
                 } else {
-                    MediaGridView()
+                    mediaGrid
                 }
             }
             .background(Palette.pageBG)
             .navigationTitle("文件")
-            .navigationDestination(for: String.self) { path in
-                DirectoryListView(path: path)
-                    .navigationTitle((path as NSString).lastPathComponent)
-                    .navigationBarTitleDisplayMode(.inline)
-            }
             .navigationDestination(for: WorkspaceFileEntry.self) { entry in
                 FilePreviewView(entry: entry)
             }
+            .task { await collect() }
+            .refreshable { await collect() }
+            .confirmationDialog(
+                "删除「\(pendingDelete?.entry.name ?? "")」？",
+                isPresented: Binding(
+                    get: { pendingDelete != nil },
+                    set: { if !$0 { pendingDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("删除", role: .destructive) {
+                    if let item = pendingDelete {
+                        Task { await delete(item) }
+                    }
+                    pendingDelete = nil
+                }
+                Button("取消", role: .cancel) { pendingDelete = nil }
+            } message: {
+                Text("删除后无法恢复。")
+            }
+            .sheet(item: $shareItem) { item in
+                FileShareSheet(url: item.url)
+            }
         }
     }
-}
 
-// MARK: - 目录列表
+    // MARK: - 文件段
 
-private struct DirectoryListView: View {
-    @Environment(AppState.self) private var appState
-    let path: String?
+    private var documents: [Deliverable] {
+        (deliverables ?? []).filter { $0.entry.mediaKind == nil }
+    }
 
-    @State private var listing: FilesListing?
-    @State private var loadError: String?
-    @State private var pendingDelete: WorkspaceFileEntry?
-    @State private var shareItem: FileShareItem?
-    @State private var notice: String?
-
-    var body: some View {
+    private var fileList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if let listing {
-                    if listing.entries.isEmpty {
-                        EmptyState(
-                            icon: "folder",
-                            title: "这个文件夹是空的",
-                            message: "服务端工作区里暂时没有内容。"
-                        )
+                if deliverables == nil && loadError == nil {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
                         .padding(.top, OneDayMetrics.spacingXXL)
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(Array(listing.entries.enumerated()), id: \.element.id) { index, entry in
-                                if index > 0 {
-                                    GroupDivider(inset: OneDayMetrics.dividerInset)
-                                }
-                                fileRow(entry)
-                            }
-                        }
-                        .odGroup()
-                    }
-                    if let locked = listing.lockedRoot {
-                        Text("工作区根目录：\(locked)（服务端锁定，无法越级浏览）")
-                            .font(TypeScale.footnote)
-                            .foregroundStyle(Palette.inkMuted)
-                            .padding(.top, OneDayMetrics.spacingM)
-                    }
-                } else if let loadError {
+                } else if let loadError, deliverables == nil {
                     EmptyState(
                         icon: "exclamationmark.triangle",
                         title: "读取失败",
                         message: loadError
                     )
                     .padding(.top, OneDayMetrics.spacingXXL)
+                } else if documents.isEmpty {
+                    EmptyState(
+                        icon: "doc.text.magnifyingglass",
+                        title: "暂无交付物",
+                        message: "智能体生成的文件、图片与定时任务产出会出现在这里。"
+                    )
+                    .padding(.top, OneDayMetrics.spacingXXL)
                 } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, OneDayMetrics.spacingXXL)
+                    VStack(spacing: 0) {
+                        ForEach(Array(documents.enumerated()), id: \.element.id) { index, item in
+                            if index > 0 {
+                                GroupDivider(inset: OneDayMetrics.dividerInset)
+                            }
+                            deliverableRow(item)
+                        }
+                    }
+                    .odGroup()
+                    Text("聚合 Hermes 的产出目录（生成缓存、定时任务产出、媒体缓存）与根目录散文件，按时间倒序。来源只标到目录——文件与会话没有关联接口，不做会话溯源。")
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkMuted)
+                        .padding(.top, OneDayMetrics.spacingM)
                 }
                 if let notice {
                     Text(notice)
@@ -108,116 +126,164 @@ private struct DirectoryListView: View {
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
-        .task { await load() }
-        .refreshable { await load() }
-        .confirmationDialog(
-            "删除「\(pendingDelete?.name ?? "")」？",
-            isPresented: Binding(
-                get: { pendingDelete != nil },
-                set: { if !$0 { pendingDelete = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("删除", role: .destructive) {
-                if let entry = pendingDelete {
-                    Task { await delete(entry) }
-                }
-                pendingDelete = nil
-            }
-            Button("取消", role: .cancel) { pendingDelete = nil }
-        } message: {
-            Text(pendingDelete?.isDirectory == true
-                 ? "将递归删除该文件夹及其全部内容，无法恢复。"
-                 : "删除后无法恢复。")
-        }
-        .sheet(item: $shareItem) { item in
-            FileShareSheet(url: item.url)
-        }
     }
 
-    @ViewBuilder
-    private func fileRow(_ entry: WorkspaceFileEntry) -> some View {
-        if entry.isDirectory {
-            NavigationLink(value: entry.path) {
-                rowContent(entry, chevron: true)
-            }
-            .buttonStyle(.plain)
-            .contextMenu { rowMenu(entry) }
-        } else {
-            NavigationLink(value: entry) {
-                rowContent(entry, chevron: true)
-            }
-            .buttonStyle(.plain)
-            .contextMenu { rowMenu(entry) }
-        }
-    }
-
-    private func rowContent(_ entry: WorkspaceFileEntry, chevron: Bool) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Image(systemName: entry.odIconName)
-                .font(TypeScale.body)
-                .foregroundStyle(entry.isDirectory ? Palette.primary : Palette.inkSecondary)
-                .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.name)
+    private func deliverableRow(_ item: Deliverable) -> some View {
+        NavigationLink(value: item.entry) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: item.entry.odIconName)
                     .font(TypeScale.body)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text(entry.odSubtitle)
-                    .font(TypeScale.footnote)
                     .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: OneDayMetrics.spacingS)
-            if chevron {
+                    .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.entry.name)
+                        .font(TypeScale.body)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Text(item.subtitle)
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-        .contentShape(Rectangle())
-    }
-
-    @ViewBuilder
-    private func rowMenu(_ entry: WorkspaceFileEntry) -> some View {
-        if !entry.isDirectory {
+        .buttonStyle(.plain)
+        .contextMenu {
             Button {
-                Task { await download(entry) }
+                Task { await download(item.entry) }
             } label: {
                 Label("下载到本地", systemImage: "arrow.down.to.line")
             }
-        }
-        Button(role: .destructive) {
-            pendingDelete = entry
-        } label: {
-            Label("删除", systemImage: "trash")
-        }
-    }
-
-    private func load() async {
-        do {
-            listing = try await appState.performAdmin { client, config in
-                try await client.files(config: config, path: path)
+            Button(role: .destructive) {
+                pendingDelete = item
+            } label: {
+                Label("删除", systemImage: "trash")
             }
-            loadError = nil
-        } catch {
-            loadError = (error as? HermesError)?.userMessage ?? "读取文件列表失败。"
         }
     }
 
-    private func delete(_ entry: WorkspaceFileEntry) async {
+    // MARK: - 影音段
+
+    private var mediaItems: [Deliverable] {
+        (deliverables ?? []).filter { $0.entry.mediaKind != nil }
+    }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2),
+    ]
+
+    private var mediaGrid: some View {
+        ScrollView {
+            if deliverables == nil && loadError == nil {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, OneDayMetrics.spacingXXL)
+            } else if mediaItems.isEmpty {
+                EmptyState(
+                    icon: "photo.on.rectangle.angled",
+                    title: "暂无影音交付",
+                    message: "智能体生成的图片、视频与音频会出现在这里。"
+                )
+                .padding(.top, OneDayMetrics.spacingXXL)
+            } else {
+                LazyVGrid(columns: columns, spacing: 2) {
+                    ForEach(mediaItems) { item in
+                        NavigationLink(value: item.entry) {
+                            MediaCell(entry: item.entry)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                pendingDelete = item
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .background(Palette.pageBG)
+    }
+
+    // MARK: - 聚合与动作
+
+    /// 聚合各产出根（每根递归 ≤3 层、全局条目上限保护）＋根目录
+    /// 散文件（排除已知系统文件与隐藏文件），按 mtime 倒序、
+    /// 路径去重
+    private func collect() async {
+        var found: [Deliverable] = []
+        var seenPaths = Set<String>()
+        func absorb(_ entry: WorkspaceFileEntry, source: String) {
+            guard !entry.isDirectory, seenPaths.insert(entry.path).inserted else { return }
+            found.append(Deliverable(entry: entry, source: source))
+        }
+        for root in Self.outputRoots {
+            var queue: [(path: String, depth: Int)] = [(root.path, 0)]
+            var visited = 0
+            while !queue.isEmpty {
+                let (path, depth) = queue.removeFirst()
+                guard let listing = try? await appState.performAdmin({ client, config in
+                    try await client.files(config: config, path: path)
+                }) else { continue }
+                visited += listing.entries.count
+                for entry in listing.entries {
+                    if entry.isDirectory {
+                        if depth < 3 {
+                            queue.append((entry.path, depth + 1))
+                        }
+                    } else {
+                        absorb(entry, source: root.label)
+                    }
+                }
+                if visited >= 600 { break }
+            }
+        }
+        if let rootListing = try? await appState.performAdmin({ client, config in
+            try await client.files(config: config, path: nil)
+        }) {
+            for entry in rootListing.entries where !entry.isDirectory {
+                guard !entry.name.hasPrefix("."),
+                      !Self.rootDenyList.contains(entry.name) else { continue }
+                absorb(entry, source: "工作区根目录")
+            }
+        }
+        if found.isEmpty && deliverables == nil {
+            // 全部根都拉不到才算失败；部分失败静默（空产出目录
+            // 在新部署上是正常态，不把空当错）
+            let probe = try? await appState.performAdmin { client, config in
+                try await client.files(config: config, path: nil)
+            }
+            if probe == nil {
+                loadError = "产出目录读取失败，请下拉重试。"
+            }
+        }
+        deliverables = found.sorted { ($0.entry.mtime ?? 0) > ($1.entry.mtime ?? 0) }
+        if loadError != nil && !(deliverables?.isEmpty ?? true) {
+            loadError = nil
+        }
+    }
+
+    private func delete(_ item: Deliverable) async {
         do {
             try await appState.performAdmin { client, config in
                 try await client.deleteFile(
-                    config: config, path: entry.path, recursive: entry.isDirectory
+                    config: config, path: item.entry.path, recursive: false
                 )
             }
-            notice = "已删除「\(entry.name)」。"
-            await load()
+            notice = "已删除「\(item.entry.name)」。"
+            await collect()
         } catch {
             notice = (error as? HermesError)?.userMessage ?? "删除失败，请稍后再试。"
         }
@@ -235,81 +301,45 @@ private struct DirectoryListView: View {
     }
 }
 
-// MARK: - 影音网格
+/// 交付物：工作区文件条目＋来源（产出目录语义名）
+private struct Deliverable: Identifiable {
+    let entry: WorkspaceFileEntry
+    let source: String
 
-private struct MediaGridView: View {
-    @Environment(AppState.self) private var appState
-    @State private var media: [WorkspaceFileEntry]?
-    @State private var loadError: String?
+    var id: String { entry.path }
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-    ]
-
-    var body: some View {
-        ScrollView {
-            if let media {
-                if media.isEmpty {
-                    EmptyState(
-                        icon: "photo.on.rectangle.angled",
-                        title: "暂无影音文件",
-                        message: "工作区里还没有图片、视频或音频文件。"
-                    )
-                    .padding(.top, OneDayMetrics.spacingXXL)
-                } else {
-                    LazyVGrid(columns: columns, spacing: 2) {
-                        ForEach(media) { entry in
-                            NavigationLink(value: entry) {
-                                MediaCell(entry: entry)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            } else if let loadError {
-                EmptyState(
-                    icon: "exclamationmark.triangle",
-                    title: "读取失败",
-                    message: loadError
-                )
-                .padding(.top, OneDayMetrics.spacingXXL)
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, OneDayMetrics.spacingXXL)
-            }
+    var subtitle: String {
+        let size = entry.size.map {
+            ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)
         }
-        .background(Palette.pageBG)
-        .task { await collect() }
-    }
-
-    /// 从根递归收集影音（深度 ≤3、条目上限保护，避免大树全量遍历）
-    private func collect() async {
-        var found: [WorkspaceFileEntry] = []
-        var queue: [(path: String?, depth: Int)] = [(nil, 0)]
-        var visited = 0
-        while !queue.isEmpty {
-            let (path, depth) = queue.removeFirst()
-            guard let listing = try? await appState.performAdmin({ client, config in
-                try await client.files(config: config, path: path)
-            }) else { continue }
-            visited += listing.entries.count
-            for entry in listing.entries {
-                if entry.isDirectory {
-                    if depth < 3 {
-                        queue.append((entry.path, depth + 1))
-                    }
-                } else if entry.mediaKind != nil {
-                    found.append(entry)
-                }
-            }
-            if found.count >= 300 || visited >= 1500 { break }
-        }
-        media = found.sorted { ($0.mtime ?? 0) > ($1.mtime ?? 0) }
+        let date = AdminFormat.short(entry.modifiedAt)
+        return [source, size, date].compactMap { $0 }.joined(separator: " · ")
     }
 }
+
+extension FilesView {
+    /// 产出根（路径, 来源名）——实查口径见文件头注释
+    fileprivate static let outputRoots: [(path: String, label: String)] = [
+        ("/opt/data/cache/images", "生成图片"),
+        ("/opt/data/cache/documents", "生成文档"),
+        ("/opt/data/cache/screenshots", "浏览器截图"),
+        ("/opt/data/cache/videos", "生成的视频"),
+        ("/opt/data/cache/audio", "生成的音频"),
+        ("/opt/data/cache/scratch", "临时产出"),
+        ("/opt/data/cron/output", "定时任务产出"),
+        ("/opt/data/image_cache", "图片缓存"),
+        ("/opt/data/audio_cache", "音频缓存"),
+    ]
+
+    /// 根目录散文件的排除名单：服务端自身的配置/人格/状态文件，
+    /// 不是交付物
+    fileprivate static let rootDenyList: Set<String> = [
+        "config.yaml", ".env", "auth.json",
+        "SOUL.md", "AGENTS.md", "USER.md", "MEMORY.md", "IDENTITY.md",
+    ]
+}
+
+// MARK: - 影音格
 
 private struct MediaCell: View {
     @Environment(AppState.self) private var appState

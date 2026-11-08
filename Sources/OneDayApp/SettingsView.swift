@@ -224,7 +224,7 @@ struct SettingsView: View {
         groupBlock("模型与密钥") {
             navRow(
                 icon: "text.bubble", title: "对话模型",
-                value: appState.modelID == "hermes-agent" ? "服务端默认" : appState.modelID,
+                value: appState.defaultModel ?? (appState.modelID == "hermes-agent" ? "服务端默认" : appState.modelID),
                 route: .models, mono: true
             )
             GroupDivider(inset: OneDayMetrics.dividerInset)
@@ -293,7 +293,7 @@ struct SettingsView: View {
 
     private var aboutGroup: some View {
         groupBlock("关于") {
-            infoRow(label: "OneDay 版本", value: "0.2.1", mono: true)
+            infoRow(label: "OneDay 版本", value: "0.2.2", mono: true)
             GroupDivider(inset: OneDayMetrics.spacingM)
             infoRow(
                 label: "服务端",

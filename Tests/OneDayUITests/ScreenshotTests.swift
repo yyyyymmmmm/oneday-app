@@ -87,10 +87,10 @@ final class ScreenshotTests: XCTestCase {
         waitText(app, "帮我看看服务器状态")
         capture("04-overview")
 
-        // 文件（0.2.1 新格）：等根目录样本到位
+        // 文件（0.2.2 交付物库）：等聚合样本到位（生成文档＋定时产出）
         app.tabBars.buttons["文件"].tap()
-        waitText(app, "notes.md")
-        waitText(app, "server.log")
+        waitText(app, "网络巡检周报.md")
+        waitText(app, "每日简报-1108.txt")
         capture("05-files")
 
         // 设置（0.2.1 分组目录）：等智能体组与外观组行到位

@@ -46,6 +46,8 @@ struct ChatView: View {
     @State private var showCamera = false
     @State private var showFileImporter = false
     @FocusState private var composerFocused: Bool
+    /// 0.2.2：模型选择器（顶栏副题点开，列表服务端拉取）
+    @State private var showModelPicker = false
     /// 抽屉身份块与服务端会话组的数据（开抽屉时拉取）
     @State private var drawerStatus: ServerStatus?
     @State private var drawerServerSessions: [ServerSession] = []
@@ -55,6 +57,16 @@ struct ChatView: View {
     }
 
     private var isStreaming: Bool { streamingText != nil }
+
+    /// 顶栏/抽屉展示的模型名：优先服务端默认模型（/api/config
+    /// 拉取）；未拉到时 /v1 的 hermes-agent 是路由伪名，显示
+    /// 「服务端默认模型」不把伪名当真名展示
+    private var displayModelName: String {
+        if let model = appState.defaultModel, !model.isEmpty {
+            return model
+        }
+        return appState.modelID == "hermes-agent" ? "服务端默认模型" : appState.modelID
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -103,17 +115,42 @@ struct ChatView: View {
                             Task { await loadDrawerData() }
                         }
                     }
-                    .navigationTitle(currentThread?.title ?? "聊天")
-                    .navigationSubtitle(appState.modelID)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
+                            // 0.2.2 定版规格（DESIGN-V3-NOTES §3）：
+                            // 36pt 圆形材质底，不再裸图标
                             Button {
                                 setDrawer(true)
                             } label: {
                                 Image(systemName: "sidebar.left")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Palette.ink)
+                                    .frame(width: 36, height: 36)
+                                    .background(Palette.fieldFill, in: Circle())
                             }
                             .accessibilityLabel("会话列表")
+                        }
+                        ToolbarItem(placement: .principal) {
+                            VStack(spacing: 1) {
+                                Text(currentThread?.title ?? "聊天")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Palette.ink)
+                                    .lineLimit(1)
+                                Button {
+                                    showModelPicker = true
+                                } label: {
+                                    HStack(spacing: 3) {
+                                        Text(displayModelName)
+                                            .font(TypeScale.caption)
+                                            .lineLimit(1)
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 9, weight: .bold))
+                                    }
+                                    .foregroundStyle(Palette.inkSecondary)
+                                }
+                                .accessibilityLabel("切换模型")
+                            }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
@@ -131,6 +168,13 @@ struct ChatView: View {
                     }
                     .task {
                         await startDemoStreamIfNeeded()
+                    }
+                    .task {
+                        await appState.refreshModelCatalog()
+                    }
+                    .sheet(isPresented: $showModelPicker) {
+                        ModelPickerSheet()
+                            .presentationDetents([.medium])
                     }
                 }
                 drawerOverlay(width: min(geo.size.width * 0.82, 340))
@@ -297,7 +341,7 @@ struct ChatView: View {
         .background(Palette.pageBG)
     }
 
-    // MARK: - 输入区（0.2.1：＋附件键＋34pt 标准发送键）
+    // MARK: - 输入区（0.2.2 定版：＋键与发送键同径 36pt 圆形）
 
     private var canSend: Bool {
         !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -329,8 +373,8 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
-    /// 发送键：34pt 圆形标准键（0.2.1 改版，不再用超大玻璃键）；
-    /// 流式中变停止键、同尺寸；染色走主题填充档
+    /// 发送键：36pt 圆形（与＋键同径定版）；流式中变停止键、
+    /// 同尺寸；染色走主题填充档
     private var sendButton: some View {
         let active = isStreaming || canSend
         return Button {
@@ -343,7 +387,7 @@ struct ChatView: View {
             Image(systemName: isStreaming ? "stop.fill" : "arrow.up")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(active ? Color.white : Palette.inkMuted)
-                .frame(width: 34, height: 34)
+                .frame(width: 36, height: 36)
                 .background(
                     active ? Palette.primaryFill : Palette.fieldFill,
                     in: Circle()
@@ -375,7 +419,7 @@ struct ChatView: View {
             Image(systemName: "plus")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Palette.ink)
-                .frame(width: 34, height: 34)
+                .frame(width: 36, height: 36)
                 .background(Palette.surface, in: Circle())
                 .odElevation(Elevation.floating)
         }
@@ -552,7 +596,7 @@ struct ChatView: View {
                         ?? Palette.success
                 )
             }
-            Text("\(drawerStateWord) · \(appState.modelID == "hermes-agent" ? "服务端默认模型" : appState.modelID)")
+            Text("\(drawerStateWord) · \(displayModelName)")
                 .font(TypeScale.footnote)
                 .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
@@ -622,7 +666,7 @@ struct ChatView: View {
                 Image(systemName: "square.and.pencil")
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
-                    .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+                    .frame(width: 30, alignment: .leading)
                     .accessibilityHidden(true)
                 Text("新建会话")
                     .font(TypeScale.body)
@@ -630,7 +674,7 @@ struct ChatView: View {
                 Spacer()
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: 46)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -729,7 +773,7 @@ struct ChatView: View {
             .padding(.vertical, OneDayMetrics.spacingSM)
             .frame(
                 maxWidth: .infinity,
-                minHeight: OneDayMetrics.rowHeight,
+                minHeight: 54,
                 alignment: .leading
             )
             .contentShape(Rectangle())
@@ -752,8 +796,9 @@ struct ChatView: View {
         threadDateFormatter.string(from: date)
     }
 
-    /// 会话行：与旧历史行同信息量（标题＋条数＋时间），当前会话
-    /// 以一级面差衬底（学两家参照的选中行填充，不用蓝色）。
+    /// 会话行（0.2.2 规格对齐 DESIGN-V3-NOTES §3）：双行最小高
+    /// 54；选中态＝主题浅染填充＋标题 semibold（成熟实现的
+    /// 填充式选中，不用描边不用裸灰）
     private func drawerThreadRow(_ thread: ChatThread) -> some View {
         let isCurrent = thread.id == currentThread?.id
         return Button {
@@ -763,21 +808,22 @@ struct ChatView: View {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(thread.title)
                     .font(TypeScale.body)
+                    .fontWeight(isCurrent ? .semibold : .regular)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text("\(thread.entries.count) 条 · \(Self.threadDateText(thread.updatedAt))")
                     .font(TypeScale.monoFootnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(isCurrent ? Palette.inkSecondary : Palette.inkMuted)
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .padding(.vertical, OneDayMetrics.spacingSM)
             .frame(
                 maxWidth: .infinity,
-                minHeight: OneDayMetrics.rowHeight,
+                minHeight: 54,
                 alignment: .leading
             )
             .background(
-                isCurrent ? Palette.fieldFill : Color.clear,
+                isCurrent ? Palette.primaryTint : Color.clear,
                 in: RoundedRectangle(cornerRadius: OneDayMetrics.fieldCorner)
             )
             .contentShape(Rectangle())
@@ -1070,5 +1116,107 @@ private struct StreamingCaret: View {
                 .opacity(on ? 1 : 0.15)
         }
         .accessibilityHidden(true)
+    }
+}
+
+
+/// 模型选择器（0.2.2 获取制）：列表全部来自服务端拉取
+/// （AppState.availableModels＝/api/config 当前值 ∪ /v1/models
+/// ∪ 近 30 天用量模型）；点选即切换服务端默认模型（写回走
+/// /api/config 既有写接口）。无数据时明确提示，不给手输框。
+private struct ModelPickerSheet: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var errorMessage: String?
+    @State private var switching: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if appState.availableModels.isEmpty {
+                        EmptyState(
+                            icon: "cpu",
+                            title: "暂无可用模型",
+                            message: "服务端没有返回模型列表（/v1/models 与配置均为空），请先在服务端配置模型。"
+                        )
+                        .padding(.top, OneDayMetrics.spacingXXL)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(
+                                Array(appState.availableModels.enumerated()),
+                                id: \.element
+                            ) { index, model in
+                                if index > 0 {
+                                    GroupDivider(inset: OneDayMetrics.spacingM)
+                                }
+                                modelRow(model)
+                            }
+                        }
+                        .odGroup()
+                        Text("列表来自服务端拉取：当前配置、/v1/models 与近 30 天实际用过的模型。切换改的是服务端默认模型，新会话生效；正在进行的对话不切换。")
+                            .font(TypeScale.footnote)
+                            .foregroundStyle(Palette.inkMuted)
+                            .padding(.top, OneDayMetrics.spacingM)
+                    }
+                    if let errorMessage {
+                        InlineError(errorMessage)
+                            .padding(.top, OneDayMetrics.spacingL)
+                    }
+                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXL)
+            }
+            .background(Palette.pageBG)
+            .navigationTitle("选择模型")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+            .task {
+                await appState.refreshModelCatalog()
+            }
+        }
+    }
+
+    private func modelRow(_ model: String) -> some View {
+        let isCurrent = model == appState.defaultModel
+        return Button {
+            guard !isCurrent, switching == nil else { return }
+            switching = model
+            Task {
+                do {
+                    try await appState.setDefaultModel(model)
+                    dismiss()
+                } catch {
+                    errorMessage = (error as? HermesError)?.userMessage
+                        ?? "切换失败，请稍后再试。"
+                }
+                switching = nil
+            }
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Text(model)
+                    .font(TypeScale.monoCallout)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Spacer(minLength: OneDayMetrics.spacingS)
+                if switching == model {
+                    ProgressView()
+                } else if isCurrent {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Palette.primary)
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

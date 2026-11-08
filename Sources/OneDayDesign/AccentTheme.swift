@@ -1,17 +1,20 @@
 import Foundation
 import Observation
 
-/// 强调色主题（0.2.1，用户拍板）：全 App 只动强调色一族
-/// （主色/填充/浅染），静态色（纸底、墨色、语义色）不随主题变。
-/// 五款克制备选，默认腾讯蓝。
-///
-/// 取值口径：
-/// - 腾讯蓝：明快品牌蓝 #00A4FF 为主色；填充档同色系加深到
-///   #0076C9（白字对比约 4.6:1）——沿用设计 v2 的
-///   primary/primaryFill 双档纪律（现行深蓝即 #0052D9/#003CAB）。
-/// - 深蓝：0.2.0 现行整套（#0052D9/#003CAB/#EBF1FC），原样保留。
-/// - 其余三款同纪律：主色取品牌色本体，填充加深一档保白字，
-///   浅染约 8% 同色系。
+/// 强调色主题（0.2.1 引入，0.2.2 按查证口径纠正）：全 App 只动
+/// 强调色一族（主色/填充/浅染），静态色（纸底、墨色、语义色）
+/// 不随主题变。取值依据见 docs/DESIGN-V3-NOTES.md §1–§2：
+/// - 腾讯蓝（默认）：TDesign 官方品牌色阶 brand7 #0052D9 为主色、
+///   brand8 #003CAB 为填充档（按下阶，白字对比足）、brand1
+///   #F2F3FF 为浅染。0.2.1 曾误用 #00A4FF（未查证的猜值），
+///   0.2.2 改回官方值。
+/// - 深蓝：以 brand8 #003CAB 为主色、按同规则加深/取浅阶。
+/// - 墨黑：TDesign 中性深色 #181818 一带的中性墨。
+/// - 紫：Apple HIG 系统色 systemPurple #AF52DE（深色档 #BF5AF2
+///   为其官方深色变体）。
+/// - 绿：TDesign 功能色·成功 #00A870。
+/// 填充档与浅染档一律按「同色阶加深一档/最浅档」规则推导，
+/// 保证白字对比——沿用设计 v2 的 primary/primaryFill 双档纪律。
 public enum AccentTheme: String, CaseIterable, Identifiable, Sendable {
     case tencent
     case deepBlue
@@ -35,15 +38,15 @@ public enum AccentTheme: String, CaseIterable, Identifiable, Sendable {
     public var values: (UInt32, UInt32, UInt32, UInt32, UInt32, UInt32) {
         switch self {
         case .tencent:
-            return (0x00A4FF, 0x4DBDFF, 0x0076C9, 0x0B84D8, 0xE6F6FF, 0x10344D)
+            return (0x0052D9, 0x6BA3FF, 0x003CAB, 0x0052D9, 0xF2F3FF, 0x1B2B4D)
         case .deepBlue:
-            return (0x0052D9, 0x6BA3FF, 0x003CAB, 0x0052D9, 0xEBF1FC, 0x1B2B4D)
+            return (0x003CAB, 0x5B8DEF, 0x002A66, 0x003CAB, 0xD9E1FF, 0x16233F)
         case .inkBlack:
-            return (0x191D23, 0xEDF0F4, 0x191D23, 0x454C55, 0xEDEFF2, 0x23282F)
+            return (0x1F1F24, 0xEDF0F4, 0x000000, 0x454C55, 0xECECF1, 0x23282F)
         case .purple:
-            return (0x7B3FE4, 0xB79CFF, 0x6D28D9, 0x7C3AED, 0xF1EAFE, 0x2C2145)
+            return (0xAF52DE, 0xBF5AF2, 0x8E3DB8, 0xAF52DE, 0xF6E9FB, 0x2C2145)
         case .green:
-            return (0x0E9F6E, 0x4CC38A, 0x067A54, 0x0B8A5F, 0xE4F6EF, 0x14332A)
+            return (0x00A870, 0x35C48D, 0x007A52, 0x00A870, 0xE6F7F0, 0x14332A)
         }
     }
 

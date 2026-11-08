@@ -411,6 +411,86 @@ struct DemoHermesClient: HermesClientProtocol {
     func files(config: ServerConfig, path: String?) async throws -> FilesListing {
         let root = "/opt/data"
         switch path ?? root {
+        case "/opt/data/cache/images":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/cache/images", "parent": "/opt/data/cache",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "生成图-节点拓扑.png", "path": "/opt/data/cache/images/生成图-节点拓扑.png",
+                 "is_directory": false, "size": 48213, "mtime": 1794141188.0,
+                 "mime_type": "image/png"},
+                {"name": "巡检截图.png", "path": "/opt/data/cache/images/巡检截图.png",
+                 "is_directory": false, "size": 35110, "mtime": 1794054788.0,
+                 "mime_type": "image/png"}
+             ]}
+            """)
+        case "/opt/data/cache/videos":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/cache/videos", "parent": "/opt/data/cache",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "演示录屏.mp4", "path": "/opt/data/cache/videos/演示录屏.mp4",
+                 "is_directory": false, "size": 5242880, "mtime": 1793968388.0,
+                 "mime_type": "video/mp4"}
+             ]}
+            """)
+        case "/opt/data/cache/audio":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/cache/audio", "parent": "/opt/data/cache",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "语音备忘.m4a", "path": "/opt/data/cache/audio/语音备忘.m4a",
+                 "is_directory": false, "size": 96256, "mtime": 1793881988.0,
+                 "mime_type": "audio/mp4"}
+             ]}
+            """)
+        case "/opt/data/cache/documents":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/cache/documents", "parent": "/opt/data/cache",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "网络巡检周报.md", "path": "/opt/data/cache/documents/网络巡检周报.md",
+                 "is_directory": false, "size": 3110, "mtime": 1794054788.0,
+                 "mime_type": "text/markdown"}
+             ]}
+            """)
+        case "/opt/data/cache/screenshots":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/cache/screenshots", "parent": "/opt/data/cache",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "官网首页截图.png", "path": "/opt/data/cache/screenshots/官网首页截图.png",
+                 "is_directory": false, "size": 66410, "mtime": 1793881988.0,
+                 "mime_type": "image/png"}
+             ]}
+            """)
+        case "/opt/data/cron/output":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/cron/output", "parent": "/opt/data/cron",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "每日简报-1108.txt", "path": "/opt/data/cron/output/每日简报-1108.txt",
+                 "is_directory": false, "size": 1890, "mtime": 1793968388.0,
+                 "mime_type": "text/plain"}
+             ]}
+            """)
+        case "/opt/data/image_cache":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/image_cache", "parent": "/opt/data",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "参考图-架构.png", "path": "/opt/data/image_cache/参考图-架构.png",
+                 "is_directory": false, "size": 51200, "mtime": 1793795588.0,
+                 "mime_type": "image/png"}
+             ]}
+            """)
         case "/opt/data/images":
             return decode(FilesListing.self, """
             {"path": "/opt/data/images", "parent": "/opt/data",
@@ -442,7 +522,14 @@ struct DemoHermesClient: HermesClientProtocol {
                  "mime_type": "text/markdown"}
              ]}
             """)
-        default:
+        case "/opt/data/cache/scratch", "/opt/data/audio_cache":
+            let emptyPath = path ?? root
+            return decode(FilesListing.self, """
+            {"path": "\(emptyPath)", "parent": "/opt/data",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false, "entries": []}
+            """)
+        case "/opt/data":
             return decode(FilesListing.self, """
             {"path": "/opt/data", "parent": null,
              "root": "/opt/data", "locked_root": "/opt/data",
@@ -454,16 +541,17 @@ struct DemoHermesClient: HermesClientProtocol {
                 {"name": "reports", "path": "/opt/data/reports",
                  "is_directory": true, "size": null, "mtime": 1794054788.0,
                  "mime_type": null},
-                {"name": "notes.md", "path": "/opt/data/notes.md",
-                 "is_directory": false, "size": 2048, "mtime": 1794141188.0,
-                 "mime_type": "text/markdown"},
-                {"name": "data.json", "path": "/opt/data/data.json",
-                 "is_directory": false, "size": 1180, "mtime": 1793968388.0,
-                 "mime_type": "application/json"},
-                {"name": "server.log", "path": "/opt/data/server.log",
-                 "is_directory": false, "size": 82411, "mtime": 1793881988.0,
-                 "mime_type": "text/plain"}
+                {"name": "交付说明.md", "path": "/opt/data/交付说明.md",
+                 "is_directory": false, "size": 2048, "mtime": 1793711588.0,
+                 "mime_type": "text/markdown"}
              ]}
+            """)
+        default:
+            let unknownPath = path ?? root
+            return decode(FilesListing.self, """
+            {"path": "\(unknownPath)", "parent": "/opt/data",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false, "entries": []}
             """)
         }
     }
@@ -476,6 +564,9 @@ struct DemoHermesClient: HermesClientProtocol {
         }
         if path.hasSuffix(".md") {
             return Data("# 演示文件\n\n这是演示模式的文本预览样本。\n".utf8)
+        }
+        if path.hasSuffix(".txt") {
+            return Data("每日简报（演示）\n节点 41 个全部在线，电费余额读数正常。\n".utf8)
         }
         if path.hasSuffix(".json") {
             return Data("{\"demo\": true, \"count\": 3}\n".utf8)
