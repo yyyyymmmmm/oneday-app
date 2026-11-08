@@ -97,8 +97,21 @@ final class ComposerKeyboardTests: XCTestCase {
             predicate: NSPredicate(format: "hasKeyboardFocus == true"),
             object: field
         )
+        let focusResult = XCTWaiter.wait(for: [focusExpectation], timeout: 10)
+        // 【临时诊断】元素命中性与全树层级＋坐标点按对照
+        print("[DIAG] elementTap focusResult=\(focusResult.rawValue) isHittable=\(field.isHittable)")
+        print("[DIAG] tree=\(app.debugDescription)")
+        if focusResult != .completed {
+            app.coordinate(
+                withNormalizedOffset: CGVector(
+                    dx: (field.frame.midX) / 402, dy: (field.frame.midY) / 874
+                )
+            ).tap()
+            settle(1.5)
+            print("[DIAG] coordTap keyboardExists=\(app.keyboards.firstMatch.exists) fieldValue=\(field.value ?? "nil")")
+        }
         XCTAssertEqual(
-            XCTWaiter.wait(for: [focusExpectation], timeout: 10),
+            focusResult,
             .completed, "输入框未获得键盘焦点"
         )
         let keyboard = app.keyboards.firstMatch
