@@ -110,7 +110,7 @@ struct StatusView: View {
                                         .font(TypeScale.body)
                                         .foregroundStyle(Palette.ink)
                                         .lineLimit(1)
-                                    Text("\(AdminFormat.short(session.startedDate)) · \(session.messageCount) 条")
+                                    Text("\(AdminFormat.short(session.startedDate)) · \(session.messageCount ?? 0) 条")
                                         .font(TypeScale.footnote)
                                         .foregroundStyle(Palette.inkSecondary)
                                 }

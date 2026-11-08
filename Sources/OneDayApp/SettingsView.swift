@@ -117,6 +117,7 @@ struct SettingsView: View {
                 icon: "server.rack", title: "当前服务器",
                 value: appState.config?.host ?? "—",
                 route: .serverDetail,
+                valueStyle: .monoFootnote,
                 dot: status.map { Palette.stateColor($0.gatewayState) }
             )
             GroupDivider(inset: OneDayMetrics.dividerInset)
@@ -322,15 +323,21 @@ struct SettingsView: View {
             .accessibilityHidden(true)
     }
 
+    private enum ValueStyle {
+        case callout, monoCallout, monoFootnote
+    }
+
     private func navRow(
         icon: String,
         title: String,
         value: String,
         route: SettingsRoute,
         mono: Bool = false,
+        valueStyle: ValueStyle? = nil,
         dot: Color? = nil
     ) -> some View {
-        Button {
+        let resolvedStyle = valueStyle ?? (mono ? .monoCallout : .callout)
+        return Button {
             path.append(route)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
@@ -343,7 +350,13 @@ struct SettingsView: View {
                     StatusDot(color: dot)
                 }
                 Text(value)
-                    .font(mono ? TypeScale.monoCallout : TypeScale.callout)
+                    .font(
+                        resolvedStyle == .monoFootnote
+                            ? TypeScale.monoFootnote
+                            : resolvedStyle == .monoCallout
+                                ? TypeScale.monoCallout
+                                : TypeScale.callout
+                    )
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
                 Image(systemName: "chevron.right")
