@@ -25,6 +25,17 @@ import SwiftUI
 /// 此只留在发送键、链接等内容强调位，不再染底栏。页面内
 /// 强调色全部显式引用 Palette 令牌（全仓核查：.tint 仅此
 /// 一处），改 tint 不误伤各页。
+/// 0.3.1 底栏再定案（DESIGN-V4 §16）：用户点名照搬
+/// 礼记做法——结构换 Tab(value:)＋Label(标题,
+/// systemImage:) 系统直渲，零尺寸配置、零预渲染
+/// （0.2.9 的烘焙定标、同日先行的配置定标均作废）。
+/// 0.2.4 的「只要图标不要文字」同步作废：标题随
+/// Label 进栏、由系统排布（礼记同款）。
+/// 0.2.5 的「.fill 全面禁用」就此反转：未选线条体、
+/// 选中切官方 .fill 成对变体（chart 与 slider 无
+/// fill、同名），选中 .bounce 一次（Reduce Motion
+/// 系统自动抑制）。符号名对的单一事实源在
+/// OneDayCore.TabBarSymbols，单测钉死。
 /// 层级与避让全部服从系统默认：聊天抽屉（页内覆盖层）打开
 /// 时底栏按系统层级浮于其上；键盘弹起时由系统处理；各页
 /// 滚动内容经系统安全区延伸到底栏之下，从玻璃背后流过。
@@ -44,57 +55,51 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            ChatView(
-                onOpenSettings: { selection = .settings },
-                onOpenServerSession: { id in
-                    appState.pendingAgentRoute = .serverSessionDetail(id)
-                    selection = .settings
-                }
-            )
-            .tabItem {
-                tabSymbol("bubble.left.and.bubble.right")
-                    .accessibilityLabel("聊天")
-                    .accessibilityIdentifier("tab.chat")
+            Tab(value: MainTab.chat) {
+                ChatView(
+                    onOpenSettings: { selection = .settings },
+                    onOpenServerSession: { id in
+                        appState.pendingAgentRoute = .serverSessionDetail(id)
+                        selection = .settings
+                    }
+                )
+            } label: {
+                tabLabel(TabBarSymbols.chat, tab: .chat)
             }
-            .tag(MainTab.chat)
 
-            OverviewView(
-                onOpenAgent: { route in
-                    appState.pendingAgentRoute = route
-                    selection = .settings
-                },
-                onOpenSettings: { route in
-                    appState.pendingSettingsRoute = route
-                    selection = .settings
-                },
-                onOpenChat: { selection = .chat }
-            )
-            .tabItem {
-                // 0.2.5：原 gauge.with.dots.needle.33percent 是
-                // 带实心圆点的粗字形，换细线条的趋势线图
-                tabSymbol("chart.line.uptrend.xyaxis")
-                    .accessibilityLabel("总览")
-                    .accessibilityIdentifier("tab.overview")
+            Tab(value: MainTab.overview) {
+                OverviewView(
+                    onOpenAgent: { route in
+                        appState.pendingAgentRoute = route
+                        selection = .settings
+                    },
+                    onOpenSettings: { route in
+                        appState.pendingSettingsRoute = route
+                        selection = .settings
+                    },
+                    onOpenChat: { selection = .chat }
+                )
+            } label: {
+                // 0.2.5 选型沿革：原 gauge.with.dots.needle.
+                // 33percent 是带实心圆点的粗字形，换细线条
+                // 的趋势线图（该符号无 .fill 对，选中同名）
+                tabLabel(TabBarSymbols.overview, tab: .overview)
             }
-            .tag(MainTab.overview)
 
-            FilesView()
-                .tabItem {
-                    tabSymbol("folder")
-                        .accessibilityLabel("文件")
-                        .accessibilityIdentifier("tab.files")
-                }
-                .tag(MainTab.files)
+            Tab(value: MainTab.files) {
+                FilesView()
+            } label: {
+                tabLabel(TabBarSymbols.files, tab: .files)
+            }
 
-            SettingsView()
-                .tabItem {
-                    // 0.2.5：gearshape 是实心剪影、无更细的同义
-                    // 齿轮符号，换线条体的滑杆组（偏好设置字形）
-                    tabSymbol("slider.horizontal.3")
-                        .accessibilityLabel("设置")
-                        .accessibilityIdentifier("tab.settings")
-                }
-                .tag(MainTab.settings)
+            Tab(value: MainTab.settings) {
+                SettingsView()
+            } label: {
+                // 0.2.5 选型沿革：gearshape 是实心剪影、无更
+                // 细的同义齿轮符号，换线条体的滑杆组（偏好
+                // 设置字形；该符号无 .fill 对，选中同名）
+                tabLabel(TabBarSymbols.settings, tab: .settings)
+            }
         }
         .tint(Palette.ink)
         // 条 3（§14）未带权文字的降档通道：暗色环境下根
@@ -105,15 +110,19 @@ struct ContentView: View {
         .fontWeight(colorScheme == .dark ? .light : .regular)
     }
 
-    /// 底栏字形（0.3.1 系统直渲，DESIGN-V4 §16）：
-    /// 图由 OneDayCore.TabBarSymbols 按定版配置
-    /// （22pt／.regular／.medium）从系统符号渲染器
-    /// 直出——是真正的符号图，TabView 以符号身份走系
-    /// 统管线渲染，最终度量归系统。0.2.9 的预渲染定
-    /// 标路线已删：几何定标管不住描边观感、位图进栏还
-    /// 被二次缩放（四轮真机打回定因与止损条款在
-    /// §16）。点击热区是 tab 条目本身、不随字形变化。
-    private func tabSymbol(_ name: String) -> Image {
-        Image(uiImage: TabBarSymbols.image(named: name))
+    /// 底栏标签（0.3.1 礼记同款，DESIGN-V4 §16）：
+    /// Label(标题, systemImage:) 交系统直渲——未选
+    /// 线条体、选中切官方 .fill 成对变体（无 fill 对
+    /// 的同名），选中时 .bounce 一次（系统在 Reduce
+    /// Motion 时自动抑制）。零尺寸配置、零预渲染；
+    /// 符号名对以 OneDayCore.TabBarSymbols 为单一事
+    /// 实源，单测钉死。
+    private func tabLabel(_ pair: TabSymbolPair, tab: MainTab) -> some View {
+        Label(
+            pair.title,
+            systemImage: pair.name(isSelected: selection == tab)
+        )
+        .symbolEffect(.bounce, value: selection == tab)
+        .accessibilityIdentifier("tab.\(pair.id)")
     }
 }

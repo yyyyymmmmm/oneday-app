@@ -1,47 +1,59 @@
-import UIKit
+import Foundation
 
-/// 底栏字形（0.3.1 系统直渲路线，DESIGN-V4 §16）：
-/// 0.2.9 的「确定性构造」（按 alpha 包围盒定标 pointSize
-/// 生成 UIImage 再喂原生栏）真机仍不过——几何定标只管得
-/// 住字形框高，管不住描边观感，且预渲染图进 TabView 后
-/// 还要被二次缩放。本轮删尽预渲染：图直接由系统符号渲
-/// 染器按定版 SymbolConfiguration 出（pointSize 22／
-/// weight .regular／scale .medium），UITabBar 以符号图
-/// 身份走系统管线渲染，最终度量归系统。本轮可钉的只有
-/// 配置本身——单测（TabBarSymbolsTests）钉配置三值与
-/// 符号清单，不再有任何 alpha 量高逻辑。
-/// pointSize 22 的锚：0.2.9 口径对齐量得真机 Muse 字
-/// 形 ≈21.7–22.3pt（取代早期 24 的粗量）。
+/// 底栏符号名对（0.3.1 礼记同款，DESIGN-V4 §16）：
+/// 图标由系统按 Label(systemImage:) 直渲——零尺寸
+/// 配置、零预渲染（0.2.9 烘焙定标与配置定标路线均
+/// 已作废删除）。本表是四个 tab 的「未选线条体 ↔
+/// 选中 .fill」官方成对变体的单一事实源：bubble 与
+/// folder 有官方 .fill 对；chart.line.uptrend.xyaxis
+/// 与 slider.horizontal.3 目录内无 .fill 变体，选中
+/// 同名（只吃 .bounce 区分状态）。单测钉死本表。
+public struct TabSymbolPair: Equatable, Sendable {
+    /// 条目标识（与无障碍标识 tab.<id> 共用）
+    public let id: String
+    /// 栏内标题（礼记同款：标题随 Label 进栏）
+    public let title: String
+    /// 未选态符号名（线条体）
+    public let normal: String
+    /// 选中态符号名（官方 .fill 对；无对时与 normal 同名）
+    public let selected: String
+
+    public init(id: String, title: String, normal: String, selected: String) {
+        self.id = id
+        self.title = title
+        self.normal = normal
+        self.selected = selected
+    }
+
+    /// 按选中态取符号名
+    public func name(isSelected: Bool) -> String {
+        isSelected ? selected : normal
+    }
+}
+
+/// 四个底栏条目的符号名对（顺序与 ContentView 条目同序）
 public enum TabBarSymbols {
-    /// 定版配置：字号（pt）。对齐 Muse 真机字形实测
-    public static let pointSize: CGFloat = 22
-    /// 定版配置：字重。Muse 为细线条 regular，不许加粗凑数
-    public static let weight: UIImage.SymbolWeight = .regular
-    /// 定版配置：符号缩放档
-    public static let scale: UIImage.SymbolScale = .medium
-
-    /// 四个底栏条目的系统符号名（与 ContentView 条目同序）。
-    /// 四枚基础符号本身即目录中最轻的线条（outline）设
-    /// 计：bubble 与 folder 另有 .fill 变体（§9 禁用在
-    /// 案），无更细的 design variant 可换（§16 记档）。
-    public static let names = [
-        "bubble.left.and.bubble.right",
-        "chart.line.uptrend.xyaxis",
-        "folder",
-        "slider.horizontal.3",
-    ]
-
-    /// 定版符号配置：全仓底栏符号只许从这一份出，
-    /// 单测钉死其三值来源（pointSize／weight／scale）
-    public static let configuration = UIImage.SymbolConfiguration(
-        pointSize: pointSize, weight: weight, scale: scale
+    public static let chat = TabSymbolPair(
+        id: "chat", title: "聊天",
+        normal: "bubble.left.and.bubble.right",
+        selected: "bubble.left.and.bubble.right.fill"
+    )
+    public static let overview = TabSymbolPair(
+        id: "overview", title: "总览",
+        normal: "chart.line.uptrend.xyaxis",
+        selected: "chart.line.uptrend.xyaxis"
+    )
+    public static let files = TabSymbolPair(
+        id: "files", title: "文件",
+        normal: "folder",
+        selected: "folder.fill"
+    )
+    public static let settings = TabSymbolPair(
+        id: "settings", title: "设置",
+        normal: "slider.horizontal.3",
+        selected: "slider.horizontal.3"
     )
 
-    /// 按名取底栏图：系统符号渲染器按定版配置直出，
-    /// 不做任何测量、定标或二次加工；模板渲染保证底栏
-    /// .tint 墨色生效（0.2.7 教训）
-    public static func image(named name: String) -> UIImage {
-        (UIImage(systemName: name, withConfiguration: configuration)
-            ?? UIImage()).withRenderingMode(.alwaysTemplate)
-    }
+    /// 全部条目（与 ContentView 的 Tab 顺序同序）
+    public static let all = [chat, overview, files, settings]
 }

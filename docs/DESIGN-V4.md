@@ -979,49 +979,61 @@ vs Muse 约 22 单位，卡片缩放口径仅供参考），真
 OneDay 观感更粗、更「大坨」。定因：几何定标只管得
 住字形框高，管不住两件事——①字重/描边的观感；
 ②预渲染位图进原生 TabView 后被当普通位图二次缩
-放，构造层的精确数在渲染层被改写。本轮定法：
+放，构造层的精确数在渲染层被改写。
 
-- **删除 TabBarSymbols 的烘焙路线**（construct 定
-  标、alphaBounds 量法、预计算表全删），图标改由
-  系统符号渲染器直出：`UIImage(systemName:with-
-  Configuration:)`，成品保留符号图身份
-  （isSymbolImage），UITabBar 走符号管线渲染、
-  最终度量归系统。消费侧维持 ContentView 的
-  `Image(uiImage:)` 通道——选此路而非纯
-  `Image(systemName:)`，是为让定版配置真实驱动渲
-  染且可被单测钉住。
-- **SymbolConfiguration 定版**：pointSize **22**／
-  weight **.regular**／scale **.medium**，全仓底栏
-  符号只许从 TabBarSymbols.configuration 这一份
-  出。22 的锚是 0.2.9 口径对齐量得的真机 Muse
-  字形 ≈21.7–22.3pt，取代 §11/§13 早期 24 的粗
-  量；weight 钉 regular——不许加粗凑数，也不许
-  降到 light 伪造纤细（目录基础符号的设计字重即
-  regular）。
-- **符号变体核查（记档）**：四枚维持现选
-  （bubble.left.and.bubble.right／chart.line.
-  uptrend.xyaxis／folder／slider.horizontal.3）。
-  四枚基础符号本身即 SF Symbols 目录中最轻的线
-  条设计；bubble 与 folder 另有 .fill 变体（§9
-  禁用在案），目录内不存在更细的 outline design
-  variant 可换——「仍粗先查变体」的核查结论是无
-  变体可换，粗细只能由配置与系统管线决定。
+本轮先按简报定「SymbolConfiguration 定标
+（22pt／.regular／.medium）」，施工中被用户改令
+覆盖，定法改为**照搬礼记**（用户点名；礼记仓库
+ContentView 实证在案）：礼记底栏大小天然对，靠的
+不是任何定标，而是**纯原生结构让系统按默认度量
+渲染**。OneDay 照此执行：
 
-### 16.2 单测口径
+- **结构换礼记同款**：`TabView(selection:)`＋
+  `Tab(value:)`＋`Label(标题, systemImage:)` 系
+  统直渲。删除一切我方渲染介入：TabBarSymbols
+  的烘焙路线（construct 定标、alphaBounds、预
+  计算表）早已删尽，本轮连同配置定标一并作废，
+  TabBarSymbols 只保留**符号名对数据**（单一事
+  实源）。0.2.4 的「只要图标不要文字」同步作
+  废：标题随 Label 进栏、由系统排布。
+- **选中态学礼记**：未选线条体 ↔ 选中切官方
+  .fill 成对变体——bubble.left.and.bubble.right
+  ↔.fill、folder↔folder.fill；chart.line.
+  uptrend.xyaxis 与 slider.horizontal.3 目录内
+  无 .fill 对，选中同名。0.2.5 的「.fill 全面禁
+  用」就此反转（当年禁 fill 是因为系统自动换变
+  体不可控；现在由我方按选中态显式给名，可控）。
+  选中时 `.symbolEffect(.bounce, value: 是否选
+  中)` 弹一次，系统在 Reduce Motion 时自动抑
+  制（礼记同款）。
 
-TabBarSymbolsTests 改写：只钉可钉的——符号名清
-单（四枚、与条目同序）、配置三值（22／.regular
-／.medium，以独立同值配置的渲染尺寸作行为面钉
-住）、成品为系统符号图且模板渲染。0.2.9 的
-alpha 量高断言与确定性构造断言随烘焙路线一并删
-除。交付标准不变：构建绿＋单测，不碰截图（工作
-流已删）。
+### 16.2 tabBarMinimizeBehavior 评估：不采纳
 
-### 16.3 止损条款（用户口径，本节为凭）
+礼记在用 `.tabBarMinimizeBehavior(.onScrollDown)`，
+本轮评估后**不加**，理由记档：该行为是 TabView
+全局行为、落点却是 OneDay 的主表面聊天页——消息
+流与键盘联动、发送舱经底部安全区贴栏而坐，滚动
+是对话本身而非浏览；栏的反复收起/展开会持续改
+变底部插入几何，正是 0.2.6–0.2.8 三轮为发送舱稳
+定性付出代价要守住的东西。礼记的表面是台账列表
+（滚动即浏览），最小化免费；OneDay 聊天页不是。
+其余三页的列表收益不足以 justify 全局行为对聊
+天页的风险敞口。
+
+### 16.3 单测口径
+
+TabBarSymbolsTests 改写：只钉符号名对清单——四
+条目（id／标题／未选／选中）全表、成对变体纪律
+（凡两态不同名者必须是官方 .fill 后缀对）、按态
+取名。alpha 量高断言与配置定标断言均已删除。交
+付标准不变：构建绿＋单测，不碰截图（工作流已
+删）。
+
+### 16.4 止损条款（用户口径，本节为凭）
 
 **这是原生底栏的最后一轮。** 若 0.3.1 真机仍判
 不过，下一版直接**自绘底栏**（字形尺寸、字重、
 选择胶囊全部自控），不再回原生栏调参。本轮遵
 令未提前自绘。
 
-### 16.4 验收数值（构建后回填）
+### 16.5 验收数值（构建后回填）
