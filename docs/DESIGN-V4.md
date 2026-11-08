@@ -1211,4 +1211,19 @@ oneday-design-review/liqian-reference-20261109.md；本
 
 ### 17.7 验收数值
 
-（构建后回填。）
+- 提交 f6dd3ae（五块一次落地）；构建 run
+  **42526952431 一轮绿**；单测 **65 条全过**（本版
+  改动全在 OneDayDesign/OneDayApp 两层，OneDayCore
+  未动、测试数与 0.3.1 持平）。
+- IPA 解包实测 **0.3.2 / 17 / site.didichou.oneday**，
+  已置 your_files/oneday-v0.3.2/（1,954,636 字节）。
+- 裸色 grep 自查（提交时点）：OneDayDesign 之外
+  `Color(hex:`/`Color.black`/`Color.white`/
+  `0x000000`/`Color(uiColor:`/裸 `.white` **0 残
+  留**；动画字面量在 DesignTokens 令牌册之外 **0
+  残留**；旧 `Haptics.light/medium`、旧
+  `MotionTokens.indicator`、旧 `AccentTheme.values`
+  引用 **0 残留**。
+- 真机终审归用户：设置页 List 观感与系统箭头、发
+  送舱染色玻璃的色温、暗色弱文字可读性、触感新落
+  点体感、流式大批量补发时的退化表现。
