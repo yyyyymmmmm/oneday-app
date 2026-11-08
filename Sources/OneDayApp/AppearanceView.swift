@@ -44,7 +44,7 @@ struct AppearanceView: View {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         Text("主按钮")
                             .font(TypeScale.body.weight(.medium))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Palette.onPrimary)
                             .padding(.horizontal, OneDayMetrics.spacingM)
                             .frame(height: 40)
                             .background(
@@ -74,7 +74,7 @@ struct AppearanceView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Circle()
-                    .fill(Color(hex: theme.swatch))
+                    .fill(theme.swatchColor)
                     .frame(width: 22, height: 22)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     .accessibilityHidden(true)

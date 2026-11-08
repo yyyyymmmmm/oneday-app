@@ -143,9 +143,9 @@ public enum Elevation {
 
 public extension View {
     func odElevation(_ shadow: ShadowSpec) -> some View {
-        // 阴影色不用纯黑（§14 条 1）：近黑墨色同效
+        // 阴影色不用纯黑（§14 条 1）：统一走 Palette.shadowBase
         self.shadow(
-            color: Color(hex: 0x0A0A0C).opacity(shadow.opacity),
+            color: Palette.shadowBase.opacity(shadow.opacity),
             radius: shadow.radius, y: shadow.y
         )
     }
@@ -160,28 +160,53 @@ public enum CornerRadius {
     }
 }
 
-// MARK: - Motion 白名单（定版 §3.6：四条，只动 opacity/transform）
+// MARK: - Motion 令牌册（0.3.2 按礼记四档纪律收编，DESIGN-V4 §17）
+// 礼记四档 ↔ OneDay 对应：press（点按反馈）/ liquidSpring
+// （跟手位移与指示器滑移）/ pageCrossfade（内容切换默认过
+// 渡）/ 偶发入场档（礼记为 sealIn 落印专用，OneDay 无落印
+// 面，由 entrance 占此档：每屏至多一次）。OneDay 既有定版
+// 弹簧（dragSpring/microSpring，§14 条 9）归档入册不改值。
+// 另有两支专用档：swap（内容替换/状态变化）、streamIn
+// （流式词元入场，§14 条 4 定版 120ms）。
+// 纪律：全仓动画只许引用本册并经 resolved() 出口（Reduce
+// Motion 开启即瞬时）；散落字面量曲线禁止。例外只有系统
+// 行为（sheet/系统符号过渡）与 TimelineView 驱动的状态指
+// 示（非 .animation 落点）。
+// 退出快于进入（审查 M-4 成文）：弹簧面开合共用同一弹簧
+// （归位语义）；定时面退出时长 ≤ 进入的 0.8——系统 sheet/
+// popover 走系统行为不自改，本条只约束自有动画面。
 
 public enum MotionTokens {
-    /// press：一切点按反馈（150ms 内出）
+    /// press：一切点按反馈（150ms 内出）。OneDay 定版值
+    /// （审查 E-5 确认为强项：按下即响应、只动 opacity/
+    /// transform）；礼记同档为 snappy 0.22，本 App 不跟
+    /// ——档位对齐、取值按自家实测口径，如实记于 §17
     public static let press = Animation.easeOut(duration: 0.15)
-    /// swap：内容替换、错误出现、步骤状态变化
+    /// swap：内容替换、错误出现、步骤状态变化、折叠展开
     public static let swap = Animation.easeInOut(duration: 0.2)
-    /// indicator：指示器滑移（无额外弹跳的弹簧）
-    public static let indicator = Animation.spring(response: 0.35, dampingFraction: 0.85)
-    /// entrance：每屏至多一次入场
+    /// liquidSpring：跟手位移、选择指示器滑移（礼记定版
+    /// 值 interactiveSpring 0.34/0.72；0.3.2 起取代旧
+    /// indicator 档，旧值 spring(0.35, 0.85) 退役）
+    public static let liquidSpring = Animation.interactiveSpring(
+        response: 0.34, dampingFraction: 0.72
+    )
+    /// entrance：偶发入场，每屏至多一次
     public static let entrance = Animation.easeOut(duration: 0.45)
-    /// 页面交叉淡化（滚动跟随等既有调用点沿用 swap 时长口径）
-    public static let pageCrossfade = Animation.easeInOut(duration: 0.2)
+    /// 页面交叉淡化（礼记定版值 0.25，0.3.2 对齐）
+    public static let pageCrossfade = Animation.easeInOut(duration: 0.25)
+    /// streamIn：流式词元渐显入场（§14 条 4 定版 120ms）
+    public static let streamIn = Animation.easeOut(duration: 0.12)
     /// 条 9 定版弹簧·拖拽类（0.3.0，§14）：stiffness
-    /// 1200 / damping 80，零回弹——抽屉拖动跟随与归位、
-    /// 一切拖拽类交互走它
+    /// 1200 / damping 80——换算阻尼比 ζ≈1.15（过阻尼、
+    /// 零回弹），抽屉拖动跟随与归位、一切拖拽类交互走它。
+    /// 速度交接注（审查 E-2）：SwiftUI 无初速度参数，松手
+    /// 瞬间以动量投影定去向＋本弹簧归位近似，为平台上限
     public static let dragSpring = Animation.interpolatingSpring(
         stiffness: 1200, damping: 80
     )
     /// 条 9 定版弹簧·小动作（0.3.0，§14）：stiffness
-    /// 380 / damping 18，微弹——点赞类点按反馈、徽标与
-    /// 浮钮的出现/跳动走它
+    /// 380 / damping 18——换算阻尼比 ζ≈0.46（欠阻尼、
+    /// 微弹），点赞类点按反馈、徽标与浮钮的出现/跳动走它
     public static let microSpring = Animation.interpolatingSpring(
         stiffness: 380, damping: 18
     )

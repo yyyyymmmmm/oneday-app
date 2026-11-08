@@ -270,6 +270,11 @@ struct OverviewView: View {
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    // 条 5/6 补落点（0.3.2，审查 #5）：读数
+                    // 等宽防抖＋数字变化走 numericText 过渡
+                    // （学礼记：等宽与 numericText 成对）
+                    .tabularDigits()
+                    .contentTransition(.numericText())
                 Text(label)
                     .font(TypeScale.caption)
                     .foregroundStyle(Palette.inkSecondary)

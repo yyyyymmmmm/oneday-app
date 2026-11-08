@@ -1266,7 +1266,7 @@ struct GatewayView: View {
             titleVisibility: .visible
         ) {
             Button(dialogButton, role: pendingAction == "stop" ? .destructive : nil) {
-                Haptics.medium()
+                // 0.3.2：确认点不再挂触觉，结果点在 perform()
                 if let action = pendingAction {
                     Task { await perform(action) }
                 }
@@ -1475,11 +1475,14 @@ struct GatewayView: View {
                 }
                 notice = "启动指令已发送。"
             }
+            // 结果触感（0.3.2 纪律）：指令发送成功 .success
+            Haptics.success()
             // 给服务端几秒落地再回读，状态以回读为准
             try? await Task.sleep(for: .seconds(3))
             await load()
         } catch {
             notice = (error as? HermesError)?.userMessage ?? "操作失败，请稍后再试。"
+            Haptics.warning()
         }
     }
 }

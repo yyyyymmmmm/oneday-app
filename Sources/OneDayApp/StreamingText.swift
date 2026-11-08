@@ -10,6 +10,13 @@ import SwiftUI
 /// 词元口径：CJK 逐字成元（任意位置可断行）、拉丁字母
 /// 按词成元（词不拆断）；词元以 TokenFlow 换行布局排
 /// 布，流式光标作为末尾词元同流排布。
+///
+/// 动效纪律（0.3.2，DESIGN-V4 §17）：入场动画统一走
+/// MotionTokens.streamIn＋resolved 出口（Reduce Motion
+/// 开启时整段直显、无 stagger）；stagger 批级封顶——
+/// 单批增量 >8 词元时步进压缩至总时长 240ms 且退化为
+/// 纯 opacity（无 blur），断线重连的全量补发不被动画
+/// 扣留（审查 M-2/E-4）。
 struct StreamingText: View {
     let text: String
 
@@ -17,19 +24,28 @@ struct StreamingText: View {
         self.text = text
     }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tokens: [String] = []
     @State private var visible: Set<Int> = []
+    /// 大批量增量中的词元：退化为纯 opacity 入场（无 blur）
+    @State private var noBlur: Set<Int> = []
 
     var body: some View {
-        TokenFlow(spacing: 5) {
+        TokenFlow(spacing: OneDayMetrics.tokenFlowSpacing) {
             ForEach(Array(tokens.enumerated()), id: \.offset) { index, token in
                 Text(token)
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
-                    .blur(radius: visible.contains(index) ? 0 : 6)
+                    .blur(
+                        radius: visible.contains(index)
+                            || noBlur.contains(index) ? 0 : 6
+                    )
                     .opacity(visible.contains(index) ? 1 : 0)
                     .animation(
-                        .easeOut(duration: 0.12),
+                        MotionTokens.resolved(
+                            MotionTokens.streamIn,
+                            reduceMotion: reduceMotion
+                        ),
                         value: visible.contains(index)
                     )
             }
@@ -40,9 +56,21 @@ struct StreamingText: View {
             let newTokens = Self.tokenize(newText)
             let oldCount = tokens.count
             tokens = newTokens
-            // 旧词元保持已入场；新词元按批内序号错开入场
+            let batch = newTokens.count - oldCount
+            guard batch > 0 else { return }
+            if batch > 8 {
+                noBlur.formUnion(oldCount..<newTokens.count)
+            }
+            // Reduce Motion：新词元整段直显，不排 stagger
+            if reduceMotion {
+                visible.formUnion(oldCount..<newTokens.count)
+                return
+            }
+            // 旧词元保持已入场；新词元按批内序号错开入场，
+            // 总时长封顶 240ms（大批量时步进等比压缩）
+            let step = batch > 8 ? 0.24 / Double(batch) : 0.03
             for index in oldCount..<newTokens.count {
-                let delay = Double(index - oldCount) * 0.03
+                let delay = min(Double(index - oldCount) * step, 0.24)
                 Task {
                     try? await Task.sleep(for: .seconds(delay))
                     visible.insert(index)
@@ -81,7 +109,7 @@ struct StreamingText: View {
 /// sizeThatFits 与 placeSubviews 共用同一排布算法，
 /// 尺寸与落位不会打架
 struct TokenFlow: Layout {
-    var spacing: CGFloat = 5
+    var spacing: CGFloat = OneDayMetrics.tokenFlowSpacing
 
     private func arrange(
         subviews: Subviews, width: CGFloat

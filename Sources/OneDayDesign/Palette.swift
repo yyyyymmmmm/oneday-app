@@ -6,10 +6,17 @@ import UIKit
 // MARK: - 语义令牌（v2 定版，见 docs/DESIGN-V2.md §3.3）
 // 组件只许引用这里的语义令牌，不写裸 hex。
 //
-// 色彩改「双原色推导」（学 Hermes Dashboard 的 color-mix 纪律）：
-// 原色只有墨与信号蓝，其余面、线、染按百分比关系成套。表面保持
-// 近中性（蓝味只在色温层），蓝色只活在强调与每屏唯一的时刻里。
-// 文字三角色对 pageBG/surface 逐对验算 ≥4.5:1（定版文档 §3.3）。
+// 0.3.2 令牌层礼记化（DESIGN-V4 §17）：全部令牌改由
+// 「主题令牌表」查表生成——数据源是 AccentTheme.tokens
+// （腾讯蓝为完整行、默认主题），本文件只剩工厂与别名，
+// 不再逐令牌写死浅/深两套值。换主题＝换表行，组件零改。
+//
+// 色彩纪律不变：表面保持近中性（蓝味只在色温层），蓝色
+// 只活在强调与每屏唯一的时刻里。文字三角色对 pageBG/
+// bubbleFill 逐对验算 ≥4.5:1（0.3.2 出厂对比表见 §17.4：
+// 浅色 ink 17.4/sec 8.8/muted 5.1（气泡底 15.8/8.0/4.6）、
+// 暗色 ink 17.6/sec 8.9/muted 5.7（气泡底 15.9/8.0/5.2）、
+// 白字对 primaryFill 浅 9.4/暗 6.5，全对达标）。
 
 public extension Color {
     /// 0xRRGGBB
@@ -33,97 +40,105 @@ private extension UIColor {
 #endif
 
 public enum Palette {
-    /// 动态色工厂：浅/深两套值，系统切换外观时自动生效
-    private static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
+    /// 令牌工厂（0.3.2）：按当前主题令牌表的键生成动态色，
+    /// 浅/深由系统外观在 provider 内解析。读取 AccentStore
+    /// 当前主题即建立 @Observable 订阅——引用令牌的视图在
+    /// 主题切换时自动重绘（与 0.2.x 强调色传播同机制），
+    /// provider 捕获的是求值时点的令牌表行，重绘即换新行。
+    private static func token(
+        _ keyPath: KeyPath<ThemeTokens.Scheme, UInt32>
+    ) -> Color {
+        let tokens = AccentStore.shared.theme.tokens
         #if canImport(UIKit)
         return Color(uiColor: UIColor(dynamicProvider: { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light)
+            let scheme = traits.userInterfaceStyle == .dark
+                ? tokens.dark : tokens.light
+            return UIColor(hex: scheme[keyPath: keyPath])
         }))
         #else
-        return Color(hex: light)
+        return Color(hex: tokens.light[keyPath: keyPath])
         #endif
     }
 
-    // —— 表面四层阶梯（0.3.0，DESIGN-V4 §14 条 1：禁黑框
-    // 与 #000，背景靠层间明度差 1–3% 的微差分层） ——
-    // 浅色明度阶梯：页面 100 → 卡片 98.4 → 浮层 95.9 →
-    // 字段 94.9（级差 1.6/2.5/1.0）；深色：4.5 → 7.3 →
-    // 9.6 → 11.2（级差 2.8/2.3/1.6）。层 4 遮罩单列
-    // （scrim，墨色 alpha、不取 #000）。
+    /// 基色＋alpha 成对令牌的工厂（scrim/hairline 用）：
+    /// 基色与不透明度同在令牌表行内，provider 一并解析
+    private static func tokenWithAlpha(
+        _ base: KeyPath<ThemeTokens.Scheme, UInt32>,
+        _ alpha: KeyPath<ThemeTokens.Scheme, Double>
+    ) -> Color {
+        let tokens = AccentStore.shared.theme.tokens
+        #if canImport(UIKit)
+        return Color(uiColor: UIColor(dynamicProvider: { traits in
+            let scheme = traits.userInterfaceStyle == .dark
+                ? tokens.dark : tokens.light
+            return UIColor(hex: scheme[keyPath: base])
+                .withAlphaComponent(scheme[keyPath: alpha])
+        }))
+        #else
+        return Color(
+            hex: tokens.light[keyPath: base],
+            alpha: tokens.light[keyPath: alpha]
+        )
+        #endif
+    }
+
+    // —— 表面四层阶梯（§14 条 1：禁黑框与 #000，背景靠
+    // 层间明度差 1–3% 的微差分层；数值在令牌表行内） ——
     /// 层 1 页面底：近中性纸色
-    public static let pageBG = dyn(0xFFFFFF, 0x0B0B0D)
+    public static var pageBG: Color { token(\.pageBG) }
     /// 层 2 卡片/分组容器面
-    public static let surface = dyn(0xFAFAFB, 0x121214)
+    public static var surface: Color { token(\.surface) }
     /// 层 3 浮层面（助手消息泡、浮起控件底）
-    public static let bubbleFill = dyn(0xF4F4F5, 0x17181B)
+    public static var bubbleFill: Color { token(\.bubbleFill) }
     /// 层 3.5 字段面：比浮层再降一级（输入字段、代码块）
-    public static let fieldFill = dyn(0xF2F2F2, 0x1B1C1F)
+    public static var fieldFill: Color { token(\.fieldFill) }
     /// 四层阶梯的语义别名（新代码按层引用，旧令牌同值）
     public static var layerPage: Color { pageBG }
     public static var layerCard: Color { surface }
     public static var layerOverlay: Color { bubbleFill }
-    /// 层 4 遮罩：抽屉/弹层背后的压暗层，墨色推导不用 #000
+    /// 层 4 遮罩：抽屉/弹层背后的压暗层（基色＋alpha 在表行内）
     public static var scrim: Color {
-        #if canImport(UIKit)
-        return Color(uiColor: UIColor(dynamicProvider: { traits in
-            if traits.userInterfaceStyle == .dark {
-                return UIColor(hex: 0x050506).withAlphaComponent(0.55)
-            }
-            return UIColor(hex: 0x1A1A1E).withAlphaComponent(0.32)
-        }))
-        #else
-        return Color(hex: 0x1A1A1E, alpha: 0.32)
-        #endif
+        tokenWithAlpha(\.scrimBase, \.scrimAlpha)
     }
 
     // —— 文字三角色 ——
     /// 主文字
-    public static let ink = dyn(0x1A1A1E, 0xF2F2F4)
+    public static var ink: Color { token(\.ink) }
     /// 次文字
-    public static let inkSecondary = dyn(0x4A4A4E, 0xAEAEB4)
-    /// 弱文字：只用于元信息（计数、时间、占位性说明）
-    public static let inkMuted = dyn(0x6E6E73, 0x7C7C82)
+    public static var inkSecondary: Color { token(\.inkSecondary) }
+    /// 弱文字：只用于元信息（计数、时间、占位性说明）。
+    /// 暗色值 0.3.2 按审查 I-1 提亮至 0x8A8A90（气泡底
+    /// 对比 4.3 → 5.2:1），数值在令牌表行内
+    public static var inkMuted: Color { token(\.inkMuted) }
 
-    /// 发丝线：墨色低 alpha 推导（浅 8% / 深 12%），不用固定灰，
-    /// 两套外观下都保持「看得见的线、不是一道杠」（Pro Rules）。
+    /// 发丝线：基色低 alpha 推导，两套外观下都保持「看得见
+    /// 的线、不是一道杠」（Pro Rules）
     public static var hairline: Color {
-        #if canImport(UIKit)
-        return Color(uiColor: UIColor(dynamicProvider: { traits in
-            if traits.userInterfaceStyle == .dark {
-                return UIColor(hex: 0xEDF0F4).withAlphaComponent(0.12)
-            }
-            return UIColor(hex: 0x191D23).withAlphaComponent(0.08)
-        }))
-        #else
-        return Color(hex: 0x191D23, alpha: 0.08)
-        #endif
+        tokenWithAlpha(\.hairlineBase, \.hairlineAlpha)
     }
 
-    // —— 强调（主题色，0.2.1 起由 AccentStore 驱动，五款可选、
-    // 默认腾讯蓝；每屏至多一个时刻＋关键动作的纪律不变） ——
-    /// 品牌主色：文字/图标强调，随当前主题
-    public static var primary: Color {
-        let values = AccentStore.shared.theme.values
-        return dyn(values.0, values.1)
-    }
-    /// 品牌填充：强调底＋白字（主按钮、发送键），随当前主题
-    public static var primaryFill: Color {
-        let values = AccentStore.shared.theme.values
-        return dyn(values.2, values.3)
-    }
-    /// 品牌浅染：用户气泡、选中衬底，随当前主题
-    public static var primaryTint: Color {
-        let values = AccentStore.shared.theme.values
-        return dyn(values.4, values.5)
-    }
+    // —— 强调（主题三档，随令牌表行切换；每屏至多一个
+    // 时刻＋关键动作的纪律不变） ——
+    /// 品牌主色：文字/图标强调
+    public static var primary: Color { token(\.primary) }
+    /// 品牌填充：强调底＋白字（主按钮、发送键）
+    public static var primaryFill: Color { token(\.primaryFill) }
+    /// 品牌浅染：用户气泡、选中衬底
+    public static var primaryTint: Color { token(\.primaryTint) }
+    /// 填充上的文字色（主按钮/发送键的白字，页面不许写 .white）
+    public static var onPrimary: Color { token(\.onPrimary) }
 
-    // —— 反馈语义（成套降饱和，不用系统纯色） ——
+    /// 影基色：浮层软影的近黑墨色（§14 条 1 不用纯黑）；
+    /// 与外观无关、不入令牌表，Elevation 与发送舱双环影共用
+    public static let shadowBase = Color(hex: 0x0A0A0C)
+
+    // —— 反馈语义 ——
     /// 成功 / 在线
-    public static let success = dyn(0x1E8E4F, 0x45B878)
+    public static var success: Color { token(\.success) }
     /// 警告 / 降级
-    public static let warning = dyn(0xA85B0A, 0xD98E32)
+    public static var warning: Color { token(\.warning) }
     /// 危险 / 错误 / 离线
-    public static let danger = dyn(0xC62F24, 0xFF7A6B)
+    public static var danger: Color { token(\.danger) }
 
     /// 平台/网关状态字符串 → 状态色：connected/running/ok 为绿，
     /// error/failed/disconnected 为红，其余（未知、未配置）为弱色。
@@ -143,6 +158,9 @@ public enum Palette {
 }
 
 // MARK: - 度量（定版 §3.2/§3.4：4pt 网格、圆角梯队、行高与对齐线）
+// 纪律（0.3.2 补，审查 T-4）：每个数有出处——梯队值之外
+// 的光学/手势/设备驱动值一律在此具名，不许散落在页面里
+// 写字面量（tokenFlowSpacing/drawerEdgeZone 等即此收编）。
 
 public enum OneDayMetrics {
     /// 触摸目标下限 44pt
@@ -159,7 +177,7 @@ public enum OneDayMetrics {
     public static let bubbleCorner: CGFloat = 22
     /// 助手消息气泡（0.2.5：浅灰软填充泡，圆角比用户泡略收）
     public static let assistantBubbleCorner: CGFloat = 18
-    /// 输入区胶囊
+    /// 输入区胶囊（多行态圆角矩形的圆角，单行态走 Capsule）
     public static let composerCorner: CGFloat = 24
     /// 代码块（正文区内的内容面）
     public static let codeCorner: CGFloat = 10
@@ -174,6 +192,27 @@ public enum OneDayMetrics {
     public static let rowHeight: CGFloat = 52
     /// 主按钮高
     public static let primaryButtonHeight: CGFloat = 50
+
+    // —— 气泡内边距（0.3.2 具名收编，原 ChatView 散数 14/10）——
+    /// 气泡横向内边距（用户泡与助手泡共用）
+    public static let bubblePaddingH: CGFloat = 14
+    /// 气泡纵向内边距
+    public static let bubblePaddingV: CGFloat = 10
+    /// 气泡靠边让位：对侧 Spacer 的最小让宽（用户泡左让/
+    /// 助手泡右让同值，0.2.5 对齐口径）
+    public static let bubbleSideInset: CGFloat = 44
+
+    // —— 梯外具名值（审查 T-4 收编：光学/手势/设备驱动）——
+    /// 流式词元流布局的词间/行间距（光学值，TokenFlow 用）
+    public static let tokenFlowSpacing: CGFloat = 5
+    /// 抽屉左缘唤出热区宽（手势值：够拇指起滑、不挡正文滚动）
+    public static let drawerEdgeZone: CGFloat = 24
+    /// 抽屉宽占屏比（设备值，0.1.3 定版 82%）
+    public static let drawerWidthFraction: CGFloat = 0.82
+    /// 抽屉宽上限（设备值，大屏不无限拉宽）
+    public static let drawerMaxWidth: CGFloat = 340
+    /// 原生底栏在屏幕底部的占位（抽屉面板底部按它留位）
+    public static let tabBarZone: CGFloat = 76
 
     /// 间距梯队：4/8/12/16/20/24/32/48，只许取梯队值
     public static let spacingXS: CGFloat = 4

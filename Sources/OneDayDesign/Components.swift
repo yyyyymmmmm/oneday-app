@@ -183,7 +183,7 @@ public struct PrimaryButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .font(TypeScale.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(Palette.onPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: OneDayMetrics.primaryButtonHeight)
                 .background(
@@ -230,10 +230,26 @@ public struct PressableButtonStyle: ButtonStyle {
     public init() {}
 
     public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.55 : 1)
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(MotionTokens.press, value: configuration.isPressed)
+        PressableButtonBody(configuration: configuration)
+    }
+
+    private struct PressableButtonBody: View {
+        let configuration: Configuration
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            configuration.label
+                .opacity(configuration.isPressed ? 0.55 : 1)
+                .scaleEffect(configuration.isPressed ? 0.985 : 1)
+                // 0.3.2：动画统一走 resolved 出口（Reduce
+                // Motion 开启时按压反馈瞬时切换）
+                .animation(
+                    MotionTokens.resolved(
+                        MotionTokens.press, reduceMotion: reduceMotion
+                    ),
+                    value: configuration.isPressed
+                )
+        }
     }
 }
 
@@ -312,11 +328,14 @@ public extension View {
 
 /// 条 10 复制反馈：点按复制 → 对勾确认态，2.5s 自动
 /// 消失（重复点按重置计时）。全 App 复制点只许用它，
-/// 不许各处自写一套反馈
+/// 不许各处自写一套反馈。0.3.2：命中区扩到 44×44（审
+/// 查 I-2，视觉字形与 28pt 图标区不变、图标居中）；复制
+/// 成功挂结果触感（.success，触感纪律见 Haptics 注）
 public struct CopyButton: View {
     private let text: String
     private let iconSize: CGFloat
     @State private var copied = false
+    @State private var copyCount = 0
     @State private var resetTask: Task<Void, Never>?
 
     public init(text: String, iconSize: CGFloat = 13) {
@@ -328,6 +347,7 @@ public struct CopyButton: View {
         Button {
             UIPasteboard.general.string = text
             copied = true
+            copyCount += 1
             resetTask?.cancel()
             resetTask = Task {
                 try? await Task.sleep(for: .seconds(2.5))
@@ -341,9 +361,16 @@ public struct CopyButton: View {
                 )
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 28, height: 28)
+                // 命中区 44×44（minTapTarget）：图标居中，
+                // 视觉尺寸不变
+                .frame(
+                    width: OneDayMetrics.minTapTarget,
+                    height: OneDayMetrics.minTapTarget
+                )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .sensoryFeedback(.success, trigger: copyCount)
         .accessibilityLabel(copied ? "已复制" : "复制")
     }
 }
@@ -356,12 +383,24 @@ public struct SmoothExpand<Content: View>: View {
     private let isExpanded: Bool
     private let content: Content
     @State private var contentHeight: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
         isExpanded: Bool, @ViewBuilder content: () -> Content
     ) {
         self.isExpanded = isExpanded
         self.content = content()
+    }
+
+    /// 重量护栏（0.3.2，审查 M-1）：内容实测高 >约 400pt
+    /// 时高度动画掉帧风险高，降级为高度瞬时到位（内容仍
+    /// 裁剪正确）；常规内容与 Reduce Motion 口径都走
+    /// resolved(swap) 统一出口
+    private var expandAnimation: Animation? {
+        if contentHeight > 400 { return nil }
+        return MotionTokens.resolved(
+            MotionTokens.swap, reduceMotion: reduceMotion
+        )
     }
 
     public var body: some View {
@@ -378,6 +417,6 @@ public struct SmoothExpand<Content: View>: View {
             }
             .frame(height: isExpanded ? contentHeight : 0, alignment: .top)
             .clipped()
-            .animation(MotionTokens.swap, value: isExpanded)
+            .animation(expandAnimation, value: isExpanded)
     }
 }

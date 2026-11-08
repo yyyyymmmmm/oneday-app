@@ -41,6 +41,7 @@ struct OneDayApp: App {
 struct RootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -51,7 +52,13 @@ struct RootView: View {
                 ContentView()
             }
         }
-        .animation(MotionTokens.pageCrossfade, value: appState.phase == .connected)
+        // 0.3.2：页面交叉淡化统一走 resolved 出口
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.pageCrossfade, reduceMotion: reduceMotion
+            ),
+            value: appState.phase == .connected
+        )
         .background(Palette.pageBG)
         .task {
             // 演示样本播种：内存库为空时种一轮拟真对话（仅演示模式）

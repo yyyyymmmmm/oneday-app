@@ -74,8 +74,9 @@ struct ChatView: View {
     /// 发送舱玻璃由 Capsule 改固定圆角矩形（见 inputBar）
     @State private var composerMultiline = false
     /// 原生底栏在屏幕底部的占位，抽屉面板底部按它留位避让
-    /// 服务器行（0.2.6 起发送舱已不在覆盖层、不再用它抬升）
-    private let tabBarZone: CGFloat = 76
+    /// 服务器行（0.2.6 起发送舱已不在覆盖层、不再用它抬升；
+    /// 0.3.2 数值收进 OneDayMetrics.tabBarZone 具名令牌）
+    private let tabBarZone = OneDayMetrics.tabBarZone
 
     private var currentThread: ChatThread? {
         threads.first { $0.id == currentThreadID } ?? threads.first
@@ -96,7 +97,12 @@ struct ChatView: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 chatSurface
-                drawerOverlay(width: min(geo.size.width * 0.82, 340))
+                drawerOverlay(
+                    width: min(
+                        geo.size.width * OneDayMetrics.drawerWidthFraction,
+                        OneDayMetrics.drawerMaxWidth
+                    )
+                )
             }
         }
     }
@@ -308,8 +314,14 @@ struct ChatView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         // 条 9（§14）：回到底部钮的出入是小动作类，动画走
-        // 定版 microSpring（380/18 微弹）
-        .animation(MotionTokens.microSpring, value: isNearBottom)
+        // 定版 microSpring（380/18 微弹）；0.3.2 统一经
+        // resolved 出口（Reduce Motion 时瞬时）
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.microSpring, reduceMotion: reduceMotion
+            ),
+            value: isNearBottom
+        )
     }
 
     /// 回到底部：系统 .glass 圆钮（0.2.4 换原生玻璃，撤掉
@@ -427,7 +439,11 @@ struct ChatView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(MotionTokens.pageCrossfade) {
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.pageCrossfade, reduceMotion: reduceMotion
+            )
+        ) {
             proxy.scrollTo("bottom", anchor: .bottom)
         }
     }
@@ -436,7 +452,7 @@ struct ChatView: View {
     private func bubble(_ entry: ChatEntry) -> some View {
         if entry.role == "user" {
             HStack {
-                Spacer(minLength: 44)
+                Spacer(minLength: OneDayMetrics.bubbleSideInset)
                 VStack(alignment: .trailing, spacing: OneDayMetrics.spacingXS) {
                     if let data = entry.imageData, let image = UIImage(data: data) {
                         Image(uiImage: image)
@@ -453,8 +469,8 @@ struct ChatView: View {
                         Text(TextShaping.prettyWrapDocument(entry.content))
                             .font(TypeScale.body)
                             .foregroundStyle(Palette.ink)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
+                            .padding(.horizontal, OneDayMetrics.bubblePaddingH)
+                            .padding(.vertical, OneDayMetrics.bubblePaddingV)
                             .background(
                                 Palette.primaryTint,
                                 in: RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
@@ -480,15 +496,15 @@ struct ChatView: View {
     ) -> some View {
         HStack(alignment: .top) {
             content()
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.horizontal, OneDayMetrics.bubblePaddingH)
+                .padding(.vertical, OneDayMetrics.bubblePaddingV)
                 .background(
                     Palette.bubbleFill,
                     in: RoundedRectangle(
                         cornerRadius: OneDayMetrics.assistantBubbleCorner
                     )
                 )
-            Spacer(minLength: 44)
+            Spacer(minLength: OneDayMetrics.bubbleSideInset)
         }
     }
 
@@ -604,7 +620,9 @@ struct ChatView: View {
     /// continuous)，判据＝文本实测高跨过单行阈值。
     private var composerShape: AnyShape {
         composerMultiline
-            ? AnyShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            ? AnyShape(RoundedRectangle(
+                cornerRadius: OneDayMetrics.composerCorner, style: .continuous
+            ))
             : AnyShape(Capsule())
     }
 
@@ -618,23 +636,32 @@ struct ChatView: View {
             // 0.2.7：玻璃裸施加在行本体——GlassEffectContainer
             // 与 union 已撤销（§10 承载换代后容器不再承担
             // 布局，裸施加即可，§11）
+            // 0.3.2：材质与染色改走 Mat 令牌入口（学礼记
+            // AdvisorView 输入栏：Mat.tinted＋主题染色）——
+            // 玻璃以品牌浅染轻染，不再裸用系统 .regular
             composerRow
-                .glassEffect(.regular, in: composerShape)
+                .odGlassSurface(.tinted, in: composerShape)
                 // 条 2（§14）：聚焦禁描边——聚焦态不加任何
                 // stroke，改以加深的双环阴影表达（近环定界
                 // 半径 6、远环扩散半径 18），随焦点观察态
-                // 切换；静止态只留极淡的浮起影
+                // 切换；静止态只留极淡的浮起影。影基色走
+                // Palette.shadowBase 令牌（0.3.2 收编）
                 .shadow(
-                    color: Color(hex: 0x0A0A0C)
+                    color: Palette.shadowBase
                         .opacity(composerFocused ? 0.13 : 0.05),
                     radius: composerFocused ? 6 : 10, y: 2
                 )
                 .shadow(
-                    color: Color(hex: 0x0A0A0C)
+                    color: Palette.shadowBase
                         .opacity(composerFocused ? 0.10 : 0.04),
                     radius: composerFocused ? 18 : 14, y: 6
                 )
-                .animation(MotionTokens.swap, value: composerFocused)
+                .animation(
+                    MotionTokens.resolved(
+                        MotionTokens.swap, reduceMotion: reduceMotion
+                    ),
+                    value: composerFocused
+                )
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
@@ -680,11 +707,18 @@ struct ChatView: View {
                 .padding(.vertical, OneDayMetrics.spacingS)
                 .fixedSize(horizontal: false, vertical: true)
                 // 0.2.6 形状随行数变形（对照 Muse 多行态）：
-                // 单行 Capsule、多行固定圆角 24 圆角矩形——
-                // Capsule 拉长成体育场形大气球是用户点名
-                // 「内容多了为什么变这样」的形状根源；玻璃
-                // 本体由 inputBar 施加，形状定义在 composerShape
-                .animation(.easeInOut(duration: 0.18), value: composerMultiline)
+                // 单行 Capsule、多行固定圆角矩形——Capsule
+                // 拉长成体育场形大气球是用户点名「内容多了
+                // 为什么变这样」的形状根源；玻璃本体由
+                // inputBar 施加，形状定义在 composerShape。
+                // 0.3.2：0.18 内联曲线收编 MotionTokens.swap
+                // 并经 resolved 出口（审查 M-3＋动效纪律）
+                .animation(
+                    MotionTokens.resolved(
+                        MotionTokens.swap, reduceMotion: reduceMotion
+                    ),
+                    value: composerMultiline
+                )
     }
 
     /// 发送舱右端状态机（0.2.5，对照 Muse 输入区）：胶囊内
@@ -717,7 +751,7 @@ struct ChatView: View {
         } label: {
             Image(systemName: isStreaming ? "stop.fill" : "arrow.up")
                 .font(.system(size: isStreaming ? 12 : 13, weight: .bold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Palette.onPrimary)
                 .frame(
                     width: ComposerLayout.buttonHeight,
                     height: ComposerLayout.buttonHeight
@@ -808,7 +842,9 @@ struct ChatView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(width: 54, height: 54)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(
+                            RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+                        )
                 }
             case .file(let name, _):
                 HStack(spacing: OneDayMetrics.spacingS) {
@@ -824,7 +860,7 @@ struct ChatView: View {
                 .frame(height: 54)
                 .background(
                     Palette.surface,
-                    in: RoundedRectangle(cornerRadius: 10)
+                    in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
                 )
                 .odElevation(Elevation.floating)
             }
@@ -884,12 +920,9 @@ struct ChatView: View {
 
     /// 开合统一走条 9 定版拖拽弹簧（dragSpring：stiffness
     /// 1200 / damping 80、零回弹，0.3.0 §14——抽屉属拖拽类
-    /// 交互），Reduce Motion 时瞬时。状态真正变化时给一次
-    /// 轻触觉（吸附感）；拖拽回弹（状态不变）不震。
+    /// 交互），Reduce Motion 时瞬时。0.3.2 起抽屉吸附不再
+    /// 挂触觉（触感只挂结果事件，见 Haptics 注）。
     private func setDrawer(_ open: Bool) {
-        if open != drawerOpen {
-            Haptics.light()
-        }
         withAnimation(
             MotionTokens.resolved(MotionTokens.dragSpring, reduceMotion: reduceMotion)
         ) {
@@ -943,9 +976,10 @@ struct ChatView: View {
             .offset(x: offsetX)
             .gesture(drawerDragGesture(width: width))
         if !drawerOpen {
-            // 左缘 24pt 热区：右滑跟手唤出，不挡正文纵向滚动
+            // 左缘热区：右滑跟手唤出，不挡正文纵向滚动
+            // （宽度走 OneDayMetrics.drawerEdgeZone 令牌）
             Color.clear
-                .frame(width: 24)
+                .frame(width: OneDayMetrics.drawerEdgeZone)
                 .contentShape(Rectangle())
                 .gesture(drawerDragGesture(width: width))
         }
@@ -1038,7 +1072,7 @@ struct ChatView: View {
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .frame(minHeight: OneDayMetrics.minTapTarget)
         .background(
-            Color(uiColor: .secondarySystemBackground),
+            Palette.fieldFill,
             in: Capsule()
         )
         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -1055,6 +1089,9 @@ struct ChatView: View {
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
                     .frame(width: 30, alignment: .leading)
+                    // 条 5 补落点（0.3.2，审查 #5）：图标与
+                    // 文字同行走光学偏移
+                    .iconOpticalOffset()
                     .accessibilityHidden(true)
                 Text("新建会话")
                     .font(TypeScale.body)
@@ -1260,7 +1297,7 @@ struct ChatView: View {
     }
 
     private func deleteThread(_ thread: ChatThread) {
-        Haptics.medium()
+        // 0.3.2：删除确认不再挂触觉（只挂结果事件，见 Haptics 注）
         if thread.id == currentThreadID {
             currentThreadID = nil
         }
@@ -1291,7 +1328,8 @@ struct ChatView: View {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let pending = attachments
         guard !isStreaming, !text.isEmpty || !pending.isEmpty else { return }
-        Haptics.light()
+        // 0.3.2：发送起手不再挂触觉——触感挪到结果点
+        // （流完成 .success / 失败 .warning，见 runStream）
         input = ""
         attachments = []
         errorMessage = nil
@@ -1367,10 +1405,13 @@ struct ChatView: View {
         guard let config = appState.config, let apiKey = appState.apiKey else {
             streamingText = nil
             errorMessage = HermesError.sessionExpired.userMessage
+            // 结果触感（0.3.2 纪律）：发送失败 .warning
+            Haptics.warning()
             return
         }
         var accumulated = ""
         var retried = false
+        var failed = false
         while true {
             do {
                 let stream = appState.client.chatStream(
@@ -1409,12 +1450,14 @@ struct ChatView: View {
                 // 停止生成（cancelled）不报错：已生成的半截照常落盘
                 if let hermesError = error as? HermesError {
                     if case .cancelled = hermesError {
-                        // 用户主动停止，静默收尾
+                        // 用户主动停止，静默收尾（不算失败、无触感）
                     } else {
                         errorMessage = hermesError.userMessage
+                        failed = true
                     }
                 } else {
                     errorMessage = "发送失败，请稍后再试。"
+                    failed = true
                 }
                 break
             }
@@ -1426,6 +1469,14 @@ struct ChatView: View {
             )
             thread.updatedAt = Date()
             try? modelContext.save()
+        }
+        // 结果触感（0.3.2 纪律，只挂结果事件）：失败
+        // .warning；回复完整落地 .success；用户主动停止
+        // 且无内容时不给触感
+        if failed {
+            Haptics.warning()
+        } else if !accumulated.isEmpty {
+            Haptics.success()
         }
         streamingText = nil
         sendTask = nil

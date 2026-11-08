@@ -189,10 +189,13 @@ struct ConnectView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 15))
                 .foregroundStyle(Palette.success)
+                // 条 5 补落点（0.3.2）：与同行文字走光学偏移
+                .iconOpticalOffset(fontSize: 15)
         case .failed:
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 15))
                 .foregroundStyle(Palette.danger)
+                .iconOpticalOffset(fontSize: 15)
         case .active:
             ProgressView()
                 .frame(width: 18, height: 18)
@@ -200,6 +203,7 @@ struct ConnectView: View {
             Image(systemName: "circle")
                 .font(.system(size: 15))
                 .foregroundStyle(Palette.inkMuted)
+                .iconOpticalOffset(fontSize: 15)
         }
     }
 
@@ -211,6 +215,8 @@ struct ConnectView: View {
         currentStep = nil
         guard let config = ServerConfig(rawInput: serverText) else {
             errorMessage = HermesError.invalidServerAddress.userMessage
+            // 结果触感（0.3.2 纪律）：失败 .warning
+            Haptics.warning()
             return
         }
         isProbing = true
@@ -231,11 +237,14 @@ struct ConnectView: View {
             for step in ProbeStep.allCases {
                 stepStates[step] = .done
             }
+            // 结果触感（0.3.2 纪律）：连接成功 .success
+            Haptics.success()
         } catch {
             if let current = currentStep {
                 stepStates[current] = .failed
             }
             errorMessage = (error as? HermesError)?.userMessage ?? "连接失败，请稍后再试。"
+            Haptics.warning()
         }
     }
 }

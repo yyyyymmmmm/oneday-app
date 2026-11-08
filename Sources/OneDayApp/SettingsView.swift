@@ -2,14 +2,18 @@ import OneDayDesign
 import OneDayCore
 import SwiftUI
 
-/// 设置（0.2.1 用户改版，仿 Muse 设置形态）：带图标的分组行
-/// 目录——图标＋名称＋当前值＋右箭头、大圆角分组容器、组间
-/// 留白。IA v3 的「智能体」独立格取消：运维四模块（记忆／
-/// 技能／定时／服务端会话）收进本页「智能体」组，二级页沿用
-/// 0.2.0 实现，功能不变、只改归属。分组：服务器与连接／
-/// 智能体／模型与密钥／网关／外观／关于。
-/// 首页只到条目行＋当前值一层，摘要各自独立加载、单项失败
-/// 只降级该行，不整页报错。
+/// 设置（0.2.1 用户改版，仿 Muse 设置形态；0.3.2 骨架
+/// 礼记化，DESIGN-V4 §17）：原生 List(.insetGrouped)＋
+/// Section＋共用行组件（学礼记 MeView 的结构纪律）——分组
+/// 容器与披露箭头由系统唯一提供，不再自绘 ScrollView＋
+/// odGroup＋手绘箭头；行一律走本页共用行组件（navRow/
+/// infoRow/serverRow），行底走 Palette.surface 令牌。
+/// 内容组织沿 0.2.1 定案不变：服务器与连接／智能体／模型
+/// 与密钥／网关／外观／关于。IA v3 的「智能体」独立格已
+/// 取消：运维四模块（记忆／技能／定时／服务端会话）收进
+/// 本页「智能体」组，二级页沿用 0.2.0 实现。
+/// 首页只到条目行＋当前值一层，摘要各自独立加载、单项
+/// 失败只降级该行，不整页报错。
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var path: [SettingsRoute] = []
@@ -27,25 +31,24 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    serverGroup
-                    agentGroup
-                    modelGroup
-                    gatewayGroup
-                    appearanceGroup
-                    aboutGroup
-                    if let notice {
+            List {
+                serverSection
+                agentSection
+                modelSection
+                gatewaySection
+                appearanceSection
+                aboutSection
+                if let notice {
+                    Section {
                         Text(notice)
                             .font(TypeScale.footnote)
                             .foregroundStyle(Palette.inkSecondary)
-                            .padding(.top, OneDayMetrics.spacingM)
                     }
+                    .listRowBackground(Palette.surface)
                 }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingXL)
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
             .background(Palette.pageBG)
             .navigationTitle("设置")
             .task { await loadSummaries() }
@@ -111,26 +114,26 @@ struct SettingsView: View {
 
     // MARK: - 服务器与连接
 
-    private var serverGroup: some View {
-        groupBlock("服务器与连接", isFirst: true) {
+    private var serverSection: some View {
+        Section {
             serverRow
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             navRow(
                 icon: "rectangle.stack.person.crop", title: "档案 Profile",
                 value: activeProfile ?? "—", route: .profiles
             )
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             disconnectRow
+        } header: {
+            SectionLabel("服务器与连接")
         }
+        .listRowBackground(Palette.surface)
     }
 
     /// 当前服务器行：两行式（标题＋主机名）——主机名是长标识，
     /// 单行值位在图标＋标题＋状态点＋箭头的竞争下必截断
-    /// （0.2.0/0.2.1 两轮截图实证），改两行后完整可读
+    /// （0.2.0/0.2.1 两轮截图实证），改两行后完整可读。
+    /// 0.3.2：改 NavigationLink，披露箭头由系统提供
     private var serverRow: some View {
-        Button {
-            path.append(.serverDetail)
-        } label: {
+        NavigationLink(value: SettingsRoute.serverDetail) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon("server.rack")
                 VStack(alignment: .leading, spacing: 2) {
@@ -146,16 +149,10 @@ struct SettingsView: View {
                 if let status {
                     StatusDot(color: Palette.stateColor(status.gatewayState))
                 }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
     }
 
     private var disconnectRow: some View {
@@ -169,11 +166,9 @@ struct SettingsView: View {
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .confirmationDialog(
             "断开连接？",
             isPresented: $showDisconnectConfirm,
@@ -190,64 +185,64 @@ struct SettingsView: View {
 
     // MARK: - 智能体（运维四模块，原「智能体」格并入）
 
-    private var agentGroup: some View {
-        groupBlock("智能体") {
+    private var agentSection: some View {
+        Section {
             navRow(
                 icon: "brain", title: "记忆",
                 value: memorySummary ?? "长期记忆与提供方",
                 route: .agent(.memory)
             )
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             navRow(
                 icon: "puzzlepiece.extension", title: "技能",
                 value: skillsSummary ?? "已装技能与开关",
                 route: .agent(.skills)
             )
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             navRow(
                 icon: "clock.arrow.2.circlepath", title: "定时任务",
                 value: cronSummary ?? "计划任务与运行记录",
                 route: .agent(.cron)
             )
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             navRow(
                 icon: "bubble.left.and.text.bubble.right", title: "服务端会话",
                 value: sessionsSummary ?? "服务端保存的全部会话",
                 route: .agent(.serverSessions)
             )
+        } header: {
+            SectionLabel("智能体")
         }
+        .listRowBackground(Palette.surface)
     }
 
     // MARK: - 模型与密钥
 
-    private var modelGroup: some View {
-        groupBlock("模型与密钥") {
+    private var modelSection: some View {
+        Section {
             navRow(
                 icon: "text.bubble", title: "对话模型",
                 value: appState.defaultModel ?? (appState.modelID == "hermes-agent" ? "服务端默认" : appState.modelID),
                 route: .models, mono: true
             )
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             navRow(icon: "key", title: "密钥", value: "环境变量", route: .envVars)
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             navRow(
                 icon: "chart.bar", title: "用量",
                 value: todayTokens.map { "今日 \(AdminFormat.count($0)) Token" } ?? "—",
                 route: .usage
             )
+        } header: {
+            SectionLabel("模型与密钥")
         }
+        .listRowBackground(Palette.surface)
     }
 
     // MARK: - 网关
 
-    private var gatewayGroup: some View {
-        groupBlock("网关") {
+    private var gatewaySection: some View {
+        Section {
             navRow(
                 icon: "network", title: "网关状态",
                 value: gatewayStateWord, route: .gateway,
                 dot: status.map { Palette.stateColor($0.gatewayState) }
             )
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             Button {
                 showRestartConfirm = true
             } label: {
@@ -258,14 +253,14 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
-                .padding(.horizontal, OneDayMetrics.spacingM)
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            GroupDivider(inset: OneDayMetrics.dividerInset)
             navRow(icon: "doc.text", title: "日志", value: "agent.log", route: .logs, mono: true)
+        } header: {
+            SectionLabel("网关")
         }
+        .listRowBackground(Palette.surface)
     }
 
     private var gatewayStateWord: String {
@@ -279,28 +274,29 @@ struct SettingsView: View {
 
     // MARK: - 外观
 
-    private var appearanceGroup: some View {
-        groupBlock("外观") {
+    private var appearanceSection: some View {
+        Section {
             navRow(
                 icon: "paintpalette", title: "主题",
                 value: AccentStore.shared.theme.displayName,
                 route: .appearance
             )
+        } header: {
+            SectionLabel("外观")
         }
+        .listRowBackground(Palette.surface)
     }
 
     // MARK: - 关于
 
-    private var aboutGroup: some View {
-        groupBlock("关于") {
-            infoRow(label: "OneDay 版本", value: "0.3.1", mono: true)
-            GroupDivider(inset: OneDayMetrics.spacingM)
+    private var aboutSection: some View {
+        Section {
+            infoRow(label: "OneDay 版本", value: "0.3.2", mono: true)
             infoRow(
                 label: "服务端",
                 value: status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0",
                 mono: true
             )
-            GroupDivider(inset: OneDayMetrics.spacingM)
             Link(destination: URL(string: "https://github.com/NousResearch/hermes-agent")!) {
                 HStack {
                     Text("Hermes 开源项目")
@@ -312,11 +308,9 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
-                .padding(.horizontal, OneDayMetrics.spacingM)
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 .contentShape(Rectangle())
             }
-            GroupDivider(inset: OneDayMetrics.spacingM)
             // LORD Icon 署名（0.3.0，用户拍板免费层不买
             // PRO——免费层授权为 CC BY-ND 变体、必须署名，
             // 见 animated-icons 技能）：图标动效开始接入
@@ -332,42 +326,30 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
-                .padding(.horizontal, OneDayMetrics.spacingM)
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 .contentShape(Rectangle())
             }
-            GroupDivider(inset: OneDayMetrics.spacingM)
             Text("OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。")
                 .font(TypeScale.footnote)
                 .foregroundStyle(Palette.inkMuted)
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .padding(.vertical, OneDayMetrics.spacingSM)
+                .padding(.vertical, OneDayMetrics.spacingXS)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        } header: {
+            SectionLabel("关于")
         }
+        .listRowBackground(Palette.surface)
     }
 
-    // MARK: - 行与分组骨架
-
-    private func groupBlock<Content: View>(
-        _ title: String, isFirst: Bool = false,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel(title)
-                .padding(.top, isFirst ? 0 : 28)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                content()
-            }
-            .odGroup()
-        }
-    }
+    // MARK: - 共用行组件
 
     private func rowIcon(_ name: String, color: Color = Palette.inkSecondary) -> some View {
         Image(systemName: name)
             .font(TypeScale.body)
             .foregroundStyle(color)
             .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+            // 条 5（§14）：同行图标走光学偏移（0.3.0 只落
+            // ContentRow，本页行于 0.3.2 补齐）
+            .iconOpticalOffset()
             .accessibilityHidden(true)
     }
 
@@ -375,6 +357,9 @@ struct SettingsView: View {
         case callout, monoCallout, monoFootnote
     }
 
+    /// 导航行（共用行组件）：图标＋标题＋当前值，披露箭头
+    /// 由 NavigationLink 系统提供，本组件不自绘。值位读数
+    /// 走等宽数字＋numericText 过渡（条 5/6 补落点，0.3.2）
     private func navRow(
         icon: String,
         title: String,
@@ -385,9 +370,7 @@ struct SettingsView: View {
         dot: Color? = nil
     ) -> some View {
         let resolvedStyle = valueStyle ?? (mono ? .monoCallout : .callout)
-        return Button {
-            path.append(route)
-        } label: {
+        return NavigationLink(value: route) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(icon)
                 Text(title)
@@ -407,16 +390,12 @@ struct SettingsView: View {
                     )
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                    .tabularDigits()
+                    .contentTransition(.numericText())
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
     }
 
     private func infoRow(label: String, value: String, mono: Bool = false) -> some View {
@@ -431,7 +410,6 @@ struct SettingsView: View {
                 .multilineTextAlignment(.trailing)
                 .textSelection(.enabled)
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: OneDayMetrics.rowHeight)
     }
 
@@ -508,8 +486,11 @@ struct SettingsView: View {
                 try await client.gatewayRestart(config: config)
             }
             notice = "重启指令已发送，稍等片刻在总览确认状态。"
+            // 结果触感（0.3.2 纪律）：指令成功 .success
+            Haptics.success()
         } catch {
             notice = (error as? HermesError)?.userMessage ?? "重启失败，请稍后再试。"
+            Haptics.warning()
         }
     }
 }

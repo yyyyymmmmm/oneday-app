@@ -57,7 +57,7 @@ struct FilesView: View {
                 titleVisibility: .visible
             ) {
                 Button("删除", role: .destructive) {
-                    Haptics.medium()
+                    // 0.3.2：确认点不再挂触觉，结果点在 delete()
                     if let item = pendingDelete {
                         Task { await delete(item) }
                     }
@@ -137,6 +137,8 @@ struct FilesView: View {
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+                    // 条 5 补落点（0.3.2）：同行图标走光学偏移
+                    .iconOpticalOffset()
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.entry.name)
@@ -147,6 +149,8 @@ struct FilesView: View {
                         .font(TypeScale.caption)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
+                        // 条 6 补落点（0.3.2）：大小/日期读数等宽
+                        .tabularDigits()
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
@@ -285,9 +289,12 @@ struct FilesView: View {
                 )
             }
             notice = "已删除「\(item.entry.name)」。"
+            // 结果触感（0.3.2 纪律）：操作成功 .success
+            Haptics.success()
             await collect()
         } catch {
             notice = (error as? HermesError)?.userMessage ?? "删除失败，请稍后再试。"
+            Haptics.warning()
         }
     }
 
@@ -370,7 +377,10 @@ private struct MediaCell: View {
             if entry.mediaKind == .video {
                 Image(systemName: "play.circle.fill")
                     .font(.system(size: 26))
-                    .foregroundStyle(.white, Palette.ink.opacity(0.55))
+                    // 白色走 onPrimary 令牌（媒体面上的纯白符号）
+                    .foregroundStyle(
+                        Palette.onPrimary, Palette.ink.opacity(0.55)
+                    )
                     .accessibilityHidden(true)
             }
         }

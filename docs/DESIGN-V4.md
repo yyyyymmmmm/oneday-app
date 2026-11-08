@@ -1051,3 +1051,164 @@ TabBarSymbolsTests 改写：只钉符号名对清单——四
   并排）、选中 .fill 切换与 bounce 手感、标题进
   栏后的整体观感。若仍判不过，按 §16.4 止损条款
   下一版自绘底栏，不再回原生栏调参。
+
+## 17. 0.3.2 礼记对齐包：令牌表、原生 List、动效纪律收编
+
+用户 2026-11-09 点名 OneDay 全面参考礼记（设置页、AI
+助手页、对话框、字体颜色、主色调与腾讯蓝强调、交互与
+动画「都很好」）。参照研究全文见工作区
+oneday-design-review/liqian-reference-20261109.md；本
+节是实施对账。礼记的总纲一句话：**系统原生件＋语义令
+牌单点＋纪律写进代码**。本版五块逐块销账如下。
+
+### 17.1 令牌层礼记化（审查 #6 合并销账）
+
+- 新增 `ThemeTokens` 主题令牌表（OneDayDesign/
+  AccentTheme.swift）：每主题一行、浅/深各一套 Scheme
+  （表面四层、scrim/hairline 基色＋alpha、文字三角色、
+  强调三档＋onPrimary、反馈语义三色）。学礼记
+  AppThemeTokens 的查表架构：`Palette` 只剩工厂——
+  `token(_:)` 按当前主题行＋系统外观生成动态色，读
+  AccentStore 即订阅、切主题自动重绘（沿 0.2.x 传播
+  机制）。
+- 本轮范围如实记：**腾讯蓝是唯一完整主题行**（结构令
+  牌全套定值，数值即 0.3.0 的 §14 四层阶梯与三角色，
+  零漂移）；深蓝/墨黑/紫/绿四款沿 0.2.1 既有行为，只
+  换强调三档、结构令牌共用腾讯蓝行（`withAccent`
+  派生）。将来整套换肤色温只需给该主题一行完整令
+  牌，组件零改动——结构按可换主题建。
+- 裸色清零（grep 证据，提交时点）：`Color(hex:`、
+  `Color.black/white`、`0x000000`、`Color(uiColor:`、
+  `.white/.black` 裸样式在 **OneDayDesign 之外 0 残
+  留**。收编明细：ChatView 发送舱双环影的 0x0A0A0C
+  ×2 → `Palette.shadowBase`（Elevation 同源同值一并
+  收口）；发送键 `Color.white` 与主按钮 `.white` →
+  `Palette.onPrimary`（新令牌，填充上文字色）；抽屉
+  搜索框 `Color(uiColor: .secondarySystemBackground)`
+  → `Palette.fieldFill`；外观页色点 `Color(hex:
+  theme.swatch)` → 设计层 `theme.swatchColor`；外观
+  页预览钮与文件页视频角标的 `.white` → onPrimary。
+
+### 17.2 设置页骨架（原生 List）
+
+- SettingsView 由 ScrollView＋VStack＋odGroup＋手绘
+  分隔/箭头，整页改 **原生 `List(.insetGrouped)`＋
+  Section＋共用行组件**（学礼记 MeView）：分组容器与
+  披露箭头由系统唯一提供；行走本页共用组件 navRow
+  （NavigationLink 直达路由）/infoRow/serverRow，
+  行底 `.listRowBackground(Palette.surface)`、页底
+  pageBG（scrollContentBackground 隐藏）。
+- 内容组织一字不增删：服务器与连接／智能体／模型与
+  密钥／网关／外观／关于六组与全部条目、摘要加载、
+  深链消费、两处确认弹窗（断开/重启）原样保留。版
+  本号行更新为 0.3.2。
+
+### 17.3 输入栏与气泡（材质＋染色、度量收编）
+
+- 发送舱材质改走 Mat 令牌入口：裸 `.glassEffect
+  (.regular)` → `.odGlassSurface(.tinted, in:)`
+  （学礼记 AdvisorView 输入栏 Mat.tinted＋主题染
+  色：玻璃以品牌浅染 primaryTint 轻染）。
+- 度量收编（审查 T-4 具名纪律）：气泡内边距 14/10
+  → `bubblePaddingH/V`；气泡对侧让位 44 →
+  `bubbleSideInset`；附件签圆角 10 → `codeCorner`；
+  多行胶囊圆角 24 → 既有 `composerCorner`；流式词
+  元间距 5 → `tokenFlowSpacing`；抽屉左缘热区 24 →
+  `drawerEdgeZone`；抽屉宽 0.82/340 →
+  `drawerWidthFraction/drawerMaxWidth`；底栏占位
+  76 → `tabBarZone`。用户气泡染色（primaryTint）与
+  助手侧 Markdown 无气泡形态不变（助手泡为 bubbleFill
+  软填充，0.2.5 定版）。
+
+### 17.4 文字令牌与对比表（审查 #4/I-1 销账）
+
+- 暗色 inkMuted 提亮：令牌表暗行 0x7C7C82 →
+  **0x8A8A90**。出厂常用色对对比表（相对亮度公式实
+  算，全对 ≥4.5:1）：
+  - 浅色：ink/pageBG 17.4、ink/bubbleFill 15.8；
+    inkSecondary 8.8 / 8.0；inkMuted 5.1 / 4.6；
+    白字/primaryFill（003CAB）9.4；primary/pageBG 6.5
+  - 暗色：ink/pageBG 17.6、ink/bubbleFill 15.9；
+    inkSecondary 8.9 / 8.0；inkMuted 5.7 / **5.2**
+    （旧值 4.3 不达标，本版修复）；白字/primaryFill
+    （0052D9）6.5；primary/pageBG 7.8
+- 正文/弱文字全走语义令牌：本版清零的裸色点即证
+  据（17.1）；系统色直用仅剩动态色工厂内部。
+
+### 17.5 动效纪律（审查 #2/#3/#5/#7、M-1/M-3/M-4、E-1/E-2 合并销账）
+
+- **MotionTokens 令牌册收编**：礼记四档 ↔ OneDay 对
+  应成册（press/liquidSpring/pageCrossfade/entrance
+  偶发档＋swap/streamIn 专用档＋dragSpring/
+  microSpring 定版弹簧归档）。变更三处：旧 indicator
+  档（spring 0.35/0.85，全仓零调用）退役 → **liquid
+  Spring 取礼记定版值** interactiveSpring(0.34,
+  0.72)；pageCrossfade 0.2 → **0.25**（礼记值，落点
+  RootView 根切换与回滚底部）；流式入场 120ms 字面
+  量 → 具名 **streamIn**。
+- **press 取值分歧如实记**：礼记 press＝snappy 0.22，
+  OneDay 保留自家 easeOut 0.15——审查 E-5 已把现行
+  按压反馈确认为强项（按下即响应、只动 opacity/
+  transform），档位对齐、取值按自家实测口径，不跟
+  值。此为本版唯一「学结构不学数值」处。
+- **弹簧语义落档（E-1）**：dragSpring ζ≈1.15（过阻
+  尼零回弹）、microSpring ζ≈0.46（欠阻尼微弹）已补
+  进令牌注释；速度交接的 SwiftUI 平台上限注记同
+  入册（E-2）。退出快于进入口径成文入册头注（M-4：
+  弹簧面共用弹簧、定时面退出 ≤进入 0.8、系统面不
+  自改）。microSpring 的 calm 备选档（审查 #9 后
+  半）本版未预备，留待真机手感反馈再定。
+- **resolved() 全覆盖**：全仓 `.animation`/
+  `withAnimation` 落点逐一过——StreamingText 词元入
+  场、SmoothExpand、发送舱形状切换（0.18 字面量收
+  编 swap，M-3）、发送舱聚焦影、回到底部钮出入、滚
+  动回底、根切换、PressableButtonStyle 按压、连接页
+  入场、抽屉开合，**无一绕行**；余下只有系统行为
+  （sheet/符号 contentTransition）与 TimelineView
+  状态指示（非动画落点，caret/等待点已各自读
+  Reduce Motion）。SmoothExpand 补重量护栏（M-1）：
+  内容实测高 >400pt 时高度瞬时到位、不做高度动
+  画（原案的 crossfade 简化为瞬时，近似如实记）。
+- **stagger 批级封顶（M-2/E-4）**：StreamingText 单
+  批增量 >8 词元时步进压缩（总时长 ≤240ms）且退
+  化为纯 opacity 无 blur；Reduce Motion 开启时新词
+  元整段直显、不排队。
+- **触感只挂结果事件**：Haptics 收编为 success/
+  warning 两口（UINotificationFeedbackGenerator）。
+  落点：发送完成（回复落地 .success）/发送失败
+  （.warning，用户主动停止不给）、连接成功/失败
+  （ConnectView）、复制成功（CopyButton 的
+  .sensoryFeedback(.success)，设计层组件走 SwiftUI
+  原生口）、网关重启与网关启停指令成功/失败、文件
+  删除成功/失败。**撤销的旧触点**（0.2.2 口径作
+  废）：抽屉吸附 light、删除会话 medium、发送起手
+  light、文件删除确认 medium、网关确认 medium。
+- **条 5/6 补落点（#5）**：tabularDigits 新增落
+  点——总览指标格读数（＋numericText 过渡）、设置
+  navRow 值位（＋numericText）、文件行副题（大小/
+  日期）；iconOpticalOffset 新增落点——设置页全部
+  行图标（rowIcon 统一施加）、抽屉新建会话行、文件
+  行图标、连接页步骤图标（15pt 字号口径）。与礼记
+  「等宽与 numericText 成对」的落点：指标格与设置
+  值位两处成对施加。
+- **CopyButton 热区（#7/I-2）**：命中区 28 → **44**
+  （minTapTarget），视觉字形与 28pt 图标区不变。
+
+### 17.6 剩余项（明说）
+
+- 审查优先 #1（页面底暖化裁决）不在本包范围：四层
+  阶梯维持 0.3.0 中性定版值，裁决待用户拍板后再动
+  令牌表行值（架构已就位，届时只改一行）。
+- 审查 #10 出厂门入档、E-7 两件小事（连接成功对勾
+  Pop in、模型对勾 symbolEffect 过渡）、E-3 抽屉橡
+  皮筋、Hallmark 63 中点连缀改写，未在本包范围，
+  留待后续小版。
+- 设置页改 List 后系统分隔线对齐线由系统决定（不
+  再是 dividerInset 60 的自绘线）——礼记同款取舍，
+  真机观感归用户终审。
+- 真机终审点：设置页 List 观感与箭头、发送舱染色
+  后的玻璃色温、暗色弱文字可读性、触感新落点体感。
+
+### 17.7 验收数值
+
+（构建后回填。）
