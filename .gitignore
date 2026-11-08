@@ -1,0 +1,20 @@
+# Tuist 生成物与构建产物
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+.build/
+.swiftpm/
+Tuist/.build/
+
+# Xcode 用户态
+xcuserdata/
+*.xcuserstate
+*.moved-aside
+
+# 系统与编辑器
+.DS_Store
+*.swp
+.idea/
+
+# 日志与临时
+*.log
