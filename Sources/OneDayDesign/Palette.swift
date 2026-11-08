@@ -188,8 +188,15 @@ public enum OneDayMetrics {
     public static let iconSlot: CGFloat = 28
     /// 发丝线内缩：边距 20＋槽 28＋间距 12
     public static let dividerInset: CGFloat = 60
-    /// 内容行最小高
-    public static let rowHeight: CGFloat = 52
+    /// 内容行最小高（0.3.3 按礼记行口径放大：礼记
+    /// MeView.entryLabel minHeight 44＋List 行内边距的实
+    /// 效行高约 56；OneDay 自 52 提到 56，行不再挤）
+    public static let rowHeight: CGFloat = 56
+    /// 列表行图标字形字号（0.3.3）：semibold 粗实字形才
+    /// 有分量（礼记行图标为系统 body 字形＋24 槽；OneDay
+    /// 取 20 semibold，槽宽仍 iconSlot 28 保对齐线与
+    /// dividerInset 60 的推导不变）
+    public static let rowIconGlyph: CGFloat = 20
     /// 主按钮高
     public static let primaryButtonHeight: CGFloat = 50
 

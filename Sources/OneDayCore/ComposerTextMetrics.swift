@@ -18,6 +18,52 @@ public enum ComposerTextMetrics {
     /// Dynamic Type 漂移——量测口径与排版口径同源）
     public static var bodyFont: UIFont { .systemFont(ofSize: 16) }
 
+    // MARK: - 几何单一事实源（0.3.3，DESIGN-V4 §18）
+    // 真机第 4/5 条定因方向：量测栈与视图排版栈的几何参
+    // 数此前各写各的（inset/padding 在量测侧与视图侧分
+    // 别字面），且 iOS 26 的 UITextView 默认排版栈与量测
+    // 用的显式 TextKit-1 栈可能分家——光标矩形与行原点
+    // 由视图的栈决定、行数由量测的栈决定，两栈不同源时
+    // 「行数对、光标错位」。本节起几何只有这一份：量测
+    // 容器、视图容器、占位符原点全读这里；视图由
+    // makeTextView() 以显式 TextKit-1 栈构造，与量测同
+    // 类同参（几何一致性由 ComposerGeometryTests 把守）。
+
+    /// 文本容器内边距：零——间距由 SwiftUI 侧布局承担
+    public static let textContainerInset: UIEdgeInsets = .zero
+    /// 行片段内边距：零——行原点即 textOriginX
+    public static let lineFragmentPadding: CGFloat = 0
+    /// 文字左原点（视图坐标系）：inset.left＋padding＝0
+    public static var textOriginX: CGFloat {
+        textContainerInset.left + lineFragmentPadding
+    }
+
+    /// 视图工厂：以显式 TextKit-1 栈（Storage＋Layout-
+    /// Manager＋Container）构造 UITextView 并施加统一几
+    /// 何——视图排版栈与 lineCount 的量测栈同类同参
+    public static func makeTextView() -> UITextView {
+        let storage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let container = NSTextContainer()
+        storage.addLayoutManager(layoutManager)
+        layoutManager.addTextContainer(container)
+        let textView = UITextView(
+            frame: .zero, textContainer: container
+        )
+        applyGeometry(to: textView)
+        return textView
+    }
+
+    /// 统一几何施加（工厂与 updateUIView 兜底共用）：
+    /// 字体/inset/padding/断行模式只许从本节出
+    public static func applyGeometry(to textView: UITextView) {
+        textView.font = bodyFont
+        textView.textContainerInset = textContainerInset
+        textView.textContainer.lineFragmentPadding =
+            lineFragmentPadding
+        textView.textContainer.lineBreakMode = .byWordWrapping
+    }
+
     /// 以给定宽度数文本行数。空文本按 1 行（空态口径与
     /// ComposerLayout.effectiveTextHeight 一致）
     public static func lineCount(for text: String, width: CGFloat) -> Int {
@@ -32,7 +78,7 @@ public enum ComposerTextMetrics {
                 width: width, height: .greatestFiniteMagnitude
             )
         )
-        container.lineFragmentPadding = 0
+        container.lineFragmentPadding = lineFragmentPadding
         container.lineBreakMode = .byWordWrapping
         container.maximumNumberOfLines = 0
         storage.addLayoutManager(layoutManager)
@@ -54,11 +100,25 @@ public enum ComposerTextMetrics {
             * ComposerLayout.lineHeight
     }
 
-    /// 胶囊总高：只经 ComposerLayout 纯函数（单行基数
-    /// 46、多行随行递增、6 行封顶）
-    public static func capsuleHeight(for text: String, width: CGFloat) -> CGFloat {
+    /// 胶囊总高：只经 ComposerLayout 纯函数。入参为容器
+    /// 宽——内部按单行窄宽与多行全宽各量一次（形态判据
+    /// 恒走窄宽、全高走全宽，见 ComposerLayout 注）
+    public static func capsuleHeight(
+        for text: String, containerWidth: CGFloat
+    ) -> CGFloat {
         ComposerLayout.capsuleHeight(
-            measured: textHeight(for: text, width: width)
+            narrowMeasured: textHeight(
+                for: text,
+                width: ComposerLayout.textWidth(
+                    forContainerWidth: containerWidth
+                )
+            ),
+            fullMeasured: textHeight(
+                for: text,
+                width: ComposerLayout.textWidth(
+                    forContainerWidth: containerWidth, multiline: true
+                )
+            )
         )
     }
 }

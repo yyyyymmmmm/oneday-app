@@ -1,14 +1,14 @@
 import OneDayCore
 import XCTest
 
-/// 发送舱多行纯逻辑定案（0.2.9，DESIGN-V4 §13）：行数
-/// 由 ComposerTextMetrics 以 TextKit 在与实际布局相同
-/// 的字体与宽度（容器 402 − 横向 chrome 132 ＝ 270，
-/// 与 ChatView 几何逐项对应）下数出，胶囊高只由
-/// ComposerLayout 纯函数决定。核心断言：给定 2 行、
-/// 4 行定长串，胶囊高＝单行基数＋(n−1)×行高，±1pt
-/// （单行基数 46 由键侧 30 主导、与文本侧差 0.83 在
-/// 容差内，见 ComposerLayout 注）。
+/// 发送舱多行纯逻辑定案（0.2.9，DESIGN-V4 §13）：
+/// 行数由 ComposerTextMetrics 以 TextKit 在与实际布局
+/// 相同的字体与宽度下数出，胶囊高只由 ComposerLayout
+/// 纯函数决定。0.3.3 上文下钮口径：capsuleHeight 入参
+/// 改容器宽，内部窄宽（402−132＝270）判形态、全宽
+/// （402−56＝346）量多行高；多行胶囊＝全宽文本高＋60
+/// （文本纵向边距 10＋按钮行距 4＋按钮行 30＋行纵向
+/// 边距 16）——2 行 98.34、4 行 136.68（±1）。
 final class ComposerTextMetricsTests: XCTestCase {
     /// 与真机同宽的容器口径（402pt 机型）
     private var textWidth: CGFloat {
@@ -33,22 +33,23 @@ final class ComposerTextMetricsTests: XCTestCase {
         )
     }
 
-    /// 2 行定长串：行数 == 2，胶囊 == 基数＋1×行高（±1）
+    /// 2 行定长串：窄宽行数 == 2（形态判据），全宽仍
+    /// 2 行，胶囊 ＝38.34＋60＝98.34（±1）；单行基数 46
     func testTwoLineCapsule() {
         let two = "量测两行甲班\n量测两行乙班"
         XCTAssertEqual(
             ComposerTextMetrics.lineCount(for: two, width: textWidth), 2
         )
         let base = ComposerTextMetrics.capsuleHeight(
-            for: "量测两行甲班", width: textWidth
+            for: "量测两行甲班", containerWidth: 402
         )
         XCTAssertEqual(base, 46, accuracy: 0.001)
         let capsule = ComposerTextMetrics.capsuleHeight(
-            for: two, width: textWidth
+            for: two, containerWidth: 402
         )
         XCTAssertEqual(
-            capsule, base + ComposerLayout.lineHeight, accuracy: 1,
-            "2 行胶囊 \(capsule)，应为基数 \(base)＋行高 \(ComposerLayout.lineHeight)（±1）"
+            capsule, 98.34, accuracy: 1,
+            "2 行胶囊 \(capsule)，应为全宽 2 行高 38.34＋60（±1）"
         )
     }
 
@@ -85,7 +86,7 @@ final class ComposerTextMetricsTests: XCTestCase {
             ComposerTextMetrics.lineCount(for: "", width: textWidth), 1
         )
         XCTAssertEqual(
-            ComposerTextMetrics.capsuleHeight(for: "", width: textWidth),
+            ComposerTextMetrics.capsuleHeight(for: "", containerWidth: 402),
             46, accuracy: 0.001
         )
     }

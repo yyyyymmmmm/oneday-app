@@ -117,17 +117,27 @@ public struct ThemeTokens: Sendable {
     private var lightScheme: Scheme { light }
     private var darkScheme: Scheme { dark }
 
-    /// 腾讯蓝完整主题行（默认主题；表面阶梯为 0.3.0 §14
-    /// 条 1 定版值，暗色 inkMuted 于 0.3.2 按审查 I-1 提亮
-    /// 0x7C7C82 → 0x8A8A90，气泡底对比 4.3 → 5.2:1）
+    /// 腾讯蓝完整主题行（默认主题）。
+    /// 0.3.3 去暖定版（§18，用户当场否决暖色）：浅色阶梯
+    /// 逐项对齐礼记 AppTheme.tencentBlue 令牌原值——
+    /// pageBG 0xF2F3F5（冷灰底）、surface 0xFFFFFF（纯白
+    /// 卡，底卡明度差拉开、卡浮得起来）、ink 0x1F2329、
+    /// inkSecondary 0x5F6570（礼记 sub）、hairlineBase
+    /// 0x1F2329（礼记 line 0xE3E6EB 的基色侧）、primary-
+    /// Tint 0xEAF1FE（礼记原值）；bubbleFill/fieldFill 为
+    /// 同温冷灰派生（0xECEEF1/0xF2F3F5，B≥G≥R 无暖序）。
+    /// inkMuted 0x646C76：对 surface/pageBG 对比 5.3/4.7:1。
+    /// 此前 0.3.0 的「纯白底＋FAFAFB 卡」阶梯卡底只差一
+    /// 丝且方向反转（卡比底暗），与暖化口径一并作废。
+    /// 暗色 inkMuted 于 0.3.2 按审查 I-1 提亮 0x8A8A90。
     public static let tencentBlue = ThemeTokens(
         light: Scheme(
-            pageBG: 0xFFFFFF, surface: 0xFAFAFB, bubbleFill: 0xF4F4F5,
-            fieldFill: 0xF2F2F2, scrimBase: 0x1A1A1E, scrimAlpha: 0.32,
-            hairlineBase: 0x191D23, hairlineAlpha: 0.08,
-            ink: 0x1A1A1E, inkSecondary: 0x4A4A4E, inkMuted: 0x6E6E73,
+            pageBG: 0xF2F3F5, surface: 0xFFFFFF, bubbleFill: 0xECEEF1,
+            fieldFill: 0xF2F3F5, scrimBase: 0x1A1A1E, scrimAlpha: 0.32,
+            hairlineBase: 0x1F2329, hairlineAlpha: 0.08,
+            ink: 0x1F2329, inkSecondary: 0x5F6570, inkMuted: 0x646C76,
             primary: 0x0052D9, primaryFill: 0x003CAB,
-            primaryTint: 0xF2F3FF, onPrimary: 0xFFFFFF,
+            primaryTint: 0xEAF1FE, onPrimary: 0xFFFFFF,
             success: 0x1E8E4F, warning: 0xA85B0A, danger: 0xC62F24
         ),
         dark: Scheme(

@@ -48,6 +48,9 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            // 0.3.3 组距放大（学礼记 MeView 的组间留白）：
+            // 系统默认组距偏挤，按 spacingL 令牌拉开
+            .listSectionSpacing(OneDayMetrics.spacingL)
             .scrollContentBackground(.hidden)
             .background(Palette.pageBG)
             .navigationTitle("设置")
@@ -138,7 +141,7 @@ struct SettingsView: View {
                 rowIcon("server.rack")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("当前服务器")
-                        .font(TypeScale.body)
+                        .font(TypeScale.rowTitle)
                         .foregroundStyle(Palette.ink)
                     Text(appState.config?.host ?? "—")
                         .font(TypeScale.monoFootnote)
@@ -162,7 +165,7 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon("rectangle.portrait.and.arrow.right", color: Palette.danger)
                 Text("断开连接")
-                    .font(TypeScale.body)
+                    .font(TypeScale.rowTitle)
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
@@ -249,7 +252,7 @@ struct SettingsView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     rowIcon("arrow.clockwise")
                     Text("重启网关")
-                        .font(TypeScale.body)
+                        .font(TypeScale.rowTitle)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
@@ -291,7 +294,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            infoRow(label: "OneDay 版本", value: "0.3.2", mono: true)
+            infoRow(label: "OneDay 版本", value: "0.3.3", mono: true)
             infoRow(
                 label: "服务端",
                 value: status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0",
@@ -300,7 +303,7 @@ struct SettingsView: View {
             Link(destination: URL(string: "https://github.com/NousResearch/hermes-agent")!) {
                 HStack {
                     Text("Hermes 开源项目")
-                        .font(TypeScale.body)
+                        .font(TypeScale.rowTitle)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -318,7 +321,7 @@ struct SettingsView: View {
             Link(destination: URL(string: "https://lordicon.com")!) {
                 HStack {
                     Text("Icons by Lordicon")
-                        .font(TypeScale.body)
+                        .font(TypeScale.rowTitle)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -344,7 +347,9 @@ struct SettingsView: View {
 
     private func rowIcon(_ name: String, color: Color = Palette.inkSecondary) -> some View {
         Image(systemName: name)
-            .font(TypeScale.body)
+            // 0.3.3：行图标走 rowIcon 角色（20 semibold
+            // 粗实字形，学礼记行分量；此前 body 细线显单薄）
+            .font(TypeScale.rowIcon)
             .foregroundStyle(color)
             .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
             // 条 5（§14）：同行图标走光学偏移（0.3.0 只落
@@ -374,7 +379,9 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(icon)
                 Text(title)
-                    .font(TypeScale.body)
+                    // 0.3.3 行层级：标题唯一半粗（rowTitle
+                    // 角色）；值 regular＋inkSecondary 退后
+                    .font(TypeScale.rowTitle)
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if let dot {
@@ -386,7 +393,7 @@ struct SettingsView: View {
                             ? TypeScale.monoFootnote
                             : resolvedStyle == .monoCallout
                                 ? TypeScale.monoCallout
-                                : TypeScale.callout
+                                : TypeScale.rowValue
                     )
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
@@ -401,11 +408,11 @@ struct SettingsView: View {
     private func infoRow(label: String, value: String, mono: Bool = false) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text(label)
-                .font(TypeScale.body)
+                .font(TypeScale.rowTitle)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
+                .font(mono ? TypeScale.monoCallout : TypeScale.rowValue)
                 .foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.trailing)
                 .textSelection(.enabled)

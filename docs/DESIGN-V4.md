@@ -1227,3 +1227,174 @@ oneday-design-review/liqian-reference-20261109.md；本
 - 真机终审归用户：设置页 List 观感与系统箭头、发
   送舱染色玻璃的色温、暗色弱文字可读性、触感新落
   点体感、流式大批量补发时的退化表现。
+
+## §18 0.3.3「去暖＋真机七条」（build 18）
+
+本版三批并入：用户当场否决暖色的第 0 条（最高优先）、
+0.3.1 真机六条（底栏/顶栏/锚底/光标/换行/上文下钮）、
+设置页「太 low」五项与字重阶梯审计。逐条对账如下。
+
+### 18.0 第 0 条·去暖（用户否决，长期口径）
+
+- 用户原话：「不要暖色，暖色就是 AI 色，直接 pass。」
+  审查备忘录优先第 1 条「页面底暖化」与 §15 暖面口径
+  **就此作废、不得再捡**——本节即回滚口径的存档点。
+- 浅色阶梯逐项对齐礼记 AppTheme.tencentBlue 令牌原值
+  （~/workspace/liqian-app/Sources/LiqianDesign/Palette
+  .swift，AppThemeTokens.tencentBlue）：pageBG
+  0xF2F3F5（冷灰底）、surface 0xFFFFFF（纯白卡）、
+  ink 0x1F2329、inkSecondary＝礼记 sub 0x5F6570、
+  primaryTint 0xEAF1FE、hairlineBase 0x1F2329（礼记
+  line 0xE3E6EB 的基色侧）；bubbleFill 0xECEEF1、
+  fieldFill 0xF2F3F5 为同温冷灰派生。强调色 #0052D9
+  不动。暗色阶梯本已全冷（0B0B0D/121214/17181B/
+  1B1C1F，B≥G≥R），原样保留。
+- 事故复盘：0.3.0/0.3.2 的浅色阶梯是 pageBG 纯白＋
+  surface 0xFAFAFB——方向反转（卡比底暗）且只差一
+  丝，观感即「暖象牙糊一片」；本版底卡明度差按礼记
+  原值拉开（底 0xF2F3F5 ↔ 卡 0xFFFFFF）。
+- grep 证据：Design＋App 全仓十六进制色值逐个验
+  R/G/B 序——表面/结构色全部 B≥G≥R（冷/中性）；
+  仅反馈语义色 warning（橙）/danger（红）为暖序，
+  那是色相本身、非表面色温，不在去暖范围。
+
+### 18.1 第 1 条·底栏随主题
+
+ContentView 的 .tint 由 Palette.ink 改绑 Palette
+.primary（学礼记 ContentView 的 .tint(Palette
+.primary)）：选中字形与文字走强调色、随主题切换跟
+随，未选保持系统灰。**覆盖 0.2.5「tint 改墨」旧定
+版**（用户本轮以礼记双图对比当场改判）。0.3.2 令
+牌表已接通此路，本版只改绑定。对账标准＝用户截
+图：礼记选中项蓝字形＋蓝字，OneDay 此前灰胶囊＋
+黑字形——改后选中着色走系统 tint 通道直达。
+
+### 18.2 第 2 条·顶栏两钮同规格
+
+新建 OneDayCore.HeaderButtonSpec：diameter 40、
+glyphPointSize 20（字形/圆比 0.50）。校准出处：
+用户提供的 Muse 截图 visual_grounding 量测——其
+汉堡钮字形高/圆径 ≈0.48；本规格 0.50 落同一观感
+带，单测钉住数值＋比值带 0.45–0.55。ChatView 左
+右两钮（sidebar.left／square.and.pencil）同读此
+令牌（此前各写 36/15、无令牌、字形显小）。
+
+### 18.3 第 3 条·点输入框锚底
+
+messageList 加两路触发共用 anchorToBottomAfter-
+Keyboard：①onChange(of: composerFocused) 聚焦边
+沿；②onReceive 键盘 willChangeFrame（聚焦中候选
+栏收展等）。守卫＝弹起前 isNearBottom（此刻读到的
+是键盘动画前的值）；等 300ms 键盘帧落定后复查再
+滚。用户主动上滑不强拉，回到底部钮保留。
+
+### 18.4 第 4/5 条·光标逃逸＋换行不对齐（几何归一）
+
+定因方向（选定）：量测栈与视图排版栈几何此前各
+写各的，且 iOS 26 的 UITextView 默认排版栈与量测
+用的显式 TextKit-1 栈可能分家——行数对、光标错位。
+收编：ComposerTextMetrics 立单一事实源（text-
+ContainerInset .zero／lineFragmentPadding 0／
+textOriginX 派生），量测容器改引常数；新增
+makeTextView() 工厂以显式 TextKit-1 栈（Storage＋
+LayoutManager＋Container）构造视图、applyGeometry
+统一施加，ComposerTextView 改走工厂＋updateUIView
+兜底重申；占位符原点改读 textOriginX/inset.top
+（此前手写 constant 1）。新单测 ComposerGeometry-
+Tests 5 条：常数与工厂、「规划」光标在第一行且 x
+在原点后、三态光标在界内/在文字行带内、长句各行
+usedRect.minX 全等 textOriginX、视图 fragment 数
+== 量测 lineCount（同源断言）。
+**剩余风险（如实）**：单测证明的是工厂配置下几何
+同源；真机若再现，下一嫌疑是 IME 组合态（marked
+text 期间的临时排版），归真机终审观察项。
+
+### 18.5 第 6 条·发送舱上文下钮
+
+composerRow 的 HStack 换自研 ComposerBarLayout
+（Layout 协议、子视图序 [＋键，文本，右端状态
+机]）：以窄宽/全宽各 sizeThatFits 一次量高——判
+据恒走窄宽（isMultiline(narrow)）、总高走
+ComposerLayout.capsuleHeight(narrow:full:)（签
+名已改双参；多行＝全宽封顶高＋10＋4＋30＋16）。
+摆位：单行与旧 HStack 逐项等价（总高 46 不变、
+文本 x=行左+54/宽=行宽−108/底距 13、两键底对
+齐）；多行文本全宽在上（x=行左+16、顶距 13）、
+按钮行钉底（y=总高−8−30、文本底与钮行顶距 9＝
+字段纵距 5＋行距 4，与公式分解对上）。形态经
+Layout.Cache＋主队列异步回写 composerMultiline，
+只驱动玻璃形状与 swap 动画；onMeasuredHeight 通
+道撤销（视图不再反向驱动布局）。结构出处：Muse/
+ChatGPT 本体（用户截图）、Exyte Chat 的 Message-
+Composer、Stream Chat Composer 均为上文下钮。
+
+### 18.6 设置页五项（学礼记 MeView 行口径）
+
+数值出处：礼记 MeView.entryLabel（图标槽 24、
+HStack spacingSM 12、minHeight＝LiqianMetrics
+.minTapTarget 44、标题/副标题 VStack spacingXS
+4）与 Palette.AppThemeTokens.tencentBlue（底/卡
+值见 §18.0）；LiqianMetrics 出自 Palette.swift
+（spacing 梯队 4/8/12/16/24/32）。
+1. 底卡分离：见 §18.0（底 F2F3F5／卡 FFFFFF，
+   礼记原值，不自创）。
+2. 行图标分量：TypeScale.rowIcon＝20 semibold 粗
+   实字形（槽宽仍 iconSlot 28——对齐线与
+   dividerInset 60 的推导不破；礼记槽 24 与其自身
+   版式成套，不整表搬）。落点：SettingsView
+   .rowIcon 与 Design 的 ContentRow 图标。
+3. 字重层级：TypeScale 行角色——rowTitle＝body
+   semibold（唯一半粗位）、rowValue＝callout
+   regular＋inkSecondary、rowSubtitle＝footnote
+   regular＋inkMuted；navRow/infoRow/手写行标题
+   （当前服务器/断开连接/重启网关/关于组两行）全
+   部改走角色。
+4. 行高与组距：OneDayMetrics.rowHeight 52→56
+   （礼记行实效约 56 的口径）；SettingsView List
+   加 .listSectionSpacing(spacingL 24)。
+5. 连带变化（共用组件所在页面）：ContentRow 被
+   连接页/总览等页共用——图标变粗实、标题变半
+   粗、副标题转 inkMuted、行高 56 随之生效；
+   rowHeight 亦被抽屉行与 Files 行引用，同幅变
+   化，属预期的全 App 行口径统一。
+
+### 18.7 字重阶梯审计（用户点破：正文粗则加粗无层级）
+
+定版阶梯（OneDayCore.TextRoleWeights 数值账＋单
+测钉住）：正文 400／行标题·胶囊标题·分区题·
+Markdown 粗体·标题 600／bold 700 仅标题角色上限。
+逐一查实（不猜）：
+- TypeScale.body ＝ Font.body（regular）——未定
+  成 semibold；
+- MarkdownText 段落 .font(TypeScale.body)——基重
+  regular；**真事故在行内**：AttributedString 的
+  markdown 粗体直达系统 bold 700，越过标题的
+  semibold 600，层级倒挂——已按 InlinePresent-
+  ationIntent.stronglyEmphasized 重映射到
+  TypeScale.markdownStrong（body semibold 600，
+  与正文恰一档；.code 段不碰、斜体叠 .italic、
+  标题内粗体与标题同重）；
+- 根 fontWeight 环境（ContentView）：浅色
+  .regular——未漏到浅色正文；暗色 .light 是 §14
+  条 3 的定版降档，保留；
+- StreamingText 词元 .font(TypeScale.body)——
+  regular，无漂移；
+- 用户气泡 .font(TypeScale.body)——regular。
+grep 清点（.fontWeight(／weight: .semibold/.bold
+全仓）：ChatView 内收编 2 处（空态标题手写
+fontWeight→sectionTitle 角色；Markdown 粗体见
+上）；合法登记：顶栏钮/回到底部/xmark/chevron/
+checkmark 等图标字形 semibold、胶囊标题（已改
+capsuleTitle 角色）、抽屉身份题 20 semibold、抽
+屉会话行「当前会话 semibold」状态强调、发送↔
+停止键 glyph bold、chevron.down bold 9pt 字形；
+其余页面（总览指标题、列表小节题、各页 13pt
+semibold 小按钮/标签）均为标题/标签位、非正文
+角色，登记合法、本版不动。
+
+### 18.8 验收（构建后回填）
+
+（待回填：run 号、单测总数、解包三元组、IPA 路径）
+- 真机终审归用户：底栏选中蓝、顶栏两钮观感、点
+  输入框锚底、光标三态、换行左齐、多行上文下钮、
+  设置页冷灰底白卡与行层级、Markdown 粗体层级。

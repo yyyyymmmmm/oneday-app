@@ -19,7 +19,7 @@ final class ComposerLayoutTests: XCTestCase {
             ComposerLayout.effectiveTextHeight(measured: 0),
             19.17, accuracy: 0.01
         )
-        let capsule = ComposerLayout.capsuleHeight(measured: 0)
+        let capsule = ComposerLayout.capsuleHeight(narrowMeasured: 0, fullMeasured: 0)
         XCTAssertEqual(capsule, 46, accuracy: 0.001)
         XCTAssertTrue((45...46).contains(capsule), "空态胶囊高 \(capsule) 应在目标带 45–46 内")
         XCTAssertFalse(ComposerLayout.isMultiline(measured: 0))
@@ -30,15 +30,17 @@ final class ComposerLayoutTests: XCTestCase {
     func testSingleLineSpec() {
         let oneLine = ComposerLayout.textHeight(forLineCount: 1)
         XCTAssertEqual(oneLine, 19.17, accuracy: 0.01)
-        let capsule = ComposerLayout.capsuleHeight(measured: oneLine)
+        let capsule = ComposerLayout.capsuleHeight(narrowMeasured: oneLine, fullMeasured: oneLine)
         XCTAssertEqual(capsule, 46, accuracy: 0.001)
         XCTAssertTrue((45...46).contains(capsule))
         XCTAssertFalse(ComposerLayout.isMultiline(measured: oneLine))
         XCTAssertFalse(ComposerLayout.shouldScroll(measured: oneLine))
     }
 
-    /// 多行：3 行文本高原样通过，胶囊随行数长（文本侧
-    /// 接管：57.51＋10＋16＝83.51）；判为多行形态
+    /// 多行（0.3.3 上文下钮）：3 行全宽文本高＋文本纵
+    /// 向边距 10＋按钮行距 4＋按钮行 30＋行纵向边距 16
+    /// ＝57.51＋60＝117.51；判据走窄宽（此处窄＝全宽同
+    /// 值代入，形态判定不变）
     func testMultilineGrowsWithLines() {
         let threeLines = ComposerLayout.textHeight(forLineCount: 3)
         XCTAssertEqual(
@@ -46,8 +48,10 @@ final class ComposerLayoutTests: XCTestCase {
             57.51, accuracy: 0.01
         )
         XCTAssertEqual(
-            ComposerLayout.capsuleHeight(measured: threeLines),
-            83.51, accuracy: 0.01
+            ComposerLayout.capsuleHeight(
+                narrowMeasured: threeLines, fullMeasured: threeLines
+            ),
+            117.51, accuracy: 0.01
         )
         XCTAssertTrue(ComposerLayout.isMultiline(measured: threeLines))
         XCTAssertFalse(ComposerLayout.shouldScroll(measured: threeLines))
@@ -64,8 +68,8 @@ final class ComposerLayoutTests: XCTestCase {
         ))
     }
 
-    /// 上限：7 行实测封顶在 6 行（115.02），胶囊 141.02，
-    /// 且须内滚；恰在封顶值不内滚
+    /// 上限：7 行实测封顶在 6 行（115.02），多行胶囊
+    /// ＝115.02＋60＝175.02，且须内滚；恰在封顶值不内滚
     func testCapAtSixLines() {
         let sevenLines = ComposerLayout.textHeight(forLineCount: 7)
         XCTAssertEqual(
@@ -73,8 +77,10 @@ final class ComposerLayoutTests: XCTestCase {
             115.02, accuracy: 0.01
         )
         XCTAssertEqual(
-            ComposerLayout.capsuleHeight(measured: sevenLines),
-            141.02, accuracy: 0.01
+            ComposerLayout.capsuleHeight(
+                narrowMeasured: sevenLines, fullMeasured: sevenLines
+            ),
+            175.02, accuracy: 0.01
         )
         XCTAssertTrue(ComposerLayout.shouldScroll(measured: sevenLines))
         XCTAssertTrue(ComposerLayout.isMultiline(measured: sevenLines))
@@ -84,5 +90,22 @@ final class ComposerLayoutTests: XCTestCase {
         XCTAssertTrue(ComposerLayout.shouldScroll(
             measured: ComposerLayout.maxTextHeight + 0.1
         ))
+    }
+
+    /// 宽度双模式（0.3.3）：单行窄宽＝容器−132、多行全
+    /// 宽＝容器−56；402 容器 → 270/346
+    func testTextWidthModes() {
+        XCTAssertEqual(
+            ComposerLayout.textWidth(forContainerWidth: 402),
+            270, accuracy: 0.001
+        )
+        XCTAssertEqual(
+            ComposerLayout.textWidth(
+                forContainerWidth: 402, multiline: true
+            ),
+            346, accuracy: 0.001
+        )
+        XCTAssertEqual(ComposerLayout.horizontalChromeMultiline, 56)
+        XCTAssertEqual(ComposerLayout.inputBarChrome, 24)
     }
 }

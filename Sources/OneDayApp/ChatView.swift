@@ -69,9 +69,10 @@ struct ChatView: View {
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
     /// GlassEffectContainer＋union 撤销（§11：容器在新承载
     /// 下不再承担布局，且 Session 219 忌玻璃叠玻璃）
-    /// 0.2.6 多行形状变形（0.2.7 起判据改由 ComposerTextView
-    /// 的内容实测高驱动，见 composerRow）：跨过单行阈值后
-    /// 发送舱玻璃由 Capsule 改固定圆角矩形（见 inputBar）
+    /// 0.2.6 多行形状变形（0.3.3 起判据由 ComposerBar-
+    /// Layout 的窄宽量测经 onModeChange 回写，见
+    /// composerRow）：跨过单行阈值后发送舱玻璃由
+    /// Capsule 改固定圆角矩形（见 inputBar）
     @State private var composerMultiline = false
     /// 原生底栏在屏幕底部的占位，抽屉面板底部按它留位避让
     /// 服务器行（0.2.6 起发送舱已不在覆盖层、不再用它抬升；
@@ -230,9 +231,18 @@ struct ChatView: View {
                 setDrawer(true)
             } label: {
                 Image(systemName: "sidebar.left")
-                    .font(.system(size: 15, weight: .semibold))
+                    // 0.3.3：顶栏两钮共用 HeaderButtonSpec
+                    // 规格（直径 40／字形 20，与右钮同值，
+                    // 单测钉住；此前两处各写 36/15）
+                    .font(.system(
+                        size: HeaderButtonSpec.glyphPointSize,
+                        weight: .semibold
+                    ))
                     .foregroundStyle(Palette.ink)
-                    .frame(width: 36, height: 36)
+                    .frame(
+                        width: HeaderButtonSpec.diameter,
+                        height: HeaderButtonSpec.diameter
+                    )
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
@@ -245,7 +255,9 @@ struct ChatView: View {
             } label: {
                 VStack(spacing: 1) {
                     Text(currentThread?.title ?? "聊天")
-                        .font(.system(size: 16, weight: .semibold))
+                        // 0.3.3：胶囊标题走 capsuleTitle 角色
+                        // （字重阶梯：标题位 semibold）
+                        .font(TypeScale.capsuleTitle)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     HStack(spacing: 3) {
@@ -274,9 +286,16 @@ struct ChatView: View {
                 newThread()
             } label: {
                 Image(systemName: "square.and.pencil")
-                    .font(.system(size: 15, weight: .semibold))
+                    // 0.3.3：与左钮同一份 HeaderButtonSpec
+                    .font(.system(
+                        size: HeaderButtonSpec.glyphPointSize,
+                        weight: .semibold
+                    ))
                     .foregroundStyle(Palette.ink)
-                    .frame(width: 36, height: 36)
+                    .frame(
+                        width: HeaderButtonSpec.diameter,
+                        height: HeaderButtonSpec.diameter
+                    )
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
@@ -363,8 +382,10 @@ struct ChatView: View {
                             .font(.system(size: 26, weight: .light))
                             .foregroundStyle(Palette.inkMuted)
                         Text("和你的 Hermes 聊聊")
-                            .font(TypeScale.callout)
-                            .fontWeight(.semibold)
+                            // 0.3.3 收编：手写 fontWeight 漂移
+                            // 改走 sectionTitle 角色（阶梯账
+                            // 见 TextRoleWeights）
+                            .font(TypeScale.sectionTitle)
                             .foregroundStyle(Palette.ink)
                         Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
                             .font(TypeScale.caption)
@@ -432,6 +453,40 @@ struct ChatView: View {
             }
         }
         .onChange(of: streamingText) { _, _ in
+            if isNearBottom {
+                scrollToBottom(proxy)
+            }
+        }
+        // 0.3.3 键盘锚底（真机第 3 条）：点输入框时页面本
+        // 在底部，键盘弹起后列表被安全区顶起、最后一条与
+        // 输入框之间留白段——弹起前在底部（isNearBottom
+        // 为弹起前的值）就在键盘动画落定后滚回锚点。触
+        // 发两路：聚焦边沿＋聚焦中键盘帧变化（候选栏收
+        // 展等）；用户主动上滑（isNearBottom=false）不
+        // 强拉，回到底部钮保留原职
+        .onChange(of: composerFocused) { _, focused in
+            if focused {
+                anchorToBottomAfterKeyboard(proxy)
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIResponder.keyboardWillChangeFrameNotification
+            )
+        ) { _ in
+            if composerFocused {
+                anchorToBottomAfterKeyboard(proxy)
+            }
+        }
+    }
+
+    /// 键盘动画后锚底：等键盘帧落定（300ms 覆盖系统键盘
+    /// 动画时长）再滚；执行时复查 isNearBottom，用户在等
+    /// 待间隙里上滑了就不拉
+    private func anchorToBottomAfterKeyboard(_ proxy: ScrollViewProxy) {
+        guard isNearBottom else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
             if isNearBottom {
                 scrollToBottom(proxy)
             }
@@ -671,57 +726,190 @@ struct ChatView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// 发送舱内容行：＋键＋自量高文本视图＋右端状态机，
-    /// HStack .bottom 对齐（多行时两键锚在最后一行）
+    /// 发送舱内容（0.3.3 上文下钮，DESIGN-V4 §18）：自研
+    /// Layout 排三件子视图（＋键／文本／右端状态机）——
+    /// 单行形态与旧 HStack 几何逐项等价（总高 46、两键
+    /// 夹文字、全部底对齐，0.2.8 定版尺寸不动）；多行形
+    /// 态文字区全宽在上随行生长、按钮行钉在胶囊底部行
+    /// （学 Muse/ChatGPT 本体与 Exyte/Stream Composer
+    /// 的成熟结构）。形态判据恒以窄宽量测为准、经
+    /// Layout 缓存回写 composerMultiline（只驱动玻璃形
+    /// 状与 swap 动画）；Layout 保持子视图身份，形态切
+    /// 换不重建 UITextView、焦点不丢。高度全走
+    /// ComposerLayout.capsuleHeight(narrow:full:) 纯函数
     private var composerRow: some View {
-                HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
-                    attachButton
-                    // 0.2.7：SwiftUI 纵向 TextField 换自量高
-                    // UITextView（ComposerTextView）——高度由
-                    // 文本布局单方决定，真机拼音组合态的撕裂
-                    // 空盒从机制上消失（§11）；占位符由文本
-                    // 视图内部的子标签承担（外部覆盖层会污染
-                    // 命中路径，见 ComposerTextView 注）
-                    ComposerTextView(
-                        text: $input,
-                        focusHandle: composerFocusHandle,
-                        onFocusChange: { focused in
-                            composerFocused = focused
-                        },
-                        onMeasuredHeight: { height in
-                            // 多行判据走 ComposerLayout 统一
-                            // 口径（实测高跨过 1.5 行，§11）
-                            composerMultiline =
-                                ComposerLayout.isMultiline(measured: height)
-                        }
-                    )
-                    .padding(.horizontal, OneDayMetrics.spacingS)
-                    // 纵向 5＝ComposerLayout.textVerticalInsets
-                    // 的一半（0.2.8 基数：单行总高 46 的构成
-                    // 之一，见 ComposerLayout 注，不许在此
-                    // 另写数字漂移）
-                    .padding(.vertical, ComposerLayout.textVerticalInsets / 2)
-                    trailingControl
+        ComposerBarLayout(
+            onModeChange: { newValue in
+                if composerMultiline != newValue {
+                    composerMultiline = newValue
                 }
-                .padding(.horizontal, OneDayMetrics.spacingS)
-                .padding(.vertical, OneDayMetrics.spacingS)
-                .fixedSize(horizontal: false, vertical: true)
-                // 0.2.6 形状随行数变形（对照 Muse 多行态）：
-                // 单行 Capsule、多行固定圆角矩形——Capsule
-                // 拉长成体育场形大气球是用户点名「内容多了
-                // 为什么变这样」的形状根源；玻璃本体由
-                // inputBar 施加，形状定义在 composerShape。
-                // 0.3.2：0.18 内联曲线收编 MotionTokens.swap
-                // 并经 resolved 出口（审查 M-3＋动效纪律）
-                .animation(
-                    MotionTokens.resolved(
-                        MotionTokens.swap, reduceMotion: reduceMotion
-                    ),
-                    value: composerMultiline
-                )
+            }
+        ) {
+            attachButton
+            // 0.2.7：SwiftUI 纵向 TextField 换自量高
+            // UITextView（ComposerTextView）——高度由
+            // 文本布局单方决定（§11）；0.3.3 起视图由
+            // ComposerTextMetrics.makeTextView 工厂以显
+            // 式 TextKit-1 栈构造（与量测同源，治光标
+            // 逃逸/换行不对齐，见该文件几何节）；占位符
+            // 由文本视图内部的子标签承担
+            ComposerTextView(
+                text: $input,
+                focusHandle: composerFocusHandle,
+                onFocusChange: { focused in
+                    composerFocused = focused
+                }
+            )
+            trailingControl
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        // 0.2.6 形状随行数变形（对照 Muse 多行态）：
+        // 单行 Capsule、多行固定圆角矩形——Capsule
+        // 拉长成体育场形大气球是用户点名「内容多了
+        // 为什么变这样」的形状根源；玻璃本体由
+        // inputBar 施加，形状定义在 composerShape。
+        // 0.3.2：0.18 内联曲线收编 MotionTokens.swap
+        // 并经 resolved 出口（审查 M-3＋动效纪律）
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: composerMultiline
+        )
     }
 
-    /// 发送舱右端状态机（0.2.5，对照 Muse 输入区）：胶囊内
+/// 发送舱布局（0.3.3 上文下钮）：子视图序固定为
+/// [＋键, 文本, 右端状态机]。几何全读 ComposerLayout
+/// 常数（行边距 8、字段边距 8/5、键 30），与
+/// horizontalChrome 的扣减表逐项同源：
+/// - 单行（总高 46，与旧 HStack(.bottom) 逐项等价）：
+///   ＋键 x=行左+8、底对齐；文本 x=行左+54、宽=行宽
+///   −108（≡容器宽−132 的窄宽）、底距 13（行边距 8＋
+///   字段纵距 5）；右键右贴、底对齐
+/// - 多行：文本 x=行左+16、宽=行宽−32（≡容器宽−56
+///   的全宽）、顶距 13；按钮行钉底（y=总高−8−30）；
+///   文本底与按钮行顶之间 9（字段纵距 5＋行距 4），
+///   总高与 capsuleHeight 的分解逐项对上
+/// 形态判据恒以窄宽量测走 isMultiline、总高走
+/// capsuleHeight(narrow:full:)；形态经缓存＋主队列异
+/// 步回写 onModeChange（不在布局中改状态）；Layout 保
+/// 持子视图身份，切换不重建 UITextView、焦点不丢
+private struct ComposerBarLayout: Layout {
+    var onModeChange: (Bool) -> Void
+
+    final class Cache {
+        var mode: Bool?
+    }
+
+    func makeCache(subviews: Subviews) -> Cache { Cache() }
+
+    /// 量测：文本子视图在窄宽/全宽各 sizeThatFits 一次
+    /// （ComposerTextView 的 sizeThatFits 以提议宽返回封
+    /// 顶后的纯文本高，与 ComposerLayout 口径同源）
+    private func metrics(
+        rowWidth: CGFloat, subviews: Subviews
+    ) -> (multiline: Bool, totalHeight: CGFloat) {
+        let containerWidth = rowWidth + ComposerLayout.inputBarChrome
+        let narrowTextH = subviews[1].sizeThatFits(
+            ProposedViewSize(
+                width: ComposerLayout.textWidth(
+                    forContainerWidth: containerWidth
+                ),
+                height: nil
+            )
+        ).height
+        let fullTextH = subviews[1].sizeThatFits(
+            ProposedViewSize(
+                width: ComposerLayout.textWidth(
+                    forContainerWidth: containerWidth, multiline: true
+                ),
+                height: nil
+            )
+        ).height
+        return (
+            multiline: ComposerLayout.isMultiline(measured: narrowTextH),
+            totalHeight: ComposerLayout.capsuleHeight(
+                narrowMeasured: narrowTextH, fullMeasured: fullTextH
+            )
+        )
+    }
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout Cache
+    ) -> CGSize {
+        let rowWidth = proposal.width ?? 0
+        let m = metrics(rowWidth: rowWidth, subviews: subviews)
+        if cache.mode != m.multiline {
+            cache.mode = m.multiline
+            let callback = onModeChange
+            let mode = m.multiline
+            DispatchQueue.main.async { callback(mode) }
+        }
+        return CGSize(width: rowWidth, height: m.totalHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout Cache
+    ) {
+        let containerWidth = bounds.width + ComposerLayout.inputBarChrome
+        let m = metrics(rowWidth: bounds.width, subviews: subviews)
+        let pad: CGFloat = 8
+        let btn = ComposerLayout.buttonHeight
+        let textInset = pad + ComposerLayout.textVerticalInsets / 2 // 13
+        if m.multiline {
+            let fullWidth = ComposerLayout.textWidth(
+                forContainerWidth: containerWidth, multiline: true
+            )
+            subviews[1].place(
+                at: CGPoint(x: bounds.minX + pad + 8, y: bounds.minY + textInset),
+                proposal: ProposedViewSize(width: fullWidth, height: nil)
+            )
+            let rowY = bounds.maxY - pad - btn
+            subviews[0].place(
+                at: CGPoint(x: bounds.minX + pad, y: rowY),
+                proposal: ProposedViewSize(width: btn, height: btn)
+            )
+            subviews[2].place(
+                at: CGPoint(x: bounds.maxX - pad - btn, y: rowY),
+                proposal: ProposedViewSize(width: btn, height: btn)
+            )
+        } else {
+            let narrowWidth = ComposerLayout.textWidth(
+                forContainerWidth: containerWidth
+            )
+            let textProposal = ProposedViewSize(
+                width: narrowWidth, height: nil
+            )
+            let textSize = subviews[1].sizeThatFits(textProposal)
+            subviews[1].place(
+                at: CGPoint(
+                    x: bounds.minX + pad + btn + pad + 8,
+                    y: bounds.maxY - textInset - textSize.height
+                ),
+                proposal: textProposal
+            )
+            subviews[0].place(
+                at: CGPoint(
+                    x: bounds.minX + pad, y: bounds.maxY - pad - btn
+                ),
+                proposal: ProposedViewSize(width: btn, height: btn)
+            )
+            subviews[2].place(
+                at: CGPoint(
+                    x: bounds.maxX - pad - btn, y: bounds.maxY - pad - btn
+                ),
+                proposal: ProposedViewSize(width: btn, height: btn)
+            )
+        }
+    }
+}
+
+/// 发送舱右端状态机（0.2.5，对照 Muse 输入区）：胶囊内
     /// 的元素都是裸符号或单一小圆盘，不套圈不描边。
     /// - 流式中：停止键（逻辑沿用 sendTask?.cancel()）
     /// - 有可发送内容（文字或附件）：发送箭头

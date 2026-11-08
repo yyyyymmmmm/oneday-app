@@ -101,7 +101,13 @@ struct ContentView: View {
                 tabLabel(TabBarSymbols.settings, tab: .settings)
             }
         }
-        .tint(Palette.ink)
+        // 0.3.3 底栏随主题（真机第 1 条，§18）：tint 改绑
+        // 强调色令牌 Palette.primary（学礼记 ContentView
+        // 的 .tint(Palette.primary)）——选中字形与文字走
+        // 强调色、随主题切换即时跟随；未选保持系统灰。
+        // 此令覆盖 0.2.5「tint 改墨」旧定版（用户本轮真
+        // 机对比礼记后当场改判：选中必须是蓝色）
+        .tint(Palette.primary)
         // 条 3（§14）未带权文字的降档通道：暗色环境下根
         // fontWeight 降一档（regular→light），未显式带权
         // 的 Text 全量继承；带权字体走 TypeScale 的

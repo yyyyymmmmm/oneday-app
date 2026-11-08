@@ -41,6 +41,36 @@ public enum TypeScale {
     public static let monoCaption = Font.system(.caption, design: .monospaced)
     /// 等宽代码
     public static let monoCode = Font.system(.footnote, design: .monospaced)
+    // —— 列表行角色（0.3.3，学礼记 MeView 行层级）：全 App
+    // 列表行只有这一套字重账——标题 semibold 独响，值与
+    // 副标题一律 regular 退后（值 inkSecondary、副标题
+    // inkMuted，配色在行组件侧）；页面不许再单页加粗。
+    /// 行标题（唯一半粗位）
+    public static let rowTitle = Font.body.weight(.semibold)
+    /// 行图标字形（semibold 粗实，字号走 OneDayMetrics.rowIconGlyph）
+    public static let rowIcon = Font.system(
+        size: OneDayMetrics.rowIconGlyph, weight: .semibold
+    )
+    /// 行右侧值（regular，与 callout 同体）
+    public static let rowValue = Font.callout
+    /// 行副标题（regular，与 footnote 同体）
+    public static let rowSubtitle = Font.footnote
+    // —— 字重阶梯（0.3.3 全局审计定版，数值账在 OneDayCore
+    // .TextRoleWeights、单测钉住）：正文 400 regular／行标
+    // 题·胶囊标题·分区题·Markdown 粗体 600 semibold／
+    // bold 700 只许标题角色且不作正文强调。正文基重四处
+    // 查实均为 regular（本表 body、MarkdownText 段落、
+    // StreamingText、用户气泡）；原事故是 Markdown 行内
+    // 粗体经 AttributedString 直达系统 bold 700、越过标
+    // 题的 600——由 markdownStrong 角色重映射收编。
+    /// 胶囊标题（顶栏模型胶囊题，semibold）
+    public static let capsuleTitle = Font.system(size: 16, weight: .semibold)
+    /// 分区/空态小标题（semibold，与 callout 同体）
+    public static let sectionTitle = Font.callout.weight(.semibold)
+    /// Markdown 行内粗体的目标字体（正文 semibold，与
+    /// 正文拉开恰一档；解析侧按 intent 重映射，见
+    /// MarkdownText）
+    public static let markdownStrong = Font.body.weight(.semibold)
 
     // —— 条 3 暗色降档变体（0.3.0，§14）：带权字体在暗色
     // 环境下经 VisualWeight 降一档；调用点以 colorScheme

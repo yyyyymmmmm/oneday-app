@@ -101,7 +101,9 @@ public struct ContentRow: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             if let icon {
                 Image(systemName: icon)
-                    .font(TypeScale.body)
+                    // 0.3.3 行层级：图标走 rowIcon 角色
+                    // （20 semibold 粗实字形，学礼记行分量）
+                    .font(TypeScale.rowIcon)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     // 条 5（§14）：图标相对文字下移 0.125em
@@ -110,12 +112,14 @@ public struct ContentRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(TypeScale.body)
+                    // 0.3.3：标题是行内唯一半粗位（rowTitle）
+                    .font(TypeScale.rowTitle)
                     .foregroundStyle(Palette.ink)
                 if let subtitle {
                     Text(subtitle)
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
+                        .font(TypeScale.rowSubtitle)
+                        // 0.3.3：副标题退到最弱档 inkMuted
+                        .foregroundStyle(Palette.inkMuted)
                 }
             }
             Spacer(minLength: OneDayMetrics.spacingS)

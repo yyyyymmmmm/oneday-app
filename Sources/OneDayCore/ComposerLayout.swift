@@ -45,18 +45,44 @@ public enum ComposerLayout {
     public static let buttonHeight: CGFloat = 30
 
     /// 横向 chrome 合计（容器宽 → 文本视图宽的扣减，
-    /// 0.2.9 宽度同源审计，DESIGN-V4 §13）：inputBar 横
-    /// 向边距 12×2＝24＋composerRow 横向边距 8×2＝16＋
-    /// 两键直径 30×2＝60＋HStack 间距 8×2＝16＋字段横
-    /// 向边距 8×2＝16，合计 132。逐项对应 ChatView 的
-    /// padding/frame 定义（spacingSM 12、spacingS 8、
-    /// buttonHeight 30）——改那边的几何必同步改这里，
-    /// 量测宽与布局宽共用这一份扣减表
+    /// 单行形态，0.2.9 宽度同源审计，DESIGN-V4 §13）：
+    /// inputBar 横向边距 12×2＝24＋composerRow 横向边
+    /// 距 8×2＝16＋两键直径 30×2＝60＋HStack 间距 8×2
+    /// ＝16＋字段横向边距 8×2＝16，合计 132。逐项对应
+    /// ChatView 的 padding/frame 定义（spacingSM 12、
+    /// spacingS 8、buttonHeight 30）——改那边的几何必
+    /// 同步改这里，量测宽与布局宽共用这一份扣减表
     public static let horizontalChrome: CGFloat = 132
 
-    /// 文本视图宽（量测与布局同源的那个宽度）
+    /// inputBar 横向边距合计（12×2，含在 horizontalChrome
+    /// 的 132 内）：布局层（ComposerBarLayout）拿到的是
+    /// 行宽（容器宽−24），换算回容器宽时用它
+    public static let inputBarChrome: CGFloat = 24
+
+    /// 横向 chrome 合计·多行形态（0.3.3 上文下钮，§18）：
+    /// 按钮行沉底后文字区全宽——inputBar 24＋row 横向
+    /// 边距 16＋字段横向边距 16＝56（无两键与行内间距）
+    public static let horizontalChromeMultiline: CGFloat = 56
+
+    /// 多行形态下文字区与按钮行之间的间距（0.3.3）
+    public static let buttonRowSpacing: CGFloat = 4
+
+    /// 文本视图宽（量测与布局同源的那个宽度；单行形态）
     public static func textWidth(forContainerWidth width: CGFloat) -> CGFloat {
         max(width - horizontalChrome, 0)
+    }
+
+    /// 文本视图宽（按形态）：单行＝两键夹住的窄宽、多行
+    /// ＝全宽。形态判据恒以窄宽量测为准（见 capsuleHeight
+    /// 注），两宽分工不许混用
+    public static func textWidth(
+        forContainerWidth width: CGFloat, multiline: Bool
+    ) -> CGFloat {
+        max(
+            width - (multiline
+                ? horizontalChromeMultiline : horizontalChrome),
+            0
+        )
     }
 
     /// 空文本也按一行计：量高下限为一行
@@ -79,12 +105,25 @@ public enum ComposerLayout {
         effectiveTextHeight(measured: measured) > multilineThreshold
     }
 
-    /// 胶囊总高＝max(封顶文本高＋文本纵向边距, 键直径)
-    /// ＋行纵向边距。单行规格：max(19.17＋10, 30)＋16＝46，
-    /// 落在目标带 45–46 内（0.2.8 改版，54.5 旧规格作废）
-    public static func capsuleHeight(measured: CGFloat) -> CGFloat {
-        max(
-            cappedTextHeight(measured: measured) + textVerticalInsets,
+    /// 胶囊总高（0.3.3 上文下钮结构，DESIGN-V4 §18）：
+    /// 形态判据恒以窄宽实测为准（isMultiline(narrow)）——
+    /// 与全宽行数无关，避免形态在临界文本上反复横跳。
+    /// - 单行：沿 0.2.8 定版公式＝max(窄宽文本高＋文本
+    ///   纵向边距, 键直径)＋行纵向边距（单行 46 不变）
+    /// - 多行：全宽文本高（封顶）＋文本纵向边距＋按钮行
+    ///   距＋键直径（按钮行）＋行纵向边距——文字在上全
+    ///   宽生长、按钮钉在底部行（学 Muse/ChatGPT 与
+    ///   Exyte/Stream Composer 的成熟结构）
+    public static func capsuleHeight(
+        narrowMeasured: CGFloat, fullMeasured: CGFloat
+    ) -> CGFloat {
+        if isMultiline(measured: narrowMeasured) {
+            return cappedTextHeight(measured: fullMeasured)
+                + textVerticalInsets + buttonRowSpacing
+                + buttonHeight + rowVerticalInsets
+        }
+        return max(
+            cappedTextHeight(measured: narrowMeasured) + textVerticalInsets,
             buttonHeight
         ) + rowVerticalInsets
     }

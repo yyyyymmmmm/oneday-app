@@ -78,12 +78,22 @@ struct MarkdownText: View {
                 case .paragraph(let text):
                     // 条 8（§14）：段落渲染前过断行整形
                     // （尾行孤字防护）
-                    inline(TextShaping.prettyWrapDocument(text))
+                    inline(
+                        TextShaping.prettyWrapDocument(text),
+                        strongFont: TypeScale.markdownStrong
+                    )
                         .font(TypeScale.body)
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                 case .heading(let text, let level):
-                    inline(text)
+                    // 标题内粗体与标题同重（标题角色本身
+                    // 即 semibold，strong 不再叠加）
+                    inline(
+                        text,
+                        strongFont: level == 1
+                            ? TypeScale.title(for: colorScheme)
+                            : TypeScale.headline
+                    )
                         .font(level == 1
                             ? TypeScale.title(for: colorScheme)
                             : TypeScale.headline)
@@ -112,16 +122,33 @@ struct MarkdownText: View {
         }
     }
 
-    /// 行内 markdown：解析失败回退纯文本，永不丢字
-    private func inline(_ text: String) -> Text {
-        if let attributed = try? AttributedString(
+    /// 行内 markdown：解析失败回退纯文本，永不丢字。
+    /// 0.3.3 字重收编：解析器给行内粗体打的是系统 bold
+    /// （700），越过标题角色的 semibold（600）——层级倒
+    /// 挂（用户点破「正文已粗、加粗无层级可走」的实处）。
+    /// 按 InlinePresentationIntent.stronglyEmphasized 找
+    /// 粗体段、重映射到 strongFont（正文语境＝TypeScale
+    /// .markdownStrong，与正文恰差一档）；行内代码段
+    /// （.code）不碰、斜体段在 strong 字体上叠 .italic
+    private func inline(_ text: String, strongFont: Font) -> Text {
+        guard var attributed = try? AttributedString(
             markdown: text,
             options: AttributedString.MarkdownParsingOptions(
                 interpretedSyntax: .inlineOnlyPreservingWhitespace
             )
-        ) {
-            return Text(attributed)
+        ) else {
+            return Text(text)
         }
-        return Text(text)
+        for run in attributed.runs {
+            guard let intent = run.inlinePresentationIntent,
+                  intent.contains(.stronglyEmphasized),
+                  !intent.contains(.code) else { continue }
+            var font = strongFont
+            if intent.contains(.emphasized) {
+                font = font.italic()
+            }
+            attributed[run.range].font = font
+        }
+        return Text(attributed)
     }
 }

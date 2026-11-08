@@ -41,8 +41,9 @@ struct ComposerTextView: UIViewRepresentable {
     var focusHandle: ComposerFocusHandle
     /// 焦点观察回调（delegate 回写，只观察不把关）
     var onFocusChange: (Bool) -> Void
-    /// 内容实测高（未封顶）回调：驱动多行形状判据
-    var onMeasuredHeight: (CGFloat) -> Void
+    // 0.3.3：onMeasuredHeight 通道撤销——多行形态判据改
+    // 由布局层（ChatView.ComposerBarLayout）以 sizeThat-
+    // Fits 量测回写，视图不再反向驱动布局状态
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -58,24 +59,22 @@ struct ComposerTextView: UIViewRepresentable {
     private static var bodyFont: UIFont { ComposerTextMetrics.bodyFont }
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        // 0.3.3 工厂构造：以显式 TextKit-1 栈建视图并施
+        // 加统一几何（ComposerTextMetrics.makeTextView，
+        // 与量测栈同类同参——治光标逃逸/换行不对齐的
+        // 几何同源，见该文件几何节与 §18）
+        let textView = ComposerTextMetrics.makeTextView()
         textView.delegate = context.coordinator
         // 可编辑与可交互是默认值，此处显式写死（§12.1 审计
         // 项④：配置层不给聚焦留任何含糊）
         textView.isEditable = true
         textView.isUserInteractionEnabled = true
-        textView.font = Self.bodyFont
         textView.backgroundColor = .clear
         textView.textColor = .label
         textView.typingAttributes = [
             .font: Self.bodyFont,
             .foregroundColor: UIColor.label,
         ]
-        // 内边距归零：间距由 SwiftUI 侧 padding 统一承担，
-        // 量高口径与排版口径一致
-        textView.textContainerInset = .zero
-        textView.textContainer.lineFragmentPadding = 0
-        textView.textContainer.lineBreakMode = .byWordWrapping
         textView.isScrollEnabled = false
         textView.accessibilityIdentifier = "composerField"
         textView.text = text
@@ -93,11 +92,15 @@ struct ComposerTextView: UIViewRepresentable {
         placeholder.translatesAutoresizingMaskIntoConstraints = false
         textView.addSubview(placeholder)
         NSLayoutConstraint.activate([
+            // 0.3.3：占位符原点走几何单一事实源（此前手
+            // 写 constant 1 与量测口径是两套账）
             placeholder.leadingAnchor.constraint(
-                equalTo: textView.leadingAnchor, constant: 1
+                equalTo: textView.leadingAnchor,
+                constant: ComposerTextMetrics.textOriginX
             ),
             placeholder.topAnchor.constraint(
-                equalTo: textView.topAnchor
+                equalTo: textView.topAnchor,
+                constant: ComposerTextMetrics.textContainerInset.top
             ),
         ])
         context.coordinator.placeholderLabel = placeholder
@@ -115,6 +118,9 @@ struct ComposerTextView: UIViewRepresentable {
         }
         context.coordinator.placeholderLabel?.isHidden =
             !(textView.text?.isEmpty ?? true)
+        // 0.3.3 几何兜底：每次更新重申统一几何（防系统
+        // 在重排/旋转时改回默认 inset/padding）
+        ComposerTextMetrics.applyGeometry(to: textView)
         // 0.2.8：updateUIView 不再碰第一响应者（焦点桥已拆，
         // 见文件头注）。聚焦/失焦只由 UIKit 原生通道与
         // focusHandle 决定，SwiftUI 更新永不批准也不驳回
@@ -125,8 +131,9 @@ struct ComposerTextView: UIViewRepresentable {
     /// ComposerTextMetrics 以 TextKit 在提议宽（＝实际布
     /// 局宽）与单一来源字体下数出（含 marked 段——组合
     /// 文本同在 textView.text 里，与 IME 同路），高度只
-    /// 经 ComposerLayout 纯函数封顶；未封顶实测值另行
-    /// 回调，供 ChatView 判多行形状
+    /// 经 ComposerLayout 纯函数封顶。0.3.3：本函数只回
+    /// 高、不再回调报模式——模式由布局层据两次
+    /// sizeThatFits（窄宽/全宽）自行判定
     func sizeThatFits(
         _ proposal: ProposedViewSize,
         uiView textView: UITextView,
@@ -136,9 +143,6 @@ struct ComposerTextView: UIViewRepresentable {
         let reported = ComposerTextMetrics.textHeight(
             for: textView.text ?? "", width: width
         )
-        DispatchQueue.main.async {
-            onMeasuredHeight(reported)
-        }
         return CGSize(
             width: width,
             height: ComposerLayout.cappedTextHeight(measured: reported)
