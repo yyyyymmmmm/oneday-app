@@ -45,8 +45,18 @@ final class ScreenshotTests: XCTestCase {
     /// 01 连接页：未连接态，字段预填展示值
     func test01ConnectPage() {
         let app = launch(["-odDemoConnect"])
+        // 等 onAppear 预填落地：账号字段值变为 admin 才说明
+        // 演示预填完成（SecureField 圆点也在同一时刻就位）
+        let adminField = app.textFields.matching(
+            NSPredicate(format: "value == %@", "admin")
+        ).firstMatch
+        XCTAssertTrue(
+            adminField.waitForExistence(timeout: 20),
+            "演示预填未落地（账号字段未变为 admin）"
+        )
         XCTAssertTrue(app.buttons["测试并连接"].waitForExistence(timeout: 20))
         waitText(app, "连接你的 Hermes 服务器")
+        settle(0.5)
         capture("01-connect")
     }
 

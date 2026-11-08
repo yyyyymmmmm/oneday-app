@@ -46,6 +46,10 @@ final class AppState {
             // 演示会话：地址与账号只是展示数据，密钥由假客户端消化
             config = ServerConfig(rawInput: "https://hermes.didichou.site")
             username = "admin"
+            // 演示口径：模型名与总览「当前配置」同为 deepseek-chat，
+            // 三处展示（顶栏副题/抽屉服务器行/设置）一致；假客户端
+            // 不校验模型名，生产路径的 modelID 仍以 /v1/models 为准
+            modelID = "deepseek-chat"
             phase = .connected
         case .connectPage:
             // 停在连接页：保持未连接，字段预填在 ConnectView 侧

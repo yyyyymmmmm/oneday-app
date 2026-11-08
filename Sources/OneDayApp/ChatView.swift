@@ -383,6 +383,20 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingL)
     }
 
+    /// 抽屉会话行的时间口径：固定中文短格式（11月8日 13:43），
+    /// 不随系统语言漂移——首轮截图里系统英文格式
+    ///（Nov 8, 2026 at 1:43 PM）混在中文行里读感破碎。
+    private static let threadDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter
+    }()
+
+    private static func threadDateText(_ date: Date) -> String {
+        threadDateFormatter.string(from: date)
+    }
+
     /// 会话行：与旧历史行同信息量（标题＋条数＋时间），当前会话
     /// 以一级面差衬底（学两家参照的选中行填充，不用蓝色）。
     private func drawerThreadRow(_ thread: ChatThread) -> some View {
@@ -396,13 +410,9 @@ struct ChatView: View {
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    Text("\(thread.entries.count) 条")
-                        .font(TypeScale.monoFootnote)
-                    Text(thread.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(TypeScale.caption)
-                }
-                .foregroundStyle(Palette.inkMuted)
+                Text("\(thread.entries.count) 条 · \(Self.threadDateText(thread.updatedAt))")
+                    .font(TypeScale.monoFootnote)
+                    .foregroundStyle(Palette.inkMuted)
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .padding(.vertical, OneDayMetrics.spacingSM)

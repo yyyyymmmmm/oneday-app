@@ -16,16 +16,11 @@ struct ConnectView: View {
     @State private var password = ""
     @State private var apiKey = ""
 
-    init() {
-        // 连接页演示态（-odDemoConnect）：预填展示值供截图——
-        // 账号 admin；密码与密钥是占位假串，SecureField 只显圆点，
-        // 不含任何真实凭据（演示探活也走假客户端，不出设备）。
-        if DemoMode.current == .connectPage {
-            _username = State(initialValue: "admin")
-            _password = State(initialValue: "demo-password")
-            _apiKey = State(initialValue: "demo-api-key")
-        }
-    }
+    // 连接页演示态（-odDemoConnect）的预填不在 init 里做：
+    // 首帧前给 SecureField 塞值会触发 UIKit 安全字段的已知
+    // 渲染缺陷（圆点不显示、行高异常，0.1.3 首轮截图实证），
+    // 改到 onAppear 赋值（见 body）。预填值全是占位假串，
+    // 账号只写 admin，不含任何真实凭据。
 
     private enum Field: Hashable {
         case server, username, password, apiKey
@@ -57,7 +52,7 @@ struct ConnectView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 brandBlock
-                    .padding(.top, OneDayMetrics.spacingXL)
+                    .padding(.top, OneDayMetrics.spacingXXL)
                 formGroup
                     .padding(.top, OneDayMetrics.spacingXL)
                 if !stepStates.isEmpty {
@@ -73,7 +68,7 @@ struct ConnectView: View {
                 }
                 .buttonStyle(.odPrimary)
                 .disabled(!canSubmit)
-                .padding(.top, OneDayMetrics.spacingL)
+                .padding(.top, OneDayMetrics.spacingXL)
                 Text("凭据只存这台手机的钥匙串，不经过任何第三方。服务器需为 Hermes v0.23.0。")
                     .font(TypeScale.footnote)
                     .foregroundStyle(Palette.inkMuted)
@@ -86,6 +81,13 @@ struct ConnectView: View {
         }
         .background(Palette.pageBG)
         .onAppear {
+            if DemoMode.current == .connectPage {
+                // 演示预填：出现在首帧之后赋值，SecureField
+                // 圆点与行高都正常（init 预填会触发渲染缺陷）
+                username = "admin"
+                password = "demo-password"
+                apiKey = "demo-api-key"
+            }
             withAnimation(MotionTokens.resolved(MotionTokens.entrance, reduceMotion: reduceMotion)) {
                 appeared = true
             }

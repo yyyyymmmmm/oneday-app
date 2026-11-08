@@ -43,8 +43,9 @@ struct DemoHermesClient: HermesClientProtocol {
         ["hermes-agent"]
     }
 
-    /// 演示流式：把定稿回复切成小片慢速产出，让截图环能截到
-    /// 「已出半截字＋流式光标」的静止帧；总时长约 5 秒。
+    /// 演示流式：把定稿回复逐字慢速产出，让截图环能截到
+    /// 「已出半截字＋流式光标」的静止帧；总时长约 14 秒
+    ///（首轮 5 秒版实测在 CI 里截到的是已完成帧，故放慢）。
     func chatStream(
         config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage]
     ) -> AsyncThrowingStream<String, Error> {
@@ -60,10 +61,10 @@ struct DemoHermesClient: HermesClientProtocol {
                         continuation.finish(throwing: HermesError.cancelled)
                         return
                     }
-                    let next = min(index + 2, characters.count)
+                    let next = min(index + 1, characters.count)
                     continuation.yield(String(characters[index..<next]))
                     index = next
-                    try? await Task.sleep(for: .milliseconds(110))
+                    try? await Task.sleep(for: .milliseconds(130))
                 }
                 continuation.finish()
             }
