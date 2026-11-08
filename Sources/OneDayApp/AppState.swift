@@ -49,6 +49,9 @@ final class AppState {
     var pendingSettingsRoute: SettingsRoute?
     /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
     var cronCreateRequested = false
+    /// 聊天抽屉开合（0.2.2）：ContentView 据此隐藏自绘底栏，
+    /// 让抽屉 scrim 完整覆盖全屏（底栏不跨层漂浮）
+    var drawerPresented = false
 
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client

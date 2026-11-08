@@ -29,16 +29,16 @@ struct FilesView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("浏览方式", selection: $segment) {
-                    Text("文件").tag(0)
-                    Text("影音").tag(1)
+                    Text("影音").tag(0)
+                    Text("文件").tag(1)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.vertical, OneDayMetrics.spacingS)
                 if segment == 0 {
-                    fileList
-                } else {
                     mediaGrid
+                } else {
+                    fileList
                 }
             }
             .background(Palette.pageBG)
@@ -77,6 +77,7 @@ struct FilesView: View {
     private var documents: [Deliverable] {
         (deliverables ?? []).filter { $0.entry.mediaKind == nil }
     }
+    // 形态分工（§6）：影音网格是本页第一面，文件段用紧凑行
 
     private var fileList: some View {
         ScrollView {
@@ -138,11 +139,11 @@ struct FilesView: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.entry.name)
-                        .font(TypeScale.body)
+                        .font(TypeScale.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text(item.subtitle)
-                        .font(TypeScale.footnote)
+                        .font(TypeScale.caption)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -153,7 +154,7 @@ struct FilesView: View {
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: 46)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -82,19 +82,25 @@ final class ScreenshotTests: XCTestCase {
         settle(0.6)
 
         // 总览（五段；状态头可点进状态屏，本环不点）
-        app.tabBars.buttons["总览"].tap()
+        app.buttons["tab.overview"].tap()
         waitText(app, "今日 Token")
         waitText(app, "帮我看看服务器状态")
         capture("04-overview")
 
-        // 文件（0.2.2 交付物库）：等聚合样本到位（生成文档＋定时产出）
-        app.tabBars.buttons["文件"].tap()
-        waitText(app, "网络巡检周报.md")
-        waitText(app, "每日简报-1108.txt")
+        // 文件（0.2.2 交付物库）：影音网格为先（§6 形态分工）
+        app.buttons["tab.files"].tap()
+        waitText(app, "影音")
+        settle()
         capture("05-files")
 
+        // 文件段紧凑行（审查用附加帧，不进六张留档）
+        app.segmentedControls.buttons["文件"].tap()
+        waitText(app, "网络巡检周报.md")
+        waitText(app, "每日简报-1108.txt")
+        capture("05b-files-list")
+
         // 设置（0.2.1 分组目录）：等智能体组与外观组行到位
-        app.tabBars.buttons["设置"].tap()
+        app.buttons["tab.settings"].tap()
         waitText(app, "定时任务")
         waitText(app, "主题")
         capture("06-settings")

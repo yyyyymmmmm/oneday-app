@@ -530,6 +530,7 @@ struct ChatView: View {
         ) {
             drawerOpen = open
         }
+        appState.drawerPresented = open
     }
 
     /// 抽屉覆盖层：scrim（全开 0.4 黑）＋面板（宽 82%、上限
@@ -589,7 +590,7 @@ struct ChatView: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text("Hermes")
-                    .font(TypeScale.title)
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Palette.ink)
                 StatusDot(
                     color: drawerStatus.map { Palette.stateColor($0.gatewayState) }
@@ -650,8 +651,8 @@ struct ChatView: View {
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .frame(minHeight: OneDayMetrics.minTapTarget)
         .background(
-            Palette.fieldFill,
-            in: RoundedRectangle(cornerRadius: OneDayMetrics.fieldCorner)
+            Color(uiColor: .secondarySystemBackground),
+            in: Capsule()
         )
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.top, OneDayMetrics.spacingM)
@@ -762,18 +763,18 @@ struct ChatView: View {
         } label: {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(session.title)
-                    .font(TypeScale.body)
+                    .font(TypeScale.callout)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text("\(session.messageCount ?? 0) 条 · \(AdminFormat.short(session.startedDate))")
-                    .font(TypeScale.monoFootnote)
+                    .font(TypeScale.monoCaption)
                     .foregroundStyle(Palette.inkMuted)
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
-            .padding(.vertical, OneDayMetrics.spacingSM)
+            .padding(.vertical, OneDayMetrics.spacingS)
             .frame(
                 maxWidth: .infinity,
-                minHeight: 54,
+                minHeight: 50,
                 alignment: .leading
             )
             .contentShape(Rectangle())
@@ -796,9 +797,9 @@ struct ChatView: View {
         threadDateFormatter.string(from: date)
     }
 
-    /// 会话行（0.2.2 规格对齐 DESIGN-V3-NOTES §3）：双行最小高
-    /// 54；选中态＝主题浅染填充＋标题 semibold（成熟实现的
-    /// 填充式选中，不用描边不用裸灰）
+    /// 会话行（0.2.2 规格对齐 DESIGN-V3-NOTES §3/§6）：双行
+    /// 最小高 50、标题 callout 常规字重；选中态＝浅灰填充＋
+    /// 标题 semibold（近单色纪律，不用品牌色填充）
     private func drawerThreadRow(_ thread: ChatThread) -> some View {
         let isCurrent = thread.id == currentThread?.id
         return Button {
@@ -807,23 +808,23 @@ struct ChatView: View {
         } label: {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(thread.title)
-                    .font(TypeScale.body)
+                    .font(TypeScale.callout)
                     .fontWeight(isCurrent ? .semibold : .regular)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text("\(thread.entries.count) 条 · \(Self.threadDateText(thread.updatedAt))")
-                    .font(TypeScale.monoFootnote)
-                    .foregroundStyle(isCurrent ? Palette.inkSecondary : Palette.inkMuted)
+                    .font(TypeScale.monoCaption)
+                    .foregroundStyle(Palette.inkMuted)
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
-            .padding(.vertical, OneDayMetrics.spacingSM)
+            .padding(.vertical, OneDayMetrics.spacingS)
             .frame(
                 maxWidth: .infinity,
-                minHeight: 54,
+                minHeight: 50,
                 alignment: .leading
             )
             .background(
-                isCurrent ? Palette.primaryTint : Color.clear,
+                isCurrent ? Palette.fieldFill : Color.clear,
                 in: RoundedRectangle(cornerRadius: OneDayMetrics.fieldCorner)
             )
             .contentShape(Rectangle())

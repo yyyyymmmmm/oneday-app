@@ -265,7 +265,7 @@ struct OverviewView: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(value)
-                    .font(TypeScale.title)
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -277,7 +277,7 @@ struct OverviewView: View {
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingSM)
-            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

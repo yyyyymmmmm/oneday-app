@@ -82,7 +82,7 @@ struct SkillsView: View {
                                 .font(TypeScale.body)
                                 .foregroundStyle(Palette.ink)
                             if skill.locked == true {
-                                Image(systemName: "lock.fill")
+                                Image(systemName: "lock")
                                     .font(.system(size: 11))
                                     .foregroundStyle(Palette.inkMuted)
                                     .accessibilityLabel("已锁定")
