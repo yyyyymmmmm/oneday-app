@@ -10,9 +10,11 @@ import UIKit
 
 /// 聊天页：本地会话（SwiftData）＋ /v1/chat/completions 流式。
 /// 上下文取当前会话最近 20 条；停止生成保留已生成的半截回复。
-/// v2 视觉（docs/DESIGN-V2.md §3.5）：助手回答裸排在底色上（学
-/// ChatGPT/Claude 的共识）、用户是浅染气泡、输入区是浮空胶囊，
-/// 流式光标是本页的签名细节、也是全页唯一的蓝色时刻之一。
+/// v2 视觉（docs/DESIGN-V2.md §3.5）：用户是浅染气泡、输入区
+/// 是浮空胶囊，流式光标是本页的签名细节。助手消息形态两度
+/// 易稿：v2 定为裸排（学 ChatGPT/Claude），0.2.5 按用户真机
+/// 对照 Muse 推翻——改浅灰软填充泡（见 assistantBubble 与
+/// DESIGN-V4 §9 追记），裸排口径自此作废。
 /// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
 /// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
 struct ChatView: View {
@@ -57,7 +59,9 @@ struct ChatView: View {
     @State private var drawerStatus: ServerStatus?
     @State private var drawerServerSessions: [ServerSession] = []
     /// 0.2.4：发送舱玻璃融合的命名空间（GlassEffectContainer
-    /// 内胶囊与＋键以同一 union id 融成一颗玻璃）
+    /// 内胶囊以 union id 成形）。0.2.5 起＋键不再单独成圆并
+    /// 融入——它改裸符号直接坐在胶囊玻璃里，union 只剩
+    /// 胶囊本体，命名空间保留备用
     @Namespace private var composerGlass
     /// 0.2.4 覆盖式布局：底部悬浮层实测高度，驱动消息列表的
     /// 底部滚动边距（不走 safeAreaInset 留位，那是预留空地）
@@ -161,10 +165,16 @@ struct ChatView: View {
         }
     }
 
-    /// 悬浮顶栏：左右系统玻璃角钮＋居中标题/模型行，浮在
+    /// 悬浮顶栏：左右系统玻璃角钮＋居中标题/模型胶囊，浮在
     /// 内容之上、无底色、无分界线，内容可滚到角钮背后。
     /// 角钮用系统 .glass 按钮样式＋.buttonBorderShape
     /// (.circle)，不再自绘 glassEffect 圆（0.2.3 的权宜件）。
+    /// 0.2.5：中心由裸文字改悬浮玻璃胶囊（对照 Muse 顶端
+    /// 中央的身份胶囊）——0.2.4 的裸文字悬浮时，正文上滚会
+    /// 直接从标题文字里穿过、字撞字（用户真机截图实证）；
+    /// 收进胶囊后标题自带玻璃底，撞色问题根除。整颗胶囊
+    /// 可点（开模型选择器，与此前只有模型行可点的口径一致
+    /// 地扩大命中区）。
     private var headerBar: some View {
         HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
             Button {
@@ -181,14 +191,14 @@ struct ChatView: View {
 
             Spacer()
 
-            VStack(spacing: 1) {
-                Text(currentThread?.title ?? "聊天")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Button {
-                    showModelPicker = true
-                } label: {
+            Button {
+                showModelPicker = true
+            } label: {
+                VStack(spacing: 1) {
+                    Text(currentThread?.title ?? "聊天")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
                     HStack(spacing: 3) {
                         Text(displayModelName)
                             .font(TypeScale.caption)
@@ -198,8 +208,13 @@ struct ChatView: View {
                     }
                     .foregroundStyle(Palette.inkSecondary)
                 }
-                .accessibilityLabel("切换模型")
+                .padding(.horizontal, OneDayMetrics.spacingSM + 2)
+                .padding(.vertical, 6)
+                .frame(maxWidth: 240)
+                .glassEffect(.regular.interactive(), in: Capsule())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("切换模型")
 
             Spacer()
 
@@ -311,8 +326,12 @@ struct ChatView: View {
         }
         // 覆盖式布局的滚动边距：顶为悬浮顶栏让出首屏位置
         // （滚动时内容从其背后穿过）；底为悬浮层实测高度，
-        // 保证最后一条消息能滚到发送舱上方不被永久遮挡
-        .contentMargins(.top, 56, for: .scrollContent)
+        // 保证最后一条消息能滚到发送舱上方不被永久遮挡。
+        // 0.2.5：顶边距随中心胶囊高度上调（56→64）；另加
+        // 系统 scroll-edge 柔和渐隐——内容滚到顶栏区域时
+        // 先淡出再到达玻璃层，不与标题胶囊硬撞
+        .contentMargins(.top, 64, for: .scrollContent)
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .contentMargins(
             .bottom, bottomOverlayHeight + OneDayMetrics.spacingS,
             for: .scrollContent
@@ -377,19 +396,48 @@ struct ChatView: View {
                 }
             }
         } else {
-            MarkdownText(entry.content)
+            assistantBubble {
+                MarkdownText(entry.content)
+            }
+        }
+    }
+
+    /// 助手消息泡（0.2.5，对照 Muse 的助手形态）：浅灰软
+    /// 填充（Palette.bubbleFill）＋18pt 圆角，左对齐、右侧留
+    /// 白上限与用户泡的 44pt 让位同逻辑；泡内代码块沿用
+    /// fieldFill 填充、比泡面深一阶，层级不打架。流式半截
+    /// 与等待点同样入泡，内容不溢出泡外。此形态推翻
+    /// DESIGN-V2 §3.5 的裸排决定，追记在 DESIGN-V4 §9。
+    private func assistantBubble<Content: View>(
+        @ViewBuilder _ content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top) {
+            content()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Palette.bubbleFill,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.assistantBubbleCorner
+                    )
+                )
+            Spacer(minLength: 44)
         }
     }
 
     @ViewBuilder
     private func streamingRow(_ text: String) -> some View {
         if text.isEmpty {
-            TypingDots()
-                .padding(.vertical, OneDayMetrics.spacingXS)
+            assistantBubble {
+                TypingDots()
+                    .padding(.vertical, OneDayMetrics.spacingXS)
+            }
         } else {
-            HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
-                MarkdownText(text)
-                StreamingCaret()
+            assistantBubble {
+                HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
+                    MarkdownText(text)
+                    StreamingCaret()
+                }
             }
         }
     }
@@ -454,7 +502,8 @@ struct ChatView: View {
         .background(Palette.pageBG)
     }
 
-    // MARK: - 输入区（0.2.2 定版：＋键与发送键同径 36pt 圆形）
+    // MARK: - 输入区（0.2.2 定版：＋键与发送键同径 36pt 圆形；
+    // 0.2.5 去嵌套与右端状态机，见 trailingControl）
 
     private var canSend: Bool {
         !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -462,10 +511,12 @@ struct ChatView: View {
     }
 
     /// 发送舱（0.2.4，DESIGN-V4 §8）：一颗完整的系统玻璃
-    /// 胶囊——GlassEffectContainer 内胶囊本体与＋键玻璃圆以
-    /// 同一 union id 融合（对照 Muse 输入区：＋在胶囊内左、
-    /// 发送在胶囊内右）；发送键保持实色小圆保对比。附件条
-    /// 在胶囊上方、实色小件，不入玻璃
+    /// 胶囊——GlassEffectContainer 内胶囊本体以 union id 成形
+    /// （对照 Muse 输入区：＋在胶囊内左、右端控件在胶囊内
+    /// 右）；附件条在胶囊上方、实色小件，不入玻璃。
+    /// 0.2.5 去嵌套：＋键撤掉自己的玻璃圆外圈，改裸符号坐在
+    /// 胶囊玻璃里（胶囊里套圆圈是用户点名的嵌套毛病）；右端
+    /// 改状态机（见 trailingControl），不再常驻灰色圆盘
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             if !attachments.isEmpty {
@@ -479,7 +530,7 @@ struct ChatView: View {
                         .focused($composerFocused)
                         .padding(.horizontal, OneDayMetrics.spacingS)
                         .padding(.vertical, OneDayMetrics.spacingSM)
-                    sendButton
+                    trailingControl
                 }
                 .padding(.horizontal, OneDayMetrics.spacingS)
                 .padding(.vertical, OneDayMetrics.spacingS)
@@ -492,29 +543,72 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
-    /// 发送键：36pt 圆形（与＋键同径定版）；流式中变停止键、
-    /// 同尺寸；染色走主题填充档
-    private var sendButton: some View {
-        let active = isStreaming || canSend
-        return Button {
-            if isStreaming {
-                sendTask?.cancel()
-            } else {
-                send()
-            }
+    /// 发送舱右端状态机（0.2.5，对照 Muse 输入区）：胶囊内
+    /// 的元素都是裸符号或单一小圆盘，不套圈不描边。
+    /// - 流式中：停止键（逻辑沿用 sendTask?.cancel()）
+    /// - 有可发送内容（文字或附件）：发送箭头
+    /// - 空输入：裸麦克风符号占位（无圆盘底、无描边）
+    @ViewBuilder
+    private var trailingControl: some View {
+        if isStreaming {
+            stopButton
+        } else if canSend {
+            sendArrowButton
+        } else {
+            micButton
+        }
+    }
+
+    /// 停止键：36pt 主题填充小圆盘＋白方块（与发送键同径同
+    /// 位）；0.2.5 按简报口径去掉一切多余描边——本来就只有
+    /// 实色盘，本轮保持
+    private var stopButton: some View {
+        Button {
+            sendTask?.cancel()
         } label: {
-            Image(systemName: isStreaming ? "stop.fill" : "arrow.up")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(active ? Color.white : Palette.inkMuted)
+            Image(systemName: "stop.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.white)
                 .frame(width: 36, height: 36)
-                .background(
-                    active ? Palette.primaryFill : Palette.fieldFill,
-                    in: Circle()
-                )
+                .background(Palette.primaryFill, in: Circle())
         }
         .buttonStyle(.odPressable)
-        .disabled(!isStreaming && !canSend)
-        .accessibilityLabel(isStreaming ? "停止生成" : "发送")
+        .accessibilityLabel("停止生成")
+    }
+
+    /// 发送键：36pt 小圆盘保留实色（玻璃胶囊内的对比通行
+    /// 做法，承 DESIGN-V4 §4 对比条款）；填充取主题档
+    /// primaryFill——按 0.2.5 口径，腾讯蓝退出底栏后只留在
+    /// 发送键与链接等内容强调位，本键即其一，不取墨色盘
+    private var sendArrowButton: some View {
+        Button {
+            send()
+        } label: {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 36, height: 36)
+                .background(Palette.primaryFill, in: Circle())
+        }
+        .buttonStyle(.odPressable)
+        .accessibilityLabel("发送")
+    }
+
+    /// 语音占位（0.2.5）：裸麦克风符号——无圆盘底、无描边，
+    /// 与 Muse 空输入态的右端形态一致。语音输入尚未接入，
+    /// 点按无动作，仅占形态位；接入时在此挂起录音流程
+    private var micButton: some View {
+        Button {
+            // 语音输入未接入：占位符号，点按无动作
+        } label: {
+            Image(systemName: "mic")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(Palette.ink)
+                .frame(width: 36, height: 36)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.odPressable)
+        .accessibilityLabel("语音输入（尚未开放）")
     }
 
     private var attachButton: some View {
@@ -536,12 +630,14 @@ struct ChatView: View {
                 Label("选文件", systemImage: "doc")
             }
         } label: {
+            // 0.2.5：裸符号——撤掉 0.2.4 的玻璃圆外圈与 union
+            // 融合（胶囊玻璃里再套一圈圆是嵌套毛病）；＋号
+            // 直接坐在发送舱胶囊的玻璃里，与 Muse 一致
             Image(systemName: "plus")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 18, weight: .regular))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 36, height: 36)
-                .glassEffect(.regular.interactive(), in: Circle())
-                .glassEffectUnion(id: "composer", namespace: composerGlass)
+                .contentShape(Circle())
         }
         .accessibilityLabel("添加附件")
     }
@@ -1223,7 +1319,7 @@ private struct CameraPicker: UIViewControllerRepresentable {
 }
 
 /// 三点指示：未出字时的等待信号（安静的弱色圆点错峰，
-/// Reduce Motion 时静止）。不进气泡、不配卡片。
+/// Reduce Motion 时静止）。0.2.5 起随助手消息一同入泡。
 private struct TypingDots: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

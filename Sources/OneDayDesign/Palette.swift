@@ -51,6 +51,10 @@ public enum Palette {
     public static let surface = dyn(0xFFFFFF, 0x17181C)
     /// 字段面：比容器再降一级（输入字段、代码块）
     public static let fieldFill = dyn(0xF2F2F2, 0x232428)
+    /// 助手消息泡面（0.2.5）：#F4F4F5 量级的浅灰软填充，让助手
+    /// 消息在页面底上有界（对照 Muse 的助手泡形态）；泡内
+    /// 代码块用 fieldFill 再深一阶，保持层级
+    public static let bubbleFill = dyn(0xF4F4F5, 0x1E1F24)
 
     // —— 文字三角色 ——
     /// 主文字
@@ -133,6 +137,8 @@ public enum OneDayMetrics {
     public static let buttonCorner: CGFloat = 14
     /// 用户消息气泡
     public static let bubbleCorner: CGFloat = 22
+    /// 助手消息气泡（0.2.5：浅灰软填充泡，圆角比用户泡略收）
+    public static let assistantBubbleCorner: CGFloat = 18
     /// 输入区胶囊
     public static let composerCorner: CGFloat = 24
     /// 代码块（正文区内的内容面）
