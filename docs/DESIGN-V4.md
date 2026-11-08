@@ -1405,3 +1405,98 @@ semibold 小按钮/标签）均为标题/标签位、非正文
 - 真机终审归用户：底栏选中蓝、顶栏两钮观感、点
   输入框锚底、光标三态、换行左齐、多行上文下钮、
   设置页冷灰底白卡与行层级、Markdown 粗体层级。
+
+## §19 0.3.4「去染色＋变/不变表＋设置页 Muse 纪律＋换图标」（build 19）
+
+### 19.1 主题变/不变表（长期规则，用户令入档）
+
+用户原话：「输入框颜色不要跟着主题变。」通则查实
+（官方文档出处）：
+- TDesign 官方主题体系（tdesign.tencent.com 主题定
+  制文档与 tdesign-common 设计令牌表）：--td-brand-
+  color 的角色是品牌/主操作与选中态；背景是独立的
+  中性令牌族（--td-bg-color-page／--td-bg-color-
+  container #fff），输入组件的填充与边框走 bg/
+  border 中性令牌、不走 brand。
+- Material 3 官方 Color roles（m3.material.io/
+  styles/color/roles；tone-based surfaces 博文）：
+  surface／surface-container 五档出自 neutral 调色
+  板；primary 只给 key components（FAB、filled
+  button、选中指示、进度）；text field 容器用
+  surface-container-highest（中性最高档）。
+- Apple HIG·Color（developer.apple.com/design/
+  human-interface-guidelines/color）：tint 只标记
+  交互元素（链接、按钮、选中态）；背景用语义系统
+  背景/fill（中性灰阶），不以强调色染表面。
+
+**定版表（后续任何新表面先查此表再动手）：**
+| 跟主题变（强调色只落交互与选中） | 不跟主题变（表面容器一律中性） |
+|---|---|
+| 主按钮/发送键填充 | 页面底 pageBG |
+| 底栏与列表选中态（tint 通道） | 卡片面 surface |
+| 链接 | **输入框填充与边框**（聚焦走双环中性阴影、不染蓝） |
+| 开关、勾选标记 | 助手气泡 bubbleFill |
+| 光标 caret | **用户气泡**（中性面、与卡面同族） |
+| 状态强调点（连接成功点等） | 抽屉/弹层等容器面 |
+
+### 19.2 本版执行（去染色两处）
+
+- 发送舱：Mat.tinted 主题染色撤销（0.3.2 引入），
+  回 odGlassSurface(.regular) 中性玻璃；聚焦双环
+  阴影本就是中性 shadowBase、不动；caret 按变表
+  跟主题——ComposerTextView 新增 caretColor 入参，
+  ChatView 传 UIColor(Palette.primary)，主题切换
+  时 updateUIView 同步。
+- 用户气泡：Palette.primaryTint → Palette.surface
+  （与卡面同族的中性面）；助手气泡 bubbleFill 本
+  已中性。发送键 primaryFill 属「跟主题变」、保留。
+
+### 19.3 换 App 图标（Brandkit 定版）
+
+主版（蓝底白符号：轨道环＋节点＋地平线，#0052D9）
+进 AppIcon.appiconset/icon-1024.png（1024×1024
+替换）；裸标志 SVG 存 docs/reference/oneday-mark
+.svg。素材源 ~/workspace/logo-skill-test/final-
+icons/oneday/（Logo 技能横评定案，见记忆）。
+
+### 19.4 设置页五条（Muse 纪律，推翻 0.3.3 礼记行口径）
+
+用户拍板：OneDay 对标 Muse——礼记靠分量、Muse
+靠细线＋正常字重＋留白。礼记对齐只保留结构/令牌/
+原生 List 层，行样式以本节为准：
+1. 行样式分域：SettingsView 本地行（navRow/
+   infoRow/serverRow/断开/重启/关于 Link 行）标
+   题改回 TypeScale.body（regular）、rowIcon 改
+   细线 .system(size: 17, weight: .regular)；本
+   页禁用 rowTitle/rowIcon（grep 本页 0 残留）。
+   **其他页面判断**：ContentRow 系列表页（连接/
+   总览/文件等）保留 rowTitle 半粗＋rowIcon——
+   字重阶梯账（§18.7）里「行标题 semibold」是全
+   App 列表的合法半粗位，Muse 纪律的推翻范围是
+   用户点名的设置页一域，不外扩；TypeScale 注释
+   已记分域。
+2. 右侧值砍到单词/单数：技能＝计数（如「39」）、
+   记忆＝提供方名、定时＝「X 个启用」、服务端
+   会话＝总数；完整摘要（下次运行时间、启用数细
+   目等）归各二级页；加载前统一占位「—」。
+3. 关于组对齐线：infoRow 与两个 Link 行补
+   iconSlot（28）透明占位——全页标题落同一条 x
+   线；隐私说明移关于组 Section footer、不再占行。
+4. 顶部身份头：List 首组加 identitySection——
+   Hermes（headline）＋网关状态点，副行 host ·
+   当前模型（footnote inkSecondary）；静态信息行
+   不挂导航（详情入口在服务器组，避免双箭头同
+   页）；模式借 aheze/Setting 的 profile header、
+   只借模式不引库，导航结构与 SettingsRoute 不动。
+5. 外观组单行：选「靠身份头改善节奏」不并组——
+   理由：并组须把主题行塞进语义不相干的组，违
+   0.2.1「参考 Muse 设置」的内容组织定案；身
+   份头给页面加了开场节拍后，单行外观组是 iOS
+   设置的常见形态（系统设置多有单行组），节奏问
+   题已解，不编新功能凑数。
+
+### 19.5 验收（构建后回填）
+
+（待回填：run 号、单测总数、解包三元组、IPA 路径）
+- 真机终审归用户：发送舱中性玻璃、用户气泡中性
+  面、caret 蓝、设置页细线行与身份头、新图标。

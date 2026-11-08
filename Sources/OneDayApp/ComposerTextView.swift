@@ -41,6 +41,10 @@ struct ComposerTextView: UIViewRepresentable {
     var focusHandle: ComposerFocusHandle
     /// 焦点观察回调（delegate 回写，只观察不把关）
     var onFocusChange: (Bool) -> Void
+    /// 光标 caret 色（0.3.4，§19 变/不变表：caret 属
+    /// 「跟主题变」一侧——由 ChatView 传入强调色令牌的
+    /// UIKit 形态；输入框填充/边框则归中性，两事分开）
+    var caretColor: UIColor
     // 0.3.3：onMeasuredHeight 通道撤销——多行形态判据改
     // 由布局层（ChatView.ComposerBarLayout）以 sizeThat-
     // Fits 量测回写，视图不再反向驱动布局状态
@@ -76,6 +80,7 @@ struct ComposerTextView: UIViewRepresentable {
             .foregroundColor: UIColor.label,
         ]
         textView.isScrollEnabled = false
+        textView.tintColor = caretColor
         textView.accessibilityIdentifier = "composerField"
         textView.text = text
         // 占位符：UITextView 没有占位符，用子 UILabel 承担
@@ -121,6 +126,8 @@ struct ComposerTextView: UIViewRepresentable {
         // 0.3.3 几何兜底：每次更新重申统一几何（防系统
         // 在重排/旋转时改回默认 inset/padding）
         ComposerTextMetrics.applyGeometry(to: textView)
+        // 主题切换时 caret 跟随新强调色（0.3.4）
+        textView.tintColor = caretColor
         // 0.2.8：updateUIView 不再碰第一响应者（焦点桥已拆，
         // 见文件头注）。聚焦/失焦只由 UIKit 原生通道与
         // focusHandle 决定，SwiftUI 更新永不批准也不驳回

@@ -527,7 +527,12 @@ struct ChatView: View {
                             .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                             .padding(.vertical, OneDayMetrics.bubblePaddingV)
                             .background(
-                                Palette.primaryTint,
+                                // 0.3.4 去染色（§19 变/不变表）：
+                                // 用户气泡是表面容器、归中性
+                                // ——改与卡面同族的 surface，
+                                // primaryTint 染色撤销（用户
+                                // 令「颜色不要跟着主题变」）
+                                Palette.surface,
                                 in: RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
                             )
                     }
@@ -691,11 +696,15 @@ struct ChatView: View {
             // 0.2.7：玻璃裸施加在行本体——GlassEffectContainer
             // 与 union 已撤销（§10 承载换代后容器不再承担
             // 布局，裸施加即可，§11）
-            // 0.3.2：材质与染色改走 Mat 令牌入口（学礼记
-            // AdvisorView 输入栏：Mat.tinted＋主题染色）——
-            // 玻璃以品牌浅染轻染，不再裸用系统 .regular
+            // 0.3.2：材质改走 Mat 令牌入口（学礼记
+            // AdvisorView 输入栏的 Mat 口径）
+            // 0.3.4 去染色（§19 变/不变表，用户令「输入框
+            // 颜色不要跟着主题变」）：输入框是表面容器、
+            // 归中性——.tinted 主题染色撤销、回 .regular
+            // 中性玻璃；聚焦仍走下方双环中性阴影（不染
+            // 蓝）；强调色在本区只剩发送键与光标 caret
             composerRow
-                .odGlassSurface(.tinted, in: composerShape)
+                .odGlassSurface(.regular, in: composerShape)
                 // 条 2（§14）：聚焦禁描边——聚焦态不加任何
                 // stroke，改以加深的双环阴影表达（近环定界
                 // 半径 6、远环扩散半径 18），随焦点观察态
@@ -758,7 +767,9 @@ struct ChatView: View {
                 focusHandle: composerFocusHandle,
                 onFocusChange: { focused in
                     composerFocused = focused
-                }
+                },
+                // caret 跟主题走（§19 变表）：强调色令牌
+                caretColor: UIColor(Palette.primary)
             )
             trailingControl
         }

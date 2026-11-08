@@ -32,6 +32,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
+                identitySection
                 serverSection
                 agentSection
                 modelSection
@@ -115,6 +116,41 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 顶部身份头（0.3.4，借 aheze/Setting 的
+    // profile header 模式、只借模式不引库）：一行说清
+    // 连的是谁——Hermes 名称＋网关状态点，副行＝当前
+    // 服务器 host · 当前模型。静态信息行（不挂导航，
+    // 详情入口在下方服务器组，避免两个箭头指同一页）
+
+    private var identitySection: some View {
+        Section {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Text("Hermes")
+                            .font(TypeScale.headline)
+                            .foregroundStyle(Palette.ink)
+                        if let status {
+                            StatusDot(
+                                color: Palette.stateColor(status.gatewayState)
+                            )
+                        }
+                    }
+                    Text(
+                        "\(appState.config?.host ?? "未连接") · \(appState.defaultModel ?? appState.modelID)"
+                    )
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
+            }
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .listRowBackground(Palette.surface)
+    }
+
     // MARK: - 服务器与连接
 
     private var serverSection: some View {
@@ -141,7 +177,7 @@ struct SettingsView: View {
                 rowIcon("server.rack")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("当前服务器")
-                        .font(TypeScale.rowTitle)
+                        .font(TypeScale.body)
                         .foregroundStyle(Palette.ink)
                     Text(appState.config?.host ?? "—")
                         .font(TypeScale.monoFootnote)
@@ -165,7 +201,7 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon("rectangle.portrait.and.arrow.right", color: Palette.danger)
                 Text("断开连接")
-                    .font(TypeScale.rowTitle)
+                    .font(TypeScale.body)
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
@@ -192,22 +228,22 @@ struct SettingsView: View {
         Section {
             navRow(
                 icon: "brain", title: "记忆",
-                value: memorySummary ?? "长期记忆与提供方",
+                value: memorySummary ?? "—",
                 route: .agent(.memory)
             )
             navRow(
                 icon: "puzzlepiece.extension", title: "技能",
-                value: skillsSummary ?? "已装技能与开关",
+                value: skillsSummary ?? "—",
                 route: .agent(.skills)
             )
             navRow(
                 icon: "clock.arrow.2.circlepath", title: "定时任务",
-                value: cronSummary ?? "计划任务与运行记录",
+                value: cronSummary ?? "—",
                 route: .agent(.cron)
             )
             navRow(
                 icon: "bubble.left.and.text.bubble.right", title: "服务端会话",
-                value: sessionsSummary ?? "服务端保存的全部会话",
+                value: sessionsSummary ?? "—",
                 route: .agent(.serverSessions)
             )
         } header: {
@@ -252,7 +288,7 @@ struct SettingsView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     rowIcon("arrow.clockwise")
                     Text("重启网关")
-                        .font(TypeScale.rowTitle)
+                        .font(TypeScale.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
@@ -294,16 +330,19 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            infoRow(label: "OneDay 版本", value: "0.3.3", mono: true)
+            infoRow(label: "OneDay 版本", value: "0.3.4", mono: true)
             infoRow(
                 label: "服务端",
                 value: status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0",
                 mono: true
             )
             Link(destination: URL(string: "https://github.com/NousResearch/hermes-agent")!) {
-                HStack {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Color.clear
+                        .frame(width: OneDayMetrics.iconSlot)
+                        .accessibilityHidden(true)
                     Text("Hermes 开源项目")
-                        .font(TypeScale.rowTitle)
+                        .font(TypeScale.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -319,9 +358,12 @@ struct SettingsView: View {
             // 见 animated-icons 技能）：图标动效开始接入
             // 前署名先落位；上架时商店描述同步加同句
             Link(destination: URL(string: "https://lordicon.com")!) {
-                HStack {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Color.clear
+                        .frame(width: OneDayMetrics.iconSlot)
+                        .accessibilityHidden(true)
                     Text("Icons by Lordicon")
-                        .font(TypeScale.rowTitle)
+                        .font(TypeScale.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -332,13 +374,13 @@ struct SettingsView: View {
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 .contentShape(Rectangle())
             }
+        } header: {
+            SectionLabel("关于")
+        } footer: {
+            // 0.3.4：隐私说明移组脚注（不再占行）
             Text("OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。")
                 .font(TypeScale.footnote)
                 .foregroundStyle(Palette.inkMuted)
-                .padding(.vertical, OneDayMetrics.spacingXS)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } header: {
-            SectionLabel("关于")
         }
         .listRowBackground(Palette.surface)
     }
@@ -347,9 +389,13 @@ struct SettingsView: View {
 
     private func rowIcon(_ name: String, color: Color = Palette.inkSecondary) -> some View {
         Image(systemName: name)
-            // 0.3.3：行图标走 rowIcon 角色（20 semibold
-            // 粗实字形，学礼记行分量；此前 body 细线显单薄）
-            .font(TypeScale.rowIcon)
+            // 0.3.4 设置页按 Muse 纪律（用户拍板，推翻
+            // 0.3.3 的礼记行口径）：细线 regular 17——本页
+            // 禁用 TypeScale.rowIcon 的 20 semibold；靠细
+            // 线＋正常字重＋留白，不靠分量。其他页面的
+            // ContentRow 仍走 rowIcon/rowTitle（字重阶梯
+            // 账内行标题半粗是合法位，见 §19.5 判断）
+            .font(.system(size: 17, weight: .regular))
             .foregroundStyle(color)
             .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
             // 条 5（§14）：同行图标走光学偏移（0.3.0 只落
@@ -379,9 +425,10 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(icon)
                 Text(title)
-                    // 0.3.3 行层级：标题唯一半粗（rowTitle
-                    // 角色）；值 regular＋inkSecondary 退后
-                    .font(TypeScale.rowTitle)
+                    // 0.3.4 Muse 纪律：设置行标题 regular
+                    // （0.3.3 的 rowTitle 半粗在本页停用）；
+                    // 值 regular＋inkSecondary 退后
+                    .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if let dot {
@@ -407,8 +454,14 @@ struct SettingsView: View {
 
     private func infoRow(label: String, value: String, mono: Bool = false) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
+            // 0.3.4 对齐线：无图标行补图标槽占位，全页
+            // 标题落同一条 x 线（iconSlot 28，与 navRow
+            // 的 rowIcon 槽同宽）
+            Color.clear
+                .frame(width: OneDayMetrics.iconSlot)
+                .accessibilityHidden(true)
             Text(label)
-                .font(TypeScale.rowTitle)
+                .font(TypeScale.body)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value)
@@ -458,32 +511,30 @@ struct SettingsView: View {
         if let memory = try? await appState.performAdmin({ client, config in
             try await client.memoryStatus(config: config)
         }) {
+            // 0.3.4 值位纪律：只放提供方名（单词级），
+            // 完整摘要归二级页
             let active = memory.active?.isEmpty == false ? memory.active! : "内置记忆"
-            memorySummary = "当前提供方 \(active)"
+            memorySummary = active
         }
         if let skills = try? await appState.performAdmin({ client, config in
             try await client.skills(config: config)
         }) {
-            let enabled = skills.filter(\.isEnabled).count
-            skillsSummary = "已装 \(skills.count) 个 · 启用 \(enabled) 个"
+            // 0.3.4：技能值只放计数（总数）
+            skillsSummary = "\(skills.count)"
         }
         if let jobs = try? await appState.performAdmin({ client, config in
             try await client.cronJobs(config: config)
         }) {
+            // 0.3.4：定时值只放「X 个启用」（下次运行
+            // 时间归二级页）
             let enabled = jobs.filter(\.enabled)
-            let next = enabled
-                .compactMap { AdminFormat.iso($0.nextRunAt) }
-                .min()
-            if let next {
-                cronSummary = "启用 \(enabled.count) 个 · 下次 \(AdminFormat.timeOnly(next))"
-            } else {
-                cronSummary = "启用 \(enabled.count) 个"
-            }
+            cronSummary = "\(enabled.count) 个启用"
         }
         if let page = try? await appState.performAdmin({ client, config in
             try await client.serverSessions(config: config, limit: 1)
         }) {
-            sessionsSummary = "共 \(page.total ?? page.sessions.count) 条"
+            // 0.3.4：会话值只放总数
+            sessionsSummary = "\(page.total ?? page.sessions.count)"
         }
     }
 

@@ -41,10 +41,12 @@ public enum TypeScale {
     public static let monoCaption = Font.system(.caption, design: .monospaced)
     /// 等宽代码
     public static let monoCode = Font.system(.footnote, design: .monospaced)
-    // —— 列表行角色（0.3.3，学礼记 MeView 行层级）：全 App
-    // 列表行只有这一套字重账——标题 semibold 独响，值与
-    // 副标题一律 regular 退后（值 inkSecondary、副标题
-    // inkMuted，配色在行组件侧）；页面不许再单页加粗。
+    // —— 列表行角色（0.3.3 立、0.3.4 分域）：标题 semibold
+    // 独响、值与副标题 regular 退后——此账适用于
+    // ContentRow 系列表页（连接/总览等）。**设置页除外**
+    // （0.3.4 用户拍板按 Muse 纪律：标题 regular＋图标
+    // 细线 17，设置页禁用 rowTitle/rowIcon，见 §19.5）；
+    // 其余页面不许再单页加粗。
     /// 行标题（唯一半粗位）
     public static let rowTitle = Font.body.weight(.semibold)
     /// 行图标字形（semibold 粗实，字号走 OneDayMetrics.rowIconGlyph）
