@@ -87,7 +87,8 @@ struct SettingsView: View {
                 navRow(
                     title: "当前服务器",
                     value: appState.config?.host ?? "—",
-                    route: .serverDetail
+                    route: .serverDetail,
+                    mono: true
                 ) {
                     if let status {
                         StatusDot(color: Palette.stateColor(status.gatewayState))

@@ -220,7 +220,7 @@ struct OverviewView: View {
                 metricDivider
                 metricCell(
                     value: "\(enabledCronCount)",
-                    label: nextCronRun.map { "定时 · 下次 \(AdminFormat.short($0))" } ?? "定时任务"
+                    label: nextCronRun.map { "定时 · 下次 \(AdminFormat.timeOnly($0))" } ?? "定时任务"
                 ) {
                     onOpenAgent(.cron)
                 }
@@ -315,7 +315,7 @@ struct OverviewView: View {
                         }
                         todoRow(
                             icon: "exclamationmark.circle",
-                            text: line,
+                            text: AdminFormat.cleanLogLine(line),
                             color: Palette.danger
                         )
                     }

@@ -45,9 +45,24 @@ enum AdminFormat {
         return isoFractional.date(from: string) ?? isoPlain.date(from: string)
     }
 
+    /// 仅时间（HH:mm），指标行等窄格用
+    static func timeOnly(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "HH:mm"
+        return f.string(from: date)
+    }
+
+    /// 日志行展示清洗：去掉行首的 ISO 时间戳 token，日志页保留原文
+    static func cleanLogLine(_ line: String) -> String {
+        let parts = line.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+        guard parts.count == 2, let first = parts.first,
+              first.contains("T"), first.first?.isNumber == true else { return line }
+        return String(parts[1])
+    }
+
     /// 用量日串（yyyy-MM-dd）→ 短日格式，解析不了原样返回
-    static func usageDay(_ string: String) -> String {
-        let parser = DateFormatter()
+    static func usageDay(_ string: String) -> String {        let parser = DateFormatter()
         parser.dateFormat = "yyyy-MM-dd"
         guard let date = parser.date(from: string) else { return string }
         return dayFormatter.string(from: date)
