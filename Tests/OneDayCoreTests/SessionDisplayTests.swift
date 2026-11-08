@@ -111,7 +111,8 @@ final class SessionDisplayTests: XCTestCase {
     /// 兜底：未知来源只给「服务端」，原样标识永不透出。
     func testFallbacksNeverLeakRawIdentifiers() {
         let now = Date()
-        let bare = session(source: "some_internal_bus")
+        // endedAt 给值＝非活跃，否则副题按口径带「进行中」
+        let bare = session(source: "some_internal_bus", endedAt: 1)
         XCTAssertEqual(bare.humanTitle, "未命名会话")
         XCTAssertEqual(
             bare.humanSubtitle(now: now, calendar: calendar), "服务端"
