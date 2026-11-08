@@ -694,57 +694,42 @@ struct ChatView: View {
     /// - 空输入：裸麦克风符号占位（无圆盘底、无描边）
     @ViewBuilder
     private var trailingControl: some View {
-        if isStreaming {
-            stopButton
-        } else if canSend {
-            sendArrowButton
+        if isStreaming || canSend {
+            sendStopButton
         } else {
             micButton
         }
     }
 
-    /// 停止键：主题填充小圆盘＋白方块（与发送键同径同位，
-    /// 直径走 ComposerLayout.buttonHeight，0.2.8 由 36 改
-    /// 30，见 §12.3）；0.2.5 按简报口径去掉一切多余描边——
-    /// 本来就只有实色盘，本轮保持
-    private var stopButton: some View {
+    /// 发送↔停止变形键（0.3.0 动效包，animated-icons 技
+    /// 能规则 1 的原生等价——白名单位置）：两态在同一按
+    /// 钮内以 SF Symbol replace 过渡形变切换，不再是两
+    /// 个按钮硬切；系统「减少动态效果」开启时符号过渡
+    /// 自动降级。圆盘与字号口径沿旧两键（直径
+    /// ComposerLayout.buttonHeight、停止 12/发送 13）
+    private var sendStopButton: some View {
         Button {
-            sendTask?.cancel()
+            if isStreaming {
+                sendTask?.cancel()
+            } else {
+                send()
+            }
         } label: {
-            Image(systemName: "stop.fill")
-                .font(.system(size: 12, weight: .bold))
+            Image(systemName: isStreaming ? "stop.fill" : "arrow.up")
+                .font(.system(size: isStreaming ? 12 : 13, weight: .bold))
                 .foregroundStyle(Color.white)
                 .frame(
                     width: ComposerLayout.buttonHeight,
                     height: ComposerLayout.buttonHeight
                 )
                 .background(Palette.primaryFill, in: Circle())
+                .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.odPressable)
-        .accessibilityLabel("停止生成")
+        .accessibilityLabel(isStreaming ? "停止生成" : "发送")
     }
 
-    /// 发送键：小圆盘保留实色（玻璃胶囊内的对比通行做法，
-    /// 承 DESIGN-V4 §4 对比条款；直径走 ComposerLayout
-    /// .buttonHeight，0.2.8 由 36 改 30）；填充取主题档
-    /// primaryFill——按 0.2.5 口径，腾讯蓝退出底栏后只留在
-    /// 发送键与链接等内容强调位，本键即其一，不取墨色盘
-    private var sendArrowButton: some View {
-        Button {
-            send()
-        } label: {
-            Image(systemName: "arrow.up")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(Color.white)
-                .frame(
-                    width: ComposerLayout.buttonHeight,
-                    height: ComposerLayout.buttonHeight
-                )
-                .background(Palette.primaryFill, in: Circle())
-        }
-        .buttonStyle(.odPressable)
-        .accessibilityLabel("发送")
-    }
+    /// （旧发送/停止两键已合并为 sendStopButton 变形键，见上。）
 
     /// 语音占位（0.2.5）：裸麦克风符号——无圆盘底、无描边，
     /// 与 Muse 空输入态的右端形态一致。语音输入尚未接入，

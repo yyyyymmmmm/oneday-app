@@ -293,7 +293,7 @@ struct SettingsView: View {
 
     private var aboutGroup: some View {
         groupBlock("关于") {
-            infoRow(label: "OneDay 版本", value: "0.2.4", mono: true)
+            infoRow(label: "OneDay 版本", value: "0.3.0", mono: true)
             GroupDivider(inset: OneDayMetrics.spacingM)
             infoRow(
                 label: "服务端",
@@ -304,6 +304,26 @@ struct SettingsView: View {
             Link(destination: URL(string: "https://github.com/NousResearch/hermes-agent")!) {
                 HStack {
                     Text("Hermes 开源项目")
+                        .font(TypeScale.body)
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.inkMuted)
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .frame(minHeight: OneDayMetrics.rowHeight)
+                .contentShape(Rectangle())
+            }
+            GroupDivider(inset: OneDayMetrics.spacingM)
+            // LORD Icon 署名（0.3.0，用户拍板免费层不买
+            // PRO——免费层授权为 CC BY-ND 变体、必须署名，
+            // 见 animated-icons 技能）：图标动效开始接入
+            // 前署名先落位；上架时商店描述同步加同句
+            Link(destination: URL(string: "https://lordicon.com")!) {
+                HStack {
+                    Text("Icons by Lordicon")
                         .font(TypeScale.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
