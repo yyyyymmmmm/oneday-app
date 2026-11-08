@@ -314,9 +314,11 @@ struct ProfilesView: View {
 /// 模型管理（设置·模型与密钥）：服务端默认模型切换＋
 /// 提供商清单。读写走 /api/config 全量：先读全量 JSON、
 /// 只改 model/providers 键、整包写回，未知字段原样保留
-/// （JSONValue 载体保证不丢字段）。候选模型来自近 30 天
-/// 实际用过的模型（/api/analytics/models），另可手输。
-/// 对话实际用的模型 id 仍以 /v1/models 为准，不在此改。
+/// （JSONValue 载体保证不丢字段）。候选与聊天页选择器
+/// 同源（0.2.4）：AppState 的上游管线——/api/model/options
+/// 优先、用量回落、网关别名硬排除；写回前有候选集校验，
+/// 非法值（网关别名等）拦截不写。对话调用网关时填的别名
+/// （AppState.modelID）不在此改。
 struct ModelSettingsView: View {
     @Environment(AppState.self) private var appState
 
@@ -447,7 +449,7 @@ struct ModelSettingsView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if switchableModels.isEmpty {
-                    Text("服务端没有返回可用模型列表（/v1/models 与用量记录均为空）。")
+                    Text("服务端没有返回上游模型列表（/api/model/options 与用量记录均为空）。")
                         .font(TypeScale.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -464,10 +466,18 @@ struct ModelSettingsView: View {
                         }
                     } label: {
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            Text(model)
-                                .font(TypeScale.monoCallout)
-                                .foregroundStyle(Palette.ink)
-                                .lineLimit(1)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(model)
+                                    .font(TypeScale.monoCallout)
+                                    .foregroundStyle(Palette.ink)
+                                    .lineLimit(1)
+                                if let runtime = ModelCatalog.aliasRuntime[model] {
+                                    Text("别名 · 将按 \(runtime) 运行")
+                                        .font(TypeScale.footnote)
+                                        .foregroundStyle(Palette.inkMuted)
+                                        .lineLimit(1)
+                                }
+                            }
                             Spacer(minLength: OneDayMetrics.spacingS)
                             if model == currentModel {
                                 Text("当前")
@@ -483,6 +493,12 @@ struct ModelSettingsView: View {
                 }
             }
             .odGroup()
+            if !appState.gatewayAliases.isEmpty {
+                Text("网关模型名 \(appState.gatewayAliases.sorted().joined(separator: "、")) 是客户端调用别名，不是上游模型，不可设为默认。")
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+                    .padding(.top, OneDayMetrics.spacingS)
+            }
         }
     }
 
@@ -545,27 +561,12 @@ struct ModelSettingsView: View {
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? "配置读取失败。"
         }
-        // 0.2.2 获取制：候选＝当前值 ∪ /v1/models ∪ 近 30 天
-        // 用量模型，全部服务端拉取，不再有手输模型名入口
-        var seen = Set<String>()
-        var merged: [String] = []
-        func add(_ model: String?) {
-            guard let model, !model.isEmpty, seen.insert(model).inserted else { return }
-            merged.append(model)
-        }
-        add(currentModel)
-        if let apiKey = appState.apiKey,
-           let ids = try? await appState.performAdmin({ client, config in
-               try await client.models(config: config, apiKey: apiKey)
-           }) {
-            ids.forEach { add($0) }
-        }
-        if let analytics = try? await appState.performAdmin({ client, config in
-            try await client.modelAnalytics(config: config, days: 30)
-        }) {
-            analytics.models.forEach { add($0.model) }
-        }
-        candidates = merged
+        // 0.2.4：候选与聊天页选择器共用 AppState 管线
+        // （上游 options 优先、用量回落、网关别名硬排除），
+        // 本页不再自拼并集——0.2.2 在这里拼的那份正是把
+        // hermes-agent 送进候选的 bug 路径之一
+        await appState.refreshModelCatalog()
+        candidates = appState.availableModels
     }
 
     private func writeBack(_ mutate: (inout [String: JSONValue]) -> Void) async throws {
@@ -578,6 +579,12 @@ struct ModelSettingsView: View {
     }
 
     private func setModel(_ model: String) async {
+        // 写入校验（0.2.4）：与选择器同一道闸——不在候选
+        // 集内（含网关别名）直接拦截，不发写请求
+        guard ModelCatalog.isWritable(model, candidates: candidates) else {
+            notice = HermesError.modelNotUpstream(model).userMessage
+            return
+        }
         do {
             try await writeBack { $0["model"] = .string(model) }
             appState.noteDefaultModel(model)

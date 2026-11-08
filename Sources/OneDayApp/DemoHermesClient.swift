@@ -50,6 +50,12 @@ struct DemoHermesClient: HermesClientProtocol {
         ["hermes-agent"]
     }
 
+    /// 演示上游候选（与网关别名 hermes-agent 分开：选择器里
+    /// 只该出现这一组，含一个别名 deepseek-chat 供标注演示）
+    func modelOptions(config: ServerConfig) async throws -> [String] {
+        ["deepseek-flash", "deepseek-v4-pro", "deepseek-chat"]
+    }
+
     /// 演示流式：把定稿回复逐字慢速产出，让截图环能截到
     /// 「已出半截字＋流式光标」的静止帧；总时长约 14 秒
     ///（首轮 5 秒版实测在 CI 里截到的是已完成帧，故放慢）。

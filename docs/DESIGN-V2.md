@@ -528,3 +528,10 @@ v0.23.0，inkSecondary 等宽）。一眼先读状态，再读细节。
   线），消息列表 contentMargins 按悬浮层实测高度驱动。
 - 验收硬指标：02 截图须见文字透底栏/发送舱玻璃的模糊影
   （种子加长＋截图前上滑制造滚动中段）。
+- 追加功能修复（服务器实测）：模型选择器候选根治——网关
+  /v1/models 只返回别名 hermes-agent（非上游模型，写默认
+  会被上游 400）。候选改走 ModelCatalog 管线：/api/model
+  /options 上游端点优先、回落用量∪当前值、硬排除网关别名；
+  两个写入路径（选择器/设置页）写 /api/config 前加候选集
+  校验；别名 deepseek-chat/reasoner 保留可选并标注「将按
+  deepseek-flash 运行」（探针实测映射）；单测 +7 条。

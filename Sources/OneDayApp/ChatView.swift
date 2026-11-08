@@ -1268,10 +1268,11 @@ private struct StreamingCaret: View {
 }
 
 
-/// 模型选择器（0.2.2 获取制）：列表全部来自服务端拉取
-/// （AppState.availableModels＝/api/config 当前值 ∪ /v1/models
-/// ∪ 近 30 天用量模型）；点选即切换服务端默认模型（写回走
-/// /api/config 既有写接口）。无数据时明确提示，不给手输框。
+/// 模型选择器（0.2.4 口径）：列表只含上游模型
+/// （AppState.availableModels，数据源见 ModelCatalog：
+/// /api/model/options 优先、用量回落、网关别名硬排除）；
+/// 点选即切换服务端默认模型（写回走 /api/config，写入前
+/// 有候选集校验）。无数据时明确提示，不给手输框。
 private struct ModelPickerSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -1287,7 +1288,7 @@ private struct ModelPickerSheet: View {
                         EmptyState(
                             icon: "cpu",
                             title: "暂无可用模型",
-                            message: "服务端没有返回模型列表（/v1/models 与配置均为空），请先在服务端配置模型。"
+                            message: "服务端没有返回上游模型列表（/api/model/options 与用量记录均为空），请先在服务端配置模型。"
                         )
                         .padding(.top, OneDayMetrics.spacingXXL)
                     } else {
@@ -1303,7 +1304,7 @@ private struct ModelPickerSheet: View {
                             }
                         }
                         .odGroup()
-                        Text("列表来自服务端拉取：当前配置、/v1/models 与近 30 天实际用过的模型。切换改的是服务端默认模型，新会话生效；正在进行的对话不切换。")
+                        Text("列表来自服务端上游模型目录（/api/model/options），网关别名（如 hermes-agent）不可选。切换改的是服务端默认模型，新会话生效；正在进行的对话不切换。")
                             .font(TypeScale.footnote)
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.top, OneDayMetrics.spacingM)
@@ -1348,10 +1349,20 @@ private struct ModelPickerSheet: View {
             }
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                Text(model)
-                    .font(TypeScale.monoCallout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model)
+                        .font(TypeScale.monoCallout)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    // 别名注记（实测映射，见 ModelCatalog）：
+                    // 老名字能跑但实际按上游新名运行，行内说清
+                    if let runtime = ModelCatalog.aliasRuntime[model] {
+                        Text("别名 · 将按 \(runtime) 运行")
+                            .font(TypeScale.footnote)
+                            .foregroundStyle(Palette.inkMuted)
+                            .lineLimit(1)
+                    }
+                }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if switching == model {
                     ProgressView()

@@ -111,6 +111,10 @@ protocol HermesClientProtocol: Sendable {
     func usageAnalytics(config: ServerConfig, days: Int) async throws -> UsageAnalytics
     /// GET /api/analytics/models?days=
     func modelAnalytics(config: ServerConfig, days: Int) async throws -> ModelAnalytics
+    /// GET /api/model/options：上游提供商＋精选模型列表（官方
+    /// ModelPickerDialog 同源端点）；回执未定型，经
+    /// ModelCatalog.extractModelIDs 宽容提取为 id 列表
+    func modelOptions(config: ServerConfig) async throws -> [String]
     /// GET /api/logs?level=&search=&lines=
     func logs(
         config: ServerConfig, level: String?, search: String?, lines: Int
@@ -708,6 +712,15 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             config: config, path: "/api/analytics/models", endpoint: "模型用量接口",
             query: [URLQueryItem(name: "days", value: String(days))]
         )
+    }
+
+    func modelOptions(config: ServerConfig) async throws -> [String] {
+        // 回执在 OpenAPI 里未定型：先以 JSONValue 整树接住，
+        // 再由 ModelCatalog 宽容提取（形状容忍优先于强解码）
+        let root: JSONValue = try await getJSON(
+            config: config, path: "/api/model/options", endpoint: "模型列表接口"
+        )
+        return ModelCatalog.extractModelIDs(from: root)
     }
 
     func logs(

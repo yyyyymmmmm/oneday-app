@@ -35,9 +35,15 @@ final class AppState {
     /// 服务端默认模型（0.2.2 获取制）：自 /api/config 的 model 键
     /// 拉取，聊天页顶栏与抽屉身份块展示它；切换走 setDefaultModel
     private(set) var defaultModel: String?
-    /// 可切换模型目录（0.2.2）：config 当前值 ∪ /v1/models ∪
-    /// 近 30 天用量出现过的模型，全部服务端拉取、无手输入口
+    /// 可切换模型目录（0.2.4 根治）：候选只许来自上游——
+    /// /api/model/options 正规端点优先，为空回落「用量 ∪
+    /// 当前值」，且硬排除网关别名（见 ModelCatalog）。0.2.2
+    /// 把网关 /v1/models 的别名并进候选是 bug，已撤销
     private(set) var availableModels: [String] = []
+    /// 网关别名集（/v1/models 返回的 id，如 hermes-agent）：
+    /// 是客户端调网关时填的模型名、不是上游模型；只许在
+    /// 连接信息里只读出现，永不进默认模型候选
+    private(set) var gatewayAliases: Set<String> = []
 
     let client: HermesClientProtocol
     /// 演示模式（截图验收环）：为真时不读不写 Keychain、
@@ -66,7 +72,8 @@ final class AppState {
             // 不校验模型名，生产路径的 modelID 仍以 /v1/models 为准
             modelID = "deepseek-chat"
             defaultModel = "deepseek-chat"
-            availableModels = ["deepseek-chat", "deepseek-reasoner", "hermes-agent"]
+            availableModels = ["deepseek-chat", "deepseek-flash", "deepseek-v4-pro"]
+            gatewayAliases = ["hermes-agent"]
             phase = .connected
         case .connectPage:
             // 停在连接页：保持未连接，字段预填在 ConnectView 侧
@@ -179,8 +186,11 @@ final class AppState {
 
     // MARK: - 模型目录（0.2.2 获取制）
 
-    /// 刷新默认模型与可切换目录：当前值来自 /api/config，
-    /// 候选并集 /v1/models 与近 30 天用量模型（全部 GET 拉取）
+    /// 刷新默认模型与可切换目录（0.2.4）：当前值来自
+    /// /api/config；候选只来自上游（ModelCatalog 口径）：
+    /// /api/model/options 优先，为空回落近 30 天用量 ∪
+    /// 当前值；网关 /v1/models 的返回只作别名集用于排除，
+    /// 本身永不进候选（0.2.2 的并集口径是 bug 源头）
     func refreshModelCatalog() async {
         guard phase == .connected else { return }
         if let raw = try? await performAdmin({ client, config in
@@ -188,26 +198,32 @@ final class AppState {
         }), let current = raw["model"]?.stringValue {
             defaultModel = current
         }
-        var ordered: [String] = []
-        var seen = Set<String>()
-        func add(_ model: String?) {
-            guard let model, !model.isEmpty, seen.insert(model).inserted else { return }
-            ordered.append(model)
-        }
-        add(defaultModel)
+        var aliases = Set<String>()
         if let apiKey,
            let ids = try? await performAdmin({ client, config in
                try await client.models(config: config, apiKey: apiKey)
            }) {
-            ids.forEach { add($0) }
+            aliases = Set(ids)
         }
+        gatewayAliases = aliases
+        var options: [String] = []
+        if let ids = try? await performAdmin({ client, config in
+            try await client.modelOptions(config: config)
+        }) {
+            options = ids
+        }
+        var usage: [String] = []
         if let analytics = try? await performAdmin({ client, config in
             try await client.modelAnalytics(config: config, days: 30)
         }) {
-            analytics.models.forEach { add($0.model) }
+            usage = analytics.models.map(\.model)
         }
-        if !ordered.isEmpty {
-            availableModels = ordered
+        let merged = ModelCatalog.candidates(
+            options: options, usage: usage,
+            current: defaultModel, gatewayAliases: aliases
+        )
+        if !merged.isEmpty {
+            availableModels = merged
         }
     }
 
@@ -215,6 +231,11 @@ final class AppState {
     /// 整包写回（PUT /api/config 既有写接口，演示/单测验证，
     /// 不对生产执行）
     func setDefaultModel(_ model: String) async throws {
+        // 写入校验（0.2.4）：不在上游候选集内的值一律拦截，
+        // 不许把网关别名等非法值写进生产配置
+        guard ModelCatalog.isWritable(model, candidates: availableModels) else {
+            throw HermesError.modelNotUpstream(model)
+        }
         var raw = try await performAdmin { client, config in
             try await client.rawConfig(config: config)
         }
@@ -228,10 +249,11 @@ final class AppState {
         }
     }
 
-    /// 设置页在本页内写回 config 后同步内存态（避免两处口径漂移）
+    /// 设置页在本页内写回 config 后同步内存态（避免两处口径漂移）。
+    /// 网关别名不回填候选（它不是可选的上游模型）。
     func noteDefaultModel(_ model: String) {
         defaultModel = model
-        if !availableModels.contains(model) {
+        if !availableModels.contains(model), !gatewayAliases.contains(model) {
             availableModels.insert(model, at: 0)
         }
     }

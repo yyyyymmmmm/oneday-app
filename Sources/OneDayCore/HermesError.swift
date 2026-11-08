@@ -21,6 +21,8 @@ public enum HermesError: Error, Sendable {
     case decodingFailed(endpoint: String)
     /// 会话过期且自动重登失败
     case sessionExpired
+    /// 模型不在上游候选集内（网关别名等），写入已被拦截
+    case modelNotUpstream(String)
     /// 用户主动停止生成 / 取消任务
     case cancelled
 
@@ -44,6 +46,8 @@ public enum HermesError: Error, Sendable {
             return "\(endpoint) 的返回看不懂，可能是服务端版本与 App 不匹配。"
         case .sessionExpired:
             return "登录已过期，重新登录后再试。"
+        case .modelNotUpstream(let model):
+            return "「\(model)」不在上游可用模型列表里（网关别名不能设为默认模型），已拦截，未写入配置。"
         case .cancelled:
             return "已取消。"
         }
