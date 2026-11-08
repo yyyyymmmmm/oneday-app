@@ -354,8 +354,9 @@ struct ChatView: View {
     }
 
     /// 分段口径（框架定版）：先按来源分段——本机会话是里程碑 1
-    /// 的真实数据（最近更新在前）；服务端会话待里程碑 2 接
-    /// /api/sessions 后点亮，先以安静文字占位，不伪造列表。
+    /// 的真实数据（最近更新在前）；服务端会话按 IA v3 分工归
+    /// 「智能体」格管理（两处分工不同不合并，见 IA-V3 §5.2），
+    /// 抽屉里只给一行去向说明，不重复列表。
     private var drawerList: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("本机会话")
@@ -375,7 +376,7 @@ struct ChatView: View {
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .padding(.top, OneDayMetrics.spacingL)
                 .padding(.bottom, OneDayMetrics.spacingS)
-            Text("将在里程碑 2 接入后列在这里")
+            Text("在「智能体」页的服务端会话里查看与管理")
                 .font(TypeScale.footnote)
                 .foregroundStyle(Palette.inkMuted)
                 .padding(.horizontal, OneDayMetrics.spacingM)

@@ -20,6 +20,7 @@ public struct HealthResponse: Decodable, Sendable, Equatable {
 public struct ServerStatus: Decodable, Sendable {
     public let version: String?
     public let releaseDate: String?
+    public let configVersion: Int?
     public let gatewayRunning: Bool?
     public let gatewayState: String?
     public let platforms: [String: PlatformState]
@@ -37,6 +38,7 @@ public struct ServerStatus: Decodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case version
         case releaseDate = "release_date"
+        case configVersion = "config_version"
         case gatewayRunning = "gateway_running"
         case gatewayState = "gateway_state"
         case platforms = "gateway_platforms"
@@ -46,6 +48,7 @@ public struct ServerStatus: Decodable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         version = try container.decodeIfPresent(String.self, forKey: .version)
         releaseDate = try container.decodeIfPresent(String.self, forKey: .releaseDate)
+        configVersion = try container.decodeIfPresent(Int.self, forKey: .configVersion)
         gatewayRunning = try container.decodeIfPresent(Bool.self, forKey: .gatewayRunning)
         gatewayState = try container.decodeIfPresent(String.self, forKey: .gatewayState)
         platforms = try container.decodeIfPresent(

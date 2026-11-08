@@ -38,6 +38,12 @@ final class AppState {
     /// 不发网络请求（客户端已被替换为 DemoHermesClient）。
     let isDemo: Bool
 
+    /// 跨页深链（总览 → 智能体格/设置格二级页）：目标页消费后置 nil
+    var pendingAgentRoute: AgentRoute?
+    var pendingSettingsRoute: SettingsRoute?
+    /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
+    var cronCreateRequested = false
+
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
         isDemo = demoMode.isDemo
@@ -136,24 +142,34 @@ final class AppState {
 
     // MARK: - 会话接口（自动重登）
 
-    /// 拉配置摘要：遇 401 先用已存密码静默重登再重试一次；
-    /// 重登失败或再 401 → sessionExpired（页面提示重新登录）。
-    func configSummary() async throws -> ServerConfigSummary {
+    /// 管理面统一通道：拿当前配置执行操作，遇 401 先用已存
+    /// 密码静默重登再重试一次；重登失败或再 401 →
+    /// sessionExpired（页面提示重新登录）。全部 /api/* 调用走它。
+    func performAdmin<T>(
+        _ operation: (HermesClientProtocol, ServerConfig) async throws -> T
+    ) async throws -> T {
         guard let config else {
             throw HermesError.sessionExpired
         }
         do {
-            return try await client.configSummary(config: config)
+            return try await operation(client, config)
         } catch HermesError.unexpectedStatus(_, let status) where status == 401 {
             guard let username, let password else {
                 throw HermesError.sessionExpired
             }
             try await client.login(config: config, username: username, password: password)
             do {
-                return try await client.configSummary(config: config)
+                return try await operation(client, config)
             } catch HermesError.unexpectedStatus(_, let retryStatus) where retryStatus == 401 {
                 throw HermesError.sessionExpired
             }
+        }
+    }
+
+    /// 拉配置摘要（总览旧路径，走统一通道）
+    func configSummary() async throws -> ServerConfigSummary {
+        try await performAdmin { client, config in
+            try await client.configSummary(config: config)
         }
     }
 

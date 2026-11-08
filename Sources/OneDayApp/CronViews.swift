@@ -1,0 +1,625 @@
+import OneDayDesign
+import OneDayCore
+import SwiftUI
+
+/// 定时任务页（智能体格，IA v3 §5.2）：任务列表＋新建，
+/// 点入详情做暂停/恢复/立即触发/编辑/删除与运行记录。
+/// 接口口径：POST /api/cron/jobs（schedule 传字符串）、
+/// PUT …/{id} {"updates": {…}}、POST …/pause|resume|trigger、
+/// GET …/runs（运行记录与会话同构）。
+struct CronJobsView: View {
+    @Environment(AppState.self) private var appState
+
+    @State private var jobs: [CronJob] = []
+    @State private var errorMessage: String?
+    @State private var isLoading = false
+    @State private var showCreate = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                if !jobs.isEmpty {
+                    SectionLabel("全部任务")
+                        .padding(.bottom, OneDayMetrics.spacingS)
+                    VStack(spacing: 0) {
+                        ForEach(Array(jobs.enumerated()), id: \.element.id) { index, job in
+                            if index > 0 {
+                                GroupDivider(inset: OneDayMetrics.spacingM)
+                            }
+                            jobRow(job)
+                        }
+                    }
+                    .odGroup()
+                } else if let errorMessage {
+                    InlineError(errorMessage)
+                    Button("重试") { Task { await load() } }
+                        .buttonStyle(.odSecondary)
+                        .padding(.top, OneDayMetrics.spacingSM)
+                } else if isLoading {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        ProgressView()
+                        Text("正在读取任务…")
+                            .font(TypeScale.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .padding(.top, OneDayMetrics.spacingL)
+                } else {
+                    EmptyState(
+                        icon: "clock.arrow.2.circlepath",
+                        title: "还没有定时任务",
+                        message: "点右上角新建，让 Hermes 按计划自动干活。"
+                    )
+                    .padding(.top, OneDayMetrics.spacingXXL)
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.top, OneDayMetrics.spacingM)
+            .padding(.bottom, OneDayMetrics.spacingXL)
+        }
+        .background(Palette.pageBG)
+        .navigationTitle("定时任务")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showCreate = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("新建定时任务")
+            }
+        }
+        .sheet(isPresented: $showCreate) {
+            CronJobFormView(job: nil) {
+                Task { await load() }
+            }
+        }
+        .refreshable { await load() }
+        .task { await load() }
+        .onAppear {
+            // 总览快捷动作深链：消费「新建」请求
+            if appState.cronCreateRequested {
+                appState.cronCreateRequested = false
+                showCreate = true
+            }
+        }
+    }
+
+    private func jobRow(_ job: CronJob) -> some View {
+        NavigationLink {
+            CronJobDetailView(job: job) {
+                Task { await load() }
+            }
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                StatusDot(color: job.enabled ? Palette.success : Palette.inkMuted)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(job.title)
+                        .font(TypeScale.body)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Text(job.scheduleText)
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                    if job.enabled, let next = AdminFormat.iso(job.nextRunAt) {
+                        Text("下次 \(AdminFormat.short(next))")
+                            .font(TypeScale.monoCaption)
+                            .foregroundStyle(Palette.inkMuted)
+                    }
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
+                if job.lastError != nil {
+                    Image(systemName: "exclamationmark.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Palette.danger)
+                        .accessibilityLabel("上次运行有错误")
+                }
+                Text(job.enabled ? "启用" : "已暂停")
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(job.enabled ? Palette.success : Palette.inkMuted)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.inkMuted)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingS)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func load() async {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            jobs = try await appState.performAdmin { client, config in
+                try await client.cronJobs(config: config)
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = (error as? HermesError)?.userMessage ?? "定时任务读取失败。"
+        }
+    }
+}
+
+/// 任务详情：信息、动作（暂停/恢复/触发/编辑/删除）、运行记录。
+struct CronJobDetailView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    let job: CronJob
+    var onChange: () -> Void = {}
+
+    @State private var current: CronJob
+    @State private var runs: [ServerSession] = []
+    @State private var runsError: String?
+    @State private var notice: String?
+    @State private var isTriggering = false
+    @State private var showEdit = false
+    @State private var showDeleteConfirm = false
+
+    init(job: CronJob, onChange: @escaping () -> Void = {}) {
+        self.job = job
+        self.onChange = onChange
+        _current = State(initialValue: job)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                infoGroup
+                actionsGroup
+                runsGroup
+                dangerGroup
+                if let notice {
+                    Text(notice)
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.top, OneDayMetrics.spacingM)
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.top, OneDayMetrics.spacingM)
+            .padding(.bottom, OneDayMetrics.spacingXL)
+        }
+        .background(Palette.pageBG)
+        .navigationTitle(current.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await loadRuns() }
+        .sheet(isPresented: $showEdit) {
+            CronJobFormView(job: current) {
+                Task { await reloadJob() }
+            }
+        }
+        .confirmationDialog(
+            "删除这个定时任务？",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                Task { await deleteJob() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("任务与它的计划将被删除，运行记录保留在服务端会话里。")
+        }
+    }
+
+    private var infoGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("任务")
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                infoRow("状态", current.enabled ? "启用" : "已暂停")
+                GroupDivider(inset: OneDayMetrics.spacingM)
+                infoRow("计划", current.scheduleText, mono: true)
+                if let next = AdminFormat.iso(current.nextRunAt) {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    infoRow("下次运行", AdminFormat.short(next))
+                }
+                if let last = AdminFormat.iso(current.lastRunAt) {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    infoRow("上次运行", AdminFormat.short(last))
+                }
+                if let deliver = current.deliver, !deliver.isEmpty {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    infoRow("投递到", deliver)
+                }
+                if let model = current.model, !model.isEmpty {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    infoRow("模型", model, mono: true)
+                }
+                if let prompt = current.prompt, !prompt.isEmpty {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                        Text("指令")
+                            .font(TypeScale.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Text(prompt)
+                            .font(TypeScale.callout)
+                            .foregroundStyle(Palette.ink)
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.vertical, OneDayMetrics.spacingSM)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if let error = current.lastError, !error.isEmpty {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Palette.danger)
+                            .accessibilityHidden(true)
+                        Text(error)
+                            .font(TypeScale.subhead)
+                            .foregroundStyle(Palette.ink)
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.vertical, OneDayMetrics.spacingSM)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .odGroup()
+        }
+    }
+
+    private var actionsGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("动作")
+                .padding(.top, 28)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                actionRow(
+                    title: current.enabled ? "暂停" : "恢复",
+                    icon: current.enabled ? "pause.circle" : "play.circle"
+                ) {
+                    Task { await togglePause() }
+                }
+                GroupDivider(inset: 56)
+                actionRow(
+                    title: isTriggering ? "触发中（等任务跑完）…" : "立即触发一次",
+                    icon: "play.circle"
+                ) {
+                    Task { await trigger() }
+                }
+                .disabled(isTriggering)
+                GroupDivider(inset: 56)
+                actionRow(title: "编辑", icon: "pencil.circle") {
+                    showEdit = true
+                }
+            }
+            .odGroup()
+        }
+    }
+
+    private var runsGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("运行记录")
+                .padding(.top, 28)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                if runs.isEmpty {
+                    Text(runsError ?? "还没有运行记录")
+                        .font(TypeScale.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .frame(minHeight: OneDayMetrics.rowHeight)
+                }
+                ForEach(Array(runs.enumerated()), id: \.element.id) { index, run in
+                    if index > 0 {
+                        GroupDivider(inset: OneDayMetrics.spacingM)
+                    }
+                    runRow(run)
+                }
+            }
+            .odGroup()
+        }
+    }
+
+    private func runRow(_ run: ServerSession) -> some View {
+        NavigationLink(value: AgentRoute.serverSessionDetail(run.id)) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(AdminFormat.short(run.startedDate))
+                        .font(TypeScale.body)
+                        .foregroundStyle(Palette.ink)
+                    Text(runSubtitle(run))
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.inkMuted)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingS)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func runSubtitle(_ run: ServerSession) -> String {
+        var parts: [String] = []
+        if let reason = run.endReason, !reason.isEmpty {
+            parts.append(reason == "completed" ? "已完成" : reason)
+        }
+        if let count = run.messageCount {
+            parts.append("\(count) 条消息")
+        }
+        if let start = run.startedDate, let end = run.endedDate {
+            let seconds = Int(end.timeIntervalSince(start))
+            if seconds >= 0 {
+                parts.append("耗时 \(seconds) 秒")
+            }
+        }
+        return parts.isEmpty ? "运行记录" : parts.joined(separator: " · ")
+    }
+
+    private var dangerGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("危险操作")
+                .padding(.top, 28)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: {
+                    HStack {
+                        Text("删除任务")
+                            .font(TypeScale.body)
+                            .foregroundStyle(Palette.danger)
+                        Spacer()
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .odGroup()
+        }
+    }
+
+    private func infoRow(_ label: String, _ value: String, mono: Bool = false) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(label)
+                .font(TypeScale.body)
+                .foregroundStyle(Palette.ink)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(value)
+                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(minHeight: OneDayMetrics.rowHeight)
+    }
+
+    private func actionRow(
+        title: String, icon: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: icon)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - 数据与动作
+
+    private func loadRuns() async {
+        do {
+            runs = try await appState.performAdmin { client, config in
+                try await client.cronRuns(config: config, id: current.id, limit: 20)
+            }
+        } catch {
+            runsError = "运行记录读取失败。"
+        }
+    }
+
+    private func reloadJob() async {
+        if let jobs = try? await appState.performAdmin({ client, config in
+            try await client.cronJobs(config: config)
+        }), let fresh = jobs.first(where: { $0.id == current.id }) {
+            current = fresh
+        }
+        onChange()
+    }
+
+    private func togglePause() async {
+        do {
+            if current.enabled {
+                try await appState.performAdmin { client, config in
+                    try await client.pauseCronJob(config: config, id: current.id)
+                }
+            } else {
+                try await appState.performAdmin { client, config in
+                    try await client.resumeCronJob(config: config, id: current.id)
+                }
+            }
+            await reloadJob()
+        } catch {
+            notice = (error as? HermesError)?.userMessage ?? "操作失败，请稍后再试。"
+        }
+    }
+
+    private func trigger() async {
+        isTriggering = true
+        defer { isTriggering = false }
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.triggerCronJob(config: config, id: current.id)
+            }
+            notice = "已触发并执行完成。"
+            await loadRuns()
+            await reloadJob()
+        } catch {
+            notice = (error as? HermesError)?.userMessage ?? "触发失败，请稍后再试。"
+        }
+    }
+
+    private func deleteJob() async {
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.deleteCronJob(config: config, id: current.id)
+            }
+            onChange()
+            dismiss()
+        } catch {
+            notice = (error as? HermesError)?.userMessage ?? "删除失败，请稍后再试。"
+        }
+    }
+}
+
+/// 定时任务表单：新建（POST）与编辑（PUT updates）共用。
+/// 计划字段收 cron 表达式字符串，附常用预设一键填入。
+struct CronJobFormView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    let job: CronJob?
+    var onSaved: () -> Void = {}
+
+    @State private var name: String
+    @State private var prompt: String
+    @State private var schedule: String
+    @State private var errorMessage: String?
+    @State private var isSaving = false
+
+    init(job: CronJob?, onSaved: @escaping () -> Void = {}) {
+        self.job = job
+        self.onSaved = onSaved
+        _name = State(initialValue: job?.name ?? "")
+        _prompt = State(initialValue: job?.prompt ?? "")
+        // 编辑态预填：schedule 是字符串时原样，对象时用展示串
+        // 兜底（服务端能解析展示串之外的表达式才建议改动）
+        if case .string(let raw) = job?.scheduleRaw {
+            _schedule = State(initialValue: raw)
+        } else {
+            _schedule = State(initialValue: job?.scheduleDisplay ?? "")
+        }
+    }
+
+    private var isValid: Bool {
+        !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !schedule.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    SectionLabel("任务")
+                        .padding(.bottom, OneDayMetrics.spacingS)
+                    VStack(spacing: 0) {
+                        FieldRow(label: "名称（可选）") {
+                            TextField("如：节点巡检", text: $name)
+                        }
+                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        FieldRow(label: "指令") {
+                            TextField("要 Hermes 执行的事", text: $prompt, axis: .vertical)
+                                .lineLimit(2...5)
+                        }
+                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        FieldRow(label: "计划（cron 表达式）") {
+                            TextField("0 9 * * *", text: $schedule)
+                                .font(TypeScale.monoBody)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                    }
+                    .odGroup()
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        presetButton("每小时", "0 * * * *")
+                        presetButton("每天 9 点", "0 9 * * *")
+                        presetButton("每周一 9 点", "0 9 * * 1")
+                    }
+                    .padding(.top, OneDayMetrics.spacingM)
+                    if let errorMessage {
+                        InlineError(errorMessage)
+                            .padding(.top, OneDayMetrics.spacingM)
+                    }
+                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXL)
+            }
+            .background(Palette.pageBG)
+            .navigationTitle(job == nil ? "新建定时任务" : "编辑定时任务")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isSaving ? "保存中…" : "保存") {
+                        Task { await save() }
+                    }
+                    .disabled(!isValid || isSaving)
+                }
+            }
+        }
+    }
+
+    private func presetButton(_ title: String, _ expression: String) -> some View {
+        Button(title) {
+            schedule = expression
+        }
+        .buttonStyle(.odSecondary)
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSchedule = schedule.trimmingCharacters(in: .whitespaces)
+        do {
+            if let job {
+                var updates: [String: JSONValue] = [
+                    "prompt": .string(trimmedPrompt),
+                    "schedule": .string(trimmedSchedule),
+                ]
+                updates["name"] = .string(trimmedName)
+                try await appState.performAdmin { client, config in
+                    try await client.updateCronJob(
+                        config: config, id: job.id, updates: updates
+                    )
+                }
+            } else {
+                _ = try await appState.performAdmin { client, config in
+                    try await client.createCronJob(
+                        config: config,
+                        name: trimmedName.isEmpty ? nil : trimmedName,
+                        prompt: trimmedPrompt,
+                        schedule: trimmedSchedule,
+                        deliver: nil
+                    )
+                }
+            }
+            onSaved()
+            dismiss()
+        } catch {
+            errorMessage = (error as? HermesError)?.userMessage ?? "保存失败，请稍后再试。"
+        }
+    }
+}

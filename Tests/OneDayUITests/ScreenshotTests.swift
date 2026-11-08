@@ -60,7 +60,7 @@ final class ScreenshotTests: XCTestCase {
         capture("01-connect")
     }
 
-    /// 02–06 主界面：聊天落点 → 抽屉展开 → 总览 → 管理 → 设置
+    /// 02–06 主界面：聊天落点 → 抽屉展开 → 总览 → 智能体 → 设置
     func test02MainPages() {
         let app = launch(["-odDemoMode"])
 
@@ -80,19 +80,22 @@ final class ScreenshotTests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
         settle(0.6)
 
-        // 总览
+        // 总览（IA v3 五段）：等指标行与最近会话到位
         app.tabBars.buttons["总览"].tap()
-        waitText(app, "deepseek-chat")
+        waitText(app, "今日 Token")
+        waitText(app, "帮我看看服务器状态")
         capture("04-overview")
 
-        // 管理
-        app.tabBars.buttons["管理"].tap()
-        waitText(app, "模型与配置")
-        capture("05-manage")
+        // 智能体（运维四模块目录，等摘要值落地）
+        app.tabBars.buttons["智能体"].tap()
+        waitText(app, "定时任务")
+        waitText(app, "已装 4 个")
+        capture("05-agent")
 
-        // 设置
+        // 设置（四组目录，等当前值行到位）
         app.tabBars.buttons["设置"].tap()
-        waitText(app, "面板账号")
+        waitText(app, "对话模型")
+        waitText(app, "当前服务器")
         capture("06-settings")
     }
 }
