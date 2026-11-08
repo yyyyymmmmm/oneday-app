@@ -514,5 +514,13 @@ Muse 长文输入态截图追加三点——顶部渐隐、输入多行时
 
 ### 11.6 验收数值
 
-- （构建完成后回填：主构建 run、OneDayCore 单测执
-  行数、IPA 解包版本实测。）
+- 收口提交 9152fdf（诊断代码清零＋量高恢复＋纯逻辑
+  抽取＋§11 落档）；主构建 CI 一轮绿（run
+  42517453812，workflow_dispatch）：Release 构建成
+  功、OneDayCore 单测 49 条全过（较 0.2.6 的 45 条
+  新增 ComposerLayoutTests 四态 4 条，均 passed）。
+- 未签名 IPA 解包实测：CFBundleShortVersionString
+  0.2.7 / CFBundleVersion 12 / bundle id
+  site.didichou.oneday，与定版一致。
+- 键盘态观感终审归用户真机（分工不变）：重点看拼音
+  组合态发送舱是否贴着文字长、两键是否锚在编辑行。
