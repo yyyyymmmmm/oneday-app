@@ -68,7 +68,10 @@ final class ComposerGeometryTests: XCTestCase {
             caret.minX, ComposerTextMetrics.textOriginX,
             "光标应在文字之后，而非行首原点"
         )
-        XCTAssertLessThanOrEqual(caret.maxY, view.bounds.height + 0.6)
+        // 光标高 20.0 是 16pt 字体的光标度量（比行高
+        // 19.17 多 0.83、顶偏 −1，CI 实测）——容差 1.5
+        // 覆盖这组字体度量差，不掩盖行级逃逸（≥19.17）
+        XCTAssertLessThanOrEqual(caret.maxY, view.bounds.height + 1.5)
     }
 
     /// 三态：空/单行下文末光标矩形落在帧界内；满行
@@ -89,7 +92,7 @@ final class ComposerGeometryTests: XCTestCase {
             )
             XCTAssertFalse(caret.isNull, "文本长度 \(text.count) 光标矩形为空")
             XCTAssertGreaterThanOrEqual(caret.minX, -0.6)
-            XCTAssertGreaterThanOrEqual(caret.minY, -0.6)
+            XCTAssertGreaterThanOrEqual(caret.minY, -1.5)
             XCTAssertLessThanOrEqual(
                 caret.maxX, view.bounds.width + 0.6,
                 "文本长度 \(text.count) 光标右界 \(caret.maxX) 出帧宽 \(view.bounds.width)"
@@ -106,7 +109,7 @@ final class ComposerGeometryTests: XCTestCase {
                 )
             ) {
                 XCTAssertLessThanOrEqual(
-                    caret.maxY, view.bounds.height + 0.6,
+                    caret.maxY, view.bounds.height + 1.5,
                     "文本长度 \(text.count) 光标底 \(caret.maxY) 出帧高 \(view.bounds.height)"
                 )
             }
