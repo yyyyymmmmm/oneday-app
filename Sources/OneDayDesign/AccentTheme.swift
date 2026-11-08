@@ -57,7 +57,9 @@ public enum AccentTheme: String, CaseIterable, Identifiable, Sendable {
 /// 即建立订阅。
 @Observable
 public final class AccentStore {
-    public static let shared = AccentStore()
+    /// 单例供 Palette 计算属性在任意上下文读取；theme 的读写
+    /// 只发生在主线程 UI 路径，UserDefaults 本身线程安全
+    nonisolated(unsafe) public static let shared = AccentStore()
 
     private static let key = "od.accentTheme"
 
