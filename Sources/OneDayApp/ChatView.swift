@@ -58,20 +58,11 @@ struct ChatView: View {
     /// 抽屉身份块与服务端会话组的数据（开抽屉时拉取）
     @State private var drawerStatus: ServerStatus?
     @State private var drawerServerSessions: [ServerSession] = []
-    /// 0.2.4：发送舱玻璃融合的命名空间（GlassEffectContainer
-    /// 内胶囊以 union id 成形）。0.2.5 起＋键不再单独成圆并
-    /// 融入——它改裸符号直接坐在胶囊玻璃里，union 只剩
-    /// 胶囊本体，命名空间保留备用
-    @Namespace private var composerGlass
-    /// 0.2.7 探针开关（启动参数，默认关、正常启动零影响）：
-    /// -odBareGlass＝发送舱摘掉 GlassEffectContainer＋union
-    /// 的 A/B 路径；-odMarkedProbe＝演示模式下编程置拼音
-    /// marked text 复现组合态（见 MarkedTextDriver）
-    private let bareGlassProbe = ProcessInfo.processInfo.arguments
-        .contains("-odBareGlass")
-    private let markedProbeEnabled = DemoMode.current.isDemo
-        && ProcessInfo.processInfo.arguments.contains("-odMarkedProbe")
-    /// 0.2.6 多行形状变形：输入框实测高度跨过单行阈值后
+    /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
+    /// GlassEffectContainer＋union 已随探针定案撤销（§11：
+    /// 玻璃容器不是膨胀源，且 Session 219 忌玻璃叠玻璃）
+    /// 0.2.6 多行形状变形（0.2.7 起判据改由 ComposerTextView
+    /// 的内容实测高驱动，见 composerRow）：跨过单行阈值后
     /// 发送舱玻璃由 Capsule 改固定圆角矩形（见 inputBar）
     @State private var composerMultiline = false
     /// 原生底栏在屏幕底部的占位，抽屉面板底部按它留位避让
@@ -310,12 +301,6 @@ struct ChatView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .animation(MotionTokens.swap, value: isNearBottom)
-        // 0.2.7 逐环探针锚点（ComposerPinyinProbeTests 以
-        // otherElements 按此标识读各环 frame，定位键盘＋
-        // 拼音标记文本态的膨胀环）；.contain 只加容器元素、
-        // 不改布局与视觉
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("composerZone")
     }
 
     /// 回到底部：系统 .glass 圆钮（0.2.4 换原生玻璃，撤掉
@@ -568,36 +553,18 @@ struct ChatView: View {
             || !attachments.isEmpty
     }
 
-    /// 发送舱（0.2.4，DESIGN-V4 §8）：一颗完整的系统玻璃
-    /// 胶囊——GlassEffectContainer 内胶囊本体以 union id 成形
-    /// （对照 Muse 输入区：＋在胶囊内左、右端控件在胶囊内
-    /// 右）；附件条在胶囊上方、实色小件，不入玻璃。
-    /// 0.2.5 去嵌套：＋键撤掉自己的玻璃圆外圈，改裸符号坐在
-    /// 胶囊玻璃里（胶囊里套圆圈是用户点名的嵌套毛病）；右端
-    /// 改状态机（见 trailingControl），不再常驻灰色圆盘。
-    /// 0.2.5 高度根因（用户键盘截图实证）：本舱处在覆盖式
-    /// ZStack 的底部悬浮层里，ZStack 向子视图提议全屏高度，
-    /// 提议经两层 VStack 与 GlassEffectContainer 传到纵向
-    /// TextField——它是链上唯一「贪高」的孩子（UITextView
-    /// 被提议确定高度时照单全收，聚焦后更甚），键盘弹起触
-    /// 发重布局时胶囊被撑成空盒：固定 36pt 的两键被 HStack
-    /// 的 .bottom 钉在盒底、文字顶在 field 顶部，对位全失。
-    /// 根治＝在提议链的每一环（field 本体、胶囊 HStack、
-    /// 本 VStack、底部悬浮层 VStack）以 fixedSize(vertical)
-    /// 断开提议：高度永远取内容理想值——不是写死高度，单
-    /// 行高由字阶与边距规格自然长成（见下），多行随内容
-    /// 生长、6 行封顶后 field 内滚。
-    /// 对位规格：TextField 纵向内边距 8＋正文行高约 22＝
-    /// 单行 field 高 38，与 36pt 两键在 HStack(.bottom) 里
-    /// 的中心差约 1pt（视觉居中）；多行时两键底边与 field
-    /// 底边齐平，锚在最后一行。胶囊单行总高＝38＋舱内纵
-    /// 向边距 16＝54（约 52 规格）
-    /// 0.2.6 承载换代（DESIGN-V4 §10）：本舱已不在覆盖式
-    /// ZStack 里——由列表 .safeAreaInset 承载（见
-    /// messageList/chatSurface），键盘避让走系统安全区
-    /// 通道；上方 fixedSize 断环保留作双保险。另加形状
-    /// 变形：单行 Capsule、多行 RoundedRectangle(24,
-    /// continuous)，由 field 实测高度驱动（见 composerShape）。
+    /// 发送舱（0.2.4 定形，DESIGN-V4 §8；承载沿革见 §10/§11）：
+    /// 一颗完整的系统玻璃胶囊——＋键裸符号坐在胶囊内左、右端
+    /// 状态机在胶囊内右；附件条在胶囊上方、实色小件，不入玻璃。
+    /// 对位规格：文本视图纵向内边距 8＋正文行高约 22＝单行
+    /// field 高 38，与 36pt 两键在 HStack(.bottom) 里的中心差
+    /// 约 1pt（视觉居中）；多行时两键底边与 field 底边齐平，
+    /// 锚在最后一行。胶囊单行总高＝38＋舱内纵向边距 16＝54。
+    /// 0.2.7 高度权威换代（§11）：纵向 TextField 换自量高
+    /// UITextView（ComposerTextView），高度只由文本布局决定；
+    /// 玻璃改裸 glassEffect 施加在行本体（容器/union 撤销）。
+    /// 形状变形保留：单行 Capsule、多行 RoundedRectangle(24,
+    /// continuous)，判据＝文本实测高跨过单行阈值。
     private var composerShape: AnyShape {
         composerMultiline
             ? AnyShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -609,67 +576,49 @@ struct ChatView: View {
             if !attachments.isEmpty {
                 attachmentsStrip
             }
-            if bareGlassProbe {
-                // 0.2.7 A/B 探针（仅 -odBareGlass 启动参数，演示
-                // 诊断用）：摘掉 GlassEffectContainer 与 union，
-                // 只留裸 glassEffect，与默认路径逐环对照 frame
-                composerRow
-                    .glassEffect(.regular, in: composerShape)
-            } else {
-                GlassEffectContainer(spacing: OneDayMetrics.spacingS) {
-                    composerRow
-                        .glassEffect(.regular, in: composerShape)
-                        .glassEffectUnion(id: "composer", namespace: composerGlass)
-                }
-            }
+            // 0.2.7：玻璃裸施加在行本体——GlassEffectContainer
+            // 与 union 已撤销（探针证其非膨胀源，§11）
+            composerRow
+                .glassEffect(.regular, in: composerShape)
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingS)
-        // 提议链断环（见 inputBar 根因注）：本 VStack 的高度
-        // 只认内容，不许把 ZStack 的全屏提议透传给胶囊
+        // 提议链断环（0.2.5 根因注，§9）：本 VStack 的高度
+        // 只认内容，不许把外层提议透传给胶囊
         .fixedSize(horizontal: false, vertical: true)
-        // 0.2.7 逐环探针锚点（见 bottomBar 的 composerZone）
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("composerBar")
-        .background {
-            // 0.2.7 标记文本探针（仅演示＋-odMarkedProbe）：
-            // 编程置 marked text 复现拼音组合态，见文件末尾
-            if markedProbeEnabled {
-                MarkedTextDriver(active: composerFocused)
-                    .allowsHitTesting(false)
-            }
-        }
     }
 
-    /// 发送舱内容行（0.2.7 自 inputBar 抽出成独立视图，供
-    /// 玻璃承载 A/B 两路共用同一份内容与规格）：＋键＋纵向
-    /// 输入框＋右端状态机，HStack .bottom 对齐
+    /// 发送舱内容行：＋键＋自量高文本视图＋右端状态机，
+    /// HStack .bottom 对齐（多行时两键锚在最后一行）
     private var composerRow: some View {
                 HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
                     attachButton
-                    TextField("发消息…", text: $input, axis: .vertical)
-                        .lineLimit(1...6)
-                        .focused($composerFocused)
-                        // 0.2.6 回归测试的定位锚点：标识打在
-                        // field 本体（容器级标识会被子元素继承、
-                        // 污染查询），见 ComposerKeyboardTests
-                        .accessibilityIdentifier("composerField")
-                        .padding(.horizontal, OneDayMetrics.spacingS)
-                        .padding(.vertical, OneDayMetrics.spacingS)
-                        // 高度只认内容（见下方 inputBar 的根因注）：
-                        // 纵向 TextField 底层是 UITextView，被外层
-                        // 提议确定高度时会把提议值当自身高度——
-                        // fixedSize 把它的高度锁回内容理想值
-                        .fixedSize(horizontal: false, vertical: true)
-                        // 0.2.6 多行形状判据：field 实测高（含其
-                        // 纵向 padding 8×2）单行 38，跨过 44 即
-                        // 多行——驱动玻璃形状变形（见下）
-                        .onGeometryChange(for: CGFloat.self) { geometry in
-                            geometry.size.height
-                        } action: { _, newHeight in
-                            composerMultiline = newHeight > 44
+                    // 0.2.7：SwiftUI 纵向 TextField 换自量高
+                    // UITextView（ComposerTextView）——高度由
+                    // 文本布局单方决定，真机拼音组合态的撕裂
+                    // 空盒从机制上消失（§11）；占位符由覆盖层
+                    // Text 承担（UITextView 无占位符）
+                    ComposerTextView(
+                        text: $input,
+                        isFocused: $composerFocused,
+                        onMeasuredHeight: { height in
+                            // 单行实测约 22.5；跨过 1.5 行即多行
+                            composerMultiline = height > 33
                         }
+                    )
+                    .padding(.horizontal, OneDayMetrics.spacingS)
+                    .padding(.vertical, OneDayMetrics.spacingS)
+                    .overlay(alignment: .topLeading) {
+                        if input.isEmpty {
+                            Text("发消息…")
+                                .font(.body)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, OneDayMetrics.spacingS)
+                                .padding(.vertical, OneDayMetrics.spacingS)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     trailingControl
                 }
                 .padding(.horizontal, OneDayMetrics.spacingS)
@@ -679,13 +628,8 @@ struct ChatView: View {
                 // 单行 Capsule、多行固定圆角 24 圆角矩形——
                 // Capsule 拉长成体育场形大气球是用户点名
                 // 「内容多了为什么变这样」的形状根源；玻璃
-                // 本体（glassEffect/union）由 inputBar 的两路
-                // 承载分支施加（0.2.7 A/B），形状定义在
-                // composerShape
+                // 本体由 inputBar 施加，形状定义在 composerShape
                 .animation(.easeInOut(duration: 0.18), value: composerMultiline)
-                // 0.2.7 逐环探针锚点（行本体）
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("composerRow")
     }
 
     /// 发送舱右端状态机（0.2.5，对照 Muse 输入区）：胶囊内
@@ -1628,85 +1572,5 @@ private struct ModelPickerSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// 0.2.7 标记文本探针（仅演示模式＋-odMarkedProbe 启动参数
-/// 启用，正常启动零影响）：发送舱获得焦点后，按时间线对
-/// 其底层 UITextView 编程置 marked text（拼音组合态
-/// "huanjing"），再提交为「环境」并重新进入组合态，配合
-/// UI 测试逐环量 frame——复现真机拼音输入时才出现的布局
-/// 条件（英文键盘测不出，见 DESIGN-V4 §11）。SwiftUI 的
-/// 文本绑定不感知 marked text，提交（unmarkText）时经
-/// UITextView 的常规变更通知回写绑定，与真实 IME 提交
-/// 同路。
-private struct MarkedTextDriver: UIViewRepresentable {
-    let active: Bool
-
-    final class Coordinator {
-        var fired = false
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.isHidden = true
-        return view
-    }
-
-    func updateUIView(_ view: UIView, context: Context) {
-        guard active, !context.coordinator.fired else { return }
-        context.coordinator.fired = true
-        let window = view.window
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            Self.setMarked(window: window, text: "huanjing")
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
-            Self.commitAndRemark(window: window)
-        }
-    }
-
-    /// 窗内唯一的纵向输入 UITextView（聊天页演示态下只有
-    /// 发送舱一个）；优先取第一响应者
-    private static func composerTextView(window: UIWindow?) -> UITextView? {
-        guard let window else { return nil }
-        var found: [UITextView] = []
-        func walk(_ v: UIView) {
-            if let tv = v as? UITextView { found.append(tv) }
-            v.subviews.forEach(walk)
-        }
-        walk(window)
-        return found.first { $0.isFirstResponder } ?? found.first
-    }
-
-    private static func setMarked(window: UIWindow?, text: String) {
-        guard let tv = composerTextView(window: window),
-              tv.isFirstResponder else { return }
-        tv.setMarkedText(
-            text,
-            selectedRange: NSRange(location: (text as NSString).length, length: 0)
-        )
-    }
-
-    private static func commitAndRemark(window: UIWindow?) {
-        guard let tv = composerTextView(window: window),
-              tv.isFirstResponder else { return }
-        // 提交当前组合：把 marked 段替换为候选词并 unmark
-        if let marked = tv.markedTextRange {
-            let start = tv.offset(from: tv.beginningOfDocument, to: marked.start)
-            let length = tv.offset(from: marked.start, to: marked.end)
-            tv.setMarkedText(
-                "环境",
-                selectedRange: NSRange(location: 2, length: 0)
-            )
-            _ = (start, length)
-            tv.unmarkText()
-        }
-        // 紧接着再进组合态（真机截图的预测候选态）
-        tv.setMarkedText(
-            "huanjing",
-            selectedRange: NSRange(location: 8, length: 0)
-        )
     }
 }

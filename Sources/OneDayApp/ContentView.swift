@@ -109,12 +109,36 @@ struct ContentView: View {
     /// 在用户直令的 20–22 目标带内，点击热区是 tab 条目
     /// 本身、不随字形缩小。位图按 alpha 模板渲染，.tint
     /// 墨色照常生效。
+    /// 0.2.7 按官方口径再校准（DESIGN-V4 §11.0）：定案标准
+    /// 改为「字形墨迹高 23–25pt」——HIG《Tab bars》指向的
+    /// Apple Design Resources 字形规格约 25pt。实测 SF 符号
+    /// 在底栏的墨迹系统性大于 config 点数且逐字形不同
+    /// （config 21 时 folder ≈27–31pt、系数 ≈1.3–1.5×；
+    /// 双气泡 ≈37pt、系数 ≈1.8×），故逐字形反推 config：
+    /// 双气泡 14、其余 17，墨迹齐落 24±1.5pt。字形烘焙进
+    /// 固定 44×44pt 透明画布居中绘制：四个条目位图同尺寸，
+    /// 系统排版基准一致、只缩墨迹不动槽位与热区；烘焙图须
+    /// 显式 .alwaysTemplate（渲染器产物默认 original，tint
+    /// 会失效）。交付后以 CI kb-idle 同法复量墨迹验收。
     private func tabSymbol(_ name: String) -> Image {
+        let pointSize: CGFloat =
+            name == "bubble.left.and.bubble.right" ? 14 : 17
         let configuration = UIImage.SymbolConfiguration(
-            pointSize: 21, weight: .regular
+            pointSize: pointSize, weight: .regular
         )
-        let image = UIImage(systemName: name, withConfiguration: configuration)
+        let glyph = UIImage(systemName: name, withConfiguration: configuration)
             ?? UIImage()
-        return Image(uiImage: image)
+        let canvas = CGSize(width: 44, height: 44)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        let baked = UIGraphicsImageRenderer(size: canvas, format: format)
+            .image { _ in
+                glyph.draw(at: CGPoint(
+                    x: (canvas.width - glyph.size.width) / 2,
+                    y: (canvas.height - glyph.size.height) / 2
+                ))
+            }
+            .withRenderingMode(.alwaysTemplate)
+        return Image(uiImage: baked)
     }
 }

@@ -1,19 +1,18 @@
 import XCTest
 
-/// 0.2.6 回归：键盘弹起时发送舱膨胀缺陷（用户真机截图实证，
-/// 0.2.5 的 fixedSize 断环只治住静态覆盖态、没治住聚焦态）。
-/// 测量法：胶囊高由两个无歧义元素的框几何推导——＋键恒在
-/// 胶囊内左下（HStack .bottom 对齐、36pt），输入框上沿距
-/// 胶囊上沿恒为 16（胶囊纵向 padding 8＋field 自身
-/// padding 8），故胶囊高＝＋键底边 − 输入框上沿 ＋ 24。
-/// 断言：键盘态胶囊高 ≤ 58（单行规格 54±4）且输入框单行
-/// 高 ≤ 26（一行文本约 22）。诊断截图（kb-*）随附件导出，
-/// 只作定位证据、不进 docs/shots 留档。
-/// 承载换代后（0.2.6：发送区由覆盖式 ZStack 改列表
-/// .safeAreaInset 承载，DESIGN-V4 §10）本测试在新结构上
-/// 继续把守同一规格；测量锚点（＋键无障碍标签、field 本体
-/// 标识 composerField）与推导式未迁移、未改口径。
+/// 回归：键盘态发送舱高度（0.2.5 膨胀 → 0.2.6 承载换代 →
+/// 0.2.7 高度权威换代，DESIGN-V4 §9/§10/§11）。
+/// 0.2.7 起发送舱文本视图是自量高 UITextView
+/// （ComposerTextView），其无障碍框＝视图真框。断言三组：
+/// ①胶囊推导高：＋键底边 − 输入框上沿 ＋ 24（＋键恒在胶囊
+/// 内左下、输入框上沿距胶囊上沿恒 16）——键盘各态须为单行
+/// 规格 54±4；②防撕裂不变量：＋键底边 − 输入框底边 ＝ 8±3
+/// （两键 .bottom 锚在 field 底行）——真机撕裂空盒的签名
+/// 正是此差值爆炸（文字掉底、中间撕空），高度由文本布局
+/// 单方决定后此式恒成立；③多行封顶：7 行输入后 field 高
+/// ≈6 行封顶（约 135），胶囊随之约 167，且不变量仍成立。
 /// 另兼缺陷 B 把守：标题胶囊（按钮「切换模型」）宽 ≤ 202。
+/// 诊断截图（kb-*）随附件导出，只作定位证据、不进留档。
 final class ComposerKeyboardTests: XCTestCase {
     override func setUpWithError() throws {
         // 诊断量要全打印出来再失败，单条断言不中断整场
@@ -46,8 +45,13 @@ final class ComposerKeyboardTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(seed.waitForExistence(timeout: 25), "种子对话未出现")
 
-        let field = app.textFields["composerField"]
-        XCTAssertTrue(field.waitForExistence(timeout: 15), "未找到输入框")
+        // 0.2.7：field 是 UITextView（AX 类型 textView）；
+        // 兜底 textFields 以防系统映射口径变化
+        let byView = app.textViews["composerField"]
+        let field = byView.waitForExistence(timeout: 15)
+            ? byView
+            : app.textFields["composerField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "未找到输入框")
         let attach = app.buttons["添加附件"]
         XCTAssertTrue(attach.waitForExistence(timeout: 10), "未找到＋键")
         let headerCapsule = app.buttons["切换模型"]
@@ -55,11 +59,29 @@ final class ComposerKeyboardTests: XCTestCase {
         func capsuleHeight() -> CGFloat {
             attach.frame.maxY - field.frame.minY + 24
         }
+        func anchorGap() -> CGFloat {
+            attach.frame.maxY - field.frame.maxY
+        }
         func report(_ tag: String) {
             print("[MEASURE] \(tag) capsuleDerived=\(capsuleHeight())")
             print("[MEASURE] \(tag) fieldFrame=\(field.frame)")
             print("[MEASURE] \(tag) attachFrame=\(attach.frame)")
+            print("[MEASURE] \(tag) anchorGap=\(anchorGap())")
             print("[MEASURE] \(tag) headerCapsuleWidth=\(headerCapsule.frame.width)")
+        }
+        func assertSingleLine(_ tag: String) {
+            XCTAssertLessThanOrEqual(
+                capsuleHeight(), 58,
+                "\(tag) 发送舱膨胀：推导高 \(capsuleHeight())，应为单行规格 54±4"
+            )
+            XCTAssertTrue(
+                (18...30).contains(field.frame.height),
+                "\(tag) 输入框单行高异常：\(field.frame.height)（自量高单行约 22）"
+            )
+            XCTAssertTrue(
+                (5...11).contains(anchorGap()),
+                "\(tag) 防撕裂不变量破：＋键底边−输入框底边＝\(anchorGap())，应约 8"
+            )
         }
 
         report("idle")
@@ -86,14 +108,7 @@ final class ComposerKeyboardTests: XCTestCase {
 
         report("keyboard")
         capture("kb-up")
-        XCTAssertLessThanOrEqual(
-            capsuleHeight(), 58,
-            "键盘态发送舱膨胀：推导高 \(capsuleHeight())，应为单行规格 54±4"
-        )
-        XCTAssertLessThanOrEqual(
-            field.frame.height, 26,
-            "键盘态输入框单行高异常：\(field.frame.height)"
-        )
+        assertSingleLine("键盘态")
 
         // 滚动态（对照用户截图：列表已上翻、回到底部钮在场）
         let dragStart = app.coordinate(
@@ -106,15 +121,21 @@ final class ComposerKeyboardTests: XCTestCase {
         settle(1.0)
         report("keyboardScrolled")
         capture("kb-up-scrolled")
-        XCTAssertLessThanOrEqual(
-            capsuleHeight(), 58,
-            "键盘＋滚动状态发送舱膨胀：推导高 \(capsuleHeight())"
-        )
+        assertSingleLine("键盘＋滚动态")
 
-        // 多行态只打印＋留图（形态与封顶高度的诊断量）
+        // 多行封顶：输入 7 行，field 应封顶在 6 行量级、
+        // 胶囊＝field＋32（两层纵向边距），锚定不变量不破
         field.typeText("第一行先写长一点看看换行与生长是不是正常工作起来\n第二行\n第三行\n第四行\n第五行\n第六行\n第七行")
         settle(1.0)
         report("multiline")
         capture("kb-multiline")
+        XCTAssertTrue(
+            (120...150).contains(field.frame.height),
+            "多行封顶异常：field 高 \(field.frame.height)，应为 6 行量级约 135"
+        )
+        XCTAssertTrue(
+            (5...11).contains(anchorGap()),
+            "多行态防撕裂不变量破：\(anchorGap())，应约 8"
+        )
     }
 }
