@@ -217,38 +217,32 @@ struct ChatView: View {
 
     private var historySheet: some View {
         NavigationStack {
-            List {
-                ForEach(threads) { thread in
-                    Button {
-                        currentThreadID = thread.id
-                        showHistory = false
-                    } label: {
-                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                            Text(thread.title)
-                                .font(TypeScale.body)
-                                .foregroundStyle(Palette.ink)
-                                .lineLimit(1)
-                            HStack(spacing: OneDayMetrics.spacingS) {
-                                Text("\(thread.entries.count) 条")
-                                    .font(TypeScale.monoFootnote)
-                                Text(thread.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                                    .font(TypeScale.caption)
-                            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if threads.isEmpty {
+                        Text("暂无历史会话")
+                            .font(TypeScale.footnote)
                             .foregroundStyle(Palette.inkMuted)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(
+                                Array(threads.enumerated()),
+                                id: \.element.id
+                            ) { index, thread in
+                                if index > 0 {
+                                    GroupDivider(inset: OneDayMetrics.spacingM)
+                                }
+                                historyRow(thread)
+                            }
                         }
+                        .odGroup()
                     }
                 }
-                .onDelete { offsets in
-                    for index in offsets {
-                        let thread = threads[index]
-                        if thread.id == currentThreadID {
-                            currentThreadID = nil
-                        }
-                        modelContext.delete(thread)
-                    }
-                    try? modelContext.save()
-                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXL)
             }
+            .background(Palette.pageBG)
             .navigationTitle("历史会话")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -258,6 +252,47 @@ struct ChatView: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func historyRow(_ thread: ChatThread) -> some View {
+        Button {
+            currentThreadID = thread.id
+            showHistory = false
+        } label: {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                Text(thread.title)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    Text("\(thread.entries.count) 条")
+                        .font(TypeScale.monoFootnote)
+                    Text(thread.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(TypeScale.caption)
+                }
+                .foregroundStyle(Palette.inkMuted)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingSM)
+            .frame(maxWidth: .infinity, minHeight: OneDayMetrics.rowHeight, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                deleteThread(thread)
+            } label: {
+                Label("删除会话", systemImage: "trash")
+            }
+        }
+    }
+
+    private func deleteThread(_ thread: ChatThread) {
+        if thread.id == currentThreadID {
+            currentThreadID = nil
+        }
+        modelContext.delete(thread)
+        try? modelContext.save()
     }
 
     // MARK: - 发送
