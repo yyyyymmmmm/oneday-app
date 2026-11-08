@@ -1287,12 +1287,12 @@ struct ChatView: View {
         guard DemoMode.current.isDemo, !demoStreamStarted else {
             return
         }
-        // 0.2.7 防御（DESIGN-V4 §10.6 记档的疑似竞态）：
-        // .task 一次性触发时种子 @Query 可能尚未落定、
-        // currentThread 为空——旧守卫会整场不起流（截图环
-        // test02 等流式文本三轮超时）。改为有界等待线程
-        // 出现再开流；演示专用路径，正常模式第一行已返回
-        for _ in 0..<40 where currentThread == nil {
+        // 0.2.7 演示流稳健性（DESIGN-V4 §11.6）：test02 在
+        // 截图环整套里等流式文本超时、单独跑却绿——跨测试
+        // 状态污染/整套负载下 .task 与种子落定更慢。等待改
+        // 有界长预算（线程与连接态齐备才开流，上限 20s），
+        // 演示专用路径，正常模式第一行已返回
+        for _ in 0..<80 where currentThread == nil {
             try? await Task.sleep(for: .milliseconds(250))
         }
         guard let thread = currentThread else {
