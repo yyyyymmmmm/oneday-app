@@ -548,6 +548,10 @@ struct ChatView: View {
                     TextField("发消息…", text: $input, axis: .vertical)
                         .lineLimit(1...6)
                         .focused($composerFocused)
+                        // 0.2.6 回归测试的定位锚点：标识打在
+                        // field 本体（容器级标识会被子元素继承、
+                        // 污染查询），见 ComposerKeyboardTests
+                        .accessibilityIdentifier("composerField")
                         .padding(.horizontal, OneDayMetrics.spacingS)
                         .padding(.vertical, OneDayMetrics.spacingS)
                         // 高度只认内容（见下方 inputBar 的根因注）：
@@ -562,11 +566,6 @@ struct ChatView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .glassEffect(.regular, in: Capsule())
                 .glassEffectUnion(id: "composer", namespace: composerGlass)
-                // 0.2.6 回归测试的测量锚点：容器元素（子元素
-                // 保持各自可达），UI 测试按此框高断言发送舱
-                // 在键盘态不膨胀（见 ComposerKeyboardTests）
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("composerBar")
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
