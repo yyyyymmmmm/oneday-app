@@ -163,34 +163,36 @@ struct ComposerTextView: UIViewRepresentable {
     }
 }
 
-/// 0.2.7 临时诊断（定位点按不聚焦，定案后删）：把命中与
-/// 聚焦路径的每一站都打出来——point(inside:) 是否被问、
-/// touches 是否到达、becomeFirstResponder 的返回值
+/// 0.2.7 临时诊断（定位点按不聚焦，定案后删）：App 进程
+/// 的 print 不进 xcodebuild 日志，改自显通道——把命中与
+/// 聚焦路径的每一站写进文本视图自身的文字，kb-up 截图
+/// 与 AX value 直接可读
 final class ProbeTextView: UITextView {
+    static var pointCount = 0
+
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        let result = super.point(inside: point, with: event)
-        print("[DIAG] point(inside: \(point)) -> \(result)")
-        return result
+        Self.pointCount += 1
+        return super.point(inside: point, with: event)
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("[DIAG] touchesBegan count=\(touches.count)")
+        text = "P\(Self.pointCount) TB"
         super.touchesBegan(touches, with: event)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("[DIAG] touchesEnded")
+        text = (text ?? "") + " TE"
         super.touchesEnded(touches, with: event)
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("[DIAG] touchesCancelled")
+        text = (text ?? "") + " TC"
         super.touchesCancelled(touches, with: event)
     }
 
     override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()
-        print("[DIAG] becomeFirstResponder -> \(result)")
+        text = (text ?? "") + " BFR=\(result)"
         return result
     }
 }
