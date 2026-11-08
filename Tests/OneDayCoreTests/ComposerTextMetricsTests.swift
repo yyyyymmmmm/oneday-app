@@ -40,10 +40,12 @@ final class ComposerTextMetricsTests: XCTestCase {
         XCTAssertEqual(
             ComposerTextMetrics.lineCount(for: two, width: textWidth), 2
         )
-        let base = ComposerTextMetrics.capsuleHeight(
-            for: "量测两行甲班", containerWidth: 402
+        XCTAssertEqual(
+            ComposerTextMetrics.capsuleHeight(
+                for: "量测两行甲班", containerWidth: 402
+            ),
+            46, accuracy: 0.001
         )
-        XCTAssertEqual(base, 46, accuracy: 0.001)
         let capsule = ComposerTextMetrics.capsuleHeight(
             for: two, containerWidth: 402
         )
@@ -53,21 +55,18 @@ final class ComposerTextMetricsTests: XCTestCase {
         )
     }
 
-    /// 4 行定长串：行数 == 4，胶囊 == 基数＋3×行高（±1）
+    /// 4 行定长串：行数 == 4，胶囊 ＝76.68＋60＝136.68（±1）
     func testFourLineCapsule() {
         let four = "量测四行甲班\n量测四行乙班\n量测四行丙班\n量测四行丁班"
         XCTAssertEqual(
             ComposerTextMetrics.lineCount(for: four, width: textWidth), 4
         )
-        let base = ComposerTextMetrics.capsuleHeight(
-            for: "量测四行甲班", width: textWidth
-        )
         let capsule = ComposerTextMetrics.capsuleHeight(
-            for: four, width: textWidth
+            for: four, containerWidth: 402
         )
         XCTAssertEqual(
-            capsule, base + 3 * ComposerLayout.lineHeight, accuracy: 1,
-            "4 行胶囊 \(capsule)，应为基数 \(base)＋3×行高（±1）"
+            capsule, 136.68, accuracy: 1,
+            "4 行胶囊 \(capsule)，应为全宽 4 行高 76.68＋60（±1）"
         )
     }
 
