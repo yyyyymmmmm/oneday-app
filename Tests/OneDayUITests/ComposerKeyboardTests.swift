@@ -115,9 +115,19 @@ final class ComposerKeyboardTests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "未找到输入框")
         let attach = app.buttons["添加附件"]
         XCTAssertTrue(attach.waitForExistence(timeout: 10), "未找到＋键")
-        let injected = NSPredicate(format: "value CONTAINS %@", "量测")
-        expectation(for: injected, evaluatedWith: field)
-        waitForExpectations(timeout: 20)
+        // 等注入文本落到字段：同步轮询 value（expectation /
+        // waitForExpectations 在 Swift 6 下有并发隔离编译坑，
+        // 本仓 UI 测试一律同步等待，此处从例）
+        let deadline = Date().addingTimeInterval(20)
+        var injectedText = (field.value as? String) ?? ""
+        while !injectedText.contains("量测"), Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.3)
+            injectedText = (field.value as? String) ?? ""
+        }
+        XCTAssertTrue(
+            injectedText.contains("量测"),
+            "注入文本未落到发送舱：\(injectedText)"
+        )
         if focus {
             XCTAssertTrue(
                 app.keyboards.firstMatch.waitForExistence(timeout: 15),
