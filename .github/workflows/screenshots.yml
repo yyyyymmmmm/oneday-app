@@ -26,6 +26,18 @@ jobs:
       - name: Generate project
         run: tuist generate --no-open
 
+      - name: Ensure simulator exists
+        run: |
+          # 2026-11-09：有过 runner 无任何可用模拟器导致 destination 匹配失败（run 42501703525）；
+          # 缺失时用最新 iOS runtime + iPhone 17 设备类型现场创建一个。
+          if ! xcrun simctl list devices available | grep -q "iPhone 17 ("; then
+            RUNTIME=$(xcrun simctl list runtimes available | grep -oE 'com.apple.CoreSimulator.SimRuntime.iOS-[0-9-]+' | tail -1)
+            DEVTYPE=$(xcrun simctl list devicetypes | grep -oE 'com.apple.CoreSimulator.SimDeviceType.iPhone-17[A-Za-z-]*' | head -1)
+            echo "creating iPhone 17: $DEVTYPE / $RUNTIME"
+            xcrun simctl create "iPhone 17" "$DEVTYPE" "$RUNTIME"
+          fi
+          xcrun simctl list devices available | grep "iPhone" | head -5
+
       - name: UI tests (screenshots, demo mode)
         run: |
           set -o pipefail
