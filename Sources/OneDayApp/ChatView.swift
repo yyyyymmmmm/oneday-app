@@ -128,12 +128,16 @@ struct ChatView: View {
                             Button {
                                 setDrawer(true)
                             } label: {
+                                // .buttonStyle(.glass) 会按自身内距把
+                                // 钮拉成长胶囊（首轮截图实证）；改
+                                // glassEffect 直接作用于 36×36 圆
                                 Image(systemName: "sidebar.left")
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundStyle(Palette.ink)
                                     .frame(width: 36, height: 36)
+                                    .glassEffect(.regular.interactive(), in: Circle())
                             }
-                            .buttonStyle(.glass)
+                            .buttonStyle(.odPressable)
                             .accessibilityLabel("会话列表")
                         }
                         ToolbarItem(placement: .principal) {
@@ -165,8 +169,9 @@ struct ChatView: View {
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundStyle(Palette.ink)
                                     .frame(width: 36, height: 36)
+                                    .glassEffect(.regular.interactive(), in: Circle())
                             }
-                            .buttonStyle(.glass)
+                            .buttonStyle(.odPressable)
                             .accessibilityLabel("新建会话")
                         }
                     }

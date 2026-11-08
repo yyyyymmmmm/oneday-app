@@ -61,9 +61,11 @@ struct ContentView: View {
                     .odTabPage(selection == .settings)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Color.clear.frame(height: 76)
-            }
+            // 下沿预留必须落到 frame 级：safeAreaInset 只改安全区，
+            // 聊天页的 GeometryReader 按 frame 布局会让发送舱与
+            // 悬浮栏重叠（0.2.3 首轮截图实证）；栏隐藏时同步归零，
+            // 抽屉 scrim 得以完整覆盖全屏
+            .padding(.bottom, barHidden ? 0 : 76)
             .animation(.easeInOut(duration: 0.18), value: selection)
 
             if !barHidden {
