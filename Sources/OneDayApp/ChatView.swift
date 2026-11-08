@@ -360,6 +360,19 @@ struct ChatView: View {
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingS)
+            // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
+            // 收起由 scrollDismissesKeyboard 承接）。0.2.7 起
+            // 本手势只挂内容栈、不再挂 ScrollView 本体：
+            // ScrollView 的命中域含底部 safeAreaInset（发送
+            // 舱所在），挂本体时点发送舱也被判成「点空白」，
+            // 且 SwiftUI 手势竞技场会先于 UIKit 触摸裁决——
+            // SwiftUI TextField 时代靠焦点系统自带手势过关，
+            // 换自量高 UITextView 后点按被本手势吞掉、聚焦
+            // 不能（CI 三轮实证）。发送舱不是消息区，本就不
+            // 该由它管辖
+            .onTapGesture {
+                composerFocused = false
+            }
         }
         // 滚动边距：顶为悬浮顶栏让出首屏位置（滚动时内容
         // 从其背后穿过、经 topFade 渐隐带淡出）；底只留与
@@ -386,11 +399,8 @@ struct ChatView: View {
         } action: { _, nearBottom in
             isNearBottom = nearBottom
         }
-        .onTapGesture {
-            // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
-            // 收起由 scrollDismissesKeyboard 承接）
-            composerFocused = false
-        }
+        // 「点空白收键盘」手势在内容栈上（见 messageList 内注），
+        // 不挂 ScrollView 本体——其命中域含发送舱 inset
         .onChange(of: currentThread?.sortedEntries.count) { _, _ in
             // 用户已上翻看历史时不强拉回底（0.2.2 交互专项）
             if isNearBottom {
