@@ -41,6 +41,14 @@ import SwiftUI
 /// 滚动内容经系统安全区延伸到底栏之下，从玻璃背后流过。
 /// 深链口径不变：AgentRoute / SettingsRoute 落点仍是设置格；
 /// 聊天第一格默认落点。
+/// 0.3.6 立宪再定案（DESIGN-V4 §21.3/§22，Muse 实测
+/// 基线）：结构仍是原生 TabView＋Tab(value:)（IA 与数
+/// 据逻辑零动），形态按基线换：去文字标签（回到 0.2.4
+/// 的 image-only 条目形态）、字形配置 22、tint 回墨、
+/// 选中只靠系统浅灰胶囊垫、fill 成对撤销。0.3.1 的
+/// 「照搬礼记」与 0.3.3 的「选中必须蓝」均被基线取
+/// 代，对账在 §21.5。系统悬浮大胶囊（iOS 26 原生栏）
+/// 即基线的「悬浮大胶囊」落点，不自绘栏体。
 struct ContentView: View {
     enum MainTab: Hashable {
         case chat
@@ -57,11 +65,11 @@ struct ContentView: View {
         TabView(selection: $selection) {
             Tab(value: MainTab.chat) {
                 ChatView(
-                    onOpenSettings: { selection = .settings },
                     onOpenServerSession: { id in
                         appState.pendingAgentRoute = .serverSessionDetail(id)
                         selection = .settings
-                    }
+                    },
+                    onSelectTab: { selection = $0 }
                 )
             } label: {
                 tabLabel(TabBarSymbols.chat, tab: .chat)
@@ -101,13 +109,16 @@ struct ContentView: View {
                 tabLabel(TabBarSymbols.settings, tab: .settings)
             }
         }
-        // 0.3.3 底栏随主题（真机第 1 条，§18）：tint 改绑
-        // 强调色令牌 Palette.primary（学礼记 ContentView
-        // 的 .tint(Palette.primary)）——选中字形与文字走
-        // 强调色、随主题切换即时跟随；未选保持系统灰。
-        // 此令覆盖 0.2.5「tint 改墨」旧定版（用户本轮真
-        // 机对比礼记后当场改判：选中必须是蓝色）
-        .tint(Palette.primary)
+        // 0.3.6 立宪（DESIGN-V4 §21.3/§22）：tint 撤销蓝
+        // 色、改回 Palette.ink——用户按 Muse 实测基线改
+        // 判：选中＝系统浅灰小胶囊垫＋墨色字形，文字不变
+        // 色不加粗不上蓝；蓝只留功能位（发送键/链接等）。
+        // 此令推翻 0.3.3「.tint(Palette.primary) 随主题」
+        // （真机对比礼记的当场改判再被基线改判，§21.5 对
+        // 账）。0.2.5 的系统口径在此复用：tint 墨 → 选中
+        // 呈墨色线条字形＋系统浅灰选择胶囊（#E3E3E5 系、
+        // 色值由系统按 tint 派生）。
+        .tint(Palette.ink)
         // 条 3（§14）未带权文字的降档通道：暗色环境下根
         // fontWeight 降一档（regular→light），未显式带权
         // 的 Text 全量继承；带权字体走 TypeScale 的
@@ -116,19 +127,21 @@ struct ContentView: View {
         .fontWeight(colorScheme == .dark ? .light : .regular)
     }
 
-    /// 底栏标签（0.3.1 礼记同款，DESIGN-V4 §16）：
-    /// Label(标题, systemImage:) 交系统直渲——未选
-    /// 线条体、选中切官方 .fill 成对变体（无 fill 对
-    /// 的同名），选中时 .bounce 一次（系统在 Reduce
-    /// Motion 时自动抑制）。零尺寸配置、零预渲染；
-    /// 符号名对以 OneDayCore.TabBarSymbols 为单一事
-    /// 实源，单测钉死。
+    /// 底栏标签（0.3.6 立宪形态，DESIGN-V4 §21.3）：
+    /// 去文字标签——只交字形（Image-only 系统条目形
+    /// 态，名称只进无障碍标签）；字形恒线条体、尺寸
+    /// 配置 22（OneDayMetrics.tabGlyph，基线带 21–
+    /// 22），选中不切 .fill、不变色不加粗（选中信号
+    /// 只由系统浅灰胶囊垫承载，见 body 的 tint 注）。
+    /// 符号源仍是 OneDayCore.TabBarSymbols 恒取
+    /// normal（线条体）一侧；选中 .bounce 保留（系统
+    /// 在 Reduce Motion 时自动抑制）。0.3.1 的 Label
+    /// 带字＋fill 成对就此被立宪取代（§21.5 对账）。
     private func tabLabel(_ pair: TabSymbolPair, tab: MainTab) -> some View {
-        Label(
-            pair.title,
-            systemImage: pair.name(isSelected: selection == tab)
-        )
-        .symbolEffect(.bounce, value: selection == tab)
-        .accessibilityIdentifier("tab.\(pair.id)")
+        Image(systemName: pair.normal)
+            .font(.system(size: OneDayMetrics.tabGlyph))
+            .symbolEffect(.bounce, value: selection == tab)
+            .accessibilityLabel(pair.title)
+            .accessibilityIdentifier("tab.\(pair.id)")
     }
 }

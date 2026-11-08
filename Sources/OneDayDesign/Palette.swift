@@ -96,10 +96,17 @@ public enum Palette {
     public static var layerPage: Color { pageBG }
     public static var layerCard: Color { surface }
     public static var layerOverlay: Color { bubbleFill }
-    /// 层 4 遮罩：抽屉/弹层背后的压暗层（基色＋alpha 在表行内）
+    /// 层 4 遮罩：0.3.6 立宪改白色半透纱（浅色行基色
+    /// 白＋alpha 在表行内；暗色行暂留墨纱、归 0.3.8）
     public static var scrim: Color {
         tokenWithAlpha(\.scrimBase, \.scrimAlpha)
     }
+    /// 导航/聊天面（0.3.6 立宪，§22）：近白 #FCFCFC，
+    /// 抽屉面板与聊天主面用；与层 2 白卡差一档明度
+    public static var chatSurface: Color { token(\.chatSurface) }
+    /// 选中浅灰胶囊垫（0.3.6 立宪，§22）：#E3E3E5 系，
+    /// 底栏选中与名单当前行共用；选中不靠变色/加粗
+    public static var selectionFill: Color { token(\.selectionFill) }
 
     // —— 文字三角色 ——
     /// 主文字
@@ -169,8 +176,20 @@ public enum OneDayMetrics {
     // 圆角梯队（同心推导的锚点，内层走 CornerRadius.concentric）
     /// 分组容器
     public static let containerCorner: CGFloat = 18
-    /// 侧边抽屉面板右侧圆角（0.3.6，§21）
-    public static let drawerCorner: CGFloat = 24
+    /// 侧边抽屉面板右侧圆角（0.3.6 立宪大圆角，§22）
+    public static let drawerCorner: CGFloat = 28
+    /// 抽屉内容左右边距（0.3.6：名字/组标签/行标题/
+    /// 发丝线同一条 20 线）
+    public static let drawerInset: CGFloat = 20
+    /// 名单导航行高（0.3.6 实测约 47）
+    public static let navRowHeight: CGFloat = 47
+    /// 名单行图标字形（细线 20–22 带内）
+    public static let navGlyph: CGFloat = 21
+    /// 底栏字形（0.3.6 立宪 21–22）
+    public static let tabGlyph: CGFloat = 22
+    /// 抽屉底部浮动条圆钮边长（0.3.6 实测约 52；搜索
+    /// 胶囊同高）
+    public static let drawerBarButton: CGFloat = 52
     /// 输入字段 / 代码块
     public static let fieldCorner: CGFloat = 12
     /// 按钮
@@ -216,8 +235,9 @@ public enum OneDayMetrics {
     public static let tokenFlowSpacing: CGFloat = 5
     /// 抽屉左缘唤出热区宽（手势值：够拇指起滑、不挡正文滚动）
     public static let drawerEdgeZone: CGFloat = 24
-    /// 抽屉宽占屏比（设备值，0.1.3 定版 82%）
-    public static let drawerWidthFraction: CGFloat = 0.82
+    /// 抽屉宽占屏比（0.3.6 立宪 peek 口径约 79%；
+    /// 0.1.3 的 82% 整幅盖法作废，§21.5）
+    public static let drawerWidthFraction: CGFloat = 0.79
     /// 抽屉宽上限（设备值，大屏不无限拉宽）
     public static let drawerMaxWidth: CGFloat = 340
     /// 原生底栏在屏幕底部的占位（抽屉面板底部按它留位）

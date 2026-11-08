@@ -13,6 +13,16 @@ import SwiftUI
 /// 家族只有一个（系统 SF Pro，中文落 PingFang SC）；等宽角色只
 /// 给四类真实数据：版本号、计数、时间、代码块。
 public enum TypeScale {
+    // —— 0.3.6 立宪字阶（§22 Muse 基线：全 HIG、字重
+    // 只 regular/bold 两档；旧七档与 semibold/medium
+    // 合法位与宪法冲突，归 0.3.7 页面轮统一，本三档
+    // 先行供导航壳使用） ——
+    /// 大标题（28 bold；抽屉智能体名字用；基线带 28–34）
+    public static let largeTitle = Font.title.weight(.bold)
+    /// 页标题（17 bold）
+    public static let pageTitle = Font.body.weight(.bold)
+    /// 分组标签（13 regular、次级灰；基线带 13–14）
+    public static let groupLabel = Font.footnote
     /// 每屏唯一的排版时刻（总览状态头）
     public static let display = Font.title.weight(.semibold)
     /// 页内大标题（连接页字标）
@@ -159,11 +169,13 @@ public extension View {
 public struct ShadowSpec: Sendable {
     public let opacity: Double
     public let radius: CGFloat
+    public let x: CGFloat
     public let y: CGFloat
 
-    public init(opacity: Double, radius: CGFloat, y: CGFloat) {
+    public init(opacity: Double, radius: CGFloat, x: CGFloat = 0, y: CGFloat) {
         self.opacity = opacity
         self.radius = radius
+        self.x = x
         self.y = y
     }
 }
@@ -171,6 +183,9 @@ public struct ShadowSpec: Sendable {
 public enum Elevation {
     /// 浮档：只给浮空输入区与浮空控件（中性黑、带 y 偏移的软影）
     public static let floating = ShadowSpec(opacity: 0.14, radius: 16, y: 6)
+    /// 抽屉档（0.3.6 立宪）：peek 面板右缘约 30pt 柔影，
+    /// 向右外扩、无纵向偏移
+    public static let drawer = ShadowSpec(opacity: 0.12, radius: 30, x: 16, y: 0)
 }
 
 public extension View {
@@ -178,7 +193,7 @@ public extension View {
         // 阴影色不用纯黑（§14 条 1）：统一走 Palette.shadowBase
         self.shadow(
             color: Palette.shadowBase.opacity(shadow.opacity),
-            radius: shadow.radius, y: shadow.y
+            radius: shadow.radius, x: shadow.x, y: shadow.y
         )
     }
 }

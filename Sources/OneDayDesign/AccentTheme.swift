@@ -24,6 +24,10 @@ public struct ThemeTokens: Sendable {
         public let surface: UInt32
         public let bubbleFill: UInt32
         public let fieldFill: UInt32
+        // 0.3.6 立宪新增（§22 Muse 基线）：导航/聊天面
+        // 与选中胶囊垫——基线冻值，不随强调主题变
+        public let chatSurface: UInt32
+        public let selectionFill: UInt32
         // 遮罩与发丝线（基色＋alpha 成对，墨色推导不用 #000）
         public let scrimBase: UInt32
         public let scrimAlpha: Double
@@ -50,7 +54,7 @@ public struct ThemeTokens: Sendable {
             ink: UInt32, inkSecondary: UInt32, inkMuted: UInt32,
             primary: UInt32, primaryFill: UInt32, primaryTint: UInt32,
             onPrimary: UInt32, success: UInt32, warning: UInt32,
-            danger: UInt32
+            danger: UInt32, chatSurface: UInt32, selectionFill: UInt32
         ) {
             self.pageBG = pageBG
             self.surface = surface
@@ -70,6 +74,8 @@ public struct ThemeTokens: Sendable {
             self.success = success
             self.warning = warning
             self.danger = danger
+            self.chatSurface = chatSurface
+            self.selectionFill = selectionFill
         }
 
         /// 只换强调三档派生新行（结构令牌原样）
@@ -84,7 +90,8 @@ public struct ThemeTokens: Sendable {
                 inkSecondary: inkSecondary, inkMuted: inkMuted,
                 primary: primary, primaryFill: primaryFill,
                 primaryTint: primaryTint, onPrimary: onPrimary,
-                success: success, warning: warning, danger: danger
+                success: success, warning: warning, danger: danger,
+                chatSurface: chatSurface, selectionFill: selectionFill
             )
         }
     }
@@ -130,15 +137,25 @@ public struct ThemeTokens: Sendable {
     /// 此前 0.3.0 的「纯白底＋FAFAFB 卡」阶梯卡底只差一
     /// 丝且方向反转（卡比底暗），与暖化口径一并作废。
     /// 暗色 inkMuted 于 0.3.2 按审查 I-1 提亮 0x8A8A90。
+    /// 0.3.6 立宪覆盖（§22，Muse 实测基线为准、与上文
+    /// 0.3.3 礼记原值对齐冲突处以基线胜出，§21.5 对账）：
+    /// 浅色 pageBG 改 0xF3F4F6（设置类页灰底）、bubbleFill
+    /// 改 0xE9EAEC（助手泡冷灰、永不染色）、fieldFill 改
+    /// 0xF2F2F4（灰胶囊带内）、inkSecondary 改 0x6E6E73
+    /// （次级灰冻值）、scrim 改白色半透纱（基色 0xFFFFFF、
+    /// alpha 0.55；暗色行暂留旧值、归 0.3.8）；新增
+    /// chatSurface 0xFCFCFC（导航/聊天近白面）与
+    /// selectionFill 0xE3E3E5（选中浅灰胶囊垫）。
     public static let tencentBlue = ThemeTokens(
         light: Scheme(
-            pageBG: 0xF2F3F5, surface: 0xFFFFFF, bubbleFill: 0xECEEF1,
-            fieldFill: 0xF2F3F5, scrimBase: 0x1A1A1E, scrimAlpha: 0.32,
+            pageBG: 0xF3F4F6, surface: 0xFFFFFF, bubbleFill: 0xE9EAEC,
+            fieldFill: 0xF2F2F4, scrimBase: 0xFFFFFF, scrimAlpha: 0.55,
             hairlineBase: 0x1F2329, hairlineAlpha: 0.08,
-            ink: 0x1F2329, inkSecondary: 0x5F6570, inkMuted: 0x646C76,
+            ink: 0x1F2329, inkSecondary: 0x6E6E73, inkMuted: 0x646C76,
             primary: 0x0052D9, primaryFill: 0x003CAB,
             primaryTint: 0xEAF1FE, onPrimary: 0xFFFFFF,
-            success: 0x1E8E4F, warning: 0xA85B0A, danger: 0xC62F24
+            success: 0x1E8E4F, warning: 0xA85B0A, danger: 0xC62F24,
+            chatSurface: 0xFCFCFC, selectionFill: 0xE3E3E5
         ),
         dark: Scheme(
             pageBG: 0x0B0B0D, surface: 0x121214, bubbleFill: 0x17181B,
@@ -147,7 +164,8 @@ public struct ThemeTokens: Sendable {
             ink: 0xF2F2F4, inkSecondary: 0xAEAEB4, inkMuted: 0x8A8A90,
             primary: 0x6BA3FF, primaryFill: 0x0052D9,
             primaryTint: 0x1B2B4D, onPrimary: 0xFFFFFF,
-            success: 0x45B878, warning: 0xD98E32, danger: 0xFF7A6B
+            success: 0x45B878, warning: 0xD98E32, danger: 0xFF7A6B,
+            chatSurface: 0x131316, selectionFill: 0x2C2C2F
         )
     )
 }

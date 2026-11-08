@@ -1595,70 +1595,280 @@ actively）保留——礼记三件套的「点消息区收」与
 - 真机终审归用户：主屏图标显示、回车跨行无重影、
   点消息区空白收键盘。
 
-## 21. 0.3.6：侧边栏重做（先调研后动手）
+## 21. 0.3.6：导航壳（立宪＋改令收敛）
 
-调研全文：docs/reference/sidebar-research.md（参照
-＝Muse 本体截图一手、ChatGPT/Claude 侧栏 UX 规
-格、开源复刻包结构互证；逐项借/不借＋收敛规格在
-笔记内）。本节只记落地与定案。
+### 21.1 前置：改令与调研版处置
 
-### 21.1 落地清单（规格 v2）
+本轮先行过一版「侧边栏调研规格 v2」（提交 bfe8358，
+调研笔记 docs/reference/sidebar-research.md）：构建
+run 42532017388 失败，两处编译错误——①drawerOverlay
+在 @ViewBuilder 内写 if/else 赋值语句（构建器里 if 是
+条件内容、装不下赋值），已抽成普通函数
+drawerFollowedDrag；②UnevenRoundedRectangle 实参顺
+序（声明序为 …bottomTrailing 在 topTrailing 之前），
+已按声明序改正。随后用户在旁聊拍板改令：OneDay 整
+体风格迁移 Muse 本体设计语言、0.3.6 以下列实测规
+格为准——立宪（§22）＋(a) peek 侧边栏与带字名单先
+行＋(b) 底栏后置。调研版与新规格不冲突的成果保留
+（分组五段下沉 Core、置顶/重命名、List 承载、行单
+行化、橡皮筋），被改令覆盖的形态按 §21.5 对账逐条
+处置；调研笔记留作支撑材料、不再是施工规格。
 
-1. **分组五段＋置顶**：分组纯逻辑下沉
-   OneDayCore.SidebarGrouping——置顶 → 今天 → 昨
-   天 → 过去 7 天 → 过去 30 天 → 更早按月（同年
-   「M月」、跨年「yyyy年M月」），分界按自然日差
-   ≤0/1/2–7/8–30/>30，组内 updatedAt 倒序；搜索
-   态单组「搜索结果」（置顶不单列）。替代旧三段
-   （今天/昨天/更早，视图层内联实现）。单测把守
-   分界与月份标签、搜索拍平、未来日期归今天。
-2. **会话行单行化**：标题单行（callout），删
-   「N 条 · M月d日 HH:mm」元信息行（连同其
-   DateFormatter 一并删除）；行高 50→44；选中态
-   不变（fieldFill 中性填充＋标题 semibold，
-   §19）；标题 x 线＝外 S＋内 S＝16 与组标题对齐。
-3. **置顶与重命名**：ChatThread 加 isPinned
-   （默认 false，SwiftData 轻量迁移）；长按菜单
-   ＝置顶/取消置顶、重命名、删除（此前只有删
-   除）。重命名走 alert＋TextField 写回 title；
-   自动标题只覆盖「新会话」占位（send() 内判
-   定），改名不被后续消息冲掉。删除口径不变
-   （即时删、无二次确认——破坏性操作口径若改应
-   全局统一，不在侧栏单点改，调研笔记已记）。
-4. **列表 List 化**：ScrollView＋VStack →
-   List(.plain)，组标题/空态/尾留白为零行距素行
-   （x 线全自控），原生滚动物理；
-   scrollDismissesKeyboard 保留。服务端会话组留
-   尾、行仍两行（管理对象，与本机会话行分域），
-   内距对齐新 x 线。
-5. **面板收尾**：右侧圆角 24（OneDayMetrics
-   .drawerCorner，UnevenRoundedRectangle
-   continuous）＋浮层阴影 .odElevation
-   (Elevation.floating)；底色 surface、宽 82%/
-   340 上限不变。
-6. **拖拽橡皮筋**（审查 E-3 落地）：界内 1:1；
-   越界量走 OneDayCore.DrawerGeometry.rubberBand
-   （c=0.55，渐近线 < 面板宽），替代旧硬钳制。
+### 21.2 立宪落点
 
-### 21.2 不借与暂缓（定案）
+- 「Muse 基线令牌表」＋「定义卡模板」＋本页定义
+  卡立在 §22（新节），与旧条冲突逐条在 §21.5 标
+  注、新表为准。
+- 令牌层落点：ThemeTokens.Scheme 新增 chatSurface
+  与 selectionFill 两字段（withAccent 派生原样带
+  过）；浅色行按基线改值六处（见 AccentTheme 代码
+  注）；TypeScale 新增 largeTitle/pageTitle/
+  groupLabel 三档；OneDayMetrics 改 drawerWidth-
+  Fraction 0.79、drawerCorner 28，新增 drawerInset
+  20/navRowHeight 47/navGlyph 21/tabGlyph 22/
+  drawerBarButton 52；ShadowSpec 加 x 偏移、
+  Elevation 新增 drawer 档。
 
-- **滑行操作（swipeActions）本轮不上**：面板拖
-  拽关闭与行滑行同为横向拖拽，抽屉面板挂
-  DragGesture（横向优先接管），SwiftUI 仲裁下
-  行滑行会被饿死成静默无效功能；三件操作由长
-  按菜单全量承接。待真机手感轮把面板拖拽改到
-  头部/底部承载后再开。
-- Claude 全屏列表＋push 导航不借（IA 级推翻）；
-  Claude 双行预览行不借；Projects/GPTs 入口、
-  归档态、删除二次确认流不借（理由见调研笔
-  记逐项表）。
+### 21.3 (a)(b) 逐项对账
 
-### 21.3 验收（构建后回填）
+(a) peek 侧边栏＋带字全局名单（先行）：
+- 盖约 79%：drawerWidthFraction 0.82→0.79（上限
+  340 大屏护栏保留，手机幅面不触发）；右侧约 21%
+  底层在纱下透出。
+- 遮罩白色半透纱：浅色行 scrimBase 改白、alpha
+  0.55（Palette.scrim 唯一消费方就是抽屉）；暗色
+  行暂留旧值归 0.3.8。
+- 右缘约 30pt 柔影：Elevation.drawer（opacity
+  0.12/radius 30/x 16）；右侧上下大圆角：
+  drawerCorner 24→28（UnevenRoundedRectangle 连
+  续圆角）。
+- 栏内顶部只有智能体名字：drawerIdentity（名＋状
+  态点＋状态词·模型小字）整块撤销，换 drawerAgent-
+  Name＝「Hermes」TypeScale.largeTitle（28 bold）；
+  drawerStatus 状态拉取随之删除（会话组拉取保留）。
+- 分组＝13–14 灰标签＋左右留 20 发丝线：组标签换
+  TypeScale.groupLabel（13 regular）＋Palette.ink-
+  Secondary（基线 #6E6E73）；组间发丝线 drawer-
+  Divider 左右 inset＝drawerInset 20；全部行标题
+  x 线对齐 20（名单行外 12＋内 8、会话行外 12＋内
+  8、组标签/名字/底条左右 20）。
+- 导航行高约 47、只有图标＋标题：drawerNavRow
+  minHeight＝navRowHeight 47，字形 navGlyph 21，
+  标题 TypeScale.body（17 regular），无箭头无值；
+  当前位（聊天）以 selectionFill 浅灰垫标示。
+- 名单与底栏四格一一对应：drawerTabs＝TabBar-
+  Symbols 四对（同符号源）× MainTab 四格，点按经
+  onSelectTab 切格并关抽屉（ChatView 删除旧
+  onOpenSettings 注入、改走此通道）。
+- 底部浮动条：drawerBottomBar＝左圆钮（设置，
+  slider.horizontal.3）＋中间搜索胶囊（高 52 与
+  圆钮同高，fieldFill）＋右圆钮（新建会话，
+  square.and.pencil），字形 18（17–20 带内）；圆
+  钮 glyph 映射为施工选择（规格只定几何），如上
+  在案。原顶部搜索胶囊、整行新建行、底部服务器
+  行（状态点＋host＋箭头）三件撤销（定义卡删减
+  清单）。
+- 聊天主面底色随壳改 Palette.chatSurface
+  （#FCFCFC）；面板底同令牌。
+(b) 底栏（名单落地后动）：
+- 悬浮大胶囊：原生 TabView 在 iOS 26 的系统悬浮
+  胶囊即落点，不自绘栏体（0.2.3 自绘撤销在案、
+  0.2.4 系统优先口径延续）；结构仍 Tab(value:)。
+- 去文字标签：tabLabel 改 Image-only 系统条目
+  （名称只进无障碍标签），回到 0.2.4 的条目形态。
+- 字形 21–22：配置 OneDayMetrics.tabGlyph 22。
+- 选中改浅灰小胶囊垫：.tint(Palette.primary)→
+  .tint(Palette.ink)——按 0.2.5 本仓实证口径，
+  tint 墨时系统选中呈「墨色线条字形＋系统浅灰选
+  择胶囊」（#E3E3E5 系，色值由系统按 tint 派生、
+  非自绘垫）；选中字形恒线条体、.fill 成对撤销、
+  不变色不加粗不上蓝。
+- 开合动效：抽屉开合仍走 MotionTokens.dragSpring
+  ＋Reduce Motion 瞬时（既有机制未动）；IA 四格
+  与数据逻辑零动（深链落点、pendingAgentRoute
+  通道原样）。
 
-- 单测：待回填（SidebarGrouping 三测＋
-  DrawerGeometry 一测为本版新增）。
+### 21.4 会话标题人话化（补令并入本轮）
+
+- 反例定因：ServerSession.title 在 display_name
+  缺失时拼 "\(source) 会话"，服务端会话多由 API
+  创建、display_name 为空，抽屉里整排同名
+  「api_server 会话」。
+- 落点（OneDayCore.SessionDisplay，单测把守）：
+  hasHumanName（display_name 非空且非标识符形
+  态）→ 用之；否则 humanTitle＝时间＋条数（今
+  天/昨天/M月d日＋HH:mm＋「· N 条」，无时间退
+  「服务端会话＋条数」）。首条消息/摘要标题由服
+  务端以 display_name 承载，客户端不为标题另抓
+  消息列表（拿不到就走时间＋条数，即本回落）。
+- 数据先翻译：sourceLabel 把原始 source 标识译
+  人话（api_server→「API 接口」、dashboard→
+  「控制台」、cron→「定时任务」、未知→「服务
+  端」），抽屉标题与副题永不出现原始标识；副题
+  组合：人话标题时＝来源·条数·日期，回落标题时
+  ＝来源（＋进行中）。原始实体名退到详情：设置
+  的服务端会话详情照原样展示 source 等原始字段
+  （现状即如此，本轮未动）。
+- 本机会话标题本就源于首条消息（20 字截断），
+  不在本项范围。
+
+### 21.5 与旧口径冲突清单
+
+推翻（新基线胜出）：
+- 0.3.3「底栏 .tint(Palette.primary)、选中必须是
+  蓝」→ 本轮撤销，选中浅灰垫＋墨字形。
+- 0.3.1「底栏 Label 带字＋选中 fill 成对（照搬礼
+  记）」→ 去标签、恒线条体。
+- 0.3.3「表面阶梯逐项对齐礼记 tencentBlue 原值」
+  → pageBG/inkSecondary/bubbleFill/fieldFill 改
+  Muse 基线值（§22 表），礼记原值口径在设置类
+  页自 0.3.4 起已先行作废、本轮扩及令牌行。
+- §14 层 4「scrim 墨色推导」→ 浅色行改白色半透
+  纱（暗色行暂留、归 0.3.8 一并对账）。
+- 0.2.1 抽屉形态（82% 整幅盖＋顶部身份块＋底部
+  服务器行）→ peek 79%＋只留名字＋名单＋底条。
+- 调研版（bfe8358）会话行「选中 semibold＋
+  fieldFill」→ 立宪选中口径：selectionFill 垫＋
+  标题 regular 不变（§19「主题色不进列表选中」
+  的不变侧保留，填充令牌由 fieldFill 换
+  selectionFill 专令牌）。
+保留（与基线不冲突）：
+- §19 变/不变表的「不变」侧（页面底/卡面/输入框/
+  双气泡恒中性）与「蓝只许功能位」同向，继续有
+  效；primary #0052D9 不动（OneDay 功能蓝）。
+- 分组五段＋置顶＋重命名＋List 承载＋橡皮筋（调
+  研版成果）、MotionTokens 开合与 Reduce Motion
+  降级、截图红线与构建＋单测交付口径。
+延后（记录在案、本轮不动）：
+- 字重阶梯全局冲突：宪法「只 regular/bold」与
+  TypeScale 旧七档（semibold/medium 多处合法位，
+  含 SectionLabel 13 medium、rowTitle semibold、
+  §14 条 3 暗色降档）冲突——壳内已按宪法（三档
+  新令牌＋壳面零 semibold），全局归 0.3.7 页面
+  轮统一；ContentView 根 .fontWeight 暗色降档同
+  归 0.3.8 对账。
+- 新令牌暗色值（chatSurface 0x131316/
+  selectionFill 0x2C2C2F）为暂定占位、暗色 scrim
+  仍墨纱，0.3.8 暗色收口时整体定版。
+- 设置页服务端会话列表的同名问题：本轮只修抽
+  屉（侧栏轮）；设置列表归 0.3.7 页面轮（其定义
+  卡由主聊汇总过目后施工）。
+
+### 21.6 验收（构建后回填）
+
+- 单测：待回填（82＋SessionDisplay 三测＝85 预期）。
 - 构建：待回填。
 - 解包验：待回填（版本号 0.3.6／21）。
-- 真机终审归用户：五段分组与月份组、置顶/重命
-  名走通、面板圆角与阴影、拖拽越界橡皮筋手感、
-  列表滚动与长按菜单不被面板拖拽误吞。
+- 真机终审归用户：peek 79%＋白纱观感、名单四行
+  与切格、底条搜索/圆钮、底栏去标签＋灰垫选中、
+  服务端会话标题不再同名、面板圆角与右缘柔影。
+
+## 22. 立宪：Muse 基线令牌表＋定义卡模板（0.3.6）
+
+用户在旁聊以 6 张 Muse 本体截图实测立项：OneDay
+整体风格迁移 Muse 本体设计语言。本节冻结基线；
+与此前各节冲突处逐条在 §21.5 标注、新表为准。
+后续版本（0.3.7 页面形态轮、0.3.8 暗色收口）按本
+表执行，不再另行立规。
+
+### 22.1 Muse 基线令牌表（冻值＋OneDay 落点）
+
+表面：
+- 设置类页：灰底 #F3F4F6＋白卡 → Palette.pageBG
+  （浅色行改值）＋Palette.surface #FFFFFF。
+- 导航/聊天面：近白 #FCFCFC → Palette.chatSurface
+  （新令牌）；灰胶囊 #EEEFF1–#F2F2F4 →
+  Palette.fieldFill #F2F2F4（带内）等。
+- 选中垫：浅灰 #E3E3E5 系 → Palette.selectionFill
+  （新令牌；底栏选中由系统按 tint=ink 派生同系
+  灰，名单/会话行选中直接用此令牌）。
+- 助手泡：冷灰 #E9EAEC、永不染色 →
+  Palette.bubbleFill（浅色行改值）。
+- 分层：一档明度差、无描边、无阴影（浮动件除
+  外：抽屉柔影 Elevation.drawer、浮动控件
+  Elevation.floating）。
+墨三档：
+- 标题近黑／正文黑 → Palette.ink #1F2329；
+  次级 #6E6E73 → Palette.inkSecondary（浅色行改
+  值）；更弱信息 Palette.inkMuted（仅元信息位）。
+功能蓝：
+- 只许功能位（发送键/主按钮/链接/开关/caret
+  等 §19「变」侧）；OneDay 仍 #0052D9 →
+  Palette.primary/primaryFill 不动。框架面、选
+  中态、装饰位一律不许蓝。
+字阶（全 HIG、字重只 regular/bold 两档）：
+- 大标题 28–34 bold → TypeScale.largeTitle（28
+  bold 先行）；页标题 17 bold →
+  TypeScale.pageTitle；正文与行标题 17 regular
+  （行距 22＝系统 body 自然行距）→ TypeScale.body；
+  副标题 15 灰 → TypeScale.subhead＋次级色；分
+  组标签 13–14 灰 → TypeScale.groupLabel（13
+  regular）。
+图标：
+- 细线约 1.8pt、字形 20–22、全 App 同线宽 →
+  SF Symbols 线条体恒定（.fill 禁用），字形尺寸
+  走 navGlyph 21/tabGlyph 22/底条圆钮 18 等具名
+  令牌；新表面不许另选粗细。
+
+### 22.2 三条宪法
+
+1. 框架无色、内容有色：导航壳、列表骨架、容器
+   面恒中性；颜色只属于内容与功能位。
+2. 蓝只许功能位：见 22.1 功能蓝；选中永远靠浅
+   灰垫，不靠染色。
+3. 形态可不同、只许公共组件拼：页面形态可以
+   变，积木只能是令牌表与公共组件（Palette/
+   TypeScale/OneDayMetrics/Elevation/公共行组
+   件），不许页面私拼数值与色值。
+附：暖色不进口（2026-11-09 既有红线，立宪重申）。
+
+### 22.3 定义卡模板（每页产品定义卡·硬门）
+
+每页开工前先产出定义卡（写进本设计档对应版本
+节），按卡施工、按卡验收。固定六问：
+1. 一页一事：这页只完成哪一件事（其余事赶去
+   别页）。
+2. 第一眼焦点：用户第一眼必须落在哪（唯一）。
+3. 删减清单：本轮删掉什么（逐项列名，不许只
+   加不减）。
+4. 控件跟内容走：每个控件为何在此页此位（跟
+   它服务的内容走，不跟惯例走）。
+5. 按用户对象分组：分组按用户心里的对象分，
+   不按数据来源/实现结构分。
+6. 复杂性留幕后：哪些复杂性由系统吞掉、用户
+   只看见结果。
+验收红线（两条，卡内必须自检）：
+- 展示不解释：能预览的页预览真实使用场景；不
+  许把设计文档、令牌说明、实现注释放进 UI。
+- 数据先翻译：服务端原始命名（实体名、枚举
+  值、内部标识）不许上屏；先译成人话再呈现，
+  原始名只退到详情/幕后。
+
+### 22.4 侧边栏定义卡（0.3.6，按 22.3 先卡后工）
+
+1. 一页一事：导航壳——切目的地（四格）、找并
+   打开会话、新开会话，三件事即全部；管理动作
+   （会话详情、服务器管理）不在本页，服务端会
+   话行只是去详情的索引。
+2. 第一眼焦点：智能体名字＋名单当前位；其余
+   （分组、条数、时间）全部退后。
+3. 删减清单：状态点＋状态词·模型小字、顶部搜
+   索胶囊（下沉底条）、整行新建行（收成圆钮）、
+   底部服务器行（状态点＋host＋箭头）、会话行
+   元信息行、黑纱遮罩、82% 整幅盖法、服务端会
+   话的原始同名标题。
+4. 控件跟内容走：搜索只服务这份会话名单→沉
+   到名单脚下的底条胶囊；新建是高频动作不是
+   一行文字→右圆钮；设置是目的地不是状态→名
+   单行＋左圆钮双入口同位。
+5. 按用户对象分组：目的地（名单四行）／我的
+   会话（置顶＋时间五段）／服务端会话（索引
+   组）——按对象分；服务端会话在用户对象里仍
+   是「会话」，同列一组、只以来源人话标签区分。
+6. 复杂性留幕后：五段分组算法、置顶存储、手
+   势仲裁与橡皮筋、服务端标题翻译，界面只呈现
+   结果；点空白/scrim 关闭等既有壳行为不变。
+红线自检：展示不解释——栏内无任何解释设计或
+令牌的文案，空态只给一句去向；数据先翻译——
+api_server 等原始命名零上屏（§21.4），原名只
+在设置详情里出现。
