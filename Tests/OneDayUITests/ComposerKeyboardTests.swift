@@ -110,6 +110,19 @@ final class ComposerKeyboardTests: XCTestCase {
         capture("kb-up")
         assertSingleLine("键盘态")
 
+        // 【临时诊断】＋键（同行 SwiftUI Menu 按钮）命中探活：
+        // 菜单能开＝行区域命中活、问题只在 representable；
+        // 菜单不能开＝整行命中被上层吞
+        attach.tap()
+        settle(1.0)
+        let menuItem = app.buttons["相册选图"]
+        print("[MEASURE] attachMenuOpened=\(menuItem.exists)")
+        capture("kb-attach")
+        if menuItem.exists {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
+            settle(0.5)
+        }
+
         // 滚动态（对照用户截图：列表已上翻、回到底部钮在场）
         let dragStart = app.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42)

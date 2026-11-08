@@ -588,8 +588,9 @@ struct ChatView: View {
             }
             // 0.2.7：玻璃裸施加在行本体——GlassEffectContainer
             // 与 union 已撤销（探针证其非膨胀源，§11）
+            // 【临时诊断：玻璃层是否吞触摸——本轮注释玻璃】
             composerRow
-                .glassEffect(.regular, in: composerShape)
+            // .glassEffect(.regular, in: composerShape)
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
