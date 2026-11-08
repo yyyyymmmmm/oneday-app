@@ -16,11 +16,13 @@ struct ConnectView: View {
     @State private var password = ""
     @State private var apiKey = ""
 
-    // 连接页演示态（-odDemoConnect）的预填不在 init 里做：
-    // 首帧前给 SecureField 塞值会触发 UIKit 安全字段的已知
-    // 渲染缺陷（圆点不显示、行高异常，0.1.3 首轮截图实证），
-    // 改到 onAppear 赋值（见 body）。预填值全是占位假串，
-    // 账号只写 admin，不含任何真实凭据。
+    // 连接页演示态（-odDemoConnect）：预填值全是占位假串，
+    // 账号只写 admin，不含任何真实凭据（赋值在 onAppear）。
+    // 演示态两个安全行不用 SecureField 而用等长圆点文本占位：
+    // 0.1.3 三轮截图实证——程序化给 SecureField 赋的值在模拟器
+    // 里不渲染圆点且行高异常（init 预填 / onAppear 同帧 /
+    // 延迟 400ms 三种赋值时机全中），而生产路径是用户手输、
+    // 不经过程序化赋值，不受此缺陷影响（见 DESIGN-V2 §7.3）。
 
     private enum Field: Hashable {
         case server, username, password, apiKey
@@ -82,16 +84,11 @@ struct ConnectView: View {
         .background(Palette.pageBG)
         .onAppear {
             if DemoMode.current == .connectPage {
-                // 演示预填：延迟到字段完成首帧布局后再赋值——
-                // init 预填与 onAppear 同帧赋值都试过，SecureField
-                // 圆点仍不渲染（0.1.3 前两轮截图实证）；延迟赋值
-                // 与粘贴/自动填充同路径，圆点与行高恢复正常
-                Task {
-                    try? await Task.sleep(for: .milliseconds(400))
-                    username = "admin"
-                    password = "demo-password"
-                    apiKey = "demo-api-key"
-                }
+                // 演示预填：值只供 canSubmit 与演示探活消费；
+                // 安全行的可见形态是等长圆点占位（见文件头注释）
+                username = "admin"
+                password = "demo-password"
+                apiKey = "demo-api-key"
             }
             withAnimation(MotionTokens.resolved(MotionTokens.entrance, reduceMotion: reduceMotion)) {
                 appeared = true
@@ -130,15 +127,24 @@ struct ConnectView: View {
             }
             GroupDivider(inset: OneDayMetrics.spacingM)
             FieldRow(label: "面板密码", isActive: focusedField == .password) {
-                SecureField("Dashboard 密码", text: $password)
-                    .focused($focusedField, equals: .password)
+                if DemoMode.current == .connectPage {
+                    // 演示占位：与假串等长的圆点（理由见文件头注释）
+                    Text(String(repeating: "•", count: 13))
+                } else {
+                    SecureField("Dashboard 密码", text: $password)
+                        .focused($focusedField, equals: .password)
+                }
             }
             GroupDivider(inset: OneDayMetrics.spacingM)
             FieldRow(label: "API 密钥", isActive: focusedField == .apiKey) {
-                SecureField("API Server 的密钥", text: $apiKey)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($focusedField, equals: .apiKey)
+                if DemoMode.current == .connectPage {
+                    Text(String(repeating: "•", count: 12))
+                } else {
+                    SecureField("API Server 的密钥", text: $apiKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .apiKey)
+                }
             }
         }
         .odGroup()
