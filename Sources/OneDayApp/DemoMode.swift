@@ -34,6 +34,32 @@ enum DemoMode: Equatable {
     static var focusComposerOnLaunch: Bool {
         ProcessInfo.processInfo.arguments.contains("-odDemoFocusComposer")
     }
+
+    /// `-odDemoComposerText <two|four|wrap>`：向发送舱注入
+    /// 定长文本当多行量测台（DESIGN-V4 §13）。仅演示模
+    /// 式由 ChatView 消费，生产无此行为。
+    static var composerTextCase: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let idx = args.firstIndex(of: "-odDemoComposerText"),
+              idx + 1 < args.count else { return nil }
+        return args[idx + 1]
+    }
+
+    /// 注入文本（行数可预期）：two＝短句 2 行、four＝短
+    /// 句 4 行、wrap＝37 字单行长句、在发送舱宽度下缠绕
+    /// 3 行。
+    static func composerText(for caseName: String) -> String? {
+        switch caseName {
+        case "two":
+            return "量测两行甲班\n量测两行乙班"
+        case "four":
+            return "量测四行甲班\n量测四行乙班\n量测四行丙班\n量测四行丁班"
+        case "wrap":
+            return "量测长句缠绕排版验证文字自然增长四季轮换工作日程安排与提醒事项同步完成存档"
+        default:
+            return nil
+        }
+    }
 }
 
 /// 演示样本对话的播种：内存库每次启动都是空的，播一份拟真多轮

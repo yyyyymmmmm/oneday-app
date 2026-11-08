@@ -116,19 +116,22 @@ struct ContentView: View {
     /// 但其量测出自 CI 截图的像素换算，与真机不符（见下）。
     /// 0.2.8 真机实测校准（DESIGN-V4 §12.3）：用户同机同
     /// 批真机截图由主代理逐个量过——0.2.7（config 12/15）
-    /// 真机墨迹高约 33pt，Muse 同机约 24pt。渲染管线
-    /// （44pt 画布→系统底栏）不变时墨迹与 config 严格线
-    /// 性，按目标 24 反推系数 24/33≈0.73：双气泡 12→9、
-    /// 其余 15→11，预期墨迹 ≈24。教训在案：图标尺寸只认
-    /// 渲染后量测（真机为准、模拟器截图次之），不认
-    /// config 数字与二手换算。字形烘焙进固定 44×44pt 透
-    /// 明画布居中绘制：四个条目位图同尺寸，系统排版基准
-    /// 一致、只缩墨迹不动槽位与热区；烘焙图须显式
-    /// .alwaysTemplate（渲染器产物默认 original，tint 会
-    /// 失效）。
+    /// 图标尺寸走闭环量测校准（DESIGN-V4 §13）：CI 截图
+    /// PIL 实测基线（px/3、紧带量测）——0.2.8 的 config
+    /// 9/11 渲染墨迹仅约 9–10pt（双气泡约 9.3、其余约
+    /// 9.7），离目标 24 差一个放大系数。管线（44pt 画布
+    /// 自然尺寸渲染）内墨迹与 config 线性：按 24/9.7≈
+    /// 2.47 与 24/9.3≈2.58 反推，其余 11→27、双气泡
+    /// 9→23，本轮截图复量定案。教训在案（三轮）：图标尺
+    /// 寸只认同管线渲染图的像素量测，二手数字（真机目
+    /// 测、换算口径）一律不作校准依据。字形烘焙进固定
+    /// 44×44pt 透明画布居中绘制：四个条目位图同尺寸，系
+    /// 统排版基准一致、只缩墨迹不动槽位与热区；烘焙图须
+    /// 显式 .alwaysTemplate（渲染器产物默认 original，
+    /// tint 会失效）。
     private func tabSymbol(_ name: String) -> Image {
         let pointSize: CGFloat =
-            name == "bubble.left.and.bubble.right" ? 9 : 11
+            name == "bubble.left.and.bubble.right" ? 23 : 27
         let configuration = UIImage.SymbolConfiguration(
             pointSize: pointSize, weight: .regular
         )

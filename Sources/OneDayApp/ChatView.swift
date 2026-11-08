@@ -175,6 +175,9 @@ struct ChatView: View {
             await focusComposerForDemoSelfCheckIfNeeded()
         }
         .task {
+            await injectDemoComposerTextIfNeeded()
+        }
+        .task {
             await appState.refreshModelCatalog()
         }
         .sheet(isPresented: $showModelPicker) {
@@ -1333,6 +1336,18 @@ struct ChatView: View {
         // 亦有 pending 兜底，双保险）
         try? await Task.sleep(for: .milliseconds(900))
         composerFocusHandle.focus()
+    }
+
+    /// 演示专用（DESIGN-V4 §13）：`-odDemoComposerText
+    /// <two|four|wrap>` 指定时把定长文本注入发送舱，UI
+    /// 测试据字段与胶囊的渲染帧量多行高度。生产包启动参
+    /// 数永不带此项，正常路径第一行返回。
+    private func injectDemoComposerTextIfNeeded() async {
+        guard let caseName = DemoMode.composerTextCase,
+              let text = DemoMode.composerText(for: caseName)
+        else { return }
+        try? await Task.sleep(for: .milliseconds(800))
+        if input.isEmpty { input = text }
     }
 
     /// 演示模式：种子对话的最后一句用户消息由假客户端流式回完，

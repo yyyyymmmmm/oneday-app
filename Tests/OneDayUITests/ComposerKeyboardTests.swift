@@ -88,4 +88,102 @@ final class ComposerKeyboardTests: XCTestCase {
             "标题胶囊过宽：\(headerCapsule.frame.width)，上限约 200（缺陷 B）"
         )
     }
+
+    // MARK: - 0.2.9 多行闭环量测（DESIGN-V4 §13）
+
+    /// 以 `-odDemoComposerText <case>` 启动演示（可选叠加
+    /// `-odDemoFocusComposer` 抬键盘），等注入文本落到字段
+    /// 后返回 (app, field, attach)。聚焦走 App 本体程序化通
+    /// 道，不用 XCUI 合成点按（§11.4 工具侧限制）。
+    private func launchInjected(
+        case caseName: String, focus: Bool
+    ) -> (XCUIApplication, XCUIElement, XCUIElement) {
+        let app = XCUIApplication()
+        var args = [
+            "-AppleInterfaceStyle", "Light",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+            "-odDemoMode", "-odDemoComposerText", caseName,
+        ]
+        if focus { args.append("-odDemoFocusComposer") }
+        app.launchArguments = args
+        app.launch()
+
+        let byView = app.textViews["composerField"]
+        let field = byView.waitForExistence(timeout: 20)
+            ? byView
+            : app.textFields["composerField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "未找到输入框")
+        let attach = app.buttons["添加附件"]
+        XCTAssertTrue(attach.waitForExistence(timeout: 10), "未找到＋键")
+        let injected = NSPredicate(format: "value CONTAINS %@", "量测")
+        expectation(for: injected, evaluatedWith: field)
+        waitForExpectations(timeout: 20)
+        if focus {
+            XCTAssertTrue(
+                app.keyboards.firstMatch.waitForExistence(timeout: 15),
+                "程序化聚焦后键盘应升起"
+            )
+        }
+        // 等高度落稳（量高回写经主线程异步调度）
+        Thread.sleep(forTimeInterval: 0.8)
+        return (app, field, attach)
+    }
+
+    private func capsuleDerived(
+        field: XCUIElement, attach: XCUIElement
+    ) -> CGFloat {
+        attach.frame.maxY - field.frame.minY + 21
+    }
+
+    /// 2 行：文本高 40、胶囊 = max(40+10, 30)+16 = 66。
+    func testComposerTwoLinesGeometry() {
+        let (app, field, attach) = launchInjected(case: "two", focus: false)
+        _ = app
+        let capsule = capsuleDerived(field: field, attach: attach)
+        print("[MEASURE] two fieldH=\(field.frame.height) capsule=\(capsule)")
+        print("[MEASURE] two fieldFrame=\(field.frame)")
+        capture("kb-lines-2")
+        XCTAssertEqual(field.frame.height, 40, accuracy: 4, "两行文本高应 ≈40：\(field.frame.height)")
+        XCTAssertEqual(capsule, 66, accuracy: 3, "两行胶囊高应 ≈66：\(capsule)")
+    }
+
+    /// 4 行：文本高 80、胶囊 = max(80+10, 30)+16 = 106。
+    func testComposerFourLinesGeometry() {
+        let (app, field, attach) = launchInjected(case: "four", focus: false)
+        _ = app
+        let capsule = capsuleDerived(field: field, attach: attach)
+        print("[MEASURE] four fieldH=\(field.frame.height) capsule=\(capsule)")
+        print("[MEASURE] four fieldFrame=\(field.frame)")
+        capture("kb-lines-4")
+        XCTAssertEqual(field.frame.height, 80, accuracy: 4, "四行文本高应 ≈80：\(field.frame.height)")
+        XCTAssertEqual(capsule, 106, accuracy: 3, "四行胶囊高应 ≈106：\(capsule)")
+    }
+
+    /// 缠绕 3 行：37 字单行长句在字段宽下应恰缠 3 行——
+    /// 文本高须为整行倍数（60±5、无幽灵行），胶囊严格跟
+    /// 随 fieldH+26（文本边距 10＋行边距 16）。
+    func testComposerWrapLinesGeometry() {
+        let (app, field, attach) = launchInjected(case: "wrap", focus: false)
+        _ = app
+        let capsule = capsuleDerived(field: field, attach: attach)
+        print("[MEASURE] wrap fieldH=\(field.frame.height) capsule=\(capsule)")
+        print("[MEASURE] wrap fieldFrame=\(field.frame)")
+        capture("kb-lines-wrap")
+        XCTAssertEqual(field.frame.height, 60, accuracy: 5, "缠绕应恰 3 行（文本高 ≈60）：\(field.frame.height)")
+        XCTAssertEqual(capsule, field.frame.height + 26, accuracy: 3, "胶囊应严格跟随文本高 +26：胶囊 \(capsule) vs 文本 \(field.frame.height)")
+    }
+
+    /// 键盘态 2 行：与 testComposerTwoLinesGeometry 同期望
+    /// ——键盘升起不得改变胶囊几何（设备撕开场景的最接近
+    /// 复现：键盘＋已有文本）。
+    func testComposerKeyboardTwoLinesGeometry() {
+        let (app, field, attach) = launchInjected(case: "two", focus: true)
+        _ = app
+        let capsule = capsuleDerived(field: field, attach: attach)
+        print("[MEASURE] kb-two fieldH=\(field.frame.height) capsule=\(capsule)")
+        print("[MEASURE] kb-two fieldFrame=\(field.frame)")
+        capture("kb-lines-2-kb")
+        XCTAssertEqual(field.frame.height, 40, accuracy: 4, "键盘态两行文本高应 ≈40：\(field.frame.height)")
+        XCTAssertEqual(capsule, 66, accuracy: 3, "键盘态两行胶囊高应 ≈66：\(capsule)")
+    }
 }
