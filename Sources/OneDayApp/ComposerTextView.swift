@@ -18,7 +18,8 @@ import UIKit
 struct ComposerTextView: UIViewRepresentable {
     @Binding var text: String
     /// 焦点桥：与 ChatView 的 @FocusState 双向同步
-    var isFocused: Binding<Bool>
+    ///（FocusState 的投影是其专属 Binding 类型）
+    var isFocused: FocusState<Bool>.Binding
     /// 内容实测高（未封顶）回调：驱动多行形状判据
     var onMeasuredHeight: (CGFloat) -> Void
 
