@@ -17,4 +17,8 @@ enum SettingsRoute: Hashable {
     case usage
     case gateway
     case logs
+    /// 0.2.1：运维四模块并入设置「智能体」组，路由复用 AgentRoute
+    case agent(AgentRoute)
+    /// 0.2.1：外观（主题）
+    case appearance
 }

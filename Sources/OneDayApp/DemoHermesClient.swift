@@ -1,5 +1,8 @@
 import Foundation
 import OneDayCore
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// 演示模式的假客户端：实现 HermesClientProtocol，全部返回本地
 /// 静态样本（经 JSONDecoder 走真实模型解码，不另造假模型），
@@ -402,6 +405,131 @@ struct DemoHermesClient: HermesClientProtocol {
     func gatewayRestart(config: ServerConfig) async throws {}
     func gatewayStart(config: ServerConfig) async throws {}
     func gatewayStop(config: ServerConfig) async throws {}
+
+    // MARK: - 工作区文件与系统（0.2.1 样本，结构对实查回执）
+
+    func files(config: ServerConfig, path: String?) async throws -> FilesListing {
+        let root = "/opt/data"
+        switch path ?? root {
+        case "/opt/data/images":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/images", "parent": "/opt/data",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "nodes-status.png", "path": "/opt/data/images/nodes-status.png",
+                 "is_directory": false, "size": 48213, "mtime": 1794141188.0,
+                 "mime_type": "image/png"},
+                {"name": "chart-weekly.png", "path": "/opt/data/images/chart-weekly.png",
+                 "is_directory": false, "size": 35110, "mtime": 1794054788.0,
+                 "mime_type": "image/png"},
+                {"name": "screen-record.mp4", "path": "/opt/data/images/screen-record.mp4",
+                 "is_directory": false, "size": 5242880, "mtime": 1793968388.0,
+                 "mime_type": "video/mp4"},
+                {"name": "voice-note.m4a", "path": "/opt/data/images/voice-note.m4a",
+                 "is_directory": false, "size": 96256, "mtime": 1793881988.0,
+                 "mime_type": "audio/mp4"}
+             ]}
+            """)
+        case "/opt/data/reports":
+            return decode(FilesListing.self, """
+            {"path": "/opt/data/reports", "parent": "/opt/data",
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "weekly.md", "path": "/opt/data/reports/weekly.md",
+                 "is_directory": false, "size": 3110, "mtime": 1794054788.0,
+                 "mime_type": "text/markdown"}
+             ]}
+            """)
+        default:
+            return decode(FilesListing.self, """
+            {"path": "/opt/data", "parent": null,
+             "root": "/opt/data", "locked_root": "/opt/data",
+             "can_change_path": false,
+             "entries": [
+                {"name": "images", "path": "/opt/data/images",
+                 "is_directory": true, "size": null, "mtime": 1794141188.0,
+                 "mime_type": null},
+                {"name": "reports", "path": "/opt/data/reports",
+                 "is_directory": true, "size": null, "mtime": 1794054788.0,
+                 "mime_type": null},
+                {"name": "notes.md", "path": "/opt/data/notes.md",
+                 "is_directory": false, "size": 2048, "mtime": 1794141188.0,
+                 "mime_type": "text/markdown"},
+                {"name": "data.json", "path": "/opt/data/data.json",
+                 "is_directory": false, "size": 1180, "mtime": 1793968388.0,
+                 "mime_type": "application/json"},
+                {"name": "server.log", "path": "/opt/data/server.log",
+                 "is_directory": false, "size": 82411, "mtime": 1793881988.0,
+                 "mime_type": "text/plain"}
+             ]}
+            """)
+        }
+    }
+
+    func deleteFile(config: ServerConfig, path: String, recursive: Bool) async throws {}
+
+    func fileData(config: ServerConfig, path: String) async throws -> Data {
+        if path.hasSuffix(".png") {
+            return Self.placeholderPNG(label: (path as NSString).lastPathComponent)
+        }
+        if path.hasSuffix(".md") {
+            return Data("# 演示文件\n\n这是演示模式的文本预览样本。\n".utf8)
+        }
+        if path.hasSuffix(".json") {
+            return Data("{\"demo\": true, \"count\": 3}\n".utf8)
+        }
+        if path.hasSuffix(".log") {
+            return Data("INFO demo log line\n".utf8)
+        }
+        return Data()
+    }
+
+    /// 演示缩略图：纯色块＋文件名（UIKit 渲染，不连网）
+    private static func placeholderPNG(label: String) -> Data {
+        #if canImport(UIKit)
+        let size = CGSize(width: 300, height: 300)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            UIColor(red: 0.85, green: 0.91, blue: 0.98, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 20, weight: .medium),
+                .foregroundColor: UIColor(red: 0.1, green: 0.25, blue: 0.55, alpha: 1),
+            ]
+            let text = label as NSString
+            let textSize = text.size(withAttributes: attributes)
+            text.draw(
+                at: CGPoint(
+                    x: (size.width - textSize.width) / 2,
+                    y: (size.height - textSize.height) / 2
+                ),
+                withAttributes: attributes
+            )
+        }
+        return image.pngData() ?? Data()
+        #else
+        return Data()
+        #endif
+    }
+
+    func systemStats(config: ServerConfig) async throws -> SystemStats {
+        decode(SystemStats.self, """
+        {"os": "Linux", "os_release": "3.10.0-1160.el7.x86_64",
+         "platform": "Linux-x86_64", "arch": "x86_64",
+         "hostname": "demo-host", "python_version": "3.14.9",
+         "hermes_version": "0.23.0", "cpu_count": 4,
+         "cpu_percent": 2.5, "load_avg": [0.07, 0.09, 0.12],
+         "uptime_seconds": 2358766,
+         "memory": {"total": 8101019648, "available": 4321755136,
+                    "used": 3779264512, "percent": 46.7},
+         "disk": {"total": 126691618816, "used": 54956441600,
+                  "free": 66478796800, "percent": 45.3},
+         "process": {"pid": 155, "rss": 301142016,
+                     "create_time": 1794142047, "num_threads": 11}}
+        """)
+    }
 
     private func decode<T: Decodable>(_ type: T.Type, _ json: String) -> T {
         // 样本与模型同仓维护，解码失败即开发期错误，直接暴露

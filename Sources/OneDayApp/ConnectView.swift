@@ -54,8 +54,7 @@ struct ConnectView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 brandBlock
-                    .padding(.top, OneDayMetrics.spacingXXL)
-                formGroup
+                    .padding(.top, OneDayMetrics.spacingXXL)                formGroup
                     .padding(.top, OneDayMetrics.spacingXL)
                 if !stepStates.isEmpty {
                     probeGroup
@@ -81,6 +80,7 @@ struct ConnectView: View {
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared || reduceMotion ? 0 : 6)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Palette.pageBG)
         .onAppear {
             if DemoMode.current == .connectPage {

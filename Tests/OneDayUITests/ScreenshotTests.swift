@@ -60,7 +60,7 @@ final class ScreenshotTests: XCTestCase {
         capture("01-connect")
     }
 
-    /// 02–06 主界面：聊天落点 → 抽屉展开 → 总览 → 智能体 → 设置
+    /// 02–06 主界面：聊天落点 → 抽屉展开 → 总览 → 文件 → 设置
     func test02MainPages() {
         let app = launch(["-odDemoMode"])
 
@@ -69,10 +69,11 @@ final class ScreenshotTests: XCTestCase {
         waitText(app, "先从定时任务模块动手", timeout: 25)
         capture("02-chat")
 
-        // 抽屉：顶栏左键唤出，等分段标题与底行到位、弹簧落稳再截
+        // 抽屉（0.2.1 重做）：身份块＋时间分组＋服务端会话组
         app.buttons["会话列表"].tap()
-        waitText(app, "本机会话")
+        waitText(app, "今天")
         waitText(app, "下雨天节点会不会掉线")
+        waitText(app, "节点巡检")
         settle()
         capture("03-chat-sidebar")
 
@@ -80,22 +81,22 @@ final class ScreenshotTests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
         settle(0.6)
 
-        // 总览（IA v3 五段）：等指标行与最近会话到位
+        // 总览（五段；状态头可点进状态屏，本环不点）
         app.tabBars.buttons["总览"].tap()
         waitText(app, "今日 Token")
         waitText(app, "帮我看看服务器状态")
         capture("04-overview")
 
-        // 智能体（运维四模块目录，等摘要值落地）
-        app.tabBars.buttons["智能体"].tap()
-        waitText(app, "定时任务")
-        waitText(app, "已装 4 个")
-        capture("05-agent")
+        // 文件（0.2.1 新格）：等根目录样本到位
+        app.tabBars.buttons["文件"].tap()
+        waitText(app, "notes.md")
+        waitText(app, "server.log")
+        capture("05-files")
 
-        // 设置（四组目录，等当前值行到位）
+        // 设置（0.2.1 分组目录）：等智能体组与外观组行到位
         app.tabBars.buttons["设置"].tap()
-        waitText(app, "对话模型")
-        waitText(app, "当前服务器")
+        waitText(app, "定时任务")
+        waitText(app, "主题")
         capture("06-settings")
     }
 }

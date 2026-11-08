@@ -33,13 +33,17 @@ final class ChatEntry {
     /// "user" / "assistant"（与 ChatMessage.role 同口径）
     var role: String
     var content: String
+    /// 0.2.1：随消息发送的首张图片（JPEG 数据），气泡回显用；
+    /// 多图发送时其余图片不落盘（只走当次请求）
+    var imageData: Data?
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil) {
         id = UUID()
         self.role = role
         self.content = content
+        self.imageData = imageData
         createdAt = Date()
         self.thread = thread
     }

@@ -124,6 +124,18 @@ protocol HermesClientProtocol: Sendable {
     func gatewayStart(config: ServerConfig) async throws
     /// POST /api/gateway/stop
     func gatewayStop(config: ServerConfig) async throws
+
+    // MARK: 工作区文件与系统（0.2.1）
+
+    /// GET /api/files?path=（path 为 nil 时服务端回默认根，
+    /// 2026-11-08 实查根被 locked_root 锁在 /opt/data）
+    func files(config: ServerConfig, path: String?) async throws -> FilesListing
+    /// DELETE /api/files {path, recursive}
+    func deleteFile(config: ServerConfig, path: String, recursive: Bool) async throws
+    /// GET /api/files/download?path= → 原始字节（预览/下载共用）
+    func fileData(config: ServerConfig, path: String) async throws -> Data
+    /// GET /api/system/stats
+    func systemStats(config: ServerConfig) async throws -> SystemStats
 }
 
 /// URLSession 实现。会话 cookie 走 .shared 存储：登录一次，
@@ -738,5 +750,43 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             config: config, path: "/api/gateway/stop", method: "POST",
             endpoint: "网关停止", timeout: 120
         )
+    }
+
+    // MARK: - 工作区文件与系统（0.2.1）
+
+    func files(config: ServerConfig, path: String?) async throws -> FilesListing {
+        var query: [URLQueryItem] = []
+        if let path, !path.isEmpty {
+            query.append(URLQueryItem(name: "path", value: path))
+        }
+        return try await getJSON(
+            config: config, path: "/api/files", endpoint: "文件列表", query: query
+        )
+    }
+
+    func deleteFile(config: ServerConfig, path: String, recursive: Bool) async throws {
+        try await sendJSON(
+            config: config, path: "/api/files", method: "DELETE",
+            endpoint: "删除文件",
+            body: ["path": .string(path), "recursive": .bool(recursive)]
+        )
+    }
+
+    func fileData(config: ServerConfig, path: String) async throws -> Data {
+        let request = URLRequest(
+            url: url(
+                config: config, path: "/api/files/download",
+                query: [URLQueryItem(name: "path", value: path)]
+            )
+        )
+        let (data, http) = try await dataRequest(request)
+        guard http.statusCode == 200 else {
+            throw HermesError.unexpectedStatus(endpoint: "文件下载", status: http.statusCode)
+        }
+        return data
+    }
+
+    func systemStats(config: ServerConfig) async throws -> SystemStats {
+        try await getJSON(config: config, path: "/api/system/stats", endpoint: "系统状态")
     }
 }

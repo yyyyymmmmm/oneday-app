@@ -1,7 +1,12 @@
 import OneDayDesign
 import OneDayCore
+import PhotosUI
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// 聊天页：本地会话（SwiftData）＋ /v1/chat/completions 流式。
 /// 上下文取当前会话最近 20 条；停止生成保留已生成的半截回复。
@@ -13,6 +18,8 @@ import SwiftUI
 struct ChatView: View {
     /// 抽屉底部服务器行点按 → 切到设置格（ContentView 注入）
     var onOpenSettings: () -> Void = {}
+    /// 抽屉服务端会话行点按 → 设置格智能体组的会话详情
+    var onOpenServerSession: (String) -> Void = { _ in }
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -25,11 +32,23 @@ struct ChatView: View {
     @State private var streamingText: String?
     @State private var sendTask: Task<Void, Never>?
     @State private var errorMessage: String?
+    /// 0.2.1：非错误提示（如文件附件未发送说明），可关闭
+    @State private var notice: String?
     /// 抽屉开合与抽屉内搜索词
     @State private var drawerOpen = false
     @State private var drawerQuery = ""
     /// 演示模式自动开流只跑一次（截图环截流式帧用）
     @State private var demoStreamStarted = false
+    /// 0.2.1 附件与键盘：待发附件、三种选择器开关、输入焦点
+    @State private var attachments: [PendingAttachment] = []
+    @State private var photoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var showCamera = false
+    @State private var showFileImporter = false
+    @FocusState private var composerFocused: Bool
+    /// 抽屉身份块与服务端会话组的数据（开抽屉时拉取）
+    @State private var drawerStatus: ServerStatus?
+    @State private var drawerServerSessions: [ServerSession] = []
 
     private var currentThread: ChatThread? {
         threads.first { $0.id == currentThreadID } ?? threads.first
@@ -46,9 +65,44 @@ struct ChatView: View {
                         if let errorMessage {
                             errorBanner(errorMessage)
                         }
+                        if let notice {
+                            noticeBar(notice)
+                        }
                         inputBar
                     }
                     .background(Palette.pageBG)
+                    .photosPicker(
+                        isPresented: $showPhotoPicker,
+                        selection: $photoItem,
+                        matching: .images
+                    )
+                    .onChange(of: photoItem) { _, item in
+                        guard let item else { return }
+                        photoItem = nil
+                        Task { await loadPickedPhoto(item) }
+                    }
+                    .fileImporter(
+                        isPresented: $showFileImporter,
+                        allowedContentTypes: [.item],
+                        allowsMultipleSelection: true
+                    ) { result in
+                        loadPickedFiles(result)
+                    }
+                    .fullScreenCover(isPresented: $showCamera) {
+                        CameraPicker(
+                            onImage: { data in
+                                showCamera = false
+                                appendImage(data)
+                            },
+                            onCancel: { showCamera = false }
+                        )
+                        .ignoresSafeArea()
+                    }
+                    .onChange(of: drawerOpen) { _, open in
+                        if open {
+                            Task { await loadDrawerData() }
+                        }
+                    }
                     .navigationTitle(currentThread?.title ?? "聊天")
                     .navigationSubtitle(appState.modelID)
                     .navigationBarTitleDisplayMode(.inline)
@@ -116,6 +170,12 @@ struct ChatView: View {
                 .padding(.top, OneDayMetrics.spacingM)
                 .padding(.bottom, OneDayMetrics.spacingS)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
+                // 收起由 scrollDismissesKeyboard 承接）
+                composerFocused = false
+            }
             .onChange(of: currentThread?.sortedEntries.count) { _, _ in
                 scrollToBottom(proxy)
             }
@@ -136,15 +196,28 @@ struct ChatView: View {
         if entry.role == "user" {
             HStack {
                 Spacer(minLength: 44)
-                Text(entry.content)
-                    .font(TypeScale.body)
-                    .foregroundStyle(Palette.ink)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        Palette.primaryTint,
-                        in: RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
-                    )
+                VStack(alignment: .trailing, spacing: OneDayMetrics.spacingXS) {
+                    if let data = entry.imageData, let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 220)
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
+                            )
+                    }
+                    if !entry.content.isEmpty {
+                        Text(entry.content)
+                            .font(TypeScale.body)
+                            .foregroundStyle(Palette.ink)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                Palette.primaryTint,
+                                in: RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
+                            )
+                    }
+                }
             }
         } else {
             MarkdownText(entry.content)
@@ -195,38 +268,213 @@ struct ChatView: View {
         .background(Palette.pageBG)
     }
 
-    private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
-            TextField("发消息…", text: $input, axis: .vertical)
-                .lineLimit(1...5)
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .padding(.vertical, OneDayMetrics.spacingSM)
-                .background(
-                    Palette.surface,
-                    in: RoundedRectangle(cornerRadius: OneDayMetrics.composerCorner)
-                )
-                .odElevation(Elevation.floating)
-            Button {
-                if isStreaming {
-                    sendTask?.cancel()
-                } else {
-                    send()
+    private func noticeBar(_ message: String) -> some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Palette.hairline)
+                .frame(height: 1)
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+                Text(message)
+                    .font(TypeScale.subhead)
+                    .foregroundStyle(Palette.inkSecondary)
+                Spacer()
+                Button {
+                    notice = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.inkSecondary)
                 }
-            } label: {
-                Image(systemName: isStreaming ? "stop.fill" : "arrow.up")
-                    .font(.body.weight(.semibold))
-                    .frame(
-                        width: OneDayMetrics.minTapTarget,
-                        height: OneDayMetrics.minTapTarget
-                    )
+                .accessibilityLabel("关闭")
             }
-            .odGlassButton(.tinted)
-            .disabled(!isStreaming && input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel(isStreaming ? "停止生成" : "发送")
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.vertical, OneDayMetrics.spacingS)
+        }
+        .background(Palette.pageBG)
+    }
+
+    // MARK: - 输入区（0.2.1：＋附件键＋34pt 标准发送键）
+
+    private var canSend: Bool {
+        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !attachments.isEmpty
+    }
+
+    private var inputBar: some View {
+        VStack(spacing: OneDayMetrics.spacingS) {
+            if !attachments.isEmpty {
+                attachmentsStrip
+            }
+            HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
+                attachButton
+                TextField("发消息…", text: $input, axis: .vertical)
+                    .lineLimit(1...5)
+                    .focused($composerFocused)
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.vertical, OneDayMetrics.spacingSM)
+                    .background(
+                        Palette.surface,
+                        in: RoundedRectangle(cornerRadius: OneDayMetrics.composerCorner)
+                    )
+                    .odElevation(Elevation.floating)
+                sendButton
+            }
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingS)
+    }
+
+    /// 发送键：34pt 圆形标准键（0.2.1 改版，不再用超大玻璃键）；
+    /// 流式中变停止键、同尺寸；染色走主题填充档
+    private var sendButton: some View {
+        let active = isStreaming || canSend
+        return Button {
+            if isStreaming {
+                sendTask?.cancel()
+            } else {
+                send()
+            }
+        } label: {
+            Image(systemName: isStreaming ? "stop.fill" : "arrow.up")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(active ? Color.white : Palette.inkMuted)
+                .frame(width: 34, height: 34)
+                .background(
+                    active ? Palette.primaryFill : Palette.fieldFill,
+                    in: Circle()
+                )
+        }
+        .disabled(!isStreaming && !canSend)
+        .accessibilityLabel(isStreaming ? "停止生成" : "发送")
+    }
+
+    private var attachButton: some View {
+        Menu {
+            Button {
+                showCamera = true
+            } label: {
+                Label("拍照", systemImage: "camera")
+            }
+            .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
+            Button {
+                showPhotoPicker = true
+            } label: {
+                Label("相册选图", systemImage: "photo.on.rectangle")
+            }
+            Button {
+                showFileImporter = true
+            } label: {
+                Label("选文件", systemImage: "doc")
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .frame(width: 34, height: 34)
+                .background(Palette.surface, in: Circle())
+                .odElevation(Elevation.floating)
+        }
+        .accessibilityLabel("添加附件")
+    }
+
+    /// 待发附件条：图片出缩略图、文件出名牌，都可单独移除
+    private var attachmentsStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                ForEach(attachments) { attachment in
+                    attachmentChip(attachment)
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.spacingXS)
+            .padding(.vertical, OneDayMetrics.spacingXS)
+        }
+    }
+
+    @ViewBuilder
+    private func attachmentChip(_ attachment: PendingAttachment) -> some View {
+        ZStack(alignment: .topTrailing) {
+            switch attachment.kind {
+            case .image(let data):
+                if let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 54, height: 54)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            case .file(let name, _):
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    Image(systemName: "doc")
+                        .foregroundStyle(Palette.inkSecondary)
+                    Text(name)
+                        .font(TypeScale.callout)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                        .frame(maxWidth: 140)
+                }
+                .padding(.horizontal, OneDayMetrics.spacingSM)
+                .frame(height: 54)
+                .background(
+                    Palette.surface,
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+                .odElevation(Elevation.floating)
+            }
+            Button {
+                attachments.removeAll { $0.id == attachment.id }
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 17))
+                    .foregroundStyle(Palette.inkMuted, Palette.surface)
+            }
+            .offset(x: 5, y: -5)
+            .accessibilityLabel("移除附件")
+        }
+    }
+
+    // MARK: - 附件接入
+
+    /// 图片统一转 JPEG 再入列：data URL 的 mime 恒为
+    /// image/jpeg，多模态编码不说谎
+    private func appendImage(_ rawData: Data) {
+        if let image = UIImage(data: rawData), let jpeg = image.jpegData(compressionQuality: 0.85) {
+            attachments.append(PendingAttachment(kind: .image(jpeg)))
+        } else {
+            attachments.append(PendingAttachment(kind: .image(rawData)))
+        }
+    }
+
+    private func loadPickedPhoto(_ item: PhotosPickerItem) async {
+        if let data = try? await item.loadTransferable(type: Data.self) {
+            appendImage(data)
+        }
+    }
+
+    private func loadPickedFiles(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result else { return }
+        for url in urls {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer {
+                if scoped { url.stopAccessingSecurityScopedResource() }
+            }
+            guard let data = try? Data(contentsOf: url) else {
+                notice = "读取「\(url.lastPathComponent)」失败，未加入待发列表。"
+                continue
+            }
+            // 待发上限 20MB：超限只报不收，不静默截断
+            guard data.count <= 20 * 1024 * 1024 else {
+                notice = "「\(url.lastPathComponent)」超过 20MB，未加入待发列表。"
+                continue
+            }
+            attachments.append(
+                PendingAttachment(kind: .file(name: url.lastPathComponent, data: data))
+            )
+        }
     }
 
     // MARK: - 会话抽屉（0.1.3，定版 §7）
@@ -277,16 +525,63 @@ struct ChatView: View {
 
     private func drawerPanel(width: CGFloat) -> some View {
         VStack(spacing: 0) {
+            drawerIdentity
             drawerSearchField
             drawerNewChatRow
             ScrollView {
                 drawerList
             }
+            .scrollDismissesKeyboard(.interactively)
             drawerServerRow
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
         .background(Palette.surface)
+    }
+
+    /// 顶部身份块（0.2.1 仿 Muse 侧边栏）：Hermes 名＋在线
+    /// 状态点＋当前状态与模型小字
+    private var drawerIdentity: some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Text("Hermes")
+                    .font(TypeScale.title)
+                    .foregroundStyle(Palette.ink)
+                StatusDot(
+                    color: drawerStatus.map { Palette.stateColor($0.gatewayState) }
+                        ?? Palette.success
+                )
+            }
+            Text("\(drawerStateWord) · \(appState.modelID == "hermes-agent" ? "服务端默认模型" : appState.modelID)")
+                .font(TypeScale.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .padding(.top, OneDayMetrics.spacingM)
+        .padding(.bottom, OneDayMetrics.spacingS)
+    }
+
+    private var drawerStateWord: String {
+        switch drawerStatus?.gatewayState?.lowercased() {
+        case "stopped": return "已停止"
+        case "error", "failed": return "异常"
+        default: return "运行中"
+        }
+    }
+
+    private func loadDrawerData() async {
+        if let loaded = try? await appState.performAdmin({ client, config in
+            try await client.status(config: config)
+        }) {
+            drawerStatus = loaded
+        }
+        if let page = try? await appState.performAdmin({ client, config in
+            try await client.serverSessions(config: config, limit: 6)
+        }) {
+            drawerServerSessions = page.sessions
+        }
     }
 
     private var drawerSearchField: some View {
@@ -353,35 +648,94 @@ struct ChatView: View {
         }
     }
 
-    /// 分段口径（框架定版）：先按来源分段——本机会话是里程碑 1
-    /// 的真实数据（最近更新在前）；服务端会话按 IA v3 分工归
-    /// 「智能体」格管理（两处分工不同不合并，见 IA-V3 §5.2），
-    /// 抽屉里只给一行去向说明，不重复列表。
+    /// 本机会话按时间分组（0.2.1 仿 Muse 侧边栏）：今天／
+    /// 昨天／更早；搜索时收成单组「搜索结果」。服务端会话
+    /// 单列一组在下方（点行直达设置里的会话详情），拉不到
+    /// 时回落一行去向说明。
     private var drawerList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("本机会话")
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .padding(.top, OneDayMetrics.spacingL)
-                .padding(.bottom, OneDayMetrics.spacingS)
+            ForEach(threadGroups, id: \.label) { group in
+                SectionLabel(group.label)
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.top, OneDayMetrics.spacingL)
+                    .padding(.bottom, OneDayMetrics.spacingS)
+                ForEach(group.threads) { thread in
+                    drawerThreadRow(thread)
+                }
+            }
             if filteredThreads.isEmpty {
                 Text(drawerQuery.isEmpty ? "暂无会话" : "没有匹配的会话")
                     .font(TypeScale.footnote)
                     .foregroundStyle(Palette.inkMuted)
                     .padding(.horizontal, OneDayMetrics.spacingM)
-            }
-            ForEach(filteredThreads) { thread in
-                drawerThreadRow(thread)
+                    .padding(.top, OneDayMetrics.spacingL)
             }
             SectionLabel("服务端会话")
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .padding(.top, OneDayMetrics.spacingL)
                 .padding(.bottom, OneDayMetrics.spacingS)
-            Text("在「智能体」页的服务端会话里查看与管理")
-                .font(TypeScale.footnote)
-                .foregroundStyle(Palette.inkMuted)
-                .padding(.horizontal, OneDayMetrics.spacingM)
+            if drawerServerSessions.isEmpty {
+                Text("在「设置 · 智能体 · 服务端会话」里查看与管理")
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+            } else {
+                ForEach(drawerServerSessions) { session in
+                    drawerServerSessionRow(session)
+                }
+            }
         }
         .padding(.bottom, OneDayMetrics.spacingL)
+    }
+
+    /// 本机会话的时间分组（按 updatedAt 的自然日）
+    private var threadGroups: [(label: String, threads: [ChatThread])] {
+        let all = filteredThreads
+        guard drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return all.isEmpty ? [] : [("搜索结果", all)]
+        }
+        let calendar = Calendar.current
+        var today: [ChatThread] = []
+        var yesterday: [ChatThread] = []
+        var earlier: [ChatThread] = []
+        for thread in all {
+            if calendar.isDateInToday(thread.updatedAt) {
+                today.append(thread)
+            } else if calendar.isDateInYesterday(thread.updatedAt) {
+                yesterday.append(thread)
+            } else {
+                earlier.append(thread)
+            }
+        }
+        return [("今天", today), ("昨天", yesterday), ("更早", earlier)]
+            .filter { !$0.threads.isEmpty }
+    }
+
+    private func drawerServerSessionRow(_ session: ServerSession) -> some View {
+        Button {
+            setDrawer(false)
+            onOpenServerSession(session.id)
+        } label: {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                Text(session.title)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text("\(session.messageCount) 条 · \(Self.threadDateText(session.startedDate))")
+                    .font(TypeScale.monoFootnote)
+                    .foregroundStyle(Palette.inkMuted)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .padding(.vertical, OneDayMetrics.spacingSM)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: OneDayMetrics.rowHeight,
+                alignment: .leading
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, OneDayMetrics.spacingS)
     }
 
     /// 抽屉会话行的时间口径：固定中文短格式（11月8日 13:43），
@@ -450,18 +804,17 @@ struct ChatView: View {
                 setDrawer(false)
                 onOpenSettings()
             } label: {
-                HStack(spacing: OneDayMetrics.spacingXS) {
+                HStack(spacing: OneDayMetrics.spacingS) {
                     StatusDot(color: Palette.success)
                     Text(appState.config?.host ?? "未连接")
                         .font(TypeScale.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
-                        .layoutPriority(1)
                     Spacer(minLength: OneDayMetrics.spacingXS)
-                    Text(appState.modelID)
-                        .font(TypeScale.monoCaption)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Palette.inkMuted)
-                        .lineLimit(1)
+                        .accessibilityHidden(true)
                 }
                 .padding(.horizontal, OneDayMetrics.spacingSM)
                 .frame(minHeight: OneDayMetrics.rowHeight)
@@ -501,18 +854,46 @@ struct ChatView: View {
 
     private func send() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isStreaming else { return }
+        let pending = attachments
+        guard !isStreaming, !text.isEmpty || !pending.isEmpty else { return }
         input = ""
+        attachments = []
         errorMessage = nil
+        notice = nil
         let thread = ensureThread()
-        modelContext.insert(ChatEntry(role: "user", content: text, thread: thread))
+        let imageDatas = pending.compactMap(\.imageData)
+        let fileNames = pending.compactMap(\.fileName)
+        modelContext.insert(
+            ChatEntry(
+                role: "user", content: text, thread: thread,
+                imageData: imageDatas.first
+            )
+        )
         if thread.title == "新会话" {
-            thread.title = String(text.prefix(20))
+            thread.title = text.isEmpty ? "图片消息" : String(text.prefix(20))
         }
         thread.updatedAt = Date()
         try? modelContext.save()
-        let context = thread.sortedEntries.suffix(20).map {
+        var context = thread.sortedEntries.suffix(20).map {
             ChatMessage(role: $0.role, content: $0.content)
+        }
+        // 本条若带图：最后一条用户消息改多模态 parts 编码
+        // （图片走 OpenAI image_url + data: base64；服务端/模型
+        // 不支持时错误经 errorBanner 如实呈现，不假装发过）
+        if !imageDatas.isEmpty, let last = context.last, last.role == "user" {
+            let urls = imageDatas.map {
+                "data:image/jpeg;base64,\($0.base64EncodedString())"
+            }
+            context[context.count - 1] = ChatMessage(
+                role: "user", text: text, imageDataURLs: urls
+            )
+        }
+        // 文件直发：/api/chat/file-upload 在 openapi 里有端点，
+        // 但其回执与 /v1 消息的拼装契约未经实测（红线：不对
+        // 生产发写请求验证），本版只做选择与待发列表，发送时
+        // 如实说明未随条发送，不静默丢弃
+        if !fileNames.isEmpty {
+            notice = "文件直发尚未开放：\(fileNames.joined(separator: "、")) 未随本条发送。"
         }
         streamingText = ""
         sendTask = Task {
@@ -575,6 +956,75 @@ struct ChatView: View {
         }
         streamingText = nil
         sendTask = nil
+    }
+}
+
+/// 待发附件（0.2.1）：图片已统一转 JPEG（见 appendImage）；
+/// 文件只存名与数据——直发未开放，发送时如实提示（见 send()）
+private struct PendingAttachment: Identifiable {
+    let id = UUID()
+
+    enum Kind {
+        case image(Data)
+        case file(name: String, data: Data)
+    }
+
+    let kind: Kind
+
+    var imageData: Data? {
+        if case .image(let data) = kind { return data }
+        return nil
+    }
+
+    var fileName: String? {
+        if case .file(let name, _) = kind { return name }
+        return nil
+    }
+}
+
+/// 系统相机包装：模拟器无相机，入口在附件菜单里已按可用性禁用
+private struct CameraPicker: UIViewControllerRepresentable {
+    var onImage: (Data) -> Void
+    var onCancel: () -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(
+        _ controller: UIImagePickerController, context: Context
+    ) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate,
+        UINavigationControllerDelegate {
+        let parent: CameraPicker
+
+        init(parent: CameraPicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            if let image = info[.originalImage] as? UIImage,
+               let data = image.jpegData(compressionQuality: 0.85) {
+                parent.onImage(data)
+            } else {
+                parent.onCancel()
+            }
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onCancel()
+        }
     }
 }
 

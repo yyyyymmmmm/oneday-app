@@ -51,7 +51,7 @@ jobs:
           import glob, json, os, shutil
 
           out_dir, final_dir = "shots-out", "shots-final"
-          wanted = ["01-connect", "02-chat", "03-chat-sidebar", "04-overview", "05-agent", "06-settings"]
+          wanted = ["01-connect", "02-chat", "03-chat-sidebar", "04-overview", "05-files", "06-settings"]
           found = {}
 
           manifest = os.path.join(out_dir, "manifest.json")

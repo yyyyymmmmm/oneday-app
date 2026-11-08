@@ -35,7 +35,23 @@ struct OverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if let status {
-                        statusHead(status)
+                        NavigationLink {
+                            StatusView(
+                                onOpenSession: { onOpenAgent(.serverSessionDetail($0)) }
+                            )
+                        } label: {
+                            HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+                                statusHead(status)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Palette.inkMuted)
+                                    .padding(.top, OneDayMetrics.spacingSM)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("状态详情")
                         platformsGroup(status)
                     } else if let statusError {
                         errorSection(statusError)

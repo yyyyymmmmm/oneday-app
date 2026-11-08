@@ -102,13 +102,97 @@ public struct ModelsResponse: Decodable, Sendable {
 
 // MARK: - POST /v1/chat/completions（OpenAI 兼容）
 
+/// 多模态内容部分（OpenAI 格式）：文本或图片 URL
+/// （data: base64 或 https）。0.2.1 聊天附件用。
+public enum ChatContentPart: Codable, Sendable, Equatable {
+    case text(String)
+    case imageURL(String)
+
+    private enum CodingKeys: String, CodingKey {
+        case type, text, imageURL = "image_url"
+    }
+
+    private struct ImageURLBody: Codable, Sendable, Equatable {
+        let url: String
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        if type == "image_url" {
+            let body = try container.decode(ImageURLBody.self, forKey: .imageURL)
+            self = .imageURL(body.url)
+        } else {
+            self = .text(try container.decodeIfPresent(String.self, forKey: .text) ?? "")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .text(let text):
+            try container.encode("text", forKey: .type)
+            try container.encode(text, forKey: .text)
+        case .imageURL(let url):
+            try container.encode("image_url", forKey: .type)
+            try container.encode(ImageURLBody(url: url), forKey: .imageURL)
+        }
+    }
+}
+
 public struct ChatMessage: Codable, Sendable, Equatable {
     public let role: String
+    /// 纯文本视图：多模态消息时为其中文本部分的拼接（历史回放用）
     public let content: String
+    /// 多模态部分：非 nil 时 content 按 parts 数组编码（OpenAI 格式）
+    public let parts: [ChatContentPart]?
 
     public init(role: String, content: String) {
         self.role = role
         self.content = content
+        self.parts = nil
+    }
+
+    /// 带图片的用户消息：文本可为空（纯图片消息）
+    public init(role: String, text: String, imageDataURLs: [String]) {
+        self.role = role
+        self.content = text
+        var parts: [ChatContentPart] = []
+        if !text.isEmpty {
+            parts.append(.text(text))
+        }
+        parts.append(contentsOf: imageDataURLs.map(ChatContentPart.imageURL))
+        self.parts = parts.isEmpty ? nil : parts
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case role, content
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        role = try container.decode(String.self, forKey: .role)
+        if let text = try? container.decode(String.self, forKey: .content) {
+            content = text
+            parts = nil
+        } else {
+            let decoded = try container.decode([ChatContentPart].self, forKey: .content)
+            parts = decoded
+            content = decoded.compactMap { part in
+                if case .text(let text) = part { return text }
+                return nil
+            }.joined(separator: "\n")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(role, forKey: .role)
+        if let parts {
+            try container.encode(parts, forKey: .content)
+        } else {
+            try container.encode(content, forKey: .content)
+        }
     }
 
     public static func user(_ content: String) -> ChatMessage {

@@ -75,14 +75,23 @@ public enum Palette {
         #endif
     }
 
-    // —— 强调（信号蓝，每屏至多一个时刻＋关键动作） ——
-    /// 品牌主色：文字/图标强调。浅色为腾讯蓝本体 #0052D9；
-    /// 深色提亮 #6BA3FF（本体蓝在深底只有约 3:1，沿 v1 验算）
-    public static let primary = dyn(0x0052D9, 0x6BA3FF)
-    /// 品牌填充深档：强调底＋白字（主按钮、发送键）
-    public static let primaryFill = dyn(0x003CAB, 0x0052D9)
-    /// 品牌浅染：用户气泡、选中衬底（约 8% 染）
-    public static let primaryTint = dyn(0xEBF1FC, 0x1B2B4D)
+    // —— 强调（主题色，0.2.1 起由 AccentStore 驱动，五款可选、
+    // 默认腾讯蓝；每屏至多一个时刻＋关键动作的纪律不变） ——
+    /// 品牌主色：文字/图标强调，随当前主题
+    public static var primary: Color {
+        let values = AccentStore.shared.theme.values
+        return dyn(values.0, values.1)
+    }
+    /// 品牌填充：强调底＋白字（主按钮、发送键），随当前主题
+    public static var primaryFill: Color {
+        let values = AccentStore.shared.theme.values
+        return dyn(values.2, values.3)
+    }
+    /// 品牌浅染：用户气泡、选中衬底，随当前主题
+    public static var primaryTint: Color {
+        let values = AccentStore.shared.theme.values
+        return dyn(values.4, values.5)
+    }
 
     // —— 反馈语义（成套降饱和，不用系统纯色） ——
     /// 成功 / 在线

@@ -1,17 +1,17 @@
 import OneDayDesign
 import SwiftUI
 
-/// 底部四格（IA v3 定版，docs/IA-V3.md §5.1）：聊天／总览／
-/// 智能体／设置。分界线来自智能体竞品集的成文纪律：配置类
-/// （模型/密钥/连接）进设置，运维类（记忆/技能/定时/服务端
-/// 会话）进「智能体」格——不是把 0.1.3 的整包「管理」格搬回来。
-/// 聊天仍是第一格与默认落点（OneDay 是对话优先的个人客户端，
-/// 取舍在 IA-V3 §5.1 明记）。
+/// 底部四格（0.2.1 用户改版）：聊天／总览／文件／设置。
+/// IA v3 的「智能体」格取消——运维四模块并入设置页「智能体」
+/// 组；第三格改为「文件」（服务端工作区，仿 Muse 资源库）。
+/// 深链口径随之调整：AgentRoute 的落点统一是设置格（其内
+/// NavigationStack 消费 pendingAgentRoute），SettingsRoute
+/// 不变。聊天仍是第一格与默认落点。
 struct ContentView: View {
     enum MainTab: Hashable {
         case chat
         case overview
-        case agent
+        case files
         case settings
     }
 
@@ -21,13 +21,19 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $selection) {
             Tab("聊天", systemImage: "bubble.left.and.bubble.right", value: MainTab.chat) {
-                ChatView(onOpenSettings: { selection = .settings })
+                ChatView(
+                    onOpenSettings: { selection = .settings },
+                    onOpenServerSession: { id in
+                        appState.pendingAgentRoute = .serverSessionDetail(id)
+                        selection = .settings
+                    }
+                )
             }
             Tab("总览", systemImage: "gauge.with.dots.needle.33percent", value: MainTab.overview) {
                 OverviewView(
                     onOpenAgent: { route in
                         appState.pendingAgentRoute = route
-                        selection = .agent
+                        selection = .settings
                     },
                     onOpenSettings: { route in
                         appState.pendingSettingsRoute = route
@@ -36,13 +42,13 @@ struct ContentView: View {
                     onOpenChat: { selection = .chat }
                 )
             }
-            Tab("智能体", systemImage: "sparkles", value: MainTab.agent) {
-                AgentView()
+            Tab("文件", systemImage: "folder", value: MainTab.files) {
+                FilesView()
             }
             Tab("设置", systemImage: "gearshape", value: MainTab.settings) {
                 SettingsView()
             }
         }
-        .tint(Palette.ink)
+        .tint(Palette.primary)
     }
 }
