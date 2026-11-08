@@ -112,17 +112,19 @@ struct ContentView: View {
     /// 0.2.7 按官方口径再校准（DESIGN-V4 §11.0）：定案标准
     /// 改为「字形墨迹高 23–25pt」——HIG《Tab bars》指向的
     /// Apple Design Resources 字形规格约 25pt。实测 SF 符号
-    /// 在底栏的墨迹系统性大于 config 点数且逐字形不同
-    /// （config 21 时 folder ≈27–31pt、系数 ≈1.3–1.5×；
-    /// 双气泡 ≈37pt、系数 ≈1.8×），故逐字形反推 config：
-    /// 双气泡 14、其余 17，墨迹齐落 24±1.5pt。字形烘焙进
-    /// 固定 44×44pt 透明画布居中绘制：四个条目位图同尺寸，
-    /// 系统排版基准一致、只缩墨迹不动槽位与热区；烘焙图须
-    /// 显式 .alwaysTemplate（渲染器产物默认 original，tint
-    /// 会失效）。交付后以 CI kb-idle 同法复量墨迹验收。
+    /// 在底栏的墨迹系统性大于 config 点数且逐字形不同，故
+    /// 逐字形反推 config 并两轮实测收敛：config 21 时双气
+    /// 泡 ≈37pt（系数 ≈1.8）、folder ≈28pt（≈1.35）；首轮
+    /// 校准（双气泡 14/folder 17）后 CI 同法复量仍 ≈27pt
+    /// （实测系数 1.9/1.6），再收一档定案：双气泡 12、其余
+    /// 15，墨迹落 23–24pt。字形烘焙进固定 44×44pt 透明画
+    /// 布居中绘制：四个条目位图同尺寸，系统排版基准一致、
+    /// 只缩墨迹不动槽位与热区；烘焙图须显式
+    /// .alwaysTemplate（渲染器产物默认 original，tint 会
+    /// 失效）。
     private func tabSymbol(_ name: String) -> Image {
         let pointSize: CGFloat =
-            name == "bubble.left.and.bubble.right" ? 14 : 17
+            name == "bubble.left.and.bubble.right" ? 12 : 15
         let configuration = UIImage.SymbolConfiguration(
             pointSize: pointSize, weight: .regular
         )
