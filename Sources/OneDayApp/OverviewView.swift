@@ -3,13 +3,17 @@ import OneDayCore
 import SwiftData
 import SwiftUI
 
-/// 总览（IA v3 §5.4 五段）：状态头／指标行／待办面／最近
-/// 会话／快捷动作。配方依据同类样本 OpenClaw 安卓 Overview
-/// （状态头＋计数指标深链＋最近会话）与 Muse 状态屏的监督
-/// 职能（待办面）。配置回声（模型/提供商/工具集）已退出本页
-/// ——它们在设置里。总览只看不动，唯一的写动作是快捷动作里
-/// 的重启网关（二次确认）。每段独立加载：一段失败只降级
-/// 该段，不整页报错。
+/// 总览（IA v3 §5.4 五段，0.3.7 卡 2 改版）：顶部状态大卡
+/// 置顶（收编状态头＋指标：状态行＝状态点＋人话状态词、
+/// 大数字＝今日 Token、进度＝内存占用 %，取数口径见卡 2
+/// 已裁注），五段其余保留卡下。0.3.6 真机纠正四条同轮
+/// 落地：状态字号回正常行（不再 36pt 大字压页标题）、
+/// 「待处理」改人话结论列表（无则明写，没有日志原文、
+/// INFO 不挂红）、平台名/状态词全走 ServerLabels 翻译
+/// （api_server/connected 原文退出本页）、底部留白补到
+/// 悬浮底栏带（tabBarZone）。总览只看不动，唯一的写动
+/// 作是快捷动作里的重启网关（二次确认）。每段独立加
+/// 载：一段失败只降级该段，不整页报错。
 struct OverviewView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
@@ -20,11 +24,12 @@ struct OverviewView: View {
     var onOpenChat: () -> Void = {}
 
     @State private var status: ServerStatus?
+    @State private var stats: SystemStats?
     @State private var serverSessions: [ServerSession] = []
     @State private var sessionsLoaded = false
     @State private var cronJobs: [CronJob] = []
     @State private var todayTokens: Double?
-    @State private var errorLines: [String] = []
+    @State private var errorLogCount = 0
     @State private var egressAbnormal = false
     @State private var statusError: String?
     @State private var isLoading = false
@@ -36,28 +41,11 @@ struct OverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if let status {
-                        NavigationLink {
-                            StatusView(
-                                onOpenSession: { onOpenAgent(.serverSessionDetail($0)) }
-                            )
-                        } label: {
-                            HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
-                                statusHead(status)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(Palette.inkMuted)
-                                    .padding(.top, OneDayMetrics.spacingSM)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("状态详情")
+                        statusCard(status)
                         platformsGroup(status)
                     } else if let statusError {
                         errorSection(statusError)
                     }
-                    metricsGroup
                     todoGroup
                     recentGroup
                     actionsGroup
@@ -80,7 +68,9 @@ struct OverviewView: View {
                 }
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingXL)
+                // 卡 2 纠正 4：底部留白补到悬浮底栏带，
+                // 末组尾行不被底栏压住
+                .padding(.bottom, OneDayMetrics.tabBarZone)
             }
             .background(Palette.pageBG)
             .navigationTitle("总览")
@@ -101,29 +91,140 @@ struct OverviewView: View {
         }
     }
 
-    // MARK: - 1 状态头（签名排版沿用：状态即排版，数字即读数）
+    // MARK: - 状态大卡（卡 2 置顶收编：状态行＋大数字＋进度＋次级指标）
 
-    private func statusHead(_ status: ServerStatus) -> some View {
+    private func statusCard(_ status: ServerStatus) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("服务器")
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                StatusDot(color: Palette.stateColor(status.gatewayState))
-                Text(stateWord(status))
-                    .font(TypeScale.display(for: colorScheme))
-                    .foregroundStyle(isAbnormal(status) ? Palette.danger : Palette.ink)
+            NavigationLink {
+                StatusView(
+                    onOpenSession: { onOpenAgent(.serverSessionDetail($0)) }
+                )
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    StatusDot(color: Palette.stateColor(status.gatewayState))
+                    Text(stateWord(status))
+                        .font(TypeScale.body)
+                        .foregroundStyle(isAbnormal(status) ? Palette.danger : Palette.ink)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        // 卡 17：字形 regular 线条体
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(Palette.inkMuted)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
             }
-            .padding(.top, OneDayMetrics.spacingS)
+            .buttonStyle(.plain)
+            .accessibilityLabel("状态详情")
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.top, OneDayMetrics.spacingM)
+
+            // 大数字＝今日 Token（已裁 2）；等宽＋numericText
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(appState.config?.host ?? "—")
-                    .font(TypeScale.monoFootnote)
+                Text(todayTokens.map { AdminFormat.count($0) } ?? "—")
+                    .font(TypeScale.metricNumber)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .tabularDigits()
+                    .contentTransition(.numericText())
+                Text("今日 Token")
+                    .font(TypeScale.caption)
                     .foregroundStyle(Palette.inkSecondary)
-                Text(versionLine(status))
-                    .font(TypeScale.monoFootnote)
-                    .foregroundStyle(Palette.inkMuted)
             }
-            .padding(.top, OneDayMetrics.spacingSM)
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.top, OneDayMetrics.spacingL)
+
+            // 进度＝内存占用 %（已裁 2：唯一有真分母的候选）
+            if let percent = stats?.memory?.percent {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                    HStack {
+                        Text("内存占用")
+                            .font(TypeScale.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Spacer()
+                        Text("\(Int(percent.rounded()))%")
+                            .font(TypeScale.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .tabularDigits()
+                    }
+                    DataBar(fraction: percent / 100)
+                }
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .padding(.top, OneDayMetrics.spacingM)
+            }
+
+            GroupDivider(inset: OneDayMetrics.spacingM)
+                .padding(.top, OneDayMetrics.spacingM)
+
+            // 卡内次级指标（原指标行收编，深链保留）
+            HStack(spacing: 0) {
+                metricCell(
+                    value: sessionsLoaded ? "\(activeSessionCount)" : "—",
+                    label: "活跃会话"
+                ) {
+                    onOpenAgent(.serverSessions)
+                }
+                metricDivider
+                metricCell(
+                    value: "\(enabledCronCount)",
+                    label: nextCronRun.map { "定时 · 下次 \(AdminFormat.timeOnly($0))" } ?? "定时任务"
+                ) {
+                    onOpenAgent(.cron)
+                }
+            }
+        }
+        .odGroup()
+    }
+
+    private var metricDivider: some View {
+        Rectangle()
+            .fill(Palette.hairline)
+            .frame(width: 1)
+            .padding(.vertical, OneDayMetrics.spacingSM)
+    }
+
+    private func metricCell(
+        value: String, label: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                Text(value)
+                    // 卡 17：24 semibold → title 位 bold 口径
+                    .font(TypeScale.title(for: colorScheme))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .tabularDigits()
+                    .contentTransition(.numericText())
+                Text(label)
+                    .font(TypeScale.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingSM)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+    }
+
+    private func stateWord(_ status: ServerStatus) -> String {
+        ServerLabels.gatewayState(status.gatewayState, running: status.gatewayRunning)
+    }
+
+    private func isAbnormal(_ status: ServerStatus) -> Bool {
+        switch status.gatewayState?.lowercased() {
+        case "error", "failed", "disconnected", "stopped":
+            return true
+        default:
+            return false
         }
     }
+
+    // MARK: - 平台连接（明细正主在网关页，本段保留段位；名/词走翻译）
 
     private func platformsGroup(_ status: ServerStatus) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -158,11 +259,13 @@ struct OverviewView: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 StatusDot(color: Palette.stateColor(platform.state))
-                Text(name)
+                // 卡 2 纠正 3：平台名与状态词走 ServerLabels，
+                // 原始 key/state 不上屏
+                Text(ServerLabels.platformName(name))
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
                 Spacer()
-                Text(platform.state ?? "未知")
+                Text(ServerLabels.platformState(platform.state))
                     .font(TypeScale.footnote)
                     .foregroundStyle(Palette.stateColor(platform.state))
             }
@@ -177,148 +280,44 @@ struct OverviewView: View {
         .frame(minHeight: OneDayMetrics.rowHeight)
     }
 
-    private func stateWord(_ status: ServerStatus) -> String {
-        switch status.gatewayState?.lowercased() {
-        case "running":
-            return "运行中"
-        case "stopped":
-            return "已停止"
-        case "error", "failed":
-            return "异常"
-        default:
-            return status.gatewayRunning == true ? "运行中" : "未运行"
-        }
-    }
-
-    private func isAbnormal(_ status: ServerStatus) -> Bool {
-        switch status.gatewayState?.lowercased() {
-        case "error", "failed", "disconnected", "stopped":
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func versionLine(_ status: ServerStatus) -> String {
-        let version = status.version.map { "v\($0)" } ?? "版本未知"
-        guard let date = status.releaseDate else { return version }
-        return "\(version) · 发布于 \(date)"
-    }
-
-    // MARK: - 2 指标行（单容器三列，逐项深链）
-
-    private var activeSessionCount: Int {
-        serverSessions.filter(\.isActive).count
-    }
-
-    private var enabledCronCount: Int {
-        cronJobs.filter(\.enabled).count
-    }
-
-    private var nextCronRun: Date? {
-        cronJobs
-            .filter(\.enabled)
-            .compactMap { AdminFormat.iso($0.nextRunAt) }
-            .min()
-    }
-
-    private var metricsGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("指标")
-                .padding(.top, 28)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            HStack(spacing: 0) {
-                metricCell(
-                    value: sessionsLoaded ? "\(activeSessionCount)" : "—",
-                    label: "活跃会话"
-                ) {
-                    onOpenAgent(.serverSessions)
-                }
-                metricDivider
-                metricCell(
-                    value: "\(enabledCronCount)",
-                    label: nextCronRun.map { "定时 · 下次 \(AdminFormat.timeOnly($0))" } ?? "定时任务"
-                ) {
-                    onOpenAgent(.cron)
-                }
-                metricDivider
-                metricCell(
-                    value: todayTokens.map { AdminFormat.count($0) } ?? "—",
-                    label: "今日 Token"
-                ) {
-                    onOpenSettings(.usage)
-                }
-            }
-            .odGroup()
-        }
-    }
-
-    private var metricDivider: some View {
-        Rectangle()
-            .fill(Palette.hairline)
-            .frame(width: 1)
-            .padding(.vertical, OneDayMetrics.spacingSM)
-    }
-
-    private func metricCell(
-        value: String, label: String, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(value)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    // 条 5/6 补落点（0.3.2，审查 #5）：读数
-                    // 等宽防抖＋数字变化走 numericText 过渡
-                    // （学礼记：等宽与 numericText 成对）
-                    .tabularDigits()
-                    .contentTransition(.numericText())
-                Text(label)
-                    .font(TypeScale.caption)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .padding(.vertical, OneDayMetrics.spacingSM)
-            .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-    }
-
-    // MARK: - 3 待办面（无异常不渲染，绝不占位造假）
+    // MARK: - 待处理（人话结论列表，无则明写；日志原文只进日志页）
 
     private var abnormalPlatforms: [(name: String, state: String)] {
         guard let status else { return [] }
         return status.platforms
             .filter { ($0.value.state ?? "").lowercased() != "connected" }
-            .map { (name: $0.key, state: $0.value.state ?? "未知") }
+            .map { (name: $0.key, state: $0.value.state ?? "") }
             .sorted { $0.name < $1.name }
     }
 
     private var hasTodo: Bool {
-        !abnormalPlatforms.isEmpty || !errorLines.isEmpty || egressAbnormal
+        !abnormalPlatforms.isEmpty || errorLogCount > 0 || egressAbnormal
     }
 
     @ViewBuilder
     private var todoGroup: some View {
-        if hasTodo {
+        if status != nil {
             VStack(alignment: .leading, spacing: 0) {
                 SectionLabel("待处理")
                     .padding(.top, 28)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
+                    if !hasTodo {
+                        // 卡 2 纠正 2：无待处理明写，不留空组
+                        Text("没有待处理")
+                            .font(TypeScale.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .padding(.horizontal, OneDayMetrics.spacingM)
+                            .frame(minHeight: OneDayMetrics.rowHeight)
+                    }
                     ForEach(Array(abnormalPlatforms.enumerated()), id: \.element.name) { index, item in
                         if index > 0 {
                             GroupDivider(inset: OneDayMetrics.spacingM)
                         }
                         todoRow(
                             icon: "exclamationmark.triangle",
-                            text: "平台 \(item.name) 状态为 \(item.state)，可能影响消息收发。",
-                            color: Palette.danger
+                            text: "平台 \(ServerLabels.platformName(item.name)) 状态为 \(ServerLabels.platformState(item.state))，可能影响消息收发。",
+                            color: isErrorState(item.state) ? Palette.danger : Palette.warning
                         )
                     }
                     if egressAbnormal {
@@ -331,20 +330,31 @@ struct OverviewView: View {
                             color: Palette.warning
                         )
                     }
-                    ForEach(Array(errorLines.enumerated()), id: \.offset) { index, line in
-                        if index > 0 || !abnormalPlatforms.isEmpty || egressAbnormal {
+                    if errorLogCount > 0 {
+                        if !abnormalPlatforms.isEmpty || egressAbnormal {
                             GroupDivider(inset: OneDayMetrics.spacingM)
                         }
-                        todoRow(
-                            icon: "exclamationmark.circle",
-                            text: AdminFormat.cleanLogLine(line),
-                            color: Palette.danger
-                        )
+                        // 卡 2 纠正 2：日志原文不上总览，只留
+                        // 一条人话摘要，点去日志页看原文
+                        Button {
+                            onOpenSettings(.logs)
+                        } label: {
+                            todoRow(
+                                icon: "exclamationmark.circle",
+                                text: "服务日志有新的错误记录，去日志页查看。",
+                                color: Palette.danger
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .odGroup()
             }
         }
+    }
+
+    private func isErrorState(_ state: String) -> Bool {
+        ["error", "failed"].contains(state.lowercased())
     }
 
     private func todoRow(icon: String, text: String, color: Color) -> some View {
@@ -362,9 +372,25 @@ struct OverviewView: View {
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingSM)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
-    // MARK: - 4 最近会话（服务端优先，无则回退本机）
+    // MARK: - 最近会话（标题/副题走 SessionDisplay，与抽屉同源）
+
+    private var activeSessionCount: Int {
+        serverSessions.filter(\.isActive).count
+    }
+
+    private var enabledCronCount: Int {
+        cronJobs.filter(\.enabled).count
+    }
+
+    private var nextCronRun: Date? {
+        cronJobs
+            .filter(\.enabled)
+            .compactMap { AdminFormat.iso($0.nextRunAt) }
+            .min()
+    }
 
     private var recentGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -412,18 +438,20 @@ struct OverviewView: View {
                     StatusDot(color: Palette.success)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(session.title)
+                    // 卡 16/18 同源：标题 humanTitle、副题
+                    // humanSubtitle，原始 title/source 不上屏
+                    Text(session.humanTitle)
                         .font(TypeScale.body)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
-                    Text(recentSubtitle(session))
+                    Text(session.humanSubtitle(now: Date()))
                         .font(TypeScale.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -433,17 +461,6 @@ struct OverviewView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func recentSubtitle(_ session: ServerSession) -> String {
-        var parts = [AdminFormat.short(session.startedDate)]
-        if let profile = session.profile, !profile.isEmpty {
-            parts.append(profile)
-        }
-        if let count = session.messageCount {
-            parts.append("\(count) 条")
-        }
-        return parts.joined(separator: " · ")
     }
 
     private func localThreadRow(_ thread: ChatThread) -> some View {
@@ -463,7 +480,7 @@ struct OverviewView: View {
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -475,7 +492,7 @@ struct OverviewView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - 5 快捷动作（IA v3 定版三项）
+    // MARK: - 快捷动作（IA v3 定版三项，裁定保留）
 
     private var actionsGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -515,7 +532,7 @@ struct OverviewView: View {
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -565,11 +582,16 @@ struct OverviewView: View {
         }) {
             todayTokens = usage.daily.last?.tokens ?? usage.totals.tokens
         }
+        if let sysStats = try? await appState.performAdmin({ client, config in
+            try await client.systemStats(config: config)
+        }) {
+            stats = sysStats
+        }
         if let logs = try? await appState.performAdmin({ client, config in
             try await client.logs(config: config, level: "error", search: nil, lines: 50)
         }) {
-            // 文件正序：取最后 3 条、最新在前
-            errorLines = Array(logs.lines.suffix(3).reversed())
+            // 只数条数（待处理人话摘要用），原文不上本页
+            errorLogCount = logs.lines.count
         }
         if let egress = try? await appState.performAdmin({ client, config in
             try await client.egressStatus(config: config)

@@ -14,7 +14,8 @@ import Foundation
 public enum HeaderButtonSpec {
     /// 玻璃圆钮视觉直径
     public static let diameter: CGFloat = 40
-    /// 字形字号（semibold，与直径成对校准）
+    /// 字形字号（与直径成对校准；字重 0.3.7 卡 19 改
+    /// regular——§22.5 框架图标令牌，规格只管几何）
     public static let glyphPointSize: CGFloat = 20
     /// 字形/圆比（校准带 0.45–0.55，Muse 量测 ≈0.48）
     public static var glyphRatio: CGFloat {

@@ -8,6 +8,7 @@ import SwiftUI
 /// 防误改），解锁在详情页。
 struct SkillsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var skills: [SkillItem] = []
     @State private var errorMessage: String?
@@ -20,17 +21,33 @@ struct SkillsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if !skills.isEmpty {
-                    SectionLabel("已装技能")
-                        .padding(.bottom, OneDayMetrics.spacingS)
-                    VStack(spacing: 0) {
-                        ForEach(Array(skills.enumerated()), id: \.element.id) { index, skill in
-                            if index > 0 {
-                                GroupDivider(inset: OneDayMetrics.spacingM)
-                            }
-                            skillRow(skill)
-                        }
+                    // 0.3.7 卡 14：摘要卡「已装 N · 启用 M」＋
+                    // 按服务端类别分组（已裁 4，类别名走翻译）
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Text("已装 \(skills.count) 个 · 启用 \(skills.filter(\.isEnabled).count) 个")
+                            .font(TypeScale.title(for: colorScheme))
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
                     }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .frame(minHeight: OneDayMetrics.rowHeight)
                     .odGroup()
+                    ForEach(
+                        Array(skillGroups.enumerated()), id: \.element.label
+                    ) { _, group in
+                        SectionLabel(group.label)
+                            .padding(.top, 28)
+                            .padding(.bottom, OneDayMetrics.spacingS)
+                        VStack(spacing: 0) {
+                            ForEach(Array(group.items.enumerated()), id: \.element.id) { index, skill in
+                                if index > 0 {
+                                    GroupDivider(inset: OneDayMetrics.spacingM)
+                                }
+                                skillRow(skill)
+                            }
+                        }
+                        .odGroup()
+                    }
                 } else if let errorMessage {
                     InlineError(errorMessage)
                     Button("重试") { Task { await load() } }
@@ -70,6 +87,10 @@ struct SkillsView: View {
         .task { await load() }
     }
 
+    private var skillGroups: [(label: String, items: [SkillItem])] {
+        ServerLabels.grouped(skills) { $0.category }
+    }
+
     private func skillRow(_ skill: SkillItem) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             NavigationLink {
@@ -88,21 +109,20 @@ struct SkillsView: View {
                                     .accessibilityLabel("已锁定")
                             }
                         }
-                        if let description = skill.description, !description.isEmpty {
+                        // 卡 14：英文 description 不上屏；
+                        // category 原文小字删（已升组头译名）
+                        if let description = skill.description,
+                           !description.isEmpty,
+                           ServerLabels.isChineseText(description) {
                             Text(description)
                                 .font(TypeScale.footnote)
                                 .foregroundStyle(Palette.inkSecondary)
                                 .lineLimit(1)
                         }
-                        if let category = skill.category, !category.isEmpty {
-                            Text(category)
-                                .font(TypeScale.monoCaption)
-                                .foregroundStyle(Palette.inkMuted)
-                        }
                     }
                     Spacer(minLength: OneDayMetrics.spacingS)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
@@ -277,7 +297,8 @@ struct SkillDetailView: View {
                     Button(isSaving ? "保存中…" : "保存") {
                         Task { await saveContent() }
                     }
-                    .font(TypeScale.callout.weight(.medium))
+                    // 卡 17：medium 退出，保存钮 regular
+                    .font(TypeScale.callout)
                     .disabled(isSaving)
                 } else if content != nil {
                     Button("编辑") {

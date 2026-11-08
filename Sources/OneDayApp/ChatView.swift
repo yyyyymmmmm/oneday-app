@@ -245,18 +245,24 @@ struct ChatView: View {
                     // 0.3.3：顶栏两钮共用 HeaderButtonSpec
                     // 规格（直径 40／字形 20，与右钮同值，
                     // 单测钉住；此前两处各写 36/15）
+                    // 0.3.7 卡 19：字形改 regular（§22.5），
+                    // 圆钮去玻璃描边——无边白面＋柔影
                     .font(.system(
                         size: HeaderButtonSpec.glyphPointSize,
-                        weight: .semibold
+                        weight: .regular
                     ))
                     .foregroundStyle(Palette.ink)
                     .frame(
                         width: HeaderButtonSpec.diameter,
                         height: HeaderButtonSpec.diameter
                     )
+                    .background(Palette.surface, in: Circle())
+                    .shadow(
+                        color: Palette.shadowBase.opacity(0.10),
+                        radius: 12, y: 4
+                    )
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
+            .buttonStyle(.plain)
             .accessibilityLabel("会话列表")
 
             Spacer()
@@ -267,7 +273,7 @@ struct ChatView: View {
                 VStack(spacing: 1) {
                     Text(currentThread?.title ?? "聊天")
                         // 0.3.3：胶囊标题走 capsuleTitle 角色
-                        // （字重阶梯：标题位 semibold）
+                        // （0.3.7 账本：标题位 bold）
                         .font(TypeScale.capsuleTitle)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
@@ -286,7 +292,12 @@ struct ChatView: View {
                 // ＋内边距），上限由 240 收至 200，与左右角钮
                 // 留出明确间隙（0.2.5 真机实测约占屏宽 65%）
                 .frame(maxWidth: 200)
-                .glassEffect(.regular.interactive(), in: Capsule())
+                // 0.3.7 卡 19：胶囊去描边——无边白面＋柔影
+                .background(Palette.surface, in: Capsule())
+                .shadow(
+                    color: Palette.shadowBase.opacity(0.10),
+                    radius: 12, y: 4
+                )
             }
             .buttonStyle(.plain)
             .accessibilityLabel("切换模型")
@@ -298,18 +309,23 @@ struct ChatView: View {
             } label: {
                 Image(systemName: "square.and.pencil")
                     // 0.3.3：与左钮同一份 HeaderButtonSpec
+                    // 0.3.7 卡 19：同左钮——regular＋白面柔影
                     .font(.system(
                         size: HeaderButtonSpec.glyphPointSize,
-                        weight: .semibold
+                        weight: .regular
                     ))
                     .foregroundStyle(Palette.ink)
                     .frame(
                         width: HeaderButtonSpec.diameter,
                         height: HeaderButtonSpec.diameter
                     )
+                    .background(Palette.surface, in: Circle())
+                    .shadow(
+                        color: Palette.shadowBase.opacity(0.10),
+                        radius: 12, y: 4
+                    )
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
+            .buttonStyle(.plain)
             .accessibilityLabel("新建会话")
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -361,12 +377,16 @@ struct ChatView: View {
             scrollToBottom(proxy)
         } label: {
             Image(systemName: "chevron.down")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 34, height: 34)
+                .background(Palette.surface, in: Circle())
+                .shadow(
+                    color: Palette.shadowBase.opacity(0.10),
+                    radius: 12, y: 4
+                )
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
+        .buttonStyle(.plain)
         .accessibilityLabel("回到底部")
     }
 
@@ -651,7 +671,7 @@ struct ChatView: View {
                     errorMessage = nil
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 .accessibilityLabel("关闭")
@@ -680,7 +700,7 @@ struct ChatView: View {
                     notice = nil
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 .accessibilityLabel("关闭")
@@ -743,7 +763,9 @@ struct ChatView: View {
             // 中性玻璃；聚焦仍走下方双环中性阴影（不染
             // 蓝）；强调色在本区只剩发送键与光标 caret
             composerRow
-                .odGlassSurface(.regular, in: composerShape)
+                // 0.3.7 卡 19：输入框撤玻璃——无边中灰填充
+                // （fieldFill，与底栏/抽屉搜索同家族）
+                .background(Palette.fieldFill, in: composerShape)
                 // 条 2（§14）：聚焦禁描边——聚焦态不加任何
                 // stroke，改以加深的双环阴影表达（近环定界
                 // 半径 6、远环扩散半径 18），随焦点观察态
@@ -1368,7 +1390,9 @@ private struct ComposerBarLayout: Layout {
     private var drawerBottomBar: some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             drawerRoundButton(
-                systemName: TabBarSymbols.settings.normal,
+                // 卡 18 纠正 4：左圆钮用独立齿轮 glyph，
+                // 与名单设置行（滑杆）、底栏设置格三者不同图
+                systemName: "gearshape",
                 label: "设置"
             ) {
                 setDrawer(false)
@@ -1449,12 +1473,42 @@ private struct ComposerBarLayout: Layout {
     private var drawerList: some View {
         List {
             if filteredThreads.isEmpty {
-                drawerPlainRow {
-                    Text(drawerQuery.isEmpty ? "暂无会话" : "没有匹配的会话")
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.inkMuted)
-                        .padding(.horizontal, OneDayMetrics.drawerInset)
-                        .padding(.top, OneDayMetrics.spacingL)
+                if drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+                    // 卡 18 纠正 3：无会话不留标签夹空带，
+                    // 换新建入口行
+                    drawerPlainRow {
+                        Button {
+                            newThread()
+                            setDrawer(false)
+                        } label: {
+                            HStack(spacing: OneDayMetrics.spacingS) {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.system(size: 15, weight: .regular))
+                                    .foregroundStyle(Palette.inkSecondary)
+                                Text("新建会话")
+                                    .font(TypeScale.body)
+                                    .foregroundStyle(Palette.ink)
+                            }
+                            .padding(.horizontal, OneDayMetrics.spacingS)
+                            .frame(
+                                maxWidth: .infinity,
+                                minHeight: OneDayMetrics.navRowHeight,
+                                alignment: .leading
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.odPressable)
+                        .padding(.horizontal, OneDayMetrics.spacingSM)
+                        .padding(.top, OneDayMetrics.spacingS)
+                    }
+                } else {
+                    drawerPlainRow {
+                        Text("没有匹配的会话")
+                            .font(TypeScale.footnote)
+                            .foregroundStyle(Palette.inkMuted)
+                            .padding(.horizontal, OneDayMetrics.drawerInset)
+                            .padding(.top, OneDayMetrics.spacingL)
+                    }
                 }
             } else {
                 ForEach(
@@ -1473,16 +1527,9 @@ private struct ComposerBarLayout: Layout {
                     }
                 }
             }
-            drawerPlainRow { drawerDivider }
-            drawerGroupHeader("服务端会话")
-            if drawerServerSessions.isEmpty {
-                drawerPlainRow {
-                    Text("在「设置 · 智能体 · 服务端会话」里查看与管理")
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.inkMuted)
-                        .padding(.horizontal, OneDayMetrics.drawerInset)
-                }
-            } else {
+            if !drawerServerSessions.isEmpty {
+                drawerPlainRow { drawerDivider }
+                drawerGroupHeader("服务端会话")
                 ForEach(drawerServerSessions) { session in
                     drawerServerSessionRow(session)
                         .listRowInsets(EdgeInsets())
@@ -1556,24 +1603,26 @@ private struct ComposerBarLayout: Layout {
             onOpenServerSession(session.id)
         } label: {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                // 0.3.6 人话化（§21.4）：标题走
-                // humanTitle——人话 display_name 优先，
-                // 否则时间＋条数；原始实体名不上屏
-                Text(session.humanTitle(now: Date()))
+                // 0.3.7 卡 18 纠正 2（收紧口径）：标题只有
+                // 内容名（人话 display_name，否则「未命名
+                // 会话」），时间/条数/来源全在副题——与卡
+                // 16 同源（SessionDisplay）
+                Text(session.humanTitle)
                     .font(TypeScale.callout)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                Text(drawerServerSubtitle(session))
-                    .font(TypeScale.monoCaption)
-                    .foregroundStyle(Palette.inkMuted)
+                Text(session.humanSubtitle(now: Date()))
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
             }
             // 标题 x 线与本机会话行/组标题对齐（外 SM
             // 12＋内 S 8＝20＝drawerInset 线）
             .padding(.horizontal, OneDayMetrics.spacingS)
-            .padding(.vertical, OneDayMetrics.spacingS)
+            // 卡 18 纠正 1：行总高对齐名单行高 47
             .frame(
                 maxWidth: .infinity,
-                minHeight: 50,
+                minHeight: OneDayMetrics.navRowHeight,
                 alignment: .leading
             )
             .contentShape(Rectangle())
@@ -1582,25 +1631,6 @@ private struct ComposerBarLayout: Layout {
         .padding(.horizontal, OneDayMetrics.spacingSM)
     }
 
-    /// 服务端会话行副题（0.3.6 人话化，§21.4）：来源
-    /// 人话标签打头；回落标题（已含时间＋条数）时只
-    /// 补来源与进行态；人话标题时补条数与日期（与旧
-    /// 副题同构）。原始标识不上屏（数据先翻译红线）。
-    private func drawerServerSubtitle(_ session: ServerSession) -> String {
-        if session.hasHumanName {
-            var parts = [
-                session.sourceLabel,
-                "\(session.messageCount ?? 0) 条",
-            ]
-            if let date = session.startedDate {
-                parts.append(AdminFormat.short(date))
-            }
-            return parts.joined(separator: " · ")
-        }
-        return session.isActive
-            ? "\(session.sourceLabel) · 进行中"
-            : session.sourceLabel
-    }
 
     /// 会话行（0.3.6 立宪，§21.3）：单行标题 17
     /// regular——行内不堆元数据、时间信息归分组标
@@ -1620,7 +1650,8 @@ private struct ComposerBarLayout: Layout {
                 .padding(.horizontal, OneDayMetrics.spacingS)
                 .frame(
                     maxWidth: .infinity,
-                    minHeight: OneDayMetrics.minTapTarget,
+                    // 卡 18 纠正 1：本机行高与名单行同为 47
+                    minHeight: OneDayMetrics.navRowHeight,
                     alignment: .leading
                 )
                 .background(
@@ -2029,7 +2060,7 @@ private struct ModelPickerSheet: View {
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if isCurrent {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(Palette.primary)
                 }
             }

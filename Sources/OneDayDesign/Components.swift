@@ -43,7 +43,8 @@ public struct GroupDivider: View {
     }
 }
 
-/// 分区标题：13 medium、次色、句首大写、无字距。
+/// 分区标题：13 regular（0.3.7 §22.6：medium 退出账本，
+/// 与 groupLabel 同档）、次色、句首大写、无字距。
 /// 禁止大写 eyebrow（Hallmark Floor 9 / Impeccable 禁令）。
 public struct SectionLabel: View {
     private let title: String
@@ -101,8 +102,8 @@ public struct ContentRow: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             if let icon {
                 Image(systemName: icon)
-                    // 0.3.3 行层级：图标走 rowIcon 角色
-                    // （20 semibold 粗实字形，学礼记行分量）
+                    // 行图标走 rowIcon 角色（0.3.7 改版：
+                    // regular 线条体，§22.5 图标变体令牌）
                     .font(TypeScale.rowIcon)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
@@ -313,6 +314,37 @@ public struct InlineError: View {
     }
 }
 
+// MARK: - 数据条
+
+/// 占用率数据条（0.3.7 卡 4/10 共用口径，中性）：填充
+/// 恒墨系（ink），只有 ≥90% 才翻 danger 红示警；轨道
+/// 用 fieldFill。占用类数据条是读数不是状态灯，状态
+/// 色不进填充（卡 4「percentRow 填充去主色蓝」口径）。
+public struct DataBar: View {
+    public var fraction: Double
+    public var height: CGFloat = OneDayMetrics.barHeight
+
+    public init(fraction: Double, height: CGFloat = OneDayMetrics.barHeight) {
+        self.fraction = fraction
+        self.height = height
+    }
+
+    public var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Palette.fieldFill)
+                Capsule()
+                    .fill(fraction >= 0.9 ? Palette.danger : Palette.ink)
+                    .frame(
+                        width: proxy.size.width
+                            * min(max(fraction, 0.02), 1)
+                    )
+            }
+        }
+        .frame(height: height)
+    }
+}
+
 // MARK: - 视觉纪律组件（0.3.0，DESIGN-V4 §14）
 
 public extension View {
@@ -359,7 +391,8 @@ public struct CopyButton: View {
             }
         } label: {
             Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                .font(.system(size: iconSize, weight: .medium))
+                // 0.3.7 §22.5/§22.6：字形 regular，medium 退出
+                .font(.system(size: iconSize, weight: .regular))
                 .foregroundStyle(
                     copied ? Palette.success : Palette.inkSecondary
                 )

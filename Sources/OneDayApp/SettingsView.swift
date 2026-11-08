@@ -157,7 +157,7 @@ struct SettingsView: View {
         Section {
             serverRow
             navRow(
-                icon: "rectangle.stack.person.crop", title: "档案 Profile",
+                icon: "rectangle.stack.person.crop", title: "档案",
                 value: activeProfile ?? "—", route: .profiles
             )
             disconnectRow
@@ -330,7 +330,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            infoRow(label: "OneDay 版本", value: "0.3.4", mono: true)
+            infoRow(label: "OneDay 版本", value: "0.3.7", mono: true)
             infoRow(
                 label: "服务端",
                 value: status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0",
@@ -346,7 +346,7 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
@@ -367,7 +367,7 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }

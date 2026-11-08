@@ -24,7 +24,18 @@ struct ServerSessionsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if !sessions.isEmpty {
-                    SectionLabel("服务端会话（共 \(total) 条）")
+                    // 0.3.7 卡 16：摘要卡置顶，计数只在此一处
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Text("共 \(total) 条 · 进行中 \(sessions.filter(\.isActive).count) 条")
+                            .font(TypeScale.body)
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    .odGroup()
+                    SectionLabel("全部会话")
+                        .padding(.top, 28)
                         .padding(.bottom, OneDayMetrics.spacingS)
                     VStack(spacing: 0) {
                         ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
@@ -125,7 +136,8 @@ struct ServerSessionsView: View {
             Button("删除所选", role: .destructive) {
                 showBulkDeleteConfirm = true
             }
-            .font(TypeScale.body.weight(.medium))
+            // 卡 17：medium 退出账本
+            .font(TypeScale.body)
             .disabled(selectedIDs.isEmpty)
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -201,12 +213,12 @@ struct ServerSessionsView: View {
                     if session.isActive {
                         StatusDot(color: Palette.success)
                     }
-                    Text(session.title)
+                    Text(session.humanTitle)
                         .font(TypeScale.body)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                 }
-                Text(subtitle(session))
+                Text(session.humanSubtitle(now: Date()))
                     .font(TypeScale.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
@@ -214,7 +226,7 @@ struct ServerSessionsView: View {
             Spacer(minLength: OneDayMetrics.spacingS)
             if !selecting {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -223,18 +235,6 @@ struct ServerSessionsView: View {
         .padding(.vertical, OneDayMetrics.spacingS)
         .frame(minHeight: OneDayMetrics.rowHeight)
         .contentShape(Rectangle())
-    }
-
-    private func subtitle(_ session: ServerSession) -> String {
-        var parts: [String] = []
-        if let source = session.source, !source.isEmpty {
-            parts.append(source)
-        }
-        parts.append(AdminFormat.short(session.startedDate))
-        if let count = session.messageCount {
-            parts.append("\(count) 条")
-        }
-        return parts.joined(separator: " · ")
     }
 
     // MARK: - 数据与动作
@@ -331,7 +331,9 @@ struct ServerSessionDetailView: View {
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
-        .navigationTitle(session?.title ?? "会话详情")
+        // 已裁 5：导航标题＝内容总结标题（首条用户消息
+        // 摘要，与抽屉/列表同源），原始标题只留元信息组
+        .navigationTitle(detailTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .confirmationDialog(
@@ -348,11 +350,21 @@ struct ServerSessionDetailView: View {
         }
     }
 
+    private var detailTitle: String {
+        guard let session else { return "会话详情" }
+        let firstUser = messages.first { $0.role == "user" }?.content
+        return session.contentTitle(firstUserMessage: firstUser)
+    }
+
     private func metaGroup(_ session: ServerSession) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("会话信息")
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
+                if session.title != detailTitle {
+                    infoRow("原始标题", session.title)
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                }
                 infoRow("状态", session.isActive ? "进行中" : "已结束")
                 if let source = session.source, !source.isEmpty {
                     GroupDivider(inset: OneDayMetrics.spacingM)

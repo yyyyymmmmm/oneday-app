@@ -23,12 +23,14 @@ public enum TypeScale {
     public static let pageTitle = Font.body.weight(.bold)
     /// 分组标签（13 regular、次级灰；基线带 13–14）
     public static let groupLabel = Font.footnote
-    /// 每屏唯一的排版时刻（总览状态头）
-    public static let display = Font.title.weight(.semibold)
-    /// 页内大标题（连接页字标）
-    public static let title = Font.title2.weight(.semibold)
-    /// 行标题、按钮文字
-    public static let headline = Font.headline
+    /// 每屏唯一的排版时刻（0.3.7 账本改版：semibold →
+    /// bold，§22.6——标题位只许 400/700 两档）
+    public static let display = Font.title.weight(.bold)
+    /// 页内大标题（连接页字标；0.3.7 改版同 display）
+    public static let title = Font.title2.weight(.bold)
+    /// 标题位文字（主按钮/空态题/智能体名；0.3.7 改版：
+    /// Font.headline 的内建 semibold 退出账本，落 bold）
+    public static let headline = Font.body.weight(.bold)
     /// 正文与助手回答
     public static let body = Font.body
     /// 次级正文（字段值、步骤名）
@@ -37,8 +39,10 @@ public enum TypeScale {
     public static let subhead = Font.subheadline
     /// 元信息
     public static let footnote = Font.footnote
-    /// 分区标题：medium、句首大写、无字距（禁大写 eyebrow）
-    public static let label = Font.footnote.weight(.medium)
+    /// 分区标题（0.3.7 改版：medium 退出账本，与
+    /// groupLabel 同为 footnote regular、句首大写、无
+    /// 字距，禁大写 eyebrow）
+    public static let label = Font.footnote
     /// 最弱信息（时间戳）
     public static let caption = Font.caption
     /// 等宽正文（版本号、host 等读数）
@@ -51,38 +55,43 @@ public enum TypeScale {
     public static let monoCaption = Font.system(.caption, design: .monospaced)
     /// 等宽代码
     public static let monoCode = Font.system(.footnote, design: .monospaced)
-    // —— 列表行角色（0.3.3 立、0.3.4 分域）：标题 semibold
-    // 独响、值与副标题 regular 退后——此账适用于
-    // ContentRow 系列表页（连接/总览等）。**设置页除外**
-    // （0.3.4 用户拍板按 Muse 纪律：标题 regular＋图标
-    // 细线 17，设置页禁用 rowTitle/rowIcon，见 §19.5）；
-    // 其余页面不许再单页加粗。
-    /// 行标题（唯一半粗位）
-    public static let rowTitle = Font.body.weight(.semibold)
-    /// 行图标字形（semibold 粗实，字号走 OneDayMetrics.rowIconGlyph）
+    // —— 列表行角色（0.3.3 立、0.3.4 分域、0.3.7 改版）：
+    // 0.3.3 的「标题 semibold 独响」被 §22.6 字重映射
+    // 令牌推翻——行标题改 regular（层级靠字号与灰度，
+    // 设置页 0.3.4 已先行此口径、全局跟上）；行图标按
+    // §22.5 图标变体令牌改 regular 线条体（字号走
+    // OneDayMetrics.rowIconGlyph 不变）。
+    /// 行标题（0.3.7 改版：regular）
+    public static let rowTitle = Font.body
+    /// 行图标字形（0.3.7 改版：regular 线条体）
     public static let rowIcon = Font.system(
-        size: OneDayMetrics.rowIconGlyph, weight: .semibold
+        size: OneDayMetrics.rowIconGlyph, weight: .regular
     )
     /// 行右侧值（regular，与 callout 同体）
     public static let rowValue = Font.callout
     /// 行副标题（regular，与 footnote 同体）
     public static let rowSubtitle = Font.footnote
-    // —— 字重阶梯（0.3.3 全局审计定版，数值账在 OneDayCore
-    // .TextRoleWeights、单测钉住）：正文 400 regular／行标
-    // 题·胶囊标题·分区题·Markdown 粗体 600 semibold／
-    // bold 700 只许标题角色且不作正文强调。正文基重四处
-    // 查实均为 regular（本表 body、MarkdownText 段落、
-    // StreamingText、用户气泡）；原事故是 Markdown 行内
-    // 粗体经 AttributedString 直达系统 bold 700、越过标
-    // 题的 600——由 markdownStrong 角色重映射收编。
-    /// 胶囊标题（顶栏模型胶囊题，semibold）
-    public static let capsuleTitle = Font.system(size: 16, weight: .semibold)
-    /// 分区/空态小标题（semibold，与 callout 同体）
-    public static let sectionTitle = Font.callout.weight(.semibold)
-    /// Markdown 行内粗体的目标字体（正文 semibold，与
-    /// 正文拉开恰一档；解析侧按 intent 重映射，见
-    /// MarkdownText）
-    public static let markdownStrong = Font.body.weight(.semibold)
+    // —— 字重阶梯（0.3.3 全局审计立账，0.3.7 按 §22.6
+    // 字重映射令牌改版，数值账在 OneDayCore.TextRole-
+    // Weights、单测钉住）：正文/行位全 400 regular；
+    // bold 700 只许标题位（大标题/页标题/胶囊题）与
+    // Markdown 行内粗体（与正文拉开恰一档、不越上限）。
+    // 600 semibold 与 500 medium 退出账本，新代码不许
+    // 再有角色请求这两档。
+    /// 胶囊标题（顶栏模型胶囊题，标题位 bold）
+    public static let capsuleTitle = Font.system(size: 16, weight: .bold)
+    /// 分区/空态小标题（0.3.7 改版：regular，与 callout 同体）
+    public static let sectionTitle = Font.callout
+    /// Markdown 行内粗体的目标字体（bold，与正文拉开
+    /// 恰一档；解析侧按 intent 重映射，见 MarkdownText）
+    public static let markdownStrong = Font.body.weight(.bold)
+    /// 摘要卡/大卡的主读数（0.3.7 新增：28 bold，与
+    /// largeTitle 同档；读数位另加 tabularDigits 防抖）
+    public static let metricNumber = Font.system(size: 28, weight: .bold)
+    /// 等宽大读数（模型名等标识符作摘要卡主读数时用，
+    /// 0.3.7 新增：title3 等宽 bold）
+    public static let monoTitle = Font.system(.title3, design: .monospaced)
+        .weight(.bold)
 
     // —— 条 3 暗色降档变体（0.3.0，§14）：带权字体在暗色
     // 环境下经 VisualWeight 降一档；调用点以 colorScheme
@@ -90,13 +99,13 @@ public enum TypeScale {
     // fontWeight 在暗色统一降档（ContentView 施加），两
     // 路合起来覆盖「所有文字」。
     public static func display(for scheme: ColorScheme) -> Font {
-        Font.title.weight(.od(css: 600, scheme: scheme))
+        Font.title.weight(.od(css: 700, scheme: scheme))
     }
     public static func title(for scheme: ColorScheme) -> Font {
-        Font.title2.weight(.od(css: 600, scheme: scheme))
+        Font.title2.weight(.od(css: 700, scheme: scheme))
     }
     public static func label(for scheme: ColorScheme) -> Font {
-        Font.footnote.weight(.od(css: 500, scheme: scheme))
+        Font.footnote.weight(.od(css: 400, scheme: scheme))
     }
 }
 

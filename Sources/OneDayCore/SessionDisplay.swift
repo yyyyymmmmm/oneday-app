@@ -1,6 +1,6 @@
 import Foundation
 
-/// 人话标题的固定中文短格式（不随系统语言漂移）
+/// 人话时间的固定中文短格式（不随系统语言漂移）
 private let sessionMonthDayFormatter: DateFormatter = {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "zh_CN")
@@ -15,18 +15,19 @@ private let sessionTimeFormatter: DateFormatter = {
     return formatter
 }()
 
-/// 服务端会话的屏上文案（0.3.6，DESIGN-V4 §21.4/§22 定
-/// 义卡红线「数据先翻译」）：服务端原始命名永不上屏。
-/// 反例（本轮修）：ServerSession.title 在 display_name
-/// 缺失时拼 "\(source) 会话"，抽屉里多条同名
-/// 「api_server 会话」无法区分。口径：
-/// - 标题：display_name 是人话时用它；否则用开始时间
-///   ＋消息条数生成区分标题（今天/昨天/M月d日＋HH:mm
-///   ＋N 条）；首条消息/摘要标题由服务端以
-///   display_name 承载，客户端不另抓消息列表。
-/// - 来源：原始 source 标识一律译成人话标签，未知来
-///   源只给「服务端」，原名只留设置详情页（原始字段
-///   在详情里照原样展示）。
+/// 服务端会话的屏上文案（0.3.6 立 §21.4，0.3.7 按卡
+/// 16/18 完成标准收紧）：服务端原始命名永不上屏。
+/// 0.3.6 的落点（无名时拿「时间＋条数」当标题）被用户
+/// 真机纠正否决——时间条数是副信息、不配当标题。收
+/// 紧后口径（抽屉/服务端会话页/会话详情/总览/状态屏
+/// 同源同轮）：
+/// - 标题只有内容名：人话 display_name，或调用方拿
+///   得到的首条用户消息摘要（contentTitle）；都没有
+///   就「未命名会话」，不许拿时间当标题。
+/// - 副题承载全部副信息：来源人话标签 · 时间 · 条
+///   数 · 进行中（活跃时）。
+/// - 来源：原始 source 标识一律译成人话标签，未知
+///   来源只给「服务端」；原名只留设置详情页元信息组。
 public extension ServerSession {
     /// 来源的人话标签（原始标识不上屏）
     var sourceLabel: String {
@@ -53,40 +54,84 @@ public extension ServerSession {
         return !identifierShaped
     }
 
-    /// 人话标题：人话 display_name 优先；否则时间＋
-    /// 条数（拿不到时间时退「服务端会话＋条数」）。
-    func humanTitle(now: Date, calendar: Calendar = .current) -> String {
+    /// 人话标题：只有内容名——人话 display_name 优先；
+    /// 无内容可名时「未命名会话」（时间条数在副题，
+    /// 不许当标题，0.3.7 卡 18 钉死）。
+    var humanTitle: String {
         if hasHumanName, let raw = displayName {
             return raw.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        guard let date = startedDate else {
-            return "服务端会话" + countSuffix
-        }
-        // 今天/昨天按与 now 的自然日差判（startOfDay
-        // 对齐，与 SidebarGrouping 同口径）——不许用
-        // Calendar.isDateInToday：它锚真实系统时钟、
-        // 忽略注入的 now（85 测首跑实证：CI 机真实日
-        // 期与测试 now 不同日即错位）
-        let dayDiff = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: date),
-            to: calendar.startOfDay(for: now)
-        ).day ?? Int.max
-        let day: String
-        switch dayDiff {
-        case 0:
-            day = "今天"
-        case 1:
-            day = "昨天"
-        default:
-            day = sessionMonthDayFormatter.string(from: date)
-        }
-        return "\(day) \(sessionTimeFormatter.string(from: date))"
-            + countSuffix
+        return "未命名会话"
     }
 
-    private var countSuffix: String {
-        guard let messageCount else { return "" }
-        return " · \(messageCount) 条"
+    /// 内容总结标题：首条用户消息摘要（详情页等已拉
+    /// 到消息的调用方用）优先于 display_name 之外的
+    /// 一切；摘要为空回落 humanTitle。
+    func contentTitle(firstUserMessage: String?) -> String {
+        if let summary = Self.contentSummaryTitle(firstUserMessage) {
+            return summary
+        }
+        return humanTitle
+    }
+
+    /// 首条用户消息 → 单行摘要：取首个非空行、压平
+    /// 空白、剥行首 Markdown 标记，超 24 字截断加省略号。
+    /// 空/纯空白返回 nil（调用方回落未命名会话）。
+    static func contentSummaryTitle(_ message: String?) -> String? {
+        guard let message else { return nil }
+        let firstLine = message
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty }
+        guard var line = firstLine else { return nil }
+        // 剥行首标记（标题/引用/列表符），只剥一层语义
+        while let first = line.first, "#>-*•".contains(first) {
+            line.removeFirst()
+            line = line.trimmingCharacters(in: .whitespaces)
+        }
+        // 压平内部连续空白
+        let collapsed = line
+            .components(separatedBy: .whitespaces)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard !collapsed.isEmpty else { return nil }
+        if collapsed.count > 24 {
+            return String(collapsed.prefix(24)) + "…"
+        }
+        return collapsed
+    }
+
+    /// 人话副题：来源标签 · 时间 · 条数 · 进行中——
+    /// 0.3.6 当标题用的「时间＋条数」自 0.3.7 起只活
+    /// 在这里。今天/昨天按与 now 的自然日差判
+    /// （startOfDay 对齐，与 SidebarGrouping 同口径；
+    /// 不许用 Calendar.isDateInToday——它锚真实系统
+    /// 时钟、忽略注入的 now，0.3.6 单测实证）。
+    func humanSubtitle(now: Date, calendar: Calendar = .current) -> String {
+        var parts = [sourceLabel]
+        if let date = startedDate {
+            let dayDiff = calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: date),
+                to: calendar.startOfDay(for: now)
+            ).day ?? Int.max
+            let day: String
+            switch dayDiff {
+            case 0:
+                day = "今天"
+            case 1:
+                day = "昨天"
+            default:
+                day = sessionMonthDayFormatter.string(from: date)
+            }
+            parts.append("\(day) \(sessionTimeFormatter.string(from: date))")
+        }
+        if let messageCount {
+            parts.append("\(messageCount) 条")
+        }
+        if isActive {
+            parts.append("进行中")
+        }
+        return parts.joined(separator: " · ")
     }
 }

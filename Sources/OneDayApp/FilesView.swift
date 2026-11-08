@@ -111,10 +111,6 @@ struct FilesView: View {
                         }
                     }
                     .odGroup()
-                    Text("聚合 Hermes 的产出目录（生成缓存、定时任务产出、媒体缓存）与根目录散文件，按时间倒序。来源只标到目录——文件与会话没有关联接口，不做会话溯源。")
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.inkMuted)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
                 if let notice {
                     Text(notice)
@@ -154,7 +150,7 @@ struct FilesView: View {
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }

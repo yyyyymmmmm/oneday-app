@@ -54,7 +54,18 @@ struct StatusView: View {
     // MARK: - 身份头
 
     private var identityHead: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+        // 0.3.7 卡 4：身份头居中＋头像位（圆面＋字形），
+        // host 地址行撤下（归服务器详情）
+        VStack(spacing: OneDayMetrics.spacingS) {
+            ZStack {
+                Circle()
+                    .fill(Palette.surface)
+                    .frame(width: 64, height: 64)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 28, weight: .regular))
+                    .foregroundStyle(Palette.ink)
+                    .accessibilityHidden(true)
+            }
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text("Hermes")
                     .font(TypeScale.title(for: colorScheme))
@@ -65,20 +76,14 @@ struct StatusView: View {
             Text(statusLine)
                 .font(TypeScale.body)
                 .foregroundStyle(Palette.inkSecondary)
-            Text(appState.config?.host ?? "—")
-                .font(TypeScale.monoFootnote)
-                .foregroundStyle(Palette.inkMuted)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var statusLine: String {
-        let word: String
-        switch status?.gatewayState?.lowercased() {
-        case "running": word = "运行中"
-        case "stopped": word = "已停止"
-        case "error", "failed": word = "异常"
-        default: word = status == nil ? "状态读取中" : "未知状态"
-        }
+        let word = status == nil
+            ? "状态读取中"
+            : ServerLabels.gatewayState(status?.gatewayState, running: status?.gatewayRunning)
         let model = appState.defaultModel ?? (appState.modelID == "hermes-agent" ? "服务端默认模型" : appState.modelID)
         return "\(word) · \(model)"
     }
@@ -107,17 +112,19 @@ struct StatusView: View {
                                 StatusDot(color: session.isActive
                                     ? Palette.success : Palette.inkMuted)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(session.title)
+                                    // 卡 16/18 同源：SessionDisplay
+                                    // 人话标题＋副题，原始名不上屏
+                                    Text(session.humanTitle)
                                         .font(TypeScale.body)
                                         .foregroundStyle(Palette.ink)
                                         .lineLimit(1)
-                                    Text("\(AdminFormat.short(session.startedDate)) · \(session.messageCount ?? 0) 条")
+                                    Text(session.humanSubtitle(now: Date()))
                                         .font(TypeScale.footnote)
                                         .foregroundStyle(Palette.inkSecondary)
                                 }
                                 Spacer(minLength: OneDayMetrics.spacingS)
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(.system(size: 13, weight: .regular))
                                     .foregroundStyle(Palette.inkMuted)
                                     .accessibilityHidden(true)
                             }
@@ -191,10 +198,6 @@ struct StatusView: View {
                 }
                 .odGroup()
             }
-            Text("只读展示；新建、暂停与触发在「设置 · 智能体 · 定时任务」里。")
-                .font(TypeScale.footnote)
-                .foregroundStyle(Palette.inkMuted)
-                .padding(.top, OneDayMetrics.spacingM)
         }
     }
 
@@ -277,16 +280,9 @@ struct StatusView: View {
                     .font(TypeScale.monoCallout)
                     .foregroundStyle(Palette.inkSecondary)
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Palette.fieldFill)
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Palette.primary)
-                        .frame(width: geo.size.width * CGFloat(min(max((percent ?? 0) / 100, 0), 1)))
-                }
-            }
-            .frame(height: 6)
+            // 0.3.7 卡 4：数据条走共享 DataBar 中性口径
+            // （原主色蓝填充退出——蓝只许功能位）
+            DataBar(fraction: (percent ?? 0) / 100, height: 6)
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingSM)

@@ -16,9 +16,20 @@ struct ServerDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                SectionLabel("连接详情")
+                // 0.3.7 卡 6：摘要卡置顶——地址＋连接状态一句话
+                SectionLabel("这台服务器")
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        StatusDot(color: retestFailed ? Palette.danger : Palette.success)
+                        Text(retestFailed ? "连接异常" : "连接正常")
+                            .font(TypeScale.body)
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    GroupDivider(inset: OneDayMetrics.spacingM)
                     infoRow("服务器地址", appState.config?.baseString ?? "—", mono: true)
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     infoRow("面板账号", appState.username ?? "—")
@@ -73,10 +84,6 @@ struct ServerDetailView: View {
                 }
                 .odGroup()
 
-                Text("多服务器切换为二期预留：当前版本只保存一台服务器，换服务器请断开后重新连接。")
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.inkMuted)
-                    .padding(.top, OneDayMetrics.spacingM)
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
@@ -161,7 +168,25 @@ struct ProfilesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if !profiles.isEmpty {
+                    // 0.3.7 卡 7：摘要卡——当前档案名＋「使用中」
+                    if let activeName {
+                        SectionLabel("现在用的")
+                            .padding(.bottom, OneDayMetrics.spacingS)
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Text(activeName)
+                                .font(TypeScale.body)
+                                .foregroundStyle(Palette.ink)
+                            Spacer()
+                            Text("使用中")
+                                .font(TypeScale.footnote)
+                                .foregroundStyle(Palette.success)
+                        }
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .frame(minHeight: OneDayMetrics.rowHeight)
+                        .odGroup()
+                    }
                     SectionLabel("全部档案")
+                        .padding(.top, 28)
                         .padding(.bottom, OneDayMetrics.spacingS)
                     VStack(spacing: 0) {
                         ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
@@ -172,10 +197,6 @@ struct ProfilesView: View {
                         }
                     }
                     .odGroup()
-                    Text("档案是服务端的一套独立配置（模型、技能、记忆各一份）。切换后新的对话使用新档案。")
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.inkMuted)
-                        .padding(.top, OneDayMetrics.spacingM)
                 } else if let errorMessage {
                     InlineError(errorMessage)
                     Button("重试") { Task { await load() } }
@@ -202,7 +223,7 @@ struct ProfilesView: View {
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
-        .navigationTitle("档案 Profile")
+        .navigationTitle("档案")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
@@ -368,10 +389,6 @@ struct ModelSettingsView: View {
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
-                Text("这里改的是服务端默认模型（新会话的起点）；正在进行的对话不切换。提供商的密钥在「密钥」页以环境变量形式管理。")
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.inkMuted)
-                    .padding(.top, OneDayMetrics.spacingM)
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
@@ -426,8 +443,9 @@ struct ModelSettingsView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
+                    // 0.3.7 卡 8：当前值升摘要卡主读数（等宽大字）
                     Text(currentModel ?? "未配置")
-                        .font(TypeScale.monoBody)
+                        .font(TypeScale.monoTitle)
                         .foregroundStyle(Palette.ink)
                         .textSelection(.enabled)
                     Spacer()
@@ -444,12 +462,12 @@ struct ModelSettingsView: View {
 
     private var candidatesGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("可切换的模型（服务端拉取）")
+            SectionLabel("可切换的模型")
                 .padding(.top, 28)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if switchableModels.isEmpty {
-                    Text("服务端没有返回上游模型列表（/api/model/options 与用量记录均为空）。")
+                    Text("服务端没有返回可切换的模型。")
                         .font(TypeScale.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -493,23 +511,17 @@ struct ModelSettingsView: View {
                 }
             }
             .odGroup()
-            if !appState.gatewayAliases.isEmpty {
-                Text("网关模型名 \(appState.gatewayAliases.sorted().joined(separator: "、")) 是客户端调用别名，不是上游模型，不可设为默认。")
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.inkMuted)
-                    .padding(.top, OneDayMetrics.spacingS)
-            }
         }
     }
 
     private var providersGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("提供商（服务端配置拉取）")
+            SectionLabel("提供商")
                 .padding(.top, 28)
             .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if providers.isEmpty {
-                    Text("服务端配置里暂无提供商条目（模型可能走环境变量直连）。新增提供商请在服务端配置里维护，此页只做拉取展示与删除。")
+                    Text("暂无提供商条目。")
                         .font(TypeScale.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -611,6 +623,7 @@ struct ModelSettingsView: View {
 
 struct EnvVarsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var entries: [EnvVarEntry] = []
     @State private var errorMessage: String?
@@ -621,24 +634,42 @@ struct EnvVarsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if !entries.isEmpty {
-                    SectionLabel("环境变量（已设定在前）")
-                        .padding(.bottom, OneDayMetrics.spacingS)
-                    VStack(spacing: 0) {
-                        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                            if index > 0 {
-                                GroupDivider(inset: OneDayMetrics.spacingM)
-                            }
-                            NavigationLink {
-                                EnvVarDetailView(entry: entry) {
-                                    Task { await load() }
-                                }
-                            } label: {
-                                entryRow(entry)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                    // 0.3.7 卡 9：摘要卡「已设置 X / 共 Y」＋
+                    // 按服务端类别分组（已裁 4：类别名走
+                    // ServerLabels 翻译，未知回落「其他」；
+                    // 组内已设定在前）
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Text("已设置 \(entries.filter(\.isSet).count) / 共 \(entries.count)")
+                            .font(TypeScale.title(for: colorScheme))
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
                     }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .frame(minHeight: OneDayMetrics.rowHeight)
                     .odGroup()
+                    ForEach(
+                        Array(entryGroups.enumerated()), id: \.element.label
+                    ) { groupIndex, group in
+                        SectionLabel(group.label)
+                            .padding(.top, groupIndex == 0 ? 28 : 28)
+                            .padding(.bottom, OneDayMetrics.spacingS)
+                        VStack(spacing: 0) {
+                            ForEach(Array(group.items.enumerated()), id: \.element.id) { index, entry in
+                                if index > 0 {
+                                    GroupDivider(inset: OneDayMetrics.spacingM)
+                                }
+                                NavigationLink {
+                                    EnvVarDetailView(entry: entry) {
+                                        Task { await load() }
+                                    }
+                                } label: {
+                                    entryRow(entry)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .odGroup()
+                    }
                 } else if let errorMessage {
                     InlineError(errorMessage)
                     Button("重试") { Task { await load() } }
@@ -680,6 +711,12 @@ struct EnvVarsView: View {
         .task { await load() }
     }
 
+    /// 类别分组（组内已设定在前的排序先行，再按类别归组）
+    private var entryGroups: [(label: String, items: [EnvVarEntry])] {
+        let sorted = entries.sorted { $0.isSet && !$1.isSet }
+        return ServerLabels.grouped(sorted) { $0.category }
+    }
+
     private func entryRow(_ entry: EnvVarEntry) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: 2) {
@@ -687,7 +724,10 @@ struct EnvVarsView: View {
                     .font(TypeScale.monoCallout)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                if let description = entry.description, !description.isEmpty {
+                // 卡 9 点名：服务端 description 无中文不上屏
+                if let description = entry.description,
+                   !description.isEmpty,
+                   ServerLabels.isChineseText(description) {
                     Text(description)
                         .font(TypeScale.footnote)
                         .foregroundStyle(Palette.inkSecondary)
@@ -700,7 +740,7 @@ struct EnvVarsView: View {
                 .foregroundStyle(entry.isSet ? Palette.inkSecondary : Palette.inkMuted)
                 .lineLimit(1)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(Palette.inkMuted)
                 .accessibilityHidden(true)
         }
@@ -757,7 +797,7 @@ struct EnvVarDetailView: View {
                     }
                     if let category = entry.category, !category.isEmpty {
                         GroupDivider(inset: OneDayMetrics.spacingM)
-                        infoRow("类别", category)
+                        infoRow("类别", ServerLabels.categoryLabel(category))
                     }
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     valueRow
@@ -1065,13 +1105,26 @@ struct UsageDetailView: View {
     }
 
     private func totalsGroup(_ usage: UsageAnalytics) -> some View {
+        // 0.3.7 卡 10：周期汇总升摘要卡——总数大数字主位，
+        // 请求/会话/费用作卡内次级读数
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("周期汇总")
-                .padding(.top, OneDayMetrics.spacingL)
-                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                Text(AdminFormat.count(usage.totals.tokens))
+                    .font(TypeScale.metricNumber)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .tabularDigits()
+                    .contentTransition(.numericText())
+                Text("Token 总数（近 \(days) 天）")
+                    .font(TypeScale.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.top, OneDayMetrics.spacingM)
+            .padding(.bottom, OneDayMetrics.spacingS)
+            GroupDivider(inset: OneDayMetrics.spacingM)
             VStack(spacing: 0) {
-                infoRow("Token（入＋出）", AdminFormat.count(usage.totals.tokens), mono: true)
-                GroupDivider(inset: OneDayMetrics.spacingM)
                 infoRow("请求数", AdminFormat.count(usage.totals.totalAPICalls ?? 0), mono: true)
                 GroupDivider(inset: OneDayMetrics.spacingM)
                 infoRow("会话数", AdminFormat.count(usage.totals.totalSessions ?? 0), mono: true)
@@ -1082,8 +1135,9 @@ struct UsageDetailView: View {
                     mono: true
                 )
             }
-            .odGroup()
         }
+        .odGroup()
+        .padding(.top, OneDayMetrics.spacingL)
     }
 
     private func trendGroup(_ usage: UsageAnalytics) -> some View {
@@ -1104,12 +1158,13 @@ struct UsageDetailView: View {
                             .frame(width: 64, alignment: .leading)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
+                                // 0.3.7 卡 10/17：趋势条中性口径
+                                // （轨道 fieldFill、填充恒墨，蓝退出）
                                 RoundedRectangle(cornerRadius: 3)
-                                    .fill(Palette.primaryTint)
+                                    .fill(Palette.fieldFill)
                                     .frame(height: 6)
                                 RoundedRectangle(cornerRadius: 3)
-                                    .fill(index == usage.daily.count - 1
-                                          ? Palette.primary : Palette.inkSecondary)
+                                    .fill(Palette.ink)
                                     .frame(
                                         width: max(
                                             geo.size.width * CGFloat(day.tokens / maxTokens),
@@ -1213,6 +1268,7 @@ struct UsageDetailView: View {
 /// 一致：二次确认后 POST，状态靠回读确认不靠回执猜。
 struct GatewayView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var status: ServerStatus?
     @State private var errorMessage: String?
@@ -1309,25 +1365,23 @@ struct GatewayView: View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("状态")
                 .padding(.bottom, OneDayMetrics.spacingS)
+            // 0.3.7 卡 11：状态升摘要卡（状态大字＋点，
+            // 发布日期次级位）；「配置版本」行删
             VStack(spacing: 0) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     StatusDot(color: Palette.stateColor(status.gatewayState))
                     Text(stateWord(status))
-                        .font(TypeScale.body)
+                        .font(TypeScale.display(for: colorScheme))
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
                 .padding(.horizontal, OneDayMetrics.spacingM)
-                .frame(minHeight: OneDayMetrics.rowHeight)
+                .padding(.vertical, OneDayMetrics.spacingSM)
                 GroupDivider(inset: OneDayMetrics.spacingM)
                 infoRow("服务端版本", status.version.map { "v\($0)" } ?? "—", mono: true)
                 if let date = status.releaseDate {
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     infoRow("发布日期", date, mono: true)
-                }
-                if let version = status.configVersion {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("配置版本", "\(version)", mono: true)
                 }
             }
             .odGroup()
@@ -1357,11 +1411,12 @@ struct GatewayView: View {
                     if let platform = status.platforms[name] {
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             StatusDot(color: Palette.stateColor(platform.state))
-                            Text(name)
+                            // 卡 11：平台名/状态词走翻译层
+                            Text(ServerLabels.platformName(name))
                                 .font(TypeScale.body)
                                 .foregroundStyle(Palette.ink)
                             Spacer()
-                            Text(platform.state ?? "未知")
+                            Text(ServerLabels.platformState(platform.state))
                                 .font(TypeScale.footnote)
                                 .foregroundStyle(Palette.stateColor(platform.state))
                         }
@@ -1422,12 +1477,7 @@ struct GatewayView: View {
     }
 
     private func stateWord(_ status: ServerStatus) -> String {
-        switch status.gatewayState?.lowercased() {
-        case "running": return "运行中"
-        case "stopped": return "已停止"
-        case "error", "failed": return "异常"
-        default: return status.gatewayRunning == true ? "运行中" : "未运行"
-        }
+        ServerLabels.gatewayState(status.gatewayState, running: status.gatewayRunning)
     }
 
     private func infoRow(_ label: String, _ value: String, mono: Bool = false) -> some View {
@@ -1493,7 +1543,6 @@ struct LogsView: View {
     @Environment(AppState.self) private var appState
 
     @State private var lines: [String] = []
-    @State private var fileName: String?
     @State private var level: String = ""
     @State private var search: String = ""
     @State private var errorMessage: String?
@@ -1566,12 +1615,6 @@ struct LogsView: View {
                     }
                     .padding(.top, OneDayMetrics.spacingL)
                 }
-                if let fileName {
-                    Text("文件 \(fileName) · 共 \(lines.count) 行（最新在前）")
-                        .font(TypeScale.caption)
-                        .foregroundStyle(Palette.inkMuted)
-                        .padding(.top, OneDayMetrics.spacingM)
-                }
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
@@ -1598,7 +1641,6 @@ struct LogsView: View {
                 )
             }
             lines = Array(response.lines.reversed())
-            fileName = response.file
             errorMessage = nil
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? "日志读取失败。"

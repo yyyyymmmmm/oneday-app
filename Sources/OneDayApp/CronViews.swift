@@ -9,6 +9,7 @@ import SwiftUI
 /// GET …/runs（运行记录与会话同构）。
 struct CronJobsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var jobs: [CronJob] = []
     @State private var errorMessage: String?
@@ -19,17 +20,10 @@ struct CronJobsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if !jobs.isEmpty {
-                    SectionLabel("全部任务")
-                        .padding(.bottom, OneDayMetrics.spacingS)
-                    VStack(spacing: 0) {
-                        ForEach(Array(jobs.enumerated()), id: \.element.id) { index, job in
-                            if index > 0 {
-                                GroupDivider(inset: OneDayMetrics.spacingM)
-                            }
-                            jobRow(job)
-                        }
-                    }
-                    .odGroup()
+                    // 0.3.7 卡 15：摘要卡＋按状态两组
+                    summaryCard
+                    jobGroup(title: "开着的", jobs: jobs.filter(\.enabled))
+                    jobGroup(title: "停着的", jobs: jobs.filter { !$0.enabled })
                 } else if let errorMessage {
                     InlineError(errorMessage)
                     Button("重试") { Task { await load() } }
@@ -85,6 +79,55 @@ struct CronJobsView: View {
         }
     }
 
+    private var summaryCard: some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Text(summaryText)
+                .font(TypeScale.title(for: colorScheme))
+                .foregroundStyle(Palette.ink)
+            Spacer()
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(minHeight: OneDayMetrics.rowHeight)
+        .odGroup()
+    }
+
+    private var summaryText: String {
+        let enabled = jobs.filter(\.enabled)
+        var text = "启用 \(enabled.count) 个"
+        if let next = enabled.compactMap({ AdminFormat.iso($0.nextRunAt) }).min() {
+            let calendar = Calendar.current
+            let time = AdminFormat.timeOnly(next)
+            if calendar.isDateInToday(next) {
+                text += " · 下次运行 今天 \(time)"
+            } else if calendar.isDateInTomorrow(next) {
+                text += " · 下次运行 明天 \(time)"
+            } else {
+                text += " · 下次运行 \(AdminFormat.short(next))"
+            }
+        }
+        return text
+    }
+
+    @ViewBuilder
+    private func jobGroup(title: String, jobs groupJobs: [CronJob]) -> some View {
+        if !groupJobs.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionLabel(title)
+                    .padding(.top, 28)
+                    .padding(.bottom, OneDayMetrics.spacingS)
+                VStack(spacing: 0) {
+                    ForEach(Array(groupJobs.enumerated()), id: \.element.id) { index, job in
+                        if index > 0 {
+                            GroupDivider(inset: OneDayMetrics.spacingM)
+                        }
+                        jobRow(job)
+                    }
+                }
+                .odGroup()
+            }
+        }
+    }
+
     private func jobRow(_ job: CronJob) -> some View {
         NavigationLink {
             CronJobDetailView(job: job) {
@@ -119,7 +162,7 @@ struct CronJobsView: View {
                     .font(TypeScale.footnote)
                     .foregroundStyle(job.enabled ? Palette.success : Palette.inkMuted)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -171,7 +214,10 @@ struct CronJobDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                infoGroup
+                summaryGroup
+                if hasDetailRows {
+                    infoGroup
+                }
                 actionsGroup
                 runsGroup
                 dangerGroup
@@ -209,7 +255,8 @@ struct CronJobDetailView: View {
         }
     }
 
-    private var infoGroup: some View {
+    /// 附则（卡 15）：状态/计划/下次运行升摘要卡置顶
+    private var summaryGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("任务")
                 .padding(.bottom, OneDayMetrics.spacingS)
@@ -221,6 +268,26 @@ struct CronJobDetailView: View {
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     infoRow("下次运行", AdminFormat.short(next))
                 }
+            }
+            .odGroup()
+        }
+    }
+
+    /// 详情组有行才渲染（前三行升摘要卡后，空组不留壳）
+    private var hasDetailRows: Bool {
+        current.lastRunAt != nil
+            || (current.deliver?.isEmpty == false)
+            || (current.model?.isEmpty == false)
+            || (current.prompt?.isEmpty == false)
+            || (current.lastError?.isEmpty == false)
+    }
+
+    private var infoGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("详情")
+                .padding(.top, 28)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
                 if let last = AdminFormat.iso(current.lastRunAt) {
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     infoRow("上次运行", AdminFormat.short(last))
@@ -333,7 +400,7 @@ struct CronJobDetailView: View {
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }

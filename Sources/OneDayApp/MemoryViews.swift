@@ -19,6 +19,8 @@ struct MemoryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if let status {
+                    // 0.3.7 卡 13：摘要卡——当前提供方＋内置文件总数
+                    summaryCard(status)
                     providersGroup(status)
                     builtinGroup(status)
                     resetGroup
@@ -87,6 +89,30 @@ struct MemoryView: View {
         .padding(.top, OneDayMetrics.spacingL)
     }
 
+    private func summaryCard(_ status: MemoryStatus) -> some View {
+        let activeName = (status.active ?? "").isEmpty
+            ? "内置记忆"
+            : (status.active ?? "内置记忆")
+        let totalFiles = status.builtinFiles.values.reduce(0, +)
+        return VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("现在用的记忆")
+                .padding(.bottom, OneDayMetrics.spacingS)
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Text(activeName)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+                Text("内置文件 \(AdminFormat.count(totalFiles)) 条")
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .odGroup()
+        }
+        .padding(.bottom, 28)
+    }
+
     // MARK: - 提供方
 
     private func providersGroup(_ status: MemoryStatus) -> some View {
@@ -118,15 +144,9 @@ struct MemoryView: View {
                 .foregroundStyle(Palette.inkSecondary)
                 .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("内置记忆")
-                    .font(TypeScale.body)
-                    .foregroundStyle(Palette.ink)
-                Text("Hermes 自带的文件记忆，零配置")
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
+            Text("内置记忆")
+                .font(TypeScale.body)
+                .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             if active {
                 Text("使用中")
@@ -158,7 +178,10 @@ struct MemoryView: View {
                 Text(provider.name)
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
-                if let description = provider.description, !description.isEmpty {
+                // 卡 13 点名：英文 description 不上屏（同卡 9 口径）
+                if let description = provider.description,
+                   !description.isEmpty,
+                   ServerLabels.isChineseText(description) {
                     Text(description)
                         .font(TypeScale.footnote)
                         .foregroundStyle(Palette.inkSecondary)
@@ -177,7 +200,7 @@ struct MemoryView: View {
                         .foregroundStyle(Palette.inkMuted)
                 }
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -359,8 +382,8 @@ struct MemoryProviderConfigView: View {
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     infoRow("状态", state)
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
                 if isActive {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
                     HStack {
                         Text("当前提供方")
                             .font(TypeScale.body)
@@ -372,28 +395,18 @@ struct MemoryProviderConfigView: View {
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .frame(minHeight: OneDayMetrics.rowHeight)
-                } else {
-                    Button {
-                        showSwitchConfirm = true
-                    } label: {
-                        HStack {
-                            Text("切换为当前提供方")
-                                .font(TypeScale.body)
-                                .foregroundStyle(Palette.primary)
-                            Spacer()
-                            if isSwitching {
-                                ProgressView()
-                            }
-                        }
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .frame(minHeight: OneDayMetrics.rowHeight)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isSwitching)
                 }
             }
             .odGroup()
+            // 附则（卡 13）：切换是本页主动作，走组下主按钮位
+            if !isActive {
+                Button(isSwitching ? "切换中…" : "切换为当前提供方") {
+                    showSwitchConfirm = true
+                }
+                .buttonStyle(.odPrimary)
+                .disabled(isSwitching)
+                .padding(.top, OneDayMetrics.spacingL)
+            }
         }
     }
 

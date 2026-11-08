@@ -55,6 +55,7 @@ struct ConnectView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 brandBlock
+                    .frame(maxWidth: .infinity)
                     .padding(.top, OneDayMetrics.spacingXXL)
                 formGroup
                     .padding(.top, OneDayMetrics.spacingXL)
@@ -72,10 +73,6 @@ struct ConnectView: View {
                 .buttonStyle(.odPrimary)
                 .disabled(!canSubmit)
                 .padding(.top, OneDayMetrics.spacingXL)
-                Text("凭据只存这台手机的钥匙串，不经过任何第三方。服务器需为 Hermes v0.23.0。")
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.inkMuted)
-                    .padding(.top, OneDayMetrics.spacingM)
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.bottom, OneDayMetrics.spacingL)
@@ -101,7 +98,8 @@ struct ConnectView: View {
     // MARK: - 区块
 
     private var brandBlock: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+        // 0.3.7 卡 1：身份块居中（稀疏表单页全页唯一视觉重心）
+        VStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
             Text("OneDay")
                 .font(TypeScale.display(for: colorScheme))
                 .foregroundStyle(Palette.ink)
