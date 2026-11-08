@@ -62,12 +62,23 @@ public extension ServerSession {
         guard let date = startedDate else {
             return "服务端会话" + countSuffix
         }
+        // 今天/昨天按与 now 的自然日差判（startOfDay
+        // 对齐，与 SidebarGrouping 同口径）——不许用
+        // Calendar.isDateInToday：它锚真实系统时钟、
+        // 忽略注入的 now（85 测首跑实证：CI 机真实日
+        // 期与测试 now 不同日即错位）
+        let dayDiff = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: date),
+            to: calendar.startOfDay(for: now)
+        ).day ?? Int.max
         let day: String
-        if calendar.isDateInToday(date) {
+        switch dayDiff {
+        case 0:
             day = "今天"
-        } else if calendar.isDateInYesterday(date) {
+        case 1:
             day = "昨天"
-        } else {
+        default:
             day = sessionMonthDayFormatter.string(from: date)
         }
         return "\(day) \(sessionTimeFormatter.string(from: date))"
