@@ -54,7 +54,8 @@ struct ConnectView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 brandBlock
-                    .padding(.top, OneDayMetrics.spacingXXL)                formGroup
+                    .padding(.top, OneDayMetrics.spacingXXL)
+                formGroup
                     .padding(.top, OneDayMetrics.spacingXL)
                 if !stepStates.isEmpty {
                     probeGroup
