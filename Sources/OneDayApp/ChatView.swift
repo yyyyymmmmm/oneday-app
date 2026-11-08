@@ -45,6 +45,11 @@ struct ChatView: View {
     /// 抽屉跟手拖拽的实时位移（0.2.2 动效专项：拖动跟随、
     /// 松手按预测位移弹簧归位，不再只判阈值瞬移）
     @State private var drawerDrag: CGFloat = 0
+    /// 侧边栏重命名（0.3.6，§21）：长按菜单发起，alert
+    /// 输入后写回 ChatThread.title（自动标题只覆盖
+    /// 「新会话」占位，改名不会被后续消息冲掉）
+    @State private var renamingThread: ChatThread?
+    @State private var renameText = ""
     /// 消息区是否贴近底部：决定自动跟随滚动与「回到底部」钮
     @State private var isNearBottom = true
     /// 列表可视高（0.3.5，§20）：onScrollGeometryChange
@@ -1178,12 +1183,26 @@ private struct ComposerBarLayout: Layout {
     /// 默认），面板底部以 tabBarZone 留位避让服务器行。
     @ViewBuilder
     private func drawerOverlay(width: CGFloat) -> some View {
-        // 跟手偏移：基准位（开 0 / 合 -width-8）＋拖拽量（按方向钳制）
+        // 跟手偏移：基准位（开 0 / 合 -width-8）＋拖拽量。
+        // 界内 1:1 跟手；越界段走橡皮筋（0.3.6，§21；
+        // OneDayCore.DrawerGeometry，审查 E-3）——此前
+        // 硬钳制在边界有撞墙感。
         let base = drawerOpen ? 0 : -width - 8
-        let clampedDrag = drawerOpen
-            ? min(max(drawerDrag, -width), 0)
-            : min(max(drawerDrag, 0), width)
-        let offsetX = base + clampedDrag
+        let followed: CGFloat
+        if drawerOpen {
+            followed = drawerDrag >= 0
+                ? DrawerGeometry.rubberBand(
+                    overshoot: drawerDrag, containerWidth: width
+                  )
+                : max(drawerDrag, -width)
+        } else {
+            followed = drawerDrag <= 0
+                ? -DrawerGeometry.rubberBand(
+                    overshoot: -drawerDrag, containerWidth: width
+                  )
+                : min(drawerDrag, width)
+        }
+        let offsetX = base + followed
         // scrim 透明度随开合进度走，拖动时不跳变
         let progress = 1 - min(max(-offsetX, 0), width) / width
         // 遮罩走 Palette.scrim（§14 条 1 四层阶梯的层 4，
@@ -1210,10 +1229,7 @@ private struct ComposerBarLayout: Layout {
             drawerIdentity
             drawerSearchField
             drawerNewChatRow
-            ScrollView {
-                drawerList
-            }
-            .scrollDismissesKeyboard(.interactively)
+            drawerList
             drawerServerRow
             // 0.2.4：原生底栏按系统层级浮于抽屉之上，面板
             // 底部留出底栏占位，服务器行不被玻璃栏遮挡
@@ -1223,6 +1239,27 @@ private struct ComposerBarLayout: Layout {
         .frame(width: width)
         .frame(maxHeight: .infinity)
         .background(Palette.surface)
+        // 面板收尾（0.3.6，§21）：右侧圆角＋浮层软影，
+        // 不再是方形贴边的整块（两家参照面板的共同收尾）
+        .clipShape(
+            UnevenRoundedRectangle(
+                topTrailingRadius: OneDayMetrics.drawerCorner,
+                bottomTrailingRadius: OneDayMetrics.drawerCorner,
+                style: .continuous
+            )
+        )
+        .odElevation(Elevation.floating)
+        .alert(
+            "重命名会话",
+            isPresented: Binding(
+                get: { renamingThread != nil },
+                set: { if !$0 { renamingThread = nil } }
+            )
+        ) {
+            TextField("会话标题", text: $renameText)
+            Button("取消", role: .cancel) { renamingThread = nil }
+            Button("保存") { commitRenameThread() }
+        }
     }
 
     /// 顶部身份块（0.2.1 仿 Muse 侧边栏）：Hermes 名＋在线
@@ -1337,67 +1374,106 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 本机会话按时间分组（0.2.1 仿 Muse 侧边栏）：今天／
-    /// 昨天／更早；搜索时收成单组「搜索结果」。服务端会话
-    /// 单列一组在下方（点行直达设置里的会话详情），拉不到
-    /// 时回落一行去向说明。
+    /// 侧边栏会话列表（0.3.6 规格 v2，§21；调研见
+    /// docs/reference/sidebar-research.md）：List(.plain)
+    /// 承载（原生滚动物理；组标题/空态/尾留白都是零行
+    /// 距的素行、x 线全自控），会话行长按菜单＝置顶/
+    /// 重命名/删除三件套。滑行操作（swipeActions）本
+    /// 轮不上：面板拖拽手势与 List 行滑行同为横向拖
+    /// 拽、SwiftUI 仲裁下行滑行会被面板拖拽饿死（静默
+    /// 无效），归真机手感轮改拖拽承载后再开。服务端
+    /// 会话组在尾（OneDay 特有 IA，点行直达设置详情）。
     private var drawerList: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(threadGroups, id: \.label) { group in
-                SectionLabel(group.label)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.top, OneDayMetrics.spacingL)
-                    .padding(.bottom, OneDayMetrics.spacingS)
-                ForEach(group.threads) { thread in
-                    drawerThreadRow(thread)
+        List {
+            if filteredThreads.isEmpty {
+                drawerPlainRow {
+                    Text(drawerQuery.isEmpty ? "暂无会话" : "没有匹配的会话")
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkMuted)
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .padding(.top, OneDayMetrics.spacingL)
+                }
+            } else {
+                ForEach(threadGroups, id: \.label) { group in
+                    drawerGroupHeader(group.label)
+                    ForEach(group.threads) { thread in
+                        drawerThreadRow(thread)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
                 }
             }
-            if filteredThreads.isEmpty {
-                Text(drawerQuery.isEmpty ? "暂无会话" : "没有匹配的会话")
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.inkMuted)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.top, OneDayMetrics.spacingL)
-            }
-            SectionLabel("服务端会话")
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .padding(.top, OneDayMetrics.spacingL)
-                .padding(.bottom, OneDayMetrics.spacingS)
+            drawerGroupHeader("服务端会话")
             if drawerServerSessions.isEmpty {
-                Text("在「设置 · 智能体 · 服务端会话」里查看与管理")
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.inkMuted)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
+                drawerPlainRow {
+                    Text("在「设置 · 智能体 · 服务端会话」里查看与管理")
+                        .font(TypeScale.footnote)
+                        .foregroundStyle(Palette.inkMuted)
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                }
             } else {
                 ForEach(drawerServerSessions) { session in
                     drawerServerSessionRow(session)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
             }
-        }
-        .padding(.bottom, OneDayMetrics.spacingL)
-    }
-
-    /// 本机会话的时间分组（按 updatedAt 的自然日）
-    private var threadGroups: [(label: String, threads: [ChatThread])] {
-        let all = filteredThreads
-        guard drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return all.isEmpty ? [] : [("搜索结果", all)]
-        }
-        let calendar = Calendar.current
-        var today: [ChatThread] = []
-        var yesterday: [ChatThread] = []
-        var earlier: [ChatThread] = []
-        for thread in all {
-            if calendar.isDateInToday(thread.updatedAt) {
-                today.append(thread)
-            } else if calendar.isDateInYesterday(thread.updatedAt) {
-                yesterday.append(thread)
-            } else {
-                earlier.append(thread)
+            drawerPlainRow {
+                Color.clear
+                    .frame(height: OneDayMetrics.spacingL)
             }
         }
-        return [("今天", today), ("昨天", yesterday), ("更早", earlier)]
-            .filter { !$0.threads.isEmpty }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// 组标题行：与旧版同位同距（SectionLabel＋M/L/S
+    /// 三段 padding），在 List 里以素行承载。
+    private func drawerGroupHeader(_ label: String) -> some View {
+        drawerPlainRow {
+            SectionLabel(label)
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .padding(.top, OneDayMetrics.spacingL)
+                .padding(.bottom, OneDayMetrics.spacingS)
+        }
+    }
+
+    /// List 里的素行：零行距、透明底、无分隔线——
+    /// padding 全部由内容自控（组标题/空态/留白共用）。
+    private func drawerPlainRow<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+    }
+
+    /// 本机会话分组（0.3.6）：纯逻辑下沉
+    /// OneDayCore.SidebarGrouping（置顶＋时间五段，
+    /// 单测把守），此处只做 ChatThread ↔ key 映射。
+    private var threadGroups: [(label: String, threads: [ChatThread])] {
+        let searching = !drawerQuery
+            .trimmingCharacters(in: .whitespaces).isEmpty
+        let items = filteredThreads.map {
+            SidebarGrouping.Item(
+                key: $0.id, updatedAt: $0.updatedAt, isPinned: $0.isPinned
+            )
+        }
+        let byID = Dictionary(
+            uniqueKeysWithValues: filteredThreads.map { ($0.id, $0) }
+        )
+        return SidebarGrouping.groups(
+            items: items, now: Date(), searching: searching
+        ).map { group in
+            (
+                label: group.label,
+                threads: group.keys.compactMap { byID[$0] }
+            )
+        }
     }
 
     private func drawerServerSessionRow(_ session: ServerSession) -> some View {
@@ -1414,7 +1490,9 @@ private struct ComposerBarLayout: Layout {
                     .font(TypeScale.monoCaption)
                     .foregroundStyle(Palette.inkMuted)
             }
-            .padding(.horizontal, OneDayMetrics.spacingSM)
+            // 0.3.6：内距 SM→S，标题 x 线与本机会话行
+            // 对齐（外 S＋内 S＝16＝组标题线）
+            .padding(.horizontal, OneDayMetrics.spacingS)
             .padding(.vertical, OneDayMetrics.spacingS)
             .frame(
                 maxWidth: .infinity,
@@ -1427,61 +1505,79 @@ private struct ComposerBarLayout: Layout {
         .padding(.horizontal, OneDayMetrics.spacingS)
     }
 
-    /// 抽屉会话行的时间口径：固定中文短格式（11月8日 13:43），
-    /// 不随系统语言漂移——首轮截图里系统英文格式
-    ///（Nov 8, 2026 at 1:43 PM）混在中文行里读感破碎。
-    private static let threadDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
-        return formatter
-    }()
-
-    private static func threadDateText(_ date: Date) -> String {
-        threadDateFormatter.string(from: date)
-    }
-
-    /// 会话行（0.2.2 规格对齐 DESIGN-V3-NOTES §3/§6）：双行
-    /// 最小高 50、标题 callout 常规字重；选中态＝浅灰填充＋
-    /// 标题 semibold（近单色纪律，不用品牌色填充）
+    /// 会话行（0.3.6 规格 v2，§21）：单行标题——行内不
+    /// 堆元数据、时间信息归分组标题（ChatGPT 口径）；
+    /// 高 44、标题 callout；选中态＝中性填充＋标题
+    /// semibold（§19 不变表：主题色不进列表选中）。
+    /// 长按菜单＝置顶/重命名/删除三件套。
     private func drawerThreadRow(_ thread: ChatThread) -> some View {
         let isCurrent = thread.id == currentThread?.id
         return Button {
             currentThreadID = thread.id
             setDrawer(false)
         } label: {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(thread.title)
-                    .font(TypeScale.callout)
-                    .fontWeight(isCurrent ? .semibold : .regular)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text("\(thread.entries.count) 条 · \(Self.threadDateText(thread.updatedAt))")
-                    .font(TypeScale.monoCaption)
-                    .foregroundStyle(Palette.inkMuted)
-            }
-            .padding(.horizontal, OneDayMetrics.spacingSM)
-            .padding(.vertical, OneDayMetrics.spacingS)
-            .frame(
-                maxWidth: .infinity,
-                minHeight: 50,
-                alignment: .leading
-            )
-            .background(
-                isCurrent ? Palette.fieldFill : Color.clear,
-                in: RoundedRectangle(cornerRadius: OneDayMetrics.fieldCorner)
-            )
-            .contentShape(Rectangle())
+            Text(thread.title)
+                .font(TypeScale.callout)
+                .fontWeight(isCurrent ? .semibold : .regular)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                .padding(.horizontal, OneDayMetrics.spacingS)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: OneDayMetrics.minTapTarget,
+                    alignment: .leading
+                )
+                .background(
+                    isCurrent ? Palette.fieldFill : Color.clear,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.fieldCorner
+                    )
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
         .contextMenu {
+            Button {
+                togglePinThread(thread)
+            } label: {
+                Label(
+                    thread.isPinned ? "取消置顶" : "置顶",
+                    systemImage: thread.isPinned ? "pin.slash" : "pin"
+                )
+            }
+            Button {
+                beginRenameThread(thread)
+            } label: {
+                Label("重命名", systemImage: "pencil")
+            }
             Button(role: .destructive) {
                 deleteThread(thread)
             } label: {
                 Label("删除会话", systemImage: "trash")
             }
         }
+    }
+
+    private func togglePinThread(_ thread: ChatThread) {
+        thread.isPinned.toggle()
+        try? modelContext.save()
+    }
+
+    private func beginRenameThread(_ thread: ChatThread) {
+        renameText = thread.title
+        renamingThread = thread
+    }
+
+    private func commitRenameThread() {
+        let title = renameText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        if let thread = renamingThread, !title.isEmpty {
+            thread.title = title
+            try? modelContext.save()
+        }
+        renamingThread = nil
     }
 
     /// 底部固定服务器行：两家参照的「底部账号行」在 OneDay 的

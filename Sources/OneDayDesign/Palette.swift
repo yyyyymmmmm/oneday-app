@@ -169,6 +169,8 @@ public enum OneDayMetrics {
     // 圆角梯队（同心推导的锚点，内层走 CornerRadius.concentric）
     /// 分组容器
     public static let containerCorner: CGFloat = 18
+    /// 侧边抽屉面板右侧圆角（0.3.6，§21）
+    public static let drawerCorner: CGFloat = 24
     /// 输入字段 / 代码块
     public static let fieldCorner: CGFloat = 12
     /// 按钮

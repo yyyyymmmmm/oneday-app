@@ -10,6 +10,9 @@ final class ChatThread {
     var title: String
     var createdAt: Date
     var updatedAt: Date
+    /// 侧边栏置顶（0.3.6，§21；默认 false、SwiftData
+    /// 轻量迁移，置顶组口径见 SidebarGrouping）
+    var isPinned: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \ChatEntry.thread)
     var entries: [ChatEntry] = []
