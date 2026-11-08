@@ -18,13 +18,17 @@ enum AdminFormat {
         return formatter
     }()
 
-    private static let isoFractional: ISO8601DateFormatter = {
+    // ISO8601DateFormatter 非 Sendable，Swift 6 下不许做静态
+    // 存储属性；解析频次低，按需构造即可。
+    private static var isoFractional: ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
-    }()
+    }
 
-    private static let isoPlain = ISO8601DateFormatter()
+    private static var isoPlain: ISO8601DateFormatter {
+        ISO8601DateFormatter()
+    }
 
     static func short(_ date: Date?) -> String {
         guard let date else { return "—" }
