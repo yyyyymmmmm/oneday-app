@@ -71,5 +71,14 @@ let project = Project(
             sources: ["Tests/OneDayCoreTests/**"],
             dependencies: [.target(name: "OneDayCore")]
         ),
+    ],
+    schemes: [
+        .scheme(
+            name: "OneDayApp",
+            shared: true,
+            buildAction: .buildAction(targets: ["OneDayApp"]),
+            testAction: .targets(["OneDayCoreTests"]),
+            runAction: .runAction(executable: "OneDayApp")
+        ),
     ]
 )
