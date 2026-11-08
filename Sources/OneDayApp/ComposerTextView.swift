@@ -47,8 +47,9 @@ struct ComposerTextView: UIViewRepresentable {
     }
 
     /// 正文口径（0.2.8，DESIGN-V4 §12.3）：固定 16pt 系统
-    /// 字体，行高约 20——与 Muse 输入行看齐（其文字行约
-    /// 20pt）；ComposerLayout.lineHeight=20 与此同口径。
+    /// 字体——与 Muse 输入行看齐（其文字行约 20pt）；
+    /// ComposerLayout.lineHeight=19.17 是该字体的 CI 帧实
+    /// 测行高（0.2.9 校准，§13.2），与此同口径。
     /// 不再跟随 Dynamic Type 放大，否则单行规格随系统字
     /// 号档漂移、量高口径与排版口径脱钩
     private static var bodyFont: UIFont { .systemFont(ofSize: 16) }

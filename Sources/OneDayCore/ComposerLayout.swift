@@ -14,10 +14,16 @@ import Foundation
 /// 16 → 10；两键直径 36 → 30。胶囊高取「文本侧」与
 /// 「键侧」较高者＋行纵向边距：单行时两侧同为 30，总高
 /// 30＋16＝46；多行起文本侧接管、随行递增。
+/// 0.2.9 行高校准（DESIGN-V4 §13.2）：CI 帧量测实证
+/// 16pt 系统字体真实行高约 19.17（2 行 38.33、4 行
+/// 76.67），旧常数 20 系近似——4 行累计漂移 3.3、封顶
+/// 偏高 5。lineHeight 改实测值，封顶随之 120 → 115.02、
+/// 胶囊上限 146 → 141.02；单行规格不变（键侧 30 主导，
+/// 仍 46）。
 public enum ComposerLayout {
-    /// 正文行高（16pt 系统字体口径，与 ComposerTextView
-    /// 的量高一致）
-    public static let lineHeight: CGFloat = 20
+    /// 正文行高：16pt 系统字体实测行高（CI 帧量测，
+    /// §13.2），与 ComposerTextView 的量高一致
+    public static let lineHeight: CGFloat = 19.17
     /// 多行上限：实测高超过封顶后文本视图内滚
     public static let maxLines = 6
     /// 文本封顶高（6 行）
@@ -59,7 +65,7 @@ public enum ComposerLayout {
     }
 
     /// 胶囊总高＝max(封顶文本高＋文本纵向边距, 键直径)
-    /// ＋行纵向边距。单行规格：max(20＋10, 30)＋16＝46，
+    /// ＋行纵向边距。单行规格：max(19.17＋10, 30)＋16＝46，
     /// 落在目标带 45–46 内（0.2.8 改版，54.5 旧规格作废）
     public static func capsuleHeight(measured: CGFloat) -> CGFloat {
         max(

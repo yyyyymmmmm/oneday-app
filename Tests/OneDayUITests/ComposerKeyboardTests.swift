@@ -145,7 +145,8 @@ final class ComposerKeyboardTests: XCTestCase {
         attach.frame.maxY - field.frame.minY + 21
     }
 
-    /// 2 行：文本高 40、胶囊 = max(40+10, 30)+16 = 66。
+    /// 2 行：期望值来自 §13.2 的 CI 帧实测口径（真实行高
+    /// 19.17）——文本高 38.33、胶囊 = 38.33+26 = 64.33。
     func testComposerTwoLinesGeometry() {
         let (app, field, attach) = launchInjected(case: "two", focus: false)
         _ = app
@@ -153,11 +154,13 @@ final class ComposerKeyboardTests: XCTestCase {
         print("[MEASURE] two fieldH=\(field.frame.height) capsule=\(capsule)")
         print("[MEASURE] two fieldFrame=\(field.frame)")
         capture("kb-lines-2")
-        XCTAssertEqual(field.frame.height, 40, accuracy: 4, "两行文本高应 ≈40：\(field.frame.height)")
-        XCTAssertEqual(capsule, 66, accuracy: 3, "两行胶囊高应 ≈66：\(capsule)")
+        XCTAssertEqual(field.frame.height, 38.33, accuracy: 4, "两行文本高应 ≈38.33（行高 19.17×2）：\(field.frame.height)")
+        XCTAssertEqual(capsule, 64.33, accuracy: 3, "两行胶囊高应 ≈64.33：\(capsule)")
     }
 
-    /// 4 行：文本高 80、胶囊 = max(80+10, 30)+16 = 106。
+    /// 4 行：文本高 76.67、胶囊 = 76.67+26 = 102.67。
+    /// （首轮按行高近似 20 写期望 106 被实测证伪 0.33pt，
+    /// §13.2：常数改实测、期望随之。）
     func testComposerFourLinesGeometry() {
         let (app, field, attach) = launchInjected(case: "four", focus: false)
         _ = app
@@ -165,13 +168,13 @@ final class ComposerKeyboardTests: XCTestCase {
         print("[MEASURE] four fieldH=\(field.frame.height) capsule=\(capsule)")
         print("[MEASURE] four fieldFrame=\(field.frame)")
         capture("kb-lines-4")
-        XCTAssertEqual(field.frame.height, 80, accuracy: 4, "四行文本高应 ≈80：\(field.frame.height)")
-        XCTAssertEqual(capsule, 106, accuracy: 3, "四行胶囊高应 ≈106：\(capsule)")
+        XCTAssertEqual(field.frame.height, 76.67, accuracy: 4, "四行文本高应 ≈76.67：\(field.frame.height)")
+        XCTAssertEqual(capsule, 102.67, accuracy: 3, "四行胶囊高应 ≈102.67：\(capsule)")
     }
 
     /// 缠绕 3 行：37 字单行长句在字段宽下应恰缠 3 行——
-    /// 文本高须为整行倍数（60±5、无幽灵行），胶囊严格跟
-    /// 随 fieldH+26（文本边距 10＋行边距 16）。
+    /// 文本高须为整行倍数（57.33±5、无幽灵行），胶囊严格
+    /// 跟随 fieldH+26（文本边距 10＋行边距 16）。
     func testComposerWrapLinesGeometry() {
         let (app, field, attach) = launchInjected(case: "wrap", focus: false)
         _ = app
@@ -179,7 +182,7 @@ final class ComposerKeyboardTests: XCTestCase {
         print("[MEASURE] wrap fieldH=\(field.frame.height) capsule=\(capsule)")
         print("[MEASURE] wrap fieldFrame=\(field.frame)")
         capture("kb-lines-wrap")
-        XCTAssertEqual(field.frame.height, 60, accuracy: 5, "缠绕应恰 3 行（文本高 ≈60）：\(field.frame.height)")
+        XCTAssertEqual(field.frame.height, 57.33, accuracy: 5, "缠绕应恰 3 行（文本高 ≈57.33）：\(field.frame.height)")
         XCTAssertEqual(capsule, field.frame.height + 26, accuracy: 3, "胶囊应严格跟随文本高 +26：胶囊 \(capsule) vs 文本 \(field.frame.height)")
     }
 
@@ -193,7 +196,7 @@ final class ComposerKeyboardTests: XCTestCase {
         print("[MEASURE] kb-two fieldH=\(field.frame.height) capsule=\(capsule)")
         print("[MEASURE] kb-two fieldFrame=\(field.frame)")
         capture("kb-lines-2-kb")
-        XCTAssertEqual(field.frame.height, 40, accuracy: 4, "键盘态两行文本高应 ≈40：\(field.frame.height)")
-        XCTAssertEqual(capsule, 66, accuracy: 3, "键盘态两行胶囊高应 ≈66：\(capsule)")
+        XCTAssertEqual(field.frame.height, 38.33, accuracy: 4, "键盘态两行文本高应 ≈38.33：\(field.frame.height)")
+        XCTAssertEqual(capsule, 64.33, accuracy: 3, "键盘态两行胶囊高应 ≈64.33：\(capsule)")
     }
 }
