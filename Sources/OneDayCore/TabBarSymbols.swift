@@ -20,25 +20,31 @@ public enum TabBarSymbols {
         "slider.horizontal.3",
     ]
 
-    private static var cache: [String: UIImage] = [:]
+    /// 四个条目的成品图预计算表（static let：构造一次、
+    /// 并发安全；字形高 == glyphHeight，构造保证）
+    private static let table: [String: UIImage] = {
+        var result: [String: UIImage] = [:]
+        for name in names {
+            result[name] = construct(named: name)
+        }
+        return result
+    }()
 
-    /// 按名生成底栏图（字形高 == glyphHeight，构造保证；
-    /// 结果缓存，重复调用返回同一图）
+    /// 按名取底栏图（表外名字按同一构造法即时生成）
     public static func image(named name: String) -> UIImage {
-        if let cached = cache[name] { return cached }
+        table[name] ?? construct(named: name)
+    }
+
+    private static func construct(named name: String) -> UIImage {
         let reference = symbol(named: name, pointSize: 100)
         let referenceHeight = alphaBounds(of: reference).height
-        let image: UIImage
         if referenceHeight > 0 {
-            image = symbol(
+            return symbol(
                 named: name,
                 pointSize: 100 * glyphHeight / referenceHeight
             )
-        } else {
-            image = reference
         }
-        cache[name] = image
-        return image
+        return reference
     }
 
     private static func symbol(
