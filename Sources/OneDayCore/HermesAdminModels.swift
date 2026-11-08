@@ -122,6 +122,10 @@ public struct MemoryProviderConfig: Decodable, Sendable {
     public let label: String?
     public let fields: [Field]
 
+    enum CodingKeys: String, CodingKey {
+        case name, label, fields
+    }
+
     public struct Field: Decodable, Sendable, Identifiable {
         public let key: String
         public let label: String?
