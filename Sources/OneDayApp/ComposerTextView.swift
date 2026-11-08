@@ -31,7 +31,8 @@ struct ComposerTextView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        let textView = ProbeTextView()
+        print("[DIAG] ComposerTextView makeUIView")
         textView.delegate = context.coordinator
         textView.font = .preferredFont(forTextStyle: .body)
         textView.adjustsFontForContentSizeCategory = true
@@ -150,6 +151,7 @@ struct ComposerTextView: UIViewRepresentable {
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
+            print("[DIAG] textViewDidBeginEditing")
             lastFocus = true
             parent.isFocused.wrappedValue = true
         }
@@ -158,5 +160,37 @@ struct ComposerTextView: UIViewRepresentable {
             lastFocus = false
             parent.isFocused.wrappedValue = false
         }
+    }
+}
+
+/// 0.2.7 临时诊断（定位点按不聚焦，定案后删）：把命中与
+/// 聚焦路径的每一站都打出来——point(inside:) 是否被问、
+/// touches 是否到达、becomeFirstResponder 的返回值
+final class ProbeTextView: UITextView {
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        let result = super.point(inside: point, with: event)
+        print("[DIAG] point(inside: \(point)) -> \(result)")
+        return result
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("[DIAG] touchesBegan count=\(touches.count)")
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("[DIAG] touchesEnded")
+        super.touchesEnded(touches, with: event)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("[DIAG] touchesCancelled")
+        super.touchesCancelled(touches, with: event)
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let result = super.becomeFirstResponder()
+        print("[DIAG] becomeFirstResponder -> \(result)")
+        return result
     }
 }
