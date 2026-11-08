@@ -597,8 +597,9 @@ struct ChatView: View {
                     // 0.2.7：SwiftUI 纵向 TextField 换自量高
                     // UITextView（ComposerTextView）——高度由
                     // 文本布局单方决定，真机拼音组合态的撕裂
-                    // 空盒从机制上消失（§11）；占位符由覆盖层
-                    // Text 承担（UITextView 无占位符）
+                    // 空盒从机制上消失（§11）；占位符由文本
+                    // 视图内部的子标签承担（外部覆盖层会污染
+                    // 命中路径，见 ComposerTextView 注）
                     ComposerTextView(
                         text: $input,
                         isFocused: $composerFocused,
@@ -609,16 +610,6 @@ struct ChatView: View {
                     )
                     .padding(.horizontal, OneDayMetrics.spacingS)
                     .padding(.vertical, OneDayMetrics.spacingS)
-                    .overlay(alignment: .topLeading) {
-                        if input.isEmpty {
-                            Text("发消息…")
-                                .font(.body)
-                                .foregroundStyle(.tertiary)
-                                .padding(.horizontal, OneDayMetrics.spacingS)
-                                .padding(.vertical, OneDayMetrics.spacingS)
-                                .allowsHitTesting(false)
-                        }
-                    }
                     trailingControl
                 }
                 .padding(.horizontal, OneDayMetrics.spacingS)

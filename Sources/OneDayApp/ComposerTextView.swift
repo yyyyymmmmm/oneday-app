@@ -49,6 +49,29 @@ struct ComposerTextView: UIViewRepresentable {
         textView.isScrollEnabled = false
         textView.accessibilityIdentifier = "composerField"
         textView.text = text
+        // 占位符：UITextView 没有占位符，用子 UILabel 承担
+        // （经典 InputTextView 做法）。0.2.7 首轮曾以 SwiftUI
+        // .overlay 盖在 representable 上——CI 实证点按聚焦被
+        // 吃掉（field.tap 后键盘未起、焦点未获），占位层回
+        // 视图内部后命中路径上再无外来层；UILabel 默认不
+        // 接收触摸，亦显式关闭
+        let placeholder = UILabel()
+        placeholder.text = "发消息…"
+        placeholder.font = .preferredFont(forTextStyle: .body)
+        placeholder.textColor = .tertiaryLabel
+        placeholder.isUserInteractionEnabled = false
+        placeholder.translatesAutoresizingMaskIntoConstraints = false
+        textView.addSubview(placeholder)
+        NSLayoutConstraint.activate([
+            placeholder.leadingAnchor.constraint(
+                equalTo: textView.leadingAnchor, constant: 1
+            ),
+            placeholder.topAnchor.constraint(
+                equalTo: textView.topAnchor
+            ),
+        ])
+        context.coordinator.placeholderLabel = placeholder
+        placeholder.isHidden = !(text.isEmpty)
         return textView
     }
 
@@ -58,6 +81,8 @@ struct ComposerTextView: UIViewRepresentable {
         if textView.text != text, textView.markedTextRange == nil {
             textView.text = text
         }
+        context.coordinator.placeholderLabel?.isHidden =
+            !(textView.text?.isEmpty ?? true)
         // 焦点桥边沿触发：只在期望值相对上次已知状态变化时
         // 才驱动第一响应者。电平触发会在「UIKit 已聚焦、
         // delegate 回写未达」的窗口里被任意一次 SwiftUI 更新
@@ -109,6 +134,8 @@ struct ComposerTextView: UIViewRepresentable {
         var parent: ComposerTextView
         /// 焦点桥的上次已知状态（边沿触发用，见 updateUIView）
         var lastFocus = false
+        /// 占位符子标签（makeUIView 时挂上）
+        weak var placeholderLabel: UILabel?
 
         init(parent: ComposerTextView) {
             self.parent = parent
@@ -118,6 +145,7 @@ struct ComposerTextView: UIViewRepresentable {
             // marked 段同样回写绑定：与 SwiftUI TextField 的
             // 行为一致（组合中发送键即亮，见真机截图口径）
             parent.text = textView.text ?? ""
+            placeholderLabel?.isHidden = !(textView.text.isEmpty)
             parent.refreshScroll(textView)
         }
 
