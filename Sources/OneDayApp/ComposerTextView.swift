@@ -58,10 +58,20 @@ struct ComposerTextView: UIViewRepresentable {
         if textView.text != text, textView.markedTextRange == nil {
             textView.text = text
         }
-        if isFocused.wrappedValue, !textView.isFirstResponder {
-            textView.becomeFirstResponder()
-        } else if !isFocused.wrappedValue, textView.isFirstResponder {
-            textView.resignFirstResponder()
+        // 焦点桥边沿触发：只在期望值相对上次已知状态变化时
+        // 才驱动第一响应者。电平触发会在「UIKit 已聚焦、
+        // delegate 回写未达」的窗口里被任意一次 SwiftUI 更新
+        // 误伤 resign（0.2.7 首轮 CI 实证：点按聚焦被吃掉，
+        // 键盘未起）；delegate 回调与 becomeFirstResponder
+        // 同步发生，边沿记录后该窗口不存在
+        let desired = isFocused.wrappedValue
+        if desired != context.coordinator.lastFocus {
+            context.coordinator.lastFocus = desired
+            if desired, !textView.isFirstResponder {
+                textView.becomeFirstResponder()
+            } else if !desired, textView.isFirstResponder {
+                textView.resignFirstResponder()
+            }
         }
         refreshScroll(textView)
     }
@@ -97,6 +107,8 @@ struct ComposerTextView: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: ComposerTextView
+        /// 焦点桥的上次已知状态（边沿触发用，见 updateUIView）
+        var lastFocus = false
 
         init(parent: ComposerTextView) {
             self.parent = parent
@@ -110,10 +122,12 @@ struct ComposerTextView: UIViewRepresentable {
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
+            lastFocus = true
             parent.isFocused.wrappedValue = true
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
+            lastFocus = false
             parent.isFocused.wrappedValue = false
         }
     }
