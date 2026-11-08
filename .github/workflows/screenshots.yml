@@ -50,6 +50,19 @@ jobs:
           fi
           xcrun simctl list devices available | grep "iPhone" | head -5
 
+      - name: Enable Pinyin keyboard (0.2.7 probe)
+        if: contains(inputs.only_testing, 'Pinyin')
+        run: |
+          # 把简体拼音置入模拟器已启用输入源并选为当前，让
+          # ComposerPinyinProbeTests 能打真拼音＋候选条；
+          # 写失败不中断（探针会自检并打印 UNAVAILABLE）
+          UDID=$(xcrun simctl list devices available | grep -F "$DEVICE (" | head -1 | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          echo "UDID=$UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl spawn "$UDID" defaults write com.apple.HIToolbox AppleEnabledInputSources -array '<dict><key>InputSourceKind</key><string>Keyboard Layout</string><key>KeyboardLayout ID</key><integer>252</integer><key>KeyboardLayout Name</key><string>ABC</string></dict>' '<dict><key>Bundle ID</key><string>com.apple.inputmethod.SCIM</string><key>Input Mode</key><string>com.apple.inputmethod.SCIM.ITABC</string><key>InputSourceKind</key><string>Keyboard Input Method</string></dict>' || true
+          xcrun simctl spawn "$UDID" defaults write com.apple.HIToolbox AppleSelectedInputSources -array '<dict><key>Bundle ID</key><string>com.apple.inputmethod.SCIM</string><key>Input Mode</key><string>com.apple.inputmethod.SCIM.ITABC</string><key>InputSourceKind</key><string>Keyboard Input Method</string></dict>' || true
+          xcrun simctl spawn "$UDID" defaults read com.apple.HIToolbox AppleEnabledInputSources || true
+
       - name: UI tests (screenshots, demo mode)
         run: |
           set -o pipefail
@@ -96,8 +109,8 @@ jobs:
                               src = os.path.join(out_dir, exported)
                               if os.path.exists(src):
                                   found[name] = src
-                      # 0.2.6 诊断附件（kb-*）：缺陷定位证据，一并导出供人工看图
-                      if "kb-" in human:
+                      # 0.2.6/0.2.7 诊断附件（kb-*/probe-*）：缺陷定位证据，一并导出供人工看图
+                      if "kb-" in human or "probe-" in human:
                           src = os.path.join(out_dir, exported)
                           if os.path.exists(src):
                               safe = human.replace("/", "_").replace(" ", "_")

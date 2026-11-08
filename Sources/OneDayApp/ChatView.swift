@@ -63,6 +63,14 @@ struct ChatView: View {
     /// 融入——它改裸符号直接坐在胶囊玻璃里，union 只剩
     /// 胶囊本体，命名空间保留备用
     @Namespace private var composerGlass
+    /// 0.2.7 探针开关（启动参数，默认关、正常启动零影响）：
+    /// -odBareGlass＝发送舱摘掉 GlassEffectContainer＋union
+    /// 的 A/B 路径；-odMarkedProbe＝演示模式下编程置拼音
+    /// marked text 复现组合态（见 MarkedTextDriver）
+    private let bareGlassProbe = ProcessInfo.processInfo.arguments
+        .contains("-odBareGlass")
+    private let markedProbeEnabled = DemoMode.current.isDemo
+        && ProcessInfo.processInfo.arguments.contains("-odMarkedProbe")
     /// 0.2.6 多行形状变形：输入框实测高度跨过单行阈值后
     /// 发送舱玻璃由 Capsule 改固定圆角矩形（见 inputBar）
     @State private var composerMultiline = false
@@ -302,6 +310,12 @@ struct ChatView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .animation(MotionTokens.swap, value: isNearBottom)
+        // 0.2.7 逐环探针锚点（ComposerPinyinProbeTests 以
+        // otherElements 按此标识读各环 frame，定位键盘＋
+        // 拼音标记文本态的膨胀环）；.contain 只加容器元素、
+        // 不改布局与视觉
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composerZone")
     }
 
     /// 回到底部：系统 .glass 圆钮（0.2.4 换原生玻璃，撤掉
@@ -595,7 +609,43 @@ struct ChatView: View {
             if !attachments.isEmpty {
                 attachmentsStrip
             }
-            GlassEffectContainer(spacing: OneDayMetrics.spacingS) {
+            if bareGlassProbe {
+                // 0.2.7 A/B 探针（仅 -odBareGlass 启动参数，演示
+                // 诊断用）：摘掉 GlassEffectContainer 与 union，
+                // 只留裸 glassEffect，与默认路径逐环对照 frame
+                composerRow
+                    .glassEffect(.regular, in: composerShape)
+            } else {
+                GlassEffectContainer(spacing: OneDayMetrics.spacingS) {
+                    composerRow
+                        .glassEffect(.regular, in: composerShape)
+                        .glassEffectUnion(id: "composer", namespace: composerGlass)
+                }
+            }
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.top, OneDayMetrics.spacingS)
+        .padding(.bottom, OneDayMetrics.spacingS)
+        // 提议链断环（见 inputBar 根因注）：本 VStack 的高度
+        // 只认内容，不许把 ZStack 的全屏提议透传给胶囊
+        .fixedSize(horizontal: false, vertical: true)
+        // 0.2.7 逐环探针锚点（见 bottomBar 的 composerZone）
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composerBar")
+        .background {
+            // 0.2.7 标记文本探针（仅演示＋-odMarkedProbe）：
+            // 编程置 marked text 复现拼音组合态，见文件末尾
+            if markedProbeEnabled {
+                MarkedTextDriver(active: composerFocused)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    /// 发送舱内容行（0.2.7 自 inputBar 抽出成独立视图，供
+    /// 玻璃承载 A/B 两路共用同一份内容与规格）：＋键＋纵向
+    /// 输入框＋右端状态机，HStack .bottom 对齐
+    private var composerRow: some View {
                 HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
                     attachButton
                     TextField("发消息…", text: $input, axis: .vertical)
@@ -628,18 +678,14 @@ struct ChatView: View {
                 // 0.2.6 形状随行数变形（对照 Muse 多行态）：
                 // 单行 Capsule、多行固定圆角 24 圆角矩形——
                 // Capsule 拉长成体育场形大气球是用户点名
-                // 「内容多了为什么变这样」的形状根源
-                .glassEffect(.regular, in: composerShape)
-                .glassEffectUnion(id: "composer", namespace: composerGlass)
+                // 「内容多了为什么变这样」的形状根源；玻璃
+                // 本体（glassEffect/union）由 inputBar 的两路
+                // 承载分支施加（0.2.7 A/B），形状定义在
+                // composerShape
                 .animation(.easeInOut(duration: 0.18), value: composerMultiline)
-            }
-        }
-        .padding(.horizontal, OneDayMetrics.spacingSM)
-        .padding(.top, OneDayMetrics.spacingS)
-        .padding(.bottom, OneDayMetrics.spacingS)
-        // 提议链断环（见 inputBar 根因注）：本 VStack 的高度
-        // 只认内容，不许把 ZStack 的全屏提议透传给胶囊
-        .fixedSize(horizontal: false, vertical: true)
+                // 0.2.7 逐环探针锚点（行本体）
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("composerRow")
     }
 
     /// 发送舱右端状态机（0.2.5，对照 Muse 输入区）：胶囊内
@@ -1294,8 +1340,18 @@ struct ChatView: View {
     /// 让截图环能截到「半截回复＋流式光标」的静止帧。正常模式
     /// 直接返回，零影响。
     private func startDemoStreamIfNeeded() async {
-        guard DemoMode.current.isDemo, !demoStreamStarted,
-              let thread = currentThread else {
+        guard DemoMode.current.isDemo, !demoStreamStarted else {
+            return
+        }
+        // 0.2.7 防御（DESIGN-V4 §10.6 记档的疑似竞态）：
+        // .task 一次性触发时种子 @Query 可能尚未落定、
+        // currentThread 为空——旧守卫会整场不起流（截图环
+        // test02 等流式文本三轮超时）。改为有界等待线程
+        // 出现再开流；演示专用路径，正常模式第一行已返回
+        for _ in 0..<40 where currentThread == nil {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        guard let thread = currentThread else {
             return
         }
         demoStreamStarted = true
@@ -1572,5 +1628,85 @@ private struct ModelPickerSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// 0.2.7 标记文本探针（仅演示模式＋-odMarkedProbe 启动参数
+/// 启用，正常启动零影响）：发送舱获得焦点后，按时间线对
+/// 其底层 UITextView 编程置 marked text（拼音组合态
+/// "huanjing"），再提交为「环境」并重新进入组合态，配合
+/// UI 测试逐环量 frame——复现真机拼音输入时才出现的布局
+/// 条件（英文键盘测不出，见 DESIGN-V4 §11）。SwiftUI 的
+/// 文本绑定不感知 marked text，提交（unmarkText）时经
+/// UITextView 的常规变更通知回写绑定，与真实 IME 提交
+/// 同路。
+private struct MarkedTextDriver: UIViewRepresentable {
+    let active: Bool
+
+    final class Coordinator {
+        var fired = false
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isHidden = true
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        guard active, !context.coordinator.fired else { return }
+        context.coordinator.fired = true
+        let window = view.window
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            Self.setMarked(window: window, text: "huanjing")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
+            Self.commitAndRemark(window: window)
+        }
+    }
+
+    /// 窗内唯一的纵向输入 UITextView（聊天页演示态下只有
+    /// 发送舱一个）；优先取第一响应者
+    private static func composerTextView(window: UIWindow?) -> UITextView? {
+        guard let window else { return nil }
+        var found: [UITextView] = []
+        func walk(_ v: UIView) {
+            if let tv = v as? UITextView { found.append(tv) }
+            v.subviews.forEach(walk)
+        }
+        walk(window)
+        return found.first { $0.isFirstResponder } ?? found.first
+    }
+
+    private static func setMarked(window: UIWindow?, text: String) {
+        guard let tv = composerTextView(window: window),
+              tv.isFirstResponder else { return }
+        tv.setMarkedText(
+            text,
+            selectedRange: NSRange(location: (text as NSString).length, length: 0)
+        )
+    }
+
+    private static func commitAndRemark(window: UIWindow?) {
+        guard let tv = composerTextView(window: window),
+              tv.isFirstResponder else { return }
+        // 提交当前组合：把 marked 段替换为候选词并 unmark
+        if let marked = tv.markedTextRange {
+            let start = tv.offset(from: tv.beginningOfDocument, to: marked.start)
+            let length = tv.offset(from: marked.start, to: marked.end)
+            tv.setMarkedText(
+                "环境",
+                selectedRange: NSRange(location: 2, length: 0)
+            )
+            _ = (start, length)
+            tv.unmarkText()
+        }
+        // 紧接着再进组合态（真机截图的预测候选态）
+        tv.setMarkedText(
+            "huanjing",
+            selectedRange: NSRange(location: 8, length: 0)
+        )
     }
 }

@@ -261,3 +261,158 @@
   居中）；多行时两键底边与 field 底边齐平、锚在最后
   一行。胶囊单行总高 54（≈52 规格）；行数上限 5→6，
   超出后 field 内滚。
+
+## 10. 0.2.6 追记：发送区承载换代（调研定案）＋四项修正
+
+0.2.5 交付后用户真机回两类问题：键盘弹起态发送舱仍膨
+胀成空玻璃泡（§9.5 的断环只治住静态覆盖态）；另对照
+Muse 长文输入态截图追加三点——顶部渐隐、输入多行时
+的形状、底栏图标再小。本版按用户指示调整打法：先调研
+成熟开源项目、后定案，不再在自研覆盖层上打补丁。
+
+### 10.1 调研：三家成熟开源聊天 UI 的输入区承载
+
+- Exyte/Chat（SwiftUI 聊天库）：消息表（UITableView
+  承载）与输入区是同一布局流里的上下兄弟（其
+  isListAboveInputView 修饰符即此结构），库内自带
+  KeyboardState 观察键盘、保持输入条贴键盘、列表区
+  让位（其 issue #180 的诉求与修复口径即「输入条应
+  相对键盘固定、其余内容滚动让位」）。结论：输入区
+  在流内、由键盘状态驱动，不是覆盖层。
+  https://github.com/exyte/Chat
+- MessageKit＋InputBarAccessoryView（UIKit）：输入条
+  就是宿主控制器的 inputAccessoryView（视图控制器
+  重写 canBecomeFirstResponder 常驻），停靠、跟随键
+  盘、交互收起全由系统 UIInputWindowController 精确
+  处理；条内 UITextView 自适应高，库的 KeyboardManager
+  只负责同步滚动视图的内容边距。结论：UIKit 世界的
+  钦定通道是 inputAccessoryView，高度与避让不归应
+  用布局管。
+  https://github.com/MessageKit/MessageKit
+  https://github.com/nathantannar4/InputBarAccessoryView
+- Stream Chat SwiftUI：频道页是「消息列表＋Composer」
+  的流内上下结构，键盘避让走 SwiftUI 安全区；其
+  KeyboardReadable 键盘发布者只供弹窗等附加件对齐
+  键盘高度。结论：SwiftUI 世界与 Exyte 共识一致——
+  composer 在流内、安全区管键盘。
+  https://getstream.io/blog/swiftui-action-composer/
+
+### 10.2 定案与取舍
+
+- 选定结构：Exyte/Stream 式布局流承载的 SwiftUI 原生
+  形态——消息列表加 .safeAreaInset(edge: .bottom) 承
+  载整个发送区（回到底部钮＋错误/提示横幅＋发送舱）。
+  键盘升起时系统安全区扩张、整段被顶到键盘上方，交
+  互收起跟随安全区动画；高度在单次布局里只由内容决
+  定。0.2.4/0.2.5 的覆盖式整套撤销：ZStack 底部悬浮
+  层、tabBarZone 抬升、实测高度回写 contentMargins
+  的反馈环一并删除；§9.5 的 fixedSize 断环在各环保
+  留作双保险。玻璃胶囊本体（GlassEffectContainer＋
+  union）原样保留——**胶囊是内容、不是布局机制**。
+- 为何不选 inputAccessoryView 桥接：它停靠的是屏幕
+  最底，与原生 TabView 并存时会压住底栏（本 App 发
+  送舱须停靠在可见底栏之上），要补透明占位＋hitTest
+  穿透才能共存，等于再造一层自研机制；且 SwiftUI 里
+  需要第一响应者桥接，与 TabView 每格宿主的结构相
+  冲。MessageKit 的前提（全屏聊天页、无底栏）与本
+  App 不同。
+- 取舍如实记：键盘收起态消息不再从发送舱背后流过
+  （safeAreaInset 是留位不是覆盖）——舍掉 §8 的重叠
+  观感，换来键盘联动的系统级精确，以及「高度被键盘
+  态布局污染」这一类问题的整类消除。顶栏三件套仍为
+  覆盖层（不与键盘发生关系，不在本轮换代范围）。
+
+### 10.3 缺陷 A 的复现与证据（如实）
+
+- 缺陷本体证据＝用户真机截图：键盘弹起、输入为空，
+  发送舱膨胀成约 4–5 行高的空玻璃胶囊，＋与麦克风
+  贴胶囊底部两角、上方全是空玻璃。
+- 本地复现尝试：演示模式 UI 测试（ComposerKeyboard
+  Tests）在 iPhone 17 与 iPhone 16e 两台模拟器上聚焦
+  调起软键盘（美式键盘高 233），覆盖静止/键盘/键盘＋
+  滚动/多行四态，以推导式量高（＋键底边 − 输入框上
+  沿 ＋ 24）多轮测量——旧覆盖结构在模拟器各态推导高
+  均为 54.0（单行规格内），**复现不出来**。第一代测
+  试曾「红」过一次，后查明是测试自身测量污染（容器
+  级无障碍标识被子元素继承、量到 36pt 的按钮），不
+  是缺陷证据，已在测试注释中留档。
+- 结论口径：膨胀是真机特有现象，与真机中文拼音键盘
+  的高度/候选栏及其触发的布局通道差异为最大嫌疑，
+  但无本地证据链、不写成定论。本版的修复逻辑是按
+  §10.2 换掉出事的承载类——覆盖式悬浮层整体退役，
+  键盘态高度改由系统安全区布局通道在单次布局中决
+  定；是否根治以用户真机终审为准。回归测试保留并在
+  新结构上继续把守同一规格（数值见 §10.6），测量锚
+  点（＋键标签、field 本体标识 composerField）与推
+  导式未迁移、未改口径。
+
+### 10.4 缺陷 B＋顶部渐隐（追加 1）
+
+- 标题胶囊：frame(maxWidth:) 由 240 收至 200，宽度
+  回到「标题＋模型两行文字自然宽＋内边距」，居中，
+  与左右角钮留明确间隙（0.2.5 真机约占屏宽 65%）。
+  回归断言 ≤202pt（演示标题下实测 143，约束对真机
+  长标题生效）。
+- 顶部渐隐：系统 .scrollEdgeEffectStyle(.soft, for:
+  .top) 保留，但白底上单独不可感——实际承担淡出的
+  是悬浮 chrome 背后新增的 pageBG 渐变带（topFade）：
+  自屏幕物理顶起 128pt，0–90% 全不透明、90%–100%
+  降为全透明。几何按诊断图实测点位定（iPhone 17：
+  胶囊一线约 68–115pt、静止时首条消息起于约 138pt）
+  ——文字滚到胶囊/角钮一线之前已完全淡出，静止首条
+  消息不被洗淡。它只是淡出遮罩：不做实色顶栏、不
+  加分界线、不吃手势。
+
+### 10.5 多行形状变形（追加 2）＋底栏图标（检查项 C＋追加 3）
+
+- 形状病根有图为证：诊断截图里旧形态多行时 Capsule
+  被拉成体育场形大气球（推导高 162），正是用户点名
+  的「内容多了为什么变这样」。改：以输入框实测高判
+  行数（单行 38、阈值 44），glassEffect 形状随之切
+  换——单行 Capsule、多行 RoundedRectangle(corner
+  Radius: 24, .continuous)，0.18s 缓动防跳变；文字
+  从顶排起、＋与发送键锚底（HStack .bottom 原有语
+  义）。新结构诊断图复核：多行已是固定圆角矩形向上
+  生长，形态对齐 Muse。
+- 底栏图标核查结论：模拟器诊断图同症复现——未选中
+  的 folder 与选中态双气泡都呈实心黑块。定性：不是
+  符号选错名，也非字重单因——SwiftUI 的 .symbol
+  Variant(.none) 没有锁住 UITabBar 的渲染（选中态
+  仍换 fill 变体、folder 在底栏渲染下呈实心剪影），
+  且 tab 图标点数不受 SwiftUI font/symbolConfigur
+  ation 控制（系统默认视觉约 26–28pt）。§9.4 的锁
+  变体改法自此修正为烘焙法。
+- 改法：四枚图标改预渲染 UIImage——以 UIImage.
+  SymbolConfiguration(pointSize: 21, weight: .regular)
+  生成后 Image(uiImage:) 入 tabItem。字形在生成时
+  烘焙死，位图无变体可换，两态同一线条字形；点数
+  21 落在用户直令的 20–22 目标带，点击热区是 tab
+  条目本身、不随字形缩小。.tint 墨色照常生效（位图
+  按 alpha 模板渲染）。新结构诊断图复核：四枚均为
+  线条体、视觉明显小于 0.2.5。
+
+### 10.6 回归与验收数值
+
+- 回归测试 ComposerKeyboardTests 在新结构（safeArea
+  Inset 承载）上通过（CI run 42506335381）：静止/键
+  盘/键盘＋滚动三态推导胶囊高均为 54.0（规格 54±4），
+  键盘确有升起（高 233），多行推导高 162.3（生长与
+  6 行封顶口径不变），标题胶囊宽 143 ≤ 202。
+- 主构建 CI 绿（run 42506812485）：Release 构建成功、
+  OneDayCore 单测全过；未签名 IPA 解包核验
+  CFBundleShortVersionString 0.2.6 / CFBundleVersion
+  11 / bundle id site.didichou.oneday。注记：本轮首
+  个构建 run（42506355374）解包验出仍是 0.2.5/10——
+  版本在本仓是 Info.plist 直写字面量（Project.swift
+  app target 处），只改工程 base 设置不进包，已补字
+  面量后重跑，即本条 run。
+- 已知问题（与本轮改动无因果证据）：ScreenshotTests
+  .test02MainPages 等演示流式文本「先从定时任务模块
+  动手」超时——整套连跑与单独复跑（run 42507232417）
+  均复现，0.2.6 施工前仅加测试锚点的复现轮（run
+  42504572278）已同症。疑似竞态：演示流式由
+  chatSurface 的 .task 一次性触发、守卫含
+  currentThread 非空，种子 @Query 未落定即触发会整
+  场不起流；0.2.7 顺带按此修并复验。
+- 观感终审仍归用户真机（截图规矩不变）：本节诊断图
+  均为定位/验证手段，不进 docs/shots 留档。
