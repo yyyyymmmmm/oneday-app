@@ -1754,11 +1754,22 @@ drawerFollowedDrag；②UnevenRoundedRectangle 实参顺
   屉（侧栏轮）；设置列表归 0.3.7 页面轮（其定义
   卡由主聊汇总过目后施工）。
 
-### 21.6 验收（构建后回填）
+### 21.6 验收（已回填）
 
-- 单测：待回填（82＋SessionDisplay 三测＝85 预期）。
-- 构建：待回填。
-- 解包验：待回填（版本号 0.3.6／21）。
+- 单测：85 条（82＋SessionDisplay 三测），run
+  42533662765 的 Unit tests 步全绿（日志 distinct
+  测试名 85、与源码计数对平）。
+- 构建：run 42533662765 一轮全绿（Build＋Unit
+  tests＋Package＋Upload）。过程两轮在案：
+  42532017388 调研版编译失败（§21.1 两处错误）；
+  42532939519 编译过、单测挂 humanTitle 两条断
+  言——isDateInToday 锚真实系统时钟忽略注入 now，
+  已改 startOfDay 日差判定（修复 e51a819）。
+- 解包验：CFBundleShortVersionString 0.3.6／
+  CFBundleVersion 21／site.didichou.oneday；
+  Assets.car 116,296 字节在位（0.3.5 图标全套延
+  续）；IPA 2,119,717 字节，存
+  ~/workspace/your_files/oneday-v0.3.6/。
 - 真机终审归用户：peek 79%＋白纱观感、名单四行
   与切格、底条搜索/圆钮、底栏去标签＋灰垫选中、
   服务端会话标题不再同名、面板圆角与右缘柔影。
