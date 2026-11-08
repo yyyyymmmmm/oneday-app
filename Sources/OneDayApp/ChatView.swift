@@ -257,6 +257,9 @@ struct ChatView: View {
             }
             inputBar
         }
+        // 悬浮层自身也只认内容高度：实测高度回写 content
+        // Margins 的前提是它不被全屏提议污染（0.2.5 根因注）
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.bottom, tabBarZone)
         .animation(MotionTokens.swap, value: isNearBottom)
         .onGeometryChange(for: CGFloat.self) { geometry in
@@ -516,7 +519,24 @@ struct ChatView: View {
     /// 右）；附件条在胶囊上方、实色小件，不入玻璃。
     /// 0.2.5 去嵌套：＋键撤掉自己的玻璃圆外圈，改裸符号坐在
     /// 胶囊玻璃里（胶囊里套圆圈是用户点名的嵌套毛病）；右端
-    /// 改状态机（见 trailingControl），不再常驻灰色圆盘
+    /// 改状态机（见 trailingControl），不再常驻灰色圆盘。
+    /// 0.2.5 高度根因（用户键盘截图实证）：本舱处在覆盖式
+    /// ZStack 的底部悬浮层里，ZStack 向子视图提议全屏高度，
+    /// 提议经两层 VStack 与 GlassEffectContainer 传到纵向
+    /// TextField——它是链上唯一「贪高」的孩子（UITextView
+    /// 被提议确定高度时照单全收，聚焦后更甚），键盘弹起触
+    /// 发重布局时胶囊被撑成空盒：固定 36pt 的两键被 HStack
+    /// 的 .bottom 钉在盒底、文字顶在 field 顶部，对位全失。
+    /// 根治＝在提议链的每一环（field 本体、胶囊 HStack、
+    /// 本 VStack、底部悬浮层 VStack）以 fixedSize(vertical)
+    /// 断开提议：高度永远取内容理想值——不是写死高度，单
+    /// 行高由字阶与边距规格自然长成（见下），多行随内容
+    /// 生长、6 行封顶后 field 内滚。
+    /// 对位规格：TextField 纵向内边距 8＋正文行高约 22＝
+    /// 单行 field 高 38，与 36pt 两键在 HStack(.bottom) 里
+    /// 的中心差约 1pt（视觉居中）；多行时两键底边与 field
+    /// 底边齐平，锚在最后一行。胶囊单行总高＝38＋舱内纵
+    /// 向边距 16＝54（约 52 规格）
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             if !attachments.isEmpty {
@@ -526,14 +546,20 @@ struct ChatView: View {
                 HStack(alignment: .bottom, spacing: OneDayMetrics.spacingS) {
                     attachButton
                     TextField("发消息…", text: $input, axis: .vertical)
-                        .lineLimit(1...5)
+                        .lineLimit(1...6)
                         .focused($composerFocused)
                         .padding(.horizontal, OneDayMetrics.spacingS)
-                        .padding(.vertical, OneDayMetrics.spacingSM)
+                        .padding(.vertical, OneDayMetrics.spacingS)
+                        // 高度只认内容（见下方 inputBar 的根因注）：
+                        // 纵向 TextField 底层是 UITextView，被外层
+                        // 提议确定高度时会把提议值当自身高度——
+                        // fixedSize 把它的高度锁回内容理想值
+                        .fixedSize(horizontal: false, vertical: true)
                     trailingControl
                 }
                 .padding(.horizontal, OneDayMetrics.spacingS)
                 .padding(.vertical, OneDayMetrics.spacingS)
+                .fixedSize(horizontal: false, vertical: true)
                 .glassEffect(.regular, in: Capsule())
                 .glassEffectUnion(id: "composer", namespace: composerGlass)
             }
@@ -541,6 +567,9 @@ struct ChatView: View {
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingS)
+        // 提议链断环（见 inputBar 根因注）：本 VStack 的高度
+        // 只认内容，不许把 ZStack 的全屏提议透传给胶囊
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     /// 发送舱右端状态机（0.2.5，对照 Muse 输入区）：胶囊内
