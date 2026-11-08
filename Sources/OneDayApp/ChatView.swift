@@ -562,6 +562,11 @@ struct ChatView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .glassEffect(.regular, in: Capsule())
                 .glassEffectUnion(id: "composer", namespace: composerGlass)
+                // 0.2.6 回归测试的测量锚点：容器元素（子元素
+                // 保持各自可达），UI 测试按此框高断言发送舱
+                // 在键盘态不膨胀（见 ComposerKeyboardTests）
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("composerBar")
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
