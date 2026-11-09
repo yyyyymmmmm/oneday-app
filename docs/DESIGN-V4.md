@@ -3948,3 +3948,41 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 - 发版 0.19.0 / build 48（版本源五处：Project.swift 四字面量＋SettingsView 关于串，全仓 grep 验旧版字面量仅剩历史注释）。
 - 未验项（真机终审，如实标注）：①底条落位——对照样板图验「底条贴底缘、indicator 之上、无死白带」；若拆手算后仍有残段，下一查点已定：壳层 ZStack 分支的 .ignoresSafeArea() 全域忽略与 safeAreaBar 的相互作用；②抽屉新形态观感与导航行手感（点行即达/枢纽行开 sheet/搜索胶囊进管理页且键盘弹起聚焦）；③点空白收键盘的真机命中（尤其消息间空隙与空状态周围）；④胶囊「在线」绿点（桥未连接状态下亦应绿）；⑤0.17.0/0.18.0 遗留终审（顶带朦胧、管理页四件真动作）仍归用户真机一并验。
 - 销账（0.19.0 批回填）：顶端提交 89b74d4（main 线，基线 ce98290 之上，一轮绿、本节为其后 docs 提交）；CI 42636446499 success（构建＋OneDayCore 全测绿，Executed 392 tests, 0 failures）；单测 392（387 基线＋5，只增不减）；IPA 4,730,982 字节、md5 ba1ea77ca748f69384883c23feda21e1、解包验 Info.plist＝0.19.0/48、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.19.0/OneDay-0.19.0.ipa。
+
+### §46 补记：22:45 口径纠正返工（覆盖上文第二、五条，2026-11-09）
+
+用户 22:45 亲口澄清：**正经旁聊必须留在抽屉**，要撤的只是「其他的对话」——Hermes 内部 worker/kanban/验收测试会话与微信/TG 等外部平台通道进来的会话；他自己在 App 里开的旁聊（如「你好」）要留。上文第二条的「名单整段退役」与第五条的抽屉侧全删、第二条内的「搜索跳管理页聚焦」均按本节作废重写；第一/三/四条与第五条的聊天页侧（标题行「旁聊」角标删除）不变。
+
+- 返工后抽屉结构：名字头→「选项卡」导航组（不变）→发丝线→「管理全部对话」一行（不变）→发丝线→**「旁聊」区**：单个分区头＋平铺行（@Query updatedAt 倒序即呈现序），撤「站内」分区字、撤「今天」等分组字、撤每行「旁聊」角标、撤旧「主线」分区头与主线行；行型沿 0.17.0 单行制（标题＋行尾时间＋当前位浅灰垫），点行经 drawerThreadSelection 进会话续聊；长按四件恢复（重命名/置顶/归档/删除，与 0.18.0 本地行同序；置顶只落 isPinned 数据、抽屉呈现恒时间序）。底条搜索改回本地过滤旁聊区（标题＋条目内容，与 0.18.0 抽屉搜索同口径，搜索态只显命中行）；管理页呈现回滚为 0.18.0 的 Bool 形（ManageAllRoute 与 AllConversationsView 的 focusSearchOnAppear/searchPresented 接线全数回滚、该文件对 0.18.0 零 diff）。
+- 过滤落法（字段实查在前）：旁聊区名单本体收敛为**本地线程**——决定性事实：ChatThread.serverSessionID 注释与数据双证「本机发起的会话为 nil」，即用户在 App 里新建的旁聊恒为本地线程、根本不产生服务端行；服务端会话整类不单独成行即无误伤。本地线程若关联了服务端会话（从管理页点开导入者），其来源再过 Core 纯函数 **DrawerSideChatFilter.threadListed** 一道（SessionDisplay.swift，+3 单测）：主线/本地归档先撤；linkedSource 为 kanban 或任何非用户通道来源（用户通道集合＝{api_server, api, dashboard, web}，平台源 whatsapp/telegram/feishu/cron 等在其外）撤；无关联或来源未拉到（服务端不可达）恒放行、不藏本人旁聊。服务端侧只拉一路 archived=exclude 会话取 id→source 映射（limit 100），不作名单数据源。
+- 28 条服务端会话分类清单（2026-11-09 22:47 只读实查生产 state.db，字段：source/created_source/user_id/origin_json.platform；按 last_activity 倒序；「撤」＝不进抽屉、管理页仍全量可见）：
+  1. api-592647b9ae21ec54「友好问候」api_server/31 条——**主线**（活动最新、消息数最多，与钦定主线特征吻合；客户端以钦定 mainServerSessionID 排除、不依赖此推断）→ 不入旁聊区，由导航组「主线聊天」行覆盖。
+  2. local-ad7a71d6…「P3TEST review-reject 链验收任务（人工动词） #3」kanban → 撤（source=kanban）。
+  3. local-780be318…「P3TEST needs_input 链验收任务 #2」kanban → 撤。
+  4. local-9748b88a…「P3TEST needs_input 链验收任务」kanban → 撤。
+  5. local-d230d92e…「P3TEST review-reject 链验收任务（人工动词） #2」kanban → 撤。
+  6. local-3b4c5706…「P3TEST review-reject 链验收任务（人工动词）」kanban → 撤。
+  7. local-c9f402d9…「P3TEST review-approve 链验收任务（人工动词）」kanban → 撤。
+  8. local-df0c090c…「P3TEST review-approve 链验收任务 #2」kanban → 撤。
+  9. local-e6f6248f…「P3TEST review-approve 链验收任务」kanban → 撤。
+  10. api-340bdc44179f0a35「确认链路正常」api_server → 撤（R1 联调会话，0.16.0 会话搜索实证样本）。
+  11. combo-smoke-pro-1109 api_server → 撤（模型组合冒烟会话）。
+  12. local-1439bc1d…「SPIKE 测试任务（验后删除）」kanban → 撤。
+  13. audit-browser-20261109 api_server → 撤（浏览器能力审计联调）。
+  14. api-fb632d629e5f76cb「回答 1+1 等于几」api_server → 撤（联调探针）。
+  15. api-d7d8b6c7be6afef1「创建 writegate-test-skill-b 技能」api_server → 撤（write-gate 联调）。
+  16. api-039936dcfa7844c1「创建 writegate-test-skill 测试技能」api_server → 撤（联调）。
+  17. api-aad0ed449e6269d5「添加联调标记到长期记忆」api_server → 撤（联调）。
+  18. api-4d1e4d3ff5771ee5「调用 memory 工具写入联调标记」api_server → 撤（联调）。
+  19. api-d61e0d8baf68f0a4「介绍自己及背后模型名称」api_server → 撤出抽屉（**元数据与本人会话同构、不可逐条分**，靠兜底信号：无本地线程关联；管理页仍在，用户点开一次即建立关联回归）。
+  20. api-4ee003672dbabb7a「你说啥」api_server → 撤出抽屉（同 19，兜底信号）。
+  21. api-10bbb01cdf42b4a5「记住暗号蓝鲸42」api_server → 撤（R1 实测联调）。
+  22. api-3a6ba0f997d640a5「环境」api_server → 撤出抽屉（同 19，兜底信号）。
+  23. api-c960803d32202327「默认正常」api_server → 撤（模型联调）。
+  24. api-8e575fab3b3f0565「覆盖测试」api_server → 撤（测试）。
+  25. api-f8c59afaec6a5121「一句话介绍西安特色」api_server → 撤出抽屉（同 19，兜底信号）。
+  26. api-5f8ad71499cfeda4「一句话自我介绍及模型名」api_server → 撤出抽屉（同 19，兜底信号）。
+  27. api-836bf68b0af289e2「Run system info command in box shell」api_server → 撤（Box 联调）。
+  28. api-25f140a6575bf25c（无标题、1 条、created_source=null）api_server → 撤（空壳残缺会话）。
+  汇总：kanban 9 条字段可分全撤；api_server 19 条＝主线 1（旁聊区外）＋联调/测试/冒烟可识别 13 撤＋同构不可分靠兜底 5 撤。**留**：本地线程全体（不在此 28 条内，如「你好」）——即旁聊区名单本体；平台来源现存为零（Hermes 启用通道数零），规则已按 source 非用户通道预置。
+- 返工销账：代码提交 e33dcc6（基线 aba20bc 之上）；CI 42638839390 success（一轮绿，Executed 395 tests, 0 failures）；单测 395（返工前 392＋过滤 3，只增不减）；IPA 已覆盖同路径：4,770,991 字节、md5 c5d0f3169dd4c7927129625965c97ebd、解包验 Info.plist＝0.19.0/48、bundle site.didichou.oneday（**同版本重发，以此包为准，上文销账的 89b74d4 包作废**）。真机终审追加一项：旁聊区只见本人旁聊（「你好」在列、P3TEST/Kanban 类不见）、搜索过滤生效。
