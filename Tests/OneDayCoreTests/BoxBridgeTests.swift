@@ -110,6 +110,98 @@ final class BoxBridgeTests: XCTestCase {
         XCTAssertEqual(status.creditsLeft, 512.5)
     }
 
+    // MARK: - P9 状态面派生（镜像/额度/最后保存单一口径）
+
+    func testStatusImageLineNoUpgrade() throws {
+        let status = try decoder.decode(
+            BoxBridgeStatus.self, from: Data(statusLiveJSON.utf8)
+        )
+        XCTAssertEqual(status.imageLine, "镜像 sbxdesk:v13")
+    }
+
+    func testStatusImageLineUpgradeAvailable() throws {
+        let json = """
+        {"state": "running", "image": "sbxdesk:v13",
+         "latestImage": "sbxdesk:v14", "upgradeAvailable": true}
+        """
+        let status = try decoder.decode(
+            BoxBridgeStatus.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(
+            status.imageLine, "镜像 sbxdesk:v13 · 可更新到 sbxdesk:v14"
+        )
+    }
+
+    func testStatusImageLineUpgradeSameVersionStaysPlain() throws {
+        // 可更新标记为真但目标镜像与现行相同：不带后缀
+        let json = """
+        {"state": "running", "image": "sbxdesk:v13",
+         "latestImage": "sbxdesk:v13", "upgradeAvailable": true}
+        """
+        let status = try decoder.decode(
+            BoxBridgeStatus.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(status.imageLine, "镜像 sbxdesk:v13")
+    }
+
+    func testStatusImageLineAbsentWithoutImage() throws {
+        let status = try decoder.decode(
+            BoxBridgeStatus.self,
+            from: Data(#"{"state": "running"}"#.utf8)
+        )
+        XCTAssertNil(status.imageLine)
+    }
+
+    func testStatusCreditsLineFallsBackToVendorNoteVerbatim() throws {
+        // 数字恒 null：给厂商原文，不翻译不编造
+        let status = try decoder.decode(
+            BoxBridgeStatus.self, from: Data(statusLiveJSON.utf8)
+        )
+        XCTAssertEqual(status.creditsLine, "box plans are not enabled")
+    }
+
+    func testStatusCreditsLinePrefersRealValue() throws {
+        let json = """
+        {"state": "running", "creditsLeft": 512.5,
+         "creditsNote": "box plans are not enabled"}
+        """
+        let status = try decoder.decode(
+            BoxBridgeStatus.self, from: Data(json.utf8)
+        )
+        let line = try XCTUnwrap(status.creditsLine)
+        XCTAssertTrue(line.hasPrefix("剩余额度"), "实际：\(line)")
+        XCTAssertTrue(line.contains("512.5"), "实际：\(line)")
+    }
+
+    func testStatusCreditsLineAbsentWhenNeitherPresent() throws {
+        let status = try decoder.decode(
+            BoxBridgeStatus.self,
+            from: Data(#"{"state": "running"}"#.utf8)
+        )
+        XCTAssertNil(status.creditsLine)
+    }
+
+    func testStatusLastSavedAtFromMillis() throws {
+        let status = try decoder.decode(
+            BoxBridgeStatus.self, from: Data(statusLiveJSON.utf8)
+        )
+        let saved = try XCTUnwrap(status.lastSavedAt)
+        XCTAssertEqual(
+            saved.timeIntervalSince1970, 1_794_149_613.12, accuracy: 0.001
+        )
+        XCTAssertEqual(
+            BoxTimeText.dateTime(saved, timeZone: tzPlus8), "11-08 22:53"
+        )
+    }
+
+    func testStatusLastSavedAtAbsent() throws {
+        let status = try decoder.decode(
+            BoxBridgeStatus.self,
+            from: Data(#"{"state": "running"}"#.utf8)
+        )
+        XCTAssertNil(status.lastSavedAt)
+    }
+
     func testPageTitleFallsBackToURL() throws {
         let json = """
         {"state": "running",

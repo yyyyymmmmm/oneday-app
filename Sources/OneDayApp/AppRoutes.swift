@@ -18,8 +18,9 @@ enum AppsPage: Hashable {
     case overview
     case files
     case settings
-    /// 0.9.0（P2）：浏览器页（盒桥：看页面＋接管）
-    case browser
+    /// 0.9.0（P2）为浏览器页；0.15.0（P9）升级为电脑面
+    /// （桌面/文件/终端三段），枚举随之改名 computer
+    case computer
 }
 
 enum SettingsRoute: Hashable {

@@ -3875,3 +3875,17 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 - 单测：新增 FileBrowserLogicTests 14 个（331→345）——排序三键（含目录优先与 nil size 垫底）、过滤大小写与空查询、面包屑根/嵌套/越界兜底、相对面包屑、joinPath 双形、文件夹名校验六例、MIME 推断、data URL 前缀＋base64 回环、上传上限边界、tintIndex 类别与未分类稳定性。
 - 发版 0.14.0 / build 43（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。未验项：upload/mkdir 未对生产联调（本包未向生产发任何写请求；请求形状据 OpenAPI 组件 schema、落定逻辑以回读对账兜底，真机首传即端到端自验——含上传回执形态、mkdir 已存在目录的服务端行为、upload path 须绝对路径的口径，均以服务端 locked_root 既有绝对路径惯例为准、若首传回读对不上界面会如实报未确认）；Box 段桥未部署、整段未开通为定案预期；改名/移动服务端无端点未做。
 - 销账（0.14.0 批回填）：顶端提交 710b36c（main 线，基线 d3f32a8 之上；首提交 66aeee5 的 FilesView 因单次写入截断致 CI 42606769843 失败、be0f553 补齐后半后又因测试辅助 String.init 歧义挂测试步，710b36c 修毕）；CI 42607773218 success（构建＋OneDayCore 全测绿，Test Suite 'All tests' passed）；单测 345（331 基线＋14）；IPA 4,222,678 字节、md5 ba79d287ae708d95d688a2e6cd842381、解包验 Info.plist＝0.14.0/43、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.14.0/。
+
+## §42 0.15.0 批（P9 智能体电脑屏，2026-11-09）
+
+施工图 P9 四面：Box 状态面（运行/休眠/镜像/额度真数据）、终端命令面（shell 工具代理）、电脑文件面（list_dir/read_file 经桥）、桌面截图面（复用 P2 截图链）；桌面实时流不做原生实现（MCP 工具面无原生流协议，P2 已定案），以厂商 WebView 实时视图＋截图刷新双轨代之。桥侧现状实查：box-bridge 仍只有 status/view-token/screenshot/act 四端点；文件面契约已于 P8 冻结（box-files-contract-20261109.md，桥实现由服务端线并行施工中）；终端面无端点——本批冻结 box-shell-contract-20261109.md（POST /shell {command} 原样透传 MCP shell 工具、{ok, output, exitCode, truncated} 回形、exitCode 第一口径、空命令 400、404 未开通、执行域只在 Box 沙箱内不落宿主机），客户端按契约建好、404 如实露「电脑终端尚未开通」，桥实现归独立服务端小包。本机无钥探 /files 与 /status 同为 401（鉴权先于路由），桥文件面是否已上线本机不可判——客户端 404 未开通/200 真读两态 P8 已就绪，本批不改此口径（未验项）。
+
+- IA 转正：应用格原「浏览器」行升级为「电脑」行（desktopcomputer 图标牌＋副题「云电脑桌面、文件与终端」），AppsPage.browser 改名 computer；落点 ComputerView＝状态头＋分段（桌面/文件/终端）。枢纽活动格浏览器段不变（仍是共用桌面面）。
+- 单一事实源（合并/去重）：ComputerView 持有一份 BoxBridgeStore 并注入桌面段——BrowserFaceView 新增 store 注入＋managesLoop/showsStatusCard 两开关，电脑面内关掉其自带轮询与状态卡，状态只在电脑面状态头呈现一处；BrowserView（应用格旧「浏览器」页包装）随之退役删除。文件段＝BoxFilesView 从 FilesView.swift 抽出为独立文件（连同 DataFilePreviewView），文件格电脑段与电脑面文件段共用同一组件、同一四态口径；FileBrowserRow 去 private 为两段共用行。轮询由电脑面统一驱动：状态 10 秒一轮；截图只在桌面段在场且运行中顺带刷新（休眠不自动唤醒、文件/终端段不取图）。接管旗清零责任收归电脑面 onDisappear（接管中离面不许把派发互斥永久挂住）。
+- 状态头（§7 P9 锚：桌面卡放大版口径）：状态点＋状态行＋页面标题/副行（活读/最后确认三态不改）＋明细行（名称、镜像、最后保存、额度）。Core 新增派生并全 App 单一口径：imageLine（镜像原文；可更新且目标不同才带「可更新到」后缀）、creditsLine（有真数字给「剩余额度 X」、恒缺时给厂商 creditsNote 原文、不翻译不编造、皆无整行不出——浏览器面状态卡同步改用此派生，原内联拼凑退役）、lastSavedAt（毫秒戳转 Date）＋BoxTimeText.dateTime（MM-dd HH:mm）。
+- 桌面段：即 BrowserFaceView 本体（截图整屏预览＋回合制接管＋接管顶条），零另造；休眠空态「唤醒并查看」沿用。
+- 实时视图（通道 A）：状态头「实时视图」钮以状态回的 viewUrl 直开 WKWebView sheet（薄包装 VendorWebView，只装载不注入不读内容），页首注明厂商画面与登录可能；连续操作归此面、回合制接管归桌面段，分工写在注文里。
+- 唤醒口径：状态读永不唤醒（桥口径不变）；唤醒只走两处手动钮（状态头「唤醒并查看」＝切桌面段＋走截图通道唤醒＋回刷状态；桌面段休眠空态同名钮，P2 既有）。
+- 终端段（BoxTerminalView＋BoxShellClient，契约见上）：命令逐条手输、执行才发；历史仅当次会话内存态（离面即弃、不落盘）；每条交换＝codeFill 圆角 14 面（设计标准 §7 P9 锚）＋$ 命令行＋输出原文等宽直出（失败 danger 色＋退出码行、截断明示行）；四态分开（未连接/未开通/就绪/条内失败人话）。Core 新增 BoxShellModels：请求单键编码、回执容缺解码、succeeded 纯函数（exitCode 优先、缺失回落 ok、皆缺不判成功）、outputText（空输出「（无输出）」）、BoxShellCommandText.normalize（只去首尾空白、本体一字不改、空串拦下不发）。
+- 单测：新增 18 个（345→363）——BoxBridgeTests +9（imageLine 四例、creditsLine 三例、lastSavedAt 两例）、BoxShellTests 9（全形解码、exitCode 盖 ok、回落 ok、无信号不判成功、空输出占位、缺 output 容缺、截断旗、请求编码单键、命令规范化）。
+- 发版 0.15.0 / build 44（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。未验项：桥文件面与终端面均未在本包联调（文件面桥实现并行施工中、上线后文件段自动转真读；终端面待桥小包部署后真机发 uname -a 自验）；实时视图 WebView 内厂商登录态未实测（用户 Google 账号在 WebView 内登录一次为厂商口径）；截图/接管链为 P2 已验链路、本批未重跑生产动作。

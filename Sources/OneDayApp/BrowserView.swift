@@ -3,18 +3,35 @@ import OneDayDesign
 import SwiftUI
 import UIKit
 
-/// 浏览器面（P2 打通，0.9.0）：枢纽浏览器段与应用格
-/// 「浏览器」页共用同一面（施工图 §4.3）。三件事：
+/// 浏览器面（P2 打通，0.9.0）：枢纽浏览器段与电脑面
+/// （P9）桌面段共用同一面（施工图 §4.3）。三件事：
 /// 状态读盒桥（不再读 9119 computer-use 错位源）、
 /// 画面是盒桥回的云电脑真实截图、接管走盒桥一动作
 /// 一回图。视觉按设计标准 §5.7/§7-P2：整屏预览
 /// aspect 1.6、圆角 12；接管态顶条 ink 底白字。
 struct BrowserFaceView: View {
     @Environment(AppState.self) private var appState
-    @State private var store = BoxBridgeStore()
+    @State private var store: BoxBridgeStore
+    /// 轮询归属：独立面（枢纽浏览器段）自跑可见轮询；
+    /// 电脑面（P9）由 ComputerView 统一驱动并注入同一
+    /// store，这里关掉防双轮询
+    private let managesLoop: Bool
+    /// 状态卡归属：独立面自带状态卡；电脑面由其状态头
+    /// 统一呈现（同一 store、同一口径），这里关掉防两套
+    private let showsStatusCard: Bool
     @State private var viewerItem: ChatImageViewerItem?
     @State private var urlText = ""
     @State private var typeText = ""
+
+    init(
+        store: BoxBridgeStore? = nil,
+        managesLoop: Bool = true,
+        showsStatusCard: Bool = true
+    ) {
+        _store = State(initialValue: store ?? BoxBridgeStore())
+        self.managesLoop = managesLoop
+        self.showsStatusCard = showsStatusCard
+    }
 
     var body: some View {
         ScrollView {
@@ -22,7 +39,9 @@ struct BrowserFaceView: View {
                 if store.takeover {
                     takeoverStrip
                 }
-                statusCard
+                if showsStatusCard {
+                    statusCard
+                }
                 screenCard
                 controlArea
             }
@@ -31,7 +50,9 @@ struct BrowserFaceView: View {
         }
         .background(Palette.pageBG)
         .task {
-            await store.runVisibleLoop(appState: appState)
+            if managesLoop {
+                await store.runVisibleLoop(appState: appState)
+            }
         }
         // 接管态回写全局旗（0.10.0）：任务段的派发互斥
         // 读 AppState.boxTakeoverActive（P3 客户端半边）；
@@ -113,8 +134,8 @@ struct BrowserFaceView: View {
                             .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(2)
                     }
-                    if let credits = status.creditsLeft {
-                        Text("剩余额度 \(credits.formatted())")
+                    if let creditsLine = status.creditsLine {
+                        Text(creditsLine)
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
@@ -362,28 +383,5 @@ struct BrowserFaceView: View {
         }
         .buttonStyle(.bordered)
         .disabled(store.acting)
-    }
-}
-
-/// 应用格「浏览器」页（0.9.0 占位转正）：自带导航栈
-/// 与「应用」返回钮，内里就是共用浏览器面
-struct BrowserView: View {
-    var onBackToApps: (() -> Void)? = nil
-
-    var body: some View {
-        NavigationStack {
-            BrowserFaceView()
-                .navigationTitle("浏览器")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    if let onBackToApps {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button(action: onBackToApps) {
-                                Label("应用", systemImage: "chevron.left")
-                            }
-                        }
-                    }
-                }
-        }
     }
 }

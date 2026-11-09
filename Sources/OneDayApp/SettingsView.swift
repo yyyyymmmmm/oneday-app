@@ -420,7 +420,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             LabeledContent("OneDay 版本") {
-                Text("0.14.0")
+                Text("0.15.0")
                     .font(.system(.callout, design: .monospaced))
             }
             LabeledContent("服务端") {

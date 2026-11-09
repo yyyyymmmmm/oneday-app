@@ -40,6 +40,11 @@ public enum BoxTimeText {
         format(date, pattern: "HH:mm:ss", timeZone: timeZone)
     }
 
+    /// 日期＋时刻（P9 电脑状态面「最后保存」用）
+    public static func dateTime(_ date: Date, timeZone: TimeZone = .current) -> String {
+        format(date, pattern: "MM-dd HH:mm", timeZone: timeZone)
+    }
+
     private static func format(
         _ date: Date, pattern: String, timeZone: TimeZone
     ) -> String {
@@ -162,6 +167,37 @@ public struct BoxBridgeStatus: Decodable, Equatable, Sendable {
 
     public var lastKnownPageAt: Date? { BoxISO8601.parse(lastKnownPageAtRaw) }
     public var checkedAt: Date? { BoxISO8601.parse(checkedAtRaw) }
+
+    /// 最后保存时刻（桥给毫秒时间戳；缺失为 nil 不许猜）
+    public var lastSavedAt: Date? {
+        guard let lastSavedAtMs else { return nil }
+        return Date(timeIntervalSince1970: Double(lastSavedAtMs) / 1000)
+    }
+
+    /// 镜像行（P9 状态面）：镜像名原文；桥报可更新且
+    /// 目标镜像不同才带「可更新到」后缀，其余不加戏
+    public var imageLine: String? {
+        guard let image, !image.isEmpty else { return nil }
+        if upgradeAvailable == true, let latestImage,
+           !latestImage.isEmpty, latestImage != image {
+            return "镜像 \(image) · 可更新到 \(latestImage)"
+        }
+        return "镜像 \(image)"
+    }
+
+    /// 额度行（全 App 单一口径，浏览器面与电脑面共用）：
+    /// 有真实数字给「剩余额度 X」；数字恒缺（当前计划
+    /// billing 未启用）时给厂商原文 note——原文呈现、
+    /// 不翻译不编造；两者皆无则整行不出
+    public var creditsLine: String? {
+        if let creditsLeft {
+            return "剩余额度 \(creditsLeft.formatted())"
+        }
+        if let creditsNote, !creditsNote.isEmpty {
+            return creditsNote
+        }
+        return nil
+    }
 
     /// 页面呈现：活读优先；活读落空才退最后确认（带时刻）
     public var pagePresentation: BoxPagePresentation {
