@@ -2,8 +2,9 @@ import Foundation
 import SwiftData
 
 /// 本地会话（里程碑 1 存储从简：SwiftData 两表）。
-/// 服务端会话（/api/sessions）与本地会话的对应关系留待
-/// 里程碑 2 会话管理时打通，此处只存本机聊天记录。
+/// 0.4.0（审计 §3.4）：服务端会话与本地线程的映射打通
+/// ——续聊导入时把服务端会话 id 落在 serverSessionID，
+/// 再点同一条服务端会话按 id 找回本线程、不重复导入。
 @Model
 final class ChatThread {
     var id: UUID
@@ -13,6 +14,10 @@ final class ChatThread {
     /// 侧边栏置顶（0.3.6，§21；默认 false、SwiftData
     /// 轻量迁移，置顶组口径见 SidebarGrouping）
     var isPinned: Bool = false
+    /// 关联的服务端会话 id（/api/sessions/{id}）：本机
+    /// 发起的会话为 nil；从服务端会话导入续聊的线程非
+    /// nil（可选＋默认 nil、SwiftData 轻量迁移）
+    var serverSessionID: String? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \ChatEntry.thread)
     var entries: [ChatEntry] = []

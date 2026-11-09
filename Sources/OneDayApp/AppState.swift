@@ -69,6 +69,11 @@ final class AppState {
     /// 跨页深链（总览 → 智能体格/设置格二级页）：目标页消费后置 nil
     var pendingAgentRoute: AgentRoute?
     var pendingSettingsRoute: SettingsRoute?
+    /// 待续聊的服务端会话 id（0.4.0，审计 §3.4）：四处
+    /// 入口（抽屉／服务端会话页／状态页／定时运行记录）
+    /// 置位，ContentView 据此切聊天格、ChatView 消费后
+    /// 导入历史并置 nil。不再走设置格的只读详情页
+    var pendingChatSessionID: String?
     /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
     var cronCreateRequested = false
     /// 聊天抽屉开合（0.2.2）：ContentView 据此隐藏自绘底栏，

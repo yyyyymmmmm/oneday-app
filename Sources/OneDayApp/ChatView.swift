@@ -18,7 +18,8 @@ import UIKit
 /// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
 /// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
 struct ChatView: View {
-    /// 抽屉服务端会话行点按 → 设置格智能体组的会话详情
+    /// 抽屉服务端会话行点按 → 改道聊天页续聊（0.4.0，
+    /// §3.4；ContentView 注入：置 AppState 待续聊 id）
     var onOpenServerSession: (String) -> Void = { _ in }
     /// 抽屉名单点按 → 切换底栏格（0.3.6 立宪名单与底栏
     /// 四格一一对应，ContentView 注入；本页恒为聊天格）
@@ -75,6 +76,12 @@ struct ChatView: View {
     @State private var showModelPicker = false
     /// 抽屉服务端会话组的数据（开抽屉时拉取）
     @State private var drawerServerSessions: [ServerSession] = []
+    /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
+    /// 触发并发导入同一条会话）
+    @State private var importingSessionID: String?
+    /// 0.4.0（§3.4）：「会话信息」sheet（详情页降级后的
+    /// 次级入口，仅已关联服务端会话的线程可开）
+    @State private var showSessionInfo = false
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
     /// GlassEffectContainer＋union 撤销（§11：容器在新承载
     /// 下不再承担布局，且 Session 219 忌玻璃叠玻璃）
@@ -182,9 +189,34 @@ struct ChatView: View {
                 Task { await loadDrawerData() }
             }
         }
+        // 0.4.0（§3.4）：消费待续聊会话（四处入口经
+        // AppState.pendingChatSessionID 置位、ContentView
+        // 切聊天格，本页导入历史后进聊天续聊）
+        .onChange(of: appState.pendingChatSessionID) { _, id in
+            if let id {
+                Task { await consumePendingChatSession(id) }
+            }
+        }
+        .sheet(isPresented: $showSessionInfo) {
+            if let serverID = currentThread?.serverSessionID {
+                NavigationStack {
+                    ServerSessionDetailView(sessionID: serverID)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("关闭") { showSessionInfo = false }
+                            }
+                        }
+                }
+            }
+        }
         .onAppear {
             if currentThreadID == nil {
                 currentThreadID = threads.first?.id
+            }
+            // 本页首次出现时若已有待续聊会话（如从其他格
+            // 首次切入），onChange 可能先于挂载发生、在此补消费
+            if let id = appState.pendingChatSessionID {
+                Task { await consumePendingChatSession(id) }
             }
         }
         .task {
@@ -316,11 +348,32 @@ struct ChatView: View {
                 .accessibilityLabel("新建会话")
             }
 
-            // 会话名次行（第 30 条）：退居中弱行，不再占胶囊
-            Text(currentThread?.title ?? "新会话")
-                .font(TypeScale.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .lineLimit(1)
+            // 会话名次行（第 30 条）：退居中弱行，不再占胶囊。
+            // 0.4.0（§3.4）：已关联服务端会话的线程，点次行
+            // 开「会话信息」（详情页降级后的次级入口）
+            if let thread = currentThread, thread.serverSessionID != nil {
+                Button {
+                    showSessionInfo = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(thread.title)
+                            .font(TypeScale.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(Palette.inkMuted)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("会话信息")
+            } else {
+                Text(currentThread?.title ?? "新会话")
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.top, OneDayMetrics.spacingS)
@@ -1543,7 +1596,7 @@ private struct ComposerBarLayout: Layout {
     /// 轮不上：面板拖拽手势与 List 行滑行同为横向拖
     /// 拽、SwiftUI 仲裁下行滑行会被面板拖拽饿死（静默
     /// 无效），归真机手感轮改拖拽承载后再开。服务端
-    /// 会话组在尾（点行直达设置详情、标题人话化）。
+    /// 会话组在尾（0.4.0 起点行改道聊天页续聊、标题人话化）。
     private var drawerList: some View {
         List {
             if filteredThreads.isEmpty {
@@ -1823,6 +1876,74 @@ private struct ComposerBarLayout: Layout {
         modelContext.insert(thread)
         try? modelContext.save()
         currentThreadID = thread.id
+    }
+
+    // MARK: - 服务端会话续聊（0.4.0，审计 §3.4）
+
+    /// 消费待续聊 id：先清 AppState 再导入（防 onChange
+    /// 与 onAppear 双通道重复消费同一条）
+    private func consumePendingChatSession(_ id: String) async {
+        guard appState.pendingChatSessionID == id else { return }
+        appState.pendingChatSessionID = nil
+        await openServerSession(id)
+    }
+
+    /// 打开服务端会话续聊：已有 serverSessionID 关联线
+    /// 程直接切换（不重复导入）；否则拉元信息＋消息历
+    /// 史导入新线程（过滤口径在 SessionHistoryImport：
+    /// 只取 user/assistant 有正文者，工具/系统消息不进
+    /// 线程、不进上下文重放）。
+    /// R1 未验证项（明记）：续聊发送维持现有无状态上下
+    /// 文重放链（/v1/chat/completions 不带服务端会话
+    /// id）——续聊回合是否回写同一条服务端会话记录未
+    /// 经实测（红线：不许对生产 Hermes 发写请求验证），
+    /// 等用户点头后另行受控实测；App 内续聊体验不依赖
+    /// 该结论，服务端可能另起新会话记录。
+    private func openServerSession(_ id: String) async {
+        if let existing = threads.first(where: { $0.serverSessionID == id }) {
+            currentThreadID = existing.id
+            return
+        }
+        guard importingSessionID == nil else { return }
+        importingSessionID = id
+        defer { importingSessionID = nil }
+        do {
+            let session = try? await appState.performAdmin { client, config in
+                try await client.serverSession(config: config, id: id)
+            }
+            let messages = try await appState.performAdmin { client, config in
+                try await client.sessionMessages(config: config, id: id)
+            }
+            let entries = SessionHistoryImport.importableEntries(
+                from: messages
+            )
+            let thread = ChatThread(
+                title: SessionHistoryImport.threadTitle(
+                    session: session, entries: entries
+                )
+            )
+            thread.serverSessionID = id
+            if let started = session?.startedDate {
+                thread.createdAt = started
+            }
+            thread.updatedAt = session?.endedDate
+                ?? session?.startedDate ?? Date()
+            modelContext.insert(thread)
+            for entry in entries {
+                let chatEntry = ChatEntry(
+                    role: entry.role, content: entry.content, thread: thread
+                )
+                if let date = entry.date {
+                    chatEntry.createdAt = date
+                }
+                modelContext.insert(chatEntry)
+            }
+            try? modelContext.save()
+            currentThreadID = thread.id
+        } catch {
+            errorMessage = (error as? HermesError)?.userMessage
+                ?? "会话导入失败，请稍后再试。"
+        }
     }
 
     private func send() {

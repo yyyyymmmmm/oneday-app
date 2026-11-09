@@ -81,8 +81,9 @@ struct ContentView: View {
                 Tab(value: MainTab.chat) {
                     ChatView(
                         onOpenServerSession: { id in
-                            appState.pendingAgentRoute = .serverSessionDetail(id)
-                            selection = .settings
+                            // 0.4.0（§3.4）：服务端会话改道
+                            // 聊天页续聊，不再送设置格只读详情
+                            appState.pendingChatSessionID = id
                         },
                         onSelectTab: { selection = $0 }
                     )
@@ -96,6 +97,9 @@ struct ContentView: View {
                         onOpenAgent: { route in
                             appState.pendingAgentRoute = route
                             selection = .settings
+                        },
+                        onOpenChatSession: { id in
+                            appState.pendingChatSessionID = id
                         },
                         onOpenSettings: { route in
                             appState.pendingSettingsRoute = route
@@ -156,6 +160,12 @@ struct ContentView: View {
             ),
             value: appState.drawerPresented
         )
+        // 0.4.0（§3.4）：任一入口置位待续聊会话 → 切聊天格
+        // （ChatView 侧消费导入；已在聊天格时 onChange 同样
+        // 触发、由 ChatView 直接消费）
+        .onChange(of: appState.pendingChatSessionID) { _, id in
+            if id != nil { selection = .chat }
+        }
     }
 
     private var selectedTabID: String {

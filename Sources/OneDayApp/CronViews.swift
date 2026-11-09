@@ -388,7 +388,11 @@ struct CronJobDetailView: View {
     }
 
     private func runRow(_ run: ServerSession) -> some View {
-        NavigationLink(value: AgentRoute.serverSessionDetail(run.id)) {
+        // 0.4.0（§3.4）：运行记录点按改道聊天页续聊（运行
+        // 记录本体即服务端会话），不再进只读详情页
+        Button {
+            appState.pendingChatSessionID = run.id
+        } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(AdminFormat.short(run.startedDate))

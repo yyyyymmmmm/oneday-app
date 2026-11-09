@@ -22,6 +22,9 @@ struct OverviewView: View {
     var onOpenAgent: (AgentRoute) -> Void = { _ in }
     var onOpenSettings: (SettingsRoute) -> Void = { _ in }
     var onOpenChat: () -> Void = {}
+    /// 服务端会话点按（0.4.0，§3.4）：改道聊天页续聊
+    /// （状态页最近会话与本页服务端会话行共用此口）
+    var onOpenChatSession: (String) -> Void = { _ in }
 
     @State private var status: ServerStatus?
     @State private var stats: SystemStats?
@@ -112,7 +115,7 @@ struct OverviewView: View {
         VStack(alignment: .leading, spacing: 0) {
             NavigationLink {
                 StatusView(
-                    onOpenSession: { onOpenAgent(.serverSessionDetail($0)) }
+                    onOpenSession: { onOpenChatSession($0) }
                 )
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
@@ -446,7 +449,7 @@ struct OverviewView: View {
 
     private func serverSessionRow(_ session: ServerSession) -> some View {
         Button {
-            onOpenAgent(.serverSessionDetail(session.id))
+            onOpenChatSession(session.id)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 if session.isActive {

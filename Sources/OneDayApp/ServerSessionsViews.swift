@@ -187,7 +187,11 @@ struct ServerSessionsView: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                NavigationLink(value: AgentRoute.serverSessionDetail(session.id)) {
+                // 0.4.0（§3.4）：点会话改道聊天页续聊；本页
+                // 只保留管理面（选择/批量删/清空）
+                Button {
+                    appState.pendingChatSessionID = session.id
+                } label: {
                     rowContent(session, selecting: false)
                 }
                 .buttonStyle(.plain)
@@ -274,7 +278,13 @@ struct ServerSessionsView: View {
     }
 }
 
-/// 服务端会话详情：元信息＋消息回放（只读）＋删除。
+/// 服务端会话详情（0.4.0 降级为「会话信息」，审计 §3.4）：
+/// 会话主落点已改道聊天页续聊（点会话 → 导入本地线程），
+/// 本页只作聊天页内的次级入口（点会话名次行打开）：元
+/// 信息＋消息记录＋删除。消息记录不再用气泡渲染拷贝
+/// （旧 primaryTint 染色随之删除——聊天气泡渲染只留聊
+/// 天页一份）；工具/系统类消息折叠为摘要行，原文收进
+/// DisclosureGroup，raw JSON 不许裸奔上屏。
 struct ServerSessionDetailView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -288,37 +298,35 @@ struct ServerSessionDetailView: View {
     @State private var showDeleteConfirm = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if let session {
-                    metaGroup(session)
-                    messagesGroup
-                    dangerGroup
-                } else if let errorMessage {
+        List {
+            if let session {
+                metaSection(session)
+                recordsSection
+                dangerSection
+            } else if let errorMessage {
+                Section {
                     InlineError(errorMessage)
-                } else {
+                }
+            } else {
+                Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取会话…")
-                            .font(TypeScale.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.top, OneDayMetrics.spacingL)
-                }
-                if let notice {
-                    Text(notice)
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+            if let notice {
+                Section {
+                    Text(notice)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
-        .background(Palette.pageBG)
-        // 已裁 5：导航标题＝内容总结标题（首条用户消息
-        // 摘要，与抽屉/列表同源），原始标题只留元信息组
+        // 标题＝内容总结标题（首条用户消息摘要，与抽屉/
+        // 列表同源），原始标题只留元信息组
         .navigationTitle(detailTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
@@ -337,138 +345,113 @@ struct ServerSessionDetailView: View {
     }
 
     private var detailTitle: String {
-        guard let session else { return "会话详情" }
+        guard let session else { return "会话信息" }
         let firstUser = messages.first { $0.role == "user" }?.content
         return session.contentTitle(firstUserMessage: firstUser)
     }
 
-    private func metaGroup(_ session: ServerSession) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("会话信息")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                if session.title != detailTitle {
-                    infoRow("原始标题", session.title)
-                    GroupDivider(inset: OneDayMetrics.spacingM)
-                }
-                infoRow("状态", session.isActive ? "进行中" : "已结束")
-                if let source = session.source, !source.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("来源", source)
-                }
-                if let model = session.model, !model.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("模型", model, mono: true)
-                }
-                if let profile = session.profile, !profile.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("档案", profile)
-                }
-                GroupDivider(inset: OneDayMetrics.spacingM)
-                infoRow("开始", AdminFormat.short(session.startedDate))
-                if let ended = session.endedDate {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("结束", AdminFormat.short(ended))
-                }
-                if let count = session.messageCount {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("消息数", "\(count)")
-                }
-                if let tokens = session.inputTokens, let out = session.outputTokens {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow(
-                        "Token（入/出）",
-                        "\(AdminFormat.count(tokens)) / \(AdminFormat.count(out))"
-                    )
+    // MARK: - 元信息（LabeledContent，审计 §3.1 键值统一口径）
+
+    private func metaSection(_ session: ServerSession) -> some View {
+        Section("会话信息") {
+            if session.title != detailTitle {
+                LabeledContent("原始标题", value: session.title)
+            }
+            LabeledContent("状态", value: session.isActive ? "进行中" : "已结束")
+            if let source = session.source, !source.isEmpty {
+                LabeledContent("来源", value: session.sourceLabel)
+            }
+            if let model = session.model, !model.isEmpty {
+                // §3.3 第 6 处：历史记录属性、留只读——走显
+                // 示名映射，原始 id 退次级小字
+                LabeledContent("模型") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(ModelDisplayNames.displayName(for: model) ?? model)
+                        if ModelDisplayNames.displayName(for: model) != nil {
+                            Text(model)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
-            .odGroup()
+            if let profile = session.profile, !profile.isEmpty {
+                LabeledContent("档案", value: profile)
+            }
+            LabeledContent("开始", value: AdminFormat.short(session.startedDate))
+            if let ended = session.endedDate {
+                LabeledContent("结束", value: AdminFormat.short(ended))
+            }
+            if let count = session.messageCount {
+                LabeledContent("消息数", value: "\(count)")
+            }
+            if let tokens = session.inputTokens, let out = session.outputTokens {
+                LabeledContent(
+                    "Token（入/出）",
+                    value: "\(AdminFormat.count(tokens)) / \(AdminFormat.count(out))"
+                )
+            }
         }
     }
 
-    private var messagesGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("消息")
-                .padding(.top, 28)
-                .padding(.bottom, OneDayMetrics.spacingS)
+    // MARK: - 消息记录（非气泡渲染：记录行＋工具摘要行）
+
+    private var recordsSection: some View {
+        Section("消息记录") {
             if messages.isEmpty {
                 Text("没有可回放的消息。")
-                    .font(TypeScale.callout)
-                    .foregroundStyle(Palette.inkSecondary)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
-                    ForEach(messages) { message in
-                        messageRow(message)
-                    }
+                ForEach(messages) { message in
+                    recordRow(message)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func messageRow(_ message: SessionMessage) -> some View {
-        if message.role == "user" {
-            HStack {
-                Spacer(minLength: 44)
-                Text(message.content)
-                    .font(TypeScale.body)
-                    .foregroundStyle(Palette.ink)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        Palette.primaryTint,
-                        in: RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
-                    )
-            }
-        } else if message.role == "assistant" {
-            MarkdownText(message.content)
-        } else {
-            // 工具/系统类消息：安静的等宽摘要，不冒充对话
-            Text("\(message.role)：\(message.content)")
-                .font(TypeScale.monoFootnote)
-                .foregroundStyle(Palette.inkMuted)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var dangerGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("危险操作")
-                .padding(.top, 28)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                Button(role: .destructive) {
-                    showDeleteConfirm = true
-                } label: {
-                    HStack {
-                        Text("删除这条会话")
-                            .font(TypeScale.body)
-                            .foregroundStyle(Palette.danger)
-                        Spacer()
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
-                    .contentShape(Rectangle())
+    private func recordRow(_ message: SessionMessage) -> some View {
+        if message.role == "user" || message.role == "assistant" {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(message.role == "user" ? "用户" : "助手")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if message.role == "assistant" {
+                    MarkdownText(message.content)
+                } else {
+                    Text(message.content)
+                        .font(.body)
                 }
-                .buttonStyle(.plain)
             }
-            .odGroup()
+            .padding(.vertical, 2)
+        } else {
+            // 工具/系统类消息：摘要行＋展开看原文（raw
+            // JSON 只许躺在 DisclosureGroup 里，不直出）
+            DisclosureGroup {
+                Text(message.content)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            } label: {
+                Label(
+                    message.role == "tool" ? "工具调用" : "系统消息",
+                    systemImage: message.role == "tool"
+                        ? "wrench.and.screwdriver" : "gearshape"
+                )
+                .font(.callout)
+            }
         }
     }
 
-    private func infoRow(_ label: String, _ value: String, mono: Bool = false) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.trailing)
+    // MARK: - 删除
+
+    private var dangerSection: some View {
+        Section {
+            Button("删除这条会话", role: .destructive) {
+                showDeleteConfirm = true
+            }
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
     }
 
     private func load() async {
@@ -483,7 +466,7 @@ struct ServerSessionDetailView: View {
         if let loaded = try? await appState.performAdmin({ client, config in
             try await client.sessionMessages(config: config, id: sessionID)
         }) {
-            messages = loaded.filter { !$0.content.isEmpty || $0.role == "user" }
+            messages = loaded.filter { !$0.content.isEmpty }
         }
     }
 
