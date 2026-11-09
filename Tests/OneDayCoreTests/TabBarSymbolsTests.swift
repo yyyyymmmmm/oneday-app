@@ -8,19 +8,19 @@ import XCTest
 /// 0.6.0 五格 IA：聊天／活动／点子／目标／应用（蓝图 §4
 /// 一期）；旧总览/文件/设置符号退为应用格内入口符号源，
 /// 不再占底栏格（all 只含五格）。
+/// 0.17.0 四格化（真机五修⑤，用户点名）：活动格撤销、
+/// 枢纽改走聊天页胶囊 sheet——all 改钉四格（聊天／点
+/// 子／目标／应用）；activity 符号对本体保留在
+/// TabBarSymbols（与 overview/files/settings 同例的数
+/// 据保留），本组继续钉「在栏集合」的全表与顺序。
 final class TabBarSymbolsTests: XCTestCase {
-    /// 五条目名对全表钉死（id／标题／未选／选中、顺序）
+    /// 四条目名对全表钉死（id／标题／未选／选中、顺序）
     func testTabSymbolPairsArePinned() {
         XCTAssertEqual(TabBarSymbols.all, [
             TabSymbolPair(
                 id: "chat", title: "聊天",
                 normal: "message",
                 selected: "message"
-            ),
-            TabSymbolPair(
-                id: "activity", title: "活动",
-                normal: "list.bullet",
-                selected: "list.bullet"
             ),
             TabSymbolPair(
                 id: "ideas", title: "点子",
