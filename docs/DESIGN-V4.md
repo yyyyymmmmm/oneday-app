@@ -2839,5 +2839,19 @@ Tests.swift）
 
 ### 27.4 交付记录（0.4.2）
 
-- 待回填：commit / CI run / 单测数 / IPA 字节与解
-包验版结果，交付动作完成后补记于此
+- commit 0d2ea30（代码＋§27 本文）；本回填为
+  docs-only 后随提交，IPA 不受影响
+- CI run 42554058577 success（构建＋单测全绿）
+- 单测 127（0.4.1 基线 119＋BottomFollowTests 新增
+  8，日志聚合行实查；BottomFollowTests 套件 passed）
+- IPA：your_files/oneday-v0.4.2/oneday-unsigned.ipa，
+  2,199,020 字节，md5 与 CI 工件一致
+  （7e4874ba798e4e833e0e311f2e7e6936）
+- 解包验版：Payload/OneDayApp.app/Info.plist＝
+  CFBundleShortVersionString 0.4.2／CFBundleVersion
+  26／bundle id site.didichou.oneday ✓（三处版本源
+  同改，§25.7 假绿教训已避开）
+- 未验证（如实标注）：抽屉头尾渐隐手感、聊天底缘
+  柔效观感、抖动三项真机表现（流式到底不脉冲/手动
+  划到底不摆/钮出入不弹跳）均无自动证据，归用户
+  真机终审；键盘弹起（0.4.1 遗留项）亦待其复验
