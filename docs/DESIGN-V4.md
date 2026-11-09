@@ -3827,3 +3827,14 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 - 占位退役：PhaseTwoPlaceholderViews.swift 删除（点子/目标两占位自 0.6.0 立版至此转正），ContentView 两格改挂真视图。
 - 单测：新增 OneDayBridgeModelsTests 12 个（277→289）——实测样本解码两形＋缺字段兜底、进度计数/比例/文案、toggle 全量带 id、update 新条省 id 键＋空行剔除、新建请求可选字段落键口径、转任务计划三形、已转标记往返。
 - 发版 0.11.0 / build 39（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。实桥联调归真机首开自验＋后续验收轮（本批不碰服务器）。
+
+## §38 0.12.0 批（P6 监测：客户端先行，2026-11-09）
+
+规格＝full-build-program P6 节＋契约档 monitor-bridge-contract-20261109.md（客户端先行冻结）。**数据源定案＝缺口契约**：实查 Hermes OpenAPI 无 monitor 路由、CronJob 无指纹/快照/结果字段（cron 只能当调度底座，派生不出有变化/无变化/检查失败三分与前后差异）；oneday-bridge 现有路由表只有 /goals、/ideas、/health（服务端原件对账）。故本批只做客户端、**不部署任何服务端件**：桥扩展 /monitors 后本面即转真数据；扩展前集合 404 如实露「监测数据源未开通」。
+
+- Core（MonitorBridgeModels）：DTO 按契约形状落形（monitor 全形 {id,name,target,scheduleText,cronJobId,enabled,lastCheckedAt,lastResult,lastError,unreadChanges,latestChangeSummary,latestChangeAt,createdAt,updatedAt}、change {id,monitorId,detectedAt,summary,before,after,read}、时间 epoch 秒 float；可选字段缺失容缺收、enabled 缺失默认 true）；纯派生全收口——MonitorPresentation（状态分类：已暂停优先→还没检查过→三分 changed/unchanged/failed→三分之外 unknown 不许猜；状态人话单点；未读总数＝服务端计数之和）、MonitorOrdering（未读降序→最近变化降序→创建升序）、MonitorChangeOrdering（检出倒序）、MonitorChangeDetail.rows（摘要＋before/after 有才成行、空串按没存、皆无 hasOriginalText=false 页面明说没保存原文）、markingRead 副本。频率只吃服务端 scheduleText 显示串，客户端不解析 cron 语法（phase3「schedule 全量样本待收」在案口径）。
+- 客户端（OneDayBridgeClient 增监测三法）：GET /monitors、GET /monitors/{id}/changes（集合 404＝bridgeMissing）、POST /monitors/{id}/changes/{changeId}/read（{ok:true}）；错误口径与 goals/ideas 完全同分法（noKey/401 钥匙问题、404 分流、{"error": 人话} 透传）。
+- 监测面转正（MonitorsStore＋HubMonitorSection＋MonitorDetailViews）：落位＝活动格枢纽分段新增「监测」段（HubSegment.monitors，eye 符号；活动格四段），不双挂应用格。MonitorsStore 状态四分：loading／notConnected（钥匙）／sourceNotOpened（集合 404，标题逐字「监测数据源未开通」）／failed／ready，就绪后刷新失败保持旧数据；标记已读＝POST→本地即时翻已读→回读 /monitors 对账未读数（服务端计数为权威），失败不假装已读。监测卡（设计标准 §7 P6 锚：卡骨架＋状态点＋最近变化行）：状态点五态双通道（色＋文字：有变化蓝/无变化绿/检查失败红/未检查·已暂停·未识别灰）、名称、target、频率·上次检查时刻＋结果、失败原因行（danger）、最近变化行、未读数 badge（0 不显示）、已暂停整卡降调；段头汇总「N 条变化未读」。详情：本体信息（盯什么/频率/状态/最近检查/失败原因）＋变化记录列表（摘要＋时刻＋未读点）；差异页＝摘要＋变化前/后原文块（textSelection，有才显示）＋无原文明说行，打开即标记已读。
+- 契约档同时钉死桥实现包口（下包）：POST /monitors（建监测＋指纹基线）、POST /monitors/{id}/check（立即检查落三分＋命中发 overview 通知）、pause/resume（转 cron）、DELETE；检查执行体在桥内（cron 到点触发桥检查逻辑，不另起 worker）。
+- 单测：新增 MonitorBridgeModelsTests 14 个（289→303）——契约全形解码两形＋容缺兜底、状态分类（三分映射/已暂停优先/未检查/未识别不猜）、未读聚合、列表排序、变化倒序、差异行组装（有原文/空串按没存）、markingRead 副本。
+- 发版 0.12.0 / build 40（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。未验项：桥 /monitors 未上线，列表/详情/已读全链待桥扩展包部署后真机联调；无钥公网探测 /monitors 与 /goals 同为 401（鉴权先于路由，仅证桥活着）。

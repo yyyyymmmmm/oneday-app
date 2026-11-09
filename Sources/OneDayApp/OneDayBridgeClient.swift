@@ -14,7 +14,8 @@ enum OneDayBridgeError: Error, Sendable, Equatable {
 }
 
 /// oneday-bridge 客户端（0.11.0，冻结契约）：目标/点子
-/// 仓，路径挂在当前服务器根下（/api/oneday-bridge，
+/// 仓（0.12.0 增监测面，契约 monitor-bridge-contract-
+/// 20261109.md），路径挂在当前服务器根下（/api/oneday-bridge，
 /// 与桥部署口径一致）。Bearer 只从 Keychain 的
 /// CredentialKey.writeGateKey 读——与总览桥/write-gate
 /// 同一把钥匙，用户零新增粘贴；读不到钥匙一律 noKey、
@@ -93,6 +94,41 @@ final class OneDayBridgeClient: @unchecked Sendable {
         let _: BridgeOKResponse = try await sendEmpty(
             config: config, path: "/ideas/\(id)", method: "DELETE",
             endpoint: "删除点子"
+        )
+    }
+
+    // MARK: - 监测（P6，契约 monitor-bridge-contract-20261109.md）
+
+    /// 监测列表：集合端点 404＝监测数据源未开通
+    /// （bridgeMissing），与 goals/ideas 同口径分流
+    func monitors(config: ServerConfig) async throws -> [BridgeMonitor] {
+        let response: BridgeMonitorsResponse = try await get(
+            config: config, path: "/monitors", endpoint: "监测列表",
+            collection: true
+        )
+        return response.items
+    }
+
+    func monitorChanges(
+        config: ServerConfig, monitorID: String
+    ) async throws -> [BridgeMonitorChange] {
+        let response: BridgeMonitorChangesResponse = try await get(
+            config: config, path: "/monitors/\(monitorID)/changes",
+            endpoint: "变化记录", collection: true
+        )
+        return response.items
+    }
+
+    /// 标记单条变化已读：服务端同步扣减该监测的
+    /// unreadChanges，客户端随后回读列表对账
+    func markMonitorChangeRead(
+        config: ServerConfig, monitorID: String, changeID: String
+    ) async throws {
+        let _: BridgeOKResponse = try await sendEmpty(
+            config: config,
+            path: "/monitors/\(monitorID)/changes/\(changeID)/read",
+            method: "POST",
+            endpoint: "标记已读"
         )
     }
 

@@ -10,6 +10,7 @@ enum HubSegment: String, CaseIterable, Identifiable {
     case approval
     case browser
     case cron
+    case monitors
     case identity
 
     var id: String { rawValue }
@@ -21,6 +22,7 @@ enum HubSegment: String, CaseIterable, Identifiable {
         case .approval: return "审核"
         case .browser: return "浏览器"
         case .cron: return "定时"
+        case .monitors: return "监测"
         case .identity: return "身份"
         }
     }
@@ -32,6 +34,7 @@ enum HubSegment: String, CaseIterable, Identifiable {
         case .approval: return "checkmark.shield"
         case .browser: return "display"
         case .cron: return "clock"
+        case .monitors: return "eye"
         case .identity: return "touchid"
         }
     }
@@ -43,7 +46,8 @@ enum HubSegment: String, CaseIterable, Identifiable {
 /// 段切换只换内容区，页头与模型区常驻不动（规格 §0）。
 /// 0.6.0 转正（蓝图 §4 一期）：枢纽页从「胶囊点开的
 /// sheet」转正为活动格本体——mode=.activity 时留
-/// 活动/任务/审核三段（任务段 0.10.0 增）、撤页头
+/// 活动/任务/审核三段（任务段 0.10.0 增、监测段
+/// 0.12.0 增）、撤页头
 /// 圆钮行与模型常驻区（换模型
 /// 入口在聊天页胶囊的模型段 Menu，硬规格不回退）；
 /// mode=.sheet 保留五段全量形态，但聊天页胶囊已改道
@@ -64,11 +68,11 @@ struct AgentHubView: View {
     @State private var store: AgentHubStore?
     @State private var segment: HubSegment = .activity
 
-    /// 本模式可见段：活动格＝活动/任务/审核三段
-    /// （任务段 0.10.0 P3 转正：kanban 专属板真列表）
+    /// 本模式可见段：活动格＝活动/任务/审核/监测四段
+    /// （任务段 0.10.0 P3 转正、监测段 0.12.0 P6 转正）
     private var availableSegments: [HubSegment] {
         mode == .activity
-            ? [.activity, .tasks, .approval]
+            ? [.activity, .tasks, .approval, .monitors]
             : HubSegment.allCases
     }
 
@@ -128,6 +132,8 @@ struct AgentHubView: View {
             break // 0.9.0：浏览器面自带盒桥轮询（面内 .task 驱动）
         case .cron:
             await store.loadCronIfNeeded()
+        case .monitors:
+            break // 0.12.0：监测段自持 MonitorsStore（段内 .task 驱动）
         case .identity:
             await store.loadIdentityIfNeeded()
         }
@@ -332,6 +338,8 @@ struct AgentHubView: View {
             HubBrowserSection()
         case .cron:
             HubCronSection(store: store)
+        case .monitors:
+            HubMonitorSection()
         case .identity:
             HubIdentitySection(store: store)
         }
