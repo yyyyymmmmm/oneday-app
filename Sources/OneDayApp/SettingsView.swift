@@ -56,11 +56,8 @@ struct SettingsView: View {
             .listSectionSpacing(OneDayMetrics.spacingL)
             .scrollContentBackground(.hidden)
             .background(Palette.pageBG)
-            // 0.3.8 第 10 条：底部留白补到自绘底栏带（总览
-            // 已修、本页补齐——末组尾行不被悬浮栏压住）
-            .contentMargins(
-                .bottom, OneDayMetrics.tabBarZone, for: .scrollContent
-            )
+            // 0.4.0（§3.2）：tabBarZone 手算底部留白删除——
+            // 原生底栏回来后 List 底部避让由系统安全区自理
             // 0.3.8 第 4/13 条：系统大标题撤销（墨高实测
             // 29.3、且标题上方约 130pt 无功能空白），改自
             // 绘标题行（pageTitleSection，30 bold）＋导航栏

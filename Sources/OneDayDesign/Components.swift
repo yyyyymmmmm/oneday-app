@@ -413,7 +413,9 @@ public struct CopyButton: View {
     }
 }
 
-// MARK: - 0.3.8 组件（白浮纸 / 身份锚点 / 自绘底栏 / 统一行）
+// MARK: - 0.3.8 组件（白浮纸 / 身份锚点 / 统一行）
+// （自绘底栏 FloatingTabBar 已于 0.4.0 删除：底栏回原生
+// TabView，审计 §3.2）
 
 public extension View {
     /// 白浮纸画法（fixlist 第 28 条立令牌）：浮件统一——
@@ -428,21 +430,6 @@ public extension View {
             }
             .odElevation(Elevation.paper)
     }
-}
-
-/// SF Symbol 在给定点宽下的字形点宽（选中垫贴合字形用）：
-/// 与 RenderMeasureTests 同口径（SymbolConfiguration
-/// pointSize＋regular 渲染取 image.size）
-private func symbolPointWidth(_ name: String, size: CGFloat) -> CGFloat {
-    #if canImport(UIKit)
-    let config = UIImage.SymbolConfiguration(
-        pointSize: size, weight: .regular
-    )
-    return UIImage(systemName: name, withConfiguration: config)?.size.width
-        ?? size
-    #else
-    return size
-    #endif
 }
 
 /// 身份锚点（基线补遗增量令 1＋fixlist 第 30 条）：智能
@@ -488,88 +475,6 @@ public struct IdentityAnchor: View {
         .odFloatPaper(in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(name)，\(statusWord)")
-    }
-}
-
-/// 自绘底栏（0.3.8，fixlist 第 2 条用户裁决）：悬浮大
-/// 胶囊（白浮纸画法）、选中垫收窄贴合字形（TabBarLayout
-/// .padWidth 构造决定）、图标 outline＋regular 直渲。
-/// 只承载点按：不挂拖拽手势（与页面滚动/抽屉手势不冲
-/// 突）；切换动画走 MotionTokens.resolved 出口（Reduce
-/// Motion 瞬时）；每格保留文字无障碍标签与 tab.<id> 标识
-public struct FloatingTabBar: View {
-    public struct Item: Identifiable, Sendable {
-        public let id: String
-        public let title: String
-        public let symbol: String
-
-        public init(id: String, title: String, symbol: String) {
-            self.id = id
-            self.title = title
-            self.symbol = symbol
-        }
-    }
-
-    private let items: [Item]
-    private let selectedID: String
-    private let onSelect: (String) -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    public init(
-        items: [Item], selectedID: String,
-        onSelect: @escaping (String) -> Void
-    ) {
-        self.items = items
-        self.selectedID = selectedID
-        self.onSelect = onSelect
-    }
-
-    public var body: some View {
-        HStack(spacing: 0) {
-            ForEach(items) { item in
-                let isSelected = item.id == selectedID
-                Button {
-                    onSelect(item.id)
-                } label: {
-                    ZStack {
-                        if isSelected {
-                            Capsule()
-                                .fill(Palette.selectionFill)
-                                .frame(
-                                    width: TabBarLayout.padWidth(
-                                        glyphWidth: symbolPointWidth(
-                                            item.symbol,
-                                            size: TabBarLayout.glyphSize
-                                        )
-                                    ),
-                                    height: TabBarLayout.padHeight
-                                )
-                        }
-                        Image(systemName: item.symbol)
-                            .font(.system(
-                                size: TabBarLayout.glyphSize,
-                                weight: .regular
-                            ))
-                            .foregroundStyle(Palette.ink)
-                            .accessibilityHidden(true)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: TabBarLayout.barHeight)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.title)
-                .accessibilityIdentifier("tab.\(item.id)")
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-            }
-        }
-        .odFloatPaper(in: Capsule())
-        .animation(
-            MotionTokens.resolved(
-                MotionTokens.liquidSpring, reduceMotion: reduceMotion
-            ),
-            value: selectedID
-        )
     }
 }
 

@@ -250,12 +250,8 @@ public enum OneDayMetrics {
     public static let drawerWidthFraction: CGFloat = 0.79
     /// 抽屉宽上限（设备值，大屏不无限拉宽）
     public static let drawerMaxWidth: CGFloat = 340
-    /// 底栏占位带（0.3.8 自绘底栏口径）：滚动内容底部
-    /// 留白按此值避让悬浮栏（栏高 58＋底边距 8＋呼吸
-    /// 10，与 Core 的 TabBarLayout.zoneHeight 同值；安全
-    /// 区另由系统/safeAreaPadding 承担）。0.3.7 前的 76
-    /// 是原生 TabView 时代的值，自绘后按本值
-    public static let tabBarZone: CGFloat = 76
+    /// （tabBarZone 已于 0.4.0 删除，审计 §3.2：底栏回
+    /// 原生后底部避让由系统安全区自理，手算占位带退役）
     /// 两行制会话行最小高（0.3.8 第 19 条，与 Core 的
     /// ListRowSpec.sessionRowMinHeight 同值）
     public static let sessionRowHeight: CGFloat = 57

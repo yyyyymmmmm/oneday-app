@@ -1,11 +1,10 @@
 import OneDayCore
 import XCTest
 
-/// 底栏符号名对定版（0.3.1 立，0.3.8 收口）：0.3.8 起
-/// 底栏自绘、符号仍系统直渲；§22.5 立宪禁 .fill 后，
-/// 0.3.7 遗留在账本里的 chat/files 两个 .fill 名本轮
-/// 清账——四格 selected 恒等于 normal，选中只靠浅灰
-/// 胶囊垫（FloatingTabBar）。本组测试钉全表＋禁 fill。
+/// 底栏符号名对定版（0.3.1 立，0.3.8 收口，0.4.0 续）：
+/// 0.4.0 底栏回原生 TabView（审计 §3.2），本表降为原生
+/// Tab 的 Label 符号源（系统直渲）；§22.5 立宪禁 .fill
+/// 后四格 selected 恒等于 normal。本组测试钉全表＋禁 fill。
 final class TabBarSymbolsTests: XCTestCase {
     /// 四条目名对全表钉死（id／标题／未选／选中、顺序）
     func testTabSymbolPairsArePinned() {
@@ -52,24 +51,5 @@ final class TabBarSymbolsTests: XCTestCase {
                 pair.name(isSelected: true), pair.name(isSelected: false)
             )
         }
-    }
-}
-
-/// 自绘底栏几何（0.3.8 第 2 条）：垫宽由构造决定、
-/// 栏占位带与既有 tabBarZone 同值口径
-final class TabBarLayoutTests: XCTestCase {
-    func testPadWidthAddsBothInsets() {
-        // 22pt 字形点宽约 24–28 → 垫宽约 50–54，远小于
-        // 原生栏的约 1/4 栏宽（393 屏约 98）
-        XCTAssertEqual(TabBarLayout.padWidth(glyphWidth: 26), 52)
-        XCTAssertLessThan(
-            TabBarLayout.padWidth(glyphWidth: 28), 393.0 / 4
-        )
-    }
-
-    func testZoneHeightMatchesLegacyZone() {
-        XCTAssertEqual(TabBarLayout.zoneHeight, 76)
-        XCTAssertEqual(TabBarLayout.barHeight, 58)
-        XCTAssertEqual(TabBarLayout.glyphSize, 22)
     }
 }

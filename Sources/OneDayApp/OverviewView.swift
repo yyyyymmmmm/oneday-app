@@ -20,11 +20,11 @@ struct OverviewView: View {
     @Query(sort: \ChatThread.updatedAt, order: .reverse) private var localThreads: [ChatThread]
 
     var onOpenAgent: (AgentRoute) -> Void = { _ in }
-    var onOpenSettings: (SettingsRoute) -> Void = { _ in }
-    var onOpenChat: () -> Void = {}
     /// 服务端会话点按（0.4.0，§3.4）：改道聊天页续聊
     /// （状态页最近会话与本页服务端会话行共用此口）
     var onOpenChatSession: (String) -> Void = { _ in }
+    var onOpenSettings: (SettingsRoute) -> Void = { _ in }
+    var onOpenChat: () -> Void = {}
 
     @State private var status: ServerStatus?
     @State private var stats: SystemStats?
@@ -86,9 +86,9 @@ struct OverviewView: View {
                 }
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.top, OneDayMetrics.spacingM)
-                // 卡 2 纠正 4：底部留白补到悬浮底栏带，
-                // 末组尾行不被底栏压住
-                .padding(.bottom, OneDayMetrics.tabBarZone)
+                // 0.4.0（§3.2）：tabBarZone 手算留白删除——
+                // 原生底栏回来后滚动底部避让由系统安全区自理
+                .padding(.bottom, OneDayMetrics.spacingXL)
             }
             .background(Palette.pageBG)
             .navigationTitle("总览")

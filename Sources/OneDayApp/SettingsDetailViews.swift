@@ -1637,7 +1637,9 @@ struct LogsView: View {
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.tabBarZone)
+            // 0.4.0（§3.2）：tabBarZone 手算留白删除，底部
+            // 避让回系统安全区；留常规尾距
+            .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
         .navigationTitle("日志")

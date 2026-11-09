@@ -387,14 +387,10 @@ struct ChatView: View {
     /// 被顶到键盘上方（系统通道，见 chatSurface 换代注）。
     /// 高度只认内容：本 VStack 与发送舱各环保留 fixedSize
     /// 断环（0.2.5），在布局流里是双保险。
-    /// 自绘底栏避让（0.3.8 第 2 条连带）：原生栏隐藏后
-    /// 列表底部安全区不再含栏高，发送舱须自行为悬浮栏
-    /// 让位——栏可见（抽屉关＋键盘收）时底部补 64（栏高
-    /// 58＋底边距 8＋呼吸 6−发送舱自带底边距 8 的净值）；
-    /// 键盘升起时发送舱骑键盘、底栏被键盘盖住，让位归零
-    private var tabBarClearance: CGFloat {
-        (drawerOpen || composerFocused) ? 0 : 64
-    }
+    /// （0.4.0 删，审计 §3.2 影响面 2：自绘栏时代手算的
+    /// tabBarClearance 避让——原生底栏回来后底部留位回
+    /// safeAreaInset 系统通道，发送舱在布局流内、安全区
+    /// 自理，不再手算补高）
 
     private func bottomBar(_ proxy: ScrollViewProxy) -> some View {
         VStack(spacing: OneDayMetrics.spacingS) {
@@ -415,13 +411,6 @@ struct ChatView: View {
             inputBar
         }
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.bottom, tabBarClearance)
-        .animation(
-            MotionTokens.resolved(
-                MotionTokens.swap, reduceMotion: reduceMotion
-            ),
-            value: tabBarClearance
-        )
         // 条 9（§14）：回到底部钮的出入是小动作类，动画走
         // 定版 microSpring（380/18 微弹）；0.3.2 统一经
         // resolved 出口（Reduce Motion 时瞬时）
@@ -1307,9 +1296,12 @@ private struct ComposerBarLayout: Layout {
     /// 抽屉覆盖层：白色半透纱＋peek 面板（宽约 79%、
     /// 上限 340；0.3.6 立宪，§21.3）＋左缘唤出手势层。
     /// 面板盖住聊天主面与悬浮顶栏，右侧约 21% 底层在
-    /// 纱下透出。0.3.8：第 3 条——自绘底栏在抽屉打开时
-    /// 隐藏让位，面板不再按 tabBarZone 留位，底条钉到
-    /// 面板底部安全区、落进原底栏坑位（第 22 条）。
+    /// 纱下透出。0.4.0（审计 §3.2 影响面 1，报告推荐案）：
+    /// 底栏回原生后不再为抽屉态隐藏底栏——原生玻璃坞按
+    /// 系统层级浮于抽屉之上（呈现以系统行为为准）；抽屉
+    /// 底条改经面板安全区让位：bottomInset 由根
+    /// GeometryReader 的系统安全区给出（含原生底栏的安
+    /// 全区高），系统给多少让多少（见 drawerBottomBar）。
     @ViewBuilder
     private func drawerOverlay(width: CGFloat, bottomInset: CGFloat) -> some View {
         // 跟手偏移：基准位（开 0 / 合 -width-8）＋跟手量
@@ -1343,11 +1335,9 @@ private struct ComposerBarLayout: Layout {
             drawerAgentName
             drawerNavList
             drawerList
-            // 0.3.8 第 22 条：底条钉底——0.3.7 的 tabBarZone
-            // 占位行（76）＋安全区＋列表尾留白叠出约 170pt
-            // 死白、条中心只有屏高 77.5%（本轮主犯），本轮
-            // 整行删除，底条直接坐在面板底（见 drawer-
-            // BottomBar 的钉底边距口径）
+            // 底条钉底（0.3.8 第 22 条）：不留占位行、底条
+            // 直接坐在面板底；0.4.0 起下边距含系统安全区
+            // （原生底栏让位，见 drawerBottomBar 口径）
             drawerBottomBar(bottomInset: bottomInset)
         }
         .frame(width: width)
@@ -1541,13 +1531,17 @@ private struct ComposerBarLayout: Layout {
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingSM)
-        // 第 22 条钉底边距：面板底缘即安全区底缘，面板
-        // 内边距只补 4（DrawerGeometry 面板内口径）；条
-        // 中心距物理屏底＝安全区 inset＋4＋行半高 26，
-        // 852 屏实算 92.5%（Core 函数同口径、单测钉）
+        // 钉底边距（第 22 条＋0.4.0 让位口径）：下边距＝
+        // 系统安全区底 inset＋4。0.3.8 自绘栏时代 inset 只
+        // 含 home indicator、底条落进隐藏栏的坑位；0.4.0
+        // 原生底栏回来后，根 GeometryReader 的安全区底
+        // inset 含底栏安全区高，底条自动抬到底栏之上——
+        // 让位量由系统给出，代码不手算栏高
         .padding(
             .bottom,
-            DrawerGeometry.bottomBarBottomPadding(safeAreaBottom: 0)
+            DrawerGeometry.bottomBarBottomPadding(
+                safeAreaBottom: bottomInset
+            )
         )
     }
 

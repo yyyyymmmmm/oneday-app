@@ -79,35 +79,9 @@ final class RenderMeasureTests: XCTestCase {
         ))
     }
 
-    // MARK: - 第 1/2 条：底栏四格（22 regular，outline）
-
-    func testTabBarSymbolInk() throws {
-        for pair in TabBarSymbols.all {
-            let image = try XCTUnwrap(
-                symbol(pair.normal, size: TabBarLayout.glyphSize),
-                "\(pair.id) 符号渲染失败"
-            )
-            let stats = try XCTUnwrap(analyze(image))
-            report("tab", pair.normal, stats)
-            // 紧致盒口径：细线 outline 合理带（实心件同口
-            // 径 0.5+，见对照打印）；44 格口径须 ≤0.30
-            XCTAssertTrue(
-                (0.05...0.45).contains(stats.density),
-                "\(pair.id) 紧致密度 \(stats.density) 出带"
-            )
-            XCTAssertLessThanOrEqual(
-                stats.cellDensity, 0.30,
-                "\(pair.id) 格口径密度 \(stats.cellDensity) 过高"
-            )
-        }
-        // 对照（只打印）：同符号的 .fill 变体同口径密度
-        for name in ["bubble.left.and.bubble.right.fill", "folder.fill"] {
-            if let image = symbol(name, size: TabBarLayout.glyphSize),
-               let stats = analyze(image) {
-                report("tab-fill-ref", name, stats)
-            }
-        }
-    }
+    // （0.4.0 删：第 1/2 条自绘底栏量测——底栏回原生
+    // TabView 后字形尺寸与呈现由系统决定，自绘断言随
+    // TabBarLayout 一并退役，审计 §3.2）
 
     // MARK: - 第 15/24 条：抽屉名单与底条字形（18/17 regular）
 
