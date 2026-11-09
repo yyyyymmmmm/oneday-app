@@ -3079,3 +3079,189 @@ Muse 一样；11:10 真机截图实证 0.4.1 的「图标
   的 0.4.1 注释已加纠正标注、不改史。
 - [] 真机复验归用户：四格在选中/未选两态均
   为空心细线（本批无真机证据）。
+
+## §29 0.4.4 热修批（朦胧感放大 E11＋正文墨/字号，2026-11-09）
+
+用户 11:31 真机验收 0.4.3 两条指令：①「上面朦胧
+感有点了，方法是对的，继续搞大点，下面的也加上」
+——此即 11:18 预留的放宽决定，批准调研 §4.3 第
+一条豁免（masked 真模糊层），登记为新例外 E11；
+②11:33 点名「字体还是黑，粗」——主代理同机双截
+图量测（OneDay 正文笔芯 ≈14／覆盖 20.7%，Muse
+笔芯 ≈38／覆盖 14.8%）＋查码定因后并入本批。
+
+### 29.1 例外 E11 登记（真渐进模糊近似层）
+
+- [x] 出处与批准：调研 progressive-blur-
+  research.md §4.3 第一条（放宽「禁假渐变带」
+  的解释、允许 masked UIVisualEffectView 作滚
+  动两缘独立模糊层）；用户 2026-11-09 11:31
+  亲口批准（「继续搞大点，下面的也加上」）。
+- [x] 边界：只用公开 API（UIVisualEffectView＋
+  UIBlurEffect＋CAGradientLayer mask）；私有
+  variableBlur 滤镜线（调研 §2.1/§4.3-3）不
+  碰；假色带（纯颜色渐变冒充模糊）不许——本
+  层是真 backdrop 模糊、mask 只衰减其 alpha。
+- [x] 与既有例外表的关：E11 是「无系统等价物」
+  的新条目——系统 .soft 的作用区与强度无公开
+  旋钮（§28.6 已明示上限），本层补的是作用区
+  长度，不是替代 bar 注册路线；bar 注册＋.soft
+  全部保留、叠加生效。
+
+### 29.2 组件（EdgeProgressiveBlur）
+
+- [x] 新文件 Sources/OneDayApp/EdgeProgressive
+  Blur.swift：UIViewRepresentable 承载 UIVisual-
+  EffectView（.systemMaterial，明暗自适应），
+  CAGradientLayer 作 layer.mask（黑 alpha 停点
+  列、自带顶向带底插值），layoutSubviews 同步
+  mask frame；半径恒定、alpha 渐变（调研 §2.3
+  公开口径的固有上限：中段有半透明重影，与样
+  板的差距收窄不消失，如实记）。
+- [x] 命中全关：SwiftUI 侧每处 .allowsHitTest-
+  ing(false)＋UIKit 侧 isUserInteractionEnabled
+  = false，滚动/点按/长按菜单零干扰。
+
+### 29.3 挂载与几何（四处，全部走 bar 的 background 溢出）
+
+挂载点选型：不另起覆盖层——四层一律作已注册
+safeAreaBar 内容的 .background 溢出绘制。理由：
+①z 序确定（bar 是系统 chrome、整体在滚动内容
+之上，其 background 在 bar 本体之下、本体保持
+锐利）；②位置跟随 bar 的安全区通道（底带随键
+盘升降与发送舱同轨，见 29.5）；③background 不
+参与布局（bar 尺寸、发送舱自量高＋硬封顶链零
+影响）。残余不确定性如实记：若系统对 safeArea-
+Bar 内容的 background 溢出作裁剪，增益静默退化
+回 0.4.3 的 .soft 状态（不破版），真机截图即判。
+
+- [x] 聊天顶：headerBar 的 background（align-
+  ment .top），带长 176pt、上探 offset −60（盖
+  状态区）、延出顶栏下缘约 45pt；停点（带顶→
+  带底）0:1／0.58:1／0.82:0.45／1:0。
+- [x] 聊天底：bottomBar 的 background（align-
+  ment .top），带长 216pt、自发送舱上缘上方
+  56pt 渐入（offset −56）、穿舱体、向下延约
+  96pt 与底栏坞衔接成一片；停点 0:0／0.14:
+  0.5／0.27:1／1:1（到舱上缘满模糊、其后恒满）。
+- [x] 抽屉顶：drawerAgentName 的 background，
+  带长 150pt、上探 −56、向名单延出约 35pt；
+  停点 0:1／0.60:1／0.85:0.45／1:0。
+- [x] 抽屉底：drawerBottomBar 的 background
+  （alignment .bottom），带长 124pt、自底条上
+  方约 68pt 渐入；停点 0:0／0.35:0.5／0.55:1
+  ／1:1。
+- [x] 发送舱本体零改动：safeAreaBar 承载、自
+  量高＋硬封顶、玻璃、卡面聚焦层全未动（结构
+  口径同 §28.3）。
+
+### 29.4 正文墨与字号（11:33 追加件）
+
+- [x] 定因（主代理量测＋查码，本批复核无误）：
+  字重无病——正文 .body regular、strong 只映
+  射 ** 段；病在 Palette.ink = Color.primary
+  （系统最黑、笔芯 ≈14）＋17pt 在炭灰对照下墨
+  迹足迹偏大（覆盖 20.7% vs 样板 14.8%）。
+- [x] 新墨：Palette.bodyInk 字面值 #262626 中
+  性炭灰（对齐量测笔芯 38）；暗色暂定 #D9D9DE
+  （未经量测、归真机抽查回填）。
+- [x] 字号：17→16 regular，语义载体走 .callout
+  （HIG 字体表 Callout＝16 regular／行高 21），
+  守 DesignTokens「框架不用 Font.system(size:)
+  写死」纪律；strong 随基准换 .callout.weight
+  (.bold)（与 regular 恰差一档的口径不变）。
+- [x] 落点四处（只限消息正文，框架文字不动）：
+  ①用户泡 Text（ChatView.bubble）②助手泡
+  MarkdownText（段落 font＋strong＋墨、二级以
+  下标题基准随正文、代码块与一级标题只换墨）
+  ③流式行 StreamingText（font＋墨）④引用块摘
+  要（quoteBlock，只换墨——摘要是被引正文本
+  身；说话人名是标签、仍 inkSecondary，层级靠
+  字号＋左细线＋底垫）。发送舱输入文字、胶囊、
+  标题、设置页等框架文字本批未动。
+- [x] 量测口径（前后）：笔芯目标 ≈38（由 ≈14）、
+  覆盖目标 ≈15%（由 20.7%）；本批无自动量测证
+  据，真机复量归用户截图终审。
+
+### 29.5 键盘硬门复核（§28.4 六条逐条）
+
+结论：不回退。本批新增物只有 bar 的 background
+层与正文字体/墨，均不进键盘链：
+- [x] ①焦点句柄 composerFocusHandle／Composer-
+  TextView 本体未动；②卡面点按聚焦层在 compo-
+  serRow 的 .background 上——本批底带是 bottom-
+  Bar 整体的 background、位于其后，命中自前向
+  后仍先达聚焦层，且模糊层双侧断命中；③键盘
+  锚底两路触发（composerFocused 边沿＋键盘帧
+  通知）未动；④.scrollDismissesKeyboard 挂
+  ScrollView 本体未动；⑤距底判定 onScrollGeo-
+  metryChange 未动（background 不改 container-
+  Size/contentSize）；⑥内容栈 minHeight 公式未
+  动。发送舱自量高：background 按定义不参与尺
+  寸协商，ComposerLayout/ComposerTextMetrics
+  未动。底带随键盘的跟随由构造保证（与发送舱
+  同挂一个 safeAreaBar 内容、同被安全区驱动）。
+- [x] 单测随 CI 全绿（数字见 29.8）；真机复验
+  归用户（与在册键盘确认合并）。
+
+### 29.6 图标复核（0.4.3 注入是否到达宿主构建层）
+
+结论：**已生效，不换注入点**，代码证据链：
+- [x] 数据层：TabBarSymbols 四名全 outline 本
+  体、selected≡normal，TabBarSymbolsTests 三
+  组钉死（§28.9 在案，本批复查原文无漂移）。
+- [x] 注入层：ContentView 的 .environment(\.
+  symbolVariants, .none) 直接挂在 TabView 本
+  体上——宿主构建条目时读的正是 TabView 自身
+  的环境（0.4.1 挂 Label 子树读不到的定因即在
+  此对照）；tabLabel 内 .symbolVariant(.none)
+  为第二道叠加锁。修饰顺序与位置本批逐行复
+  查无误。
+- [x] 无竞争源：全仓 grep symbolVariant(s) 只
+  ContentView 两处；tab 路径无 symbolRender-
+  ingMode 覆写、无第二处环境注入。
+- [x] 截图判读（如实）：11:31 截图里被指「偏
+  实」的聊天/文件，恰是 outline 本体即闭合轮
+  廓的两枚（双气泡＝两只气泡轮廓交叠、文件
+  夹＝闭合轮廓），在坞内约 20pt＋聊天截图压
+  缩下笔画密度天然读作偏实；同图的总览/设
+  置为开放线条、呈空心。两枚恰有 .fill 变体
+  存在，故截图本身不足以在「变体锁失效」与
+  「轮廓本密」间定案——终审归用户下一张原
+  图（放大看文件夹盖折线与气泡交叠留白），
+  本批不空口断言已修好、也不无据换点。
+
+### 29.7 抽屉复用结论
+
+- [x] 已复用：同一组件、四处同构挂载（29.3），
+  抽屉头尾钉住＋safeAreaBar 注册结构未动。
+
+### 29.8 交付记录（0.4.4）
+
+- 版本三处同改：Project.swift（MARKETING_
+  VERSION 0.4.4／CURRENT_PROJECT_VERSION 28／
+  Info.plist 字面量 CFBundleShortVersionString
+  0.4.4／CFBundleVersion 28）＋SettingsView 关
+  于区显示串 0.4.4（§25.7 假绿教训口径）
+- 代码提交 0291fc4（E11 四缘模糊层＋正文墨/
+  字号四处＋版本）；本回填为 docs-only 后随提
+  交，IPA 不受影响
+- CI run 42557645977 success（构建＋单测全绿；
+  workflow_dispatch 以 feat/ia-v3 触发。同
+  commit 另有一 run 42557741435 亦 success，
+  系派发命令重入的重复触发，工件同源、取前者
+  为交付口径）
+- 单测 127（与 0.4.3 同数：本批无新增纯逻辑，
+  模糊层参数与正文样式均为视图层字面量；日志
+  聚合行 "Executed 127 tests, with 0 failures"
+  实查）
+- IPA：your_files/oneday-v0.4.4/oneday-
+  unsigned.ipa，2,213,815 字节，md5 与 CI 工件
+  一致（1d1e95fed49e5f15c29d909971a32f41）
+- 解包验版：Payload/OneDayApp.app/Info.plist＝
+  CFBundleShortVersionString 0.4.4／CFBundle-
+  Version 28／bundle id site.didichou.oneday ✓
+- 未验证（如实标注）：四缘化开强度与 bottom-
+  Bar background 溢出是否被系统裁剪（29.3）、
+  正文笔芯/覆盖复量、图标两格原图判读、聊天
+  键盘四项——均无自动证据，归用户真机终审
