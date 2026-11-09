@@ -297,6 +297,35 @@ struct DemoHermesClient: HermesClientProtocol {
 
     func setActiveProfile(config: ServerConfig, name: String) async throws {}
 
+    /// 演示 soul：带「人设」「风格」两段标题的合成样本
+    /// （不放真实 soul 文本，数据设计 §2.4）
+    func profileSoul(
+        config: ServerConfig, name: String
+    ) async throws -> ProfileSoulDocument {
+        ProfileSoulDocument(
+            profileName: name,
+            content: """
+            # 人设
+            你是运行在这台自托管服务器上的智能体，熟悉主人的项目与设备，回答先给结论、再给依据。
+
+            # 风格
+            简洁直接，不绕弯；不确定的事明说不确定，不编造数字。
+            """,
+            updatedAt: nil,
+            rawMetadata: [:]
+        )
+    }
+
+    func updateProfileSoul(
+        config: ServerConfig, name: String, content: String
+    ) async throws {}
+
+    func computerUseStatus(
+        config: ServerConfig
+    ) async throws -> ComputerUseStatus {
+        ComputerUseStatus(readiness: .ready, raw: [:])
+    }
+
     // MARK: - 配置与密钥
 
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue] {

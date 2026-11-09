@@ -1,0 +1,141 @@
+import OneDayCore
+import XCTest
+
+/// write-gate 契约解码＋审核段状态机＋computer-use 宽容
+/// 提取（桥方案 §3／数据设计 §5、§6）：核心红线是诚实
+/// 三态——裸空列表不许冒充「无待批」，未知不许压成
+/// 未就绪，未知子系统不许开放裁决。
+final class HubGateAndBrowserTests: XCTestCase {
+    private let decoder = JSONDecoder()
+
+    func testGateStatusDecode() throws {
+        let status = try decoder.decode(WriteGateStatus.self, from: Data("""
+        {"supported": true, "gate": {"memory": true, "skills": false},
+         "counts": {"memory": 2, "skills": 0}}
+        """.utf8))
+        XCTAssertTrue(status.supported)
+        XCTAssertTrue(status.memoryGateEnabled)
+        XCTAssertFalse(status.skillsGateEnabled)
+        XCTAssertEqual(status.totalCount, 2)
+    }
+
+    func testRecordDecodeAndFallbackSummary() throws {
+        let record = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "abc", "subsystem": "skills", "action": "edit",
+         "summary": "", "origin": "background_review",
+         "created_at": "2026-11-09T02:00:00Z"}
+        """.utf8))
+        XCTAssertEqual(record.subsystem, .skills)
+        XCTAssertEqual(record.displaySummary, "修改一个技能")
+        XCTAssertEqual(record.originLabel, "后台自检")
+        XCTAssertTrue(record.canDecide)
+        XCTAssertNotNil(record.createdAt)
+    }
+
+    func testUnknownSubsystemCannotDecide() throws {
+        let record = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "x", "subsystem": "tools", "action": "run", "summary": "s",
+         "origin": "somewhere_new", "created_at": null}
+        """.utf8))
+        XCTAssertEqual(record.subsystem, .unknown)
+        XCTAssertFalse(record.canDecide)
+        // 未知来源回落原始值诚实呈现（实测枚举可扩展
+        // 口径）：不编造译名、卡不丢弃
+        XCTAssertEqual(record.originLabel, "somewhere_new")
+    }
+
+    /// origin 实测取值 assistant_tool（桥侧实测，取值域
+    /// 比上游 docstring 的 foreground/background 更宽）
+    func testOriginAssistantTool() throws {
+        let record = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "y", "subsystem": "memory", "action": "append",
+         "summary": "记一条", "origin": "assistant_tool",
+         "created_at": null}
+        """.utf8))
+        XCTAssertEqual(record.originLabel, "智能体工具调用")
+    }
+
+    func testSectionStateResolve() {
+        let off = WriteGateStatus(
+            supported: true, memoryGateEnabled: false,
+            skillsGateEnabled: false, memoryCount: 0, skillsCount: 0
+        )
+        XCTAssertEqual(
+            ApprovalSectionState.resolve(status: off, records: nil),
+            .gateDisabled
+        )
+        let on = WriteGateStatus(
+            supported: true, memoryGateEnabled: true,
+            skillsGateEnabled: false, memoryCount: 0, skillsCount: 0
+        )
+        // 闸门开＋空列表才是真「暂无待批」
+        XCTAssertEqual(
+            ApprovalSectionState.resolve(status: on, records: []),
+            .ready([])
+        )
+        // 无 status 证据只能落通道未接通，不许断言没开闸
+        XCTAssertEqual(
+            ApprovalSectionState.resolve(status: nil, records: []),
+            .bridgeUnavailable
+        )
+        let unsupported = WriteGateStatus(
+            supported: false, memoryGateEnabled: true,
+            skillsGateEnabled: true, memoryCount: 1, skillsCount: 1
+        )
+        XCTAssertEqual(
+            ApprovalSectionState.resolve(status: unsupported, records: []),
+            .bridgeUnavailable
+        )
+    }
+
+    func testReviewDisplayDiffFallback() throws {
+        let detail = try decoder.decode(WriteGateDetail.self, from: Data("""
+        {"record": {"id": "m1", "subsystem": "memory", "action": "append",
+                    "summary": "记一条", "origin": "chat",
+                    "created_at": "2026-11-09T02:00:00Z"},
+         "review": {"subsystem": "memory", "targetLabel": "memory",
+                    "language": "json", "current": "",
+                    "proposed": "{\\"k\\": 1}", "diff": "",
+                    "requestedOldString": null,
+                    "notes": [{"type": "patchOldStringMissing"}]}}
+        """.utf8))
+        // memory 的 diff 为空时回落 proposed（payload 文本）
+        XCTAssertEqual(detail.review.displayDiff, "{\"k\": 1}")
+        XCTAssertEqual(detail.review.noteLabels.count, 1)
+        XCTAssertTrue(detail.review.noteLabels[0].contains("定位文本已不存在"))
+    }
+
+    func testComputerUseExtraction() throws {
+        func readiness(_ json: String) throws -> ComputerUseReadiness {
+            try decoder.decode(ComputerUseStatus.self, from: Data(json.utf8))
+                .readiness
+        }
+        XCTAssertEqual(try readiness(#"{"ready": true}"#), .ready)
+        XCTAssertEqual(try readiness(#"{"status": "needs_permission"}"#), .notReady)
+        XCTAssertEqual(
+            try readiness(#"{"computer_use": {"available": false}}"#),
+            .notReady
+        )
+        // 子工具的 ready 不许冒充整体就绪（只进指定嵌套键）
+        XCTAssertEqual(
+            try readiness(#"{"other_tool": {"ready": true}}"#),
+            .unknown
+        )
+        // 200 空包络＝未确认，不压成未就绪
+        XCTAssertEqual(try readiness(#"{}"#), .unknown)
+    }
+
+    func testBrowserStateLines() {
+        let ready = BrowserHubState.statusOnly(
+            ComputerUseStatus(readiness: .ready, raw: [:]), checkedAt: Date()
+        )
+        XCTAssertEqual(ready.statusLine, "浏览器工具已就绪")
+        let unknown = BrowserHubState.statusOnly(
+            ComputerUseStatus(readiness: .unknown, raw: [:]), checkedAt: Date()
+        )
+        XCTAssertEqual(unknown.statusLine, "浏览器工具状态未确认")
+        XCTAssertEqual(
+            BrowserHubState.failed("x").statusLine, "浏览器工具状态读取失败"
+        )
+    }
+}

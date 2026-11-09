@@ -92,6 +92,16 @@ protocol HermesClientProtocol: Sendable {
     func activeProfileName(config: ServerConfig) async throws -> String?
     /// POST /api/profiles/active {name}
     func setActiveProfile(config: ServerConfig, name: String) async throws
+    /// GET /api/profiles/{name}/soul（回执 schema 未冻结，
+    /// ProfileSoulDocument 宽容解码；三期枢纽页身份段）
+    func profileSoul(config: ServerConfig, name: String) async throws -> ProfileSoulDocument
+    /// PUT /api/profiles/{name}/soul {content}（编辑由
+    /// ProfilesView 承载，枢纽页只读不调）
+    func updateProfileSoul(config: ServerConfig, name: String, content: String) async throws
+
+    /// GET /api/tools/computer-use/status（回执 schema
+    /// 未冻结，ComputerUseStatus 宽容提取；浏览器段留口）
+    func computerUseStatus(config: ServerConfig) async throws -> ComputerUseStatus
 
     /// GET /api/config 全量（动态 JSON，原样保留未知字段）
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue]
@@ -643,6 +653,46 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         try await sendJSON(
             config: config, path: "/api/profiles/active", method: "POST",
             endpoint: "档案切换", body: ["name": .string(name)]
+        )
+    }
+
+    /// profile 名按单个 path segment 百分号编码：profile
+    /// 名是用户可控字符串，不许把 "/" 等分隔符带进路径
+    /// （数据设计 §2.4；现有客户端多处直接插值 id，soul
+    /// 方法不复制这个缺口）
+    private func soulPath(name: String) -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = name.addingPercentEncoding(
+            withAllowedCharacters: allowed
+        ) ?? name
+        return "/api/profiles/\(encoded)/soul"
+    }
+
+    func profileSoul(
+        config: ServerConfig, name: String
+    ) async throws -> ProfileSoulDocument {
+        try await getJSON(
+            config: config, path: soulPath(name: name), endpoint: "档案人设"
+        )
+    }
+
+    func updateProfileSoul(
+        config: ServerConfig, name: String, content: String
+    ) async throws {
+        try await sendJSON(
+            config: config, path: soulPath(name: name), method: "PUT",
+            endpoint: "档案人设",
+            body: ["content": .string(content)]
+        )
+    }
+
+    func computerUseStatus(
+        config: ServerConfig
+    ) async throws -> ComputerUseStatus {
+        try await getJSON(
+            config: config, path: "/api/tools/computer-use/status",
+            endpoint: "电脑操作状态"
         )
     }
 
