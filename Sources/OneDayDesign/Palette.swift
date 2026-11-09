@@ -41,8 +41,41 @@ public enum Palette {
         }
     )
     public static let fieldFill = Color(.secondarySystemBackground)
-    public static let chatSurface = Color(.systemBackground)
-    public static let selectionFill = Color(.systemGray5)
+    // 聊天表面（0.4.1 第 10 修量测对齐）：回 §22 基线
+    // 量测值 #FCFCFC 字面直给——0.4.0 改挂 system-
+    // Background（纯白 #FFFFFF）与量测基线漂移，用户
+    // 10:30 逐像素采样点名面板底色与聊天表面同取此
+    // 值。暗色给纯中性 #1E1E1E 派生
+    public static let chatSurface = Color(
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(
+                    red: 0x1E / 255.0, green: 0x1E / 255.0,
+                    blue: 0x1E / 255.0, alpha: 1
+                )
+                : UIColor(
+                    red: 0xFC / 255.0, green: 0xFC / 255.0,
+                    blue: 0xFC / 255.0, alpha: 1
+                )
+        }
+    )
+    // 选中填充（0.4.1 第 10 修，与第 6 修同病同治）：
+    // 原挂 systemGray5、抽屉采样呈 #E6E5EB 紫灰——改
+    // 字面中性浅灰 #EEEFF1 直给，禁系统灰阶替代；暗
+    // 色给纯中性 #2E2E2E（与助手泡暗色同值、成家族）
+    public static let selectionFill = Color(
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(
+                    red: 0x2E / 255.0, green: 0x2E / 255.0,
+                    blue: 0x2E / 255.0, alpha: 1
+                )
+                : UIColor(
+                    red: 0xEE / 255.0, green: 0xEF / 255.0,
+                    blue: 0xF1 / 255.0, alpha: 1
+                )
+        }
+    )
     public static let floatFill = Color(.secondarySystemBackground)
     public static let userBubbleFill = Color(
         UIColor { traits in
@@ -58,11 +91,21 @@ public enum Palette {
         }
     )
 
+    // 抽屉纱（0.4.1 第 10 修量测对齐）：0.4.0 的白
+    // 0.55 在采样里近乎无纱（与面板同为 #FCFCFC 量
+    // 级）——改均匀浅灰白纱：#F4F4F6 @ 0.66（压在聊
+    // 天面上合成约 #F5F5F7、与采样量级合），模糊由
+    // 视图侧 ultraThinMaterial 承担（见 ChatView
+    // drawerOverlay），分离感靠纱不靠影。暗色维持
+    // 黑纱 0.50
     public static let scrim = Color(
         UIColor { traits in
             traits.userInterfaceStyle == .dark
                 ? UIColor.black.withAlphaComponent(0.50)
-                : UIColor.white.withAlphaComponent(0.55)
+                : UIColor(
+                    red: 0xF4 / 255.0, green: 0xF4 / 255.0,
+                    blue: 0xF6 / 255.0, alpha: 0.66
+                )
         }
     )
 
@@ -182,8 +225,9 @@ public enum OneDayMetrics {
     /// 抽屉左缘唤出热区宽（手势值：够拇指起滑、不挡正文滚动）
     public static let drawerEdgeZone: CGFloat = 24
     /// 抽屉宽占屏比（0.3.6 立宪 peek 口径约 79%；
-    /// 0.1.3 的 82% 整幅盖法作废，§21.5）
-    public static let drawerWidthFraction: CGFloat = 0.79
+    /// 0.4.1 第 10 修按用户逐像素采样改约 75%——
+    /// Muse 本体抽屉实测占比，§26.10）
+    public static let drawerWidthFraction: CGFloat = 0.75
     /// 抽屉宽上限（设备值，大屏不无限拉宽）
     public static let drawerMaxWidth: CGFloat = 340
     /// （tabBarZone 已于 0.4.0 删除，审计 §3.2：底栏回

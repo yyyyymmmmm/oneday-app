@@ -2649,3 +2649,42 @@ Body＝17pt Regular、行高 22；Headline 与 Body 同为
   Symbol 字形 .system(size:12, weight:.semibold)：
   图标笔画字重（框架字形口径、非文字），保留
 
+
+### 26.10 第 10 修：侧边栏量测对齐（用户 10:30 逐像素采样，细化第 2/8 修）
+
+目标值全部来自主代理对两张抽屉截图（Muse 本体 vs
+OneDay）的逐像素采样，逐项销账：
+
+- [x] 面板宽度：drawerWidthFraction 0.79 → 0.75
+- [x] 贴顶贴边：面板底色改穿上下安全区（状态栏压面
+  板之上）、四角归直角（0.3.6 右侧 28 大圆角 clip
+  退役、drawerCorner 令牌留表作废注记）；底部不设
+  硬边——会话栏底加系统 .scrollEdgeEffectStyle
+  (.soft, for: .bottom) 渐隐收尾
+- [x] 面板底色：Palette.chatSurface 回 §22 量测值
+  #FCFCFC 字面直给（0.4.0 改挂 systemBackground 纯
+  白 #FFFFFF 属漂移；暗色纯中性 #1E1E1E 派生）——
+  面板与聊天表面同值复归
+- [x] 右侧内容纱：下层 ultraThinMaterial 轻模糊＋
+  上层 Palette.scrim 纱色 #F4F4F6 @ 0.66（旧白
+  0.55 采样近乎无纱）；分离感靠纱不靠影
+- [x] 阴影收窄：旧黑 12%/半径 30/x 16（约 40pt 宽
+  软带）→ 黑 8%/半径 6/x 3（约 10pt 贴边窄影），
+  加右缘 0.5pt 发丝线（字面 #E3E3E3、向外衰减到
+  纱色由窄影承担）
+- [x] 选中填充：Palette.selectionFill 撤销 system-
+  Gray5 挂接（抽屉采样 #E6E5EB 紫灰，与第 6 修同
+  病）→ 字面中性 #EEEFF1（暗色 #2E2E2E）；导航行
+  与会话行同源同改；单测断言同步改钉字面值
+- [x] 底条玻璃化：圆钮与搜索胶囊撤白浮纸（灰实
+  填）→ .glassEffect(.regular) 近白玻璃＋发丝边
+  ＋轻柔影（黑 6%/半径 8/y 2），随单栏滚到真底
+  部、下方接滚动边缘柔效渐隐
+- [x] 分组节奏：会话各组之间、本地组与「其他会
+  话」组之间补发丝分隔线（drawerDivider 同式）——
+  0.3.8 第 21 条纯留白分段就此推翻
+- [x] 副题翻译：SessionDisplay.sourceLabel 的
+  api_server 由「API 接口」改「其他应用」（未翻
+  译原状态、违反数据先翻译红线，用户点名）；
+  ServerLabels.platformName 同名词是平台管理面
+  口径（命名服务端组件本身）、不在此列、未动

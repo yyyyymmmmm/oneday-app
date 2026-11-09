@@ -1433,11 +1433,17 @@ private struct ComposerBarLayout: Layout {
         let offsetX = base + drawerFollowedDrag(width: width)
         // 纱面透明度随开合进度走，拖动时不跳变
         let progress = 1 - min(max(-offsetX, 0), width) / width
-        // 遮罩走 Palette.scrim（0.3.6 立宪：白色半透纱、
-        // 非黑纱，§22；全开 alpha 在令牌表行内）；纱与
-        // 面板底色都向下穿过安全区、盖住主面底缘
-        Palette.scrim
-            .ignoresSafeArea(edges: .bottom)
+        // 遮罩（0.4.1 第 10 修量测对齐）：均匀浅灰白纱
+        // ＋轻模糊——下层系统 ultraThinMaterial 给模糊、
+        // 上层 Palette.scrim 给纱色（#F4F4F6 @ 0.66）；
+        // 分离感靠纱不靠影。纱面上下穿过安全区、盖住
+        // 主面顶底缘（与面板贴顶贴底同口径）
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+            Palette.scrim
+        }
+            .ignoresSafeArea(edges: [.top, .bottom])
             .opacity(progress)
             .allowsHitTesting(drawerOpen)
             .onTapGesture { setDrawer(false) }
@@ -1485,28 +1491,43 @@ private struct ComposerBarLayout: Layout {
                 )
             }
             .scrollDismissesKeyboard(.interactively)
+            // 底部渐隐（0.4.1 第 10 修）：内容滚到栏底
+            // 时以系统滚动边缘柔效淡出、不设硬边——
+            // 「不设硬边＋圆角收尾改渐隐」的系统落点
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
-        // 面板底色穿过底部安全区（条下不露主面色带）
+        // 面板底色穿过上下安全区（0.4.1 第 10 修：顶边
+        // 贴到屏幕顶——状态栏压面板之上、左缘贴边，
+        // 不再上下悬浮卡片式留白；条下不露主面色带）
         .background {
-            Palette.chatSurface.ignoresSafeArea(edges: .bottom)
+            Palette.chatSurface
+                .ignoresSafeArea(edges: [.top, .bottom])
         }
-        // 面板收尾（0.3.6 立宪，§21.3）：右侧上下大圆角
-        // ＋右缘约 30pt 柔影（浮动件许阴影，宪法三条一）
-        .clipShape(
-            UnevenRoundedRectangle(
-                bottomTrailingRadius: OneDayMetrics.drawerCorner,
-                topTrailingRadius: OneDayMetrics.drawerCorner,
-                style: .continuous
-            )
-        )
-        // 0.4.0（§1.1）：Elevation 整表废止，全仓仅此一处
-        // 保留阴影——抽屉例外 E5 的系统近似档内联（右缘
-        // 柔影：黑 12%、半径 30、x 偏移 16），不再成表
+        // 面板收尾（0.4.1 第 10 修，推翻 0.3.6 的右侧
+        // 大圆角）：四角归直角贴边；右缘只留一线发丝
+        // 边（采样 #E3E3E3）＋贴边窄影（黑 8%、半径
+        // 6、x 3——旧 12%/30/16 的约 40pt 宽软带收窄
+        // 到约 10pt、向外快速衰减到纱色），分离感主
+        // 靠纱（见 drawerOverlay）、影只作贴边一线
+        .clipShape(Rectangle())
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color(UIColor { traits in
+                    traits.userInterfaceStyle == .dark
+                        ? UIColor.white.withAlphaComponent(0.10)
+                        : UIColor(
+                            red: 0xE3 / 255.0, green: 0xE3 / 255.0,
+                            blue: 0xE3 / 255.0, alpha: 1
+                        )
+                }))
+                .frame(width: 0.5)
+                .ignoresSafeArea(edges: [.top, .bottom])
+        }
         .shadow(
-            color: Palette.shadowBase.opacity(0.12),
-            radius: 30, x: 16, y: 0
+            color: Palette.shadowBase.opacity(0.08),
+            radius: 6, x: 3, y: 0
         )
         .alert(
             "重命名会话",
@@ -1671,8 +1692,20 @@ private struct ComposerBarLayout: Layout {
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .frame(height: OneDayMetrics.drawerBarButton)
-            // 0.3.8 第 25 条：搜索胶囊换白浮纸（与圆钮同改）
-            .odFloatPaper(in: Capsule())
+            // 0.4.1 第 10 修：白浮纸（灰实填）换近白玻
+            // 璃（与圆钮同改）——.glassEffect(.regular)
+            // 系统玻璃（压在 #FCFCFC 面板上采样约
+            // #F9F9F9）＋发丝边＋轻柔影；与发送舱同式
+            // （玻璃施加于件本体、内容在其上）
+            .glassEffect(.regular, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Palette.hairline, lineWidth: 0.5)
+            }
+            .shadow(
+                color: Palette.shadowBase.opacity(0.06),
+                radius: 8, y: 2
+            )
             drawerRoundButton(
                 systemName: "square.and.pencil",
                 label: "新建会话"
@@ -1718,8 +1751,17 @@ private struct ComposerBarLayout: Layout {
                     width: OneDayMetrics.drawerBarButton,
                     height: OneDayMetrics.drawerBarButton
                 )
-                // 第 25 条：灰填充扁片（#F2F1F6）换白浮纸
-                .odFloatPaper(in: Circle())
+                // 0.4.1 第 10 修：白浮纸换近白玻璃（与
+                // 搜索胶囊同改，口径见彼处注）
+                .glassEffect(.regular, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(Palette.hairline, lineWidth: 0.5)
+                }
+                .shadow(
+                    color: Palette.shadowBase.opacity(0.06),
+                    radius: 8, y: 2
+                )
                 .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
@@ -1792,10 +1834,16 @@ private struct ComposerBarLayout: Layout {
                 ForEach(
                     Array(threadGroups.enumerated()),
                     id: \.element.label
-                ) { _, group in
-                    // 0.3.8 第 21 条：会话区组间不再划发丝
-                    // 线——只留白分段（组标题自带上下边距）；
-                    // 发丝线只留导航↔会话的功能区边界一处
+                ) { index, group in
+                    // 0.4.1 第 10 修：组间补发丝分隔线
+                    // （0.3.8 第 21 条的纯留白分段被用户
+                    // 逐项对比点名推翻——导航组与会话组
+                    // 之间、会话各组之间都要线，节奏与
+                    // 导航组下那条同式）
+                    if index > 0 {
+                        drawerDivider
+                            .padding(.top, OneDayMetrics.spacingS)
+                    }
                     drawerGroupHeader(group.label)
                     ForEach(group.threads) { thread in
                         drawerThreadRow(thread)
@@ -1803,10 +1851,15 @@ private struct ComposerBarLayout: Layout {
                 }
             }
             if !drawerServerSessions.isEmpty {
-                // 第 21 条：与本地组之间同样只留白分段；
-                // 第 18 条：组名改人话——「服务端会话」是
-                // 实现口径，改「其他会话」（这些是在别处
-                // 开的会话，不是本机这台开的）
+                // 第 10 修：与本地组之间同补发丝线（本
+                // 地组在场时）；第 18 条：组名改人话——
+                // 「服务端会话」是实现口径，改「其他会
+                // 话」（这些是在别处开的会话，不是本机
+                // 这台开的）
+                if !filteredThreads.isEmpty {
+                    drawerDivider
+                        .padding(.top, OneDayMetrics.spacingS)
+                }
                 drawerGroupHeader("其他会话")
                 ForEach(drawerServerSessions) { session in
                     drawerServerSessionRow(session)

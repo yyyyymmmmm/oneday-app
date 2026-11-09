@@ -33,7 +33,13 @@ public extension ServerSession {
     /// 来源的人话标签（原始标识不上屏）
     var sourceLabel: String {
         switch source?.lowercased() {
-        case "api_server": return "API 接口"
+        // 0.4.1 第 10 修：「API 接口」仍是未翻译的
+        // 实现口径（用户点名、违反数据先翻译红线）——
+        // 经接口从别的应用/设备开的会话，人话说「其
+        // 他应用」；ServerLabels.platformName 的同名
+        // 词是平台管理面口径（命名服务端组件本身）、
+        // 不在此列
+        case "api_server": return "其他应用"
         case "dashboard": return "控制台"
         case "cli": return "命令行"
         case "cron", "cron_job", "scheduler": return "定时任务"

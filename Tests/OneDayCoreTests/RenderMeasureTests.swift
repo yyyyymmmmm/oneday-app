@@ -225,7 +225,7 @@ final class RenderMeasureTests: XCTestCase {
     /// §22 量测的近中性冷灰原貌；systemGray5/6 的
     /// B−R＝5/255、过不了这条，阈值取 4 分辨两者）；
     /// ③深浅档差在（浅色助手深于用户）。selectionFill
-    /// 非气泡、维持系统灰阶挂接不变
+    /// 随第 10 修一并钉字面值（见本测试尾断言）
     func testBubbleColorsAreSealedNeutralGrays() {
         let light = UITraitCollection(userInterfaceStyle: .light)
         let dark = UITraitCollection(userInterfaceStyle: .dark)
@@ -264,9 +264,14 @@ final class RenderMeasureTests: XCTestCase {
         UIColor(Palette.userBubbleFill).resolvedColor(with: light)
             .getRed(&userR, green: &uG, blue: &uB, alpha: &uA)
         XCTAssertLessThan(assistantR, userR, "浅色下助手泡须深于用户泡")
+        // selectionFill（0.4.1 第 10 修）：同病同治，
+        // 撤销 systemGray5 挂接、钉字面中性 #EEEFF1
         XCTAssertEqual(
             UIColor(Palette.selectionFill).resolvedColor(with: light),
-            UIColor.systemGray5.resolvedColor(with: light)
+            UIColor(
+                red: 0xEE / 255.0, green: 0xEF / 255.0,
+                blue: 0xF1 / 255.0, alpha: 1
+            )
         )
     }
 }
