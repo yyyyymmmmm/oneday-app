@@ -75,30 +75,12 @@ public struct ComputerUseStatus: Decodable, Sendable, Equatable {
     }
 }
 
-/// 浏览器段留口状态（数据设计 §6.4）：留口期只有状态行
-/// 一种内容——不显示任务计数、不放 + 钮、不生成任务行。
-public enum BrowserHubState: Equatable, Sendable {
-    case loading
-    case statusOnly(ComputerUseStatus, checkedAt: Date)
-    case failed(String)
-
-    /// 状态行人话（与就绪态严格对应，未知不压成未就绪、
-    /// 失败不回落 ready）
-    public var statusLine: String {
-        switch self {
-        case .loading:
-            return "正在确认浏览器工具状态…"
-        case .statusOnly(let status, _):
-            switch status.readiness {
-            case .ready: return "浏览器工具已就绪"
-            case .notReady: return "浏览器工具未就绪"
-            case .unknown: return "浏览器工具状态未确认"
-            }
-        case .failed:
-            return "浏览器工具状态读取失败"
-        }
-    }
-}
+/// 浏览器段状态机已于 0.9.0（P2）迁往盒桥口径
+/// （BoxBridgeHubState，见 BoxBridgeModels）：原
+/// BrowserHubState 读的是 9119 computer-use 错位源
+/// （本机桌面自动化、恒未就绪），就此退役；
+/// ComputerUseStatus 本体保留，供设置详情如实标注
+/// 本机桌面自动化状态，不再冒充浏览器状态。
 
 /// 浏览器任务保留模型（边界定义，不参与 v1 解码）：
 /// 后端任务记录接口定稿前不接任何数据源，尤其不能从

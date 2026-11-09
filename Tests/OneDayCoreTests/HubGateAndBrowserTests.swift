@@ -125,17 +125,8 @@ final class HubGateAndBrowserTests: XCTestCase {
         XCTAssertEqual(try readiness(#"{}"#), .unknown)
     }
 
-    func testBrowserStateLines() {
-        let ready = BrowserHubState.statusOnly(
-            ComputerUseStatus(readiness: .ready, raw: [:]), checkedAt: Date()
-        )
-        XCTAssertEqual(ready.statusLine, "浏览器工具已就绪")
-        let unknown = BrowserHubState.statusOnly(
-            ComputerUseStatus(readiness: .unknown, raw: [:]), checkedAt: Date()
-        )
-        XCTAssertEqual(unknown.statusLine, "浏览器工具状态未确认")
-        XCTAssertEqual(
-            BrowserHubState.failed("x").statusLine, "浏览器工具状态读取失败"
-        )
-    }
+    // 浏览器段状态行测试已随 0.9.0 改源迁往
+    // BoxBridgeTests（BrowserHubState 读 9119 错位源、
+    // 已退役）；本文件的 computer-use 宽容提取测试
+    // 保留——该端点仍供设置详情如实标注本机状态。
 }

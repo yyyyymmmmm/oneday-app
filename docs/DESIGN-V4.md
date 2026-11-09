@@ -3789,3 +3789,15 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 - 顺带修复（实查出的接线缺口）：HermesClient.chatStream 此前手工拼 role/content 两字段，多模态消息的 image_url parts 在出门前被丢弃——0.6.1 起模型层已落地的发图能力实际从未发出。本批改按 ChatMessage 的 Codable 形态序列化消息体，parts 随请求出门；纯文本形态与旧拼法逐字等价。
 - 历史导入改 richItems：工具卡与图片路径随消息落盘呈现；标题仍走旧 importableEntries 口径。滚动锚/轻保活按 entry id 工作、对卡条目无感。
 - 发版 0.8.0 / build 36（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。
+
+## §35 0.9.0 批（P2 浏览器 App 侧接线，2026-11-09）
+
+规格＝full-build-program §4.3 打通路径（用户 15:23 硬验收项：浏览器页面可以看到内容、可以接管）；服务端契约＝box-bridge-rollout-20261109.md（盒桥已上线，本批不改服务器）。视觉按《设计标准》§5.7/§7-P2 与 0.6.1 基线令牌：整屏预览 aspect 1.6、圆角 12、接管态顶条 ink 底白字。
+
+- 状态改源：浏览器状态面从 9119 /api/tools/computer-use/status（本机桌面自动化、恒未就绪的错位源）改读盒桥 GET /status。AgentHubStore 的 browserState/loadBrowserIfNeeded/reloadBrowser 整组退役，BrowserHubState 随之删除（ComputerUseStatus 本体保留供设置详情如实标注本机状态）。桥未连接（无钥匙/401）落 BoxBridgeHubState.bridgeUnavailable 露「桥未连接」并回写 AppState.overviewBridgeAuthFailed 旗（同一把钥匙、0.7.0 口径），不许显示成电脑离线。
+- 契约模型（Core BoxBridgeModels.swift 全纯逻辑＋单测）：BoxBridgeStatus 按 rollout 形状解码——creditsLeft 当前计划恒 null、只解码不编造（有值才显示额度行）；页面呈现三态 BoxPagePresentation（活读／最后确认＋时刻／无），活读落空只许退 lastKnownPage 且副行带「最后确认于 HH:mm」，不许冒充实时；状态词只对实测原生值给译名（running/hibernated），其余「未运行」。
+- 看页面：BrowserFaceView（枢纽浏览器段与应用格「浏览器」页共用一面）呈现盒桥 POST /screenshot 的真实 JPEG（1024×640），点开复用 0.8.0 ImageFullScreenView 全屏查看；轮询＝面可见时 10 秒一轮（状态＋运行中截图），面消失 .task 自动取消（退后台即停）；休眠不自动唤醒（省额度），露「唤醒并查看」手动钮；截图失败且有旧图时明示「显示的是上一张」。
+- 能接管：接管态顶条（ink 底白字「接管中 · 智能体已暂停」＋交还钮）——单桌面无锁原语，互斥是产品层约定（施工图 §4.3③）：接管中停自动轮询、不抢图；任务派发层的真暂停随 P3 任务桥联动，本面先立呈现与通道。动作走 POST /act 一动作一回图：点按画面（SpatialTapGesture 取点→BoxCoordinateMapper 换算到截图像素系，letterbox 黑边点按落空不误译）、地址栏前往（BoxAddressText 规范化：裸域名补 https）、输入文字、回车/退格/Esc 三键（键名 Enter/Backspace/Escape 为透传给 computer_act 的通行写法，厂商键名表未冻结——待真机验收校准）。动作失败桥错误原样落行内提示、旧图保留不变黑。
+- 客户端：BoxBridgeClient 仿 OverviewBridgeClient（Bearer 只读 Keychain writeGateKey、零新增粘贴；状态 20 秒超时、截图/接管 100 秒——唤醒＋回图慢，nginx 上限 120 秒之内）。BoxBridgeStore 自持于面内（枢纽段与应用页各自实例、只在所属面可见时轮询）。
+- 入口：应用格「工具」组新增「浏览器」行（AppsPage.browser），枢纽段 HubBrowserSection 改为直挂共用面；HermesClient.computerUseStatus 端点保留不删（设置详情源）。
+- 发版 0.9.0 / build 37（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。

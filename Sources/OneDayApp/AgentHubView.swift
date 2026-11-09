@@ -116,7 +116,7 @@ struct AgentHubView: View {
         case .approval:
             await store.loadApproval()
         case .browser:
-            await store.loadBrowserIfNeeded()
+            break // 0.9.0：浏览器面自带盒桥轮询（面内 .task 驱动）
         case .cron:
             await store.loadCronIfNeeded()
         case .identity:
@@ -318,7 +318,7 @@ struct AgentHubView: View {
         case .approval:
             HubApprovalSection(store: store)
         case .browser:
-            HubBrowserSection(store: store)
+            HubBrowserSection()
         case .cron:
             HubCronSection(store: store)
         case .identity:

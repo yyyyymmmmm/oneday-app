@@ -1,32 +1,13 @@
-import OneDayCore
-import OneDayDesign
 import SwiftUI
 
-/// 枢纽页浏览器段（规格 §3.3，用户定案：留口）：段位
-/// 保留、内容只有系统空态＋一行 computer-use 就绪状态。
-/// 不显示任务计数、不放 + 钮、不生成任务行——后端任务
-/// 记录接口不存在，任何计数表达都是冒充（数据设计 §6）。
+/// 枢纽页浏览器段（0.9.0 P2 转正）：与应用格「浏览器」
+/// 页共用同一面 BrowserFaceView——状态读盒桥、画面是
+/// 云电脑真实截图、可接管。原留口形态（系统空态＋
+/// 9119 computer-use 就绪行）随错位源一并退役：
+/// computer-use 是本机桌面自动化状态，与 Box 浏览器
+/// 能力无关，继续读它状态行永远是错的（施工图 §4.3）。
 struct HubBrowserSection: View {
-    let store: AgentHubStore
-
     var body: some View {
-        switch store.browserState {
-        case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .statusOnly, .failed:
-            ContentUnavailableView {
-                Label("暂无浏览器任务", systemImage: "display")
-            } description: {
-                Text(store.browserState.statusLine)
-            } actions: {
-                if case .failed = store.browserState {
-                    Button("重试") {
-                        Task { await store.reloadBrowser() }
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-        }
+        BrowserFaceView()
     }
 }

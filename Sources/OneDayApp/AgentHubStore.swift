@@ -113,9 +113,9 @@ final class AgentHubStore {
     /// 卡内行内提示（409 变化提示/裁决失败人话）
     private(set) var cardNotes: [String: String] = [:]
 
-    // MARK: - 浏览器段
-
-    private(set) var browserState: BrowserHubState = .loading
+    // 浏览器段已于 0.9.0 迁出本 Store：状态改读盒桥，
+    // 由 BrowserFaceView 自持 BoxBridgeStore（见
+    // HubBrowserSection），本 Store 不再留错位源状态。
 
     // MARK: - 初始加载（页头＋活动段）
 
@@ -468,26 +468,4 @@ final class AgentHubStore {
         onApprovalChanged?()
     }
 
-    // MARK: - 浏览器段（懒加载）
-
-    private var browserLoaded = false
-
-    func loadBrowserIfNeeded() async {
-        guard !browserLoaded else { return }
-        browserLoaded = true
-        do {
-            let status = try await appState.performAdmin { client, config in
-                try await client.computerUseStatus(config: config)
-            }
-            browserState = .statusOnly(status, checkedAt: Date())
-        } catch {
-            browserState = .failed("浏览器工具状态读取失败")
-        }
-    }
-
-    func reloadBrowser() async {
-        browserLoaded = false
-        browserState = .loading
-        await loadBrowserIfNeeded()
-    }
 }

@@ -18,6 +18,8 @@ enum AppsPage: Hashable {
     case overview
     case files
     case settings
+    /// 0.9.0（P2）：浏览器页（盒桥：看页面＋接管）
+    case browser
 }
 
 enum SettingsRoute: Hashable {

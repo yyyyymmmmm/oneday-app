@@ -6,9 +6,10 @@ import SwiftUI
 /// OpenMuse 应用页转译为原生 List——入口行＝图标牌＋
 /// 标题＋一句事实副题＋披露箭头，分「工具」与「连接」
 /// 两组。只挂真实存在、已有页面直达的入口：总览、
-/// 文件、设置；未部署能力（浏览器/电脑）不出现。
-/// 内页面（总览/文件/设置）各自带「应用」返回钮回本页
-/// 首页（各页既有 NavigationStack 不动，不套娃）。
+/// 文件、设置；浏览器于 0.9.0（P2 盒桥）转正入列，
+/// 电脑整屏（P9）仍未部署、不出现。
+/// 内页面（总览/文件/设置/浏览器）各自带「应用」返回
+/// 钮回本页首页（各页既有 NavigationStack 不动，不套娃）。
 struct AppsView: View {
     var onOpenChat: () -> Void = {}
 
@@ -38,6 +39,8 @@ struct AppsView: View {
                 )
             case .files:
                 FilesView(onBackToApps: { page = .home })
+            case .browser:
+                BrowserView(onBackToApps: { page = .home })
             case .settings:
                 SettingsView(onBackToApps: { page = .home })
             }
@@ -68,6 +71,7 @@ struct AppsView: View {
                         page: .files, pair: TabBarSymbols.files,
                         subtitle: "智能体生成的文件与影音"
                     )
+                    browserEntryRow
                     entryRow(
                         page: .settings, pair: TabBarSymbols.settings,
                         subtitle: "服务器、模型与智能体"
@@ -140,6 +144,35 @@ struct AppsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(pair.title)
+    }
+
+    /// 浏览器入口行（0.9.0 转正）：符号表暂无浏览器
+    /// 对位符号对，走与「当前服务器」行同式的自组行
+    private var browserEntryRow: some View {
+        Button {
+            page = .browser
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                entryIcon("globe")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("浏览器")
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                    Text("云电脑中的浏览器")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Palette.inkMuted)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("浏览器")
     }
 
     /// 入口图标牌（OpenMuse 工具行形态的原生转译）：
