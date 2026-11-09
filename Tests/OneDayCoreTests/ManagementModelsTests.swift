@@ -153,14 +153,14 @@ final class ManagementModelsTests: XCTestCase {
     func testHubPreviewContentKeyVariants() throws {
         let content = try decode(
             HubPreview.self,
-            #"{"identifier":"official/a/b","content":"# 正文","files":["SKILL.md","refs/x.md"]}"#
+            ##"{"identifier":"official/a/b","content":"# 正文","files":["SKILL.md","refs/x.md"]}"##
         )
         XCTAssertTrue(content.hasContent)
         XCTAssertEqual(content.files, ["SKILL.md", "refs/x.md"])
 
         let skillMD = try decode(
             HubPreview.self,
-            #"{"skill_md":"# 另一键名","files":[{"path":"SKILL.md"},{"name":"extra.md"}]}"#
+            ##"{"skill_md":"# 另一键名","files":[{"path":"SKILL.md"},{"name":"extra.md"}]}"##
         )
         XCTAssertEqual(skillMD.content, "# 另一键名")
         XCTAssertEqual(skillMD.files, ["SKILL.md", "extra.md"])
