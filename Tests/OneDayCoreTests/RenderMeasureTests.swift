@@ -220,11 +220,12 @@ final class RenderMeasureTests: XCTestCase {
     /// 0.4.0 曾把气泡两色改挂 systemGray5/6，用户真机
     /// 判「发紫灰、深浅难分」——本版回封存中性灰直给。
     /// 钉三件事：①浅色解析值逐一等于封存 hex（助手
-    /// #E9EAEC／用户 #F0F0F2）；②中性无色偏（浅暗两
-    /// 环境下 |R−B| 都 ≤2/255，systemGray 的蓝紫倾向
-    /// 约 5/255 起、过不了这条）；③深浅档差在（浅色
-    /// 助手深于用户）。selectionFill 非气泡、维持系统
-    /// 灰阶挂接不变
+    /// #E9EAEC／用户 #F0F0F2）；②近中性（浅暗两环境
+    /// 下 |R−B|≤4/255——封存值自身 B−R＝3/255，是
+    /// §22 量测的近中性冷灰原貌；systemGray5/6 的
+    /// B−R＝5/255、过不了这条，阈值取 4 分辨两者）；
+    /// ③深浅档差在（浅色助手深于用户）。selectionFill
+    /// 非气泡、维持系统灰阶挂接不变
     func testBubbleColorsAreSealedNeutralGrays() {
         let light = UITraitCollection(userInterfaceStyle: .light)
         let dark = UITraitCollection(userInterfaceStyle: .dark)
@@ -249,7 +250,7 @@ final class RenderMeasureTests: XCTestCase {
                 UIColor(color).resolvedColor(with: traits)
                     .getRed(&r, green: &g, blue: &b, alpha: &a)
                 XCTAssertLessThanOrEqual(
-                    abs(r - b), 2.0 / 255.0,
+                    abs(r - b), 4.0 / 255.0,
                     "气泡色不许带蓝紫倾向（R 与 B 分量差超限）"
                 )
             }
