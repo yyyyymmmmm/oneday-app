@@ -431,18 +431,26 @@ public extension View {
 /// 身份锚点（基线补遗增量令 1＋fixlist 第 30 条）：智能
 /// 体即界面——头像＋名字＋状态一枚胶囊，一级页（聊天/
 /// 总览/文件/状态）顶部统一悬浮、切页锚点不动；页大标
-/// 题退到锚点之下。胶囊只装身份三件，模型选择器等其
-/// 他控件不许塞进来（第 30 条裁决布局）
+/// 题退到锚点之下。
+/// 0.4.0 A 案（审计 §3.3，用户 09:11 点选）：推翻第 30
+/// 条「模型不许塞进来」——聊天页传 modelName 时胶囊尾
+/// 部并入模型段（分隔线＋模型名＋chevron），一颗装身
+/// 份＋状态＋模型；总览/文件页不传、维持身份三件
 public struct IdentityAnchor: View {
     private let name: String
     private let statusWord: String
     private let statusColor: Color
+    private let modelName: String?
     @Environment(\.colorScheme) private var colorScheme
 
-    public init(name: String, statusWord: String, statusColor: Color) {
+    public init(
+        name: String, statusWord: String, statusColor: Color,
+        modelName: String? = nil
+    ) {
         self.name = name
         self.statusWord = statusWord
         self.statusColor = statusColor
+        self.modelName = modelName
     }
 
     public var body: some View {
@@ -465,12 +473,30 @@ public struct IdentityAnchor: View {
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             }
+            // A 案模型段（0.4.0，§3.3）：仅聊天页传入时出现
+            if let modelName {
+                Rectangle()
+                    .fill(Palette.hairline)
+                    .frame(width: 0.5, height: 18)
+                HStack(spacing: 3) {
+                    Text(modelName)
+                        .font(.callout)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.vertical, 7)
         .odFloatPaper(in: Capsule())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name)，\(statusWord)")
+        .accessibilityLabel(
+            modelName.map { "\(name)，\(statusWord)，当前模型 \($0)" }
+                ?? "\(name)，\(statusWord)"
+        )
     }
 }
 

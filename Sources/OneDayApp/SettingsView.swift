@@ -155,19 +155,9 @@ struct SettingsView: View {
                             )
                         }
                     }
-                    // 0.3.8 第 6/11 条：副题只留模型显示名
-                    // ——原始 id（deepseek-flash）经
-                    // ModelDisplayNames 翻译，与聊天页同名；
-                    // host 与下方服务器行重复、本行撤下
-                    // （全页 URL 只留服务器行一处）
-                    Text(
-                        ModelDisplayNames.identityLabel(
-                            for: appState.defaultModel ?? appState.modelID
-                        )
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
+                    // 0.4.0（审计 §3.3 #2）：身份头模型副行
+                    // 撤除——模型露头全 App 只许聊天页胶囊
+                    // 一处（A 案），身份头只留名＋状态点
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
             }
@@ -308,10 +298,11 @@ struct SettingsView: View {
     private var modelSection: some View {
         Section {
             navRow(
-                icon: "text.bubble", title: "对话模型",
-                // 0.3.8 第 6 条：值走 ModelDisplayNames（显
-                // 示名不是标识符，mono 撤销）；原始 id 只
-                // 进对话模型详情页
+                icon: "text.bubble", title: "服务端默认模型",
+                // 0.4.0（审计 §3.3 #3）：原「对话模型」改名
+                // ——本行管理的是服务端默认，与聊天页胶囊
+                // 的本机逐请求模型是两回事，改名防混淆；
+                // 值走显示名映射（行撤值归二期，本期只改名）
                 value: ModelDisplayNames.identityLabel(
                     for: appState.defaultModel ?? appState.modelID
                 ),

@@ -302,7 +302,9 @@ struct CronJobDetailView: View {
                 if let model = current.model, !model.isEmpty {
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     LabeledContent("模型") {
-                        Text(model)
+                        // 0.4.0（审计 §3.3 #7）：只读行走显示
+                        // 名映射，未知 id 回落原文
+                        Text(ModelDisplayNames.displayName(for: model) ?? model)
                             .font(.system(.callout, design: .monospaced))
                     }
                 }

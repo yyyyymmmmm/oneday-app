@@ -384,7 +384,9 @@ struct ModelSettingsView: View {
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
-        .navigationTitle("对话模型")
+        // 0.4.0（审计 §3.3 #5）：页名与设置行同口径改
+        // 「服务端默认模型」，明示本页语义
+        .navigationTitle("服务端默认模型")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
@@ -428,7 +430,14 @@ struct ModelSettingsView: View {
 
     private var currentGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("当前默认模型")
+            SectionLabel("服务端默认模型")
+                .padding(.bottom, OneDayMetrics.spacingS)
+            // 0.4.0（审计 §3.3 #5）：页内语义明示——此值是
+            // 服务端新会话的默认，与聊天页胶囊里本机逐请
+            // 求选择的模型相互独立
+            Text("服务端新会话的默认模型；聊天时实际用的模型由聊天页顶栏胶囊决定。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 HStack(spacing: OneDayMetrics.spacingSM) {

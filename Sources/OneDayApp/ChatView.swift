@@ -73,7 +73,7 @@ struct ChatView: View {
     @State private var composerFocused = false
     @State private var composerFocusHandle = ComposerFocusHandle()
     /// 0.2.2：模型选择器（顶栏副题点开，列表服务端拉取）
-    @State private var showModelPicker = false
+    @State private var showModelSettings = false
     /// 抽屉服务端会话组的数据（开抽屉时拉取）
     @State private var drawerServerSessions: [ServerSession] = []
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
@@ -228,9 +228,19 @@ struct ChatView: View {
         .task {
             await appState.refreshModelCatalog()
         }
-        .sheet(isPresented: $showModelPicker) {
-            ModelPickerSheet()
-                .presentationDetents([.medium])
+        // 0.4.0（审计 §3.3）：点身份胶囊暂跳现有模型设置
+        // 路径——sheet 内开 ModelSettingsView（服务端默认
+        // 模型管理面）；三期枢纽页建成后胶囊点按改开枢纽
+        // 页（审计 §5），届时换此呈现内容即可
+        .sheet(isPresented: $showModelSettings) {
+            NavigationStack {
+                ModelSettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("关闭") { showModelSettings = false }
+                        }
+                    }
+            }
         }
     }
 
@@ -249,10 +259,10 @@ struct ChatView: View {
         return ("在线", Palette.success)
     }
 
-    /// 悬浮顶栏（0.3.8 第 30/31 条按裁决布局重排）：身份
-    /// 胶囊只装头像＋Hermes＋状态（IdentityAnchor 全局同
-    /// 一组件），模型选择器缩成它右侧的小胶囊，会话名退
-    /// 到胶囊下方次行居中呈现；左右圆钮走白浮纸画法。
+    /// 悬浮顶栏（0.3.8 第 30/31 条布局，0.4.0 A 案改）：
+    /// 身份胶囊一颗装头像＋Hermes＋状态＋模型（§3.3，
+    /// 小模型胶囊撤除），会话名退到胶囊下方次行居中呈
+    /// 现；左右圆钮走白浮纸画法。
     /// 左钮字形改汉堡线（第 31 条：与抽屉的隐喻对齐，
     /// 「分栏」图标 sidebar.left 退场）。顶栏总高约
     /// 40＋次行 18，比 0.3.7 的两行胶囊更紧凑（旧胶囊
@@ -283,30 +293,23 @@ struct ChatView: View {
 
                 Spacer()
 
-                HStack(spacing: OneDayMetrics.spacingS) {
+                // 0.4.0 A 案（审计 §3.3，用户点选）：右侧小
+                // 模型胶囊撤除，模型并入 IdentityAnchor 一
+                // 颗（头像＋Hermes＋状态＋分隔＋模型名＋
+                // chevron）；点整颗胶囊打开模型设置路径
+                // （三期改开枢纽页，见 body 的 sheet 注释）
+                Button {
+                    showModelSettings = true
+                } label: {
                     IdentityAnchor(
                         name: "Hermes",
                         statusWord: identityStatus.word,
-                        statusColor: identityStatus.color
+                        statusColor: identityStatus.color,
+                        modelName: displayModelName
                     )
-                    Button {
-                        showModelPicker = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(displayModelName)
-                                .font(.callout)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .bold))
-                        }
-                        .foregroundStyle(Palette.ink)
-                        .padding(.horizontal, OneDayMetrics.spacingSM)
-                        .padding(.vertical, 9)
-                        .odFloatPaper(in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("切换模型，当前 \(displayModelName)")
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Hermes，\(identityStatus.word)，当前模型 \(displayModelName)，打开模型设置")
 
                 Spacer()
 
@@ -2187,82 +2190,3 @@ private struct TypingDots: View {
 
 /// 流式光标已移至 StreamingText.swift（与流式渐显组件
 /// 同文件，文末词元同流排布）。
-
-
-/// 模型选择器（0.3.0 接线，DESIGN-V4 §15）：列表是
-/// App 内写死三项（ChatModels：DeepSeek Flash / V4 Pro
-/// / 自部署 Qwen3-30B），点选只写本地选择——逐请求生
-/// 效（请求带 provider=custom 切上游），不改服务端默
-/// 认、不发任何请求。0.2.4 的服务端目录拼装＋改默认
-/// 口径就此撤销（理由见 ChatModels 文件头）。
-private struct ModelPickerSheet: View {
-    @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    VStack(spacing: 0) {
-                        ForEach(
-                            Array(ChatModels.items.enumerated()),
-                            id: \.element.id
-                        ) { index, item in
-                            if index > 0 {
-                                GroupDivider(inset: OneDayMetrics.spacingM)
-                            }
-                            modelRow(item)
-                        }
-                    }
-                    .odGroup()
-                    Text("选择只保存在这台手机上，下一条消息立即生效；不会修改服务端默认模型。Qwen3-30B 是自部署模型，休眠后第一次提问会自动唤醒（约 1–3 分钟）。")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
-                        .padding(.top, OneDayMetrics.spacingM)
-                }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingXL)
-            }
-            .background(Palette.pageBG)
-            .navigationTitle("选择模型")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func modelRow(_ item: ChatModels.Item) -> some View {
-        let isCurrent = item.id == appState.chatModel
-        return Button {
-            appState.selectChatModel(item.id)
-            dismiss()
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.displayName)
-                        .font(.callout)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                    Text(item.note)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: OneDayMetrics.spacingS)
-                if isCurrent {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(Palette.primary)
-                }
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}

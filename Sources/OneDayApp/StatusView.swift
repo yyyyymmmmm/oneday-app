@@ -90,15 +90,11 @@ struct StatusView: View {
     }
 
     private var statusLine: String {
-        let word = status == nil
+        // 0.4.0（审计 §3.3 #4）：模型后缀撤除——模型露头
+        // 只许聊天页胶囊一处（A 案），本行只留状态词
+        status == nil
             ? "状态读取中"
             : ServerLabels.gatewayState(status?.gatewayState, running: status?.gatewayRunning)
-        // 0.3.8 第 6 条同源：模型名走显示名映射，原始 id
-        // 不上屏（旧式三元只挡了网关别名一例）
-        let model = ModelDisplayNames.identityLabel(
-            for: appState.defaultModel ?? appState.modelID
-        )
-        return "\(word) · \(model)"
     }
 
     // MARK: - 活动
