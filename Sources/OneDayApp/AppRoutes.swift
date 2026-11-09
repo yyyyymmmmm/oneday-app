@@ -7,6 +7,7 @@ enum AgentRoute: Hashable {
     case cron
     case serverSessions
     case serverSessionDetail(String)
+    case mcp
 }
 
 /// 应用格内页面（0.6.0 五格 IA）：应用格首页是入口行

@@ -52,6 +52,23 @@ protocol HermesClientProtocol: Sendable {
     /// PUT /api/skills/lock {name, locked}
     func lockSkill(config: ServerConfig, name: String, locked: Bool) async throws
 
+    /// GET /api/skills/hub/sources（P10）——本部署实测
+    /// 服务端抓注册表超时，调用方须容忍长耗时与失败
+    func skillHubSources(config: ServerConfig) async throws -> [HubSource]
+    /// GET /api/skills/hub/search?q=&source=&limit=
+    func skillHubSearch(
+        config: ServerConfig, query: String, source: String?
+    ) async throws -> [HubSkill]
+    /// GET /api/skills/hub/preview?identifier=
+    func skillHubPreview(
+        config: ServerConfig, identifier: String
+    ) async throws -> HubPreview
+    /// POST /api/skills/hub/install {identifier}（服务端
+    /// 后台执行，落定靠回读技能列表对账，不认回执即成功）
+    func skillHubInstall(config: ServerConfig, identifier: String) async throws
+    /// POST /api/skills/hub/uninstall {name}
+    func skillHubUninstall(config: ServerConfig, name: String) async throws
+
     /// GET /api/cron/jobs（裸数组）
     func cronJobs(config: ServerConfig) async throws -> [CronJob]
     /// POST /api/cron/jobs（schedule 传字符串表达式）
@@ -81,6 +98,11 @@ protocol HermesClientProtocol: Sendable {
     func createServerSession(config: ServerConfig, id: String?, title: String?) async throws -> ServerSession
     /// GET /api/sessions/{id}/messages
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage]
+    /// GET /api/sessions/search?q=&limit=（P10；生产实样
+    /// {"results":[…]}，2026-11-09 只读联调验过）
+    func searchSessions(
+        config: ServerConfig, query: String, limit: Int
+    ) async throws -> [SessionSearchHit]
     /// DELETE /api/sessions/{id}
     func deleteServerSession(config: ServerConfig, id: String) async throws
     /// POST /api/sessions/bulk-delete {ids}
@@ -102,10 +124,40 @@ protocol HermesClientProtocol: Sendable {
     /// PUT /api/profiles/{name}/soul {content}（编辑由
     /// ProfilesView 承载，枢纽页只读不调）
     func updateProfileSoul(config: ServerConfig, name: String, content: String) async throws
+    /// POST /api/profiles {name, clone_from?}（P10）
+    func createProfile(
+        config: ServerConfig, name: String, cloneFrom: String?
+    ) async throws
+    /// DELETE /api/profiles/{name}（P10）
+    func deleteProfile(config: ServerConfig, name: String) async throws
+    /// POST /api/profiles/{name}/export（P10；档案包生成
+    /// 在服务器上，回执多形收引用，见 ProfileExportResult）
+    func exportProfile(
+        config: ServerConfig, name: String
+    ) async throws -> ProfileExportResult
+    /// POST /api/profiles/import {archive, name?}（P10；
+    /// archive 是服务器上的档案包路径——导出产物同机
+    /// 恢复的正道，本机文件无上传通道、不假装能传）
+    func importProfile(
+        config: ServerConfig, archive: String, name: String?
+    ) async throws
 
     /// GET /api/tools/computer-use/status（回执 schema
     /// 未冻结，ComputerUseStatus 宽容提取；浏览器段留口）
     func computerUseStatus(config: ServerConfig) async throws -> ComputerUseStatus
+
+    /// GET /api/mcp/servers（P10；生产实样 {"servers":[…]}，
+    /// 2026-11-09 只读联调验过，含 box 插件预置行）
+    func mcpServers(config: ServerConfig) async throws -> [MCPServerItem]
+    /// PUT /api/mcp/servers/{name}/enabled {enabled}
+    func setMCPServerEnabled(
+        config: ServerConfig, name: String, enabled: Bool
+    ) async throws
+    /// POST /api/mcp/servers/{name}/test（回执多键宽容，
+    /// 无显式信号不判成功，见 MCPTestResult）
+    func testMCPServer(
+        config: ServerConfig, name: String
+    ) async throws -> MCPTestResult
 
     /// GET /api/config 全量（动态 JSON，原样保留未知字段）
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue]
@@ -267,9 +319,13 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     private func getJSON<T: Decodable>(
         config: ServerConfig, path: String, endpoint: String,
-        query: [URLQueryItem] = [], bearer: String? = nil
+        query: [URLQueryItem] = [], bearer: String? = nil,
+        timeout: TimeInterval? = nil
     ) async throws -> T {
         var request = URLRequest(url: url(config: config, path: path, query: query))
+        if let timeout {
+            request.timeoutInterval = timeout
+        }
         if let bearer {
             request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         }
@@ -583,6 +639,69 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         )
     }
 
+    // MARK: - 技能商店（P10）
+
+    /// hub 三读的长超时：服务端要抓外部注册表，本部署
+    /// 实测 30s 无响应（出网受阻）——客户端放宽到 120s
+    /// 等它自己失败/返回，超时按失败态呈给用户，不假装
+    /// 商店里没东西
+    private static let hubTimeout: TimeInterval = 120
+
+    func skillHubSources(config: ServerConfig) async throws -> [HubSource] {
+        let response: HubSourcesResponse = try await getJSON(
+            config: config, path: "/api/skills/hub/sources",
+            endpoint: "技能商店来源", timeout: Self.hubTimeout
+        )
+        return response.sources
+    }
+
+    func skillHubSearch(
+        config: ServerConfig, query: String, source: String?
+    ) async throws -> [HubSkill] {
+        var queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: "30"),
+        ]
+        if let source, !source.isEmpty {
+            queryItems.append(URLQueryItem(name: "source", value: source))
+        }
+        let response: HubSearchResponse = try await getJSON(
+            config: config, path: "/api/skills/hub/search",
+            endpoint: "技能商店搜索", query: queryItems,
+            timeout: Self.hubTimeout
+        )
+        return response.results
+    }
+
+    func skillHubPreview(
+        config: ServerConfig, identifier: String
+    ) async throws -> HubPreview {
+        try await getJSON(
+            config: config, path: "/api/skills/hub/preview",
+            endpoint: "技能预览",
+            query: [URLQueryItem(name: "identifier", value: identifier)],
+            timeout: Self.hubTimeout
+        )
+    }
+
+    func skillHubInstall(config: ServerConfig, identifier: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/skills/hub/install", method: "POST",
+            endpoint: "技能安装",
+            body: ["identifier": .string(identifier)],
+            timeout: Self.hubTimeout
+        )
+    }
+
+    func skillHubUninstall(config: ServerConfig, name: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/skills/hub/uninstall", method: "POST",
+            endpoint: "技能卸载",
+            body: ["name": .string(name)],
+            timeout: Self.hubTimeout
+        )
+    }
+
     // MARK: - 定时任务
 
     func cronJobs(config: ServerConfig) async throws -> [CronJob] {
@@ -689,6 +808,20 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         return response.messages
     }
 
+    func searchSessions(
+        config: ServerConfig, query: String, limit: Int
+    ) async throws -> [SessionSearchHit] {
+        let response: SessionSearchResponse = try await getJSON(
+            config: config, path: "/api/sessions/search",
+            endpoint: "会话搜索",
+            query: [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+        return response.results
+    }
+
     func deleteServerSession(config: ServerConfig, id: String) async throws {
         try await sendJSON(
             config: config, path: "/api/sessions/\(id)", method: "DELETE",
@@ -771,6 +904,97 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             config: config, path: soulPath(name: name), method: "PUT",
             endpoint: "档案人设",
             body: ["content": .string(content)]
+        )
+    }
+
+    /// 档案名 path 段编码（与 soulPath 同口径：用户可控
+    /// 字符串不许带分隔符进路径）
+    private func profilePath(name: String, suffix: String = "") -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = name.addingPercentEncoding(
+            withAllowedCharacters: allowed
+        ) ?? name
+        return "/api/profiles/\(encoded)\(suffix)"
+    }
+
+    func createProfile(
+        config: ServerConfig, name: String, cloneFrom: String?
+    ) async throws {
+        var body: [String: JSONValue] = ["name": .string(name)]
+        if let cloneFrom, !cloneFrom.isEmpty {
+            body["clone_from"] = .string(cloneFrom)
+        }
+        try await sendJSON(
+            config: config, path: "/api/profiles", method: "POST",
+            endpoint: "档案创建", body: body
+        )
+    }
+
+    func deleteProfile(config: ServerConfig, name: String) async throws {
+        try await sendJSON(
+            config: config, path: profilePath(name: name), method: "DELETE",
+            endpoint: "档案删除"
+        )
+    }
+
+    func exportProfile(
+        config: ServerConfig, name: String
+    ) async throws -> ProfileExportResult {
+        try await sendJSONDecoding(
+            config: config, path: profilePath(name: name, suffix: "/export"),
+            method: "POST", endpoint: "档案导出", body: [:]
+        )
+    }
+
+    func importProfile(
+        config: ServerConfig, archive: String, name: String?
+    ) async throws {
+        var body: [String: JSONValue] = ["archive": .string(archive)]
+        if let name, !name.isEmpty {
+            body["name"] = .string(name)
+        }
+        try await sendJSON(
+            config: config, path: "/api/profiles/import", method: "POST",
+            endpoint: "档案导入", body: body
+        )
+    }
+
+    // MARK: - MCP 连接（P10）
+
+    /// MCP 名 path 段编码（同 profilePath 口径）
+    private func mcpPath(name: String, suffix: String = "") -> String {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = name.addingPercentEncoding(
+            withAllowedCharacters: allowed
+        ) ?? name
+        return "/api/mcp/servers/\(encoded)\(suffix)"
+    }
+
+    func mcpServers(config: ServerConfig) async throws -> [MCPServerItem] {
+        let response: MCPServersResponse = try await getJSON(
+            config: config, path: "/api/mcp/servers", endpoint: "MCP 连接"
+        )
+        return response.servers
+    }
+
+    func setMCPServerEnabled(
+        config: ServerConfig, name: String, enabled: Bool
+    ) async throws {
+        try await sendJSON(
+            config: config, path: mcpPath(name: name, suffix: "/enabled"),
+            method: "PUT", endpoint: "MCP 开关",
+            body: ["enabled": .bool(enabled)]
+        )
+    }
+
+    func testMCPServer(
+        config: ServerConfig, name: String
+    ) async throws -> MCPTestResult {
+        try await sendJSONDecoding(
+            config: config, path: mcpPath(name: name, suffix: "/test"),
+            method: "POST", endpoint: "MCP 测试", body: [:]
         )
     }
 

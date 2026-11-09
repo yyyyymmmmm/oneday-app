@@ -5,6 +5,9 @@ import SwiftUI
 /// 服务端会话页（智能体格，IA v3 §5.2）：服务端保存的会话
 /// 列表、详情（元信息＋消息）、单删/多选批量删/清空空会话。
 /// 本机会话在聊天抽屉，两处分工不同、不合并（定版明记）。
+/// P10 补全文搜索：GET /api/sessions/search（生产实样
+/// 已验：蓝鲸暗号命中真会话）——搜索态整页切换、隐藏
+/// 管理工具，点命中行同正表走续聊。
 struct ServerSessionsView: View {
     @Environment(AppState.self) private var appState
 
@@ -20,10 +23,21 @@ struct ServerSessionsView: View {
     @State private var showBulkDeleteConfirm = false
     @State private var showEmptyDeleteConfirm = false
 
+    @State private var searchText = ""
+    @State private var searchHits: [SessionSearchHit] = []
+    @State private var isSearching = false
+    @State private var searchError: String?
+
+    private var isSearchActive: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if !sessions.isEmpty {
+                if isSearchActive {
+                    searchContent
+                } else if !sessions.isEmpty {
                     // 0.3.7 卡 16：摘要卡置顶，计数只在此一处
                     // 0.6.1：删「进行中 N 条」——isActive 靠
                     // endedAt==nil 判定、Hermes 不写 ended_at
@@ -89,7 +103,7 @@ struct ServerSessionsView: View {
         .navigationTitle("服务端会话")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !sessions.isEmpty {
+            if !sessions.isEmpty && !isSearchActive {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(selecting ? "完成" : "选择") {
                         selecting.toggle()
@@ -99,12 +113,18 @@ struct ServerSessionsView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if selecting {
+            if selecting && !isSearchActive {
                 bulkBar
             }
         }
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "搜索会话内容"
+        )
         .refreshable { await load() }
         .task { await load() }
+        .task(id: searchText) { await runSearch() }
         .confirmationDialog(
             "删除所选 \(selectedIDs.count) 条会话？",
             isPresented: $showBulkDeleteConfirm,
@@ -233,6 +253,147 @@ struct ServerSessionsView: View {
         }
         .padding(.leading, selecting ? OneDayMetrics.spacingM : 0)
         .contentShape(Rectangle())
+    }
+
+    // MARK: - 搜索（P10）
+
+    @ViewBuilder
+    private var searchContent: some View {
+        if isSearching {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                ProgressView()
+                Text("正在搜索…")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .padding(.top, OneDayMetrics.spacingL)
+        } else if let searchError {
+            InlineError(searchError)
+                .padding(.top, OneDayMetrics.spacingS)
+        } else if searchHits.isEmpty {
+            EmptyState(
+                icon: "magnifyingglass",
+                title: "没有找到相关的会话",
+                message: "换个关键词再试。"
+            )
+            .padding(.top, OneDayMetrics.spacingXXL)
+        } else {
+            SectionLabel("搜索结果")
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                ForEach(
+                    Array(searchHits.enumerated()), id: \.element.id
+                ) { index, hit in
+                    if index > 0 {
+                        GroupDivider(inset: OneDayMetrics.spacingM)
+                    }
+                    searchHitRow(hit)
+                }
+            }
+            .odGroup()
+        }
+    }
+
+    private func searchHitRow(_ hit: SessionSearchHit) -> some View {
+        Button {
+            // 与正表同路：交聊天页按服务端会话续聊
+            appState.pendingChatSessionID = hit.sessionID
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(hit.displayTitle)
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    if let snippet = hit.snippet, !snippet.isEmpty {
+                        Text(snippetLine(hit, snippet: snippet))
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(2)
+                    }
+                    Text(hitMetaLine(hit))
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkMuted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Palette.inkMuted)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingS)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 命中片段：带上命中角色（服务端 role 原值只译
+    /// user/assistant，其余不臆断、不加前缀）
+    private func snippetLine(_ hit: SessionSearchHit, snippet: String) -> String {
+        if let role = hit.roleLabel {
+            return "\(role)：\(snippet)"
+        }
+        return snippet
+    }
+
+    private func hitMetaLine(_ hit: SessionSearchHit) -> String {
+        var parts: [String] = []
+        parts.append(sourceText(hit.source))
+        if let model = ModelDisplayNames.displayName(for: hit.model) {
+            parts.append(model)
+        }
+        if let date = hit.startedDate {
+            parts.append(date.formatted(date: .abbreviated, time: .shortened))
+        }
+        if let count = hit.messageCount {
+            parts.append("\(count) 条消息")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 来源译名与 ServerSession.sourceLabel 同表
+    /// （SessionDisplay.swift），搜索行单独一份小表
+    private func sourceText(_ source: String?) -> String {
+        switch source?.lowercased() {
+        case "api_server": return "其他应用"
+        case "dashboard": return "控制台"
+        case "cli": return "命令行"
+        case "cron", "cron_job", "scheduler": return "定时任务"
+        default: return "服务端"
+        }
+    }
+
+    /// 搜索执行：.task(id: searchText) 驱动，先防抖
+    /// 450ms 再打服务端；文本已变则本轮作废
+    private func runSearch() async {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else {
+            searchHits = []
+            searchError = nil
+            isSearching = false
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(450))
+        if Task.isCancelled { return }
+        guard searchText.trimmingCharacters(in: .whitespaces) == query
+        else { return }
+        isSearching = true
+        searchError = nil
+        defer { isSearching = false }
+        do {
+            searchHits = try await appState.performAdmin { client, config in
+                try await client.searchSessions(
+                    config: config, query: query, limit: 30
+                )
+            }
+        } catch {
+            searchHits = []
+            searchError = (error as? HermesError)?.userMessage
+                ?? "会话搜索失败。"
+        }
     }
 
     // MARK: - 数据与动作

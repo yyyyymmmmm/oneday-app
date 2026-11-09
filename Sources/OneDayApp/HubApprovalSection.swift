@@ -2,12 +2,14 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 枢纽页审核段（规格 §3.2，用户定案⑥：一期只上待批
-/// 卡、无历史行）：一卡一条——人话摘要＋来源＋diff
-/// 入口＋批准/驳回。gate 三态诚实呈现（未启用/通道未
-/// 接通/已启用），裸空列表冒充「无待批」是红线：只有
-/// 桥可达＋闸门开＋pending 为空才是真无待批（状态判定
-/// 在 AgentHubStore.loadApproval 与 Core 的
+/// 枢纽页审核段（规格 §3.2，用户定案⑥；0.16.0/P10
+/// 起补已决历史段）：待批一卡一条——人话摘要＋来源＋
+/// diff 入口＋批准/驳回；已决历史读桥 /decisions 账本
+/// （桥自上线起就有，本段只读呈现、不再造数据）。
+/// gate 三态诚实呈现（未启用/通道未接通/已启用），
+/// 裸空列表冒充「无待批」是红线：只有桥可达＋闸门开
+/// ＋pending 为空才是真无待批（状态判定在
+/// AgentHubStore.loadApproval 与 Core 的
 /// ApprovalSectionState）。桥 /status 已上线（两闸门
 /// true、counts 实时），本段直接消费。
 struct HubApprovalSection: View {
@@ -51,7 +53,7 @@ struct HubApprovalSection: View {
                     .buttonStyle(.bordered)
                 }
             case .ready(let records):
-                if records.isEmpty {
+                if records.isEmpty && store.decisionHistory.isEmpty {
                     ContentUnavailableView(
                         "暂无待批写入",
                         systemImage: "checkmark.circle",
@@ -59,9 +61,18 @@ struct HubApprovalSection: View {
                     )
                 } else {
                     List {
-                        Section("审核记录") {
-                            ForEach(records) { record in
-                                card(record)
+                        if !records.isEmpty {
+                            Section("待审批") {
+                                ForEach(records) { record in
+                                    card(record)
+                                }
+                            }
+                        }
+                        if !store.decisionHistory.isEmpty {
+                            Section("已决历史") {
+                                ForEach(store.decisionHistory) { item in
+                                    historyRow(item)
+                                }
                             }
                         }
                     }
@@ -168,6 +179,52 @@ struct HubApprovalSection: View {
         )
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
+    }
+
+    /// 已决历史行（P10）：只读呈现——类别徽章＋结论
+    /// chip＋摘要＋来源与时间；结论色只认桥账本原值
+    /// （批准绿/驳回红，未知回落中性不臆断）
+    private func historyRow(_ item: WriteGateDecisionRecord) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Text(item.subsystem.badgeLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Palette.primaryTint, in: Capsule())
+                Text(item.decisionLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(decisionColor(item))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        decisionColor(item).opacity(0.12), in: Capsule()
+                    )
+                Spacer()
+                if let decidedAt = item.decidedAt {
+                    Text(decidedAt.formatted(.relative(presentation: .named)))
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkMuted)
+                }
+            }
+            Text(item.summary)
+                .font(.subheadline)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(2)
+            Text("来源：\(item.originText)")
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func decisionColor(_ item: WriteGateDecisionRecord) -> Color {
+        // 与 Core 的 isApproved/isRejected 同一判定，
+        // 不另立一套词表（桥实测只有 approved/rejected）
+        if item.isApproved { return Palette.success }
+        if item.isRejected { return Palette.danger }
+        return Palette.inkMuted
     }
 }
 

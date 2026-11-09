@@ -112,6 +112,9 @@ final class AgentHubStore {
     private(set) var decidingIDs: Set<String> = []
     /// 卡内行内提示（409 变化提示/裁决失败人话）
     private(set) var cardNotes: [String: String] = [:]
+    /// 已决历史（P10）：与待批同轮 best-effort 拉取——
+    /// 拉不到保持上次值（首拉为空），不拖累待批呈现
+    private(set) var decisionHistory: [WriteGateDecisionRecord] = []
 
     // 浏览器段已于 0.9.0 迁出本 Store：状态改读盒桥，
     // 由 BrowserFaceView 自持 BoxBridgeStore（见
@@ -380,8 +383,22 @@ final class AgentHubStore {
             approvalState = .ready(list.records)
         } catch let error as WriteGateError {
             approvalState = mapGateError(error)
+            return
         } catch {
             approvalState = .failed("待批列表读取失败")
+            return
+        }
+        await refreshDecisionHistory()
+    }
+
+    /// 已决历史刷新（P10）：桥 /decisions 现成面；失败
+    /// 静默保持旧值——历史缺失不许把待批段打成失败态
+    private func refreshDecisionHistory() async {
+        guard let config = appState.config else { return }
+        if let history = try? await gateClient.decisions(
+            config: config, limit: 50
+        ) {
+            decisionHistory = history
         }
     }
 
@@ -437,6 +454,8 @@ final class AgentHubStore {
                 )
             if response.success {
                 removeRecord(record.id)
+                // 决刚落账，此时刷新已决历史最准（P10）
+                await refreshDecisionHistory()
             } else {
                 cardNotes[record.id] = "裁决未生效，请重新打开改动核对后再试。"
             }
@@ -444,6 +463,7 @@ final class AgentHubStore {
             switch error {
             case .recordGone:
                 removeRecord(record.id)
+                await refreshDecisionHistory()
             case .conflict:
                 cardNotes[record.id] = "这条写入的内容已变化，已按最新状态刷新，请重新核对。"
                 decidingIDs.remove(record.id)

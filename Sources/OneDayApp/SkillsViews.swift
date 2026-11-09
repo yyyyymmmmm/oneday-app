@@ -3,9 +3,9 @@ import OneDayCore
 import SwiftUI
 
 /// 技能页（智能体格，IA v3 §5.2）：已装技能列表＋行内开关，
-/// 点入详情看/改内容与锁定。商店（/api/skills/hub）按定版
-/// 二期，本版不做。锁定中的技能行内开关禁用（锁的语义就是
-/// 防误改），解锁在详情页。
+/// 点入详情看/改内容与锁定。顶部「技能商店」入口进
+/// SkillHubView（P10 已接 /api/skills/hub）。锁定中的技能
+/// 行内开关禁用（锁的语义就是防误改），解锁在详情页。
 struct SkillsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
@@ -20,6 +20,39 @@ struct SkillsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // 技能商店入口（P10）：独立成组置顶，常驻
+                VStack(spacing: 0) {
+                    NavigationLink {
+                        SkillHubView()
+                    } label: {
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Image(systemName: "bag")
+                                .font(.system(size: 16))
+                                .foregroundStyle(Palette.inkSecondary)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("技能商店")
+                                    .font(.body)
+                                    .foregroundStyle(Palette.ink)
+                                Text("从技能库搜索并安装新技能")
+                                    .font(.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
+                            }
+                            Spacer(minLength: OneDayMetrics.spacingS)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(Palette.inkMuted)
+                                .accessibilityHidden(true)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.vertical, OneDayMetrics.spacingS)
+                    .frame(minHeight: OneDayMetrics.rowHeight)
+                }
+                .odGroup()
+                .padding(.bottom, OneDayMetrics.spacingM)
                 if !skills.isEmpty {
                     // 0.3.7 卡 14：摘要卡「已装 N · 启用 M」＋
                     // 按服务端类别分组（已裁 4，类别名走翻译）

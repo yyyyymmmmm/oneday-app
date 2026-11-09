@@ -37,6 +37,11 @@ protocol WriteGateClientProtocol: Sendable {
     func reject(
         config: ServerConfig, subsystem: WriteGateSubsystem, id: String
     ) async throws -> WriteGateDecisionResponse
+    /// GET /decisions?limit=（P10 已决历史；桥自上线起
+    /// 就在的现成面，P7 已用它做落定判定）
+    func decisions(
+        config: ServerConfig, limit: Int
+    ) async throws -> [WriteGateDecisionRecord]
 }
 
 /// URLSession 实现：Base＝<服务器>/api/write-gate（nginx
@@ -88,6 +93,16 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         config: ServerConfig, subsystem: WriteGateSubsystem, id: String
     ) async throws -> WriteGateDecisionResponse {
         try await decide(config: config, subsystem: subsystem, id: id, action: "reject")
+    }
+
+    func decisions(
+        config: ServerConfig, limit: Int
+    ) async throws -> [WriteGateDecisionRecord] {
+        let response: WriteGateDecisionsResponse = try await get(
+            config: config, path: "/decisions?limit=\(limit)",
+            endpoint: "已决记录"
+        )
+        return response.decisions
     }
 
     // MARK: - 请求底座
@@ -186,8 +201,20 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
 final class DemoWriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var records: [WriteGateRecord]
+    /// 演示已决历史（P10）：一条合成旧记录打底，演示中
+    /// 的裁决实时追加到最前——与真实桥「裁决即落账」
+    /// 同语义；内容全合成、不放真实记录
+    private var decidedRecords: [WriteGateDecisionRecord]
 
     init() {
+        decidedRecords = [
+            WriteGateDecisionRecord(
+                id: "demo-decided-1", subsystem: .memory, action: "append",
+                summary: "把上周的服务器巡检结论写入长期记忆",
+                origin: "background_review", decision: "approved",
+                decidedAt: Date().addingTimeInterval(-2 * 3600)
+            ),
+        ]
         records = [
             WriteGateRecord(
                 id: "demo-mem-1", subsystem: .memory, action: "append",
@@ -255,14 +282,29 @@ final class DemoWriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         try decide(id: id, decision: "rejected")
     }
 
+    func decisions(
+        config: ServerConfig, limit: Int
+    ) async throws -> [WriteGateDecisionRecord] {
+        lock.withLock { Array(decidedRecords.prefix(limit)) }
+    }
+
     private func decide(
         id: String, decision: String
     ) throws -> WriteGateDecisionResponse {
         try lock.withLock {
-            guard records.contains(where: { $0.id == id }) else {
+            guard let record = records.first(where: { $0.id == id }) else {
                 throw WriteGateError.recordGone
             }
             records.removeAll { $0.id == id }
+            decidedRecords.insert(
+                WriteGateDecisionRecord(
+                    id: record.id, subsystem: record.subsystem,
+                    action: record.action, summary: record.summary,
+                    origin: record.origin, decision: decision,
+                    decidedAt: Date()
+                ),
+                at: 0
+            )
             return WriteGateDecisionResponse(
                 success: true, output: "", decision: decision
             )

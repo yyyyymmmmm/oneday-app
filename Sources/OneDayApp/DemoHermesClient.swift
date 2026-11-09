@@ -169,6 +169,64 @@ struct DemoHermesClient: HermesClientProtocol {
     func toggleSkill(config: ServerConfig, name: String, enabled: Bool) async throws {}
     func lockSkill(config: ServerConfig, name: String, locked: Bool) async throws {}
 
+    // MARK: - 技能商店（P10，演示样本；写动作静默成功
+    // 不落状态，沿本文件既定演示口径）
+
+    func skillHubSources(config: ServerConfig) async throws -> [HubSource] {
+        decode(HubSourcesResponse.self, """
+        {"sources": [
+            {"name": "official", "label": "官方", "skill_count": 59},
+            {"name": "skills-sh", "label": "社区", "skill_count": 521}
+        ]}
+        """).sources
+    }
+
+    func skillHubSearch(
+        config: ServerConfig, query: String, source: String?
+    ) async throws -> [HubSkill] {
+        let all = decode(HubSearchResponse.self, """
+        {"results": [
+            {"identifier": "official/media/pdf-tools", "name": "pdf-tools",
+             "description": "PDF 读取、拆分与内容提取", "source": "official",
+             "author": "hermes", "version": "1.4.0"},
+            {"identifier": "official/security/1password", "name": "1password",
+             "description": "从密码库取用凭据并注入命令", "source": "official",
+             "author": "hermes", "version": "1.2.0"},
+            {"identifier": "skills-sh/vercel-labs/agent-skills/vercel-react-best-practices",
+             "name": "vercel-react-best-practices",
+             "description": "React 性能最佳实践检查", "source": "skills-sh",
+             "author": "vercel-labs", "version": "0.9.1"}
+        ]}
+        """).results
+        let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return all.filter { skill in
+            if let source, skill.sourceLabel != source { return false }
+            if needle.isEmpty { return true }
+            return skill.identifier.lowercased().contains(needle)
+                || skill.displayName.lowercased().contains(needle)
+                || (skill.description?.lowercased().contains(needle) ?? false)
+        }
+    }
+
+    func skillHubPreview(
+        config: ServerConfig, identifier: String
+    ) async throws -> HubPreview {
+        HubPreview(
+            identifier: identifier,
+            name: identifier.split(separator: "/").last.map(String.init),
+            description: "演示预览",
+            content: """
+            # 技能说明（演示样本）
+
+            这是技能商店预览的演示内容：真实环境里这里是该技能的 SKILL.md 全文，安装前先看清楚它会让智能体做什么。
+            """,
+            files: ["SKILL.md"]
+        )
+    }
+
+    func skillHubInstall(config: ServerConfig, identifier: String) async throws {}
+    func skillHubUninstall(config: ServerConfig, name: String) async throws {}
+
     // MARK: - 定时任务
 
     func cronJobs(config: ServerConfig) async throws -> [CronJob] {
@@ -283,6 +341,35 @@ struct DemoHermesClient: HermesClientProtocol {
         """).messages
     }
 
+    /// 演示搜索（P10）：在演示会话标题/预览里按词过滤，
+    /// 命中形态对齐生产实样（results 元素字段）
+    func searchSessions(
+        config: ServerConfig, query: String, limit: Int
+    ) async throws -> [SessionSearchHit] {
+        let now = Date().timeIntervalSince1970
+        let all = decode(SessionSearchResponse.self, """
+        {"results": [
+            {"session_id": "sess-live", "id": "sess-live", "title": "帮我看看服务器状态",
+             "snippet": "服务器", "role": "user", "source": "dashboard",
+             "model": "deepseek-chat", "profile": "default",
+             "started_at": \(now - 25 * 60), "message_count": 9,
+             "preview": "帮我看看服务器现在的状态。"},
+            {"session_id": "sess-cron-1", "id": "sess-cron-1", "title": "节点巡检",
+             "snippet": "巡检", "role": "assistant", "source": "cron",
+             "model": "deepseek-chat", "profile": "default",
+             "started_at": \(now - 2 * 3600), "message_count": 6,
+             "preview": "节点巡检"}
+        ]}
+        """).results
+        let needle = query.trimmingCharacters(in: .whitespaces)
+        guard !needle.isEmpty else { return [] }
+        return all.filter { hit in
+            (hit.title?.contains(needle) ?? false)
+                || (hit.preview?.contains(needle) ?? false)
+                || (hit.snippet?.contains(needle) ?? false)
+        }
+    }
+
     func deleteServerSession(config: ServerConfig, id: String) async throws {}
     func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws {}
     func emptySessionCount(config: ServerConfig) async throws -> Int { 2 }
@@ -306,6 +393,26 @@ struct DemoHermesClient: HermesClientProtocol {
     func activeProfileName(config: ServerConfig) async throws -> String? { "default" }
 
     func setActiveProfile(config: ServerConfig, name: String) async throws {}
+
+    // MARK: - 档案增删与导入导出（P10，演示口径同上）
+
+    func createProfile(
+        config: ServerConfig, name: String, cloneFrom: String?
+    ) async throws {}
+
+    func deleteProfile(config: ServerConfig, name: String) async throws {}
+
+    func exportProfile(
+        config: ServerConfig, name: String
+    ) async throws -> ProfileExportResult {
+        ProfileExportResult(
+            archiveReference: "/opt/data/exports/\(name)-profile.tar.gz"
+        )
+    }
+
+    func importProfile(
+        config: ServerConfig, archive: String, name: String?
+    ) async throws {}
 
     /// 演示 soul：带「人设」「风格」两段标题的合成样本
     /// （不放真实 soul 文本，数据设计 §2.4）
@@ -334,6 +441,37 @@ struct DemoHermesClient: HermesClientProtocol {
         config: ServerConfig
     ) async throws -> ComputerUseStatus {
         ComputerUseStatus(readiness: .ready, raw: [:])
+    }
+
+    // MARK: - MCP 连接（P10，演示样本：box 行形态对齐
+    // 生产实样——插件预置；外加一条手动配置示例）
+
+    func mcpServers(config: ServerConfig) async throws -> [MCPServerItem] {
+        decode(MCPServersResponse.self, """
+        {"servers": [
+            {"name": "box", "transport": "http",
+             "url": "https://mcp.box.simular.ai/mcp", "command": null,
+             "args": [], "env": {}, "auth": "header", "enabled": true,
+             "tools": null, "source": "plugin", "plugin": "box"},
+            {"name": "local-tools", "transport": "stdio", "url": null,
+             "command": "npx -y demo-mcp-server", "args": [], "env": {},
+             "auth": null, "enabled": false, "tools": null,
+             "source": null, "plugin": null}
+        ]}
+        """).servers
+    }
+
+    func setMCPServerEnabled(
+        config: ServerConfig, name: String, enabled: Bool
+    ) async throws {}
+
+    func testMCPServer(
+        config: ServerConfig, name: String
+    ) async throws -> MCPTestResult {
+        MCPTestResult(
+            ok: true, status: "ok",
+            message: "连接正常（演示）", toolCount: name == "box" ? 37 : 4
+        )
     }
 
     // MARK: - 配置与密钥

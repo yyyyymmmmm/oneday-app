@@ -38,6 +38,7 @@ struct SettingsView: View {
     @State private var skillsSummary: String?
     @State private var cronSummary: String?
     @State private var sessionsSummary: String?
+    @State private var mcpSummary: String?
     @State private var showRestartConfirm = false
     @State private var showDisconnectConfirm = false
     @State private var notice: String?
@@ -150,6 +151,8 @@ struct SettingsView: View {
             ServerSessionsView()
         case .serverSessionDetail(let id):
             ServerSessionDetailView(sessionID: id)
+        case .mcp:
+            MCPView()
         }
     }
 
@@ -322,6 +325,11 @@ struct SettingsView: View {
                 value: sessionsSummary ?? "—",
                 route: .agent(.serverSessions)
             )
+            navRow(
+                icon: "cable.connector", title: "MCP 连接",
+                value: mcpSummary ?? "—",
+                route: .agent(.mcp)
+            )
         } header: {
             SectionLabel("智能体")
         }
@@ -420,7 +428,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             LabeledContent("OneDay 版本") {
-                Text("0.15.0")
+                Text("0.16.0")
                     .font(.system(.callout, design: .monospaced))
             }
             LabeledContent("服务端") {
@@ -621,6 +629,12 @@ struct SettingsView: View {
         }) {
             // 0.3.4：会话值只放总数
             sessionsSummary = "\(page.total ?? page.sessions.count)"
+        }
+        if let servers = try? await appState.performAdmin({ client, config in
+            try await client.mcpServers(config: config)
+        }) {
+            // P10：MCP 值只放总数（与技能行同口径）
+            mcpSummary = "\(servers.count)"
         }
     }
 
