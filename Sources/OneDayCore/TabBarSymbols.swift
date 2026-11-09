@@ -8,10 +8,14 @@ import Foundation
 /// 选中态由系统玻璃坞呈现。本表是底栏符号名的单一
 /// 事实源，单测钉死。0.6.0 五格 IA（移植蓝图 §4 一
 /// 期）：聊天／活动／点子／目标／应用，符号按 OpenMuse
-/// 五格近似对位（message／list.bullet.rectangle／
-/// lightbulb／checklist／square.grid.2x2）；应用格原
-/// 指定 .fill 变体与 §22.5 禁 fill 纪律冲突，按既有
-/// 底栏纪律取同名线条体（口径差在 0.6.0 回执在案）。
+/// 五格近似对位。两处按量测止损换体（0.4.5 路线，CI
+/// 42575859938 实测）：活动原定 list.bullet.rectangle
+/// 名单密度 0.516/紧致 0.467、应用原定 square.grid.2x2
+/// 名单密度 0.541/紧致 0.505，同出线条画法档（≤0.45/
+/// ≤0.42），且应用格 .fill 变体另与 §22.5 禁 fill 冲
+/// 突——活动换 list.bullet（枢纽页活动段既有符号、同
+/// 源），应用换 apps.iphone（官方 apps 命名、细线轮
+/// 廓）；不许放宽量测闸迁就符号（口径差在 0.6.0 回执）。
 /// 0.4.5 换本体（§30.7，用户 11:49 点名）：0.4.1/
 /// 0.4.3 两轮「锁 outline 变体」都没过真机（文件、
 /// 聊天两格仍实心观感），按止损换路——符号本体直
@@ -55,8 +59,8 @@ public enum TabBarSymbols {
     )
     public static let activity = TabSymbolPair(
         id: "activity", title: "活动",
-        normal: "list.bullet.rectangle",
-        selected: "list.bullet.rectangle"
+        normal: "list.bullet",
+        selected: "list.bullet"
     )
     public static let ideas = TabSymbolPair(
         id: "ideas", title: "点子",
@@ -70,8 +74,8 @@ public enum TabBarSymbols {
     )
     public static let apps = TabSymbolPair(
         id: "apps", title: "应用",
-        normal: "square.grid.2x2",
-        selected: "square.grid.2x2"
+        normal: "apps.iphone",
+        selected: "apps.iphone"
     )
 
     // 旧三格符号保留作应用格内入口行与抽屉名单的符号源

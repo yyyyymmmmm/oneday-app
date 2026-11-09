@@ -19,8 +19,8 @@ final class TabBarSymbolsTests: XCTestCase {
             ),
             TabSymbolPair(
                 id: "activity", title: "活动",
-                normal: "list.bullet.rectangle",
-                selected: "list.bullet.rectangle"
+                normal: "list.bullet",
+                selected: "list.bullet"
             ),
             TabSymbolPair(
                 id: "ideas", title: "点子",
@@ -34,8 +34,8 @@ final class TabBarSymbolsTests: XCTestCase {
             ),
             TabSymbolPair(
                 id: "apps", title: "应用",
-                normal: "square.grid.2x2",
-                selected: "square.grid.2x2"
+                normal: "apps.iphone",
+                selected: "apps.iphone"
             ),
         ])
     }
