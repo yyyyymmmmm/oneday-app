@@ -168,7 +168,10 @@ struct MilestoneCheckRow: View {
                         )
                     if done {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
+                            // 0.23.0（审计 G6/I3）：11pt 字面
+                            // 量清零——勾字形升 12（19pt 勾选
+                            // 盒内容纳），与 badgeOnly 默认档同
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.white)
                     }
                 }
@@ -310,6 +313,13 @@ struct GoalDetailView: View {
                         } label: {
                             Image(systemName: "minus.circle")
                                 .foregroundStyle(Palette.inkMuted)
+                                // 0.23.0（命中域审计）：字形不变、
+                                // 命中域外扩 44（行高约 46 可容纳）
+                                .frame(
+                                    width: OneDayMetrics.minTapTarget,
+                                    height: OneDayMetrics.minTapTarget
+                                )
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -443,6 +453,13 @@ struct GoalCreateView: View {
                                     } label: {
                                         Image(systemName: "minus.circle")
                                             .foregroundStyle(Palette.inkMuted)
+                                            // 0.23.0（命中域审计）：同上，
+                                            // 命中域外扩 44
+                                            .frame(
+                                                width: OneDayMetrics.minTapTarget,
+                                                height: OneDayMetrics.minTapTarget
+                                            )
+                                            .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
                                 }

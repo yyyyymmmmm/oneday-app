@@ -4186,3 +4186,47 @@ U1 新建旁聊聊两轮：抽屉里该旁聊名从首消息派生名变为服�
 ### 49.9 真机终审项
 V1 冷开短会话（1–2 条消息）：首条气泡完整位于顶栏下方、右上角不被铃铛钮盖；V2 冷开长会话仍开在底部、流式跟随不回归；V3 底栏四格纯图标观感（段深浅/字形粗细对 Muse 并排）＋VoiceOver 抽查四格读名（聊天/点子/目标/文件）；V4 文件页首屏应全是真交付物（db/wal/state/cache 类零出现）、docx/xlsx/pptx/pdf 图标可辨识、⋮ 好点；V5 文件页/总览页头像与聊天页胶囊同一张；V6 抽屉名字头观感、导航图标粗细对参考图并排、时间戳/分区头可读性；V7 设置页：大标题形态、行题不再有粗细两档、导航行无右值小字、状态两行副行在位、行图标大小、分区头 15 灰。
 - 交付实录：第一轮提交 611b85e（CI 42656901969，442 测 2 失败——即上条设置列闸校准问题，构建本身通过）；定版提交 2ded189；CI 42658735147 success，Executed 441 tests, 0 failures（431 基线＋10 新增，与 49.8 一致）；IPA 4,830,694 字节、md5 a1109e0a4654de3cd85ef447debc4f60、解包验 Info.plist＝0.22.0/51、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.22.0/OneDay-0.22.0.ipa。施工期生产零写请求；未自截真机图。
+
+## §50 0.23.0/52「整机视觉定向收口」（视觉审计 36 条剩余项整包；基线 2f6f515、单测 441 只增不减；规格总源＝visual-direction-audit-20261110.md＋native-ios-design＋SwiftUI-Agent-Skill 两技能；证据分级：【官方】HIG/SDK 事实【实算】WCAG 公式与渲染量测【定版】用户既往拍板【启发】审计建议）
+
+### 50.1 字阶角色化（审计 G2＋D1/S1/F/I1/M1/H1）
+- 新建双层：Core `TypeRole`（十角色的样式名/默认 pt/字重档对账面，单测钉）＋Design `FontRoles.swift`（Font 扩展落 SwiftUI 形态）。十角色：screenName＝largeTitle.semibold（34；审计原表 bold、0.22.0 用户定版 semibold 覆盖，【定版】）／rowTitleL＝title3（20）／rowTitleLSemi＝title3.semibold（20）／rowTitle＝headline（17）／bodyText＝body（17）／rowSubtitle＝subheadline（15）／meta＝subheadline（15）／metaMonospaced＝subheadline 等宽变体／sectionLabel＝subheadline.medium（15）／captionText＝footnote（13）／badgeOnly＝caption（12，仅徽标）。
+- 五面＋管理页逐面落：抽屉（名→screenName、旁聊题→rowTitleL、时间→meta、分区头→sectionLabel、导航/管理题→rowTitleLSemi、搜索字 18→bodyText【启发：审计 D1 许 body 或 searchText 角色，取 body 不新开角色】）；设置（行题→rowTitleL、副行→rowSubtitle、版本脚→meta、host→metaMonospaced、分区头→sectionLabel、身份卡题→rowTitleL 与全页单字重口径不变）；文件（分段→rowTitleLSemi、行题→rowTitleL、类型小字→rowSubtitle）；聊天（思考正文/头行→captionText、引用块名签 caption2→caption【G6】）；总览（会话行升内容行档：题 .body→rowTitle、副 .footnote→meta；其余 .body/.footnote/.subheadline 等值改名 bodyText/captionText/rowSubtitle；平台错误说明 caption→captionText【H3】）；管理页（会话行题→rowTitle、副→meta、全页 footnote 说明→captionText）。
+- 共享组件同批：SectionLabel footnote 13 regular→sectionLabel 角色（15 medium，全 App 分区头统一【S4】；设置本地头字重 regular→medium 归一登记）；ContentRow/UnifiedRow 题 .body→rowTitle（与组件自注「行内唯一半粗位」对齐）、副题 footnote 13→rowSubtitle（15）、尾元 footnote 等宽→metaMonospaced（15）；ListRowSpec.subtitleSize/metaSize 13→15 随角色改值（DisplayMappingTests 断言随规格改值、非删测）。
+- 映射不了逐项登记（保留值＋理由）：总览大数字 .title（28）/指标值 .title2（22）＝展示数、非行文，角色表无展示档，保留语义样式（本就随 Dynamic Type）；总览微标签 .caption（今日 Token/内存占用/指标名）＝与大数字成对的微标签、非阅读说明，保留；总览空态行 .callout（16）＝无等值角色（body 17/callout 16 差 1），保留；引用块说话人名签 .caption（12）＝微标签同组登记；聊天正文 .callout（16，0.4.4 §29 定版基准）不动；工具卡小字 .caption 为审计自评「基本自洽」面，保留。
+
+### 50.2 灰度收敛（审计 G1＋C4）
+- inkMuted（#949B9F，实算 2.75:1【实算】）退出一切文字位：全仓逐处分类（Text 前景＝文字位、Image/Shape/状态点＝非文字位），文字位 59 处换 inkSecondary（4.84:1），含共享组件 ContentRow/UnifiedRow 副题与尾元、管理页全部状态/说明行、抽屉空态提示、枢纽各段的时间/说明、日志元信息等；两处三元色（EnvVars 未设置态、StatusView 停用态下次时间）随之塌缩为 inkSecondary 单值。Palette inkMuted 注记改「只许非文字用途」。
+- 清零证据（交付 grep 口径）：`grep -rn "Palette.inkMuted" Sources` 余 58 处，逐类为——chevron/箭头/搜索/清除等字形前景、StatusDot 与 stateColor/decisionColor/tone 等状态色返回值、quote 竖线/TypingDots 等 Shape 填充、双色符号次色、EmptyState 装饰图标、目标删除线色（装饰线）、已读点填充。无一处落在 Text 前景上。
+- C4 落点：新增 Palette.inkSecondaryOnFill（浅 #5F666B＝在 #EEEEF0 上 ≈5.2:1【实算】；暗派生 #9AA3A8＝在暗泡 #272E33 上 ≈5.5:1）。全仓实查填充面上的次级文字仅一处真落点——ServerRemoteImage 失败标签（inkSecondary 字落 bubbleFill 背景，4.29:1）已换新角色；quoteBlock 经代码核查位于气泡背景之外（VStack 内、气泡填充只包正文块），不属 C4 面、维持 inkSecondary（在页面底 4.84:1 达标）。
+
+### 50.3 图标令牌单源化（审计 G3）
+- 单源＝Core FrameworkIcon：新增 tabGlyphSize 22／navGlyphSize 21／rowGlyphSize 20／fileGlyphSize 17 四角色（值与旧源逐项同值）；连既有 drawerGlyphSize 27／drawerBarGlyphSize 17／settingsGlyphSize 28／composerGlyphSize 15 共八角色成全表。OneDayMetrics.navGlyph/tabGlyph/rowIconGlyph 改引用单源（别名保留、数值退役）；ListRowSpec 字号字段改挂 TypeRole（见 50.1）；HeaderButtonSpec（直径 40/字形 20/比 0.50）为几何规格、非字形令牌第三源，维持原位并在此对账（字形 20 在 glyphSizeRange 带内）。
+- 消费点回填：抽屉导航/管理字形字面 27→FrameworkIcon.drawerGlyphSize（light 定版不变）；设置 rowIcon 字面 28→FrameworkIcon.settingsGlyphSize；FileIconBox 单字 17→FrameworkIcon.fileGlyphSize。字重分位维持 0.22.0 定版（底栏/抽屉 light、设置 regular），本表只管尺寸。
+
+### 50.4 顶栏圆钮玻璃化（审计 T2）
+- 聊天页左右圆钮（汉堡/铃铛）白浮纸 odFloatPaper→.glassEffect(.regular, in: Circle())，与同排身份胶囊同族；文件页 headerCircleButton 同步同改。视觉盘恒 HeaderButtonSpec.diameter 40 不变；chrome 定案不动（safeAreaBar 注册路径、私有 variableBlur 零碰、E11 不复活）。回到底部圆钮维持白浮纸（非顶栏件、0.3.8 浮件统一画法的现行件，只补命中域，见 50.5）。
+
+### 50.5 命中域补齐（审计 C2/C3＋全 App 逐面审计）
+- 补齐（视觉尺寸全不变、两层帧外扩，CopyButton 既有款式）：思考头行 minHeight 44【C2】；工具卡「展开结果」钮 minHeight 44【C2 同批】；引用条 ✕ 28→44【C3】；回告卡 ✕ 24→44；错误/提示条 ✕（无帧）→44；顶栏圆钮 40→44（聊天左右＋文件页两钮）；回到底部钮 34→44；附件移除钮 17→44（offset 补偿 13.5 保字形中心同位）；抽屉底条搜索清除钮→44（胶囊高 52 容纳）；目标页两处 minus.circle 行内删除钮→44；枢纽编辑钮 36→44、图片查看器 ✕ 36→44；总览状态卡头行 minHeight 44。
+- 登记豁免（不达 44 但不动，逐项理由）：发送舱两键 30＝ComposerLayout 定版几何（胶囊总高 46 用户定版，扩键即推翻发送舱定版）；枢纽页头两枚 36 玻璃钮＝.buttonStyle(.glass) 系统件＋L1 样板定版，系统件命中由系统样式管理；审批段 bordered/borderedProminent 钮＝系统控件尺寸；主按钮高 42＝OneDayMetrics.primaryButtonHeight 的 OpenMuse 定版值（差 2）；搜索字段内清除钮（FileSearchField/LogsView/MemoryEntriesViews 三处）＝行内清除字形、受字段行高所限，外扩会侵占相邻控件命中，随系统文本框清除钮惯例登记；系统件全体（List 行/toolbar/tabBar/contextMenu/系统 segmented 以外的系统控件）由系统保证。
+
+### 50.6 小字与 Light 清零（审计 G6）
+- 9pt：胶囊 chevron 两处（ChatView 模型 Menu＋Components 身份锚）→.caption2.weight(.bold) 字形角色（默认 11 视觉当量、随 Dynamic Type）。
+- 11pt：引用块说话人名签（文字）caption2→caption（见 50.1 登记）；工具卡链接字形 11 字面量删除（随行文走 caption 档）；工具卡「进行中」caption2→badgeOnly、「失败」徽标 caption2→badgeOnly.weight(.medium)；目标勾选勾字形 11→12。
+- Light 字重（文字位）：聊天空态图标 26 light→regular【审计 G6 明列】。图标字形 light 定版不动（底栏/抽屉，0.22.0 探针定版）；Components EmptyState 装饰图标 34 light 为字形位、审计未列，保留。
+- 残留口径：全仓 .system(size: 9/10/11) 余 FilesView 面包屑 chevron 10 与 BoxFilesView 同件——皆分隔字形、非文字，登记保留。
+
+### 50.7 三设置检查（代码层＋单测闸，零截图）
+- 新闸 VisualDirectionGateTests（+6 测）：①TypeRole 十角色样式名/默认 pt/字重逐项对账；②Dynamic Type 真缩放——ImageRenderer 离线渲染五角色文字于 .large 与 AX3 两档、断言高度增长 >20%（固定号字体在此现形）；③对比度实算——Palette 色经 EnvironmentValues（浅/暗两色貌）resolve 后以 Core WCAGContrast 复算：ink/inkSecondary 对 pageBG、inkSecondaryOnFill 对 bubbleFill，浅暗共五对 ≥4.5；inkMuted 对 pageBG <4.5 危险钉；④WCAG 公式自证对审计原值（4.84/2.75/5.2 复算命中）；⑤TransparencyFallback 裁决两分支；⑥图标单源对账（OneDayMetrics 三别名＝FrameworkIcon 同值＋八角色定版值）。
+- 减透明落点：系统玻璃（glassEffect）由系统回退【官方】；自制霜层（抽屉底条 Material＋渐变 mask）的淡出段不受系统回退管辖——DrawerView 经 TransparencyFallback 裁决加实色分支（Reduce Transparency 时整幅 Palette.surface、无 mask）；其余自制材质面全仓 grep 仅此一处（scrim 为带 alpha 的纯色纱、非材质面，不入列）。
+- 暗色＋增对比：颜色全走 Palette 动态色（浅/暗成对），对比闸已含暗色对；Increase Contrast 下系统色与玻璃由系统加深【官方】，自有令牌无单独分支、登记为系统托管。
+
+### 50.8 不动项与顺延
+- §14 十条、MotionTokens、SideChatLink 与发送链、ComposerLayout 发送舱几何、0.22.0 全部定版落值（底栏/抽屉字形 light、设置行高 60/图标 28、抽屉槽 30/行高 58）零改动。
+- 审计在册未纳入本包任务单：D3 行垫圆角 14、D5 底条玻璃去描边、G5 分组面宽层差、S3 设置卡圆角、F5 文件页迁 List、M2 留痕区 errorSurface 底、C5 聊天空态文案——均为 P2、留待后续包或用户点名。
+- 版本源五处同改 0.23.0/52：Project.swift 四字面量＋SettingsView.versionFooter「OneDay v0.23.0」，全仓 grep 验。
+- 单测 441＋6＝447（预估，实测以 CI 为准）：新增 VisualDirectionGateTests 6 测；既有断言改值 1 处（DisplayMappingTests ListRowSpec.subtitleSize 13→15，随 I1 规格改值、非删测）。
+
+### 50.9 真机终审项（W 系列）
+W1 大字号（设置→辅助功能→更大字体拉满）：抽屉/设置/文件/管理页/总览五行随之放大、不断行溢出（0.22.0 前三面纹丝不动为旧病）；W2 默认字号下五面与 0.22.0 并排观感不变（名字头/行题/副行同大同粗细）；W3 暗色模式五面过一遍：次级文字不发虚、思考/引用小字可读；W4 减透明开：抽屉底条变实色面、名单末行不透字叠读，关后霜层恢复；W5 聊天页顶栏两圆钮与胶囊同为玻璃质感（不再一纸一玻）、文件页两圆钮同；W6 命中手感抽查：思考头行、引用条 ✕、回告卡 ✕、附件移除钮、顶栏圆钮——都应一按中；W7 总览/管理页会话行与抽屉同物同尺感（题略粗、副行 15）；W8 设置页分区头与抽屉分区头同大同粗（15 medium 统一后）。

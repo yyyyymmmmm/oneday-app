@@ -136,7 +136,17 @@ struct DeliverablesView: View {
                 width: HeaderButtonSpec.diameter,
                 height: HeaderButtonSpec.diameter
             )
-            .odFloatPaper(in: Circle())
+            // 0.23.0（审计 T2）：与聊天页顶栏圆钮同改
+            // ——白浮纸换系统玻璃 .glassEffect(.regular)，
+            // 与同排身份胶囊同族材质；视觉盘 40 不变
+            .glassEffect(.regular, in: Circle())
+            // 0.23.0（命中域审计）：命中域外扩 44（视觉
+            // 盘居中不变），与聊天页顶栏钮同口径
+            .frame(
+                width: OneDayMetrics.minTapTarget,
+                height: OneDayMetrics.minTapTarget
+            )
+            .contentShape(Rectangle())
     }
 
     // MARK: - 大分段（照 Muse 资源库图自制）
@@ -168,7 +178,9 @@ struct DeliverablesView: View {
             withAnimation(.default) { segment = tag }
         } label: {
             Text(title)
-                .font(.system(size: 20, weight: .semibold))
+                // 0.23.0：落字阶角色 rowTitleLSemi（title3
+                // semibold，默认 20 等值，审计 G2）
+                .font(.rowTitleLSemi)
                 .foregroundStyle(
                     selected ? Palette.ink : Palette.inkSecondary
                 )
@@ -300,7 +312,9 @@ struct DeliverablesView: View {
             FileIconBox(entry: item.entry)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.entry.name)
-                    .font(.system(size: 20))
+                    // 0.23.0：行题/类型小字落字阶角色
+                    // rowTitleL/rowSubtitle（默认 20/15 等值）
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text(
@@ -308,7 +322,7 @@ struct DeliverablesView: View {
                         forFileName: item.entry.name
                     )
                 )
-                .font(.system(size: 15))
+                .font(.rowSubtitle)
                 .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
             }

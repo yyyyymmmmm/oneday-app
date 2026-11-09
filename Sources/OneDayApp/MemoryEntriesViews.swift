@@ -180,7 +180,7 @@ struct MemoryEntriesSection: View {
                 }
                 Text("批准或驳回在枢纽的审批区进行（聊天页点顶部胶囊打开）；批准后这里会回读确认。")
                     .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .padding(.vertical, OneDayMetrics.spacingS)
             }
@@ -409,7 +409,7 @@ struct MemoryEntryDetailView: View {
             .odGroup()
             Text("更新时间是记忆文件的最近修改时刻，同一文件里的条目相同。")
                 .font(.footnote)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
                 .padding(.top, OneDayMetrics.spacingS)
         }
         .padding(.bottom, 28)
@@ -543,7 +543,7 @@ struct MemoryEntryEditorView: View {
                     )
                     Text("提交后先进入待审批，在枢纽批准了才会真正生效（聊天页点顶部胶囊打开）；驳回则保持原样。")
                         .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingS)
                 }
                 .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -580,7 +580,7 @@ struct MemoryEntryEditorView: View {
                     Spacer()
                     Text("目标文件不能改")
                         .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .frame(minHeight: OneDayMetrics.rowHeight)

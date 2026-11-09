@@ -118,7 +118,10 @@ struct EnvVarsView: View {
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(entry.isSet ? (entry.redactedValue ?? "已设置") : "未设置")
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(entry.isSet ? Palette.inkSecondary : Palette.inkMuted)
+                // 0.23.0（审计 G1）：未设置也是要读的字，
+                // inkMuted（2.75:1）退出文字位，两态同归
+                // inkSecondary
+                .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .regular))

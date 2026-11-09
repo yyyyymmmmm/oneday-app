@@ -44,8 +44,10 @@ public struct GroupDivider: View {
     }
 }
 
-/// 分区标题：13 regular（0.3.7 §22.6：medium 退出账本，
-/// 与 groupLabel 同档）、次色、句首大写、无字距。
+/// 分区标题：0.23.0 起走字阶角色 sectionLabel（15
+/// medium，审计 S4：与抽屉分区头/设置分区头三面统一
+/// 同一角色；0.3.7 的 13 regular 旧档让位）、次色、
+/// 句首大写、无字距。
 /// 禁止大写 eyebrow（Hallmark Floor 9 / Impeccable 禁令）。
 public struct SectionLabel: View {
     private let title: String
@@ -57,8 +59,7 @@ public struct SectionLabel: View {
 
     public var body: some View {
         Text(title)
-            // 条 3（§14）：暗色字重降一档的变体入口
-            .font(.footnote)
+            .font(.sectionLabel)
             .foregroundStyle(Palette.inkSecondary)
     }
 }
@@ -113,23 +114,31 @@ public struct ContentRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    // 0.3.3：标题是行内唯一半粗位（rowTitle）
-                    .font(.body)
+                    // 0.23.0：走字阶角色 rowTitle（17
+                    // semibold）——0.3.3 注「行内唯一半
+                    // 粗位」与本行旧 .body regular 的实
+                    // 际落值自此对齐（审计 G2 角色表）
+                    .font(.rowTitle)
                     .foregroundStyle(Palette.ink)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.footnote)
-                        // 0.3.3：副标题退到最弱档 inkMuted
-                        .foregroundStyle(Palette.inkMuted)
+                        // 0.23.0：副题升角色 rowSubtitle
+                        // （15；旧 footnote 13 升档，审计
+                        // I1）＋inkSecondary（旧 inkMuted
+                        // 2.75:1 退出文字位，审计 G1）
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
             }
             Spacer(minLength: OneDayMetrics.spacingS)
             if let trailing {
                 Text(trailing)
-                    .font(.system(.footnote, design: .monospaced))
+                    // 0.23.0：元信息走角色 metaMonospaced
+                    // （15 等宽；旧 footnote 13 升档）
+                    .font(.metaMonospaced)
                     // 条 6（§14）：读数位等宽数字防抖
                     .tabularDigits()
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -547,7 +556,10 @@ public struct IdentityAnchor: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
+                        // 0.23.0（审计 G6）：9pt 字形升
+                        // caption2 角色（默认 11 视觉当量、
+                        // 随 Dynamic Type 缩放）
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
@@ -604,22 +616,27 @@ public struct UnifiedRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.body)
+                    // 0.23.0：走字阶角色 rowTitle（与
+                    // ContentRow 同步，审计 G2/I1）
+                    .font(.rowTitle)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        // 0.23.0：副题升角色 rowSubtitle
+                        // （15）＋inkSecondary（审计 G1/I1）
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: OneDayMetrics.spacingS)
             if let trailing {
                 Text(trailing)
-                    .font(.system(.footnote, design: .monospaced))
+                    // 0.23.0：元信息走角色 metaMonospaced（15）
+                    .font(.metaMonospaced)
                     .tabularDigits()
-                    .foregroundStyle(trailingColor ?? Palette.inkMuted)
+                    .foregroundStyle(trailingColor ?? Palette.inkSecondary)
             }
             if let statusColor {
                 StatusDot(color: statusColor)

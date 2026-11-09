@@ -70,7 +70,7 @@ struct HubCronSection: View {
                     if !item.job.enabled {
                         Text("已暂停")
                             .font(.caption)
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                 }
                 ForEach(textLines(item), id: \.self) { line in

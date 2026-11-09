@@ -1,3 +1,4 @@
+import OneDayCore
 import SwiftUI
 
 // MARK: - 语义色角色层（0.6.1：OpenMuse 令牌接管）
@@ -125,8 +126,20 @@ public enum Palette {
     /// 弱墨（OpenMuse 三档弱色无独立令牌，取其输入占位
     /// 色 #949B9F 为实证弱档，chat.tsx:948；暗色派生
     /// #6E777D）
+    /// 0.23.0（审计 G1）：实算对比 2.75:1 不达文字线，
+    /// 本色自本版起**只许非文字用途**（占位符/禁用态/
+    /// 装饰字形/状态点/纯填充），一切要读的字走 ink 或
+    /// inkSecondary；文字位清零由 §50 的 grep 清单把守
     public static let inkMuted = omColor(
         light: omHex(0x949B9F), dark: omHex(0x6E777D)
+    )
+    /// 填充面次墨（0.23.0，审计 C4）：inkSecondary 落在
+    /// 助手泡 #EEEEF0 上实算 4.29:1 压线下——泡内/填
+    /// 充面上的次级文字专用加深档 #5F666B（在 #EEEEF0
+    /// 上实算 ≈5.2:1）；暗色派生随暗色 inkSecondary
+    /// #9AA3A8（在暗色泡 #272E33 上 ≈5.5:1）
+    public static let inkSecondaryOnFill = omColor(
+        light: omHex(0x5F666B), dark: omHex(0x9AA3A8)
     )
     /// 发丝线（OpenMuse line #EEEEF0，ui.tsx:23——与助
     /// 手泡同 hex 是它源码本貌；暗色派生 #262E33）
@@ -255,10 +268,11 @@ public enum OneDayMetrics {
     public static let settingsRowHeight: CGFloat = 60
     /// 设置页组间距（0.20.0，图中组间约 28）
     public static let settingsSectionSpacing: CGFloat = 28
-    /// 名单行图标字形（细线 20–22 带内）
-    public static let navGlyph: CGFloat = 21
-    /// 底栏字形（0.3.6 立宪 21–22）
-    public static let tabGlyph: CGFloat = 22
+    /// 名单行图标字形（0.23.0 单源化：改引用 Core
+    /// FrameworkIcon，本处只留别名、不再自带数值）
+    public static let navGlyph: CGFloat = FrameworkIcon.navGlyphSize
+    /// 底栏字形（0.23.0 单源化：同上，值 22 不变）
+    public static let tabGlyph: CGFloat = FrameworkIcon.tabGlyphSize
     /// 抽屉底部浮动条圆钮边长（0.3.6 实测约 52；搜索
     /// 胶囊同高）
     public static let drawerBarButton: CGFloat = 52
@@ -296,7 +310,9 @@ public enum OneDayMetrics {
     /// 有分量（礼记行图标为系统 body 字形＋24 槽；OneDay
     /// 取 20 semibold，槽宽仍 iconSlot 28 保对齐线与
     /// dividerInset 60 的推导不变）
-    public static let rowIconGlyph: CGFloat = 20
+    /// 0.23.0 单源化：数值改引用 Core FrameworkIcon
+    /// .rowGlyphSize（20 不变），本处只留别名
+    public static let rowIconGlyph: CGFloat = FrameworkIcon.rowGlyphSize
     /// 主按钮高（0.6.1 改挂 OpenMuse button minHeight
     /// 42，ui.tsx:72）
     public static let primaryButtonHeight: CGFloat = 42

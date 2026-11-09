@@ -168,7 +168,7 @@ struct UsageDetailView: View {
                             if let provider = model.provider, !provider.isEmpty {
                                 Text(provider)
                                     .font(.caption)
-                                    .foregroundStyle(Palette.inkMuted)
+                                    .foregroundStyle(Palette.inkSecondary)
                             }
                         }
                         Spacer(minLength: OneDayMetrics.spacingS)
@@ -178,7 +178,7 @@ struct UsageDetailView: View {
                                 .foregroundStyle(Palette.ink)
                             Text(String(format: "%.0f%%", model.tokens / total * 100))
                                 .font(.caption)
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)

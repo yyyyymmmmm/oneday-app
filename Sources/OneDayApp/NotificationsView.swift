@@ -88,7 +88,7 @@ struct NotificationsView: View {
                     }
                     Text(Self.displayTime(item.createdAt))
                         .font(.caption)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer(minLength: 0)
             }

@@ -174,7 +174,7 @@ struct StatusView: View {
                             }
                             Text(entry.meta)
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                     }
                 }
@@ -215,8 +215,10 @@ struct StatusView: View {
                             Spacer(minLength: OneDayMetrics.spacingS)
                             Text(jobNextText(job))
                                 .font(.system(.callout, design: .monospaced))
-                                .foregroundStyle(job.enabled
-                                    ? Palette.inkSecondary : Palette.inkMuted)
+                                // 0.23.0（审计 G1）：停用态的下次
+                                // 时间也是要读的字，inkMuted 退出
+                                // 文字位，两态同归 inkSecondary
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .frame(minHeight: OneDayMetrics.rowHeight)

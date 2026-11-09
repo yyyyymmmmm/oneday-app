@@ -66,6 +66,10 @@ struct DrawerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    /// 减透明（0.23.0）：底条霜层的实色回退分支读它
+    /// （经 Core TransparencyFallback 裁决）
+    @Environment(\.accessibilityReduceTransparency)
+    private var reduceTransparency
     @Query(sort: \ChatThread.updatedAt, order: .reverse)
     private var threads: [ChatThread]
     /// 底条搜索词（本地过滤旁聊区，22:45 纠正后恢复
@@ -123,18 +127,33 @@ struct DrawerView: View {
             }
             // 霜层：系统 Material 矩形＋渐变 mask（上透
             // 下实），只承视觉、不承命中
+            // 0.23.0（三设置检查·减透明）：Reduce Trans-
+            // parency 开启时渐变 mask 的淡出段不受系统
+            // 材质自动增不透明的管辖、名单末行会透过霜
+            // 层与底条字叠读——经 Core Transparency-
+            // Fallback 裁决落实色分支（整幅实色面、无
+            // mask），裁决纯函数有单测把守
             VStack {
                 Spacer()
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .frame(height: 96)
-                    .mask {
-                        LinearGradient(
-                            colors: [.clear, .black],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    }
-                    .ignoresSafeArea(edges: .bottom)
+                if TransparencyFallback.surface(
+                    reduceTransparency: reduceTransparency
+                ) == .solid {
+                    Rectangle()
+                        .fill(Palette.surface)
+                        .frame(height: 96)
+                        .ignoresSafeArea(edges: .bottom)
+                } else {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .frame(height: 96)
+                        .mask {
+                            LinearGradient(
+                                colors: [.clear, .black],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        }
+                        .ignoresSafeArea(edges: .bottom)
+                }
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -254,7 +273,10 @@ struct DrawerView: View {
             // 字重 bold→semibold 降一档——参考图「三狗」
             // 同为大标题而笔画克制，SF bold 的拉丁字面
             // 渲染近黑体级、正是压人来源；取舍记 §49
-            .font(.system(size: 34, weight: .semibold))
+            // 0.23.0：落字阶角色 screenName（largeTitle
+            // semibold，默认 34 与定版等值、随 Dynamic
+            // Type 缩放，审计 G2/D1）
+            .font(.screenName)
             .foregroundStyle(Palette.ink)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -344,7 +366,7 @@ struct DrawerView: View {
         if sideThreads.isEmpty {
             Text("还没有旁聊")
                 .font(.footnote)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, OneDayMetrics.drawerInset)
                 .padding(.bottom, OneDayMetrics.spacingS)
@@ -365,7 +387,7 @@ struct DrawerView: View {
             if sideThreads.isEmpty {
                 Text("没有匹配的旁聊")
                     .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, OneDayMetrics.drawerInset)
                     .padding(.bottom, OneDayMetrics.spacingS)
@@ -447,7 +469,9 @@ struct DrawerView: View {
                     // 中同为 20pt 级、重于导航行半粗一
                     // 档之差）；标题走 drawerDisplayTitle
                     // 解析（第三条 AI 标题回流）
-                    .font(.system(size: 20, weight: .regular))
+                    // 0.23.0：落字阶角色 rowTitleL（title3，
+                    // 默认 20 等值，审计 G2/D1）
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: OneDayMetrics.spacingS)
@@ -455,7 +479,9 @@ struct DrawerView: View {
                     updatedAt: thread.updatedAt,
                     now: Date()
                 ))
-                .font(.system(size: 15))
+                // 0.23.0：落字阶角色 meta（subheadline，
+                // 默认 15 等值，审计 G2/D1）
+                .font(.meta)
                 // 0.22.0（审计 G1/D2）：时间戳是「要读的
                 // 字」，inkMuted 实算 2.75:1 不达标——换
                 // inkSecondary（4.84:1）；inkMuted 就此只
@@ -581,7 +607,9 @@ struct DrawerView: View {
             // 15–16pt 小灰字）；旧 .subheadline 让位
             // 0.22.0（审计 G1/D2）：颜色同时间戳换
             // inkSecondary（inkMuted 2.75:1 不达标）
-            .font(.system(size: 15, weight: .medium))
+            // 0.23.0：落字阶角色 sectionLabel（subhead-
+            // line medium，默认 15 等值，审计 G2/S4）
+            .font(.sectionLabel)
             .foregroundStyle(Palette.inkSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OneDayMetrics.drawerInset)
@@ -617,12 +645,15 @@ struct DrawerView: View {
                     // 纽 list.bullet 无更轻的同义候选
                     // （rectangle.stack .353 同档），细线
                     // 感由字重达成（DESIGN-V4 §49）
-                    .font(.system(size: 27, weight: .light))
+                    .font(.system(
+                        size: FrameworkIcon.drawerGlyphSize,
+                        weight: .light
+                    ))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 30, alignment: .center)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.rowTitleLSemi)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -660,12 +691,15 @@ struct DrawerView: View {
                     // 0.20.0 字阶与导航行同档（27/20 半粗
                     // /58，见 drawerNavRow 注）；0.22.0 字
                     // 重随导航行同批降 light（.353→.294）
-                    .font(.system(size: 27, weight: .light))
+                    .font(.system(
+                        size: FrameworkIcon.drawerGlyphSize,
+                        weight: .light
+                    ))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 30, alignment: .center)
                     .accessibilityHidden(true)
                 Text("管理全部对话")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.rowTitleLSemi)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -747,7 +781,7 @@ struct DrawerView: View {
                 TextField("搜索会话", text: $drawerQuery)
                     // 0.20.0 字阶：底条搜索字约 18（图中占
                     // 位字量级介于分区头与行题之间）
-                    .font(.system(size: 18))
+                    .font(.bodyText)
                     .foregroundStyle(Palette.ink)
                 if !drawerQuery.isEmpty {
                     Button {
@@ -755,6 +789,11 @@ struct DrawerView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(Palette.inkMuted)
+                            // 0.23.0（命中域审计）：字形不
+                            // 变、命中域外扩 44（胶囊高 52
+                            // 可容纳），与文件页 ⋮ 同口径
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("清空搜索")
                 }

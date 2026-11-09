@@ -172,7 +172,7 @@ struct IdeaCardView: View {
                 Spacer(minLength: 0)
                 Text(createdText)
                     .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
             }
             HStack(spacing: OneDayMetrics.spacingS) {
                 if !converted {

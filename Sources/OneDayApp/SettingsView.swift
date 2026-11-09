@@ -17,7 +17,10 @@ import SwiftUI
 /// 尾值位整件撤除（值进各自详情页；状态两行降题下副
 /// 行），行题统一 20 regular 单字重、行图标 28、小字
 /// 下限 15、分区头 15 灰；逐项改前/改后见 DESIGN-V4
-/// §49。
+/// §49。0.23.0：字阶全面落 Font 角色（rowTitleL/
+/// rowSubtitle/meta/sectionLabel——默认字号与上述落
+/// 值逐项等值、改随 Dynamic Type 缩放），行图标改引
+/// 用 FrameworkIcon.settingsGlyphSize 单源，见 §50。
 struct SettingsView: View {
     /// 0.20.0：呈现形态改根级 sheet（ContentView 呈现）
     /// ——关闭走本回调（页内大标题＋右上圆 X 头照 Muse
@@ -71,7 +74,7 @@ struct SettingsView: View {
                     Section {
                         Text(notice)
                             // 0.22.0 小字清查：13→15 下限
-                            .font(.system(size: 15))
+                            .font(.rowSubtitle)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .listRowBackground(Palette.surface)
@@ -205,7 +208,7 @@ struct SettingsView: View {
                             // 图账户卡题即 regular，强调只靠
                             // 位置不靠加粗；0.20.0 的 semibold
                             // 让位
-                            .font(.system(size: 20, weight: .regular))
+                            .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         if let status {
                             StatusDot(
@@ -218,7 +221,7 @@ struct SettingsView: View {
                     // 模型副行仍禁（0.4.0 A 案：模型露头
                     // 只许聊天页胶囊一处，不变）
                     Text(appState.config?.host ?? "未连接")
-                        .font(.system(size: 15))
+                        .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -263,7 +266,7 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(icon)
                 Text(title)
-                    .font(.system(size: 20))
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
@@ -325,8 +328,8 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.22.0")
-                .font(.system(size: 15))
+            Text("OneDay v0.23.0")
+                .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
                 .foregroundStyle(Palette.inkSecondary)
@@ -398,10 +401,10 @@ struct SettingsView: View {
                     Text("当前服务器")
                         // 0.22.0：题随全页统一 20 regular
                         // （0.20.0 的半粗让位）；副 15 沿旧
-                        .font(.system(size: 20, weight: .regular))
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Text(appState.config?.host ?? "—")
-                        .font(.system(size: 15, design: .monospaced))
+                        .font(.metaMonospaced)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -425,7 +428,7 @@ struct SettingsView: View {
                 // 红字行不带图标——独立卡内只有一行红字
                 // （20pt）；0.3.8 的红图标同行形态让位
                 Text("断开连接")
-                    .font(.system(size: 20))
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
@@ -525,7 +528,7 @@ struct SettingsView: View {
                     Text("重启网关")
                         // 0.22.0：题随全页统一 20 regular
                         // （旧 .body 17 让位）
-                        .font(.system(size: 20))
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
@@ -588,7 +591,7 @@ struct SettingsView: View {
                     Text("Hermes 开源项目")
                         // 0.22.0：题随全页统一 20 regular、
                         // 外链字形 13→15（小字清查下限）
-                        .font(.system(size: 20))
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -609,7 +612,7 @@ struct SettingsView: View {
                         .frame(width: OneDayMetrics.iconSlot)
                         .accessibilityHidden(true)
                     Text("Icons by Lordicon")
-                        .font(.system(size: 20))
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -628,7 +631,7 @@ struct SettingsView: View {
             // inkMuted（2.75:1）升 15＋inkSecondary（小
             // 字清查＋审计 G1）
             Text("OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。")
-                .font(.system(size: 15))
+                .font(.rowSubtitle)
                 .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
@@ -644,7 +647,10 @@ struct SettingsView: View {
             // 墨色（槽宽 iconSlot 28 不变、对齐线不漂；
             // 字形密度由 RenderMeasureTests 在 28pt 复
             // 量把守）；0.20.0 的 24 让位
-            .font(.system(size: 28, weight: .regular))
+            .font(.system(
+                size: FrameworkIcon.settingsGlyphSize,
+                weight: .regular
+            ))
             .foregroundStyle(color)
             .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
             // 条 5（§14）：同行图标走光学偏移（0.3.0 只落
@@ -653,13 +659,14 @@ struct SettingsView: View {
     }
 
     /// 设置页分区头（0.22.0）：参考图「你的账户」形态
-    /// ——15 灰、无大写化。共享 SectionLabel 是 footnote
-    /// 13（全 App 分区头旧档、归 0.23.0 角色表统一），
-    /// 本页先按实测规格落本地头，与抽屉分区头（15）同
-    /// 档；List 的自定义 View 头不走系统大写化通道
+    /// ——15 灰、无大写化。0.23.0：字阶落共享角色
+    /// sectionLabel（15 medium），与抽屉分区头、共享
+    /// SectionLabel 三面统一（审计 S4）；字重由本页旧
+    /// regular 归一为角色的 medium。List 的自定义
+    /// View 头不走系统大写化通道
     private func settingsHeader(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 15))
+            .font(.sectionLabel)
             .foregroundStyle(Palette.inkSecondary)
             .textCase(nil)
     }
@@ -682,7 +689,7 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(icon)
                 Text(title)
-                    .font(.system(size: 20))
+                    .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
             }
@@ -708,10 +715,10 @@ struct SettingsView: View {
                 rowIcon(icon)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 20))
+                        .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Text(status)
-                        .font(.system(size: 15))
+                        .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }

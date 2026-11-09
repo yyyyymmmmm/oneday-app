@@ -74,7 +74,7 @@ struct HubIdentitySection: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             Text("风格")
                 .font(.caption)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
             Text(style)
                 .font(.body)
                 .foregroundStyle(Palette.ink)

@@ -170,7 +170,7 @@ struct ProfilesView: View {
                         if profile.isDefault == true {
                             Text("默认")
                                 .font(.caption)
-                                .foregroundStyle(Palette.inkMuted)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                     }
                     Text(subtitle(profile))

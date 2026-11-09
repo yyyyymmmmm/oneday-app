@@ -307,7 +307,7 @@ struct MemoryProviderConfigView: View {
                 } else if config != nil {
                     Text("该提供方没有可配置项。")
                         .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingL)
                 } else {
                     HStack(spacing: OneDayMetrics.spacingS) {

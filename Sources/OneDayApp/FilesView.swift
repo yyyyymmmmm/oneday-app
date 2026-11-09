@@ -92,7 +92,12 @@ struct FileIconBox: View {
                 Text(letter)
                     // 图标字形非阅读文字，固定字号合法
                     // （审计图标规格：17 bold 白）
-                    .font(.system(size: 17, weight: .bold))
+                    // 0.23.0：数值改引用 FrameworkIcon
+                    // .fileGlyphSize 单源（17 不变，审计 G3）
+                    .font(.system(
+                        size: FrameworkIcon.fileGlyphSize,
+                        weight: .bold
+                    ))
                     .foregroundStyle(Color.white)
             case .symbol(let name):
                 Image(systemName: name)
@@ -656,7 +661,7 @@ struct MediaCell: View {
                         .foregroundStyle(Palette.inkSecondary)
                     Text(entry.name)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                         .padding(.horizontal, OneDayMetrics.spacingXS)
                 }

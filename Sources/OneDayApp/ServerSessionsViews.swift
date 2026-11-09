@@ -185,7 +185,7 @@ struct ServerSessionsView: View {
                         Spacer()
                         Text("\(emptyCount) 条")
                             .font(.system(.footnote, design: .monospaced))
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .frame(minHeight: OneDayMetrics.rowHeight)
@@ -313,7 +313,7 @@ struct ServerSessionsView: View {
                     }
                     Text(hitMetaLine(hit))
                         .font(.caption)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)

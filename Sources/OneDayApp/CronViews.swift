@@ -148,7 +148,7 @@ struct CronJobsView: View {
                     if job.enabled, let next = AdminFormat.iso(job.nextRunAt) {
                         Text("下次 \(AdminFormat.short(next))")
                             .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
@@ -160,7 +160,7 @@ struct CronJobsView: View {
                 }
                 Text(job.enabled ? "启用" : "已暂停")
                     .font(.footnote)
-                    .foregroundStyle(job.enabled ? Palette.success : Palette.inkMuted)
+                    .foregroundStyle(job.enabled ? Palette.success : Palette.inkSecondary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)

@@ -487,7 +487,8 @@ struct ChatView: View {
     /// 离悬浮覆盖，§28）：
     /// 身份胶囊一颗装头像＋Hermes＋状态＋模型（§3.3，
     /// 小模型胶囊撤除），会话名退到胶囊下方次行居中呈
-    /// 现；左右圆钮走白浮纸画法。
+    /// 现；左右圆钮 0.23.0 起走系统玻璃（审计 T2，此前
+    /// 为白浮纸、与胶囊玻璃并置两材质）。
     /// 左钮字形改汉堡线（第 31 条：与抽屉的隐喻对齐，
     /// 「分栏」图标 sidebar.left 退场）。顶栏总高约
     /// 40＋次行 18，比 0.3.7 的两行胶囊更紧凑（旧胶囊
@@ -505,6 +506,11 @@ struct ChatView: View {
                         // 两钮共用 HeaderButtonSpec（直径 40／
                         // 字形 20 regular）；0.3.8 画法换白浮
                         // 纸（odFloatPaper：近白＋发丝边＋柔影）
+                        // 0.23.0（审计 T2）：圆钮白浮纸换系统
+                        // 玻璃 .glassEffect(.regular)——与同
+                        // 排身份胶囊同族（此前同排两材质并置
+                        // 可辨）；视觉盘 40 不变，命中域外扩
+                        // 44（命中域审计，视觉盘居中）
                         .font(.system(
                             size: HeaderButtonSpec.glyphPointSize,
                             weight: .regular
@@ -514,7 +520,12 @@ struct ChatView: View {
                             width: HeaderButtonSpec.diameter,
                             height: HeaderButtonSpec.diameter
                         )
-                        .odFloatPaper(in: Circle())
+                        .glassEffect(.regular, in: Circle())
+                        .frame(
+                            width: OneDayMetrics.minTapTarget,
+                            height: OneDayMetrics.minTapTarget
+                        )
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("会话列表")
@@ -553,7 +564,9 @@ struct ChatView: View {
                                 width: HeaderButtonSpec.diameter,
                                 height: HeaderButtonSpec.diameter
                             )
-                            .odFloatPaper(in: Circle())
+                            // 0.23.0（审计 T2）：同左钮换系统
+                            // 玻璃；角标与盘的相对位不变
+                            .glassEffect(.regular, in: Circle())
                         if overviewBadgeCount > 0 {
                             Text("\(overviewBadgeCount)")
                                 .font(.caption2.weight(.bold))
@@ -568,6 +581,13 @@ struct ChatView: View {
                                 .accessibilityHidden(true)
                         }
                     }
+                    // 0.23.0（命中域审计）：命中域外扩 44
+                    // （视觉盘 40 居中、角标相对位不变）
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(
@@ -690,7 +710,10 @@ struct ChatView: View {
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
+                    // 0.23.0（审计 G6）：9pt 字形升 caption2
+                    // 角色（默认 11 视觉当量、随 Dynamic
+                    // Type 缩放），与胶囊内同件同口径
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(Palette.inkSecondary)
             }
             .contentShape(Rectangle())
@@ -759,6 +782,13 @@ struct ChatView: View {
                 .foregroundStyle(Palette.ink)
                 .frame(width: 34, height: 34)
                 .odFloatPaper(in: Circle())
+                // 0.23.0（命中域审计）：视觉盘 34 不变、
+                // 命中域外扩 44（与顶栏圆钮同口径）
+                .frame(
+                    width: OneDayMetrics.minTapTarget,
+                    height: OneDayMetrics.minTapTarget
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("回到底部")
@@ -808,7 +838,9 @@ struct ChatView: View {
                     // 两行字，不占大块视觉重量
                     VStack(spacing: OneDayMetrics.spacingS) {
                         Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 26, weight: .light))
+                            // 0.23.0（审计 G6）：26 light 改
+                            // regular——Light 字重退出本面
+                            .font(.system(size: 26, weight: .regular))
                             .foregroundStyle(Palette.inkMuted)
                         Text("和你的 Hermes 聊聊")
                             // 0.3.3 收编：手写 fontWeight 漂移
@@ -818,7 +850,7 @@ struct ChatView: View {
                             .foregroundStyle(Palette.ink)
                         Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
                             .font(.caption)
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
@@ -1342,7 +1374,11 @@ struct ChatView: View {
                     // 0.4.1 第 9 修：引用块在消息流内、
                     // 其标签同守 regular 基准（旧 caption2
                     // semibold 撤销，层级靠色与字号）
-                    .font(.caption2)
+                    // 0.23.0（审计 G6）：caption2（11）退
+                    // 出文字位，升 caption 档（12）——说话
+                    // 人名签属微标签，与总览微标签同组登记
+                    // （§50），不走 badgeOnly 角色
+                    .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
                 Text(quote.summary(maxLength: 80))
                     .font(.caption)
@@ -1417,8 +1453,17 @@ struct ChatView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
+                    // 0.23.0：功能字形随条内 ✕ 同档归
+                    // inkSecondary（原 inkMuted）
+                    .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 24, height: 24)
+                    // 0.23.0（命中域审计）：视觉 24 不变、
+                    // 命中域外扩 44（CopyButton 同款两层帧）
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("标为已读")
@@ -1512,6 +1557,13 @@ struct ChatView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
+                        // 0.23.0（命中域审计）：字形不变、命
+                        // 中域外扩 44（条高随之由内容撑至 44）
+                        .frame(
+                            width: OneDayMetrics.minTapTarget,
+                            height: OneDayMetrics.minTapTarget
+                        )
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("关闭")
             }
@@ -1541,6 +1593,13 @@ struct ChatView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
+                        // 0.23.0（命中域审计）：字形不变、命
+                        // 中域外扩 44（条高随之由内容撑至 44）
+                        .frame(
+                            width: OneDayMetrics.minTapTarget,
+                            height: OneDayMetrics.minTapTarget
+                        )
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("关闭")
             }
@@ -1676,6 +1735,12 @@ struct ChatView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 28, height: 28)
+                    // 0.23.0（审计 C3）：视觉 28 不变、命
+                    // 中域外扩 44（两层帧，CopyButton 同款）
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -2024,8 +2089,16 @@ private struct ComposerBarLayout: Layout {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 17))
                     .foregroundStyle(Palette.inkMuted, Palette.surface)
+                    // 0.23.0（命中域审计）：命中域外扩 44；
+                    // offset 补偿 13.5 使字形中心与旧 17 帧
+                    // 时同位（视觉零位移、只扩命中）
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
             }
-            .offset(x: 5, y: -5)
+            .offset(x: 18.5, y: -18.5)
             .accessibilityLabel("移除附件")
         }
     }

@@ -171,7 +171,7 @@ struct ModelSettingsView: View {
                                 if let runtime = ModelCatalog.aliasRuntime[model] {
                                     Text("别名 · 将按 \(runtime) 运行")
                                         .font(.footnote)
-                                        .foregroundStyle(Palette.inkMuted)
+                                        .foregroundStyle(Palette.inkSecondary)
                                         .lineLimit(1)
                                 }
                             }
@@ -219,7 +219,7 @@ struct ModelSettingsView: View {
                             if let baseURL = provider.baseURL, !baseURL.isEmpty {
                                 Text(baseURL)
                                     .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(Palette.inkMuted)
+                                    .foregroundStyle(Palette.inkSecondary)
                                     .lineLimit(1)
                             }
                         }

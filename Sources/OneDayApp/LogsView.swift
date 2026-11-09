@@ -93,7 +93,7 @@ struct LogsView: View {
                                 }
                                 Text(entry.meta)
                                     .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(Palette.inkMuted)
+                                    .foregroundStyle(Palette.inkSecondary)
                             }
                         }
                     }

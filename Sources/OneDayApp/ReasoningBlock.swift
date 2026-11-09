@@ -74,7 +74,7 @@ struct ReasoningBlock: View {
                 .frame(width: 2)
             ScrollView {
                 Text(text)
-                    .font(.footnote)
+                    .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
                     .textSelection(.disabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -149,7 +149,9 @@ struct ReasoningBlock: View {
                 .font(.footnote)
                 .accessibilityHidden(true)
             Text(title)
-                .font(.footnote)
+                // 0.23.0：思考正文/头行走字阶角色
+                // captionText（footnote 同值，审计 G2）
+                .font(.captionText)
                 .foregroundStyle(Palette.inkSecondary)
             if let chevron {
                 Image(systemName: chevron)
@@ -158,6 +160,11 @@ struct ReasoningBlock: View {
                     .accessibilityHidden(true)
             }
         }
+        // 0.23.0（审计 C2）：头行实高仅 footnote 行高
+        // （约 16pt）远低于 44 最小命中——纵向补到
+        // minHeight 44，视觉行高与字形不变、命中域外
+        // 扩（工具卡展开钮同批同改）
+        .frame(minHeight: OneDayMetrics.minTapTarget)
         .contentShape(Rectangle())
     }
 }

@@ -300,7 +300,7 @@ struct SkillDetailView: View {
                             .foregroundStyle(Palette.ink)
                         Text("锁定后不能改内容、不能停用")
                             .font(.footnote)
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                     Spacer()
                     Toggle("", isOn: $isLocked)

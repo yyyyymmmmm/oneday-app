@@ -46,7 +46,10 @@ struct ToolCardView: View {
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if card.resultFailed {
                     Text("失败")
-                        .font(.caption2.weight(.medium))
+                        // 0.23.0（审计 G6）：徽标文字升角色
+                        // badgeOnly（caption 12；旧 caption2
+                        // 11 退出文字位）
+                        .font(.badgeOnly.weight(.medium))
                         .foregroundStyle(Palette.danger)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
@@ -59,20 +62,23 @@ struct ToolCardView: View {
                         ProgressView()
                             .controlSize(.mini)
                         Text("进行中")
-                            .font(.caption2)
-                            .foregroundStyle(Palette.inkMuted)
+                            // 0.23.0（审计 G6/G1）：状态小字升
+                            // badgeOnly（12）＋inkSecondary
+                            .font(.badgeOnly)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                 }
             }
             if let pageLine = browserPageLine {
                 HStack(spacing: 5) {
                     Image(systemName: "link")
-                        .font(.system(size: 11))
                     Text(pageLine)
                         .lineLimit(1)
                 }
+                // 0.23.0（审计 G6）：11pt 字形字面量清零
+                // ——字形随行文字走 caption 档（12）同缩
                 .font(.caption)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
             }
             if let result = card.result, !result.isEmpty {
                 Rectangle()
@@ -134,6 +140,10 @@ struct ToolCardView: View {
                 .font(.caption)
                 .foregroundStyle(Palette.primary)
                 .buttonStyle(.plain)
+                // 0.23.0（审计 C2 同批）：展开钮命中域补
+                // 到 44 高（视觉字形不变、行内左对齐）
+                .frame(minHeight: OneDayMetrics.minTapTarget)
+                .contentShape(Rectangle())
             }
         }
     }
@@ -205,7 +215,11 @@ struct ServerRemoteImage: View {
                     Text("图片加载失败")
                 }
                 .font(.caption)
-                .foregroundStyle(Palette.inkSecondary)
+                // 0.23.0（审计 C4）：本字落在 bubbleFill
+                // 填充面上——inkSecondary 在其上实算
+                // 4.29:1 压线下，换填充面专用加深档
+                // inkSecondaryOnFill（≈5.2:1）
+                .foregroundStyle(Palette.inkSecondaryOnFill)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(
@@ -302,6 +316,13 @@ struct ImageFullScreenView: View {
                             .background(
                                 Color.white.opacity(0.18), in: Circle()
                             )
+                            // 0.23.0（命中域审计）：视觉盘 36
+                            // 不变、命中域外扩 44（盘居中）
+                            .frame(
+                                width: OneDayMetrics.minTapTarget,
+                                height: OneDayMetrics.minTapTarget
+                            )
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("关闭")
                 }

@@ -187,7 +187,7 @@ struct HubTaskSection: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(Palette.inkMuted)
+            .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.vertical, 2)
     }

@@ -16,6 +16,31 @@ public enum FrameworkIcon {
     /// 字形尺寸带（pt）：全 App 框架字形同带
     public static let glyphSizeRange: ClosedRange<CGFloat> = 20...22
 
+    // MARK: - 0.23.0 单源化（视觉审计 G3）
+    // 本表自本版起是全 App 框架字形尺寸的唯一源：旧三
+    // 源（本表／OneDayMetrics 的 navGlyph·tabGlyph·
+    // rowIconGlyph／ListRowSpec 的字号字段）合一——
+    // OneDayMetrics 三字段改引用本表（值不变）、
+    // ListRowSpec 字号字段改挂字阶角色（TypeRole）不
+    // 再自带图标数。逐项对账见 DESIGN-V4 §50。
+    // 字重分位口径（0.22.0 定版）：底栏/抽屉名单字形
+    // light、设置行字形 regular，其余 regular；本表只
+    // 管尺寸，字重在各消费点按定版注记。
+
+    /// 底栏字形：22（0.3.6 立宪带 21–22 上沿；原
+    /// OneDayMetrics.tabGlyph 同值迁入）
+    public static let tabGlyphSize: CGFloat = 22
+    /// 名单导航字形：21（原 OneDayMetrics.navGlyph 同
+    /// 值迁入；现行消费面为枢纽等名单行）
+    public static let navGlyphSize: CGFloat = 21
+    /// 内容行字形：20（原 OneDayMetrics.rowIconGlyph
+    /// 同值迁入，ContentRow/UnifiedRow 消费）
+    public static let rowGlyphSize: CGFloat = 20
+    /// 文件类型盒单字字形：17（0.22.0 图标规格 v2 的
+    /// W/P/X 白字档，FileIconBox 消费；符号回落 16 在
+    /// DeliverableIconStyle 表内、不属框架字形）
+    public static let fileGlyphSize: CGFloat = 17
+
     // MARK: - 0.3.8 分位尺寸（fixlist 第 15/24/32 条）
 
     /// 抽屉名单字形：第 15 条——与底栏同线宽档。尺寸

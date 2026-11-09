@@ -170,7 +170,7 @@ struct BrowserFaceView: View {
                 if let captured = store.screenshot?.capturedAt {
                     Text("截于 \(BoxTimeText.hhmmss(captured))")
                         .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer()
                 if store.screenshotLoading || store.acting {
@@ -360,7 +360,7 @@ struct BrowserFaceView: View {
             }
             Text("点按画面即点击对应位置。")
                 .font(.footnote)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
             if let note = store.actNote {
                 Text(note)
                     .font(.footnote)

@@ -92,7 +92,10 @@ final class DisplayMappingTests: XCTestCase {
         XCTAssertEqual(ListRowSpec.minHeight, 56)
         XCTAssertEqual(ListRowSpec.sessionRowMinHeight, 57)
         XCTAssertEqual(ListRowSpec.titleSize, 17)
-        XCTAssertEqual(ListRowSpec.subtitleSize, 13)
+        // 0.23.0（审计 I1）：副题规格 13→15 升档（挂
+        // 角色 rowSubtitle），本断言随规格改值、非删测
+        XCTAssertEqual(ListRowSpec.subtitleSize, 15)
+        XCTAssertEqual(ListRowSpec.metaSize, 15)
     }
 
     func testLocalThreadSubtitle() {

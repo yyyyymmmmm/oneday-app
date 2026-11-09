@@ -232,6 +232,13 @@ struct AgentHubView: View {
                         color: Palette.shadowBase.opacity(0.12),
                         radius: 4, y: 1
                     )
+                    // 0.23.0（命中域审计）：视觉盘 36 不变、
+                    // 命中域外扩 44（盘居中）
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("编辑身份")

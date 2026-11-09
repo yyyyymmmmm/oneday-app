@@ -193,7 +193,7 @@ struct SkillHubView: View {
                     }
                     Text(skill.sourceLabel)
                         .font(.caption)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
@@ -312,7 +312,7 @@ struct HubSkillDetailView: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(Palette.inkMuted)
+            .foregroundStyle(Palette.inkSecondary)
             if let description = skill.description, !description.isEmpty {
                 Text(description)
                     .font(.body)

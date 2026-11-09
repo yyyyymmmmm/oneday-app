@@ -123,7 +123,7 @@ struct KanbanTaskDetailView: View {
                     if let assignee = task.assignee, !assignee.isEmpty {
                         Text("执行：\(assignee)")
                             .font(.caption)
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
@@ -168,7 +168,7 @@ struct KanbanTaskDetailView: View {
     private func metaLine(_ label: String, _ value: String) -> some View {
         HStack(spacing: 6) {
             Text(label)
-                .foregroundStyle(Palette.inkMuted)
+                .foregroundStyle(Palette.inkSecondary)
             Text(value)
                 .foregroundStyle(Palette.inkSecondary)
         }
@@ -251,7 +251,7 @@ struct KanbanTaskDetailView: View {
                             if let at = item.at {
                                 Text(AdminFormat.short(at))
                                     .font(.caption)
-                                    .foregroundStyle(Palette.inkMuted)
+                                    .foregroundStyle(Palette.inkSecondary)
                             }
                         }
                         if let text = item.detail, !text.isEmpty {
@@ -280,7 +280,7 @@ struct KanbanTaskDetailView: View {
                             if let at = comment.createdAt {
                                 Text(AdminFormat.short(at))
                                     .font(.caption)
-                                    .foregroundStyle(Palette.inkMuted)
+                                    .foregroundStyle(Palette.inkSecondary)
                             }
                         }
                         Text(comment.body)
@@ -322,7 +322,7 @@ struct KanbanTaskDetailView: View {
             if actions.isEmpty {
                 Text("当前状态没有可执行的操作。")
                     .font(.subheadline)
-                    .foregroundStyle(Palette.inkMuted)
+                    .foregroundStyle(Palette.inkSecondary)
             }
             ForEach(actions, id: \.self) { action in
                 actionButton(task: task, action: action)

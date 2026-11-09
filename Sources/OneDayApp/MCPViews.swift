@@ -113,7 +113,7 @@ struct MCPView: View {
                     }
                     Text(metaLine(server))
                         .font(.caption)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Toggle("", isOn: toggleBinding(for: server))

@@ -1,0 +1,116 @@
+import Foundation
+
+/// 字阶角色表（0.23.0，视觉审计 G2）：全 App 文字只许
+/// 走十个角色。Design 层 Font 扩展（FontRoles.swift）
+/// 按本表落 SwiftUI 文本样式，本表是数值的单测把守面
+/// （文本样式名／默认字号／字重档三项对账）。
+/// 沿革：0.19/0.20 两轮照 Muse 真机图把抽屉/设置/文件
+/// 三面钉成固定 pt（34/20/15），与 0.4.0「直用语义字
+/// 阶」立宪形成双轨——开大字号时聊天正文长大、三面纹
+/// 丝不动。本表把每个钉值映射回默认字号等值的文本样
+/// 式：默认观感与 0.22.0 定版落值逐项等值，变的是实
+/// 现形态（固定号→文本样式），Dynamic Type 全 App 归一。
+public enum TypeRole: String, CaseIterable {
+    case screenName
+    case rowTitleL
+    case rowTitleLSemi
+    case rowTitle
+    case bodyText
+    case rowSubtitle
+    case meta
+    case sectionLabel
+    case captionText
+    case badgeOnly
+
+    /// SwiftUI 文本样式名（与 FontRoles 落法同名对账）
+    public var textStyleName: String {
+        switch self {
+        case .screenName: return "largeTitle"
+        case .rowTitleL, .rowTitleLSemi: return "title3"
+        case .rowTitle: return "headline"
+        case .bodyText: return "body"
+        case .rowSubtitle, .meta, .sectionLabel: return "subheadline"
+        case .captionText: return "footnote"
+        case .badgeOnly: return "caption"
+        }
+    }
+
+    /// 默认字号（pt，Dynamic Type 默认档的系统值）
+    public var defaultPointSize: CGFloat {
+        switch self {
+        case .screenName: return 34
+        case .rowTitleL, .rowTitleLSemi: return 20
+        case .rowTitle, .bodyText: return 17
+        case .rowSubtitle, .meta, .sectionLabel: return 15
+        case .captionText: return 13
+        case .badgeOnly: return 12
+        }
+    }
+
+    /// 字重档名。screenName 审计原表为 bold，0.22.0 用
+    /// 户并排图点名后定版 semibold（§49.5），本表从定版
+    public var weightName: String {
+        switch self {
+        case .screenName: return "semibold"
+        case .rowTitleLSemi, .rowTitle: return "semibold"
+        case .sectionLabel: return "medium"
+        default: return "regular"
+        }
+    }
+}
+
+/// WCAG 对比度纯函数（0.23.0，视觉审计 G1 的实算口
+/// 径）：相对亮度按 WCAG 2.x 公式（sRGB 分量先做伽马
+/// 展开），比值＝(L1＋0.05)/(L2＋0.05)。审计报告里的
+/// 2.75:1／4.84:1／5.2:1 皆出自此式，单测以同式复算
+/// Palette 角色对，防令牌值漂移后文字对比静默跌破线。
+public enum WCAGContrast {
+    public static func relativeLuminance(
+        red: Double, green: Double, blue: Double
+    ) -> Double {
+        func channel(_ c: Double) -> Double {
+            c <= 0.03928
+                ? c / 12.92
+                : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(red)
+            + 0.7152 * channel(green)
+            + 0.0722 * channel(blue)
+    }
+
+    /// 两色对比（入参为 sRGB 分量 0–1，不分主次）
+    public static func ratio(
+        foreground: (red: Double, green: Double, blue: Double),
+        background: (red: Double, green: Double, blue: Double)
+    ) -> Double {
+        let l1 = relativeLuminance(
+            red: foreground.red,
+            green: foreground.green,
+            blue: foreground.blue
+        )
+        let l2 = relativeLuminance(
+            red: background.red,
+            green: background.green,
+            blue: background.blue
+        )
+        let (lighter, darker) = l1 >= l2 ? (l1, l2) : (l2, l1)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    /// hex 便捷口（0xRRGGBB）
+    public static func ratio(
+        hexForeground: UInt32, hexBackground: UInt32
+    ) -> Double {
+        func parts(_ hex: UInt32) -> (red: Double, green: Double, blue: Double) {
+            (
+                red: Double((hex >> 16) & 0xFF) / 255.0,
+                green: Double((hex >> 8) & 0xFF) / 255.0,
+                blue: Double(hex & 0xFF) / 255.0
+            )
+        }
+        return ratio(
+            foreground: parts(hexForeground),
+            background: parts(hexBackground)
+        )
+    }
+}

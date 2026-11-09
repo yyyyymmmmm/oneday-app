@@ -13,12 +13,17 @@ public enum ListRowSpec {
     public static let minHeight: CGFloat = 56
     /// 两行制会话行最小高（抽屉名单与会话列表同值）
     public static let sessionRowMinHeight: CGFloat = 57
-    /// 标题字号（17 regular，账本 navRowText/rowTitle）
+    /// 标题字号（0.23.0 起挂字阶角色 rowTitle 的默认
+    /// 值 17；字重由角色定为 semibold——旧「17 regular」
+    /// 口径随角色表让位，视觉审计 G2/I1）
     public static let titleSize: CGFloat = 17
-    /// 副题字号（13 regular 灰）
-    public static let subtitleSize: CGFloat = 13
-    /// 右侧元信息字号（13，等宽数字口径由视图层落）
-    public static let metaSize: CGFloat = 13
+    /// 副题字号（0.23.0：13→15，挂角色 rowSubtitle 的
+    /// 默认值——13 footnote＋弱灰是点子/目标页显「小
+    /// 而灰」的来源，审计 I1 升档）
+    public static let subtitleSize: CGFloat = 15
+    /// 右侧元信息字号（0.23.0：13→15，挂角色 meta 的
+    /// 默认值；等宽数字口径由视图层落）
+    public static let metaSize: CGFloat = 15
     /// 行内横向间距（图标列与文字列之间）
     public static let columnSpacing: CGFloat = 12
     /// 行横向内边距（与页面 gutter 同值）

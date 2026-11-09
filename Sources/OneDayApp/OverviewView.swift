@@ -75,7 +75,7 @@ struct OverviewView: View {
                     actionsGroup
                     if let notice {
                         Text(notice)
-                            .font(.footnote)
+                            .font(.captionText)
                             .foregroundStyle(Palette.inkSecondary)
                             .padding(.top, OneDayMetrics.spacingM)
                     }
@@ -83,7 +83,7 @@ struct OverviewView: View {
                         VStack(spacing: OneDayMetrics.spacingS) {
                             ProgressView()
                             Text("正在读取服务器状态…")
-                                .font(.footnote)
+                                .font(.captionText)
                                 .foregroundStyle(Palette.inkSecondary)
                         }
                         .frame(maxWidth: .infinity)
@@ -136,7 +136,7 @@ struct OverviewView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     StatusDot(color: Palette.stateColor(status.gatewayState))
                     Text(stateWord(status))
-                        .font(.body)
+                        .font(.bodyText)
                         .foregroundStyle(isAbnormal(status) ? Palette.danger : Palette.ink)
                     Spacer()
                     Image(systemName: "chevron.right")
@@ -145,6 +145,10 @@ struct OverviewView: View {
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
+                // 0.23.0（命中域审计）：状态行原实高约
+                // 38（字行＋顶距），补 minHeight 44——
+                // 视觉行高由字行撑、命中不低于下限
+                .frame(minHeight: OneDayMetrics.minTapTarget)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -295,16 +299,18 @@ struct OverviewView: View {
                 // 卡 2 纠正 3：平台名与状态词走 ServerLabels，
                 // 原始 key/state 不上屏
                 Text(ServerLabels.platformName(name))
-                    .font(.body)
+                    .font(.bodyText)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text(ServerLabels.platformState(platform.state))
-                    .font(.footnote)
+                    .font(.captionText)
                     .foregroundStyle(Palette.stateColor(platform.state))
             }
             if let message = platform.errorMessage, !message.isEmpty {
                 Text(message)
-                    .font(.caption)
+                    // 0.23.0（审计 H3）：错误说明是阅读文字，
+                    // caption（12）升 captionText（13）
+                    .font(.captionText)
                     .foregroundStyle(Palette.danger)
                     .padding(.leading, OneDayMetrics.spacingM + OneDayMetrics.spacingSM)
             }
@@ -397,7 +403,7 @@ struct OverviewView: View {
                 .foregroundStyle(color)
                 .accessibilityHidden(true)
             Text(text)
-                .font(.subheadline)
+                .font(.rowSubtitle)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(3)
             Spacer(minLength: 0)
@@ -482,11 +488,14 @@ struct OverviewView: View {
                     // 起走全局派生（解析器 contentTitle，
                     // 与抽屉/活动行同一派生）
                     Text(appState.sessionTitles.title(for: session))
-                        .font(.body)
+                        // 0.23.0（审计 H1/I1）：会话行升内容
+                        // 行档——题 rowTitle、副 meta，与管理
+                        // 页同物同尺（旧 body/footnote 让位）
+                        .font(.rowTitle)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text(session.humanSubtitle(now: Date()))
-                        .font(.footnote)
+                        .font(.meta)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -511,11 +520,11 @@ struct OverviewView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(thread.title)
-                        .font(.body)
+                        .font(.rowTitle)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text("本机 · \(AdminFormat.short(thread.updatedAt))")
-                        .font(.footnote)
+                        .font(.meta)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -564,12 +573,12 @@ struct OverviewView: View {
         Button(action: action) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: icon)
-                    .font(.body)
+                    .font(.bodyText)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.body)
+                    .font(.bodyText)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Image(systemName: "chevron.right")

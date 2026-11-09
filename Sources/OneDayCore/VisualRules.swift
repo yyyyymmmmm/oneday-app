@@ -5,6 +5,25 @@ import Foundation
 /// 视图层只消费结果。（字重映射 VisualWeight 已于
 /// 0.4.0 随 TypeScale 废止删除，审计 §3.1）
 
+/// 减透明回退裁决（0.23.0，三设置检查的代码层落点）：
+/// 自制材质面（抽屉底条霜层＝Material＋渐变 mask）在
+/// Reduce Transparency 开启时必须落实色分支——渐变
+/// mask 的上沿淡出不受系统材质自动增不透明的管辖、
+/// 仍会透字。系统玻璃（glassEffect）与系统 Material
+/// 本体（无 mask 时）由系统全权回退、不经本裁决。
+public enum TransparencyFallback {
+    public enum Surface: Equatable {
+        /// 系统材质原形态（可叠渐变 mask 等自制加工）
+        case material
+        /// 实色面（Palette.surface 同档），零透出
+        case solid
+    }
+
+    public static func surface(reduceTransparency: Bool) -> Surface {
+        reduceTransparency ? .solid : .material
+    }
+}
+
 /// 断行整形（条 8：text-wrap: pretty 等价近似）。SwiftUI
 /// 无 pretty 原语，近似法＝尾行孤字防护：把段落最后两
 /// 个字形以 WORD JOINER（U+2060）绑定，使排版器不能在

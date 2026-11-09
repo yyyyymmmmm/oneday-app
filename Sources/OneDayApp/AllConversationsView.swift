@@ -179,13 +179,13 @@ struct AllConversationsView: View {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     ProgressView()
                     Text("搜索中…")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .font(.captionText)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
             } else if searchResults.isEmpty {
                 Text("服务端没有匹配的会话。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
             } else {
                 ForEach(searchResults) { hit in
                     Button {
@@ -193,13 +193,13 @@ struct AllConversationsView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(hit.displayTitle)
-                                .font(.body)
+                                .font(.rowTitle)
                                 .foregroundStyle(Palette.ink)
                                 .lineLimit(1)
                             if let snippet = hit.snippet,
                                !snippet.isEmpty {
                                 Text(snippet)
-                                    .font(.footnote)
+                                    .font(.captionText)
                                     .foregroundStyle(Palette.inkSecondary)
                                     .lineLimit(2)
                             }
@@ -221,12 +221,12 @@ struct AllConversationsView: View {
                     mainRowButton(mainRow)
                 } else if store.isLoading {
                     Text("正在读取…")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .font(.captionText)
+                        .foregroundStyle(Palette.inkSecondary)
                 } else {
                     Text("主线还没有绑定服务端会话（在聊天页发一条消息后会出现）。")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
+                        .font(.captionText)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
             } footer: {
                 Text("主线是你的唯一指挥席：受钦定保护，本页不提供改名、归档与删除。")
@@ -244,16 +244,16 @@ struct AllConversationsView: View {
             noticeSection
             if store.isLoading, store.sessions.isEmpty {
                 Text("正在读取…")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
             } else if let error = store.loadError {
                 Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
             } else if stationSessions.isEmpty {
                 Text("站内还没有会话。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
             } else {
                 ForEach(stationSessions) { session in
                     selectableRow(session)
@@ -288,12 +288,12 @@ struct AllConversationsView: View {
             noticeSection
             if store.isLoading, store.archivedSessions.isEmpty {
                 Text("正在读取…")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
             } else if archivedRows.isEmpty {
                 Text("没有已归档的会话。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
             } else {
                 ForEach(archivedRows) { session in
                     selectableRow(session)
@@ -343,7 +343,10 @@ struct AllConversationsView: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 Text(rowTitle(session))
-                    .font(.body)
+                    // 0.23.0（审计 M1）：会话行升内容行档
+                    // ——题 rowTitle（17 semibold）、副/时间
+                    // meta（15），与点子/目标/总览会话行同尺
+                    .font(.rowTitle)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 if session.isPinned == true {
@@ -353,8 +356,8 @@ struct AllConversationsView: View {
                 }
             }
             Text(session.humanSubtitle(now: Date()))
-                .font(.footnote)
-                .foregroundStyle(Palette.inkMuted)
+                .font(.meta)
+                .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -379,12 +382,12 @@ struct AllConversationsView: View {
                     id: \.offset
                 ) { _, line in
                     Text(line)
-                        .font(.footnote)
+                        .font(.captionText)
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 Text("未落定的项本地值仍保留，下次打开本页会再试。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
             }
         }
     }
@@ -395,7 +398,7 @@ struct AllConversationsView: View {
         if let notice = store.notice {
             Section {
                 Text(notice)
-                    .font(.footnote)
+                    .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
             }
         }
@@ -418,10 +421,10 @@ struct AllConversationsView: View {
                     Task { await runPrune(dryRun: true) }
                 }
             }
-            .font(.body)
+            .font(.bodyText)
             Text("先预演看将删条数，确认后才会真删；真删不可恢复。")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkMuted)
+                .font(.captionText)
+                .foregroundStyle(Palette.inkSecondary)
         }
     }
 
@@ -429,7 +432,7 @@ struct AllConversationsView: View {
     private var batchBar: some View {
         HStack(spacing: OneDayMetrics.spacingM) {
             Text("已选 \(selection.count) 条")
-                .font(.footnote)
+                .font(.captionText)
                 .foregroundStyle(Palette.inkSecondary)
             Spacer()
             if segment == .archived {

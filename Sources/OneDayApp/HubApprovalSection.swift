@@ -123,7 +123,7 @@ struct HubApprovalSection: View {
                 if let createdAt = record.createdAt {
                     Text(createdAt.formatted(.relative(presentation: .named)))
                         .font(.caption)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
             }
 
@@ -167,7 +167,7 @@ struct HubApprovalSection: View {
                     } else {
                         Text("这类写入暂不支持在 App 内审批")
                             .font(.caption)
-                            .foregroundStyle(Palette.inkMuted)
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                 }
             }
@@ -205,7 +205,7 @@ struct HubApprovalSection: View {
                 if let decidedAt = item.decidedAt {
                     Text(decidedAt.formatted(.relative(presentation: .named)))
                         .font(.caption)
-                        .foregroundStyle(Palette.inkMuted)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
             }
             Text(item.summary)
