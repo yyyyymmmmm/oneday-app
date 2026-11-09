@@ -16,8 +16,10 @@ import Foundation
 /// 突——活动换 list.bullet（枢纽页活动段既有符号、同
 /// 源，已过闸）；应用先试 apps.iphone 又实测 0.564/
 /// 0.537 出档（屏内应用小格是填充件，CI 42576592742），
-/// 再换 circle.grid.2x2（2×2 网格读法保留、纯圆轮廓
-/// 无内部填充）；不许放宽量测闸迁就符号（0.6.0 回执）。
+/// 再换 circle.grid.2x2 仍实测 0.456/0.449 出档（网格
+/// 族天生密，CI 42577679073），终换 app.badge（单圆角
+/// 方轮廓＋角点徽标、字面 app 符号）；不许放宽量测闸
+/// 迁就符号（选型全程实测数在 0.6.0 回执）。
 /// 0.4.5 换本体（§30.7，用户 11:49 点名）：0.4.1/
 /// 0.4.3 两轮「锁 outline 变体」都没过真机（文件、
 /// 聊天两格仍实心观感），按止损换路——符号本体直
@@ -76,8 +78,8 @@ public enum TabBarSymbols {
     )
     public static let apps = TabSymbolPair(
         id: "apps", title: "应用",
-        normal: "circle.grid.2x2",
-        selected: "circle.grid.2x2"
+        normal: "app.badge",
+        selected: "app.badge"
     )
 
     // 旧三格符号保留作应用格内入口行与抽屉名单的符号源
