@@ -38,6 +38,10 @@ struct SettingsView: View {
     @State private var showRestartConfirm = false
     @State private var showDisconnectConfirm = false
     @State private var notice: String?
+    /// 审批桥钥匙状态（0.5.0 §31 追加件）：只存状态枚举、
+    /// 不碰钥匙原文；由 Keychain 回读派生（refreshWrite-
+    /// GateKeyStatus），行值位只显「已设置／未设置」
+    @State private var writeGateKeyStatus: WriteGateKeyStatus = .notSet
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -72,7 +76,10 @@ struct SettingsView: View {
             // 二期：届时改 sheet 形态，R4 已裁）
             .navigationTitle("设置")
             .task { await loadSummaries() }
-            .onAppear { consumePendingRoutes() }
+            .onAppear {
+                consumePendingRoutes()
+                refreshWriteGateKeyStatus()
+            }
             .onChange(of: appState.pendingSettingsRoute) { _, _ in
                 consumePendingRoutes()
             }
@@ -95,6 +102,8 @@ struct SettingsView: View {
                     GatewayView()
                 case .logs:
                     LogsView()
+                case .writeGateKey:
+                    WriteGateKeySettingsView()
                 case .appearance:
                     AppearanceView()
                 case .agent(let agentRoute):
@@ -180,6 +189,13 @@ struct SettingsView: View {
                 // ServerLabels.profileName 翻译（默认档案）
                 value: activeProfile.map(ServerLabels.profileName) ?? "—",
                 route: .profiles
+            )
+            navRow(
+                icon: "key", title: "审批桥钥匙",
+                // 0.5.0（§31 追加件）：值位只显状态词、
+                // 永不带钥匙原文（原文只存 Keychain）
+                value: writeGateKeyStatus == .set ? "已设置" : "未设置",
+                route: .writeGateKey
             )
         } header: {
             SectionLabel("服务器与连接")
@@ -527,6 +543,15 @@ struct SettingsView: View {
         default:
             path = [.agent(route)]
         }
+    }
+
+    /// 审批桥钥匙状态回读（与 WriteGateKeySettingsView
+    /// 同一读法：KeychainStore＋CredentialKey.writeGateKey，
+    /// 即 WriteGateClient 的读取键；只派生状态、不留原文）
+    private func refreshWriteGateKeyStatus() {
+        writeGateKeyStatus = WriteGateKeyStatus.resolve(
+            storedValue: KeychainStore.read(account: CredentialKey.writeGateKey)
+        )
     }
 
     private func loadSummaries() async {

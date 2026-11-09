@@ -8,9 +8,11 @@ enum CredentialKey {
     static let password = "auth.password"
     static let apiKey = "api.key"
     /// write-gate 桥单独钥匙（桥方案 §2.2：不复用聊天
-    /// 钥匙，审批权可独立轮换）。暂不并入 all：钥匙的
-    /// 发放/清除生命周期在合并联调时与桥侧一并定（本
-    /// 线只读取；读不到即审核段落「通道未接通」诚实态）
+    /// 钥匙，审批权可独立轮换）。不并入 all（断开连接不清
+    /// 它，生命周期独立）。发放通道＝0.5.0 起设置页「审批
+    /// 桥钥匙」粘贴一次写入本键（WriteGateKeySettings-
+    /// View），WriteGateClient 只读；读不到即审核段落
+    /// 「通道未接通」诚实态
     static let writeGateKey = "writegate.key"
 
     static let all = [baseURL, username, password, apiKey]
