@@ -3815,3 +3815,15 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 - 演示态：DemoHermesClient 补 kanban 全套样本（板已开通＋运行/待审批/等答/已完成四态任务、详情带评论/事件/运行样本），写方法静默成功口径不变；KanbanStore.createTask 在演示态跳过回板确认（样本不落状态，与既有演示口径一致）。
 - 单测：新增 KanbanModelsTests 20 个（257→277）——板快照三形解码＋游标、译名全表、失败翻译、分组序、板清单两形、探针三态、详情问题提取两路、证据拼装序、派发回执、控制计划逐条、动作集（含「无暂停」红线）、接管闸门只闸派发类、只读全闸、创建回执包裹形。
 - 发版 0.10.0 / build 38（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。
+
+## §37 0.11.0 批（P4 目标＋P5 点子转正：oneday-bridge 客户端，2026-11-09）
+
+规格＝full-build-program P4/P5 节＋服务端冻结契约（oneday-bridge-rollout-20261109.md，桥已上线验收 36 项全过）。本批只做客户端：基址 https://hermes.didichou.site/api/oneday-bridge（挂当前服务器根、随用户改址走），Bearer 复用 write-gate 钥匙（Keychain 既有字段、零新增粘贴）。
+
+- Core（OneDayBridgeModels）：DTO 按实测样本逐字落形（goal 全形 {id,title,note,milestones:[{id,title,done}],createdAt,updatedAt}、时间 epoch 秒 float；note/detail 缺失或 null 按空串收、里程碑缺失按空表收）；纯派生全收口在此——GoalProgress（x/y 计数＋fraction，0/0 不冒充完成）、GoalPatchPlan（勾选 toggle 与编辑 update 两路组装：PATCH 全量替换、已有里程碑 id 原样带回对齐勾选、新条不带 id 由服务端生成、空标题行先剔除）、请求体收口 make（POST goals/ideas 的可选字段空即不落键）、IdeaTaskPlan（转任务标题/正文组装：详情＋关联目标行＋来源行，目标名解析不到不编名）、IdeaConversionMarks（已转标记本地编解码：排序去重容脏）。
+- 客户端（OneDayBridgeClient）：错误口径与总览桥同分法——noKey/401＝桥未连接（钥匙问题）、集合端点 404＝桥未开通（bridgeMissing）、条目端点 404＝记录已不在（recordGone）；失败响应统一 {"error": 人话} 优先透服务端原文（标题为空/目标不存在无法关联等，客户端不猜固定文案）。契约细化对齐：删目标后点子 goalId 由服务端置 null（回读自愈、客户端不留悬空 chip）；POST /ideas 非 null goalId 必须指向现存目标（新建 picker 只列现存目标、提交时服务端再校验）；列表按 createdAt 升序原样呈现不重排。
+- 目标格转正（GoalsView/GoalsStore）：列表卡＝标题＋备注一行＋进度条（DataBar 高 4 变体）＋「x/y 里程碑」，无里程碑不画条；详情/编辑＝草稿全量编辑（标题/备注/里程碑 CheckRow 勾选·增删——设计标准 §7 P4 锚：19 方框、勾选 ink 底白勾），保存一次 PATCH 全量替换→回读逐项对账（标题/备注/每条里程碑 id·标题·done）才算成功，未确认人话留行内（KanbanStore 同口径）；新建 POST→回读确认出现才关表单；删除走 confirmationDialog 破坏性确认→回读确认消失才关页（recordGone 按已达目的处理）。桥未连接/未开通态 ContentUnavailableView 如实露（与任务板未开通同形态），零假数据。
+- 点子格转正（IdeasView/IdeasStore）：列表卡＝标题＋详情＋关联目标 chip（同批目标列表解析得到才显示）＋创建时间＋动作钮组；新建（标题/详情/可挂目标 picker）；删除走确认（注明不影响已转任务）；**一键转任务**经 P3 KanbanStore 适配层（先探板：未开通如实提示不往下走→IdeaTaskPlan 组装→createTask 建卡催派回板确认），确认成功才落「已转任务」本地标记（UserDefaults，冻结合约无此字段、不硬塞服务端），点子保留在列。
+- 占位退役：PhaseTwoPlaceholderViews.swift 删除（点子/目标两占位自 0.6.0 立版至此转正），ContentView 两格改挂真视图。
+- 单测：新增 OneDayBridgeModelsTests 12 个（277→289）——实测样本解码两形＋缺字段兜底、进度计数/比例/文案、toggle 全量带 id、update 新条省 id 键＋空行剔除、新建请求可选字段落键口径、转任务计划三形、已转标记往返。
+- 发版 0.11.0 / build 39（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。实桥联调归真机首开自验＋后续验收轮（本批不碰服务器）。

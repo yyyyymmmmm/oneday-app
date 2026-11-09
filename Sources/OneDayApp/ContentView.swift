@@ -133,13 +133,13 @@ struct ContentView: View {
             }
 
             Tab(value: MainTab.ideas) {
-                IdeasPlaceholderView()
+                IdeasView()
             } label: {
                 tabLabel(TabBarSymbols.ideas)
             }
 
             Tab(value: MainTab.goals) {
-                GoalsPlaceholderView()
+                GoalsView()
             } label: {
                 tabLabel(TabBarSymbols.goals)
             }
