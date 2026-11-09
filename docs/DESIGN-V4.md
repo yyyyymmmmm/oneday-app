@@ -1929,3 +1929,220 @@ api_server 等原始命名零上屏（§21.4），原名只
   0.3.7 卡 17 逐处清零验收。
 - 与卡 17 的关系：本节即卡 17 的施工/验收口径，
   两处不再分开处理（卡集第〇节原注同此）。
+
+## §23 0.3.7 施工 NOTES（页面形态轮，逐卡销账）
+
+施工基线：feat/ia-v3 @ bd4d191（0.3.6/21）→ 0.3.7/22。
+规格源：~/workspace/oneday-design-review/cards-0.3.7.md
+（19 卡；5 条待裁已于 2026-11-09 由用户拍板并写回卡
+集，施工按已裁口径）。验收：CI run 42537745734 全绿
+（构建＋OneDayCore 单测 96 个 0 失败，0.3.6 为 85，
+新增 11＝ServerLabels 7＋IconTokens 2＋字重账本
+改版净增 1＋SessionDisplay 改版净增 1）；IPA 解包
+验：CFBundleShortVersionString 0.3.7／CFBundle-
+Version 22／bundle id site.didichou.oneday／
+Assets.car 在包（116,296 字节）；IPA 2,178,936
+字节，落 ~/workspace/your_files/oneday-v0.3.7/。
+构建两轮修正留痕：①DataBar 默认高误引不存在的
+OneDayMetrics.barHeight 令牌（改字面量 6）；②
+SessionDisplay 兜底用例数据缺 endedAt（会话按模
+型定义属活跃、副题带「进行中」为正确行为，修测
+试数据）。真机终审归用户，本节只记构建＋单测证据。
+
+### 令牌层（施工序 1–2）
+
+- §22.5 图标变体令牌、§22.6 字重映射令牌已补入
+  §22（实测依据与豁免范围在条文内）。代码落点：
+  OneDayCore.FrameworkIcon（weightGrade 400／禁
+  fill／尺寸带 20–22，IconTokensTests 钉住，含
+  TabBarSymbols 线条体名不带 .fill 的断言）。
+- TextRoleWeights 账本改版（单测同步改）：rowTitle
+  600→400、sectionTitle 600→400、capsuleTitle
+  600→700、markdownStrong 600→700、heading
+  600→700；新增断言「全账本只许 400/700」。
+  TypeScale 同步：display/title→bold、headline→
+  body.bold、label→footnote regular（与 groupLabel
+  同档）、rowTitle→body、rowIcon→regular、
+  sectionTitle→callout regular、display/title/
+  label 的暗色降档入口改走 700/700/400；新增
+  metricNumber（28 bold 摘要卡主读数）与
+  monoTitle（title3 等宽 bold）。SectionLabel 随
+  label 令牌自动 regular；CopyButton 字形
+  medium→regular。§14 暗色降档机制本体不动
+  （归 0.3.8 对账，卡 17 边界）。
+
+### 逐卡销账（卡 1–19）
+
+- 卡 1 连接页：品牌块改居中（全页唯一视觉重心）；
+  底部说明小字整段删。表单卡/唯一主钮/探活条件
+  渲染/SecureField 原样。
+- 卡 2 总览：状态大卡置顶（状态行＝点＋人话状态
+  词、正常字号；大数字＝今日 Token metricNumber；
+  进度＝内存占用 %，新拉 systemStats；卡内次级
+  指标＝活跃会话/定时两格深链保留）；IA 五段其
+  余保留卡下（已裁 3，不砍）。纠正四条：①状态
+  字号层级倒置已修（TypeScale.display 大字退出
+  本页状态位）；②待处理改人话结论列表——恒渲
+  染、无待处理明写「没有待处理」、日志原文整段
+  退出本页（只留一条人话摘要行点去日志页）、
+  平台异常按 error/failed 才红、其余 warning；
+  ③platformRow 与待处理行的平台名/状态词走
+  ServerLabels 翻译，host/版本行撤出（归服务器
+  详情/状态屏系统段）；④底部留白改 tabBarZone
+  76。chevron×4 与状态头箭头降 regular；指标数
+  字 24 semibold 改 title 位 bold（随大卡化销账）。
+- 卡 3 文件页：聚合机制说明整段删；空态文案现
+  状各一句去向（实读合规，未动）；chevron 降
+  regular。附则 FilePreviewView 不动（合格）。
+  注：卡集原文卡 3 后半段起草时损坏（文件内字面
+  truncated 标记），施工时按 FilesView 源码现状
+  补记入卡集并已标注。
+- 卡 4 状态屏：身份头居中＋头像位（64 圆面＋
+  sparkles 字形），host 行撤下；定时段指路文案
+  删；活动段会话行改 humanTitle/humanSubtitle；
+  percentRow 主色蓝填充改共享 DataBar 中性口
+  径；chevron 降 regular；状态句改走
+  ServerLabels.gatewayState。
+- 卡 5 外观页：假气泡预览组＋主题说明段整组
+  删；新预览卡置顶＝真实聊天场景实时渲染（用
+  户泡中性面/助手泡 bubbleFill/发送舱 fieldFill
+  胶囊＋primaryFill 发送键/主按钮样例，文案为
+  真实对话口吻）；主题卡独立成卡，勾字形降
+  regular；全页只剩两卡。原「主按钮」假气泡的
+  body medium 随整组删自然销账（卡 17 点名项）。
+- 卡 6 当前服务器：摘要卡置顶（连接状态行＝点
+  ＋连接正常/异常＋地址/账号/密钥行）；二期说
+  明整段删；连接测试组保留（结果行随重测状态）。
+- 卡 7 档案：摘要卡（当前档案名＋使用中）；页
+  内说明段删；导航标题与设置页行标题「档案
+  Profile」→「档案」。
+- 卡 8 对话模型：当前值升摘要卡主读数
+  （monoTitle）；底部说明删；组标题去括号注；
+  网关别名说明段删（拦截仍在写入校验层）；候
+  选空态改「服务端没有返回可切换的模型。」；
+  提供商空态改「暂无提供商条目。」。
+- 卡 9 密钥：摘要卡「已设置 X / 共 Y」；按服
+  务端类别分组（ServerLabels 类别映射、未知回
+  落「其他」、组内已设定在前）；组标题括号注
+  删（原单组标题随分组形态消解）；行副题
+  description 无中文不显示；chevron 降
+  regular。附则 EnvVarDetailView 类别行值改译
+  名；编辑器不动。
+- 卡 10 用量：周期汇总升摘要卡（总 Token
+  metricNumber 主位＋请求/会话/费用卡内次级
+  行）；趋势条改中性口径（轨道 fieldFill、填充
+  恒墨，与卡 4 DataBar 同口径——卡面原用
+  RoundedRectangle 行内条、未换组件本体，只对
+  齐着色，如实记）。
+- 卡 11 网关：状态组升摘要卡（状态大字
+  display＋点，发布日期次级位保留）；「配置版
+  本」行删；平台行名/状态词走 ServerLabels；
+  stateWord 改走翻译层。
+- 卡 12 日志：底部「文件 agent.log · 共 N 行」
+  注脚整行删，fileName 状态一并撤。
+- 卡 13 记忆：摘要卡（当前提供方名＋内置文件
+  总数）；内置行卖点副题删；提供方行英文
+  description 不显示；chevron 降 regular。附
+  则：MemoryProviderConfigView「切换为当前提
+  供方」由组内行改组下 odPrimary 主按钮位。
+- 卡 14 技能：摘要卡「已装 N 个 · 启用 M
+  个」；按类别分组（译名组头）；行内 category
+  mono 原文小字删；英文 description 不显示；
+  chevron 降 regular。附则 SkillDetailView 保
+  存钮 callout medium→regular，其余不动。
+- 卡 15 定时：摘要卡「启用 X 个 · 下次运行
+  今天/明天 HH:mm」（无下次只报启用数）；列
+  表按状态两组「开着的/停着的」替「全部任
+  务」；chevron×2 降 regular。附则
+  CronJobDetailView：状态/计划/下次运行三行升
+  摘要卡，原信息组余行改「详情」组（空则不渲
+  染）；表单不动。
+- 卡 16 服务端会话：摘要卡「共 N 条 · 进行中
+  M 条」；组名改「全部会话」（计数只在卡）；
+  行标题 humanTitle、副题 humanSubtitle（原
+  subtitle() 拼 raw source 已删）；批量条
+  「删除所选」medium→regular；chevron 降
+  regular。附则（已裁 5）：详情页导航标题改
+  contentTitle（首条用户消息摘要→display_
+  name→未命名会话），元信息组加「原始标题」
+  行（仅当与现标题不同时显示）。
+- 卡 17 字重对齐：令牌层见上；页面直写点逐处
+  清——总览 5、状态屏 1、文件 1、外观 1（＋假
+  气泡 medium 随卡 5 删）、服务端会话 2、技能
+  2、定时 2、记忆 1、密钥 1、设置主页外链箭头
+  2（被动对齐）、聊天 6（顶栏两钮系卡 19、回
+  到底部钮 1、横幅关闭 xmark 2、模型选择勾
+  1）。全仓验收 grep：App/Design 源码内
+  semibold/medium 字重直写归零，余三类豁免——
+  ①DesignTokens 的 VisualWeight 500/600 档位
+  映射表（换算 machinery，卡集第〇节与 §22.6
+  均注明保留）；②注释中的历史叙述；③
+  DemoHermesClient 占位缩略图内的文字绘制
+  （演示内容图面，非 UI 文字，定性内容面豁免）。
+  HeaderButtonSpec 注释同步改（规格只管几何、
+  字重归 §22.5）。
+- 卡 18 抽屉：五条逐条——①行距：服务端会话行
+  由 minHeight 50＋纵向 padding 16（实高约 66）
+  改总高 navRowHeight 47，本机会话行 44→47 统
+  一；导航名单行原已 47（令牌在位）。②标题收
+  紧：SessionDisplay 改版（见下），抽屉行标
+  题/副题换新口径，旧 drawerServerSubtitle 删；
+  ③空态：本机无会话且无搜索词时不渲染「暂无
+  会话」行，改新建入口行（图标＋新建会话）；
+  服务端组为空时整组（组头＋指路文案行）不渲
+  染；④底左圆钮 glyph 由 TabBarSymbols.
+  settings.normal（slider.horizontal.3）改独立
+  gearshape，与名单设置行、底栏设置格三者不同
+  图；⑤选中垫 #E3E3E5 未动，行文字本已
+  regular/body 角色，账本改版后复核一致。
+- 卡 19 聊天页：三条逐条——①顶栏两圆钮与身份
+  胶囊去描边：圆钮撤 .glass 样式、胶囊撤
+  glassEffect，同改无边白面（Palette.surface）
+  ＋柔影（shadowBase 0.10/12/4）；回到底部钮
+  同家族同改（玻璃圆钮一并收编，卡面未点名、
+  同口径处理如实记）；两钮字形 semibold→
+  regular（HeaderButtonSpec 几何不变）。②输
+  入框撤 odGlassSurface 玻璃，改 Palette.
+  fieldFill 中灰填充（composerShape 连续圆角
+  函数不变），聚焦双环阴影保留、caret 仍
+  primary。③底栏选中垫收窄：**无代码落点**——
+  底栏为原生 TabView，垫宽由系统几何决定、代
+  码不可控；本轮可动项只有字形侧（Image-only＋
+  normal 线条符号＋tint 墨，0.3.6 已在位，字形
+  无 weight 即 regular），如实记未改，不假报。
+
+### SessionDisplay 收紧（已裁 5＋卡 18 完成标准）
+
+- humanTitle 改属性式：人话 display_name 优先，
+  否则「未命名会话」——0.3.6 的「时间＋条数当标
+  题」落点正式作废；humanSubtitle(now:) 承载来
+  源标签·时间·条数·进行中全部副信息。
+- 新增 contentSummaryTitle（首条用户消息：取首
+  个非空行、压平空白、剥行首 Markdown 标记、超
+  24 字截断加…）与 contentTitle（摘要→
+  display_name→未命名会话）。
+- 同源落点：抽屉服务端行、服务端会话页、会话
+  详情标题、总览最近会话行、状态屏活动行五处
+  全部换新口径，原始 title/source 五处清零（详
+  情页元信息组为唯一许可位）。
+- ServerLabels（新 Core 文件）：平台名/平台状
+  态/网关状态/类别四组翻译＋grouped 分组（组内
+  保序、「其他」垫底）＋isChineseText；单测 7
+  个把守（已知映射逐项、未知类别回落其他、未
+  知状态回落未知、分组排序）。
+
+### 与卡的偏差（如实记）
+
+1. 卡 2 备选形态下「指标三格」只收编两格进大
+   卡：今日 Token 已升大数字主位，第三格原位即
+   是它，故卡内次级只剩活跃会话/定时两格——与
+   「数字进卡不单列」本意一致，非漏做。
+2. 卡 10 趋势条只对齐着色口径、未换 DataBar
+   组件本体（行内条带数值列布局不同），已在卡
+   10 销账行注明。
+3. 卡 19 纠正 3（底栏垫收窄）无代码落点，已
+   在卡 19 销账行如实记，未假报已改。
+4. CronJobDetailView 摘要卡沿用行式三行（状态
+   /计划/下次运行）而非大字读数——任务详情的
+   「读数」是计划文本、非数字，行式即模板的摘
+   要卡形态在本页的落点。
