@@ -21,6 +21,12 @@ import Foundation
 /// 落本地标题。手改标记为准：手改过的本地名永不被
 /// 服务端标题覆盖（与服务端 user 标题永不被人覆盖
 /// 同一红线）。
+///
+/// 0.21.0 闭环：App 内旁聊首发即建真会话落
+/// serverSessionID（SideChatLink 状态机），服务端
+/// 标题自此有路回流本函数——本管线的覆盖面从「导
+/// 入线程」扩到全部旁聊；链接失败待重试的线程
+/// serverTitle 暂 nil、链接成功后自动接入。
 public enum DrawerThreadTitle {
     public static func resolve(
         localTitle: String,

@@ -65,6 +65,7 @@ struct DrawerView: View {
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \ChatThread.updatedAt, order: .reverse)
     private var threads: [ChatThread]
     /// 底条搜索词（本地过滤旁聊区，22:45 纠正后恢复
@@ -175,6 +176,22 @@ struct DrawerView: View {
             if drawerServerSources.isEmpty {
                 Task { await loadDrawerData() }
             }
+        }
+        // 0.21.0 标题回流触发点补环：App 回前台重拉
+        // （切后台期间服务端标题可能已升级；此前注
+        // 释自称「开抽屉/回前台」实则只有开抽屉一
+        // 路，本版坐实）
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await loadDrawerData() }
+            }
+        }
+        // 0.21.0：已链接旁聊一轮落地后的刷新令牌
+        // （完成即时＋6 秒延迟，见 AppState）——抽屉
+        // 挂载期间标题实时跟上，未挂载时下次 onAppear
+        // /开抽屉的既有拉取兜底
+        .onChange(of: appState.drawerRefreshTick) {
+            Task { await loadDrawerData() }
         }
     }
 
@@ -515,8 +532,35 @@ struct DrawerView: View {
         if thread.id == appState.activeThreadID {
             appState.drawerDeletedThreadID = thread.id
         }
+        // 0.21.0 删除语义：本地线程删除是全仓唯一删
+        // 除点（管理面删的是服务端会话本体、口径不
+        // 变）；删前快照关联会话 id，本地删除照常先
+        // 行，关联服务端会话随后做归档（PATCH
+        // archived:true，尽力而为）——归档失败不阻
+        // 塞本地删除，会话 id 落 SideChatStore 留痕
+        // 账待对账（该会话在管理页未归档段仍可见）
+        let linkedSessionID = thread.serverSessionID
         modelContext.delete(thread)
         try? modelContext.save()
+        if let linkedSessionID {
+            Task {
+                do {
+                    try await appState
+                        .performAdmin { client, config in
+                            try await client.updateServerSession(
+                                config: config, id: linkedSessionID,
+                                title: nil, pinned: nil,
+                                archived: true
+                            )
+                        }
+                    appState.sideChats
+                        .clearFailedSessionArchive(linkedSessionID)
+                } catch {
+                    appState.sideChats
+                        .noteFailedSessionArchive(linkedSessionID)
+                }
+            }
+        }
     }
 
     /// 分组小标题（0.3.6 立宪）：13–14 号灰标签、左线

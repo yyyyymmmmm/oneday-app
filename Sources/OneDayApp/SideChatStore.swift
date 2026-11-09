@@ -24,6 +24,10 @@ final class SideChatStore {
     private(set) var mainServerSessionID: String?
     private(set) var mainServerConfirmed = false
     private(set) var archivedKeys: Set<String> = []
+    /// 删除归档失败留痕（0.21.0）：本地线程已删、关
+    /// 联服务端会话归档 PATCH 失败待对账的会话 id
+    /// 集（口径见 noteFailedSessionArchive）
+    private(set) var failedArchiveSessionIDs: [String] = []
     private(set) var titleOverrides: [String: String] = [:]
     private var drafts: [String: String] = [:]
     private var scrollAnchors: [String: SideChatScrollAnchor] = [:]
@@ -35,6 +39,8 @@ final class SideChatStore {
         static let mainServerSessionID = "sideChats.mainServerSessionID"
         static let mainServerConfirmed = "sideChats.mainServerConfirmed"
         static let archivedKeys = "sideChats.archivedKeys"
+        static let failedArchiveSessionIDs =
+            "sideChats.failedArchiveSessionIDs"
         static let titleOverrides = "sideChats.titleOverrides"
         static let drafts = "sideChats.drafts"
         static let scrollAnchors = "sideChats.scrollAnchors"
@@ -49,6 +55,9 @@ final class SideChatStore {
         mainServerSessionID = defaults.string(forKey: Key.mainServerSessionID)
         mainServerConfirmed = defaults.bool(forKey: Key.mainServerConfirmed)
         archivedKeys = Set(defaults.stringArray(forKey: Key.archivedKeys) ?? [])
+        failedArchiveSessionIDs = Self.decode(
+            [String].self, defaults, Key.failedArchiveSessionIDs
+        ) ?? []
         titleOverrides = Self.decode([String: String].self, defaults, Key.titleOverrides) ?? [:]
         drafts = Self.decode([String: String].self, defaults, Key.drafts) ?? [:]
         scrollAnchors = Self.decode([String: SideChatScrollAnchor].self, defaults, Key.scrollAnchors) ?? [:]
@@ -114,6 +123,30 @@ final class SideChatStore {
 
     private func persistArchived() {
         defaults?.set(Array(archivedKeys), forKey: Key.archivedKeys)
+    }
+
+    // MARK: - 删除归档留痕（0.21.0）
+
+    /// 抽屉删本地线程时关联服务端会话做归档（PATCH
+    /// archived:true）——本地删除不被服务端动作阻
+    /// 塞、归档尽力而为；失败不许静默吞：会话 id 落
+    /// 此账留痕，该会话在管理页未归档段仍可见、可
+    /// 手动归档收尾；日后归档成功（本表对账）由
+    /// clearFailedSessionArchive 销账
+    func noteFailedSessionArchive(_ sessionID: String) {
+        guard !failedArchiveSessionIDs.contains(sessionID) else {
+            return
+        }
+        failedArchiveSessionIDs.append(sessionID)
+        persist(failedArchiveSessionIDs, Key.failedArchiveSessionIDs)
+    }
+
+    func clearFailedSessionArchive(_ sessionID: String) {
+        guard failedArchiveSessionIDs.contains(sessionID) else {
+            return
+        }
+        failedArchiveSessionIDs.removeAll { $0 == sessionID }
+        persist(failedArchiveSessionIDs, Key.failedArchiveSessionIDs)
     }
 
     // MARK: - 标题覆盖（M3 本地绕行，0.18.0 起存量遗

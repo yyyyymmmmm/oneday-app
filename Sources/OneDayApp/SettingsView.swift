@@ -322,7 +322,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.20.0")
+            Text("OneDay v0.21.0")
                 .font(.system(size: 15))
                 .foregroundStyle(Palette.inkMuted)
                 .frame(maxWidth: .infinity, alignment: .center)

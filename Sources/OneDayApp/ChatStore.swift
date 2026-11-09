@@ -15,9 +15,12 @@ final class ChatThread {
     /// 侧边栏置顶（0.3.6，§21；默认 false、SwiftData
     /// 轻量迁移，置顶组口径见 SidebarGrouping）
     var isPinned: Bool = false
-    /// 关联的服务端会话 id（/api/sessions/{id}）：本机
-    /// 发起的会话为 nil；从服务端会话导入续聊的线程非
-    /// nil（可选＋默认 nil、SwiftData 轻量迁移）
+    /// 关联的服务端会话 id（/api/sessions/{id}）：从
+    /// 服务端会话导入续聊的线程导入时落；App 内新建
+    /// 旁聊 0.21.0 起首发即建真会话落 id（此前恒
+    /// nil——无状态重放不建会话，是标题断环的根）；
+    /// 建会话失败的线程暂为 nil、下次发送再试（可
+    /// 选＋默认 nil、SwiftData 轻量迁移）
     var serverSessionID: String? = nil
     /// 标题是否用户手改（0.20.0）：抽屉/管理页本地改名
     /// 时置 true——手改名永不被服务端 AI 标题覆盖
@@ -25,6 +28,21 @@ final class ChatThread {
     /// Data 轻量迁移。此前本地存储无此标记，标题回流
     /// 无从分辨手改与派生，是 0.20.0 第三条的补环）
     var titleIsManual: Bool = false
+    /// 旁聊链接失败留痕（0.21.0）：App 内旁聊首发建
+    /// 服务端会话失败的累计次数与最近一次原因——
+    /// 失败不挡消息（回退无状态重放）、不静默，下
+    /// 次发送再试链接；链接成功即清零（状态机见
+    /// OneDayCore.SideChatLink；默认值、SwiftData
+    /// 轻量迁移）
+    var linkFailureCount: Int = 0
+    var linkLastError: String? = nil
+    /// 本线程链接时锁定的模型（0.21.0）：建会话以
+    /// require_model_lock 落锁时记下（＝建时胶囊所
+    /// 选）；此后胶囊改选与记录不一致才推一次会话
+    /// 内切换（POST /api/sessions/{id}/model）。导
+    /// 入线程为 nil——锁非我方所设、永不代推（可
+    /// 选＋默认 nil、SwiftData 轻量迁移）
+    var linkedModel: String? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \ChatEntry.thread)
     var entries: [ChatEntry] = []

@@ -48,6 +48,25 @@ final class AppState {
         chatModel = id
         UserDefaults.standard.set(id, forKey: "chatModelID")
     }
+
+    /// 抽屉数据刷新令牌（0.21.0）：已链接旁聊标题
+    /// 回流的触发通道——服务端 llm 标题在首轮回复
+    /// 后数秒才升级，抽屉须在一轮落地后主动重拉服
+    /// 务端会话表才见新名。触发点全集：①抽屉打开/
+    /// 壳层预挂载（0.18.0 既有 onAppear）；②App 回
+    /// 前台（0.21.0 新增 scenePhase）；③已链接旁聊
+    /// 一轮完整落地——即时一次＋6 秒延迟一次（本方
+    /// 法）。DrawerView 观察本令牌变化重拉，本类只
+    /// 记账不持有抽屉状态
+    private(set) var drawerRefreshTick = 0
+
+    func noteLinkedSideChatTurnFinished() {
+        drawerRefreshTick += 1
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(6))
+            drawerRefreshTick += 1
+        }
+    }
     /// 服务端默认模型（0.2.2 获取制）：自 /api/config 的 model 键
     /// 拉取，聊天页顶栏与抽屉身份块展示它；切换走 setDefaultModel
     private(set) var defaultModel: String?

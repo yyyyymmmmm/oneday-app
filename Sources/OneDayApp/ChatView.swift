@@ -75,10 +75,14 @@ struct ChatView: View {
 
     /// 待恢复轮次记账：线程＋原发送上下文（重发恢复
     /// 用，用户消息已落盘、重发不新增）＋中断时已落盘
-    /// 的半截条目 id（恢复时删半截防双份）
+    /// 的半截条目 id（恢复时删半截防双份）；sessionID
+    /// （0.21.0）＝本轮出门时的会话头（会话模式/种子
+    /// 轮非 nil）——已链接线程落重发兜底时按原形态续
+    /// 同一会话，不许退回无状态重放另起炉灶
     private struct PendingStreamRecovery {
         let threadID: UUID
         let messages: [ChatMessage]
+        let sessionID: String?
         var partialEntryIDs: [UUID] = []
     }
 
@@ -2162,12 +2166,11 @@ private struct ComposerBarLayout: Layout {
     /// （SessionHistoryImport.richItems）；工具卡与图
     /// 片只呈现、不进上下文重放（组装只取 user/
     /// assistant 正文，见 send）。
-    /// R1 未验证项（明记）：续聊发送维持现有无状态上下
-    /// 文重放链（/v1/chat/completions 不带服务端会话
-    /// id）——续聊回合是否回写同一条服务端会话记录未
-    /// 经实测（红线：不许对生产 Hermes 发写请求验证），
-    /// 等用户点头后另行受控实测；App 内续聊体验不依赖
-    /// 该结论，服务端可能另起新会话记录。
+    /// R1 结案（0.21.0）：导入线程自带 serverSessionID，
+    /// 发送走 SideChatLink 的会话模式（X-Hermes-
+    /// Session-Id 头＋仅本轮新消息）——续聊回合按研
+    /// 究档实测链回写同一条服务端会话，不再另起记
+    /// 录；旧「无状态重放续聊」口径就此作废。
     private func openServerSession(_ id: String) async {
         if let existing = threads.first(where: { $0.serverSessionID == id }) {
             currentThreadID = existing.id
@@ -2299,7 +2302,125 @@ private struct ComposerBarLayout: Layout {
         // 0.8.0：上一轮的流式工具卡列清空，从本轮累积
         liveToolCards = []
         sendTask = Task {
-            await runStream(thread: thread, messages: context)
+            // 0.21.0：出门前先定发送形态（旁聊链接/会话
+            // 模式判定见 prepareSendShape——判定与载荷
+            // 取形是 Core 纯函数、网络动作在本页）；链
+            // 接窗口内被用户停止则不进流、按停止语义
+            // 静默收尾（runStream 的收尾清理在此手动
+            // 对齐一份）
+            let shape = await prepareSendShape(
+                thread: thread, fullContext: context
+            )
+            if Task.isCancelled {
+                streamingText = nil
+                streamingReasoning = nil
+                reasoningStartedAt = nil
+                sendTask = nil
+                return
+            }
+            await runStream(
+                thread: thread, messages: shape.messages,
+                sessionID: shape.sessionID
+            )
+        }
+    }
+
+    /// 本轮出门形态（0.21.0，状态机见 OneDayCore
+    /// .SideChatLink）：按线程链接相位三路——
+    /// ①主线：legacyReplay，原样全量重放、无会话头
+    /// （主线建/发本体不动、只复用其已验通的建会话
+    /// 与恢复通道）；
+    /// ②已链接旁聊：会话模式——载荷只取尾条（本轮
+    /// 新消息，引用/图片已在全量上下文尾条备好成
+    /// 品）＋会话头；链接时锁定的模型与当前胶囊不
+    /// 一致（且锁为我方所设）时先推一次会话内切换
+    /// （尽力而为：失败不挡发送、服务端旧锁继续生
+    /// 效，下轮再试）；
+    /// ③未链接旁聊（含存量线程懒链接）：先建真会
+    /// 话（模型＝当下胶囊、require_model_lock）——
+    /// 成功落 serverSessionID＋linkedModel、失败计
+    /// 数清零，本轮转种子轮（全量重放整份载荷＋会
+    /// 话头，上下文由载荷自带、不断链）；建会话失
+    /// 败不许挡消息：失败计数＋1、原因留痕，本轮回
+    /// 退无状态重放照常发出，下次发送再试链接。
+    /// 纯本地从未发送过的线程不在此处出现（链接只
+    /// 由发送触发、无后台主动建会话）。
+    private func prepareSendShape(
+        thread: ChatThread, fullContext: [ChatMessage]
+    ) async -> (messages: [ChatMessage], sessionID: String?) {
+        let plan = SideChatLink.sendPlan(
+            serverSessionID: thread.serverSessionID,
+            isMainThread: thread.id == appState.sideChats.mainThreadID
+        )
+        switch plan {
+        case .legacyReplay:
+            return (fullContext, nil)
+        case .session(let sessionID):
+            if SideChatLink.needsModelRelock(
+                linkedModel: thread.linkedModel,
+                capsuleModel: appState.chatModel
+            ) {
+                let capsule = appState.chatModel
+                var pushed = false
+                do {
+                    try await appState
+                        .performAdmin { client, config in
+                            try await client
+                                .updateServerSessionModel(
+                                    config: config, id: sessionID,
+                                    model: capsule
+                                )
+                        }
+                    pushed = true
+                } catch {
+                    pushed = false
+                }
+                if pushed {
+                    thread.linkedModel = capsule
+                    try? modelContext.save()
+                }
+            }
+            return (
+                SideChatLink.payload(
+                    plan: plan, fullContext: fullContext
+                ),
+                sessionID
+            )
+        case .linkAndSeed:
+            let capsule = appState.chatModel
+            do {
+                let created = try await appState
+                    .performAdmin { client, config in
+                        try await client.createLinkedServerSession(
+                            config: config,
+                            id: SideChatLink.newSessionID(),
+                            model: capsule
+                        )
+                    }
+                // 服务端改派 id 时以回执为准（与主线
+                // ensureMainServerSession 同口径）
+                thread.serverSessionID = created.id
+                thread.linkedModel = capsule
+                thread.linkFailureCount = 0
+                thread.linkLastError = nil
+                try? modelContext.save()
+                return (fullContext, created.id)
+            } catch {
+                // 用户在链接窗口内主动停止不算失败、
+                // 不留痕（send 起手会按取消静默收尾）
+                if Task.isCancelled {
+                    return (fullContext, nil)
+                }
+                thread.linkFailureCount = SideChatLink
+                    .failureCount(
+                        afterFailure: thread.linkFailureCount
+                    )
+                thread.linkLastError =
+                    (error as? HermesError)?.userMessage
+                    ?? "建会话失败"
+                try? modelContext.save()
+                return (fullContext, nil)
+            }
         }
     }
 
@@ -2331,7 +2452,13 @@ private struct ComposerBarLayout: Layout {
         await runStream(thread: thread, messages: context)
     }
 
-    private func runStream(thread: ChatThread, messages: [ChatMessage]) async {
+    /// sessionID（0.21.0）：本轮会话头（会话模式/种
+    /// 子轮非 nil、旧链 nil）——透传 chatStream 并记
+    /// 进待恢复账（重发兜底按原形态续同一会话）
+    private func runStream(
+        thread: ChatThread, messages: [ChatMessage],
+        sessionID: String? = nil
+    ) async {
         guard let config = appState.config, let apiKey = appState.apiKey else {
             streamingText = nil
             streamingReasoning = nil
@@ -2384,7 +2511,8 @@ private struct ComposerBarLayout: Layout {
             do {
                 let stream = appState.client.chatStream(
                     config: config, apiKey: apiKey,
-                    model: appState.chatModel, messages: messages
+                    model: appState.chatModel, messages: messages,
+                    sessionID: sessionID
                 )
                 for try await event in stream {
                     let now = ProcessInfo.processInfo.systemUptime
@@ -2556,11 +2684,21 @@ private struct ComposerBarLayout: Layout {
             pendingRecovery = PendingStreamRecovery(
                 threadID: thread.id,
                 messages: messages,
+                sessionID: sessionID,
                 partialEntryIDs: persistedPartialIDs
             )
             if scenePhase == .active {
                 Task { await reconcileInterruptedStream() }
             }
+        }
+        // 0.21.0 标题回流触发：已链接旁聊一轮完整落地
+        // 后，服务端 AI 标题（llm 升级在首轮后数秒）
+        // 须刷进抽屉——完成即顶一次刷新令牌、6 秒后
+        // 再顶一次兜住升级时延（触发点全集见 AppState
+        // .noteLinkedSideChatTurnFinished）
+        if !failed, !interrupted, thread.serverSessionID != nil,
+           thread.id != appState.sideChats.mainThreadID {
+            appState.noteLinkedSideChatTurnFinished()
         }
         // 结果触感（0.3.2 纪律，只挂结果事件）：失败
         // .warning；回复完整落地 .success；用户主动停止
@@ -2587,9 +2725,11 @@ private struct ComposerBarLayout: Layout {
     /// 落进会话的，直接补齐本地（删半截→落完整版），
     /// 不重发；
     /// ③无关联/服务端无此回复：删半截后以原上下文自
-    /// 动重发一次——发送链是无状态重放、用户消息已
-    /// 落盘，重发不新增消息、不丢轮次（发送未达阶段
-    /// 被杀的轮次同走此路：本地消息在、上下文完整）。
+    /// 动重发一次——用户消息已落盘，重发不新增消息、
+    /// 不丢轮次（发送未达阶段被杀的轮次同走此路：
+    /// 本地消息在、上下文完整）；0.21.0 起已链接线
+    /// 程的重发按待恢复账的原形态续发（载荷＋会话
+    /// 头照旧），不退回无状态另起炉灶。
     /// 全程只给 notice 中性提示，不出错误横幅。
     private func reconcileInterruptedStream() async {
         guard let pending = pendingRecovery,
@@ -2613,7 +2753,17 @@ private struct ComposerBarLayout: Layout {
             pendingRecovery = nil
             return
         }
-        if let sessionID = thread.serverSessionID,
+        // 0.21.0：恢复路线走 Core 纯判定（Stream-
+        // Recovery.route，两分支有单测）——0.20.0 时
+        // 本地旁聊恒无 serverSessionID、只能落③重
+        // 发；旁聊链接后自动升②补齐分支，判定口径
+        // 与从前内联条件逐字等价（id 非空才走②、拉
+        // 不到本轮回复仍落③兜底，③按待恢复账里的
+        // 会话头原形态续发）
+        if case .completeFromServer(let sessionID) =
+            StreamRecovery.route(
+                linkedSessionID: thread.serverSessionID
+            ),
            let serverMessages = try? await appState.performAdmin(
                { client, cfg in
                    try await client.sessionMessages(
@@ -2644,7 +2794,8 @@ private struct ComposerBarLayout: Layout {
         streamingText = ""
         sendTask = Task {
             await runStream(
-                thread: thread, messages: pending.messages
+                thread: thread, messages: pending.messages,
+                sessionID: pending.sessionID
             )
         }
     }

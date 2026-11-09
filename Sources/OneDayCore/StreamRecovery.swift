@@ -29,3 +29,26 @@ public enum StreamFailure {
         return wasBackgrounded ? .lifecycleInterrupted : .transient
     }
 }
+
+/// 对账恢复路线（0.20.0 在 ChatView 内联两分支，
+/// 0.21.0 收敛为纯判定）：线程有真服务端会话（主
+/// 线钦定/导入/0.21.0 起 App 内旁聊链接后）→ 先拉
+/// 服务端历史补齐完整回复；无会话 → 删半截后以原
+/// 上下文自动重发一次。已链接只决定「先走哪条」，
+/// 服务端拉不到本轮回复时调用方仍可落重发兜底
+/// （0.20.0 既有语义不变）。
+public enum StreamRecoveryRoute: Equatable, Sendable {
+    case completeFromServer(sessionID: String)
+    case resendLocal
+}
+
+public enum StreamRecovery {
+    public static func route(
+        linkedSessionID: String?
+    ) -> StreamRecoveryRoute {
+        if let linkedSessionID, !linkedSessionID.isEmpty {
+            return .completeFromServer(sessionID: linkedSessionID)
+        }
+        return .resendLocal
+    }
+}

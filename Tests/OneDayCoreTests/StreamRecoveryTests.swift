@@ -7,6 +7,26 @@ import XCTest
 /// 恒真失败、与后台无关。
 final class StreamRecoveryTests: XCTestCase {
 
+    // MARK: - 对账恢复路线（0.21.0 两分支）
+
+    func testLinkedThreadRecoversFromServer() {
+        XCTAssertEqual(
+            StreamRecovery.route(linkedSessionID: "oneday-side-x"),
+            .completeFromServer(sessionID: "oneday-side-x")
+        )
+    }
+
+    func testUnlinkedThreadResendsLocally() {
+        XCTAssertEqual(
+            StreamRecovery.route(linkedSessionID: nil),
+            .resendLocal
+        )
+        XCTAssertEqual(
+            StreamRecovery.route(linkedSessionID: ""),
+            .resendLocal
+        )
+    }
+
     func testTransientAfterBackgroundIsLifecycleInterruption() {
         XCTAssertEqual(
             StreamFailure.kind(

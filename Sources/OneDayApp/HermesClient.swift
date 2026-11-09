@@ -20,8 +20,12 @@ protocol HermesClientProtocol: Sendable {
     func models(config: ServerConfig, apiKey: String) async throws -> [String]
     /// POST /v1/chat/completions 流式：逐段产出通道事件
     /// （正文增量／思考增量分开，0.5.1 §32）
+    /// sessionID（0.21.0）：非 nil 时带 X-Hermes-Session-Id
+    /// 头走会话模式（服务端持上下文、只发本轮新消息）；
+    /// nil＝无状态重放（主线与未链接线程的旧链，形态不变）
     func chatStream(
-        config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage]
+        config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage],
+        sessionID: String?
     ) -> AsyncThrowingStream<ChatStreamEvent, Error>
     /// 清除某服务器的全部会话 cookie（断开连接时调用）
     func clearCookies(config: ServerConfig)
@@ -96,6 +100,17 @@ protocol HermesClientProtocol: Sendable {
     /// 建会话（0.7.0 主线钦定）：id/title 由 App 指定，
     /// 服务端回执的 id 为准（服务端改派时以回执改存）
     func createServerSession(config: ServerConfig, id: String?, title: String?) async throws -> ServerSession
+    /// 建旁聊真会话（0.21.0）：POST /api/sessions 带
+    /// model＋require_model_lock（模型锁＝建时胶囊所
+    /// 选、锁后不许回退）；**不带 title**——服务端两
+    /// 段式标题（derived→llm）须由首轮内容自生，App
+    /// 指定标题会占住标题位、AI 标题回不了流
+    func createLinkedServerSession(config: ServerConfig, id: String, model: String) async throws -> ServerSession
+    /// 会话内切换模型（0.21.0）：POST /api/sessions/
+    /// {id}/model——服务端自动按确认锁持久化；已链
+    /// 接线程胶囊改选时推一次（口径见 SideChatLink
+    /// .needsModelRelock）
+    func updateServerSessionModel(config: ServerConfig, id: String, model: String) async throws
     /// GET /api/sessions/{id}/messages
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage]
     /// GET /api/sessions/search?q=&limit=（P10；生产实样
@@ -470,13 +485,23 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     // MARK: - 流式聊天
 
     func chatStream(
-        config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage]
+        config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage],
+        sessionID: String?
     ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     var request = URLRequest(url: config.endpoint("/v1/chat/completions"))
                     request.httpMethod = "POST"
+                    // 0.21.0 会话模式：带上会话头，服务端
+                    // 从 state.db 续该会话历史并把本轮交
+                    // 换落进同一会话（研究档两轮记忆探针
+                    // 实测背书）；nil 时请求与旧链逐字同
+                    if let sessionID {
+                        request.setValue(
+                            sessionID, forHTTPHeaderField: "X-Hermes-Session-Id"
+                        )
+                    }
                     // 长回复逐字到达：单请求超时放宽到 10 分钟，
                     // 停止生成走 task.cancel()（onTermination 承接）
                     request.timeoutInterval = 600
@@ -818,6 +843,30 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             endpoint: "服务端会话创建", body: body
         )
         return created.session
+    }
+
+    func createLinkedServerSession(config: ServerConfig, id: String, model: String) async throws -> ServerSession {
+        // 0.21.0：研究档实测链口径——建会话带 model＋
+        // require_model_lock:true 得确认锁（route 无法
+        // 落锁时服务端 409 拒、不会静默兜底）；title
+        // 不带（见协议注）
+        let body: [String: JSONValue] = [
+            "id": .string(id),
+            "model": .string(model),
+            "require_model_lock": .bool(true),
+        ]
+        let created: CreatedSession = try await sendJSONDecoding(
+            config: config, path: "/api/sessions", method: "POST",
+            endpoint: "旁聊会话创建", body: body
+        )
+        return created.session
+    }
+
+    func updateServerSessionModel(config: ServerConfig, id: String, model: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/sessions/\(id)/model", method: "POST",
+            endpoint: "会话模型切换", body: ["model": .string(model)]
+        )
     }
 
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage] {

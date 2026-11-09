@@ -59,7 +59,8 @@ struct DemoHermesClient: HermesClientProtocol {
     /// 演示流式：把定稿回复逐字慢速产出，演示态能看到
     /// 「已出半截字＋流式光标」的流式效果；总时长约 14 秒。
     func chatStream(
-        config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage]
+        config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage],
+        sessionID: String?
     ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         let reply = """
         好。那我先从定时任务模块动手：列表、新建、暂停、立即触发、运行记录，五条接口都是现成的，第一版只做查看和启停，编辑放第二轮。做完先出包给你验，通过了我再碰技能和会话。
@@ -421,6 +422,17 @@ struct DemoHermesClient: HermesClientProtocol {
          "model": "deepseek-chat", "profile": "default",
          "started_at": \(now), "ended_at": null, "message_count": 0}
         """)
+    }
+
+    /// 演示模式不建真会话（0.21.0）：抛错使旁聊链接
+    /// 走失败留痕＋无状态重放回退——演示发送链形态
+    /// 与旧版一致，会话头永不进演示请求
+    func createLinkedServerSession(config: ServerConfig, id: String, model: String) async throws -> ServerSession {
+        throw HermesError.unreachable("演示模式不建服务端会话")
+    }
+
+    func updateServerSessionModel(config: ServerConfig, id: String, model: String) async throws {
+        throw HermesError.unreachable("演示模式不建服务端会话")
     }
 
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage] {
