@@ -94,6 +94,15 @@ struct ChatView: View {
     /// 0.4.1：长按「回复」待发送的引用（值快照，不持
     /// SwiftData 对象）；发送/取消/切换线程时清除
     @State private var pendingQuote: MessageQuote?
+    /// 0.7.0（M4 分流动作）：「在旁聊里接着问」的引用种子
+    /// 暂存——新建旁聊的线程切换会触发 onChange 清引用，
+    /// 种子经此暂存一道、切换落定后转入 pendingQuote
+    @State private var pendingForkQuote: MessageQuote?
+    /// 0.7.0：当前待发送引用是否为分流种子（引用条文案分流）
+    @State private var pendingQuoteIsFork = false
+    /// 0.7.0（M1 轻保活）：列表首个可见条目 id（滚动锚
+    /// 记录用，由 onScrollTargetVisibilityChange 回写）
+    @State private var topVisibleEntryID: UUID?
     /// 0.4.1：长按「选择」的纯文本 sheet 载荷
     @State private var selectionPayload: SelectionPayload?
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
@@ -114,6 +123,19 @@ struct ChatView: View {
 
     private var currentThread: ChatThread? {
         threads.first { $0.id == currentThreadID } ?? threads.first
+    }
+
+    /// 0.7.0：当前线程是否钦定主线——回告卡入线判定与
+    /// 标题行标识共用一处口径（判定纯函数在 Core）
+    private var isCurrentMainThread: Bool {
+        guard let thread = currentThread,
+              let mainID = appState.sideChats.mainThreadID else { return false }
+        return SideChatClassifier.zone(localThreadID: thread.id, mainThreadID: mainID) == .main
+    }
+
+    /// 0.7.0：当前线程是否为旁聊（标题行挂「旁聊」标识）
+    private var isCurrentSideThread: Bool {
+        currentThread != nil && !isCurrentMainThread
     }
 
     private var isStreaming: Bool { streamingText != nil }
@@ -142,9 +164,28 @@ struct ChatView: View {
             SelectableTextSheet(text: payload.text)
         }
         // 0.4.1：引用是发送舱的临时态，切换线程即作废，
-        // 不许跨线程带过去
-        .onChange(of: currentThreadID) { _, _ in
-            pendingQuote = nil
+        // 不许跨线程带过去；0.7.0 两处增补——草稿轻保活
+        // （M1）与分流种子转入（M4），见下
+        .onChange(of: currentThreadID) { oldID, newID in
+            // 0.7.0（M1 轻保活）：切走前把输入框草稿存回
+            // 旁聊状态、切入后恢复目标线程的草稿（发送后
+            // 的空串存回即删草稿）；线程已被删的切走不回
+            // 存（threads 名单已无此 id，防死键残留）
+            if let oldID, oldID != newID,
+               threads.contains(where: { $0.id == oldID }) {
+                appState.sideChats.setDraft(input, for: oldID)
+            }
+            input = newID.flatMap { appState.sideChats.draft(for: $0) } ?? ""
+            // 0.7.0（M4）：分流种子经 pendingForkQuote 暂存
+            // 穿过本次清理、转入新旁聊的待发送引用
+            if let fork = pendingForkQuote {
+                pendingQuote = fork
+                pendingForkQuote = nil
+                pendingQuoteIsFork = true
+            } else {
+                pendingQuote = nil
+                pendingQuoteIsFork = false
+            }
             // 0.4.2：流式节流闸不跨线程带账
             streamFollowGate.reset()
             // 0.4.5：当前线程回写壳层抽屉（高亮当前位
@@ -166,6 +207,10 @@ struct ChatView: View {
         .onChange(of: appState.drawerDeletedThreadID) { _, id in
             if let id {
                 appState.drawerDeletedThreadID = nil
+                // 0.7.0：被删线程的草稿与滚动锚一并清掉，
+                // 不在轻保活账上留死键
+                appState.sideChats.setDraft("", for: id)
+                appState.sideChats.setScrollAnchor(nil, for: id)
                 if id == currentThreadID {
                     currentThreadID = nil
                 }
@@ -261,15 +306,19 @@ struct ChatView: View {
             }
         }
         .onAppear {
-            if currentThreadID == nil {
-                currentThreadID = threads.first?.id
-            }
+            // 0.7.0（D1 主线钦定）：先落钦定——存量钦定且
+            // 线程还在则沿用，否则新建本地主线并钦定；
+            // 冷启落点在无其他改道（抽屉选线程/待续聊）
+            // 时永远先落主线
+            let mainID = ensureMainThread()
             // 0.4.5：同理补消费抽屉线程选择（从其他格开
             // 抽屉选线程切过来时，本页可能尚未挂载、
             // onChange 不重放）
             if let id = appState.drawerThreadSelection {
                 appState.drawerThreadSelection = nil
                 currentThreadID = id
+            } else if appState.pendingChatSessionID == nil, currentThreadID == nil {
+                currentThreadID = mainID ?? threads.first?.id
             }
             // 0.4.5：当前线程初始回写（抽屉高亮当前位）
             appState.activeThreadID = currentThread?.id
@@ -277,6 +326,17 @@ struct ChatView: View {
             // 首次切入），onChange 可能先于挂载发生、在此补消费
             if let id = appState.pendingChatSessionID {
                 Task { await consumePendingChatSession(id) }
+            }
+            // 0.7.0：主线服务端承载确认（未确认过才走，
+            // 失败静默、下次进页重试，不挡聊天）
+            Task { await ensureMainServerSession() }
+        }
+        // 0.7.0（D2 回告）：总览快照随前台 30 秒轮询换新
+        // 时顺带拉新通知——回告卡与铃铛/通知 sheet 读
+        // 同一份通知状态，不另开轮询
+        .task(id: overviewStore?.snapshot?.generatedAt) {
+            if let overviewStore {
+                await overviewStore.loadNotifications(appState: appState)
             }
         }
         .task {
@@ -310,12 +370,15 @@ struct ChatView: View {
     /// EffectStyle(.soft) 单独承担；顶栏收编系统通道与
     /// 玻璃换装归二期材质批）
 
-    /// 顶栏状态行（0.6.0，总览桥口径；0.6.1 改短词）：
-    /// 词由 OneDayCore.OverviewStatusLine 对桥快照纯
-    /// 派生，只报可证事实短词（联系不上／待审批 N／
-    /// 在线）；完整状态句在活动页页头，本行不许再回
-    /// 长句（0.6.0 的「有 N 条待你审批」等长句在胶囊
-    /// 里必被截成「…」，见 identityCapsule 根修注）。
+    /// 顶栏状态行（0.6.0 立；0.6.1 改短词；0.7.0 通道
+    /// 口径修正）：词由 OneDayCore.OverviewStatusLine
+    /// 对「桥快照＋Hermes 通道探活」双输入纯派生，只报
+    /// 可证事实短词（联系不上／待审批 N／在线）——
+    /// 「联系不上」只认通道探活，桥挂不许冒充整机离线
+    /// （口径全文见 OverviewBridgeModels）；完整状态句
+    /// 在活动页页头，本行不许再回长句（0.6.0 的「有 N
+    /// 条待你审批」等长句在胶囊里必被截成「…」，见
+    /// identityCapsule 根修注）。
     /// 0.3.8 的本地三态（未连接/唤醒中/生成中/在线）
     /// 早已退役——生成中/唤醒中在本页消息区自有呈现，
     /// 不占顶栏状态行
@@ -434,33 +497,52 @@ struct ChatView: View {
             // 会话名次行（第 30 条）：退居中弱行，不再占胶囊。
             // 0.4.0（§3.4）：已关联服务端会话的线程，点次行
             // 开「会话信息」（详情页降级后的次级入口）
-            if let thread = currentThread, thread.serverSessionID != nil {
-                Button {
-                    showSessionInfo = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(thread.title)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundStyle(Palette.inkMuted)
-                            .accessibilityHidden(true)
-                    }
+            // 0.7.0（D3 呈现半侧）：当前为旁聊时标题前挂
+            // 「旁聊」小标识，与抽屉旁聊行同画法；主线不挂
+            HStack(spacing: 6) {
+                if isCurrentSideThread {
+                    sideChatTag
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("会话信息")
-            } else {
-                Text(currentThread?.title ?? "新会话")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
+                if let thread = currentThread, thread.serverSessionID != nil {
+                    Button {
+                        showSessionInfo = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(thread.title)
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundStyle(Palette.inkMuted)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("会话信息")
+                } else {
+                    Text(currentThread?.title ?? "新会话")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingS)
+    }
+
+    /// 「旁聊」小标识（0.7.0）：聊天页标题行与抽屉旁聊行
+    /// 同画法——caption2＋fieldFill 胶囊垫，只作身份标、
+    /// 不抢标题层级
+    private var sideChatTag: some View {
+        Text("旁聊")
+            .font(.caption2)
+            .foregroundStyle(Palette.inkSecondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Palette.fieldFill, in: Capsule())
     }
 
     /// 身份胶囊（0.6.0；0.6.1 布局根修）：一颗白浮纸胶
@@ -641,6 +723,23 @@ struct ChatView: View {
                     streamingRow(streamingText)
                         .id("streaming")
                 }
+                // 0.7.0（D2 回告入线）：任务/审批等完成回告
+                // 以卡片只出现在主线——数据走总览桥通知、
+                // 在呈现层拼装呈现，绝不写入任何 Hermes
+                // 会话（红线 D4）；旁聊页经 ReportCard-
+                // Policy 恒为空。卡不入 SwiftData、不进发
+                // 送上下文（上下文只由 sortedEntries 组装、
+                // 构造上隔离）
+                if let overviewStore {
+                    ForEach(
+                        ReportCardPolicy.cards(
+                            notifications: overviewStore.notifications,
+                            isMainThread: isCurrentMainThread
+                        )
+                    ) { item in
+                        reportCard(item, store: overviewStore)
+                    }
+                }
                 if currentThread == nil && !isStreaming {
                     // 空状态收敛（DESIGN-V4 §5）：小图标＋
                     // 两行字，不占大块视觉重量
@@ -666,6 +765,9 @@ struct ChatView: View {
                     .frame(height: 1)
                     .id("bottom")
             }
+            // 0.7.0（M1 轻保活）：滚动目标布局登记——条目
+            // 可见性按 UUID id 回报，喂滚动锚的存/取
+            .scrollTargetLayout()
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingS)
@@ -805,6 +907,43 @@ struct ChatView: View {
             // 走动画，见 scrollToBottom
             if isNearBottom {
                 scrollToBottom(proxy, animated: false)
+            }
+        }
+        // 0.7.0（M1 轻保活）：首个可见条目回写（UUID 型
+        // id 只有消息条目持有，流式行/底部锚是字符串 id、
+        // 不在此列）
+        .onScrollTargetVisibilityChange(idType: UUID.self) { ids in
+            topVisibleEntryID = ids.first
+        }
+        // 0.7.0（M1 轻保活）：滚动位置随线程存锚——切走
+        // 记当前锚（在底记 atBottom、否则记首个可见条目），
+        // 切入按锚恢复。恢复为 best-effort：等一拍布局落
+        // 定再滚，锚条目已删则 scrollTo 无效静默；恢复前
+        // 先把 isNearBottom 对齐锚，防条目数变化事件的贴
+        // 底跟随把恢复位置冲掉
+        .onChange(of: currentThreadID) { oldID, newID in
+            if let oldID, oldID != newID,
+               threads.contains(where: { $0.id == oldID }) {
+                appState.sideChats.setScrollAnchor(
+                    SideChatScrollAnchor(
+                        entryID: isNearBottom ? nil : topVisibleEntryID,
+                        atBottom: isNearBottom
+                    ),
+                    for: oldID
+                )
+            }
+            guard let newID,
+                  let anchor = appState.sideChats.scrollAnchor(for: newID)
+            else { return }
+            isNearBottom = anchor.atBottom
+            Task {
+                try? await Task.sleep(for: .milliseconds(120))
+                guard currentThreadID == newID else { return }
+                if anchor.atBottom {
+                    scrollToBottom(proxy, animated: false)
+                } else if let entryID = anchor.entryID {
+                    proxy.scrollTo(entryID, anchor: .top)
+                }
             }
         }
         .onChange(of: streamingText) { _, newText in
@@ -971,12 +1110,32 @@ struct ChatView: View {
                 pendingQuote = MessageQuote(
                     role: entry.role, content: entry.content
                 )
+                pendingQuoteIsFork = false
                 composerFocusHandle.focus()
+            },
+            onFork: {
+                forkToSideChat(from: entry)
             },
             onSelect: {
                 selectionPayload = SelectionPayload(text: text)
             }
         )
+    }
+
+    /// 分流动作（0.7.0，M4 超越位）：以这条消息为引用种
+    /// 子新建一条旁聊并切过去——原线程上下文不带过去，
+    /// 种子经 pendingForkQuote 穿过切换时的引用清理转入
+    /// 新旁聊待发送引用（见 body 的 onChange）；新旁聊标
+    /// 题走既有首句派生（send() 的「新会话」定题）
+    private func forkToSideChat(from entry: ChatEntry) {
+        let thread = ChatThread()
+        modelContext.insert(thread)
+        try? modelContext.save()
+        pendingForkQuote = MessageQuote(
+            role: entry.role, content: entry.content
+        )
+        currentThreadID = thread.id
+        composerFocusHandle.focus()
     }
 
     /// 已发送消息顶部的引用块（0.4.1）：小字、次级色、
@@ -1035,6 +1194,57 @@ struct ChatView: View {
     }
 
     @ViewBuilder
+    /// 回告卡（0.7.0，D2）：总览桥通知在主线消息流末尾的
+    /// 呈现层卡片。点卡身跳活动格看全量；点叉＝标已读
+    /// （走 OverviewBridgeStore.markRead：桥确认成功才改
+    /// 本地态，卡随未读过滤消失，与铃铛/通知 sheet 同一
+    /// 已读口径）。卡是纯 View：不入 SwiftData、不参与
+    /// 发送上下文组装
+    private func reportCard(
+        _ item: OverviewNotification, store: OverviewBridgeStore
+    ) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Image(systemName: "bell.badge")
+                .font(.system(size: 15, weight: .regular))
+                .foregroundStyle(Palette.inkSecondary)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.ink)
+                if !item.body.isEmpty {
+                    Text(item.body)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(3)
+                }
+            }
+            Spacer(minLength: 0)
+            Button {
+                Task { await store.markRead(appState: appState, id: item.id) }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(Palette.inkMuted)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("标为已读")
+        }
+        .padding(OneDayMetrics.spacingM)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
+                .strokeBorder(Palette.hairline, lineWidth: 1)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onOpenActivity() }
+    }
+
     private func streamingRow(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             // 0.5.1（§32）：思考先于正文到达时，折叠单
@@ -1240,9 +1450,13 @@ struct ChatView: View {
                 .fill(Palette.inkMuted)
                 .frame(width: 2, height: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(quote.role == "user"
-                    ? "正在回复我的消息"
-                    : "正在回复 \(MessageQuote.speakerName(for: quote.role))")
+                // 0.7.0（M4）：分流种子的引用条改报去向——
+                // 这条引用不在原线程回复、是新旁聊的开场
+                Text(pendingQuoteIsFork
+                    ? "在旁聊里接着问 \(MessageQuote.speakerName(for: quote.role))"
+                    : (quote.role == "user"
+                        ? "正在回复我的消息"
+                        : "正在回复 \(MessageQuote.speakerName(for: quote.role))"))
                     // 0.4.1 第 9 修：引用条标签同守
                     // regular 基准（旧 caption semibold
                     // 撤销，与消息正文同一字重纪律）
@@ -1256,6 +1470,7 @@ struct ChatView: View {
             Spacer(minLength: 0)
             Button {
                 pendingQuote = nil
+                pendingQuoteIsFork = false
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
@@ -1678,6 +1893,87 @@ private struct ComposerBarLayout: Layout {
         currentThreadID = thread.id
     }
 
+    // MARK: - 主线钦定（0.7.0，D1/M2）
+
+    /// 主线钦定落位：解析走 Core MainThreadDesignation——
+    /// 存量钦定且线程还在则沿用（并把服务端绑定对齐到
+    /// 持久的钦定会话 id）；否则新建本地主线：标题恒
+    /// 「主聊」、绑定本地生成并持久化的服务端会话 id、
+    /// 写入钦定。服务端承载的实际存在性由
+    /// ensureMainServerSession 异步确认，本函数纯本地
+    @discardableResult
+    private func ensureMainThread() -> UUID? {
+        let store = appState.sideChats
+        switch MainThreadDesignation.resolve(
+            storedID: store.mainThreadID, existingIDs: threads.map(\.id)
+        ) {
+        case .existing(let id):
+            if let main = threads.first(where: { $0.id == id }) {
+                let sessionID = store.ensureMainServerSessionID()
+                if main.serverSessionID != sessionID {
+                    main.serverSessionID = sessionID
+                    try? modelContext.save()
+                }
+                if main.title != SideChatStore.mainTitle {
+                    main.title = SideChatStore.mainTitle
+                    try? modelContext.save()
+                }
+            }
+            return id
+        case .needsCreation:
+            let thread = ChatThread()
+            thread.title = SideChatStore.mainTitle
+            thread.serverSessionID = store.ensureMainServerSessionID()
+            modelContext.insert(thread)
+            try? modelContext.save()
+            store.designateMainThread(thread.id)
+            return thread.id
+        }
+    }
+
+    /// 主线服务端承载确认：走管理面统一通道
+    /// （performAdmin，含 401 静默重登口径）——先 GET
+    /// 查存，404 才 POST 带钦定 id＋title 建线（建会话
+    /// 可带 App 指定 id/title 是调研实查口径，见
+    /// model-switching-research）；服务端若改派 id，
+    /// 以回执改存钦定并回写本地主线绑定。任何失败静默：
+    /// 确认位不置，下次进页重试。本地发送链是无状态
+    /// 重放、不依赖本确认，失败不挡聊天
+    private func ensureMainServerSession() async {
+        let store = appState.sideChats
+        guard MainThreadDesignation.serverEnsure(confirmed: store.mainServerConfirmed)
+                == .verifyOrCreate,
+              appState.config != nil else { return }
+        let wantedID = store.ensureMainServerSessionID()
+        do {
+            _ = try await appState.performAdmin { client, config in
+                try await client.serverSession(config: config, id: wantedID)
+            }
+            store.confirmMainServer()
+        } catch HermesError.unexpectedStatus(_, let status) where status == 404 {
+            do {
+                let created = try await appState.performAdmin { client, config in
+                    try await client.createServerSession(
+                        config: config, id: wantedID, title: SideChatStore.mainTitle
+                    )
+                }
+                if created.id != wantedID {
+                    store.setMainServerSessionID(created.id)
+                    if let mainID = store.mainThreadID,
+                       let main = threads.first(where: { $0.id == mainID }) {
+                        main.serverSessionID = created.id
+                        try? modelContext.save()
+                    }
+                }
+                store.confirmMainServer()
+            } catch {
+                // 建线失败不置确认位，下次进页重试
+            }
+        } catch {
+            // 查存失败（离线/未登录）静默，下次进页重试
+        }
+    }
+
     // MARK: - 服务端会话续聊（0.4.0，审计 §3.4）
 
     /// 消费待续聊 id：先清 AppState 再导入（防 onChange
@@ -1758,6 +2054,7 @@ private struct ComposerBarLayout: Layout {
         input = ""
         attachments = []
         pendingQuote = nil
+        pendingQuoteIsFork = false
         errorMessage = nil
         notice = nil
         let thread = ensureThread()
@@ -1769,7 +2066,10 @@ private struct ComposerBarLayout: Layout {
                 imageData: imageDatas.first, quote: quote
             )
         )
-        if thread.title == "新会话" {
+        // 0.7.0（M3）：主线标题恒「主聊」、不被首条消息
+        // 派生覆盖——主线线程标题在钦定落位时即为「主聊」
+        // 本就不进本分支，此守卫是双保险
+        if thread.title == "新会话", thread.id != appState.sideChats.mainThreadID {
             thread.title = text.isEmpty ? "图片消息" : String(text.prefix(20))
         }
         thread.updatedAt = Date()
@@ -2004,6 +2304,8 @@ private struct MessageMenuModifier: ViewModifier {
     let isEnabled: Bool
     let plainText: String
     let onReply: () -> Void
+    /// 0.7.0（M4）：分流动作「在旁聊里接着问」
+    let onFork: () -> Void
     let onSelect: () -> Void
 
     @ViewBuilder
@@ -2012,6 +2314,9 @@ private struct MessageMenuModifier: ViewModifier {
             content.contextMenu {
                 Button(action: onReply) {
                     Label("回复", systemImage: MessageActionSymbols.reply)
+                }
+                Button(action: onFork) {
+                    Label("在旁聊里接着问", systemImage: MessageActionSymbols.fork)
                 }
                 Button {
                     Pasteboard.copy(plainText)

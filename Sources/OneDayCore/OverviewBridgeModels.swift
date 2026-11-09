@@ -61,17 +61,38 @@ public struct OverviewReadResponse: Decodable, Equatable, Sendable {
     }
 }
 
-/// 顶栏状态行派生（0.6.1 改短词口径，用户真机点名）：
-/// 胶囊里只放可证事实的短词——桥连不上或 Hermes 不在
-/// →「联系不上」；有待审批 →「待审批 N」；否则「在线」。
+/// 顶栏状态行派生（0.6.1 改短词口径，用户真机点名；
+/// 0.7.0 通道口径修正，用户 16:05 真机截图坐实）：
+/// 胶囊里只放可证事实的短词。0.6.1 的病：状态只读桥
+/// 快照——桥一旦连不上（钥匙未粘 401/桥抖动）快照置
+/// 空就报「联系不上」，可聊天走的是 Hermes API 通道、
+/// 明明刚收到回复，自相矛盾。0.7.0 口径：
+///
+/// - 「联系不上」只许由 Hermes API 通道本身的探活
+///   （hermesChannelUp，App 每轮直探 /health）为假触发；
+/// - 桥只是数据面：桥挂只降级桥自己的数（待审批不显
+///   示），通道在就报「在线」；桥在且有待审批才报
+///   「待审批 N」（数字只出自桥）；
+/// - 通道探活未知（nil，冷启尚未探到）时退回桥快照
+///   口径（桥的 hermesUp 字段），不新造第三种说法。
+///
 /// 旧四句（暂时联系不上/有 N 条待你审批/正在处理会话/
-/// 随时待命）全退役：长句在胶囊宽度里必被截断成「…」，
-/// 且「正在处理会话」建立在桥的 activeSessions 上——
-/// Hermes 不写 ended_at、该数实为会话总数、是假进行中
-/// （桥字段本身不动、仍按契约传输，客户端文案不再
-/// 把它说成进行中）。优先级固定为可达性 > 待审批。
+/// 随时待命）已于 0.6.1 全退役：长句在胶囊宽度里必被
+/// 截断成「…」，且「正在处理会话」建立在桥的
+/// activeSessions 上——Hermes 不写 ended_at、该数实
+/// 为会话总数、是假进行中（桥字段本身不动、仍按契约
+/// 传输，客户端文案不再把它说成进行中）。
 public enum OverviewStatusLine {
-    public static func resolve(snapshot: OverviewSnapshot?) -> String {
+    public static func resolve(
+        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+    ) -> String {
+        if let hermesChannelUp {
+            guard hermesChannelUp else { return "联系不上" }
+            if let snapshot, snapshot.pendingApprovals > 0 {
+                return "待审批 \(snapshot.pendingApprovals)"
+            }
+            return "在线"
+        }
         guard let snapshot, snapshot.hermesUp else {
             return "联系不上"
         }

@@ -85,6 +85,8 @@ public enum MessageActionSymbols {
     public static let copy = "doc.on.doc"
     public static let select = "text.viewfinder"
     public static let share = "square.and.arrow.up"
+    /// 0.7.0（M4 分流动作）：「在旁聊里接着问」
+    public static let fork = "arrow.triangle.branch"
 
-    public static let all = [reply, copy, select, share]
+    public static let all = [reply, copy, select, share, fork]
 }

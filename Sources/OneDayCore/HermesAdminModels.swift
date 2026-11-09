@@ -366,6 +366,26 @@ public struct SessionsPage: Decodable, Sendable {
     }
 }
 
+/// 建会话回执（POST /api/sessions，0.7.0 主线钦定建线用）：
+/// 回执形态以实查为准宽容——{"session": {...}} 包裹与裸
+/// 会话对象两种都收，只取建成的会话本体
+public struct CreatedSession: Decodable, Sendable {
+    public let session: ServerSession
+
+    public init(from decoder: Decoder) throws {
+        if let container = try? decoder.container(keyedBy: CodingKeys.self),
+           let wrapped = try? container.decode(ServerSession.self, forKey: .session) {
+            session = wrapped
+            return
+        }
+        session = try ServerSession(from: decoder)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case session
+    }
+}
+
 /// 定时任务运行记录：{"runs": [SessionInfo]}（与会话同构）
 public struct CronRunsResponse: Decodable, Sendable {
     public let runs: [ServerSession]

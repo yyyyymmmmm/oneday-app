@@ -68,6 +68,17 @@ final class AppState {
     /// 会话派生标题解析器（0.6.1）：抽屉行/活动行共用
     /// 的首条消息缓存与预算拉取，全 App 只此一份
     let sessionTitles = SessionTitleResolver()
+
+    /// 旁聊语义状态（0.7.0）：主线钦定/归档/标题覆盖/轻保活，
+    /// 演示模式纯内存不落盘（见 SideChatStore）
+    let sideChats: SideChatStore
+
+    /// 总览桥鉴权失败旗（0.7.0）：由 OverviewBridgeStore
+    /// 在每轮刷新时回写——桥钥匙未粘（noKey）或被拒
+    /// （401）为 true，桥取数成功清零，网络类失败不动
+    /// 本旗（不把抖动说成钥匙问题）。设置页据此露
+    /// 「桥未连接」提示，胶囊状态行不读本旗
+    var overviewBridgeAuthFailed = false
     /// 智能体身份名（0.6.1，用户真机点名）：全局唯一解
     /// 析点——胶囊/抽屉/活动页三处显示名都读这里；值由
     /// soul 一级标题经 OneDayCore.AgentName.resolve 得
@@ -131,6 +142,7 @@ final class AppState {
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
         isDemo = demoMode.isDemo
+        sideChats = SideChatStore(persisted: !demoMode.isDemo)
         switch demoMode {
         case .connected:
             // 演示会话：地址与账号只是展示数据，密钥由假客户端消化

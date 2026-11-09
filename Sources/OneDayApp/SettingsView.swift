@@ -206,7 +206,14 @@ struct SettingsView: View {
                 icon: "key", title: "审批桥钥匙",
                 // 0.5.0（§31 追加件）：值位只显状态词、
                 // 永不带钥匙原文（原文只存 Keychain）
-                value: writeGateKeyStatus == .set ? "已设置" : "未设置",
+                // 0.7.0：桥鉴权失败（未粘/被拒）时值位如实
+                // 露「桥未连接」——桥是总览/待审批/通知的
+                // 数据面，连不上要让用户在这里一眼看到，
+                // 不许只剩胶囊状态行可猜（旗由总览桥每轮
+                // 刷新回写，见 OverviewBridgeStore）
+                value: appState.overviewBridgeAuthFailed
+                    ? "桥未连接"
+                    : (writeGateKeyStatus == .set ? "已设置" : "未设置"),
                 route: .writeGateKey
             )
         } header: {
@@ -413,7 +420,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             LabeledContent("OneDay 版本") {
-                Text("0.6.1")
+                Text("0.7.0")
                     .font(.system(.callout, design: .monospaced))
             }
             LabeledContent("服务端") {

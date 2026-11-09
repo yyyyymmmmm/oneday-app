@@ -76,6 +76,9 @@ protocol HermesClientProtocol: Sendable {
     func serverSessions(config: ServerConfig, limit: Int) async throws -> SessionsPage
     /// GET /api/sessions/{id}
     func serverSession(config: ServerConfig, id: String) async throws -> ServerSession
+    /// 建会话（0.7.0 主线钦定）：id/title 由 App 指定，
+    /// 服务端回执的 id 为准（服务端改派时以回执改存）
+    func createServerSession(config: ServerConfig, id: String?, title: String?) async throws -> ServerSession
     /// GET /api/sessions/{id}/messages
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage]
     /// DELETE /api/sessions/{id}
@@ -595,6 +598,17 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         try await getJSON(
             config: config, path: "/api/sessions/\(id)", endpoint: "服务端会话详情"
         )
+    }
+
+    func createServerSession(config: ServerConfig, id: String?, title: String?) async throws -> ServerSession {
+        var body: [String: JSONValue] = [:]
+        if let id { body["id"] = .string(id) }
+        if let title { body["title"] = .string(title) }
+        let created: CreatedSession = try await sendJSONDecoding(
+            config: config, path: "/api/sessions", method: "POST",
+            endpoint: "服务端会话创建", body: body
+        )
+        return created.session
     }
 
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage] {

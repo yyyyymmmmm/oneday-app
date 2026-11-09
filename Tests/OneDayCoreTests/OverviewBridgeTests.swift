@@ -77,21 +77,67 @@ final class OverviewBridgeTests: XCTestCase {
     }
 
     // 0.6.1 短词口径：胶囊状态行只放可证事实短词
-    // （联系不上／待审批 N／在线），整句不许回胶囊
-    func testStatusLineUnreachableWhenNoSnapshot() {
-        XCTAssertEqual(OverviewStatusLine.resolve(snapshot: nil), "联系不上")
+    // （联系不上／待审批 N／在线），整句不许回胶囊。
+    // 0.7.0 通道口径修正（用户 16:05 真机截图坐实）：
+    // 「联系不上」只认 Hermes API 通道探活，桥挂只降级
+    // 桥自己的数——下列用例逐条钉死
+    func testStatusLineUnreachableWhenNoSnapshotAndChannelUnknown() {
+        XCTAssertEqual(
+            OverviewStatusLine.resolve(snapshot: nil, hermesChannelUp: nil),
+            "联系不上"
+        )
     }
 
-    func testStatusLineUnreachableWhenHermesDown() {
+    func testStatusLineUnreachableWhenHermesDownPerBridge() {
         XCTAssertEqual(
-            OverviewStatusLine.resolve(snapshot: snapshot(hermesUp: false, pending: 2)),
+            OverviewStatusLine.resolve(
+                snapshot: snapshot(hermesUp: false, pending: 2),
+                hermesChannelUp: nil
+            ),
             "联系不上"
+        )
+    }
+
+    /// 本轮钉死的核心用例：桥 401（快照为空）＋聊天
+    /// 通道（Hermes API 探活）正常 → 状态必须是「在线」，
+    /// 不许再被桥的失败污染成「联系不上」
+    func testStatusLineOnlineWhenBridgeDownButChannelUp() {
+        XCTAssertEqual(
+            OverviewStatusLine.resolve(snapshot: nil, hermesChannelUp: true),
+            "在线"
+        )
+    }
+
+    /// 通道探活为假是「联系不上」的唯一新来源：哪怕桥
+    /// 快照自称在线也不许翻案（聊天走的就是这条通道）
+    func testStatusLineUnreachableWhenChannelDownEvenIfBridgeUp() {
+        XCTAssertEqual(
+            OverviewStatusLine.resolve(
+                snapshot: snapshot(hermesUp: true, pending: 2),
+                hermesChannelUp: false
+            ),
+            "联系不上"
+        )
+    }
+
+    /// 通道直探优先于桥的 hermesUp 自述：桥说 Hermes
+    /// 不在、但 API 通道刚探通 → 在线（桥字段是二手数）
+    func testStatusLineChannelProbeWinsOverBridgeHermesUp() {
+        XCTAssertEqual(
+            OverviewStatusLine.resolve(
+                snapshot: snapshot(hermesUp: false, pending: 0),
+                hermesChannelUp: true
+            ),
+            "在线"
         )
     }
 
     func testStatusLinePendingApprovals() {
         XCTAssertEqual(
-            OverviewStatusLine.resolve(snapshot: snapshot(active: 1, pending: 2)),
+            OverviewStatusLine.resolve(
+                snapshot: snapshot(active: 1, pending: 2),
+                hermesChannelUp: true
+            ),
             "待审批 2"
         )
     }
@@ -101,14 +147,18 @@ final class OverviewBridgeTests: XCTestCase {
     /// Hermes 不写 ended_at 时该数实为会话总数
     func testStatusLineActiveCountNeverImpliesProcessing() {
         XCTAssertEqual(
-            OverviewStatusLine.resolve(snapshot: snapshot(active: 17)),
+            OverviewStatusLine.resolve(
+                snapshot: snapshot(active: 17), hermesChannelUp: nil
+            ),
             "在线"
         )
     }
 
     func testStatusLineIdle() {
         XCTAssertEqual(
-            OverviewStatusLine.resolve(snapshot: snapshot()),
+            OverviewStatusLine.resolve(
+                snapshot: snapshot(), hermesChannelUp: nil
+            ),
             "在线"
         )
     }

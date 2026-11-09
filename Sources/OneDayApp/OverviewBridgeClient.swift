@@ -1,10 +1,13 @@
 import Foundation
 import OneDayCore
 
-/// 总览桥错误：客户端只区分「没有钥匙」与「其余失败」——
-/// 状态行口径只有一条「暂时联系不上」，不猜失败原因。
-enum OverviewBridgeError: Error, Sendable {
+/// 总览桥错误：区分「没有钥匙」「钥匙被拒（401）」与
+/// 「其余失败」——前两类是桥未连接（钥匙问题），要在
+/// 设置里如实露「桥未连接」；其余失败（网络/格式）不
+/// 归因于钥匙，不许混报。
+enum OverviewBridgeError: Error, Sendable, Equatable {
     case noKey
+    case unauthorized
     case failed(String)
 }
 
@@ -51,6 +54,9 @@ final class OverviewBridgeClient: @unchecked Sendable {
         request.httpMethod = "POST"
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         let (data, http) = try await send(request, endpoint: "通知已读")
+        if http.statusCode == 401 {
+            throw OverviewBridgeError.unauthorized
+        }
         guard (200...299).contains(http.statusCode) else {
             throw OverviewBridgeError.failed("通知已读返回 \(http.statusCode)")
         }
@@ -73,6 +79,9 @@ final class OverviewBridgeClient: @unchecked Sendable {
         request.httpMethod = "GET"
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         let (data, http) = try await send(request, endpoint: endpoint)
+        if http.statusCode == 401 {
+            throw OverviewBridgeError.unauthorized
+        }
         guard http.statusCode == 200 else {
             throw OverviewBridgeError.failed("\(endpoint)返回 \(http.statusCode)")
         }

@@ -56,6 +56,13 @@ struct DrawerView: View {
     /// 输入后写回 ChatThread.title
     @State private var renamingThread: ChatThread?
     @State private var renameText = ""
+    /// 服务端会话重命名（0.7.0，M3）：已建会话改 title
+    /// 未证实——不走服务端，写本地覆盖表（SideChatStore
+    /// .titleOverrides），名单标题以覆盖为准
+    @State private var renamingServerSession: ServerSession?
+    @State private var serverRenameText = ""
+    /// 「已归档」区展开态（0.7.0，M2）：默认收起
+    @State private var showArchived = false
     /// 服务端会话组的数据（开抽屉时拉取）
     @State private var drawerServerSessions: [ServerSession] = []
 
@@ -126,6 +133,17 @@ struct DrawerView: View {
             Button("取消", role: .cancel) { renamingThread = nil }
             Button("保存") { commitRenameThread() }
         }
+        .alert(
+            "重命名会话",
+            isPresented: Binding(
+                get: { renamingServerSession != nil },
+                set: { if !$0 { renamingServerSession = nil } }
+            )
+        ) {
+            TextField("会话标题", text: $serverRenameText)
+            Button("取消", role: .cancel) { renamingServerSession = nil }
+            Button("保存") { commitRenameServerSession() }
+        }
         // 开抽屉时拉服务端会话组（0.4.4 前挂 ChatView
         // 的 drawerOpen onChange；0.4.5 起抽屉自理，
         // 信号源＝壳层维护的语义开合状态 drawerPresented）
@@ -152,14 +170,17 @@ struct DrawerView: View {
 
     private func loadDrawerData() async {
         if let page = try? await appState.performAdmin({ client, config in
-            try await client.serverSessions(config: config, limit: 6)
+            // 0.7.0：拉取量 6→20——可见区仍只摆前 6 条，
+            // 多拉的是给「已归档」区与主线服务端会话的
+            // 排除判定留量（归档条目不再挤占可见名额）
+            try await client.serverSessions(config: config, limit: 20)
         }) {
             drawerServerSessions = page.sessions
-            // 派生标题（0.6.1）：名单只有 6 条，预算内
-            // 全量补齐首条消息，行标题走全局解析器
-            // （与活动行同一派生同一缓存）
+            // 派生标题（0.6.1）：行标题走全局解析器（与
+            // 活动行同一派生同一缓存）；0.7.0 预算随拉
+            // 取量放大到 12（可见 6＋归档区在列者）
             await appState.sessionTitles.ensureTitles(
-                for: page.sessions, appState: appState, budget: 6
+                for: page.sessions, appState: appState, budget: 12
             )
         }
     }
@@ -317,6 +338,77 @@ struct DrawerView: View {
         }
     }
 
+    private var isSearching: Bool {
+        !drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// 0.7.0（M2）：归档过滤恒生效——归档旁聊从一切名单
+    /// 隐藏（搜索也不许捞出来），只在「已归档」区可见
+    private var drawerItems: [ChatThread] {
+        filteredThreads.filter {
+            !SideChatArchive.isArchived(
+                localThreadID: $0.id,
+                archivedKeys: appState.sideChats.archivedKeys
+            )
+        }
+    }
+
+    /// 钦定主线（D1）：抽屉置顶独立区，行保护见
+    /// drawerThreadRow（无长按菜单、不可归档不可删）
+    private var mainThread: ChatThread? {
+        guard let mainID = appState.sideChats.mainThreadID else { return nil }
+        return threads.first { $0.id == mainID }
+    }
+
+    /// 旁聊名单：可见本地线程剔除主线
+    private var sideThreads: [ChatThread] {
+        drawerItems.filter { $0.id != appState.sideChats.mainThreadID }
+    }
+
+    /// 归档区本地线程：不吃搜索词（归档区只在非搜索态出现）
+    private var archivedLocalThreads: [ChatThread] {
+        threads.filter {
+            $0.id != appState.sideChats.mainThreadID
+                && SideChatArchive.isArchived(
+                    localThreadID: $0.id,
+                    archivedKeys: appState.sideChats.archivedKeys
+                )
+        }
+    }
+
+    /// 服务端会话二分（0.7.0）：主线的服务端会话先整体
+    /// 剔除（它就是主线本体、不进任何旁聊名单），其余
+    /// 按归档集合分可见/归档；可见区仍只摆前 6 条
+    private var serverPartition: (visible: [ServerSession], archived: [ServerSession]) {
+        let sideOnly = drawerServerSessions.filter {
+            SideChatClassifier.zone(
+                serverSessionID: $0.id,
+                mainServerSessionID: appState.sideChats.mainServerSessionID
+            ) == .side
+        }
+        return SideChatArchive.partition(
+            sideOnly,
+            key: { SideChatArchive.serverKey($0.id) },
+            archivedKeys: appState.sideChats.archivedKeys
+        )
+    }
+
+    private var visibleServerSessions: [ServerSession] {
+        Array(serverPartition.visible.prefix(6))
+    }
+
+    private var archivedServerSessions: [ServerSession] {
+        serverPartition.archived
+    }
+
+    /// 服务端行标题（M3 管线合并）：用户改名（本地覆盖
+    /// 表）＞ 派生管线（SessionTitleResolver：建线 title
+    /// →首条消息派生→未命名会话）
+    private func serverTitle(_ session: ServerSession) -> String {
+        appState.sideChats.titleOverrides[session.id]
+            ?? appState.sessionTitles.title(for: session)
+    }
+
     /// 侧边栏会话组（0.3.6 立，§21.3/§21.4；0.4.1 改
     /// 承载）：只产出素行内容（组标题/会话行/空态/尾
     /// 留白，x 线全自控），直排进面板 ScrollView 的同
@@ -325,12 +417,41 @@ struct DrawerView: View {
     /// 不划线——0.4.1 第 10 修又逐项补回发丝线，见下）
     /// 服务端会话组在尾（0.4.0 起点行改道聊天页续聊、
     /// 标题人话化）。
+    /// 名单结构（0.7.0 分区重排，D3）：非搜索态自上而下
+    /// ＝「主线」区（钦定单行置顶、行保护）→「旁聊」区
+    /// （其余本地线程走原时间分组、行带「旁聊」标识）
+    /// →「其他会话」（服务端旁聊，可见前 6）→「已归档」
+    /// 区（可展开恢复）→契约文案。搜索态退回单组平铺
+    /// （主线可搜到、归档恒隐藏、分区头不出现）。
     private var drawerList: some View {
         VStack(spacing: 0) {
-            if filteredThreads.isEmpty {
-                if drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+            if isSearching {
+                if drawerItems.isEmpty {
+                    drawerPlainRow {
+                        Text("没有匹配的会话")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkMuted)
+                            .padding(.horizontal, OneDayMetrics.drawerInset)
+                            .padding(.top, OneDayMetrics.spacingL)
+                    }
+                } else {
+                    threadGroupSections(groupedThreads(drawerItems))
+                }
+            } else {
+                if let mainThread {
+                    drawerGroupHeader("主线")
+                    drawerThreadRow(mainThread)
+                }
+                if !sideThreads.isEmpty {
+                    if mainThread != nil {
+                        drawerDivider
+                            .padding(.top, OneDayMetrics.spacingS)
+                    }
+                    drawerGroupHeader("旁聊")
+                    threadGroupSections(groupedThreads(sideThreads))
+                } else if mainThread == nil {
                     // 卡 18 纠正 3：无会话不留标签夹空带，
-                    // 换新建入口行
+                    // 换新建入口行（主线钦定落位前才可能到这）
                     drawerPlainRow {
                         Button {
                             createThread()
@@ -356,53 +477,103 @@ struct DrawerView: View {
                         .padding(.horizontal, OneDayMetrics.spacingSM)
                         .padding(.top, OneDayMetrics.spacingS)
                     }
-                } else {
-                    drawerPlainRow {
-                        Text("没有匹配的会话")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkMuted)
-                            .padding(.horizontal, OneDayMetrics.drawerInset)
-                            .padding(.top, OneDayMetrics.spacingL)
-                    }
-                }
-            } else {
-                ForEach(
-                    Array(threadGroups.enumerated()),
-                    id: \.element.label
-                ) { index, group in
-                    // 0.4.1 第 10 修：组间补发丝分隔线
-                    // （0.3.8 第 21 条的纯留白分段被用户
-                    // 逐项对比点名推翻——导航组与会话组
-                    // 之间、会话各组之间都要线，节奏与
-                    // 导航组下那条同式）
-                    if index > 0 {
-                        drawerDivider
-                            .padding(.top, OneDayMetrics.spacingS)
-                    }
-                    drawerGroupHeader(group.label)
-                    ForEach(group.threads) { thread in
-                        drawerThreadRow(thread)
-                    }
                 }
             }
-            if !drawerServerSessions.isEmpty {
+            if !visibleServerSessions.isEmpty {
                 // 第 10 修：与本地组之间同补发丝线（本
                 // 地组在场时）；第 18 条：组名改人话——
                 // 「服务端会话」是实现口径，改「其他会
                 // 话」（这些是在别处开的会话，不是本机
                 // 这台开的）
-                if !filteredThreads.isEmpty {
+                if !drawerItems.isEmpty {
                     drawerDivider
                         .padding(.top, OneDayMetrics.spacingS)
                 }
                 drawerGroupHeader("其他会话")
-                ForEach(drawerServerSessions) { session in
+                ForEach(visibleServerSessions) { session in
                     drawerServerSessionRow(session)
+                }
+            }
+            if !isSearching {
+                archivedZone
+                // 契约文案（D3 呈现侧）：抽屉内写明旁聊
+                // 的上下文与记忆口径，一行 footnote 收尾
+                drawerPlainRow {
+                    Text("旁聊各自独立上下文，记忆与任务全线共享。")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkMuted)
+                        .padding(.horizontal, OneDayMetrics.drawerInset)
+                        .padding(.top, OneDayMetrics.spacingM)
                 }
             }
             drawerPlainRow {
                 Color.clear
                     .frame(height: OneDayMetrics.spacingL)
+            }
+        }
+    }
+
+    /// 时间分组段落（组间发丝线＋组标题＋行列）：旁聊区
+    /// 与搜索态共用同一渲染
+    private func threadGroupSections(
+        _ groups: [(label: String, threads: [ChatThread])]
+    ) -> some View {
+        ForEach(
+            Array(groups.enumerated()),
+            id: \.element.label
+        ) { index, group in
+            // 0.4.1 第 10 修：组间补发丝分隔线
+            // （0.3.8 第 21 条的纯留白分段被用户
+            // 逐项对比点名推翻——导航组与会话组
+            // 之间、会话各组之间都要线，节奏与
+            // 导航组下那条同式）
+            if index > 0 {
+                drawerDivider
+                    .padding(.top, OneDayMetrics.spacingS)
+            }
+            drawerGroupHeader(group.label)
+            ForEach(group.threads) { thread in
+                drawerThreadRow(thread)
+            }
+        }
+    }
+
+    /// 「已归档」区（0.7.0，M2）：默认收起，点头展开；
+    /// 本地归档行点按＝恢复并打开、长按可恢复/删除；
+    /// 服务端归档行点按＝只恢复（不直接导入续聊）
+    @ViewBuilder
+    private var archivedZone: some View {
+        let archivedCount = archivedLocalThreads.count + archivedServerSessions.count
+        if archivedCount > 0 {
+            drawerDivider
+                .padding(.top, OneDayMetrics.spacingS)
+            drawerPlainRow {
+                Button {
+                    showArchived.toggle()
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Text("已归档（\(archivedCount)）")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Spacer()
+                        Image(systemName: showArchived ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(Palette.inkMuted)
+                    }
+                    .padding(.horizontal, OneDayMetrics.drawerInset)
+                    .padding(.top, OneDayMetrics.spacingSM)
+                    .padding(.bottom, OneDayMetrics.spacingS)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
+            }
+            if showArchived {
+                ForEach(archivedLocalThreads) { thread in
+                    drawerArchivedThreadRow(thread)
+                }
+                ForEach(archivedServerSessions) { session in
+                    drawerArchivedServerRow(session)
+                }
             }
         }
     }
@@ -435,19 +606,21 @@ struct DrawerView: View {
     /// 本机会话分组（0.3.6）：纯逻辑下沉
     /// OneDayCore.SidebarGrouping（置顶＋时间五段，
     /// 单测把守），此处只做 ChatThread ↔ key 映射。
-    private var threadGroups: [(label: String, threads: [ChatThread])] {
-        let searching = !drawerQuery
-            .trimmingCharacters(in: .whitespaces).isEmpty
-        let items = filteredThreads.map {
+    /// 0.7.0 改入参制：搜索态喂全量可见名单（含主线）、
+    /// 旁聊区喂剔除主线后的名单，两处共用同一分组口径
+    private func groupedThreads(
+        _ base: [ChatThread]
+    ) -> [(label: String, threads: [ChatThread])] {
+        let items = base.map {
             SidebarGrouping.Item(
                 key: $0.id, updatedAt: $0.updatedAt, isPinned: $0.isPinned
             )
         }
         let byID = Dictionary(
-            uniqueKeysWithValues: filteredThreads.map { ($0.id, $0) }
+            uniqueKeysWithValues: base.map { ($0.id, $0) }
         )
         return SidebarGrouping.groups(
-            items: items, now: Date(), searching: searching
+            items: items, now: Date(), searching: isSearching
         ).map { group in
             (
                 label: group.label,
@@ -474,7 +647,9 @@ struct DrawerView: View {
                 // 0.3.8 第 18/19 条：副题改序（来源退尾）
                 // 且与本地行同行型（标题 17 regular＋副
                 // 题 13、行高 57 两行制）
-                Text(appState.sessionTitles.title(for: session))
+                // 0.7.0（M3）：标题走合并管线——本地改名
+                // 覆盖优先于派生（serverTitle）
+                Text(serverTitle(session))
                     .font(.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
@@ -495,38 +670,44 @@ struct DrawerView: View {
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingSM)
+        // 0.7.0：服务端旁聊长按菜单——打开续聊（与点按
+        // 同链）/重命名（写本地覆盖表）/归档（本地隐藏，
+        // 服务端本体不动）
+        .contextMenu {
+            Button {
+                onClose()
+                appState.pendingChatSessionID = session.id
+            } label: {
+                Label("打开续聊", systemImage: "bubble.left")
+            }
+            Button {
+                beginRenameServerSession(session)
+            } label: {
+                Label("重命名", systemImage: "pencil")
+            }
+            Button {
+                appState.sideChats.archive(serverSessionID: session.id)
+            } label: {
+                Label("归档", systemImage: "archivebox")
+            }
+        }
     }
 
-    /// 会话行（0.3.6 立宪，0.3.8 第 19 条改两行制）：
-    /// 标题 17 regular＋副题时间·条数、高 57；选中态
-    /// ＝selectionFill 整行浅灰垫（第 17 条裁决保留）、
-    /// 标题不变色不加粗。长按菜单＝置顶/重命名/删除。
-    /// 0.4.5 通道化：当前位读 AppState.activeThreadID
-    /// （ChatView 回写）、点按经 drawerThreadSelection
-    /// 请 ChatView 切换（本面不持有 currentThreadID）
-    private func drawerThreadRow(_ thread: ChatThread) -> some View {
-        let isCurrent = thread.id == appState.activeThreadID
-        return Button {
-            appState.drawerThreadSelection = thread.id
-            onClose()
+    /// 归档区服务端行（0.7.0，M2）：点按＝只恢复（回到
+    /// 「其他会话」名单，不直接导入续聊）；长按同为恢复
+    private func drawerArchivedServerRow(_ session: ServerSession) -> some View {
+        Button {
+            appState.sideChats.unarchive(serverSessionID: session.id)
         } label: {
-            // 0.3.8 第 19 条：本地行与服务端行统一两行制
-            // （标题 17 regular＋副题「时间 · 条数」13 灰、
-            // 行高 57）；选中整行浅灰填充保留（第 17 条
-            // 用户裁决：保留灰块不改）
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(thread.title)
+                Text(serverTitle(session))
                     .font(.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                Text(LocalThreadSubtitle.text(
-                    updatedAt: thread.updatedAt,
-                    messageCount: thread.entries.count,
-                    now: Date()
-                ))
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .lineLimit(1)
+                Text(session.humanSubtitle(now: Date()))
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
             }
             .padding(.horizontal, OneDayMetrics.spacingS)
             .frame(
@@ -534,29 +715,158 @@ struct DrawerView: View {
                 minHeight: OneDayMetrics.sessionRowHeight,
                 alignment: .leading
             )
-            .background(
-                isCurrent ? Palette.selectionFill : Color.clear,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.fieldCorner
-                )
-            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .contextMenu {
             Button {
-                togglePinThread(thread)
+                appState.sideChats.unarchive(serverSessionID: session.id)
             } label: {
-                Label(
-                    thread.isPinned ? "取消置顶" : "置顶",
-                    systemImage: thread.isPinned ? "pin.slash" : "pin"
-                )
+                Label("恢复", systemImage: "arrow.uturn.backward")
             }
+        }
+    }
+
+    private func beginRenameServerSession(_ session: ServerSession) {
+        serverRenameText = serverTitle(session)
+        renamingServerSession = session
+    }
+
+    /// 服务端改名落本地覆盖表（M3 预案）：已建会话改
+    /// title 未证实、不对服务端发改名请求
+    private func commitRenameServerSession() {
+        let title = serverRenameText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        if let session = renamingServerSession, !title.isEmpty {
+            appState.sideChats.setTitleOverride(title, for: session.id)
+        }
+        renamingServerSession = nil
+    }
+
+    /// 「旁聊」小标识（0.7.0）：与聊天页标题行同画法——
+    /// caption2＋fieldFill 胶囊垫，挂旁聊行标题后
+    private var sideChatTag: some View {
+        Text("旁聊")
+            .font(.caption2)
+            .foregroundStyle(Palette.inkSecondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Palette.fieldFill, in: Capsule())
+    }
+
+    /// 本地行两行制标签（主线/旁聊/归档行共用）：标题
+    /// 17 regular＋副题时间·条数、高 57；选中态＝
+    /// selectionFill 整行浅灰垫（第 17 条裁决保留）、
+    /// 标题不变色不加粗。0.7.0：主线标题恒「主聊」、
+    /// 旁聊行标题后挂「旁聊」标识
+    private func drawerThreadLabel(
+        _ thread: ChatThread, isMain: Bool
+    ) -> some View {
+        let isCurrent = thread.id == appState.activeThreadID
+        return VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+            HStack(spacing: 6) {
+                Text(isMain ? SideChatStore.mainTitle : thread.title)
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                if !isMain {
+                    sideChatTag
+                }
+            }
+            Text(LocalThreadSubtitle.text(
+                updatedAt: thread.updatedAt,
+                messageCount: thread.entries.count,
+                now: Date()
+            ))
+            .font(.footnote)
+            .foregroundStyle(Palette.inkSecondary)
+            .lineLimit(1)
+        }
+        .padding(.horizontal, OneDayMetrics.spacingS)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: OneDayMetrics.sessionRowHeight,
+            alignment: .leading
+        )
+        .background(
+            isCurrent ? Palette.selectionFill : Color.clear,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.fieldCorner
+            )
+        )
+        .contentShape(Rectangle())
+    }
+
+    /// 会话行（0.3.6 立宪，0.3.8 第 19 条改两行制）。
+    /// 0.4.5 通道化：当前位读 AppState.activeThreadID
+    /// （ChatView 回写）、点按经 drawerThreadSelection
+    /// 请 ChatView 切换（本面不持有 currentThreadID）。
+    /// 0.7.0：主线行受钦定保护——不可归档、不可删、
+    /// 不可改名（UI 层约束：长按不出菜单）；旁聊行长按
+    /// 菜单＝置顶/重命名/归档/删除
+    private func drawerThreadRow(_ thread: ChatThread) -> some View {
+        let isMain = thread.id == appState.sideChats.mainThreadID
+        let row = Button {
+            appState.drawerThreadSelection = thread.id
+            onClose()
+        } label: {
+            drawerThreadLabel(thread, isMain: isMain)
+        }
+        .buttonStyle(.odPressable)
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+
+        return Group {
+            if isMain {
+                row
+            } else {
+                row.contextMenu {
+                    Button {
+                        togglePinThread(thread)
+                    } label: {
+                        Label(
+                            thread.isPinned ? "取消置顶" : "置顶",
+                            systemImage: thread.isPinned ? "pin.slash" : "pin"
+                        )
+                    }
+                    Button {
+                        beginRenameThread(thread)
+                    } label: {
+                        Label("重命名", systemImage: "pencil")
+                    }
+                    Button {
+                        appState.sideChats.archive(localThreadID: thread.id)
+                    } label: {
+                        Label("归档", systemImage: "archivebox")
+                    }
+                    Button(role: .destructive) {
+                        deleteThread(thread)
+                    } label: {
+                        Label("删除会话", systemImage: "trash")
+                    }
+                }
+            }
+        }
+    }
+
+    /// 归档区本地行（0.7.0，M2）：点按＝恢复并打开；
+    /// 长按＝恢复/删除
+    private func drawerArchivedThreadRow(_ thread: ChatThread) -> some View {
+        Button {
+            appState.sideChats.unarchive(localThreadID: thread.id)
+            appState.drawerThreadSelection = thread.id
+            onClose()
+        } label: {
+            drawerThreadLabel(thread, isMain: false)
+        }
+        .buttonStyle(.odPressable)
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .contextMenu {
             Button {
-                beginRenameThread(thread)
+                appState.sideChats.unarchive(localThreadID: thread.id)
             } label: {
-                Label("重命名", systemImage: "pencil")
+                Label("恢复", systemImage: "arrow.uturn.backward")
             }
             Button(role: .destructive) {
                 deleteThread(thread)

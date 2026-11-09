@@ -260,6 +260,16 @@ struct DemoHermesClient: HermesClientProtocol {
         return page.sessions.first { $0.id == id } ?? page.sessions[0]
     }
 
+    func createServerSession(config: ServerConfig, id: String?, title: String?) async throws -> ServerSession {
+        let now = Date().timeIntervalSince1970
+        return decode(ServerSession.self, """
+        {"id": "\(id ?? "sess-demo-main")", "source": "api_server",
+         "display_name": \(title.map { "\"\($0)\"" } ?? "null"),
+         "model": "deepseek-chat", "profile": "default",
+         "started_at": \(now), "ended_at": null, "message_count": 0}
+        """)
+    }
+
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage] {
         let now = Date().timeIntervalSince1970
         return decode(SessionMessagesResponse.self, """

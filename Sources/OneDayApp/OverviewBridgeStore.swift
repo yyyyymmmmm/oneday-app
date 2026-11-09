@@ -6,8 +6,15 @@ import OneDayCore
 /// 轮询节律冻结为前台 30 秒一轮（poll 由壳层以 scenePhase
 /// 为 task id 驱动：回前台自动重启、退后台自动取消）；
 /// 不学 OpenMuse 的 3 秒快照轮询。桥失败/无钥匙时
-/// snapshot 置 nil，状态行据纯函数落「暂时联系不上」，
-/// 角标归 0——不拿上轮旧数冒充实时。
+/// snapshot 置 nil、角标归 0——不拿上轮旧数冒充实时。
+///
+/// 0.7.0 通道口径修正（用户 16:05 真机截图坐实）：桥
+/// 与 Hermes API 通道是两条独立链——每轮刷新除桥取数
+/// 外另直探 Hermes /health（hermesChannelUp），状态行
+/// 的「联系不上」只认通道探活（见 Core 的
+/// OverviewStatusLine 新口径）；桥鉴权失败（未粘钥匙/
+/// 401）只回写 AppState.overviewBridgeAuthFailed 供设
+/// 置页露「桥未连接」，不许污染胶囊状态。
 @MainActor
 @Observable
 final class OverviewBridgeStore {
@@ -15,12 +22,17 @@ final class OverviewBridgeStore {
     private(set) var notifications: [OverviewNotification] = []
     private(set) var notificationsLoaded = false
     private(set) var notificationsFailed = false
+    /// Hermes API 通道探活（直探 /health，与桥独立）：
+    /// nil＝尚未探到，状态行退回桥快照口径
+    private(set) var hermesChannelUp: Bool?
 
     private let client = OverviewBridgeClient()
     private var isRefreshing = false
 
     var statusLine: String {
-        OverviewStatusLine.resolve(snapshot: snapshot)
+        OverviewStatusLine.resolve(
+            snapshot: snapshot, hermesChannelUp: hermesChannelUp
+        )
     }
 
     var badgeCount: Int {
@@ -40,6 +52,8 @@ final class OverviewBridgeStore {
         guard !isRefreshing else { return }
         guard appState.phase == .connected, let config = appState.config else {
             snapshot = nil
+            hermesChannelUp = nil
+            appState.overviewBridgeAuthFailed = false
             return
         }
         if appState.isDemo {
@@ -49,12 +63,29 @@ final class OverviewBridgeStore {
                 unreadNotifications: 0,
                 generatedAt: ISO8601DateFormatter().string(from: Date())
             )
+            hermesChannelUp = true
             return
         }
         isRefreshing = true
         defer { isRefreshing = false }
+        // 通道探活与桥取数相互独立、互不等待结论：探活
+        // 失败只落 hermesChannelUp，桥失败只落 snapshot
+        do {
+            _ = try await appState.client.health(config: config)
+            hermesChannelUp = true
+        } catch {
+            hermesChannelUp = false
+        }
         do {
             snapshot = try await client.overview(config: config)
+            appState.overviewBridgeAuthFailed = false
+        } catch let error as OverviewBridgeError {
+            snapshot = nil
+            // 只有钥匙类失败（未粘/被拒）才点「桥未连接」
+            // 旗；网络类失败不归因于钥匙、旗保持原值
+            if error == .noKey || error == .unauthorized {
+                appState.overviewBridgeAuthFailed = true
+            }
         } catch {
             snapshot = nil
         }
@@ -76,6 +107,14 @@ final class OverviewBridgeStore {
         do {
             notifications = try await client.notifications(config: config)
             notificationsLoaded = true
+            appState.overviewBridgeAuthFailed = false
+        } catch let error as OverviewBridgeError {
+            notifications = []
+            notificationsLoaded = true
+            notificationsFailed = true
+            if error == .noKey || error == .unauthorized {
+                appState.overviewBridgeAuthFailed = true
+            }
         } catch {
             notifications = []
             notificationsLoaded = true

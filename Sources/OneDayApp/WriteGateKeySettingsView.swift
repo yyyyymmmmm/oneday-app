@@ -11,6 +11,7 @@ import SwiftUI
 /// 钥匙原文只存在于用户正在粘贴的输入框里；钥匙值不进
 /// 任何日志、不进 UserDefaults/文件。
 struct WriteGateKeySettingsView: View {
+    @Environment(AppState.self) private var appState
     @State private var status: WriteGateKeyStatus = .notSet
     /// 输入框草稿：只装用户新粘贴的内容，保存/移除后即清空
     @State private var draft = ""
@@ -33,6 +34,17 @@ struct WriteGateKeySettingsView: View {
                     }
                 }
                 .odGroup()
+
+                // 0.7.0：桥鉴权失败如实露脸——同一把钥匙也
+                // 是总览桥的钥匙，未粘或被拒时总览/待审批/
+                // 通知都取不到数；聊天走 Hermes 本体通道、
+                // 不受影响（别让用户对着胶囊状态行猜）
+                if appState.overviewBridgeAuthFailed {
+                    Text("桥未连接：总览桥鉴权没通过（钥匙未粘贴或不正确）。聊天不受影响，但总览、待审批与通知暂时取不到数；粘贴或更换正确钥匙后自动恢复。")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.danger)
+                        .padding(.top, OneDayMetrics.spacingM)
+                }
 
                 Text("枢纽页「审核」段经这把钥匙连接审批桥。钥匙只存本机钥匙串，页面不显示原文；更换或移除后，审核段状态按桥的实际连通情况显示。")
                     .font(.footnote)

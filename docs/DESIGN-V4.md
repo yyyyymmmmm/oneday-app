@@ -3745,3 +3745,18 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
   元真机形态（须用 deepseek-v4-pro 发一条会产思考的
   消息验：思考期展开＋计时、正文到后落盘折叠＋秒
   数）、思考-only 回复不落盘口径的真机表现
+
+## §33 0.7.0 批（旁聊三档全学＋状态行通道口径修正，2026-11-09）
+
+规格＝oneday-design-review/sidechat-research-20261109.md §6 三档草案（用户 15:42 拍板全学）。基线令牌沿 0.6.1 的 OpenMuse 值，本批不做视觉精修（设计线定稿另行照图施工）。
+
+- D1 主线钦定：本地 ChatThread 钦定（标题恒「主聊」）＋服务端以 App 指定 id（`oneday-main-<uuid>` 本地生成持久化）＋title 建线承载（POST /api/sessions，GET 查存→404 才建、服务端改派 id 以回执改存）；冷启落点次序＝抽屉选线程＞待续聊＞主线。抽屉「主线」区置顶单行，无长按菜单（不可归档/删/改名，UI 层约束）。判定纯函数 MainThreadDesignation（Core）＋单测。
+- D2 回告入线：总览桥通知经 ReportCardPolicy（Core 纯函数：非主线恒空、主线取未读前 3）在主线消息流末尾呈现为卡——点身跳活动格、点叉走桥 markRead。红线 D4 守住：卡是纯 View，不入 SwiftData、不进发送上下文（上下文只由 sortedEntries 组装）、绝不往 Hermes 会话写任何消息；旁聊页不渲染。
+- D3 分区＋标识＋契约：抽屉＝主线区/旁聊区（时间分组沿 SidebarGrouping、行带「旁聊」胶囊标识、聊天页标题行同标识）/其他会话/已归档区/契约文案「旁聊各自独立上下文，记忆与任务全线共享。」。标题管线（M3）＝本地服务端行：改名覆盖表＞SessionTitleResolver 派生；本地行：主线恒「主聊」、旁聊走 send() 首句派生。
+- M1 轻保活：草稿文本（切线程存/恢复、发送后空串即删）与滚动锚（atBottom 或首个可见条目 id，切入延迟恢复、best-effort）在 SideChatStore 落 UserDefaults；不做全量挂载，附件不入保活。
+- M2 本地归档：归档集合（`local:<uuid>`/`server:<id>` 命名空间键）本地持久化；归档从一切名单隐藏（搜索不捞）、「已归档（N）」区可展开恢复（本地行恢复并打开/可删，服务端行只恢复、服务端本体不动）。服务端名单拉取量 6→20、可见仍前 6。
+- M4 分流动作（超越位）：长按消息第五项「在旁聊里接着问」（符号 arrow.triangle.branch 入 MessageActionSymbols）——新建旁聊、以该消息为引用种子（pendingForkQuote 穿过切换清理转入 pendingQuote，引用条文案分流），原线程上下文不带过去。
+- 未证实项处置：已建会话改 title 未证实 → 按档内预案走本地覆盖表（commitRenameServerSession 只写 SideChatStore.titleOverrides，不对服务端发改名请求）；建会话回执形态宽容解码 CreatedSession（{session:{…}} 与裸对象两形态，单测把守）。
+- 不学项守界：无云端线程、无分支式 /side、无自动命名（标题只有钦定/改名/首句派生三路）。
+- 状态行通道口径修正（追加件，用户 16:05 真机截图坐实）：0.6.1 状态只读桥快照——桥 401/抖动即报「联系不上」，与同机刚收到聊天回复自相矛盾。本批改双输入纯函数 OverviewStatusLine.resolve(snapshot:hermesChannelUp:)：「联系不上」只认 Hermes API 通道探活（OverviewBridgeStore 每轮直探 /health，与桥取数独立）；桥挂只降级桥数据（待审批不显示、角标归 0），通道在即「在线」；探活未知退回桥 hermesUp 口径。桥鉴权失败（OverviewBridgeError.noKey/.unauthorized 类型化）回写 AppState.overviewBridgeAuthFailed：设置页「审批桥钥匙」行值位露「桥未连接」、钥匙页加说明行；网络类失败不点旗。单测钉死：桥空快照＋通道正常→「在线」、通道假＋桥称在线→「联系不上」等 8 例。
+- 发版 0.7.0 / build 34（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。
