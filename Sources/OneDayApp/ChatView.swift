@@ -719,7 +719,10 @@ struct ChatView: View {
                 .frame(width: 2)
             VStack(alignment: .leading, spacing: 2) {
                 Text(MessageQuote.speakerName(for: quote.role))
-                    .font(.caption2.weight(.semibold))
+                    // 0.4.1 第 9 修：引用块在消息流内、
+                    // 其标签同守 regular 基准（旧 caption2
+                    // semibold 撤销，层级靠色与字号）
+                    .font(.caption2)
                     .foregroundStyle(Palette.inkSecondary)
                 Text(quote.summary(maxLength: 80))
                     .font(.caption)
@@ -948,7 +951,10 @@ struct ChatView: View {
                 Text(quote.role == "user"
                     ? "正在回复我的消息"
                     : "正在回复 \(MessageQuote.speakerName(for: quote.role))")
-                    .font(.caption.weight(.semibold))
+                    // 0.4.1 第 9 修：引用条标签同守
+                    // regular 基准（旧 caption semibold
+                    // 撤销，与消息正文同一字重纪律）
+                    .font(.caption)
                     .foregroundStyle(Palette.ink)
                 Text(quote.summary())
                     .font(.caption)

@@ -83,20 +83,35 @@ struct MarkdownText: View {
                         strongFont: .body.weight(.bold)
                     )
                         .font(.body) // 0.3.8 第 29 条：气泡正文 17 regular 显式角色
-                        .lineSpacing(5)
+                        // 0.4.1 第 9 修：行高回系统默认
+                        // leading（HIG：Body＝17 regular／
+                        // 行高 22）——旧 lineSpacing(5) 的
+                        // 手工加距撤销，不许在正文上自调
+                        // 行高（苹果「信息」App 消息正文即
+                        // Body Regular 默认行高）
                         .foregroundStyle(Palette.ink)
                 case .heading(let text, let level):
-                    // 标题内粗体与标题同重（标题角色本身
-                    // 即 semibold，strong 不再叠加）
+                    // 0.4.1 第 9 修（细化第 6 修）：标题从
+                    // body regular 基准派生——HIG 字体规
+                    // 范表里 Body 之上、字重仍为 regular
+                    // 的语义样式只有 Title2（22 regular）；
+                    // Headline（17 semibold）/Title3（20
+                    // semibold）沾 semibold 即显粗、禁用。
+                    // 一级标题走 .title2（层级由字号承
+                    // 担），二级以下回 .body 基准（层级由
+                    // 块间距承担）；标题内 strong 与正文
+                    // 同规则——只对应内容本身的 **、映射
+                    // 同字号 bold 一档，不再有「标题角色
+                    // 自带 semibold」的旧口径
                     inline(
                         text,
                         strongFont: level == 1
-                            ? .title2
-                            : .headline
+                            ? .title2.weight(.bold)
+                            : .body.weight(.bold)
                     )
                         .font(level == 1
                             ? .title2
-                            : .headline)
+                            : .body)
                         .foregroundStyle(Palette.ink)
                 case .code(let code):
                     Text(code)
@@ -123,13 +138,13 @@ struct MarkdownText: View {
     }
 
     /// 行内 markdown：解析失败回退纯文本，永不丢字。
-    /// 0.3.3 字重收编：解析器给行内粗体打的是系统 bold
-    /// （700），越过标题角色的 semibold（600）——层级倒
-    /// 挂（用户点破「正文已粗、加粗无层级可走」的实处）。
-    /// 按 InlinePresentationIntent.stronglyEmphasized 找
-    /// 粗体段、重映射到 strongFont（正文语境＝.body
-    /// .weight(.bold)，与正文恰差一档；内容层例外，
-    /// 0.4.0 审计 §3.1 注明保留）；行内代码段
+    /// 字重口径（0.3.3 收编、0.4.1 第 9 修定版）：strong
+    /// 只对应内容本身的 **——按 InlinePresentation-
+    /// Intent.stronglyEmphasized 找粗体段、重映射到
+    /// strongFont（正文/标题语境一律同字号 .weight
+    /// (.bold)，与 regular 基准恰差一档）；标题角色自
+    /// 带 semibold 的旧口径已随第 9 修废止（标题回
+    /// regular 基准，见 heading 分支）；行内代码段
     /// （.code）不碰、斜体段在 strong 字体上叠 .italic
     private func inline(_ text: String, strongFont: Font) -> Text {
         guard var attributed = try? AttributedString(
