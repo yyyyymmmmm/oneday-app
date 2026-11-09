@@ -150,12 +150,14 @@ final class VisualDirectionGateTests: XCTestCase {
             ),
             2.75, accuracy: 0.05
         )
-        // inkSecondaryOnFill #5F666B on 助手泡 #EEEEF0 ≈ 5.2
+        // inkSecondaryOnFill #5F666B on 助手泡 #EEEEF0 ＝ 5.04
+        // （首轮 CI 实测 5.035 推翻施工时估的 5.2，按实
+        // 测校准——达标线 4.5 有余量，非规格变更）
         XCTAssertEqual(
             WCAGContrast.ratio(
                 hexForeground: 0x5F666B, hexBackground: 0xEEEEF0
             ),
-            5.2, accuracy: 0.1
+            5.04, accuracy: 0.05
         )
     }
 
