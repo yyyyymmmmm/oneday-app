@@ -4198,7 +4198,7 @@ V1 冷开短会话（1–2 条消息）：首条气泡完整位于顶栏下方�
 ### 50.2 灰度收敛（审计 G1＋C4）
 - inkMuted（#949B9F，实算 2.75:1【实算】）退出一切文字位：全仓逐处分类（Text 前景＝文字位、Image/Shape/状态点＝非文字位），文字位 59 处换 inkSecondary（4.84:1），含共享组件 ContentRow/UnifiedRow 副题与尾元、管理页全部状态/说明行、抽屉空态提示、枢纽各段的时间/说明、日志元信息等；两处三元色（EnvVars 未设置态、StatusView 停用态下次时间）随之塌缩为 inkSecondary 单值。Palette inkMuted 注记改「只许非文字用途」。
 - 清零证据（交付 grep 口径）：`grep -rn "Palette.inkMuted" Sources` 余 58 处，逐类为——chevron/箭头/搜索/清除等字形前景、StatusDot 与 stateColor/decisionColor/tone 等状态色返回值、quote 竖线/TypingDots 等 Shape 填充、双色符号次色、EmptyState 装饰图标、目标删除线色（装饰线）、已读点填充。无一处落在 Text 前景上。
-- C4 落点：新增 Palette.inkSecondaryOnFill（浅 #5F666B＝在 #EEEEF0 上 ≈5.2:1【实算】；暗派生 #9AA3A8＝在暗泡 #272E33 上 ≈5.5:1）。全仓实查填充面上的次级文字仅一处真落点——ServerRemoteImage 失败标签（inkSecondary 字落 bubbleFill 背景，4.29:1）已换新角色；quoteBlock 经代码核查位于气泡背景之外（VStack 内、气泡填充只包正文块），不属 C4 面、维持 inkSecondary（在页面底 4.84:1 达标）。
+- C4 落点：新增 Palette.inkSecondaryOnFill（浅 #5F666B＝在 #EEEEF0 上 5.04:1【实算，公式自证复算 5.035】；暗派生 #9AA3A8＝在暗泡 #272E33 上 5.36:1）。全仓实查填充面上的次级文字仅一处真落点——ServerRemoteImage 失败标签（inkSecondary 字落 bubbleFill 背景，4.29:1）已换新角色；quoteBlock 经代码核查位于气泡背景之外（VStack 内、气泡填充只包正文块），不属 C4 面、维持 inkSecondary（在页面底 4.84:1 达标）。
 
 ### 50.3 图标令牌单源化（审计 G3）
 - 单源＝Core FrameworkIcon：新增 tabGlyphSize 22／navGlyphSize 21／rowGlyphSize 20／fileGlyphSize 17 四角色（值与旧源逐项同值）；连既有 drawerGlyphSize 27／drawerBarGlyphSize 17／settingsGlyphSize 28／composerGlyphSize 15 共八角色成全表。OneDayMetrics.navGlyph/tabGlyph/rowIconGlyph 改引用单源（别名保留、数值退役）；ListRowSpec 字号字段改挂 TypeRole（见 50.1）；HeaderButtonSpec（直径 40/字形 20/比 0.50）为几何规格、非字形令牌第三源，维持原位并在此对账（字形 20 在 glyphSizeRange 带内）。
@@ -4218,7 +4218,7 @@ V1 冷开短会话（1–2 条消息）：首条气泡完整位于顶栏下方�
 - 残留口径：全仓 .system(size: 9/10/11) 余 FilesView 面包屑 chevron 10 与 BoxFilesView 同件——皆分隔字形、非文字，登记保留。
 
 ### 50.7 三设置检查（代码层＋单测闸，零截图）
-- 新闸 VisualDirectionGateTests（+6 测）：①TypeRole 十角色样式名/默认 pt/字重逐项对账；②Dynamic Type 真缩放——ImageRenderer 离线渲染五角色文字于 .large 与 AX3 两档、断言高度增长 >20%（固定号字体在此现形）；③对比度实算——Palette 色经 EnvironmentValues（浅/暗两色貌）resolve 后以 Core WCAGContrast 复算：ink/inkSecondary 对 pageBG、inkSecondaryOnFill 对 bubbleFill，浅暗共五对 ≥4.5；inkMuted 对 pageBG <4.5 危险钉；④WCAG 公式自证对审计原值（4.84/2.75/5.2 复算命中）；⑤TransparencyFallback 裁决两分支；⑥图标单源对账（OneDayMetrics 三别名＝FrameworkIcon 同值＋八角色定版值）。
+- 新闸 VisualDirectionGateTests（+6 测）：①TypeRole 十角色样式名/默认 pt/字重逐项对账；②Dynamic Type 真缩放——ImageRenderer 离线渲染五角色文字于 .large 与 AX3 两档、断言高度增长 >20%（固定号字体在此现形）；③对比度实算——Palette 色经 EnvironmentValues（浅/暗两色貌）resolve 后以 Core WCAGContrast 复算：ink/inkSecondary 对 pageBG、inkSecondaryOnFill 对 bubbleFill，浅暗共五对 ≥4.5；inkMuted 对 pageBG <4.5 危险钉；④WCAG 公式自证对审计原值（4.84/2.75/5.04 复算命中——5.04 为第二轮以 CI 实测 5.035 校准施工估值 5.2 后的定版）；⑤TransparencyFallback 裁决两分支；⑥图标单源对账（OneDayMetrics 三别名＝FrameworkIcon 同值＋八角色定版值）。
 - 减透明落点：系统玻璃（glassEffect）由系统回退【官方】；自制霜层（抽屉底条 Material＋渐变 mask）的淡出段不受系统回退管辖——DrawerView 经 TransparencyFallback 裁决加实色分支（Reduce Transparency 时整幅 Palette.surface、无 mask）；其余自制材质面全仓 grep 仅此一处（scrim 为带 alpha 的纯色纱、非材质面，不入列）。
 - 暗色＋增对比：颜色全走 Palette 动态色（浅/暗成对），对比闸已含暗色对；Increase Contrast 下系统色与玻璃由系统加深【官方】，自有令牌无单独分支、登记为系统托管。
 

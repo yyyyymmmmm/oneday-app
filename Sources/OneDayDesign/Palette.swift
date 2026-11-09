@@ -136,8 +136,9 @@ public enum Palette {
     /// 填充面次墨（0.23.0，审计 C4）：inkSecondary 落在
     /// 助手泡 #EEEEF0 上实算 4.29:1 压线下——泡内/填
     /// 充面上的次级文字专用加深档 #5F666B（在 #EEEEF0
-    /// 上实算 ≈5.2:1）；暗色派生随暗色 inkSecondary
-    /// #9AA3A8（在暗色泡 #272E33 上 ≈5.5:1）
+    /// 上实算 5.04:1，WCAG 公式自证复算 5.035）；暗色
+    /// 派生随暗色 inkSecondary #9AA3A8（在暗色泡
+    /// #272E33 上实算 5.36:1）
     public static let inkSecondaryOnFill = omColor(
         light: omHex(0x5F666B), dark: omHex(0x9AA3A8)
     )
