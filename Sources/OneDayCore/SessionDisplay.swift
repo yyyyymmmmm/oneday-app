@@ -247,3 +247,55 @@ public enum LocalThreadSubtitle {
         sessionDayTimeText(for: updatedAt, now: now, calendar: calendar)
     }
 }
+
+/// 抽屉旁聊区行显过滤（0.19.0 返工，用户 2026-11-09
+/// 22:45 口径纠正）：抽屉只留**用户本人在 App 里开
+/// 的旁聊**；Hermes 内部的 worker/kanban 会话、验收
+/// 测试会话、微信/TG 等外部平台通道进来的会话一律
+/// 不进抽屉（它们仍在管理全部对话页全量可见）。
+///
+/// 2026-11-09 只读实查（生产 state.db，28 条会话）
+/// 的字段事实：
+/// - source=kanban 共 9 条（origin.platform=local、
+///   user_id=uid:10000），全是 P3TEST/SPIKE 验收任
+///   务会话——字段可分，本函数按 source 直接撤；
+/// - source=api_server 共 19 条（user_id=api、
+///   origin.platform=api_server），与用户经 App 续
+///   聊的会话元数据完全同构、不可逐条分——但用户
+///   在 App 里新建的旁聊根本不产生服务端行（本地
+///   线程 serverSessionID 恒 nil，见 ChatThread 注），
+///   故抽屉名单本体收敛为本地线程即无误伤；服务端
+///   会话只经本地线程的关联 id 间接出现，本函数管
+///   的就是这条关联的来源判定；
+/// - 平台来源（whatsapp/telegram/feishu 等）现存为
+///   零，Hermes 启用通道数为零（旁聊立项档实查）；
+///   一旦出现，source 即平台名，按「非用户通道」
+///   撤——用户通道集合只认 api_server/api/dashboard
+///   /web 四值，其余非空 source 一律撤。
+///
+/// 输入是本地线程的呈现判定：isMainThread（钦定主
+/// 线，由导航组「主线聊天」行覆盖）、isLocally-
+/// Archived（本地归档位，管理页已归档段管）、
+/// linkedSource（关联服务端会话的 source；无关联
+/// 或服务端数据未拉到时为 nil——nil 恒放行，不因
+/// 服务端不可达藏掉本人旁聊）。
+public enum DrawerSideChatFilter {
+    /// 用户通道来源集合（App API 与控制台）：除此
+    /// 之外的非空 source（kanban/平台/其他内部来源）
+    /// 一律判撤
+    public static let userChannelSources: Set<String> = [
+        "api_server", "api", "dashboard", "web",
+    ]
+
+    public static func threadListed(
+        isMainThread: Bool,
+        isLocallyArchived: Bool,
+        linkedSource: String?
+    ) -> Bool {
+        if isMainThread || isLocallyArchived { return false }
+        guard let linkedSource, !linkedSource.isEmpty else {
+            return true
+        }
+        return userChannelSources.contains(linkedSource)
+    }
+}

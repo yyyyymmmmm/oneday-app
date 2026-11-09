@@ -92,16 +92,14 @@ import UIKit
 /// 行为、用户已下令去掉；调研 Q2 证实最小化只剩单图
 /// 标胶囊是该行为的设计结果、非 bug）。
 ///
-/// **0.19.0 抽屉导航化（真机五条·二轮，用户 2026-11-09**
-/// **22:26 点名）**：抽屉照 Muse 本体侧边栏重构为纯
-/// 导航形态（名字头＋「选项卡」导航行组＋管理行＋底条
-/// 三件套），对话名单整段退役（详见 DrawerView 文件
-/// 头）；随之：本层管理页呈现由 Bool 改带参路线
-/// （ManageAllRoute：底条搜索胶囊进管理页须聚焦其搜
-/// 索、focusSearch 透传），壳层的窗口底 inset 量测与
-/// DrawerView 的 bottomSafeInset 入参一并退役（底条
-/// 拆双计改 safeAreaBar 系统定位＋固定小间距，定因见
-/// DrawerView 底条注）。
+/// **0.19.0 抽屉重构（真机五条·二轮，用户 2026-11-09**
+/// **22:26 点名＋22:45 纠正）**：抽屉照 Muse 本体侧
+/// 边栏重构（名字头＋「选项卡」导航行组＋管理行＋
+/// 「旁聊」区只列本人在 App 里开的旁聊，详见
+/// DrawerView 文件头）；本层随之退役的只有壳层的窗
+/// 口底 inset 量测与 DrawerView 的 bottomSafeInset
+/// 入参（底条拆双计改 safeAreaBar 系统定位＋固定小
+/// 间距，定因见 DrawerView 底条注）。
 struct ContentView: View {
     /// 底栏格（0.17.0 起四格：活动格已撤销、枢纽走聊
     /// 天页胶囊 sheet，见文件头 0.17.0 注）
@@ -118,37 +116,27 @@ struct ContentView: View {
     /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与枢纽
     /// sheet 共同消费；前台 30 秒轮询由下方 scenePhase 驱动
     @State private var overviewStore = OverviewBridgeStore()
-    /// 「全部对话」管理页呈现路线（0.18.0 立 Bool 呈
-    /// 现、0.19.0 改带参）：focusSearch＝打开时聚焦管
-    /// 理页搜索（抽屉底条搜索胶囊来路；管理行来路为
-    /// false）。Identifiable 供 .fullScreenCover(item:)
-    private struct ManageAllRoute: Identifiable {
-        let id = UUID()
-        let focusSearch: Bool
-    }
-
-    @State private var manageAllRoute: ManageAllRoute?
+    /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
+    /// 理全部对话」行置位，全屏页自带导航栈呈现
+    @State private var showAllConversations = false
 
     var body: some View {
         DrawerShell(
             selection: $selection,
-            onManageAll: { focusSearch in
-                manageAllRoute = ManageAllRoute(focusSearch: focusSearch)
-            }
+            onManageAll: { showAllConversations = true }
         ) {
             tabView
         }
-        .fullScreenCover(item: $manageAllRoute) { route in
+        .fullScreenCover(isPresented: $showAllConversations) {
             AllConversationsView(
-                focusSearchOnAppear: route.focusSearch,
                 onOpenSession: { id in
                     // 打开会话：关页＋切聊天格＋走既有续
                     // 聊通道（ChatView 消费导入）
-                    manageAllRoute = nil
+                    showAllConversations = false
                     selection = .chat
                     appState.pendingChatSessionID = id
                 },
-                onClose: { manageAllRoute = nil }
+                onClose: { showAllConversations = false }
             )
         }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
@@ -269,9 +257,8 @@ private struct DrawerShell<Content: View>: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: ContentView.MainTab
-    /// 抽屉「管理全部对话」透传（0.18.0；0.19.0 加
-    /// focusSearch 参：底条搜索胶囊来路为 true）
-    var onManageAll: (Bool) -> Void
+    /// 抽屉「管理全部对话」透传（0.18.0）
+    var onManageAll: () -> Void
     @ViewBuilder var content: () -> Content
 
     /// S1 单一事实源：抽屉呈现位移（0＝合拢、travel

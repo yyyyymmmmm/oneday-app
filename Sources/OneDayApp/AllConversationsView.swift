@@ -15,11 +15,6 @@ import SwiftUI
 /// 才落 UI，本页不乐观改行数据；主线行钦定保护
 /// （无菜单、不可改名/归档/删除）。
 struct AllConversationsView: View {
-    /// 打开时聚焦搜索（0.19.0）：抽屉底条搜索胶囊来
-    /// 路为 true（抽屉名单退役后搜索只剩本页一处，胶
-    /// 囊点按直达此处并激活系统搜索框）；管理行来路
-    /// 与旧入口恒 false
-    var focusSearchOnAppear: Bool = false
     /// 打开会话（宿主关页＋切聊天格＋走续聊通道）
     var onOpenSession: (String) -> Void
     var onClose: () -> Void
@@ -28,9 +23,6 @@ struct AllConversationsView: View {
     @State private var store = AllConversationsStore()
     @State private var segment: Segment = .station
     @State private var searchText = ""
-    /// 系统搜索框呈现态（0.19.0）：与 .searchable 的
-    /// isPresented 绑定，focusSearchOnAppear 时置真
-    @State private var searchPresented = false
     @State private var searchResults: [SessionSearchHit] = []
     @State private var searching = false
     @State private var editMode: EditMode = .inactive
@@ -114,7 +106,6 @@ struct AllConversationsView: View {
             }
             .searchable(
                 text: $searchText,
-                isPresented: $searchPresented,
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: "搜索全部会话（服务端）"
             )
@@ -125,13 +116,6 @@ struct AllConversationsView: View {
             }
         }
         .task {
-            // 0.19.0：搜索胶囊来路打开即激活搜索框（系
-            // 统 .searchable 的 isPresented 通道，键盘随
-            // 之弹起）；置位放在首个 task 里与数据加载
-            // 并行、不等名单拉完
-            if focusSearchOnAppear {
-                searchPresented = true
-            }
             await store.load(appState: appState)
             // 存量迁移：首开执行一次（计划为空即无事）；
             // 失败留痕留在 store、页顶呈现，重开本页会

@@ -318,4 +318,48 @@ final class SessionDisplayTests: XCTestCase {
             "今天 06:12 · 24 条"
         )
     }
+
+    // 0.19.0 返工：抽屉旁聊区行显过滤（用户 22:45
+    // 口径：只留本人在 App 里开的旁聊）——主线/归档
+    // 先撤，关联会话来源非用户通道（kanban/平台）
+    // 撤，无关联或来源未知恒放行（不因服务端不可
+    // 达藏掉本人旁聊）
+    func testDrawerSideChatFilterRules() {
+        XCTAssertFalse(DrawerSideChatFilter.threadListed(
+            isMainThread: true, isLocallyArchived: false, linkedSource: nil
+        ))
+        XCTAssertFalse(DrawerSideChatFilter.threadListed(
+            isMainThread: false, isLocallyArchived: true, linkedSource: nil
+        ))
+        XCTAssertTrue(DrawerSideChatFilter.threadListed(
+            isMainThread: false, isLocallyArchived: false, linkedSource: nil
+        ))
+        XCTAssertTrue(DrawerSideChatFilter.threadListed(
+            isMainThread: false, isLocallyArchived: false, linkedSource: ""
+        ))
+    }
+
+    func testDrawerSideChatFilterRejectsWorkerAndPlatformSources() {
+        for source in ["kanban", "whatsapp", "telegram", "feishu", "cron"] {
+            XCTAssertFalse(
+                DrawerSideChatFilter.threadListed(
+                    isMainThread: false, isLocallyArchived: false,
+                    linkedSource: source
+                ),
+                "source \(source) 应撤出抽屉"
+            )
+        }
+    }
+
+    func testDrawerSideChatFilterKeepsUserChannelSources() {
+        for source in ["api_server", "api", "dashboard", "web"] {
+            XCTAssertTrue(
+                DrawerSideChatFilter.threadListed(
+                    isMainThread: false, isLocallyArchived: false,
+                    linkedSource: source
+                ),
+                "source \(source) 是用户通道、应留"
+            )
+        }
+    }
 }
