@@ -6,6 +6,9 @@ import SwiftUI
 /// 点入 provider 配置页切换/改配置；内置记忆文件计数与重置
 /// 在本页（重置口径据服务端源码：target ∈ all/memory/user，
 /// 删的是内置记忆文件，destructive＋二次确认沿定版纪律）。
+/// 0.13.0（P7）顶部增「记忆条目」段（MemoryEntriesSection）：
+/// 逐条看全文、新建/修改/遗忘全走 write-gate 待批流，
+/// 与本页状态面分属两个数据源、互不冒充。
 struct MemoryView: View {
     @Environment(AppState.self) private var appState
 
@@ -14,10 +17,15 @@ struct MemoryView: View {
     @State private var isLoading = false
     @State private var resetTarget: String?
     @State private var notice: String?
+    /// 记忆条目段的数据中枢（0.13.0 P7）：与本页
+    /// 状态面各自独立数据源（条目走 write-gate 桥
+    /// 契约面、状态走 Hermes 本体），互不冒充
+    @State private var memoriesStore = MemoriesStore()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                MemoryEntriesSection(store: memoriesStore)
                 if let status {
                     // 0.3.7 卡 13：摘要卡——当前提供方＋内置文件总数
                     summaryCard(status)
@@ -46,8 +54,14 @@ struct MemoryView: View {
         .background(Palette.pageBG)
         .navigationTitle("记忆")
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await load() }
-        .task { await load() }
+        .refreshable {
+            await load()
+            await memoriesStore.load(appState: appState)
+        }
+        .task {
+            await load()
+            await memoriesStore.load(appState: appState)
+        }
         .confirmationDialog(
             "重置记忆？",
             isPresented: Binding(
