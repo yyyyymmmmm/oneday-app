@@ -3801,3 +3801,17 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 - 客户端：BoxBridgeClient 仿 OverviewBridgeClient（Bearer 只读 Keychain writeGateKey、零新增粘贴；状态 20 秒超时、截图/接管 100 秒——唤醒＋回图慢，nginx 上限 120 秒之内）。BoxBridgeStore 自持于面内（枢纽段与应用页各自实例、只在所属面可见时轮询）。
 - 入口：应用格「工具」组新增「浏览器」行（AppsPage.browser），枢纽段 HubBrowserSection 改为直挂共用面；HermesClient.computerUseStatus 端点保留不删（设置详情源）。
 - 发版 0.9.0 / build 37（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。
+
+## §36 0.10.0 批（P3 任务：kanban 薄适配，2026-11-09）
+
+规格＝kanban-spike-20261109.md 定案（混合路线：任务执行面直接用 Hermes 自带 kanban 插件、App 只做薄适配；自建任务桥销账）＋full-build-program P3 节。本批只做客户端＋fixture 单测：不碰生产 Hermes 任何写接口，实桥只读联调亦不做；**专属板开通与 review/needs_input 全链真验列为待授权的独立验收轮**。
+
+- 适配层：HermesClientProtocol 增 11 个 kanban 方法，走既有 9119 会话 cookie 通道（performAdmin 的 401 重登同样适用），全部请求带 ?board=oneday 指名专属板（独立 db、与用户 default 板物理隔离）。端点与请求体逐条对 OpenAPI 实查（CreateTaskBody/UpdateTaskBody/CommentBody/ReclaimBody/TerminateRunBody）；响应体未定型，Core KanbanModels 全走 JSONValue 宽容提取（键名多拼写兜底、时间纪元秒/ISO 双认），形状漂移只落空降级不硬崩。启动探针 GET /workflow 校验列集合，缺核心列（ready/running/blocked/review/done）判枚举漂移→只读（KanbanProbe，形状未认出不判漂移）。
+- 板未开通态：加载先查 GET /boards 清单，无 oneday 直接落「任务板未开通」ContentUnavailableView（清单取不到时直取板快照、404 才落此态），绝不给假数据；建板属生产写操作、不在本包，另行授权后由服务端线处理（POST /boards {slug:"oneday"}）。
+- 任务面转正：活动格枢纽新增「任务」段（HubSegment.tasks，活动模式三段＝活动/任务/审核）。列表按呈现态分组（组序：等你回答→待审批→进行中→失败→已阻塞→排队中→已排期→待整理→已完成），任务卡＝标题＋状态 chip＋最近摘要（latest_summary 优先、result 兜底）＋失败原文行（failed 态）。状态译名逐条照 spike 冻结表：blocked＋needs_input＝等你回答、blocked＋transient＋last_failure_error＝失败、余 blocked＝已阻塞（原因/原文进详情）。
+- 详情与证据：KanbanTaskDetailView——头部（状态/执行档案/创建·开始·完成时刻/连续失败数）、说明、结果、最近摘要、证据段（KanbanTaskDetail.evidenceItems：result 置顶＋runs 新→旧＋events 新→旧上限 50＋附件名）、评论段（作者 oneday 译「我」）。待答问题取 block_reason 优先、其次执行方最近一条非人工评论（spike 缺口补法 4），取不到落通用文案不编问题。
+- 控制动作（KanbanControlPlan 纯映射＋单测钉死）：新建＝建卡（assignee=default、idempotency_key 由 App 生成）→POST /dispatch 催派→回板确认新卡出现，未确认不关表单；停止＝有 current_run_id 走 POST /runs/{id}/terminate、无则 POST /tasks/{id}/reclaim（无「暂停」——kanban 无此动词，动作集与文案全程无暂停）；继续/重试/打回＝PATCH {status:"ready"}；批准（review 列）＝PATCH {status:"done"}（人从 review 直接 complete 免证据强制，spike 对照 4c）；取消＝运行中先 terminate/reclaim 再 DELETE、排队直接 DELETE（confirmationDialog 确认）；答题＝POST comments（author="oneday"）＋PATCH ready（worker 再派发时上下文注入最近 30 条 comments）。全部动作走 KanbanStore.perform 的回读确认：回板＋回详情后呈现态达预期才算完成（取消＝已消失、停止＝不再运行、批准＝已完成、答题＝已离开等答态），未确认/失败把人话留在卡内 notes，不弹模态、不乐观移除（AgentHubStore.decide 同口径）。
+- 接管互斥（施工图 §4.3 客户端半边）：AppState.boxTakeoverActive 由 BrowserFaceView 在接管开关变化时回写（onAppear 只置真不清零，防另一实例冲掉）；KanbanActionPolicy.gate 只闸派发类动作（新建/继续/重试/答题/打回——效果是让 worker 动起来的），停止/取消/批准为收束动作照常可用；被闸动作明示 KanbanContract.takeoverReason。服务端真联动（派发层真暂停）待生产验收轮。
+- 演示态：DemoHermesClient 补 kanban 全套样本（板已开通＋运行/待审批/等答/已完成四态任务、详情带评论/事件/运行样本），写方法静默成功口径不变；KanbanStore.createTask 在演示态跳过回板确认（样本不落状态，与既有演示口径一致）。
+- 单测：新增 KanbanModelsTests 20 个（257→277）——板快照三形解码＋游标、译名全表、失败翻译、分组序、板清单两形、探针三态、详情问题提取两路、证据拼装序、派发回执、控制计划逐条、动作集（含「无暂停」红线）、接管闸门只闸派发类、只读全闸、创建回执包裹形。
+- 发版 0.10.0 / build 38（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。

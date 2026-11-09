@@ -79,6 +79,12 @@ final class AppState {
     /// 本旗（不把抖动说成钥匙问题）。设置页据此露
     /// 「桥未连接」提示，胶囊状态行不读本旗
     var overviewBridgeAuthFailed = false
+    /// 云电脑接管态（0.10.0，P3 互斥的客户端半边）：
+    /// BrowserFaceView 在接管开关变化时回写（施工图
+    /// §4.3 产品层约定：Box 单桌面无锁原语，接管期间
+    /// 暂停任务派发）。任务段据此禁用派发类动作并明示
+    /// 原因；服务端真联动（派发层真暂停）待生产验收轮
+    var boxTakeoverActive = false
     /// 智能体身份名（0.6.1，用户真机点名）：全局唯一解
     /// 析点——胶囊/抽屉/活动页三处显示名都读这里；值由
     /// soul 一级标题经 OneDayCore.AgentName.resolve 得

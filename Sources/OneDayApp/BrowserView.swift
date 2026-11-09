@@ -33,6 +33,18 @@ struct BrowserFaceView: View {
         .task {
             await store.runVisibleLoop(appState: appState)
         }
+        // 接管态回写全局旗（0.10.0）：任务段的派发互斥
+        // 读 AppState.boxTakeoverActive（P3 客户端半边）；
+        // onAppear 只许置真不许清零——另一实例的面出现
+        // 不能把正在接管的态冲掉，清零只走开关变化
+        .onAppear {
+            if store.takeover {
+                appState.boxTakeoverActive = true
+            }
+        }
+        .onChange(of: store.takeover) { _, newValue in
+            appState.boxTakeoverActive = newValue
+        }
         .fullScreenCover(item: $viewerItem) { item in
             ImageFullScreenView(item: item)
         }

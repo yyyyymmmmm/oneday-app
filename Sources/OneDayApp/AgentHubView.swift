@@ -6,6 +6,7 @@ import SwiftUI
 /// 纯符号、无文字；VoiceOver 读段名（Label 自带）。
 enum HubSegment: String, CaseIterable, Identifiable {
     case activity
+    case tasks
     case approval
     case browser
     case cron
@@ -16,6 +17,7 @@ enum HubSegment: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .activity: return "活动"
+        case .tasks: return "任务"
         case .approval: return "审核"
         case .browser: return "浏览器"
         case .cron: return "定时"
@@ -26,6 +28,7 @@ enum HubSegment: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .activity: return "list.bullet"
+        case .tasks: return "checklist"
         case .approval: return "checkmark.shield"
         case .browser: return "display"
         case .cron: return "clock"
@@ -39,8 +42,9 @@ enum HubSegment: String, CaseIterable, Identifiable {
 /// 段内容。本视图自带 NavigationStack，呈现方不要再包一层。
 /// 段切换只换内容区，页头与模型区常驻不动（规格 §0）。
 /// 0.6.0 转正（蓝图 §4 一期）：枢纽页从「胶囊点开的
-/// sheet」转正为活动格本体——mode=.activity 时只留
-/// 活动/审核两段、撤页头圆钮行与模型常驻区（换模型
+/// sheet」转正为活动格本体——mode=.activity 时留
+/// 活动/任务/审核三段（任务段 0.10.0 增）、撤页头
+/// 圆钮行与模型常驻区（换模型
 /// 入口在聊天页胶囊的模型段 Menu，硬规格不回退）；
 /// mode=.sheet 保留五段全量形态，但聊天页胶囊已改道
 /// 活动格、不再有 sheet 入口（不双份维护同一 UI）。
@@ -60,9 +64,12 @@ struct AgentHubView: View {
     @State private var store: AgentHubStore?
     @State private var segment: HubSegment = .activity
 
-    /// 本模式可见段：活动格一期只两段先行
+    /// 本模式可见段：活动格＝活动/任务/审核三段
+    /// （任务段 0.10.0 P3 转正：kanban 专属板真列表）
     private var availableSegments: [HubSegment] {
-        mode == .activity ? [.activity, .approval] : HubSegment.allCases
+        mode == .activity
+            ? [.activity, .tasks, .approval]
+            : HubSegment.allCases
     }
 
     var body: some View {
@@ -113,6 +120,8 @@ struct AgentHubView: View {
         switch segment {
         case .activity:
             break // 初始加载已覆盖
+        case .tasks:
+            break // 0.10.0：任务段自持 KanbanStore（段内 .task 驱动）
         case .approval:
             await store.loadApproval()
         case .browser:
@@ -315,6 +324,8 @@ struct AgentHubView: View {
         switch segment {
         case .activity:
             activityContent(store)
+        case .tasks:
+            HubTaskSection()
         case .approval:
             HubApprovalSection(store: store)
         case .browser:

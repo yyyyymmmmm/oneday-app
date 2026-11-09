@@ -154,6 +154,38 @@ protocol HermesClientProtocol: Sendable {
     func fileData(config: ServerConfig, path: String) async throws -> Data
     /// GET /api/system/stats
     func systemStats(config: ServerConfig) async throws -> SystemStats
+
+    // MARK: 任务（P3：kanban 薄适配，9119 插件面）
+
+    /// GET /api/plugins/kanban/workflow（版本探针：列集合校验）
+    func kanbanWorkflow(config: ServerConfig) async throws -> KanbanWorkflow
+    /// GET /api/plugins/kanban/boards → 板 slug 清单（专属板存在性判定）
+    func kanbanBoards(config: ServerConfig) async throws -> [String]
+    /// GET /api/plugins/kanban/board?board=
+    func kanbanBoard(config: ServerConfig, board: String) async throws -> KanbanBoardSnapshot
+    /// GET /api/plugins/kanban/tasks/{id}?board=
+    func kanbanTaskDetail(config: ServerConfig, board: String, id: String) async throws -> KanbanTaskDetail
+    /// POST /api/plugins/kanban/tasks?board=（建卡，初始 ready）
+    func kanbanCreateTask(
+        config: ServerConfig, board: String, title: String, body: String,
+        idempotencyKey: String
+    ) async throws -> KanbanTask
+    /// POST /api/plugins/kanban/dispatch?board=（催派）
+    func kanbanDispatch(config: ServerConfig, board: String) async throws -> KanbanDispatchReceipt
+    /// PATCH /api/plugins/kanban/tasks/{id}?board= {status}
+    func kanbanPatchTaskStatus(
+        config: ServerConfig, board: String, id: String, status: String
+    ) async throws
+    /// DELETE /api/plugins/kanban/tasks/{id}?board=
+    func kanbanDeleteTask(config: ServerConfig, board: String, id: String) async throws
+    /// POST /api/plugins/kanban/tasks/{id}/comments?board=（答题注入）
+    func kanbanComment(
+        config: ServerConfig, board: String, id: String, body: String
+    ) async throws
+    /// POST /api/plugins/kanban/tasks/{id}/reclaim?board=（急停释放 claim）
+    func kanbanReclaimTask(config: ServerConfig, board: String, id: String) async throws
+    /// POST /api/plugins/kanban/runs/{run_id}/terminate?board=（停止当前运行）
+    func kanbanTerminateRun(config: ServerConfig, board: String, runID: Int) async throws
 }
 
 /// URLSession 实现。会话 cookie 走 .shared 存储：登录一次，
@@ -902,5 +934,191 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func systemStats(config: ServerConfig) async throws -> SystemStats {
         try await getJSON(config: config, path: "/api/system/stats", endpoint: "系统状态")
+    }
+}
+
+// MARK: - Kanban（P3 任务薄适配）
+//
+// 走 9119 dashboard 插件面 /api/plugins/kanban，与其
+// 他 /api/* 同一条会话 cookie 通道（performAdmin 的
+// 401 重登兜底同样适用）。全部请求带 ?board= 指名
+// 专属板（spike 数据隔离口径）；写动作的回执只作参
+// 考，生效与否由 KanbanStore 回读确认，不乐观假成功。
+
+extension HermesClient {
+    private var kanbanBase: String { "/api/plugins/kanban" }
+
+    private func kanbanQuery(board: String) -> [URLQueryItem] {
+        [URLQueryItem(name: "board", value: board)]
+    }
+
+    /// kanban 写请求（带 query 版 sendJSON：既有助手
+    /// 不支持 query 参数，插件面每条都要带 board）
+    private func kanbanSend(
+        config: ServerConfig, path: String, method: String, endpoint: String,
+        query: [URLQueryItem] = [], body: [String: JSONValue]? = nil
+    ) async throws {
+        var request = URLRequest(
+            url: url(config: config, path: path, query: query)
+        )
+        request.httpMethod = method
+        if let body {
+            request.setValue(
+                "application/json", forHTTPHeaderField: "Content-Type"
+            )
+            request.httpBody = try encoder.encode(body)
+        }
+        let (_, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: http.statusCode
+            )
+        }
+    }
+
+    /// kanban 写请求并解码回执（建卡/催派用）
+    private func kanbanSendDecoding<T: Decodable>(
+        config: ServerConfig, path: String, method: String, endpoint: String,
+        query: [URLQueryItem] = [], body: [String: JSONValue]? = nil
+    ) async throws -> T {
+        var request = URLRequest(
+            url: url(config: config, path: path, query: query)
+        )
+        request.httpMethod = method
+        if let body {
+            request.setValue(
+                "application/json", forHTTPHeaderField: "Content-Type"
+            )
+            request.httpBody = try encoder.encode(body)
+        }
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.unexpectedStatus(
+                endpoint: endpoint, status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw HermesError.decodingFailed(endpoint: endpoint)
+        }
+    }
+
+    func kanbanWorkflow(config: ServerConfig) async throws -> KanbanWorkflow {
+        try await getJSON(
+            config: config, path: "\(kanbanBase)/workflow",
+            endpoint: "任务系统探针"
+        )
+    }
+
+    func kanbanBoards(config: ServerConfig) async throws -> [String] {
+        let value: JSONValue = try await getJSON(
+            config: config, path: "\(kanbanBase)/boards",
+            endpoint: "任务板清单"
+        )
+        return KanbanBoardList.slugs(from: value)
+    }
+
+    func kanbanBoard(
+        config: ServerConfig, board: String
+    ) async throws -> KanbanBoardSnapshot {
+        try await getJSON(
+            config: config, path: "\(kanbanBase)/board",
+            endpoint: "任务板", query: kanbanQuery(board: board)
+        )
+    }
+
+    func kanbanTaskDetail(
+        config: ServerConfig, board: String, id: String
+    ) async throws -> KanbanTaskDetail {
+        try await getJSON(
+            config: config, path: "\(kanbanBase)/tasks/\(id)",
+            endpoint: "任务详情", query: kanbanQuery(board: board)
+        )
+    }
+
+    func kanbanCreateTask(
+        config: ServerConfig, board: String, title: String, body: String,
+        idempotencyKey: String
+    ) async throws -> KanbanTask {
+        var payload: [String: JSONValue] = [
+            "title": .string(title),
+            "assignee": .string(KanbanContract.defaultAssignee),
+            "idempotency_key": .string(idempotencyKey),
+        ]
+        if !body.isEmpty {
+            payload["body"] = .string(body)
+        }
+        return try await kanbanSendDecoding(
+            config: config, path: "\(kanbanBase)/tasks", method: "POST",
+            endpoint: "任务创建", query: kanbanQuery(board: board),
+            body: payload
+        )
+    }
+
+    func kanbanDispatch(
+        config: ServerConfig, board: String
+    ) async throws -> KanbanDispatchReceipt {
+        try await kanbanSendDecoding(
+            config: config, path: "\(kanbanBase)/dispatch", method: "POST",
+            endpoint: "任务派发", query: kanbanQuery(board: board)
+        )
+    }
+
+    func kanbanPatchTaskStatus(
+        config: ServerConfig, board: String, id: String, status: String
+    ) async throws {
+        try await kanbanSend(
+            config: config, path: "\(kanbanBase)/tasks/\(id)",
+            method: "PATCH", endpoint: "任务状态更新",
+            query: kanbanQuery(board: board),
+            body: ["status": .string(status)]
+        )
+    }
+
+    func kanbanDeleteTask(
+        config: ServerConfig, board: String, id: String
+    ) async throws {
+        try await kanbanSend(
+            config: config, path: "\(kanbanBase)/tasks/\(id)",
+            method: "DELETE", endpoint: "任务删除",
+            query: kanbanQuery(board: board)
+        )
+    }
+
+    func kanbanComment(
+        config: ServerConfig, board: String, id: String, body: String
+    ) async throws {
+        try await kanbanSend(
+            config: config, path: "\(kanbanBase)/tasks/\(id)/comments",
+            method: "POST", endpoint: "任务答题",
+            query: kanbanQuery(board: board),
+            body: [
+                "body": .string(body),
+                "author": .string(KanbanContract.answerAuthor),
+            ]
+        )
+    }
+
+    func kanbanReclaimTask(
+        config: ServerConfig, board: String, id: String
+    ) async throws {
+        try await kanbanSend(
+            config: config, path: "\(kanbanBase)/tasks/\(id)/reclaim",
+            method: "POST", endpoint: "任务急停",
+            query: kanbanQuery(board: board),
+            body: ["reason": .string("App 停止")]
+        )
+    }
+
+    func kanbanTerminateRun(
+        config: ServerConfig, board: String, runID: Int
+    ) async throws {
+        try await kanbanSend(
+            config: config, path: "\(kanbanBase)/runs/\(runID)/terminate",
+            method: "POST", endpoint: "运行终止",
+            query: kanbanQuery(board: board),
+            body: ["reason": .string("App 停止")]
+        )
     }
 }

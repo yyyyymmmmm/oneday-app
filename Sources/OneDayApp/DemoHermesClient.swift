@@ -672,3 +672,160 @@ struct DemoHermesClient: HermesClientProtocol {
         try! JSONDecoder().decode(type, from: Data(json.utf8))
     }
 }
+
+// MARK: - 任务（P3 演示样本：专属板已开通＋四态样本任务）
+
+extension DemoHermesClient {
+    func kanbanWorkflow(config: ServerConfig) async throws -> KanbanWorkflow {
+        decode(KanbanWorkflow.self, """
+        {"columns": ["triage", "todo", "scheduled", "ready",
+                     "running", "blocked", "review", "done"]}
+        """)
+    }
+
+    func kanbanBoards(config: ServerConfig) async throws -> [String] {
+        ["default", KanbanContract.boardSlug]
+    }
+
+    func kanbanBoard(
+        config: ServerConfig, board: String
+    ) async throws -> KanbanBoardSnapshot {
+        KanbanBoardSnapshot(
+            tasks: Self.demoTasks, latestEventId: 12
+        )
+    }
+
+    func kanbanTaskDetail(
+        config: ServerConfig, board: String, id: String
+    ) async throws -> KanbanTaskDetail {
+        let now = Date()
+        let task = Self.demoTasks.first { $0.id == id }
+            ?? Self.demoTasks[0]
+        if task.presentation == .needsInput {
+            return KanbanTaskDetail(
+                task: task,
+                comments: [
+                    KanbanComment(
+                        id: "1", author: "default",
+                        body: "照片是按年份分，还是按地点分？",
+                        createdAt: now.addingTimeInterval(-900)
+                    ),
+                ],
+                events: [
+                    KanbanEvent(
+                        id: "3", kind: "created", text: nil,
+                        createdAt: task.createdAt
+                    ),
+                    KanbanEvent(
+                        id: "9", kind: "blocked", text: nil,
+                        createdAt: now.addingTimeInterval(-900)
+                    ),
+                ],
+                runs: [
+                    KanbanRun(
+                        id: 5, status: "blocked", outcome: nil,
+                        summary: "已提问，等待回答",
+                        startedAt: now.addingTimeInterval(-1500),
+                        endedAt: now.addingTimeInterval(-900)
+                    ),
+                ],
+                attachmentNames: []
+            )
+        }
+        return KanbanTaskDetail(
+            task: task, comments: [], events: [], runs: [],
+            attachmentNames: []
+        )
+    }
+
+    func kanbanCreateTask(
+        config: ServerConfig, board: String, title: String, body: String,
+        idempotencyKey: String
+    ) async throws -> KanbanTask {
+        KanbanTask(
+            id: "demo-new", title: title, body: body, status: "ready",
+            assignee: KanbanContract.defaultAssignee,
+            idempotencyKey: idempotencyKey, createdAt: Date()
+        )
+    }
+
+    func kanbanDispatch(
+        config: ServerConfig, board: String
+    ) async throws -> KanbanDispatchReceipt {
+        KanbanDispatchReceipt(spawnedCount: 1)
+    }
+
+    func kanbanPatchTaskStatus(
+        config: ServerConfig, board: String, id: String, status: String
+    ) async throws {
+        // 演示写方法静默成功（类头口径）
+    }
+
+    func kanbanDeleteTask(
+        config: ServerConfig, board: String, id: String
+    ) async throws {
+        // 演示写方法静默成功（类头口径）
+    }
+
+    func kanbanComment(
+        config: ServerConfig, board: String, id: String, body: String
+    ) async throws {
+        // 演示写方法静默成功（类头口径）
+    }
+
+    func kanbanReclaimTask(
+        config: ServerConfig, board: String, id: String
+    ) async throws {
+        // 演示写方法静默成功（类头口径）
+    }
+
+    func kanbanTerminateRun(
+        config: ServerConfig, board: String, runID: Int
+    ) async throws {
+        // 演示写方法静默成功（类头口径）
+    }
+
+    /// 演示任务样本：运行/待审批/等你回答/已完成四态，
+    /// 时刻相对当前生成（类头口径：截图不出现过期日期）
+    private static var demoTasks: [KanbanTask] {
+        let now = Date()
+        return [
+            KanbanTask(
+                id: "demo-run", title: "整理下载目录文件清单",
+                body: "列出下载目录全部文件，按类型分组汇总。",
+                status: "running",
+                assignee: KanbanContract.defaultAssignee,
+                currentRunId: 3,
+                createdAt: now.addingTimeInterval(-1800),
+                startedAt: now.addingTimeInterval(-1740)
+            ),
+            KanbanTask(
+                id: "demo-review", title: "给相册照片按月份归档",
+                body: "把照片目录按月份建子文件夹归档。",
+                status: "review",
+                assignee: KanbanContract.defaultAssignee,
+                latestSummary: "归档方案已生成，等待确认后执行移动。",
+                createdAt: now.addingTimeInterval(-3600)
+            ),
+            KanbanTask(
+                id: "demo-ask", title: "归档旧截图",
+                body: "把旧截图移进归档目录。",
+                status: "blocked",
+                assignee: KanbanContract.defaultAssignee,
+                blockKind: "needs_input",
+                blockReason: "照片是按年份分，还是按地点分？",
+                createdAt: now.addingTimeInterval(-5400)
+            ),
+            KanbanTask(
+                id: "demo-done", title: "检查某网页有没有更新",
+                body: "打开页面比对标题与昨天是否一致。",
+                status: "done",
+                assignee: KanbanContract.defaultAssignee,
+                result: "页面标题无变化，无需处理。",
+                latestSummary: "页面标题无变化，无需处理。",
+                createdAt: now.addingTimeInterval(-86400),
+                completedAt: now.addingTimeInterval(-86300)
+            ),
+        ]
+    }
+}
