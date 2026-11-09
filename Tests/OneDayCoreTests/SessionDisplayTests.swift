@@ -54,13 +54,13 @@ final class SessionDisplayTests: XCTestCase {
         let subA = a.humanSubtitle(now: now, calendar: calendar)
         let subB = b.humanSubtitle(now: now, calendar: calendar)
         // 0.3.8 第 18 条改序：时间 · 条数 · 状态 · 来源
-        // （来源退尾、不再以「API 接口」开头；b 已结束
+        // （来源退尾、不再以「其他应用」开头；b 已结束
         // 不挂「进行中」——状态只写属实）
-        XCTAssertEqual(subA, "今天 06:12 · 24 条 · 进行中 · API 接口")
-        XCTAssertEqual(subB, "昨天 21:30 · 7 条 · API 接口")
+        XCTAssertEqual(subA, "今天 06:12 · 24 条 · 进行中 · 其他应用")
+        XCTAssertEqual(subB, "昨天 21:30 · 7 条 · 其他应用")
         XCTAssertNotEqual(subA, subB)
         XCTAssertFalse(subA.contains("api_server"))
-        XCTAssertEqual(a.sourceLabel, "API 接口")
+        XCTAssertEqual(a.sourceLabel, "其他应用")
     }
 
     /// 人话 display_name 直接采用；标识符形态的
