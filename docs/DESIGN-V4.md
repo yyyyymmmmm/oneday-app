@@ -3604,3 +3604,113 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
   活动行点按续聊回落、审核段与生产桥的真实 pending 联调
   （待用户粘贴钥匙＋一条真实待批）、钥匙字段真机粘贴流、
   soul 真回执 fixture——均无自动证据，归用户真机终审
+
+## §32 0.5.1 批（B 案照改两项：流式发布合并节流＋思考折叠单元，2026-11-09）
+
+来源：B 案拆解清单（craft-teardown-checklist.md）照改仅两
+条——1.1 流式发布合并节流、4.5 思考折叠单元；冲突 5 条
+（4.1/4.2/4.3/4.6/5.1）一条未碰。代码顶端 a8eb43a。
+
+### 32.1 第 1 项：流式发布合并节流（清单 1.1）
+
+- 现状坐实（改前）：ChatView.runStream 每个 SSE 增量
+  `accumulated += delta; streamingText = accumulated` 直
+  接写 @State 发布、下游零节流；StreamingText 逐增量整
+  串重分词＋逐词元视图重排。增量每秒数十次到达时，发布
+  频率＝增量频率
+- 对方背书：Enchanted 以 Throttler（100ms）合并发布、
+  源码注释明言逐条更新 UI 会冻住界面；Fullmoon 每 4
+  token 发布、注释带「逐 token 更新约损 15% 生成速度」
+  实测账。两家独立同指，OneDay 补此层
+- 实现：OneDayCore 新增纯逻辑 `StreamPublishGate`
+  （StreamPublishGate.swift）——增量先攒缓冲，满足任一
+  条件才发布全文快照：①本轮首个非空增量立即发布（首
+  字延迟不被窗口吞）；②距上次发布 ≥ 时间窗；③待发布
+  累计 ≥ 字符阈值。收尾/取消 flush 精确发布残余（无
+  残余不发），空增量永不发布。时刻由调用方注入单调时
+  钟（ProcessInfo.systemUptime），闸不自读时钟
+- 参数实测取值：**时间窗 80ms**（简报 50–100ms 带内、
+  略紧于 Enchanted 的 100ms，保 StreamingText 词元渐
+  显的密度感）；**字符阈值 64 字**（先到为准；中文约
+  64 字、英文约 16 token 一簇）；视图侧 ticker **40ms**
+  巡查 collectDue（半窗粒度），低速流尾巴增量到期即
+  发、不等下一个增量
+- 与 StreamFollowGate 分工（互不替代）：发布闸管「何
+  时把全文快照写进 @State」（发布频率），FollowGate
+  管「已发布全文每新增 ≥40 字放行一次贴底滚动」（滚
+  动频率）；串联关系——onChange(of: streamingText) 的
+  跟随判定自此只在发布点触发，判定口径未变
+- 精确性：落盘与重试判定一律走闸的 fullText（已发布
+  ＋待发布拼接），节流只影响呈现频率、永不丢字；冷启
+  重试条件由 accumulated.isEmpty 改判两闸 hasContent
+  皆空（思考已到亦算已产出，不重发防重复）
+- 单测：StreamPublishGateTests 9 例（首增量立即/窗口
+  合并/阈值抢先/collectDue 尾巴/flush 精确幂等/取消
+  flush 保半截/空增量不发布/fullText 精确拼接/reset）
+
+### 32.2 第 2 项前置核查：Hermes reasoning 到达形态（证据链）
+
+只读查 NousResearch/hermes-agent 源码（GitHub），且专
+门对**生产同版 v0.23.0**（tag df17742，我方部署版本）
+逐行坐实，非只看 main：
+
+- `gateway/platforms/api_server_openai_routes.py`
+  @v0.23.0：流式写出段（L1180–1183）——agent 的
+  reasoning 回调增量被打上 `__reasoning__` 标记、在
+  SSE 写出时构造成独立帧 `_chunk({"reasoning_
+  content": delta[1]})`，源码注释原文：「DeepSeek-
+  style delta.reasoning_content (#99552), the field
+  Open WebUI, opencode and the Vercel AI SDK render
+  as a thinking block」
+- 同文件 L837–843 `_on_reasoning`：接的是 agent 的
+  `reasoning_callback` 结构化增量，注释明言不用
+  「lossy 500-char reasoning.available progress
+  preview」；L1050–1053 非流式孪生：整段落在
+  `message.reasoning_content`
+- `gateway/platforms/api_server.py` @v0.23.0 L54：
+  /v1/capabilities 静态旗标 `reasoning_streaming:
+  True`——该能力在网关侧默认宣称开启
+- `evals/providers/reasoning_shapes.py`：回调语义钉
+  死——reasoning_callback 收字符串片段、
+  `"".join(callbacks) == expected`，即逐片增量、拼
+  接为全文；上游入站字段为 reasoning／reasoning_
+  content（agent/transports/types.py 归一为
+  NormalizedResponse.reasoning）
+- **结论：形态明确——独立字段 `choices[0].delta.
+  reasoning_content`（字符串增量），非 <think> 内
+  联、非不下发。** OneDay 改前 SSEParser 只解
+  delta.content，思考增量被解码静默丢弃。是否真有
+  思考帧取决于上游模型（如 deepseek-v4-pro 思考模
+  式）；不产思考的模型不发此帧，客户端缺席即无单
+  元，天然兼容
+
+### 32.3 第 2 项施工：reasoning 捕获＋折叠单元
+
+- 通道：ChatStreamChunk.Delta 增解 reasoning_content
+  → SSEParser 新事件 .reasoning（同帧与正文并存时正
+  文优先、思考让位——网关/DeepSeek 均分帧下发、并存
+  不发生，让位保正文永不丢字）；HermesClient.
+  chatStream 元素类型 String → OneDayCore.
+  ChatStreamEvent（.content/.reasoning 双通道），
+  DemoHermesClient 同步（只产正文）
+- 呈现：新视图 ReasoningBlock（ReasoningBlock.swift）
+  ——流式期恒展开：标题「思考中 · Ns」（TimelineView
+  0.5s 现算）＋思考原文纯 Text 次级色＋左竖线（hair-
+  line）；落盘后默认折叠：标题「已思考 · 约 Ns」，
+  系统 Button 点按展开/收起。标题与展开口径走
+  OneDayCore.ReasoningPresentation 纯函数（单测 4
+  例）；色用 Palette.inkSecondary/inkMuted 字面口径、
+  图标 brain（既有图标词汇），左界与气泡正文对齐
+  （bubblePaddingH）；思考文本不走 Markdown 解析
+  （草稿文本、半截语法风险，与流式纯文本口径同科）
+- 计时与落盘：reasoningSeconds＝首个思考增量→首个
+  正文增量（未产正文则到流结束）的实测秒数（0.1 精
+  度）；ChatEntry 新增 reasoning/reasoningSeconds
+  两可选字段（SwiftData 轻量迁移，与 quote 两字段先
+  例同型），思考只展示、不回灌请求上下文；正文为
+  空的思考-only 异常回复维持旧口径不落盘
+- 单测：SSEParserTests 增 4 例（思考行/思考＋空正
+  文同帧/同帧并存正文优先/空思考忽略）＋Reasoning-
+  PresentationTests 4 例，总数见 32.4
+
+### 32.4 发版 0.5.1 / build 31（交付记录待 CI 回填）

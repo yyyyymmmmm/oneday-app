@@ -1,4 +1,5 @@
 import OneDayCore
+import OneDayDesign
 import SwiftUI
 
 /// 思考（reasoning）折叠单元（0.5.1，DESIGN-V4 §32；
