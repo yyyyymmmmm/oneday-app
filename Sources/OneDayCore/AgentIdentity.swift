@@ -19,15 +19,20 @@ public enum AgentName {
         "identity", "persona", "about", "profile",
     ]
 
-    /// 从 soul 全文提取身份名：只认首个一级标题
-    /// （`# …`），且须像名字——非空、≤20 字、无句
-    /// 读标点、非结构词；其余一律回落，不猜。
+    /// 从 soul 全文提取身份名：只认文档头部（前 3 个
+    /// 非空行内）出现的首个一级标题（`# …`）——允许
+    /// 标题前有一两行引言，但不深扫全文（后面的章节
+    /// 标题不是身份名）；标题须像名字——非空、≤20
+    /// 字、无句读标点、非结构词；其余一律回落，不猜
     public static func resolve(soulContent: String?) -> String {
         guard let soulContent else { return fallback }
+        var contentLines = 0
         for line in soulContent.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { continue }
-            guard trimmed.hasPrefix("# ") else { return fallback }
+            contentLines += 1
+            if contentLines > 3 { return fallback }
+            guard trimmed.hasPrefix("# ") else { continue }
             let candidate = trimmed.dropFirst(2)
                 .trimmingCharacters(in: .whitespaces)
             guard !candidate.isEmpty,

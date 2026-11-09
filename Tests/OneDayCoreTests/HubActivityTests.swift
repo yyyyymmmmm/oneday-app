@@ -181,7 +181,10 @@ final class HubActivityTests: XCTestCase {
         )
         let item = groups[0].items[0]
         XCTAssertEqual(item.title, "帮我查一下节点状态")
-        XCTAssertEqual(item.meta, "今天 10:00 · 3 条 · 控制台")
+        // meta 结构钉死；钟点走设备时区格式化（human-
+        // Subtitle 既有口径），不在此钉具体数值
+        XCTAssertTrue(item.meta.hasPrefix("今天 "))
+        XCTAssertTrue(item.meta.hasSuffix("· 3 条 · 控制台"))
         XCTAssertFalse(item.meta.contains("进行中"))
         // 无注入时回落未命名（不假造标题）
         let plain = HubActivityAssembler.assemble(
@@ -189,6 +192,6 @@ final class HubActivityTests: XCTestCase {
             logs: [], fetchedAt: now, now: now, calendar: calendar
         )
         XCTAssertEqual(plain[0].items[0].title, "未命名会话")
-        XCTAssertEqual(plain[0].items[0].meta, "今天 10:00 · 3 条 · 控制台")
+        XCTAssertEqual(plain[0].items[0].meta, item.meta)
     }
 }
