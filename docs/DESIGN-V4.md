@@ -3838,3 +3838,14 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 - 契约档同时钉死桥实现包口（下包）：POST /monitors（建监测＋指纹基线）、POST /monitors/{id}/check（立即检查落三分＋命中发 overview 通知）、pause/resume（转 cron）、DELETE；检查执行体在桥内（cron 到点触发桥检查逻辑，不另起 worker）。
 - 单测：新增 MonitorBridgeModelsTests 14 个（289→303）——契约全形解码两形＋容缺兜底、状态分类（三分映射/已暂停优先/未检查/未识别不猜）、未读聚合、列表排序、变化倒序、差异行组装（有原文/空串按没存）、markingRead 副本。
 - 发版 0.12.0 / build 40（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。未验项：桥 /monitors 未上线，列表/详情/已读全链待桥扩展包部署后真机联调；无钥公网探测 /monitors 与 /goals 同为 401（鉴权先于路由，仅证桥活着）。
+
+## §39 0.12.1 批（P6 监测控制接线：桥上线后客户端补控制动作，2026-11-09）
+
+前置：服务端 oneday-bridge /monitors 全套已上线（rollout 记录 oneday-bridge-rollout-20261109.md 监测节：888 行脚本，POST 建监测建基线、check 已暂停回 409、pause/resume、DELETE 连 changes 删、调度在桥内）。本批只补客户端控制动作，不碰服务器；契约 §2.4 的包口至此全数对上。0.12.0 的五态/三分/已读口径原样不动。
+
+- Core（MonitorBridgeModels 增）：MonitorFrequency 三档（manual/hourly/daily → intervalSeconds nil/3600/86400、scheduleText 客户端组人话「手动检查/每小时检查/每天检查」、label 短名）；BridgeMonitorCreateRequest{ name, target, scheduleText?, cron?, intervalSeconds? }（make 工厂收口：去首尾空白、频率档展开；cron 高级档本包不出 UI——字段留口恒 nil 不落键，两者都不给 interval/cron 时桥判手动型）；MonitorCreateValidation.problem（与桥端 400 对齐：名称空/链接空/非 http(s) 三条人话，先拦不发必失败请求，服务端人话仍透传不双轨）。
+- 客户端（OneDayBridgeClient 增五法）：POST /monitors（201 全形，集合口径 404＝未开通）、POST /monitors/{id}/check（200 全形；409 走 checkStatus 默认支透传 {"error": 人话}）、POST pause/resume（200 全形）、DELETE /monitors/{id}（{ok:true}，连 changes 删）。回执本体只作参考，成功与否一律以回读为准。
+- 控制口径（MonitorsStore，与 GoalsStore 同纪律）：新建＝POST→回读列表确认新 id 出现才算成，未出现留 createError「已提交但还没确认出现」；立即检查＝POST→回读对账（该监测还在且 lastCheckedAt 严格晚于动作前），409 已暂停人话原样落 notes 行内；暂停/恢复＝POST→回读确认 enabled 已翻转；删除＝DELETE→回读确认消失（recordGone 同口径视为已达），成功后清该监测变化缓存防孤儿。actingIDs 只禁用当前条、notes 行内不弹模态、失败原因原文呈现，不许乐观假成功。
+- 呈现：新建入口两处（空态 ContentUnavailableView 动作钮＋列表顶「新建监测」行），表单 MonitorCreateView（照 GoalCreateView 骨架：SectionLabel/FieldRow/odGroup＋分段 Picker 三档＋档位说明——手动档只在点检查时跑/自动档先抓基线不算变化；校验问题与 createError 走 InlineError，创建钮校验不过禁用）；行内控制＝卡长按 contextMenu（立即检查/暂停·恢复/删除），删除走段级 confirmationDialog（明示变化记录一并删）；详情页新增控制区（立即检查带进行中转圈/暂停·恢复＋note 行）与删除区（确认后成功即 dismiss）。监测卡增 note 行与动作中转圈（替 chevron）。五态/三分/已读逻辑零改动。
+- 单测：MonitorBridgeModelsTests 增 7 个（303→310）——频率档映射（三档 interval/scheduleText/label 件数）、手动档请求体不落 intervalSeconds 与 cron 键、每小时/每天档落间隔与人话串、表单校验三拒一纳（空名/空链接/非 http(s) 拒、http(s) 与带空白纳）。写链真机端到端以桥已上线为准、客户端以 fixture＋回读逻辑验收（本地不发生产写请求）。
+- 发版 0.12.1 / build 41（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。

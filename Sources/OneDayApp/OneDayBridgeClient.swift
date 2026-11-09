@@ -132,6 +132,61 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
+    // MARK: - 监测控制（0.12.1：桥上线实形）
+
+    /// 建监测：201 返回监测全形（桥建时已抓基线）；
+    /// 成功与否以调用方回读列表确认为准，回执本体
+    /// 只用来拿新 id。集合路径 404＝监测面未开通
+    func createMonitor(
+        config: ServerConfig, request body: BridgeMonitorCreateRequest
+    ) async throws -> BridgeMonitor {
+        try await send(
+            config: config, path: "/monitors", method: "POST",
+            body: body, endpoint: "新建监测", collection: true
+        )
+    }
+
+    /// 立即检查：200 返回检查后的监测全形；已暂停
+    /// 桥回 409＋人话（checkStatus 透传到 .failed）
+    func checkMonitor(
+        config: ServerConfig, monitorID: String
+    ) async throws -> BridgeMonitor {
+        try await sendEmpty(
+            config: config, path: "/monitors/\(monitorID)/check",
+            method: "POST", endpoint: "立即检查"
+        )
+    }
+
+    /// 暂停：200 返回监测全形（enabled 已翻转）
+    func pauseMonitor(
+        config: ServerConfig, monitorID: String
+    ) async throws -> BridgeMonitor {
+        try await sendEmpty(
+            config: config, path: "/monitors/\(monitorID)/pause",
+            method: "POST", endpoint: "暂停监测"
+        )
+    }
+
+    /// 恢复：200 返回监测全形（enabled 已翻转）
+    func resumeMonitor(
+        config: ServerConfig, monitorID: String
+    ) async throws -> BridgeMonitor {
+        try await sendEmpty(
+            config: config, path: "/monitors/\(monitorID)/resume",
+            method: "POST", endpoint: "恢复监测"
+        )
+    }
+
+    /// 删监测：桥连其全部变化记录一并删，{"ok":true}
+    func deleteMonitor(
+        config: ServerConfig, monitorID: String
+    ) async throws {
+        let _: BridgeOKResponse = try await sendEmpty(
+            config: config, path: "/monitors/\(monitorID)",
+            method: "DELETE", endpoint: "删除监测"
+        )
+    }
+
     // MARK: - 请求底座
 
     private func makeRequest(

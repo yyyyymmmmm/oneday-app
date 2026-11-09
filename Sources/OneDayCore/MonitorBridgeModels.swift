@@ -283,6 +283,111 @@ public enum MonitorChangeOrdering {
     }
 }
 
+// MARK: - 新建监测（0.12.1 控制接线）
+
+/// 新建监测的频率三档（0.12.1）：手动只在点「立即
+/// 检查」时跑；间隔两档落 intervalSeconds 由桥内
+/// 调度到点执行。cron 高级档本包不出 UI——契约字段
+/// 在请求体留口（恒 nil 不落键），桥认 cron 优先。
+public enum MonitorFrequency: String, CaseIterable, Equatable, Sendable {
+    case manual
+    case hourly
+    case daily
+
+    /// 机器调度间隔（秒）；手动档为 nil（桥据此判
+    /// 手动型：两者都不给＝不会自己跑）
+    public var intervalSeconds: Int? {
+        switch self {
+        case .manual: return nil
+        case .hourly: return 3600
+        case .daily: return 86400
+        }
+    }
+
+    /// 客户端组的人话频率串，随请求体上送、服务端
+    /// 原样存作显示串（客户端不解析、服务端不改写）
+    public var scheduleText: String {
+        switch self {
+        case .manual: return "手动检查"
+        case .hourly: return "每小时检查"
+        case .daily: return "每天检查"
+        }
+    }
+
+    /// 表单选项短名
+    public var label: String {
+        switch self {
+        case .manual: return "手动检查"
+        case .hourly: return "每小时"
+        case .daily: return "每天"
+        }
+    }
+}
+
+/// POST /monitors 请求体（桥上线实形）：{name,
+/// target, scheduleText?, cron?, intervalSeconds?}；
+/// 可选字段 nil 不落键（合成 Encodable 对 Optional
+/// 走 encodeIfPresent）
+public struct BridgeMonitorCreateRequest: Encodable, Equatable, Sendable {
+    public let name: String
+    public let target: String
+    public let scheduleText: String?
+    /// cron 高级档留口：本包不组装，恒 nil
+    public let cron: String?
+    public let intervalSeconds: Int?
+
+    public init(
+        name: String, target: String, scheduleText: String?,
+        cron: String?, intervalSeconds: Int?
+    ) {
+        self.name = name
+        self.target = target
+        self.scheduleText = scheduleText
+        self.cron = cron
+        self.intervalSeconds = intervalSeconds
+    }
+
+    /// 表单口径收口：名称/链接去首尾空白，频率档展开
+    /// 为 scheduleText 人话串＋intervalSeconds
+    public static func make(
+        name: String, target: String, frequency: MonitorFrequency
+    ) -> BridgeMonitorCreateRequest {
+        BridgeMonitorCreateRequest(
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            target: target.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ),
+            scheduleText: frequency.scheduleText,
+            cron: nil,
+            intervalSeconds: frequency.intervalSeconds
+        )
+    }
+}
+
+/// 新建表单校验（与桥端 400 口径对齐：名称空、链接
+/// 空、链接非 http(s) 先在客户端拦下，不发必失败的
+/// 请求；真发后服务端人话仍会透传，不双轨）
+public enum MonitorCreateValidation {
+    /// 返回第一条问题人话；无问题为 nil
+    public static func problem(name: String, target: String) -> String? {
+        if name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty {
+            return "请填写监测名称。"
+        }
+        let target = target.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        if target.isEmpty {
+            return "请填写要盯的链接。"
+        }
+        if !target.hasPrefix("http://"),
+           !target.hasPrefix("https://") {
+            return "链接要以 http:// 或 https:// 开头。"
+        }
+        return nil
+    }
+}
+
 // MARK: - 差异呈现组装
 
 /// 变化详情页的行组装（纯函数，单测钉死）：摘要必有；

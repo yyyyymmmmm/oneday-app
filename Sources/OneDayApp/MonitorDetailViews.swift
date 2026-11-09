@@ -11,6 +11,8 @@ struct MonitorDetailView: View {
     let monitorID: String
 
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmingDelete = false
 
     var body: some View {
         Group {
@@ -32,6 +34,24 @@ struct MonitorDetailView: View {
         .refreshable {
             await store.load(appState: appState)
             await store.loadChanges(appState: appState, monitorID: monitorID)
+        }
+        .confirmationDialog(
+            "删除这条监测？",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("删除监测", role: .destructive) {
+                Task {
+                    if await store.delete(
+                        appState: appState, monitorID: monitorID
+                    ) {
+                        dismiss()
+                    }
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删除后，它的变化记录也会一并删掉。")
         }
     }
 
@@ -66,11 +86,75 @@ struct MonitorDetailView: View {
                     }
                 }
             }
+            controlsSection(monitor)
             Section("变化记录") {
                 changesContent(monitor)
             }
+            Section {
+                Button("删除监测", role: .destructive) {
+                    confirmingDelete = true
+                }
+                .disabled(store.actingIDs.contains(monitorID))
+            }
         }
         .listStyle(.insetGrouped)
+    }
+
+    /// 控制区（0.12.1）：立即检查＋暂停/恢复，与行内
+    /// 长按菜单同一套动作同一回读口径；动作中禁用，
+    /// 未确认/失败的人话（已暂停 409 等）留本区内
+    @ViewBuilder
+    private func controlsSection(_ monitor: BridgeMonitor) -> some View {
+        let acting = store.actingIDs.contains(monitorID)
+        Section {
+            Button {
+                Task {
+                    await store.checkNow(
+                        appState: appState, monitorID: monitorID
+                    )
+                }
+            } label: {
+                HStack {
+                    Label("立即检查", systemImage: "arrow.clockwise")
+                    if acting {
+                        Spacer()
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+            }
+            .disabled(acting)
+            if monitor.enabled {
+                Button {
+                    Task {
+                        await store.setEnabled(
+                            appState: appState, monitorID: monitorID,
+                            enabled: false
+                        )
+                    }
+                } label: {
+                    Label("暂停监测", systemImage: "pause.circle")
+                }
+                .disabled(acting)
+            } else {
+                Button {
+                    Task {
+                        await store.setEnabled(
+                            appState: appState, monitorID: monitorID,
+                            enabled: true
+                        )
+                    }
+                } label: {
+                    Label("恢复监测", systemImage: "play.circle")
+                }
+                .disabled(acting)
+            }
+            if let note = store.notes[monitorID], !note.isEmpty {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.danger)
+            }
+        }
     }
 
     @ViewBuilder

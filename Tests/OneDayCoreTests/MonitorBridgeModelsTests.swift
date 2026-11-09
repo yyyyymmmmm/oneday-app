@@ -294,4 +294,108 @@ final class MonitorBridgeModelsTests: XCTestCase {
         XCTAssertEqual(read.summary, change.summary)
         XCTAssertFalse(change.read)
     }
+
+    // MARK: - 新建监测（0.12.1：频率档与请求体）
+
+    private func jsonObject<T: Encodable>(
+        _ value: T
+    ) throws -> [String: Any] {
+        let data = try JSONEncoder().encode(value)
+        let object = try JSONSerialization.jsonObject(with: data)
+        return try XCTUnwrap(object as? [String: Any])
+    }
+
+    func testFrequencyMapsToIntervalAndScheduleText() {
+        XCTAssertNil(MonitorFrequency.manual.intervalSeconds)
+        XCTAssertEqual(MonitorFrequency.manual.scheduleText, "手动检查")
+        XCTAssertEqual(MonitorFrequency.hourly.intervalSeconds, 3600)
+        XCTAssertEqual(MonitorFrequency.hourly.scheduleText, "每小时检查")
+        XCTAssertEqual(MonitorFrequency.daily.intervalSeconds, 86400)
+        XCTAssertEqual(MonitorFrequency.daily.scheduleText, "每天检查")
+        XCTAssertEqual(MonitorFrequency.allCases.count, 3)
+    }
+
+    func testMonitorCreateRequestManualOmitsIntervalAndCron() throws {
+        let request = BridgeMonitorCreateRequest.make(
+            name: " 价格页 ", target: " https://example.com/pricing ",
+            frequency: .manual
+        )
+        let object = try jsonObject(request)
+        XCTAssertEqual(object["name"] as? String, "价格页")
+        XCTAssertEqual(
+            object["target"] as? String, "https://example.com/pricing"
+        )
+        XCTAssertEqual(object["scheduleText"] as? String, "手动检查")
+        // 手动档不落 intervalSeconds（桥据此判手动型）、
+        // cron 高级档留口不落键
+        XCTAssertNil(object["intervalSeconds"])
+        XCTAssertNil(object["cron"])
+    }
+
+    func testMonitorCreateRequestHourlyCarriesInterval() throws {
+        let object = try jsonObject(
+            BridgeMonitorCreateRequest.make(
+                name: "价格页", target: "https://example.com",
+                frequency: .hourly
+            )
+        )
+        XCTAssertEqual(object["intervalSeconds"] as? Int, 3600)
+        XCTAssertEqual(object["scheduleText"] as? String, "每小时检查")
+        XCTAssertNil(object["cron"])
+    }
+
+    func testMonitorCreateRequestDailyCarriesInterval() throws {
+        let object = try jsonObject(
+            BridgeMonitorCreateRequest.make(
+                name: "状态页", target: "https://example.com/status",
+                frequency: .daily
+            )
+        )
+        XCTAssertEqual(object["intervalSeconds"] as? Int, 86400)
+        XCTAssertEqual(object["scheduleText"] as? String, "每天检查")
+        XCTAssertNil(object["cron"])
+    }
+
+    // MARK: - 新建表单校验（与桥端 400 对齐）
+
+    func testCreateValidationRejectsBlankName() {
+        XCTAssertEqual(
+            MonitorCreateValidation.problem(
+                name: "  ", target: "https://example.com"
+            ),
+            "请填写监测名称。"
+        )
+    }
+
+    func testCreateValidationRejectsBlankTarget() {
+        XCTAssertEqual(
+            MonitorCreateValidation.problem(name: "价格页", target: " "),
+            "请填写要盯的链接。"
+        )
+    }
+
+    func testCreateValidationRejectsNonHTTPAndAcceptsHTTP() {
+        XCTAssertEqual(
+            MonitorCreateValidation.problem(
+                name: "价格页", target: "example.com"
+            ),
+            "链接要以 http:// 或 https:// 开头。"
+        )
+        XCTAssertEqual(
+            MonitorCreateValidation.problem(
+                name: "价格页", target: "ftp://example.com"
+            ),
+            "链接要以 http:// 或 https:// 开头。"
+        )
+        XCTAssertNil(
+            MonitorCreateValidation.problem(
+                name: "价格页", target: "http://example.com"
+            )
+        )
+        XCTAssertNil(
+            MonitorCreateValidation.problem(
+                name: " 价格页 ", target: " https://example.com "
+            )
+        )
+    }
 }
