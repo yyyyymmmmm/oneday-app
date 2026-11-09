@@ -15,8 +15,10 @@ struct SideChatScrollAnchor: Codable, Equatable {
 @MainActor
 @Observable
 final class SideChatStore {
-    /// 主线固定标题（不被首条消息派生覆盖，M3 口径）
-    static let mainTitle = "主聊"
+    /// 主线固定标题（不被首条消息派生覆盖，M3 口径；
+    /// 0.18.0 命名统一：旧称「主聊」就此退役，全仓
+    /// 只用「主线」——Muse 定义里它是唯一指挥席）
+    static let mainTitle = "主线"
 
     private(set) var mainThreadID: UUID?
     private(set) var mainServerSessionID: String?
@@ -114,7 +116,10 @@ final class SideChatStore {
         defaults?.set(Array(archivedKeys), forKey: Key.archivedKeys)
     }
 
-    // MARK: - 标题覆盖（M3：服务端会话改 title 未证实，本地覆盖绕开）
+    // MARK: - 标题覆盖（M3 本地绕行，0.18.0 起存量遗
+    // 留：改名已改走服务端 PATCH 直达，本表只剩迁移
+    // 输入——管理页首开时逐条回写服务端、对账落定
+    // 后逐项清除；新改名不再写入本表）
 
     func setTitleOverride(_ title: String?, for serverSessionID: String) {
         if let title, !title.isEmpty {

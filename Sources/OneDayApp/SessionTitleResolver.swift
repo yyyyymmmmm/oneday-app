@@ -1,12 +1,16 @@
 import Foundation
 import OneDayCore
 
-/// 会话派生标题解析器（0.6.1，用户真机点名）：服务端
-/// 会话列表接口没有标题/预览字段、display_name 实测
-/// 恒 null，行标题要落到内容上只能按需拉单会话消息
-/// 取首条 user 消息。本解析器是全 App 唯一取数口：
-/// 抽屉行与活动行共用同一份缓存与同一派生
-/// （ServerSession.contentTitle），不许两处各拉各的。
+/// 会话派生标题解析器（0.6.1 立、0.18.0 降为回落层）：
+/// 0.6.1 的前提「列表接口没有标题字段」是客户端误
+/// 判——列表行本就带 title/title_source（2026-11-09
+/// 晚带登录态实拉坐实，26/28 条已有 llm 标题），客
+/// 户端当时只解码 display_name。本解析器自 0.18.0
+/// 只管回落层：服务端无标题的会话（如 Qwen 标题升
+/// 级失败者）按需拉单会话消息取首条 user 消息作本
+/// 地派生，喂统一管线 ServerSession.resolvedTitle。
+/// 本解析器是全 App 唯一取数口：抽屉行与活动行共
+/// 用同一份缓存与同一派生，不许两处各拉各的。
 /// 纪律：请求有预算（单次 ensure 至多 budget 条）、
 /// 有界并发（4 路）、查过的（含失败/无消息）记
 /// resolved 不重复打——不许逐行无界拉取打爆服务端。
@@ -23,8 +27,10 @@ final class SessionTitleResolver {
     /// 正在拉取的会话 id（跨调用去重）
     private var inFlightIDs: Set<String> = []
 
-    /// 为一批会话补齐派生标题素材：只处理无人话名、
-    /// 未查过、不在飞的会话，至多 budget 条。
+    /// 为一批会话补齐派生标题素材：只处理无服务端
+    /// 标题、无人话名、未查过、不在飞的会话（有服务
+    /// 端标题者管线直接命中、不必拉消息），至多
+    /// budget 条。
     func ensureTitles(
         for sessions: [ServerSession],
         appState: AppState,
@@ -33,7 +39,8 @@ final class SessionTitleResolver {
         guard let config = appState.config else { return }
         let client = appState.client
         let batch = Array(sessions.filter {
-            !$0.hasHumanName
+            !$0.hasServerTitle
+                && !$0.hasHumanName
                 && !resolvedIDs.contains($0.id)
                 && !inFlightIDs.contains($0.id)
         }.prefix(budget))
@@ -68,10 +75,11 @@ final class SessionTitleResolver {
         }
     }
 
-    /// 行标题：派生（首条消息摘要）→ 人话名 → 未命名，
-    /// 与活动行同源（ServerSession.contentTitle）
+    /// 行标题：统一管线（服务端标题＞本地派生＞
+    /// display_name 人话名＞未命名），与活动行、管理
+    /// 页行同源（ServerSession.resolvedTitle）
     func title(for session: ServerSession) -> String {
-        session.contentTitle(
+        session.resolvedTitle(
             firstUserMessage: firstUserMessages[session.id]
         )
     }

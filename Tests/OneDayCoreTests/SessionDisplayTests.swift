@@ -21,13 +21,20 @@ final class SessionDisplayTests: XCTestCase {
     private func session(
         source: String? = "api_server",
         displayName: String? = nil,
+        serverTitle: String? = nil,
+        titleSource: String? = nil,
+        isArchived: Bool? = nil,
+        isPinned: Bool? = nil,
         startedAt: Double? = nil,
         endedAt: Double? = nil,
         messageCount: Int? = nil
     ) -> ServerSession {
         ServerSession(
             id: "sess-1", source: source, sessionKey: nil,
-            displayName: displayName, model: nil, profile: nil,
+            displayName: displayName,
+            serverTitle: serverTitle, titleSource: titleSource,
+            isArchived: isArchived, isPinned: isPinned,
+            model: nil, profile: nil,
             startedAt: startedAt, endedAt: endedAt, endReason: nil,
             messageCount: messageCount, toolCallCount: nil,
             inputTokens: nil, outputTokens: nil
@@ -152,6 +159,119 @@ final class SessionDisplayTests: XCTestCase {
         """)
         XCTAssertNil(ServerSession.firstUserMessage(in: assistantOnly))
         XCTAssertNil(ServerSession.firstUserMessage(in: []))
+    }
+
+    /// 0.18.0 统一标题管线（专题二方案序①）：服务端
+    /// 标题（user/llm/derived）压过本地派生；无服务
+    /// 端标题才落本地派生→display_name→未命名。
+    func testResolvedTitlePrefersServerTitleOverLocalDerivation() {
+        let llm = session(serverTitle: "确认链路正常", titleSource: "llm")
+        XCTAssertTrue(llm.hasServerTitle)
+        XCTAssertEqual(
+            llm.resolvedTitle(firstUserMessage: "只回复四个字：链路正常"),
+            "确认链路正常"
+        )
+        let user = session(serverTitle: "我手动改的名字", titleSource: "user")
+        XCTAssertEqual(
+            user.resolvedTitle(firstUserMessage: "随便什么首句"),
+            "我手动改的名字"
+        )
+        // derived 占位也是服务端标题：压过本地摘要
+        let derived = session(
+            serverTitle: "你好，用一句话说说西安的特", titleSource: "derived"
+        )
+        XCTAssertEqual(
+            derived.resolvedTitle(firstUserMessage: "你好，用一句话说说西安的特色。"),
+            "你好，用一句话说说西安的特"
+        )
+        // 空白标题不算有标题（清洗后落回落层）
+        let blank = session(serverTitle: "   ", titleSource: "llm")
+        XCTAssertFalse(blank.hasServerTitle)
+        XCTAssertEqual(
+            blank.resolvedTitle(firstUserMessage: "查一下服务器状态"),
+            "查一下服务器状态"
+        )
+    }
+
+    /// Qwen 会话回落链（立项档钉死）：llm 标题升级
+    /// 被拒、title 为空时落本地派生；连派生都没有
+    /// 才是「未命名会话」——不许拿原文首句冒充 AI 名
+    /// 的意思是回落层如实是回落层（titleSource 为空、
+    /// hasServerTitle 为假，来源可查）。
+    func testResolvedTitleQwenFallbackChain() {
+        let qwen = session(serverTitle: nil, titleSource: nil)
+        XCTAssertFalse(qwen.hasServerTitle)
+        XCTAssertEqual(
+            qwen.resolvedTitle(firstUserMessage: "请仔细看这张图片并回答"),
+            "请仔细看这张图片并回答"
+        )
+        XCTAssertEqual(qwen.resolvedTitle(firstUserMessage: nil), "未命名会话")
+        XCTAssertEqual(
+            qwen.resolvedTitle(firstUserMessage: "   "), "未命名会话"
+        )
+    }
+
+    /// 真实列表样本形态冻结（2026-11-09 晚带登录态
+    /// 只读实拉、脱敏改 id/标题同型）：title/title_
+    /// source/archived/pinned 必须解得出，分布与生
+    /// 产一致（llm 多数、null 两条、归档/置顶位真值）。
+    func testRealShapeSessionsPageDecodesTitleFields() throws {
+        let json = """
+        {"sessions": [
+          {"id": "api-aaaa0001", "source": "api_server",
+           "session_key": "k1", "display_name": null,
+           "title": "确认链路正常", "title_source": "llm",
+           "archived": false, "pinned": false,
+           "model": "deepseek-flash", "profile": "default",
+           "started_at": 1794200000, "ended_at": null,
+           "message_count": 4, "tool_call_count": 0,
+           "input_tokens": 120, "output_tokens": 40},
+          {"id": "api-bbbb0002", "source": "dashboard",
+           "session_key": "k2", "display_name": null,
+           "title": "周报助手", "title_source": "user",
+           "archived": false, "pinned": true,
+           "model": "deepseek-flash", "profile": "default",
+           "started_at": 1794190000, "ended_at": null,
+           "message_count": 9, "tool_call_count": 1,
+           "input_tokens": 800, "output_tokens": 300},
+          {"id": "api-cccc0003", "source": "api_server",
+           "session_key": "k3", "display_name": null,
+           "title": null, "title_source": null,
+           "archived": false, "pinned": false,
+           "model": "Qwen3-30B-A3B-Instruct-2507-FP8",
+           "profile": "default",
+           "started_at": 1794180000, "ended_at": null,
+           "message_count": 2, "tool_call_count": 0,
+           "input_tokens": 50, "output_tokens": 10},
+          {"id": "api-dddd0004", "source": "api_server",
+           "session_key": "k4", "display_name": null,
+           "title": "已归档的旧会话", "title_source": "llm",
+           "archived": true, "pinned": false,
+           "model": "deepseek-flash", "profile": "default",
+           "started_at": 1794100000, "ended_at": 1794103600,
+           "end_reason": "completed",
+           "message_count": 6, "tool_call_count": 0,
+           "input_tokens": 200, "output_tokens": 90}
+        ], "total": 4, "limit": 100, "offset": 0}
+        """
+        let page = try JSONDecoder().decode(
+            SessionsPage.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(page.sessions.count, 4)
+        let byID = Dictionary(
+            uniqueKeysWithValues: page.sessions.map { ($0.id, $0) }
+        )
+        XCTAssertEqual(byID["api-aaaa0001"]?.titleSource, "llm")
+        XCTAssertEqual(
+            byID["api-aaaa0001"]?.resolvedTitle(firstUserMessage: nil),
+            "确认链路正常"
+        )
+        XCTAssertEqual(byID["api-bbbb0002"]?.titleSource, "user")
+        XCTAssertEqual(byID["api-bbbb0002"]?.isPinned, true)
+        XCTAssertNil(byID["api-cccc0003"]?.serverTitle)
+        XCTAssertNil(byID["api-cccc0003"]?.titleSource)
+        XCTAssertEqual(byID["api-dddd0004"]?.isArchived, true)
+        XCTAssertEqual(byID["api-aaaa0001"]?.isArchived, false)
     }
 
     /// 0.17.0 单行行尾时间：与副题首段逐字一致（同一

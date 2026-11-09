@@ -498,8 +498,9 @@ struct ServerSessionDetailView: View {
                 }
             }
         }
-        // 标题＝内容总结标题（首条用户消息摘要，与抽屉/
-        // 列表同源），原始标题只留元信息组
+        // 标题走统一管线（0.18.0：服务端标题＞本地派
+        // 生＞未命名，与抽屉/管理页同源），原始标题只
+        // 留元信息组
         .navigationTitle(detailTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
@@ -520,15 +521,16 @@ struct ServerSessionDetailView: View {
     private var detailTitle: String {
         guard let session else { return "会话信息" }
         let firstUser = messages.first { $0.role == "user" }?.content
-        return session.contentTitle(firstUserMessage: firstUser)
+        return session.resolvedTitle(firstUserMessage: firstUser)
     }
 
     // MARK: - 元信息（LabeledContent，审计 §3.1 键值统一口径）
 
     private func metaSection(_ session: ServerSession) -> some View {
         Section("会话信息") {
-            if session.title != detailTitle {
-                LabeledContent("原始标题", value: session.title)
+            if let rawTitle = session.cleanedServerTitle,
+               rawTitle != detailTitle {
+                LabeledContent("原始标题", value: rawTitle)
             }
             // 状态只写可证事实（0.6.1）：有 ended_at 才
             // 敢说已结束；为空时服务端未提供结束信息，

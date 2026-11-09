@@ -289,11 +289,29 @@ public struct CronJob: Decodable, Sendable, Identifiable {
 /// started_at/ended_at 是 epoch 数值（秒或毫秒，解码后按量级归一）。
 /// 定时任务运行记录（/api/cron/jobs/{id}/runs 的 {"runs": […]}）
 /// 与本结构同构（官方口径 runs 即 sessions），共用此模型。
+/// 0.18.0（A 期专题二）：列表行本就带 title/title_source/
+/// archived/pinned（2026-11-09 晚带登录态实拉样本坐实：
+/// 28 条中 26 条 llm 标题、2 条 title 为 null 即 Qwen 会
+/// 话标题升级失败者）——0.6.1 前客户端只解码 display_
+/// name（渠道身份列、API 会话恒 null）从未声明 title，
+/// 「接口无 title」系客户端口径误判、就此更正。
 public struct ServerSession: Decodable, Sendable, Identifiable {
     public let id: String
     public let source: String?
     public let sessionKey: String?
     public let displayName: String?
+    /// 服务端会话标题本体（state.db sessions.title）：
+    /// Hermes 两段式自动标题（derived 占位→llm 升级）与
+    /// 手动改名的落点，来源看 titleSource
+    public let serverTitle: String?
+    /// 标题来源：user（手动）/llm（AI 生成）/derived
+    /// （占位）；缺失或标题为空时为 nil 或其他值
+    public let titleSource: String?
+    /// 服务端归档位（PATCH {archived} 的落点，0.18.0
+    /// 起归档走服务端本体、本地归档集合只剩迁移输入）
+    public let isArchived: Bool?
+    /// 服务端置顶位（PATCH {pinned} 的落点）
+    public let isPinned: Bool?
     public let model: String?
     public let profile: String?
     public let startedAt: Double?
@@ -308,6 +326,10 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
         case id, source, model, profile
         case sessionKey = "session_key"
         case displayName = "display_name"
+        case serverTitle = "title"
+        case titleSource = "title_source"
+        case isArchived = "archived"
+        case isPinned = "pinned"
         case startedAt = "started_at"
         case endedAt = "ended_at"
         case endReason = "end_reason"

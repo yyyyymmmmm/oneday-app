@@ -147,9 +147,16 @@ struct KanbanTaskDetailView: View {
                         .font(.footnote)
                         .foregroundStyle(Palette.danger)
                 }
-                if let reason = task.blockReason,
-                   task.presentation == .blocked, !reason.isEmpty {
-                    Text(reason)
+                // 0.18.0（问题原文定案，P3 验收实查）：
+                // task 对象没有 block_reason 字段，问题
+                // 原文在详情 events 里 blocked 事件的
+                // payload.reason（及 blocked run 的
+                // summary）——改从 detail.blockDetailText
+                // 取；详情未到先不显，到了仍取不到如实
+                // 标注「问题原文未取到」，不许拿任务标题
+                // 或其他文本冒充
+                if task.presentation == .blocked, let detail {
+                    Text(detail.blockDetailText ?? "问题原文未取到")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                 }
@@ -178,9 +185,18 @@ struct KanbanTaskDetailView: View {
         )
         return Section("等你回答") {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                Text(detail?.pendingQuestion ?? "执行方在等你的回答。")
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
+                // 问题原文（0.18.0 定案）：详情 events 的
+                // blocked 事件 payload.reason 为正源；
+                // 详情已到仍取不到如实标注，不冒充
+                if let detail {
+                    Text(detail.pendingQuestion ?? "问题原文未取到")
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                } else {
+                    Text("执行方在等你的回答。")
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                }
                 TextField(
                     "写下你的回答",
                     text: $answerText, axis: .vertical

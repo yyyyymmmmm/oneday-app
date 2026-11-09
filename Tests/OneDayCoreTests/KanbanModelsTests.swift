@@ -216,22 +216,29 @@ final class KanbanModelsTests: XCTestCase {
 
     // MARK: - 详情（问题提取＋证据拼装）
 
+    /// 验收实案形状（P3 生产验收 2026-11-09，任务
+    /// t_e62a9001）：task 对象**没有** block_reason
+    /// 字段；问题原文在 blocked 事件的 payload.
+    /// reason（{reason, kind:"needs_input"}）与
+    /// blocked run 的 summary，两处同文。
     private let detailNeedsInputJSON = """
-    {"task": {"id": "t_ask1", "title": "归档旧截图", "status": "blocked",
+    {"task": {"id": "t_e62a9001", "title": "P3TEST needs_input 链验收任务",
+              "status": "blocked",
               "block_kind": "needs_input",
-              "block_reason": "目标目录是哪一个？",
               "assignee": "default", "created_at": 1794152000},
      "comments": [
-       {"id": 1, "author": "default", "body": "截图要归档到哪个目录？",
-        "created_at": 1794152100}
+       {"id": 1, "author": "default", "body": "我先确认一个数",
+        "created_at": 1794152050}
      ],
      "events": [
        {"id": 3, "kind": "created", "created_at": 1794152000},
-       {"id": 9, "kind": "blocked", "created_at": 1794152100}
+       {"id": 9, "kind": "blocked",
+        "payload": {"reason": "你的幸运数字是多少？", "kind": "needs_input"},
+        "created_at": 1794152100}
      ],
      "runs": [
-       {"id": 5, "status": "blocked", "outcome": null,
-        "summary": "已提问，等待回答", "started_at": 1794152010,
+       {"id": 7, "status": "blocked", "outcome": "blocked",
+        "summary": "你的幸运数字是多少？", "started_at": 1794152010,
         "ended_at": 1794152100}
      ]}
     """
@@ -240,12 +247,68 @@ final class KanbanModelsTests: XCTestCase {
         let detail = try decoder.decode(
             KanbanTaskDetail.self, from: Data(detailNeedsInputJSON.utf8)
         )
-        XCTAssertEqual(detail.task.id, "t_ask1")
+        XCTAssertEqual(detail.task.id, "t_e62a9001")
         XCTAssertEqual(detail.task.presentation, .needsInput)
         XCTAssertEqual(detail.comments.count, 1)
         XCTAssertEqual(detail.runs.count, 1)
-        // 问题取阻塞原因（优先于评论）
-        XCTAssertEqual(detail.pendingQuestion, "目标目录是哪一个？")
+        // 事件 payload 单独解出（问题原文的真实存放处）
+        let blocked = detail.events.first { $0.kind == "blocked" }
+        XCTAssertEqual(blocked?.payloadReason, "你的幸运数字是多少？")
+        XCTAssertEqual(blocked?.payloadKind, "needs_input")
+        // 问题取 blocked 事件 payload.reason（优先于评论）
+        XCTAssertEqual(detail.pendingQuestion, "你的幸运数字是多少？")
+        XCTAssertEqual(detail.blockDetailText, "你的幸运数字是多少？")
+    }
+
+    /// 0.18.0 定案回归：即便 task 上宽容解出了
+    /// block_reason，也不许用它冒充问题原文——事件
+    /// 在场时以事件为准；多条 blocked 事件取最新。
+    func testPendingQuestionIgnoresTaskBlockReasonWhenEventsExist() throws {
+        let json = """
+        {"task": {"id": "t_ask9", "title": "某任务", "status": "blocked",
+                  "block_kind": "needs_input",
+                  "block_reason": "不该被采用的旧字段",
+                  "assignee": "default", "created_at": 1794152000},
+         "events": [
+           {"id": 8, "kind": "blocked",
+            "payload": {"reason": "先前的问题", "kind": "needs_input"},
+            "created_at": 1794152050},
+           {"id": 9, "kind": "blocked",
+            "payload": {"reason": "最新的问题", "kind": "needs_input"},
+            "created_at": 1794152100}
+         ],
+         "runs": []}
+        """
+        let detail = try decoder.decode(
+            KanbanTaskDetail.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(detail.pendingQuestion, "最新的问题")
+    }
+
+    /// 事件无 payload 时第二来源＝blocked run 的
+    /// summary（验收实查同文）；run 也没有才落评论。
+    func testPendingQuestionFallsBackToBlockedRunSummary() throws {
+        let json = """
+        {"task": {"id": "t_ask8", "title": "某任务", "status": "blocked",
+                  "block_kind": "needs_input",
+                  "assignee": "default", "created_at": 1794152000},
+         "comments": [
+           {"id": 1, "author": "default", "body": "评论里的话",
+            "created_at": 1794152200}
+         ],
+         "events": [
+           {"id": 9, "kind": "blocked", "created_at": 1794152100}
+         ],
+         "runs": [
+           {"id": 7, "status": "blocked", "outcome": "blocked",
+            "summary": "运行摘要里的问题", "started_at": 1794152010,
+            "ended_at": 1794152100}
+         ]}
+        """
+        let detail = try decoder.decode(
+            KanbanTaskDetail.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(detail.pendingQuestion, "运行摘要里的问题")
     }
 
     func testPendingQuestionFallsBackToWorkerComment() throws {

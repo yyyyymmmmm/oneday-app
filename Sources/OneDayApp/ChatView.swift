@@ -2053,7 +2053,7 @@ private struct ComposerBarLayout: Layout {
     /// 主线钦定落位：解析走 Core MainThreadDesignation——
     /// 存量钦定且线程还在则沿用（并把服务端绑定对齐到
     /// 持久的钦定会话 id）；否则新建本地主线：标题恒
-    /// 「主聊」、绑定本地生成并持久化的服务端会话 id、
+    /// 「主线」、绑定本地生成并持久化的服务端会话 id、
     /// 写入钦定。服务端承载的实际存在性由
     /// ensureMainServerSession 异步确认，本函数纯本地
     @discardableResult
@@ -2233,8 +2233,8 @@ private struct ComposerBarLayout: Layout {
                 imageData: imageDatas.first, quote: quote
             )
         )
-        // 0.7.0（M3）：主线标题恒「主聊」、不被首条消息
-        // 派生覆盖——主线线程标题在钦定落位时即为「主聊」
+        // 0.7.0（M3）：主线标题恒「主线」、不被首条消息
+        // 派生覆盖——主线线程标题在钦定落位时即为「主线」
         // 本就不进本分支，此守卫是双保险
         if thread.title == "新会话", thread.id != appState.sideChats.mainThreadID {
             thread.title = text.isEmpty ? "图片消息" : String(text.prefix(20))

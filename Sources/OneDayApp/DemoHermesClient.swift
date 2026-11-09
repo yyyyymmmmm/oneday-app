@@ -290,31 +290,126 @@ struct DemoHermesClient: HermesClientProtocol {
 
     // MARK: - 服务端会话
 
+    /// 演示会话写回存（类头「写方法不落状态」口径的
+    /// 局部例外）：0.18.0 会话四件（改名/置顶/归档/
+    /// 删除）全部带回读对账，纯静态样本会让演示里
+    /// 每次操作都报未落定——仅会话写面在此留进程内
+    /// 覆盖表、读面合并呈现；进程重启复位，与演示
+    /// 数据总口径一致
+    private static let sessionWrites = DemoSessionWriteStore()
+
     func serverSessions(config: ServerConfig, limit: Int) async throws -> SessionsPage {
+        decode(
+            SessionsPage.self,
+            demoSessionsJSON(limit: limit, offset: 0, archived: "exclude")
+        )
+    }
+
+    func serverSessionsPage(
+        config: ServerConfig, limit: Int, offset: Int, archived: String?
+    ) async throws -> SessionsPage {
+        decode(
+            SessionsPage.self,
+            demoSessionsJSON(
+                limit: limit, offset: offset,
+                archived: archived ?? "exclude"
+            )
+        )
+    }
+
+    /// 演示会话全集（相对时刻生成）：写回存的删除恒
+    /// 过滤、归档按 archived 口径分流，其余字段合并
+    /// 覆盖值（标题/置顶/归档）
+    private func demoSessionsJSON(
+        limit: Int, offset: Int, archived: String
+    ) -> String {
         let now = Date().timeIntervalSince1970
-        return decode(SessionsPage.self, """
-        {"sessions": [
+        let all: [(id: String, json: String)] = [
+            ("sess-live", """
             {"id": "sess-live", "source": "dashboard", "display_name": "帮我看看服务器状态",
+             \(demoTitleFields(id: "sess-live", baseTitle: "看看服务器状态", baseSource: "llm")),
+             \(demoFlagFields(id: "sess-live")),
              "model": "deepseek-chat", "profile": "default",
              "started_at": \(now - 25 * 60), "ended_at": null,
              "message_count": 9, "tool_call_count": 2,
-             "input_tokens": 18200, "output_tokens": 2400},
+             "input_tokens": 18200, "output_tokens": 2400}
+            """),
+            ("sess-cron-1", """
             {"id": "sess-cron-1", "source": "cron", "display_name": "节点巡检",
+             \(demoTitleFields(id: "sess-cron-1", baseTitle: "节点巡检", baseSource: "llm")),
+             \(demoFlagFields(id: "sess-cron-1")),
              "model": "deepseek-chat", "profile": "default",
              "started_at": \(now - 2 * 3600), "ended_at": \(now - 2 * 3600 + 95),
              "end_reason": "completed", "message_count": 6, "tool_call_count": 3,
-             "input_tokens": 5200, "output_tokens": 640},
+             "input_tokens": 5200, "output_tokens": 640}
+            """),
+            ("sess-old", """
             {"id": "sess-old", "source": "api_server", "display_name": null,
+             \(demoTitleFields(id: "sess-old", baseTitle: nil, baseSource: nil)),
+             \(demoFlagFields(id: "sess-old")),
              "model": "deepseek-chat", "profile": "default",
              "started_at": \(now - 30 * 3600), "ended_at": \(now - 30 * 3600 + 240),
              "end_reason": "completed", "message_count": 4, "tool_call_count": 0,
              "input_tokens": 2100, "output_tokens": 480}
-        ], "total": 3, "limit": \(limit), "offset": 0}
-        """)
+            """),
+        ]
+        let visible = all.filter { item in
+            if Self.sessionWrites.isDeleted(item.id) { return false }
+            let isArchived = Self.sessionWrites.archived(for: item.id) ?? false
+            switch archived {
+            case "only": return isArchived
+            case "include": return true
+            default: return !isArchived
+            }
+        }
+        let page = visible.dropFirst(offset).prefix(limit)
+        return """
+        {"sessions": [\(page.map { $0.json }.joined(separator: ", "))],
+         "total": \(visible.count), "limit": \(limit), "offset": \(offset)}
+        """
+    }
+
+    /// 标题字段片段：写回存有改名→user 来源；否则基
+    /// 样本标题（llm）；基样本无标题→双 null（回落
+    /// 链演示：本地派生/未命名）
+    private func demoTitleFields(
+        id: String, baseTitle: String?, baseSource: String?
+    ) -> String {
+        if let renamed = Self.sessionWrites.title(for: id) {
+            return "\"title\": \(Self.jsonQuoted(renamed)), \"title_source\": \"user\""
+        }
+        if let baseTitle {
+            return "\"title\": \(Self.jsonQuoted(baseTitle)), "
+                + "\"title_source\": \"\(baseSource ?? "llm")\""
+        }
+        return "\"title\": null, \"title_source\": null"
+    }
+
+    /// 归档/置顶字段片段（写回存优先、默认双 false）
+    private func demoFlagFields(id: String) -> String {
+        let archived = Self.sessionWrites.archived(for: id) ?? false
+        let pinned = Self.sessionWrites.pinned(for: id) ?? false
+        return "\"archived\": \(archived), \"pinned\": \(pinned)"
+    }
+
+    private static func jsonQuoted(_ value: String) -> String {
+        let data = try! JSONSerialization.data(withJSONObject: [value])
+        let text = String(decoding: data, as: UTF8.self)
+        return String(text.dropFirst().dropLast())
     }
 
     func serverSession(config: ServerConfig, id: String) async throws -> ServerSession {
-        let page = try await serverSessions(config: config, limit: 20)
+        if Self.sessionWrites.isDeleted(id) {
+            throw HermesError.unexpectedStatus(
+                endpoint: "服务端会话详情", status: 404
+            )
+        }
+        // 含归档行在内的全集里找（回读对账要能读到
+        // 刚归档的行）
+        let page = decode(
+            SessionsPage.self,
+            demoSessionsJSON(limit: 100, offset: 0, archived: "include")
+        )
         return page.sessions.first { $0.id == id } ?? page.sessions[0]
     }
 
@@ -370,10 +465,35 @@ struct DemoHermesClient: HermesClientProtocol {
         }
     }
 
-    func deleteServerSession(config: ServerConfig, id: String) async throws {}
-    func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws {}
+    func deleteServerSession(config: ServerConfig, id: String) async throws {
+        Self.sessionWrites.markDeleted(id)
+    }
+
+    func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws {
+        for id in ids { Self.sessionWrites.markDeleted(id) }
+    }
+
     func emptySessionCount(config: ServerConfig) async throws -> Int { 2 }
     func deleteEmptySessions(config: ServerConfig) async throws {}
+
+    /// 演示更新（0.18.0）：写回存记覆盖值，读面合并
+    /// 呈现——回读对账在演示里同样成立
+    func updateServerSession(
+        config: ServerConfig, id: String,
+        title: String?, pinned: Bool?, archived: Bool?
+    ) async throws {
+        if let title { Self.sessionWrites.setTitle(title, for: id) }
+        if let pinned { Self.sessionWrites.setPinned(pinned, for: id) }
+        if let archived { Self.sessionWrites.setArchived(archived, for: id) }
+    }
+
+    /// 演示清理（0.18.0）：恒报 2 条（样本里两条已结
+    /// 束会话）；真跑不真删样本——演示数据口径如此
+    func pruneSessions(
+        config: ServerConfig, olderThanDays: Double, dryRun: Bool
+    ) async throws -> Int? {
+        2
+    }
 
     // MARK: - 档案
 
@@ -864,13 +984,17 @@ extension DemoHermesClient {
                     ),
                     KanbanEvent(
                         id: "9", kind: "blocked", text: nil,
-                        createdAt: now.addingTimeInterval(-900)
+                        createdAt: now.addingTimeInterval(-900),
+                        // 问题原文的真实存放处（P3 验收
+                        // 实形：payload.reason＋kind）
+                        payloadReason: "照片是按年份分，还是按地点分？",
+                        payloadKind: "needs_input"
                     ),
                 ],
                 runs: [
                     KanbanRun(
-                        id: 5, status: "blocked", outcome: nil,
-                        summary: "已提问，等待回答",
+                        id: 5, status: "blocked", outcome: "blocked",
+                        summary: "照片是按年份分，还是按地点分？",
                         startedAt: now.addingTimeInterval(-1500),
                         endedAt: now.addingTimeInterval(-900)
                     ),
@@ -959,7 +1083,10 @@ extension DemoHermesClient {
                 status: "blocked",
                 assignee: KanbanContract.defaultAssignee,
                 blockKind: "needs_input",
-                blockReason: "照片是按年份分，还是按地点分？",
+                // 问题原文不在 task 上（生产实查无
+                // block_reason 字段）——在详情的
+                // blocked 事件 payload 与 run summary
+                // 里（见 kanbanTaskDetail 演示详情）
                 createdAt: now.addingTimeInterval(-5400)
             ),
             KanbanTask(
@@ -973,5 +1100,48 @@ extension DemoHermesClient {
                 completedAt: now.addingTimeInterval(-86300)
             ),
         ]
+    }
+}
+
+/// 演示会话写回存（DemoHermesClient 会话段专用）：
+/// 进程内覆盖表（改名/置顶/归档/删除），NSLock 守
+/// 护；进程重启即复位，与演示数据总口径一致。
+final class DemoSessionWriteStore: @unchecked Sendable {
+    private let lock = NSLock()
+    private var titles: [String: String] = [:]
+    private var pinnedValues: [String: Bool] = [:]
+    private var archivedValues: [String: Bool] = [:]
+    private var deletedIDs: Set<String> = []
+
+    func title(for id: String) -> String? {
+        lock.withLock { titles[id] }
+    }
+
+    func pinned(for id: String) -> Bool? {
+        lock.withLock { pinnedValues[id] }
+    }
+
+    func archived(for id: String) -> Bool? {
+        lock.withLock { archivedValues[id] }
+    }
+
+    func isDeleted(_ id: String) -> Bool {
+        lock.withLock { deletedIDs.contains(id) }
+    }
+
+    func setTitle(_ title: String, for id: String) {
+        lock.withLock { titles[id] = title }
+    }
+
+    func setPinned(_ pinned: Bool, for id: String) {
+        lock.withLock { pinnedValues[id] = pinned }
+    }
+
+    func setArchived(_ archived: Bool, for id: String) {
+        lock.withLock { archivedValues[id] = archived }
+    }
+
+    func markDeleted(_ id: String) {
+        lock.withLock { deletedIDs.insert(id) }
     }
 }

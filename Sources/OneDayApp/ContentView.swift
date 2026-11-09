@@ -107,10 +107,28 @@ struct ContentView: View {
     /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与枢纽
     /// sheet 共同消费；前台 30 秒轮询由下方 scenePhase 驱动
     @State private var overviewStore = OverviewBridgeStore()
+    /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
+    /// 理全部对话」行置位，全屏页自带导航栈呈现
+    @State private var showAllConversations = false
 
     var body: some View {
-        DrawerShell(selection: $selection) {
+        DrawerShell(
+            selection: $selection,
+            onManageAll: { showAllConversations = true }
+        ) {
             tabView
+        }
+        .fullScreenCover(isPresented: $showAllConversations) {
+            AllConversationsView(
+                onOpenSession: { id in
+                    // 打开会话：关页＋切聊天格＋走既有续
+                    // 聊通道（ChatView 消费导入）
+                    showAllConversations = false
+                    selection = .chat
+                    appState.pendingChatSessionID = id
+                },
+                onClose: { showAllConversations = false }
+            )
         }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
         // （ChatView 侧消费切换；含从其他格开抽屉的情形）
@@ -230,6 +248,8 @@ private struct DrawerShell<Content: View>: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: ContentView.MainTab
+    /// 抽屉「管理全部对话」透传（0.18.0）
+    var onManageAll: () -> Void
     @ViewBuilder var content: () -> Content
 
     /// S1 单一事实源：抽屉呈现位移（0＝合拢、travel
@@ -318,7 +338,8 @@ private struct DrawerShell<Content: View>: View {
                     bottomSafeInset: bottomSafeInset,
                     currentTab: selection,
                     onSelectTab: { selection = $0 },
-                    onClose: { setDrawer(false) }
+                    onClose: { setDrawer(false) },
+                    onManageAll: onManageAll
                 )
                 .offset(x: drawerOffset - travel)
                 .shadow(

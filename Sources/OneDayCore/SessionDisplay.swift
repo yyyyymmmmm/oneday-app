@@ -103,12 +103,45 @@ public extension ServerSession {
 
     /// 内容总结标题：首条用户消息摘要（详情页等已拉
     /// 到消息的调用方用）优先于 display_name 之外的
-    /// 一切；摘要为空回落 humanTitle。
+    /// 一切；摘要为空回落 humanTitle。0.18.0 起本方
+    /// 法降为 resolvedTitle 的回落层（服务端标题在
+    /// 其上），单独调用的口径不变。
     func contentTitle(firstUserMessage: String?) -> String {
         if let summary = Self.contentSummaryTitle(firstUserMessage) {
             return summary
         }
         return humanTitle
+    }
+
+    /// 服务端标题清洗值：title 字段去首尾空白、空串
+    /// 归 nil（标题来源分层看 titleSource）
+    var cleanedServerTitle: String? {
+        guard let raw = serverTitle else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// 是否已有服务端标题（user/llm/derived 任一）——
+    /// 有则本地派生不再是标题来源（SessionTitle-
+    /// Resolver 据此跳过无谓的消息拉取）
+    var hasServerTitle: Bool { cleanedServerTitle != nil }
+
+    /// 统一标题管线（0.18.0，旁聊立项档专题二方案
+    /// 序①；抽屉行/管理页行/会话页标题全 App 同源）：
+    /// 手动改名（title_source=user 的服务端标题）＞
+    /// llm 标题 ＞ derived 占位（三者同存于 title 字
+    /// 段、按 titleSource 区分，本层只认字段在场）＞
+    /// 本地派生（首条消息摘要，contentTitle）＞
+    /// display_name 人话名 ＞「未命名会话」。
+    /// 红线：任一层不许拿空串或 id 前缀充标题；Qwen
+    /// 会话的 llm 升级被 vLLM 拒后 title 为空——按本
+    /// 管线落本地派生/未命名，派生摘要只是回落、不
+    /// 冒充 AI 名（来源以 titleSource 为据可查）。
+    func resolvedTitle(firstUserMessage: String?) -> String {
+        if let title = cleanedServerTitle {
+            return title
+        }
+        return contentTitle(firstUserMessage: firstUserMessage)
     }
 
     /// 首条用户消息 → 单行摘要：取首个非空行、压平
@@ -171,10 +204,10 @@ public extension ServerSession {
         return sessionDayTimeText(for: date, now: now, calendar: calendar)
     }
 
-    /// 首条用户消息（0.6.1，标题派生的数据源）：列表
-    /// 接口（/api/sessions）只有 display_name（实测恒
-    /// null）与计数、没有标题/预览字段——行标题要落到
-    /// 内容上，只能按需拉单会话消息取首条 user 内容。
+    /// 首条用户消息（0.6.1 立、0.18.0 降为回落层素
+    /// 材）：服务端标题（title 字段）已直达后，本值
+    /// 只在服务端无标题时作本地派生（resolvedTitle
+    /// 的回落层）——按需拉单会话消息取首条 user 内容。
     /// 取数组序首条 role=user 且去空白后非空者（接口
     /// 返回即时序）；调用方负责请求预算与缓存，不许
     /// 逐行无界拉取。

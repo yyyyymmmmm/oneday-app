@@ -111,6 +111,28 @@ protocol HermesClientProtocol: Sendable {
     func emptySessionCount(config: ServerConfig) async throws -> Int
     /// DELETE /api/sessions/empty
     func deleteEmptySessions(config: ServerConfig) async throws
+    /// GET /api/sessions?limit=&offset=&archived=（0.18.0
+    /// 「全部对话」管理面分页拉全；archived 取
+    /// exclude/only/include，nil 不带参数走服务端默认）
+    func serverSessionsPage(
+        config: ServerConfig, limit: Int, offset: Int, archived: String?
+    ) async throws -> SessionsPage
+    /// PATCH /api/sessions/{id}（SessionRename 子集，
+    /// 只带要改的字段；并发守卫 expected_revision 等
+    /// 不带——施工纪律禁对生产发写探针，落定靠调用
+    /// 方 GET 回读对账，立项档 O-4 就此定案）。2xx
+    /// 只算服务端受理、不算落定
+    func updateServerSession(
+        config: ServerConfig, id: String,
+        title: String?, pinned: Bool?, archived: Bool?
+    ) async throws
+    /// POST /api/sessions/prune（0.18.0 清理区）：
+    /// dryRun 先行给数、用户确认才真跑；回执条数多
+    /// 键宽容提取（SessionPruneReceipt），取不到返
+    /// 回 nil、界面如实显「条数未回」
+    func pruneSessions(
+        config: ServerConfig, olderThanDays: Double, dryRun: Bool
+    ) async throws -> Int?
 
     /// GET /api/profiles
     func profiles(config: ServerConfig) async throws -> [ProfileItem]
@@ -851,6 +873,50 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             config: config, path: "/api/sessions/empty", method: "DELETE",
             endpoint: "空会话清理"
         )
+    }
+
+    func serverSessionsPage(
+        config: ServerConfig, limit: Int, offset: Int, archived: String?
+    ) async throws -> SessionsPage {
+        var query = [
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(offset)),
+        ]
+        if let archived {
+            query.append(URLQueryItem(name: "archived", value: archived))
+        }
+        return try await getJSON(
+            config: config, path: "/api/sessions", endpoint: "服务端会话",
+            query: query
+        )
+    }
+
+    func updateServerSession(
+        config: ServerConfig, id: String,
+        title: String?, pinned: Bool?, archived: Bool?
+    ) async throws {
+        var body: [String: JSONValue] = [:]
+        if let title { body["title"] = .string(title) }
+        if let pinned { body["pinned"] = .bool(pinned) }
+        if let archived { body["archived"] = .bool(archived) }
+        try await sendJSON(
+            config: config, path: "/api/sessions/\(id)", method: "PATCH",
+            endpoint: "服务端会话更新", body: body
+        )
+    }
+
+    func pruneSessions(
+        config: ServerConfig, olderThanDays: Double, dryRun: Bool
+    ) async throws -> Int? {
+        let receipt: JSONValue = try await sendJSONDecoding(
+            config: config, path: "/api/sessions/prune", method: "POST",
+            endpoint: "服务端会话清理",
+            body: [
+                "older_than_days": .number(olderThanDays),
+                "dry_run": .bool(dryRun),
+            ]
+        )
+        return SessionPruneReceipt.count(from: receipt)
     }
 
     // MARK: - 档案

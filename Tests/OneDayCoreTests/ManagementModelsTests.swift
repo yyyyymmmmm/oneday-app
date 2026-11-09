@@ -201,4 +201,35 @@ final class ManagementModelsTests: XCTestCase {
         XCTAssertNotNil(response.decisions[0].decidedAt)
         XCTAssertFalse(response.decisions[0].originText.isEmpty)
     }
+
+    // MARK: - prune 回执条数（0.18.0）
+
+    /// 回执形状未定死：多键宽容取数、嵌套一层也认；
+    /// 全落空返回 nil（界面如实显条数未回、不编数）
+    func testPruneReceiptCountExtraction() throws {
+        func value(_ json: String) throws -> JSONValue {
+            try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))
+        }
+        XCTAssertEqual(
+            try SessionPruneReceipt.count(from: value(#"{"deleted": 7}"#)), 7
+        )
+        XCTAssertEqual(
+            try SessionPruneReceipt.count(from: value(#"{"matched": 3}"#)), 3
+        )
+        XCTAssertEqual(
+            try SessionPruneReceipt.count(from: value(#"{"count": 0}"#)), 0
+        )
+        XCTAssertEqual(
+            try SessionPruneReceipt.count(
+                from: value(#"{"result": {"pruned": 5}}"#)
+            ),
+            5
+        )
+        XCTAssertNil(
+            try SessionPruneReceipt.count(from: value(#"{"ok": true}"#))
+        )
+        XCTAssertNil(
+            try SessionPruneReceipt.count(from: value(#"{"deleted": "7"}"#))
+        )
+    }
 }

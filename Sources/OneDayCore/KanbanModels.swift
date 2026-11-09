@@ -208,6 +208,10 @@ public struct KanbanTask: Decodable, Equatable, Sendable, Identifiable {
     /// 完成证据正文（complete 时强制非空，spike 对照 3）
     public let result: String?
     public let blockKind: String?
+    /// 宽容解码保留，但**不是问题原文来源**：P3 生
+    /// 产验收实查 task 对象键全集无 block_reason，
+    /// 问题原文在详情 events/runs（见 KanbanTask-
+    /// Detail.blockDetailText，0.18.0 定案）
     public let blockReason: String?
     public let lastFailureError: String?
     public let consecutiveFailures: Int
@@ -540,18 +544,34 @@ public struct KanbanComment: Decodable, Equatable, Sendable, Identifiable {
 }
 
 /// 事件行（task_events 审计流）：kind 为原生事件名
-/// （created/claimed/completed/...），原样保留
+/// （created/claimed/completed/...），原样保留。
+/// 0.18.0：blocked 事件的 payload 是待答问题原文的
+/// 真实存放处（P3 生产验收实查：payload＝{reason:
+/// "你的幸运数字是多少？", kind:"needs_input"}；
+/// task 对象本身没有 block_reason 字段）——payload
+/// 的 reason/kind 单独解出，不再让问题原文埋在事件
+/// 文本里取不到。
 public struct KanbanEvent: Decodable, Equatable, Sendable, Identifiable {
     public let id: String
     public let kind: String
     public let text: String?
     public let createdAt: Date?
+    /// payload.reason（blocked 事件＝阻塞/提问原文）
+    public let payloadReason: String?
+    /// payload.kind（blocked 事件＝needs_input 等）
+    public let payloadKind: String?
 
-    public init(id: String, kind: String, text: String?, createdAt: Date?) {
+    public init(
+        id: String, kind: String, text: String?,
+        createdAt: Date?, payloadReason: String? = nil,
+        payloadKind: String? = nil
+    ) {
         self.id = id
         self.kind = kind
         self.text = text
         self.createdAt = createdAt
+        self.payloadReason = payloadReason
+        self.payloadKind = payloadKind
     }
 
     public init(from decoder: Decoder) throws {
@@ -571,6 +591,14 @@ public struct KanbanEvent: Decodable, Equatable, Sendable, Identifiable {
         kind = fields.string("kind", "type", "event") ?? ""
         text = fields.string("message", "detail", "summary")
         createdAt = fields.time("created_at", "createdAt")
+        // payload 子字典（验收实形）；顶层 reason 只作
+        // 形态兜底（个别事件把 reason 平铺在行上）
+        let payload = KanbanFields(
+            dict: jsonValue.objectDict?["payload"]?.objectDict ?? [:]
+        )
+        payloadReason = payload.string("reason")
+            ?? fields.string("reason")
+        payloadKind = payload.string("kind")
     }
 }
 
@@ -706,14 +734,54 @@ public struct KanbanTaskDetail: Decodable, Equatable, Sendable {
         }
     }
 
-    /// 待回答的问题（spike 缺口补法 4）：阻塞原因
-    /// 优先，其次执行方最近一条非人工评论；都无＝nil
-    /// （视图回落通用文案，不许编问题）
+    /// 最新一条 blocked 事件的原文（0.18.0，P3 生产
+    /// 验收定案）：待答问题存放在详情 events 里
+    /// blocked 事件的 payload.reason——task 对象本
+    /// 身没有 block_reason 字段（验收实查键全集确
+    /// 认），0.10.0「取 block_reason」的口径恒落空、
+    /// 就此更正
+    public var latestBlockedEventReason: String? {
+        events
+            .filter { $0.kind == "blocked" }
+            .sorted {
+                ($0.createdAt ?? .distantPast)
+                    > ($1.createdAt ?? .distantPast)
+            }
+            .lazy
+            .compactMap { $0.payloadReason }
+            .first { !$0.isEmpty }
+    }
+
+    /// blocked 那条 run 的 summary（验收实查与事件
+    /// payload.reason 同文，作第二来源）：按结束/开始
+    /// 时刻取最近一条 blocked run
+    public var latestBlockedRunSummary: String? {
+        runs
+            .filter { $0.status == "blocked" || $0.outcome == "blocked" }
+            .sorted {
+                ($0.endedAt ?? $0.startedAt ?? .distantPast)
+                    > ($1.endedAt ?? $1.startedAt ?? .distantPast)
+            }
+            .lazy
+            .compactMap { $0.summary }
+            .first { !$0.isEmpty }
+    }
+
+    /// 阻塞原文（详情头部与待答区共用）：blocked 事
+    /// 件 payload.reason ＞ blocked run 的 summary；
+    /// 都无＝nil——视图如实显「问题原文未取到」，不
+    /// 许拿任务标题或评论冒充问题
+    public var blockDetailText: String? {
+        latestBlockedEventReason ?? latestBlockedRunSummary
+    }
+
+    /// 待回答的问题（0.18.0 改源）：blocked 事件
+    /// payload.reason ＞ blocked run 的 summary ＞
+    /// 执行方最近一条非人工评论；都无＝nil（视图回
+    /// 落通用文案，不许编问题）
     public var pendingQuestion: String? {
         guard task.presentation == .needsInput else { return nil }
-        if let reason = task.blockReason, !reason.isEmpty {
-            return reason
-        }
+        if let text = blockDetailText { return text }
         return comments.last {
             !KanbanContract.humanAuthors.contains($0.author)
         }?.body

@@ -501,6 +501,34 @@ public struct SessionSearchResponse: Decodable, Sendable {
     }
 }
 
+// MARK: - 会话清理（POST /api/sessions/prune）
+
+/// prune 回执的条数提取（0.18.0）：回执形状未在
+/// OpenAPI 里定死（空 schema），多键宽容取数——
+/// deleted/count/matched/pruned/removed 任一数字键
+/// 命中即用，可再嵌一层 result；全落空返回 nil，
+/// 界面如实显「已执行、条数未回」，不许编数。
+/// dry_run 与真跑共用同一提取口径。
+public enum SessionPruneReceipt {
+    private static let countKeys = [
+        "deleted", "deleted_count", "count",
+        "matched", "matched_count", "pruned", "removed",
+    ]
+
+    public static func count(from value: JSONValue) -> Int? {
+        guard case .object(let dict) = value else { return nil }
+        for key in countKeys {
+            if case .number(let number)? = dict[key] {
+                return Int(number)
+            }
+        }
+        if case .object(let inner)? = dict["result"] {
+            return count(from: .object(inner))
+        }
+        return nil
+    }
+}
+
 // MARK: - 档案导出回执（POST /api/profiles/{name}/export）
 
 /// 回执形状未实样（POST 属写面、本包未对生产发）：
