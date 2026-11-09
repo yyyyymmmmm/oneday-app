@@ -134,17 +134,13 @@ struct ChatView: View {
         threads.first { $0.id == currentThreadID } ?? threads.first
     }
 
-    /// 0.7.0：当前线程是否钦定主线——回告卡入线判定与
-    /// 标题行标识共用一处口径（判定纯函数在 Core）
+    /// 0.7.0：当前线程是否钦定主线——回告卡入线判定
+    /// （判定纯函数在 Core；0.7.0 起同用此口径的标题行
+    /// 「旁聊」标识已于 0.19.0 随用户点名删除）
     private var isCurrentMainThread: Bool {
         guard let thread = currentThread,
               let mainID = appState.sideChats.mainThreadID else { return false }
         return SideChatClassifier.zone(localThreadID: thread.id, mainThreadID: mainID) == .main
-    }
-
-    /// 0.7.0：当前线程是否为旁聊（标题行挂「旁聊」标识）
-    private var isCurrentSideThread: Bool {
-        currentThread != nil && !isCurrentMainThread
     }
 
     private var isStreaming: Bool { streamingText != nil }
@@ -167,6 +163,16 @@ struct ChatView: View {
         // 式下底栏坞是页卡的一部分、随卡同走，不需要
         // 也不应该再隐藏（口径变化见 §30）
         chatSurface
+        // 0.19.0：抽屉「枢纽」导航行的开枢纽请求通道
+        //（AppState.hubOpenRequested 置位—消费—清零，
+        // 与 cronCreateRequested 同式）：抽屉先切聊天格
+        // 再置位，本页在场消费、开枢纽 sheet
+        .onChange(of: appState.hubOpenRequested) { _, requested in
+            if requested {
+                appState.hubOpenRequested = false
+                showHub = true
+            }
+        }
         // 0.4.1：「选择」纯文本 sheet（长按菜单发起，
         // 选型见 DESIGN-V4 §26）
         .sheet(item: $selectionPayload) { payload in
@@ -426,14 +432,19 @@ struct ChatView: View {
         overviewStore?.statusLine ?? "联系不上"
     }
 
-    /// 状态点色与状态词同源：不可达弱色、待审批警示、
-    /// 其余（处理中/待命）在线绿
+    /// 状态点色（0.19.0 改同源）：与状态词共用 Core 的
+    /// classify 一处判定（OverviewBridgeStore.status-
+    /// Tone）——在线绿／待审批橙／联系不上弱灰。旧实现
+    /// 只认桥快照（snapshot 缺失或 hermesUp 假即落灰），
+    /// 与词的通道口径分叉：桥挂（未粘钥匙/401）＋通道在
+    /// 时词报「在线」、点却是灰（用户 22:26 真机点名
+    /// 「状态指示灯改绿色」的定因），自此两源归一
     private var overviewStatusColor: Color {
-        guard let snapshot = overviewStore?.snapshot, snapshot.hermesUp else {
-            return Palette.inkMuted
+        switch overviewStore?.statusTone {
+        case .online: return Palette.success
+        case .attention: return Palette.warning
+        case .offline, nil: return Palette.inkMuted
         }
-        if snapshot.pendingApprovals > 0 { return Palette.warning }
-        return Palette.success
     }
 
     private var overviewBadgeCount: Int {
@@ -538,12 +549,11 @@ struct ChatView: View {
             // 会话名次行（第 30 条）：退居中弱行，不再占胶囊。
             // 0.4.0（§3.4）：已关联服务端会话的线程，点次行
             // 开「会话信息」（详情页降级后的次级入口）
-            // 0.7.0（D3 呈现半侧）：当前为旁聊时标题前挂
-            // 「旁聊」小标识，与抽屉旁聊行同画法；主线不挂
+            // 0.19.0（用户点名删除）：0.7.0 起挂在此处的
+            // 「旁聊」身份小标识整段删除——主线/旁聊的
+            // 展示标签在聊天页与抽屉一律不再出现（管理
+            // 全部对话页的分段是管理功能、不在此列）
             HStack(spacing: 6) {
-                if isCurrentSideThread {
-                    sideChatTag
-                }
                 if let thread = currentThread, thread.serverSessionID != nil {
                     Button {
                         showSessionInfo = true
@@ -572,18 +582,6 @@ struct ChatView: View {
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingS)
-    }
-
-    /// 「旁聊」小标识（0.7.0）：聊天页标题行与抽屉旁聊行
-    /// 同画法——caption2＋fieldFill 胶囊垫，只作身份标、
-    /// 不抢标题层级
-    private var sideChatTag: some View {
-        Text("旁聊")
-            .font(.caption2)
-            .foregroundStyle(Palette.inkSecondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Palette.fieldFill, in: Capsule())
     }
 
     /// 身份胶囊（0.6.0；0.6.1 布局根修）：一颗胶囊，左
@@ -847,6 +845,16 @@ struct ChatView: View {
                 ),
                 alignment: .topLeading
             )
+            // 0.19.0：命中形状补全——0.3.5 只把帧撑满，
+            // LazyVStack 的命中测试仍只认子视图实形：
+            // 消息行之间的纵向空隙、空状态之外的空白
+            // 都不在任何子视图里，帧再大也点不中（用户
+            // 22:26 真机再次点名「点空白收回键盘」的残
+            // 洞）。contentShape 令栈帧全域可命中，下方
+            // 既有 onTapGesture 的辖区才真正等于撑满帧；
+            // 子视图（气泡/按钮/链接/长按菜单）仍先命中
+            // 自己，既有仲裁关系不动
+            .contentShape(Rectangle())
             // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
             // 收起由 scrollDismissesKeyboard 承接）。0.2.7 起
             // 本手势只挂内容栈、不再挂 ScrollView 本体：

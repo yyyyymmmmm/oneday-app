@@ -83,23 +83,61 @@ public struct OverviewReadResponse: Decodable, Equatable, Sendable {
 /// 为会话总数、是假进行中（桥字段本身不动、仍按契约
 /// 传输，客户端文案不再把它说成进行中）。
 public enum OverviewStatusLine {
+    /// 状态语气三态（0.19.0）：与状态词同源派生，供身份
+    /// 胶囊的状态点取色——online 绿／attention 橙／
+    /// offline 灰。此前点色在 App 层另立一套只认桥快照
+    /// 的判定，与词（通道口径）两源分叉：桥挂＋通道在
+    /// 时词报「在线」点却落灰（用户 22:26 真机点名）。
+    /// 自此词与点共用 classify 一处判定，不许再分叉。
+    public enum Tone: Equatable, Sendable {
+        case online
+        case attention
+        case offline
+    }
+
+    private enum Kind {
+        case offline
+        case pending(Int)
+        case online
+    }
+
+    private static func classify(
+        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+    ) -> Kind {
+        if let hermesChannelUp {
+            guard hermesChannelUp else { return .offline }
+            if let snapshot, snapshot.pendingApprovals > 0 {
+                return .pending(snapshot.pendingApprovals)
+            }
+            return .online
+        }
+        guard let snapshot, snapshot.hermesUp else {
+            return .offline
+        }
+        if snapshot.pendingApprovals > 0 {
+            return .pending(snapshot.pendingApprovals)
+        }
+        return .online
+    }
+
     public static func resolve(
         snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
     ) -> String {
-        if let hermesChannelUp {
-            guard hermesChannelUp else { return "联系不上" }
-            if let snapshot, snapshot.pendingApprovals > 0 {
-                return "待审批 \(snapshot.pendingApprovals)"
-            }
-            return "在线"
+        switch classify(snapshot: snapshot, hermesChannelUp: hermesChannelUp) {
+        case .offline: return "联系不上"
+        case .pending(let count): return "待审批 \(count)"
+        case .online: return "在线"
         }
-        guard let snapshot, snapshot.hermesUp else {
-            return "联系不上"
+    }
+
+    public static func tone(
+        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+    ) -> Tone {
+        switch classify(snapshot: snapshot, hermesChannelUp: hermesChannelUp) {
+        case .offline: return .offline
+        case .pending: return .attention
+        case .online: return .online
         }
-        if snapshot.pendingApprovals > 0 {
-            return "待审批 \(snapshot.pendingApprovals)"
-        }
-        return "在线"
     }
 }
 

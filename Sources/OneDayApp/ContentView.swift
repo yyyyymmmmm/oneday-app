@@ -91,6 +91,17 @@ import UIKit
 /// .onScrollDown 改 .never（0.4.1 为学 Muse 加的收起
 /// 行为、用户已下令去掉；调研 Q2 证实最小化只剩单图
 /// 标胶囊是该行为的设计结果、非 bug）。
+///
+/// **0.19.0 抽屉导航化（真机五条·二轮，用户 2026-11-09**
+/// **22:26 点名）**：抽屉照 Muse 本体侧边栏重构为纯
+/// 导航形态（名字头＋「选项卡」导航行组＋管理行＋底条
+/// 三件套），对话名单整段退役（详见 DrawerView 文件
+/// 头）；随之：本层管理页呈现由 Bool 改带参路线
+/// （ManageAllRoute：底条搜索胶囊进管理页须聚焦其搜
+/// 索、focusSearch 透传），壳层的窗口底 inset 量测与
+/// DrawerView 的 bottomSafeInset 入参一并退役（底条
+/// 拆双计改 safeAreaBar 系统定位＋固定小间距，定因见
+/// DrawerView 底条注）。
 struct ContentView: View {
     /// 底栏格（0.17.0 起四格：活动格已撤销、枢纽走聊
     /// 天页胶囊 sheet，见文件头 0.17.0 注）
@@ -107,27 +118,37 @@ struct ContentView: View {
     /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与枢纽
     /// sheet 共同消费；前台 30 秒轮询由下方 scenePhase 驱动
     @State private var overviewStore = OverviewBridgeStore()
-    /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
-    /// 理全部对话」行置位，全屏页自带导航栈呈现
-    @State private var showAllConversations = false
+    /// 「全部对话」管理页呈现路线（0.18.0 立 Bool 呈
+    /// 现、0.19.0 改带参）：focusSearch＝打开时聚焦管
+    /// 理页搜索（抽屉底条搜索胶囊来路；管理行来路为
+    /// false）。Identifiable 供 .fullScreenCover(item:)
+    private struct ManageAllRoute: Identifiable {
+        let id = UUID()
+        let focusSearch: Bool
+    }
+
+    @State private var manageAllRoute: ManageAllRoute?
 
     var body: some View {
         DrawerShell(
             selection: $selection,
-            onManageAll: { showAllConversations = true }
+            onManageAll: { focusSearch in
+                manageAllRoute = ManageAllRoute(focusSearch: focusSearch)
+            }
         ) {
             tabView
         }
-        .fullScreenCover(isPresented: $showAllConversations) {
+        .fullScreenCover(item: $manageAllRoute) { route in
             AllConversationsView(
+                focusSearchOnAppear: route.focusSearch,
                 onOpenSession: { id in
                     // 打开会话：关页＋切聊天格＋走既有续
                     // 聊通道（ChatView 消费导入）
-                    showAllConversations = false
+                    manageAllRoute = nil
                     selection = .chat
                     appState.pendingChatSessionID = id
                 },
-                onClose: { showAllConversations = false }
+                onClose: { manageAllRoute = nil }
             )
         }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
@@ -248,8 +269,9 @@ private struct DrawerShell<Content: View>: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: ContentView.MainTab
-    /// 抽屉「管理全部对话」透传（0.18.0）
-    var onManageAll: () -> Void
+    /// 抽屉「管理全部对话」透传（0.18.0；0.19.0 加
+    /// focusSearch 参：底条搜索胶囊来路为 true）
+    var onManageAll: (Bool) -> Void
     @ViewBuilder var content: () -> Content
 
     /// S1 单一事实源：抽屉呈现位移（0＝合拢、travel
@@ -259,19 +281,22 @@ private struct DrawerShell<Content: View>: View {
     /// 抽屉本体与蒙层，TabView 不再读它）
     @State private var drawerOffset: CGFloat = 0
     /// 推开量（录屏量测：全开抽屉右缘在屏宽 79%，
-    /// §30 量测表；上限 400 防大屏抽屉过宽）与窗口底
-    /// 部安全区 inset（喂 DrawerView 底条手算）：壳层
-    /// 在本体上以 onGeometryChange 量测——0.7.1
-    /// §3.3 结构修复：TabView 不再被 GeometryReader
-    /// 包裹，回归正常安全区传递链（贴底病处方 §1.4）
+    /// §30 量测表；上限 400 防大屏抽屉过宽）：壳层在
+    /// 本体上以 onGeometryChange 量测——0.7.1 §3.3
+    /// 结构修复：TabView 不再被 GeometryReader 包
+    /// 裹，回归正常安全区传递链（贴底病处方 §1.4）。
+    /// （0.19.0 退役同处量测的窗口底 inset：它只喂
+    /// DrawerView 底条的 0.4.5 手算下边距，底条拆双
+    /// 计后无人消费，量测与入参一并撤）
     @State private var travel: CGFloat = 0
-    @State private var bottomSafeInset: CGFloat = 0
     /// S5 挂载态：预挂载（左缘热区触摸按下/语义打开
-    /// 信号到达即挂载＋名单预取）＋迟卸载（归位动画
-    /// 结束且 offset＝0 持续 150ms 后才卸）——关闭静
-    /// 止零绘制的目标不变（0.6.1 按需挂载的初衷），
-    /// 只是挂载点提前、卸载点推迟，换掉起步帧建树
-    /// 卡顿与关抽屉瞬间名单整幅消失（§1.5-4）
+    /// 信号到达即挂载）＋迟卸载（归位动画结束且
+    /// offset＝0 持续 150ms 后才卸）——关闭静止零绘
+    /// 制的目标不变（0.6.1 按需挂载的初衷），只是挂
+    /// 载点提前、卸载点推迟，换掉起步帧建树卡顿与关
+    /// 抽屉瞬间整幅消失（§1.5-4；0.19.0 前此注作
+    /// 「名单预取/名单整幅消失」，名单退役后口径同
+    /// 步，机制不变）
     @State private var drawerMounted = false
     /// 本次手势会话：首次 onChanged 建立（记接管起
     /// 点与是否桥接）；方向锁定达成前 lockTranslation
@@ -335,7 +360,6 @@ private struct DrawerShell<Content: View>: View {
             if drawerMounted {
                 DrawerView(
                     width: travel,
-                    bottomSafeInset: bottomSafeInset,
                     currentTab: selection,
                     onSelectTab: { selection = $0 },
                     onClose: { setDrawer(false) },
@@ -365,17 +389,13 @@ private struct DrawerShell<Content: View>: View {
                 .gesture(drawerDragGesture)
                 .simultaneousGesture(edgePrepareGesture)
         }
-        // 推开量/底 inset 量测（壳层本体上量，不包裹
-        // TabView、不扰动其安全区传递，§3.3 口径沿用）
+        // 推开量量测（壳层本体上量，不包裹 TabView、
+        // 不扰动其安全区传递，§3.3 口径沿用；同处的底
+        // inset 量测已于 0.19.0 随底条手算退役删除）
         .onGeometryChange(for: CGSize.self) { proxy in
             proxy.size
         } action: { _, size in
             travel = min(size.width * 0.79, 400)
-        }
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.safeAreaInsets.bottom
-        } action: { _, inset in
-            bottomSafeInset = inset
         }
         // 语义开合对账：ChatView 汉堡钮等只写 AppState
         // .drawerPresented，壳层在此执行（setDrawer 内
@@ -394,7 +414,8 @@ private struct DrawerShell<Content: View>: View {
     /// 键盘（纪律＋旧承载同口径：键盘不许跟进抽屉世
     /// 界；聊天页焦点句柄在页内、壳层走系统第一响应
     /// 者通道直收）。语义状态同步回写 AppState
-    /// （DrawerView 拉数据与各处对账都读它）。
+    /// （各处对账读它；0.19.0 前 DrawerView 还据此拉
+    /// 名单数据，名单退役后该用途消灭）。
     /// 0.3.2 起抽屉吸附不挂触觉（口径不变）
     private func setDrawer(_ open: Bool) {
         if open {
@@ -431,8 +452,10 @@ private struct DrawerShell<Content: View>: View {
         #endif
     }
 
-    /// S5 预挂载：挂载＋触发名单数据预取（DrawerView
-    /// 挂载即 @Query 建树、onAppear 补拉服务端会话组）
+    /// S5 预挂载（0.19.0 前兼触发名单数据预取——Drawer-
+    /// View 挂载即 @Query 建树、onAppear 补拉服务端会
+    /// 话组；名单退役后本处只剩挂载建树一职，导航树
+    /// 很轻、预挂载口径不变）
     private func mountDrawer() {
         mountGeneration += 1
         drawerMounted = true

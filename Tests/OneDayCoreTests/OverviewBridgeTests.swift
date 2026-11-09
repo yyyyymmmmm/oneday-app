@@ -163,6 +163,53 @@ final class OverviewBridgeTests: XCTestCase {
         )
     }
 
+    // 0.19.0：状态点语气与状态词同源（classify 一处判
+    // 定）——桥挂＋通道在时词报「在线」、点必须是
+    // online（绿），不许再落灰；下列用例与上方词用例
+    // 逐条对位钉死
+    func testToneOnlineWhenBridgeDownButChannelUp() {
+        XCTAssertEqual(
+            OverviewStatusLine.tone(snapshot: nil, hermesChannelUp: true),
+            .online
+        )
+    }
+
+    func testToneOfflineWhenChannelDownEvenIfBridgeUp() {
+        XCTAssertEqual(
+            OverviewStatusLine.tone(
+                snapshot: snapshot(hermesUp: true, pending: 2),
+                hermesChannelUp: false
+            ),
+            .offline
+        )
+    }
+
+    func testToneOfflineWhenNoSnapshotAndChannelUnknown() {
+        XCTAssertEqual(
+            OverviewStatusLine.tone(snapshot: nil, hermesChannelUp: nil),
+            .offline
+        )
+    }
+
+    func testToneAttentionWhenPendingApprovals() {
+        XCTAssertEqual(
+            OverviewStatusLine.tone(
+                snapshot: snapshot(active: 1, pending: 2),
+                hermesChannelUp: true
+            ),
+            .attention
+        )
+    }
+
+    func testToneOnlineWhenBridgeReportsUp() {
+        XCTAssertEqual(
+            OverviewStatusLine.tone(
+                snapshot: snapshot(), hermesChannelUp: nil
+            ),
+            .online
+        )
+    }
+
     func testBadgeAggregatesUnreadAndPending() {
         XCTAssertEqual(
             OverviewBadge.count(snapshot: snapshot(pending: 3, unread: 4)), 7

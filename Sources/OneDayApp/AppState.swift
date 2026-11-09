@@ -125,12 +125,20 @@ final class AppState {
     var pendingChatSessionID: String?
     /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
     var cronCreateRequested = false
+    /// 抽屉「枢纽」导航行的开枢纽请求（0.19.0）：抽屉置
+    /// 位（先切聊天格再置位），ChatView 消费后开枢纽
+    /// sheet 并清零——置位—消费—清零与 cronCreate-
+    /// Requested 同式。枢纽 sheet 本体长在聊天页（胶囊
+    /// 入口同处），不在抽屉另立第二份承载
+    var hubOpenRequested = false
     /// 聊天抽屉开合的语义状态（0.2.2 立；0.4.5 改口径，
-    /// §30）：壳层 ContentView 是执行者（推式动画与跟手
+    /// §30）：壳层 ContentView 是执行者（覆盖式动画与跟手
     /// 状态在壳层），任何视图想开/关抽屉只写这里、壳层
-    /// onChange 执行；DrawerView 据此在打开时拉服务端
-    /// 会话组。（0.2.2–0.4.4 的旧注「ContentView 据此
-    /// 隐藏自绘底栏」随自绘底栏与覆盖式抽屉一并作废）
+    /// onChange 执行。（0.19.0：抽屉改纯导航形态、不再
+    /// 列对话，0.4.5–0.18.0 的「DrawerView 据此在打开时
+    /// 拉服务端会话组」口径作废；0.2.2–0.4.4 的旧注
+    /// 「ContentView 据此隐藏自绘底栏」随自绘底栏与覆
+    /// 盖式抽屉一并作废）
     var drawerPresented = false
     /// 抽屉与 ChatView 之间的三条通道（0.4.5，抽屉提到
     /// 壳层后立；模式与 pendingChatSessionID 一致：置位

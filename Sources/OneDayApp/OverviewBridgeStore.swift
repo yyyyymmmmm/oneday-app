@@ -35,6 +35,16 @@ final class OverviewBridgeStore {
         )
     }
 
+    /// 状态点语气（0.19.0）：与 statusLine 同源（Core
+    /// classify 一处判定），胶囊点色只认它，不许 App 层
+    /// 再拿桥快照另立判定（旧色源与词两源分叉、词报
+    /// 「在线」点落灰，用户 22:26 真机点名）
+    var statusTone: OverviewStatusLine.Tone {
+        OverviewStatusLine.tone(
+            snapshot: snapshot, hermesChannelUp: hermesChannelUp
+        )
+    }
+
     var badgeCount: Int {
         OverviewBadge.count(snapshot: snapshot)
     }
