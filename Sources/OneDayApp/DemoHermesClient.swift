@@ -60,7 +60,7 @@ struct DemoHermesClient: HermesClientProtocol {
     /// 「已出半截字＋流式光标」的流式效果；总时长约 14 秒。
     func chatStream(
         config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage]
-    ) -> AsyncThrowingStream<String, Error> {
+    ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         let reply = """
         好。那我先从定时任务模块动手：列表、新建、暂停、立即触发、运行记录，五条接口都是现成的，第一版只做查看和启停，编辑放第二轮。做完先出包给你验，通过了我再碰技能和会话。
         """
@@ -74,7 +74,7 @@ struct DemoHermesClient: HermesClientProtocol {
                         return
                     }
                     let next = min(index + 1, characters.count)
-                    continuation.yield(String(characters[index..<next]))
+                    continuation.yield(.content(String(characters[index..<next])))
                     index = next
                     try? await Task.sleep(for: .milliseconds(130))
                 }

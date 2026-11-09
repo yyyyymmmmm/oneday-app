@@ -18,10 +18,11 @@ protocol HermesClientProtocol: Sendable {
     func configSummary(config: ServerConfig) async throws -> ServerConfigSummary
     /// 探活三：GET /v1/models（Bearer API 密钥），返回模型 id 列表
     func models(config: ServerConfig, apiKey: String) async throws -> [String]
-    /// POST /v1/chat/completions 流式：逐段产出文本增量
+    /// POST /v1/chat/completions 流式：逐段产出通道事件
+    /// （正文增量／思考增量分开，0.5.1 §32）
     func chatStream(
         config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage]
-    ) -> AsyncThrowingStream<String, Error>
+    ) -> AsyncThrowingStream<ChatStreamEvent, Error>
     /// 清除某服务器的全部会话 cookie（断开连接时调用）
     func clearCookies(config: ServerConfig)
 
@@ -348,7 +349,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func chatStream(
         config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage]
-    ) -> AsyncThrowingStream<String, Error> {
+    ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -393,7 +394,9 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                         }
                         switch parser.consume(line: line) {
                         case .delta(let text):
-                            continuation.yield(text)
+                            continuation.yield(.content(text))
+                        case .reasoning(let text):
+                            continuation.yield(.reasoning(text))
                         case .done:
                             continuation.finish()
                             return

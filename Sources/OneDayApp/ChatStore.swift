@@ -51,16 +51,25 @@ final class ChatEntry {
     /// 生成（可选＋默认 nil、SwiftData 轻量迁移）
     var quoteRole: String? = nil
     var quoteContent: String? = nil
+    /// 0.5.1：助手回复的思考原文（reasoning 通道落盘，
+    /// §32）——只作折叠单元展示、不回灌请求上下文；
+    /// reasoningSeconds 为流内实测思考耗时（首个思考增
+    /// 量→首个正文增量或流结束），无思考或无数据为 nil
+    /// （可选＋默认 nil、SwiftData 轻量迁移）
+    var reasoning: String? = nil
+    var reasoningSeconds: Double? = nil
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil) {
         id = UUID()
         self.role = role
         self.content = content
         self.imageData = imageData
         quoteRole = quote?.role
         quoteContent = quote?.content
+        self.reasoning = reasoning
+        self.reasoningSeconds = reasoningSeconds
         createdAt = Date()
         self.thread = thread
     }

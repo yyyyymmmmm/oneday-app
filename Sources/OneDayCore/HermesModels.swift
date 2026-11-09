@@ -206,10 +206,18 @@ public struct ChatMessage: Codable, Sendable, Equatable {
 
 /// 流式分片（stream=true 时逐行 data: 推送）：
 /// {"choices": [{"delta": {"content": "…"}, "finish_reason": null}]}
+/// 思考增量走独立字段（0.5.1，§32）：
+/// {"choices": [{"delta": {"reasoning_content": "…"}}]}
 public struct ChatStreamChunk: Decodable, Sendable {
     public struct Choice: Decodable, Sendable {
         public struct Delta: Decodable, Sendable {
             public let content: String?
+            public let reasoningContent: String?
+
+            enum CodingKeys: String, CodingKey {
+                case content
+                case reasoningContent = "reasoning_content"
+            }
         }
 
         public let delta: Delta?
@@ -228,4 +236,24 @@ public struct ChatStreamChunk: Decodable, Sendable {
         guard let text = choices.first?.delta?.content, !text.isEmpty else { return nil }
         return text
     }
+
+    /// 本分片的思考增量（无思考分片返回 nil）。形态定案
+    /// （0.5.1 前置核查，§32）：Hermes 网关 /v1/chat/completions
+    /// 流式把 agent 的 reasoning_callback 结构化增量以
+    /// DeepSeek 风格独立字段 delta.reasoning_content 下发
+    /// （gateway/platforms/api_server_openai_routes.py
+    /// @ v0.23.0 生产同版源码坐实），非 <think> 内联
+    public var deltaReasoning: String? {
+        guard let text = choices.first?.delta?.reasoningContent,
+              !text.isEmpty else { return nil }
+        return text
+    }
+}
+
+/// 流式通道事件（0.5.1，§32）：正文与思考分开走——
+/// 客户端 chatStream 的元素类型，视图层按通道分别过
+/// 发布闸与呈现（正文进气泡、思考进折叠单元）
+public enum ChatStreamEvent: Equatable, Sendable {
+    case content(String)
+    case reasoning(String)
 }

@@ -31,6 +31,19 @@ struct ChatView: View {
     @State private var input = ""
     /// 非 nil 表示正在生成：值是已累积的流式文本
     @State private var streamingText: String?
+    /// 流式思考（reasoning）已发布快照（0.5.1，§32）：
+    /// 非 nil 表示本轮已收到思考增量；思考原文经发布
+    /// 闸合并后写入，呈现走 streamingRow 内的折叠单元
+    @State private var streamingReasoning: String?
+    /// 本轮首个思考增量的到达时刻（0.5.1）：折叠单元
+    /// 实时计时与落盘 reasoningSeconds 的计时起点
+    @State private var reasoningStartedAt: Date?
+    /// 正文/思考两条通道的发布合并闸（0.5.1，§32，
+    /// OneDayCore.StreamPublishGate）：增量先攒缓冲、
+    /// 按 80ms 窗或 64 字阈值合并发布，与 streamFollow-
+    /// Gate（管滚动）分工互不替代；runStream 起止归零
+    @State private var contentPublishGate = StreamPublishGate()
+    @State private var reasoningPublishGate = StreamPublishGate()
     /// Qwen 冷启唤醒重试中（0.3.0 接线，§15）：等待行亮
     /// 「模型唤醒中」提示
     @State private var isWakingModel = false
@@ -805,8 +818,20 @@ struct ChatView: View {
                 .modifier(messageMenu(for: entry))
             }
         } else {
-            assistantBubble {
-                MarkdownText(entry.content)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                // 0.5.1（§32）：思考折叠单元挂在正文泡
+                // 上方同一列——有落盘思考才出现，默认折
+                // 叠、点开看原文（ReasoningBlock）
+                if let reasoning = entry.reasoning, !reasoning.isEmpty {
+                    ReasoningBlock(
+                        text: reasoning,
+                        seconds: entry.reasoningSeconds,
+                        isStreaming: false
+                    )
+                }
+                assistantBubble {
+                    MarkdownText(entry.content)
+                }
             }
             .modifier(messageMenu(for: entry))
         }
@@ -898,6 +923,24 @@ struct ChatView: View {
 
     @ViewBuilder
     private func streamingRow(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            // 0.5.1（§32）：思考先于正文到达时，折叠单
+            // 元在等待泡/流式泡上方展开呈现（恒展开＋
+            // 实时计时，ReasoningBlock 流式态）
+            if let reasoning = streamingReasoning {
+                ReasoningBlock(
+                    text: reasoning,
+                    seconds: nil,
+                    isStreaming: true,
+                    startedAt: reasoningStartedAt
+                )
+            }
+            streamingBubble(text)
+        }
+    }
+
+    @ViewBuilder
+    private func streamingBubble(_ text: String) -> some View {
         if text.isEmpty {
             assistantBubble {
                 if isWakingModel {
@@ -1684,23 +1727,69 @@ private struct ComposerBarLayout: Layout {
     private func runStream(thread: ChatThread, messages: [ChatMessage]) async {
         guard let config = appState.config, let apiKey = appState.apiKey else {
             streamingText = nil
+            streamingReasoning = nil
+            reasoningStartedAt = nil
             errorMessage = HermesError.sessionExpired.userMessage
             // 结果触感（0.3.2 纪律）：发送失败 .warning
             Haptics.warning()
             return
         }
-        var accumulated = ""
+        // 0.5.1（§32）：发布合并——SSE 增量先过发布闸
+        // （OneDayCore.StreamPublishGate）攒缓冲，按
+        // 80ms 窗／64 字阈值合并后才写 @State，下游
+        // StreamingText 不再逐增量整串重分词。本轮两闸
+        // 与思考计时先归零；精确全文恒由闸的 fullText
+        // 记账（已发布＋待发布），落盘走它、节流不丢字
+        contentPublishGate.reset()
+        reasoningPublishGate.reset()
+        streamingReasoning = nil
+        reasoningStartedAt = nil
+        var reasoningEndedAt: Date?
         var retried = false
         var failed = false
+        // 发布巡查 ticker：窗口到期把攒着的增量推给视图
+        // ——低速流的尾巴增量靠它到期，不必等下一个增
+        // 量到达；40ms 一查（半窗粒度），runStream 退
+        // 出即取消
+        let publishTicker = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(40))
+                if Task.isCancelled { break }
+                let now = ProcessInfo.processInfo.systemUptime
+                if let snapshot = contentPublishGate.collectDue(at: now) {
+                    streamingText = snapshot
+                }
+                if let snapshot = reasoningPublishGate.collectDue(at: now) {
+                    streamingReasoning = snapshot
+                }
+            }
+        }
+        defer { publishTicker.cancel() }
         while true {
             do {
                 let stream = appState.client.chatStream(
                     config: config, apiKey: apiKey,
                     model: appState.chatModel, messages: messages
                 )
-                for try await delta in stream {
-                    accumulated += delta
-                    streamingText = accumulated
+                for try await event in stream {
+                    let now = ProcessInfo.processInfo.systemUptime
+                    switch event {
+                    case .content(let delta):
+                        // 首个正文增量到达＝思考计时终点
+                        if reasoningStartedAt != nil, reasoningEndedAt == nil {
+                            reasoningEndedAt = Date()
+                        }
+                        if let snapshot = contentPublishGate.offer(delta, at: now) {
+                            streamingText = snapshot
+                        }
+                    case .reasoning(let delta):
+                        if reasoningStartedAt == nil {
+                            reasoningStartedAt = Date()
+                        }
+                        if let snapshot = reasoningPublishGate.offer(delta, at: now) {
+                            streamingReasoning = snapshot
+                        }
+                    }
                 }
                 break
             } catch {
@@ -1710,7 +1799,8 @@ private struct ComposerBarLayout: Layout {
                 // 字时自动重试一次并亮唤醒提示；已产出则照
                 // 常收尾不重发（防重复内容）；用户停止不重试
                 var shouldRetry = false
-                if accumulated.isEmpty, !retried,
+                if !contentPublishGate.hasContent,
+                   !reasoningPublishGate.hasContent, !retried,
                    appState.chatModel == ChatModels.coldStartID {
                     if let hermesError = error as? HermesError {
                         if case .cancelled = hermesError {
@@ -1742,10 +1832,33 @@ private struct ComposerBarLayout: Layout {
                 break
             }
         }
+        // 收尾 flush：残余增量精确发布（不多不少），流结
+        // 束/取消同路；落盘随后以条目变化接管最后一贴
+        let flushNow = ProcessInfo.processInfo.systemUptime
+        if let snapshot = contentPublishGate.flush(at: flushNow) {
+            streamingText = snapshot
+        }
+        if let snapshot = reasoningPublishGate.flush(at: flushNow) {
+            streamingReasoning = snapshot
+        }
         isWakingModel = false
+        let accumulated = contentPublishGate.fullText
+        let reasoningText = reasoningPublishGate.fullText
+        // 思考耗时（落盘口径）：首个思考增量→首个正文
+        // 增量，未产正文时到流结束；无思考为 nil
+        var reasoningSeconds: Double?
+        if let started = reasoningStartedAt {
+            let ended = reasoningEndedAt ?? Date()
+            reasoningSeconds = (ended.timeIntervalSince(started) * 10)
+                .rounded() / 10
+        }
         if !accumulated.isEmpty {
             modelContext.insert(
-                ChatEntry(role: "assistant", content: accumulated, thread: thread)
+                ChatEntry(
+                    role: "assistant", content: accumulated, thread: thread,
+                    reasoning: reasoningText.isEmpty ? nil : reasoningText,
+                    reasoningSeconds: reasoningText.isEmpty ? nil : reasoningSeconds
+                )
             )
             thread.updatedAt = Date()
             try? modelContext.save()
@@ -1759,6 +1872,8 @@ private struct ComposerBarLayout: Layout {
             Haptics.success()
         }
         streamingText = nil
+        streamingReasoning = nil
+        reasoningStartedAt = nil
         sendTask = nil
     }
 }
