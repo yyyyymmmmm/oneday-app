@@ -14,20 +14,18 @@ import Foundation
 /// ISO8601 解析（桥的时间字段形态：带时区偏移、可带
 /// 小数秒；两种都试，失败返回 nil 不许猜）
 public enum BoxISO8601 {
-    private static let withFraction: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-    private static let plain: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
+    // ISO8601DateFormatter 非 Sendable，Swift 6 不许作
+    // 静态共享——解析是低频调用，每次现造，不缓存
     public static func parse(_ raw: String?) -> Date? {
         guard let raw, !raw.isEmpty else { return nil }
-        return withFraction.date(from: raw) ?? plain.date(from: raw)
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [
+            .withInternetDateTime, .withFractionalSeconds
+        ]
+        if let date = withFraction.date(from: raw) { return date }
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: raw)
     }
 }
 
