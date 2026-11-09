@@ -3015,7 +3015,23 @@ Material 打底方案撤销，改走「把 bar 注册进系
   Info.plist 字面量 CFBundleShortVersionString
   0.4.3／CFBundleVersion 27）＋SettingsView 关
   于区显示串 0.4.3（§25.7 假绿教训口径）
-- CI 与单测、IPA 字节与解包验版：见随版回填
+- 代码提交 ef2afcb（bar 注册路线）＋7728997
+  （§28.9 图标锁）；本回填为 docs-only 后随提
+  交，IPA 不受影响
+- CI run 42556265029 success（构建＋单测全绿；
+  注：本仓 workflow 仅 main 分支 push 自动触发，
+  本次经 workflow_dispatch 以 feat/ia-v3 触发）
+- 单测 127（与 0.4.2 同数：本批无新增用例，键
+  盘链相关的 ComposerLayout／ComposerText-
+  Metrics／BottomFollow 诸套件在内、全绿，日志
+  聚合行 "Executed 127 tests, with 0 failures"
+  实查）
+- IPA：your_files/oneday-v0.4.3/oneday-
+  unsigned.ipa，2,202,583 字节，md5 与 CI 工件
+  一致（557cb876144fc912bc6e989268ffa3b3）
+- 解包验版：Payload/OneDayApp.app/Info.plist＝
+  CFBundleShortVersionString 0.4.3／CFBundle-
+  Version 27／bundle id site.didichou.oneday ✓
 - 未验证（如实标注）：顶/底化开强度、抽屉底
   条落点与搜索键盘跟随、聊天键盘四项（28.4）
   均无自动证据，归用户真机终审
