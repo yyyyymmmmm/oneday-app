@@ -1,0 +1,290 @@
+import OneDayCore
+import OneDayDesign
+import UIKit
+import XCTest
+
+/// 渲染量测自证（0.3.8 证据纪律）：在模拟器里离线渲染
+/// SF Symbol 与文字，按像素 alpha 取样，给出与 fixlist
+/// 同类口径的复量数——图标墨迹密度 %（紧致 alpha 包围
+/// 盒口径，另附 44pt 格口径）、字形墨高 pt、笔画宽 pt。
+/// 每项都 print 一行 MEASURE…，CI 日志可 grep 复核。
+/// 方法与口径全文记在 DESIGN-V4 §24.1。注意：本测试只
+/// 量测、不产图、不落盘，没有任何截图工作流（红线）。
+final class RenderMeasureTests: XCTestCase {
+    // MARK: - 取样基础设施
+
+    private struct InkStats {
+        /// 紧致包围盒内的墨迹密度（0–1）
+        var density: Double
+        /// 44pt 方格口径密度（格大于字形时按实际边长）
+        var cellDensity: Double
+        var tightWidthPt: CGFloat
+        var tightHeightPt: CGFloat
+    }
+
+    /// 像素 alpha 分析：alpha>12 记墨；紧致盒＝墨像素的
+    /// 最小包围盒；密度与尺寸都以 image.scale 换算回 pt
+    private func analyze(_ image: UIImage) -> InkStats? {
+        guard let cg = image.cgImage else { return nil }
+        let w = cg.width
+        let h = cg.height
+        var data = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(
+            data: &data, width: w, height: h, bitsPerComponent: 8,
+            bytesPerRow: w * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        var minX = w, minY = h, maxX = -1, maxY = -1, ink = 0
+        for y in 0..<h {
+            for x in 0..<w where data[(y * w + x) * 4 + 3] > 12 {
+                ink += 1
+                if x < minX { minX = x }
+                if x > maxX { maxX = x }
+                if y < minY { minY = y }
+                if y > maxY { maxY = y }
+            }
+        }
+        guard maxX >= 0 else { return nil }
+        let tightW = Double(maxX - minX + 1)
+        let tightH = Double(maxY - minY + 1)
+        let scale = Double(image.scale)
+        let cellPx = 44.0 * scale
+        return InkStats(
+            density: Double(ink) / (tightW * tightH),
+            cellDensity: Double(ink) / (cellPx * cellPx),
+            tightWidthPt: CGFloat(tightW / scale),
+            tightHeightPt: CGFloat(tightH / scale)
+        )
+    }
+
+    private func symbol(
+        _ name: String, size: CGFloat,
+        weight: UIImage.SymbolWeight = .regular
+    ) -> UIImage? {
+        UIImage(
+            systemName: name,
+            withConfiguration: UIImage.SymbolConfiguration(
+                pointSize: size, weight: weight
+            )
+        )
+    }
+
+    private func report(_ tag: String, _ name: String, _ stats: InkStats) {
+        print(String(
+            format: "MEASURE %@ %@ density=%.3f cell=%.3f tight=%.1fx%.1fpt",
+            tag, name, stats.density, stats.cellDensity,
+            Double(stats.tightWidthPt), Double(stats.tightHeightPt)
+        ))
+    }
+
+    // MARK: - 第 1/2 条：底栏四格（22 regular，outline）
+
+    func testTabBarSymbolInk() throws {
+        for pair in TabBarSymbols.all {
+            let image = try XCTUnwrap(
+                symbol(pair.normal, size: TabBarLayout.glyphSize),
+                "\(pair.id) 符号渲染失败"
+            )
+            let stats = try XCTUnwrap(analyze(image))
+            report("tab", pair.normal, stats)
+            // 紧致盒口径：细线 outline 合理带（实心件同口
+            // 径 0.5+，见对照打印）；44 格口径须 ≤0.30
+            XCTAssertTrue(
+                (0.05...0.45).contains(stats.density),
+                "\(pair.id) 紧致密度 \(stats.density) 出带"
+            )
+            XCTAssertLessThanOrEqual(
+                stats.cellDensity, 0.30,
+                "\(pair.id) 格口径密度 \(stats.cellDensity) 过高"
+            )
+        }
+        // 对照（只打印）：同符号的 .fill 变体同口径密度
+        for name in ["bubble.left.and.bubble.right.fill", "folder.fill"] {
+            if let image = symbol(name, size: TabBarLayout.glyphSize),
+               let stats = analyze(image) {
+                report("tab-fill-ref", name, stats)
+            }
+        }
+    }
+
+    // MARK: - 第 15/24 条：抽屉名单与底条字形（18/17 regular）
+
+    func testDrawerSymbolInk() throws {
+        for pair in TabBarSymbols.all {
+            let image = try XCTUnwrap(
+                symbol(pair.normal, size: FrameworkIcon.drawerGlyphSize),
+                "\(pair.id) 名单字形渲染失败"
+            )
+            let stats = try XCTUnwrap(analyze(image))
+            report("drawer", pair.normal, stats)
+            XCTAssertTrue(
+                (0.05...0.45).contains(stats.density),
+                "\(pair.id) 名单密度 \(stats.density) 出带"
+            )
+        }
+        let gear = try XCTUnwrap(
+            symbol("gearshape", size: FrameworkIcon.drawerBarGlyphSize)
+        )
+        let gearStats = try XCTUnwrap(analyze(gear))
+        report("drawer-bar", "gearshape", gearStats)
+    }
+
+    // MARK: - 第 14 条：设置页行图标同列密度（17 regular）
+
+    func testSettingsSymbolInk() throws {
+        let names = [
+            "server.rack", "rectangle.stack.person.crop",
+            "rectangle.portrait.and.arrow.right", "brain",
+            "puzzlepiece.extension", "clock.arrow.2.circlepath",
+            "bubble.left.and.text.bubble.right", "text.bubble",
+            "key", "chart.bar", "network", "arrow.clockwise",
+            "doc.text", "paintpalette",
+        ]
+        var densities: [String: Double] = [:]
+        for name in names {
+            let image = try XCTUnwrap(
+                symbol(name, size: FrameworkIcon.settingsGlyphSize),
+                "\(name) 渲染失败"
+            )
+            let stats = try XCTUnwrap(analyze(image))
+            report("settings", name, stats)
+            densities[name] = stats.density
+            XCTAssertLessThanOrEqual(
+                stats.density, 0.50, "\(name) 密度 \(stats.density) 过高"
+            )
+        }
+        // 同列一致性：最密与最疏不许差出 2.5 倍（复杂度档
+        // 统一的量化口径；离群者要在销账里点名换形）
+        let values = densities.values
+        if let lo = values.min(), let hi = values.max(), lo > 0 {
+            print(String(
+                format: "MEASURE settings-spread min=%.3f max=%.3f ratio=%.2f",
+                lo, hi, hi / lo
+            ))
+            XCTAssertLessThanOrEqual(hi / lo, 2.5, "设置列密度离散过大")
+        }
+    }
+
+    // MARK: - 第 32 条：＋笔画宽（15pt 目标约 1.8）
+
+    func testPlusStrokeWidth() throws {
+        for size in [FrameworkIcon.composerGlyphSize, 16.0] {
+            let image = try XCTUnwrap(symbol("plus", size: CGFloat(size)))
+            guard let cg = image.cgImage else { throw XCTSkip("无 cgImage") }
+            let w = cg.width, h = cg.height
+            var data = [UInt8](repeating: 0, count: w * h * 4)
+            guard let ctx = CGContext(
+                data: &data, width: w, height: h, bitsPerComponent: 8,
+                bytesPerRow: w * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { throw XCTSkip("无 context") }
+            ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+            // 紧致盒上 1/4 行只穿竖笔：最长墨游程＝笔宽
+            var minY = h, maxY = -1
+            for y in 0..<h {
+                for x in 0..<w where data[(y * w + x) * 4 + 3] > 12 {
+                    minY = min(minY, y); maxY = max(maxY, y)
+                }
+            }
+            let probeY = minY + (maxY - minY) / 4
+            var run = 0, best = 0
+            for x in 0..<w {
+                if data[(probeY * w + x) * 4 + 3] > 12 {
+                    run += 1; best = max(best, run)
+                } else { run = 0 }
+            }
+            let strokePt = Double(best) / Double(image.scale)
+            print(String(
+                format: "MEASURE plus-stroke size=%.0f stroke=%.2fpt",
+                Double(size), strokePt
+            ))
+            if size == FrameworkIcon.composerGlyphSize {
+                XCTAssertLessThanOrEqual(
+                    strokePt, 2.2, "＋笔画 \(strokePt)pt 过粗（目标约 1.8）"
+                )
+            }
+        }
+    }
+
+    // MARK: - 第 4/29 条：字形墨高
+
+    private func inkHeight(_ text: String, font: UIFont) -> CGFloat? {
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font, .foregroundColor: UIColor.black,
+        ]
+        let size = (text as NSString).size(withAttributes: attrs)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        let image = UIGraphicsImageRenderer(size: size, format: format)
+            .image { _ in
+                (text as NSString).draw(at: .zero, withAttributes: attrs)
+            }
+        return analyze(image)?.tightHeightPt
+    }
+
+    func testTitleInkHeights() throws {
+        // 对照：旧系统大标题量级（34 black）与新定版 30 bold
+        let reference = try XCTUnwrap(inkHeight(
+            "设置", font: .systemFont(ofSize: 34, weight: .black)
+        ))
+        let pinned = try XCTUnwrap(inkHeight(
+            "设置",
+            font: .systemFont(
+                ofSize: TextRoleWeights.settingsTitleSize, weight: .bold
+            )
+        ))
+        print(String(
+            format: "MEASURE title-ink ref34black=%.1f pinned30bold=%.1f",
+            Double(reference), Double(pinned)
+        ))
+        XCTAssertLessThan(pinned, reference)
+        XCTAssertTrue(
+            (23.0...28.0).contains(pinned),
+            "设置标题墨高 \(pinned) 出目标带（约 25.7）"
+        )
+
+        // 气泡正文：17 regular 对照 19 semibold（清单实测形态）
+        let bubble = try XCTUnwrap(inkHeight(
+            "Hermes 在线",
+            font: .systemFont(ofSize: TextRoleWeights.bubbleTextSize)
+        ))
+        let heavyRef = try XCTUnwrap(inkHeight(
+            "Hermes 在线", font: .systemFont(ofSize: 19, weight: .semibold)
+        ))
+        print(String(
+            format: "MEASURE text-ink bubble17=%.1f ref19semibold=%.1f",
+            Double(bubble), Double(heavyRef)
+        ))
+        XCTAssertLessThan(bubble, heavyRef)
+    }
+
+    // MARK: - 令牌色值（第 9/26/28/33 条＋暗色定值）
+
+    func testTokenHexValues() {
+        let light = ThemeTokens.tencentBlue.light
+        let dark = ThemeTokens.tencentBlue.dark
+        // 白浮纸（第 28 条）
+        XCTAssertEqual(light.floatFill, 0xFBFBFB)
+        XCTAssertEqual(dark.floatFill, 0x1C1C1F)
+        // 用户气泡（第 26 条）与助手泡封存值（第 33 条备忘）
+        XCTAssertEqual(light.userBubbleFill, 0xF0F0F2)
+        XCTAssertEqual(dark.userBubbleFill, 0x212126)
+        XCTAssertEqual(light.bubbleFill, 0xE9EAEC)
+        // 聊天面/选中垫基线冻值不动
+        XCTAssertEqual(light.chatSurface, 0xFCFCFC)
+        XCTAssertEqual(light.selectionFill, 0xE3E3E5)
+        // 状态绿降饱和（第 9 条）
+        XCTAssertEqual(light.success, 0x3F9163)
+        XCTAssertEqual(dark.success, 0x55A87B)
+        // 暗色定值（C 项）：墨纱 alpha 与四层微差
+        XCTAssertEqual(dark.scrimAlpha, 0.50)
+        XCTAssertEqual(dark.chatSurface, 0x131316)
+        XCTAssertEqual(dark.selectionFill, 0x2C2C2F)
+        // 强调变体行继承结构令牌（floatFill 不随主题变）
+        XCTAssertEqual(AccentTheme.purple.tokens.light.floatFill, 0xFBFBFB)
+        XCTAssertEqual(AccentTheme.green.tokens.dark.userBubbleFill, 0x212126)
+    }
+}

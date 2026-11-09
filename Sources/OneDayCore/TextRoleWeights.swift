@@ -36,4 +36,25 @@ public enum TextRoleWeights {
     public static let heading = 700
     /// bold 上限：仅标题角色与 Markdown 粗体可用
     public static let boldCeiling = 700
+
+    // MARK: - 0.3.8 增补（fixlist 第 4/5/16/29 条＋基线补遗字体补测）
+
+    /// 设置页自绘大标题：第 4 条——系统大标题墨高实测
+    /// 29.3pt（约 34pt black 量级），定版 30pt bold、
+    /// 目标墨高约 25.7pt
+    public static let settingsTitleSize: CGFloat = 30
+    public static let settingsTitle = 700
+    /// 气泡正文（双侧）：第 29 条——17pt regular，
+    /// 不许跟标题位借 semibold
+    public static let bubbleText = 400
+    public static let bubbleTextSize: CGFloat = 17
+    /// 名单/导航行文字：第 16 条——17pt regular
+    public static let navRowText = 400
+    public static let navRowTextSize: CGFloat = 17
+    /// 内容标题（补遗字体补测合法领地）：内容卡/文章式
+    /// 标题 19–21pt semibold——这是账本里 semibold 唯一
+    /// 合法角色（框架位仍禁 600，见 boldCeiling 口径与
+    /// §22.6 注）；框架页标题走 700 不走本角色
+    public static let contentTitle = 600
+    public static let contentTitleSizeRange: ClosedRange<CGFloat> = 19...21
 }

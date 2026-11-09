@@ -85,10 +85,8 @@ struct ChatView: View {
     /// 撤销——它由 Layout 内异步回写、滞后布局一拍，是
     /// 0.3.4 真机回车重影的定因（见 §20.1）
     @State private var composerCapsuleHeight: CGFloat = 46
-    /// 原生底栏在屏幕底部的占位，抽屉面板底部按它留位避让
-    /// 服务器行（0.2.6 起发送舱已不在覆盖层、不再用它抬升；
-    /// 0.3.2 数值收进 OneDayMetrics.tabBarZone 具名令牌）
-    private let tabBarZone = OneDayMetrics.tabBarZone
+    // （0.3.8 删残：tabBarZone 本地副本随抽屉钉底删除——
+    // 它唯一的用途是抽屉面板底部占位，第 22 条已废）
 
     private var currentThread: ChatThread? {
         threads.first { $0.id == currentThreadID } ?? threads.first
@@ -113,7 +111,8 @@ struct ChatView: View {
                     width: min(
                         geo.size.width * OneDayMetrics.drawerWidthFraction,
                         OneDayMetrics.drawerMaxWidth
-                    )
+                    ),
+                    bottomInset: geo.safeAreaInsets.bottom
                 )
             }
         }
@@ -221,112 +220,107 @@ struct ChatView: View {
             startPoint: .top,
             endPoint: .bottom
         )
-        .frame(height: 128)
+        // 0.3.8：顶栏改两段（胶囊行＋会话名次行）后带高
+        // 随之加至 150，几何口径同原注（覆盖胶囊一线＋余量）
+        .frame(height: 150)
         .ignoresSafeArea(edges: .top)
         .allowsHitTesting(false)
     }
 
-    /// 悬浮顶栏：左右系统玻璃角钮＋居中标题/模型胶囊，浮在
-    /// 内容之上、无底色、无分界线，内容可滚到角钮背后。
-    /// 角钮用系统 .glass 按钮样式＋.buttonBorderShape
-    /// (.circle)，不再自绘 glassEffect 圆（0.2.3 的权宜件）。
-    /// 0.2.5：中心由裸文字改悬浮玻璃胶囊（对照 Muse 顶端
-    /// 中央的身份胶囊）——0.2.4 的裸文字悬浮时，正文上滚会
-    /// 直接从标题文字里穿过、字撞字（用户真机截图实证）；
-    /// 收进胶囊后标题自带玻璃底，撞色问题根除。整颗胶囊
-    /// 可点（开模型选择器，与此前只有模型行可点的口径一致
-    /// 地扩大命中区）。
+    /// 身份状态（0.3.8 第 30 条）：胶囊状态位只报属实的
+    /// 三态——未连接/唤醒中/生成中/在线，词与点同源
+    private var identityStatus: (word: String, color: Color) {
+        if appState.config == nil { return ("未连接", Palette.inkMuted) }
+        if isWakingModel { return ("唤醒中", Palette.warning) }
+        if isStreaming { return ("生成中", Palette.success) }
+        return ("在线", Palette.success)
+    }
+
+    /// 悬浮顶栏（0.3.8 第 30/31 条按裁决布局重排）：身份
+    /// 胶囊只装头像＋Hermes＋状态（IdentityAnchor 全局同
+    /// 一组件），模型选择器缩成它右侧的小胶囊，会话名退
+    /// 到胶囊下方次行居中呈现；左右圆钮走白浮纸画法。
+    /// 左钮字形改汉堡线（第 31 条：与抽屉的隐喻对齐，
+    /// 「分栏」图标 sidebar.left 退场）。顶栏总高约
+    /// 40＋次行 18，比 0.3.7 的两行胶囊更紧凑（旧胶囊
+    /// 167pt 宽纯文字、无头像无 Hermes 名——第 30 条点名）
     private var headerBar: some View {
-        HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
-            Button {
-                setDrawer(true)
-            } label: {
-                Image(systemName: "sidebar.left")
-                    // 0.3.3：顶栏两钮共用 HeaderButtonSpec
-                    // 规格（直径 40／字形 20，与右钮同值，
-                    // 单测钉住；此前两处各写 36/15）
-                    // 0.3.7 卡 19：字形改 regular（§22.5），
-                    // 圆钮去玻璃描边——无边白面＋柔影
-                    .font(.system(
-                        size: HeaderButtonSpec.glyphPointSize,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(Palette.ink)
-                    .frame(
-                        width: HeaderButtonSpec.diameter,
-                        height: HeaderButtonSpec.diameter
-                    )
-                    .background(Palette.surface, in: Circle())
-                    .shadow(
-                        color: Palette.shadowBase.opacity(0.10),
-                        radius: 12, y: 4
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("会话列表")
-
-            Spacer()
-
-            Button {
-                showModelPicker = true
-            } label: {
-                VStack(spacing: 1) {
-                    Text(currentThread?.title ?? "聊天")
-                        // 0.3.3：胶囊标题走 capsuleTitle 角色
-                        // （0.3.7 账本：标题位 bold）
-                        .font(TypeScale.capsuleTitle)
+        VStack(spacing: 6) {
+            HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
+                Button {
+                    setDrawer(true)
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        // 两钮共用 HeaderButtonSpec（直径 40／
+                        // 字形 20 regular）；0.3.8 画法换白浮
+                        // 纸（odFloatPaper：近白＋发丝边＋柔影）
+                        .font(.system(
+                            size: HeaderButtonSpec.glyphPointSize,
+                            weight: .regular
+                        ))
                         .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                    HStack(spacing: 3) {
-                        Text(displayModelName)
-                            .font(TypeScale.caption)
-                            .lineLimit(1)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .bold))
-                    }
-                    .foregroundStyle(Palette.inkSecondary)
+                        .frame(
+                            width: HeaderButtonSpec.diameter,
+                            height: HeaderButtonSpec.diameter
+                        )
+                        .odFloatPaper(in: Circle())
                 }
-                .padding(.horizontal, OneDayMetrics.spacingSM + 2)
-                .padding(.vertical, 6)
-                // 0.2.6 缺陷 B：胶囊贴合内容（两行文字自然宽
-                // ＋内边距），上限由 240 收至 200，与左右角钮
-                // 留出明确间隙（0.2.5 真机实测约占屏宽 65%）
-                .frame(maxWidth: 200)
-                // 0.3.7 卡 19：胶囊去描边——无边白面＋柔影
-                .background(Palette.surface, in: Capsule())
-                .shadow(
-                    color: Palette.shadowBase.opacity(0.10),
-                    radius: 12, y: 4
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("切换模型")
+                .buttonStyle(.plain)
+                .accessibilityLabel("会话列表")
 
-            Spacer()
+                Spacer()
 
-            Button {
-                newThread()
-            } label: {
-                Image(systemName: "square.and.pencil")
-                    // 0.3.3：与左钮同一份 HeaderButtonSpec
-                    // 0.3.7 卡 19：同左钮——regular＋白面柔影
-                    .font(.system(
-                        size: HeaderButtonSpec.glyphPointSize,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(Palette.ink)
-                    .frame(
-                        width: HeaderButtonSpec.diameter,
-                        height: HeaderButtonSpec.diameter
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    IdentityAnchor(
+                        name: "Hermes",
+                        statusWord: identityStatus.word,
+                        statusColor: identityStatus.color
                     )
-                    .background(Palette.surface, in: Circle())
-                    .shadow(
-                        color: Palette.shadowBase.opacity(0.10),
-                        radius: 12, y: 4
-                    )
+                    Button {
+                        showModelPicker = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(displayModelName)
+                                .font(TypeScale.callout)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundStyle(Palette.ink)
+                        .padding(.horizontal, OneDayMetrics.spacingSM)
+                        .padding(.vertical, 9)
+                        .odFloatPaper(in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("切换模型，当前 \(displayModelName)")
+                }
+
+                Spacer()
+
+                Button {
+                    newThread()
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(
+                            size: HeaderButtonSpec.glyphPointSize,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(Palette.ink)
+                        .frame(
+                            width: HeaderButtonSpec.diameter,
+                            height: HeaderButtonSpec.diameter
+                        )
+                        .odFloatPaper(in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("新建会话")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("新建会话")
+
+            // 会话名次行（第 30 条）：退居中弱行，不再占胶囊
+            Text(currentThread?.title ?? "新会话")
+                .font(TypeScale.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(1)
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.top, OneDayMetrics.spacingS)
@@ -340,6 +334,15 @@ struct ChatView: View {
     /// 被顶到键盘上方（系统通道，见 chatSurface 换代注）。
     /// 高度只认内容：本 VStack 与发送舱各环保留 fixedSize
     /// 断环（0.2.5），在布局流里是双保险。
+    /// 自绘底栏避让（0.3.8 第 2 条连带）：原生栏隐藏后
+    /// 列表底部安全区不再含栏高，发送舱须自行为悬浮栏
+    /// 让位——栏可见（抽屉关＋键盘收）时底部补 64（栏高
+    /// 58＋底边距 8＋呼吸 6−发送舱自带底边距 8 的净值）；
+    /// 键盘升起时发送舱骑键盘、底栏被键盘盖住，让位归零
+    private var tabBarClearance: CGFloat {
+        (drawerOpen || composerFocused) ? 0 : 64
+    }
+
     private func bottomBar(_ proxy: ScrollViewProxy) -> some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             if !isNearBottom && currentThread != nil {
@@ -359,6 +362,13 @@ struct ChatView: View {
             inputBar
         }
         .fixedSize(horizontal: false, vertical: true)
+        .padding(.bottom, tabBarClearance)
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: tabBarClearance
+        )
         // 条 9（§14）：回到底部钮的出入是小动作类，动画走
         // 定版 microSpring（380/18 微弹）；0.3.2 统一经
         // resolved 出口（Reduce Motion 时瞬时）
@@ -370,8 +380,8 @@ struct ChatView: View {
         )
     }
 
-    /// 回到底部：系统 .glass 圆钮（0.2.4 换原生玻璃，撤掉
-    /// 此前的实色底＋自绘阴影浮钮）
+    /// 回到底部圆钮（0.2.4 曾换原生玻璃；0.3.8 第 28 条
+    /// 浮件统一白浮纸——圆钮全体同画法）
     private func scrollToBottomButton(_ proxy: ScrollViewProxy) -> some View {
         Button {
             scrollToBottom(proxy)
@@ -380,11 +390,7 @@ struct ChatView: View {
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 34, height: 34)
-                .background(Palette.surface, in: Circle())
-                .shadow(
-                    color: Palette.shadowBase.opacity(0.10),
-                    radius: 12, y: 4
-                )
+                .odFloatPaper(in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("回到底部")
@@ -473,7 +479,9 @@ struct ChatView: View {
         // 留位（0.2.6），不再按悬浮层实测高度给边距。
         // .scrollEdgeEffectStyle(.soft) 保留，与渐隐带并用
         // （白底上单独不可感、带子承担实际淡出，见 topFade）
-        .contentMargins(.top, 64, for: .scrollContent)
+        // 0.3.8：顶栏两段化（胶囊行 42＋次行 18＋边距）
+        // 后首屏让位 64 → 88
+        .contentMargins(.top, 88, for: .scrollContent)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .contentMargins(.bottom, OneDayMetrics.spacingS, for: .scrollContent)
         // 0.2.6 承载换代核心：发送区进列表的底部安全区
@@ -577,17 +585,22 @@ struct ChatView: View {
                         // 条 8（§14）：段落渲染前过断行整形
                         // （尾行孤字防护，TextShaping 纯函数）
                         Text(TextShaping.prettyWrapDocument(entry.content))
-                            .font(TypeScale.body)
+                            // 0.3.8 第 29 条：气泡正文走显式
+                            // bubbleBody（17 regular），与助手
+                            // 侧 MarkdownText/StreamingText 同
+                            .font(TypeScale.bubbleBody)
                             .foregroundStyle(Palette.ink)
                             .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                             .padding(.vertical, OneDayMetrics.bubblePaddingV)
                             .background(
                                 // 0.3.4 去染色（§19 变/不变表）：
-                                // 用户气泡是表面容器、归中性
-                                // ——改与卡面同族的 surface，
-                                // primaryTint 染色撤销（用户
-                                // 令「颜色不要跟着主题变」）
-                                Palette.surface,
+                                // 用户气泡是表面容器、归中性，
+                                // primaryTint 染色撤销
+                                // 0.3.8 第 26 条：纯白 #FFFFFF
+                                // 在 #FCFCFC 底上等于无气泡——
+                                // 换中性浅灰 userBubbleFill，与
+                                // 助手泡同家族拉开深浅、恒中性
+                                Palette.userBubbleFill,
                                 in: RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
                             )
                     }
@@ -765,7 +778,15 @@ struct ChatView: View {
             composerRow
                 // 0.3.7 卡 19：输入框撤玻璃——无边中灰填充
                 // （fieldFill，与底栏/抽屉搜索同家族）
-                .background(Palette.fieldFill, in: composerShape)
+                // 0.3.8 第 28 条：灰贴片换白浮纸——近白填充
+                // （floatFill）＋发丝描边 0.5；柔影由下方双环
+                // 影承担（静止环即浮纸影、聚焦环加深，§14
+                // 条 2 的聚焦禁描边指禁焦点描边，发丝边是
+                // 浮件定位边、两口径不冲突，见 §24 对账）
+                .background(Palette.floatFill, in: composerShape)
+                .overlay {
+                    composerShape.stroke(Palette.hairline, lineWidth: 0.5)
+                }
                 // 条 2（§14）：聚焦禁描边——聚焦态不加任何
                 // stroke，改以加深的双环阴影表达（近环定界
                 // 半径 6、远环扩散半径 18），随焦点观察态
@@ -1020,7 +1041,12 @@ private struct ComposerBarLayout: Layout {
             // 语音输入未接入：占位符号，点按无动作
         } label: {
             Image(systemName: "mic")
-                .font(.system(size: 16, weight: .regular))
+                // 0.3.8 第 32 条：字形 16→15（笔画约 2.5→
+                // 1.8pt 目标），数值走 FrameworkIcon 令牌
+                .font(.system(
+                    size: FrameworkIcon.composerGlyphSize,
+                    weight: .regular
+                ))
                 .foregroundStyle(Palette.ink)
                 .frame(
                     width: ComposerLayout.buttonHeight,
@@ -1055,7 +1081,12 @@ private struct ComposerBarLayout: Layout {
             // 融合（胶囊玻璃里再套一圈圆是嵌套毛病）；＋号
             // 直接坐在发送舱胶囊的玻璃里，与 Muse 一致
             Image(systemName: "plus")
-                .font(.system(size: 16, weight: .regular))
+                // 0.3.8 第 32 条：与麦克风同档 15（笔画目标
+                // 约 1.8pt），FrameworkIcon.composerGlyphSize
+                .font(.system(
+                    size: FrameworkIcon.composerGlyphSize,
+                    weight: .regular
+                ))
                 .foregroundStyle(Palette.ink)
                 .frame(
                     width: ComposerLayout.buttonHeight,
@@ -1223,23 +1254,25 @@ private struct ComposerBarLayout: Layout {
     /// 抽屉覆盖层：白色半透纱＋peek 面板（宽约 79%、
     /// 上限 340；0.3.6 立宪，§21.3）＋左缘唤出手势层。
     /// 面板盖住聊天主面与悬浮顶栏，右侧约 21% 底层在
-    /// 纱下透出；原生底栏属系统层级、浮于抽屉之上
-    /// （0.2.4 起服从系统默认），面板底部以 tabBarZone
-    /// 留位避让。
+    /// 纱下透出。0.3.8：第 3 条——自绘底栏在抽屉打开时
+    /// 隐藏让位，面板不再按 tabBarZone 留位，底条钉到
+    /// 面板底部安全区、落进原底栏坑位（第 22 条）。
     @ViewBuilder
-    private func drawerOverlay(width: CGFloat) -> some View {
+    private func drawerOverlay(width: CGFloat, bottomInset: CGFloat) -> some View {
         // 跟手偏移：基准位（开 0 / 合 -width-8）＋跟手量
         let base = drawerOpen ? 0 : -width - 8
         let offsetX = base + drawerFollowedDrag(width: width)
         // 纱面透明度随开合进度走，拖动时不跳变
         let progress = 1 - min(max(-offsetX, 0), width) / width
         // 遮罩走 Palette.scrim（0.3.6 立宪：白色半透纱、
-        // 非黑纱，§22；全开 alpha 在令牌表行内）
+        // 非黑纱，§22；全开 alpha 在令牌表行内）；纱与
+        // 面板底色都向下穿过安全区、盖住主面底缘
         Palette.scrim
+            .ignoresSafeArea(edges: .bottom)
             .opacity(progress)
             .allowsHitTesting(drawerOpen)
             .onTapGesture { setDrawer(false) }
-        drawerPanel(width: width)
+        drawerPanel(width: width, bottomInset: bottomInset)
             .offset(x: offsetX)
             .gesture(drawerDragGesture(width: width))
         if !drawerOpen {
@@ -1252,20 +1285,24 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    private func drawerPanel(width: CGFloat) -> some View {
+    private func drawerPanel(width: CGFloat, bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             drawerAgentName
             drawerNavList
             drawerList
-            drawerBottomBar
-            // 0.2.4：原生底栏按系统层级浮于抽屉之上，面板
-            // 底部留出底栏占位，浮动条不被玻璃栏遮挡
-            Color.clear
-                .frame(height: tabBarZone)
+            // 0.3.8 第 22 条：底条钉底——0.3.7 的 tabBarZone
+            // 占位行（76）＋安全区＋列表尾留白叠出约 170pt
+            // 死白、条中心只有屏高 77.5%（本轮主犯），本轮
+            // 整行删除，底条直接坐在面板底（见 drawer-
+            // BottomBar 的钉底边距口径）
+            drawerBottomBar(bottomInset: bottomInset)
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
-        .background(Palette.chatSurface)
+        // 面板底色穿过底部安全区（条下不露主面色带）
+        .background {
+            Palette.chatSurface.ignoresSafeArea(edges: .bottom)
+        }
         // 面板收尾（0.3.6 立宪，§21.3）：右侧上下大圆角
         // ＋右缘约 30pt 柔影（浮动件许阴影，宪法三条一）
         .clipShape(
@@ -1318,9 +1355,20 @@ private struct ComposerBarLayout: Layout {
     /// 加粗。名单末尾一条发丝线与会话组分界。
     private var drawerNavList: some View {
         VStack(spacing: 0) {
+            // 0.3.8 第 20 条：导航区补分组标签（与会话区
+            // 的时间分组标签同一形态：13 regular 次级灰）
+            Text("选项卡")
+                .font(TypeScale.groupLabel)
+                .foregroundStyle(Palette.inkSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, OneDayMetrics.drawerInset)
+                .padding(.top, OneDayMetrics.spacingSM)
+                .padding(.bottom, OneDayMetrics.spacingS)
             ForEach(drawerTabs, id: \.pair.id) { item in
                 drawerNavRow(tab: item.tab, pair: item.pair)
             }
+            // 第 21 条：发丝线只留功能区之间（导航↔会话
+            // 这一条保留；会话组之间已改纯留白分段）
             drawerDivider
                 .padding(.top, OneDayMetrics.spacingS)
         }
@@ -1345,7 +1393,14 @@ private struct ComposerBarLayout: Layout {
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: pair.normal)
-                    .font(.system(size: OneDayMetrics.navGlyph))
+                    // 0.3.8 第 15 条：名单字形与底栏同线宽
+                    // 档——21 无字重 → 18 regular（令牌
+                    // FrameworkIcon.drawerGlyphSize；0.3.7
+                    // 实测对话 27.6%/文件夹 19.6% 线宽不齐）
+                    .font(.system(
+                        size: FrameworkIcon.drawerGlyphSize,
+                        weight: .regular
+                    ))
                     .foregroundStyle(Palette.ink)
                     .frame(
                         width: OneDayMetrics.spacingL,
@@ -1387,8 +1442,11 @@ private struct ComposerBarLayout: Layout {
     /// 义卡「控件跟内容走」：搜索只服务这份会话名单、
     /// 就贴在名单脚下）。圆钮映射为施工选择、规格只
     /// 定几何，§21.3 在案。
-    private var drawerBottomBar: some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
+    private func drawerBottomBar(bottomInset: CGFloat) -> some View {
+        // 0.3.8 第 23 条：三件紧凑成组——横边距 20→12、
+        // 件间距 12→8，搜索胶囊随之拉长（面板宽约 310
+        // 时胶囊约 166–174，Muse 实测约 173）
+        HStack(spacing: OneDayMetrics.spacingS) {
             drawerRoundButton(
                 // 卡 18 纠正 4：左圆钮用独立齿轮 glyph，
                 // 与名单设置行（滑杆）、底栏设置格三者不同图
@@ -1418,7 +1476,8 @@ private struct ComposerBarLayout: Layout {
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .frame(height: OneDayMetrics.drawerBarButton)
-            .background(Palette.fieldFill, in: Capsule())
+            // 0.3.8 第 25 条：搜索胶囊换白浮纸（与圆钮同改）
+            .odFloatPaper(in: Capsule())
             drawerRoundButton(
                 systemName: "square.and.pencil",
                 label: "新建会话"
@@ -1427,8 +1486,16 @@ private struct ComposerBarLayout: Layout {
                 setDrawer(false)
             }
         }
-        .padding(.horizontal, OneDayMetrics.drawerInset)
-        .padding(.vertical, OneDayMetrics.spacingSM)
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.top, OneDayMetrics.spacingSM)
+        // 第 22 条钉底边距：面板底缘即安全区底缘，面板
+        // 内边距只补 4（DrawerGeometry 面板内口径）；条
+        // 中心距物理屏底＝安全区 inset＋4＋行半高 26，
+        // 852 屏实算 92.5%（Core 函数同口径、单测钉）
+        .padding(
+            .bottom,
+            DrawerGeometry.bottomBarBottomPadding(safeAreaBottom: 0)
+        )
     }
 
     private func drawerRoundButton(
@@ -1437,13 +1504,20 @@ private struct ComposerBarLayout: Layout {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 18))
+                // 0.3.8 第 24 条：齿轮字形与名单同线宽档
+                // （17 regular，令牌 drawerBarGlyphSize；
+                // 旧 18 无字重渲染偏实）
+                .font(.system(
+                    size: FrameworkIcon.drawerBarGlyphSize,
+                    weight: .regular
+                ))
                 .foregroundStyle(Palette.ink)
                 .frame(
                     width: OneDayMetrics.drawerBarButton,
                     height: OneDayMetrics.drawerBarButton
                 )
-                .background(Palette.fieldFill, in: Circle())
+                // 第 25 条：灰填充扁片（#F2F1F6）换白浮纸
+                .odFloatPaper(in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
@@ -1514,10 +1588,10 @@ private struct ComposerBarLayout: Layout {
                 ForEach(
                     Array(threadGroups.enumerated()),
                     id: \.element.label
-                ) { index, group in
-                    if index > 0 {
-                        drawerPlainRow { drawerDivider }
-                    }
+                ) { _, group in
+                    // 0.3.8 第 21 条：会话区组间不再划发丝
+                    // 线——只留白分段（组标题自带上下边距）；
+                    // 发丝线只留导航↔会话的功能区边界一处
                     drawerGroupHeader(group.label)
                     ForEach(group.threads) { thread in
                         drawerThreadRow(thread)
@@ -1528,8 +1602,11 @@ private struct ComposerBarLayout: Layout {
                 }
             }
             if !drawerServerSessions.isEmpty {
-                drawerPlainRow { drawerDivider }
-                drawerGroupHeader("服务端会话")
+                // 第 21 条：与本地组之间同样只留白分段；
+                // 第 18 条：组名改人话——「服务端会话」是
+                // 实现口径，改「其他会话」（这些是在别处
+                // 开的会话，不是本机这台开的）
+                drawerGroupHeader("其他会话")
                 ForEach(drawerServerSessions) { session in
                     drawerServerSessionRow(session)
                         .listRowInsets(EdgeInsets())
@@ -1603,12 +1680,14 @@ private struct ComposerBarLayout: Layout {
             onOpenServerSession(session.id)
         } label: {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                // 0.3.7 卡 18 纠正 2（收紧口径）：标题只有
-                // 内容名（人话 display_name，否则「未命名
-                // 会话」），时间/条数/来源全在副题——与卡
-                // 16 同源（SessionDisplay）
+                // 标题只有内容名（人话 display_name/内容
+                // 摘要，否则「未命名会话」），时间/条数/状
+                // 态/来源全在副题——SessionDisplay 同源；
+                // 0.3.8 第 18/19 条：副题改序（来源退尾、
+                // 状态只写属实）且与本地行同行型（标题
+                // 17 regular＋副题 13、行高 57 两行制）
                 Text(session.humanTitle)
-                    .font(TypeScale.callout)
+                    .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text(session.humanSubtitle(now: Date()))
@@ -1619,10 +1698,9 @@ private struct ComposerBarLayout: Layout {
             // 标题 x 线与本机会话行/组标题对齐（外 SM
             // 12＋内 S 8＝20＝drawerInset 线）
             .padding(.horizontal, OneDayMetrics.spacingS)
-            // 卡 18 纠正 1：行总高对齐名单行高 47
             .frame(
                 maxWidth: .infinity,
-                minHeight: OneDayMetrics.navRowHeight,
+                minHeight: OneDayMetrics.sessionRowHeight,
                 alignment: .leading
             )
             .contentShape(Rectangle())
@@ -1632,35 +1710,47 @@ private struct ComposerBarLayout: Layout {
     }
 
 
-    /// 会话行（0.3.6 立宪，§21.3）：单行标题 17
-    /// regular——行内不堆元数据、时间信息归分组标
-    /// 题；高 44；选中态＝selectionFill 浅灰垫、标题
-    /// 不变色不加粗（立宪选中口径，与名单/底栏同
-    /// 一令牌）。长按菜单＝置顶/重命名/删除三件套。
+    /// 会话行（0.3.6 立宪，0.3.8 第 19 条改两行制）：
+    /// 标题 17 regular＋副题时间·条数、高 57；选中态
+    /// ＝selectionFill 整行浅灰垫（第 17 条裁决保留）、
+    /// 标题不变色不加粗。长按菜单＝置顶/重命名/删除。
     private func drawerThreadRow(_ thread: ChatThread) -> some View {
         let isCurrent = thread.id == currentThread?.id
         return Button {
             currentThreadID = thread.id
             setDrawer(false)
         } label: {
-            Text(thread.title)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
+            // 0.3.8 第 19 条：本地行与服务端行统一两行制
+            // （标题 17 regular＋副题「时间 · 条数」13 灰、
+            // 行高 57）；选中整行浅灰填充保留（第 17 条
+            // 用户裁决：保留灰块不改）
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                Text(thread.title)
+                    .font(TypeScale.body)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text(LocalThreadSubtitle.text(
+                    updatedAt: thread.updatedAt,
+                    messageCount: thread.entries.count,
+                    now: Date()
+                ))
+                .font(TypeScale.footnote)
+                .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
-                .padding(.horizontal, OneDayMetrics.spacingS)
-                .frame(
-                    maxWidth: .infinity,
-                    // 卡 18 纠正 1：本机行高与名单行同为 47
-                    minHeight: OneDayMetrics.navRowHeight,
-                    alignment: .leading
+            }
+            .padding(.horizontal, OneDayMetrics.spacingS)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: OneDayMetrics.sessionRowHeight,
+                alignment: .leading
+            )
+            .background(
+                isCurrent ? Palette.selectionFill : Color.clear,
+                in: RoundedRectangle(
+                    cornerRadius: OneDayMetrics.fieldCorner
                 )
-                .background(
-                    isCurrent ? Palette.selectionFill : Color.clear,
-                    in: RoundedRectangle(
-                        cornerRadius: OneDayMetrics.fieldCorner
-                    )
-                )
-                .contentShape(Rectangle())
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingSM)

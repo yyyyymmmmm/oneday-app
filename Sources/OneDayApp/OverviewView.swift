@@ -40,6 +40,21 @@ struct OverviewView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // 身份锚点（0.3.8 基线补遗增量令 1）：一级
+                    // 页顶部统一悬浮身份胶囊、切页锚点不动，
+                    // 页大标题（导航栏「总览」）退其下
+                    HStack {
+                        Spacer()
+                        IdentityAnchor(
+                            name: "Hermes",
+                            statusWord: status.map(stateWord) ?? "读取中",
+                            statusColor: status.map {
+                                Palette.stateColor($0.gatewayState)
+                            } ?? Palette.inkMuted
+                        )
+                        Spacer()
+                    }
+                    .padding(.bottom, OneDayMetrics.spacingM)
                     if let status {
                         statusCard(status)
                         platformsGroup(status)

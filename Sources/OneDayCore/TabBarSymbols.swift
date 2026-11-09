@@ -1,13 +1,13 @@
 import Foundation
 
-/// 底栏符号名对（0.3.1 礼记同款，DESIGN-V4 §16）：
-/// 图标由系统按 Label(systemImage:) 直渲——零尺寸
-/// 配置、零预渲染（0.2.9 烘焙定标与配置定标路线均
-/// 已作废删除）。本表是四个 tab 的「未选线条体 ↔
-/// 选中 .fill」官方成对变体的单一事实源：bubble 与
-/// folder 有官方 .fill 对；chart.line.uptrend.xyaxis
-/// 与 slider.horizontal.3 目录内无 .fill 变体，选中
-/// 同名（只吃 .bounce 区分状态）。单测钉死本表。
+/// 底栏符号名对（0.3.1 礼记同款立，0.3.8 收口）：
+/// 0.3.8 起底栏改自绘（fixlist 第 2 条用户裁决：替换
+/// 原生 TabView 呈现层），符号仍由系统直渲（零预渲
+/// 染，0.2.9 路线作废口径不变）。「未选线条体 ↔ 选中
+/// .fill」成对变体在 0.3.7 §22.5 立宪时已被推翻一半
+/// （框架图标禁 .fill），0.3.8 全表清账：四格 selected
+/// 恒等于 normal，选中只靠浅灰胶囊垫区分。本表是四格
+/// 符号名的单一事实源，单测钉死。
 public struct TabSymbolPair: Equatable, Sendable {
     /// 条目标识（与无障碍标识 tab.<id> 共用）
     public let id: String
@@ -36,7 +36,7 @@ public enum TabBarSymbols {
     public static let chat = TabSymbolPair(
         id: "chat", title: "聊天",
         normal: "bubble.left.and.bubble.right",
-        selected: "bubble.left.and.bubble.right.fill"
+        selected: "bubble.left.and.bubble.right"
     )
     public static let overview = TabSymbolPair(
         id: "overview", title: "总览",
@@ -46,7 +46,7 @@ public enum TabBarSymbols {
     public static let files = TabSymbolPair(
         id: "files", title: "文件",
         normal: "folder",
-        selected: "folder.fill"
+        selected: "folder"
     )
     public static let settings = TabSymbolPair(
         id: "settings", title: "设置",

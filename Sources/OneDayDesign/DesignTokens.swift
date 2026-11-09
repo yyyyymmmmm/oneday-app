@@ -93,6 +93,24 @@ public enum TypeScale {
     public static let monoTitle = Font.system(.title3, design: .monospaced)
         .weight(.bold)
 
+    // —— 0.3.8 增补角色 ——
+    /// 设置页自绘大标题（fixlist 第 4 条）：30 bold、
+    /// 目标墨高约 25.7pt（系统大标题实测 29.3 已弃）；
+    /// 尺寸/字重数值在账本 TextRoleWeights.settingsTitle*
+    public static let settingsTitle = Font.system(
+        size: TextRoleWeights.settingsTitleSize, weight: .bold
+    )
+    /// 气泡正文（fixlist 第 29 条）：17 regular 显式定版，
+    /// 双侧气泡与流式文本共用（此前走 Font.body 名义同
+    /// 值，本轮落显式角色供量测与单测钉）
+    public static let bubbleBody = Font.system(
+        size: TextRoleWeights.bubbleTextSize, weight: .regular
+    )
+    /// 内容标题（基线补遗字体补测合法领地）：19–21
+    /// semibold 只许内容卡/文章式标题用，框架页标题仍
+    /// 走 700 两档；本角色取带中 20
+    public static let contentTitle = Font.system(size: 20, weight: .semibold)
+
     // —— 条 3 暗色降档变体（0.3.0，§14）：带权字体在暗色
     // 环境下经 VisualWeight 降一档；调用点以 colorScheme
     // 传入。未带权的字体（body/callout 等）由根环境
@@ -106,6 +124,25 @@ public enum TypeScale {
     }
     public static func label(for scheme: ColorScheme) -> Font {
         Font.footnote.weight(.od(css: 400, scheme: scheme))
+    }
+    /// 0.3.8 暗色审计补齐：此前只有 display/title/label
+    /// 三个角色有降档变体，带权角色在暗色漏降——本轮补
+    /// headline/capsuleTitle/metricNumber/monoTitle 四个
+    /// （700 → 暗色 600 经 VisualWeight.steppedDown）
+    public static func headline(for scheme: ColorScheme) -> Font {
+        Font.body.weight(.od(css: 700, scheme: scheme))
+    }
+    public static func capsuleTitle(for scheme: ColorScheme) -> Font {
+        Font.system(size: 16)
+            .weight(.od(css: 700, scheme: scheme))
+    }
+    public static func metricNumber(for scheme: ColorScheme) -> Font {
+        Font.system(size: 28)
+            .weight(.od(css: 700, scheme: scheme))
+    }
+    public static func monoTitle(for scheme: ColorScheme) -> Font {
+        Font.system(.title3, design: .monospaced)
+            .weight(.od(css: 700, scheme: scheme))
     }
 }
 
@@ -131,46 +168,11 @@ public extension Font.Weight {
     }
 }
 
-// MARK: - Mat 材质三档（玻璃染色纪律）
-
-/// 玻璃材质三档令牌：对应的系统 ButtonStyle / glassEffect 档位见下方扩展。
-public enum Mat {
-    /// 透明档：极轻浮层（系统 .glass 的 .clear 变体口径）
-    case clear
-    /// 常规档：行动条、次按钮（系统 .glass / .regular）
-    case regular
-    /// 染色档：唯一主操作（系统 .glassProminent ＋主题强调染色）
-    case tinted
-}
-
-public extension View {
-    /// 玻璃按钮令牌入口：regular → .glass；tinted → .glassProminent 并以
-    /// 主题强调令牌染色（不写死色值）；clear 在按钮语境与 regular 同档
-    /// （系统按钮玻璃只有两档，透明档只用于浮层表面）。
-    @ViewBuilder
-    func odGlassButton(_ mat: Mat) -> some View {
-        switch mat {
-        case .tinted:
-            self.buttonStyle(.glassProminent).tint(Palette.primary)
-        case .regular, .clear:
-            self.buttonStyle(.glass)
-        }
-    }
-
-    /// 玻璃表面令牌入口（非按钮浮层）：tinted 以主题浅染令牌轻染，
-    /// 不用主色满染——表面染色面积受控，守单强调纪律。
-    @ViewBuilder
-    func odGlassSurface(_ mat: Mat, in shape: some Shape) -> some View {
-        switch mat {
-        case .clear:
-            self.glassEffect(.clear, in: shape)
-        case .regular:
-            self.glassEffect(.regular, in: shape)
-        case .tinted:
-            self.glassEffect(.regular.tint(Palette.primaryTint), in: shape)
-        }
-    }
-}
+// MARK: - 玻璃令牌（0.3.8 已删）
+// Mat 三档与 odGlassButton/odGlassSurface 曾是玻璃期的
+// 令牌入口；发送舱 0.3.0 去玻璃后全仓零调用（0.3.8 删残
+// 审计 grep 实证），本轮整段删除。浮件画法由白浮纸接管
+// （Palette.floatFill＋odFloatPaper），玻璃不再回来。
 
 // MARK: - Elevation（定版 §3.4：只剩浮层一档，内容层零阴影）
 
@@ -195,6 +197,10 @@ public enum Elevation {
     /// 抽屉档（0.3.6 立宪）：peek 面板右缘约 30pt 柔影，
     /// 向右外扩、无纵向偏移
     public static let drawer = ShadowSpec(opacity: 0.12, radius: 30, x: 16, y: 0)
+    /// 白浮纸档（0.3.8，fixlist 第 28 条）：浮件统一柔影
+    /// ——输入框/胶囊/圆钮/抽屉底条/自绘底栏同此一档
+    /// （比 floating 收一档，浮纸靠发丝边定位、影只兜底）
+    public static let paper = ShadowSpec(opacity: 0.10, radius: 12, y: 4)
 }
 
 public extension View {

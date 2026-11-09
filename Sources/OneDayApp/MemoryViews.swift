@@ -136,27 +136,15 @@ struct MemoryView: View {
     }
 
     /// 内置记忆行：active 为空串即内置当值（实测口径）
+    /// 0.3.8：收编统一行组件 UnifiedRow（增量令 2）
     private func builtinRow(_ status: MemoryStatus) -> some View {
         let active = (status.active ?? "").isEmpty
-        return HStack(spacing: OneDayMetrics.spacingSM) {
-            Image(systemName: "internaldrive")
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.inkSecondary)
-                .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
-                .accessibilityHidden(true)
-            Text("内置记忆")
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            if active {
-                Text("使用中")
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.success)
-            }
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-        .contentShape(Rectangle())
+        return UnifiedRow(
+            icon: "internaldrive",
+            title: "内置记忆",
+            trailing: active ? "使用中" : nil,
+            trailingColor: Palette.success
+        )
     }
 
     private func isActive(
@@ -168,46 +156,21 @@ struct MemoryView: View {
     private func providerRow(
         _ provider: MemoryStatus.MemoryProvider, status: MemoryStatus
     ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Image(systemName: "brain")
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.inkSecondary)
-                .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(provider.name)
-                    .font(TypeScale.body)
-                    .foregroundStyle(Palette.ink)
-                // 卡 13 点名：英文 description 不上屏（同卡 9 口径）
-                if let description = provider.description,
-                   !description.isEmpty,
-                   ServerLabels.isChineseText(description) {
-                    Text(description)
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: OneDayMetrics.spacingS)
-            VStack(alignment: .trailing, spacing: 2) {
-                if isActive(provider, in: status) {
-                    Text("使用中")
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.success)
-                } else if let state = provider.status, !state.isEmpty {
-                    Text(state)
-                        .font(TypeScale.footnote)
-                        .foregroundStyle(Palette.inkMuted)
-                }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
-            }
+        // 0.3.8：收编统一行组件 UnifiedRow（增量令 2）；
+        // 副题沿卡 13 口径（英文 description 不上屏）；
+        // 右侧状态原文（unavailable 等内部词）退场——
+        // 「使用中」是唯一上屏状态词，其余归详情页
+        let chineseDescription = provider.description.flatMap {
+            !$0.isEmpty && ServerLabels.isChineseText($0) ? $0 : nil
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-        .contentShape(Rectangle())
+        return UnifiedRow(
+            icon: "brain",
+            title: provider.name,
+            subtitle: chineseDescription,
+            trailing: isActive(provider, in: status) ? "使用中" : nil,
+            trailingColor: Palette.success,
+            showsChevron: true
+        )
     }
 
     // MARK: - 内置文件与重置

@@ -49,6 +49,19 @@ import SwiftUI
 /// 「照搬礼记」与 0.3.3 的「选中必须蓝」均被基线取
 /// 代，对账在 §21.5。系统悬浮大胶囊（iOS 26 原生栏）
 /// 即基线的「悬浮大胶囊」落点，不自绘栏体。
+/// 0.3.8 自绘定案（fixlist 第 1/2/3 条，用户裁决）：真
+/// 机实测推翻 0.3.6 的系统落点——原生栏图标渲染仍实心
+/// （墨迹密度 44.6%/49.0%）、选中垫为系统几何约栏宽
+/// 1/4 且无代码落点（0.3.7 卡 19 纠正 3 如实留痕）。
+/// 本轮按用户裁决替换呈现层：TabView 结构/selection/
+/// 深链口径全不动，原生栏经 toolbarVisibility 隐藏，
+/// 悬浮其上的是 FloatingTabBar（白浮纸大胶囊、选中垫
+/// 由 TabBarLayout 构造收窄贴合字形、图标 outline 直
+/// 渲）；抽屉打开（appState.drawerPresented）时底栏隐
+/// 藏让位（第 3 条，抽屉底条落进原栏坑位、第 22 条）。
+/// 0.2.4 的自绘止损沿革就此由用户裁决正式推翻（当年
+/// 止损针对的是「在自绘件上打补丁」，本轮是整层替换
+/// ＋几何由 Core 令牌构造决定，与当年情形不同）。
 struct ContentView: View {
     enum MainTab: Hashable {
         case chat
@@ -59,84 +72,117 @@ struct ContentView: View {
 
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selection: MainTab = .chat
 
     var body: some View {
-        TabView(selection: $selection) {
-            Tab(value: MainTab.chat) {
-                ChatView(
-                    onOpenServerSession: { id in
-                        appState.pendingAgentRoute = .serverSessionDetail(id)
-                        selection = .settings
+        ZStack(alignment: .bottom) {
+            TabView(selection: $selection) {
+                Tab(value: MainTab.chat) {
+                    ChatView(
+                        onOpenServerSession: { id in
+                            appState.pendingAgentRoute = .serverSessionDetail(id)
+                            selection = .settings
+                        },
+                        onSelectTab: { selection = $0 }
+                    )
+                    .toolbarVisibility(.hidden, for: .tabBar)
+                } label: {
+                    tabLabel(TabBarSymbols.chat, tab: .chat)
+                }
+
+                Tab(value: MainTab.overview) {
+                    OverviewView(
+                        onOpenAgent: { route in
+                            appState.pendingAgentRoute = route
+                            selection = .settings
+                        },
+                        onOpenSettings: { route in
+                            appState.pendingSettingsRoute = route
+                            selection = .settings
+                        },
+                        onOpenChat: { selection = .chat }
+                    )
+                    .toolbarVisibility(.hidden, for: .tabBar)
+                } label: {
+                    tabLabel(TabBarSymbols.overview, tab: .overview)
+                }
+
+                Tab(value: MainTab.files) {
+                    FilesView()
+                        .toolbarVisibility(.hidden, for: .tabBar)
+                } label: {
+                    tabLabel(TabBarSymbols.files, tab: .files)
+                }
+
+                Tab(value: MainTab.settings) {
+                    SettingsView()
+                        .toolbarVisibility(.hidden, for: .tabBar)
+                } label: {
+                    tabLabel(TabBarSymbols.settings, tab: .settings)
+                }
+            }
+            // tint 墨口径沿 0.3.6 立宪（各页功能位显式引用
+            // Palette，本处只兜系统残余着色）
+            .tint(Palette.ink)
+            // 条 3（§14）未带权文字的降档通道：暗色环境下根
+            // fontWeight 降一档（regular→light），未显式带权
+            // 的 Text 全量继承；带权字体走 TypeScale 的
+            // (for:) 变体（VisualWeight 映射）。UIKit 文本
+            // 视图（输入框正文）不在此环境内、不受影响
+            .fontWeight(colorScheme == .dark ? .light : .regular)
+
+            // 自绘底栏（第 2 条）：抽屉打开时隐藏（第 3 条）
+            if !appState.drawerPresented {
+                FloatingTabBar(
+                    items: TabBarSymbols.all.map {
+                        .init(id: $0.id, title: $0.title, symbol: $0.normal)
                     },
-                    onSelectTab: { selection = $0 }
+                    selectedID: selectedTabID
+                ) { id in
+                    if let tab = tab(forID: id) { selection = tab }
+                }
+                .padding(.horizontal, TabBarLayout.horizontalMargin)
+                .safeAreaPadding(.bottom, TabBarLayout.bottomMargin)
+                .zIndex(10)
+                .transition(
+                    .move(edge: .bottom).combined(with: .opacity)
                 )
-            } label: {
-                tabLabel(TabBarSymbols.chat, tab: .chat)
-            }
-
-            Tab(value: MainTab.overview) {
-                OverviewView(
-                    onOpenAgent: { route in
-                        appState.pendingAgentRoute = route
-                        selection = .settings
-                    },
-                    onOpenSettings: { route in
-                        appState.pendingSettingsRoute = route
-                        selection = .settings
-                    },
-                    onOpenChat: { selection = .chat }
-                )
-            } label: {
-                // 0.2.5 选型沿革：原 gauge.with.dots.needle.
-                // 33percent 是带实心圆点的粗字形，换细线条
-                // 的趋势线图（该符号无 .fill 对，选中同名）
-                tabLabel(TabBarSymbols.overview, tab: .overview)
-            }
-
-            Tab(value: MainTab.files) {
-                FilesView()
-            } label: {
-                tabLabel(TabBarSymbols.files, tab: .files)
-            }
-
-            Tab(value: MainTab.settings) {
-                SettingsView()
-            } label: {
-                // 0.2.5 选型沿革：gearshape 是实心剪影、无更
-                // 细的同义齿轮符号，换线条体的滑杆组（偏好
-                // 设置字形；该符号无 .fill 对，选中同名）
-                tabLabel(TabBarSymbols.settings, tab: .settings)
             }
         }
-        // 0.3.6 立宪（DESIGN-V4 §21.3/§22）：tint 撤销蓝
-        // 色、改回 Palette.ink——用户按 Muse 实测基线改
-        // 判：选中＝系统浅灰小胶囊垫＋墨色字形，文字不变
-        // 色不加粗不上蓝；蓝只留功能位（发送键/链接等）。
-        // 此令推翻 0.3.3「.tint(Palette.primary) 随主题」
-        // （真机对比礼记的当场改判再被基线改判，§21.5 对
-        // 账）。0.2.5 的系统口径在此复用：tint 墨 → 选中
-        // 呈墨色线条字形＋系统浅灰选择胶囊（#E3E3E5 系、
-        // 色值由系统按 tint 派生）。
-        .tint(Palette.ink)
-        // 条 3（§14）未带权文字的降档通道：暗色环境下根
-        // fontWeight 降一档（regular→light），未显式带权
-        // 的 Text 全量继承；带权字体走 TypeScale 的
-        // (for:) 变体（VisualWeight 映射）。UIKit 文本
-        // 视图（输入框正文）不在此环境内、不受影响
-        .fontWeight(colorScheme == .dark ? .light : .regular)
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: appState.drawerPresented
+        )
     }
 
-    /// 底栏标签（0.3.6 立宪形态，DESIGN-V4 §21.3）：
-    /// 去文字标签——只交字形（Image-only 系统条目形
-    /// 态，名称只进无障碍标签）；字形恒线条体、尺寸
-    /// 配置 22（OneDayMetrics.tabGlyph，基线带 21–
-    /// 22），选中不切 .fill、不变色不加粗（选中信号
-    /// 只由系统浅灰胶囊垫承载，见 body 的 tint 注）。
-    /// 符号源仍是 OneDayCore.TabBarSymbols 恒取
-    /// normal（线条体）一侧；选中 .bounce 保留（系统
-    /// 在 Reduce Motion 时自动抑制）。0.3.1 的 Label
-    /// 带字＋fill 成对就此被立宪取代（§21.5 对账）。
+    private var selectedTabID: String {
+        switch selection {
+        case .chat: return TabBarSymbols.chat.id
+        case .overview: return TabBarSymbols.overview.id
+        case .files: return TabBarSymbols.files.id
+        case .settings: return TabBarSymbols.settings.id
+        }
+    }
+
+    private func tab(forID id: String) -> MainTab? {
+        switch id {
+        case TabBarSymbols.chat.id: return .chat
+        case TabBarSymbols.overview.id: return .overview
+        case TabBarSymbols.files.id: return .files
+        case TabBarSymbols.settings.id: return .settings
+        default: return nil
+        }
+    }
+
+    /// 底栏标签（原生栏隐藏后的 VO 元数据载体）：0.3.8
+    /// 自绘栏接管呈现后，Tab 的 label 不再渲染，本函数
+    /// 只保留符号/标题/标识的既有口径（自绘栏的按钮标
+    /// 签由 FloatingTabBar 用同一 TabBarSymbols 表出）。
+    /// 字形恒线条体、尺寸 22，选中不切 .fill、不变色不
+    /// 加粗（选中信号由自绘浅灰胶囊垫承载）。
     private func tabLabel(_ pair: TabSymbolPair, tab: MainTab) -> some View {
         Image(systemName: pair.normal)
             .font(.system(size: OneDayMetrics.tabGlyph))

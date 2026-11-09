@@ -28,6 +28,10 @@ public struct ThemeTokens: Sendable {
         // 与选中胶囊垫——基线冻值，不随强调主题变
         public let chatSurface: UInt32
         public let selectionFill: UInt32
+        // 0.3.8 新增（fixlist 第 26/28 条）：白浮纸浮件面
+        // 与用户气泡面——结构令牌，不随强调主题变
+        public let floatFill: UInt32
+        public let userBubbleFill: UInt32
         // 遮罩与发丝线（基色＋alpha 成对，墨色推导不用 #000）
         public let scrimBase: UInt32
         public let scrimAlpha: Double
@@ -54,7 +58,8 @@ public struct ThemeTokens: Sendable {
             ink: UInt32, inkSecondary: UInt32, inkMuted: UInt32,
             primary: UInt32, primaryFill: UInt32, primaryTint: UInt32,
             onPrimary: UInt32, success: UInt32, warning: UInt32,
-            danger: UInt32, chatSurface: UInt32, selectionFill: UInt32
+            danger: UInt32, chatSurface: UInt32, selectionFill: UInt32,
+            floatFill: UInt32, userBubbleFill: UInt32
         ) {
             self.pageBG = pageBG
             self.surface = surface
@@ -76,6 +81,8 @@ public struct ThemeTokens: Sendable {
             self.danger = danger
             self.chatSurface = chatSurface
             self.selectionFill = selectionFill
+            self.floatFill = floatFill
+            self.userBubbleFill = userBubbleFill
         }
 
         /// 只换强调三档派生新行（结构令牌原样）
@@ -91,7 +98,8 @@ public struct ThemeTokens: Sendable {
                 primary: primary, primaryFill: primaryFill,
                 primaryTint: primaryTint, onPrimary: onPrimary,
                 success: success, warning: warning, danger: danger,
-                chatSurface: chatSurface, selectionFill: selectionFill
+                chatSurface: chatSurface, selectionFill: selectionFill,
+                floatFill: floatFill, userBubbleFill: userBubbleFill
             )
         }
     }
@@ -143,9 +151,21 @@ public struct ThemeTokens: Sendable {
     /// 改 0xE9EAEC（助手泡冷灰、永不染色）、fieldFill 改
     /// 0xF2F2F4（灰胶囊带内）、inkSecondary 改 0x6E6E73
     /// （次级灰冻值）、scrim 改白色半透纱（基色 0xFFFFFF、
-    /// alpha 0.55；暗色行暂留旧值、归 0.3.8）；新增
-    /// chatSurface 0xFCFCFC（导航/聊天近白面）与
-    /// selectionFill 0xE3E3E5（选中浅灰胶囊垫）。
+    /// alpha 0.55）；新增 chatSurface 0xFCFCFC（导航/聊天
+    /// 近白面）与 selectionFill 0xE3E3E5（选中浅灰胶囊垫）。
+    /// 0.3.8 定值（fixlist 第 9/26/28 条＋暗色审计 C 项）：
+    /// 新增 floatFill（白浮纸：浅 0xFBFBFB／暗 0x1C1C1F，
+    /// 浮件统一面＝近白＋发丝边＋柔影）与 userBubbleFill
+    /// （用户气泡：浅 0xF0F0F2／暗 0x212126，与助手泡同
+    /// 家族拉开深浅、恒中性不染色）；success 降饱和（第
+    /// 9 条：浅 0x1E8E4F→0x3F9163、暗 0x45B878→0x55A87B）；
+    /// 暗色行 0.3.6 的全部暂定值在本轮逐个定值（数值除
+    /// 上两项外维持原暂定取向、转正为定值）：pageBG
+    /// 0x0B0B0D、surface 0x121214、bubbleFill 0x17181B、
+    /// fieldFill 0x1B1C1F、chatSurface 0x131316、
+    /// selectionFill 0x2C2C2F 四层微差成立（§14 条 1）；
+    /// 暗色 scrim 定为墨纱 0x050506/0.50（抽屉压暗靠它、
+    /// 与浅色白纱分工不同，不再占位）。
     public static let tencentBlue = ThemeTokens(
         light: Scheme(
             pageBG: 0xF3F4F6, surface: 0xFFFFFF, bubbleFill: 0xE9EAEC,
@@ -154,18 +174,20 @@ public struct ThemeTokens: Sendable {
             ink: 0x1F2329, inkSecondary: 0x6E6E73, inkMuted: 0x646C76,
             primary: 0x0052D9, primaryFill: 0x003CAB,
             primaryTint: 0xEAF1FE, onPrimary: 0xFFFFFF,
-            success: 0x1E8E4F, warning: 0xA85B0A, danger: 0xC62F24,
-            chatSurface: 0xFCFCFC, selectionFill: 0xE3E3E5
+            success: 0x3F9163, warning: 0xA85B0A, danger: 0xC62F24,
+            chatSurface: 0xFCFCFC, selectionFill: 0xE3E3E5,
+            floatFill: 0xFBFBFB, userBubbleFill: 0xF0F0F2
         ),
         dark: Scheme(
             pageBG: 0x0B0B0D, surface: 0x121214, bubbleFill: 0x17181B,
-            fieldFill: 0x1B1C1F, scrimBase: 0x050506, scrimAlpha: 0.55,
+            fieldFill: 0x1B1C1F, scrimBase: 0x050506, scrimAlpha: 0.50,
             hairlineBase: 0xEDF0F4, hairlineAlpha: 0.12,
             ink: 0xF2F2F4, inkSecondary: 0xAEAEB4, inkMuted: 0x8A8A90,
             primary: 0x6BA3FF, primaryFill: 0x0052D9,
             primaryTint: 0x1B2B4D, onPrimary: 0xFFFFFF,
-            success: 0x45B878, warning: 0xD98E32, danger: 0xFF7A6B,
-            chatSurface: 0x131316, selectionFill: 0x2C2C2F
+            success: 0x55A87B, warning: 0xD98E32, danger: 0xFF7A6B,
+            chatSurface: 0x131316, selectionFill: 0x2C2C2F,
+            floatFill: 0x1C1C1F, userBubbleFill: 0x212126
         )
     )
 }

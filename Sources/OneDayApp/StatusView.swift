@@ -42,7 +42,9 @@ struct StatusView: View {
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+            // 0.3.8：底部留白补到自绘底栏带（本页经总览推
+            // 入、同样在悬浮栏覆盖域内）
+            .padding(.bottom, OneDayMetrics.tabBarZone)
         }
         .background(Palette.pageBG)
         .navigationTitle("状态")
@@ -58,14 +60,20 @@ struct StatusView: View {
         // host 地址行撤下（归服务器详情）
         VStack(spacing: OneDayMetrics.spacingS) {
             ZStack {
+                // 0.3.8：枢纽页头像改白浮纸画法（近白面＋
+                // 发丝边＋柔影，与全局浮件令牌同族）
                 Circle()
-                    .fill(Palette.surface)
+                    .fill(Palette.floatFill)
+                    .frame(width: 64, height: 64)
+                Circle()
+                    .stroke(Palette.hairline, lineWidth: 0.5)
                     .frame(width: 64, height: 64)
                 Image(systemName: "sparkles")
                     .font(.system(size: 28, weight: .regular))
                     .foregroundStyle(Palette.ink)
                     .accessibilityHidden(true)
             }
+            .odElevation(Elevation.paper)
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text("Hermes")
                     .font(TypeScale.title(for: colorScheme))
@@ -84,7 +92,11 @@ struct StatusView: View {
         let word = status == nil
             ? "状态读取中"
             : ServerLabels.gatewayState(status?.gatewayState, running: status?.gatewayRunning)
-        let model = appState.defaultModel ?? (appState.modelID == "hermes-agent" ? "服务端默认模型" : appState.modelID)
+        // 0.3.8 第 6 条同源：模型名走显示名映射，原始 id
+        // 不上屏（旧式三元只挡了网关别名一例）
+        let model = ModelDisplayNames.identityLabel(
+            for: appState.defaultModel ?? appState.modelID
+        )
         return "\(word) · \(model)"
     }
 
@@ -145,14 +157,31 @@ struct StatusView: View {
                     .font(TypeScale.callout)
                     .foregroundStyle(Palette.inkSecondary)
             } else {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                // 0.3.8 基线补遗（审计三行结构）：近期事件
+                // 改人话三行——动作标题＋说明＋级别·时间脚
+                // 注，原始日志行退到脚注（LogDisplay 解析）
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
                     ForEach(Array(logLines.enumerated()), id: \.offset) { _, line in
-                        Text(AdminFormat.cleanLogLine(line))
-                            .font(TypeScale.monoCaption)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        let entry = LogDisplay.parse(line)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.headline)
+                                .font(TypeScale.callout)
+                                .foregroundStyle(Palette.ink)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if let detail = entry.detail {
+                                Text(detail)
+                                    .font(TypeScale.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            Text(entry.meta)
+                                .font(TypeScale.monoCaption)
+                                .foregroundStyle(Palette.inkMuted)
+                        }
                     }
                 }
+                .padding(OneDayMetrics.spacingM)
                 .odGroup()
             }
         }

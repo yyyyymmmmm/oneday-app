@@ -15,4 +15,21 @@ public enum FrameworkIcon {
     public static let fillVariantAllowed = false
     /// 字形尺寸带（pt）：全 App 框架字形同带
     public static let glyphSizeRange: ClosedRange<CGFloat> = 20...22
+
+    // MARK: - 0.3.8 分位尺寸（fixlist 第 15/24/32 条）
+
+    /// 抽屉名单字形：第 15 条——与底栏同线宽档，18pt
+    /// regular（墨迹密度目标 13–21% 同带）
+    public static let drawerGlyphSize: CGFloat = 18
+    /// 抽屉底条圆钮字形：第 24 条——齿轮与名单同线宽档
+    public static let drawerBarGlyphSize: CGFloat = 17
+    /// 设置页行字形：第 14 条——17pt regular，与同列
+    /// 统一复杂度档（密度上限由量测断言钉）
+    public static let settingsGlyphSize: CGFloat = 17
+    /// 聊天气泡工具字形（＋/麦克风）：第 32 条——15pt
+    /// regular，笔画目标约 1.8pt（16pt 时实测约 2.5）
+    public static let composerGlyphSize: CGFloat = 15
+    /// 框架图标墨迹密度目标带（紧致 alpha 包围盒口径，
+    /// RenderMeasureTests 同口径复量）：Muse 同位 13–21%
+    public static let inkDensityTarget: ClosedRange<Double> = 0.10...0.24
 }

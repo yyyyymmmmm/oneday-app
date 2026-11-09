@@ -1602,15 +1602,34 @@ struct LogsView: View {
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingL)
                 } else {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                    // 0.3.8 基线补遗（哲学条：数据先翻译连审
+                    // 计都不例外）：日志行改人话三行结构——
+                    // 人话动作＋白话说明＋级别·时间·模块脚注
+                    // （LogDisplay 解析）；错误行标题点红（级
+                    // 别在脚注里已明示，颜色只作强调）。原始
+                    // 整行 mono 直出就此退场
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
                         ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                            Text(line)
-                                .font(TypeScale.monoCaption)
-                                .foregroundStyle(
-                                    line.contains("ERROR")
-                                        ? Palette.danger : Palette.inkSecondary
-                                )
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            let entry = LogDisplay.parse(line)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.headline)
+                                    .font(TypeScale.callout)
+                                    .foregroundStyle(
+                                        line.contains("ERROR")
+                                            ? Palette.danger : Palette.ink
+                                    )
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                if let detail = entry.detail {
+                                    Text(detail)
+                                        .font(TypeScale.footnote)
+                                        .foregroundStyle(Palette.inkSecondary)
+                                        .lineLimit(3)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                Text(entry.meta)
+                                    .font(TypeScale.monoCaption)
+                                    .foregroundStyle(Palette.inkMuted)
+                            }
                         }
                     }
                     .padding(.top, OneDayMetrics.spacingL)
@@ -1618,7 +1637,7 @@ struct LogsView: View {
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+            .padding(.bottom, OneDayMetrics.tabBarZone)
         }
         .background(Palette.pageBG)
         .navigationTitle("日志")

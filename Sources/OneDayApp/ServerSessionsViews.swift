@@ -196,6 +196,10 @@ struct ServerSessionsView: View {
     }
 
     private func rowContent(_ session: ServerSession, selecting: Bool) -> some View {
+        // 0.3.8 基线补遗增量令 2：行收编统一行组件
+        // UnifiedRow（ListRowSpec 冻死规格）；选择态勾选
+        // 圈是本页独有控件、留在组件外侧拼装；活跃点改
+        // 走组件的状态点位（右侧，与箭头同簇）
         HStack(spacing: OneDayMetrics.spacingSM) {
             if selecting {
                 Image(
@@ -208,32 +212,14 @@ struct ServerSessionsView: View {
                 )
                 .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: OneDayMetrics.spacingXS) {
-                    if session.isActive {
-                        StatusDot(color: Palette.success)
-                    }
-                    Text(session.humanTitle)
-                        .font(TypeScale.body)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                }
-                Text(session.humanSubtitle(now: Date()))
-                    .font(TypeScale.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: OneDayMetrics.spacingS)
-            if !selecting {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
-            }
+            UnifiedRow(
+                title: session.humanTitle,
+                subtitle: session.humanSubtitle(now: Date()),
+                statusColor: session.isActive ? Palette.success : nil,
+                showsChevron: !selecting
+            )
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(minHeight: OneDayMetrics.rowHeight)
+        .padding(.leading, selecting ? OneDayMetrics.spacingM : 0)
         .contentShape(Rectangle())
     }
 

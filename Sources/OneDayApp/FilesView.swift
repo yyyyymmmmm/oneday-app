@@ -28,6 +28,19 @@ struct FilesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // 身份锚点（0.3.8 基线补遗增量令 1）：与总览/
+                // 聊天同一组件、同一位置口径，切页锚点不动
+                HStack {
+                    Spacer()
+                    IdentityAnchor(
+                        name: "Hermes",
+                        statusWord: appState.config == nil ? "未连接" : "在线",
+                        statusColor: appState.config == nil
+                            ? Palette.inkMuted : Palette.success
+                    )
+                    Spacer()
+                }
+                .padding(.top, OneDayMetrics.spacingS)
                 Picker("浏览方式", selection: $segment) {
                     Text("影音").tag(0)
                     Text("文件").tag(1)

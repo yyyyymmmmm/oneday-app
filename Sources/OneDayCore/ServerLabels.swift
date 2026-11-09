@@ -119,6 +119,16 @@ public enum ServerLabels {
         return sorted.map { (label: $0, items: buckets[$0] ?? []) }
     }
 
+    // MARK: - 档案名
+
+    /// 档案（profile）名翻译（0.3.8，fixlist 第 7 条）：
+    /// 默认档案原始名 "default" 不上屏、写「默认档案」；
+    /// 其余档案名是用户自取的名字（内容），原样呈现
+    public static func profileName(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else { return "默认档案" }
+        return raw == "default" ? "默认档案" : raw
+    }
+
     // MARK: - 文案可见性
 
     /// 服务端 description 的上屏口径（卡 9/13 点名）：

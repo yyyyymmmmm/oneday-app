@@ -18,4 +18,27 @@ public enum DrawerGeometry {
         return (x * containerWidth * rubberBandConstant)
             / (containerWidth + rubberBandConstant * x)
     }
+
+    // MARK: - 底条钉底（0.3.8 第 22 条）
+
+    /// 底条行高（圆钮 44 与搜索胶囊同高带，行盒 52）
+    public static let bottomBarRowHeight: CGFloat = 52
+    /// 底条下边距＝安全区底 inset＋4：底条落进原底栏
+    /// 坑位（第 3 条抽屉开时底栏隐藏，坑位空出）
+    public static func bottomBarBottomPadding(safeAreaBottom: CGFloat) -> CGFloat {
+        safeAreaBottom + 4
+    }
+
+    /// 底条中心距屏幕顶部的比例（量测口径）：852pt 屏、
+    /// 安全区 34 时＝(852 − 34 − 4 − 26) / 852 ≈ 92.5%，
+    /// 与 Muse 实测条中心 92.5% 对齐（0.3.7 实测旧值
+    /// 77.5%、条下约 170pt 死白，本轮主犯）
+    public static func bottomBarCenterFraction(
+        screenHeight: CGFloat, safeAreaBottom: CGFloat
+    ) -> Double {
+        guard screenHeight > 0 else { return 0 }
+        let fromBottom = bottomBarBottomPadding(safeAreaBottom: safeAreaBottom)
+            + bottomBarRowHeight / 2
+        return Double((screenHeight - fromBottom) / screenHeight)
+    }
 }

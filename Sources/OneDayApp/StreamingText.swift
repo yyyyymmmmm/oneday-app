@@ -34,7 +34,7 @@ struct StreamingText: View {
         TokenFlow(spacing: OneDayMetrics.tokenFlowSpacing) {
             ForEach(Array(tokens.enumerated()), id: \.offset) { index, token in
                 Text(token)
-                    .font(TypeScale.body)
+                    .font(TypeScale.bubbleBody) // 0.3.8 第 29 条：气泡正文 17 regular 显式角色
                     .foregroundStyle(Palette.ink)
                     .blur(
                         radius: visible.contains(index)

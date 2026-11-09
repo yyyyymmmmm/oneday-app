@@ -24,8 +24,9 @@ private let sessionTimeFormatter: DateFormatter = {
 /// - 标题只有内容名：人话 display_name，或调用方拿
 ///   得到的首条用户消息摘要（contentTitle）；都没有
 ///   就「未命名会话」，不许拿时间当标题。
-/// - 副题承载全部副信息：来源人话标签 · 时间 · 条
-///   数 · 进行中（活跃时）。
+/// - 副题承载全部副信息：时间 · 条数 · 进行中（活
+///   跃时）· 来源人话标签（0.3.8 第 18 条改序：来源
+///   退副题末尾、先给时间与条数；状态只写属实的）。
 /// - 来源：原始 source 标识一律译成人话标签，未知
 ///   来源只给「服务端」；原名只留设置详情页元信息组。
 public extension ServerSession {
@@ -101,14 +102,16 @@ public extension ServerSession {
         return collapsed
     }
 
-    /// 人话副题：来源标签 · 时间 · 条数 · 进行中——
+    /// 人话副题：时间 · 条数 · 进行中 · 来源标签——
     /// 0.3.6 当标题用的「时间＋条数」自 0.3.7 起只活
-    /// 在这里。今天/昨天按与 now 的自然日差判
-    /// （startOfDay 对齐，与 SidebarGrouping 同口径；
-    /// 不许用 Calendar.isDateInToday——它锚真实系统
-    /// 时钟、忽略注入的 now，0.3.6 单测实证）。
+    /// 在这里；0.3.8 第 18 条把来源从首位移到末尾
+    /// （出处信息垫后），状态只在真活跃时写「进行中」。
+    /// 今天/昨天按与 now 的自然日差判（startOfDay 对
+    /// 齐，与 SidebarGrouping 同口径；不许用
+    /// Calendar.isDateInToday——它锚真实系统时钟、忽
+    /// 略注入的 now，0.3.6 单测实证）。
     func humanSubtitle(now: Date, calendar: Calendar = .current) -> String {
-        var parts = [sourceLabel]
+        var parts: [String] = []
         if let date = startedDate {
             let dayDiff = calendar.dateComponents(
                 [.day],
@@ -131,6 +134,37 @@ public extension ServerSession {
         }
         if isActive {
             parts.append("进行中")
+        }
+        parts.append(sourceLabel)
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// 本地会话副题（0.3.8 第 19 条：抽屉名单全员两行制，
+/// 本地会话与服务端会话同行型）：时间 · 条数。时间口
+/// 径与服务端副题同源（今天/昨天 HH:mm、更早 M月d日）。
+public enum LocalThreadSubtitle {
+    public static func text(
+        updatedAt: Date, messageCount: Int,
+        now: Date, calendar: Calendar = .current
+    ) -> String {
+        let dayDiff = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: updatedAt),
+            to: calendar.startOfDay(for: now)
+        ).day ?? Int.max
+        let day: String
+        switch dayDiff {
+        case 0:
+            day = "今天"
+        case 1:
+            day = "昨天"
+        default:
+            day = sessionMonthDayFormatter.string(from: updatedAt)
+        }
+        var parts = ["\(day) \(sessionTimeFormatter.string(from: updatedAt))"]
+        if messageCount > 0 {
+            parts.append("\(messageCount) 条")
         }
         return parts.joined(separator: " · ")
     }

@@ -1930,6 +1930,49 @@ api_server 等原始命名零上屏（§21.4），原名只
 - 与卡 17 的关系：本节即卡 17 的施工/验收口径，
   两处不再分开处理（卡集第〇节原注同此）。
 
+### 22.7 基线补遗（0.3.8 并入，用户 2026-11-09 旁聊拍板）
+
+来源：~/workspace/oneday-design-review/baseline-supplement
+-20261109.md（Muse 本体三屏补测＋形态总补）。补遗与
+§22.1–22.6 冲突处以补遗为准（它是更晚的实测）；本节
+是补遗的入档形态，0.3.8 起执行。
+
+- 增量令 1 身份胶囊全局化（定性补「智能体即界面」）：
+  一级页（聊天/总览/文件/状态）顶部统一悬浮身份锚点
+  ——头像＋智能体名＋状态一枚胶囊（IdentityAnchor 组件
+  全局唯一实现），切换页面时锚点位置与形态不动；页
+  大标题退到锚点之下。二级页维持返回头、不挂锚点。
+  聊天页的落点与 fixlist 第 30 条合并施工（胶囊只装
+  身份三件、模型选择器另立小胶囊、会话名退次行）。
+- 增量令 2 一种列表语法统治全应用：左图标列＋标题
+  ＋灰副题＋右浅灰元信息，四件冻死在 OneDayCore
+  .ListRowSpec（图标列 28／标题 17 regular／副题 13
+  灰／元信息 13 等宽／单行高 56／两行会话行 57），组
+  件落点＝OneDayDesign 的 ContentRow／UnifiedRow，各
+  页只换图标与文案。发丝线与留白分段、几乎不用卡片
+  框——卡片只留两类：身份与生成内容。
+- 字体补测：内容标题 19–21pt semibold 是合法领地
+  （§22.6 注补：账本 TextRoleWeights.contentTitle＝
+  600，为 semibold 唯一合法角色；框架位——页标题/
+  行/导航——仍只许 400/700 两档）；正文 16–17
+  regular、行距约 20。
+- 配色补测：链接蓝只许正文链接位；活动流圆盘色
+  （Muse 石板灰蓝 #7D839B）、日历角标琥珀金
+  #E6B036、内容卡矿物渐变均为「内容有色」侧的取值
+  参考——OneDay 不新增框架色，圆盘类需要时走中性
+  灰阶，不引石板蓝进框架令牌。
+- 哲学两条：①数据先翻译连审计都不例外——日志/
+  活动/任务记录上屏按「人话动作＋白话说明＋策略·
+  相对时间」三行结构（OneDayCore.LogDisplay 解析），
+  原始字段退脚注与详情；②信任做成一等页面——状态
+  屏保持一级待遇（总览状态大卡直达、身份头完整）。
+- 枢纽页形态参考（状态页）：居中大头像＋编辑徽章
+  ＋28 bold 名＋五图标无文字分段胶囊（选中段
+  #F0F1F3）；分段无文字的前提是图标语义自明，不
+  自明的页不许学此形态。OneDay 状态页 0.3.8 落点：
+  头像改白浮纸画法，分段形态不动（其三段有文字、
+  语义不全靠图标）。
+
 ## §23 0.3.7 施工 NOTES（页面形态轮，逐卡销账）
 
 施工基线：feat/ia-v3 @ bd4d191（0.3.6/21）→ 0.3.7/22。
@@ -2146,3 +2189,84 @@ SessionDisplay 兜底用例数据缺 endedAt（会话按模
    /计划/下次运行）而非大字读数——任务详情的
    「读数」是计划文本、非数字，行式即模板的摘
    要卡形态在本页的落点。
+
+## §24 0.3.8 施工 NOTES（收口轮：33 条纠正＋基线补遗＋暗色/动效/删残）
+
+施工基线：feat/ia-v3 @ ba58e5f（0.3.7/22）→ 0.3.8/23。
+规格源：~/workspace/oneday-design-review/fixlist-0.3.8.md
+（33 条＋用户四裁）与 baseline-supplement-20261109.md
+（补遗，已并入 §22.7）。
+（验收数据待 CI 回填：run 号／单测数／IPA 字节。）
+
+### 24.1 量测方法（证据纪律，用户定）
+
+验收不走真机终审，以量测自证为准、用户事后抽查。量
+测全在构建产物层完成（无任何截图工作流、无 CI 截图
+环——红线）：新增 RenderMeasureTests 进 OneDayCore-
+Tests，在模拟器内离线渲染并逐像素取样，方法如下——
+- 图标墨迹密度：UIImage(systemName:withConfigura-
+  tion pointSize＋weight.regular) 渲染，取 cgImage 的
+  alpha 通道，alpha>12 记墨；紧致包围盒＝墨像素最小
+  包围盒，密度＝墨像素／盒面积；另附 44pt 方格口径
+  密度（墨／44²）作对照。fixlist 的真机实测数（44.6%
+  等）是整格像素口径、与紧致盒口径不可直接比数，本
+  轮证据以「同口径对照」为准：同符号 outline 与 .fill
+  变体的同法复量差、以及各框架位之间的密度带。
+- 字形墨高：NSAttributedString 以目标 UIFont 绘制，
+  alpha 包围盒高（pt，scale 换算）。
+- ＋笔画宽：plus 字形紧致盒上 1/4 行只穿竖笔，取最
+  长墨游程／scale。
+- 色值：直接断言 ThemeTokens 令牌表 UInt32（出厂值
+  即渲染值，Palette 工厂查表生成、无二次加工）。
+- 几何：Core 纯函数（TabBarLayout.padWidth／Drawer-
+  Geometry.bottomBarCenterFraction）单测钉死，视图层
+  只引用令牌、不散写数值。
+每项量测在测试里 print 一行 MEASURE…，CI 日志
+（gh run view --log）可 grep 复核。
+
+### 24.2 逐条销账（待 CI 数据回填后逐条落数）
+
+（见本轮交卷报告与 fixlist-0.3.8.md 的逐条回填。）
+
+### 24.3 暗色审计（C 项）
+
+- 令牌定值：0.3.6 遗留的暗色暂定值逐个转正（数值与
+  依据在 AccentTheme.tencentBlue 文件头注）：四层微
+  差（pageBG 0B0B0D／surface 121214／bubbleFill
+  17181B／fieldFill 1B1C1F）＋chatSurface 131316＋
+  selectionFill 2C2C2F 成立（§14 条 1 的 1–3% 微差）；
+  暗色 scrim 定为墨纱 050506/0.50（抽屉压暗用，与
+  浅色白纱分工不同）；新增 floatFill 暗 1C1C1F、
+  userBubbleFill 暗 212126；success 暗随浅色同轮降
+  饱和 45B878→55A87B。
+- 字重降档（§14 条 3）：根环境 fontWeight 暗色降档
+  通道沿用；TypeScale 的 (for:) 变体本轮补齐——
+  headline/capsuleTitle/metricNumber/monoTitle 四个
+  带权角色此前无降档变体、暗色漏降，本轮补上并切
+  换关键调用点（IdentityAnchor 胶囊题走 capsule-
+  Title(for:)）。
+- §14 十条暗色相关逐项：条 1 禁黑框/#000——令牌表
+  无 000000（inkBlack 主题 primaryFill 为 111114 近
+  黑墨色，0.3.0 已改）；条 2 聚焦双环影——影基色
+  shadowBase 0A0A0C 近黑非纯黑、双外观同值；条 3
+  见上；条 4 流式 blur——与外观无关、MotionTokens
+  同值；条 5 图标光学偏移——几何值同值；条 6 等宽
+  数字——同值；条 7 折叠动画——同值；条 8 断行
+  pretty——同值；条 9 弹簧两支——同值；条 10 复制
+  对勾——同值。结论：暗色差异只应出现在令牌色与字
+  重降档两处，本轮已收口，其余八条双外观同值即正
+  确形态。
+
+### 24.4 动效收口＋删残（D 项）
+
+- 动效：全仓 grep 复核——.animation/withAnimation
+  的曲线参数除 MotionTokens 定义处外，全部经
+  MotionTokens.resolved 出口（symbolEffect 的系统
+  过渡与 TimelineView 指示除外，属既有豁免口径）。
+- 删残（grep 证据，删除前全仓引用计数为 0）：①
+  Mat 三档＋odGlassButton/odGlassSurface（玻璃期令
+  牌，发送舱去玻璃后零调用）；②ChatView 的 tabBar-
+  Zone 本地副本（唯一用途抽屉占位已废）；③TabBar-
+  Symbols 的 .fill 名对（chat/files，§22.5 清账）；
+  ④SettingsView navRow 的 dot 参数（撤点后零调用）。
+

@@ -32,8 +32,10 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
+                pageTitleSection
                 identitySection
                 serverSection
+                disconnectSection
                 agentSection
                 modelSection
                 gatewaySection
@@ -54,7 +56,17 @@ struct SettingsView: View {
             .listSectionSpacing(OneDayMetrics.spacingL)
             .scrollContentBackground(.hidden)
             .background(Palette.pageBG)
-            .navigationTitle("设置")
+            // 0.3.8 第 10 条：底部留白补到自绘底栏带（总览
+            // 已修、本页补齐——末组尾行不被悬浮栏压住）
+            .contentMargins(
+                .bottom, OneDayMetrics.tabBarZone, for: .scrollContent
+            )
+            // 0.3.8 第 4/13 条：系统大标题撤销（墨高实测
+            // 29.3、且标题上方约 130pt 无功能空白），改自
+            // 绘标题行（pageTitleSection，30 bold）＋导航栏
+            // 收成 inline 空题
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .task { await loadSummaries() }
             .onAppear { consumePendingRoutes() }
             .onChange(of: appState.pendingSettingsRoute) { _, _ in
@@ -116,6 +128,25 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 页标题行（0.3.8 第 4/13 条）
+
+    /// 自绘页标题：30 bold（账本 settingsTitle，目标墨高
+    /// 约 25.7——系统大标题实测 29.3 已弃）；无卡面、与
+    /// 页底同色，标题上方只留正常边距（旧系统大标题区
+    /// 约 130pt 空白随 navigationTitle 撤销一并消失）
+    private var pageTitleSection: some View {
+        Section {
+            Text("设置")
+                .font(TypeScale.settingsTitle)
+                .foregroundStyle(Palette.ink)
+                .listRowInsets(
+                    EdgeInsets(top: 4, leading: 20, bottom: 2, trailing: 20)
+                )
+        }
+        .listRowBackground(Palette.pageBG)
+        .listRowSeparator(.hidden)
+    }
+
     // MARK: - 顶部身份头（0.3.4，借 aheze/Setting 的
     // profile header 模式、只借模式不引库）：一行说清
     // 连的是谁——Hermes 名称＋网关状态点，副行＝当前
@@ -136,8 +167,15 @@ struct SettingsView: View {
                             )
                         }
                     }
+                    // 0.3.8 第 6/11 条：副题只留模型显示名
+                    // ——原始 id（deepseek-flash）经
+                    // ModelDisplayNames 翻译，与聊天页同名；
+                    // host 与下方服务器行重复、本行撤下
+                    // （全页 URL 只留服务器行一处）
                     Text(
-                        "\(appState.config?.host ?? "未连接") · \(appState.defaultModel ?? appState.modelID)"
+                        ModelDisplayNames.identityLabel(
+                            for: appState.defaultModel ?? appState.modelID
+                        )
                     )
                     .font(TypeScale.footnote)
                     .foregroundStyle(Palette.inkSecondary)
@@ -149,6 +187,7 @@ struct SettingsView: View {
             .contentShape(Rectangle())
         }
         .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
     }
 
     // MARK: - 服务器与连接
@@ -158,13 +197,35 @@ struct SettingsView: View {
             serverRow
             navRow(
                 icon: "rectangle.stack.person.crop", title: "档案",
-                value: activeProfile ?? "—", route: .profiles
+                // 0.3.8 第 7 条：原始名 default 经
+                // ServerLabels.profileName 翻译（默认档案）
+                value: activeProfile.map(ServerLabels.profileName) ?? "—",
+                route: .profiles
             )
-            disconnectRow
         } header: {
             SectionLabel("服务器与连接")
         }
         .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
+    }
+
+    /// 断开连接独立成组（0.3.8 第 8 条）：破坏性操作不
+    /// 混连接卡——从服务器组拆出、单独一节（红字红图标
+    /// 只在本组内，不与正常连接行同卡相邻）
+    private var disconnectSection: some View {
+        Section {
+            disconnectRow
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
+    }
+
+    /// 本页统一行盒（0.3.8 第 5 条）：纵向 insets 钉 0，
+    /// 行高只由行内容 minHeight 56 决定（旧形态系统行
+    /// 实测约 83＝内容＋系统纵向 insets 叠加）；横向 20
+    /// 与页 gutter 对齐线一致
+    private var settingsRowInsets: EdgeInsets {
+        EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
     }
 
     /// 当前服务器行：两行式（标题＋主机名）——主机名是长标识，
@@ -185,9 +246,10 @@ struct SettingsView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
-                if let status {
-                    StatusDot(color: Palette.stateColor(status.gatewayState))
-                }
+                // 0.3.8 第 9/12 条：状态点撤下——右侧只留系
+                // 统披露箭头一件（旧形态绿点＋箭头双元素、
+                // 且绿点与身份卡那颗同屏重复）；连接状态
+                // 只在身份卡留一处（点＋Hermes 名同行）
             }
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
@@ -250,6 +312,7 @@ struct SettingsView: View {
             SectionLabel("智能体")
         }
         .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
     }
 
     // MARK: - 模型与密钥
@@ -258,8 +321,13 @@ struct SettingsView: View {
         Section {
             navRow(
                 icon: "text.bubble", title: "对话模型",
-                value: appState.defaultModel ?? (appState.modelID == "hermes-agent" ? "服务端默认" : appState.modelID),
-                route: .models, mono: true
+                // 0.3.8 第 6 条：值走 ModelDisplayNames（显
+                // 示名不是标识符，mono 撤销）；原始 id 只
+                // 进对话模型详情页
+                value: ModelDisplayNames.identityLabel(
+                    for: appState.defaultModel ?? appState.modelID
+                ),
+                route: .models
             )
             navRow(icon: "key", title: "密钥", value: "环境变量", route: .envVars)
             navRow(
@@ -271,6 +339,7 @@ struct SettingsView: View {
             SectionLabel("模型与密钥")
         }
         .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
     }
 
     // MARK: - 网关
@@ -279,8 +348,9 @@ struct SettingsView: View {
         Section {
             navRow(
                 icon: "network", title: "网关状态",
-                value: gatewayStateWord, route: .gateway,
-                dot: status.map { Palette.stateColor($0.gatewayState) }
+                value: gatewayStateWord, route: .gateway
+                // 0.3.8 第 9 条：状态点撤下（全页状态点只
+                // 留身份卡一处；本行右侧＝值＋箭头）
             )
             Button {
                 showRestartConfirm = true
@@ -300,6 +370,7 @@ struct SettingsView: View {
             SectionLabel("网关")
         }
         .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
     }
 
     private var gatewayStateWord: String {
@@ -324,13 +395,14 @@ struct SettingsView: View {
             SectionLabel("外观")
         }
         .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
     }
 
     // MARK: - 关于
 
     private var aboutSection: some View {
         Section {
-            infoRow(label: "OneDay 版本", value: "0.3.7", mono: true)
+            infoRow(label: "OneDay 版本", value: "0.3.8", mono: true)
             infoRow(
                 label: "服务端",
                 value: status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0",
@@ -383,6 +455,7 @@ struct SettingsView: View {
                 .foregroundStyle(Palette.inkMuted)
         }
         .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
     }
 
     // MARK: - 共用行组件
@@ -417,9 +490,11 @@ struct SettingsView: View {
         value: String,
         route: SettingsRoute,
         mono: Bool = false,
-        valueStyle: ValueStyle? = nil,
-        dot: Color? = nil
+        valueStyle: ValueStyle? = nil
     ) -> some View {
+        // 0.3.8 第 9/12 条：dot 参数随网关行撤点一并删除
+        // ——本页行右侧只许「值＋箭头」两件，状态点全页
+        // 只留身份卡一处，行组件不再提供挂点位
         let resolvedStyle = valueStyle ?? (mono ? .monoCallout : .callout)
         return NavigationLink(value: route) {
             HStack(spacing: OneDayMetrics.spacingSM) {
@@ -431,9 +506,6 @@ struct SettingsView: View {
                     .font(TypeScale.body)
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
-                if let dot {
-                    StatusDot(color: dot)
-                }
                 Text(value)
                     .font(
                         resolvedStyle == .monoFootnote
@@ -511,10 +583,16 @@ struct SettingsView: View {
         if let memory = try? await appState.performAdmin({ client, config in
             try await client.memoryStatus(config: config)
         }) {
-            // 0.3.4 值位纪律：只放提供方名（单词级），
-            // 完整摘要归二级页
-            let active = memory.active?.isEmpty == false ? memory.active! : "内置记忆"
-            memorySummary = active
+            // 0.3.4 值位纪律：只放单词级摘要，完整归二级页
+            // 0.3.8 第 7 条：「内置记忆」与行题同义反复——
+            // 内置时改报真信息（记忆文件数）；外部提供方
+            // 接管时报提供方名（内容名）
+            if let activeName = memory.active, !activeName.isEmpty {
+                memorySummary = activeName
+            } else {
+                let total = memory.builtinFiles.values.reduce(0, +)
+                memorySummary = "\(Int(total)) 个文件"
+            }
         }
         if let skills = try? await appState.performAdmin({ client, config in
             try await client.skills(config: config)

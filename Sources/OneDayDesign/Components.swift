@@ -1,3 +1,4 @@
+import OneDayCore
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -409,6 +410,246 @@ public struct CopyButton: View {
         .buttonStyle(.plain)
         .sensoryFeedback(.success, trigger: copyCount)
         .accessibilityLabel(copied ? "已复制" : "复制")
+    }
+}
+
+// MARK: - 0.3.8 组件（白浮纸 / 身份锚点 / 自绘底栏 / 统一行）
+
+public extension View {
+    /// 白浮纸画法（fixlist 第 28 条立令牌）：浮件统一——
+    /// floatFill 近白填充＋0.5pt 发丝描边＋paper 柔影。
+    /// 输入框/身份胶囊/圆钮/抽屉底条/自绘底栏全体浮件
+    /// 只许走这一处画法，灰贴片与各自拼影一律退场
+    func odFloatPaper(in shape: some Shape) -> some View {
+        self
+            .background(Palette.floatFill, in: shape)
+            .overlay {
+                shape.stroke(Palette.hairline, lineWidth: 0.5)
+            }
+            .odElevation(Elevation.paper)
+    }
+}
+
+/// SF Symbol 在给定点宽下的字形点宽（选中垫贴合字形用）：
+/// 与 RenderMeasureTests 同口径（SymbolConfiguration
+/// pointSize＋regular 渲染取 image.size）
+private func symbolPointWidth(_ name: String, size: CGFloat) -> CGFloat {
+    #if canImport(UIKit)
+    let config = UIImage.SymbolConfiguration(
+        pointSize: size, weight: .regular
+    )
+    return UIImage(systemName: name, withConfiguration: config)?.size.width
+        ?? size
+    #else
+    return size
+    #endif
+}
+
+/// 身份锚点（基线补遗增量令 1＋fixlist 第 30 条）：智能
+/// 体即界面——头像＋名字＋状态一枚胶囊，一级页（聊天/
+/// 总览/文件/状态）顶部统一悬浮、切页锚点不动；页大标
+/// 题退到锚点之下。胶囊只装身份三件，模型选择器等其
+/// 他控件不许塞进来（第 30 条裁决布局）
+public struct IdentityAnchor: View {
+    private let name: String
+    private let statusWord: String
+    private let statusColor: Color
+    @Environment(\.colorScheme) private var colorScheme
+
+    public init(name: String, statusWord: String, statusColor: Color) {
+        self.name = name
+        self.statusWord = statusWord
+        self.statusColor = statusColor
+    }
+
+    public var body: some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            ZStack {
+                Circle().fill(Palette.chatSurface)
+                Circle().stroke(Palette.hairline, lineWidth: 0.5)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Palette.ink)
+                    .accessibilityHidden(true)
+            }
+            .frame(width: 28, height: 28)
+            Text(name)
+                .font(TypeScale.capsuleTitle(for: colorScheme))
+                .foregroundStyle(Palette.ink)
+            HStack(spacing: 5) {
+                StatusDot(color: statusColor)
+                Text(statusWord)
+                    .font(TypeScale.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, 7)
+        .odFloatPaper(in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(name)，\(statusWord)")
+    }
+}
+
+/// 自绘底栏（0.3.8，fixlist 第 2 条用户裁决）：悬浮大
+/// 胶囊（白浮纸画法）、选中垫收窄贴合字形（TabBarLayout
+/// .padWidth 构造决定）、图标 outline＋regular 直渲。
+/// 只承载点按：不挂拖拽手势（与页面滚动/抽屉手势不冲
+/// 突）；切换动画走 MotionTokens.resolved 出口（Reduce
+/// Motion 瞬时）；每格保留文字无障碍标签与 tab.<id> 标识
+public struct FloatingTabBar: View {
+    public struct Item: Identifiable, Sendable {
+        public let id: String
+        public let title: String
+        public let symbol: String
+
+        public init(id: String, title: String, symbol: String) {
+            self.id = id
+            self.title = title
+            self.symbol = symbol
+        }
+    }
+
+    private let items: [Item]
+    private let selectedID: String
+    private let onSelect: (String) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    public init(
+        items: [Item], selectedID: String,
+        onSelect: @escaping (String) -> Void
+    ) {
+        self.items = items
+        self.selectedID = selectedID
+        self.onSelect = onSelect
+    }
+
+    public var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items) { item in
+                let isSelected = item.id == selectedID
+                Button {
+                    onSelect(item.id)
+                } label: {
+                    ZStack {
+                        if isSelected {
+                            Capsule()
+                                .fill(Palette.selectionFill)
+                                .frame(
+                                    width: TabBarLayout.padWidth(
+                                        glyphWidth: symbolPointWidth(
+                                            item.symbol,
+                                            size: TabBarLayout.glyphSize
+                                        )
+                                    ),
+                                    height: TabBarLayout.padHeight
+                                )
+                        }
+                        Image(systemName: item.symbol)
+                            .font(.system(
+                                size: TabBarLayout.glyphSize,
+                                weight: .regular
+                            ))
+                            .foregroundStyle(Palette.ink)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: TabBarLayout.barHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
+                .accessibilityIdentifier("tab.\(item.id)")
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .odFloatPaper(in: Capsule())
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.liquidSpring, reduceMotion: reduceMotion
+            ),
+            value: selectedID
+        )
+    }
+}
+
+/// 统一行（基线补遗增量令 2 的二级页行组件）：规格冻死
+/// 在 OneDayCore.ListRowSpec——图标列 28、标题 17
+/// regular、副题 13 灰、右侧元信息等宽 13；可选状态点
+/// 与箭头（右侧至多两件、由调用方克制）。各页只换图标
+/// 与文案，行型不许再自创
+public struct UnifiedRow: View {
+    private let icon: String?
+    private let title: String
+    private let subtitle: String?
+    private let trailing: String?
+    private let trailingColor: Color?
+    private let statusColor: Color?
+    private let showsChevron: Bool
+
+    public init(
+        icon: String? = nil,
+        title: String,
+        subtitle: String? = nil,
+        trailing: String? = nil,
+        trailingColor: Color? = nil,
+        statusColor: Color? = nil,
+        showsChevron: Bool = false
+    ) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing
+        self.trailingColor = trailingColor
+        self.statusColor = statusColor
+        self.showsChevron = showsChevron
+    }
+
+    public var body: some View {
+        HStack(spacing: ListRowSpec.columnSpacing) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(TypeScale.rowIcon)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(
+                        width: ListRowSpec.iconSlotWidth,
+                        alignment: .leading
+                    )
+                    .iconOpticalOffset()
+                    .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TypeScale.rowTitle)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(TypeScale.rowSubtitle)
+                        .foregroundStyle(Palette.inkMuted)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            if let trailing {
+                Text(trailing)
+                    .font(TypeScale.monoFootnote)
+                    .tabularDigits()
+                    .foregroundStyle(trailingColor ?? Palette.inkMuted)
+            }
+            if let statusColor {
+                StatusDot(color: statusColor)
+            }
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Palette.inkMuted)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(minHeight: ListRowSpec.minHeight)
+        .contentShape(Rectangle())
     }
 }
 

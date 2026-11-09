@@ -107,6 +107,16 @@ public enum Palette {
     /// 选中浅灰胶囊垫（0.3.6 立宪，§22）：#E3E3E5 系，
     /// 底栏选中与名单当前行共用；选中不靠变色/加粗
     public static var selectionFill: Color { token(\.selectionFill) }
+    /// 白浮纸（0.3.8 立令牌，fixlist 第 28 条）：浮件统一
+    /// 面——近白填充（浅 #FBFBFB／暗 #1C1C1F）＋发丝描边
+    /// ＋柔影（画法见 odFloatPaper）。输入框/身份胶囊/
+    /// 圆钮/抽屉底条/自绘底栏全体浮件同此一面，灰贴片
+    /// （fieldFill 平铺）退出浮件位
+    public static var floatFill: Color { token(\.floatFill) }
+    /// 用户气泡面（0.3.8，fixlist 第 26 条）：中性浅灰
+    /// （浅 #F0F0F2／暗 #212126），与助手泡 #E9EAEC 同
+    /// 家族拉开深浅；§19 不变表：气泡恒中性、永不染色
+    public static var userBubbleFill: Color { token(\.userBubbleFill) }
 
     // —— 文字三角色 ——
     /// 主文字
@@ -240,8 +250,15 @@ public enum OneDayMetrics {
     public static let drawerWidthFraction: CGFloat = 0.79
     /// 抽屉宽上限（设备值，大屏不无限拉宽）
     public static let drawerMaxWidth: CGFloat = 340
-    /// 原生底栏在屏幕底部的占位（抽屉面板底部按它留位）
+    /// 底栏占位带（0.3.8 自绘底栏口径）：滚动内容底部
+    /// 留白按此值避让悬浮栏（栏高 58＋底边距 8＋呼吸
+    /// 10，与 Core 的 TabBarLayout.zoneHeight 同值；安全
+    /// 区另由系统/safeAreaPadding 承担）。0.3.7 前的 76
+    /// 是原生 TabView 时代的值，自绘后按本值
     public static let tabBarZone: CGFloat = 76
+    /// 两行制会话行最小高（0.3.8 第 19 条，与 Core 的
+    /// ListRowSpec.sessionRowMinHeight 同值）
+    public static let sessionRowHeight: CGFloat = 57
 
     /// 间距梯队：4/8/12/16/20/24/32/48，只许取梯队值
     public static let spacingXS: CGFloat = 4

@@ -82,7 +82,7 @@ struct MarkdownText: View {
                         TextShaping.prettyWrapDocument(text),
                         strongFont: TypeScale.markdownStrong
                     )
-                        .font(TypeScale.body)
+                        .font(TypeScale.bubbleBody) // 0.3.8 第 29 条：气泡正文 17 regular 显式角色
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                 case .heading(let text, let level):
