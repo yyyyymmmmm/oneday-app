@@ -127,7 +127,7 @@ struct FilesView: View {
                 }
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -143,18 +143,18 @@ struct FilesView: View {
         NavigationLink(value: item.entry) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: item.entry.odIconName)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     // 条 5 补落点（0.3.2）：同行图标走光学偏移
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.entry.name)
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text(item.subtitle)
-                        .font(TypeScale.caption)
+                        .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                         // 条 6 补落点（0.3.2）：大小/日期读数等宽
@@ -376,7 +376,7 @@ private struct MediaCell: View {
                         .font(.system(size: 22))
                         .foregroundStyle(Palette.inkSecondary)
                     Text(entry.name)
-                        .font(TypeScale.monoCaption)
+                        .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(Palette.inkMuted)
                         .lineLimit(1)
                         .padding(.horizontal, OneDayMetrics.spacingXS)
@@ -433,7 +433,7 @@ private struct FilePreviewView: View {
             } else if let text {
                 ScrollView {
                     Text(text)
-                        .font(entry.isTextLike ? TypeScale.monoFootnote : TypeScale.body)
+                        .font(entry.isTextLike ? .system(.footnote, design: .monospaced) : .body)
                         .foregroundStyle(Palette.ink)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)

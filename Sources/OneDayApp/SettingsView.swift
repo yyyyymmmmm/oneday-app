@@ -41,7 +41,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
-                pageTitleSection
                 identitySection
                 serverSection
                 disconnectSection
@@ -53,7 +52,7 @@ struct SettingsView: View {
                 if let notice {
                     Section {
                         Text(notice)
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .listRowBackground(Palette.surface)
@@ -67,12 +66,10 @@ struct SettingsView: View {
             .background(Palette.pageBG)
             // 0.4.0（§3.2）：tabBarZone 手算底部留白删除——
             // 原生底栏回来后 List 底部避让由系统安全区自理
-            // 0.3.8 第 4/13 条：系统大标题撤销（墨高实测
-            // 29.3、且标题上方约 130pt 无功能空白），改自
-            // 绘标题行（pageTitleSection，30 bold）＋导航栏
-            // 收成 inline 空题
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
+            // 0.4.0（审计 §3.1）：自绘大标题行删除，标题回
+            // 系统 navigationTitle 大标题（整页规格对齐归
+            // 二期：届时改 sheet 形态，R4 已裁）
+            .navigationTitle("设置")
             .task { await loadSummaries() }
             .onAppear { consumePendingRoutes() }
             .onChange(of: appState.pendingSettingsRoute) { _, _ in
@@ -134,24 +131,9 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 页标题行（0.3.8 第 4/13 条）
-
-    /// 自绘页标题：30 bold（账本 settingsTitle，目标墨高
-    /// 约 25.7——系统大标题实测 29.3 已弃）；无卡面、与
-    /// 页底同色，标题上方只留正常边距（旧系统大标题区
-    /// 约 130pt 空白随 navigationTitle 撤销一并消失）
-    private var pageTitleSection: some View {
-        Section {
-            Text("设置")
-                .font(TypeScale.settingsTitle)
-                .foregroundStyle(Palette.ink)
-                .listRowInsets(
-                    EdgeInsets(top: 4, leading: 20, bottom: 2, trailing: 20)
-                )
-        }
-        .listRowBackground(Palette.pageBG)
-        .listRowSeparator(.hidden)
-    }
+    // （自绘页标题行 pageTitleSection 已于 0.4.0 删除，
+    // 审计 §3.1：标题回系统 navigationTitle；TypeScale
+    // .settingsTitle 随之退役）
 
     // MARK: - 顶部身份头（0.3.4，借 aheze/Setting 的
     // profile header 模式、只借模式不引库）：一行说清
@@ -165,7 +147,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text("Hermes")
-                            .font(TypeScale.headline)
+                            .font(.headline)
                             .foregroundStyle(Palette.ink)
                         if let status {
                             StatusDot(
@@ -183,7 +165,7 @@ struct SettingsView: View {
                             for: appState.defaultModel ?? appState.modelID
                         )
                     )
-                    .font(TypeScale.footnote)
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
                 }
@@ -244,10 +226,10 @@ struct SettingsView: View {
                 rowIcon("server.rack")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("当前服务器")
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                     Text(appState.config?.host ?? "—")
-                        .font(TypeScale.monoFootnote)
+                        .font(.system(.footnote, design: .monospaced))
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -269,7 +251,7 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon("rectangle.portrait.and.arrow.right", color: Palette.danger)
                 Text("断开连接")
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
@@ -364,7 +346,7 @@ struct SettingsView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     rowIcon("arrow.clockwise")
                     Text("重启网关")
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
@@ -410,19 +392,21 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            infoRow(label: "OneDay 版本", value: "0.3.8", mono: true)
-            infoRow(
-                label: "服务端",
-                value: status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0",
-                mono: true
-            )
+            LabeledContent("OneDay 版本") {
+                Text("0.3.8")
+                    .font(.system(.callout, design: .monospaced))
+            }
+            LabeledContent("服务端") {
+                Text(status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0")
+                    .font(.system(.callout, design: .monospaced))
+            }
             Link(destination: URL(string: "https://github.com/NousResearch/hermes-agent")!) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Color.clear
                         .frame(width: OneDayMetrics.iconSlot)
                         .accessibilityHidden(true)
                     Text("Hermes 开源项目")
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -443,7 +427,7 @@ struct SettingsView: View {
                         .frame(width: OneDayMetrics.iconSlot)
                         .accessibilityHidden(true)
                     Text("Icons by Lordicon")
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
@@ -459,7 +443,7 @@ struct SettingsView: View {
         } footer: {
             // 0.3.4：隐私说明移组脚注（不再占行）
             Text("OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。")
-                .font(TypeScale.footnote)
+                .font(.footnote)
                 .foregroundStyle(Palette.inkMuted)
         }
         .listRowBackground(Palette.surface)
@@ -472,7 +456,7 @@ struct SettingsView: View {
         Image(systemName: name)
             // 0.3.4 设置页按 Muse 纪律（用户拍板，推翻
             // 0.3.3 的礼记行口径）：细线 regular 17——本页
-            // 禁用 TypeScale.rowIcon 的 20 semibold；靠细
+            // 禁用 .system(size: OneDayMetrics.rowIconGlyph) 的 20 semibold；靠细
             // 线＋正常字重＋留白，不靠分量。其他页面的
             // ContentRow 仍走 rowIcon/rowTitle（字重阶梯
             // 账内行标题半粗是合法位，见 §19.5 判断）
@@ -510,16 +494,16 @@ struct SettingsView: View {
                     // 0.3.4 Muse 纪律：设置行标题 regular
                     // （0.3.3 的 rowTitle 半粗在本页停用）；
                     // 值 regular＋inkSecondary 退后
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Text(value)
                     .font(
                         resolvedStyle == .monoFootnote
-                            ? TypeScale.monoFootnote
+                            ? .system(.footnote, design: .monospaced)
                             : resolvedStyle == .monoCallout
-                                ? TypeScale.monoCallout
-                                : TypeScale.rowValue
+                                ? .system(.callout, design: .monospaced)
+                                : .callout
                     )
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
@@ -531,26 +515,7 @@ struct SettingsView: View {
         }
     }
 
-    private func infoRow(label: String, value: String, mono: Bool = false) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            // 0.3.4 对齐线：无图标行补图标槽占位，全页
-            // 标题落同一条 x 线（iconSlot 28，与 navRow
-            // 的 rowIcon 槽同宽）
-            Color.clear
-                .frame(width: OneDayMetrics.iconSlot)
-                .accessibilityHidden(true)
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.rowValue)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.trailing)
-                .textSelection(.enabled)
-        }
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
+    // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）
 
     // MARK: - 数据与动作
 

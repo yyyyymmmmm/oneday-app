@@ -294,7 +294,7 @@ struct ChatView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Text(displayModelName)
-                                .font(TypeScale.callout)
+                                .font(.callout)
                                 .lineLimit(1)
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 9, weight: .bold))
@@ -338,7 +338,7 @@ struct ChatView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Text(thread.title)
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(1)
                         Image(systemName: "info.circle")
@@ -351,7 +351,7 @@ struct ChatView: View {
                 .accessibilityLabel("会话信息")
             } else {
                 Text(currentThread?.title ?? "新会话")
-                    .font(TypeScale.footnote)
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
@@ -444,11 +444,11 @@ struct ChatView: View {
                         Text("和你的 Hermes 聊聊")
                             // 0.3.3 收编：手写 fontWeight 漂移
                             // 改走 sectionTitle 角色（阶梯账
-                            // 见 TextRoleWeights）
-                            .font(TypeScale.sectionTitle)
+                            // 见原字重账本，已废止）
+                            .font(.callout)
                             .foregroundStyle(Palette.ink)
                         Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
-                            .font(TypeScale.caption)
+                            .font(.caption)
                             .foregroundStyle(Palette.inkMuted)
                             .multilineTextAlignment(.center)
                     }
@@ -613,7 +613,7 @@ struct ChatView: View {
                             // 0.3.8 第 29 条：气泡正文走显式
                             // bubbleBody（17 regular），与助手
                             // 侧 MarkdownText/StreamingText 同
-                            .font(TypeScale.bubbleBody)
+                            .font(.body)
                             .foregroundStyle(Palette.ink)
                             .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                             .padding(.vertical, OneDayMetrics.bubblePaddingV)
@@ -671,7 +671,7 @@ struct ChatView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         TypingDots()
                         Text("模型唤醒中，冷启动约 1–3 分钟…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.vertical, OneDayMetrics.spacingXS)
@@ -702,7 +702,7 @@ struct ChatView: View {
                     .foregroundStyle(Palette.danger)
                     .accessibilityHidden(true)
                 Text(message)
-                    .font(TypeScale.subhead)
+                    .font(.subheadline)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Button {
@@ -731,7 +731,7 @@ struct ChatView: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .accessibilityHidden(true)
                 Text(message)
-                    .font(TypeScale.subhead)
+                    .font(.subheadline)
                     .foregroundStyle(Palette.inkSecondary)
                 Spacer()
                 Button {
@@ -1154,7 +1154,7 @@ private struct ComposerBarLayout: Layout {
                     Image(systemName: "doc")
                         .foregroundStyle(Palette.inkSecondary)
                     Text(name)
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                         .frame(maxWidth: 140)
@@ -1364,7 +1364,7 @@ private struct ComposerBarLayout: Layout {
     /// 义卡删减清单：那是管理面信息，不占导航壳第一眼）
     private var drawerAgentName: some View {
         Text("Hermes")
-            .font(TypeScale.largeTitle)
+            .font(.largeTitle)
             .foregroundStyle(Palette.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OneDayMetrics.drawerInset)
@@ -1391,7 +1391,7 @@ private struct ComposerBarLayout: Layout {
             // 0.3.8 第 20 条：导航区补分组标签（与会话区
             // 的时间分组标签同一形态：13 regular 次级灰）
             Text("选项卡")
-                .font(TypeScale.groupLabel)
+                .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, OneDayMetrics.drawerInset)
@@ -1441,7 +1441,7 @@ private struct ComposerBarLayout: Layout {
                     )
                     .accessibilityHidden(true)
                 Text(pair.title)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }
@@ -1495,7 +1495,7 @@ private struct ComposerBarLayout: Layout {
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
                 TextField("搜索会话", text: $drawerQuery)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 if !drawerQuery.isEmpty {
                     Button {
@@ -1597,7 +1597,7 @@ private struct ComposerBarLayout: Layout {
                                     .font(.system(size: 15, weight: .regular))
                                     .foregroundStyle(Palette.inkSecondary)
                                 Text("新建会话")
-                                    .font(TypeScale.body)
+                                    .font(.body)
                                     .foregroundStyle(Palette.ink)
                             }
                             .padding(.horizontal, OneDayMetrics.spacingS)
@@ -1615,7 +1615,7 @@ private struct ComposerBarLayout: Layout {
                 } else {
                     drawerPlainRow {
                         Text("没有匹配的会话")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkMuted)
                             .padding(.horizontal, OneDayMetrics.drawerInset)
                             .padding(.top, OneDayMetrics.spacingL)
@@ -1668,7 +1668,7 @@ private struct ComposerBarLayout: Layout {
     private func drawerGroupHeader(_ label: String) -> some View {
         drawerPlainRow {
             Text(label)
-                .font(TypeScale.groupLabel)
+                .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.horizontal, OneDayMetrics.drawerInset)
                 .padding(.top, OneDayMetrics.spacingSM)
@@ -1724,11 +1724,11 @@ private struct ComposerBarLayout: Layout {
                 // 状态只写属实）且与本地行同行型（标题
                 // 17 regular＋副题 13、行高 57 两行制）
                 Text(session.humanTitle)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text(session.humanSubtitle(now: Date()))
-                    .font(TypeScale.footnote)
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
@@ -1763,7 +1763,7 @@ private struct ComposerBarLayout: Layout {
             // 用户裁决：保留灰块不改）
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(thread.title)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text(LocalThreadSubtitle.text(
@@ -1771,7 +1771,7 @@ private struct ComposerBarLayout: Layout {
                     messageCount: thread.entries.count,
                     now: Date()
                 ))
-                .font(TypeScale.footnote)
+                .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
             }
@@ -2216,7 +2216,7 @@ private struct ModelPickerSheet: View {
                     }
                     .odGroup()
                     Text("选择只保存在这台手机上，下一条消息立即生效；不会修改服务端默认模型。Qwen3-30B 是自部署模型，休眠后第一次提问会自动唤醒（约 1–3 分钟）。")
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -2244,11 +2244,11 @@ private struct ModelPickerSheet: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.displayName)
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text(item.note)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkMuted)
                         .lineLimit(1)
                 }

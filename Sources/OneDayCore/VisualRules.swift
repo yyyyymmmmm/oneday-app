@@ -1,34 +1,9 @@
 import Foundation
 
-/// 视觉纪律的纯逻辑部分（0.3.0，DESIGN-V4 §14）：字重
-/// 映射与断行整形——可单测、不依赖渲染环境的部分先钉
-/// 死在这里，视图层只消费结果。
-
-/// 字重（条 3：暗色全降一档）。CSS 权重量纲 100–900
-/// 与命名档的对应是行业惯例：100 ultraLight、200 thin、
-/// 300 light、400 regular、500 medium、600 semibold、
-/// 700 bold、800 heavy、900 black。用户原令「降 40
-/// （CSS 权重量纲），即视觉降一档」——落法取命名档降
-/// 一档（600→500、500→400、…），100 已是地板不降。
-public enum VisualWeight {
-    /// 命名档序列（细→粗）
-    public static let grades: [Int] = [
-        100, 200, 300, 400, 500, 600, 700, 800, 900,
-    ]
-
-    /// 就近落到命名档（输入任意 CSS 权重值时用）
-    public static func nearestGrade(_ css: Int) -> Int {
-        grades.min(by: { abs($0 - css) < abs($1 - css) }) ?? 400
-    }
-
-    /// 暗色降一档：先就近落档，再沿序列降一级，地板 100
-    public static func steppedDown(_ css: Int) -> Int {
-        let grade = nearestGrade(css)
-        guard let index = grades.firstIndex(of: grade), index > 0
-        else { return 100 }
-        return grades[index - 1]
-    }
-}
+/// 视觉纪律的纯逻辑部分（0.3.0，DESIGN-V4 §14）：断行
+/// 整形——可单测、不依赖渲染环境的部分先钉死在这里，
+/// 视图层只消费结果。（字重映射 VisualWeight 已于
+/// 0.4.0 随 TypeScale 废止删除，审计 §3.1）
 
 /// 断行整形（条 8：text-wrap: pretty 等价近似）。SwiftUI
 /// 无 pretty 原语，近似法＝尾行孤字防护：把段落最后两

@@ -95,17 +95,6 @@ final class DisplayMappingTests: XCTestCase {
         XCTAssertEqual(ListRowSpec.subtitleSize, 13)
     }
 
-    func testTextRoleAdditions() {
-        XCTAssertEqual(TextRoleWeights.settingsTitleSize, 30)
-        XCTAssertEqual(TextRoleWeights.settingsTitle, 700)
-        XCTAssertEqual(TextRoleWeights.bubbleText, 400)
-        XCTAssertEqual(TextRoleWeights.bubbleTextSize, 17)
-        XCTAssertEqual(TextRoleWeights.navRowText, 400)
-        // 内容标题是 semibold 唯一合法领地（补遗字体补测）
-        XCTAssertEqual(TextRoleWeights.contentTitle, 600)
-        XCTAssertTrue(TextRoleWeights.contentTitleSizeRange.contains(20))
-    }
-
     func testLocalThreadSubtitle() {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(secondsFromGMT: 0)!

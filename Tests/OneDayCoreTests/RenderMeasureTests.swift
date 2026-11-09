@@ -210,41 +210,10 @@ final class RenderMeasureTests: XCTestCase {
         return analyze(image)?.tightHeightPt
     }
 
-    func testTitleInkHeights() throws {
-        // 对照：旧系统大标题量级（34 black）与新定版 30 bold
-        let reference = try XCTUnwrap(inkHeight(
-            "设置", font: .systemFont(ofSize: 34, weight: .black)
-        ))
-        let pinned = try XCTUnwrap(inkHeight(
-            "设置",
-            font: .systemFont(
-                ofSize: TextRoleWeights.settingsTitleSize, weight: .bold
-            )
-        ))
-        print(String(
-            format: "MEASURE title-ink ref34black=%.1f pinned30bold=%.1f",
-            Double(reference), Double(pinned)
-        ))
-        XCTAssertLessThan(pinned, reference)
-        XCTAssertTrue(
-            (23.0...28.0).contains(pinned),
-            "设置标题墨高 \(pinned) 出目标带（约 25.7）"
-        )
-
-        // 气泡正文：17 regular 对照 19 semibold（清单实测形态）
-        let bubble = try XCTUnwrap(inkHeight(
-            "Hermes 在线",
-            font: .systemFont(ofSize: TextRoleWeights.bubbleTextSize)
-        ))
-        let heavyRef = try XCTUnwrap(inkHeight(
-            "Hermes 在线", font: .systemFont(ofSize: 19, weight: .semibold)
-        ))
-        print(String(
-            format: "MEASURE text-ink bubble17=%.1f ref19semibold=%.1f",
-            Double(bubble), Double(heavyRef)
-        ))
-        XCTAssertLessThan(bubble, heavyRef)
-    }
+    // （testTitleInkHeights 已于 0.4.0 删除：其钉死对象
+    // ——自绘设置标题 30 bold 与气泡 17pt 显式字号——随
+    // TypeScale 废止与 pageTitleSection 删除而不存在，
+    // 字体回归语义样式后无自设尺寸可量，审计 §3.1）
 
     // MARK: - 语义色挂接（0.4.0，审计 §1.1）
 

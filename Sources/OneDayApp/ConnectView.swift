@@ -101,10 +101,10 @@ struct ConnectView: View {
         // 0.3.7 卡 1：身份块居中（稀疏表单页全页唯一视觉重心）
         VStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
             Text("OneDay")
-                .font(TypeScale.display(for: colorScheme))
+                .font(.title)
                 .foregroundStyle(Palette.ink)
             Text("连接你的 Hermes 服务器")
-                .font(TypeScale.subhead)
+                .font(.subheadline)
                 .foregroundStyle(Palette.inkSecondary)
         }
     }
@@ -160,16 +160,16 @@ struct ConnectView: View {
                     stepIcon(step)
                         .frame(width: 18, alignment: .center)
                     Text(step.label)
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     if stepStates[step] == .done {
                         Text("通过")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.success)
                     } else if stepStates[step] == .failed {
                         Text("失败")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.danger)
                     }
                 }

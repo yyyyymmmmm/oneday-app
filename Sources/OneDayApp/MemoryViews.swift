@@ -34,7 +34,7 @@ struct MemoryView: View {
                 }
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -83,7 +83,7 @@ struct MemoryView: View {
         HStack(spacing: OneDayMetrics.spacingS) {
             ProgressView()
             Text("正在读取记忆状态…")
-                .font(TypeScale.footnote)
+                .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.top, OneDayMetrics.spacingL)
@@ -99,11 +99,11 @@ struct MemoryView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Text(activeName)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text("内置文件 \(AdminFormat.count(totalFiles)) 条")
-                    .font(TypeScale.footnote)
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
@@ -192,11 +192,11 @@ struct MemoryView: View {
     private func fileRow(label: String, value: Double?) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text(label)
-                .font(TypeScale.body)
+                .font(.body)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(value.map { AdminFormat.count($0) } ?? "—")
-                .font(TypeScale.monoCallout)
+                .font(.system(.callout, design: .monospaced))
                 .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -225,7 +225,7 @@ struct MemoryView: View {
         } label: {
             HStack {
                 Text(title)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
@@ -292,21 +292,21 @@ struct MemoryProviderConfigView: View {
                         .padding(.top, OneDayMetrics.spacingL)
                 } else if config != nil {
                     Text("该提供方没有可配置项。")
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, OneDayMetrics.spacingL)
                 } else {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取配置…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.top, OneDayMetrics.spacingL)
                 }
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -338,22 +338,22 @@ struct MemoryProviderConfigView: View {
             SectionLabel("状态")
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                infoRow("可用", provider.available == true ? "是" : "否")
+                LabeledContent("可用", value: provider.available == true ? "是" : "否")
                 GroupDivider(inset: OneDayMetrics.spacingM)
-                infoRow("已配置", provider.configured == true ? "是" : "否")
+                LabeledContent("已配置", value: provider.configured == true ? "是" : "否")
                 if let state = provider.status, !state.isEmpty {
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("状态", state)
+                    LabeledContent("状态", value: state)
                 }
                 if isActive {
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     HStack {
                         Text("当前提供方")
-                            .font(TypeScale.body)
+                            .font(.body)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                         Text("使用中")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.success)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
@@ -425,19 +425,7 @@ struct MemoryProviderConfigView: View {
         )
     }
 
-    private func infoRow(_ label: String, _ value: String) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(TypeScale.callout)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
+    // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）
 
     private func load() async {
         do {

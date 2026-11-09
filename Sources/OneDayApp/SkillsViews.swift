@@ -25,7 +25,7 @@ struct SkillsView: View {
                     // 按服务端类别分组（已裁 4，类别名走翻译）
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text("已装 \(skills.count) 个 · 启用 \(skills.filter(\.isEnabled).count) 个")
-                            .font(TypeScale.title(for: colorScheme))
+                            .font(.callout)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                     }
@@ -57,7 +57,7 @@ struct SkillsView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取技能…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.top, OneDayMetrics.spacingL)
@@ -71,7 +71,7 @@ struct SkillsView: View {
                 }
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -100,7 +100,7 @@ struct SkillsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: OneDayMetrics.spacingXS) {
                             Text(skill.name)
-                                .font(TypeScale.body)
+                                .font(.body)
                                 .foregroundStyle(Palette.ink)
                             if skill.locked == true {
                                 Image(systemName: "lock")
@@ -115,7 +115,7 @@ struct SkillsView: View {
                            !description.isEmpty,
                            ServerLabels.isChineseText(description) {
                             Text(description)
-                                .font(TypeScale.footnote)
+                                .font(.footnote)
                                 .foregroundStyle(Palette.inkSecondary)
                                 .lineLimit(1)
                         }
@@ -216,7 +216,7 @@ struct SkillDetailView: View {
                 contentGroup
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -238,7 +238,7 @@ struct SkillDetailView: View {
             VStack(spacing: 0) {
                 if let description = skill.description, !description.isEmpty {
                     Text(description)
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .padding(.vertical, OneDayMetrics.spacingSM)
@@ -247,7 +247,7 @@ struct SkillDetailView: View {
                 }
                 HStack {
                     Text("启用")
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Toggle("", isOn: $isEnabled)
@@ -263,10 +263,10 @@ struct SkillDetailView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("锁定")
-                            .font(TypeScale.body)
+                            .font(.body)
                             .foregroundStyle(Palette.ink)
                         Text("锁定后不能改内容、不能停用")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkMuted)
                     }
                     Spacer()
@@ -293,19 +293,19 @@ struct SkillDetailView: View {
                         draft = content ?? ""
                         isEditing = false
                     }
-                    .font(TypeScale.callout)
+                    .font(.callout)
                     Button(isSaving ? "保存中…" : "保存") {
                         Task { await saveContent() }
                     }
                     // 卡 17：medium 退出，保存钮 regular
-                    .font(TypeScale.callout)
+                    .font(.callout)
                     .disabled(isSaving)
                 } else if content != nil {
                     Button("编辑") {
                         draft = content ?? ""
                         isEditing = true
                     }
-                    .font(TypeScale.callout)
+                    .font(.callout)
                     .disabled(isLocked)
                 }
             }
@@ -314,13 +314,13 @@ struct SkillDetailView: View {
             Group {
                 if isEditing {
                     TextEditor(text: $draft)
-                        .font(TypeScale.monoCode)
+                        .font(.system(.footnote, design: .monospaced))
                         .frame(minHeight: 320)
                         .scrollContentBackground(.hidden)
                         .padding(OneDayMetrics.spacingS)
                 } else if let content {
                     Text(content)
-                        .font(TypeScale.monoCode)
+                        .font(.system(.footnote, design: .monospaced))
                         .foregroundStyle(Palette.ink)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -332,7 +332,7 @@ struct SkillDetailView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取内容…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(OneDayMetrics.spacingM)

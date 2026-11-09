@@ -69,7 +69,7 @@ struct OverviewView: View {
                     actionsGroup
                     if let notice {
                         Text(notice)
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                             .padding(.top, OneDayMetrics.spacingM)
                     }
@@ -77,7 +77,7 @@ struct OverviewView: View {
                         VStack(spacing: OneDayMetrics.spacingS) {
                             ProgressView()
                             Text("正在读取服务器状态…")
-                                .font(TypeScale.footnote)
+                                .font(.footnote)
                                 .foregroundStyle(Palette.inkSecondary)
                         }
                         .frame(maxWidth: .infinity)
@@ -121,7 +121,7 @@ struct OverviewView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     StatusDot(color: Palette.stateColor(status.gatewayState))
                     Text(stateWord(status))
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(isAbnormal(status) ? Palette.danger : Palette.ink)
                     Spacer()
                     Image(systemName: "chevron.right")
@@ -140,14 +140,14 @@ struct OverviewView: View {
             // 大数字＝今日 Token（已裁 2）；等宽＋numericText
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(todayTokens.map { AdminFormat.count($0) } ?? "—")
-                    .font(TypeScale.metricNumber)
+                    .font(.title)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .tabularDigits()
                     .contentTransition(.numericText())
                 Text("今日 Token")
-                    .font(TypeScale.caption)
+                    .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
@@ -158,11 +158,11 @@ struct OverviewView: View {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
                     HStack {
                         Text("内存占用")
-                            .font(TypeScale.caption)
+                            .font(.caption)
                             .foregroundStyle(Palette.inkSecondary)
                         Spacer()
                         Text("\(Int(percent.rounded()))%")
-                            .font(TypeScale.caption)
+                            .font(.caption)
                             .foregroundStyle(Palette.inkSecondary)
                             .tabularDigits()
                     }
@@ -209,14 +209,14 @@ struct OverviewView: View {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(value)
                     // 卡 17：24 semibold → title 位 bold 口径
-                    .font(TypeScale.title(for: colorScheme))
+                    .font(.title2)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .tabularDigits()
                     .contentTransition(.numericText())
                 Text(label)
-                    .font(TypeScale.caption)
+                    .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -252,7 +252,7 @@ struct OverviewView: View {
             VStack(spacing: 0) {
                 if status.platforms.isEmpty {
                     Text("暂无平台状态")
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .frame(minHeight: OneDayMetrics.rowHeight)
@@ -280,16 +280,16 @@ struct OverviewView: View {
                 // 卡 2 纠正 3：平台名与状态词走 ServerLabels，
                 // 原始 key/state 不上屏
                 Text(ServerLabels.platformName(name))
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text(ServerLabels.platformState(platform.state))
-                    .font(TypeScale.footnote)
+                    .font(.footnote)
                     .foregroundStyle(Palette.stateColor(platform.state))
             }
             if let message = platform.errorMessage, !message.isEmpty {
                 Text(message)
-                    .font(TypeScale.caption)
+                    .font(.caption)
                     .foregroundStyle(Palette.danger)
                     .padding(.leading, OneDayMetrics.spacingM + OneDayMetrics.spacingSM)
             }
@@ -323,7 +323,7 @@ struct OverviewView: View {
                     if !hasTodo {
                         // 卡 2 纠正 2：无待处理明写，不留空组
                         Text("没有待处理")
-                            .font(TypeScale.callout)
+                            .font(.callout)
                             .foregroundStyle(Palette.inkSecondary)
                             .padding(.horizontal, OneDayMetrics.spacingM)
                             .frame(minHeight: OneDayMetrics.rowHeight)
@@ -382,7 +382,7 @@ struct OverviewView: View {
                 .foregroundStyle(color)
                 .accessibilityHidden(true)
             Text(text)
-                .font(TypeScale.subhead)
+                .font(.subheadline)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(3)
             Spacer(minLength: 0)
@@ -437,7 +437,7 @@ struct OverviewView: View {
                     }
                 } else {
                     Text("暂无会话")
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .frame(minHeight: OneDayMetrics.rowHeight)
@@ -459,11 +459,11 @@ struct OverviewView: View {
                     // 卡 16/18 同源：标题 humanTitle、副题
                     // humanSubtitle，原始 title/source 不上屏
                     Text(session.humanTitle)
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text(session.humanSubtitle(now: Date()))
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -488,11 +488,11 @@ struct OverviewView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(thread.title)
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text("本机 · \(AdminFormat.short(thread.updatedAt))")
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -541,12 +541,12 @@ struct OverviewView: View {
         Button(action: action) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: icon)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Image(systemName: "chevron.right")

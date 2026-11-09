@@ -27,7 +27,7 @@ struct ServerSessionsView: View {
                     // 0.3.7 卡 16：摘要卡置顶，计数只在此一处
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text("共 \(total) 条 · 进行中 \(sessions.filter(\.isActive).count) 条")
-                            .font(TypeScale.body)
+                            .font(.body)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                     }
@@ -58,7 +58,7 @@ struct ServerSessionsView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取会话…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.top, OneDayMetrics.spacingL)
@@ -72,7 +72,7 @@ struct ServerSessionsView: View {
                 }
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -130,14 +130,14 @@ struct ServerSessionsView: View {
     private var bulkBar: some View {
         HStack {
             Text("已选 \(selectedIDs.count) 条")
-                .font(TypeScale.callout)
+                .font(.callout)
                 .foregroundStyle(Palette.inkSecondary)
             Spacer()
             Button("删除所选", role: .destructive) {
                 showBulkDeleteConfirm = true
             }
             // 卡 17：medium 退出账本
-            .font(TypeScale.body)
+            .font(.body)
             .disabled(selectedIDs.isEmpty)
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -156,11 +156,11 @@ struct ServerSessionsView: View {
                 } label: {
                     HStack {
                         Text("清空空会话")
-                            .font(TypeScale.body)
+                            .font(.body)
                             .foregroundStyle(Palette.danger)
                         Spacer()
                         Text("\(emptyCount) 条")
-                            .font(TypeScale.monoFootnote)
+                            .font(.system(.footnote, design: .monospaced))
                             .foregroundStyle(Palette.inkMuted)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
@@ -210,7 +210,7 @@ struct ServerSessionsView: View {
                     systemName: selectedIDs.contains(session.id)
                         ? "checkmark.circle.fill" : "circle"
                 )
-                .font(TypeScale.body)
+                .font(.body)
                 .foregroundStyle(
                     selectedIDs.contains(session.id) ? Palette.primary : Palette.inkMuted
                 )

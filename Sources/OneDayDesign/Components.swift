@@ -58,7 +58,7 @@ public struct SectionLabel: View {
     public var body: some View {
         Text(title)
             // 条 3（§14）：暗色字重降一档的变体入口
-            .font(TypeScale.label(for: colorScheme))
+            .font(.footnote)
             .foregroundStyle(Palette.inkSecondary)
     }
 }
@@ -105,7 +105,7 @@ public struct ContentRow: View {
                 Image(systemName: icon)
                     // 行图标走 rowIcon 角色（0.3.7 改版：
                     // regular 线条体，§22.5 图标变体令牌）
-                    .font(TypeScale.rowIcon)
+                    .font(.system(size: OneDayMetrics.rowIconGlyph))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     // 条 5（§14）：图标相对文字下移 0.125em
@@ -114,11 +114,11 @@ public struct ContentRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     // 0.3.3：标题是行内唯一半粗位（rowTitle）
-                    .font(TypeScale.rowTitle)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 if let subtitle {
                     Text(subtitle)
-                        .font(TypeScale.rowSubtitle)
+                        .font(.footnote)
                         // 0.3.3：副标题退到最弱档 inkMuted
                         .foregroundStyle(Palette.inkMuted)
                 }
@@ -126,7 +126,7 @@ public struct ContentRow: View {
             Spacer(minLength: OneDayMetrics.spacingS)
             if let trailing {
                 Text(trailing)
-                    .font(TypeScale.monoFootnote)
+                    .font(.system(.footnote, design: .monospaced))
                     // 条 6（§14）：读数位等宽数字防抖
                     .tabularDigits()
                     .foregroundStyle(Palette.inkMuted)
@@ -159,10 +159,10 @@ public struct FieldRow<Content: View>: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(TypeScale.label(for: colorScheme))
+                .font(.footnote)
                 .foregroundStyle(isActive ? Palette.ink : Palette.inkSecondary)
             content
-                .font(TypeScale.body)
+                .font(.body)
                 .foregroundStyle(Palette.ink)
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -187,7 +187,7 @@ public struct PrimaryButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(TypeScale.headline)
+                .font(.headline)
                 .foregroundStyle(Palette.onPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: OneDayMetrics.primaryButtonHeight)
@@ -212,7 +212,7 @@ public struct SecondaryButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(TypeScale.body)
+            .font(.body)
             .foregroundStyle(Palette.ink)
             .padding(.horizontal, OneDayMetrics.spacingM)
             .frame(minHeight: OneDayMetrics.minTapTarget)
@@ -281,10 +281,10 @@ public struct EmptyState: View {
                 .foregroundStyle(Palette.inkMuted)
                 .accessibilityHidden(true)
             Text(title)
-                .font(TypeScale.headline)
+                .font(.headline)
                 .foregroundStyle(Palette.ink)
             Text(message)
-                .font(TypeScale.subhead)
+                .font(.subheadline)
                 .foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -308,7 +308,7 @@ public struct InlineError: View {
                 .foregroundStyle(Palette.danger)
                 .accessibilityHidden(true)
             Text(message)
-                .font(TypeScale.subhead)
+                .font(.subheadline)
                 .foregroundStyle(Palette.ink)
         }
     }
@@ -457,12 +457,12 @@ public struct IdentityAnchor: View {
             }
             .frame(width: 28, height: 28)
             Text(name)
-                .font(TypeScale.capsuleTitle(for: colorScheme))
+                .font(.headline)
                 .foregroundStyle(Palette.ink)
             HStack(spacing: 5) {
                 StatusDot(color: statusColor)
                 Text(statusWord)
-                    .font(TypeScale.footnote)
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             }
         }
@@ -510,7 +510,7 @@ public struct UnifiedRow: View {
         HStack(spacing: ListRowSpec.columnSpacing) {
             if let icon {
                 Image(systemName: icon)
-                    .font(TypeScale.rowIcon)
+                    .font(.system(size: OneDayMetrics.rowIconGlyph))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(
                         width: ListRowSpec.iconSlotWidth,
@@ -520,12 +520,12 @@ public struct UnifiedRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(TypeScale.rowTitle)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 if let subtitle {
                     Text(subtitle)
-                        .font(TypeScale.rowSubtitle)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkMuted)
                         .lineLimit(1)
                 }
@@ -533,7 +533,7 @@ public struct UnifiedRow: View {
             Spacer(minLength: OneDayMetrics.spacingS)
             if let trailing {
                 Text(trailing)
-                    .font(TypeScale.monoFootnote)
+                    .font(.system(.footnote, design: .monospaced))
                     .tabularDigits()
                     .foregroundStyle(trailingColor ?? Palette.inkMuted)
             }

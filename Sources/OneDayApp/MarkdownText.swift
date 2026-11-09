@@ -80,9 +80,9 @@ struct MarkdownText: View {
                     // （尾行孤字防护）
                     inline(
                         TextShaping.prettyWrapDocument(text),
-                        strongFont: TypeScale.markdownStrong
+                        strongFont: .body.weight(.bold)
                     )
-                        .font(TypeScale.bubbleBody) // 0.3.8 第 29 条：气泡正文 17 regular 显式角色
+                        .font(.body) // 0.3.8 第 29 条：气泡正文 17 regular 显式角色
                         .lineSpacing(5)
                         .foregroundStyle(Palette.ink)
                 case .heading(let text, let level):
@@ -91,16 +91,16 @@ struct MarkdownText: View {
                     inline(
                         text,
                         strongFont: level == 1
-                            ? TypeScale.title(for: colorScheme)
-                            : TypeScale.headline
+                            ? .title2
+                            : .headline
                     )
                         .font(level == 1
-                            ? TypeScale.title(for: colorScheme)
-                            : TypeScale.headline)
+                            ? .title2
+                            : .headline)
                         .foregroundStyle(Palette.ink)
                 case .code(let code):
                     Text(code)
-                        .font(TypeScale.monoCode)
+                        .font(.system(.footnote, design: .monospaced))
                         .foregroundStyle(Palette.ink)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(OneDayMetrics.spacingSM)
@@ -127,8 +127,9 @@ struct MarkdownText: View {
     /// （700），越过标题角色的 semibold（600）——层级倒
     /// 挂（用户点破「正文已粗、加粗无层级可走」的实处）。
     /// 按 InlinePresentationIntent.stronglyEmphasized 找
-    /// 粗体段、重映射到 strongFont（正文语境＝TypeScale
-    /// .markdownStrong，与正文恰差一档）；行内代码段
+    /// 粗体段、重映射到 strongFont（正文语境＝.body
+    /// .weight(.bold)，与正文恰差一档；内容层例外，
+    /// 0.4.0 审计 §3.1 注明保留）；行内代码段
     /// （.code）不碰、斜体段在 strong 字体上叠 .italic
     private func inline(_ text: String, strongFont: Font) -> Text {
         guard var attributed = try? AttributedString(

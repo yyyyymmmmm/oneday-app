@@ -77,13 +77,13 @@ struct StatusView: View {
             // 整表废止退役
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text("Hermes")
-                    .font(TypeScale.title(for: colorScheme))
+                    .font(.title2)
                     .foregroundStyle(Palette.ink)
                 StatusDot(color: status.map { Palette.stateColor($0.gatewayState) }
                     ?? Palette.inkMuted)
             }
             Text(statusLine)
-                .font(TypeScale.body)
+                .font(.body)
                 .foregroundStyle(Palette.inkSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -110,7 +110,7 @@ struct StatusView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             if sessions.isEmpty {
                 Text("暂无服务端会话")
-                    .font(TypeScale.callout)
+                    .font(.callout)
                     .foregroundStyle(Palette.inkSecondary)
             } else {
                 VStack(spacing: 0) {
@@ -128,11 +128,11 @@ struct StatusView: View {
                                     // 卡 16/18 同源：SessionDisplay
                                     // 人话标题＋副题，原始名不上屏
                                     Text(session.humanTitle)
-                                        .font(TypeScale.body)
+                                        .font(.body)
                                         .foregroundStyle(Palette.ink)
                                         .lineLimit(1)
                                     Text(session.humanSubtitle(now: Date()))
-                                        .font(TypeScale.footnote)
+                                        .font(.footnote)
                                         .foregroundStyle(Palette.inkSecondary)
                                 }
                                 Spacer(minLength: OneDayMetrics.spacingS)
@@ -155,7 +155,7 @@ struct StatusView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             if logLines.isEmpty {
                 Text("暂无日志")
-                    .font(TypeScale.callout)
+                    .font(.callout)
                     .foregroundStyle(Palette.inkSecondary)
             } else {
                 // 0.3.8 基线补遗（审计三行结构）：近期事件
@@ -166,18 +166,18 @@ struct StatusView: View {
                         let entry = LogDisplay.parse(line)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(entry.headline)
-                                .font(TypeScale.callout)
+                                .font(.callout)
                                 .foregroundStyle(Palette.ink)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             if let detail = entry.detail {
                                 Text(detail)
-                                    .font(TypeScale.footnote)
+                                    .font(.footnote)
                                     .foregroundStyle(Palette.inkSecondary)
                                     .lineLimit(2)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             Text(entry.meta)
-                                .font(TypeScale.monoCaption)
+                                .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(Palette.inkMuted)
                         }
                     }
@@ -197,7 +197,7 @@ struct StatusView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             if cronJobs.isEmpty {
                 Text("暂无定时任务")
-                    .font(TypeScale.callout)
+                    .font(.callout)
                     .foregroundStyle(Palette.inkSecondary)
             } else {
                 VStack(spacing: 0) {
@@ -208,17 +208,17 @@ struct StatusView: View {
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(job.title)
-                                    .font(TypeScale.body)
+                                    .font(.body)
                                     .foregroundStyle(Palette.ink)
                                     .lineLimit(1)
                                 Text(job.scheduleText)
-                                    .font(TypeScale.footnote)
+                                    .font(.footnote)
                                     .foregroundStyle(Palette.inkSecondary)
                                     .lineLimit(1)
                             }
                             Spacer(minLength: OneDayMetrics.spacingS)
                             Text(jobNextText(job))
-                                .font(TypeScale.monoCallout)
+                                .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle(job.enabled
                                     ? Palette.inkSecondary : Palette.inkMuted)
                         }
@@ -262,38 +262,53 @@ struct StatusView: View {
                     percentRow("磁盘", percent: stats.disk?.percent,
                                detail: diskDetail(stats))
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("CPU", value: stats.cpuPercent.map {
+                    LabeledContent("CPU", value: stats.cpuPercent.map {
                         "\(AdminFormat.count($0))% · \(stats.cpuCount ?? 0) 核"
                     } ?? "—")
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("负载", value: stats.loadAvg.map {
+                    LabeledContent("负载", value: stats.loadAvg.map {
                         $0.map { AdminFormat.count($0) }.joined(separator: " / ")
                     } ?? "—")
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("运行时间", value: stats.uptimeSeconds.map(uptimeText) ?? "—")
+                    LabeledContent("运行时间", value: stats.uptimeSeconds.map(uptimeText) ?? "—")
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("进程内存", value: stats.process?.rss.map(byteText) ?? "—")
+                    LabeledContent("进程内存", value: stats.process?.rss.map(byteText) ?? "—")
                 }
                 .odGroup()
                 SectionLabel("版本与运行时")
                     .padding(.top, 28)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
-                    infoRow("Hermes", value: stats.hermesVersion.map { "v\($0)" } ?? "—", mono: true)
+                    LabeledContent("Hermes") {
+                        Text(stats.hermesVersion.map { "v\($0)" } ?? "—")
+                            .font(.system(.callout, design: .monospaced))
+                    }
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("主机", value: stats.hostname ?? "—", mono: true)
+                    LabeledContent("主机") {
+                        Text(stats.hostname ?? "—")
+                            .font(.system(.callout, design: .monospaced))
+                    }
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("系统", value: [stats.os, stats.arch]
-                        .compactMap { $0 }.joined(separator: " · "), mono: true)
+                    LabeledContent("系统") {
+                        Text([stats.os, stats.arch]
+                        .compactMap { $0 }.joined(separator: " · "))
+                            .font(.system(.callout, design: .monospaced))
+                    }
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("Python", value: stats.pythonVersion ?? "—", mono: true)
+                    LabeledContent("Python") {
+                        Text(stats.pythonVersion ?? "—")
+                            .font(.system(.callout, design: .monospaced))
+                    }
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("内核", value: stats.osRelease ?? "—", mono: true)
+                    LabeledContent("内核") {
+                        Text(stats.osRelease ?? "—")
+                            .font(.system(.callout, design: .monospaced))
+                    }
                 }
                 .odGroup()
             } else {
                 Text("正在读取系统状态…")
-                    .font(TypeScale.callout)
+                    .font(.callout)
                     .foregroundStyle(Palette.inkSecondary)
             }
         }
@@ -303,11 +318,11 @@ struct StatusView: View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             HStack {
                 Text(label)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 Spacer()
                 Text(detail)
-                    .font(TypeScale.monoCallout)
+                    .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(Palette.inkSecondary)
             }
             // 0.3.7 卡 4：数据条走共享 DataBar 中性口径
@@ -318,20 +333,7 @@ struct StatusView: View {
         .padding(.vertical, OneDayMetrics.spacingSM)
     }
 
-    private func infoRow(_ label: String, value: String, mono: Bool = false) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
-                .foregroundStyle(Palette.inkSecondary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
+    // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）
 
     private func memoryDetail(_ stats: SystemStats) -> String {
         guard let memory = stats.memory,

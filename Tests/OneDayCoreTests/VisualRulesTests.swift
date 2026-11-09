@@ -1,20 +1,9 @@
 import OneDayCore
 import XCTest
 
-/// 视觉纪律纯逻辑（0.3.0，DESIGN-V4 §14 条 3/条 8）。
+/// 视觉纪律纯逻辑（0.3.0，DESIGN-V4 §14 条 8）。
+/// （条 3 字重降档用例已于 0.4.0 随 VisualWeight 删除）
 final class VisualRulesTests: XCTestCase {
-    /// 条 3：命名档降一档，地板 100
-    func testWeightStepsDownOneGrade() {
-        XCTAssertEqual(VisualWeight.steppedDown(600), 500)
-        XCTAssertEqual(VisualWeight.steppedDown(500), 400)
-        XCTAssertEqual(VisualWeight.steppedDown(400), 300)
-        XCTAssertEqual(VisualWeight.steppedDown(700), 600)
-        XCTAssertEqual(VisualWeight.steppedDown(900), 800)
-        XCTAssertEqual(VisualWeight.steppedDown(100), 100)
-        // 非命名值先就近落档再降：560 → 600 → 500
-        XCTAssertEqual(VisualWeight.steppedDown(560), 500)
-    }
-
     /// 条 8：末两字绑定，末行不可能只剩孤字
     func testPrettyWrapBindsLastTwoGlyphs() {
         let shaped = TextShaping.prettyWrap("服务器一切正常")

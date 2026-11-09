@@ -33,7 +33,7 @@ struct CronJobsView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取任务…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.top, OneDayMetrics.spacingL)
@@ -82,7 +82,7 @@ struct CronJobsView: View {
     private var summaryCard: some View {
         HStack(spacing: OneDayMetrics.spacingS) {
             Text(summaryText)
-                .font(TypeScale.title(for: colorScheme))
+                .font(.callout)
                 .foregroundStyle(Palette.ink)
             Spacer()
         }
@@ -138,16 +138,16 @@ struct CronJobsView: View {
                 StatusDot(color: job.enabled ? Palette.success : Palette.inkMuted)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(job.title)
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                     Text(job.scheduleText)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                     if job.enabled, let next = AdminFormat.iso(job.nextRunAt) {
                         Text("下次 \(AdminFormat.short(next))")
-                            .font(TypeScale.monoCaption)
+                            .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(Palette.inkMuted)
                     }
                 }
@@ -159,7 +159,7 @@ struct CronJobsView: View {
                         .accessibilityLabel("上次运行有错误")
                 }
                 Text(job.enabled ? "启用" : "已暂停")
-                    .font(TypeScale.footnote)
+                    .font(.footnote)
                     .foregroundStyle(job.enabled ? Palette.success : Palette.inkMuted)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .regular))
@@ -223,7 +223,7 @@ struct CronJobDetailView: View {
                 dangerGroup
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -261,12 +261,15 @@ struct CronJobDetailView: View {
             SectionLabel("任务")
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                infoRow("状态", current.enabled ? "启用" : "已暂停")
+                LabeledContent("状态", value: current.enabled ? "启用" : "已暂停")
                 GroupDivider(inset: OneDayMetrics.spacingM)
-                infoRow("计划", current.scheduleText, mono: true)
+                LabeledContent("计划") {
+                    Text(current.scheduleText)
+                        .font(.system(.callout, design: .monospaced))
+                }
                 if let next = AdminFormat.iso(current.nextRunAt) {
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("下次运行", AdminFormat.short(next))
+                    LabeledContent("下次运行", value: AdminFormat.short(next))
                 }
             }
             .odGroup()
@@ -290,24 +293,27 @@ struct CronJobDetailView: View {
             VStack(spacing: 0) {
                 if let last = AdminFormat.iso(current.lastRunAt) {
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("上次运行", AdminFormat.short(last))
+                    LabeledContent("上次运行", value: AdminFormat.short(last))
                 }
                 if let deliver = current.deliver, !deliver.isEmpty {
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("投递到", deliver)
+                    LabeledContent("投递到", value: deliver)
                 }
                 if let model = current.model, !model.isEmpty {
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("模型", model, mono: true)
+                    LabeledContent("模型") {
+                        Text(model)
+                            .font(.system(.callout, design: .monospaced))
+                    }
                 }
                 if let prompt = current.prompt, !prompt.isEmpty {
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                         Text("指令")
-                            .font(TypeScale.callout)
+                            .font(.callout)
                             .foregroundStyle(Palette.inkSecondary)
                         Text(prompt)
-                            .font(TypeScale.callout)
+                            .font(.callout)
                             .foregroundStyle(Palette.ink)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
@@ -322,7 +328,7 @@ struct CronJobDetailView: View {
                             .foregroundStyle(Palette.danger)
                             .accessibilityHidden(true)
                         Text(error)
-                            .font(TypeScale.subhead)
+                            .font(.subheadline)
                             .foregroundStyle(Palette.ink)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
@@ -371,7 +377,7 @@ struct CronJobDetailView: View {
             VStack(spacing: 0) {
                 if runs.isEmpty {
                     Text(runsError ?? "还没有运行记录")
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .frame(minHeight: OneDayMetrics.rowHeight)
@@ -396,10 +402,10 @@ struct CronJobDetailView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(AdminFormat.short(run.startedDate))
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                     Text(runSubtitle(run))
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
@@ -444,7 +450,7 @@ struct CronJobDetailView: View {
                 } label: {
                     HStack {
                         Text("删除任务")
-                            .font(TypeScale.body)
+                            .font(.body)
                             .foregroundStyle(Palette.danger)
                         Spacer()
                     }
@@ -458,20 +464,7 @@ struct CronJobDetailView: View {
         }
     }
 
-    private func infoRow(_ label: String, _ value: String, mono: Bool = false) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.trailing)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
+    // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）
 
     private func actionRow(
         title: String, icon: String, action: @escaping () -> Void
@@ -479,12 +472,12 @@ struct CronJobDetailView: View {
         Button(action: action) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: icon)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }
@@ -613,7 +606,7 @@ struct CronJobFormView: View {
                         GroupDivider(inset: OneDayMetrics.spacingM)
                         FieldRow(label: "计划（cron 表达式）") {
                             TextField("0 9 * * *", text: $schedule)
-                                .font(TypeScale.monoBody)
+                                .font(.system(.body, design: .monospaced))
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         }

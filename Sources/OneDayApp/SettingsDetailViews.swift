@@ -23,16 +23,19 @@ struct ServerDetailView: View {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         StatusDot(color: retestFailed ? Palette.danger : Palette.success)
                         Text(retestFailed ? "连接异常" : "连接正常")
-                            .font(TypeScale.body)
+                            .font(.body)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .frame(minHeight: OneDayMetrics.rowHeight)
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("服务器地址", appState.config?.baseString ?? "—", mono: true)
+                    LabeledContent("服务器地址") {
+                        Text(appState.config?.baseString ?? "—")
+                            .font(.system(.callout, design: .monospaced))
+                    }
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("面板账号", appState.username ?? "—")
+                    LabeledContent("面板账号", value: appState.username ?? "—")
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     apiKeyRow
                 }
@@ -47,7 +50,7 @@ struct ServerDetailView: View {
                     } label: {
                         HStack {
                             Text("重新测试连接")
-                                .font(TypeScale.body)
+                                .font(.body)
                                 .foregroundStyle(Palette.ink)
                             Spacer()
                             if isRetesting {
@@ -72,7 +75,7 @@ struct ServerDetailView: View {
                                         .foregroundStyle(Palette.success)
                                         .accessibilityHidden(true)
                                     Text(retestResult)
-                                        .font(TypeScale.subhead)
+                                        .font(.subheadline)
                                         .foregroundStyle(Palette.ink)
                                 }
                             }
@@ -97,44 +100,30 @@ struct ServerDetailView: View {
     private var apiKeyRow: some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text("API 密钥")
-                .font(TypeScale.body)
+                .font(.body)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             if showAPIKey, let key = appState.apiKey {
                 Text(key)
-                    .font(TypeScale.monoCaption)
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(Palette.inkSecondary)
                     .textSelection(.enabled)
                     .lineLimit(1)
             } else {
                 Text("••••••••••")
-                    .font(TypeScale.monoCallout)
+                    .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(Palette.inkMuted)
             }
             Button(showAPIKey ? "隐藏" : "显示") {
                 showAPIKey.toggle()
             }
-            .font(TypeScale.callout)
+            .font(.callout)
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: OneDayMetrics.rowHeight)
     }
 
-    private func infoRow(_ label: String, _ value: String, mono: Bool = false) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.trailing)
-                .textSelection(.enabled)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
+    // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）
 
     private func retest() async {
         isRetesting = true
@@ -174,11 +163,11 @@ struct ProfilesView: View {
                             .padding(.bottom, OneDayMetrics.spacingS)
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             Text(activeName)
-                                .font(TypeScale.body)
+                                .font(.body)
                                 .foregroundStyle(Palette.ink)
                             Spacer()
                             Text("使用中")
-                                .font(TypeScale.footnote)
+                                .font(.footnote)
                                 .foregroundStyle(Palette.success)
                         }
                         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -206,14 +195,14 @@ struct ProfilesView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取档案…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.top, OneDayMetrics.spacingL)
                 }
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -258,23 +247,23 @@ struct ProfilesView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: OneDayMetrics.spacingXS) {
                         Text(profile.name)
-                            .font(TypeScale.body)
+                            .font(.body)
                             .foregroundStyle(Palette.ink)
                         if profile.isDefault == true {
                             Text("默认")
-                                .font(TypeScale.caption)
+                                .font(.caption)
                                 .foregroundStyle(Palette.inkMuted)
                         }
                     }
                     Text(subtitle(profile))
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
                 if isActive {
                     Text("使用中")
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.success)
                 }
             }
@@ -385,7 +374,7 @@ struct ModelSettingsView: View {
                 }
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -445,7 +434,7 @@ struct ModelSettingsView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     // 0.3.7 卡 8：当前值升摘要卡主读数（等宽大字）
                     Text(currentModel ?? "未配置")
-                        .font(TypeScale.monoTitle)
+                        .font(.system(.title3, design: .monospaced))
                         .foregroundStyle(Palette.ink)
                         .textSelection(.enabled)
                     Spacer()
@@ -468,7 +457,7 @@ struct ModelSettingsView: View {
             VStack(spacing: 0) {
                 if switchableModels.isEmpty {
                     Text("服务端没有返回可切换的模型。")
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .padding(.vertical, OneDayMetrics.spacingSM)
@@ -486,12 +475,12 @@ struct ModelSettingsView: View {
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(model)
-                                    .font(TypeScale.monoCallout)
+                                    .font(.system(.callout, design: .monospaced))
                                     .foregroundStyle(Palette.ink)
                                     .lineLimit(1)
                                 if let runtime = ModelCatalog.aliasRuntime[model] {
                                     Text("别名 · 将按 \(runtime) 运行")
-                                        .font(TypeScale.footnote)
+                                        .font(.footnote)
                                         .foregroundStyle(Palette.inkMuted)
                                         .lineLimit(1)
                                 }
@@ -499,7 +488,7 @@ struct ModelSettingsView: View {
                             Spacer(minLength: OneDayMetrics.spacingS)
                             if model == currentModel {
                                 Text("当前")
-                                    .font(TypeScale.footnote)
+                                    .font(.footnote)
                                     .foregroundStyle(Palette.success)
                             }
                         }
@@ -522,7 +511,7 @@ struct ModelSettingsView: View {
             VStack(spacing: 0) {
                 if providers.isEmpty {
                     Text("暂无提供商条目。")
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .padding(.vertical, OneDayMetrics.spacingSM)
@@ -535,11 +524,11 @@ struct ModelSettingsView: View {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(provider.name)
-                                .font(TypeScale.body)
+                                .font(.body)
                                 .foregroundStyle(Palette.ink)
                             if let baseURL = provider.baseURL, !baseURL.isEmpty {
                                 Text(baseURL)
-                                    .font(TypeScale.monoCaption)
+                                    .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(Palette.inkMuted)
                                     .lineLimit(1)
                             }
@@ -548,7 +537,7 @@ struct ModelSettingsView: View {
                         Button("删除", role: .destructive) {
                             pendingDeleteProvider = provider.name
                         }
-                        .font(TypeScale.callout)
+                        .font(.callout)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .padding(.vertical, OneDayMetrics.spacingS)
@@ -640,7 +629,7 @@ struct EnvVarsView: View {
                     // 组内已设定在前）
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text("已设置 \(entries.filter(\.isSet).count) / 共 \(entries.count)")
-                            .font(TypeScale.title(for: colorScheme))
+                            .font(.callout)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                     }
@@ -679,7 +668,7 @@ struct EnvVarsView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取密钥…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.top, OneDayMetrics.spacingL)
@@ -721,7 +710,7 @@ struct EnvVarsView: View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.key)
-                    .font(TypeScale.monoCallout)
+                    .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 // 卡 9 点名：服务端 description 无中文不上屏
@@ -729,14 +718,14 @@ struct EnvVarsView: View {
                    !description.isEmpty,
                    ServerLabels.isChineseText(description) {
                     Text(description)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: OneDayMetrics.spacingS)
             Text(entry.isSet ? (entry.redactedValue ?? "已设置") : "未设置")
-                .font(TypeScale.monoCaption)
+                .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(entry.isSet ? Palette.inkSecondary : Palette.inkMuted)
                 .lineLimit(1)
             Image(systemName: "chevron.right")
@@ -785,11 +774,14 @@ struct EnvVarDetailView: View {
                 SectionLabel("变量")
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
-                    infoRow("键", entry.key, mono: true)
+                    LabeledContent("键") {
+                        Text(entry.key)
+                            .font(.system(.callout, design: .monospaced))
+                    }
                     if let description = entry.description, !description.isEmpty {
                         GroupDivider(inset: OneDayMetrics.spacingM)
                         Text(description)
-                            .font(TypeScale.callout)
+                            .font(.callout)
                             .foregroundStyle(Palette.inkSecondary)
                             .padding(.horizontal, OneDayMetrics.spacingM)
                             .padding(.vertical, OneDayMetrics.spacingSM)
@@ -797,7 +789,7 @@ struct EnvVarDetailView: View {
                     }
                     if let category = entry.category, !category.isEmpty {
                         GroupDivider(inset: OneDayMetrics.spacingM)
-                        infoRow("类别", ServerLabels.categoryLabel(category))
+                        LabeledContent("类别", value: ServerLabels.categoryLabel(category))
                     }
                     GroupDivider(inset: OneDayMetrics.spacingM)
                     valueRow
@@ -825,12 +817,12 @@ struct EnvVarDetailView: View {
                         } label: {
                             HStack(spacing: OneDayMetrics.spacingSM) {
                                 Image(systemName: "trash.circle")
-                                    .font(TypeScale.body)
+                                    .font(.body)
                                     .foregroundStyle(Palette.danger)
                                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                                     .accessibilityHidden(true)
                                 Text("删除")
-                                    .font(TypeScale.body)
+                                    .font(.body)
                                     .foregroundStyle(Palette.danger)
                                 Spacer()
                             }
@@ -844,7 +836,7 @@ struct EnvVarDetailView: View {
                 .odGroup()
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -879,18 +871,18 @@ struct EnvVarDetailView: View {
     private var valueRow: some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text("当前值")
-                .font(TypeScale.body)
+                .font(.body)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
             if let revealed {
                 Text(revealed)
-                    .font(TypeScale.monoCaption)
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(Palette.ink)
                     .textSelection(.enabled)
                     .lineLimit(2)
             } else {
                 Text(entry.isSet ? (entry.redactedValue ?? "已设置") : "未设置")
-                    .font(TypeScale.monoCaption)
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(Palette.inkSecondary)
             }
         }
@@ -898,21 +890,6 @@ struct EnvVarDetailView: View {
         .frame(minHeight: OneDayMetrics.rowHeight)
     }
 
-    private func infoRow(_ label: String, _ value: String, mono: Bool = false) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.trailing)
-                .textSelection(.enabled)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
 
     private func actionRow(
         title: String, icon: String, action: @escaping () -> Void
@@ -920,12 +897,12 @@ struct EnvVarDetailView: View {
         Button(action: action) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: icon)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }
@@ -988,7 +965,7 @@ struct EnvVarEditorView: View {
                     VStack(spacing: 0) {
                         FieldRow(label: "键") {
                             TextField("如 DEEPSEEK_API_KEY", text: $key)
-                                .font(TypeScale.monoBody)
+                                .font(.system(.body, design: .monospaced))
                                 .textInputAutocapitalization(.characters)
                                 .autocorrectionDisabled()
                                 .disabled(existingKey != nil)
@@ -1087,7 +1064,7 @@ struct UsageDetailView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取用量…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.top, OneDayMetrics.spacingL)
@@ -1110,14 +1087,14 @@ struct UsageDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(AdminFormat.count(usage.totals.tokens))
-                    .font(TypeScale.metricNumber)
+                    .font(.title)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .tabularDigits()
                     .contentTransition(.numericText())
                 Text("Token 总数（近 \(days) 天）")
-                    .font(TypeScale.caption)
+                    .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
@@ -1125,15 +1102,20 @@ struct UsageDetailView: View {
             .padding(.bottom, OneDayMetrics.spacingS)
             GroupDivider(inset: OneDayMetrics.spacingM)
             VStack(spacing: 0) {
-                infoRow("请求数", AdminFormat.count(usage.totals.totalAPICalls ?? 0), mono: true)
+                LabeledContent("请求数") {
+                    Text(AdminFormat.count(usage.totals.totalAPICalls ?? 0))
+                        .font(.system(.callout, design: .monospaced))
+                }
                 GroupDivider(inset: OneDayMetrics.spacingM)
-                infoRow("会话数", AdminFormat.count(usage.totals.totalSessions ?? 0), mono: true)
+                LabeledContent("会话数") {
+                    Text(AdminFormat.count(usage.totals.totalSessions ?? 0))
+                        .font(.system(.callout, design: .monospaced))
+                }
                 GroupDivider(inset: OneDayMetrics.spacingM)
-                infoRow(
-                    "估算费用",
-                    AdminFormat.cost(usage.totals.totalEstimatedCost ?? 0),
-                    mono: true
-                )
+                LabeledContent("估算费用") {
+                    Text(AdminFormat.cost(usage.totals.totalEstimatedCost ?? 0))
+                        .font(.system(.callout, design: .monospaced))
+                }
             }
         }
         .odGroup()
@@ -1153,7 +1135,7 @@ struct UsageDetailView: View {
                     }
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         Text(AdminFormat.usageDay(day.day))
-                            .font(TypeScale.callout)
+                            .font(.callout)
                             .foregroundStyle(Palette.inkSecondary)
                             .frame(width: 64, alignment: .leading)
                         GeometryReader { geo in
@@ -1177,7 +1159,7 @@ struct UsageDetailView: View {
                         }
                         .frame(height: 20)
                         Text(AdminFormat.count(day.tokens))
-                            .font(TypeScale.monoFootnote)
+                            .font(.system(.footnote, design: .monospaced))
                             .foregroundStyle(Palette.ink)
                             .frame(width: 64, alignment: .trailing)
                     }
@@ -1203,22 +1185,22 @@ struct UsageDetailView: View {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(model.model)
-                                .font(TypeScale.monoCallout)
+                                .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle(Palette.ink)
                                 .lineLimit(1)
                             if let provider = model.provider, !provider.isEmpty {
                                 Text(provider)
-                                    .font(TypeScale.caption)
+                                    .font(.caption)
                                     .foregroundStyle(Palette.inkMuted)
                             }
                         }
                         Spacer(minLength: OneDayMetrics.spacingS)
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(AdminFormat.count(model.tokens))
-                                .font(TypeScale.monoCallout)
+                                .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle(Palette.ink)
                             Text(String(format: "%.0f%%", model.tokens / total * 100))
-                                .font(TypeScale.caption)
+                                .font(.caption)
                                 .foregroundStyle(Palette.inkMuted)
                         }
                     }
@@ -1231,19 +1213,6 @@ struct UsageDetailView: View {
         }
     }
 
-    private func infoRow(_ label: String, _ value: String, mono: Bool = false) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
 
     private func load() async {
         guard !isLoading else { return }
@@ -1292,14 +1261,14 @@ struct GatewayView: View {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取网关状态…")
-                            .font(TypeScale.footnote)
+                            .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .padding(.top, OneDayMetrics.spacingL)
                 }
                 if let notice {
                     Text(notice)
-                        .font(TypeScale.footnote)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingM)
                 }
@@ -1371,17 +1340,23 @@ struct GatewayView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     StatusDot(color: Palette.stateColor(status.gatewayState))
                     Text(stateWord(status))
-                        .font(TypeScale.display(for: colorScheme))
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .padding(.vertical, OneDayMetrics.spacingSM)
                 GroupDivider(inset: OneDayMetrics.spacingM)
-                infoRow("服务端版本", status.version.map { "v\($0)" } ?? "—", mono: true)
+                LabeledContent("服务端版本") {
+                    Text(status.version.map { "v\($0)" } ?? "—")
+                        .font(.system(.callout, design: .monospaced))
+                }
                 if let date = status.releaseDate {
                     GroupDivider(inset: OneDayMetrics.spacingM)
-                    infoRow("发布日期", date, mono: true)
+                    LabeledContent("发布日期") {
+                        Text(date)
+                            .font(.system(.callout, design: .monospaced))
+                    }
                 }
             }
             .odGroup()
@@ -1396,7 +1371,7 @@ struct GatewayView: View {
             VStack(spacing: 0) {
                 if status.platforms.isEmpty {
                     Text("暂无平台状态")
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .frame(minHeight: OneDayMetrics.rowHeight)
@@ -1413,11 +1388,11 @@ struct GatewayView: View {
                             StatusDot(color: Palette.stateColor(platform.state))
                             // 卡 11：平台名/状态词走翻译层
                             Text(ServerLabels.platformName(name))
-                                .font(TypeScale.body)
+                                .font(.body)
                                 .foregroundStyle(Palette.ink)
                             Spacer()
                             Text(ServerLabels.platformState(platform.state))
-                                .font(TypeScale.footnote)
+                                .font(.footnote)
                                 .foregroundStyle(Palette.stateColor(platform.state))
                         }
                         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -1461,7 +1436,7 @@ struct GatewayView: View {
         Button(action: action) {
             HStack {
                 Text(title)
-                    .font(TypeScale.body)
+                    .font(.body)
                     .foregroundStyle(danger ? Palette.danger : Palette.ink)
                 Spacer()
                 if isActing {
@@ -1480,19 +1455,6 @@ struct GatewayView: View {
         ServerLabels.gatewayState(status.gatewayState, running: status.gatewayRunning)
     }
 
-    private func infoRow(_ label: String, _ value: String, mono: Bool = false) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(TypeScale.body)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(mono ? TypeScale.monoCallout : TypeScale.callout)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
 
     private func load() async {
         guard let config = appState.config else { return }
@@ -1571,7 +1533,7 @@ struct LogsView: View {
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                     TextField("搜索日志", text: $search)
-                        .font(TypeScale.body)
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                         .onSubmit { Task { await load() } }
                     if !search.isEmpty {
@@ -1598,7 +1560,7 @@ struct LogsView: View {
                         .padding(.top, OneDayMetrics.spacingL)
                 } else if lines.isEmpty && !isLoading {
                     Text("没有匹配的日志行。")
-                        .font(TypeScale.callout)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.top, OneDayMetrics.spacingL)
                 } else {
@@ -1613,7 +1575,7 @@ struct LogsView: View {
                             let entry = LogDisplay.parse(line)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(entry.headline)
-                                    .font(TypeScale.callout)
+                                    .font(.callout)
                                     .foregroundStyle(
                                         line.contains("ERROR")
                                             ? Palette.danger : Palette.ink
@@ -1621,13 +1583,13 @@ struct LogsView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 if let detail = entry.detail {
                                     Text(detail)
-                                        .font(TypeScale.footnote)
+                                        .font(.footnote)
                                         .foregroundStyle(Palette.inkSecondary)
                                         .lineLimit(3)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 Text(entry.meta)
-                                    .font(TypeScale.monoCaption)
+                                    .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(Palette.inkMuted)
                             }
                         }
