@@ -25,6 +25,9 @@ struct OverviewView: View {
     var onOpenChatSession: (String) -> Void = { _ in }
     var onOpenSettings: (SettingsRoute) -> Void = { _ in }
     var onOpenChat: () -> Void = {}
+    /// 0.6.0：自应用格进入时挂「应用」返回钮（本页自带
+    /// NavigationStack，返回是格内页面切换、非栈 pop）
+    var onBackToApps: (() -> Void)? = nil
 
     @State private var status: ServerStatus?
     @State private var stats: SystemStats?
@@ -92,6 +95,15 @@ struct OverviewView: View {
             }
             .background(Palette.pageBG)
             .navigationTitle("总览")
+            .toolbar {
+                if let onBackToApps {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: onBackToApps) {
+                            Label("应用", systemImage: "chevron.left")
+                        }
+                    }
+                }
+            }
             .refreshable { await load() }
             .task { await load() }
             .confirmationDialog(

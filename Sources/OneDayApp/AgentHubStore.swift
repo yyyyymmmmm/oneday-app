@@ -11,10 +11,17 @@ import OneDayCore
 final class AgentHubStore {
     private let appState: AppState
     private let gateClient: WriteGateClientProtocol
+    /// 审批终态回调（0.6.0）：活动格据此刷新总览桥角标，
+    /// 不等下一轮 30 秒轮询
+    private let onApprovalChanged: (() -> Void)?
 
-    init(appState: AppState, gateClient: WriteGateClientProtocol) {
+    init(
+        appState: AppState, gateClient: WriteGateClientProtocol,
+        onApprovalChanged: (() -> Void)? = nil
+    ) {
         self.appState = appState
         self.gateClient = gateClient
+        self.onApprovalChanged = onApprovalChanged
     }
 
     // MARK: - 页头
@@ -437,6 +444,7 @@ final class AgentHubStore {
             records.removeAll { $0.id == id }
             approvalState = .ready(records)
         }
+        onApprovalChanged?()
     }
 
     // MARK: - 浏览器段（懒加载）

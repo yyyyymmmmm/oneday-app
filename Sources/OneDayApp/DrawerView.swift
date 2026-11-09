@@ -39,6 +39,8 @@ struct DrawerView: View {
     /// 名单 ScrollView 已 ignoresSafeArea(.bottom)、安
     /// 全区不再代抬底条，下边距与底缘模糊带据此手算
     let bottomSafeInset: CGFloat
+    /// 当前底栏格（壳层回写，高亮当前位用；0.6.0 五格）
+    let currentTab: ContentView.MainTab
     /// 名单点按 → 切换底栏格（ContentView 注入）
     var onSelectTab: (ContentView.MainTab) -> Void
     /// 关抽屉（壳层执行：弹簧归位＋状态回写）
@@ -181,7 +183,7 @@ struct DrawerView: View {
     }
 
     /// 全局名单（0.3.6 立宪先行件，§21.3；定义卡：一
-    /// 页一事——名单只做切目的地）：与底栏四格一一对
+    /// 页一事——名单只做切目的地）：与底栏五格一一对
     /// 应、同一符号源（TabBarSymbols）；行高约 47、
     /// 只有图标＋标题（无箭头无值）；当前位（本面锚定
     /// 聊天格）以 selectionFill 浅灰垫标示、不变色不
@@ -210,16 +212,17 @@ struct DrawerView: View {
     private var drawerTabs: [(tab: ContentView.MainTab, pair: TabSymbolPair)] {
         [
             (.chat, TabBarSymbols.chat),
-            (.overview, TabBarSymbols.overview),
-            (.files, TabBarSymbols.files),
-            (.settings, TabBarSymbols.settings),
+            (.activity, TabBarSymbols.activity),
+            (.ideas, TabBarSymbols.ideas),
+            (.goals, TabBarSymbols.goals),
+            (.apps, TabBarSymbols.apps),
         ]
     }
 
     private func drawerNavRow(
         tab: ContentView.MainTab, pair: TabSymbolPair
     ) -> some View {
-        let isCurrent = tab == .chat
+        let isCurrent = tab == currentTab
         return Button {
             onClose()
             if !isCurrent { onSelectTab(tab) }
@@ -281,11 +284,14 @@ struct DrawerView: View {
             drawerRoundButton(
                 // 卡 18 纠正 4：左圆钮用独立齿轮 glyph，
                 // 与名单设置行（滑杆）、底栏设置格三者不同图
+                // 0.6.0：设置收进应用格内页面——经
+                // pendingAppsPage 通道落位（AppsView 消费）
                 systemName: "gearshape",
                 label: "设置"
             ) {
                 onClose()
-                onSelectTab(.settings)
+                appState.pendingAppsPage = .settings
+                onSelectTab(.apps)
             }
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "magnifyingglass")

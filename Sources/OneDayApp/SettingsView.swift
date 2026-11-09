@@ -16,6 +16,9 @@ import SwiftUI
 /// 首页只到条目行＋当前值一层，摘要各自独立加载、单项
 /// 失败只降级该行，不整页报错。
 struct SettingsView: View {
+    /// 0.6.0：自应用格进入时挂「应用」返回钮（口径同总览）
+    var onBackToApps: (() -> Void)? = nil
+
     @Environment(AppState.self) private var appState
     @State private var path: [SettingsRoute] = []
     /// 外观三档当前值（0.4.0）：与 AppearanceView 同一
@@ -75,6 +78,15 @@ struct SettingsView: View {
             // 系统 navigationTitle 大标题（整页规格对齐归
             // 二期：届时改 sheet 形态，R4 已裁）
             .navigationTitle("设置")
+            .toolbar {
+                if let onBackToApps {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: onBackToApps) {
+                            Label("应用", systemImage: "chevron.left")
+                        }
+                    }
+                }
+            }
             .task { await loadSummaries() }
             .onAppear {
                 consumePendingRoutes()
@@ -401,7 +413,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             LabeledContent("OneDay 版本") {
-                Text("0.5.1")
+                Text("0.6.0")
                     .font(.system(.callout, design: .monospaced))
             }
             LabeledContent("服务端") {

@@ -36,16 +36,34 @@ enum HubSegment: String, CaseIterable, Identifiable {
 
 /// 智能体枢纽页（三期，规格 phase3-hub-spec）：页头
 /// （圆钮行/头像/名/状态行）→ 模型常驻区 → 五段分段 →
-/// 段内容。呈现走系统 sheet（入口接线在 ChatView 胶囊，
-/// 见交付回执接线点）；本视图自带 NavigationStack，
-/// 呈现方不要再包一层。
+/// 段内容。本视图自带 NavigationStack，呈现方不要再包一层。
 /// 段切换只换内容区，页头与模型区常驻不动（规格 §0）。
+/// 0.6.0 转正（蓝图 §4 一期）：枢纽页从「胶囊点开的
+/// sheet」转正为活动格本体——mode=.activity 时只留
+/// 活动/审核两段、撤页头圆钮行与模型常驻区（换模型
+/// 入口在聊天页胶囊的模型段 Menu，硬规格不回退）；
+/// mode=.sheet 保留五段全量形态，但聊天页胶囊已改道
+/// 活动格、不再有 sheet 入口（不双份维护同一 UI）。
 struct AgentHubView: View {
+    enum Mode {
+        case sheet
+        case activity
+    }
+
+    var mode: Mode = .sheet
+    /// 审批终态回调（活动格据此刷新总览桥角标）
+    var onApprovalChanged: (() -> Void)? = nil
+
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
     @State private var store: AgentHubStore?
     @State private var segment: HubSegment = .activity
+
+    /// 本模式可见段：活动格一期只两段先行
+    private var availableSegments: [HubSegment] {
+        mode == .activity ? [.activity, .approval] : HubSegment.allCases
+    }
 
     var body: some View {
         NavigationStack {
@@ -65,17 +83,23 @@ struct AgentHubView: View {
                     appState: appState,
                     gateClient: appState.isDemo
                         ? DemoWriteGateClient()
-                        : WriteGateClient()
+                        : WriteGateClient(),
+                    onApprovalChanged: onApprovalChanged
                 )
             }
             await store?.loadInitial()
+            if mode == .activity {
+                await store?.loadApproval()
+            }
         }
     }
 
     private func content(_ store: AgentHubStore) -> some View {
         VStack(spacing: 0) {
             header(store)
-            modelZone(store)
+            if mode == .sheet {
+                modelZone(store)
+            }
             segmentPicker
             Divider()
             segmentContent(store)
@@ -106,6 +130,7 @@ struct AgentHubView: View {
         VStack(spacing: OneDayMetrics.spacingS) {
             ZStack(alignment: .top) {
                 avatarBlock
+                if mode == .sheet {
                 HStack {
                     // 页头圆钮（L1，用户定案③：照样板形态、
                     // 用系统玻璃原生件拼装）
@@ -130,6 +155,7 @@ struct AgentHubView: View {
                     .accessibilityLabel("分享智能体摘要")
                 }
                 .padding(.horizontal, OneDayMetrics.pageGutter)
+                }
             }
 
             Text(store.displayName)
@@ -151,22 +177,26 @@ struct AgentHubView: View {
         .padding(.bottom, OneDayMetrics.spacingSM)
     }
 
-    /// 大头像＋编辑徽章（L2，用户定案④打包）：头像与
-    /// 聊天页身份胶囊同源视觉（近白圆面＋sparkles 字形，
-    /// 服务端无头像接口）；徽章点按跳本页身份段（规格
+    /// 大头像＋编辑徽章（L2，用户定案④打包）：头像
+    /// 0.6.0 换三狗搭档款定版图（蓝图 §3.10：吉祥物用
+    /// 自有 IP，不借 OpenMuse 水豚；素材源
+    /// ~/workspace/ip-design/STYLE-partner.webp 裁头入
+    /// SangouPartner 资产）；徽章点按跳本页身份段（规格
     /// §2 推荐口径：本页内闭环），身份的实际编辑在身份
-    /// 段内跳 ProfilesView（用户定案⑤）
+    /// 段内跳 ProfilesView（用户定案⑤）。活动格模式无
+    /// 身份段，徽章不挂（点了没落点不如不挂）。
     private var avatarBlock: some View {
         ZStack(alignment: .bottomTrailing) {
-            ZStack {
-                Circle().fill(Palette.chatSurface)
-                Circle().stroke(Palette.hairline, lineWidth: 0.5)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 44, weight: .regular))
-                    .foregroundStyle(Palette.ink)
-            }
-            .frame(width: 110, height: 110)
+            Image("SangouPartner")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 110, height: 110)
+                .clipShape(Circle())
+                .overlay {
+                    Circle().stroke(Palette.hairline, lineWidth: 0.5)
+                }
 
+            if mode == .sheet {
             Button {
                 segment = .identity
             } label: {
@@ -185,6 +215,7 @@ struct AgentHubView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("编辑身份")
+            }
         }
     }
 
@@ -266,7 +297,7 @@ struct AgentHubView: View {
 
     private var segmentPicker: some View {
         Picker("枢纽页分段", selection: $segment) {
-            ForEach(HubSegment.allCases) { item in
+            ForEach(availableSegments) { item in
                 Label(item.title, systemImage: item.systemImage)
                     .labelStyle(.iconOnly)
                     .tag(item)
@@ -342,9 +373,13 @@ struct AgentHubView: View {
         Button {
             // 点行跳对应会话聊天页续聊（规格 §3.1 推荐
             // 口径）：走既有 pendingChatSessionID 通道，
-            // 关闭枢纽页后由 ChatView 消费
+            // 关闭枢纽页后由 ChatView 消费。活动格模式
+            // 本就是一级页、没有可关的 sheet，只置位通
+            // 道（ContentView 据此切聊天格）
             appState.pendingChatSessionID = item.sessionID
-            dismiss()
+            if mode == .sheet {
+                dismiss()
+            }
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 activityDisc(item)

@@ -5,7 +5,8 @@ import SwiftUI
 import UIKit
 #endif
 
-/// 底部四格（聊天／总览／文件／设置；IA 不动）。
+/// 底部五格（0.6.0 五格 IA，蓝图 §4 一期：聊天／活动／
+/// 点子／目标／应用；总览/文件/设置收进应用格内页面）。
 /// 底栏沿革：0.2.4 回归原生 TabView → 0.3.1 换 Tab(value:)
 /// ＋Label 直渲 → 0.3.8 按当时裁决隐藏原生栏、叠自绘
 /// FloatingTabBar → **0.4.0 拆自绘、回原生（审计 §3.2）**：
@@ -42,14 +43,19 @@ import UIKit
 struct ContentView: View {
     enum MainTab: Hashable {
         case chat
-        case overview
-        case files
-        case settings
+        case activity
+        case ideas
+        case goals
+        case apps
     }
 
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: MainTab = .chat
+    /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与活动
+    /// 格共同消费；前台 30 秒轮询由下方 scenePhase 驱动
+    @State private var overviewStore = OverviewBridgeStore()
     /// 推式抽屉的壳层开合目标与跟手位移（0.4.5）：制式
     /// 与 0.4.4 前 ChatView 内的同名状态一致——跟手量
     /// 是相对当前基准位（开＝推开量／合＝0）的平移，
@@ -74,6 +80,7 @@ struct ContentView: View {
                 DrawerView(
                     width: travel,
                     bottomSafeInset: geo.safeAreaInsets.bottom,
+                    currentTab: selection,
                     onSelectTab: { selection = $0 },
                     onClose: { setDrawer(false) }
                 )
@@ -101,6 +108,20 @@ struct ContentView: View {
         // 触发、由 ChatView 直接消费）
         .onChange(of: appState.pendingChatSessionID) { _, id in
             if id != nil { selection = .chat }
+        }
+        // 0.6.0：跨格入口置位待开应用格内页面（抽屉齿轮
+        // 等）→ 切应用格（AppsView 侧消费落位）
+        .onChange(of: appState.pendingAppsPage) { _, page in
+            if page != nil { selection = .apps }
+        }
+        // 0.6.0：总览桥前台轮询（30 秒一轮，OverviewBridge-
+        // Store.poll）：以 scenePhase 为 task id——回前台
+        // 自动重启、退后台系统自动取消，不学 OpenMuse
+        // 的 3 秒轮询
+        .task(id: scenePhase) {
+            if scenePhase == .active {
+                await overviewStore.poll(appState: appState)
+            }
         }
     }
 
@@ -158,40 +179,36 @@ struct ContentView: View {
     private var tabView: some View {
         TabView(selection: $selection) {
             Tab(value: MainTab.chat) {
-                ChatView()
+                ChatView(
+                    onOpenActivity: { selection = .activity },
+                    overviewStore: overviewStore
+                )
             } label: {
                 tabLabel(TabBarSymbols.chat)
             }
 
-            Tab(value: MainTab.overview) {
-                OverviewView(
-                    onOpenAgent: { route in
-                        appState.pendingAgentRoute = route
-                        selection = .settings
-                    },
-                    onOpenChatSession: { id in
-                        appState.pendingChatSessionID = id
-                    },
-                    onOpenSettings: { route in
-                        appState.pendingSettingsRoute = route
-                        selection = .settings
-                    },
-                    onOpenChat: { selection = .chat }
-                )
+            Tab(value: MainTab.activity) {
+                ActivityView(overviewStore: overviewStore)
             } label: {
-                tabLabel(TabBarSymbols.overview)
+                tabLabel(TabBarSymbols.activity)
             }
 
-            Tab(value: MainTab.files) {
-                FilesView()
+            Tab(value: MainTab.ideas) {
+                IdeasPlaceholderView()
             } label: {
-                tabLabel(TabBarSymbols.files)
+                tabLabel(TabBarSymbols.ideas)
             }
 
-            Tab(value: MainTab.settings) {
-                SettingsView()
+            Tab(value: MainTab.goals) {
+                GoalsPlaceholderView()
             } label: {
-                tabLabel(TabBarSymbols.settings)
+                tabLabel(TabBarSymbols.goals)
+            }
+
+            Tab(value: MainTab.apps) {
+                AppsView(onOpenChat: { selection = .chat })
+            } label: {
+                tabLabel(TabBarSymbols.apps)
             }
         }
         // 0.4.0（审计 §1.1）：根 .tint(Palette.ink) 与暗色

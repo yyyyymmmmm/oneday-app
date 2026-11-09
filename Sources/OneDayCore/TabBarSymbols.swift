@@ -3,10 +3,15 @@ import Foundation
 /// 底栏符号名对（0.3.1 礼记同款立，0.4.0 续）：
 /// 0.4.0 底栏回原生 TabView（审计 §3.2），本表是原生
 /// Tab 的 Label 符号源（数据保留，§1.2 #28）：符号由
-/// 系统直渲（零预渲染，0.2.9 路线作废口径不变）。四
-/// 格 selected 恒等于 normal（§22.5 禁 .fill 口径），
-/// 选中态由系统玻璃坞呈现。本表是四格符号名的单一
-/// 事实源，单测钉死。
+/// 系统直渲（零预渲染，0.2.9 路线作废口径不变）。
+/// selected 恒等于 normal（§22.5 禁 .fill 口径），
+/// 选中态由系统玻璃坞呈现。本表是底栏符号名的单一
+/// 事实源，单测钉死。0.6.0 五格 IA（移植蓝图 §4 一
+/// 期）：聊天／活动／点子／目标／应用，符号按 OpenMuse
+/// 五格近似对位（message／list.bullet.rectangle／
+/// lightbulb／checklist／square.grid.2x2）；应用格原
+/// 指定 .fill 变体与 §22.5 禁 fill 纪律冲突，按既有
+/// 底栏纪律取同名线条体（口径差在 0.6.0 回执在案）。
 /// 0.4.5 换本体（§30.7，用户 11:49 点名）：0.4.1/
 /// 0.4.3 两轮「锁 outline 变体」都没过真机（文件、
 /// 聊天两格仍实心观感），按止损换路——符号本体直
@@ -41,13 +46,37 @@ public struct TabSymbolPair: Equatable, Sendable {
     }
 }
 
-/// 四个底栏条目的符号名对（顺序与 ContentView 条目同序）
+/// 五个底栏条目的符号名对（顺序与 ContentView 条目同序）
 public enum TabBarSymbols {
     public static let chat = TabSymbolPair(
         id: "chat", title: "聊天",
         normal: "message",
         selected: "message"
     )
+    public static let activity = TabSymbolPair(
+        id: "activity", title: "活动",
+        normal: "list.bullet.rectangle",
+        selected: "list.bullet.rectangle"
+    )
+    public static let ideas = TabSymbolPair(
+        id: "ideas", title: "点子",
+        normal: "lightbulb",
+        selected: "lightbulb"
+    )
+    public static let goals = TabSymbolPair(
+        id: "goals", title: "目标",
+        normal: "checklist",
+        selected: "checklist"
+    )
+    public static let apps = TabSymbolPair(
+        id: "apps", title: "应用",
+        normal: "square.grid.2x2",
+        selected: "square.grid.2x2"
+    )
+
+    // 旧三格符号保留作应用格内入口行与抽屉名单的符号源
+    // （总览/文件/设置自 0.6.0 起是应用格内的页面，不再
+    // 占底栏格；符号本体口径不变）
     public static let overview = TabSymbolPair(
         id: "overview", title: "总览",
         normal: "chart.xyaxis.line",
@@ -65,5 +94,5 @@ public enum TabBarSymbols {
     )
 
     /// 全部条目（与 ContentView 的 Tab 顺序同序）
-    public static let all = [chat, overview, files, settings]
+    public static let all = [chat, activity, ideas, goals, apps]
 }

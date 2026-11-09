@@ -16,6 +16,9 @@ import UIKit
 /// 分段：文件＝文档与其他交付文件列表（名/来源/时间/大小，
 /// 可预览/下载/删除）；影音＝交付的图片/视频/音频网格。
 struct FilesView: View {
+    /// 0.6.0：自应用格进入时挂「应用」返回钮（口径同总览）
+    var onBackToApps: (() -> Void)? = nil
+
     @Environment(AppState.self) private var appState
 
     @State private var segment = 0
@@ -56,6 +59,15 @@ struct FilesView: View {
             }
             .background(Palette.pageBG)
             .navigationTitle("文件")
+            .toolbar {
+                if let onBackToApps {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: onBackToApps) {
+                            Label("应用", systemImage: "chevron.left")
+                        }
+                    }
+                }
+            }
             .navigationDestination(for: WorkspaceFileEntry.self) { entry in
                 FilePreviewView(entry: entry)
             }

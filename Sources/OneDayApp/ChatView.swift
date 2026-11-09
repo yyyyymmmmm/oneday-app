@@ -21,6 +21,11 @@ struct ChatView: View {
     // （0.4.5 删：onOpenServerSession／onSelectTab 两注
     // 入闭包——它们唯一的调用方是抽屉，抽屉已提到壳
     // 层并自带通道（DrawerView），本页不再需要）
+    /// 0.6.0：顶栏身份区点按 → 切活动格（壳层注入）
+    var onOpenActivity: () -> Void = {}
+    /// 0.6.0：总览桥状态（壳层持有）：顶栏状态行与铃铛
+    /// 角标的数据源；nil 时状态行落「暂时联系不上」
+    var overviewStore: OverviewBridgeStore?
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -78,8 +83,8 @@ struct ChatView: View {
     /// composerFocusHandle 直达文本视图本体
     @State private var composerFocused = false
     @State private var composerFocusHandle = ComposerFocusHandle()
-    /// 0.2.2：模型选择器（顶栏副题点开，列表服务端拉取）
-    @State private var showHub = false
+    /// 0.6.0：通知 sheet（顶栏铃铛点开，总览桥驱动）
+    @State private var showNotifications = false
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
@@ -282,13 +287,16 @@ struct ChatView: View {
         .task {
             await appState.refreshModelCatalog()
         }
-        // 0.5.0（§31 合并列车接线）：点身份胶囊开智能体
-        // 枢纽页——0.4.0 的临时接线（sheet 内开
-        // ModelSettingsView）按审计 §5 改道至此；
-        // AgentHubView 自带 NavigationStack 与关闭钮，
-        // 此处不再外包
-        .sheet(isPresented: $showHub) {
-            AgentHubView()
+        // 0.6.0（蓝图 §4 一期）：枢纽页 sheet 入口退役——
+        // 枢纽内容已转正为活动格（AgentHubView 的
+        // .activity 模式，全 App 只此一份实现）；身份
+        // 胶囊点按改道活动格（见 headerBar），换模型走
+        // 胶囊内模型段 Menu（见 modelMenu）。本 sheet 是
+        // 顶栏铃铛的通知面（总览桥驱动）
+        .sheet(isPresented: $showNotifications) {
+            if let overviewStore {
+                NotificationsView(store: overviewStore)
+            }
         }
     }
 
@@ -298,13 +306,28 @@ struct ChatView: View {
     /// EffectStyle(.soft) 单独承担；顶栏收编系统通道与
     /// 玻璃换装归二期材质批）
 
-    /// 身份状态（0.3.8 第 30 条）：胶囊状态位只报属实的
-    /// 三态——未连接/唤醒中/生成中/在线，词与点同源
-    private var identityStatus: (word: String, color: Color) {
-        if appState.config == nil { return ("未连接", Palette.inkMuted) }
-        if isWakingModel { return ("唤醒中", Palette.warning) }
-        if isStreaming { return ("生成中", Palette.success) }
-        return ("在线", Palette.success)
+    /// 顶栏状态行（0.6.0，总览桥口径）：词由 OneDayCore
+    /// .OverviewStatusLine 对桥快照纯派生（连不上→「暂时
+    /// 联系不上」／待审批→「有 N 条待你审批」／活跃会话
+    /// →「正在处理会话」／否则「随时待命」）；0.3.8 的
+    /// 本地三态（未连接/唤醒中/生成中/在线）自此退役——
+    /// 生成中/唤醒中在本页消息区自有呈现，不占顶栏状态行
+    private var overviewStatusWord: String {
+        overviewStore?.statusLine ?? "暂时联系不上"
+    }
+
+    /// 状态点色与状态词同源：不可达弱色、待审批警示、
+    /// 其余（处理中/待命）在线绿
+    private var overviewStatusColor: Color {
+        guard let snapshot = overviewStore?.snapshot, snapshot.hermesUp else {
+            return Palette.inkMuted
+        }
+        if snapshot.pendingApprovals > 0 { return Palette.warning }
+        return Palette.success
+    }
+
+    private var overviewBadgeCount: Int {
+        overviewStore?.badgeCount ?? 0
     }
 
     /// 顶栏（0.3.8 第 30/31 条布局，0.4.0 A 案改；0.4.3
@@ -346,51 +369,56 @@ struct ChatView: View {
 
                 Spacer()
 
-                // 0.4.0 A 案（审计 §3.3，用户点选）：右侧小
-                // 模型胶囊撤除，模型并入 IdentityAnchor 一
-                // 颗（头像＋Hermes＋状态＋分隔＋模型名＋
-                // chevron）；点整颗胶囊开智能体枢纽页
-                // （0.5.0 接线，见 body 的 sheet 注释）
-                Button {
-                    showHub = true
-                } label: {
-                    IdentityAnchor(
-                        name: "Hermes",
-                        statusWord: identityStatus.word,
-                        statusColor: identityStatus.color,
-                        modelName: displayModelName,
-                        modelShortName: ChatModels.shortDisplayName(
-                            for: appState.chatModel
-                        )
-                    )
-                }
-                .buttonStyle(.plain)
-                // 0.4.1：胶囊在顶栏 HStack 里优先保宽
-                // （0.4.0 真机截图里被两侧圆钮＋Spacer
-                // 挤压——组件内 ViewThatFits 三档降级是
-                // 主修，此处再给整颗胶囊布局优先权）
-                .layoutPriority(1)
-                .accessibilityLabel("Hermes，\(identityStatus.word)，当前模型 \(displayModelName)，打开智能体枢纽页")
+                // 0.6.0 顶栏三件套之中（蓝图 §4 一期＋追加
+                // 硬规格 2）：胶囊仍一颗装头像＋名＋状态＋
+                // 模型，但拆两个点按域——身份域（头像/名/
+                // 总览桥状态行）点按跳活动格；模型域（分隔
+                // 线＋短名＋chevron）是原生 Menu，点开换三
+                // 模型（selectChatModel＋会话锁机制原样，
+                // 不许埋掉或降级）。头像换三狗搭档款定版图
+                identityCapsule
+                    // 0.4.1：胶囊在顶栏 HStack 里优先保宽
+                    .layoutPriority(1)
 
                 Spacer()
 
+                // 0.6.0 顶栏三件套之右：铃铛＋角标（角标＝
+                // 未读通知＋待审批，总览桥聚合）。原右钮
+                // 「新建会话」退场——新建入口在抽屉底条与
+                // 抽屉空态行各有一处，不占顶栏三件套之位
                 Button {
-                    newThread()
+                    showNotifications = true
                 } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(
-                            size: HeaderButtonSpec.glyphPointSize,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(Palette.ink)
-                        .frame(
-                            width: HeaderButtonSpec.diameter,
-                            height: HeaderButtonSpec.diameter
-                        )
-                        .odFloatPaper(in: Circle())
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bell")
+                            .font(.system(
+                                size: HeaderButtonSpec.glyphPointSize,
+                                weight: .regular
+                            ))
+                            .foregroundStyle(Palette.ink)
+                            .frame(
+                                width: HeaderButtonSpec.diameter,
+                                height: HeaderButtonSpec.diameter
+                            )
+                            .odFloatPaper(in: Circle())
+                        if overviewBadgeCount > 0 {
+                            Text("\(overviewBadgeCount)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(Palette.onPrimary)
+                                .padding(.horizontal, 4)
+                                .frame(minWidth: 18, minHeight: 18)
+                                .background(Palette.danger, in: Capsule())
+                                .offset(x: 4, y: -4)
+                                .accessibilityHidden(true)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("新建会话")
+                .accessibilityLabel(
+                    overviewBadgeCount > 0
+                        ? "通知，\(overviewBadgeCount) 条待处理"
+                        : "通知"
+                )
             }
 
             // 会话名次行（第 30 条）：退居中弱行，不再占胶囊。
@@ -423,6 +451,86 @@ struct ChatView: View {
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingS)
+    }
+
+    /// 身份胶囊（0.6.0）：一颗白浮纸胶囊，左域＝三狗头像
+    /// ＋Hermes＋状态点/状态行（点按跳活动格），右域＝
+    /// 模型 Menu（分隔线＋短名＋chevron）。形态沿 0.4.0
+    /// A 案的一颗装口径，只换数据源（状态行走总览桥）
+    /// 与点按分工；模型全名在 Menu 与无障碍标签里给全，
+    /// 胶囊内沿 0.4.1 短名口径（整词缩短、不截断）。
+    private var identityCapsule: some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Button {
+                onOpenActivity()
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    Image("SangouPartner")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 28, height: 28)
+                        .clipShape(Circle())
+                        .accessibilityHidden(true)
+                    Text("Hermes")
+                        .font(.headline)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    HStack(spacing: 5) {
+                        StatusDot(color: overviewStatusColor)
+                        Text(overviewStatusWord)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hermes，\(overviewStatusWord)，打开活动")
+
+            Rectangle()
+                .fill(Palette.hairline)
+                .frame(width: 0.5, height: 18)
+
+            modelMenu
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, 7)
+        .odFloatPaper(in: Capsule())
+    }
+
+    /// 模型域（硬规格 2）：原生 Menu 点开三模型，当前项
+    /// 带勾；选择走 AppState.selectChatModel（本地持久化
+    /// ＋逐请求 provider=custom，会话锁机制不变）。Menu
+    /// 是系统件：呈现、勾选、关闭全走系统行为。
+    private var modelMenu: some View {
+        Menu {
+            ForEach(ChatModels.items, id: \.id) { item in
+                Button {
+                    appState.selectChatModel(item.id)
+                } label: {
+                    if appState.chatModel == item.id {
+                        Label(item.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(item.displayName)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(ChatModels.shortDisplayName(for: appState.chatModel))
+                    .font(.callout)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("当前模型 \(displayModelName)，切换模型")
     }
 
     /// 底部发送区（0.2.6 起由消息列表的安全区承载、不

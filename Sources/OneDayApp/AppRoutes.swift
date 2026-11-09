@@ -9,6 +9,17 @@ enum AgentRoute: Hashable {
     case serverSessionDetail(String)
 }
 
+/// 应用格内页面（0.6.0 五格 IA）：应用格首页是入口行
+/// 列表，总览/文件/设置是其内页面；抽屉齿轮、总览深链
+/// 等跨格入口经 AppState.pendingAppsPage 置位、应用格
+/// 消费后清空（与 pendingChatSessionID 同模式）。
+enum AppsPage: Hashable {
+    case home
+    case overview
+    case files
+    case settings
+}
+
 enum SettingsRoute: Hashable {
     case serverDetail
     case profiles

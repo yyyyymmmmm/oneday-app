@@ -69,6 +69,9 @@ final class AppState {
     /// 跨页深链（总览 → 智能体格/设置格二级页）：目标页消费后置 nil
     var pendingAgentRoute: AgentRoute?
     var pendingSettingsRoute: SettingsRoute?
+    /// 待打开的应用格内页面（0.6.0）：抽屉齿轮等置位，
+    /// ContentView 据此切应用格、AppsView 消费后置 nil
+    var pendingAppsPage: AppsPage?
     /// 待续聊的服务端会话 id（0.4.0，审计 §3.4）：四处
     /// 入口（抽屉／服务端会话页／状态页／定时运行记录）
     /// 置位，ContentView 据此切聊天格、ChatView 消费后
@@ -122,18 +125,20 @@ final class AppState {
 
     // MARK: - 启动恢复
 
-    /// Keychain 四件齐全才算已连接；缺任一回连接页（不半登）。
+    /// 已连接的判定（0.6.0 直登口径）：地址＋API 密钥
+    /// （Bearer）齐全即成立；面板账号/密码是 0.5.x 四件
+    /// 套存量凭据，有则一并恢复（管理面自动重登要用），
+    /// 缺失不挡直登成立——直登连接的管理面 401 时没有
+    /// 静默重登兜底、按会话过期报错（performAdmin 口径）。
     private func restore() {
         guard let base = KeychainStore.read(account: CredentialKey.baseURL),
               let config = ServerConfig(rawInput: base),
-              let user = KeychainStore.read(account: CredentialKey.username),
-              KeychainStore.read(account: CredentialKey.password) != nil,
               KeychainStore.read(account: CredentialKey.apiKey) != nil else {
             phase = .needsConnection
             return
         }
         self.config = config
-        username = user
+        username = KeychainStore.read(account: CredentialKey.username)
         phase = .connected
     }
 
@@ -184,15 +189,59 @@ final class AppState {
         phase = .connected
     }
 
-    /// 设置页「重新测试连接」：用已存凭据重跑三步探活，不改状态。
+    /// 直登（0.6.0，用户拍板学 OpenMuse 欢迎页）：欢迎页
+    /// 只输服务器地址＋密钥（Hermes Bearer），两步校验
+    /// （健康检查→验证密钥）全过才落 Keychain 并置
+    /// connected。面板账号/密码不参与直登：落盘时清掉
+    /// 旧四件套里的账号/密码，防换址后拿旧服务器的面板
+    /// 凭据去新服务器静默重登。设置页改址/换钥走同一
+    /// 方法（ServerDetailView）。
+    func connectDirect(
+        config: ServerConfig,
+        apiKey: String,
+        onStep: @escaping (ProbeStep) -> Void = { _ in }
+    ) async throws {
+        onStep(.health)
+        let health = try await client.health(config: config)
+        guard health.isOK else {
+            throw HermesError.healthCheckFailed(status: 200)
+        }
+        onStep(.apiKey)
+        let ids = try await client.models(config: config, apiKey: apiKey)
+        if let first = ids.first {
+            modelID = first
+        }
+        if !isDemo {
+            KeychainStore.save(config.baseString, account: CredentialKey.baseURL)
+            KeychainStore.save(apiKey, account: CredentialKey.apiKey)
+            KeychainStore.delete(account: CredentialKey.username)
+            KeychainStore.delete(account: CredentialKey.password)
+        }
+        self.config = config
+        username = nil
+        phase = .connected
+    }
+
+    /// 设置页「重新测试连接」：存量四件套走三步探活；
+    /// 直登连接（无面板密码）走两步（健康＋密钥），不改状态。
     func retestConnection(onStep: @escaping (ProbeStep) -> Void = { _ in }) async throws {
-        guard let config, let username, let password, let apiKey else {
+        guard let config, let apiKey else {
             throw HermesError.sessionExpired
         }
-        try await connect(
-            config: config, username: username, password: password,
-            apiKey: apiKey, onStep: onStep
-        )
+        if let username, let password {
+            try await connect(
+                config: config, username: username, password: password,
+                apiKey: apiKey, onStep: onStep
+            )
+        } else {
+            onStep(.health)
+            let health = try await client.health(config: config)
+            guard health.isOK else {
+                throw HermesError.healthCheckFailed(status: 200)
+            }
+            onStep(.apiKey)
+            _ = try await client.models(config: config, apiKey: apiKey)
+        }
     }
 
     // MARK: - 会话接口（自动重登）

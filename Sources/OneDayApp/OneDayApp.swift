@@ -36,7 +36,7 @@ struct OneDayApp: App {
     }
 }
 
-/// 根切换：未连接只给连接页，连上才进四栏。
+/// 根切换：未连接只给连接页，连上才进五格。
 /// 会话 cookie 可能已过期，总览页拉配置时由 AppState 自动重登兜底。
 struct RootView: View {
     @Environment(AppState.self) private var appState

@@ -2,31 +2,32 @@ import OneDayDesign
 import OneDayCore
 import SwiftUI
 
-/// 首次启动连接页：填服务器地址、面板账号密码、API 密钥，
-/// 「测试并连接」跑三步探活，全过才进主界面（凭据落 Keychain
-/// 在 AppState.connect 内、且只在全过后落）。
-/// v2 视觉（docs/DESIGN-V2.md §3.5）：字标裸排、字段走分组行式、
-/// 探活是安静清单、主按钮是全屏唯一的蓝色时刻。
+/// 欢迎/连接页（0.6.0 直登版，用户拍板学 OpenMuse 欢迎
+/// 页版式）：三狗吉祥物＋中文一句话＋一张卡（服务器地址
+/// 框＋密钥框）＋一个大连接钮。地址预填
+/// https://hermes.didichou.site 可改；密钥＝Hermes 的
+/// Bearer（API 密钥）。校验走 AppState.connectDirect 两
+/// 步（健康检查→验证密钥），全过才进五格、才落
+/// Keychain。面板账号/密码自此退出连接页（存量四件套
+/// 仍可被恢复与重测兼容，见 AppState.restore）；改址/
+/// 换钥在设置页「当前服务器」走同一 connectDirect。
+/// write-gate 钥匙不在本页（维持 0.5.0 设置页粘贴字段）。
 struct ConnectView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var serverText = "https://hermes.didichou.site"
-    @State private var username = ""
-    @State private var password = ""
     @State private var apiKey = ""
 
     // 连接页演示态（-odDemoConnect）：预填值全是占位假串，
-    // 账号只写 admin，不含任何真实凭据（赋值在 onAppear）。
-    // 演示态两个安全行不用 SecureField 而用等长圆点文本占位：
-    // 0.1.3 三轮截图实证——程序化给 SecureField 赋的值在模拟器
-    // 里不渲染圆点且行高异常（init 预填 / onAppear 同帧 /
-    // 延迟 400ms 三种赋值时机全中），而生产路径是用户手输、
-    // 不经过程序化赋值，不受此缺陷影响（见 DESIGN-V2 §7.3）。
+    // 不含任何真实凭据（赋值在 onAppear）。演示态安全行
+    // 不用 SecureField 而用等长圆点文本占位：0.1.3 三轮
+    // 截图实证——程序化给 SecureField 赋的值在模拟器里
+    // 不渲染圆点且行高异常，生产路径是用户手输、不经
+    // 过程化赋值，不受此缺陷影响（见 DESIGN-V2 §7.3）。
 
     private enum Field: Hashable {
-        case server, username, password, apiKey
+        case server, apiKey
     }
 
     @FocusState private var focusedField: Field?
@@ -38,6 +39,10 @@ struct ConnectView: View {
         case failed
     }
 
+    /// 直登只两步：健康检查、验证密钥（面板登录步随四
+    /// 件套退出本页）
+    private static let steps: [ProbeStep] = [.health, .apiKey]
+
     @State private var stepStates: [ProbeStep: StepState] = [:]
     @State private var currentStep: ProbeStep?
     @State private var isProbing = false
@@ -46,8 +51,6 @@ struct ConnectView: View {
     private var canSubmit: Bool {
         !isProbing
             && !serverText.trimmingCharacters(in: .whitespaces).isEmpty
-            && !username.isEmpty
-            && !password.isEmpty
             && !apiKey.isEmpty
     }
 
@@ -67,7 +70,7 @@ struct ConnectView: View {
                     InlineError(errorMessage)
                         .padding(.top, OneDayMetrics.spacingL)
                 }
-                Button("测试并连接") {
+                Button("连接") {
                     Task { await submit() }
                 }
                 .buttonStyle(.odPrimary)
@@ -83,10 +86,6 @@ struct ConnectView: View {
         .background(Palette.pageBG)
         .onAppear {
             if DemoMode.current == .connectPage {
-                // 演示预填：值只供 canSubmit 与演示探活消费；
-                // 安全行的可见形态是等长圆点占位（见文件头注释）
-                username = "admin"
-                password = "demo-password"
                 apiKey = "demo-api-key"
             }
             withAnimation(MotionTokens.resolved(MotionTokens.entrance, reduceMotion: reduceMotion)) {
@@ -98,12 +97,24 @@ struct ConnectView: View {
     // MARK: - 区块
 
     private var brandBlock: some View {
-        // 0.3.7 卡 1：身份块居中（稀疏表单页全页唯一视觉重心）
+        // 版式对照 OpenMuse 欢迎页：吉祥物居中大图＋标题
+        // ＋一句话；吉祥物换三狗搭档款定版图（SangouPartner
+        // 资产，源 ip-design/STYLE-partner.webp 裁头）
         VStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
-            Text("OneDay")
+            Image("SangouPartner")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 96, height: 96)
+                .clipShape(Circle())
+                .overlay {
+                    Circle().stroke(Palette.hairline, lineWidth: 0.5)
+                }
+                .accessibilityHidden(true)
+            Text("欢迎来到 OneDay")
                 .font(.title)
                 .foregroundStyle(Palette.ink)
-            Text("连接你的 Hermes 服务器")
+                .padding(.top, OneDayMetrics.spacingS)
+            Text("你的 Hermes，随时在身边。")
                 .font(.subheadline)
                 .foregroundStyle(Palette.inkSecondary)
         }
@@ -119,28 +130,12 @@ struct ConnectView: View {
                     .focused($focusedField, equals: .server)
             }
             GroupDivider(inset: OneDayMetrics.spacingM)
-            FieldRow(label: "面板账号", isActive: focusedField == .username) {
-                TextField("Dashboard 用户名", text: $username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($focusedField, equals: .username)
-            }
-            GroupDivider(inset: OneDayMetrics.spacingM)
-            FieldRow(label: "面板密码", isActive: focusedField == .password) {
+            FieldRow(label: "密钥", isActive: focusedField == .apiKey) {
                 if DemoMode.current == .connectPage {
                     // 演示占位：与假串等长的圆点（理由见文件头注释）
-                    Text(String(repeating: "•", count: 13))
-                } else {
-                    SecureField("Dashboard 密码", text: $password)
-                        .focused($focusedField, equals: .password)
-                }
-            }
-            GroupDivider(inset: OneDayMetrics.spacingM)
-            FieldRow(label: "API 密钥", isActive: focusedField == .apiKey) {
-                if DemoMode.current == .connectPage {
                     Text(String(repeating: "•", count: 12))
                 } else {
-                    SecureField("API Server 的密钥", text: $apiKey)
+                    SecureField("Hermes 的 Bearer 密钥", text: $apiKey)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($focusedField, equals: .apiKey)
@@ -152,7 +147,7 @@ struct ConnectView: View {
 
     private var probeGroup: some View {
         VStack(spacing: 0) {
-            ForEach(Array(ProbeStep.allCases.enumerated()), id: \.element.rawValue) { index, step in
+            ForEach(Array(Self.steps.enumerated()), id: \.element.rawValue) { index, step in
                 if index > 0 {
                     GroupDivider(inset: 42)
                 }
@@ -187,7 +182,6 @@ struct ConnectView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 15))
                 .foregroundStyle(Palette.success)
-                // 条 5 补落点（0.3.2）：与同行文字走光学偏移
         case .failed:
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 15))
@@ -217,10 +211,8 @@ struct ConnectView: View {
         isProbing = true
         defer { isProbing = false }
         do {
-            try await appState.connect(
+            try await appState.connectDirect(
                 config: config,
-                username: username,
-                password: password,
                 apiKey: apiKey
             ) { step in
                 if let current = currentStep {
@@ -229,7 +221,7 @@ struct ConnectView: View {
                 currentStep = step
                 stepStates[step] = .active
             }
-            for step in ProbeStep.allCases {
+            for step in Self.steps {
                 stepStates[step] = .done
             }
             // 结果触感（0.3.2 纪律）：连接成功 .success
