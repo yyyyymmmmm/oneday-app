@@ -11,8 +11,8 @@ final class FileBrowserLogicTests: XCTestCase {
         size: Int64? = nil, mtime: Double? = nil,
         mime: String? = nil
     ) -> WorkspaceFileEntry {
-        let sizeJSON = size.map(String.init) ?? "null"
-        let mtimeJSON = mtime.map(String.init) ?? "null"
+        let sizeJSON = size.map { "\($0)" } ?? "null"
+        let mtimeJSON = mtime.map { "\($0)" } ?? "null"
         let mimeJSON = mime.map { "\"\($0)\"" } ?? "null"
         let json = """
         {"path": "/opt/data", "parent": null, "entries": [
