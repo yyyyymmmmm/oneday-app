@@ -52,6 +52,22 @@ import UIKit
 /// 不换容器」办：底层按需挂载（本文件 body）、抽屉
 /// 两端改实色固定条（DrawerView 0.6.1）、三页底部自
 /// 绘绘制层全拆（ChatView/DrawerView 0.6.1）
+///
+/// **0.7.1 壳层重构（chrome 裁决全案，档 chrome-**
+/// **research-20261109.md §3.3/§3.5，用户 16:15 批**
+/// **准）**：壳层状态与变换整体下沉到本文件下方的
+/// DrawerShell 包装层，要点四条——①TabView 不再被
+/// GeometryReader 包裹（0.6.1 量测坐实其扰动安全区
+/// 传递、底栏贴底，§1.4）：推开量改由壳层在卡层以
+/// 外以 onGeometryChange 量测，TabView 回归正常安
+/// 全区链；②位移改单一事实源 drawerOffset（S1，
+/// bool＋delta 双状态退役，纯逻辑在 OneDayCore.
+/// DrawerMotion 并有单测）；③挂载改预挂载/迟卸载
+/// （S5，取代 0.6.1 的按需挂载——其起步帧建树卡顿
+/// 与关抽屉瞬间名单整幅消失见 §1.5-4）；④归位弹簧
+/// 换 MotionTokens.drawerSpring（S7），手势按 S2
+/// 方向锁定＋S6 吸附判定执行。本层只剩选格状态、
+/// 总览桥轮询与跨格深链对账。
 struct ContentView: View {
     enum MainTab: Hashable {
         case chat
@@ -62,67 +78,15 @@ struct ContentView: View {
     }
 
     @Environment(AppState.self) private var appState
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: MainTab = .chat
     /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与活动
     /// 格共同消费；前台 30 秒轮询由下方 scenePhase 驱动
     @State private var overviewStore = OverviewBridgeStore()
-    /// 推式抽屉的壳层开合目标与跟手位移（0.4.5）：制式
-    /// 与 0.4.4 前 ChatView 内的同名状态一致——跟手量
-    /// 是相对当前基准位（开＝推开量／合＝0）的平移，
-    /// 基准位由 drawerOpen 定，松手吸附在 setDrawer 收口
-    @State private var drawerOpen = false
-    @State private var drawerDrag: CGFloat = 0
 
     var body: some View {
-        GeometryReader { geo in
-            // 推开量（录屏量测：全开页卡左缘在屏宽 79%，
-            // §30 量测表）；上限 400 防大屏抽屉过宽
-            let travel = min(geo.size.width * 0.79, 400)
-            let offsetX = cardOffset(travel: travel)
-            let progress = travel > 0
-                ? min(max(offsetX / travel, 0), 1) : 0
-            ZStack(alignment: .leading) {
-                // 橡皮筋越界时（拖过两端）露出的兜底色：
-                // 与抽屉面同色，正常态恒被页卡盖住
-                Palette.chatSurface
-                // 底层：抽屉面（偏移恒比页卡少一个推开
-                // 量：页卡合拢时它恰好整幅退出左缘）。
-                // 0.6.1 按需挂载（用户真机点名活动页底部
-                // 左角透出/重影）：旧构造下本层在关闭态也
-                // 常驻层级、只靠偏移恰 -travel 藏到左缘
-                // 外，是全壳唯一「常驻挂载且带帧外绘制」
-                // 的层（其 safeAreaBar 背景与底条钮阴影在
-                // 关闭态仍参与离屏合成），是屏底残影的唯
-                // 一结构嫌疑。改只在打开或拖拽进行中挂
-                // 载：关闭静止时整层移出层级、零绘制；打
-                // 开与拖拽中（drawerDrag≠0）保持挂载、
-                // 跟手与动画口径不变；打开瞬间的挂载与
-                // setDrawer 的动画同帧起步、无自身转场，
-                // 不影响 §30 同速同距
-                if drawerOpen || drawerDrag != 0 {
-                    DrawerView(
-                        width: travel,
-                        bottomSafeInset: geo.safeAreaInsets.bottom,
-                        currentTab: selection,
-                        onSelectTab: { selection = $0 },
-                        onClose: { setDrawer(false) }
-                    )
-                    .offset(x: offsetX - travel)
-                    .gesture(drawerDragGesture(travel: travel))
-                }
-                // 上层：整个应用表面＝一张可变换页卡
-                card(travel: travel, offsetX: offsetX, progress: progress)
-            }
-        }
-        // 语义开合对账：ChatView 汉堡钮等只写 AppState
-        // .drawerPresented，壳层在此执行（setDrawer 内
-        // 同步回写同值、值已相等时被本 guard 拦下、不回环）
-        .onChange(of: appState.drawerPresented) { _, presented in
-            if presented != drawerOpen {
-                setDrawer(presented)
-            }
+        DrawerShell(selection: $selection) {
+            tabView
         }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
         // （ChatView 侧消费切换；含从其他格开抽屉的情形）
@@ -148,57 +112,6 @@ struct ContentView: View {
             if scenePhase == .active {
                 await overviewStore.poll(appState: appState)
             }
-        }
-    }
-
-    /// 应用表面页卡：TabView 本体＋开态命中层/合态左缘
-    /// 热区（都是卡的一部分、随卡同走），变换序＝圆角
-    /// 裁切→缩放（顶锚）→位移→柔影（影取最终轮廓：录
-    /// 屏里影是卡左缘外侧约 27pt 宽的软带、最深处贴缘、
-    /// 向左衰减到无，§30）
-    @ViewBuilder
-    private func card(
-        travel: CGFloat, offsetX: CGFloat, progress: CGFloat
-    ) -> some View {
-        let shaped = tabView
-            // 开态命中层：盖住整卡接管点按（点露出的窄
-            // 条关抽屉）与横拖（跟手关）；开态下卡内控
-            // 件不可达——页卡只是被推开的预览（样板同理）
-            .overlay {
-                if drawerOpen {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { setDrawer(false) }
-                        .gesture(drawerDragGesture(travel: travel))
-                }
-            }
-            // 合态左缘热区：右滑跟手唤出（宽走 OneDay-
-            // Metrics.drawerEdgeZone 令牌，0.2.2 沿革）。
-            // 显隐只认 drawerOpen——拖拽进行中（drawer-
-            // Drag≠0、drawerOpen 仍为 false）它必须留在
-            // 原地，否则手势中途被摘
-            .overlay(alignment: .leading) {
-                if !drawerOpen {
-                    Color.clear
-                        .frame(width: OneDayMetrics.drawerEdgeZone)
-                        .contentShape(Rectangle())
-                        .gesture(drawerDragGesture(travel: travel))
-                }
-            }
-            .clipShape(RoundedRectangle(
-                cornerRadius: 28 * progress, style: .continuous
-            ))
-            // 缩放锚点在顶中：录屏量测全开 0.96、顶部地
-            // 标纵向位移≈0、卡底边升到屏高约 96%（§30）
-            .scaleEffect(1 - 0.04 * progress, anchor: .top)
-            .offset(x: offsetX)
-        if progress > 0 {
-            shaped.shadow(
-                color: Palette.shadowBase.opacity(0.16 * Double(progress)),
-                radius: 24 * progress, x: -10 * progress, y: 0
-            )
-        } else {
-            shaped
         }
     }
 
@@ -258,83 +171,6 @@ struct ContentView: View {
         .environment(\.symbolVariants, .none)
     }
 
-    /// 页卡实时位移：基准位（开 travel／合 0）＋跟手量
-    /// （界内 1:1 跟手；越界段橡皮筋，OneDayCore.Drawer-
-    /// Geometry——与 0.4.4 前 ChatView 的 drawerFollowed-
-    /// Drag 同式，宽度参数换成推开量）
-    private func cardOffset(travel: CGFloat) -> CGFloat {
-        let base = drawerOpen ? travel : 0.0
-        let followed: CGFloat
-        if drawerOpen {
-            followed = drawerDrag >= 0
-                ? DrawerGeometry.rubberBand(
-                    overshoot: drawerDrag, containerWidth: travel
-                  )
-                : max(drawerDrag, -travel)
-        } else {
-            followed = drawerDrag <= 0
-                ? -DrawerGeometry.rubberBand(
-                    overshoot: -drawerDrag, containerWidth: travel
-                  )
-                : min(drawerDrag, travel)
-        }
-        return base + followed
-    }
-
-    /// 开合统一走条 9 定版拖拽弹簧（dragSpring：stiffness
-    /// 1200 / damping 80、零回弹，0.3.0 §14——抽屉属拖拽
-    /// 类交互；与录屏约 0.35s 级减速吸附同档），Reduce
-    /// Motion 时瞬时。打开必先收键盘（纪律＋旧承载同口
-    /// 径：键盘不许跟进抽屉世界；聊天页焦点句柄在页内、
-    /// 壳层走系统第一响应者通道直收）。语义状态同步回
-    /// 写 AppState（DrawerView 拉数据与各处对账都读它）。
-    /// 0.3.2 起抽屉吸附不挂触觉（口径不变）
-    private func setDrawer(_ open: Bool) {
-        if open {
-            resignKeyboard()
-        }
-        withAnimation(
-            MotionTokens.resolved(MotionTokens.dragSpring, reduceMotion: reduceMotion)
-        ) {
-            drawerOpen = open
-            drawerDrag = 0
-        }
-        appState.drawerPresented = open
-    }
-
-    private func resignKeyboard() {
-        #if canImport(UIKit)
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil, from: nil, for: nil
-        )
-        #endif
-    }
-
-    /// 壳层拖拽（左缘热区/页卡命中层/抽屉面三处共用）：
-    /// 跟手实时位移，松手按预测位移（含速度）决定开合，
-    /// 弹簧归位由 setDrawer 承接——阈值口径与 0.4.4 前
-    /// 一致（预测位移过推开量三成即吸附到对岸）。横向
-    /// 分量必须大于纵向才接管：抽屉名单纵滚、聊天页纵
-    /// 滚、各页既有横向交互（长按菜单等不经平移手势）
-    /// 都不被本手势抢（仲裁清单见 §30）
-    private func drawerDragGesture(travel: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 6)
-            .onChanged { value in
-                if abs(value.translation.width) > abs(value.translation.height) {
-                    drawerDrag = value.translation.width
-                }
-            }
-            .onEnded { value in
-                let projected = value.predictedEndTranslation.width
-                if drawerOpen {
-                    setDrawer(projected > -travel * 0.3)
-                } else {
-                    setDrawer(projected > travel * 0.3)
-                }
-            }
-    }
-
     /// 底栏标签（0.4.1）：标题随 Label 进栏（原生形态），
     /// 字形锁 outline——.symbolVariant(.none) 禁系统在
     /// 选中态自动替换 .fill 变体（符号表本身 selected≡
@@ -351,5 +187,326 @@ struct ContentView: View {
             Image(systemName: pair.normal)
                 .symbolVariant(.none)
         }
+    }
+}
+
+/// 抽屉壳层包装（0.7.1，chrome 裁决档 §3.3–§3.5）：
+/// 全部抽屉状态只活在本层——位移状态不落在
+/// ContentView 根，拖动期 ContentView/TabView 子树
+/// 不因位移写入被牵动重算（S2「状态只落在壳层变
+/// 换包装层」）；内容（TabView）经闭包注入、身份不
+/// 变。本层自下而上：兜底画布（§3.2 背景同源）／
+/// 抽屉面（S5 预挂载）／可变换页卡（S3 合成层白
+/// 名单四件：offset、顶锚 scale、抽屉 offset、页
+/// 卡阴影 opacity；圆角过 0.02 阈值一步到 28 定
+/// 值、阴影 radius 10/x −4 冻结，§3.4 定版）。
+private struct DrawerShell<Content: View>: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Binding var selection: ContentView.MainTab
+    @ViewBuilder var content: () -> Content
+
+    /// S1 单一事实源：页卡呈现位移（0＝合拢、travel
+    /// ＝全开；跟手期写入的是已含橡皮筋换算的呈现值，
+    /// progress/抽屉位移/开合语义全部由它派生）
+    @State private var drawerOffset: CGFloat = 0
+    /// 推开量（录屏量测：全开页卡左缘在屏宽 79%，
+    /// §30 量测表；上限 400 防大屏抽屉过宽）与窗口底
+    /// 部安全区 inset（喂 DrawerView 底条手算）：壳层
+    /// 在卡层以外以 onGeometryChange 量测——0.7.1
+    /// §3.3 结构修复：TabView 不再被 GeometryReader
+    /// 包裹，回归正常安全区传递链（贴底病处方 §1.4）
+    @State private var travel: CGFloat = 0
+    @State private var bottomSafeInset: CGFloat = 0
+    /// S5 挂载态：预挂载（左缘热区触摸按下/语义打开
+    /// 信号到达即挂载＋名单预取）＋迟卸载（归位动画
+    /// 结束且 offset＝0 持续 150ms 后才卸）——关闭静
+    /// 止零绘制的目标不变（0.6.1 按需挂载的初衷），
+    /// 只是挂载点提前、卸载点推迟，换掉起步帧建树
+    /// 卡顿与关抽屉瞬间名单整幅消失（§1.5-4）
+    @State private var drawerMounted = false
+    /// 本次手势会话：首次 onChanged 建立（记接管起
+    /// 点与是否桥接）；方向锁定达成前 lockTranslation
+    /// 为 nil、手势不写任何位移
+    @State private var dragSession: DragSession?
+    /// 归位动画在飞标记（setDrawer 置位、其 comple-
+    /// tion 按代次清）；归位中再抓的手势走 bridged
+    /// 桥接（见 drawerDragGesture 注）
+    @State private var settleInFlight = false
+    @State private var settleGeneration = 0
+    /// 迟卸载代次：任何挂载/开合/新检查递增，过期
+    /// 检查自废（防误卸刚重开的抽屉）
+    @State private var mountGeneration = 0
+
+    private struct DragSession {
+        /// 接管瞬间位移（跟手换算与吸附判定的锚）
+        var startOffset: CGFloat
+        /// 接管瞬间的手势横向位移（锁定段，跟手写入
+        /// 时扣除）；nil＝尚未锁定
+        var lockTranslation: CGFloat?
+        /// 接管时归位动画在飞：写入改走 drawerSpring
+        /// 逐帧重定向（弹簧自当前呈现位接管并合并速
+        /// 度，WWDC23 口径），不出现速度清零帧（S7）
+        var bridged: Bool
+    }
+
+    /// S1 派生开合语义（本层内部用：命中层开关与语义
+    /// 对账；不参与位移计算）
+    private var isDrawerOpen: Bool {
+        DrawerMotion.isOpen(offset: drawerOffset, travel: travel)
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // 橡皮筋越界时（拖过两端）露出的兜底色：
+            // 与抽屉面同色，正常态恒被页卡盖住；同时是
+            // §3.2 背景同源的壳层一环（画布全出血）
+            Palette.chatSurface
+            // 底层：抽屉面（偏移恒比页卡少一个推开
+            // 量：页卡合拢时它恰好整幅退出左缘）
+            if drawerMounted {
+                DrawerView(
+                    width: travel,
+                    bottomSafeInset: bottomSafeInset,
+                    currentTab: selection,
+                    onSelectTab: { selection = $0 },
+                    onClose: { setDrawer(false) }
+                )
+                .offset(x: drawerOffset - travel)
+                .gesture(drawerDragGesture)
+            }
+            // 上层：整个应用表面＝一张可变换页卡
+            card
+        }
+        // 推开量/底 inset 量测（卡层以外，不扰动
+        // TabView 的安全区传递，§3.3）
+        .onGeometryChange(for: CGSize.self) { proxy in
+            proxy.size
+        } action: { _, size in
+            travel = min(size.width * 0.79, 400)
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.safeAreaInsets.bottom
+        } action: { _, inset in
+            bottomSafeInset = inset
+        }
+        // 语义开合对账：ChatView 汉堡钮等只写 AppState
+        // .drawerPresented，壳层在此执行（setDrawer 内
+        // 同步回写同值、派生语义已相等时被本 guard 拦
+        // 下、不回环）
+        .onChange(of: appState.drawerPresented) { _, presented in
+            if presented != isDrawerOpen {
+                setDrawer(presented)
+            }
+        }
+    }
+
+    /// 应用表面页卡：TabView 本体＋开态命中层/合态左缘
+    /// 热区（都是卡的一部分、随卡同走；两层常挂、只切
+    /// 换命中开关——S3 禁拖动期结构切换），变换序＝
+    /// 圆角裁切→缩放（顶锚）→位移→柔影（§3.4 定版：
+    /// radius 10、x −4 冻结，只有 opacity 随 progress
+    /// 变；常挂、progress＝0 时 opacity 0 隐形——旧
+    /// `if progress > 0` 结构分支删除，§1.5-2）
+    private var card: some View {
+        let progress = DrawerMotion.progress(
+            offset: drawerOffset, travel: travel
+        )
+        return content()
+            // 开态命中层：盖住整卡接管点按（点露出的窄
+            // 条关抽屉）与横拖（跟手关）；开态下卡内控
+            // 件不可达——页卡只是被推开的预览（样板同理）
+            .overlay {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(isDrawerOpen)
+                    .onTapGesture { setDrawer(false) }
+                    .gesture(drawerDragGesture)
+            }
+            // 合态左缘热区：右滑跟手唤出（宽走 OneDay-
+            // Metrics.drawerEdgeZone 令牌，0.2.2 沿革）；
+            // 触摸按下即预挂载抽屉（S5，edgePrepare-
+            // Gesture），拖动起步帧零建树
+            .overlay(alignment: .leading) {
+                Color.clear
+                    .frame(width: OneDayMetrics.drawerEdgeZone)
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(!isDrawerOpen)
+                    .gesture(drawerDragGesture)
+                    .simultaneousGesture(edgePrepareGesture)
+            }
+            .clipShape(RoundedRectangle(
+                cornerRadius: DrawerMotion.cornerRadius(progress: progress),
+                style: .continuous
+            ))
+            // 缩放锚点在顶中：录屏量测全开 0.96、顶部地
+            // 标纵向位移≈0、卡底边升到屏高约 96%（§30）
+            .scaleEffect(1 - 0.04 * progress, anchor: .top)
+            .offset(x: drawerOffset)
+            .shadow(
+                color: Palette.shadowBase.opacity(
+                    DrawerMotion.shadowOpacity(progress: progress)
+                ),
+                radius: DrawerMotion.shadowRadius,
+                x: DrawerMotion.shadowX, y: 0
+            )
+    }
+
+    /// 开合统一走 drawerSpring（0.7.1 S7：interactive-
+    /// Spring 0.34/0.86、速度交接，取代 dragSpring 的
+    /// 抽屉用途；Reduce Motion 时瞬时）。打开必先收
+    /// 键盘（纪律＋旧承载同口径：键盘不许跟进抽屉世
+    /// 界；聊天页焦点句柄在页内、壳层走系统第一响应
+    /// 者通道直收）。语义状态同步回写 AppState
+    /// （DrawerView 拉数据与各处对账都读它）。
+    /// 0.3.2 起抽屉吸附不挂触觉（口径不变）
+    private func setDrawer(_ open: Bool) {
+        if open {
+            resignKeyboard()
+            mountDrawer()
+        }
+        settleInFlight = true
+        settleGeneration += 1
+        let generation = settleGeneration
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.drawerSpring, reduceMotion: reduceMotion
+            ),
+            completionCriteria: .logicallyComplete
+        ) {
+            drawerOffset = open ? travel : 0
+        } completion: {
+            guard generation == settleGeneration else { return }
+            settleInFlight = false
+            if !open {
+                // S5 迟卸载：归位结束、静止 150ms 后才卸
+                scheduleUnmountCheck(after: .milliseconds(150))
+            }
+        }
+        appState.drawerPresented = open
+    }
+
+    private func resignKeyboard() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil
+        )
+        #endif
+    }
+
+    /// S5 预挂载：挂载＋触发名单数据预取（DrawerView
+    /// 挂载即 @Query 建树、onAppear 补拉服务端会话组）
+    private func mountDrawer() {
+        mountGeneration += 1
+        drawerMounted = true
+    }
+
+    /// 左缘热区触摸按下即预挂载（S5）：与主拖拽手势
+    /// 并行旁听，第一次活动即挂载——方向锁定达成
+    /// （10pt）前抽屉树已建好，起步帧零建树；若最终
+    /// 没打开（纵滚/点按），迟卸载检查负责回收
+    private var edgePrepareGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                guard !drawerMounted else { return }
+                mountDrawer()
+                scheduleUnmountCheck(after: .milliseconds(600))
+            }
+    }
+
+    /// 迟卸载检查：到期时仍合拢静止、无手势会话、语
+    /// 义未打开才真正卸载；代次不符（其间有过新的挂
+    /// 载/开合/检查）自废
+    private func scheduleUnmountCheck(after delay: Duration) {
+        mountGeneration += 1
+        let generation = mountGeneration
+        Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard generation == mountGeneration,
+                  drawerOffset == 0,
+                  dragSession == nil,
+                  !appState.drawerPresented
+            else { return }
+            drawerMounted = false
+        }
+    }
+
+    /// 壳层拖拽（左缘热区/页卡命中层/抽屉面三处共用，
+    /// 0.7.1 按裁决 §3.5 重写）：
+    /// - S2 方向锁定：累计 |dx|≥10 且 |dx|≥1.5|dy|
+    ///   才接管；接管前不写任何状态（纵滚零干扰），
+    ///   接管后写入扣除锁定段（起步无跳，§1.5-5）；
+    ///   旧「minimumDistance 6 先认领再事后过滤」退役
+    /// - S2 跟手期零动画直接写（bridged 会话除外，
+    ///   见下）；越界橡皮筋走 DrawerMotion 换算
+    /// - S7 桥接：接管时归位动画在飞（bridged），写
+    ///   入改走 drawerSpring 逐帧重定向——弹簧自当
+    ///   前呈现位接管并合并速度，不出现速度清零帧；
+    ///   普通会话（静止起步）恒直接写、1:1 跟手
+    /// - S6 松手：predictedEnd 动量投影相对起点过
+    ///   30% travel 吸附，fling >800pt/s 直通，
+    ///   判定在 DrawerMotion.settleOpens（单测把守）
+    private var drawerDragGesture: some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { value in
+                if dragSession == nil {
+                    dragSession = DragSession(
+                        startOffset: drawerOffset,
+                        lockTranslation: nil,
+                        bridged: settleInFlight
+                    )
+                }
+                guard var session = dragSession else { return }
+                if session.lockTranslation == nil {
+                    guard DrawerMotion.isDirectionLocked(
+                        dx: value.translation.width,
+                        dy: value.translation.height
+                    ) else { return }
+                    session.lockTranslation = value.translation.width
+                    session.startOffset = drawerOffset
+                    dragSession = session
+                }
+                let target = DrawerMotion.followedOffset(
+                    startOffset: session.startOffset,
+                    translation: value.translation.width,
+                    lockTranslation: session.lockTranslation ?? 0,
+                    travel: travel
+                )
+                if session.bridged {
+                    withAnimation(
+                        MotionTokens.resolved(
+                            MotionTokens.drawerSpring,
+                            reduceMotion: reduceMotion
+                        )
+                    ) {
+                        drawerOffset = target
+                    }
+                } else {
+                    drawerOffset = target
+                }
+            }
+            .onEnded { value in
+                let session = dragSession
+                dragSession = nil
+                guard let session, session.lockTranslation != nil else {
+                    // 未接管就松手（纵滚/点按）：位移从未
+                    // 写入；仅回收可能的预挂载
+                    if drawerOffset == 0 {
+                        scheduleUnmountCheck(after: .milliseconds(150))
+                    }
+                    return
+                }
+                settleInFlight = false
+                let opens = DrawerMotion.settleOpens(
+                    currentOffset: drawerOffset,
+                    startOffset: session.startOffset,
+                    predictedExtra: value.predictedEndTranslation.width
+                        - value.translation.width,
+                    velocityX: value.velocity.width,
+                    travel: travel
+                )
+                setDrawer(opens)
+            }
     }
 }

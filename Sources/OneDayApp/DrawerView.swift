@@ -35,9 +35,10 @@ struct DrawerView: View {
     /// 面板宽＝壳层推开量（录屏量测 0.79×屏宽、上限
     /// 400，见 ContentView 壳层注）
     let width: CGFloat
-    /// 窗口底部安全区 inset（壳层 GeometryReader 给）：
-    /// 名单 ScrollView 已 ignoresSafeArea(.bottom)、安
-    /// 全区不再代抬底条，下边距与底缘模糊带据此手算
+    /// 窗口底部安全区 inset（壳层 onGeometryChange 量
+    /// 测给，0.7.1 前为 GeometryReader）：名单 Scroll-
+    /// View 已 ignoresSafeArea(.bottom)、安全区不再代
+    /// 抬底条，底条下边距据此手算
     let bottomSafeInset: CGFloat
     /// 当前底栏格（壳层回写，高亮当前位用；0.6.0 五格）
     let currentTab: ContentView.MainTab
@@ -149,6 +150,16 @@ struct DrawerView: View {
         // 信号源＝壳层维护的语义开合状态 drawerPresented）
         .onChange(of: appState.drawerPresented) { _, presented in
             if presented {
+                Task { await loadDrawerData() }
+            }
+        }
+        // 0.7.1（裁决 §3.5 S5 预挂载）：壳层在左缘触摸
+        // 按下时即挂载本面抢建树——本面出现即补拉一次
+        // 服务端会话组作预取（本地名单由 @Query 随挂
+        // 载自动建树），拖动起步帧零等待；语义打开时
+        // 仍走上方 onChange 的全量拉取，本处只补空缺
+        .onAppear {
+            if drawerServerSessions.isEmpty {
                 Task { await loadDrawerData() }
             }
         }

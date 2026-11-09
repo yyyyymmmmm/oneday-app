@@ -250,7 +250,18 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             messageList(proxy)
         }
-        .background(Palette.chatSurface)
+        // 0.7.1（chrome 裁决档 §3.2，背景同源主治）：背
+        // 景层穿过底部安全区直达屏底——0.6.1 截图底部
+        // 白带的病根是交界处三个不同来源的「白」同框
+        // （画布 252／发送舱玻璃采样／底栏背后的系统
+        // 白 255，§1.2 量测）；画布全出血贯通到屏底
+        // 后，发送舱玻璃与底栏玻璃采样同一 canvas，
+        // 交界不再有亮度台阶。顶向由壳层 ZStack 兜底
+        // 画布覆盖（DrawerShell），本层只管底向
+        .background {
+            Palette.chatSurface
+                .ignoresSafeArea(edges: .bottom)
+        }
         // 0.4.3（§28）：顶栏 headerBar 已收编——不再走
         // 本容器的 .overlay 悬浮（未注册的覆盖层不在系
         // 统边缘效果体系内，WWDC25-323／Adopting
@@ -823,19 +834,19 @@ struct ChatView: View {
         // 度决定（WWDC25-219/323、Adopting Liquid
         // Glass 的自定义 bar 注册口径）
         .safeAreaBar(edge: .top) {
+            // 0.7.1（chrome 裁决全案）：顶缘 E11 渐进
+            // 模糊带整段拆除、例外 E11 注销——0.4.4 起
+            // 挂在此处的 background 溢出带（上探状态区
+            // 60pt、带长 176）经 0.6.1 真机量测坐实是
+            // 顶部两色接缝带的本体：对平色背景 backdrop
+            // 模糊输出恒等于材质 tint，静止时「朦胧」
+            // 不存在、只剩一块带硬边的灰片（245 vs 画
+            // 布 252，裁决档 §1.1）；且 WWDC25-323 明
+            // 文 bar 后自加背景层会干扰系统边缘效果。
+            // 顶栏自此不挂任何 background：静止态直接
+            // 坐在画布上同色无缝，滚动态由下方 .soft
+            // 在栏高内柔化（官方结构，§3.1）
             headerBar
-                // 0.4.4（§29，例外 E11）：顶缘渐进模糊
-                // 层——作顶栏 background 向上溢出 60pt
-                // 盖状态区、向下延出栏外约 45pt，把
-                // .soft 只等于栏高的作用区放大成带；
-                // 顶栏本体在层上保持锐利，background
-                // 不参与布局、不接命中
-                .background(alignment: .top) {
-                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.chatTop)
-                        .frame(height: 176)
-                        .offset(y: -60)
-                        .allowsHitTesting(false)
-                }
         }
         .scrollEdgeEffectStyle(.soft, for: .top)
         // 0.4.2（用户 10:54 圈图点名，二期 M3 卡提前落
@@ -869,8 +880,11 @@ struct ChatView: View {
             // 方零自绘层：消息自发送舱下缘起由系统
             // .scrollEdgeEffectStyle(.soft, for: .bottom)
             // 柔化（上方已挂），玻璃底栏直接浮在内容
-            // 上。顶缘带（状态区方向）不在本轮点名内、
-            // 保留
+            // 上。（0.7.1 续：当时保留的顶缘带已随 E11
+            // 注销一并拆除，见上方顶栏 safeAreaBar 注；
+            // 底部交界残余白带的病根经裁决档 §1.2 定
+            // 为背景不同源，主治在 chatSurface 的背景
+            // 全出血，见彼处注）
             bottomBar(proxy)
         }
         .scrollDismissesKeyboard(.interactively)

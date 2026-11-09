@@ -77,8 +77,24 @@ public enum MotionTokens {
     /// 零回弹），抽屉拖动跟随与归位、一切拖拽类交互走它。
     /// 速度交接注（审查 E-2）：SwiftUI 无初速度参数，松手
     /// 瞬间以动量投影定去向＋本弹簧归位近似，为平台上限
+    /// **0.7.1 注**：上句「平台上限」的自认已过时（iOS
+    /// 17+ 弹簧重定向保速、interactiveSpring 专为手势交
+    /// 接而设，chrome 裁决档 §2.4）；**抽屉用途自 0.7.1
+    /// 起由 drawerSpring 取代**（裁决 §3.5 S7），本档其
+    /// 余拖拽类用途暂不动、逐项另核
     public static let dragSpring = Animation.interpolatingSpring(
         stiffness: 1200, damping: 80
+    )
+    /// drawerSpring：抽屉归位专用（0.7.1，chrome 裁决
+    /// 档 §3.5 S7）——interactiveSpring(response 0.34,
+    /// dampingFraction 0.86)：response 沿 liquidSpring
+    /// 的跟手位移档（0.34，抽屉本属跟手位移、0.7.1 前
+    /// 错走 dragSpring），damping 取 interactiveSpring
+    /// 默认档 0.86（无可见回弹）。归位中再抓由系统合并
+    /// 速度（弹簧重定向保速），不许出现速度清零帧；
+    /// 点按开合（零初速）同弹簧
+    public static let drawerSpring = Animation.interactiveSpring(
+        response: 0.34, dampingFraction: 0.86
     )
     /// 条 9 定版弹簧·小动作（0.3.0，§14）：stiffness
     /// 380 / damping 18——换算阻尼比 ζ≈0.46（欠阻尼、
