@@ -137,13 +137,13 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         ) ?? false
         payload = try container.decodeIfPresent(JSONValue.self, forKey: .payload)
         // created_at：桥转 ISO8601 字符串；也宽容 epoch 数值
-        if let text = try? container.decodeIfPresent(
+        if let text = (try? container.decodeIfPresent(
             String.self, forKey: .createdAt
-        ), let text {
+        )) ?? nil {
             createdAt = ProfileSoulDocument.parseDate(.string(text))
-        } else if let epoch = try? container.decodeIfPresent(
+        } else if let epoch = (try? container.decodeIfPresent(
             Double.self, forKey: .createdAt
-        ), let epoch {
+        )) ?? nil {
             createdAt = ProfileSoulDocument.parseDate(.number(epoch))
         } else {
             createdAt = nil

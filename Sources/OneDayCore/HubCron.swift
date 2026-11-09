@@ -37,7 +37,7 @@ public enum HubCronKind: String, Equatable, Sendable, CaseIterable {
 /// phase3-data-design §3.4。时间一律以 nextRunAt 的绝对
 /// 时刻展示（cron 分/时是服务端时区还是设备时区无字段
 /// 可证，不做二次换算）。
-public struct HubCronItem: Identifiable, Equatable, Sendable {
+public struct HubCronItem: Identifiable, Sendable {
     public let job: CronJob
     public let kind: HubCronKind
     public let nextRunAt: Date?
