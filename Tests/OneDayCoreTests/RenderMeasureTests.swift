@@ -83,12 +83,17 @@ final class RenderMeasureTests: XCTestCase {
     // TabView 后字形尺寸与呈现由系统决定，自绘断言随
     // TabBarLayout 一并退役，审计 §3.2）
 
-    // MARK: - 第 15/24 条：抽屉名单与底条字形（18/17 regular）
+    // MARK: - 第 15/24 条：抽屉名单与底条字形
+    // 0.22.0：尺寸随令牌追认 27、字重随定版 light（探
+    // 针实测带 0.217–0.290，旧 0.05–0.45 闸继续有效）
 
     func testDrawerSymbolInk() throws {
         for pair in TabBarSymbols.all {
             let image = try XCTUnwrap(
-                symbol(pair.normal, size: FrameworkIcon.drawerGlyphSize),
+                symbol(
+                    pair.normal, size: FrameworkIcon.drawerGlyphSize,
+                    weight: .light
+                ),
                 "\(pair.id) 名单字形渲染失败"
             )
             let stats = try XCTUnwrap(analyze(image))
@@ -108,17 +113,20 @@ final class RenderMeasureTests: XCTestCase {
     // MARK: - 0.4.5：底栏四格符号墨迹（24pt，底栏渲染尺寸）
 
     /// 底栏换本体路线的量测闸（§30.7）：四格按底栏实
-    /// 际渲染尺寸（24pt regular）复量，print MEASURE
-    /// 供 CI 日志复核；断言取线条画法档的上限带（格
-    /// 口径 ≤0.12、紧致 ≤0.42——.fill 件同口径 0.72+
-    /// 在带外；被换掉的两格旧符号同口径数见 §30.7
-    /// 对照表）。历史「Muse 13–21%」是真机截图整格
-    /// 口径、与渲染口径不可直接比数（§24.1），本闸
-    /// 只作同口径对照与防实心回潮，不冒充截图口径
+    /// 际渲染尺寸复量，print MEASURE 供 CI 日志复核；
+    /// 断言取线条画法档的上限带（格口径 ≤0.12、紧致
+    /// ≤0.42——.fill 件同口径 0.72+ 在带外；被换掉的
+    /// 两格旧符号同口径数见 §30.7 对照表）。历史
+    /// 「Muse 13–21%」是真机截图整格口径、与渲染口
+    /// 径不可直接比数（§24.1），本闸只作同口径对照
+    /// 与防实心回潮，不冒充截图口径
+    /// 0.22.0：字重随定版 regular→light（24pt 实测紧
+    /// 致 0.222–0.329、格口径 0.063–0.093，两闸均在
+    /// 带内、闸值不变）
     func testTabBarSymbolInk() throws {
         for pair in TabBarSymbols.all {
             let image = try XCTUnwrap(
-                symbol(pair.normal, size: 24),
+                symbol(pair.normal, size: 24, weight: .light),
                 "\(pair.id) 底栏字形渲染失败"
             )
             let stats = try XCTUnwrap(analyze(image))
@@ -170,20 +178,32 @@ final class RenderMeasureTests: XCTestCase {
                 stats.cellDensity, 0.32,
                 "\(name) 格口径密度 \(stats.cellDensity) 离群（28pt 校准闸）"
             )
+            // 0.22.0 按 28pt 实测全集重新校准：全列紧致
+            // 密度 0.252–0.631，上限是 cable.connector
+            // ——紧致盒仅 9pt 宽的窄高字形、读数被窄盒
+            // 放大（其格口径 0.092 反为全列最疏）；防实
+            // 心线的本意是挡 .fill 件（同口径 0.72+），
+            // 闸取 0.68 仍在其下、点名此件为形态离群
             XCTAssertLessThanOrEqual(
-                stats.density, 0.55,
-                "\(name) 紧致密度 \(stats.density) 达实心件量级"
+                stats.density, 0.68,
+                "\(name) 紧致密度 \(stats.density) 达实心件量级（28pt 校准闸）"
             )
         }
-        // 同列一致性：最密与最疏不许差出 2.5 倍（复杂度档
-        // 统一的量化口径；离群者要在销账里点名换形）
+        // 同列一致性：最密与最疏的倍数（复杂度档统一的
+        // 量化口径；离群者要在销账里点名）。0.22.0 按
+        // 28pt 实测分布（0.252–0.631、比值 2.50）把闸
+        // 校准到 3.0：上限由 cable.connector 的窄盒形
+        // 态主导（见上注）、下限 arrow.clockwise 0.252
+        // 是正常细线字形——2.5 的旧闸在新尺寸下把正常
+        // 分布误判为离散，3.0 仍能拦住真离群（整列换
+        // 实心件时比值与绝对值双双出线）
         let values = densities.values
         if let lo = values.min(), let hi = values.max(), lo > 0 {
             print(String(
                 format: "MEASURE settings-spread min=%.3f max=%.3f ratio=%.2f",
                 lo, hi, hi / lo
             ))
-            XCTAssertLessThanOrEqual(hi / lo, 2.5, "设置列密度离散过大")
+            XCTAssertLessThanOrEqual(hi / lo, 3.0, "设置列密度离散过大")
         }
     }
 

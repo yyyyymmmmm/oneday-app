@@ -605,7 +605,19 @@ struct DrawerView: View {
                     // 图标约 27、行题 20 半粗、行高 58
                     // （drawerRowHeight）——0.19.0 的
                     // 19/body/47 偏小偏细一并让位
-                    .font(.system(size: 27, weight: .regular))
+                    // 0.22.0 字形定版（用户 00:29 并排图点
+                    // 名＋探针复量）：字重 regular→light 一
+                    // 档（27pt 紧致密度：message .267→
+                    // .217、list.bullet .352→.290、light-
+                    // bulb .328→.283、checklist .300→
+                    // .266）；符号经候选量测不换——目标位
+                    // 参考图的方框勾形（checkmark.square
+                    // .412）实测为候选最浓、否决，check-
+                    // list 同为框勾线家族且密度低一档；枢
+                    // 纽 list.bullet 无更轻的同义候选
+                    // （rectangle.stack .353 同档），细线
+                    // 感由字重达成（DESIGN-V4 §49）
+                    .font(.system(size: 27, weight: .light))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 30, alignment: .center)
                     .accessibilityHidden(true)
@@ -646,8 +658,9 @@ struct DrawerView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: "rectangle.stack")
                     // 0.20.0 字阶与导航行同档（27/20 半粗
-                    // /58，见 drawerNavRow 注）
-                    .font(.system(size: 27, weight: .regular))
+                    // /58，见 drawerNavRow 注）；0.22.0 字
+                    // 重随导航行同批降 light（.353→.294）
+                    .font(.system(size: 27, weight: .light))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 30, alignment: .center)
                     .accessibilityHidden(true)

@@ -18,9 +18,13 @@ public enum FrameworkIcon {
 
     // MARK: - 0.3.8 分位尺寸（fixlist 第 15/24/32 条）
 
-    /// 抽屉名单字形：第 15 条——与底栏同线宽档，18pt
-    /// regular（墨迹密度目标 13–21% 同带）
-    public static let drawerGlyphSize: CGFloat = 18
+    /// 抽屉名单字形：第 15 条——与底栏同线宽档。尺寸
+    /// 0.22.0 追认现行渲染 27（0.20.0 按 Muse 抽屉图
+    /// 落值；第 15 条的 18 为历史档）；字重 0.22.0 起
+    /// light（探针复量：regular 全候选紧致密度 .27–
+    /// .41、light 降一档到 .22–.34，符号本身经量测不
+    /// 换，见 DESIGN-V4 §49）
+    public static let drawerGlyphSize: CGFloat = 27
     /// 抽屉底条圆钮字形：第 24 条——齿轮与名单同线宽档
     public static let drawerBarGlyphSize: CGFloat = 17
     /// 设置页行字形：第 14 条——与同列统一复杂度档
@@ -34,5 +38,10 @@ public enum FrameworkIcon {
     public static let composerGlyphSize: CGFloat = 15
     /// 框架图标墨迹密度目标带（紧致 alpha 包围盒口径，
     /// RenderMeasureTests 同口径复量）：Muse 同位 13–21%
+    /// ——注意本带是 17–18pt 小字形口径（0.3.6 定）；字
+    /// 形放大到 24/27pt 时紧致密度系统性上移（同符号
+    /// 24pt regular 实测 .27–.40），大字形面以「同尺寸
+    /// light 档读数」为操作口径（0.22.0 探针，§49），
+    /// 本带保留给小字形面
     public static let inkDensityTarget: ClosedRange<Double> = 0.10...0.24
 }

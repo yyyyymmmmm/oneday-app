@@ -265,6 +265,17 @@ struct ContentView: View {
         } icon: {
             Image(systemName: pair.normal)
                 .symbolVariant(.none)
+                // 0.22.0 字形定版（审计 T1 复量）：符号
+                // 不换、字重 regular→light 一档——探针实
+                // 测（24pt 紧致密度）：message .270→.222、
+                // lightbulb .340→.288、checklist .296→
+                // .272、tray .383→.329；候选 checkmark
+                // .square（.404）比现行 checklist 更浓、
+                // 否决（§49）。字体直接钉在图上随图进宿
+                // 主构建（与 0.4.3 的子树环境到不了构建
+                // 处是两回事）；底栏呈现终由系统介导，
+                // 落档以真机终审 V3 并排为准
+                .font(.system(size: 24, weight: .light))
         }
         .labelStyle(.iconOnly)
         .accessibilityLabel(pair.title)
