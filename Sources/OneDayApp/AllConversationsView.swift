@@ -23,7 +23,7 @@ struct AllConversationsView: View {
     @State private var store = AllConversationsStore()
     @State private var segment: Segment = .station
     @State private var searchText = ""
-    @State private var searchResults: [ServerSession] = []
+    @State private var searchResults: [SessionSearchHit] = []
     @State private var searching = false
     @State private var editMode: EditMode = .inactive
     @State private var selection = Set<String>()
@@ -82,7 +82,7 @@ struct AllConversationsView: View {
                 .disabled(isSearching)
                 content
             }
-            .background(Palette.canvas)
+            .background(Palette.pageBG)
             .navigationTitle("全部对话")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -169,6 +169,10 @@ struct AllConversationsView: View {
         }
     }
 
+    /// 搜索结果：命中是轻量行（标题＋命中摘要，与
+    /// 0.16.0 会话搜索同呈现同端点），点按打开续聊；
+    /// 四件动作在各分段的全量行上（那里有完整会话行
+    /// 数据），不在命中行上另拼一套
     private var searchContent: some View {
         List {
             if searching {
@@ -183,21 +187,27 @@ struct AllConversationsView: View {
                     .font(.footnote)
                     .foregroundStyle(Palette.inkMuted)
             } else {
-                ForEach(searchResults) { session in
-                    if session.id == mainSessionID {
-                        mainRowButton(session)
-                    } else {
-                        ServerSessionRow(
-                            session: session,
-                            title: rowTitle(session),
-                            onOpen: { onOpenSession(session.id) },
-                            onChanged: {
-                                Task { await store.load(appState: appState) }
+                ForEach(searchResults) { hit in
+                    Button {
+                        onOpenSession(hit.sessionID)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(hit.displayTitle)
+                                .font(.body)
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                            if let snippet = hit.snippet,
+                               !snippet.isEmpty {
+                                Text(snippet)
+                                    .font(.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .lineLimit(2)
                             }
-                        ) {
-                            rowLabel(session)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.odPressable)
                 }
             }
         }
@@ -433,7 +443,7 @@ struct AllConversationsView: View {
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
-        .background(Palette.canvas)
+        .background(Palette.pageBG)
     }
 
     // MARK: - 动作
@@ -483,13 +493,16 @@ struct AllConversationsView: View {
             return
         }
         do {
-            let receipt = try await appState.performAdmin { client, config in
+            // 回执条数由客户端多键宽容提取（SessionPrune-
+            // Receipt）：取不到为 nil、如实呈现不编数
+            let count = try await appState.performAdmin { client, config in
                 try await client.pruneSessions(
-                    config: config, olderThanDays: days, dryRun: dryRun
+                    config: config,
+                    olderThanDays: Double(days), dryRun: dryRun
                 )
             }
             if dryRun {
-                guard let count = receipt.count else {
+                guard let count else {
                     store.notice = "服务端这次没回将删条数，无法预演——为稳妥起见没有执行清理。"
                     return
                 }
@@ -497,7 +510,7 @@ struct AllConversationsView: View {
                 showPruneConfirm = true
             } else {
                 store.pruneDryRunCount = nil
-                store.notice = receipt.count.map {
+                store.notice = count.map {
                     "已清理 \($0) 条旧会话。"
                 } ?? "清理已执行（服务端未回条数，以刷新后的名单为准）。"
                 await store.load(appState: appState)
@@ -651,8 +664,11 @@ final class AllConversationsStore {
             sideChats.setTitleOverride(nil, for: id)
         }
         for key in keys
-        where !outcome.remainingArchivedKeys.contains(key) {
-            sideChats.unarchive(key: key)
+        where !outcome.remainingArchivedKeys.contains(key)
+            && key.hasPrefix("server:") {
+            sideChats.unarchive(
+                serverSessionID: String(key.dropFirst("server:".count))
+            )
         }
         migrationFailures = outcome.failures.map { failure in
             "「\(failure.item.sessionID)」\(failure.item.actionLabel)未落定：\(failure.reason)"
