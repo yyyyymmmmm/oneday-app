@@ -2505,12 +2505,99 @@ Hermes 服务端、未发任何生产写请求；无截图工作流新增/复活
 - [x] ShareLink 分享整条消息文本（与复制同一纯文本口径），
   系统分享单呈现，菜单内以 Label＋square.and.arrow.up 呈现
 
-### 26.6 证据与回填
+### 26.6 证据与回填（长按四件波次）
 
 - 新增单测（MessageActionsTests）：引用称呼/摘要折叠/截断、
   注入拼装（无引用原样/有引用拼块/空正文只块/超长截断）、
   纯文本口径（标题粗斜体/围栏代码原文/链接图片/引用分隔
   线/落单符号不误伤）、菜单符号存在性
-- 回填：commit ＿＿＿、CI run ＿＿＿、单测 ＿＿（0.4.0 基线
-  105＋本批新增）、IPA 字节数 ＿＿＿、解包 Info.plist＝
-  0.4.1/25 核对结果见交付回执
+- 回填：commit f603a6d、CI run 42548996515（success）、
+  单测 118（0.4.0 基线 105＋本批新增 13，日志聚合行实查）
+
+### 26.7 追加波次：0.4.0 真机反馈八修（用户 10:06/10:07/10:09 三轮点名）
+
+与长按四件同批交付（版本同为 0.4.1/25）。逐条销账：
+
+- [x] **第 1 修【P0】键盘不弹**（commit 925244d，根因写
+  在 commit 与发送舱注释）：diff 实证——0.3.8（键盘正
+  常）→0.4.0 间焦点机器逐字未动（ComposerTextView.swift
+  零 diff；ChatView 内 focusHandle 接线、点空白收键盘手
+  势挂点、safeAreaInset 承载均未变；全 diff 无一行
+  firstResponder/键盘代码改动）。唯一变量是环境层：批
+  次 2 原生底栏由隐藏变可见＋自绘悬浮栏覆盖层撤销、批
+  次 3 根层修饰删除与 topFade 删除（topFade 自身
+  allowsHitTesting(false)，排除）。回归与底栏可见化同
+  批出现：玻璃坞接管底部区域后，UIViewRepresentable
+  文本视图的触摸/焦点环境改变、其自身触摸成单点故障。
+  修法＝构造性双通道：整卡背景命中域加 onTapGesture 经
+  既有 ComposerFocusHandle 聚焦（点卡面空隙必达），文
+  本视图直触保留；点空白收键盘不变。恢复 0.2.8/0.3.8
+  已验契约「点输入框必弹、点空白收」。**真机复验归用
+  户终审**（本批验收口径＝构建＋单测＋用户真机，无截
+  图环可代验键盘行为）
+- [x] **第 2 修 抽屉单栏滚动**（commit 90c9b79）：drawer-
+  Panel 整栏改一个 ScrollView——名字/名单/会话组/底条
+  同属一个 VStack 一栏到底；List 退役（行本为自控素
+  行、无 swipeActions，listRow 三件套剥离）；内容不
+  足一屏时 VStack 以 minHeight＝面板高撑满＋Spacer
+  把底条推到栏底（结构上仍是同一滚动栏、非独立钉底
+  分区），超一屏整栏连底条一起滚
+- [x] **第 3 修 输入栏与底栏同材质**（commit 925244d）：
+  撤白浮纸（floatFill＋发丝边＋双环手搓影），发送舱
+  回 .glassEffect(.regular)——与原生底栏同为 iOS 26
+  Liquid Glass 家族，同材质即同观感，不再自调灰阶对色
+- [x] **第 4 修 底栏向 Muse 靠（全原生件）**（commit
+  95ab47e）：①Label 字形 .symbolVariant(.none) 锁
+  outline（符号表 selected≡normal 之外第二道锁，堵系
+  统选中态自动换 .fill）；②根 .tint 系统蓝改 .primary
+  单色——连带 Palette.primary* 全仓 7 处框架强调位
+  （发送键/光标/主按钮等）单色化，与「框架无色」基线
+  同向、在案可否决；③.tabBarMinimizeBehavior
+  (.onScrollDown) 滚动收起（样板底坞收成一颗胶囊的原
+  生行为）；标签展开态保留属原生形态、不处理
+- [x] **第 5 修 身份胶囊挤压**（commit e726891）：根因＝
+  旧胶囊内名字无 lineLimit、被顶栏 HStack 压缩时换行
+  断字，模型名 lineLimit(1) 截断词中间。改 ViewThat-
+  Fits 三档降级（全量→收状态词只留点→模型短名），名
+  字任何档位 lineLimit(1)＋fixedSize＋layoutPriority
+  最高、永不断行；模型短名走 ChatModels 写死映射
+  （Flash/V4 Pro/Qwen3，整词缩短、清单外回全名不截
+  断）＋单测；顶栏胶囊钮 layoutPriority(1)；胶囊宽随
+  内容自适应（hug）
+- [x] **第 6 修 气泡回中性灰**（commit e726891）：Palette
+  气泡两色撤销 0.4.0 的 systemGray5/6 挂接（#E5E5EA／
+  #F2F2F7 带蓝紫倾向、真机判「发紫灰、深浅难分」），
+  回封存中性灰直给——浅色助手 #E9EAEC／用户 #F0F0F2
+  （0.3.x 冻值）、暗色纯中性 #2E2E2E／#242424；单测
+  改钉封存值＋中性断言（浅暗两环境 |R−B|≤2/255）＋深
+  浅档差（RenderMeasureTests）；正文 .body regular 本
+  已达标（MarkdownText 第 29 条口径），未动
+- [x] **第 7 修 输入栏形态对齐样板**（commit 925244d，
+  与第 3 修同落点）：白色玻璃大圆角卡片（圆角连续函
+  数封顶 24）、＋在卡内左下、发送圆形键在卡内右下、
+  多行上文下钮——均沿既有 ComposerBarLayout 结构，本
+  修只换表面材质口径；自量高＋硬封顶（例外 E1）不动
+- [x] **第 8 修 抽屉开时底栏露面**（commit 90c9b79）：
+  ChatView body 绑定 .toolbarVisibility(drawerOpen ?
+  .hidden : .visible, for: .tabBar)——开即隐藏、关恢
+  复；0.4.0 的「不为抽屉态隐藏底栏」推荐案就此作废
+  （覆盖层出现时 tab bar 不露面＝Muse 本体与系统
+  sheet 共同行为，用户 10:09 点名）；底栏隐藏后安全
+  区底 inset 只剩 home indicator，抽屉底条落屏幕真
+  底边，与第 2 修合并落地
+
+### 26.8 交付记录（0.4.1 全批）
+
+- commits（feat/ia-v3）：f603a6d（长按四件）／e726891
+  （第 5/6 修）／90c9b79（第 2/8 修）／95ab47e（第 4
+  修）／925244d（第 1/3/7 修）／＿＿＿（本节文档）
+- CI：run 42548996515（长按波次，success，单测 118）／
+  run ＿＿＿（八修波次，＿＿＿，单测 ＿＿＿＝118＋本
+  波次新增 2：气泡封存色改钉 1（替换计数不变）＋短名
+  映射 1，预期 119，以日志聚合行为准）
+- IPA：＿＿＿ 字节（~/workspace/your_files/oneday-v0.4.1/），
+  解包 Info.plist＝0.4.1/25 核对 ＿＿＿
+- 未验证如实标注：键盘弹起、抽屉单栏手感、底栏收起与
+  胶囊三档切换均为真机行为，本批无真机/截图验收环，
+  全部归用户真机终审；R1（续聊回写同一服务端会话）
+  仍未验证（维持无状态重放，未对生产发写请求）

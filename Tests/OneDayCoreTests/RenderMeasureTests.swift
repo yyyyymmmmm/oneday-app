@@ -254,12 +254,14 @@ final class RenderMeasureTests: XCTestCase {
                 )
             }
         }
-        var assistantR: CGFloat = 0, userR: CGFloat = 0
-        var tmp: CGFloat = 0
+        var assistantR: CGFloat = 0, aG: CGFloat = 0
+        var aB: CGFloat = 0, aA: CGFloat = 0
+        var userR: CGFloat = 0, uG: CGFloat = 0
+        var uB: CGFloat = 0, uA: CGFloat = 0
         UIColor(Palette.bubbleFill).resolvedColor(with: light)
-            .getRed(&assistantR, green: &tmp, blue: &tmp, alpha: &tmp)
+            .getRed(&assistantR, green: &aG, blue: &aB, alpha: &aA)
         UIColor(Palette.userBubbleFill).resolvedColor(with: light)
-            .getRed(&userR, green: &tmp, blue: &tmp, alpha: &tmp)
+            .getRed(&userR, green: &uG, blue: &uB, alpha: &uA)
         XCTAssertLessThan(assistantR, userR, "浅色下助手泡须深于用户泡")
         XCTAssertEqual(
             UIColor(Palette.selectionFill).resolvedColor(with: light),
