@@ -3713,4 +3713,35 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
   文同帧/同帧并存正文优先/空思考忽略）＋Reasoning-
   PresentationTests 4 例，总数见 32.4
 
-### 32.4 发版 0.5.1 / build 31（交付记录待 CI 回填）
+### 32.4 发版 0.5.1 / build 31
+
+- 版本源五处全仓 grep 同改：Project.swift 工程设置
+  MARKETING_VERSION 0.5.1／CURRENT_PROJECT_VERSION
+  31＋plist 字面量 CFBundleShortVersionString 0.5.1／
+  CFBundleVersion 31＋SettingsView 关于区显示串 0.5.1
+  （0.5.0 第五源教训，本批先行全量核对无漏）
+- 代码顶端 d9b3a87（feat/ia-v3，已推送）：a8eb43a 本
+  批主体＋d9b3a87 一行修复（ReasoningBlock 漏 import
+  OneDayDesign，首轮 CI 42564426267 因此报错、已闭
+  环）；本节为 docs-only 后随提交，IPA 不受影响
+- CI：终验 run 42564625905 success（workflow_dispatch
+  以 feat/ia-v3 触发）
+- 单测 **186 全过**（169 基线＋17 新增：发布闸 9／解
+  析 4／呈现判定 4），CI 日志 Executed 186 tests,
+  with 0 failures 实查
+- IPA：your_files/oneday-v0.5.1/oneday-unsigned.ipa，
+  2,667,302 字节，md5 ac67532e0dedd5302c080dc137796046
+- 解包验版：Payload/OneDayApp.app/Info.plist＝CFBundle-
+  ShortVersionString 0.5.1／CFBundleVersion 31／bundle
+  id site.didichou.oneday ✓；二进制 strings 冒烟：
+  ReasoningBlock/StreamPublishGate 类型名均在包内
+- 红线自查：未做任何截图；0.4.5 推式几何与 Drawer-
+  View 零改动（git diff 文件面可证）；未引入任何三
+  方库；清单冲突 5 条（4.1 MarkdownUI／4.2 气泡材质
+  与助手无泡／4.3 写死 14pt＋semibold／4.6 Splash
+  高亮／5.1 逐更新触感）一条未碰
+- 未验证（如实标注，归用户真机终审）：流式合并发布
+  的实际顺滑度与 StreamingText 渐显观感、思考折叠单
+  元真机形态（须用 deepseek-v4-pro 发一条会产思考的
+  消息验：思考期展开＋计时、正文到后落盘折叠＋秒
+  数）、思考-only 回复不落盘口径的真机表现
