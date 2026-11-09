@@ -9,21 +9,50 @@ import SwiftUI
 // 自建动态色只在系统无对应时才用）。~380 处调用点零改动
 // 是靠这层降级换来的，不代表回潮：新代码直接用系统色，
 // 本层只作存量桥。
-// 气泡两色口径（§1.1 #11/#12）：助手泡 #E9EAEC 与用户
-// 泡 #F0F0F2（均为 0.3.x 冻值）改挂系统灰阶引用——
-// systemGray5（≈#E5E5EA）／systemGray6（≈#F2F2F7），
-// 深浅关系不变、暗色由系统自动翻转，不再维护手写双份值。
+// 气泡两色口径（0.4.1 再改，用户 10:07 真机点名）：
+// 0.4.0 曾按 §1.1 把冻值改挂 systemGray5/6——真机判
+// 「两泡都发紫灰、深浅难分」（systemGray 的 #E5E5EA／
+// #F2F2F7 带蓝紫倾向），本版按用户令回封存中性灰阶
+// 直给：助手 #E9EAEC／用户 #F0F0F2（浅色值即 0.3.x
+// 冻值）；暗色给纯中性深灰对（#2E2E2E／#242424、
+// R=G=B 零色偏），深浅关系与浅色同向（助手深于用
+// 户）。动态色写法与下方 scrim 同式。此二色自此为
+// 用户点名的封存值，不再改挂系统灰阶。
 // scrim：0.3.6 的「白纱」仍是抽屉例外 E5 的一部分（浅
 // 色近白半透/暗色近黑半透），用动态色直给、不成表。
 public enum Palette {
     public static let pageBG = Color(.systemGroupedBackground)
     public static let surface = Color(.secondarySystemGroupedBackground)
-    public static let bubbleFill = Color(.systemGray5)
+    public static let bubbleFill = Color(
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(
+                    red: 0x2E / 255.0, green: 0x2E / 255.0,
+                    blue: 0x2E / 255.0, alpha: 1
+                )
+                : UIColor(
+                    red: 0xE9 / 255.0, green: 0xEA / 255.0,
+                    blue: 0xEC / 255.0, alpha: 1
+                )
+        }
+    )
     public static let fieldFill = Color(.secondarySystemBackground)
     public static let chatSurface = Color(.systemBackground)
     public static let selectionFill = Color(.systemGray5)
     public static let floatFill = Color(.secondarySystemBackground)
-    public static let userBubbleFill = Color(.systemGray6)
+    public static let userBubbleFill = Color(
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(
+                    red: 0x24 / 255.0, green: 0x24 / 255.0,
+                    blue: 0x24 / 255.0, alpha: 1
+                )
+                : UIColor(
+                    red: 0xF0 / 255.0, green: 0xF0 / 255.0,
+                    blue: 0xF2 / 255.0, alpha: 1
+                )
+        }
+    )
 
     public static let scrim = Color(
         UIColor { traits in

@@ -450,19 +450,44 @@ public struct IdentityAnchor: View {
     private let statusWord: String
     private let statusColor: Color
     private let modelName: String?
+    private let modelShortName: String?
     @Environment(\.colorScheme) private var colorScheme
 
     public init(
         name: String, statusWord: String, statusColor: Color,
-        modelName: String? = nil
+        modelName: String? = nil, modelShortName: String? = nil
     ) {
         self.name = name
         self.statusWord = statusWord
         self.statusColor = statusColor
         self.modelName = modelName
+        self.modelShortName = modelShortName
     }
 
+    /// 宽度三档（0.4.1，用户 10:07 点名修）：旧实现把
+    /// 胶囊塞进顶栏 HStack 后由布局压缩——名字无
+    /// lineLimit 被挤成两行断字、模型名 lineLimit(1)
+    /// 截断词中间（真机截图「Her/mes」「Dee…」）。改
+    /// ViewThatFits 系统布局三档降级：全量（状态词＋
+    /// 模型全名）→ 收状态词（只留状态点＋模型全名）→
+    /// 模型短名（ChatModels 短名映射、整词缩短）；名
+    /// 字在任何档位 lineLimit(1)＋fixedSize＋最高
+    /// layoutPriority——永不断行、不截断，胶囊宽随
+    /// 内容自适应（hug）。
     public var body: some View {
+        ViewThatFits(in: .horizontal) {
+            tier(statusWord: statusWord, model: modelName)
+            tier(statusWord: nil, model: modelName)
+            tier(statusWord: nil, model: modelShortName ?? modelName)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            modelName.map { "\(name)，\(statusWord)，当前模型 \($0)" }
+                ?? "\(name)，\(statusWord)"
+        )
+    }
+
+    private func tier(statusWord: String?, model: String?) -> some View {
         HStack(spacing: OneDayMetrics.spacingS) {
             ZStack {
                 Circle().fill(Palette.chatSurface)
@@ -476,22 +501,29 @@ public struct IdentityAnchor: View {
             Text(name)
                 .font(.headline)
                 .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(2)
             HStack(spacing: 5) {
                 StatusDot(color: statusColor)
-                Text(statusWord)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
+                if let statusWord {
+                    Text(statusWord)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
             }
             // A 案模型段（0.4.0，§3.3）：仅聊天页传入时出现
-            if let modelName {
+            if let model {
                 Rectangle()
                     .fill(Palette.hairline)
                     .frame(width: 0.5, height: 18)
                 HStack(spacing: 3) {
-                    Text(modelName)
+                    Text(model)
                         .font(.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Palette.inkSecondary)
@@ -501,11 +533,6 @@ public struct IdentityAnchor: View {
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.vertical, 7)
         .odFloatPaper(in: Capsule())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            modelName.map { "\(name)，\(statusWord)，当前模型 \($0)" }
-                ?? "\(name)，\(statusWord)"
-        )
     }
 }
 

@@ -16,6 +16,10 @@ public enum ChatModels {
     public struct Item: Equatable, Sendable {
         public let id: String
         public let displayName: String
+        /// 短名（0.4.1）：身份胶囊窄宽档位用——只许整词
+        /// 缩短、不许截断词中间（用户 10:07 点名）；全名
+        /// 仍是选择器/设置页口径
+        public let shortDisplayName: String
         /// 选择器行内说明（速度/成本/冷启提示）
         public let note: String
     }
@@ -25,16 +29,19 @@ public enum ChatModels {
         Item(
             id: "deepseek-flash",
             displayName: "DeepSeek Flash",
+            shortDisplayName: "Flash",
             note: "快 · 日常默认"
         ),
         Item(
             id: "deepseek-v4-pro",
             displayName: "DeepSeek V4 Pro",
+            shortDisplayName: "V4 Pro",
             note: "强 · 复杂任务"
         ),
         Item(
             id: "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
             displayName: "Qwen3-30B",
+            shortDisplayName: "Qwen3",
             note: "自部署 · 冷启需唤醒（约 1–3 分钟）"
         ),
     ]
@@ -52,6 +59,13 @@ public enum ChatModels {
 
     public static func displayName(for id: String) -> String {
         items.first { $0.id == id }?.displayName ?? id
+    }
+
+    /// 短名（0.4.1）：清单内取写死短名；清单外无短名
+    /// 口径、回全名（不许对未知 id 做字符串截断）
+    public static func shortDisplayName(for id: String) -> String {
+        items.first { $0.id == id }?.shortDisplayName
+            ?? displayName(for: id)
     }
 
     /// 请求体接线口径：清单内模型逐请求切上游须带

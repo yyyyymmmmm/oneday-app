@@ -27,6 +27,35 @@ final class ChatModelsTests: XCTestCase {
         XCTAssertNil(ChatModels.providerField(for: "hermes-agent"))
     }
 
+    /// 短名映射（0.4.1，身份胶囊窄档）：整词缩短、
+    /// 不截断词中间；清单外回全名口径（不许字符串截断）
+    func testShortDisplayNames() {
+        XCTAssertEqual(
+            ChatModels.shortDisplayName(for: "deepseek-flash"), "Flash"
+        )
+        XCTAssertEqual(
+            ChatModels.shortDisplayName(for: "deepseek-v4-pro"), "V4 Pro"
+        )
+        XCTAssertEqual(
+            ChatModels.shortDisplayName(for: ChatModels.coldStartID),
+            "Qwen3"
+        )
+        for item in ChatModels.items {
+            XCTAssertTrue(
+                item.displayName.hasSuffix(item.shortDisplayName)
+                    || item.shortDisplayName == "Qwen3",
+                "短名须是全名的整词收尾，不许截断词中间"
+            )
+            XCTAssertLessThan(
+                item.shortDisplayName.count, item.displayName.count
+            )
+        }
+        XCTAssertEqual(
+            ChatModels.shortDisplayName(for: "unknown-model"),
+            "unknown-model"
+        )
+    }
+
     /// 初始选择：已存 > 服务端默认（须在清单内）> fallback
     func testInitialSelection() {
         XCTAssertEqual(

@@ -215,22 +215,52 @@ final class RenderMeasureTests: XCTestCase {
     // TypeScale 废止与 pageTitleSection 删除而不存在，
     // 字体回归语义样式后无自设尺寸可量，审计 §3.1）
 
-    // MARK: - 语义色挂接（0.4.0，审计 §1.1）
+    // MARK: - 气泡封存色（0.4.1，用户 10:07 点名改）
 
-    /// 0.3.x 的冻值 hex 钉死（原 testTokenHexValues）随
-    /// AccentTheme/ThemeTokens 整表废止退役；新口径＝气泡
-    /// 两色改挂系统灰阶引用，解析值与系统色逐一相等
-    /// （浅色环境下比对，避免暗色翻转干扰）
-    func testBubbleColorsUseSystemGrays() {
+    /// 0.4.0 曾把气泡两色改挂 systemGray5/6，用户真机
+    /// 判「发紫灰、深浅难分」——本版回封存中性灰直给。
+    /// 钉三件事：①浅色解析值逐一等于封存 hex（助手
+    /// #E9EAEC／用户 #F0F0F2）；②中性无色偏（浅暗两
+    /// 环境下 |R−B| 都 ≤2/255，systemGray 的蓝紫倾向
+    /// 约 5/255 起、过不了这条）；③深浅档差在（浅色
+    /// 助手深于用户）。selectionFill 非气泡、维持系统
+    /// 灰阶挂接不变
+    func testBubbleColorsAreSealedNeutralGrays() {
         let light = UITraitCollection(userInterfaceStyle: .light)
+        let dark = UITraitCollection(userInterfaceStyle: .dark)
         XCTAssertEqual(
             UIColor(Palette.bubbleFill).resolvedColor(with: light),
-            UIColor.systemGray5.resolvedColor(with: light)
+            UIColor(
+                red: 0xE9 / 255.0, green: 0xEA / 255.0,
+                blue: 0xEC / 255.0, alpha: 1
+            )
         )
         XCTAssertEqual(
             UIColor(Palette.userBubbleFill).resolvedColor(with: light),
-            UIColor.systemGray6.resolvedColor(with: light)
+            UIColor(
+                red: 0xF0 / 255.0, green: 0xF0 / 255.0,
+                blue: 0xF2 / 255.0, alpha: 1
+            )
         )
+        for traits in [light, dark] {
+            for color in [Palette.bubbleFill, Palette.userBubbleFill] {
+                var r: CGFloat = 0, g: CGFloat = 0
+                var b: CGFloat = 0, a: CGFloat = 0
+                UIColor(color).resolvedColor(with: traits)
+                    .getRed(&r, green: &g, blue: &b, alpha: &a)
+                XCTAssertLessThanOrEqual(
+                    abs(r - b), 2.0 / 255.0,
+                    "气泡色不许带蓝紫倾向（R 与 B 分量差超限）"
+                )
+            }
+        }
+        var assistantR: CGFloat = 0, userR: CGFloat = 0
+        var tmp: CGFloat = 0
+        UIColor(Palette.bubbleFill).resolvedColor(with: light)
+            .getRed(&assistantR, green: &tmp, blue: &tmp, alpha: &tmp)
+        UIColor(Palette.userBubbleFill).resolvedColor(with: light)
+            .getRed(&userR, green: &tmp, blue: &tmp, alpha: &tmp)
+        XCTAssertLessThan(assistantR, userR, "浅色下助手泡须深于用户泡")
         XCTAssertEqual(
             UIColor(Palette.selectionFill).resolvedColor(with: light),
             UIColor.systemGray5.resolvedColor(with: light)

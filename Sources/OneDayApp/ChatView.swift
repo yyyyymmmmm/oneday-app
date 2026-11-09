@@ -320,10 +320,18 @@ struct ChatView: View {
                         name: "Hermes",
                         statusWord: identityStatus.word,
                         statusColor: identityStatus.color,
-                        modelName: displayModelName
+                        modelName: displayModelName,
+                        modelShortName: ChatModels.shortDisplayName(
+                            for: appState.chatModel
+                        )
                     )
                 }
                 .buttonStyle(.plain)
+                // 0.4.1：胶囊在顶栏 HStack 里优先保宽
+                // （0.4.0 真机截图里被两侧圆钮＋Spacer
+                // 挤压——组件内 ViewThatFits 三档降级是
+                // 主修，此处再给整颗胶囊布局优先权）
+                .layoutPriority(1)
                 .accessibilityLabel("Hermes，\(identityStatus.word)，当前模型 \(displayModelName)，打开模型设置")
 
                 Spacer()
