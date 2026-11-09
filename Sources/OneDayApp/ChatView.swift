@@ -138,6 +138,17 @@ struct ChatView: View {
         .onChange(of: currentThreadID) { _, _ in
             pendingQuote = nil
         }
+        // 0.4.1（用户 10:09 点名）：抽屉打开时底栏不许
+        // 露面——绑定 drawerOpen 的系统 toolbarVisibility
+        // （开即隐藏、关恢复）。0.4.0 的「不为抽屉态隐藏
+        // 底栏」推荐案被真机截图推翻：覆盖层（抽屉/sheet）
+        // 出现时 tab bar 不露面，是 Muse 本体与系统
+        // sheet 的共同行为；底栏一隐藏，本页安全区底
+        // inset 只剩 home indicator，抽屉底条随之落到
+        // 屏幕真底边（见 drawerPanel/drawerBottomBar）
+        .toolbarVisibility(
+            drawerOpen ? .hidden : .visible, for: .tabBar
+        )
     }
 
     // MARK: - 主面（0.2.6 承载换代：发送区回到布局流）
@@ -1413,12 +1424,12 @@ private struct ComposerBarLayout: Layout {
     /// 抽屉覆盖层：白色半透纱＋peek 面板（宽约 79%、
     /// 上限 340；0.3.6 立宪，§21.3）＋左缘唤出手势层。
     /// 面板盖住聊天主面与悬浮顶栏，右侧约 21% 底层在
-    /// 纱下透出。0.4.0（审计 §3.2 影响面 1，报告推荐案）：
-    /// 底栏回原生后不再为抽屉态隐藏底栏——原生玻璃坞按
-    /// 系统层级浮于抽屉之上（呈现以系统行为为准）；抽屉
-    /// 底条改经面板安全区让位：bottomInset 由根
-    /// GeometryReader 的系统安全区给出（含原生底栏的安
-    /// 全区高），系统给多少让多少（见 drawerBottomBar）。
+    /// 纱下透出。底栏关系两度改口：0.4.0 曾按审计推荐
+    /// 案「不为抽屉态隐藏底栏、底条经安全区让位」；
+    /// 0.4.1 用户真机点名推翻——抽屉开时底栏经
+    /// toolbarVisibility 隐藏（见 body），bottomInset
+    /// 随之只剩 home indicator、底条落真底边（见
+    /// drawerBottomBar）。
     @ViewBuilder
     private func drawerOverlay(width: CGFloat, bottomInset: CGFloat) -> some View {
         // 跟手偏移：基准位（开 0 / 合 -width-8）＋跟手量
@@ -1448,14 +1459,36 @@ private struct ComposerBarLayout: Layout {
     }
 
     private func drawerPanel(width: CGFloat, bottomInset: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            drawerAgentName
-            drawerNavList
-            drawerList
-            // 底条钉底（0.3.8 第 22 条）：不留占位行、底条
-            // 直接坐在面板底；0.4.0 起下边距含系统安全区
-            // （原生底栏让位，见 drawerBottomBar 口径）
-            drawerBottomBar(bottomInset: bottomInset)
+        // 单栏滚动（0.4.1，用户 10:06 点名「不分上下几
+        // 栏，是一栏，可以上下滚动」）：0.4.0 的结构是
+        // VStack{名字/名单/List(自带滚动)/底条钉底}——
+        // 视觉上就是上下几栏。本版整栏改一个 ScrollView：
+        // 名字、名单、会话组、底条同属一个 VStack 一栏
+        // 到底；内容不足一屏时 VStack 以 minHeight＝
+        // 面板高撑满、Spacer 把底条推到栏底（结构上仍
+        // 是同一滚动栏，不是独立钉底分区）；内容超一屏
+        // 时整栏连底条一起滚。List 退役（其行本就全是
+        // 自控素行、无 swipeActions，见 drawerList 注）
+        GeometryReader { panelGeo in
+            ScrollView {
+                VStack(spacing: 0) {
+                    drawerAgentName
+                    drawerNavList
+                    drawerList
+                    Spacer(minLength: 0)
+                    // 底条（0.3.8 第 22 条的落点诉求保留）：
+                    // 下边距口径见 drawerBottomBar——0.4.1
+                    // 起抽屉开时底栏隐藏（body 的 toolbar-
+                    // Visibility 绑定），bottomInset 只剩
+                    // home indicator，底条落屏幕真底边
+                    drawerBottomBar(bottomInset: bottomInset)
+                }
+                .frame(
+                    minHeight: panelGeo.size.height,
+                    alignment: .top
+                )
+            }
+            .scrollDismissesKeyboard(.interactively)
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
@@ -1654,12 +1687,15 @@ private struct ComposerBarLayout: Layout {
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingSM)
-        // 钉底边距（第 22 条＋0.4.0 让位口径）：下边距＝
-        // 系统安全区底 inset＋4。0.3.8 自绘栏时代 inset 只
-        // 含 home indicator、底条落进隐藏栏的坑位；0.4.0
-        // 原生底栏回来后，根 GeometryReader 的安全区底
-        // inset 含底栏安全区高，底条自动抬到底栏之上——
-        // 让位量由系统给出，代码不手算栏高
+        // 底边距（第 22 条＋0.4.1 口径）：下边距＝系统
+        // 安全区底 inset＋4，代码不手算。沿革：0.3.8 自
+        // 绘栏时代 inset 只含 home indicator；0.4.0 原生
+        // 底栏可见时 inset 含底栏高、底条被抬到底栏之
+        // 上（当版真机被判「抽屉开着底栏还露着」）；
+        // 0.4.1 抽屉开即隐藏底栏（body 的 toolbar-
+        // Visibility 绑定），inset 回落 home indicator、
+        // 底条落屏幕真底边——与自绘栏时代同落点、走的
+        // 是系统通道
         .padding(
             .bottom,
             DrawerGeometry.bottomBarBottomPadding(
@@ -1705,17 +1741,19 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 侧边栏会话列表（0.3.6，§21.3/§21.4）：List(.plain)
-    /// 承载（原生滚动物理；组标题/空态/尾留白都是零行
-    /// 距的素行、x 线全自控），会话行长按菜单＝置顶/
-    /// 重命名/删除三件套。分组＝灰标签＋左右留 20 发
-    /// 丝线（组间一条）。滑行操作（swipeActions）本
-    /// 轮不上：面板拖拽手势与 List 行滑行同为横向拖
-    /// 拽、SwiftUI 仲裁下行滑行会被面板拖拽饿死（静默
-    /// 无效），归真机手感轮改拖拽承载后再开。服务端
-    /// 会话组在尾（0.4.0 起点行改道聊天页续聊、标题人话化）。
+    /// 侧边栏会话组（0.3.6 立，§21.3/§21.4；0.4.1 改
+    /// 承载）：原为 List(.plain) 独占一栏自带滚动，
+    /// 0.4.1 按用户「一栏到底」令退役 List——本组只
+    /// 产出素行内容（组标题/会话行/空态/尾留白，x 线
+    /// 全自控），直排进面板 ScrollView 的同一 VStack
+    /// （见 drawerPanel）。会话行长按菜单＝置顶/重
+    /// 命名/删除三件套。分组＝灰标签＋留白（0.3.8 第
+    /// 21 条后组间不划线）。swipeActions 原就不上
+    /// （与面板拖拽手势仲裁冲突），改承载后同样不上。
+    /// 服务端会话组在尾（0.4.0 起点行改道聊天页续聊、
+    /// 标题人话化）。
     private var drawerList: some View {
-        List {
+        VStack(spacing: 0) {
             if filteredThreads.isEmpty {
                 if drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty {
                     // 卡 18 纠正 3：无会话不留标签夹空带，
@@ -1765,9 +1803,6 @@ private struct ComposerBarLayout: Layout {
                     drawerGroupHeader(group.label)
                     ForEach(group.threads) { thread in
                         drawerThreadRow(thread)
-                            .listRowInsets(EdgeInsets())
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
                     }
                 }
             }
@@ -1779,9 +1814,6 @@ private struct ComposerBarLayout: Layout {
                 drawerGroupHeader("其他会话")
                 ForEach(drawerServerSessions) { session in
                     drawerServerSessionRow(session)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
                 }
             }
             drawerPlainRow {
@@ -1789,9 +1821,6 @@ private struct ComposerBarLayout: Layout {
                     .frame(height: OneDayMetrics.spacingL)
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .scrollDismissesKeyboard(.interactively)
     }
 
     /// 组标题行（0.3.6 立宪）：13 regular 次级灰标签，
@@ -1809,15 +1838,14 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// List 里的素行：零行距、透明底、无分隔线——
-    /// padding 全部由内容自控（组标题/空态/留白共用）。
+    /// 会话组里的素行：padding 全部由内容自控（组标
+    /// 题/空态/留白共用）。0.4.1 前是 List 行包装（零
+    /// 行距/透明底/无分隔线的 listRow 三件套），List
+    /// 退役后只剩内容本体
     private func drawerPlainRow<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
     }
 
     /// 本机会话分组（0.3.6）：纯逻辑下沉
