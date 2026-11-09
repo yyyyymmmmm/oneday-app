@@ -169,4 +169,28 @@ final class DrawerMotionTests: XCTestCase {
         // 越界进度钳制，不放大阴影
         XCTAssertEqual(DrawerMotion.shadowOpacity(progress: 2), 0.12)
     }
+
+    // MARK: - 0.17.0 覆盖形态蒙层
+
+    func testScrimOpacityIsLinearClampedAndMonotonic() {
+        XCTAssertEqual(DrawerMotion.scrimMaxOpacity, 0.32)
+        XCTAssertEqual(DrawerMotion.scrimOpacity(progress: 0), 0)
+        XCTAssertEqual(DrawerMotion.scrimOpacity(progress: 1), 0.32)
+        XCTAssertEqual(
+            DrawerMotion.scrimOpacity(progress: 0.5), 0.16, accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            DrawerMotion.scrimOpacity(progress: 0.25), 0.08, accuracy: 0.0001
+        )
+        // 橡皮筋越界与负进度钳制，不放大也不出负
+        XCTAssertEqual(DrawerMotion.scrimOpacity(progress: 2), 0.32)
+        XCTAssertEqual(DrawerMotion.scrimOpacity(progress: -0.5), 0)
+        // 全程单调不减（拖动中蒙层不许忽深忽浅）
+        var previous = -1.0
+        for step in stride(from: 0.0, through: 1.0, by: 0.05) {
+            let value = DrawerMotion.scrimOpacity(progress: CGFloat(step))
+            XCTAssertGreaterThanOrEqual(value, previous)
+            previous = value
+        }
+    }
 }

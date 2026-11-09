@@ -178,7 +178,7 @@ struct MemoryEntriesSection: View {
                     externalPendingRow(record)
                     GroupDivider(inset: OneDayMetrics.spacingM)
                 }
-                Text("批准或驳回在活动页的审批区进行；批准后这里会回读确认。")
+                Text("批准或驳回在枢纽的审批区进行（聊天页点顶部胶囊打开）；批准后这里会回读确认。")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkMuted)
                     .padding(.horizontal, OneDayMetrics.spacingM)
@@ -364,7 +364,7 @@ struct MemoryEntryDetailView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("提交后先进入待审批，在活动页批准了才会真正删除；驳回则保持原样。")
+            Text("提交后先进入待审批，在枢纽批准了才会真正删除（聊天页点顶部胶囊打开）；驳回则保持原样。")
         }
     }
 
@@ -541,7 +541,7 @@ struct MemoryEntryEditorView: View {
                     .disabled(
                         store.proposing || validationProblem != nil
                     )
-                    Text("提交后先进入待审批，在活动页批准了才会真正生效；驳回则保持原样。")
+                    Text("提交后先进入待审批，在枢纽批准了才会真正生效（聊天页点顶部胶囊打开）；驳回则保持原样。")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkMuted)
                         .padding(.top, OneDayMetrics.spacingS)

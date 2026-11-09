@@ -153,4 +153,49 @@ final class SessionDisplayTests: XCTestCase {
         XCTAssertNil(ServerSession.firstUserMessage(in: assistantOnly))
         XCTAssertNil(ServerSession.firstUserMessage(in: []))
     }
+
+    /// 0.17.0 单行行尾时间：与副题首段逐字一致（同一
+    /// 实现派生），条数/来源不上行；无开始时间为 nil
+    func testListTimeTextMatchesSubtitleFirstSegment() {
+        let now = calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 9, hour: 12
+        ))!
+        let today = session(
+            startedAt: epoch(2026, 11, 9, 6, 12), messageCount: 24
+        )
+        XCTAssertEqual(
+            today.listTimeText(now: now, calendar: calendar), "今天 06:12"
+        )
+        XCTAssertEqual(
+            today.humanSubtitle(now: now, calendar: calendar),
+            "今天 06:12 · 24 条 · 其他应用"
+        )
+        let yesterday = session(startedAt: epoch(2026, 11, 8, 21, 30))
+        XCTAssertEqual(
+            yesterday.listTimeText(now: now, calendar: calendar), "昨天 21:30"
+        )
+        let older = session(startedAt: epoch(2026, 10, 30, 9, 5))
+        XCTAssertEqual(
+            older.listTimeText(now: now, calendar: calendar), "10月30日 09:05"
+        )
+        // 无开始时间：nil（行尾留空，不编造）
+        XCTAssertNil(session().listTimeText(now: now, calendar: calendar))
+        // 本地行尾时间同源：与 LocalThreadSubtitle.text 首段一致
+        let updated = calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 9, hour: 6, minute: 12
+        ))!
+        XCTAssertEqual(
+            LocalThreadSubtitle.timeText(
+                updatedAt: updated, now: now, calendar: calendar
+            ),
+            "今天 06:12"
+        )
+        XCTAssertEqual(
+            LocalThreadSubtitle.text(
+                updatedAt: updated, messageCount: 24,
+                now: now, calendar: calendar
+            ),
+            "今天 06:12 · 24 条"
+        )
+    }
 }

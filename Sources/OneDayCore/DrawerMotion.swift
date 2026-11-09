@@ -8,6 +8,11 @@ import Foundation
 /// （S6）、圆角/阴影的白名单值（S3/§3.4）。弹簧本体在
 /// OneDayDesign.MotionTokens.drawerSpring（S7）；挂载
 /// 时机（S5）与呈现层接管（S7）在壳层 DrawerShell。
+/// 0.17.0：抽屉改覆盖形态（调研报告 Q1/Q4 定案——被
+/// 整体变换的页卡承载 TabView 是底栏下沉的病根），页
+/// 卡退役，cornerRadius/shadowOpacity 自此无呈现层调
+/// 用、保留作数据与回归钉；新增 scrimOpacity 承担覆
+/// 盖形态的蒙层派生。位移三件（锁定/跟手/吸附）不变。
 public enum DrawerMotion {
     /// S2 方向锁定：累计横向位移达到此值前手势不接管、
     /// 不写任何位移状态（纵滚零干扰）
@@ -36,6 +41,10 @@ public enum DrawerMotion {
     /// 柔影峰值 alpha（progress=1 时）；拖动期 radius
     /// 与 x 冻结、只有 opacity 随 progress 变（S3）
     public static let shadowMaxOpacity: Double = 0.12
+    /// 蒙层峰值 alpha（0.17.0 覆盖式抽屉）：页卡退役
+    /// 后内容层静止不动，抽屉与内容的分离感改由滑入
+    /// 抽屉下方的整屏蒙层承担（调研报告 Q4 结构 A）
+    public static let scrimMaxOpacity: Double = 0.32
 
     /// S2 方向锁定判定：累计位移达标且横向主导才接管
     public static func isDirectionLocked(dx: CGFloat, dy: CGFloat) -> Bool {
@@ -118,5 +127,12 @@ public enum DrawerMotion {
     /// 变的阴影属性
     public static func shadowOpacity(progress: CGFloat) -> Double {
         shadowMaxOpacity * Double(min(max(progress, 0), 1))
+    }
+
+    /// 蒙层不透明度（0.17.0）：随 progress 线性、两端
+    /// 钳制——橡皮筋越界段不放大蒙层（与 progress 的
+    /// 钳制口径一致，越界只动抽屉本体）
+    public static func scrimOpacity(progress: CGFloat) -> Double {
+        scrimMaxOpacity * Double(min(max(progress, 0), 1))
     }
 }

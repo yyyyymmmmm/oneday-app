@@ -15,6 +15,33 @@ private let sessionTimeFormatter: DateFormatter = {
     return formatter
 }()
 
+/// 「日 + 时刻」单段时间文本（今天/昨天 HH:mm、更早
+/// M月d日 HH:mm）：服务端副题、本地副题与 0.17.0 抽
+/// 屉单行行尾时间同源同口径，单一实现防三处漂移。
+/// 今天/昨天按与 now 的自然日差判（startOfDay 对齐，
+/// 与 SidebarGrouping 同口径；不许用 Calendar
+/// .isDateInToday——它锚真实系统时钟、忽略注入的
+/// now，0.3.6 单测实证）。
+private func sessionDayTimeText(
+    for date: Date, now: Date, calendar: Calendar
+) -> String {
+    let dayDiff = calendar.dateComponents(
+        [.day],
+        from: calendar.startOfDay(for: date),
+        to: calendar.startOfDay(for: now)
+    ).day ?? Int.max
+    let day: String
+    switch dayDiff {
+    case 0:
+        day = "今天"
+    case 1:
+        day = "昨天"
+    default:
+        day = sessionMonthDayFormatter.string(from: date)
+    }
+    return "\(day) \(sessionTimeFormatter.string(from: date))"
+}
+
 /// 服务端会话的屏上文案（0.3.6 立 §21.4，0.3.7 按卡
 /// 16/18 完成标准收紧）：服务端原始命名永不上屏。
 /// 0.3.6 的落点（无名时拿「时间＋条数」当标题）被用户
@@ -123,27 +150,25 @@ public extension ServerSession {
     func humanSubtitle(now: Date, calendar: Calendar = .current) -> String {
         var parts: [String] = []
         if let date = startedDate {
-            let dayDiff = calendar.dateComponents(
-                [.day],
-                from: calendar.startOfDay(for: date),
-                to: calendar.startOfDay(for: now)
-            ).day ?? Int.max
-            let day: String
-            switch dayDiff {
-            case 0:
-                day = "今天"
-            case 1:
-                day = "昨天"
-            default:
-                day = sessionMonthDayFormatter.string(from: date)
-            }
-            parts.append("\(day) \(sessionTimeFormatter.string(from: date))")
+            parts.append(
+                sessionDayTimeText(for: date, now: now, calendar: calendar)
+            )
         }
         if let messageCount {
             parts.append("\(messageCount) 条")
         }
         parts.append(sourceLabel)
         return parts.joined(separator: " · ")
+    }
+
+    /// 单行行尾时间（0.17.0 抽屉名单单行化）：只给时
+    /// 间段（与副题首段逐字一致），条数/来源不上行；
+    /// 无开始时间返回 nil（行尾留空，不编造）
+    func listTimeText(
+        now: Date, calendar: Calendar = .current
+    ) -> String? {
+        guard let date = startedDate else { return nil }
+        return sessionDayTimeText(for: date, now: now, calendar: calendar)
     }
 
     /// 首条用户消息（0.6.1，标题派生的数据源）：列表
@@ -171,24 +196,21 @@ public enum LocalThreadSubtitle {
         updatedAt: Date, messageCount: Int,
         now: Date, calendar: Calendar = .current
     ) -> String {
-        let dayDiff = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: updatedAt),
-            to: calendar.startOfDay(for: now)
-        ).day ?? Int.max
-        let day: String
-        switch dayDiff {
-        case 0:
-            day = "今天"
-        case 1:
-            day = "昨天"
-        default:
-            day = sessionMonthDayFormatter.string(from: updatedAt)
-        }
-        var parts = ["\(day) \(sessionTimeFormatter.string(from: updatedAt))"]
+        var parts = [
+            sessionDayTimeText(for: updatedAt, now: now, calendar: calendar)
+        ]
         if messageCount > 0 {
             parts.append("\(messageCount) 条")
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// 单行行尾时间（0.17.0 抽屉名单单行化）：只有时
+    /// 间段、条数不上行（与 text() 首段逐字一致）
+    public static func timeText(
+        updatedAt: Date,
+        now: Date, calendar: Calendar = .current
+    ) -> String {
+        sessionDayTimeText(for: updatedAt, now: now, calendar: calendar)
     }
 }

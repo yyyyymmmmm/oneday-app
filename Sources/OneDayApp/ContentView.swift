@@ -5,8 +5,11 @@ import SwiftUI
 import UIKit
 #endif
 
-/// 底部五格（0.6.0 五格 IA，蓝图 §4 一期：聊天／活动／
-/// 点子／目标／应用；总览/文件/设置收进应用格内页面）。
+/// 底部四格（0.6.0 五格 IA 起，聊天／活动／点子／目标
+/// ／应用；**0.17.0 真机五修⑤改四格**：活动格撤销——
+/// 枢纽（AgentHubView .activity 四段）改由聊天页身份
+/// 胶囊点开 sheet 呈现（用户 2026-11-09 19:51 点名），
+/// 总览/文件/设置仍收进应用格内页面）。
 /// 底栏沿革：0.2.4 回归原生 TabView → 0.3.1 换 Tab(value:)
 /// ＋Label 直渲 → 0.3.8 按当时裁决隐藏原生栏、叠自绘
 /// FloatingTabBar → **0.4.0 拆自绘、回原生（审计 §3.2）**：
@@ -68,10 +71,31 @@ import UIKit
 /// 换 MotionTokens.drawerSpring（S7），手势按 S2
 /// 方向锁定＋S6 吸附判定执行。本层只剩选格状态、
 /// 总览桥轮询与跨格深链对账。
+///
+/// **0.17.0 壳层再换代（真机五修①，用户 2026-11-09**
+/// **19:51 点名「底部导航栏下面被盖住一点」，修法以**
+/// **全网调研 ios26-tabbar-topbar-issues 报告 Q1/Q4**
+/// **为准绳）**：推式页卡**退役**——TabView 被页卡变
+/// 换（顶锚 scale＋offset）整体承载正是底栏下沉、标
+/// 签压进 home indicator 区、坞下沿出画的病根（0.6.1
+/// 已坐实「外层包裹扰动 TabView 安全区」、当时只拆了
+/// GeometryReader 一层）。新结构：TabView 回归**根级
+/// 安放、零变换零偏移**（壳层不给它加任何 modifier），
+/// 抽屉改**覆盖形态**（调研结构 A）：抽屉面＋整屏蒙
+/// 层自左滑入盖在静止的内容之上，分离感由蒙层
+/// （DrawerMotion.scrimOpacity）承担；推式视觉让位于
+/// 底栏落位正确（简报取舍口径：底栏落位＋抽屉可用优
+/// 先）。位移三件（S1 单一事实源/S2 方向锁定跟手/S6
+/// 吸附）、S5 预挂载迟卸载、S7 弹簧桥接全部保留、只
+/// 换承载关系。附带：.tabBarMinimizeBehavior 由
+/// .onScrollDown 改 .never（0.4.1 为学 Muse 加的收起
+/// 行为、用户已下令去掉；调研 Q2 证实最小化只剩单图
+/// 标胶囊是该行为的设计结果、非 bug）。
 struct ContentView: View {
+    /// 底栏格（0.17.0 起四格：活动格已撤销、枢纽走聊
+    /// 天页胶囊 sheet，见文件头 0.17.0 注）
     enum MainTab: Hashable {
         case chat
-        case activity
         case ideas
         case goals
         case apps
@@ -80,8 +104,8 @@ struct ContentView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: MainTab = .chat
-    /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与活动
-    /// 格共同消费；前台 30 秒轮询由下方 scenePhase 驱动
+    /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与枢纽
+    /// sheet 共同消费；前台 30 秒轮询由下方 scenePhase 驱动
     @State private var overviewStore = OverviewBridgeStore()
 
     var body: some View {
@@ -118,18 +142,9 @@ struct ContentView: View {
     private var tabView: some View {
         TabView(selection: $selection) {
             Tab(value: MainTab.chat) {
-                ChatView(
-                    onOpenActivity: { selection = .activity },
-                    overviewStore: overviewStore
-                )
+                ChatView(overviewStore: overviewStore)
             } label: {
                 tabLabel(TabBarSymbols.chat)
-            }
-
-            Tab(value: MainTab.activity) {
-                ActivityView(overviewStore: overviewStore)
-            } label: {
-                tabLabel(TabBarSymbols.activity)
             }
 
             Tab(value: MainTab.ideas) {
@@ -155,10 +170,14 @@ struct ContentView: View {
         // 色由系统/用户系统设置决定），字重不再做环境级
         // 覆写（正文字重回归语义样式自带，批次 4 收口）
         // 0.4.1（用户点名）：tint 改系统主色单色 .primary
-        // （去蓝，见文件头 0.4.1 注）；滚动收起走系统
-        // tabBarMinimizeBehavior（.onScrollDown）
+        // （去蓝，见文件头 0.4.1 注）
         .tint(.primary)
-        .tabBarMinimizeBehavior(.onScrollDown)
+        // 0.17.0（真机五修①附带，用户下令去掉）：滚动
+        // 收起退役——0.4.1 为学 Muse 本体加的 .onScroll-
+        // Down 最小化（commit 95ab47e）会把底栏缩成左下
+        // 角一颗单图标胶囊（调研报告 Q2：该行为的设计
+        // 结果、非渲染错误），改 .never 写死、底栏恒在
+        .tabBarMinimizeBehavior(.never)
         // 0.4.3（§28.9，用户 11:22 点名）：变体锁改挂
         // 本层——TabView 宿主以**本层环境**构建底栏条
         // 目，0.4.1 把 .symbolVariant(.none) 挂在 Label
@@ -190,30 +209,39 @@ struct ContentView: View {
     }
 }
 
-/// 抽屉壳层包装（0.7.1，chrome 裁决档 §3.3–§3.5）：
+/// 抽屉壳层包装（0.7.1 立、0.17.0 改覆盖形态）：
 /// 全部抽屉状态只活在本层——位移状态不落在
 /// ContentView 根，拖动期 ContentView/TabView 子树
-/// 不因位移写入被牵动重算（S2「状态只落在壳层变
-/// 换包装层」）；内容（TabView）经闭包注入、身份不
-/// 变。本层自下而上：兜底画布（§3.2 背景同源）／
-/// 抽屉面（S5 预挂载）／可变换页卡（S3 合成层白
-/// 名单四件：offset、顶锚 scale、抽屉 offset、页
-/// 卡阴影 opacity；圆角过 0.02 阈值一步到 28 定
-/// 值、阴影 radius 10/x −4 冻结，§3.4 定版）。
+/// 不因位移写入被牵动重算（S2「状态只落在壳层」）；
+/// 内容（TabView）经闭包注入、身份不变。
+/// 0.17.0 承载换代（定案见文件头 0.17.0 注）：本层
+/// 自下而上＝TabView 本体（**根级安放、本层不给它
+/// 加任何 modifier**，底栏落位全交系统）／整屏蒙层
+/// （开态命中＋跟手关，alpha 走 DrawerMotion
+/// .scrimOpacity）／抽屉面（自左滑入、offset 恒为
+/// drawerOffset − travel，右缘柔影随 progress 变）；
+/// 合态另有左缘热区一条（跟手开＋S5 预挂载旁听）。
+/// 0.7.1 的可变换页卡（S3 白名单四件：页卡 offset、
+/// 顶锚 scale、圆角裁切、页卡阴影）**整套退役**——
+/// 它们承载 TabView 本人正是底栏下沉的病根；兜底
+/// 画布层随页卡一并退役（内容静止、橡皮筋越界时抽
+/// 屉下方就是内容本体，不再需要垫色）。
 private struct DrawerShell<Content: View>: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selection: ContentView.MainTab
     @ViewBuilder var content: () -> Content
 
-    /// S1 单一事实源：页卡呈现位移（0＝合拢、travel
+    /// S1 单一事实源：抽屉呈现位移（0＝合拢、travel
     /// ＝全开；跟手期写入的是已含橡皮筋换算的呈现值，
-    /// progress/抽屉位移/开合语义全部由它派生）
+    /// progress/抽屉位移/蒙层/开合语义全部由它派生；
+    /// 0.17.0 前它驱动的是页卡变换，承载换代后只驱动
+    /// 抽屉本体与蒙层，TabView 不再读它）
     @State private var drawerOffset: CGFloat = 0
-    /// 推开量（录屏量测：全开页卡左缘在屏宽 79%，
+    /// 推开量（录屏量测：全开抽屉右缘在屏宽 79%，
     /// §30 量测表；上限 400 防大屏抽屉过宽）与窗口底
     /// 部安全区 inset（喂 DrawerView 底条手算）：壳层
-    /// 在卡层以外以 onGeometryChange 量测——0.7.1
+    /// 在本体上以 onGeometryChange 量测——0.7.1
     /// §3.3 结构修复：TabView 不再被 GeometryReader
     /// 包裹，回归正常安全区传递链（贴底病处方 §1.4）
     @State private var travel: CGFloat = 0
@@ -257,13 +285,33 @@ private struct DrawerShell<Content: View>: View {
     }
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            // 橡皮筋越界时（拖过两端）露出的兜底色：
-            // 与抽屉面同色，正常态恒被页卡盖住；同时是
-            // §3.2 背景同源的壳层一环（画布全出血）
-            Palette.chatSurface
-            // 底层：抽屉面（偏移恒比页卡少一个推开
-            // 量：页卡合拢时它恰好整幅退出左缘）
+        let progress = DrawerMotion.progress(
+            offset: drawerOffset, travel: travel
+        )
+        return ZStack(alignment: .leading) {
+            // 底层：应用表面本体（TabView）——根级安
+            // 放，本层不给它加任何 modifier（无 offset/
+            // scale/clip/背景），底栏的安全区传递与落
+            // 位全交系统（0.17.0 定案，调研 Q1/Q4）
+            content()
+            // 中层：蒙层（抽屉挂载期间在场）——整屏压
+            // 暗静止的内容，alpha 随进度走 scrimOpacity
+            // （两端钳制、越界不放大）；开态承接点按关
+            // 抽屉与横拖跟手关（旧页卡命中层的职责改道）
+            if drawerMounted {
+                Color.black
+                    .opacity(DrawerMotion.scrimOpacity(progress: progress))
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(isDrawerOpen)
+                    .onTapGesture { setDrawer(false) }
+                    .gesture(drawerDragGesture)
+            }
+            // 上层：抽屉面（偏移恒比全开位少一个呈现
+            // 位移：合拢时整幅退出左缘；橡皮筋越界段
+            // 随 drawerOffset 一并呈现）。右缘柔影随
+            // progress 变（radius/x 沿 §3.4 定值、x 改
+            // 正向——影落在抽屉右缘外侧的内容/蒙层上）
             if drawerMounted {
                 DrawerView(
                     width: travel,
@@ -273,13 +321,31 @@ private struct DrawerShell<Content: View>: View {
                     onClose: { setDrawer(false) }
                 )
                 .offset(x: drawerOffset - travel)
+                .shadow(
+                    color: Palette.shadowBase.opacity(
+                        DrawerMotion.shadowOpacity(progress: progress)
+                    ),
+                    radius: DrawerMotion.shadowRadius,
+                    x: -DrawerMotion.shadowX, y: 0
+                )
                 .gesture(drawerDragGesture)
             }
-            // 上层：整个应用表面＝一张可变换页卡
-            card
+            // 合态左缘热区：右滑跟手唤出（宽走 OneDay-
+            // Metrics.drawerEdgeZone 令牌，0.2.2 沿革）；
+            // 触摸按下即预挂载抽屉（S5，edgePrepare-
+            // Gesture），拖动起步帧零建树。常挂、只切
+            // 换命中开关——旧页卡热区自此改挂壳层顶层
+            // （S3 禁拖动期结构切换的口径沿用）
+            Color.clear
+                .frame(width: OneDayMetrics.drawerEdgeZone)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .allowsHitTesting(!isDrawerOpen)
+                .gesture(drawerDragGesture)
+                .simultaneousGesture(edgePrepareGesture)
         }
-        // 推开量/底 inset 量测（卡层以外，不扰动
-        // TabView 的安全区传递，§3.3）
+        // 推开量/底 inset 量测（壳层本体上量，不包裹
+        // TabView、不扰动其安全区传递，§3.3 口径沿用）
         .onGeometryChange(for: CGSize.self) { proxy in
             proxy.size
         } action: { _, size in
@@ -299,57 +365,6 @@ private struct DrawerShell<Content: View>: View {
                 setDrawer(presented)
             }
         }
-    }
-
-    /// 应用表面页卡：TabView 本体＋开态命中层/合态左缘
-    /// 热区（都是卡的一部分、随卡同走；两层常挂、只切
-    /// 换命中开关——S3 禁拖动期结构切换），变换序＝
-    /// 圆角裁切→缩放（顶锚）→位移→柔影（§3.4 定版：
-    /// radius 10、x −4 冻结，只有 opacity 随 progress
-    /// 变；常挂、progress＝0 时 opacity 0 隐形——旧
-    /// `if progress > 0` 结构分支删除，§1.5-2）
-    private var card: some View {
-        let progress = DrawerMotion.progress(
-            offset: drawerOffset, travel: travel
-        )
-        return content()
-            // 开态命中层：盖住整卡接管点按（点露出的窄
-            // 条关抽屉）与横拖（跟手关）；开态下卡内控
-            // 件不可达——页卡只是被推开的预览（样板同理）
-            .overlay {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .allowsHitTesting(isDrawerOpen)
-                    .onTapGesture { setDrawer(false) }
-                    .gesture(drawerDragGesture)
-            }
-            // 合态左缘热区：右滑跟手唤出（宽走 OneDay-
-            // Metrics.drawerEdgeZone 令牌，0.2.2 沿革）；
-            // 触摸按下即预挂载抽屉（S5，edgePrepare-
-            // Gesture），拖动起步帧零建树
-            .overlay(alignment: .leading) {
-                Color.clear
-                    .frame(width: OneDayMetrics.drawerEdgeZone)
-                    .contentShape(Rectangle())
-                    .allowsHitTesting(!isDrawerOpen)
-                    .gesture(drawerDragGesture)
-                    .simultaneousGesture(edgePrepareGesture)
-            }
-            .clipShape(RoundedRectangle(
-                cornerRadius: DrawerMotion.cornerRadius(progress: progress),
-                style: .continuous
-            ))
-            // 缩放锚点在顶中：录屏量测全开 0.96、顶部地
-            // 标纵向位移≈0、卡底边升到屏高约 96%（§30）
-            .scaleEffect(1 - 0.04 * progress, anchor: .top)
-            .offset(x: drawerOffset)
-            .shadow(
-                color: Palette.shadowBase.opacity(
-                    DrawerMotion.shadowOpacity(progress: progress)
-                ),
-                radius: DrawerMotion.shadowRadius,
-                x: DrawerMotion.shadowX, y: 0
-            )
     }
 
     /// 开合统一走 drawerSpring（0.7.1 S7：interactive-
@@ -432,7 +447,7 @@ private struct DrawerShell<Content: View>: View {
         }
     }
 
-    /// 壳层拖拽（左缘热区/页卡命中层/抽屉面三处共用，
+    /// 壳层拖拽（左缘热区/蒙层/抽屉面三处共用，
     /// 0.7.1 按裁决 §3.5 重写）：
     /// - S2 方向锁定：累计 |dx|≥10 且 |dx|≥1.5|dy|
     ///   才接管；接管前不写任何状态（纵滚零干扰），

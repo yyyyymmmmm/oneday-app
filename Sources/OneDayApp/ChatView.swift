@@ -21,11 +21,14 @@ struct ChatView: View {
     // （0.4.5 删：onOpenServerSession／onSelectTab 两注
     // 入闭包——它们唯一的调用方是抽屉，抽屉已提到壳
     // 层并自带通道（DrawerView），本页不再需要）
-    /// 0.6.0：顶栏身份区点按 → 切活动格（壳层注入）
-    var onOpenActivity: () -> Void = {}
     /// 0.6.0：总览桥状态（壳层持有）：顶栏状态行与铃铛
     /// 角标的数据源；nil 时状态行落「暂时联系不上」
     var overviewStore: OverviewBridgeStore?
+    /// 0.17.0（真机五修⑤）：枢纽 sheet 开合——底栏活
+    /// 动格撤销后，身份胶囊身份域与回告卡点按改开本
+    /// sheet（AgentHubView .activity 四段，自带导航栈；
+    /// 0.6.0 的 onOpenActivity 切格注入自此退役）
+    @State private var showHub = false
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -377,16 +380,27 @@ struct ChatView: View {
         .task {
             await appState.resolveIdentityNameIfNeeded()
         }
-        // 0.6.0（蓝图 §4 一期）：枢纽页 sheet 入口退役——
-        // 枢纽内容已转正为活动格（AgentHubView 的
-        // .activity 模式，全 App 只此一份实现）；身份
-        // 胶囊点按改道活动格（见 headerBar），换模型走
-        // 胶囊内模型段 Menu（见 modelMenu）。本 sheet 是
-        // 顶栏铃铛的通知面（总览桥驱动）
+        // 0.6.0（蓝图 §4 一期）：枢纽内容曾转正为活动格
+        // （AgentHubView 的 .activity 模式，全 App 只此
+        // 一份实现）；**0.17.0（真机五修⑤，用户点名）：
+        // 活动格撤销、枢纽回归 sheet**——身份胶囊点按与
+        // 回告卡点按开下方 showHub sheet（四段原样、枢
+        // 纽自带导航栈），换模型仍走胶囊内模型段 Menu
+        // （见 modelMenu）。本 sheet 是顶栏铃铛的通知面
+        // （总览桥驱动）
         .sheet(isPresented: $showNotifications) {
             if let overviewStore {
                 NotificationsView(store: overviewStore)
             }
+        }
+        // 0.17.0：枢纽 sheet（承载与 0.6.0–0.16.0 的活动
+        // 格本体逐字一致：同一 AgentHubView .activity＋
+        // 审批终态回调刷新总览桥、顶栏角标不等下一轮轮
+        // 询——原 ActivityView 包装层随活动格一并退役）
+        .sheet(isPresented: $showHub) {
+            AgentHubView(mode: .activity, onApprovalChanged: {
+                Task { await overviewStore?.refresh(appState: appState) }
+            })
         }
     }
 
@@ -468,7 +482,8 @@ struct ChatView: View {
                 // 0.6.0 顶栏三件套之中（蓝图 §4 一期＋追加
                 // 硬规格 2）：胶囊仍一颗装头像＋名＋状态＋
                 // 模型，但拆两个点按域——身份域（头像/名/
-                // 总览桥状态行）点按跳活动格；模型域（分隔
+                // 总览桥状态行）点按开枢纽 sheet（0.17.0
+                // 改道，0.6.0–0.16.0 是跳活动格）；模型域（分隔
                 // 线＋短名＋chevron）是原生 Menu，点开换三
                 // 模型（selectChatModel＋会话锁机制原样，
                 // 不许埋掉或降级）。头像换三狗搭档款定版图
@@ -571,10 +586,19 @@ struct ChatView: View {
             .background(Palette.fieldFill, in: Capsule())
     }
 
-    /// 身份胶囊（0.6.0；0.6.1 布局根修）：一颗白浮纸胶
-    /// 囊，左域＝三狗头像＋身份名＋状态点/状态词（点按
-    /// 跳活动格），右域＝模型 Menu（分隔线＋短名＋
-    /// chevron）。点按分工与一颗装口径沿 0.6.0 不变。
+    /// 身份胶囊（0.6.0；0.6.1 布局根修）：一颗胶囊，左
+    /// 域＝三狗头像＋身份名＋状态点/状态词（0.17.0 起点
+    /// 按开枢纽 sheet——活动格撤销前的落点是切活动格），
+    /// 右域＝模型 Menu（分隔线＋短名＋chevron）。点按分
+    /// 工与一颗装口径沿 0.6.0 不变。
+    /// 0.17.0（真机五修②，用户点名「漏字透明、要朦胧
+    /// 感玻璃感」）：本体材质由白浮纸（odFloatPaper：
+    /// 实填充＋发丝边、无 backdrop 采样）换系统玻璃
+    /// .glassEffect(.regular)——调研报告 §6.1/6.6 定案：
+    /// 浮件本体必须自带 backdrop 模糊与明度调整（带由
+    /// 列表的 scroll edge effect 负责、件由 glass 负责，
+    /// 缺一不可）；.clear 档是为「让内容透出」设计的、
+    /// 聊天页禁用，.regular 是系统 bar/浮件的默认档。
     /// 0.6.0 真机缺陷根源（用户点名「Hermes ● …」）：
     /// 胶囊内只有状态 Text 一个可压缩元素，状态长句
     /// 必被压成省略号——名字/模型短名都 fixedSize、独
@@ -594,7 +618,7 @@ struct ChatView: View {
     private func capsuleRow(showName: Bool) -> some View {
         HStack(spacing: OneDayMetrics.spacingS) {
             Button {
-                onOpenActivity()
+                showHub = true
             } label: {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     Image("SangouPartner")
@@ -622,7 +646,7 @@ struct ChatView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(appState.identityName ?? AgentName.fallback)，\(overviewStatusWord)，打开活动")
+            .accessibilityLabel("\(appState.identityName ?? AgentName.fallback)，\(overviewStatusWord)，打开枢纽")
 
             Rectangle()
                 .fill(Palette.hairline)
@@ -632,7 +656,9 @@ struct ChatView: View {
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.vertical, 7)
-        .odFloatPaper(in: Capsule())
+        // 0.17.0：白浮纸退役、本体换 .glassEffect
+        // (.regular)（定案见 identityCapsule 注）
+        .glassEffect(.regular, in: Capsule())
     }
 
     /// 模型域（硬规格 2）：原生 Menu 点开三模型，当前项
@@ -1321,7 +1347,8 @@ struct ChatView: View {
 
     @ViewBuilder
     /// 回告卡（0.7.0，D2）：总览桥通知在主线消息流末尾的
-    /// 呈现层卡片。点卡身跳活动格看全量；点叉＝标已读
+    /// 呈现层卡片。点卡身开枢纽 sheet 看全量（0.17.0 改
+    /// 道、此前是跳活动格）；点叉＝标已读
     /// （走 OverviewBridgeStore.markRead：桥确认成功才改
     /// 本地态，卡随未读过滤消失，与铃铛/通知 sheet 同一
     /// 已读口径）。卡是纯 View：不入 SwiftData、不参与
@@ -1368,7 +1395,9 @@ struct ChatView: View {
                 .strokeBorder(Palette.hairline, lineWidth: 1)
         }
         .contentShape(Rectangle())
-        .onTapGesture { onOpenActivity() }
+        // 0.17.0：回告卡点按与胶囊身份域同路——开枢纽
+        // sheet（活动格撤销前的落点是切活动格）
+        .onTapGesture { showHub = true }
     }
 
     private func streamingRow(_ text: String) -> some View {

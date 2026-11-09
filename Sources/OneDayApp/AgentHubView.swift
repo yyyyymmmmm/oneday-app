@@ -52,6 +52,11 @@ enum HubSegment: String, CaseIterable, Identifiable {
 /// 入口在聊天页胶囊的模型段 Menu，硬规格不回退）；
 /// mode=.sheet 保留五段全量形态，但聊天页胶囊已改道
 /// 活动格、不再有 sheet 入口（不双份维护同一 UI）。
+/// 0.17.0（真机五修⑤）：活动格撤销——mode=.activity
+/// 改由聊天页胶囊/回告卡以 sheet 呈现（本视图自带导
+/// 航栈、呈现方不外包，口径不变；下滑关 sheet 走系
+/// 统拖拽指示器）；mode=.sheet 五段全量形态仍无入口、
+/// 与 0.6.0 起的口径一致。
 struct AgentHubView: View {
     enum Mode {
         case sheet

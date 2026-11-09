@@ -101,6 +101,11 @@ public enum TabBarSymbols {
         selected: "slider.horizontal.3"
     )
 
-    /// 全部条目（与 ContentView 的 Tab 顺序同序）
-    public static let all = [chat, activity, ideas, goals, apps]
+    /// 全部条目（与 ContentView 的 Tab 顺序同序）。
+    /// 0.17.0 起底栏四格（用户真机五修⑤：活动格撤销、
+    /// 枢纽改由聊天页胶囊点开 sheet）——activity 符号
+    /// 对与 overview/files/settings 同例作数据保留（枢
+    /// 纽页活动段自有 HubSegment 符号、不取此处），本
+    /// 数组只列在栏四格
+    public static let all = [chat, ideas, goals, apps]
 }

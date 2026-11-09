@@ -200,7 +200,7 @@ final class IdeasStore {
             markConverted(idea.id)
         } else {
             notes[idea.id] = kanban.createError
-                ?? "任务没有确认建成，请到活动页任务段核对。"
+                ?? "任务没有确认建成，请到枢纽任务段核对（聊天页点顶部胶囊打开）。"
         }
     }
 
