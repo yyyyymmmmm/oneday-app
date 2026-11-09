@@ -158,11 +158,13 @@ struct ChatView: View {
 
     // MARK: - 主面（0.2.6 承载换代：发送区回到布局流）
 
-    /// 聊天主面：顶栏仍是悬浮覆盖层（玻璃件＋悬浮胶囊；
-    /// 0.4.0 起渐隐带 topFade 已删、见 chatSurface）；底部
-    /// 发送区 0.2.6 起退出覆盖层、回到
-    /// 布局流——消息列表加 .safeAreaInset(edge: .bottom)
-    /// 承载发送舱（见 messageList）。换代原因：0.2.4/0.2.5
+    /// 聊天主面：顶栏是玻璃件＋身份胶囊（0.4.0 起渐隐
+    /// 带 topFade 已删、见 chatSurface；0.4.3 起顶栏改
+    /// 挂消息列表的 .safeAreaBar 注册，不再悬浮覆盖）；
+    /// 底部发送区 0.2.6 起退出覆盖层、回到布局流——
+    /// 消息列表以安全区 bar 承载发送舱（0.2.6–0.4.2 为
+    /// .safeAreaInset，0.4.3 改 .safeAreaBar 注册，见
+    /// messageList 与 §28）。换代原因：0.2.4/0.2.5
     /// 连着两版在覆盖式 ZStack 里跟键盘打架（键盘弹起态
     /// 发送舱膨胀成空玻璃泡，真机实证），根子是自研悬浮层
     /// 在跟系统的键盘布局通道抢地盘；调研 Exyte/Chat、
@@ -175,22 +177,25 @@ struct ChatView: View {
     /// 取舍如实记：键盘收起态消息不再从发送舱背后流过
     /// （inset 是留位不是覆盖），换来键盘联动的系统级精确
     /// 与高度问题的整类消除；玻璃胶囊的长相不变（胶囊是
-    /// 内容、不是布局机制）。
+    /// 内容、不是布局机制）。（0.4.3 注：注册 safeAreaBar
+    /// 后滚动内容可从条下穿过并被边缘效果化开——那是效
+    /// 果层的穿过，布局留位与键盘通道不变，见 §28）
     /// 原 NavigationStack＋toolbar 在 0.2.4 已撤销：栈内无
     /// 任何 push 依赖（全仓核查），顶栏以悬浮覆盖层实现。
+    /// （0.4.3 注：顶栏已改挂列表的 safeAreaBar 注册、不
+    /// 再经本容器的 overlay 悬浮，见下）
     private var chatSurface: some View {
         ScrollViewReader { proxy in
             messageList(proxy)
         }
         .background(Palette.chatSurface)
-        .overlay(alignment: .top) {
-            // 0.4.0（审计 §1.1／§6.1）：顶栏区自加背景层
-            // （topFade 渐隐带）整层删除，overlay 只剩
-            // headerBar 本体——自加背景层会干扰系统滚动
-            // 边缘柔效（WWDC25-323），删带是柔效接管的
-            // 前置；headerBar 的收编与玻璃换装归二期
-            headerBar
-        }
+        // 0.4.3（§28）：顶栏 headerBar 已收编——不再走
+        // 本容器的 .overlay 悬浮（未注册的覆盖层不在系
+        // 统边缘效果体系内，WWDC25-323／Adopting
+        // Liquid Glass），改挂消息列表 ScrollView 的
+        // .safeAreaBar(edge: .top) 注册为系统认可的自
+        // 定义 bar（见 messageList）；overlay 层随之撤
+        // 销。0.4.0 删 topFade 的前置至此才真正补完
         .photosPicker(
             isPresented: $showPhotoPicker,
             selection: $photoItem,
@@ -290,7 +295,9 @@ struct ChatView: View {
         return ("在线", Palette.success)
     }
 
-    /// 悬浮顶栏（0.3.8 第 30/31 条布局，0.4.0 A 案改）：
+    /// 顶栏（0.3.8 第 30/31 条布局，0.4.0 A 案改；0.4.3
+    /// 起注册为消息列表的 .safeAreaBar(edge: .top)、脱
+    /// 离悬浮覆盖，§28）：
     /// 身份胶囊一颗装头像＋Hermes＋状态＋模型（§3.3，
     /// 小模型胶囊撤除），会话名退到胶囊下方次行居中呈
     /// 现；左右圆钮走白浮纸画法。
@@ -403,8 +410,9 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
-    /// 底部发送区（0.2.6 起由消息列表的 .safeAreaInset
-    /// 承载，不再是覆盖层）：回到底部钮＋错误/提示条＋发送
+    /// 底部发送区（0.2.6 起由消息列表的安全区承载、不
+    /// 再是覆盖层；0.2.6–0.4.2 为 .safeAreaInset，0.4.3
+    /// 改 .safeAreaBar 注册，§28）：回到底部钮＋错误/提示条＋发送
     /// 舱，自下而上排在列表下方的安全区留位里。键盘收起时
     /// 留位贴原生底栏上方；键盘升起时系统安全区扩张、整段
     /// 被顶到键盘上方（系统通道，见 chatSurface 换代注）。
@@ -512,8 +520,11 @@ struct ChatView: View {
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingS)
             // 命中域撑满（0.3.5，§20.2）：内容栈帧宽撑满、
-            // 高至少撑到列表可视高（容器高 − 上下 content-
-            // Margins 64／spacingS）。0.3.4 前栈帧只裹住
+            // 高至少撑到列表可视高（容器高 − 底 content-
+            // Margins spacingS）。0.4.3 前顶栏是 overlay、
+            // 容器高含其悬浮区、常数按 64 近似扣减；顶栏
+            // 注册 safeAreaBar 后顶区由安全区自理、容器高
+            // 已不含它，64 常数退役。0.3.4 前栈帧只裹住
             // 已有消息：消息不足一屏时下半屏空白、气泡两
             // 侧窄于栈宽的空白都落在栈外，点下去什么都不
             // 发生——「点空白不收键盘」的定因。内容超高
@@ -521,7 +532,7 @@ struct ChatView: View {
             .frame(
                 maxWidth: .infinity,
                 minHeight: max(
-                    0, listViewportHeight - 64 - OneDayMetrics.spacingS
+                    0, listViewportHeight - OneDayMetrics.spacingS
                 ),
                 alignment: .topLeading
             )
@@ -545,24 +556,31 @@ struct ChatView: View {
                 composerFocusHandle.dismiss()
             }
         }
-        // 滚动边距：顶为悬浮顶栏让出首屏位置（滚动时内容
-        // 从其背后穿过）；底只留与发送舱的小间隙——发送
-        // 区本体已由下方 safeAreaInset 留位（0.2.6），不再
-        // 按悬浮层实测高度给边距。
-        // 0.4.0（审计 §6.1／§1.1）：topFade 渐隐带已删——
-        // 它是「白底上边缘模糊不可感」的两个疑因之一
-        // （实色带干扰＋作用区错位），删后滚动边缘模糊
-        // 回归系统通道 .scrollEdgeEffectStyle(.soft) 单独
-        // 承担；顶栏收编系统通道归二期材质批，本期顶栏
-        // 保持悬浮覆盖形态
-        .contentMargins(.top, 88, for: .scrollContent)
+        // 滚动边距：顶部不再设 contentMargins——顶栏已
+        // 注册为本列表的 safeAreaBar、首屏位置由安全区
+        // 本体让出（0.4.2 前是 overlay 悬浮＋.content-
+        // Margins(.top, 88) 代偿，§28.1 原因一即出在此）；
+        // 底只留与发送舱的小间隙，发送区本体已由下方
+        // safeAreaBar 注册留位（0.4.3），不按悬浮层实测
+        // 高度给边距。
+        // 0.4.0（审计 §6.1／§1.1）：topFade 渐隐带已删
+        // （实色带干扰＋作用区错位），滚动边缘模糊走系
+        // 统 .scrollEdgeEffectStyle(.soft)；0.4.3 起两
+        // 缘的 bar 均已注册（顶 headerBar／底 bottom-
+        // Bar，同挂 safeAreaBar），效果作用区由 bar 高
+        // 度决定（WWDC25-219/323、Adopting Liquid
+        // Glass 的自定义 bar 注册口径）
+        .safeAreaBar(edge: .top) {
+            headerBar
+        }
         .scrollEdgeEffectStyle(.soft, for: .top)
         // 0.4.2（用户 10:54 圈图点名，二期 M3 卡提前落
-        // 地）：底缘同挂柔效——消息流向发送舱（底部
-        // safeAreaInset 的玻璃簇）时朦胧化开、不再硬切
-        // 到发送舱上沿；与顶缘同走系统 scrollEdgeEffect
-        // 通道（WWDC25-323），全页无实色遮罩残留
-        // （topFade 已于 0.4.0 整层删除）
+        // 地）：底缘同挂柔效；0.4.3 注册后系统才真正按
+        // 发送舱高度发放本效果——0.4.2 时发送舱还在
+        // safeAreaInset 里，按 Grow 出货应用的实测记录
+        // 该挂法等于关掉底部边缘效果（§28.1 原因二
+        // 实锤），全页无实色遮罩残留（topFade 已于
+        // 0.4.0 整层删除）
         .scrollEdgeEffectStyle(.soft, for: .bottom)
         .contentMargins(.bottom, OneDayMetrics.spacingS, for: .scrollContent)
         // 0.2.6 承载换代核心：发送区进列表的底部安全区
@@ -571,7 +589,13 @@ struct ChatView: View {
         // 键盘升起留位随安全区顶到键盘上方、交互收起跟随，
         // 发送舱高度只由内容决定（高度口径归 Composer-
         // Layout/ComposerTextMetrics 纯逻辑＋单测把守，§13）
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // 0.4.3（§28）：承载由 safeAreaInset 改 safeAreaBar
+        // ——同一安全区布局族、不是覆盖层，差别只在注册：
+        // 系统自此认它作 bar，滚动内容从其下方穿过并吃
+        // 满底缘 scroll edge effect。键盘跟随仍由安全区
+        // 驱动（键盘即安全区扩张），0.2.6/0.4.1 的键盘
+        // 行为经构造＋代码审计＋单测复验，证据链见 §28.4
+        .safeAreaBar(edge: .bottom, spacing: 0) {
             bottomBar(proxy)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -1525,7 +1549,7 @@ private struct ComposerBarLayout: Layout {
         // /搜索/新建）不滚、只有中间名单区滚动，且滚
         // 动内容滑到头尾两端时朦胧渐隐（标注图里最下
         // 方一行半融在底条上方即此）。结构：名单
-        // ScrollView 居中，名字与底条经 safeAreaInset
+        // ScrollView 居中，名字与底条经 safeAreaBar
         // 钉进它的上下安全区——与聊天页发送舱同一系
         // 统通道（条即安全区、内容从其下方滑过），上
         // 下两缘的化开由 .scrollEdgeEffectStyle(.soft)
@@ -1543,10 +1567,16 @@ private struct ComposerBarLayout: Layout {
         .scrollDismissesKeyboard(.interactively)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
-        .safeAreaInset(edge: .top, spacing: 0) {
+        // 0.4.3（§28.5）：头尾承载由 safeAreaInset 改
+        // safeAreaBar 注册——与聊天页同因：未注册的
+        // inset 条不在边缘效果系统内、.soft 等于没发；
+        // 注册后内容从头尾下方穿过并在两端化开（用户
+        // 10:54 标注口径）。头尾钉住结构、底条下边距
+        // 4pt 校准、搜索框键盘跟随（同走安全区）不变
+        .safeAreaBar(edge: .top, spacing: 0) {
             drawerAgentName
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .safeAreaBar(edge: .bottom, spacing: 0) {
             drawerBottomBar
         }
         .frame(width: width)
@@ -1770,13 +1800,13 @@ private struct ComposerBarLayout: Layout {
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingSM)
         // 底边距（0.4.2 结构纠正）：本条已由 drawerPanel
-        // 经 safeAreaInset 钉在名单 ScrollView 的底部安
+        // 经 safeAreaBar 钉在名单 ScrollView 的底部安
         // 全区——安全区本身已把条抬到 home indicator 之
         // 上，下边距只留 4 呼吸量，落点与旧口径一致
         // （条中心约 92.5%）。沿革：0.3.8–0.4.1 整栏/
         // 内容直达屏底的结构下，下边距须手算「安全区
         // 底 inset＋4」（DrawerGeometry.bottomBar-
-        // BottomPadding），在 safeAreaInset 结构里再叠
+        // BottomPadding），在注册 bar 结构里再叠
         // 一次就是双重计算、条会被抬高一截，故本处用
         // 法退役（纯函数本体与单测留档不删）
         .padding(.bottom, 4)

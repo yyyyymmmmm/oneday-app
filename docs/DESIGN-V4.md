@@ -2855,3 +2855,167 @@ Tests.swift）
   柔效观感、抖动三项真机表现（流式到底不脉冲/手动
   划到底不摆/钮出入不弹跳）均无自动证据，归用户
   真机终审；键盘弹起（0.4.1 遗留项）亦待其复验
+
+## §28 0.4.3 热修批（朦胧感加强：bar 注册路线，2026-11-09）
+
+用户 11:10 真机截图打回 0.4.2（底部透字、顶部
+锐利）；11:12 追加令先调研再定路线。调研报告
+oneday-design-review/progressive-blur-research
+.md（WWDC25 219/284/323/356＋Adopting Liquid
+Glass＋Grow 出货实测＋Linear 自述）定案后改道：
+Material 打底方案撤销，改走「把 bar 注册进系
+统」的约束内正道。本节为定稿销账。
+
+### 28.1 定因（实锤版）
+
+- [x] 挂载点无误：聊天列表 .scrollEdgeEffect-
+  Style(.soft, for: .top／.bottom) 挂在 message-
+  List 的 ScrollView 本体；抽屉名单同挂其
+  ScrollView 本体。不是挂错视图。
+- [x] 原因一（顶部·未注册）：scroll edge effect
+  只服务**系统 bar 或注册过的自定义 bar**（官方
+  文档《Adopting Liquid Glass》明文：custom bar
+  须经 safeAreaBar／UIScrollEdgeElementCon-
+  tainerInteraction 注册）。顶栏 headerBar 是
+  chatSurface 上的 .overlay 悬浮层，从未注册；
+  .contentMargins(.top, 88) 只挪内容静止位、不
+  产生注册。系统眼里顶部没有 bar——文字以全锐
+  度滑到胶囊下方被硬边切断，即截图顶部形态。
+- [x] 原因二（底部·实锤：inset 即关效果）：出
+  货应用 Grow 团队的 iOS 26 适配实测记录——
+  .safeAreaInset(edge: .bottom) 的作用是**关掉**
+  底部边缘模糊，系统认可的通道是 toolbar 的
+  .bottomBar 或 safeAreaBar。0.4.2 的发送舱正
+  挂在 safeAreaInset 里：**系统压根没给发送舱发
+  柔效，.soft 等于没挂上**。再叠发送舱玻璃本
+  体按设计「内部近乎透明、靠边缘 lensing 定义
+  形状」（WWDC25-219），本身几乎不磨字——两
+  者叠加即截图底部「字透过输入卡还基本能读」
+  的完整解释。
+- [x] 原因三（强度与底色，次因）：.soft 无强度
+  参数、系统定性 "subtle blur and fade"
+  （WWDC25-323）；本页底色 #FCFCFC＋气泡
+  #E9EAEC 明度对比近零，带内衰减落在近白对近
+  白上几乎不可感（0.2.5 换通道再现）。此条在
+  注册后仍成立——它是公开 API 的上限，见 28.6。
+- [x] 抽屉同查结论：**同类问题**。抽屉头尾同为
+  未注册的 safeAreaInset，其 .soft 同理从未真
+  正发放（0.4.2 的头尾渐隐实际未生效）；且注
+  册后内容才会从头尾下方穿过、化开形态才成
+  立。故同法处理（28.5），非「维持 .soft」。
+
+### 28.2 路线裁决记录
+
+- [x] Material 打底方案**撤销**：曾暂存四处垫
+  （发送舱 .regularMaterial 同形垫＋顶栏三钮外
+  扩 6pt 垫），全部未提交、已整段回退净。撤销
+  理由：①调研 §3 排除「垫厚 Material」为样板
+  机制（均匀模糊无渐进，中段半透明重影）；
+  ②WWDC25-323 明言 bar 背后的自研背景/压暗层
+  会**干扰**系统效果——注册路线下垫层有害无益。
+- [x] 顶栏为何不走真 toolbar：会话名次行无
+  toolbar 槽位（收编须把顶栏拆成两半、破坏第
+  30 条一体构造），且本页 0.2.4 已撤销 Naviga-
+  tionStack、重引入的抽屉/底栏交互面风险大；
+  safeAreaBar 正是官方文档为「有内容从下方滚
+  过的自定义 bar」点名的注册 API，整颗顶栏作
+  为一个 bar 注册即拿到系统效果——「尽量收进
+  系统通道」以此达成，取舍如实记档。
+
+### 28.3 发送舱改挂 safeAreaBar（底部）
+
+- [x] messageList：.safeAreaInset(edge: .bottom)
+  → .safeAreaBar(edge: .bottom, spacing: 0)，
+  内容仍是 bottomBar(proxy) 本体零改动（回到底
+  部钮＋错误/提示条＋inputBar）；仍属安全区布
+  局机制、**不是覆盖层**，0.2.6「布局流」定版
+  不回退；.scrollEdgeEffectStyle(.soft, for:
+  .bottom) 保留——注册后系统按发送舱高度发放。
+- [x] 发送舱自量高＋硬封顶（ComposerLayout/
+  ComposerTextMetrics 纯逻辑）未动；玻璃
+  .glassEffect(.regular, in: composerShape) 未
+  动；卡面点按聚焦层（0.4.1 第 1 修）未动。
+
+### 28.4 键盘硬门复验（构造＋审计＋单测）
+
+结论：**不回退**。safeAreaBar 与 safeAreaInset
+同属安全区布局族，键盘在 SwiftUI 里就是以安
+全区扩张的方式出现——条的升降通道未变。逐项
+证据：
+- [x] 构造：键盘跟随的驱动源是窗口安全区（键
+  盘帧→安全区 inset），safeAreaBar 内容与
+  safeAreaInset 内容同置于安全区内被其驱动；
+  WWDC25-323 的 safeAreaBar 演示场景即滚动视
+  图＋底部自定义 bar，与本页同构。
+- [x] 代码审计（逐条核对键盘链，全部未依赖
+  inset 修饰符本身）：①焦点句柄 composer-
+  FocusHandle（0.2.8）与 ComposerTextView 本
+  体未动，点文本视图直触聚焦通道不变；②卡面
+  点按聚焦层（0.4.1 第 1 修）挂在 composerRow
+  的 .background 上、与承载修饰符无关，未动；
+  ③键盘锚底两路触发（composerFocused 边沿＋
+  keyboardWillChangeFrameNotification 监听）
+  未动，触发源是通知与状态、不读 inset；④
+  .scrollDismissesKeyboard(.interactively) 挂
+  ScrollView 本体，未动；⑤距底判定 onScroll-
+  GeometryChange 读 contentSize/containerSize
+  ——注册后键盘升起仍同步压缩 container（安全
+  区构成变了成员、没变机制），BottomProximity
+  迟滞逻辑未动；⑥内容栈撑满 minHeight 常数
+  64 退役（见 28.7），不影响键盘链。
+- [x] 单测：OneDayCore 全套（含 Composer 布局
+  与 BottomFollowTests 8 例）随 CI 全绿（数字
+  见 28.8 交付记录）。
+- [] 真机复验归用户（如实标注，本批无真机证
+  据）：点输入栏键盘必弹、舱随键盘升降不膨胀
+  不留白、交互下滑收键盘跟随——与 0.4.1 遗留
+  的键盘确认合并为同一验收项。
+
+### 28.5 顶栏与抽屉注册
+
+- [x] 顶栏：chatSurface 的 .overlay { headerBar }
+  整层撤销；headerBar 改挂 messageList 的
+  .safeAreaBar(edge: .top)（内容本体零改动：两
+  圆钮＋身份胶囊＋会话名次行整颗注册）；.con-
+  tentMargins(.top, 88) 随之删除——首屏位置改
+  由安全区本体让出。.soft 顶缘保留，作用区自
+  此＝顶栏高度。
+- [x] 抽屉：drawerPanel 的 .safeAreaInset(edge:
+  .top／.bottom) → .safeAreaBar（spacing: 0），
+  头尾钉住结构、名单中段滚动、底条下边距 4pt
+  校准、搜索 TextField 的键盘跟随（同走安全
+  区）均不变；注册后名单内容从头尾下方穿过、
+  两端 .soft 化开（用户 10:54 标注口径至此才
+  有系统通道支撑）。
+
+### 28.6 预期上限（如实声明）
+
+注册只把系统效果**发满**，上限仍是官方 subtle
+级：密排文字滚到发送舱上方会变糊变淡，但达不
+到 Muse「整片溶掉」的厚度——差在渐进模糊
+（variable blur）无公开 API、且作用区严格等
+于 bar 高度（调研 §4.1/4.2）。完全对齐样板须
+用户在调研 §4.3 三条放宽里点一条，本版未擅
+自越线。
+
+### 28.7 附带调整
+
+- [x] 内容栈撑满 minHeight：- 64 - spacingS →
+  - spacingS（顶栏注册后容器高已不含顶区，64
+  近似常数退役；注释已同步改写）。
+- [x] 相关注释全面对齐新结构（chatSurface 主面
+  注、messageList 边距注、bottomBar／headerBar
+  文档注、drawerPanel 结构注与底条边距注），
+  历史沿革保留、现状表述不留旧词误导。
+
+### 28.8 交付记录（0.4.3）
+
+- 版本三处同改：Project.swift（MARKETING_
+  VERSION 0.4.3／CURRENT_PROJECT_VERSION 27／
+  Info.plist 字面量 CFBundleShortVersionString
+  0.4.3／CFBundleVersion 27）＋SettingsView 关
+  于区显示串 0.4.3（§25.7 假绿教训口径）
+- CI 与单测、IPA 字节与解包验版：见随版回填
+- 未验证（如实标注）：顶/底化开强度、抽屉底
+  条落点与搜索键盘跟随、聊天键盘四项（28.4）
+  均无自动证据，归用户真机终审
