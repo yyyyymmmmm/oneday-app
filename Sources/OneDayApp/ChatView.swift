@@ -893,49 +893,39 @@ struct ChatView: View {
             SmoothExpand(isExpanded: !attachments.isEmpty) {
                 attachmentsStrip
             }
-            // 0.2.7：玻璃裸施加在行本体——GlassEffectContainer
-            // 与 union 已撤销（§10 承载换代后容器不再承担
-            // 布局，裸施加即可，§11）
-            // 0.3.2：材质改走 Mat 令牌入口（学礼记
-            // AdvisorView 输入栏的 Mat 口径）
-            // 0.3.4 去染色（§19 变/不变表，用户令「输入框
-            // 颜色不要跟着主题变」）：输入框是表面容器、
-            // 归中性——.tinted 主题染色撤销、回 .regular
-            // 中性玻璃；聚焦仍走下方双环中性阴影（不染
-            // 蓝）；强调色在本区只剩发送键与光标 caret
+            // 表面沿革：0.2.7 裸玻璃 → 0.3.7 卡 19 撤玻璃
+            // 改灰填充 → 0.3.8 第 28 条白浮纸（floatFill＋
+            // 发丝边＋双环影）→ **0.4.1 回系统玻璃**（用户
+            // 10:06/10:07 两点名：第 3 修「输入栏与底部导
+            // 航栏颜色不一致」＋第 7 修「改 Muse 本体形
+            // 态：白色大圆角卡片」）：.glassEffect(.regular)
+            // 与原生底栏同为 iOS 26 Liquid Glass 家族——
+            // 同材质即同观感，不再自调灰阶对色。形态要素
+            // 沿既有结构：圆角连续函数封顶 24（大圆角量
+            // 级）、＋在卡内左下、发送圆形键在卡内右下、
+            // 多行上文下钮（ComposerBarLayout，0.3.4 定
+            // 版）；自量高＋硬封顶（例外 E1）结构不动。
+            // 白浮纸的发丝边与双环手搓影一并撤销（玻璃自
+            // 带边缘折光与层级，§14 条 2 的影口径随材质
+            // 换代退役）
             composerRow
-                // 0.3.7 卡 19：输入框撤玻璃——无边中灰填充
-                // （fieldFill，与底栏/抽屉搜索同家族）
-                // 0.3.8 第 28 条：灰贴片换白浮纸——近白填充
-                // （floatFill）＋发丝描边 0.5；柔影由下方双环
-                // 影承担（静止环即浮纸影、聚焦环加深，§14
-                // 条 2 的聚焦禁描边指禁焦点描边，发丝边是
-                // 浮件定位边、两口径不冲突，见 §24 对账）
-                .background(Palette.floatFill, in: composerShape)
-                .overlay {
-                    composerShape.stroke(Palette.hairline, lineWidth: 0.5)
+                // 第 1 修（P0 键盘不弹）的聚焦保底层：整卡
+                // 背景命中域内点按（文本区外的卡面空隙）经
+                // 焦点句柄聚焦文本视图。根因与定位见
+                // DESIGN-V4 §26.7：焦点机器代码 0.3.8→
+                // 0.4.0 逐字未动（diff 实证），回归随底栏
+                // 可见化同批出现——文本视图自身触摸成为单
+                // 点故障，本层把「点输入栏必弹键盘」改成
+                // 双通道构造（文本视图直触＋卡面点按），
+                // 不再依赖单一路径的环境状态
+                .background {
+                    Color.clear
+                        .contentShape(composerShape)
+                        .onTapGesture {
+                            composerFocusHandle.focus()
+                        }
                 }
-                // 条 2（§14）：聚焦禁描边——聚焦态不加任何
-                // stroke，改以加深的双环阴影表达（近环定界
-                // 半径 6、远环扩散半径 18），随焦点观察态
-                // 切换；静止态只留极淡的浮起影。影基色走
-                // Palette.shadowBase 令牌（0.3.2 收编）
-                .shadow(
-                    color: Palette.shadowBase
-                        .opacity(composerFocused ? 0.13 : 0.05),
-                    radius: composerFocused ? 6 : 10, y: 2
-                )
-                .shadow(
-                    color: Palette.shadowBase
-                        .opacity(composerFocused ? 0.10 : 0.04),
-                    radius: composerFocused ? 18 : 14, y: 6
-                )
-                .animation(
-                    MotionTokens.resolved(
-                        MotionTokens.swap, reduceMotion: reduceMotion
-                    ),
-                    value: composerFocused
-                )
+                .glassEffect(.regular, in: composerShape)
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
