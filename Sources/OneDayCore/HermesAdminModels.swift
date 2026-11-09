@@ -412,6 +412,61 @@ public struct CronRunsResponse: Decodable, Sendable {
 
 // MARK: - GET /api/sessions/{id}/messages（会话消息）
 
+/// 一次工具调用（assistant 消息的 tool_calls 元素，0.8.0
+/// P1 富内容）：生产实查形态 {"id": "call_…", "call_id":
+/// 同值, "type": "function", "function": {"name": …,
+/// "arguments": "JSON 字符串"}}——fixture 冻在
+/// RichContentTests（会话 audit-browser-20261109 等）。
+public struct SessionToolCall: Decodable, Sendable, Equatable {
+    public let id: String
+    public let name: String
+    /// function.arguments 原文（JSON 字符串，可为空串）
+    public let arguments: String
+
+    private struct FunctionBody: Decodable {
+        let name: String?
+        let arguments: String?
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, callID = "call_id", function
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+            ?? container.decodeIfPresent(String.self, forKey: .callID)
+            ?? ""
+        let function = try container.decodeIfPresent(
+            FunctionBody.self, forKey: .function
+        )
+        name = function?.name ?? ""
+        arguments = function?.arguments ?? ""
+    }
+
+    public init(id: String, name: String, arguments: String) {
+        self.id = id
+        self.name = name
+        self.arguments = arguments
+    }
+}
+
+/// 服务端随消息下发的工具调用展示标签（tool_call_labels，
+/// 0.8.0 实查：仅部分消息带）：{"<call_id>": [{"kind":
+/// "mcp", "app": "Box", "action": "browser navigate",
+/// "text": "Box · browser navigate", "name":
+/// "mcp__box__browser_navigate", …}]}。只取 text/name 作
+/// 未知工具的标题兜底，标题主口径仍是客户端中文映射。
+public struct SessionToolCallLabel: Decodable, Sendable, Equatable {
+    public let text: String?
+    public let name: String?
+
+    public init(text: String?, name: String?) {
+        self.text = text
+        self.name = name
+    }
+}
+
 /// 实测样本：{"session_id": "…", "profile": "default",
 /// "messages": [{"id": 1, "role": "user", "content": "…",
 /// "timestamp": 1762…, …}]}
@@ -420,9 +475,23 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
     public let role: String
     public let content: String
     public let timestamp: Double?
+    /// assistant 行的工具调用（0.8.0 起解码；此前只解四
+    /// 字段、工具数据整段丢弃）
+    public let toolCalls: [SessionToolCall]
+    /// tool 行回联键（tool_call_id）与真实工具名
+    /// （tool_name；经 tool_call 间接层的行也带真实名，
+    /// 生产实查坐实——配对与分类都以它为准）
+    public let toolCallID: String?
+    public let toolName: String?
+    /// 服务端展示标签（按 call id 索引，可缺）
+    public let toolCallLabels: [String: [SessionToolCallLabel]]
 
     enum CodingKeys: String, CodingKey {
         case id, role, content, timestamp
+        case toolCalls = "tool_calls"
+        case toolCallID = "tool_call_id"
+        case toolName = "tool_name"
+        case toolCallLabels = "tool_call_labels"
     }
 
     public init(from decoder: Decoder) throws {
@@ -432,6 +501,31 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         role = try container.decodeIfPresent(String.self, forKey: .role) ?? "unknown"
         content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
         timestamp = try container.decodeIfPresent(Double.self, forKey: .timestamp)
+        toolCalls = try container.decodeIfPresent(
+            [SessionToolCall].self, forKey: .toolCalls
+        ) ?? []
+        toolCallID = try container.decodeIfPresent(String.self, forKey: .toolCallID)
+        toolName = try container.decodeIfPresent(String.self, forKey: .toolName)
+        toolCallLabels = try container.decodeIfPresent(
+            [String: [SessionToolCallLabel]].self, forKey: .toolCallLabels
+        ) ?? [:]
+    }
+
+    /// 测试与拼装用直构（解码路径外）
+    public init(
+        id: Double, role: String, content: String, timestamp: Double? = nil,
+        toolCalls: [SessionToolCall] = [], toolCallID: String? = nil,
+        toolName: String? = nil,
+        toolCallLabels: [String: [SessionToolCallLabel]] = [:]
+    ) {
+        self.id = id
+        self.role = role
+        self.content = content
+        self.timestamp = timestamp
+        self.toolCalls = toolCalls
+        self.toolCallID = toolCallID
+        self.toolName = toolName
+        self.toolCallLabels = toolCallLabels
     }
 
     public var date: Date? {

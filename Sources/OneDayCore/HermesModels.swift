@@ -209,14 +209,44 @@ public struct ChatMessage: Codable, Sendable, Equatable {
 /// 思考增量走独立字段（0.5.1，§32）：
 /// {"choices": [{"delta": {"reasoning_content": "…"}}]}
 public struct ChatStreamChunk: Decodable, Sendable {
+    /// 流式工具调用分片（OpenAI 形态，0.8.0）：同 index
+    /// 的 function.name/arguments 分多片到达，客户端累
+    /// 积拼装（ToolCallStreamAccumulator）。服务端是否
+    /// 下发未经生产实测，防御式解码、无此分片零影响。
+    public struct ToolCallFragment: Decodable, Sendable, Equatable {
+        public struct FunctionFragment: Decodable, Sendable, Equatable {
+            public let name: String?
+            public let arguments: String?
+
+            public init(name: String?, arguments: String?) {
+                self.name = name
+                self.arguments = arguments
+            }
+        }
+
+        public let index: Int?
+        public let id: String?
+        public let function: FunctionFragment?
+
+        public init(
+            index: Int?, id: String?, function: FunctionFragment?
+        ) {
+            self.index = index
+            self.id = id
+            self.function = function
+        }
+    }
+
     public struct Choice: Decodable, Sendable {
         public struct Delta: Decodable, Sendable {
             public let content: String?
             public let reasoningContent: String?
+            public let toolCalls: [ToolCallFragment]?
 
             enum CodingKeys: String, CodingKey {
                 case content
                 case reasoningContent = "reasoning_content"
+                case toolCalls = "tool_calls"
             }
         }
 
@@ -237,6 +267,13 @@ public struct ChatStreamChunk: Decodable, Sendable {
         return text
     }
 
+    /// 本分片的工具调用分片（无则 nil）
+    public var toolCallFragments: [ToolCallFragment]? {
+        guard let fragments = choices.first?.delta?.toolCalls,
+              !fragments.isEmpty else { return nil }
+        return fragments
+    }
+
     /// 本分片的思考增量（无思考分片返回 nil）。形态定案
     /// （0.5.1 前置核查，§32）：Hermes 网关 /v1/chat/completions
     /// 流式把 agent 的 reasoning_callback 结构化增量以
@@ -252,8 +289,11 @@ public struct ChatStreamChunk: Decodable, Sendable {
 
 /// 流式通道事件（0.5.1，§32）：正文与思考分开走——
 /// 客户端 chatStream 的元素类型，视图层按通道分别过
-/// 发布闸与呈现（正文进气泡、思考进折叠单元）
+/// 发布闸与呈现（正文进气泡、思考进折叠单元）。
+/// 0.8.0 加工具通道：累积拼装完成的一次工具调用以
+/// ToolCard 整体下发（结果不在流内，恒为 nil）。
 public enum ChatStreamEvent: Equatable, Sendable {
     case content(String)
     case reasoning(String)
+    case toolCall(ToolCard)
 }

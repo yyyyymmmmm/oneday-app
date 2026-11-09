@@ -1,9 +1,11 @@
 import Foundation
 
-/// SSE 一行产生的事件：正文增量、思考增量或流结束。
+/// SSE 一行产生的事件：正文增量、思考增量、工具调用
+/// 分片（0.8.0）或流结束。
 public enum SSEEvent: Equatable, Sendable {
     case delta(String)
     case reasoning(String)
+    case toolCalls([ChatStreamChunk.ToolCallFragment])
     case done
 }
 
@@ -42,6 +44,9 @@ public struct SSEParser: Sendable {
         }
         if let reasoning = chunk.deltaReasoning {
             return .reasoning(reasoning)
+        }
+        if let fragments = chunk.toolCallFragments {
+            return .toolCalls(fragments)
         }
         return nil
     }

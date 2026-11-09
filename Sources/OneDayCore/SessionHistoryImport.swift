@@ -41,6 +41,52 @@ public enum SessionHistoryImport {
         }
     }
 
+    /// 富内容导入项（0.8.0，P1）：普通消息（正文已剥
+    /// 图片附件标记、路径单列）与工具卡（role="tool"）
+    /// 按服务端原序混排；过滤门与旧口径同：正文空且无
+    /// 图的消息不进线程（其工具调用已成卡，不丢）
+    public struct RichItem: Sendable {
+        public let role: String
+        public let content: String
+        public let date: Date?
+        public let imagePaths: [String]
+        public let toolCard: ToolCard?
+
+        public init(
+            role: String, content: String, date: Date?,
+            imagePaths: [String], toolCard: ToolCard?
+        ) {
+            self.role = role
+            self.content = content
+            self.date = date
+            self.imagePaths = imagePaths
+            self.toolCard = toolCard
+        }
+    }
+
+    public static func richItems(
+        from messages: [SessionMessage]
+    ) -> [RichItem] {
+        ToolCardBuilder.build(from: messages).compactMap { item in
+            switch item {
+            case .toolCard(let card, let date):
+                return RichItem(
+                    role: "tool", content: "", date: date,
+                    imagePaths: [], toolCard: card
+                )
+            case .message(let message):
+                let parsed = AttachedImageRef.parse(message.content)
+                guard !parsed.text.isEmpty || !parsed.paths.isEmpty
+                else { return nil }
+                return RichItem(
+                    role: message.role, content: parsed.text,
+                    date: message.date, imagePaths: parsed.paths,
+                    toolCard: nil
+                )
+            }
+        }
+    }
+
     /// 导入线程的标题口径与会话详情同源：首条用户消息
     /// 摘要（ServerSession.contentTitle），无会话元信息
     /// 时回落「未命名会话」

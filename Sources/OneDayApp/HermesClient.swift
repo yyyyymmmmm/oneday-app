@@ -364,10 +364,24 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                    // 0.8.0 修复（P1 实查）：消息按 ChatMessage
+                    // 的 Codable 形态序列化——此前手工拼
+                    // role/content 两字段，多模态消息的
+                    // image_url parts 在出门前被丢弃、图片
+                    // 从未真正发出去（模型层 parts 已落地、
+                    // 客户端接线漏了这一环）
+                    let messageObjects: [[String: Any]] = try messages.map { message in
+                        let data = try JSONEncoder().encode(message)
+                        let object = try JSONSerialization
+                            .jsonObject(with: data)
+                        return object as? [String: Any]
+                            ?? ["role": message.role,
+                                "content": message.content]
+                    }
                     var payload: [String: Any] = [
                         "model": model,
                         "stream": true,
-                        "messages": messages.map { ["role": $0.role, "content": $0.content] },
+                        "messages": messageObjects,
                     ]
                     // 逐请求切上游（0.3.0 接线，DESIGN-V4 §15）：
                     // 清单内模型带 provider=custom——网关裸
@@ -391,6 +405,9 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                         )
                     }
                     let parser = SSEParser()
+                    // 0.8.0：工具调用分片累积——拼装完成即
+                    // 以整卡事件下发，流收尾 flush 余量
+                    var toolAccumulator = ToolCallStreamAccumulator()
                     for try await line in bytes.lines {
                         if Task.isCancelled {
                             throw HermesError.cancelled
@@ -400,7 +417,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                             continuation.yield(.content(text))
                         case .reasoning(let text):
                             continuation.yield(.reasoning(text))
+                        case .toolCalls(let fragments):
+                            for card in toolAccumulator.ingest(fragments) {
+                                continuation.yield(.toolCall(card))
+                            }
                         case .done:
+                            for card in toolAccumulator.flush() {
+                                continuation.yield(.toolCall(card))
+                            }
                             continuation.finish()
                             return
                         case nil:
@@ -408,6 +432,9 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                         }
                     }
                     // 服务端未发 [DONE] 就收尾：已产出内容照常成篇
+                    for card in toolAccumulator.flush() {
+                        continuation.yield(.toolCall(card))
+                    }
                     continuation.finish()
                 } catch let error as HermesError {
                     continuation.finish(throwing: error)

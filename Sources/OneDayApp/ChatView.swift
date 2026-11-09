@@ -105,6 +105,12 @@ struct ChatView: View {
     @State private var topVisibleEntryID: UUID?
     /// 0.4.1：长按「选择」的纯文本 sheet 载荷
     @State private var selectionPayload: SelectionPayload?
+    /// 0.8.0（P1 富内容）：图片全屏查看与文件 QuickLook
+    /// 预览的呈现载荷；流式工具卡列（累积完成即入列、
+    /// 本轮收尾落盘，见 runStream）
+    @State private var imageViewerItem: ChatImageViewerItem?
+    @State private var filePreviewItem: ChatFilePreviewItem?
+    @State private var liveToolCards: [ToolCard] = []
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
     /// GlassEffectContainer＋union 撤销（§11：容器在新承载
     /// 下不再承担布局，且 Session 219 忌玻璃叠玻璃）
@@ -162,6 +168,15 @@ struct ChatView: View {
         // 选型见 DESIGN-V4 §26）
         .sheet(item: $selectionPayload) { payload in
             SelectableTextSheet(text: payload.text)
+        }
+        // 0.8.0（P1）：图片点开全屏查看（本地图与历史
+        // 服务端图共用一个查看器）；文件牌点开走系统
+        // QuickLook（字节先经文件下载通道落临时目录）
+        .fullScreenCover(item: $imageViewerItem) { item in
+            ImageFullScreenView(item: item)
+        }
+        .sheet(item: $filePreviewItem) { item in
+            QuickLookPreview(url: item.url)
         }
         // 0.4.1：引用是发送舱的临时态，切换线程即作废，
         // 不许跨线程带过去；0.7.0 两处增补——草稿轻保活
@@ -730,6 +745,13 @@ struct ChatView: View {
                             .id(entry.id)
                     }
                 }
+                // 0.8.0（P1）：流内工具卡——累积完成即
+                // 入列（结果不在流内、卡面只出动作），
+                // 本轮收尾随助手正文一并落盘
+                ForEach(liveToolCards) { card in
+                    ToolCardView(card: card, isLive: true)
+                        .id("tool-\(card.id)")
+                }
                 if let streamingText {
                     streamingRow(streamingText)
                         .id("streaming")
@@ -1038,7 +1060,11 @@ struct ChatView: View {
 
     @ViewBuilder
     private func bubble(_ entry: ChatEntry) -> some View {
-        if entry.role == "user" {
+        if let card = entry.toolCard {
+            // 0.8.0（P1）：工具卡条目（role="tool"）——
+            // 不进气泡形态、不挂长按菜单、不进发送上下文
+            ToolCardView(card: card)
+        } else if entry.role == "user" {
             HStack {
                 Spacer(minLength: OneDayMetrics.bubbleSideInset)
                 VStack(alignment: .trailing, spacing: OneDayMetrics.spacingXS) {
@@ -1053,6 +1079,27 @@ struct ChatView: View {
                             .clipShape(
                                 RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
                             )
+                            // 0.8.0（P1）：点开全屏查看器
+                            // （双指缩放/双击/下滑关）
+                            .onTapGesture {
+                                imageViewerItem = ChatImageViewerItem(
+                                    source: .data(data)
+                                )
+                            }
+                    }
+                    // 0.8.0（P1）：历史导入的服务端图片
+                    // （标记路径）——缩略经文件下载通道
+                    // 取回，点开同一个全屏查看器
+                    ForEach(entry.remoteImagePaths, id: \.self) { path in
+                        ServerRemoteImage(path: path)
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
+                            )
+                            .onTapGesture {
+                                imageViewerItem = ChatImageViewerItem(
+                                    source: .remotePath(path)
+                                )
+                            }
                     }
                     if !entry.content.isEmpty {
                         // 条 8（§14）：段落渲染前过断行整形
@@ -1095,11 +1142,76 @@ struct ChatView: View {
                         isStreaming: false
                     )
                 }
+                // 0.8.0（P1）：助手消息的服务端图片（历
+                // 史导入形态）与用户侧同口径：缩略＋点开
+                // 全屏
+                ForEach(entry.remoteImagePaths, id: \.self) { path in
+                    ServerRemoteImage(path: path)
+                        .clipShape(
+                            RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
+                        )
+                        .onTapGesture {
+                            imageViewerItem = ChatImageViewerItem(
+                                source: .remotePath(path)
+                            )
+                        }
+                }
                 assistantBubble {
                     MarkdownText(entry.content)
                 }
+                // 0.8.0（P1）：正文里的服务端文件路径出
+                // 文件牌（探测纯函数在 Core，标记图片路
+                // 径已由上面的图片行承接、此处排除）；
+                // 点开经下载通道落临时目录走 QuickLook，
+                // 图片扩展名直接进图片查看器
+                let fileRefs = FileRefDetector.detect(
+                    in: entry.content,
+                    excluding: entry.remoteImagePaths
+                )
+                if !fileRefs.isEmpty {
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingXS
+                    ) {
+                        ForEach(fileRefs, id: \.self) { path in
+                            FileChip(path: path) {
+                                openChatFile(path)
+                            }
+                        }
+                    }
+                }
             }
             .modifier(messageMenu(for: entry))
+        }
+    }
+
+    /// 文件牌点开（0.8.0，P1）：图片扩展名进全屏图片查
+    /// 看器；其余经既有 /api/files/download 取回字节、
+    /// 落临时目录走系统 QuickLook 预览；失败走既有
+    /// notice 人话提示，不白屏
+    private func openChatFile(_ path: String) {
+        if FileRefDetector.isImagePath(path) {
+            imageViewerItem = ChatImageViewerItem(
+                source: .remotePath(path)
+            )
+            return
+        }
+        Task {
+            do {
+                let data = try await appState.performAdmin {
+                    client, config in
+                    try await client.fileData(
+                        config: config, path: path
+                    )
+                }
+                filePreviewItem = try ChatFilePreviewItem.write(
+                    data: data,
+                    name: (path as NSString).lastPathComponent
+                )
+            } catch {
+                notice = (error as? HermesError)?.userMessage
+                    ?? "文件打开失败，请稍后再试。"
+            }
         }
     }
 
@@ -2000,9 +2112,11 @@ private struct ComposerBarLayout: Layout {
 
     /// 打开服务端会话续聊：已有 serverSessionID 关联线
     /// 程直接切换（不重复导入）；否则拉元信息＋消息历
-    /// 史导入新线程（过滤口径在 SessionHistoryImport：
-    /// 只取 user/assistant 有正文者，工具/系统消息不进
-    /// 线程、不进上下文重放）。
+    /// 史导入新线程。导入口径（0.8.0 更新）：user/
+    /// assistant 有正文或带图者＋工具调用卡进线程呈现
+    /// （SessionHistoryImport.richItems）；工具卡与图
+    /// 片只呈现、不进上下文重放（组装只取 user/
+    /// assistant 正文，见 send）。
     /// R1 未验证项（明记）：续聊发送维持现有无状态上下
     /// 文重放链（/v1/chat/completions 不带服务端会话
     /// id）——续聊回合是否回写同一条服务端会话记录未
@@ -2024,12 +2138,20 @@ private struct ComposerBarLayout: Layout {
             let messages = try await appState.performAdmin { client, config in
                 try await client.sessionMessages(config: config, id: id)
             }
-            let entries = SessionHistoryImport.importableEntries(
+            // 标题仍走旧口径（首条用户消息摘要同源）
+            let titleEntries = SessionHistoryImport.importableEntries(
+                from: messages
+            )
+            // 0.8.0（P1）：落盘改富内容导入——工具调用
+            // 成卡、图片标记剥成路径，呈现层有卡有图；
+            // 工具卡 role="tool" 不进发送上下文（send
+            // 组装只取 user/assistant）
+            let entries = SessionHistoryImport.richItems(
                 from: messages
             )
             let thread = ChatThread(
                 title: SessionHistoryImport.threadTitle(
-                    session: session, entries: entries
+                    session: session, entries: titleEntries
                 )
             )
             thread.serverSessionID = id
@@ -2041,7 +2163,9 @@ private struct ComposerBarLayout: Layout {
             modelContext.insert(thread)
             for entry in entries {
                 let chatEntry = ChatEntry(
-                    role: entry.role, content: entry.content, thread: thread
+                    role: entry.role, content: entry.content,
+                    thread: thread, toolCard: entry.toolCard,
+                    remoteImagePaths: entry.imagePaths
                 )
                 if let date = entry.date {
                     chatEntry.createdAt = date
@@ -2092,7 +2216,11 @@ private struct ComposerBarLayout: Layout {
         // ——带引用的消息（含本轮新消息与历史回放）把引
         // 用块拼进 content，引用在每轮重放里持续在场；
         // 无引用的消息原样（纯函数保证）
-        var context = thread.sortedEntries.suffix(20).map {
+        // 0.8.0：先滤角色再取尾 20——工具卡条目（role=
+        // "tool"）只呈现、永不进重放上下文
+        var context = thread.sortedEntries
+            .filter { $0.role == "user" || $0.role == "assistant" }
+            .suffix(20).map {
             ChatMessage(
                 role: $0.role,
                 content: MessageQuote.outgoingContent(
@@ -2123,6 +2251,8 @@ private struct ComposerBarLayout: Layout {
             notice = "文件直发尚未开放：\(fileNames.joined(separator: "、")) 未随本条发送。"
         }
         streamingText = ""
+        // 0.8.0：上一轮的流式工具卡列清空，从本轮累积
+        liveToolCards = []
         sendTask = Task {
             await runStream(thread: thread, messages: context)
         }
@@ -2147,7 +2277,9 @@ private struct ComposerBarLayout: Layout {
         demoStreamStarted = true
         // 等种子渲染落稳再开流，截图窗口对齐流式中段
         try? await Task.sleep(for: .seconds(1))
-        let context = thread.sortedEntries.suffix(20).map {
+        let context = thread.sortedEntries
+            .filter { $0.role == "user" || $0.role == "assistant" }
+            .suffix(20).map {
             ChatMessage(role: $0.role, content: $0.content)
         }
         streamingText = ""
@@ -2219,6 +2351,15 @@ private struct ComposerBarLayout: Layout {
                         if let snapshot = reasoningPublishGate.offer(delta, at: now) {
                             streamingReasoning = snapshot
                         }
+                    case .toolCall(let card):
+                        // 0.8.0：流内拼装完成的工具调用入
+                        // 列呈现（同 id 只入一次，重试轮的
+                        // 重复分片不叠卡）
+                        if !liveToolCards.contains(
+                            where: { $0.id == card.id }
+                        ) {
+                            liveToolCards.append(card)
+                        }
                     }
                 }
                 break
@@ -2282,15 +2423,36 @@ private struct ComposerBarLayout: Layout {
             reasoningSeconds = (ended.timeIntervalSince(started) * 10)
                 .rounded() / 10
         }
-        if !accumulated.isEmpty {
-            modelContext.insert(
-                ChatEntry(
-                    role: "assistant", content: accumulated, thread: thread,
-                    reasoning: reasoningText.isEmpty ? nil : reasoningText,
-                    reasoningSeconds: reasoningText.isEmpty ? nil : reasoningSeconds
-                )
+        // 0.8.0：流内工具卡先落盘（排在助手正文之前，
+        // createdAt 以毫秒错开保序——同刻多条的排序靠
+        // 它），再落助手正文；只有卡没有正文的轮次也
+        // 要落盘（agent 只调工具不说话时卡不丢）
+        let endDate = Date()
+        let cardsToPersist = liveToolCards
+        liveToolCards = []
+        for (index, card) in cardsToPersist.enumerated() {
+            let cardEntry = ChatEntry(
+                role: "tool", content: "", thread: thread,
+                toolCard: card
             )
+            cardEntry.createdAt = endDate.addingTimeInterval(
+                Double(index) * 0.001
+            )
+            modelContext.insert(cardEntry)
+        }
+        if !accumulated.isEmpty {
+            let assistantEntry = ChatEntry(
+                role: "assistant", content: accumulated, thread: thread,
+                reasoning: reasoningText.isEmpty ? nil : reasoningText,
+                reasoningSeconds: reasoningText.isEmpty ? nil : reasoningSeconds
+            )
+            assistantEntry.createdAt = endDate.addingTimeInterval(
+                Double(cardsToPersist.count) * 0.001 + 0.001
+            )
+            modelContext.insert(assistantEntry)
             thread.updatedAt = Date()
+        }
+        if !cardsToPersist.isEmpty || !accumulated.isEmpty {
             try? modelContext.save()
         }
         // 结果触感（0.3.2 纪律，只挂结果事件）：失败

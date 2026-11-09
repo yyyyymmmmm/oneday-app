@@ -3775,3 +3775,17 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 - 不学项守界：无云端线程、无分支式 /side、无自动命名（标题只有钦定/改名/首句派生三路）。
 - 状态行通道口径修正（追加件，用户 16:05 真机截图坐实）：0.6.1 状态只读桥快照——桥 401/抖动即报「联系不上」，与同机刚收到聊天回复自相矛盾。本批改双输入纯函数 OverviewStatusLine.resolve(snapshot:hermesChannelUp:)：「联系不上」只认 Hermes API 通道探活（OverviewBridgeStore 每轮直探 /health，与桥取数独立）；桥挂只降级桥数据（待审批不显示、角标归 0），通道在即「在线」；探活未知退回桥 hermesUp 口径。桥鉴权失败（OverviewBridgeError.noKey/.unauthorized 类型化）回写 AppState.overviewBridgeAuthFailed：设置页「审批桥钥匙」行值位露「桥未连接」、钥匙页加说明行；网络类失败不点旗。单测钉死：桥空快照＋通道正常→「在线」、通道假＋桥称在线→「联系不上」等 8 例。
 - 发版 0.7.0 / build 34（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。
+
+## §34 0.8.0 批（P1 聊天富内容，2026-11-09）
+
+规格＝oneday-design-review/full-build-program-20261109.md P1 包（用户 15:23 硬验收项：照片能打开、工具卡片式、文件能打开，不只是雏形）。视觉沿《设计标准》§5.5/§5.7 与 0.6.1 基线令牌，精修归设计线定稿。
+
+- 载荷冻结（先行一步，只读收割）：经 App 同款管理面只读接口全扫现存 20 条会话 160 条消息——tool_calls 30 条/tool 行 31 条；图片消息 1 条（combo-smoke-pro-1109）；文件消息零样本。脱敏 fixture 冻进 Tests/OneDayCoreTests/RichContentFixtures.swift（browser 会话全量＋combo 节选），渲染逻辑全部对 fixture 写单测。未在生产新跑任何 agent 任务造样本（需另行授权）。
+- 图片落盘形态坐实：user 正文嵌 "[Image attached at: /opt/data/…/x.png]" 标记；本体经既有 GET /api/files/download 取回实测 200＋PNG 魔数＋字节数与目录清单对账（10,472）。AttachedImageRef（Core）剥标记出路径；ChatEntry.remoteImagePathsData 落盘路径列；缩略经文件通道取回（ServerImageCache 进程内缓存），点开 ImageFullScreenView（UIScrollView 双指缩放/双击/下滑关，系统手势本体）。
+- 工具卡管线（Core ToolCards.swift 全纯函数）：SessionMessage 扩解 tool_calls/tool_call_id/tool_name/tool_call_labels；ToolCardBuilder 以 tool_call_id 配对 assistant 调用与 tool 行——真实名优先信 tool 行（间接层行也带真实名，实查坐实），无行时解 tool_call 参数取内层名；ToolCardClassifier 分类（浏览器/电脑/搜索/文件/终端/记忆/技能/视觉/任务/其他）＋中文标题映射（memory/skill_manage 按 operations.action 分）＋参数摘要；ToolResultUnwrap 剥 <untrusted_tool_result>（含免责声明段）并按 result/output/analysis/tools/message 分型，失败只认 exit_code 非 0／success=false。
+- 呈现（RichContentViews.swift）：ToolCardView 按 §5.7 骨架（36×36 圆角 9 图标盒按类取 pastel、标题 15/500、失败 chip、结果超 280 字折叠、终端类等宽）；浏览器导航卡另出地址行（结果首行 "Page: 题（URL）" 解析）。ChatEntry.toolCardData 落盘卡 payload，role 恒 "tool"；发送上下文组装先滤角色（只 user/assistant）再取尾 20——卡永不进重放。
+- 文件牌（无真样本、按实查路径形态施工，验收标待真样本）：FileRefDetector 从助手正文探测 /opt/data/… 绝对路径＋已知扩展名（URL 路径段、裸文件名、图片标记路径排除）；FileChip 按 §5.5 文件牌原式（sky 底、圆角 16）；点开图片扩展名进图片查看器、其余经 fileData 取回落临时目录走系统 QuickLook，失败走 notice 人话提示。
+- 流式工具卡（防御式，未经生产实测）：ChatStreamChunk 解 delta.tool_calls 分片、ToolCallStreamAccumulator 按 index 累积拼装、HermesClient 以 .toolCall 整卡事件下发；ChatView 流中入列呈现（isLive「进行中」）、收尾按毫秒错开 createdAt 落盘在助手正文之前。服务端不下发此分片时恒为空、零影响——待真样本验收。
+- 顺带修复（实查出的接线缺口）：HermesClient.chatStream 此前手工拼 role/content 两字段，多模态消息的 image_url parts 在出门前被丢弃——0.6.1 起模型层已落地的发图能力实际从未发出。本批改按 ChatMessage 的 Codable 形态序列化消息体，parts 随请求出门；纯文本形态与旧拼法逐字等价。
+- 历史导入改 richItems：工具卡与图片路径随消息落盘呈现；标题仍走旧 importableEntries 口径。滚动锚/轻保活按 entry id 工作、对卡条目无感。
+- 发版 0.8.0 / build 36（版本源五处：Project.swift 四字面量＋SettingsView 关于串）。

@@ -58,10 +58,19 @@ final class ChatEntry {
     /// （可选＋默认 nil、SwiftData 轻量迁移）
     var reasoning: String? = nil
     var reasoningSeconds: Double? = nil
+    /// 0.8.0（P1 富内容）：工具调用卡的 JSON 编码 payload
+    /// （OneDayCore.ToolCard）——非 nil 即本条是工具卡
+    /// （role 恒 "tool"），不作气泡渲染、不进发送上下文
+    /// （上下文组装只取 user/assistant，见 ChatView.send）
+    var toolCardData: Data? = nil
+    /// 0.8.0：历史导入消息里服务端图片路径的 JSON 编码
+    /// （[String]）——图片本体在服务器，呈现时经文件
+    /// 下载通道取回；本地发送消息的图片仍走 imageData
+    var remoteImagePathsData: Data? = nil
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = []) {
         id = UUID()
         self.role = role
         self.content = content
@@ -70,8 +79,30 @@ final class ChatEntry {
         quoteContent = quote?.content
         self.reasoning = reasoning
         self.reasoningSeconds = reasoningSeconds
+        toolCardData = toolCard.flatMap {
+            try? JSONEncoder().encode($0)
+        }
+        remoteImagePathsData = remoteImagePaths.isEmpty
+            ? nil
+            : try? JSONEncoder().encode(remoteImagePaths)
         createdAt = Date()
         self.thread = thread
+    }
+
+    /// 工具卡 payload 解码（无或损坏为 nil）
+    var toolCard: ToolCard? {
+        guard let toolCardData else { return nil }
+        return try? JSONDecoder().decode(
+            ToolCard.self, from: toolCardData
+        )
+    }
+
+    /// 服务端图片路径（历史导入消息用）
+    var remoteImagePaths: [String] {
+        guard let remoteImagePathsData else { return [] }
+        return (try? JSONDecoder().decode(
+            [String].self, from: remoteImagePathsData
+        )) ?? []
     }
 
     /// 落盘两字段 → 引用值对象（任一缺失即无引用）
