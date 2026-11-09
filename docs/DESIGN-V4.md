@@ -2698,3 +2698,146 @@ OneDay）的逐像素采样，逐项销账：
   （补记：副题字符串另有 SessionDisplayTests 三断
   言钉旧值，run 42551812746 抓红后同步更新——改
   字符串口径时测试期望同改，此为其职）
+
+## §27 0.4.2 热修批销账（抽屉结构纠正＋聊天双缘柔效＋划到底抖动定因，2026-11-09）
+
+版本 0.4.2／build 26，分支 feat/ia-v3。触发：用户已装
+0.4.1 在用，10:54 真机标注两图（Muse 本体侧边栏圈
+标 1/2＋Muse 聊天页圈上下缘）＋报一 bug（对话划到
+底抖动）。范围只此三件：不碰二期逐页迁移；未动
+Hermes 服务端；无截图工作流新增/复活。发版三处版本
+源同改（Project.swift 工程设置＋infoPlist 字面量＋设
+置页关于行字串），交付前解包验 Info.plist（§25.7）。
+CI run 与单测数见本节末交付记录。
+
+### 27.1 抽屉结构纠正：头尾钉住、中段滚动、两端渐隐
+
+口径沿革如实记：0.4.1 第 2 修按用户 10:06「不分上
+下几栏、一栏可滚」做成整栏单 ScrollView（头/名单/
+底条一起滚）；10:54 用户对照 Muse 本体侧边栏标注
+图把口径定清——**标 1（顶部智能体名区）不滚、标 2
+（底部齿轮/搜索/新建行）不滚、中间名单区滚动，且
+滚动内容在头尾两端朦胧渐隐**（标注图里最下方「旁
+聊」一行半融在底条上方）。0.4.1 的整栏全滚读法就此
+作废，以本节为准。
+
+- [x] 结构改：名单 ScrollView 居中（drawerNavList
+＋drawerList），drawerAgentName 经.safeAreaInset
+(edge:.top) 钉顶、drawerBottomBar 经.safeArea-
+Inset(edge:.bottom) 钉底——条即安全区的系统通道
+（与聊天页发送舱同式，WWDC25-323），内容从头尾
+两区下方滑过
+- [x] 渐隐改：名单 ScrollView 上下两缘挂.scroll-
+EdgeEffectStyle(.soft)——滑到头尾边界时内容朦胧
+化开，不用实色渐变带假冒（0.4.0 删 topFade 的同
+一纪律）；0.4.1 只有底缘一条柔效是整栏结构的产
+物，本版两缘齐备、且柔效落在中段滚动区本体上
+- [x] 头尾材质与面板同源：两区不设自有背景，透出
+的即面板底色 #FCFCFC（§26.10 量测口径）；面板其
+余量测不变——宽 75%、通顶贴边、#EEEFF1 选中、
+纱（ultraThinMaterial＋#F4F4F6@0.66）＋贴边窄
+影、开抽屉 toolbarVisibility 藏底栏（第 8 修）
+- [x] 底条下边距改：safeAreaInset 结构下安全区已把
+条抬到 home indicator 之上，下边距只留 4——旧
+「安全区 inset＋4」公式（DrawerGeometry.bottom-
+BarBottomPadding）是内容直达屏底结构的手算补
+位，在此叠加即双重计算、条被抬高一截，本处用
+法退役（纯函数本体与单测留档不删）；条落点与旧
+口径一致（中心约屏高 92.5%）
+- [x] 退役件：整栏 minHeight 撑满（GeometryReader
+测高）＋Spacer 推底条整套删除；drawerOverlay/
+drawerPanel/drawerBottomBar 的 bottomInset 参数
+链随之撤销（安全区口径归系统，不再由 body 手传）
+
+### 27.2 聊天页上下边缘：M3 双缘柔效提前落地
+
+用户第二张标注图（Muse 聊天页）：顶部圆钮＋身份
+胶囊是浮层、消息滚到其下方朦胧发虚；底部输入卡与
+底栏是浮在内容之上的玻璃簇、消息从其下方流过渐
+隐。本为二期 M3 卡（phase2-build-cards），本批提
+前。审计 §6.1 同源（正式修法＝删自加背景＋顶栏收
+系统通道让柔效接管＋底部补挂.soft）。
+
+- [x] 顶缘：0.4.0 已落地（topFade 整层删除＋.scroll-
+EdgeEffectStyle(.soft, for:.top)＋顶栏 overlay
+只剩 headerBar 本体）——本批复核无回退、无实色
+遮罩残留（全文件 grep 渐变/遮罩只剩删除注记）
+- [x] 底缘：消息 ScrollView 补.scrollEdgeEffect-
+Style(.soft, for:.bottom)——消息流向发送舱（底
+部 safeAreaInset 玻璃簇）时朦胧化开、不再硬切到
+发送舱上沿；发送舱维持布局流不回退 0.2.6 覆盖
+结构（与样板「舱下流过」的差异已于审计 §6.1 明
+记：本版以柔效补齐渐隐一职，不动承载）
+- [x] 顶栏浮层与发送舱/底栏维持系统玻璃现状（0.4.1
+发送舱已回.glassEffect 系统玻璃卡、底栏原生玻
+璃坞），本批不改其形态
+
+### 27.3 对话划到底抖动：定因与修法
+
+定因（证据链，逐条对代码实查）：
+
+1. **流式跟随滚动追逐移动靶（流式时主因）**：
+runStream 每收到一个增量即写 streamingText（无
+节流，SSE 增量每秒可达数十次）；其 onChange 在
+isNearBottom 时调 scrollToBottom——而 scrollTo-
+Bottom 是 withAnimation(easeInOut 0.25) 的动画滚
+动，目标「bottom」锚点随流式行（StreamingText 逐
+字入场）生长不断下移。每来一字就重启一条 0.25s
+动画去追一个移动靶，动画永远落在靶后、又被下
+一字打断重瞄——到底处呈脉冲式抖动。落盘瞬间流
+式行换 Markdown 成品（测高不同）再叠一次条目数
+变化的动画滚动。
+2. **底部 inset 高度骑欠阻尼弹簧（手动划到底主
+因）**：「回到底部」钮住在底部 safeAreaInset 的
+bottomBar 里，它的显隐直接增减消息列表的底部
+inset 高度、而列表底部锚点就骑在这个高度上。
+该容器的高度变化动画用 microSpring——令牌册自
+注 stiffness 380/damping 18、ζ≈0.46「欠阻尼、
+微弹」，本是点按浮钮的出入档；拿它动画锚点所
+骑的高度，过冲使锚点随弹簧越过终点再摆回，划
+过显隐阈值一次就摆一轮。
+3. **贴底判定单阈值逐帧翻转（放大器）**：isNear-
+Bottom 是 <140 单阈值即时判定（onScrollGeometry-
+Change 直写）。距底距离在 140 附近游走（橡皮
+筋回弹、LazyVStack 测高修订）时判定逐帧翻转，
+第 2 条的钮显隐与第 1 条的跟随滚动随之反复触发。
+4. **次因（只记不治）**：.tabBarMinimizeBehavior
+(.onScrollDown)（0.4.1 第 4 修，用户点名要）收
+展切换会改变列表底部安全区，与第 2 条同向叠加；
+LazyVStack＋MarkdownText 无固定高、长列表落底
+时总高有小幅测高修订。两者都是平台行为面，本
+版以「inset 与判定稳定」收敛其可见后果，不撤
+功能、不假装根除。
+
+修法（与定因逐条对应）：
+
+- [x] 跟随滚动去动画：scrollToBottom 加 animated
+参数——人发起的（回到底部钮、键盘锚底）保留动
+画曲线；内容跟随（条目数变化、流式生长）一律
+animated: false 一步贴合当前底部，移动靶问题消
+解为「每次都精确落在当前底部」
+- [x] 流式节流：新增 OneDayCore.StreamFollowGate
+——每新增 ≥40 字才放行一次跟随贴底；流结束
+（streamingText=nil）归零、最后一贴由条目数变
+化事件承担；切换线程同步归零
+- [x] 判定迟滞：新增 OneDayCore.BottomProximity
+——进入 <96／退出 ≥176 双阈值、带内保持原态；
+onScrollGeometryChange 改回写距底距离、经纯函
+数更新 isNearBottom，阈值附近不再翻转
+- [x] inset 高度去弹簧过冲：bottomBar 容器动画由
+microSpring 改 swap（easeInOut 0.2、单调无过
+冲）——钮出入观感仍在，高度只单调滑到终点，不
+再带着列表底部锚点摆动
+- [x] 构造断言：BottomFollowTests 8 例钉死——迟
+滞两向带内保持/进入/退出边界/橡皮筋负距、节流
+闸不足增量不放行/累计放行/reset 重整/新流短文
+本从零计（Tests/OneDayCoreTests/BottomFollow-
+Tests.swift）
+- [] 真机复验归用户：流式中到底不脉冲、手动划
+到底不摆、过阈值钮出入列表不弹跳（本批无真机
+证据，遵例只报构造与单测）
+
+### 27.4 交付记录（0.4.2）
+
+- 待回填：commit / CI run / 单测数 / IPA 字节与解
+包验版结果，交付动作完成后补记于此

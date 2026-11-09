@@ -54,6 +54,10 @@ struct ChatView: View {
     @State private var renameText = ""
     /// 消息区是否贴近底部：决定自动跟随滚动与「回到底部」钮
     @State private var isNearBottom = true
+    /// 流式跟随滚动节流闸（0.4.2，§27）：OneDayCore
+    /// 纯逻辑记账，每 ≥40 字放行一次无动画贴底；流结
+    /// 束与切换线程时归零（见 messageList 的 onChange）
+    @State private var streamFollowGate = StreamFollowGate()
     /// 列表可视高（0.3.5，§20）：onScrollGeometryChange
     /// 回写，喂消息内容栈的撑满 minHeight——点空白收键
     /// 盘的命中域（见 messageList 撑满注）
@@ -123,8 +127,7 @@ struct ChatView: View {
                     width: min(
                         geo.size.width * OneDayMetrics.drawerWidthFraction,
                         OneDayMetrics.drawerMaxWidth
-                    ),
-                    bottomInset: geo.safeAreaInsets.bottom
+                    )
                 )
             }
         }
@@ -137,6 +140,8 @@ struct ChatView: View {
         // 不许跨线程带过去
         .onChange(of: currentThreadID) { _, _ in
             pendingQuote = nil
+            // 0.4.2：流式节流闸不跨线程带账
+            streamFollowGate.reset()
         }
         // 0.4.1（用户 10:09 点名）：抽屉打开时底栏不许
         // 露面——绑定 drawerOpen 的系统 toolbarVisibility
@@ -429,12 +434,19 @@ struct ChatView: View {
             inputBar
         }
         .fixedSize(horizontal: false, vertical: true)
-        // 条 9（§14）：回到底部钮的出入是小动作类，动画走
-        // 定版 microSpring（380/18 微弹）；0.3.2 统一经
-        // resolved 出口（Reduce Motion 时瞬时）
+        // 条 9（§14）动画口径 0.4.2 收紧（§27）：本容
+        // 器的高度就是消息列表的底部 inset——回到底部
+        // 钮显隐时容器高度随之增减，列表的底部锚点骑
+        // 在这个高度上。原用 microSpring（380/18、ζ≈
+        // 0.46 欠阻尼、令牌册自注「微弹」）动画这段高
+        // 度，过冲使锚点随弹簧来回摆——划到底抖动的
+        // 一环。改走 swap（easeInOut 0.2、单调无过冲）：
+        // 钮的出入观感仍在，高度只单调滑到终点；钮本
+        // 体的点按反馈不经此处、不受影响。0.3.2 统一经
+        // resolved 出口（Reduce Motion 时瞬时）不变
         .animation(
             MotionTokens.resolved(
-                MotionTokens.microSpring, reduceMotion: reduceMotion
+                MotionTokens.swap, reduceMotion: reduceMotion
             ),
             value: isNearBottom
         )
@@ -545,6 +557,13 @@ struct ChatView: View {
         // 保持悬浮覆盖形态
         .contentMargins(.top, 88, for: .scrollContent)
         .scrollEdgeEffectStyle(.soft, for: .top)
+        // 0.4.2（用户 10:54 圈图点名，二期 M3 卡提前落
+        // 地）：底缘同挂柔效——消息流向发送舱（底部
+        // safeAreaInset 的玻璃簇）时朦胧化开、不再硬切
+        // 到发送舱上沿；与顶缘同走系统 scrollEdgeEffect
+        // 通道（WWDC25-323），全页无实色遮罩残留
+        // （topFade 已于 0.4.0 整层删除）
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
         .contentMargins(.bottom, OneDayMetrics.spacingS, for: .scrollContent)
         // 0.2.6 承载换代核心：发送区进列表的底部安全区
         // 留位——Exyte/Stream 式「列表＋发送区同处布局流」
@@ -556,11 +575,20 @@ struct ChatView: View {
             bottomBar(proxy)
         }
         .scrollDismissesKeyboard(.interactively)
-        .onScrollGeometryChange(for: Bool.self) { geometry in
+        // 距底距离回写（0.4.2，§27）：判定改迟滞双阈值
+        // （OneDayCore.BottomProximity：进入 <96／退出
+        // ≥176、带内保持原态）——0.4.1 前是 <140 单阈
+        // 值即时翻转，距离在阈值附近游走时 isNearBottom
+        // 逐帧翻转、连带「回到底部」钮显隐（底部 inset
+        // 高度）与跟随滚动反复触发，是划到底抖动的放
+        // 大器之一
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.contentSize.height - geometry.contentOffset.y
-                - geometry.containerSize.height < 140
-        } action: { _, nearBottom in
-            isNearBottom = nearBottom
+                - geometry.containerSize.height
+        } action: { _, distance in
+            isNearBottom = BottomProximity.update(
+                distance: distance, wasNearBottom: isNearBottom
+            )
         }
         // 列表可视高回写（0.3.5）：喂内容栈的撑满
         // minHeight（点空白收键盘命中域，见栈内撑满注）
@@ -573,13 +601,31 @@ struct ChatView: View {
         // 不挂 ScrollView 本体——其命中域含发送舱 inset
         .onChange(of: currentThread?.sortedEntries.count) { _, _ in
             // 用户已上翻看历史时不强拉回底（0.2.2 交互专项）
+            // 0.4.2（§27）：跟随贴底改无动画一步贴合——
+            // 带 0.25s 动画的 scrollTo 追逐随内容生长移
+            // 动的锚点、永远在追移动靶，是到底抖动的主
+            // 因；人发起的滚动（回到底部钮/键盘锚底）仍
+            // 走动画，见 scrollToBottom
             if isNearBottom {
-                scrollToBottom(proxy)
+                scrollToBottom(proxy, animated: false)
             }
         }
-        .onChange(of: streamingText) { _, _ in
-            if isNearBottom {
-                scrollToBottom(proxy)
+        .onChange(of: streamingText) { _, newText in
+            // 0.4.2（§27）：流式跟随加节流闸（OneDayCore
+            // .StreamFollowGate）——0.4.1 前每个流式增量
+            // 都触发一次贴底滚动，增量以每秒数十次到达、
+            // 滚动动画无限重启追逐移动靶。本版每 ≥40 字
+            // 放行一次无动画贴底；流结束（nil）归零闸门，
+            // 最后一贴由上方条目数变化事件承担
+            guard let newText else {
+                streamFollowGate.reset()
+                return
+            }
+            if isNearBottom,
+               streamFollowGate.shouldFollow(
+                   currentCount: newText.count
+               ) {
+                scrollToBottom(proxy, animated: false)
             }
         }
         // 0.3.3 键盘锚底（真机第 3 条）：点输入框时页面本
@@ -618,12 +664,24 @@ struct ChatView: View {
         }
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(
-            MotionTokens.resolved(
-                MotionTokens.pageCrossfade, reduceMotion: reduceMotion
-            )
-        ) {
+    /// 滚到底部锚点。animated=true 只给人发起的滚动
+    /// （回到底部钮、键盘锚底）：走页面过渡曲线滑过
+    /// 去；内容跟随（新条目落地、流式生长）必须
+    /// animated=false 一步贴合当前底部——0.4.2 定因：
+    /// 带动画的 scrollTo 追逐随内容生长不断移动的锚
+    /// 点，是划到底抖动的主因（§27）
+    private func scrollToBottom(
+        _ proxy: ScrollViewProxy, animated: Bool = true
+    ) {
+        if animated {
+            withAnimation(
+                MotionTokens.resolved(
+                    MotionTokens.pageCrossfade, reduceMotion: reduceMotion
+                )
+            ) {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        } else {
             proxy.scrollTo("bottom", anchor: .bottom)
         }
     }
@@ -1417,17 +1475,17 @@ private struct ComposerBarLayout: Layout {
             : min(drawerDrag, width)
     }
 
-    /// 抽屉覆盖层：白色半透纱＋peek 面板（宽约 79%、
-    /// 上限 340；0.3.6 立宪，§21.3）＋左缘唤出手势层。
-    /// 面板盖住聊天主面与悬浮顶栏，右侧约 21% 底层在
-    /// 纱下透出。底栏关系两度改口：0.4.0 曾按审计推荐
-    /// 案「不为抽屉态隐藏底栏、底条经安全区让位」；
-    /// 0.4.1 用户真机点名推翻——抽屉开时底栏经
-    /// toolbarVisibility 隐藏（见 body），bottomInset
-    /// 随之只剩 home indicator、底条落真底边（见
-    /// drawerBottomBar）。
+    /// 抽屉覆盖层：白色半透纱＋peek 面板（宽 75%、
+    /// 上限 340；0.3.6 立宪，§21.3，宽度 0.4.1 第 10
+    /// 修量测改 75%）＋左缘唤出手势层。面板盖住聊天
+    /// 主面与悬浮顶栏，右侧约 25% 底层在纱下透出。
+    /// 底栏关系两度改口：0.4.0 曾按审计推荐案「不为
+    /// 抽屉态隐藏底栏、底条经安全区让位」；0.4.1 用户
+    /// 真机点名推翻——抽屉开时底栏经 toolbarVisibility
+    /// 隐藏（见 body），底条随之落真底边（见
+    /// drawerPanel 的 safeAreaInset 钉底）。
     @ViewBuilder
-    private func drawerOverlay(width: CGFloat, bottomInset: CGFloat) -> some View {
+    private func drawerOverlay(width: CGFloat) -> some View {
         // 跟手偏移：基准位（开 0 / 合 -width-8）＋跟手量
         let base = drawerOpen ? 0 : -width - 8
         let offsetX = base + drawerFollowedDrag(width: width)
@@ -1447,7 +1505,7 @@ private struct ComposerBarLayout: Layout {
             .opacity(progress)
             .allowsHitTesting(drawerOpen)
             .onTapGesture { setDrawer(false) }
-        drawerPanel(width: width, bottomInset: bottomInset)
+        drawerPanel(width: width)
             .offset(x: offsetX)
             .gesture(drawerDragGesture(width: width))
         if !drawerOpen {
@@ -1460,41 +1518,36 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    private func drawerPanel(width: CGFloat, bottomInset: CGFloat) -> some View {
-        // 单栏滚动（0.4.1，用户 10:06 点名「不分上下几
-        // 栏，是一栏，可以上下滚动」）：0.4.0 的结构是
-        // VStack{名字/名单/List(自带滚动)/底条钉底}——
-        // 视觉上就是上下几栏。本版整栏改一个 ScrollView：
-        // 名字、名单、会话组、底条同属一个 VStack 一栏
-        // 到底；内容不足一屏时 VStack 以 minHeight＝
-        // 面板高撑满、Spacer 把底条推到栏底（结构上仍
-        // 是同一滚动栏，不是独立钉底分区）；内容超一屏
-        // 时整栏连底条一起滚。List 退役（其行本就全是
-        // 自控素行、无 swipeActions，见 drawerList 注）
-        GeometryReader { panelGeo in
-            ScrollView {
-                VStack(spacing: 0) {
-                    drawerAgentName
-                    drawerNavList
-                    drawerList
-                    Spacer(minLength: 0)
-                    // 底条（0.3.8 第 22 条的落点诉求保留）：
-                    // 下边距口径见 drawerBottomBar——0.4.1
-                    // 起抽屉开时底栏隐藏（body 的 toolbar-
-                    // Visibility 绑定），bottomInset 只剩
-                    // home indicator，底条落屏幕真底边
-                    drawerBottomBar(bottomInset: bottomInset)
-                }
-                .frame(
-                    minHeight: panelGeo.size.height,
-                    alignment: .top
-                )
+    private func drawerPanel(width: CGFloat) -> some View {
+        // 头尾钉住＋中段滚动（0.4.2，用户 10:54 对照
+        // Muse 本体标注图纠正，取代 0.4.1 的整栏全滚
+        // 读法）：标 1 智能体名区不滚、标 2 底条（齿轮
+        // /搜索/新建）不滚、只有中间名单区滚动，且滚
+        // 动内容滑到头尾两端时朦胧渐隐（标注图里最下
+        // 方一行半融在底条上方即此）。结构：名单
+        // ScrollView 居中，名字与底条经 safeAreaInset
+        // 钉进它的上下安全区——与聊天页发送舱同一系
+        // 统通道（条即安全区、内容从其下方滑过），上
+        // 下两缘的化开由 .scrollEdgeEffectStyle(.soft)
+        // 承担（WWDC25-323），不用实色渐变带假冒。
+        // 头尾两区不设自有背景：透出的就是面板底色
+        // （#FCFCFC，§26 第 10 修量测口径不变），材质
+        // 与面板同源。0.4.1 的整栏 VStack＋minHeight
+        // 撑满＋Spacer 推底条整套随之退役
+        ScrollView {
+            VStack(spacing: 0) {
+                drawerNavList
+                drawerList
             }
-            .scrollDismissesKeyboard(.interactively)
-            // 底部渐隐（0.4.1 第 10 修）：内容滚到栏底
-            // 时以系统滚动边缘柔效淡出、不设硬边——
-            // 「不设硬边＋圆角收尾改渐隐」的系统落点
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            drawerAgentName
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            drawerBottomBar
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
@@ -1658,7 +1711,7 @@ private struct ComposerBarLayout: Layout {
     /// 义卡「控件跟内容走」：搜索只服务这份会话名单、
     /// 就贴在名单脚下）。圆钮映射为施工选择、规格只
     /// 定几何，§21.3 在案。
-    private func drawerBottomBar(bottomInset: CGFloat) -> some View {
+    private var drawerBottomBar: some View {
         // 0.3.8 第 23 条：三件紧凑成组——横边距 20→12、
         // 件间距 12→8，搜索胶囊随之拉长（面板宽约 310
         // 时胶囊约 166–174，Muse 实测约 173）
@@ -1716,21 +1769,17 @@ private struct ComposerBarLayout: Layout {
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingSM)
-        // 底边距（第 22 条＋0.4.1 口径）：下边距＝系统
-        // 安全区底 inset＋4，代码不手算。沿革：0.3.8 自
-        // 绘栏时代 inset 只含 home indicator；0.4.0 原生
-        // 底栏可见时 inset 含底栏高、底条被抬到底栏之
-        // 上（当版真机被判「抽屉开着底栏还露着」）；
-        // 0.4.1 抽屉开即隐藏底栏（body 的 toolbar-
-        // Visibility 绑定），inset 回落 home indicator、
-        // 底条落屏幕真底边——与自绘栏时代同落点、走的
-        // 是系统通道
-        .padding(
-            .bottom,
-            DrawerGeometry.bottomBarBottomPadding(
-                safeAreaBottom: bottomInset
-            )
-        )
+        // 底边距（0.4.2 结构纠正）：本条已由 drawerPanel
+        // 经 safeAreaInset 钉在名单 ScrollView 的底部安
+        // 全区——安全区本身已把条抬到 home indicator 之
+        // 上，下边距只留 4 呼吸量，落点与旧口径一致
+        // （条中心约 92.5%）。沿革：0.3.8–0.4.1 整栏/
+        // 内容直达屏底的结构下，下边距须手算「安全区
+        // 底 inset＋4」（DrawerGeometry.bottomBar-
+        // BottomPadding），在 safeAreaInset 结构里再叠
+        // 一次就是双重计算、条会被抬高一截，故本处用
+        // 法退役（纯函数本体与单测留档不删）
+        .padding(.bottom, 4)
     }
 
     private func drawerRoundButton(
