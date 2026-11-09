@@ -3019,3 +3019,47 @@ Material 打底方案撤销，改走「把 bar 注册进系
 - 未验证（如实标注）：顶/底化开强度、抽屉底
   条落点与搜索键盘跟随、聊天键盘四项（28.4）
   均无自动证据，归用户真机终审
+
+### 28.9 底栏图标空心钉死（11:22 追加，并入本批）
+
+用户点名：底部导航栏图标要空心不要实心，跟
+Muse 一样；11:10 真机截图实证 0.4.1 的「图标
+锁 outline」在真机没成立（选中态聊天格仍是实
+心双气泡）。范围只限底部导航栏四格，抽屉内图
+标本批不动。
+
+- [x] 四格符号名逐个核对（OneDayCore.TabBar-
+  Symbols，单一事实源）：聊天 bubble.left.and.
+  bubble.right／总览 chart.line.uptrend.xyaxis
+  ／文件 folder／设置 slider.horizontal.3——全
+  是 outline 本体名、无一带 .fill；selected≡
+  normal 四格全等。TabBarSymbolsTests 三组钉
+  死（全表钉死／全表禁 .fill／两态同名）。**数
+  据层无病**。
+- [x] 0.4.1 为什么没生效（定因）：两道锁都挂
+  在系统不读的层级。①符号表 selected≡normal
+  只堵「应用主动报 fill 名」——系统给选中条目
+  换图根本不需要应用报名：底栏宿主以基础符号
+  名在其变体族内直接取 .fill 变体作选中图（该
+  族内 bubble.left.and.bubble.right 的 .fill 变
+  体实存于 SF Symbols）。②.symbolVariant
+  (.none) 挂在 tabLabel 的 Label 字形子树里—
+  —SwiftUI 的底栏条目不是由 Label 子树就地渲
+  染的，而是由 TabView 宿主**以 TabView 层的
+  环境**统一构建，子树里设的环境值到不了构建
+  处。证据链：代码位置（ContentView tabLabel）
+  ＋单测证明数据层已锁死仍出实心＋真机截图
+  （选中格实心、无内部留白＝.fill 变体渲染本
+  人）。0.4.1 销账把「构造上有锁」当成了「呈
+  现已生效」，是构造自证代替真机口径的老问题
+  在图标上的复发。
+- [x] 本批修法：ContentView 的 TabView 根加
+  .environment(\.symbolVariants, .none)——注
+  入到宿主构建条目时真正读取的那一层，全格全
+  状态不变体；tabLabel 内 .symbolVariant(.none)
+  保留作第二道锁并已在注释里标明其单独无效；
+  字重不另设、随系统 regular 直渲（与 §22.6 框
+  架图标 regular 口径一致）；文件头与 tabLabel
+  的 0.4.1 注释已加纠正标注、不改史。
+- [] 真机复验归用户：四格在选中/未选两态均
+  为空心细线（本批无真机证据）。

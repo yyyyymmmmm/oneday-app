@@ -21,7 +21,9 @@ import SwiftUI
 /// 0.4.1 底栏向 Muse 本体靠（用户点名，全用原生件）：
 /// ①图标锁 outline——符号表 selected≡normal 之外，
 /// Label 字形再加 .symbolVariant(.none)，堵系统在选中
-/// 态自动换 .fill 变体的通道（0.2.5 时代实证）；②根
+/// 态自动换 .fill 变体的通道（0.2.5 时代实证）【0.4.3
+/// 纠正：此锁挂错层级、真机未生效，变体锁改挂 Tab-
+/// View 根环境，定因与修法见 §28.9】；②根
 /// .tint 由系统默认蓝改 .primary 单色（去蓝；连带页面
 /// 残余强调位一并单色化——发送键/光标/主按钮，全仓
 /// Palette.primary* 引用共 7 处、均为框架强调位，与
@@ -97,6 +99,15 @@ struct ContentView: View {
         // tabBarMinimizeBehavior（.onScrollDown）
         .tint(.primary)
         .tabBarMinimizeBehavior(.onScrollDown)
+        // 0.4.3（§28.9，用户 11:22 点名）：变体锁改挂
+        // 本层——TabView 宿主以**本层环境**构建底栏条
+        // 目，0.4.1 把 .symbolVariant(.none) 挂在 Label
+        // 字形子树里、宿主构建条目时根本读不到，选中
+        // 态仍被系统换成 .fill 变体（11:10 真机截图实
+        // 证）。根环境注入 .none 后全格全状态不变体；
+        // tabLabel 内的 .symbolVariant(.none) 保留作第
+        // 二道锁（单独无效、叠加无冲突）
+        .environment(\.symbolVariants, .none)
         // 0.4.0（§3.4）：任一入口置位待续聊会话 → 切聊天格
         // （ChatView 侧消费导入；已在聊天格时 onChange 同样
         // 触发、由 ChatView 直接消费）
@@ -109,6 +120,11 @@ struct ContentView: View {
     /// 字形锁 outline——.symbolVariant(.none) 禁系统在
     /// 选中态自动替换 .fill 变体（符号表本身 selected≡
     /// normal 是第一道锁、此处是呈现侧第二道锁）
+    /// 0.4.3 纠正（§28.9）：第二道锁单独**无效**——底
+    /// 栏条目由 TabView 宿主以根环境构建、本子树的环
+    /// 境到不了构建处；有效锁在 body 的 TabView 根
+    /// .environment(\.symbolVariants, .none)，此处保留
+    /// 仅作叠加
     private func tabLabel(_ pair: TabSymbolPair) -> some View {
         Label {
             Text(pair.title)
