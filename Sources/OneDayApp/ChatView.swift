@@ -106,11 +106,9 @@ struct ChatView: View {
     /// 撤销——它由 Layout 内异步回写、滞后布局一拍，是
     /// 0.3.4 真机回车重影的定因（见 §20.1）
     @State private var composerCapsuleHeight: CGFloat = 46
-    /// 发送区（safeAreaBar 内容）实测总高（0.4.5）：由
-    /// bottomBar 的 onGeometryChange 回写，喂底缘 E11
-    /// 模糊带的带长——带底必须收在发送区底缘、不许再
-    /// 向下延到导航坞下方（用户 11:47 点名，§30）
-    @State private var composerBarHeight: CGFloat = 62
+    // （0.6.1 删残：composerBarHeight 随底缘 E11 带删
+    // 除失去唯一消费者——它当年由 bottomBar 实测回写
+    // 只喂带长计算，带删后状态与回写一并撤）
     // （0.3.8 删残：tabBarZone 本地副本随抽屉钉底删除——
     // 它唯一的用途是抽屉面板底部占位，第 22 条已废）
 
@@ -287,6 +285,12 @@ struct ChatView: View {
         .task {
             await appState.refreshModelCatalog()
         }
+        // 身份名全局解析（0.6.1）：聊天页是默认格、首
+        // 先出现，在此触发一次（AppState 内幂等）；胶
+        // 囊/抽屉/活动页三处显示名共用解析结果
+        .task {
+            await appState.resolveIdentityNameIfNeeded()
+        }
         // 0.6.0（蓝图 §4 一期）：枢纽页 sheet 入口退役——
         // 枢纽内容已转正为活动格（AgentHubView 的
         // .activity 模式，全 App 只此一份实现）；身份
@@ -306,14 +310,17 @@ struct ChatView: View {
     /// EffectStyle(.soft) 单独承担；顶栏收编系统通道与
     /// 玻璃换装归二期材质批）
 
-    /// 顶栏状态行（0.6.0，总览桥口径）：词由 OneDayCore
-    /// .OverviewStatusLine 对桥快照纯派生（连不上→「暂时
-    /// 联系不上」／待审批→「有 N 条待你审批」／活跃会话
-    /// →「正在处理会话」／否则「随时待命」）；0.3.8 的
-    /// 本地三态（未连接/唤醒中/生成中/在线）自此退役——
-    /// 生成中/唤醒中在本页消息区自有呈现，不占顶栏状态行
+    /// 顶栏状态行（0.6.0，总览桥口径；0.6.1 改短词）：
+    /// 词由 OneDayCore.OverviewStatusLine 对桥快照纯
+    /// 派生，只报可证事实短词（联系不上／待审批 N／
+    /// 在线）；完整状态句在活动页页头，本行不许再回
+    /// 长句（0.6.0 的「有 N 条待你审批」等长句在胶囊
+    /// 里必被截成「…」，见 identityCapsule 根修注）。
+    /// 0.3.8 的本地三态（未连接/唤醒中/生成中/在线）
+    /// 早已退役——生成中/唤醒中在本页消息区自有呈现，
+    /// 不占顶栏状态行
     private var overviewStatusWord: String {
-        overviewStore?.statusLine ?? "暂时联系不上"
+        overviewStore?.statusLine ?? "联系不上"
     }
 
     /// 状态点色与状态词同源：不可达弱色、待审批警示、
@@ -404,7 +411,10 @@ struct ChatView: View {
                         if overviewBadgeCount > 0 {
                             Text("\(overviewBadgeCount)")
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(Palette.onPrimary)
+                                // 角标坐在 danger 面上，字恒白
+                                // （0.6.1：onPrimary 已改深字口径、
+                                // 不再借作白字）
+                                .foregroundStyle(Color.white)
                                 .padding(.horizontal, 4)
                                 .frame(minWidth: 18, minHeight: 18)
                                 .background(Palette.danger, in: Capsule())
@@ -453,13 +463,27 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
-    /// 身份胶囊（0.6.0）：一颗白浮纸胶囊，左域＝三狗头像
-    /// ＋Hermes＋状态点/状态行（点按跳活动格），右域＝
-    /// 模型 Menu（分隔线＋短名＋chevron）。形态沿 0.4.0
-    /// A 案的一颗装口径，只换数据源（状态行走总览桥）
-    /// 与点按分工；模型全名在 Menu 与无障碍标签里给全，
-    /// 胶囊内沿 0.4.1 短名口径（整词缩短、不截断）。
+    /// 身份胶囊（0.6.0；0.6.1 布局根修）：一颗白浮纸胶
+    /// 囊，左域＝三狗头像＋身份名＋状态点/状态词（点按
+    /// 跳活动格），右域＝模型 Menu（分隔线＋短名＋
+    /// chevron）。点按分工与一颗装口径沿 0.6.0 不变。
+    /// 0.6.0 真机缺陷根源（用户点名「Hermes ● …」）：
+    /// 胶囊内只有状态 Text 一个可压缩元素，状态长句
+    /// 必被压成省略号——名字/模型短名都 fixedSize、独
+    /// 它扛全部收缩。本版双管齐下：状态词语义先改短
+    /// （OverviewStatusLine 可证事实短词，Core）；布局
+    /// 改 ViewThatFits 两档——全量档（头像＋名＋状态＋
+    /// 模型）宽度不够时整档换紧凑档（只去名字），每
+    /// 档内全部文字 fixedSize 不许截断，任何宽度下都
+    /// 不出现裸「…」
     private var identityCapsule: some View {
+        ViewThatFits(in: .horizontal) {
+            capsuleRow(showName: true)
+            capsuleRow(showName: false)
+        }
+    }
+
+    private func capsuleRow(showName: Bool) -> some View {
         HStack(spacing: OneDayMetrics.spacingS) {
             Button {
                 onOpenActivity()
@@ -471,23 +495,26 @@ struct ChatView: View {
                         .frame(width: 28, height: 28)
                         .clipShape(Circle())
                         .accessibilityHidden(true)
-                    Text("Hermes")
-                        .font(.headline)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                    if showName {
+                        Text(appState.identityName ?? AgentName.fallback)
+                            .font(.headline)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                     HStack(spacing: 5) {
                         StatusDot(color: overviewStatusColor)
                         Text(overviewStatusWord)
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Hermes，\(overviewStatusWord)，打开活动")
+            .accessibilityLabel("\(appState.identityName ?? AgentName.fallback)，\(overviewStatusWord)，打开活动")
 
             Rectangle()
                 .fill(Palette.hairline)
@@ -565,14 +592,6 @@ struct ChatView: View {
             inputBar
         }
         .fixedSize(horizontal: false, vertical: true)
-        // 0.4.5：实测高回写（喂底缘 E11 带长，见
-        // composerBarHeight 与 messageList 的 safeAreaBar
-        // 注）；只读高度、不参与本容器布局，无回环
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height
-        } action: { _, height in
-            composerBarHeight = height
-        }
         // 条 9（§14）动画口径 0.4.2 收紧（§27）：本容
         // 器的高度就是消息列表的底部 inset——回到底部
         // 钮显隐时容器高度随之增减，列表的底部锚点骑
@@ -739,32 +758,18 @@ struct ChatView: View {
         // 驱动（键盘即安全区扩张），0.2.6/0.4.1 的键盘
         // 行为经构造＋代码审计＋单测复验，证据链见 §28.4
         .safeAreaBar(edge: .bottom, spacing: 0) {
+            // 0.6.1（用户第二轮真机点名，底部白块 P0）：
+            // 发送区底缘 E11 渐进模糊带整段删除——它是
+            // 聊天页底部唯一的自绘全宽乳白层（system-
+            // Material 满幅横在发送区与底栏之间，0.4.5
+            // 虽已把带底收齐到舱底缘，带身仍横贯页底、
+            // 与玻璃底栏叠读成一块白块）；删后发送区下
+            // 方零自绘层：消息自发送舱下缘起由系统
+            // .scrollEdgeEffectStyle(.soft, for: .bottom)
+            // 柔化（上方已挂），玻璃底栏直接浮在内容
+            // 上。顶缘带（状态区方向）不在本轮点名内、
+            // 保留
             bottomBar(proxy)
-                // 0.4.4（§29，例外 E11）＋0.4.5 收下延
-                // （§30，用户 11:47 点名）：带仍作发送区
-                // background、自舱上 56pt 渐入、穿舱体，
-                // 但带底到此为止——0.4.4 的带固定 216pt
-                // 长、向下延出发送区约 96pt 与底栏坞「衔
-                // 接成一片」，构造复核实锤：那段满 alpha
-                // 模糊越过发送区底缘、盖住坞身并垂到坞
-                // 下方的 home indicator 区，在坞的悬浮
-                // 间隙里显成独立一坨（§30 核查结论）。本
-                // 版带长改「56＋发送区实测高」（composer-
-                // BarHeight），带底恰与发送区底缘齐平：
-                // 坞上方渐入段分毫不变、坞下方零残留；
-                // 停点按绝对锚重算（见 EdgeProgressiveBlur
-                // .chatBottom(bandHeight:)）；挂 bar back-
-                // ground 随安全区与键盘同通道升降、back-
-                // ground 不改 bar 尺寸、发送舱自量高链零
-                // 影响、不接命中，均不变
-                .background(alignment: .top) {
-                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.chatBottom(
-                        bandHeight: Double(56 + composerBarHeight)
-                    ))
-                    .frame(height: 56 + composerBarHeight)
-                    .offset(y: -56)
-                    .allowsHitTesting(false)
-                }
         }
         .scrollDismissesKeyboard(.interactively)
         // 距底距离回写（0.4.2，§27）：判定改迟滞双阈值
@@ -1471,12 +1476,15 @@ private struct ComposerBarLayout: Layout {
         } label: {
             Image(systemName: isStreaming ? "stop.fill" : "arrow.up")
                 .font(.system(size: isStreaming ? 12 : 13, weight: .bold))
+                // 0.6.1：发送钮改 OpenMuse 原貌——浅蓝圆
+                // primaryPale＋深墨箭头 onPrimary（chat.tsx:
+                // 985/996），取代旧深蓝圆＋白箭头
                 .foregroundStyle(Palette.onPrimary)
                 .frame(
                     width: ComposerLayout.buttonHeight,
                     height: ComposerLayout.buttonHeight
                 )
-                .background(Palette.primaryFill, in: Circle())
+                .background(Palette.primaryPale, in: Circle())
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.odPressable)

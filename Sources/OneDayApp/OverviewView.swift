@@ -190,8 +190,8 @@ struct OverviewView: View {
             // 卡内次级指标（原指标行收编，深链保留）
             HStack(spacing: 0) {
                 metricCell(
-                    value: sessionsLoaded ? "\(activeSessionCount)" : "—",
-                    label: "活跃会话"
+                    value: sessionsLoaded ? "\(totalSessionCount)" : "—",
+                    label: "会话总数"
                 ) {
                     onOpenAgent(.serverSessions)
                 }
@@ -407,8 +407,14 @@ struct OverviewView: View {
 
     // MARK: - 最近会话（标题/副题走 SessionDisplay，与抽屉同源）
 
-    private var activeSessionCount: Int {
-        serverSessions.filter(\.isActive).count
+    /// 会话总数（0.6.1 改口径）：旧「活跃会话」按
+    /// isActive（endedAt==nil）计数——Hermes 不写
+    /// ended_at 时全量恒真、是假活跃，与抽屉/活动页
+    /// 的假「进行中」同源，已退役；指标只报可证的
+    /// 总数（与总览桥 activeSessions 的契约字段是两
+    /// 回事：桥字段不动、客户端文案不许说成进行中）
+    private var totalSessionCount: Int {
+        serverSessions.count
     }
 
     private var enabledCronCount: Int {
@@ -464,13 +470,15 @@ struct OverviewView: View {
             onOpenChatSession(session.id)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                if session.isActive {
-                    StatusDot(color: Palette.success)
-                }
+                // 0.6.1：绿点（isActive 时）删除——与假
+                // 「进行中」同源：ended_at 缺失下全量行
+                // 恒挂绿点、等于逐行宣称正在进行，不许
                 VStack(alignment: .leading, spacing: 2) {
-                    // 卡 16/18 同源：标题 humanTitle、副题
-                    // humanSubtitle，原始 title/source 不上屏
-                    Text(session.humanTitle)
+                    // 卡 16/18 同源：副题 humanSubtitle，
+                    // 原始 title/source 不上屏；标题 0.6.1
+                    // 起走全局派生（解析器 contentTitle，
+                    // 与抽屉/活动行同一派生）
+                    Text(appState.sessionTitles.title(for: session))
                         .font(.body)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
@@ -601,6 +609,13 @@ struct OverviewView: View {
         }) {
             serverSessions = page.sessions
             sessionsLoaded = true
+            // 派生标题（0.6.1）：最近会话行与抽屉/活动
+            // 行同病（无名即「未命名会话」），同一解析
+            // 器补齐（列表上限 100、预算仍封顶 8/次，
+            // 多次进入逐批补齐）
+            await appState.sessionTitles.ensureTitles(
+                for: page.sessions, appState: appState
+            )
         }
         if let jobs = try? await appState.performAdmin({ client, config in
             try await client.cronJobs(config: config)

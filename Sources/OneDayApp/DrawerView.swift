@@ -10,7 +10,7 @@ import SwiftUI
 /// View 根）：本面是底层，整个应用表面（TabView）是被推
 /// 开的页卡，两者刚性联动（录屏逐帧量测：抽屉地标与页卡
 /// 同速同距、无视差，§30 量测表）。本文件只管抽屉面本体：
-/// 头尾 safeAreaBar 钉住＋E11 两端模糊带＋名单/搜索/底条，
+/// 头尾 safeAreaBar 钉住（0.6.1 起实色固定条）＋名单/搜索/底条，
 /// 几何与行为口径自 0.4.2–0.4.4 原样搬迁；开合状态、跟手
 /// 手势与页卡变换全在壳层，本面只经闭包与 AppState 通道
 /// 与外界说话：
@@ -63,67 +63,42 @@ struct DrawerView: View {
         // 头尾钉住＋中段滚动（0.4.2，用户 10:54 对照
         // Muse 本体标注图纠正，取代 0.4.1 的整栏全滚
         // 读法）：智能体名区不滚、底条（齿轮/搜索/新建）
-        // 不滚、只有中间名单区滚动，且滚动内容滑到头
-        // 尾两端时朦胧渐隐。结构：名单 ScrollView 居中，
-        // 名字与底条经 safeAreaBar 钉进它的上下安全区
-        // ——与聊天页发送舱同一系统通道（条即安全区、
-        // 内容从其下方滑过），上下两缘的化开由
-        // .scrollEdgeEffectStyle(.soft)＋E11 模糊带承担。
-        // 头尾两区不设自有背景：透出的就是面板底色
-        // （#FCFCFC，§26 第 10 修量测口径不变）
+        // 不滚、只有中间名单区滚动。结构：名单 Scroll-
+        // View 居中，名字与底条经 safeAreaBar 钉进它的
+        // 上下安全区——与聊天页发送舱同一系统通道（条
+        // 即安全区、内容从其下方滑过）。0.6.1 起头尾
+        // 两条改固定实色（令牌表面色打底、见 safeArea-
+        // Bar 处注），旧「透出面板底色＋E11 两端化开」
+        // 口径退役
         ScrollView {
-            VStack(spacing: 0) {
-                drawerNavList
-                drawerList
-            }
+            drawerList
         }
         // 0.4.5（§30，用户 11:47 点名）：名单向下穿过
-        // 底部安全区直达屏幕底边——样板里名单尾行在
-        // 底条下方继续渐隐到屏边、没有死白条；旧承载
-        // 下 ScrollView 帧止于安全区、底条下方留 34pt
-        // 许的纯面板色带。代价是安全区不再代抬底条：
-        // 底条下边距改手算（见 drawerBottomBar）、底
-        // 缘 E11 带随之向下延长到屏边（见彼处注）
+        // 底部安全区直达屏幕底边；底条下边距手算（见
+        // drawerBottomBar）
         .ignoresSafeArea(edges: .bottom)
         .scrollDismissesKeyboard(.interactively)
-        .scrollEdgeEffectStyle(.soft, for: .top)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
-        // 0.4.3（§28.5）：头尾承载走 safeAreaBar 注册
-        // ——未注册的 inset 条不在边缘效果系统内、
-        // .soft 等于没发；注册后内容从头尾下方穿过
-        // 并在两端化开（用户 10:54 标注口径）
+        // 0.4.3（§28.5）：头尾承载走 safeAreaBar 注册。
+        // 0.6.1（用户第二轮真机点名）：两端 E11 渐进
+        // 模糊带全删——顶带是「标题区朦胧透内容」的
+        // 元凶、底带是抽屉底部乳白块的元凶（带底落到
+        // 屏边、满 alpha 盖住 home indicator 区）；头
+        // 尾改固定实色条（令牌表面色打底、名单从其下
+        // 方滑过被实色遮住），顶缘 .soft 随顶带一并
+        // 撤销（实色条下无可化开的透层）
         .safeAreaBar(edge: .top, spacing: 0) {
             drawerAgentName
-                // 0.4.4（§29，例外 E11）：抽屉顶缘渐进
-                // 模糊层——作名字区 background 上探状态
-                // 区 56pt、向下延进名单约 35pt，名单滑
-                // 到名字下方先化开（组件与几何口径见
-                // EdgeProgressiveBlur）
-                .background(alignment: .top) {
-                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.drawerTop)
-                        .frame(height: 150)
-                        .offset(y: -56)
-                        .allowsHitTesting(false)
+                .background {
+                    Palette.surface
+                        .ignoresSafeArea(edges: .top)
                 }
         }
         .safeAreaBar(edge: .bottom, spacing: 0) {
             drawerBottomBar
-                // 0.4.4（§29，例外 E11）＋0.4.5 延长：
-                // 底缘带作底条 background 向上延约 68pt
-                // 化开名单（0.4.4 口径不变），0.4.5 起
-                // 带底随底条落到屏幕底边——带长补上底
-                // 条下边距段（安全区 inset＋4），名单在
-                // 底条下方、home indicator 区里继续被
-                // 满模糊盖住渐隐到屏边（用户 11:47 点
-                // 名）；停点按绝对锚重算、带顶的化开形
-                // 态与 0.4.4 逐点一致（见 EdgeProgress-
-                // iveBlur.drawerBottom(bandHeight:)）
-                .background(alignment: .bottom) {
-                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.drawerBottom(
-                        bandHeight: Double(124 + bottomSafeInset + 4)
-                    ))
-                    .frame(height: 124 + bottomSafeInset + 4)
-                    .allowsHitTesting(false)
+                .background {
+                    Palette.surface
+                        .ignoresSafeArea(edges: .bottom)
                 }
         }
         .frame(width: width)
@@ -165,9 +140,10 @@ struct DrawerView: View {
     /// （28 bold）——状态点＋状态词·模型小字全撤（定
     /// 义卡删减清单：那是管理面信息，不占导航壳第一眼）
     private var drawerAgentName: some View {
-        Text("Hermes")
+        Text(appState.identityName ?? AgentName.fallback)
             .font(.largeTitle)
             .foregroundStyle(Palette.ink)
+            .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OneDayMetrics.drawerInset)
             .padding(.top, OneDayMetrics.spacingL)
@@ -179,89 +155,20 @@ struct DrawerView: View {
             try await client.serverSessions(config: config, limit: 6)
         }) {
             drawerServerSessions = page.sessions
-        }
-    }
-
-    /// 全局名单（0.3.6 立宪先行件，§21.3；定义卡：一
-    /// 页一事——名单只做切目的地）：与底栏五格一一对
-    /// 应、同一符号源（TabBarSymbols）；行高约 47、
-    /// 只有图标＋标题（无箭头无值）；当前位（本面锚定
-    /// 聊天格）以 selectionFill 浅灰垫标示、不变色不
-    /// 加粗。名单末尾一条发丝线与会话组分界。
-    private var drawerNavList: some View {
-        VStack(spacing: 0) {
-            // 0.3.8 第 20 条：导航区补分组标签（与会话区
-            // 的时间分组标签同一形态：13 regular 次级灰）
-            Text("选项卡")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, OneDayMetrics.drawerInset)
-                .padding(.top, OneDayMetrics.spacingSM)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            ForEach(drawerTabs, id: \.pair.id) { item in
-                drawerNavRow(tab: item.tab, pair: item.pair)
-            }
-            // 第 21 条：发丝线只留功能区之间（导航↔会话
-            // 这一条保留；会话组之间已改纯留白分段）
-            drawerDivider
-                .padding(.top, OneDayMetrics.spacingS)
-        }
-    }
-
-    private var drawerTabs: [(tab: ContentView.MainTab, pair: TabSymbolPair)] {
-        [
-            (.chat, TabBarSymbols.chat),
-            (.activity, TabBarSymbols.activity),
-            (.ideas, TabBarSymbols.ideas),
-            (.goals, TabBarSymbols.goals),
-            (.apps, TabBarSymbols.apps),
-        ]
-    }
-
-    private func drawerNavRow(
-        tab: ContentView.MainTab, pair: TabSymbolPair
-    ) -> some View {
-        let isCurrent = tab == currentTab
-        return Button {
-            onClose()
-            if !isCurrent { onSelectTab(tab) }
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: pair.normal)
-                    // 0.3.8 第 15 条：名单字形与底栏同线宽
-                    // 档——21 无字重 → 18 regular（令牌
-                    // FrameworkIcon.drawerGlyphSize；0.3.7
-                    // 实测对话 27.6%/文件夹 19.6% 线宽不齐）
-                    .font(.system(
-                        size: FrameworkIcon.drawerGlyphSize,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(Palette.ink)
-                    .frame(
-                        width: OneDayMetrics.spacingL,
-                        alignment: .leading
-                    )
-                    .accessibilityHidden(true)
-                Text(pair.title)
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-            }
-            .padding(.horizontal, OneDayMetrics.spacingS)
-            .frame(minHeight: OneDayMetrics.navRowHeight)
-            .background(
-                isCurrent ? Palette.selectionFill : Color.clear,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.fieldCorner
-                )
+            // 派生标题（0.6.1）：名单只有 6 条，预算内
+            // 全量补齐首条消息，行标题走全局解析器
+            // （与活动行同一派生同一缓存）
+            await appState.sessionTitles.ensureTitles(
+                for: page.sessions, appState: appState, budget: 6
             )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingSM)
-        .accessibilityLabel(pair.title)
     }
+
+    // （0.6.1 删：全局名单「选项卡」五格组——与底栏
+    // 五格逐项重复（用户第二轮真机点名），抽屉回归
+    // 单一职责：身份标题＋会话名单＋底部三钮。切格
+    // 只走底栏，onSelectTab/currentTab 仍供底条设置
+    // 钮等既有通道使用）
 
     /// 发丝线（左右留 drawerInset 20）：组间分隔的唯
     /// 一形态（立宪：分组＝13–14 灰标签＋发丝线）
@@ -558,13 +465,16 @@ struct DrawerView: View {
             appState.pendingChatSessionID = session.id
         } label: {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                // 标题只有内容名（人话 display_name/内容
-                // 摘要，否则「未命名会话」），时间/条数/状
-                // 态/来源全在副题——SessionDisplay 同源；
-                // 0.3.8 第 18/19 条：副题改序（来源退尾、
-                // 状态只写属实）且与本地行同行型（标题
-                // 17 regular＋副题 13、行高 57 两行制）
-                Text(session.humanTitle)
+                // 标题只有内容名（人话 display_name→首条
+                // 消息派生摘要→「未命名会话」，0.6.1 起派
+                // 生经全局 SessionTitleResolver、与活动行
+                // 同源），时间/条数/来源全在副题（0.6.1
+                // 起副题不写「进行中」——ended_at 缺失下
+                // 是假数据，见 SessionDisplay 文件头注）；
+                // 0.3.8 第 18/19 条：副题改序（来源退尾）
+                // 且与本地行同行型（标题 17 regular＋副
+                // 题 13、行高 57 两行制）
+                Text(appState.sessionTitles.title(for: session))
                     .font(.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)

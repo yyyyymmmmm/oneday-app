@@ -76,35 +76,40 @@ final class OverviewBridgeTests: XCTestCase {
         )
     }
 
+    // 0.6.1 短词口径：胶囊状态行只放可证事实短词
+    // （联系不上／待审批 N／在线），整句不许回胶囊
     func testStatusLineUnreachableWhenNoSnapshot() {
-        XCTAssertEqual(OverviewStatusLine.resolve(snapshot: nil), "暂时联系不上")
+        XCTAssertEqual(OverviewStatusLine.resolve(snapshot: nil), "联系不上")
     }
 
     func testStatusLineUnreachableWhenHermesDown() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(snapshot: snapshot(hermesUp: false, pending: 2)),
-            "暂时联系不上"
+            "联系不上"
         )
     }
 
-    func testStatusLinePendingApprovalsWinsOverActiveSessions() {
+    func testStatusLinePendingApprovals() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(snapshot: snapshot(active: 1, pending: 2)),
-            "有 2 条待你审批"
+            "待审批 2"
         )
     }
 
-    func testStatusLineActiveSessions() {
+    /// 桥的 activeSessions 是契约字段（契约不动），
+    /// 但客户端文案不许再把它说成「正在处理」：
+    /// Hermes 不写 ended_at 时该数实为会话总数
+    func testStatusLineActiveCountNeverImpliesProcessing() {
         XCTAssertEqual(
-            OverviewStatusLine.resolve(snapshot: snapshot(active: 1)),
-            "正在处理会话"
+            OverviewStatusLine.resolve(snapshot: snapshot(active: 17)),
+            "在线"
         )
     }
 
     func testStatusLineIdle() {
         XCTAssertEqual(
             OverviewStatusLine.resolve(snapshot: snapshot()),
-            "随时待命"
+            "在线"
         )
     }
 

@@ -244,62 +244,64 @@ final class RenderMeasureTests: XCTestCase {
     // TypeScale 废止与 pageTitleSection 删除而不存在，
     // 字体回归语义样式后无自设尺寸可量，审计 §3.1）
 
-    // MARK: - 气泡封存色（0.4.1，用户 10:07 点名改）
+    // MARK: - 气泡令牌色（0.6.1，OpenMuse 接管）
 
-    /// 0.4.0 曾把气泡两色改挂 systemGray5/6，用户真机
-    /// 判「发紫灰、深浅难分」——本版回封存中性灰直给。
-    /// 钉三件事：①浅色解析值逐一等于封存 hex（助手
-    /// #E9EAEC／用户 #F0F0F2）；②近中性（浅暗两环境
-    /// 下 |R−B|≤4/255——封存值自身 B−R＝3/255，是
-    /// §22 量测的近中性冷灰原貌；systemGray5/6 的
-    /// B−R＝5/255、过不了这条，阈值取 4 分辨两者）；
-    /// ③深浅档差在（浅色助手深于用户）。selectionFill
-    /// 随第 10 修一并钉字面值（见本测试尾断言）
-    func testBubbleColorsAreSealedNeutralGrays() {
+    /// 0.4.1 曾钉封存中性灰（助手 #E9EAEC／用户
+    /// #F0F0F2＋双泡中性断言）；0.6.1 用户亲令配色改用
+    /// OpenMuse，封存口径正式让位，本测试改钉它的令牌：
+    /// ①浅色解析值＝OpenMuse 原值（助手泡 #EEEEF0＝
+    /// chat.tsx:593、用户泡 #C8E7FF＝colors.blue、
+    /// selectionFill #F0F1F2＝底栏激活 App.tsx:464）；
+    /// ②暗色解析值＝本仓派生档（助手 #272E33、用户取
+    /// blueDark #1473C8 原值作深档）；③浅色助手泡守近
+    /// 中性（|R−B|＝2/255≤4——用户泡是它的标志浅蓝、
+    /// 不受中性约束；旧「助手深于用户」序断言随其语言
+    /// 撤销：它本貌即用户泡更醒目）
+    func testBubbleColorsFollowOpenMuseTokens() {
         let light = UITraitCollection(userInterfaceStyle: .light)
         let dark = UITraitCollection(userInterfaceStyle: .dark)
         XCTAssertEqual(
             UIColor(Palette.bubbleFill).resolvedColor(with: light),
             UIColor(
-                red: 0xE9 / 255.0, green: 0xEA / 255.0,
-                blue: 0xEC / 255.0, alpha: 1
+                red: 0xEE / 255.0, green: 0xEE / 255.0,
+                blue: 0xF0 / 255.0, alpha: 1
             )
         )
         XCTAssertEqual(
             UIColor(Palette.userBubbleFill).resolvedColor(with: light),
             UIColor(
-                red: 0xF0 / 255.0, green: 0xF0 / 255.0,
-                blue: 0xF2 / 255.0, alpha: 1
+                red: 0xC8 / 255.0, green: 0xE7 / 255.0,
+                blue: 0xFF / 255.0, alpha: 1
             )
         )
-        for traits in [light, dark] {
-            for color in [Palette.bubbleFill, Palette.userBubbleFill] {
-                var r: CGFloat = 0, g: CGFloat = 0
-                var b: CGFloat = 0, a: CGFloat = 0
-                UIColor(color).resolvedColor(with: traits)
-                    .getRed(&r, green: &g, blue: &b, alpha: &a)
-                XCTAssertLessThanOrEqual(
-                    abs(r - b), 4.0 / 255.0,
-                    "气泡色不许带蓝紫倾向（R 与 B 分量差超限）"
-                )
-            }
-        }
-        var assistantR: CGFloat = 0, aG: CGFloat = 0
-        var aB: CGFloat = 0, aA: CGFloat = 0
-        var userR: CGFloat = 0, uG: CGFloat = 0
-        var uB: CGFloat = 0, uA: CGFloat = 0
+        XCTAssertEqual(
+            UIColor(Palette.bubbleFill).resolvedColor(with: dark),
+            UIColor(
+                red: 0x27 / 255.0, green: 0x2E / 255.0,
+                blue: 0x33 / 255.0, alpha: 1
+            )
+        )
+        XCTAssertEqual(
+            UIColor(Palette.userBubbleFill).resolvedColor(with: dark),
+            UIColor(
+                red: 0x14 / 255.0, green: 0x73 / 255.0,
+                blue: 0xC8 / 255.0, alpha: 1
+            )
+        )
+        var r: CGFloat = 0, g: CGFloat = 0
+        var b: CGFloat = 0, a: CGFloat = 0
         UIColor(Palette.bubbleFill).resolvedColor(with: light)
-            .getRed(&assistantR, green: &aG, blue: &aB, alpha: &aA)
-        UIColor(Palette.userBubbleFill).resolvedColor(with: light)
-            .getRed(&userR, green: &uG, blue: &uB, alpha: &uA)
-        XCTAssertLessThan(assistantR, userR, "浅色下助手泡须深于用户泡")
-        // selectionFill（0.4.1 第 10 修）：同病同治，
-        // 撤销 systemGray5 挂接、钉字面中性 #EEEFF1
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        XCTAssertLessThanOrEqual(
+            abs(r - b), 4.0 / 255.0,
+            "浅色助手泡须守近中性（OpenMuse #EEEEF0 原貌）"
+        )
+        // selectionFill（0.6.1）：OpenMuse 底栏激活项原值
         XCTAssertEqual(
             UIColor(Palette.selectionFill).resolvedColor(with: light),
             UIColor(
-                red: 0xEE / 255.0, green: 0xEF / 255.0,
-                blue: 0xF1 / 255.0, alpha: 1
+                red: 0xF0 / 255.0, green: 0xF1 / 255.0,
+                blue: 0xF2 / 255.0, alpha: 1
             )
         )
     }

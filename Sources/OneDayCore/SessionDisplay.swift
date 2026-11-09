@@ -24,9 +24,12 @@ private let sessionTimeFormatter: DateFormatter = {
 /// - 标题只有内容名：人话 display_name，或调用方拿
 ///   得到的首条用户消息摘要（contentTitle）；都没有
 ///   就「未命名会话」，不许拿时间当标题。
-/// - 副题承载全部副信息：时间 · 条数 · 进行中（活
-///   跃时）· 来源人话标签（0.3.8 第 18 条改序：来源
-///   退副题末尾、先给时间与条数；状态只写属实的）。
+/// - 副题承载全部副信息：时间 · 条数 · 来源人话
+///   标签（0.3.8 第 18 条改序：来源退副题末尾、先给
+///   时间与条数）。0.6.1 起副题不再写「进行中」：
+///   Hermes 不写 ended_at，isActive 恒真、据此标进
+///   行中是假数据（用户真机点名），状态只在状态行
+///   以可证事实呈现（在线/待审批/联系不上）。
 /// - 来源：原始 source 标识一律译成人话标签，未知
 ///   来源只给「服务端」；原名只留设置详情页元信息组。
 public extension ServerSession {
@@ -108,10 +111,11 @@ public extension ServerSession {
         return collapsed
     }
 
-    /// 人话副题：时间 · 条数 · 进行中 · 来源标签——
+    /// 人话副题：时间 · 条数 · 来源标签——
     /// 0.3.6 当标题用的「时间＋条数」自 0.3.7 起只活
     /// 在这里；0.3.8 第 18 条把来源从首位移到末尾
-    /// （出处信息垫后），状态只在真活跃时写「进行中」。
+    /// （出处信息垫后）；0.6.1 起不写状态段（见文件
+    /// 头注：ended_at 缺失使「进行中」成假数据）。
     /// 今天/昨天按与 now 的自然日差判（startOfDay 对
     /// 齐，与 SidebarGrouping 同口径；不许用
     /// Calendar.isDateInToday——它锚真实系统时钟、忽
@@ -138,11 +142,24 @@ public extension ServerSession {
         if let messageCount {
             parts.append("\(messageCount) 条")
         }
-        if isActive {
-            parts.append("进行中")
-        }
         parts.append(sourceLabel)
         return parts.joined(separator: " · ")
+    }
+
+    /// 首条用户消息（0.6.1，标题派生的数据源）：列表
+    /// 接口（/api/sessions）只有 display_name（实测恒
+    /// null）与计数、没有标题/预览字段——行标题要落到
+    /// 内容上，只能按需拉单会话消息取首条 user 内容。
+    /// 取数组序首条 role=user 且去空白后非空者（接口
+    /// 返回即时序）；调用方负责请求预算与缓存，不许
+    /// 逐行无界拉取。
+    static func firstUserMessage(in messages: [SessionMessage]) -> String? {
+        for message in messages where message.role.lowercased() == "user" {
+            let content = message.content
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !content.isEmpty { return message.content }
+        }
+        return nil
     }
 }
 

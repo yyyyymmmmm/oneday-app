@@ -61,22 +61,24 @@ public struct OverviewReadResponse: Decodable, Equatable, Sendable {
     }
 }
 
-/// 顶栏状态行派生（冻结口径）：桥连不上或 Hermes 不在
-/// →「暂时联系不上」；有待审批 →「有 N 条待你审批」；
-/// 有活跃会话 →「正在处理会话」；否则「随时待命」。
-/// 优先级固定为可达性 > 待审批 > 活跃会话 > 待命。
+/// 顶栏状态行派生（0.6.1 改短词口径，用户真机点名）：
+/// 胶囊里只放可证事实的短词——桥连不上或 Hermes 不在
+/// →「联系不上」；有待审批 →「待审批 N」；否则「在线」。
+/// 旧四句（暂时联系不上/有 N 条待你审批/正在处理会话/
+/// 随时待命）全退役：长句在胶囊宽度里必被截断成「…」，
+/// 且「正在处理会话」建立在桥的 activeSessions 上——
+/// Hermes 不写 ended_at、该数实为会话总数、是假进行中
+/// （桥字段本身不动、仍按契约传输，客户端文案不再
+/// 把它说成进行中）。优先级固定为可达性 > 待审批。
 public enum OverviewStatusLine {
     public static func resolve(snapshot: OverviewSnapshot?) -> String {
         guard let snapshot, snapshot.hermesUp else {
-            return "暂时联系不上"
+            return "联系不上"
         }
         if snapshot.pendingApprovals > 0 {
-            return "有 \(snapshot.pendingApprovals) 条待你审批"
+            return "待审批 \(snapshot.pendingApprovals)"
         }
-        if snapshot.activeSessions > 0 {
-            return "正在处理会话"
-        }
-        return "随时待命"
+        return "在线"
     }
 }
 

@@ -65,6 +65,35 @@ final class AppState {
     /// 演示模式（截图验收环）：为真时不读不写 Keychain、
     /// 不发网络请求（客户端已被替换为 DemoHermesClient）。
     let isDemo: Bool
+    /// 会话派生标题解析器（0.6.1）：抽屉行/活动行共用
+    /// 的首条消息缓存与预算拉取，全 App 只此一份
+    let sessionTitles = SessionTitleResolver()
+    /// 智能体身份名（0.6.1，用户真机点名）：全局唯一解
+    /// 析点——胶囊/抽屉/活动页三处显示名都读这里；值由
+    /// soul 一级标题经 OneDayCore.AgentName.resolve 得
+    /// 出，取不到为 nil、显示层回落 AgentName.fallback；
+    /// 旧「档案名翻译当标题」（default→默认档案）口径
+    /// 退役
+    private(set) var identityName: String?
+    private var identityNameResolved = false
+
+    /// 解析身份名（幂等：只真正拉取一次；失败也记已解
+    /// 析、回落显示，不逐次重试打服务端）。数据链：
+    /// 档案列表 → 默认档案 → 其 soul → AgentName
+    func resolveIdentityNameIfNeeded() async {
+        guard !identityNameResolved, config != nil else { return }
+        identityNameResolved = true
+        guard let profiles = try? await performAdmin({ client, config in
+            try await client.profiles(config: config)
+        }),
+              let profile = profiles.first(where: { $0.isDefault == true })
+                ?? profiles.first,
+              let document = try? await performAdmin({ client, config in
+                  try await client.profileSoul(config: config, name: profile.name)
+              })
+        else { return }
+        identityName = AgentName.resolve(soulContent: document.content)
+    }
 
     /// 跨页深链（总览 → 智能体格/设置格二级页）：目标页消费后置 nil
     var pendingAgentRoute: AgentRoute?

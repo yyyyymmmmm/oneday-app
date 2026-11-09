@@ -146,8 +146,14 @@ public struct HubActivityItem: Identifiable, Equatable, Sendable {
     public let jobID: String?
     public let title: String
     /// 日志副题：只来自 LogEntryDisplay 人话层；翻不出
-    /// 人话时为 nil（留空，不贴原始日志行）
+    /// 人话时为 nil（留空，不贴原始日志行）。0.6.1 起
+    /// 行上副题改走 meta（见下），本字段保留作数据层
+    /// 旁证、不再占行面
     public let subtitle: String?
+    /// 行副题（0.6.1，用户真机行规格）：时间 · 条数 ·
+    /// 来源（ServerSession.humanSubtitle，与抽屉行
+    /// 同源；不含状态段——见 SessionDisplay 文件头注）
+    public let meta: String
     public let occurredAt: Date
     public let startedAt: Date?
     public let isActive: Bool
@@ -157,13 +163,14 @@ public struct HubActivityItem: Identifiable, Equatable, Sendable {
 
     public init(
         sessionID: String, jobID: String?, title: String,
-        subtitle: String?, occurredAt: Date, startedAt: Date?,
+        subtitle: String?, meta: String, occurredAt: Date, startedAt: Date?,
         isActive: Bool, sourceLabel: String
     ) {
         self.sessionID = sessionID
         self.jobID = jobID
         self.title = title
         self.subtitle = subtitle
+        self.meta = meta
         self.occurredAt = occurredAt
         self.startedAt = startedAt
         self.isActive = isActive
@@ -201,7 +208,8 @@ public enum HubActivityAssembler {
         logs: [LogEventRecord],
         fetchedAt: Date,
         now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        firstUserMessages: [String: String] = [:]
     ) -> [HubActivityDayGroup] {
         // 第一步：会话主表（列表版本优先，字段最全）
         var main: [String: ServerSession] = [:]
@@ -336,9 +344,13 @@ public enum HubActivityAssembler {
             return nil
         }
 
-        // 标题选择（§4.4 第一步第 5 条）：会话人话名 →
-        // cron job 标题（会话无内容名且来源为定时任务
-        // 时）→ 人话回落（未命名会话）
+        // 标题选择（§4.4 第一步第 5 条；0.6.1 增派生
+        // 一级）：会话人话名 → cron job 标题（会话无内
+        // 容名且来源为定时任务时）→ 首条用户消息派生
+        // 标题（列表接口无标题字段、display_name 实测
+        // 恒 null，调用方按预算拉取后注入 firstUser-
+        // Messages，与抽屉行共用同一派生）→ 人话回落
+        // （未命名会话）
         func title(for row: Row) -> String {
             if row.session.hasHumanName {
                 return row.session.humanTitle
@@ -346,6 +358,9 @@ public enum HubActivityAssembler {
             if let jobID = row.jobID, let jobTitle = jobTitles[jobID],
                !jobTitle.isEmpty {
                 return jobTitle
+            }
+            if let message = firstUserMessages[row.session.id] {
+                return row.session.contentTitle(firstUserMessage: message)
             }
             return row.session.humanTitle
         }
@@ -356,6 +371,7 @@ public enum HubActivityAssembler {
                 jobID: row.jobID,
                 title: title(for: row),
                 subtitle: subtitle(for: row),
+                meta: row.session.humanSubtitle(now: now, calendar: calendar),
                 occurredAt: row.occurredAt,
                 startedAt: row.session.startedDate,
                 isActive: row.session.isActive,

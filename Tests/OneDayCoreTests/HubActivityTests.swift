@@ -162,4 +162,33 @@ final class HubActivityTests: XCTestCase {
         )
         XCTAssertTrue(groups.isEmpty)
     }
+
+    /// 派生标题与 meta（0.6.1）：无名会话注入首条消
+    /// 息后标题走内容摘要；meta 是行副题（时间·条
+    /// 数·来源、无「进行中」段、与数据层 subtitle
+    /// 分工不混）
+    func testDerivedTitleAndMetaFromFirstUserMessage() throws {
+        let unnamed = try session("""
+        {"id": "s9", "source": "dashboard", "display_name": null,
+         "started_at": \(epoch("2026-11-09T02:00:00Z")),
+         "ended_at": \(epoch("2026-11-09T02:05:00Z")),
+         "message_count": 3}
+        """)
+        let groups = HubActivityAssembler.assemble(
+            sessions: [unnamed], runsByJobID: [:], jobTitles: [:],
+            logs: [], fetchedAt: now, now: now, calendar: calendar,
+            firstUserMessages: ["s9": "帮我查一下节点状态"]
+        )
+        let item = groups[0].items[0]
+        XCTAssertEqual(item.title, "帮我查一下节点状态")
+        XCTAssertEqual(item.meta, "今天 10:00 · 3 条 · 控制台")
+        XCTAssertFalse(item.meta.contains("进行中"))
+        // 无注入时回落未命名（不假造标题）
+        let plain = HubActivityAssembler.assemble(
+            sessions: [unnamed], runsByJobID: [:], jobTitles: [:],
+            logs: [], fetchedAt: now, now: now, calendar: calendar
+        )
+        XCTAssertEqual(plain[0].items[0].title, "未命名会话")
+        XCTAssertEqual(plain[0].items[0].meta, "今天 10:00 · 3 条 · 控制台")
+    }
 }

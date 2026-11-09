@@ -382,23 +382,18 @@ struct AgentHubView: View {
             }
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                activityDisc(item)
+                activityIconBox(item)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
-                        .font(.body.weight(.semibold))
+                        .font(.body)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
-                    if let subtitle = item.subtitle {
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                    }
+                    Text(item.meta)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
                 }
                 Spacer()
-                Text(Self.timeFormatter.string(from: item.occurredAt))
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkMuted)
             }
             .contentShape(Rectangle())
         }
@@ -406,17 +401,35 @@ struct AgentHubView: View {
         .listRowSeparator(.hidden)
     }
 
-    /// 活动圆盘（L4，用户定案④打包）：石板灰蓝渐变
-    /// 色面＋白色节点 glyph（内容层色面、非玻璃）；暗色
-    /// 给同家族深值（规格 §0 暗色口径）
-    private func activityDisc(_ item: HubActivityItem) -> some View {
+    /// 活动图标盒（0.6.1，用户真机点名＋OpenMuse 令牌
+    /// 语言）：52pt 石板灰蓝渐变大圆退役——每行雷同的
+    /// 大色块与 OpenMuse 活动卡的克制语言不符；改
+    /// 36pt 小圆角盒：按来源给 pastel 令牌底（Open-
+    /// Muse iconBox 的色面法、尺寸遵守「图标按来源
+    /// 小而克制」口径）、glyph 回墨色细线，与文件页/
+    /// 欢迎页的同族盒同语言
+    private func activityIconBox(_ item: HubActivityItem) -> some View {
         ZStack {
-            Circle().fill(Self.discGradient)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(activityTint(item))
             Image(systemName: discGlyph(item))
-                .font(.system(size: 20, weight: .regular))
-                .foregroundStyle(.white)
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Palette.ink)
         }
-        .frame(width: 52, height: 52)
+        .frame(width: 36, height: 36)
+    }
+
+    /// 来源 → pastel 令牌（与 OpenMuse iconBox 的四色
+    /// pastel 同族：定时 lav 薰衣草、控制台 sky 天蓝、
+    /// 其他应用 green 绿、命令行 orange 橙、缺省 sky）
+    private func activityTint(_ item: HubActivityItem) -> Color {
+        switch item.sourceLabel {
+        case "定时任务": return Palette.tintLavender
+        case "控制台": return Palette.tintSky
+        case "其他应用": return Palette.tintGreen
+        case "命令行": return Palette.tintOrange
+        default: return Palette.tintSky
+        }
     }
 
     private func discGlyph(_ item: HubActivityItem) -> String {
@@ -429,26 +442,5 @@ struct AgentHubView: View {
         }
     }
 
-    private static let discGradient = LinearGradient(
-        colors: [
-            Color(UIColor { traits in
-                traits.userInterfaceStyle == .dark
-                    ? UIColor(red: 0x5A / 255.0, green: 0x5F / 255.0, blue: 0x73 / 255.0, alpha: 1)
-                    : UIColor(red: 0x8A / 255.0, green: 0x90 / 255.0, blue: 0xA6 / 255.0, alpha: 1)
-            }),
-            Color(UIColor { traits in
-                traits.userInterfaceStyle == .dark
-                    ? UIColor(red: 0x48 / 255.0, green: 0x4C / 255.0, blue: 0x5E / 255.0, alpha: 1)
-                    : UIColor(red: 0x6E / 255.0, green: 0x74 / 255.0, blue: 0x88 / 255.0, alpha: 1)
-            }),
-        ],
-        startPoint: .topLeading, endPoint: .bottomTrailing
-    )
+    // （0.6.1 删残：timeFormatter 随活动行改 meta 副题失去消费者）
 
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
-}

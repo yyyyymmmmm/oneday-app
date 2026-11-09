@@ -397,9 +397,10 @@ private struct MediaCell: View {
             if entry.mediaKind == .video {
                 Image(systemName: "play.circle.fill")
                     .font(.system(size: 26))
-                    // 白色走 onPrimary 令牌（媒体面上的纯白符号）
+                    // 媒体面上的纯白符号恒白字面（0.6.1：
+                    // onPrimary 已改深字口径、不再借作白字）
                     .foregroundStyle(
-                        Palette.onPrimary, Palette.ink.opacity(0.55)
+                        Color.white, Palette.ink.opacity(0.55)
                     )
                     .accessibilityHidden(true)
             }

@@ -25,8 +25,12 @@ struct ServerSessionsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if !sessions.isEmpty {
                     // 0.3.7 卡 16：摘要卡置顶，计数只在此一处
+                    // 0.6.1：删「进行中 N 条」——isActive 靠
+                    // endedAt==nil 判定、Hermes 不写 ended_at
+                    // 时全量恒真，是与活动页同源的假数据；
+                    // 列表语境只报可证的总数
                     HStack(spacing: OneDayMetrics.spacingS) {
-                        Text("共 \(total) 条 · 进行中 \(sessions.filter(\.isActive).count) 条")
+                        Text("共 \(total) 条")
                             .font(.body)
                             .foregroundStyle(Palette.ink)
                         Spacer()
@@ -217,9 +221,13 @@ struct ServerSessionsView: View {
                 .accessibilityHidden(true)
             }
             UnifiedRow(
-                title: session.humanTitle,
+                // 0.6.1 同口径收口：标题走全局派生（与
+                // 抽屉/活动/总览行同源）；状态点删除——
+                // isActive 在 ended_at 缺失下全量恒真、
+                // 绿点即逐行假宣称「进行中」
+                title: appState.sessionTitles.title(for: session),
                 subtitle: session.humanSubtitle(now: Date()),
-                statusColor: session.isActive ? Palette.success : nil,
+                statusColor: nil,
                 showsChevron: !selecting
             )
         }
@@ -238,6 +246,10 @@ struct ServerSessionsView: View {
                 try await client.serverSessions(config: config, limit: 100)
             }
             sessions = page.sessions
+            // 派生标题补齐（0.6.1，全局解析器、预算封顶）
+            await appState.sessionTitles.ensureTitles(
+                for: page.sessions, appState: appState
+            )
             total = page.total ?? page.sessions.count
             errorMessage = nil
         } catch {
@@ -357,7 +369,10 @@ struct ServerSessionDetailView: View {
             if session.title != detailTitle {
                 LabeledContent("原始标题", value: session.title)
             }
-            LabeledContent("状态", value: session.isActive ? "进行中" : "已结束")
+            // 状态只写可证事实（0.6.1）：有 ended_at 才
+            // 敢说已结束；为空时服务端未提供结束信息，
+            // 不许反推「进行中」（Hermes 现不写 ended_at）
+            LabeledContent("状态", value: session.isActive ? "状态未确认" : "已结束")
             if let source = session.source, !source.isEmpty {
                 LabeledContent("来源", value: session.sourceLabel)
             }

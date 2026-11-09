@@ -40,6 +40,18 @@ import UIKit
 /// 开、开态拖页卡/抽屉面跟手关、点露出窄条关，松手按
 /// 预测位移吸附；动画走条 9 定版 dragSpring（与录屏
 /// 约 0.35s 级减速吸附同档）。开抽屉必先收键盘。
+///
+/// 抽屉选型结论（0.6.1，用户令原生优先复核）：系统无
+/// 等价物，保留自研推式——NavigationSplitView 在
+/// iPhone 紧凑宽下塌缩为导航栈推送（侧栏变成一页被
+/// push 进栈），不是「底层名单＋表面页卡同速推出」的
+/// 抽屉形态；TabView 的 .tabViewStyle(.sidebarAdapt-
+/// able) 只在 iPad/大屏把底栏变侧栏、iPhone 上仍是底
+/// 栏、不产抽屉。Muse 式 peek 推抽屉在 iPhone 上无系
+/// 统原语可平替（例外 E3 既有裁定），故按「修净缺陷
+/// 不换容器」办：底层按需挂载（本文件 body）、抽屉
+/// 两端改实色固定条（DrawerView 0.6.1）、三页底部自
+/// 绘绘制层全拆（ChatView/DrawerView 0.6.1）
 struct ContentView: View {
     enum MainTab: Hashable {
         case chat
@@ -76,16 +88,30 @@ struct ContentView: View {
                 // 与抽屉面同色，正常态恒被页卡盖住
                 Palette.chatSurface
                 // 底层：抽屉面（偏移恒比页卡少一个推开
-                // 量：页卡合拢时它恰好整幅退出左缘）
-                DrawerView(
-                    width: travel,
-                    bottomSafeInset: geo.safeAreaInsets.bottom,
-                    currentTab: selection,
-                    onSelectTab: { selection = $0 },
-                    onClose: { setDrawer(false) }
-                )
-                .offset(x: offsetX - travel)
-                .gesture(drawerDragGesture(travel: travel))
+                // 量：页卡合拢时它恰好整幅退出左缘）。
+                // 0.6.1 按需挂载（用户真机点名活动页底部
+                // 左角透出/重影）：旧构造下本层在关闭态也
+                // 常驻层级、只靠偏移恰 -travel 藏到左缘
+                // 外，是全壳唯一「常驻挂载且带帧外绘制」
+                // 的层（其 safeAreaBar 背景与底条钮阴影在
+                // 关闭态仍参与离屏合成），是屏底残影的唯
+                // 一结构嫌疑。改只在打开或拖拽进行中挂
+                // 载：关闭静止时整层移出层级、零绘制；打
+                // 开与拖拽中（drawerDrag≠0）保持挂载、
+                // 跟手与动画口径不变；打开瞬间的挂载与
+                // setDrawer 的动画同帧起步、无自身转场，
+                // 不影响 §30 同速同距
+                if drawerOpen || drawerDrag != 0 {
+                    DrawerView(
+                        width: travel,
+                        bottomSafeInset: geo.safeAreaInsets.bottom,
+                        currentTab: selection,
+                        onSelectTab: { selection = $0 },
+                        onClose: { setDrawer(false) }
+                    )
+                    .offset(x: offsetX - travel)
+                    .gesture(drawerDragGesture(travel: travel))
+                }
                 // 上层：整个应用表面＝一张可变换页卡
                 card(travel: travel, offsetX: offsetX, progress: progress)
             }

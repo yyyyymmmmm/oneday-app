@@ -33,31 +33,37 @@ final class AgentHubStore {
     private(set) var sessions: [ServerSession] = []
     private(set) var sessionsFailed = false
 
-    /// 页头大名：档案人话名；无名时回落 Hermes（数据
-    /// 设计 §1.1：不用空字符串冒充已加载）
+    /// 身份名（0.6.1，用户真机点名）：soul 里取得到的
+    /// 身份名（初始加载时顺带拉一次 soul 解析，见
+    /// loadInitial）；旧口径拿档案名翻译（default→
+    /// 「默认档案」）当大标题是实体错位——档案是配置
+    /// 实体、不是智能体身份，「默认档案」退出标题位
+    private(set) var identityName: String?
+
+    /// 页头大名：全局身份名（AppState，全局唯一解析
+    /// 点）→ 本店 soul 解析 → 回落 Hermes；与抽屉/
+    /// 胶囊同源同值（OneDayCore.AgentName）
     var displayName: String {
-        guard let frozenProfileName else { return "Hermes" }
-        return ServerLabels.profileName(frozenProfileName)
+        appState.identityName ?? identityName ?? AgentName.fallback
     }
 
-    /// 活跃会话数：由会话列表 endedAt == nil 派生，不猜
-    /// /api/status 的未建模字段（数据设计 §1.1）
-    var activeSessionCount: Int {
-        sessions.filter { $0.endedAt == nil }.count
-    }
-
-    /// 状态行（规格 §2 降级口径＋数据设计失败口径）：
-    /// 网关运行 →「在线（· N 个会话进行中）」；状态拉取
-    /// 失败显示「状态未确认」，不给离线假结论
+    /// 状态行（0.6.1 改口径，用户真机点名）：只报可证
+    /// 事实——在线／在线 · N 条待审批（审核段已加载且
+    /// 非空时）／网关既报状态；旧「在线 · N 个会话进
+    /// 行中」退役：Hermes 不写 ended_at、endedAt 为空
+    /// 的计数实为会话总数、是假进行中。状态未拉到时
+    /// 显示「状态未确认」，不给离线假结论（失败口径
+    /// 沿数据设计）
     var statusText: String {
         guard let serverStatus else { return "状态未确认" }
         let word = ServerLabels.gatewayState(
             serverStatus.gatewayState, running: serverStatus.gatewayRunning
         )
         if word == "运行中" {
-            return activeSessionCount > 0
-                ? "在线 · \(activeSessionCount) 个会话进行中"
-                : "在线"
+            if case .ready(let records) = approvalState, !records.isEmpty {
+                return "在线 · \(records.count) 条待审批"
+            }
+            return "在线"
         }
         return "网关\(word)"
     }
@@ -140,6 +146,14 @@ final class AgentHubStore {
             sessionsFailed = true
         }
         headerLoaded = true
+        // 身份名顺带解析（0.6.1）：复用身份段的 soul 拉
+        // 取（同一份数据、段内已加载不重拉），只为页头
+        // 大名取身份名；取不到/失败回落 Hermes，不阻塞
+        // 活动流
+        await loadIdentityIfNeeded()
+        if let content = soulDocument?.content {
+            identityName = AgentName.resolve(soulContent: content)
+        }
         await assembleActivity()
         activityLoading = false
         await recheckProfileOnce()
@@ -220,6 +234,12 @@ final class AgentHubStore {
         }
         let jobs = await loadJobs()
         await loadRuns(for: jobs)
+        // 派生标题素材（0.6.1）：列表接口无标题字段，
+        // 先经全局解析器按预算补齐首条消息再拼装，与
+        // 抽屉行共用同一缓存/派生
+        await appState.sessionTitles.ensureTitles(
+            for: sessions, appState: appState, budget: 10
+        )
         let logLines = (try? await appState.performAdmin { client, config in
             try await client.logs(config: config, level: nil, search: nil, lines: 200)
         })?.lines ?? []
@@ -232,7 +252,8 @@ final class AgentHubStore {
             jobTitles: jobTitles,
             logs: logs,
             fetchedAt: Date(),
-            now: Date()
+            now: Date(),
+            firstUserMessages: appState.sessionTitles.firstUserMessages
         )
     }
 

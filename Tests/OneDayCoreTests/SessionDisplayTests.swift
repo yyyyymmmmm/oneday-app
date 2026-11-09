@@ -53,10 +53,11 @@ final class SessionDisplayTests: XCTestCase {
         XCTAssertEqual(b.humanTitle, "未命名会话")
         let subA = a.humanSubtitle(now: now, calendar: calendar)
         let subB = b.humanSubtitle(now: now, calendar: calendar)
-        // 0.3.8 第 18 条改序：时间 · 条数 · 状态 · 来源
-        // （来源退尾、不再以「其他应用」开头；b 已结束
-        // 不挂「进行中」——状态只写属实）
-        XCTAssertEqual(subA, "今天 06:12 · 24 条 · 进行中 · 其他应用")
+        // 0.3.8 第 18 条改序：时间 · 条数 · 来源（来源
+        // 退尾）；0.6.1 再删「进行中」段——Hermes 不写
+        // ended_at、活跃判定全量恒真，是假数据（用户
+        // 真机点名），a/b 都不再带状态段
+        XCTAssertEqual(subA, "今天 06:12 · 24 条 · 其他应用")
         XCTAssertEqual(subB, "昨天 21:30 · 7 条 · 其他应用")
         XCTAssertNotEqual(subA, subB)
         XCTAssertFalse(subA.contains("api_server"))
@@ -114,7 +115,8 @@ final class SessionDisplayTests: XCTestCase {
     /// 兜底：未知来源只给「服务端」，原样标识永不透出。
     func testFallbacksNeverLeakRawIdentifiers() {
         let now = Date()
-        // endedAt 给值＝非活跃，否则副题按口径带「进行中」
+        // 时间/条数全缺时副题只剩来源段（0.6.1 起无
+        // 「进行中」段可带）
         let bare = session(source: "some_internal_bus", endedAt: 1)
         XCTAssertEqual(bare.humanTitle, "未命名会话")
         XCTAssertEqual(
@@ -124,5 +126,31 @@ final class SessionDisplayTests: XCTestCase {
         XCTAssertEqual(session(source: nil).sourceLabel, "服务端")
         XCTAssertEqual(session(source: "dashboard").sourceLabel, "控制台")
         XCTAssertEqual(session(source: "cron").sourceLabel, "定时任务")
+    }
+    /// 首条 user 消息提取（0.6.1 派生标题数据源）：
+    /// 按数组原序取第一条 role=user 的非空消息，
+    /// assistant/空白消息跳过，全空回 nil
+    func testFirstUserMessageExtraction() throws {
+        func messages(_ json: String) throws -> [SessionMessage] {
+            try JSONDecoder().decode(
+                SessionMessagesResponse.self, from: Data(json.utf8)
+            ).messages
+        }
+        let mixed = try messages("""
+        {"messages": [
+          {"id": 1, "role": "assistant", "content": "你好"},
+          {"id": 2, "role": "user", "content": "  "},
+          {"id": 3, "role": "user", "content": "第一条真问题"},
+          {"id": 4, "role": "user", "content": "第二条不取"}
+        ]}
+        """)
+        XCTAssertEqual(
+            ServerSession.firstUserMessage(in: mixed), "第一条真问题"
+        )
+        let assistantOnly = try messages("""
+        {"messages": [{"id": 1, "role": "assistant", "content": "只有助手消息"}]}
+        """)
+        XCTAssertNil(ServerSession.firstUserMessage(in: assistantOnly))
+        XCTAssertNil(ServerSession.firstUserMessage(in: []))
     }
 }

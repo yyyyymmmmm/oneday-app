@@ -1,103 +1,91 @@
 import SwiftUI
 
-// MARK: - 语义色角色层（0.4.0 降级，审计 §1.1）
-// 沿革：0.3.2 礼记式「主题令牌表」→ 0.3.6 Muse 基线冻
-// 值 → 0.4.0 **整表废止**：主题表（AccentTheme/ThemeTokens）
-// 删除，Palette 从「按当前主题查表」降级为**系统语义色的
-// 命名引用层**——每个角色直挂 UIKit 语义色/系统灰阶，浅
-// 深与对比度由系统随环境解析（HIG：优先语义色、系统色，
-// 自建动态色只在系统无对应时才用）。~380 处调用点零改动
-// 是靠这层降级换来的，不代表回潮：新代码直接用系统色，
-// 本层只作存量桥。
-// 气泡两色口径（0.4.1 第 6 修钉死，用户 10:07 点名、
-// 10:25 追问依据后收紧）：**字面值封存——助手泡
-// #E9EAEC、用户泡 #F0F0F2，不许再用 systemGray 或
-// 任何「等价系统灰阶」替代。** 根因：一期（0.4.0）
-// 把气泡改挂 systemGray5/6，而系统灰自带蓝紫色调
-// （#E5E5EA／#F2F2F7），与封存量测值漂移——真机即
-// 「两泡发紫灰、深浅难分」。依据：#E9EAEC 是 §22
-// 基线自 Muse 本体截图逐像素量得的中性灰（0.3.x
-// 冻值同此），量测值优先于系统近似色。暗色给纯中
-// 性深灰对（#2E2E2E／#242424、R=G=B 零色偏）派生，
-// 同禁系统灰；深浅关系与浅色同向（助手深于用户）。
-// 单测钉解析值＋中性断言（RenderMeasureTests），
-// 改挂系统灰会直接红。动态色写法与下方 scrim 同式。
-// scrim：0.3.6 的「白纱」仍是抽屉例外 E5 的一部分（浅
-// 色近白半透/暗色近黑半透），用动态色直给、不成表。
+// MARK: - 语义色角色层（0.6.1：OpenMuse 令牌接管）
+// 沿革：0.4.0 降级为系统语义色命名引用层 → **0.6.1 起整表
+// 改挂 OpenMuse 设计令牌**：用户 2026-11-09 15:07 亲令
+// 「UI 风格和配色用 OpenMuse 的」——旧封存口径（主题蓝
+// #0052D9、助手泡 #E9EAEC／用户泡 #F0F0F2、笔芯量测
+// #262626、选中 #EEEFF1 等）自本版正式让位，不再回潮。
+// 浅色值逐一取自 OpenMuse 源码（openmuse-build/apps/
+// mobile/src/ui.tsx 的 colors 表与各组件内联样式，对照
+// 表见 docs 外档 openmuse-token-map-20261109.md）；它
+// **没有暗色令牌**（全仓单套浅色），暗色值按其冷蓝灰语
+// 言逐项派生、在每条注释里明标「派生」，不冒充原值。
+// 系统语义色挂接随本版退役：色值全部字面直给（动态色
+// 按 traits 解析），防系统灰阶的蓝紫漂移重演（0.4.1
+// 第 6 修的教训改以钉值单测守，见 RenderMeasureTests）。
+/// OpenMuse 令牌动态色构造：浅色取它源码原值，暗色取
+/// 同色相派生值（注释逐项注明）。
+private func omColor(
+    light: (CGFloat, CGFloat, CGFloat),
+    dark: (CGFloat, CGFloat, CGFloat)
+) -> Color {
+    Color(
+        UIColor { traits in
+            let v = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: v.0, green: v.1, blue: v.2, alpha: 1)
+        }
+    )
+}
+
+private func omHex(_ hex: UInt32) -> (CGFloat, CGFloat, CGFloat) {
+    (
+        CGFloat((hex >> 16) & 0xFF) / 255.0,
+        CGFloat((hex >> 8) & 0xFF) / 255.0,
+        CGFloat(hex & 0xFF) / 255.0
+    )
+}
+
 public enum Palette {
-    public static let pageBG = Color(.systemGroupedBackground)
-    public static let surface = Color(.secondarySystemGroupedBackground)
-    public static let bubbleFill = Color(
-        UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(
-                    red: 0x2E / 255.0, green: 0x2E / 255.0,
-                    blue: 0x2E / 255.0, alpha: 1
-                )
-                : UIColor(
-                    red: 0xE9 / 255.0, green: 0xEA / 255.0,
-                    blue: 0xEC / 255.0, alpha: 1
-                )
-        }
+    /// 页面底（OpenMuse canvas #FCFCFC，ui.tsx:19；
+    /// 暗色派生：以其 text #11191C 再压一档 #101619 作底）
+    public static let pageBG = omColor(
+        light: omHex(0xFCFCFC), dark: omHex(0x101619)
     )
-    public static let fieldFill = Color(.secondarySystemBackground)
-    // 聊天表面（0.4.1 第 10 修量测对齐）：回 §22 基线
-    // 量测值 #FCFCFC 字面直给——0.4.0 改挂 system-
-    // Background（纯白 #FFFFFF）与量测基线漂移，用户
-    // 10:30 逐像素采样点名面板底色与聊天表面同取此
-    // 值。暗色给纯中性 #1E1E1E 派生
-    public static let chatSurface = Color(
-        UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(
-                    red: 0x1E / 255.0, green: 0x1E / 255.0,
-                    blue: 0x1E / 255.0, alpha: 1
-                )
-                : UIColor(
-                    red: 0xFC / 255.0, green: 0xFC / 255.0,
-                    blue: 0xFC / 255.0, alpha: 1
-                )
-        }
+    /// 卡面（OpenMuse card #FFFFFF，ui.tsx:20；暗色派生
+    /// #1B2226＝底上提一级的同色相面）
+    public static let surface = omColor(
+        light: omHex(0xFFFFFF), dark: omHex(0x1B2226)
     )
-    // 选中填充（0.4.1 第 10 修，与第 6 修同病同治）：
-    // 原挂 systemGray5、抽屉采样呈 #E6E5EB 紫灰——改
-    // 字面中性浅灰 #EEEFF1 直给，禁系统灰阶替代；暗
-    // 色给纯中性 #2E2E2E（与助手泡暗色同值、成家族）
-    public static let selectionFill = Color(
-        UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(
-                    red: 0x2E / 255.0, green: 0x2E / 255.0,
-                    blue: 0x2E / 255.0, alpha: 1
-                )
-                : UIColor(
-                    red: 0xEE / 255.0, green: 0xEF / 255.0,
-                    blue: 0xF1 / 255.0, alpha: 1
-                )
-        }
+    /// 助手泡（OpenMuse 助手泡 #EEEEF0，chat.tsx:593；
+    /// 暗色派生 #272E33）
+    public static let bubbleFill = omColor(
+        light: omHex(0xEEEEF0), dark: omHex(0x272E33)
     )
-    public static let floatFill = Color(.secondarySystemBackground)
-    public static let userBubbleFill = Color(
-        UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(
-                    red: 0x24 / 255.0, green: 0x24 / 255.0,
-                    blue: 0x24 / 255.0, alpha: 1
-                )
-                : UIColor(
-                    red: 0xF0 / 255.0, green: 0xF0 / 255.0,
-                    blue: 0xF2 / 255.0, alpha: 1
-                )
-        }
+    /// 字段面（OpenMuse input 底 #FFF，ui.tsx:62；暗色
+    /// 派生随卡面 #1B2226）
+    public static let fieldFill = omColor(
+        light: omHex(0xFFFFFF), dark: omHex(0x1B2226)
+    )
+    /// 聊天表面（OpenMuse canvas #FCFCFC——与 0.4.1 第 10
+    /// 修的量测封存值恰同，出处自本版换为它的令牌；
+    /// 暗色派生随页面底 #101619）
+    public static let chatSurface = omColor(
+        light: omHex(0xFCFCFC), dark: omHex(0x101619)
+    )
+    /// 选中填充（OpenMuse 底栏激活项 #F0F1F2，App.tsx:
+    /// 464——取代 0.4.1 封存的 #EEEFF1；暗色派生 #232B30）
+    public static let selectionFill = omColor(
+        light: omHex(0xF0F1F2), dark: omHex(0x232B30)
+    )
+    /// 浮层面（OpenMuse 浮件＝白卡，ui.tsx card #FFFFFF；
+    /// 暗色派生随卡面）
+    public static let floatFill = omColor(
+        light: omHex(0xFFFFFF), dark: omHex(0x1B2226)
+    )
+    /// 用户泡（OpenMuse 用户泡＝colors.blue #C8E7FF，
+    /// chat.tsx:593——浅蓝填充是它聊天页的标志面，旧封存
+    /// #F0F0F2 自本版让位；暗色取其 blueDark #1473C8 原值
+    /// 作深档，保其上浅字对比）
+    public static let userBubbleFill = omColor(
+        light: omHex(0xC8E7FF), dark: omHex(0x1473C8)
     )
 
-    // 抽屉纱（0.4.1 第 10 修量测对齐）：0.4.0 的白
-    // 0.55 在采样里近乎无纱（与面板同为 #FCFCFC 量
-    // 级）——改均匀浅灰白纱：#F4F4F6 @ 0.66（压在聊
-    // 天面上合成约 #F5F5F7、与采样量级合），模糊由
-    // 视图侧 ultraThinMaterial 承担（见 ChatView
-    // drawerOverlay），分离感靠纱不靠影。暗色维持
-    // 黑纱 0.50
+    // 抽屉纱（0.4.1 第 10 修量测对齐，例外 E5 自有形态）：
+    // OpenMuse 无对应物（它的 modalShade 是模态遮罩、非
+    // 抽屉纱），本值保留不动——0.4.0 的白 0.55 在采样里
+    // 近乎无纱，改均匀浅灰白纱 #F4F4F6 @ 0.66，模糊由视
+    // 图侧 ultraThinMaterial 承担；暗色维持黑纱 0.50
     public static let scrim = Color(
         UIColor { traits in
             traits.userInterfaceStyle == .dark
@@ -109,59 +97,113 @@ public enum Palette {
         }
     )
 
-    public static let ink = Color.primary
-    /// 消息正文墨（0.4.4，§29）：同机双截图量测——
-    /// OneDay 正文笔芯亮度 ≈14（Color.primary 近纯
-    /// 黑）、墨迹覆盖 20.7%，Muse 正文笔芯 ≈38、
-    /// 覆盖 14.8%（用户点名「字体还是黑，粗」，两
-    /// 条量测均属实）。正文专用字面值 #262626 中
-    /// 性炭灰（笔芯对齐量测 38），只许消息正文四
-    /// 处用（用户泡/助手泡含 Markdown 与代码块/
-    /// 流式行/引用块摘要），框架文字仍走 ink 不动。
-    /// 暗色暂定 #D9D9DE 浅炭灰（未经量测、归真机
-    /// 抽查回填）
-    public static let bodyInk = Color(
-        UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(
-                    red: 0xD9 / 255.0, green: 0xD9 / 255.0,
-                    blue: 0xDE / 255.0, alpha: 1
-                )
-                : UIColor(
-                    red: 0x26 / 255.0, green: 0x26 / 255.0,
-                    blue: 0x26 / 255.0, alpha: 1
-                )
-        }
+    /// 主墨（OpenMuse text #11191C，ui.tsx:21；暗色派生
+    /// 反演 #EDF1F3）
+    public static let ink = omColor(
+        light: omHex(0x11191C), dark: omHex(0xEDF1F3)
     )
-    public static let inkSecondary = Color.secondary
-    public static let inkMuted = Color(.tertiaryLabel)
-    public static let hairline = Color(.separator)
+    /// 消息正文墨（OpenMuse 正文与框架同色 text #11191C、
+    /// 16pt/24 行高，chat.tsx:597——0.4.4 的笔芯量测口径
+    /// #262626 自本版让位：它正文不另设弱墨；暗色派生
+    /// 随主墨 #EDF1F3）
+    public static let bodyInk = omColor(
+        light: omHex(0x11191C), dark: omHex(0xEDF1F3)
+    )
+    /// 次墨（OpenMuse muted #697176，ui.tsx:22；暗色派生
+    /// 亮化 #9AA3A8）
+    public static let inkSecondary = omColor(
+        light: omHex(0x697176), dark: omHex(0x9AA3A8)
+    )
+    /// 弱墨（OpenMuse 三档弱色无独立令牌，取其输入占位
+    /// 色 #949B9F 为实证弱档，chat.tsx:948；暗色派生
+    /// #6E777D）
+    public static let inkMuted = omColor(
+        light: omHex(0x949B9F), dark: omHex(0x6E777D)
+    )
+    /// 发丝线（OpenMuse line #EEEEF0，ui.tsx:23——与助
+    /// 手泡同 hex 是它源码本貌；暗色派生 #262E33）
+    public static let hairline = omColor(
+        light: omHex(0xEEEEF0), dark: omHex(0x262E33)
+    )
 
-    public static let primary = Color.accentColor
-    public static let primaryFill = Color.accentColor
-    public static let primaryTint = Color.accentColor.opacity(0.12)
-    public static let onPrimary = Color.white
+    /// 强调（OpenMuse blueDark #1473C8，ui.tsx:25——链
+    /// 接/图标/角标/光标的实色；暗色派生亮化 #5EB1EF）
+    public static let primary = omColor(
+        light: omHex(0x1473C8), dark: omHex(0x5EB1EF)
+    )
+    public static let primaryFill = omColor(
+        light: omHex(0x1473C8), dark: omHex(0x5EB1EF)
+    )
+    /// 主填充蓝（OpenMuse blue #C8E7FF，ui.tsx:24——它
+    /// 的主按钮面色：浅蓝填充＋深墨字，与用户泡同源；
+    /// 暗色取 blueDark #1473C8 作深档）
+    public static let primaryPale = omColor(
+        light: omHex(0xC8E7FF), dark: omHex(0x1473C8)
+    )
+    /// 强调弱面（OpenMuse sky #EDF7FD，ui.tsx:26——图
+    /// 标盒/附件牌/聚焦钮面；取代旧 accentColor 12% 透
+    /// 明度近似值；暗色派生 #16242E）
+    public static let primaryTint = omColor(
+        light: omHex(0xEDF7FD), dark: omHex(0x16242E)
+    )
+    /// 填充钮上的字色（OpenMuse 主钮文字恒 text
+    /// #11191C，浅蓝填充配深字，ui.tsx:77＋s.text）
+    public static let onPrimary = omColor(
+        light: omHex(0x11191C), dark: omHex(0xEDF1F3)
+    )
 
+    // pastel 点缀家族（OpenMuse 图标盒/chip/状态卡的轮
+    // 换底色，ui.tsx:26-29；暗色一律派生压暗同色相面）
+    /// 天蓝点缀面（sky #EDF7FD）
+    public static let tintSky = omColor(
+        light: omHex(0xEDF7FD), dark: omHex(0x16242E)
+    )
+    /// 绿点缀面（green #E3F3E8）
+    public static let tintGreen = omColor(
+        light: omHex(0xE3F3E8), dark: omHex(0x17251C)
+    )
+    /// 紫点缀面（lavender #F0EEFA）
+    public static let tintLavender = omColor(
+        light: omHex(0xF0EEFA), dark: omHex(0x221F31)
+    )
+    /// 橙点缀面（orange #FDF0DF）
+    public static let tintOrange = omColor(
+        light: omHex(0xFDF0DF), dark: omHex(0x2B2113)
+    )
+    /// 代码面（OpenMuse 行内/块代码底 #E2E4E7，
+    /// assistant-response.tsx:17-18；暗色派生 #2B3237）
+    public static let codeFill = omColor(
+        light: omHex(0xE2E4E7), dark: omHex(0x2B3237)
+    )
+    /// 错误面（OpenMuse error 底 #FBEFED，ui.tsx:99；
+    /// 暗色派生 #33201E）
+    public static let errorSurface = omColor(
+        light: omHex(0xFBEFED), dark: omHex(0x33201E)
+    )
+
+    /// 状态实色：OpenMuse 无 success/warning 语义实色原
+    /// 值（它只给 pastel 面），两色保留系统色不编值；
+    /// danger 有原值 #AA4A45（ui.tsx:30），落字面（暗色
+    /// 派生亮化 #D08B87）
     public static let success = Color.green
     public static let warning = Color.orange
-    public static let danger = Color.red
+    public static let danger = omColor(
+        light: omHex(0xAA4A45), dark: omHex(0xD08B87)
+    )
 
-    /// 阴影基色（0.3.8 起）：Elevation 规格的基色（原
-    /// shadowBase 令牌）；0.4.0 Elevation 整表废止后仅
-    /// 抽屉例外的一处内联阴影引用（ChatView drawer）
-    public static let shadowBase = Color.black
+    /// 阴影基色：取 OpenMuse 浮动底栏阴影色 #132631
+    /// （App.tsx:443，带蓝黑是它的影语言；阴影色不分
+    /// 模式）
+    public static let shadowBase = Color(
+        red: 0x13 / 255.0, green: 0x26 / 255.0, blue: 0x31 / 255.0
+    )
 
     /// 语义分层别名（0.3.2 与礼记对齐的叫法）：底＝页面
-    /// 底色、卡＝分组卡面、浮＝浮层/弹层级表面。0.4.0 起
-    /// 三者随角色层一并挂系统语义色
+    /// 底色、卡＝分组卡面、浮＝浮层/弹层级表面
     public static var layerPage: Color { pageBG }
     public static var layerCard: Color { surface }
     public static var layerOverlay: Color { bubbleFill }
 
-    /// 平台/网关状态字符串 → 状态色：connected/running/ok 为绿，
-    /// error/failed/disconnected 为红，其余（未知、未配置）为弱色。
-    /// 状态色永不单独传意，调用方必须同时呈现状态词（定版 §3.5）。
-    /// （0.4.0：实现沿旧口径，色值随角色层改系统反馈色）
     public static func stateColor(_ state: String?) -> Color {
         switch state?.lowercased() {
         case "connected", "running", "ok", "ready":
@@ -186,8 +228,9 @@ public enum OneDayMetrics {
     public static let minTapTarget: CGFloat = 44
 
     // 圆角梯队（同心推导的锚点，内层走 CornerRadius.concentric）
-    /// 分组容器
-    public static let containerCorner: CGFloat = 18
+    /// 分组容器（0.6.1 改挂 OpenMuse card 圆角 23，
+    /// ui.tsx:49）
+    public static let containerCorner: CGFloat = 23
     /// 侧边抽屉面板右侧圆角（0.3.6 立宪大圆角，§22）
     public static let drawerCorner: CGFloat = 28
     /// 抽屉内容左右边距（0.3.6：名字/组标签/行标题/
@@ -202,14 +245,21 @@ public enum OneDayMetrics {
     /// 抽屉底部浮动条圆钮边长（0.3.6 实测约 52；搜索
     /// 胶囊同高）
     public static let drawerBarButton: CGFloat = 52
-    /// 输入字段 / 代码块
-    public static let fieldCorner: CGFloat = 12
-    /// 按钮
-    public static let buttonCorner: CGFloat = 14
-    /// 用户消息气泡
+    /// 输入字段（0.6.1 改挂 OpenMuse input 圆角 19，
+    /// ui.tsx:58）
+    public static let fieldCorner: CGFloat = 19
+    /// 按钮（0.6.1 改挂 OpenMuse button 圆角 24 近胶囊，
+    /// ui.tsx:74）
+    public static let buttonCorner: CGFloat = 24
+    /// 消息气泡（0.6.1：与 OpenMuse 气泡圆角 22 同值，
+    /// chat.tsx:590，出处自本版换为它的令牌）
     public static let bubbleCorner: CGFloat = 22
-    /// 助手消息气泡（0.2.5：浅灰软填充泡，圆角比用户泡略收）
-    public static let assistantBubbleCorner: CGFloat = 18
+    /// 助手消息气泡（0.6.1：改同 22——OpenMuse 双泡同
+    /// 圆角，旧「助手略收 18」口径让位）
+    public static let assistantBubbleCorner: CGFloat = 22
+    /// 气泡尾角（0.6.1 新增：OpenMuse 靠己侧底角收 7，
+    /// chat.tsx:591-592）
+    public static let bubbleTailCorner: CGFloat = 7
     /// 输入区胶囊（多行态圆角矩形的圆角，单行态走 Capsule）
     public static let composerCorner: CGFloat = 24
     /// 代码块（正文区内的内容面）
@@ -230,14 +280,19 @@ public enum OneDayMetrics {
     /// 取 20 semibold，槽宽仍 iconSlot 28 保对齐线与
     /// dividerInset 60 的推导不变）
     public static let rowIconGlyph: CGFloat = 20
-    /// 主按钮高
-    public static let primaryButtonHeight: CGFloat = 50
+    /// 主按钮高（0.6.1 改挂 OpenMuse button minHeight
+    /// 42，ui.tsx:72）
+    public static let primaryButtonHeight: CGFloat = 42
+    /// 卡内边距（0.6.1 新增：OpenMuse card padding 20，
+    /// ui.tsx:52）
+    public static let cardPadding: CGFloat = 20
 
-    // —— 气泡内边距（0.3.2 具名收编，原 ChatView 散数 14/10）——
+    // —— 气泡内边距（0.6.1 改挂 OpenMuse 气泡内边距
+    // 16/13，chat.tsx:588-589；0.3.2 收编的 14/10 让位）——
     /// 气泡横向内边距（用户泡与助手泡共用）
-    public static let bubblePaddingH: CGFloat = 14
+    public static let bubblePaddingH: CGFloat = 16
     /// 气泡纵向内边距
-    public static let bubblePaddingV: CGFloat = 10
+    public static let bubblePaddingV: CGFloat = 13
     /// 气泡靠边让位：对侧 Spacer 的最小让宽（用户泡左让/
     /// 助手泡右让同值，0.2.5 对齐口径）
     public static let bubbleSideInset: CGFloat = 44
