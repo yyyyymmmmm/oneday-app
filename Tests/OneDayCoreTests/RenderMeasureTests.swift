@@ -151,8 +151,19 @@ final class RenderMeasureTests: XCTestCase {
             let stats = try XCTUnwrap(analyze(image))
             report("settings", name, stats)
             densities[name] = stats.density
+            // 一致性口径（首轮实测后定，见 §24）：紧致盒
+            // 密度量的是字形内部填充率，紧凑字形（network
+            // 的球面网格生来填满包围盒）天生偏高、不是
+            // 「复杂度离群」信号；同列一致性看槽位格口径
+            // （28 槽内实际墨覆盖）＋紧致值只设防实心件的
+            // 上限（.fill 件同口径 0.72+）
             XCTAssertLessThanOrEqual(
-                stats.density, 0.50, "\(name) 密度 \(stats.density) 过高"
+                stats.cellDensity, 0.10,
+                "\(name) 格口径密度 \(stats.cellDensity) 离群"
+            )
+            XCTAssertLessThanOrEqual(
+                stats.density, 0.55,
+                "\(name) 紧致密度 \(stats.density) 达实心件量级"
             )
         }
         // 同列一致性：最密与最疏不许差出 2.5 倍（复杂度档
