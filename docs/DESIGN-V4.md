@@ -4090,3 +4090,49 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
 ### 47.9 真机终审项
 T1 抽屉长名单滚到底：底条后有被霜住的内容影、名单末行不被压；T2 抽屉字阶与 Muse 图并置复核（名字/行题/行距）；底条圆钮 52 与图中约 57 的差是否要点名再动；T3 已关联旁聊（主线/导入线程）标题跟随服务端 AI 名、纯本地旁聊保持派生名（缺口预期内）；T4 思考三态：流式限高区内滚动跟随、正文起流自动收起、打开旧会话思考全收起、展开态限高内读；思考区内滚动与消息列表滚动的手势分配；T5 聊天页头部只剩胶囊行；T6 设置页与图四五并置（底色/卡距/行题/红字行/页脚版本行）、管理组三页 sheet 开合与深链改道；T7 文件页分段/行 ⋮/影音网格与图六七并置、预览与分享真动作；T8 切后台恢复：生成中切走再回——无「无网络」横幅、回复或被补齐或自动续生成；前台 Wi-Fi 瞬断时未产出自动重试一次、横幅新文案不提地址。
 - 交付实录：功能提交 b1c9b75＋测试编译修复 65eada9（首轮 CI 42649039602 构建过、测试目标因 HermesErrorTests for-loop 类型标注写法编译失败，改先声明数组后复跑）；CI 42649862975 success，Executed 412 tests, 0 failures（395 基线＋17 新增，与 47.8 预估一致）；IPA 4,790,678 字节、md5 991267ade0a54ad8e71600c263409974、主代理独立解包验 Info.plist＝0.20.0/49、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.20.0/OneDay-0.20.0.ipa。
+
+## §48 0.21.0/50「旁聊建真会话·标题根治」（用户 2026-11-10 00:07 点选；基线 41f4247、单测 412 只增不减）
+
+### 48.1 立项与技术定案
+- §47.3 缺口收口：App 内旁聊（ChatThread）此前走无状态重放、永不建服务端会话——服务端两段式 AI 标题（derived→llm）无从回流、DrawerThreadTitle 管线只覆盖主线/导入线程。本包把旁聊升为真服务端会话，标题、历史归属、切后台恢复一并根治。
+- **关键事实更正（探索期实查代码）**：仓库里从来没有 require_model_lock、也没有会话 chat 发送端点——主线现状＝钦定一条服务端会话记录（ensureMainServerSession）＋发送仍走无状态全量重放。故简报「走与主线同一条已验通的建会话路径」的落地形态定案如下（复用主线的通道与纪律、发送机制取研究档实测链）：①建会话复用主线同通道（AppState.performAdmin＋HermesClient 的 /api/sessions POST、服务端改派 id 以回执为准），body 按研究档实测链加 model＋require_model_lock:true（主线建线不带此二键，差异见 48.3 表）；②会话模式发送＝既有 chatStream 加可选 sessionID 参数→请求头 X-Hermes-Session-Id＋payload 只发本轮新消息（研究档两轮记忆探针实测：第二轮只发新问题、答出首轮数字——服务端持上下文成立）；不用 /api/sessions/{id}/chat/stream（OpenAPI 无此路径、事件 schema 未验、且只收纯文本装不下图片 parts）。主线默认 sessionID=nil、请求形态逐字不变（简报第七项「只复用不重构」）。
+- **施工纪律执行**：全程对生产零写请求——未在生产建任何会话、未发任何写请求；链接状态机全部 fixture/mock 验（Core 纯函数单测），真链接只发生在用户装机后自己的发送动作里。
+
+### 48.2 链接状态机（OneDayCore.SideChatLink，新增文件）
+- 相位：未链接（serverSessionID 空＋失败计数 0）→链接中（瞬时相，单次发送内的建会话请求在飞、ChatView 任务内持有不落盘）→已链接（serverSessionID 非空，派生时压过历史失败计数）；链接失败→失败留痕相（linkFailed(attempts)），仍按未链接计划发送、下次发送再试。相位由持久字段纯派生（phase/phase(afterAttemptSuccess:)/phase(afterAttemptFailure:)），转移函数有单测钉。
+- ChatThread 新增三字段（均带默认值、SwiftData 轻量迁移，同 titleIsManual 先例）：linkFailureCount、linkLastError（失败留痕）、linkedModel（链接时落锁的模型；导入线程为 nil）。
+- 发送定形在 ChatView.prepareSendShape（send 起手、流开始前）：计划由 SideChatLink.sendPlan 定（主线恒 legacyReplay；已链接旁聊 .session；未链接 .linkAndSeed），载荷取形由 SideChatLink.payload 定。链接窗口内用户按停止：不进流、不记失败留痕、按停止语义静默收尾。
+
+### 48.3 与主线路径的复用/差异表
+| 环节 | 主线（不动） | 旁聊（本包） |
+|---|---|---|
+| 建会话通道 | performAdmin（401 静默重登）＋POST /api/sessions | 同一通道、同一客户端家族（新增 createLinkedServerSession） |
+| 建会话 body | {id: oneday-main-<uuid>, title: 主线} | {id: oneday-side-<uuid>, model: 建时胶囊, require_model_lock: true}，**不带 title**（占住标题位会挡两段式 AI 标题自生） |
+| id 落点 | SideChatStore.mainServerSessionID＋确认为准 | ChatThread.serverSessionID（回执 id 为准，同口径）；linkedModel=建时胶囊、失败计数清零 |
+| 发送 | /v1/chat/completions 全量重放、无会话头（**本包零改动**） | 已链接：同端点＋X-Hermes-Session-Id 头、payload 仅本轮新消息（引用拼装/图片 parts 在全量上下文尾条备好后取尾条）；种子轮：全量载荷＋会话头 |
+| 模型锁 | 钦定会话无确认锁（现状） | 建时 require_model_lock 落确认锁；胶囊改选且 linkedModel≠胶囊时发送前 best-effort POST /api/sessions/{id}/model 推一次（成功才更新 linkedModel、失败旧锁继续生效不挡发送）；导入线程 linkedModel=nil 永不代推（SideChatLink.needsModelRelock 钉） |
+| 失败回退 | 建线失败静默、下次进页重试 | 建会话失败不挡消息：回退无状态重放整份发出＋linkFailureCount/linkLastError 留痕、下次发送再试；用户主动停止不算失败 |
+| 恢复 | serverSessionID 在→补齐分支 | 同一分支（路线判定收敛 Core StreamRecovery.route，见 48.5） |
+| 删除 | 主线不在抽屉删除面内 | 抽屉删本地线程→关联会话 PATCH archived:true（见 48.6） |
+
+### 48.4 存量懒链接与种子轮载荷形态
+- 存量未链接线程下一次发送自动懒链接（与新建旁聊首发同一条 .linkAndSeed 路）：先建会话，成功后本轮为**种子轮**——载荷＝既有全量重放成品（最近 20 条 user/assistant、引用经 MessageQuote.outgoingContent 拼装、本轮带图时尾条为多模态 parts），另加 X-Hermes-Session-Id 头；落 id 后下一轮起转会话模式（仅新消息）。纯本地从未发送过的线程不动作（链接只由发送触发、无后台主动建会话）。
+- **种子轮未决风险（如实记，零写纪律下不可实证）**：服务端对「会话头＋全量 messages」的落库粒度（整段存入 vs 只存末轮）未验——模型当轮必见全上下文（载荷自带），落 id 后会话自种子轮起累积；本地 entries 恒为显示真源，抽屉/历史呈现不依赖该结论。用户真机首轮使用后可在管理页核对该会话 message_count 是否异常膨胀，若整段重复落库则下一包改「种子轮只发尾条＋历史由本地承担」口径。
+
+### 48.5 恢复路径升级
+- 路线判定从 ChatView 内联条件收敛为 Core 纯函数 StreamRecovery.route(linkedSessionID:)（completeFromServer/resendLocal，两分支单测钉），判定口径与 0.20.0 内联条件逐字等价：已链接先拉服务端历史补齐、拉不到本轮回复仍落重发兜底。
+- 旁聊链接后自动升补齐分支（此前本地旁聊恒无 id、只能重发）；PendingStreamRecovery 新增 sessionID——已链接线程落重发兜底时按中断轮原形态续发（原载荷＋会话头），不退回无状态另起炉灶。导入线程的 R1 未验注就此结案改写（续聊回合按实测链回写同一会话）。
+
+### 48.6 删除语义
+- 本地线程删除点全仓唯一＝DrawerView.deleteThread（核查结论：AllConversationsView 不持有本地线程、管理面删的是服务端会话本体，口径不变）。删前快照 serverSessionID，本地删除先行，关联会话随后 PATCH archived:true（尽力而为）：成功顺手销留痕账；失败不阻塞本地删除、会话 id 落 SideChatStore.failedArchiveSessionIDs 留痕账（该会话在管理页未归档段仍可见、可手动归档收尾；clearFailedSessionArchive 供对账销账）。
+
+### 48.7 标题刷新触发点（全集）
+服务端 llm 标题在首轮回复后数秒升级，触发点四路：①开抽屉（drawerPresented onChange，0.18.0 既有）；②壳层预挂载 onAppear（0.7.1 既有）；③**App 回前台**（0.21.0 新增 DrawerView scenePhase onChange→loadDrawerData——此前注释自称含回前台、实则无此触发，本版坐实）；④**已链接旁聊一轮完整落地**（0.21.0 新增：ChatView runStream 收尾顶 AppState.drawerRefreshTick，即时一次＋6 秒延迟一次兜 llm 升级时延；抽屉未挂载时由①②兜底）。解析口径不变：手改名（titleIsManual）＞服务端标题＞本地派生（DrawerThreadTitle，0.20.0 管线零改动、仅文件头补 0.21.0 闭环注）。
+
+### 48.8 版本与测试
+- 版本源五处同改 0.21.0/50：Project.swift 四字面量＋SettingsView.versionFooter「OneDay v0.21.0」，全仓 grep 验（余下 0.20.0 字样均为历史注释）。
+- 单测 412＋19＝431：新增 SideChatLinkTests 17（相位派生 6＋id 格式 1、发送计划 3、载荷取形 3、模型重锁 1、验收组合「链接状态→标题解析」三态 3——未链接恒派生/已链接＋llm 到手取 AI 名/手改名恒手改名）＋StreamRecoveryTests 恢复路线 2（已链接补齐/未链接重发）。演示客户端 createLinkedServerSession 恒抛错（演示走失败留痕＋重放回退、会话头永不进演示请求）。
+
+### 48.9 真机终审项
+U1 新建旁聊聊两轮：抽屉里该旁聊名从首消息派生名变为服务端 AI 名（发送完成回抽屉或等数秒）；U2 旧线程（0.21.0 前建的本地旁聊）续聊一轮后标题同样跟上（懒链接生效）；U3 已链接旁聊生成中切后台再回：走补齐路径（notice「回复已补齐」或自动续生成）、不整轮重发；U4 已链接旁聊里换胶囊模型再发：回复模型随新选（重锁生效、无报错横幅）；U5 抽屉删一条已链接旁聊：管理页已归档段出现该会话；U6 新建旁聊首轮带图发送：图片照常发出（种子轮多模态不回归）；U7 管理页核对新旁聊会话的 message_count（48.4 种子轮落库粒度观察项）。
+- 交付实录：功能提交 c36d3cb；CI 42653353346 success，Executed 431 tests, 0 failures（412 基线＋19 新增，与 48.8 预估一致）；IPA 4,813,686 字节、md5 f193ecb6cc4b8b3248238169aedd86f9、解包验 Info.plist＝0.21.0/50、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.21.0/OneDay-0.21.0.ipa。
