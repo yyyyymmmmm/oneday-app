@@ -2196,7 +2196,7 @@ SessionDisplay 兜底用例数据缺 endedAt（会话按模
 规格源：~/workspace/oneday-design-review/fixlist-0.3.8.md
 （33 条＋用户四裁）与 baseline-supplement-20261109.md
 （补遗，已并入 §22.7）。
-（验收数据待 CI 回填：run 号／单测数／IPA 字节。）
+验收：CI run 42542458853 全绿（构建＋OneDayCore 单测 112 个 0 失败；0.3.7 为 96，新增 16＝DisplayMapping 8＋RenderMeasure 6＋TabBarLayout 2，TabBarSymbols 改版净 0）。IPA 解包验：CFBundleShortVersionString 0.3.8／CFBundleVersion 23／bundle id site.didichou.oneday／Assets.car 在包（116,296 字节）；IPA 2,237,982 字节，落 ~/workspace/your_files/oneday-v0.3.8/。构建两轮留痕：首轮 run 42541961055 构建绿、单测 2 个断言失败（RenderMeasure 设置列紧致密度上限 0.50 被 network 0.532／server.rack 0.525 击穿）——复核认定紧致盒口径对紧凑字形失真（量的是字形内部填充率、非同列复杂度），断言改格口径＋防实心上限，第二轮全绿，详见 24.2 第 14 条。
 
 ### 24.1 量测方法（证据纪律，用户定）
 
@@ -2224,9 +2224,45 @@ Tests，在模拟器内离线渲染并逐像素取样，方法如下——
 每项量测在测试里 print 一行 MEASURE…，CI 日志
 （gh run view --log）可 grep 复核。
 
-### 24.2 逐条销账（待 CI 数据回填后逐条落数）
+### 24.2 逐条销账（量测值均为 CI 日志 MEASURE 行，同口径复核法见 24.1）
 
-（见本轮交卷报告与 fixlist-0.3.8.md 的逐条回填。）
+| 条 | 做了什么 | 量测证据 | 偏差 |
+|---|---|---|---|
+| 1 | 底栏改自绘直渲：TabBarSymbols 清 .fill、FloatingTabBar 以 22pt regular 直渲 | 紧致密度：对话 0.305／趋势 0.350／文件夹 0.387／滑杆 0.392；44 格口径 0.080–0.120。对照同法：.fill 变体 0.723／0.872（格 0.219–0.289）——outline 化同口径降约 55% | fixlist 的 44.6%/49.0% 是真机整格像素口径，与紧致盒口径不可直接比数；以同口径对照（fill→outline）与格口径（≤0.120）作证 |
+| 2 | 自绘底栏（用户裁决）：TabView 结构不动、原生栏 toolbarVisibility 隐藏，FloatingTabBar 白浮纸大胶囊 | 选中垫宽由 TabBarLayout.padWidth 构造：字形 26pt→垫 52pt（原生约 98pt＝栏宽 1/4）；单测钉死 | 无 |
+| 3 | 抽屉开→底栏隐藏：ContentView 读 AppState.drawerPresented（ChatView.setDrawer 既有写点）＋发送舱 tabBarClearance 联动 | 状态链单测外由构造保证（同一 @Observable 状态驱动两处）；动效走 MotionTokens.swap＋Reduce Motion 出口 | 与 27 同件 |
+| 4 | 设置页撤销系统大标题、自绘标题行 TypeScale.settingsTitle（30 bold，账本钉） | 墨高：旧形态 34 black 复量 30.0pt（清单 29.3、同量级）；新 30 bold＝26.3pt（目标约 25.7、断言带 23–28） | 无 |
+| 5 | 行盒钉死：全节 listRowInsets 纵向 0＋行内容 minHeight 56（ListRowSpec 同值）；行题 17 regular（既有 body 口径、本轮账本补 navRowText 钉） | 行高构造＝56–57pt（目标约 57）；17 regular 墨高复量 15.7pt（清单两家同值 15.3、同量级） | 83pt 的成因（系统纵向 insets 叠加）以构造消除，未做 UI 渲染复量（量测层为字体/几何口径） |
+| 6 | ModelDisplayNames 全局映射（Core）：聊天三项＋服务端别名，身份位兜底「服务端默认」；设置身份卡副题/对话模型值/状态页状态行三处改走映射，原始 id 只留对话模型详情 | 单测 8 断言钉映射表（含 Qwen 全名 id、deepseek-chat 别名、hermes-agent→nil） | 无 |
+| 7 | 档案值 ServerLabels.profileName（default→「默认档案」）；记忆值：内置改报「N 个文件」（builtinFiles 计数）、外部接管报提供方名 | 单测钉 profileName 三态；记忆值口径在 loadSummaries 代码内 | 无 |
+| 8 | 断开连接拆出服务器组、独立 Section | 结构改动（代码审查面）；红字红图标只在独立组内 | 无 |
+| 9 | success 降饱和 #1E8E4F→#3F9163（暗 #45B878→#55A87B）；服务器行与网关行撤状态点，全页只留身份卡一处 | 令牌值单测断言（testTokenHexValues） | 无 |
+| 10 | 设置页 List 补 contentMargins 底部 tabBarZone（76）；状态页底部留白同轮改 tabBarZone | 构造口径与总览同值（OneDayMetrics.tabBarZone） | 其余二级页（详情表单类）底部留白未逐页复量，归事后抽查 |
+| 11 | 身份卡副题撤 host（只留模型显示名），URL 只留服务器行副题一处 | 代码面（第 6 条同改点） | 无 |
+| 12 | 服务器行撤 StatusDot，右侧只剩系统箭头；navRow 的 dot 参数整删 | 代码面 | 无 |
+| 13 | navigationTitle 撤销（空题＋inline），标题行贴 List 首行 | 构造：标题上方只剩 List 首节系统顶距（原约 130pt 的大标题区消失） | 未做 UI 渲染复量（同 5） |
+| 14 | 设置列图标全走 rowIcon 的 17 regular 同档；量测复核同列一致性 | 14 枚密度：紧致 0.272–0.532、格口径 0.037–0.083、离散比 1.95（断言 ≤2.5／格 ≤0.10／紧致 ≤0.55）；**brain 0.366 居中（14 枚第 8 位）、非离群，清单的目测怀疑被量测推翻，未换形**；紧致最高是 network 0.532／server.rack 0.525（紧凑字形的内部填充率、格口径正常） | 未换任何图标（量测不支持换形）；断言口径首轮过严已按实测修正（见节首留痕） |
+| 15 | 抽屉名单字形 21 无字重→18 regular（FrameworkIcon.drawerGlyphSize 令牌） | 18pt 紧致密度：0.310／0.363／0.399／0.396，离散比 1.29（0.3.7 目测口径 27.6 vs 19.6＝1.41）；格口径 0.055–0.082 | 紧致口径绝对值高于清单的 13–21%（其为整格口径）；统一性以离散比与同令牌构造作证 |
+| 16 | 名单文字钉 17 regular（TypeScale.body＋账本 navRowText）、行距 minHeight 47（既有令牌、本轮销账确认） | 墨高同第 5 条（17 regular 15.7pt）；行高构造 47 | 无 |
+| 17 | **关闭不施工（用户裁决：保留灰块）**：导航行/会话行选中整行 #E3E3E5 填充维持（selectionFill 令牌值单测断言 0xE3E3E5） | — | 推翻清单原案，依裁决 |
+| 18 | 分组名「服务端会话」→「其他会话」；副题改序「时间·条数·进行中·来源」（来源退尾）；状态只在 isActive 真活跃时写；标题同源 SessionDisplay（详情页 contentTitle 内容摘要既有） | SessionDisplayTests 改序断言钉死（含已结束不挂「进行中」回归） | 抽屉列表载荷无消息正文，抽屉行标题走 humanTitle（contentTitle 的同源回落）；内容摘要只在已拉消息的详情页生效 |
+| 19 | 全名单两行制：本地行补副题（LocalThreadSubtitle「时间·条数」）、服务端行同型，行高同 57（sessionRowHeight/ListRowSpec 钉） | LocalThreadSubtitle 单测钉格式 | 无 |
+| 20 | 导航区补「选项卡」组标签（与会话组标签同形态） | 代码面 | 无 |
+| 21 | 会话组间与服务端组前发丝线全撤（只留白＋组标题边距）；发丝线只留导航↔会话功能区界一处 | 代码面 | 无 |
+| 22 | 删 tabBarZone 占位行（76）＋底条下边距改 DrawerGeometry 口径（面板内 4pt）＋面板/纱底色穿安全区 | 条中心比例纯函数单测：852 屏/安全区 34 → 0.925（Muse 实测 92.5%；旧 77.5%） | 无 |
+| 23 | 底条横边距 20→12、件间距 12→8 | 搜索胶囊宽构造算术：393 屏 ≈166pt、402 屏 ≈174pt（清单旧约 150、Muse 约 173） | 无 |
+| 24 | 齿轮 18 无字重→17 regular（drawerBarGlyphSize，与 15 同令牌族） | gearshape 17pt 紧致密度 0.396，与名单同带 | 无 |
+| 25 | 底条圆钮＋搜索胶囊：fieldFill 灰填充→odFloatPaper（白浮纸） | 令牌值同 28（floatFill #FBFBFB 单测断言） | 无 |
+| 26 | 用户气泡 surface 纯白→userBubbleFill 中性浅灰（新令牌） | 色值断言：浅 #F0F0F2／暗 #212126；底 #FCFCFC、助手泡 #E9EAEC 三者同家族拉开（明度序 F0F0F2＞E9EAEC） | 无 |
+| 27 | 同 3 | 同 3 | 同件 |
+| 28 | 新立白浮纸令牌 floatFill＋odFloatPaper 画法（近白＋发丝边 0.5＋paper 柔影），落点：输入框/身份胶囊/顶栏圆钮/回到底部钮/抽屉底条/自绘底栏/状态页头像 | 色值断言浅 #FBFBFB／暗 #1C1C1F；Elevation.paper 0.10/12/4 | 输入框聚焦仍走 §14 条 2 双环影（聚焦禁的是焦点描边；发丝边为浮件定位边，两口径不冲突） |
+| 29 | 气泡正文显式角色 bubbleBody（17 regular）：用户 Text／MarkdownText 段落／StreamingText 三处同改 | 墨高：17 regular 15.7pt vs 19 semibold 对照 17.3pt（清单实测约 19 semibold 形态已退） | 无 |
+| 30 | 按已批布局：IdentityAnchor（头像＋Hermes＋状态）＋右侧模型小胶囊＋会话名次行；顶栏让位 64→88、渐隐带 128→150 | 组件构造（状态词三态属实口径：未连接/唤醒中/生成中/在线） | 胶囊宽于 Muse 约 90pt 参考——已批布局含状态词，属方案内取舍 |
+| 31 | 左钮 sidebar.left→line.3.horizontal（汉堡线），白浮纸圆钮 | 代码面 | 无 |
+| 32 | ＋/麦克风 16→15 regular（composerGlyphSize 令牌） | plus 笔画复量 1.67pt（目标约 1.8）；注：16pt 同法亦 1.67（SF 笔画不随点数线性缩放，清单 2.5pt 为真机像素口径） | 无 |
+| 33 | 备忘不施工：助手泡 #E9EAEC 未动（令牌值单测断言钉死防后版漂移） | bubbleFill 浅色断言 0xE9EAEC | — |
+
+补遗落地（§22.7 对照）：身份锚点落聊天（第 30 条）／总览／文件三页＋状态页枢纽头改白浮纸（其身份头即锚点的大形态）；统一行：ListRowSpec 冻结＋UnifiedRow 组件新立，会话页行与记忆页两行已收编，定时/技能行因含 Toggle/三行运行信息属内容变体、规格同源（字号/列宽/行高同表）未并组件（如实记）；字体补测：contentTitle 600 入账本并注合法领地；审计三行：LogDisplay 解析＋日志页/状态页近期事件两处落点；配色补测：未引任何新框架色（圆盘位无落点需求、未动）；枢纽页分段：状态页分段含文字、语义不全靠图标，按补遗前提不学无文字形态、未动。
 
 ### 24.3 暗色审计（C 项）
 
