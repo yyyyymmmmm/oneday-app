@@ -24,7 +24,8 @@ final class HermesErrorTests: XCTestCase {
     }
 
     func testHostResolutionFailuresStayInAddressBucket() {
-        for code: [URLError.Code] in [.cannotFindHost, .dnsLookupFailed] {
+        let codes: [URLError.Code] = [.cannotFindHost, .dnsLookupFailed]
+        for code in codes {
             let error = HermesError.fromURLError(URLError(code))
             XCTAssertFalse(error.isTransient)
             guard case .unreachable = error else {
