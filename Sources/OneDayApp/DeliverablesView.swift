@@ -13,15 +13,19 @@ import SwiftUI
 /// 放里面的，如 PPT——不是服务器全部文件）**：数据
 /// 沿 P8（0.14.0）既有产出聚合通道，是全仓唯一现成
 /// 的「产出」信号面——/api/files（根锁 /opt/data）
-/// 只扫十个产出根（uploads／cache 的 images、
-/// documents、screenshots、videos、audio、scratch／
-/// cron/output／image_cache、audio_cache，递归 ≤3
-/// 层）＋根目录散文件（系统文件 deny list 剔除），
-/// 按 mtime 倒序。服务端文件全量浏览不在本页（已
-/// 迁设置「管理」服务器文件）。v1 缺口如实记 §47：
-/// 产出与会话之间无关联字段，来源只标到产出目录
-/// 级；聊天内附件（本地 imageData）与服务端工作区
-/// 散件不在此面。
+/// 扫产出根（递归 ≤3 层）＋根目录散文件，按 mtime
+/// 倒序。服务端文件全量浏览不在本页（已迁设置「管
+/// 理」服务器文件）。v1 缺口如实记 §47：产出与会话
+/// 之间无关联字段，来源只标到产出目录级；聊天内附
+/// 件（本地 imageData）与服务端工作区散件不在此面。
+/// **0.22.0 去污（视觉审计 F1，用户 00:12 实机首屏
+/// 9 行全是 state.db-wal 类服务器内脏）**：准入改
+/// Core 纯函数 DeliverableAdmission 四层把守——产
+/// 出根十→七（scratch 临时产出与 image/audio_cache
+/// 下载缓存退出本面、仍可在服务器文件里达）、根散
+/// 文件改扩展名白名单、内部名形态拦截全来源生效、
+/// 旧 deny 名单保留作第二道；拒收样本以实机 9 个污
+/// 染文件名作单测钉死。此后本面首屏只应剩真交付物。
 struct DeliverablesView: View {
     @Environment(AppState.self) private var appState
 
@@ -109,7 +113,11 @@ struct DeliverablesView: View {
                 name: appState.identityName ?? AgentName.fallback,
                 statusWord: appState.config == nil ? "未连接" : "在线",
                 statusColor: appState.config == nil
-                    ? Palette.inkMuted : Palette.success
+                    ? Palette.inkMuted : Palette.success,
+                // 0.22.0（审计 F3）：真头像注入，与聊天页
+                // 胶囊同一头像源（此前是 sparkles 占位、
+                // 切换器并排即露馅的身份双源）
+                avatarImage: Image("SangouPartner")
             )
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -321,7 +329,9 @@ struct DeliverablesView: View {
                     .rotationEffect(.degrees(90))
                     .font(.system(size: 18, weight: .regular))
                     .foregroundStyle(Palette.inkSecondary)
-                    .frame(width: 32, height: 32)
+                    // 0.22.0（审计 F4）：命中域 32→44
+                    // （字形 18 不变、行高 64 内可容纳）
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("更多操作")
@@ -397,13 +407,17 @@ struct DeliverablesView: View {
     // MARK: - 聚合与动作（P8 通道沿用）
 
     /// 聚合各产出根（每根递归 ≤3 层、全局条目上限保
-    /// 护）＋根目录散文件（排除已知系统文件与隐藏文
-    /// 件），按 mtime 倒序、路径去重
+    /// 护）＋根目录散文件，按 mtime 倒序、路径去重；
+    /// 全部条目先过 DeliverableAdmission 准入（0.22.0
+    /// 去污：形态拦截全来源、根散另过扩展名白名单）
     private func collect() async {
         var found: [Deliverable] = []
         var seenPaths = Set<String>()
         func absorb(_ entry: WorkspaceFileEntry, source: String) {
             guard !entry.isDirectory,
+                  DeliverableAdmission.isAdmitted(
+                      name: entry.name, isRootLooseFile: false
+                  ),
                   seenPaths.insert(entry.path).inserted else { return }
             found.append(Deliverable(entry: entry, source: source))
         }
@@ -436,7 +450,13 @@ struct DeliverablesView: View {
             }
         ) {
             for entry in rootListing.entries where !entry.isDirectory {
-                guard !entry.name.hasPrefix("."),
+                // 0.22.0：根散文件准入＝扩展名白名单＋形
+                // 态拦截（DeliverableAdmission）；旧 deny
+                // 名单保留作第二道（.md 白名单会放行人
+                // 格文件、靠它挡回）
+                guard DeliverableAdmission.isAdmitted(
+                          name: entry.name, isRootLooseFile: true
+                      ),
                       !Self.rootDenyList.contains(entry.name)
                 else { continue }
                 absorb(entry, source: "工作区根目录")
@@ -517,8 +537,12 @@ struct Deliverable: Identifiable {
 }
 
 extension DeliverablesView {
-    /// 产出根（路径, 来源名）——P8 实查口径沿用；
-    /// uploads 为 App 上传落点
+    /// 产出根（路径, 来源名）——P8 实查口径起，0.22.0
+    /// 按审计 F1 策展规格收紧十→七：cache/scratch（临
+    /// 时产出）、image_cache、audio_cache（下载缓存）
+    /// 退出本面——它们的东西在设置「管理」服务器文件
+    /// 里仍可达，交付物面只认成果；uploads 为 App 上
+    /// 传落点
     fileprivate static let outputRoots: [(path: String, label: String)] = [
         ("/opt/data/uploads", "App 上传"),
         ("/opt/data/cache/images", "生成图片"),
@@ -526,10 +550,7 @@ extension DeliverablesView {
         ("/opt/data/cache/screenshots", "浏览器截图"),
         ("/opt/data/cache/videos", "生成的视频"),
         ("/opt/data/cache/audio", "生成的音频"),
-        ("/opt/data/cache/scratch", "临时产出"),
         ("/opt/data/cron/output", "定时任务产出"),
-        ("/opt/data/image_cache", "图片缓存"),
-        ("/opt/data/audio_cache", "音频缓存"),
     ]
 
     /// 根目录散文件的排除名单：服务端自身的配置/人

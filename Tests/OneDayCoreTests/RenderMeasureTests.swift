@@ -134,16 +134,22 @@ final class RenderMeasureTests: XCTestCase {
         }
     }
 
-    // MARK: - 第 14 条：设置页行图标同列密度（17 regular）
+    // MARK: - 第 14 条：设置页行图标同列密度
+    // 0.22.0：量测尺寸随现行渲染 17→28（FrameworkIcon
+    // .settingsGlyphSize 同步追认）；名单换现行行图标
+    // 全集（17 件：退役的断开/调色盘字形出列、管理组
+    // 三件与 cable.connector/circle.lefthalf.filled 入
+    // 列）；格口径闸按面积比 (28/17)² 重新校准
 
     func testSettingsSymbolInk() throws {
         let names = [
             "server.rack", "rectangle.stack.person.crop",
-            "rectangle.portrait.and.arrow.right", "brain",
+            "key", "brain",
             "puzzlepiece.extension", "clock.arrow.2.circlepath",
-            "bubble.left.and.text.bubble.right", "text.bubble",
-            "key", "chart.bar", "network", "arrow.clockwise",
-            "doc.text", "paintpalette",
+            "bubble.left.and.text.bubble.right", "cable.connector",
+            "text.bubble", "chart.bar", "network", "arrow.clockwise",
+            "doc.text", "circle.lefthalf.filled",
+            "chart.xyaxis.line", "desktopcomputer", "folder",
         ]
         var densities: [String: Double] = [:]
         for name in names {
@@ -161,8 +167,8 @@ final class RenderMeasureTests: XCTestCase {
             // （28 槽内实际墨覆盖）＋紧致值只设防实心件的
             // 上限（.fill 件同口径 0.72+）
             XCTAssertLessThanOrEqual(
-                stats.cellDensity, 0.10,
-                "\(name) 格口径密度 \(stats.cellDensity) 离群"
+                stats.cellDensity, 0.32,
+                "\(name) 格口径密度 \(stats.cellDensity) 离群（28pt 校准闸）"
             )
             XCTAssertLessThanOrEqual(
                 stats.density, 0.55,

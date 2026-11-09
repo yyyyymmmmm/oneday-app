@@ -246,10 +246,15 @@ struct DrawerView: View {
     private var drawerAgentName: some View {
         Text(appState.identityName ?? AgentName.fallback)
             // 0.20.0（第二条，Muse 抽屉图推算）：名字头
-            // 升 34pt bold——图中状态栏高约 54pt 为锚、
-            // 名字字形 cap 高约 34pt（推算表见 §47）；
-            // 0.17.0 的 28 bold 让位
-            .font(.system(size: 34, weight: .bold))
+            // 升 34pt——图中状态栏高约 54pt 为锚、名字
+            // 字形 cap 高约 34pt（推算表见 §47）；0.17.0
+            // 的 28 bold 让位
+            // 0.22.0（用户 00:29 并排图点名「Hermes 粗黑
+            // 压人」）：字号 34 不动（推算锚只定字号）、
+            // 字重 bold→semibold 降一档——参考图「三狗」
+            // 同为大标题而笔画克制，SF bold 的拉丁字面
+            // 渲染近黑体级、正是压人来源；取舍记 §49
+            .font(.system(size: 34, weight: .semibold))
             .foregroundStyle(Palette.ink)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -451,7 +456,11 @@ struct DrawerView: View {
                     now: Date()
                 ))
                 .font(.system(size: 15))
-                .foregroundStyle(Palette.inkMuted)
+                // 0.22.0（审计 G1/D2）：时间戳是「要读的
+                // 字」，inkMuted 实算 2.75:1 不达标——换
+                // inkSecondary（4.84:1）；inkMuted 就此只
+                // 留非文字用途，本屏其余面归 0.23.0
+                .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
             }
@@ -570,8 +579,10 @@ struct DrawerView: View {
         Text(title)
             // 0.20.0 字阶：分区头 15 medium 灰（图中约
             // 15–16pt 小灰字）；旧 .subheadline 让位
+            // 0.22.0（审计 G1/D2）：颜色同时间戳换
+            // inkSecondary（inkMuted 2.75:1 不达标）
             .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(Palette.inkMuted)
+            .foregroundStyle(Palette.inkSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OneDayMetrics.drawerInset)
             .padding(.top, OneDayMetrics.spacingS)
@@ -657,7 +668,14 @@ struct DrawerView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, OneDayMetrics.spacingS)
-        .padding(.top, OneDayMetrics.spacingSM)
+        // 0.22.0（并排图节奏复量，审计外用户 00:29 点
+        // 名）：旧形态本行自带顶距 12 叠加发丝线的顶距
+        // 8，管理行上方留白 20pt——是名单里唯一的双线
+        // 孤岛（像素实测：线前留白本行 20pt vs 名单其
+        // 余线前 8pt，参考图同位约 12pt 同档）。撤本行
+        // 额外顶距后线前留白归一为 8pt，管理行回连续
+        // 名单节奏；线→旁聊头留白（8＋头顶距 8）实测
+        // 已比参考图更紧（约 12pt vs 约 24pt），不动
         .accessibilityLabel("管理全部对话")
     }
 

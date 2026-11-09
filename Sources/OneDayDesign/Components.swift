@@ -455,17 +455,26 @@ public struct IdentityAnchor: View {
     private let statusColor: Color
     private let modelName: String?
     private let modelShortName: String?
+    /// 真头像（0.22.0，视觉审计 F3）：消费面在 App 层
+    /// 注入头像图（资产在 App bundle、本框架无资源目
+    /// 录，注入是审计给的两条路之一）；未注入时回落
+    /// sparkles 占位（旧形态）。此前文件页/总览页恒占
+    /// 位、聊天页胶囊是真图——同一个人两个头像，切
+    /// 换器并排即露馅，本版起三面同源
+    private let avatarImage: Image?
     @Environment(\.colorScheme) private var colorScheme
 
     public init(
         name: String, statusWord: String, statusColor: Color,
-        modelName: String? = nil, modelShortName: String? = nil
+        modelName: String? = nil, modelShortName: String? = nil,
+        avatarImage: Image? = nil
     ) {
         self.name = name
         self.statusWord = statusWord
         self.statusColor = statusColor
         self.modelName = modelName
         self.modelShortName = modelShortName
+        self.avatarImage = avatarImage
     }
 
     /// 宽度三档（0.4.1，用户 10:07 点名修）：旧实现把
@@ -493,15 +502,24 @@ public struct IdentityAnchor: View {
 
     private func tier(statusWord: String?, model: String?) -> some View {
         HStack(spacing: OneDayMetrics.spacingS) {
-            ZStack {
-                Circle().fill(Palette.chatSurface)
-                Circle().stroke(Palette.hairline, lineWidth: 0.5)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Palette.ink)
+            if let avatarImage {
+                avatarImage
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 28, height: 28)
+                    .clipShape(Circle())
                     .accessibilityHidden(true)
+            } else {
+                ZStack {
+                    Circle().fill(Palette.chatSurface)
+                    Circle().stroke(Palette.hairline, lineWidth: 0.5)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(Palette.ink)
+                        .accessibilityHidden(true)
+                }
+                .frame(width: 28, height: 28)
             }
-            .frame(width: 28, height: 28)
             Text(name)
                 .font(.headline)
                 .foregroundStyle(Palette.ink)

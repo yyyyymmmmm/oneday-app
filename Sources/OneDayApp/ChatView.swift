@@ -1022,6 +1022,31 @@ struct ChatView: View {
                 }
             }
         }
+        // 0.22.0（视觉审计 C1，用户 2026-11-10 00:09 实机
+        // 点名）：冷开首屏首条气泡被顶栏压住、右上角让铃
+        // 铛钮盖住一角——定因（代码层）：顶栏/发送舱以
+        // safeAreaBar 注册，其顶 inset 在首帧布局之后才
+        // 落定，ScrollView 的初始 contentOffset 按未落定
+        // 的 inset（≈0）算出、首行直接贴到画框顶缘；此
+        // 后长线程靠条目数变化的贴底跟随（isNearBottom
+        // 默认 true）顺带把 offset 按已落定 inset 重新钳
+        // 制、病被掩盖，短线程内容不可滚动且无等效再钳
+        // 事件，压字态就此定格（内容栈 minHeight 的
+        // listViewportHeight 首帧为 0、同属首帧未落定
+        // 的一环，但它只管高度不管 offset）。修法：无存
+        // 量滚动锚的线程（恢复链不接管者）在出现一拍后
+        // 强制走一次无动画贴底——以已落定的 inset 重新
+        // 钳制 offset：短线程首行落到顶栏下方、长线程
+        // 仍开在底部；用户已上翻（isNearBottom=false）
+        // 不强拉，与既有跟随口径一致
+        .task(id: currentThreadID) {
+            guard let id = currentThreadID,
+                  appState.sideChats.scrollAnchor(for: id) == nil
+            else { return }
+            try? await Task.sleep(for: .milliseconds(80))
+            guard currentThreadID == id, isNearBottom else { return }
+            scrollToBottom(proxy, animated: false)
+        }
         .onChange(of: streamingText) { _, newText in
             // 0.4.2（§27）：流式跟随加节流闸（OneDayCore
             // .StreamFollowGate）——0.4.1 前每个流式增量

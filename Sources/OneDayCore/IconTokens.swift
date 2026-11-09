@@ -23,9 +23,12 @@ public enum FrameworkIcon {
     public static let drawerGlyphSize: CGFloat = 18
     /// 抽屉底条圆钮字形：第 24 条——齿轮与名单同线宽档
     public static let drawerBarGlyphSize: CGFloat = 17
-    /// 设置页行字形：第 14 条——17pt regular，与同列
-    /// 统一复杂度档（密度上限由量测断言钉）
-    public static let settingsGlyphSize: CGFloat = 17
+    /// 设置页行字形：第 14 条——与同列统一复杂度档
+    /// （密度上限由量测断言钉）；尺寸 0.22.0 追认现行
+    /// 渲染 28 regular（用户按 Muse 设置图实测量定：
+    /// 行图标约 28–30 细线字形；0.3.8 的 17 与 0.20.0
+    /// 的 24 均为历史档）
+    public static let settingsGlyphSize: CGFloat = 28
     /// 聊天气泡工具字形（＋/麦克风）：第 32 条——15pt
     /// regular，笔画目标约 1.8pt（16pt 时实测约 2.5）
     public static let composerGlyphSize: CGFloat = 15

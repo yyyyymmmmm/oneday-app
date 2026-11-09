@@ -13,8 +13,11 @@ import SwiftUI
 /// 与密钥／网关／外观／关于。IA v3 的「智能体」独立格已
 /// 取消：运维四模块（记忆／技能／定时／服务端会话）收进
 /// 本页「智能体」组，二级页沿用 0.2.0 实现。
-/// 首页只到条目行＋当前值一层，摘要各自独立加载、单项
-/// 失败只降级该行，不整页报错。
+/// 0.22.0（设置图实测规格）：首页只剩条目行一层——行
+/// 尾值位整件撤除（值进各自详情页；状态两行降题下副
+/// 行），行题统一 20 regular 单字重、行图标 28、小字
+/// 下限 15、分区头 15 灰；逐项改前/改后见 DESIGN-V4
+/// §49。
 struct SettingsView: View {
     /// 0.20.0：呈现形态改根级 sheet（ContentView 呈现）
     /// ——关闭走本回调（页内大标题＋右上圆 X 头照 Muse
@@ -39,24 +42,10 @@ struct SettingsView: View {
 
     @Environment(AppState.self) private var appState
     @State private var path: [SettingsRoute] = []
-    /// 外观三档当前值（0.4.0）：与 AppearanceView 同一
-    /// AppStorage 键，只读展示
-    @AppStorage("appearanceMode") private var appearanceModeRaw =
-        AppearanceMode.system.rawValue
-
-    private var appearanceDisplayName: String {
-        (AppearanceMode(rawValue: appearanceModeRaw) ?? .system)
-            .displayName
-    }
-
+    /// 服务器状态：只剩两处消费者——身份卡状态点与
+    /// 网关状态副行（0.22.0 值位撤除后，各行摘要状态
+    /// 与其加载一并退役，见 loadSummaries）
     @State private var status: ServerStatus?
-    @State private var activeProfile: String?
-    @State private var todayTokens: Double?
-    @State private var memorySummary: String?
-    @State private var skillsSummary: String?
-    @State private var cronSummary: String?
-    @State private var sessionsSummary: String?
-    @State private var mcpSummary: String?
     @State private var showRestartConfirm = false
     @State private var showDisconnectConfirm = false
     @State private var notice: String?
@@ -81,7 +70,8 @@ struct SettingsView: View {
                 if let notice {
                     Section {
                         Text(notice)
-                            .font(.footnote)
+                            // 0.22.0 小字清查：13→15 下限
+                            .font(.system(size: 15))
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     .listRowBackground(Palette.surface)
@@ -102,6 +92,13 @@ struct SettingsView: View {
             // 标题沿系统 navigationTitle 大标题（0.20.0
             // sheet 形态下与图中「设置」左顶大标题同位）
             .navigationTitle("设置")
+            // 0.22.0（用户 00:30 按 Muse 设置图实测点
+            // 名）：大标题形态显式钉死——sheet 内导航栏
+            // 的 automatic 档在小高呈现时可能被压成行内
+            // 小字，.large 显式指定后与大标题版参考图
+            // （34 bold 左对齐＋X 在右上导航层）同形态，
+            // 不靠系统启发式
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 // 0.20.0：右上圆形关闭钮（sheet 形态，
                 // 照图中圆 X；iOS 26 toolbar 玻璃圆钮由
@@ -203,9 +200,12 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text("Hermes")
-                            // 0.20.0 规格：账户卡题 20 半粗
-                            // （Muse 设置图账户卡口径）
-                            .font(.system(size: 20, weight: .semibold))
+                            // 0.22.0（设置图实测规格）：行题
+                            // 统一 20 regular 单一字重——参考
+                            // 图账户卡题即 regular，强调只靠
+                            // 位置不靠加粗；0.20.0 的 semibold
+                            // 让位
+                            .font(.system(size: 20, weight: .regular))
                             .foregroundStyle(Palette.ink)
                         if let status {
                             StatusDot(
@@ -250,7 +250,7 @@ struct SettingsView: View {
                 manageSheet = .serverFiles
             }
         } header: {
-            SectionLabel("管理")
+            settingsHeader("管理")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -267,7 +267,10 @@ struct SettingsView: View {
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .regular))
+                    // 0.22.0 小字清查：本页字形下限随文
+                    // 字档对齐 15（chevron 是字形非文字，
+                    // 同步升档保同页一致）
+                    .font(.system(size: 15, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
@@ -322,9 +325,11 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.21.0")
+            Text("OneDay v0.22.0")
                 .font(.system(size: 15))
-                .foregroundStyle(Palette.inkMuted)
+                // 0.22.0：版本行是要读的字——inkMuted
+                // （2.75:1）换 inkSecondary（审计 G1）
+                .foregroundStyle(Palette.inkSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .listRowBackground(Color.clear)
         }
@@ -335,29 +340,28 @@ struct SettingsView: View {
     private var serverSection: some View {
         Section {
             serverRow
+            // 0.22.0：档案行值位（档案名）撤除——档案页
+            // 本身即其详情（0.3.8 的 ServerLabels 翻译在
+            // 档案页内仍用）
             navRow(
                 icon: "rectangle.stack.person.crop", title: "档案",
-                // 0.3.8 第 7 条：原始名 default 经
-                // ServerLabels.profileName 翻译（默认档案）
-                value: activeProfile.map(ServerLabels.profileName) ?? "—",
                 route: .profiles
             )
-            navRow(
+            // 0.5.0（§31 追加件）：状态永不带钥匙原文
+            // （原文只存 Keychain）。0.7.0：桥鉴权失败
+            // （未粘/被拒）时如实露「桥未连接」——桥是
+            // 总览/待审批/通知的数据面，连不上要一眼看
+            // 到；0.22.0 值位撤除后本行改状态副行形态
+            // 保住这条（statusNavRow），不回行尾小字
+            statusNavRow(
                 icon: "key", title: "审批桥钥匙",
-                // 0.5.0（§31 追加件）：值位只显状态词、
-                // 永不带钥匙原文（原文只存 Keychain）
-                // 0.7.0：桥鉴权失败（未粘/被拒）时值位如实
-                // 露「桥未连接」——桥是总览/待审批/通知的
-                // 数据面，连不上要让用户在这里一眼看到，
-                // 不许只剩胶囊状态行可猜（旗由总览桥每轮
-                // 刷新回写，见 OverviewBridgeStore）
-                value: appState.overviewBridgeAuthFailed
+                status: appState.overviewBridgeAuthFailed
                     ? "桥未连接"
                     : (writeGateKeyStatus == .set ? "已设置" : "未设置"),
                 route: .writeGateKey
             )
         } header: {
-            SectionLabel("服务器与连接")
+            settingsHeader("服务器与连接")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -392,8 +396,9 @@ struct SettingsView: View {
                 rowIcon("server.rack")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("当前服务器")
-                        // 0.20.0：双行卡题 20 半粗＋副 15
-                        .font(.system(size: 20, weight: .semibold))
+                        // 0.22.0：题随全页统一 20 regular
+                        // （0.20.0 的半粗让位）；副 15 沿旧
+                        .font(.system(size: 20, weight: .regular))
                         .foregroundStyle(Palette.ink)
                     Text(appState.config?.host ?? "—")
                         .font(.system(size: 15, design: .monospaced))
@@ -445,33 +450,31 @@ struct SettingsView: View {
 
     private var agentSection: some View {
         Section {
+            // 0.22.0：五行值位（计数摘要）全撤——计数在
+            // 各自详情页（记忆文件数/技能总数/启用数/会
+            // 话总数/MCP 总数），本页只留题＋chevron
             navRow(
                 icon: "brain", title: "记忆",
-                value: memorySummary ?? "—",
                 route: .agent(.memory)
             )
             navRow(
                 icon: "puzzlepiece.extension", title: "技能",
-                value: skillsSummary ?? "—",
                 route: .agent(.skills)
             )
             navRow(
                 icon: "clock.arrow.2.circlepath", title: "定时任务",
-                value: cronSummary ?? "—",
                 route: .agent(.cron)
             )
             navRow(
                 icon: "bubble.left.and.text.bubble.right", title: "服务端会话",
-                value: sessionsSummary ?? "—",
                 route: .agent(.serverSessions)
             )
             navRow(
                 icon: "cable.connector", title: "MCP 连接",
-                value: mcpSummary ?? "—",
                 route: .agent(.mcp)
             )
         } header: {
-            SectionLabel("智能体")
+            settingsHeader("智能体")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -481,25 +484,23 @@ struct SettingsView: View {
 
     private var modelSection: some View {
         Section {
+            // 0.4.0（审计 §3.3 #3）：「服务端默认模型」
+            // 命名沿用——本行管理的是服务端默认，与聊天
+            // 页胶囊的本机逐请求模型是两回事
+            // 0.22.0：三行值位全撤（默认模型名在模型页、
+            // 用量读数在用量页、「环境变量」本就只是描
+            // 述词不是值）
             navRow(
                 icon: "text.bubble", title: "服务端默认模型",
-                // 0.4.0（审计 §3.3 #3）：原「对话模型」改名
-                // ——本行管理的是服务端默认，与聊天页胶囊
-                // 的本机逐请求模型是两回事，改名防混淆；
-                // 值走显示名映射（行撤值归二期，本期只改名）
-                value: ModelDisplayNames.identityLabel(
-                    for: appState.defaultModel ?? appState.modelID
-                ),
                 route: .models
             )
-            navRow(icon: "key", title: "密钥", value: "环境变量", route: .envVars)
+            navRow(icon: "key", title: "密钥", route: .envVars)
             navRow(
                 icon: "chart.bar", title: "用量",
-                value: todayTokens.map { "今日 \(AdminFormat.count($0)) Token" } ?? "—",
                 route: .usage
             )
         } header: {
-            SectionLabel("模型与密钥")
+            settingsHeader("模型与密钥")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -509,11 +510,12 @@ struct SettingsView: View {
 
     private var gatewaySection: some View {
         Section {
-            navRow(
+            // 网关状态行的内容就是状态本身（运行中/异
+            // 常）——0.22.0 改状态副行形态（0.3.8 的撤点
+            // 口径不变：状态点仍只留身份卡一处）
+            statusNavRow(
                 icon: "network", title: "网关状态",
-                value: gatewayStateWord, route: .gateway
-                // 0.3.8 第 9 条：状态点撤下（全页状态点只
-                // 留身份卡一处；本行右侧＝值＋箭头）
+                status: gatewayStateWord, route: .gateway
             )
             Button {
                 showRestartConfirm = true
@@ -521,16 +523,20 @@ struct SettingsView: View {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     rowIcon("arrow.clockwise")
                     Text("重启网关")
-                        .font(.body)
+                        // 0.22.0：题随全页统一 20 regular
+                        // （旧 .body 17 让位）
+                        .font(.system(size: 20))
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .contentShape(Rectangle())
             }
-            navRow(icon: "doc.text", title: "日志", value: "agent.log", route: .logs, mono: true)
+            // 0.22.0：日志行值位（agent.log）撤除，进日
+            // 志页即其详情
+            navRow(icon: "doc.text", title: "日志", route: .logs)
         } header: {
-            SectionLabel("网关")
+            settingsHeader("网关")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -549,15 +555,15 @@ struct SettingsView: View {
 
     private var appearanceSection: some View {
         Section {
-            // 0.4.0（§1.1）：主题体系废止，本行改「外观」
-            // （三档系统外观）；行值撤除归二期行规格
+            // 0.4.0（§1.1）：主题体系废止，本行是「外
+            // 观」（三档系统外观）；0.22.0 值位（当前档
+            // 名）撤除——外观页内的勾选即其详情
             navRow(
                 icon: "circle.lefthalf.filled", title: "外观",
-                value: appearanceDisplayName,
                 route: .appearance
             )
         } header: {
-            SectionLabel("外观")
+            settingsHeader("外观")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -580,11 +586,13 @@ struct SettingsView: View {
                         .frame(width: OneDayMetrics.iconSlot)
                         .accessibilityHidden(true)
                     Text("Hermes 开源项目")
-                        .font(.body)
+                        // 0.22.0：题随全页统一 20 regular、
+                        // 外链字形 13→15（小字清查下限）
+                        .font(.system(size: 20))
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.system(size: 15, weight: .regular))
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
@@ -601,11 +609,11 @@ struct SettingsView: View {
                         .frame(width: OneDayMetrics.iconSlot)
                         .accessibilityHidden(true)
                     Text("Icons by Lordicon")
-                        .font(.body)
+                        .font(.system(size: 20))
                         .foregroundStyle(Palette.ink)
                     Spacer()
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.system(size: 15, weight: .regular))
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
@@ -613,12 +621,15 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
         } header: {
-            SectionLabel("关于")
+            settingsHeader("关于")
         } footer: {
             // 0.3.4：隐私说明移组脚注（不再占行）
+            // 0.22.0：脚注是阅读文字——13 footnote＋
+            // inkMuted（2.75:1）升 15＋inkSecondary（小
+            // 字清查＋审计 G1）
             Text("OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkMuted)
+                .font(.system(size: 15))
+                .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -628,11 +639,12 @@ struct SettingsView: View {
 
     private func rowIcon(_ name: String, color: Color = Palette.ink) -> some View {
         Image(systemName: name)
-            // 0.20.0 规格（Muse 设置图）：行图标约
-            // 26–28 的黑色线形——取 24 regular＋主墨色
-            // （槽宽 iconSlot 28 不变、对齐线不漂）；
-            // 0.3.4 的 17 次墨细线让位（图为准）
-            .font(.system(size: 24, weight: .regular))
+            // 0.22.0 规格（用户 00:30 设置图实测量）：行
+            // 图标约 28–30 细线字形——24→28 regular＋主
+            // 墨色（槽宽 iconSlot 28 不变、对齐线不漂；
+            // 字形密度由 RenderMeasureTests 在 28pt 复
+            // 量把守）；0.20.0 的 24 让位
+            .font(.system(size: 28, weight: .regular))
             .foregroundStyle(color)
             .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
             // 条 5（§14）：同行图标走光学偏移（0.3.0 只落
@@ -640,47 +652,70 @@ struct SettingsView: View {
             .accessibilityHidden(true)
     }
 
-    private enum ValueStyle {
-        case callout, monoCallout, monoFootnote
+    /// 设置页分区头（0.22.0）：参考图「你的账户」形态
+    /// ——15 灰、无大写化。共享 SectionLabel 是 footnote
+    /// 13（全 App 分区头旧档、归 0.23.0 角色表统一），
+    /// 本页先按实测规格落本地头，与抽屉分区头（15）同
+    /// 档；List 的自定义 View 头不走系统大写化通道
+    private func settingsHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 15))
+            .foregroundStyle(Palette.inkSecondary)
+            .textCase(nil)
     }
 
-    /// 导航行（共用行组件）：图标＋标题＋当前值，披露箭头
-    /// 由 NavigationLink 系统提供，本组件不自绘。值位读数
-    /// 走等宽数字＋numericText 过渡（条 5/6 补落点，0.3.2）
+    /// 导航行（共用行组件）：图标＋题（20 regular 单
+    /// 一字重），披露箭头由 NavigationLink 系统提供。
+    /// 0.22.0（设置图实测规格）：**行尾值位整件撤除**
+    /// ——参考图所有导航行只有题＋chevron，值一律进各
+    /// 自详情页（档案名/计数摘要/模型名/用量读数同
+    /// 此）；确属状态展示不可撤的两行（审批桥钥匙、
+    /// 网关状态）走下方 statusNavRow 降为题下副行。
+    /// 旧值位组件（ValueStyle/等宽读数/numericText 过
+    /// 渡）随撤除退役
     private func navRow(
         icon: String,
         title: String,
-        value: String,
-        route: SettingsRoute,
-        mono: Bool = false,
-        valueStyle: ValueStyle? = nil
+        route: SettingsRoute
     ) -> some View {
-        // 0.3.8 第 9/12 条：dot 参数随网关行撤点一并删除
-        // ——本页行右侧只许「值＋箭头」两件，状态点全页
-        // 只留身份卡一处，行组件不再提供挂点位
-        let resolvedStyle = valueStyle ?? (mono ? .monoCallout : .callout)
-        return NavigationLink(value: route) {
+        NavigationLink(value: route) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(icon)
                 Text(title)
-                    // 0.20.0 规格：行题 20 regular（Muse
-                    // 设置图行题量级）；值 regular＋
-                    // inkSecondary 退后（口径沿旧）
                     .font(.system(size: 20))
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
-                Text(value)
-                    .font(
-                        resolvedStyle == .monoFootnote
-                            ? .system(.footnote, design: .monospaced)
-                            : resolvedStyle == .monoCallout
-                                ? .system(.callout, design: .monospaced)
-                                : .callout
-                    )
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-                    .tabularDigits()
-                    .contentTransition(.numericText())
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            .contentShape(Rectangle())
+        }
+    }
+
+    /// 状态导航行（0.22.0）：题＋题下状态副行（15
+    /// inkSecondary，对参考图账户卡副行档）——只给
+    /// 「状态本身就是这一行的内容」的行用（审批桥钥
+    /// 匙的已设置/桥未连接、网关状态的运行中/异常）：
+    /// 0.7.0 定案「桥连不上要一眼看到」靠本形态保
+    /// 留，不回行尾小字
+    private func statusNavRow(
+        icon: String,
+        title: String,
+        status: String,
+        route: SettingsRoute
+    ) -> some View {
+        NavigationLink(value: route) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                rowIcon(icon)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 20))
+                        .foregroundStyle(Palette.ink)
+                    Text(status)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
@@ -718,60 +753,15 @@ struct SettingsView: View {
         )
     }
 
+    /// 0.22.0 瘦身：值位撤除后本页只剩 status 一个数
+    /// 据依赖（身份卡状态点＋网关状态副行）；旧形态为
+    /// 各行摘要并行发 7 个管理请求（档案/用量/记忆/
+    /// 技能/定时/会话/MCP）只为行尾小字——随值位一
+    /// 并退役，打开设置页的请求面回到 1 个
     private func loadSummaries() async {
         if let config = appState.config,
            let loaded = try? await appState.client.status(config: config) {
             status = loaded
-        }
-        if let name = try? await appState.performAdmin({ client, config in
-            try await client.activeProfileName(config: config)
-        }) {
-            activeProfile = name
-        }
-        if let usage = try? await appState.performAdmin({ client, config in
-            try await client.usageAnalytics(config: config, days: 1)
-        }) {
-            todayTokens = usage.daily.last?.tokens ?? usage.totals.tokens
-        }
-        if let memory = try? await appState.performAdmin({ client, config in
-            try await client.memoryStatus(config: config)
-        }) {
-            // 0.3.4 值位纪律：只放单词级摘要，完整归二级页
-            // 0.3.8 第 7 条：「内置记忆」与行题同义反复——
-            // 内置时改报真信息（记忆文件数）；外部提供方
-            // 接管时报提供方名（内容名）
-            if let activeName = memory.active, !activeName.isEmpty {
-                memorySummary = activeName
-            } else {
-                let total = memory.builtinFiles.values.reduce(0, +)
-                memorySummary = "\(Int(total)) 个文件"
-            }
-        }
-        if let skills = try? await appState.performAdmin({ client, config in
-            try await client.skills(config: config)
-        }) {
-            // 0.3.4：技能值只放计数（总数）
-            skillsSummary = "\(skills.count)"
-        }
-        if let jobs = try? await appState.performAdmin({ client, config in
-            try await client.cronJobs(config: config)
-        }) {
-            // 0.3.4：定时值只放「X 个启用」（下次运行
-            // 时间归二级页）
-            let enabled = jobs.filter(\.enabled)
-            cronSummary = "\(enabled.count) 个启用"
-        }
-        if let page = try? await appState.performAdmin({ client, config in
-            try await client.serverSessions(config: config, limit: 1)
-        }) {
-            // 0.3.4：会话值只放总数
-            sessionsSummary = "\(page.total ?? page.sessions.count)"
-        }
-        if let servers = try? await appState.performAdmin({ client, config in
-            try await client.mcpServers(config: config)
-        }) {
-            // P10：MCP 值只放总数（与技能行同口径）
-            mcpSummary = "\(servers.count)"
         }
     }
 

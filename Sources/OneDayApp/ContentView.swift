@@ -248,6 +248,17 @@ struct ContentView: View {
     /// 境到不了构建处；有效锁在 tabView 的 TabView 根
     /// .environment(\.symbolVariants, .none)，此处保留
     /// 仅作叠加
+    /// 0.22.0（用户亲点对标 Muse，视觉审计 T1）：纯图
+    /// 标化——Label 走系统 .labelStyle(.iconOnly)（公开
+    /// LabelStyle、非自绘借道）：标题文字退出视觉呈现
+    /// 但仍留在标签里，VoiceOver 读题不靠它也另有下方
+    /// accessibilityLabel 显式钉死四格名，无障碍名实
+    /// 不丢。知情登记：HIG tab-bars 推荐带标签，本项是
+    /// 用户以 Muse 为参照的知情产品选择（审计 T1 原
+    /// 文）；选中段深浅由系统按 tint（.primary 定案）
+    /// 派生、无官方单独调浅开关——去标签后段内只剩字
+    /// 形，观感随之变浅，tint 不改灰（改灰会连字形一
+    /// 起变灰、与 Muse 黑细字形反向）
     private func tabLabel(_ pair: TabSymbolPair) -> some View {
         Label {
             Text(pair.title)
@@ -255,6 +266,8 @@ struct ContentView: View {
             Image(systemName: pair.normal)
                 .symbolVariant(.none)
         }
+        .labelStyle(.iconOnly)
+        .accessibilityLabel(pair.title)
     }
 }
 

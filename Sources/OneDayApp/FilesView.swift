@@ -68,29 +68,53 @@ struct FileSearchField: View {
     }
 }
 
-/// 类型图标盒（设计标准 §7 P8 锚：文件行＝LinkRow＋类型
-/// 图标盒 pastel 轮换；轮换序号由 FileBrowserLogic 按
-/// 类别稳定给出）
+/// 类型图标盒 v2（0.22.0，视觉审计 F2 图标规格）：
+/// 字形与底色改由 Core 的 DeliverableIconStyle 表驱
+/// 动——办公三件白色粗体单字（W/P/X＋品牌色）、PDF
+/// 红、媒体各有身份色，与 Muse 资源库的类型真图标
+/// 对位；0.20.0 的「SF 通用字形＋pastel 类别轮换」
+/// （颜色不表类型）退役，pastel 只留枢纽等装饰面。
+/// 盒 36pt、圆角 9（行高口径：交付物行 64、浏览器
+/// 行 46 均可容纳）。图片在影音段另有 MediaCell 真
+/// 缩略图面，本盒只给回落字形（规格表 photo.fill）
 struct FileIconBox: View {
     let entry: WorkspaceFileEntry
 
     var body: some View {
+        let style = DeliverableIconStyle.style(
+            forFileName: entry.name, isDirectory: entry.isDirectory
+        )
         ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(tint)
-            Image(systemName: entry.odIconName)
-                .font(.system(size: 15))
-                .foregroundStyle(Palette.ink)
+            RoundedRectangle(cornerRadius: 9)
+                .fill(Color(hexRGB: style.backgroundHex))
+            switch style.glyph {
+            case .letter(let letter):
+                Text(letter)
+                    // 图标字形非阅读文字，固定字号合法
+                    // （审计图标规格：17 bold 白）
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.white)
+            case .symbol(let name):
+                Image(systemName: name)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.white)
+            }
         }
-        .frame(width: 32, height: 32)
+        .frame(width: 36, height: 36)
         .accessibilityHidden(true)
     }
+}
 
-    private var tint: Color {
-        [
-            Palette.tintSky, Palette.tintGreen,
-            Palette.tintLavender, Palette.tintOrange,
-        ][FileBrowserLogic.tintIndex(for: entry)]
+extension Color {
+    /// RRGGBB hex 字面量 → Color（DeliverableIconStyle
+    /// 的身份底色落色用；非法输入回落中性灰，不崩）
+    init(hexRGB hex: String) {
+        let value = UInt32(hex, radix: 16) ?? 0x949B9F
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
     }
 }
 
