@@ -602,6 +602,14 @@ struct DemoHermesClient: HermesClientProtocol {
 
     func deleteFile(config: ServerConfig, path: String, recursive: Bool) async throws {}
 
+    // 演示模式不落真实数据（与 deleteFile 同口径 no-op；
+    // 演示样本为静态集，上传/建夹在演示里不回显）
+    func uploadFile(
+        config: ServerConfig, path: String, dataURL: String, overwrite: Bool
+    ) async throws {}
+
+    func makeDirectory(config: ServerConfig, path: String) async throws {}
+
     func fileData(config: ServerConfig, path: String) async throws -> Data {
         if path.hasSuffix(".png") {
             return Self.placeholderPNG(label: (path as NSString).lastPathComponent)

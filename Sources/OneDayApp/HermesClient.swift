@@ -152,6 +152,17 @@ protocol HermesClientProtocol: Sendable {
     func deleteFile(config: ServerConfig, path: String, recursive: Bool) async throws
     /// GET /api/files/download?path= → 原始字节（预览/下载共用）
     func fileData(config: ServerConfig, path: String) async throws -> Data
+    /// POST /api/files/upload {path, data_url, overwrite}
+    /// （openapi ManagedFileUpload，2026-11-09 据 docs 内
+    /// OpenAPI 组件 schema 实查；与列表/删除同一 9119 会话
+    /// 通道、同一 locked_root 约束。回执形态不依赖，调用
+    /// 方以回读列表对账落定）
+    func uploadFile(
+        config: ServerConfig, path: String, dataURL: String, overwrite: Bool
+    ) async throws
+    /// POST /api/files/mkdir {path}（openapi
+    /// ManagedDirectoryCreate，同上口径，回读确认）
+    func makeDirectory(config: ServerConfig, path: String) async throws
     /// GET /api/system/stats
     func systemStats(config: ServerConfig) async throws -> SystemStats
 
@@ -930,6 +941,32 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             throw HermesError.unexpectedStatus(endpoint: "文件下载", status: http.statusCode)
         }
         return data
+    }
+
+    func uploadFile(
+        config: ServerConfig, path: String, dataURL: String, overwrite: Bool
+    ) async throws {
+        // data_url 是 base64 JSON 体（25MB 原始上限膨胀后约
+        // 34MB），超时给 180 秒；服务端回执不解码，落定以
+        // 调用方回读列表对账为准（sendJSON 既有口径）
+        try await sendJSON(
+            config: config, path: "/api/files/upload", method: "POST",
+            endpoint: "文件上传",
+            body: [
+                "path": .string(path),
+                "data_url": .string(dataURL),
+                "overwrite": .bool(overwrite),
+            ],
+            timeout: 180
+        )
+    }
+
+    func makeDirectory(config: ServerConfig, path: String) async throws {
+        try await sendJSON(
+            config: config, path: "/api/files/mkdir", method: "POST",
+            endpoint: "新建文件夹",
+            body: ["path": .string(path)]
+        )
     }
 
     func systemStats(config: ServerConfig) async throws -> SystemStats {
