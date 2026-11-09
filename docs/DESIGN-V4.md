@@ -3514,3 +3514,93 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
   无残带、图标四格观感、抽屉打开收键盘、从其
   他格开抽屉选线程切格——均无自动证据，归用
   户真机终审
+
+## §31 0.5.0 批（合并列车：phase2-split＋phase3-hub 合回＋胶囊入口接线＋审批桥钥匙字段，2026-11-09）
+
+### 31.1 合并一：feat/phase2-split → feat/ia-v3
+
+- 前置核查：分叉点 ef2afcb（0.4.3）之后主线改动面 14 文件，
+  **未含 SettingsDetailViews.swift 本体**（主线只动过 Settings-
+  View.swift，是另一个文件）——前提成立，未触发「先停下说明
+  差异」条款
+- merge --no-ff，commit c7a4068，**零冲突**（ort 策略；merge-
+  tree 预演先行同为干净）
+- 内容：SettingsDetailViews.swift（1641 行）删除，9 文件新建
+  （ServerDetail/Profiles/ModelSettings/EnvVars/EnvVarDetail/
+  EnvVarEditor/UsageDetail/Gateway/Logs），+1665/−1641，纯搬移
+- 中间验收：推送后 CI run 42560749096 success；单测 128——即
+  0.4.5 主线自身基线（phase2 分支的 127 是对 0.4.3 旧基线所
+  测、其本身零新增测试），合入零漂移
+
+### 31.2 合并二：feat/phase3-hub → 合并结果
+
+- merge --no-ff，commit d1eabdf，**零冲突**（预演同为干净；
+  任务预留的「冲突只许出现在工程/测试清单面」未触发，
+  ChatView/ContentView/DrawerView 逻辑区零触碰）
+- 内容：20 文件 +4117 纯追加——枢纽页本体与四段视图、
+  WriteGateClient、AgentHubStore；Core 四模型文件；Hub 四组
+  测试；docs/PHASE3-HUB.md；既有文件仅 HermesClient/
+  DemoHermesClient/KeychainStore 三处同职责追加
+
+### 31.3 入口接线（主线侧，commit 819f9a8）
+
+- ChatView sheet 呈现内容：NavigationStack{ModelSettingsView
+  ＋关闭钮} → **AgentHubView()**（视图自带 NavigationStack、
+  ✕ 玻璃圆钮与 drag indicator，不再外包）
+- 状态变量 showModelSettings 正名 showHub（声明/绑定/动作
+  三处，grep 零残留）
+- 身份胶囊 accessibilityLabel 尾段改「打开智能体枢纽页」
+- ModelSettingsView 仍有正当入口：设置页 .models 路由＋枢纽
+  页模型区参考行，未成孤儿
+
+### 31.4 发版 0.5.0 / build 30（版本源五处）
+
+- Project.swift 四字面量：MARKETING_VERSION 0.5.0／CURRENT_
+  PROJECT_VERSION 30／CFBundleShortVersionString 0.5.0／
+  CFBundleVersion 30
+- **第五源补改（commit 109dd00）**：SettingsView 关于区显示
+  串 Text("0.4.5") 是 §30.9 在案的版本源，首轮检索被 head
+  截断漏检、发版 CI 已起跑后经 §30.9 记录回查发现——补改后
+  旧 run 42561394655 主动取消、以新顶端重跑。此为本批唯一
+  偏离点，已当场闭环；教训同 §25.7：版本源以文档在案清单
+  为准，不靠临时 grep 全量
+
+### 31.5 追加件：设置页「审批桥钥匙」粘贴一次字段（用户 12:25 拍板，commit 59c1e99）
+
+- 入口：设置页「服务器与连接」组新行（key 图标＋标题＋状态
+  词＋chevron，路由 SettingsRoute.writeGateKey），行值只显
+  「已设置／未设置」；详情页 WriteGateKeySettingsView
+- 交互：未设置＝SecureField 粘贴＋保存（清洗后为空禁用）；
+  已设置＝只显「已设置」＋更换＋移除（移除走 confirmation-
+  Dialog）；**永不回显钥匙原文**，草稿保存/移除后即清空；
+  钥匙值不进代码/仓库/日志
+- 读写同键自证：写入/回读/删除与 WriteGateClient 读取共用
+  唯一通道 KeychainStore（service site.didichou.oneday）＋
+  唯一常量 CredentialKey.writeGateKey＝"writegate.key"，
+  grep 全量五处引用同源（WriteGateClient.swift:58 读、
+  WriteGateKeySettingsView save/delete/read、SettingsView
+  状态回读）；状态一律由保存/移除后的真实回读派生
+- 状态纯判定下沉 OneDayCore（WriteGateKeyStatus：resolve/
+  sanitizedForStorage），新增 5 单测覆盖未设置（nil/空/纯
+  空白）/已设置/移除后回未设置/清洗规则
+- 桥侧行为不变：钥匙未粘贴前 WriteGateClient 读不到，审核
+  段保持「通道未接通」诚实态（本批未自创任何发放通道）
+
+### 31.6 交付记录（0.5.0 最终包）
+
+- 代码顶端 59c1e99（feat/ia-v3，已推送）；本节为 docs-only
+  后随提交，IPA 不受影响
+- CI：合并一验收 run 42560749096 success／基础包 run
+  42561449602 success（单测 164）／最终包 run 42562070030
+  success（workflow_dispatch 以 feat/ia-v3 触发）
+- 单测 169（128 主线基线＋36 枢纽页＋5 钥匙状态），全过
+- IPA：your_files/oneday-v0.5.0/oneday-unsigned.ipa，
+  2,633,563 字节，md5 b993d1d4a84e80ede2be55ddea0824de
+- 解包验版：Payload/OneDayApp.app/Info.plist＝CFBundleShort-
+  VersionString 0.5.0／CFBundleVersion 30／bundle id
+  site.didichou.oneday ✓；二进制 strings 冒烟：AgentHubView/
+  WriteGateKeySettingsView/EnvVarDetailView 类型名均在包内
+- 未验证（如实标注）：枢纽页五段真机观感与胶囊点开路径、
+  活动行点按续聊回落、审核段与生产桥的真实 pending 联调
+  （待用户粘贴钥匙＋一条真实待批）、钥匙字段真机粘贴流、
+  soul 真回执 fixture——均无自动证据，归用户真机终审
