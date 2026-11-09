@@ -106,6 +106,10 @@ public enum TabBarSymbols {
     /// 枢纽改由聊天页胶囊点开 sheet）——activity 符号
     /// 对与 overview/files/settings 同例作数据保留（枢
     /// 纽页活动段自有 HubSegment 符号、不取此处），本
-    /// 数组只列在栏四格
-    public static let all = [chat, ideas, goals, apps]
+    /// 数组只列在栏四格。
+    /// 0.20.0 第四格换代（用户第七条）：应用格改文件
+    /// 格（交付物库）——第四位换 files；apps 符号对
+    /// 本体保留作数据（原应用格入口已全部迁设置「管
+    /// 理」组与枢纽，见 DESIGN-V4 §47 迁移表）
+    public static let all = [chat, ideas, goals, files]
 }

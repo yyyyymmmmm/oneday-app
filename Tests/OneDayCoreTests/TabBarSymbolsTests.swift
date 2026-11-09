@@ -13,6 +13,10 @@ import XCTest
 /// 子／目标／应用）；activity 符号对本体保留在
 /// TabBarSymbols（与 overview/files/settings 同例的数
 /// 据保留），本组继续钉「在栏集合」的全表与顺序。
+/// 0.20.0 第四格换代（用户 23:32 第七条）：应用格改
+/// 文件格（交付物库）——all 第四位改钉 files 对
+/// （tray／文件）；apps 符号对本体保留作数据（与
+/// activity 同例），不再占底栏格。
 final class TabBarSymbolsTests: XCTestCase {
     /// 四条目名对全表钉死（id／标题／未选／选中、顺序）
     func testTabSymbolPairsArePinned() {
@@ -33,9 +37,9 @@ final class TabBarSymbolsTests: XCTestCase {
                 selected: "checklist"
             ),
             TabSymbolPair(
-                id: "apps", title: "应用",
-                normal: "app.badge",
-                selected: "app.badge"
+                id: "files", title: "文件",
+                normal: "tray",
+                selected: "tray"
             ),
         ])
     }

@@ -292,7 +292,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     // MARK: - 基础请求
 
-    /// 网络层错误统一映射：URLError → HermesError.unreachable（人话简述）
+    /// 网络层错误统一映射（0.20.0 收敛）：分型表归
+    /// OneDayCore.HermesError.fromURLError 单测把守——
+    /// 瞬断类（连接丢失/系统报无网/超时/连不上主机）
+    /// 归 transientNetwork（文案只提示重试、不许甩锅
+    /// 查地址），只有主机名解析失败留 unreachable 查
+    /// 地址档。旧映射把瞬断全塞进 unreachable「网络
+    /// 不可用＋检查地址」是 23:35「词与事实打架」的
+    /// 出处，本版废止
     private func mapNetworkError(_ error: Error) -> HermesError {
         if let hermesError = error as? HermesError {
             return hermesError
@@ -300,16 +307,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         guard let urlError = error as? URLError else {
             return .unreachable("网络错误")
         }
-        switch urlError.code {
-        case .timedOut:
-            return .unreachable("请求超时")
-        case .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
-            return .unreachable("无法建立连接")
-        case .notConnectedToInternet, .networkConnectionLost:
-            return .unreachable("网络不可用")
-        default:
-            return .unreachable("网络错误")
-        }
+        return HermesError.fromURLError(urlError)
     }
 
     private func dataRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {

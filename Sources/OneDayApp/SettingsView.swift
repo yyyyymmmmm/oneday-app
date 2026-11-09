@@ -16,8 +16,26 @@ import SwiftUI
 /// 首页只到条目行＋当前值一层，摘要各自独立加载、单项
 /// 失败只降级该行，不整页报错。
 struct SettingsView: View {
-    /// 0.6.0：自应用格进入时挂「应用」返回钮（口径同总览）
-    var onBackToApps: (() -> Void)? = nil
+    /// 0.20.0：呈现形态改根级 sheet（ContentView 呈现）
+    /// ——关闭走本回调（页内大标题＋右上圆 X 头照 Muse
+    /// 设置页图：navigationTitle 大标题＋toolbar 圆形
+    /// 关闭钮，全系统件）；0.6.0 的应用格返回钮随应用
+    /// 格退役
+    var onClose: (() -> Void)? = nil
+    /// 「去聊天」类动作（总览 sheet 内快捷动作）：关
+    /// 设置并切聊天格（ContentView 注入）
+    var onRequestChat: (() -> Void)? = nil
+    /// 「管理」组三页的 sheet 呈现（总览/电脑自带导航
+    /// 栈、服务器文件由本页包一层栈）：不进本页导航栈
+    /// ——三页都是整面工作区、且各自带栈，套栈必乱；
+    /// sheet 呈现与 Muse 设置里连接器/设备行打开整
+    /// 面页的形态一致
+    @State private var manageSheet: ManageSheet?
+
+    private enum ManageSheet: String, Identifiable {
+        case overview, computer, serverFiles
+        var id: String { rawValue }
+    }
 
     @Environment(AppState.self) private var appState
     @State private var path: [SettingsRoute] = []
@@ -51,13 +69,15 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             List {
                 identitySection
-                serverSection
-                disconnectSection
+                manageSection
                 agentSection
                 modelSection
                 gatewaySection
                 appearanceSection
+                serverSection
                 aboutSection
+                disconnectSection
+                versionFooter
                 if let notice {
                     Section {
                         Text(notice)
@@ -68,25 +88,36 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            // 0.3.3 组距放大（学礼记 MeView 的组间留白）：
-            // 系统默认组距偏挤，按 spacingL 令牌拉开
-            .listSectionSpacing(OneDayMetrics.spacingL)
+            // 0.20.0（第六条照 Muse 设置图）：底换
+            // Palette.settingsBG（浅灰托白卡）、组距按
+            // 图中约 28 走 settingsSectionSpacing；卡圆
+            // 角保留系统 insetGrouped 原生档（iOS 26 约
+            // 20–24，与图中约 25 同量级——偏离登记见
+            // §47：不为 1–3pt 自绘卡面、守全面原生令）
+            .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
             .scrollContentBackground(.hidden)
-            .background(Palette.pageBG)
+            .background(Palette.settingsBG)
             // 0.4.0（§3.2）：tabBarZone 手算底部留白删除——
             // 原生底栏回来后 List 底部避让由系统安全区自理
-            // 0.4.0（审计 §3.1）：自绘大标题行删除，标题回
-            // 系统 navigationTitle 大标题（整页规格对齐归
-            // 二期：届时改 sheet 形态，R4 已裁）
+            // 标题沿系统 navigationTitle 大标题（0.20.0
+            // sheet 形态下与图中「设置」左顶大标题同位）
             .navigationTitle("设置")
             .toolbar {
-                if let onBackToApps {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: onBackToApps) {
-                            Label("应用", systemImage: "chevron.left")
+                // 0.20.0：右上圆形关闭钮（sheet 形态，
+                // 照图中圆 X；iOS 26 toolbar 玻璃圆钮由
+                // 系统呈）；栈内二级页时本钮与返回钮同
+                // 在亦无碍（关设置是根动作）
+                if let onClose {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
                         }
+                        .accessibilityLabel("关闭设置")
                     }
                 }
+            }
+            .sheet(item: $manageSheet) { item in
+                manageSheetContent(item)
             }
             .task { await loadSummaries() }
             .onAppear {
@@ -172,7 +203,9 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text("Hermes")
-                            .font(.headline)
+                            // 0.20.0 规格：账户卡题 20 半粗
+                            // （Muse 设置图账户卡口径）
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(Palette.ink)
                         if let status {
                             StatusDot(
@@ -180,17 +213,121 @@ struct SettingsView: View {
                             )
                         }
                     }
-                    // 0.4.0（审计 §3.3 #2）：身份头模型副行
-                    // 撤除——模型露头全 App 只许聊天页胶囊
-                    // 一处（A 案），身份头只留名＋状态点
+                    // 0.20.0：副行给当前服务器 host（15
+                    // 灰，照图中账户卡双行形态：题＋副）；
+                    // 模型副行仍禁（0.4.0 A 案：模型露头
+                    // 只许聊天页胶囊一处，不变）
+                    Text(appState.config?.host ?? "未连接")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: OneDayMetrics.spacingS)
             }
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
+    }
+
+    // MARK: - 管理（0.20.0 新增：原应用格入口的新家）
+
+    /// 管理组：原底栏「应用」格的三件整面工作区（总
+    /// 览/电脑/服务器文件）迁入本组（迁移表见 §47）；
+    /// 行形态与本页导航行同规格（24 图标＋20 题＋
+    /// chevron），点按走 sheet 呈现（各页自带导航栈，
+    /// 不套本页栈）
+    private var manageSection: some View {
+        Section {
+            manageRow(icon: "chart.xyaxis.line", title: "总览") {
+                manageSheet = .overview
+            }
+            manageRow(icon: "desktopcomputer", title: "电脑") {
+                manageSheet = .computer
+            }
+            manageRow(icon: "folder", title: "服务器文件") {
+                manageSheet = .serverFiles
+            }
+        } header: {
+            SectionLabel("管理")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
+    }
+
+    private func manageRow(
+        icon: String, title: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                rowIcon(icon)
+                Text(title)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Palette.ink)
+                Spacer(minLength: OneDayMetrics.spacingS)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(Palette.inkMuted)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func manageSheetContent(_ item: ManageSheet) -> some View {
+        switch item {
+        case .overview:
+            OverviewView(
+                onOpenAgent: { route in
+                    manageSheet = nil
+                    path = [.agent(route)]
+                },
+                onOpenChatSession: { id in
+                    manageSheet = nil
+                    onClose?()
+                    appState.pendingChatSessionID = id
+                },
+                onOpenSettings: { route in
+                    manageSheet = nil
+                    path = [route]
+                },
+                onOpenChat: {
+                    manageSheet = nil
+                    onRequestChat?()
+                },
+                onBackToApps: { manageSheet = nil }
+            )
+        case .computer:
+            ComputerView(onBackToApps: { manageSheet = nil })
+        case .serverFiles:
+            NavigationStack {
+                FilesBrowserView()
+                    .navigationTitle("服务器文件")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("关闭") { manageSheet = nil }
+                        }
+                    }
+            }
+        }
+    }
+
+    /// 版本居中小灰字行（0.20.0，照 Muse 设置图页脚
+    /// 「Muse vX.Y.Z」形态）：无卡底、居中、15 灰；
+    /// 本行字面即版本源第五处（与 Project.swift 四处
+    /// 同改同验）
+    private var versionFooter: some View {
+        Section {
+            Text("OneDay v0.20.0")
+                .font(.system(size: 15))
+                .foregroundStyle(Palette.inkMuted)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .listRowBackground(Color.clear)
+        }
     }
 
     // MARK: - 服务器与连接
@@ -255,10 +392,11 @@ struct SettingsView: View {
                 rowIcon("server.rack")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("当前服务器")
-                        .font(.body)
+                        // 0.20.0：双行卡题 20 半粗＋副 15
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(Palette.ink)
                     Text(appState.config?.host ?? "—")
-                        .font(.system(.footnote, design: .monospaced))
+                        .font(.system(size: 15, design: .monospaced))
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
@@ -268,7 +406,7 @@ struct SettingsView: View {
                 // 且绿点与身份卡那颗同屏重复）；连接状态
                 // 只在身份卡留一处（点＋Hermes 名同行）
             }
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
     }
@@ -278,13 +416,15 @@ struct SettingsView: View {
             showDisconnectConfirm = true
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                rowIcon("rectangle.portrait.and.arrow.right", color: Palette.danger)
+                // 0.20.0（照 Muse 设置图「Log out」行）：
+                // 红字行不带图标——独立卡内只有一行红字
+                // （20pt）；0.3.8 的红图标同行形态让位
                 Text("断开连接")
-                    .font(.body)
+                    .font(.system(size: 20))
                     .foregroundStyle(Palette.danger)
                 Spacer()
             }
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
         .confirmationDialog(
@@ -385,7 +525,7 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.ink)
                     Spacer()
                 }
-                .frame(minHeight: OneDayMetrics.rowHeight)
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .contentShape(Rectangle())
             }
             navRow(icon: "doc.text", title: "日志", value: "agent.log", route: .logs, mono: true)
@@ -427,10 +567,9 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("OneDay 版本") {
-                Text("0.19.0")
-                    .font(.system(.callout, design: .monospaced))
-            }
+            // （OneDay 版本行 0.20.0 移出本组：版本号改
+            // 页脚居中小灰字行 versionFooter，照 Muse
+            // 设置图页脚形态；版本源第五处随之移位）
             LabeledContent("服务端") {
                 Text(status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0")
                     .font(.system(.callout, design: .monospaced))
@@ -449,7 +588,7 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
-                .frame(minHeight: OneDayMetrics.rowHeight)
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .contentShape(Rectangle())
             }
             // LORD Icon 署名（0.3.0，用户拍板免费层不买
@@ -470,7 +609,7 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.inkMuted)
                         .accessibilityHidden(true)
                 }
-                .frame(minHeight: OneDayMetrics.rowHeight)
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .contentShape(Rectangle())
             }
         } header: {
@@ -487,15 +626,13 @@ struct SettingsView: View {
 
     // MARK: - 共用行组件
 
-    private func rowIcon(_ name: String, color: Color = Palette.inkSecondary) -> some View {
+    private func rowIcon(_ name: String, color: Color = Palette.ink) -> some View {
         Image(systemName: name)
-            // 0.3.4 设置页按 Muse 纪律（用户拍板，推翻
-            // 0.3.3 的礼记行口径）：细线 regular 17——本页
-            // 禁用 .system(size: OneDayMetrics.rowIconGlyph) 的 20 semibold；靠细
-            // 线＋正常字重＋留白，不靠分量。其他页面的
-            // ContentRow 仍走 rowIcon/rowTitle（字重阶梯
-            // 账内行标题半粗是合法位，见 §19.5 判断）
-            .font(.system(size: 17, weight: .regular))
+            // 0.20.0 规格（Muse 设置图）：行图标约
+            // 26–28 的黑色线形——取 24 regular＋主墨色
+            // （槽宽 iconSlot 28 不变、对齐线不漂）；
+            // 0.3.4 的 17 次墨细线让位（图为准）
+            .font(.system(size: 24, weight: .regular))
             .foregroundStyle(color)
             .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
             // 条 5（§14）：同行图标走光学偏移（0.3.0 只落
@@ -526,10 +663,10 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(icon)
                 Text(title)
-                    // 0.3.4 Muse 纪律：设置行标题 regular
-                    // （0.3.3 的 rowTitle 半粗在本页停用）；
-                    // 值 regular＋inkSecondary 退后
-                    .font(.body)
+                    // 0.20.0 规格：行题 20 regular（Muse
+                    // 设置图行题量级）；值 regular＋
+                    // inkSecondary 退后（口径沿旧）
+                    .font(.system(size: 20))
                     .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Text(value)
@@ -545,7 +682,7 @@ struct SettingsView: View {
                     .tabularDigits()
                     .contentTransition(.numericText())
             }
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
     }

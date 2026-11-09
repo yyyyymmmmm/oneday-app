@@ -74,45 +74,70 @@ struct DrawerView: View {
     /// 喂旁聊行显的来源过滤判定，不作名单数据源；
     /// 拉不到为空表（本地行恒放行）
     @State private var drawerServerSources: [String: String] = [:]
+    /// 服务端会话本体映射（会话 id→ServerSession，
+    /// 0.20.0 第三条）：旁聊行标题解析取服务端 AI 标
+    /// 题用（DrawerThreadTitle）；与 source 映射同次
+    /// 拉取同批落位，拉不到为空表（行标题回落本地）
+    @State private var drawerServerSessions: [String: ServerSession] = [:]
     /// 本地旁聊行重命名（长按四件之一，0.18.0 沿革）
     @State private var renamingThread: ChatThread?
     @State private var renameText = ""
 
     var body: some View {
-        ScrollView {
-            Group {
-                if isSearching {
-                    drawerSearchList
-                } else {
-                    drawerNavList
+        // 0.20.0 第一条（用户点名「抽屉底条要朦胧不要
+        // 纯白」，覆盖 0.6.1 定式与文件头旧注）：底条
+        // 自 safeAreaBar 实色注册退役、改 ZStack 浮置
+        // ——名单 ScrollView 忽略底安全区、内容可滚到
+        // 底条之下；底条本体留在安全区内（落点仍是
+        // indicator 线上方 4pt）；条下垫一条系统
+        // Material（ultraThinMaterial）渐变霜层（上沿
+        // 渐隐化入名单、下段真 backdrop 模糊）＋条内
+        // 三件本体既有的 .glassEffect(.regular) 玻璃，
+        // 两层都是系统材质、无自绘模糊、无 E11 私有
+        // 件。顶条维持 0.6.1 实色注册不变（本条只改底）
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                Group {
+                    if isSearching {
+                        drawerSearchList
+                    } else {
+                        drawerNavList
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // 浮置底条不再占布局：名单底部补避让，
+                // 末行停在底条上方不被玻璃压住（条高
+                // 52＋顶边距 12＋霜层呼吸，取 84）
+                .padding(.bottom, 84)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .ignoresSafeArea(edges: .bottom)
-        .scrollDismissesKeyboard(.interactively)
-        .scrollEdgeEffectStyle(.soft, for: .bottom)
-        // 0.4.3（§28.5）：头尾承载走 safeAreaBar 注册。
-        // 0.6.1（用户第二轮真机点名）：两端 E11 渐进
-        // 模糊带全删——顶带是「标题区朦胧透内容」的
-        // 元凶、底带是抽屉底部乳白块的元凶（带底落到
-        // 屏边、满 alpha 盖住 home indicator 区）；头
-        // 尾改固定实色条（令牌表面色打底、内容从其下
-        // 方滑过被实色遮住），顶缘 .soft 随顶带一并
-        // 撤销（实色条下无可化开的透层）
-        .safeAreaBar(edge: .top, spacing: 0) {
-            drawerAgentName
-                .background {
-                    Palette.surface
-                        .ignoresSafeArea(edges: .top)
-                }
-        }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
+            .ignoresSafeArea(edges: .bottom)
+            .scrollDismissesKeyboard(.interactively)
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .safeAreaBar(edge: .top, spacing: 0) {
+                drawerAgentName
+                    .background {
+                        Palette.surface
+                            .ignoresSafeArea(edges: .top)
+                    }
+            }
+            // 霜层：系统 Material 矩形＋渐变 mask（上透
+            // 下实），只承视觉、不承命中
+            VStack {
+                Spacer()
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .frame(height: 96)
+                    .mask {
+                        LinearGradient(
+                            colors: [.clear, .black],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    }
+                    .ignoresSafeArea(edges: .bottom)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
             drawerBottomBar
-                .background {
-                    Palette.surface
-                        .ignoresSafeArea(edges: .bottom)
-                }
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
@@ -171,7 +196,31 @@ struct DrawerView: View {
                     ($0.id, $0.source ?? "")
                 }
             )
+            // 0.20.0 第三条：同批落本体映射，旁聊行标
+            // 题解析（drawerDisplayTitle）取服务端标题
+            drawerServerSessions = Dictionary(
+                uniqueKeysWithValues: page.sessions.map {
+                    ($0.id, $0)
+                }
+            )
         }
+    }
+
+    /// 旁聊行显示名（0.20.0 第三条）：本地线程已关联
+    /// 服务端会话时走 DrawerThreadTitle 解析（手改名
+    /// ＞服务端 AI 标题＞本地派生快照）——开抽屉/
+    /// 回前台拉到的服务端标题经 drawerServerSessions
+    /// 实时参与呈现，服务端改名/新生成标题下次开抽屉
+    /// 即跟上；未关联的纯本地线程 serverTitle 恒 nil、
+    /// 原样回落本地标题
+    private func drawerDisplayTitle(for thread: ChatThread) -> String {
+        DrawerThreadTitle.resolve(
+            localTitle: thread.title,
+            titleIsManual: thread.titleIsManual,
+            serverTitle: thread.serverSessionID.flatMap {
+                drawerServerSessions[$0]?.cleanedServerTitle
+            }
+        )
     }
 
     /// 栏内顶部（0.3.6 立宪，§21.3）：只有智能体名字
@@ -179,12 +228,11 @@ struct DrawerView: View {
     /// 义卡删减清单：那是管理面信息，不占导航壳第一眼）
     private var drawerAgentName: some View {
         Text(appState.identityName ?? AgentName.fallback)
-            // 0.17.0（五修③照样板）：名字回 0.3.6 立宪的
-            // 28 bold（.title＋bold）——此前漂移成
-            // .largeTitle regular，样板（Muse 本体侧栏）
-            // 的名字是粗体大字、第一眼即身份
-            .font(.title)
-            .fontWeight(.bold)
+            // 0.20.0（第二条，Muse 抽屉图推算）：名字头
+            // 升 34pt bold——图中状态栏高约 54pt 为锚、
+            // 名字字形 cap 高约 34pt（推算表见 §47）；
+            // 0.17.0 的 28 bold 让位
+            .font(.system(size: 34, weight: .bold))
             .foregroundStyle(Palette.ink)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -241,12 +289,14 @@ struct DrawerView: View {
                 onSelectTab(.goals)
             }
             drawerNavRow(
-                symbol: TabBarSymbols.apps.normal,
-                title: "应用",
-                selected: currentTab == .apps
+                // 0.20.0 第七条：应用格改文件格，导航行
+                // 同步改「文件」（符号与底栏同源 files 对）
+                symbol: TabBarSymbols.files.normal,
+                title: "文件",
+                selected: currentTab == .files
             ) {
                 onClose()
-                onSelectTab(.apps)
+                onSelectTab(.files)
             }
             drawerDivider
                 .padding(.top, OneDayMetrics.spacingS)
@@ -318,7 +368,10 @@ struct DrawerView: View {
         let query = drawerQuery.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return threads }
         return threads.filter { thread in
-            thread.title.localizedCaseInsensitiveContains(query)
+            // 0.20.0：搜索按显示名匹配（AI 标题回流后用
+            // 户看到什么名就能搜到什么名）
+            drawerDisplayTitle(for: thread)
+                .localizedCaseInsensitiveContains(query)
                 || thread.entries.contains {
                     $0.content.localizedCaseInsensitiveContains(query)
                 }
@@ -367,8 +420,12 @@ struct DrawerView: View {
             onClose()
         } label: {
             HStack(spacing: 6) {
-                Text(thread.title)
-                    .font(.body)
+                Text(drawerDisplayTitle(for: thread))
+                    // 0.20.0 字阶：旁聊行题 20 常规（图
+                    // 中同为 20pt 级、重于导航行半粗一
+                    // 档之差）；标题走 drawerDisplayTitle
+                    // 解析（第三条 AI 标题回流）
+                    .font(.system(size: 20, weight: .regular))
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: OneDayMetrics.spacingS)
@@ -376,7 +433,7 @@ struct DrawerView: View {
                     updatedAt: thread.updatedAt,
                     now: Date()
                 ))
-                .font(.footnote)
+                .font(.system(size: 15))
                 .foregroundStyle(Palette.inkMuted)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
@@ -384,7 +441,7 @@ struct DrawerView: View {
             .padding(.horizontal, OneDayMetrics.spacingS)
             .frame(
                 maxWidth: .infinity,
-                minHeight: OneDayMetrics.navRowHeight,
+                minHeight: OneDayMetrics.drawerRowHeight,
                 alignment: .leading
             )
             .background(
@@ -430,7 +487,8 @@ struct DrawerView: View {
     }
 
     private func beginRenameThread(_ thread: ChatThread) {
-        renameText = thread.title
+        // 编辑框预填当前显示名（可能是服务端 AI 标题）
+        renameText = drawerDisplayTitle(for: thread)
         renamingThread = thread
     }
 
@@ -440,6 +498,11 @@ struct DrawerView: View {
         )
         if let thread = renamingThread, !title.isEmpty {
             thread.title = title
+            // 0.20.0 第三条补环：本地改名打手改标记——
+            // 此后服务端 AI 标题再刷新也不许覆盖此名
+            // （DrawerThreadTitle 口径）；此前本地存储
+            // 无此标记、回流无从分辨，是标题断环之一
+            thread.titleIsManual = true
             try? modelContext.save()
         }
         renamingThread = nil
@@ -461,7 +524,9 @@ struct DrawerView: View {
     /// 种形态（0.17.0 补全宽左对齐帧治居中病根）
     private func drawerGroupHeader(_ title: String) -> some View {
         Text(title)
-            .font(.subheadline)
+            // 0.20.0 字阶：分区头 15 medium 灰（图中约
+            // 15–16pt 小灰字）；旧 .subheadline 让位
+            .font(.system(size: 15, weight: .medium))
             .foregroundStyle(Palette.inkMuted)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, OneDayMetrics.drawerInset)
@@ -481,18 +546,22 @@ struct DrawerView: View {
         Button(action: action) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: symbol)
-                    .font(.system(size: 19, weight: .regular))
+                    // 0.20.0 字阶（Muse 抽屉图推算）：
+                    // 图标约 27、行题 20 半粗、行高 58
+                    // （drawerRowHeight）——0.19.0 的
+                    // 19/body/47 偏小偏细一并让位
+                    .font(.system(size: 27, weight: .regular))
                     .foregroundStyle(Palette.ink)
-                    .frame(width: 22, alignment: .center)
+                    .frame(width: 30, alignment: .center)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.body)
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: OneDayMetrics.navRowHeight)
+            .frame(minHeight: OneDayMetrics.drawerRowHeight)
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .background {
                 if selected {
@@ -521,22 +590,24 @@ struct DrawerView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: "rectangle.stack")
-                    .font(.system(size: 19, weight: .regular))
+                    // 0.20.0 字阶与导航行同档（27/20 半粗
+                    // /58，见 drawerNavRow 注）
+                    .font(.system(size: 27, weight: .regular))
                     .foregroundStyle(Palette.ink)
-                    .frame(width: 22, alignment: .center)
+                    .frame(width: 30, alignment: .center)
                     .accessibilityHidden(true)
                 Text("管理全部对话")
-                    .font(.body)
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .regular))
+                    .font(.system(size: 14, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: OneDayMetrics.navRowHeight)
+            .frame(minHeight: OneDayMetrics.drawerRowHeight)
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .contentShape(Rectangle())
         }
@@ -583,14 +654,15 @@ struct DrawerView: View {
             drawerRoundButton(
                 // 卡 18 纠正 4：左圆钮用独立齿轮 glyph，
                 // 与名单设置行（滑杆）、底栏设置格三者不同图
-                // 0.6.0：设置收进应用格内页面——经
-                // pendingAppsPage 通道落位（AppsView 消费）
+                // 0.20.0：应用格退役、设置改走根级 sheet
+                // （ContentView 消费 settingsSheetRequested
+                // 呈现新设置页）；0.6.0 的 pendingAppsPage
+                // 落位通道随应用格一并退役
                 systemName: "gearshape",
                 label: "设置"
             ) {
                 onClose()
-                appState.pendingAppsPage = .settings
-                onSelectTab(.apps)
+                appState.settingsSheetRequested = true
             }
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "magnifyingglass")
@@ -598,7 +670,9 @@ struct DrawerView: View {
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityHidden(true)
                 TextField("搜索会话", text: $drawerQuery)
-                    .font(.body)
+                    // 0.20.0 字阶：底条搜索字约 18（图中占
+                    // 位字量级介于分区头与行题之间）
+                    .font(.system(size: 18))
                     .foregroundStyle(Palette.ink)
                 if !drawerQuery.isEmpty {
                     Button {

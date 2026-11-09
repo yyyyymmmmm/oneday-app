@@ -107,7 +107,11 @@ struct ContentView: View {
         case chat
         case ideas
         case goals
-        case apps
+        /// 0.20.0 第七条：第四格由「应用」换「文件」
+        /// （交付物库，DeliverablesView）；原应用格的
+        /// 总览/电脑/服务器文件/设置全部迁设置（见
+        /// SettingsView「管理」组与根级设置 sheet）
+        case files
     }
 
     @Environment(AppState.self) private var appState
@@ -119,6 +123,11 @@ struct ContentView: View {
     /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
     /// 理全部对话」行置位，全屏页自带导航栈呈现
     @State private var showAllConversations = false
+    /// 设置 sheet 呈现（0.20.0 第六条）：抽屉齿轮经
+    /// AppState.settingsSheetRequested 置位、本层消费
+    /// 呈现；设置页本体内带大标题＋圆 X 头（照 Muse
+    /// 设置页图形态）
+    @State private var showSettings = false
 
     var body: some View {
         DrawerShell(
@@ -150,10 +159,23 @@ struct ContentView: View {
         .onChange(of: appState.pendingChatSessionID) { _, id in
             if id != nil { selection = .chat }
         }
-        // 0.6.0：跨格入口置位待开应用格内页面（抽屉齿轮
-        // 等）→ 切应用格（AppsView 侧消费落位）
-        .onChange(of: appState.pendingAppsPage) { _, page in
-            if page != nil { selection = .apps }
+        // 0.20.0：抽屉齿轮置位设置请求 → 呈现根级设置
+        // sheet（0.6.0 的 pendingAppsPage 切格落位通道
+        // 随应用格退役删除）
+        .onChange(of: appState.settingsSheetRequested) { _, requested in
+            if requested {
+                appState.settingsSheetRequested = false
+                showSettings = true
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(
+                onClose: { showSettings = false },
+                onRequestChat: {
+                    showSettings = false
+                    selection = .chat
+                }
+            )
         }
         // 0.6.0：总览桥前台轮询（30 秒一轮，OverviewBridge-
         // Store.poll）：以 scenePhase 为 task id——回前台
@@ -186,10 +208,10 @@ struct ContentView: View {
                 tabLabel(TabBarSymbols.goals)
             }
 
-            Tab(value: MainTab.apps) {
-                AppsView(onOpenChat: { selection = .chat })
+            Tab(value: MainTab.files) {
+                DeliverablesView()
             } label: {
-                tabLabel(TabBarSymbols.apps)
+                tabLabel(TabBarSymbols.files)
             }
         }
         // 0.4.0（审计 §1.1）：根 .tint(Palette.ink) 与暗色

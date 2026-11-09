@@ -33,6 +33,10 @@ struct ChatView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 0.20.0 恢复链：本页自此观察前后台（此前全页无
+    /// scenePhase 观察——切后台杀流后回前台无人对账，
+    /// 是「显示无网络」误报的生命周期半侧定因）
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \ChatThread.updatedAt, order: .reverse) private var threads: [ChatThread]
 
     @State private var currentThreadID: UUID?
@@ -56,6 +60,28 @@ struct ChatView: View {
     /// 「模型唤醒中」提示
     @State private var isWakingModel = false
     @State private var sendTask: Task<Void, Never>?
+    /// 本轮流式是否经历过后台（0.20.0）：scenePhase 离
+    /// 开 .active 且发送中时置 true，runStream 入口归
+    /// 零；失败分型（StreamFailure）与对账恢复据此——
+    /// 同一瞬断错误，经历过后台＝生命周期中断、没经
+    /// 历＝前台网络瞬断，两条路不许混报
+    @State private var backgroundedDuringStream = false
+    /// 生命周期中断的待恢复轮次（0.20.0）：只存内存
+    /// （进程被系统回收时记账随之消散，但半截回复已
+    /// 落盘不凭空消失）；回前台由 reconcileInterrupted-
+    /// Stream 消费
+    @State private var pendingRecovery: PendingStreamRecovery?
+    @State private var isRecoveringStream = false
+
+    /// 待恢复轮次记账：线程＋原发送上下文（重发恢复
+    /// 用，用户消息已落盘、重发不新增）＋中断时已落盘
+    /// 的半截条目 id（恢复时删半截防双份）
+    private struct PendingStreamRecovery {
+        let threadID: UUID
+        let messages: [ChatMessage]
+        var partialEntryIDs: [UUID] = []
+    }
+
     @State private var errorMessage: String?
     /// 0.2.1：非错误提示（如文件附件未发送说明），可关闭
     @State private var notice: String?
@@ -91,9 +117,9 @@ struct ChatView: View {
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
-    /// 0.4.0（§3.4）：「会话信息」sheet（详情页降级后的
-    /// 次级入口，仅已关联服务端会话的线程可开）
-    @State private var showSessionInfo = false
+    /// （showSessionInfo 已于 0.20.0 第五条随会话名次
+    /// 行一并拆除：聊天页不再有会话详情入口，管理页
+    /// ServerSessionRow 承接）
     /// 0.4.1：长按「回复」待发送的引用（值快照，不持
     /// SwiftData 对象）；发送/取消/切换线程时清除
     @State private var pendingQuote: MessageQuote?
@@ -328,16 +354,17 @@ struct ChatView: View {
                 Task { await consumePendingChatSession(id) }
             }
         }
-        .sheet(isPresented: $showSessionInfo) {
-            if let serverID = currentThread?.serverSessionID {
-                NavigationStack {
-                    ServerSessionDetailView(sessionID: serverID)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button("关闭") { showSessionInfo = false }
-                            }
-                        }
+        // 0.20.0 恢复链：切后台给正在生成的轮次记账
+        // （失败分型据此分辨生命周期中断与网络瞬断）；
+        // 回前台消费待恢复轮次（探活＋服务端对账＋必
+        // 要时自动重发，见 reconcileInterruptedStream）
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                if sendTask != nil {
+                    backgroundedDuringStream = true
                 }
+            } else if pendingRecovery != nil {
+                Task { await reconcileInterruptedStream() }
             }
         }
         .onAppear {
@@ -546,38 +573,13 @@ struct ChatView: View {
                 )
             }
 
-            // 会话名次行（第 30 条）：退居中弱行，不再占胶囊。
-            // 0.4.0（§3.4）：已关联服务端会话的线程，点次行
-            // 开「会话信息」（详情页降级后的次级入口）
-            // 0.19.0（用户点名删除）：0.7.0 起挂在此处的
-            // 「旁聊」身份小标识整段删除——主线/旁聊的
-            // 展示标签在聊天页与抽屉一律不再出现（管理
-            // 全部对话页的分段是管理功能、不在此列）
-            HStack(spacing: 6) {
-                if let thread = currentThread, thread.serverSessionID != nil {
-                    Button {
-                        showSessionInfo = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(thread.title)
-                                .font(.footnote)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .lineLimit(1)
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 11, weight: .regular))
-                                .foregroundStyle(Palette.inkMuted)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("会话信息")
-                } else {
-                    Text(currentThread?.title ?? "新会话")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
-            }
+            // （0.20.0 第五条，用户原话「状态栏下面不要显
+            // 示当前对话的名字，就一个状态栏就行了」：胶
+            // 囊之下的会话名次行整行撤销——第 30 条的弱行
+            // 与 0.4.0 的会话信息入口一并退役；会话名只在
+            // 抽屉旁聊区与管理页出现，会话详情经管理页
+            // ServerSessionRow 进入、不失联。showSession-
+            // Info 状态与 sheet 承载同轮拆除）
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.top, OneDayMetrics.spacingS)
@@ -1418,7 +1420,13 @@ struct ChatView: View {
                     text: reasoning,
                     seconds: nil,
                     isStreaming: true,
-                    startedAt: reasoningStartedAt
+                    startedAt: reasoningStartedAt,
+                    // 0.20.0 相位入参：正文已发布或工具
+                    // 卡已到即思考期结束——折叠单元据此
+                    // 自动收起（硬规格：正文起流后思考
+                    // 不许继续整屏展开）
+                    contentStarted: !text.isEmpty
+                        || !liveToolCards.isEmpty
                 )
             }
             streamingBubble(text)
@@ -2343,9 +2351,17 @@ private struct ComposerBarLayout: Layout {
         reasoningPublishGate.reset()
         streamingReasoning = nil
         reasoningStartedAt = nil
+        // 0.20.0：后台记账按轮归零（scenePhase 离开前台
+        // 时由本页 onChange 置 true，只认本轮经历）
+        backgroundedDuringStream = false
         var reasoningEndedAt: Date?
         var retried = false
         var failed = false
+        /// 本轮是否被生命周期中断（切后台杀流）：中断不
+        /// 报错、不算失败，收尾记待恢复待回前台对账
+        var interrupted = false
+        /// 中断时已落盘的半截条目 id（恢复时删半截防双份）
+        var persistedPartialIDs: [UUID] = []
         // 发布巡查 ticker：窗口到期把攒着的增量推给视图
         // ——低速流的尾巴增量靠它到期，不必等下一个增
         // 量到达；40ms 一查（半窗粒度），runStream 退
@@ -2401,28 +2417,59 @@ private struct ComposerBarLayout: Layout {
                 }
                 break
             } catch {
-                // Qwen 冷启唤醒重试（0.3.0 接线，DESIGN-V4
-                // §15）：自部署模型休眠后首请求常在网关冷启
-                // 期失败（冷启竞速实测口径）——尚未产出任何
-                // 字时自动重试一次并亮唤醒提示；已产出则照
-                // 常收尾不重发（防重复内容）；用户停止不重试
+                // 0.20.0 失败分型（Core StreamFailure，用
+                // 户 23:42 定性纠正）：同一瞬断错误按「本
+                // 轮是否经历过后台」分三路——
+                // ①生命周期中断（切后台杀流）：不报错、
+                // 不在后台硬重试，置 interrupted 记账，
+                // 回前台走对账恢复（reconcileInterrupted-
+                // Stream）；旧行为把这条路与网络失败同
+                // 报「连不上服务器」是误报出处；
+                // ②前台瞬断：未产出任何内容时自动重试
+                // 一次（短暂等待让网络路径喘息）；
+                // ③其余真失败：照实报错。
+                // Qwen 冷启唤醒重试（0.3.0 接线，§15）并
+                // 入同闸：未产出＋未重试过才许，口径不变。
+                let hermesError = error as? HermesError
+                let failureKind = hermesError.map {
+                    StreamFailure.kind(
+                        error: $0,
+                        wasBackgrounded: backgroundedDuringStream
+                    )
+                } ?? .fatal
+                if failureKind == .lifecycleInterrupted {
+                    interrupted = true
+                    break
+                }
                 var shouldRetry = false
+                var retryIsTransient = false
                 if !contentPublishGate.hasContent,
-                   !reasoningPublishGate.hasContent, !retried,
-                   appState.chatModel == ChatModels.coldStartID {
-                    if let hermesError = error as? HermesError {
-                        if case .cancelled = hermesError {
-                            shouldRetry = false
+                   !reasoningPublishGate.hasContent, !retried {
+                    if failureKind == .transient {
+                        shouldRetry = true
+                        retryIsTransient = true
+                    } else if appState.chatModel
+                        == ChatModels.coldStartID {
+                        if let hermesError {
+                            if case .cancelled = hermesError {
+                                shouldRetry = false
+                            } else {
+                                shouldRetry = true
+                            }
                         } else {
                             shouldRetry = true
                         }
-                    } else {
-                        shouldRetry = true
                     }
                 }
                 if shouldRetry {
                     retried = true
-                    isWakingModel = true
+                    if retryIsTransient {
+                        try? await Task.sleep(
+                            for: .milliseconds(1200)
+                        )
+                    } else {
+                        isWakingModel = true
+                    }
                     continue
                 }
                 // 停止生成（cancelled）不报错：已生成的半截照常落盘
@@ -2476,6 +2523,9 @@ private struct ComposerBarLayout: Layout {
                 Double(index) * 0.001
             )
             modelContext.insert(cardEntry)
+            if interrupted {
+                persistedPartialIDs.append(cardEntry.id)
+            }
         }
         if !accumulated.isEmpty {
             let assistantEntry = ChatEntry(
@@ -2488,22 +2538,147 @@ private struct ComposerBarLayout: Layout {
             )
             modelContext.insert(assistantEntry)
             thread.updatedAt = Date()
+            if interrupted {
+                persistedPartialIDs.append(assistantEntry.id)
+            }
         }
         if !cardsToPersist.isEmpty || !accumulated.isEmpty {
             try? modelContext.save()
         }
+        if interrupted {
+            // 0.20.0 中断轮收尾：半截内容已按旧口径落盘
+            // （进程若在回前台前被系统回收，回复不凭空
+            // 消失），此处只记待恢复——不出错误横幅、不
+            // 给失败触感（不是网络的错、更不是用户的
+            // 错）；回前台由 scenePhase onChange 触发对
+            // 账，本轮若已在前台（如挂起发生在锁屏边缘
+            // 的竞态）则立即自触发一次
+            pendingRecovery = PendingStreamRecovery(
+                threadID: thread.id,
+                messages: messages,
+                partialEntryIDs: persistedPartialIDs
+            )
+            if scenePhase == .active {
+                Task { await reconcileInterruptedStream() }
+            }
+        }
         // 结果触感（0.3.2 纪律，只挂结果事件）：失败
         // .warning；回复完整落地 .success；用户主动停止
-        // 且无内容时不给触感
+        // 且无内容时不给触感；中断轮不给（恢复成功时
+        // 由对账侧补 .success）
         if failed {
             Haptics.warning()
-        } else if !accumulated.isEmpty {
+        } else if !accumulated.isEmpty, !interrupted {
             Haptics.success()
         }
         streamingText = nil
         streamingReasoning = nil
         reasoningStartedAt = nil
         sendTask = nil
+    }
+
+    /// 回前台对账恢复（0.20.0，用户 23:42 定性：切后
+    /// 台杀流不是网络故障、回前台必须对账不许丢回复）：
+    /// ①探活（client.health，只读 GET）：探不通才是
+    /// 真连不上——此时才报真错且走瞬断分型文案（环
+    /// 节＝恢复探活），不许再甩锅地址；
+    /// ②线程有关联服务端会话时拉服务端历史（session-
+    /// Messages）：服务端在客户端断开后已把完整回复
+    /// 落进会话的，直接补齐本地（删半截→落完整版），
+    /// 不重发；
+    /// ③无关联/服务端无此回复：删半截后以原上下文自
+    /// 动重发一次——发送链是无状态重放、用户消息已
+    /// 落盘，重发不新增消息、不丢轮次（发送未达阶段
+    /// 被杀的轮次同走此路：本地消息在、上下文完整）。
+    /// 全程只给 notice 中性提示，不出错误横幅。
+    private func reconcileInterruptedStream() async {
+        guard let pending = pendingRecovery,
+              scenePhase == .active,
+              !isRecoveringStream,
+              let config = appState.config else { return }
+        isRecoveringStream = true
+        defer { isRecoveringStream = false }
+        do {
+            _ = try await appState.client.health(config: config)
+        } catch {
+            pendingRecovery = nil
+            errorMessage = (error as? HermesError)?.userMessage
+                ?? HermesError.transientNetwork.userMessage
+            Haptics.warning()
+            return
+        }
+        guard let thread = threads.first(
+            where: { $0.id == pending.threadID }
+        ) else {
+            pendingRecovery = nil
+            return
+        }
+        if let sessionID = thread.serverSessionID,
+           let serverMessages = try? await appState.performAdmin(
+               { client, cfg in
+                   try await client.sessionMessages(
+                       config: cfg, id: sessionID
+                   )
+               }
+           ),
+           let recovered = Self.recoveredReply(
+               in: serverMessages, thread: thread
+           ) {
+            deletePartialEntries(pending, in: thread)
+            let entry = ChatEntry(
+                role: "assistant", content: recovered,
+                thread: thread
+            )
+            modelContext.insert(entry)
+            thread.updatedAt = Date()
+            try? modelContext.save()
+            pendingRecovery = nil
+            notice = "已重新连接，回复已补齐。"
+            Haptics.success()
+            return
+        }
+        deletePartialEntries(pending, in: thread)
+        try? modelContext.save()
+        pendingRecovery = nil
+        notice = "已重新连接，正在继续生成…"
+        streamingText = ""
+        sendTask = Task {
+            await runStream(
+                thread: thread, messages: pending.messages
+            )
+        }
+    }
+
+    /// 服务端历史里的待补回复：最后一条用户消息之后
+    /// 的第一条非空助手正文、且本地条目里没有同文（防
+    /// 把旧轮回复误判为本轮产物）；无则 nil（调用方
+    /// 落重发恢复）
+    private static func recoveredReply(
+        in serverMessages: [SessionMessage], thread: ChatThread
+    ) -> String? {
+        guard let lastUserIndex = serverMessages.lastIndex(
+            where: { $0.role == "user" }
+        ) else { return nil }
+        let localContents = Set(thread.entries.map(\.content))
+        for message in serverMessages[(lastUserIndex + 1)...] {
+            guard message.role == "assistant" else { continue }
+            let text = message.content.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            if !text.isEmpty, !localContents.contains(message.content) {
+                return message.content
+            }
+        }
+        return nil
+    }
+
+    private func deletePartialEntries(
+        _ pending: PendingStreamRecovery, in thread: ChatThread
+    ) {
+        for entry in thread.entries
+            where pending.partialEntryIDs.contains(entry.id) {
+            modelContext.delete(entry)
+        }
     }
 }
 

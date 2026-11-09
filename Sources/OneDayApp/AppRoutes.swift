@@ -10,19 +10,10 @@ enum AgentRoute: Hashable {
     case mcp
 }
 
-/// 应用格内页面（0.6.0 五格 IA）：应用格首页是入口行
-/// 列表，总览/文件/设置是其内页面；抽屉齿轮、总览深链
-/// 等跨格入口经 AppState.pendingAppsPage 置位、应用格
-/// 消费后清空（与 pendingChatSessionID 同模式）。
-enum AppsPage: Hashable {
-    case home
-    case overview
-    case files
-    case settings
-    /// 0.9.0（P2）为浏览器页；0.15.0（P9）升级为电脑面
-    /// （桌面/文件/终端三段），枚举随之改名 computer
-    case computer
-}
+/// （应用格内页面枚举 AppsPage 已于 0.20.0 随应用格
+/// 一并退役：总览/电脑/服务器文件迁设置「管理」组
+/// sheet 呈现、设置改根级 sheet、文件升底栏第四格，
+/// 「格内页面切换」的状态机不再存在。）
 
 enum SettingsRoute: Hashable {
     case serverDetail

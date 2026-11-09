@@ -35,6 +35,31 @@ final class ReasoningPresentationTests: XCTestCase {
         )
     }
 
+    // 0.20.0 硬规格（用户 23:36）：相位默认展开态——
+    // 只有纯思考期默认展开；正文起流即默认收起；落盘
+    // ／历史载入（finished）恒默认收起（截图里旧会话
+    // 满屏思考原文即此条钉死的形态，不许回归）
+    func testPhaseDefaultExpandedOnlyWhilePureThinking() {
+        XCTAssertTrue(
+            ReasoningPresentation.defaultExpanded(phase: .streaming)
+        )
+        XCTAssertFalse(
+            ReasoningPresentation.defaultExpanded(phase: .contentStarted)
+        )
+        XCTAssertFalse(
+            ReasoningPresentation.defaultExpanded(phase: .finished)
+        )
+    }
+
+    // 思考正文区限高：钉 240pt，且不许超过主流视高
+    // 三分之一的保守界（730/3≈243）
+    func testReasoningBodyHeightCap() {
+        XCTAssertEqual(ReasoningPresentation.maxBodyHeight, 240)
+        XCTAssertLessThanOrEqual(
+            ReasoningPresentation.maxBodyHeight, 730.0 / 3.0
+        )
+    }
+
     func testFinishedHeaderVariants() {
         // 无落盘数据（历史导入等）：只显「已思考」不编数
         XCTAssertEqual(

@@ -68,6 +68,14 @@ public enum Palette {
     public static let selectionFill = omColor(
         light: omHex(0xF0F1F2), dark: omHex(0x232B30)
     )
+    /// 设置页底（0.20.0，用户给的 Muse 设置页真机图
+    /// 口径：浅灰底托白色分组卡，图中约 #F2F2F4 级）：
+    /// 取 iOS 系统分组底同族 #F2F2F7 落点（与图中采样
+    /// 差在测量噪声内、且与系统 insetGrouped 语言同
+    /// 源）；暗色派生 #0D1214（页面底再压一档的冷灰）
+    public static let settingsBG = omColor(
+        light: omHex(0xF2F2F7), dark: omHex(0x0D1214)
+    )
     /// 浮层面（OpenMuse 浮件＝白卡，ui.tsx card #FFFFFF；
     /// 暗色派生随卡面）
     public static let floatFill = omColor(
@@ -238,6 +246,15 @@ public enum OneDayMetrics {
     public static let drawerInset: CGFloat = 20
     /// 名单导航行高（0.3.6 实测约 47）
     public static let navRowHeight: CGFloat = 47
+    /// 抽屉导航/旁聊行高（0.20.0，用户给的 Muse 抽屉
+    /// 真机图推算：选中垫行高约 53、旁聊行距约 58，
+    /// 取 58 统一抽屉行档；推算锚点见 DESIGN-V4 §47）
+    public static let drawerRowHeight: CGFloat = 58
+    /// 设置页行最小高（0.20.0，Muse 设置图推算行距
+    /// 约 63 含卡内呼吸，行本体取 60）
+    public static let settingsRowHeight: CGFloat = 60
+    /// 设置页组间距（0.20.0，图中组间约 28）
+    public static let settingsSectionSpacing: CGFloat = 28
     /// 名单行图标字形（细线 20–22 带内）
     public static let navGlyph: CGFloat = 21
     /// 底栏字形（0.3.6 立宪 21–22）

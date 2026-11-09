@@ -19,6 +19,12 @@ final class ChatThread {
     /// 发起的会话为 nil；从服务端会话导入续聊的线程非
     /// nil（可选＋默认 nil、SwiftData 轻量迁移）
     var serverSessionID: String? = nil
+    /// 标题是否用户手改（0.20.0）：抽屉/管理页本地改名
+    /// 时置 true——手改名永不被服务端 AI 标题覆盖
+    /// （DrawerThreadTitle 解析口径；默认 false、Swift-
+    /// Data 轻量迁移。此前本地存储无此标记，标题回流
+    /// 无从分辨手改与派生，是 0.20.0 第三条的补环）
+    var titleIsManual: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \ChatEntry.thread)
     var entries: [ChatEntry] = []

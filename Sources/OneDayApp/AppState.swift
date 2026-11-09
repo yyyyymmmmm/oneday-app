@@ -115,9 +115,13 @@ final class AppState {
     /// 跨页深链（总览 → 智能体格/设置格二级页）：目标页消费后置 nil
     var pendingAgentRoute: AgentRoute?
     var pendingSettingsRoute: SettingsRoute?
-    /// 待打开的应用格内页面（0.6.0）：抽屉齿轮等置位，
-    /// ContentView 据此切应用格、AppsView 消费后置 nil
-    var pendingAppsPage: AppsPage?
+    /// 设置 sheet 打开请求（0.20.0）：抽屉齿轮置位，
+    /// ContentView 消费呈现根级设置 sheet 后置 false。
+    /// 0.6.0 的 pendingAppsPage 通道随应用格退役一并
+    /// 删除——应用格页面已各有新家（总览/电脑/服务器
+    /// 文件进设置「管理」组、文件格升底栏），不再有
+    /// 「切格落位」这回事
+    var settingsSheetRequested = false
     /// 待续聊的服务端会话 id（0.4.0，审计 §3.4）：四处
     /// 入口（抽屉／服务端会话页／状态页／定时运行记录）
     /// 置位，ContentView 据此切聊天格、ChatView 消费后

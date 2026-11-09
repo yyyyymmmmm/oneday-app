@@ -1,0 +1,54 @@
+import OneDayCore
+import XCTest
+
+/// 失败分型（0.20.0，用户 23:35 真机点名「词与事实
+/// 打架」）：URLError 分型表——瞬断类归 transient-
+/// Network（文案只提示重试、不许让人查地址），只有
+/// 主机名解析失败才归地址档。发送链的自动重试资格
+/// 只认 isTransient。
+final class HermesErrorTests: XCTestCase {
+
+    func testTransientURLErrorCodesClassifyAsTransient() {
+        let codes: [URLError.Code] = [
+            .timedOut, .networkConnectionLost,
+            .notConnectedToInternet, .cannotConnectToHost,
+            .dataNotAllowed, .internationalRoamingOff,
+        ]
+        for code in codes {
+            let error = HermesError.fromURLError(URLError(code))
+            XCTAssertTrue(
+                error.isTransient,
+                "\(code.rawValue) 应归瞬断档，实际 \(error)"
+            )
+        }
+    }
+
+    func testHostResolutionFailuresStayInAddressBucket() {
+        for code: [URLError.Code] in [.cannotFindHost, .dnsLookupFailed] {
+            let error = HermesError.fromURLError(URLError(code))
+            XCTAssertFalse(error.isTransient)
+            guard case .unreachable = error else {
+                return XCTFail("\(code.rawValue) 应归 unreachable，实际 \(error)")
+            }
+        }
+    }
+
+    func testOtherURLErrorCodesFallBackToGenericUnreachable() {
+        let error = HermesError.fromURLError(URLError(.badURL))
+        XCTAssertFalse(error.isTransient)
+        XCTAssertEqual(error.userMessage.contains("网络错误"), true)
+    }
+
+    func testTransientCopyNeverBlamesAddress() {
+        let message = HermesError.transientNetwork.userMessage
+        XCTAssertFalse(message.contains("检查地址"))
+        XCTAssertFalse(message.contains("服务器是否在线"))
+    }
+
+    func testNonTransientErrorsAreNotRetryable() {
+        XCTAssertFalse(HermesError.unreachable("无法建立连接").isTransient)
+        XCTAssertFalse(HermesError.apiKeyRejected.isTransient)
+        XCTAssertFalse(HermesError.sessionExpired.isTransient)
+        XCTAssertFalse(HermesError.cancelled.isTransient)
+    }
+}

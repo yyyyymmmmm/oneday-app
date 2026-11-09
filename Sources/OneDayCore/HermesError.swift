@@ -7,6 +7,15 @@ public enum HermesError: Error, Sendable {
     case invalidServerAddress
     /// 网络层失败：连不上、超时、DNS 等（附系统错误简述）
     case unreachable(String)
+    /// 网络瞬断类失败（0.20.0）：连接被中途掐断/系统
+    /// 报无网/超时/连不上主机——多为 Wi-Fi 抖动、旁路
+    /// 由代理路径瞬断一类可恢复故障，与「地址配错」是
+    /// 两回事：文案只提示重试、不许甩锅让用户查地址
+    /// （用户 2026-11-09 23:35 真机实证：顶栏胶囊走总
+    /// 览桥轮询显示「在线」、发送请求却在此类失败上被
+    /// 旧文案误导去查地址）。发送链对此类失败自动重
+    /// 试一次（未产出任何内容时，见 ChatView.runStream）
+    case transientNetwork
     /// 第一步 /health 非 200
     case healthCheckFailed(status: Int)
     /// 第二步登录被拒：账号或密码不对（401/403/422）
@@ -32,6 +41,8 @@ public enum HermesError: Error, Sendable {
             return "服务器地址看起来不对，检查一下再试。"
         case .unreachable(let detail):
             return "连不上服务器（\(detail)）。检查地址是否正确、服务器是否在线。"
+        case .transientNetwork:
+            return "网络好像断了一下，这条没发出去。等网络稳一点，再发一次试试。"
         case .healthCheckFailed(let status):
             return "服务器健康检查没通过（状态 \(status)），可能不是 Hermes 服务，或版本太旧。"
         case .loginRejected:
@@ -50,6 +61,39 @@ public enum HermesError: Error, Sendable {
             return "「\(model)」不在上游可用模型列表里（网关别名不能设为默认模型），已拦截，未写入配置。"
         case .cancelled:
             return "已取消。"
+        }
+    }
+
+    /// 是否瞬断类（可自动重试一次）：只有 transient-
+    /// Network——其余失败（鉴权/状态码/解码）重试无益
+    public var isTransient: Bool {
+        if case .transientNetwork = self { return true }
+        return false
+    }
+
+    /// URLError → 失败分型（0.20.0）：分型表收进 Core
+    /// 纯函数单测把守，客户端 transport 层只许调它、
+    /// 不许再自拼映射（旧映射把 .networkConnectionLost
+    /// 与 .notConnectedToInternet 都塞进 unreachable
+    /// 「网络不可用＋查地址」一档，即 23:35 词与事实
+    /// 打架的出处）。
+    /// - 瞬断档（transientNetwork）：超时、连接丢失、
+    ///   系统报无网、连不上主机、蜂窝受限——路径抖动
+    ///   优先归因（顶栏另有桥轮询的在线信号可互证，
+    ///   此档文案不提地址对用户更诚实）；
+    /// - 地址档（unreachable）：只有主机名解析失败
+    ///   （找不到主机/DNS）才配让用户查地址；
+    /// - 其余网络错误归 unreachable「网络错误」。
+    public static func fromURLError(_ error: URLError) -> HermesError {
+        switch error.code {
+        case .timedOut, .networkConnectionLost,
+             .notConnectedToInternet, .cannotConnectToHost,
+             .dataNotAllowed, .internationalRoamingOff:
+            return .transientNetwork
+        case .cannotFindHost, .dnsLookupFailed:
+            return .unreachable("无法建立连接")
+        default:
+            return .unreachable("网络错误")
         }
     }
 }

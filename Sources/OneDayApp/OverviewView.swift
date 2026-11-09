@@ -99,7 +99,7 @@ struct OverviewView: View {
                 if let onBackToApps {
                     ToolbarItem(placement: .topBarLeading) {
                         Button(action: onBackToApps) {
-                            Label("应用", systemImage: "chevron.left")
+                            Label("返回", systemImage: "chevron.left")
                         }
                     }
                 }

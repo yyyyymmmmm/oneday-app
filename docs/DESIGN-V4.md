@@ -3986,3 +3986,106 @@ Tests 全表钉死；抽屉名单同符号源、18pt 既有
   28. api-25f140a6575bf25c（无标题、1 条、created_source=null）api_server → 撤（空壳残缺会话）。
   汇总：kanban 9 条字段可分全撤；api_server 19 条＝主线 1（旁聊区外）＋联调/测试/冒烟可识别 13 撤＋同构不可分靠兜底 5 撤。**留**：本地线程全体（不在此 28 条内，如「你好」）——即旁聊区名单本体；平台来源现存为零（Hermes 启用通道数零），规则已按 source 非用户通道预置。
 - 返工销账：代码提交 e33dcc6（基线 aba20bc 之上）；CI 42638839390 success（一轮绿，Executed 395 tests, 0 failures）；单测 395（返工前 392＋过滤 3，只增不减）；IPA 已覆盖同路径：4,770,991 字节、md5 c5d0f3169dd4c7927129625965c97ebd、解包验 Info.plist＝0.19.0/48、bundle site.didichou.oneday（**同版本重发，以此包为准，上文销账的 89b74d4 包作废**）。真机终审追加一项：旁聊区只见本人旁聊（「你好」在列、P3TEST/Kanban 类不见）、搜索过滤生效。
+
+---
+
+## §47 0.20.0/49「对标 Muse 三轮」（用户 2026-11-09 23:32 七条＋23:36 思考硬规格＋23:42 切后台定性纠正；基线 e77049b、单测 395 只增不减）
+
+### 47.0 出处与推算口径
+本轮尺寸/字号/色值的出处＝用户给的七张 Muse 真机图（抽屉 3、设置 2、资源库 2）＋两张 OneDay 本机截图（发送失败/思考铺屏）。图宽 1320px 对 440pt 逻辑宽、比例 0.333pt/px；锚点：状态栏高约 54pt、底栏坞高、图中已知系统件（状态栏字、home indicator 区）。推算值逐项登记于 47.2/47.6/47.7；拿不准处按量级带落值并在代码注里标明，真机终审时以图复核。
+
+### 47.1 第一条·抽屉底条朦胧（覆盖 0.6.1 定式，brief 明确授权）
+- 旧定式：底条走 safeAreaBar 实色注册（Palette.surface 打底），0.6.1 文件头注「不许再挂任何自绘渐变带/模糊层（E11 已注销）」——本条由用户 23:32 新令覆盖该注，E11 注销口径不变（禁的是私有 variableBlur，本条用的是系统 Material 与 glassEffect，均系统件）。
+- 落法：DrawerView 根改 ZStack(alignment:.bottom)：名单 ScrollView 忽略底安全区（内容可滚到条下）、其上垫一条 ultraThinMaterial 矩形霜层（高 96、LinearGradient mask 上透下实、只承视觉不承命中）、底条本体留在安全区内（落点仍 indicator 线上方 4pt，与 0.19.0 贴底口径一致）。名单底部补 84pt 避让，末行不停在玻璃下。.scrollEdgeEffectStyle(.soft, for:.bottom) 保留。底条三件本体原已是 .glassEffect(.regular) 真玻璃（0.4.1），本轮不动。
+- 顶条维持实色注册不变（brief 只改底条）。
+- 自查口径：长名单滚到底，底条后可见被霜层糊住的内容影（真机终审项 T1）。
+
+### 47.2 第二条·抽屉字阶对齐（推算表）
+| 元素 | 图中量级（px→pt） | 落值 | 旧值 |
+|---|---|---|---|
+| 名字头 | 字形 cap 高约 102px→34pt、bold | 34 bold | 28 bold（.title） |
+| 导航行题 | 约 60px→20pt、半粗 | 20 semibold | .body 17 |
+| 导航行图标 | 约 80px→27pt | 27（槽 30） | 19（槽 22） |
+| 导航选中垫行高 | 约 160px→53pt | 行高统一 58（drawerRowHeight） | 47 |
+| 旁聊行距 | 约 175px→58pt | 58（同 drawerRowHeight） | 47 |
+| 旁聊行题 | 约 60px→20pt、常规 | 20 regular | .body 17 |
+| 旁聊行尾时间 | 约 45px→15pt | 15 | .footnote 13 |
+| 分区头 | 约 46px→15pt 灰 | 15 medium、inkMuted | .subheadline |
+| 底条搜索占位 | 约 54px→18pt | 18 | .body 17 |
+| 底条圆钮 | 约 170px→57pt 直径 | 52 不动（登记差 5pt：与搜索胶囊同高联动、0.3.6 实测封存值，改钮必动胶囊高与底栏对齐线，本轮不冒险、终审时用户点名再动） | 52 |
+新令牌 OneDayMetrics.drawerRowHeight=58。管理行与导航行同档（27/20 半粗/58、chevron 14）。
+
+### 47.3 第三条·旁聊标题 AI 生成（定因＋修法）
+- 现状定因（代码实查）：本地线程 title 只在两处被写——导入时刻快照（SessionHistoryImport.threadTitle，ChatView 约 2190 行）与首条消息发送时的首消息前 20 字派生（ChatView.sendMessage，title==「新会话」分支）；此后服务端会话标题（title 字段、title_source=llm）刷新永不回流。且 ChatThread 此前无手改标记，纵使回流也无从分辨手改名与派生名。断环＝「服务端标题→本地线程显示」整段缺失，抽屉只读本地 title 即永远停在派生值。
+- 协议边界（如实）：发送链是无状态重放（/v1/chat/completions 不带会话 id），App 内新建旁聊永不建/链服务端会话（只有主线有钦定服务端会话，见 ensureMainThread）——纯本地线程没有服务端标题可回流，本条只能覆盖已关联线程（主线与导入续聊的线程）；纯本地线程保留派生标题＝v1 缺口，不冒充已解。
+- 修法：①ChatThread 加 titleIsManual（默认 false 轻量迁移），抽屉 commitRenameThread 置位（全 App 唯一的本地改名写入点；管理页改名走服务端 ServerSessionActions 通道、不写本地 title）；②DrawerView.loadDrawerData 在既有 source 映射同批保留全量 [id: ServerSession]（drawerServerSessions）；③新 Core 纯函数 DrawerThreadTitle.resolve（手改＞服务端 cleanedServerTitle＞本地），抽屉行/搜索过滤/beginRename 预填统一走 drawerDisplayTitle。列表出现（onAppear 预取）与开抽屉（drawerPresented onChange）都会重拉映射，服务端标题刷新在下次开抽屉即跟上。
+- 单测：DrawerThreadTitleTests 5 条（手改不覆盖/服务端压派生/无服务端回落/空白回落/去空白）。
+
+### 47.4 第四条·思考折叠硬规格＋发送失败分型与切后台恢复（23:36＋23:42 两条追加合并销账）
+**思考（硬规格五点）**：
+1. 有界容器：正文区限高 Core ReasoningPresentation.maxBodyHeight=240pt。锚点口径：iPhone 视高约 730–870pt，三分之一约 243–290，取 240 保守落带内；测试钉 240 且 ≤730/3。区内系统 ScrollView 独立滚动；流式期 defaultScrollAnchor(.bottom) 跟随最新一行＋顶部 18pt 渐变罩（chatSurface 色渐隐、只承视觉）；落盘展开 .top 锚从头读。容器仍在消息列表行内（左竖线＋bubblePaddingH 左界与旧形态同），不溢出行外——图 8BB51F25 里「正文透到输入舱/底栏之下」是无界 Text 在行内无限增高所致，限高后行高有界、该形态消除。
+2. 相位默认态（Core ReasoningPhase＋defaultExpanded，单测钉死）：streaming（纯思考期）默认展开；contentStarted（正文/工具卡起流）默认收起；finished（本轮结束与一切落盘条目）默认收起为一行「已思考 · 约 Ns」＋chevron。
+3. **历史载入同规**：落盘条目（ChatView 条目行 ReasoningBlock isStreaming=false）相位恒 finished→默认收起，由 defaultExpanded(.finished)==false 单测钉死（用户最刺眼一条）。代码实查附记：0.19.0 落盘路径本已默认折叠，截图里的满屏展开实为流式行在正文起流后仍以 isStreaming=true 恒展开（旧 showsText＝isStreaming||expanded、正文开始不改相位）＋无界生长两因叠加；本轮双修。
+4. 两态可点：标题恒为 Button（旧流式期标题非按钮、点不动已改），用户覆盖（userOverride）优先于相位默认、本视图生命周期内保持；动画 .default（与工具卡折叠同口径：头行 Button＋系统动画、无自绘曲线——同构结论：是）。
+5. 排版沿旧：footnote 小一号＋Palette.inkSecondary 次级色＋纯 Text 不进 Markdown（草稿文本口径）；流式打字 blur 渐显纪律在正文泡侧、本单元不承载（§14 条 4 落点不变）。
+
+**发送失败分型（23:35 截图一）与切后台杀流（23:42 定性纠正）——同源合并说明**：两条是同一个横幅、两个触发器。横幅文案出自 HermesError.unreachable，旧 HermesClient.mapNetworkError 把 .networkConnectionLost/.notConnectedToInternet 一律塞进「网络不可用＋检查地址是否正确、服务器是否在线」——触发器 A（前台 Wi-Fi/代理路径瞬断）与触发器 B（生成中切后台、系统挂起进程掐断流连接，用户原话「我切换了一下显示有问题了，显示无网络」）在错误层同形、旧文案一律甩锅地址与服务器，与顶栏胶囊走 overview-bridge 轮询得出的「在线」当面打架。
+- 代码定因（B）：sendTask 是 ChatView 的裸 Task（约 2293 行建、2506 行清），ChatView 此前不观察 scenePhase——切后台无人记账、回前台无人对账；流一断即走普通失败收尾：横幅报错＋半截回复按正常条目落盘＋failed 触感，回复以错误态收场。
+- 分型（Core 单测把守）：HermesError.fromURLError 分型表——瞬断档（timedOut/networkConnectionLost/notConnectedToInternet/cannotConnectToHost/dataNotAllowed/internationalRoamingOff）→新 case .transientNetwork（文案「网络好像断了一下，这条没发出去。等网络稳一点，再发一次试试。」——不提地址）；地址档仅 cannotFindHost/dnsLookupFailed 留 unreachable；其余归 unreachable「网络错误」。HermesClient.mapNetworkError 收敛为只调 Core 分型。isTransient 只认 transientNetwork。
+- 再分一层（Core StreamFailure.kind＋wasBackgrounded）：瞬断∧本轮经历后台＝.lifecycleInterrupted；瞬断∧全程前台＝.transient；其余＝.fatal。
+- 前台瞬断修法：runStream 的既有重试闸泛化——未产出任何内容（正文/思考两闸皆空）＋未重试过时，瞬断自动重试一次（等 1200ms 再连）；Qwen 冷启重试并入同闸、口径不变（模型限定＋亮唤醒提示）；已产出不重试防重复。
+- 切后台修法（对账恢复，reconcileInterruptedStream）：ChatView 新增 scenePhase 观察——离开 .active 且 sendTask 在飞时记 backgroundedDuringStream（runStream 入口按轮归零）。中断轮收尾：不设 errorMessage、不给失败触感，半截内容照旧落盘（进程若被系统回收，回复不凭空消失），记 pendingRecovery（线程 id＋原上下文＋半截条目 ids，仅内存）。回前台（scenePhase→.active 或中断时已在前台的竞态自触发）执行对账：①client.health 探活（只读）——探不通才是真连不上，此时才报真错且注明环节为恢复探活、文案走分型口径；②线程有关联服务端会话（serverSessionID 非 nil）时拉 sessionMessages，取最后一条用户消息之后、本地没有的助手正文补齐（删半截→落完整版，notice「已重新连接，回复已补齐。」＋.success）；③无关联/服务端无此回复——发送链是无状态重放、服务端那次 run 的产物无 id 可按址取回（如实记：Hermes /v1 completions 的生成随请求连接走，客户端断开后不保证落进任何可寻址会话），删半截后以原上下文自动重发一次（用户消息已落盘、重发不新增消息，notice「已重新连接，正在继续生成…」）。发送未达阶段（刚发出未建流）被杀同走此路：本地消息在、上下文完整，对账重发即补齐，不静默丢失。
+- 服务端会话历史对本地线程标题的覆盖面同 47.3 协议边界：主线与导入线程可走②，纯本地旁聊走③。
+
+### 47.5 第五条·聊天页撤会话名
+撤除清单（ChatView 顶栏区）：①胶囊之下的「会话名次行」整行——已关联线程的 Button(thread.title＋info.circle→会话信息 sheet）与未关联的 Text(线程标题）两分支全撤；②showSessionInfo @State；③其 sheet 承载（ServerSessionDetailView 弹层）。头部只剩身份胶囊行（头像＋名＋状态点＋模型小胶囊）与左右圆钮。会话名只在抽屉旁聊区与管理页出现；会话详情入口经管理页 ServerSessionRow 承接（不失联核查：AllConversationsView 行→ServerSessionDetailView 路径原在）。
+
+### 47.6 第六条·设置页照 Muse 重排
+- 形态：呈现改根级 sheet（ContentView .sheet 消费 AppState.settingsSheetRequested，抽屉齿轮置位；0.6.0 pendingAppsPage/AppsPage 通道整体退役）。页内沿原生 List insetGrouped＋navigationTitle 大标题，右上 toolbar 圆形 X（onClose）照图四的左大标题＋圆 X 形态；图五的居中标题变体是 Muse 在另一层级的状态，本页取图五左大标题档登记。
+- 规格落值：底 Palette.settingsBG（新令牌，浅 #F2F2F7/暗 #0D1214 派生；图中约 #F2F2F4，差在采样噪声内且与系统分组底同源）；组距 settingsSectionSpacing=28；行 minHeight settingsRowHeight=60；行题 20 regular（双行卡题 20 semibold）；行图标 24 regular Palette.ink（图中约 26–28 黑线形，取 24 保 iconSlot 28 对齐线不漂）；值位沿旧 callout/mono 口径退后；身份卡＝题 20 半粗＋状态点＋副行 host 15 灰（补图中账户卡双行形态，模型副行仍禁——0.4.0 A 案不变）。
+- **偏离原生登记**：①卡圆角保留系统 insetGrouped 原生档（iOS 26 约 20–24），图中约 25——差 1–5pt，不为此自绘卡面（全面原生令优先）；②组距 28 与行高 60 是字面覆写系统默认（图为准，理由即图）；③「管理」组三页走 sheet 而非栈内 push（三页各自带 NavigationStack，套栈必乱）。
+- 功能映射表（旧位置→新位置，零丢失自查）：
+| 条目 | 旧位置 | 新位置 |
+|---|---|---|
+| 身份头（Hermes＋状态点） | 设置首组 | 设置首组（＋host 副行） |
+| 总览 | 应用格内页 | **设置「管理」组**（sheet） |
+| 电脑 | 应用格内页 | **设置「管理」组**（sheet） |
+| 服务器文件（托管根浏览） | 应用格·文件页「浏览」段 | **设置「管理」组**（sheet） |
+| 当前服务器→详情 | 服务器与连接组第 1 行 | 同组（下移至外观之后） |
+| 档案 | 服务器与连接组 | 同组 |
+| 审批桥钥匙（write-gate） | 服务器与连接组 | 同组（值位口径不变：状态词/桥未连接） |
+| 记忆/技能/定时任务/服务端会话/MCP | 智能体组 | 同组同序 |
+| 服务端默认模型/密钥/用量 | 模型与密钥组 | 同组 |
+| 网关状态/重启网关/日志 | 网关组 | 同组（重启确认弹窗不变） |
+| 外观 | 外观组 | 同组 |
+| 服务端版本/Hermes 开源项目/Lordicon 署名/隐私组脚注 | 关于组 | 同组 |
+| OneDay 版本 | 关于组 LabeledContent 行 | **页脚居中小灰字行「OneDay v0.20.0」**（版本源第五处随之移位） |
+| 断开连接 | 独立组（红字红图标） | 独立组（**去图标、红字 20**，照图「Log out」行；确认弹窗与 disconnect() 不变） |
+| 深链消费（pendingSettingsRoute/pendingAgentRoute） | onAppear/onChange | 不变（栈 path 机制原样） |
+
+### 47.7 第七条·底栏应用格换文件（交付物库）
+- 换代：MainTab.apps→.files（TabBarSymbols.all 第四位改 files 对，TabBarSymbolsTests 同步钉）；抽屉导航行「应用」→「文件」；AppsView/AppsPage/AppState.pendingAppsPage 删除。
+- 文件页（DeliverablesView）：顶部身份区＝左圆钮（line.3.horizontal 开抽屉，经 appState.drawerPresented）＋中央 IdentityAnchor 胶囊＋右圆钮（搜索开关，展开 FileSearchField＋FileUploadControl 行、P8 功能不丢）；大分段 [文件｜影音内容] 自制（登记偏离：系统 segmented 约 28 高/13 字，图中约 63 高/22 半粗——落值槽高 60/段字 20 半粗/选中段白面＋轻影，动画只用 .default）；文件行＝FileIconBox（32，共享组件原尺寸；图中约 37，差 5pt 登记、与浏览器行共用不单独放大）＋标题 20＋类型小字 15 灰（Core DeliverableFileType：扩展名大写，单测 2 条）＋行尾 ⋮ Menu（预览/分享两件）；点行进 FilePreviewView（navigationDestination(item:)）；长按菜单保留下载/删除（删除带确认、回读对账沿 P8）。影音段＝三列网格 spacing 2＋MediaCell（视频播放角标原组件自带），点开同走 FilePreviewView。
+- **数据来源与交付物定义核对**：沿 P8 产出聚合（见 DeliverablesView 文件头）：/api/files 锁 /opt/data、只扫十个产出根＋根散文件（deny list 剔系统文件）、mtime 倒序、路径去重、≤3 层/600 条上限——这是 Hermes 现有面上唯一的「会话/任务产出」信号（消息附件无文件清单 API、会话工作区无独立产出面）。**为何符合定义**：聚合根全部是智能体干活写出的目录（生成文档/图片/视频/音频/截图/定时任务产出/App 上传），服务端配置与人格文件被 deny list 挡在根散文件之外、各产出根内不含系统文件——进本页的即「做出来的东西」，非服务器全量文件（全量浏览在设置「服务器文件」，两面分工明确）。**v1 缺口（如实）**：①产出与会话无关联字段，来源只标到产出目录级（Deliverable.source 数据层保留、行上按图不显示来源）；②聊天内用户附件是本地 imageData、不入服务端产出面；③cache/scratch「临时产出」与 image_cache/audio_cache 亦在聚合内（P8 口径沿用），可能含中间件——终审若嫌杂，二期按根收紧。
+- 应用格功能迁移表（逐项可达自查）：
+| 原应用格入口 | 新家 | 可达路径 |
+|---|---|---|
+| 总览 OverviewView | 设置「管理」组 | 抽屉齿轮→设置→管理→总览（sheet）；其 onOpenAgent/onOpenSettings 深链改道本页栈 path、onOpenChatSession 改道关设置＋pendingChatSessionID |
+| 文件（四段页） | 拆解 | 交付物/影音→底栏文件格；浏览→设置「管理」服务器文件；电脑段→电脑页（其文件段本就共用 BoxFilesView） |
+| 电脑 ComputerView | 设置「管理」组 | 设置→管理→电脑（sheet） |
+| 设置 SettingsView | 根级 sheet | 抽屉齿轮直达（不再经格） |
+| 当前服务器行（AppsView 首页行） | 设置身份卡副行＋服务器组当前服务器行 | 同信息两处在设置内 |
+| 技能商店（SkillsView 内） | 设置智能体组→技能 | 原即经设置可达，路径不变 |
+| 档案 ProfilesView | 设置服务器与连接组→档案 | 不变 |
+| MCP | 设置智能体组→MCP 连接 | 不变 |
+| 监测 | 枢纽 HubMonitorSection | 聊天页胶囊→枢纽（原即不在应用格） |
+| 会话管理 | 抽屉「管理全部对话」 | 不变 |
+| OverviewView/ComputerView 的「应用」返回钮 | 文案改「返回」 | 两页现只经设置 sheet 打开，onBackToApps 接 sheet 关闭 |
+
+### 47.8 版本与测试
+- 版本源五处同改 0.20.0/49：Project.swift 四字面量（MARKETING_VERSION/CURRENT_PROJECT_VERSION/CFBundleShortVersionString/CFBundleVersion）＋SettingsView.versionFooter 字面「OneDay v0.20.0」（第五处随 47.6 移位），全仓 grep 验。
+- 单测：395 基线＋新增（DrawerThreadTitle 5、HermesError 5、StreamRecovery 3、Reasoning 相位/限高 2、DeliverableFileType 2）＝412 口径，只增不减；TabBarSymbolsTests 全表钉随第四格换代更新（apps→files，条数不变）。
+- 施工期对生产零写请求（全程只读代码与本地仓库）。
+
+### 47.9 真机终审项
+T1 抽屉长名单滚到底：底条后有被霜住的内容影、名单末行不被压；T2 抽屉字阶与 Muse 图并置复核（名字/行题/行距）；底条圆钮 52 与图中约 57 的差是否要点名再动；T3 已关联旁聊（主线/导入线程）标题跟随服务端 AI 名、纯本地旁聊保持派生名（缺口预期内）；T4 思考三态：流式限高区内滚动跟随、正文起流自动收起、打开旧会话思考全收起、展开态限高内读；思考区内滚动与消息列表滚动的手势分配；T5 聊天页头部只剩胶囊行；T6 设置页与图四五并置（底色/卡距/行题/红字行/页脚版本行）、管理组三页 sheet 开合与深链改道；T7 文件页分段/行 ⋮/影音网格与图六七并置、预览与分享真动作；T8 切后台恢复：生成中切走再回——无「无网络」横幅、回复或被补齐或自动续生成；前台 Wi-Fi 瞬断时未产出自动重试一次、横幅新文案不提地址。
