@@ -2414,3 +2414,17 @@ Tests，在模拟器内离线渲染并逐像素取样，方法如下——
   整页规格、MotionTokens 收口、LabeledContent 行在卡片内的最终对齐
 - 三期：智能体枢纽页本体（点胶囊打开；审核段数据源＝Hermes write-
   approval 启用＋HTTP 桥、浏览器段待后端接口，均已单列）
+
+### 25.7 终批销账修正（解包验版抓到的假绿，2026-11-09）
+
+- 终批首包（commit cdfcfb6，CI 42547777227 success，单测 105）解包
+  验 Info.plist 时发现 CFBundleShortVersionString/CFBundleVersion
+  仍为 0.3.8/23：终批只改了工程设置 MARKETING_VERSION/
+  CURRENT_PROJECT_VERSION，而本工程版本字面量直写于 Project.swift
+  的 infoPlist extendingDefault（注释早已写明「模板不展开工程设置、
+  只写字面量才进包」，沿礼记 v4.4 实证口径）——该处漏改，CI 绿但
+  产物版本号未变，属假绿，不予交付。
+- 修复：Project.swift infoPlist 两字面量改 0.4.0/24（与工程设置对
+  齐），独立 fix 提交重跑 CI；交付以重跑包解包验版＝0.4.0/24 为准
+  （run 号与 IPA 字节数见交付回执）。教训并入：发版须同时改两处版
+  本源，验收必解包验 plist、不认 CI 绿。
