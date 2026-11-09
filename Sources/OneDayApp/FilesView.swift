@@ -147,7 +147,6 @@ struct FilesView: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     // 条 5 补落点（0.3.2）：同行图标走光学偏移
-                    .iconOpticalOffset()
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.entry.name)

@@ -174,44 +174,11 @@ public extension Font.Weight {
 // 审计 grep 实证），本轮整段删除。浮件画法由白浮纸接管
 // （Palette.floatFill＋odFloatPaper），玻璃不再回来。
 
-// MARK: - Elevation（定版 §3.4：只剩浮层一档，内容层零阴影）
-
-/// 阴影规格令牌。
-public struct ShadowSpec: Sendable {
-    public let opacity: Double
-    public let radius: CGFloat
-    public let x: CGFloat
-    public let y: CGFloat
-
-    public init(opacity: Double, radius: CGFloat, x: CGFloat = 0, y: CGFloat) {
-        self.opacity = opacity
-        self.radius = radius
-        self.x = x
-        self.y = y
-    }
-}
-
-public enum Elevation {
-    /// 浮档：只给浮空输入区与浮空控件（中性黑、带 y 偏移的软影）
-    public static let floating = ShadowSpec(opacity: 0.14, radius: 16, y: 6)
-    /// 抽屉档（0.3.6 立宪）：peek 面板右缘约 30pt 柔影，
-    /// 向右外扩、无纵向偏移
-    public static let drawer = ShadowSpec(opacity: 0.12, radius: 30, x: 16, y: 0)
-    /// 白浮纸档（0.3.8，fixlist 第 28 条）：浮件统一柔影
-    /// ——输入框/胶囊/圆钮/抽屉底条/自绘底栏同此一档
-    /// （比 floating 收一档，浮纸靠发丝边定位、影只兜底）
-    public static let paper = ShadowSpec(opacity: 0.10, radius: 12, y: 4)
-}
-
-public extension View {
-    func odElevation(_ shadow: ShadowSpec) -> some View {
-        // 阴影色不用纯黑（§14 条 1）：统一走 Palette.shadowBase
-        self.shadow(
-            color: Palette.shadowBase.opacity(shadow.opacity),
-            radius: shadow.radius, x: shadow.x, y: shadow.y
-        )
-    }
-}
+// MARK: - Elevation（0.4.0 整表废止，审计 §1.1）
+// ShadowSpec/Elevation/odElevation 已删：调用点 4 处全清
+// （odFloatPaper/状态页头像/附件牌去影），仅抽屉右缘一
+// 处保留系统近似档阴影、内联在 ChatView drawerPanel
+// （例外 E5），参数不再独立成表。
 
 // MARK: - 圆角同心机制（子圆角由容器推导，禁止手算）
 

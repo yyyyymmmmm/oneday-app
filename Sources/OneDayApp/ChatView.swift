@@ -127,8 +127,9 @@ struct ChatView: View {
 
     // MARK: - 主面（0.2.6 承载换代：发送区回到布局流）
 
-    /// 聊天主面：顶栏仍是悬浮覆盖层（玻璃三件套＋渐隐带，
-    /// 见 topFade）；底部发送区 0.2.6 起退出覆盖层、回到
+    /// 聊天主面：顶栏仍是悬浮覆盖层（玻璃件＋悬浮胶囊；
+    /// 0.4.0 起渐隐带 topFade 已删、见 chatSurface）；底部
+    /// 发送区 0.2.6 起退出覆盖层、回到
     /// 布局流——消息列表加 .safeAreaInset(edge: .bottom)
     /// 承载发送舱（见 messageList）。换代原因：0.2.4/0.2.5
     /// 连着两版在覆盖式 ZStack 里跟键盘打架（键盘弹起态
@@ -152,10 +153,12 @@ struct ChatView: View {
         }
         .background(Palette.chatSurface)
         .overlay(alignment: .top) {
-            ZStack(alignment: .top) {
-                topFade
-                headerBar
-            }
+            // 0.4.0（审计 §1.1／§6.1）：顶栏区自加背景层
+            // （topFade 渐隐带）整层删除，overlay 只剩
+            // headerBar 本体——自加背景层会干扰系统滚动
+            // 边缘柔效（WWDC25-323），删带是柔效接管的
+            // 前置；headerBar 的收编与玻璃换装归二期
+            headerBar
         }
         .photosPicker(
             isPresented: $showPhotoPicker,
@@ -231,33 +234,11 @@ struct ChatView: View {
         }
     }
 
-    /// 顶部渐隐带（0.2.6，对照 Muse 顶栏背后的磨砂渐隐）：
-    /// 一层自上而下的 pageBG 渐变，只作淡出遮罩——不做实色
-    /// 顶栏、不带分界线。系统 .scrollEdgeEffectStyle(.soft)
-    /// 在白底上单独不可感（0.2.5 已挂、真机仍见文字清晰撞
-    /// 到胶囊周围），故由这层带子承担实际淡出。几何按诊断
-    /// 图实测点位定（iPhone 17：忽略顶部安全区后带子覆盖
-    /// 物理 0–128pt；顶栏胶囊占约 68–115pt，静止时首条消息
-    /// 起于约 138pt）：渐变 0–90% 全不透明——文字滚到胶囊/
-    /// 角钮一线（≤115pt）之前已完全淡出；90%–100% 在 13pt
-    /// 内降到全透明，带尾止于 128pt、不触静止首条消息。
-    /// 不吃手势。
-    private var topFade: some View {
-        LinearGradient(
-            stops: [
-                .init(color: Palette.pageBG, location: 0),
-                .init(color: Palette.pageBG, location: 0.9),
-                .init(color: Palette.pageBG.opacity(0), location: 1),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        // 0.3.8：顶栏改两段（胶囊行＋会话名次行）后带高
-        // 随之加至 150，几何口径同原注（覆盖胶囊一线＋余量）
-        .frame(height: 150)
-        .ignoresSafeArea(edges: .top)
-        .allowsHitTesting(false)
-    }
+    /// （顶部渐隐带 topFade 已于 0.4.0 删除，审计 §1.1／
+    /// §6.1：自加实色渐变带是「白底上边缘模糊不可感」的
+    /// 疑因之一，删后滚动边缘模糊回归系统 .scrollEdge-
+    /// EffectStyle(.soft) 单独承担；顶栏收编系统通道与
+    /// 玻璃换装归二期材质批）
 
     /// 身份状态（0.3.8 第 30 条）：胶囊状态位只报属实的
     /// 三态——未连接/唤醒中/生成中/在线，词与点同源
@@ -516,13 +497,15 @@ struct ChatView: View {
             }
         }
         // 滚动边距：顶为悬浮顶栏让出首屏位置（滚动时内容
-        // 从其背后穿过、经 topFade 渐隐带淡出）；底只留与
-        // 发送舱的小间隙——发送区本体已由下方 safeAreaInset
-        // 留位（0.2.6），不再按悬浮层实测高度给边距。
-        // .scrollEdgeEffectStyle(.soft) 保留，与渐隐带并用
-        // （白底上单独不可感、带子承担实际淡出，见 topFade）
-        // 0.3.8：顶栏两段化（胶囊行 42＋次行 18＋边距）
-        // 后首屏让位 64 → 88
+        // 从其背后穿过）；底只留与发送舱的小间隙——发送
+        // 区本体已由下方 safeAreaInset 留位（0.2.6），不再
+        // 按悬浮层实测高度给边距。
+        // 0.4.0（审计 §6.1／§1.1）：topFade 渐隐带已删——
+        // 它是「白底上边缘模糊不可感」的两个疑因之一
+        // （实色带干扰＋作用区错位），删后滚动边缘模糊
+        // 回归系统通道 .scrollEdgeEffectStyle(.soft) 单独
+        // 承担；顶栏收编系统通道归二期材质批，本期顶栏
+        // 保持悬浮覆盖形态
         .contentMargins(.top, 88, for: .scrollContent)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .contentMargins(.bottom, OneDayMetrics.spacingS, for: .scrollContent)
@@ -1182,7 +1165,8 @@ private struct ComposerBarLayout: Layout {
                     Palette.surface,
                     in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
                 )
-                .odElevation(Elevation.floating)
+                // 0.4.0（§1.1 Elevation 整表废止）：附件牌
+                // 的手搓阴影随表退役，系统层级自理
             }
             Button {
                 attachments.removeAll { $0.id == attachment.id }
@@ -1355,7 +1339,13 @@ private struct ComposerBarLayout: Layout {
                 style: .continuous
             )
         )
-        .odElevation(Elevation.drawer)
+        // 0.4.0（§1.1）：Elevation 整表废止，全仓仅此一处
+        // 保留阴影——抽屉例外 E5 的系统近似档内联（右缘
+        // 柔影：黑 12%、半径 30、x 偏移 16），不再成表
+        .shadow(
+            color: Palette.shadowBase.opacity(0.12),
+            radius: 30, x: 16, y: 0
+        )
         .alert(
             "重命名会话",
             isPresented: Binding(

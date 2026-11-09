@@ -109,7 +109,6 @@ public struct ContentRow: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
                     // 条 5（§14）：图标相对文字下移 0.125em
-                    .iconOpticalOffset()
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {
@@ -349,12 +348,9 @@ public struct DataBar: View {
 // MARK: - 视觉纪律组件（0.3.0，DESIGN-V4 §14）
 
 public extension View {
-    /// 条 5 光学对齐：图标相对同行文字下移 0.125em。
-    /// em 以该行字号计——body 16pt 处约 2pt。图标与文字
-    /// 同行的点位统一走此修饰，不逐处手算
-    func iconOpticalOffset(fontSize: CGFloat = 16) -> some View {
-        offset(y: fontSize * 0.125)
-    }
+    /// （条 5 光学对齐 iconOpticalOffset 已于 0.4.0 删除，
+    /// 审计 §1.2 #4：图标下移 0.125em 的 hack——SF Symbols
+    /// 自带光学对齐基线，全部调用点一并删除）
 
     /// 条 6 等宽数字：数字一律 tabular，防宽度抖动。
     /// 含数字的 Text 统一施加（时间/计数/金额/读数）
@@ -419,16 +415,16 @@ public struct CopyButton: View {
 
 public extension View {
     /// 白浮纸画法（fixlist 第 28 条立令牌）：浮件统一——
-    /// floatFill 近白填充＋0.5pt 发丝描边＋paper 柔影。
-    /// 输入框/身份胶囊/圆钮/抽屉底条/自绘底栏全体浮件
-    /// 只许走这一处画法，灰贴片与各自拼影一律退场
+    /// floatFill 填充＋0.5pt 发丝描边。输入框/身份胶囊/
+    /// 圆钮/抽屉底条全体浮件只许走这一处画法。0.4.0
+    /// （审计 §1.1）：paper 柔影随 Elevation 整表废止退
+    /// 役；浮件玻璃化与系统阴影归二期材质批（§6）
     func odFloatPaper(in shape: some Shape) -> some View {
         self
             .background(Palette.floatFill, in: shape)
             .overlay {
                 shape.stroke(Palette.hairline, lineWidth: 0.5)
             }
-            .odElevation(Elevation.paper)
     }
 }
 
@@ -520,7 +516,6 @@ public struct UnifiedRow: View {
                         width: ListRowSpec.iconSlotWidth,
                         alignment: .leading
                     )
-                    .iconOpticalOffset()
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {

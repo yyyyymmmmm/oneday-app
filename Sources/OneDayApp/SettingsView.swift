@@ -17,6 +17,15 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var path: [SettingsRoute] = []
+    /// 外观三档当前值（0.4.0）：与 AppearanceView 同一
+    /// AppStorage 键，只读展示
+    @AppStorage("appearanceMode") private var appearanceModeRaw =
+        AppearanceMode.system.rawValue
+
+    private var appearanceDisplayName: String {
+        (AppearanceMode(rawValue: appearanceModeRaw) ?? .system)
+            .displayName
+    }
 
     @State private var status: ServerStatus?
     @State private var activeProfile: String?
@@ -383,9 +392,11 @@ struct SettingsView: View {
 
     private var appearanceSection: some View {
         Section {
+            // 0.4.0（§1.1）：主题体系废止，本行改「外观」
+            // （三档系统外观）；行值撤除归二期行规格
             navRow(
-                icon: "paintpalette", title: "主题",
-                value: AccentStore.shared.theme.displayName,
+                icon: "circle.lefthalf.filled", title: "外观",
+                value: appearanceDisplayName,
                 route: .appearance
             )
         } header: {
@@ -470,7 +481,6 @@ struct SettingsView: View {
             .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
             // 条 5（§14）：同行图标走光学偏移（0.3.0 只落
             // ContentRow，本页行于 0.3.2 补齐）
-            .iconOpticalOffset()
             .accessibilityHidden(true)
     }
 

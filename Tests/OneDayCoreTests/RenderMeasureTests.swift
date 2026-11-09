@@ -246,30 +246,25 @@ final class RenderMeasureTests: XCTestCase {
         XCTAssertLessThan(bubble, heavyRef)
     }
 
-    // MARK: - 令牌色值（第 9/26/28/33 条＋暗色定值）
+    // MARK: - 语义色挂接（0.4.0，审计 §1.1）
 
-    func testTokenHexValues() {
-        let light = ThemeTokens.tencentBlue.light
-        let dark = ThemeTokens.tencentBlue.dark
-        // 白浮纸（第 28 条）
-        XCTAssertEqual(light.floatFill, 0xFBFBFB)
-        XCTAssertEqual(dark.floatFill, 0x1C1C1F)
-        // 用户气泡（第 26 条）与助手泡封存值（第 33 条备忘）
-        XCTAssertEqual(light.userBubbleFill, 0xF0F0F2)
-        XCTAssertEqual(dark.userBubbleFill, 0x212126)
-        XCTAssertEqual(light.bubbleFill, 0xE9EAEC)
-        // 聊天面/选中垫基线冻值不动
-        XCTAssertEqual(light.chatSurface, 0xFCFCFC)
-        XCTAssertEqual(light.selectionFill, 0xE3E3E5)
-        // 状态绿降饱和（第 9 条）
-        XCTAssertEqual(light.success, 0x3F9163)
-        XCTAssertEqual(dark.success, 0x55A87B)
-        // 暗色定值（C 项）：墨纱 alpha 与四层微差
-        XCTAssertEqual(dark.scrimAlpha, 0.50)
-        XCTAssertEqual(dark.chatSurface, 0x131316)
-        XCTAssertEqual(dark.selectionFill, 0x2C2C2F)
-        // 强调变体行继承结构令牌（floatFill 不随主题变）
-        XCTAssertEqual(AccentTheme.purple.tokens.light.floatFill, 0xFBFBFB)
-        XCTAssertEqual(AccentTheme.green.tokens.dark.userBubbleFill, 0x212126)
+    /// 0.3.x 的冻值 hex 钉死（原 testTokenHexValues）随
+    /// AccentTheme/ThemeTokens 整表废止退役；新口径＝气泡
+    /// 两色改挂系统灰阶引用，解析值与系统色逐一相等
+    /// （浅色环境下比对，避免暗色翻转干扰）
+    func testBubbleColorsUseSystemGrays() {
+        let light = UITraitCollection(userInterfaceStyle: .light)
+        XCTAssertEqual(
+            UIColor(Palette.bubbleFill).resolvedColor(with: light),
+            UIColor.systemGray5.resolvedColor(with: light)
+        )
+        XCTAssertEqual(
+            UIColor(Palette.userBubbleFill).resolvedColor(with: light),
+            UIColor.systemGray6.resolvedColor(with: light)
+        )
+        XCTAssertEqual(
+            UIColor(Palette.selectionFill).resolvedColor(with: light),
+            UIColor.systemGray5.resolvedColor(with: light)
+        )
     }
 }

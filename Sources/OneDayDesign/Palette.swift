@@ -1,165 +1,68 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
-// MARK: - 语义令牌（v2 定版，见 docs/DESIGN-V2.md §3.3）
-// 组件只许引用这里的语义令牌，不写裸 hex。
-//
-// 0.3.2 令牌层礼记化（DESIGN-V4 §17）：全部令牌改由
-// 「主题令牌表」查表生成——数据源是 AccentTheme.tokens
-// （腾讯蓝为完整行、默认主题），本文件只剩工厂与别名，
-// 不再逐令牌写死浅/深两套值。换主题＝换表行，组件零改。
-//
-// 色彩纪律不变：表面保持近中性（蓝味只在色温层），蓝色
-// 只活在强调与每屏唯一的时刻里。文字三角色对 pageBG/
-// bubbleFill 逐对验算 ≥4.5:1（0.3.2 出厂对比表见 §17.4：
-// 浅色 ink 17.4/sec 8.8/muted 5.1（气泡底 15.8/8.0/4.6）、
-// 暗色 ink 17.6/sec 8.9/muted 5.7（气泡底 15.9/8.0/5.2）、
-// 白字对 primaryFill 浅 9.4/暗 6.5，全对达标）。
-
-public extension Color {
-    /// 0xRRGGBB
-    init(hex: UInt32, alpha: Double = 1.0) {
-        let r = Double((hex >> 16) & 0xFF) / 255.0
-        let g = Double((hex >> 8) & 0xFF) / 255.0
-        let b = Double(hex & 0xFF) / 255.0
-        self.init(.sRGB, red: r, green: g, blue: b, opacity: alpha)
-    }
-}
-
-#if canImport(UIKit)
-private extension UIColor {
-    convenience init(hex: UInt32) {
-        let r = CGFloat((hex >> 16) & 0xFF) / 255.0
-        let g = CGFloat((hex >> 8) & 0xFF) / 255.0
-        let b = CGFloat(hex & 0xFF) / 255.0
-        self.init(red: r, green: g, blue: b, alpha: 1.0)
-    }
-}
-#endif
-
+// MARK: - 语义色角色层（0.4.0 降级，审计 §1.1）
+// 沿革：0.3.2 礼记式「主题令牌表」→ 0.3.6 Muse 基线冻
+// 值 → 0.4.0 **整表废止**：主题表（AccentTheme/ThemeTokens）
+// 删除，Palette 从「按当前主题查表」降级为**系统语义色的
+// 命名引用层**——每个角色直挂 UIKit 语义色/系统灰阶，浅
+// 深与对比度由系统随环境解析（HIG：优先语义色、系统色，
+// 自建动态色只在系统无对应时才用）。~380 处调用点零改动
+// 是靠这层降级换来的，不代表回潮：新代码直接用系统色，
+// 本层只作存量桥。
+// 气泡两色口径（§1.1 #11/#12）：助手泡 #E9EAEC 与用户
+// 泡 #F0F0F2（均为 0.3.x 冻值）改挂系统灰阶引用——
+// systemGray5（≈#E5E5EA）／systemGray6（≈#F2F2F7），
+// 深浅关系不变、暗色由系统自动翻转，不再维护手写双份值。
+// scrim：0.3.6 的「白纱」仍是抽屉例外 E5 的一部分（浅
+// 色近白半透/暗色近黑半透），用动态色直给、不成表。
 public enum Palette {
-    /// 令牌工厂（0.3.2）：按当前主题令牌表的键生成动态色，
-    /// 浅/深由系统外观在 provider 内解析。读取 AccentStore
-    /// 当前主题即建立 @Observable 订阅——引用令牌的视图在
-    /// 主题切换时自动重绘（与 0.2.x 强调色传播同机制），
-    /// provider 捕获的是求值时点的令牌表行，重绘即换新行。
-    private static func token(
-        _ keyPath: KeyPath<ThemeTokens.Scheme, UInt32>
-    ) -> Color {
-        let tokens = AccentStore.shared.theme.tokens
-        #if canImport(UIKit)
-        return Color(uiColor: UIColor(dynamicProvider: { traits in
-            let scheme = traits.userInterfaceStyle == .dark
-                ? tokens.dark : tokens.light
-            return UIColor(hex: scheme[keyPath: keyPath])
-        }))
-        #else
-        return Color(hex: tokens.light[keyPath: keyPath])
-        #endif
-    }
+    public static let pageBG = Color(.systemGroupedBackground)
+    public static let surface = Color(.secondarySystemGroupedBackground)
+    public static let bubbleFill = Color(.systemGray5)
+    public static let fieldFill = Color(.secondarySystemBackground)
+    public static let chatSurface = Color(.systemBackground)
+    public static let selectionFill = Color(.systemGray5)
+    public static let floatFill = Color(.secondarySystemBackground)
+    public static let userBubbleFill = Color(.systemGray6)
 
-    /// 基色＋alpha 成对令牌的工厂（scrim/hairline 用）：
-    /// 基色与不透明度同在令牌表行内，provider 一并解析
-    private static func tokenWithAlpha(
-        _ base: KeyPath<ThemeTokens.Scheme, UInt32>,
-        _ alpha: KeyPath<ThemeTokens.Scheme, Double>
-    ) -> Color {
-        let tokens = AccentStore.shared.theme.tokens
-        #if canImport(UIKit)
-        return Color(uiColor: UIColor(dynamicProvider: { traits in
-            let scheme = traits.userInterfaceStyle == .dark
-                ? tokens.dark : tokens.light
-            return UIColor(hex: scheme[keyPath: base])
-                .withAlphaComponent(scheme[keyPath: alpha])
-        }))
-        #else
-        return Color(
-            hex: tokens.light[keyPath: base],
-            alpha: tokens.light[keyPath: alpha]
-        )
-        #endif
-    }
+    public static let scrim = Color(
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.black.withAlphaComponent(0.50)
+                : UIColor.white.withAlphaComponent(0.55)
+        }
+    )
 
-    // —— 表面四层阶梯（§14 条 1：禁黑框与 #000，背景靠
-    // 层间明度差 1–3% 的微差分层；数值在令牌表行内） ——
-    /// 层 1 页面底：近中性纸色
-    public static var pageBG: Color { token(\.pageBG) }
-    /// 层 2 卡片/分组容器面
-    public static var surface: Color { token(\.surface) }
-    /// 层 3 浮层面（助手消息泡、浮起控件底）
-    public static var bubbleFill: Color { token(\.bubbleFill) }
-    /// 层 3.5 字段面：比浮层再降一级（输入字段、代码块）
-    public static var fieldFill: Color { token(\.fieldFill) }
-    /// 四层阶梯的语义别名（新代码按层引用，旧令牌同值）
+    public static let ink = Color.primary
+    public static let inkSecondary = Color.secondary
+    public static let inkMuted = Color(.tertiaryLabel)
+    public static let hairline = Color(.separator)
+
+    public static let primary = Color.accentColor
+    public static let primaryFill = Color.accentColor
+    public static let primaryTint = Color.accentColor.opacity(0.12)
+    public static let onPrimary = Color.white
+
+    public static let success = Color.green
+    public static let warning = Color.orange
+    public static let danger = Color.red
+
+    /// 阴影基色（0.3.8 起）：Elevation 规格的基色（原
+    /// shadowBase 令牌）；0.4.0 Elevation 整表废止后仅
+    /// 抽屉例外的一处内联阴影引用（ChatView drawer）
+    public static let shadowBase = Color.black
+
+    /// 语义分层别名（0.3.2 与礼记对齐的叫法）：底＝页面
+    /// 底色、卡＝分组卡面、浮＝浮层/弹层级表面。0.4.0 起
+    /// 三者随角色层一并挂系统语义色
     public static var layerPage: Color { pageBG }
     public static var layerCard: Color { surface }
     public static var layerOverlay: Color { bubbleFill }
-    /// 层 4 遮罩：0.3.6 立宪改白色半透纱（浅色行基色
-    /// 白＋alpha 在表行内；暗色行暂留墨纱、归 0.3.8）
-    public static var scrim: Color {
-        tokenWithAlpha(\.scrimBase, \.scrimAlpha)
-    }
-    /// 导航/聊天面（0.3.6 立宪，§22）：近白 #FCFCFC，
-    /// 抽屉面板与聊天主面用；与层 2 白卡差一档明度
-    public static var chatSurface: Color { token(\.chatSurface) }
-    /// 选中浅灰胶囊垫（0.3.6 立宪，§22）：#E3E3E5 系，
-    /// 底栏选中与名单当前行共用；选中不靠变色/加粗
-    public static var selectionFill: Color { token(\.selectionFill) }
-    /// 白浮纸（0.3.8 立令牌，fixlist 第 28 条）：浮件统一
-    /// 面——近白填充（浅 #FBFBFB／暗 #1C1C1F）＋发丝描边
-    /// ＋柔影（画法见 odFloatPaper）。输入框/身份胶囊/
-    /// 圆钮/抽屉底条/自绘底栏全体浮件同此一面，灰贴片
-    /// （fieldFill 平铺）退出浮件位
-    public static var floatFill: Color { token(\.floatFill) }
-    /// 用户气泡面（0.3.8，fixlist 第 26 条）：中性浅灰
-    /// （浅 #F0F0F2／暗 #212126），与助手泡 #E9EAEC 同
-    /// 家族拉开深浅；§19 不变表：气泡恒中性、永不染色
-    public static var userBubbleFill: Color { token(\.userBubbleFill) }
-
-    // —— 文字三角色 ——
-    /// 主文字
-    public static var ink: Color { token(\.ink) }
-    /// 次文字
-    public static var inkSecondary: Color { token(\.inkSecondary) }
-    /// 弱文字：只用于元信息（计数、时间、占位性说明）。
-    /// 暗色值 0.3.2 按审查 I-1 提亮至 0x8A8A90（气泡底
-    /// 对比 4.3 → 5.2:1），数值在令牌表行内
-    public static var inkMuted: Color { token(\.inkMuted) }
-
-    /// 发丝线：基色低 alpha 推导，两套外观下都保持「看得见
-    /// 的线、不是一道杠」（Pro Rules）
-    public static var hairline: Color {
-        tokenWithAlpha(\.hairlineBase, \.hairlineAlpha)
-    }
-
-    // —— 强调（主题三档，随令牌表行切换；每屏至多一个
-    // 时刻＋关键动作的纪律不变） ——
-    /// 品牌主色：文字/图标强调
-    public static var primary: Color { token(\.primary) }
-    /// 品牌填充：强调底＋白字（主按钮、发送键）
-    public static var primaryFill: Color { token(\.primaryFill) }
-    /// 品牌浅染：用户气泡、选中衬底
-    public static var primaryTint: Color { token(\.primaryTint) }
-    /// 填充上的文字色（主按钮/发送键的白字，页面不许写 .white）
-    public static var onPrimary: Color { token(\.onPrimary) }
-
-    /// 影基色：浮层软影的近黑墨色（§14 条 1 不用纯黑）；
-    /// 与外观无关、不入令牌表，Elevation 与发送舱双环影共用
-    public static let shadowBase = Color(hex: 0x0A0A0C)
-
-    // —— 反馈语义 ——
-    /// 成功 / 在线
-    public static var success: Color { token(\.success) }
-    /// 警告 / 降级
-    public static var warning: Color { token(\.warning) }
-    /// 危险 / 错误 / 离线
-    public static var danger: Color { token(\.danger) }
 
     /// 平台/网关状态字符串 → 状态色：connected/running/ok 为绿，
     /// error/failed/disconnected 为红，其余（未知、未配置）为弱色。
     /// 状态色永不单独传意，调用方必须同时呈现状态词（定版 §3.5）。
+    /// （0.4.0：实现沿旧口径，色值随角色层改系统反馈色）
     public static func stateColor(_ state: String?) -> Color {
         switch state?.lowercased() {
         case "connected", "running", "ok", "ready":

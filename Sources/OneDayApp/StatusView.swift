@@ -73,7 +73,8 @@ struct StatusView: View {
                     .foregroundStyle(Palette.ink)
                     .accessibilityHidden(true)
             }
-            .odElevation(Elevation.paper)
+            // 0.4.0（§1.1）：头像圆的手搓阴影随 Elevation
+            // 整表废止退役
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text("Hermes")
                     .font(TypeScale.title(for: colorScheme))

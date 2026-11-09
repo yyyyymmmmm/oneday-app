@@ -41,7 +41,12 @@ struct OneDayApp: App {
 struct RootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 外观三档（0.4.0，§1.1 AccentTheme 废止后的最小
+    /// 改型）：AppearanceView 的 Picker 写同一 AppStorage
+    /// 键，根层在此施加 .preferredColorScheme（跟随系统
+    /// ＝nil）
+    @AppStorage("appearanceMode") private var appearanceModeRaw =
+        AppearanceMode.system.rawValue
 
     var body: some View {
         Group {
@@ -52,12 +57,11 @@ struct RootView: View {
                 ContentView()
             }
         }
-        // 0.3.2：页面交叉淡化统一走 resolved 出口
-        .animation(
-            MotionTokens.resolved(
-                MotionTokens.pageCrossfade, reduceMotion: reduceMotion
-            ),
-            value: appState.phase == .connected
+        // 0.4.0（审计 §1.1／§8 一期）：根层 pageCrossfade
+        // 注入已删——自研动效不许在根层给系统切换强加动
+        // 画，连接态切换呈现回系统默认
+        .preferredColorScheme(
+            AppearanceMode(rawValue: appearanceModeRaw)?.colorScheme
         )
         .background(Palette.pageBG)
         .task {

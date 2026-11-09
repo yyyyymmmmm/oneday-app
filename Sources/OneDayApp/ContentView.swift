@@ -29,7 +29,6 @@ struct ContentView: View {
     }
 
     @Environment(AppState.self) private var appState
-    @Environment(\.colorScheme) private var colorScheme
     @State private var selection: MainTab = .chat
 
     var body: some View {
@@ -90,15 +89,10 @@ struct ContentView: View {
                 )
             }
         }
-        // tint 墨口径沿 0.3.6 立宪（各页功能位显式引用
-        // Palette，本处只兜系统残余着色）
-        .tint(Palette.ink)
-        // 条 3（§14）未带权文字的降档通道：暗色环境下根
-        // fontWeight 降一档（regular→light），未显式带权
-        // 的 Text 全量继承；带权字体走 TypeScale 的
-        // (for:) 变体（VisualWeight 映射）。UIKit 文本
-        // 视图（输入框正文）不在此环境内、不受影响
-        .fontWeight(colorScheme == .dark ? .light : .regular)
+        // 0.4.0（审计 §1.1）：根 .tint(Palette.ink) 与暗色
+        // 字重降档 hack 一并删除——tint 回系统默认（强调
+        // 色由系统/用户系统设置决定），字重不再做环境级
+        // 覆写（正文字重回归语义样式自带，批次 4 收口）
         // 0.4.0（§3.4）：任一入口置位待续聊会话 → 切聊天格
         // （ChatView 侧消费导入；已在聊天格时 onChange 同样
         // 触发、由 ChatView 直接消费）
