@@ -2306,3 +2306,111 @@ Tests，在模拟器内离线渲染并逐像素取样，方法如下——
   Symbols 的 .fill 名对（chat/files，§22.5 清账）；
   ④SettingsView navRow 的 dot 参数（撤点后零调用）。
 
+
+## §25 0.4.0 一期销账（原生化审计 §8 一期清单，2026-11-09）
+
+版本 0.4.0／build 24，分支 feat/ia-v3。施工纪律：单写入者、每件
+一批、CI 绿＋单测全绿才进下一批；无任何截图工作流新增/复活；
+未动 Hermes 服务端、未发任何生产写请求。审计依据：
+~/workspace/oneday-design-review/native-audit-0.4.0.md。
+
+### 25.1 第 4 条·续聊打通（审计 §3.4）——批次 1，commit f030758，CI 42545910492，单测 115
+
+- [x] ChatThread 加 serverSessionID（SwiftData 轻量迁移，可选字段默认 nil）
+- [x] 四处入口统一改道聊天页：抽屉会话行（既有口径）／服务端会话页
+  行／状态页最近会话＋总览服务端会话行／CronJob 运行记录行——点按置
+  AppState.pendingChatSessionID，ContentView 切聊天格，ChatView 消费
+- [x] 导入链：GET /api/sessions/{id}＋/messages → SessionHistoryImport
+  过滤（只取 user/assistant 有正文者、保原序；新增 3 用例）→ 新线程
+  （title=ServerSession.contentTitle、时间戳取服务端）；已关联线程按
+  serverSessionID 直接切换、防重复导入
+- [x] ServerSessionDetailView 降级为「会话信息」：聊天页会话名次行
+  （仅已关联线程）→ sheet；元信息 LabeledContent＋消息平面记录；工具
+  消息改摘要行＋DisclosureGroup（raw JSON 只在展开区 mono 小字，不
+  裸奔）；删详情页消息渲染拷贝与 Palette.primaryTint 旧染色，用户泡
+  旧染色 #E7F6F1 在现行渲染中不存在（已随气泡中性化退场）
+- [ ] **R1 未验证（如实记）**：「续聊是否回写同一服务端会话」未验
+  证——红线禁对生产 Hermes 发写请求；代码层维持现有无状态上下文
+  重放发送链（本机线程后 20 条组 messages 发 /v1/chat/completions、
+  不带服务端会话 id）。等用户点头后另行受控实测
+
+### 25.2 底栏回原生（审计 §3.2）——批次 2，commit 8aadc85，CI 42546098013，单测 112
+
+- [x] 删四处 .toolbarVisibility(.hidden, for: .tabBar)（grep 代码残留 0）
+- [x] 删 FloatingTabBar 覆盖层与组件本体、TabBarLayout.swift；删自绘
+  断言测试（TabBarLayoutTests 2＋底栏墨迹量测 1）；TabBarSymbols 保
+  留作原生 Tab 的 Label 符号源
+- [x] 抽屉底条让位走系统安全区：drawerBottomBar 改传实际 bottomInset
+  （含原生底栏安全区高），接受原生玻璃坞系统层级、不为抽屉态隐藏底
+  栏（报告推荐案，代码注释写明口径）
+- [x] 删 ChatView tabBarClearance 手算；tabBarZone 四处引用逐处删除
+  （OverviewView/StatusView/SettingsView/LogsView）＋令牌本体退役
+
+### 25.3 删自定义背景与令牌降级·删背景部分（审计 §1.1/§1.3/§6.1 前置）——批次 3，commit c121d3c，CI 42546701428，单测 112
+
+- [x] 删 ChatView topFade 渐隐带及顶栏 overlay 的 ZStack 背景层（只
+  剩 headerBar 本体）；滚动边缘模糊回归 .scrollEdgeEffectStyle(.soft)
+  单独承担（§6.1 正式修法的前置步）
+- [x] 删根层 pageCrossfade 注入（OneDayApp RootView）与 ContentView
+  暗色字重降档 hack；.tint(Palette.ink) 删除、tint 回系统默认
+- [x] Palette 整表降级为系统语义色命名引用（pageBG=systemGrouped-
+  Background 等）；气泡两色按 §1.1 改挂系统灰阶（助手泡 systemGray5、
+  用户泡 systemGray6，新单测 testBubbleColorsUseSystemGrays 钉死）
+- [x] AccentTheme/ThemeTokens 整套删除（AccentTheme.swift 删文件）；
+  AppearanceView 最小改型：Form＋外观三档系统 Picker（跟随系统/浅
+  色/深色，AppStorage appearanceMode＋根层 preferredColorScheme），
+  设置行「主题」→「外观」；整页规格对齐归二期
+- [x] Elevation 整表废止：4 处调用清零（odFloatPaper/状态页头像/附件
+  牌去影），仅抽屉右缘保留一处内联系统近似档阴影（例外 E5）
+- [x] 删 iconOpticalOffset（定义＋8 处调用，grep 代码残留 0）
+- [ ] 存量保留（如实记）：MotionTokens 令牌本体与个别 resolved 调用
+  （如 scrollToBottom）本期未动——一期第 3 件口径只含删背景部分，
+  动效令牌收口归二期；顶栏胶囊/圆钮 glassEffect 换装归二期材质批
+  （§6），本期只删背景、形态未动
+- 备注：本批首轮 CI（42546510567）红——Palette 重写时 OneDayMetrics
+  后半段成员被截断，已按 git 实值全量恢复后 amend 重跑绿；度量值以
+  仓库实值为准（spacingL 24/XL 32/XXL 48 等），教训入账
+
+### 25.4 字体与键值行（审计 §3.1）——批次 4，commit 69e41fd，CI 42546957193，单测 105（用例级对账：112−7）
+
+- [x] TypeScale 整表废止：245 处引用按语义映射直用 Font.TextStyle
+  （body/callout/footnote/caption/headline/title2/title/largeTitle/
+  subheadline；mono 走 Font.system(语义档, design: .monospaced)；
+  rowIcon 走 OneDayMetrics.rowIconGlyph 图标度量）；(for:) 暗色降档
+  变体与 Font.Weight.od、TextRoleWeights、VisualWeight 账本一并退役
+- [x] 验收 grep：框架层 TypeScale 代码残留 0；.weight( 覆写仅剩
+  MarkdownText strongFont 1 处（内容层例外，审计注明）；Font.system
+  (size:) 残留 46 处经逐点分类全为 SF Symbol 图标字形尺寸（框架图
+  标字形口径，非文字写死），如实记边界
+- [x] 摘要计数句降档：SkillsViews/CronViews/EnvVarsView 三处
+  title(for:) 22 bold → .callout；GatewayView 状态词 display 28
+  bold → .body 行
+- [x] infoRow 八处实现全删、29 处调用统一 LabeledContent（mono 值走
+  等宽 .callout；grep 代码残留 0）
+- [x] 设置页自绘大标题 pageTitleSection 删除，回系统 navigationTitle
+  （"设置"，整页 sheet 化归二期 R4）
+- 测试增减对账：删除 7 个用例（TextRoleWeightsTests 4＋字重降档 1＋
+  testTextRoleAdditions 1＋testTitleInkHeights 1），均为已废止令牌/
+  账本的钉死用例；B3/B4 两轮 CI 日志用例名单 diff 验证不多不少
+
+### 25.5 A 案胶囊合并（审计 §3.3）——批次 5，commit d69a7d7，CI 42547425816，单测 105
+
+- [x] 聊天页右侧小模型胶囊撤除；IdentityAnchor 加可选 modelName 段
+  （分隔线＋模型名＋chevron），一颗装身份＋状态＋模型；总览/文件页
+  不传参、原样不受影响
+- [x] ModelPickerSheet 退役；点整颗胶囊暂以 sheet 打开
+  ModelSettingsView 现成路径（代码注释标明三期改开枢纽页）
+- [x] 其余露头处置：#2 设置身份头模型副行撤；#4 状态页 statusLine
+  撤模型后缀；#3 设置「对话模型」行改名「服务端默认模型」（行撤值
+  归二期、本期只改名）；#5 ModelSettingsView 页名/组名同改＋页内语
+  义明示一行；#6 会话详情模型行（批次 1 已落只读＋显示名映射）；
+  #7 定时详情模型行改只读＋ModelDisplayNames 显示名映射
+
+### 25.6 未尽项（归二/三期，不在本期口径内）
+
+- R1 续聊回写验证（待用户点头受控实测，见 25.1）
+- 二期：26 页逐页 List/Form 迁移、设置页 sheet 化与行撤值（R4 已
+  裁）、顶栏收编系统通道＋glassEffect 材质批（§6）、AppearanceView
+  整页规格、MotionTokens 收口、LabeledContent 行在卡片内的最终对齐
+- 三期：智能体枢纽页本体（点胶囊打开；审核段数据源＝Hermes write-
+  approval 启用＋HTTP 桥、浏览器段待后端接口，均已单列）

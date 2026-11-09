@@ -7,7 +7,8 @@ import SwiftUI
 /// Section＋共用行组件（学礼记 MeView 的结构纪律）——分组
 /// 容器与披露箭头由系统唯一提供，不再自绘 ScrollView＋
 /// odGroup＋手绘箭头；行一律走本页共用行组件（navRow/
-/// infoRow/serverRow），行底走 Palette.surface 令牌。
+/// serverRow；键值行 0.4.0 起统一 LabeledContent），行
+/// 底走 Palette.surface。
 /// 内容组织沿 0.2.1 定案不变：服务器与连接／智能体／模型
 /// 与密钥／网关／外观／关于。IA v3 的「智能体」独立格已
 /// 取消：运维四模块（记忆／技能／定时／服务端会话）收进
@@ -384,7 +385,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             LabeledContent("OneDay 版本") {
-                Text("0.3.8")
+                Text("0.4.0")
                     .font(.system(.callout, design: .monospaced))
             }
             LabeledContent("服务端") {
