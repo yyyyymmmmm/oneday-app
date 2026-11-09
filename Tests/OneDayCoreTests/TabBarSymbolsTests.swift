@@ -34,8 +34,8 @@ final class TabBarSymbolsTests: XCTestCase {
             ),
             TabSymbolPair(
                 id: "apps", title: "应用",
-                normal: "apps.iphone",
-                selected: "apps.iphone"
+                normal: "circle.grid.2x2",
+                selected: "circle.grid.2x2"
             ),
         ])
     }
