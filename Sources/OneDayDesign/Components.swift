@@ -359,6 +359,15 @@ public extension View {
     }
 }
 
+/// 剪贴板写入口径（0.4.1 收敛）：全 App 的「复制到系统
+/// 剪贴板」只许走这一处——CopyButton 与聊天页长按菜单
+/// 的「复制」共用，不许两套写法
+public enum Pasteboard {
+    public static func copy(_ text: String) {
+        UIPasteboard.general.string = text
+    }
+}
+
 /// 条 10 复制反馈：点按复制 → 对勾确认态，2.5s 自动
 /// 消失（重复点按重置计时）。全 App 复制点只许用它，
 /// 不许各处自写一套反馈。0.3.2：命中区扩到 44×44（审
@@ -378,7 +387,7 @@ public struct CopyButton: View {
 
     public var body: some View {
         Button {
-            UIPasteboard.general.string = text
+            Pasteboard.copy(text)
             copied = true
             copyCount += 1
             resetTask?.cancel()

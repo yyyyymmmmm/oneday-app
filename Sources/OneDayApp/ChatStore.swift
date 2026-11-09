@@ -1,4 +1,5 @@
 import Foundation
+import OneDayCore
 import SwiftData
 
 /// 本地会话（里程碑 1 存储从简：SwiftData 两表）。
@@ -44,15 +45,29 @@ final class ChatEntry {
     /// 0.2.1：随消息发送的首张图片（JPEG 数据），气泡回显用；
     /// 多图发送时其余图片不落盘（只走当次请求）
     var imageData: Data?
+    /// 0.4.1：本条消息引用了哪条消息（长按「回复」）——
+    /// 只在发送时由用户消息携带，存被引消息的角色与正文
+    /// 原文两字段；摘要与注入拼装读时经 MessageQuote
+    /// 生成（可选＋默认 nil、SwiftData 轻量迁移）
+    var quoteRole: String? = nil
+    var quoteContent: String? = nil
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil) {
         id = UUID()
         self.role = role
         self.content = content
         self.imageData = imageData
+        quoteRole = quote?.role
+        quoteContent = quote?.content
         createdAt = Date()
         self.thread = thread
+    }
+
+    /// 落盘两字段 → 引用值对象（任一缺失即无引用）
+    var quote: MessageQuote? {
+        guard let quoteRole, let quoteContent else { return nil }
+        return MessageQuote(role: quoteRole, content: quoteContent)
     }
 }

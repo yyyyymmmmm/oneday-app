@@ -82,6 +82,11 @@ struct ChatView: View {
     /// 0.4.0（§3.4）：「会话信息」sheet（详情页降级后的
     /// 次级入口，仅已关联服务端会话的线程可开）
     @State private var showSessionInfo = false
+    /// 0.4.1：长按「回复」待发送的引用（值快照，不持
+    /// SwiftData 对象）；发送/取消/切换线程时清除
+    @State private var pendingQuote: MessageQuote?
+    /// 0.4.1：长按「选择」的纯文本 sheet 载荷
+    @State private var selectionPayload: SelectionPayload?
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
     /// GlassEffectContainer＋union 撤销（§11：容器在新承载
     /// 下不再承担布局，且 Session 219 忌玻璃叠玻璃）
@@ -122,6 +127,16 @@ struct ChatView: View {
                     bottomInset: geo.safeAreaInsets.bottom
                 )
             }
+        }
+        // 0.4.1：「选择」纯文本 sheet（长按菜单发起，
+        // 选型见 DESIGN-V4 §26）
+        .sheet(item: $selectionPayload) { payload in
+            SelectableTextSheet(text: payload.text)
+        }
+        // 0.4.1：引用是发送舱的临时态，切换线程即作废，
+        // 不许跨线程带过去
+        .onChange(of: currentThreadID) { _, _ in
+            pendingQuote = nil
         }
     }
 
@@ -600,6 +615,9 @@ struct ChatView: View {
             HStack {
                 Spacer(minLength: OneDayMetrics.bubbleSideInset)
                 VStack(alignment: .trailing, spacing: OneDayMetrics.spacingXS) {
+                    if let quote = entry.quote {
+                        quoteBlock(quote)
+                    }
                     if let data = entry.imageData, let image = UIImage(data: data) {
                         Image(uiImage: image)
                             .resizable()
@@ -633,12 +651,68 @@ struct ChatView: View {
                             )
                     }
                 }
+                .modifier(messageMenu(for: entry))
             }
         } else {
             assistantBubble {
                 MarkdownText(entry.content)
             }
+            .modifier(messageMenu(for: entry))
         }
+    }
+
+    /// 长按菜单的文本口径（0.4.1）：助手消息剥 Markdown
+    /// 标记符号成可读文本（MessagePlainText 纯函数），
+    /// 用户消息原文即纯文本
+    private func plainText(for entry: ChatEntry) -> String {
+        entry.role == "assistant"
+            ? MessagePlainText.make(from: entry.content)
+            : entry.content
+    }
+
+    /// 气泡长按菜单挂载（0.4.1）：纯图片消息（正文空）
+    /// 不挂——四项全是文本动作，空文本挂上只剩坏体验
+    /// （引用摘要为空、复制/分享空串）
+    private func messageMenu(for entry: ChatEntry) -> MessageMenuModifier {
+        let text = plainText(for: entry)
+        return MessageMenuModifier(
+            isEnabled: !entry.content.isEmpty,
+            plainText: text,
+            onReply: {
+                pendingQuote = MessageQuote(
+                    role: entry.role, content: entry.content
+                )
+                composerFocusHandle.focus()
+            },
+            onSelect: {
+                selectionPayload = SelectionPayload(text: text)
+            }
+        )
+    }
+
+    /// 已发送消息顶部的引用块（0.4.1）：小字、次级色、
+    /// 左细线——只作回指，不抢正文层级；摘要与引用条
+    /// 共用 MessageQuote.summary 同一口径
+    private func quoteBlock(_ quote: MessageQuote) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Rectangle()
+                .fill(Palette.inkMuted)
+                .frame(width: 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(MessageQuote.speakerName(for: quote.role))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                Text(quote.summary(maxLength: 80))
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(OneDayMetrics.spacingS)
+        .background(
+            Palette.fieldFill,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+        )
     }
 
     /// 助手消息泡（0.2.5，对照 Muse 的助手形态）：浅灰软
@@ -788,6 +862,13 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
+            // 0.4.1：引用条（长按「回复」发起）——出现/
+            // 消失与附件条同走 SmoothExpand 平滑高度
+            SmoothExpand(isExpanded: pendingQuote != nil) {
+                if let pendingQuote {
+                    quoteBar(pendingQuote)
+                }
+            }
             // 条 7（§14）：附件条的出现/消失走平滑高度
             // 动画（SmoothExpand，0fr→1fr 等价），禁跳变
             SmoothExpand(isExpanded: !attachments.isEmpty) {
@@ -843,6 +924,47 @@ struct ChatView: View {
         // 提议链断环（0.2.5 根因注，§9）：本 VStack 的高度
         // 只认内容，不许把外层提议透传给胶囊
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// 引用条（0.4.1，照 Muse 样板「正在回复＋摘要」）：
+    /// 左细线＋两行（正在回复 X／摘要一行截断）＋右端
+    /// ✕ 取消。发送后由 send() 清除、点 ✕ 即时清除、
+    /// 切换线程经 onChange 清除（见 body）
+    private func quoteBar(_ quote: MessageQuote) -> some View {
+        HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
+            Rectangle()
+                .fill(Palette.inkMuted)
+                .frame(width: 2, height: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(quote.role == "user"
+                    ? "正在回复我的消息"
+                    : "正在回复 \(MessageQuote.speakerName(for: quote.role))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                Text(quote.summary())
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Button {
+                pendingQuote = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("取消引用")
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+        .background(
+            Palette.fieldFill,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+        )
     }
 
     /// 发送舱内容（0.3.3 上文下钮，DESIGN-V4 §18）：自研
@@ -1936,11 +2058,15 @@ private struct ComposerBarLayout: Layout {
     private func send() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let pending = attachments
+        // 0.4.1：引用随本条发送，起手先快照、随即清除
+        // 引用条（发送即消费，不残留到下一条）
+        let quote = pendingQuote
         guard !isStreaming, !text.isEmpty || !pending.isEmpty else { return }
         // 0.3.2：发送起手不再挂触觉——触感挪到结果点
         // （流完成 .success / 失败 .warning，见 runStream）
         input = ""
         attachments = []
+        pendingQuote = nil
         errorMessage = nil
         notice = nil
         let thread = ensureThread()
@@ -1949,7 +2075,7 @@ private struct ComposerBarLayout: Layout {
         modelContext.insert(
             ChatEntry(
                 role: "user", content: text, thread: thread,
-                imageData: imageDatas.first
+                imageData: imageDatas.first, quote: quote
             )
         )
         if thread.title == "新会话" {
@@ -1957,8 +2083,17 @@ private struct ComposerBarLayout: Layout {
         }
         thread.updatedAt = Date()
         try? modelContext.save()
+        // 0.4.1：上下文组装走 MessageQuote.outgoingContent
+        // ——带引用的消息（含本轮新消息与历史回放）把引
+        // 用块拼进 content，引用在每轮重放里持续在场；
+        // 无引用的消息原样（纯函数保证）
         var context = thread.sortedEntries.suffix(20).map {
-            ChatMessage(role: $0.role, content: $0.content)
+            ChatMessage(
+                role: $0.role,
+                content: MessageQuote.outgoingContent(
+                    userText: $0.content, quote: $0.quote
+                )
+            )
         }
         // 本条若带图：最后一条用户消息改多模态 parts 编码
         // （图片走 OpenAI image_url + data: base64；服务端/模型
@@ -1968,7 +2103,11 @@ private struct ComposerBarLayout: Layout {
                 "data:image/jpeg;base64,\($0.base64EncodedString())"
             }
             context[context.count - 1] = ChatMessage(
-                role: "user", text: text, imageDataURLs: urls
+                role: "user",
+                text: MessageQuote.outgoingContent(
+                    userText: text, quote: quote
+                ),
+                imageDataURLs: urls
             )
         }
         // 文件直发：/api/chat/file-upload 在 openapi 里有端点，
@@ -2089,6 +2228,78 @@ private struct ComposerBarLayout: Layout {
         }
         streamingText = nil
         sendTask = nil
+    }
+}
+
+/// 消息长按菜单（0.4.1）：系统 contextMenu 四项——回复
+/// ／复制／选择／分享，全系统件、禁自绘菜单。复制走
+/// Pasteboard 收敛口径（与 CopyButton 同源一处）；分享
+/// 走 ShareLink 系统分享单；选择打开纯文本 sheet。
+/// isEnabled=false（纯图片消息）时不挂菜单，见
+/// messageMenu(for:) 的口径注
+private struct MessageMenuModifier: ViewModifier {
+    let isEnabled: Bool
+    let plainText: String
+    let onReply: () -> Void
+    let onSelect: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.contextMenu {
+                Button(action: onReply) {
+                    Label("回复", systemImage: MessageActionSymbols.reply)
+                }
+                Button {
+                    Pasteboard.copy(plainText)
+                } label: {
+                    Label("复制", systemImage: MessageActionSymbols.copy)
+                }
+                Button(action: onSelect) {
+                    Label("选择", systemImage: MessageActionSymbols.select)
+                }
+                ShareLink(item: plainText) {
+                    Label("分享", systemImage: MessageActionSymbols.share)
+                }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// 「选择」sheet 载荷（0.4.1）
+private struct SelectionPayload: Identifiable {
+    let id = UUID()
+    let text: String
+}
+
+/// 「选择」承载页（0.4.1）：整条消息的纯文本在系统
+/// sheet 里以 .textSelection(.enabled) 呈现——选择
+/// 手柄、长按拷贝菜单全是系统行为，可跨段划选任意
+/// 部分。选型理由（为何不直接在气泡上划选）见
+/// DESIGN-V4 §26
+private struct SelectableTextSheet: View {
+    let text: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(text)
+                    .textSelection(.enabled)
+                    .font(.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(OneDayMetrics.pageGutter)
+            }
+            .navigationTitle("选择文本")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
     }
 }
 
