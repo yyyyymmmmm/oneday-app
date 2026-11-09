@@ -110,6 +110,29 @@ public enum Palette {
     )
 
     public static let ink = Color.primary
+    /// 消息正文墨（0.4.4，§29）：同机双截图量测——
+    /// OneDay 正文笔芯亮度 ≈14（Color.primary 近纯
+    /// 黑）、墨迹覆盖 20.7%，Muse 正文笔芯 ≈38、
+    /// 覆盖 14.8%（用户点名「字体还是黑，粗」，两
+    /// 条量测均属实）。正文专用字面值 #262626 中
+    /// 性炭灰（笔芯对齐量测 38），只许消息正文四
+    /// 处用（用户泡/助手泡含 Markdown 与代码块/
+    /// 流式行/引用块摘要），框架文字仍走 ink 不动。
+    /// 暗色暂定 #D9D9DE 浅炭灰（未经量测、归真机
+    /// 抽查回填）
+    public static let bodyInk = Color(
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(
+                    red: 0xD9 / 255.0, green: 0xD9 / 255.0,
+                    blue: 0xDE / 255.0, alpha: 1
+                )
+                : UIColor(
+                    red: 0x26 / 255.0, green: 0x26 / 255.0,
+                    blue: 0x26 / 255.0, alpha: 1
+                )
+        }
+    )
     public static let inkSecondary = Color.secondary
     public static let inkMuted = Color(.tertiaryLabel)
     public static let hairline = Color(.separator)

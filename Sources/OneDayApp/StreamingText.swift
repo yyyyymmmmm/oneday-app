@@ -34,8 +34,12 @@ struct StreamingText: View {
         TokenFlow(spacing: OneDayMetrics.tokenFlowSpacing) {
             ForEach(Array(tokens.enumerated()), id: \.offset) { index, token in
                 Text(token)
-                    .font(.body) // 0.3.8 第 29 条：气泡正文 17 regular 显式角色
-                    .foregroundStyle(Palette.ink)
+                    // 0.4.4（§29）：流式行与落盘正文同
+                    // 口径——16pt（.callout 语义载体）＋
+                    // bodyInk 炭灰；0.3.8 第 29 条的
+                    // 17 regular 角色随正文基准一并改
+                    .font(.callout)
+                    .foregroundStyle(Palette.bodyInk)
                     .blur(
                         radius: visible.contains(index)
                             || noBlur.contains(index) ? 0 : 6

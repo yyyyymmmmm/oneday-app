@@ -80,16 +80,23 @@ struct MarkdownText: View {
                     // （尾行孤字防护）
                     inline(
                         TextShaping.prettyWrapDocument(text),
-                        strongFont: .body.weight(.bold)
+                        strongFont: .callout.weight(.bold)
                     )
-                        .font(.body) // 0.3.8 第 29 条：气泡正文 17 regular 显式角色
-                        // 0.4.1 第 9 修：行高回系统默认
-                        // leading（HIG：Body＝17 regular／
-                        // 行高 22）——旧 lineSpacing(5) 的
-                        // 手工加距撤销，不许在正文上自调
-                        // 行高（苹果「信息」App 消息正文即
-                        // Body Regular 默认行高）
-                        .foregroundStyle(Palette.ink)
+                        // 0.4.4（§29）：正文字号 17→16——
+                        // 量测 Muse 正文覆盖 14.8% vs 本
+                        // 页 20.7%，取 16 落覆盖率；语义载
+                        // 体走 .callout（HIG 字体表 Callout
+                        // ＝16 regular），守 DesignTokens
+                        // 「不许 Font.system(size:) 写死」
+                        // 纪律。0.3.8 第 29 条的 17 regular
+                        // 角色与 0.4.1 第 9 修的行高口径
+                        // （回系统默认 leading、不自调）不
+                        // 变，只是基准样式由 Body 换 Callout
+                        .font(.callout)
+                        // 0.4.4（§29）：正文墨换 bodyInk
+                        // （#262626 炭灰、笔芯量测 ≈38），
+                        // 不再用 Color.primary 近纯黑
+                        .foregroundStyle(Palette.bodyInk)
                 case .heading(let text, let level):
                     // 0.4.1 第 9 修（细化第 6 修）：标题从
                     // body regular 基准派生——HIG 字体规
@@ -107,16 +114,22 @@ struct MarkdownText: View {
                         text,
                         strongFont: level == 1
                             ? .title2.weight(.bold)
-                            : .body.weight(.bold)
+                            : .callout.weight(.bold)
                     )
+                        // 0.4.4（§29）：二级以下标题的字
+                        // 号基准随正文 17→16（.body→
+                        // .callout）、墨随正文换 bodyInk；
+                        // 一级标题 .title2 尺寸不动、只换墨
                         .font(level == 1
                             ? .title2
-                            : .body)
-                        .foregroundStyle(Palette.ink)
+                            : .callout)
+                        .foregroundStyle(Palette.bodyInk)
                 case .code(let code):
                     Text(code)
                         .font(.system(.footnote, design: .monospaced))
-                        .foregroundStyle(Palette.ink)
+                        // 0.4.4（§29）：代码块在助手泡内、
+                        // 墨随正文换 bodyInk（字号字体不动）
+                        .foregroundStyle(Palette.bodyInk)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(OneDayMetrics.spacingSM)
                         .background(

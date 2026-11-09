@@ -572,6 +572,18 @@ struct ChatView: View {
         // Glass 的自定义 bar 注册口径）
         .safeAreaBar(edge: .top) {
             headerBar
+                // 0.4.4（§29，例外 E11）：顶缘渐进模糊
+                // 层——作顶栏 background 向上溢出 60pt
+                // 盖状态区、向下延出栏外约 45pt，把
+                // .soft 只等于栏高的作用区放大成带；
+                // 顶栏本体在层上保持锐利，background
+                // 不参与布局、不接命中
+                .background(alignment: .top) {
+                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.chatTop)
+                        .frame(height: 176)
+                        .offset(y: -60)
+                        .allowsHitTesting(false)
+                }
         }
         .scrollEdgeEffectStyle(.soft, for: .top)
         // 0.4.2（用户 10:54 圈图点名，二期 M3 卡提前落
@@ -597,6 +609,21 @@ struct ChatView: View {
         // 行为经构造＋代码审计＋单测复验，证据链见 §28.4
         .safeAreaBar(edge: .bottom, spacing: 0) {
             bottomBar(proxy)
+                // 0.4.4（§29，例外 E11）：底缘渐进模糊
+                // 层——作发送区 background 自舱上 56pt
+                // 渐入、穿舱体、向下延约 96pt 与底栏
+                // 坞衔接成一片（0.4.3 真机底部是干净
+                // 留白、无化开感，本批补齐）；挂 bar
+                // background 即随安全区与键盘同通道升
+                // 降、不与发送舱打架，background 不改
+                // bar 尺寸、发送舱自量高链零影响，
+                // 不接命中
+                .background(alignment: .top) {
+                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.chatBottom)
+                        .frame(height: 216)
+                        .offset(y: -56)
+                        .allowsHitTesting(false)
+                }
         }
         .scrollDismissesKeyboard(.interactively)
         // 距底距离回写（0.4.2，§27）：判定改迟滞双阈值
@@ -733,10 +760,13 @@ struct ChatView: View {
                         // （尾行孤字防护，TextShaping 纯函数）
                         Text(TextShaping.prettyWrapDocument(entry.content))
                             // 0.3.8 第 29 条：气泡正文走显式
-                            // bubbleBody（17 regular），与助手
-                            // 侧 MarkdownText/StreamingText 同
-                            .font(.body)
-                            .foregroundStyle(Palette.ink)
+                            // 角色，与助手侧 MarkdownText/
+                            // StreamingText 同口径。0.4.4
+                            // （§29）：基准 17→16（.callout
+                            // 语义载体）＋墨换 bodyInk
+                            // （#262626），四处正文同改
+                            .font(.callout)
+                            .foregroundStyle(Palette.bodyInk)
                             .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                             .padding(.vertical, OneDayMetrics.bubblePaddingV)
                             .background(
@@ -808,7 +838,11 @@ struct ChatView: View {
                     .foregroundStyle(Palette.inkSecondary)
                 Text(quote.summary(maxLength: 80))
                     .font(.caption)
-                    .foregroundStyle(Palette.inkSecondary)
+                    // 0.4.4（§29）：摘要是被引的正文本
+                    // 身、墨随正文换 bodyInk；说话人名
+                    // 是标签、仍 inkSecondary（层级靠字
+                    // 号＋左细线＋底垫，不靠墨深）
+                    .foregroundStyle(Palette.bodyInk)
                     .lineLimit(2)
             }
         }
@@ -1575,9 +1609,29 @@ private struct ComposerBarLayout: Layout {
         // 4pt 校准、搜索框键盘跟随（同走安全区）不变
         .safeAreaBar(edge: .top, spacing: 0) {
             drawerAgentName
+                // 0.4.4（§29，例外 E11）：抽屉顶缘同
+                // 组件复用——作名字区 background 上探
+                // 状态区 56pt、向下延进名单约 35pt，
+                // 名单滑到名字下方先化开（组件与几
+                // 何口径见 EdgeProgressiveBlur）
+                .background(alignment: .top) {
+                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.drawerTop)
+                        .frame(height: 150)
+                        .offset(y: -56)
+                        .allowsHitTesting(false)
+                }
         }
         .safeAreaBar(edge: .bottom, spacing: 0) {
             drawerBottomBar
+                // 0.4.4（§29，例外 E11）：抽屉底缘同
+                // 组件——作底条 background 向上延约
+                // 68pt，名单滑到底条上方渐入化开；
+                // 底条本人在层上保持锐利
+                .background(alignment: .bottom) {
+                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.drawerBottom)
+                        .frame(height: 124)
+                        .allowsHitTesting(false)
+                }
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
