@@ -66,7 +66,7 @@ struct ChatView: View {
     @State private var composerFocused = false
     @State private var composerFocusHandle = ComposerFocusHandle()
     /// 0.2.2：模型选择器（顶栏副题点开，列表服务端拉取）
-    @State private var showModelSettings = false
+    @State private var showHub = false
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
@@ -269,19 +269,13 @@ struct ChatView: View {
         .task {
             await appState.refreshModelCatalog()
         }
-        // 0.4.0（审计 §3.3）：点身份胶囊暂跳现有模型设置
-        // 路径——sheet 内开 ModelSettingsView（服务端默认
-        // 模型管理面）；三期枢纽页建成后胶囊点按改开枢纽
-        // 页（审计 §5），届时换此呈现内容即可
-        .sheet(isPresented: $showModelSettings) {
-            NavigationStack {
-                ModelSettingsView()
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("关闭") { showModelSettings = false }
-                        }
-                    }
-            }
+        // 0.5.0（§31 合并列车接线）：点身份胶囊开智能体
+        // 枢纽页——0.4.0 的临时接线（sheet 内开
+        // ModelSettingsView）按审计 §5 改道至此；
+        // AgentHubView 自带 NavigationStack 与关闭钮，
+        // 此处不再外包
+        .sheet(isPresented: $showHub) {
+            AgentHubView()
         }
     }
 
@@ -342,10 +336,10 @@ struct ChatView: View {
                 // 0.4.0 A 案（审计 §3.3，用户点选）：右侧小
                 // 模型胶囊撤除，模型并入 IdentityAnchor 一
                 // 颗（头像＋Hermes＋状态＋分隔＋模型名＋
-                // chevron）；点整颗胶囊打开模型设置路径
-                // （三期改开枢纽页，见 body 的 sheet 注释）
+                // chevron）；点整颗胶囊开智能体枢纽页
+                // （0.5.0 接线，见 body 的 sheet 注释）
                 Button {
-                    showModelSettings = true
+                    showHub = true
                 } label: {
                     IdentityAnchor(
                         name: "Hermes",
@@ -363,7 +357,7 @@ struct ChatView: View {
                 // 挤压——组件内 ViewThatFits 三档降级是
                 // 主修，此处再给整颗胶囊布局优先权）
                 .layoutPriority(1)
-                .accessibilityLabel("Hermes，\(identityStatus.word)，当前模型 \(displayModelName)，打开模型设置")
+                .accessibilityLabel("Hermes，\(identityStatus.word)，当前模型 \(displayModelName)，打开智能体枢纽页")
 
                 Spacer()
 
