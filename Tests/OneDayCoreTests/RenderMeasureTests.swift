@@ -105,6 +105,35 @@ final class RenderMeasureTests: XCTestCase {
         report("drawer-bar", "gearshape", gearStats)
     }
 
+    // MARK: - 0.4.5：底栏四格符号墨迹（24pt，底栏渲染尺寸）
+
+    /// 底栏换本体路线的量测闸（§30.7）：四格按底栏实
+    /// 际渲染尺寸（24pt regular）复量，print MEASURE
+    /// 供 CI 日志复核；断言取线条画法档的上限带（格
+    /// 口径 ≤0.12、紧致 ≤0.42——.fill 件同口径 0.72+
+    /// 在带外；被换掉的两格旧符号同口径数见 §30.7
+    /// 对照表）。历史「Muse 13–21%」是真机截图整格
+    /// 口径、与渲染口径不可直接比数（§24.1），本闸
+    /// 只作同口径对照与防实心回潮，不冒充截图口径
+    func testTabBarSymbolInk() throws {
+        for pair in TabBarSymbols.all {
+            let image = try XCTUnwrap(
+                symbol(pair.normal, size: 24),
+                "\(pair.id) 底栏字形渲染失败"
+            )
+            let stats = try XCTUnwrap(analyze(image))
+            report("tab", pair.normal, stats)
+            XCTAssertLessThanOrEqual(
+                stats.cellDensity, 0.12,
+                "\(pair.id) 格口径密度 \(stats.cellDensity) 出线条画法档"
+            )
+            XCTAssertLessThanOrEqual(
+                stats.density, 0.42,
+                "\(pair.id) 紧致密度 \(stats.density) 出线条画法档"
+            )
+        }
+    }
+
     // MARK: - 第 14 条：设置页行图标同列密度（17 regular）
 
     func testSettingsSymbolInk() throws {

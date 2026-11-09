@@ -76,9 +76,25 @@ final class AppState {
     var pendingChatSessionID: String?
     /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
     var cronCreateRequested = false
-    /// 聊天抽屉开合（0.2.2）：ContentView 据此隐藏自绘底栏，
-    /// 让抽屉 scrim 完整覆盖全屏（底栏不跨层漂浮）
+    /// 聊天抽屉开合的语义状态（0.2.2 立；0.4.5 改口径，
+    /// §30）：壳层 ContentView 是执行者（推式动画与跟手
+    /// 状态在壳层），任何视图想开/关抽屉只写这里、壳层
+    /// onChange 执行；DrawerView 据此在打开时拉服务端
+    /// 会话组。（0.2.2–0.4.4 的旧注「ContentView 据此
+    /// 隐藏自绘底栏」随自绘底栏与覆盖式抽屉一并作废）
     var drawerPresented = false
+    /// 抽屉与 ChatView 之间的三条通道（0.4.5，抽屉提到
+    /// 壳层后立；模式与 pendingChatSessionID 一致：置位
+    /// 方写、消费方读后清零）
+    /// 当前显示的线程 id（ChatView 随 currentThread 回
+    /// 写；抽屉据此高亮当前位、判定删除对象是否当前线程）
+    var activeThreadID: UUID?
+    /// 抽屉点选/新建的线程 id（DrawerView 写，ChatView
+    /// 消费后切 currentThreadID 并清零）
+    var drawerThreadSelection: UUID?
+    /// 抽屉刚删掉的线程 id（DrawerView 写，ChatView 若
+    /// 正显示该线程则置空 currentThreadID 并清零）
+    var drawerDeletedThreadID: UUID?
 
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client

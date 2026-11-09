@@ -18,12 +18,9 @@ import UIKit
 /// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
 /// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
 struct ChatView: View {
-    /// 抽屉服务端会话行点按 → 改道聊天页续聊（0.4.0，
-    /// §3.4；ContentView 注入：置 AppState 待续聊 id）
-    var onOpenServerSession: (String) -> Void = { _ in }
-    /// 抽屉名单点按 → 切换底栏格（0.3.6 立宪名单与底栏
-    /// 四格一一对应，ContentView 注入；本页恒为聊天格）
-    var onSelectTab: (ContentView.MainTab) -> Void = { _ in }
+    // （0.4.5 删：onOpenServerSession／onSelectTab 两注
+    // 入闭包——它们唯一的调用方是抽屉，抽屉已提到壳
+    // 层并自带通道（DrawerView），本页不再需要）
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -41,17 +38,9 @@ struct ChatView: View {
     @State private var errorMessage: String?
     /// 0.2.1：非错误提示（如文件附件未发送说明），可关闭
     @State private var notice: String?
-    /// 抽屉开合与抽屉内搜索词
-    @State private var drawerOpen = false
-    @State private var drawerQuery = ""
-    /// 抽屉跟手拖拽的实时位移（0.2.2 动效专项：拖动跟随、
-    /// 松手按预测位移弹簧归位，不再只判阈值瞬移）
-    @State private var drawerDrag: CGFloat = 0
-    /// 侧边栏重命名（0.3.6，§21）：长按菜单发起，alert
-    /// 输入后写回 ChatThread.title（自动标题只覆盖
-    /// 「新会话」占位，改名不会被后续消息冲掉）
-    @State private var renamingThread: ChatThread?
-    @State private var renameText = ""
+    // （0.4.5 迁出：抽屉开合/跟手/搜索/重命名/服务端会
+    // 话组状态随抽屉本体迁往 DrawerView 与壳层
+    // ContentView，见 §30）
     /// 消息区是否贴近底部：决定自动跟随滚动与「回到底部」钮
     @State private var isNearBottom = true
     /// 流式跟随滚动节流闸（0.4.2，§27）：OneDayCore
@@ -78,8 +67,6 @@ struct ChatView: View {
     @State private var composerFocusHandle = ComposerFocusHandle()
     /// 0.2.2：模型选择器（顶栏副题点开，列表服务端拉取）
     @State private var showModelSettings = false
-    /// 抽屉服务端会话组的数据（开抽屉时拉取）
-    @State private var drawerServerSessions: [ServerSession] = []
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
@@ -101,6 +88,11 @@ struct ChatView: View {
     /// 撤销——它由 Layout 内异步回写、滞后布局一拍，是
     /// 0.3.4 真机回车重影的定因（见 §20.1）
     @State private var composerCapsuleHeight: CGFloat = 46
+    /// 发送区（safeAreaBar 内容）实测总高（0.4.5）：由
+    /// bottomBar 的 onGeometryChange 回写，喂底缘 E11
+    /// 模糊带的带长——带底必须收在发送区底缘、不许再
+    /// 向下延到导航坞下方（用户 11:47 点名，§30）
+    @State private var composerBarHeight: CGFloat = 62
     // （0.3.8 删残：tabBarZone 本地副本随抽屉钉底删除——
     // 它唯一的用途是抽屉面板底部占位，第 22 条已废）
 
@@ -120,17 +112,14 @@ struct ChatView: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                chatSurface
-                drawerOverlay(
-                    width: min(
-                        geo.size.width * OneDayMetrics.drawerWidthFraction,
-                        OneDayMetrics.drawerMaxWidth
-                    )
-                )
-            }
-        }
+        // 0.4.5（§30）：抽屉覆盖层退役——抽屉承载已提
+        // 到壳层（ContentView 根的推式结构），本页只剩
+        // 聊天主面本体；旧结构里的 GeometryReader/ZStack
+        // /drawerOverlay 与「开抽屉藏底栏」的 toolbar-
+        // Visibility 绑定（0.4.1 第 8 修）一并撤销：推
+        // 式下底栏坞是页卡的一部分、随卡同走，不需要
+        // 也不应该再隐藏（口径变化见 §30）
+        chatSurface
         // 0.4.1：「选择」纯文本 sheet（长按菜单发起，
         // 选型见 DESIGN-V4 §26）
         .sheet(item: $selectionPayload) { payload in
@@ -142,18 +131,30 @@ struct ChatView: View {
             pendingQuote = nil
             // 0.4.2：流式节流闸不跨线程带账
             streamFollowGate.reset()
+            // 0.4.5：当前线程回写壳层抽屉（高亮当前位
+            // 与删当前线程的判定都读它，见 DrawerView）
+            appState.activeThreadID = currentThread?.id
         }
-        // 0.4.1（用户 10:09 点名）：抽屉打开时底栏不许
-        // 露面——绑定 drawerOpen 的系统 toolbarVisibility
-        // （开即隐藏、关恢复）。0.4.0 的「不为抽屉态隐藏
-        // 底栏」推荐案被真机截图推翻：覆盖层（抽屉/sheet）
-        // 出现时 tab bar 不露面，是 Muse 本体与系统
-        // sheet 的共同行为；底栏一隐藏，本页安全区底
-        // inset 只剩 home indicator，抽屉底条随之落到
-        // 屏幕真底边（见 drawerPanel/drawerBottomBar）
-        .toolbarVisibility(
-            drawerOpen ? .hidden : .visible, for: .tabBar
-        )
+        // 0.4.5：消费抽屉的线程选择（DrawerView 点行/
+        // 新建时置位；与 pendingChatSessionID 同模式：
+        // 消费即清零，防重入）
+        .onChange(of: appState.drawerThreadSelection) { _, id in
+            if let id {
+                appState.drawerThreadSelection = nil
+                currentThreadID = id
+            }
+        }
+        // 0.4.5：抽屉删掉的正是当前线程时置空（计算属
+        // 性随之落到最近线程，与旧版 deleteThread 内
+        // 直改 currentThreadID 的语义一致）
+        .onChange(of: appState.drawerDeletedThreadID) { _, id in
+            if let id {
+                appState.drawerDeletedThreadID = nil
+                if id == currentThreadID {
+                    currentThreadID = nil
+                }
+            }
+        }
     }
 
     // MARK: - 主面（0.2.6 承载换代：发送区回到布局流）
@@ -223,11 +224,6 @@ struct ChatView: View {
             )
             .ignoresSafeArea()
         }
-        .onChange(of: drawerOpen) { _, open in
-            if open {
-                Task { await loadDrawerData() }
-            }
-        }
         // 0.4.0（§3.4）：消费待续聊会话（四处入口经
         // AppState.pendingChatSessionID 置位、ContentView
         // 切聊天格，本页导入历史后进聊天续聊）
@@ -252,6 +248,15 @@ struct ChatView: View {
             if currentThreadID == nil {
                 currentThreadID = threads.first?.id
             }
+            // 0.4.5：同理补消费抽屉线程选择（从其他格开
+            // 抽屉选线程切过来时，本页可能尚未挂载、
+            // onChange 不重放）
+            if let id = appState.drawerThreadSelection {
+                appState.drawerThreadSelection = nil
+                currentThreadID = id
+            }
+            // 0.4.5：当前线程初始回写（抽屉高亮当前位）
+            appState.activeThreadID = currentThread?.id
             // 本页首次出现时若已有待续聊会话（如从其他格
             // 首次切入），onChange 可能先于挂载发生、在此补消费
             if let id = appState.pendingChatSessionID {
@@ -309,7 +314,10 @@ struct ChatView: View {
         VStack(spacing: 6) {
             HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
                 Button {
-                    setDrawer(true)
+                    // 0.4.5：开抽屉只写语义状态，壳层据
+                    // drawerPresented 执行推式动画（并先
+                    // 收键盘，见 ContentView.setDrawer）
+                    appState.drawerPresented = true
                 } label: {
                     Image(systemName: "line.3.horizontal")
                         // 两钮共用 HeaderButtonSpec（直径 40／
@@ -442,6 +450,14 @@ struct ChatView: View {
             inputBar
         }
         .fixedSize(horizontal: false, vertical: true)
+        // 0.4.5：实测高回写（喂底缘 E11 带长，见
+        // composerBarHeight 与 messageList 的 safeAreaBar
+        // 注）；只读高度、不参与本容器布局，无回环
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { _, height in
+            composerBarHeight = height
+        }
         // 条 9（§14）动画口径 0.4.2 收紧（§27）：本容
         // 器的高度就是消息列表的底部 inset——回到底部
         // 钮显隐时容器高度随之增减，列表的底部锚点骑
@@ -609,20 +625,30 @@ struct ChatView: View {
         // 行为经构造＋代码审计＋单测复验，证据链见 §28.4
         .safeAreaBar(edge: .bottom, spacing: 0) {
             bottomBar(proxy)
-                // 0.4.4（§29，例外 E11）：底缘渐进模糊
-                // 层——作发送区 background 自舱上 56pt
-                // 渐入、穿舱体、向下延约 96pt 与底栏
-                // 坞衔接成一片（0.4.3 真机底部是干净
-                // 留白、无化开感，本批补齐）；挂 bar
-                // background 即随安全区与键盘同通道升
-                // 降、不与发送舱打架，background 不改
-                // bar 尺寸、发送舱自量高链零影响，
-                // 不接命中
+                // 0.4.4（§29，例外 E11）＋0.4.5 收下延
+                // （§30，用户 11:47 点名）：带仍作发送区
+                // background、自舱上 56pt 渐入、穿舱体，
+                // 但带底到此为止——0.4.4 的带固定 216pt
+                // 长、向下延出发送区约 96pt 与底栏坞「衔
+                // 接成一片」，构造复核实锤：那段满 alpha
+                // 模糊越过发送区底缘、盖住坞身并垂到坞
+                // 下方的 home indicator 区，在坞的悬浮
+                // 间隙里显成独立一坨（§30 核查结论）。本
+                // 版带长改「56＋发送区实测高」（composer-
+                // BarHeight），带底恰与发送区底缘齐平：
+                // 坞上方渐入段分毫不变、坞下方零残留；
+                // 停点按绝对锚重算（见 EdgeProgressiveBlur
+                // .chatBottom(bandHeight:)）；挂 bar back-
+                // ground 随安全区与键盘同通道升降、back-
+                // ground 不改 bar 尺寸、发送舱自量高链零
+                // 影响、不接命中，均不变
                 .background(alignment: .top) {
-                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.chatBottom)
-                        .frame(height: 216)
-                        .offset(y: -56)
-                        .allowsHitTesting(false)
+                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.chatBottom(
+                        bandHeight: Double(56 + composerBarHeight)
+                    ))
+                    .frame(height: 56 + composerBarHeight)
+                    .offset(y: -56)
+                    .allowsHitTesting(false)
                 }
         }
         .scrollDismissesKeyboard(.interactively)
@@ -1476,715 +1502,9 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    // MARK: - 会话抽屉（0.1.3，定版 §7）
-
-    /// 开合统一走条 9 定版拖拽弹簧（dragSpring：stiffness
-    /// 1200 / damping 80、零回弹，0.3.0 §14——抽屉属拖拽类
-    /// 交互），Reduce Motion 时瞬时。0.3.2 起抽屉吸附不再
-    /// 挂触觉（触感只挂结果事件，见 Haptics 注）。
-    private func setDrawer(_ open: Bool) {
-        withAnimation(
-            MotionTokens.resolved(MotionTokens.dragSpring, reduceMotion: reduceMotion)
-        ) {
-            drawerOpen = open
-            drawerDrag = 0
-        }
-        appState.drawerPresented = open
-    }
-
-    /// 抽屉拖拽（开/合共用）：跟手实时位移，松手按预测位移
-    /// （含速度）决定开合，弹簧归位由 setDrawer 承接。横向分量
-    /// 必须大于纵向才接管，避免与面板内纵向滚动打架。
-    private func drawerDragGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 6)
-            .onChanged { value in
-                if abs(value.translation.width) > abs(value.translation.height) {
-                    drawerDrag = value.translation.width
-                }
-            }
-            .onEnded { value in
-                let projected = value.predictedEndTranslation.width
-                if drawerOpen {
-                    setDrawer(projected > -width * 0.3)
-                } else {
-                    setDrawer(projected > width * 0.3)
-                }
-            }
-    }
-
-    /// 拖拽跟手量 → 面板附加偏移（普通函数，不进
-    /// @ViewBuilder：构建器内 if/else 是条件内容、装不
-    /// 下赋值语句——调研版 bfe8358 在此编译失败，
-    /// run 42532017388 实证、§21.1 在案）。界内 1:1
-    /// 跟手；越界段橡皮筋（OneDayCore.DrawerGeometry，
-    /// 审查 E-3）。
-    private func drawerFollowedDrag(width: CGFloat) -> CGFloat {
-        if drawerOpen {
-            return drawerDrag >= 0
-                ? DrawerGeometry.rubberBand(
-                    overshoot: drawerDrag, containerWidth: width
-                  )
-                : max(drawerDrag, -width)
-        }
-        return drawerDrag <= 0
-            ? -DrawerGeometry.rubberBand(
-                overshoot: -drawerDrag, containerWidth: width
-              )
-            : min(drawerDrag, width)
-    }
-
-    /// 抽屉覆盖层：白色半透纱＋peek 面板（宽 75%、
-    /// 上限 340；0.3.6 立宪，§21.3，宽度 0.4.1 第 10
-    /// 修量测改 75%）＋左缘唤出手势层。面板盖住聊天
-    /// 主面与悬浮顶栏，右侧约 25% 底层在纱下透出。
-    /// 底栏关系两度改口：0.4.0 曾按审计推荐案「不为
-    /// 抽屉态隐藏底栏、底条经安全区让位」；0.4.1 用户
-    /// 真机点名推翻——抽屉开时底栏经 toolbarVisibility
-    /// 隐藏（见 body），底条随之落真底边（见
-    /// drawerPanel 的 safeAreaInset 钉底）。
-    @ViewBuilder
-    private func drawerOverlay(width: CGFloat) -> some View {
-        // 跟手偏移：基准位（开 0 / 合 -width-8）＋跟手量
-        let base = drawerOpen ? 0 : -width - 8
-        let offsetX = base + drawerFollowedDrag(width: width)
-        // 纱面透明度随开合进度走，拖动时不跳变
-        let progress = 1 - min(max(-offsetX, 0), width) / width
-        // 遮罩（0.4.1 第 10 修量测对齐）：均匀浅灰白纱
-        // ＋轻模糊——下层系统 ultraThinMaterial 给模糊、
-        // 上层 Palette.scrim 给纱色（#F4F4F6 @ 0.66）；
-        // 分离感靠纱不靠影。纱面上下穿过安全区、盖住
-        // 主面顶底缘（与面板贴顶贴底同口径）
-        ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-            Palette.scrim
-        }
-            .ignoresSafeArea(edges: [.top, .bottom])
-            .opacity(progress)
-            .allowsHitTesting(drawerOpen)
-            .onTapGesture { setDrawer(false) }
-        drawerPanel(width: width)
-            .offset(x: offsetX)
-            .gesture(drawerDragGesture(width: width))
-        if !drawerOpen {
-            // 左缘热区：右滑跟手唤出，不挡正文纵向滚动
-            // （宽度走 OneDayMetrics.drawerEdgeZone 令牌）
-            Color.clear
-                .frame(width: OneDayMetrics.drawerEdgeZone)
-                .contentShape(Rectangle())
-                .gesture(drawerDragGesture(width: width))
-        }
-    }
-
-    private func drawerPanel(width: CGFloat) -> some View {
-        // 头尾钉住＋中段滚动（0.4.2，用户 10:54 对照
-        // Muse 本体标注图纠正，取代 0.4.1 的整栏全滚
-        // 读法）：标 1 智能体名区不滚、标 2 底条（齿轮
-        // /搜索/新建）不滚、只有中间名单区滚动，且滚
-        // 动内容滑到头尾两端时朦胧渐隐（标注图里最下
-        // 方一行半融在底条上方即此）。结构：名单
-        // ScrollView 居中，名字与底条经 safeAreaBar
-        // 钉进它的上下安全区——与聊天页发送舱同一系
-        // 统通道（条即安全区、内容从其下方滑过），上
-        // 下两缘的化开由 .scrollEdgeEffectStyle(.soft)
-        // 承担（WWDC25-323），不用实色渐变带假冒。
-        // 头尾两区不设自有背景：透出的就是面板底色
-        // （#FCFCFC，§26 第 10 修量测口径不变），材质
-        // 与面板同源。0.4.1 的整栏 VStack＋minHeight
-        // 撑满＋Spacer 推底条整套随之退役
-        ScrollView {
-            VStack(spacing: 0) {
-                drawerNavList
-                drawerList
-            }
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .scrollEdgeEffectStyle(.soft, for: .top)
-        .scrollEdgeEffectStyle(.soft, for: .bottom)
-        // 0.4.3（§28.5）：头尾承载由 safeAreaInset 改
-        // safeAreaBar 注册——与聊天页同因：未注册的
-        // inset 条不在边缘效果系统内、.soft 等于没发；
-        // 注册后内容从头尾下方穿过并在两端化开（用户
-        // 10:54 标注口径）。头尾钉住结构、底条下边距
-        // 4pt 校准、搜索框键盘跟随（同走安全区）不变
-        .safeAreaBar(edge: .top, spacing: 0) {
-            drawerAgentName
-                // 0.4.4（§29，例外 E11）：抽屉顶缘同
-                // 组件复用——作名字区 background 上探
-                // 状态区 56pt、向下延进名单约 35pt，
-                // 名单滑到名字下方先化开（组件与几
-                // 何口径见 EdgeProgressiveBlur）
-                .background(alignment: .top) {
-                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.drawerTop)
-                        .frame(height: 150)
-                        .offset(y: -56)
-                        .allowsHitTesting(false)
-                }
-        }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            drawerBottomBar
-                // 0.4.4（§29，例外 E11）：抽屉底缘同
-                // 组件——作底条 background 向上延约
-                // 68pt，名单滑到底条上方渐入化开；
-                // 底条本人在层上保持锐利
-                .background(alignment: .bottom) {
-                    EdgeProgressiveBlur(stops: EdgeProgressiveBlur.drawerBottom)
-                        .frame(height: 124)
-                        .allowsHitTesting(false)
-                }
-        }
-        .frame(width: width)
-        .frame(maxHeight: .infinity)
-        // 面板底色穿过上下安全区（0.4.1 第 10 修：顶边
-        // 贴到屏幕顶——状态栏压面板之上、左缘贴边，
-        // 不再上下悬浮卡片式留白；条下不露主面色带）
-        .background {
-            Palette.chatSurface
-                .ignoresSafeArea(edges: [.top, .bottom])
-        }
-        // 面板收尾（0.4.1 第 10 修，推翻 0.3.6 的右侧
-        // 大圆角）：四角归直角贴边；右缘只留一线发丝
-        // 边（采样 #E3E3E3）＋贴边窄影（黑 8%、半径
-        // 6、x 3——旧 12%/30/16 的约 40pt 宽软带收窄
-        // 到约 10pt、向外快速衰减到纱色），分离感主
-        // 靠纱（见 drawerOverlay）、影只作贴边一线
-        .clipShape(Rectangle())
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(Color(UIColor { traits in
-                    traits.userInterfaceStyle == .dark
-                        ? UIColor.white.withAlphaComponent(0.10)
-                        : UIColor(
-                            red: 0xE3 / 255.0, green: 0xE3 / 255.0,
-                            blue: 0xE3 / 255.0, alpha: 1
-                        )
-                }))
-                .frame(width: 0.5)
-                .ignoresSafeArea(edges: [.top, .bottom])
-        }
-        .shadow(
-            color: Palette.shadowBase.opacity(0.08),
-            radius: 6, x: 3, y: 0
-        )
-        .alert(
-            "重命名会话",
-            isPresented: Binding(
-                get: { renamingThread != nil },
-                set: { if !$0 { renamingThread = nil } }
-            )
-        ) {
-            TextField("会话标题", text: $renameText)
-            Button("取消", role: .cancel) { renamingThread = nil }
-            Button("保存") { commitRenameThread() }
-        }
-    }
-
-    /// 栏内顶部（0.3.6 立宪，§21.3）：只有智能体名字
-    /// （28 bold）——状态点＋状态词·模型小字全撤（定
-    /// 义卡删减清单：那是管理面信息，不占导航壳第一眼）
-    private var drawerAgentName: some View {
-        Text("Hermes")
-            .font(.largeTitle)
-            .foregroundStyle(Palette.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, OneDayMetrics.drawerInset)
-            .padding(.top, OneDayMetrics.spacingL)
-            .padding(.bottom, OneDayMetrics.spacingSM)
-    }
-
-    private func loadDrawerData() async {
-        if let page = try? await appState.performAdmin({ client, config in
-            try await client.serverSessions(config: config, limit: 6)
-        }) {
-            drawerServerSessions = page.sessions
-        }
-    }
-
-    /// 全局名单（0.3.6 立宪先行件，§21.3；定义卡：一
-    /// 页一事——名单只做切目的地）：与底栏四格一一对
-    /// 应、同一符号源（TabBarSymbols）；行高约 47、
-    /// 只有图标＋标题（无箭头无值）；当前位（本页恒
-    /// 为聊天）以 selectionFill 浅灰垫标示、不变色不
-    /// 加粗。名单末尾一条发丝线与会话组分界。
-    private var drawerNavList: some View {
-        VStack(spacing: 0) {
-            // 0.3.8 第 20 条：导航区补分组标签（与会话区
-            // 的时间分组标签同一形态：13 regular 次级灰）
-            Text("选项卡")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, OneDayMetrics.drawerInset)
-                .padding(.top, OneDayMetrics.spacingSM)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            ForEach(drawerTabs, id: \.pair.id) { item in
-                drawerNavRow(tab: item.tab, pair: item.pair)
-            }
-            // 第 21 条：发丝线只留功能区之间（导航↔会话
-            // 这一条保留；会话组之间已改纯留白分段）
-            drawerDivider
-                .padding(.top, OneDayMetrics.spacingS)
-        }
-    }
-
-    private var drawerTabs: [(tab: ContentView.MainTab, pair: TabSymbolPair)] {
-        [
-            (.chat, TabBarSymbols.chat),
-            (.overview, TabBarSymbols.overview),
-            (.files, TabBarSymbols.files),
-            (.settings, TabBarSymbols.settings),
-        ]
-    }
-
-    private func drawerNavRow(
-        tab: ContentView.MainTab, pair: TabSymbolPair
-    ) -> some View {
-        let isCurrent = tab == .chat
-        return Button {
-            setDrawer(false)
-            if !isCurrent { onSelectTab(tab) }
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: pair.normal)
-                    // 0.3.8 第 15 条：名单字形与底栏同线宽
-                    // 档——21 无字重 → 18 regular（令牌
-                    // FrameworkIcon.drawerGlyphSize；0.3.7
-                    // 实测对话 27.6%/文件夹 19.6% 线宽不齐）
-                    .font(.system(
-                        size: FrameworkIcon.drawerGlyphSize,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(Palette.ink)
-                    .frame(
-                        width: OneDayMetrics.spacingL,
-                        alignment: .leading
-                    )
-                    .accessibilityHidden(true)
-                Text(pair.title)
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-            }
-            .padding(.horizontal, OneDayMetrics.spacingS)
-            .frame(minHeight: OneDayMetrics.navRowHeight)
-            .background(
-                isCurrent ? Palette.selectionFill : Color.clear,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.fieldCorner
-                )
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingSM)
-        .accessibilityLabel(pair.title)
-    }
-
-    /// 发丝线（左右留 drawerInset 20）：组间分隔的唯
-    /// 一形态（立宪：分组＝13–14 灰标签＋发丝线）
-    private var drawerDivider: some View {
-        Rectangle()
-            .fill(Palette.hairline)
-            .frame(height: 1)
-            .padding(.horizontal, OneDayMetrics.drawerInset)
-    }
-
-    /// 抽屉底部浮动条（0.3.6 立宪，§21.3）：左右约
-    /// 52 圆钮（左设置/右新建，字形 18）＋中间同高搜
-    /// 索胶囊——搜索与新建从顶部行位沉到拇指区（定
-    /// 义卡「控件跟内容走」：搜索只服务这份会话名单、
-    /// 就贴在名单脚下）。圆钮映射为施工选择、规格只
-    /// 定几何，§21.3 在案。
-    private var drawerBottomBar: some View {
-        // 0.3.8 第 23 条：三件紧凑成组——横边距 20→12、
-        // 件间距 12→8，搜索胶囊随之拉长（面板宽约 310
-        // 时胶囊约 166–174，Muse 实测约 173）
-        HStack(spacing: OneDayMetrics.spacingS) {
-            drawerRoundButton(
-                // 卡 18 纠正 4：左圆钮用独立齿轮 glyph，
-                // 与名单设置行（滑杆）、底栏设置格三者不同图
-                systemName: "gearshape",
-                label: "设置"
-            ) {
-                setDrawer(false)
-                onSelectTab(.settings)
-            }
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
-                TextField("搜索会话", text: $drawerQuery)
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-                if !drawerQuery.isEmpty {
-                    Button {
-                        drawerQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Palette.inkMuted)
-                    }
-                    .accessibilityLabel("清空搜索")
-                }
-            }
-            .padding(.horizontal, OneDayMetrics.spacingSM)
-            .frame(height: OneDayMetrics.drawerBarButton)
-            // 0.4.1 第 10 修：白浮纸（灰实填）换近白玻
-            // 璃（与圆钮同改）——.glassEffect(.regular)
-            // 系统玻璃（压在 #FCFCFC 面板上采样约
-            // #F9F9F9）＋发丝边＋轻柔影；与发送舱同式
-            // （玻璃施加于件本体、内容在其上）
-            .glassEffect(.regular, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(Palette.hairline, lineWidth: 0.5)
-            }
-            .shadow(
-                color: Palette.shadowBase.opacity(0.06),
-                radius: 8, y: 2
-            )
-            drawerRoundButton(
-                systemName: "square.and.pencil",
-                label: "新建会话"
-            ) {
-                newThread()
-                setDrawer(false)
-            }
-        }
-        .padding(.horizontal, OneDayMetrics.spacingSM)
-        .padding(.top, OneDayMetrics.spacingSM)
-        // 底边距（0.4.2 结构纠正）：本条已由 drawerPanel
-        // 经 safeAreaBar 钉在名单 ScrollView 的底部安
-        // 全区——安全区本身已把条抬到 home indicator 之
-        // 上，下边距只留 4 呼吸量，落点与旧口径一致
-        // （条中心约 92.5%）。沿革：0.3.8–0.4.1 整栏/
-        // 内容直达屏底的结构下，下边距须手算「安全区
-        // 底 inset＋4」（DrawerGeometry.bottomBar-
-        // BottomPadding），在注册 bar 结构里再叠
-        // 一次就是双重计算、条会被抬高一截，故本处用
-        // 法退役（纯函数本体与单测留档不删）
-        .padding(.bottom, 4)
-    }
-
-    private func drawerRoundButton(
-        systemName: String, label: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                // 0.3.8 第 24 条：齿轮字形与名单同线宽档
-                // （17 regular，令牌 drawerBarGlyphSize；
-                // 旧 18 无字重渲染偏实）
-                .font(.system(
-                    size: FrameworkIcon.drawerBarGlyphSize,
-                    weight: .regular
-                ))
-                .foregroundStyle(Palette.ink)
-                .frame(
-                    width: OneDayMetrics.drawerBarButton,
-                    height: OneDayMetrics.drawerBarButton
-                )
-                // 0.4.1 第 10 修：白浮纸换近白玻璃（与
-                // 搜索胶囊同改，口径见彼处注）
-                .glassEffect(.regular, in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(Palette.hairline, lineWidth: 0.5)
-                }
-                .shadow(
-                    color: Palette.shadowBase.opacity(0.06),
-                    radius: 8, y: 2
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.odPressable)
-        .accessibilityLabel(label)
-    }
-
-    private var filteredThreads: [ChatThread] {
-        let query = drawerQuery.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return threads }
-        return threads.filter { thread in
-            thread.title.localizedCaseInsensitiveContains(query)
-                || thread.entries.contains {
-                    $0.content.localizedCaseInsensitiveContains(query)
-                }
-        }
-    }
-
-    /// 侧边栏会话组（0.3.6 立，§21.3/§21.4；0.4.1 改
-    /// 承载）：原为 List(.plain) 独占一栏自带滚动，
-    /// 0.4.1 按用户「一栏到底」令退役 List——本组只
-    /// 产出素行内容（组标题/会话行/空态/尾留白，x 线
-    /// 全自控），直排进面板 ScrollView 的同一 VStack
-    /// （见 drawerPanel）。会话行长按菜单＝置顶/重
-    /// 命名/删除三件套。分组＝灰标签＋留白（0.3.8 第
-    /// 21 条后组间不划线）。swipeActions 原就不上
-    /// （与面板拖拽手势仲裁冲突），改承载后同样不上。
-    /// 服务端会话组在尾（0.4.0 起点行改道聊天页续聊、
-    /// 标题人话化）。
-    private var drawerList: some View {
-        VStack(spacing: 0) {
-            if filteredThreads.isEmpty {
-                if drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-                    // 卡 18 纠正 3：无会话不留标签夹空带，
-                    // 换新建入口行
-                    drawerPlainRow {
-                        Button {
-                            newThread()
-                            setDrawer(false)
-                        } label: {
-                            HStack(spacing: OneDayMetrics.spacingS) {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 15, weight: .regular))
-                                    .foregroundStyle(Palette.inkSecondary)
-                                Text("新建会话")
-                                    .font(.body)
-                                    .foregroundStyle(Palette.ink)
-                            }
-                            .padding(.horizontal, OneDayMetrics.spacingS)
-                            .frame(
-                                maxWidth: .infinity,
-                                minHeight: OneDayMetrics.navRowHeight,
-                                alignment: .leading
-                            )
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.odPressable)
-                        .padding(.horizontal, OneDayMetrics.spacingSM)
-                        .padding(.top, OneDayMetrics.spacingS)
-                    }
-                } else {
-                    drawerPlainRow {
-                        Text("没有匹配的会话")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkMuted)
-                            .padding(.horizontal, OneDayMetrics.drawerInset)
-                            .padding(.top, OneDayMetrics.spacingL)
-                    }
-                }
-            } else {
-                ForEach(
-                    Array(threadGroups.enumerated()),
-                    id: \.element.label
-                ) { index, group in
-                    // 0.4.1 第 10 修：组间补发丝分隔线
-                    // （0.3.8 第 21 条的纯留白分段被用户
-                    // 逐项对比点名推翻——导航组与会话组
-                    // 之间、会话各组之间都要线，节奏与
-                    // 导航组下那条同式）
-                    if index > 0 {
-                        drawerDivider
-                            .padding(.top, OneDayMetrics.spacingS)
-                    }
-                    drawerGroupHeader(group.label)
-                    ForEach(group.threads) { thread in
-                        drawerThreadRow(thread)
-                    }
-                }
-            }
-            if !drawerServerSessions.isEmpty {
-                // 第 10 修：与本地组之间同补发丝线（本
-                // 地组在场时）；第 18 条：组名改人话——
-                // 「服务端会话」是实现口径，改「其他会
-                // 话」（这些是在别处开的会话，不是本机
-                // 这台开的）
-                if !filteredThreads.isEmpty {
-                    drawerDivider
-                        .padding(.top, OneDayMetrics.spacingS)
-                }
-                drawerGroupHeader("其他会话")
-                ForEach(drawerServerSessions) { session in
-                    drawerServerSessionRow(session)
-                }
-            }
-            drawerPlainRow {
-                Color.clear
-                    .frame(height: OneDayMetrics.spacingL)
-            }
-        }
-    }
-
-    /// 组标题行（0.3.6 立宪）：13 regular 次级灰标签，
-    /// x 线 drawerInset 20。不用 SectionLabel——其 13
-    /// medium 与宪法「字重只 regular/bold」冲突，全
-    /// 局归 0.3.7 页面轮，壳内先行按宪法（§21.5）。
-    private func drawerGroupHeader(_ label: String) -> some View {
-        drawerPlainRow {
-            Text(label)
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .padding(.horizontal, OneDayMetrics.drawerInset)
-                .padding(.top, OneDayMetrics.spacingSM)
-                .padding(.bottom, OneDayMetrics.spacingS)
-        }
-    }
-
-    /// 会话组里的素行：padding 全部由内容自控（组标
-    /// 题/空态/留白共用）。0.4.1 前是 List 行包装（零
-    /// 行距/透明底/无分隔线的 listRow 三件套），List
-    /// 退役后只剩内容本体
-    private func drawerPlainRow<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-    }
-
-    /// 本机会话分组（0.3.6）：纯逻辑下沉
-    /// OneDayCore.SidebarGrouping（置顶＋时间五段，
-    /// 单测把守），此处只做 ChatThread ↔ key 映射。
-    private var threadGroups: [(label: String, threads: [ChatThread])] {
-        let searching = !drawerQuery
-            .trimmingCharacters(in: .whitespaces).isEmpty
-        let items = filteredThreads.map {
-            SidebarGrouping.Item(
-                key: $0.id, updatedAt: $0.updatedAt, isPinned: $0.isPinned
-            )
-        }
-        let byID = Dictionary(
-            uniqueKeysWithValues: filteredThreads.map { ($0.id, $0) }
-        )
-        return SidebarGrouping.groups(
-            items: items, now: Date(), searching: searching
-        ).map { group in
-            (
-                label: group.label,
-                threads: group.keys.compactMap { byID[$0] }
-            )
-        }
-    }
-
-    private func drawerServerSessionRow(_ session: ServerSession) -> some View {
-        Button {
-            setDrawer(false)
-            onOpenServerSession(session.id)
-        } label: {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                // 标题只有内容名（人话 display_name/内容
-                // 摘要，否则「未命名会话」），时间/条数/状
-                // 态/来源全在副题——SessionDisplay 同源；
-                // 0.3.8 第 18/19 条：副题改序（来源退尾、
-                // 状态只写属实）且与本地行同行型（标题
-                // 17 regular＋副题 13、行高 57 两行制）
-                Text(session.humanTitle)
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text(session.humanSubtitle(now: Date()))
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
-            // 标题 x 线与本机会话行/组标题对齐（外 SM
-            // 12＋内 S 8＝20＝drawerInset 线）
-            .padding(.horizontal, OneDayMetrics.spacingS)
-            .frame(
-                maxWidth: .infinity,
-                minHeight: OneDayMetrics.sessionRowHeight,
-                alignment: .leading
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingSM)
-    }
-
-
-    /// 会话行（0.3.6 立宪，0.3.8 第 19 条改两行制）：
-    /// 标题 17 regular＋副题时间·条数、高 57；选中态
-    /// ＝selectionFill 整行浅灰垫（第 17 条裁决保留）、
-    /// 标题不变色不加粗。长按菜单＝置顶/重命名/删除。
-    private func drawerThreadRow(_ thread: ChatThread) -> some View {
-        let isCurrent = thread.id == currentThread?.id
-        return Button {
-            currentThreadID = thread.id
-            setDrawer(false)
-        } label: {
-            // 0.3.8 第 19 条：本地行与服务端行统一两行制
-            // （标题 17 regular＋副题「时间 · 条数」13 灰、
-            // 行高 57）；选中整行浅灰填充保留（第 17 条
-            // 用户裁决：保留灰块不改）
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(thread.title)
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text(LocalThreadSubtitle.text(
-                    updatedAt: thread.updatedAt,
-                    messageCount: thread.entries.count,
-                    now: Date()
-                ))
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .lineLimit(1)
-            }
-            .padding(.horizontal, OneDayMetrics.spacingS)
-            .frame(
-                maxWidth: .infinity,
-                minHeight: OneDayMetrics.sessionRowHeight,
-                alignment: .leading
-            )
-            .background(
-                isCurrent ? Palette.selectionFill : Color.clear,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.fieldCorner
-                )
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingSM)
-        .contextMenu {
-            Button {
-                togglePinThread(thread)
-            } label: {
-                Label(
-                    thread.isPinned ? "取消置顶" : "置顶",
-                    systemImage: thread.isPinned ? "pin.slash" : "pin"
-                )
-            }
-            Button {
-                beginRenameThread(thread)
-            } label: {
-                Label("重命名", systemImage: "pencil")
-            }
-            Button(role: .destructive) {
-                deleteThread(thread)
-            } label: {
-                Label("删除会话", systemImage: "trash")
-            }
-        }
-    }
-
-    private func togglePinThread(_ thread: ChatThread) {
-        thread.isPinned.toggle()
-        try? modelContext.save()
-    }
-
-    private func beginRenameThread(_ thread: ChatThread) {
-        renameText = thread.title
-        renamingThread = thread
-    }
-
-    private func commitRenameThread() {
-        let title = renameText.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-        if let thread = renamingThread, !title.isEmpty {
-            thread.title = title
-            try? modelContext.save()
-        }
-        renamingThread = nil
-    }
-
-    private func deleteThread(_ thread: ChatThread) {
-        // 0.3.2：删除确认不再挂触觉（只挂结果事件，见 Haptics 注）
-        if thread.id == currentThreadID {
-            currentThreadID = nil
-        }
-        modelContext.delete(thread)
-        try? modelContext.save()
-    }
+    // （会话抽屉本体已于 0.4.5 迁至 DrawerView.swift、
+    // 承载提到壳层 ContentView，见 DESIGN-V4 §30；
+    // 本页只经 AppState 通道与抽屉互通）
 
     // MARK: - 发送
 

@@ -11,18 +11,18 @@ final class TabBarSymbolsTests: XCTestCase {
         XCTAssertEqual(TabBarSymbols.all, [
             TabSymbolPair(
                 id: "chat", title: "聊天",
-                normal: "bubble.left.and.bubble.right",
-                selected: "bubble.left.and.bubble.right"
+                normal: "message",
+                selected: "message"
             ),
             TabSymbolPair(
                 id: "overview", title: "总览",
-                normal: "chart.line.uptrend.xyaxis",
-                selected: "chart.line.uptrend.xyaxis"
+                normal: "chart.xyaxis.line",
+                selected: "chart.xyaxis.line"
             ),
             TabSymbolPair(
                 id: "files", title: "文件",
-                normal: "folder",
-                selected: "folder"
+                normal: "tray",
+                selected: "tray"
             ),
             TabSymbolPair(
                 id: "settings", title: "设置",

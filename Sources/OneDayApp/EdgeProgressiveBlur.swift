@@ -10,7 +10,10 @@ import UIKit
 /// 开再消失。系统 .scrollEdgeEffectStyle(.soft)
 /// 的作用区只等于已注册 bar 的高度、上限 subtle
 /// （§28.6）；本层把化开区放大到带长量级（聊天顶
-/// 176／底 216、抽屉顶 150／底 124）。
+/// 176／抽屉顶 150 固定；两条底带 0.4.5 起动态带长
+/// ——聊天底＝56＋发送区实测高（带底收在发送区底
+/// 缘）、抽屉底＝124＋底条下边距段（带底达屏边），
+/// 见 chatBottom/drawerBottom 的 (bandHeight:) 版）。
 ///
 /// 用法纪律：只作已注册 safeAreaBar 内容的 back-
 /// ground 溢出绘制——不参与布局（bar 尺寸/发送舱
@@ -48,15 +51,23 @@ extension EdgeProgressiveBlur {
         GradientStop(location: 1, alpha: 0),
     ]
 
-    /// 聊天底带（带长 216pt：发送舱上 56pt 渐入＋
-    /// 舱体＋向下延约 96pt 与底栏坞衔接成一片）：
-    /// 自带顶无模糊、到发送舱上缘满模糊、其后恒满
-    static let chatBottom: [GradientStop] = [
-        GradientStop(location: 0, alpha: 0),
-        GradientStop(location: 0.14, alpha: 0.5),
-        GradientStop(location: 0.27, alpha: 1),
-        GradientStop(location: 1, alpha: 1),
-    ]
+    /// 聊天底带（0.4.5 改动态带长，§30）：带长由调用
+    /// 点给（56pt 渐入段＋发送区实测高），带底恰收在
+    /// 发送区底缘——0.4.4 的固定 216pt 带向下延出约
+    /// 96pt「与坞衔接」被用户 11:47 点名收掉（坞下方
+    /// 显成独立一坨）。停点按绝对锚换算：自带顶 0、
+    /// 30pt 处半、58pt 处满、其后恒满——与 0.4.4 定版
+    /// （216 带上 0.14/0.27 恰为 30/58pt）逐点同形，
+    /// 坞上方渐入段分毫不变
+    static func chatBottom(bandHeight: Double) -> [GradientStop] {
+        let h = max(bandHeight, 60)
+        return [
+            GradientStop(location: 0, alpha: 0),
+            GradientStop(location: 30 / h, alpha: 0.5),
+            GradientStop(location: 58 / h, alpha: 1),
+            GradientStop(location: 1, alpha: 1),
+        ]
+    }
 
     /// 抽屉顶带（带长 150pt：上探状态区 56＋名字
     /// 区＋向名单延出约 35）：形态同聊天顶带
@@ -67,14 +78,22 @@ extension EdgeProgressiveBlur {
         GradientStop(location: 1, alpha: 0),
     ]
 
-    /// 抽屉底带（带长 124pt：底条上方约 68pt 渐
-    /// 入）：自带顶无模糊、近底条满模糊、其后恒满
-    static let drawerBottom: [GradientStop] = [
-        GradientStop(location: 0, alpha: 0),
-        GradientStop(location: 0.35, alpha: 0.5),
-        GradientStop(location: 0.55, alpha: 1),
-        GradientStop(location: 1, alpha: 1),
-    ]
+    /// 抽屉底带（0.4.5 改动态带长，§30）：带长由调用
+    /// 点给（0.4.4 的 124pt 本体＋底条下边距段——
+    /// 0.4.5 名单穿安全区直达屏底、带底须跟到屏边，
+    /// 见 DrawerView）。停点按绝对锚换算：自带顶 0、
+    /// 43pt 处半、68pt 处满、其后恒满——带顶起 68pt
+    /// 的化开形态与 0.4.4 定版（124 带上 0.35/0.55
+    /// 恰为 43/68pt）逐点同形
+    static func drawerBottom(bandHeight: Double) -> [GradientStop] {
+        let h = max(bandHeight, 72)
+        return [
+            GradientStop(location: 0, alpha: 0),
+            GradientStop(location: 43 / h, alpha: 0.5),
+            GradientStop(location: 68 / h, alpha: 1),
+            GradientStop(location: 1, alpha: 1),
+        ]
+    }
 }
 
 /// UIVisualEffectView＋渐变 mask 的 UIKit 本体
