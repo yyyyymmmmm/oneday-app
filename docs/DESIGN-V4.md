@@ -4136,3 +4136,53 @@ T1 抽屉长名单滚到底：底条后有被霜住的内容影、名单末行�
 ### 48.9 真机终审项
 U1 新建旁聊聊两轮：抽屉里该旁聊名从首消息派生名变为服务端 AI 名（发送完成回抽屉或等数秒）；U2 旧线程（0.21.0 前建的本地旁聊）续聊一轮后标题同样跟上（懒链接生效）；U3 已链接旁聊生成中切后台再回：走补齐路径（notice「回复已补齐」或自动续生成）、不整轮重发；U4 已链接旁聊里换胶囊模型再发：回复模型随新选（重锁生效、无报错横幅）；U5 抽屉删一条已链接旁聊：管理页已归档段出现该会话；U6 新建旁聊首轮带图发送：图片照常发出（种子轮多模态不回归）；U7 管理页核对新旁聊会话的 message_count（48.4 种子轮落库粒度观察项）。
 - 交付实录：功能提交 c36d3cb；CI 42653353346 success，Executed 431 tests, 0 failures（412 基线＋19 新增，与 48.8 预估一致）；IPA 4,813,686 字节、md5 f193ecb6cc4b8b3248238169aedd86f9、解包验 Info.plist＝0.21.0/50、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.21.0/OneDay-0.21.0.ipa。
+## §49 0.22.0/51「视觉审计收官·对图对齐」（用户 2026-11-10 00:09 冷开点名＋00:25 审计 36 条 P0/P1 选包＋00:29 抽屉并排图追加＋00:30 设置图实测规格追加；基线 0157e1f、单测 431 只增不减；规格总源＝visual-direction-audit-20261110.md＋native-ios-design 技能）
+
+### 49.1 冷开首屏压字（审计 C1，用户实机图）
+- 定因（代码层）：顶栏/发送舱以 safeAreaBar 注册，其顶 inset 在首帧布局后才落定；ScrollView 初始 contentOffset 按未落定 inset（≈0）算出，首行贴画框顶缘、右上角让铃铛钮盖住。此后长线程靠条目数变化的贴底跟随（isNearBottom 默认 true）顺带按已落定 inset 重钳 offset、病被掩盖；短线程内容不可滚动且无等效再钳事件，压字定格。内容栈 minHeight 的 listViewportHeight 首帧为 0 同属首帧未落定一环（只管高度不管 offset）。
+- 修法（ChatView messageList）：新增 `.task(id: currentThreadID)`——无存量滚动锚的线程（SideChatStore.scrollAnchor 为 nil、恢复链不接管者）出现 80ms 后、用户未上翻（isNearBottom）时无动画 scrollToBottom 一次，以已落定 inset 重钳 offset。短线程首行落顶栏下方、长线程仍开底部、流式跟随零回归（跟随链未动）。
+
+### 49.2 底栏纯图标化（审计 T1，用户亲点对标 Muse）
+- 实现：ContentView.tabLabel 加系统 `.labelStyle(.iconOnly)`＋显式 `.accessibilityLabel(pair.title)`——公开 LabelStyle、非自绘借道，与原生令相容；标题文本仍留在 Label 内，VoiceOver 名实双保险（构造核查：四格无障碍名＝聊天/点子/目标/文件，与原文字标签同名）。tint 维持.primary 定案：选中段深浅由系统按 tint 派生、无官方单独调浅开关；去标签后段内只剩字形、观感随之变浅，改灰 tint 会连字形一起变灰、与 Muse 黑细字形反向，故不动。
+- 知情登记：HIG tab-bars（apple-design-skill 内置页）推荐带标签，本项为用户以 Muse 为参照的知情产品选择。
+- 字形选形（探针实测，24pt 紧致密度 regular→light）：message .270→.222、lightbulb .340→.288、checklist .296→.272、tray .383→.329——符号全不换、字重统一降 light 一档（字体直接钉在 Label 的图上随图进宿主构建，与 0.4.3「子树环境到不了构建处」是两回事；底栏呈现终由系统介导，落档以真机终审 V3 并排为准）。审计密度带 0.10–0.24 系 17–18pt 小字形口径（FrameworkIcon.inkDensityTarget 注已补），24/27pt 下任何 outline 候选 regular 都在带外（.27–.41），操作口径改「同尺寸 light 档读数」；量测闸回填 testTabBarSymbolInk（24 light，格口径 ≤0.12/紧致 ≤0.42 两闸不变、实测 0.063–0.093/0.222–0.329）。
+
+### 49.3 文件页去污（审计 F1 四层准入）
+- 第 0 层产出根十→七：cache/scratch（临时产出）、image_cache、audio_cache（下载缓存）退出交付物面（设置「管理」服务器文件仍可达）。
+- 第 1 层形态拦截（全来源，Core DeliverableAdmission）：隐藏文件全拒；内部后缀.db/.db-wal/.db-shm/.sqlite/.sqlite3/.etag/.lock/.pid/.tmp 拒；内部主干 {state, gateway_state, channel_directory, models_dev_cache, kanban, sessions, auth, config} 拒（主干＝去扩展名后全等匹配，kanban-guide.md 类正名不误伤）。
+- 第 2 层根散白名单：扩展名集＝办公（pdf/doc/docx/xls/xlsx/ppt/pptx/pages/numbers/key）＋文本（md/txt/rtf/html/htm/csv）＋包（zip/7z/tar/gz/epub）＋媒体（png/jpg/jpeg/gif/webp/heic/mp4/mov/m4v/mp3/wav/m4a/aac）；json 不在集内（gateway_state.json 双保险被拒）。
+- 第 3 层旧 deny 名单（.env/config.yaml/auth.json/SOUL/USER/AGENTS/MEMORY/IDENTITY.md）保留作第二道——.md 在白名单内，人格文件靠它挡回；产出根内不查白名单（来源本身即策展信号）、只过形态拦截。
+- 拒收样本单测钉死：用户 00:12 实机 9 名（kanban.db-shm/state.db-shm/state.db-wal/gateway_state.json/kanban.db-wal/channel_directory.json/state.db/models_dev_cache.etag/models_dev_cache.json）＋形态变体与白名单进出两侧。
+- 类型图标 v2（审计 F2，Core DeliverableIconStyle 表驱动，FileIconBox 36pt/圆角 9/白字形）：docx/doc＝W 白字 #2B579A、ppt/pptx＝P #C43E1C、xls/xlsx/csv＝X #217346、pdf＝doc.richtext.fill #D92D20、md/txt/rtf＝doc.text.fill #5B6B7A、html＝safari.fill #1473C8、压缩包＝archivebox.fill #6E777D、图片＝photo.fill #2E7D4F、视频＝film.fill #6A4FD0、音频＝waveform #C77400、目录＝folder.fill、未知＝doc.fill #949B9F（非文字用途）。旧 pastel 类别轮换退役出文件行（FileBrowserLogic.tintIndex 本体与旧测保留）。如实记：图片在文件段列表不出现——影音段 MediaCell 已是真缩略图面，图标盒图片字形仅作回落口径。
+- ⋮ 命中域（审计 F4）：32→44pt（字形 18 不变、行高 64 可容纳）。
+
+### 49.4 身份同源（审计 F3/H2）
+- IdentityAnchor 新增 avatarImage 注入位（默认 nil 回落 sparkles 占位）：资产在 App bundle、OneDayDesign 无资源目录，注入是审计给的两条路之一。消费面三处同源：聊天页胶囊（既有）＋文件页＋总览页（本版注入同一 SangouPartner 资产、28pt 圆形裁切）。
+
+### 49.5 抽屉三件（审计 G1/D2＋用户 00:29 并排图）
+- 弱灰换档：旁聊行时间戳与分区头 inkMuted（#949B9F，实算 2.75:1）→inkSecondary（4.84:1）；本包只动抽屉这两处，inkMuted 就此只留非文字用途，其余面归 0.23.0。
+- 名字头：34 不动（0.20.0 推算锚只定字号）、字重 bold→semibold 降一档——参考图「三狗」同为大标题而笔画克制，SF bold 拉丁字面近黑体级为压人来源；取舍在此登记。
+- 节奏复量（像素实测，用户并排图 1206×2622）：OneDay 行距 120px/58pt；线前留白 OD 管理位 8＋12=20pt 为名单唯一双线孤岛 vs 参考图同位约 12pt 同档——撤管理行自带顶距 12、线前留白归一 8pt。线→旁聊头 OD ≈12pt vs 参考 ≈24pt（OD 更紧、非病）、头→首行两边同为 0.52–0.54 行距——余皆已核不动。
+- 导航图标（27pt 紧致密度 regular→light）：message .267→.217、list.bullet .352→.290、lightbulb .328→.283、checklist .300→.266、管理行 rectangle.stack .353→.294——字重统一降 light、符号不换。两个否决记录：目标位参考图的方框勾形 checkmark.square 实测 .412（light .338）为全部候选最浓，与「细线感」目标反向、否决，checklist 同为框勾线家族且密度低一档；枢纽 list.bullet 无更轻的同义候选（rectangle.stack .353 同档），细线感由字重达成。FrameworkIcon.drawerGlyphSize 18→27 追认现行；量测闸回填 testDrawerSymbolInk（27 light、旧闸 0.05–0.45 继续有效）。
+- 诚实边界：抽屉下半空是用户旁聊只有两条的真实状态、非版式问题，不拿假内容填；「空间/频道」是 Muse 产品概念，OneDay 无对应物，不硬造。
+
+### 49.6 设置页对图对齐（用户 00:30 实测规格，原审计 S2/S4 提前）
+- 大标题：navigationTitle 显式加.navigationBarTitleDisplayMode(.large)——sheet 内 automatic 档在小高呈现时可能被压成行内小字，显式钉死与大标题版参考图（34 bold 左对齐＋X 右上导航层）同形态。
+- 行题字重：20 semibold 两处（身份卡题「Hermes」、当前服务器题）→regular，全页行题统一 20 regular 单一字重（重启网关与两条外链行题由.body 17 同步归队）；强调只靠位置不靠加粗（参考图账户题即 regular）。
+- 行尾值位整件撤除：参考图导航行只有题＋chevron。撤除清单——档案名、记忆/技能/定时/会话/MCP 五计数、默认模型名、「环境变量」描述词、今日 Token 读数、agent.log、外观档名（值各自进详情页：档案页/各模块页/模型页/用量页/日志页/外观页内勾选）；连带退役：7 个摘要管理请求（打开设置请求面回到 status 1 个）、ValueStyle 值位组件与等宽 numericText 读数。状态两行走新 statusNavRow 降为题下副行 15 inkSecondary：审批桥钥匙（已设置/未设置/桥未连接——0.7.0「桥连不上要一眼看到」定案保住）、网关状态（运行中/已停止/异常）。
+- 小字清查：本页下限 15——关于组脚注 13 footnote＋inkMuted→15＋inkSecondary、消息行 13→15、外链字形 13→15、管理行 chevron 14→15、版本行颜色 inkMuted→inkSecondary（15 不变）。
+- 行图标：24→28 regular（参考图约 28–30 细线字形；槽 iconSlot 28 不变、对齐线不漂）；量测名单换现行 17 件、闸按 28pt 重新校准（FrameworkIcon.settingsGlyphSize 17→28 追认现行）。
+- 分区头：本地 settingsHeader 15 regular inkSecondary 无大写化（参考「你的账户」≈15 灰）；共享 SectionLabel（footnote 13）是全 App 旧档、归 0.23.0 角色表统一，本包不动它。
+- 行距已核：settingsRowHeight 60 vs 参考 pitch 约 62，差 2 在量测噪声内，不动。
+
+### 49.7 不动项与顺延
+- §14 十条、MotionTokens、0.21.0 SideChatLink 状态机与发送链、设置页 0.20.0 形态骨架（sheet＋分组卡）零改动。
+- 顺延 0.23.0：字阶全面回文本样式（审计 G2 十角色表）、其余面 inkMuted 文字清查、图标三源统一（G3 余项）、设置卡圆角（S3，1–3pt 不自绘定案）、抽屉底条圆钮 52 vs 约 57（D3 终审对图再定）。
+
+### 49.8 版本与测试
+- 版本源五处同改 0.22.0/51：Project.swift 四字面量＋SettingsView.versionFooter「OneDay v0.22.0」，全仓 grep 验。
+- 单测 431＋10＝441：DeliverableAdmissionTests 6（9 污染名拒收/形态变体/隐藏文件/根白名单进出/根内免白名单）＋DeliverableIconStyleTests 4（办公三色/媒体回落/目录与未知/大小写与复合后缀）。两轮施工：第一轮 442 测（含临时探针 1）红在 testSettingsSymbolInk 两条闸——28pt 下 cable.connector 紧致密度实测 0.631（紧致盒仅 9pt 宽、读数被窄盒放大，其格口径 0.092 反为全列最疏；旧闸按 17pt 校准），按实测全集（0.252–0.631）重新校准：防实心闸 0.55→0.68（仍低于 .fill 件 0.72 量级）、离散闸 2.5→3.0 并点名该件形态离群，设置列格口径闸 0.10→0.32（实测最大 0.229）；第二轮定版删除探针、回填底栏/抽屉 light 口径断言后 441 全绿。
+
+### 49.9 真机终审项
+V1 冷开短会话（1–2 条消息）：首条气泡完整位于顶栏下方、右上角不被铃铛钮盖；V2 冷开长会话仍开在底部、流式跟随不回归；V3 底栏四格纯图标观感（段深浅/字形粗细对 Muse 并排）＋VoiceOver 抽查四格读名（聊天/点子/目标/文件）；V4 文件页首屏应全是真交付物（db/wal/state/cache 类零出现）、docx/xlsx/pptx/pdf 图标可辨识、⋮ 好点；V5 文件页/总览页头像与聊天页胶囊同一张；V6 抽屉名字头观感、导航图标粗细对参考图并排、时间戳/分区头可读性；V7 设置页：大标题形态、行题不再有粗细两档、导航行无右值小字、状态两行副行在位、行图标大小、分区头 15 灰。
+- 交付实录：第一轮提交 611b85e（CI 42656901969，442 测 2 失败——即上条设置列闸校准问题，构建本身通过）；定版提交 2ded189；CI 42658735147 success，Executed 441 tests, 0 failures（431 基线＋10 新增，与 49.8 一致）；IPA 4,830,694 字节、md5 a1109e0a4654de3cd85ef447debc4f60、解包验 Info.plist＝0.22.0/51、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.22.0/OneDay-0.22.0.ipa。施工期生产零写请求；未自截真机图。
