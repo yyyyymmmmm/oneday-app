@@ -356,36 +356,39 @@ struct DeviceStatusHeader: View {
     private var permission: DevicePermissionState {
         controller.permissions[source] ?? .notDetermined
     }
+    /// 五件记录型数据集走一开关形态（0.36.16）；
+    /// 健康/家庭不在此列、保持原双层呈现不动
+    private var syncDataset: DeviceSyncDataset? {
+        DeviceSyncDataset.fromSource(source)
+    }
 
     /// 通道脚注（0.36.10）：只由本地可验事实拼——
     /// 系统权限、调用开关、设备会话在线三件，与目
     /// 录行状态字同源同口径，不许再出现 App 验不了
     /// 的服务端状态宣称
     private var channelNote: String {
+        // 一开关口径（0.36.16）：五件记录型的供给只
+        // 看同步开关与权限状态两件本地事实
+        if let dataset = syncDataset {
+            guard permission.isUsable else {
+                return "系统权限还没开好，智能体用不了这一件；点上方「系统权限」那一行就能处理。"
+            }
+            if appState.deviceSync.isSyncEnabled(dataset) {
+                if controller.sessionOnline {
+                    return "这一件已开同步：整份清单类问题，智能体查你服务器上的副本（新到上次同步为止，见下方数据同步区）；设备会话在线时，单条问题也能现读现回。"
+                }
+                return "这一件已开同步：智能体查的是你服务器上的副本，新到上次同步为止；副本有多少条、是什么时候的，下方数据同步区随时看得到。"
+            }
+            return "同步没开：这一件对智能体不可用，副本也不会再更新。想让智能体用，把下方数据同步的开关打开就行。"
+        }
         guard permission.isUsable else {
             return "先在上方开好系统权限，智能体才有机会用这一件。"
-        }
-        // 同步制（0.36.14）：开了数据同步的件，供给
-        // 主路是查服务器副本，口径随之改——不许再
-        // 说「不存服务器」这种与同步制相悖的话
-        if let dataset = DeviceSyncDataset.fromSource(source),
-           appState.deviceSync.isSyncEnabled(dataset)
-        {
-            let hasLiveChannel = source == .calendar
-                || source == .reminders || source == .contacts
-            if hasLiveChannel,
-               controller.agentCallEnabled[source] ?? false,
-               controller.sessionOnline
-            {
-                return "这一件已开数据同步：整份清单类问题智能体查你服务器上的副本（新到上次同步为止，见下方数据同步区）；设备会话在线时，单条问题也能现读现回。"
-            }
-            return "这一件已开数据同步：智能体查的是你服务器上的副本，新到上次同步为止；副本有多少条、是什么时候的，下方数据同步区随时看得到。"
         }
         guard controller.agentCallEnabled[source] ?? false else {
             return "调用开关已关：智能体问不到这一件，数据不会被调用。"
         }
         if controller.sessionOnline {
-            return "设备会话在线：智能体发来调用时，这台手机现读现回；这一件还没开数据同步，服务器上没有它的副本。"
+            return "设备会话在线：智能体发来调用时，这台手机现读现回。"
         }
         return "设备会话当前未连接：智能体现在叫不到这台手机；回到 App 前台、会话恢复在线后才可调用。"
     }
@@ -414,27 +417,39 @@ struct DeviceStatusHeader: View {
             }
             .listRowBackground(Color.clear)
 
-            Section {
-                permissionRow
-                Toggle(isOn: agentCallBinding) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("允许智能体调用")
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        // 0.36.3：副文压到一行短文案
-                        // （capabilityLine），长说明
-                        // agentNote 不再成段塞卡
-                        Text(descriptor.capabilityLine)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                    }
+            if syncDataset != nil {
+                // 一开关形态（0.36.16）：本区只剩系统
+                // 权限状态行——它只是状态字、不是开
+                // 关；供给由下方数据同步的唯一开关管
+                Section {
+                    permissionStatusRow
+                } header: {
+                    headerText("授权")
                 }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            } header: {
-                headerText("授权与调用")
+                .listRowBackground(Palette.surface)
+            } else {
+                Section {
+                    permissionRow
+                    Toggle(isOn: agentCallBinding) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("允许智能体调用")
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            // 0.36.3：副文压到一行短文案
+                            // （capabilityLine），长说明
+                            // agentNote 不再成段塞卡
+                            Text(descriptor.capabilityLine)
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                } header: {
+                    headerText("授权与调用")
+                }
+                .listRowBackground(Palette.surface)
             }
-            .listRowBackground(Palette.surface)
 
             Section {
                 detailRow(
@@ -526,6 +541,58 @@ struct DeviceStatusHeader: View {
         )
     }
 
+    /// 系统权限状态行（一开关形态，0.36.16）：权限
+    /// 在这里只是状态字、不是开关——右侧报现态
+    /// （Core 的 permissionStatusText 一处真源）。
+    /// 还没开好时整行可点：未决定→当场走那一次系
+    /// 统请求；被拒/受限/仅写入→跳系统设置（授权
+    /// 铁律：已决定状态绝不重走异步请求回调）。
+    /// 已授权时不可点、不带任何控件相
+    private var permissionStatusRow: some View {
+        Group {
+            if permission.isUsable {
+                permissionStatusContent
+            } else {
+                Button {
+                    switch permission {
+                    case .notDetermined:
+                        Task {
+                            await controller.requestAccess(
+                                for: source
+                            )
+                        }
+                    case .denied, .restricted, .writeOnly:
+                        openSystemSettings()
+                    case .granted, .limited:
+                        break
+                    }
+                } label: {
+                    permissionStatusContent
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+    }
+
+    private var permissionStatusContent: some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            permissionTitle
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(
+                DeviceSyncControl.permissionStatusText(permission)
+            )
+            .font(.body)
+            .foregroundStyle(Palette.inkSecondary)
+            if !permission.isUsable {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
     private var permissionTitle: some View {
         Text("系统权限")
             .font(.rowTitleL)
@@ -612,9 +679,9 @@ struct DevicePermissionGate: View {
         let name = DeviceSourceDirectory.descriptor(source).name
         switch permission {
         case .notDetermined:
-            return "打开上方「系统权限」开关，系统会问你是否允许读取\(name)。"
+            return "点上方「系统权限」那一行，系统会问你是否允许读取\(name)。"
         case .denied, .restricted:
-            return "拨动上方「系统权限」开关会跳到系统设置，打开\(name)权限后即可。"
+            return "点上方「系统权限」那一行会跳到系统设置，打开\(name)权限后即可。"
         case .writeOnly:
             return "当前只有写入权限，看不到已有安排。"
         default:
@@ -1303,7 +1370,7 @@ struct DevicePermissionsView: View {
             } header: {
                 headerText("你的设备")
             } footer: {
-                Text("系统权限（iOS 管）与「允许智能体调用」（App 内开关）是两层：前者决定 App 能不能读，后者决定智能体能不能经调用拿到。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
+                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个同步开关管齐：开着智能体就能用，系统权限在页里只是状态行。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)

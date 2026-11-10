@@ -718,3 +718,159 @@ public enum DeviceSyncPresentation {
         return status.isLimited ? "部分（不是全部）" : "全部"
     }
 }
+
+// MARK: - 一开关映射（0.36.16，用户 23:09–23:20 拍板）
+
+/// 开启同步时对着权限现态的处置（授权铁律的映射
+/// 形）：已授权直接开；未决定当场发那一次系统请
+/// 求；已决定为不可用（被拒/受限/仅写入）App 内
+/// 无路可走、只能去系统设置——绝不重走异步请求
+/// 回调、绝不假装已开
+public enum DeviceSyncSwitchAction: Equatable, Sendable {
+    case enable
+    case requestPermission
+    case openSettings
+}
+
+/// 开启确认事务的步骤序（P-10 定案的解耦落法）：
+/// 先把「正在开启」落进日志（中断也留痕），再关
+/// 说明，然后才翻开关状态、起同步引擎——状态翻
+/// 转与说明关闭绝不同帧发生
+public enum DeviceSyncEnableStep: Equatable, Sendable {
+    case logEnabling
+    case dismissIntro
+    case flipSwitchOn
+    case startSync
+}
+
+/// 一开关语义的纯映射（视图与控制器共用一处）：
+/// 五件记录型数据集用户只见一个「同步」开关——
+/// 开＝权限可用时同步且智能体可查；关＝停供。
+/// 系统权限退为状态字（不是控件），「允许智能体
+/// 调用」整层取消、并入本映射
+public enum DeviceSyncControl {
+    public static let enableSequence: [DeviceSyncEnableStep] = [
+        .logEnabling, .dismissIntro, .flipSwitchOn, .startSync,
+    ]
+
+    /// 智能体能不能用这一件：权限可用＋同步开，
+    /// 缺一不可（关同步＝完全不可用，与权限撤销
+    /// 的完全停供同口径）
+    public static func agentCanQuery(
+        permission: DevicePermissionState, syncEnabled: Bool
+    ) -> Bool {
+        permission.isUsable && syncEnabled
+    }
+
+    public static func enableAction(
+        for permission: DevicePermissionState
+    ) -> DeviceSyncSwitchAction {
+        switch permission {
+        case .granted, .limited: return .enable
+        case .notDetermined: return .requestPermission
+        case .writeOnly, .denied, .restricted: return .openSettings
+        }
+    }
+
+    /// 系统权限状态字（详情页状态行用；这是状态
+    /// 不是控件文案，不许再画成开关）
+    public static func permissionStatusText(
+        _ permission: DevicePermissionState
+    ) -> String {
+        switch permission {
+        case .granted: return "已授权"
+        case .limited: return "已授权 · 部分"
+        case .notDetermined: return "未授权"
+        case .denied: return "未授权 · 去设置"
+        case .writeOnly: return "仅写入 · 去设置"
+        case .restricted: return "受限制"
+        }
+    }
+}
+
+// MARK: - 同步日志（0.36.16，用户 23:20 拍板）
+
+/// 同步日志条目（逐数据集一本、本地持久化）：事
+/// 件时刻取真实发生时刻，失败不隐藏。kind 决定
+/// 呈现行，added/total 只在 syncCompleted 有值，
+/// reason 只在 syncFailed 有值
+public struct DeviceSyncLogEntry: Codable, Equatable, Sendable {
+    public enum Kind: String, Codable, Sendable {
+        case enabling
+        case enabled
+        case disabled
+        case syncStarted
+        case syncCompleted
+        case syncFailed
+        case permissionRevoked
+        case permissionRestored
+        case copyDeleted
+    }
+
+    public let at: Date
+    public let kind: Kind
+    public let added: Int?
+    public let total: Int?
+    public let reason: String?
+
+    public init(
+        at: Date, kind: Kind, added: Int? = nil,
+        total: Int? = nil, reason: String? = nil
+    ) {
+        self.at = at
+        self.kind = kind
+        self.added = added
+        self.total = total
+        self.reason = reason
+    }
+}
+
+/// 日志本的纯算术：新在上、上限截断、完成条的
+/// 「新增」按总量差算（整本重传也只报真实增量，
+/// 变少报 0 不报负数）
+public enum DeviceSyncLogBook {
+    public static let cap = 50
+
+    public static func appending(
+        _ entries: [DeviceSyncLogEntry], _ entry: DeviceSyncLogEntry
+    ) -> [DeviceSyncLogEntry] {
+        Array(([entry] + entries).prefix(cap))
+    }
+
+    public static func addedCount(
+        previousTotal: Int?, newTotal: Int
+    ) -> Int {
+        max(0, newTotal - (previousTotal ?? 0))
+    }
+}
+
+/// 日志行文案（一处真源，视图只渲染）
+public enum DeviceSyncLogPresentation {
+    public static func line(
+        for entry: DeviceSyncLogEntry,
+        dataset: DeviceSyncDataset
+    ) -> String {
+        switch entry.kind {
+        case .enabling:
+            return "正在开启同步"
+        case .enabled:
+            return "同步已开启"
+        case .disabled:
+            return "同步已关闭，智能体用不了这一件了"
+        case .syncStarted:
+            return "开始同步"
+        case .syncCompleted:
+            let unit = dataset.countUnit
+            return "同步完成：新增 \(entry.added ?? 0) \(unit)，"
+                + "共 \(entry.total ?? 0) \(unit)"
+        case .syncFailed:
+            return "同步没成：\(entry.reason ?? "原因没记下来")"
+        case .permissionRevoked:
+            return "系统权限被关掉了：已停供，智能体查不到这一件了"
+        case .permissionRestored:
+            return "系统权限恢复了"
+        case .copyDeleted:
+            return "服务器上的副本已删除"
+        }
+    }
+}

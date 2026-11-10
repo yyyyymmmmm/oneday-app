@@ -86,6 +86,29 @@ extension DevicePreferences {
         defaults.set(range, forKey: syncKey(dataset, "reportedRange"))
     }
 
+    /// 同步日志（0.36.16）：逐数据集一本，JSON 落
+    /// UserDefaults；条目构造与上限在 Core 的
+    /// DeviceSyncLogBook，这里只管存取
+    static func syncLog(for dataset: DeviceSyncDataset)
+        -> [DeviceSyncLogEntry]
+    {
+        guard let data = defaults.data(
+            forKey: syncKey(dataset, "log")
+        ) else { return [] }
+        return (try? JSONDecoder().decode(
+            [DeviceSyncLogEntry].self, from: data
+        )) ?? []
+    }
+
+    static func setSyncLog(
+        _ entries: [DeviceSyncLogEntry],
+        for dataset: DeviceSyncDataset
+    ) {
+        guard let data = try? JSONEncoder().encode(entries)
+        else { return }
+        defaults.set(data, forKey: syncKey(dataset, "log"))
+    }
+
     /// 通讯录「整本重灌」标记：桥在范围变化时回
     /// reimport_required 时落下，下一轮同步整本传、
     /// 成功即清
@@ -98,10 +121,12 @@ extension DevicePreferences {
     }
 }
 
-/// 同步控制器（0.36.14，规格 §3–§7）：五数据集的
-/// 状态拉取/单件同步/状态上报/副本删除。同步资格
-/// 只看两层——系统权限可用＋同步开关开（§6.1 三
-/// 层分层：「允许智能体调用」管供给不管同步）；
+/// 同步控制器（0.36.14 立制，0.36.16 改一开关）：
+/// 五数据集的状态拉取/单件同步/状态上报/副本删除/
+/// 同步日志。一开关语义：同步资格与智能体供给同
+/// 看一件事——同步开关（权限是系统层状态、不是
+/// 控件）；开关翻转经 onSyncSwitchChanged 镜像到
+/// 设备会话的「允许调用」偏好，现调路由此跟随。
 /// 权限撤销的停供由桥据上报判定，本层保证回前台
 /// 第一时间上报。授权铁律：每轮先同步读权限现态，
 /// 仅未决定时走那一次请求（DevicePermissions 内判）；
@@ -121,6 +146,9 @@ final class DeviceSyncController {
     /// 逐件本地回执（状态行兜底）
     private(set) var receipts:
         [DeviceSyncDataset: DevicePreferences.SyncReceipt]
+    /// 逐件同步日志（新在上，与偏好同值落盘）
+    private(set) var logs:
+        [DeviceSyncDataset: [DeviceSyncLogEntry]] = [:]
 
     private let client = DeviceBridgeClient()
     let photosEngine = PhotosEngine()
@@ -130,12 +158,18 @@ final class DeviceSyncController {
     /// 的引擎：日历/提醒/通讯录读走它）
     var dispatcher: DeviceToolDispatcher?
 
+    /// 由 AppState 接线：一开关镜像——同步开关翻
+    /// 转时把同一值写进设备会话的「允许调用」，现
+    /// 调路（单条现读现回）随之开/关（0.36.16）
+    var onSyncSwitchChanged: ((DeviceSyncDataset, Bool) -> Void)?
+
     private var foregroundTask: Task<Void, Never>?
 
     init() {
         var enabled: [DeviceSyncDataset: Bool] = [:]
         var receipts: [DeviceSyncDataset: DevicePreferences.SyncReceipt]
             = [:]
+        var logs: [DeviceSyncDataset: [DeviceSyncLogEntry]] = [:]
         for dataset in DeviceSyncDataset.allCases {
             enabled[dataset] = DevicePreferences.syncEnabled(
                 for: dataset
@@ -145,9 +179,11 @@ final class DeviceSyncController {
             ) {
                 receipts[dataset] = receipt
             }
+            logs[dataset] = DevicePreferences.syncLog(for: dataset)
         }
         syncEnabledState = enabled
         self.receipts = receipts
+        self.logs = logs
     }
 
     func isSyncEnabled(_ dataset: DeviceSyncDataset) -> Bool {
@@ -155,8 +191,45 @@ final class DeviceSyncController {
     }
 
     func setSyncEnabled(_ dataset: DeviceSyncDataset, _ on: Bool) {
+        let changed = syncEnabledState[dataset] != on
         syncEnabledState[dataset] = on
         DevicePreferences.setSyncEnabled(on, for: dataset)
+        if changed { onSyncSwitchChanged?(dataset, on) }
+    }
+
+    // MARK: - 同步日志（0.36.16）
+
+    /// 落一条日志（真实事件时刻、新在上、落盘）
+    func appendLog(
+        _ dataset: DeviceSyncDataset, kind: DeviceSyncLogEntry.Kind,
+        added: Int? = nil, total: Int? = nil, reason: String? = nil
+    ) {
+        let entry = DeviceSyncLogEntry(
+            at: Date(), kind: kind, added: added, total: total,
+            reason: reason
+        )
+        let updated = DeviceSyncLogBook.appending(
+            logs[dataset] ?? [], entry
+        )
+        logs[dataset] = updated
+        DevicePreferences.setSyncLog(updated, for: dataset)
+    }
+
+    /// 开启动作第一步（先于一切执行，中断也留痕）
+    func noteEnabling(_ dataset: DeviceSyncDataset) {
+        appendLog(dataset, kind: .enabling)
+    }
+
+    /// 用户开开关：翻状态＋落「已开启」账
+    func enableFromUser(_ dataset: DeviceSyncDataset) {
+        setSyncEnabled(dataset, true)
+        appendLog(dataset, kind: .enabled)
+    }
+
+    /// 用户关开关：翻状态＋落「已关闭」账（停供）
+    func disableFromUser(_ dataset: DeviceSyncDataset) {
+        setSyncEnabled(dataset, false)
+        appendLog(dataset, kind: .disabled)
     }
 
     func isRunning(_ dataset: DeviceSyncDataset) -> Bool {
@@ -224,16 +297,33 @@ final class DeviceSyncController {
 
     // MARK: - 单件同步
 
+    /// 同步发起方：用户当页点的（开启/立即同步/重
+    /// 试）失败要落日志；前台自动检查的门前失败保
+    /// 持静默（不拿节流期的状态刷日志）。引擎一旦
+    /// 真启动，起止成败两方都落账
+    enum SyncOrigin {
+        case user
+        case foreground
+    }
+
     /// 一轮同步：门（权限→开关）→ 组装 → 分批暂存
     /// → 完成确认整批换入 → 回执＋状态刷新。任一步
     /// 失败：桥上旧副本原样保留（暂存不换入），错
-    /// 误人话落 lastErrors
+    /// 误人话落 lastErrors 并进同步日志（0.36.16：
+    /// 日志是失败的正式出口，不再只有一行橙字）
     @discardableResult
     func syncNow(
-        _ dataset: DeviceSyncDataset, config: ServerConfig?
+        _ dataset: DeviceSyncDataset, config: ServerConfig?,
+        origin: SyncOrigin = .foreground
     ) async -> Bool {
         guard let config else {
             lastErrors[dataset] = "还没连上服务器，同步不了"
+            if origin == .user {
+                appendLog(
+                    dataset, kind: .syncFailed,
+                    reason: lastErrors[dataset]
+                )
+            }
             return false
         }
         guard progress[dataset] == nil else { return false }
@@ -253,17 +343,36 @@ final class DeviceSyncController {
         guard permission.isUsable else {
             lastErrors[dataset] = permission == .restricted
                 ? "这件被系统限制住了（家长控制等），同步不了"
-                : "系统权限还没给这一件，去上方开启后再同步"
+                : "系统权限还没开：点上方「系统权限」那一行去开启，再回来同步"
+            if origin == .user {
+                appendLog(
+                    dataset, kind: .syncFailed,
+                    reason: lastErrors[dataset]
+                )
+            }
             return false
         }
         guard isSyncEnabled(dataset) else {
             lastErrors[dataset] = "这一件的同步开关还没开"
+            if origin == .user {
+                appendLog(
+                    dataset, kind: .syncFailed,
+                    reason: lastErrors[dataset]
+                )
+            }
             return false
         }
         guard let dispatcher else {
             lastErrors[dataset] = "设备通道还没准备好，稍后再试"
+            if origin == .user {
+                appendLog(
+                    dataset, kind: .syncFailed,
+                    reason: lastErrors[dataset]
+                )
+            }
             return false
         }
+        appendLog(dataset, kind: .syncStarted)
         progress[dataset] = "正在读取手机上的清单…"
         defer { progress[dataset] = nil }
         do {
@@ -293,6 +402,13 @@ final class DeviceSyncController {
                 // 侧可能残留的撤销标记
                 permissionState: "granted"
             )
+            // 完成落账的「新增」按总量差算：先取旧
+            // 总数（桥状态优先、无则本地回执），再
+            // 覆盖回执——顺序反了增量就成了 0
+            let previousTotal: Int? =
+                (statuses[dataset]?.synced == true)
+                ? statuses[dataset]?.itemCount
+                : receipts[dataset]?.count
             let receipt = DevicePreferences.SyncReceipt(
                 count: reply.totalInStore,
                 syncedAt: (reply.syncedAt ?? completedAt)
@@ -311,14 +427,30 @@ final class DeviceSyncController {
                 DevicePreferences.setContactsForceFull(false)
             }
             lastErrors[dataset] = nil
+            appendLog(
+                dataset, kind: .syncCompleted,
+                added: DeviceSyncLogBook.addedCount(
+                    previousTotal: previousTotal,
+                    newTotal: reply.totalInStore
+                ),
+                total: reply.totalInStore
+            )
             await refreshStatus(config: config)
             return true
         } catch let error as DeviceBridgeError {
             lastErrors[dataset] = Self.humanError(error)
+            appendLog(
+                dataset, kind: .syncFailed,
+                reason: lastErrors[dataset]
+            )
             return false
         } catch {
             lastErrors[dataset] =
                 "同步没成：\(error.localizedDescription)；服务器上的副本还是上一份"
+            appendLog(
+                dataset, kind: .syncFailed,
+                reason: lastErrors[dataset]
+            )
             return false
         }
     }
@@ -474,6 +606,15 @@ final class DeviceSyncController {
         DevicePreferences.setSyncLastReported(
             permission: reported, range: range, for: dataset
         )
+        // 权限翻转落日志（0.36.16）：首次上报（last
+        // 为 nil）不算翻转，不拿「恢复」噪音开账
+        if let last, last.permission != reported {
+            appendLog(
+                dataset,
+                kind: reported == "revoked"
+                    ? .permissionRevoked : .permissionRestored
+            )
+        }
         if reimport, dataset == .contacts {
             DevicePreferences.setContactsForceFull(true)
         }
@@ -492,6 +633,7 @@ final class DeviceSyncController {
             config: config, dataset: dataset
         )) != nil else { return false }
         clearReceipt(dataset)
+        appendLog(dataset, kind: .copyDeleted)
         await refreshStatus(config: config)
         return true
     }
@@ -505,6 +647,7 @@ final class DeviceSyncController {
         )) != nil else { return false }
         for dataset in DeviceSyncDataset.allCases {
             clearReceipt(dataset)
+            appendLog(dataset, kind: .copyDeleted)
         }
         await refreshStatus(config: config)
         return true

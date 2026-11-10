@@ -261,6 +261,25 @@ final class AppState {
         deviceSession = DeviceSessionController()
         deviceSync = DeviceSyncController()
         deviceSync.dispatcher = deviceSession.dispatcher
+        // 一开关镜像（0.36.16）：五件记录型的同步开
+        // 关即供给开关——翻转同步时同值写入会话的
+        // 「允许调用」，现调路随之开/关；详情页不再
+        // 单列「允许智能体调用」开关
+        deviceSync.onSyncSwitchChanged = { [deviceSession] dataset, on in
+            deviceSession.setAgentCallEnabled(dataset.sourceID, on)
+        }
+        // 存量对齐：0.36.16 之前同步与调用是两个开
+        // 关，可能不一致；启动时以同步开关为准收齐
+        for dataset in DeviceSyncDataset.allCases {
+            let want = deviceSync.isSyncEnabled(dataset)
+            if deviceSession.agentCallEnabled[dataset.sourceID]
+                != want
+            {
+                deviceSession.setAgentCallEnabled(
+                    dataset.sourceID, want
+                )
+            }
+        }
         switch demoMode {
         case .connected:
             // 演示会话：地址与账号只是展示数据，密钥由假客户端消化

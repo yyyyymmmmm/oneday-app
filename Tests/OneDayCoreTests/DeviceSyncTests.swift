@@ -519,4 +519,179 @@ final class DeviceSyncTests: XCTestCase {
             DeviceSyncPresentation.rangeLine(status), "全部"
         )
     }
+
+    // MARK: - 一开关映射（0.36.16）
+
+    func testOneSwitchAgentCanQueryTruthTable() {
+        // 开＝权限可用才可查；关＝一律不可用
+        XCTAssertTrue(DeviceSyncControl.agentCanQuery(
+            permission: .granted, syncEnabled: true
+        ))
+        XCTAssertTrue(DeviceSyncControl.agentCanQuery(
+            permission: .limited, syncEnabled: true
+        ))
+        XCTAssertFalse(DeviceSyncControl.agentCanQuery(
+            permission: .granted, syncEnabled: false
+        ))
+        XCTAssertFalse(DeviceSyncControl.agentCanQuery(
+            permission: .denied, syncEnabled: true
+        ))
+        XCTAssertFalse(DeviceSyncControl.agentCanQuery(
+            permission: .notDetermined, syncEnabled: true
+        ))
+        XCTAssertFalse(DeviceSyncControl.agentCanQuery(
+            permission: .writeOnly, syncEnabled: true
+        ))
+        XCTAssertFalse(DeviceSyncControl.agentCanQuery(
+            permission: .restricted, syncEnabled: true
+        ))
+    }
+
+    func testEnableActionMapping() {
+        XCTAssertEqual(
+            DeviceSyncControl.enableAction(for: .granted), .enable
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.enableAction(for: .limited), .enable
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.enableAction(for: .notDetermined),
+            .requestPermission
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.enableAction(for: .denied),
+            .openSettings
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.enableAction(for: .restricted),
+            .openSettings
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.enableAction(for: .writeOnly),
+            .openSettings
+        )
+    }
+
+    func testPermissionStatusText() {
+        XCTAssertEqual(
+            DeviceSyncControl.permissionStatusText(.granted), "已授权"
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.permissionStatusText(.limited),
+            "已授权 · 部分"
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.permissionStatusText(.notDetermined),
+            "未授权"
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.permissionStatusText(.denied),
+            "未授权 · 去设置"
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.permissionStatusText(.writeOnly),
+            "仅写入 · 去设置"
+        )
+        XCTAssertEqual(
+            DeviceSyncControl.permissionStatusText(.restricted),
+            "受限制"
+        )
+    }
+
+    func testEnableSequenceOrder() {
+        // P-10 解耦序：先落日志 → 关说明 → 翻状态 → 起引擎
+        XCTAssertEqual(
+            DeviceSyncControl.enableSequence,
+            [.logEnabling, .dismissIntro, .flipSwitchOn, .startSync]
+        )
+    }
+
+    // MARK: - 同步日志（0.36.16）
+
+    func testSyncLogLineConstruction() {
+        let at = date(2026, 11, 10, 23, 20)
+        func line(
+            _ kind: DeviceSyncLogEntry.Kind, added: Int? = nil,
+            total: Int? = nil, reason: String? = nil
+        ) -> String {
+            DeviceSyncLogPresentation.line(
+                for: DeviceSyncLogEntry(
+                    at: at, kind: kind, added: added,
+                    total: total, reason: reason
+                ),
+                dataset: .contacts
+            )
+        }
+        XCTAssertEqual(line(.enabling), "正在开启同步")
+        XCTAssertEqual(line(.enabled), "同步已开启")
+        XCTAssertEqual(
+            line(.disabled), "同步已关闭，智能体用不了这一件了"
+        )
+        XCTAssertEqual(line(.syncStarted), "开始同步")
+        XCTAssertEqual(
+            line(.syncCompleted, added: 3, total: 156),
+            "同步完成：新增 3 人，共 156 人"
+        )
+        XCTAssertEqual(
+            line(.syncFailed, reason: "还没连上服务器，同步不了"),
+            "同步没成：还没连上服务器，同步不了"
+        )
+        XCTAssertEqual(
+            line(.permissionRevoked),
+            "系统权限被关掉了：已停供，智能体查不到这一件了"
+        )
+        XCTAssertEqual(line(.permissionRestored), "系统权限恢复了")
+        XCTAssertEqual(line(.copyDeleted), "服务器上的副本已删除")
+    }
+
+    func testSyncLogBookCapAndOrder() {
+        var entries: [DeviceSyncLogEntry] = []
+        for index in 0..<55 {
+            entries = DeviceSyncLogBook.appending(
+                entries,
+                DeviceSyncLogEntry(
+                    at: Date(timeIntervalSince1970: Double(index)),
+                    kind: .syncStarted
+                )
+            )
+        }
+        XCTAssertEqual(entries.count, DeviceSyncLogBook.cap)
+        // 新在上：第 55 条（下标 54）在首，第 6 条在尾
+        XCTAssertEqual(
+            entries.first?.at, Date(timeIntervalSince1970: 54)
+        )
+        XCTAssertEqual(
+            entries.last?.at, Date(timeIntervalSince1970: 5)
+        )
+    }
+
+    func testSyncLogAddedCount() {
+        XCTAssertEqual(
+            DeviceSyncLogBook.addedCount(
+                previousTotal: nil, newTotal: 156
+            ), 156, "没有旧账：全量即新增"
+        )
+        XCTAssertEqual(
+            DeviceSyncLogBook.addedCount(
+                previousTotal: 150, newTotal: 156
+            ), 6
+        )
+        XCTAssertEqual(
+            DeviceSyncLogBook.addedCount(
+                previousTotal: 160, newTotal: 156
+            ), 0, "变少报 0、不报负数"
+        )
+    }
+
+    func testSyncLogEntryCodableRoundTrip() throws {
+        let entry = DeviceSyncLogEntry(
+            at: date(2026, 11, 10, 23, 20), kind: .syncCompleted,
+            added: 3, total: 156
+        )
+        let data = try JSONEncoder().encode(entry)
+        let decoded = try JSONDecoder().decode(
+            DeviceSyncLogEntry.self, from: data
+        )
+        XCTAssertEqual(decoded, entry)
+    }
 }
