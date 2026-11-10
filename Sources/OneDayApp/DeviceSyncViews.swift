@@ -61,11 +61,12 @@ struct DeviceSyncSection: View {
 
     private var freshnessLine: String? {
         if let status, status.synced {
-            if let bridgeText = status.freshnessText {
-                return DeviceSyncPresentation.freshnessLine(
-                    bridgeText: bridgeText,
-                    pendingWrite: status.pendingWrite
-                )
+            // 桥的人话新鲜度是整句现成的（与工具答
+            // 案同源），在手就原样用，不二次拼装
+            if let bridgeText = status.freshness,
+               !bridgeText.isEmpty
+            {
+                return bridgeText
             }
             if let syncedAt = status.syncedAt {
                 return DeviceSyncPresentation.freshnessLine(

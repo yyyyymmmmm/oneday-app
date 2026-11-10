@@ -134,7 +134,8 @@ final class PhotosEngine: @unchecked Sendable {
             subtype = "panorama"
         } else if subtypes.contains(.videoTimelapse) {
             subtype = "timelapse"
-        } else if subtypes.contains(.videoSlowMotion) {
+        } else if subtypes.contains(.videoHighFrameRate) {
+            // 高帧率即慢动作素材（PhotoKit 的口径）
             subtype = "slowMotion"
         } else {
             subtype = nil

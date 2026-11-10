@@ -329,8 +329,10 @@ final class DeviceSyncController {
         switch error {
         case .noKey:
             return "还没填登录密钥，连不上自己的服务器"
-        case .badEndpoint:
-            return "服务器地址不对，同步不了"
+        case .unauthorized:
+            return "登录密钥被服务器拒绝了，去设置里检查一次"
+        case .unknownSession:
+            return "设备会话对不上，回到前台重连后再同步"
         case .failed(let detail) where detail == "sync_count_mismatch":
             return "这一批条数对不上，桥没有收；服务器上的副本还是上一份，下次同步会从头重来"
         case .failed(let detail):
