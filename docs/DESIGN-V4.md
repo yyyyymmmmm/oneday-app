@@ -4704,4 +4704,8 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 
 ### 59.4 交付实录
 
-（CI 与 IPA 数待构建后补记。）
+- 功能提交 010f14a（10 文件，+1150/−161）；CI 42771107158 success，Executed 574 tests, 0 failures（563 基线＋11 新测：五字段全形解码/旧载荷默认/PATCH 编码/生成信息解码/待阅排序/已采纳 30 天窗/空态二分/过期天数/任务状态派生/任务正文带依据）。
+- IPA：5,247,107 字节、md5 32cddbfaed5b11580aa74ecf6aa860bb、独立解包验 Info.plist＝0.32.0/61、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.32.0/OneDay-0.32.0.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION／CURRENT_PROJECT_VERSION／CFBundleShortVersionString／CFBundleVersion）＋SettingsView 页脚「OneDay v0.32.0」。
+- 桥侧生产验收（59.1）：公网契约 13/13 PASS（401/空表/下一轮时刻/brief 往返并复原/临时卡全链 PATCH 流转与 400·404 门/generated 无 evidence 400）；本地桩测 31/32（唯一 FAIL 为断言本身写反、已单独核实请求体）；过期清扫本地验过；首轮真实生成 produced=3（卡 id 与依据见 59.1），下一轮 2026-11-11 07:30 已排。
+- 施工期生产动作仅 oneday-bridge 本体（部署/env/重启/首轮触发/凑数卡删除各一次），内存峰值 52.6%，其余容器未动；未自截真机图；FF1–FF7 待真机终审。
