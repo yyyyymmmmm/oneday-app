@@ -4800,6 +4800,6 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 功能提交 dad684b（8 文件，+1752/−151）；CI 42778416940 success，Executed 595 tests, 0 failures（582 基线＋13 新测，只增不减：GoalDepthTests 解码 5＋请求体 4＋GoalBoard 4）。
 - IPA：5,444,364 字节、md5 eb2b99231e8e20282a5d4a9d08f5f011、独立解包验 Info.plist＝0.33.0/63、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.33.0/OneDay-0.33.0.ipa。
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.33.0／CURRENT_PROJECT_VERSION 63／CFBundleShortVersionString 0.33.0／CFBundleVersion 63）＋SettingsView 页脚「OneDay v0.33.0」。
-- 桥 P2 同批独立交付（见 61.1/61.2 与 rollout 附录 P2 节）：本地自测 34/34、生产已部署实测（手动一轮真产 1 封、验后删净、生产数据零残留）；下一轮自动简报 2026-11-17（周一）08:00（届时有 active 且有素材的目标才成信，生产当前 0 目标、如实 0 封）。
+- 桥 P2 同批独立交付（见 61.1/61.2 与 rollout 附录 P2 节）：本地自测 34/34、生产已部署实测（手动一轮真产 1 封、验后删净、生产数据零残留）；下一轮自动简报 2026-11-16（周一）08:00（届时有 active 且有素材的目标才成信，生产当前 0 目标、如实 0 封）。
 - 9B 对话式创建本版未落（见 61.4）：桥 source=chat 契约已备，App 入口保持表单；替代方案待用户拍板。
 - HH1–HH7 待真机终审（本版终审代号 HH，承 §60 的 GG 序）。
