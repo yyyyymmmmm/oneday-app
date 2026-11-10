@@ -87,7 +87,7 @@ public struct ConnectorCatalogEntry: Identifiable, Equatable, Sendable {
 /// 构造口只有一个——端点读到的才算已连接，evidence
 /// 恒为 liveVerified；不给「无证据的已连接」留构造
 /// 路径（数据完整性由 ConnectorCatalogTests 闸钉）。
-public struct ConnectedConnector: Identifiable, Equatable, Sendable {
+public struct ConnectedConnector: Identifiable, Sendable {
     public let server: MCPServerItem
     public let evidence: ConnectorEvidence
 
