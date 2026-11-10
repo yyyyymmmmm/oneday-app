@@ -486,13 +486,16 @@ public struct DictationStartTiming: Sendable, Equatable {
         offsetsMs = [:]
     }
 
-    /// 记一个点：相对零点的毫秒（时钟回拨等异常
-    /// 钳到 0，不许出负数）；同点已有值则忽略
+    /// 记一个点：相对零点的毫秒（取最近值——浮点
+    /// 表示误差不许把 85ms 截成 84，CI 首轮实测教
+    /// 训；时钟回拨等异常钳到 0，不许出负数）；
+    /// 同点已有值则忽略
     public mutating func mark(
         _ point: DictationStartPoint, atUptime uptime: TimeInterval
     ) {
         guard let originUptime, offsetsMs[point] == nil else { return }
-        offsetsMs[point] = max(0, Int((uptime - originUptime) * 1000))
+        offsetsMs[point] = max(
+            0, Int(((uptime - originUptime) * 1000).rounded()))
     }
 
     public func offsetMs(_ point: DictationStartPoint) -> Int? {
