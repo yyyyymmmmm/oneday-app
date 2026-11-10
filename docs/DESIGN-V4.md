@@ -5342,3 +5342,38 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - 本轮根因有 .ips 实锤、修法与栈逐帧对应；但「点麦克风不再闪退」的最终判定仍归用户真机首试——CI 绿与单测只证构建、逻辑与盒的调用面，不冒充真机验收。
 - 若真机仍崩：lastStage 面包屑（0.36.8 起）＋新 .ips 照旧是唯一定位路径，按铁律先拿日志再动代码。
 - 审计 #3 的 SDK 标注（requestRecordPermission 回调在系统侧的投递队列）本地不可验，nonisolated 化为预防性收口、行为零变化；#2 的 KVO 投递队列同理按形态从严处理。
+
+## §77 0.36.12/79 热修包——回车尾行漏数＋听写补仪表＋FaultPolicy 残口（2026-11-10）
+
+### 77.1 回车不换行（用户 22:05 真机录屏定案）
+
+- 证据：录屏帧序——输入「测试」连点回车，胶囊单行纹丝不动；键入 q 后突跳两行「测试／q」。q 落在第二行证明 \n 一直在文本里、没被任何一层吞（诊断 composer-newline-diagnosis-20261110 逐项验：Coordinator 无 shouldChangeTextIn 拦截、回写无修剪）。
+- 病灶：`ComposerTextMetrics.lineCount` 以 `enumerateLineFragments(forGlyphRange:)` 数行；文本以 \n 结尾时光标所在的空行是 TextKit 的 extraLineFragment（字形区间长度 0、不在枚举内），「测试\n」被数成 1 行、胶囊高与「测试」逐值相同（46）；键入新字第二行有了字形才被数成 2 行跳高。`ComposerTextView.refreshScroll` 同源受害（同 textHeight 判内滚，漏数时光标行既不长高也不可滚，与真机「光标不动/看不见」吻合）；全仓 grep extraLineFragment 旧版零命中。
+- 修法（诊断荐 A）：lineCount 枚举结果上文本以 \n 结尾时 +1，光标行恒计入（「a\n\n」枚举 2 补后 3、「\n」枚举 1 补后 2）。只动 Core 一函数；ComposerLayout 常数、视图层、布局层零改动，refreshScroll 经同源 textHeight 自动愈合。不采哨兵法（改动被量测文本本身、与同源同串口径相悖）。
+
+### 77.2 语音不实时出字（用户 22:04 反馈＋22:06 录屏修正）
+
+- 帧证据：预备页波形 0:00→0:04 实时跳动（tap→FeedBox 喂入链在跑）、说话全程零文字、约 0:04「你好你好你好」整段一次性落定。喂入与模型据此双双排除（转码全灭则 final 不可能出现；final 能产出则模型资产必然在机）；消费/合并/发布/渲染四环经诊断逐环验明全通且不分 isFinal（双层模型＋尾段染灰本就在位）——断点在模块交付层：volatile 结果没有到达消费环。
+- 两子假设仓内不可分：1a 主引擎不可用、startPipeline 静默回退 DictationTranscriber 在跑（usedFallbackEngine 旧实现只赋值、全仓无消费点，静默不可见）；1b 主引擎在跑（volatile 开关 reportingOptions [.volatileResults] 已开）但模块在本机/本语言下把 volatile 攒到落定才交付。根源是零仪表：选引擎不打点、applyResult 只在首条结果打 firstResult 不分型。
+- 本轮按诊断最小修法第 1＋4 步施工，**呈现层零重写**：①选引擎打点——`markDiag()` 在 moduleBuilt 时把引擎种类（main/fallback）＋规范化后 locale（supportedLocale 实际返回值）落盘 `dictation.lastDiag` 并写日志；②结果环分型——applyResult 改为首条 volatile 打 firstVolatile、首条 final 打 firstFinal（旧 firstResult 退役），两类逐条计数 volatileResultCount/finalResultCount，计数随首条定稿与收尾（finishRecording）同步进诊断串落盘；③usedFallbackEngine 随诊断串上屏——预备页页脚与失败行共用的 DictationStageDiagnosticLine 扩为「上次语音停在：{stage}｜engine={main|fallback}({locale}) vol={n} fin={n}」。打点克制（选引擎/首草稿/首定稿/收尾各一次），不在每条结果上写盘。
+- 1a 静态核查结论（不猜改）：选引擎代码（isAvailable 守卫→supportedLocale(equivalentTo:) 规范化→粤语 zh_HK 兜底）与苹果口径逐项一致、locale 标识写法无误，仓内无法静态坐实主引擎为何可能不可用——不在本包猜改引擎选择逻辑。下一轮真机一录定案：诊断串 engine=fallback 即 1a 坐实（转查 isAvailable/supportedLocale 失败点或回退引擎产出形态）；engine=main 且 vol=0、fin>0 即 1b 坐实（模块交付节奏，缓解方案需用户拍板）；vol>0 而界面仍无实时字则回头查呈现层（与本轮诊断结论相悖、需新证据）。
+- 文档对账（诊断断点 3）：实时转写自 0.36.6 首版起从未在真机验到过（§71.5 明列待真机；0.36.6–0.36.10 历版点麦克风即闪退）——22:06 录屏是该功能史上第一份真机结果证据，「实时不出字」大概率自首版即在、被闪退连环案遮蔽至今。
+
+### 77.3 FaultPolicy .idle 残口（诊断断点 2 顺手补）
+
+- 残口：资产已装的快路径上 startEngine 全程停在 .idle 直到末尾进 .recording；此窗内 analyzer.start/结果流抛错经 DictationFaultPolicy 映射 .ignore 被静默吞、随后照常进录音态——0.36.8 要根除的「假录音」模式在 .idle 窗的残口。本案被录屏排除为主因（final 出现证明分析器在跑），属旁证缺陷顺手收。
+- 修法一行：Core DictationFaultPolicy.action 把 .idle 自 .ignore 组移入 .abortStartup 组（与 .requestingPermission/.preparing 同组）。无误伤面：能产生故障信号的只有本代次启动管道（结果/分析任务只在启动尝试内存在），收尾后代次递增、迟到信号先被代次守卫作废。
+
+### 77.4 验收
+
+- 提交：a083c8f（整包）；本节为其后文档回填提交。
+- CI：42831710990 **success**（首轮即绿）。
+- 单测：**760 全过、0 failures**（基线 755＋新增 5，只增不减）：ComposerTextMetricsTests 新增 4 条（testTrailingNewlineCountsCursorLine／testMultipleTrailingNewlines／testMiddleAndTrailingNewline／testTrailingNewlineAtCapBoundary）＋testTypingSequenceModeIsMonotonicAndPure 第 4 步「测试\n」收紧为等值断言（98.34 且与「测试\nh」逐值相等）；DictationTests 新增 testFaultPolicyIdleWindowAbortsStartup 并同步矩阵 .idle 断言。封顶边界钉法：5 行正文＋尾 \n＝6 行、textHeight 恰达 maxTextHeight 115.02、胶囊 175.02；6 行正文＋尾 \n＝7 行、未封顶实测 134.19 过封顶使 shouldScroll 为真、胶囊仍封顶 175.02。
+- IPA：6,639,766 字节、md5 83333941cf09895412cbe57edb6d9bab、独立解包验 Info.plist＝0.36.12/79、双 UsageDescription 键仍在包内，落 ~/workspace/your_files/oneday-v0.36.12/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.12/79）＋SettingsView 页脚「OneDay v0.36.12」；0.36.11 残留只剩历史注释。
+
+### 77.5 诚实边界
+
+- 回车件：量测口径有单测逐值钉死，但真机最终判定＝用户连点回车时胶囊逐次长高、光标行可见可达。
+- 听写件：本轮只补仪表＋残口，**不承诺实时出字已修**——定案依赖用户下次录屏/截图里的诊断行（预备页页脚或失败行）：读 engine 与 vol/fin 三数即可分清 1a/1b，修法再按 §77.2 的分流走，不许在本包之外凭猜动引擎代码。
+- FaultPolicy .idle 并入 abortStartup 的前提（结果/分析任务只存在于启动尝试内、收尾必递增代次）已逐点对代码核过；若将来有新常驻任务形态引入，须重审此判定。
