@@ -182,6 +182,61 @@ final class SessionClassificationTests: XCTestCase {
         )
     }
 
+    // MARK: - R4b 机器铸造前缀（对账 A1/A2 收紧）
+
+    // run_ 前缀＝网关 runs 落形：点子/晨报生成轮次
+    // 与验收运行（对账存量 #42–46，5/5 全机器）
+    func testR4bRunPrefixIsSystem() {
+        XCTAssertEqual(
+            classify(session(
+                id: "run_2e593f5fb9c94882a8216b75300be1df",
+                source: "api_server"
+            )),
+            .system
+        )
+        // 同形新 id 按前缀判、不枚举名单（晨报次日
+        // 新铸同理入系统、不再往频道添条）
+        XCTAssertEqual(
+            classify(session(
+                id: "run_00000000000000000000000000000000",
+                source: "api_server"
+            )),
+            .system
+        )
+    }
+
+    // api_ 下划线形＝探针铸造（对账存量 #52/#53
+    // 静默流探针，2/2）
+    func testR4bAPIUnderscorePrefixIsSystem() {
+        XCTAssertEqual(
+            classify(session(
+                id: "api_1794331033_cd758152",
+                source: "api_server"
+            )),
+            .system
+        )
+    }
+
+    // 串扰钉：api- 连字符（R8 标准形、联调与用户
+    // 接口会话）归频道，api_ 下划线归系统——两个
+    // 前缀只差第三字符，不许互相串
+    func testR4bUnderscoreAndHyphenFormsDoNotCross() {
+        XCTAssertEqual(
+            classify(session(
+                id: "api-1794331033cd758152",
+                source: "api_server"
+            )),
+            .channel("hermes")
+        )
+        XCTAssertEqual(
+            classify(session(
+                id: "api_1794331033_cd758152",
+                source: "api_server"
+            )),
+            .system
+        )
+    }
+
     // MARK: - R5 结构性系统源
 
     func testR5StructuralSystemSources() {
@@ -192,6 +247,27 @@ final class SessionClassificationTests: XCTestCase {
                 "source=\(source) 应归系统运行"
             )
         }
+    }
+
+    // 对账 A6 防患钉：kanban 行 source 本体缺失时，
+    // 有效来源回落 session_key 平台段得 "local"——
+    // 必须由 R5 结构性系统源兜住归系统，不许穿透
+    // R9 落 Hermes 频道错显；即便有本地关联，R2 例
+    // 外（非用户通道）同样不升级
+    func testR5LocalFallbackSegmentIsSystem() {
+        let s = session(
+            id: "local-1439bc1d89730af939d1611ed8a4c3ce7073d200251b710e84126c82ada9b03a",
+            source: nil,
+            sessionKey: "agent:main:local:dm:local-1439bc1d89730af939d1611ed8a4c3ce7073d200251b710e84126c82ada9b03a"
+        )
+        XCTAssertEqual(
+            SessionSources.effectiveSource(
+                source: s.source, sessionKey: s.sessionKey
+            ),
+            "local"
+        )
+        XCTAssertEqual(classify(s), .system)
+        XCTAssertEqual(classify(s, linked: [s.id]), .system)
     }
 
     // MARK: - R6 平台源

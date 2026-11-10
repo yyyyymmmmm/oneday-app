@@ -35,9 +35,14 @@ public enum SessionSources {
         "api_server", "api", "dashboard", "web",
     ]
 
-    /// 结构性系统源（R5）：任务板与定时/调度本体
+    /// 结构性系统源（R5）：任务板与定时/调度本体。
+    /// "local" 是 kanban 行的 session_key 平台段值
+    /// （2026-11-11 对账 A6）：source 本体缺失时有
+    /// 效来源回落得它，必须在此兜住——否则机器行
+    /// 会穿透 R9 落 Hermes 频道错显。存量 9 条
+    /// kanban 行 source 俱在、未触发，属防患收紧
     public static let structuralSystem: Set<String> = [
-        "kanban", "cron", "cron_job", "scheduler",
+        "kanban", "cron", "cron_job", "scheduler", "local",
     ]
 
     /// Hermes 人工表面（R7）：网页控制台与命令行
@@ -226,6 +231,17 @@ public enum SessionClassifier {
     /// 生成式 oneday-side-<uuid>）
     public static let appSideSessionPrefix = "oneday-side-"
 
+    /// 网关 runs 铸造前缀（对账 A1：点子/晨报等桥
+    /// 生成轮次的真实落形 run_<hex>，存量 5/5 全
+    /// 机器、零反例）
+    public static let runCastPrefix = "run_"
+
+    /// 探针铸造前缀（对账 A2：api_<unix>_<hex> 静
+    /// 默流探针形，存量 2/2）——与 R8 的 api- 标准
+    /// 形（连字符）是两个前缀：连字符归频道、下划
+    /// 线归系统，钉测钉住不串
+    public static let probeCastPrefix = "api_"
+
     public static func classify(
         id: String,
         source: String?,
@@ -263,6 +279,17 @@ public enum SessionClassifier {
         // （如桥铸 oneday-ideas-gen——oneday- 前缀不
         // 等于 App 资产，主/旁已在 R0/R3 先行命中）
         if id.hasPrefix(SideChatLink.ownSessionPrefix) {
+            return .system
+        }
+        // R4b 机器铸造前缀（2026-11-11 对账收紧
+        // A1/A2）：run_ 是网关 runs 落形、api_ 下划
+        // 线形是探针铸造——「前缀即出生证明」，与
+        // oneday-/api- 同理据形态定系统。置于 R4
+        // 之后、R5 之前；§9-2 前置闸只约束其余自由
+        // 形态（人类可读名/uuid 仍默认频道），这两
+        // 形形态证据已充分、不在闸内
+        if id.hasPrefix(runCastPrefix)
+            || id.hasPrefix(probeCastPrefix) {
             return .system
         }
         // R5 结构性系统源（parent_session_id 分支未
