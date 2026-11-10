@@ -4853,5 +4853,8 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 
 ### 62.7 交付实录
 
-- （出包后回填：功能提交／CI／测试数／IPA 字节与 md5／五处版本点。）
-- 服务器段（nginx 单钥入口＋过渡双模）与本节同批交付，实录见 hermes-deploy/bridge-keys-rollout-20261110.md 追记；fallback 撤销条件＝用户装 0.33.1 并确认桥功能正常后另行派单撤除。
+- 功能提交 42e328b（21 文件：15 改＋3 删＋2 新＋DESIGN 本节）；CI 42781449131 success，Executed 595 tests, 0 failures（595 基线：删 BridgeKeyImportTests 6 测、增 RetiredBridgeKeyAccountsTests 6 测，等量接替、只增不减守恒）。
+- IPA：5,400,401 字节、md5 d8c0445aa7c28c039bfb00a39fbfdb5b、独立解包验 Info.plist＝0.33.1/64、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.33.1/OneDay-0.33.1.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.33.1／CURRENT_PROJECT_VERSION 64／CFBundleShortVersionString 0.33.1／CFBundleVersion 64）＋SettingsView 页脚「OneDay v0.33.1」。
+- 服务器段（nginx 单钥入口＋过渡双模）与本节同批交付且已先于用户装机生效，实录见 hermes-deploy/bridge-keys-rollout-20261110.md 的 0.33.1 追记（验矩阵全绿、备份 bak-20261110-singlekey、内存 51.6%）；fallback 撤销条件＝用户装 0.33.1 并确认桥功能正常后另行派单撤除。
+- II1–II4、JJ1–JJ4 待真机终审（本版终审代号 II＋JJ，承 §61 的 HH 序）。
