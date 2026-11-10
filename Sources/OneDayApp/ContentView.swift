@@ -391,9 +391,11 @@ struct ContentView: View {
 /// 内容（TabView）经闭包注入、身份不变。
 /// 0.17.0 承载换代（定案见文件头 0.17.0 注）：本层
 /// 自下而上＝TabView 本体（**根级安放、本层不给它
-/// 加任何 modifier**，底栏落位全交系统）／整屏蒙层
-/// （开态命中＋跟手关，alpha 走 DrawerMotion
-/// .scrimOpacity）／抽屉面（自左滑入、offset 恒为
+/// 加任何 modifier**，底栏落位全交系统）／露出区
+/// 蒙层（开态命中＋跟手关，alpha 走 DrawerMotion
+/// .scrimOpacity；0.36.4 起只罩抽屉外露出区、防
+/// 抽屉材质采样到压暗画面，见中层注）／抽屉面
+/// （自左滑入、offset 恒为
 /// drawerOffset − travel，右缘柔影随 progress 变）；
 /// 合态另有左缘热区一条（跟手开＋S5 预挂载旁听）。
 /// 0.7.1 的可变换页卡（S3 白名单四件：页卡 offset、
@@ -474,14 +476,28 @@ private struct DrawerShell<Content: View>: View {
             // scale/clip/背景），底栏的安全区传递与落
             // 位全交系统（0.17.0 定案，调研 Q1/Q4）
             content()
-            // 中层：蒙层（抽屉挂载期间在场）——整屏压
-            // 暗静止的内容，alpha 随进度走 scrimOpacity
+            // 中层：蒙层（抽屉挂载期间在场）——压暗静
+            // 止的内容，alpha 随进度走 scrimOpacity
             // （两端钳制、越界不放大）；开态承接点按关
             // 抽屉与横拖跟手关（旧页卡命中层的职责改道）
+            // 0.36.4（用户实拍点名「抽屉颜色反了」）：
+            // 蒙层只罩抽屉之外的露出区——整幅左移
+            // drawerOffset、左缘恒贴抽屉右缘。根因：
+            // 0.36.3 抽屉底是 .thinMaterial，材质的背
+            // 景采样取的是合成链里它下方的一切，旧蒙
+            // 层整屏铺黑（峰值 0.32）正压在抽屉下方，
+            // 材质糊到的就是压暗后的画面——浅档整面
+            // 灰雾、selectionFill 灰垫（#F0F1F2）反衬
+            // 成刺眼纯白，明暗关系全反。蒙层退出抽屉
+            // 覆盖区后，材质采样的是未压暗的内容本
+            // 体：浅档明亮近白＋灰垫回位、暗档内容本
+            // 深、材质压深不翻亮。命中与手势只落在露
+            // 出区（抽屉本体自带手势、无损）
             if drawerMounted {
                 Color.black
                     .opacity(DrawerMotion.scrimOpacity(progress: progress))
                     .ignoresSafeArea()
+                    .offset(x: drawerOffset)
                     .contentShape(Rectangle())
                     .allowsHitTesting(isDrawerOpen)
                     .onTapGesture { setDrawer(false) }

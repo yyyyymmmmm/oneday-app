@@ -99,3 +99,16 @@ public enum ModelCatalog {
         candidates.contains(model)
     }
 }
+
+/// 身份胶囊模型菜单的行布局真源（0.36.4，用户 18:48
+/// 点名）：每行预留等宽对号槽——选中行槽内显 ✓、未
+/// 选行槽留空，模型名由此同列对齐。旧形态只有选中
+/// 行带 Label(checkmark)、未选行是裸 Text，名字起
+/// 点随有无对号漂移一列宽、两行不对齐。数值由
+/// ModelCatalogTests 钉死防回潮。
+public enum ModelMenuSpec {
+    /// 对号槽宽（每行恒占位，与有无对号无关）
+    public static let checkmarkSlotWidth: CGFloat = 18
+    /// 对号槽与模型名之间的间距
+    public static let checkmarkSlotSpacing: CGFloat = 6
+}

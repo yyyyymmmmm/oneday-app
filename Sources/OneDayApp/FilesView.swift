@@ -295,6 +295,8 @@ struct FilesBrowserView: View {
     @State private var shareItem: FileShareItem?
     @State private var mkdirPresented = false
     @State private var newFolderName = ""
+    /// 图片查看器 zoom 转场命名空间（0.36.4）
+    @Namespace private var browserViewerNamespace
 
     private var rootPath: String {
         listing?.lockedRoot ?? listing?.root ?? "/opt/data"
@@ -360,6 +362,42 @@ struct FilesBrowserView: View {
         }
         .background(Palette.pageBG)
         .task(id: currentPath) { await load() }
+        // 行目的地（0.36.4 补注册）：此前全仓无 Work-
+        // spaceFileEntry 目的地注册、行点按无落点；
+        // 图片直达查看器（zoom 转场、集合＝当前列表
+        // 全部图片），其余走 FilePreviewView（Quick-
+        // Look）
+        .navigationDestination(for: WorkspaceFileEntry.self) { entry in
+            if entry.mediaKind == .image {
+                let images = shownEntries.filter {
+                    $0.mediaKind == .image
+                }
+                ImageViewerView(
+                    items: images.map {
+                        ChatImageViewerItem(
+                            source: .remotePath($0.path)
+                        )
+                    },
+                    initialIndex: images.firstIndex(of: entry) ?? 0,
+                    onDeleteItem: { item in
+                        if case .remotePath(let path) = item.source,
+                           let target = images.first(
+                               where: { $0.path == path }
+                           ) {
+                            Task { await deleteFromViewer(target) }
+                        }
+                    }
+                )
+                .navigationTransition(
+                    .zoom(
+                        sourceID: entry.path,
+                        in: browserViewerNamespace
+                    )
+                )
+            } else {
+                FilePreviewView(entry: entry)
+            }
+        }
         .alert("新建文件夹", isPresented: $mkdirPresented) {
             TextField("文件夹名", text: $newFolderName)
             Button("取消", role: .cancel) {}
@@ -502,6 +540,11 @@ struct FilesBrowserView: View {
         } else {
             NavigationLink(value: entry) {
                 FileBrowserRow(entry: entry)
+                    // zoom 转场源标记（0.36.4）：图片行
+                    // 点开自本行长成查看器卡
+                    .matchedTransitionSource(
+                        id: entry.path, in: browserViewerNamespace
+                    )
             }
             .buttonStyle(.odPressable)
             .contextMenu {
@@ -618,6 +661,33 @@ struct FilesBrowserView: View {
                 ?? "下载失败，请稍后再试。"
         }
     }
+
+    /// 查看器内删除（0.36.4）：与行删除同通道（删＋
+    /// 重拉＋回读核对）；落锤已由查看器发过、成功不
+    /// 叠，未生效/失败按既有口径回告
+    private func deleteFromViewer(_ entry: WorkspaceFileEntry) async {
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.deleteFile(
+                    config: config, path: entry.path,
+                    recursive: false
+                )
+            }
+            await load()
+            if listing?.entries.contains(
+                where: { $0.path == entry.path }
+            ) == true {
+                notice = "删除未生效，「\(entry.name)」仍在目录中。"
+                Haptics.warning()
+            } else {
+                notice = "已删除「\(entry.name)」。"
+            }
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "删除失败，请稍后再试。"
+            Haptics.error()
+        }
+    }
 }
 
 /// 浏览/电脑段共用文件行：图标盒＋名＋大小/时间＋chevron
@@ -665,16 +735,12 @@ struct MediaCell: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                VStack(spacing: OneDayMetrics.spacingXS) {
-                    Image(systemName: entry.odIconName)
-                        .font(.system(size: 22))
-                        .foregroundStyle(Palette.inkSecondary)
-                    Text(entry.name)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                        .padding(.horizontal, OneDayMetrics.spacingXS)
-                }
+                // 占位只留类型图标（0.36.4）：旧占位把
+                // 原始文件名压在格下——生成图名多为哈希
+                // 串、属面向用户的原始名漏出，本版撤除
+                Image(systemName: entry.odIconName)
+                    .font(.system(size: 22))
+                    .foregroundStyle(Palette.inkSecondary)
             }
             if entry.mediaKind == .video {
                 Image(systemName: "play.circle.fill")
@@ -704,34 +770,41 @@ struct MediaCell: View {
 
 // MARK: - 预览（与 P1 共用组件）
 
-/// 文件预览（0.14.0 预览深化）：图片页内显示、点开走与
-/// 聊天同一个全屏查看器（ImageFullScreenView，remotePath
-/// 源）；其余类型一律落临时文件走 QuickLook 原生预览
-/// （PDF 原生阅读、视频/音频原生播放，设计标准 §5.7/§7）；
-/// 撤 0.2.x 的自绘 AVPlayer 与内联文本渲染，不另造预览器。
+/// 文件预览：非图文件落临时文件走 QuickLook 原生
+/// 预览（PDF 原生阅读、视频/音频原生播放，设计标
+/// 准 §5.7/§7）；撤 0.2.x 的自绘 AVPlayer 与内联文
+/// 本渲染，不另造预览器。
+/// 0.36.4：图片分支整支退役——旧形态先进本页（图
+/// 小上置＋标题露原始文件名，哈希名实证漏出）再点
+/// 才进全屏查看器，两段式断链；本版图片由各宿主
+/// 直达 ImageViewerView，本视图只作防御落点（万一
+/// 有旧路径把图片送进来，同样直达查看器、不复活
+/// 中间页）。
 struct FilePreviewView: View {
     @Environment(AppState.self) private var appState
     let entry: WorkspaceFileEntry
 
-    @State private var image: UIImage?
     @State private var quickLookItem: ChatFilePreviewItem?
     @State private var loadError: String?
     @State private var shareItem: FileShareItem?
     @State private var rawData: Data?
-    @State private var fullScreenImage = false
 
     var body: some View {
+        if entry.mediaKind == .image {
+            ImageViewerView(
+                items: [
+                    ChatImageViewerItem(source: .remotePath(entry.path))
+                ],
+                initialIndex: 0
+            )
+        } else {
+            quickLookBody
+        }
+    }
+
+    private var quickLookBody: some View {
         Group {
-            if let image {
-                ScrollView {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity)
-                        .padding(OneDayMetrics.spacingM)
-                }
-                .onTapGesture { fullScreenImage = true }
-            } else if let quickLookItem {
+            if let quickLookItem {
                 QuickLookPreview(url: quickLookItem.url)
             } else if let loadError {
                 EmptyState(
@@ -766,11 +839,6 @@ struct FilePreviewView: View {
         .sheet(item: $shareItem) { item in
             FileShareSheet(url: item.url)
         }
-        .fullScreenCover(isPresented: $fullScreenImage) {
-            ImageFullScreenView(
-                item: ChatImageViewerItem(source: .remotePath(entry.path))
-            )
-        }
         .task { await load() }
     }
 
@@ -780,16 +848,9 @@ struct FilePreviewView: View {
                 try await client.fileData(config: config, path: entry.path)
             }
             rawData = data
-            if entry.mediaKind == .image {
-                image = UIImage(data: data)
-                if image == nil {
-                    loadError = "图片数据无法解析。"
-                }
-            } else {
-                quickLookItem = try ChatFilePreviewItem.write(
-                    data: data, name: entry.name
-                )
-            }
+            quickLookItem = try ChatFilePreviewItem.write(
+                data: data, name: entry.name
+            )
         } catch {
             loadError = (error as? HermesError)?.userMessage
                 ?? "读取文件失败。"

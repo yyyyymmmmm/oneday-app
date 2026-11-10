@@ -152,7 +152,7 @@ struct ChatView: View {
     /// 0.8.0（P1 富内容）：图片全屏查看与文件 QuickLook
     /// 预览的呈现载荷；流式工具卡列（累积完成即入列、
     /// 本轮收尾落盘，见 driveRun）
-    @State private var imageViewerItem: ChatImageViewerItem?
+    @State private var imageViewerSession: ImageViewerSession?
     @State private var filePreviewItem: ChatFilePreviewItem?
     @State private var liveToolCards: [ToolCard] = []
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
@@ -230,8 +230,17 @@ struct ChatView: View {
         // 0.8.0（P1）：图片点开全屏查看（本地图与历史
         // 服务端图共用一个查看器）；文件牌点开走系统
         // QuickLook（字节先经文件下载通道落临时目录）
-        .fullScreenCover(item: $imageViewerItem) { item in
-            ImageFullScreenView(item: item)
+        // 0.36.4：查看器换代——集合载荷（同线程图片序、
+        // 可翻页）＋ImageViewerView 双态；呈现承载走
+        // UIKit zoom 转场（本页无导航栈，见 Zoom-
+        // TransitionCover 注）
+        .fullScreenCover(item: $imageViewerSession) { session in
+            ZoomTransitionCover {
+                ImageViewerView(
+                    items: session.items,
+                    initialIndex: session.initialIndex
+                )
+            }
         }
         .sheet(item: $filePreviewItem) { item in
             QuickLookPreview(url: item.url)
@@ -754,15 +763,28 @@ struct ChatView: View {
     /// 带勾；选择走 AppState.selectChatModel（本地持久化
     /// ＋逐请求 provider=custom，会话锁机制不变）。Menu
     /// 是系统件：呈现、勾选、关闭全走系统行为。
+    /// 0.36.4（用户 18:48 点名）：行布局改等宽对号槽
+    /// ——每行同构（槽＋名），选中才在槽内显 ✓、未选
+    /// 留空，模型名同列对齐；旧形态选中行 Label 带勾、
+    /// 未选行裸 Text，名字起点随有无对号漂移一列。
+    /// 槽宽真源 ModelMenuSpec（Core 钉测）。
     private var modelMenu: some View {
         Menu {
             ForEach(ChatModels.items, id: \.id) { item in
                 Button {
                     appState.selectChatModel(item.id)
                 } label: {
-                    if appState.chatModel == item.id {
-                        Label(item.displayName, systemImage: "checkmark")
-                    } else {
+                    HStack(
+                        spacing: ModelMenuSpec.checkmarkSlotSpacing
+                    ) {
+                        Image(systemName: "checkmark")
+                            .opacity(
+                                appState.chatModel == item.id ? 1 : 0
+                            )
+                            .frame(
+                                width: ModelMenuSpec
+                                    .checkmarkSlotWidth
+                            )
                         Text(item.displayName)
                     }
                 }
@@ -1332,11 +1354,13 @@ struct ChatView: View {
                             .clipShape(
                                 RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
                             )
-                            // 0.8.0（P1）：点开全屏查看器
-                            // （双指缩放/双击/下滑关）
+                            // 点开查看器（0.36.4：集合
+                            // 载荷、同线程可翻页）
                             .onTapGesture {
-                                imageViewerItem = ChatImageViewerItem(
-                                    source: .data(data)
+                                openImageViewer(
+                                    ChatImageViewerItem(
+                                        source: .data(data)
+                                    )
                                 )
                             }
                     }
@@ -1349,8 +1373,10 @@ struct ChatView: View {
                                 RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
                             )
                             .onTapGesture {
-                                imageViewerItem = ChatImageViewerItem(
-                                    source: .remotePath(path)
+                                openImageViewer(
+                                    ChatImageViewerItem(
+                                        source: .remotePath(path)
+                                    )
                                 )
                             }
                     }
@@ -1407,8 +1433,10 @@ struct ChatView: View {
                             RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
                         )
                         .onTapGesture {
-                            imageViewerItem = ChatImageViewerItem(
-                                source: .remotePath(path)
+                            openImageViewer(
+                                ChatImageViewerItem(
+                                    source: .remotePath(path)
+                                )
                             )
                         }
                 }
@@ -1441,14 +1469,47 @@ struct ChatView: View {
         }
     }
 
+    /// 打开图片查看器（0.36.4）：集合＝同线程全部图
+    /// 片（本地图 imageData＋远端图 remoteImagePaths，
+    /// 按消息时间序、工具卡不占位）；点中项不在集合
+    /// 内（如正文文件牌探测出的图）时回落单图集合，
+    /// 不假装它在会话图片序里
+    private func openImageViewer(_ item: ChatImageViewerItem) {
+        var collected: [ChatImageViewerItem] = []
+        if let thread = currentThread {
+            for entry in thread.sortedEntries
+            where entry.toolCard == nil {
+                if let data = entry.imageData {
+                    collected.append(
+                        ChatImageViewerItem(source: .data(data))
+                    )
+                }
+                for path in entry.remoteImagePaths {
+                    collected.append(
+                        ChatImageViewerItem(source: .remotePath(path))
+                    )
+                }
+            }
+        }
+        if let index = collected.firstIndex(of: item) {
+            imageViewerSession = ImageViewerSession(
+                items: collected, initialIndex: index
+            )
+        } else {
+            imageViewerSession = ImageViewerSession(
+                items: [item], initialIndex: 0
+            )
+        }
+    }
+
     /// 文件牌点开（0.8.0，P1）：图片扩展名进全屏图片查
     /// 看器；其余经既有 /api/files/download 取回字节、
     /// 落临时目录走系统 QuickLook 预览；失败走既有
     /// notice 人话提示，不白屏
     private func openChatFile(_ path: String) {
         if FileRefDetector.isImagePath(path) {
-            imageViewerItem = ChatImageViewerItem(
-                source: .remotePath(path)
+            openImageViewer(
+                ChatImageViewerItem(source: .remotePath(path))
             )
             return
         }

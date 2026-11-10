@@ -67,7 +67,8 @@ struct BrowserFaceView: View {
             appState.boxTakeoverActive = newValue
         }
         .fullScreenCover(item: $viewerItem) { item in
-            ImageFullScreenView(item: item)
+            // 0.36.4：截图查看并入统一查看器（单图集合）
+            ImageViewerView(items: [item], initialIndex: 0)
         }
     }
 

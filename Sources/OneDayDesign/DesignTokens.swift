@@ -144,3 +144,24 @@ public enum SegmentedControlSpec {
     /// 药丸圆角（同心＝轨道圆角 − 内缩；与药丸高/2 同值）
     public static var pillCorner: CGFloat { trackCorner - inset }
 }
+
+// MARK: - 图片查看器落值（卡态形态）
+
+/// 图片查看器卡态的尺寸真源（0.36.4，体验三件规格
+/// §3.5；Muse 录屏逐帧量测口径）：卡左右边距 16、
+/// 卡圆角 16、关闭圆钮 44、工具胶囊高 40。沉浸态
+/// 无尺寸面（黑底全幅、图面走 ZoomableImageView 的
+/// aspect-fit 本体），不在本表。数值由 ImageViewer-
+/// SpecTests 钉死防回潮。
+public enum ImageViewerSpec {
+    /// 卡左右边距（卡宽＝屏宽 − 2×本值）
+    public static let cardHorizontalMargin: CGFloat = 16
+    /// 卡圆角
+    public static let cardCorner: CGFloat = 16
+    /// 关闭圆钮直径（兼命中域，≥44 口径同值）
+    public static let closeButtonDiameter: CGFloat = 44
+    /// 工具胶囊高（内含下载＋更多两钮，命中高同值）
+    public static let chromeCapsuleHeight: CGFloat = 40
+    /// 胶囊内单钮宽（两钮并排＋间隙≈实测胶囊宽 93）
+    public static let chromeButtonWidth: CGFloat = 44
+}

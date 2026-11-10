@@ -41,6 +41,18 @@ struct DeliverablesView: View {
     @State private var query = ""
     @State private var searchVisible = false
     @State private var previewEntry: WorkspaceFileEntry?
+    /// 图片查看器路由（0.36.4）：图片直达查看器（系
+    /// 统 zoom 转场、源＝网格 cell 的 matched 标记），
+    /// 不再先进 FilePreviewView 预览页
+    @State private var viewerRoute: ImageViewerRoute?
+    @Namespace private var viewerNamespace
+
+    /// 查看器集合载荷：同段图片条目＋起始索引
+    private struct ImageViewerRoute: Identifiable {
+        let entries: [WorkspaceFileEntry]
+        let initialIndex: Int
+        var id: String { entries[initialIndex].path }
+    }
 
     var body: some View {
         NavigationStack {
@@ -60,6 +72,29 @@ struct DeliverablesView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $previewEntry) { entry in
                 FilePreviewView(entry: entry)
+            }
+            .navigationDestination(item: $viewerRoute) { route in
+                ImageViewerView(
+                    items: route.entries.map {
+                        ChatImageViewerItem(source: .remotePath($0.path))
+                    },
+                    initialIndex: route.initialIndex,
+                    onDeleteItem: { item in
+                        if case .remotePath(let path) = item.source,
+                           let entry = route.entries.first(
+                               where: { $0.path == path }
+                           ) {
+                            Task { await deleteFromViewer(entry) }
+                        }
+                    }
+                )
+                .navigationTransition(
+                    .zoom(
+                        sourceID: route.entries[route.initialIndex]
+                            .path,
+                        in: viewerNamespace
+                    )
+                )
             }
             .task { await collect() }
             .refreshable { await collect() }
@@ -368,7 +403,7 @@ struct DeliverablesView: View {
             Spacer(minLength: OneDayMetrics.spacingS)
             Menu {
                 Button {
-                    previewEntry = item.entry
+                    openEntry(item.entry, among: documents)
                 } label: {
                     Label("预览", systemImage: "eye")
                 }
@@ -392,7 +427,7 @@ struct DeliverablesView: View {
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: 64)
         .contentShape(Rectangle())
-        .onTapGesture { previewEntry = item.entry }
+        .onTapGesture { openEntry(item.entry, among: documents) }
         .contextMenu {
             Button {
                 Task { await download(item.entry) }
@@ -404,6 +439,47 @@ struct DeliverablesView: View {
             } label: {
                 Label("删除", systemImage: "trash")
             }
+        }
+    }
+
+    /// 条目打开分流（0.36.4）：图片直达查看器（集
+    /// 合＝同段全部图片、可翻页），其余仍走 File-
+    /// PreviewView（QuickLook）。文件段条目恒非图
+    /// 片（documents 已按 mediaKind 过滤），分流在
+    /// 此只对影音段实际生效、文件段同路无副作用
+    private func openEntry(
+        _ entry: WorkspaceFileEntry, among siblings: [Deliverable]
+    ) {
+        if entry.mediaKind == .image {
+            let images = siblings.map(\.entry).filter {
+                $0.mediaKind == .image
+            }
+            viewerRoute = ImageViewerRoute(
+                entries: images,
+                initialIndex: images.firstIndex(of: entry) ?? 0
+            )
+        } else {
+            previewEntry = entry
+        }
+    }
+
+    /// 查看器内删除（0.36.4）：与行删除同通道（管理
+    /// 接口删＋重聚合）；落锤触感已由查看器在点删
+    /// 时发过、本处成功不叠、失败 error
+    private func deleteFromViewer(_ entry: WorkspaceFileEntry) async {
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.deleteFile(
+                    config: config, path: entry.path,
+                    recursive: false
+                )
+            }
+            notice = "已删除「\(entry.name)」。"
+            await collect()
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "删除失败，请稍后再试。"
+            Haptics.error()
         }
     }
 
@@ -442,9 +518,15 @@ struct DeliverablesView: View {
                 LazyVGrid(columns: columns, spacing: 2) {
                     ForEach(mediaItems) { item in
                         Button {
-                            previewEntry = item.entry
+                            openEntry(item.entry, among: mediaItems)
                         } label: {
                             MediaCell(entry: item.entry)
+                                // zoom 转场源标记（0.36.4）：
+                                // 点开的图自本格长成查看器卡
+                                .matchedTransitionSource(
+                                    id: item.entry.path,
+                                    in: viewerNamespace
+                                )
                         }
                         .buttonStyle(.odPressable)
                         .contextMenu {

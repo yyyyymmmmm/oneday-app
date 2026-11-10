@@ -8,8 +8,8 @@ let project = Project(
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1",
-        "MARKETING_VERSION": "0.36.3",
-        "CURRENT_PROJECT_VERSION": "70",
+        "MARKETING_VERSION": "0.36.4",
+        "CURRENT_PROJECT_VERSION": "71",
     ]),
     targets: [
         .target(
@@ -43,8 +43,8 @@ let project = Project(
                 // 版本号直写 Info.plist（沿礼记 v4.4 实证口径）：Tuist 默认
                 // 模板不把工程设置的 MARKETING_VERSION 展开进 plist，
                 // 只写字面量才进包。
-                "CFBundleShortVersionString": "0.36.3",
-                "CFBundleVersion": "70",
+                "CFBundleShortVersionString": "0.36.4",
+                "CFBundleVersion": "71",
                 "ITSAppUsesNonExemptEncryption": false,
                 "UILaunchScreen": ["UIColorName": "LaunchBackground"],
                 // 自托管场景：允许连接局域网内的自建服务器（http）。
@@ -61,6 +61,10 @@ let project = Project(
                 "NSCalendarsFullAccessUsageDescription": "OneDay 需要读取你的日历：安排只在这台手机上查看；你开启智能体调用后，智能体被问到时才现读现回，服务器不保存日程内容。",
                 "NSRemindersFullAccessUsageDescription": "OneDay 需要读取你的提醒事项：待办只在这台手机上查看；你开启智能体调用后，智能体被问到时才现读现回，服务器不保存提醒内容。",
                 "NSContactsUsageDescription": "OneDay 需要按关键词查询你的通讯录：搜索在手机上完成、只有命中条目会显示；你开启智能体调用后，被问到时才现查现回，通讯录全量从不离开手机。",
+                // 图片查看器保存（0.36.4）：只在用户在查
+                // 看器里点「下载」时申请 addOnly、只保存
+                // 用户选中的那一张；不读相册、不作其他用
+                "NSPhotoLibraryAddUsageDescription": "OneDay 需要把图片存入你的相册：只在你在图片查看器里点「下载」时保存你选中的那一张图片，不会读取你的相册。",
             ]),
             sources: ["Sources/OneDayApp/**"],
             resources: ["App/Resources/**"],

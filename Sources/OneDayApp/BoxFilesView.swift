@@ -187,9 +187,9 @@ struct BoxFilesView: View {
     }
 }
 
-/// 字节直读预览（Box 文件用）：加载字节后图片走与聊天
-/// 同一个全屏查看器（data 源），其余落临时文件走
-/// QuickLook 原生预览——与 P1 共用组件、不另造。
+/// 字节直读预览（Box 文件用）：加载字节后图片走统
+/// 一查看器（0.36.4，data 源单图集合），其余落临
+/// 时文件走 QuickLook 原生预览——共用组件、不另造。
 struct DataFilePreviewView: View {
     @Environment(\.dismiss) private var dismiss
     let name: String
@@ -202,7 +202,7 @@ struct DataFilePreviewView: View {
     var body: some View {
         Group {
             if let imageItem {
-                ImageFullScreenView(item: imageItem)
+                ImageViewerView(items: [imageItem], initialIndex: 0)
             } else if let quickLookItem {
                 VStack(spacing: 0) {
                     HStack {

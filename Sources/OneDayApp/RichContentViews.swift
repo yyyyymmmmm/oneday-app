@@ -268,9 +268,11 @@ struct ServerRemoteImage: View {
 // MARK: - 全屏图片查看器
 
 /// 全屏查看载荷：本地字节（刚发送的消息）或服务端路径
-/// （历史消息，查看器内取回）
-struct ChatImageViewerItem: Identifiable {
-    enum Source {
+/// （历史消息，查看器内取回）。0.36.4 起它是集合元
+/// 素（ImageViewerView 的 items）——单图呈现退役，
+/// 单图场景即一条集合。
+struct ChatImageViewerItem: Identifiable, Hashable {
+    enum Source: Hashable {
         case data(Data)
         case remotePath(String)
     }
@@ -287,112 +289,22 @@ struct ChatImageViewerItem: Identifiable {
     }
 }
 
-/// 全屏图片查看（系统式手势）：双指缩放、双击放大/复
-/// 原、未放大时下滑关闭。缩放走 UIScrollView 本体
-/// （ZoomableImageView），不自绘手势数学。
-struct ImageFullScreenView: View {
-    let item: ChatImageViewerItem
-    @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
-    @State private var image: UIImage?
-    @State private var loadFailed = false
-    @State private var isZoomed = false
-    @State private var dragOffset: CGFloat = 0
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            if let image {
-                ZoomableImageView(image: image, isZoomed: $isZoomed)
-                    .offset(y: isZoomed ? 0 : dragOffset)
-                    .ignoresSafeArea()
-            } else if loadFailed {
-                Text("图片加载失败，请稍后再试。")
-                    .font(.callout)
-                    .foregroundStyle(.white)
-            } else {
-                ProgressView()
-                    .tint(.white)
-            }
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                Color.white.opacity(0.18), in: Circle()
-                            )
-                            // 0.23.0（命中域审计）：视觉盘 36
-                            // 不变、命中域外扩 44（盘居中）
-                            .frame(
-                                width: OneDayMetrics.minTapTarget,
-                                height: OneDayMetrics.minTapTarget
-                            )
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("关闭")
-                }
-                Spacer()
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .padding(.top, OneDayMetrics.spacingS)
-        }
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    if !isZoomed, value.translation.height > 0 {
-                        dragOffset = value.translation.height
-                    }
-                }
-                .onEnded { value in
-                    if !isZoomed, value.translation.height > 110 {
-                        dismiss()
-                    } else {
-                        dragOffset = 0
-                    }
-                }
-        )
-        .task { await load() }
-    }
-
-    private func load() async {
-        switch item.source {
-        case .data(let data):
-            image = UIImage(data: data)
-            if image == nil { loadFailed = true }
-        case .remotePath(let path):
-            if let hit = ServerImageCache.shared.data(for: path),
-               let cached = UIImage(data: hit) {
-                image = cached
-                return
-            }
-            do {
-                let fetched = try await appState.performAdmin {
-                    client, config in
-                    try await client.fileData(
-                        config: config, path: path
-                    )
-                }
-                ServerImageCache.shared.store(fetched, for: path)
-                image = UIImage(data: fetched)
-                if image == nil { loadFailed = true }
-            } catch {
-                loadFailed = true
-            }
-        }
-    }
-}
+/// （ImageFullScreenView 已于 0.36.4 退役：单图黑
+/// 底查看器被 ImageViewerView 取代——集合分页＋卡
+/// 态/沉浸双态＋系统转场，见 ImageViewerView.swift。
+/// 本段只留墓碑防后人误以为还有第二套查看器。）
 
 /// UIScrollView 缩放承载：min 1×／max 4×，双击在点位
-/// 放大到 2.5×、已放大则复原
+/// 放大到 2.5×、已放大则复原。0.36.4 增补两件（图
+/// 片查看器双态用）：单击回调（须等双击落空才触
+/// 发——识别器失败依赖在此配好，宿主不自理）与缩
+/// 放复位令牌（令牌变化且正放大时拉回 1×，供卡
+/// 态恒 1× 呈现）。
 struct ZoomableImageView: UIViewRepresentable {
     let image: UIImage
     @Binding var isZoomed: Bool
+    var resetToken: Int = 0
+    var onSingleTap: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> UIScrollView {
         let scrollView = UIScrollView()
@@ -406,16 +318,31 @@ struct ZoomableImageView: UIViewRepresentable {
         imageView.contentMode = .scaleAspectFit
         scrollView.addSubview(imageView)
         context.coordinator.imageView = imageView
+        context.coordinator.lastResetToken = resetToken
         let doubleTap = UITapGestureRecognizer(
             target: context.coordinator,
             action: #selector(Coordinator.handleDoubleTap(_:))
         )
         doubleTap.numberOfTapsRequired = 2
         scrollView.addGestureRecognizer(doubleTap)
+        let singleTap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleSingleTap(_:))
+        )
+        singleTap.require(toFail: doubleTap)
+        scrollView.addGestureRecognizer(singleTap)
         return scrollView
     }
 
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        context.coordinator.onSingleTap = onSingleTap
+        if resetToken != context.coordinator.lastResetToken {
+            context.coordinator.lastResetToken = resetToken
+            if scrollView.zoomScale > 1.01 {
+                scrollView.setZoomScale(1, animated: false)
+                isZoomed = false
+            }
+        }
         guard let imageView = context.coordinator.imageView
         else { return }
         if scrollView.zoomScale <= 1.01 {
@@ -432,6 +359,8 @@ struct ZoomableImageView: UIViewRepresentable {
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
         var imageView: UIImageView?
+        var onSingleTap: (() -> Void)?
+        var lastResetToken = 0
         private let isZoomed: Binding<Bool>
 
         init(isZoomed: Binding<Bool>) {
@@ -444,6 +373,12 @@ struct ZoomableImageView: UIViewRepresentable {
 
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
             isZoomed.wrappedValue = scrollView.zoomScale > 1.05
+        }
+
+        @objc func handleSingleTap(
+            _ gesture: UITapGestureRecognizer
+        ) {
+            onSingleTap?()
         }
 
         @objc func handleDoubleTap(
