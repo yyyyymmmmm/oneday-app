@@ -5158,5 +5158,9 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 设计宪法：①录音条一屏一主角（波形＋计时）②数值出自标尺（间距走 OneDayMetrics、键径 ComposerLayout.buttonHeight）③不新增分隔面 ④图标全 SF Symbols 系统源（mic/xmark/checkmark/exclamationmark——无名功能面）⑤录音条无标题、预备页内容领头 ⑥层级≤3 ⑦同构列表（语言三选行）⑧文案零行话零外文（失败/预备页全中文人话、禁用词 8 词零命中）⑨可点必有指示、点必有反馈（✓ 准备中禁用＋淡化、失败行带动作）⑩仿机制：点按切换＋流式灰字＋落框可改照大厂共识（ChatGPT 按住式回滚为反例据）。动效宪法：触感按表 D 新行投放；波形动画为真实电平驱动的信息承载（非装饰）、Reduce Motion 降为单条电平尺；无新增弹簧面。续编：S1 冷启动禁问（只在点 mic 时）、S2 问前预备页、S3 系统权限与功能分开说、S4 被拒有降级（去设置＋键盘听写）、S10 报错三段式、状态呈现各相位齐备（准备中带进度、录音中波形计时、失败带行）。
 
 ### 71.5 验收与诚实边界
-- CI/单测/IPA 数据见本节补记（交付时回填）。
+- 提交链：6920e2d（整包）→2b0f049（CI 修一：DictationViews 补 import OneDayDesign；assetInstallationRequest 实为 throws 补 try）→81602be（CI 修二：波形断言 bars.last 为 Optional 改下标）→本节回填补记；代码顶端 81602be。首轮 CI 42812243954 failure＝上述两类编译错，第二轮 42812742797 failure＝测试编译一处，第三轮绿。
+- CI：42813499346 **success**，独立计数 **696 tests 全过、0 failures**（基线 677＋新增 DictationTests 19，只增不减；日志逐条 Test Case passed 去重计）。
+- IPA：6,529,378 字节、md5 e69fe9b69b36731f665cbc35882af249、独立解包验 Info.plist＝0.36.6/73、NSMicrophoneUsageDescription 与 NSSpeechRecognitionUsageDescription 两条均在包内且为定版文案，落 ~/workspace/your_files/oneday-v0.36.6/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.6/73）＋SettingsView 页脚「OneDay v0.36.6」。
+- 总纲：动效宪法表 D 已增五行（开始/取消 impact light、落稿无、达上限 warning、失败打断归 error 行），motion-interaction-philosophy-20261110.md。
 - **待真机（不许假报）**：识别准确率与首字延迟；电平波形实感（tap 若为非 Float 格式，电平退化为 0、识别不受影响）；权限弹窗链（麦克风＋语音识别双弹窗的实际次序、SpeechAnalyzer 是否要求语音识别授权的运行时行为）；资产下载的真实耗时与进度形态；来电中断的真实触发；粤语 yue_CN 在真机资产的可用性；录音条与玻璃胶囊的高度衔接观感；染灰尾段在真机渲染的跟随感。
