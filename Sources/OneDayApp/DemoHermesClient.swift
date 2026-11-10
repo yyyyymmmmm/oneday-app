@@ -85,6 +85,78 @@ struct DemoHermesClient: HermesClientProtocol {
         }
     }
 
+    // MARK: 任务制生成（0.31.0 演示等价）：提交即回
+    // 假 run_id，事件流逐字产出定稿回复＋终态事件，
+    // 状态查询恒 completed 带全文——演示态同样走
+    // run 驱动全链（提交→订阅→终态）
+
+    func submitRun(
+        config: ServerConfig, apiKey: String, sessionID: String,
+        input: RunInput, model: String, provider: String?,
+        idempotencyKey: String
+    ) async throws -> RunSubmitResponse {
+        RunSubmitResponse(
+            runID: "demo-run", statusRaw: "started", replayed: false
+        )
+    }
+
+    func runStatus(
+        config: ServerConfig, apiKey: String, runID: String
+    ) async throws -> RunStatusResponse? {
+        RunStatusResponse(
+            runID: runID, status: .completed,
+            output: Self.demoReply, error: nil, sessionID: nil
+        )
+    }
+
+    func runEvents(
+        config: ServerConfig, apiKey: String, runID: String,
+        lastSeq: Int
+    ) -> AsyncStream<RunEventEnvelope> {
+        AsyncStream { continuation in
+            let task = Task {
+                let characters = Array(Self.demoReply)
+                var index = 0
+                var seq = 0
+                while index < characters.count {
+                    if Task.isCancelled {
+                        continuation.finish()
+                        return
+                    }
+                    let next = min(index + 1, characters.count)
+                    continuation.yield(RunEventEnvelope(
+                        seq: seq,
+                        event: .contentDelta(
+                            String(characters[index..<next])
+                        )
+                    ))
+                    seq += 1
+                    index = next
+                    try? await Task.sleep(for: .milliseconds(130))
+                }
+                continuation.yield(RunEventEnvelope(
+                    seq: seq,
+                    event: .terminal(
+                        kind: .completed, output: Self.demoReply
+                    )
+                ))
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func stopRun(
+        config: ServerConfig, apiKey: String, runID: String
+    ) async throws {
+        // 演示停止：静默成功（事件流由视图侧任务取消收尾）
+    }
+
+    /// 演示定稿回复（与 chatStream 旧演示同文）
+    static let demoReply = """
+        好。那我先从定时任务模块动手：列表、新建、暂停、立即触发、运行记录，五条接口都是现成的，第一版只做查看和启停，编辑放第二轮。做完先出包给你验，通过了我再碰技能和会话。
+        """
+
     func clearCookies(config: ServerConfig) {
         // 演示模式没有 cookie 可清
     }

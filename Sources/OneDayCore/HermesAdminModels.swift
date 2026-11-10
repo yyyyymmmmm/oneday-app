@@ -515,6 +515,16 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
     public let toolName: String?
     /// 服务端展示标签（按 call id 索引，可缺）
     public let toolCallLabels: [String: [SessionToolCallLabel]]
+    /// 思考全文（0.31.0 起解码；服务端 _message_
+    /// response 的 safe_keys 本就含 reasoning 与
+    /// reasoning_content，此前客户端未解。run 对账
+    /// 落定时思考以此回填——直播 events 无思考流）
+    public let reasoningContent: String?
+    public let reasoning: String?
+    /// 服务端展示分类（failed_turn＝失败边界行、
+    /// hidden＝不呈现；0.31.0 起解码，run 落定提取
+    /// 据此分型）
+    public let displayKind: String?
 
     enum CodingKeys: String, CodingKey {
         case id, role, content, timestamp
@@ -522,6 +532,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         case toolCallID = "tool_call_id"
         case toolName = "tool_name"
         case toolCallLabels = "tool_call_labels"
+        case reasoningContent = "reasoning_content"
+        case reasoning
+        case displayKind = "display_kind"
     }
 
     public init(from decoder: Decoder) throws {
@@ -539,6 +552,15 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         toolCallLabels = try container.decodeIfPresent(
             [String: [SessionToolCallLabel]].self, forKey: .toolCallLabels
         ) ?? [:]
+        reasoningContent = try container.decodeIfPresent(
+            String.self, forKey: .reasoningContent
+        )
+        reasoning = try container.decodeIfPresent(
+            String.self, forKey: .reasoning
+        )
+        displayKind = try container.decodeIfPresent(
+            String.self, forKey: .displayKind
+        )
     }
 
     /// 测试与拼装用直构（解码路径外）
@@ -546,7 +568,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         id: Double, role: String, content: String, timestamp: Double? = nil,
         toolCalls: [SessionToolCall] = [], toolCallID: String? = nil,
         toolName: String? = nil,
-        toolCallLabels: [String: [SessionToolCallLabel]] = [:]
+        toolCallLabels: [String: [SessionToolCallLabel]] = [:],
+        reasoningContent: String? = nil, reasoning: String? = nil,
+        displayKind: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -556,6 +580,9 @@ public struct SessionMessage: Decodable, Sendable, Identifiable {
         self.toolCallID = toolCallID
         self.toolName = toolName
         self.toolCallLabels = toolCallLabels
+        self.reasoningContent = reasoningContent
+        self.reasoning = reasoning
+        self.displayKind = displayKind
     }
 
     public var date: Date? {

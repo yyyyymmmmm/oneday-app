@@ -30,6 +30,40 @@ protocol HermesClientProtocol: Sendable {
         config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage],
         sessionID: String?
     ) -> AsyncThrowingStream<ChatStreamEvent, Error>
+
+    // MARK: 任务制生成（/v1/runs，0.31.0）
+
+    /// POST /v1/runs：提交一轮生成、立即返回 run_id
+    /// （生成与连接分家——提交成功后生成在服务端独
+    /// 立跑完，断线不取消）。sessionID 绑定既有服务
+    /// 端会话（历史以 state.db 为准）；idempotencyKey
+    /// 为本轮提交的幂等键（同 key＋同体重复提交＝重
+    /// 演原 run，不双跑）
+    func submitRun(
+        config: ServerConfig, apiKey: String, sessionID: String,
+        input: RunInput, model: String, provider: String?,
+        idempotencyKey: String
+    ) async throws -> RunSubmitResponse
+    /// GET /v1/runs/{id}：run 状态轮询（终态带 out-
+    /// put 全文）；404（记录过期/不存在）返回 nil，
+    /// 由调用方转 transcript 定性
+    func runStatus(
+        config: ServerConfig, apiKey: String, runID: String
+    ) async throws -> RunStatusResponse?
+    /// GET /v1/runs/{id}/events：结构化事件流（可按
+    /// lastSeq 重挂回放）。流自然结束/断开只 finish
+    /// 不抛错——「没看到终态」与「轮次失败」是两回
+    /// 事，定性归状态机＋status/transcript 对账
+    func runEvents(
+        config: ServerConfig, apiKey: String, runID: String,
+        lastSeq: Int
+    ) -> AsyncStream<RunEventEnvelope>
+    /// POST /v1/runs/{id}/stop：真取消（服务端对本
+    /// run 的 agent 发 hard interrupt，终态 cance-
+    /// lled；与旧 chat 通道「断流假取消」本质不同）
+    func stopRun(
+        config: ServerConfig, apiKey: String, runID: String
+    ) async throws
     /// 清除某服务器的全部会话 cookie（断开连接时调用）
     func clearCookies(config: ServerConfig)
 
@@ -621,6 +655,183 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             continuation.onTermination = { _ in
                 task.cancel()
             }
+        }
+    }
+
+    // MARK: - 任务制生成（/v1/runs，0.31.0）
+
+    func submitRun(
+        config: ServerConfig, apiKey: String, sessionID: String,
+        input: RunInput, model: String, provider: String?,
+        idempotencyKey: String
+    ) async throws -> RunSubmitResponse {
+        var request = URLRequest(url: config.endpoint("/v1/runs"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        request.setValue(
+            idempotencyKey, forHTTPHeaderField: "Idempotency-Key"
+        )
+        var payload: [String: Any] = [
+            "session_id": sessionID,
+            "input": try input.encodedValue(),
+            "model": model,
+        ]
+        // 逐请求切上游与 chat 通道同口径（§15）：清单
+        // 内模型带 provider=custom 才按名落上游渠道
+        if let provider {
+            payload["provider"] = provider
+        }
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: payload
+        )
+        let (data, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200...299:
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "发送接口", status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(
+                RunSubmitResponse.self, from: data
+            )
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "发送接口")
+        }
+    }
+
+    func runStatus(
+        config: ServerConfig, apiKey: String, runID: String
+    ) async throws -> RunStatusResponse? {
+        var request = URLRequest(
+            url: config.endpoint("/v1/runs/\(runID)")
+        )
+        request.timeoutInterval = 30
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        let (data, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200:
+            break
+        case 404:
+            return nil
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "生成状态接口", status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(
+                RunStatusResponse.self, from: data
+            )
+        } catch {
+            throw HermesError.decodingFailed(
+                endpoint: "生成状态接口"
+            )
+        }
+    }
+
+    func runEvents(
+        config: ServerConfig, apiKey: String, runID: String,
+        lastSeq: Int
+    ) -> AsyncStream<RunEventEnvelope> {
+        AsyncStream { continuation in
+            let task = Task {
+                do {
+                    var request = URLRequest(
+                        url: config.endpoint(
+                            "/v1/runs/\(runID)/events"
+                        )
+                    )
+                    // 事件缓冲只保留约 300 秒且终态后流自
+                    // 关：单次订阅超时放宽到 10 分钟与旧
+                    // 流同口径，靠服务端关流/终态事件收尾
+                    request.timeoutInterval = 600
+                    request.setValue(
+                        "Bearer \(apiKey)",
+                        forHTTPHeaderField: "Authorization"
+                    )
+                    request.setValue(
+                        "text/event-stream",
+                        forHTTPHeaderField: "Accept"
+                    )
+                    if lastSeq >= 0 {
+                        request.setValue(
+                            String(lastSeq),
+                            forHTTPHeaderField: "Last-Event-ID"
+                        )
+                    }
+                    let (bytes, response) = try await session.bytes(
+                        for: request
+                    )
+                    guard let http = response as? HTTPURLResponse,
+                          http.statusCode == 200 else {
+                        // 404（缓冲已扫/记录过期）等一律静
+                        // 默收尾：定性归状态轮询与 trans-
+                        // cript 对账，不在此抛错
+                        continuation.finish()
+                        return
+                    }
+                    var parser = RunEventParser()
+                    for try await line in bytes.lines {
+                        if Task.isCancelled { break }
+                        if let envelope = parser.consume(line: line) {
+                            continuation.yield(envelope)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    // 流断（切后台被掐/网络抖动）只收尾：
+                    // 状态机据「未见终态」进结果未知，绝
+                    // 不在此映射成网络错误（0.31.0 铁律）
+                    continuation.finish()
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func stopRun(
+        config: ServerConfig, apiKey: String, runID: String
+    ) async throws {
+        var request = URLRequest(
+            url: config.endpoint("/v1/runs/\(runID)/stop")
+        )
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue(
+            "Bearer \(apiKey)", forHTTPHeaderField: "Authorization"
+        )
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        request.httpBody = Data("{}".utf8)
+        let (_, http) = try await dataRequest(request)
+        switch http.statusCode {
+        case 200...299, 404, 409:
+            // 404/409＝run 已不在活动态（已终态/记录过
+            // 期）：停止的目的已达或无从施加，均按受理
+            // 处理，终局由对账定性
+            break
+        case 401, 403:
+            throw HermesError.apiKeyRejected
+        default:
+            throw HermesError.unexpectedStatus(
+                endpoint: "停止接口", status: http.statusCode
+            )
         }
     }
 

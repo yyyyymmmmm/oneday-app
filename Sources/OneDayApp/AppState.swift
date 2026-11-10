@@ -91,6 +91,9 @@ final class AppState {
     /// 旁聊语义状态（0.7.0）：主线钦定/归档/标题覆盖/轻保活，
     /// 演示模式纯内存不落盘（见 SideChatStore）
     let sideChats: SideChatStore
+    /// 未落定 run 账本（0.31.0）：生成中切后台/杀进程
+    /// 后靠它恢复对账（ChatView 驱动消费）
+    let runLedger: RunLedgerStore
 
     /// 总览桥鉴权失败旗（0.7.0）：由 OverviewBridgeStore
     /// 在每轮刷新时回写——桥钥匙未粘（noKey）或被拒
@@ -188,6 +191,7 @@ final class AppState {
         self.client = client
         isDemo = demoMode.isDemo
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
+        runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
         switch demoMode {
         case .connected:
             // 演示会话：地址与账号只是展示数据，密钥由假客户端消化

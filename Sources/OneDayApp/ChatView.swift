@@ -53,38 +53,37 @@ struct ChatView: View {
     /// 正文/思考两条通道的发布合并闸（0.5.1，§32，
     /// OneDayCore.StreamPublishGate）：增量先攒缓冲、
     /// 按 80ms 窗或 64 字阈值合并发布，与 streamFollow-
-    /// Gate（管滚动）分工互不替代；runStream 起止归零
+    /// Gate（管滚动）分工互不替代；run 驱动起止归零
     @State private var contentPublishGate = StreamPublishGate()
     @State private var reasoningPublishGate = StreamPublishGate()
     /// Qwen 冷启唤醒重试中（0.3.0 接线，§15）：等待行亮
     /// 「模型唤醒中」提示
     @State private var isWakingModel = false
     @State private var sendTask: Task<Void, Never>?
-    /// 本轮流式是否经历过后台（0.20.0）：scenePhase 离
-    /// 开 .active 且发送中时置 true，runStream 入口归
-    /// 零；失败分型（StreamFailure）与对账恢复据此——
-    /// 同一瞬断错误，经历过后台＝生命周期中断、没经
-    /// 历＝前台网络瞬断，两条路不许混报
-    @State private var backgroundedDuringStream = false
-    /// 生命周期中断的待恢复轮次（0.20.0）：只存内存
-    /// （进程被系统回收时记账随之消散，但半截回复已
-    /// 落盘不凭空消失）；回前台由 reconcileInterrupted-
-    /// Stream 消费
-    @State private var pendingRecovery: PendingStreamRecovery?
-    @State private var isRecoveringStream = false
-
-    /// 待恢复轮次记账：线程＋原发送上下文（重发恢复
-    /// 用，用户消息已落盘、重发不新增）＋中断时已落盘
-    /// 的半截条目 id（恢复时删半截防双份）；sessionID
-    /// （0.21.0）＝本轮出门时的会话头（会话模式/种子
-    /// 轮非 nil）——已链接线程落重发兜底时按原形态续
-    /// 同一会话，不许退回无状态重放另起炉灶
-    private struct PendingStreamRecovery {
-        let threadID: UUID
-        let messages: [ChatMessage]
-        let sessionID: String?
-        var partialEntryIDs: [UUID] = []
-    }
+    /// 本轮 run 的状态机（0.31.0）：相位与终态证据的
+    /// 单一出处（Core RunTurnStateMachine），驱动见
+    /// driveRun/reconcileRun。0.20.0 的切后台记账＋待
+    /// 恢复账（内存版）就此退役——记账改走持久账本
+    /// （AppState.runLedger），恢复不再靠「是否经历
+    /// 过后台」分型：断线恒为结果未知、恒走对账
+    @State private var runMachine = RunTurnStateMachine()
+    /// 正在驱动/对账的 run 所属线程（呈现状态只对它
+    /// 有意义；切线程时旧轮在后台任务里继续落定）
+    @State private var activeRunThreadID: UUID?
+    /// events 重挂的续传位（Last-Event-ID）
+    @State private var lastEventSeq = -1
+    /// 本轮是否经历过断线（落定时给「已重新连接」
+    /// 中性提示）
+    @State private var runWasDetached = false
+    /// 驱动在途标记（防 resume 与 send 双驱同一轮）
+    @State private var isDrivingRun = false
+    /// 已落盘的半截条目 id（落定时整段替换的名单）
+    @State private var livePartialEntryIDs: [UUID] = []
+    /// 终态事件携带的 output（transcript 滞后时的合
+    /// 成落定兜底；failed 时是服务端说明原文）
+    @State private var terminalOutputHint: String?
+    /// 终态状态回执（合成落定与失败文案的证据源）
+    @State private var terminalStatusHint: RunStatusResponse?
 
     /// 外观·聊天主题/形象大小（0.26.0）：本页观察两
     /// 键——主题变更即重渲本页（气泡/强调重新求值）、
@@ -155,7 +154,7 @@ struct ChatView: View {
     @State private var selectionPayload: SelectionPayload?
     /// 0.8.0（P1 富内容）：图片全屏查看与文件 QuickLook
     /// 预览的呈现载荷；流式工具卡列（累积完成即入列、
-    /// 本轮收尾落盘，见 runStream）
+    /// 本轮收尾落盘，见 driveRun）
     @State private var imageViewerItem: ChatImageViewerItem?
     @State private var filePreviewItem: ChatFilePreviewItem?
     @State private var liveToolCards: [ToolCard] = []
@@ -386,18 +385,18 @@ struct ChatView: View {
                 Task { await consumePendingChatSession(id) }
             }
         }
-        // 0.20.0 恢复链：切后台给正在生成的轮次记账
-        // （失败分型据此分辨生命周期中断与网络瞬断）；
-        // 回前台消费待恢复轮次（探活＋服务端对账＋必
-        // 要时自动重发，见 reconcileInterruptedStream）
+        // 0.31.0 恢复链（取代 0.20.0）：生成与连接分
+        // 家后切后台什么都不用记——events 流断了就是
+        // 结果未知，run 在服务端照常跑完；要做的只有
+        // 回前台/进线程时消费持久账本续对账（resume-
+        // RunIfNeeded，无账本即空转返回）
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active {
-                if sendTask != nil {
-                    backgroundedDuringStream = true
-                }
-            } else if pendingRecovery != nil {
-                Task { await reconcileInterruptedStream() }
+            if phase == .active {
+                Task { await resumeRunIfNeeded() }
             }
+        }
+        .task(id: currentThreadID) {
+            await resumeRunIfNeeded()
         }
         .onAppear {
             // 0.7.0（D1 主线钦定）：先落钦定——存量钦定且
@@ -2084,7 +2083,7 @@ private struct ComposerBarLayout: Layout {
 
 /// 发送舱右端状态机（0.2.5，对照 Muse 输入区）：胶囊内
     /// 的元素都是裸符号或单一小圆盘，不套圈不描边。
-    /// - 流式中：停止键（逻辑沿用 sendTask?.cancel()）
+    /// - 流式中：停止键（0.31.0 起走 requestRunStop 真取消）
     /// - 有可发送内容（文字或附件）：发送箭头
     /// - 空输入：裸麦克风符号占位（无圆盘底、无描边）
     /// 0.25.0（动效专包）：三态判定收敛 Core
@@ -2128,7 +2127,10 @@ private struct ComposerBarLayout: Layout {
     private var sendStopButton: some View {
         Button {
             if isStreaming {
-                sendTask?.cancel()
+                // 0.31.0：停止＝runs 真取消（requestRun-
+                // Stop 发服务端 stop），不再是旧通道的
+                // 本地断流假取消
+                requestRunStop()
             } else {
                 send()
             }
@@ -2493,7 +2495,7 @@ private struct ComposerBarLayout: Layout {
     }
 
     /// 当前连接配置（链接动作的网关面直发用；未连接
-    /// 时以 sessionExpired 抛——与 runStream 的未连
+    /// 时以 sessionExpired 抛——与 driveRun 的未连
     /// 接处理同错误面）
     private func requireConfig() throws -> ServerConfig {
         guard let config = appState.config else {
@@ -2644,7 +2646,7 @@ private struct ComposerBarLayout: Layout {
         let quote = pendingQuote
         guard !isStreaming, !text.isEmpty || !pending.isEmpty else { return }
         // 0.3.2：发送起手不再挂触觉——触感挪到结果点
-        // （流完成 .success / 失败 .warning，见 runStream）
+        // （run 完成 .success / 失败 .warning，见 driveRun）
         input = ""
         attachments = []
         pendingQuote = nil
@@ -2658,6 +2660,19 @@ private struct ComposerBarLayout: Layout {
             input = text
             attachments = pending
             pendingQuote = quote
+            return
+        }
+        // 0.31.0：本线程有未落定 run（切后台/杀进程遗
+        // 留或对账预算耗尽）时不许叠发新轮——同会话
+        // 同时至多一轮在飞（落定的段锚点靠它成立）；
+        // 输入原样退回、先触发旧轮对账，落定后再发
+        if appState.runLedger.entry(forThreadID: thread.id)
+            != nil {
+            input = text
+            attachments = pending
+            pendingQuote = quote
+            notice = "上一条还在生成中，正在确认结果，落定后可继续发送。"
+            Task { await resumeRunIfNeeded() }
             return
         }
         // 0.27.0：种子快照要在本轮条目落盘前取——链
@@ -2772,9 +2787,16 @@ private struct ComposerBarLayout: Layout {
                 sendTask = nil
                 return
             }
-            await runStream(
-                thread: thread, messages: shape.messages,
-                sessionID: shape.sessionID
+            // 0.31.0：发送通道迁 /v1/runs——会话模式的
+            // 载荷只取尾条这点不变（历史在服务端会话
+            // 里），变的只是投递与生成形态：提交得
+            // run_id、生成脱离连接、断线走对账
+            await driveRun(
+                thread: thread,
+                tail: shape.messages.last
+                    ?? ChatMessage(role: "user", content: text),
+                sessionID: shape.sessionID,
+                userEntry: newEntry
             )
         }
     }
@@ -2908,9 +2930,11 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 演示模式：种子对话的最后一句用户消息由假客户端流式回完，
-    /// 演示态能看到「半截回复＋流式光标」的流式效果。正常模式
-    /// 直接返回，零影响。
+    /// 演示模式：种子对话的最后一句用户消息由假客户端
+    /// 的 run 通道回完（0.31.0：演示也走 run 驱动——假
+    /// 客户端 submitRun/runEvents 产定稿回复，落定走
+    /// 状态 output 合成路径，不碰账本与 transcript）。
+    /// 正常模式直接返回，零影响。
     private func startDemoStreamIfNeeded() async {
         guard DemoMode.current.isDemo, !demoStreamStarted else {
             return
@@ -2927,206 +2951,542 @@ private struct ComposerBarLayout: Layout {
         demoStreamStarted = true
         // 等种子渲染落稳再开流，截图窗口对齐流式中段
         try? await Task.sleep(for: .seconds(1))
-        let context = thread.sortedEntries
-            .filter { $0.role == "user" || $0.role == "assistant" }
-            .suffix(20).map {
-            ChatMessage(role: $0.role, content: $0.content)
-        }
+        guard let userEntry = thread.sortedEntries
+            .last(where: { $0.role == "user" }) else { return }
         streamingText = ""
-        await runStream(thread: thread, messages: context)
+        await driveRun(
+            thread: thread,
+            tail: ChatMessage(role: "user", content: userEntry.content),
+            sessionID: nil, userEntry: userEntry, demoMode: true
+        )
     }
 
-    /// sessionID（0.21.0）：本轮会话头（会话模式/种
-    /// 子轮非 nil、旧链 nil）——透传 chatStream 并记
-    /// 进待恢复账（重发兜底按原形态续同一会话）
-    private func runStream(
-        thread: ChatThread, messages: [ChatMessage],
-        sessionID: String? = nil
+    // MARK: - Run 驱动（0.31.0，任务制生成）
+
+    /// 一轮 run 的全程驱动：提交（Idempotency-Key 同
+    /// key 重演兜底）→ events 订阅呈现 → 断线转对账
+    /// （状态轮询＋events 重挂＋transcript 落定）。旧
+    /// runStream（chat completions 单连接流）与 0.20.0
+    /// 的对账恢复（删半截以原上下文自动重发）整类退
+    /// 役：生成与连接分家后，断线只是「结果未知」，
+    /// 永不映射网络错误、永不自动重发（§58 铁律）。
+    private func driveRun(
+        thread: ChatThread, tail: ChatMessage,
+        sessionID: String?, userEntry: ChatEntry,
+        demoMode: Bool = false
     ) async {
-        guard let config = appState.config, let apiKey = appState.apiKey else {
+        guard let config = appState.config,
+              let apiKey = appState.apiKey else {
             streamingText = nil
             streamingReasoning = nil
             reasoningStartedAt = nil
             errorMessage = HermesError.sessionExpired.userMessage
-            // 结果触感（0.3.2 纪律）：发送失败 .warning
             Haptics.warning()
+            sendTask = nil
             return
         }
-        // 0.5.1（§32）：发布合并——SSE 增量先过发布闸
-        // （OneDayCore.StreamPublishGate）攒缓冲，按
-        // 80ms 窗／64 字阈值合并后才写 @State，下游
-        // StreamingText 不再逐增量整串重分词。本轮两闸
-        // 与思考计时先归零；精确全文恒由闸的 fullText
-        // 记账（已发布＋待发布），落盘走它、节流不丢字
+        isDrivingRun = true
+        defer { isDrivingRun = false }
+        runMachine = RunTurnStateMachine()
+        activeRunThreadID = thread.id
+        lastEventSeq = -1
+        livePartialEntryIDs = []
+        runWasDetached = false
+        terminalOutputHint = nil
+        terminalStatusHint = nil
         contentPublishGate.reset()
         reasoningPublishGate.reset()
         streamingReasoning = nil
         reasoningStartedAt = nil
-        // 0.20.0：后台记账按轮归零（scenePhase 离开前台
-        // 时由本页 onChange 置 true，只认本轮经历）
-        backgroundedDuringStream = false
-        var reasoningEndedAt: Date?
-        var retried = false
-        var failed = false
-        /// 本轮是否被生命周期中断（切后台杀流）：中断不
-        /// 报错、不算失败，收尾记待恢复待回前台对账
-        var interrupted = false
-        /// 中断时已落盘的半截条目 id（恢复时删半截防双份）
-        var persistedPartialIDs: [UUID] = []
-        // 发布巡查 ticker：窗口到期把攒着的增量推给视图
-        // ——低速流的尾巴增量靠它到期，不必等下一个增
-        // 量到达；40ms 一查（半窗粒度），runStream 退
-        // 出即取消
+        isWakingModel = appState.chatModel
+            == ChatModels.coldStartID
+        // 输入组装：尾条纯文本走字符串形态、多模态走
+        // 单元素消息形态（探针实测两形态均成立）
+        let input: RunInput = tail.parts == nil
+            ? .text(tail.content) : .message(tail)
+        let provider = ChatModels.providerField(
+            for: appState.chatModel
+        )
+        var ledgerEntry = RunLedgerEntry(
+            threadID: thread.id.uuidString,
+            sessionID: sessionID ?? "",
+            runID: nil,
+            idempotencyKey: UUID().uuidString,
+            userEntryID: userEntry.id.uuidString,
+            submittedAt: Date()
+        )
+        if !demoMode {
+            // 提交前先落账：进程在此后任何时点被杀，回
+            // 来靠账本＋同 key 重演取回本轮（不双跑）
+            appState.runLedger.upsert(ledgerEntry)
+        }
+        // 提交：瞬断同 key 重试至多两次（受理回执丢失
+        // 时重演回原 run）；明确拒绝才是真失败；耗尽
+        // 仍不明＝结果未知，进对账不定性为错误
+        var submitError: HermesError?
+        var attempts = 0
+        while true {
+            do {
+                let response = try await appState.client.submitRun(
+                    config: config, apiKey: apiKey,
+                    sessionID: sessionID ?? "",
+                    input: input, model: appState.chatModel,
+                    provider: provider,
+                    idempotencyKey: ledgerEntry.idempotencyKey
+                )
+                ledgerEntry.runID = response.runID
+                if !demoMode {
+                    appState.runLedger.upsert(ledgerEntry)
+                }
+                runMachine.apply(.submitAccepted)
+                submitError = nil
+                break
+            } catch let error as HermesError {
+                if Task.isCancelled {
+                    // 提交窗口内被停止：账本留停止意图、
+                    // 本地静默收尾；下次进本线程时对账链
+                    // 重演取回 run 并真停止（resumeRun-
+                    // IfNeeded），不在此处假装已取消
+                    ledgerEntry.stopRequested = true
+                    if !demoMode {
+                        appState.runLedger.upsert(ledgerEntry)
+                    }
+                    runMachine.apply(.stopRequested)
+                    finishRunPresentation(failed: false)
+                    return
+                }
+                if error.isTransient, attempts < 2 {
+                    attempts += 1
+                    try? await Task.sleep(
+                        for: .milliseconds(1200)
+                    )
+                    continue
+                }
+                submitError = error
+                runMachine.apply(
+                    error.isTransient
+                        ? .submitAmbiguous : .submitRejected
+                )
+                break
+            } catch {
+                submitError = .unreachable("网络错误")
+                runMachine.apply(.submitAmbiguous)
+                break
+            }
+        }
+        if let submitError, runMachine.phase == .failed {
+            // 提交被明确拒绝（真失败）：本轮从未在服务
+            // 端成立——消息留痕、横幅照实报、账本清除
+            if !demoMode {
+                appState.runLedger.remove(threadID: thread.id)
+            }
+            errorMessage = submitError.userMessage
+            finishRunPresentation(failed: true)
+            return
+        }
+        if case .generating(_) = runMachine.phase {
+            await followRunEvents(
+                thread: thread, entry: ledgerEntry,
+                demoMode: demoMode
+            )
+        }
+        if !runMachine.isSettled {
+            await reconcileRun(
+                thread: thread, entry: &ledgerEntry,
+                demoMode: demoMode
+            )
+        }
+    }
+
+    /// events 订阅呈现：增量过发布闸、工具卡实时拼
+    /// 装、思考预览（若服务端发出）同路；见到终态事
+    /// 件记账返回，流自结束（断线/缓冲过期）按「未见
+    /// 终态」进结果未知——不在此报错、不做失败分型
+    private func followRunEvents(
+        thread: ChatThread, entry: RunLedgerEntry,
+        demoMode: Bool
+    ) async {
+        guard let runID = entry.runID,
+              let config = appState.config,
+              let apiKey = appState.apiKey else { return }
+        // 发布巡查 ticker（旧 runStream 同制：40ms 一
+        // 查，窗口到期把攒着的增量推给视图；订阅期外
+        // 无增量可推，ticker 随订阅生灭）
         let publishTicker = Task { @MainActor in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(40))
                 if Task.isCancelled { break }
                 let now = ProcessInfo.processInfo.systemUptime
-                if let snapshot = contentPublishGate.collectDue(at: now) {
+                if let snapshot = contentPublishGate
+                    .collectDue(at: now) {
                     streamingText = snapshot
                 }
-                if let snapshot = reasoningPublishGate.collectDue(at: now) {
+                if let snapshot = reasoningPublishGate
+                    .collectDue(at: now) {
                     streamingReasoning = snapshot
                 }
             }
         }
         defer { publishTicker.cancel() }
-        while true {
-            do {
-                let stream = appState.client.chatStream(
-                    config: config, apiKey: apiKey,
-                    model: appState.chatModel, messages: messages,
-                    sessionID: sessionID
+        let stream = appState.client.runEvents(
+            config: config, apiKey: apiKey,
+            runID: runID, lastSeq: lastEventSeq
+        )
+        for await envelope in stream {
+            if let seq = envelope.seq { lastEventSeq = seq }
+            let now = ProcessInfo.processInfo.systemUptime
+            switch envelope.event {
+            case .contentDelta(let delta),
+                 .interim(let delta):
+                if !delta.isEmpty {
+                    isWakingModel = false
+                    if let snapshot = contentPublishGate
+                        .offer(delta, at: now) {
+                        streamingText = snapshot
+                    }
+                }
+            case .reasoningPreview(let text):
+                if reasoningStartedAt == nil {
+                    reasoningStartedAt = Date()
+                }
+                if let snapshot = reasoningPublishGate
+                    .offer(text, at: now) {
+                    streamingReasoning = snapshot
+                }
+            case .toolStarted(let id, let name, let preview):
+                appendLiveToolCard(
+                    id: id, name: name, preview: preview
                 )
-                for try await event in stream {
-                    let now = ProcessInfo.processInfo.systemUptime
-                    switch event {
-                    case .content(let delta):
-                        // 首个正文增量到达＝思考计时终点
-                        if reasoningStartedAt != nil, reasoningEndedAt == nil {
-                            reasoningEndedAt = Date()
-                        }
-                        if let snapshot = contentPublishGate.offer(delta, at: now) {
-                            streamingText = snapshot
-                        }
-                    case .reasoning(let delta):
-                        if reasoningStartedAt == nil {
-                            reasoningStartedAt = Date()
-                        }
-                        if let snapshot = reasoningPublishGate.offer(delta, at: now) {
-                            streamingReasoning = snapshot
-                        }
-                    case .toolCall(let card):
-                        // 0.8.0：流内拼装完成的工具调用入
-                        // 列呈现（同 id 只入一次，重试轮的
-                        // 重复分片不叠卡）
-                        if !liveToolCards.contains(
-                            where: { $0.id == card.id }
-                        ) {
-                            liveToolCards.append(card)
-                        }
-                    }
-                }
-                break
-            } catch {
-                // 0.20.0 失败分型（Core StreamFailure，用
-                // 户 23:42 定性纠正）：同一瞬断错误按「本
-                // 轮是否经历过后台」分三路——
-                // ①生命周期中断（切后台杀流）：不报错、
-                // 不在后台硬重试，置 interrupted 记账，
-                // 回前台走对账恢复（reconcileInterrupted-
-                // Stream）；旧行为把这条路与网络失败同
-                // 报「连不上服务器」是误报出处；
-                // ②前台瞬断：未产出任何内容时自动重试
-                // 一次（短暂等待让网络路径喘息）；
-                // ③其余真失败：照实报错。
-                // Qwen 冷启唤醒重试（0.3.0 接线，§15）并
-                // 入同闸：未产出＋未重试过才许，口径不变。
-                let hermesError = error as? HermesError
-                let failureKind = hermesError.map {
-                    StreamFailure.kind(
-                        error: $0,
-                        wasBackgrounded: backgroundedDuringStream
-                    )
-                } ?? .fatal
-                if failureKind == .lifecycleInterrupted {
-                    interrupted = true
-                    break
-                }
-                var shouldRetry = false
-                var retryIsTransient = false
-                if !contentPublishGate.hasContent,
-                   !reasoningPublishGate.hasContent, !retried {
-                    if failureKind == .transient {
-                        shouldRetry = true
-                        retryIsTransient = true
-                    } else if appState.chatModel
-                        == ChatModels.coldStartID {
-                        if let hermesError {
-                            if case .cancelled = hermesError {
-                                shouldRetry = false
-                            } else {
-                                shouldRetry = true
-                            }
-                        } else {
-                            shouldRetry = true
-                        }
-                    }
-                }
-                if shouldRetry {
-                    retried = true
-                    if retryIsTransient {
-                        try? await Task.sleep(
-                            for: .milliseconds(1200)
-                        )
-                    } else {
-                        isWakingModel = true
-                    }
-                    continue
-                }
-                // 停止生成（cancelled）不报错：已生成的半截照常落盘
-                if let hermesError = error as? HermesError {
-                    if case .cancelled = hermesError {
-                        // 用户主动停止，静默收尾（不算失败、无触感）
-                    } else {
-                        errorMessage = hermesError.userMessage
-                        failed = true
-                    }
-                } else {
-                    errorMessage = "发送失败，请稍后再试。"
-                    failed = true
-                }
-                break
+            case .toolCompleted(
+                let id, let name, let preview, let failed
+            ):
+                completeLiveToolCard(
+                    id: id, name: name, preview: preview,
+                    failed: failed
+                )
+            case .terminal(let kind, let output):
+                terminalOutputHint = output
+                runMachine.apply(.statusTerminal(kind))
+                return
+            case .other:
+                continue
             }
         }
-        // 收尾 flush：残余增量精确发布（不多不少），流结
-        // 束/取消同路；落盘随后以条目变化接管最后一贴
-        let flushNow = ProcessInfo.processInfo.systemUptime
-        if let snapshot = contentPublishGate.flush(at: flushNow) {
-            streamingText = snapshot
+        // 流结束而未见终态：结果未知（非错误）。半截
+        // 先落盘，进程被回收也不凭空消失
+        if !runMachine.isSettled,
+           case .generating(_) = runMachine.phase {
+            runMachine.apply(.streamLost)
+            runWasDetached = true
+            persistRunPartials(thread: thread)
         }
-        if let snapshot = reasoningPublishGate.flush(at: flushNow) {
-            streamingReasoning = snapshot
+    }
+
+    private func appendLiveToolCard(
+        id: String, name: String, preview: String
+    ) {
+        let cardID = id.isEmpty ? "live-\(lastEventSeq)" : id
+        guard !liveToolCards.contains(
+            where: { $0.id == cardID }
+        ) else { return }
+        let title = ToolCardClassifier.title(
+            forToolName: name, arguments: ""
+        ) ?? ToolCardClassifier.shortName(forToolName: name)
+            .replacingOccurrences(of: "_", with: " ")
+        liveToolCards.append(ToolCard(
+            id: cardID, toolName: name,
+            category: ToolCardClassifier.category(
+                forToolName: name
+            ),
+            title: title, summary: preview,
+            result: nil, resultFailed: false
+        ))
+    }
+
+    private func completeLiveToolCard(
+        id: String, name: String, preview: String,
+        failed: Bool
+    ) {
+        let cardID = id.isEmpty ? "live-\(lastEventSeq)" : id
+        guard let index = liveToolCards.firstIndex(
+            where: { $0.id == cardID }
+        ) else {
+            appendLiveToolCard(id: id, name: name, preview: "")
+            completeLiveToolCard(
+                id: id, name: name, preview: preview,
+                failed: failed
+            )
+            return
         }
-        isWakingModel = false
-        let accumulated = contentPublishGate.fullText
-        let reasoningText = reasoningPublishGate.fullText
-        // 思考耗时（落盘口径）：首个思考增量→首个正文
-        // 增量，未产正文时到流结束；无思考为 nil
-        var reasoningSeconds: Double?
-        if let started = reasoningStartedAt {
-            let ended = reasoningEndedAt ?? Date()
-            reasoningSeconds = (ended.timeIntervalSince(started) * 10)
-                .rounded() / 10
+        let old = liveToolCards[index]
+        liveToolCards[index] = ToolCard(
+            id: old.id, toolName: old.toolName,
+            category: old.category, title: old.title,
+            summary: old.summary, result: preview,
+            resultFailed: failed
+        )
+    }
+
+    /// 对账：以服务端为准把本轮落定。链路＝（缺
+    /// runID 时同 key 重演取回）→（停止意图先行发
+    /// stop）→ 状态轮询＋events 重挂＋transcript 落
+    /// 定（状态只报命运、transcript 才是成品；状态
+    /// 记录缺失时 transcript 单独定性）。预算（10 分
+    /// 钟）耗尽停在未知：账本保留、下次进本线程续对
+    /// 账，不报错、不重发。
+    private func reconcileRun(
+        thread: ChatThread, entry: inout RunLedgerEntry,
+        demoMode: Bool
+    ) async {
+        guard let config = appState.config,
+              let apiKey = appState.apiKey else { return }
+        if runMachine.phase == .unknown {
+            runMachine.apply(.foregrounded)
         }
-        // 0.8.0：流内工具卡先落盘（排在助手正文之前，
-        // createdAt 以毫秒错开保序——同刻多条的排序靠
-        // 它），再落助手正文；只有卡没有正文的轮次也
-        // 要落盘（agent 只调工具不说话时卡不丢）
+        let deadline = Date().addingTimeInterval(600)
+        var transcriptMisses = 0
+        while !runMachine.isSettled {
+            if Task.isCancelled { return }
+            // runID 缺失（受理回执丢失/提交窗口被杀）：
+            // 同 key 重演取回——服务端幂等保证不双跑
+            if entry.runID == nil {
+                guard let replayInput = runReplayInput(
+                    thread: thread, entry: entry
+                ) else {
+                    // 用户条目已不在（线程被清）：本轮无
+                    // 从恢复，清账收尾
+                    if !demoMode {
+                        appState.runLedger.remove(
+                            threadID: thread.id
+                        )
+                    }
+                    finishRunPresentation(failed: false)
+                    return
+                }
+                do {
+                    let response = try await appState.client
+                        .submitRun(
+                            config: config, apiKey: apiKey,
+                            sessionID: entry.sessionID,
+                            input: replayInput,
+                            model: appState.chatModel,
+                            provider: ChatModels.providerField(
+                                for: appState.chatModel
+                            ),
+                            idempotencyKey: entry.idempotencyKey
+                        )
+                    entry.runID = response.runID
+                    if !demoMode {
+                        appState.runLedger.upsert(entry)
+                    }
+                    runMachine.apply(.submitAccepted)
+                } catch {
+                    if Date() > deadline { break }
+                    try? await Task.sleep(for: .seconds(3))
+                    continue
+                }
+            }
+            guard let runID = entry.runID else { continue }
+            // 停止意图先行（账本/机器任一置位）
+            if runMachine.stopRequested || entry.stopRequested {
+                if !runMachine.stopRequested {
+                    runMachine.apply(.stopRequested)
+                }
+                try? await appState.client.stopRun(
+                    config: config, apiKey: apiKey, runID: runID
+                )
+            }
+            // 已有终态证据（events 先行到达）：trans-
+            // cript 落定；迟迟不落（或演示态无 trans-
+            // cript）以状态 output 合成落定
+            if runMachine.terminalKind != nil {
+                if !demoMode,
+                   await settleRunFromTranscript(
+                       thread: thread, entry: entry
+                   ) {
+                    return
+                }
+                transcriptMisses += 1
+                if demoMode || transcriptMisses >= 2 {
+                    settleRunFromStatusOutput(
+                        thread: thread, entry: entry
+                    )
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(1500))
+                continue
+            }
+            // 状态轮询
+            let status = try? await appState.client.runStatus(
+                config: config, apiKey: apiKey, runID: runID
+            )
+            switch status {
+            case .some(let value) where value.status.isTerminal:
+                terminalStatusHint = value
+                runMachine.apply(.statusTerminal(value.status))
+            case .some(let value) where value.status.isActive:
+                runMachine.apply(.statusRunning)
+                // 仍在生成：重挂 events 续看（缓冲还在
+                // 能接上直播；已扫则流立即结束回轮询）
+                await followRunEvents(
+                    thread: thread, entry: entry,
+                    demoMode: demoMode
+                )
+                if runMachine.terminalKind != nil { continue }
+                // 缓冲已扫时 events 会立即空转返回：轮询
+                // 必须带间隔，防忙循环空烧
+                try? await Task.sleep(for: .seconds(2))
+                if Date() > deadline { break }
+            case .some:
+                // 状态词无法归类：无证据，继续轮询
+                try? await Task.sleep(for: .seconds(3))
+            case .none:
+                // 状态记录查不到（过期/未持久化）：转
+                // transcript 单独定性
+                runMachine.apply(.statusMissing)
+                if await settleRunFromTranscript(
+                    thread: thread, entry: entry
+                ) {
+                    return
+                }
+                try? await Task.sleep(for: .seconds(3))
+            }
+            if Date() > deadline { break }
+        }
+        if !runMachine.isSettled {
+            runMachine.apply(.settleExhausted)
+            // 体面出口：生成仍在服务端进行（或结果待
+            // 查），账本保留、下次进本线程自动续对账
+            persistRunPartials(thread: thread)
+            notice = "生成仍在服务器进行中，稍后回到本对话会自动补齐结果。"
+            finishRunPresentation(failed: false)
+        }
+    }
+
+    /// 同 key 重演提交的输入重建：源头是本地用户条目
+    /// 本身（正文＋引用折叠＋图片），不另存载荷副本
+    private func runReplayInput(
+        thread: ChatThread, entry: RunLedgerEntry
+    ) -> RunInput? {
+        guard let userEntry = thread.entries.first(
+            where: { $0.id.uuidString == entry.userEntryID }
+        ) else { return nil }
+        let text = MessageQuote.outgoingContent(
+            userText: userEntry.content, quote: userEntry.quote
+        )
+        if let imageData = userEntry.imageData {
+            return .message(ChatMessage(
+                role: "user", text: text,
+                imageDataURLs: [
+                    "data:image/jpeg;base64,"
+                        + imageData.base64EncodedString()
+                ]
+            ))
+        }
+        return .text(text)
+    }
+
+    /// transcript 落定：拉服务端会话历史、提取本轮段
+    /// （Core RunTranscriptSettle）、整段替换本地半
+    /// 截。段已落定返回 true；尚未出现（服务端还没
+    /// flush 完）返回 false 由对账重试
+    private func settleRunFromTranscript(
+        thread: ChatThread, entry: RunLedgerEntry
+    ) async -> Bool {
+        guard let messages = try? await appState
+            .performAdmin({ client, cfg in
+                try await client.sessionMessages(
+                    config: cfg, id: entry.sessionID
+                )
+            }) else { return false }
+        let settled = RunTranscriptSettle.settle(
+            messages: messages
+        )
+        guard settled.found else {
+            runMachine.apply(.transcriptPending)
+            return false
+        }
+        // transcript-only 定性（无状态证据）时先把段的
+        // 性质喂给状态机：失败段＝failed；停止意图在
+        // 场＝cancelled；其余＝completed
+        if runMachine.terminalKind == nil {
+            if settled.failed {
+                runMachine.apply(.statusTerminal(.failed))
+            } else if runMachine.stopRequested
+                        || entry.stopRequested {
+                runMachine.apply(.statusTerminal(.cancelled))
+            } else {
+                runMachine.apply(.statusTerminal(.completed))
+            }
+        }
+        applySettledTurn(
+            thread: thread, entry: entry, settled: settled
+        )
+        return true
+    }
+
+    /// 状态 output 合成落定（transcript 迟迟不落或演
+    /// 示态）：终局文本取状态/事件 output，工具卡用
+    /// 直播拼装的现成品——只作兜底，正常轮次以
+    /// transcript 为准
+    private func settleRunFromStatusOutput(
+        thread: ChatThread, entry: RunLedgerEntry
+    ) {
+        if runMachine.terminalKind == .failed {
+            deleteTurnPartialEntries(
+                thread: thread, entry: entry
+            )
+            if !appState.isDemo {
+                appState.runLedger.remove(threadID: thread.id)
+            }
+            errorMessage = terminalStatusHint?.output
+                ?? terminalStatusHint?.error
+                ?? terminalOutputHint
+                ?? "生成失败，请稍后再试。"
+            runMachine.apply(.transcriptSettled)
+            finishRunPresentation(failed: true)
+            return
+        }
+        let output = terminalStatusHint?.output
+            ?? terminalOutputHint
+        let fallbackText = contentPublishGate.fullText
+        let settled = SettledRunTurn(
+            found: true,
+            toolCards: liveToolCards,
+            reasoning: nil,
+            finalText: (output?.isEmpty == false)
+                ? output
+                : (fallbackText.isEmpty ? nil : fallbackText),
+            failed: false, failureText: nil
+        )
+        applySettledTurn(
+            thread: thread, entry: entry, settled: settled
+        )
+    }
+
+    /// 落定入账：整段替换本轮半截条目（工具卡＋带思
+    /// 考回填的助手正文），触感与标题回流沿旧口径，
+    /// 账本清除
+    private func applySettledTurn(
+        thread: ChatThread, entry: RunLedgerEntry,
+        settled: SettledRunTurn
+    ) {
+        runMachine.apply(.transcriptSettled)
+        let phase = runMachine.phase
+        deleteTurnPartialEntries(thread: thread, entry: entry)
+        if settled.failed {
+            errorMessage = terminalStatusHint?.output
+                ?? terminalStatusHint?.error
+                ?? settled.failureText
+                ?? "生成失败，请稍后再试。"
+            if !appState.isDemo {
+                appState.runLedger.remove(threadID: thread.id)
+            }
+            finishRunPresentation(failed: true)
+            return
+        }
         let endDate = Date()
-        let cardsToPersist = liveToolCards
-        liveToolCards = []
-        for (index, card) in cardsToPersist.enumerated() {
+        for (index, card) in settled.toolCards.enumerated() {
             let cardEntry = ChatEntry(
                 role: "tool", content: "", thread: thread,
                 toolCard: card
@@ -3135,213 +3495,242 @@ private struct ComposerBarLayout: Layout {
                 Double(index) * 0.001
             )
             modelContext.insert(cardEntry)
-            if interrupted {
-                persistedPartialIDs.append(cardEntry.id)
+        }
+        if let text = settled.finalText, !text.isEmpty {
+            let assistantEntry = ChatEntry(
+                role: "assistant", content: text,
+                thread: thread, reasoning: settled.reasoning,
+                reasoningSeconds: nil
+            )
+            assistantEntry.createdAt = endDate
+                .addingTimeInterval(
+                    Double(settled.toolCards.count) * 0.001
+                        + 0.001
+                )
+            modelContext.insert(assistantEntry)
+            thread.updatedAt = Date()
+        }
+        if !settled.toolCards.isEmpty
+            || settled.finalText?.isEmpty == false {
+            try? modelContext.save()
+        }
+        if !appState.isDemo {
+            appState.runLedger.remove(threadID: thread.id)
+        }
+        // 结果触感与收尾（旧 runStream 同口径）：完成
+        // 有正文给 .success；断线后补齐给中性提示；真
+        // 取消给「已停止生成」；失败已在上分支处理
+        if phase == .finished {
+            if settled.finalText?.isEmpty == false {
+                Haptics.success()
             }
+            if runWasDetached {
+                notice = "已重新连接，回复已补齐。"
+            }
+            // 标题回流触发（0.21.0 沿用）：已链接旁聊
+            // 一轮完整落地后顶刷新令牌等服务端 AI 标题
+            if thread.serverSessionID != nil,
+               thread.id != appState.sideChats.mainThreadID {
+                appState.noteLinkedSideChatTurnFinished()
+            }
+        } else if phase == .cancelled {
+            notice = "已停止生成。"
+        }
+        finishRunPresentation(failed: false)
+    }
+
+    /// 整段替换的删除面：已落盘的半截名单＋用户条目
+    /// 之后落盘的全部条目（发送互斥保证其必属本轮）
+    private func deleteTurnPartialEntries(
+        thread: ChatThread, entry: RunLedgerEntry
+    ) {
+        deleteLivePartialEntries(in: thread)
+        guard let userEntry = thread.entries.first(
+            where: { $0.id.uuidString == entry.userEntryID }
+        ) else { return }
+        for candidate in thread.entries
+        where candidate.id != userEntry.id
+            && candidate.createdAt > userEntry.createdAt {
+            modelContext.delete(candidate)
+        }
+        try? modelContext.save()
+    }
+
+    /// 结果未知时的半截落盘（进程被回收也不凭空消
+    /// 失）：工具卡与已累积正文按条目落盘、记 id 供
+    /// 落定时整段替换（与旧 interrupted 落盘同制）
+    private func persistRunPartials(thread: ChatThread) {
+        let flushNow = ProcessInfo.processInfo.systemUptime
+        if let snapshot = contentPublishGate.flush(at: flushNow) {
+            streamingText = snapshot
+        }
+        if let snapshot = reasoningPublishGate
+            .flush(at: flushNow) {
+            streamingReasoning = snapshot
+        }
+        deleteLivePartialEntries(in: thread)
+        let accumulated = contentPublishGate.fullText
+        let reasoningText = reasoningPublishGate.fullText
+        let endDate = Date()
+        let cards = liveToolCards
+        var ids: [UUID] = []
+        for (index, card) in cards.enumerated() {
+            let cardEntry = ChatEntry(
+                role: "tool", content: "", thread: thread,
+                toolCard: card
+            )
+            cardEntry.createdAt = endDate.addingTimeInterval(
+                Double(index) * 0.001
+            )
+            modelContext.insert(cardEntry)
+            ids.append(cardEntry.id)
         }
         if !accumulated.isEmpty {
             let assistantEntry = ChatEntry(
-                role: "assistant", content: accumulated, thread: thread,
-                reasoning: reasoningText.isEmpty ? nil : reasoningText,
-                reasoningSeconds: reasoningText.isEmpty ? nil : reasoningSeconds
+                role: "assistant", content: accumulated,
+                thread: thread,
+                reasoning: reasoningText.isEmpty
+                    ? nil : reasoningText,
+                reasoningSeconds: nil
             )
-            assistantEntry.createdAt = endDate.addingTimeInterval(
-                Double(cardsToPersist.count) * 0.001 + 0.001
-            )
+            assistantEntry.createdAt = endDate
+                .addingTimeInterval(
+                    Double(cards.count) * 0.001 + 0.001
+                )
             modelContext.insert(assistantEntry)
             thread.updatedAt = Date()
-            if interrupted {
-                persistedPartialIDs.append(assistantEntry.id)
-            }
+            ids.append(assistantEntry.id)
         }
-        if !cardsToPersist.isEmpty || !accumulated.isEmpty {
+        if !ids.isEmpty {
             try? modelContext.save()
         }
-        if interrupted {
-            // 0.20.0 中断轮收尾：半截内容已按旧口径落盘
-            // （进程若在回前台前被系统回收，回复不凭空
-            // 消失），此处只记待恢复——不出错误横幅、不
-            // 给失败触感（不是网络的错、更不是用户的
-            // 错）；回前台由 scenePhase onChange 触发对
-            // 账，本轮若已在前台（如挂起发生在锁屏边缘
-            // 的竞态）则立即自触发一次
-            pendingRecovery = PendingStreamRecovery(
-                threadID: thread.id,
-                messages: messages,
-                sessionID: sessionID,
-                partialEntryIDs: persistedPartialIDs
-            )
-            if scenePhase == .active {
-                Task { await reconcileInterruptedStream() }
-            }
+        livePartialEntryIDs = ids
+    }
+
+    private func deleteLivePartialEntries(
+        in thread: ChatThread
+    ) {
+        guard !livePartialEntryIDs.isEmpty else { return }
+        for candidate in thread.entries
+        where livePartialEntryIDs.contains(candidate.id) {
+            modelContext.delete(candidate)
         }
-        // 0.21.0 标题回流触发：已链接旁聊一轮完整落地
-        // 后，服务端 AI 标题（llm 升级在首轮后数秒）
-        // 须刷进抽屉——完成即顶一次刷新令牌、6 秒后
-        // 再顶一次兜住升级时延（触发点全集见 AppState
-        // .noteLinkedSideChatTurnFinished）
-        if !failed, !interrupted, thread.serverSessionID != nil,
-           thread.id != appState.sideChats.mainThreadID {
-            appState.noteLinkedSideChatTurnFinished()
-        }
-        // 结果触感（0.3.2 纪律，只挂结果事件）：失败
-        // .warning；回复完整落地 .success；用户主动停止
-        // 且无内容时不给触感；中断轮不给（恢复成功时
-        // 由对账侧补 .success）
+        livePartialEntryIDs = []
+    }
+
+    /// 呈现收尾：清流式状态与在途标记（触感由各落定
+    /// 分支自理，此处只在失败时补 .warning——调用方
+    /// 已给触感的路径传 failed=false 防双响）
+    private func finishRunPresentation(failed: Bool) {
         if failed {
             Haptics.warning()
-        } else if !accumulated.isEmpty, !interrupted {
-            Haptics.success()
         }
+        isWakingModel = false
         streamingText = nil
         streamingReasoning = nil
         reasoningStartedAt = nil
         sendTask = nil
+        activeRunThreadID = nil
     }
 
-    /// 回前台对账恢复（0.20.0，用户 23:42 定性：切后
-    /// 台杀流不是网络故障、回前台必须对账不许丢回复）：
-    /// ①探活（client.health，只读 GET）：探不通才是
-    /// 真连不上——此时才报真错且走瞬断分型文案（环
-    /// 节＝恢复探活），不许再甩锅地址；
-    /// ②线程有关联服务端会话时拉服务端历史（session-
-    /// Messages）：服务端在客户端断开后已把完整回复
-    /// 落进会话的，直接补齐本地（删半截→落完整版），
-    /// 不重发；
-    /// ③无关联/服务端无此回复：删半截后以原上下文自
-    /// 动重发一次——用户消息已落盘，重发不新增消息、
-    /// 不丢轮次（发送未达阶段被杀的轮次同走此路：
-    /// 本地消息在、上下文完整）；0.21.0 起已链接线
-    /// 程的重发按待恢复账的原形态续发（载荷＋会话
-    /// 头照旧），不退回无状态另起炉灶。
-    /// 全程只给 notice 中性提示，不出错误横幅。
-    private func reconcileInterruptedStream() async {
-        guard let pending = pendingRecovery,
+    /// 停止（0.31.0）：runs 通道真取消——发 stop 后
+    /// 由订阅/对账链等终态落定、部分产物按 transcr-
+    /// ipt 呈现；提交窗口内则取消本地提交任务（账本
+    /// 已留停止意图，下次对账执行真停止）
+    private func requestRunStop() {
+        guard isStreaming else { return }
+        if runMachine.phase == .submitting {
+            sendTask?.cancel()
+            return
+        }
+        runMachine.apply(.stopRequested)
+        guard let threadID = activeRunThreadID,
+              var entry = appState.runLedger.entry(
+                  forThreadID: threadID
+              ) else { return }
+        entry.stopRequested = true
+        appState.runLedger.upsert(entry)
+        guard let runID = entry.runID,
+              let config = appState.config,
+              let apiKey = appState.apiKey else { return }
+        Task {
+            try? await appState.client.stopRun(
+                config: config, apiKey: apiKey, runID: runID
+            )
+        }
+    }
+
+    /// 进线程/回前台时恢复未落定 run（杀进程/切后台/
+    /// 预算耗尽遗留）：半截呈现回填＋对账落定。无账
+    /// 本或驱动在途即返回
+    private func resumeRunIfNeeded() async {
+        guard !appState.isDemo, !isDrivingRun,
               scenePhase == .active,
-              !isRecoveringStream,
-              let config = appState.config else { return }
-        isRecoveringStream = true
-        defer { isRecoveringStream = false }
-        do {
-            _ = try await appState.client.health(config: config)
-        } catch {
-            pendingRecovery = nil
-            errorMessage = (error as? HermesError)?.userMessage
-                ?? HermesError.transientNetwork.userMessage
-            Haptics.warning()
-            return
+              let thread = currentThread,
+              let entry = appState.runLedger.entry(
+                  forThreadID: thread.id
+              ) else { return }
+        runMachine = RunTurnStateMachine()
+        if entry.runID != nil {
+            runMachine.apply(.submitAccepted)
+            runMachine.apply(.streamLost)
+        } else {
+            runMachine.apply(.submitAmbiguous)
         }
-        guard let thread = threads.first(
-            where: { $0.id == pending.threadID }
-        ) else {
-            pendingRecovery = nil
-            return
+        if entry.stopRequested {
+            runMachine.apply(.stopRequested)
         }
-        // 0.21.0：恢复路线走 Core 纯判定（Stream-
-        // Recovery.route，两分支有单测）——0.20.0 时
-        // 本地旁聊恒无 serverSessionID、只能落③重
-        // 发；旁聊链接后自动升②补齐分支，判定口径
-        // 与从前内联条件逐字等价（id 非空才走②、拉
-        // 不到本轮回复仍落③兜底，③按待恢复账里的
-        // 会话头原形态续发）
-        if case .completeFromServer(let sessionID) =
-            StreamRecovery.route(
-                linkedSessionID: thread.serverSessionID
-            ),
-           let serverMessages = try? await appState.performAdmin(
-               { client, cfg in
-                   try await client.sessionMessages(
-                       config: cfg, id: sessionID
-                   )
-               }
-           ),
-           let recovered = Self.recoveredReply(
-               in: serverMessages, thread: thread
-           ) {
-            deletePartialEntries(pending, in: thread)
-            let entry = ChatEntry(
-                role: "assistant", content: recovered,
-                thread: thread
-            )
-            modelContext.insert(entry)
-            thread.updatedAt = Date()
-            try? modelContext.save()
-            pendingRecovery = nil
-            notice = "已重新连接，回复已补齐。"
-            Haptics.success()
-            return
-        }
-        deletePartialEntries(pending, in: thread)
-        try? modelContext.save()
-        pendingRecovery = nil
-        // 0.27.0：重发形态按当前链接状态定——待恢复
-        // 账是旧版记下的（sessionID 为 nil）时不许再
-        // 无头重发回合并桶：线程已链接的改带会话头只
-        // 发尾条；尚未链接的不在此处硬发（链接要走
-        // 种子流程），留待用户下次发送时一并种子，
-        // 本地消息不丢
-        let recoveryPlan = thread.id == appState.sideChats.mainThreadID
-            ? SideChatLink.sendPlan(
-                serverSessionID: appState.sideChats.mainServerSessionID,
-                serverSeeded: appState.sideChats.mainServerSeeded
-            )
-            : SideChatLink.sendPlan(
-                serverSessionID: thread.serverSessionID,
-                serverSeeded: thread.serverSeeded
-            )
-        if pending.sessionID == nil, case .linkAndSeed = recoveryPlan {
-            notice = "已重新连接。这条会话尚未链接服务端，上一条会在你下次发送时一并同步。"
-            return
-        }
-        let recoverySessionID = pending.sessionID ?? {
-            if case .session(let id) = recoveryPlan { return id }
-            return nil
-        }()
-        let recoveryMessages = pending.sessionID == nil
-            && recoverySessionID != nil
-            ? Array(pending.messages.suffix(1))
-            : pending.messages
-        notice = "已重新连接，正在继续生成…"
-        streamingText = ""
-        sendTask = Task {
-            await runStream(
-                thread: thread, messages: recoveryMessages,
-                sessionID: recoverySessionID
-            )
-        }
-    }
-
-    /// 服务端历史里的待补回复：最后一条用户消息之后
-    /// 的第一条非空助手正文、且本地条目里没有同文（防
-    /// 把旧轮回复误判为本轮产物）；无则 nil（调用方
-    /// 落重发恢复）
-    private static func recoveredReply(
-        in serverMessages: [SessionMessage], thread: ChatThread
-    ) -> String? {
-        guard let lastUserIndex = serverMessages.lastIndex(
-            where: { $0.role == "user" }
-        ) else { return nil }
-        let localContents = Set(thread.entries.map(\.content))
-        for message in serverMessages[(lastUserIndex + 1)...] {
-            guard message.role == "assistant" else { continue }
-            let text = message.content.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-            if !text.isEmpty, !localContents.contains(message.content) {
-                return message.content
+        runWasDetached = true
+        activeRunThreadID = thread.id
+        lastEventSeq = -1
+        terminalOutputHint = nil
+        terminalStatusHint = nil
+        contentPublishGate.reset()
+        reasoningPublishGate.reset()
+        streamingReasoning = nil
+        reasoningStartedAt = nil
+        // 半截呈现回填：上次落盘的本轮条目即当前可见
+        // 内容（落定时以 transcript 整段替换）
+        liveToolCards = []
+        livePartialEntryIDs = []
+        if let userEntry = thread.entries.first(
+            where: { $0.id.uuidString == entry.userEntryID }
+        ) {
+            let partials = thread.entries.filter {
+                $0.id != userEntry.id
+                    && $0.createdAt > userEntry.createdAt
             }
+            livePartialEntryIDs = partials.map(\.id)
+            liveToolCards = partials
+                .filter { $0.role == "tool" }
+                .compactMap(\.toolCard)
+            if let partialText = partials
+                .filter({ $0.role == "assistant" })
+                .max(by: { $0.createdAt < $1.createdAt })?
+                .content, !partialText.isEmpty {
+                _ = contentPublishGate.offer(
+                    partialText,
+                    at: ProcessInfo.processInfo.systemUptime
+                )
+                streamingText = partialText
+            } else {
+                streamingText = ""
+            }
+        } else {
+            streamingText = ""
         }
-        return nil
+        isWakingModel = appState.chatModel
+            == ChatModels.coldStartID
+            && (streamingText ?? "").isEmpty
+        isDrivingRun = true
+        var mutableEntry = entry
+        await reconcileRun(
+            thread: thread, entry: &mutableEntry,
+            demoMode: false
+        )
+        isDrivingRun = false
     }
 
-    private func deletePartialEntries(
-        _ pending: PendingStreamRecovery, in thread: ChatThread
-    ) {
-        for entry in thread.entries
-            where pending.partialEntryIDs.contains(entry.id) {
-            modelContext.delete(entry)
-        }
-    }
 }
 
 /// 消息长按菜单（0.4.1）：系统 contextMenu 四项——回复

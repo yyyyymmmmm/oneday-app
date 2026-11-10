@@ -4619,3 +4619,47 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - IPA：5,107,798 字节、md5 9e3bbd4a578b0943807b863367ba2ffd、独立解包验 Info.plist＝0.30.0/59、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.30.0/OneDay-0.30.0.ipa。
 - 版本五处同改＋grep 验：Project.swift 的 MARKETING_VERSION／CURRENT_PROJECT_VERSION／CFBundleShortVersionString／CFBundleVersion 四处＋SettingsView 页脚「OneDay v0.30.0」一处（本包未漏页脚）。
 - §14/MotionTokens/外观定版零改动；0.27.0 会话链与 0.29.0 主线分类器语义未动；施工期生产零写；未自截真机图。
+
+## §58 0.31.0 生成通道迁 /v1/runs（任务制：断线不取消、对账落定、真停止）
+
+用户令（2026-11-10 13:26–13:28）：「大厂 AI 中途退出不会暂停/取消生成，咱们为什么返回/退出就取消＋网络错误一堆」→「直接看 Hermes 怎么做的，分析本质、然后针对修」。本质报告：~/workspace/oneday-design-review/hermes-generation-lifecycle-analysis-20261110.md。
+
+### 58.1 本质结论（先行销账）
+
+1. **断线并不真取消生成**：现 chat completions 通道下客户端断开，Hermes 的 interrupt 在本部署的 gateway runner 生命周期里落空——双探针实测断开后模型照常跑满并完整落库。用户痛点全在呈现层：流断被映射为网络错误横幅、没人回头对账。
+2. **结构正解是 Hermes 自带 /v1/runs 任务制**：提交返 run_id、生成与连接分家、events 可按 seq 重挂、status 可轮询、stop 真取消（admission interrupt）、Idempotency-Key durable 重放。GET /v1/runs/{completion_id} 记的是流命运（断开即恒 cancelled、真完成不回改）——**禁用作完成信号**；完成与否的唯一 oracle 是会话 transcript。
+3. **落库分段增量**：user 行轮次开始即落、工具行每批 flush、终答生成即 flush；但 assistant 文本轮末才整条可见——对账须按「等段出现」设计，段锚点＝transcript 最后一条 user 行之后。
+
+### 58.2 阶段 A 探针证据（2026-11-10，公网真实路径，探针会话 oneday-probe-runbind/runfree-20261110，事后已归档复验）
+
+- **会话绑定成立**：POST /v1/runs body 带 session_id；锁定会话内两轮 run 完成且第二轮准确复述第一轮暗号——历史以 state.db 为准，body 无需自带历史。
+- **模型语义与现通道一致**：逐请求 model 成立（自由会话 v4-pro 完成）；对 flash 锁定会话发 v4-pro 亦被接受并以 v4-pro 完成（源码核实：runs 面只有请求内 route/provider 歧义检查，无会话锁拦截，与 chat completions 现行口径相同——锁仍靠客户端纪律＋会话改模端点，不回退）；provider=custom 被接受并真路由（Qwen run 到达上游后因渠道 13 停用回 503 业务错误，非 runs 面拒绝）。
+- **事件形态实测**：message.delta 增量正文、tool.started/tool.completed（带 tool_call_id 与 ≤500 字 preview）、run.completed 终态带 output/usage。**思考直播缺失（唯一受管损项）**：reasoning.available 只是 500 字有损预览且生产 admission 路径未接线（探针 events 里没有）；但 transcript 的 reasoning_content 完整落盘且 Dashboard messages 接口带该字段——取舍：直播期无思考流、落定时从 transcript 全文回填（ReasoningPresentation 对 seconds=nil 只显示「已思考」不编秒数，现成口径）。流式呈现差别如实记：直播只有正文增量＋工具卡，思考盒在落定时出现。
+- **幂等成立**：同 key 同体重提回同一 run_id 且 replayed:true；同 key 异体 409。
+- **图片成立**：input 单元素消息数组（text＋image_url data: URL）被接受并正确识图。
+- **真停止成立**：sleep 30 工具 run 在约 4 秒 stop→200 stopping→终态 cancelled；transcript 停增（+12 秒复查不长），工具行留 [Command interrupted]。
+- **窗口限制如实记**：events 缓冲约 300 秒后被扫（已完成 run 的 events 回 404）；状态记录内存约 3600 秒；Idempotency-Key 保留 24 小时。重挂只作尽力，落定永远以「状态＋transcript」为准。
+- 探针副作用一条：Run A 的 memory 工具经 write-gate 暂存待审批（pending 59ba48f2，仅 staged 未落库），留用户在审批面处理。
+
+### 58.3 路线选择与施工（路线甲）
+
+关键项全过→路线甲：发送通道整体迁 /v1/runs，chat completions 发送路径就此退役（chatStream 客户端方法保留供他用，本版聊天不再走）。路线乙（现通道对账化）未启用，留档备查。
+
+- **状态机（Core RunTurnStateMachine，纯值类型）**：submitting→generating（受理）/failed（明确拒绝）/unknown（结果未知）；generating 流断→unknown→（前台）reconciling→（轮询活动）generating…；终态证据＋transcript 落定→finished/failed/cancelled。铁律落进转移表：断线/超时永不映射失败、落定后事件全忽略、预算耗尽停 unknown 不落失败。
+- **持久账本（Core RunLedger＋App RunLedgerStore）**：提交前先落账（threadID/sessionID/runID/idempotencyKey/userEntryID/停止意图），杀进程可恢复；受理回执丢失用同 key 重演取回 run（服务端幂等保证不双跑，重演输入从本地用户条目重建、不另存载荷）。发送互斥：本线程有未落定账本时新消息不叠发（输入退回＋提示＋先对账）——服务端无 per-session 锁、段锚点靠单飞成立。
+- **驱动（ChatView driveRun/followRunEvents/reconcileRun）**：提交（瞬断同 key 重试 ≤2、明确拒绝才真失败且消息留痕照实报）→events 订阅（增量过双 PublishGate、工具卡实时拼装、isWakingModel 沿用）→断线半截落盘＋进对账（状态轮询＋events 重挂＋transcript 段落定，10 分钟预算，耗尽给体面出口「生成仍在服务器进行中，稍后回来自动补齐」＋账本保留）。落定以 RunTranscriptSettle 整段替换半截（工具卡走 ToolCardBuilder、思考回填、failed_turn 行判失败不当答案、hidden 行排除）。
+- **停止＝真取消**：发送舱停止键走 requestRunStop——提交窗口内取消本地提交任务（账本已记停止意图、下次对账执行真停）、其余发 runs stop 并由订阅/对账等终态落定，文案可诚实写「停止生成」。
+- **合并删冗余**：0.20.0 的切后台记账（backgroundedDuringStream）＋内存待恢复账（PendingStreamRecovery）＋删半截以原上下文自动重发的恢复整类删除；Core StreamRecovery/StreamFailure 与其 6 测同删（职责被 RunTurn 吸收）；0.27.0 删除的无头重放不复活、本版亦无任何自动重发。恢复入口统一为 resumeRunIfNeeded（回前台＋进线程 .task 双触发，消费账本）。
+- **客户端**：HermesClient 新增 submitRun（202 宽容、Idempotency-Key 头、provider 透传）/runStatus（404→nil）/runEvents（AsyncStream、每行过 Core RunEventParser、断流只结束不抛错——定性归状态机）/stopRun（200/404/409 均按受理）；SessionMessage 补 reasoning_content/reasoning/display_kind 三字段（transcript 回填与失败段判定靠它）；DemoHermesClient 同步实现四方法（演示走 output 合成落定）。
+- **单测**：新增 RunTurnTests 40 测（状态机全转移/事件解析/DTO/输入编码/账本/段落定），删 StreamRecoveryTests 6 测，总数 528→563（净增、只增不减口径按总量守）。
+
+### 58.4 EE 系列真机终审项
+
+- EE1 杀进程见成品：发一条长回复，生成中途杀 App——重开进该对话，稍候（对账）应见完整回复落定，不报错、不出现重复用户消息。
+- EE2 切后台两分钟：生成中切后台两分钟再回来——直播续上或直接见成品（附「已重新连接，回复已补齐。」提示），全程无网络错误横幅。
+- EE3 真停止：发一条带长工具调用的请求，生成中点停止——提示「已停止生成。」；之后回服务端/管理页看该会话，transcript 不再增长（无睡醒续写）。
+- EE4 弱网提交：飞行模式下发送——明确失败提示（照实报错）、消息以用户条目留痕、无假「已发送」；关飞行模式后手动重发正常。生成已受理后开飞行模式再关——不报错、回来自动对账补齐。
+- EE5 思考回填：问一个需推理的问题，落定后思考盒出现（文案「已思考」、无秒数）；直播期间只有正文与工具卡、无思考盒属预期（58.2 取舍）。
+- EE6 工具卡对账：带工具调用的一轮落定后，工具卡与管理页 transcript 一致（张数/成败），无直播半截卡残留。
+- EE7 叠发守卫：上一轮未落定（切后台刚回来对账中）时发新消息——被拦下并提示「上一条还在生成中…」，旧轮落定后可正常发送。
+- EE8 模型面回归：三候选（flash/v4-pro/Qwen）各发一轮可正常落定（Qwen 以渠道恢复为前提，渠道停用时应得服务端失败原文而非客户端网络错误）。
