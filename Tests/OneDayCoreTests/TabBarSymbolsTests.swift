@@ -17,14 +17,22 @@ import XCTest
 /// 文件格（交付物库）——all 第四位改钉 files 对
 /// （tray／文件）；apps 符号对本体保留作数据（与
 /// activity 同例），不再占底栏格。
+/// 0.35.0 五格（P3 拍板 1A）：动态进第二格——all 改
+/// 钉五格（聊天/动态/点子/目标/文件），动态符号取
+/// 报纸同语义位 newspaper（outline 原名）。
 final class TabBarSymbolsTests: XCTestCase {
-    /// 四条目名对全表钉死（id／标题／未选／选中、顺序）
+    /// 五条目名对全表钉死（id／标题／未选／选中、顺序）
     func testTabSymbolPairsArePinned() {
         XCTAssertEqual(TabBarSymbols.all, [
             TabSymbolPair(
                 id: "chat", title: "聊天",
                 normal: "message",
                 selected: "message"
+            ),
+            TabSymbolPair(
+                id: "feed", title: "动态",
+                normal: "newspaper",
+                selected: "newspaper"
             ),
             TabSymbolPair(
                 id: "ideas", title: "点子",

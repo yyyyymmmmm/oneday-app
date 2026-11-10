@@ -105,6 +105,10 @@ struct ContentView: View {
     /// 天页胶囊 sheet，见文件头 0.17.0 注）
     enum MainTab: Hashable {
         case chat
+        /// 0.35.0（P3，拍板 1A）：动态格进第二格——
+        /// 段一汇编＋段二晨报双生产者已上线才开此格
+        /// （设计档 C1 前置：内容先行、空栏不开）
+        case feed
         case ideas
         case goals
         /// 0.20.0 第七条：第四格由「应用」换「文件」
@@ -222,6 +226,17 @@ struct ContentView: View {
                     .tint(.primary)
             } label: {
                 tabLabel(TabBarSymbols.chat)
+            }
+
+            // 0.35.0：动态格与四格同走 tabLabel 路径
+            // （0.34.0 的 symbolVariants 主锁挂在
+            // tabLabel 本体，新格自动同锁；符号名单在
+            // TabBarSymbols.all 与单测一并钉死）
+            Tab(value: MainTab.feed) {
+                FeedView()
+                    .tint(.primary)
+            } label: {
+                tabLabel(TabBarSymbols.feed)
             }
 
             Tab(value: MainTab.ideas) {

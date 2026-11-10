@@ -4918,3 +4918,38 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.34.0／CURRENT_PROJECT_VERSION 65／CFBundleShortVersionString 0.34.0／CFBundleVersion 65）＋SettingsView 页脚「OneDay v0.34.0」。
 - 服务器段实录见 63.1（nginx 路由已生效、验矩阵全绿、备份 bak-20261110-devicebridge、内存 51.6%）；施工记录追记 hermes-deploy/device-bridge-rollout-20261110.md。
 - KK1–KK7 待真机终审；JJ1–JJ4 续审（本版底栏正解 A 是否回描边以 JJ3 逐格对 Muse 为准，灯泡先看）；KK8 待收官窗口（Hermes 注册门面）后另验。
+
+
+## §64 0.35.0/66 三页工程 P3（动态流＋底栏五格，三页工程收官）
+
+依据：三页设计档第三章与 P3 节、九条拍板（1A 五格/6A 晨报联网/8A flash）。本版把动态页从 0 建到 1：桥端双生产者上线并各跑过真实首轮，App 动态页与底栏五格落地。
+
+### 64.1 桥（oneday-bridge，P3 段）
+
+- 数据面：`feedPosts` 存储＋端点 GET /feed（?days=30 窗口、createdAt 倒序、过期不回）、GET /feed/{id}、POST /feed/{id}/read（readAt 桥落字）、DELETE /feed/{id}、POST /feed/generate（晨报手动触发，202/409）、GET /feed/generation（双账面＋未读数）。帖 schema＝{id, kind, title, body(Markdown), refs:[{type,id}], links:[{title,url}], why, createdAt, expiresAt(+30 天), readAt}；简报类 refs 在读视图富化 goalId（App 点达所属目标，不靠猜）。
+- 段一·确定性汇编（零模型）：调度 tick 折叠当日真实事件为一篇 digest 帖（事件集变化才重建、新事件重置未读）——事件源五路：新点子/目标简报/监测变化（桥自有数据）、kanban 任务状态变化（Dashboard 通道 300 秒节流轮询＋快照 diff，首快照静默基线）、待审批（经公网单钥网关路径 /api/write-gate/status 读计数，只增成事件、基线静默）。无事件的日子不发帖、只记账面计数。轮询失败只进账面注记、永不编事件。
+- 段二·晨报（模型帖）：每日 08:30（Asia/Shanghai；点子 07:30、周一简报 08:00 之后）一轮 /v1/runs（deepseek-flash、幂等键按日、waiting_for_approval 滞留处置与点子管道同规——共用 _hermes_submit_run/_hermes_poll_run）。素材＝brief＋近 7 天带 id 素材（目标/点子/简报/监测变化/任务板/会话标题背景）＋联网调研指令（链接只许真返、桥侧滤非 http(s)）。严格解析 {"title","body","why","links","refs"}：why 必填、refs 至少一个且逐个验存在（idea/goal/task/monitor/briefing 对桥内真源＋kanban 快照）、**一个假引用整帖退回**；模型可回 {"skip": true} 如实记 empty 轮。账面 GET /feed/generation。
+- 与设计档的口径差（逐项记账）：①排序——简报口径「按有用度以设计档为准」，设计档 §3.4 定版为发布时间倒序、有用度排序登记缓办，本版从设计档；②已读——设计档原案本地派生，本版从施工简报改服务端真源（readAt＋标记端点，多设备一致）；③页头胶囊——设计档原案 brief 摘要行，本版从施工简报落「今日 digest 摘要/未读数、点开落对应帖」，brief 编辑入口未在本版 App 落（brief 实体 P2 已在桥，编辑面另排）；④出厂三篇介绍帖——施工简报明令不许假帖填充，未做，空态改二分如实文案；⑤点赞/讨论/删帖动作——设计档列了全集，本版 App 只落读与已读（施工简报范围），loved 与讨论预置、删帖 UI 登记缓办（桥 DELETE 端点已备）；⑥晨报时刻设计档未定值，本版定 08:30 并记账于此。
+- 首轮验收（生产实测，2026-11-10）：段一汇编出《今日动态 · 3 件》（当日 P1 首轮 3 张生成卡，refs 三个 idea id 全真）；段二手动触发一轮 status=ok、produced=1（run_9a824d76edb24a28bb1ab60809ae60f5），晨报《自托管助手的三件新事：发布通道、沙箱底座、密钥护栏》落库——refs 1 个真 idea、links 6 条真返（PR Newswire/TechCrunch/Google Cloud 等）、why 在位。生产终态：帖 2 篇（digest＋morning）、未读 2，晨报下轮 2026-11-11 08:30。kanban 现状实测为空板（8 列 0 任务——任务事件通道待有任务时自然生效，基线已立）；待审批基线 0（59ba48f2 已不在待批列）。
+- 部署：备份 oneday_bridge.py.bak-20261110-p3＋data.json.bak-20261110-p3，只重启桥本体；内存全程约 51.6%。自测 oneday_bridge_p3_selftest.py 25/25（HTTP 契约＋段二桩轮三态＋轮询 diff/基线/只增口径）。
+
+### 64.2 App
+
+- 底栏五格（1A）：MainTab 增 .feed 第二格，顺序 聊天/动态/点子/目标/文件；新格与四格同走 ContentView.tabLabel（0.34.0 symbolVariants 主锁自动覆盖）；TabBarSymbols 增 feed 对（id "feed"、标题「动态」、newspaper——动态本体是个人报、取报纸同语义位，设计档「先 SF Symbol 同语义位」口径；outline 原名、两态同名），all 改钉五格、TabBarSymbolsTests 全表同步。抽屉「选项卡」组同步加动态行（枢纽动作行不占格位序）。0.30.0 落点逻辑未动（默认仍落聊天/上次线程）。
+- 动态页（FeedView/FeedStore）：顶栏＋大标题「动态」＋简报胶囊（FeedBoard.capsulePost：今日汇编→今日晨报→最近未读→最新；标题单行省略＋未读徽标，点开落对应帖）；帖子扁平行（34pt kind 瓷砖——晨报 sunrise/汇编 newspaper、标题 Headline 两行＋未读点、正文摘 3 行（FeedBoard.excerpt 剥 Markdown 形）、refs 蓝字内链横滑、动作行类别左＋相对时间右）；按日分组（组头与 ChatTimeline 同族口径）；帖子详情（Markdown 全文＋why 块＋链接清单＋引用列表，打开即 POST 已读、以桥回执对账）；下拉刷新；空态二分（neverProduced「动态刚上线＋第一篇晨报明早 8:30 到」/quiet「近来没有新动态」，均如实、不填假帖）；桥未连接/失败与点子格同分法。
+- refs 点达：本栈复用各详情页——idea→IdeaDetailView、goal→GoalDetailView、briefing→凭 goalId 富化直达所属 GoalDetailView、task→KanbanTaskDetailView、monitor→MonitorDetailView；引用标题从同批加载的各 Store 解析，解析不到回类别文案、不编名。
+- Core：FeedModels（BridgeFeedPost/Ref/Link/Generation DTO 宽容解码＋FeedBoard：排序/日组/相对时间五档/未读数/胶囊落点/空态二分/excerpt）＋FeedBoardTests 12 测、TabBarSymbolsTests 改钉五格。
+
+### 64.3 LL 系列终审项（动态与五格，真机）
+
+- LL1 五格并排：底栏五格与 Muse 并排逐格对（顺序/字形描边/选中垫），动态格 newspaper 字形先看；抽屉「选项卡」组动态行在位、选中态与当前格一致。
+- LL2 胶囊：胶囊显今日汇编标题＋未读数与桥账面一致；点开落到汇编帖详情；全读后徽标消失。
+- LL3 帖子内链点达：汇编帖三个点子 refs 逐个点开落 IdeaDetailView 且是同一张卡；晨报帖 refs/links 点达与外开正常。
+- LL4 已读真源：点开一篇后回列表未读点消失；杀 App 重进仍为已读（服务端 readAt）。
+- LL5 空态：断桥（关服务器连接）显未连接态而非空态假象；新装零数据时显「动态刚上线」文案。
+- LL6 晨报节奏：2026-11-11 08:30 后动态页出现当日晨报（≤1 篇），标题下胶囊落点更新。
+- LL7 落点不变：冷启仍落聊天格/上次线程，五格未动 0.30.0 落点逻辑。
+
+### 64.4 交付实录
+
+- （CI 与 IPA 数据待回填）

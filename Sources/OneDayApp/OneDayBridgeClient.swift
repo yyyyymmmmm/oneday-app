@@ -274,6 +274,41 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
+    // MARK: - 动态（P3，桥 /feed 契约）
+
+    /// GET /feed?days=30：近 30 天帖子（桥侧 createdAt
+    /// 倒序、过期不回）；集合端点 404＝动态面未开通
+    func feedPosts(config: ServerConfig) async throws -> [BridgeFeedPost] {
+        let response: BridgeFeedPostsResponse = try await get(
+            config: config, path: "/feed?days=30", endpoint: "动态列表",
+            collection: true
+        )
+        return response.items
+    }
+
+    /// GET /feed/generation（P3）：双生产者账面——段
+    /// 一汇编状态＋段二晨报节奏＋未读数；旧桥无此端
+    /// 点走 collection 404＝未开通，调用方降级处理
+    func feedGeneration(
+        config: ServerConfig
+    ) async throws -> BridgeFeedGeneration {
+        try await get(
+            config: config, path: "/feed/generation",
+            endpoint: "动态账面", collection: true
+        )
+    }
+
+    /// POST /feed/{id}/read：已读落服务端真源；回执
+    /// 全形供调用方对账（readAt 以桥落字为准）
+    func markFeedPostRead(
+        config: ServerConfig, id: String
+    ) async throws -> BridgeFeedPost {
+        try await sendEmpty(
+            config: config, path: "/feed/\(id)/read", method: "POST",
+            endpoint: "标记已读"
+        )
+    }
+
     // MARK: - 请求底座
 
     private func makeRequest(

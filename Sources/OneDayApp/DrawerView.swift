@@ -330,6 +330,16 @@ struct DrawerView: View {
                 }
                 appState.hubOpenRequested = true
             }
+            // 0.35.0（P3 五格）：动态行与底栏同序进
+            // 「选项卡」组（枢纽为动作行不占格位序）
+            drawerNavRow(
+                symbol: TabBarSymbols.feed.normal,
+                title: "动态",
+                selected: currentTab == .feed
+            ) {
+                onClose()
+                onSelectTab(.feed)
+            }
             drawerNavRow(
                 symbol: TabBarSymbols.ideas.normal,
                 title: "点子",

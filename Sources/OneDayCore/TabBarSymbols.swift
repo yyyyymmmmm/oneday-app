@@ -61,6 +61,14 @@ public enum TabBarSymbols {
         normal: "message",
         selected: "message"
     )
+    /// 动态格（0.35.0 P3，拍板 1A 五格第二格）：动态
+    /// 的本体是「个人报」（设计档第三章），取报纸同
+    /// 语义位 newspaper（outline 原名、两态同名）
+    public static let feed = TabSymbolPair(
+        id: "feed", title: "动态",
+        normal: "newspaper",
+        selected: "newspaper"
+    )
     public static let activity = TabSymbolPair(
         id: "activity", title: "活动",
         normal: "list.bullet",
@@ -111,5 +119,7 @@ public enum TabBarSymbols {
     /// 格（交付物库）——第四位换 files；apps 符号对
     /// 本体保留作数据（原应用格入口已全部迁设置「管
     /// 理」组与枢纽，见 DESIGN-V4 §47 迁移表）
-    public static let all = [chat, ideas, goals, files]
+    /// 0.35.0 五格（拍板 1A）：动态进第二格，顺序
+    /// 聊天/动态/点子/目标/文件
+    public static let all = [chat, feed, ideas, goals, files]
 }
