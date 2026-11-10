@@ -7000,3 +7000,11 @@ SwiftUI 尺寸协商里，父按子的理想尺寸在栈内定位，里层 flexi
 2. **顺序对**：数组顺序即点选顺序，串行 await 逐个 append，不并发乱序。
 3. **超限单张被拦不影响其余**：超 20MB 者计数跳过，其余照常入列，notice 汇总明示张数。
 4. **不重入**：清空绑定触发的第二次 onChange（空数组）被 guard 拦截，不会重复加载或清掉已入列附件。
+
+### 90.7 交付回填（§90 右滑第四修＋§91 附件条续修＋§92 选图多选，同版 0.36.23/90）
+
+提交链：分支顶端 9485d0e → 主线合并 8322888 → 6248dd9（§91 附件条居中续修）→ 1146c99（出包 CI 修一）→ 059bfee（§92 选图多选）→ 6983bdd（出包 CI 修二）。
+
+CI 先红后绿（如实）：分支代码此前从未进 CI（工作流只认 main），合并出包连红两轮，均在 Build 步、均出自 §90 的临时诊断件 SwipeReplyDiagnostics 的 Swift 6 并发安全——run 42881267681：`shared` 单例与其 `static var watchedKey` 两处报错，修一以 @unchecked Sendable（NetworkPathObserver 同口径）＋稳定指针常量对治；run 42881845541：指针常量 UnsafeRawPointer 本身同属非 Sendable 再红一处，修二改 `nonisolated(unsafe)` 明示豁免（键只作关联对象地址、初始化后从不写）。终轮 run 42882608532 全步 success（jobs API 逐项核：Build／Unit tests／Package／Upload 全 success）。
+
+单测 **871**（基线 870＋§90.3 无量级门对照钉测 1；§91／§92 均为视图层改动、无 Core 逻辑，未加测），0 失败。IPA 7,118,898 字节、md5 `0c956bdca59d643ea9802de8abf104ec`、解包验 Info.plist＝0.36.23/90，已落 your_files/oneday-v0.36.23/。§90.5 复验口径与 §90.4 诊断回收、§91／§92 真机终验均在用户。
