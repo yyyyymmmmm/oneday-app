@@ -202,8 +202,13 @@ final class IdeasStore {
 
     /// 低风险动作：不弹确认；回读后点子不在待阅列才
     /// 算数。已忽略是终态（设计档 §1.4），页内不给恢复
-    /// 入口——想留的点子请用删除前的详情页细看
-    func dismiss(appState: AppState, idea: BridgeIdea) async {
+    /// 入口——想留的点子请用删除前的详情页细看。
+    /// tooGeneric＝用户标「太泛了」（0.39.0）：随 PATCH 带
+    /// dismissReason，桥计入下一轮生成的避让与具体性校准
+    func dismiss(
+        appState: AppState, idea: BridgeIdea,
+        tooGeneric: Bool = false
+    ) async {
         guard !actingIDs.contains(idea.id) else { return }
         guard let config = appState.config else {
             notes[idea.id] = "尚未连接服务器。"
@@ -215,7 +220,10 @@ final class IdeasStore {
         do {
             _ = try await client.patchIdea(
                 config: config, id: idea.id,
-                request: BridgeIdeaPatchRequest(status: .dismissed)
+                request: BridgeIdeaPatchRequest(
+                    status: .dismissed,
+                    dismissReason: tooGeneric ? "tooGeneric" : nil
+                )
             )
             await refetch(appState: appState)
             if pendingIdeas.contains(where: { $0.id == idea.id }) {

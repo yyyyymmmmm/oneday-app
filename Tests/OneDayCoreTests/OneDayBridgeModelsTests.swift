@@ -320,6 +320,68 @@ final class OneDayBridgeModelsTests: XCTestCase {
         XCTAssertNil(adopt["status"])
     }
 
+    // MARK: - 点子 v2 字段（0.39.0：anchorId/dismissReason）
+
+    /// 桥 0.39.0 落卡全形：生成卡带解析后的 anchorId
+    private let generatedIdeaV2JSON = """
+    {"id": "i_39", "title": "生成的点子 v2", "detail": "做什么",
+     "goalId": null, "createdAt": 1794293023.7455528,
+     "source": "generated", "evidence": "任务板上合同确认卡住了",
+     "evidenceRef": "K1", "anchorId": "K:t_blocked",
+     "dismissReason": null, "status": "pending", "taskId": null,
+     "expiresAt": 1795502623.7455528}
+    """
+
+    func testGeneratedIdeaV2DecodesAnchorFields() throws {
+        let idea = try decoder.decode(
+            BridgeIdea.self, from: Data(generatedIdeaV2JSON.utf8)
+        )
+        XCTAssertEqual(idea.anchorId, "K:t_blocked")
+        XCTAssertNil(idea.dismissReason)
+        XCTAssertEqual(idea.evidenceRef, "K1")
+    }
+
+    func testDismissedIdeaDecodesTooGenericReason() throws {
+        let json = """
+        {"id": "i_40", "title": "t", "detail": "", "goalId": null,
+         "createdAt": 1.0, "source": "generated", "evidence": "e",
+         "evidenceRef": "R1", "anchorId": "R:mem_x",
+         "dismissReason": "tooGeneric", "status": "dismissed",
+         "taskId": null, "expiresAt": null}
+        """
+        let idea = try decoder.decode(
+            BridgeIdea.self, from: Data(json.utf8)
+        )
+        XCTAssertEqual(idea.dismissReason, "tooGeneric")
+        XCTAssertEqual(idea.anchorId, "R:mem_x")
+        XCTAssertEqual(idea.status, .dismissed)
+    }
+
+    func testLegacyIdeaPayloadDefaultsAnchorFields() throws {
+        // v2 前载荷（generatedIdeaJSON）：两字段缺失按 nil 收
+        let idea = try decoder.decode(
+            BridgeIdea.self, from: Data(generatedIdeaJSON.utf8)
+        )
+        XCTAssertNil(idea.anchorId)
+        XCTAssertNil(idea.dismissReason)
+    }
+
+    func testIdeaPatchRequestEncodesDismissReason() throws {
+        let marked = try jsonObject(
+            BridgeIdeaPatchRequest(
+                status: .dismissed, dismissReason: "tooGeneric"
+            )
+        )
+        XCTAssertEqual(marked["status"] as? String, "dismissed")
+        XCTAssertEqual(
+            marked["dismissReason"] as? String, "tooGeneric"
+        )
+        let plain = try jsonObject(
+            BridgeIdeaPatchRequest(status: .dismissed)
+        )
+        XCTAssertNil(plain["dismissReason"])
+    }
+
     func testGenerationInfoDecodes() throws {
         let json = """
         {"lastRunAt": 1794293023.7, "nextRunAt": 1794378600.0,

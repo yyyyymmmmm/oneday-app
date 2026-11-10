@@ -7550,3 +7550,29 @@ def greet(name):
 
 - 新增 41 法（ProviderRegistry 13＋ModelCombos 12＋CompanionConnections 11＋ProgressCapsule 5；基线 995 → 预期 1036，终判等合并后 CI，本机无 Swift 工具链）。
 - 欠账/未决：①渠道只读代理端点待伴生线（契约已定：GET /api/companion/gateway-channels → {channels:[{id,name,status,models,priority,weight,group}]}，App 已按此解码）；②组合 meta 面待伴生线（契约 GET/PUT /api/oneday-bridge/meta/model-combos，文档 {combos, activeComboID}）；③aux/delegation/fallback 写回的热生效范围未测（收官窗口）；④具名 provider 的选用语法（会话锁/逐请求引用）未实测——本包只做到名册与候选呈现，聊天里实际选直连模型走哪条路归窗口实测后另包；⑤providers 条目里 models 字段经 Dashboard 规范化往返是否无损未实测（若被规范化剥掉，清单层直连标注退化为「条目在、模型清单空」，添加流不受影响）；⑥VPS 能力面（shell/文件/状态卡）与默认台语义随云电脑档 P1 后段另包，本包只到连接配置面。
+
+## §104 点子扩容（0.39.0 预制，源分支 feat/ideas-v2，2026-11-11）：素材七源＋落卡三门＋锚点级去重
+
+规格源＝three-pages-mechanism-v2-20261110.md 第二章（2026-11-10 17:42 用户「按推荐全定」）。本包只动点子机制层：管道骨架（桥内调度／07:30 节奏／0–3 张／状态机／采纳链／expiresAt）全部保留，换的是素材装配、证据校验与去重。版本五处未动（合并时主线定 0.39.0 号）；伴生改动在 hermes-deploy 工作树（非 git 仓），随合并后按自动部署规矩上线。
+
+### 104.1 桥（oneday_bridge.py 生成段换代）
+
+- **素材四源→七源**：brief 不变；S 由「近 7 天会话标题」升两段式——`_ledger_sessions` 列近 14 天主线/正经旁聊（cron/archived/probe/生成会话自身排除），逐会话经 `_ledger_messages` 取正文节选（仅 user/assistant、尾部 4000 字），一轮 flash 摘要（SESSION_DIGEST_PROMPT，明令保留日期/专名/数字锚点）压成一句，摘要按 (会话 id, messageCount) 缓存于 meta.sessionDigests（同日手动轮复用、48 条上限）；摘要失败降级为标题行＋注记只进账面（沿首轮「注记不进素材」纪律）。G 补近 14 天 entries（每目标 ≤3 条）＋最近一期简报标题。M 不变。K 新源 `_fetch_kanban_details`：经 `_ledger_dash` 读 oneday 板实质（标题/状态/body 摘录/最近活动），三类信号定版——blocked＝「卡住」、done 且 7 天内＝「已完成待收尾」、未完成且 ≥7 天无活动＝「长期未动 N 天」；板不给时间戳的字段不编信号。R 新源 `_fetch_memory_excerpts`：经 write-gate 桥 `GET /memories`（契约 memory-bridge-contract-20261109，Bearer WRITE_GATE_BRIDGE_KEY，既有通道）取条目，只入桥生成的 title+summary 摘录；选取＝文件 30 天内更新或命中目标/任务标题关键词，≤10 条。
+- **落卡三门**：①硬门不变（generated＋evidence 空→400，POST 与生成共用；POST 另加 evidenceRef 形状校验 ^[SGMKR][0-9]+$）。②锚点门（新）：`_assemble_material` 同步产出锚点注册表（ref→真实对象），`_parse_generated_cards` 逐卡验——evidenceRef 必须在注册表内（＝对象存在校验），且 evidence 句须含具体事实（日期/数字/对象 id/锚对象标题特征词任一；ref 记号本身先剥除防冒充）。③动作门（新）：生成提示改版（双标杆样例＋「我可以……」式明令）＋著卡后自检轮 `_self_check_cards`（同模型按标杆逐卡复判、不过自删；基础设施失败保留卡片只记 selfCheckNote、产出不可解析不采信）＋『太泛』回流（见 104.2）。
+- **锚点级去重**：落卡时把 ref 解析为 anchorId（"<kind>:<对象 id>"）存进卡面——轮内编号跨轮无意义，去重必须以对象为准。pending/adopted 卡的 anchorId 封该锚点（adopted＋taskId＝事已在办/已办完，同口径封存至卡删除）；dismissed 锚点歇 30 天（以 statusAt 计、旧卡回落 createdAt）；标题层保留作第二层（全存量标题精确去重）。账面新增 droppedReasons 分计（noAnchor/noAction/dupAnchor/other）＋materialNotes 按源分记＋selfCheckNote；materialNote 旧键保留（会话源注记镜像）。
+- **卡面新字段**：anchorId、dismissReason（null|"tooGeneric"）、statusAt（状态落定时刻，PATCH 与过期清扫都落）。PATCH /ideas 只多收 dismissReason：仅转 dismissed 时可带、词表外 400；`_idea_view` 三字段全形输出，旧卡缺失按 null 呈现。
+- **自测**：新增 tests/oneday_bridge_p5_selftest.py 21 项全过（A 相位 HTTP 契约 9 项：硬门/编号格式门/太泛落定与两处 400/视图新字段；B 相位整轮 12 项：七源装配断言含 S 摘要入素材、cron/probe/旧会话排除、K 三信号、R 旧条目剔除、太泛标记入避让素材，三门各落一类 dropped、锚点去重跨轮、摘要缓存不重跑）。全套其余与基线一字不差（overview 8／p2 34／p3 26／p4 19／write-gate 22／ledger 60）；device_sync 既有跨日界 1 例失败与本包无关（基线同挂）。
+
+### 104.2 App（呈现与字段，卡面形态零变化）
+
+- **Core 新件 IdeaAnchor**（IdeaAnchor.swift）：evidenceRef/anchorId 双形态解析（五源字母＋序号，形状不对不认不猜）＋IdeaMaterialKind.tileSymbol。IdeasView 瓷砖 switch 退役改走本件：S/G/M 符号与 0.32.0 逐一对齐（text.bubble/target/dot.radiowaves.left.and.right），K＝checklist、R＝brain 新增，无法解析回落 lightbulb；手记仍 pencil。
+- **字段接入**：BridgeIdea 加 anchorId/dismissReason 宽容解码（旧载荷 nil）；BridgeIdeaPatchRequest 加 dismissReason（nil 不落键）。
+- **『太泛』入口**：生成卡在列表长按菜单与详情动作组各多一项「太泛了，忽略」（手记卡不给——太泛是生成质量信号）；IdeasStore.dismiss 加 tooGeneric 参数，随 PATCH 带 dismissReason="tooGeneric"，回读确认口径不变。左滑仍是普通忽略。
+- **单测**：新增 IdeaAnchorTests 5 法（五源解析/双形态拒收/瓷砖对齐与互异）＋OneDayBridgeModelsTests 4 法（v2 全形解码/太泛原因解码/旧载荷默认/PATCH 编码），共 +9 法，本机无 Swift 工具链、终判等合并后 CI（静态自查：BridgeIdea 两处既有直构均为标签参、新参带默认值不破调用）。
+
+### 104.3 核查与取舍（如实记账）
+
+- **R 源落点已核实存在**：write-gate 桥 `GET /memories` 已上线（契约 §4 的「未部署」已过期），字段 {id,target,title,summary,updatedAt,digest} 与契约 §2.2 一致，故 R 源本包全量接入、不缓上。注意 updatedAt 是**文件级**时刻（契约明示条目无逐条时间）：「近 30 天更新」实为「所在文件 30 天内动过」，同文件条目同进同退——选取口径如实如此，不包装成逐条新鲜度。
+- **kanban 卡面不能承载 goalId（已核）**：KanbanTask 生产字段面（App 解码器逐字对过的字段集）无 goalId、无通用 metadata 键，建卡 POST 同。本包不需要该载体（点子↔目标关联已由桥侧 idea.goalId＋taskId 回写承载）；规格第三章的委派载体按其定案顺序走桥侧 goal_task_links 映射，留 0.40.0 施工时落，本包不往卡面塞未验字段。
+- **三门落点与任务单的口径对齐**：三门按规格 §2.1 落桥侧（模式校验/存在校验/自检轮都在桥），App Core 只落锚点模型与呈现映射——规格 §2.3「App 基本不动」与此一致；动作门本质是语义判断，本包是「提示明令＋自检轮＋太泛回流」组合防线，不宣称全自动质检（规格诚实注记同口径）。
+- **摘要是二次压缩**：锚点靠提示纪律保留、仍可能丢细节；摘要只作生成素材，不落任何用户可见面（规格诚实边界同口径）。记忆摘录是启发式挑选，会漏，不宣称读全。
