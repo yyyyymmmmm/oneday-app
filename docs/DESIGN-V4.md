@@ -7550,3 +7550,37 @@ def greet(name):
 
 - 新增 41 法（ProviderRegistry 13＋ModelCombos 12＋CompanionConnections 11＋ProgressCapsule 5；基线 995 → 预期 1036，终判等合并后 CI，本机无 Swift 工具链）。
 - 欠账/未决：①渠道只读代理端点待伴生线（契约已定：GET /api/companion/gateway-channels → {channels:[{id,name,status,models,priority,weight,group}]}，App 已按此解码）；②组合 meta 面待伴生线（契约 GET/PUT /api/oneday-bridge/meta/model-combos，文档 {combos, activeComboID}）；③aux/delegation/fallback 写回的热生效范围未测（收官窗口）；④具名 provider 的选用语法（会话锁/逐请求引用）未实测——本包只做到名册与候选呈现，聊天里实际选直连模型走哪条路归窗口实测后另包；⑤providers 条目里 models 字段经 Dashboard 规范化往返是否无损未实测（若被规范化剥掉，清单层直连标注退化为「条目在、模型清单空」，添加流不受影响）；⑥VPS 能力面（shell/文件/状态卡）与默认台语义随云电脑档 P1 后段另包，本包只到连接配置面。
+
+## §104 动态换代包 0.38.0：简报驱动调研五步链＋简报两层制＋来源嵌入卡＋未读角标（2026-11-11，预制包；§101 留文件页 v2 包）
+
+> 规格真源：`three-pages-mechanism-v2-20261110.md` 第一章＋附记（2026-11-10 17:42 用户「按推荐全定」、17:43 附记简报两层制）。用途论证（产品经理令）：动态＝替用户盯世界——用户只定「我关心什么」，系统每天替他去看、验真、成帖，他只读结果。本节与规格冲突时规格优先。
+
+### 104.1 生成链换代（伴生 oneday_bridge.py 段二）
+
+- **退役**：P3 段二「晨报」整链删除（MORNING_PROMPT／单轮 /v1/runs 写稿／`_assemble_morning_material`／`_parse_morning_post`／`_start_morning`，grep 零残留）。旧 kind=morning 帖只读保留、呈现不改。
+- **新链五步**（桥内线程，`/meta/brief` 执行层为输入）：①**规划**——一次 /v1/runs 把简报拆成 ≤4 个方向、每方向 ≤2 条检索词（JSON 严解、条数上限在解析层钉死）；②**检索**——Tavily 逐词检索（武装库 TAVILY_API_KEY，每词回 5 条），候选按规范化 URL 去重（去 fragment／utm 等跟踪参数／尾斜杠，host 小写），并剔除近 30 天已发帖的标题与链接（避让集）；③**深读抓图**——Tavily Extract 逐篇深读（正文 ≥400 字才算读到），正文图与 og 图入图池（每篇 ≤2 张、与来源 URL 绑定）；深读失败的候选用 Firecrawl 抓取兜底（FIRECRAWL_API_KEY）；④**著帖**——逐方向一次 /v1/runs，材料＝该方向候选的真标题／URL／正文摘＋图池清单＋避让标题，产出 {title, body, why, links, images, refs, skip}；⑤**验真落库**——links 必须 ⊆ 本轮候选集（集外一条整篇退回、不落库）；images 必须 ⊆ 深读池且 HEAD 可达（不可达剔图、不断帖）；refs 给了才验（`_clean_refs` 旧纪律：假一整帖退回）；why 必填（空＝无理由不落）。落库帖 kind=**research**，带 direction、images:[{url, sourceUrl}]、sourceCard（可空）。
+- **节奏与上限**：每日 08:30（沿旧晨报时隙与 meta.feedGen 账面）＋简报执行层真变更触发（见 104.2）；每方向 0–1 帖、整轮 ≤3 帖；账面 directions[] 逐方向记 produced/candidateCount/note，顶层 status 沿 ok/empty/skipped/error 四态、dropped 计数单列。生成账面视图双键：`morning`（旧 App 兼容别名）与 `research` 同指一份账面。
+- **来源嵌入卡**：著帖链接命中 GitHub 仓库 URL（两段路径、保留段名排除）时，桥侧以 api.github.com/repos/{owner}/{repo} 真抓成卡 {kind:"github", name, description, url, imageUrl（仓库主头像）, facts:[星标/复刻/语言]}，每帖至多一张；抓不到就不带卡，绝不拼造。
+- **通道缺位如实**：TAVILY/FIRECRAWL 密钥经 companion.env 注入（env.example 已补空位行）；检索通道未配时整轮记 skipped「通道待接通」，Hermes 钥缺位同旧纪律记 skipped，都不产帖、不假造。
+- **工作台账**：轮次 job kind 沿用 "morning"（台账历史不断链），显示名改「动态调研」。
+- **自测**：p3 Phase B 改测新链三态（集外链接整帖退回／skip 如实记账／有效落库含死图剔除）检查数与旧版持平（26）；新 p4 自测 19 项（两层简报 HTTP 契约＋扩写落盘/过期不落盘＋URL 规范化＋避让集＋GitHub 卡桩测＋计划上限＋视图新字段）并登记 run_bridge_selftests.sh。全套结果：overview 8／p2 34／p3 26／p4 19／write-gate 22／ledger 60／model-combos OK／device OK；device_sync 一例失败为其自测按 `datetime.now()` 对固定种子算「今日/逾期」的跨日界既有问题（该自测不引用 oneday 模块），非本包引入。
+
+### 104.2 简报两层制（落点＝桥 meta 扩展，App 只呈现）
+
+- **两层分工**：兴趣层 `meta.briefInterest`＝用户原话（上限 2000 字）；执行层 `meta.brief` 沿用旧字段语义不变——点子/简报/调研三条生成管道的消费面零迁移。上层时间戳 `briefInterestUpdatedAt`、执行层 `briefUpdatedAt`、扩写账 `briefExpand{lastRunAt, lastError}` 分开记。
+- **契约**：GET /meta/brief 回 {brief, interest, briefUpdatedAt, interestUpdatedAt, expanding, expandError}；PUT 接受 {interest} 和/或 {brief}（上限 2000/4000），回全文＋expandStarted。旧 {"brief"} 契约行为不变（直改执行层）。
+- **触发链**：PUT interest 且 trim 后真变更且非空 → 起扩写线程（BRIEF_EXPAND_PROMPT：保留全部方向与口径、不自创方向、结合上一版维护、只输出正文）；扩写落盘前复核兴趣未被再改（过期扩写不落盘）；落盘且执行层与旧值不同才触发一轮调研（trigger="brief"）。PUT brief 真变更 → 直接触发一轮。interest 清空不触发、不动执行层。
+- **App 呈现**：动态页首行改「简报行」——兴趣层首行摘要（回落执行层首行）、空时引导文案「写下你感兴趣什么，我每天替你去看」，点开与右上角 sliders 钮同进 `FeedBriefEditorView`；编辑器两层分区独立编辑独立保存：兴趣层带示例块（现行三方向原文，只呈现、点「填入示例改一改」才入框，绝不静默预填），执行层标注「正式简报」可见可改；扩写中/失败如实显（失败原文呈现、不藏）。旧胶囊（点开落帖）仅在简报端点不可达（briefDoc 为 nil）时作降级保留。
+
+### 104.3 帖面与未读
+
+- **帖行**：右侧 54pt 缩略图（images 首图，无图不占位）；动作行在类别后加方向名。
+- **详情**：标题下整幅图（首图，加载失败整块不显）；why 段后来源嵌入卡（头像＋名＋简介＋事实行，整卡外开来源页）；links/refs 沿旧结构。
+- **未读角标**：壳层 ContentView 持 feedUnread，.task(id: scenePhase) 前台 30 秒一轮拉 /feed/generation.unread（与总览轮询同节奏），Tab(value: .feed) 挂 `.badge`；失败保持旧值不忽有忽无。**口径**：APNs 到位前只称「未读角标」，全包文案无「推送」字样冒充系统推送（grep 验）。
+- **Core**：BridgeFeedPost 加 images/sourceCard/direction 宽容解码（旧帖缺省空/nil）；FeedPostKind 加 .research（符号 magnifyingglass、文案「调研」）；BridgeFeedGeneration 加 research 键与 segmentTwo 正读口径；新文件 FeedBrief.swift（BridgeBriefDoc／BridgeBriefSaveRequest 只编所设层／FeedBriefBoard：摘要行口径、引导态、真变更 trim 比较、exampleInterest 常量）。新测 FeedV2Tests **13 法**。
+
+### 104.4 架构取舍与未决项
+
+- **生成侧落点**：规格 §1.4 已定论＝生成住桥（伴生 oneday 模块），本包从规格未自创；两段模型调用仍走 /v1/runs（规划＋逐方向著帖），与点子/简报管道同底座。
+- **版本位**：五处版本本包未动（预制包口径，合并时主线定 0.38.0 号）。
+- **未决**：①Tavily/Firecrawl 生产密钥注入 companion.env 后须实跑一轮真调研验产出质量（本包只验桩链）；②扩写轮与调研轮的真实耗时（/v1/runs 同步等待）待生产实测，App 侧已按异步对账设计、不阻塞呈现；③深读图池的图源版权口径沿「来源页真图＋详情标来源链接」现状，未另设过滤。

@@ -2,14 +2,17 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 动态格（P3，0.35.0）：形态按设计档第三章向 Muse
-/// 动态页收——大标题下简报胶囊（今日汇编摘要＋未读
-/// 数，点开落对应帖）、帖子扁平排版（kind 瓷砖＋标
-/// 题＋正文摘＋refs 蓝字内链＋相对时间）、按日分组。
+/// 动态格（P3，0.35.0；0.38.0 换代）：形态按设计档
+/// 第三章向 Muse 动态页收——大标题下简报行（兴趣
+/// 摘要＋未读数，点开进简报编辑器）、帖子扁平排版
+/// （kind 瓷砖＋标题＋正文摘＋真图缩略＋refs 蓝字内
+/// 链＋相对时间）、按日分组。
 /// 数据口径：双生产者在桥端（段一确定性汇编＋段二
-/// 晨报），App 只读＋已读回写；已读以服务端 readAt
-/// 为真源。空态二分如实（从未产出/今日无素材），不
-/// 许假帖填充。refs 点达对象详情走本栈复用各详情页。
+/// 简报驱动的调研五步链），App 只读＋已读回写；已
+/// 读以服务端 readAt 为真源。简报两层在编辑器里分
+/// 开存分开改（兴趣层用户原话、执行层 AI 整理）。
+/// 空态二分如实（从未产出/今日无素材），不许假帖
+/// 填充。refs 点达对象详情走本栈复用各详情页。
 struct FeedView: View {
     @Environment(AppState.self) private var appState
     @State private var store = FeedStore()
@@ -20,6 +23,8 @@ struct FeedView: View {
     @State private var kanban = KanbanStore()
     @State private var monitorsStore = MonitorsStore()
     @State private var path = NavigationPath()
+    /// 简报编辑器（0.38.0 两层制）呈现
+    @State private var briefEditorShown = false
 
     enum Route: Hashable {
         case post(String)
@@ -61,6 +66,19 @@ struct FeedView: View {
             }
             .background(Palette.pageBG)
             .navigationTitle("动态")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        briefEditorShown = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .accessibilityLabel("编辑简报")
+                }
+            }
+            .sheet(isPresented: $briefEditorShown) {
+                FeedBriefEditorView(store: store)
+            }
             .task {
                 await reload()
             }
@@ -98,7 +116,7 @@ struct FeedView: View {
                     "动态刚上线",
                     systemImage: "doc.text",
                     description: Text(
-                        "站内有新点子、新简报或任务变化时，这里会先汇编一篇；第一篇晨报明早 8:30 到。"
+                        "写下你感兴趣什么，我每天替你去看；第一轮明早 8:30 到。站内的新点子、新简报也会汇编到这里。"
                     )
                 )
             case .quiet:
@@ -106,14 +124,18 @@ struct FeedView: View {
                     "近来没有新动态",
                     systemImage: "moon.zzz",
                     description: Text(
-                        "今天没有值得汇编的事，晨报也还没有新一篇；有动静时这里会先更新。"
+                        "今天没有值得一提的新发现；有动静时这里会先更新。"
                     )
                 )
             }
         } else {
             List {
                 Section {
-                    capsuleRow
+                    if let doc = store.briefDoc {
+                        briefRow(doc)
+                    } else {
+                        capsuleRow
+                    }
                 }
                 .listRowSeparator(.hidden)
 
@@ -182,6 +204,66 @@ struct FeedView: View {
         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
     }
 
+    /// 简报行（0.38.0）：兴趣摘要＋未读数，点开进简
+    /// 报编辑器（两层制）；还没写过兴趣时走引导文案。
+    /// 旧胶囊的「点开落帖」自此退役——这一行只管简报
+    private func briefRow(_ doc: BridgeBriefDoc) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Palette.inkSecondary)
+            VStack(alignment: .leading, spacing: 2) {
+                if let line = FeedBriefBoard.summaryLine(doc) {
+                    Text(line)
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Text("我的简报 · 点按编辑")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                } else {
+                    Text("写下你感兴趣什么，我每天替你去看")
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Text("点按写简报")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            if doc.expanding {
+                ProgressView()
+                    .controlSize(.small)
+            }
+            if store.unreadCount > 0 {
+                Text("\(store.unreadCount) 未读")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Palette.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        Palette.selectionFill,
+                        in: Capsule()
+                    )
+            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            briefEditorShown = true
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+    }
+
     /// 帖子扁平行：kind 瓷砖＋标题（未读点）＋正文摘
     /// ＋refs 蓝字内链＋动作行（类别左、相对时间右）
     private func postRow(_ post: BridgeFeedPost) -> some View {
@@ -213,6 +295,13 @@ struct FeedView: View {
                     Text(post.kind.label)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
+                    if let direction = post.direction,
+                       !direction.isEmpty {
+                        Text(direction)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
                     // 0.36.0（无障碍 A11Y-C5）：未读除蓝
                     // 点外补文字通道——不靠颜色单独传信
                     // 息，VoiceOver/色弱下同样可辨
@@ -228,6 +317,23 @@ struct FeedView: View {
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                 }
+            }
+            // 配图缩略（0.38.0）：只显第一张来源真图；
+            // 无图不占位，行高不为图让路
+            if let first = post.images.first,
+               let url = URL(string: first.url) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Palette.surface
+                    }
+                }
+                .frame(width: 54, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
         .padding(.vertical, 4)
@@ -366,6 +472,21 @@ struct FeedPostDetailView: View {
                         Text(post.title)
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(Palette.ink)
+                        // 整幅图（0.38.0）：第一张来源真图；
+                        // 加载失败/无图整块不显，不摆假图
+                        if let first = post.images.first,
+                           let url = URL(string: first.url) {
+                            AsyncImage(url: url) { phase in
+                                if case .success(let image) = phase {
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                }
+                            }
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: 12)
+                            )
+                        }
                         MarkdownText(post.body)
                         if let why = post.why, !why.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
@@ -382,6 +503,9 @@ struct FeedPostDetailView: View {
                                 Palette.surface,
                                 in: RoundedRectangle(cornerRadius: 12)
                             )
+                        }
+                        if let card = post.sourceCard {
+                            sourceCardView(card)
                         }
                         if !post.links.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
@@ -464,5 +588,238 @@ struct FeedPostDetailView: View {
         }
         .navigationTitle("动态")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 来源嵌入卡（0.38.0）：头像＋名＋简介＋事实行，
+    /// 整卡点开来源原页；数据全是桥侧真抓，App 只摆
+    @ViewBuilder
+    private func sourceCardView(_ card: BridgeFeedSourceCard) -> some View {
+        let content = HStack(alignment: .top, spacing: 10) {
+            if let imageUrl = card.imageUrl,
+               let url = URL(string: imageUrl) {
+                AsyncImage(url: url) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Palette.selectionFill
+                    }
+                }
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(card.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                if !card.description.isEmpty {
+                    Text(card.description)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(2)
+                }
+                if !card.facts.isEmpty {
+                    HStack(spacing: 12) {
+                        ForEach(
+                            Array(card.facts.enumerated()),
+                            id: \.offset
+                        ) { _, fact in
+                            Text("\(fact.label) \(fact.value)")
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                }
+            }
+            Spacer()
+            Image(systemName: "arrow.up.forward")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        if let url = URL(string: card.url) {
+            Link(destination: url) { content }
+        } else {
+            content
+        }
+    }
+}
+
+
+/// 简报编辑器（0.38.0 两层制）：上层只写自己的话，
+/// 保存后由 AI 整理成下层的正式简报；正式简报可见
+/// 可改、直改保存同样算数。两层分开存、分开保存，
+/// 不许让用户对着空白框自写完整执行提示词——示例
+/// 只作参考呈现，点「填入示例」才进输入框。
+struct FeedBriefEditorView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+    let store: FeedStore
+
+    @State private var interestText = ""
+    @State private var promptText = ""
+    @State private var initialized = false
+    @State private var savedNote: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $interestText)
+                        .frame(minHeight: 110)
+                } header: {
+                    Text("我感兴趣什么")
+                } footer: {
+                    Text("用自己的话写就行：关心哪几个方向、"
+                         + "什么样的内容不要。保存后我来整理"
+                         + "成下面的正式简报。")
+                }
+
+                Section {
+                    Text(FeedBriefBoard.exampleInterest)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    Button {
+                        interestText = FeedBriefBoard.exampleInterest
+                    } label: {
+                        Label("填入示例改一改",
+                              systemImage: "text.badge.plus")
+                    }
+                } header: {
+                    Text("示例")
+                }
+
+                Section {
+                    Button {
+                        Task { await saveInterest() }
+                    } label: {
+                        HStack {
+                            Text("保存兴趣")
+                            Spacer()
+                            if store.briefSaving {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                        }
+                    }
+                    .disabled(
+                        store.briefSaving || !interestChanged
+                    )
+                } footer: {
+                    Text("保存后先整理简报；整理出新版就立刻"
+                         + "按新简报去看一轮。平时每天早上 "
+                         + "8:30 例行一轮，有新发现就多一篇，"
+                         + "没有就不凑数。")
+                }
+
+                if let doc = store.briefDoc, doc.expanding {
+                    Section {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("正在整理简报…")
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                }
+                if let error = store.briefDoc?.expandError,
+                   !error.isEmpty {
+                    Section {
+                        Text("上次整理没成功：\(error)")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+
+                Section {
+                    TextEditor(text: $promptText)
+                        .frame(minHeight: 150)
+                } header: {
+                    Text("正式简报")
+                } footer: {
+                    Text("这是每天真正照着去看的那份，由上"
+                         + "面的兴趣自动整理。你也可以直接改"
+                         + "它：保存后立刻按新简报去看一轮。")
+                }
+
+                Section {
+                    Button {
+                        Task { await savePrompt() }
+                    } label: {
+                        Text("保存正式简报")
+                    }
+                    .disabled(store.briefSaving || !promptChanged)
+                }
+
+                if let note = savedNote {
+                    Section {
+                        Text(note)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                if let error = store.briefError {
+                    Section {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("我的简报")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
+            .task {
+                if store.briefDoc == nil {
+                    await store.load(appState: appState)
+                }
+                if !initialized {
+                    interestText = store.briefDoc?.interest ?? ""
+                    promptText = store.briefDoc?.brief ?? ""
+                    initialized = true
+                }
+            }
+        }
+    }
+
+    private var interestChanged: Bool {
+        FeedBriefBoard.textChanged(
+            store.briefDoc?.interest ?? "", interestText
+        )
+    }
+
+    private var promptChanged: Bool {
+        FeedBriefBoard.textChanged(
+            store.briefDoc?.brief ?? "", promptText
+        )
+    }
+
+    private func saveInterest() async {
+        if await store.saveInterest(
+            appState: appState, interestText
+        ) {
+            savedNote = store.briefDoc?.expandStarted == true
+                ? "已保存，正在整理简报；整理出新版会立刻去看一轮。"
+                : "已保存。"
+        }
+    }
+
+    private func savePrompt() async {
+        if await store.savePrompt(appState: appState, promptText) {
+            savedNote = store.briefDoc?.expandStarted == true
+                ? "已保存，正在按新简报去看一轮。"
+                : "已保存。"
+        }
     }
 }
