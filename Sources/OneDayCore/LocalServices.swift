@@ -32,17 +32,22 @@ public enum LocalServiceID: String, CaseIterable, Identifiable, Sendable {
 
 /// 本机服务静态条目：名称/说明/图标/检查证据全
 /// 在 Core 单一真源，视图只渲染（与
-/// ConnectorCatalog Entry 同式）。本机服务不是品
-/// 牌，图标走 SF Symbol（宪法 §4 降级口径，旧汉
-/// 字字块自 0.36.0 退役）。evidenceLine 是检查的
-/// 证据口径——检查的是什么、为何这样查，详情页
-/// 以用户语言如实列出（接口细节不进主文案，§8）。
+/// ConnectorCatalog Entry 同式）。图标口径
+/// （0.36.3，用户 18:05 加严 §4 执行口径）：有名
+/// 有姓的服务一律真实图标——本机服务逐个定制应
+/// 用图标级图面进 Assets（iconAssetName，来源与
+/// 画法登记在整改台账 D 节），旧「裸 SF 符号瓷
+/// 砖」自本版退役；裸符号只许留无名未知 MCP 兜
+/// 底。evidenceLine 是检查的证据口径——检查的
+/// 是什么、为何这样查，详情页以用户语言如实列
+/// 出（接口细节不进主文案，§8）。
 public struct LocalServiceDescriptor: Identifiable, Equatable, Sendable {
     public let serviceID: LocalServiceID
     public let name: String
     /// 一句说明（列表行副题与详情共用）
     public let blurb: String
-    public let symbolName: String
+    /// 定制图标面资产名（Assets.xcassets 内 imageset）
+    public let iconAssetName: String
     /// 检查证据来源（用户语言）
     public let evidenceLine: String
 
@@ -50,12 +55,12 @@ public struct LocalServiceDescriptor: Identifiable, Equatable, Sendable {
 
     public init(
         serviceID: LocalServiceID, name: String, blurb: String,
-        symbolName: String, evidenceLine: String
+        iconAssetName: String, evidenceLine: String
     ) {
         self.serviceID = serviceID
         self.name = name
         self.blurb = blurb
-        self.symbolName = symbolName
+        self.iconAssetName = iconAssetName
         self.evidenceLine = evidenceLine
     }
 }
@@ -69,28 +74,28 @@ public enum LocalServiceDirectory {
             serviceID: .hermes,
             name: "Hermes 服务",
             blurb: "智能体本体 · 对话、工具与会话都跑在它上面",
-            symbolName: "server.rack",
+            iconAssetName: "LocalHermes",
             evidenceLine: "检查的是 Hermes 本体回的健康状态（打开本页时当场问的，不需要登录）"
         ),
         LocalServiceDescriptor(
             serviceID: .writeGate,
             name: "记忆与技能",
             blurb: "审批桥 · 记忆和技能的写入先过这道闸门",
-            symbolName: "checkmark.shield",
+            iconAssetName: "LocalWriteGate",
             evidenceLine: "检查的是审批闸门的工作状态（打开本页时当场问的）"
         ),
         LocalServiceDescriptor(
             serviceID: .oneDayBridge,
             name: "目标与点子",
             blurb: "目标与点子的云端仓 · 底栏目标/点子两格的数据源",
-            symbolName: "target",
+            iconAssetName: "LocalOneDayBridge",
             evidenceLine: "检查的是目标列表能不能读到（这项服务没有专门的健康检查，拿最轻的一次读取代替）"
         ),
         LocalServiceDescriptor(
             serviceID: .overviewBridge,
             name: "总览数据",
             blurb: "总览桥 · 总览页与通知角标的数据来源",
-            symbolName: "square.grid.2x2",
+            iconAssetName: "LocalOverviewBridge",
             evidenceLine: "检查的是总览数据能不能读到（这项服务没有专门的健康检查，拿最轻的一次读取代替）"
         ),
     ]

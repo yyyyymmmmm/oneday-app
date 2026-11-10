@@ -3,7 +3,9 @@ import OneDayDesign
 import SwiftData
 import SwiftUI
 
-/// 抽屉（侧边栏）。0.19.0 照 Muse 本体侧边栏重构，
+/// 抽屉（侧边栏）。0.36.3：面板底由纯色实板改系
+/// 统朦胧材质（用户 18:31 点名，详见 body 内注）。
+/// 0.19.0 照 Muse 本体侧边栏重构，
 /// 当日两轮口径（用户 2026-11-09 22:26 首令＋22:45
 /// 纠正，现行以纠正为准）：
 ///
@@ -121,7 +123,9 @@ struct DrawerView: View {
             .safeAreaBar(edge: .top, spacing: 0) {
                 drawerAgentName
                     .background {
-                        Palette.surface
+                        // 0.36.3：顶条与面板同材质（旧
+                        // 实色注册退役），整面一贯朦胧
+                        drawerBackdrop
                             .ignoresSafeArea(edges: .top)
                     }
             }
@@ -161,12 +165,17 @@ struct DrawerView: View {
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
-        // 面板底色穿过上下安全区（0.4.1 第 10 修：顶边
-        // 贴到屏幕顶——状态栏压面板之上、左缘贴边；
-        // 0.4.5 起底边同口径直达屏底，0.19.0 导航形态
-        // 下不变：抽屉面底色须一贯到底缘、不留色带）
+        // 面板底穿过上下安全区（0.4.1 第 10 修沿革：
+        // 顶边贴到屏幕顶、底边直达屏底，形态不变）
+        // 0.36.3（用户 18:31 点名）：底由纯色实板改
+        // 系统朦胧材质——对照 Muse 抽屉参考图：整面
+        // 磨砂、后面聊天内容隐约透出、标题与行直接浮
+        // 于材质上。只用系统材质 API（thinMaterial）；
+        // Reduce Transparency 时经 Core 裁决落实色面
+        // （chatSurface 同档），与底条霜层回退同口径。
+        // 私有 variableBlur 永不碰（E11 已注销）
         .background {
-            Palette.chatSurface
+            drawerBackdrop
                 .ignoresSafeArea(edges: [.top, .bottom])
         }
         .alert(
@@ -211,6 +220,22 @@ struct DrawerView: View {
         // /开抽屉的既有拉取兜底
         .onChange(of: appState.drawerRefreshTick) {
             Task { await loadDrawerData() }
+        }
+    }
+
+    /// 抽屉底（0.36.3）：系统 thinMaterial 朦胧面；
+    /// Reduce Transparency 开启时经 Core
+    /// TransparencyFallback 裁决落实色（chatSurface
+    /// 与旧实板同档），面板与顶条共用同一底、整面
+    /// 一贯。深浅双档由材质本体随系统呈现
+    @ViewBuilder
+    private var drawerBackdrop: some View {
+        if TransparencyFallback.surface(
+            reduceTransparency: reduceTransparency
+        ) == .solid {
+            Palette.chatSurface
+        } else {
+            Rectangle().fill(.thinMaterial)
         }
     }
 

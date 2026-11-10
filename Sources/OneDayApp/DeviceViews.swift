@@ -3,6 +3,9 @@ import EventKitUI
 import OneDayCore
 import OneDayDesign
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// 本机连接器详情页组（0.34.0 批一，设计档 §6.2 通
 /// 用骨架）：状态头（系统权限行＋调用去向行＋「允
@@ -10,6 +13,11 @@ import SwiftUI
 /// → 内容区（逐件形态）→ 口径脚注。被拒/未授权时内
 /// 容区换降级说明、不留空白页；每次进页重读系统权
 /// 限（不缓存上次的绿）。
+/// 0.36.3（详情页语法重做，用户 18:05 点名）：状
+/// 态头按五段式模板重排——瓷砖＋名称＋一句话能力
+/// 领头（居中）、系统权限行带可操作控件（S4）、
+/// 开关副文压一行、门面口径下沉节脚注；三页撤
+/// .navigationTitle 居中标题、内容领头。
 ///
 /// 诚实边界（本版）：设备会话在线只说明手机侧通道
 /// 活着；Hermes 侧工具门面注册留收官窗口——状态头
@@ -57,26 +65,45 @@ struct DeviceStatusHeader: View {
 
     var body: some View {
         Group {
+            // 领头段（0.36.3，详情页语法五段式）：
+            // 居中大真图标（苹果画法瓷砖 64）→名称→
+            // 一句话能力说明。旧设置式分组头＋居中
+            // 导航标题退役（对照授权页参考图）
             Section {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    Text("系统权限")
-                        .font(.rowTitleL)
+                VStack(spacing: OneDayMetrics.spacingS) {
+                    DeviceSymbolTile(
+                        symbol: descriptor.tileSymbol,
+                        colorHex: descriptor.tileColorHex, size: 64
+                    )
+                    Text(descriptor.name)
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(Palette.ink)
-                    Spacer(minLength: OneDayMetrics.spacingS)
-                    Text(permission.label)
-                        .font(.body)
+                        .multilineTextAlignment(.center)
+                    Text(descriptor.blurb)
+                        .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
-                    permissionAction
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
                 }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, OneDayMetrics.spacingSM)
+            }
+            .listRowBackground(Color.clear)
+
+            Section {
+                permissionRow
                 Toggle(isOn: agentCallBinding) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("允许智能体调用")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
-                        Text(descriptor.agentNote)
+                        // 0.36.3：副文压到一行短文案
+                        // （capabilityLine），长说明
+                        // agentNote 不再成段塞卡
+                        Text(descriptor.capabilityLine)
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
                     }
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
@@ -107,11 +134,12 @@ struct DeviceStatusHeader: View {
                         .font(.footnote)
                         .foregroundStyle(Palette.danger)
                 }
-                Text("智能体实际调用还差服务器侧的门面注册（下个收官窗口开通）；在此之前可先设好权限与开关，数据不会被调用。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
             } header: {
                 headerText("通道状态")
+            } footer: {
+                // 0.36.3：门面注册口径由卡内成段文字
+                // 下沉为本节页脚小字（一行交代）
+                Text("智能体实际调用待服务器侧门面注册开通；开通前数据不会被调用。")
             }
             .listRowBackground(Palette.surface)
         }
@@ -120,23 +148,70 @@ struct DeviceStatusHeader: View {
         )
     }
 
+    /// 系统权限行（0.36.3，续编 S4 落地）：行必须
+    /// 带可操作控件——未授权给「去开启」（触发系
+    /// 统请求）、被拒/受限给「去设置」、已授权整行
+    /// 可点进系统设置管理。旧形态只有「已授权」三
+    /// 字文本、无任何控件（用户 18:05 点名）退役。
     @ViewBuilder
-    private var permissionAction: some View {
+    private var permissionRow: some View {
         switch permission {
         case .notDetermined:
-            Button("开启") {
-                Task { await controller.requestAccess(for: source) }
-            }
-            .buttonStyle(.odSecondary)
-        case .denied, .restricted:
-            Button("去系统设置") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                permissionTitle
+                Spacer(minLength: OneDayMetrics.spacingS)
+                Text(permission.label)
+                    .font(.body)
+                    .foregroundStyle(Palette.inkSecondary)
+                Button("去开启") {
+                    Task { await controller.requestAccess(for: source) }
                 }
+                .buttonStyle(.odSecondary)
             }
-            .buttonStyle(.odSecondary)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        case .denied, .restricted:
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                permissionTitle
+                Spacer(minLength: OneDayMetrics.spacingS)
+                Text(permission.label)
+                    .font(.body)
+                    .foregroundStyle(Palette.inkSecondary)
+                Button("去设置") { openSystemSettings() }
+                    .buttonStyle(.odSecondary)
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         default:
-            EmptyView()
+            Button {
+                openSystemSettings()
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    permissionTitle
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Text(permission.label)
+                        .font(.body)
+                        .foregroundStyle(Palette.inkSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .accessibilityHidden(true)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityHint("在系统设置中管理此权限")
+        }
+    }
+
+    private var permissionTitle: some View {
+        Text("系统权限")
+            .font(.rowTitleL)
+            .foregroundStyle(Palette.ink)
+    }
+
+    private func openSystemSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
     }
 
@@ -187,8 +262,8 @@ private struct DevicePermissionGate: View {
                 Text(gateMessage)
                     .font(.callout)
                     .foregroundStyle(Palette.inkSecondary)
-                if source == .calendar, permission == .denied {
-                    Text("也可以只给写入权限：那样只能帮你建日程、不能帮你看安排——在系统设置里选「仅写入」即可，这里会如实显示。")
+                if source == .calendar, permission == .writeOnly {
+                    Text("在系统设置里改成「完全访问」后，这里就能看到安排。")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                 }
@@ -208,15 +283,17 @@ private struct DevicePermissionGate: View {
         }
     }
 
+    /// 降级说明（0.36.3 瘦身）：一句事实＋一个下
+    /// 一步，不成段（续编 S11 空态句式同理）
     private var gateMessage: String {
         let name = DeviceSourceDirectory.descriptor(source).name
         switch permission {
         case .notDetermined:
-            return "点上方「开启」后，系统会问你是否允许 OneDay 读取\(name)。授权只决定 App 能不能读；智能体能不能调用由「允许智能体调用」开关单独管。"
+            return "点上方「去开启」，系统会问你是否允许读取\(name)。"
         case .denied, .restricted:
-            return "在系统设置里把\(name)权限打开后，回到这里下拉刷新即可。被拒状态下这里不会显示任何数据，也不会假装有数据。"
+            return "到系统设置打开\(name)权限后，回来下拉刷新即可。"
         case .writeOnly:
-            return "只写不读的档位下看不到已有安排。如需查看与智能体现查，请到系统设置改成完全访问。"
+            return "当前只有写入权限，看不到已有安排。"
         default:
             return "当前状态下读不到数据。"
         }
@@ -271,8 +348,7 @@ struct CalendarDetailView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
-        .navigationTitle("日历")
-        .navigationBarTitleDisplayMode(.inline)
+        // 0.36.3：撤居中标题，领头段（瓷砖＋名称）即页头
         .toolbar {
             if permission.isUsable {
                 ToolbarItem(placement: .primaryAction) {
@@ -479,8 +555,7 @@ struct RemindersDetailView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
-        .navigationTitle("提醒事项")
-        .navigationBarTitleDisplayMode(.inline)
+        // 0.36.3：撤居中标题，领头段（瓷砖＋名称）即页头
         .toolbar {
             if permission.isUsable {
                 ToolbarItem(placement: .primaryAction) {
@@ -689,8 +764,7 @@ struct ContactsDetailView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
-        .navigationTitle("通讯录")
-        .navigationBarTitleDisplayMode(.inline)
+        // 0.36.3：撤居中标题，领头段（瓷砖＋名称）即页头
         .searchable(
             text: $query,
             placement: .navigationBarDrawer(displayMode: .always),

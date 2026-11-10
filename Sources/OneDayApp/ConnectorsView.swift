@@ -205,8 +205,10 @@ struct ConnectorsView: View {
             detailTarget = .local(descriptor.serviceID)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
+                // 0.36.3（§4 加严口径）：本机服务换定
+                // 制图标面资产，裸 SF 符号瓷砖退役
                 ConnectorIconView(
-                    spec: .symbol(descriptor.symbolName), size: 40
+                    spec: .asset(descriptor.iconAssetName), size: 40
                 )
                 VStack(alignment: .leading, spacing: 2) {
                     Text(descriptor.name)
@@ -230,6 +232,13 @@ struct ConnectorsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
+        // 0.36.3（目录行语法，对照 Muse 目录参考
+        // 图）：分隔线对齐文字列——起于名称左缘、
+        // 不穿图标下方（与设置页贯通口径不同页不
+        // 同规矩：目录页从参考图、设置页从用户点名）
+        .alignmentGuide(.listRowSeparatorLeading) { _ in
+            40 + OneDayMetrics.spacingSM
+        }
     }
 
     /// 状态点：正常绿/异常红/未配置灰；读取中是小转
@@ -342,6 +351,13 @@ struct ConnectorsView: View {
         }
         .frame(minHeight: OneDayMetrics.settingsRowHeight)
         .contentShape(Rectangle())
+        // 0.36.3（目录行语法，对照 Muse 目录参考
+        // 图）：分隔线对齐文字列——起于名称左缘、
+        // 不穿图标下方（与设置页贯通口径不同页不
+        // 同规矩：目录页从参考图、设置页从用户点名）
+        .alignmentGuide(.listRowSeparatorLeading) { _ in
+            40 + OneDayMetrics.spacingSM
+        }
     }
 
     /// 设备读数（本地现读，进页/下拉时算）：日历＝今
@@ -449,6 +465,13 @@ struct ConnectorsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
+        // 0.36.3（目录行语法，对照 Muse 目录参考
+        // 图）：分隔线对齐文字列——起于名称左缘、
+        // 不穿图标下方（与设置页贯通口径不同页不
+        // 同规矩：目录页从参考图、设置页从用户点名）
+        .alignmentGuide(.listRowSeparatorLeading) { _ in
+            40 + OneDayMetrics.spacingSM
+        }
     }
 
     // MARK: - 可连接（静态目录）
@@ -499,6 +522,13 @@ struct ConnectorsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
+        // 0.36.3（目录行语法，对照 Muse 目录参考
+        // 图）：分隔线对齐文字列——起于名称左缘、
+        // 不穿图标下方（与设置页贯通口径不同页不
+        // 同规矩：目录页从参考图、设置页从用户点名）
+        .alignmentGuide(.listRowSeparatorLeading) { _ in
+            40 + OneDayMetrics.spacingSM
+        }
     }
 
     // MARK: - 搜索（跨两段真过滤）
@@ -619,22 +649,29 @@ struct ConnectorsView: View {
         }
     }
 
+    /// 详情页头（0.36.3，详情页语法重做）：对齐
+    /// Muse 授权页五段式的领头段——居中大真图标
+    /// （64）→名称（Title2 bold，身份名档）→一句
+    /// 话能力说明（居中、次色、至多两行）。旧行首
+    /// 小图＋行题的设置式页头退役：详情页先让用户
+    /// 看见「它是谁、能干什么」，状态与动作随后。
     private func sheetHeader(
         spec: ConnectorIconSpec, name: String, subline: String
     ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            ConnectorIconView(spec: spec, size: 48)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                Text(subline)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            Spacer(minLength: 0)
+        VStack(spacing: OneDayMetrics.spacingS) {
+            ConnectorIconView(spec: spec, size: 64)
+            Text(name)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(Palette.ink)
+                .multilineTextAlignment(.center)
+            Text(subline)
+                .font(.callout)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
         }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, OneDayMetrics.spacingSM)
     }
 
     private func detailRow(_ title: String, _ value: String) -> some View {
@@ -662,7 +699,7 @@ struct ConnectorsView: View {
                     name: entry.displayName, subline: entry.blurb
                 )
             }
-            .listRowBackground(Palette.surface)
+            .listRowBackground(Color.clear)
             .listRowInsets(rowInsets)
 
             Section {
@@ -682,47 +719,52 @@ struct ConnectorsView: View {
                     }
                     .padding(.vertical, OneDayMetrics.spacingS)
                 }
-            } header: {
-                headerText("状态")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
 
+            // 0.36.3（五段式）：主动作＝整宽主按钮
+            // （测试连接），启停开关作控件行在前；测
+            // 试结果独立成行，不与按钮挤一格。原「操
+            // 作」分区头撤除——控件自明
             Section {
                 Toggle("启用", isOn: toggleBinding(for: server))
                     .font(.rowTitleL)
                     .disabled(toggling.contains(server.name))
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    Button("测试连接") {
-                        Task { await test(server) }
-                    }
-                    .buttonStyle(.odSecondary)
-                    .disabled(testing.contains(server.name))
-                    if testing.contains(server.name) {
-                        ProgressView()
-                    } else if let result = testResults[server.name] {
-                        HStack(spacing: 4) {
-                            Image(
-                                systemName: result.succeeded
-                                    ? "checkmark.circle.fill"
-                                    : "xmark.circle.fill"
-                            )
-                            .font(.system(size: 13))
-                            .foregroundStyle(
-                                result.succeeded
-                                    ? Palette.success : Palette.danger
-                            )
-                            .accessibilityHidden(true)
-                            Text(resultLine(result))
-                                .font(.footnote)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .lineLimit(2)
+                Button {
+                    Task { await test(server) }
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        if testing.contains(server.name) {
+                            ProgressView()
                         }
+                        Text("测试连接")
                     }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            } header: {
-                headerText("操作")
+                .buttonStyle(.odPrimary)
+                .disabled(testing.contains(server.name))
+                if let result = testResults[server.name],
+                   !testing.contains(server.name) {
+                    HStack(spacing: 4) {
+                        Image(
+                            systemName: result.succeeded
+                                ? "checkmark.circle.fill"
+                                : "xmark.circle.fill"
+                        )
+                        .font(.system(size: 13))
+                        .foregroundStyle(
+                            result.succeeded
+                                ? Palette.success : Palette.danger
+                        )
+                        .accessibilityHidden(true)
+                        Text(resultLine(result))
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(2)
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                }
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
@@ -746,7 +788,7 @@ struct ConnectorsView: View {
                     name: entry.name, subline: entry.blurb
                 )
             }
-            .listRowBackground(Palette.surface)
+            .listRowBackground(Color.clear)
             .listRowInsets(rowInsets)
 
             // 0.36.0（§5／C9）：原分区头「状态」与首
@@ -760,15 +802,15 @@ struct ConnectorsView: View {
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
 
+            // 0.36.3（五段式）：说明文字下沉页脚小
+            // 字——不再成段塞卡（对照授权页条款段）
             Section {
                 Text(entry.accessDetail)
-                    .font(.callout)
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                     .padding(.vertical, OneDayMetrics.spacingS)
-            } header: {
-                headerText("接入说明")
             }
-            .listRowBackground(Palette.surface)
+            .listRowBackground(Color.clear)
             .listRowInsets(rowInsets)
         }
         .listStyle(.insetGrouped)
@@ -790,24 +832,15 @@ struct ConnectorsView: View {
         return List {
             Section {
                 sheetHeader(
-                    spec: .symbol(descriptor.symbolName),
+                    spec: .asset(descriptor.iconAssetName),
                     name: descriptor.name, subline: descriptor.blurb
                 )
             }
-            .listRowBackground(Palette.surface)
+            .listRowBackground(Color.clear)
             .listRowInsets(rowInsets)
 
             Section {
                 detailRow("状态", state.statusLabel)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("证据来源")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Text(descriptor.evidenceLine)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-                .padding(.vertical, OneDayMetrics.spacingS)
                 if let metric = state.metric, !metric.isEmpty {
                     detailRow("当前读数", metric)
                 }
@@ -831,10 +864,18 @@ struct ConnectorsView: View {
                    let generated = overviewGeneratedAt {
                     detailRow("快照生成", generated)
                 }
-            } header: {
-                headerText("状态")
             }
             .listRowBackground(Palette.surface)
+            .listRowInsets(rowInsets)
+
+            // 0.36.3：证据口径下沉页脚小字（检查的是
+            // 什么、何时查的——小字交代、不占卡内行）
+            Section {
+                Text(descriptor.evidenceLine)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .listRowBackground(Color.clear)
             .listRowInsets(rowInsets)
 
             if case .down(let message) = state {
@@ -843,8 +884,6 @@ struct ConnectorsView: View {
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.vertical, OneDayMetrics.spacingS)
-                } header: {
-                    headerText("异常详情")
                 }
                 .listRowBackground(Palette.surface)
                 .listRowInsets(rowInsets)
@@ -852,12 +891,10 @@ struct ConnectorsView: View {
 
             if case .notConfigured = state {
                 Section {
-                    Text("这台手机上还没有登录信息：本机服务用的就是你的 Hermes 登录，没有登录信息时不会发出任何检查请求。先到「设置」里确认已经连接并登录，再回到本页下拉刷新即可。")
+                    Text("这台手机上还没有登录信息。先到「设置」确认已连接并登录，再回到本页下拉刷新即可。")
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.vertical, OneDayMetrics.spacingS)
-                } header: {
-                    headerText("未配置")
                 }
                 .listRowBackground(Palette.surface)
                 .listRowInsets(rowInsets)
@@ -865,8 +902,6 @@ struct ConnectorsView: View {
 
             Section {
                 localEntries(descriptor.serviceID)
-            } header: {
-                headerText("打开")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)

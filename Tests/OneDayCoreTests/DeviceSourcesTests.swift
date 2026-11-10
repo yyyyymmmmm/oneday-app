@@ -25,6 +25,13 @@ final class DeviceSourcesTests: XCTestCase {
             XCTAssertFalse(entry.blurb.isEmpty, entry.id)
             XCTAssertFalse(entry.tileSymbol.isEmpty, entry.id)
             XCTAssertFalse(entry.agentNote.isEmpty, entry.id)
+            // 0.36.3：一行能力短文案齐备且真是一行
+            // （详情页开关副文用；不成段、不带句号尾）
+            XCTAssertFalse(entry.capabilityLine.isEmpty, entry.id)
+            XCTAssertFalse(entry.capabilityLine.contains("\n"), entry.id)
+            XCTAssertLessThanOrEqual(
+                entry.capabilityLine.count, 24, entry.id
+            )
             XCTAssertFalse(entry.footnote.isEmpty, entry.id)
         }
         for id in DeviceSourceID.allCases {

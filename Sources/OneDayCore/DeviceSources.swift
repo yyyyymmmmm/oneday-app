@@ -101,6 +101,10 @@ public struct DeviceSourceDescriptor: Identifiable, Equatable, Sendable {
     /// 调用去向口径（详情页状态头用）：这件被智能体
     /// 调用时回什么粒度的数据
     public let agentNote: String
+    /// 一行能力短文案（0.36.3）：详情页「允许智能体
+    /// 调用」开关的副文——agentNote 的一行版，只说
+    /// 能干什么、不成段（详情页语法重做口径）
+    public let capabilityLine: String
     /// 口径脚注（详情页尾）：这件的数据边界一句人话
     public let footnote: String
 
@@ -112,7 +116,7 @@ public struct DeviceSourceDescriptor: Identifiable, Equatable, Sendable {
     public init(
         sourceID: DeviceSourceID, name: String, blurb: String,
         tileSymbol: String, tileColorHex: UInt32, batch: Int,
-        agentNote: String, footnote: String
+        agentNote: String, capabilityLine: String, footnote: String
     ) {
         self.sourceID = sourceID
         self.name = name
@@ -121,6 +125,7 @@ public struct DeviceSourceDescriptor: Identifiable, Equatable, Sendable {
         self.tileColorHex = tileColorHex
         self.batch = batch
         self.agentNote = agentNote
+        self.capabilityLine = capabilityLine
         self.footnote = footnote
     }
 }
@@ -135,6 +140,7 @@ public enum DeviceSourceDirectory {
             blurb: "日程安排 · 被问到时现读现回，也可按确认新建和修改",
             tileSymbol: "calendar", tileColorHex: 0xD64541, batch: 1,
             agentNote: "智能体可调用：查询最长 14 天窗口内的日程，或按你在对话里的确认新建/修改日程（删除不做）",
+            capabilityLine: "查 14 天内日程 · 按确认新建/修改",
             footnote: "日程只在被调用的那一刻现读现回，服务器不保存日程内容；关掉调用开关后，智能体连问的机会都没有。"
         ),
         DeviceSourceDescriptor(
@@ -143,6 +149,7 @@ public enum DeviceSourceDirectory {
             blurb: "待办提醒 · 现读未完成项，可按确认新建与勾完成",
             tileSymbol: "list.bullet", tileColorHex: 0xE8892B, batch: 1,
             agentNote: "智能体可调用：读取未完成提醒，或按你在对话里的确认新建提醒、勾完成（删除不做）",
+            capabilityLine: "读未完成项 · 按确认新建/勾完成",
             footnote: "只回未完成项，不回已完成历史；提醒内容只过境不落服务器。"
         ),
         DeviceSourceDescriptor(
@@ -152,6 +159,7 @@ public enum DeviceSourceDirectory {
             tileSymbol: "person.crop.circle", tileColorHex: 0x66727E,
             batch: 1,
             agentNote: "智能体可调用：只按姓名关键词现查，命中条目才回；不提供整体读取，也不能新建或修改联系人",
+            capabilityLine: "只按姓名现查 · 不写入",
             footnote: "搜索在手机上完成，只有命中条目过境，通讯录全量从不离开手机。"
         ),
         DeviceSourceDescriptor(
@@ -160,6 +168,7 @@ public enum DeviceSourceDirectory {
             blurb: "步数/睡眠/心率等每日摘要 · 待签名权益到位后开通",
             tileSymbol: "heart.fill", tileColorHex: 0xE5484D, batch: 2,
             agentNote: "待开通：开通后智能体只能读每日摘要（步数/睡眠/静息心率/锻炼分钟），原始样本永不出手机",
+            capabilityLine: "开通后只读每日摘要",
             footnote: "健康需要系统签名权益，当前安装方式下尚未开通；这里不会显示任何健康数据。"
         ),
         DeviceSourceDescriptor(
@@ -168,6 +177,7 @@ public enum DeviceSourceDirectory {
             blurb: "家庭配件当前状态 · 待签名权益到位后开通",
             tileSymbol: "house.fill", tileColorHex: 0xE8A33D, batch: 2,
             agentNote: "待开通：开通后智能体只能现查配件当前状态，不提供任何控制（开灯/开锁等一律不做）",
+            capabilityLine: "开通后只查状态 · 不做控制",
             footnote: "家庭需要系统签名权益，当前安装方式下尚未开通；这里不会显示任何配件状态。"
         ),
     ]

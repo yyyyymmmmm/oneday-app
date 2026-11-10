@@ -5036,3 +5036,24 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - IPA：6,185,181 字节、md5 4ffa0c4417ddd67d8c09a51c2a1584be、独立解包验 Info.plist＝0.36.2/69，落 ~/workspace/your_files/oneday-v0.36.2/oneday-unsigned.ipa。
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.36.2／CURRENT_PROJECT_VERSION 69／CFBundleShortVersionString 0.36.2／CFBundleVersion 69）＋SettingsView 页脚「OneDay v0.36.2」。
 - 待真机：分段灰垫/48 高/无阴影肉眼判；触感四点逐个点测（分段切换、目标勾选、删除落锤、失败报错 error 档）——并入在途真机终审积压。
+
+## §68 0.36.3/70——详情页语法重做＋图标补完＋设置页三修＋抽屉材质（用户 2026-11-10 18:05–18:31 点名包）
+
+### 68.1 范围与模板取舍
+
+- 详情页模板取舍（施工单二选一须说明）：**居中大图领头全批统一**。依据＝授权页参考图本身即「居中大图标→名称→一句话」语法；设备页与连接器页同为「一件东西的详情」，同语法同形态，不再分行首/居中两式。旧连接器行首 48 页头（0.36.0）与设备设置式分组头一并退役。
+- 参考图五张逐张对照施工（references/：授权页／目录／抽屉磨砂＋两张自家反例）。
+
+### 68.2 逐项落法
+
+1. **连接器详情（ConnectorsView）**：sheetHeader 重写为居中领头段（图标 64→名称 Title2 bold→能力一句话 callout 次色居中、≤2 行），三类详情领头段去卡底（Color.clear）；已连接详情主动作改整宽 .odPrimary「测试连接」整宽主按钮＋结果独立成行（撤「操作」分区头）；本机详情证据行由卡内行下沉为透明底页脚小字节、未配置文案压至一句半；目录详情接入说明下沉页脚小字。
+2. **设备三页（DeviceViews）**：状态头重排为同模板（瓷砖 64 居中＋名称＋blurb）；三页撤 .navigationTitle＋.inline（内容领头，系统返回位不变）；**系统权限行全态可操作**（S4）——.notDetermined＝「去开启」钮触发 requestAccess、.denied/.restricted＝「去设置」钮、已授权类＝整行 Button 点进系统设置（openSettingsURLString）＋chevron＋VO hint；「允许智能体调用」副文改 Core 新增 capabilityLine（一行短文案，五件各一、单测钉 ≤24 字无换行），agentNote 长文退下主文案；门面注册口径移「通道状态」节 footer；DevicePermissionGate 说明压到一句事实＋一个下一步，writeOnly 附注条件由 .denied 误挂修正为 .writeOnly 本态。
+3. **本机服务图标真实化（§4 加严口径）**：Core LocalServiceDescriptor.symbolName→iconAssetName；四件定制图面进 Assets（LocalHermes 飞翼/LocalWriteGate 盾勾/LocalOneDayBridge 靶环/LocalOverviewBridge 四格窗；统一语言＝全幅 squircle＋对角渐变＋白色主体＋顶部柔光，PIL 程序绘制 512px），台账 D 节补登来源与画法；目录行与详情头同走 .asset spec。裸 SF 仅余未知 MCP（puzzlepiece.extension）与 Simular Box（desktopcomputer）两处 §4 降级兜底。
+4. **目录行分隔（ConnectorsView）**：四类行加 .alignmentGuide(.listRowSeparatorLeading)＝40＋spacingSM（文字列左缘）——目录页从参考图口径，与设置页贯通口径分属两页两规矩，代码注已分明。
+5. **设置页三修（SettingsView）**：①撤 .navigationTitle("设置")＋.large（P8 例外经用户 18:25 推翻）、撤七处 settingsHeader 分组小标题并删帮助函数，分组靠卡片与间距；页内导航标题处理＝根页无标题、身份卡领头，子页路由标题不动（子页内容页头自带）。②分隔贯通：文件尾加 View.settingsSeparatorToIconEdge()（listRowSeparatorLeading 引导归 0），施加于十处行根（身份卡/manageRow/serverRow/navRow/statusNavRow/statusInfoRow/网关重启钮/断开行不在多行节内未施/关于节三行）；原生 List 引导是否被系统采纳待真机验，验不过按施工单给自绘行盒替代并如实登记。③字重零改动（Bold Text 跟随系用户拍板）。
+6. **抽屉材质（DrawerView）**：新增 drawerBackdrop（系统 .thinMaterial；Reduce Transparency 经 Core TransparencyFallback 裁决落 chatSurface 实色），面板 .background 与顶条 safeAreaBar 背景同换（旧 chatSurface/surface 实色退役）；标题与行浮于材质上、底条 ultraThin 霜层保留同族衔接；深浅双档随材质系统呈现。只用系统材质 API、variableBlur 未碰。
+7. 版本五处同改 0.36.3(70)＋grep 验；单测：LocalServicesTests 改字段断言＋新增图标资产互异测、DeviceSourcesTests 增 capabilityLine 断言组（只增不减，基线 656）。
+
+### 68.3 交付实录
+
+（CI 与解包验后补记。）

@@ -21,7 +21,7 @@ final class LocalServicesTests: XCTestCase {
         for entry in roster {
             XCTAssertFalse(entry.name.isEmpty, entry.id)
             XCTAssertFalse(entry.blurb.isEmpty, entry.id)
-            XCTAssertFalse(entry.symbolName.isEmpty, entry.id)
+            XCTAssertFalse(entry.iconAssetName.isEmpty, entry.id)
             // 0.36.0（宪法 §8＋S11）：证据行改用户语
             // 言——不许再出现接口方法名/端点行话
             XCTAssertFalse(entry.evidenceLine.isEmpty, entry.id)
@@ -38,6 +38,17 @@ final class LocalServicesTests: XCTestCase {
             XCTAssertEqual(
                 LocalServiceDirectory.descriptor(id).serviceID, id
             )
+        }
+    }
+
+    /// 图标真实化（0.36.3，用户加严 §4 执行口径）：
+    /// 四件各有独立的定制图标面资产、不许共用一张、
+    /// 不许回落裸 SF 符号命名
+    func testIconAssetsAreDistinctPerService() {
+        let names = LocalServiceDirectory.roster.map(\.iconAssetName)
+        XCTAssertEqual(Set(names).count, names.count, "图标资产逐件独立")
+        for name in names {
+            XCTAssertTrue(name.hasPrefix("Local"), name)
         }
     }
 

@@ -97,16 +97,10 @@ struct SettingsView: View {
             .scrollEdgeEffectStyle(.soft, for: .top)
             // 0.4.0（§3.2）：tabBarZone 手算底部留白删除——
             // 原生底栏回来后 List 底部避让由系统安全区自理
-            // 标题沿系统 navigationTitle 大标题（0.20.0
-            // sheet 形态下与图中「设置」左顶大标题同位）
-            .navigationTitle("设置")
-            // 0.22.0（用户 00:30 按 Muse 设置图实测点
-            // 名）：大标题形态显式钉死——sheet 内导航栏
-            // 的 automatic 档在小高呈现时可能被压成行内
-            // 小字，.large 显式指定后与大标题版参考图
-            // （34 bold 左对齐＋X 在右上导航层）同形态，
-            // 不靠系统启发式
-            .navigationBarTitleDisplayMode(.large)
+            // 0.36.3（用户 18:25 推翻 P8 例外）：撤
+            // 「设置」大标题——不再设 navigationTitle，
+            // 身份卡内容领头；右上圆形关闭钮保留（根
+            // 级 sheet 的关闭动作、非标题栏）
             .toolbar {
                 // 0.20.0：右上圆形关闭钮（sheet 形态，
                 // 照图中圆 X；iOS 26 toolbar 玻璃圆钮由
@@ -239,6 +233,7 @@ struct SettingsView: View {
             }
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
+            .settingsSeparatorToIconEdge()
         }
         .listRowBackground(Palette.surface)
         // 0.24.0：身份节走专用行盒（顶距＋10 防栏区横
@@ -266,8 +261,6 @@ struct SettingsView: View {
             manageRow(icon: "folder", title: "服务器文件") {
                 manageSheet = .serverFiles
             }
-        } header: {
-            settingsHeader("管理")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -295,6 +288,7 @@ struct SettingsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
+        .settingsSeparatorToIconEdge()
     }
 
     @ViewBuilder
@@ -339,7 +333,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.36.2")
+            Text("OneDay v0.36.3")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
@@ -377,8 +371,6 @@ struct SettingsView: View {
                 icon: "link", title: "主线会话",
                 status: mainSessionStatusText
             )
-        } header: {
-            settingsHeader("服务器与连接")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -439,6 +431,7 @@ struct SettingsView: View {
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
+        .settingsSeparatorToIconEdge()
     }
 
     private var disconnectRow: some View {
@@ -514,8 +507,6 @@ struct SettingsView: View {
                 icon: "iphone", title: "设备与权限",
                 route: .agent(.devicePermissions)
             )
-        } header: {
-            settingsHeader("智能体")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -540,8 +531,6 @@ struct SettingsView: View {
                 icon: "chart.bar", title: "用量",
                 route: .usage
             )
-        } header: {
-            settingsHeader("模型与密钥")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -573,11 +562,10 @@ struct SettingsView: View {
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .contentShape(Rectangle())
             }
+            .settingsSeparatorToIconEdge()
             // 0.22.0：日志行值位（agent.log）撤除，进日
             // 志页即其详情
             navRow(icon: "doc.text", title: "日志", route: .logs)
-        } header: {
-            settingsHeader("网关")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -607,8 +595,6 @@ struct SettingsView: View {
                 icon: "sun.max", title: "外观",
                 route: .appearance
             )
-        } header: {
-            settingsHeader("外观")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
@@ -625,6 +611,7 @@ struct SettingsView: View {
                 Text(status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0")
                     .font(.system(.callout, design: .monospaced))
             }
+            .settingsSeparatorToIconEdge()
             Link(destination: URL(string: "https://github.com/NousResearch/hermes-agent")!) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Color.clear
@@ -644,6 +631,7 @@ struct SettingsView: View {
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .contentShape(Rectangle())
             }
+            .settingsSeparatorToIconEdge()
             // LORD Icon 署名（0.3.0，用户拍板免费层不买
             // PRO——免费层授权为 CC BY-ND 变体、必须署名，
             // 见 animated-icons 技能）：图标动效开始接入
@@ -665,8 +653,7 @@ struct SettingsView: View {
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .contentShape(Rectangle())
             }
-        } header: {
-            settingsHeader("关于")
+            .settingsSeparatorToIconEdge()
         } footer: {
             // 0.3.4：隐私说明移组脚注（不再占行）
             // 0.22.0：脚注是阅读文字——13 footnote＋
@@ -707,20 +694,8 @@ struct SettingsView: View {
             .accessibilityHidden(true)
     }
 
-    /// 设置页分区头（0.22.0）：参考图「你的账户」形态
-    /// ——15 灰、无大写化。0.23.0：字阶落共享角色
-    /// sectionLabel（15 medium），与抽屉分区头、共享
-    /// SectionLabel 三面统一（审计 S4）；字重由本页旧
-    /// regular 归一为角色的 medium。List 的自定义
-    /// View 头不走系统大写化通道
-    /// 0.24.0：角色改 Footnote 13 regular（苹果设置分
-    /// 区头同款），三面随角色同变
-    private func settingsHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.sectionLabel)
-            .foregroundStyle(Palette.inkSecondary)
-            .textCase(nil)
-    }
+    // （settingsHeader 已于 0.36.3 退役：分组小标题
+    // 随用户 18:25 点名整批撤除，分组靠卡片与间距）
 
     /// 导航行（共用行组件）：图标＋题（0.24.0 起
     /// Body 17 regular，角色 rowTitleL），披露箭头由
@@ -749,6 +724,7 @@ struct SettingsView: View {
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
+        .settingsSeparatorToIconEdge()
     }
 
     /// 状态导航行（0.22.0）：题＋题下状态副行（15
@@ -780,6 +756,7 @@ struct SettingsView: View {
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
+        .settingsSeparatorToIconEdge()
     }
 
     /// 状态信息行（0.27.0）：statusNavRow 的非导航
@@ -807,6 +784,7 @@ struct SettingsView: View {
         }
         .frame(minHeight: OneDayMetrics.settingsRowHeight)
         .contentShape(Rectangle())
+        .settingsSeparatorToIconEdge()
     }
 
     /// 主线会话状态文案（0.27.0）：已链接（确认＋
@@ -871,5 +849,16 @@ struct SettingsView: View {
             // 失败改判 error（0.36.2，表 D 语义归位）
             Haptics.error()
         }
+    }
+}
+
+private extension View {
+    /// 分隔线贯通到图标左缘（0.36.3，用户 18:25 点名③）：
+    /// 本页是原生 insetGrouped List，系统分隔线默认对齐
+    /// 到文字列（图标下无线）——以 listRowSeparatorLeading
+    /// 对齐引导把起始点钉到行内容左缘（＝图标左缘），与
+    /// 0.36.0 自绘分组的贯通口径对齐。逐行施加于行根视图。
+    func settingsSeparatorToIconEdge() -> some View {
+        alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
     }
 }
