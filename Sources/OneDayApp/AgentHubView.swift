@@ -224,7 +224,7 @@ struct AgentHubView: View {
     @ViewBuilder
     private func shareButton(_ store: AgentHubStore) -> some View {
         if let shareItem {
-            ShareLink(item: shareItem) {
+            ShareLink(item: shareItem.fileURL) {
                 Image(systemName: "square.and.arrow.up")
                     .frame(width: 36, height: 36)
             }

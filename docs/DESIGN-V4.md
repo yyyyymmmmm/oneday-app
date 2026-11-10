@@ -6891,3 +6891,15 @@ agentAvatarImage）：
 流只在 push main 触发，本分支 push 不触发 CI，
 构建与单测待主线合并回 main 后随正式出包跑，
 本节不预填结果。
+
+**CI 先红后绿（如实记）**：合并回 main 后首轮
+CI run 42876149998 的 Build 步失败——唯一错误
+在 AgentHubView.swift:227：`ShareLink(item:)`
+对自定义 Transferable（AgentShareItem）报 no
+exact matches，编译器候选只列 URL/String 两个
+具体签名（一致性本体单独编译无报错）。修复＝
+分享载荷改编译器原生支持的 URL 形态：名片图
+渲染后落盘 caches/AgentShareCard/OneDay-Agent-
+Card.png、ShareLink 按文件 URL 分享；载荷与红
+线不变（仍只有名＋头像＋域名），纯文本兜底分
+支原样保留。版本号不动（仍 0.36.22/89）。
