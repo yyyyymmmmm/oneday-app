@@ -274,15 +274,24 @@ final class EventKitEngine: @unchecked Sendable {
 
     // MARK: 提醒读
 
+    /// EKReminder 非 Sendable，过 continuation 边界用
+    /// 盒包一层（取回后只在本引擎内读，不跨线共享）
+    private struct ReminderBox: @unchecked Sendable {
+        let reminders: [EKReminder]
+    }
+
     private func fetchAllReminders() async -> [EKReminder] {
         let calendars = store.calendars(for: .reminder)
         guard !calendars.isEmpty else { return [] }
         let predicate = store.predicateForReminders(in: calendars)
-        return await withCheckedContinuation { continuation in
+        let box = await withCheckedContinuation { continuation in
             store.fetchReminders(matching: predicate) { reminders in
-                continuation.resume(returning: reminders ?? [])
+                continuation.resume(
+                    returning: ReminderBox(reminders: reminders ?? [])
+                )
             }
         }
+        return box.reminders
     }
 
     func reminderItems() async -> [DeviceReminderItem] {
