@@ -35,24 +35,22 @@ final class SwipeReplyDiagnostics: NSObject, @unchecked Sendable {
     }()
 
     /// 已挂只读 target 的 ScrollView 标记键（关联对象
-    /// 随视图生死，不留悬挂引用）；键须是稳定地址——
-    /// 旧形 static var 在 Swift 6 下是全局可变状态编
-    /// 不过，改进程级稳定指针常量（本文件临时件，撤
-    /// 除时随件消亡，不回收）
-    private static let watchedKey: UnsafeRawPointer =
-        UnsafeRawPointer(
-            UnsafeMutableRawPointer.allocate(
-                byteCount: 1, alignment: 1))
+    /// 随视图生死，不留悬挂引用）；键只作地址用、初
+    /// 始化后从不写——Swift 6 下 static var 直报全局
+    /// 可变状态、UnsafeRawPointer 常量又非 Sendable，
+    /// 故以 nonisolated(unsafe) 明示豁免（本文件临时
+    /// 件，下一轮随打点整件撤除）
+    nonisolated(unsafe) private static var watchedKey: UInt8 = 0
 
     /// 打点 3 的装载：给宿主 ScrollView 自己的 pan
     /// 加一个只记录 .began 时刻的 target（寄生打点、
     /// 不改其任何行为），同一 ScrollView 只挂一次
     func watchScrollPan(_ scrollView: UIScrollView) {
-        if objc_getAssociatedObject(scrollView, Self.watchedKey) != nil {
+        if objc_getAssociatedObject(scrollView, &Self.watchedKey) != nil {
             return
         }
         objc_setAssociatedObject(
-            scrollView, Self.watchedKey, true,
+            scrollView, &Self.watchedKey, true,
             .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         scrollView.panGestureRecognizer.addTarget(
             self, action: #selector(handleWatchedScrollPan(_:)))
