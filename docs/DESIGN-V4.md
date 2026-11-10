@@ -5817,3 +5817,112 @@ finalize 2 秒超时＋drain 2 秒兜底（现行口径未动），超时按
 录（不说话）点停/发送：静默回待机、无失败行、发送路不
 发空消息。⑤诊断面（预备页页脚/失败行）读数：预设应为
 `rep:volatileResults+fastResults`、串尾带「落字+…ms」。
+
+## §83 详情页简化：权限即同步＋自动同步三触发＋日志改版（0.36.18/85，P-11 终修包）
+
+起因：用户 2026-11-11 00:03–00:06 三连定版——0.36.16 虽已真
+机验通同步（日历首同步 18 条、增量对账新增 0 条、日志成串），
+详情页仍被判「复杂、丑」；开关语义由用户亲定（原话「点击开
+关，开就弹权限弹窗，关闭就去设置页面不就行了」）；日志形态
+亲定（时间打头、小字号、密排）。参照图＝用户发的 Muse 日
+历权限页截图（大图标＋标题＋一行说明＋分组卡片＋大留白）。
+本包只改详情页形态与同步的门：同步引擎本体（增量/整窗/聚
+合口径、500 批、complete 对账）与完全停供、字段最小化、删
+除副本语义，一字未动。
+
+### 83.1 页面信息架构（对图说明）
+
+| 参照图区块 | 本页落法 | 0.36.16 旧形态的去向 |
+|---|---|---|
+| 居中大图标＋名称＋一行说明 | 状态头只剩领头段；副题换 Core `DeviceSyncPresentation.detailSubtitle` 一句（副本在哪/智能体查副本/开着权限就自动同步） | 页尾口径脚注段整组退役，口径收进副题一句 |
+| 唯一权限控件 | 「访问权限」Toggle 一行卡片，副文一行（开着自动同步可查/关着不可用） | 同步开关、首启区、权限状态行整组退役 |
+| 安静状态 | 开关下一行 footnote 状态字：同步中/「副本 N 条 · 数据新到」/失败红字/停供说明，互斥优先如实报 | 「数据同步」区头、同步范围行、长说明 footer、立即同步钮、失败重试钮退役 |
+| 删除副本 | 红色文字动作保留，确认与结果文案沿现行口径（尾句改自动同步口径） | 不变 |
+| 同步记录 | 页面下部独立一区，新版式见 §83.5 | 标题式大字行退役 |
+
+删除清单之外不动：五件的内容区（日历议程/提醒清单/通讯录
+搜索/照片计数/步数近 7 天）原样保留；健康/家庭不在本包，
+保持原双层状态头（权限开关＋允许调用＋通道状态）。
+
+### 83.2 开关状态机（Core `DeviceSyncControl` 钉测）
+
+开关显示只有一源：`switchIsOn = permission.isUsable`，回前
+台经会话 refreshPermissions 回读真实状态，永不读本地偏好。
+
+| 现态 × 拨动 | 动作 |
+|---|---|
+| 未决定 拨开 | 先落日志「正在开启」→ 会话 requestAccess（口内铁律守卫：同步读现态、只有未决定才发那一次请求）→ 授权到手当场 detailPageCheck 补首轮同步 |
+| 被拒/受限/仅写入 拨开 | 跳系统设置本 App 页（系统不再弹窗，不重走请求回调） |
+| 已授权 拨开 | 不发生（本就呈开态），映射 `.alreadyOn` 兜底 |
+| 任意态 拨关 | 跳系统设置由用户亲手关；真关掉后回前台上报标 revoked → 桥停供＋日志 permissionRevoked 一条 |
+
+0.36.16 的 syncEnabled/说明已读偏好键自此不读不管（存量留
+在 UserDefaults，无副本数据、不必清理）。
+
+### 83.3 自动同步触发表
+
+| 触发 | 落点 | 判定 |
+|---|---|---|
+| ① 回前台/冷启/连接就绪 | `foregroundCheck` → `reconcile` | 计划器：权限门＋数据集节流（记录型 15 分钟/步数 1 小时，未动）＋pendingWrite 或变更记号绕节流 |
+| ② 系统变更通知 | `DeviceChangeWatcher`（新文件）落记 `pendingChanges` → 2.5 秒防抖 → `reconcile(changePending: true)` | EKEventStoreChanged（日历＋提醒同记）、CNContactStoreDidChange、PHPhotoLibraryChangeObserver；步数无变更通知、不入列 |
+| ③ 进详情页 | `DeviceSyncSection.task` → `detailPageCheck` | 过期才真跑同步，没过期只回状态 |
+
+计划器签名去掉 syncEnabled 入参，`SyncForegroundDecision
+.blockedSwitchOff` 退役。回调隔离账：DeviceChangeWatcher
+是 nonisolated `@unchecked Sendable` 终类——EK/CN 块观察
+指定 .main 队列投递，照片 `photoLibraryDidChange` 只做
+DispatchQueue.main.async 转手、不碰状态；onChange 只在主
+队列被调用、只在控制器 init 赋值一次，控制器侧再按本仓
+惯例 `Task { @MainActor }` 落记。自家写入日历同样触发
+EKEventStoreChanged——防抖＋节流兜底，多一轮空对账不产
+生副本变化。
+
+### 83.4 供给判据收敛
+
+Core `agentCanQuery` 改权限一源；App 侧镜像层退役——会话
+refreshPermissions 每次重读时把五件的 agentCallEnabled 对
+齐真实权限（持久化＋变化时重注册），AppState 的
+onSyncSwitchChanged 接线与启动对齐循环删除。会话
+requestAccess 加铁律守卫：记录型五件现态非未决定时只重
+读、绝不进引擎请求口。健康/家庭恒关不变。
+
+### 83.5 日志改版（用户亲定形态）
+
+一行一条：时间在前（Core `DeviceSyncLogPresentation
+.timeText`＝与状态字同源的 dayLabel 短标，.caption 12pt
+次级色、等宽数字）→ 失败行红点 → 事由（.footnote 脚注级
+常规字重；失败行 Palette.danger、其余 ink）。发丝线分
+隔、密排，一屏多条。事件分类 9 类与存储上限 50 不变；
+enabled/disabled 为 0.36.16 存量条目、新流程不再产生
+（开关动作改由 enabling 与 permissionRevoked/Restored
+记账），回读呈现不变、存量账不丢。
+
+### 83.6 交付数字
+
+- 提交 `730323a`（整包）；CI `42853208198` **success**
+  （首轮全绿）。
+- 单测 **817 → 820（+3）**：planner/segment/开关映射三组
+  断言随新语义重写；新增 testPlannerChangePendingBypasses-
+  Throttle、testPermissionSwitchIsOnTruthTable、testDetail-
+  SubtitleIsOneLine、testSyncLogTimeTextAndFailureFlag；删
+  testPermissionStatusText（函数退役）。CI 总计行
+  Executed 820 tests, 0 failures。
+- IPA：6,880,340 字节，md5 `bb071d147efb3b2d7d8a78f2cbf714ca`，
+  独立解包自验 Info.plist ＝ 0.36.18/85、bundle
+  `site.didichou.oneday`；落 ~/workspace/your_files/
+  oneday-v0.36.18/oneday-unsigned.ipa。版本五处同改已 grep 验。
+- 错题本 P-11 终修栏随包更新为 0.36.18 终形态。
+
+### 83.7 真机复验口径
+
+①通讯录详情页：只剩领头＋一个开关＋状态字＋日志（＋内容
+区），无第二个开关、无通道状态区、无长段说明。②未授权
+件拨开开关：当场弹系统授权窗一次；允许后开关呈开、状态
+字走「同步中… → 副本 156 人 · 数据截至…」，日志自「正
+在开启」成串。③拨关：跳系统设置 OneDay 页；在设置里关
+掉通讯录权限回 App——开关回读为关、状态字报停供、日志
+多一条「系统权限被关掉了」；新开对话问 Hermes 人数应只
+回状态错误（完全停供）。④系统日历里新建一条日程后回
+App（或停在日历详情页）：数秒内日志应多出一轮同步记录
+（变更触发），条数对得上。⑤日志一屏多条：时间打头小
+字、只有失败行红点红字。
