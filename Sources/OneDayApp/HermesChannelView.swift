@@ -12,6 +12,7 @@ import SwiftUI
 /// 明。抽屉频道区、Hermes 频道页、全部对话页三面
 /// 共用本派生，不许各面重算。
 enum ThreadLinkage {
+    @MainActor
     static func nonMainLinkedSessionIDs(
         threads: [ChatThread], sideChats: SideChatStore
     ) -> Set<String> {
