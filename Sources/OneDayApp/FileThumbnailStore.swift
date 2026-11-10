@@ -121,7 +121,7 @@ final class FileThumbnailStore {
         defer {
             try? FileManager.default.removeItem(at: directory)
         }
-        let request = QLThumbnailGenerationRequest(
+        let request = QLThumbnailGenerator.Request(
             fileAt: fileURL,
             size: CGSize(
                 width: targetPixelSize, height: targetPixelSize
