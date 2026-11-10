@@ -4912,4 +4912,9 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 
 ### 63.7 交付实录
 
-- （CI 与 IPA 数据后回填。）
+- 提交链：862d11b（功能整包）→2576d09（CI 修：formatter Sendable＋DeviceSourceID Codable）→1d26ee8（CI 修：keysToFetch 组装）→bf0f5f7（CI 修：fetchReminders continuation 盒）；顶端 bf0f5f7。
+- CI 42785106180 success，**Executed 624 tests, 0 failures**（基线 595＋新测 29：DeviceSourcesTests 12＋DeviceCallsTests 17，只增不减）。
+- IPA：5,709,994 字节、md5 f9aa773ef461aa1ae4aa8ed754a088ad、独立解包验 Info.plist＝0.34.0/65、bundle site.didichou.oneday、三键 UsageDescription 均在包内，落 ~/workspace/your_files/oneday-v0.34.0/OneDay-0.34.0.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.34.0／CURRENT_PROJECT_VERSION 65／CFBundleShortVersionString 0.34.0／CFBundleVersion 65）＋SettingsView 页脚「OneDay v0.34.0」。
+- 服务器段实录见 63.1（nginx 路由已生效、验矩阵全绿、备份 bak-20261110-devicebridge、内存 51.6%）；施工记录追记 hermes-deploy/device-bridge-rollout-20261110.md。
+- KK1–KK7 待真机终审；JJ1–JJ4 续审（本版底栏正解 A 是否回描边以 JJ3 逐格对 Muse 为准，灯泡先看）；KK8 待收官窗口（Hermes 注册门面）后另验。
