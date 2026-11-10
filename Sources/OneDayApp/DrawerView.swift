@@ -321,7 +321,8 @@ struct DrawerView: View {
     /// （28 bold）——状态点＋状态词·模型小字全撤（定
     /// 义卡删减清单：那是管理面信息，不占导航壳第一眼）
     private var drawerAgentName: some View {
-        Text(appState.identityName ?? AgentName.fallback)
+        // 0.36.22：名字头收敛档案出口（改名此处同步）
+        Text(appState.agentDisplayName)
             // 0.20.0（第二条，Muse 抽屉图推算）：名字头
             // 升 34pt——图中状态栏高约 54pt 为锚、名字
             // 字形 cap 高约 34pt（推算表见 §47）；0.17.0

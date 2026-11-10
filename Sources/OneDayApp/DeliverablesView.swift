@@ -158,14 +158,16 @@ struct DeliverablesView: View {
                 .accessibilityLabel(searchVisible ? "收起搜索" : "搜索文件")
             }
             IdentityAnchor(
-                name: appState.identityName ?? AgentName.fallback,
+                // 0.36.22：名与头像收敛档案出口
+                name: appState.agentDisplayName,
                 statusWord: appState.config == nil ? "未连接" : "在线",
                 statusColor: appState.config == nil
                     ? Palette.inkMuted : Palette.success,
                 // 0.22.0（审计 F3）：真头像注入，与聊天页
                 // 胶囊同一头像源（此前是 sparkles 占位、
-                // 切换器并排即露馅的身份双源）
-                avatarImage: Image("SangouPartner")
+                // 切换器并排即露馅的身份双源）；0.36.22
+                // 起同源点改档案头像
+                avatarImage: appState.agentAvatarImage
             )
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)

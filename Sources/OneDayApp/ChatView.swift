@@ -626,7 +626,11 @@ struct ChatView: View {
         // 格本体逐字一致：同一 AgentHubView .activity＋
         // 审批终态回调刷新总览桥、顶栏角标不等下一轮轮
         // 询——原 ActivityView 包装层随活动格一并退役）
-        .sheet(isPresented: $showHub) {
+        // 0.36.22（枢纽页对齐包）：呈现改整页 full-
+        // ScreenCover（用户学 Muse 智能体页：整页进、
+        // 左边缘右滑回、✕ 关闭）——内容与回调原样；呈
+        // 现机制取舍（cover 而非导航推入）见 §89
+        .fullScreenCover(isPresented: $showHub) {
             AgentHubView(mode: .activity, onApprovalChanged: {
                 Task { await overviewStore?.refresh(appState: appState) }
             })
@@ -842,7 +846,9 @@ struct ChatView: View {
                 showHub = true
             } label: {
                 HStack(spacing: OneDayMetrics.spacingS) {
-                    Image("SangouPartner")
+                    // 0.36.22：头像读本地档案（AppState
+                    // 单一出口），改名换头像此处同步
+                    appState.agentAvatarImage
                         .resizable()
                         .scaledToFill()
                         // 0.26.0：边长走形象档（小 24/
@@ -856,7 +862,9 @@ struct ChatView: View {
                         .clipShape(Circle())
                         .accessibilityHidden(true)
                     if showName {
-                        Text(appState.identityName ?? AgentName.fallback)
+                        // 0.36.22：显示名收敛档案出口
+                        // （档案覆盖→soul 名→Hermes）
+                        Text(appState.agentDisplayName)
                             .font(.headline)
                             .foregroundStyle(Palette.ink)
                             .lineLimit(1)
@@ -874,7 +882,7 @@ struct ChatView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.odPressable)
-            .accessibilityLabel("\(appState.identityName ?? AgentName.fallback)，\(overviewStatusWord)，打开枢纽")
+            .accessibilityLabel("\(appState.agentDisplayName)，\(overviewStatusWord)，打开枢纽")
 
             Rectangle()
                 .fill(Palette.hairline)
@@ -1318,7 +1326,8 @@ struct ChatView: View {
                     // 狗头像、边长走形象档空态值（48/56/
                     // 68）——用户外观令点名的作用面
                     VStack(spacing: OneDayMetrics.spacingS) {
-                        Image("SangouPartner")
+                        // 0.36.22：空态形象同样读档案头像
+                        appState.agentAvatarImage
                             .resizable()
                             .scaledToFill()
                             .frame(
@@ -2035,7 +2044,11 @@ struct ChatView: View {
                 .fill(Palette.inkMuted)
                 .frame(width: 2)
             VStack(alignment: .leading, spacing: 2) {
-                Text(MessageQuote.speakerName(for: quote.role))
+                // 0.36.22：引用标签的助手称呼跟随档案名
+                Text(MessageQuote.speakerName(
+                    for: quote.role,
+                    assistantName: appState.agentDisplayName
+                ))
                     // 0.4.1 第 9 修：引用块在消息流内、
                     // 其标签同守 regular 基准（旧 caption2
                     // semibold 撤销，层级靠色与字号）
@@ -2426,10 +2439,10 @@ struct ChatView: View {
                 // 0.7.0（M4）：分流种子的引用条改报去向——
                 // 这条引用不在原线程回复、是新旁聊的开场
                 Text(pendingQuoteIsFork
-                    ? "在旁聊里接着问 \(MessageQuote.speakerName(for: quote.role))"
+                    ? "在旁聊里接着问 \(MessageQuote.speakerName(for: quote.role, assistantName: appState.agentDisplayName))"
                     : (quote.role == "user"
                         ? "正在回复我的消息"
-                        : "正在回复 \(MessageQuote.speakerName(for: quote.role))"))
+                        : "正在回复 \(MessageQuote.speakerName(for: quote.role, assistantName: appState.agentDisplayName))"))
                     // 0.4.1 第 9 修：引用条标签同守
                     // regular 基准（旧 caption semibold
                     // 撤销，与消息正文同一字重纪律）

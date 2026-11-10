@@ -6685,3 +6685,209 @@ c19d5d`，主线口径外独立解包验 Info.plist＝0.36.21/
 规则面＋结构化字段仍为**只施工未部署**（§87.4 部署
 清单待批），App 在未部署桥上：审批两档照常、第三档
 与规则区如实报未接通/没能记住，不假装。
+
+## §89 枢纽页对齐包：整页呈现＋智能体本地档案＋分享名片（0.36.22/89，2026-11-11）
+
+### 89.0 来源与范围
+
+用户 01:56 连发三图对标 Muse 智能体页，亲点两
+条：①枢纽页改整页（右滑返回、✕ 关闭、分享）；
+②头像带编辑角标、可换虚拟形象与改名。01:59 拍
+板紧跟 0.36.22 做，规格 hub-page-alignment-
+design-20261111。本节只记本包定案；枢纽四段（活
+动/任务/审核/监测）内容与数据面、审批卡（§87）
+一律不动。
+
+### 89.1 呈现形态：整页 cover 而非导航推入（取舍明说）
+
+规格字面是「推入式整页」。落法选 **fullScreen-
+Cover**、不做 navigation push，理由：聊天页
+0.2.4 已刻意撤销 NavigationStack、顶栏走悬浮/
+safeAreaBar，把枢纽硬塞进聊天页导航栈要重建一
+套栈语义；枢纽自带 NavigationStack，再嵌栈是双
+栈回归面。cover＋系统边缘识别器在用户可感知的
+三点上与推入等价：整页全屏进场、左边缘右滑跟手
+返回、✕ 圆钮关闭——仿的是机制不是皮（设计宪法
+⑩）。呈现点全仓唯一：ChatView 的 showHub 由
+.sheet 改 .fullScreenCover，入口（胶囊点按/回告
+卡）与审批终态回调不变；sheet 时代的下滑关闭与
+拖拽指示器随之退役（.presentationDragIndicator
+删除）。
+
+边缘右滑：新桥 HubEdgeSwipeBridge——零尺寸探针
+把 UIScreenEdgePanGestureRecognizer（系统边缘识
+别器本体、只认左缘起手）装到枢纽根容器；判据全
+收 Core HubEdgeSwipe 单源（生死只认速度域＝P-15
+续修口径：begin 时刻平移≈0、读位移恒假死；跟手
+钳 [0,480]；松手＝位移 ≥90 直达，或 ≥40 且速度
+≥500 快甩）；内容层随 offset 横移跟手，根下垫页
+底色。浏览器段禁用本手势（isEnabled 按段置位，
+网页自有横移/缩放优先）。
+
+### 89.2 页头与分段
+
+- 圆钮行（左上 ✕、右上分享，玻璃圆钮 36pt）：
+  原只在 mode=.sheet 出现，.activity（现行唯一入
+  口）反而没有——0.6.0「活动模式撤圆钮行」口径由
+  整页化覆盖，本包起两模式统一常驻。钮行仍以
+  ZStack 叠在头像行同高（原形态不改）。
+- 头像/名称/状态：头像读档案解析图（见 §89.3）；
+  名称仍走 AgentHubStore.displayName（链首叠档
+  案覆盖，见 §89.3）；状态点与文案读 store 既有
+  在线判据（§87 迟滞判据同源），不新造。
+- 分段栏：**保持原生 .segmented Picker 不换自绘
+  胶囊分段**——现行已是 iOS 26 原生分段（玻璃材
+  质与胶囊同族），用户旧定案「原生先行」在位，
+  不为对齐截图换自绘（宪法⑩同源判断）；段数段
+  名四段原样。
+
+### 89.3 智能体档案（新）：模型、存储、解析链
+
+Core 模型（OneDayCore/AgentProfile.swift，纯逻
+辑＋单测把守）：
+
+- AgentProfile＝显示名覆盖（String?）＋头像选择
+  （预置 id／自定义二值）。
+- AgentDisplayName.resolve(override:soulName:)：
+  **覆盖 → soul 解析名 → Hermes 回落**——覆盖是
+  「在这台手机上的称呼」，不抄存服务端名（服务
+  端改名、没设覆盖的用户自动跟上）；AppState.
+  agentDisplayName 为全 App 露脸名单一出口，
+  AgentHubStore.displayName 在其链上再叠本店
+  soul 解析一层（覆盖→AppState 名→本店 soul→
+  回落）。
+- sanitizedOverride：折叠空白、去首尾，空或超
+  20 字回 nil（编辑面据此判「恢复自动/无效」，
+  不静默截断用户输入）。
+
+App 存储（AgentProfileStore，AppState 持有）：
+
+- 选择值落 **UserDefaults** 三键（agentProfile.
+  displayNameOverride / .avatarPresetID /
+  .usesCustomAvatar），与 chatModelID 等偏好同
+  层；自定义图本体落 **Application Support/
+  AgentProfile/avatar.jpg**（入库前居中裁方＋边
+  长压 512＋JPEG 0.85）——图不进 UserDefaults、
+  不进 Keychain（不是凭据）。
+- 头像解析链：自定义（文件缺失/损坏回落缺省预
+  置）／预置资产图／符号盘离屏渲染（240pt、@2x，
+  底色 App 层按 id 映射 Palette pastel、glyph 墨
+  色）→ 收敛成一张 UIImage 内存缓存，
+  AppState.agentAvatarImage 单一出口，各露脸面
+  的原有 resizable/clip 修饰链不变。档案带修订
+  号（每次变更 +1）供派生渲染（分享名片图）重算。
+- 预置目录四款：partner 三狗搭档款（资产
+  SangouPartner，缺省，升级用户视觉零变化）＋
+  paw 爪印／sparkles 星光／atom 原子（SF 符号
+  盘）。资产盘点实录：App 现有形象资产只有
+  SangouPartner 一款属智能体头像，其余为品牌/
+  桥图标，不冒充头像资产。
+- 编辑面（头像徽章改 **Menu** 两项，两模式统
+  一；旧「徽章跳身份段」口径被本包用户定案覆
+  盖，身份段本身仍在段列、服务端身份编辑不变）：
+  更换虚拟形象＝预置网格点选即换＋PhotosPicker
+  相册选图（loadTransferable 与聊天附件同口径；
+  制备或落盘失败留红字提示、不假装换成）；编辑
+  名称＝草稿三态（留空保存＝清覆盖恢复自动／合
+  法／超 20 字禁存并明示），另有「恢复自动」直
+  接清覆盖。两编辑面都注明：只改本机呈现、不动
+  服务器身份。
+
+### 89.4 分享名片：内容清单与红线核查
+
+页头分享钮内容换代为智能体名片（旧 shareText
+含当前模型、无域名，自此退出分享面、store 内留
+置不用）：
+
+- 名片图（600×360pt、@2x 渲染）：头像（档案
+  图）＋显示名＋服务器域名＋「OneDay 智能体」
+  品类行。
+- 名片文本（AgentShareCardText）：「名 · 域名」
+  或仅名。
+- **红线核查**：只有名称＋头像＋域名 host 三
+  件。域名经 AgentServerHost.extract 从本机存
+  的服务器地址串当场提取——剥 scheme/userinfo/
+  端口/路径/查询，只出 host；名片文本函数入参
+  只有名与 host，密钥/令牌/完整连接串结构上进
+  不来。渲染未就绪时分享钮回落纯文本名片，永
+  不假按钮。
+
+### 89.5 硬编码收敛清单（grep「Hermes」/identityName/SangouPartner 逐处判）
+
+改（显示名/头像 → AppState.agentDisplayName /
+agentAvatarImage）：
+
+- 枢纽页头头像与名（AgentHubView/store 链）；
+- 聊天页胶囊头像、胶囊名、无障碍标签（Chat-
+  View）；聊天空状态头像（ChatView）；
+- 抽屉名字头（DrawerView）；总览页身份锚名与
+  头像（OverviewView，原字面 "Hermes" 是全仓
+  唯一漏网的写死显示名）；状态页页头名（Status-
+  View）；设置页身份头名（SettingsView）；文件
+  页身份锚名与头像（DeliverablesView）；外观页
+  预览卡头像与名、形象大小选择器标签头像
+  （AppearanceView）；
+- 引用面助手称呼：MessageQuote 加带名重载
+  speakerName(for:assistantName:)（旧签名以
+  Hermes 回落委托、旧测保持绿），ChatView 引
+  用块标签与引用条文案三处传档案名。
+
+不动（协议/产品标识或非头像作用面，点名留档）：
+
+- StatusView 的 LabeledContent("Hermes") 显
+  示的是服务端软件版本值（stats.hermes-
+  Version），是协议/产品标识不是显示名；
+- OneDayCore.AgentName.fallback 常量本体（回
+  落值来源，收敛后仍由解析链消费）；
+- ConnectView 连接前吉祥物（连接前品牌形象、
+  非「已连接智能体」的露脸面）；Appearance-
+  View 主题色板装饰图（演示主题色用、非头像作
+  用面）；演示模式相关的「演示管家」分身名
+  （另一角色，不随本档案改名）。
+
+### 89.6 手势冲突排查结论
+
+- **边缘右滑 vs 枢纽内列表纵滚**：边缘识别器只
+  在左缘窄带起手且生死只认速度域——纵滚的速度
+  形态在 shouldBegin 即被拒、识别器对该次触摸
+  死亡，纵滚完整归列表；横向 begin 后不再设同
+  时识别、纵滚让位。不重蹈 0.36.20 读位移判方
+  向的假死（P-15）。
+- **边缘右滑 vs 段内横向滑动**：枢纽四段内无
+  swipeActions、无横向分页容器；唯一横移面是浏
+  览器段（WKWebView 自有手势）——边缘手势在
+  该段禁用，网页优先。
+- **气泡右滑引用不受影响**：它在聊天页消息行层
+  级（SwipeReplyGestureBridge），枢纽是其上的
+  独立 fullScreenCover 呈现层——枢纽打开时触
+  摸不达聊天页，枢纽关闭后边缘桥随视图销毁、
+  聊天页手势原样。抽屉的左缘手势同理在 cover
+  之下、不与枢纽边缘桥竞争。
+
+### 89.7 复验口径（真机，照规格五条）
+
+1. 胶囊点开＝整页呈现；左边缘右滑能返回、✕ 能
+   关闭；枢纽内列表从内容区起手纵滚正常（与边
+   缘返回并列第一条验）。
+2. 分享面板里名片只有名＋头像＋域名，无任何密
+   钥/完整地址。
+3. 改名后：枢纽页头、胶囊、抽屉、总览、设置、
+   状态、文件页、引用称呼同步新名；杀进程重开
+   仍在。
+4. 换相册图后各处头像同步、重开仍在；换回预置
+   同样生效。
+5. 四段内容、审批卡（含对话内就地卡与胶囊待批
+   计数）无回归。
+
+### 89.8 施工实录
+
+独立 worktree（oneday-worktrees/hub-align-
+03622）＋分支 feat/hub-align-0.36.22 与 0.36.21
+收尾并行施工（用户 02:15 定版「CI 等待期不停
+工」），基线 main 顶端 b3acfea。单测基线 857，
+本包新增 AgentProfileTests＋HubEdgeSwipeTests
+（Core 纯逻辑：名称仲裁/净化边界/host 剥离/预
+置目录完整性/手势三表）。**CI 口径如实**：工作
+流只在 push main 触发，本分支 push 不触发 CI，
+构建与单测待主线合并回 main 后随正式出包跑，
+本节不预填结果。

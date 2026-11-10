@@ -203,7 +203,8 @@ struct SettingsView: View {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: OneDayMetrics.spacingS) {
-                        Text("Hermes")
+                        // 0.36.22：身份头名收敛档案出口
+                        Text(appState.agentDisplayName)
                             // 0.22.0（设置图实测规格）：行题
                             // 统一 20 regular 单一字重——参考
                             // 图账户卡题即 regular，强调只靠
@@ -333,7 +334,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.36.21")
+            Text("OneDay v0.36.22")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）

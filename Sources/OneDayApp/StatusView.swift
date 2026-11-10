@@ -76,7 +76,9 @@ struct StatusView: View {
             // 0.4.0（§1.1）：头像圆的手搓阴影随 Elevation
             // 整表废止退役
             HStack(spacing: OneDayMetrics.spacingS) {
-                Text("Hermes")
+                // 0.36.22：页头名收敛档案出口（原字面
+                // "Hermes" 是显示名不是版本标识）
+                Text(appState.agentDisplayName)
                     .font(.title2)
                     .foregroundStyle(Palette.ink)
                 StatusDot(color: status.map { Palette.stateColor($0.gatewayState) }

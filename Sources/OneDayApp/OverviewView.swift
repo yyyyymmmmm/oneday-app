@@ -52,14 +52,18 @@ struct OverviewView: View {
                     HStack {
                         Spacer()
                         IdentityAnchor(
-                            name: "Hermes",
+                            // 0.36.22：名与头像收敛档案出口
+                            // （原写死 "Hermes" 是全仓唯一漏
+                            // 网的字面显示名）
+                            name: appState.agentDisplayName,
                             statusWord: status.map(stateWord) ?? "读取中",
                             statusColor: status.map {
                                 Palette.stateColor($0.gatewayState)
                             } ?? Palette.inkMuted,
                             // 0.22.0（审计 H2/F3）：真头像注
-                            // 入，与聊天页/文件页同源
-                            avatarImage: Image("SangouPartner")
+                            // 入，与聊天页/文件页同源；
+                            // 0.36.22 起同源点改档案头像
+                            avatarImage: appState.agentAvatarImage
                         )
                         Spacer()
                     }

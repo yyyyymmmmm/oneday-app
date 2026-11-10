@@ -141,7 +141,9 @@ struct AppearanceView: View {
         )
         return VStack(spacing: OneDayMetrics.spacingSM) {
             VStack(spacing: -5) {
-                Image("SangouPartner")
+                // 0.36.22：预览卡的头像与名读档案（预览
+                // 的就是用户真实所见，不许演旧名旧头像）
+                appState.agentAvatarImage
                     .resizable()
                     .scaledToFill()
                     .frame(
@@ -150,7 +152,7 @@ struct AppearanceView: View {
                     )
                     .clipShape(Circle())
                     .accessibilityHidden(true)
-                Text(appState.identityName ?? AgentName.fallback)
+                Text(appState.agentDisplayName)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                     .padding(.horizontal, 6)
@@ -307,7 +309,8 @@ struct AppearanceView: View {
                 }
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    Image("SangouPartner")
+                    // 0.36.22：形象大小选择器标签头像读档案
+                    appState.agentAvatarImage
                         .resizable()
                         .scaledToFill()
                         .frame(

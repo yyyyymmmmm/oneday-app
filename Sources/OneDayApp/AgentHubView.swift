@@ -57,6 +57,12 @@ enum HubSegment: String, CaseIterable, Identifiable {
 /// 航栈、呈现方不外包，口径不变；下滑关 sheet 走系
 /// 统拖拽指示器）；mode=.sheet 五段全量形态仍无入口、
 /// 与 0.6.0 起的口径一致。
+/// 0.36.22（枢纽页对齐包，用户点名学 Muse 智能体
+/// 页）：呈现改整页 fullScreenCover（ChatView 侧，
+/// DESIGN-V4 §89）——页头圆钮行（✕/分享）两模式统
+/// 一常驻、左边缘右滑返回走系统边缘识别器桥、头像
+/// 徽章改本地档案菜单（更换虚拟形象/编辑名称）；分
+/// 段与段内容、数据面一律不动。
 struct AgentHubView: View {
     enum Mode {
         case sheet
@@ -72,6 +78,16 @@ struct AgentHubView: View {
 
     @State private var store: AgentHubStore?
     @State private var segment: HubSegment = .activity
+    /// 边缘右滑跟手位移（0.36.22）：只由边缘桥回调写，
+    /// 松手回弹或 dismiss 后归零
+    @State private var edgeOffset: CGFloat = 0
+    /// 头像/名称编辑面（0.36.22 档案菜单两项）
+    @State private var showAvatarEditor = false
+    @State private var showNameEditor = false
+    /// 分享名片（0.36.22）：名片图离屏渲染产物，随档
+    /// 案修订/页头名/域名变化重算；未就绪时分享钮回
+    /// 落纯文本名片
+    @State private var shareItem: AgentShareItem?
 
     /// 本模式可见段：活动格＝活动/任务/审核/监测四段
     /// （任务段 0.10.0 P3 转正、监测段 0.12.0 P6 转正）
@@ -81,18 +97,68 @@ struct AgentHubView: View {
             : HubSegment.allCases
     }
 
+    /// 分享名片重算键：档案修订（改名/换头像）＋页头
+    /// 名＋域名任一变，名片图就重渲染
+    private var shareRenderKey: String {
+        "\(appState.agentProfileStore.revision)"
+            + "|\(store?.displayName ?? "")"
+            + "|\(appState.serverShareHost ?? "")"
+    }
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if let store {
-                    content(store)
-                } else {
-                    ProgressView()
+        ZStack {
+            // 整页 cover 的底色先行：边缘右滑跟手时内
+            // 容横移、露出的空位是页底色而不是系统黑
+            Palette.pageBG.ignoresSafeArea()
+            NavigationStack {
+                Group {
+                    if let store {
+                        content(store)
+                    } else {
+                        ProgressView()
+                    }
                 }
+                .background(Palette.pageBG)
             }
-            .background(Palette.pageBG)
+            .offset(x: edgeOffset)
         }
-        .presentationDragIndicator(.visible)
+        .background {
+            // 左边缘右滑返回（0.36.22）：cover 没有导
+            // 航栈 pop 手势，系统边缘识别器桥补齐（判
+            // 据 Core HubEdgeSwipe 单源；浏览器段禁用，
+            // 网页自有横移手势优先）
+            HubEdgeSwipeProbe(
+                isEnabled: segment != .browser,
+                onProgress: { edgeOffset = $0 },
+                onRelease: { shouldDismiss in
+                    if shouldDismiss {
+                        edgeOffset = 0
+                        dismiss()
+                    } else if edgeOffset != 0 {
+                        withAnimation(.snappy(duration: 0.25)) {
+                            edgeOffset = 0
+                        }
+                    }
+                }
+            )
+            .allowsHitTesting(false)
+        }
+        .sheet(isPresented: $showAvatarEditor) {
+            AgentAvatarEditorView()
+        }
+        .sheet(isPresented: $showNameEditor) {
+            AgentNameEditorView(
+                initialOverride: appState.agentProfileStore
+                    .profile.displayNameOverride
+            )
+        }
+        .task(id: shareRenderKey) {
+            shareItem = AgentShareItem.make(
+                name: store?.displayName ?? appState.agentDisplayName,
+                host: appState.serverShareHost,
+                avatarImage: appState.agentAvatarImage
+            )
+        }
         .task {
             if store == nil {
                 // 0.36.21：store 改走 AppState 共享单例
@@ -150,11 +216,46 @@ struct AgentHubView: View {
 
     // MARK: - 页头（规格 §2）
 
+    /// 分享圆钮（0.36.22）：内容换代为智能体名片——
+    /// 名称＋头像＋服务器域名（仅 host），红线不含任
+    /// 何凭据（AgentShareCard）；名片图未渲染就绪时
+    /// 回落纯文本名片，按钮永不假装。旧 shareText
+    /// （含当前模型、无域名）自此退出分享面
+    @ViewBuilder
+    private func shareButton(_ store: AgentHubStore) -> some View {
+        if let shareItem {
+            ShareLink(item: shareItem) {
+                Image(systemName: "square.and.arrow.up")
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("分享智能体名片")
+        } else {
+            ShareLink(
+                item: AgentShareCardText.make(
+                    name: store.displayName,
+                    host: appState.serverShareHost
+                )
+            ) {
+                Image(systemName: "square.and.arrow.up")
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("分享智能体名片")
+        }
+    }
+
     private func header(_ store: AgentHubStore) -> some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             ZStack(alignment: .top) {
                 avatarBlock
-                if mode == .sheet {
+                // 圆钮行（✕ 关闭＋分享名片）：0.36.22 起
+                // 两模式统一常驻——整页呈现下活动模式同
+                // 样需要显式关闭与分享落点（学 Muse 智
+                // 能体页）；0.6.0 的「活动模式撤圆钮行」
+                // 口径由整页化覆盖
                 HStack {
                     // 页头圆钮（L1，用户定案③：照样板形态、
                     // 用系统玻璃原生件拼装）
@@ -170,16 +271,9 @@ struct AgentHubView: View {
 
                     Spacer()
 
-                    ShareLink(item: store.shareText) {
-                        Image(systemName: "square.and.arrow.up")
-                            .frame(width: 36, height: 36)
-                    }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
-                    .accessibilityLabel("分享智能体摘要")
+                    shareButton(store)
                 }
                 .padding(.horizontal, OneDayMetrics.pageGutter)
-                }
             }
 
             Text(store.displayName)
@@ -207,11 +301,16 @@ struct AgentHubView: View {
     /// ~/workspace/ip-design/STYLE-partner.webp 裁头入
     /// SangouPartner 资产）；徽章点按跳本页身份段（规格
     /// §2 推荐口径：本页内闭环），身份的实际编辑在身份
-    /// 段内跳 ProfilesView（用户定案⑤）。活动格模式无
-    /// 身份段，徽章不挂（点了没落点不如不挂）。
+    /// 段内跳 ProfilesView（用户定案⑤）。
+    /// 0.36.22（枢纽页对齐包，用户新定案覆盖上段徽章
+    /// 口径）：头像改读本地档案（AppState 单一出口：
+    /// 预置/符号盘/相册自定义图）；徽章两模式统一改
+    /// 档案菜单——「更换虚拟形象」「编辑名称」改的是
+    /// 本机档案（AgentProfileStore），不是服务器身份；
+    /// 身份段仍在段列里、服务端身份编辑口径不变。
     private var avatarBlock: some View {
         ZStack(alignment: .bottomTrailing) {
-            Image("SangouPartner")
+            appState.agentAvatarImage
                 .resizable()
                 .scaledToFill()
                 .frame(width: 110, height: 110)
@@ -220,9 +319,17 @@ struct AgentHubView: View {
                     Circle().stroke(Palette.hairline, lineWidth: 0.5)
                 }
 
-            if mode == .sheet {
-            Button {
-                segment = .identity
+            Menu {
+                Button {
+                    showAvatarEditor = true
+                } label: {
+                    Label("更换虚拟形象", systemImage: "person.crop.circle")
+                }
+                Button {
+                    showNameEditor = true
+                } label: {
+                    Label("编辑名称", systemImage: "pencil")
+                }
             } label: {
                 Image(systemName: "pencil")
                     .font(.system(size: 15, weight: .semibold))
@@ -244,9 +351,7 @@ struct AgentHubView: View {
                     )
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.odPressable)
-            .accessibilityLabel("编辑身份")
-            }
+            .accessibilityLabel("编辑头像与名称")
         }
     }
 
