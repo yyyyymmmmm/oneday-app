@@ -198,7 +198,7 @@ struct AgentHubView: View {
     private func loadSegment(_ segment: HubSegment, store: AgentHubStore) async {
         switch segment {
         case .activity:
-            break // 初始加载已覆盖
+            break // 台账段自持 LedgerStore（段内 .task 驱动）
         case .tasks:
             break // 0.10.0：任务段自持 KanbanStore（段内 .task 驱动）
         case .approval:
@@ -450,7 +450,16 @@ struct AgentHubView: View {
     private func segmentContent(_ store: AgentHubStore) -> some View {
         switch segment {
         case .activity:
-            activityContent(store)
+            // 工作台账（§95）：段自持 LedgerStore，行
+            // 下钻打开会话走既有 pendingChatSessionID
+            // 通道，与旧活动行同路（sheet 模式关页、
+            // 活动模式只置位）
+            HubLedgerSection(onOpenSession: { sessionID in
+                appState.pendingChatSessionID = sessionID
+                if mode == .sheet {
+                    dismiss()
+                }
+            })
         case .tasks:
             HubTaskSection()
         case .approval:
@@ -465,123 +474,5 @@ struct AgentHubView: View {
             HubIdentitySection(store: store)
         }
     }
-
-    // MARK: - 活动段（规格 §3.1 降级拼装）
-
-    @ViewBuilder
-    private func activityContent(_ store: AgentHubStore) -> some View {
-        if store.sessionsFailed {
-            ContentUnavailableView {
-                Label("会话读取失败", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text("活动流暂时拼不出来，请重试。")
-            } actions: {
-                Button("重试") {
-                    Task { await store.reloadActivity() }
-                }
-                .buttonStyle(.bordered)
-            }
-        } else if let groups = store.activityGroups {
-            if groups.isEmpty {
-                ContentUnavailableView(
-                    "暂无活动",
-                    systemImage: "list.bullet",
-                    description: Text("还没有会话记录")
-                )
-            } else {
-                List {
-                    ForEach(groups) { group in
-                        Section(group.label) {
-                            ForEach(group.items) { item in
-                                activityRow(item)
-                            }
-                        }
-                    }
-                }
-                .listStyle(.plain)
-                .refreshable {
-                    await store.reloadActivity()
-                }
-            }
-        } else {
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private func activityRow(_ item: HubActivityItem) -> some View {
-        Button {
-            // 点行跳对应会话聊天页续聊（规格 §3.1 推荐
-            // 口径）：走既有 pendingChatSessionID 通道，
-            // 关闭枢纽页后由 ChatView 消费。活动格模式
-            // 本就是一级页、没有可关的 sheet，只置位通
-            // 道（ContentView 据此切聊天格）
-            appState.pendingChatSessionID = item.sessionID
-            if mode == .sheet {
-                dismiss()
-            }
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                activityIconBox(item)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                    Text(item.meta)
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
-                Spacer()
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .listRowSeparator(.hidden)
-    }
-
-    /// 活动图标盒（0.6.1，用户真机点名＋OpenMuse 令牌
-    /// 语言）：52pt 石板灰蓝渐变大圆退役——每行雷同的
-    /// 大色块与 OpenMuse 活动卡的克制语言不符；改
-    /// 36pt 小圆角盒：按来源给 pastel 令牌底（Open-
-    /// Muse iconBox 的色面法、尺寸遵守「图标按来源
-    /// 小而克制」口径）、glyph 回墨色细线，与文件页/
-    /// 欢迎页的同族盒同语言
-    private func activityIconBox(_ item: HubActivityItem) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(activityTint(item))
-            Image(systemName: discGlyph(item))
-                .font(.system(size: 16, weight: .regular))
-                .foregroundStyle(Palette.ink)
-        }
-        .frame(width: 36, height: 36)
-    }
-
-    /// 来源 → pastel 令牌（与 OpenMuse iconBox 的四色
-    /// pastel 同族：定时 lav 薰衣草、控制台 sky 天蓝、
-    /// 其他应用 green 绿、命令行 orange 橙、缺省 sky）
-    private func activityTint(_ item: HubActivityItem) -> Color {
-        switch item.sourceLabel {
-        case "定时任务": return Palette.tintLavender
-        case "控制台": return Palette.tintSky
-        case "其他应用": return Palette.tintGreen
-        case "命令行": return Palette.tintOrange
-        default: return Palette.tintSky
-        }
-    }
-
-    private func discGlyph(_ item: HubActivityItem) -> String {
-        switch item.sourceLabel {
-        case "定时任务": return "clock"
-        case "控制台": return "display"
-        case "其他应用": return "iphone"
-        case "命令行": return "terminal"
-        default: return "bubble.left"
-        }
-    }
-
-    // （0.6.1 删残：timeFormatter 随活动行改 meta 副题失去消费者）
 }
 

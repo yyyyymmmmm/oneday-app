@@ -7130,3 +7130,97 @@ def greet(name):
 ```
 
 （注：样例中代码围栏前的零宽空格是防本文档自身围栏误合的排版手段，真机粘贴时去掉即可；实际发给 Hermes 时直接让它原样输出一段含以上元素的 Markdown 亦可。）
+
+## 95. 工作台账 App 半（分支 feat/ledger-app 预制，待合并出号；伴生 1.0.3 部署随后合并报批）
+
+### 95.1 落点
+
+- 枢纽「活动」段（HubSection.activity，段名保留）换真
+  台账：新 `HubLedgerSection` 自持 `LedgerStore`，替换
+  旧「会话+待办拼装」内容（拼装的视图代码已删；
+  `AgentHubStore` 与 Core `HubActivity` 拼装代码保留
+  不动——「最近动态」可能在别处复用，删改面收至视图
+  层）。行的打开会话走既有 pendingChatSessionID 通道，
+  与旧活动行同路（sheet 模式关页回对话、活动模式
+  只置位）。
+- 新文件：Core `LedgerModels.swift`（DTO）、
+  `LedgerBoard.swift`（呈现纯逻辑）；App
+  `LedgerBridgeClient.swift`（与 OneDayBridgeClient
+  同构：自有 session、单钥、/api/oneday-bridge 前缀）、
+  `LedgerStore.swift`、`HubLedgerSection.swift`、
+  `LedgerDetailView.swift`。钉测
+  `LedgerModelsTests` 31 条（基线 912 → 943）。
+
+### 95.2 呈现口径（规格 work-ledger-design §3/§4.3）
+
+- 页首计数行：进行中＝queued＋running 合计；待审批
+  单列；数字只取桥 counts（summary 优先、列表 counts
+  兜底），两面都缺才现算；全 0 给「现在没有进行中的
+  工作」。collector 心跳龄分三档：≤30 秒正常、≤5 分钟
+  弱标注更新时刻、其余（或无心跳）横幅「台账已停更 ·
+  最后更新 HH:mm」且列表降透明度明示陈旧；summary.
+  degraded 与断连另有横幅；失败条目不隐藏、陈旧不假
+  转（四点超 Muse 原样落）。
+- 行：类别图标盒（与看板任务同形）＋状态层叠加——
+  进行中＝系统小号 ProgressView 转圈（偏差见 95.4）、
+  排队小点、待审批盾勾、完成勾、失败红叹号、失联斜杠
+  wifi、取消整行降透明；对账补记行带「补记」小标；
+  副题按态：活跃态带已运行/已等秒级跳动（TimelineView
+  1 秒、时刻以服务端 serverNow 校准时钟偏移求差）、
+  终态带结束时刻或失败/取消原因分类、失联带最后确认。
+- 下钻「工作详情」：概况（类别/来源/开始/结束/最后
+  确认＋耗时）、工作量（toolCalls/subTasks 有才显）、
+  失败原因全文、打开会话钮（link.kind=session 或
+  sessionId）、事件时间线（detail 的 history，人话流
+  转＋记录者＋对账纠正/证据冲突标）、技术信息区（原始
+  枚举只进此区）。状态人话全量收敛 Core `LedgerText`
+  单点：排队中/进行中/等待审批/已完成/失败/已取消/
+  失联待核；未知枚举面显「状态未知」、原文只进技术区。
+
+### 95.3 读面契约对账表（逐行核 companion 源码定版，防御归一列明）
+
+| 面 | 实形（ledger.py／front server.py） | App 侧处理 |
+|---|---|---|
+| GET /ledger | {items, snapshotSeq, ledgerUpdatedAt, collectorHeartbeatAt, serverNow, counts}；items 剥 history | LedgerListResponse；counts 与 summary 同形 LedgerSummary |
+| GET /ledger/summary | counts＋degraded＋collector{lastRunAt, sources, ambiguousDeviceCalls} | LedgerSummary 一形双吃：list 来的无 degraded→false、collectorLastRunAt→nil |
+| GET /ledger/{id} | 裸条目（带 history）；不存在 404 | detail 404 → 「这条记录已不在」如实明示 |
+| POST /ledger/report | runId 必填；terminal∈{completed,failed,cancelled}；failReason.category 须六类内 | LedgerReportRequest 按实形编码；**客户端已落、发送链挂点未接线**（95.4） |
+| GET /api/companion/info | {companionVersion, apiLevel, minAppVersion, hermesUp, modules{}}，在面板鉴权之后 | 只作未上线文案旁证（App 单钥不保证可读）：探不到不翻案、探到版本点名版本；台账上线判据仍是 /ledger 404 |
+| 条目字段 | id/kind/source/title/titleSource/status/startedAt/endedAt/lastEvidenceAt/origin/link{}/counts/failReason{category,excerpt}/evidenceLagging/lastSeq＋可选 sessionId/runId/correctedBy | 正形 camelCase 逐字对；防御归一：snake_case 同义键候选、时刻 >1e11 按毫秒 ÷1000（与桥 _ledger_norm_ts 同阈值）、counts 键缺省不填 0、failReason category 空→「原因未明」、未知 kind/source/status 保留原文 .other（面人话降级、技术区可查）、可选字段全缺给诚实默认 |
+| 未验口径 | Dashboard sessions/messages 字段名、kanban 状态映射、write-gate /pending.records 均为桥侧防御归一 | App 只消费台账统一形，不受影响；部署后以真数据复核一次 |
+
+### 95.4 偏差与欠账（两条，明示）
+
+1. 进行中指示：规格 §3.2 字面「来源 glyph 旋转」未
+   采用——非圆形 SF 符号（消息气泡等）旋转读作晃动、
+   语义不清；改系统 ProgressView 转圈，与状态同帧启
+   停、Reduce Motion 自动降级，满足「真转、不假转」
+ 的判据。如用户真机不认可再回 glyph 方案。
+2. report 挂点：客户端与编码钉测已落，但 ChatView 的
+   run 开始/终局发送链未接线——接线点牵动发送主链
+   （0.36.20 刚收口的断开专项面），主线合并时定挂点
+   与开关；台账在接线前靠伴生采集器对账兜底成立
+   （规格三源之一），不阻塞本包。
+
+### 95.5 未部署呈现口径
+
+伴生未部署/台账面 404 时段内显「台账还没上线」整面
+（ContentUnavailableView：服务更新后这里会显示智能体
+经手工作的完整记录）＋「重新检查」钮，段内每 10 秒
+自重试、服务上线页面自活；401 等非 404 读失败如实
+给错误文案不伪装未上线；已加载后断连保留旧快照＋
+「台账暂时连不上」横幅，不清空、不造数。版本文件
+本包未动，版号合并时定。
+
+### 95.6 真机复验清单（部署 1.0.3 后）
+
+- 一次真实对话运行：行出现、转圈真转、已耗时秒跳、
+  完成后转已完成且页首计数回落。
+- 审批挂起：行显等待审批＋页首待审批计数；已决后
+  状态跟变。
+- 杀 App 中途结束的运行：采集器对账后行落终态或
+  失联（不永久假转）；对账补记行带「补记」标。
+- 失败运行：行与详情如实显失败分类＋摘录，不隐藏。
+- 下钻时间线与详情 history 一致；打开会话跳回
+  对应会话。
+- 伴生停机再启：段显停更口径、恢复后 10 秒内自活。
