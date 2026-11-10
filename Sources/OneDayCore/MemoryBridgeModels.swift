@@ -385,11 +385,17 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
 
     /// 用户面头条（与待批卡同一模板）
     public var headline: String {
+        headline(locale: AppLocale.uiLocale)
+    }
+
+    /// 头条的目录取词形（0.42.1 国际化长尾包补漏：
+    /// 已决记录与待批记录同模板，漏改此型已由 CI 暴露）
+    public func headline(locale: Locale) -> String {
         ApprovalHeadline.title(
             subsystem: subsystem, op: effectiveOp,
             targetName: targetName, opCount: opCount,
             opKinds: opKinds, memTarget: memTarget,
-            contentPreview: contentPreview
+            contentPreview: contentPreview, locale: locale
         )
     }
 
