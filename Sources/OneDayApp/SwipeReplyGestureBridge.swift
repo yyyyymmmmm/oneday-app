@@ -2,37 +2,46 @@ import OneDayCore
 import SwiftUI
 import UIKit
 
-/// 右滑引用手势桥（0.36.20 §85 立桥、0.36.21 §88 改
-/// 生死判据域）：把右滑引用的接管层从 SwiftUI Drag-
-/// Gesture 换成 UIKit 平移识别器——生死在 `gesture-
-/// RecognizerShouldBegin` 阶段按 Core `SwipeReply-
-/// Motion.shouldBeginPan` 决定：横向主导才 begin，纵
-/// 向主导直接不 begin、纵滚完整让给 ScrollView。
+/// 右滑引用手势桥（0.36.20 §85 立桥；0.36.21 §88 曾
+/// 改速度域判据；0.36.23 §90 改装载编排＋回归位移
+/// 纯比值）：把右滑引用的接管层从 SwiftUI DragGes-
+/// ture 换成 UIKit 平移识别器，生死在 `gestureRec-
+/// ognizerShouldBegin` 阶段按 Core `SwipeReplyMo-
+/// tion.shouldBeginPan`（位移纯比值、无量级门）决
+/// 定，滚动与行 pan 的求值顺序由失败要求明文编排
+/// （见 Coordinator.orchestrateIfNeeded）。
 ///
-/// 为什么必须下到 UIKit（外部核查对账见 DESIGN §85）：
-/// DragGesture 在识别层无法自我失败——minimumDistance
-/// 一到识别即成立，纵滚意图在 onChanged 判读前已被手
-/// 势系统卷入；方向门写在 onChanged 里只挡位移写入、
-/// 挡不住识别抢占（真实项目 Revela 的实测报告与本次
-/// 真机回归逐字同型）。UIKit 的 shouldBegin 是通行解
-/// （SwipeCellKit 等生产级滑动单元格库同模式）。
+/// 为什么必须下到 UIKit（外部核查对账见 DESIGN
+/// §85）：DragGesture 在识别层无法自我失败——mini-
+/// mumDistance 一到识别即成立，纵滚意图在 onChanged
+/// 判读前已被手势系统卷入；方向门写在 onChanged 里
+/// 只挡位移写入、挡不住识别抢占。
 ///
-/// 0.36.21 改判据域（§88 定案）：shouldBegin 拿**速
-/// 度**判生死，不拿位移——shouldBegin 被咨询时识别
-/// 器尚在 .possible、位移没够到锁定距离，0.36.20 首
-/// 版拿位移问 shouldBeginPan 恒为 false、识别器永远
-/// begin 不了（真机右滑全灭、纵滚则因它永不 begin
-/// 而完好）。SwipeCellKit 的 shouldBegin 亦由位移改
-/// 判速度（PR #381），与本修同型。
+/// 0.36.23 改法（§90 调研裁决，报告 swipe-reply-
+/// arbitration-research-20261111）：三轮真机死状
+/// （识别器从未启动）随判据量纲更换而不变，定案死
+/// 因不在 translation/velocity 之争、在**零编排**：
+/// 苹果官方口径——识别器之间默认没有求值顺序保
+/// 证、默认互斥，定序必须显式声明；前两轮与 Scr-
+/// ollView 的 pan 裸拼仲裁，输赢不受任何保证。本
+/// 轮补上编排：宿主 ScrollView 的 pan 对行 pan 做
+/// require(toFail:)——纵滚必须等行 pan 先判：行
+/// pan 判横向则滚动被置 Failed、行跟手；判纵向则
+/// 行 pan 当场 Failed、滚动无感接管。判据同时回归
+/// 位移纯比值（SwipeCellKit 现行 master 同型；
+/// 0.36.21 的速度域立论经逐行核查不成立，退役理
+/// 由见 Core shouldBeginPan 注）。
 ///
-/// 挂载形态：零尺寸探针视图（不参与命中测试）把识别
-/// 器装到修饰符容器的父视图上——识别器由此成为消息
-/// 内容的祖先级识别器，能收到整行触摸；不使用覆盖全
-/// 行的 overlay 视图，避免吞掉内容子视图的触摸（长
-/// 按菜单/点图/点链接各有自己的识别器，不受影响）。
-/// 与滚动识别器不设同时识别（默认排斥仲裁）：本识别
-/// 器被 shouldBegin 拒即对本次触摸死亡、滚动接管；
-/// 横向 begin 后滚动平移不得同行。
+/// 挂载形态沿用：零尺寸探针视图（不参与命中测试）
+/// 把识别器装到本行修饰符容器的宿主视图上——每行
+/// 一个、位于该行自己的视图层级；不用覆盖全行的
+/// overlay 视图，避免吞掉内容子视图的触摸（长按
+/// 菜单/点图/点链接各有自己的识别器，不受影响）。
+///
+/// 诊断打点（临时，下一轮撤）：shouldReceive＋视
+/// 图链、shouldBegin＋实测值、宿主 scroll pan 的
+/// .began 时刻三处，全在 SwipeReplyDiagnostics，
+/// 为 P-15 补定案证据（H1/H2/H3 判读表见 §90）。
 struct SwipeReplyPanProbe: UIViewRepresentable {
     /// begin 瞬间的全量横向位移（锁定段，呈现层扣除）
     var onBegan: (CGFloat) -> Void
@@ -77,6 +86,13 @@ struct SwipeReplyPanProbe: UIViewRepresentable {
             super.didMoveToSuperview()
             coordinator?.attachIfNeeded(from: self)
         }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            // 层级完整后再请一次：编排要向上找到
+            // ScrollView，挂载当刻链可能还没接全
+            coordinator?.attachIfNeeded(from: self)
+        }
     }
 
     struct Handlers {
@@ -94,13 +110,19 @@ struct SwipeReplyPanProbe: UIViewRepresentable {
         var handlers: Handlers?
         private weak var hostView: UIView?
         private var recognizer: UIPanGestureRecognizer?
+        /// 已编排到的宿主 ScrollView（每行一对一绑定，
+        /// 行回收换宿主时随 detach 清零重绑）
+        private weak var orchestratedScrollView: UIScrollView?
 
-        /// 把识别器装到探针的父视图（修饰符容器）上；
-        /// 已装在同一父视图则不动，换父（行回收复用）
-        /// 时先卸旧再装新
+        /// 把识别器装到探针的父视图（本行修饰符容器的
+        /// 宿主视图）上；已装在同一父视图则不动（只补
+        /// 编排），换父（行回收复用）时先卸旧再装新
         func attachIfNeeded(from probe: UIView) {
             guard let host = probe.superview else { return }
-            if hostView === host, recognizer != nil { return }
+            if hostView === host, recognizer != nil {
+                orchestrateIfNeeded()
+                return
+            }
             detach()
             let pan = UIPanGestureRecognizer(
                 target: self,
@@ -112,6 +134,35 @@ struct SwipeReplyPanProbe: UIViewRepresentable {
             host.addGestureRecognizer(pan)
             hostView = host
             recognizer = pan
+            orchestrateIfNeeded()
+        }
+
+        /// 编排（本轮核心新增）：从行宿主向上找到包围
+        /// 本行的 UIScrollView，令其 panGestureRecog-
+        /// nizer 对行 pan 做 require(toFail:)——滚动
+        /// pan 停在 .possible 等行 pan 判决：行 pan
+        /// Failed 它才开始分析、行 pan Began 它直接
+        /// Failed（苹果 Event Handling Guide 的失败要
+        /// 求语义原文，§90 引）。装载当刻链未接全（找
+        /// 不到 ScrollView）时不强求，随后的 update/
+        /// didMoveToWindow 会再请本函数补齐。行 pan 被
+        /// detach 移除后，其失败要求随识别器消亡由系
+        /// 统按已失败处理，不留悬挂等待。
+        private func orchestrateIfNeeded() {
+            guard let pan = recognizer, let host = hostView,
+                  orchestratedScrollView == nil else { return }
+            var node: UIView? = host.superview
+            while let current = node {
+                if let scrollView = current as? UIScrollView {
+                    scrollView.panGestureRecognizer
+                        .require(toFail: pan)
+                    orchestratedScrollView = scrollView
+                    SwipeReplyDiagnostics.shared
+                        .watchScrollPan(scrollView)
+                    return
+                }
+                node = current.superview
+            }
         }
 
         func detach() {
@@ -120,25 +171,45 @@ struct SwipeReplyPanProbe: UIViewRepresentable {
             }
             recognizer = nil
             hostView = nil
+            orchestratedScrollView = nil
         }
 
-        /// 方向生死：纵向主导在此被拒——识别器对本次
-        /// 触摸直接死亡，ScrollView 的平移识别器完整
-        /// 接管纵滚；横向主导才许 begin。判据只认 Core
-        /// 单源（SwipeReplyMotion.shouldBeginPan），本
-        /// 处不许另写比值。**读速度不读位移**（§88）：
-        /// 本回调被咨询时位移尚不足锁定距离、位移判据
-        /// 恒拒（0.36.20 右滑全灭的定案）；速度在触摸
-        /// 起步即有方向意义
+        /// 触摸分发打点（临时诊断，下一轮撤）：恒 true
+        /// 不改分发行为，只记「触摸到了装载点」＋视图
+        /// 链实况（SwipeReplyDiagnostics 打点 1）
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive touch: UITouch
+        ) -> Bool {
+            SwipeReplyDiagnostics.shared.recordShouldReceive(
+                recognizer: gestureRecognizer)
+            return true
+        }
+
+        /// 方向生死：纵向主导在此被拒——识别器当场
+        /// Failed，失败要求随即放行 ScrollView 的平
+        /// 移识别器完整接管纵滚；横向主导才许 begin，
+        /// 滚动 pan 按失败要求语义已被置 Failed。判
+        /// 据只认 Core 单源（SwipeReplyMotion.should-
+        /// BeginPan），本处不许另写比值。**读位移纯
+        /// 比值**（§90）：shouldBegin 是一次性闸门、
+        /// 咨询时位移只有数 pt，纯比值与量级无关才定
+        /// 得了案；0.36.20 的量级门与 0.36.21 的速度
+        /// 域都已真机证伪（退役理由见 Core 注）
         func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
                   let view = pan.view else { return false }
-            let velocity = pan.velocity(in: view)
-            return SwipeReplyMotion.shouldBeginPan(
-                velocityX: velocity.x, velocityY: velocity.y
+            let translation = pan.translation(in: view)
+            let verdict = SwipeReplyMotion.shouldBeginPan(
+                dx: translation.x, dy: translation.y
             )
+            // 临时诊断打点（下一轮撤）：进入即记＋实测
+            // 值＋判决，P-15 判读用
+            SwipeReplyDiagnostics.shared.recordShouldBegin(
+                translation: translation, verdict: verdict)
+            return verdict
         }
 
         @objc private func handlePan(_ pan: UIPanGestureRecognizer) {

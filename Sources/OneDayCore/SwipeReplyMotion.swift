@@ -13,10 +13,14 @@ import Foundation
 ///   DragGesture.onChanged 里、真机证明挡不住识别层
 ///   抢占（纵滚被压死），0.36.20 改由 UIKit 桥在识别
 ///   器 shouldBegin 阶段定生死、begin 前呈现层不写
-///   任何位移，纵滚完整归列表；0.36.21（§88）：生死
-///   判据改问速度（shouldBegin 时位移未达锁定距离、
-///   位移判据恒拒致右滑全灭），位移口径的 engages
-///   只留作语义参照、不再喂 shouldBegin
+///   任何位移，纵滚完整归列表；0.36.21（§88）生死判
+///   据改问速度，真机仍全灭；0.36.23（§90）外部调研
+///   裁决：三轮死因不在判据量纲、在装载层级＋零编排
+///   （生产实现无一把竞争 pan 装滚动视图祖先层且不
+///   做失败要求编排），生死判据回归位移纯比值（见
+///   shouldBeginPan 注），编排改由桥侧 require(to-
+///   Fail:) 明文声明；位移口径的 engages 留作带锁
+///   定距离的语义参照、不喂 shouldBegin
 /// - 跟手位移扣除锁定段（接管瞬间 dx），起步无跳；
 ///   向左回拖钳到 0、向右封顶 maxOffset
 /// - 触发只认松手瞬间位移过 triggerOffset，不认速
@@ -33,31 +37,49 @@ public enum SwipeReplyMotion {
         dx > 0 && DrawerMotion.isDirectionLocked(dx: dx, dy: dy)
     }
 
-    /// 方向生死判据（0.36.20 §85 立、0.36.21 §88 改判
-    /// 据域）：UIKit 手势桥在 `gestureRecognizerShould-
-    /// Begin` 阶段问本函数决定平移识别器生死。**入参
-    /// 是速度（pt/s），不是位移**——0.36.20 首版拿位移
-    /// 问生死真机全灭，定案见 §88：shouldBegin 被咨询
-    /// 时识别器尚在 .possible、累计位移还没够到 10pt
-    /// 锁定距离，位移判据恒为 false、识别器永远 begin
-    /// 不了（右滑全无反应；纵滚则因它永不 begin 而完
-    /// 好——上一版修过头）。速度在触摸起步即有方向意
-    /// 义，生产级 SwipeCellKit 的 shouldBegin 亦由位移
-    /// 改判速度（PR #381，角度门）。判据：右向（vx＞0）
-    /// 且 |vx| ≥ 主导比值 × |vy|——比值引 DrawerMotion
-    /// .directionLockRatio 与抽屉 S2 同源单值，不在本
-    /// 处另写数字；速度域没有位移的 10pt 锁定距离
-    /// （pt/s 与 pt 不同量纲，硬套距离门正是 0.36.20
-    /// 的病根）。纵向主导/左向/静止必拒＝识别器在识
-    /// 别层自取消、本次触摸零写入，纵滚完整归列表；
-    /// 横向主导必允，begin 后与滚动的排斥由系统默认
-    /// 仲裁承担（不设同时识别）
+    /// 方向生死判据（0.36.20 §85 立、0.36.21 §88 曾改
+    /// 速度域、0.36.23 §90 回归位移纯比值）：UIKit 手
+    /// 势桥在 `gestureRecognizerShouldBegin` 阶段问本
+    /// 函数决定平移识别器生死。**入参是位移，且只问
+    /// 方向比值、不带任何量级/距离分量**——should-
+    /// Begin 是离开 .possible 的一次性闸门（苹果 Ev-
+    /// ent Handling Guide 原文），被咨询时累计位移只
+    /// 有首次移动的数 pt，任何量级门在数学上过不去：
+    /// 0.36.20 首版带 10pt 锁定距离的位移判据恒拒、
+    /// 右滑全灭，即死于此。纯比值与量级无关，数 pt
+    /// 的首次移动即可定案——此形态与 SwipeCellKit
+    /// 现行 master 的 shouldBegin 逐字同型（transla-
+    /// tion 纯比值、无量级门）。
+    ///
+    /// 速度域判据（0.36.21）退役理由（§90 调研裁
+    /// 决）：其立论「SwipeCellKit 已改 velocity 判
+    /// shouldBegin」经逐行核查不成立——velocity＋角
+    /// 度门只见于 2020 年 PR #381 的 patch、合入状态
+    /// 未证实，现行 master 仍是位移比值版；且三轮真
+    /// 机死状（识别器从未启动）随判据量纲更换而不
+    /// 变，定案死因在装载层级＋失败要求零编排，不在
+    /// 量纲，本轮由桥侧 require(toFail:) 补上编排。
+    ///
+    /// 判据：右向（dx＞0）且 |dx| ≥ 主导比值 × |dy|
+    /// ——比值引 DrawerMotion.directionLockRatio 与
+    /// 抽屉 S2 同源单值，不在本处另写数字（上游
+    /// SwipeCellKit 的 1.0 松口径不采：与本仓 S2 单
+    /// 源冲突，且斜向慢滑不误触的复验口径要更严的
+    /// 门）。与 engages 的差别只在量级门：engages 带
+    /// 10pt 锁定距离、是「接管跟手」的语义判据；
+    /// 本函数无量级门、是「一次性闸门」的生死判据，
+    /// 两者服务的回调不同，不许混用。纵向主导/左
+    /// 向/静止必拒＝识别器在识别层当场 Failed，桥侧
+    /// 失败要求随即放行滚动 pan、本次触摸零写入；
+    /// 横向主导必允，begin 后滚动 pan 按失败要求语
+    /// 义已被置 Failed，本段触摸内绝不滚动（不设同
+    /// 时识别、不动 isScrollEnabled）
     public static func shouldBeginPan(
-        velocityX: CGFloat, velocityY: CGFloat
+        dx: CGFloat, dy: CGFloat
     ) -> Bool {
-        velocityX > 0
-            && abs(velocityX)
-                >= DrawerMotion.directionLockRatio * abs(velocityY)
+        dx > 0
+            && abs(dx)
+                >= DrawerMotion.directionLockRatio * abs(dy)
     }
 
     /// 跟手位移：扣除锁定段后 1:1，两端钳制
