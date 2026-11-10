@@ -1723,10 +1723,20 @@ struct ChatView: View {
                         quoteBlock(quote)
                     }
                     if let data = entry.imageData, let image = UIImage(data: data) {
+                        // 0.36.19（§84.5）：已发图宽高双封
+                        // 盒（Core ChatImageSizing，220×240
+                        // 只缩不放大）——旧只封宽 220，竖长
+                        // 截图要长到约 477pt 高吃半屏
+                        let displaySize = ChatImageSizing.displaySize(
+                            for: image.size
+                        )
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFit()
-                            .frame(maxWidth: 220)
+                            .frame(
+                                width: displaySize.width,
+                                height: displaySize.height
+                            )
                             .clipShape(
                                 RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
                             )
@@ -2253,11 +2263,6 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
-            // 条 7（§14）：附件条的出现/消失走平滑高度
-            // 动画（SmoothExpand，0fr→1fr 等价），禁跳变
-            SmoothExpand(isExpanded: !attachments.isEmpty) {
-                attachmentsStrip
-            }
             // 0.36.6（§71）：语音失败行与到限提示行——
             // 三段式文案（发生了什么＋影响＋怎么办），
             // 权限被拒在此给「去设置」降级路（续编 S4）
@@ -2424,8 +2429,9 @@ struct ChatView: View {
     }
 
     /// 输入舱卡（0.36.19 入舱，§84）：玻璃卡的承载层——
-    /// 待发送引用块在上（有则显）、发丝分隔线、输入行
-    /// （composerRow，标准行/录音条两态）在下，一张卡。
+    /// 待发送引用块（有则显）、待发附件条（有则显）自
+    /// 上而下各带一条发丝分隔线、输入行（composerRow，
+    /// 标准行/录音条两态）在下，一张卡。
     /// 0.4.1–0.36.18 引用条是输入舱外的一张独立浮卡，
     /// 用户 2026-11-11 00:24 点题「一个在输入框里面，
     /// 一个在外面」不对——对照 Muse 本体：引用嵌在输
@@ -2450,6 +2456,26 @@ struct ChatView: View {
                                 .horizontal, OneDayMetrics.spacingSM
                             )
                     }
+                }
+            }
+            // 待发附件条（0.36.19 入舱，§84.4）：0.2.1 起
+            // 它挂在输入舱外（inputBar 的 VStack 里）——
+            // VStack 默认居中对齐＋strip 无满宽左锚，
+            // 单张图时整条按内容宽被居中，缩略图飘到屏
+            // 幕中间（用户 00:41 真机点题）。并入卡内
+            // （引用块之下、输入行之上），与引用块同款
+            // SmoothExpand＋分隔线随进随出；条高计入整
+            // 卡实测（卡层 onGeometryChange 同路），圆
+            // 角连续函数随高自适应
+            SmoothExpand(isExpanded: !attachments.isEmpty) {
+                VStack(spacing: 0) {
+                    attachmentsStrip
+                    Rectangle()
+                        .fill(Palette.hairline)
+                        .frame(height: 1)
+                        .padding(
+                            .horizontal, OneDayMetrics.spacingSM
+                        )
                 }
             }
             composerRow
@@ -2812,7 +2838,12 @@ private struct ComposerBarLayout: Layout {
         .accessibilityLabel("添加附件")
     }
 
-    /// 待发附件条：图片出缩略图、文件出名牌，都可单独移除
+    /// 待发附件条：图片出缩略图、文件出名牌，都可单独
+    /// 移除。0.36.19 起满宽左对齐锚钉死左起（§84.4）：
+    /// 本体与内容各挂一层 maxWidth .infinity＋leading
+    /// ——入舱前它在居中对齐的 VStack 里按内容宽被居
+    /// 中，单张图飘到屏幕中间；横向内边距改 spacingSM
+    /// 与卡内引用块/分隔线同一起点
     private var attachmentsStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -2820,9 +2851,11 @@ private struct ComposerBarLayout: Layout {
                     attachmentChip(attachment)
                 }
             }
-            .padding(.horizontal, OneDayMetrics.spacingXS)
+            .padding(.horizontal, OneDayMetrics.spacingSM)
             .padding(.vertical, OneDayMetrics.spacingXS)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder

@@ -399,10 +399,23 @@ struct ServerRemoteImage: View {
     var body: some View {
         Group {
             if let data, let image = UIImage(data: data) {
+                // 0.36.19（§84.5）：已发图宽高双封盒
+                // （Core ChatImageSizing，220×240 只缩
+                // 不放大）——本处一改同时覆盖用户与助手
+                // 两侧的远端图；旧只封宽 220，竖长图吃
+                // 半屏。加载占位（220×150）形态未动：
+                // 占位在数据到达前不知宽高比，跳变以一
+                // 次为限、与旧口径同量级
+                let displaySize = ChatImageSizing.displaySize(
+                    for: image.size
+                )
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: 220)
+                    .frame(
+                        width: displaySize.width,
+                        height: displaySize.height
+                    )
             } else if failed {
                 HStack(spacing: 6) {
                     Image(systemName: "photo")
