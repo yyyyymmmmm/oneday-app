@@ -329,6 +329,14 @@ public enum NotificationSummary {
 /// 时间分隔条同源同口径）。createdAt 解析不了的条
 /// 目不编造日期：单独成组垫底、组头即原文（沿旧版
 /// 「解析不了原样呈现」口径）。
+///
+/// locale 注入点（0.42.0 CI 修复）：本函数初版无
+/// locale 入参，组头转调 DisplayDate 时落其默认
+/// AppLocale.uiLocale——逻辑测试宿主里该值随运行
+/// 环境语言漂移，英文环境下星期档组头漏出
+/// 「Sunday」与同组「今天/昨天」混排（run
+/// 42919829466 实证）。自此组头语言随注入 locale，
+/// 与侧栏分组（SidebarGrouping 同为注入式）一式。
 public struct NotificationDayGroup: Equatable, Sendable, Identifiable {
     public let key: String
     public let title: String
@@ -360,7 +368,8 @@ public enum NotificationGrouping {
     public static func groups(
         notifications: [OverviewNotification],
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> [NotificationDayGroup] {
         let dated = notifications.map {
             (item: $0, date: parseCreatedAt($0.createdAt))
@@ -393,7 +402,8 @@ public enum NotificationGrouping {
                 result.append(NotificationDayGroup(
                     key: key,
                     title: DisplayDate.dateOnly(
-                        date, now: now, calendar: calendar
+                        date, now: now, calendar: calendar,
+                        locale: locale
                     ),
                     items: [entry.item]
                 ))

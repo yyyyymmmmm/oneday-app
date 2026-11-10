@@ -257,8 +257,13 @@ final class NotificationSummaryTests: XCTestCase {
             item(id: "yday", createdAt: "2026-11-09T10:00:00+08:00"),
             item(id: "today1", createdAt: "2026-11-10T09:00:00+08:00"),
         ]
+        // locale 显式注入（0.42.0 CI 修复）：分组函
+        // 数初版无注入点，组头语言随宿主环境漂移、
+        // 英文环境下星期档漏出「Sunday」（run
+        // 42919829466 实证）；期望形态不变
         let groups = NotificationGrouping.groups(
-            notifications: items, now: now, calendar: calendar
+            notifications: items, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(groups.map(\.title), ["今天", "昨天", "星期日"])
         XCTAssertEqual(groups[0].items.map(\.id), ["today2", "today1"])

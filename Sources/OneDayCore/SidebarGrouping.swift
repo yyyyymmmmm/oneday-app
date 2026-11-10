@@ -102,6 +102,15 @@ public enum SidebarGrouping {
             result.append(Group(label: L10n.string("过去 30 天", locale: locale), keys: month))
         }
         let nowYear = calendar.component(.year, from: now)
+        // 中文月名分档（0.42.0 CI 修复）：FormatStyle
+        // 的 .wide 在中文下是汉字数字式（「十月」），
+        // 与侧栏既有数字式形态（「10月」，本文件头注
+        // 与单测旧口径）不符；.abbreviated 在简繁下
+        // 同为数字式（「10月」/「9月」）。英文整月名
+        // （September）是既有形态，仍走 .wide。跨年
+        // 形两档在中文下同为「2025年12月」、英文随
+        // .wide 保整月名，故跨年分支不动
+        let isChineseMonth = locale.language.languageCode?.identifier == "zh"
         for bucket in olderOrder {
             // 月组标题走系统格式器（钉 locale）：简体
             // 「11月」/「2025年11月」、英文「November」/
@@ -113,7 +122,11 @@ public enum SidebarGrouping {
                 locale: locale, calendar: calendar, timeZone: calendar.timeZone
             )
             let label = bucket.year == nowYear
-                ? bucketDate.formatted(monthStyle.month(.wide))
+                ? bucketDate.formatted(
+                    isChineseMonth
+                        ? monthStyle.month(.abbreviated)
+                        : monthStyle.month(.wide)
+                )
                 : bucketDate.formatted(monthStyle.year().month(.wide))
             result.append(Group(
                 label: label,

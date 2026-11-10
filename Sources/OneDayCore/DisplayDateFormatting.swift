@@ -143,8 +143,10 @@ public enum DisplayDate {
 
     /// 绝对日期：本年「M月d日」／跨年「yyyy年M月
     /// d日」——走 FormatStyle 字段拼装（钉 locale
-    /// 与日历时区），英文下自然成「3/5」「12/31/
-    /// 2025」形，不手拼格式串
+    /// 与日历时区），月取默认 abbreviated 档：中文
+    /// 落数字式「3月5日」、英文落缩写月名式「Mar 5」
+    /// 「Dec 31, 2025」（0.42.0 CI run 42919829466
+    /// 实证），不手拼格式串
     static func absoluteDate(
         of date: Date, now: Date, calendar: Calendar, locale: Locale
     ) -> String {
@@ -173,7 +175,9 @@ public enum DisplayDate {
     }
 
     /// 星期全名：FormatStyle .weekday(.wide)——简
-    /// 体「星期六」／繁体「週六」／英文「Saturday」
+    /// 体「星期六」／繁体同为「星期六」（非「週六」
+    /// 缩写形，0.42.0 CI run 42919829466 实证）／
+    /// 英文「Saturday」
     static func weekdayText(of date: Date, calendar: Calendar, locale: Locale) -> String {
         let style = Date.FormatStyle(
             locale: locale, calendar: calendar, timeZone: calendar.timeZone

@@ -61,20 +61,27 @@ final class I18nFormattingTests: XCTestCase {
     // MARK: - 英文形态（系统格式化器产出）
 
     func testEnglishAbsoluteDates() {
+        // 英文绝对日期定版形态＝缩写月名式（主线裁
+        // 决）：FormatStyle 月 abbreviated 档在英文
+        // 落「Mar」、中文落数字式「3月」，同一拼装
+        // 两语各得其形。本测试初版字面误写数字式
+        // （「3/5」等），CI run 42919829466 实证实
+        // 现产出即缩写月名式——错在字面、已按定版
+        // 形态改正，实现未动
         XCTAssertEqual(
             DisplayDate.dateOnly(date(2026, 3, 5), now: now, calendar: calendar, locale: en),
-            "3/5"
+            "Mar 5"
         )
         XCTAssertEqual(
             DisplayDate.dateOnly(date(2025, 12, 31), now: now, calendar: calendar, locale: en),
-            "12/31/2025"
+            "Dec 31, 2025"
         )
         XCTAssertEqual(
             ChatTimeline.dividerText(
                 for: date(2026, 3, 5, 12, 30), now: now,
                 calendar: calendar, locale: en
             ),
-            "3/5/2026 12:30"
+            "Mar 5 12:30"
         )
     }
 
@@ -117,9 +124,13 @@ final class I18nFormattingTests: XCTestCase {
     // MARK: - 繁体形态
 
     func testTraditionalChineseForms() {
+        // 星期全称：繁体与简体同为「星期六」——初版
+        // 期望误写缩写形「週六」，CI run 42919829466
+        // 实证 .weekday(.wide) 在 zh-Hant 下产出
+        // 「星期六」，据实证改期望（格式器形态无误）
         XCTAssertEqual(
             DisplayDate.dateOnly(date(2026, 11, 7), now: now, calendar: calendar, locale: zhHant),
-            "週六"
+            "星期六"
         )
         XCTAssertEqual(
             DisplayDate.dateOnly(date(2026, 3, 5), now: now, calendar: calendar, locale: zhHant),
