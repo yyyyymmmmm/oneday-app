@@ -5164,3 +5164,44 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - 版本五处同改＋grep 验：Project.swift 四处（0.36.6/73）＋SettingsView 页脚「OneDay v0.36.6」。
 - 总纲：动效宪法表 D 已增五行（开始/取消 impact light、落稿无、达上限 warning、失败打断归 error 行），motion-interaction-philosophy-20261110.md。
 - **待真机（不许假报）**：识别准确率与首字延迟；电平波形实感（tap 若为非 Float 格式，电平退化为 0、识别不受影响）；权限弹窗链（麦克风＋语音识别双弹窗的实际次序、SpeechAnalyzer 是否要求语音识别授权的运行时行为）；资产下载的真实耗时与进度形态；来电中断的真实触发；粤语 yue_CN 在真机资产的可用性；录音条与玻璃胶囊的高度衔接观感；染灰尾段在真机渲染的跟随感。
+
+## §72 0.36.7/74 视觉修三部（铃铛页重排＋连接器页小修＋抽屉选择态单一化）
+
+规格真源：A 部 notifications-page-benchmark-20261110.md §3；C 部 channels-conversations-design-20261110.md §10（验收口径 §10.4）。基线顶端 3fc716f、696 测。
+
+### 72.1 A 部·铃铛页
+
+- **文案模板表（Core 新设 NotificationSummary）**：裁决类 body（Hermes 暂存 summary 原文）按可穷举文法翻人话对象句——记忆 M1 add／M2 remove／M3 replace（old 换行 new）／M4 apply 多 op 聚合（前 2 条短句＋「等共 N 处」）；技能 S1–S3 batch 聚合（op 按首次出现序计数：patch→改了 N 处内容、write_file→写了 N 个文件、create→新建了 N 个文件；单技能单 patch 短形「改了技能「x」的内容」；多名只显前两名＋「等共 M 个技能」）。对象文本先折叠空白、取前 60 字＋「…」、包中文引号；语态自桥结论标题派生（批准＝完成式、驳回＝未执行式）。**解析不出（文法不命中／op 表外值／op 条数与声明不符／语态不明）禁止直出原文**：降级通用句（「一项记忆写入已批准」式，与桥自带兜底同式），原文收进点按展开的次级详情「原始记录」（等宽小字，S10）。监测类 body 成形文案直通（只折叠空白）。
+- **相对时间（DisplayDate 新增 relative 档）**：按流逝时长——<60 秒「刚刚」（负值同档）／<60 分「N 分钟前」／<24 小时「N 小时前」，满 24 小时整档让渡五档 dateTime（同源同算法）；跨日界但流逝 <24h 仍相对（不跳「昨天」）。页面每 60 秒重算（S7）。原 `.relative(presentation:.named)` 系统格式器删除（英文漏出元凶）。
+- **行与分组**：三行结构（标题 Body 17 regular 冻结——未读 ink 全色／已读 inkSecondary；摘要 15、限 2 行；元信息 Footnote 13 inkMuted 等宽数字＝相对时间，监测类后缀「· 监测」）；未读只留一个信号（8pt 强调色点、顶偏移 8），已读不画点留空列保对齐；行内边距 20/12、分隔整行贯通（separatorLeading 归零）；按日分组（组头 DisplayDate.dateOnly、Footnote inkMuted、上距首组 8/其余 24、下距 8）、全表时间倒序，**废除旧「未读在前」重排**；点按：未读标已读、已读展开次级详情；达桥上限 50 条时表尾如实标注「只显示最近 50 条」。
+- **全部已读**：未读 ≥2 时首组组头右侧出文字钮；store 新增 markAllRead——逐条 POST 确认、只改成功条目、任一失败整体报 false，视图 alert 三段式（没全标上／失败条保持未读／下拉刷新再试），不假清。角标与未读数仍以桥为准。
+- refId 联动（0.36.5 C 部）未动、回归在列。
+
+### 72.2 B 部·连接器页
+
+- **删脚注**：本机服务组下方备注脚注整段删除、不留替代文案（用户 19:54 点名：那段是给开发者解释分组口径的）。
+- **胶囊间距收紧**（先量后改，改动落既有标尺）：本页 List 的 listSectionSpacing 自 settingsSectionSpacing 28 → spacingM 16（胶囊与搜索框、与下方名单的间距同源于此）；分段胶囊行自身上下内边距 4→0（间距只由一处出、不叠加）。合计胶囊上下呼吸约 32pt 级 → 16pt。本页其余组间距随之同紧（目录面紧凑口径与 Muse 参照一致；设置页本体的 28 不动；同文件内详情 sheet 的三处 28 不动）。
+
+### 72.3 C 部·抽屉选择态单一化
+
+- **Core 新设 DrawerSelectionPolicy**（纯函数＋单测）：全抽屉唯一选择源＝「当前正在看的对象」，值域三值 .surface(tab)／.main／.side(UUID)＋空态 .none；解析优先级按 §10.2——非聊天表面→.surface（会话行全体无胶囊）、有显式对象引用→按引用、无引用→落点线程派生、皆无→.none。.channel 值不在本版（0.36.9 在本政策上加值，不许另起一套）。
+- **置位纪律（§10.3）**：AppState 新设 currentDrawerObject 单一引用。写点：抽屉主线行点按→.main、旁聊行点按→.side(id)（导航动作显式写）；ChatView 当前线程同步两处（currentThreadID 变更点＋首次出现点）经 Policy.object(forThreadID:mainThreadID:) 派生回写——落点解析／抽屉改道／新建／openServerSession 导入最终都汇到 currentThreadID 变更、一处收口。页签切走不清引用、回切恢复。
+- **退役**：AppState.activeThreadID 字段整删——全仓消费面核清只剩胶囊判定（DrawerView 旁聊行）与删当前线程判定（deleteThread），前者改问政策、后者改经政策判定（.side 命中，或 .main 且 SideChatClassifier.isMain），ChatView 两处回写同步改对象引用。导航行 selected 全改政策结果（主线行＝.main 才亮、非聊天行＝.surface(该格) 才亮）。底栏不在辖区、未动。
+- 搜索态名单与旁聊区共用 drawerSideThreadRow，胶囊随政策同口径（被搜掉的当前行不显属正常，§10.3）。
+
+### 72.4 预登记出入（如实）
+
+1. **左滑「标未读」不落**：规格 §3.1 列左滑标已读／标未读二选一，但 overview-bridge 只有 POST /notifications/{id}/read 一个写端点、无标未读落点；且 §3.5 定角标以桥为准、本地不自算——本地假标未读会在下次拉取被覆盖且与角标打架。本版左滑只给未读条目的「标已读」；待桥补端点后再补，不在本版造假态。
+2. **技能驳回形为类推落法**：规格模板表只给了技能 approved 形与 M4 的「未生效」驳回式；技能 batch 驳回按 M4 同式落「技能「…」的 N 处改动未生效」（完成式动词不进驳回句，守 §9 如实），已单测钉住；若桥侧将来给出官方文案再对平。
+3. **§3.6 断桥有缓存态不适用**：施工核对——现行 OverviewBridgeStore 失败即清空 notifications、无缓存保留，本版未新增缓存层，该态按规格注记以「断桥、无缓存」呈现为准。
+4. **DrawerSelection 加 .none 空态**：§10.2 值域三值未含「聊天表面且无对象可派生」的极端情形（无线程/落点未定），加 .none 表「不画假当前」；稳态不可达、单测钉住。
+
+### 72.5 验收与诚实边界
+
+- 提交链：2181348（整包）→本节补记提交；代码顶端 2181348。
+- CI：42816201615 **success**，独立计数 **736 tests 全过、0 failures**（基线 696＋新增 40：NotificationSummaryTests 23＋DrawerSelectionTests 9＋DisplayDateRelativeTests 8，只增不减；逐条 Test Case passed 去重计）。
+- IPA：6,585,988 字节、md5 c75fe5fc91e3d1e524a4d0330e9c9a99、独立解包验 Info.plist＝0.36.7/74，落 ~/workspace/your_files/oneday-v0.36.7/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.7/74）＋SettingsView 页脚「OneDay v0.36.7」。
+- A 部模板表覆盖通知类型：write_gate_decision 的记忆四文法（add/remove/replace/apply）＋技能 batch 一文法（含 create/write_file 分列计数）、monitor_change 直通、未知 kind 直通兜底；截图 8 条实样逐条入单测（M1 驳回实样、M2 实样、M4 实样、S1/S2/S3 实样）。
+- C 部五场景验证方式：①看主线 ②看旁聊（报障原图场景）③非聊天页签 ④旁聊回主线 ⑤切页签再回聊天——五场景均落 Core 政策单测逐条断言（DrawerSelectionTests 前五测一一对应）＋静态代码审计（全仓 grep：activeThreadID 零残留、DrawerView 无 currentTab == 私判、行 selected 全出政策）；ChatView 两处同步点与抽屉两处导航置位点逐点核对。真机逐场景肉眼验归用户终审（§10.4 口径）。
+- **待真机（不许假报）**：铃铛页三行密度与组头节奏、相对时间三档实显、全部已读失败路径实感（需桥侧故障才触发）、展开次级详情的手感；连接器胶囊收紧后的实际呼吸感（16 为代码量测、观感归用户）；抽屉五场景胶囊唯一性真机复验；本人裁决回执 refId 联动回归（桥已部署、待下一次真实裁决自然验）。
