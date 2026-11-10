@@ -162,7 +162,7 @@ struct ProfilesView: View {
             }
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingXS) {
                         Text(profile.name)
                             .font(.body)

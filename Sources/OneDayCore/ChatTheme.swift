@@ -66,7 +66,12 @@ public enum ChatThemes {
             id: "sangou", displayName: "三狗",
             bubbleLight: 0xC8E7FF, bubbleDark: 0x1473C8,
             bubbleTextLight: 0x11191C, bubbleTextDark: 0xFFFFFF,
-            accentLight: 0x1473C8, accentDark: 0x5EB1EF,
+            // 0.41.0（收口批·浅档专项，DESIGN §66.1 候
+            // 选 (a) 落地）：accentLight 同色相加深一档
+            // 0x1473C8→0x136FC1——对弱面 tintLight 实算
+            // 4.48＜4.5，加深后 4.74；链接/强调落在弱面
+            // 与页底均过闸（对比闸④钉住，见测试）
+            accentLight: 0x136FC1, accentDark: 0x5EB1EF,
             tintLight: 0xEDF7FD, tintDark: 0x16242E
         ),
         ChatTheme(
@@ -94,7 +99,10 @@ public enum ChatThemes {
             id: "skyBlue", displayName: "天蓝",
             bubbleLight: 0xA9D6F8, bubbleDark: 0x1663AC,
             bubbleTextLight: 0x103A5E, bubbleTextDark: 0xFFFFFF,
-            accentLight: 0x0B74BC, accentDark: 0x6FB3EE,
+            // 0.41.0（浅档专项，§66.1 候选 (a)）：同色
+            // 相加深一档 0x0B74BC→0x0A6BAE（对 tint-
+            // Light 4.31→4.90），理由同默认款注
+            accentLight: 0x0A6BAE, accentDark: 0x6FB3EE,
             tintLight: 0xE3F1FD, tintDark: 0x132636
         ),
         ChatTheme(
@@ -115,7 +123,10 @@ public enum ChatThemes {
             id: "peach", displayName: "蜜桃",
             bubbleLight: 0xFBE0C3, bubbleDark: 0x9E5A1C,
             bubbleTextLight: 0x65350F, bubbleTextDark: 0xFFFFFF,
-            accentLight: 0xAC5A12, accentDark: 0xF5A95C,
+            // 0.41.0（浅档专项，§66.1 候选 (a)）：同色
+            // 相加深一档 0xAC5A12→0xA55611（对 tint-
+            // Light 4.43→4.73），理由同默认款注
+            accentLight: 0xA55611, accentDark: 0xF5A95C,
             tintLight: 0xFDF0DF, tintDark: 0x2B2113
         ),
     ]

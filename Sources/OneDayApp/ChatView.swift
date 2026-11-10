@@ -140,6 +140,31 @@ struct ChatView: View {
     /// 纯逻辑记账，每 ≥40 字放行一次无动画贴底；流结
     /// 束与切换线程时归零（见 messageList 的 onChange）
     @State private var streamFollowGate = StreamFollowGate()
+    /// 离底未读计数（0.41.0 收口批，台账 H 节正修）：
+    /// Core AwayUnreadCounter 记账——条目变化与可见
+    /// 集变化两路喂 ingest（见 messageList 两处
+    /// onChange）、发送走 noteOwnSend、切线程 resetAll；
+    /// 呈现只读 count/displayText（回底钮角标）
+    @State private var awayUnread = AwayUnreadCounter()
+
+    /// 计数口径的「在底」事实：与回底钮显隐同一政策
+    /// 派生（BottomFollowPolicy）——钮不显即在底，两
+    /// 处判定永不分叉
+    private var isAtBottomForUnread: Bool {
+        !BottomFollowPolicy.showsScrollToBottomButton(
+            isNearBottom: isNearBottom,
+            lastEntryVisible: lastEntryVisible
+        )
+    }
+
+    /// 未读计数喂入（条目/可见集两路共用一处，口径不
+    /// 分叉）：当前线程有序条目 id 全表＋在底事实
+    private func feedAwayUnread() {
+        awayUnread.ingest(
+            entryIDs: currentThread?.sortedEntries.map(\.id) ?? [],
+            isAtBottom: isAtBottomForUnread
+        )
+    }
     /// 列表可视高（0.3.5，§20）：onScrollGeometryChange
     /// 回写，喂消息内容栈的撑满 minHeight——点空白收键
     /// 盘的命中域（见 messageList 撑满注）
@@ -697,7 +722,7 @@ struct ChatView: View {
     /// 40＋次行 18，比 0.3.7 的两行胶囊更紧凑（旧胶囊
     /// 167pt 宽纯文字、无头像无 Hermes 名——第 30 条点名）
     private var headerBar: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: OneDayMetrics.rowInnerGap) {
             HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
                 Button {
                     // 0.4.5：开抽屉只写语义状态，壳层据
@@ -872,7 +897,7 @@ struct ChatView: View {
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
                     }
-                    HStack(spacing: 5) {
+                    HStack(spacing: OneDayMetrics.iconTextGap) {
                         StatusDot(color: overviewStatusColor)
                         Text(overviewStatusWord)
                             .font(.footnote)
@@ -927,7 +952,7 @@ struct ChatView: View {
                 }
             }
         } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: OneDayMetrics.stackGap) {
                 Text(ChatModels.shortDisplayName(for: appState.chatModel))
                     .font(.callout)
                     .foregroundStyle(Palette.ink)
@@ -964,7 +989,9 @@ struct ChatView: View {
 
     /// 底部发送区（0.2.6 起由消息列表的安全区承载、不
     /// 再是覆盖层；0.2.6–0.4.2 为 .safeAreaInset，0.4.3
-    /// 改 .safeAreaBar 注册，§28）：回到底部钮＋错误/提示条＋发送
+    /// 改 .safeAreaBar 注册，§28）：错误/提示条＋发送
+    /// 舱（回底钮 0.41.0 起改挂本区顶缘 overlay 浮层、
+    /// 不再占布局流，见 bottomBar 内注）＋发送
     /// 舱，自下而上排在列表下方的安全区留位里。键盘收起时
     /// 留位贴原生底栏上方；键盘升起时系统安全区扩张、整段
     /// 被顶到键盘上方（系统通道，见 chatSurface 换代注）。
@@ -979,26 +1006,21 @@ struct ChatView: View {
         // 0.36.5（审计 bug 2 短修）：钮显隐走 Core 政
         // 策——几何判定离底之外并入事实信号（最后一
         // 条已可见即在底），治估算距离驻留迟滞带的永
-        // 不消失；正修（浮层化＋未读计数）留 0.40.x
+        // 不消失；正修（浮层化＋未读计数）已于 0.41.0
+        // 收口批落地（台账 H 节），见下方 overlay 与
+        // AwayUnreadCounter 接线
         let showScrollButton = currentThread != nil
             && BottomFollowPolicy.showsScrollToBottomButton(
                 isNearBottom: isNearBottom,
                 lastEntryVisible: lastEntryVisible
             )
         return VStack(spacing: OneDayMetrics.spacingS) {
-            if showScrollButton {
-                HStack {
-                    Spacer()
-                    scrollToBottomButton(proxy)
-                }
-                .padding(.trailing, OneDayMetrics.spacingM)
-                // 0.25.0（动效专包）：入场 scale 起点
-                // 0.85→0.9——实物不自虚空出现、入场缩放
-                // 起点 ≥0.9（Emil 审查标准 5）；高度本
-                // 身仍由下方容器 swap 动画单调驱动，缩
-                // 放只是钮本体的渲染变换、不碰布局
-                .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            }
+            // 0.41.0（收口批·台账 H 节正修）：回底钮自此
+            // 不在布局流里——改挂本容器顶缘的 overlay 浮
+            // 层（见下方 .overlay），显隐不再增减容器高
+            // 度、消息列表底部 inset 不再随钮跳动；钮的
+            // 位置锚在发送舱上方、随安全区（键盘）升降
+            // 自动跟随
             if let errorMessage {
                 errorBanner(errorMessage)
                     // 0.25.0（动效专包）：错误/提示条进出
@@ -1015,32 +1037,39 @@ struct ChatView: View {
             inputBar
         }
         .fixedSize(horizontal: false, vertical: true)
-        // 条 9（§14）动画口径 0.4.2 收紧（§27）：本容
-        // 器的高度就是消息列表的底部 inset——回到底部
-        // 钮显隐时容器高度随之增减，列表的底部锚点骑
-        // 在这个高度上。原用 microSpring（380/18、ζ≈
-        // 0.46 欠阻尼、令牌册自注「微弹」）动画这段高
-        // 度，过冲使锚点随弹簧来回摆——划到底抖动的
-        // 一环。改走 swap（easeInOut 0.2、单调无过冲）：
-        // 钮的出入观感仍在，高度只单调滑到终点；钮本
-        // 体的点按反馈不经此处、不受影响。0.3.2 统一经
-        // resolved 出口（Reduce Motion 时瞬时）不变
-        .animation(
-            MotionTokens.resolved(
-                MotionTokens.swap, reduceMotion: reduceMotion
-            ),
-            value: isNearBottom
-        )
-        // 0.36.5：钮显隐的另一输入（事实信号）翻转时
-        // 容器高度同走 swap——显隐条件已改政策派生值，
-        // 动画键须跟着派生值走，只挂 isNearBottom 会
-        // 让事实信号触发的出入硬跳
+        // 条 9（§14）动画口径沿革：0.4.2 起本容器的高
+        // 度动画只服务错误/提示条（下方两键）——回底钮
+        // 0.41.0 浮层化后已不在布局流内，其原有的两条
+        // 高度动画键（isNearBottom／showScrollButton）
+        // 随之退役：钮显隐不再动容器高度，0.4.2 防的
+        // 「锚点骑高度摆动」自此结构性消失；钮本体的
+        // 出入走下方 animation(showScrollButton) 驱动
+        // overlay 的 transition（淡入＋0.9 起点缩放，
+        // 0.25.0 Emil 标准沿用）
         .animation(
             MotionTokens.resolved(
                 MotionTokens.swap, reduceMotion: reduceMotion
             ),
             value: showScrollButton
         )
+        // 回底钮浮层（0.41.0）：锚容器顶缘右角、整体上
+        // 移一个命中域＋spacingS——视觉盘落在发送舱上
+        // 方约 13pt、右缘与旧布局流位置（trailing
+        // spacingM）同线。overlay 不占布局：容器高度
+        // 只由错误/提示条与发送舱决定
+        .overlay(alignment: .topTrailing) {
+            if showScrollButton {
+                scrollToBottomButton(proxy)
+                    .padding(.trailing, OneDayMetrics.spacingM)
+                    .offset(
+                        y: -(OneDayMetrics.minTapTarget
+                            + OneDayMetrics.spacingS)
+                    )
+                    .transition(
+                        .opacity.combined(with: .scale(scale: 0.9))
+                    )
+            }
+        }
         // 0.25.0（动效专包）：错误/提示条的显隐同走本
         // 容器 swap 动画（与 isNearBottom 同口径同出
         // 口）——条本体淡入淡出、容器高度同步单调滑
@@ -1061,15 +1090,34 @@ struct ChatView: View {
 
     /// 回到底部圆钮（0.2.4 曾换原生玻璃；0.3.8 第 28 条
     /// 浮件统一白浮纸——圆钮全体同画法）
+    /// 0.41.0（收口批）：离底未读角标——计数出自 Core
+    /// AwayUnreadCounter（displayText 封顶 99+），挂视
+    /// 觉盘右上；点钮即清零（回底的 ingest 随后以在底
+    /// 事实复核、水位推进，不双计）
     private func scrollToBottomButton(_ proxy: ScrollViewProxy) -> some View {
         Button {
             scrollToBottom(proxy)
+            awayUnread.reset()
         } label: {
             Image(systemName: "chevron.down")
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 34, height: 34)
                 .odFloatPaper(in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    if let badge = awayUnread.displayText {
+                        Text(badge)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .frame(minWidth: 17, minHeight: 17)
+                            .background(
+                                Palette.primaryFill, in: Capsule()
+                            )
+                            .offset(x: 5, y: -5)
+                            .accessibilityHidden(true)
+                    }
+                }
                 // 0.23.0（命中域审计）：视觉盘 34 不变、
                 // 命中域外扩 44（与顶栏圆钮同口径）
                 .frame(
@@ -1079,7 +1127,11 @@ struct ChatView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-        .accessibilityLabel("回到底部")
+        .accessibilityLabel(
+            awayUnread.count > 0
+                ? "回到底部，\(awayUnread.count) 条新消息"
+                : "回到底部"
+        )
     }
 
     // MARK: - 消息列表
@@ -1447,7 +1499,7 @@ struct ChatView: View {
             // ProgressCapsule，数据源与台账同源）；胶
             // 囊本体自带玻璃，是内容不是背景层，不犯
             // 上方「bar 后不挂 background」的裁决
-            VStack(spacing: 6) {
+            VStack(spacing: OneDayMetrics.rowInnerGap) {
                 headerBar
                 ProgressCapsuleView(
                     currentSessionID: currentThread?.serverSessionID,
@@ -1553,6 +1605,9 @@ struct ChatView: View {
             // 而可见集未再变化时，旧实现持上一条的判定
             // 不动，钮显隐可长期错位
             refreshLastEntryVisible()
+            // 0.41.0：未读计数同路喂入（先刷新事实信号、
+            // 再按新判定计账，顺序不可反）
+            feedAwayUnread()
         }
         // 0.7.0（M1 轻保活）：首个可见条目回写（UUID 型
         // id 只有消息条目持有，流式行/底部锚是字符串 id、
@@ -1571,6 +1626,9 @@ struct ChatView: View {
             topVisibleEntryID = ids.first
             lastVisibleEntryIDs = Set(ids)
             refreshLastEntryVisible()
+            // 0.41.0：可见集变化是在底事实的另一路输入
+            // （用户手动滚回底部即清零、滚离即冻结水位）
+            feedAwayUnread()
         }
         // 0.36.5（审计 bug 1）：发送贴底——send() 落盘
         // 且链接成功后递增令牌，本处执行三步：置真跟
@@ -1580,6 +1638,11 @@ struct ChatView: View {
         // LazyVStack 布局落定后校正落点，与本文件既
         // 有 80/120/300ms 复贴模式同族）
         .onChange(of: sendPinToken) { _, _ in
+            // 0.41.0：自发发送清未读账（Core 口径：发送
+            // 无条件贴底、水位推到当前末条）
+            awayUnread.noteOwnSend(
+                entryIDs: currentThread?.sortedEntries.map(\.id) ?? []
+            )
             isNearBottom = BottomFollowPolicy.nearBottomAfterOwnSend()
             scrollToBottom(proxy, animated: false)
             let pinnedThreadID = currentThreadID
@@ -1611,6 +1674,9 @@ struct ChatView: View {
             // 局落定自会重填，不拿旧集判新线程的末条
             lastVisibleEntryIDs = []
             lastEntryVisible = false
+            // 0.41.0：未读账同属上一线程家当——水位与
+            // 计数一并清零，新线程从零起算
+            awayUnread.resetAll()
             guard let newID,
                   let anchor = appState.sideChats.scrollAnchor(for: newID)
             else { return }
@@ -2064,7 +2130,7 @@ struct ChatView: View {
             Rectangle()
                 .fill(Palette.inkMuted)
                 .frame(width: 2)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 // 0.36.22：引用标签的助手称呼跟随档案名
                 Text(MessageQuote.speakerName(
                     for: quote.role,
@@ -2135,7 +2201,7 @@ struct ChatView: View {
                 .font(.system(size: 15, weight: .regular))
                 .foregroundStyle(Palette.inkSecondary)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(item.title)
                     .font(.subheadline)
                     .foregroundStyle(Palette.ink)
@@ -2385,7 +2451,7 @@ struct ChatView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(Palette.warning)
                 .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(dictationFailureMessage(failure))
                     .font(.caption)
                     .foregroundStyle(Palette.ink)
@@ -2459,7 +2525,7 @@ struct ChatView: View {
             Rectangle()
                 .fill(Palette.inkMuted)
                 .frame(width: 2, height: 30)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 // 0.7.0（M4）：分流种子的引用条改报去向——
                 // 这条引用不在原线程回复、是新旁聊的开场
                 Text(pendingQuoteIsFork
@@ -5293,7 +5359,7 @@ private struct TypingDots: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.05)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 5) {
+            HStack(spacing: OneDayMetrics.iconTextGap) {
                 ForEach(0..<3, id: \.self) { index in
                     Circle()
                         .fill(Palette.inkMuted)

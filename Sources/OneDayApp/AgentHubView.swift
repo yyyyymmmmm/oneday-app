@@ -300,7 +300,7 @@ struct AgentHubView: View {
                 .fontWeight(.bold)
                 .lineLimit(1)
 
-            HStack(spacing: 6) {
+            HStack(spacing: OneDayMetrics.rowInnerGap) {
                 Circle()
                     .fill(store.isOnline ? Palette.success : Palette.inkMuted)
                     .frame(width: 8, height: 8)
@@ -392,7 +392,7 @@ struct AgentHubView: View {
                         appState.selectChatModel(item.id)
                     } label: {
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                 Text(item.displayName)
                                     .font(.body)
                                     .foregroundStyle(Palette.ink)

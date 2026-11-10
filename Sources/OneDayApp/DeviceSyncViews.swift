@@ -172,7 +172,7 @@ struct DeviceSyncSection: View {
         Group {
             Section {
                 Toggle(isOn: switchBinding) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text("访问权限")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
@@ -320,7 +320,7 @@ struct DeviceSyncSection: View {
             .font(.footnote)
             .foregroundStyle(failed ? Palette.danger : Palette.ink)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, OneDayMetrics.spacingMicro)
     }
 }
 

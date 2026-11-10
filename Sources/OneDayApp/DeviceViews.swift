@@ -421,7 +421,7 @@ struct DeviceStatusHeader: View {
                 Section {
                     permissionRow
                     Toggle(isOn: agentCallBinding) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text("允许智能体调用")
                                 .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
@@ -742,7 +742,7 @@ struct CalendarDetailView: View {
                             .fill(Color(hex: event.calendarColorHex))
                             .frame(width: 8, height: 8)
                             .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text(event.title)
                                 .font(.rowTitleL)
                                 .foregroundStyle(Palette.ink)
@@ -963,7 +963,7 @@ struct RemindersDetailView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("勾完成：\(item.title)")
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(item.title)
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
@@ -1166,7 +1166,7 @@ struct ContactsDetailView: View {
                         selected = contact
                     } label: {
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                 Text(contact.name)
                                     .font(.rowTitleL)
                                     .foregroundStyle(Palette.ink)
@@ -1420,7 +1420,7 @@ struct DevicePermissionsView: View {
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             DeviceAppIconView(source: descriptor.sourceID, size: 40)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(descriptor.name)
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)

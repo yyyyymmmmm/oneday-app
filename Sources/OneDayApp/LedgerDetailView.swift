@@ -80,7 +80,7 @@ struct LedgerDetailView: View {
                         .foregroundStyle(Palette.inkMuted)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, OneDayMetrics.spacingMicro)
             .listRowSeparator(.hidden)
         }
     }
@@ -191,7 +191,7 @@ struct LedgerDetailView: View {
     }
 
     private func historyRow(_ entry: LedgerHistoryEntry) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text(
                     LedgerClock.timeWithSeconds(entry.at)

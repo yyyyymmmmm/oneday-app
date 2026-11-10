@@ -30,7 +30,7 @@ struct SkillsView: View {
                                 .font(.system(size: 16))
                                 .foregroundStyle(Palette.inkSecondary)
                                 .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                 Text("技能商店")
                                     .font(.body)
                                     .foregroundStyle(Palette.ink)
@@ -130,7 +130,7 @@ struct SkillsView: View {
                 SkillDetailView(skill: skill)
             } label: {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         HStack(spacing: OneDayMetrics.spacingXS) {
                             Text(skill.name)
                                 .font(.body)
@@ -294,7 +294,7 @@ struct SkillDetailView: View {
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 GroupDivider()
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text("锁定")
                             .font(.body)
                             .foregroundStyle(Palette.ink)

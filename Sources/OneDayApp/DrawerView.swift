@@ -699,7 +699,7 @@ struct DrawerView: View {
             appState.currentDrawerObject = .side(thread.id)
             onClose()
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: OneDayMetrics.rowInnerGap) {
                 Text(drawerDisplayTitle(for: thread))
                     // 0.20.0 字阶：旁聊行题 20 常规（图
                     // 中同为 20pt 级、重于导航行半粗一
@@ -1017,11 +1017,18 @@ struct DrawerView: View {
     /// 同色、真机截图里三处组间线全不可见（用户
     /// 05:34 对图点题），本包改挂显形、几何（20 线、
     /// 高 1）不动，见 DESIGN §101
+    /// 0.41.0（收口批 P3）：实现收编 GroupDivider 本
+    /// 体——旧自绘 Rectangle 高 1pt 是全 App 最后一处
+    /// 分隔线私实现；改走 GroupDivider（物理发丝
+    /// 1/displayScale＋separator 同源），双侧 inset
+    /// 以 trailingInset 显式传同值保抽屉段内线几何。
+    /// 视觉变化点明：线高由 1pt 变物理发丝（更细、
+    /// 与全 App 其余分隔线同粗），待真机验
     private var drawerDivider: some View {
-        Rectangle()
-            .fill(Palette.separator)
-            .frame(height: 1)
-            .padding(.horizontal, OneDayMetrics.drawerInset)
+        GroupDivider(
+            inset: OneDayMetrics.drawerInset,
+            trailingInset: OneDayMetrics.drawerInset
+        )
     }
 
     // MARK: - 底条

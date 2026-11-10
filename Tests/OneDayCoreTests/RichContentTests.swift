@@ -431,3 +431,26 @@ final class RichContentTests: XCTestCase {
         XCTAssertEqual(parser.consume(line: textLine), .delta("好"))
     }
 }
+
+extension RichContentTests {
+    /// P1 销账钉（0.41.0 收口批复核）：未知工具的卡面
+    /// 回落标题（分类中文类名）永不含英文字母——英文
+    /// 原名只许进详情（宪法 §8）。0.36.10 已落此口
+    /// 径，本测防回潮
+    func testFallbackTitlesNeverContainASCIILetters() {
+        for category in ToolCardCategory.allCases {
+            let title = category.fallbackTitle
+            XCTAssertFalse(
+                title.unicodeScalars.contains {
+                    CharacterSet.letters.contains($0)
+                        && $0.isASCII
+                },
+                "\(category) 回落标题含英文：\(title)"
+            )
+        }
+        XCTAssertEqual(
+            ToolCardClassifier.fallbackTitle(forToolName: "some_unknown_tool"),
+            ToolCardCategory.other.fallbackTitle
+        )
+    }
+}

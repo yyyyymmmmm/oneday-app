@@ -201,7 +201,7 @@ struct SettingsView: View {
     private var identitySection: some View {
         Section {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         // 0.36.22：身份头名收敛档案出口
                         Text(appState.agentDisplayName)
@@ -412,7 +412,7 @@ struct SettingsView: View {
         NavigationLink(value: SettingsRoute.serverDetail) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon("server.rack")
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text("当前服务器")
                         // 0.22.0：题随全页统一 20 regular
                         // （0.20.0 的半粗让位）；副 15 沿旧
@@ -743,7 +743,7 @@ struct SettingsView: View {
         NavigationLink(value: route) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(icon)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(title)
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
@@ -772,7 +772,7 @@ struct SettingsView: View {
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             rowIcon(icon)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(title)
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)

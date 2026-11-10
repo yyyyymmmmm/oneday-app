@@ -53,7 +53,10 @@ final class ChatThemeTests: XCTestCase {
         let theme = ChatThemes.defaultTheme
         XCTAssertEqual(theme.bubbleLight, 0xC8E7FF)
         XCTAssertEqual(theme.bubbleDark, 0x1473C8)
-        XCTAssertEqual(theme.accentLight, 0x1473C8)
+        // 0.41.0（浅档专项）：accentLight 按 §66.1 候
+        // 选 (a) 加深一档，与旧值脱钩是本钉的本意——
+        // 回潮到 0x1473C8 会让对比闸④转红
+        XCTAssertEqual(theme.accentLight, 0x136FC1)
         XCTAssertEqual(theme.accentDark, 0x5EB1EF)
         XCTAssertEqual(theme.tintLight, 0xEDF7FD)
         XCTAssertEqual(theme.tintDark, 0x16242E)
@@ -233,5 +236,25 @@ final class ChatThemeTests: XCTestCase {
         XCTAssertEqual(AppearanceStorageKeys.appearanceMode, "appearanceMode")
         XCTAssertEqual(AppearanceStorageKeys.chatTheme, "chatTheme")
         XCTAssertEqual(AppearanceStorageKeys.avatarSize, "avatarSize")
+    }
+}
+
+extension ChatThemeTests {
+    /// 对比闸④（0.41.0 收口批·浅档专项，DESIGN
+    /// §66.1）：全款浅档强调对自家弱面（tintLight）
+    /// ≥4.5——链接/强调落在助手侧弱面上也可读。加深
+    /// 前实算：sangou 4.48／skyBlue 4.31／peach 4.43
+    /// 三款压线下，余款本已过闸；三款已按候选 (a) 同
+    /// 色相加深一档（值见 ChatTheme.swift 注）
+    func testAccentContrastOnTintLightGate() {
+        for theme in ChatThemes.all {
+            let ratio = WCAGContrast.ratio(
+                hexForeground: theme.accentLight,
+                hexBackground: theme.tintLight
+            )
+            XCTAssertGreaterThanOrEqual(
+                ratio, 4.5, "\(theme.id) 浅档强调对弱面对比 \(ratio)"
+            )
+        }
     }
 }

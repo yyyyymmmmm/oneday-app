@@ -257,7 +257,8 @@ struct IdeaRowView: View {
     var body: some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
             RoundedRectangle(
-                cornerRadius: 9, style: .continuous
+                cornerRadius: OneDayMetrics.radiusTile,
+                style: .continuous
             )
             .fill(Palette.primaryPale)
             .frame(width: 34, height: 34)
@@ -270,7 +271,10 @@ struct IdeaRowView: View {
                 alignment: .leading, spacing: OneDayMetrics.spacingXS
             ) {
                 Text(idea.title)
-                    .font(.headline)
+                    // 0.41.0（收口批 C14）：行题回收角色
+                    // 表 .rowTitle（Body regular），与动态
+                    // 帖行同轨
+                    .font(.rowTitle)
                     .foregroundStyle(Palette.bodyInk)
                     .lineLimit(2)
                 if !idea.detail.isEmpty {

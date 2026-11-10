@@ -109,15 +109,15 @@ struct KanbanTaskDetailView: View {
 
     private func headerSection(_ task: KanbanTask) -> some View {
         Section {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.rowInnerGap) {
                 Text(task.displayTitle)
                     .font(.headline)
                     .foregroundStyle(Palette.ink)
-                HStack(spacing: 6) {
+                HStack(spacing: OneDayMetrics.rowInnerGap) {
                     Text(task.presentation.label)
                         .font(.caption.weight(.medium))
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
+                        .padding(.vertical, OneDayMetrics.stackGap)
                         .background(Palette.fieldFill, in: Capsule())
                         .foregroundStyle(Palette.inkSecondary)
                     if let assignee = task.assignee, !assignee.isEmpty {
@@ -126,7 +126,7 @@ struct KanbanTaskDetailView: View {
                             .foregroundStyle(Palette.inkSecondary)
                     }
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     if let created = task.createdAt {
                         metaLine("创建", AdminFormat.short(created))
                     }
@@ -161,12 +161,12 @@ struct KanbanTaskDetailView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, OneDayMetrics.spacingMicro)
         }
     }
 
     private func metaLine(_ label: String, _ value: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: OneDayMetrics.rowInnerGap) {
             Text(label)
                 .foregroundStyle(Palette.inkSecondary)
             Text(value)
@@ -231,7 +231,7 @@ struct KanbanTaskDetailView: View {
                         .foregroundStyle(Palette.danger)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, OneDayMetrics.spacingMicro)
         }
     }
 
@@ -242,8 +242,8 @@ struct KanbanTaskDetailView: View {
         if let detail, !detail.evidenceItems.isEmpty {
             Section("证据") {
                 ForEach(detail.evidenceItems) { item in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                        HStack(spacing: OneDayMetrics.rowInnerGap) {
                             Text(item.title)
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Palette.ink)
@@ -271,8 +271,8 @@ struct KanbanTaskDetailView: View {
         if let detail, !detail.comments.isEmpty {
             Section("评论") {
                 ForEach(detail.comments) { comment in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                        HStack(spacing: OneDayMetrics.rowInnerGap) {
                             Text(authorLabel(comment.author))
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(Palette.inkSecondary)
@@ -343,7 +343,7 @@ struct KanbanTaskDetailView: View {
             takeoverActive: appState.boxTakeoverActive,
             readOnly: store.readOnly
         )
-        return VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             Button(role: action.isDestructive ? .destructive : nil) {
                 if action == .cancel {
                     showCancelConfirm = true

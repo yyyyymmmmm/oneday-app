@@ -35,7 +35,7 @@ struct ProgressCapsuleView: View {
                             $0.id == content.headlineItemID
                         }
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: OneDayMetrics.rowInnerGap) {
                             ProgressView()
                                 .controlSize(.mini)
                             Text(appState.agentDisplayName)
@@ -53,7 +53,7 @@ struct ProgressCapsuleView: View {
                             .foregroundStyle(Palette.inkSecondary)
                         }
                         .padding(.horizontal, OneDayMetrics.spacingSM)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, OneDayMetrics.iconTextGap)
                         .glassEffect(.regular, in: Capsule())
                         .contentShape(Capsule())
                     }

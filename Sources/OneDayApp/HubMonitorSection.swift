@@ -227,8 +227,8 @@ struct MonitorCardView: View {
                     Text("\(monitor.unreadChanges)")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Palette.onPrimary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, OneDayMetrics.rowInnerGap)
+                        .padding(.vertical, OneDayMetrics.spacingMicro)
                         .background(
                             Palette.primary, in: Capsule()
                         )

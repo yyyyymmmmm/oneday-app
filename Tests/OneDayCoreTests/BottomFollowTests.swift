@@ -239,3 +239,98 @@ final class BottomFollowTests: XCTestCase {
         XCTAssertFalse(BottomSettle.shouldRestick(distance: -10))
     }
 }
+
+extension BottomFollowTests {
+
+    // MARK: - 离底未读计数（0.41.0 收口批）
+
+    private func ids(_ n: Int, from base: Int = 0) -> [UUID] {
+        (0..<n).map { i in
+            UUID(uuidString: String(
+                format: "00000000-0000-0000-0000-%012d", base + i + 1
+            ))!
+        }
+    }
+
+    func testAwayUnreadStaysZeroAtBottom() {
+        var counter = AwayUnreadCounter()
+        XCTAssertEqual(counter.ingest(entryIDs: ids(3), isAtBottom: true), 0)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(5), isAtBottom: true), 0)
+        XCTAssertNil(counter.displayText)
+    }
+
+    func testAwayUnreadCountsOnlyEntriesAfterLeaving() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(3), isAtBottom: true)
+        // 离底后新增 2 条
+        XCTAssertEqual(counter.ingest(entryIDs: ids(5), isAtBottom: false), 2)
+        // 流式原地生长（id 不变）不计数
+        XCTAssertEqual(counter.ingest(entryIDs: ids(5), isAtBottom: false), 2)
+        // 再新增 1 条
+        XCTAssertEqual(counter.ingest(entryIDs: ids(6), isAtBottom: false), 3)
+        XCTAssertEqual(counter.displayText, "3")
+    }
+
+    func testAwayUnreadFirstAwayFrameDoesNotInventCount() {
+        // 从未在底建立水位（冷开即离底）：首帧只立水
+        // 位、不把既有历史算成未读
+        var counter = AwayUnreadCounter()
+        XCTAssertEqual(counter.ingest(entryIDs: ids(10), isAtBottom: false), 0)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(11), isAtBottom: false), 1)
+    }
+
+    func testAwayUnreadResetsWhenBackAtBottom() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(3), isAtBottom: true)
+        _ = counter.ingest(entryIDs: ids(6), isAtBottom: false)
+        XCTAssertEqual(counter.count, 3)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(6), isAtBottom: true), 0)
+        XCTAssertNil(counter.displayText)
+    }
+
+    func testAwayUnreadOwnSendClears() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(3), isAtBottom: true)
+        _ = counter.ingest(entryIDs: ids(5), isAtBottom: false)
+        XCTAssertEqual(counter.count, 2)
+        counter.noteOwnSend(entryIDs: ids(6))
+        XCTAssertEqual(counter.count, 0)
+        // 发送后离底再新增，从发送条之后起算
+        XCTAssertEqual(counter.ingest(entryIDs: ids(7), isAtBottom: false), 1)
+    }
+
+    func testAwayUnreadWatermarkDeletedFallsBackToZero() {
+        var counter = AwayUnreadCounter()
+        let first = ids(3)
+        _ = counter.ingest(entryIDs: first, isAtBottom: true)
+        _ = counter.ingest(entryIDs: ids(5), isAtBottom: false)
+        XCTAssertEqual(counter.count, 2)
+        // 水位条目被删（整表换血）：不虚报，重立水位
+        XCTAssertEqual(counter.ingest(entryIDs: ids(4, from: 100), isAtBottom: false), 0)
+    }
+
+    func testAwayUnreadResetAllClearsWatermark() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(3), isAtBottom: true)
+        _ = counter.ingest(entryIDs: ids(5), isAtBottom: false)
+        counter.resetAll()
+        XCTAssertEqual(counter.count, 0)
+        // 新线程离底首帧只立水位
+        XCTAssertEqual(counter.ingest(entryIDs: ids(9, from: 50), isAtBottom: false), 0)
+    }
+
+    func testAwayUnreadDisplayCap() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(1), isAtBottom: true)
+        _ = counter.ingest(entryIDs: ids(150), isAtBottom: false)
+        XCTAssertEqual(counter.count, 149)
+        XCTAssertEqual(counter.displayText, "99+")
+    }
+
+    func testAwayUnreadEmptyListClears() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(3), isAtBottom: true)
+        _ = counter.ingest(entryIDs: ids(5), isAtBottom: false)
+        XCTAssertEqual(counter.ingest(entryIDs: [], isAtBottom: false), 0)
+    }
+}

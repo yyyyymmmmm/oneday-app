@@ -81,7 +81,7 @@ struct ToolCardView: View {
     /// 一行本体：图标盒 36＋标题/摘要两行字＋状态字
     private var rowContent: some View {
         HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
-            RoundedRectangle(cornerRadius: 9)
+            RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
                 .fill(card.category.tint)
                 .frame(width: 36, height: 36)
                 .overlay {
@@ -89,7 +89,7 @@ struct ToolCardView: View {
                         .font(.system(size: 16, weight: .regular))
                         .foregroundStyle(Palette.ink)
                 }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(card.title)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Palette.ink)
@@ -133,7 +133,7 @@ struct ToolCardView: View {
     private var statusMark: some View {
         switch state {
         case .running:
-            HStack(spacing: 5) {
+            HStack(spacing: OneDayMetrics.iconTextGap) {
                 ProgressView()
                     .controlSize(.mini)
                 Text("进行中")
@@ -145,7 +145,7 @@ struct ToolCardView: View {
                 .font(.badgeOnly.weight(.medium))
                 .foregroundStyle(Palette.danger)
                 .padding(.horizontal, 7)
-                .padding(.vertical, 3)
+                .padding(.vertical, OneDayMetrics.stackGap)
                 .background(
                     Palette.errorSurface,
                     in: Capsule()
@@ -184,7 +184,7 @@ struct ToolCardView: View {
             } else {
                 detailField("结果", text: "进行中…", monospaced: false)
             }
-            HStack(spacing: 5) {
+            HStack(spacing: OneDayMetrics.iconTextGap) {
                 Text("工具名")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Palette.inkSecondary)
@@ -203,7 +203,7 @@ struct ToolCardView: View {
     private func detailField(
         _ label: String, text: String, monospaced: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             Text(label)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(Palette.inkSecondary)
@@ -272,7 +272,7 @@ struct ToolCardGroupView: View {
                 }
             } label: {
                 HStack(spacing: OneDayMetrics.spacingS) {
-                    RoundedRectangle(cornerRadius: 9)
+                    RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
                         .fill(Palette.fieldFill)
                         .frame(width: 36, height: 36)
                         .overlay {
@@ -417,7 +417,7 @@ struct ServerRemoteImage: View {
                         height: displaySize.height
                     )
             } else if failed {
-                HStack(spacing: 6) {
+                HStack(spacing: OneDayMetrics.rowInnerGap) {
                     Image(systemName: "photo")
                     Text("图片加载失败")
                 }
@@ -431,10 +431,10 @@ struct ServerRemoteImage: View {
                 .padding(.vertical, 10)
                 .background(
                     Palette.bubbleFill,
-                    in: RoundedRectangle(cornerRadius: 12)
+                    in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
                 )
             } else {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
                     .fill(Palette.bubbleFill)
                     .frame(width: 220, height: 150)
                     .overlay { ProgressView() }
@@ -612,7 +612,7 @@ struct FileChip: View {
 
     var body: some View {
         Button(action: onOpen) {
-            HStack(spacing: 6) {
+            HStack(spacing: OneDayMetrics.rowInnerGap) {
                 Image(systemName: "doc")
                     .font(.system(size: 14))
                     .foregroundStyle(Palette.primary)
@@ -625,7 +625,7 @@ struct FileChip: View {
             .padding(.vertical, 8)
             .background(
                 Palette.tintSky,
-                in: RoundedRectangle(cornerRadius: 16)
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
             )
         }
         .buttonStyle(.odPressable)

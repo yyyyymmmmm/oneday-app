@@ -191,7 +191,7 @@ struct MemoryEntriesSection: View {
 
     private func proposalRow(_ proposal: MemoryProposal) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text("\(proposal.operation.label) · \(proposal.target.label)")
                     .font(.body)
                     .foregroundStyle(Palette.ink)
@@ -213,7 +213,7 @@ struct MemoryEntriesSection: View {
 
     private func externalPendingRow(_ record: WriteGateRecord) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(record.headline)
                     .font(.body)
                     .foregroundStyle(Palette.ink)
@@ -238,7 +238,7 @@ struct MemoryEntriesSection: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(Palette.primary)
             .padding(.horizontal, 8)
-            .padding(.vertical, 3)
+            .padding(.vertical, OneDayMetrics.stackGap)
             .background(
                 Palette.primaryTint,
                 in: Capsule()
@@ -276,7 +276,7 @@ struct MemoryEntriesSection: View {
     /// 来源由分组标题承担；被待批盯上时行尾贴标
     private func entryRow(_ entry: BridgeMemoryEntry) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(MemoryEntryPresentation.displayTitle(of: entry))
                     .font(.body)
                     .foregroundStyle(Palette.ink)

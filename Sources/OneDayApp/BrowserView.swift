@@ -92,7 +92,7 @@ struct BrowserFaceView: View {
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
         .background(
-            Palette.ink, in: RoundedRectangle(cornerRadius: 12)
+            Palette.ink, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
         )
     }
 
@@ -123,7 +123,7 @@ struct BrowserFaceView: View {
             }
             switch store.hubState {
             case .ready(let status):
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(status.pageTitleText)
                         .font(.body)
                         .foregroundStyle(Palette.ink)
@@ -204,7 +204,7 @@ struct BrowserFaceView: View {
     private var screenPreview: some View {
         let aspect = store.screenshot?.aspect ?? 1.6
         ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous)
                 .fill(Color.white)
             if let data = store.screenshot?.imageData,
                let image = UIImage(data: data) {
@@ -263,7 +263,7 @@ struct BrowserFaceView: View {
             }
         }
         .aspectRatio(aspect, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard, style: .continuous))
     }
 
     /// 画面点按分流：接管态＝按坐标换算发点击动作；

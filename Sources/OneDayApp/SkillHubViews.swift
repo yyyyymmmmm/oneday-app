@@ -97,7 +97,7 @@ struct SkillHubView: View {
                     selected ? Palette.primary : Palette.inkSecondary
                 )
                 .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.vertical, OneDayMetrics.rowInnerGap)
                 .background(
                     selected ? Palette.primaryTint : Palette.surface,
                     in: Capsule()
@@ -165,7 +165,7 @@ struct SkillHubView: View {
             HubSkillDetailView(skill: skill, installedNames: $installedNames)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingXS) {
                         Text(skill.displayName)
                             .font(.body)
@@ -174,8 +174,8 @@ struct SkillHubView: View {
                             Text("已安装")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Palette.success)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
+                                .padding(.horizontal, OneDayMetrics.rowInnerGap)
+                                .padding(.vertical, OneDayMetrics.spacingMicro)
                                 .background(
                                     Palette.success.opacity(0.12), in: Capsule()
                                 )

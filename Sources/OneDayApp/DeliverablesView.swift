@@ -534,7 +534,7 @@ struct DeliverablesView: View {
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             FileIconBox(entry: entry)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(
                     DeliverableFileType.displayTitle(
                         forFileName: entry.name
@@ -651,7 +651,7 @@ struct DeliverablesView: View {
                         id: entry.path, in: viewerNamespace
                     )
                 VStack(
-                    alignment: .leading, spacing: 2
+                    alignment: .leading, spacing: OneDayMetrics.spacingMicro
                 ) {
                     Text(
                         DeliverableFileType.displayTitle(
@@ -673,13 +673,13 @@ struct DeliverablesView: View {
             }
             .background(
                 Palette.surface,
-                in: RoundedRectangle(cornerRadius: 16)
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
                     .strokeBorder(Palette.separator, lineWidth: 1)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview))
         }
         .buttonStyle(.odPressable)
         .contextMenu {
@@ -731,9 +731,9 @@ struct DeliverablesView: View {
     }
 
     private let mediaColumns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: OneDayMetrics.spacingMicro),
+        GridItem(.flexible(), spacing: OneDayMetrics.spacingMicro),
+        GridItem(.flexible(), spacing: OneDayMetrics.spacingMicro),
     ]
 
     /// 影音网格维持三列方形媒体格（§4.4：媒体本身即
@@ -741,7 +741,7 @@ struct DeliverablesView: View {
     private var mediaGridView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                LazyVGrid(columns: mediaColumns, spacing: 2) {
+                LazyVGrid(columns: mediaColumns, spacing: OneDayMetrics.spacingMicro) {
                     ForEach(sortedMedia, id: \.id) { entry in
                         Button {
                             openEntry(entry, among: sortedMedia)
@@ -810,7 +810,7 @@ struct DeliverablesView: View {
             ZStack {
                 FileThumbnailView(entry: entry, targetPixelSize: 168)
                     .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb))
                 if entry.mediaKind == .video {
                     Image(systemName: "play.circle.fill")
                         .font(.system(size: 22))
@@ -823,7 +823,7 @@ struct DeliverablesView: View {
             .matchedTransitionSource(
                 id: entry.path, in: viewerNamespace
             )
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(
                     DeliverableFileType.displayTitle(
                         forFileName: entry.name

@@ -100,7 +100,7 @@ struct EnvVarsView: View {
 
     private func entryRow(_ entry: EnvVarEntry) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(entry.key)
                     .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(Palette.ink)

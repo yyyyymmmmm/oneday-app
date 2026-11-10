@@ -48,7 +48,7 @@ struct CloudComputerDetailView: View {
                             )
                     }
                     if let verify = connection.lastVerify {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text(verify.ok ? "最近一次测试：连上了" : "最近一次测试：没连上")
                                 .font(.callout)
                                 .foregroundStyle(Palette.ink)
@@ -56,7 +56,7 @@ struct CloudComputerDetailView: View {
                                 .font(.footnote)
                                 .foregroundStyle(Palette.inkSecondary)
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, OneDayMetrics.spacingMicro)
                     }
                     if let note = connection.note, !note.isEmpty {
                         Text(note)
@@ -334,7 +334,7 @@ struct AddComputerView: View {
             provider = value
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(title)
                         .font(.body)
                         .foregroundStyle(Palette.ink)

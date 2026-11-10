@@ -162,7 +162,7 @@ struct HubLedgerSection: View {
     private func ledgerRow(_ item: LedgerItem) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             iconBox(item)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(item.title)
                     .font(.body)
                     .foregroundStyle(Palette.ink)
@@ -174,8 +174,8 @@ struct HubLedgerSection: View {
                 Text("补记")
                     .font(.caption2)
                     .foregroundStyle(Palette.inkMuted)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, OneDayMetrics.iconTextGap)
+                    .padding(.vertical, OneDayMetrics.spacingMicro)
                     .overlay {
                         RoundedRectangle(cornerRadius: 4)
                             .stroke(Palette.hairline, lineWidth: 1)
@@ -230,7 +230,7 @@ struct HubLedgerSection: View {
     /// 状态另有副题文字通道不靠图标单传
     private func iconBox(_ item: LedgerItem) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb, style: .continuous)
                 .fill(tint(item.kind))
             boxContent(item)
             if item.status == .queued {
