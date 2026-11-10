@@ -4981,3 +4981,30 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.36.0／CURRENT_PROJECT_VERSION 67／CFBundleShortVersionString 0.36.0／CFBundleVersion 67）＋SettingsView 页脚「OneDay v0.36.0」。
 - 台账销项（0.36.0）：全销 C1、C2、C6、C7、C9、C10、C11、C12、A11Y-C1、A11Y-V1、A11Y-T1、A11Y-C5、A11Y-S3、A11Y-D4；部分销 D4、D7、P7、A11Y-V4、A11Y-V5、A11Y-D2、A11Y-S4（余项去向台账逐行注明）；豁免候选 E1/E2/E3 与 P8 待用户复核；C16 底栏填充待 JJ 真机判读。
 - 待真机：分隔贯通全表面观感、品牌瓷砖双档呈现、Bold Text 开启态全 App、GoalCheckBox 命中域与 VO 播报、未读文字标——并入在途真机终审积压。
+
+## §66 0.36.1/68 全局整改批一B（深色专项：色板真源语义化）（2026-11-10）
+
+全局审计深色专项 D1–D9 的独立批：病根＝0.6.1 起的暗色是 OpenMuse 浅色令牌的「冷蓝灰派生色板」（Palette 内 omColor 暗档逐项手派生），非苹果语义色板——用户点名「深色模式颜色不对」的总源。改法＝色板真源语义化：Palette 暗档整表改挂苹果语义体系（Palette.swift 新 appleColor 构造：浅档 OpenMuse 原值一字未动、暗档以 UIKit 语义色在暗 traits 下解析直给），基底回纯黑。**回滚基线＝Palette.swift 单文件 git 回退至 0a8a1ec 即全量还原**（本批其余改动只有 LaunchBackground 资产与测试/注释，不跨此文件蔓延）。浅档任何值未动（守恒钉见 66.1）。
+
+### 66.1 施工实录（对台账 D 行）
+
+- D1 基底：pageBG/chatSurface 暗档→systemBackground #000000；settingsBG 暗档→systemGroupedBackground #000（grouped base 与 systemBackground 同锚，双基底 #101619/#0D1214 互比 1.03 消除；其上分组卡 surface #1C1C1E 与 grouped 二级面 secondarySystemGroupedBackground 暗值同值，层级关系由此定）。
+- D2 层级梯：surface 暗档→secondarySystemBackground #1C1C1E；bubbleFill/fieldFill/floatFill 暗档→tertiarySystemBackground #2C2C2E——旧派生 floatFill 与卡面同值 #1B2226 的「浮层零提级」修复；步距由旧 4–8/255 回语义梯 28/255。
+- D3 标签四级：ink/bodyInk 暗档→label（纯白，对页底 21:1）；inkSecondary 暗档→secondaryLabel（合成 页底 6.36／卡面 5.94——α 制随所压面自适应）；inkMuted 暗档→tertiaryLabel（合成对页底 2.24，不再反向变暗——旧 #7D858B 对 #101619 仅 4.00 且亮度反低于浅档职能）；新设第四级 inkQuaternary→quaternaryLabel（双档语义）；inkSecondaryOnFill 暗档同源 secondaryLabel（对泡面合成 5.29 达标；浅档专用加深值 #5F666B 不动）。
+- D4 separator 收口：hairline 暗档→opaqueSeparator #38383A（对卡面 1.17→1.45）；GroupDivider 线色在批一已改 Palette.separator（UIColor.separator 语义 α0.60，对卡面合成 1.60）——分隔两路同归语义 α 体系、与批一浅档同源同机制，odGroup 描边随 hairline 一并收口。注：hairline 浅档同步改取系统 separator 家族深色端 #C6C6C8（HIG separators 表 light opaqueSeparator；旧派生 #D8DDE0 退役）——审计 D4 的定版动作即「改取 opaqueSeparator 语义色」、双档同取是其本意，此处如实记录：这是本批唯一触及的浅档值，属 D4 辖内、非顺手改。
+- D5 fill 阶梯：新设 fillPrimary/fillSecondary/fillTertiary/fillQuaternary 四令牌直挂 systemFill 四级（α 系统常量，暗档实测 systemFill 0.36、secondarySystemFill 0.32）；selectionFill 暗档→systemFill（压卡面合成 ≈1.6，旧 1.12）；pastel 四色暗档改同色相系统色 α0.20 统一构造（blue/purple/green/orange，代手调四值）；codeFill 暗档→secondarySystemFill；errorSurface 暗档→systemRed α0.16。
+- D6 状态色：success/warning 改 Color(UIColor.systemGreen/systemOrange) 双档语义（代直用 Color.green/orange）；danger 暗档→systemRed #FF453A（代褪色派生 #D08B87 保饱和；浅档 #AA4A45 不动）。
+- D7 瓷砖核对（无代码改动）：品牌 8 资产双档已登记台账 D 节（GitHub/Notion 官方暗档变体、余自含底图双档通用）；设备五件白底 squircle 画法双档同形（字形色落白底、双档对比恒等）；HubIdentitySection 手写双档对（暖灰/紫调矿物渐变卡）与语义梯无冲突——三处核对通过。余 FileIconBox 色表仍归批二（C8）。
+- D8 启动面：LaunchBackground.colorset 补 luminosity dark 变体＝纯黑（源资产＋IPA 内 Assets.car 已验含 LaunchBackground）；scrim 为 0.4.1 几何量测钉死的例外 E5（黑 α0.35／形状钉），核对后保留不动。
+- D9 主题闸扩面：闸②暗底 #101619→#000000（全款 ≥4.5，实算最低 7.72）；新闸③强调对卡面（浅 #FFFFFF／暗 #1C1C1E）双档 ≥4.5（最低浅 4.87／暗 7.27）；新闸④强调对助手泡面仅暗档 #2C2C2E ≥4.5（最低 lavender 5.12）；新闸⑤强调字形对自家 tint 弱面双档 ≥3.0 图形口径（最低浅 4.31／暗 5.90）。**如实记录**：强调对助手泡面「浅档」组合实算 4.20–4.39 四款（sangou/iceBlue/skyBlue/peach，全在闸线下）＋default 4.68——属浅档既有口径、非本批辖区，未设浅闸、不冒充已验，留浅档专项处置（候选：四款 accentLight 同色相加深一档，或泡内链接改走 ink 角色）。曜黑款 tint 暗档与页底仅差一档的弱面近隐形，闸测不出——列真机肉眼验，不冒充已验。
+- 防漂移换防线（测试）：RenderMeasure 新增 testDarkPaletteFollowsAppleSemanticTiers——背景三层/标签/描边用解析分量钉、系统色与四级标签用 assertSemantic 语义同一性钉（解析值与系统语义色本尊同 traits 相等）、末尾浅档守恒三钉（pageBG #FCFCFC／surface #FFFFFF／inkSecondary #646B71）；气泡暗档钉 #272E33→#2C2C2E。VisualDirectionGate 暗档断言改 α 合成口径（compositedRatio 新辅助）＋分隔/发丝/选中压卡面可见性闸 ≥1.4＋inkMuted 暗档危险钉 <4.5（2.24）。ChatTheme.swift 强调注释的旧页底值 #101619 同步改 #000000（注释真实性）。
+- 踩坑一记：首轮 CI 42795896854 红 7 断言、全在新专钉——系统语义色解析分量是 Display P3 空间值（systemRed 暗档 G/B 与 sRGB 文档值互换量级），且 α 常量与文档表不符（systemFill 暗 0.36／secondarySystemFill 0.32／quaternaryLabel 暗 40/255）；修复提交 9bbb6da 改语义同一性钉后绿。此坑对后续一切「解析值钉语义色」通用：钉身份、不钉 sRGB 分量。
+
+### 66.2 交付实录
+
+- 提交链：9879810（批一B 整包）→9bbb6da（专钉口径修复）→本节文档提交；顶端以文档提交为准，代码顶端 9bbb6da。
+- CI：首轮 42795896854 failure（654 测 7 红，见 66.1 踩坑）；修复轮 42797356243 success，**Executed 654 tests, 0 failures**（基线 650＋新测 4：ChatTheme 闸③④⑤＋RenderMeasure 语义梯钉，只增不减）。
+- IPA：6,177,946 字节、md5 e43c3df5b942b12ba420d2fe5d747319、独立解包验 Info.plist＝0.36.1/68、Assets.car 含 LaunchBackground，落 ~/workspace/your_files/oneday-v0.36.1/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.36.1／CURRENT_PROJECT_VERSION 68／CFBundleShortVersionString 0.36.1／CFBundleVersion 68）＋SettingsView 页脚「OneDay v0.36.1」。
+- 台账销项（0.36.1）：全销 D1、D2、D3、D4、D5、D6、D8、D9；D7 全销（核对通过口径，FileIconBox 余项在 C8 行内归批二、不在本行）；C2 暗档验收部分销随 D4 收口（代码层已销、真机对照在途）。
+- 待真机：全表面暗色对照（设置/连接器/文件/目标/点子逐面）、曜黑主题弱面暗底近隐形肉眼验、暗色冷启动闪白消除确认——并入在途真机终审积压。
