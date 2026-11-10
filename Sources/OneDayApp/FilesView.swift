@@ -728,33 +728,48 @@ struct MediaCell: View {
     @State private var image: UIImage?
 
     var body: some View {
-        ZStack {
-            Palette.fieldFill
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                // 占位只留类型图标（0.36.4）：旧占位把
-                // 原始文件名压在格下——生成图名多为哈希
-                // 串、属面向用户的原始名漏出，本版撤除
-                Image(systemName: entry.odIconName)
-                    .font(.system(size: 22))
-                    .foregroundStyle(Palette.inkSecondary)
+        // 定尺落在形状层（0.36.24，P-13 续）：旧形态把
+        // .aspectRatio(1,.fit) 挂在 ZStack 本体上——.fit
+        // 在未指定维度（网格只提议列宽、高度未指定）
+        // 取子视图理想尺寸定案，ZStack 的理想尺寸被图
+        // 片原尺寸/占位图标带着走：未加载、视频、音频
+        // 与小图格的高度各行其是、参差不齐（用户
+        // 03:10 对照 Muse 定尺网格点题）。改法：无内
+        // 在尺寸的 Rectangle 承担 1:1 定尺（宽随列宽、
+        // 高等宽），内容只作 overlay 填充裁切、永不参
+        // 与定尺寸——哪一格都同宽同高
+        Rectangle()
+            .fill(Palette.fieldFill)
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                ZStack {
+                    if let image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        // 占位只留类型图标（0.36.4）：旧
+                        // 占位把原始文件名压在格下——生
+                        // 成图名多为哈希串、属面向用户的
+                        // 原始名漏出，本版撤除
+                        Image(systemName: entry.odIconName)
+                            .font(.system(size: 22))
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    if entry.mediaKind == .video {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 26))
+                            // 媒体面上的纯白符号恒白字面
+                            // （0.6.1：onPrimary 已改深字
+                            // 口径、不再借作白字）
+                            .foregroundStyle(
+                                Color.white, Palette.ink.opacity(0.55)
+                            )
+                            .accessibilityHidden(true)
+                    }
+                }
             }
-            if entry.mediaKind == .video {
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 26))
-                    // 媒体面上的纯白符号恒白字面（0.6.1：
-                    // onPrimary 已改深字口径、不再借作白字）
-                    .foregroundStyle(
-                        Color.white, Palette.ink.opacity(0.55)
-                    )
-                    .accessibilityHidden(true)
-            }
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .clipped()
+            .clipped()
         .contentShape(Rectangle())
         .task(id: entry.path) {
             guard entry.mediaKind == .image else { return }

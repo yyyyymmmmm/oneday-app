@@ -2,21 +2,38 @@ import OneDayCore
 import SwiftUI
 import UIKit
 
-/// 枢纽页左边缘右滑返回桥（0.36.22）：整页呈现
-/// （fullScreenCover）没有导航栈 pop 手势，用系统
-/// 边缘识别器 UIScreenEdgePanGestureRecognizer 补
-/// 齐——形态与右滑引用桥（SwipeReplyGestureBridge）
-/// 同族：零尺寸探针（不参与命中）把识别器装到枢纽
-/// 根容器的父视图，判据只认 OneDayCore.HubEdgeSwipe
-/// 单源、桥侧不另写比值。
+/// 枢纽页左边缘右滑返回桥（0.36.22 立、0.36.24 改
+/// 判）：整页呈现（fullScreenCover）没有导航栈 pop
+/// 手势，用系统边缘识别器 UIScreenEdgePanGesture-
+/// Recognizer 补齐——零尺寸探针（不参与命中）把识
+/// 别器装到枢纽根容器的父视图，判据只认 OneDay-
+/// Core.HubEdgeSwipe 单源、桥侧不另写比值。
 ///
-/// 生死口径（错题本 P-15 续修的直接应用）：should-
-/// Begin 只读**速度**判方向——begin 时刻平移≈0、读
-/// 位移恒假死（0.36.20 第一版桥的死因）；纵向主导
-/// 的速度在此被拒、识别器对本次触摸直接死亡，枢纽
-/// 内列表的纵滚完整不受扰。横向 begin 后位移才经
-/// 跟手回调写呈现层 offset，纵滚那时已由识别器互
-/// 斥仲裁让位（不设同时识别）。
+/// 0.36.24 改判（错题本 P-15 同病复发后的裁决，
+/// 调研报告 swipe-reply-arbitration-research-
+/// 20261111）：首版在 gestureRecognizerShouldBegin
+/// 里读**速度**判方向——begin 被咨询的时刻速度与
+/// 位移一样未累积、判据恒假死（与右滑引用 0.36.21
+/// 速度门同病），真机「右滑不会退出」。本轮三改：
+///
+/// 1. 生死关不放任何方向/量级判据：shouldBegin 只
+///    余段位启用门（浏览器段禁用），识别器只从左
+///    缘起手即放行；
+/// 2. 方向改在 handler 里按 translation 仲裁（Core
+///    HubEdgeSwipe.arbitration）：横向右滑主导→跟
+///    手（followedOffset/shouldDismiss 两数沿用）；
+///    纵向/左向/斜向不明确→识别器自取消（state =
+///    .cancelled）＋offset 从未写过、天然复位，触
+///    摸让给枢纽内列表纵滚；
+/// 3. 编排走调研候选 3（同时识别＋handler 仲裁）：
+///    与滚动 pan 同时识别——纵向定案时滚动 pan 已
+///    同步 begin、自取消无损让位；横向定案时闪断
+///    正在追踪的滚动 pan（isEnabled 关开一次放掉
+///    当前触摸），页面独占余下行程。不用 require
+///    (toFail:)：被要求等待的滚动 pan 在本识别器
+///    begin 的瞬间即被置 Failed，begin 后自取消救
+///    不回同一触摸的纵滚（Event Handling Guide 语
+///    义），左缘纵滑首触必死、与本桥验收口径冲突。
 struct HubEdgeSwipeProbe: UIViewRepresentable {
     /// 浏览器段禁用（网页自有横移/缩放手势，边缘返
     /// 回不与它抢；由呈现层按当前段置位）
@@ -74,9 +91,18 @@ struct HubEdgeSwipeProbe: UIViewRepresentable {
     /// 隔离铁律同精神）
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var handlers: Handlers?
-        var isEnabled = true
+        /// 段位启用门（浏览器段为 false）：置位时同步
+        /// 落到识别器本体——禁用段里识别器根本不追踪
+        var isEnabled = true {
+            didSet { recognizer?.isEnabled = isEnabled }
+        }
         private weak var hostView: UIView?
         private var recognizer: UIScreenEdgePanGestureRecognizer?
+        /// 本次触摸的方向定案：nil＝尚未定案（逐帧继
+        /// 续判读）；定案后不再改判（跟手途中反向改判
+        /// 会让页面与列表互相夺摸，口径同聊天右滑的
+        /// 「定案不回头」）
+        private var verdict: HubEdgeSwipe.Arbitration?
 
         func attachIfNeeded(from probe: UIView) {
             guard let host = probe.superview else { return }
@@ -88,6 +114,7 @@ struct HubEdgeSwipeProbe: UIViewRepresentable {
             )
             pan.edges = .left
             pan.delegate = self
+            pan.isEnabled = isEnabled
             host.addGestureRecognizer(pan)
             hostView = host
             recognizer = pan
@@ -99,23 +126,33 @@ struct HubEdgeSwipeProbe: UIViewRepresentable {
             }
             recognizer = nil
             hostView = nil
+            verdict = nil
         }
 
-        /// 方向生死：只认速度域（Core 单源）——右向且
-        /// 横向主导才 begin；纵向主导在此被拒、纵滚
-        /// 归列表。禁用段（浏览器）恒拒
+        /// 生死关只余段位启用门（0.36.24）：不读速度、
+        /// 不读位移、不判方向——begin 时刻任何量都未
+        /// 累积，在此处判方向必恒假死（首版速度门与
+        /// 右滑引用两轮量级门的共同死因，P-15）。方
+        /// 向全部推迟到 handler 的逐帧仲裁
         func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            guard isEnabled,
-                  let pan = gestureRecognizer
-                    as? UIScreenEdgePanGestureRecognizer,
-                  let view = pan.view
-            else { return false }
-            let velocity = pan.velocity(in: view)
-            return HubEdgeSwipe.shouldBegin(
-                velocityX: velocity.x, velocityY: velocity.y
-            )
+            isEnabled
+        }
+
+        /// 同时识别只对滚动 pan 开（调研候选 3）：枢
+        /// 纽内列表的滚动 pan 与本识别器同步 begin，
+        /// 方向在 handler 里仲裁——纵向定案本识别器
+        /// 自取消、滚动无损接管；横向定案闪断滚动
+        /// pan 独占行程。其余识别器（行内滑动操作/
+        /// 长按等）保持默认互斥、不许同时
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith
+                otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            otherGestureRecognizer is UIPanGestureRecognizer
+                && otherGestureRecognizer.view is UIScrollView
         }
 
         @objc private func handlePan(
@@ -124,25 +161,99 @@ struct HubEdgeSwipeProbe: UIViewRepresentable {
             guard let view = pan.view, let handlers else { return }
             let translation = pan.translation(in: view)
             switch pan.state {
-            case .began, .changed:
-                handlers.onProgress(
-                    HubEdgeSwipe.followedOffset(
-                        translationX: translation.x
+            case .began:
+                verdict = nil
+                judge(pan, translation: translation)
+                // 快起手时 began 当帧已可定案：同帧补发
+                // 首帧位移，跟手不等下一帧
+                if verdict == .follow {
+                    handlers.onProgress(
+                        HubEdgeSwipe.followedOffset(
+                            translationX: translation.x
+                        )
                     )
-                )
+                }
+            case .changed:
+                if verdict == nil {
+                    judge(pan, translation: translation)
+                }
+                if verdict == .follow {
+                    handlers.onProgress(
+                        HubEdgeSwipe.followedOffset(
+                            translationX: translation.x
+                        )
+                    )
+                }
             case .ended:
-                let velocity = pan.velocity(in: view)
-                handlers.onRelease(
-                    HubEdgeSwipe.shouldDismiss(
+                let shouldDismiss = verdict == .follow
+                    && HubEdgeSwipe.shouldDismiss(
                         translationX: translation.x,
-                        velocityX: velocity.x
+                        velocityX: pan.velocity(in: view).x
                     )
-                )
+                verdict = nil
+                handlers.onRelease(shouldDismiss)
             case .cancelled, .failed:
-                // 系统夺走只复位、绝不误触返回
+                verdict = nil
+                // 系统夺走或自取消让位：只复位、绝不误
+                // 触返回
                 handlers.onRelease(false)
             default:
                 break
+            }
+        }
+
+        /// 逐帧方向仲裁（begin 后、定案前每帧调用）：
+        /// Core 判 follow→定案跟手并闪断正在追踪的滚
+        /// 动 pan；判 yieldToScroll→定案让位并把识别
+        /// 器置 .cancelled（随后 .cancelled 回调走复
+        /// 位路）；undecided→不定案、下一帧再看
+        private func judge(
+            _ pan: UIScreenEdgePanGestureRecognizer,
+            translation: CGPoint
+        ) {
+            switch HubEdgeSwipe.arbitration(
+                translationX: translation.x,
+                translationY: translation.y
+            ) {
+            case .undecided:
+                break
+            case .follow:
+                verdict = .follow
+                releaseTrackingScrollPans(from: pan)
+            case .yieldToScroll:
+                verdict = .yieldToScroll
+                pan.state = .cancelled
+            }
+        }
+
+        /// 横向定案时闪断正在追踪的滚动 pan：从识别器
+        /// 宿主上行到本页根视图，遍历其下全部滚动视图，
+        /// 对 pan 处于 .began/.changed 的逐个 isEnabled
+        /// 关开一次——识别器放掉当前触摸并复位到
+        /// .possible，本次横滑余下行程不再有滚动竞争；
+        /// 下一次触摸照常可用（WWDC14-235 的关开让位
+        /// 技巧，调研候选 3 引）。只在定案一刻执行一
+        /// 次，不逐帧扫树
+        private func releaseTrackingScrollPans(
+            from pan: UIScreenEdgePanGestureRecognizer
+        ) {
+            guard let host = pan.view else { return }
+            var root: UIView = host
+            while let parent = root.superview { root = parent }
+            releaseTrackingScrollPans(in: root)
+        }
+
+        private func releaseTrackingScrollPans(in view: UIView) {
+            if let scrollView = view as? UIScrollView {
+                let scrollPan = scrollView.panGestureRecognizer
+                if scrollPan.state == .began
+                    || scrollPan.state == .changed {
+                    scrollPan.isEnabled = false
+                    scrollPan.isEnabled = true
+                }
+            }
+            for subview in view.subviews {
+                releaseTrackingScrollPans(in: subview)
             }
         }
     }

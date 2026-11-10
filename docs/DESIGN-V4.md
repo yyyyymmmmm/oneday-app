@@ -7008,3 +7008,28 @@ SwiftUI 尺寸协商里，父按子的理想尺寸在栈内定位，里层 flexi
 CI 先红后绿（如实）：分支代码此前从未进 CI（工作流只认 main），合并出包连红两轮，均在 Build 步、均出自 §90 的临时诊断件 SwipeReplyDiagnostics 的 Swift 6 并发安全——run 42881267681：`shared` 单例与其 `static var watchedKey` 两处报错，修一以 @unchecked Sendable（NetworkPathObserver 同口径）＋稳定指针常量对治；run 42881845541：指针常量 UnsafeRawPointer 本身同属非 Sendable 再红一处，修二改 `nonisolated(unsafe)` 明示豁免（键只作关联对象地址、初始化后从不写）。终轮 run 42882608532 全步 success（jobs API 逐项核：Build／Unit tests／Package／Upload 全 success）。
 
 单测 **871**（基线 870＋§90.3 无量级门对照钉测 1；§91／§92 均为视图层改动、无 Core 逻辑，未加测），0 失败。IPA 7,118,898 字节、md5 `0c956bdca59d643ea9802de8abf104ec`、解包验 Info.plist＝0.36.23/90，已落 your_files/oneday-v0.36.23/。§90.5 复验口径与 §90.4 诊断回收、§91／§92 真机终验均在用户。
+## §93 真机反馈修复包：媒体格定尺＋枢纽边缘右滑改判（0.36.24/91，2026-11-11）
+
+来源：用户 2026-11-11 03:10 装 0.36.22 真机回报两件——①对照 Muse 的 Files/Media 页，「咱们的」媒体格没定尺；②枢纽页「右滑不会退出」。两件均已读代码定案后施工。
+
+### 93.1 件一·文件页媒体网格定尺（P-13 续）
+
+- **定案**：`MediaCell`（FilesView.swift）旧形态把 `.aspectRatio(1, .fit)` 挂在内容 ZStack 本体上。网格列只提议列宽、高度未指定，而 `.fit` 在未指定维度上取**子视图理想尺寸**定案——ZStack 的理想尺寸由图片原尺寸/占位图标决定：未加载、视频、音频格的高度被 26pt 级占位图标带跑，小图格被自身原尺寸带跑，行内行间参差不齐。名义上有 1:1、实际没定尺（该行自 0.14.0 起就在，形态一直在、病也一直在）。
+- **修法**：定尺改落在**无内在尺寸的形状层**——`Rectangle().fill(fieldFill).aspectRatio(1, .fit)` 承担 1:1（宽随列宽、高等宽），图片/占位/视频角标只作 `.overlay` 内的 ZStack 填充裁切，永不参与定尺寸。与 P-13「满宽/对齐必须落在被定位的那一层」同族：**尺寸约束必须落在承担定尺寸的那一层，内容理想尺寸不得反向参与定案**。
+- **不动面**：MediaCell 全仓唯一调用点＝DeliverablesView 影音网格（Button label 内），点开查看器、`.matchedTransitionSource` zoom 转场源、长按 `.contextMenu` 删除均在调用点与 Button 上、本轮零改动；占位图标与视频角标（居中 play.circle.fill）位置口径不变；缩略图下载 `.task` 通道不变。
+
+### 93.2 件二·枢纽页右滑不退出（P-15 同病复发）
+
+- **定案**：`HubEdgeSwipeBridge` 首版（0.36.22，与右滑引用调研**并行施工**）在 `gestureRecognizerShouldBegin` 里读速度判方向——正是调研刚裁决掉的形态：生死关被咨询的时刻速度与位移一样未累积，`abs(vx) > abs(vy)` 在起手瞬间靠噪声定案、实测恒拒，识别器从未 begin。用的是被推翻前的旧口径，属同病复发，非新病。
+- **修法**（照调研裁决的正道）：
+  1. **生死关清空**：`HubEdgeSwipe.shouldBegin`（速度域）整体退役；桥的 shouldBegin 只余段位启用门（浏览器段禁用照旧，并同步落 `pan.isEnabled`，禁用段识别器根本不追踪）。shouldBegin 不再放任何量级/速度/位移判据。
+  2. **handler 方向仲裁**：Core 新增 `HubEdgeSwipe.arbitration`（三态：undecided/follow/yieldToScroll）——begin 后逐帧按 translation 判：主导轴未过决定下限 8pt 不表态（handler 内连续判读，非生死关量级门）；过线后横向右滑主导（比值引 `DrawerMotion.directionLockRatio` 全 App 单源）判 follow 跟手；其余一律 yieldToScroll——识别器自置 `.cancelled`、offset 从未写过天然复位。定案后不改判。`followedOffset`/`shouldDismiss` 两数及常量沿用首版（松手时刻速度已累积，与生死关未累积量不是一回事）。
+  3. **编排走调研候选 3（同时识别＋handler 仲裁），不用 require(toFail:)**：与枢纽内列表的滚动 pan 只对 UIPanGestureRecognizer-on-UIScrollView 开同时识别。纵向定案时滚动 pan 已同步 begin、自取消即无损让位（同一触摸继续滚）；横向定案时闪断正在追踪的滚动 pan（isEnabled 关开一次放掉当前触摸，WWDC14-235 技巧）。不用 require(toFail:) 的理由成文在桥与 Core 注释：按 Event Handling Guide 语义，被要求等待的一方在对方 begin 瞬间即被置 Failed，begin 后自取消救不回同一触摸——照字面套聊天第四修的编排，左缘纵滑首触必死、与本件复验口径直接冲突。此点为本轮对简报字面的唯一偏差，理由如上，请主线知悉。
+- **钉测**：速度门旧测整表退役，换仲裁三测（下限未过不定案/横向跟手含比值边界/其余全让位），净 +2（871 → 873 预期，待 CI 实证）。
+
+### 93.3 真机复验口径
+
+1. 文件页影音段：图片、视频、未加载完的格子全部同宽同高正方形，滚动中加载完成不跳高。
+2. 枢纽任意一段内从屏幕左缘右滑：页面跟手横移，位移过 90pt 或 40pt＋快甩松手即退出回聊天页；短滑松手回弹复位。
+3. 枢纽任意一段内从左缘起手纵滑：列表照常滚动、不误退、不吃首触。
+4. 枢纽浏览器段：左缘右滑不退出（禁用照旧）；✕ 关闭照常。
