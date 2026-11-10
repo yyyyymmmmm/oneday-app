@@ -4231,3 +4231,51 @@ V1 冷开短会话（1–2 条消息）：首条气泡完整位于顶栏下方�
 ### 50.9 真机终审项（W 系列）
 W1 大字号（设置→辅助功能→更大字体拉满）：抽屉/设置/文件/管理页/总览五行随之放大、不断行溢出（0.22.0 前三面纹丝不动为旧病）；W2 默认字号下五面与 0.22.0 并排观感不变（名字头/行题/副行同大同粗细）；W3 暗色模式五面过一遍：次级文字不发虚、思考/引用小字可读；W4 减透明开：抽屉底条变实色面、名单末行不透字叠读，关后霜层恢复；W5 聊天页顶栏两圆钮与胶囊同为玻璃质感（不再一纸一玻）、文件页两圆钮同；W6 命中手感抽查：思考头行、引用条 ✕、回告卡 ✕、附件移除钮、顶栏圆钮——都应一按中；W7 总览/管理页会话行与抽屉同物同尺感（题略粗、副行 15）；W8 设置页分区头与抽屉分区头同大同粗（15 medium 统一后）。
 - 交付实录：首轮提交 56f8de0（CI 42662291054，447 测 1 失败＝公式自证期望值 5.2 系施工估值、实测 5.035，按 0.22.0 惯例第二轮校准 a235992 改断言 5.04±0.05 并同步改正 Palette/§50 口径，达标结论不变）；口径补正 da2dbb3 为定版提交，CI 42664068485 success，Executed 447 tests, 0 failures（441 基线＋6 新增，与 50.7/50.8 一致）；IPA 4,854,701 字节、md5 ae1905f7802b74528bd85ac5f6b221a3、解包验 Info.plist＝0.23.0/52、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.23.0/OneDay-0.23.0.ipa。施工期生产零写请求；未自截真机图；§14 十条/MotionTokens/发送链零改动。
+
+## §51 0.24.0/53「原生极简整改」（口径变更源＝用户 2026-11-10 当日指令：以苹果 HIG 为唯一依据、用原生极简主义重排、不许乱加粗——覆盖 0.22/0.23 的 Muse 量测口径；基线 6ab1883、单测 447 只增不减；证据分级：【官方】HIG/SDK 事实【实算】像素量测/WCAG/渲染量测【定版】用户既往拍板【惯例】系统列表惯例带）
+
+### 51.0 根因审计（先查后改，四面 font 声明与角色表全量对账）
+- 设置行题实测 21–23 之谜：代码层声明与角色表一致——行题恒 `.rowTitleL`＝title3 20 regular（SettingsView navRow/statusNavRow/manageRow/serverRow/身份卡五处同源，无放大声明）。本轮以 PIL 对用户设置截图逐元素复量（阈值 160、2.74px/pt、CJK 墨迹比以同图已知的 title3 行校准 ≈0.96em）：纯中文行题墨迹高 19.3pt＝20.0pt 声明值，分毫未被偷放大；混排拉丁行（MCP 连接，阈值 200）墨迹 21.9pt——「21–23」读数出自混排行与宽阈量测口径。观感「又大又粗」的真实构成：①20pt 本身比 HIG 列表行 Body 17 大一档（0.22.0 照 Muse 图量测定版，非 HIG 口径）；②图标字形 28 大于行题本身、且混实心符号（desktopcomputer 整屏实心、brain 密实、双泡宽字形压字），整行墨量被图标主导；③行高 60 的行盒放大整行尺度感（本轮未动，见 51.6）。
+- 视图层私自覆盖角色表清单（四面＋共享件）：①DeliverablesView 分段标签直用 rowTitleLSemi（角色本身即 Semi，非视图私设，但属点名整改位）；②SettingsView rowIcon 字面量 28（0.22.0 追认值，本轮随令牌改）；③DrawerView 名单字形字面量 light（0.22.0 定版，本轮随令改）；④其余四面文字位全部经角色，无第三套字号。
+- 设置标题形态与身份卡横切：配置审计无误——navigationTitle＋.navigationBarTitleDisplayMode(.large) 均落在栈内 List 上【SDK 事实】、呈现链 ContentView sheet→SettingsView 自有 NavigationStack、无嵌套栈、无第二呈现点（代码事实）。用户截图实测：标题为居中 ≈17 semibold 行内形态、身份卡「Hermes」墨迹高仅余 12.0pt（被横切近半）——与「大标题折叠后内容滑入栏区＋硬边切断」的形态一致；机制在「拍摄时已滚动折叠」与「sheet 承载下栏形态未按 .large 落地」两说之间不可单凭截图判死（分级：形态【实算】、机制【推断】）。本轮按构造兜底处理（见 51.4），不赌启发式。
+- 文件页分段/空态实测基线：分段字墨迹 19.0pt（≈20 semibold）；空态题精量 16.8pt＝.headline 17（早前一版 31.4 读数系裁图误含图标行，本轮以行带分析纠正）；抽屉导航墨迹 19.3（≈20 semibold）、旁聊题 19.3、时间戳 14.6（≈15）、分区头 15.0（15 medium）；Muse 参考同法量测：导航 17.5（≈18 regular）、分段 15.3–17.2（≈17 regular）、名 24.1（≈25–27）。
+
+### 51.1 字重清仓
+- 角色层：semibold 角色 3（screenName/rowTitleLSemi/rowTitle-Headline）＋medium 角色 1（sectionLabel）→改后 bold 仅 screenName 一处（Title1，身份名/大标题配额【指令】），semibold/medium 角色归零；rowTitleLSemi 退役、rowTitle 由 .headline 改 .body——ContentRow/UnifiedRow/会话行/管理行全部行题随角色归 regular（消费点不逐个改、随表改档）。
+- 字面量层（grep `weight(.semibold|.bold)` 及 `.weight` 变体，Sources 全量）：改前 31 处→改后 30 处（净 −1＝FontRoles 定义：rowTitleLSemi 退役、screenName semibold→bold 仍计 1）。改后 30 处逐类：角色定义 1（screenName bold，配额内）；字形位 8（胶囊/引用 chevron、引用条 ✕、发送键箭头、枢纽铅笔/勾/chevron——皆 Image 符号非文字）；内容排版 4（MarkdownText strong/标题 3、终端等宽强调 1——正文内容排版、不属 UI  chrome）；Hub 子页状态标签类 17（Browser 3/Goals 1/HubApproval 3/HubTask 2/RichContent 1/HubMonitor 2/MemoryEntries 1/SkillHub 4——caption/footnote 级状态小字与子页小标题，非四面、非点名类别，登记残留待后续包或用户点名）。
+- `.font(.headline)` 直用 8→8，全为登记保留的系统 Headline 语义位：主按钮标签（PrimaryButtonBody）、身份名 ×2（IdentityAnchor、ChatView 身份头）、BrowserView 枢纽状态行、HubApproval/Kanban 详情/Computer 标题、EmptyState 题（文件页已迁 CUV、他页面包级标题语义保留）。列表行题的 headline 消费经 rowTitle 角色改档后归零。
+
+### 51.2 字号落档（HIG Typography 文本样式为据）
+| 元素 | 改前 | 本轮落值 | 依据 |
+|---|---|---|---|
+| 抽屉名字头 screenName | largeTitle 34 semibold | Title1 28 bold | 【官方】HIG Title 1；bold 配额＝身份名 |
+| 设置行题/抽屉旁聊题/交付物行题 rowTitleL | title3 20 regular | Body 17 regular | 【官方】HIG Body＝列表正文行档 |
+| 内容行题 rowTitle（ContentRow/UnifiedRow/会话行） | headline 17 semibold | Body 17 regular | 【指令】列表行题一律 regular |
+| 抽屉导航行/管理行 | title3 20 semibold（rowTitleLSemi） | Body 17 regular（改用 bodyText） | 【官方】HIG Body；Muse 量测 ≈18 regular 旁证【实算】 |
+| 文件页分段标签 | title3 20 semibold | Body 17 regular | 【官方】；选/未选只靠填充＋墨色（原形态已然） |
+| 时间戳 meta/metaMonospaced | subheadline 15 | Footnote 13 regular | 【官方】HIG Footnote |
+| 分区头 sectionLabel（全 App） | subheadline 15 medium | Footnote 13 regular＋secondary | 【官方】苹果设置分区头同款形态 |
+| 行副题 rowSubtitle | subheadline 15 regular | 不变 | 【官方】HIG Subheadline |
+| 聊天正文 .callout 等 | — | 不动（§29/§14 定版） | 【定版】 |
+- TypeRole 表九角色（rowTitleLSemi 删）；VisualDirectionGateTests 角色对账断言同步改值（非删测）；DT 缩放闸五角色续跑（screenName/.title 同随 DT）。
+
+### 51.3 图标规范
+- 尺寸/字重：FrameworkIcon.drawerGlyphSize 27→21、settingsGlyphSize 28→21（同值、落 glyphSizeRange 20–22 带），字重两面均 regular（抽屉 light 分位退役；底栏 24 light 是 0.22.0 探针定版、不在本轮范围，保留并注记）。槽宽：OneDayMetrics.iconSlot 28→30（ListRowSpec.iconSlotWidth 同步 30、dividerInset 60→62＝20＋30＋12 推导同步）；图→字间距两面同为 HStack spacingSM＝12【惯例：HIG 无明文数字，此为系统列表惯例带】；设置 rowIcon 字形改槽内居中，与抽屉（槽 30 居中）同几何——两面图→字视觉间距自此一致。
+- 换符号（设置页，全线性非 fill）：电脑 desktopcomputer→display（空屏线性；旧为整屏实心）；记忆 brain→memorychip（线性芯片、疏；语义由「脑」转「存储芯片」，取舍在此登记）；服务端会话 bubble.left.and.text.bubble.right→bubble.left（双泡宽字形 28pt 时自然宽溢出 28 槽压字【实算：截图图标与行题重叠】，单泡自然宽恒小于 30 槽、构造上不重叠；与「服务端默认模型」的 text.bubble 同族不同形、不混淆）；档案 rectangle.stack.person.crop→archivebox（去人像剪影填充）；外观 circle.lefthalf.filled→sun.max（去半实心；明暗双态语义弱化为亮度语义，取舍登记）。
+- 保留登记（非 .fill 变体、符号设计本身形态）：key（无线性变体、剪影即其设计）、chart.bar（条形即其设计）、puzzlepiece.extension/network/folder/doc.text/text.bubble/cable.connector/chart.xyaxis.line/server.rack/arrow.clockwise（皆线性 outline 本体）。
+- 量测闸：RenderMeasureTests 设置列名单同步换五件；抽屉名单字重改 regular。闸值先沿用（设置格口径 ≤0.32/紧致 ≤0.68/离散 ≤3.0；抽屉紧致 0.05–0.45），以 CI MEASURE 分布复核、需校准时按 0.22.0 惯例第二轮如实记录。
+
+### 51.4 设置页形态
+- 标题：navigationTitle＋.large 配置经审计无误（51.0），保留系统大标题路径不动。
+- 身份卡防切（构造兜底两件）：①身份节专用行盒 identityRowInsets 顶距 0→10，首节恒在栏区之下留呼吸位；②List 加 .scrollEdgeEffectStyle(.soft, for: .top)——内容滑入栏下时渐隐、不再被硬边切成半截（iOS 26 官方 scrollEdgeEffect 口径，沿本仓 chrome 定案）。Hermes 题与 host 副行随之完整可见（终审 X5 真机判）。
+- 身份卡「Hermes」题随 rowTitleL 改 17 regular：身份名 bold 配额只给抽屉名字头，本卡是列表行、从行题口径（登记）。
+
+### 51.5 文件页空态
+- DeliverablesView 三处空态（暂无交付物/没有匹配的文件/暂无影音交付）自绘 EmptyState→系统 ContentUnavailableView（图标/标题/副题全走系统默认形态与排版）；「读取失败」是错误态非空态、保留 EmptyState（登记）。EmptyState 组件本体他页（23 处消费）不动。
+
+### 51.6 不动项与登记残留
+- §14 十条/MotionTokens/SideChatLink 与发送链/ComposerLayout 几何零改动；设置行高 60、抽屉行高 58 未动（不在本轮落档表内——字号与图标已降档，行盒尺度终审后如仍显大、下一轮再议，不自创数值）；底栏字形 24 light 定版保留；Hub 子页 caption 级 semibold 状态标签 17 处登记残留（51.1）；系统 Section 自带头（各二级页）为系统形态、不入角色表管辖。
+- 版本源五处同改 0.24.0/53：Project.swift 四字面量＋SettingsView.versionFooter「OneDay v0.24.0」，全仓 grep 验（Hermes 服务端版本字面量同名不同物、不动）。
+
+### 51.7 真机终审项（X 系列）
+X1 设置页行题与苹果设置并排：同为 17 regular 观感、行图标细线同列、无实心件；X2 抽屉：名字头 28 bold 不压人、导航行 17 regular、旁聊题 17＋时间戳 13 灰、分区头 13 灰；X3 文件页分段：两段字同大同粗、选中只靠白面浮起；X4 文件页空态为系统 ContentUnavailableView 形态（图标/题/副题系统排版）；X5 设置页静止态：大标题左对齐在位、身份卡 Hermes 与地址行完整无切；轻滚设置页：内容滑入栏下为渐隐、无半截字硬切；X6 服务端会话行图标不再压字、记忆/电脑/档案/外观四行新图标可辨识；X7 大字号拉满：五面随 DT 放大不断行（Body/Footnote/Title1 皆文本样式）；X8 管理页/总览会话行题为 regular 17（rowTitle 改档连带面）。

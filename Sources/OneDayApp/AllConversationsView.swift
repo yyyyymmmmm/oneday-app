@@ -344,7 +344,8 @@ struct AllConversationsView: View {
             HStack(spacing: 6) {
                 Text(rowTitle(session))
                     // 0.23.0（审计 M1）：会话行升内容行档
-                    // ——题 rowTitle（17 semibold）、副/时间
+                    // ——题 rowTitle（0.24.0 起 Body 17
+                    // regular，角色改档）、副/时间
                     // meta（15），与点子/目标/总览会话行同尺
                     .font(.rowTitle)
                     .foregroundStyle(Palette.ink)

@@ -299,18 +299,20 @@ public enum OneDayMetrics {
 
     /// 页面左右边距（内容页）
     public static let pageGutter: CGFloat = 20
-    /// 列表行图标槽宽：全页同一条对齐线
-    public static let iconSlot: CGFloat = 28
-    /// 发丝线内缩：边距 20＋槽 28＋间距 12
-    public static let dividerInset: CGFloat = 60
+    /// 列表行图标槽宽：全页同一条对齐线（0.24.0 与
+    /// 设置/抽屉统一取 30，ListRowSpec.iconSlotWidth
+    /// 同值，见 §51）
+    public static let iconSlot: CGFloat = 30
+    /// 发丝线内缩：边距 20＋槽 30＋间距 12
+    public static let dividerInset: CGFloat = 62
     /// 内容行最小高（0.3.3 按礼记行口径放大：礼记
     /// MeView.entryLabel minHeight 44＋List 行内边距的实
     /// 效行高约 56；OneDay 自 52 提到 56，行不再挤）
     public static let rowHeight: CGFloat = 56
-    /// 列表行图标字形字号（0.3.3）：semibold 粗实字形才
-    /// 有分量（礼记行图标为系统 body 字形＋24 槽；OneDay
-    /// 取 20 semibold，槽宽仍 iconSlot 28 保对齐线与
-    /// dividerInset 60 的推导不变）
+    /// 列表行图标字形字号（0.3.3 旧注「取 20 semibold」
+    /// 与消费点实现不符——Components 两处消费恒为无字
+    /// 重声明的 regular 渲染，0.24.0 注记纠正于此、以
+    /// 实现为准；槽宽与 dividerInset 推导见上两条）
     /// 0.23.0 单源化：数值改引用 Core FrameworkIcon
     /// .rowGlyphSize（20 不变），本处只留别名
     public static let rowIconGlyph: CGFloat = FrameworkIcon.rowGlyphSize

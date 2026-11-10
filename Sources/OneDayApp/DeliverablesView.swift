@@ -151,11 +151,13 @@ struct DeliverablesView: View {
 
     // MARK: - 大分段（照 Muse 资源库图自制）
 
-    /// 分段控件照图复刻：图中段高约 63pt、段字约
-    /// 22pt 半粗——系统 segmented（约 28 高/13 字）
-    /// 量级明显不符，本页自制（偏离原生登记 §47）：
-    /// 浅灰槽＋选中段白面浮起，段字 20 半粗、高 52，
-    /// 动画只用系统 .default、不自绘曲线
+    /// 分段控件照图复刻：图中段高约 63pt——系统
+    /// segmented（约 28 高）量级明显不符，本页自制
+    /// （偏离原生登记 §47）：浅灰槽＋选中段白面浮起，
+    /// 高 52，动画只用系统 .default、不自绘曲线。
+    /// 0.24.0（用户当日指令）：段字由 20 半粗改 Body
+    /// 17 regular（HIG 落档）——选中/未选只靠填充与
+    /// 墨色区分、不靠字重字号（本形态原本即如此）
     private var segmentControl: some View {
         HStack(spacing: 0) {
             segmentButton(title: "文件", tag: 0)
@@ -180,7 +182,9 @@ struct DeliverablesView: View {
             Text(title)
                 // 0.23.0：落字阶角色 rowTitleLSemi（title3
                 // semibold，默认 20 等值，审计 G2）
-                .font(.rowTitleLSemi)
+                // 0.24.0：改 bodyText（Body 17 regular，
+                // 角色 Semi 退役，见 §51）
+                .font(.bodyText)
                 .foregroundStyle(
                     selected ? Palette.ink : Palette.inkSecondary
                 )
@@ -257,18 +261,24 @@ struct DeliverablesView: View {
                     )
                     .padding(.top, OneDayMetrics.spacingXXL)
                 } else if documents.isEmpty {
+                    // 0.24.0：空态迁系统 ContentUnavail-
+                    // ableView 原生形态（图标/标题/副题全
+                    // 走系统默认排版），自绘 EmptyState 在
+                    // 本页退役（他页仍用，见 §51）
                     if query.isEmpty {
-                        EmptyState(
-                            icon: "doc.text.magnifyingglass",
-                            title: "暂无交付物",
-                            message: "智能体生成的文件与定时任务产出会出现在这里。"
+                        ContentUnavailableView(
+                            "暂无交付物",
+                            systemImage: "doc.text.magnifyingglass",
+                            description: Text(
+                                "智能体生成的文件与定时任务产出会出现在这里。"
+                            )
                         )
                         .padding(.top, OneDayMetrics.spacingXXL)
                     } else {
-                        EmptyState(
-                            icon: "magnifyingglass",
-                            title: "没有匹配的文件",
-                            message: "换个关键词试试。"
+                        ContentUnavailableView(
+                            "没有匹配的文件",
+                            systemImage: "magnifyingglass",
+                            description: Text("换个关键词试试。")
                         )
                         .padding(.top, OneDayMetrics.spacingXXL)
                     }
@@ -389,10 +399,14 @@ struct DeliverablesView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, OneDayMetrics.spacingXXL)
             } else if mediaItems.isEmpty {
-                EmptyState(
-                    icon: "photo.on.rectangle.angled",
-                    title: "暂无影音交付",
-                    message: "智能体生成的图片、视频与音频会出现在这里。"
+                // 0.24.0：同文件段，迁系统 ContentUn-
+                // availableView 原生形态
+                ContentUnavailableView(
+                    "暂无影音交付",
+                    systemImage: "photo.on.rectangle.angled",
+                    description: Text(
+                        "智能体生成的图片、视频与音频会出现在这里。"
+                    )
                 )
                 .padding(.top, OneDayMetrics.spacingXXL)
             } else {

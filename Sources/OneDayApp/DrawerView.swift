@@ -276,6 +276,9 @@ struct DrawerView: View {
             // 0.23.0：落字阶角色 screenName（largeTitle
             // semibold，默认 34 与定版等值、随 Dynamic
             // Type 缩放，审计 G2/D1）
+            // 0.24.0（用户当日指令，口径变更）：角色改
+            // Title1 28 bold——HIG 大标题档；34 semibold
+            // 的 Muse 量测口径让位（见 §51）
             .font(.screenName)
             .foregroundStyle(Palette.ink)
             .lineLimit(1)
@@ -471,6 +474,8 @@ struct DrawerView: View {
                     // 解析（第三条 AI 标题回流）
                     // 0.23.0：落字阶角色 rowTitleL（title3，
                     // 默认 20 等值，审计 G2/D1）
+                    // 0.24.0：角色改 Body 17 regular（HIG
+                    // 落档，见 §51）——本行随角色变
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
@@ -481,6 +486,8 @@ struct DrawerView: View {
                 ))
                 // 0.23.0：落字阶角色 meta（subheadline，
                 // 默认 15 等值，审计 G2/D1）
+                // 0.24.0：角色改 Footnote 13（HIG 时间
+                // 戳档）——本行随角色变
                 .font(.meta)
                 // 0.22.0（审计 G1/D2）：时间戳是「要读的
                 // 字」，inkMuted 实算 2.75:1 不达标——换
@@ -609,6 +616,8 @@ struct DrawerView: View {
             // inkSecondary（inkMuted 2.75:1 不达标）
             // 0.23.0：落字阶角色 sectionLabel（subhead-
             // line medium，默认 15 等值，审计 G2/S4）
+            // 0.24.0：角色改 Footnote 13 regular（苹果
+            // 设置分区头同款形态，HIG 落档见 §51）
             .font(.sectionLabel)
             .foregroundStyle(Palette.inkSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -645,15 +654,23 @@ struct DrawerView: View {
                     // 纽 list.bullet 无更轻的同义候选
                     // （rectangle.stack .353 同档），细线
                     // 感由字重达成（DESIGN-V4 §49）
+                    // 0.24.0（用户当日指令，口径变更）：
+                    // 字形 27 light→21 regular（令牌同改）
+                    // ——落 HIG 符号带 20–22、字重与文字同
+                    // 档；行题 title3 semibold→Body 17
+                    // regular（角色 rowTitleLSemi 退役）
                     .font(.system(
                         size: FrameworkIcon.drawerGlyphSize,
-                        weight: .light
+                        weight: .regular
                     ))
                     .foregroundStyle(Palette.ink)
-                    .frame(width: 30, alignment: .center)
+                    .frame(
+                        width: OneDayMetrics.iconSlot,
+                        alignment: .center
+                    )
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.rowTitleLSemi)
+                    .font(.bodyText)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -691,15 +708,20 @@ struct DrawerView: View {
                     // 0.20.0 字阶与导航行同档（27/20 半粗
                     // /58，见 drawerNavRow 注）；0.22.0 字
                     // 重随导航行同批降 light（.353→.294）
+                    // 0.24.0：随导航行同批改 21 regular＋
+                    // 行题 Body 17 regular（见彼处注）
                     .font(.system(
                         size: FrameworkIcon.drawerGlyphSize,
-                        weight: .light
+                        weight: .regular
                     ))
                     .foregroundStyle(Palette.ink)
-                    .frame(width: 30, alignment: .center)
+                    .frame(
+                        width: OneDayMetrics.iconSlot,
+                        alignment: .center
+                    )
                     .accessibilityHidden(true)
                 Text("管理全部对话")
-                    .font(.rowTitleLSemi)
+                    .font(.bodyText)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)

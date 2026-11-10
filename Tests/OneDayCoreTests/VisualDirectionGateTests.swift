@@ -16,15 +16,18 @@ final class VisualDirectionGateTests: XCTestCase {
     // MARK: - 字阶角色表对账
 
     func testTypeRoleTable() {
+        // 0.24.0 按 HIG 重排（用户当日指令）：行题/行
+        // 内容题归 Body、名字头 Title1 28 bold、meta/
+        // sectionLabel 归 Footnote、rowTitleLSemi 退役
+        // ——九角色（断言随规格改值、非删测）
         let expected: [TypeRole: (style: String, pt: CGFloat, weight: String)] = [
-            .screenName: ("largeTitle", 34, "semibold"),
-            .rowTitleL: ("title3", 20, "regular"),
-            .rowTitleLSemi: ("title3", 20, "semibold"),
-            .rowTitle: ("headline", 17, "semibold"),
+            .screenName: ("title", 28, "bold"),
+            .rowTitleL: ("body", 17, "regular"),
+            .rowTitle: ("body", 17, "regular"),
             .bodyText: ("body", 17, "regular"),
             .rowSubtitle: ("subheadline", 15, "regular"),
-            .meta: ("subheadline", 15, "regular"),
-            .sectionLabel: ("subheadline", 15, "medium"),
+            .meta: ("footnote", 13, "regular"),
+            .sectionLabel: ("footnote", 13, "regular"),
             .captionText: ("footnote", 13, "regular"),
             .badgeOnly: ("caption", 12, "regular"),
         ]
@@ -182,13 +185,14 @@ final class VisualDirectionGateTests: XCTestCase {
         XCTAssertEqual(
             OneDayMetrics.rowIconGlyph, FrameworkIcon.rowGlyphSize
         )
-        // 单源定版值（0.22.0 探针定版回填，§49/§50 对账表）
+        // 单源定版值（0.22.0 探针定版回填，§49/§50 对
+        // 账表；0.24.0 抽屉/设置字形改 21，§51 对账）
         XCTAssertEqual(FrameworkIcon.tabGlyphSize, 22)
         XCTAssertEqual(FrameworkIcon.navGlyphSize, 21)
         XCTAssertEqual(FrameworkIcon.rowGlyphSize, 20)
-        XCTAssertEqual(FrameworkIcon.drawerGlyphSize, 27)
+        XCTAssertEqual(FrameworkIcon.drawerGlyphSize, 21)
         XCTAssertEqual(FrameworkIcon.drawerBarGlyphSize, 17)
-        XCTAssertEqual(FrameworkIcon.settingsGlyphSize, 28)
+        XCTAssertEqual(FrameworkIcon.settingsGlyphSize, 21)
         XCTAssertEqual(FrameworkIcon.composerGlyphSize, 15)
         XCTAssertEqual(FrameworkIcon.fileGlyphSize, 17)
     }

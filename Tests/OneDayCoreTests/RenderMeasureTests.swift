@@ -86,13 +86,17 @@ final class RenderMeasureTests: XCTestCase {
     // MARK: - 第 15/24 条：抽屉名单与底条字形
     // 0.22.0：尺寸随令牌追认 27、字重随定版 light（探
     // 针实测带 0.217–0.290，旧 0.05–0.45 闸继续有效）
+    // 0.24.0：尺寸随令牌改 21、字重改 regular（用户当
+    // 日指令：符号与文字同档）；闸带 0.05–0.45 先沿用
+    // （24pt regular 同符号族实测 0.267–0.353 在带内），
+    // 以 CI MEASURE 复核为准
 
     func testDrawerSymbolInk() throws {
         for pair in TabBarSymbols.all {
             let image = try XCTUnwrap(
                 symbol(
                     pair.normal, size: FrameworkIcon.drawerGlyphSize,
-                    weight: .light
+                    weight: .regular
                 ),
                 "\(pair.id) 名单字形渲染失败"
             )
@@ -150,14 +154,21 @@ final class RenderMeasureTests: XCTestCase {
     // 列）；格口径闸按面积比 (28/17)² 重新校准
 
     func testSettingsSymbolInk() throws {
+        // 0.24.0：名单随设置页换符号同步——brain→
+        // memorychip、双泡宽字形→bubble.left、
+        // desktopcomputer→display、档案→archivebox、
+        // 外观→sun.max（换符号取舍见 §51）；量测尺寸
+        // 随令牌 28→21，闸值先沿用 28pt 校准值、以 CI
+        // MEASURE 分布复核（格口径随面积比约 ×0.56 收
+        // 缩、只会更疏；紧致口径与尺寸弱相关）
         let names = [
-            "server.rack", "rectangle.stack.person.crop",
-            "key", "brain",
+            "server.rack", "archivebox",
+            "key", "memorychip",
             "puzzlepiece.extension", "clock.arrow.2.circlepath",
-            "bubble.left.and.text.bubble.right", "cable.connector",
+            "bubble.left", "cable.connector",
             "text.bubble", "chart.bar", "network", "arrow.clockwise",
-            "doc.text", "circle.lefthalf.filled",
-            "chart.xyaxis.line", "desktopcomputer", "folder",
+            "doc.text", "sun.max",
+            "chart.xyaxis.line", "display", "folder",
         ]
         var densities: [String: Double] = [:]
         for name in names {
@@ -176,7 +187,7 @@ final class RenderMeasureTests: XCTestCase {
             // 上限（.fill 件同口径 0.72+）
             XCTAssertLessThanOrEqual(
                 stats.cellDensity, 0.32,
-                "\(name) 格口径密度 \(stats.cellDensity) 离群（28pt 校准闸）"
+                "\(name) 格口径密度 \(stats.cellDensity) 离群（21pt 沿用 28pt 校准闸）"
             )
             // 0.22.0 按 28pt 实测全集重新校准：全列紧致
             // 密度 0.252–0.631，上限是 cable.connector
@@ -186,7 +197,7 @@ final class RenderMeasureTests: XCTestCase {
             // 闸取 0.68 仍在其下、点名此件为形态离群
             XCTAssertLessThanOrEqual(
                 stats.density, 0.68,
-                "\(name) 紧致密度 \(stats.density) 达实心件量级（28pt 校准闸）"
+                "\(name) 紧致密度 \(stats.density) 达实心件量级（21pt 沿用 28pt 校准闸）"
             )
         }
         // 同列一致性：最密与最疏的倍数（复杂度档统一的

@@ -1,19 +1,26 @@
 import Foundation
 
-/// 字阶角色表（0.23.0，视觉审计 G2）：全 App 文字只许
-/// 走十个角色。Design 层 Font 扩展（FontRoles.swift）
+/// 字阶角色表（0.23.0 立，视觉审计 G2）：全 App 文字只许
+/// 走本表角色。Design 层 Font 扩展（FontRoles.swift）
 /// 按本表落 SwiftUI 文本样式，本表是数值的单测把守面
 /// （文本样式名／默认字号／字重档三项对账）。
 /// 沿革：0.19/0.20 两轮照 Muse 真机图把抽屉/设置/文件
 /// 三面钉成固定 pt（34/20/15），与 0.4.0「直用语义字
-/// 阶」立宪形成双轨——开大字号时聊天正文长大、三面纹
-/// 丝不动。本表把每个钉值映射回默认字号等值的文本样
-/// 式：默认观感与 0.22.0 定版落值逐项等值，变的是实
-/// 现形态（固定号→文本样式），Dynamic Type 全 App 归一。
+/// 阶」立宪形成双轨；0.23.0 把钉值映射回等值文本样式、
+/// Dynamic Type 全 App 归一。
+/// 0.24.0 口径变更（用户 2026-11-10 当日指令，覆盖
+/// 0.22/0.23 的 Muse 量测口径）：以苹果 HIG Typography
+/// 文本样式为唯一落档依据重排——行题/导航/分段/会话题
+/// 一律 Body 17 regular，名字头 Title1 28 bold，分区头
+/// 与时间戳 Footnote 13；rowTitleLSemi 退役（Semi 角色
+/// 不留），rowTitle 由 Headline 改 Body（列表行题一律
+/// regular，「不许乱加粗」令）。bold 全表只剩 screenName
+/// 一处（大标题/身份名配额）；系统 Headline 语义位仅留
+/// 非角色的定点（身份胶囊名/主按钮/空态题，逐处登记于
+/// DESIGN-V4 §51）。
 public enum TypeRole: String, CaseIterable {
     case screenName
     case rowTitleL
-    case rowTitleLSemi
     case rowTitle
     case bodyText
     case rowSubtitle
@@ -25,12 +32,10 @@ public enum TypeRole: String, CaseIterable {
     /// SwiftUI 文本样式名（与 FontRoles 落法同名对账）
     public var textStyleName: String {
         switch self {
-        case .screenName: return "largeTitle"
-        case .rowTitleL, .rowTitleLSemi: return "title3"
-        case .rowTitle: return "headline"
-        case .bodyText: return "body"
-        case .rowSubtitle, .meta, .sectionLabel: return "subheadline"
-        case .captionText: return "footnote"
+        case .screenName: return "title"
+        case .rowTitleL, .rowTitle, .bodyText: return "body"
+        case .rowSubtitle: return "subheadline"
+        case .meta, .sectionLabel, .captionText: return "footnote"
         case .badgeOnly: return "caption"
         }
     }
@@ -38,22 +43,20 @@ public enum TypeRole: String, CaseIterable {
     /// 默认字号（pt，Dynamic Type 默认档的系统值）
     public var defaultPointSize: CGFloat {
         switch self {
-        case .screenName: return 34
-        case .rowTitleL, .rowTitleLSemi: return 20
-        case .rowTitle, .bodyText: return 17
-        case .rowSubtitle, .meta, .sectionLabel: return 15
-        case .captionText: return 13
+        case .screenName: return 28
+        case .rowTitleL, .rowTitle, .bodyText: return 17
+        case .rowSubtitle: return 15
+        case .meta, .sectionLabel, .captionText: return 13
         case .badgeOnly: return 12
         }
     }
 
-    /// 字重档名。screenName 审计原表为 bold，0.22.0 用
-    /// 户并排图点名后定版 semibold（§49.5），本表从定版
+    /// 字重档名。0.24.0 起 bold 只许 screenName（Tit-
+    /// le1，抽屉身份名＝大标题/身份名配额）；其余全
+    /// regular——Semi 角色已退役、Headline 不再作行题
     public var weightName: String {
         switch self {
-        case .screenName: return "semibold"
-        case .rowTitleLSemi, .rowTitle: return "semibold"
-        case .sectionLabel: return "medium"
+        case .screenName: return "bold"
         default: return "regular"
         }
     }

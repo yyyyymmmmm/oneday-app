@@ -21,6 +21,10 @@ import SwiftUI
 /// rowSubtitle/meta/sectionLabel——默认字号与上述落
 /// 值逐项等值、改随 Dynamic Type 缩放），行图标改引
 /// 用 FrameworkIcon.settingsGlyphSize 单源，见 §50。
+/// 0.24.0（用户 2026-11-10 指令，口径变更）：行题随
+/// 角色改 Body 17 regular（HIG 落档，20 的 Muse 量测
+/// 口径让位）、行图标 21 线性、身份节顶距＋顶边软效
+/// 防横切，见 §51。
 struct SettingsView: View {
     /// 0.20.0：呈现形态改根级 sheet（ContentView 呈现）
     /// ——关闭走本回调（页内大标题＋右上圆 X 头照 Muse
@@ -90,6 +94,12 @@ struct SettingsView: View {
             .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
             .scrollContentBackground(.hidden)
             .background(Palette.settingsBG)
+            // 0.24.0（用户真机图：身份卡上沿被导航栏区
+            // 横切成半截）：顶边改系统 soft 滚动边效——
+            // 内容滑入栏下时渐隐而非被硬边切断（iOS 26
+            // 官方解，沿本仓 chrome 定案的 scrollEdge-
+            // Effect(.soft) 口径）；静止态无可见变化
+            .scrollEdgeEffectStyle(.soft, for: .top)
             // 0.4.0（§3.2）：tabBarZone 手算底部留白删除——
             // 原生底栏回来后 List 底部避让由系统安全区自理
             // 标题沿系统 navigationTitle 大标题（0.20.0
@@ -207,7 +217,10 @@ struct SettingsView: View {
                             // 统一 20 regular 单一字重——参考
                             // 图账户卡题即 regular，强调只靠
                             // 位置不靠加粗；0.20.0 的 semibold
-                            // 让位
+                            // 让位。0.24.0：随角色改 Body 17
+                            // regular（HIG 落档，见 §51）；身
+                            // 份名 bold 配额只给抽屉名字头，
+                            // 本卡是列表行、从行题口径
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         if let status {
@@ -231,22 +244,26 @@ struct SettingsView: View {
             .contentShape(Rectangle())
         }
         .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
+        // 0.24.0：身份节走专用行盒（顶距＋10 防栏区横
+        // 切，见 identityRowInsets）
+        .listRowInsets(identityRowInsets)
     }
 
     // MARK: - 管理（0.20.0 新增：原应用格入口的新家）
 
     /// 管理组：原底栏「应用」格的三件整面工作区（总
     /// 览/电脑/服务器文件）迁入本组（迁移表见 §47）；
-    /// 行形态与本页导航行同规格（24 图标＋20 题＋
-    /// chevron），点按走 sheet 呈现（各页自带导航栈，
-    /// 不套本页栈）
+    /// 行形态与本页导航行同规格（0.24.0：21 图标＋
+    /// 17 题＋chevron），点按走 sheet 呈现（各页自带
+    /// 导航栈，不套本页栈）
     private var manageSection: some View {
         Section {
             manageRow(icon: "chart.xyaxis.line", title: "总览") {
                 manageSheet = .overview
             }
-            manageRow(icon: "desktopcomputer", title: "电脑") {
+            // 0.24.0：电脑图标 desktopcomputer（屏幕实
+            // 心字形）→display（空屏线性同义符号）
+            manageRow(icon: "display", title: "电脑") {
                 manageSheet = .computer
             }
             manageRow(icon: "folder", title: "服务器文件") {
@@ -328,7 +345,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.23.0")
+            Text("OneDay v0.24.0")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
@@ -346,8 +363,11 @@ struct SettingsView: View {
             // 0.22.0：档案行值位（档案名）撤除——档案页
             // 本身即其详情（0.3.8 的 ServerLabels 翻译在
             // 档案页内仍用）
+            // 0.24.0：档案图标 rectangle.stack.person.
+            // crop（人像剪影填充）→archivebox（线性档
+            // 案盒，同义且疏）
             navRow(
-                icon: "rectangle.stack.person.crop", title: "档案",
+                icon: "archivebox", title: "档案",
                 route: .profiles
             )
             // 0.5.0（§31 追加件）：状态永不带钥匙原文
@@ -387,6 +407,14 @@ struct SettingsView: View {
     /// 与页 gutter 对齐线一致
     private var settingsRowInsets: EdgeInsets {
         EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
+    }
+
+    /// 身份节专用行盒（0.24.0）：首节顶距＋10——用户真
+    /// 机图里身份卡紧贴导航栏区、Hermes 题上沿被横切；
+    /// 给第一节留出栏下呼吸位，卡与题整行恒在栏区之
+    /// 下完整呈现（其余节维持统一行盒不动）
+    private var identityRowInsets: EdgeInsets {
+        EdgeInsets(top: 10, leading: 20, bottom: 0, trailing: 20)
     }
 
     /// 当前服务器行：两行式（标题＋主机名）——主机名是长标识，
@@ -456,8 +484,11 @@ struct SettingsView: View {
             // 0.22.0：五行值位（计数摘要）全撤——计数在
             // 各自详情页（记忆文件数/技能总数/启用数/会
             // 话总数/MCP 总数），本页只留题＋chevron
+            // 0.24.0：记忆图标 brain（密实填充）→
+            // memorychip（线性芯片，同义且疏，取舍
+            // 登记 §51）
             navRow(
-                icon: "brain", title: "记忆",
+                icon: "memorychip", title: "记忆",
                 route: .agent(.memory)
             )
             navRow(
@@ -468,8 +499,13 @@ struct SettingsView: View {
                 icon: "clock.arrow.2.circlepath", title: "定时任务",
                 route: .agent(.cron)
             )
+            // 0.24.0：服务端会话图标 bubble.left.and.
+            // text.bubble.right 是双泡宽字形——28pt 时
+            // 自然宽溢出 28 槽、压住行题（0.23.0 真机
+            // 图实证）；换单泡窄符号 bubble.left，槽
+            // 内宽恒小于槽宽、构造上不重叠
             navRow(
-                icon: "bubble.left.and.text.bubble.right", title: "服务端会话",
+                icon: "bubble.left", title: "服务端会话",
                 route: .agent(.serverSessions)
             )
             navRow(
@@ -561,8 +597,12 @@ struct SettingsView: View {
             // 0.4.0（§1.1）：主题体系废止，本行是「外
             // 观」（三档系统外观）；0.22.0 值位（当前档
             // 名）撤除——外观页内的勾选即其详情
+            // 0.24.0：外观图标 circle.lefthalf.filled
+            // （半实心）→sun.max（线性，与同列细线一
+            // 致；明暗双态语义弱化为亮度语义，取舍登
+            // 记 §51）
             navRow(
-                icon: "circle.lefthalf.filled", title: "外观",
+                icon: "sun.max", title: "外观",
                 route: .appearance
             )
         } header: {
@@ -647,12 +687,19 @@ struct SettingsView: View {
             // 墨色（槽宽 iconSlot 28 不变、对齐线不漂；
             // 字形密度由 RenderMeasureTests 在 28pt 复
             // 量把守）；0.20.0 的 24 让位
+            // 0.24.0（用户当日指令，口径变更）：字形
+            // 28→21 regular（令牌 settingsGlyphSize 同
+            // 改）落 HIG 符号带 20–22、与抽屉名单字形
+            // 同值；槽宽 iconSlot 28→30 且字形改槽内居
+            // 中——与抽屉同几何（槽 30＋间距 12＋居中），
+            // 两面图→字视觉间距自此一致；符号一律线性
+            // 非 fill 变体（换符号清单见 §51）
             .font(.system(
                 size: FrameworkIcon.settingsGlyphSize,
                 weight: .regular
             ))
             .foregroundStyle(color)
-            .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+            .frame(width: OneDayMetrics.iconSlot, alignment: .center)
             // 条 5（§14）：同行图标走光学偏移（0.3.0 只落
             // ContentRow，本页行于 0.3.2 补齐）
             .accessibilityHidden(true)
@@ -664,6 +711,8 @@ struct SettingsView: View {
     /// SectionLabel 三面统一（审计 S4）；字重由本页旧
     /// regular 归一为角色的 medium。List 的自定义
     /// View 头不走系统大写化通道
+    /// 0.24.0：角色改 Footnote 13 regular（苹果设置分
+    /// 区头同款），三面随角色同变
     private func settingsHeader(_ title: String) -> some View {
         Text(title)
             .font(.sectionLabel)
@@ -671,8 +720,9 @@ struct SettingsView: View {
             .textCase(nil)
     }
 
-    /// 导航行（共用行组件）：图标＋题（20 regular 单
-    /// 一字重），披露箭头由 NavigationLink 系统提供。
+    /// 导航行（共用行组件）：图标＋题（0.24.0 起
+    /// Body 17 regular，角色 rowTitleL），披露箭头由
+    /// NavigationLink 系统提供。
     /// 0.22.0（设置图实测规格）：**行尾值位整件撤除**
     /// ——参考图所有导航行只有题＋chevron，值一律进各
     /// 自详情页（档案名/计数摘要/模型名/用量读数同

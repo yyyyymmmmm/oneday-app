@@ -88,14 +88,16 @@ final class DisplayMappingTests: XCTestCase {
     // MARK: - 统一行规格与字重增补（补遗）
 
     func testListRowSpecFrozen() {
-        XCTAssertEqual(ListRowSpec.iconSlotWidth, 28)
+        // 0.24.0：槽宽随全 App 统一 28→30、meta 随角
+        // 色改 Footnote 15→13（断言随规格改值、非删测）
+        XCTAssertEqual(ListRowSpec.iconSlotWidth, 30)
         XCTAssertEqual(ListRowSpec.minHeight, 56)
         XCTAssertEqual(ListRowSpec.sessionRowMinHeight, 57)
         XCTAssertEqual(ListRowSpec.titleSize, 17)
         // 0.23.0（审计 I1）：副题规格 13→15 升档（挂
         // 角色 rowSubtitle），本断言随规格改值、非删测
         XCTAssertEqual(ListRowSpec.subtitleSize, 15)
-        XCTAssertEqual(ListRowSpec.metaSize, 15)
+        XCTAssertEqual(ListRowSpec.metaSize, 13)
     }
 
     func testLocalThreadSubtitle() {
