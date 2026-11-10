@@ -193,7 +193,7 @@ struct SettingsView: View {
         case .serverSessionDetail(let id):
             ServerSessionDetailView(sessionID: id)
         case .mcp:
-            MCPView()
+            ConnectorsView()
         }
     }
 
@@ -517,8 +517,10 @@ struct SettingsView: View {
                 icon: "bubble.left", title: "服务端会话",
                 route: .agent(.serverSessions)
             )
+            // 0.28.0：原「MCP 连接」升级为连接器目录
+            // 页（已连接实查＋可连接目录），行题随改
             navRow(
-                icon: "cable.connector", title: "MCP 连接",
+                icon: "cable.connector", title: "连接器",
                 route: .agent(.mcp)
             )
         } header: {
