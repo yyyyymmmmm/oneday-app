@@ -154,7 +154,10 @@ struct ChatView: View {
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showPhotoPicker = false
     @State private var showCamera = false
-    @State private var showFileImporter = false
+    // 文件选择自 0.36.31 起走 UIKit 桥 Document-
+    // PickerBridge 命令式呈现，不再有 SwiftUI 呈现
+    // 状态（旧 showFileImporter 随 .fileImporter
+    // 一并退役，见 attachButton「选文件」项）
     /// 0.2.8 拆桥（DESIGN-V4 §12）：焦点不再经 @FocusState
     /// 把关——本状态只是 delegate 回调的观察回写（当前无
     /// 视图据它分支，留作事实通道）；程序化收起/聚焦经
@@ -428,13 +431,12 @@ struct ChatView: View {
             photoItems = []
             Task { await loadPickedPhotos(items) }
         }
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: true
-        ) { result in
-            loadPickedFiles(result)
-        }
+        // 0.36.31（件二）：.fileImporter 已删——侧载
+        // 设备类上其 coordinator 会死在被拆的呈现上
+        // 下文里、点「打开」无反应（诊断 file-picker-
+        // batch-diagnosis-20261111 定案）；文件选择
+        // 改由 DocumentPickerBridge 自顶层 VC 命令
+        // 式呈现，结果直喂 loadPickedFiles，不经本链
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker(
                 onImage: { data in
@@ -2546,6 +2548,12 @@ struct ChatView: View {
             // 定层是包装栈自身的 alignment 参数，修
             // 法见下方包装栈注与错题本 P-13；移出量测
             // 层本身保留（与生产构造同构、无回退理由）
+            // 0.36.31 续记：第五轮修法真机再证伪，第
+            // 六轮按呈报口径结构换代——条本体 Scroll-
+            // View＋HStack 整类退役、改 Attachment-
+            // FlowLayout 流式行（见 attachmentsStrip
+            // 注与错题本 P-13 续案六）；包装栈与分隔
+            // 线形态不动
             if !attachments.isEmpty {
                 // 0.36.29（P-13 第五轮定案）：条的横向位
                 // 置由本包装栈自身的 alignment 参数决
@@ -2566,15 +2574,17 @@ struct ChatView: View {
                         )
                 }
                 // 条内容只淡入淡出防闪现；高度变化由
-                // 卡根 .animation(attachments.isEmpty)
+                // 卡根 .animation(attachments.count)
                 // 的事务插值承接（见 composerCard 尾注）
                 .transition(.opacity)
             }
             composerRow
         }
-        // 条显隐的高度动画（0.36.26 §95）：条高只在
-        // 空↔非空之间变，键在 attachments.isEmpty
-        // 上——变化进动画事务后卡高（及安全区留白）
+        // 条显隐的高度动画（0.36.26 §95）：键原为
+        // attachments.isEmpty（条高只在空↔非空之间
+        // 变）；0.36.31 条改流式行多行化后，加/删筹
+        // 码改行数同样改变条高，键扩为 attachments.
+        // count——变化进动画事务后卡高（及安全区留白）
         // 同帧插值，不再靠 SmoothExpand 的实测回
         // 写；玻璃半径由卡层 onGeometryChange 的实
         // 测高连续函数逐帧跟随，无跳变源。动画令牌
@@ -2584,7 +2594,7 @@ struct ChatView: View {
             MotionTokens.resolved(
                 MotionTokens.swap, reduceMotion: reduceMotion
             ),
-            value: attachments.isEmpty
+            value: attachments.count
         )
         // 第 1 修（P0 键盘不弹）的聚焦保底层：整卡背景
         // 命中域内点按（文本区外的卡面空隙，含引用块
@@ -2919,7 +2929,12 @@ private struct ComposerBarLayout: Layout {
                 Label("相册选图", systemImage: "photo.on.rectangle")
             }
             Button {
-                showFileImporter = true
+                // 0.36.31（件二）：走 UIKit 桥呈现（桥
+                // 内延一拍避开本 Menu 的收起瞬间、回
+                // 调先 dismiss 再喂回 loadPickedFiles）
+                DocumentPickerBridge.present { urls in
+                    loadPickedFiles(urls: urls)
+                }
             } label: {
                 Label("选文件", systemImage: "doc")
             }
@@ -2945,25 +2960,28 @@ private struct ComposerBarLayout: Layout {
     }
 
     /// 待发附件条：图片出缩略图、文件出名牌，都可单独
-    /// 移除。0.36.26（§95）起链上零 frame：条已移出
-    /// SmoothExpand 直挂卡根 VStack（见 composer-
-    /// Card 注），满宽由 ScrollView 对根栈提议的默认
-    /// 贪婪获得、左起由内容横向 padding（spacingSM，
-    /// 与卡内引用块/分隔线同一起点）获得——0.36.19/
-    /// 0.36.23 两轮在此处与调用点叠的 .frame(max-
-    /// Width: .infinity, alignment: .leading) 补丁经
-    /// 调研裁决无效（提议在到达条之前已被量测层换
-    /// 成内容宽），本轮删尽，与两家生产构造同构
+    /// 移除。0.36.31（件一，P-13 第六轮结构换代）：
+    /// 本体自 ScrollView＋HStack 换为 Attachment-
+    /// FlowLayout 筹码流式行（OpenMuse 式）——左
+    /// 起逐个排、放不下换行、不滚动。五轮补丁（条
+    /// 内 frame／调用点 claim／移出量测层／包装栈
+    /// frame／包装栈 alignment）全灭于 ScrollView
+    /// 的量测与对齐纠缠，本轮整类退役该结构：Lay-
+    /// out 协议下筹码按理想尺寸自定位、左缘即条左
+    /// 缘，无滚动轴、无内容宽收缩、无栈对齐可乘之
+    /// 机。横向内边距 spacingSM（与卡内引用块/分
+    /// 隔线同一起点）、纵向 spacingXS 沿旧条口径
     private var attachmentsStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                ForEach(attachments) { attachment in
-                    attachmentChip(attachment)
-                }
+        AttachmentFlowLayout(
+            horizontalSpacing: OneDayMetrics.spacingS,
+            verticalSpacing: OneDayMetrics.spacingSM
+        ) {
+            ForEach(attachments) { attachment in
+                attachmentChip(attachment)
             }
-            .padding(.horizontal, OneDayMetrics.spacingSM)
-            .padding(.vertical, OneDayMetrics.spacingXS)
         }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, OneDayMetrics.spacingXS)
     }
 
     @ViewBuilder
@@ -3019,6 +3037,86 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
+    /// 附件筹码流式布局（0.36.31 件一）：左到右逐个
+    /// 排筹码、一行放不下换行，行高取该行最高筹码。
+    /// 排布算法与 StreamingText 的 TokenFlow 同构
+    /// （sizeThatFits 与 placeSubviews 共用一份
+    /// arrange，尺寸与落位不打架）；与 TokenFlow 的
+    /// 差别只在间距双值（横向/行距分开）与宽度口径
+    /// （认父级提议满宽——条在包装栈 .leading 下本
+    /// 就满宽，左起由排布本身保证，不靠任何对齐修
+    /// 饰）。筹码一律按理想尺寸落位（图片 54×54、
+    /// 文件名牌自然宽），落位提议 .unspecified 与
+    /// 旧 HStack 口径一致
+    private struct AttachmentFlowLayout: Layout {
+        /// 筹码横向间距（与旧 HStack spacing 同值）
+        var horizontalSpacing: CGFloat = OneDayMetrics.spacingS
+        /// 换行后的行距
+        var verticalSpacing: CGFloat = OneDayMetrics.spacingSM
+
+        private func arrange(
+            subviews: Subviews, width: CGFloat
+        ) -> (size: CGSize, origins: [CGPoint]) {
+            var origins: [CGPoint] = []
+            var x: CGFloat = 0
+            var y: CGFloat = 0
+            var lineHeight: CGFloat = 0
+            var maxX: CGFloat = 0
+            for subview in subviews {
+                let size = subview.sizeThatFits(.unspecified)
+                if x > 0, x + size.width > width {
+                    x = 0
+                    y += lineHeight + verticalSpacing
+                    lineHeight = 0
+                }
+                origins.append(CGPoint(x: x, y: y))
+                lineHeight = max(lineHeight, size.height)
+                x += size.width
+                maxX = max(maxX, x)
+                x += horizontalSpacing
+            }
+            return (
+                CGSize(width: maxX, height: y + lineHeight), origins
+            )
+        }
+
+        func sizeThatFits(
+            proposal: ProposedViewSize,
+            subviews: Subviews,
+            cache: inout ()
+        ) -> CGSize {
+            let arranged = arrange(
+                subviews: subviews,
+                width: proposal.width ?? .greatestFiniteMagnitude
+            )
+            // 宽度认父级提议（满宽）；提议未定宽时回
+            // 落内容宽（全部筹码单行排开的自然宽）
+            return CGSize(
+                width: proposal.width ?? arranged.size.width,
+                height: arranged.size.height
+            )
+        }
+
+        func placeSubviews(
+            in bounds: CGRect,
+            proposal: ProposedViewSize,
+            subviews: Subviews,
+            cache: inout ()
+        ) {
+            let result = arrange(subviews: subviews, width: bounds.width)
+            for (index, subview) in subviews.enumerated() {
+                let origin = result.origins[index]
+                subview.place(
+                    at: CGPoint(
+                        x: bounds.minX + origin.x,
+                        y: bounds.minY + origin.y
+                    ),
+                    proposal: .unspecified
+                )
+            }
+        }
+    }
+
     // MARK: - 附件接入
 
     /// 图片统一转 JPEG 再入列：data URL 的 mime 恒为
@@ -3032,9 +3130,11 @@ private struct ComposerBarLayout: Layout {
     }
 
     /// 多选批量加载（0.36.23）：按用户点选顺序逐个
-    /// 载入并 append，顺序不乱序；大小口径与文件路
-    /// 对齐——单张超 20MB 只报不收、不影响其余，超
-    /// 限张数汇总一条 notice 明示
+    /// 载入并 append，顺序不乱序；单张超 20MB 只报
+    /// 不收、不影响其余，超限张数汇总一条 notice
+    /// 明示（图片闸独立于文件路：图片走多模态 parts
+    /// 内嵌发送、不经文件上传契约，0.36.31 文件闸
+    /// 抬 100MB 不牵动本闸）
     private func loadPickedPhotos(_ items: [PhotosPickerItem]) async {
         var oversized = 0
         for item in items {
@@ -3051,44 +3151,60 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    private func loadPickedFiles(_ result: Result<[URL], Error>) {
-        // 0.36.29（题 C①）：本函数所有出口必须有声
-        // ——原首行 guard 把 .failure 静默吞掉，是
-        // 「选了文件没反应」的定案断点（选 iCloud
-        // 未下载文件/第三方云盘提供方出错时，系统
-        // completion 回 Error 而非 URL）；failure
-        // 出人话 notice＋错误原文落诊断面，success
-        // 空数组同理出声，不许再留无声出口
-        switch result {
-        case .failure(let error):
-            notice = "这个文件没能读取，可能还在云端未下载到本机，请先在「文件」App 里把它下载到本机再选。"
-            ChatDiagTrace.record(
-                "选文件 failure：\(error.localizedDescription) \(error)"
-            )
+    /// 文件接入（0.36.31 件二＋件三重写）：入参自
+    /// UIKit 桥 DocumentPickerBridge（asCopy 副本
+    /// URL，落在 App 容器内——旧 .fileImporter 路
+    /// 的安全作用域起停配对随桥退役，本函数直读）。
+    /// 逐个先查 fileSize 再读数据：超限不整份读入
+    /// 内存（旧链先读 82.8MB 才判闸）；被拒文件
+    /// （超限/读失败）由 Core FileIntake 汇总点名
+    /// 一条 notice，不再逐个写、后写覆盖先写只剩
+    /// 最后一个名。大小闸 20MB → 100MB 与服务端
+    /// 托管上传契约对齐（file-upload-contract-
+    /// 20261111：解码后上限 100MiB）。出口有声口
+    /// 径（P-18）保留：空数组明示、读失败点名汇总
+    /// 并落诊断面
+    private func loadPickedFiles(urls: [URL]) {
+        guard !urls.isEmpty else {
+            notice = "没有选到文件，未加入待发列表。"
             return
-        case .success(let urls):
-            guard !urls.isEmpty else {
-                notice = "没有选到文件，未加入待发列表。"
-                return
+        }
+        var oversized: [String] = []
+        var unreadable: [String] = []
+        for url in urls {
+            let name = url.lastPathComponent
+            let declaredSize = (try? url.resourceValues(
+                forKeys: [.fileSizeKey]
+            ))?.fileSize
+            if FileIntake.sizeVerdict(declaredSize: declaredSize)
+                == .tooLarge {
+                oversized.append(name)
+                continue
             }
-            for url in urls {
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer {
-                    if scoped { url.stopAccessingSecurityScopedResource() }
-                }
-                guard let data = try? Data(contentsOf: url) else {
-                    notice = "读取「\(url.lastPathComponent)」失败，未加入待发列表。"
-                    continue
-                }
-                // 待发上限 20MB：超限只报不收，不静默截断
-                guard data.count <= 20 * 1024 * 1024 else {
-                    notice = "「\(url.lastPathComponent)」超过 20MB，未加入待发列表。"
-                    continue
-                }
-                attachments.append(
-                    PendingAttachment(kind: .file(name: url.lastPathComponent, data: data))
-                )
+            guard let data = try? Data(contentsOf: url) else {
+                unreadable.append(name)
+                continue
             }
+            // 大小查不到（.unknownSize）时以实读字节
+            // 兜底二次判，同闸值
+            guard !FileIntake.isOversized(byteCount: data.count) else {
+                oversized.append(name)
+                continue
+            }
+            attachments.append(
+                PendingAttachment(kind: .file(name: name, data: data))
+            )
+        }
+        if !unreadable.isEmpty {
+            ChatDiagTrace.record(
+                "选文件读取失败 \(unreadable.count) 个："
+                    + unreadable.joined(separator: "、")
+            )
+        }
+        if let summary = FileIntake.rejectionNotice(
+            oversized: oversized, unreadable: unreadable
+        ) {
+            notice = summary
         }
     }
 

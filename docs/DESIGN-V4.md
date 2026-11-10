@@ -7426,3 +7426,36 @@ def greet(name):
 - **归属变化（新旧规则双复刻回对账表逐条验证）**：恰 **7 条**频道→系统——run_ 5 条（run_4ba38fe2…／run_2e593f5f…／run_152c80fc…／run_3792cfd2…／run_9a824d76…，对账明细 #42–46）＋api_ 2 条（api_1794331033_cd758152／api_1794331381_df931abd，#52–53）；其余 47 条归属不动，local 收紧对存量零变化。新口径总量：主线 1／合并桶 2／我的对话 4／系统运行 **26**／Hermes 频道 **21**。晨报/点子今后以 run_ 形新铸的会话自此直入系统段、不再往频道添条。
 - **钉测**：`SessionClassificationTests` 29 → **33 法**（+4：run_ 判系统／api_ 判系统／连字符与下划线不串／local 回落判系统含 R2 例外同钉）；全包单测预期 976 → **980**，本机无 Swift 工具链、终判等合并后 CI。
 - **真机复验补一条**（并入 99.7 口径）：全部对话页开「显示系统运行」——系统段应见 run_ 晨报/点子/验收运行条；Hermes 频道名单不再含 run_/api_ 机器条（21 条口径）。
+
+## §100 热修包二号 0.36.31/98：附件条结构换代＋文件选择器换 UIKit 桥＋文件接入预检（2026-11-11，插队包）
+
+版本五处同改 0.36.31/98＋grep 验（Project.swift 四处＋设置页脚）。诊断依据两份：`attachment-tray-round5-diagnosis-20261111.md`（P-13 五轮史，0.36.29 第五轮修法真机再证伪后立项）与 `file-picker-batch-diagnosis-20261111.md`（「点打开没有反应」外部核查置顶：LunWhale/minis-open 同形生产修复＋公认修法序；次节为逐文件/整批语义核查）。本包三件：附件条不再给 ScrollView 结构打补丁、整类换代；文件选择器弃 SwiftUI `.fileImporter` 换 UIKit 桥；文件接入链配套预检与汇总点名。
+
+### 100.1 件一·附件条结构换代（P-13 第六轮）
+
+- **退役**：`attachmentsStrip` 本体 ScrollView(.horizontal)＋HStack 删尽——五轮补丁（0.36.19 条内 frame／0.36.23 调用点 claim／0.36.26 移出量测层／0.36.28 包装栈 frame claim／0.36.29 包装栈 alignment）全灭，真机居中分毫未动；ScrollView 的量测/对齐纠缠整类随结构退役，不再有第六次在同一结构上挪修饰符。
+- **新结构**：新 `AttachmentFlowLayout: Layout`（ChatView 内私有，与 StreamingText 的 TokenFlow 同构：sizeThatFits 与 placeSubviews 共用一份 arrange）——左起逐个排筹码、一行放不下换行、不滚动；筹码按理想尺寸自定位，左缘即条左缘，无滚动轴、无内容宽收缩、无栈对齐可乘之机。宽度认父级提议（满宽），提议未定宽回落单行内容宽。间距：横向 spacingS（与旧 HStack spacing 同值）、行距 spacingSM；条的横向内边距 spacingSM（与引用块/分隔线同一起点）、纵向 spacingXS 沿旧口径不变。
+- **筹码零改动**：`attachmentChip` 本体一字未动——图片 54×54、文件胶囊外观、✕ 删除钮与 44 命中域/offset 补偿口径全沿现行；落位提议 .unspecified 与旧 HStack 一致。
+- **包装层保留**：条＋分隔线的包装 VStack(alignment: .leading) 与分隔线形态不动（第五轮落点保留为层级卫生，不再单独承重）。
+- **动画键扩**：卡根高度动画键自 `attachments.isEmpty` 扩为 `attachments.count`——流式行多行化后，加/删筹码改行数同样改变条高，须同进 MotionTokens.swap 事务插值；空↔非空仍是其中一档，原口径不回退。
+
+### 100.2 件二·文件选择器换 UIKit 桥（新文件 DocumentPickerBridge.swift）
+
+- **病灶**（诊断定案，等级高）：SwiftUI `.fileImporter` 在侧载设备类上 picker 呈现在正被拆毁的呈现上下文上、coordinator 已死、delegate 永不触发——勾选（Files 远程进程内 UI）照常、点「打开」（向宿主提交）无声、不关闭无结果无报错，与本机真机逐字同形（外部生产实证 LunWhale/minis-open e13e4b1：reported across TrollStore / Sideloadly / Xcode installs）。本仓接线再叠一层：Menu 动作同步置位、零延拍，与 Menu 收起同拍撞车。
+- **桥形态**（照公认修法①全套）：`UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: true)`、`allowsMultipleSelection = true`；自当前最顶层 VC（沿 presentedViewController 链）呈现，绕开 SwiftUI coordinator；Coordinator 静态强持有到 picker 关闭（选定/取消回调内释放）；present 延一拍（Task @MainActor，避开 Menu 收起瞬间，minis-open DeferredPresentation 同口径）；didPick 回调先 dismiss 再把 URL 数组喂回 `loadPickedFiles(urls:)`。
+- **删净**：ChatView 的 `.fileImporter` 修饰与 `@State showFileImporter` 一并删除（grep 验仅剩注释提及）；菜单「选文件」项改调桥。相册（.photosPicker）/拍照（CameraPicker）两路本轮不动——外部实证中该项目两路靠延拍即稳、本仓两路真机亦无此报。
+- **asCopy 口径**：副本落在 App 临时区、属本 App 容器，读取无需安全作用域——旧链 `startAccessingSecurityScopedResource` 起停配对随之退役，`loadPickedFiles` 直读（注释已注）。取消路径无声收尾（用户主动取消非失败出口，P-18 有声口径不辖）。
+
+### 100.3 件三·处理链配套（Core FileIntake＋loadPickedFiles 重写）
+
+- **先查后读**：逐文件先 `resourceValues([.fileSizeKey])` 预检，超限免整份读入（旧链先把 82.8MB 整份读进内存才判闸、且在主线程同步执行）；预检取不到大小（`.unknownSize`）放行读入、读后以实字节同闸二次判。
+- **闸值对齐**：App 侧单文件闸 20MB → **100MB**，与服务端托管上传契约对齐（file-upload-contract-20261111：POST /api/files/upload 解码后上限 100MiB 常量 `_MANAGED_FILE_MAX_BYTES`）。图片路 20MB 闸不动（图片走多模态 parts 内嵌、不经该契约，注释已注分工）。
+- **汇总点名**：被拒（超限/读失败）不再逐个写 notice 互相覆盖只剩最后一个名——Core `FileIntake.rejectionNotice` 拼装：两类各成一句、名单 1 个直名/2 个并列/3+ 取前两名＋「等 N 个文件」；读失败另落 ChatDiagTrace 一条汇总（个数＋全名）。出口有声口径（P-18）保留：空数组明示。
+- **Core 化与钉测**：新文件 `Sources/OneDayCore/FileIntake.swift`（`maxFileBytes`、`sizeVerdict(declaredSize:)`、`isOversized(byteCount:)`、`rejectionNotice(oversized:unreadable:)`）；新测 `FileIntakeTests` **13 法**（闸边界恰等/超一字节、nil 未知、零与小文件、实读二次判边界、汇总文案六形：空→nil／单超限／双超限／三超限折叠计数／单读失败／多读失败折叠／混合两句）。全包单测预期 980 → **993**，本机无 Swift 工具链、终判等合并后 CI。
+
+### 100.4 真机复验清单
+
+1. 附件条：挂 1 图贴左（起点与引用块左缘对齐）；挂 3 图同行左起；挂 8+ 图/多文件换行成多行、不横滚、行距均匀；删中间一张行列重排无跳位残影；文件宽牌同验贴左。
+2. 选文件：附件菜单「选文件」点开选择器（呈现不卡 Menu 收起）、勾选后点「打开」——选择器关闭、文件入条；取消则无声返回、无 notice。
+3. 大文件：选 >20MB 且 ≤100MB 的文件（如既往 82.8MB apk）应成功入条并可真发送；选 >100MB 文件被拒且 notice 点名；多选混合（正常＋超限＋云端未下载）时正常文件入条、被拒的汇总点名全员有账。
+4. 回归：相册选图多选、拍照两路如常；引用块、发送舱高度动画（加/删附件时卡高平滑）如常。
