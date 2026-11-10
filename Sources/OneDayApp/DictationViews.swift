@@ -28,6 +28,15 @@ struct DictationBar: View {
                 volatileTailLength: controller.volatileLength,
                 placeholderText: "正在聆听…"
             )
+            // 实时诊断行（0.36.13 呈现修正，用户 22:26
+            // 录屏实证）：诊断串旧只挂失败行与预备页，
+            // 录音成功时用户根本看不见——挂到录音条本
+            // 体、文本行下方：录音中随波形刷新读最新落
+            // 盘串（选引擎/首草稿/首定稿各打点更新），
+            // 用户录着就能截图定案。caption 级弱化色、
+            // 不抢主行；这是诊断脚手架，定案后可移除
+            // （DESIGN-V4 §78 注记）
+            DictationLiveDiagnosticLine()
             if controller.showSilenceHint,
                controller.phase == .recording {
                 Text("还没听到声音，把手机拿近一点试试")
@@ -252,6 +261,11 @@ struct DictationPrepSheet: View {
 /// locale＋草稿/定稿计数）——「实时不出字」下次录
 /// 屏截一张图即可读出：实际跑的哪个引擎、草稿到
 /// 底到没到（vol＞0）还是全程只有定稿（vol＝0）
+/// 0.36.13：串内加四格（预设/sup/inst/avail，见
+/// DictationController 仪表四格注）；同批新增录音
+/// 条上的实时版 DictationLiveDiagnosticLine（录
+/// 音成功时本行不在场，用户看不见——22:26 录屏
+/// 实证后补）
 struct DictationStageDiagnosticLine: View {
     var body: some View {
         Text("诊断信息 · 上次语音停在："
@@ -259,6 +273,33 @@ struct DictationStageDiagnosticLine: View {
             + diagSuffix)
             .font(.caption2)
             .foregroundStyle(Palette.inkSecondary)
+    }
+
+    private var diagSuffix: String {
+        guard let diag = DictationController.lastDiagSnapshot
+        else { return "" }
+        return "｜" + diag
+    }
+}
+
+/// 录音条上的实时诊断行（0.36.13 呈现修正）：与
+/// DictationStageDiagnosticLine 读同一对快照（末阶
+/// 段＋诊断串，0.36.13 串内含四格），差别只在场合
+/// 与措辞——那边是事后回看（「上次停在」）、这边是
+/// 录音进行时：录音条随波形逐帧重算、每次重算都
+/// 读最新落盘值，打点一更新（选引擎/首草稿/首定
+/// 稿）行内即跟变，用户录着截一张图就是定案材料。
+/// 居中、caption2 弱化色，与无声提示行同档。诊断
+/// 脚手架：定案后可随 DESIGN-V4 §78 注记整行移除
+struct DictationLiveDiagnosticLine: View {
+    var body: some View {
+        Text("诊断 · "
+            + (DictationController.lastStageSnapshot ?? "暂无记录")
+            + diagSuffix)
+            .font(.caption2)
+            .foregroundStyle(Palette.inkSecondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .accessibilityHidden(true)
     }
 
     private var diagSuffix: String {

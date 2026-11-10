@@ -100,15 +100,28 @@ public enum ModelCatalog {
     }
 }
 
-/// 身份胶囊模型菜单的行布局真源（0.36.4，用户 18:48
-/// 点名）：每行预留等宽对号槽——选中行槽内显 ✓、未
-/// 选行槽留空，模型名由此同列对齐。旧形态只有选中
-/// 行带 Label(checkmark)、未选行是裸 Text，名字起
-/// 点随有无对号漂移一列宽、两行不对齐。数值由
-/// ModelCatalogTests 钉死防回潮。
-public enum ModelMenuSpec {
-    /// 对号槽宽（每行恒占位，与有无对号无关）
-    public static let checkmarkSlotWidth: CGFloat = 18
-    /// 对号槽与模型名之间的间距
-    public static let checkmarkSlotSpacing: CGFloat = 6
+/// 模型菜单「哪行带勾」的语义真源（0.36.13）：菜单
+/// 本体自本版改系统 Picker 承载、勾由系统绘制（诊
+/// 断 model-menu-checkmark-diagnosis：0.36.4 的等宽
+/// 对号槽＋.opacity 藏勾形态在 Menu→UIKit 转换时透
+/// 明度被剥掉、每行图标原样提取，双勾同显；苹果反
+/// 馈 FB16679936 与社区核查一致——菜单带勾正道只
+/// 有 Toggle/Picker）。本函数是勾的判定口径：选中
+/// 值在清单内才有勾且恒一勾；已下线/未知 id、空串、
+/// nil 一律零勾。视图层只消费它喂 Picker 的
+/// selection，渲染通道本身（系统画勾）单测钉不住、
+/// 验收靠真机展开菜单看一勾（见 DESIGN-V4 §78）。
+/// 0.36.4 的 ModelMenuSpec（对号槽宽/间距常数）随
+/// opacity 形态一并退役——槽已无消费者。
+public enum ModelMenuSelection {
+    /// 当前应带勾的模型 id：selected 命中清单才返
+    /// 回它本身，否则 nil（零勾）
+    public static func checkedID(
+        itemIDs: [String], selected: String?
+    ) -> String? {
+        guard let selected, !selected.isEmpty,
+              itemIDs.contains(selected)
+        else { return nil }
+        return selected
+    }
 }

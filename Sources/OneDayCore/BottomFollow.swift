@@ -91,3 +91,60 @@ public struct StreamFollowGate: Equatable {
         followedCount = 0
     }
 }
+
+/// 最后一个渲染项的滚动目标 id（0.36.13，诊断
+/// chat-bottom-geometry §2.3 事实路堵洞）：回底钮的
+/// 事实信号「最后一条已可见」旧实现拿条目数组的末
+/// 条 id 去比可见集——但渲染经成组分流：末条若是
+/// ≥2 条连续工具条目组的成员，该组的滚动目标 id
+/// 是组首条 id，contains(末条 id) 永假、事实信号恒
+/// 报离底。本函数按与渲染同构的成组规则算目标 id：
+/// 末条非工具条目→其本身；末条在尾部工具连段内→
+/// 连段长 ≥2 取连段首条、连段长 1 取其本身；空数
+/// 组→nil。视图层把条目映射成 EntryStub（id＋是否
+/// 工具卡）后只消费本函数，判定口径单点钉死。
+public enum LastScrollTarget {
+    /// 条目的最小投影：判定只需要 id 与是否工具卡
+    public struct EntryStub: Equatable {
+        public let id: UUID
+        public let isToolCard: Bool
+
+        public init(id: UUID, isToolCard: Bool) {
+            self.id = id
+            self.isToolCard = isToolCard
+        }
+    }
+
+    public static func lastScrollTargetID(
+        entries: [EntryStub]
+    ) -> UUID? {
+        guard let last = entries.last else { return nil }
+        guard last.isToolCard else { return last.id }
+        // 尾部工具连段的起点：自末条向前走完连续的
+        // 工具条目——连段即渲染层的最后一个成组单元
+        var runStart = entries.count - 1
+        while runStart > 0, entries[runStart - 1].isToolCard {
+            runStart -= 1
+        }
+        let runLength = entries.count - runStart
+        return runLength >= 2 ? entries[runStart].id : last.id
+    }
+}
+
+/// 贴底落定复贴判定（0.36.13，诊断 chat-bottom-
+/// geometry 修法 1）：LazyVStack 的程式化贴底按估
+/// 算总高落点、单发无收尾，长线程落点离真底可差
+/// 数十 pt。修法是贴底后一拍复核实测距底：仍大于
+/// 本阈值才再贴一次（尾部行在第一贴后已被量实、
+/// 第二贴落点才准——vellum PR #30693 的量实原理）。
+/// 阈值取小：正常落定误差（尾锚 1＋栈底 padding 8
+/// ＋contentMargins 8 ≈17pt）不触发复贴，估算误差
+/// （实测 ≈57pt 起）必触发。
+public enum BottomSettle {
+    /// 复贴触发的实测距底阈值（pt）：大于才补贴
+    public static let restickThreshold: CGFloat = 24
+
+    public static func shouldRestick(distance: CGFloat) -> Bool {
+        distance > restickThreshold
+    }
+}

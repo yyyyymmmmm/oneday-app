@@ -123,6 +123,19 @@ struct ChatView: View {
     /// LazyVStack 估算总高、长线程可驻留迟滞带，事
     /// 实信号是它的纠偏源
     @State private var lastEntryVisible = false
+    /// 最近一次可见集（0.36.13，诊断 chat-bottom-
+    /// geometry §2.3 堵洞 3）：旧实现只在可见集变化
+    /// 时顺带算 lastEntryVisible，末条落盘后可见集
+    /// 不再变则持旧值、无复核时机。本状态存下最近
+    /// 可见集，条目数变化时由 refreshLastEntryVisible
+    /// 用存量集主动重算
+    @State private var lastVisibleEntryIDs: Set<UUID> = []
+    /// 最近一次实测距底（0.36.13，修法 1 落定复贴）：
+    /// 与 isNearBottom 同出 onScrollGeometryChange
+    /// 一路——迟滞判定消费它之外，原始读数另存一份
+    /// 喂贴底后的复核（仍 >24pt 才补贴，Core
+    /// BottomSettle 钉死）
+    @State private var lastBottomDistance: CGFloat = 0
     /// 流式跟随滚动节流闸（0.4.2，§27）：OneDayCore
     /// 纯逻辑记账，每 ≥40 字放行一次无动画贴底；流结
     /// 束与切换线程时归零（见 messageList 的 onChange）
@@ -826,30 +839,27 @@ struct ChatView: View {
     /// 带勾；选择走 AppState.selectChatModel（本地持久化
     /// ＋逐请求 provider=custom，会话锁机制不变）。Menu
     /// 是系统件：呈现、勾选、关闭全走系统行为。
-    /// 0.36.4（用户 18:48 点名）：行布局改等宽对号槽
-    /// ——每行同构（槽＋名），选中才在槽内显 ✓、未选
-    /// 留空，模型名同列对齐；旧形态选中行 Label 带勾、
-    /// 未选行裸 Text，名字起点随有无对号漂移一列。
-    /// 槽宽真源 ModelMenuSpec（Core 钉测）。
+    /// 0.36.13（用户 22:11 真机双勾，诊断 model-menu-
+    /// checkmark-diagnosis）：菜单改系统 Picker 承载
+    /// （同外观页虚拟形象大小的既有形态）——0.36.4 的
+    /// 等宽对号槽＋.opacity 藏勾在 Menu→UIKit 转换时
+    /// 透明度被剥掉、每行对勾图标原样提取，双勾同显；
+    /// 状态与生效链本无恙（判定单源 chatModel、点谁真
+    /// 走谁），坏的只是自绘勾的渲染通道。改 Picker 后
+    /// 勾由系统绘制、单选互斥由 UIKit 保证（苹果反馈
+    /// FB16679936：菜单带勾正道只有 Toggle/Picker；
+    /// 外部核查 community-solutions-check 第 1 题一
+    /// 致）。「哪行带勾」的语义口径收进 Core 的
+    /// ModelMenuSelection.checkedID 钉测：喂 Picker
+    /// 的 selection 先经它过——清单内才有勾、未知 id
+    /// 零勾；渲染通道本身单测钉不住，验收靠真机展开
+    /// 菜单看一勾（DESIGN-V4 §78）。ModelMenuSpec
+    /// 对号槽常数随旧形态退役。
     private var modelMenu: some View {
         Menu {
-            ForEach(ChatModels.items, id: \.id) { item in
-                Button {
-                    appState.selectChatModel(item.id)
-                } label: {
-                    HStack(
-                        spacing: ModelMenuSpec.checkmarkSlotSpacing
-                    ) {
-                        Image(systemName: "checkmark")
-                            .opacity(
-                                appState.chatModel == item.id ? 1 : 0
-                            )
-                            .frame(
-                                width: ModelMenuSpec
-                                    .checkmarkSlotWidth
-                            )
-                        Text(item.displayName)
-                    }
+            Picker("模型", selection: chatModelPickerBinding) {
+                ForEach(ChatModels.items, id: \.id) { item in
+                    Text(item.displayName).tag(item.id)
                 }
             }
         } label: {
@@ -869,6 +879,23 @@ struct ChatView: View {
             .contentShape(Rectangle())
         }
         .accessibilityLabel("当前模型 \(displayModelName)，切换模型")
+    }
+
+    /// 模型 Picker 的 selection 桥（0.36.13）：读经
+    /// Core 判定口径过一遍（清单外 id 不喂给 Picker
+    /// 冒充有勾——回退原值时无任何行命中、零勾，与
+    /// checkedID 的零勾语义同口径）；写直达唯一写入
+    /// 口 selectChatModel，不动 AppState/发送链
+    private var chatModelPickerBinding: Binding<String> {
+        Binding(
+            get: {
+                ModelMenuSelection.checkedID(
+                    itemIDs: ChatModels.items.map(\.id),
+                    selected: appState.chatModel
+                ) ?? appState.chatModel
+            },
+            set: { appState.selectChatModel($0) }
+        )
     }
 
     /// 底部发送区（0.2.6 起由消息列表的安全区承载、不
@@ -1383,6 +1410,15 @@ struct ChatView: View {
             // 全出血，见彼处注）
             bottomBar(proxy)
         }
+        // 初始落位兜底（0.36.13，外部核查 community-
+        // solutions-check 第 2 题吸收 vellum PR #21760）：
+        // 声明式锚只管内容首次布局的落点——命令式
+        // scrollTo 在新内容量实前触发会落错位置，无锚
+        // 兜底时首帧可停在顶部。与 scrollTo 不冲突（锚
+        // 只定初始位、后续滚动全归命令式与 .task 定版
+        // 链）；键盘升起/流式跟随的落点误差不归它管、
+        // 仍以 scrollToBottom 的落定复贴为主治
+        .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
         // 距底距离回写（0.4.2，§27）：判定改迟滞双阈值
         // （OneDayCore.BottomProximity：进入 <96／退出
@@ -1395,6 +1431,9 @@ struct ChatView: View {
             geometry.contentSize.height - geometry.contentOffset.y
                 - geometry.containerSize.height
         } action: { _, distance in
+            // 0.36.13：原始读数另存一份喂落定复贴复核
+            // （见 lastBottomDistance 注）
+            lastBottomDistance = distance
             isNearBottom = BottomProximity.update(
                 distance: distance, wasNearBottom: isNearBottom
             )
@@ -1418,6 +1457,11 @@ struct ChatView: View {
             if isNearBottom {
                 scrollToBottom(proxy, animated: false)
             }
+            // 0.36.13（诊断 §2.3 堵洞 3）：条目变化时用
+            // 存量可见集主动重算事实信号——末条刚落盘
+            // 而可见集未再变化时，旧实现持上一条的判定
+            // 不动，钮显隐可长期错位
+            refreshLastEntryVisible()
         }
         // 0.7.0（M1 轻保活）：首个可见条目回写（UUID 型
         // id 只有消息条目持有，流式行/底部锚是字符串 id、
@@ -1426,13 +1470,16 @@ struct ChatView: View {
         // 后一条条目在不在可见集内（喂回底钮政策判定，
         // 见 topVisibleEntryID 同处与 BottomFollow-
         // Policy）；线程为空时恒 false
+        // 0.36.13（诊断 §2.3 堵洞 1＋3）：判定改查「最
+        // 后一个渲染项的滚动目标 id」（Core LastScroll-
+        // Target，与渲染成组同构——末条在工具组内时目
+        // 标是组首条，旧实现拿末条 id 比可见集永假）；
+        // 可见集先存档，事实信号由 refreshLastEntry-
+        // Visible 单点算（可见集变化与条目变化两路共用）
         .onScrollTargetVisibilityChange(idType: UUID.self) { ids in
             topVisibleEntryID = ids.first
-            if let lastID = currentThread?.sortedEntries.last?.id {
-                lastEntryVisible = ids.contains(lastID)
-            } else {
-                lastEntryVisible = false
-            }
+            lastVisibleEntryIDs = Set(ids)
+            refreshLastEntryVisible()
         }
         // 0.36.5（审计 bug 1）：发送贴底——send() 落盘
         // 且链接成功后递增令牌，本处执行三步：置真跟
@@ -1468,6 +1515,11 @@ struct ChatView: View {
                     for: oldID
                 )
             }
+            // 0.36.13：可见集与事实信号是上一线程的家
+            // 当——切入先清零，新线程的可见性回调随布
+            // 局落定自会重填，不拿旧集判新线程的末条
+            lastVisibleEntryIDs = []
+            lastEntryVisible = false
             guard let newID,
                   let anchor = appState.sideChats.scrollAnchor(for: newID)
             else { return }
@@ -1561,14 +1613,63 @@ struct ChatView: View {
         }
     }
 
+    /// 事实信号单点重算（0.36.13，诊断 chat-bottom-
+    /// geometry §2.3）：以最后一个渲染项的滚动目标
+    /// id（Core LastScrollTarget，与 entryRenderItems
+    /// 的成组规则同构）查存量可见集——可见集变化与
+    /// 条目数变化两路都经此一处，判定口径不再分叉；
+    /// 线程为空/无条目恒 false
+    private func refreshLastEntryVisible() {
+        guard let entries = currentThread?.sortedEntries,
+              let lastID = LastScrollTarget.lastScrollTargetID(
+                  entries: entries.map {
+                      LastScrollTarget.EntryStub(
+                          id: $0.id, isToolCard: $0.toolCard != nil
+                      )
+                  }
+              )
+        else {
+            lastEntryVisible = false
+            return
+        }
+        lastEntryVisible = lastVisibleEntryIDs.contains(lastID)
+    }
+
     /// 滚到底部锚点。animated=true 只给人发起的滚动
     /// （回到底部钮、键盘锚底）：走页面过渡曲线滑过
     /// 去；内容跟随（新条目落地、流式生长）必须
     /// animated=false 一步贴合当前底部——0.4.2 定因：
     /// 带动画的 scrollTo 追逐随内容生长不断移动的锚
     /// 点，是划到底抖动的主因（§27）
+    /// 0.36.13（诊断修法 1，落定复贴收口）：一切出口
+    /// 在贴底后一拍（120ms，与发送路径既有复贴同
+    /// 延迟）复核实测距底——LazyVStack 按估算总高落
+    /// 点、尾行未量实时落点离真底可差数十 pt；一拍
+    /// 后尾行已被量实，距底仍 >24pt（Core Bottom-
+    /// Settle）才以无动画再贴一次（只贴一次、不成
+    /// 环）。键盘锚底、条目/流式跟随、发送贴底、线
+    /// 程恢复、首屏定版全经此一处收口受益；线程在
+    /// 等待间隙被切走则作废
     private func scrollToBottom(
         _ proxy: ScrollViewProxy, animated: Bool = true
+    ) {
+        performScrollToBottom(proxy, animated: animated)
+        let pinnedThreadID = currentThreadID
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard currentThreadID == pinnedThreadID else { return }
+            guard BottomSettle.shouldRestick(
+                distance: lastBottomDistance
+            ) else { return }
+            performScrollToBottom(proxy, animated: false)
+        }
+    }
+
+    /// 贴底本体（不带复核）：scrollToBottom 的首贴与
+    /// 复贴共用，复贴不经 scrollToBottom 以免自触发
+    /// 再复核成环
+    private func performScrollToBottom(
+        _ proxy: ScrollViewProxy, animated: Bool
     ) {
         if animated {
             withAnimation(

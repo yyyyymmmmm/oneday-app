@@ -135,4 +135,107 @@ final class BottomFollowTests: XCTestCase {
         XCTAssertFalse(gate.shouldFollow(currentCount: 39))
         XCTAssertTrue(gate.shouldFollow(currentCount: 40))
     }
+
+    // MARK: - 迟滞锁死序列（0.36.13，诊断 chat-bottom-geometry §2.2）
+
+    func testProximityLatchSequenceStaysOffUntilBelowEnter() {
+        // 真机驻留回路的钉死：一次 ≥176 的估算读数把
+        // 判定打翻后，静止点回到迟滞带内（140）仍不
+        // 恢复——必须回到进入阈值（<96）之下才复位。
+        // 本序列同时是护栏：修法 1（落定复贴）落地后
+        // 不许顺手改动迟滞语义去「治」这个驻留
+        var near = true
+        near = BottomProximity.update(distance: 200, wasNearBottom: near)
+        XCTAssertFalse(near)
+        near = BottomProximity.update(distance: 140, wasNearBottom: near)
+        XCTAssertFalse(near)
+        near = BottomProximity.update(distance: 95, wasNearBottom: near)
+        XCTAssertTrue(near)
+    }
+
+    // MARK: - 最后渲染项滚动目标（0.36.13，诊断 §2.3 事实路堵洞）
+
+    private func stub(
+        _ id: UUID, tool: Bool = false
+    ) -> LastScrollTarget.EntryStub {
+        LastScrollTarget.EntryStub(id: id, isToolCard: tool)
+    }
+
+    func testLastScrollTargetWhenLastIsText() {
+        let a = UUID(), b = UUID(), c = UUID()
+        // 末条为文本：目标就是末条本身（含前方有工
+        // 具组也不影响——组不在尾部）
+        XCTAssertEqual(
+            LastScrollTarget.lastScrollTargetID(
+                entries: [stub(a), stub(b, tool: true),
+                          stub(UUID(), tool: true), stub(c)]
+            ),
+            c
+        )
+        XCTAssertEqual(
+            LastScrollTarget.lastScrollTargetID(entries: [stub(a)]),
+            a
+        )
+    }
+
+    func testLastScrollTargetWhenLastIsSingleTool() {
+        let a = UUID(), b = UUID()
+        // 末条为单个工具条目（连段长 1、不成组）：
+        // 渲染走 .entry 原路、目标仍是其本身
+        XCTAssertEqual(
+            LastScrollTarget.lastScrollTargetID(
+                entries: [stub(a), stub(b, tool: true)]
+            ),
+            b
+        )
+    }
+
+    func testLastScrollTargetWhenLastIsInToolGroup() {
+        let a = UUID(), g1 = UUID(), g2 = UUID(), g3 = UUID()
+        // 末条在 ≥2 工具组内：目标是组首条——旧实现
+        // 拿末条 id 比可见集永假的病灶钉在此
+        XCTAssertEqual(
+            LastScrollTarget.lastScrollTargetID(
+                entries: [stub(a), stub(g1, tool: true),
+                          stub(g2, tool: true)]
+            ),
+            g1
+        )
+        XCTAssertEqual(
+            LastScrollTarget.lastScrollTargetID(
+                entries: [stub(g1, tool: true), stub(g2, tool: true),
+                          stub(g3, tool: true)]
+            ),
+            g1
+        )
+        // 工具组不在尾部时不越界：其后有文本则目标
+        // 是该文本（由上一组用例覆盖，此处钉组后单
+        // 工具的边界——连段被文本截断后重新起算）
+        XCTAssertEqual(
+            LastScrollTarget.lastScrollTargetID(
+                entries: [stub(g1, tool: true), stub(g2, tool: true),
+                          stub(a), stub(g3, tool: true)]
+            ),
+            g3
+        )
+    }
+
+    func testLastScrollTargetWhenEmpty() {
+        XCTAssertNil(
+            LastScrollTarget.lastScrollTargetID(entries: [])
+        )
+    }
+
+    // MARK: - 落定复贴阈值（0.36.13，诊断修法 1）
+
+    func testBottomSettleRestickThreshold() {
+        // 正常落定误差（尾锚＋padding＋边距 ≈17pt）
+        // 不触发；阈值本值不触发（严格大于）；估算误
+        // 差量级（57pt）必触发；橡皮筋负距不触发
+        XCTAssertFalse(BottomSettle.shouldRestick(distance: 17))
+        XCTAssertFalse(BottomSettle.shouldRestick(distance: 24))
+        XCTAssertTrue(BottomSettle.shouldRestick(distance: 25))
+        XCTAssertTrue(BottomSettle.shouldRestick(distance: 57))
+        XCTAssertFalse(BottomSettle.shouldRestick(distance: -10))
+    }
 }

@@ -104,8 +104,10 @@ final class DictationController {
     /// 阶段面包屑落盘键（0.36.8，诊断 §5.4）：闪退后
     /// 读末阶段即知死点，不再靠猜
     private static let lastStageKey = "dictation.lastStage"
-    /// 诊断串落盘键（0.36.12）：引擎种类＋规范化
-    /// locale＋结果分型计数，与末阶段同走诊断行上屏
+    /// 诊断串落盘键（0.36.12；0.36.13 扩四格）：引
+    /// 擎种类＋规范化 locale＋实际预设＋locale/资产
+    /// 实查＋isAvailable 原值＋结果分型计数，与末阶
+    /// 段同走诊断行上屏
     private static let diagKey = "dictation.lastDiag"
     private static let log = Logger(
         subsystem: "site.didichou.oneday", category: "dictation")
@@ -122,14 +124,46 @@ final class DictationController {
     @ObservationIgnored
     private var diagLocaleID = ""
 
-    /// 诊断串打点（0.36.12）：把「实际在跑哪个引擎、
-    /// 语言规范化成什么、草稿/定稿各到几条」一行落
-    /// 盘＋日志。调用点克制（选引擎、首条草稿、首条
-    /// 定稿、收尾各一次），不在每条结果上写盘
+    /// 仪表四格（0.36.13，DESIGN-V4 §77.6 外部核查
+    /// 增补）：①实际生效的预设名（回退＝所构造的
+    /// DictationTranscriber 预设；主引擎＝其
+    /// reportingOptions 构成）②supportedLocales 对
+    /// 当前 locale 的实查布尔 ③installedLocales 实
+    /// 查布尔 ④SpeechTranscriber.isAvailable 原值。
+    /// 选引擎时落账、markDiag 随串上诊断行——四格齐
+    /// 后 engine=main 且 vol=0 才许定案（1b「模块天
+    /// 生节奏」说已作废，见 §77.6）。未落账（选引擎
+    /// 前）为 nil、串中整段不出
+    @ObservationIgnored
+    private var diagPresetName = ""
+    @ObservationIgnored
+    private var diagSupportedLocale: Bool?
+    @ObservationIgnored
+    private var diagInstalledLocale: Bool?
+    @ObservationIgnored
+    private var diagTranscriberAvailable: Bool?
+
+    /// 诊断串打点（0.36.12；0.36.13 扩四格）：把「实
+    /// 际在跑哪个引擎、语言规范化成什么、预设与
+    /// locale/资产实查如何、草稿/定稿各到几条」一
+    /// 行落盘＋日志。调用点克制（选引擎、首条草稿、
+    /// 首条定稿、收尾各一次），不在每条结果上写盘
     private func markDiag() {
         let engine = usedFallbackEngine ? "fallback" : "main"
-        let text = "engine=\(engine)(\(diagLocaleID))"
-            + " vol=\(volatileResultCount)"
+        var text = "engine=\(engine)(\(diagLocaleID))"
+        if !diagPresetName.isEmpty {
+            text += " preset=\(diagPresetName)"
+        }
+        if let diagSupportedLocale {
+            text += " sup=\(diagSupportedLocale)"
+        }
+        if let diagInstalledLocale {
+            text += " inst=\(diagInstalledLocale)"
+        }
+        if let diagTranscriberAvailable {
+            text += " avail=\(diagTranscriberAvailable)"
+        }
+        text += " vol=\(volatileResultCount)"
             + " fin=\(finalResultCount)"
         Self.log.info("diag=\(text, privacy: .public)")
         defaults.set(text, forKey: Self.diagKey)
@@ -387,13 +421,24 @@ final class DictationController {
         volatileResultCount = 0
         finalResultCount = 0
         diagLocaleID = language.localeIdentifier
+        // 仪表四格归零（0.36.13）：与计数同口径归本
+        // 尝试，选引擎落账前串中整段不出
+        diagPresetName = ""
+        diagSupportedLocale = nil
+        diagInstalledLocale = nil
+        diagTranscriberAvailable = nil
+        // 四格之④先行落账：isAvailable 原值必须在守
+        // 卫消费前取值——先取原值存好，守卫用的是同
+        // 一个值，诊断串读到的才是守卫真正看到的
+        let transcriberAvailable = SpeechTranscriber.isAvailable
+        diagTranscriberAvailable = transcriberAvailable
         // 1) 选模块并规范化语言（locale 必须经
         // supportedLocale 规范化——苹果工程师口径）
         var speechModule: (any SpeechModule)?
         var transcriber: SpeechTranscriber?
         var dictation: DictationTranscriber?
         if !useFallback {
-            guard SpeechTranscriber.isAvailable else { return .unavailable }
+            guard transcriberAvailable else { return .unavailable }
             var locale = await SpeechTranscriber.supportedLocale(
                 equivalentTo: Locale(identifier: language.localeIdentifier)
             )
@@ -416,6 +461,18 @@ final class DictationController {
             )
             transcriber = module
             speechModule = module
+            // 四格之①②③（主引擎）：预设记 reporting-
+            // Options 构成（与上方构造逐字同值）；②③
+            // 对规范化后的 locale 查 SpeechTranscriber
+            // 的支持/已装清单原表——inst 是资产下载前
+            // 的选引擎时刻快照，正是定案要的时点
+            diagPresetName = "rep:volatileResults"
+            diagSupportedLocale =
+                await SpeechTranscriber.supportedLocales
+                    .contains { $0.identifier == locale.identifier }
+            diagInstalledLocale =
+                await SpeechTranscriber.installedLocales
+                    .contains { $0.identifier == locale.identifier }
         } else {
             let module = DictationTranscriber(
                 locale: Locale(identifier: language.localeIdentifier),
@@ -423,15 +480,28 @@ final class DictationController {
             )
             dictation = module
             speechModule = module
+            // 四格之①②③（回退引擎）：预设记所构造的
+            // 档位名；②③仍查 SpeechTranscriber 的清
+            // 单（对请求的 locale）——回退为何发生，主
+            // 引擎侧的支持/资产状态正是要留的账
+            diagPresetName = "progressiveLongDictation"
+            let requestedID = language.localeIdentifier
+            diagSupportedLocale =
+                await SpeechTranscriber.supportedLocales
+                    .contains { $0.identifier == requestedID }
+            diagInstalledLocale =
+                await SpeechTranscriber.installedLocales
+                    .contains { $0.identifier == requestedID }
         }
         guard let module = speechModule else { return .unavailable }
         let modules: [any SpeechModule] = [module]
         startupFault = false
         markStage("moduleBuilt")
-        // 选引擎打点（0.36.12）：引擎种类＋规范化
-        // locale 在此定格落盘——回退引擎静默在跑自此
-        // 可见（旧实现 usedFallbackEngine 只赋值、无
-        // 任何消费点，用户与诊断都无从知道）
+        // 选引擎打点（0.36.12；0.36.13 扩四格）：引擎
+        // 种类＋规范化 locale＋四格在此定格落盘——回
+        // 退引擎静默在跑自此可见（旧实现 usedFallback-
+        // Engine 只赋值、无任何消费点，用户与诊断都
+        // 无从知道）
         markDiag()
 
         // 2) 语言资产：未装先下载（准备中相位带进度）
