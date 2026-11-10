@@ -324,38 +324,38 @@ final class LedgerModelsTests: XCTestCase {
     // MARK: - 人话映射
 
     func testStatusWords() {
-        XCTAssertEqual(LedgerText.statusWord(.queued), "排队中")
-        XCTAssertEqual(LedgerText.statusWord(.running), "进行中")
-        XCTAssertEqual(LedgerText.statusWord(.blockedApproval), "等待审批")
-        XCTAssertEqual(LedgerText.statusWord(.completed), "已完成")
-        XCTAssertEqual(LedgerText.statusWord(.failed), "失败")
-        XCTAssertEqual(LedgerText.statusWord(.cancelled), "已取消")
-        XCTAssertEqual(LedgerText.statusWord(.stale), "失联待核")
-        XCTAssertEqual(LedgerText.statusWord(.other("x")), "状态未知")
+        XCTAssertEqual(LedgerText.statusWord(.queued, locale: Locale(identifier: "zh-Hans")), "排队中")
+        XCTAssertEqual(LedgerText.statusWord(.running, locale: Locale(identifier: "zh-Hans")), "进行中")
+        XCTAssertEqual(LedgerText.statusWord(.blockedApproval, locale: Locale(identifier: "zh-Hans")), "等待审批")
+        XCTAssertEqual(LedgerText.statusWord(.completed, locale: Locale(identifier: "zh-Hans")), "已完成")
+        XCTAssertEqual(LedgerText.statusWord(.failed, locale: Locale(identifier: "zh-Hans")), "失败")
+        XCTAssertEqual(LedgerText.statusWord(.cancelled, locale: Locale(identifier: "zh-Hans")), "已取消")
+        XCTAssertEqual(LedgerText.statusWord(.stale, locale: Locale(identifier: "zh-Hans")), "失联待核")
+        XCTAssertEqual(LedgerText.statusWord(.other("x"), locale: Locale(identifier: "zh-Hans")), "状态未知")
     }
 
     func testKindSourceOriginWords() {
-        XCTAssertEqual(LedgerText.kindWord(.run), "对话运行")
-        XCTAssertEqual(LedgerText.kindWord(.kanban), "看板任务")
-        XCTAssertEqual(LedgerText.kindWord(.job), "定时作业")
-        XCTAssertEqual(LedgerText.kindWord(.approval), "审批")
-        XCTAssertEqual(LedgerText.kindWord(.device), "设备调用")
-        XCTAssertEqual(LedgerText.sourceWord(.app), "OneDay 发起")
-        XCTAssertEqual(LedgerText.sourceWord(.dashboard), "控制台")
-        XCTAssertEqual(LedgerText.sourceWord(.cron), "定时任务")
-        XCTAssertEqual(LedgerText.sourceWord(.bridge), "自动作业")
-        XCTAssertEqual(LedgerText.originWord("reported"), "实时上报")
-        XCTAssertEqual(LedgerText.originWord("bridge_self"), "自动记录")
-        XCTAssertEqual(LedgerText.originWord("reconciled"), "对账补记")
+        XCTAssertEqual(LedgerText.kindWord(.run, locale: Locale(identifier: "zh-Hans")), "对话运行")
+        XCTAssertEqual(LedgerText.kindWord(.kanban, locale: Locale(identifier: "zh-Hans")), "看板任务")
+        XCTAssertEqual(LedgerText.kindWord(.job, locale: Locale(identifier: "zh-Hans")), "定时作业")
+        XCTAssertEqual(LedgerText.kindWord(.approval, locale: Locale(identifier: "zh-Hans")), "审批")
+        XCTAssertEqual(LedgerText.kindWord(.device, locale: Locale(identifier: "zh-Hans")), "设备调用")
+        XCTAssertEqual(LedgerText.sourceWord(.app, locale: Locale(identifier: "zh-Hans")), "OneDay 发起")
+        XCTAssertEqual(LedgerText.sourceWord(.dashboard, locale: Locale(identifier: "zh-Hans")), "控制台")
+        XCTAssertEqual(LedgerText.sourceWord(.cron, locale: Locale(identifier: "zh-Hans")), "定时任务")
+        XCTAssertEqual(LedgerText.sourceWord(.bridge, locale: Locale(identifier: "zh-Hans")), "自动作业")
+        XCTAssertEqual(LedgerText.originWord("reported", locale: Locale(identifier: "zh-Hans")), "实时上报")
+        XCTAssertEqual(LedgerText.originWord("bridge_self", locale: Locale(identifier: "zh-Hans")), "自动记录")
+        XCTAssertEqual(LedgerText.originWord("reconciled", locale: Locale(identifier: "zh-Hans")), "对账补记")
         XCTAssertEqual(
-            LedgerText.titleSourceWord("user_excerpt"), "你的原话"
+            LedgerText.titleSourceWord("user_excerpt", locale: Locale(identifier: "zh-Hans")), "你的原话"
         )
         XCTAssertEqual(
-            LedgerText.titleSourceWord("server_llm"), "智能标题"
+            LedgerText.titleSourceWord("server_llm", locale: Locale(identifier: "zh-Hans")), "智能标题"
         )
-        XCTAssertEqual(LedgerText.actorWord("collector"), "对账")
-        XCTAssertEqual(LedgerText.actorWord("app"), "App 上报")
-        XCTAssertEqual(LedgerText.actorWord(nil), "系统")
+        XCTAssertEqual(LedgerText.actorWord("collector", locale: Locale(identifier: "zh-Hans")), "对账")
+        XCTAssertEqual(LedgerText.actorWord("app", locale: Locale(identifier: "zh-Hans")), "App 上报")
+        XCTAssertEqual(LedgerText.actorWord(nil, locale: Locale(identifier: "zh-Hans")), "系统")
     }
 
     // MARK: - 已耗时格式
@@ -398,24 +398,24 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertNil(
             LedgerFreshness.live.note(
                 ledgerUpdatedAt: at, calendar: calendar
-            )
+            , locale: Locale(identifier: "zh-Hans"))
         )
         XCTAssertEqual(
             LedgerFreshness.lagging.note(
                 ledgerUpdatedAt: at, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "台账更新于 09:05"
         )
         XCTAssertEqual(
             LedgerFreshness.stalled.note(
                 ledgerUpdatedAt: at, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "台账已停更 · 最后更新 09:05"
         )
         XCTAssertEqual(
             LedgerFreshness.stalled.note(
                 ledgerUpdatedAt: nil, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "台账已停更"
         )
     }
@@ -461,7 +461,7 @@ final class LedgerModelsTests: XCTestCase {
         let groups = LedgerBoard.dayGroups(
             [todayItem, yesterdayItem],
             now: date(2026, 11, 10, 15, 0), calendar: calendar
-        )
+        , locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(groups.map(\.title), ["今天", "昨天"])
         XCTAssertEqual(groups[0].items.map(\.id), ["t"])
         XCTAssertEqual(groups[1].items.map(\.id), ["y"])
@@ -502,19 +502,19 @@ final class LedgerModelsTests: XCTestCase {
 
     func testHeaderText() {
         XCTAssertEqual(
-            LedgerBoard.headerText(inProgress: 0, blockedApproval: 0),
+            LedgerBoard.headerText(inProgress: 0, blockedApproval: 0, locale: Locale(identifier: "zh-Hans")),
             "现在没有进行中的工作"
         )
         XCTAssertEqual(
-            LedgerBoard.headerText(inProgress: 3, blockedApproval: 0),
+            LedgerBoard.headerText(inProgress: 3, blockedApproval: 0, locale: Locale(identifier: "zh-Hans")),
             "正在进行 3 件"
         )
         XCTAssertEqual(
-            LedgerBoard.headerText(inProgress: 3, blockedApproval: 2),
+            LedgerBoard.headerText(inProgress: 3, blockedApproval: 2, locale: Locale(identifier: "zh-Hans")),
             "正在进行 3 件 · 待审批 2 件"
         )
         XCTAssertEqual(
-            LedgerBoard.headerText(inProgress: 0, blockedApproval: 1),
+            LedgerBoard.headerText(inProgress: 0, blockedApproval: 1, locale: Locale(identifier: "zh-Hans")),
             "正在进行 0 件 · 待审批 1 件"
         )
     }
@@ -528,7 +528,7 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: item, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "进行中 · 已运行 2:13"
         )
     }
@@ -542,7 +542,7 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: item, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "进行中 · 已运行 10:00 · 最后确认 15:04:30"
         )
     }
@@ -552,7 +552,7 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: queued, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "排队中 · 已等 0:32"
         )
         let blocked = makeItem(
@@ -561,7 +561,7 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: blocked, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "等待审批 · 已等 2:13"
         )
     }
@@ -574,7 +574,7 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: item, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已完成 · 15:04"
         )
     }
@@ -587,14 +587,14 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: failed, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "失败 · 上游出错"
         )
         let bareFailed = makeItem(status: .failed, startedAt: now - 60)
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: bareFailed, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "失败"
         )
         let cancelled = makeItem(
@@ -604,7 +604,7 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: cancelled, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已取消 · 用户停止"
         )
     }
@@ -617,14 +617,14 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: item, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已失去联系 · 最后确认 14:58"
         )
         let noEvidence = makeItem(status: .stale, startedAt: now - 7200)
         XCTAssertEqual(
             LedgerBoard.subtitle(
                 for: noEvidence, serverNow: now, calendar: calendar
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已失去联系"
         )
     }
@@ -634,23 +634,23 @@ final class LedgerModelsTests: XCTestCase {
     func testDurationText() {
         let running = makeItem(status: .running, startedAt: now - 65)
         XCTAssertEqual(
-            LedgerBoard.durationText(for: running, serverNow: now),
+            LedgerBoard.durationText(for: running, serverNow: now, locale: Locale(identifier: "zh-Hans")),
             "已运行 1:05"
         )
         let done = makeItem(
             status: .completed, startedAt: 100, endedAt: 460
         )
         XCTAssertEqual(
-            LedgerBoard.durationText(for: done, serverNow: now),
+            LedgerBoard.durationText(for: done, serverNow: now, locale: Locale(identifier: "zh-Hans")),
             "用时 6:00"
         )
         let doneNoEnd = makeItem(status: .completed, startedAt: 100)
         XCTAssertNil(
-            LedgerBoard.durationText(for: doneNoEnd, serverNow: now)
+            LedgerBoard.durationText(for: doneNoEnd, serverNow: now, locale: Locale(identifier: "zh-Hans"))
         )
         let stale = makeItem(status: .stale, startedAt: 100)
         XCTAssertNil(
-            LedgerBoard.durationText(for: stale, serverNow: now)
+            LedgerBoard.durationText(for: stale, serverNow: now, locale: Locale(identifier: "zh-Hans"))
         )
     }
 }

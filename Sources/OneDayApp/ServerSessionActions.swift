@@ -16,7 +16,7 @@ enum ServerSessionActions {
     }
 
     private static func humanReason(_ error: Error) -> String {
-        (error as? HermesError)?.userMessage ?? "操作没完成，请稍后再试。"
+        (error as? HermesError)?.userMessage ?? L10n.string("操作没完成，请稍后再试。")
     }
 
     /// 改名：PATCH {title} → GET 对账 title 一字不差
@@ -35,7 +35,7 @@ enum ServerSessionActions {
             }
             return row.cleanedServerTitle == title
                 ? .verified
-                : .failed("改名未落定：服务端标题还没有变过来。")
+                : .failed(L10n.string("改名未落定：服务端标题还没有变过来。"))
         } catch {
             return .failed(humanReason(error))
         }
@@ -57,7 +57,7 @@ enum ServerSessionActions {
             }
             return row.isPinned == pinned
                 ? .verified
-                : .failed("置顶未落定：服务端状态还没有变过来。")
+                : .failed(L10n.string("置顶未落定：服务端状态还没有变过来。"))
         } catch {
             return .failed(humanReason(error))
         }
@@ -82,7 +82,7 @@ enum ServerSessionActions {
                 try await client.serverSession(config: config, id: id)
             }
             guard row.isArchived == archived else {
-                return .failed("归档未落定：服务端状态还没有变过来。")
+                return .failed(L10n.string("归档未落定：服务端状态还没有变过来。"))
             }
             if !archived {
                 appState.sideChats.unarchive(serverSessionID: id)
@@ -110,7 +110,7 @@ enum ServerSessionActions {
             _ = try await appState.performAdmin { client, config in
                 try await client.serverSession(config: config, id: id)
             }
-            return .failed("删除未落定：这条会话在服务端还在。")
+            return .failed(L10n.string("删除未落定：这条会话在服务端还在。"))
         } catch {
             return .verified
         }

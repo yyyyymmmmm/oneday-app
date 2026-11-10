@@ -83,7 +83,7 @@ final class LedgerStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
-            loadState = .failed("尚未连接服务器。")
+            loadState = .failed(L10n.string("尚未连接服务器。"))
             return
         }
         loadInFlight = true
@@ -99,7 +99,7 @@ final class LedgerStore {
             await handleLoadError(error, config: config)
         } catch {
             if loadState != .ready {
-                loadState = .failed("台账读取失败，请稍后重试。")
+                loadState = .failed(L10n.string("台账读取失败，请稍后重试。"))
             }
         }
     }
@@ -188,11 +188,11 @@ final class LedgerStore {
         switch error {
         case .noKey:
             loadState = .notLive(
-                "还没有可用的登录信息：台账用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
+                L10n.string("还没有可用的登录信息：台账用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。")
             )
         case .unauthorized:
             loadState = .notLive(
-                "服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。"
+                L10n.string("服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。")
             )
         case .bridgeMissing:
             // /ledger 读面不存在＝台账未上线（伴生旧版
@@ -208,7 +208,7 @@ final class LedgerStore {
             }
         case .recordGone:
             if loadState != .ready {
-                loadState = .failed("台账读取失败，请稍后重试。")
+                loadState = .failed(L10n.string("台账读取失败，请稍后重试。"))
             }
         case .failed(let message):
             if loadState != .ready {
@@ -224,13 +224,13 @@ final class LedgerStore {
         case .detected(let info):
             if let version = info.companionVersion,
                !version.isEmpty {
-                return "现在这台伴生服务是 \(version) 版，还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。"
+                return L10n.format("现在这台伴生服务是 %@ 版，还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。", version)
             }
-            return "伴生服务还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。"
+            return L10n.string("伴生服务还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。")
         case .missing:
-            return "还没有探测到带台账的伴生服务。台账上线后，这里会自动开始记录每件工作的进度。"
+            return L10n.string("还没有探测到带台账的伴生服务。台账上线后，这里会自动开始记录每件工作的进度。")
         case .unreadable, .unreachable, nil:
-            return "台账服务还没上线。上线后，这里会自动开始记录每件工作的进度。"
+            return L10n.string("台账服务还没上线。上线后，这里会自动开始记录每件工作的进度。")
         }
     }
 

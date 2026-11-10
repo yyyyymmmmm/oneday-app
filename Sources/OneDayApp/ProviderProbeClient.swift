@@ -24,13 +24,13 @@ final class ProviderProbeClient: @unchecked Sendable {
         var message: String {
             switch self {
             case .badURL:
-                return "接口地址不对，拼不出模型列表的地址。"
+                return L10n.string("接口地址不对，拼不出模型列表的地址。")
             case .rejected(let status):
-                return "对方拒绝了（\(status)），多半是密钥不对或没权限。"
+                return L10n.format("对方拒绝了（%@），多半是密钥不对或没权限。", String(status))
             case .unreachable:
-                return "连不上这家提供商，检查地址或稍后再试。"
+                return L10n.string("连不上这家提供商，检查地址或稍后再试。")
             case .emptyList:
-                return "连上了，但对方没返回任何模型；可以手动填模型名。"
+                return L10n.string("连上了，但对方没返回任何模型；可以手动填模型名。")
             }
         }
     }

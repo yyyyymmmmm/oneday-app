@@ -35,7 +35,7 @@ final class DeviceSyncTests: XCTestCase {
             "与伴生 DATASETS 逐字一致、序一致"
         )
         XCTAssertEqual(
-            DeviceSyncDataset.allCases.map(\.label),
+            DeviceSyncDataset.allCases.map { $0.label(locale: Locale(identifier: "zh-Hans")) },
             ["通讯录", "日历", "提醒事项", "照片", "步数"]
         )
         for dataset in DeviceSyncDataset.allCases {
@@ -642,13 +642,13 @@ final class DeviceSyncTests: XCTestCase {
         // 副题口径：一句说清副本/查副本/自动同步，
         // 不许带换行长成第二段
         XCTAssertFalse(
-            DeviceSyncPresentation.detailSubtitle.contains("\n")
+            DeviceSyncPresentation.detailSubtitle(locale: Locale(identifier: "zh-Hans")).contains("\n")
         )
         XCTAssertTrue(
-            DeviceSyncPresentation.detailSubtitle.contains("服务器")
+            DeviceSyncPresentation.detailSubtitle(locale: Locale(identifier: "zh-Hans")).contains("服务器")
         )
         XCTAssertTrue(
-            DeviceSyncPresentation.detailSubtitle.contains("自动同步")
+            DeviceSyncPresentation.detailSubtitle(locale: Locale(identifier: "zh-Hans")).contains("自动同步")
         )
     }
 

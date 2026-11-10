@@ -11,75 +11,89 @@ import Foundation
 
 public enum LedgerText {
     /// 七态人话（规格 §3.1 的界面词）
-    public static func statusWord(_ status: LedgerStatus) -> String {
+    public static func statusWord(
+        _ status: LedgerStatus, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch status {
-        case .queued: return "排队中"
-        case .running: return "进行中"
-        case .blockedApproval: return "等待审批"
-        case .completed: return "已完成"
-        case .failed: return "失败"
-        case .cancelled: return "已取消"
-        case .stale: return "失联待核"
-        case .other: return "状态未知"
+        case .queued: return L10n.string("排队中", locale: locale)
+        case .running: return L10n.string("进行中", locale: locale)
+        case .blockedApproval: return L10n.string("等待审批", locale: locale)
+        case .completed: return L10n.string("已完成", locale: locale)
+        case .failed: return L10n.string("失败", locale: locale)
+        case .cancelled: return L10n.string("已取消", locale: locale)
+        case .stale: return L10n.string("失联待核", locale: locale)
+        case .other: return L10n.string("状态未知", locale: locale)
         }
     }
 
     /// 类别人话（详情面用）
-    public static func kindWord(_ kind: LedgerKind) -> String {
+    public static func kindWord(
+        _ kind: LedgerKind, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch kind {
-        case .run: return "对话运行"
-        case .kanban: return "看板任务"
-        case .job: return "定时作业"
-        case .approval: return "审批"
-        case .device: return "设备调用"
-        case .other(let raw): return raw.isEmpty ? "其他" : raw
+        case .run: return L10n.string("对话运行", locale: locale)
+        case .kanban: return L10n.string("看板任务", locale: locale)
+        case .job: return L10n.string("定时作业", locale: locale)
+        case .approval: return L10n.string("审批", locale: locale)
+        case .device: return L10n.string("设备调用", locale: locale)
+        case .other(let raw):
+            return raw.isEmpty ? L10n.string("其他", locale: locale) : raw
         }
     }
 
     /// 来源人话（与现行活动段来源标同族口径）
-    public static func sourceWord(_ source: LedgerSource) -> String {
+    public static func sourceWord(
+        _ source: LedgerSource, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch source {
-        case .app: return "OneDay 发起"
-        case .dashboard: return "控制台"
-        case .cron: return "定时任务"
-        case .api: return "其他应用"
-        case .bridge: return "自动作业"
-        case .device: return "设备"
-        case .other(let raw): return raw.isEmpty ? "其他来源" : raw
+        case .app: return L10n.string("OneDay 发起", locale: locale)
+        case .dashboard: return L10n.string("控制台", locale: locale)
+        case .cron: return L10n.string("定时任务", locale: locale)
+        case .api: return L10n.string("其他应用", locale: locale)
+        case .bridge: return L10n.string("自动作业", locale: locale)
+        case .device: return L10n.string("设备", locale: locale)
+        case .other(let raw):
+            return raw.isEmpty ? L10n.string("其他来源", locale: locale) : raw
         }
     }
 
     /// 记账来源人话（origin 诚实位，详情可见；列表面
     /// 的「补记」小标判据在 LedgerItem.isReconciled）
-    public static func originWord(_ raw: String) -> String {
+    public static func originWord(
+        _ raw: String, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch raw {
-        case "reported": return "实时上报"
-        case "bridge_self": return "自动记录"
-        case "reconciled": return "对账补记"
+        case "reported": return L10n.string("实时上报", locale: locale)
+        case "bridge_self": return L10n.string("自动记录", locale: locale)
+        case "reconciled": return L10n.string("对账补记", locale: locale)
         default: return raw.isEmpty ? "—" : raw
         }
     }
 
     /// 标题来源人话（防编造审计位，详情可见）
-    public static func titleSourceWord(_ raw: String) -> String {
+    public static func titleSourceWord(
+        _ raw: String, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch raw {
-        case "server_llm": return "智能标题"
-        case "user_excerpt": return "你的原话"
-        case "job_name": return "作业名称"
-        case "task_title": return "任务原题"
-        case "record_excerpt": return "记录摘要"
-        case "fallback": return "自动命名"
+        case "server_llm": return L10n.string("智能标题", locale: locale)
+        case "user_excerpt": return L10n.string("你的原话", locale: locale)
+        case "job_name": return L10n.string("作业名称", locale: locale)
+        case "task_title": return L10n.string("任务原题", locale: locale)
+        case "record_excerpt": return L10n.string("记录摘要", locale: locale)
+        case "fallback": return L10n.string("自动命名", locale: locale)
         default: return raw.isEmpty ? "—" : raw
         }
     }
 
     /// 流水记录者人话（history.by）
-    public static func actorWord(_ raw: String?) -> String {
+    public static func actorWord(
+        _ raw: String?, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch raw {
-        case "app": return "App 上报"
-        case "collector": return "对账"
-        case "bridge": return "自动作业"
-        default: return raw ?? "系统"
+        case "app": return L10n.string("App 上报", locale: locale)
+        case "collector": return L10n.string("对账", locale: locale)
+        case "bridge": return L10n.string("自动作业", locale: locale)
+        default: return raw ?? L10n.string("系统", locale: locale)
         }
     }
 }
@@ -131,17 +145,28 @@ public enum LedgerFreshness: Equatable, Sendable {
     /// 新鲜度标注文案（live 无标注）；时刻取台账最后
     /// 入账时刻，缺失时只给状态词不编时刻
     public func note(
-        ledgerUpdatedAt: Double?, calendar: Calendar = .current
+        ledgerUpdatedAt: Double?, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String? {
         switch self {
         case .live:
             return nil
         case .lagging:
-            guard let at = ledgerUpdatedAt else { return "台账更新稍有延迟" }
-            return "台账更新于 \(LedgerClock.time(at, calendar: calendar))"
+            guard let at = ledgerUpdatedAt else {
+                return L10n.string("台账更新稍有延迟", locale: locale)
+            }
+            return L10n.format(
+                "台账更新于 %@", locale: locale,
+                LedgerClock.time(at, calendar: calendar)
+            )
         case .stalled:
-            guard let at = ledgerUpdatedAt else { return "台账已停更" }
-            return "台账已停更 · 最后更新 \(LedgerClock.time(at, calendar: calendar))"
+            guard let at = ledgerUpdatedAt else {
+                return L10n.string("台账已停更", locale: locale)
+            }
+            return L10n.format(
+                "台账已停更 · 最后更新 %@", locale: locale,
+                LedgerClock.time(at, calendar: calendar)
+            )
         }
     }
 }
@@ -223,13 +248,14 @@ public enum LedgerBoard {
     /// d日/yyyy年M月d日），不另立第二套日期口径
     public static func dayGroups(
         _ items: [LedgerItem], now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> [LedgerDayGroup] {
         var groups: [LedgerDayGroup] = []
         for item in items {
             let date = Date(timeIntervalSince1970: item.startedAt)
             let title = FeedBoard.groupTitle(
-                for: date, now: now, calendar: calendar
+                for: date, now: now, calendar: calendar, locale: locale
             )
             if let last = groups.last, last.title == title {
                 groups[groups.count - 1] = LedgerDayGroup(
@@ -268,14 +294,19 @@ public enum LedgerBoard {
     /// （M＝0 不显后半）；全静止时如实给「现在没有进行
     /// 中的工作」，不拿 0 件凑行
     public static func headerText(
-        inProgress: Int, blockedApproval: Int
+        inProgress: Int, blockedApproval: Int,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
         if inProgress == 0 && blockedApproval == 0 {
-            return "现在没有进行中的工作"
+            return L10n.string("现在没有进行中的工作", locale: locale)
         }
-        var text = "正在进行 \(inProgress) 件"
+        var text = L10n.format(
+            "正在进行 %@ 件", locale: locale, String(inProgress)
+        )
         if blockedApproval > 0 {
-            text += " · 待审批 \(blockedApproval) 件"
+            text += L10n.format(
+                " · 待审批 %@ 件", locale: locale, String(blockedApproval)
+            )
         }
         return text
     }
@@ -287,32 +318,51 @@ public enum LedgerBoard {
     /// 走 LedgerText 人话，原始枚举不进副题
     public static func subtitle(
         for item: LedgerItem, serverNow: Double,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
-        let word = LedgerText.statusWord(item.status)
+        let word = LedgerText.statusWord(item.status, locale: locale)
         switch item.status {
         case .running:
-            var text = "\(word) · 已运行 \(LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow)))"
+            var text = L10n.format(
+                "%@ · 已运行 %@", locale: locale, word,
+                LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow))
+            )
             if item.evidenceLagging, let at = item.lastEvidenceAt {
-                text += " · 最后确认 \(LedgerClock.timeWithSeconds(at, calendar: calendar))"
+                text += L10n.format(
+                    " · 最后确认 %@", locale: locale,
+                    LedgerClock.timeWithSeconds(at, calendar: calendar)
+                )
             }
             return text
         case .queued:
-            return "\(word) · 已等 \(LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow)))"
+            return L10n.format(
+                "%@ · 已等 %@", locale: locale, word,
+                LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow))
+            )
         case .blockedApproval:
-            return "\(word) · 已等 \(LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow)))"
+            return L10n.format(
+                "%@ · 已等 %@", locale: locale, word,
+                LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow))
+            )
         case .completed:
             guard let ended = item.endedAt else { return word }
-            return "\(word) · \(LedgerClock.time(ended, calendar: calendar))"
+            return L10n.format(
+                "%@ · %@", locale: locale, word,
+                LedgerClock.time(ended, calendar: calendar)
+            )
         case .failed, .cancelled:
             guard let category = item.failReason?.category,
                   !category.isEmpty else { return word }
-            return "\(word) · \(category)"
+            return L10n.format("%@ · %@", locale: locale, word, category)
         case .stale:
             guard let at = item.lastEvidenceAt else {
-                return "已失去联系"
+                return L10n.string("已失去联系", locale: locale)
             }
-            return "已失去联系 · 最后确认 \(LedgerClock.time(at, calendar: calendar))"
+            return L10n.format(
+                "已失去联系 · 最后确认 %@", locale: locale,
+                LedgerClock.time(at, calendar: calendar)
+            )
         case .other:
             return word
         }
@@ -322,16 +372,26 @@ public enum LedgerBoard {
     /// 总用时（起止同轴相减）；缺结束时刻的终态不编
     /// 时长、返回 nil 由视图不显该行
     public static func durationText(
-        for item: LedgerItem, serverNow: Double
+        for item: LedgerItem, serverNow: Double,
+        locale: Locale = AppLocale.uiLocale
     ) -> String? {
         switch item.status {
         case .running:
-            return "已运行 \(LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow)))"
+            return L10n.format(
+                "已运行 %@", locale: locale,
+                LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow))
+            )
         case .queued, .blockedApproval:
-            return "已等 \(LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow)))"
+            return L10n.format(
+                "已等 %@", locale: locale,
+                LedgerElapsed.format(seconds: LedgerElapsed.elapsed(startedAt: item.startedAt, serverNow: serverNow))
+            )
         case .completed, .failed, .cancelled:
             guard let ended = item.endedAt else { return nil }
-            return "用时 \(LedgerElapsed.format(seconds: ended - item.startedAt))"
+            return L10n.format(
+                "用时 %@", locale: locale,
+                LedgerElapsed.format(seconds: ended - item.startedAt)
+            )
         case .stale, .other:
             return nil
         }

@@ -59,33 +59,33 @@ final class ToolCardPresentationTests: XCTestCase {
 
     func testStatusLine() {
         XCTAssertEqual(
-            ToolCardPresentation.statusLine(of: card(result: nil)),
+            ToolCardPresentation.statusLine(of: card(result: nil), locale: Locale(identifier: "zh-Hans")),
             "进行中"
         )
         // 成功无输出：呈「（无输出）」，不画符号
         XCTAssertEqual(
-            ToolCardPresentation.statusLine(of: card(result: "---")),
+            ToolCardPresentation.statusLine(of: card(result: "---"), locale: Locale(identifier: "zh-Hans")),
             "（无输出）"
         )
         // 成功有输出：首行净化
         XCTAssertEqual(
             ToolCardPresentation.statusLine(
                 of: card(result: "done\n第二行")
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "done"
         )
         // 失败带原因首行（D3-9）
         XCTAssertEqual(
             ToolCardPresentation.statusLine(
                 of: card(result: "command not found", failed: true)
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "失败 · command not found"
         )
         // 失败且结果无意义：只剩「失败」
         XCTAssertEqual(
             ToolCardPresentation.statusLine(
                 of: card(result: "---", failed: true)
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "失败"
         )
         // 浏览器 Page 首行：只出 URL
@@ -95,7 +95,7 @@ final class ToolCardPresentationTests: XCTestCase {
                     result: "Page: Example Domain (https://example.com/)",
                     category: .browser
                 )
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "https://example.com/"
         )
     }
@@ -107,23 +107,23 @@ final class ToolCardPresentationTests: XCTestCase {
         let failed = card(result: "boom", failed: true)
         let running = card(result: nil)
         XCTAssertEqual(
-            ToolCardPresentation.groupHeader(cards: [done, done]),
+            ToolCardPresentation.groupHeader(cards: [done, done], locale: Locale(identifier: "zh-Hans")),
             "调用了 2 个工具 · 全部完成"
         )
         XCTAssertEqual(
             ToolCardPresentation.groupHeader(
                 cards: [done, failed, done]
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "调用了 3 个工具 · 1 个失败"
         )
         XCTAssertEqual(
             ToolCardPresentation.groupHeader(
                 cards: [running, failed, done]
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "调用了 3 个工具 · 1 个进行中 · 1 个失败"
         )
         XCTAssertEqual(
-            ToolCardPresentation.groupHeader(cards: [running, done]),
+            ToolCardPresentation.groupHeader(cards: [running, done], locale: Locale(identifier: "zh-Hans")),
             "调用了 2 个工具 · 1 个进行中"
         )
     }

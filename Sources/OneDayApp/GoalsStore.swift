@@ -57,7 +57,7 @@ final class GoalsStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
-            loadState = .failed("尚未连接服务器。")
+            loadState = .failed(L10n.string("尚未连接服务器。"))
             return
         }
         loadInFlight = true
@@ -70,7 +70,7 @@ final class GoalsStore {
             loadState = Self.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed("目标读取失败，请稍后重试。")
+            loadState = .failed(L10n.string("目标读取失败，请稍后重试。"))
         }
     }
 
@@ -86,16 +86,16 @@ final class GoalsStore {
         switch error {
         case .noKey:
             return .notConnected(
-                "还没有可用的登录信息：目标和点子用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
+                L10n.string("还没有可用的登录信息：目标和点子用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。")
             )
         case .unauthorized:
             return .notConnected(
-                "服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。"
+                L10n.string("服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。")
             )
         case .bridgeMissing:
-            return .notConnected("服务器上的数据桥还没有开通。")
+            return .notConnected(L10n.string("服务器上的数据桥还没有开通。"))
         case .recordGone:
-            return .failed("这条记录已经不在了，请刷新后重试。")
+            return .failed(L10n.string("这条记录已经不在了，请刷新后重试。"))
         case .failed(let message):
             return .failed(message)
         }
@@ -104,13 +104,13 @@ final class GoalsStore {
     static func message(for error: OneDayBridgeError) -> String {
         switch error {
         case .noKey:
-            return "数据桥未连接：还没有可用的登录信息。"
+            return L10n.string("数据桥未连接：还没有可用的登录信息。")
         case .unauthorized:
-            return "数据桥未连接：服务器拒绝了这次登录。"
+            return L10n.string("数据桥未连接：服务器拒绝了这次登录。")
         case .bridgeMissing:
-            return "服务器上的数据桥还没有开通。"
+            return L10n.string("服务器上的数据桥还没有开通。")
         case .recordGone:
-            return "这条记录已经不在了。"
+            return L10n.string("这条记录已经不在了。")
         case .failed(let message):
             return message
         }
@@ -125,7 +125,7 @@ final class GoalsStore {
     ) async -> Bool {
         guard !creating else { return false }
         guard let config = appState.config else {
-            createError = "尚未连接服务器。"
+            createError = L10n.string("尚未连接服务器。")
             return false
         }
         creating = true
@@ -143,13 +143,13 @@ final class GoalsStore {
             if goals.contains(where: { $0.id == created.id }) {
                 return true
             }
-            createError = "目标已提交，但还没有在列表里确认出现，请关闭后刷新核对。"
+            createError = L10n.string("目标已提交，但还没有在列表里确认出现，请关闭后刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             createError = Self.message(for: error)
             return false
         } catch {
-            createError = "目标创建失败，请稍后重试。"
+            createError = L10n.string("目标创建失败，请稍后重试。")
             return false
         }
     }
@@ -166,7 +166,7 @@ final class GoalsStore {
     ) async -> Bool {
         guard !actingIDs.contains(goalID) else { return false }
         guard let config = appState.config else {
-            notes[goalID] = "尚未连接服务器。"
+            notes[goalID] = L10n.string("尚未连接服务器。")
             return false
         }
         actingIDs.insert(goalID)
@@ -181,7 +181,7 @@ final class GoalsStore {
             )
             await refetch(appState: appState)
             guard let current = goal(id: goalID) else {
-                notes[goalID] = "保存已发出，但再确认时目标不见了，请刷新核对。"
+                notes[goalID] = L10n.string("保存已发出，但再确认时目标不见了，请刷新核对。")
                 return false
             }
             let confirmed = current.title == request.title
@@ -196,13 +196,13 @@ final class GoalsStore {
             if confirmed {
                 return true
             }
-            notes[goalID] = "保存已发出，但再确认时内容对不上，请刷新核对。"
+            notes[goalID] = L10n.string("保存已发出，但再确认时内容对不上，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = "保存失败，请稍后重试。"
+            notes[goalID] = L10n.string("保存失败，请稍后重试。")
             return false
         }
     }
@@ -212,7 +212,7 @@ final class GoalsStore {
     func delete(appState: AppState, goalID: String) async -> Bool {
         guard !actingIDs.contains(goalID) else { return false }
         guard let config = appState.config else {
-            notes[goalID] = "尚未连接服务器。"
+            notes[goalID] = L10n.string("尚未连接服务器。")
             return false
         }
         actingIDs.insert(goalID)
@@ -224,7 +224,7 @@ final class GoalsStore {
             if goal(id: goalID) == nil {
                 return true
             }
-            notes[goalID] = "删除已发出，但列表里还在，请刷新核对。"
+            notes[goalID] = L10n.string("删除已发出，但列表里还在，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             // 记录本就已不在＝删除目的已达（回读同口径）
@@ -235,7 +235,7 @@ final class GoalsStore {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = "删除失败，请稍后重试。"
+            notes[goalID] = L10n.string("删除失败，请稍后重试。")
             return false
         }
     }
@@ -250,7 +250,7 @@ final class GoalsStore {
     ) async -> Bool {
         guard !actingIDs.contains(goalID) else { return false }
         guard let config = appState.config else {
-            notes[goalID] = "尚未连接服务器。"
+            notes[goalID] = L10n.string("尚未连接服务器。")
             return false
         }
         actingIDs.insert(goalID)
@@ -262,7 +262,7 @@ final class GoalsStore {
             )
             await refetch(appState: appState)
             guard let current = goal(id: goalID) else {
-                notes[goalID] = "状态已提交，但再确认时目标不见了，请刷新核对。"
+                notes[goalID] = L10n.string("状态已提交，但再确认时目标不见了，请刷新核对。")
                 return false
             }
             let confirmed = current.status == status
@@ -272,13 +272,13 @@ final class GoalsStore {
             if confirmed {
                 return true
             }
-            notes[goalID] = "状态已提交，但再确认时对不上，请刷新核对。"
+            notes[goalID] = L10n.string("状态已提交，但再确认时对不上，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = "状态更新失败，请稍后重试。"
+            notes[goalID] = L10n.string("状态更新失败，请稍后重试。")
             return false
         }
     }
@@ -295,7 +295,7 @@ final class GoalsStore {
     ) async -> Bool {
         guard !actingIDs.contains(goalID) else { return false }
         guard let config = appState.config else {
-            notes[goalID] = "尚未连接服务器。"
+            notes[goalID] = L10n.string("尚未连接服务器。")
             return false
         }
         actingIDs.insert(goalID)
@@ -307,19 +307,19 @@ final class GoalsStore {
             )
             await refetch(appState: appState)
             guard let current = goal(id: goalID) else {
-                notes[goalID] = "分类已提交，但再确认时目标不见了，请刷新核对。"
+                notes[goalID] = L10n.string("分类已提交，但再确认时目标不见了，请刷新核对。")
                 return false
             }
             if current.category == category {
                 return true
             }
-            notes[goalID] = "分类已提交，但再确认时对不上，请刷新核对。"
+            notes[goalID] = L10n.string("分类已提交，但再确认时对不上，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = "分类更新失败，请稍后重试。"
+            notes[goalID] = L10n.string("分类更新失败，请稍后重试。")
             return false
         }
     }
@@ -405,7 +405,7 @@ final class GoalsStore {
     ) async -> Bool {
         guard !actingIDs.contains(goalID) else { return false }
         guard let config = appState.config else {
-            notes[goalID] = "尚未连接服务器。"
+            notes[goalID] = L10n.string("尚未连接服务器。")
             return false
         }
         actingIDs.insert(goalID)
@@ -425,13 +425,13 @@ final class GoalsStore {
             ) == true {
                 return true
             }
-            notes[goalID] = "进展已提交，但还没有在记录里确认出现，请刷新核对。"
+            notes[goalID] = L10n.string("进展已提交，但还没有在记录里确认出现，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = "记录进展失败，请稍后重试。"
+            notes[goalID] = L10n.string("记录进展失败，请稍后重试。")
             return false
         }
     }
@@ -450,7 +450,7 @@ final class GoalsStore {
     ) async -> Bool {
         guard !actingIDs.contains(goalID) else { return false }
         guard let config = appState.config else {
-            notes[goalID] = "尚未连接服务器。"
+            notes[goalID] = L10n.string("尚未连接服务器。")
             return false
         }
         actingIDs.insert(goalID)
@@ -460,13 +460,13 @@ final class GoalsStore {
         await kanban.load(appState: appState)
         switch kanban.loadState {
         case .notProvisioned:
-            notes[goalID] = "任务板未开通，暂时不能安排任务。"
+            notes[goalID] = L10n.string("任务板未开通，暂时不能安排任务。")
             return false
         case .failed(let message):
             notes[goalID] = message
             return false
         case .loading:
-            notes[goalID] = "任务板状态还没确认好，请稍后再试。"
+            notes[goalID] = L10n.string("任务板状态还没确认好，请稍后再试。")
             return false
         case .ready:
             break
@@ -480,7 +480,7 @@ final class GoalsStore {
         )
         guard let taskID else {
             notes[goalID] = kanban.createError
-                ?? "任务没有确认建成，请到枢纽任务段核对（聊天页点顶部胶囊打开）。"
+                ?? L10n.string("任务没有确认建成，请到枢纽任务段核对（聊天页点顶部胶囊打开）。")
             return false
         }
         do {
@@ -496,14 +496,14 @@ final class GoalsStore {
             ) == true {
                 return true
             }
-            notes[goalID] = "任务已建在任务板上，但与目标的关联回写后没确认上，请刷新核对。"
+            notes[goalID] = L10n.string("任务已建在任务板上，但与目标的关联回写后没确认上，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
-            notes[goalID] = "任务已建在任务板上，但关联回写失败："
+            notes[goalID] = L10n.string("任务已建在任务板上，但关联回写失败：")
                 + Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = "任务已建在任务板上，但关联回写失败，请刷新核对。"
+            notes[goalID] = L10n.string("任务已建在任务板上，但关联回写失败，请刷新核对。")
             return false
         }
     }
@@ -512,7 +512,7 @@ final class GoalsStore {
     /// 让任务板上单看这张卡也知道出处
     private func delegateBody(goalID: String) -> String {
         guard let goal = goal(id: goalID) else { return "" }
-        return "为目标《\(goal.title)》安排的一件事。"
+        return L10n.format("为目标《%@》安排的一件事。", goal.title)
     }
 
     /// 删一条进展纠错（DELETE→回读确认消失才算完成）
@@ -521,7 +521,7 @@ final class GoalsStore {
     ) async -> Bool {
         guard !actingIDs.contains(goalID) else { return false }
         guard let config = appState.config else {
-            notes[goalID] = "尚未连接服务器。"
+            notes[goalID] = L10n.string("尚未连接服务器。")
             return false
         }
         actingIDs.insert(goalID)
@@ -538,7 +538,7 @@ final class GoalsStore {
             ) != true {
                 return true
             }
-            notes[goalID] = "删除已发出，但记录里还在，请刷新核对。"
+            notes[goalID] = L10n.string("删除已发出，但记录里还在，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             if case .recordGone = error {
@@ -550,7 +550,7 @@ final class GoalsStore {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = "删除进展失败，请稍后重试。"
+            notes[goalID] = L10n.string("删除进展失败，请稍后重试。")
             return false
         }
     }

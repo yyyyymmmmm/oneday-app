@@ -79,12 +79,12 @@ final class DeviceBridgeClient: @unchecked Sendable {
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
         )
-        let (data, http) = try await send(request, endpoint: "注册设备会话")
-        try checkStatus(http, data: data, endpoint: "注册设备会话")
+        let (data, http) = try await send(request, endpoint: L10n.string("注册设备会话"))
+        try checkStatus(http, data: data, endpoint: L10n.string("注册设备会话"))
         do {
             return try decoder.decode(DeviceSessionGrant.self, from: data)
         } catch {
-            throw DeviceBridgeError.failed("注册回执格式无法识别")
+            throw DeviceBridgeError.failed(L10n.string("注册回执格式无法识别"))
         }
     }
 
@@ -103,9 +103,9 @@ final class DeviceBridgeClient: @unchecked Sendable {
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
         )
-        let (_, http) = try await send(request, endpoint: "设备心跳")
+        let (_, http) = try await send(request, endpoint: L10n.string("设备心跳"))
         if http.statusCode == 404 { return false }
-        try checkStatus(http, data: Data(), endpoint: "设备心跳")
+        try checkStatus(http, data: Data(), endpoint: L10n.string("设备心跳"))
         return true
     }
 
@@ -128,7 +128,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
             throw DeviceBridgeError.noKey
         }
         guard let url = components?.url else {
-            throw DeviceBridgeError.failed("轮询地址组装失败")
+            throw DeviceBridgeError.failed(L10n.string("轮询地址组装失败"))
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -136,19 +136,19 @@ final class DeviceBridgeClient: @unchecked Sendable {
             "Bearer \(key)", forHTTPHeaderField: "Authorization"
         )
         let (data, http) = try await send(
-            request, endpoint: "领取设备调用", using: pollSession
+            request, endpoint: L10n.string("领取设备调用"), using: pollSession
         )
         if http.statusCode == 409 {
             throw DeviceBridgeError.unknownSession
         }
-        try checkStatus(http, data: data, endpoint: "领取设备调用")
+        try checkStatus(http, data: data, endpoint: L10n.string("领取设备调用"))
         struct PollBody: Decodable {
             let call: DeviceIncomingCall?
         }
         do {
             return try decoder.decode(PollBody.self, from: data).call
         } catch {
-            throw DeviceBridgeError.failed("轮询回执格式无法识别")
+            throw DeviceBridgeError.failed(L10n.string("轮询回执格式无法识别"))
         }
     }
 
@@ -178,8 +178,8 @@ final class DeviceBridgeClient: @unchecked Sendable {
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
         )
-        let (data, http) = try await send(request, endpoint: "回执设备调用")
-        try checkStatus(http, data: data, endpoint: "回执设备调用")
+        let (data, http) = try await send(request, endpoint: L10n.string("回执设备调用"))
+        try checkStatus(http, data: data, endpoint: L10n.string("回执设备调用"))
     }
 
     /// POST /device/disconnect：尽力断开（退后台时调，
@@ -192,7 +192,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
         )
-        _ = try? await send(request, endpoint: "断开设备会话")
+        _ = try? await send(request, endpoint: L10n.string("断开设备会话"))
     }
 
     // MARK: - 同步通道（0.36.14，规格 §3.1）
@@ -221,7 +221,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         guard let object = try? JSONSerialization.jsonObject(
             with: data
         ) as? [String: Any] else {
-            throw DeviceBridgeError.failed("\(endpoint)回执格式无法识别")
+            throw DeviceBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
         }
         return object
     }
@@ -239,8 +239,8 @@ final class DeviceBridgeClient: @unchecked Sendable {
         request.setValue(
             "Bearer \(key)", forHTTPHeaderField: "Authorization"
         )
-        let (data, http) = try await send(request, endpoint: "读取同步状态")
-        try checkStatus(http, data: data, endpoint: "读取同步状态")
+        let (data, http) = try await send(request, endpoint: L10n.string("读取同步状态"))
+        try checkStatus(http, data: data, endpoint: L10n.string("读取同步状态"))
         return data
     }
 
@@ -260,7 +260,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         ]
         let out = try await postSync(
             config: config, path: "/device/sync/manifest",
-            body: body, endpoint: "通讯录清单比对"
+            body: body, endpoint: L10n.string("通讯录清单比对")
         )
         return (
             changed: out["changed_ids"] as? [String] ?? [],
@@ -286,7 +286,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         ]
         let out = try await postSync(
             config: config, path: "/device/sync/batch",
-            body: body, endpoint: "同步分批上传"
+            body: body, endpoint: L10n.string("同步分批上传")
         )
         return (out["received"] as? NSNumber)?.intValue ?? 0
     }
@@ -330,7 +330,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         }
         let out = try await postSync(
             config: config, path: "/device/sync/complete",
-            body: body, endpoint: "同步完成确认"
+            body: body, endpoint: L10n.string("同步完成确认")
         )
         return (
             totalInStore:
@@ -356,7 +356,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         if let rangeNote { body["rangeNote"] = rangeNote }
         let out = try await postSync(
             config: config, path: "/device/sync/state",
-            body: body, endpoint: "上报权限状态"
+            body: body, endpoint: L10n.string("上报权限状态")
         )
         return out["reimport_required"] as? Bool ?? false
     }
@@ -371,7 +371,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         if let dataset { body["dataset"] = dataset.bridgeName }
         let out = try await postSync(
             config: config, path: "/device/sync/delete",
-            body: body, endpoint: "删除同步副本"
+            body: body, endpoint: L10n.string("删除同步副本")
         )
         return out["deleted"] as? [String] ?? []
     }
@@ -413,7 +413,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
                 throw DeviceBridgeError.failed(body.error)
             }
             throw DeviceBridgeError.failed(
-                "\(endpoint)返回 \(http.statusCode)"
+                L10n.format("%@返回 %@", endpoint, String(http.statusCode))
             )
         }
     }
@@ -426,7 +426,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
             let (data, response) = try await (session ?? self.session)
                 .data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw DeviceBridgeError.failed("\(endpoint)无响应")
+                throw DeviceBridgeError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as DeviceBridgeError {
@@ -436,7 +436,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         } catch let error as URLError where error.code == .cancelled {
             throw CancellationError()
         } catch {
-            throw DeviceBridgeError.failed("\(endpoint)网络不可达")
+            throw DeviceBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

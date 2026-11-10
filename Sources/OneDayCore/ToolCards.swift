@@ -36,19 +36,24 @@ public enum ToolCardCategory: String, Codable, Sendable, CaseIterable {
     /// 题回落只许用它——英文短名只进详情，不上卡面
     /// （宪法 §8 零外文漏出）
     public var fallbackTitle: String {
+        fallbackTitle(locale: AppLocale.uiLocale)
+    }
+
+    /// 类名的目录取词形（0.42.1 国际化长尾包）
+    public func fallbackTitle(locale: Locale) -> String {
         switch self {
-        case .browser: return "浏览器操作"
-        case .desktop: return "电脑操作"
-        case .search: return "搜索查找"
-        case .file: return "文件操作"
-        case .terminal: return "运行命令"
-        case .memory: return "记忆操作"
-        case .skill: return "技能操作"
-        case .vision: return "看图分析"
-        case .task: return "任务操作"
-        case .connection: return "连接管理"
-        case .device: return "手机设备"
-        case .other: return "工具调用"
+        case .browser: return L10n.string("浏览器操作", locale: locale)
+        case .desktop: return L10n.string("电脑操作", locale: locale)
+        case .search: return L10n.string("搜索查找", locale: locale)
+        case .file: return L10n.string("文件操作", locale: locale)
+        case .terminal: return L10n.string("运行命令", locale: locale)
+        case .memory: return L10n.string("记忆操作", locale: locale)
+        case .skill: return L10n.string("技能操作", locale: locale)
+        case .vision: return L10n.string("看图分析", locale: locale)
+        case .task: return L10n.string("任务操作", locale: locale)
+        case .connection: return L10n.string("连接管理", locale: locale)
+        case .device: return L10n.string("手机设备", locale: locale)
+        case .other: return L10n.string("工具调用", locale: locale)
         }
     }
 }
@@ -178,68 +183,74 @@ public enum ToolCardClassifier {
     /// 动作从参数 operations 里取；未知回 nil，调用方
     /// 以 fallbackTitle（中文类名）兜底（0.36.10）
     public static func title(
-        forToolName name: String, arguments: String
+        forToolName name: String, arguments: String,
+        locale: Locale = AppLocale.uiLocale
     ) -> String? {
         let short = shortName(forToolName: name)
         let dict = ToolArguments.dictionary(from: arguments)
         switch short {
-        case "browser_navigate": return "打开网页"
+        case "browser_navigate": return L10n.string("打开网页", locale: locale)
         case "browser_back", "browser_forward", "browser_reload":
-            return "浏览器导航"
-        case "browser_click": return "点击页面"
-        case "browser_type": return "在页面输入"
+            return L10n.string("浏览器导航", locale: locale)
+        case "browser_click": return L10n.string("点击页面", locale: locale)
+        case "browser_type": return L10n.string("在页面输入", locale: locale)
         case "browser_snapshot", "browser_get_content",
              "browser_read", "browser_tabs":
-            return "读取页面"
-        case "box_status": return "查看云电脑状态"
-        case "box_list": return "查看云电脑"
-        case "screenshot", "computer_state": return "查看电脑画面"
-        case "computer_act": return "操作电脑"
-        case "box_view": return "打开电脑画面"
-        case "shell": return "在云电脑运行命令"
-        case "terminal": return "运行命令"
-        case "execute_code": return "运行代码"
-        case "vision_analyze": return "看图分析"
-        case "tool_search": return "查找工具"
-        case "manage_connections": return "管理连接"
-        case "device_status": return "查看设备状态"
-        case "calendar_list_events": return "查询日历日程"
-        case "calendar_create_event": return "新建日程"
-        case "calendar_update_event": return "修改日程"
-        case "reminders_list": return "查看提醒事项"
-        case "reminders_create": return "新建提醒"
-        case "reminders_complete": return "完成提醒"
-        case "contacts_search": return "查通讯录"
-        case "health_daily_summary": return "查看健康摘要"
-        case "home_status": return "查看家庭状态"
-        case "web_search": return "联网搜索"
-        case "tool_describe": return "查阅工具说明"
-        case "tool_call": return "调用工具"
-        case "read_file": return "读取文件"
-        case "write_file": return "写入文件"
-        case "kanban_complete": return "完成任务"
+            return L10n.string("读取页面", locale: locale)
+        case "box_status": return L10n.string("查看云电脑状态", locale: locale)
+        case "box_list": return L10n.string("查看云电脑", locale: locale)
+        case "screenshot", "computer_state":
+            return L10n.string("查看电脑画面", locale: locale)
+        case "computer_act": return L10n.string("操作电脑", locale: locale)
+        case "box_view": return L10n.string("打开电脑画面", locale: locale)
+        case "shell": return L10n.string("在云电脑运行命令", locale: locale)
+        case "terminal": return L10n.string("运行命令", locale: locale)
+        case "execute_code": return L10n.string("运行代码", locale: locale)
+        case "vision_analyze": return L10n.string("看图分析", locale: locale)
+        case "tool_search": return L10n.string("查找工具", locale: locale)
+        case "manage_connections": return L10n.string("管理连接", locale: locale)
+        case "device_status": return L10n.string("查看设备状态", locale: locale)
+        case "calendar_list_events": return L10n.string("查询日历日程", locale: locale)
+        case "calendar_create_event": return L10n.string("新建日程", locale: locale)
+        case "calendar_update_event": return L10n.string("修改日程", locale: locale)
+        case "reminders_list": return L10n.string("查看提醒事项", locale: locale)
+        case "reminders_create": return L10n.string("新建提醒", locale: locale)
+        case "reminders_complete": return L10n.string("完成提醒", locale: locale)
+        case "contacts_search": return L10n.string("查通讯录", locale: locale)
+        case "health_daily_summary": return L10n.string("查看健康摘要", locale: locale)
+        case "home_status": return L10n.string("查看家庭状态", locale: locale)
+        case "web_search": return L10n.string("联网搜索", locale: locale)
+        case "tool_describe": return L10n.string("查阅工具说明", locale: locale)
+        case "tool_call": return L10n.string("调用工具", locale: locale)
+        case "read_file": return L10n.string("读取文件", locale: locale)
+        case "write_file": return L10n.string("写入文件", locale: locale)
+        case "kanban_complete": return L10n.string("完成任务", locale: locale)
         case "memory":
             switch ToolArguments.string(
                 ToolArguments.firstOperation(dict), "action"
             ) {
-            case "add": return "写入记忆"
-            case "replace", "update": return "更新记忆"
-            case "remove", "delete": return "删除记忆"
-            case "search": return "查找记忆"
-            default: return "记忆操作"
+            case "add": return L10n.string("写入记忆", locale: locale)
+            case "replace", "update": return L10n.string("更新记忆", locale: locale)
+            case "remove", "delete": return L10n.string("删除记忆", locale: locale)
+            case "search": return L10n.string("查找记忆", locale: locale)
+            default: return L10n.string("记忆操作", locale: locale)
             }
         case "skill_manage":
             switch ToolArguments.string(
                 ToolArguments.firstOperation(dict), "action"
             ) {
-            case "create": return "新建技能"
-            case "update", "patch": return "更新技能"
-            case "delete", "remove": return "删除技能"
-            default: return "技能操作"
+            case "create": return L10n.string("新建技能", locale: locale)
+            case "update", "patch": return L10n.string("更新技能", locale: locale)
+            case "delete", "remove": return L10n.string("删除技能", locale: locale)
+            default: return L10n.string("技能操作", locale: locale)
             }
         default:
-            if short.hasPrefix("browser") { return "浏览器操作" }
-            if short.hasPrefix("kanban") { return "任务操作" }
+            if short.hasPrefix("browser") {
+                return L10n.string("浏览器操作", locale: locale)
+            }
+            if short.hasPrefix("kanban") {
+                return L10n.string("任务操作", locale: locale)
+            }
             return nil
         }
     }
@@ -247,8 +258,10 @@ public enum ToolCardClassifier {
     /// 标题回落（0.36.10，诊断 D3-3）：映射表与服务
     /// 端 label 都没有时，用分类的中文类名——英文短
     /// 名从此不上卡面（只进详情的「工具名」行）
-    public static func fallbackTitle(forToolName name: String) -> String {
-        category(forToolName: name).fallbackTitle
+    public static func fallbackTitle(
+        forToolName name: String, locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        category(forToolName: name).fallbackTitle(locale: locale)
     }
 
     /// 直播期摘要净化（0.36.10）：events 的 preview 原
@@ -261,7 +274,9 @@ public enum ToolCardClassifier {
     /// 行内以 ; ／ && ／ || 拼接多条命令时呈「N 条
     /// 命令 · 首条 …」，不整段直出（实拍事故：整串
     /// 复合命令上卡两行截断）。多行脚本仍只取首行
-    public static func commandSummary(_ command: String) -> String {
+    public static func commandSummary(
+        _ command: String, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         let firstLine = command
             .split(separator: "\n")
             .first.map(String.init) ?? ""
@@ -276,14 +291,17 @@ public enum ToolCardClassifier {
             return ToolArguments.truncate(firstLine)
         }
         return ToolArguments.truncate(
-            "\(segments.count) 条命令 · \(first)"
+            L10n.format(
+                "%lld 条命令 · %@", locale: locale, segments.count, first
+            )
         )
     }
 
     /// 关键参数摘要：按工具取最能说明「在干什么」的一个
     /// 字段；取不到给空串（卡面只剩标题，不编造）
     public static func summary(
-        forToolName name: String, arguments: String
+        forToolName name: String, arguments: String,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
         let short = shortName(forToolName: name)
         let dict = ToolArguments.dictionary(from: arguments)
@@ -293,7 +311,7 @@ public enum ToolCardClassifier {
             // 复合命令走命令摘要（N 条命令 · 首条），
             // 不整段直出（0.36.10，诊断 D3-5）
             if let command = ToolArguments.string(dict, "command") {
-                return commandSummary(command)
+                return commandSummary(command, locale: locale)
             }
             raw = nil
         case "execute_code":
@@ -513,38 +531,52 @@ public enum ToolCardPresentation {
     /// · 失败 → 「失败」＋原因首行（有才拼）
     /// · 成功有输出 → 输出首行净化
     /// · 成功无输出 → 「（无输出）」
-    public static func statusLine(of card: ToolCard) -> String {
+    public static func statusLine(
+        of card: ToolCard, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch state(of: card) {
         case .running:
-            return "进行中"
+            return L10n.string("进行中", locale: locale)
         case .failed:
             if let reason = firstMeaningfulLine(of: card.result) {
-                return "失败 · \(reason)"
+                return L10n.format("失败 · %@", locale: locale, reason)
             }
-            return "失败"
+            return L10n.string("失败", locale: locale)
         case .succeeded:
             return firstMeaningfulLine(of: card.result)
-                ?? "（无输出）"
+                ?? L10n.string("（无输出）", locale: locale)
         }
     }
 
     /// 组头摘要（诊断 D3-8）：同轮连续 ≥2 张卡收成
     /// 一组，组头一行说清总数与命运分布；失败不隐藏
     /// （D3-9），进行中如实计数
-    public static func groupHeader(cards: [ToolCard]) -> String {
+    public static func groupHeader(
+        cards: [ToolCard], locale: Locale = AppLocale.uiLocale
+    ) -> String {
         let total = cards.count
         let running = cards.filter { $0.result == nil }.count
         let failed = cards.filter {
             $0.result != nil && $0.resultFailed
         }.count
-        var parts = ["调用了 \(total) 个工具"]
+        var parts = [
+            L10n.format("调用了 %lld 个工具", locale: locale, total)
+        ]
         if running > 0 {
-            parts.append("\(running) 个进行中")
-            if failed > 0 { parts.append("\(failed) 个失败") }
+            parts.append(
+                L10n.format("%@ 个进行中", locale: locale, String(running))
+            )
+            if failed > 0 {
+                parts.append(
+                    L10n.format("%@ 个失败", locale: locale, String(failed))
+                )
+            }
         } else if failed > 0 {
-            parts.append("\(failed) 个失败")
+            parts.append(
+                L10n.format("%@ 个失败", locale: locale, String(failed))
+            )
         } else {
-            parts.append("全部完成")
+            parts.append(L10n.string("全部完成", locale: locale))
         }
         return parts.joined(separator: " · ")
     }

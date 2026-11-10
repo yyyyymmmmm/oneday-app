@@ -18,7 +18,7 @@ final class SideChatStore {
     /// 主线固定标题（不被首条消息派生覆盖，M3 口径；
     /// 0.18.0 命名统一：旧称「主聊」就此退役，全仓
     /// 只用「主线」——Muse 定义里它是唯一指挥席）
-    static let mainTitle = "主线"
+    static let mainTitle = L10n.string("主线")
 
     private(set) var mainThreadID: UUID?
     private(set) var mainServerSessionID: String?

@@ -52,7 +52,7 @@ final class LedgerBridgeClient: @unchecked Sendable {
             path += "?since=\(since)"
         }
         return try await get(
-            config: config, path: path, endpoint: "台账列表",
+            config: config, path: path, endpoint: L10n.string("台账列表"),
             collection: true
         )
     }
@@ -65,7 +65,7 @@ final class LedgerBridgeClient: @unchecked Sendable {
     ) async throws -> LedgerSummary {
         try await get(
             config: config, path: "/ledger/summary",
-            endpoint: "台账计数", collection: true
+            endpoint: L10n.string("台账计数"), collection: true
         )
     }
 
@@ -76,7 +76,7 @@ final class LedgerBridgeClient: @unchecked Sendable {
     ) async throws -> LedgerItem {
         try await get(
             config: config, path: "/ledger/\(id)",
-            endpoint: "台账详情", collection: false
+            endpoint: L10n.string("台账详情"), collection: false
         )
     }
 
@@ -89,7 +89,7 @@ final class LedgerBridgeClient: @unchecked Sendable {
     ) async throws -> Int {
         let response: LedgerReportResponse = try await send(
             config: config, path: "/ledger/report", method: "POST",
-            body: body, endpoint: "台账上报", collection: false
+            body: body, endpoint: L10n.string("台账上报"), collection: false
         )
         return response.seq
     }
@@ -175,7 +175,7 @@ final class LedgerBridgeClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)返回格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
         }
     }
 
@@ -189,7 +189,7 @@ final class LedgerBridgeClient: @unchecked Sendable {
         do {
             request.httpBody = try encoder.encode(body)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)请求组装失败")
+            throw OneDayBridgeError.failed(L10n.format("%@请求组装失败", endpoint))
         }
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
@@ -202,7 +202,7 @@ final class LedgerBridgeClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)回执格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
         }
     }
 
@@ -230,7 +230,7 @@ final class LedgerBridgeClient: @unchecked Sendable {
                 throw OneDayBridgeError.failed(body.error)
             }
             throw OneDayBridgeError.failed(
-                "\(endpoint)返回 \(http.statusCode)"
+                L10n.format("%@返回 %@", endpoint, String(http.statusCode))
             )
         }
     }
@@ -241,13 +241,13 @@ final class LedgerBridgeClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw OneDayBridgeError.failed("\(endpoint)无响应")
+                throw OneDayBridgeError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as OneDayBridgeError {
             throw error
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)网络不可达")
+            throw OneDayBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

@@ -47,7 +47,7 @@ final class KanbanStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard appState.config != nil else {
-            loadState = .failed("尚未连接服务器。")
+            loadState = .failed(L10n.string("尚未连接服务器。"))
             return
         }
         loadInFlight = true
@@ -107,7 +107,7 @@ final class KanbanStore {
             }
         } catch {
             if loadState == .ready, snapshot != nil { return }
-            loadState = .failed("任务读取失败，请稍后重试。")
+            loadState = .failed(L10n.string("任务读取失败，请稍后重试。"))
         }
     }
 
@@ -195,13 +195,13 @@ final class KanbanStore {
                 == true {
                 return (true, created.id)
             }
-            createError = "任务已提交，但还没有在任务板上确认出现，请关闭后刷新核对。"
+            createError = L10n.string("任务已提交，但还没有在任务板上确认出现，请关闭后刷新核对。")
             return (false, nil)
         } catch let error as HermesError {
             createError = error.userMessage
             return (false, nil)
         } catch {
-            createError = "任务创建失败，请稍后重试。"
+            createError = L10n.string("任务创建失败，请稍后重试。")
             return (false, nil)
         }
     }
@@ -236,7 +236,7 @@ final class KanbanStore {
         } catch let error as HermesError {
             if action == .answer,
                case .cancelled = error {
-                notes[task.id] = "回答是空的，没有发出。"
+                notes[task.id] = L10n.string("回答是空的，没有发出。")
             } else {
                 notes[task.id] = error.userMessage
             }
@@ -245,7 +245,7 @@ final class KanbanStore {
             )
             return
         } catch {
-            notes[task.id] = "动作发送失败，请稍后重试。"
+            notes[task.id] = L10n.string("动作发送失败，请稍后重试。")
             await fetchBoard(
                 appState: appState, missingMeansUnprovisioned: false
             )
@@ -258,7 +258,7 @@ final class KanbanStore {
             await loadDetail(appState: appState, id: task.id)
         }
         if !isConfirmed(action: action, taskID: task.id) {
-            notes[task.id] = "动作已发出，但状态还没有确认变化，请刷新核对。"
+            notes[task.id] = L10n.string("动作已发出，但状态还没有确认变化，请刷新核对。")
         }
     }
 

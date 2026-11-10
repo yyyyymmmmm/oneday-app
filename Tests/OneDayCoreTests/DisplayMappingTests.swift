@@ -43,9 +43,9 @@ final class DisplayMappingTests: XCTestCase {
     // MARK: - 档案名（第 7 条）
 
     func testProfileName() {
-        XCTAssertEqual(ServerLabels.profileName("default"), "默认档案")
-        XCTAssertEqual(ServerLabels.profileName(nil), "默认档案")
-        XCTAssertEqual(ServerLabels.profileName("work"), "work")
+        XCTAssertEqual(ServerLabels.profileName("default", locale: Locale(identifier: "zh-Hans")), "默认档案")
+        XCTAssertEqual(ServerLabels.profileName(nil, locale: Locale(identifier: "zh-Hans")), "默认档案")
+        XCTAssertEqual(ServerLabels.profileName("work", locale: Locale(identifier: "zh-Hans")), "work")
     }
 
     // MARK: - 日志三行（补遗：人话动作＋说明＋级别·时间）

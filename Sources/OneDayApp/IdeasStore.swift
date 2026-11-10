@@ -90,7 +90,7 @@ final class IdeasStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
-            loadState = .failed("尚未连接服务器。")
+            loadState = .failed(L10n.string("尚未连接服务器。"))
             return
         }
         loadInFlight = true
@@ -103,7 +103,7 @@ final class IdeasStore {
             loadState = GoalsStore.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed("点子读取失败，请稍后重试。")
+            loadState = .failed(L10n.string("点子读取失败，请稍后重试。"))
         }
         // 附带面：目标列表与生成账面，失败只降级对应呈现
         if let fetched = try? await client.goals(config: config) {
@@ -140,7 +140,7 @@ final class IdeasStore {
     ) async -> Bool {
         guard !creating else { return false }
         guard let config = appState.config else {
-            createError = "尚未连接服务器。"
+            createError = L10n.string("尚未连接服务器。")
             return false
         }
         creating = true
@@ -157,13 +157,13 @@ final class IdeasStore {
             if ideas.contains(where: { $0.id == created.id }) {
                 return true
             }
-            createError = "点子已提交，但还没有在列表里确认出现，请关闭后刷新核对。"
+            createError = L10n.string("点子已提交，但还没有在列表里确认出现，请关闭后刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             createError = GoalsStore.message(for: error)
             return false
         } catch {
-            createError = "点子创建失败，请稍后重试。"
+            createError = L10n.string("点子创建失败，请稍后重试。")
             return false
         }
     }
@@ -173,7 +173,7 @@ final class IdeasStore {
     func delete(appState: AppState, idea: BridgeIdea) async {
         guard !actingIDs.contains(idea.id) else { return }
         guard let config = appState.config else {
-            notes[idea.id] = "尚未连接服务器。"
+            notes[idea.id] = L10n.string("尚未连接服务器。")
             return
         }
         actingIDs.insert(idea.id)
@@ -183,7 +183,7 @@ final class IdeasStore {
             try await client.deleteIdea(config: config, id: idea.id)
             await refetch(appState: appState)
             if ideas.contains(where: { $0.id == idea.id }) {
-                notes[idea.id] = "删除已发出，但列表里还在，请刷新核对。"
+                notes[idea.id] = L10n.string("删除已发出，但列表里还在，请刷新核对。")
             }
         } catch let error as OneDayBridgeError {
             if case .recordGone = error {
@@ -194,7 +194,7 @@ final class IdeasStore {
             }
             notes[idea.id] = GoalsStore.message(for: error)
         } catch {
-            notes[idea.id] = "删除失败，请稍后重试。"
+            notes[idea.id] = L10n.string("删除失败，请稍后重试。")
         }
     }
 
@@ -211,7 +211,7 @@ final class IdeasStore {
     ) async {
         guard !actingIDs.contains(idea.id) else { return }
         guard let config = appState.config else {
-            notes[idea.id] = "尚未连接服务器。"
+            notes[idea.id] = L10n.string("尚未连接服务器。")
             return
         }
         actingIDs.insert(idea.id)
@@ -227,12 +227,12 @@ final class IdeasStore {
             )
             await refetch(appState: appState)
             if pendingIdeas.contains(where: { $0.id == idea.id }) {
-                notes[idea.id] = "忽略已发出，但列表里还在，请刷新核对。"
+                notes[idea.id] = L10n.string("忽略已发出，但列表里还在，请刷新核对。")
             }
         } catch let error as OneDayBridgeError {
             notes[idea.id] = GoalsStore.message(for: error)
         } catch {
-            notes[idea.id] = "忽略失败，请稍后重试。"
+            notes[idea.id] = L10n.string("忽略失败，请稍后重试。")
         }
     }
 
@@ -250,11 +250,11 @@ final class IdeasStore {
     ) async {
         guard !actingIDs.contains(idea.id) else { return }
         guard !isConverted(idea) else {
-            notes[idea.id] = "这个点子已经转成任务了。"
+            notes[idea.id] = L10n.string("这个点子已经转成任务了。")
             return
         }
         guard let config = appState.config else {
-            notes[idea.id] = "尚未连接服务器。"
+            notes[idea.id] = L10n.string("尚未连接服务器。")
             return
         }
         actingIDs.insert(idea.id)
@@ -264,13 +264,13 @@ final class IdeasStore {
         await kanban.load(appState: appState)
         switch kanban.loadState {
         case .notProvisioned:
-            notes[idea.id] = "任务板未开通，暂时不能把点子转成任务。"
+            notes[idea.id] = L10n.string("任务板未开通，暂时不能把点子转成任务。")
             return
         case .failed(let message):
             notes[idea.id] = message
             return
         case .loading:
-            notes[idea.id] = "任务板状态还没确认好，请稍后再试。"
+            notes[idea.id] = L10n.string("任务板状态还没确认好，请稍后再试。")
             return
         case .ready:
             break
@@ -283,7 +283,7 @@ final class IdeasStore {
         )
         guard let taskID else {
             notes[idea.id] = kanban.createError
-                ?? "任务没有确认建成，请到枢纽任务段核对（聊天页点顶部胶囊打开）。"
+                ?? L10n.string("任务没有确认建成，请到枢纽任务段核对（聊天页点顶部胶囊打开）。")
             return
         }
         do {
@@ -294,7 +294,7 @@ final class IdeasStore {
             await refetch(appState: appState)
             let after = ideas.first { $0.id == idea.id }
             if after?.taskId != taskID {
-                notes[idea.id] = "任务已建在任务板上，但点子的「已转」标记回写后没确认上，请刷新核对。"
+                notes[idea.id] = L10n.string("任务已建在任务板上，但点子的「已转」标记回写后没确认上，请刷新核对。")
             } else {
                 // 触感矩阵（0.36.2，规格 §2.3）：点子
                 // 采纳＝任务成功——只在回读确认 taskId
@@ -303,10 +303,10 @@ final class IdeasStore {
                 Haptics.success()
             }
         } catch let error as OneDayBridgeError {
-            notes[idea.id] = "任务已建在任务板上，但回写点子状态失败："
+            notes[idea.id] = L10n.string("任务已建在任务板上，但回写点子状态失败：")
                 + GoalsStore.message(for: error)
         } catch {
-            notes[idea.id] = "任务已建在任务板上，但回写点子状态失败，请刷新核对。"
+            notes[idea.id] = L10n.string("任务已建在任务板上，但回写点子状态失败，请刷新核对。")
         }
     }
 }

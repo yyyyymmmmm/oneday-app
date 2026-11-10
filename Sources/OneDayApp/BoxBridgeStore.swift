@@ -98,7 +98,7 @@ final class BoxBridgeStore {
         guard !acting, !screenshotLoading else { return }
         guard let config = appState.config else { return }
         if appState.isDemo {
-            actNote = "演示态不执行接管动作。"
+            actNote = L10n.string("演示态不执行接管动作。")
             return
         }
         acting = true
@@ -123,12 +123,12 @@ final class BoxBridgeStore {
             switch error {
             case .noKey, .unauthorized:
                 apply(error: error, appState: appState, target: .status)
-                actNote = "桥未连接，接管动作没有发出。"
+                actNote = L10n.string("桥未连接，接管动作没有发出。")
             case .failed(let message):
                 actNote = message
             }
         } catch {
-            actNote = "接管动作发送失败。"
+            actNote = L10n.string("接管动作发送失败。")
         }
     }
 

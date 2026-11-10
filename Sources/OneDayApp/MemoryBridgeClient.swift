@@ -34,7 +34,7 @@ final class MemoryBridgeClient: @unchecked Sendable {
     /// 条目全量：集合 404＝条目面未开通
     func entries(config: ServerConfig) async throws -> [BridgeMemoryEntry] {
         let response: BridgeMemoryEntriesResponse = try await get(
-            config: config, path: "/memories", endpoint: "记忆条目",
+            config: config, path: "/memories", endpoint: L10n.string("记忆条目"),
             collection: true
         )
         return response.entries
@@ -46,7 +46,7 @@ final class MemoryBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeMemoryEntryDetail {
         let response: BridgeMemoryDetailResponse = try await get(
             config: config, path: "/memories/\(id)",
-            endpoint: "记忆详情", collection: false
+            endpoint: L10n.string("记忆详情"), collection: false
         )
         return response.entry
     }
@@ -65,10 +65,10 @@ final class MemoryBridgeClient: @unchecked Sendable {
         do {
             request.httpBody = try encoder.encode(body)
         } catch {
-            throw WriteGateError.failed("提交内容组装失败")
+            throw WriteGateError.failed(L10n.string("提交内容组装失败"))
         }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, http) = try await send(request, endpoint: "提交待批")
+        let (data, http) = try await send(request, endpoint: L10n.string("提交待批"))
         switch http.statusCode {
         case 200...299:
             do {
@@ -76,7 +76,7 @@ final class MemoryBridgeClient: @unchecked Sendable {
                     BridgeMemoryProposeResponse.self, from: data
                 )
             } catch {
-                throw WriteGateError.failed("提交回执格式无法识别")
+                throw WriteGateError.failed(L10n.string("提交回执格式无法识别"))
             }
         case 401:
             throw WriteGateError.unauthorized
@@ -93,7 +93,7 @@ final class MemoryBridgeClient: @unchecked Sendable {
             if let message = Self.serverMessage(data) {
                 throw WriteGateError.failed(message)
             }
-            throw WriteGateError.failed("提交返回 \(http.statusCode)")
+            throw WriteGateError.failed(L10n.format("提交返回 %@", String(http.statusCode)))
         }
     }
 
@@ -106,7 +106,7 @@ final class MemoryBridgeClient: @unchecked Sendable {
     ) async throws -> [WriteGateDecisionRecord] {
         let response: WriteGateDecisionsResponse = try await get(
             config: config, path: "/decisions?limit=\(limit)",
-            endpoint: "已决记录", collection: false
+            endpoint: L10n.string("已决记录"), collection: false
         )
         return response.decisions
     }
@@ -138,7 +138,7 @@ final class MemoryBridgeClient: @unchecked Sendable {
             do {
                 return try decoder.decode(T.self, from: data)
             } catch {
-                throw WriteGateError.failed("\(endpoint)返回格式无法识别")
+                throw WriteGateError.failed(L10n.format("%@返回格式无法识别", endpoint))
             }
         case 401:
             throw WriteGateError.unauthorized
@@ -149,7 +149,7 @@ final class MemoryBridgeClient: @unchecked Sendable {
         case 409:
             throw WriteGateError.conflict
         default:
-            throw WriteGateError.failed("\(endpoint)返回 \(http.statusCode)")
+            throw WriteGateError.failed(L10n.format("%@返回 %@", endpoint, String(http.statusCode)))
         }
     }
 
@@ -173,13 +173,13 @@ final class MemoryBridgeClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw WriteGateError.failed("\(endpoint)无响应")
+                throw WriteGateError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as WriteGateError {
             throw error
         } catch {
-            throw WriteGateError.failed("\(endpoint)网络不可达")
+            throw WriteGateError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

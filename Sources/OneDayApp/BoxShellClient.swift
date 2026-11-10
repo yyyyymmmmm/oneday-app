@@ -43,7 +43,7 @@ final class BoxShellClient: @unchecked Sendable {
         do {
             bodyData = try encoder.encode(BoxShellRequest(command: command))
         } catch {
-            throw BoxShellError.failed("命令组装失败")
+            throw BoxShellError.failed(L10n.string("命令组装失败"))
         }
         var request = URLRequest(
             url: config.endpoint("/api/box-bridge/shell")
@@ -62,12 +62,12 @@ final class BoxShellClient: @unchecked Sendable {
             throw BoxShellError.unauthorized
         }
         guard (200...299).contains(http.statusCode) else {
-            throw BoxShellError.failed("终端返回 \(http.statusCode)")
+            throw BoxShellError.failed(L10n.format("终端返回 %@", String(http.statusCode)))
         }
         do {
             return try decoder.decode(BoxShellResponse.self, from: data)
         } catch {
-            throw BoxShellError.failed("终端返回格式无法识别")
+            throw BoxShellError.failed(L10n.string("终端返回格式无法识别"))
         }
     }
 
@@ -77,13 +77,13 @@ final class BoxShellClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw BoxShellError.failed("终端无响应")
+                throw BoxShellError.failed(L10n.string("终端无响应"))
             }
             return (data, http)
         } catch let error as BoxShellError {
             throw error
         } catch {
-            throw BoxShellError.failed("终端网络不可达")
+            throw BoxShellError.failed(L10n.string("终端网络不可达"))
         }
     }
 }

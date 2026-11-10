@@ -15,7 +15,7 @@ final class HermesErrorTests: XCTestCase {
             .dataNotAllowed, .internationalRoamingOff,
         ]
         for code in codes {
-            let error = HermesError.fromURLError(URLError(code))
+            let error = HermesError.fromURLError(URLError(code), locale: Locale(identifier: "zh-Hans"))
             XCTAssertTrue(
                 error.isTransient,
                 "\(code.rawValue) 应归瞬断档，实际 \(error)"
@@ -26,7 +26,7 @@ final class HermesErrorTests: XCTestCase {
     func testHostResolutionFailuresStayInAddressBucket() {
         let codes: [URLError.Code] = [.cannotFindHost, .dnsLookupFailed]
         for code in codes {
-            let error = HermesError.fromURLError(URLError(code))
+            let error = HermesError.fromURLError(URLError(code), locale: Locale(identifier: "zh-Hans"))
             XCTAssertFalse(error.isTransient)
             guard case .unreachable = error else {
                 return XCTFail("\(code.rawValue) 应归 unreachable，实际 \(error)")
@@ -35,13 +35,13 @@ final class HermesErrorTests: XCTestCase {
     }
 
     func testOtherURLErrorCodesFallBackToGenericUnreachable() {
-        let error = HermesError.fromURLError(URLError(.badURL))
+        let error = HermesError.fromURLError(URLError(.badURL), locale: Locale(identifier: "zh-Hans"))
         XCTAssertFalse(error.isTransient)
-        XCTAssertEqual(error.userMessage.contains("网络错误"), true)
+        XCTAssertEqual(error.userMessage(locale: Locale(identifier: "zh-Hans")).contains("网络错误"), true)
     }
 
     func testTransientCopyNeverBlamesAddress() {
-        let message = HermesError.transientNetwork.userMessage
+        let message = HermesError.transientNetwork.userMessage(locale: Locale(identifier: "zh-Hans"))
         XCTAssertFalse(message.contains("检查地址"))
         XCTAssertFalse(message.contains("服务器是否在线"))
     }

@@ -16,89 +16,108 @@ public enum ApprovalHeadline {
     public static func title(
         subsystem: WriteGateSubsystem, op: String,
         targetName: String?, opCount: Int?, opKinds: [String]?,
-        memTarget: String?, contentPreview: String?
+        memTarget: String?, contentPreview: String?,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
         switch subsystem {
         case .memory:
             return memoryTitle(
                 op: op, memTarget: memTarget,
-                contentPreview: contentPreview
+                contentPreview: contentPreview, locale: locale
             )
         case .skills:
             return skillsTitle(
                 op: op, targetName: targetName,
-                opCount: opCount, opKinds: opKinds
+                opCount: opCount, opKinds: opKinds, locale: locale
             )
         case .unknown:
             // 子系统都认不出时只给类别名，不硬拼动词
             // （这类记录本就不支持 App 内审批，见卡面去向）
-            return "其他写入"
+            return L10n.string("其他写入", locale: locale)
         }
     }
 
     // MARK: - memory
 
     private static func memoryTitle(
-        op: String, memTarget: String?, contentPreview: String?
+        op: String, memTarget: String?, contentPreview: String?,
+        locale: Locale
     ) -> String {
         let isUser = memTarget == "user"
         let preview = previewText(contentPreview)
-        let suffix = preview.map { "：\($0)" } ?? ""
+        let base: String
         switch op.lowercased() {
         case "add", "create", "append", "new":
-            return isUser
-                ? "新增一条个人资料\(suffix)"
-                : "新增一条记忆\(suffix)"
+            base = isUser
+                ? L10n.string("新增一条个人资料", locale: locale)
+                : L10n.string("新增一条记忆", locale: locale)
         case "replace", "edit", "update", "modify":
-            return isUser
-                ? "修改个人资料\(suffix)"
-                : "修改一条记忆\(suffix)"
+            base = isUser
+                ? L10n.string("修改个人资料", locale: locale)
+                : L10n.string("修改一条记忆", locale: locale)
         case "remove", "delete":
-            return isUser
-                ? "从个人资料删除\(suffix)"
-                : "删除一条记忆\(suffix)"
+            base = isUser
+                ? L10n.string("从个人资料删除", locale: locale)
+                : L10n.string("删除一条记忆", locale: locale)
         default:
-            let verb = WriteGateLabels.actionVerb(op)
-            return isUser ? "\(verb)个人资料\(suffix)"
-                : "\(verb)一条记忆\(suffix)"
+            let verb = WriteGateLabels.actionVerb(op, locale: locale)
+            base = isUser
+                ? L10n.format("%@个人资料", locale: locale, verb)
+                : L10n.format("%@一条记忆", locale: locale, verb)
         }
+        // 预览是内容、原样拼在模板后（「：」连接符走目
+        // 录键，英文下成 ": "）
+        guard let preview else { return base }
+        return L10n.format("%@：%@", locale: locale, base, preview)
     }
 
     // MARK: - skills
 
     private static func skillsTitle(
         op: String, targetName: String?,
-        opCount: Int?, opKinds: [String]?
+        opCount: Int?, opKinds: [String]?,
+        locale: Locale
     ) -> String {
         let name = targetName?.trimmingCharacters(in: .whitespaces)
-        let target = (name?.isEmpty == false) ? "技能《\(name!)》" : "一个技能"
+        let target = (name?.isEmpty == false)
+            ? L10n.format("技能《%@》", locale: locale, name!)
+            : L10n.string("一个技能", locale: locale)
         switch op.lowercased() {
         case "batch":
             guard let count = opCount, count > 0 else {
-                return "批量修改\(target)"
+                return L10n.format("批量修改%@", locale: locale, target)
             }
             let kinds = Set((opKinds ?? []).map { $0.lowercased() })
             if kinds == ["create"] {
-                return "新建\(target)：共 \(count) 项"
+                return L10n.format(
+                    "新建%@：共 %lld 项", locale: locale, target, count
+                )
             }
             if kinds == ["delete"] || kinds == ["remove_file"] {
-                return "删除\(target)：共 \(count) 项"
+                return L10n.format(
+                    "删除%@：共 %lld 项", locale: locale, target, count
+                )
             }
             // patch/edit/write_file 占多数或混合：一律
             // 「修改…共 N 处改动」（口径示例同用户截图）
-            return "修改\(target)：共 \(count) 处改动"
+            return L10n.format(
+                "修改%@：共 %lld 处改动", locale: locale, target, count
+            )
         case "create", "add", "new":
-            return "新建\(target)"
+            return L10n.format("新建%@", locale: locale, target)
         case "edit", "update", "modify", "patch":
-            return "修改\(target)"
+            return L10n.format("修改%@", locale: locale, target)
         case "write_file", "write":
-            return "修改\(target)的文件"
+            return L10n.format("修改%@的文件", locale: locale, target)
         case "delete", "remove":
-            return "删除\(target)"
+            return L10n.format("删除%@", locale: locale, target)
         case "remove_file":
-            return "删除\(target)里的文件"
+            return L10n.format("删除%@里的文件", locale: locale, target)
         default:
-            return "\(WriteGateLabels.actionVerb(op))\(target)"
+            return L10n.format(
+                "%@%@", locale: locale,
+                WriteGateLabels.actionVerb(op, locale: locale), target
+            )
         }
     }
 

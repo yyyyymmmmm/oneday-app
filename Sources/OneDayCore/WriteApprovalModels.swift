@@ -37,10 +37,15 @@ public enum WriteGateSubsystem: String, Decodable, Sendable, Equatable {
 
     /// 类型徽标文案
     public var badgeLabel: String {
+        badgeLabel(locale: AppLocale.uiLocale)
+    }
+
+    /// 徽标文案的目录取词形（0.42.1 国际化长尾包）
+    public func badgeLabel(locale: Locale) -> String {
         switch self {
-        case .memory: return "记忆"
-        case .skills: return "技能"
-        case .unknown: return "其他写入"
+        case .memory: return L10n.string("记忆", locale: locale)
+        case .skills: return L10n.string("技能", locale: locale)
+        case .unknown: return L10n.string("其他写入", locale: locale)
         }
     }
 }
@@ -219,11 +224,16 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     /// 用户面头条（0.36.21）：结构化模板拼中文，原始
     /// 英文 summary 不当头条（见 ApprovalHeadline）
     public var headline: String {
+        headline(locale: AppLocale.uiLocale)
+    }
+
+    /// 头条的目录取词形（0.42.1 国际化长尾包）
+    public func headline(locale: Locale) -> String {
         ApprovalHeadline.title(
             subsystem: subsystem, op: effectiveOp,
             targetName: targetName, opCount: opCount,
             opKinds: opKinds, memTarget: memTarget,
-            contentPreview: contentPreview
+            contentPreview: contentPreview, locale: locale
         )
     }
 
@@ -243,19 +253,34 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     /// 拼兜底人话，不许拿正文截段当摘要（敏感内容不在
     /// 列表层扩散，phase3-data-design §5.3）
     public var displaySummary: String {
+        displaySummary(locale: AppLocale.uiLocale)
+    }
+
+    /// 兜底标题的目录取词形（0.42.1 国际化长尾包）：
+    /// summary 是上游内容、原样直通不译；只有本地拼
+    /// 的兜底句走目录
+    public func displaySummary(locale: Locale) -> String {
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return trimmed }
-        let verb = WriteGateLabels.actionVerb(action)
+        let verb = WriteGateLabels.actionVerb(action, locale: locale)
         switch subsystem {
-        case .memory: return "\(verb)一条长期记忆"
-        case .skills: return "\(verb)一个技能"
-        case .unknown: return "\(verb)一项写入"
+        case .memory:
+            return L10n.format("%@一条长期记忆", locale: locale, verb)
+        case .skills:
+            return L10n.format("%@一个技能", locale: locale, verb)
+        case .unknown:
+            return L10n.format("%@一项写入", locale: locale, verb)
         }
     }
 
     /// 来源行人话（原始标识不上屏）
     public var originLabel: String {
-        WriteGateLabels.originLabel(origin)
+        originLabel(locale: AppLocale.uiLocale)
+    }
+
+    /// 来源行人话的目录取词形（0.42.1 国际化长尾包）
+    public func originLabel(locale: Locale) -> String {
+        WriteGateLabels.originLabel(origin, locale: locale)
     }
 }
 
@@ -465,50 +490,68 @@ public enum ApprovalSectionState: Equatable, Sendable {
 /// 新取值出现时往本表加一行即可，不许因为来源没见
 /// 过就丢弃整张卡。
 public enum WriteGateLabels {
-    public static func actionVerb(_ action: String) -> String {
+    public static func actionVerb(
+        _ action: String, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch action.lowercased() {
-        case "create", "add", "new": return "新建"
-        case "append": return "追加"
-        case "edit", "update", "modify": return "修改"
-        case "patch": return "修订"
-        case "write_file", "write": return "写入"
-        case "delete", "remove": return "删除"
-        case "remove_file": return "删除文件"
-        default: return "写入"
+        case "create", "add", "new": return L10n.string("新建", locale: locale)
+        case "append": return L10n.string("追加", locale: locale)
+        case "edit", "update", "modify": return L10n.string("修改", locale: locale)
+        case "patch": return L10n.string("修订", locale: locale)
+        case "write_file", "write": return L10n.string("写入", locale: locale)
+        case "delete", "remove": return L10n.string("删除", locale: locale)
+        case "remove_file": return L10n.string("删除文件", locale: locale)
+        default: return L10n.string("写入", locale: locale)
         }
     }
 
-    public static func originLabel(_ origin: String) -> String {
+    public static func originLabel(
+        _ origin: String, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         let raw = origin.trimmingCharacters(in: .whitespaces)
         let key = raw.lowercased()
-        guard !key.isEmpty else { return "来源未注明" }
-        if key.contains("background") { return "后台自检" }
+        guard !key.isEmpty else {
+            return L10n.string("来源未注明", locale: locale)
+        }
+        if key.contains("background") {
+            return L10n.string("后台自检", locale: locale)
+        }
         switch key {
-        case "assistant_tool": return "智能体工具调用"
-        case "oneday_app": return "本机 App"
-        case "foreground": return "对话中写入"
-        case "cli": return "命令行"
-        case "dashboard", "web": return "控制台"
-        case "chat", "gateway", "api_server", "api": return "对话中写入"
+        case "assistant_tool": return L10n.string("智能体工具调用", locale: locale)
+        case "oneday_app": return L10n.string("本机 App", locale: locale)
+        case "foreground": return L10n.string("对话中写入", locale: locale)
+        case "cli": return L10n.string("命令行", locale: locale)
+        case "dashboard", "web": return L10n.string("控制台", locale: locale)
+        case "chat", "gateway", "api_server", "api":
+            return L10n.string("对话中写入", locale: locale)
         default:
             // 未知来源：通用中文兜底，不漏原始标识
             // （0.36.21 口径，见本节头注）
-            return "其他来源"
+            return L10n.string("其他来源", locale: locale)
         }
     }
 
-    public static func noteLabel(_ type: String) -> String {
+    public static func noteLabel(
+        _ type: String, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch type {
         case "patchOldStringMissing":
-            return "定位文本已不存在，这条修订可能基于旧内容，批准前请仔细核对改动。"
+            return L10n.string(
+                "定位文本已不存在，这条修订可能基于旧内容，批准前请仔细核对改动。",
+                locale: locale
+            )
         case "currentReadFailed":
-            return "现行内容读取失败，改动对照可能不完整。"
+            return L10n.string(
+                "现行内容读取失败，改动对照可能不完整。", locale: locale
+            )
         case "deleteSkill":
-            return "这条待批会删除整个技能。"
+            return L10n.string("这条待批会删除整个技能。", locale: locale)
         case "removeFile":
-            return "这条待批会删除技能内的文件。"
+            return L10n.string("这条待批会删除技能内的文件。", locale: locale)
         default:
-            return "这条待批带有一条桥侧提示，批准前请打开改动核对。"
+            return L10n.string(
+                "这条待批带有一条桥侧提示，批准前请打开改动核对。", locale: locale
+            )
         }
     }
 }
@@ -568,12 +611,23 @@ public struct WriteGateRule: Decodable, Equatable, Identifiable, Sendable {
 
     /// 来源人话（与待批卡同一译表）
     public var originLabel: String {
-        WriteGateLabels.originLabel(origin)
+        originLabel(locale: AppLocale.uiLocale)
+    }
+
+    /// 来源人话的目录取词形（0.42.1 国际化长尾包）
+    public func originLabel(locale: Locale) -> String {
+        WriteGateLabels.originLabel(origin, locale: locale)
     }
 
     /// 规则范围一行话：子系统＋来源（如「记忆 · 本机 App」）
     public var scopeLabel: String {
-        "\(subsystem.badgeLabel) · \(originLabel)"
+        scopeLabel(locale: AppLocale.uiLocale)
+    }
+
+    /// 规则范围的目录取词形（0.42.1 国际化长尾包）：
+    /// 两段各按同一 locale 取词后以「 · 」拼合
+    public func scopeLabel(locale: Locale) -> String {
+        "\(subsystem.badgeLabel(locale: locale)) · \(originLabel(locale: locale))"
     }
 }
 

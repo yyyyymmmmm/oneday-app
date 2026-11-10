@@ -63,19 +63,19 @@ private func sessionSourceLabel(_ source: String?, locale: Locale) -> String {
 public extension ServerSession {
     /// 来源的人话标签（原始标识不上屏）
     var sourceLabel: String {
-        switch source?.lowercased() {
-        // 0.4.1 第 10 修：「API 接口」仍是未翻译的
-        // 实现口径（用户点名、违反数据先翻译红线）——
-        // 经接口从别的应用/设备开的会话，人话说「其
-        // 他应用」；ServerLabels.platformName 的同名
-        // 词是平台管理面口径（命名服务端组件本身）、
-        // 不在此列
-        case "api_server": return "其他应用"
-        case "dashboard": return "控制台"
-        case "cli": return "命令行"
-        case "cron", "cron_job", "scheduler": return "定时任务"
-        default: return "服务端"
-        }
+        sourceLabel(locale: AppLocale.uiLocale)
+    }
+
+    /// 来源标签的目录取词形（0.42.1 国际化长尾包）：
+    /// 与文件内私有 sessionSourceLabel 同表同键（副
+    /// 题函数早已走该形），两处措辞恒同源。0.4.1 第
+    /// 10 修口径在此表：api_server 不说「API 接口」
+    /// （未翻译的实现口径，用户点名）——经接口从别
+    /// 的应用/设备开的会话，人话说「其他应用」；
+    /// ServerLabels.platformName 的同名词是平台管理
+    /// 面口径（命名服务端组件本身）、不在此列
+    func sourceLabel(locale: Locale) -> String {
+        sessionSourceLabel(source, locale: locale)
     }
 
     /// display_name 是否人话标题：非空、且不是标识符
@@ -96,10 +96,17 @@ public extension ServerSession {
     /// 无内容可名时「未命名会话」（时间条数在副题，
     /// 不许当标题，0.3.7 卡 18 钉死）。
     var humanTitle: String {
+        humanTitle(locale: AppLocale.uiLocale)
+    }
+
+    /// 人话标题的目录取词形（0.42.1 国际化长尾包）：
+    /// display_name 是内容原样直通不译，只「未命名
+    /// 会话」兜底词走目录
+    func humanTitle(locale: Locale) -> String {
         if hasHumanName, let raw = displayName {
             return raw.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return "未命名会话"
+        return L10n.string("未命名会话", locale: locale)
     }
 
     /// 内容总结标题：首条用户消息摘要（详情页等已拉
@@ -107,11 +114,14 @@ public extension ServerSession {
     /// 一切；摘要为空回落 humanTitle。0.18.0 起本方
     /// 法降为 resolvedTitle 的回落层（服务端标题在
     /// 其上），单独调用的口径不变。
-    func contentTitle(firstUserMessage: String?) -> String {
+    func contentTitle(
+        firstUserMessage: String?,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
         if let summary = Self.contentSummaryTitle(firstUserMessage) {
             return summary
         }
-        return humanTitle
+        return humanTitle(locale: locale)
     }
 
     /// 服务端标题清洗值：title 字段去首尾空白、空串
@@ -138,11 +148,16 @@ public extension ServerSession {
     /// 会话的 llm 升级被 vLLM 拒后 title 为空——按本
     /// 管线落本地派生/未命名，派生摘要只是回落、不
     /// 冒充 AI 名（来源以 titleSource 为据可查）。
-    func resolvedTitle(firstUserMessage: String?) -> String {
+    func resolvedTitle(
+        firstUserMessage: String?,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
         if let title = cleanedServerTitle {
             return title
         }
-        return contentTitle(firstUserMessage: firstUserMessage)
+        return contentTitle(
+            firstUserMessage: firstUserMessage, locale: locale
+        )
     }
 
     /// 首条用户消息 → 单行摘要：取首个非空行、压平

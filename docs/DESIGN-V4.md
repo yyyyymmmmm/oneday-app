@@ -7706,3 +7706,41 @@ def greet(name):
 - 英文计数单复数：走 RelativeDateTimeFormatter 的相对档已由系统处理单复数；其余拼串计数键（如 "%lld 条" 族）英文可能出现 "1 items" 式小瑕疵，属呈现长尾优化、后续以 stringsdict 复数规则另包处理。
 - 目录键与运行时实参类型以源码实参为准对齐（6 条已修正）；若个别键实参在不同调用点类型不一致，取词回落简体源串、不崩。
 - 演示内容（DemoHermesClient/DemoMode 示例对话）与 DeviceCalls 协议错误体（回给桥的机器协议、非 UI 铬面）明确不在目录覆盖面；服务端回串与用户内容按规格不动。
+
+## §109 国际化长尾接线包 0.42.1（2026-11-11，预制分支 feat/i18n-tail，基线 main 570acb0；节号预制自选，合并时如撞号顺延）
+
+### 109.1 范围与范式
+
+§108.2 记账的欠账全额收编：目录已备键、Core 呈现层未转码的那批逐面改走 `L10n.string/format(键, locale:)`，App 层 Store/Client 赋给状态再显示的静态串同批收编。统一范式（照 0.42.0 DeviceSync.countUnit 先例）：计算属性保留、委托给带 locale 的函数形（`func x(locale: Locale)`，函数形加 `locale: Locale = AppLocale.uiLocale` 默认值），既有调用点零改动可编译；静态数据表（连接器目录/本机名册/槽位目录）改「源表存简体源串（目录键）＋构造时按 locale 解析」，条目结构与 id/分类/图标等语言无关口径不变。
+
+### 109.2 Core 转码面（括号内为新增 L10n 调用点数；表构造解析的字段数另注）
+
+- ServerLabels（34）：platformName/platformState/gatewayState/categoryLabel/grouped/profileName 全加 locale 形；otherCategory 由 static let 改计算 var＋函数形，grouped 内部比较同 locale 解析。
+- KanbanModels（33）：状态名 label、displayTitle、KanbanRunOutcome.label、evidenceItems、KanbanAction.title 加 locale 形；KanbanContract 两条闸门原因与 createFlowDescription 由 let 改 var＋函数形。unknown 的 raw 与事件 kind 是服务端内容、原样直通。
+- 审批族：ApprovalHeadline（22，title/memoryTitle/skillsTitle）、ApprovalCardCopy（19，question/consequence/alwaysAllowScope）、WriteApprovalModels（28，badgeLabel/displaySummary/originLabel/headline/scopeLabel 与 WriteGateLabels 三函数）。
+- ToolCards（65）：类名 fallbackTitle、约 40 个工具标题、commandSummary、statusLine、groupHeader。服务端回串的解析与内容连接（ToolResultUnwrap、「、」连接回串）属回串边界未动。
+- ConnectorCatalog（13 直调＋目录 8 条×4 字段构造解析）：证据档位 label、ConnectedConnector.blurb/statusLabel、目录与 knownServers 名册构造解析；ConnectorCategory 新增 title(locale:) 呈现形——rawValue 仍是简体源串（兼搜索语料与分组 id，不动），ConnectorsView 三处上屏改走 .title。matches/filteredConnected/availableEntries 加 locale 贯穿。
+- DeviceSources（18 直调＋名册 7 件×5 字段构造解析）：权限 label、roster/descriptor、DeviceRowStatus.line、filtered。
+- NotificationSummary（30）：presentation 加 locale 并贯穿全部私有翻译函数；判语态/对象的 title.contains 匹配的是桥回的中文定性串（服务端内容），匹配逻辑保持中文不动，只产出句走目录。
+- LedgerBoard（52）：LedgerText 六函数、LedgerFreshness.note、dayGroups（透传 FeedBoard.groupTitle 既有 locale 形）、headerText、subtitle、durationText。LedgerClock POSIX 钟面按既定口径保留；failReason.category 是服务端内容直通。
+- GoalCategory（7）、HermesError（14，userMessage 函数形＋fromURLError 构造时取词）、ModelCombos（14 直调＋槽位目录 12 条×2 字段构造解析：providerLabel/summaryLine/AuxSlotCatalog/activationNotice）。
+- SessionDisplay：sourceLabel 改委托给文件内既有私有 sessionSourceLabel（同表同键），humanTitle/contentTitle/resolvedTitle 加 locale 形；DeviceSync：detailSubtitle 由 let 改 var＋函数形，DeviceSyncDataset.label 加函数形（已核两处用法纯呈现、无与服务端串比对；线上键是枚举 rawValue，「与伴生同字」只是命名约定）。
+
+### 109.3 App 层收编
+
+- Stores（赋给状态的串在赋值时以 uiLocale 解析，无 locale 注入面）：AgentHubStore（21，含关键修复——statusText/isOnline 与 gatewayState 返回值的「运行中」比较改与 L10n 同源取词比对，两侧同出 uiLocale 才恒等）、GoalsStore（42）、MonitorsStore（28）、MemoriesStore（25）、IdeasStore（19）、ModelManagementStore（17）、DeviceSyncStore（15，含已送行改用新补正确键，见 109.5）、ConnectionsStore（14）、LedgerStore（9）、KanbanStore（7）、FeedStore（4）、DeviceStore（4）、AppState 探针步 label（3）、BoxBridgeStore（3）、ServerSessionActions 执行层（5）、DictationController 到限提示（1）、ChatStore 默认标题「新会话」（1，本地存量标题）、SideChatStore 主线名（1）。
+- Clients：endpoint 人话名参数与自有错误模板全转——HermesClient（100）、OneDayBridgeClient（39）、DeviceBridgeClient（23）、WriteGateClient（21，演示桩 DemoWriteGateClient 整类未动）、CompanionFrontClient（17）、MemoryBridgeClient（11）、LedgerBridgeClient（10）、OverviewBridgeClient（9）、BoxFilesClient（9）、ModelComboClient（8）、BoxBridgeClient（8）、BoxShellClient（5）、ProviderProbeClient（4）。模板族统一 `%@` 形键（「%@返回 %@」「%@返回格式无法识别」等），状态码实参统一 String(statusCode) 与 Core 先例同形。
+
+### 109.4 补键与单测
+
+- 补键 22 条（目录 2241→2263 键、连 InfoPlist 共 2271 键，Scripts/validate_i18n.py 实跑通过）：ApprovalHeadline 记忆基句 6、「%@：%@」、「%@%@」、「%@个人资料」、「%@一条记忆」、NotificationSummary 整句 8（M1–M4 批准/驳回全形，en 用定位符调序）、「、」（en「, 」）、「%@ · %@」、「新会话将默认用 %@；已有会话不受影响。」、「已送 %lld / %lld %@」。译文风格对齐 §108.1 术语表。diff 内引用的 665 个键经脚本与目录全量对账、零缺口；三张源表（目录/名册/槽位）的表内字面量亦全量对账在目录内。
+- 单测改测（17 个文件、断言值一字不变、只加 locale 钉）：ServerLabelsTests（27 处＋otherCategory 3 处）、DeviceSourcesTests（29）、LedgerModelsTests（48）、SessionDisplayTests（21）、RichContentTests（17）、ApprovalCopyTests（12）、ToolCardPresentationTests（10）、ConnectorCatalogTests（17）、HermesErrorTests（5）、ModelCombosTests（6）、KanbanModelsTests（4）、NotificationSummaryTests（2，经 decision 助手一处收口）、DisplayMappingTests（3）、DeviceSyncTests（4）、GoalCategoryTests（1）、HubGateAndBrowserTests（4）。新增 I18nFormattingTests.testTailSurfacesResolveThroughL10n（11 断言，回落恒等式钉新转面取词形）。测试函数总数 232→233，只增不减。
+- 终判同 §108.3 口径：本机无 Swift 工具链，静态自查（键对账/签名衔接/括号配平与 HEAD 基线同差）已做；编译与全套单测等合并后 CI。
+
+### 109.5 残留与边界（如实记账）
+
+- 目录坏键「已送 %@ / %lld %lld」（0.42.0 提取时占位符类型误判）未动目录：代码侧改用本包新补的正确键「已送 %lld / %lld %@」，坏键留目录待主线处置（删键或改键形需另行对账）。
+- HermesClient 两处 kanban 急停/终止的请求体 reason 值「App 停止」不转：那是写进服务端任务史的落账值，保持原文避免审计记录随界面语言漂移；同理 WriteGateClient 演示桩、DemoMode、DeviceExecutors/DeviceSyncExecutors 的工具回执文本（执行层、给桥与智能体读）不在本包。
+- GoalsStore.delegateBody「为目标《%@》安排的一件事。」是 App 生成的卡面模板（键已入目录）已转；它与用户自拟的任务标题的区别在于是模板而非内容，标题本体仍原样直通。
+- ConnectorCatalog 的分类搜索语料仍为简体 rawValue：非简体界面下按分类名搜索不命中（按名称/说明搜索随条目构造语言），属搜索语料口径、留后续。
+- 英文计数单复数 stringsdict 仍按 §108.4 另包；App 层 Store 串在赋值时以当时 uiLocale 定格，运行中切换系统语言需相关页面重拉才换语言（与 0.42.0 既有属性形口径一致）。

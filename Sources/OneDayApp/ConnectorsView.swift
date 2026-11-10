@@ -702,7 +702,7 @@ struct ConnectorsView: View {
                     catalogRow(entry)
                 }
             } header: {
-                headerText(group.category.rawValue)
+                headerText(group.category.title)
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
@@ -815,7 +815,7 @@ struct ConnectorsView: View {
                         catalogRow(entry)
                     }
                 } header: {
-                    headerText(group.category.rawValue)
+                    headerText(group.category.title)
                 }
                 .listRowBackground(Palette.surface)
                 .listRowInsets(rowInsets)
@@ -1052,7 +1052,7 @@ struct ConnectorsView: View {
             // 本身即状态呈现
             Section {
                 detailRow("状态", "未接入")
-                detailRow("分类", entry.category.rawValue)
+                detailRow("分类", entry.category.title)
                 detailRow("接入路径", entry.accessSummary)
             }
             .listRowBackground(Palette.surface)

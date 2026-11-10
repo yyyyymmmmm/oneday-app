@@ -353,7 +353,7 @@ final class KanbanModelsTests: XCTestCase {
         let detail = try decoder.decode(
             KanbanTaskDetail.self, from: Data(json.utf8)
         )
-        let items = detail.evidenceItems
+        let items = detail.evidenceItems(locale: Locale(identifier: "zh-Hans"))
         // 结果置顶 → 运行新→旧 → 事件新→旧
         XCTAssertEqual(items.first?.kind, .result)
         XCTAssertEqual(items.first?.detail, "清单已生成，共 12 个文件")
@@ -366,7 +366,7 @@ final class KanbanModelsTests: XCTestCase {
         )
         XCTAssertEqual(detail.attachmentNames, ["list.txt"])
         XCTAssertEqual(
-            KanbanRunOutcome.label(for: detail.runs[0]), "失败"
+            KanbanRunOutcome.label(for: detail.runs[0], locale: Locale(identifier: "zh-Hans")), "失败"
         )
     }
 
@@ -487,7 +487,7 @@ final class KanbanModelsTests: XCTestCase {
         // 红线：任何状态都不许出现「暂停」（kanban 无此动词）
         for status in ["ready", "running", "blocked", "review", "done"] {
             let titles = KanbanActionPolicy
-                .actions(for: task(status: status)).map(\.title)
+                .actions(for: task(status: status)).map { $0.title(locale: Locale(identifier: "zh-Hans")) }
             XCTAssertFalse(titles.contains("暂停"), "status=\(status)")
         }
     }
@@ -535,6 +535,6 @@ final class KanbanModelsTests: XCTestCase {
         )
         XCTAssertEqual(task.id, "t_new1")
         XCTAssertEqual(task.presentation, .queued)
-        XCTAssertEqual(task.displayTitle, "新任务")
+        XCTAssertEqual(task.displayTitle(locale: Locale(identifier: "zh-Hans")), "新任务")
     }
 }

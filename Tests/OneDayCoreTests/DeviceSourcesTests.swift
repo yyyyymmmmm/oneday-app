@@ -12,7 +12,7 @@ final class DeviceSourcesTests: XCTestCase {
     // MARK: - 名册
 
     func testRosterIntegrity() {
-        let roster = DeviceSourceDirectory.roster
+        let roster = DeviceSourceDirectory.roster(locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(roster.count, 7)
         XCTAssertEqual(
             roster.map(\.sourceID),
@@ -38,7 +38,7 @@ final class DeviceSourcesTests: XCTestCase {
             XCTAssertFalse(entry.footnote.isEmpty, entry.id)
         }
         for id in DeviceSourceID.allCases {
-            XCTAssertEqual(DeviceSourceDirectory.descriptor(id).sourceID, id)
+            XCTAssertEqual(DeviceSourceDirectory.descriptor(id, locale: Locale(identifier: "zh-Hans")).sourceID, id)
         }
     }
 
@@ -46,7 +46,7 @@ final class DeviceSourcesTests: XCTestCase {
     func testBluetoothNeverListed() {
         XCTAssertNil(DeviceSourceID(rawValue: "bluetooth"))
         XCTAssertFalse(
-            DeviceSourceDirectory.roster.contains {
+            DeviceSourceDirectory.roster(locale: Locale(identifier: "zh-Hans")).contains {
                 $0.name.contains("蓝牙")
             }
         )
@@ -56,13 +56,13 @@ final class DeviceSourcesTests: XCTestCase {
     /// 步数 0.36.14 同步制接线（通道只有同步副本），
     /// 健康/家庭批二待权益（isWired 为假）
     func testBatchSplit() {
-        XCTAssertTrue(DeviceSourceDirectory.descriptor(.calendar).isWired)
-        XCTAssertTrue(DeviceSourceDirectory.descriptor(.reminders).isWired)
-        XCTAssertTrue(DeviceSourceDirectory.descriptor(.contacts).isWired)
-        XCTAssertTrue(DeviceSourceDirectory.descriptor(.photos).isWired)
-        XCTAssertTrue(DeviceSourceDirectory.descriptor(.motion).isWired)
-        XCTAssertFalse(DeviceSourceDirectory.descriptor(.health).isWired)
-        XCTAssertFalse(DeviceSourceDirectory.descriptor(.home).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.calendar, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.reminders, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.contacts, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.photos, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.motion, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertFalse(DeviceSourceDirectory.descriptor(.health, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertFalse(DeviceSourceDirectory.descriptor(.home, locale: Locale(identifier: "zh-Hans")).isWired)
     }
 
     // MARK: - 工具名册
@@ -202,14 +202,14 @@ final class DeviceSourcesTests: XCTestCase {
     // MARK: - 目录行状态文案
 
     func testRowStatusLines() {
-        let calendar = DeviceSourceDirectory.descriptor(.calendar)
-        let health = DeviceSourceDirectory.descriptor(.health)
+        let calendar = DeviceSourceDirectory.descriptor(.calendar, locale: Locale(identifier: "zh-Hans"))
+        let health = DeviceSourceDirectory.descriptor(.health, locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: health, permission: .notDetermined,
                 agentCallEnabled: false, sessionOnline: false,
                 metric: nil
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "待签名权益"
         )
         XCTAssertEqual(
@@ -217,7 +217,7 @@ final class DeviceSourcesTests: XCTestCase {
                 descriptor: calendar, permission: .notDetermined,
                 agentCallEnabled: false, sessionOnline: true,
                 metric: nil
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "未授权"
         )
         XCTAssertEqual(
@@ -225,7 +225,7 @@ final class DeviceSourcesTests: XCTestCase {
                 descriptor: calendar, permission: .denied,
                 agentCallEnabled: true, sessionOnline: true,
                 metric: nil
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "被拒"
         )
         XCTAssertEqual(
@@ -233,7 +233,7 @@ final class DeviceSourcesTests: XCTestCase {
                 descriptor: calendar, permission: .granted,
                 agentCallEnabled: true, sessionOnline: true,
                 metric: "今天 3 个日程"
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已授权 · 可调用 · 今天 3 个日程"
         )
         XCTAssertEqual(
@@ -241,7 +241,7 @@ final class DeviceSourcesTests: XCTestCase {
                 descriptor: calendar, permission: .granted,
                 agentCallEnabled: false, sessionOnline: true,
                 metric: nil
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已授权 · 调用已关"
         )
         XCTAssertEqual(
@@ -249,16 +249,16 @@ final class DeviceSourcesTests: XCTestCase {
                 descriptor: calendar, permission: .writeOnly,
                 agentCallEnabled: true, sessionOnline: true,
                 metric: nil
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "仅写入权限 · 不能读取"
         )
-        let contacts = DeviceSourceDirectory.descriptor(.contacts)
+        let contacts = DeviceSourceDirectory.descriptor(.contacts, locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: contacts, permission: .limited,
                 agentCallEnabled: true, sessionOnline: true,
                 metric: nil
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已授权 · 部分联系人 · 可调用"
         )
     }
@@ -267,13 +267,13 @@ final class DeviceSourcesTests: XCTestCase {
     /// 再拼「可调用」，如实降为「会话未连接」；开关关
     /// 时仍以「调用已关」为准（与在线与否无关）
     func testRowStatusLineSessionOffline() {
-        let calendar = DeviceSourceDirectory.descriptor(.calendar)
+        let calendar = DeviceSourceDirectory.descriptor(.calendar, locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: calendar, permission: .granted,
                 agentCallEnabled: true, sessionOnline: false,
                 metric: "今天 3 个日程"
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已授权 · 会话未连接 · 今天 3 个日程"
         )
         XCTAssertEqual(
@@ -281,16 +281,16 @@ final class DeviceSourcesTests: XCTestCase {
                 descriptor: calendar, permission: .granted,
                 agentCallEnabled: false, sessionOnline: false,
                 metric: nil
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已授权 · 调用已关"
         )
-        let contacts = DeviceSourceDirectory.descriptor(.contacts)
+        let contacts = DeviceSourceDirectory.descriptor(.contacts, locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: contacts, permission: .limited,
                 agentCallEnabled: true, sessionOnline: false,
                 metric: nil
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "已授权 · 部分联系人 · 会话未连接"
         )
     }
@@ -304,25 +304,25 @@ final class DeviceSourcesTests: XCTestCase {
             .home: "待签名权益",
         ]
         XCTAssertEqual(
-            DeviceRowStatus.filtered(statusLines: lines, query: "").count, 7
+            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 7
         )
         XCTAssertEqual(
             DeviceRowStatus.filtered(
                 statusLines: lines, query: "日历"
-            ).map(\.sourceID),
+            , locale: Locale(identifier: "zh-Hans")).map(\.sourceID),
             [.calendar]
         )
         XCTAssertEqual(
             DeviceRowStatus.filtered(
                 statusLines: lines, query: "被拒"
-            ).map(\.sourceID),
+            , locale: Locale(identifier: "zh-Hans")).map(\.sourceID),
             [.contacts],
             "状态词可搜"
         )
         XCTAssertEqual(
             DeviceRowStatus.filtered(
                 statusLines: lines, query: "待签名权益"
-            ).map(\.sourceID),
+            , locale: Locale(identifier: "zh-Hans")).map(\.sourceID),
             [.health, .home]
         )
     }

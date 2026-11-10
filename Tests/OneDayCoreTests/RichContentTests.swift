@@ -179,35 +179,35 @@ final class RichContentTests: XCTestCase {
             ToolCardClassifier.title(
                 forToolName: "memory",
                 arguments: #"{"operations": [{"action": "add", "content": "记一下"}], "target": "memory"}"#
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "写入记忆"
         )
         XCTAssertEqual(
             ToolCardClassifier.summary(
                 forToolName: "memory",
                 arguments: #"{"operations": [{"action": "add", "content": "记一下"}], "target": "memory"}"#
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "记一下"
         )
         XCTAssertEqual(
             ToolCardClassifier.title(
                 forToolName: "skill_manage",
                 arguments: #"{"operations": [{"action": "create", "name": "demo"}]}"#
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "新建技能"
         )
         XCTAssertEqual(
             ToolCardClassifier.summary(
                 forToolName: "terminal",
                 arguments: #"{"command": "ls -la\npwd"}"#
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "ls -la"
         )
         // 未知工具无映射标题（回落交给拼装层 label/短名）
         XCTAssertNil(
             ToolCardClassifier.title(
                 forToolName: "mcp__foo__do_thing", arguments: "{}"
-            )
+            , locale: Locale(identifier: "zh-Hans"))
         )
         XCTAssertEqual(
             ToolCardClassifier.shortName(
@@ -230,7 +230,7 @@ final class RichContentTests: XCTestCase {
         XCTAssertEqual(
             ToolCardClassifier.title(
                 forToolName: "manage_connections", arguments: "{}"
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "管理连接"
         )
         // contacts_search 含 search 字样也归设备
@@ -243,37 +243,37 @@ final class RichContentTests: XCTestCase {
         XCTAssertEqual(
             ToolCardClassifier.title(
                 forToolName: "contacts_search", arguments: "{}"
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "查通讯录"
         )
         XCTAssertEqual(
             ToolCardClassifier.title(
                 forToolName: "calendar_list_events", arguments: "{}"
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "查询日历日程"
         )
         XCTAssertEqual(
             ToolCardClassifier.title(
                 forToolName: "reminders_complete", arguments: "{}"
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "完成提醒"
         )
         // 未知工具：映射表回 nil、回落中文类名
         XCTAssertNil(
             ToolCardClassifier.title(
                 forToolName: "mcp__foo__do_thing", arguments: "{}"
-            )
+            , locale: Locale(identifier: "zh-Hans"))
         )
         XCTAssertEqual(
             ToolCardClassifier.fallbackTitle(
                 forToolName: "mcp__foo__do_thing"
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "工具调用"
         )
         XCTAssertEqual(
             ToolCardClassifier.fallbackTitle(
                 forToolName: "some_browser_thing"
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "浏览器操作"
         )
     }
@@ -285,22 +285,22 @@ final class RichContentTests: XCTestCase {
             ToolCardClassifier.summary(
                 forToolName: "terminal",
                 arguments: #"{"command": "command -v gws; command -v himalaya; ls ~/.contacts 2>/dev/null"}"#
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "3 条命令 · command -v gws"
         )
         XCTAssertEqual(
             ToolCardClassifier.summary(
                 forToolName: "terminal",
                 arguments: #"{"command": "ls -la\npwd"}"#
-            ),
+            , locale: Locale(identifier: "zh-Hans")),
             "ls -la"
         )
         XCTAssertEqual(
-            ToolCardClassifier.commandSummary("a && b || c"),
+            ToolCardClassifier.commandSummary("a && b || c", locale: Locale(identifier: "zh-Hans")),
             "3 条命令 · a"
         )
         XCTAssertEqual(
-            ToolCardClassifier.commandSummary("git status"),
+            ToolCardClassifier.commandSummary("git status", locale: Locale(identifier: "zh-Hans")),
             "git status"
         )
     }
@@ -439,7 +439,7 @@ extension RichContentTests {
     /// 径，本测防回潮
     func testFallbackTitlesNeverContainASCIILetters() {
         for category in ToolCardCategory.allCases {
-            let title = category.fallbackTitle
+            let title = category.fallbackTitle(locale: Locale(identifier: "zh-Hans"))
             XCTAssertFalse(
                 title.unicodeScalars.contains {
                     CharacterSet.letters.contains($0)
@@ -449,8 +449,8 @@ extension RichContentTests {
             )
         }
         XCTAssertEqual(
-            ToolCardClassifier.fallbackTitle(forToolName: "some_unknown_tool"),
-            ToolCardCategory.other.fallbackTitle
+            ToolCardClassifier.fallbackTitle(forToolName: "some_unknown_tool", locale: Locale(identifier: "zh-Hans")),
+            ToolCardCategory.other.fallbackTitle(locale: Locale(identifier: "zh-Hans"))
         )
     }
 }

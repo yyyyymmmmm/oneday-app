@@ -23,9 +23,25 @@ public enum KanbanContract {
     public static let answerAuthor = "oneday"
     /// 人工来源作者集（pendingQuestion 提取时排除）
     public static let humanAuthors: Set<String> = ["oneday", "dashboard"]
-    public static let takeoverReason =
-        "接管中：你正在操作云电脑，任务派发已暂停，交还后可继续。"
-    public static let readOnlyReason = "任务系统版本变化，当前只读。"
+    public static var takeoverReason: String {
+        takeoverReason(locale: AppLocale.uiLocale)
+    }
+
+    public static var readOnlyReason: String {
+        readOnlyReason(locale: AppLocale.uiLocale)
+    }
+
+    /// 闸门原因的目录取词形（0.42.1 国际化长尾包）
+    public static func takeoverReason(locale: Locale) -> String {
+        L10n.string(
+            "接管中：你正在操作云电脑，任务派发已暂停，交还后可继续。",
+            locale: locale
+        )
+    }
+
+    public static func readOnlyReason(locale: Locale) -> String {
+        L10n.string("任务系统版本变化，当前只读。", locale: locale)
+    }
 }
 
 // MARK: - JSONValue 宽容提取（本文件内共用）
@@ -132,19 +148,24 @@ public enum KanbanStatusPresentation: Equatable, Hashable, Sendable {
     case archived
     case unknown(String)
 
-    public var label: String {
+    public var label: String { label(locale: AppLocale.uiLocale) }
+
+    /// 状态名的目录取词形（0.42.1 国际化长尾包）：
+    /// unknown 的 raw 是服务端原值（内容），原样直通
+    public func label(locale: Locale) -> String {
         switch self {
-        case .needsInput: return "等你回答"
-        case .review: return "待审批"
-        case .running: return "进行中"
-        case .failed: return "失败"
-        case .blocked: return "已阻塞"
-        case .queued: return "排队中"
-        case .scheduled: return "已排期"
-        case .triage: return "待整理"
-        case .done: return "已完成"
-        case .archived: return "已归档"
-        case .unknown(let raw): return raw.isEmpty ? "未知状态" : raw
+        case .needsInput: return L10n.string("等你回答", locale: locale)
+        case .review: return L10n.string("待审批", locale: locale)
+        case .running: return L10n.string("进行中", locale: locale)
+        case .failed: return L10n.string("失败", locale: locale)
+        case .blocked: return L10n.string("已阻塞", locale: locale)
+        case .queued: return L10n.string("排队中", locale: locale)
+        case .scheduled: return L10n.string("已排期", locale: locale)
+        case .triage: return L10n.string("待整理", locale: locale)
+        case .done: return L10n.string("已完成", locale: locale)
+        case .archived: return L10n.string("已归档", locale: locale)
+        case .unknown(let raw):
+            return raw.isEmpty ? L10n.string("未知状态", locale: locale) : raw
         }
     }
 
@@ -304,7 +325,13 @@ public struct KanbanTask: Decodable, Equatable, Sendable, Identifiable {
     }
 
     public var displayTitle: String {
-        title.isEmpty ? "未命名任务" : title
+        displayTitle(locale: AppLocale.uiLocale)
+    }
+
+    /// 标题的目录取词形（0.42.1 国际化长尾包）：任务
+    /// 标题是内容原样直通，只空标题兜底词走目录
+    public func displayTitle(locale: Locale) -> String {
+        title.isEmpty ? L10n.string("未命名任务", locale: locale) : title
     }
 
     /// 卡片摘要行：最近运行摘要优先，其次完成结果，
@@ -643,16 +670,18 @@ public struct KanbanRun: Decodable, Equatable, Sendable, Identifiable {
 
 /// run 结果译名（原生值小表，其余原样）
 public enum KanbanRunOutcome {
-    public static func label(for run: KanbanRun) -> String {
+    public static func label(
+        for run: KanbanRun, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         switch run.outcome ?? run.status {
         case "completed", "succeeded", "success", "done":
-            return "完成"
-        case "failed": return "失败"
-        case "crashed": return "崩溃"
-        case "timed_out": return "超时"
-        case "spawn_failed": return "启动失败"
-        case "running": return "运行中"
-        case nil: return "运行记录"
+            return L10n.string("完成", locale: locale)
+        case "failed": return L10n.string("失败", locale: locale)
+        case "crashed": return L10n.string("崩溃", locale: locale)
+        case "timed_out": return L10n.string("超时", locale: locale)
+        case "spawn_failed": return L10n.string("启动失败", locale: locale)
+        case "running": return L10n.string("运行中", locale: locale)
+        case nil: return L10n.string("运行记录", locale: locale)
         case .some(let raw): return raw
         }
     }
@@ -790,10 +819,18 @@ public struct KanbanTaskDetail: Decodable, Equatable, Sendable {
     /// 证据拼装：完成结果置顶 → 运行记录（新→旧）→
     /// 事件流（新→旧，上限 50 条防长尾淹没）
     public var evidenceItems: [KanbanEvidenceItem] {
+        evidenceItems(locale: AppLocale.uiLocale)
+    }
+
+    /// 证据拼装的目录取词形（0.42.1 国际化长尾包）：
+    /// 条目标题模板走目录；result/summary/text 与
+    /// event.kind 是服务端内容、原样直通不译
+    public func evidenceItems(locale: Locale) -> [KanbanEvidenceItem] {
         var items: [KanbanEvidenceItem] = []
         if let result = task.result, !result.isEmpty {
             items.append(KanbanEvidenceItem(
-                id: "result", kind: .result, title: "完成结果",
+                id: "result", kind: .result,
+                title: L10n.string("完成结果", locale: locale),
                 detail: result, at: task.completedAt
             ))
         }
@@ -804,7 +841,10 @@ public struct KanbanTaskDetail: Decodable, Equatable, Sendable {
         for run in sortedRuns {
             items.append(KanbanEvidenceItem(
                 id: "run-\(run.id)", kind: .run,
-                title: "运行 · \(KanbanRunOutcome.label(for: run))",
+                title: L10n.format(
+                    "运行 · %@", locale: locale,
+                    KanbanRunOutcome.label(for: run, locale: locale)
+                ),
                 detail: run.summary,
                 at: run.endedAt ?? run.startedAt
             ))
@@ -818,7 +858,8 @@ public struct KanbanTaskDetail: Decodable, Equatable, Sendable {
         for event in sortedEvents {
             items.append(KanbanEvidenceItem(
                 id: "event-\(event.id)", kind: .event,
-                title: event.kind.isEmpty ? "事件" : event.kind,
+                title: event.kind.isEmpty
+                    ? L10n.string("事件", locale: locale) : event.kind,
                 detail: event.text, at: event.createdAt
             ))
         }
@@ -873,16 +914,19 @@ public enum KanbanAction: String, CaseIterable, Equatable, Sendable {
     case requestChanges
     case answer
 
-    public var title: String {
+    public var title: String { title(locale: AppLocale.uiLocale) }
+
+    /// 动作名的目录取词形（0.42.1 国际化长尾包）
+    public func title(locale: Locale) -> String {
         switch self {
-        case .create: return "新建任务"
-        case .stop: return "停止"
-        case .resume: return "继续"
-        case .retry: return "重试"
-        case .cancel: return "取消任务"
-        case .approve: return "批准"
-        case .requestChanges: return "打回"
-        case .answer: return "回答"
+        case .create: return L10n.string("新建任务", locale: locale)
+        case .stop: return L10n.string("停止", locale: locale)
+        case .resume: return L10n.string("继续", locale: locale)
+        case .retry: return L10n.string("重试", locale: locale)
+        case .cancel: return L10n.string("取消任务", locale: locale)
+        case .approve: return L10n.string("批准", locale: locale)
+        case .requestChanges: return L10n.string("打回", locale: locale)
+        case .answer: return L10n.string("回答", locale: locale)
         }
     }
 
@@ -966,8 +1010,14 @@ public enum KanbanControlPlan {
     /// 新建任务的固定序列：建卡（回执 id）→ 催派 →
     /// 回板确认出现（App 层执行，此处只立语义锚；
     /// 文案走用户语言，接口细节不进呈现文案，§8）
-    public static let createFlowDescription =
-        "建卡 → 催派 → 回到看板确认出现"
+    public static var createFlowDescription: String {
+        createFlowDescription(locale: AppLocale.uiLocale)
+    }
+
+    /// 流程说明的目录取词形（0.42.1 国际化长尾包）
+    public static func createFlowDescription(locale: Locale) -> String {
+        L10n.string("建卡 → 催派 → 回到看板确认出现", locale: locale)
+    }
 }
 
 /// 动作可用性策略：按呈现态给动作集；闸门两条——

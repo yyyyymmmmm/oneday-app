@@ -168,7 +168,7 @@ final class ModelCombosTests: XCTestCase {
 
     func testComboSummaryLine() {
         XCTAssertEqual(
-            combo().summaryLine, "还没有设置任何槽位"
+            combo().summaryLine(locale: Locale(identifier: "zh-Hans")), "还没有设置任何槽位"
         )
         XCTAssertEqual(
             combo(
@@ -176,7 +176,7 @@ final class ModelCombosTests: XCTestCase {
                 aux: ["vision": .auto],
                 fallback: [SlotChoice(provider: "main", model: "x")],
                 includesFallback: true
-            ).summaryLine,
+            ).summaryLine(locale: Locale(identifier: "zh-Hans")),
             "主模型 deepseek-flash · 1 个辅助槽位 · 备用链 1 级"
         )
     }
@@ -184,10 +184,10 @@ final class ModelCombosTests: XCTestCase {
     func testActivationNoticeMentionsScope() {
         let notice = ComboActivation.activationNotice(
             for: combo(mainModel: "deepseek-v4-pro", aux: ["vision": .auto])
-        )
+        , locale: Locale(identifier: "zh-Hans"))
         XCTAssertTrue(notice.contains("已有会话不受影响"))
         XCTAssertTrue(notice.contains("所有会话共用"))
-        let empty = ComboActivation.activationNotice(for: combo())
+        let empty = ComboActivation.activationNotice(for: combo(), locale: Locale(identifier: "zh-Hans"))
         XCTAssertTrue(empty.contains("不会改动"))
     }
 
@@ -196,7 +196,7 @@ final class ModelCombosTests: XCTestCase {
             AuxSlotCatalog.providerChoices(namedProviders: ["甲厂"]),
             ["auto", "main", "甲厂"]
         )
-        XCTAssertEqual(AuxSlotCatalog.title(forKey: "vision"), "看图")
-        XCTAssertEqual(AuxSlotCatalog.title(forKey: "未知键"), "未知键")
+        XCTAssertEqual(AuxSlotCatalog.title(forKey: "vision", locale: Locale(identifier: "zh-Hans")), "看图")
+        XCTAssertEqual(AuxSlotCatalog.title(forKey: "未知键", locale: Locale(identifier: "zh-Hans")), "未知键")
     }
 }

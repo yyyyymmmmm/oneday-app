@@ -55,7 +55,7 @@ final class ChatThread {
     @Relationship(deleteRule: .cascade, inverse: \ChatEntry.thread)
     var entries: [ChatEntry] = []
 
-    init(title: String = "新会话") {
+    init(title: String = L10n.string("新会话")) {
         id = UUID()
         self.title = title
         createdAt = Date()

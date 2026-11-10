@@ -57,13 +57,20 @@ public enum DeviceSyncDataset: String, CaseIterable, Identifiable, Sendable, Cod
     }
 
     /// 数据集名（与伴生 DATASET_LABEL 同字）
-    public var label: String {
+    public var label: String { label(locale: AppLocale.uiLocale) }
+
+    /// 数据集名的目录取词形（0.42.1 国际化长尾
+    /// 包）：本名只作呈现（删除确认文案与行标题，
+    /// 已核无与服务端串比对的用法——线上键是枚
+    /// 举 rawValue）；「与伴生同字」是命名约定、
+    /// 非协议匹配
+    public func label(locale: Locale) -> String {
         switch self {
-        case .contacts: return "通讯录"
-        case .calendar: return "日历"
-        case .reminders: return "提醒事项"
-        case .photos: return "照片"
-        case .motion: return "步数"
+        case .contacts: return L10n.string("通讯录", locale: locale)
+        case .calendar: return L10n.string("日历", locale: locale)
+        case .reminders: return L10n.string("提醒事项", locale: locale)
+        case .photos: return L10n.string("照片", locale: locale)
+        case .motion: return L10n.string("步数", locale: locale)
         }
     }
 
@@ -740,8 +747,17 @@ public enum DeviceSyncPresentation {
     /// 谁来查、授权后自动同步——三件事一句说清，
     /// 页面不许再出现第二段口径文字（旧的逐件脚注
     /// 段随本版退役）
-    public static let detailSubtitle =
-        "副本在你自己的服务器上，智能体查副本；开着权限就自动同步"
+    public static var detailSubtitle: String {
+        detailSubtitle(locale: AppLocale.uiLocale)
+    }
+
+    /// 详情页副题的目录取词形（0.42.1 国际化长尾包）
+    public static func detailSubtitle(locale: Locale) -> String {
+        L10n.string(
+            "副本在你自己的服务器上，智能体查副本；开着权限就自动同步",
+            locale: locale
+        )
+    }
 
     /// 授权范围人话（详情页同步区用）
     public static func rangeLine(

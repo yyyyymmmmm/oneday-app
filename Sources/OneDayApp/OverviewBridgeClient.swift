@@ -37,12 +37,12 @@ final class OverviewBridgeClient: @unchecked Sendable {
     }
 
     func overview(config: ServerConfig) async throws -> OverviewSnapshot {
-        try await get(config: config, path: "/overview", endpoint: "总览")
+        try await get(config: config, path: "/overview", endpoint: L10n.string("总览"))
     }
 
     func notifications(config: ServerConfig) async throws -> [OverviewNotification] {
         let response: OverviewNotificationsResponse = try await get(
-            config: config, path: "/notifications", endpoint: "通知"
+            config: config, path: "/notifications", endpoint: L10n.string("通知")
         )
         return response.items
     }
@@ -57,17 +57,17 @@ final class OverviewBridgeClient: @unchecked Sendable {
         )
         request.httpMethod = "POST"
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let (data, http) = try await send(request, endpoint: "通知已读")
+        let (data, http) = try await send(request, endpoint: L10n.string("通知已读"))
         if http.statusCode == 401 {
             throw OverviewBridgeError.unauthorized
         }
         guard (200...299).contains(http.statusCode) else {
-            throw OverviewBridgeError.failed("通知已读返回 \(http.statusCode)")
+            throw OverviewBridgeError.failed(L10n.format("通知已读返回 %@", String(http.statusCode)))
         }
         do {
             return try decoder.decode(OverviewReadResponse.self, from: data).ok
         } catch {
-            throw OverviewBridgeError.failed("通知已读回执格式无法识别")
+            throw OverviewBridgeError.failed(L10n.string("通知已读回执格式无法识别"))
         }
     }
 
@@ -87,12 +87,12 @@ final class OverviewBridgeClient: @unchecked Sendable {
             throw OverviewBridgeError.unauthorized
         }
         guard http.statusCode == 200 else {
-            throw OverviewBridgeError.failed("\(endpoint)返回 \(http.statusCode)")
+            throw OverviewBridgeError.failed(L10n.format("%@返回 %@", endpoint, String(http.statusCode)))
         }
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OverviewBridgeError.failed("\(endpoint)返回格式无法识别")
+            throw OverviewBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
         }
     }
 
@@ -102,13 +102,13 @@ final class OverviewBridgeClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw OverviewBridgeError.failed("\(endpoint)无响应")
+                throw OverviewBridgeError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as OverviewBridgeError {
             throw error
         } catch {
-            throw OverviewBridgeError.failed("\(endpoint)网络不可达")
+            throw OverviewBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

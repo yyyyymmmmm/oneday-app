@@ -32,10 +32,10 @@ final class ConnectionsStore {
             loadError = nil
         } catch let error as OneDayBridgeError {
             loadError = error == .noKey
-                ? "还没有登录凭据，读不到电脑列表。"
-                : "电脑列表读取失败，请稍后再试。"
+                ? L10n.string("还没有登录凭据，读不到电脑列表。")
+                : L10n.string("电脑列表读取失败，请稍后再试。")
         } catch {
-            loadError = "电脑列表读取失败，请稍后再试。"
+            loadError = L10n.string("电脑列表读取失败，请稍后再试。")
         }
     }
 
@@ -52,7 +52,7 @@ final class ConnectionsStore {
             await load(appState: appState)
             return connections.first { $0.id == created.id } ?? created
         } catch {
-            notice = "这台电脑没能加上，请稍后再试。"
+            notice = L10n.string("这台电脑没能加上，请稍后再试。")
             return nil
         }
     }
@@ -87,7 +87,7 @@ final class ConnectionsStore {
         } catch {
             credentialPhase = CredentialFlowPhase.next(
                 from: credentialPhase,
-                receipt: (ok: false, detail: "提交没能完成，请稍后再试。")
+                receipt: (ok: false, detail: L10n.string("提交没能完成，请稍后再试。"))
             )
         }
     }
@@ -100,10 +100,10 @@ final class ConnectionsStore {
             let result = try await client.verify(config: config, id: id)
             if let updated = result.connection { replace(updated) }
             notice = result.ok
-                ? "连接正常：\(result.detail)"
-                : "没连上：\(result.detail)"
+                ? L10n.format("连接正常：%@", result.detail)
+                : L10n.format("没连上：%@", result.detail)
         } catch {
-            notice = "测试连接没能完成，请稍后再试。"
+            notice = L10n.string("测试连接没能完成，请稍后再试。")
         }
     }
 
@@ -112,9 +112,9 @@ final class ConnectionsStore {
         do {
             let updated = try await client.disconnect(config: config, id: id)
             if let updated { replace(updated) }
-            notice = "已断开。"
+            notice = L10n.string("已断开。")
         } catch {
-            notice = "断开没能完成，请稍后再试。"
+            notice = L10n.string("断开没能完成，请稍后再试。")
         }
     }
 
@@ -132,10 +132,10 @@ final class ConnectionsStore {
 extension OneDayBridgeError {
     var userFacingText: String {
         switch self {
-        case .noKey: return "还没有登录凭据。"
-        case .unauthorized: return "登录凭据被拒绝，请重新登录后再试。"
-        case .bridgeMissing: return "这个功能面还没开通。"
-        case .recordGone: return "这条记录已经不在了。"
+        case .noKey: return L10n.string("还没有登录凭据。")
+        case .unauthorized: return L10n.string("登录凭据被拒绝，请重新登录后再试。")
+        case .bridgeMissing: return L10n.string("这个功能面还没开通。")
+        case .recordGone: return L10n.string("这条记录已经不在了。")
         case .failed(let message): return message
         }
     }
