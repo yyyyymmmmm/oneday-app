@@ -6959,3 +6959,26 @@ SwipeReplyDiagnostics（App 层新文件）＋桥内三处挂钩，代码内均�
 ### 90.6 施工实录
 
 独立 worktree（oneday-worktrees/swipe-fix-03623）＋分支 feat/swipe-fix-0.36.23 与 0.36.22 出包并行预制（用户 02:15 定版「CI 等待期不停工」），基线 main 顶端 71c8990（0.36.22 全部代码）。单测基线 870（分支内实数），本包 shouldBeginPan 速度域三测按位移纯比值重写（三测对三测）＋新增无量级门对照钉测一枚，预期 871、只增不减。版本五处同改 0.36.23/90 并 grep 验（残留 velocity 引用经查全属 HubEdgeSwipe 枢纽边缘手势，范围外未动）。**CI 口径如实**：工作流只在 push main 触发，本分支 push 不触发 CI，构建与单测待主线在 0.36.22 交付后合并回 main 随正式出包跑，本节不预填结果；合并注意事项见施工回报（预判冲突面：ChatView 未动、DESIGN 尾部 §90 与 §89 相邻追加、Project.swift 版本行与后续包版本顺延需复核）。
+## §91 待发附件条居中续修：满宽 claim 必须落在被居中定位的那一层（0.36.23/90 续件，2026-11-11）
+
+### 91.1 点题与定案
+
+用户 2026-11-11 02:59 真机再报「添加的图片怎么还是居中」——0.36.19（§84.4）修过没生效，P-13 续案。主线逐层读码定案：`composerCard` 是 `VStack(spacing: 0)`、默认居中对齐，直接子级＝引用块 SmoothExpand、附件条 SmoothExpand、composerRow；`SmoothExpand`（OneDayDesign/Components.swift）只以 `.frame(height:)` 锁高、宽度随内容理想尺寸；附件条本体是横向 ScrollView，被上层量理想尺寸时按内容宽收缩——整条遂按单张图宽度被卡居中。0.36.19 的两处 `.frame(maxWidth: .infinity, alignment: .leading)` 加在 strip **内部**（ScrollView 本体与其内容），里层的 flexible frame 只能用被提议到的宽度，撑不开外层的收缩包装，所以没生效。
+
+### 91.2 外部口径
+
+SwiftUI 尺寸协商里，父按子的理想尺寸在栈内定位，里层 flexible frame 只能用被提议的宽度——「居中栈＋收缩包装」是通行坑，通行解法即在直接子层 claim 满宽／改栈对齐，不在最里层加 frame。本轮按此在直接子层落修。
+
+### 91.3 修法（调用点级，SmoothExpand 语义不动）
+
+- composerCard 内两个 SmoothExpand 调用点（引用块、附件条）各加 `.frame(maxWidth: .infinity, alignment: .leading)`：块本身满宽、内容靠左；strip 内部原有两处 frame 保留。
+- 不全局改 SmoothExpand：全仓调用点共 4 处——本卡 2 处（本轮修）＋inputBar 的语音失败条／到限通知条 2 处（不在居中卡内、本轮不动）；全局改语义会波及后两者的宽度行为，调用点级修法把影响面钉在本卡。
+- 引用块同层同病一并落修：它靠 HStack 内 Spacer 在宽提议下自撑满宽、先前未被报出，本轮同加 claim 后版式口径与附件条统一（满宽、左起、分隔线通栏），无回退面。
+
+### 91.4 验收自查（代码层逐项，真机终验在用户）
+
+1. **单图左贴**：附件 SmoothExpand 在卡 VStack 直接子层 claim 满宽 → strip 的 ScrollView 得满宽提议 → 内部 HStack 以 spacingSM 左内距左起，缩略图贴卡内左边距，不再按内容宽居中。
+2. **多图横排可滚**：ScrollView 宽度即卡宽（不再随内容收缩或超提），HStack 内容超宽时横向滚动路径不变。
+3. **删光收回**：isExpanded 判据（`!attachments.isEmpty`）与 SmoothExpand 高度动画均未动，删至空仍平滑收至 0 高。
+4. **引用块两态**：引用块单独出现时 claim 满宽、quoteBar 左起＋分隔线通栏；与附件条同现时两块同口径满宽左对齐、自上而下贴合。
+5. **失败／通知条不回退**：inputBar 两处 SmoothExpand 调用点与 SmoothExpand 本体均未改动，宽度行为原样。

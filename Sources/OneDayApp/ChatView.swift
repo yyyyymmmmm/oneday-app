@@ -2493,7 +2493,9 @@ struct ChatView: View {
     private var composerCard: some View {
         VStack(spacing: 0) {
             // 引用块出现/消失走 SmoothExpand 平滑高度
-            // （条 7）；分隔线随引用块同进同出
+            // （条 7）；分隔线随引用块同进同出；满宽
+            // claim 落在本层（卡 VStack 的直接子层）——
+            // P-13 续案口径与附件条同，见下方附件条注
             SmoothExpand(isExpanded: pendingQuote != nil) {
                 if let pendingQuote {
                     VStack(spacing: 0) {
@@ -2507,6 +2509,7 @@ struct ChatView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             // 待发附件条（0.36.19 入舱，§84.4）：0.2.1 起
             // 它挂在输入舱外（inputBar 的 VStack 里）——
             // VStack 默认居中对齐＋strip 无满宽左锚，
@@ -2516,6 +2519,16 @@ struct ChatView: View {
             // SmoothExpand＋分隔线随进随出；条高计入整
             // 卡实测（卡层 onGeometryChange 同路），圆
             // 角连续函数随高自适应
+            // 0.36.23 续修（P-13 续案，用户 02:59 真机再
+            // 报「添加的图片怎么还是居中」）：0.36.19 把
+            // 满宽锚加在 strip 内部两层，没生效——本卡
+            // VStack 默认居中对齐，SmoothExpand 只锁高
+            // 不锁宽、按内容理想宽收缩，卡按收缩宽把整
+            // 条居中定位；里层 flexible frame 只能用被
+            // 提议到的宽度，撑不开外层收缩。修法＝在卡
+            // 的直接子层 claim 满宽（本行 frame），块本
+            // 身满宽、内容靠左；strip 内部原有 frame 保
+            // 留。引用块同层同病同修（见上）
             SmoothExpand(isExpanded: !attachments.isEmpty) {
                 VStack(spacing: 0) {
                     attachmentsStrip
@@ -2527,6 +2540,7 @@ struct ChatView: View {
                         )
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             composerRow
         }
         // 第 1 修（P0 键盘不弹）的聚焦保底层：整卡背景
