@@ -5125,3 +5125,13 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 2. **右缘长线**：DrawerShell 查实无右缘描边/分隔（只有右缘柔影）；面板内唯一贯穿右缘者＝名单 ScrollView 的默认滚动指示器。改 `ScrollView(.vertical, showsIndicators: false)`。
 3. **顶部带断层（19:27 口径修正：整块取消、非统一材质）**：原实色带来自两处叠加——①safeAreaBar 注册把标题锁进一块独立带（名单滚不到带下、天然有界）；②0.36.3 给带内名字单挂一层 drawerBackdrop、与根背景同名材质叠成双层，带面比主体更实更灰。落法：safeAreaBar 整段删除；标题改 ZStack 顶部浮层（VStack{drawerAgentName; Spacer()}、allowsHitTesting(false)），只剩文字本体悬于根背景同一层 drawerBackdrop 之上（ZStack 顶＝安全区顶、状态栏之下；Reduce Transparency 时根背景落实色、浮层随之同面）；名单加 `.contentMargins(.top, 70, for: .scrollContent)`（70＝名字顶距 24＋Title1 行高约 34＋底距 12，与 drawerAgentName 现行距共用一数、抽为 titleStripHeight 常量）——静止时首行停在标题下方、滚动时行从标题文字后方穿过。已知边界：Dynamic Type 极端档行高变大、静止时首行可能被标题略压，待真机。
 
+
+### 70.5 交付实录
+
+- 提交链：08778c5（整包）→5073f72（CI 修一：RefreshableIfEnabled 的 action 补 @MainActor 隔离标注——refreshable 形参 @Sendable 转换在 Swift 6 下拒绝未标注函数值）→本节补记提交；代码顶端 5073f72。首轮 CI 42809148844 failure 即此一处编译错，第二轮绿。
+- CI：42809473654 **success**，Executed **677 tests, 0 failures**（基线 669＋新增 8：BottomFollowTests 3＋OverviewBridgeTests 5，只增不减）。
+- IPA：6,412,196 字节、md5 77a562cae7a7364278e1474d8cdf8f88、独立解包验 Info.plist＝0.36.5/72，落 ~/workspace/your_files/oneday-v0.36.5/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.5/72）＋SettingsView 页脚「OneDay v0.36.5」。
+- 台账/总纲：宪法 §4 修订文本已落总纲（ui-design-philosophy §三.4，标 19:19 修订）；台账 C7 升级注、D 节 0.36.5 五件补登、H 节本批六条补记；C16 底栏终审同日经用户 19:34 真机通过销项（非本批施工）。
+- 桥侧：overview_bridge.py refId 改动与 overview_bridge_selftest.py 在 ~/workspace/hermes-deploy 本地完成、自测 8/8；**未部署生产**（待拍板），部署前 C 部 App 联动不成立。
+- 待真机（并入终审积压）：发送后贴底实感（含长线程）；回底钮在事实信号下消失时机；胶囊新序与默认落地；权限开关五态实点（未定请求弹窗/已授权拨关跳设置）；设备五件图标辨识度（日历动态日期、通讯录彩签、健康渐变心对版）；详情页下拉关闭与 ✕ 并存手感；抽屉标题浮层下名单穿行与右缘无指示器观感、Dynamic Type 极端档标题压首行边界；角标联动待桥部署后才可验。
