@@ -4952,4 +4952,9 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 
 ### 64.4 交付实录
 
-- （CI 与 IPA 数据待回填）
+- 提交链：6e601b0（功能整包）→9e2805a（CI 修：动态格符号 newspaper 量测判死换 doc.text＋相对时间边界测例修正）；顶端 9e2805a。
+- CI 42789983434 success（首轮 42788898202 构建过、单测三处红：newspaper 密度两闸＋相对时间恰 60 秒边界，均已修），**Executed 637 tests, 0 failures**（基线 624＋新测 13：FeedBoardTests 13，只增不减）。
+- IPA：5,855,761 字节、md5 1c616691ccffe68d2705bf247984c3b2、独立解包验 Info.plist＝0.35.0/66、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.35.0/OneDay-0.35.0.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.35.0／CURRENT_PROJECT_VERSION 66／CFBundleShortVersionString 0.35.0／CFBundleVersion 66）＋SettingsView 页脚「OneDay v0.35.0」。
+- 桥侧实录见 64.1（备份 bak-20261110-p3、双生产者首轮真跑、自测 25/25、内存约 51.6%）；施工记录追记 hermes-deploy/oneday-bridge-rollout-20261109.md。
+- LL1–LL7 待真机终审；JJ/KK 系列续审并行。
