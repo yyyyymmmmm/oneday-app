@@ -13,6 +13,10 @@ enum DevicePermissions {
             .calendar: calendarState(),
             .reminders: remindersState(),
             .contacts: contactsState(),
+            // 照片/步数状态函数在 DeviceSyncExecutors
+            // （PhotoKit/CoreMotion 翻译层同文件）
+            .photos: photosState(),
+            .motion: motionState(),
             .health: .notDetermined,
             .home: .notDetermined,
         ]
@@ -270,6 +274,67 @@ final class EventKitEngine: @unchecked Sendable {
     /// 幂等重放时的回读：按 id 取事件现状（不在了回 nil）
     func eventObjectByID(_ id: String) -> [String: JSONValue]? {
         store.event(withIdentifier: id).map(Self.eventObject)
+    }
+
+    // MARK: 同步制（0.36.14）：窗口场次整表读
+
+    /// 同步窗口内的场次记录：predicate 已把重复事
+    /// 件按场次展开，occurrenceId＝事件标识＋场次
+    /// 开始时刻（同一重复事件的各场次靠它区分）
+    func syncOccurrences(
+        from start: Date, to end: Date
+    ) -> [SyncCalendarRecord] {
+        let predicate = store.predicateForEvents(
+            withStart: start, end: end, calendars: nil
+        )
+        return store.events(matching: predicate)
+            .sorted { $0.startDate < $1.startDate }
+            .map { event in
+                SyncCalendarRecord(
+                    occurrenceId: event.eventIdentifier + "|"
+                        + DeviceISO8601.format(event.startDate),
+                    eventId: event.eventIdentifier,
+                    title: event.title ?? "",
+                    start: event.startDate,
+                    end: event.endDate,
+                    allDay: event.isAllDay,
+                    calendarName: event.calendar.title,
+                    location: event.location
+                )
+            }
+    }
+
+    /// 同步快照：未完成提醒全量记录＋聚合（今日已
+    /// 完成/已过期，Core 同口径计算）
+    func reminderSyncSnapshot() async -> (
+        records: [SyncReminderRecord],
+        aggregates: SyncReminderAggregates
+    ) {
+        let all = await fetchAllReminders()
+        let inputs = all.map { reminder in
+            SyncReminderInput(
+                due: reminder.dueDateComponents.flatMap {
+                    Calendar.current.date(from: $0)
+                },
+                isCompleted: reminder.isCompleted,
+                completionDate: reminder.completionDate
+            )
+        }
+        let records = all.filter { !$0.isCompleted }.map { reminder in
+            SyncReminderRecord(
+                id: reminder.calendarItemIdentifier,
+                title: reminder.title ?? "",
+                due: reminder.dueDateComponents.flatMap {
+                    Calendar.current.date(from: $0)
+                },
+                priority: reminder.priority,
+                listName: reminder.calendar.title
+            )
+        }
+        return (
+            records,
+            SyncReminderAggregates.compute(inputs, now: Date())
+        )
     }
 
     // MARK: 提醒读
@@ -583,6 +648,97 @@ final class ContactsEngine: @unchecked Sendable {
             matching: predicate, keysToFetch: Self.keysToFetch
         )
         return found.prefix(limit).map(Self.item)
+    }
+
+    // MARK: 同步制（0.36.14）：清单＋全量记录一次枚举
+
+    /// 同步快照：一次整本枚举同时产出清单条目（标
+    /// 识＋指纹，送伴生比对）与全量最小字段记录
+    /// （只取比对说有变的那些上传）。分组名靠分组
+    /// 成员关系反查（联系人本体不带分组信息）；
+    /// 受限授权下系统只给勾选子集，枚举天然收敛
+    func syncSnapshot() throws -> (
+        entries: [ContactManifestEntry],
+        records: [SyncContactRecord]
+    ) {
+        let groupMap = groupNamesByContactID()
+        let request = CNContactFetchRequest(keysToFetch: Self.keysToFetch)
+        request.sortOrder = .userDefault
+        var records: [SyncContactRecord] = []
+        do {
+            try store.enumerateContacts(with: request) { contact, _ in
+                records.append(Self.syncRecord(
+                    contact, groups: groupMap[contact.identifier] ?? []
+                ))
+            }
+        } catch {
+            throw DeviceToolError.failed(
+                "通讯录读取失败：\(error.localizedDescription)"
+            )
+        }
+        return (records.map(\.manifestEntry), records)
+    }
+
+    private static func syncRecord(
+        _ contact: CNContact, groups: [String]
+    ) -> SyncContactRecord {
+        let name = CNContactFormatter.string(
+            from: contact, style: .fullName
+        ) ?? ""
+        return SyncContactRecord(
+            id: contact.identifier,
+            displayName: name,
+            familyName: contact.familyName.isEmpty
+                ? nil : contact.familyName,
+            givenName: contact.givenName.isEmpty
+                ? nil : contact.givenName,
+            organization: contact.organizationName.isEmpty
+                ? nil : contact.organizationName,
+            phones: contact.phoneNumbers.map {
+                SyncLabeledValue(
+                    label: $0.label.map {
+                        CNLabeledValue<NSString>.localizedString(
+                            forLabel: $0
+                        )
+                    } ?? "",
+                    value: $0.value.stringValue
+                )
+            },
+            emails: contact.emailAddresses.map {
+                SyncLabeledValue(
+                    label: $0.label.map {
+                        CNLabeledValue<NSString>.localizedString(
+                            forLabel: $0
+                        )
+                    } ?? "",
+                    value: $0.value as String
+                )
+            },
+            groups: groups
+        )
+    }
+
+    /// 分组名反查：逐组取成员标识建映射（分组数
+    /// 量级小，成本可控）；取不到分组就回空表（分
+    /// 组只是记录的一个字段，缺了不拦整本同步）
+    private func groupNamesByContactID() -> [String: [String]] {
+        guard let groups = try? store.groups(matching: nil)
+        else { return [:] }
+        var map: [String: [String]] = [:]
+        for group in groups {
+            let predicate = CNContact.predicateForContactsInGroup(
+                withIdentifier: group.identifier
+            )
+            var keys: [CNKeyDescriptor] = []
+            keys.append(CNContactIdentifierKey as NSString)
+            guard let members = try? store.unifiedContacts(
+                matching: predicate, keysToFetch: keys
+            ) else { continue }
+            for member in members {
+                map[member.identifier, default: []].append(group.name)
+            }
+        }
+        return map
     }
 }
 

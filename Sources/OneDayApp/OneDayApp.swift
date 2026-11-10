@@ -92,6 +92,11 @@ struct RootView: View {
                 appState.deviceSession.activate(
                     config: appState.config, isDemo: appState.isDemo
                 )
+                if !appState.isDemo {
+                    appState.deviceSync.foregroundCheck(
+                        config: appState.config
+                    )
+                }
             } else if newPhase == .background {
                 appState.deviceSession.deactivate()
             }
@@ -101,6 +106,11 @@ struct RootView: View {
                 appState.deviceSession.activate(
                     config: appState.config, isDemo: appState.isDemo
                 )
+                if !appState.isDemo {
+                    appState.deviceSync.foregroundCheck(
+                        config: appState.config
+                    )
+                }
             } else {
                 appState.deviceSession.deactivate()
             }
@@ -111,6 +121,11 @@ struct RootView: View {
             appState.deviceSession.activate(
                 config: appState.config, isDemo: appState.isDemo
             )
+            if !appState.isDemo {
+                appState.deviceSync.foregroundCheck(
+                    config: appState.config
+                )
+            }
             // 演示样本播种：内存库为空时种一轮拟真对话（仅演示模式）
             if DemoMode.current.isDemo {
                 DemoSeeder.seedIfNeeded(context: modelContext)

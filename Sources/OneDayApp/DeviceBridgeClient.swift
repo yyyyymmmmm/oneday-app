@@ -195,6 +195,187 @@ final class DeviceBridgeClient: @unchecked Sendable {
         _ = try? await send(request, endpoint: "断开设备会话")
     }
 
+    // MARK: - 同步通道（0.36.14，规格 §3.1）
+
+    /// JSONValue → JSONSerialization 可吃的 Any（借
+    /// respond 的既有转法：先 Codable 编码再解回）
+    private func anyJSON(_ value: JSONValue) throws -> Any {
+        try JSONSerialization.jsonObject(with: encoder.encode(value))
+    }
+
+    private func postSync(
+        config: ServerConfig, path: String,
+        body: [String: Any], endpoint: String
+    ) async throws -> [String: Any] {
+        var request = try makeRequest(
+            config: config, path: path, method: "POST"
+        )
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: body
+        )
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        let (data, http) = try await send(request, endpoint: endpoint)
+        try checkStatus(http, data: data, endpoint: endpoint)
+        guard let object = try? JSONSerialization.jsonObject(
+            with: data
+        ) as? [String: Any] else {
+            throw DeviceBridgeError.failed("\(endpoint)回执格式无法识别")
+        }
+        return object
+    }
+
+    /// GET /device/sync/status：逐数据集状态（只出
+    /// 状态、无记录内容），回 Data 交 Core 解码
+    func syncStatusData(config: ServerConfig) async throws -> Data {
+        guard let key = bridgeKey, !key.isEmpty else {
+            throw DeviceBridgeError.noKey
+        }
+        var request = URLRequest(
+            url: config.endpoint("/api/device-bridge/device/sync/status")
+        )
+        request.httpMethod = "GET"
+        request.setValue(
+            "Bearer \(key)", forHTTPHeaderField: "Authorization"
+        )
+        let (data, http) = try await send(request, endpoint: "读取同步状态")
+        try checkStatus(http, data: data, endpoint: "读取同步状态")
+        return data
+    }
+
+    /// POST /device/sync/manifest：通讯录标识＋指纹
+    /// 清单比对，回有变/已消失两张单（桥回执键是
+    /// snake_case，与 complete 的混排不同，逐个取）
+    func syncManifest(
+        config: ServerConfig, entries: [ContactManifestEntry]
+    ) async throws -> (
+        changed: [String], removed: [String], currentTotal: Int
+    ) {
+        let body: [String: Any] = [
+            "dataset": "contacts",
+            "entries": try entries.map {
+                try anyJSON(.object($0.json))
+            },
+        ]
+        let out = try await postSync(
+            config: config, path: "/device/sync/manifest",
+            body: body, endpoint: "通讯录清单比对"
+        )
+        return (
+            changed: out["changed_ids"] as? [String] ?? [],
+            removed: out["removed_ids"] as? [String] ?? [],
+            currentTotal:
+                (out["current_total"] as? NSNumber)?.intValue ?? 0
+        )
+    }
+
+    /// POST /device/sync/batch：分批暂存（一批 ≤500
+    /// 条的口径在 App 侧切，见 SyncBatchPlan）；暂存
+    /// 不进正式表，完成确认才整批换入
+    func syncBatch(
+        config: ServerConfig, dataset: DeviceSyncDataset,
+        batchId: String, records: [[String: JSONValue]],
+        mode: String
+    ) async throws -> Int {
+        let body: [String: Any] = [
+            "dataset": dataset.bridgeName,
+            "batchId": batchId,
+            "mode": mode,
+            "records": try records.map { try anyJSON(.object($0)) },
+        ]
+        let out = try await postSync(
+            config: config, path: "/device/sync/batch",
+            body: body, endpoint: "同步分批上传"
+        )
+        return (out["received"] as? NSNumber)?.intValue ?? 0
+    }
+
+    /// POST /device/sync/complete：报应到总数，桥核
+    /// 对无误才换入；对不上回 409（checkStatus 把桥
+    /// 的 error 码原样带出，控制层据码翻人话）
+    func syncComplete(
+        config: ServerConfig, dataset: DeviceSyncDataset,
+        batchId: String, expectedTotal: Int,
+        deviceCompletedAt: Date, mode: String,
+        coverage: [String: JSONValue]?,
+        aggregates: [String: JSONValue]?,
+        removedIds: [String]?,
+        authRange: String, rangeNote: String?,
+        permissionState: String
+    ) async throws -> (
+        totalInStore: Int, syncedAt: Date?, authRange: String?
+    ) {
+        var body: [String: Any] = [
+            "dataset": dataset.bridgeName,
+            "batchId": batchId,
+            "expectedTotal": expectedTotal,
+            "deviceCompletedAt":
+                DeviceISO8601.format(deviceCompletedAt),
+            "mode": mode,
+            "authRange": authRange,
+            "permissionState": permissionState,
+        ]
+        if let coverage {
+            body["coverage"] = try anyJSON(.object(coverage))
+        }
+        if let aggregates {
+            body["aggregates"] = try anyJSON(.object(aggregates))
+        }
+        if let removedIds {
+            body["removedIds"] = removedIds
+        }
+        if let rangeNote {
+            body["rangeNote"] = rangeNote
+        }
+        let out = try await postSync(
+            config: config, path: "/device/sync/complete",
+            body: body, endpoint: "同步完成确认"
+        )
+        return (
+            totalInStore:
+                (out["total_in_store"] as? NSNumber)?.intValue ?? 0,
+            syncedAt: (out["synced_at"] as? String)
+                .flatMap(DeviceISO8601.parse),
+            authRange: out["auth_range"] as? String
+        )
+    }
+
+    /// POST /device/sync/state：上报权限/范围变化；
+    /// 范围变了桥回 reimport_required（下轮整本重灌）
+    func syncReportState(
+        config: ServerConfig, dataset: DeviceSyncDataset,
+        permissionState: String, authRange: String,
+        rangeNote: String?
+    ) async throws -> Bool {
+        var body: [String: Any] = [
+            "dataset": dataset.bridgeName,
+            "permissionState": permissionState,
+            "authRange": authRange,
+        ]
+        if let rangeNote { body["rangeNote"] = rangeNote }
+        let out = try await postSync(
+            config: config, path: "/device/sync/state",
+            body: body, endpoint: "上报权限状态"
+        )
+        return out["reimport_required"] as? Bool ?? false
+    }
+
+    /// POST /device/sync/delete：删副本（单件传
+    /// dataset、全删不传）；删的是服务器副本，手机
+    /// 数据/权限/配对都不动
+    func syncDelete(
+        config: ServerConfig, dataset: DeviceSyncDataset?
+    ) async throws -> [String] {
+        var body: [String: Any] = [:]
+        if let dataset { body["dataset"] = dataset.bridgeName }
+        let out = try await postSync(
+            config: config, path: "/device/sync/delete",
+            body: body, endpoint: "删除同步副本"
+        )
+        return out["deleted"] as? [String] ?? []
+    }
+
     // MARK: - 请求底座
 
     private func makeRequest(

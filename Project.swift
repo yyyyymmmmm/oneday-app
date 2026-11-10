@@ -8,8 +8,8 @@ let project = Project(
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1",
-        "MARKETING_VERSION": "0.36.13",
-        "CURRENT_PROJECT_VERSION": "80",
+        "MARKETING_VERSION": "0.36.14",
+        "CURRENT_PROJECT_VERSION": "81",
     ]),
     targets: [
         .target(
@@ -43,8 +43,8 @@ let project = Project(
                 // 版本号直写 Info.plist（沿礼记 v4.4 实证口径）：Tuist 默认
                 // 模板不把工程设置的 MARKETING_VERSION 展开进 plist，
                 // 只写字面量才进包。
-                "CFBundleShortVersionString": "0.36.13",
-                "CFBundleVersion": "80",
+                "CFBundleShortVersionString": "0.36.14",
+                "CFBundleVersion": "81",
                 "ITSAppUsesNonExemptEncryption": false,
                 "UILaunchScreen": ["UIColorName": "LaunchBackground"],
                 // 自托管场景：允许连接局域网内的自建服务器（http）。
@@ -53,14 +53,22 @@ let project = Project(
                 "NSAppTransportSecurity": [
                     "NSAllowsLocalNetworking": true,
                 ],
-                // 本机连接器批一（0.34.0，设计档 §6.4）：
-                // 逐件用到才申请，文案说清「被智能体问
-                // 到时现读现回、服务器不保存」；健康/
-                // 家庭（批二）与蓝牙（已决不做）的键不在
-                // 此列，entitlements 待签名权益核查后另加
-                "NSCalendarsFullAccessUsageDescription": "OneDay 需要读取你的日历：安排只在这台手机上查看；你开启智能体调用后，智能体被问到时才现读现回，服务器不保存日程内容。",
-                "NSRemindersFullAccessUsageDescription": "OneDay 需要读取你的提醒事项：待办只在这台手机上查看；你开启智能体调用后，智能体被问到时才现读现回，服务器不保存提醒内容。",
-                "NSContactsUsageDescription": "OneDay 需要按关键词查询你的通讯录：搜索在手机上完成、只有命中条目会显示；你开启智能体调用后，被问到时才现查现回，通讯录全量从不离开手机。",
+                // 本机连接器批一（0.34.0，设计档 §6.4；
+                // 0.36.14 同步制修订）：逐件用到才申请；
+                // 文案两面说清——现读现回仍在；在连接
+                // 器详情页亲手开启「数据同步」后，才会
+                // 把最小字段的副本同步到你自己的服务器。
+                // 健康/家庭（批二）与蓝牙（已决不做）的
+                // 键不在此列，entitlements 待签名权益核
+                // 查后另加
+                "NSCalendarsFullAccessUsageDescription": "OneDay 需要读取你的日历：安排只在这台手机上查看；开启智能体调用后，被问到时现读现回；只有你在连接器详情页亲手开启「数据同步」时，才会把过去 30 天到未来 90 天日程的标题与时间同步一份到你自己的服务器，供智能体整份查询。",
+                "NSRemindersFullAccessUsageDescription": "OneDay 需要读取你的提醒事项：待办只在这台手机上查看；开启智能体调用后，被问到时现读现回；只有你在连接器详情页亲手开启「数据同步」时，才会把没做完的提醒同步一份到你自己的服务器，供智能体整份查询。",
+                "NSContactsUsageDescription": "OneDay 需要读取你的通讯录：搜索在手机上完成；开启智能体调用后，被问到时现查现回；只有你在连接器详情页亲手开启「数据同步」时，才会把姓名、电话、邮箱同步一份到你自己的服务器（不含备注、地址、生日、头像），供智能体整份查询。",
+                // 同步制照片/步数（0.36.14）：照片只读
+                // 清单信息、步数只读按日合计，都只喂同
+                // 步副本与详情页本地查看
+                "NSPhotoLibraryUsageDescription": "OneDay 需要读取你的照片清单：只看每项的拍摄时间、类型和大小，用来在手机上展示数量；只有你在连接器详情页亲手开启「数据同步」时，才会把这份清单（不含照片本身、不含拍摄地点）同步一份到你自己的服务器，供智能体查询。",
+                "NSMotionUsageDescription": "OneDay 需要读取手机计步的每日合计：只看每天的步数、距离和爬楼层数；只有你在连接器详情页亲手开启「数据同步」时，才会把每日合计同步一份到你自己的服务器，供智能体查询。",
                 // 图片查看器保存（0.36.4）：只在用户在查
                 // 看器里点「下载」时申请 addOnly、只保存
                 // 用户选中的那一张；不读相册、不作其他用

@@ -1,7 +1,7 @@
 import XCTest
 @testable import OneDayCore
 
-/// 本机连接器批一闸（0.34.0）：①名册五件完整（蓝牙
+/// 本机连接器批一闸（0.34.0）：①名册完整（蓝牙
 /// 永不入册）、批一/批二分界 ②工具名册与桥 TOOLS 逐
 /// 字对齐、App 可执行集恰七个 ③权限桥口径映射
 /// （limited 报 granted＋scope 注解）④注册载荷双层
@@ -13,11 +13,14 @@ final class DeviceSourcesTests: XCTestCase {
 
     func testRosterIntegrity() {
         let roster = DeviceSourceDirectory.roster
-        XCTAssertEqual(roster.count, 5)
+        XCTAssertEqual(roster.count, 7)
         XCTAssertEqual(
             roster.map(\.sourceID),
-            [.calendar, .reminders, .contacts, .health, .home],
-            "名册序＝目录呈现序"
+            [
+                .calendar, .reminders, .contacts, .photos,
+                .motion, .health, .home,
+            ],
+            "名册序＝目录呈现序（0.36.14 加照片/步数）"
         )
         XCTAssertEqual(Set(roster.map(\.id)).count, roster.count)
         for entry in roster {
@@ -49,12 +52,15 @@ final class DeviceSourcesTests: XCTestCase {
         )
     }
 
-    /// 批次分界：日历/提醒/通讯录批一已接线，健康/
-    /// 家庭批二待权益（isWired 为假）
+    /// 批次分界：日历/提醒/通讯录批一已接线，照片/
+    /// 步数 0.36.14 同步制接线（通道只有同步副本），
+    /// 健康/家庭批二待权益（isWired 为假）
     func testBatchSplit() {
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.calendar).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.reminders).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.contacts).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.photos).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.motion).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.health).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.home).isWired)
     }
@@ -298,7 +304,7 @@ final class DeviceSourcesTests: XCTestCase {
             .home: "待签名权益",
         ]
         XCTAssertEqual(
-            DeviceRowStatus.filtered(statusLines: lines, query: "").count, 5
+            DeviceRowStatus.filtered(statusLines: lines, query: "").count, 7
         )
         XCTAssertEqual(
             DeviceRowStatus.filtered(

@@ -118,6 +118,11 @@ final class AppState {
     /// 按 scenePhase/连接态驱动（见 DeviceSession-
     /// Controller）。演示模式下控制器恒不激活
     let deviceSession: DeviceSessionController
+    /// 同步控制器（0.36.14，同步制）：五数据集的副
+    /// 本同步（授权→最小化副本→自有伴生服务）；与
+    /// 设备会话共用同一分发器的引擎读本地数据，前
+    /// 台检查由 RootView 与设备会话同拍驱动
+    let deviceSync: DeviceSyncController
 
     /// 总览桥鉴权失败旗（0.7.0）：由 OverviewBridgeStore
     /// 在每轮刷新时回写——桥钥匙未粘（noKey）或被拒
@@ -254,6 +259,8 @@ final class AppState {
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
         runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
         deviceSession = DeviceSessionController()
+        deviceSync = DeviceSyncController()
+        deviceSync.dispatcher = deviceSession.dispatcher
         switch demoMode {
         case .connected:
             // 演示会话：地址与账号只是展示数据，密钥由假客户端消化

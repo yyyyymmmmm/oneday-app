@@ -354,6 +354,9 @@ struct ConnectorsView: View {
     private var deviceStatusLines: [DeviceSourceID: String] {
         var lines: [DeviceSourceID: String] = [:]
         for descriptor in DeviceSourceDirectory.roster {
+            let dataset = DeviceSyncDataset.fromSource(
+                descriptor.sourceID
+            )
             lines[descriptor.sourceID] = DeviceRowStatus.line(
                 descriptor: descriptor,
                 permission: appState.deviceSession
@@ -364,7 +367,24 @@ struct ConnectorsView: View {
                 // 会话在线这一本地可验事实托底，离线如
                 // 实降级（DeviceRowStatus 口径）
                 sessionOnline: appState.deviceSession.sessionOnline,
-                metric: deviceMetrics[descriptor.sourceID]
+                metric: deviceMetrics[descriptor.sourceID],
+                // 0.36.14：同步件在行尾拼同步段（副本条
+                // 数＋新到什么时候，Core 同口径组装）
+                syncSegment: dataset.map {
+                    DeviceSyncPresentation.segment(
+                        dataset: $0,
+                        status: appState.deviceSync.statuses[$0],
+                        syncEnabled: appState.deviceSync
+                            .isSyncEnabled($0),
+                        now: Date()
+                    )
+                },
+                // 照片/步数没有现读现回的通道，行里不
+                // 拼「可调用/调用已关」
+                showsCallState: dataset == nil
+                    || descriptor.sourceID == .calendar
+                    || descriptor.sourceID == .reminders
+                    || descriptor.sourceID == .contacts
             )
         }
         return lines
@@ -462,6 +482,10 @@ struct ConnectorsView: View {
             metrics[.reminders] = "\(open) 项未完成"
         }
         deviceMetrics = metrics
+        // 同步状态同拍刷新（目录行同步段的数据源）
+        await appState.deviceSync.refreshStatus(
+            config: appState.config
+        )
     }
 
     // MARK: - 已连接（实查数据链）
@@ -760,6 +784,8 @@ struct ConnectorsView: View {
         case .calendar: CalendarDetailView(inSheet: true)
         case .reminders: RemindersDetailView(inSheet: true)
         case .contacts: ContactsDetailView(inSheet: true)
+        case .photos: PhotosDetailView(inSheet: true)
+        case .motion: MotionDetailView(inSheet: true)
         case .health, .home: EmptyView()
         }
     }

@@ -70,7 +70,7 @@ struct DeviceAppIconView: View {
         switch source {
         case .contacts:
             return Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
-        case .calendar, .reminders, .health, .home:
+        case .calendar, .reminders, .photos, .motion, .health, .home:
             return .white
         }
     }
@@ -81,9 +81,69 @@ struct DeviceAppIconView: View {
         case .calendar: calendarArtwork
         case .reminders: remindersArtwork
         case .contacts: contactsArtwork
+        case .photos: photosArtwork
+        case .motion: motionArtwork
         case .health: healthArtwork
         case .home: homeArtwork
         }
+    }
+
+    // 照片：白底＋八片花瓣（系统照片应用的官方构
+    // 图——放射状椭圆花瓣、每片半透明交叠；八色取
+    // 官方采样序：黄/橙/红/粉/紫/蓝/青/绿，按宪法 §4
+    // 「指称具体苹果系统应用时按官方构图复刻」的
+    // 唯一例外行规矩）
+    private var photosArtwork: some View {
+        let petals: [(angle: Double, color: Color)] = [
+            (0, Color(hex: 0xFFCC02)),
+            (45, Color(hex: 0xFF9500)),
+            (90, Color(hex: 0xFF3B30)),
+            (135, Color(hex: 0xFF2D92)),
+            (180, Color(hex: 0xAF52DE)),
+            (225, Color(hex: 0x007AFF)),
+            (270, Color(hex: 0x32ADE6)),
+            (315, Color(hex: 0x34C759)),
+        ]
+        return ZStack {
+            ForEach(Array(petals.enumerated()), id: \.offset) { _, petal in
+                Ellipse()
+                    .fill(petal.color.opacity(0.72))
+                    .frame(width: size * 0.24, height: size * 0.52)
+                    .offset(y: -size * 0.17)
+                    .rotationEffect(.degrees(petal.angle))
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    // 活动（计步的系统归属「健身」应用）：白底＋同
+    // 心三环（活动红/锻炼绿/站立青，官方三色）；
+    // 环用圆弧近似——缺口朝右上，与官方构图同向
+    private var motionArtwork: some View {
+        let rings: [(radius: CGFloat, color: Color)] = [
+            (0.40, Color(hex: 0xFA114F)),
+            (0.28, Color(hex: 0xA6F750)),
+            (0.16, Color(hex: 0x04C7DD)),
+        ]
+        return ZStack {
+            ForEach(Array(rings.enumerated()), id: \.offset) { _, ring in
+                Circle()
+                    .trim(from: 0.06, to: 0.94)
+                    .stroke(
+                        ring.color,
+                        style: StrokeStyle(
+                            lineWidth: size * 0.085,
+                            lineCap: .round
+                        )
+                    )
+                    .frame(
+                        width: size * ring.radius * 2,
+                        height: size * ring.radius * 2
+                    )
+                    .rotationEffect(.degrees(-90))
+            }
+        }
+        .frame(width: size, height: size)
     }
 
     // 日历：白底＋红色星期（上部）＋黑色大日期，
@@ -303,13 +363,29 @@ struct DeviceStatusHeader: View {
     /// 的服务端状态宣称
     private var channelNote: String {
         guard permission.isUsable else {
-            return "先在上方开好系统权限，智能体才有机会调用这一件。"
+            return "先在上方开好系统权限，智能体才有机会用这一件。"
+        }
+        // 同步制（0.36.14）：开了数据同步的件，供给
+        // 主路是查服务器副本，口径随之改——不许再
+        // 说「不存服务器」这种与同步制相悖的话
+        if let dataset = DeviceSyncDataset.fromSource(source),
+           appState.deviceSync.isSyncEnabled(dataset)
+        {
+            let hasLiveChannel = source == .calendar
+                || source == .reminders || source == .contacts
+            if hasLiveChannel,
+               controller.agentCallEnabled[source] ?? false,
+               controller.sessionOnline
+            {
+                return "这一件已开数据同步：整份清单类问题智能体查你服务器上的副本（新到上次同步为止，见下方数据同步区）；设备会话在线时，单条问题也能现读现回。"
+            }
+            return "这一件已开数据同步：智能体查的是你服务器上的副本，新到上次同步为止；副本有多少条、是什么时候的，下方数据同步区随时看得到。"
         }
         guard controller.agentCallEnabled[source] ?? false else {
             return "调用开关已关：智能体问不到这一件，数据不会被调用。"
         }
         if controller.sessionOnline {
-            return "设备会话在线：智能体发来调用时，这台手机现读现回，数据只过境、不存服务器。"
+            return "设备会话在线：智能体发来调用时，这台手机现读现回；这一件还没开数据同步，服务器上没有它的副本。"
         }
         return "设备会话当前未连接：智能体现在叫不到这台手机；回到 App 前台、会话恢复在线后才可调用。"
     }
@@ -496,7 +572,7 @@ private let deviceRowInsets = EdgeInsets(
 )
 
 /// 未授权/被拒时的降级说明（内容区替换，不留空白页）
-private struct DevicePermissionGate: View {
+struct DevicePermissionGate: View {
     let source: DeviceSourceID
     let permission: DevicePermissionState
 
@@ -548,7 +624,7 @@ private struct DevicePermissionGate: View {
 }
 
 /// 口径脚注（详情页尾）
-private struct DeviceFootnote: View {
+struct DeviceFootnote: View {
     let source: DeviceSourceID
 
     var body: some View {
@@ -567,7 +643,7 @@ private struct DeviceFootnote: View {
 /// refreshable 在场会先行截走下拉，用户 19:08 点
 /// 名的「下拉返回不了」实因在此；push 呈现（设
 /// 置页）无此冲突、保留下拉刷新。三页详情共用
-private struct RefreshableIfEnabled: ViewModifier {
+struct RefreshableIfEnabled: ViewModifier {
     let enabled: Bool
     // 隔离标注：refreshable 的 action 形参要
     // @Sendable，全局 actor 隔离的函数值可直接转
@@ -609,6 +685,7 @@ struct CalendarDetailView: View {
     var body: some View {
         List {
             DeviceStatusHeader(source: .calendar)
+            DeviceSyncSection(source: .calendar)
             if permission.isUsable {
                 agendaSections
             } else {
@@ -809,6 +886,7 @@ struct RemindersDetailView: View {
     var body: some View {
         List {
             DeviceStatusHeader(source: .reminders)
+            DeviceSyncSection(source: .reminders)
             if permission.isUsable {
                 reminderSections
             } else {
@@ -1031,6 +1109,7 @@ struct ContactsDetailView: View {
     var body: some View {
         List {
             DeviceStatusHeader(source: .contacts)
+            DeviceSyncSection(source: .contacts)
             if permission.isUsable {
                 contactsSections
             } else {
@@ -1202,6 +1281,8 @@ struct ContactsDetailView: View {
 /// 这里一眼可见；批二两件只显待权益、不给假入口
 struct DevicePermissionsView: View {
     @Environment(AppState.self) private var appState
+    @State private var showDeleteAllConfirm = false
+    @State private var deleteAllNote: String?
 
     private var controller: DeviceSessionController { appState.deviceSession }
 
@@ -1249,6 +1330,55 @@ struct DevicePermissionsView: View {
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
+
+            // 数据同步总览（0.36.14）：五件副本各一行
+            // 状态字＋删除全部副本的总入口
+            Section {
+                ForEach(
+                    DeviceSyncDataset.allCases, id: \.self
+                ) { dataset in
+                    NavigationLink {
+                        detailDestination(dataset.sourceID)
+                    } label: {
+                        HStack(
+                            spacing: OneDayMetrics.spacingSM
+                        ) {
+                            Text(dataset.label)
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            Spacer(
+                                minLength: OneDayMetrics.spacingS
+                            )
+                            Text(syncSegment(dataset))
+                                .font(.footnote)
+                                .foregroundStyle(
+                                    Palette.inkSecondary
+                                )
+                                .lineLimit(1)
+                        }
+                        .frame(
+                            minHeight: OneDayMetrics
+                                .settingsRowHeight
+                        )
+                    }
+                }
+                Button(role: .destructive) {
+                    showDeleteAllConfirm = true
+                } label: {
+                    Text("删除全部同步副本")
+                }
+                if let deleteAllNote {
+                    Text(deleteAllNote)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            } header: {
+                headerText("数据同步")
+            } footer: {
+                Text("同步开着的件，整份清单存在你自己的服务器上供智能体查；删副本只删服务器那一份，手机上的数据和系统权限都不动。开关还开着的话，下次打开 App 会重新同步回来。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -1256,7 +1386,39 @@ struct DevicePermissionsView: View {
         .background(Palette.settingsBG)
         .navigationTitle("设备与权限")
         .navigationBarTitleDisplayMode(.inline)
-        .task { controller.refreshPermissions() }
+        .confirmationDialog(
+            "删掉服务器上的全部同步副本？",
+            isPresented: $showDeleteAllConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("删除全部副本", role: .destructive) {
+                Task {
+                    let ok = await appState.deviceSync
+                        .deleteAllCopies(config: appState.config)
+                    deleteAllNote = ok
+                        ? "已删除。同步开关还开着的件，下次打开 App 会重新同步回来。"
+                        : "没删成，检查服务器连接后再试。"
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删的是你服务器上的五份副本；手机上的数据、系统权限都不动。删完智能体就查不到这些清单了。")
+        }
+        .task {
+            controller.refreshPermissions()
+            await appState.deviceSync.refreshStatus(
+                config: appState.config
+            )
+        }
+    }
+
+    private func syncSegment(_ dataset: DeviceSyncDataset) -> String {
+        DeviceSyncPresentation.segment(
+            dataset: dataset,
+            status: appState.deviceSync.statuses[dataset],
+            syncEnabled: appState.deviceSync.isSyncEnabled(dataset),
+            now: Date()
+        )
     }
 
     private func overviewRow(
@@ -1284,13 +1446,20 @@ struct DevicePermissionsView: View {
     ) -> String {
         let permission = controller.permissions[descriptor.sourceID]
             ?? .notDetermined
+        let dataset = DeviceSyncDataset.fromSource(descriptor.sourceID)
         return DeviceRowStatus.line(
             descriptor: descriptor,
             permission: permission,
             agentCallEnabled:
                 controller.agentCallEnabled[descriptor.sourceID] ?? false,
             sessionOnline: controller.sessionOnline,
-            metric: nil
+            metric: nil,
+            syncSegment: dataset.map { syncSegment($0) },
+            // 照片/步数没有现读现回的通道，不拼调用态
+            showsCallState: dataset == nil
+                || descriptor.sourceID == .calendar
+                || descriptor.sourceID == .reminders
+                || descriptor.sourceID == .contacts
         )
     }
 
@@ -1302,6 +1471,8 @@ struct DevicePermissionsView: View {
         case .calendar: CalendarDetailView()
         case .reminders: RemindersDetailView()
         case .contacts: ContactsDetailView()
+        case .photos: PhotosDetailView()
+        case .motion: MotionDetailView()
         case .health, .home: EmptyView()
         }
     }

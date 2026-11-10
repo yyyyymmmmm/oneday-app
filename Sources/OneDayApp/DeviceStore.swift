@@ -85,6 +85,8 @@ final class DeviceSessionController {
         .calendar: DevicePreferences.agentCallEnabled(.calendar),
         .reminders: DevicePreferences.agentCallEnabled(.reminders),
         .contacts: DevicePreferences.agentCallEnabled(.contacts),
+        .photos: DevicePreferences.agentCallEnabled(.photos),
+        .motion: DevicePreferences.agentCallEnabled(.motion),
         .health: false,
         .home: false,
     ]
@@ -160,6 +162,10 @@ final class DeviceSessionController {
             _ = await dispatcher.events.requestRemindersAccess()
         case .contacts:
             _ = await dispatcher.contacts.requestAccess()
+        case .photos:
+            _ = await DevicePermissions.requestPhotosAccess()
+        case .motion:
+            _ = await DevicePermissions.requestMotionAccess()
         case .health, .home:
             break // 批二未接线，不申请
         }

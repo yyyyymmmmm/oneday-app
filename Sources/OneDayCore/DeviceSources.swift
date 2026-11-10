@@ -1,8 +1,10 @@
 import Foundation
 
 /// 本机连接器（0.34.0 批一，设计档 device-connectors-
-/// design-20261110.md 定版）：手机自家的五件数据源——
-/// 日历/提醒/通讯录/健康/家庭（蓝牙已决不做、不列）。
+/// design-20261110.md 定版）：手机自家的数据源——
+/// 日历/提醒/通讯录/健康/家庭（蓝牙已决不做、不列）；
+/// 0.36.14 同步制加照片/步数两件（无现调工具，通道
+/// 只有同步副本，见 DeviceSync）。
 /// 机制＝大厂工具调用制：授权与数据都留在手机，智能
 /// 体需要时经 device-bridge 发工具调用、App 在线时现
 /// 读现回；服务器不存设备数据副本，桥只留会话状态与
@@ -25,6 +27,11 @@ public enum DeviceSourceID: String, CaseIterable, Identifiable, Sendable, Codabl
     case calendar
     case reminders
     case contacts
+    /// 照片与步数（0.36.14 同步制）：无现调工具，智能
+    /// 体的通道只有同步副本；与健康是两回事（步数走
+    /// 手机计步、不碰健康权益）
+    case photos
+    case motion
     case health
     case home
 
@@ -131,17 +138,17 @@ public struct DeviceSourceDescriptor: Identifiable, Equatable, Sendable {
 }
 
 public enum DeviceSourceDirectory {
-    /// 名册全集（呈现序：日历→提醒→通讯录→健康→家
-    /// 庭；蓝牙已决不做、永不入册）
+    /// 名册全集（呈现序：日历→提醒→通讯录→照片→
+    /// 步数→健康→家庭；蓝牙已决不做、永不入册）
     public static let roster: [DeviceSourceDescriptor] = [
         DeviceSourceDescriptor(
             sourceID: .calendar,
             name: "日历",
-            blurb: "日程安排 · 被问到时现读现回，也可按确认新建和修改",
+            blurb: "日程安排 · 现读现回，也可按确认新建/修改；开启同步后可整窗查询",
             tileSymbol: "calendar", tileColorHex: 0xD64541, batch: 1,
-            agentNote: "智能体可调用：查询最长 14 天窗口内的日程，或按你在对话里的确认新建/修改日程（删除不做）",
+            agentNote: "智能体可调用：查询最长 14 天窗口内的日程，或按你在对话里的确认新建/修改日程（删除不做）；开启数据同步后可查过去 30 天到未来 90 天的副本",
             capabilityLine: "查 14 天内日程 · 按确认新建/修改",
-            footnote: "日程只在被调用的那一刻现读现回，服务器不保存日程内容；关掉调用开关后，智能体连问的机会都没有。"
+            footnote: "被调用时现读现回；你开启「数据同步」后，过去 30 天到未来 90 天的日程清单（不含备注）会存一份在你自己的服务器上供智能体查询，可随时关掉并删除。"
         ),
         DeviceSourceDescriptor(
             sourceID: .reminders,
@@ -150,17 +157,37 @@ public enum DeviceSourceDirectory {
             tileSymbol: "list.bullet", tileColorHex: 0xE8892B, batch: 1,
             agentNote: "智能体可调用：读取未完成提醒，或按你在对话里的确认新建提醒、勾完成（删除不做）",
             capabilityLine: "读未完成项 · 按确认新建/勾完成",
-            footnote: "只回未完成项，不回已完成历史；提醒内容只过境不落服务器。"
+            footnote: "只回未完成项，不回已完成历史；你开启「数据同步」后，未完成清单会存一份在你自己的服务器上供智能体查询，可随时关掉并删除。"
         ),
         DeviceSourceDescriptor(
             sourceID: .contacts,
             name: "通讯录",
-            blurb: "联系人 · 只按关键词现查现回，不整体读取、不写入",
+            blurb: "联系人 · 按关键词现查；开启同步后智能体可整本计数与统计，不写入",
             tileSymbol: "person.crop.circle", tileColorHex: 0x66727E,
             batch: 1,
-            agentNote: "智能体可调用：只按姓名关键词现查，命中条目才回；不提供整体读取，也不能新建或修改联系人",
-            capabilityLine: "只按姓名现查 · 不写入",
-            footnote: "搜索在手机上完成，只有命中条目过境，通讯录全量从不离开手机。"
+            agentNote: "智能体可调用：按姓名关键词现查；开启数据同步后，还能查同步副本做整本计数、统计与翻页名单；不能新建或修改联系人",
+            capabilityLine: "现查＋同步副本整本查 · 不写入",
+            footnote: "现查时搜索在手机上完成、只有命中条目过境；你开启「数据同步」后，姓名、电话、邮箱、公司与分组会存一份在你自己的服务器上（备注、地址、生日、头像不同步），可随时关掉并删除。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .photos,
+            name: "照片",
+            blurb: "照片与视频的清单 · 开启同步后智能体可数总数、按月看分布",
+            tileSymbol: "photo.fill", tileColorHex: 0xAF52DE,
+            batch: 1,
+            agentNote: "智能体可调用：读取同步副本里的照片清单统计（总数、按月、收藏与截图数），不取原图",
+            capabilityLine: "查副本统计 · 不取原图",
+            footnote: "同步只送每项的时间、类型、尺寸这类清单信息，原图与拍摄地点坐标不上传；关掉同步或删掉副本，智能体就查不到。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .motion,
+            name: "步数",
+            blurb: "手机计步的每日步数 · 开启同步后按日攒在你的服务器上",
+            tileSymbol: "figure.walk", tileColorHex: 0x30B34D,
+            batch: 1,
+            agentNote: "智能体可调用：读取同步副本里的每日步数、距离与爬楼（来源是手机计步，不是健康 App）",
+            capabilityLine: "查每日步数 · 手机计步",
+            footnote: "数据来自手机自身的计步，只同步按日合计；它和「健康」里的日摘要是两条来源，不混在一起。"
         ),
         DeviceSourceDescriptor(
             sourceID: .health,
@@ -287,7 +314,9 @@ public enum DeviceRowStatus {
         permission: DevicePermissionState,
         agentCallEnabled: Bool,
         sessionOnline: Bool,
-        metric: String?
+        metric: String?,
+        syncSegment: String? = nil,
+        showsCallState: Bool = true
     ) -> String {
         guard descriptor.isWired else { return "待签名权益" }
         switch permission {
@@ -299,12 +328,20 @@ public enum DeviceRowStatus {
             return "仅写入权限 · 不能读取"
         case .granted, .limited:
             var parts = [permission.label]
-            if !agentCallEnabled {
-                parts.append("调用已关")
-            } else if sessionOnline {
-                parts.append("可调用")
-            } else {
-                parts.append("会话未连接")
+            // 照片/步数没有现调通道（showsCallState
+            // 为假）：不拼「可调用/调用已关」，它们的
+            // 通道就是同步副本、由 syncSegment 说清
+            if showsCallState {
+                if !agentCallEnabled {
+                    parts.append("调用已关")
+                } else if sessionOnline {
+                    parts.append("可调用")
+                } else {
+                    parts.append("会话未连接")
+                }
+            }
+            if let syncSegment, !syncSegment.isEmpty {
+                parts.append(syncSegment)
             }
             if let metric, !metric.isEmpty {
                 parts.append(metric)
