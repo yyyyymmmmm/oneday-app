@@ -83,6 +83,32 @@ public struct BridgeGoalsResponse: Decodable, Equatable, Sendable {
 
 // MARK: - 点子 DTO
 
+/// 点子来源（P1，设计档 §1.4）：generated＝生成管道产出，
+/// manual＝用户手记。未知值按 manual 收（宽容解码口径）
+public enum IdeaSource: String, Sendable, Equatable {
+    case generated
+    case manual
+
+    public static func from(_ raw: String?) -> IdeaSource {
+        IdeaSource(rawValue: raw ?? "") ?? .manual
+    }
+}
+
+/// 点子状态机（P1，设计档 §1.4）：pending 待阅 →
+/// adopted 已采纳（taskId 落字）/ dismissed 已忽略 /
+/// expired 已过期，三者皆终态；done 不落字段、由
+/// taskId 指向的任务状态在呈现层派生。未知值按 pending 收
+public enum IdeaStatus: String, Sendable, Equatable {
+    case pending
+    case adopted
+    case dismissed
+    case expired
+
+    public static func from(_ raw: String?) -> IdeaStatus {
+        IdeaStatus(rawValue: raw ?? "") ?? .pending
+    }
+}
+
 public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
     public let title: String
@@ -92,20 +118,48 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
     public let goalId: String?
     /// epoch 秒（float）
     public let createdAt: Double
+    /// P1 五字段：旧载荷缺失时按「manual/空依据/pending/
+    /// 无任务/不过期」收（0.32.0 前桥不回这些字段）
+    public let source: IdeaSource
+    /// 生成卡的依据一句；手记卡为空串
+    public let evidence: String
+    /// 依据指向的素材编号（S/G/M 编号等），可空
+    public let evidenceRef: String?
+    public let status: IdeaStatus
+    /// 采纳后回写的 kanban 任务 id；未采纳为 nil。
+    /// 这是「已转任务」的服务端真源（取代旧本地标记）
+    public let taskId: String?
+    /// 生成卡的过期时刻（epoch 秒）；手记卡为 nil＝不过期
+    public let expiresAt: Double?
 
     public init(
         id: String, title: String, detail: String,
-        goalId: String?, createdAt: Double
+        goalId: String?, createdAt: Double,
+        source: IdeaSource = .manual, evidence: String = "",
+        evidenceRef: String? = nil, status: IdeaStatus = .pending,
+        taskId: String? = nil, expiresAt: Double? = nil
     ) {
         self.id = id
         self.title = title
         self.detail = detail
         self.goalId = goalId
         self.createdAt = createdAt
+        self.source = source
+        self.evidence = evidence
+        self.evidenceRef = evidenceRef
+        self.status = status
+        self.taskId = taskId
+        self.expiresAt = expiresAt
+    }
+
+    /// 已采纳的呈现判定：状态或任务 id 任一落字即算
+    public var isAdopted: Bool {
+        status == .adopted || taskId != nil
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, detail, goalId, createdAt
+        case source, evidence, evidenceRef, status, taskId, expiresAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -119,6 +173,194 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         createdAt = try container.decodeIfPresent(
             Double.self, forKey: .createdAt
         ) ?? 0
+        source = IdeaSource.from(
+            try container.decodeIfPresent(String.self, forKey: .source)
+        )
+        evidence = try container.decodeIfPresent(
+            String.self, forKey: .evidence
+        ) ?? ""
+        evidenceRef = try container.decodeIfPresent(
+            String.self, forKey: .evidenceRef
+        )
+        status = IdeaStatus.from(
+            try container.decodeIfPresent(String.self, forKey: .status)
+        )
+        taskId = try container.decodeIfPresent(
+            String.self, forKey: .taskId
+        )
+        expiresAt = try container.decodeIfPresent(
+            Double.self, forKey: .expiresAt
+        )
+    }
+}
+
+/// PATCH /ideas/{id} 请求体：桥只许改 status 与 taskId
+/// 两项；nil 字段不落键（不带＝不改）。回写 taskId 时桥
+/// 侧同时把 status 置 adopted（采纳是事实、不是请求）
+public struct BridgeIdeaPatchRequest: Encodable, Equatable, Sendable {
+    public let status: IdeaStatus?
+    public let taskId: String?
+
+    public init(status: IdeaStatus? = nil, taskId: String? = nil) {
+        self.status = status
+        self.taskId = taskId
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case status, taskId
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(status?.rawValue, forKey: .status)
+        try container.encodeIfPresent(taskId, forKey: .taskId)
+    }
+}
+
+// MARK: - 生成管道信息（GET /ideas/generation）
+
+/// 一轮生成记录（桥 meta.ideasGen.history 的行）：状态
+/// ok（有产出）/empty（跑空）/failed/skipped 均只记账、
+/// 不落卡（设计档 §1.4）
+public struct BridgeGenerationRun: Decodable, Equatable, Sendable {
+    public let at: Double
+    public let trigger: String
+    public let status: String
+    public let produced: Int
+    public let dropped: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case at, trigger, status, produced, dropped
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        at = try container.decodeIfPresent(Double.self, forKey: .at) ?? 0
+        trigger = try container.decodeIfPresent(
+            String.self, forKey: .trigger
+        ) ?? ""
+        status = try container.decodeIfPresent(
+            String.self, forKey: .status
+        ) ?? ""
+        produced = try container.decodeIfPresent(
+            Int.self, forKey: .produced
+        ) ?? 0
+        dropped = try container.decodeIfPresent(
+            Int.self, forKey: .dropped
+        ) ?? 0
+    }
+
+    public init(
+        at: Double, trigger: String, status: String,
+        produced: Int, dropped: Int
+    ) {
+        self.at = at
+        self.trigger = trigger
+        self.status = status
+        self.produced = produced
+        self.dropped = dropped
+    }
+}
+
+public struct BridgeGenerationInfo: Decodable, Equatable, Sendable {
+    public let lastRunAt: Double?
+    public let nextRunAt: Double?
+    public let running: Bool
+    public let history: [BridgeGenerationRun]
+
+    private enum CodingKeys: String, CodingKey {
+        case lastRunAt, nextRunAt, running, history
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        lastRunAt = try container.decodeIfPresent(
+            Double.self, forKey: .lastRunAt
+        )
+        nextRunAt = try container.decodeIfPresent(
+            Double.self, forKey: .nextRunAt
+        )
+        running = try container.decodeIfPresent(
+            Bool.self, forKey: .running
+        ) ?? false
+        history = try container.decodeIfPresent(
+            [BridgeGenerationRun].self, forKey: .history
+        ) ?? []
+    }
+
+    public init(
+        lastRunAt: Double?, nextRunAt: Double?,
+        running: Bool, history: [BridgeGenerationRun]
+    ) {
+        self.lastRunAt = lastRunAt
+        self.nextRunAt = nextRunAt
+        self.running = running
+        self.history = history
+    }
+}
+
+// MARK: - 点子页呈现口径（P1，设计档 §1.4 视觉落点）
+
+public enum IdeaBoard {
+    /// 待阅分区：pending 才呈现；生成卡在前、手记在后，
+    /// 各按 createdAt 倒序（设计档分区顺序定版）
+    public static func pendingList(_ ideas: [BridgeIdea]) -> [BridgeIdea] {
+        ideas
+            .filter { $0.status == .pending }
+            .sorted { a, b in
+                if (a.source == .generated) != (b.source == .generated) {
+                    return a.source == .generated
+                }
+                return a.createdAt > b.createdAt
+            }
+    }
+
+    /// 已采纳分区：近 30 天的 adopted，按 createdAt 倒序
+    public static func adoptedList(
+        _ ideas: [BridgeIdea], now: Double
+    ) -> [BridgeIdea] {
+        ideas
+            .filter {
+                $0.status == .adopted
+                    && $0.createdAt >= now - 30 * 24 * 3600
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// 空态分法：从没生成过（无任何点子且无一轮生成记录）
+    /// 与「生成后被清完」（有过记录/有过卡、当前待阅为空）
+    /// 是两句不同的话（设计档 §1.4 空态口径）
+    public enum EmptyKind: Equatable, Sendable {
+        case neverProduced
+        case cleared
+    }
+
+    public static func emptyKind(
+        totalIdeas: Int, lastRunAt: Double?
+    ) -> EmptyKind {
+        (totalIdeas == 0 && lastRunAt == nil) ? .neverProduced : .cleared
+    }
+
+    /// 距过期的整天数（向上取整：还剩不足一天算 1 天）；
+    /// 无过期时刻或已过期回 nil/0 由调用方分流
+    public static func expiryDaysLeft(
+        _ idea: BridgeIdea, now: Double
+    ) -> Int? {
+        guard let expiresAt = idea.expiresAt else { return nil }
+        let seconds = expiresAt - now
+        if seconds <= 0 { return 0 }
+        return Int(ceil(seconds / 86400))
+    }
+
+    /// 采纳行尾的任务状态派生文案：任务列名 done＝已完成，
+    /// 其余在办列一律「进行中」；任务读不到（板未拉/已删）
+    /// 回 nil、只显「已转任务」不编状态
+    public static func taskStatusText(
+        idea: BridgeIdea, taskStatusRaw: String?
+    ) -> String? {
+        guard idea.isAdopted else { return nil }
+        guard let raw = taskStatusRaw else { return nil }
+        return raw == "done" ? "任务已完成" : "任务进行中"
     }
 }
 
@@ -361,6 +603,12 @@ public enum IdeaTaskPlan {
         if idea.goalId != nil, let goalTitle, !goalTitle.isEmpty {
             lines.append("关联目标：\(goalTitle)")
         }
+        let evidence = idea.evidence.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        if !evidence.isEmpty {
+            lines.append("依据：\(evidence)")
+        }
         lines.append("来源：点子")
         return (title: idea.title, body: lines.joined(separator: "\n"))
     }
@@ -368,9 +616,12 @@ public enum IdeaTaskPlan {
 
 // MARK: - 已转任务本地标记
 
-/// 「已转任务」标记只存本地（冻结合约无此字段，不许
-/// 硬塞服务端）：UserDefaults 落排序后的 id 数组，
-/// 编解码收口在此供单测钉死（去重＋排序＋容脏）
+/// 【0.32.0 退役为真源】「已转任务」标记曾只存本地
+/// （旧冻结合约无此字段）；P1 起桥 idea 带 taskId/
+/// status，服务端为唯一真源，IdeasStore 不再读写本
+/// 标记。类型与编解码保留（单测仍钉其行为），仅作
+/// 历史口径存档，不再有生产调用方。原口径：UserDefaults
+/// 落排序后的 id 数组（去重＋排序＋容脏）
 public enum IdeaConversionMarks {
     public static func encode(_ ids: Set<String>) -> [String] {
         ids.sorted()

@@ -4670,3 +4670,38 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - IPA：5,164,319 字节、md5 ea044f360e00e75e41cb9c1c88879b9f、独立解包验 Info.plist＝0.31.0/60、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.31.0/OneDay-0.31.0.ipa。
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION／CURRENT_PROJECT_VERSION／CFBundleShortVersionString／CFBundleVersion）＋SettingsView 页脚「OneDay v0.31.0」。
 - 施工期生产零写（仅阶段 A 探针：两条 oneday-probe-run* 会话已归档复验；write-gate 待审批一条 staged 未落库，见 58.2）；未自截真机图；EE1–EE8 待真机终审。
+
+## §59 0.32.0 三页工程 P1（点子生成管道＋点子页升级＋底栏 tint 修正）
+
+用户 2026-11-10 14:19 逐条拍板（设计档 feed-ideas-goals-benchmark-design-20261110.md）：本包落 3A 点子每日晨间生成一轮、4A 采纳落点 kanban、8A 生成用 deepseek-flash、2A tint 随包改（案甲＋）。1A 五格与 7B/9B 属 P2/P3，本包不动。
+
+### 59.1 桥（oneday-bridge，888→1509 行，生产已部署验收）
+
+- **idea 五字段**：source（generated/manual）、evidence、evidenceRef、status（pending/adopted/dismissed/expired）、taskId、expiresAt（生成卡 createdAt+14 天、手记 null）。POST /ideas 接受 source；source=generated 且 evidence 空 → 400（无依据不落卡的硬门，API 与生成器共用同一校验口径）。新增 PATCH /ideas/{id}：只许改 status/taskId，流转 pending→adopted/dismissed（adopted/dismissed/expired 终态），taskId 落字即置 adopted，假 id 404、非法流转 400 人话。
+- **过期口径定版**：调度 tick（20 秒）清扫落盘——pending 且 expiresAt 到期的生成卡置 expired 持久化，读时不计算，存储状态即唯一真源。
+- **brief 实体**：GET/PUT /meta/brief（桥 meta 单字段，三页共用方向文本，横切 D）；PUT 上限 4000 字。
+- **生成管道**：桥内调度（复用监测的 20 秒 tick 范式，非 Hermes cron——监测 rollout 已判 cron 无非 agent 触发通道、钥匙不进 prompt），每日 07:30（Asia/Shanghai）一轮，nextRunAt 持久化于 meta、重启不丢。素材只读拼装：brief＋目标（里程碑进度）＋监测近 7 天变化＋已忽略 30 天标题避让清单＋Dashboard cookie 登录（四字段契约，缺 provider 回 422）读近 7 天会话标题（排除归档/probe/生成会话自身）。生成走 Hermes POST /v1/runs（model=deepseek-flash、Idempotency-Key 按轮、优先无会话提交、网关要求会话时自动落 oneday-ideas-gen 专用会话重试），status 轮询至终态（600 秒上限；waiting_for_approval 滞留 60 秒即 stop 本轮——无头生成不等人审批）。产出严格折叠：JSON 数组逐卡校验（标题/正文/evidence 非空、标题不与存量重复、goalId 不认识则置 null、上限 3 张），不合格计数 dropped；失败/跑空只记账不落卡。账面 GET /ideas/generation（lastRunAt/nextRunAt/running/history 30 轮）＋ POST /ideas/generate 运维手动触发（生成中 409）。
+- **首轮实录（生产，2026-11-10 下午手动触发）**：第一跑因登录缺 provider 回 422、且失败注记曾漏进素材正文被模型当事实凑出一张卡——两处已修（登录四字段；注记只进 round record 的 materialNote、永不进素材），凑数卡已删。第二跑 status=ok、produced=3/dropped=0：三卡依据各引真实会话编号（S5 复盘 150 条、S1 登录 422 排查、S11 P3TEST 验收批），字段全形、expiresAt=+14 天。下一轮已排 2026-11-11 07:30。
+- **部署与回滚**：env 增 HERMES_API_KEY/HERMES_DASH_USER/HERMES_DASH_PASSWORD（自 credentials.txt 管道注入 env 文件、0600；`docker compose restart` 不重读 env_file、须 `up -d` 重建——本轮实证并记档）。备份 oneday_bridge.py.bak-20261110-ideasgen、data.json.bak-20261110-ideasgen（桥目录内）；回滚＝还原两备份＋up -d（旧脚本 _load 不认 meta 键、会保留未知键？——实测口径：旧 _load 只读四表、写入时 meta 丢失，生成账面随之清零，ideas 五字段被旧 _idea_view 吞掉但数据本体在盘上，升回新版即恢复呈现）。只重启 oneday-bridge 本体，其余容器与内存（52.6%）无扰动。
+- **生成提示词资产**：IDEAS_GEN_PROMPT 常量（桥源码内，~/workspace/hermes-deploy/oneday_bridge.py 生成节首）——素材编号 S/G/M、evidence 必填、0–3 张、禁工具/禁外发类提议，改词即改该常量后重启桥。
+
+### 59.2 App（点子页升级）
+
+- **模型**：BridgeIdea 五字段宽容解码（旧载荷缺失按 manual/空依据/pending 収）；IdeaSource/IdeaStatus 枚举；BridgeIdeaPatchRequest（nil 不落键）；BridgeGenerationInfo/Run DTO；Core IdeaBoard 呈现口径（待阅排序＝生成在前手记在后各按时间倒序、已采纳近 30 天、空态二分 neverProduced/cleared、过期天数、任务状态派生文案）＋11 测。IdeaTaskPlan 任务正文增「依据：」行（有依据才带）。
+- **真源迁移**：IdeasStore 退役本地 convertedIdeaIDs——isConverted 改读 idea.isAdopted（status=adopted ∨ taskId 落字）；转任务走 KanbanStore.createTaskReturningID（createTask 抽 impl、Bool 语义不变），确认落板后 PATCH 回写 taskId、回读核对才算完成，回写失败如实留 notes 不回滚任务。IdeaConversionMarks 类型与测试保留为存档（注释已标退役）。
+- **页面**：描边卡改扁平行（List plain＋pageBG 行底）：34pt 来源瓷砖（S 会话/G 目标/M 监测/手记铅笔/生成灯泡，按 evidenceRef 首字母映射）→ 标题 Headline semibold 2 行 → 说明 Body inkSecondary 3 行 → 依据行（Footnote「依据 · …」，仅生成卡）→ 信息行（目标 chip＋相对时间＋过期倒数/任务状态）。分区 待阅/已采纳；待阅行左滑与长按菜单给「忽略」（PATCH dismissed、不弹确认），长按另有删除。详情页新立：全文＋依据组（带素材编号）＋信息组（来源/时间/过期/关联目标/状态）＋任务组（状态＋打开任务详情 sheet）＋动作组（转成任务/忽略/删除确认），删成回读确认才退页。空态二分：neverProduced＝「还没有点子。每天早上我会想一轮，你也可以点＋先记一个」；cleared＝「这一轮的点子都处理完了。明早会再想一轮…」。列表页脚明示节奏（「点子每天早上更新一轮 · 上次生成 …」，有账才带时刻）。手记新建 sheet 不动。run-now 钮不做（设计档定版：不假承诺立即生成）。
+- **tint（2A/案甲＋）**：ContentView 根 .tint(.primary) 撤下、收进四格内容根各自一份——栏件由宿主按 TabView 本层环境构建（0.4.3 同理），根 tint 不再到达栏件、选中垫回系统默认中性浅灰（Muse 同位置同明度口径）；内容区强调色核查结论：全仓显式 .tint 仅根一处与 BrowserView/RichContentViews 两处 .white 覆写（不受影响），内容控件（链接/开关/Picker/按钮）此前全靠根 tint 继承——收进内容根后继承链一字不变；设置 sheet、全部对话、抽屉本就在 TabView 之外、此前此后都不吃这行。0.22.0「.primary 定案」注释已加 0.32.0 口径更新。
+
+### 59.3 FF 系列真机终审项
+
+- FF1 晨间卡真出现：明早 07:30 后打开点子页——待阅区应有 ≤3 张生成卡（或空态文案转「清完」侧），依据行可溯源到真实会话。
+- FF2 采纳全链：对一张卡点「转成任务」——任务板（枢纽任务段）出现该卡；回点子页该卡进「已采纳」分区、行尾显任务状态；杀进程重开仍在（服务端真源）。
+- FF3 忽略：左滑忽略一张卡——立即离场、刷新不回；详情页忽略同效。
+- FF4 tint 并排：与 Muse 并排看底栏——选中格垫应为浅灰、与 Muse 同位置同明度；四格内容内的链接/开关强调色应仍为墨色（不回蓝）。
+- FF5 详情全集：生成卡详情——依据全文、素材编号、过期日期、关联目标（有挂靠时）齐全；打开任务详情能落到对应任务。
+- FF6 手记回归：＋新建手记点子——出现在待阅区手记段（生成卡之后）、无依据行、不过期文案。
+- FF7 空态：把待阅全部忽略/采纳后——空态显「这一轮的点子都处理完了」而非「还没有点子」。
+
+### 59.4 交付实录
+
+（CI 与 IPA 数待构建后补记。）

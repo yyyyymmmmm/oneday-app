@@ -147,7 +147,27 @@ final class KanbanStore {
     func createTask(
         appState: AppState, title: String, body: String
     ) async -> Bool {
-        guard !creating else { return false }
+        await createTaskImpl(
+            appState: appState, title: title, body: body
+        ).success
+    }
+
+    /// 同 createTask 的全流程，确认落板时回任务 id
+    /// （0.32.0 点子采纳回写桥 taskId 的数据源）；失败
+    /// 回 nil、原因同样留在 createError
+    func createTaskReturningID(
+        appState: AppState, title: String, body: String
+    ) async -> String? {
+        let result = await createTaskImpl(
+            appState: appState, title: title, body: body
+        )
+        return result.success ? result.taskID : nil
+    }
+
+    private func createTaskImpl(
+        appState: AppState, title: String, body: String
+    ) async -> (success: Bool, taskID: String?) {
+        guard !creating else { return (false, nil) }
         creating = true
         createError = nil
         defer { creating = false }
@@ -164,23 +184,25 @@ final class KanbanStore {
                     config: config, board: KanbanContract.boardSlug
                 )
             }
-            if appState.isDemo { return true }
+            if appState.isDemo {
+                return (true, created.id.isEmpty ? nil : created.id)
+            }
             await fetchBoard(
                 appState: appState, missingMeansUnprovisioned: false
             )
             if !created.id.isEmpty,
                snapshot?.tasks.contains(where: { $0.id == created.id })
                 == true {
-                return true
+                return (true, created.id)
             }
             createError = "任务已提交，但还没有在任务板上确认出现，请关闭后刷新核对。"
-            return false
+            return (false, nil)
         } catch let error as HermesError {
             createError = error.userMessage
-            return false
+            return (false, nil)
         } catch {
             createError = "任务创建失败，请稍后重试。"
-            return false
+            return (false, nil)
         }
     }
 

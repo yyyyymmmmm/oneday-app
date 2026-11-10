@@ -200,26 +200,40 @@ struct ContentView: View {
 
     private var tabView: some View {
         TabView(selection: $selection) {
+            // 0.32.0（2A/案甲＋）：.tint(.primary) 从 TabView
+            // 根收进各格内容根——底栏条目由宿主以 TabView
+            // 本层环境构建（0.4.3 变体锁同理），根 tint 会
+            // 把选中段玻璃垫按 .primary 派生成深灰黑（与
+            // Muse 同位置的系统默认中性浅灰垫反明度，设
+            // 计档横切 B 判因）。内容根各自保留 .primary：
+            // 内容区链接/控件强调色与 0.4.1 定案一字不变，
+            // 只是深 tint 不再到达栏件；栏件回系统默认
+            // 中性着色。设置 sheet/全部对话/抽屉都在
+            // TabView 之外、本就不吃这行 tint，不受影响
             Tab(value: MainTab.chat) {
                 ChatView(overviewStore: overviewStore)
+                    .tint(.primary)
             } label: {
                 tabLabel(TabBarSymbols.chat)
             }
 
             Tab(value: MainTab.ideas) {
                 IdeasView()
+                    .tint(.primary)
             } label: {
                 tabLabel(TabBarSymbols.ideas)
             }
 
             Tab(value: MainTab.goals) {
                 GoalsView()
+                    .tint(.primary)
             } label: {
                 tabLabel(TabBarSymbols.goals)
             }
 
             Tab(value: MainTab.files) {
                 DeliverablesView()
+                    .tint(.primary)
             } label: {
                 tabLabel(TabBarSymbols.files)
             }
@@ -229,8 +243,9 @@ struct ContentView: View {
         // 色由系统/用户系统设置决定），字重不再做环境级
         // 覆写（正文字重回归语义样式自带，批次 4 收口）
         // 0.4.1（用户点名）：tint 改系统主色单色 .primary
-        // （去蓝，见文件头 0.4.1 注）
-        .tint(.primary)
+        // （去蓝，见文件头 0.4.1 注）；0.32.0 起作用域
+        // 收窄到各格内容根（见上方 Tab 内注），本层不再
+        // 挂根 tint
         // 0.17.0（真机五修①附带，用户下令去掉）：滚动
         // 收起退役——0.4.1 为学 Muse 本体加的 .onScroll-
         // Down 最小化（commit 95ab47e）会把底栏缩成左下
@@ -269,6 +284,11 @@ struct ContentView: View {
     /// 派生、无官方单独调浅开关——去标签后段内只剩字
     /// 形，观感随之变浅，tint 不改灰（改灰会连字形一
     /// 起变灰、与 Muse 黑细字形反向）
+    /// 0.32.0 口径更新（2A/案甲＋，用户逐条拍板）：上
+    /// 句「.primary 定案」作废——根 tint 已收窄至各格
+    /// 内容根、栏件回系统默认中性着色（见 tabView 内
+    /// 0.32.0 注）；「tint 不改灰」的理由仍成立，故采
+    /// 收窄作用域而非改色
     private func tabLabel(_ pair: TabSymbolPair) -> some View {
         Label {
             Text(pair.title)

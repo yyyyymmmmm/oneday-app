@@ -2,11 +2,15 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 点子格（0.11.0 P5 转正）：oneday-bridge 点子仓真
-/// 列表——卡＝标题＋详情＋关联目标 chip（解析得到才
-/// 显示）＋已转任务标记；一键转任务经 P3 kanban 适配
-/// 层落板（板未开通如实提示、不假成功）；删除走确认。
-/// 桥未连接/未开通与目标格同口径、零假数据。
+/// 点子格（0.11.0 P5 转正；0.32.0 P1 升级）：形态按设
+/// 计档 §1.4 向 Muse 点子页收——描边卡改扁平行（左
+/// 来源瓷砖＋标题＋说明＋依据行＋信息行）、动作收进
+/// 详情页、卡面只留左滑忽略；分区＝待阅（生成在前）
+/// 与已采纳（近 30 天、行尾任务状态派生文案）。数据
+/// 口径：生成卡由桥端管道每日晨间产出（source=
+/// generated、evidence 必填、14 天过期），手记保留；
+/// 已转任务以桥 taskId 为真源。桥未连接/未开通与目
+/// 标格同口径、零假数据。
 struct IdeasView: View {
     @Environment(AppState.self) private var appState
     @State private var store = IdeasStore()
@@ -60,6 +64,9 @@ struct IdeasView: View {
             }
             .task {
                 await store.load(appState: appState)
+                if !store.adoptedIdeas.isEmpty {
+                    await kanban.load(appState: appState)
+                }
             }
             .sheet(isPresented: $showCreate) {
                 IdeaCreateView(store: store)
@@ -85,134 +92,483 @@ struct IdeasView: View {
 
     @ViewBuilder
     private var readyContent: some View {
-        if store.ideas.isEmpty {
-            ContentUnavailableView(
-                "暂无点子",
-                systemImage: "lightbulb",
-                description: Text("点右上角＋记下第一个点子")
-            )
+        if !store.hasVisibleIdeas {
+            switch store.emptyKind {
+            case .neverProduced:
+                ContentUnavailableView(
+                    "还没有点子",
+                    systemImage: "lightbulb",
+                    description: Text(
+                        "每天早上我会想一轮，你也可以点右上角＋先记一个"
+                    )
+                )
+            case .cleared:
+                ContentUnavailableView(
+                    "这一轮的点子都处理完了",
+                    systemImage: "checkmark.circle",
+                    description: Text(
+                        "明早会再想一轮；也可以点右上角＋自己记一个"
+                    )
+                )
+            }
         } else {
-            ScrollView {
-                LazyVStack(spacing: OneDayMetrics.spacingSM) {
-                    ForEach(store.ideas) { idea in
-                        IdeaCardView(
-                            idea: idea,
-                            goalTitle: store.goalTitle(for: idea),
-                            converted: store.isConverted(idea),
-                            acting: store.actingIDs.contains(idea.id),
-                            note: store.notes[idea.id],
-                            onConvert: {
-                                Task {
-                                    await store.convertToTask(
-                                        appState: appState, idea: idea,
-                                        kanban: kanban
-                                    )
+            List {
+                if !store.pendingIdeas.isEmpty {
+                    Section("待阅") {
+                        ForEach(store.pendingIdeas) { idea in
+                            rowLink(for: idea)
+                                .swipeActions(
+                                    edge: .trailing,
+                                    allowsFullSwipe: true
+                                ) {
+                                    Button("忽略") {
+                                        Task {
+                                            await store.dismiss(
+                                                appState: appState,
+                                                idea: idea
+                                            )
+                                        }
+                                    }
+                                    .tint(Palette.inkSecondary)
                                 }
-                            },
-                            onDelete: { deleteCandidate = idea }
-                        )
+                        }
                     }
                 }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.vertical, OneDayMetrics.spacingM)
+                if !store.adoptedIdeas.isEmpty {
+                    Section("已采纳") {
+                        ForEach(store.adoptedIdeas) { idea in
+                            rowLink(for: idea)
+                        }
+                    }
+                }
+                Section {
+                    Text(generationFootnote)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .listRowBackground(Palette.pageBG)
+                        .listRowSeparator(.hidden)
+                }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Palette.pageBG)
             .refreshable {
                 await store.load(appState: appState)
+                if !store.adoptedIdeas.isEmpty {
+                    await kanban.load(appState: appState)
+                }
             }
         }
     }
+
+    private func rowLink(for idea: BridgeIdea) -> some View {
+        NavigationLink {
+            IdeaDetailView(
+                store: store, kanban: kanban, ideaID: idea.id
+            )
+        } label: {
+            IdeaRowView(
+                idea: idea,
+                goalTitle: store.goalTitle(for: idea),
+                taskStatusText: store.taskStatusText(
+                    for: idea, kanban: kanban
+                ),
+                note: store.notes[idea.id]
+            )
+        }
+        .listRowBackground(Palette.pageBG)
+        .contextMenu {
+            if idea.status == .pending {
+                Button("忽略") {
+                    Task {
+                        await store.dismiss(
+                            appState: appState, idea: idea
+                        )
+                    }
+                }
+            }
+            Button("删除", role: .destructive) {
+                deleteCandidate = idea
+            }
+        }
+    }
+
+    /// 页脚节奏文案：生成节奏是运行逻辑的一部分、
+    /// 明示在面上（设计档 §1.4）；上次生成时刻有账
+    /// 才写、无账不编
+    private var generationFootnote: String {
+        var text = "点子每天早上更新一轮"
+        if let last = store.generationInfo?.lastRunAt {
+            text += " · 上次生成 \(Self.dayTimeText(last))"
+        }
+        return text
+    }
+
+    /// 行内日期口径：今天/昨天带时刻、再远只给日期
+    static func dayTimeText(_ epoch: Double) -> String {
+        let date = Date(timeIntervalSince1970: epoch)
+        let calendar = Calendar.current
+        let time = date.formatted(date: .omitted, time: .shortened)
+        if calendar.isDateInToday(date) {
+            return "今天 \(time)"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "昨天 \(time)"
+        }
+        return date.formatted(date: .abbreviated, time: .omitted)
+    }
 }
 
-/// 点子卡（设计标准 §7 P5 锚：卡骨架＋关联 chip＋动作
-/// 钮组）：已转任务后钮组收为标记＋删除，点子保留在列
-struct IdeaCardView: View {
+/// 点子扁平行（设计档 §1.4 落点）：34pt 来源瓷砖＋
+/// 标题（Headline semibold、提案标题属语义位）＋说明
+/// ＋依据行（生成卡）＋信息行（目标 chip/相对时间/
+/// 过期倒数/任务状态）。行内不摆按钮：动作在详情页
+/// 与左滑/长按里
+struct IdeaRowView: View {
     let idea: BridgeIdea
     let goalTitle: String?
-    let converted: Bool
-    let acting: Bool
+    let taskStatusText: String?
     let note: String?
-    var onConvert: () -> Void
-    var onDelete: () -> Void
 
-    private var createdText: String {
-        Date(timeIntervalSince1970: idea.createdAt)
-            .formatted(date: .abbreviated, time: .omitted)
+    private var tileSymbol: String {
+        guard idea.source == .generated else { return "pencil" }
+        switch idea.evidenceRef?.first {
+        case "S": return "text.bubble"
+        case "G": return "target"
+        case "M": return "dot.radiowaves.left.and.right"
+        default: return "lightbulb"
+        }
+    }
+
+    private var infoText: String {
+        var parts = [IdeasView.dayTimeText(idea.createdAt)]
+        if idea.source == .generated,
+           let days = IdeaBoard.expiryDaysLeft(
+               idea, now: Date().timeIntervalSince1970
+           ) {
+            parts.append(days == 0 ? "今天到期" : "\(days) 天后过期")
+        }
+        return parts.joined(separator: " · ")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            Text(idea.title)
-                .font(.body.weight(.medium))
-                .foregroundStyle(Palette.bodyInk)
-                .lineLimit(2)
-            if !idea.detail.isEmpty {
-                Text(idea.detail)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(3)
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
+            RoundedRectangle(
+                cornerRadius: 9, style: .continuous
+            )
+            .fill(Palette.primaryPale)
+            .frame(width: 34, height: 34)
+            .overlay {
+                Image(systemName: tileSymbol)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Palette.primary)
             }
-            HStack(spacing: OneDayMetrics.spacingS) {
-                if let goalTitle {
-                    Label(goalTitle, systemImage: "target")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.primary)
-                        .padding(.horizontal, OneDayMetrics.spacingS)
-                        .padding(.vertical, OneDayMetrics.spacingXS)
-                        .background(
-                            Palette.primaryPale,
-                            in: Capsule()
-                        )
-                        .lineLimit(1)
+            VStack(
+                alignment: .leading, spacing: OneDayMetrics.spacingXS
+            ) {
+                Text(idea.title)
+                    .font(.headline)
+                    .foregroundStyle(Palette.bodyInk)
+                    .lineLimit(2)
+                if !idea.detail.isEmpty {
+                    Text(idea.detail)
+                        .font(.body)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(3)
                 }
-                if converted {
-                    Label("已转任务", systemImage: "checkmark.circle.fill")
+                if idea.source == .generated, !idea.evidence.isEmpty {
+                    Text("依据 · \(idea.evidence)")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(2)
                 }
-                Spacer(minLength: 0)
-                Text(createdText)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            HStack(spacing: OneDayMetrics.spacingS) {
-                if !converted {
-                    Button {
-                        onConvert()
-                    } label: {
-                        Label(
-                            acting ? "处理中…" : "转成任务",
-                            systemImage: "arrow.right.circle"
-                        )
-                        .font(.subheadline)
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    if let goalTitle {
+                        Label(goalTitle, systemImage: "target")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.primary)
+                            .padding(
+                                .horizontal, OneDayMetrics.spacingS
+                            )
+                            .padding(
+                                .vertical, OneDayMetrics.spacingXS
+                            )
+                            .background(
+                                Palette.primaryPale, in: Capsule()
+                            )
+                            .lineLimit(1)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(acting)
+                    Text(infoText)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    Spacer(minLength: 0)
+                    if let taskStatusText {
+                        Text(taskStatusText)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    } else if idea.isAdopted {
+                        Label("已转任务", systemImage: "checkmark.circle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
                 }
-                Spacer(minLength: 0)
-                Button(role: .destructive) {
-                    onDelete()
+                if let note {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.danger)
+                }
+            }
+        }
+        .padding(.vertical, OneDayMetrics.spacingXS)
+    }
+}
+
+/// 点子详情（设计档 §1.4 动作全集）：全文＋依据＋
+/// 信息＋任务关联；底部动作＝转成任务（主）/忽略
+/// （次）/删除。采纳后本页就地变已采纳态、给出打开
+/// 任务的入口；忽略/删除后自动返回列表
+struct IdeaDetailView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    let store: IdeasStore
+    let kanban: KanbanStore
+    let ideaID: String
+
+    @State private var showTask = false
+    @State private var confirmDelete = false
+
+    private var idea: BridgeIdea? {
+        store.ideas.first { $0.id == ideaID }
+    }
+
+    var body: some View {
+        Group {
+            if let idea {
+                ScrollView {
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingL
+                    ) {
+                        VStack(
+                            alignment: .leading,
+                            spacing: OneDayMetrics.spacingS
+                        ) {
+                            Text(idea.title)
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(Palette.bodyInk)
+                            if !idea.detail.isEmpty {
+                                Text(idea.detail)
+                                    .font(.body)
+                                    .foregroundStyle(Palette.bodyInk)
+                            }
+                        }
+                        if idea.source == .generated,
+                           !idea.evidence.isEmpty {
+                            VStack(
+                                alignment: .leading, spacing: 0
+                            ) {
+                                SectionLabel("依据")
+                                    .padding(
+                                        .bottom, OneDayMetrics.spacingS
+                                    )
+                                VStack(
+                                    alignment: .leading,
+                                    spacing: OneDayMetrics.spacingXS
+                                ) {
+                                    Text(idea.evidence)
+                                        .font(.body)
+                                        .foregroundStyle(Palette.bodyInk)
+                                    if let ref = idea.evidenceRef {
+                                        Text("素材编号 \(ref)")
+                                            .font(.footnote)
+                                            .foregroundStyle(
+                                                Palette.inkSecondary
+                                            )
+                                    }
+                                }
+                                .padding(OneDayMetrics.cardPadding)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    alignment: .leading
+                                )
+                                .background(
+                                    Palette.surface,
+                                    in: RoundedRectangle(
+                                        cornerRadius:
+                                            OneDayMetrics.containerCorner,
+                                        style: .continuous
+                                    )
+                                )
+                            }
+                        }
+                        infoGroup(idea)
+                        if idea.isAdopted, idea.taskId != nil {
+                            taskGroup(idea)
+                        }
+                        actionsGroup(idea)
+                        if let note = store.notes[idea.id] {
+                            InlineError(note)
+                        }
+                    }
+                    .padding(.horizontal, OneDayMetrics.pageGutter)
+                    .padding(.top, OneDayMetrics.spacingM)
+                    .padding(.bottom, OneDayMetrics.spacingXL)
+                }
+            } else {
+                ContentUnavailableView(
+                    "这个点子已不在列表里",
+                    systemImage: "lightbulb.slash"
+                )
+            }
+        }
+        .background(Palette.pageBG)
+        .navigationTitle("点子详情")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showTask) {
+            if let taskId = idea?.taskId {
+                KanbanTaskDetailView(store: kanban, taskID: taskId)
+            }
+        }
+        .confirmationDialog(
+            "删除这个点子？",
+            isPresented: $confirmDelete,
+            titleVisibility: .visible
+        ) {
+            Button("删除点子", role: .destructive) {
+                if let idea {
+                    Task {
+                        await store.delete(
+                            appState: appState, idea: idea
+                        )
+                        // 删成（回读确认不在列表）才退页；
+                        // 失败留在本页看 notes 的原因
+                        if !store.ideas.contains(
+                            where: { $0.id == idea.id }
+                        ) {
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("只删点子本身；已经转成的任务不会受影响。")
+        }
+    }
+
+    private func infoGroup(_ idea: BridgeIdea) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("信息")
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                FieldRow(label: "来源") {
+                    Text(idea.source == .generated ? "生成" : "手记")
+                }
+                GroupDivider(inset: OneDayMetrics.spacingM)
+                FieldRow(label: idea.source == .generated ? "生成于" : "记于") {
+                    Text(
+                        Date(timeIntervalSince1970: idea.createdAt)
+                            .formatted(date: .abbreviated, time: .shortened)
+                    )
+                }
+                if let expiresAt = idea.expiresAt {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    FieldRow(label: "过期") {
+                        Text(
+                            Date(timeIntervalSince1970: expiresAt)
+                                .formatted(date: .abbreviated, time: .omitted)
+                        )
+                    }
+                }
+                if let goalTitle = store.goalTitle(for: idea) {
+                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    FieldRow(label: "关联目标") {
+                        Text(goalTitle)
+                    }
+                }
+                GroupDivider(inset: OneDayMetrics.spacingM)
+                FieldRow(label: "状态") {
+                    Text(statusText(idea))
+                }
+            }
+            .odGroup()
+        }
+    }
+
+    private func statusText(_ idea: BridgeIdea) -> String {
+        switch idea.status {
+        case .pending: return "待阅"
+        case .adopted: return "已采纳"
+        case .dismissed: return "已忽略"
+        case .expired: return "已过期"
+        }
+    }
+
+    private func taskGroup(_ idea: BridgeIdea) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("任务")
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                FieldRow(label: "状态") {
+                    Text(
+                        store.taskStatusText(
+                            for: idea, kanban: kanban
+                        ) ?? "已转任务"
+                    )
+                }
+                GroupDivider(inset: OneDayMetrics.spacingM)
+                FieldRow(label: "任务") {
+                    Button("打开任务详情") { showTask = true }
+                }
+            }
+            .odGroup()
+        }
+    }
+
+    private func actionsGroup(_ idea: BridgeIdea) -> some View {
+        let acting = store.actingIDs.contains(idea.id)
+        return VStack(spacing: OneDayMetrics.spacingS) {
+            if idea.status == .pending {
+                Button {
+                    Task {
+                        await store.convertToTask(
+                            appState: appState, idea: idea,
+                            kanban: kanban
+                        )
+                    }
                 } label: {
-                    Label("删除", systemImage: "trash")
-                        .font(.subheadline)
+                    Label(
+                        acting ? "处理中…" : "转成任务",
+                        systemImage: "arrow.right.circle"
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(acting)
+                Button {
+                    Task {
+                        await store.dismiss(
+                            appState: appState, idea: idea
+                        )
+                        dismiss()
+                    }
+                } label: {
+                    Label("忽略", systemImage: "eye.slash")
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .disabled(acting)
             }
-            if let note {
-                Text(note)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.danger)
+            Button(role: .destructive) {
+                confirmDelete = true
+            } label: {
+                Label("删除点子", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.bordered)
+            .disabled(acting)
         }
-        .padding(OneDayMetrics.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Palette.surface,
-            in: RoundedRectangle(
-                cornerRadius: OneDayMetrics.containerCorner,
-                style: .continuous
-            )
-        )
     }
 }
 

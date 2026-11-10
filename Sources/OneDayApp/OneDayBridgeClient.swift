@@ -97,6 +97,32 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
+    /// PATCH /ideas/{id}（P1）：只许改 status/taskId——
+    /// 忽略（dismissed）与采纳回写（taskId）共用此口；
+    /// 桥侧状态机把关，非法流转回 400 人话、透传不猜
+    func patchIdea(
+        config: ServerConfig, id: String,
+        request body: BridgeIdeaPatchRequest
+    ) async throws -> BridgeIdea {
+        try await send(
+            config: config, path: "/ideas/\(id)", method: "PATCH",
+            body: body, endpoint: "更新点子", collection: false
+        )
+    }
+
+    /// GET /ideas/generation（P1）：生成管道账面——上次/
+    /// 下次运行时刻与近轮记录；点子页空态与页脚节奏文
+    /// 案的数据源。端点不存在（旧桥）走 collection 404
+    /// ＝未开通口径，调用方降级为「无生成信息」
+    func generationInfo(
+        config: ServerConfig
+    ) async throws -> BridgeGenerationInfo {
+        try await get(
+            config: config, path: "/ideas/generation",
+            endpoint: "生成记录", collection: true
+        )
+    }
+
     // MARK: - 监测（P6，契约 monitor-bridge-contract-20261109.md）
 
     /// 监测列表：集合端点 404＝监测数据源未开通

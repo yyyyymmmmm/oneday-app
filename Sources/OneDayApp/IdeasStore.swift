@@ -1,16 +1,20 @@
 import Foundation
 import OneDayCore
 
-/// 点子数据中枢（P5，0.11.0）：oneday-bridge 点子仓的
-/// 状态面＋「一键转任务」的执行面。口径：
+/// 点子数据中枢（P5，0.11.0；0.32.0 P1 升级）：oneday-
+/// bridge 点子仓的状态面＋「转任务」的执行面。口径：
 /// ①桥未连接/未开通与 GoalsStore 同分法（共用其静态
 /// 映射，不另立一套说法）；②写动作回读确认才算完成；
 /// ③转任务经 P3 KanbanStore 适配层落板——板未开通
-/// 如实提示、不假成功，确认建卡出现后才落本地「已转」
-/// 标记（冻结合约无此字段，只存本地 UserDefaults、
-/// 不硬塞服务端）；④关联目标名只从同批拉到的目标
-/// 列表解析，解析不到不显示、不编名（目标被删后服务
-/// 端会把 goalId 置 null，回读即自愈）。
+/// 如实提示、不假成功，确认建卡后把任务 id 经 PATCH
+/// 回写桥端 idea（taskId＋status=adopted，服务端为
+/// 「已转」唯一真源；0.32.0 退役旧本地 convertedIdeaIDs
+/// 标记，换设备/清缓存不再丢状态）；④忽略走 PATCH
+/// dismissed、不弹确认（低风险动作不打扰）；⑤关联
+/// 目标名只从同批拉到的目标列表解析，解析不到不显示、
+/// 不编名（目标被删后服务端会把 goalId 置 null，回读
+/// 即自愈）；⑥生成管道账面（generationInfo）只供空态
+/// 与页脚节奏文案，拉不到时这两处降级、不假造。
 @MainActor
 @Observable
 final class IdeasStore {
@@ -21,34 +25,64 @@ final class IdeasStore {
     /// 关联目标解析与新建 picker 的数据源（拉不到只
     /// 降级这两处，点子本体照常）
     private(set) var goals: [BridgeGoal] = []
-    /// 正在转任务/删除的点子 id
+    /// 生成管道账面（上次/下次运行与近轮记录）；旧桥
+    /// 无此端点时为 nil，空态按「清完」侧收、不编时间
+    private(set) var generationInfo: BridgeGenerationInfo?
+    /// 正在转任务/忽略/删除的点子 id
     private(set) var actingIDs: Set<String> = []
     /// 正在新建（表单防重复提交）
     private(set) var creating = false
     private(set) var createError: String?
-    /// 卡内行内提示（转任务/删除的人话，不弹模态）
+    /// 卡内行内提示（转任务/忽略/删除的人话，不弹模态）
     private(set) var notes: [String: String] = [:]
-    /// 已转任务的本地标记（点子 id 集）
-    private(set) var convertedIDs: Set<String>
 
     private let client = OneDayBridgeClient()
     private var loadInFlight = false
 
-    private static let marksKey = "convertedIdeaIDs"
+    // MARK: - 呈现分区（口径收口在 Core IdeaBoard）
 
-    init() {
-        convertedIDs = IdeaConversionMarks.decode(
-            UserDefaults.standard.stringArray(forKey: Self.marksKey)
+    /// 待阅：生成卡在前、手记在后，各按时间倒序
+    var pendingIdeas: [BridgeIdea] {
+        IdeaBoard.pendingList(ideas)
+    }
+
+    /// 已采纳：近 30 天
+    var adoptedIdeas: [BridgeIdea] {
+        IdeaBoard.adoptedList(ideas, now: Date().timeIntervalSince1970)
+    }
+
+    var hasVisibleIdeas: Bool {
+        !pendingIdeas.isEmpty || !adoptedIdeas.isEmpty
+    }
+
+    /// 空态分法：还没生产过 vs 这一轮已清完
+    var emptyKind: IdeaBoard.EmptyKind {
+        IdeaBoard.emptyKind(
+            totalIdeas: ideas.count,
+            lastRunAt: generationInfo?.lastRunAt
         )
     }
 
     func isConverted(_ idea: BridgeIdea) -> Bool {
-        convertedIDs.contains(idea.id)
+        idea.isAdopted
     }
 
     func goalTitle(for idea: BridgeIdea) -> String? {
         guard let goalId = idea.goalId else { return nil }
         return goals.first { $0.id == goalId }?.title
+    }
+
+    /// 已采纳行尾的任务状态文案：从任务板快照按
+    /// taskId 查列名派生；查不到回 nil（只显已转任务）
+    func taskStatusText(
+        for idea: BridgeIdea, kanban: KanbanStore
+    ) -> String? {
+        let raw = idea.taskId.flatMap { id in
+            kanban.snapshot?.tasks.first { $0.id == id }?.status
+        }
+        return IdeaBoard.taskStatusText(
+            idea: idea, taskStatusRaw: raw
+        )
     }
 
     // MARK: - 加载
@@ -71,9 +105,14 @@ final class IdeasStore {
             if loadState == .ready { return }
             loadState = .failed("点子读取失败，请稍后重试。")
         }
-        // 目标列表是附带面：失败只降级关联显示/picker
+        // 附带面：目标列表与生成账面，失败只降级对应呈现
         if let fetched = try? await client.goals(config: config) {
             goals = fetched
+        }
+        if let fetched = try? await client.generationInfo(
+            config: config
+        ) {
+            generationInfo = fetched
         }
     }
 
@@ -85,6 +124,11 @@ final class IdeasStore {
         }
         if let fetched = try? await client.goals(config: config) {
             goals = fetched
+        }
+        if let fetched = try? await client.generationInfo(
+            config: config
+        ) {
+            generationInfo = fetched
         }
     }
 
@@ -138,16 +182,13 @@ final class IdeasStore {
         do {
             try await client.deleteIdea(config: config, id: idea.id)
             await refetch(appState: appState)
-            if !ideas.contains(where: { $0.id == idea.id }) {
-                unmarkConverted(idea.id)
-            } else {
+            if ideas.contains(where: { $0.id == idea.id }) {
                 notes[idea.id] = "删除已发出，但列表里还在，请刷新核对。"
             }
         } catch let error as OneDayBridgeError {
             if case .recordGone = error {
                 await refetch(appState: appState)
                 if !ideas.contains(where: { $0.id == idea.id }) {
-                    unmarkConverted(idea.id)
                     return
                 }
             }
@@ -157,19 +198,55 @@ final class IdeasStore {
         }
     }
 
-    // MARK: - 一键转任务（经 P3 kanban 适配层）
+    // MARK: - 忽略（PATCH dismissed→回读确认离场）
+
+    /// 低风险动作：不弹确认；回读后点子不在待阅列才
+    /// 算数。已忽略是终态（设计档 §1.4），页内不给恢复
+    /// 入口——想留的点子请用删除前的详情页细看
+    func dismiss(appState: AppState, idea: BridgeIdea) async {
+        guard !actingIDs.contains(idea.id) else { return }
+        guard let config = appState.config else {
+            notes[idea.id] = "尚未连接服务器。"
+            return
+        }
+        actingIDs.insert(idea.id)
+        notes.removeValue(forKey: idea.id)
+        defer { actingIDs.remove(idea.id) }
+        do {
+            _ = try await client.patchIdea(
+                config: config, id: idea.id,
+                request: BridgeIdeaPatchRequest(status: .dismissed)
+            )
+            await refetch(appState: appState)
+            if pendingIdeas.contains(where: { $0.id == idea.id }) {
+                notes[idea.id] = "忽略已发出，但列表里还在，请刷新核对。"
+            }
+        } catch let error as OneDayBridgeError {
+            notes[idea.id] = GoalsStore.message(for: error)
+        } catch {
+            notes[idea.id] = "忽略失败，请稍后重试。"
+        }
+    }
+
+    // MARK: - 一键转任务（经 P3 kanban 适配层＋回写桥）
 
     /// 流程：先让 KanbanStore 探板（未开通→如实提示、
     /// 不往下走）→ 按 IdeaTaskPlan 组装标题/正文 →
-    /// createTask（建卡→催派→回板确认）→ 确认成功才
-    /// 落本地已转标记。任一步不成都把人话留在卡内
-    /// notes，点子本体不动、不假成功
+    /// createTaskReturningID（建卡→催派→回板确认并回
+    /// 任务 id）→ PATCH 回写桥 taskId（桥同步置
+    /// adopted）→ 回读确认点子上 taskId 落字才算完成。
+    /// 回写失败时任务已在板上、点子未标已转：如实留在
+    /// notes，不假成功、也不回滚任务
     func convertToTask(
         appState: AppState, idea: BridgeIdea, kanban: KanbanStore
     ) async {
         guard !actingIDs.contains(idea.id) else { return }
         guard !isConverted(idea) else {
             notes[idea.id] = "这个点子已经转成任务了。"
+            return
+        }
+        guard let config = appState.config else {
+            notes[idea.id] = "尚未连接服务器。"
             return
         }
         actingIDs.insert(idea.id)
@@ -193,31 +270,29 @@ final class IdeasStore {
         let plan = IdeaTaskPlan.make(
             idea: idea, goalTitle: goalTitle(for: idea)
         )
-        let created = await kanban.createTask(
+        let taskID = await kanban.createTaskReturningID(
             appState: appState, title: plan.title, body: plan.body
         )
-        if created {
-            markConverted(idea.id)
-        } else {
+        guard let taskID else {
             notes[idea.id] = kanban.createError
                 ?? "任务没有确认建成，请到枢纽任务段核对（聊天页点顶部胶囊打开）。"
+            return
         }
-    }
-
-    // MARK: - 已转标记（本地持久化）
-
-    private func markConverted(_ id: String) {
-        convertedIDs.insert(id)
-        UserDefaults.standard.set(
-            IdeaConversionMarks.encode(convertedIDs), forKey: Self.marksKey
-        )
-    }
-
-    private func unmarkConverted(_ id: String) {
-        guard convertedIDs.contains(id) else { return }
-        convertedIDs.remove(id)
-        UserDefaults.standard.set(
-            IdeaConversionMarks.encode(convertedIDs), forKey: Self.marksKey
-        )
+        do {
+            _ = try await client.patchIdea(
+                config: config, id: idea.id,
+                request: BridgeIdeaPatchRequest(taskId: taskID)
+            )
+            await refetch(appState: appState)
+            let after = ideas.first { $0.id == idea.id }
+            if after?.taskId != taskID {
+                notes[idea.id] = "任务已建在任务板上，但点子的「已转」标记回写后没确认上，请刷新核对。"
+            }
+        } catch let error as OneDayBridgeError {
+            notes[idea.id] = "任务已建在任务板上，但回写点子状态失败："
+                + GoalsStore.message(for: error)
+        } catch {
+            notes[idea.id] = "任务已建在任务板上，但回写点子状态失败，请刷新核对。"
+        }
     }
 }
