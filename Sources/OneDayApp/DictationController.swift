@@ -299,7 +299,7 @@ final class DictationController {
             setPhase(.preparing)
             assetProgress = 0
             do {
-                if let request = await AssetInventory
+                if let request = try await AssetInventory
                     .assetInstallationRequest(supporting: modules) {
                     progressObservation = request.progress.observe(
                         \.fractionCompleted, options: [.new]
