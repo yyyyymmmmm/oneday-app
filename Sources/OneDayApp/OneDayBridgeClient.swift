@@ -72,6 +72,66 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
+    /// PATCH /goals/{id} 状态流转（P2）：只送 {status}；
+    /// completedAt 由桥落字，回执全形供调用方对账
+    func patchGoalStatus(
+        config: ServerConfig, id: String, status: GoalStatus
+    ) async throws -> BridgeGoal {
+        try await send(
+            config: config, path: "/goals/\(id)", method: "PATCH",
+            body: BridgeGoalStatusPatchRequest(status: status),
+            endpoint: "目标状态", collection: false
+        )
+    }
+
+    /// GET /goals/{id}/entries（P2）：进展条目流
+    /// （createdAt 升序）；目标不在 → recordGone
+    func goalEntries(
+        config: ServerConfig, goalID: String
+    ) async throws -> [BridgeGoalEntry] {
+        let response: BridgeGoalEntriesResponse = try await get(
+            config: config, path: "/goals/\(goalID)/entries",
+            endpoint: "进展记录", collection: false
+        )
+        return response.items
+    }
+
+    /// POST /goals/{id}/entries（P2）：追加一条进展；
+    /// 成功与否以调用方回读条目流确认出现为准
+    func createGoalEntry(
+        config: ServerConfig, goalID: String,
+        request body: BridgeGoalEntryCreateRequest
+    ) async throws -> BridgeGoalEntry {
+        try await send(
+            config: config, path: "/goals/\(goalID)/entries",
+            method: "POST", body: body, endpoint: "记录进展",
+            collection: false
+        )
+    }
+
+    /// DELETE /goals/{id}/entries/{eid}（P2）：删单条纠错
+    func deleteGoalEntry(
+        config: ServerConfig, goalID: String, entryID: String
+    ) async throws {
+        let _: BridgeOKResponse = try await sendEmpty(
+            config: config,
+            path: "/goals/\(goalID)/entries/\(entryID)",
+            method: "DELETE", endpoint: "删除进展"
+        )
+    }
+
+    /// GET /goals/{id}/briefings（P2）：周简报信件
+    /// （createdAt 降序，最新在前）
+    func goalBriefings(
+        config: ServerConfig, goalID: String
+    ) async throws -> [BridgeBriefing] {
+        let response: BridgeBriefingsResponse = try await get(
+            config: config, path: "/goals/\(goalID)/briefings",
+            endpoint: "目标简报", collection: false
+        )
+        return response.items
+    }
+
     // MARK: - 点子
 
     func ideas(config: ServerConfig) async throws -> [BridgeIdea] {

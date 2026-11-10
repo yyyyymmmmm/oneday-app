@@ -4752,3 +4752,49 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 执行序：本 IPA（0.32.1/62）出包后才动服务器钥匙。五桥逐桥轮换（备份 *.bak-20261110-f03 共 10 份、只重建该桥容器）：各桥独立随机钥＋各自 env 变量名（OVERVIEW_/ONEDAY_/WRITE_GATE_/BOX_/DEVICE_BRIDGE_KEY），旧 WRITE_GATE_KEY 从五桥 env 全数退役（0 残留）；验收矩阵 30 格全对（每桥仅己钥可通、余四新钥＋旧钥全 401）；Hermes 本体未动。全程记录见 ~/workspace/hermes-deploy/bridge-keys-rollout-20261110.md。
 - 服务端例外一处：overview 内部调 write-gate /status 改用 write-gate 钥作服务凭据（仅服务器 env、App 不持有），待批数与源端 counts 实测一致。
 - **过渡期真实影响（更正 60.3 的乐观口径）**：轮换完成后，旧共用钥已被各桥退役——现装 0.32.0 的桥功能即刻 401（聊天本体不受影响）；装 0.32.1 后、导入钥匙组之前，回退读到的旧钥同样被拒、桥面呈未连接诚实态；粘贴 bridge-keys.txt 导入一次即全恢复并完成分权。回退机制保留至下一版删除的口径不变（其价值在轮换前的窗口与单桥再轮换场景）。
+
+## §61 0.33.0/63 三页工程 P2（目标补深：状态/进展/子目标/每周简报）
+
+缘起：三页对标设计（oneday-design-review/feed-ideas-goals-benchmark-design-20261110.md §2）P2 期；用户拍板 5A 每周简报一封／7B 子目标一期做界面／9B 对话式创建。守审计新规矩（legacy-thinking-audit R 档）：目标数据以桥为唯一真源、不在 App 侧建副本账；新端点先在桥侧落契约再接 App。桥于本版开工前刚落 F04 只读降级闸与 F03 新钥（ONEDAY_BRIDGE_KEY），本节全部写路径在降级闸之后（降级态非 GET 一律 503、不动）。
+
+### 61.1 桥契约（oneday-bridge P2 扩展，先于 App 落）
+
+- goal 加四字段：`status`（active|completed 两态，学 Muse 无暂停；旧记录读作 active）、`completedAt`（桥在流转时落字、客户端永不自写；重开清空）、`parentId`（子目标恰好一层：父必须存在且为顶层、已有子目标者不得再成为子目标、自指拒绝，违者 400 人话）、`source`（manual|chat，默认 manual——9B 的桥侧面先行落字，见 61.4）。PATCH /goals 支持增量 status/parentId（与既有全量编辑体并存）；goal 视图另嵌 `latestEntry`（最新条目只读穿嵌入，供列表摘要免 N+1，不是第二份存储）。
+- 进展条目集合 goalEntries：{id, goalId, body, source: user|agent, createdAt}，端点 GET/POST /goals/{id}/entries、DELETE /goals/{id}/entries/{eid}；append-only 不可编辑（纠错＝删单条或补新条）；正文空 400、上限 2000 字；目标不存在 404。
+- 简报集合 briefings：{id, goalId, period（ISO 周，Asia/Shanghai）, title, body, createdAt}，端点 GET /goals/{id}/briefings（降序）；只由简报管道写、客户端永不改。
+- monitor 加可选 `goalId`（建单校验存在、删目标置 null，与设计档 §2.4 定版一致）；删目标级联：子目标/条目/简报随删，点子与监测只解绑（goalId=null）。
+- 进度百分比不设生成面：里程碑计数是事实、App 自 GoalProgress 派生，桥与模型都不许编造百分比。
+
+### 61.2 每周简报管道（桥内调度）
+
+- 节奏：桥内 20 秒 tick（与监测/点子生成同纪律），每周一 08:00（Asia/Shanghai）一轮；账面 GET /goals/briefings（lastRunAt/nextRunAt/history，保留 30 轮）；手动触发 POST /goals/briefings/generate（202/409，与点子生成同形）。
+- 范围：仅 active 顶层目标（子目标是父目标档案的一部分、不单独成信）。素材只读拼装：近 7 天进展条目＋关联任务状态（由本目标点子采纳而生的 kanban 任务，经 Dashboard cookie 通道读任务板现值——与会话标题同一通道）＋挂靠监测近 7 天变化（monitor.goalId 归属）。**无素材的目标跳过并在账面记 skippedNoMaterial，绝不硬凑信**（与设计档原「无变化也出信」分歧点：从用户 5A 落地口径——无进展如实 0 封）。
+- 生成：每目标一次 POST /v1/runs（deepseek-flash，Idempotency-Key＝goal-brief-<周期>-<目标 id>），产出严格解析 {"title","body"} 才落库；(goalId, period) 唯一、重跑幂等（already-exists 记账）；失败注记（如任务板读不到）只进账面 materialNote、永不进素材（P1 教训）；每轮上限 20 个目标。
+- 部署实测：桥备份 oneday_bridge.py.bak-20261110-p2／data.json.bak-20261110-p2，只重启 oneday-bridge 本体（内存 51%）；本地自测 34/34（契约＋桩测整轮）；生产公网契约实测全过，手动一轮真产 1 封（临时目标＋一条进展，信体如实写「本周只有一条进展记录」、零编造），验后临时数据删净、生产回 0 目标/3 点子原状。施工中修一真 bug：简报 DTO 视图与账面视图同名 `_briefing_view` 互相遮蔽致 GET 简报列表 500，已改名分立并补回归测。
+
+### 61.3 App 落点
+
+- Core：BridgeGoal 宽容解码 P2 五件（旧载荷按 active/顶层/manual/无条目收）；BridgeGoalStatusPatchRequest（{status} 独立体）；BridgeGoalEntry/BridgeBriefing DTO 与请求体；`GoalBoard` 呈现口径纯函数（顶层过滤/子目标/状态分组/4 条折叠/摘要来源＝最新条目→备注→里程碑计数/里程碑全勾判据），单测钉死。
+- 列表改扁平行（照 13:06 实测形态转译）：分组头（绿点圆底「进行中」/灰系「已完成」默认收起）→ 行＝22pt 方形勾选框（即完成开关，PATCH {status}＋回读确认 completedAt 落字）＋标题 title3 semibold＋进展摘要 2 行（.body 灰，源＝latestEntry）＋右端 ⋮ 菜单（编辑/标完成或重开/删除）；单组超 4 条折叠「显示另外N项」；底部常驻创建区（＋创建目标＋说明，点入仍走表单 sheet）。里程碑进度条退出列表行、移详情头部（设计档明示取舍）。
+- 详情改呈现页（分区序定版）：①头部（标题＋状态 chip（完成带 completedAt 相对时间）＋所属目标回链＋备注＋里程碑进度条＋「里程碑已全部完成，可以标为完成了」事实提示——只提示、不自动完成）②简报（最新一封信卡：标题/正文 3 行/日期＋周期，点开 GoalBriefingsView 读全部信件全文，只读）③里程碑（CheckRow 就地勾选，走既有全量 PATCH＋逐项对账的 saveEdits，不新开写路）④进展（顶部记一条输入＋时间线倒序，来源标 你记的/智能体记的＋五档时间，长按删单条纠错；POST/DELETE 后回读确认）⑤子目标（子行勾选切状态＋点进子详情；底部新增一行，POST parentId＋回读确认；子目标详情无此区＝一层封顶明示，完成子目标不自动完成父目标）⑥状态与危险区（标为完成/重新打开、删除——确认文案同步级联口径）。编辑收进 GoalEditView 独立 sheet（原详情编辑器整段迁入，草稿全量口径一字不变）。
+- GoalsStore：goals 仍是唯一目标状态面；详情面 entriesByGoal/briefingsByGoal 只做按需拉取与写后回读刷新（detailLoadedIDs 区分「未拉」与「拉过为空」），不建本地副本账；setStatus/addEntry/deleteEntry/toggleMilestone 全走回读确认、失败留 notes 人话。
+
+### 61.4 9B 对话式创建：本版停下（实查判不可行）＋结构性替代方案
+
+- 设计定版机制＝「由 Hermes 建目标」（设计档 §2.4：选类别＋一句话、智能体落桥）。实查证据（2026-11-10 15:4x 服务器一手）：Hermes config 的 mcp_servers 只有 notion、github 两条，**没有 oneday-bridge**；桥的写路径只认其 scope Bearer 钥，该钥只在桥 env 与用户 App Keychain 里，智能体侧无任何工具/技能持有它（skills 目录全文检索 8646/oneday-bridge/goals 仅命中 hub 索引缓存、非技能本体）；且桥端口绑宿主机回环、Hermes 容器另一网络命名空间。故智能体在对话里**没有任何能落桥建目标的路径**——9B 按简报纪律停下，不许自创土办法（解析聊天散文拼 POST 属土办法，不做）。
+- 本版落的只有桥侧契约面：goal.source 已支持 chat 落字与校验（61.1），未来智能体写路径接通时契约零改动；App 创建入口保持表单（列表底创建区文案按真实机制写，不冒充对话式）。
+- 结构性替代方案（待用户拍板）：给 oneday-bridge 加 MCP 门面（与 device-bridge 预建同形：/mcp 端点 goals_create 工具、独立 scope 钥、只许建目标＋记进展两件写事），随已排队的「Notion/GitHub 验活→重启 Hermes 一次收官」同一生产窗口注册进 Hermes config；接通后 App 目标页加「对话创建」入口＝开一条专用旁聊，用户说一句话、智能体调 goals_create(source=chat) 落桥、App 回读列表确认出现才报成。本版不预注册、不动 Hermes 配置。
+
+### 61.5 HH 系列真机终审项
+
+- HH1 列表形态：进行中组绿点头＋扁平行（勾选框/标题/进展摘要/⋮），与 Muse 目标图并排对形态；摘要显最新进展条目原文（无条目时显备注）。
+- HH2 勾选即状态：点行首方框→目标进已完成组（组默认收起，展开可见、框已勾）；点已完成行框→回进行中组。全程杀进程重开状态不丢（桥真源）。
+- HH3 详情呈现：打开详情是看不是改——头部进度条在、简报卡在（无简报时显节奏说明）、里程碑就地勾选即存（杀进程重开不丢）、编辑在右上角 sheet 里。
+- HH4 进展时间线：记一条→时间线置顶出现（来源「你记的」＋时间）；长按删除→消失；杀进程重开与桥一致。
+- HH5 子目标：详情底部加子目标→子行出现；勾子目标完成→父目标不自动完成（仍在进行中组）；进子目标详情无再加子目标的区（一层封顶）；删父目标→子目标一并消失。
+- HH6 简报真信：等一个有进展的目标过周一 08:00（或由我方手动触发一轮）→详情简报卡出现当周信、点开全文可读；信里引用的进展/任务/监测与事实逐项对得上、无编造；无进展的目标不收到信。
+- HH7 里程碑全勾提示：把某目标里程碑全勾→详情头部出现「可以标为完成了」；目标本身不自动完成，仍需手点。
+
+### 61.6 交付实录
+
+- （CI 与 IPA 数出后补记。）

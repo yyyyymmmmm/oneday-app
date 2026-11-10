@@ -28,6 +28,41 @@ public struct BridgeMilestone: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+/// 目标状态（P2，设计档 §2.4 状态机）：只有 active/
+/// completed 两态（学 Muse，无暂停态）；未知值按
+/// active 收（宽容解码口径，与点子状态同纪律）
+public enum GoalStatus: String, Sendable, Equatable, Codable {
+    case active
+    case completed
+
+    public static func from(_ raw: String?) -> GoalStatus {
+        GoalStatus(rawValue: raw ?? "") ?? .active
+    }
+}
+
+/// 目标创建来源（P2）：manual＝App 内表单/子目标添加，
+/// chat＝对话式创建（桥契约已落，App 入口待智能体侧
+/// 写路径接通后开）。未知值按 manual 收
+public enum GoalSource: String, Sendable, Equatable, Codable {
+    case manual
+    case chat
+
+    public static func from(_ raw: String?) -> GoalSource {
+        GoalSource(rawValue: raw ?? "") ?? .manual
+    }
+}
+
+/// 进展条目来源（P2）：user＝用户手记，agent＝智能体
+/// 记账。未知值按 user 收
+public enum GoalEntrySource: String, Sendable, Equatable, Codable {
+    case user
+    case agent
+
+    public static func from(_ raw: String?) -> GoalEntrySource {
+        GoalEntrySource(rawValue: raw ?? "") ?? .user
+    }
+}
+
 public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
     public let title: String
@@ -38,11 +73,27 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
     /// epoch 秒（float）
     public let createdAt: Double
     public let updatedAt: Double
+    /// P2 四字段：旧载荷（0.33.0 前桥）缺失时按
+    /// 「active/未完成/顶层目标/manual」收
+    public let status: GoalStatus
+    /// 完成时刻（epoch 秒）；未完成为 nil。由桥在状态
+    /// 流转时落字，客户端永不自写
+    public let completedAt: Double?
+    /// 父目标 id；顶层目标为 nil。子目标恰好一层
+    public let parentId: String?
+    public let source: GoalSource
+    /// 最新一条进展条目（桥在 goal 视图里只读嵌入，供
+    /// 列表行摘要免 N+1 拉取）；无条目为 nil。它是条目
+    /// 流的读穿呈现、不是第二份存储
+    public let latestEntry: BridgeGoalEntry?
 
     public init(
         id: String, title: String, note: String,
         milestones: [BridgeMilestone],
-        createdAt: Double, updatedAt: Double
+        createdAt: Double, updatedAt: Double,
+        status: GoalStatus = .active, completedAt: Double? = nil,
+        parentId: String? = nil, source: GoalSource = .manual,
+        latestEntry: BridgeGoalEntry? = nil
     ) {
         self.id = id
         self.title = title
@@ -50,10 +101,16 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         self.milestones = milestones
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.status = status
+        self.completedAt = completedAt
+        self.parentId = parentId
+        self.source = source
+        self.latestEntry = latestEntry
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, note, milestones, createdAt, updatedAt
+        case status, completedAt, parentId, source, latestEntry
     }
 
     public init(from decoder: Decoder) throws {
@@ -70,6 +127,21 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         updatedAt = try container.decodeIfPresent(
             Double.self, forKey: .updatedAt
         ) ?? 0
+        status = GoalStatus.from(
+            try container.decodeIfPresent(String.self, forKey: .status)
+        )
+        completedAt = try container.decodeIfPresent(
+            Double.self, forKey: .completedAt
+        )
+        parentId = try container.decodeIfPresent(
+            String.self, forKey: .parentId
+        )
+        source = GoalSource.from(
+            try container.decodeIfPresent(String.self, forKey: .source)
+        )
+        latestEntry = try container.decodeIfPresent(
+            BridgeGoalEntry.self, forKey: .latestEntry
+        )
     }
 }
 
@@ -391,27 +463,36 @@ public struct BridgeMilestoneDraft: Encodable, Equatable, Sendable {
     }
 }
 
-/// POST /goals 请求体：{title, note?, milestones?}——
-/// 可选字段为 nil 时不落键（合成 Encodable 对 Optional
-/// 走 encodeIfPresent）
+/// POST /goals 请求体：{title, note?, milestones?,
+/// parentId?, source?}——可选字段为 nil 时不落键（合成
+/// Encodable 对 Optional 走 encodeIfPresent）
 public struct BridgeGoalCreateRequest: Encodable, Equatable, Sendable {
     public let title: String
     public let note: String?
     public let milestones: [BridgeMilestoneDraft]?
+    /// P2：子目标创建带父 id（桥校验父存在且为顶层）
+    public let parentId: String?
+    /// P2：创建来源；App 表单/子目标添加恒 manual，
+    /// chat 只由未来的对话式创建路径带
+    public let source: GoalSource?
 
     public init(
         title: String, note: String?,
-        milestones: [BridgeMilestoneDraft]?
+        milestones: [BridgeMilestoneDraft]?,
+        parentId: String? = nil, source: GoalSource? = nil
     ) {
         self.title = title
         self.note = note
         self.milestones = milestones
+        self.parentId = parentId
+        self.source = source
     }
 
     /// 表单口径收口：标题/备注去首尾空白，备注空→不带
     /// 字段、里程碑空标题行剔除、全空→不带字段
     public static func make(
-        title: String, note: String, milestoneTitles: [String]
+        title: String, note: String, milestoneTitles: [String],
+        parentId: String? = nil
     ) -> BridgeGoalCreateRequest {
         let trimmedNote = note.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -423,8 +504,124 @@ public struct BridgeGoalCreateRequest: Encodable, Equatable, Sendable {
         return BridgeGoalCreateRequest(
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             note: trimmedNote.isEmpty ? nil : trimmedNote,
-            milestones: drafts.isEmpty ? nil : drafts
+            milestones: drafts.isEmpty ? nil : drafts,
+            parentId: parentId,
+            source: parentId == nil ? nil : .manual
         )
+    }
+}
+
+/// PATCH /goals/{id} 状态流转专用体：{status}——状态是
+/// 独立动作（列表勾选/详情按钮），不与全量编辑体混发；
+/// completedAt 由桥落字，客户端不送时间
+public struct BridgeGoalStatusPatchRequest: Encodable, Equatable, Sendable {
+    public let status: GoalStatus
+
+    public init(status: GoalStatus) {
+        self.status = status
+    }
+}
+
+// MARK: - 进展条目与简报 DTO（P2）
+
+/// 目标进展条目：append-only 的事实流（桥
+/// /goals/{id}/entries）。条目不可编辑，纠错靠删单条
+/// 或补新条（设计档 §2.4 状态机口径）
+public struct BridgeGoalEntry: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let goalId: String
+    public let body: String
+    public let source: GoalEntrySource
+    /// epoch 秒（float）
+    public let createdAt: Double
+
+    public init(
+        id: String, goalId: String, body: String,
+        source: GoalEntrySource, createdAt: Double
+    ) {
+        self.id = id
+        self.goalId = goalId
+        self.body = body
+        self.source = source
+        self.createdAt = createdAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, goalId, body, source, createdAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        goalId = try container.decode(String.self, forKey: .goalId)
+        body = try container.decodeIfPresent(String.self, forKey: .body) ?? ""
+        source = GoalEntrySource.from(
+            try container.decodeIfPresent(String.self, forKey: .source)
+        )
+        createdAt = try container.decodeIfPresent(
+            Double.self, forKey: .createdAt
+        ) ?? 0
+    }
+}
+
+public struct BridgeGoalEntriesResponse: Decodable, Equatable, Sendable {
+    public let items: [BridgeGoalEntry]
+
+    public init(items: [BridgeGoalEntry]) {
+        self.items = items
+    }
+}
+
+/// POST /goals/{id}/entries 请求体：{body, source?}
+public struct BridgeGoalEntryCreateRequest: Encodable, Equatable, Sendable {
+    public let body: String
+    public let source: GoalEntrySource?
+
+    public init(body: String, source: GoalEntrySource? = nil) {
+        self.body = body
+        self.source = source
+    }
+
+    /// 用户手记口径：正文去首尾空白、来源恒 user
+    public static func userNote(_ raw: String) -> BridgeGoalEntryCreateRequest {
+        BridgeGoalEntryCreateRequest(
+            body: raw.trimmingCharacters(in: .whitespacesAndNewlines),
+            source: .user
+        )
+    }
+}
+
+/// 目标周简报：桥简报管道每周一封的「信」（桥
+/// /goals/{id}/briefings，createdAt 降序）。正文是信件
+/// 体、只读呈现，客户端永不改写
+public struct BridgeBriefing: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let goalId: String
+    /// ISO 周次（如 2026-W46，Asia/Shanghai 口径）
+    public let period: String
+    public let title: String
+    public let body: String
+    /// epoch 秒（float）
+    public let createdAt: Double
+
+    public init(
+        id: String, goalId: String, period: String,
+        title: String, body: String, createdAt: Double
+    ) {
+        self.id = id
+        self.goalId = goalId
+        self.period = period
+        self.title = title
+        self.body = body
+        self.createdAt = createdAt
+    }
+}
+
+public struct BridgeBriefingsResponse: Decodable, Equatable, Sendable {
+    public let items: [BridgeBriefing]
+
+    public init(items: [BridgeBriefing]) {
+        self.items = items
     }
 }
 
@@ -549,6 +746,81 @@ public enum GoalProgress {
     public static func text(of goal: BridgeGoal) -> String {
         let counts = counts(of: goal)
         return "\(counts.done)/\(counts.total)"
+    }
+}
+
+// MARK: - 目标呈现口径（P2）
+
+/// 目标列表/详情的呈现派生（纯函数，单测钉死）：分组、
+/// 子目标、进展摘要、折叠——视图只渲染这里的结果。
+/// 数据真源恒为桥：这里不存任何状态、不做本地标记
+/// （审计 R 档口径：不在 App 侧再建副本账）
+public enum GoalBoard {
+    /// 列表折叠阈值（照 Muse 目标行实测形态：先给 4
+    /// 条、余者收进「显示另外N项」）
+    public static let foldThreshold = 4
+
+    /// 顶层目标（子目标只在父目标详情里出现，不进列表）
+    public static func topLevel(_ goals: [BridgeGoal]) -> [BridgeGoal] {
+        goals.filter { $0.parentId == nil }
+    }
+
+    /// 某目标的子目标（保持桥的 createdAt 升序）
+    public static func children(
+        of goalID: String, in goals: [BridgeGoal]
+    ) -> [BridgeGoal] {
+        goals.filter { $0.parentId == goalID }
+    }
+
+    /// 列表分组：进行中/已完成（仅顶层，各组保持桥序）
+    public static func grouped(
+        _ goals: [BridgeGoal]
+    ) -> (active: [BridgeGoal], completed: [BridgeGoal]) {
+        let top = topLevel(goals)
+        return (
+            active: top.filter { $0.status == .active },
+            completed: top.filter { $0.status == .completed }
+        )
+    }
+
+    /// 折叠裁切：未展开时只给前 foldThreshold 条＋隐藏数
+    public static func folded<T>(
+        _ items: [T], expanded: Bool
+    ) -> (visible: [T], hiddenCount: Int) {
+        guard !expanded, items.count > foldThreshold else {
+            return (items, 0)
+        }
+        return (
+            Array(items.prefix(foldThreshold)),
+            items.count - foldThreshold
+        )
+    }
+
+    /// 行内进展摘要的来源（设计档 §2.4）：最新一条进展
+    /// 条目优先；无条目时回既有口径——备注，再无备注而
+    /// 有里程碑时给「x/y 里程碑」；全无则空串（行只剩
+    /// 标题，不编造近况）
+    public static func summary(
+        for goal: BridgeGoal, latestEntry: BridgeGoalEntry?
+    ) -> String {
+        if let latestEntry, !latestEntry.body.isEmpty {
+            return latestEntry.body
+        }
+        if !goal.note.isEmpty {
+            return goal.note
+        }
+        if !goal.milestones.isEmpty {
+            return "\(GoalProgress.text(of: goal)) 里程碑"
+        }
+        return ""
+    }
+
+    /// 里程碑全勾（且至少一个）：呈现「可以完成了」的
+    /// 事实判据——只是提示，完成永远由用户点（状态机
+    /// 口径：系统不替用户下结论）
+    public static func allMilestonesDone(_ goal: BridgeGoal) -> Bool {
+        !goal.milestones.isEmpty
+            && goal.milestones.allSatisfy { $0.done }
     }
 }
 
