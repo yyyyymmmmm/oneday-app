@@ -20,6 +20,21 @@ import UIKit
 /// nil 格式＋管线惰性建转换器、音频会话对齐 WWDC 样
 /// 例、os.Logger 阶段面包屑、启动期引擎错误必达失败
 /// 态（根除假录音）。
+/// 0.36.11 热修三轮（DESIGN-V4 §76；.ips 实锤
+/// voice-crash-ips-20261110-2117.ips）：前两轮修的都
+/// 是 tap 的上游关口（授权门/格式门），真崩点在 tap
+/// 回调入口本身——installTap 闭包字面量生在
+/// @MainActor 上下文、继承主隔离，实时音频线程
+/// （RealtimeMessenger）第一帧 buffer 触发
+/// _swift_task_checkIsolatedSwift 断言
+/// （EXC_BREAKPOINT/SIGTRAP），与权限、格式全无关。
+/// 本轮：installTap 迁进 nonisolated 的
+/// DictationAudioPipe 由盒本人安装（闭包只捕获盒）；
+/// KVO 进度观察同形态收口（DictationProgress
+/// Observer）；requestMicrophonePermission 标
+/// nonisolated；喂入逻辑核下沉 Core 的
+/// DictationAudioFeedBox 并以任意队列调用单测钉死。
+/// 回调隔离铁律见 AGENTS.md（2026-11-10）。
 @MainActor
 @Observable
 final class DictationController {
@@ -156,7 +171,7 @@ final class DictationController {
     @ObservationIgnored
     private var silenceTracker = SilenceTracker()
     @ObservationIgnored
-    private var progressObservation: NSKeyValueObservation?
+    private let progressObserver = DictationProgressObserver()
     @ObservationIgnored
     private var interruptionTokens: [NSObjectProtocol] = []
 
@@ -272,7 +287,7 @@ final class DictationController {
         case .preparing:
             // 资产还在下载：作废本次管道、回草稿原样
             generation += 1
-            progressObservation = nil
+            progressObserver.invalidate()
             settle(text: session.baseDraft)
             setPhase(.idle)
         default:
@@ -379,10 +394,13 @@ final class DictationController {
             do {
                 if let request = try await AssetInventory
                     .assetInstallationRequest(supporting: modules) {
-                    progressObservation = request.progress.observe(
-                        \.fractionCompleted, options: [.new]
-                    ) { [weak self] progress, _ in
-                        let fraction = progress.fractionCompleted
+                    // 观察闭包经 nonisolated 盒安装（0.36.11）：
+                    // Progress 在自有队列投递变更，闭包若生在
+                    // 本 @MainActor 上下文并继承隔离，与 tap
+                    // 同病（入口断言）；盒内闭包只碰 @Sendable
+                    // 回调，跳回主隔离由回调内部显式完成
+                    progressObserver.observe(request.progress) {
+                        [weak self] fraction in
                         Task { @MainActor in
                             self?.assetProgress = fraction
                         }
@@ -390,11 +408,11 @@ final class DictationController {
                     try await request.downloadAndInstall()
                 }
             } catch {
-                progressObservation = nil
+                progressObserver.invalidate()
                 guard generation == gen else { return .unavailable }
                 return .assetFailed
             }
-            progressObservation = nil
+            progressObserver.invalidate()
             guard generation == gen else { return .unavailable }
         }
         markStage("assetReady")
@@ -414,7 +432,11 @@ final class DictationController {
         // 退，无效时 prepare 后复读一次、仍无效走不可
         // 用失败路；③installTap 传 nil 格式（用节点实
         // 时格式）、转换器改由管线按首个 buffer 的真实
-        // 格式惰性建立，快照竞态整类消除
+        // 格式惰性建立，快照竞态整类消除；④installTap
+        // 闭包的出生地（0.36.11）：必须由管线盒本人在
+        // nonisolated 上下文安装——写在本方法里会继承
+        // @MainActor 隔离，实时音频线程第一帧入口断言
+        // 即死（.ips 实锤，与①②③的关口全无关）
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(
@@ -449,11 +471,10 @@ final class DictationController {
         let pipe = DictationAudioPipe(
             targetFormat: format, continuation: continuation
         )
-        inputNode.installTap(
-            onBus: 0, bufferSize: 1024, format: nil
-        ) { buffer, _ in
-            pipe.consume(buffer)
-        }
+        // 由盒本人安装（0.36.11）：闭包只捕获盒、只做
+        // 转码＋喂入；相位/面包屑等控制器状态在安装返
+        // 回后由本方法在主隔离内处理，永不经 tap 线程
+        pipe.installTap(on: inputNode)
         markStage("tapInstalled")
         self.analyzer = analyzer
         self.audioEngine = engine
@@ -767,7 +788,16 @@ final class DictationController {
         }
     }
 
-    private static func requestMicrophonePermission() async -> Bool {
+    /// nonisolated（0.36.11）：授权回调闭包不许带隔
+    /// 离——礼记同案即授权回调在系统特殊线程投递、隔
+    /// 离对不上就在入口崩。本函数只碰 continuation
+    /// （Sendable），标 nonisolated 把内部两个闭包
+    /// （continuation 体与 requestRecordPermission
+    /// 回调）的出生地一并钉死在无隔离上下文；调用点
+    /// 仍只许 MicPermissionGate 判 requestOnce 时经
+    /// prepConfirmStart 进来，全仓唯一（0.36.9 口径）
+    nonisolated private static func requestMicrophonePermission()
+        async -> Bool {
         await withCheckedContinuation { continuation in
             AVAudioApplication.requestRecordPermission { granted in
                 continuation.resume(returning: granted)
@@ -784,10 +814,13 @@ final class DictationController {
 /// 0.36.8：转换器不再由开录前格式快照预建——改为以
 /// 首个实际 buffer 的格式惰性建立（格式变更时重建），
 /// 转码比值先过 Core 有限性守卫，无效整帧丢弃
+/// 0.36.11：本类即 tap 的音频处理盒——nonisolated
+/// 终类，installTap 由盒本人安装（见 installTap(on:)），
+/// 电平喂入核下沉 Core 的 DictationAudioFeedBox
 final class DictationAudioPipe: @unchecked Sendable {
     private let targetFormat: AVAudioFormat
     private let continuation: AsyncStream<AnalyzerInput>.Continuation
-    private let rmsBox = OSAllocatedUnfairLock(initialState: 0.0)
+    private let feedBox = DictationAudioFeedBox()
     private let consumedBox = OSAllocatedUnfairLock(initialState: false)
     private let converterBox = OSAllocatedUnfairLock<AVAudioConverter?>(
         initialState: nil)
@@ -800,7 +833,29 @@ final class DictationAudioPipe: @unchecked Sendable {
         self.continuation = continuation
     }
 
-    var latestRMS: Double { rmsBox.withLock { $0 } }
+    var latestRMS: Double { feedBox.latestRMS }
+
+    /// 在输入节点上装 tap（0.36.11，本版主修）：闭包
+    /// 必须生在本盒的 nonisolated 上下文里、只捕获盒
+    /// 本人、只做「转码＋喂给分析器输入」。旧形态把
+    /// 闭包字面量写在 @MainActor 的 startEngine 里——
+    /// 闭包继承主隔离，AVFAudio 在实时音频线程
+    /// （RealtimeMessenger.mServiceQueue）投递第一帧
+    /// 时，运行时在闭包入口做隔离断言
+    /// （_swift_task_checkIsolatedSwift →
+    /// dispatch_assert_queue → _dispatch_assert_
+    /// queue_fail），EXC_BREAKPOINT 当场掐断进程
+    /// （.ips 实锤：closure #2 in startEngine，证据链
+    /// 见 DESIGN-V4 §76）。控制器状态一律不经此闭
+    /// 包：电平走 feedBox 锁盒由主线程轮询，相位与面
+    /// 包屑在 installTap 返回后由控制器在主隔离内处理
+    func installTap(on inputNode: AVAudioInputNode) {
+        inputNode.installTap(
+            onBus: 0, bufferSize: 1024, format: nil
+        ) { buffer, _ in
+            self.consume(buffer)
+        }
+    }
 
     /// 按输入格式取转换器：已有且输入格式一致直接用，
     /// 否则惰性新建（建不出回 nil，调用方丢帧）
@@ -823,8 +878,7 @@ final class DictationAudioPipe: @unchecked Sendable {
         if let channel = buffer.floatChannelData?[0] {
             let samples = Array(UnsafeBufferPointer(
                 start: channel, count: Int(buffer.frameLength)))
-            let rms = DictationLevel.rms(samples: samples)
-            rmsBox.withLock { $0 = rms }
+            feedBox.ingest(samples: samples)
         }
         guard buffer.frameLength > 0,
               let converter = converter(for: buffer.format),
@@ -860,5 +914,33 @@ final class DictationAudioPipe: @unchecked Sendable {
 
     func finish() {
         continuation.finish()
+    }
+}
+
+/// 进度观察盒（0.36.11）：AssetInventory 下载进度的
+/// KVO 观察必须经盒安装——Progress 在自有队列投递变
+/// 更通知，观察闭包若在 @MainActor 上下文出生并继承
+/// 隔离，与 tap 同病（入口隔离断言）。盒为 nonisolated
+/// 终类，盒内闭包只捕获 @Sendable 回调；隔离跳回由
+/// 回调内部显式完成（调用方 Task { @MainActor in … }）。
+/// observation 只在主隔离侧写（observe/invalidate 均
+/// 由控制器调用），KVO 闭包不碰它，@unchecked
+/// Sendable 据此成立
+final class DictationProgressObserver: @unchecked Sendable {
+    private var observation: NSKeyValueObservation?
+
+    func observe(
+        _ progress: Progress,
+        onChange: @escaping @Sendable (Double) -> Void
+    ) {
+        observation = progress.observe(
+            \.fractionCompleted, options: [.new]
+        ) { observed, _ in
+            onChange(observed.fractionCompleted)
+        }
+    }
+
+    func invalidate() {
+        observation = nil
     }
 }

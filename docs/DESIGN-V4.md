@@ -5283,3 +5283,59 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - 工具卡组默认收起的取舍（信息密度 vs 一眼全貌）、详情展开手感、直播事件序交错的实际观感（思考块在工具组之间落位是否顺眼），均无本地可验手段，归真机终审。
 - D3-4 适配偏差（直播期无真参数）为通道事实：靠参数分形的标题（memory/skill 动作形）直播期用泛称、落定纠正；若日后 events 通道补参数分片，直播期可与落定完全同口径，届时删此边界。
 - 「可调用」在会话在线时的成立，还以服务端 device MCP 注册为前提（同晚并行线已办并实调验活）；App 侧不验服务端、只认会话在线——若服务端注册日后被摘除，目录行仍会写「可调用」，此为本口径的已知边界（验服务端状态须另立健康检查，不在本包）。
+
+## §76 0.36.11/78 语音闪退热修三轮——tap 回调隔离（.ips 实锤定案，2026-11-10）
+
+编号注：本节任务简报原写 §75，§75 已由 0.36.10 五判词包占用（其文档提交 d95bca0 自记 §75），为保台账不重号本轮落 §76。
+
+起因：0.36.9 真机仍闪退（21:17 复现）。按铁律停猜，用户提供 OneDay 自身 .ips（voice-crash-ips-20261110-2117.ips，存 oneday-design-review/）——本案自此有实锤，不再是形态类推。
+
+### 76.1 .ips 证据链（亲读 faulting thread 7）
+
+- 异常：EXC_BREAKPOINT/SIGTRAP，termination code 5（Trace/BPT trap），App 0.36.9/76，进程启动后约 7 秒崩（点语音即崩的时序吻合）。
+- faulting thread 7，queue＝`RealtimeMessenger.mServiceQueue`（AVFAudio 实时音频线程）。
+- 栈（自顶）：`_dispatch_assert_queue_fail` ← `dispatch_assert_queue` ← `libswift_Concurrency._swift_task_checkIsolatedSwift` ← `swift_task_isCurrentExecutorWithFlagsImpl` ← **`closure #2 in DictationController.startEngine(useFallback:generation:)`** ← thunk for @escaping (AVAudioPCMBuffer, AVAudioTime) → () ← `AVAudioNodeTap::TapMessage::RealtimeMessenger_Perform()`。
+- 定案：installTap 的回调闭包生在 @MainActor 的 startEngine 里、继承主隔离；tap 在实时音频线程投递第一帧 buffer，运行时在闭包入口做当前执行器断言、对不上当场掐断。**崩点在回调入口、第一帧数据未进 consume**——与权限状态、tap 格式、转换器全无关。
+
+### 76.2 三轮落空原因（对账）
+
+- 0.36.8 修的是 tap 的**上游与下游**：删 SFSpeech 授权门、格式有效性门、installTap 传 nil 格式＋惰性转换器、会话模式、假录音闩——崩点在闭包入口本身，这些关口全数保留且仍成立，但无一覆盖入口隔离。
+- 0.36.9 按礼记终修处理的是**授权回调**那一处同族病灶（预备页无条件重走 requestRecordPermission）；礼记崩在授权回调、OneDay 本次崩在 tap 回调，同属「回调隔离对不上」一类、病灶不在同一回调。0.36.9 的同步门修法本身正确且保留（已授权不再重走回调是独立成立的铁律项），只是不是本次崩点的药。
+- 教训已固化 AGENTS.md 两款铁律（2026-11-10）：授权先同步读状态、已决定不重走异步回调；系统回调闭包不得继承 actor 隔离。本轮即按第二款施工。
+
+### 76.3 修法落点
+
+1. **installTap 迁进盒**（DictationController.swift）：新设 `DictationAudioPipe.installTap(on:)`——闭包生在 nonisolated 终类 DictationAudioPipe 的方法内，只捕获盒本人、只调 nonisolated 的 consume（转码＋yield 分析器输入＋电平喂入）；startEngine 改调 `pipe.installTap(on: inputNode)`，相位/面包屑（markStage("tapInstalled")）在安装返回后由控制器在主隔离内打点，永不经 tap 线程。改造前：闭包字面量在 @MainActor 方法体内、捕获局部 pipe、入口带隔离 thunk（.ips 的 closure #2）；改造后：闭包出生地为无隔离上下文、无隔离 thunk 可触发。
+2. **喂入核下沉 Core**：新增 `DictationAudioFeedBox`（OneDayCore/Dictation.swift）——nonisolated 终类＋OSAllocatedUnfairLock 护 (rms, buffers)，pipe 的 consume 改喂此盒、latestRMS 转读此盒（删 pipe 自有 rmsBox）。单测 DictationTapFeedBoxTests 4 条：并发队列 256 次喂入计数不差、detached 任务喂入 RMS 精确、空样本不崩、reset 双清——以真机闪退的同形调用面（任意队列调用）在测试层钉死「盒无隔离依赖」。
+3. **KVO 进度观察同形态收口**：新设 `DictationProgressObserver`（nonisolated 终类）安装 AssetInventory 下载进度的 KVO 观察——Progress 在自有队列投递变更，旧闭包生在 @MainActor 的 startEngine 内、捕获 [weak self]，与 tap 同形态（资产未装、需下载时才走到，属潜伏同雷）；盒内闭包只碰 @Sendable 回调，跳回主隔离由回调内部 Task { @MainActor in … } 显式完成。控制器 progressObservation 属性退役、改 progressObserver.invalidate() 三处。
+4. **requestMicrophonePermission 标 nonisolated**：静态方法原在 @MainActor 类内（默认带主隔离），其内 continuation 体与 requestRecordPermission 回调两个闭包的出生地一并钉死在无隔离上下文；行为不变，调用点仍只许 MicPermissionGate 判 .requestOnce 时经 prepConfirmStart 进来——grep 验 requestRecordPermission 全仓仍唯一实现一处（DictationController.swift，函数体内）。
+5. **保留不动**：0.36.8 全部修法（格式门、nil 格式＋惰性转换器、.playAndRecord/.spokenAudio、面包屑、FaultPolicy）与 0.36.9 同步门（MicPermissionGate）；发送链零改动。
+
+### 76.4 全仓同类形态审计（逐项结论）
+
+判据：系统在自家队列（非主队列）投递的回调，其闭包/方法若带 actor 隔离、入口断言即同病；主线程投递或本身 nonisolated 者无此风险。
+
+| # | 形态 | 落点 | 结论 |
+|---|---|---|---|
+| 1 | installTap 回调 | DictationController（旧 L452） | **真凶，本轮已修**（76.3-1） |
+| 2 | KVO observe（Progress.fractionCompleted） | DictationController startEngine | 同形态潜伏（Progress 自有队列投递），**本轮已修**（76.3-3） |
+| 3 | requestRecordPermission 回调 | DictationController 静态方法 | 出生地原带主隔离，**本轮预防性收口** nonisolated（76.3-4）；调用受 MicPermissionGate 单点门控不变 |
+| 4 | AVAudioConverter convert 输入块 | DictationAudioPipe.consume 内 | 闭包生在 nonisolated 类方法内、只捕获盒与锁，convert 在调用线程同步行使——无隔离，无风险，不动 |
+| 5 | NotificationCenter 中断观察块 | DictationController.registerInterruptionObservers | 注册时明示 queue: .main，块在主队列行使（与主隔离断言同队列）；块内状态访问一律经 Task { @MainActor in … } 显式跳回——无风险，不动 |
+| 6 | 结果流消费（transcriber.results AsyncSequence） | DictationController resultsTask | 以 await self?. 跨隔离显式跳回，无 C 回调入口——无风险，不动 |
+| 7 | UIKit/QuickLook/EventKit-UI delegate（5 个 Coordinator：UIImagePicker、UITextView、EKEventEdit、UIScrollView、QLPreview 数据源） | ChatView/ComposerTextView/DeviceViews/RichContentViews | Coordinator 均为普通 NSObject 类（方法 nonisolated），且 UIKit 主线程投递——双重无风险，不动 |
+| 8 | CNContactStore.enumerateContacts 闭包 | DeviceExecutors（普通 struct/enum，非 actor 类型） | 闭包生在无隔离上下文、由 CNContactStore 在调用线程同步行使——无风险，不动 |
+| 9 | EK/CN 授权与查询 async API | DeviceExecutors/DeviceStore | 全走 async/await SDK 面，无裸回调闭包——无风险，不动 |
+| 10 | URLSession | 七个桥客户端 | 全部 URLSession(configuration:) 无 delegate、只用 async/await——无 delegate 回调面，不动 |
+| 11 | requestAuthorization（相册） | ImageViewerView（0.36.9 已注） | 与听写无关；保存到相册为一次性用户动作面，本轮不动，沿 §74 注 |
+
+### 76.5 验收
+
+- 提交与 CI、单测增量、IPA 验包数字见本节回填（出包后补）。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.11/78）＋SettingsView 页脚「OneDay v0.36.11」。
+
+### 76.6 诚实边界
+
+- 本轮根因有 .ips 实锤、修法与栈逐帧对应；但「点麦克风不再闪退」的最终判定仍归用户真机首试——CI 绿与单测只证构建、逻辑与盒的调用面，不冒充真机验收。
+- 若真机仍崩：lastStage 面包屑（0.36.8 起）＋新 .ips 照旧是唯一定位路径，按铁律先拿日志再动代码。
+- 审计 #3 的 SDK 标注（requestRecordPermission 回调在系统侧的投递队列）本地不可验，nonisolated 化为预防性收口、行为零变化；#2 的 KVO 投递队列同理按形态从严处理。

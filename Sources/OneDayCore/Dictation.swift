@@ -394,3 +394,49 @@ public enum MicPermissionGate {
         }
     }
 }
+
+/// 听写 tap 喂入盒（0.36.11，DESIGN-V4 §76）：实时
+/// 音频线程侧喂入的纯逻辑核——nonisolated 终类、内部
+/// 以 OSAllocatedUnfairLock 护状态，设计前提就是
+/// 「从任意队列被调用」：tap 回调在 RealtimeMessenger
+/// 实时线程投递，本盒若属任何 actor、或方法带隔离，
+/// 回调入口的隔离断言即真机闪退的那一类（.ips 实锤：
+/// _swift_task_checkIsolatedSwift →
+/// dispatch_assert_queue_fail → EXC_BREAKPOINT，
+/// 证据 voice-crash-ips-20261110-2117.ips）。App 侧
+/// DictationAudioPipe 只做 AVFoundation 转码、把样本
+/// 喂进来；电平由主线程 10Hz 轮询 latestRMS 取走，
+/// 控制器状态从不经 tap 线程回写。
+public final class DictationAudioFeedBox: @unchecked Sendable {
+    private let state = OSAllocatedUnfairLock(
+        initialState: (rms: 0.0, buffers: 0))
+
+    public init() {}
+
+    /// 喂入一帧样本：算 RMS 并记账。任意队列可调、
+    /// 无隔离依赖（单测以并发队列＋detached 任务钉死）
+    public func ingest(samples: [Float]) {
+        let value = DictationLevel.rms(samples: samples)
+        state.withLock { current in
+            current.rms = value
+            current.buffers += 1
+        }
+    }
+
+    /// 最近一帧的 RMS（主线程轮询取电平用）
+    public var latestRMS: Double {
+        state.withLock { $0.rms }
+    }
+
+    /// 已喂入的 buffer 数（诊断/测试记账）
+    public var ingestedBufferCount: Int {
+        state.withLock { $0.buffers }
+    }
+
+    public func reset() {
+        state.withLock { current in
+            current.rms = 0
+            current.buffers = 0
+        }
+    }
+}
