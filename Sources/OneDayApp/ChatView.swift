@@ -1455,7 +1455,12 @@ struct ChatView: View {
         // 实锤），全页无实色遮罩残留（topFade 已于
         // 0.4.0 整层删除）
         .scrollEdgeEffectStyle(.soft, for: .bottom)
-        .contentMargins(.bottom, OneDayMetrics.spacingS, for: .scrollContent)
+        // 0.36.27（§97 件二，用户 03:48 点题「输入框
+        // 上面有点大，小点就行」）：列表底边距收一档
+        // spacingS 8 → spacingXS 4，与 inputBar 顶
+        // padding 同步收（见 inputBar 注）；「末条消息
+        // 底→发送舱卡顶」链总量 32 → 24（量账见 §97.2）
+        .contentMargins(.bottom, OneDayMetrics.spacingXS, for: .scrollContent)
         // 0.2.6 承载换代核心：发送区进列表的底部安全区
         // 留位——Exyte/Stream 式「列表＋发送区同处布局流」
         // （DESIGN-V4 §10）。键盘避让自此走系统安全区通道：
@@ -2349,7 +2354,10 @@ struct ChatView: View {
             composerCard
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
-        .padding(.top, OneDayMetrics.spacingS)
+        // 0.36.27（§97 件二）：顶 padding 收一档
+        // spacingS 8 → spacingXS 4（卡上外距，与列表
+        // 底 contentMargins 同步，链总量 32 → 24）
+        .padding(.top, OneDayMetrics.spacingXS)
         .padding(.bottom, OneDayMetrics.spacingS)
         // 提议链断环（0.2.5 根因注，§9）：本 VStack 的高度
         // 只认内容，不许把外层提议透传给胶囊
