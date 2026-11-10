@@ -59,6 +59,23 @@ public enum DisplayDate {
         }
     }
 
+    /// 相对档（0.36.7，铃铛页规格 §3.3）：新鲜度语
+    /// 义——按流逝时长分档：<60 秒（时钟偏差的负值
+    /// 同档）「刚刚」／<60 分钟「{N} 分钟前」／<24
+    /// 小时「{N} 小时前」（均向下取整）；满 24 小
+    /// 时整档让渡五档 dateTime（底层日差算法同源、
+    /// 不另立第二套口径）。聊天分隔条是时刻锚点、
+    /// 不用本档
+    public static func relative(
+        _ date: Date, now: Date = Date(), calendar: Calendar = .current
+    ) -> String {
+        let elapsed = now.timeIntervalSince(date)
+        if elapsed < 60 { return "刚刚" }
+        if elapsed < 3_600 { return "\(Int(elapsed / 60)) 分钟前" }
+        if elapsed < 86_400 { return "\(Int(elapsed / 3_600)) 小时前" }
+        return dateTime(date, now: now, calendar: calendar)
+    }
+
     /// 时刻档：HH:mm（24 小时、零填充，与
     /// ChatTimeline.timeText 同式）
     public static func timeOnly(

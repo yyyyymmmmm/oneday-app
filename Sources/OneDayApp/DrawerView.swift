@@ -358,7 +358,10 @@ struct DrawerView: View {
             drawerNavRow(
                 symbol: TabBarSymbols.chat.normal,
                 title: "主线聊天",
-                selected: currentTab == .chat
+                // 0.36.7：本行在单一政策里是主线会话的
+                // 代表行——只有「正在看主线」时带胶囊，
+                // 不再是「人在聊天表面」的指示（§10.2）
+                selected: drawerSelection == .main
             ) {
                 onClose()
                 // 0.30.0（用户 12:56 录屏点名 Muse 模
@@ -372,6 +375,9 @@ struct DrawerView: View {
                 if let mainID = appState.sideChats.mainThreadID {
                     appState.drawerThreadSelection = mainID
                 }
+                // 0.36.7（§10.3 置位纪律）：导航动作显
+                // 式写当前对象引用，胶囊随点按即归主线
+                appState.currentDrawerObject = .main
                 onSelectTab(.chat)
             }
             // 枢纽行已删（0.36.5，用户 19:24 点名）：
@@ -384,7 +390,7 @@ struct DrawerView: View {
             drawerNavRow(
                 symbol: TabBarSymbols.feed.normal,
                 title: "动态",
-                selected: currentTab == .feed
+                selected: drawerSelection == .surface(.feed)
             ) {
                 onClose()
                 onSelectTab(.feed)
@@ -392,7 +398,7 @@ struct DrawerView: View {
             drawerNavRow(
                 symbol: TabBarSymbols.ideas.normal,
                 title: "点子",
-                selected: currentTab == .ideas
+                selected: drawerSelection == .surface(.ideas)
             ) {
                 onClose()
                 onSelectTab(.ideas)
@@ -400,7 +406,7 @@ struct DrawerView: View {
             drawerNavRow(
                 symbol: TabBarSymbols.goals.normal,
                 title: "目标",
-                selected: currentTab == .goals
+                selected: drawerSelection == .surface(.goals)
             ) {
                 onClose()
                 onSelectTab(.goals)
@@ -410,7 +416,7 @@ struct DrawerView: View {
                 // 同步改「文件」（符号与底栏同源 files 对）
                 symbol: TabBarSymbols.files.normal,
                 title: "文件",
-                selected: currentTab == .files
+                selected: drawerSelection == .surface(.files)
             ) {
                 onClose()
                 onSelectTab(.files)
@@ -479,6 +485,23 @@ struct DrawerView: View {
         !drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    /// 抽屉单一选择（0.36.7，频道规格 §10）：全抽屉
+    /// 胶囊只许出自 Core 单一政策——当前表面（壳层
+    /// 回写的 currentTab）＋当前对象引用（AppState，
+    /// 导航动作与 ChatView 同步置位）两入参，任何行
+    /// 不得再私读页签/线程 id 自画胶囊（旧双源即双
+    /// 胶囊同框的 bug 本体）。落点派生在 ChatView 同
+    /// 步点已完成（引用恒新），此处 landing 传 nil
+    private var drawerSelection: DrawerSelection<ContentView.MainTab> {
+        DrawerSelectionPolicy.resolve(
+            currentTab: currentTab,
+            chatTab: .chat,
+            currentObject: appState.currentDrawerObject,
+            landingThreadID: nil,
+            mainThreadID: appState.sideChats.mainThreadID
+        )
+    }
+
     /// 搜索过滤（0.18.0 口径原样）：标题或任一条目内
     /// 容包含搜索词（不区分大小写）；非搜索态恒全量
     private var filteredThreads: [ChatThread] {
@@ -543,9 +566,14 @@ struct DrawerView: View {
     /// 落数据（isPinned），抽屉呈现恒时间序（22:45
     /// 平铺口径），置顶的呈现归管理页等其他面
     private func drawerSideThreadRow(_ thread: ChatThread) -> some View {
-        let isCurrent = thread.id == appState.activeThreadID
+        // 0.36.7：当前位只认单一政策（§10.2）——正在
+        // 看这条旁聊时胶囊只归本行、主线聊天行无胶囊
+        let isCurrent = drawerSelection == .side(thread.id)
         return Button {
             appState.drawerThreadSelection = thread.id
+            // 0.36.7（§10.3 置位纪律）：导航动作显式
+            // 写当前对象引用
+            appState.currentDrawerObject = .side(thread.id)
             onClose()
         } label: {
             HStack(spacing: 6) {
@@ -653,7 +681,19 @@ struct DrawerView: View {
         // 0.4.5 通道化：删的若是 ChatView 正在显示的线
         // 程，经 drawerDeletedThreadID 通知它置空当前
         // 线程（本面不持有 currentThreadID）
-        if thread.id == appState.activeThreadID {
+        // 0.36.7：「是否当前线程」改经单一选择政策判
+        // 定（旁聊行命中 .side，或主线在看且本线程是
+        // 主线）——activeThreadID 退役后的唯一口径
+        let isCurrent = drawerSelection == .side(thread.id)
+            || (drawerSelection == .main
+                && SideChatClassifier.isMain(
+                    localThreadID: thread.id,
+                    linkedServerSessionID: thread.serverSessionID,
+                    mainThreadID: appState.sideChats.mainThreadID,
+                    mainServerSessionID: appState.sideChats
+                        .mainServerSessionID
+                ))
+        if isCurrent {
             appState.drawerDeletedThreadID = thread.id
         }
         // 0.21.0 删除语义：本地线程删除是全仓唯一删

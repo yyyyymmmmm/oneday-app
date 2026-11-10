@@ -140,7 +140,13 @@ struct ConnectorsView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        // 0.36.7（用户点名胶囊上下间距太大）：本页间
+        // 距自设置页梯队 28 收紧到 spacingM 16——胶囊
+        // 与搜索框、与下方名单的间距同源于此（胶囊行
+        // 自身内边距再归零，见 segmentSection）；本页
+        // 是目录面、节奏从 Muse 参照的紧凑口径，不
+        // 动设置页本体的 28
+        .listSectionSpacing(OneDayMetrics.spacingM)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("连接器")
@@ -185,8 +191,11 @@ struct ConnectorsView: View {
             .labelsHidden()
         }
         .listRowBackground(Color.clear)
+        // 0.36.7：胶囊行自身上下内边距 4→0，胶囊的上
+        // 下间距只由 listSectionSpacing 一处出（16），
+        // 不两处叠加
         .listRowInsets(
-            EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20)
+            EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
         )
     }
 
@@ -202,9 +211,10 @@ struct ConnectorsView: View {
             }
         } header: {
             headerText("本机服务")
-        } footer: {
-            Text("这台服务器自家的线，状态是打开页面时当场检查的；电脑（Simular Box）是 MCP 连接、在下方「已连接」里，本组不重复列。")
         }
+        // 0.36.7（用户点名）：本机服务组下方的备注脚
+        // 注整段删除、不留替代文案——那段话是给开发
+        // 者解释分组口径的，不是给用户看的
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)
     }

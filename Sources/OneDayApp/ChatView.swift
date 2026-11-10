@@ -292,9 +292,17 @@ struct ChatView: View {
             }
             // 0.4.2：流式节流闸不跨线程带账
             streamFollowGate.reset()
-            // 0.4.5：当前线程回写壳层抽屉（高亮当前位
-            // 与删当前线程的判定都读它，见 DrawerView）
-            appState.activeThreadID = currentThread?.id
+            // 0.36.7（频道规格 §10.3）：当前线程同步为
+            // 抽屉当前对象引用——落点解析/抽屉改道/新
+            // 建/导入最终都汇到 currentThreadID 变更、
+            // 在此一处派生（主线→.main、其余→.side），
+            // 抽屉胶囊只问单一政策（DrawerSelection-
+            // Policy）；0.4.5 的 activeThreadID 回写退役
+            appState.currentDrawerObject =
+                DrawerSelectionPolicy.object(
+                    forThreadID: currentThread?.id,
+                    mainThreadID: appState.sideChats.mainThreadID
+                )
         }
         // 0.4.5：消费抽屉的线程选择（DrawerView 点行/
         // 新建时置位；与 pendingChatSessionID 同模式：
@@ -469,8 +477,13 @@ struct ChatView: View {
                     }
                 }
             }
-            // 0.4.5：当前线程初始回写（抽屉高亮当前位）
-            appState.activeThreadID = currentThread?.id
+            // 0.36.7：当前线程初始同步为抽屉当前对象
+            // 引用（口径同 currentThreadID 变更点）
+            appState.currentDrawerObject =
+                DrawerSelectionPolicy.object(
+                    forThreadID: currentThread?.id,
+                    mainThreadID: appState.sideChats.mainThreadID
+                )
             // 本页首次出现时若已有待续聊会话（如从其他格
             // 首次切入），onChange 可能先于挂载发生、在此补消费
             if let id = appState.pendingChatSessionID {

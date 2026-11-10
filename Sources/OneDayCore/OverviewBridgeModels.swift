@@ -57,6 +57,13 @@ public struct OverviewNotification: Decodable, Equatable, Identifiable, Sendable
     public var isDecisionReceipt: Bool {
         kind == "write_gate_decision"
     }
+
+    /// 是否为监测变化（kind 与 oneday-bridge 监测账
+    /// 本逐字一致：monitor_change；铃铛页元信息行
+    /// 的类别词判定，0.36.7）
+    public var isMonitorChange: Bool {
+        kind == "monitor_change"
+    }
 }
 
 /// 审批裁决联动（0.36.5，用户 19:10 点名：角标只许

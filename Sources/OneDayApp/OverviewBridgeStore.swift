@@ -145,6 +145,24 @@ final class OverviewBridgeStore {
         }
     }
 
+    /// 全部已读（0.36.7，规格 §3.5）：桥只有单条接
+    /// 口，客户端对未读条目逐条顺序确认——只改确认
+    /// 成功的本地态，返回是否全部成功；任一条失败
+    /// 即 false、该条保持未读（不许假装全清），提
+    /// 示文案归视图层按 S10 呈现。
+    func markAllRead(appState: AppState) async -> Bool {
+        let pending = notifications.filter { !$0.read }.map(\.id)
+        var allSucceeded = true
+        for id in pending {
+            await markRead(appState: appState, id: id)
+            let item = notifications.first(where: { $0.id == id })
+            if let item, !item.read {
+                allSucceeded = false
+            }
+        }
+        return allSucceeded
+    }
+
     /// 点开一条通知：先向桥确认已读，成功才改本地态与
     /// 角标（快照未读数同步减一）；失败保留未读，不假报。
     func markRead(appState: AppState, id: String) async {

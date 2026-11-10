@@ -228,12 +228,19 @@ final class AppState {
     /// tentView 据此隐藏自绘底栏」随自绘底栏与覆盖式
     /// 抽屉一并作废）
     var drawerPresented = false
-    /// 抽屉与 ChatView 之间的三条通道（0.4.5，抽屉提到
+    /// 抽屉与 ChatView 之间的通道（0.4.5，抽屉提到
     /// 壳层后立；模式与 pendingChatSessionID 一致：置位
     /// 方写、消费方读后清零）
-    /// 当前显示的线程 id（ChatView 随 currentThread 回
-    /// 写；抽屉据此高亮当前位、判定删除对象是否当前线程）
-    var activeThreadID: UUID?
+    /// 抽屉当前对象引用（0.36.7，频道规格 §10.2/§10.3）：
+    /// 全抽屉唯一选择源——写入点只有导航动作（抽屉主
+    /// 线行→.main、旁聊行→.side）与 ChatView 的当前线
+    /// 程同步（落点/切换/新建/导入都经它派生）；抽屉
+    /// 胶囊只许问 Core DrawerSelectionPolicy，不许再
+    /// 私读页签或线程 id 自画。页签切走不清、回切恢
+    /// 复。0.4.5 的 activeThreadID 随本引用落地退役
+    /// （其消费面——胶囊判定与删当前线程判定——已全
+    /// 部改读本引用经政策解析）
+    var currentDrawerObject: DrawerCurrentObject?
     /// 抽屉点选/新建的线程 id（DrawerView 写，ChatView
     /// 消费后切 currentThreadID 并清零）
     var drawerThreadSelection: UUID?
