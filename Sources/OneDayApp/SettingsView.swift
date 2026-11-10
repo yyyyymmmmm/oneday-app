@@ -383,6 +383,15 @@ struct SettingsView: View {
                     : (writeGateKeyStatus == .set ? "已设置" : "未设置"),
                 route: .writeGateKey
             )
+            // 0.27.0：主线会话链接状态如实展示——已链
+            // 接显会话 id、未链接显最近一次链接失败的
+            // 错误原文（链接失败不许再静默，见串话热
+            // 修）；非导航行（无详情页可去），形态与
+            // statusNavRow 同（题＋状态副行）
+            statusInfoRow(
+                icon: "link", title: "主线会话",
+                status: mainSessionStatusText
+            )
         } header: {
             settingsHeader("服务器与连接")
         }
@@ -777,6 +786,48 @@ struct SettingsView: View {
             .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
+    }
+
+    /// 状态信息行（0.27.0）：statusNavRow 的非导航
+    /// 版——状态本身就是全部内容、没有详情页可去的
+    /// 行用（主线会话链接状态）；形态逐字同状态导
+    /// 航行（题＋题下状态副行），只去掉 Navigation-
+    /// Link 与 chevron
+    private func statusInfoRow(
+        icon: String,
+        title: String,
+        status: String
+    ) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            rowIcon(icon)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                Text(status)
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .contentShape(Rectangle())
+    }
+
+    /// 主线会话状态文案（0.27.0）：已链接（确认＋
+    /// 种子双位）显 id；有失败留痕显「未链接＋错误
+    /// 原文」；其余显未链接与自动链接的去向
+    private var mainSessionStatusText: String {
+        let store = appState.sideChats
+        if store.mainServerConfirmed, store.mainServerSeeded,
+           let id = store.mainServerSessionID {
+            return "已链接 · \(id)"
+        }
+        if let error = store.mainLinkLastError {
+            return "未链接 · \(error)"
+        }
+        return "未链接（打开聊天页或发送时自动链接）"
     }
 
     // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）

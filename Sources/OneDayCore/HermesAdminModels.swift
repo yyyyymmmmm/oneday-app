@@ -321,6 +321,12 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
     public let toolCallCount: Int?
     public let inputTokens: Double?
     public let outputTokens: Double?
+    /// 会话行当前的 mutation 修订号（0.27.0）：Dash-
+    /// board 面的会话写（PATCH 改名/归档等）走围栏
+    /// 协议——请求须带 expected_revision 等于此值，
+    /// 无围栏必 409 client_upgrade_required（本包生
+    /// 产实证）；网关面投影可能不带此字段，故可选
+    public let runtimeRevision: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, source, model, profile
@@ -337,6 +343,7 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
         case toolCallCount = "tool_call_count"
         case inputTokens = "input_tokens"
         case outputTokens = "output_tokens"
+        case runtimeRevision = "runtime_revision"
     }
 
     /// 开始时间（epoch 量级归一：>1e11 视为毫秒）

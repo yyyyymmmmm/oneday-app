@@ -43,6 +43,14 @@ final class ChatThread {
     /// 入线程为 nil——锁非我方所设、永不代推（可
     /// 选＋默认 nil、SwiftData 轻量迁移）
     var linkedModel: String? = nil
+    /// 服务端种子已落位（0.27.0）：本线程的历史已
+    /// 经导入导入其自有 oneday- 会话（或线程出生即
+    /// 带服务端历史——续聊导入线程落盘时直接置
+    /// true）。自有会话未种子前不许进会话模式发送
+    /// （发送计划见 SideChatLink.sendPlan）；合并桶
+    /// 解绑重链时随新绑定重新种子（默认 false、
+    /// SwiftData 轻量迁移）
+    var serverSeeded: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \ChatEntry.thread)
     var entries: [ChatEntry] = []

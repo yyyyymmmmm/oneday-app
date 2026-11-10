@@ -581,7 +581,15 @@ struct DrawerView: View {
         // archived:true，尽力而为）——归档失败不阻
         // 塞本地删除，会话 id 落 SideChatStore 留痕
         // 账待对账（该会话在管理页未归档段仍可见）
-        let linkedSessionID = thread.serverSessionID
+        // 0.27.0 加闸（Core mayArchiveOnDelete）：只
+        // 许归档本线程自建的 oneday- 会话；绑合并桶
+        // 或他方服务端会话的线程只删本地、服务端零
+        // 动作——合并桶里混着主线服务端历史，归档
+        // 它等于连带归档主线
+        let linkedSessionID = SideChatLink
+            .mayArchiveOnDelete(sessionID: thread.serverSessionID)
+            ? thread.serverSessionID
+            : nil
         modelContext.delete(thread)
         try? modelContext.save()
         if let linkedSessionID {

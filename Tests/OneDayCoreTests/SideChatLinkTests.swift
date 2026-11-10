@@ -68,38 +68,62 @@ final class SideChatLinkTests: XCTestCase {
 
     // MARK: - 发送计划
 
-    func testSendPlanMainThreadAlwaysLegacyReplay() {
-        // 主线本体不动：有钦定会话 id 也走旧链
+    // 0.27.0 改判：计划只看绑定与种子位（主线由调用
+    // 方代入钦定 id＋Store 双位，与旁聊同口径）；无
+    // 头重放计划（legacyReplay）已整类删除——下列
+    // 用例同时是「任何状态都不许产出无头发送」的闸
+
+    func testSendPlanOwnSeededSessionIsSessionMode() {
         XCTAssertEqual(
             SideChatLink.sendPlan(
-                serverSessionID: "oneday-main-x", isMainThread: true
+                serverSessionID: "oneday-main-x", serverSeeded: true
             ),
-            .legacyReplay
+            .session(sessionID: "oneday-main-x")
         )
         XCTAssertEqual(
             SideChatLink.sendPlan(
-                serverSessionID: nil, isMainThread: true
+                serverSessionID: "oneday-side-x", serverSeeded: true
             ),
-            .legacyReplay
+            .session(sessionID: "oneday-side-x")
         )
     }
 
-    func testSendPlanLinkedSideChatIsSessionMode() {
-        XCTAssertEqual(
-            SideChatLink.sendPlan(
-                serverSessionID: "s-9", isMainThread: false
-            ),
-            .session(sessionID: "s-9")
-        )
-    }
-
-    func testSendPlanUnlinkedSideChatIsLinkAndSeed() {
+    func testSendPlanUnlinkedIsLinkAndSeed() {
         // 未链接与失败留痕同计划：下次发送照样先试链接
         XCTAssertEqual(
             SideChatLink.sendPlan(
-                serverSessionID: nil, isMainThread: false
+                serverSessionID: nil, serverSeeded: false
             ),
             .linkAndSeed
+        )
+        XCTAssertEqual(
+            SideChatLink.sendPlan(
+                serverSessionID: "", serverSeeded: true
+            ),
+            .linkAndSeed
+        )
+    }
+
+    func testSendPlanOwnUnseededIsLinkAndSeed() {
+        // 自有会话已建但种子未落：先补种子，不许带
+        // 头空发（服务端历史为空、上下文会断）
+        XCTAssertEqual(
+            SideChatLink.sendPlan(
+                serverSessionID: "oneday-side-x", serverSeeded: false
+            ),
+            .linkAndSeed
+        )
+    }
+
+    func testSendPlanImportedForeignSessionIsSessionMode() {
+        // 续聊导入线程出生即带服务端历史：种子位语
+        // 义由出生方式满足（落盘时置 true），计划走
+        // 会话模式——此处以 seeded=true 的等价形态验
+        XCTAssertEqual(
+            SideChatLink.sendPlan(
+                serverSessionID: "sess-foreign-1", serverSeeded: true
+            ),
+            .session(sessionID: "sess-foreign-1")
         )
     }
 
@@ -115,19 +139,17 @@ final class SideChatLinkTests: XCTestCase {
         )
     }
 
-    func testPayloadSeedAndLegacySendFullContext() {
+    func testPayloadAfterLinkSendsOnlyLatestMessage() {
+        // 0.27.0：历史由种子导入承载——链接完成后的
+        // 本轮发送同样只带尾条，linkAndSeed 相位若被
+        // 误当发送形态取形，也只许尾条（防全量重放
+        // 带上头重演服务端合并）
         let context = ["一问", "一答", "二问"]
         XCTAssertEqual(
             SideChatLink.payload(
                 plan: .linkAndSeed, fullContext: context
             ),
-            context
-        )
-        XCTAssertEqual(
-            SideChatLink.payload(
-                plan: .legacyReplay, fullContext: context
-            ),
-            context
+            ["二问"]
         )
     }
 

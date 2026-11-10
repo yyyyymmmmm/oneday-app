@@ -30,6 +30,7 @@ struct AllConversationsView: View {
     @State private var editMode: EditMode = .inactive
     @State private var selection = Set<String>()
     @State private var showBatchDeleteConfirm = false
+    @State private var showBatchArchiveConfirm = false
     @State private var showPruneConfirm = false
     @State private var pruneDaysText = "90"
     @State private var migrationStarted = false
@@ -47,6 +48,13 @@ struct AllConversationsView: View {
 
     private var mainSessionID: String? {
         appState.sideChats.mainServerSessionID
+    }
+
+    /// 0.27.0：批量选择里是否含已判死的合并桶——含
+    /// 则归档/删除确认必须带牵连主线历史的说明（与
+    /// 单行菜单同一道闸，见 ServerSessionRow）
+    private var selectionHasMergeBucket: Bool {
+        selection.contains { SideChatLink.isMergeBucket($0) }
     }
 
     /// 站内段行：全量减主线，置顶者稳定置顶（服务端
@@ -145,7 +153,20 @@ struct AllConversationsView: View {
             Button("删除", role: .destructive) { runBatch(.delete) }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("将删除 \(selection.count) 条会话，删除后不可恢复。")
+            if selectionHasMergeBucket {
+                Text(SideChatLink.mergeBucketWarning)
+            } else {
+                Text("将删除 \(selection.count) 条会话，删除后不可恢复。")
+            }
+        }
+        .alert(
+            "归档所选会话？",
+            isPresented: $showBatchArchiveConfirm
+        ) {
+            Button("归档", role: .destructive) { runBatch(.archive) }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(SideChatLink.mergeBucketWarning)
         }
         .alert(
             "确认清理？",
@@ -449,7 +470,14 @@ struct AllConversationsView: View {
             if segment == .archived {
                 Button("恢复") { runBatch(.restore) }
             } else {
-                Button("归档") { runBatch(.archive) }
+                Button("归档") {
+                    // 0.27.0：选含合并桶时先过二次确认
+                    if selectionHasMergeBucket {
+                        showBatchArchiveConfirm = true
+                    } else {
+                        runBatch(.archive)
+                    }
+                }
             }
             Button("删除", role: .destructive) {
                 showBatchDeleteConfirm = true

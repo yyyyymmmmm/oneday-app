@@ -414,7 +414,7 @@ struct DemoHermesClient: HermesClientProtocol {
         return page.sessions.first { $0.id == id } ?? page.sessions[0]
     }
 
-    func createServerSession(config: ServerConfig, id: String?, title: String?) async throws -> ServerSession {
+    func createServerSession(config: ServerConfig, apiKey: String, id: String?, title: String?) async throws -> ServerSession {
         let now = Date().timeIntervalSince1970
         return decode(ServerSession.self, """
         {"id": "\(id ?? "sess-demo-main")", "source": "api_server",
@@ -424,12 +424,27 @@ struct DemoHermesClient: HermesClientProtocol {
         """)
     }
 
-    /// 演示模式不建真会话（0.21.0）：抛错使旁聊链接
-    /// 走失败留痕＋无状态重放回退——演示发送链形态
-    /// 与旧版一致，会话头永不进演示请求
-    func createLinkedServerSession(config: ServerConfig, id: String, model: String) async throws -> ServerSession {
-        throw HermesError.unreachable("演示模式不建服务端会话")
+    /// 演示建会话（0.21.0 旧注作废）：0.27.0 起无头
+    /// 回退整类删除、链接失败整轮不发——演示若继续
+    /// 抛错，旁聊在演示里将发不出任何消息；演示本
+    /// 就是全假数据面，就地回一份假会话让链接/会话
+    /// 模式形态在演示里同样走通，会话头只进演示请
+    /// 求、不碰生产
+    func createLinkedServerSession(config: ServerConfig, apiKey: String, id: String, model: String) async throws -> ServerSession {
+        let now = Date().timeIntervalSince1970
+        return decode(ServerSession.self, """
+        {"id": "\(id)", "source": "api_server",
+         "model": "\(model)", "profile": "default",
+         "started_at": \(now), "ended_at": null, "message_count": 0}
+        """)
     }
+
+    /// 演示种子导入（0.27.0）：无操作成功——演示历
+    /// 史只在本地，导入形态走通即可
+    func importServerSession(
+        config: ServerConfig, requestID: String,
+        expectedRevision: Int, sessionBody: [String: JSONValue]
+    ) async throws {}
 
     func updateServerSessionModel(config: ServerConfig, id: String, model: String) async throws {
         throw HermesError.unreachable("演示模式不建服务端会话")

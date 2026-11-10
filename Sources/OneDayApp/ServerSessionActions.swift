@@ -143,8 +143,15 @@ struct ServerSessionRow<Content: View>: View {
     @State private var showRename = false
     @State private var renameText = ""
     @State private var showDeleteConfirm = false
+    @State private var showBucketArchiveConfirm = false
     @State private var busy = false
     @State private var errorText: String?
+
+    /// 0.27.0：本行是否为已判死的合并桶——归档/删
+    /// 除前必须过带牵连说明的二次确认（见下）
+    private var isMergeBucket: Bool {
+        SideChatLink.isMergeBucket(session.id)
+    }
 
     private var isPinned: Bool { session.isPinned == true }
     private var isArchived: Bool { session.isArchived == true }
@@ -183,11 +190,17 @@ struct ServerSessionRow<Content: View>: View {
             }
             .disabled(busy)
             Button {
-                perform {
-                    await ServerSessionActions.setArchived(
-                        appState: appState, id: session.id,
-                        archived: !isArchived
-                    )
+                // 0.27.0：合并桶的「归档」先过二次确认
+                // （恢复方向不拦——它不伤记录）
+                if isMergeBucket, !isArchived {
+                    showBucketArchiveConfirm = true
+                } else {
+                    perform {
+                        await ServerSessionActions.setArchived(
+                            appState: appState, id: session.id,
+                            archived: !isArchived
+                        )
+                    }
                 }
             } label: {
                 Label(
@@ -226,7 +239,31 @@ struct ServerSessionRow<Content: View>: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("「\(title)」删除后不可恢复。")
+            // 0.27.0：合并桶的删除确认必须写明牵连
+            // 主线历史（这两条桶的本体不在 App 侧处
+            // 置范围，删除决定权在用户、信息给足）
+            if isMergeBucket {
+                Text(SideChatLink.mergeBucketWarning)
+            } else {
+                Text("「\(title)」删除后不可恢复。")
+            }
+        }
+        .confirmationDialog(
+            "归档这条合并记录？",
+            isPresented: $showBucketArchiveConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("归档", role: .destructive) {
+                perform {
+                    await ServerSessionActions.setArchived(
+                        appState: appState, id: session.id,
+                        archived: true
+                    )
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(SideChatLink.mergeBucketWarning)
         }
         .alert(
             "操作未落定",

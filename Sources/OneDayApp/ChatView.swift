@@ -175,8 +175,16 @@ struct ChatView: View {
     // （0.3.8 删残：tabBarZone 本地副本随抽屉钉底删除——
     // 它唯一的用途是抽屉面板底部占位，第 22 条已废）
 
+    /// 当前线程（0.27.0 硬化）：只认 currentThreadID
+    /// 精确命中（Core CurrentThreadResolution）——旧
+    /// 「失配静默回落最近活跃线程」就此删除：显示与
+    /// 发送落点不许悄悄换到另一条线程，失配即空态、
+    /// 发送在 ensureThread 处显式报错
     private var currentThread: ChatThread? {
-        threads.first { $0.id == currentThreadID } ?? threads.first
+        guard let resolved = CurrentThreadResolution.resolve(
+            currentID: currentThreadID, existingIDs: threads.map(\.id)
+        ) else { return nil }
+        return threads.first { $0.id == resolved }
     }
 
     /// 0.7.0：当前线程是否钦定主线——回告卡入线判定
@@ -408,9 +416,10 @@ struct ChatView: View {
             if let id = appState.pendingChatSessionID {
                 Task { await consumePendingChatSession(id) }
             }
-            // 0.7.0：主线服务端承载确认（未确认过才走，
-            // 失败静默、下次进页重试，不挡聊天）
-            Task { await ensureMainServerSession() }
+            // 0.27.0：主线链接预热（未链才走；失败原因
+            // 落 SideChatStore 设置页可见、发送前还会
+            // 再试——旧「失败静默」口径已作废）
+            Task { await ensureMainLink() }
         }
         // 0.7.0（D2 回告）：总览快照随前台 30 秒轮询换新
         // 时顺带拉新通知——回告卡与铃铛/通知 sheet 读
@@ -2238,14 +2247,27 @@ private struct ComposerBarLayout: Layout {
 
     // MARK: - 发送
 
-    private func ensureThread() -> ChatThread {
-        if let currentThread {
+    /// 发送落点解析（0.27.0 硬化，与 currentThread
+    /// 同口径）：命中用现线程；从未选过（current-
+    /// ThreadID 为 nil）新建——正常首启路径；id 已
+    /// 选但线程不存在＝定位失败，置可见错误并返
+    /// nil，调用方整轮不发——不许再回落最近线程把
+    /// 消息写进别人的对话
+    private func ensureThread() -> ChatThread? {
+        switch CurrentThreadResolution.ensureDecision(
+            currentID: currentThreadID, existingIDs: threads.map(\.id)
+        ) {
+        case .useExisting:
             return currentThread
+        case .createFresh:
+            let thread = ChatThread()
+            modelContext.insert(thread)
+            currentThreadID = thread.id
+            return thread
+        case .mismatch:
+            errorMessage = "当前会话定位失败：界面选中的会话在本地已不存在，本条未发送。请从抽屉重新打开会话。"
+            return nil
         }
-        let thread = ChatThread()
-        modelContext.insert(thread)
-        currentThreadID = thread.id
-        return thread
     }
 
     private func newThread() {
@@ -2262,7 +2284,7 @@ private struct ComposerBarLayout: Layout {
     /// 持久的钦定会话 id）；否则新建本地主线：标题恒
     /// 「主线」、绑定本地生成并持久化的服务端会话 id、
     /// 写入钦定。服务端承载的实际存在性由
-    /// ensureMainServerSession 异步确认，本函数纯本地
+    /// ensureMainLink 异步链接，本函数纯本地
     @discardableResult
     private func ensureMainThread() -> UUID? {
         let store = appState.sideChats
@@ -2293,46 +2315,159 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 主线服务端承载确认：走管理面统一通道
-    /// （performAdmin，含 401 静默重登口径）——先 GET
-    /// 查存，404 才 POST 带钦定 id＋title 建线（建会话
-    /// 可带 App 指定 id/title 是调研实查口径，见
-    /// model-switching-research）；服务端若改派 id，
-    /// 以回执改存钦定并回写本地主线绑定。任何失败静默：
-    /// 确认位不置，下次进页重试。本地发送链是无状态
-    /// 重放、不依赖本确认，失败不挡聊天
-    private func ensureMainServerSession() async {
-        let store = appState.sideChats
-        guard MainThreadDesignation.serverEnsure(confirmed: store.mainServerConfirmed)
-                == .verifyOrCreate,
-              appState.config != nil else { return }
-        let wantedID = store.ensureMainServerSessionID()
+    /// 线程本地条目 → 种子快照（链接导入用）：只取
+    /// user/assistant（过滤口径在 Core seedTranscript，
+    /// 此处先把条目拍平成 Core 的 SeedEntry 形态，
+    /// 时间戳带本地落盘时刻）
+    private static func seedEntries(of thread: ChatThread) -> [SeedEntry] {
+        thread.sortedEntries.map {
+            SeedEntry(
+                role: $0.role, content: $0.content,
+                timestamp: $0.createdAt.timeIntervalSince1970
+            )
+        }
+    }
+
+    /// 链接一条线程到它的自有服务端会话（0.27.0，
+    /// 主线/旁聊共用）：desiredID 为目标会话 id（主
+    /// 线＝钦定 id、旁聊＝已存自有 id 或新铸）。流程
+    /// 先 GET 查存，按服务端现状与种子有无分三路：
+    /// ①不存在：无种子走网关建会话（Bearer）、有种
+    ///   子走 import 一次落行＋全量消息（围栏修订 0）；
+    /// ②存在但空行且本地有种子：import 补种（围栏
+    ///   修订取 GET 回的 runtime_revision）；
+    /// ③存在且已有消息：服务端已持历史，直接认链。
+    /// 任一步失败抛错（不许静默、不许回退无头发送）；
+    /// 返回最终会话 id（建会话回执为准）
+    private func performLink(
+        desiredID: String, title: String?, model: String?,
+        seedEntries: [SeedEntry]
+    ) async throws -> String {
+        guard let apiKey = appState.apiKey else {
+            throw HermesError.sessionExpired
+        }
+        let seed = SideChatLink.seedTranscript(from: seedEntries)
+        let existing: ServerSession?
         do {
-            _ = try await appState.performAdmin { client, config in
-                try await client.serverSession(config: config, id: wantedID)
+            existing = try await appState.performAdmin { client, config in
+                try await client.serverSession(config: config, id: desiredID)
             }
-            store.confirmMainServer()
-        } catch HermesError.unexpectedStatus(_, let status) where status == 404 {
-            do {
-                let created = try await appState.performAdmin { client, config in
-                    try await client.createServerSession(
-                        config: config, id: wantedID, title: SideChatStore.mainTitle
+        } catch let error as HermesError {
+            if case .unexpectedStatus(_, let status) = error, status == 404 {
+                existing = nil
+            } else {
+                throw error
+            }
+        }
+        if let existing {
+            if (existing.messageCount ?? 0) == 0, !seed.isEmpty {
+                try await importSeed(
+                    id: desiredID, title: title, model: model,
+                    seed: seed,
+                    expectedRevision: existing.runtimeRevision ?? 0
+                )
+            }
+            return desiredID
+        }
+        if seed.isEmpty {
+            if let model {
+                let created = try await appState.client
+                    .createLinkedServerSession(
+                        config: requireConfig(), apiKey: apiKey,
+                        id: desiredID, model: model
                     )
-                }
-                if created.id != wantedID {
-                    store.setMainServerSessionID(created.id)
-                    if let mainID = store.mainThreadID,
-                       let main = threads.first(where: { $0.id == mainID }) {
-                        main.serverSessionID = created.id
-                        try? modelContext.save()
-                    }
-                }
-                store.confirmMainServer()
-            } catch {
-                // 建线失败不置确认位，下次进页重试
+                return created.id
             }
+            let created = try await appState.client.createServerSession(
+                config: requireConfig(), apiKey: apiKey,
+                id: desiredID, title: title
+            )
+            return created.id
+        }
+        try await importSeed(
+            id: desiredID, title: title, model: model,
+            seed: seed, expectedRevision: 0
+        )
+        return desiredID
+    }
+
+    /// import 种子一步（Dashboard cookie 通道）：
+    /// request_id 每发新铸；落定不看回执——perform-
+    /// Link 返回后由发送/回读链自然验证，此处 2xx
+    /// 之外全抛
+    private func importSeed(
+        id: String, title: String?, model: String?,
+        seed: [SeedEntry], expectedRevision: Int
+    ) async throws {
+        let body = SideChatLink.importSessionBody(
+            id: id, title: title, model: model, messages: seed,
+            lockUpdatedAt: Date().timeIntervalSince1970
+        )
+        try await appState.performAdmin { client, config in
+            try await client.importServerSession(
+                config: config, requestID: UUID().uuidString,
+                expectedRevision: expectedRevision, sessionBody: body
+            )
+        }
+    }
+
+    /// 当前连接配置（链接动作的网关面直发用；未连接
+    /// 时以 sessionExpired 抛——与 runStream 的未连
+    /// 接处理同错误面）
+    private func requireConfig() throws -> ServerConfig {
+        guard let config = appState.config else {
+            throw HermesError.sessionExpired
+        }
+        return config
+    }
+
+    /// 主线链接（0.27.0，代旧 ensureMainServerSession）：
+    /// 已链（确认＋种子双位）直接返 true；否则以钦
+    /// 定 id＋主线本地条目走 performLink——成功置双
+    /// 位并回写主线线程绑定，失败**不许静默**：原因
+    /// 原文落 SideChatStore（设置页展示）、返 false，
+    /// 调用方（进页预热或发送前链接）据此决定呈现。
+    /// 旧口径「失败静默、发送走无状态重放不依赖本确
+    /// 认」就此作废——那正是串话的存续条件
+    /// seedSnapshot：发送路径必传（本轮条目落盘前
+    /// 的快照——现取会把本轮新消息也导进种子、与随
+    /// 后的尾条发送在服务端落两份）；进页预热传 nil
+    /// 时现取主线全量条目（彼时无发送在飞）
+    @discardableResult
+    private func ensureMainLink(seedSnapshot: [SeedEntry]? = nil) async -> Bool {
+        let store = appState.sideChats
+        if store.mainServerConfirmed, store.mainServerSeeded {
+            return true
+        }
+        guard appState.config != nil else { return false }
+        let wantedID = store.ensureMainServerSessionID()
+        let mainThread = store.mainThreadID.flatMap { id in
+            threads.first { $0.id == id }
+        }
+        do {
+            let linkedID = try await performLink(
+                desiredID: wantedID, title: SideChatStore.mainTitle,
+                model: nil,
+                seedEntries: seedSnapshot
+                    ?? mainThread.map(Self.seedEntries(of:)) ?? []
+            )
+            if linkedID != wantedID {
+                store.setMainServerSessionID(linkedID)
+            }
+            if let mainThread {
+                if mainThread.serverSessionID != linkedID {
+                    mainThread.serverSessionID = linkedID
+                }
+                mainThread.serverSeeded = true
+                try? modelContext.save()
+            }
+            store.markMainLinked()
+            return true
         } catch {
-            // 查存失败（离线/未登录）静默，下次进页重试
+            store.noteMainLinkError(
+                (error as? HermesError)?.userMessage ?? "主线会话链接失败"
+            )
+            return false
         }
     }
 
@@ -2390,6 +2525,11 @@ private struct ComposerBarLayout: Layout {
                 )
             )
             thread.serverSessionID = id
+            // 0.27.0：导入线程出生即带服务端历史——种
+            // 子位直接置真，发送计划走会话模式（绑合
+            // 并桶的两条 id 例外：sendPlan 对桶恒判先
+            // 链接解绑，见 SideChatLink）
+            thread.serverSeeded = true
             if let started = session?.startedDate {
                 thread.createdAt = started
             }
@@ -2430,15 +2570,27 @@ private struct ComposerBarLayout: Layout {
         pendingQuoteIsFork = false
         errorMessage = nil
         notice = nil
-        let thread = ensureThread()
+        guard let thread = ensureThread() else {
+            // 0.27.0：定位失败整轮不发——输入与附件原
+            // 样退回发送舱（错误文案已由 ensureThread
+            // 置好），不许把消息落进别的线程
+            input = text
+            attachments = pending
+            pendingQuote = quote
+            return
+        }
+        // 0.27.0：种子快照要在本轮条目落盘前取——链
+        // 接时的历史导入只含既往条目，本轮新消息由
+        // 随后的会话模式发送单独投递，不许在服务端
+        // 落两份
+        let seedSnapshot = Self.seedEntries(of: thread)
         let imageDatas = pending.compactMap(\.imageData)
         let fileNames = pending.compactMap(\.fileName)
-        modelContext.insert(
-            ChatEntry(
-                role: "user", content: text, thread: thread,
-                imageData: imageDatas.first, quote: quote
-            )
+        let newEntry = ChatEntry(
+            role: "user", content: text, thread: thread,
+            imageData: imageDatas.first, quote: quote
         )
+        modelContext.insert(newEntry)
         // 0.7.0（M3）：主线标题恒「主线」、不被首条消息
         // 派生覆盖——主线线程标题在钦定落位时即为「主线」
         // 本就不进本分支，此守卫是双保险
@@ -2489,15 +2641,49 @@ private struct ComposerBarLayout: Layout {
         // 0.8.0：上一轮的流式工具卡列清空，从本轮累积
         liveToolCards = []
         sendTask = Task {
-            // 0.21.0：出门前先定发送形态（旁聊链接/会话
-            // 模式判定见 prepareSendShape——判定与载荷
-            // 取形是 Core 纯函数、网络动作在本页）；链
-            // 接窗口内被用户停止则不进流、按停止语义
-            // 静默收尾（runStream 的收尾清理在此手动
-            // 对齐一份）
-            let shape = await prepareSendShape(
-                thread: thread, fullContext: context
-            )
+            // 0.21.0：出门前先定发送形态（判定与载荷取
+            // 形是 Core 纯函数、网络动作在本页）。
+            // 0.27.0：prepareSendShape 改为可抛——链接
+            // 失败整轮不发（无头回退已删）：删本轮条
+            // 目、输入原样退回发送舱、错误横幅明示原
+            // 因；链接窗口内被用户停止仍按停止语义静
+            // 默收尾（条目保留、与旧口径一致）
+            let shape: (messages: [ChatMessage], sessionID: String?)
+            do {
+                shape = try await prepareSendShape(
+                    thread: thread, fullContext: context,
+                    seedEntries: seedSnapshot
+                )
+            } catch is CancellationError {
+                streamingText = nil
+                streamingReasoning = nil
+                reasoningStartedAt = nil
+                sendTask = nil
+                return
+            } catch {
+                if Task.isCancelled {
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
+                }
+                modelContext.delete(newEntry)
+                try? modelContext.save()
+                input = text
+                attachments = pending
+                pendingQuote = quote
+                errorMessage = "会话链接失败，本条未发送："
+                    + ((error as? HermesError)?.userMessage
+                        ?? "服务端会话建立失败")
+                    + "。链接恢复后重新发送即可。"
+                Haptics.warning()
+                streamingText = nil
+                streamingReasoning = nil
+                reasoningStartedAt = nil
+                sendTask = nil
+                return
+            }
             if Task.isCancelled {
                 streamingText = nil
                 streamingReasoning = nil
@@ -2512,38 +2698,44 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 本轮出门形态（0.21.0，状态机见 OneDayCore
-    /// .SideChatLink）：按线程链接相位三路——
-    /// ①主线：legacyReplay，原样全量重放、无会话头
-    /// （主线建/发本体不动、只复用其已验通的建会话
-    /// 与恢复通道）；
-    /// ②已链接旁聊：会话模式——载荷只取尾条（本轮
-    /// 新消息，引用/图片已在全量上下文尾条备好成
-    /// 品）＋会话头；链接时锁定的模型与当前胶囊不
-    /// 一致（且锁为我方所设）时先推一次会话内切换
-    /// （尽力而为：失败不挡发送、服务端旧锁继续生
-    /// 效，下轮再试）；
-    /// ③未链接旁聊（含存量线程懒链接）：先建真会
-    /// 话（模型＝当下胶囊、require_model_lock）——
-    /// 成功落 serverSessionID＋linkedModel、失败计
-    /// 数清零，本轮转种子轮（全量重放整份载荷＋会
-    /// 话头，上下文由载荷自带、不断链）；建会话失
-    /// 败不许挡消息：失败计数＋1、原因留痕，本轮回
-    /// 退无状态重放照常发出，下次发送再试链接。
-    /// 纯本地从未发送过的线程不在此处出现（链接只
-    /// 由发送触发、无后台主动建会话）。
+    /// 本轮出门形态（0.27.0 重写，状态机见 OneDayCore
+    /// .SideChatLink）：全线程同口径两路——
+    /// ①已链接（绑定非桶＋种子已落；主线的绑定/种
+    ///   子位读 SideChatStore 双位）：会话模式——载
+    ///   荷只取尾条＋会话头；旁聊锁模型与胶囊不一致
+    ///   （且锁为我方所设）时先推一次会话内切换（尽
+    ///   力而为：失败不挡发送、下轮再试——该端点的
+    ///   公网送达缺口登记于 §54，属已知残留）；
+    /// ②未链接：先走 performLink（建会话或 import
+    ///   种子，seedEntries 为本轮条目落盘前的快照）
+    ///   ——成功落绑定/种子位/锁模型、失败计数清零，
+    ///   本轮随即以会话模式发出；**失败抛错整轮不
+    ///   发**（0.21.0 的「失败回退无状态重放」整类
+    ///   删除：无头发送在服务端按开头合并落库、是
+    ///   串话入口，诊断档判死）；失败计数＋1、原因
+    ///   留痕（旁聊落线程、主线落 SideChatStore）由
+    ///   本函数记账，呈现与条目回滚在 send() 的
+    ///   catch。用户在链接窗口内主动停止抛
+    ///   CancellationError、不留痕（send 按停止语义
+    ///   静默收尾）。
     private func prepareSendShape(
-        thread: ChatThread, fullContext: [ChatMessage]
-    ) async -> (messages: [ChatMessage], sessionID: String?) {
-        let plan = SideChatLink.sendPlan(
-            serverSessionID: thread.serverSessionID,
-            isMainThread: thread.id == appState.sideChats.mainThreadID
-        )
+        thread: ChatThread, fullContext: [ChatMessage],
+        seedEntries: [SeedEntry]
+    ) async throws -> (messages: [ChatMessage], sessionID: String?) {
+        let store = appState.sideChats
+        let isMain = thread.id == store.mainThreadID
+        let plan = isMain
+            ? SideChatLink.sendPlan(
+                serverSessionID: store.mainServerSessionID,
+                serverSeeded: store.mainServerSeeded
+            )
+            : SideChatLink.sendPlan(
+                serverSessionID: thread.serverSessionID,
+                serverSeeded: thread.serverSeeded
+            )
         switch plan {
-        case .legacyReplay:
-            return (fullContext, nil)
         case .session(let sessionID):
-            if SideChatLink.needsModelRelock(
+            if !isMain, SideChatLink.needsModelRelock(
                 linkedModel: thread.linkedModel,
                 capsuleModel: appState.chatModel
             ) {
@@ -2574,39 +2766,63 @@ private struct ComposerBarLayout: Layout {
                 sessionID
             )
         case .linkAndSeed:
-            let capsule = appState.chatModel
             do {
-                let created = try await appState
-                    .performAdmin { client, config in
-                        try await client.createLinkedServerSession(
-                            config: config,
-                            id: SideChatLink.newSessionID(),
-                            model: capsule
+                let linkedID: String
+                if isMain {
+                    guard await ensureMainLink(
+                        seedSnapshot: seedEntries
+                    ) else {
+                        throw HermesError.unreachable(
+                            store.mainLinkLastError
+                                ?? "主线会话链接失败"
                         )
                     }
-                // 服务端改派 id 时以回执为准（与主线
-                // ensureMainServerSession 同口径）
-                thread.serverSessionID = created.id
-                thread.linkedModel = capsule
-                thread.linkFailureCount = 0
-                thread.linkLastError = nil
-                try? modelContext.save()
-                return (fullContext, created.id)
-            } catch {
-                // 用户在链接窗口内主动停止不算失败、
-                // 不留痕（send 起手会按取消静默收尾）
-                if Task.isCancelled {
-                    return (fullContext, nil)
-                }
-                thread.linkFailureCount = SideChatLink
-                    .failureCount(
-                        afterFailure: thread.linkFailureCount
+                    linkedID = store.ensureMainServerSessionID()
+                } else {
+                    // 目标 id：已存自有 id 沿用（补种子
+                    // 路径），其余（无绑定/绑合并桶/绑
+                    // 他方会话待解绑）一律新铸——合并桶
+                    // 绑定在此被自有 id 覆盖、桶本体零
+                    // 动作
+                    let desiredID = thread.serverSessionID
+                        .flatMap {
+                            SideChatLink.isOwnSessionID($0)
+                                ? $0 : nil
+                        } ?? SideChatLink.newSessionID()
+                    linkedID = try await performLink(
+                        desiredID: desiredID, title: nil,
+                        model: appState.chatModel,
+                        seedEntries: seedEntries
                     )
-                thread.linkLastError =
-                    (error as? HermesError)?.userMessage
-                    ?? "建会话失败"
-                try? modelContext.save()
-                return (fullContext, nil)
+                    thread.serverSessionID = linkedID
+                    thread.linkedModel = appState.chatModel
+                    thread.serverSeeded = true
+                    thread.linkFailureCount = 0
+                    thread.linkLastError = nil
+                    try? modelContext.save()
+                }
+                return (
+                    SideChatLink.payload(
+                        plan: .session(sessionID: linkedID),
+                        fullContext: fullContext
+                    ),
+                    linkedID
+                )
+            } catch {
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+                if !isMain {
+                    thread.linkFailureCount = SideChatLink
+                        .failureCount(
+                            afterFailure: thread.linkFailureCount
+                        )
+                    thread.linkLastError =
+                        (error as? HermesError)?.userMessage
+                        ?? "建会话失败"
+                    try? modelContext.save()
+                }
+                throw error
             }
         }
     }
@@ -2977,12 +3193,39 @@ private struct ComposerBarLayout: Layout {
         deletePartialEntries(pending, in: thread)
         try? modelContext.save()
         pendingRecovery = nil
+        // 0.27.0：重发形态按当前链接状态定——待恢复
+        // 账是旧版记下的（sessionID 为 nil）时不许再
+        // 无头重发回合并桶：线程已链接的改带会话头只
+        // 发尾条；尚未链接的不在此处硬发（链接要走
+        // 种子流程），留待用户下次发送时一并种子，
+        // 本地消息不丢
+        let recoveryPlan = thread.id == appState.sideChats.mainThreadID
+            ? SideChatLink.sendPlan(
+                serverSessionID: appState.sideChats.mainServerSessionID,
+                serverSeeded: appState.sideChats.mainServerSeeded
+            )
+            : SideChatLink.sendPlan(
+                serverSessionID: thread.serverSessionID,
+                serverSeeded: thread.serverSeeded
+            )
+        if pending.sessionID == nil, case .linkAndSeed = recoveryPlan {
+            notice = "已重新连接。这条会话尚未链接服务端，上一条会在你下次发送时一并同步。"
+            return
+        }
+        let recoverySessionID = pending.sessionID ?? {
+            if case .session(let id) = recoveryPlan { return id }
+            return nil
+        }()
+        let recoveryMessages = pending.sessionID == nil
+            && recoverySessionID != nil
+            ? Array(pending.messages.suffix(1))
+            : pending.messages
         notice = "已重新连接，正在继续生成…"
         streamingText = ""
         sendTask = Task {
             await runStream(
-                thread: thread, messages: pending.messages,
-                sessionID: pending.sessionID
+                thread: thread, messages: recoveryMessages,
+                sessionID: recoverySessionID
             )
         }
     }

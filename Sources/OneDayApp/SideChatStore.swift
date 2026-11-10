@@ -23,6 +23,15 @@ final class SideChatStore {
     private(set) var mainThreadID: UUID?
     private(set) var mainServerSessionID: String?
     private(set) var mainServerConfirmed = false
+    /// 主线种子已落位（0.27.0）：主线本地历史已导入
+    /// 钦定会话——确认位与种子位由 markMainLinked
+    /// 一并置真（链接流程把「会话存在」与「历史已
+    /// 导入」一次做完，不再分两段各确认一半）
+    private(set) var mainServerSeeded = false
+    /// 主线最近一次链接失败原因（0.27.0）：链接失败
+    /// 不许再静默——原文落此、设置页「服务器与连接」
+    /// 区如实展示，链接成功即清
+    private(set) var mainLinkLastError: String?
     private(set) var archivedKeys: Set<String> = []
     /// 删除归档失败留痕（0.21.0）：本地线程已删、关
     /// 联服务端会话归档 PATCH 失败待对账的会话 id
@@ -38,6 +47,8 @@ final class SideChatStore {
         static let mainThreadID = "sideChats.mainThreadID"
         static let mainServerSessionID = "sideChats.mainServerSessionID"
         static let mainServerConfirmed = "sideChats.mainServerConfirmed"
+        static let mainServerSeeded = "sideChats.mainServerSeeded"
+        static let mainLinkLastError = "sideChats.mainLinkLastError"
         static let archivedKeys = "sideChats.archivedKeys"
         static let failedArchiveSessionIDs =
             "sideChats.failedArchiveSessionIDs"
@@ -54,6 +65,8 @@ final class SideChatStore {
         }
         mainServerSessionID = defaults.string(forKey: Key.mainServerSessionID)
         mainServerConfirmed = defaults.bool(forKey: Key.mainServerConfirmed)
+        mainServerSeeded = defaults.bool(forKey: Key.mainServerSeeded)
+        mainLinkLastError = defaults.string(forKey: Key.mainLinkLastError)
         archivedKeys = Set(defaults.stringArray(forKey: Key.archivedKeys) ?? [])
         failedArchiveSessionIDs = Self.decode(
             [String].self, defaults, Key.failedArchiveSessionIDs
@@ -97,6 +110,25 @@ final class SideChatStore {
     func confirmMainServer() {
         mainServerConfirmed = true
         defaults?.set(true, forKey: Key.mainServerConfirmed)
+    }
+
+    /// 主线链接落定（0.27.0）：会话存在＋种子已落
+    /// 一并确认、失败留痕清零——发送计划只认这组
+    /// 合（confirmed && seeded）进会话模式
+    func markMainLinked() {
+        confirmMainServer()
+        mainServerSeeded = true
+        defaults?.set(true, forKey: Key.mainServerSeeded)
+        mainLinkLastError = nil
+        defaults?.removeObject(forKey: Key.mainLinkLastError)
+    }
+
+    /// 主线链接失败留痕（0.27.0）：原因原文落盘，
+    /// 设置页展示；不置任何确认位，下次进页/发送
+    /// 重试链接
+    func noteMainLinkError(_ message: String) {
+        mainLinkLastError = message
+        defaults?.set(message, forKey: Key.mainLinkLastError)
     }
 
     // MARK: - 归档（M2）

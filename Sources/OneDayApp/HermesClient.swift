@@ -21,8 +21,11 @@ protocol HermesClientProtocol: Sendable {
     /// POST /v1/chat/completions 流式：逐段产出通道事件
     /// （正文增量／思考增量分开，0.5.1 §32）
     /// sessionID（0.21.0）：非 nil 时带 X-Hermes-Session-Id
-    /// 头走会话模式（服务端持上下文、只发本轮新消息）；
-    /// nil＝无状态重放（主线与未链接线程的旧链，形态不变）
+    /// 头走会话模式（服务端持上下文、只发本轮新消息）。
+    /// 0.27.0：ChatView 发送恒带会话头（未链接先链接、
+    /// 失败整轮不发）；nil 只剩升级前旧待恢复账的兜底
+    /// 路径，且恢复链已改判为带头重发或不发，不再产生
+    /// 新的无头发送
     func chatStream(
         config: ServerConfig, apiKey: String, model: String, messages: [ChatMessage],
         sessionID: String?
@@ -98,14 +101,33 @@ protocol HermesClientProtocol: Sendable {
     /// GET /api/sessions/{id}
     func serverSession(config: ServerConfig, id: String) async throws -> ServerSession
     /// 建会话（0.7.0 主线钦定）：id/title 由 App 指定，
-    /// 服务端回执的 id 为准（服务端改派时以回执改存）
-    func createServerSession(config: ServerConfig, id: String?, title: String?) async throws -> ServerSession
+    /// 服务端回执的 id 为准（服务端改派时以回执改存）。
+    /// 0.27.0 送达改路：POST /api/sessions 只存在于
+    /// 网关面（8642），nginx 已为该方法该路径加精确
+    /// 路由——请求必须带 App 既有的 /v1 Bearer 密钥
+    /// （网关面鉴权），不再走 Dashboard cookie 通道
+    /// （旧通道必 405 且曾被静默吞，见串话诊断档）
+    func createServerSession(config: ServerConfig, apiKey: String, id: String?, title: String?) async throws -> ServerSession
     /// 建旁聊真会话（0.21.0）：POST /api/sessions 带
     /// model＋require_model_lock（模型锁＝建时胶囊所
     /// 选、锁后不许回退）；**不带 title**——服务端两
     /// 段式标题（derived→llm）须由首轮内容自生，App
-    /// 指定标题会占住标题位、AI 标题回不了流
-    func createLinkedServerSession(config: ServerConfig, id: String, model: String) async throws -> ServerSession
+    /// 指定标题会占住标题位、AI 标题回不了流。
+    /// 0.27.0：送达改路同 createServerSession（Bearer）
+    func createLinkedServerSession(config: ServerConfig, apiKey: String, id: String, model: String) async throws -> ServerSession
+    /// 种子导入（0.27.0）：POST /api/sessions/import
+    /// （Dashboard 面 cookie 通道）一次落会话行＋全
+    /// 量历史消息——带会话头的发送历史以服务端为
+    /// 准、重放灌不进历史，有历史线程的链接只能走
+    /// 导入落种。围栏：request_id 每发新铸、
+    /// expectedRevision 取锚点当前 runtime_revision
+    /// （新锚 0、已存在锚先 GET 读值），冲突 409 由
+    /// 调用方如实上抛。sessionBody 由 Core
+    /// SideChatLink.importSessionBody 组装
+    func importServerSession(
+        config: ServerConfig, requestID: String,
+        expectedRevision: Int, sessionBody: [String: JSONValue]
+    ) async throws
     /// 会话内切换模型（0.21.0）：POST /api/sessions/
     /// {id}/model——服务端自动按确认锁持久化；已链
     /// 接线程胶囊改选时推一次（口径见 SideChatLink
@@ -133,10 +155,13 @@ protocol HermesClientProtocol: Sendable {
         config: ServerConfig, limit: Int, offset: Int, archived: String?
     ) async throws -> SessionsPage
     /// PATCH /api/sessions/{id}（SessionRename 子集，
-    /// 只带要改的字段；并发守卫 expected_revision 等
-    /// 不带——施工纪律禁对生产发写探针，落定靠调用
-    /// 方 GET 回读对账，立项档 O-4 就此定案）。2xx
-    /// 只算服务端受理、不算落定
+    /// 只带要改的字段）。0.27.0 口径修订：服务端现
+    /// 行版本对无围栏 PATCH 必回 409 client_upgrade_
+    /// required（本包生产实证，旧「不带守卫」口径就
+    /// 此作废）——实现内先 GET 取 runtime_revision、
+    /// 带 request_id＋expected_revision 发，409 冲突
+    /// 重读修订号重试一次；落定仍靠调用方 GET 回读
+    /// 对账（立项档 O-4），2xx 只算服务端受理
     func updateServerSession(
         config: ServerConfig, id: String,
         title: String?, pinned: Bool?, archived: Bool?
@@ -396,14 +421,19 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
     }
 
-    /// 写请求并解码回执（创建类接口返回新建对象时使用）
+    /// 写请求并解码回执（创建类接口返回新建对象时使用）；
+    /// bearer 非 nil 时带 Authorization（网关面接口用，
+    /// 如 0.27.0 改路后的 POST /api/sessions）
     private func sendJSONDecoding<T: Decodable>(
         config: ServerConfig, path: String, method: String, endpoint: String,
-        body: [String: JSONValue]
+        body: [String: JSONValue], bearer: String? = nil
     ) async throws -> T {
         var request = URLRequest(url: config.endpoint(path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let bearer {
+            request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try encoder.encode(body)
         let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
@@ -834,32 +864,49 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         )
     }
 
-    func createServerSession(config: ServerConfig, id: String?, title: String?) async throws -> ServerSession {
-        var body: [String: JSONValue] = [:]
-        if let id { body["id"] = .string(id) }
-        if let title { body["title"] = .string(title) }
+    func createServerSession(config: ServerConfig, apiKey: String, id: String?, title: String?) async throws -> ServerSession {
+        // 0.27.0：网关面 Bearer 送达（见协议注）；请求
+        // 体组装走 Core 纯函数（单测把守形态）
         let created: CreatedSession = try await sendJSONDecoding(
             config: config, path: "/api/sessions", method: "POST",
-            endpoint: "服务端会话创建", body: body
+            endpoint: "服务端会话创建",
+            body: SideChatLink.createSessionBody(id: id, title: title),
+            bearer: apiKey
         )
         return created.session
     }
 
-    func createLinkedServerSession(config: ServerConfig, id: String, model: String) async throws -> ServerSession {
+    func createLinkedServerSession(config: ServerConfig, apiKey: String, id: String, model: String) async throws -> ServerSession {
         // 0.21.0：研究档实测链口径——建会话带 model＋
         // require_model_lock:true 得确认锁（route 无法
         // 落锁时服务端 409 拒、不会静默兜底）；title
-        // 不带（见协议注）
-        let body: [String: JSONValue] = [
-            "id": .string(id),
-            "model": .string(model),
-            "require_model_lock": .bool(true),
-        ]
+        // 不带（见协议注）。0.27.0：网关面 Bearer 送达
         let created: CreatedSession = try await sendJSONDecoding(
             config: config, path: "/api/sessions", method: "POST",
-            endpoint: "旁聊会话创建", body: body
+            endpoint: "旁聊会话创建",
+            body: SideChatLink.linkedCreateSessionBody(id: id, model: model),
+            bearer: apiKey
         )
         return created.session
+    }
+
+    func importServerSession(
+        config: ServerConfig, requestID: String,
+        expectedRevision: Int, sessionBody: [String: JSONValue]
+    ) async throws {
+        // Dashboard 面 cookie 通道（调用方在
+        // performAdmin 内执行、401 自动重登口径同其
+        // 他 /api/*）；回执 {ok:true,…} 不解码，落定
+        // 靠调用方 GET 回读对账（O-4）
+        try await sendJSON(
+            config: config, path: "/api/sessions/import", method: "POST",
+            endpoint: "会话种子导入",
+            body: SideChatLink.importRequestBody(
+                requestID: requestID,
+                expectedRevision: expectedRevision,
+                sessions: [sessionBody]
+            )
+        )
     }
 
     func updateServerSessionModel(config: ServerConfig, id: String, model: String) async throws {
@@ -942,14 +989,37 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         config: ServerConfig, id: String,
         title: String?, pinned: Bool?, archived: Bool?
     ) async throws {
-        var body: [String: JSONValue] = [:]
-        if let title { body["title"] = .string(title) }
-        if let pinned { body["pinned"] = .bool(pinned) }
-        if let archived { body["archived"] = .bool(archived) }
-        try await sendJSON(
-            config: config, path: "/api/sessions/\(id)", method: "PATCH",
-            endpoint: "服务端会话更新", body: body
-        )
+        // 0.27.0 围栏接线（见协议注）：每试先 GET 取
+        // runtime_revision，PATCH 带 request_id＋
+        // expected_revision；409（修订冲突/无围栏拒）
+        // 重读修订号重试一次，再失败如实上抛。修订号
+        // 读不到（旧投影）时退回无围栏直发——服务端
+        // 若拒，错误照样上抛、不静默
+        for attempt in 0..<2 {
+            var body: [String: JSONValue] = [:]
+            if let title { body["title"] = .string(title) }
+            if let pinned { body["pinned"] = .bool(pinned) }
+            if let archived { body["archived"] = .bool(archived) }
+            if let row = try? await serverSession(config: config, id: id),
+               let revision = row.runtimeRevision {
+                body["request_id"] = .string(UUID().uuidString)
+                body["expected_revision"] = .number(Double(revision))
+            }
+            do {
+                try await sendJSON(
+                    config: config, path: "/api/sessions/\(id)",
+                    method: "PATCH", endpoint: "服务端会话更新",
+                    body: body
+                )
+                return
+            } catch let error as HermesError {
+                if case .unexpectedStatus(_, let status) = error,
+                   status == 409, attempt == 0 {
+                    continue
+                }
+                throw error
+            }
+        }
     }
 
     func pruneSessions(
