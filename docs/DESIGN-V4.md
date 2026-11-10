@@ -4459,3 +4459,61 @@ Z8 形象行 Menu：点开为系统菜单、三档带勾在当前档、选手感
 - AA8 主线历史连续性：装机链接后在主线问一件只有主线旧对话里提过的事（如某个旧决定），模型应答得上（种子上下文生效）；在「你好」旁聊里问同一件事，应答不上或明确无关（分家生效）。
 
 - 交付实录：功能提交 b7ebffc＋修复提交 1621c41（ServerSession.runtimeRevision 默认值，CI 首跑 42749072689 因此编译错、修复后重跑）；CI 42749644784 success，Executed 475 tests, 0 failures（459 基线＋SessionLinkHotfixTests 15＋SideChatLinkTests 改判净增 1，零删测）；IPA 4,948,355 字节、md5 6658834ff07419e1fd2a29ed02393fd3、独立解包验 Info.plist＝0.27.0/56、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.27.0/OneDay-0.27.0.ipa。§14/MotionTokens/0.26.0 外观成果零改动；未自截真机图。
+
+## 55. 连接器目录页（0.28.0/57）
+
+### 55.1 实查证据表（2026-11-10，只读；查前服务器内存 51%，红线 80%）
+
+| 面 | 查法 | 结果 | 证据档位 |
+| --- | --- | --- | --- |
+| config.yaml `mcp_servers:` | 容器内 grep | 整段是注释模板（行 1698 起），手动配置的 MCP 服务器＝0 条 | 配置层实查 |
+| GET /api/mcp/servers | Dashboard 登录握手实测 200（容器内直连 9119） | 在册仅 1 条：box（transport http、url https://mcp.box.simular.ai/mcp、enabled=true、source=plugin、plugin=box） | 端点实活 |
+| /opt/data/plugins | 目录实查 | box、pairing——box 官方插件已装，与上行互证 | 配置层实查 |
+| channel_directory.json | 文件实查 | platforms＝{}，消息平台连接 0 条 | 配置层实查 |
+| 四桥（write-gate 8643/overview 8644/box-bridge 8645/oneday-bridge 8646） | 既有部署事实 | OneDay 自身内部设施——按简报不列作用户连接器 | 不列示 |
+
+结论：Hermes 现行真实「已连接」只有 Simular Box 一条（经官方插件预置的 MCP 连接）。目录页的已连接段只此一条，不凑数。
+
+### 55.2 落值
+
+1. Core 新文件 ConnectorCatalog.swift 单一真源：证据档位三级（liveVerified 端点实活／configuredOnly 仅配置未验活·预留档／none 无证据）；已连接条目 ConnectedConnector 构造口唯一——由 MCPServerItem 构成、evidence 恒 liveVerified，不给无证据的已连接留构造路径；状态文案单一映射（已连接 · 已启用／已连接 · 已停用）；搜索纯函数（名称＋分类＋说明＋状态，归一化大小写与首尾空白）；availableEntries 占名扣除（已连接占名的服务不再出现在可连接目录，防两边口径打架）；knownServers 展示映射只收实查在册者（box→Simular Box，云电脑说明）；未知服务端名回退原名＋来源口径说明，不编造产品名。
+2. ConnectorsView 取代 MCPViews：List(.insetGrouped)＋settingsBG＋系统 searchable（常驻）＋已连接/可连接分段（默认已连接）；行题 rowTitleL、分区头 sectionLabel、行高 settingsRowHeight、行盒横向 20——与设置首页/外观页同规格。搜索时跨两段出结果（已连接段＋分类段），空结果有空态。已连接行＝瓷砖＋显示名＋状态点与状态字＋chevron；详情 sheet 列全状态（状态/证据档位/来源/传输/地址）并保留真实操作（启停 PUT 乐观更新＋失败回滚、测试 POST 回执口径沿旧页，不新造语义）。可连接行尾只有「未接入」状态字——全页无任何形似连接的假按钮；详情 sheet 只有状态/分类/接入路径/接入说明。
+3. 图标：无品牌授权素材——彩色圆角瓷砖＋白色字形近似（Gmail「M」红、Google 日历「31」蓝、Drive「D」绿、Sheets「S」深绿、Notion「N」黑、GitHub「G」深灰、Spotify「♪」绿、Instagram「IG」品红、Simular Box「B」灰蓝），登记为近似处理，不拿错品牌图标冒充。
+4. 设置入口：智能体组行题「MCP 连接」改「连接器」，目的地换 ConnectorsView（路由 .mcp 不动）；HermesClient 端点错误标签「MCP 连接」是接口名、保留。
+
+### 55.3 目录名单全表
+
+已连接（端点实活，1 条）：
+| 条目 | 显示 | 状态 | 证据 |
+| --- | --- | --- | --- |
+| box | Simular Box（云电脑） | 已连接 · 已启用 | 端点实活（§55.1） |
+
+可连接（静态目录，全部未接入，8 条）：
+| id | 名称 | 分类 | 接入路径摘要 |
+| --- | --- | --- | --- |
+| gmail | Gmail | 效率提升 | 需服务器端配置 MCP＋Google OAuth（自备 Cloud 凭据） |
+| google-calendar | Google 日历 | 效率提升 | 同上 |
+| google-drive | Google 云端硬盘 | 办公协作 | 同上 |
+| google-sheets | Google 表格 | 办公协作 | 同上 |
+| notion | Notion | 办公协作 | 官方远程 MCP，服务器端添加＋一次授权 |
+| github | GitHub | 开发工具 | 官方远程 MCP，服务器端添加＋授权 |
+| spotify | Spotify | 生活 | 无官方 MCP，需开发者凭据＋社区服务器 |
+| instagram | Instagram | 生活 | 官方暂无 MCP 路径 |
+
+### 55.4 可低成本接通清单（供用户拍板，本包未接通、未动服务器配置）
+
+1. **Notion**：官方远程 MCP（mcp.notion.com）现成；Hermes config.yaml 模板注释里就有该示例。接通动作＝服务器 config 加一条 url 型 MCP＋在授权页完成一次 Notion OAuth。成本最低。
+2. **GitHub**：官方远程 MCP 现成；接通动作＝服务器 config 加一条＋GitHub OAuth 或访问令牌。次低。
+其余六家：Google 系四家需自建 Google Cloud OAuth 凭据（中等成本）；Spotify 需开发者应用＋社区服务器（中高）；Instagram 无官方路径（不建议）。
+
+### 55.5 BB 系列真机终审项
+
+- BB1 已连接真实性：设置→智能体→「连接器」打开，默认落在「已连接」段——应只有 Simular Box 一条，状态点绿＋「已连接 · 已启用」。与服务器实际配置对得上即过。
+- BB2 详情与证据：点 Simular Box 行→详情应列「证据档位：服务端实时读取」「来源：插件预置 · box」「传输方式：远程连接」与地址 mcp.box.simular.ai；「测试连接」点后应回成功＋工具数（box 工具实数以回执为准）。
+- BB3 启停真生效：在详情里关掉「启用」→回列表状态变「已连接 · 已停用」、状态点灰；再打开恢复。关掉期间到电脑页/聊天里验 Box 工具不可用（服务端真停），不是只变个字。
+- BB4 无假按钮：切到「可连接」段——八家行尾应只有「未接入」三字，没有任何蓝色「连接」按钮；逐个点开详情，只有状态与接入说明、没有可点的连接动作。
+- BB5 搜索真过滤：搜「邮件」只出 Gmail；搜「开发」只出 GitHub；搜「Simular」出已连接的 Box；搜乱码出空态文案。
+- BB6 读取失败不冒充：飞行模式下下拉刷新已连接段——应报错＋重试，不拿上次数据装实时（列表可能保留旧行属缓存呈现，但须有失败提示；若无提示即报回查）。
+- BB7 分类与行规格：可连接段分组序为 效率提升（2）/办公协作（3）/开发工具（1）/生活（2）；行题 17 regular、瓷砖 40、行高与设置首页一致，无粗体泛滥。
+
+- 交付实录：功能提交 c18a3f3＋修复提交 4d9aee2（ConnectedConnector 去 Equatable——MCPServerItem 非 Equatable 合成失败，CI 首跑 42751527952 因此编译错、修复后重跑）；CI 42751655037 success，Executed 485 tests, 0 failures（475 基线＋ConnectorCatalogTests 10 测，零删测）；IPA 5,033,330 字节、md5 c1a65db10958a2fac2bc7d2d792b9c5f、独立解包验 Info.plist＝0.28.0/57、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.28.0/OneDay-0.28.0.ipa。§14/MotionTokens/0.26.0 外观/0.27.0 会话链零改动；施工期除只读查外生产零写；未自截真机图。
