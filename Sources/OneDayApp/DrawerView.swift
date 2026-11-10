@@ -10,7 +10,7 @@ import SwiftUI
 /// 纠正，现行以纠正为准）：
 ///
 /// - 结构：顶部名字头（28 bold）→导航行组（对样板
-///   「选项卡」：主线聊天／枢纽／点子／目标／应用，
+///   「选项卡」：主线聊天／动态／点子／目标／文件，
 ///   点行即达并关抽屉）→发丝线→「管理全部对话」一
 ///   行→发丝线→**「旁聊」区：只列用户本人在 App 里
 ///   开的旁聊**（平铺、最近时间倒序、无分组字、无
@@ -50,7 +50,10 @@ import SwiftUI
 ///   尾固定实色条是 0.6.1「两端 E11 带全删」后的定
 ///   式：内容从实色条下方滑过被遮、条面与面板同色
 ///   一贯，不许再挂任何自绘渐变带/模糊层（E11 已
-///   注销）。
+///   注销）。（0.36.5 订正：底条 0.20.0 已改浮置、
+///   顶 safeAreaBar 注册本版整块取消——标题改浮
+///   层、只有文字本体，见 body 内 D3 注；本段与
+///   下文 0.20.0 注中「顶条维持实色注册」只存沿革。）
 struct DrawerView: View {
     /// 面板宽＝壳层量测给（录屏量测 0.79×屏宽、上限
     /// 400，见 ContentView 壳层注）
@@ -64,6 +67,14 @@ struct DrawerView: View {
     /// 打开「全部对话」管理页（0.18.0；本面先经
     /// onClose 关抽屉，ContentView 注入呈现）
     var onManageAll: () -> Void
+
+    /// 顶部标题带高（0.36.5）：名单顶部空程
+    /// （contentMargins）与标题浮层共用一数——
+    /// drawerAgentName 的顶距 24＋Title1 行高约
+    /// 34＋底距 12＝70。Dynamic Type 极端档下行
+    /// 高变大、静止时首行可能被标题略压（已知边
+    /// 界，待真机）
+    private static let titleStripHeight: CGFloat = 70
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -103,7 +114,13 @@ struct DrawerView: View {
         // 两层都是系统材质、无自绘模糊、无 E11 私有
         // 件。顶条维持 0.6.1 实色注册不变（本条只改底）
         ZStack(alignment: .bottom) {
-            ScrollView {
+            // 0.36.5（D2，用户实拍右缘贯穿长线）：长线
+            // 即名单 ScrollView 的默认滚动指示器——关
+            // 掉。壳层与本面已查：右缘只有壳层柔影、
+            // 无描边/分隔视图，长线来源唯一在此。口
+            // 径：Muse 抽屉无边线，与内容只靠材质＋
+            // 蒙层分界
+            ScrollView(.vertical, showsIndicators: false) {
                 Group {
                     if isSearching {
                         drawerSearchList
@@ -117,18 +134,34 @@ struct DrawerView: View {
                 // 52＋顶边距 12＋霜层呼吸，取 84）
                 .padding(.bottom, 84)
             }
+            // 0.36.5（D3，用户 19:27 对照 Muse 本体
+            // 抽屉实拍纠正，覆盖顶带「统一材质」口
+            // 径）：顶部标题带整块取消——safeAreaBar
+            // 注册退役。原实色带来自两处：①该注册把
+            // 标题锁进一块独立带、下方名单滚不到带
+            // 下，带与主体天然有界；②0.36.3 给带内
+            // 名字单挂一层 drawerBackdrop，与根背景
+            // 的同名材质叠成双层、带面比主体更实更
+            // 灰，断层雪上加霜。现落法：标题只剩文
+            // 字本体（下方浮层）、固定悬于根背景同
+            // 一层材质之上；名单顶部留标题带高的空
+            // 程（contentMargins）——静止时首行不被
+            // 标题压住，滚动时行从标题后方穿过、隐
+            // 约透出（Muse 本体同形态）
+            .contentMargins(
+                .top, Self.titleStripHeight, for: .scrollContent
+            )
             .ignoresSafeArea(edges: .bottom)
             .scrollDismissesKeyboard(.interactively)
             .scrollEdgeEffectStyle(.soft, for: .bottom)
-            .safeAreaBar(edge: .top, spacing: 0) {
+            // 标题浮层：ZStack 顶＝安全区顶（状态栏
+            // 之下），只有文字、无底块无色带；不承
+            // 命中——标题区拖动归名单/壳层手势
+            VStack {
                 drawerAgentName
-                    .background {
-                        // 0.36.3：顶条与面板同材质（旧
-                        // 实色注册退役），整面一贯朦胧
-                        drawerBackdrop
-                            .ignoresSafeArea(edges: .top)
-                    }
+                Spacer()
             }
+            .allowsHitTesting(false)
             // 霜层：系统 Material 矩形＋渐变 mask（上透
             // 下实），只承视觉、不承命中
             // 0.23.0（三设置检查·减透明）：Reduce Trans-
@@ -341,22 +374,13 @@ struct DrawerView: View {
                 }
                 onSelectTab(.chat)
             }
-            // 枢纽行：枢纽 sheet 本体长在聊天页（胶囊入
-            // 口同处），先切聊天格再经请求通道置位（不
-            // 在本面另立第二份承载）；动作型行、无选中垫
-            drawerNavRow(
-                symbol: TabBarSymbols.activity.normal,
-                title: "枢纽",
-                selected: false
-            ) {
-                onClose()
-                if currentTab != .chat {
-                    onSelectTab(.chat)
-                }
-                appState.hubOpenRequested = true
-            }
+            // 枢纽行已删（0.36.5，用户 19:24 点名）：
+            // 枢纽 sheet 本体长在聊天页，删行后的入口
+            // ＝聊天页身份胶囊点按与回告卡点按（均直
+            // 接置 showHub）；hubOpenRequested 请求通
+            // 道保留不动（ChatView 消费端在原处）
             // 0.35.0（P3 五格）：动态行与底栏同序进
-            // 「选项卡」组（枢纽为动作行不占格位序）
+            // 「选项卡」组
             drawerNavRow(
                 symbol: TabBarSymbols.feed.normal,
                 title: "动态",

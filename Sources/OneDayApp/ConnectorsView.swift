@@ -4,7 +4,12 @@ import SwiftUI
 
 /// 连接器目录页（0.28.0，用户 10:32 对标 Muse 连接
 /// 器页令；设置「MCP 连接」升级）：页顶搜索（系统
-/// searchable）＋已连接/可连接分段＋分类分组卡。
+/// searchable）＋可连接/已连接分段＋分类分组卡。
+/// 0.36.5（用户 19:03 点名，对照 Muse 目录图）：
+/// 分段胶囊改「可连接」在前、「已连接」在后，默认
+/// 落地可连接（目录的首要任务是发现新连接），且胶
+/// 囊上移至名单首位、紧贴搜索框（旧序已连接在前＋
+/// 胶囊夹在本机服务/设备组之后，被指逻辑不对）。
 /// 第一纪律＝状态真实（Core ConnectorCatalog 口径）：
 /// 「已连接」只来自 GET /api/mcp/servers 的实时读
 /// 取——与既有 MCP 页同一条数据链、不另造状态口
@@ -44,7 +49,9 @@ struct ConnectorsView: View {
     @State private var testing: Set<String> = []
     @State private var testResults: [String: MCPTestResult] = [:]
     @State private var query = ""
-    @State private var segment: Segment = .connected
+    /// 默认落地可连接（0.36.5）：先进目录先见可接
+    /// 入的，已连接是回头看的
+    @State private var segment: Segment = .available
     @State private var detailTarget: DetailTarget?
 
     // 本机服务探活（0.29.0）：状态字典进页首帧全为
@@ -62,9 +69,11 @@ struct ConnectorsView: View {
     private let overviewBridgeClient = OverviewBridgeClient()
     private let memoryBridgeClient = MemoryBridgeClient()
 
+    /// 分段序（0.36.5）：声明序即胶囊呈现序——可连
+    /// 接在前、已连接在后（对照 Muse 目录图）
     private enum Segment: String, CaseIterable, Identifiable {
-        case connected = "已连接"
         case available = "可连接"
+        case connected = "已连接"
         var id: String { rawValue }
     }
 
@@ -108,9 +117,12 @@ struct ConnectorsView: View {
             if searching {
                 searchSections
             } else {
+                // 0.36.5：胶囊置顶紧贴搜索框（名单首
+                // 位），本机服务/你的设备两组随其后、
+                // 分段内容殿后
+                segmentSection
                 localSection
                 deviceSection
-                segmentSection
                 if segment == .connected {
                     connectedSections
                 } else {
@@ -180,9 +192,9 @@ struct ConnectorsView: View {
 
     // MARK: - 本机服务（0.29.0 补组，进页实时探活）
 
-    /// 本机服务组：恒在目录顶部第一组（分组序：本
-    /// 机服务→已连接→可连接）；四条全列、状态随探
-    /// 活逐条落定，读取中也占行不塌组
+    /// 本机服务组：分段胶囊之下第一组（0.36.5 胶囊
+    /// 置顶前的旧序为目录顶部）；四条全列、状态随
+    /// 探活逐条落定，读取中也占行不塌组
     private var localSection: some View {
         Section {
             ForEach(LocalServiceDirectory.roster) { descriptor in
@@ -287,11 +299,12 @@ struct ConnectorsView: View {
         return lines
     }
 
-    /// 你的设备组：恒显（在本机服务之后、分段控件之
-    /// 前——两组都是「自家的东西」，与 MCP 的已连接/
-    /// 可连接语义无关，不被分段切换藏掉，设计档
-    /// §6.1）。批一三件可点进详情；健康/家庭待签名
-    /// 权益，行在、状态如实、无假入口
+    /// 你的设备组：恒显（在本机服务之后、分段内容
+    /// 之前——两组都是「自家的东西」，与 MCP 的已
+    /// 连接/可连接语义无关，不被分段切换藏掉，设计
+    /// 档 §6.1；分段胶囊本体 0.36.5 起置于名单首
+    /// 位）。批一三件可点进详情；健康/家庭待签名权
+    /// 益，行在、状态如实、无假入口
     private var deviceSection: some View {
         Section {
             ForEach(DeviceSourceDirectory.roster) { descriptor in
@@ -328,10 +341,7 @@ struct ConnectorsView: View {
         chevron: Bool
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            DeviceSymbolTile(
-                symbol: descriptor.tileSymbol,
-                colorHex: descriptor.tileColorHex, size: 40
-            )
+            DeviceAppIconView(source: descriptor.sourceID, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(descriptor.name)
                     .font(.rowTitleL)
@@ -614,37 +624,69 @@ struct ConnectorsView: View {
         switch target {
         case .connected(let name):
             if let entry = connected.first(where: { $0.id == name }) {
-                NavigationStack {
+                sheetStack {
                     connectedDetail(entry)
                 }
             }
         case .catalog(let id):
             if let entry = ConnectorDirectory.catalog
                 .first(where: { $0.id == id }) {
-                NavigationStack {
+                sheetStack {
                     catalogDetail(entry)
                 }
             }
         case .local(let serviceID):
-            NavigationStack {
+            sheetStack {
                 localDetail(
                     LocalServiceDirectory.descriptor(serviceID)
                 )
             }
         case .device(let source):
-            NavigationStack {
+            sheetStack {
                 deviceDetail(source)
             }
         }
     }
 
-    /// 设备详情分发（批一三件；批二两件无详情、不点入）
+    /// 详情 sheet 壳（0.36.5，用户 19:08 点名退出机
+    /// 制缺失）：四类详情统一承载——关闭圆钮常驻左
+    /// 上（系统工具栏玻璃圆钮，与图片查看器 ✕ 同
+    /// 位）＋拖动指示器露面。0.36.0/0.36.3「撤手写
+    /// 关闭、走系统下拉手势」的口径在真机不成立：
+    /// 设备三页自带下拉刷新，下拉先被刷新截走（见
+    /// DeviceViews 的 RefreshableIfEnabled），关不
+    /// 掉又无按钮即无出口；连接器三页无刷新占用、
+    /// 下拉本可关，同壳补钮保四类一致、且明示可拖
+    private func sheetStack<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        NavigationStack {
+            content()
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            detailTarget = nil
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .accessibilityLabel("关闭")
+                    }
+                }
+        }
+        .presentationDragIndicator(.visible)
+    }
+
+    /// 设备详情分发（批一三件；批二两件无详情、不
+    /// 点入）。本面恒以 sheet 呈现：三页带 inSheet
+    /// 标记，下拉手势归 sheet 关闭、不再被下拉刷
+    /// 新截走
     @ViewBuilder
     private func deviceDetail(_ source: DeviceSourceID) -> some View {
         switch source {
-        case .calendar: CalendarDetailView()
-        case .reminders: RemindersDetailView()
-        case .contacts: ContactsDetailView()
+        case .calendar: CalendarDetailView(inSheet: true)
+        case .reminders: RemindersDetailView(inSheet: true)
+        case .contacts: ContactsDetailView(inSheet: true)
         case .health, .home: EmptyView()
         }
     }

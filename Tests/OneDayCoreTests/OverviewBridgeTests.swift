@@ -58,6 +58,100 @@ final class OverviewBridgeTests: XCTestCase {
         XCTAssertTrue(response.items[1].read)
     }
 
+    // MARK: - 裁决联动（0.36.5：refId 契约增补＋消账判定）
+
+    func testNotificationDecodesRefIdWhenPresent() throws {
+        let data = Data("""
+        {
+          "items": [
+            {
+              "id": "wg-abc",
+              "kind": "write_gate_decision",
+              "title": "记忆写入已批准",
+              "body": "一条记忆写入。",
+              "createdAt": "2026-11-10T10:00:00Z",
+              "read": false,
+              "refId": "mem_0123"
+            }
+          ]
+        }
+        """.utf8)
+        let response = try decoder.decode(
+            OverviewNotificationsResponse.self, from: data
+        )
+        XCTAssertEqual(response.items[0].refId, "mem_0123")
+        XCTAssertTrue(response.items[0].isDecisionReceipt)
+    }
+
+    func testNotificationRefIdNilWhenBridgeOmitsIt() throws {
+        // 旧桥 payload 无 refId：解码为 nil、联动不
+        // 成立（向后兼容，不许解码失败整表丢弃）
+        let data = Data("""
+        {
+          "items": [
+            {
+              "id": "mon-1",
+              "kind": "monitor_change",
+              "title": "监测有变化",
+              "body": "",
+              "createdAt": "2026-11-10T10:00:00Z",
+              "read": false
+            }
+          ]
+        }
+        """.utf8)
+        let response = try decoder.decode(
+            OverviewNotificationsResponse.self, from: data
+        )
+        XCTAssertNil(response.items[0].refId)
+        XCTAssertFalse(response.items[0].isDecisionReceipt)
+    }
+
+    private func receipt(
+        _ id: String, refId: String?, read: Bool = false,
+        kind: String = "write_gate_decision"
+    ) -> OverviewNotification {
+        OverviewNotification(
+            id: id, kind: kind, title: "t", body: "b",
+            createdAt: "", read: read, refId: refId
+        )
+    }
+
+    func testReceiptsToResolveMatchesSelfDecidedOnly() {
+        let items = [
+            receipt("n1", refId: "mem_1"),
+            receipt("n2", refId: "mem_2"),
+        ]
+        XCTAssertEqual(
+            ApprovalResolution.receiptsToResolve(
+                notifications: items, selfDecidedIDs: ["mem_1"]
+            ),
+            ["n1"]
+        )
+    }
+
+    func testReceiptsToResolveSkipsReadNonReceiptAndMissingRef() {
+        let items = [
+            receipt("n1", refId: "mem_1", read: true),
+            receipt("n2", refId: "mem_1", kind: "monitor_change"),
+            receipt("n3", refId: nil),
+        ]
+        XCTAssertTrue(
+            ApprovalResolution.receiptsToResolve(
+                notifications: items, selfDecidedIDs: ["mem_1"]
+            ).isEmpty
+        )
+    }
+
+    func testReceiptsToResolveEmptySetResolvesNothing() {
+        let items = [receipt("n1", refId: "mem_1")]
+        XCTAssertTrue(
+            ApprovalResolution.receiptsToResolve(
+                notifications: items, selfDecidedIDs: []
+            ).isEmpty
+        )
+    }
+
     func testReadResponseDecodesContractFixture() throws {
         let response = try decoder.decode(
             OverviewReadResponse.self, from: Data(#"{"ok": true}"#.utf8)

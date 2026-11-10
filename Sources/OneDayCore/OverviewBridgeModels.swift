@@ -31,10 +31,17 @@ public struct OverviewNotification: Decodable, Equatable, Identifiable, Sendable
     public let body: String
     public let createdAt: String
     public var read: Bool
+    /// 联动键（0.36.5 契约增补）：裁决回执通知带出其
+    /// write-gate 记录 id——审批裁决与通知已读两套账
+    /// 按此键联动（见 ApprovalResolution）。桥未升
+    /// 级前 payload 无此字段、解码为 nil，联动不成立
+    /// （回执按普通未读事件呈现），不许拿摘要文本等
+    /// 弱信号冒充联动键
+    public let refId: String?
 
     public init(
         id: String, kind: String, title: String, body: String,
-        createdAt: String, read: Bool
+        createdAt: String, read: Bool, refId: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -42,6 +49,40 @@ public struct OverviewNotification: Decodable, Equatable, Identifiable, Sendable
         self.body = body
         self.createdAt = createdAt
         self.read = read
+        self.refId = refId
+    }
+
+    /// 是否为审批裁决回执（kind 与 overview-bridge
+    /// 生成端逐字一致：write_gate_decision）
+    public var isDecisionReceipt: Bool {
+        kind == "write_gate_decision"
+    }
+}
+
+/// 审批裁决联动（0.36.5，用户 19:10 点名：角标只许
+/// 报未决事项，已批准/已驳回的不许再提示）：本人在
+/// App 内落的裁决，其回执通知一到即自动消账——角
+/// 标、通知列表、聊天回告卡三处读同一份通知状态，
+/// 一处标已读、三处同消；历史留痕归枢纽「已决历
+/// 史」，不占角标。他人/自动审核落的裁决不在本人
+/// 裁决集内，其回执仍是「未读重要事件」，读后才消
+/// ——提醒＝待办、办完即消，只对自己办完的成立。
+public enum ApprovalResolution {
+    /// 待自动消账的通知 id：未读＋裁决回执＋refId
+    /// 命中本人裁决集，三条全中才算——任一不中（已
+    /// 读/非回执/桥未带 refId/本人没裁过）都不动
+    public static func receiptsToResolve(
+        notifications: [OverviewNotification],
+        selfDecidedIDs: Set<String>
+    ) -> [String] {
+        guard !selfDecidedIDs.isEmpty else { return [] }
+        return notifications.compactMap { item in
+            guard !item.read, item.isDecisionReceipt,
+                  let refId = item.refId,
+                  selfDecidedIDs.contains(refId)
+            else { return nil }
+            return item.id
+        }
     }
 }
 

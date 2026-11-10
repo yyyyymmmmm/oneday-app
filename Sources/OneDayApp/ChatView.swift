@@ -105,6 +105,20 @@ struct ChatView: View {
     // ContentView，见 §30）
     /// 消息区是否贴近底部：决定自动跟随滚动与「回到底部」钮
     @State private var isNearBottom = true
+    /// 发送贴底令牌（0.36.5，聊天审计 bug 1）：send()
+    /// 的条目落盘且链接成功（条目确定留下）后递增，
+    /// messageList 的 onChange 消费它执行贴底三步——
+    /// send() 本体没有 ScrollViewProxy，滚动只能经
+    /// 令牌通道回到列表作用域执行；链接失败回滚删条
+    /// 目的分支不递增、不贴底
+    @State private var sendPinToken = 0
+    /// 最后一条条目是否在可见集内（0.36.5，审计
+    /// bug 2）：onScrollTargetVisibilityChange 回写
+    /// 的事实信号，只参与回底钮显隐（Core Bottom-
+    /// FollowPolicy），不改跟随门控——距底距离取自
+    /// LazyVStack 估算总高、长线程可驻留迟滞带，事
+    /// 实信号是它的纠偏源
+    @State private var lastEntryVisible = false
     /// 流式跟随滚动节流闸（0.4.2，§27）：OneDayCore
     /// 纯逻辑记账，每 ≥40 字放行一次无动画贴底；流结
     /// 束与切换线程时归零（见 messageList 的 onChange）
@@ -822,8 +836,17 @@ struct ChatView: View {
     /// 自理，不再手算补高）
 
     private func bottomBar(_ proxy: ScrollViewProxy) -> some View {
-        VStack(spacing: OneDayMetrics.spacingS) {
-            if !isNearBottom && currentThread != nil {
+        // 0.36.5（审计 bug 2 短修）：钮显隐走 Core 政
+        // 策——几何判定离底之外并入事实信号（最后一
+        // 条已可见即在底），治估算距离驻留迟滞带的永
+        // 不消失；正修（浮层化＋未读计数）留 0.40.x
+        let showScrollButton = currentThread != nil
+            && BottomFollowPolicy.showsScrollToBottomButton(
+                isNearBottom: isNearBottom,
+                lastEntryVisible: lastEntryVisible
+            )
+        return VStack(spacing: OneDayMetrics.spacingS) {
+            if showScrollButton {
                 HStack {
                     Spacer()
                     scrollToBottomButton(proxy)
@@ -867,6 +890,16 @@ struct ChatView: View {
                 MotionTokens.swap, reduceMotion: reduceMotion
             ),
             value: isNearBottom
+        )
+        // 0.36.5：钮显隐的另一输入（事实信号）翻转时
+        // 容器高度同走 swap——显隐条件已改政策派生值，
+        // 动画键须跟着派生值走，只挂 isNearBottom 会
+        // 让事实信号触发的出入硬跳
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: showScrollButton
         )
         // 0.25.0（动效专包）：错误/提示条的显隐同走本
         // 容器 swap 动画（与 isNearBottom 同口径同出
@@ -1198,8 +1231,34 @@ struct ChatView: View {
         // 0.7.0（M1 轻保活）：首个可见条目回写（UUID 型
         // id 只有消息条目持有，流式行/底部锚是字符串 id、
         // 不在此列）
+        // 0.36.5（审计 bug 2）：同批回写事实信号——最
+        // 后一条条目在不在可见集内（喂回底钮政策判定，
+        // 见 topVisibleEntryID 同处与 BottomFollow-
+        // Policy）；线程为空时恒 false
         .onScrollTargetVisibilityChange(idType: UUID.self) { ids in
             topVisibleEntryID = ids.first
+            if let lastID = currentThread?.sortedEntries.last?.id {
+                lastEntryVisible = ids.contains(lastID)
+            } else {
+                lastEntryVisible = false
+            }
+        }
+        // 0.36.5（审计 bug 1）：发送贴底——send() 落盘
+        // 且链接成功后递增令牌，本处执行三步：置真跟
+        // 随态（Core 政策：自己发送无条件贴底，其后
+        // 流式跟随与落定跟随自动接续）、即时无动画贴
+        // 底、120ms 延迟复贴一次（等发送舱塌缩动画与
+        // LazyVStack 布局落定后校正落点，与本文件既
+        // 有 80/120/300ms 复贴模式同族）
+        .onChange(of: sendPinToken) { _, _ in
+            isNearBottom = BottomFollowPolicy.nearBottomAfterOwnSend()
+            scrollToBottom(proxy, animated: false)
+            let pinnedThreadID = currentThreadID
+            Task {
+                try? await Task.sleep(for: .milliseconds(120))
+                guard currentThreadID == pinnedThreadID else { return }
+                scrollToBottom(proxy, animated: false)
+            }
         }
         // 0.7.0（M1 轻保活）：滚动位置随线程存锚——切走
         // 记当前锚（在底记 atBottom、否则记首个可见条目），
@@ -2846,6 +2905,11 @@ private struct ComposerBarLayout: Layout {
                 sendTask = nil
                 return
             }
+            // 0.36.5（审计 bug 1）：链接已成、条目确定
+            // 留下——递增发送贴底令牌，messageList 侧
+            // 执行贴底三步。链接失败的回滚分支（上方
+            // catch 删条目）与停止分支都到不了这里
+            sendPinToken += 1
             // 0.31.0：发送通道迁 /v1/runs——会话模式的
             // 载荷只取尾条这点不变（历史在服务端会话
             // 里），变的只是投递与生成形态：提交得

@@ -29,6 +29,37 @@ public enum BottomProximity {
     }
 }
 
+/// 底部跟随策略（0.36.5，聊天细节审计双修）：发送
+/// 贴底与回底钮显隐的决策收进纯逻辑钉死，视图层只
+/// 执行——
+/// - 自己发送是「离底不打扰」的唯一例外：发送落盘
+///   成功后无条件进贴底态（聊天 UI 通则 onNewMes-
+///   sage＝atBottom || isOwnMessage）。旧实现 send()
+///   无任何贴底动作、跟随又被 isNearBottom 门控，用
+///   户上滑回看时发送，自己的消息与整段回复全被挡
+///   在视外（审计 bug 1）。
+/// - 回底钮显隐除几何判定外并入事实信号「最后一条
+///   条目已在可见集内」：距底距离取自 LazyVStack 的
+///   估算总高，长线程误差可把估算距离驻留在迟滞带
+///   （96…176）内——用户已划到视觉底部、最后一条
+///   肉眼可见，几何却仍报离底，钮永不消失（审计
+///   bug 2）。事实信号只参与钮显隐，不改跟随门控
+///   与滚动锚口径。
+public enum BottomFollowPolicy {
+    /// 发送落盘成功后 isNearBottom 的目标值：恒真
+    /// ——置真后流式跟随与落定跟随自动接续，发送路
+    /// 径只需再补即时贴底＋延迟复贴两步（视图层）
+    public static func nearBottomAfterOwnSend() -> Bool { true }
+
+    /// 回底钮显隐：几何判定离底、且最后一条条目不
+    /// 在可见集内，两条同时成立才显示
+    public static func showsScrollToBottomButton(
+        isNearBottom: Bool, lastEntryVisible: Bool
+    ) -> Bool {
+        !isNearBottom && !lastEntryVisible
+    }
+}
+
 /// 流式跟随滚动节流闸（0.4.2，§27）：流式文本每个
 /// 增量都变化一次，逐次触发贴底滚动等于让滚动动画
 /// 无限追逐随文本生长移动的底部。本闸按已跟随到的

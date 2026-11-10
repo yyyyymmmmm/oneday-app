@@ -118,6 +118,19 @@ final class OverviewBridgeStore {
             notifications = try await client.notifications(config: config)
             notificationsLoaded = true
             appState.overviewBridgeAuthFailed = false
+            // 0.36.5（联动 C 部）：本人裁决的回执一到
+            // 即自动消账——按 refId 命中本人裁决集的
+            // 未读回执逐条走既有 markRead 通道（桥确
+            // 认后才改本地态、角标同步减一）；角标/
+            // 通知列表/聊天回告卡读同一份状态、三处
+            // 同消。桥未带 refId（未升级）时判定恒空、
+            // 本段无动作
+            for id in ApprovalResolution.receiptsToResolve(
+                notifications: notifications,
+                selfDecidedIDs: appState.selfDecidedApprovalIDs
+            ) {
+                await markRead(appState: appState, id: id)
+            }
         } catch let error as OverviewBridgeError {
             notifications = []
             notificationsLoaded = true

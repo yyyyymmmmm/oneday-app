@@ -5096,3 +5096,32 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - IPA：6,377,981 字节、md5 07caa10c1625eacbf98094b77df2f23f、独立解包验 Info.plist＝0.36.4/71 且 NSPhotoLibraryAddUsageDescription 在包内，落 ~/workspace/your_files/oneday-v0.36.4/oneday-unsigned.ipa。
 - 版本五处同改＋grep 验：Project.swift 四处（0.36.4/71，含新增相册权限键）＋SettingsView 页脚「OneDay v0.36.4」。
 - 待真机（并入终审积压）：文件侧 zoom 转场源图衔接实感；聊天侧无源 zoom 降级形态；下拉关闭跟手感与横滚分流；沉浸点图回卡态；保存入相册全链（权限弹窗→相册可见）；抽屉双档修复后观感（浅档近白＋灰垫、暗档压深）；设置页分隔引导（0.36.3 遗留）。
+
+## §70 0.36.5/72——插队包：聊天滚动双修＋目录与设备五点＋铃铛角标联动＋抽屉三件（用户 2026-11-10 19:03–19:27 逐项点名）
+
+### 70.1 A 部·聊天滚动双修（根因真源 chat-detail-audit-20261110.md）
+
+1. **发送不滚底**：根因＝send() 从不调 scrollToBottom、且自动跟随被 isNearBottom 门控（迟滞带：进 <96／退 ≥176）。落法＝发送例外通道：`@State sendPinToken`，sendTask 内 prepareSendShape 成功且过取消检查（条目落盘＋服务端链接已成、条目确定留下）后递增；messageList 侧 `.onChange(of: sendPinToken)` 执行三步——置 isNearBottom＝Core `BottomFollowPolicy.nearBottomAfterOwnSend()`（恒 true）、即时无动画 scrollToBottom、120ms 延迟复贴一次（guard 仍在本线程；沿本文件既有 80/120/300ms 复贴模式）。链接失败 catch 回滚删条目、停止（cancelPendingTurn）两条分支都到不了递增点——不给不存在的条目贴底。自己的消息无条件滚入视野是唯一例外；**零自动重发红线未碰**（本通道只滚视图、不碰发送/账本）。
+2. **回底钮驻留**：根因＝距底距离取自 LazyVStack 估算 contentSize、长线程误差可驻留迟滞带。短修＝事实信号纠偏：既有 `.onScrollTargetVisibilityChange` 同批回写 `@State lastEntryVisible`（当前线程 sortedEntries 最后一条 id ∈ 可见集）；bottomBar 显隐改走 Core `BottomFollowPolicy.showsScrollToBottomButton(isNearBottom:lastEntryVisible:)`＝`!isNearBottom && !lastEntryVisible`，容器补以该派生值为键的 swap 动画（只挂 isNearBottom 时事实信号触发的出入会硬跳）。事实信号只进钮显隐、不改跟随门控/滚动锚。正修（浮层化＋未读计数）仍留 0.40.x。
+3. **单测**：BottomFollowTests +3（自己发送恒贴底／最后一条可见时钮必隐／仅离底且最后一条不可见时钮显）。
+
+### 70.2 B 部·目录与设备五点
+
+1. **胶囊（B1）**：ConnectorsView.Segment 声明序改 available 在前、默认 `.available`；segmentSection 移名单首位（搜索框之下、本机服务/设备两组之前）。对照 references/muse-connectors-directory.jpg 逐项并排：胶囊紧贴搜索框、「可连接」在前且默认选中，两项合参考图。
+2. **权限开关行（B2）**：DeviceStatusHeader.permissionRow 由三态按钮/整行点按式改单一 Toggle（标题「系统权限」＋状态 label 同行）。binding 口径：get＝permission.isUsable（granted/limited 为开）；set(true)：notDetermined→requestAccess（走真实授权流并回读状态、开关随真实结果落位）、denied/restricted/writeOnly→跳系统设置；set(false) 且 isUsable→跳系统设置（应用内关不掉已授权限、不造假落位）。与「允许智能体调用」仍为两个独立开关（S3 双层语义不破）；DevicePermissionGate 两条文案同步改开关口径（原引「去开启」）。
+3. **设备五件图标复刻（B3）**：DeviceSymbolTile（SF 字形＋白底瓷砖）整类退役，新 DeviceAppIconView 按 DeviceSourceID 自绘矢量（squircle 0.26 比例＋separator 发丝边），三处调用点（目录行 40/详情头 64/设置总览行 40）同换。构图与色值以 2026-11-10 当日 iTunes Lookup 现取的官方 artworkUrl512 像素采样对版（采样在 /tmp 完成、原图不入包；台账 D 节补登）。五件：日历＝白底＋红星期＋黑大日期且 **TimelineView 动态真实日期**（periodic 自今日零点每 86400 秒刷新）；提醒事项＝白底三行圆点蓝（采样≈#0195FF）/红 #FF3B30/橙 #FF9500＋浅灰横线（圆点取实心、玻璃环光泽省）；通讯录＝浅灰底（采样≈(245,245,245)）＋灰人像剪影（≈(177,173,161)）＋右缘三彩签（蓝/橙/绿采样值）——「iOS 26 去彩签」弱源被现行商店图证伪、彩签保留定案；家庭＝白底＋橙黄渐变实心房子（宽檐＋门洞凹口路径；现行官方图为玻璃多层嵌套、扁平复刻取经典轮廓）。
+   - **出入登记（健康）**：施工单/调研旧口径作「红心＋白色心电折线」；现行官方商店 artwork 像素实测心内无白折线（扫描心内多行近白像素为 0），心为粉→红渐变（中段≈(255,2,74)、下段≈(255,0,34)），两条独立网络描述同此。按对版真源画渐变心、不画折线；若用户真机主屏幕为经典款（带折线），一处小改可回。
+4. **详情页退出（B4）**：根因＝设备三页（日历/提醒/通讯录）详情 List 全带 .refreshable，sheet 呈现时下拉先被下拉刷新截走（用户图 1 提醒事项页正是此形），且四类详情自 0.36.0 撤手写关闭后无任何按钮出口。落法双件：①ConnectorsView 新增 sheetStack 壳——四类详情统一 NavigationStack＋工具栏左上 ✕（系统玻璃圆钮、点按清 detailTarget）＋`.presentationDragIndicator(.visible)`；②三页详情加 `inSheet` 入参（默认 false），sheet 上下文经 RefreshableIfEnabled 禁用 refreshable、下拉归 sheet 关闭，设置页 push 路径（DevicePermissionsView）保留下拉刷新。关闭钮只落壳层、详情本体被 push 复用不带钮。
+
+### 70.3 C 部·铃铛角标语义（裁决回执联动消账）
+
+- **数据流实查**：overview-bridge 通知两源——write-gate decisions.jsonl（只在已裁决时生成 kind=write_gate_decision 回执、通知 id 为行哈希）与 oneday-bridge 监测账。病根：在 App 内批准后 pendingApprovals −1、桥却随即生成一条未读回执 +1，角标不降；回告卡（ReportCardPolicy 只取未读）与通知列表同源续显已决事项。decisions 条目本体带记录 id，但桥的 _make_notification 没把它带进通知——联动键缺失点在桥。
+- **App 侧**：OverviewNotification 加 `refId: String?`（旧 payload 缺失解码为 nil）；Core `ApprovalResolution.receiptsToResolve` 纯函数（未读＋kind 逐字等于桥端 `write_gate_decision`＋refId 命中本人裁决集，三条全中才消）；AppState 加本机持久化本人裁决集（UserDefaults `selfDecidedApprovalIDs`、上限 200）；AgentHubStore.decide 成功分支（非 recordGone）在 removeRecord 后登记；OverviewBridgeStore 每次拉通知成功后逐条走既有 markRead 通道消账（桥确认才改本地、三处同源同消）。他人/自动审核（kanban review）裁决不在本人集内、回执仍作未读重要事件呈现。单测 +5（refId 解码有/缺、联动只匹配本人、跳过已读·非回执·无 refId、空集不消）。**存量出入登记**：既有测试夹具里 kind 写 `write_gate_decided`、与生产桥真实值 `write_gate_decision` 不符（旧账）——本批未擅改夹具，新判定逐字对齐生产值。
+- **桥侧（仅本地、待部署）**：hermes-deploy/overview_bridge.py——_make_notification 增 `"refId": entry.get("id") or None`、_public 透出 refId（monitor 件恒 None）；新增 overview_bridge_selftest.py（子进程＋临时账本）**8/8 PASS**（回执带 refId＝记录 id／空 id 降 None／monitor 恒 None／未读计数）。**未部署**：部署前 App 联动不成立、角标按旧行为呈现（回执继续提示），部署与否待主会话/用户拍板。
+
+### 70.4 D 部·抽屉三件（0.36.4 装机实拍点名）
+
+1. **删「枢纽」行**：drawerNavList 中 title「枢纽」的 drawerNavRow 整行删除（原位留墓碑注）。删后入口实查清单：聊天页身份胶囊点按（capsuleRow Button→showHub）、聊天回告卡点按（onTapGesture→showHub）；枢纽 sheet 本体在 ChatView 不动；hubOpenRequested 通道与 ChatView 消费端保留（删行后暂无生产者）。
+2. **右缘长线**：DrawerShell 查实无右缘描边/分隔（只有右缘柔影）；面板内唯一贯穿右缘者＝名单 ScrollView 的默认滚动指示器。改 `ScrollView(.vertical, showsIndicators: false)`。
+3. **顶部带断层（19:27 口径修正：整块取消、非统一材质）**：原实色带来自两处叠加——①safeAreaBar 注册把标题锁进一块独立带（名单滚不到带下、天然有界）；②0.36.3 给带内名字单挂一层 drawerBackdrop、与根背景同名材质叠成双层，带面比主体更实更灰。落法：safeAreaBar 整段删除；标题改 ZStack 顶部浮层（VStack{drawerAgentName; Spacer()}、allowsHitTesting(false)），只剩文字本体悬于根背景同一层 drawerBackdrop 之上（ZStack 顶＝安全区顶、状态栏之下；Reduce Transparency 时根背景落实色、浮层随之同面）；名单加 `.contentMargins(.top, 70, for: .scrollContent)`（70＝名字顶距 24＋Title1 行高约 34＋底距 12，与 drawerAgentName 现行距共用一数、抽为 titleStripHeight 常量）——静止时首行停在标题下方、滚动时行从标题文字后方穿过。已知边界：Dynamic Type 极端档行高变大、静止时首行可能被标题略压，待真机。
+

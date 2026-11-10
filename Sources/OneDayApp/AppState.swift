@@ -125,6 +125,36 @@ final class AppState {
     /// 本旗（不把抖动说成钥匙问题）。设置页据此露
     /// 「桥未连接」提示，胶囊状态行不读本旗
     var overviewBridgeAuthFailed = false
+    /// 本人裁决集（0.36.5，审批联动 C 部）：本人在
+    /// App 内批准/驳回过的 write-gate 记录 id——其裁
+    /// 决回执通知一到即自动消账（Core ApprovalReso-
+    /// lution 判定、OverviewBridgeStore 执行）。落
+    /// UserDefaults 是为跨重启仍认账（回执可能晚于
+    /// 裁决一轮轮询才生成）；上限 200 条、超出弃最
+    /// 旧（回执生成以分钟计，陈年 id 无联动价值）
+    private(set) var selfDecidedApprovalIDs: Set<String> =
+        Set(UserDefaults.standard.stringArray(
+            forKey: "selfDecidedApprovalIDs"
+        ) ?? [])
+
+    /// 记一笔本人裁决（AgentHubStore.decide 成功落
+    /// 账后调用；recordGone 等他人先裁的路径不记——
+    /// 那类回执是「未读重要事件」、不归本人消账）
+    func noteSelfDecision(recordID: String) {
+        guard !recordID.isEmpty,
+              !selfDecidedApprovalIDs.contains(recordID)
+        else { return }
+        selfDecidedApprovalIDs.insert(recordID)
+        if selfDecidedApprovalIDs.count > 200 {
+            selfDecidedApprovalIDs = Set(
+                selfDecidedApprovalIDs.sorted().suffix(200)
+            )
+        }
+        UserDefaults.standard.set(
+            Array(selfDecidedApprovalIDs),
+            forKey: "selfDecidedApprovalIDs"
+        )
+    }
     /// 云电脑接管态（0.10.0，P3 互斥的客户端半边）：
     /// BrowserFaceView 在接管开关变化时回写（施工图
     /// §4.3 产品层约定：Box 单桌面无锁原语，接管期间

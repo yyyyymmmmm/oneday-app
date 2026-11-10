@@ -63,6 +63,43 @@ final class BottomFollowTests: XCTestCase {
         )
     }
 
+    // MARK: - 发送贴底与回底钮事实信号（0.36.5 审计双修）
+
+    func testNearBottomAfterOwnSendIsAlwaysTrue() {
+        // 自己发送是「离底不打扰」的唯一例外：落盘成
+        // 功后无条件进贴底态，不问发送前的判定为何
+        XCTAssertTrue(BottomFollowPolicy.nearBottomAfterOwnSend())
+    }
+
+    func testScrollButtonHiddenWhenLastEntryVisible() {
+        // 审计 bug 2 的驻留回路：几何估算说离底、但最
+        // 后一条已在可见集内（事实在底）——钮必须消失
+        XCTAssertFalse(
+            BottomFollowPolicy.showsScrollToBottomButton(
+                isNearBottom: false, lastEntryVisible: true
+            )
+        )
+        // 已判贴底时恒不显（与旧口径一致）
+        XCTAssertFalse(
+            BottomFollowPolicy.showsScrollToBottomButton(
+                isNearBottom: true, lastEntryVisible: true
+            )
+        )
+        XCTAssertFalse(
+            BottomFollowPolicy.showsScrollToBottomButton(
+                isNearBottom: true, lastEntryVisible: false
+            )
+        )
+    }
+
+    func testScrollButtonShownOnlyWhenOffBottomAndLastEntryUnseen() {
+        XCTAssertTrue(
+            BottomFollowPolicy.showsScrollToBottomButton(
+                isNearBottom: false, lastEntryVisible: false
+            )
+        )
+    }
+
     // MARK: - 流式节流闸
 
     func testGateBlocksSmallGrowth() {

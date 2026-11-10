@@ -24,28 +24,262 @@ import UIKit
 /// 与总览页都明说「智能体实际调用待服务器侧开通」，
 /// 不许写成已可调用。
 
-// MARK: - 瓷砖（0.36.0，宪法 §4／审计 C7）
-// 苹果应用图标画法：白底 squircle＋标志元素字形
-// ——字形用各件的标志色（原色表语义由「底色」改
-// 为「字形色」），容器走 Design 层 AppSymbolTile
-// 单一实现。旧「饱和纯色块压白字形」自本版退役
-// （既非官方原图、亦非苹果画法）。
+// MARK: - 设备五件图标（0.36.5，宪法 §4 修订）
+// 0.36.0 的「白底＋SF 字形」瓷砖退役：宪法 §4 已
+// 于 2026-11-10 19:19 经用户批准修订——指称具体
+// 苹果系统应用时按官方构图自绘复刻（§4 第三源
+// (a)、禁仿绘的唯一例外）。五件全部代码矢量自
+// 绘，构图与色值以官方商店 artwork 设计期采样对
+// 版（采样值见调研报告 apple-app-icons-research
+// §5 与本轮像素实测）；商店原图只作对版、禁入
+// 包。台账 D 节按「自绘复刻」如实登记。
+// 健康一件与调研旧口径有出入：现行官方图为粉红
+// 渐变心、心内无白色心电折线（像素实测无折线、
+// 两条独立检索描述同此）——按现行官方图画渐变
+// 心、不画折线；旧口径「红心＋白折线」是经典款
+// 印象，若真机主屏幕为经典款再按实拍改。
 
-struct DeviceSymbolTile: View {
-    let symbol: String
-    let colorHex: UInt32
+struct DeviceAppIconView: View {
+    let source: DeviceSourceID
     var size: CGFloat = 40
 
     var body: some View {
-        AppSymbolTile(symbol: symbol, glyphColor: tileColor, size: size)
+        ZStack {
+            baseColor
+            artwork
+        }
+        .frame(width: size, height: size)
+        .clipShape(iconShape)
+        .overlay {
+            iconShape.strokeBorder(Palette.separator, lineWidth: 0.5)
+        }
+        .accessibilityHidden(true)
     }
 
-    private var tileColor: Color {
-        Color(
-            red: Double((colorHex >> 16) & 0xFF) / 255,
-            green: Double((colorHex >> 8) & 0xFF) / 255,
-            blue: Double(colorHex & 0xFF) / 255
+    private var iconShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: size * 0.26, style: .continuous
         )
+    }
+
+    /// 底色：五件皆浅底（通讯录图内实测 ≈
+    /// (245, 245, 245) 的极浅灰，余四件白）。图
+    /// 标是固定 artwork、深浅模式同值（与真实应
+    /// 用图标同理）
+    private var baseColor: Color {
+        switch source {
+        case .contacts:
+            return Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
+        case .calendar, .reminders, .health, .home:
+            return .white
+        }
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        switch source {
+        case .calendar: calendarArtwork
+        case .reminders: remindersArtwork
+        case .contacts: contactsArtwork
+        case .health: healthArtwork
+        case .home: homeArtwork
+        }
+    }
+
+    // 日历：白底＋红色星期（上部）＋黑色大日期，
+    // 且是动态真实日期——TimelineView 每日刷新，
+    // 星期/日期取渲染当日（与系统日历图标同理）
+    private var calendarArtwork: some View {
+        TimelineView(
+            .periodic(
+                from: Calendar.current.startOfDay(for: .now),
+                by: 24 * 60 * 60
+            )
+        ) { context in
+            VStack(spacing: 0) {
+                Text(weekdayText(context.date))
+                    .font(.system(size: size * 0.19, weight: .semibold))
+                    .foregroundStyle(Color(hex: 0xFF3B30))
+                    .padding(.top, size * 0.08)
+                Text(dayText(context.date))
+                    .font(.system(size: size * 0.5, weight: .light))
+                    .foregroundStyle(.black)
+            }
+            .frame(width: size, height: size, alignment: .top)
+        }
+    }
+
+    private func weekdayText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEEE")
+        return formatter.string(from: date)
+    }
+
+    private func dayText(_ date: Date) -> String {
+        let day = Calendar.current.component(.day, from: date)
+        return String(day)
+    }
+
+    // 提醒事项：白底三行——圆点自上而下蓝（采样
+    // ≈ #0195FF）/红 #FF3B30/橙 #FF9500＋浅灰
+    // 横线（圆点取实心，官方图的玻璃环光泽省）
+    private var remindersArtwork: some View {
+        let rows: [(y: CGFloat, color: Color)] = [
+            (0.28, Color(hex: 0x0195FF)),
+            (0.50, Color(hex: 0xFF3B30)),
+            (0.72, Color(hex: 0xFF9500)),
+        ]
+        return ZStack {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                Circle()
+                    .fill(row.color)
+                    .frame(width: size * 0.16, height: size * 0.16)
+                    .position(x: size * 0.24, y: size * row.y)
+                RoundedRectangle(cornerRadius: size * 0.04)
+                    .fill(Color(hex: 0xD8D8DC))
+                    .frame(width: size * 0.40, height: size * 0.075)
+                    .position(x: size * 0.61, y: size * row.y)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    // 通讯录：浅灰底＋灰人像剪影（头圆＋肩椭圆，
+    // 剪影灰实测 ≈ (177, 173, 161)）＋右缘三只
+    // 彩签（现行官方图实测彩签仍在——蓝/橙/绿，
+    // 「iOS 26 去彩签」弱源不成立、不采）
+    private var contactsArtwork: some View {
+        let silhouette = Color(
+            red: 177 / 255, green: 173 / 255, blue: 161 / 255
+        )
+        let tabs: [(y: CGFloat, color: Color)] = [
+            (0.30, Color(red: 77 / 255, green: 190 / 255, blue: 246 / 255)),
+            (0.50, Color(red: 255 / 255, green: 142 / 255, blue: 1 / 255)),
+            (0.70, Color(red: 49 / 255, green: 217 / 255, blue: 82 / 255)),
+        ]
+        return ZStack {
+            ForEach(Array(tabs.enumerated()), id: \.offset) { _, tab in
+                RoundedRectangle(cornerRadius: size * 0.02)
+                    .fill(tab.color)
+                    .frame(width: size * 0.10, height: size * 0.17)
+                    .position(x: size * 0.96, y: size * tab.y)
+            }
+            Circle()
+                .fill(silhouette)
+                .frame(width: size * 0.30, height: size * 0.30)
+                .position(x: size * 0.44, y: size * 0.38)
+            Ellipse()
+                .fill(silhouette)
+                .frame(width: size * 0.54, height: size * 0.40)
+                .position(x: size * 0.44, y: size * 0.80)
+        }
+        .frame(width: size, height: size)
+    }
+
+    // 健康：白底＋粉红渐变心（采样：中段 ≈
+    // (255, 2, 74)、下段 ≈ (255, 0, 34)），
+    // 无心电折线（见本节头注的出入登记）
+    private var healthArtwork: some View {
+        heartPath(
+            in: CGRect(
+                x: size * 0.19, y: size * 0.21,
+                width: size * 0.62, height: size * 0.58
+            )
+        )
+        .fill(
+            LinearGradient(
+                colors: [
+                    Color(red: 255 / 255, green: 59 / 255, blue: 109 / 255),
+                    Color(red: 255 / 255, green: 2 / 255, blue: 74 / 255),
+                    Color(red: 255 / 255, green: 0 / 255, blue: 34 / 255),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+        )
+    }
+
+    /// 心形（100×100 设计盒，四段贝塞尔的圆润心）
+    private func heartPath(in rect: CGRect) -> Path {
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(
+                x: rect.minX + x / 100 * rect.width,
+                y: rect.minY + y / 100 * rect.height
+            )
+        }
+        var path = Path()
+        path.move(to: pt(50, 88))
+        path.addCurve(
+            to: pt(8, 40),
+            control1: pt(28, 70), control2: pt(8, 56)
+        )
+        path.addCurve(
+            to: pt(30, 10),
+            control1: pt(8, 26), control2: pt(16, 10)
+        )
+        path.addCurve(
+            to: pt(50, 26),
+            control1: pt(40, 10), control2: pt(47, 17)
+        )
+        path.addCurve(
+            to: pt(70, 10),
+            control1: pt(53, 17), control2: pt(60, 10)
+        )
+        path.addCurve(
+            to: pt(92, 40),
+            control1: pt(84, 10), control2: pt(92, 26)
+        )
+        path.addCurve(
+            to: pt(50, 88),
+            control1: pt(92, 56), control2: pt(72, 70)
+        )
+        path.closeSubpath()
+        return path
+    }
+
+    // 家庭：白底＋橙黄实心房子（经典轮廓扁平复
+    // 刻：宽檐屋顶＋门洞凹口；现行官方图的玻璃
+    // 多层嵌套不复刻——扁平轮廓辨识度优先）
+    private var homeArtwork: some View {
+        housePath(
+            in: CGRect(
+                x: size * 0.08, y: size * 0.14,
+                width: size * 0.84, height: size * 0.72
+            )
+        )
+        .fill(
+            LinearGradient(
+                colors: [
+                    Color(red: 255 / 255, green: 204 / 255, blue: 0 / 255),
+                    Color(red: 255 / 255, green: 149 / 255, blue: 0 / 255),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+        )
+    }
+
+    /// 房子轮廓（100×100 设计盒：屋顶宽檐出挑、
+    /// 底部中央门洞以路径凹口成形）
+    private func housePath(in rect: CGRect) -> Path {
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(
+                x: rect.minX + x / 100 * rect.width,
+                y: rect.minY + y / 100 * rect.height
+            )
+        }
+        var path = Path()
+        path.move(to: pt(50, 8))
+        path.addLine(to: pt(97, 46))
+        path.addLine(to: pt(88, 46))
+        path.addLine(to: pt(88, 90))
+        path.addLine(to: pt(64, 90))
+        path.addLine(to: pt(64, 66))
+        path.addLine(to: pt(36, 66))
+        path.addLine(to: pt(36, 90))
+        path.addLine(to: pt(12, 90))
+        path.addLine(to: pt(12, 46))
+        path.addLine(to: pt(3, 46))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -71,10 +305,7 @@ struct DeviceStatusHeader: View {
             // 导航标题退役（对照授权页参考图）
             Section {
                 VStack(spacing: OneDayMetrics.spacingS) {
-                    DeviceSymbolTile(
-                        symbol: descriptor.tileSymbol,
-                        colorHex: descriptor.tileColorHex, size: 64
-                    )
+                    DeviceAppIconView(source: source, size: 64)
                     Text(descriptor.name)
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Palette.ink)
@@ -148,59 +379,54 @@ struct DeviceStatusHeader: View {
         )
     }
 
-    /// 系统权限行（0.36.3，续编 S4 落地）：行必须
-    /// 带可操作控件——未授权给「去开启」（触发系
-    /// 统请求）、被拒/受限给「去设置」、已授权整行
-    /// 可点进系统设置管理。旧形态只有「已授权」三
-    /// 字文本、无任何控件（用户 18:05 点名）退役。
-    @ViewBuilder
+    /// 系统权限行（0.36.5，用户 19:03 点名改开关
+    /// 式控件；0.36.3 的「去开启/去设置」按钮与整
+    /// 行点按式退役，S4「权限行须带动作」的口径由
+    /// 开关承接）：样式是开关、行为不造假——平台
+    /// 实情：应用内关不掉已授出的系统权限。落法：
+    /// · 未定：拨开→触发系统权限请求（request-
+    ///   Access 走真实授权流并回读状态，开关随真
+    ///   实结果落位、不预先假开）；
+    /// · 被拒/受限/仅写入：开关呈关态，拨开→跳系
+    ///   统设置（系统不再弹请求框，只能去设置开）；
+    /// · 已授权/有限：开关呈开态，拨关→跳系统设
+    ///   置由用户在系统侧关，App 不假装已关。
+    /// 状态文案（permission.label）留在标题右侧如
+    /// 实报态。与下方「允许智能体调用」是两个独
+    /// 立开关：系统权限（系统层）vs 应用内授权
+    /// （续编 S3 双层语义），互不联动、各自落账。
     private var permissionRow: some View {
-        switch permission {
-        case .notDetermined:
+        Toggle(isOn: permissionBinding) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 permissionTitle
-                Spacer(minLength: OneDayMetrics.spacingS)
                 Text(permission.label)
                     .font(.body)
                     .foregroundStyle(Palette.inkSecondary)
-                Button("去开启") {
-                    Task { await controller.requestAccess(for: source) }
-                }
-                .buttonStyle(.odSecondary)
             }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-        case .denied, .restricted:
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                permissionTitle
-                Spacer(minLength: OneDayMetrics.spacingS)
-                Text(permission.label)
-                    .font(.body)
-                    .foregroundStyle(Palette.inkSecondary)
-                Button("去设置") { openSystemSettings() }
-                    .buttonStyle(.odSecondary)
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-        default:
-            Button {
-                openSystemSettings()
-            } label: {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    permissionTitle
-                    Spacer(minLength: OneDayMetrics.spacingS)
-                    Text(permission.label)
-                        .font(.body)
-                        .foregroundStyle(Palette.inkSecondary)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Palette.inkSecondary)
-                        .accessibilityHidden(true)
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.odPressable)
-            .accessibilityHint("在系统设置中管理此权限")
         }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+    }
+
+    private var permissionBinding: Binding<Bool> {
+        Binding(
+            get: { permission.isUsable },
+            set: { newValue in
+                if newValue {
+                    switch permission {
+                    case .notDetermined:
+                        Task {
+                            await controller.requestAccess(for: source)
+                        }
+                    case .denied, .restricted, .writeOnly:
+                        openSystemSettings()
+                    case .granted, .limited:
+                        break
+                    }
+                } else if permission.isUsable {
+                    openSystemSettings()
+                }
+            }
+        )
     }
 
     private var permissionTitle: some View {
@@ -289,9 +515,9 @@ private struct DevicePermissionGate: View {
         let name = DeviceSourceDirectory.descriptor(source).name
         switch permission {
         case .notDetermined:
-            return "点上方「去开启」，系统会问你是否允许读取\(name)。"
+            return "打开上方「系统权限」开关，系统会问你是否允许读取\(name)。"
         case .denied, .restricted:
-            return "到系统设置打开\(name)权限后，回来下拉刷新即可。"
+            return "拨动上方「系统权限」开关会跳到系统设置，打开\(name)权限后即可。"
         case .writeOnly:
             return "当前只有写入权限，看不到已有安排。"
         default:
@@ -315,6 +541,24 @@ private struct DeviceFootnote: View {
     }
 }
 
+/// sheet 内禁用下拉刷新（0.36.5）：详情以 sheet
+/// 呈现时下拉手势归 sheet 的交互式关闭——
+/// refreshable 在场会先行截走下拉，用户 19:08 点
+/// 名的「下拉返回不了」实因在此；push 呈现（设
+/// 置页）无此冲突、保留下拉刷新。三页详情共用
+private struct RefreshableIfEnabled: ViewModifier {
+    let enabled: Bool
+    let action: () async -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.refreshable(action: action)
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - 日历详情（议程形态，今起 14 天）
 
 /// 议程按日分组（具名结构体承 ForEach 的 Identifiable）
@@ -326,6 +570,9 @@ private struct AgendaDayGroup: Identifiable {
 
 struct CalendarDetailView: View {
     @Environment(AppState.self) private var appState
+    /// sheet 呈现标记（0.36.5）：为真时禁下拉刷新、
+    /// 下拉归 sheet 关闭；默认 false（push 路径）
+    var inSheet: Bool = false
     @State private var days: [AgendaDayGroup] = []
     @State private var showNewEvent = false
 
@@ -370,7 +617,9 @@ struct CalendarDetailView: View {
             }
         }
         .task { load() }
-        .refreshable { load() }
+        .modifier(
+            RefreshableIfEnabled(enabled: !inSheet) { load() }
+        )
     }
 
     @ViewBuilder
@@ -509,6 +758,8 @@ private struct EventEditView: UIViewControllerRepresentable {
 
 struct RemindersDetailView: View {
     @Environment(AppState.self) private var appState
+    /// sheet 呈现标记（0.36.5）：同 CalendarDetailView
+    var inSheet: Bool = false
     @State private var items: [DeviceReminderItem] = []
     @State private var showAdd = false
     @State private var actionError: String?
@@ -575,7 +826,9 @@ struct RemindersDetailView: View {
             }
         }
         .task { await load() }
-        .refreshable { await load() }
+        .modifier(
+            RefreshableIfEnabled(enabled: !inSheet) { await load() }
+        )
     }
 
     @ViewBuilder
@@ -738,6 +991,8 @@ private struct AddReminderView: View {
 
 struct ContactsDetailView: View {
     @Environment(AppState.self) private var appState
+    /// sheet 呈现标记（0.36.5）：同 CalendarDetailView
+    var inSheet: Bool = false
     @State private var items: [DeviceContactItem] = []
     @State private var query = ""
     @State private var loadError: String?
@@ -775,7 +1030,9 @@ struct ContactsDetailView: View {
             NavigationStack { contactDetail(contact) }
         }
         .task { load() }
-        .refreshable { load() }
+        .modifier(
+            RefreshableIfEnabled(enabled: !inSheet) { load() }
+        )
     }
 
     @ViewBuilder
@@ -978,10 +1235,7 @@ struct DevicePermissionsView: View {
         _ descriptor: DeviceSourceDescriptor
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            DeviceSymbolTile(
-                symbol: descriptor.tileSymbol,
-                colorHex: descriptor.tileColorHex, size: 40
-            )
+            DeviceAppIconView(source: descriptor.sourceID, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(descriptor.name)
                     .font(.rowTitleL)

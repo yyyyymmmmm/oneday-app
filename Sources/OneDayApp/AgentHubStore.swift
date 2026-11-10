@@ -454,6 +454,10 @@ final class AgentHubStore {
                 )
             if response.success {
                 removeRecord(record.id)
+                // 0.36.5（联动 C 部）：记本人裁决——
+                // 本条的回执通知生成后由总览桥状态层
+                // 按 id 自动消账，不再回头占角标
+                appState.noteSelfDecision(recordID: record.id)
                 // 触感矩阵（0.36.2，规格 §2.3）：审批
                 // 落定才响——批准＝success、驳回＝
                 // warning（需注意类决定、未失败）；
