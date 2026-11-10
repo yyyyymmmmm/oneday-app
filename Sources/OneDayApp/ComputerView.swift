@@ -138,7 +138,7 @@ struct ComputerView: View {
             case .ready(let status):
                 readyDetails(status)
             case .bridgeUnavailable:
-                Text("桥钥匙与审批共用一把，在「设置 · 审批桥钥匙」粘贴后生效。")
+                Text("云电脑走桥钥匙的云电脑分项（未配时回退旧共用钥），在「设置 · 桥钥匙」粘贴或导入后生效。")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             case .failed:

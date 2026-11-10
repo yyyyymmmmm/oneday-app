@@ -4709,3 +4709,32 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION／CURRENT_PROJECT_VERSION／CFBundleShortVersionString／CFBundleVersion）＋SettingsView 页脚「OneDay v0.32.0」。
 - 桥侧生产验收（59.1）：公网契约 13/13 PASS（401/空表/下一轮时刻/brief 往返并复原/临时卡全链 PATCH 流转与 400·404 门/generated 无 evidence 400）；本地桩测 31/32（唯一 FAIL 为断言本身写反、已单独核实请求体）；过期清扫本地验过；首轮真实生成 produced=3（卡 id 与依据见 59.1），下一轮 2026-11-11 07:30 已排。
 - 施工期生产动作仅 oneday-bridge 本体（部署/env/重启/首轮触发/凑数卡删除各一次），内存峰值 52.6%，其余容器未动；未自截真机图；FF1–FF7 待真机终审。
+
+## §60 0.32.1 旧思维审计整改（F04 止血＋F05 止血＋F03 App 侧）
+
+缘起：2026-11-10 旧思维全面审计（oneday-design-review/legacy-thinking-audit-20261110.md）17 条发现，用户 15:13 拍板「必改两件（F04/F05）＋五桥凭据分权（F03/R8）一起修」。本版只做止血与 App 侧，F04 的迁 SQLite（R15）与 F05 的服务端目录（正道）均不在本轮。
+
+### 60.1 F04 止血（桥侧，先于本版独立部署）
+
+- oneday_bridge.py 的 `_load()` 解析失败路径重写：原文件改名隔离为 `data.json.corrupt-<时间戳>`（原件永不删除）；进程以内存空库＋只读降级启动——`_dispatch` 对一切非 GET 请求统一回 503（文案明示只读降级），`_save_locked()` 加硬闸（降级态 raise，内部/调度写路径同样不许把空库回写正式文件）；`/health` 附 `degraded` 标记与 `degradedReason`、`writesEnabled:false`。正常路径行为零变化。
+- 验证：本地桩测 13/13（损坏启动：隔离文件存在且内容完好、正式文件未被重建、读端点 200、写端点 503；正常启动回归：种子可读、写落盘、无隔离文件）。生产部署：备份 `oneday_bridge.py.bak-20261110-f04`、`data.json.bak-20261110-f04`，只重启 oneday-bridge；公网实测 /health `degraded:false`、目标/点子读端点正常、今晨 3 张生成卡俱在、数据与备份逐项一致、无 corrupt 文件产生。
+
+### 60.2 F05 止血（Qwen 下线呈现）
+
+- 取舍：审计给「隐藏或明确置已停用」二选一——取**隐藏**（选择器结构改动最小：`ChatModels.items` 只剩 DeepSeek 两项；`initialSelection`/`selectChatModel` 的 contains 校验天然拒绝下线 id）。Qwen 进 `retiredItems`：不可选、不进选择器，仅保留显示名/短名映射（历史消息名牌与 ModelDisplayNames 翻译不许掉成原始 id 或「服务端默认」）。
+- 冷启承诺整路拆除：`ChatModels.coldStartID` 删除；ChatView 的 `isWakingModel` 状态、等待行「模型唤醒中，冷启动约 1–3 分钟…」文案及全部置位/复位点删除——等待只剩打字点。
+- 落回如实提示：已存选择恰是 Qwen 时，选择经 initialSelection 落回 deepseek-flash，AppState 派生一次性 `modelFallbackNotice`（文案在 Core `retiredFallbackNotice`），聊天页经现行 notice 条呈现一次；消费时落回值同步落盘、永不重现。
+- **正道待办指针**：模型目录改服务端下发（id/展示名/状态位：可用/降级/停用＋不可用原因），App 只渲染、静态表降为离线兜底——排后续版本，本轮不做。
+
+### 60.3 F03 App 侧（五桥凭据分权，R8）
+
+- Core 新立 `BridgeKeyScope` 五值（overview 只读/oneday 业务写/writegate 审批写/box 执行/device 设备工具）＋`BridgeKeyImport` 解析器（格式每行 `scope: 钥匙`，半角/全角冒号、标签归一、说明行跳过、未识别行计数上报、同 scope 后行覆盖；与服务器侧 bridge-keys.txt 逐字对齐）。
+- Keychain 分项存：`bridge.key.<scope>` 五键；`BridgeKeyStore.read(scope)` 分项优先、**未配置时临时回退旧共用钥 writeGateKey**（仅过渡：服务器轮换后旧钥在各桥 env 退役、回退值被桥拒绝而自然失效；**回退与 writeGateKey 键在轮换完成后下一版删除**，代码注释与本节双记）。七个客户端各改读自己 scope（Overview→overview、OneDay→oneday、WriteGate/Memory→writegate、Box 三客户端→box；device 尚无客户端、仅导入与状态位）。
+- 设置页「桥钥匙」（原审批桥钥匙页改版）：钥匙组逐项状态（**只认分项本体**，不许拿回退冒充已分权）＋钥匙组导入（多行粘贴框一次填满五项、导入结果如实报写入项与未识别行数、草稿导入后即清）＋旧共用钥区（过渡，粘贴/更换/移除保留）。设置汇总行文案同步诚实化：已分权 N/5、已配置 N/5、旧钥匙（过渡）、未设置四档。未配置的功能面沿用各客户端 noKey 诚实态（连接器页/浏览器/云电脑文案已同步改指桥钥匙分项）。
+
+### 60.4 GG 系列真机终审项
+
+- GG1 Qwen 下线：模型选择器只剩 DeepSeek Flash / V4 Pro 两行，无 Qwen、无「冷启/唤醒」字样；发送等待只有打字点。若原选恰是 Qwen：首次进聊天页应见一次性提示「原选模型 Qwen3-30B 已停用，已自动切回 DeepSeek Flash」，重进不再出现。
+- GG2 未导入前回归：不做任何导入，现装使用——总览/目标点子/审批/Box 各面照常工作（旧钥回退）。
+- GG3 导入全链：设置·桥钥匙粘贴 bridge-keys.txt 整段导入——五项状态全变「已配置」，设置汇总行显「已分权 · 5/5」；各桥功能照常（此时走分项钥）。
+- GG4 部分导入诚实态：只导入一两项时，逐项状态与汇总行如实报数（如「已配置 2/5」），未配项不许显已配置。

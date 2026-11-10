@@ -56,9 +56,6 @@ struct ChatView: View {
     /// Gate（管滚动）分工互不替代；run 驱动起止归零
     @State private var contentPublishGate = StreamPublishGate()
     @State private var reasoningPublishGate = StreamPublishGate()
-    /// Qwen 冷启唤醒重试中（0.3.0 接线，§15）：等待行亮
-    /// 「模型唤醒中」提示
-    @State private var isWakingModel = false
     @State private var sendTask: Task<Void, Never>?
     /// 本轮 run 的状态机（0.31.0）：相位与终态证据的
     /// 单一出处（Core RunTurnStateMachine），驱动见
@@ -448,6 +445,15 @@ struct ChatView: View {
             // 落 SideChatStore 设置页可见、发送前还会
             // 再试——旧「失败静默」口径已作废）
             Task { await ensureMainLink() }
+            // 0.32.1（F05 止血）：原选模型已停用、选择
+            // 被落回默认时的一次性如实提示——消费后落
+            // 回值落盘、不再重现；已有提示在显时不抢占
+            if let modelNotice = appState.modelFallbackNotice {
+                if notice == nil {
+                    notice = modelNotice
+                }
+                appState.consumeModelFallbackNotice()
+            }
         }
         // 0.7.0（D2 回告）：总览快照随前台 30 秒轮询换新
         // 时顺带拉新通知——回告卡与铃铛/通知 sheet 读
@@ -1664,20 +1670,11 @@ struct ChatView: View {
     private func streamingBubble(_ text: String) -> some View {
         if text.isEmpty {
             assistantBubble {
-                if isWakingModel {
-                    // Qwen 冷启唤醒中（0.3.0 接线，§15）：明示
-                    // 状态，不让用户对着三个点干等
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        TypingDots()
-                        Text("模型唤醒中，冷启动约 1–3 分钟…")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
+                // 0.32.1（F05 止血）：Qwen 冷启「模型唤醒中」
+                // 提示整路拆除——该模型已停用下线，不再有
+                // 唤醒态；等待一律只剩打字点
+                TypingDots()
                     .padding(.vertical, OneDayMetrics.spacingXS)
-                } else {
-                    TypingDots()
-                        .padding(.vertical, OneDayMetrics.spacingXS)
-                }
             }
         } else {
             assistantBubble {
@@ -2998,8 +2995,6 @@ private struct ComposerBarLayout: Layout {
         reasoningPublishGate.reset()
         streamingReasoning = nil
         reasoningStartedAt = nil
-        isWakingModel = appState.chatModel
-            == ChatModels.coldStartID
         // 输入组装：尾条纯文本走字符串形态、多模态走
         // 单元素消息形态（探针实测两形态均成立）
         let input: RunInput = tail.parts == nil
@@ -3139,7 +3134,6 @@ private struct ComposerBarLayout: Layout {
             case .contentDelta(let delta),
                  .interim(let delta):
                 if !delta.isEmpty {
-                    isWakingModel = false
                     if let snapshot = contentPublishGate
                         .offer(delta, at: now) {
                         streamingText = snapshot
@@ -3625,7 +3619,6 @@ private struct ComposerBarLayout: Layout {
         if failed {
             Haptics.warning()
         }
-        isWakingModel = false
         streamingText = nil
         streamingReasoning = nil
         reasoningStartedAt = nil
@@ -3719,9 +3712,6 @@ private struct ComposerBarLayout: Layout {
         } else {
             streamingText = ""
         }
-        isWakingModel = appState.chatModel
-            == ChatModels.coldStartID
-            && (streamingText ?? "").isEmpty
         isDrivingRun = true
         var mutableEntry = entry
         await reconcileRun(

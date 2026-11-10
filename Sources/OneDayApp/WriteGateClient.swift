@@ -46,7 +46,8 @@ protocol WriteGateClientProtocol: Sendable {
 
 /// URLSession 实现：Base＝<服务器>/api/write-gate（nginx
 /// 单前缀转发到桥的 127.0.0.1:8643）。钥匙从 Keychain
-/// 读（CredentialKey.writeGateKey）——桥与 App 同日上线，
+/// 读（BridgeKeyStore 的 .writegate 分项，0.32.1 分
+/// 权 F03/R8）——桥与 App 同日上线，
 /// 钥匙发放通道未就绪时读不到钥匙，一律以 noKey 落
 /// 「通道未接通」诚实态，不发任何请求、不冒充已接通。
 final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
@@ -60,7 +61,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
     }
 
     private var bridgeKey: String? {
-        KeychainStore.read(account: CredentialKey.writeGateKey)
+        BridgeKeyStore.read(.writegate)
     }
 
     func gateStatus(config: ServerConfig) async throws -> WriteGateStatus {

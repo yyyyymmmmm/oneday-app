@@ -32,8 +32,9 @@ final class AppState {
     private(set) var username: String?
     /// 对话模型 id：探活第三步从 /v1/models 取第一个，缺失时回退实测值
     private(set) var modelID: String = "hermes-agent"
-    /// 聊天模型（0.3.0 接线，DESIGN-V4 §15）：写死三项
-    /// （ChatModels）、本地选择、逐请求生效（请求带
+    /// 聊天模型（0.3.0 接线，DESIGN-V4 §15）：写死清单
+    /// （ChatModels；0.32.1 起两项，Qwen 已下线见
+    /// §60）、本地选择、逐请求生效（请求带
     /// provider=custom 切上游）；与服务端默认模型
     /// （defaultModel，设置页管理面口径）互不干扰。
     /// 持久化于 UserDefaults，初始口径见 ChatModels
@@ -42,11 +43,28 @@ final class AppState {
         serverDefault: nil
     )
 
+    /// 已下线模型落回提示（0.32.1，F05 止血）：已存选
+    /// 择命中已停用模型时，chatModel 已由 initialSelec-
+    /// tion 落回默认，本提示供聊天页一次性如实告知；
+    /// 消费后落回值同步落盘，永不重现（见 consume 函数）
+    private(set) var modelFallbackNotice: String? =
+        ChatModels.retiredFallbackNotice(
+            stored: UserDefaults.standard.string(forKey: "chatModelID")
+        )
+
     /// 选择聊天模型（本地生效，不发网络请求、不改服务端）
     func selectChatModel(_ id: String) {
         guard ChatModels.contains(id) else { return }
         chatModel = id
         UserDefaults.standard.set(id, forKey: "chatModelID")
+    }
+
+    /// 消费落回提示：清提示并把落回后的当前选择落盘
+    /// （否则已存值仍是下线模型、每次冷启都会重报）
+    func consumeModelFallbackNotice() {
+        guard modelFallbackNotice != nil else { return }
+        modelFallbackNotice = nil
+        UserDefaults.standard.set(chatModel, forKey: "chatModelID")
     }
 
     /// 抽屉数据刷新令牌（0.21.0）：已链接旁聊标题

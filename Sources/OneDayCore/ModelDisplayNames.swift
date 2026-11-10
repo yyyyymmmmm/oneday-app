@@ -8,6 +8,9 @@ import Foundation
 /// 事实源：先查聊天清单（ChatModels，含 Qwen 全名 id），
 /// 再查服务端常见别名；查不到返回 nil，调用方按语境兜
 /// 底（身份位写「服务端默认」，不许把原始 id 顶上去）。
+/// 0.32.1：已下线模型（ChatModels.retiredItems）的历
+/// 史会话同样经 ChatModels 显示名翻译，不许掉进「服务
+/// 端默认」兜底冒充。
 public enum ModelDisplayNames {
     /// 网关别名：不是真模型名，界面上一律称「服务端默认」
     public static let gatewayAlias = "hermes-agent"
@@ -23,7 +26,7 @@ public enum ModelDisplayNames {
     public static func displayName(for id: String?) -> String? {
         guard let id, !id.isEmpty else { return nil }
         if id == gatewayAlias { return nil }
-        if ChatModels.contains(id) {
+        if ChatModels.contains(id) || ChatModels.isRetired(id) {
             return ChatModels.displayName(for: id)
         }
         return aliases[id]

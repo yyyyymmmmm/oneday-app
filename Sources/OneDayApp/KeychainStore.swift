@@ -1,4 +1,5 @@
 import Foundation
+import OneDayCore
 import Security
 
 /// 凭据键名：连接页写入、AppState 读取，键名集中在此一处。
@@ -15,7 +16,42 @@ enum CredentialKey {
     /// 「通道未接通」诚实态
     static let writeGateKey = "writegate.key"
 
+    /// 桥分项钥（0.32.1，审计 F03/R8）：五桥按 scope
+    /// 各自一把，键名 bridge.key.<scope>。writeGateKey
+    /// 自此降为【过渡回退】来源（见 BridgeKeyStore），
+    /// 服务器轮换完成后的下一版连键带回退一并删除
+    static func bridgeKey(_ scope: BridgeKeyScope) -> String {
+        "bridge.key.\(scope.rawValue)"
+    }
+
     static let all = [baseURL, username, password, apiKey]
+}
+
+/// 分桥钥匙读取（0.32.1，F03/R8）：各桥客户端只经此
+/// 读自己 scope 的钥。优先分项钥；分项未配置时临时
+/// 回退旧共用钥 writeGateKey——【仅过渡期】：服务器
+/// 五桥轮换完成前，现装版本靠回退照常工作；轮换后
+/// 旧钥在各桥 env 退役、回退值会被桥拒绝而自然失
+/// 效。回退在轮换完成后下一版删除。注意：设置页的
+/// 逐项状态只认分项本体（scopedValue），不许拿回退
+/// 的可用冒充已分权。
+enum BridgeKeyStore {
+    /// 客户端实际取钥：分项优先、旧钥过渡回退
+    static func read(_ scope: BridgeKeyScope) -> String? {
+        if let scoped = scopedValue(scope) {
+            return scoped
+        }
+        return WriteGateKeyStatus.sanitizedForStorage(
+            KeychainStore.read(account: CredentialKey.writeGateKey)
+        )
+    }
+
+    /// 分项本体（设置页逐项状态专用，不含回退）
+    static func scopedValue(_ scope: BridgeKeyScope) -> String? {
+        WriteGateKeyStatus.sanitizedForStorage(
+            KeychainStore.read(account: CredentialKey.bridgeKey(scope))
+        )
+    }
 }
 
 /// Keychain 薄封装（kSecClassGenericPassword）。

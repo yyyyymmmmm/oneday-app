@@ -730,7 +730,7 @@ struct ConnectorsView: View {
 
             if case .notConfigured = state {
                 Section {
-                    Text("审批桥钥匙还没在这台手机上设置：本机三条桥共用同一把钥匙，没设时不会发出任何探活请求。到「审批桥钥匙」里粘贴设置后，回到本页下拉刷新即可。")
+                    Text("桥钥匙还没在这台手机上设置：本机服务靠桥钥匙探活，没设时不会发出任何探活请求。到「设置 · 桥钥匙」里粘贴或导入钥匙组后，回到本页下拉刷新即可。")
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.vertical, OneDayMetrics.spacingS)
@@ -771,7 +771,7 @@ struct ConnectorsView: View {
         case .writeGate:
             entryRow("记忆") { jumpAgent(.memory) }
             entryRow("技能") { jumpAgent(.skills) }
-            entryRow("审批桥钥匙") { jumpSettings(.writeGateKey) }
+            entryRow("桥钥匙") { jumpSettings(.writeGateKey) }
         case .oneDayBridge:
             entryRow("目标") { jumpTab(.goals) }
             entryRow("点子") { jumpTab(.ideas) }
@@ -961,7 +961,7 @@ struct ConnectorsView: View {
             case .noKey:
                 return .keyNotConfigured
             case .unauthorized:
-                return .failure("审批桥钥匙被拒（401）")
+                return .failure("桥钥匙被拒（401）")
             case .bridgeMissing:
                 return .failure("审批桥端点不存在（404）")
             case .recordGone:

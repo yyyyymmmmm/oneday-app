@@ -13,8 +13,9 @@ import Foundation
 /// 状态真实纪律（与 ConnectorCatalog 同）：状态只
 /// 来自进页当场探活——正常＝本次探活成功；异常＝
 /// 本次探活失败（错误原文随状态带出、上详情显）；
-/// 未配置＝专指审批桥钥匙未设置（三桥共用同一把钥
-/// 匙，钥匙没设时客户端根本不发请求，noKey 结局映
+/// 未配置＝专指桥钥匙未设置（0.32.1 起各桥分项钥、
+/// 未配分项时回退旧共用钥；两处皆空时客户端根本不
+/// 发请求，noKey 结局映
 /// 射到此档，不许探成异常）；读取中＝首帧未回。不
 /// 设「上次结果」缓存位，视图每次进页/下拉重探。
 
@@ -109,7 +110,7 @@ public enum LocalServiceProbeOutcome: Equatable, Sendable {
     case success(metric: String?)
     /// 探活失败（人话错误原文，详情显）
     case failure(String)
-    /// 审批桥钥匙未设置（客户端未发请求）
+    /// 桥钥匙未设置（客户端未发请求）
     case keyNotConfigured
 }
 

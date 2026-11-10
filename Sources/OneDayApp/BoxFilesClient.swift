@@ -30,7 +30,7 @@ final class BoxFilesClient: @unchecked Sendable {
     }
 
     private var bridgeKey: String? {
-        KeychainStore.read(account: CredentialKey.writeGateKey)
+        BridgeKeyStore.read(.box)
     }
 
     /// GET /files?path= → 与 FilesListing 同构的列表

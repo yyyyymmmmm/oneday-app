@@ -60,6 +60,9 @@ struct SettingsView: View {
     /// 不碰钥匙原文；由 Keychain 回读派生（refreshWrite-
     /// GateKeyStatus），行值位只显「已设置／未设置」
     @State private var writeGateKeyStatus: WriteGateKeyStatus = .notSet
+    /// 桥钥匙组已配置分项数（0.32.1，F03/R8）：与旧钥
+    /// 状态一起派生「桥钥匙」行汇总文案，只存计数
+    @State private var bridgeKeyScopedCount: Int = 0
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -348,7 +351,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.32.0")
+            Text("OneDay v0.32.1")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
@@ -380,10 +383,10 @@ struct SettingsView: View {
             // 到；0.22.0 值位撤除后本行改状态副行形态
             // 保住这条（statusNavRow），不回行尾小字
             statusNavRow(
-                icon: "key", title: "审批桥钥匙",
+                icon: "key", title: "桥钥匙",
                 status: appState.overviewBridgeAuthFailed
                     ? "桥未连接"
-                    : (writeGateKeyStatus == .set ? "已设置" : "未设置"),
+                    : bridgeKeyGroupStatusText,
                 route: .writeGateKey
             )
             // 0.27.0：主线会话链接状态如实展示——已链
@@ -857,13 +860,30 @@ struct SettingsView: View {
         }
     }
 
-    /// 审批桥钥匙状态回读（与 WriteGateKeySettingsView
-    /// 同一读法：KeychainStore＋CredentialKey.writeGateKey，
-    /// 即 WriteGateClient 的读取键；只派生状态、不留原文）
+    /// 桥钥匙状态回读（与 WriteGateKeySettingsView 同一
+    /// 读法：分项走 BridgeKeyStore.scopedValue、旧钥走
+    /// CredentialKey.writeGateKey；只派生状态、不留原文）
     private func refreshWriteGateKeyStatus() {
         writeGateKeyStatus = WriteGateKeyStatus.resolve(
             storedValue: KeychainStore.read(account: CredentialKey.writeGateKey)
         )
+        bridgeKeyScopedCount = BridgeKeyScope.allCases.filter {
+            BridgeKeyStore.scopedValue($0) != nil
+        }.count
+    }
+
+    /// 钥匙组汇总文案（0.32.1，F03/R8 诚实口径）：分项
+    /// 配齐显「已分权」；部分配置如实报数；一项未配时
+    /// 旧钥在＝过渡态、旧钥不在＝未设置——不许拿回退
+    /// 的可用冒充已分权
+    private var bridgeKeyGroupStatusText: String {
+        if bridgeKeyScopedCount == BridgeKeyScope.allCases.count {
+            return "已分权 · \(bridgeKeyScopedCount)/\(BridgeKeyScope.allCases.count)"
+        }
+        if bridgeKeyScopedCount > 0 {
+            return "已配置 \(bridgeKeyScopedCount)/\(BridgeKeyScope.allCases.count)"
+        }
+        return writeGateKeyStatus == .set ? "旧钥匙（过渡）" : "未设置"
     }
 
     /// 0.22.0 瘦身：值位撤除后本页只剩 status 一个数
