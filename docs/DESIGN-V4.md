@@ -7322,11 +7322,44 @@ def greet(name):
 4. 附件条（件四）：加一张图——缩略图贴卡左起、不再居中；多图横滚如常；引用块同卡形态不回归。
 5. 枢纽右滑（件五）：状态页等任一推入页右滑能返回（系统 pop）；枢纽根页左缘起手右滑过线即退出（页面中央起手的横拖不误退）；浏览器段右滑不误退；枢纽内纵滚从左缘起手不受扰。
 
-## §98 频道与对话整理包（方案 A 一期）：三层分类＋抽屉频道区＋Hermes 频道页＋全部对话页分段换代（0.36.29/96，2026-11-11）
+## §98 热修包 0.36.29/96：附件条第五轮＋首句消失自愈＋文件真发送（2026-11-11，插队包）
 
-版本五处同改 0.36.29/96＋grep 验（Project.swift 四处＋设置页脚；合并出号时主线终定）。规格＝`~/workspace/oneday-design-review/channels-conversations-design-20261110.md`（用户 2026-11-10 20:02 拍板方案 A）；与规格冲突处以规格为准、本节逐条对账。**时序依赖已满足**：台账 App 半已随 0.36.27 合入、伴生 1.0.3 已部署（规格 §6「本包不得先于台账单独发版」成立）。**生产全量分类人工对账（规格 §9-6）是主线合并前置，本包未做、未碰生产**；施工验证只用本地构造数据（单测）。
+版本五处同改 0.36.29/96＋grep 验（Project.swift 四处＋设置页脚）。诊断依据：`~/workspace/oneday-design-review/attachment-tray-round5-diagnosis-20261111.md`（三题定案）与 `file-upload-contract-20261111.md`（文件契约实测冻结，用户 04:34 亲批、04:52 冻结）。频道包（0.36.29 原号）顺延。
 
-### 98.1 Core 分类器（新文件 SessionClassification.swift）
+### 98.1 件一·附件条（P-13 第五轮，范畴错误定案）
+
+- **§97.4 件四的「真定案」作废**：0.36.28 真机复验仍居中。第五轮诊断定案——四轮全灭的共同死因是**范畴错误**：条的横向位置由父栈（条＋分隔线包装 VStack）**自身的 `alignment:` 参数**决定，该参数四轮一直默认 `.center`、从未被改；四轮改的全是 `.frame(maxWidth:alignment:)`——frame 的 alignment 只决定「被修饰视图在 frame 内怎么放」，管不到栈内子视图。Stream/Exyte 不居中的真因亦复核：两家的条直挂根栈、无包装栈这一层（诊断报告题 A §3）。
+- 落法（一处）：包装栈改 `VStack(alignment: .leading, spacing: 0)`（ChatView.swift 约 2553 行）；第 4 轮挂在包装栈上的 frame claim 经定案属无效修饰、一并删除。条本体、HStack、卡根栈零改动（报告「不要再动的」清单全守）。
+- 错题本 P-13 同步订正：现行「真定案」条（第 4 轮口径）作废标注＋新定案条（见错题本续案五）。
+
+### 98.2 件二·首句消失自愈（题 B，等级中）
+
+- 定案边界（诊断报告题 B）：服务端没丢——问题会话 `oneday-side-9fcba1db…` 存档里 user「你好」（id 899）完好；丢失在 App 本地呈现层。发送/落盘/导入/落定四链静态逐行排除，剩余嫌疑收敛到「新建旁聊＋线程切换＋首发同瞬间」的本地时序缝，**未证死**（等级中）：能确定的边界是「服务端有、App 显示线程没有、已知链路都不删」。
+- 修法（自愈式，不赌竞态）：落定时已拉取的 transcript 为锚做对账补缺——Core `RunTranscriptSettle.missingUserMessages`（内容去空白＋时间窗 600s、按时间序贪心配对、同文重复靠配对消耗区分；hidden/空白行不作锚；**只补 user、助手条目永不补造**）；App 在 `settleRunFromTranscript` 拉到 transcript 后、段落定之前调 `healMissingUserEntries` 补回呈现层（createdAt 以存档时刻为准）。发送链、落盘删除面不动。
+- 留证：补缺发生时经 `ChatDiagTrace` 记一条（会话 id＋补回条数，Logger＋UserDefaults 快照双写、沿听写诊断口径），供回收一轮后升格定案或排除时序说。
+- 钉测 +5（RunTurnTests 对账组：缺条补回/无缺不动/助手不补造/同文时间窗/hidden 与空白跳过）。
+
+### 98.3 件三·选文件静默失败改出声（题 C①）
+
+- 定案断点：`loadPickedFiles` 首行 `guard case .success = result else { return }` 把 `.failure` 静默吞掉（iCloud 未下载文件、第三方云盘提供方出错时系统回 Error 而非 URL）——全函数唯一无声出口，与「选了没反应」精确吻合。
+- 落法：failure 分支改写 notice 人话（「这个文件没能读取，可能还在云端未下载到本机，请先在「文件」App 里把它下载到本机再选。」）＋错误原文经 ChatDiagTrace 落诊断面；success 空数组同处理（notice 出声）。**防线口径：该函数所有 guard 出口必须有声**——本轮逐一自查：failure ✓出声、空数组 ✓出声、读取失败 ✓原有 notice、超 20MB ✓原有 notice、成功 ✓入条即反馈，无剩余无声出口。
+
+### 98.4 件四·文件真发送（题 C②，契约冻结后开放）
+
+- 契约（实测冻结）：原预设端点 `/api/chat/file-upload` 本部署未启用（404）——**不用它、不提启用**。走现成通道：`POST 9119 /api/files/upload`（文件页已持的仪表盘会话同款，`performAdmin` 通道），JSON `{path:"attachments/<文件名>", data_url:"data:<mime>;base64,…", overwrite:true}`，回执取 `entry.path` 绝对路径；发送 run 的 input 文本尾逐个拼 `@file:<绝对路径>`（网关入站展开：文本全文内联、二进制给路径块供智能体自取；含空格/括号的路径按 `_format_ref_value` 规则引号包裹）。
+- 落点：Core `FileSendAssembly`（落点路径/data_url/@file 引用/文本尾拼接/尾条消息拼装，钉测 +10）；HermesClient 新增解码版 `uploadAttachment`（与文件页 uploadFile 同端点同 180s 超时、只差解码回执；Demo 客户端同形回执）；ChatView send 链——sendTask 起手逐个上传攒回执路径、shape 定形后拼进尾条（引用只属本轮、不进本地落盘条目与历史重放）、3485–3492 一带「文件直发尚未开放」notice 退役。
+- **失败必须有声且整条拦下**：任一文件上传失败或回执无落点 → 删本轮条目、输入与附件原样退回发送舱、errorMessage 点名文件＋人话原因（与链接失败同舞步）；不许丢下文件只发文本。选文件侧 20MB 闸保留（服务端托管路上限 100MiB，本轮不改闸）。
+- 边界记账：服务端 `attachments/` 副本**无自动过期**，本轮只记账、不做清理策略，后续如需清理另立项。
+
+### 98.5 单测与状态
+
+- 单测 944 → **959**（+15：对账 5＋文件拼装 10；本机无 Swift 工具链，grep 点清、终判等主线合并后 CI）。
+- 四件状态：均已修待真机验。复验口径：①附件条挂 1 图/3 图贴左（起点与引用块左缘对齐）、8+ 图横滚始端锚定、文件宽牌同验；②新建旁聊首发一句、回复落定后首句在列；③从 iCloud 选一个未下载文件——出声提示而非没反应；④选本地文件发送——智能体能复述文件内容（口令级验证），上传失败场景（断网选发）整条拦下且点名文件。
+## §99 频道与对话整理包（方案 A 一期）：三层分类＋抽屉频道区＋Hermes 频道页＋全部对话页分段换代（0.36.30/97，2026-11-11）
+
+版本五处同改 0.36.30/97＋grep 验（Project.swift 四处＋设置页脚；本包施工时自设 0.36.29/96、与插队的 0.36.29 热修包撞号，合并时统一改 0.36.30/97；本节原编号 §98 因热修包先行占用、顺延为 §99）。规格＝`~/workspace/oneday-design-review/channels-conversations-design-20261110.md`（用户 2026-11-10 20:02 拍板方案 A）；与规格冲突处以规格为准、本节逐条对账。**时序依赖已满足**：台账 App 半已随 0.36.27 合入、伴生 1.0.3 已部署（规格 §6「本包不得先于台账单独发版」成立）。**生产全量分类人工对账（规格 §9-6）是主线合并前置，本包未做、未碰生产**；施工验证只用本地构造数据（单测）。
+
+### 99.1 Core 分类器（新文件 SessionClassification.swift）
 
 - **规则链 R0→R9 逐条落点**（`SessionClassifier.classify`，命中即定）：R0 主线＝`SideChatClassifier.isMain` 双信号（与各名单面同一函数）；R1 合并桶＝`SideChatLink.isMergeBucket` 钦定两条（先于 R2——绑桶线程在分类侧恒只读特例，发送侧「按未链接处理」是 0.27.0 发送口径、两事分开）；R2 本地关联（入参 `linkedThreadSessionIDs`）＋例外谓词（有效来源非用户通道则不升级、分类跟随会话续判）；R3 `oneday-side-` 前缀（常量 `appSideSessionPrefix`，与 `SideChatLink.newSessionID` 生成式同源注释）；R4 `oneday-` 前缀余部（复用 `SideChatLink.ownSessionPrefix`）；R5 结构性系统源集合 {kanban, cron, cron_job, scheduler}；R6 平台源集合→`.channel(平台名)`；R7 {dashboard, cli}→`.channel("hermes")`；R8/R9 同归 Hermes 频道。
 - **有效来源**：source 归一（去空白/小写/空归 nil）优先，缺失时以 session_key 第三段（平台段）回落（`SessionSources.sessionKeyPlatformSegment`，形如 `agent:main:<平台>:dm:<id>`，state.db 留底形态）。
@@ -7337,7 +7370,7 @@ def greet(name):
 - **分筐** `SessionClassifier.partition` 保入序出 `SessionPartition`（main/mergeBuckets/mine/system/channels 四筐＋频道 id 分筐）；Hermes 频道成员谓词含合并桶（`hermesChannelCount`＝普通频道行＋桶行）。分筐不声明 Equatable（ServerSession 本体只有 Decodable 口径）。
 - **单测**：新增 `SessionClassificationTests` 29 法（R0–R9 逐条＋命中顺序 R0>R2、R1>R2、R3>R5、R2 例外三路、session_key 回落三路、归一、常量同源、分筐保序、成员谓词、注册表）；`DrawerSelectionTests` 补 3 法（§10.4-④⑤＋频道引用在非聊天表面休眠）。基线 944 → **976（+32）**，终判等主线合并后 CI。
 
-### 98.2 选择政策加值（§10 落地）
+### 99.2 选择政策加值（§10 落地）
 
 - `DrawerCurrentObject` 与 `DrawerSelection` 各加 `.channel(String)`，`DrawerSelectionPolicy.resolve` 同步加分支——**在 0.36.7 既有政策上加值，不另起一套**（规格 §10.2 本包扩展口径）；优先级不变（表面 > 显式引用 > 落点派生）。
 - **出处维护**：Core 新 `ChannelViewingOrigin{channelID, sessionID}`；AppState 加两通道——`pendingChatChannelID`（频道页点行先置标记、再走既有 onOpenSession 置 pendingChatSessionID）与 `channelViewingOrigin`（出处本体）。
@@ -7345,21 +7378,21 @@ def greet(name):
 - **同步点收敛**：currentThreadID 变更点与 onAppear 初始同步改共用 `syncDrawerObjectFromCurrentThread()`——出处与当前线程关联会话对得上时维持 `.channel`（收养导入线程渲染期间不派生成 .side），对不上即清出处回普通派生。§10.4-⑤（收养后从旁聊区重进同一条→胶囊归旁聊行）靠抽屉旁聊行点按先行清出处成立；主线行点按同清。删除线程的「是否当前」判定补 `.channel` 态一路（正从频道看着的收养线程被删须通知 ChatView 置空，旧 .side/.main 两判覆盖不到）。
 - **未动**：activeThreadID 消费面无新增（0.36.7 已退役口径不变）；底栏不在辖区（§10.2）。
 
-### 98.3 抽屉频道区（§3 落地）
+### 99.3 抽屉频道区（§3 落地）
 
 - 位置：管理行 → 发丝线 → **「频道」分区头＋Hermes 行** → 发丝线 → 旁聊区（面先于条）；显隐＝分类后 Hermes 频道会话数 ≥1（合并桶计入），整区（含其下发丝线）随空态一并收起。
 - 数据源：复用开抽屉既有那一路拉取（`drawerServerSessions`，limit 100）现算 `SessionClassifier.partition`，**不新增拉取**；关联集走 App 层 `ThreadLinkage.nonMainLinkedSessionIDs`（三面共用派生：非主线线程的关联 id 集，主线判定走 Core 双信号）。limit 100 漏判边界沿规格 §8-5 登记（只影响呈现）。
 - 行形态：导航行档（图标槽 28＋Body 17＋drawerRowHeight＋选中胶囊问单一政策），行尾 chevron；**不给计数徽标、不给最近时间**（§3.2：抽屉口径与全量不一致，挂数即假新鲜）；图标用注册表资产 LocalHermes（资产缺位时 SF 符号兜底分支只为注册表完备、一期不触发）。
 
-### 98.4 Hermes 频道页（§4 落地，新文件 HermesChannelView.swift）
+### 99.4 Hermes 频道页（§4 落地，新文件 HermesChannelView.swift）
 
 - 承载：全屏页（ContentView 与全部对话页两入口各自 fullScreenCover 呈现**同一个** HermesChannelView，不新造容器、不两套实现）；页头标题「Hermes」＋副题取注册表人话句（不出现 source 原值）。
 - 名单：分筐 Hermes 频道成员（普通行＋合并桶行）按 startedAt 倒序统一重排（两筐各自保序、合并后按时间定序，§4.1）；普通行复用 `ServerSessionRow`（标题 resolvedTitle 管线经 titleOverrides→sessionTitles 同管理页口径、副题 humanSubtitle、长按四件与写后回读对账纪律不变）。
-- 续聊与收养：普通行点按先置 `pendingChatChannelID` 再走宿主 onOpenSession（pendingChatSessionID 通道）；收养升层与 notice 在 ChatView 消费口（98.2）。页内无搜索。
+- 续聊与收养：普通行点按先置 `pendingChatChannelID` 再走宿主 onOpenSession（pendingChatSessionID 通道）；收养升层与 notice 在 ChatView 消费口（99.2）。页内无搜索。
 - **合并桶特例行**：行尾小字标「旧合并记录」，**不挂长按菜单**（不走 ServerSessionRow，其本体自带四件，与只读口径冲突）；点开经值路由进 `ServerSessionDetailView(readOnly: true)`——详情页新增只读形态（隐藏删除区、零写请求），其余入口默认 false 行为不变。管理页对桶的既有警告链与删除闸未动。
 - 空态：EmptyState「还没有从其他地方来的对话」＋来历说明一句。数据层 `HermesChannelStore` 分页拉全未归档集（limit 100×10 页，与管理页 fetchAll 同口径）＋标题素材预算 12。
 
-### 98.5 全部对话页改造（§5 落地＋退役清单）
+### 99.5 全部对话页改造（§5 落地＋退役清单）
 
 - 分段：主线（不变）／**我的对话**（分类 mine，置顶先行沿旧行序；默认落地段自 .station 改此段）／**频道**（频道总览：Hermes 行＋会话数小字——本页分页拉全口径、数可信，与抽屉不给数分工；点行进频道页）／已归档（全量减主线不变、不叠层标）／**系统**（筛选开出时末位；分类 system 全量行＋清理区）。
 - **系统筛选**：分段控件下方一行 Toggle「显示系统运行」，@State 默认关、**不落盘**；关时正处系统段回落「我的对话」。系统段行可多选批量（排障真动作），行上不叠「系统运行」标（本段本身即系统）。
@@ -7368,7 +7401,7 @@ def greet(name):
 - **退役清零**（规格 §5.3）：`Segment.station/.external` 及「站内」「通道未开通」文案、`stationSessions`、「全量减主线」分类口径、`externalContent` 空态、站内段清理区挂载点、默认段 .station——全仓 grep 仅余沿革注释。服务端搜索不变（跨层全量、副题带来源标签）。
 - 本页新增 `@Query threads` 供分类关联集（三面同一 ThreadLinkage 派生）。
 
-### 98.6 与规格的偏差与未决项（如实）
+### 99.6 与规格的偏差与未决项（如实）
 
 1. **§9 实测清单（1/2/3/4/5）未做**：本包不碰生产（任务书明示）；R5 parent 分支、R8 自由形态最终归属、sidebar 端点交叉校验都等实测结论，其中 §9-2 是 R8 的前置闸（未过前默认频道已守住）、§9-6 生产全量分类人工对账是主线合并前置。
 2. **频道页名单排序**：规格 §4.1 只说 startedAt 倒序「与管理页服务端序一致」；分筐后两筐合并的相对序无从复原，本包按 startedDate 显式倒序重排（与服务端序同果）。
@@ -7376,7 +7409,7 @@ def greet(name):
 4. **二期扩展位只留未做**（规格 §7）：外部频道行与镜像页（注册表已备派生）、跳回原应用深链、频道未读计数、系统行反查台账。服务端分类字段/接口未动、分类结果未落库、合并桶本体零写——均守规格「明确不做」。
 5. **手势面零新增**：本包未加任何手势/手势桥（频道页与各段全走系统 List/Button/NavigationLink 原生件），全面原生令无待批项。
 
-### 98.7 真机复验清单
+### 99.7 真机复验清单
 
 1. 抽屉：Hermes 频道有存量时管理行下出现「频道」区＋Hermes 行（图标为定制图面、行尾 chevron、无计数）；频道为空时整区不显示、无空头残留。
 2. 频道页：名单按时间倒序、副题来源标签人话；普通行点开续聊后回抽屉——该会话已进旁聊区、频道名单刷新后该行消失；首次收养时聊天页有一行「已转入我的对话」。

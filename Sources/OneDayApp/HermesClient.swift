@@ -308,6 +308,13 @@ protocol HermesClientProtocol: Sendable {
     func uploadFile(
         config: ServerConfig, path: String, dataURL: String, overwrite: Bool
     ) async throws
+    /// 同端点解码版（0.36.29 文件真发送）：发送拼装
+    /// 要回执 entry.path 拼 @file 引用，不能走「回读
+    /// 对账」的哑版；契约见 file-upload-contract-
+    /// 20261111（attachments/ 落点＋回执形态实测冻结）
+    func uploadAttachment(
+        config: ServerConfig, path: String, dataURL: String
+    ) async throws -> ManagedFileUploadReceipt
     /// POST /api/files/mkdir {path}（openapi
     /// ManagedDirectoryCreate，同上口径，回读确认）
     func makeDirectory(config: ServerConfig, path: String) async throws
@@ -1614,6 +1621,41 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             ],
             timeout: 180
         )
+    }
+
+    func uploadAttachment(
+        config: ServerConfig, path: String, dataURL: String
+    ) async throws -> ManagedFileUploadReceipt {
+        // 与 uploadFile 同端点同超时（data_url 体积约
+        // 原始 1.37 倍），差异只在解码回执取 entry
+        // .path；回执不合格（无绝对路径）在调用方判
+        // 失败有声，不在此处吞
+        var request = URLRequest(
+            url: config.endpoint("/api/files/upload")
+        )
+        request.httpMethod = "POST"
+        request.timeoutInterval = 180
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        request.httpBody = try encoder.encode([
+            "path": JSONValue.string(path),
+            "data_url": JSONValue.string(dataURL),
+            "overwrite": JSONValue.bool(true),
+        ])
+        let (data, http) = try await dataRequest(request)
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.unexpectedStatus(
+                endpoint: "文件上传", status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(
+                ManagedFileUploadReceipt.self, from: data
+            )
+        } catch {
+            throw HermesError.decodingFailed(endpoint: "文件上传")
+        }
     }
 
     func makeDirectory(config: ServerConfig, path: String) async throws {

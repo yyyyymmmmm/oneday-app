@@ -965,6 +965,16 @@ struct DemoHermesClient: HermesClientProtocol {
         config: ServerConfig, path: String, dataURL: String, overwrite: Bool
     ) async throws {}
 
+    func uploadAttachment(
+        config: ServerConfig, path: String, dataURL: String
+    ) async throws -> ManagedFileUploadReceipt {
+        // 演示态：回执按真契约形态拼一条（托管根
+        // /opt/data＋相对路径），发送拼装可全程走通
+        return ManagedFileUploadReceipt(
+            ok: true, entry: nil, path: "/opt/data/" + path
+        )
+    }
+
     func makeDirectory(config: ServerConfig, path: String) async throws {}
 
     func fileData(config: ServerConfig, path: String) async throws -> Data {

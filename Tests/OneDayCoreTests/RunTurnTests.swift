@@ -502,4 +502,117 @@ final class RunTurnTests: XCTestCase {
         XCTAssertTrue(settled.found)
         XCTAssertEqual(settled.finalText, "第一段\n\n第二段")
     }
+
+    // MARK: - 落定对账补缺（0.36.29，题 B 自愈）
+
+    private func timedMessage(
+        role: String, content: String, at epoch: Double,
+        displayKind: String? = nil
+    ) -> SessionMessage {
+        SessionMessage(
+            id: 0, role: role, content: content,
+            timestamp: epoch, displayKind: displayKind
+        )
+    }
+
+    func testReconcileHealsMissingFirstUserEntry() {
+        // 本案形态：服务端有 user「你好」＋助手回复，
+        // 本地线程只剩回复——user 条目应被判缺、补回
+        let missing = RunTranscriptSettle.missingUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: "你好", at: 1_000
+                ),
+                timedMessage(
+                    role: "assistant",
+                    content: "你好！有什么可以帮你的？",
+                    at: 1_001
+                ),
+            ],
+            localUserEntries: []
+        )
+        XCTAssertEqual(missing.map(\.content), ["你好"])
+    }
+
+    func testReconcileNoMissingWhenAnchorPresent() {
+        let missing = RunTranscriptSettle.missingUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: "你好", at: 1_000
+                ),
+                timedMessage(
+                    role: "assistant", content: "在。", at: 1_001
+                ),
+            ],
+            localUserEntries: [
+                (content: "你好",
+                 createdAt: Date(timeIntervalSince1970: 999))
+            ]
+        )
+        XCTAssertTrue(missing.isEmpty)
+    }
+
+    func testReconcileNeverFabricatesAssistantEntries() {
+        // 助手条目本地缺失也不归本对账管：只补 user
+        let missing = RunTranscriptSettle.missingUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: "问题", at: 2_000
+                ),
+                timedMessage(
+                    role: "assistant", content: "答复", at: 2_001
+                ),
+            ],
+            localUserEntries: [
+                (content: "问题",
+                 createdAt: Date(timeIntervalSince1970: 2_000))
+            ]
+        )
+        XCTAssertTrue(missing.isEmpty)
+    }
+
+    func testReconcileDuplicateContentUsesTimeWindow() {
+        // 同文两发：本地只剩第二句（两小时后），缺的
+        // 是第一句——时间窗防把第二句的本地条目错配
+        // 给第一句、再把第二句误判为缺
+        let missing = RunTranscriptSettle.missingUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: "你好", at: 1_000
+                ),
+                timedMessage(
+                    role: "assistant", content: "在。", at: 1_001
+                ),
+                timedMessage(
+                    role: "user", content: "你好", at: 8_200
+                ),
+                timedMessage(
+                    role: "assistant", content: "在。", at: 8_201
+                ),
+            ],
+            localUserEntries: [
+                (content: "你好",
+                 createdAt: Date(timeIntervalSince1970: 8_200))
+            ]
+        )
+        XCTAssertEqual(missing.map(\.id), [0])
+        XCTAssertEqual(missing.map(\.content), ["你好"])
+        XCTAssertEqual(missing.first?.timestamp, 1_000)
+    }
+
+    func testReconcileSkipsHiddenAndBlankUserRows() {
+        let missing = RunTranscriptSettle.missingUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: "内部行", at: 3_000,
+                    displayKind: "hidden"
+                ),
+                timedMessage(
+                    role: "user", content: "  ", at: 3_001
+                ),
+            ],
+            localUserEntries: []
+        )
+        XCTAssertTrue(missing.isEmpty)
+    }
 }

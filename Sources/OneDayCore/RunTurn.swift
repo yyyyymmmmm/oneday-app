@@ -581,4 +581,55 @@ public enum RunTranscriptSettle {
             failed: false, failureText: nil
         )
     }
+
+    /// 落定对账补缺（0.36.29，题 B 自愈）：服务端存档
+    /// 里有、本地线程里缺的 user 条目清单——新建旁聊
+    /// 首发出现过「服务端存档完好、本地线程只剩助手
+    /// 回复」的丢失（诊断定案等级中：发送/落盘/导入/
+    /// 落定四链静态排除，时序缝未证死），落定时以存
+    /// 档为锚自愈，不依赖先证死竞态。
+    /// 匹配口径：内容（去首尾空白）＋时间窗——服务
+    /// 端 user 行与本地 user 条目按时间序贪心配对，
+    /// 同文重复发送（如连发两句「你好」）靠配对消耗
+    /// 区分、不误补不漏补；hidden 行与空白行不作锚
+    /// （与服务端读面口径同）；**只补 user**——助手
+    /// 条目由 settle 段落定自理，此处永不补造
+    public static func missingUserMessages(
+        messages: [SessionMessage],
+        localUserEntries: [(content: String, createdAt: Date)],
+        timeWindow: TimeInterval = 600
+    ) -> [SessionMessage] {
+        let serverUsers = messages.filter {
+            $0.role == "user" && $0.displayKind != "hidden"
+                && !$0.content.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ).isEmpty
+        }
+        var locals = localUserEntries.sorted {
+            $0.createdAt < $1.createdAt
+        }
+        var missing: [SessionMessage] = []
+        for server in serverUsers {
+            let serverText = server.content.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            let pairedIndex = locals.firstIndex { local in
+                guard local.content.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ) == serverText else { return false }
+                guard let serverDate = server.date else {
+                    return true
+                }
+                return abs(
+                    local.createdAt.timeIntervalSince(serverDate)
+                ) <= timeWindow
+            }
+            if let pairedIndex {
+                locals.remove(at: pairedIndex)
+            } else {
+                missing.append(server)
+            }
+        }
+        return missing
+    }
 }
