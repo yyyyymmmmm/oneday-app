@@ -1,6 +1,7 @@
 import OneDayCore
 import OneDayDesign
 import SwiftUI
+import UIKit
 import XCTest
 
 /// 0.23.0 整机视觉定向的三设置检查闸（审计 G1/G2/G3
@@ -100,6 +101,38 @@ final class VisualDirectionGateTests: XCTestCase {
         )
     }
 
+    /// α 合成对比（0.36.1，批一B）：暗档标签/fill 改挂
+    /// α 语义色后，resolve 的 rgb 通道是未合成原值——
+    /// 须按 α 把前景压在背景上再算（审计 D3/D4/D5 的
+    /// 实算口径）。UIColor 解析与 RenderMeasure 同路
+    private func compositedRatio(
+        _ foreground: Color, on background: Color, dark: Bool
+    ) -> Double {
+        let traits = UITraitCollection(
+            userInterfaceStyle: dark ? .dark : .light
+        )
+        func rgba(
+            _ color: Color
+        ) -> (red: Double, green: Double, blue: Double, alpha: Double) {
+            var r: CGFloat = 0, g: CGFloat = 0
+            var b: CGFloat = 0, a: CGFloat = 0
+            UIColor(color).resolvedColor(with: traits)
+                .getRed(&r, green: &g, blue: &b, alpha: &a)
+            return (Double(r), Double(g), Double(b), Double(a))
+        }
+        let f = rgba(foreground)
+        let b = rgba(background)
+        let composited = (
+            red: f.red * f.alpha + b.red * (1 - f.alpha),
+            green: f.green * f.alpha + b.green * (1 - f.alpha),
+            blue: f.blue * f.alpha + b.blue * (1 - f.alpha)
+        )
+        return WCAGContrast.ratio(
+            foreground: composited,
+            background: (red: b.red, green: b.green, blue: b.blue)
+        )
+    }
+
     func testTextContrastGates() {
         // 浅色：正文与次级文字在页面底上 ≥4.5
         XCTAssertGreaterThanOrEqual(
@@ -124,15 +157,63 @@ final class VisualDirectionGateTests: XCTestCase {
             ),
             4.5
         )
-        // 暗色：同三对在暗色派生值上同样达标
+        // 暗色（0.36.1 改口径）：标签暗档改挂 α 语义色
+        // 后必须按合成值算——次墨在三面（页底/卡面/泡
+        // 面）自适应达标（实算 6.36/5.94/5.29），主墨
+        // 纯白对纯黑页底充裕
         XCTAssertGreaterThanOrEqual(
-            ratio(Palette.inkSecondary, on: Palette.pageBG, dark: true),
+            compositedRatio(
+                Palette.inkSecondary, on: Palette.pageBG, dark: true
+            ),
             4.5
         )
         XCTAssertGreaterThanOrEqual(
-            ratio(
+            compositedRatio(
+                Palette.inkSecondary, on: Palette.surface, dark: true
+            ),
+            4.5
+        )
+        XCTAssertGreaterThanOrEqual(
+            compositedRatio(
                 Palette.inkSecondaryOnFill, on: Palette.bubbleFill,
                 dark: true
+            ),
+            4.5
+        )
+        XCTAssertGreaterThanOrEqual(
+            compositedRatio(
+                Palette.ink, on: Palette.pageBG, dark: true
+            ),
+            4.5
+        )
+        // 暗档可见性闸（0.36.1，审计 D4/D5）：分隔线与
+        // 发丝描边、选中填充压卡面合成对比 ≥1.4——旧
+        // 实色口径分别为 1.17/1.17/1.12 近乎消失，新
+        // 语义口径实算 1.60/1.45/1.48
+        XCTAssertGreaterThanOrEqual(
+            compositedRatio(
+                Palette.separator, on: Palette.surface, dark: true
+            ),
+            1.4
+        )
+        XCTAssertGreaterThanOrEqual(
+            compositedRatio(
+                Palette.hairline, on: Palette.surface, dark: true
+            ),
+            1.4
+        )
+        XCTAssertGreaterThanOrEqual(
+            compositedRatio(
+                Palette.selectionFill, on: Palette.surface, dark: true
+            ),
+            1.4
+        )
+        // 危险钉暗档版：inkMuted（tertiaryLabel α0.30）
+        // 合成后仍不达标（实算 2.24）——非文字角色的
+        // 理由在暗档同样钉住
+        XCTAssertLessThan(
+            compositedRatio(
+                Palette.inkMuted, on: Palette.pageBG, dark: true
             ),
             4.5
         )

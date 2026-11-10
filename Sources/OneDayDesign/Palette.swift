@@ -1,5 +1,6 @@
 import OneDayCore
 import SwiftUI
+import UIKit
 
 // MARK: - 语义色角色层（0.6.1：OpenMuse 令牌接管）
 // 沿革：0.4.0 降级为系统语义色命名引用层 → **0.6.1 起整表
@@ -15,6 +16,10 @@ import SwiftUI
 // 系统语义色挂接随本版退役：色值全部字面直给（动态色
 // 按 traits 解析），防系统灰阶的蓝紫漂移重演（0.4.1
 // 第 6 修的教训改以钉值单测守，见 RenderMeasureTests）。
+// 0.36.1 口径变更（批一B／审计 D1–D6）：上段「字面直
+// 给」自本版起只辖浅档——暗档整表改挂苹果语义体系
+// （见 appleColor 注），派生色板退役；防漂移改由解析
+// 值钉＋合成对比闸把守。浅档 OpenMuse 原值一字未动。
 /// OpenMuse 令牌动态色构造：浅色取它源码原值，暗色取
 /// 同色相派生值（注释逐项注明）。
 private func omColor(
@@ -44,50 +49,107 @@ private func themedColor(light: UInt32, dark: UInt32) -> Color {
     omColor(light: omHex(light), dark: omHex(dark))
 }
 
+/// 苹果语义档构造（0.36.1，批一B／审计 D1–D6）：浅档
+/// 仍取 OpenMuse 原值字面（浅色已定版、本批不动），
+/// 暗档改挂 UIKit 语义色——构造时以暗 traits 解析为
+/// 具体值（含 α）直给。α 定义的档（标签/fill）渲染时
+/// 压在任何面上按比例自适应，这正是语义体系的本义、
+/// 字面 hex 无法表达：0.6.1「色值全部字面直给」旧口
+/// 径自本版起只辖浅档，暗档整表归苹果语义体系（用户
+/// 2026-11-10 17:20 总原则＋S19 宪法为单一真源）。
+/// 防漂移不再靠钉字面值：改由 RenderMeasureTests 的
+/// 解析值钉＋VisualDirectionGateTests 的合成对比闸
+/// 把守（双模式）。回滚基线＝本文件单文件回退。
+private func appleColor(light: UInt32, dark: UIColor) -> Color {
+    let darkResolved = dark.resolvedColor(
+        with: UITraitCollection(userInterfaceStyle: .dark)
+    )
+    let (lr, lg, lb) = omHex(light)
+    return Color(
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? darkResolved
+                : UIColor(red: lr, green: lg, blue: lb, alpha: 1)
+        }
+    )
+}
+
 public enum Palette {
     /// 页面底（OpenMuse canvas #FCFCFC，ui.tsx:19；
-    /// 暗色派生：以其 text #11191C 再压一档 #101619 作底）
-    public static let pageBG = omColor(
-        light: omHex(0xFCFCFC), dark: omHex(0x101619)
+    /// 暗档 0.36.1 改挂 systemBackground＝纯黑 #000——
+    /// 审计 D1：旧派生 #101619 是带蓝灰的「灰雾」基底、
+    /// 与 settingsBG 双基底并存（互比 1.03），自本版
+    /// 基底身份归一为语义 base 锚）
+    public static let pageBG = appleColor(
+        light: 0xFCFCFC, dark: .systemBackground
     )
-    /// 卡面（OpenMuse card #FFFFFF，ui.tsx:20；暗色派生
-    /// #1B2226＝底上提一级的同色相面）
-    public static let surface = omColor(
-        light: omHex(0xFFFFFF), dark: omHex(0x1B2226)
+    /// 卡面（OpenMuse card #FFFFFF，ui.tsx:20；暗档
+    /// secondarySystemBackground #1C1C1E——层级步对齐
+    /// 苹果梯：#000→#1C1C1E 步幅 1.23:1，旧派生
+    /// #1B2226 步幅被压缩且全程带蓝，审计 D2）
+    public static let surface = appleColor(
+        light: 0xFFFFFF, dark: .secondarySystemBackground
     )
     /// 助手泡（OpenMuse 助手泡 #EEEEF0，chat.tsx:593；
-    /// 暗色派生 #272E33）
-    public static let bubbleFill = omColor(
-        light: omHex(0xEEEEF0), dark: omHex(0x272E33)
+    /// 暗档 tertiarySystemBackground #2C2C2E——背景三
+    /// 级梯的第三级，旧派生 #272E33 让位）
+    public static let bubbleFill = appleColor(
+        light: 0xEEEEF0, dark: .tertiarySystemBackground
     )
-    /// 字段面（OpenMuse input 底 #FFF，ui.tsx:62；暗色
-    /// 派生随卡面 #1B2226）
-    public static let fieldFill = omColor(
-        light: omHex(0xFFFFFF), dark: omHex(0x1B2226)
+    /// 字段面（OpenMuse input 底 #FFF，ui.tsx:62；暗档
+    /// 同取三级面 #2C2C2E——字段恒落在页底/卡面上、
+    /// 取高一级使输入区在两面都可辨）
+    public static let fieldFill = appleColor(
+        light: 0xFFFFFF, dark: .tertiarySystemBackground
     )
-    /// 聊天表面（OpenMuse canvas #FCFCFC——与 0.4.1 第 10
-    /// 修的量测封存值恰同，出处自本版换为它的令牌；
-    /// 暗色派生随页面底 #101619）
-    public static let chatSurface = omColor(
-        light: omHex(0xFCFCFC), dark: omHex(0x101619)
+    /// 聊天表面（OpenMuse canvas #FCFCFC；暗档随页面
+    /// 底同锚 systemBackground #000）
+    public static let chatSurface = appleColor(
+        light: 0xFCFCFC, dark: .systemBackground
     )
     /// 选中填充（OpenMuse 底栏激活项 #F0F1F2，App.tsx:
-    /// 464——取代 0.4.1 封存的 #EEEFF1；暗色派生 #232B30）
-    public static let selectionFill = omColor(
-        light: omHex(0xF0F1F2), dark: omHex(0x232B30)
+    /// 464；暗档 0.36.1 改挂 systemFill (120,120,128,
+    /// α0.32)——压卡面合成实算 1.48:1，旧派生 #232B30
+    /// 仅 1.12:1 暗档几乎不可辨，审计 D5；本色即 fill
+    /// 四级阶梯的一级，见下方 fillPrimary）
+    public static let selectionFill = appleColor(
+        light: 0xF0F1F2, dark: .systemFill
     )
     /// 设置页底（0.20.0，用户给的 Muse 设置页真机图
     /// 口径：浅灰底托白色分组卡，图中约 #F2F2F4 级）：
-    /// 取 iOS 系统分组底同族 #F2F2F7 落点（与图中采样
-    /// 差在测量噪声内、且与系统 insetGrouped 语言同
-    /// 源）；暗色派生 #0D1214（页面底再压一档的冷灰）
-    public static let settingsBG = omColor(
-        light: omHex(0xF2F2F7), dark: omHex(0x0D1214)
+    /// 取 iOS 系统分组底同族 #F2F2F7 落点；暗档 0.36.1
+    /// 改挂 systemGroupedBackground＝#000（grouped 体
+    /// 系 base 与 systemBackground 同锚，双基底消除，
+    /// 审计 D1）；其上分组卡走 surface #1C1C1E——与
+    /// grouped 二级面 secondarySystemGroupedBackground
+    /// 暗值同为 #1C1C1E，层级关系由此定）
+    public static let settingsBG = appleColor(
+        light: 0xF2F2F7, dark: .systemGroupedBackground
     )
     /// 浮层面（OpenMuse 浮件＝白卡，ui.tsx card #FFFFFF；
-    /// 暗色派生随卡面）
-    public static let floatFill = omColor(
-        light: omHex(0xFFFFFF), dark: omHex(0x1B2226)
+    /// 暗档 0.36.1 取三级面 #2C2C2E——旧派生与卡面同
+    /// 值 #1B2226、浮层零提级层级塌陷，审计 D2）
+    public static let floatFill = appleColor(
+        light: 0xFFFFFF, dark: .tertiarySystemBackground
+    )
+
+    /// fill 四级阶梯（0.36.1，审计 D5）：苹果 systemFill
+    /// 四级 α 阶梯双档直挂语义色——选中态/胶囊/输入
+    /// 底/弱填充按强度取级（暗档 α 0.32/0.28/0.24/
+    /// 0.18、浅档 α 0.20/0.16/0.12/0.08，基色同为
+    /// (120,120,128)），强度由 α 定义、随所压面自适
+    /// 应；新消费点一律取此梯，不许再手派生填充值。
+    /// selectionFill 是其一档的历史角色（浅档保留
+    /// OpenMuse 原值、暗档同源 systemFill）
+    public static let fillPrimary = Color(UIColor.systemFill)
+    public static let fillSecondary = Color(
+        UIColor.secondarySystemFill
+    )
+    public static let fillTertiary = Color(
+        UIColor.tertiarySystemFill
+    )
+    public static let fillQuaternary = Color(
+        UIColor.quaternarySystemFill
     )
     /// 当前聊天主题（0.26.0）：Palette 主题角色的读
     /// 口——每次求值现读 UserDefaults（主题变更后
@@ -139,51 +201,71 @@ public enum Palette {
         }
     )
 
-    /// 主墨（OpenMuse text #11191C，ui.tsx:21；暗色派生
-    /// 反演 #EDF1F3）
-    public static let ink = omColor(
-        light: omHex(0x11191C), dark: omHex(0xEDF1F3)
+    /// 主墨（OpenMuse text #11191C，ui.tsx:21；暗档
+    /// 0.36.1 改挂 label＝纯白 #FFFFFF，审计 D3）
+    public static let ink = appleColor(
+        light: 0x11191C, dark: .label
     )
     /// 消息正文墨（OpenMuse 正文与框架同色 text #11191C、
     /// 16pt/24 行高，chat.tsx:597——0.4.4 的笔芯量测口径
-    /// #262626 自本版让位：它正文不另设弱墨；暗色派生
-    /// 随主墨 #EDF1F3）
-    public static let bodyInk = omColor(
-        light: omHex(0x11191C), dark: omHex(0xEDF1F3)
+    /// #262626 自本版让位：它正文不另设弱墨；暗档随
+    /// 主墨同挂 label）
+    public static let bodyInk = appleColor(
+        light: 0x11191C, dark: .label
     )
-    /// 次墨（OpenMuse muted #697176，ui.tsx:22；暗色派生
-    /// 亮化 #9AA3A8）
+    /// 次墨（OpenMuse muted #697176，ui.tsx:22）
     /// 0.36.0（无障碍 A11Y-C1）：浅档同色相加深一档至
     /// #646B71——原值落设置页底 #F2F2F7 实算 4.46:1
     /// 压线下，新值三面实算：设置底 4.85／页面底
     /// 5.27／卡面 5.41，全过 4.5（闸在
     /// VisualDirectionGateTests）
-    public static let inkSecondary = omColor(
-        light: omHex(0x646B71), dark: omHex(0x9AA3A8)
+    /// 0.36.1：暗档改挂 secondaryLabel (235,235,245,
+    /// α0.60)——合成实算：页底 6.36／卡面 5.94／泡
+    /// 面 5.29，随面自适应（旧实色 #9AA3A8 换面漂移
+    /// 7.11→5.36 靠补丁档逐面救，审计 D3）
+    public static let inkSecondary = appleColor(
+        light: 0x646B71, dark: .secondaryLabel
     )
     /// 弱墨（OpenMuse 三档弱色无独立令牌，取其输入占位
-    /// 色 #949B9F 为实证弱档，chat.tsx:948；暗色派生
-    /// #6E777D）
+    /// 色 #949B9F 为实证弱档，chat.tsx:948）
     /// 0.23.0（审计 G1）：实算对比 2.75:1 不达文字线，
     /// 本色自本版起**只许非文字用途**（占位符/禁用态/
     /// 装饰字形/状态点/纯填充），一切要读的字走 ink 或
     /// inkSecondary；文字位清零由 §50 的 grep 清单把守
-    public static let inkMuted = omColor(
-        light: omHex(0x949B9F), dark: omHex(0x6E777D)
+    /// 0.36.1：暗档改挂 tertiaryLabel (235,235,245,
+    /// α0.30)——旧派生 #6E777D 比浅档更暗（对页底仅
+    /// 4.00:1）、与 α 体系方向相反（审计 D3）；新档
+    /// 合成值随所压面走、身份由 α 定义。角色纪律不
+    /// 变（仍只许非文字用途）
+    public static let inkMuted = appleColor(
+        light: 0x949B9F, dark: .tertiaryLabel
+    )
+    /// 四级墨（0.36.1 新设，审计 D3 标签四级补齐）：
+    /// quaternaryLabel 双档直挂语义色 (235,235,245,
+    /// α0.18／浅档 (60,60,67,α0.18))——时间戳级、占
+    /// 位级的最弱档，此前无处安放只能借 inkMuted 硬
+    /// 凑；本色是新令牌、双档皆语义（无旧浅档可守）
+    public static let inkQuaternary = Color(
+        UIColor.quaternaryLabel
     )
     /// 填充面次墨（0.23.0，审计 C4）：inkSecondary 落在
     /// 助手泡 #EEEEF0 上实算 4.29:1 压线下——泡内/填
     /// 充面上的次级文字专用加深档 #5F666B（在 #EEEEF0
-    /// 上实算 5.04:1，WCAG 公式自证复算 5.035）；暗色
-    /// 派生随暗色 inkSecondary #9AA3A8（在暗色泡
-    /// #272E33 上实算 5.36:1）
-    public static let inkSecondaryOnFill = omColor(
-        light: omHex(0x5F666B), dark: omHex(0x9AA3A8)
+    /// 上实算 5.04:1，WCAG 公式自证复算 5.035）；暗档
+    /// 0.36.1 随 inkSecondary 同挂 secondaryLabel——泡
+    /// 面语义化后 α 自适应合成实算 5.29:1 达标，补丁
+    /// 档在暗档退化为同源（浅档专用加深值不变）
+    public static let inkSecondaryOnFill = appleColor(
+        light: 0x5F666B, dark: .secondaryLabel
     )
     /// 发丝线（OpenMuse line #EEEEF0，ui.tsx:23——与助
-    /// 手泡同 hex 是它源码本貌；暗色派生 #262E33）
-    public static let hairline = omColor(
-        light: omHex(0xEEEEF0), dark: omHex(0x262E33)
+    /// 手泡同 hex 是它源码本貌；暗档 0.36.1 改挂
+    /// opaqueSeparator #38383A——旧派生 #262E33 对卡
+    /// 面仅 1.17:1 近乎消失，新档实算 1.45:1，审计
+    /// D4 的 odGroup 描边侧收口；GroupDivider 本体走
+    /// Palette.separator 语义 α，两路同属语义体系）
+    public static let hairline = appleColor(
+        light: 0xEEEEF0, dark: .opaqueSeparator
     )
 
     /// 分隔线色（0.36.0，宪法 §3／审计 C2）：改挂系
@@ -194,10 +276,9 @@ public enum Palette {
     /// 是 0.6.1「字面直给」旧口径的宪法级例外：α 体
     /// 系即其定义本身、字面 hex 无法表达跨面自适
     /// 应，故按 §3 口径改挂语义色（S19：宪法为单一
-    /// 真源）；暗档取值与批一B 同源、由批一B 真机
-    /// 验收收口，本处不另定第二套值。GroupDivider
-    /// 专用；odGroup 描边仍走 hairline（C3/D4 归批
-    /// 一B/批三处置）
+    /// 真源）。GroupDivider 专用；odGroup 描边走
+    /// hairline（其暗档已于 0.36.1 随批一B 改挂
+    /// opaqueSeparator 收口，D4）
     public static let separator = Color(UIColor.separator)
 
     /// 强调（OpenMuse blueDark #1473C8，ui.tsx:25——链
@@ -248,42 +329,59 @@ public enum Palette {
     }
 
     // pastel 点缀家族（OpenMuse 图标盒/chip/状态卡的轮
-    // 换底色，ui.tsx:26-29；暗色一律派生压暗同色相面）
+    // 换底色，ui.tsx:26-29）
+    // 0.36.1：暗档改「同色相系统色 α0.20」统一构造——
+    // 旧逐个手派生（#16242E/#17251C/#221F31/#2B2113）
+    // 强度互不一致、无体系可依（审计 D5）；新构造四
+    // 色同 α、随所压面同比例呈现，家族强度由构造一致
     /// 天蓝点缀面（sky #EDF7FD）
-    public static let tintSky = omColor(
-        light: omHex(0xEDF7FD), dark: omHex(0x16242E)
+    public static let tintSky = appleColor(
+        light: 0xEDF7FD,
+        dark: UIColor.systemBlue.withAlphaComponent(0.20)
     )
     /// 绿点缀面（green #E3F3E8）
-    public static let tintGreen = omColor(
-        light: omHex(0xE3F3E8), dark: omHex(0x17251C)
+    public static let tintGreen = appleColor(
+        light: 0xE3F3E8,
+        dark: UIColor.systemGreen.withAlphaComponent(0.20)
     )
     /// 紫点缀面（lavender #F0EEFA）
-    public static let tintLavender = omColor(
-        light: omHex(0xF0EEFA), dark: omHex(0x221F31)
+    public static let tintLavender = appleColor(
+        light: 0xF0EEFA,
+        dark: UIColor.systemPurple.withAlphaComponent(0.20)
     )
     /// 橙点缀面（orange #FDF0DF）
-    public static let tintOrange = omColor(
-        light: omHex(0xFDF0DF), dark: omHex(0x2B2113)
+    public static let tintOrange = appleColor(
+        light: 0xFDF0DF,
+        dark: UIColor.systemOrange.withAlphaComponent(0.20)
     )
     /// 代码面（OpenMuse 行内/块代码底 #E2E4E7，
-    /// assistant-response.tsx:17-18；暗色派生 #2B3237）
-    public static let codeFill = omColor(
-        light: omHex(0xE2E4E7), dark: omHex(0x2B3237)
+    /// assistant-response.tsx:17-18；暗档 0.36.1 改走
+    /// fill 阶梯二级 secondarySystemFill——压泡面/卡
+    /// 面合成步幅约 1.4:1，旧派生 #2B3237 让位）
+    public static let codeFill = appleColor(
+        light: 0xE2E4E7, dark: .secondarySystemFill
     )
     /// 错误面（OpenMuse error 底 #FBEFED，ui.tsx:99；
-    /// 暗色派生 #33201E）
-    public static let errorSurface = omColor(
-        light: omHex(0xFBEFED), dark: omHex(0x33201E)
+    /// 暗档 0.36.1 改 systemRed α0.16——随语义红走、
+    /// 压任何面上同比例，旧派生 #33201E 让位）
+    public static let errorSurface = appleColor(
+        light: 0xFBEFED,
+        dark: UIColor.systemRed.withAlphaComponent(0.16)
     )
 
-    /// 状态实色：OpenMuse 无 success/warning 语义实色原
-    /// 值（它只给 pastel 面），两色保留系统色不编值；
-    /// danger 有原值 #AA4A45（ui.tsx:30），落字面（暗色
-    /// 派生亮化 #D08B87）
-    public static let success = Color.green
-    public static let warning = Color.orange
-    public static let danger = omColor(
-        light: omHex(0xAA4A45), dark: omHex(0xD08B87)
+    /// 状态实色（0.36.1，审计 D6 归队系统语义）：
+    /// success/warning 改挂 systemGreen/systemOrange
+    /// 语义色——旧 Color.green/orange 是 SwiftUI 固定
+    /// 色、暗档调整不由苹果体系保证；新档暗值分别为
+    /// #30D158/#FF9F0A（提亮保饱和）。danger 浅档保
+    /// OpenMuse 原值 #AA4A45（ui.tsx:30），暗档改挂
+    /// systemRed #FF453A——旧派生 #D08B87 是「提亮＋
+    /// 褪色」的洗旧砖粉、色相身份变弱，新档走苹果
+    /// 「提亮且保饱和」路线（对卡面实算 4.99:1）
+    public static let success = Color(UIColor.systemGreen)
+    public static let warning = Color(UIColor.systemOrange)
+    public static let danger = appleColor(
+        light: 0xAA4A45, dark: .systemRed
     )
 
     /// 阴影基色：取 OpenMuse 浮动底栏阴影色 #132631

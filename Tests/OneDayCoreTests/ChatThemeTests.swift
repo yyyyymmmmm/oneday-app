@@ -82,8 +82,9 @@ final class ChatThemeTests: XCTestCase {
     }
 
     /// 对比闸②：全款强调对页底（浅 #FCFCFC/暗
-    /// #101619，Palette.pageBG 定版值）≥4.5——链接/
-    /// 选中字色落页底也可读
+    /// #000000——0.36.1 批一B 后 Palette.pageBG 暗档
+    /// 改挂 systemBackground 纯黑，旧派生 #101619 退
+    /// 役）≥4.5——链接/选中字色落页底也可读
     func testAccentContrastOnPageGate() {
         for theme in ChatThemes.all {
             let light = WCAGContrast.ratio(
@@ -92,13 +93,80 @@ final class ChatThemeTests: XCTestCase {
             )
             let dark = WCAGContrast.ratio(
                 hexForeground: theme.accentDark,
-                hexBackground: 0x101619
+                hexBackground: 0x000000
             )
             XCTAssertGreaterThanOrEqual(
                 light, 4.5, "\(theme.id) 浅档强调对比 \(light)"
             )
             XCTAssertGreaterThanOrEqual(
                 dark, 4.5, "\(theme.id) 暗档强调对比 \(dark)"
+            )
+        }
+    }
+
+    /// 对比闸③（0.36.1 扩面，审计 D9）：全款强调对
+    /// 卡面（浅 #FFFFFF/暗 #1C1C1E＝Palette.surface
+    /// 双档语义值）≥4.5——强调字落在分组卡上同样可读
+    func testAccentContrastOnSurfaceGate() {
+        for theme in ChatThemes.all {
+            let light = WCAGContrast.ratio(
+                hexForeground: theme.accentLight,
+                hexBackground: 0xFFFFFF
+            )
+            let dark = WCAGContrast.ratio(
+                hexForeground: theme.accentDark,
+                hexBackground: 0x1C1C1E
+            )
+            XCTAssertGreaterThanOrEqual(
+                light, 4.5, "\(theme.id) 浅档强调对卡面 \(light)"
+            )
+            XCTAssertGreaterThanOrEqual(
+                dark, 4.5, "\(theme.id) 暗档强调对卡面 \(dark)"
+            )
+        }
+    }
+
+    /// 对比闸④（0.36.1 扩面，审计 D9）：全款强调对
+    /// 助手泡面暗档（#2C2C2E＝Palette.bubbleFill 暗档
+    /// tertiarySystemBackground）≥4.5——链接落助手泡
+    /// 内可读。浅档同组合实算 4.20–4.68（四款压线
+    /// 下）属浅档既有口径、本批（暗档专项）不辖，记
+    /// DESIGN-V4 §66 留浅档专项处置，此处不设浅闸、
+    /// 不冒充已验
+    func testAccentContrastOnBubbleDarkGate() {
+        for theme in ChatThemes.all {
+            let dark = WCAGContrast.ratio(
+                hexForeground: theme.accentDark,
+                hexBackground: 0x2C2C2E
+            )
+            XCTAssertGreaterThanOrEqual(
+                dark, 4.5, "\(theme.id) 暗档强调对泡面 \(dark)"
+            )
+        }
+    }
+
+    /// 对比闸⑤（0.36.1 扩面，审计 D9）：全款强调字
+    /// 形对自家 tint 弱面（浅/暗）≥3.0——tint 按设计
+    /// 只承载字形（其上文字走 ink/bodyInk，见
+    /// ChatTheme 注），按 WCAG 图形对象口径 3.0 设
+    /// 闸；实算浅档最低 4.31、暗档最低 5.90，均过。
+    /// 曜黑款 tint 暗档与页底仅差一档的「近隐形」是
+    /// 呈现问题、闸测不出，列真机肉眼验（§66）
+    func testAccentGlyphContrastOnTintGate() {
+        for theme in ChatThemes.all {
+            let light = WCAGContrast.ratio(
+                hexForeground: theme.accentLight,
+                hexBackground: theme.tintLight
+            )
+            let dark = WCAGContrast.ratio(
+                hexForeground: theme.accentDark,
+                hexBackground: theme.tintDark
+            )
+            XCTAssertGreaterThanOrEqual(
+                light, 3.0, "\(theme.id) 浅档字形对弱面 \(light)"
+            )
+            XCTAssertGreaterThanOrEqual(
+                dark, 3.0, "\(theme.id) 暗档字形对弱面 \(dark)"
             )
         }
     }

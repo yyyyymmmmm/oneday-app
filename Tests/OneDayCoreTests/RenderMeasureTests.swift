@@ -1,5 +1,6 @@
 import OneDayCore
 import OneDayDesign
+import SwiftUI
 import UIKit
 import XCTest
 
@@ -289,11 +290,12 @@ final class RenderMeasureTests: XCTestCase {
     /// ①浅色解析值＝OpenMuse 原值（助手泡 #EEEEF0＝
     /// chat.tsx:593、用户泡 #C8E7FF＝colors.blue、
     /// selectionFill #F0F1F2＝底栏激活 App.tsx:464）；
-    /// ②暗色解析值＝本仓派生档（助手 #272E33、用户取
-    /// blueDark #1473C8 原值作深档）；③浅色助手泡守近
-    /// 中性（|R−B|＝2/255≤4——用户泡是它的标志浅蓝、
-    /// 不受中性约束；旧「助手深于用户」序断言随其语言
-    /// 撤销：它本貌即用户泡更醒目）
+    /// ②暗色解析值——0.36.1 批一B 起助手泡改挂语义
+    /// 三级面 #2C2C2E（旧派生 #272E33 退役，见下方语
+    /// 义梯专钉）；用户泡取主题表 blueDark #1473C8；
+    /// ③浅色助手泡守近中性（|R−B|＝2/255≤4——用户泡
+    /// 是它的标志浅蓝、不受中性约束；旧「助手深于用
+    /// 户」序断言随其语言撤销：它本貌即用户泡更醒目）
     func testBubbleColorsFollowOpenMuseTokens() {
         let light = UITraitCollection(userInterfaceStyle: .light)
         let dark = UITraitCollection(userInterfaceStyle: .dark)
@@ -314,8 +316,8 @@ final class RenderMeasureTests: XCTestCase {
         XCTAssertEqual(
             UIColor(Palette.bubbleFill).resolvedColor(with: dark),
             UIColor(
-                red: 0x27 / 255.0, green: 0x2E / 255.0,
-                blue: 0x33 / 255.0, alpha: 1
+                red: 0x2C / 255.0, green: 0x2C / 255.0,
+                blue: 0x2E / 255.0, alpha: 1
             )
         )
         XCTAssertEqual(
@@ -340,6 +342,152 @@ final class RenderMeasureTests: XCTestCase {
                 red: 0xF0 / 255.0, green: 0xF1 / 255.0,
                 blue: 0xF2 / 255.0, alpha: 1
             )
+        )
+    }
+
+    /// 分量级解析断言（0.36.1）：语义色含 α，逐分量带
+    /// 容差比对（系统常量为精确值，容差只吸收浮点差）
+    private func assertResolved(
+        _ color: Color, dark: Bool,
+        equals expected: (r: Double, g: Double, b: Double, a: Double),
+        _ label: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let traits = UITraitCollection(
+            userInterfaceStyle: dark ? .dark : .light
+        )
+        var r: CGFloat = 0, g: CGFloat = 0
+        var b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).resolvedColor(with: traits)
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        XCTAssertEqual(
+            Double(r), expected.r, accuracy: 0.01,
+            "\(label) R", file: file, line: line
+        )
+        XCTAssertEqual(
+            Double(g), expected.g, accuracy: 0.01,
+            "\(label) G", file: file, line: line
+        )
+        XCTAssertEqual(
+            Double(b), expected.b, accuracy: 0.01,
+            "\(label) B", file: file, line: line
+        )
+        XCTAssertEqual(
+            Double(a), expected.a, accuracy: 0.01,
+            "\(label) A", file: file, line: line
+        )
+    }
+
+    /// 暗档语义梯专钉（0.36.1，批一B／审计 D1–D6）：
+    /// 0.6.1 的派生色板退役后，Palette 暗档解析值必须
+    /// 逐项落在苹果语义梯上——背景三层（D1/D2）、标
+    /// 签四级（D3）、描边（D4）、fill 阶梯（D5）、状
+    /// 态色（D6）；末尾附浅档守恒三钉（浅色已定版、
+    /// 本批一字未动的证据）
+    func testDarkPaletteFollowsAppleSemanticTiers() {
+        // 背景三层：base 三面同锚纯黑、卡 #1C1C1E、
+        // 三级面 #2C2C2E（浮层与卡面拉开、D2 提级修复）
+        assertResolved(
+            Palette.pageBG, dark: true,
+            equals: (0, 0, 0, 1), "pageBG 暗"
+        )
+        assertResolved(
+            Palette.chatSurface, dark: true,
+            equals: (0, 0, 0, 1), "chatSurface 暗"
+        )
+        assertResolved(
+            Palette.settingsBG, dark: true,
+            equals: (0, 0, 0, 1), "settingsBG 暗"
+        )
+        assertResolved(
+            Palette.surface, dark: true,
+            equals: (0x1C / 255.0, 0x1C / 255.0, 0x1E / 255.0, 1),
+            "surface 暗"
+        )
+        assertResolved(
+            Palette.bubbleFill, dark: true,
+            equals: (0x2C / 255.0, 0x2C / 255.0, 0x2E / 255.0, 1),
+            "bubbleFill 暗"
+        )
+        assertResolved(
+            Palette.floatFill, dark: true,
+            equals: (0x2C / 255.0, 0x2C / 255.0, 0x2E / 255.0, 1),
+            "floatFill 暗"
+        )
+        assertResolved(
+            Palette.fieldFill, dark: true,
+            equals: (0x2C / 255.0, 0x2C / 255.0, 0x2E / 255.0, 1),
+            "fieldFill 暗"
+        )
+        // 标签四级：label 纯白、次/弱/四级为 α 阶梯
+        assertResolved(
+            Palette.ink, dark: true,
+            equals: (1, 1, 1, 1), "ink 暗"
+        )
+        assertResolved(
+            Palette.bodyInk, dark: true,
+            equals: (1, 1, 1, 1), "bodyInk 暗"
+        )
+        assertResolved(
+            Palette.inkSecondary, dark: true,
+            equals: (235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.60),
+            "inkSecondary 暗"
+        )
+        assertResolved(
+            Palette.inkMuted, dark: true,
+            equals: (235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.30),
+            "inkMuted 暗"
+        )
+        assertResolved(
+            Palette.inkQuaternary, dark: true,
+            equals: (235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.18),
+            "inkQuaternary 暗"
+        )
+        // 发丝描边：opaqueSeparator #38383A
+        assertResolved(
+            Palette.hairline, dark: true,
+            equals: (0x38 / 255.0, 0x38 / 255.0, 0x3A / 255.0, 1),
+            "hairline 暗"
+        )
+        // fill 阶梯：基色 (120,120,128)、α 0.32/0.28
+        assertResolved(
+            Palette.selectionFill, dark: true,
+            equals: (120.0 / 255.0, 120.0 / 255.0, 128.0 / 255.0, 0.32),
+            "selectionFill 暗"
+        )
+        assertResolved(
+            Palette.fillSecondary, dark: true,
+            equals: (120.0 / 255.0, 120.0 / 255.0, 128.0 / 255.0, 0.28),
+            "fillSecondary 暗"
+        )
+        // 状态色：systemRed/Green/Orange 暗值（保饱和）
+        assertResolved(
+            Palette.danger, dark: true,
+            equals: (1, 0x45 / 255.0, 0x3A / 255.0, 1), "danger 暗"
+        )
+        assertResolved(
+            Palette.success, dark: true,
+            equals: (0x30 / 255.0, 0xD1 / 255.0, 0x58 / 255.0, 1),
+            "success 暗"
+        )
+        assertResolved(
+            Palette.warning, dark: true,
+            equals: (1, 0x9F / 255.0, 0x0A / 255.0, 1), "warning 暗"
+        )
+        // 浅档守恒：本批未动的三钉
+        assertResolved(
+            Palette.pageBG, dark: false,
+            equals: (0xFC / 255.0, 0xFC / 255.0, 0xFC / 255.0, 1),
+            "pageBG 浅"
+        )
+        assertResolved(
+            Palette.surface, dark: false,
+            equals: (1, 1, 1, 1), "surface 浅"
+        )
+        assertResolved(
+            Palette.inkSecondary, dark: false,
+            equals: (0x64 / 255.0, 0x6B / 255.0, 0x71 / 255.0, 1),
+            "inkSecondary 浅"
         )
     }
 }

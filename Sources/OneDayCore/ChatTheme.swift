@@ -18,7 +18,9 @@ public struct ChatTheme: Equatable, Identifiable, Sendable {
     public let bubbleTextLight: UInt32
     public let bubbleTextDark: UInt32
     /// 强调实色（浅/暗）：链接/选中字色/角标填充/光标；
-    /// 对页底（#FCFCFC/#101619）实算同 ≥4.5（闸钉）
+    /// 对页底（浅 #FCFCFC／暗 #000000——0.36.1 批一B
+    /// 后 Palette.pageBG 暗档改挂 systemBackground）
+    /// 实算同 ≥4.5（闸钉，另扩卡面/泡面/tint 组合闸）
     public let accentLight: UInt32
     public let accentDark: UInt32
     /// 强调弱面（浅/暗）：强调色图标盒/胶囊底（面色，
