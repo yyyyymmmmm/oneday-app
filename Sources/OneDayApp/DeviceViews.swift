@@ -548,7 +548,11 @@ private struct DeviceFootnote: View {
 /// 置页）无此冲突、保留下拉刷新。三页详情共用
 private struct RefreshableIfEnabled: ViewModifier {
     let enabled: Bool
-    let action: () async -> Void
+    // 隔离标注：refreshable 的 action 形参要
+    // @Sendable，全局 actor 隔离的函数值可直接转
+    // 入；三页的 load 本就跑在 MainActor（视图上
+    // 下文），标注只是把既成事实写明
+    let action: @MainActor () async -> Void
 
     func body(content: Content) -> some View {
         if enabled {
