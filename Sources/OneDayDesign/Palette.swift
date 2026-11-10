@@ -362,6 +362,41 @@ public enum Palette {
     public static let codeFill = appleColor(
         light: 0xE2E4E7, dark: .secondarySystemFill
     )
+
+    /// 代码高亮三色（0.36.25，对话渲染补全包）：只分
+    /// 关键词／字符串／数字三类着色＋注释走 inkSec-
+    /// ondaryOnFill、正文走 bodyInk——克制口径，不设
+    /// 彩虹板。取值按代码面（浅 #FFFFFF 字段面／暗
+    /// #2C2C2E 三级面）实算对比：关键词紫浅 #A626A4
+    /// （对白 6.1:1）／暗 #C792EA（5.8:1）；字符串绿
+    /// 浅 #116329（7.4:1）／暗 #98C379（6.9:1）；数字
+    /// 蓝浅 #0550AE（7.6:1）／暗 #79B8FF（6.7:1），
+    /// 全过 4.5 小字线（WCAGContrast 同式心算，落法
+    /// 与 D3 派生档同机制：浅档字面、暗档 UIColor
+    /// 字面经 appleColor 解析）
+    public static let codeKeyword = appleColor(
+        light: 0xA626A4,
+        dark: UIColor(
+            red: 0xC7 / 255.0, green: 0x92 / 255.0,
+            blue: 0xEA / 255.0, alpha: 1
+        )
+    )
+    /// 代码高亮·字符串绿
+    public static let codeString = appleColor(
+        light: 0x116329,
+        dark: UIColor(
+            red: 0x98 / 255.0, green: 0xC3 / 255.0,
+            blue: 0x79 / 255.0, alpha: 1
+        )
+    )
+    /// 代码高亮·数字蓝
+    public static let codeNumber = appleColor(
+        light: 0x0550AE,
+        dark: UIColor(
+            red: 0x79 / 255.0, green: 0xB8 / 255.0,
+            blue: 0xFF / 255.0, alpha: 1
+        )
+    )
     /// 错误面（OpenMuse error 底 #FBEFED，ui.tsx:99；
     /// 暗档 0.36.1 改 systemRed α0.16——随语义红走、
     /// 压任何面上同比例，旧派生 #33201E 让位）
