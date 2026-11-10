@@ -332,14 +332,12 @@ struct ChatView: View {
             // 0.36.7（频道规格 §10.3）：当前线程同步为
             // 抽屉当前对象引用——落点解析/抽屉改道/新
             // 建/导入最终都汇到 currentThreadID 变更、
-            // 在此一处派生（主线→.main、其余→.side），
-            // 抽屉胶囊只问单一政策（DrawerSelection-
-            // Policy）；0.4.5 的 activeThreadID 回写退役
-            appState.currentDrawerObject =
-                DrawerSelectionPolicy.object(
-                    forThreadID: currentThread?.id,
-                    mainThreadID: appState.sideChats.mainThreadID
-                )
+            // 在此一处派生，抽屉胶囊只问单一政策
+            // （DrawerSelectionPolicy）；0.4.5 的
+            // activeThreadID 回写退役。0.36.29：派生
+            // 改经 syncDrawerObjectFromCurrentThread
+            // （频道出处优先于线程派生，见该函数注）
+            syncDrawerObjectFromCurrentThread()
         }
         // 0.4.5：消费抽屉的线程选择（DrawerView 点行/
         // 新建时置位；与 pendingChatSessionID 同模式：
@@ -569,12 +567,9 @@ struct ChatView: View {
                 }
             }
             // 0.36.7：当前线程初始同步为抽屉当前对象
-            // 引用（口径同 currentThreadID 变更点）
-            appState.currentDrawerObject =
-                DrawerSelectionPolicy.object(
-                    forThreadID: currentThread?.id,
-                    mainThreadID: appState.sideChats.mainThreadID
-                )
+            // 引用（口径同 currentThreadID 变更点；
+            // 0.36.29 改经同一同步函数、含频道出处）
+            syncDrawerObjectFromCurrentThread()
             // 本页首次出现时若已有待续聊会话（如从其他格
             // 首次切入），onChange 可能先于挂载发生、在此补消费
             if let id = appState.pendingChatSessionID {
@@ -3312,12 +3307,83 @@ private struct ComposerBarLayout: Layout {
 
     // MARK: - 服务端会话续聊（0.4.0，审计 §3.4）
 
+    /// 当前线程 → 抽屉当前对象引用的同步（0.36.7 立、
+    /// 0.36.29 扩频道出处）：落点/切换/新建/导入的所
+    /// 有 currentThreadID 变更点与 onAppear 初始同步
+    /// 共用本函数一处派生。频道出处（channelViewing-
+    /// Origin）与当前线程的关联会话对得上时，对象引
+    /// 用维持 .channel——经频道页点开的会话即便已被
+    /// 收养导入成本地线程渲染，呈现期间胶囊仍归频
+    /// 道行（频道规格 §10.2：分类归属与选择归属是
+    /// 两件事）；对不上（切了别的线程/新建/线程未
+    /// 关联）即出处作废清零、回普通线程派生（主线
+    /// →.main、其余→.side）。从旁聊区重进同一条收
+    /// 养线程的场合（§10.4-⑤），出处由抽屉旁聊行点
+    /// 按先行清零，本函数随之派生 .side，不在此处
+    /// 特殊处理
+    private func syncDrawerObjectFromCurrentThread() {
+        if let origin = appState.channelViewingOrigin,
+           currentThread?.serverSessionID == origin.sessionID {
+            appState.currentDrawerObject = .channel(origin.channelID)
+            return
+        }
+        if appState.channelViewingOrigin != nil {
+            appState.channelViewingOrigin = nil
+        }
+        appState.currentDrawerObject =
+            DrawerSelectionPolicy.object(
+                forThreadID: currentThread?.id,
+                mainThreadID: appState.sideChats.mainThreadID
+            )
+    }
+
     /// 消费待续聊 id：先清 AppState 再导入（防 onChange
     /// 与 onAppear 双通道重复消费同一条）
+    /// 0.36.29（频道规格 §10.3/§4.2）：与 id 同行的
+    /// 频道来源标记在此定形出处——带标记（频道页点
+    /// 开）→ 落 channelViewingOrigin、对象引用置
+    /// .channel；无标记（管理页/状态页等其他入口）
+    /// → 旧出处清零。首次收养（本次新建导入线程）
+    /// 给一行 notice「已转入我的对话」让去向可知
+    /// （呈现层拼装、不写入任何会话，沿回告卡 D4
+    /// 红线精神）
     private func consumePendingChatSession(_ id: String) async {
         guard appState.pendingChatSessionID == id else { return }
         appState.pendingChatSessionID = nil
-        await openServerSession(id)
+        let channelID = appState.pendingChatChannelID
+        appState.pendingChatChannelID = nil
+        // 出处先行落位：导入途中 currentThreadID 变
+        // 更触发的同步据此把对象引用派生成 .channel
+        appState.channelViewingOrigin = channelID.map {
+            ChannelViewingOrigin(channelID: $0, sessionID: id)
+        }
+        let outcome = await openServerSession(id)
+        if let channelID {
+            switch outcome {
+            case .switchedExisting, .importedNew:
+                // 落点已定：对象引用归频道行（导入途
+                // 中的同步可能已派生过，此处收尾钉死）
+                appState.currentDrawerObject = .channel(channelID)
+                if outcome == .importedNew {
+                    notice = "已转入我的对话"
+                }
+            case .failed:
+                // 没打开成（仍停在原线程）：出处作废、
+                // 对象引用按当前线程回派，不许把胶囊
+                // 挂到没在看的频道行上
+                appState.channelViewingOrigin = nil
+                syncDrawerObjectFromCurrentThread()
+            }
+        }
+    }
+
+    /// 打开服务端会话的结果（0.36.29）：频道消费口
+    /// 据此定出处与收养提示——切到既有线程与新建导
+    /// 入都算落点已定，只有新建导入算「首次收养」
+    private enum OpenServerSessionOutcome: Equatable {
+        case switchedExisting
+        case importedNew
+        case failed
     }
 
     /// 打开服务端会话续聊：已有 serverSessionID 关联线
@@ -3332,12 +3398,14 @@ private struct ComposerBarLayout: Layout {
     /// Session-Id 头＋仅本轮新消息）——续聊回合按研
     /// 究档实测链回写同一条服务端会话，不再另起记
     /// 录；旧「无状态重放续聊」口径就此作废。
-    private func openServerSession(_ id: String) async {
+    private func openServerSession(
+        _ id: String
+    ) async -> OpenServerSessionOutcome {
         if let existing = threads.first(where: { $0.serverSessionID == id }) {
             currentThreadID = existing.id
-            return
+            return .switchedExisting
         }
-        guard importingSessionID == nil else { return }
+        guard importingSessionID == nil else { return .failed }
         importingSessionID = id
         defer { importingSessionID = nil }
         do {
@@ -3388,9 +3456,11 @@ private struct ComposerBarLayout: Layout {
             }
             try? modelContext.save()
             currentThreadID = thread.id
+            return .importedNew
         } catch {
             errorMessage = (error as? HermesError)?.userMessage
                 ?? "会话导入失败，请稍后再试。"
+            return .failed
         }
     }
 

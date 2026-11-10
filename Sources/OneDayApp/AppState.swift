@@ -286,6 +286,21 @@ final class AppState {
     /// 置位，ContentView 据此切聊天格、ChatView 消费后
     /// 导入历史并置 nil。不再走设置格的只读详情页
     var pendingChatSessionID: String?
+    /// 待续聊会话的频道来源标记（0.36.29，频道规格
+    /// §10.3）：频道页点行时与 pendingChatSessionID
+    /// 同行置位（先标记、后置 id），ChatView 消费时
+    /// 据此把抽屉当前对象置为 .channel 并落频道观
+    /// 看出处；其他入口打开会话不置此标记，消费口
+    /// 径据「无标记」清旧出处。消费后清零
+    var pendingChatChannelID: String?
+    /// 频道观看出处（0.36.29，§10.2）：当前线程是
+    /// 从哪个频道的哪条会话打开的——ChatView 当前
+    /// 线程同步据此维持 .channel 对象引用（导入线
+    /// 程渲染期间不派生成 .side）；线程切离该会话
+    /// 或从旁聊区/主线行重进同一条时由各置位点清
+    /// 除。只存呈现出处、不参与分类（分类归属与选
+    /// 择归属是两件事）
+    var channelViewingOrigin: ChannelViewingOrigin?
     /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
     var cronCreateRequested = false
     /// 抽屉「枢纽」导航行的开枢纽请求（0.19.0）：抽屉置

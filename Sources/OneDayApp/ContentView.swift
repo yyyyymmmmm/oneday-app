@@ -127,6 +127,12 @@ struct ContentView: View {
     /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
     /// 理全部对话」行置位，全屏页自带导航栈呈现
     @State private var showAllConversations = false
+    /// Hermes 频道页呈现（0.36.29，频道规格 §4.1）：
+    /// 抽屉频道行置位，全屏页承载与管理页同通道（本
+    /// 层 fullScreenCover）；管理页频道段的同名行走
+    /// 管理页内部呈现，目的地是同一个 HermesChannel-
+    /// View，不许两套频道页
+    @State private var showHermesChannel = false
     /// 设置 sheet 呈现（0.20.0 第六条）：抽屉齿轮经
     /// AppState.settingsSheetRequested 置位、本层消费
     /// 呈现；设置页本体内带大标题＋圆 X 头（照 Muse
@@ -136,7 +142,8 @@ struct ContentView: View {
     var body: some View {
         DrawerShell(
             selection: $selection,
-            onManageAll: { showAllConversations = true }
+            onManageAll: { showAllConversations = true },
+            onOpenChannel: { showHermesChannel = true }
         ) {
             tabView
         }
@@ -153,6 +160,19 @@ struct ContentView: View {
                     appState.pendingChatSessionID = id
                 },
                 onClose: { showAllConversations = false }
+            )
+        }
+        // 0.36.29：Hermes 频道页（抽屉频道行入口）；
+        // 页内打开会话与管理页同走法（关页＋切聊天格
+        // ＋续聊通道，频道标记由频道页点行时已置位）
+        .fullScreenCover(isPresented: $showHermesChannel) {
+            HermesChannelView(
+                onOpenSession: { id in
+                    showHermesChannel = false
+                    selection = .chat
+                    appState.pendingChatSessionID = id
+                },
+                onClose: { showHermesChannel = false }
             )
         }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
@@ -419,6 +439,10 @@ private struct DrawerShell<Content: View>: View {
     @Binding var selection: ContentView.MainTab
     /// 抽屉「管理全部对话」透传（0.18.0）
     var onManageAll: () -> Void
+    /// 抽屉频道行透传（0.36.29）：一期只有 Hermes
+    /// 一个频道，壳层不辨频道 id、宿主恒呈现 Hermes
+    /// 频道页；外部频道落地时按 id 分发
+    var onOpenChannel: () -> Void
     @ViewBuilder var content: () -> Content
 
     /// S1 单一事实源：抽屉呈现位移（0＝合拢、travel
@@ -524,7 +548,8 @@ private struct DrawerShell<Content: View>: View {
                     currentTab: selection,
                     onSelectTab: { selection = $0 },
                     onClose: { setDrawer(false) },
-                    onManageAll: onManageAll
+                    onManageAll: onManageAll,
+                    onOpenChannel: { _ in onOpenChannel() }
                 )
                 .offset(x: drawerOffset - travel)
                 .shadow(

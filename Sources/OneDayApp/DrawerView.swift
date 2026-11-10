@@ -44,6 +44,12 @@ import SwiftUI
 /// - 0.6.1 曾以「与底栏逐项重复」删过同类导航组；
 ///   0.19.0 用户对着 Muse 样板亲口改令立导航组，
 ///   新令覆盖旧裁决，此注为据。
+/// - 0.36.29（频道规格 §3）：管理行与旁聊区之间插
+///   「频道」区（一期只有 Hermes 一行，分类后频道
+///   会话 ≥1 才整区显示、空态整区收起）；数据源复
+///   用开抽屉既有那一路拉取现算 Core 分类，不新增
+///   拉取；频道行不给计数徽标（口径见 drawerChannel-
+///   Row 注）。
 /// - 承载沿 0.17.0：壳层（ContentView.DrawerShell）
 ///   以覆盖形态自左滑入盖在静止内容之上，本面根
 ///   ScrollView＋头尾 safeAreaBar 注册结构不变；头
@@ -69,6 +75,10 @@ struct DrawerView: View {
     /// 打开「全部对话」管理页（0.18.0；本面先经
     /// onClose 关抽屉，ContentView 注入呈现）
     var onManageAll: () -> Void
+    /// 打开频道页（0.36.29，频道规格 §3）：频道行
+    /// 点按先经 onClose 关抽屉，ContentView 注入呈
+    /// 现；入参为频道 id（一期只有 Hermes）
+    var onOpenChannel: (String) -> Void
 
     /// 顶部标题带高（0.36.5）：名单顶部空程
     /// （contentMargins）与标题浮层共用一数——
@@ -367,6 +377,10 @@ struct DrawerView: View {
                 }
                 // 0.36.7（§10.3 置位纪律）：导航动作显
                 // 式写当前对象引用，胶囊随点按即归主线
+                // 0.36.29：回主线即离频道出处（§10.3
+                // 置位点清零），防残留出处把后续同步带
+                // 回 .channel
+                appState.channelViewingOrigin = nil
                 appState.currentDrawerObject = .main
                 onSelectTab(.chat)
             }
@@ -414,6 +428,15 @@ struct DrawerView: View {
             drawerDivider
                 .padding(.top, OneDayMetrics.spacingS)
             drawerManageRow
+            // 0.36.29（频道规格 §3.1）：频道区插在管
+            // 理行与旁聊区之间（面先于条，与 Muse 样
+            // 板同序）；整区空态不显示——无频道行时
+            // 分区头与其下发丝线一并收起，不留空头
+            if hermesChannelVisible {
+                drawerDivider
+                    .padding(.top, OneDayMetrics.spacingS)
+                drawerChannelSection
+            }
             drawerDivider
                 .padding(.top, OneDayMetrics.spacingS)
             drawerSideSection
@@ -421,6 +444,103 @@ struct DrawerView: View {
                 .frame(height: OneDayMetrics.spacingL)
         }
         .padding(.top, OneDayMetrics.spacingS)
+    }
+
+    // MARK: - 频道区（0.36.29，频道规格 §3）
+
+    /// 抽屉数据源的分类分筐：复用开抽屉既有那一路
+    /// 拉取（drawerServerSessions，limit 100）现算，
+    /// 不为频道区新增拉取（规格 §3.3「开抽屉只拉一
+    /// 路」纪律）；本地关联集走 ThreadLinkage 与频
+    /// 道页/管理页同一派生
+    private var drawerPartition: SessionPartition {
+        SessionClassifier.partition(
+            sessions: Array(drawerServerSessions.values),
+            mainServerSessionID: appState.sideChats.mainServerSessionID,
+            linkedThreadSessionIDs: ThreadLinkage.nonMainLinkedSessionIDs(
+                threads: threads, sideChats: appState.sideChats
+            )
+        )
+    }
+
+    /// Hermes 行显行条件（规格 §3.1）：分类后 Hermes
+    /// 频道会话数 ≥ 1（合并桶计入频道成员）才显整
+    /// 区；超 limit 100 的漏判是已知边界（规格
+    /// §8-5），只影响呈现、不影响数据
+    private var hermesChannelVisible: Bool {
+        drawerPartition.hermesChannelCount >= 1
+    }
+
+    /// 频道区：一期只有 Hermes 一行（注册表派生，
+    /// 外部频道未通不占位——通一个显一个）
+    @ViewBuilder
+    private var drawerChannelSection: some View {
+        drawerGroupHeader("频道")
+        ForEach(ChannelRegistry.phaseOne) { channel in
+            drawerChannelRow(channel)
+        }
+    }
+
+    /// 频道行（规格 §3.2）：沿导航行档（图标槽＋标
+    /// 题 Body 17＋drawerRowHeight），行尾 chevron
+    /// 示「进去是一个面」；**不给计数徽标**（抽屉拉
+    /// 取口径与全量不一致，挂数即埋假新鲜，S7 纪
+    /// 律）；图标用注册表资产（Hermes＝0.36.3 登记
+    /// 的本机服务定制图面 LocalHermes）；选中态问
+    /// 单一选择政策（.channel 命中才带胶囊）
+    private func drawerChannelRow(_ channel: ChannelDescriptor) -> some View {
+        let selected = drawerSelection == .channel(channel.id)
+        return Button {
+            onClose()
+            onOpenChannel(channel.id)
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Group {
+                    if let asset = channel.iconAssetName {
+                        Image(asset)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(
+                                size: FrameworkIcon.drawerGlyphSize,
+                                weight: .regular
+                            ))
+                            .foregroundStyle(Palette.ink)
+                    }
+                }
+                .frame(
+                    width: OneDayMetrics.iconSlot,
+                    height: OneDayMetrics.iconSlot
+                )
+                .accessibilityHidden(true)
+                Text(channel.name)
+                    .font(.bodyText)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(Palette.inkMuted)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: OneDayMetrics.drawerRowHeight)
+            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .background {
+                if selected {
+                    Palette.selectionFill
+                        .clipShape(RoundedRectangle(
+                            cornerRadius: OneDayMetrics.fieldCorner,
+                            style: .continuous
+                        ))
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+        .padding(.horizontal, OneDayMetrics.spacingS)
+        .accessibilityLabel(channel.name)
     }
 
     // MARK: - 旁聊区（0.19.0 返工，22:45 纠正口径）
@@ -563,6 +683,12 @@ struct DrawerView: View {
             appState.drawerThreadSelection = thread.id
             // 0.36.7（§10.3 置位纪律）：导航动作显式
             // 写当前对象引用
+            // 0.36.29（§10.4-⑤）：从旁聊区进入即离频
+            // 道出处——哪怕进的是刚从频道收养的同一
+            // 条线程，胶囊也随入口归旁聊行，出处必须
+            // 在此清零（否则 ChatView 同步会按残留出
+            // 处又把引用派生回 .channel）
+            appState.channelViewingOrigin = nil
             appState.currentDrawerObject = .side(thread.id)
             onClose()
         } label: {
@@ -683,6 +809,13 @@ struct DrawerView: View {
                     mainServerSessionID: appState.sideChats
                         .mainServerSessionID
                 ))
+            // 0.36.29：正从频道看着的正是本线程（收养
+            // 后的导入线程）时同属「当前线程」——删它
+            // 必须通知 ChatView 置空（.channel 态下选
+            // 择既非 .side 也非 .main，旧两条判不到）
+            || (thread.serverSessionID != nil
+                && thread.serverSessionID
+                    == appState.channelViewingOrigin?.sessionID)
         if isCurrent {
             appState.drawerDeletedThreadID = thread.id
         }

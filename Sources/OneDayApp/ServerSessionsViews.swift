@@ -463,6 +463,12 @@ struct ServerSessionDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     let sessionID: String
+    /// 只读形态（0.36.29，频道规格 §4.3）：合并桶在
+    /// Hermes 频道页点开只许只读查看历史——不呈现
+    /// 删除区、不发任何写请求（连详情页既有的删除
+    /// 入口都不许带进来）；元信息与消息记录照常。
+    /// 默认 false，其余入口（聊天页次级入口）行为不变
+    var readOnly = false
 
     @State private var session: ServerSession?
     @State private var messages: [SessionMessage] = []
@@ -475,7 +481,9 @@ struct ServerSessionDetailView: View {
             if let session {
                 metaSection(session)
                 recordsSection
-                dangerSection
+                if !readOnly {
+                    dangerSection
+                }
             } else if let errorMessage {
                 Section {
                     InlineError(errorMessage)

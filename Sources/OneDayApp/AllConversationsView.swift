@@ -1,19 +1,29 @@
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 「全部对话」管理页（0.18.0，旁聊立项档 A.3）：抽屉
 /// 「管理全部对话」行进来的全屏页。服务端全量名单
-/// （分页拉全）、四段＝主线／站内／外部／已归档、顶
-/// 部服务端搜索（吸收 0.16.0 的 /api/sessions/search，
-/// 不许两套搜索并存）、行长按四件与抽屉共用同一组件
-/// （ServerSessionRow）、多选批量（站内：归档/删除；
-/// 已归档：恢复/删除）、清理区（prune 先 dry_run 展
-/// 示将删条数、用户确认才真跑）、存量本地覆盖一次
-/// 性迁移（首开执行、失败逐项留痕不静默吞）。
+/// （分页拉全）、顶部服务端搜索（吸收 0.16.0 的
+/// /api/sessions/search，不许两套搜索并存）、行长
+/// 按四件与抽屉共用同一组件（ServerSessionRow）、
+/// 多选批量（归档/删除；已归档：恢复/删除）、清理
+/// 区（prune 先 dry_run 展示将删条数、用户确认才真
+/// 跑）、存量本地覆盖一次性迁移（首开执行、失败逐
+/// 项留痕不静默吞）。
 /// 纪律：一切写动作经 ServerSessionActions 回读对账
 /// 才落 UI，本页不乐观改行数据；主线行钦定保护
 /// （无菜单、不可改名/归档/删除）。
+/// 0.36.29（频道规格 §5，方案 A）：分段按三层分类
+/// 换代——旧「站内」（全量减主线、不分来源一筐）与
+/// 「外部」（写死空态）退役；新段＝主线／我的对话
+/// （分类 R2/R3）／频道（频道总览，Hermes 行带全量
+/// 计数）／已归档（全量口径不变），另有默认关闭、
+/// 不落盘的「显示系统运行」筛选开出第五段「系统」
+/// （分类 R4/R5＋清理区）。默认落地段改「我的对
+/// 话」。分类全走 Core SessionClassifier 现算，各
+/// 段不许再自拼「全量减主线」口径。
 struct AllConversationsView: View {
     /// 打开会话（宿主关页＋切聊天格＋走续聊通道）
     var onOpenSession: (String) -> Void
@@ -22,8 +32,18 @@ struct AllConversationsView: View {
     @Environment(AppState.self) private var appState
     // 0.25.0（动效专包）：本面动画走令牌＋resolved 出口
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 本地线程全集（分类 R2 的关联集派生用，与抽屉
+    /// /频道页同一 ThreadLinkage 派生）
+    @Query private var threads: [ChatThread]
     @State private var store = AllConversationsStore()
-    @State private var segment: Segment = .station
+    @State private var segment: Segment = .mine
+    /// 「显示系统运行」筛选（0.36.29，规格 §5.2）：
+    /// 默认关、只存 @State **不落盘**——每次进页默
+    /// 认关是纪律，落盘会让开过一次的人默认变开
+    @State private var showSystemRuns = false
+    /// 频道段 Hermes 行的频道页呈现（本页内 full-
+    /// ScreenCover，与抽屉入口同目的地同组件）
+    @State private var showHermesChannel = false
     @State private var searchText = ""
     @State private var searchResults: [SessionSearchHit] = []
     @State private var searching = false
@@ -35,11 +55,23 @@ struct AllConversationsView: View {
     @State private var pruneDaysText = "90"
     @State private var migrationStarted = false
 
-    enum Segment: String, CaseIterable {
+    enum Segment: String {
         case main = "主线"
-        case station = "站内"
-        case external = "外部"
+        case mine = "我的对话"
+        case channels = "频道"
         case archived = "已归档"
+        case system = "系统"
+    }
+
+    /// 呈现段集（§5.2）：「系统」段只在筛选开启时挂
+    /// 进分段控件末位，关闭即消失（正处该段则由
+    /// showSystemRuns 的 onChange 回落「我的对话」）
+    private var visibleSegments: [Segment] {
+        var segments: [Segment] = [.main, .mine, .channels, .archived]
+        if showSystemRuns {
+            segments.append(.system)
+        }
+        return segments
     }
 
     private var isSearching: Bool {
@@ -57,26 +89,37 @@ struct AllConversationsView: View {
         selection.contains { SideChatLink.isMergeBucket($0) }
     }
 
-    /// 站内段行：全量减主线，置顶者稳定置顶（服务端
-    /// 序为底、pinned 组内保序）。0.29.0：主线剔除改
-    /// 走 Core 单一函数 SideChatClassifier.isMain（钦
-    /// 定 id＋oneday-main- 前缀双信号）——旧等值过滤
-    /// 只认钦定 id 一条，钦定未回存时主线会话会以普
-    /// 通行混进站内段（用户 12:31 点名主线不进旁聊
-    /// 名义名单）；主线本体只在主线段呈现
-    private var stationSessions: [ServerSession] {
-        let rows = store.sessions.filter {
-            !SideChatClassifier.isMain(
-                serverSessionID: $0.id,
-                mainServerSessionID: mainSessionID
+    /// 未归档全量的分类分筐（0.36.29）：各段行源的
+    /// 唯一出处——旧「全量减主线」口径（stationSes-
+    /// sions）退役，分类走 Core SessionClassifier
+    /// 现算（主线/合并桶/我的对话/系统/频道一筐出）
+    private var partition: SessionPartition {
+        SessionClassifier.partition(
+            sessions: store.sessions,
+            mainServerSessionID: mainSessionID,
+            linkedThreadSessionIDs: ThreadLinkage.nonMainLinkedSessionIDs(
+                threads: threads, sideChats: appState.sideChats
             )
-        }
+        )
+    }
+
+    /// 我的对话段行：分类为我的对话层（R2 关联行＋
+    /// R3 前缀行，主线除外），置顶者稳定置顶（服务
+    /// 端序为底、pinned 组内保序，沿旧站内段行序口径）
+    private var mineRows: [ServerSession] {
+        let rows = partition.mine
         return rows.filter { $0.isPinned == true }
             + rows.filter { $0.isPinned != true }
     }
 
-    /// 已归档段行：服务端 archived 全量减主线（同
-    /// 站内段的 Core 单一判定）
+    /// 系统段行：分类为系统运行的全量行（服务端序）
+    private var systemRows: [ServerSession] {
+        partition.system
+    }
+
+    /// 已归档段行：服务端 archived 全量减主线（归档
+    /// 是正交维度、全量呈现不按层分类，规格 §2/§5.1；
+    /// 主线剔除走 Core 单一判定）
     private var archivedRows: [ServerSession] {
         store.archivedSessions.filter {
             !SideChatClassifier.isMain(
@@ -98,7 +141,7 @@ struct AllConversationsView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("分区", selection: $segment) {
-                    ForEach(Segment.allCases, id: \.self) { seg in
+                    ForEach(visibleSegments, id: \.self) { seg in
                         Text(seg.rawValue).tag(seg)
                     }
                 }
@@ -106,6 +149,16 @@ struct AllConversationsView: View {
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .padding(.vertical, OneDayMetrics.spacingS)
                 .disabled(isSearching)
+                // 0.36.29（规格 §5.2）：分段控件下方一
+                // 行系统筛选——默认关、不落盘；开启后
+                // 分段末位多出「系统」一段
+                if !isSearching {
+                    Toggle("显示系统运行", isOn: $showSystemRuns)
+                        .font(.captionText)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .padding(.bottom, OneDayMetrics.spacingS)
+                }
                 content
             }
             .background(Palette.pageBG)
@@ -115,7 +168,8 @@ struct AllConversationsView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("完成") { onClose() }
                 }
-                if segment == .station || segment == .archived {
+                if segment == .mine || segment == .archived
+                    || segment == .system {
                     ToolbarItem(placement: .primaryAction) {
                         Button(editMode.isEditing ? "取消选择" : "选择") {
                             // 0.25.0（动效专包）：原裸
@@ -161,6 +215,26 @@ struct AllConversationsView: View {
         }
         .task(id: searchText) {
             await runSearch()
+        }
+        // 0.36.29：筛选关掉而正处系统段时回落「我的
+        // 对话」（段集随开关动态增减，§5.2）
+        .onChange(of: showSystemRuns) { _, on in
+            if !on, segment == .system {
+                segment = .mine
+            }
+        }
+        // 0.36.29：频道段 Hermes 行的频道页（本页内呈
+        // 现，与抽屉入口同一 HermesChannelView）；页
+        // 内打开会话先关频道页、再走宿主既有续聊通道
+        // （频道标记由频道页点行时已置位）
+        .fullScreenCover(isPresented: $showHermesChannel) {
+            HermesChannelView(
+                onOpenSession: { id in
+                    showHermesChannel = false
+                    onOpenSession(id)
+                },
+                onClose: { showHermesChannel = false }
+            )
         }
         .alert(
             "删除所选会话？",
@@ -209,9 +283,10 @@ struct AllConversationsView: View {
         } else {
             switch segment {
             case .main: mainContent
-            case .station: stationContent
-            case .external: externalContent
+            case .mine: mineContent
+            case .channels: channelsContent
             case .archived: archivedContent
+            case .system: systemContent
             }
         }
     }
@@ -285,7 +360,10 @@ struct AllConversationsView: View {
         .refreshable { await store.load(appState: appState) }
     }
 
-    private var stationContent: some View {
+    /// 我的对话段（0.36.29 替代旧站内段）：只有出
+    /// 生/收养证明在身的服务端行——机器运行记录与
+    /// 未认领的外部会话不再混列于此（规格 §5.1）
+    private var mineContent: some View {
         List(selection: $selection) {
             migrationSection
             noticeSection
@@ -297,12 +375,90 @@ struct AllConversationsView: View {
                 Text(error)
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
-            } else if stationSessions.isEmpty {
-                Text("站内还没有会话。")
+            } else if mineRows.isEmpty {
+                Text("我的对话里还没有服务端会话。在 App 里开的旁聊连上服务端、或从频道收进来的对话会出现在这里。")
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
             } else {
-                ForEach(stationSessions) { session in
+                ForEach(mineRows) { session in
+                    selectableRow(session)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .environment(\.editMode, $editMode)
+        .refreshable { await store.load(appState: appState) }
+    }
+
+    /// 频道段（0.36.29 替代旧外部空态段）：频道总览
+    /// ——Hermes 行带会话数小字（本页是分页拉全口
+    /// 径，数可信，与抽屉行不给数分工，规格 §5.1）；
+    /// 外部频道将来在此加行
+    private var channelsContent: some View {
+        List {
+            migrationSection
+            noticeSection
+            Section {
+                Button {
+                    showHermesChannel = true
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        if let asset = ChannelRegistry.hermes.iconAssetName {
+                            Image(asset)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 40, height: 40)
+                                .accessibilityHidden(true)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(ChannelRegistry.hermes.name)
+                                .font(.rowTitle)
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                            Text("\(partition.hermesChannelCount) 条会话")
+                                .font(.captionText)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(Palette.inkMuted)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
+            }
+        }
+        .listStyle(.plain)
+        .refreshable { await store.load(appState: appState) }
+    }
+
+    /// 系统段（0.36.29，规格 §5.2）：分类为系统运行
+    /// 的全量行＋清理区（自旧站内段移来——清理是全
+    /// 服按天数执行、主要清的就是系统与频道存量，
+    /// 挂此最诚实）；行上不叠层标（本段本身即系统，
+    /// 与归档段不叠标同理）
+    private var systemContent: some View {
+        List(selection: $selection) {
+            migrationSection
+            noticeSection
+            if store.isLoading, store.sessions.isEmpty {
+                Text("正在读取…")
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
+            } else if let error = store.loadError {
+                Text(error)
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
+            } else if systemRows.isEmpty {
+                Text("没有系统运行记录。")
+                    .font(.captionText)
+                    .foregroundStyle(Palette.inkSecondary)
+            } else {
+                ForEach(systemRows) { session in
                     selectableRow(session)
                 }
             }
@@ -311,22 +467,6 @@ struct AllConversationsView: View {
         .listStyle(.plain)
         .environment(\.editMode, $editMode)
         .refreshable { await store.load(appState: appState) }
-    }
-
-    private var externalContent: some View {
-        List {
-            migrationSection
-            noticeSection
-            Section {
-                EmptyState(
-                    icon: "antenna.radiowaves.left.and.right",
-                    title: "通道未开通",
-                    message: "外部旁聊要等首个通道接通后才有内容；届时分身在外面的对话会出现在这里，只向主线汇报。"
-                )
-                .listRowSeparator(.hidden)
-            }
-        }
-        .listStyle(.plain)
     }
 
     private var archivedContent: some View {
@@ -452,7 +592,8 @@ struct AllConversationsView: View {
         }
     }
 
-    /// 清理区（站内段底部）：prune 两段式——先
+    /// 清理区（系统段底部，0.36.29 自旧站内段移来）：
+    /// prune 两段式——先
     /// dry_run 展示将删条数、确认后才真跑；施工期与
     /// 真机同规：真跑只发生在用户在本页点「清理」后
     private var cleanupSection: some View {
