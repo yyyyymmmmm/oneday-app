@@ -15,7 +15,7 @@ final class RunTurnTests: XCTestCase {
         var machine = RunTurnStateMachine()
         XCTAssertEqual(machine.phase, .submitting)
         machine.apply(.submitAccepted)
-        XCTAssertEqual(machine.phase, .generating)
+        XCTAssertEqual(machine.phase, .generating(stopping: false))
         XCTAssertFalse(machine.isSettled)
     }
 
@@ -62,7 +62,7 @@ final class RunTurnTests: XCTestCase {
         machine.apply(.submitAmbiguous)
         machine.apply(.foregrounded)
         machine.apply(.statusRunning)
-        XCTAssertEqual(machine.phase, .generating)
+        XCTAssertEqual(machine.phase, .generating(stopping: false))
     }
 
     func testStatusMissingStaysReconciling() {
