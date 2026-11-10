@@ -4958,3 +4958,26 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.35.0／CURRENT_PROJECT_VERSION 66／CFBundleShortVersionString 0.35.0／CFBundleVersion 66）＋SettingsView 页脚「OneDay v0.35.0」。
 - 桥侧实录见 64.1（备份 bak-20261110-p3、双生产者首轮真跑、自测 25/25、内存约 51.6%）；施工记录追记 hermes-deploy/oneday-bridge-rollout-20261109.md。
 - LL1–LL7 待真机终审；JJ/KK 系列续审并行。
+
+## §65 0.36.0/67 全局整改批一（组件止血）＋违规台账建立（2026-11-10）
+
+总纲三部定版后的首场宪法施工：范围＝全局审计「分批建议」批一＋无障碍 C1 子集；台账单一真源＝~/workspace/oneday-design-review/ui-remediation-ledger-20261110.md（审计 25 条＋深色 D1–D9＋无障碍 23 行统一编号、S17 销项制）。本批禁区守住：不动深色色板（批一B 专批；分隔暗档只随系统 separator 语义色同源落地、未自定第二套值）、不动行题字重（批二）。
+
+### 65.1 施工实录（对台账编号）
+
+- 分隔贯通（C1/C2）：OneDayMetrics.dividerInset 62→0；GroupDivider 改 Palette.separator（Color(UIColor.separator) 语义色）＋物理发丝高（1/displayScale）；全仓 24 个消费文件的显式 inset 调用（spacingM/42/56 等）统一改默认贯通——核形态：均为 odGroup 卡内行间分隔（FieldRow/actionRow/步骤行），末行无线纪律原样；详情段落分隔无独立形态，不受影响。暗档对卡面对比的收口验收归批一B（D4 部分销）。
+- 瓷砖退役（C6/C7，D7 部分销）：ConnectorTile 整类删除。品牌 8 家官方原图资产入 Assets.xcassets（BrandGmail/BrandGoogleCalendar/BrandGoogleDrive/BrandGoogleSheets/BrandNotion/BrandGitHub/BrandSpotify/BrandInstagram；来源与日期登记台账 D 节；GitHub/Notion 带官方暗档变体，余为自含底图双档通用）；目录呈现改 Core ConnectorIconSpec（.asset/.symbol），未知 MCP 服务器降级通用符号 puzzlepiece.extension（首字母兜底退役）、Box＝desktopcomputer；本机服务四件改 SF Symbols（server.rack/checkmark.shield/target/square.grid.2x2）；设备五件改苹果应用图标画法（白底 squircle＋标志色字形），容器收敛为 Design 层 AppSymbolTile 单一实现（设备/连接器符号路共用）。
+- sheet 去标题（C9）：连接器四类详情（已连接/目录/本机服务/设备）撤 inline 标题栏＋手写「关闭」，sheetHeader 内容领头；catalogDetail「状态」分区头去重（行保留）；同族：通知、档案导出、服务器文件三 sheet 同撤标题＋关闭，审批改动详情撤关闭。豁免候选入台账 E 节待用户复核：E1 BoxFiles 全屏预览两处关闭保留（无系统关闭位）、E2 联系人名/审批对象名标题保留（内容身份）、E3 设置子页技术原文（审计原注）。设置大标题 P8 维持已拍板例外待复核。
+- 文案清零（C10/C12，P7 部分销）：LocalServices evidenceLine 四条改用户语言（接口路径/方法名整行下屏），LocalServicesTests 断言反转（不许含 GET/端点）；连接器探活失败文案去端点与状态码（401/404/409 全下屏，改 S10 人话＋恢复动作）；「桥钥匙」死路全改单钥现实——连接器未配置段＋Goals/Monitors/Memories 三 Store 共 12 处；S11 禁用词 8 词主文案清扫（探活/端点/回读/落盘逐处改写，含三 Store 确认类提示、FilesView、全部对话、记忆条目、设备执行器、Kanban 流程说明、审批状态文案；真源/桶/scope/run 实查零命中——余下 run 命中均为协议 JSON 键与状态值，非文案）。审批状态「已批准，待回读确认」→「已批准，待确认生效」。
+- 日期格式器（C11）：Core 新 DisplayDate（dateTime 五档与 ChatTimeline.dividerText 同源转调、dateOnly、relativeDateTime、timeOnly），收编 10 处 .formatted 消费点（点子 3／监测 4／设备 1／连接器 1／服务器会话 1），全仓 .formatted(date:) 代码零残留；+10 测（含与 ChatTimeline 逐字一致性）。
+- 无障碍 C1 子集：A11Y-C1 inkSecondary 浅档 #697176→#646B71（设置底 4.46→4.85、页面底 5.27、卡面 5.41，同色相加深一档；VisualDirectionGateTests 补设置底 ≥4.5 闸）；A11Y-V1/T1 GoalCheckBox 命中域 22→44（视觉框不变、-11 负边距保布局）＋动作标签＋状态值，A11Y-V5 MilestoneCheckRow 补状态值（toggle trait 无确定可用 SwiftUI 对应、未赌编译，台账已注）；A11Y-C5/S4 动态帖未读补文字标「未读」（蓝点保留、双通道）；A11Y-S3/D4 Bold Text 映射——Core BoldTextPolicy（rootWeight/bumped 纯函数＋3 测）＋Design BoldTextRootModifier，ContentView 根视图单点挂载（开启粗体文字→未钉字重文本升 semibold，显式钉重不受环境覆盖）；A11Y-D2 HubCronSection 定时角标放大一档（徽标 16→18、字形 8→10，实查为图形字形非文字）。
+- 测试面改写（只改断言口径、不减方法数）：ConnectorCatalogTests（iconSpec 资产/符号断言）、LocalServicesTests（symbolName＋证据行反转断言）、VisualDirectionGateTests（设置底对比闸）。
+
+### 65.2 交付实录
+
+- 提交链：0a8a1ec（批一整包，70 文件）→本节文档提交；顶端以文档提交为准，代码顶端 0a8a1ec。
+- CI 42793467225 success（首轮即绿），**Executed 650 tests, 0 failures**（基线 637＋新测 13：DisplayDateFormattingTests 10＋BoldTextPolicyTests 3，只增不减）。
+- IPA：6,178,449 字节、md5 63ac771081f031191558c3ec7259bea8、独立解包验 Info.plist＝0.36.0/67、Assets.car 内 8 个 Brand* 资产齐，落 ~/workspace/your_files/oneday-v0.36.0/OneDay-0.36.0-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.36.0／CURRENT_PROJECT_VERSION 67／CFBundleShortVersionString 0.36.0／CFBundleVersion 67）＋SettingsView 页脚「OneDay v0.36.0」。
+- 台账销项（0.36.0）：全销 C1、C2、C6、C7、C9、C10、C11、C12、A11Y-C1、A11Y-V1、A11Y-T1、A11Y-C5、A11Y-S3、A11Y-D4；部分销 D4、D7、P7、A11Y-V4、A11Y-V5、A11Y-D2、A11Y-S4（余项去向台账逐行注明）；豁免候选 E1/E2/E3 与 P8 待用户复核；C16 底栏填充待 JJ 真机判读。
+- 待真机：分隔贯通全表面观感、品牌瓷砖双档呈现、Bold Text 开启态全 App、GoalCheckBox 命中域与 VO 播报、未读文字标——并入在途真机终审积压。
