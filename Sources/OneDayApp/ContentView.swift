@@ -168,6 +168,16 @@ struct ContentView: View {
                 showSettings = true
             }
         }
+        // 0.29.0：设置内页面置位的切格请求（连接器目
+        // 录本机服务详情的「目标/点子」入口）→关设置
+        // 并切到目标格，消费后清零
+        .onChange(of: appState.mainTabSwitchRequest) { _, tab in
+            if let tab {
+                appState.mainTabSwitchRequest = nil
+                showSettings = false
+                selection = tab
+            }
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView(
                 onClose: { showSettings = false },

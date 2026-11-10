@@ -29,6 +29,53 @@ public enum SideChatClassifier {
         guard let mainServerSessionID, !mainServerSessionID.isEmpty else { return .side }
         return serverSessionID == mainServerSessionID ? .main : .side
     }
+
+    /// App 铸主线服务端会话的 id 前缀（SideChatStore
+    /// .ensureMainServerSessionID 的生成式 `oneday-main-
+    /// <uuid>`；旁聊铸 `oneday-side-`、服务端派生桶
+    /// 为 `api-`，前缀互不相交）
+    public static let mainServerSessionIDPrefix = "oneday-main-"
+
+    /// 服务端会话是否主线（0.29.0 双信号收敛）：钦定
+    /// id 精确命中，或 id 带主线生成前缀。名单面（管
+    /// 理页站内/已归档段等）判「主线不进旁聊集」只许
+    /// 过本函数，不许各面再自拼等值过滤——钦定 id 一
+    /// 处变更（如服务端改派后回存），各面自动同口径。
+    public static func isMain(
+        serverSessionID: String, mainServerSessionID: String?
+    ) -> Bool {
+        if zone(
+            serverSessionID: serverSessionID,
+            mainServerSessionID: mainServerSessionID
+        ) == .main {
+            return true
+        }
+        return serverSessionID.hasPrefix(mainServerSessionIDPrefix)
+    }
+
+    /// 本地线程是否主线（0.29.0 双信号收敛）：本地钦
+    /// 定 id 命中，或其关联服务端会话是主线会话。单
+    /// 信号（只认本地钦定 id）的缺口：钦定丢失/指向
+    /// 他条时，真正的主线对话线程（绑定着主线会话）
+    /// 会漏进旁聊名单——用户 2026-11-10 12:31 点名
+    /// 「主线聊天不需要出现在旁聊里面」。抽屉旁聊区
+    /// 与底条搜索的行源判定只许过本函数。
+    public static func isMain(
+        localThreadID: UUID,
+        linkedServerSessionID: String?,
+        mainThreadID: UUID?,
+        mainServerSessionID: String?
+    ) -> Bool {
+        if zone(localThreadID: localThreadID, mainThreadID: mainThreadID) == .main {
+            return true
+        }
+        guard let linkedServerSessionID, !linkedServerSessionID.isEmpty
+        else { return false }
+        return isMain(
+            serverSessionID: linkedServerSessionID,
+            mainServerSessionID: mainServerSessionID
+        )
+    }
 }
 
 /// 主线钦定解析（M2）：存量 id 在名单内沿用，不在则新建；

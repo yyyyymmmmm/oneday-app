@@ -14,14 +14,27 @@ import SwiftUI
 /// 「未接入」状态字，点开详情 sheet 看接入说明。
 /// 已连接条目的详情保留真实操作（启停 PUT、连接测
 /// 试 POST，沿旧 MCP 页语义：乐观更新＋失败回滚、
-/// 回执无显式成功信号不判成功）。内部桥（write-
-/// gate/overview/oneday/box-bridge）是自身设施、
-/// 不列作用户连接器。页面规范遵 0.24.0 定版＋
-/// 0.26.0 设置语言：List(.insetGrouped)＋settingsBG
-/// ＋行题 Body 17（rowTitleL）＋分区头 Footnote 13
-/// （sectionLabel）＋行高 settingsRowHeight。
+/// 回执无显式成功信号不判成功）。页面规范遵
+/// 0.24.0 定版＋0.26.0 设置语言：List(.insetGrouped)
+/// ＋settingsBG＋行题 Body 17（rowTitleL）＋分区头
+/// Footnote 13（sectionLabel）＋行高 settingsRowHeight。
+///
+/// 0.29.0 补组（用户 12:30 点名、12:31 拍板）：顶部
+/// 第一组「本机服务」——自家的四条线（Hermes 本体/
+/// 记忆与技能审批桥/目标与点子/总览数据）补上名分
+/// 与状态。0.28.0 时内部桥以「自身设施」为由不列，
+/// 用户口径是它们同样要能在目录里看到通断。状态进
+/// 页实时探活（各桥既有客户端的只读 GET、与功能页
+/// 同源同钥匙），不缓存上次结果冒充实时；电脑
+/// （Simular Box）留在已连接组原位、本组不重复列
+/// （box-bridge 是电脑页的内部设施、同样不列）。
 struct ConnectorsView: View {
     @Environment(AppState.self) private var appState
+
+    /// 总览入口（设置页注入）：本机服务「总览数据」
+    /// 详情的跳转闭包——总览 sheet 的承载在设置页
+    /// 管理组，本页不另立第二份
+    var onOpenOverview: (() -> Void)? = nil
 
     @State private var servers: [MCPServerItem] = []
     @State private var errorMessage: String?
@@ -34,6 +47,21 @@ struct ConnectorsView: View {
     @State private var segment: Segment = .connected
     @State private var detailTarget: DetailTarget?
 
+    // 本机服务探活（0.29.0）：状态字典进页首帧全为
+    // 读取中、探活回来逐条落定；客户端与各功能页同
+    // 一批类（WriteGateClient/OneDayBridgeClient/
+    // OverviewBridgeClient/MemoryBridgeClient），基
+    // 址与钥匙全走既有 ServerConfig＋Keychain 单源
+    @State private var localStates: [LocalServiceID: LocalServiceProbeState] = [:]
+    @State private var localProbing = false
+    @State private var lastProbeAt: Date?
+    @State private var gateSnapshot: WriteGateStatus?
+    @State private var overviewGeneratedAt: String?
+    private let writeGateClient = WriteGateClient()
+    private let oneDayBridgeClient = OneDayBridgeClient()
+    private let overviewBridgeClient = OverviewBridgeClient()
+    private let memoryBridgeClient = MemoryBridgeClient()
+
     private enum Segment: String, CaseIterable, Identifiable {
         case connected = "已连接"
         case available = "可连接"
@@ -43,10 +71,12 @@ struct ConnectorsView: View {
     private enum DetailTarget: Identifiable {
         case connected(String)
         case catalog(String)
+        case local(LocalServiceID)
         var id: String {
             switch self {
             case .connected(let name): return "c-\(name)"
             case .catalog(let id): return "a-\(id)"
+            case .local(let service): return "l-\(service.rawValue)"
             }
         }
     }
@@ -72,6 +102,7 @@ struct ConnectorsView: View {
             if searching {
                 searchSections
             } else {
+                localSection
                 segmentSection
                 if segment == .connected {
                     connectedSections
@@ -100,8 +131,14 @@ struct ConnectorsView: View {
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: "搜索连接器"
         )
-        .refreshable { await load() }
-        .task { await load() }
+        .refreshable {
+            await load()
+            await probeLocals()
+        }
+        .task {
+            await load()
+            await probeLocals()
+        }
         .sheet(item: $detailTarget) { target in
             detailSheet(for: target)
         }
@@ -130,6 +167,89 @@ struct ConnectorsView: View {
         .listRowInsets(
             EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20)
         )
+    }
+
+    // MARK: - 本机服务（0.29.0 补组，进页实时探活）
+
+    /// 本机服务组：恒在目录顶部第一组（分组序：本
+    /// 机服务→已连接→可连接）；四条全列、状态随探
+    /// 活逐条落定，读取中也占行不塌组
+    private var localSection: some View {
+        Section {
+            ForEach(LocalServiceDirectory.roster) { descriptor in
+                localRow(descriptor)
+            }
+        } header: {
+            headerText("本机服务")
+        } footer: {
+            Text("这台服务器自家的线，进页当场探活；电脑（Simular Box）是 MCP 连接、在下方「已连接」里，本组不重复列。")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(rowInsets)
+    }
+
+    private func localRow(
+        _ descriptor: LocalServiceDescriptor
+    ) -> some View {
+        let state = localStates[descriptor.serviceID] ?? .loading
+        return Button {
+            detailTarget = .local(descriptor.serviceID)
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                ConnectorTile(
+                    glyph: descriptor.tileGlyph,
+                    colorHex: descriptor.tileColorHex, size: 40
+                )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(descriptor.name)
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    HStack(spacing: 5) {
+                        localStatusMark(state)
+                        Text(state.subline)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+    }
+
+    /// 状态点：正常绿/异常红/未配置灰；读取中是小转
+    /// 圈（不用灰点冒充已探）
+    @ViewBuilder
+    private func localStatusMark(
+        _ state: LocalServiceProbeState
+    ) -> some View {
+        switch state {
+        case .loading:
+            ProgressView()
+                .controlSize(.small)
+        case .up:
+            Circle()
+                .fill(Palette.success)
+                .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
+        case .down:
+            Circle()
+                .fill(Palette.danger)
+                .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
+        case .notConfigured:
+            Circle()
+                .fill(Palette.inkSecondary)
+                .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
+        }
     }
 
     // MARK: - 已连接（实查数据链）
@@ -280,13 +400,16 @@ struct ConnectorsView: View {
 
     @ViewBuilder
     private var searchSections: some View {
+        let hitLocal = LocalServiceProbeMapping.filtered(
+            states: localStates, query: query
+        )
         let hitConnected = ConnectorDirectory.filteredConnected(
             connected, query: query
         )
         let hitCatalog = ConnectorDirectory.filteredCatalog(
             available, query: query
         )
-        if hitConnected.isEmpty && hitCatalog.isEmpty {
+        if hitLocal.isEmpty && hitConnected.isEmpty && hitCatalog.isEmpty {
             Section {
                 EmptyState(
                     icon: "magnifyingglass",
@@ -298,6 +421,17 @@ struct ConnectorsView: View {
             .listRowBackground(Color.clear)
             .listRowInsets(rowInsets)
         } else {
+            if !hitLocal.isEmpty {
+                Section {
+                    ForEach(hitLocal) { descriptor in
+                        localRow(descriptor)
+                    }
+                } header: {
+                    headerText("本机服务")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(rowInsets)
+            }
             if !hitConnected.isEmpty {
                 Section {
                     ForEach(hitConnected) { entry in
@@ -340,6 +474,12 @@ struct ConnectorsView: View {
                 NavigationStack {
                     catalogDetail(entry)
                 }
+            }
+        case .local(let serviceID):
+            NavigationStack {
+                localDetail(
+                    LocalServiceDirectory.descriptor(serviceID)
+                )
             }
         }
     }
@@ -514,6 +654,170 @@ struct ConnectorsView: View {
         }
     }
 
+    /// 本机服务详情（0.29.0）：状态/证据/探活时间如
+    /// 实列全；异常显错误原文、未配置显成因与补设入
+    /// 口；有对应功能页的给入口跳转（口径与本页其他
+    /// 详情一致：只跳转、不在本页另做一份功能面）
+    private func localDetail(
+        _ descriptor: LocalServiceDescriptor
+    ) -> some View {
+        let state = localStates[descriptor.serviceID] ?? .loading
+        return List {
+            Section {
+                sheetHeader(
+                    glyph: descriptor.tileGlyph,
+                    colorHex: descriptor.tileColorHex,
+                    name: descriptor.name, subline: descriptor.blurb
+                )
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(rowInsets)
+
+            Section {
+                detailRow("状态", state.statusLabel)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("证据来源")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Text(descriptor.evidenceLine)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .padding(.vertical, OneDayMetrics.spacingS)
+                if let metric = state.metric, !metric.isEmpty {
+                    detailRow("当前读数", metric)
+                }
+                if let lastProbeAt {
+                    detailRow(
+                        "最近探活",
+                        lastProbeAt.formatted(
+                            date: .abbreviated, time: .shortened
+                        )
+                    )
+                }
+                if descriptor.serviceID == .writeGate,
+                   let gate = gateSnapshot {
+                    detailRow("闸门模块", gate.supported ? "已启用" : "未启用")
+                    detailRow(
+                        "记忆闸门", gate.memoryGateEnabled ? "开" : "关"
+                    )
+                    detailRow(
+                        "技能闸门", gate.skillsGateEnabled ? "开" : "关"
+                    )
+                }
+                if descriptor.serviceID == .overviewBridge,
+                   let generated = overviewGeneratedAt {
+                    detailRow("快照生成", generated)
+                }
+            } header: {
+                headerText("状态")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(rowInsets)
+
+            if case .down(let message) = state {
+                Section {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.vertical, OneDayMetrics.spacingS)
+                } header: {
+                    headerText("异常详情")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(rowInsets)
+            }
+
+            if case .notConfigured = state {
+                Section {
+                    Text("审批桥钥匙还没在这台手机上设置：本机三条桥共用同一把钥匙，没设时不会发出任何探活请求。到「审批桥钥匙」里粘贴设置后，回到本页下拉刷新即可。")
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.vertical, OneDayMetrics.spacingS)
+                } header: {
+                    headerText("未配置")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(rowInsets)
+            }
+
+            Section {
+                localEntries(descriptor.serviceID)
+            } header: {
+                headerText("打开")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(rowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .navigationTitle("服务详情")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("关闭") { detailTarget = nil }
+            }
+        }
+    }
+
+    /// 功能入口（按服务分发到各自既有页，不新造页面）
+    @ViewBuilder
+    private func localEntries(_ serviceID: LocalServiceID) -> some View {
+        switch serviceID {
+        case .hermes:
+            entryRow("服务器详情") { jumpSettings(.serverDetail) }
+        case .writeGate:
+            entryRow("记忆") { jumpAgent(.memory) }
+            entryRow("技能") { jumpAgent(.skills) }
+            entryRow("审批桥钥匙") { jumpSettings(.writeGateKey) }
+        case .oneDayBridge:
+            entryRow("目标") { jumpTab(.goals) }
+            entryRow("点子") { jumpTab(.ideas) }
+        case .overviewBridge:
+            entryRow("总览") {
+                detailTarget = nil
+                onOpenOverview?()
+            }
+        }
+    }
+
+    private func entryRow(
+        _ title: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Text(title)
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                Spacer(minLength: OneDayMetrics.spacingS)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+    }
+
+    private func jumpAgent(_ route: AgentRoute) {
+        detailTarget = nil
+        appState.pendingAgentRoute = route
+    }
+
+    private func jumpSettings(_ route: SettingsRoute) {
+        detailTarget = nil
+        appState.pendingSettingsRoute = route
+    }
+
+    private func jumpTab(_ tab: ContentView.MainTab) {
+        detailTarget = nil
+        appState.mainTabSwitchRequest = tab
+    }
+
     // MARK: - 数据链（与既有 MCP 页同源，语义不变）
 
     private func transportLabel(_ server: MCPServerItem) -> String {
@@ -559,6 +863,177 @@ struct ConnectorsView: View {
         } catch {
             errorMessage = (error as? HermesError)?.userMessage
                 ?? "连接状态读取失败。"
+        }
+    }
+
+    // MARK: - 本机服务探活（0.29.0，只读 GET、不写生产）
+
+    /// 四条并行探活：进页/下拉整批重探，按名册序逐
+    /// 条落定（一条慢不拖住已回的）；状态只存本页生
+    /// 命周期——重进页 @State 重建、必从读取中重探，
+    /// 不存在跨页缓存的绿色
+    private func probeLocals() async {
+        guard !localProbing else { return }
+        guard let config = appState.config else {
+            for id in LocalServiceID.allCases {
+                localStates[id] = .down(message: "尚未连接服务器。")
+            }
+            lastProbeAt = Date()
+            return
+        }
+        localProbing = true
+        defer { localProbing = false }
+        if localStates.isEmpty {
+            for id in LocalServiceID.allCases {
+                localStates[id] = .loading
+            }
+        }
+        async let hermes = probeHermes(config: config)
+        async let gate = probeWriteGate(config: config)
+        async let goals = probeOneDayBridge(config: config)
+        async let overview = probeOverviewBridge(config: config)
+        localStates[.hermes] = LocalServiceProbeMapping.state(
+            from: await hermes
+        )
+        localStates[.writeGate] = LocalServiceProbeMapping.state(
+            from: await gate
+        )
+        localStates[.oneDayBridge] = LocalServiceProbeMapping.state(
+            from: await goals
+        )
+        localStates[.overviewBridge] = LocalServiceProbeMapping.state(
+            from: await overview
+        )
+        lastProbeAt = Date()
+    }
+
+    /// Hermes 本体：GET /health（既有 HermesClient
+    /// 探活一，与连接页同源）；版本读数取健康回执
+    private func probeHermes(
+        config: ServerConfig
+    ) async -> LocalServiceProbeOutcome {
+        do {
+            let health = try await appState.client.health(config: config)
+            if health.isOK {
+                return .success(
+                    metric: health.version.map { "版本 \($0)" }
+                )
+            }
+            return .failure("健康检查返回状态：\(health.status)")
+        } catch {
+            return .failure(
+                (error as? HermesError)?.userMessage ?? "健康检查请求失败"
+            )
+        }
+    }
+
+    /// 记忆与技能：GET /api/write-gate/status（审批
+    /// 桥状态端点，枢纽/记忆页同源）；计数是尽力读数
+    /// ——记忆条目走记忆页的 MemoryBridgeClient、技
+    /// 能走技能页的 HermesClient.skills，任一取不到
+    /// 就不出该数、不编造
+    private func probeWriteGate(
+        config: ServerConfig
+    ) async -> LocalServiceProbeOutcome {
+        do {
+            let status = try await writeGateClient.gateStatus(
+                config: config
+            )
+            gateSnapshot = status
+            guard status.supported else {
+                return .success(metric: "闸门未启用")
+            }
+            let memoryCount = (try? await memoryBridgeClient.entries(
+                config: config
+            ))?.count
+            let skillCount = (try? await appState.performAdmin {
+                client, config in
+                try await client.skills(config: config)
+            })?.count
+            var parts: [String] = []
+            if let memoryCount { parts.append("记忆 \(memoryCount)") }
+            if let skillCount { parts.append("技能 \(skillCount)") }
+            return .success(
+                metric: parts.isEmpty ? nil : parts.joined(separator: " · ")
+            )
+        } catch let error as WriteGateError {
+            switch error {
+            case .noKey:
+                return .keyNotConfigured
+            case .unauthorized:
+                return .failure("审批桥钥匙被拒（401）")
+            case .bridgeMissing:
+                return .failure("审批桥端点不存在（404）")
+            case .recordGone:
+                return .failure("审批桥记录已不在")
+            case .conflict:
+                return .failure("审批桥状态冲突（409）")
+            case .failed(let message):
+                return .failure(message)
+            }
+        } catch {
+            return .failure("审批桥探活请求失败")
+        }
+    }
+
+    /// 目标与点子：本桥无专用健康端点，探最轻只读
+    /// 端点 GET /api/oneday-bridge/goals（目标页同
+    /// 源）；计数随探活回执一并取（点子尽力而为）
+    private func probeOneDayBridge(
+        config: ServerConfig
+    ) async -> LocalServiceProbeOutcome {
+        do {
+            let goals = try await oneDayBridgeClient.goals(config: config)
+            let ideas = (try? await oneDayBridgeClient.ideas(
+                config: config
+            ))?.count
+            var parts = ["目标 \(goals.count)"]
+            if let ideas { parts.append("点子 \(ideas)") }
+            return .success(metric: parts.joined(separator: " · "))
+        } catch let error as OneDayBridgeError {
+            switch error {
+            case .noKey:
+                return .keyNotConfigured
+            case .unauthorized:
+                return .failure("桥钥匙被拒（401）")
+            case .bridgeMissing:
+                return .failure("桥未开通（目标端点 404）")
+            case .recordGone:
+                return .failure("记录已不在")
+            case .failed(let message):
+                return .failure(message)
+            }
+        } catch {
+            return .failure("目标桥探活请求失败")
+        }
+    }
+
+    /// 总览数据：本桥无专用健康端点，探最轻只读端
+    /// 点 GET /api/overview-bridge/overview（总览页
+    /// 同源快照端点）；待批数只在大于零时作读数
+    private func probeOverviewBridge(
+        config: ServerConfig
+    ) async -> LocalServiceProbeOutcome {
+        do {
+            let snapshot = try await overviewBridgeClient.overview(
+                config: config
+            )
+            overviewGeneratedAt = snapshot.generatedAt
+            return .success(
+                metric: snapshot.pendingApprovals > 0
+                    ? "待批 \(snapshot.pendingApprovals)" : nil
+            )
+        } catch let error as OverviewBridgeError {
+            switch error {
+            case .noKey:
+                return .keyNotConfigured
+            case .unauthorized:
+                return .failure("桥钥匙被拒（401）")
+            case .failed(let message):
+                return .failure(message)
+            }
+        } catch {
+            return .failure("总览桥探活请求失败")
         }
     }
 

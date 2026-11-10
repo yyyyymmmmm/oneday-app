@@ -58,16 +58,32 @@ struct AllConversationsView: View {
     }
 
     /// 站内段行：全量减主线，置顶者稳定置顶（服务端
-    /// 序为底、pinned 组内保序）
+    /// 序为底、pinned 组内保序）。0.29.0：主线剔除改
+    /// 走 Core 单一函数 SideChatClassifier.isMain（钦
+    /// 定 id＋oneday-main- 前缀双信号）——旧等值过滤
+    /// 只认钦定 id 一条，钦定未回存时主线会话会以普
+    /// 通行混进站内段（用户 12:31 点名主线不进旁聊
+    /// 名义名单）；主线本体只在主线段呈现
     private var stationSessions: [ServerSession] {
-        let rows = store.sessions.filter { $0.id != mainSessionID }
+        let rows = store.sessions.filter {
+            !SideChatClassifier.isMain(
+                serverSessionID: $0.id,
+                mainServerSessionID: mainSessionID
+            )
+        }
         return rows.filter { $0.isPinned == true }
             + rows.filter { $0.isPinned != true }
     }
 
-    /// 已归档段行：服务端 archived 全量减主线
+    /// 已归档段行：服务端 archived 全量减主线（同
+    /// 站内段的 Core 单一判定）
     private var archivedRows: [ServerSession] {
-        store.archivedSessions.filter { $0.id != mainSessionID }
+        store.archivedSessions.filter {
+            !SideChatClassifier.isMain(
+                serverSessionID: $0.id,
+                mainServerSessionID: mainSessionID
+            )
+        }
     }
 
     /// 主线行：全量里找钦定 id，找不到走单查兜底

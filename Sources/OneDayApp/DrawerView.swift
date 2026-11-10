@@ -440,11 +440,23 @@ struct DrawerView: View {
     /// 旁聊区行源：可见本地线程剔主线后逐条过 Core
     /// 行显过滤（DrawerSideChatFilter：主线/归档已在
     /// 上游剔除，此处再核关联会话来源一道——kanban/
-    /// 平台源的导入线程不显示；来源未知恒放行）
+    /// 平台源的导入线程不显示；来源未知恒放行）。
+    /// 0.29.0：主线判定改走 Core 单一函数 SideChat-
+    /// Classifier.isMain 双信号（钦定 id＋主线会话绑
+    /// 定）——旧单信号只认钦定 id，钦定丢失/指向他
+    /// 条时绑着主线会话的真主线对话会漏进本区（用
+    /// 户 12:31 点名「主线聊天不需要出现在旁聊里
+    /// 面」）；搜索态名单与本区同一行源、自动同口径
     private var sideThreads: [ChatThread] {
         drawerItems.filter { thread in
             DrawerSideChatFilter.threadListed(
-                isMainThread: thread.id == appState.sideChats.mainThreadID,
+                isMainThread: SideChatClassifier.isMain(
+                    localThreadID: thread.id,
+                    linkedServerSessionID: thread.serverSessionID,
+                    mainThreadID: appState.sideChats.mainThreadID,
+                    mainServerSessionID: appState.sideChats
+                        .mainServerSessionID
+                ),
                 isLocallyArchived: false,
                 linkedSource: thread.serverSessionID.flatMap {
                     drawerServerSources[$0]

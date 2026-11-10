@@ -193,7 +193,10 @@ struct SettingsView: View {
         case .serverSessionDetail(let id):
             ServerSessionDetailView(sessionID: id)
         case .mcp:
-            ConnectorsView()
+            // 0.29.0：目录本机服务详情的「总览」入口经
+            // 本闭包回设置页开管理组总览 sheet（总览的
+            // 承载在本页 manageSheet、不另立第二份）
+            ConnectorsView(onOpenOverview: { manageSheet = .overview })
         }
     }
 
@@ -345,7 +348,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.26.0")
+            Text("OneDay v0.29.0")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
