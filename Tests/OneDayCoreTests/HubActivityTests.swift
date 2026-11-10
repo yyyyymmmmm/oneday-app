@@ -184,8 +184,8 @@ final class HubActivityTests: XCTestCase {
         let groups = HubActivityAssembler.assemble(
             sessions: [unnamed], runsByJobID: [:], jobTitles: [:],
             logs: [], fetchedAt: now, now: now, calendar: calendar,
-            locale: Locale(identifier: "zh-Hans"),
-            firstUserMessages: ["s9": "帮我查一下节点状态"]
+            firstUserMessages: ["s9": "帮我查一下节点状态"],
+            locale: Locale(identifier: "zh-Hans")
         )
         let item = groups[0].items[0]
         XCTAssertEqual(item.title, "帮我查一下节点状态")
