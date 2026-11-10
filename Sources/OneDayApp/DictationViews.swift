@@ -248,12 +248,23 @@ struct DictationPrepSheet: View {
 /// 上屏——闪退后用户重开截一张图即知上次死在哪一
 /// 步，不再靠猜。阶段码是内部记号、非用户文案，
 /// 故整行明标「诊断信息」以别于正文口径
+/// 0.36.12 扩串：同行附诊断串（引擎种类＋规范化
+/// locale＋草稿/定稿计数）——「实时不出字」下次录
+/// 屏截一张图即可读出：实际跑的哪个引擎、草稿到
+/// 底到没到（vol＞0）还是全程只有定稿（vol＝0）
 struct DictationStageDiagnosticLine: View {
     var body: some View {
         Text("诊断信息 · 上次语音停在："
-            + (DictationController.lastStageSnapshot ?? "暂无记录"))
+            + (DictationController.lastStageSnapshot ?? "暂无记录")
+            + diagSuffix)
             .font(.caption2)
             .foregroundStyle(Palette.inkSecondary)
+    }
+
+    private var diagSuffix: String {
+        guard let diag = DictationController.lastDiagSnapshot
+        else { return "" }
+        return "｜" + diag
     }
 }
 

@@ -112,6 +112,11 @@ final class ComposerTextMetricsTests: XCTestCase {
                 "第 \(i) 步胶囊高 \(heights[i]) 小于前步 \(heights[i - 1])（形态回跳）"
             )
         }
+        // 第 4 步「测试\n」等值收紧（0.36.12）：尾部 \n
+        // 的光标行恒计入后，该步须与下一步「测试\nh」
+        // 逐值相等——旧版只断言单调不减、放行了漏数
+        XCTAssertEqual(heights[3], 98.34, accuracy: 1)
+        XCTAssertEqual(heights[3], heights[4], accuracy: 0.001)
         XCTAssertEqual(heights[4], 98.34, accuracy: 1)
         XCTAssertEqual(heights[5], heights[4], accuracy: 0.001)
         for s in steps {
@@ -125,5 +130,99 @@ final class ComposerTextMetricsTests: XCTestCase {
                 accuracy: 0.001
             )
         }
+    }
+
+    /// 尾部换行光标行（0.36.12，用户真机录屏定案，
+    /// 诊断档 composer-newline-diagnosis-20261110）：
+    /// 以 \n 结尾时光标所在的空行是 TextKit 的
+    /// extraLineFragment、不在字形枚举内，旧量测漏
+    /// 数——「测试\n」数成 1 行、胶囊不动，键入新字
+    /// 才跳高。口径：尾 \n 的光标行恒计入
+    func testTrailingNewlineCountsCursorLine() {
+        XCTAssertEqual(
+            ComposerTextMetrics.lineCount(for: "测试\n", width: textWidth), 2
+        )
+        XCTAssertEqual(
+            ComposerTextMetrics.textHeight(for: "测试\n", width: textWidth),
+            2 * ComposerLayout.lineHeight, accuracy: 0.01
+        )
+        // 回车当场就该到两行高：与续打一字的「测试\nh」
+        // 逐值相等
+        XCTAssertEqual(
+            ComposerTextMetrics.capsuleHeight(
+                for: "测试\n", containerWidth: 402
+            ),
+            ComposerTextMetrics.capsuleHeight(
+                for: "测试\nh", containerWidth: 402
+            ),
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            ComposerTextMetrics.capsuleHeight(
+                for: "测试\n", containerWidth: 402
+            ),
+            98.34, accuracy: 1
+        )
+    }
+
+    /// 连续尾部换行与纯换行：每多一个尾 \n 多一行
+    /// 光标行（「a\n\n」枚举 2＋补 1＝3；「\n」枚举
+    /// 1＋补 1＝2）
+    func testMultipleTrailingNewlines() {
+        XCTAssertEqual(
+            ComposerTextMetrics.lineCount(for: "测试\n\n", width: textWidth), 3
+        )
+        XCTAssertEqual(
+            ComposerTextMetrics.lineCount(for: "\n", width: textWidth), 2
+        )
+    }
+
+    /// 中间＋尾部混合（防双补/漏补）与无尾 \n 的回
+    /// 归护栏
+    func testMiddleAndTrailingNewline() {
+        XCTAssertEqual(
+            ComposerTextMetrics.lineCount(for: "测试\nh\n", width: textWidth), 3
+        )
+        XCTAssertEqual(
+            ComposerTextMetrics.lineCount(for: "测试", width: textWidth), 1
+        )
+        XCTAssertEqual(
+            ComposerTextMetrics.lineCount(for: "测试\nh", width: textWidth), 2
+        )
+    }
+
+    /// 封顶边界：5 行正文＋尾 \n 数得 6 行、实测高
+    /// 恰达封顶、胶囊为 6 行多行总高（115.02＋60＝
+    /// 175.02）；6 行正文＋尾 \n 数得 7 行、未封顶
+    /// 实测高过封顶使内滚触发（光标行可经滚动到
+    /// 达），胶囊仍封顶
+    func testTrailingNewlineAtCapBoundary() {
+        let five = "量测五行甲班\n量测五行乙班\n量测五行丙班\n量测五行丁班\n量测五行戊班\n"
+        XCTAssertEqual(
+            ComposerTextMetrics.lineCount(for: five, width: textWidth), 6
+        )
+        XCTAssertEqual(
+            ComposerTextMetrics.textHeight(for: five, width: textWidth),
+            ComposerLayout.maxTextHeight, accuracy: 0.01
+        )
+        XCTAssertEqual(
+            ComposerTextMetrics.capsuleHeight(for: five, containerWidth: 402),
+            175.02, accuracy: 1
+        )
+        let six = "量测六行甲班\n量测六行乙班\n量测六行丙班\n量测六行丁班\n量测六行戊班\n量测六行己班\n"
+        XCTAssertEqual(
+            ComposerTextMetrics.lineCount(for: six, width: textWidth), 7
+        )
+        let measured = ComposerTextMetrics.textHeight(
+            for: six, width: textWidth
+        )
+        XCTAssertEqual(
+            measured, 7 * ComposerLayout.lineHeight, accuracy: 0.01
+        )
+        XCTAssertTrue(ComposerLayout.shouldScroll(measured: measured))
+        XCTAssertEqual(
+            ComposerTextMetrics.capsuleHeight(for: six, containerWidth: 402),
+            175.02, accuracy: 1
+        )
     }
 }

@@ -73,6 +73,12 @@ final class DictationController {
     }
     /// 本次是否走了回退引擎（DictationTranscriber）
     private(set) var usedFallbackEngine = false
+    /// 结果分型计数（0.36.12 仪表，诊断 dictation-
+    /// nolive 修法 1）：volatile（草稿）与 final（定
+    /// 稿）分开累计——「实时不出字」的定案数据就在
+    /// 这里：草稿到底有没有到达消费环
+    private(set) var volatileResultCount = 0
+    private(set) var finalResultCount = 0
 
     /// 录音面是否应占住发送舱（准备中/录音中/收尾）
     var isActive: Bool {
@@ -98,6 +104,9 @@ final class DictationController {
     /// 阶段面包屑落盘键（0.36.8，诊断 §5.4）：闪退后
     /// 读末阶段即知死点，不再靠猜
     private static let lastStageKey = "dictation.lastStage"
+    /// 诊断串落盘键（0.36.12）：引擎种类＋规范化
+    /// locale＋结果分型计数，与末阶段同走诊断行上屏
+    private static let diagKey = "dictation.lastDiag"
     private static let log = Logger(
         subsystem: "site.didichou.oneday", category: "dictation")
 
@@ -106,6 +115,30 @@ final class DictationController {
     private func markStage(_ stage: String) {
         Self.log.info("stage=\(stage, privacy: .public)")
         defaults.set(stage, forKey: Self.lastStageKey)
+    }
+
+    /// 规范化后的 locale 标识（选引擎时回填；回退引
+    /// 擎无规范化环节，用语言标识原值）
+    @ObservationIgnored
+    private var diagLocaleID = ""
+
+    /// 诊断串打点（0.36.12）：把「实际在跑哪个引擎、
+    /// 语言规范化成什么、草稿/定稿各到几条」一行落
+    /// 盘＋日志。调用点克制（选引擎、首条草稿、首条
+    /// 定稿、收尾各一次），不在每条结果上写盘
+    private func markDiag() {
+        let engine = usedFallbackEngine ? "fallback" : "main"
+        let text = "engine=\(engine)(\(diagLocaleID))"
+            + " vol=\(volatileResultCount)"
+            + " fin=\(finalResultCount)"
+        Self.log.info("diag=\(text, privacy: .public)")
+        defaults.set(text, forKey: Self.diagKey)
+    }
+
+    /// 诊断串快照：预备页页脚与失败行上屏用（与
+    /// lastStageSnapshot 同口径）
+    static var lastDiagSnapshot: String? {
+        UserDefaults.standard.string(forKey: diagKey)
     }
 
     /// 当前麦克风权限（同步读，0.36.9 同步门）：只
@@ -348,6 +381,12 @@ final class DictationController {
         useFallback: Bool, generation gen: Int
     ) async -> EngineAttempt {
         usedFallbackEngine = useFallback
+        // 仪表归零（0.36.12）：计数归本尝试的引擎——
+        // 结果只在启动成功后到达，归零无竞态；主引擎
+        // 若中途失败转回退，计数随回退尝试重新起算
+        volatileResultCount = 0
+        finalResultCount = 0
+        diagLocaleID = language.localeIdentifier
         // 1) 选模块并规范化语言（locale 必须经
         // supportedLocale 规范化——苹果工程师口径）
         var speechModule: (any SpeechModule)?
@@ -365,6 +404,10 @@ final class DictationController {
                 )
             }
             guard let locale else { return .unavailable }
+            // 规范化结果回填仪表（0.36.12）：诊断行要
+            // 显示的是 supportedLocale 实际给了什么，
+            // 不是请求了什么
+            diagLocaleID = locale.identifier
             let module = SpeechTranscriber(
                 locale: locale,
                 transcriptionOptions: [],
@@ -385,6 +428,11 @@ final class DictationController {
         let modules: [any SpeechModule] = [module]
         startupFault = false
         markStage("moduleBuilt")
+        // 选引擎打点（0.36.12）：引擎种类＋规范化
+        // locale 在此定格落盘——回退引擎静默在跑自此
+        // 可见（旧实现 usedFallbackEngine 只赋值、无
+        // 任何消费点，用户与诊断都无从知道）
+        markDiag()
 
         // 2) 语言资产：未装先下载（准备中相位带进度）
         let status = await AssetInventory.status(forModules: modules)
@@ -560,8 +608,25 @@ final class DictationController {
     ) {
         guard generation == gen else { return }
         guard phase == .recording || phase == .finishing else { return }
-        if !session.hasRecognizedText {
-            markStage("firstResult")
+        // 结果分型打点（0.36.12，诊断修法 1）：旧实现
+        // 只在首条结果打 firstResult、不分型——草稿是
+        // 否到达过无从分辨，1a/1b 两假设因此不可分。
+        // 现行：首条草稿与首条定稿各打一格、两类逐条
+        // 计数并同步进诊断串；定稿计数在首条定稿时连
+        // 同当时的草稿计数落盘，「草稿先行还是全程为
+        // 零」一录定案
+        if isFinal {
+            finalResultCount += 1
+            if finalResultCount == 1 {
+                markStage("firstFinal")
+                markDiag()
+            }
+        } else {
+            volatileResultCount += 1
+            if volatileResultCount == 1 {
+                markStage("firstVolatile")
+                markDiag()
+            }
         }
         session.applyResult(text: text, isFinal: isFinal)
         displayText = session.displayText
@@ -603,6 +668,9 @@ final class DictationController {
         // 先落相位再 await：同帧重入（中断与引擎错
         // 同时到）在此被守卫挡下
         setPhase(.finishing)
+        // 收尾把最终计数落盘（0.36.12 仪表）：会话结
+        // 束后诊断行读到的是全程总数，不是首条时刻的
+        markDiag()
         timerTask?.cancel()
         timerTask = nil
         unregisterInterruptionObservers()

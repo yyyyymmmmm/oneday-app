@@ -303,16 +303,40 @@ final class DictationTests: XCTestCase {
             DictationFaultPolicy.action(
                 generationMatches: true, phase: .preparing),
             .abortStartup)
-        // 已落定/收尾中：收尾流程自己管，不重复触发
+        // 启动窗的 .idle（0.36.12 残口收口）：资产已
+        // 装时 startEngine 全程停在 .idle，此窗抛错须
+        // 闩住作废——见 testFaultPolicyIdleWindow
         XCTAssertEqual(
             DictationFaultPolicy.action(
-                generationMatches: true, phase: .idle), .ignore)
+                generationMatches: true, phase: .idle), .abortStartup)
+        // 已落定/收尾中：收尾流程自己管，不重复触发
         XCTAssertEqual(
             DictationFaultPolicy.action(
                 generationMatches: true, phase: .finishing), .ignore)
         XCTAssertEqual(
             DictationFaultPolicy.action(
                 generationMatches: true, phase: .failed), .ignore)
+    }
+
+    /// 启动窗 .idle 残口（0.36.12，诊断 dictation-
+    /// nolive §断点 2）：资产已装的快路径上，
+    /// startEngine 自调起全程停在 .idle 直到末尾进
+    /// .recording；此窗内 analyzer.start/结果流抛错
+    /// 若映射 .ignore 会被静默吞、随后照常进录音态
+    /// ＝0.36.8「假录音」模式的残口。判定：同代次的
+    /// .idle 故障信号必须 abortStartup（闩住作废、
+    /// 由启动方拆管道报失败）
+    func testFaultPolicyIdleWindowAbortsStartup() {
+        XCTAssertEqual(
+            DictationFaultPolicy.action(
+                generationMatches: true, phase: .idle),
+            .abortStartup)
+        // 代次不符仍优先作废：上一代迟到的 .idle 信号
+        // 不许借新口径误杀新一代启动
+        XCTAssertEqual(
+            DictationFaultPolicy.action(
+                generationMatches: false, phase: .idle),
+            .ignore)
     }
 
     // MARK: - 麦克风权限同步门（0.36.9 热修二轮，礼记同案）

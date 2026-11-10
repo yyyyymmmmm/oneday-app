@@ -90,6 +90,15 @@ public enum ComposerTextMetrics {
                 location: 0, length: layoutManager.numberOfGlyphs
             )
         ) { _, _, _, _, _ in lines += 1 }
+        // 尾行补计（0.36.12，用户真机录屏定案，诊断档
+        // composer-newline-diagnosis-20261110）：文本以
+        // \n 结尾时，光标所在的那一空行是布局管理器的
+        // extraLineFragment——字形区间长度为 0、不在上
+        // 面的枚举范围内。此前漏数：「测试\n」数成 1
+        // 行、胶囊不动，键入新字才跳高。口径：以 \n 结
+        // 尾即 +1，光标行恒计入（「a\n\n」枚举 2 补后
+        // 3、「\n」枚举 1 补后 2，语义皆正确）
+        if text.hasSuffix("\n") { lines += 1 }
         return max(lines, 1)
     }
 

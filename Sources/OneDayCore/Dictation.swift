@@ -326,12 +326,21 @@ public enum DictationAudioFormatPolicy {
 /// 失败态：录音中→失败收尾；启动中→闩住作废（宣布
 /// started 前由启动方检查并拆除管道）；已落定/收尾
 /// 中→迟到信号作废
+///
+/// 0.36.12 残口收口（诊断 dictation-nolive §断点 2）：
+/// 资产已装时 startEngine 全程停在 .idle 直到末尾才
+/// 进 .recording——.idle 窗正是启动窗的一部分，此
+/// 窗内抛错旧映射 .ignore 等于把 0.36.8 要根除的假
+/// 录音模式留了个后门。.idle 并入 abortStartup：此
+/// 时能产生故障信号的只有本代次的启动管道（结果/分
+/// 析任务只在启动尝试内存在、收尾后代次递增使迟到
+/// 信号先被代次守卫作废），并入无误伤面
 public enum DictationFaultPolicy {
     public enum Action: String, Sendable, Equatable {
         /// 已在录音：走 .engineError 失败收尾
         case finishWithError
-        /// 尚在启动（请求权限/准备中）：置闩作废本次
-        /// 启动，绝不许进录音态
+        /// 尚在启动（请求权限/准备中/启动窗的 .idle）：
+        /// 置闩作废本次启动，绝不许进录音态
         case abortStartup
         /// 代次不符或相位已落定：迟到信号，不理
         case ignore
@@ -344,9 +353,9 @@ public enum DictationFaultPolicy {
         switch phase {
         case .recording:
             return .finishWithError
-        case .requestingPermission, .preparing:
+        case .requestingPermission, .preparing, .idle:
             return .abortStartup
-        case .idle, .finishing, .failed:
+        case .finishing, .failed:
             return .ignore
         }
     }
