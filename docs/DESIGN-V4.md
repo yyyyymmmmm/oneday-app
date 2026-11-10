@@ -5056,4 +5056,9 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 
 ### 68.3 交付实录
 
-（CI 与解包验后补记。）
+- 提交链：17039fb（整包）→本节补记提交；顶端以补记提交为准，代码顶端 17039fb。
+- CI：42802046562 **success**，Executed **657 tests, 0 failures**（基线 656＋新增 1：图标资产互异测；capabilityLine 断言组并入既有名单测，只增不减）。
+- IPA：6,297,991 字节、md5 7166d443aac5e799d61c2b063acfd2ed、独立解包验 Info.plist＝0.36.3/70、Assets.car 内四资产名齐（LocalHermes/LocalWriteGate/LocalOneDayBridge/LocalOverviewBridge 各 1），落 ~/workspace/your_files/oneday-v0.36.3/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.3/70）＋SettingsView 页脚「OneDay v0.36.3」。
+- 台账销项：C1-补、C6-补新增已销；P8 改已销（例外经用户推翻）；D 节补登四资产；G 节记本批全项。
+- 待真机（并入终审积压）：设置页分隔引导是否被原生 List 采纳（不采纳即下版自绘行盒）；抽屉材质深浅双档呈现与底条衔接；设备详情页新语法与权限行三态（未授权/已授权/被拒）实点；本机服务四图标双档辨识度；详情页居中领头段观感。
