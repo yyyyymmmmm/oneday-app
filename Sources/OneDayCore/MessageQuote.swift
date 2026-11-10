@@ -23,11 +23,21 @@ public struct MessageQuote: Equatable, Sendable {
         self.content = content
     }
 
-    /// 人话称呼：助手恒为 Hermes（产品内智能体名），
-    /// 用户为「我」；未知角色回落「对方」
+    /// 人话称呼：助手为产品内智能体名（缺省 Hermes、
+    /// 0.36.22 起呈现层传档案显示名跟随改名），用户
+    /// 为「我」；未知角色回落「对方」
     public static func speakerName(for role: String) -> String {
+        speakerName(for: role, assistantName: AgentName.fallback)
+    }
+
+    /// 人话称呼（带智能体显示名）：引用条/回复状态文
+    /// 案是露脸面，助手称呼跟随本地档案显示名，与页
+    /// 头/胶囊同源（0.36.22 档案收敛）
+    public static func speakerName(
+        for role: String, assistantName: String
+    ) -> String {
         switch role {
-        case "assistant": return "Hermes"
+        case "assistant": return assistantName
         case "user": return "我"
         default: return "对方"
         }
