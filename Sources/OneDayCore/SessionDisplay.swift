@@ -282,10 +282,12 @@ public enum LocalThreadSubtitle {
 public enum DrawerSideChatFilter {
     /// 用户通道来源集合（App API 与控制台）：除此
     /// 之外的非空 source（kanban/平台/其他内部来源）
-    /// 一律判撤
-    public static let userChannelSources: Set<String> = [
-        "api_server", "api", "dashboard", "web",
-    ]
+    /// 一律判撤。0.36.29 起本集合的单一真源收敛为
+    /// SessionSources.userChannels（频道规格 §2 施
+    /// 工约束：分类规则的系统源判定与本过滤同源、
+    /// 防漂移）——此处只留引用，本体值一字不变
+    public static let userChannelSources: Set<String> =
+        SessionSources.userChannels
 
     public static func threadListed(
         isMainThread: Bool,

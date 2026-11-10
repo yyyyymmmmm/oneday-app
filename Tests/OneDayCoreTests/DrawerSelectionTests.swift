@@ -4,7 +4,8 @@ import XCTest
 /// 抽屉单一选择政策闸（0.36.7，频道规格 §10.2/
 /// §10.4）：五场景逐一钉——全抽屉任一时刻至多一
 /// 枚胶囊。Tab 以 String 代（政策对页签类型泛型，
-/// App 侧以 ContentView.MainTab 实例化）。
+/// App 侧以 ContentView.MainTab 实例化）。0.36.29
+/// 补频道两场景（§10.4 的 ④⑤）。
 final class DrawerSelectionTests: XCTestCase {
 
     private let mainID = UUID()
@@ -93,6 +94,37 @@ final class DrawerSelectionTests: XCTestCase {
     // 皆无从派生→.none，不画假当前
     func testNothingDerivableIsNone() {
         XCTAssertEqual(resolve(tab: "chat", object: nil), .none)
+    }
+
+    // 场景六（§10.4-④，0.36.29）：从频道页看会话
+    // ——只有频道行带胶囊，主线聊天行与旁聊行皆无
+    func testWatchingChannelSelectsOnlyChannelRow() {
+        let selection = resolve(tab: "chat", object: .channel("hermes"))
+        XCTAssertEqual(selection, .channel("hermes"))
+        XCTAssertNotEqual(selection, .main)
+        XCTAssertNotEqual(selection, .side(sideID))
+    }
+
+    // 场景七（§10.4-⑤，0.36.29）：收养后改从旁聊
+    // 区进入同一条——对象引用由导航动作改位 .side，
+    // 胶囊随之归旁聊行、频道行无胶囊
+    func testReenteringAdoptedThreadFromSideListMovesSelection() {
+        XCTAssertEqual(
+            resolve(tab: "chat", object: .channel("hermes")),
+            .channel("hermes")
+        )
+        XCTAssertEqual(
+            resolve(tab: "chat", object: .side(sideID)), .side(sideID)
+        )
+    }
+
+    // 频道引用在非聊天表面同样休眠（.surface 优先
+    // 级 1 不因加值改变）
+    func testChannelObjectSleepsOnNonChatSurface() {
+        XCTAssertEqual(
+            resolve(tab: "feed", object: .channel("hermes")),
+            .surface("feed")
+        )
     }
 
     // 线程 id → 对象引用派生（ChatView 同步点）
