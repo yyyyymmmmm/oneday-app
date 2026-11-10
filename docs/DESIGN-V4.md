@@ -5377,3 +5377,9 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - 回车件：量测口径有单测逐值钉死，但真机最终判定＝用户连点回车时胶囊逐次长高、光标行可见可达。
 - 听写件：本轮只补仪表＋残口，**不承诺实时出字已修**——定案依赖用户下次录屏/截图里的诊断行（预备页页脚或失败行）：读 engine 与 vol/fin 三数即可分清 1a/1b，修法再按 §77.2 的分流走，不许在本包之外凭猜动引擎代码。
 - FaultPolicy .idle 并入 abortStartup 的前提（结果/分析任务只存在于启动尝试内、收尾必递增代次）已逐点对代码核过；若将来有新常驻任务形态引入，须重审此判定。
+
+### 77.6 外部核查修订（2026-11-10 22:21，核查档 community-solutions-check-20261110.md 第 3 题）
+
+- **§77.2 的 1b 定性作废**：「主引擎把 volatile 攒到落定才交付＝模块在本机/本语言下的交付节奏」这一口径已被外部证据推翻，不作交账结论。外部实证（WWDC25 277 逐字稿＋苹果官方示例＋第三方实测）表明：主引擎开 [.volatileResults] 后本应实时交付草稿；回退引擎的 .progressiveLongDictation 渐进预设本应给初步结果。因此下轮真机若出现 engine=main 且 vol=0，**不许再归因于「模块天生节奏」**——成因在四格实查（下条）齐备前保持未定。
+- **四格增补（随 0.36.13 补，本包已出仓）**：选引擎打点在引擎种类＋规范化 locale 之外加记——①实际生效的预设名（回退引擎为所构造的 DictationTranscriber 预设；主引擎记其 reportingOptions 构成）；②supportedLocales 对当前 locale 的实查布尔；③installedLocales 实查布尔；④SpeechTranscriber.isAvailable 原值（在守卫消费前取值）。四格齐备后，engine=main/vol=0 的成因才许下结论。
+- §77.2 其余部分（帧证据、四环全通、仪表三点施工、FaultPolicy 与回车件）不受本修订影响。
