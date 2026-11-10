@@ -7265,7 +7265,7 @@ def greet(name):
 
 ## §97 0.36.27/94 组合包：台账合并＋发送舱上方收一档＋抽屉纯系统朦胧（2026-11-11）
 
-版本五处同改 0.36.27/94＋grep 验（Project.swift 四处＋设置页脚）。本包三件入册（97.1–97.3）；件四/件五暂停注记见 97.4。
+版本五处同改 0.36.27/94＋grep 验（Project.swift 四处＋设置页脚）。本包三件入册（97.1–97.3）；件四/件五完成账见 97.4（04:04 用户点名暂停→外部核查证实主线诊断→以 0.36.28/95 续包出号）。
 
 ### 97.1 件一·台账分支合并账
 
@@ -7298,12 +7298,26 @@ def greet(name):
 - **两态一致性**：搜索态（drawerSearchList）与普通态（drawerNavList）共用同一 ScrollView 与同一注册，逐一过毕、无第二挂点。
 - **Reduce Transparency 口径**：边缘效果是系统效果，开启减透明时系统自动提高其不透明度、无需手排回退；霜层时代的实色回退当年防的是「手排 mask 淡出段不受系统增不透明管辖、末行透过霜层与底条字叠读」——注册路线下不存在手排淡出段，病源随构造消失，故回退随霜层一并删除（错题本 P-17 已补追记）。
 
-### 97.4 件四/件五暂停注记（未入本包提交）
+### 97.4 件四/件五完成账（暂停→外部核查→恢复施工，随 0.36.28/95 续包出号）
 
-件四（附件条满宽 claim 定案修复）、件五（枢纽边缘桥整桥退役＋根页 SwiftUI 边缘拖）于 2026-11-11 04:04 经用户点名暂停：先做外部核查（苹果文档/论坛同类结论对账）再动。两件的草稿改动**未提交**、停留在施工 worktree 的工作区（ChatView 附件条包装层 2 个 hunk；AgentHubView 注册/手势改写、Core HubEdgeSwipe 阈值小件化与钉测换代、HubEdgeSwipeBridge.swift 删除），等主线核查结论回令后决定取舍，本节暂不落两件的定案与落法。
+经纬：两件于 2026-11-11 04:04 经用户点名暂停（「确定吗？要不要再确认一下？尽可能用原生，apple 设计没有说吗？论坛没有人遇到吗？」），草稿停在 worktree 未提交；主线按「改前先搜」做外部核查（`~/workspace/oneday-design-review/fix-verification-check-20261111.md`，只采一手/可指认原文），三题裁决均证实主线诊断，用户回令后恢复施工、逐行复核草稿与裁决无冲突，本包版本号升 0.36.28/95（五处同改＋grep 验），件四/件五与本节记账分笔提交。**状态：两件均已修待真机验（复验口径见 97.5 第 4/5 条）。**
 
-### 97.5 真机复验清单（件一至三）
+**件四·附件条居中真定案（核查题一，裁决：主线诊断成立）**：
+- 机理全链：①`VStack` 默认对齐即 `.center`——Apple 官方教程《Building layouts with stack views》原文「When you initialize them with default parameters, stack views center align their content」，公开接口签名 `init(alignment: HorizontalAlignment = .center, …)` 同证；条的包装 VStack 与卡根 VStack 均未写 alignment、两层皆 .center。②横向 ScrollView 在未定宽提议下只报内容理想宽——fatbobman《Mastering ViewThatFits》：「ScrollView: If the ideal state axis is the same as the scrolling direction, it shows all child views without scrolling, ignoring the parent's proposed size.」两图内容宽≈124pt，窄条遂被两层父栈居中。完全同形工例无记录（核查如实标注），governing 规则有 A/B 级原文。
+- 满宽 claim 是社区通行解（核查题一③）：tutorialpedia 列为 Solution 1「The simplest fix is to force the content container (e.g., `VStack`) to expand horizontally using `.frame(maxWidth: .infinity)`」；fatbobman 截断修复指南在 ScrollView 内同用 `.frame(maxWidth: .infinity, alignment: .leading)`。
+- 对旧调研的修正（核查题一④，Stream 源码实读）：Stream 的 `MessageComposerView` 同为默认 .center 的 `VStack(spacing: 0)`、attachmentsTray 无任何满宽 claim——它不居中不是因为 tray 有 claim，而是**宿主链顶端就给出了确定的满宽提议**（composer 子树挂在被提议满宽的根容器、兄弟输入行是宽度扩张型子项）。本仓条的提议在到达前被收成未定宽；给包装层补 claim 即在本地制造同一确定满宽提议，与 Stream 的实际成因不矛盾。`production-patterns-research-20261111.md` §2.3 的「元凶＝SmoothExpand 量测层」单一归因就此作废（移出量测层保留、与生产构造同构、无回退理由）；0.36.19/0.36.23 两轮挪 frame 落空的真因同此一链（claim 分别加在条内部与 SmoothExpand 调用点、都没落在被居中的包装层上）。
+- 落法：条的包装 VStack（条＋分隔线，ChatView.swift 约 2545 行）补 `.frame(maxWidth: .infinity, alignment: .leading)`，与同卡引用块 SmoothExpand 的现行 claim 同款；条本体、分隔线、transition、卡根 animation 零改动。原 §95.2 注释已就地订正（0.36.27 订正注）。
+
+**件五·枢纽右滑整桥退役＋根页 SwiftUI 边缘拖（核查题二＋题三，裁决：均证实）**：
+- 深度门控失效定案（题二）：`NavigationStack(path:)` 的绑定不追踪目标式 `NavigationLink(destination:)` 推入、只追踪值式（value＋navigationDestination）——WWDC22《The SwiftUI cookbook for navigation》讲稿：「The path here is a collection that represents all the values pushed on the stack. NavigationLinks append values to the path.」（新式链接呈现的是值）；生产库 NavigationSplitStack 文档明文：「A link that constructs its destination view directly does not update the router path.」本仓枢纽 8 处链接全为目标式、全仓无 navigationDestination，故 hubPath 恒空、0.36.26 的 C-1 门控自始至终未生效过。（Apple 文档中「destination-based links do not update the path」逐字句无记录，核查如实标注；结论立于框架定义＋多源明文＋本仓可观测形态三合。）
+- 探针挡 pop 定案（题三①，机制层）：Apple《Event Handling Guide for iOS》——识别器间默认互斥、shouldRecognizeSimultaneouslyWith 默认 NO、无编排时胜负不保证；祖先层探针与栈内 interactivePopGestureRecognizer 同链竞争、能抢先吃掉左缘滑动（同族实证：HidingNavigationBar 生产修法即给竞争方加 require(toFail: pop)）。与本仓完全同形的公开报告无记录（核查如实标注），裁决立于官方互斥规则＋同族实证。探针本体另有命中链病嫌疑（挂 ZStack .background 的 representable，四轮真机从未成功退出根页），整桥退役后不再追。
+- 根页退出的原生路（题三②）：fullScreenCover **没有任何系统自带的滑动关闭手势**（通行做法第 1 位＝只用 ✕ 关闭按钮，即现行已有）；第 2 位＝DragGesture 起始/位移门控＋dismiss() 的纯 SwiftUI 原生件组合（社区通行折中、非跟手揭示）；第 3 位 UIKit 边缘 pan＋百分比驱动转场未采（离开原生件、维护面最大）。本包取第 2 位，参数与聊天右滑引用同族单源（后者 0.36.26 已真机证明）：根内容挂 `.simultaneousGesture(DragGesture(minimumDistance: 30, coordinateSpace: .global))`，Core `HubEdgeSwipe.shouldTrigger` 判读＝起始点落在左缘 28pt 内＋横向位移途中严格大于 60 即 dismiss、整段只触发一次（视图层旗防重入、松手复位），浏览器段排除（网页横移手势优先，与退役探针的段位门一致）。挂点在栈根内容本体——推入页覆盖其上、触摸不达，「仅根页生效」由挂点天然成立。
+- 落法：`HubEdgeSwipeBridge.swift` 整件删除；AgentHubView 拆 path 绑定改无参 `NavigationStack`（栈内页右滑返回全归系统 pop，与设置子页同机制）、探针挂载与 edgeOffset 跟手位移一并删除；Core `HubEdgeSwipe` 由桥判据（arbitration/followedOffset/shouldDismiss 及速度/比值表）重写为阈值小件（edgeWidth 28／minimumDistance 30／triggerTranslation 60＋isEdgeStart／shouldTrigger 两条纯判读），`HubEdgeSwipeTests` 换代（旧 5 法退役、新 5 法钉阈值单源与触发表，方法数持平、单测预期 944 不变）。全仓 grep：探针类型、旧判据符号、hubPath/edgeOffset 零代码残留（仅沿革注释提及）。
+
+### 97.5 真机复验清单（件一至五）
 
 1. 台账（部署 1.0.3 后）：枢纽活动段页首计数与进行中真转、已耗时秒跳、下钻事件时间线；未部署时整面「台账还没上线」口径成立、段内自重试自活。
 2. 发送舱上方：短消息贴底停住，末条与发送舱之间的空带比 0.36.26 收小一档且不贴死；键盘升起/收起跟随无回归。
 3. 抽屉：名单滚到底——末行停在底条上方不被压；底条下方朦胧直达屏底（无手排霜层时代的 96pt 霜带）；齿轮/搜索/新建点按与搜索过滤如常，搜索态底条与朦胧同口径；顶部标题滚动透字形态不变；开 Reduce Transparency 时底条不透字叠读。
+4. 附件条（件四）：加一张图——缩略图贴卡左起、不再居中；多图横滚如常；引用块同卡形态不回归。
+5. 枢纽右滑（件五）：状态页等任一推入页右滑能返回（系统 pop）；枢纽根页左缘起手右滑过线即退出（页面中央起手的横拖不误退）；浏览器段右滑不误退；枢纽内纵滚从左缘起手不受扰。
