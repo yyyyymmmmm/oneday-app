@@ -82,6 +82,10 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
     /// 父目标 id；顶层目标为 nil。子目标恰好一层
     public let parentId: String?
     public let source: GoalSource
+    /// 分类（0.40.0）：用户创建/编辑时自己选的七类之一；
+    /// 存量目标与未选时为 nil（未分类）——未知枚举串同样
+    /// 按 nil 收，任何层都不许推断补位
+    public let category: GoalCategory?
     /// 最新一条进展条目（桥在 goal 视图里只读嵌入，供
     /// 列表行摘要免 N+1 拉取）；无条目为 nil。它是条目
     /// 流的读穿呈现、不是第二份存储
@@ -93,6 +97,7 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         createdAt: Double, updatedAt: Double,
         status: GoalStatus = .active, completedAt: Double? = nil,
         parentId: String? = nil, source: GoalSource = .manual,
+        category: GoalCategory? = nil,
         latestEntry: BridgeGoalEntry? = nil
     ) {
         self.id = id
@@ -105,12 +110,14 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         self.completedAt = completedAt
         self.parentId = parentId
         self.source = source
+        self.category = category
         self.latestEntry = latestEntry
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, note, milestones, createdAt, updatedAt
         case status, completedAt, parentId, source, latestEntry
+        case category
     }
 
     public init(from decoder: Decoder) throws {
@@ -138,6 +145,9 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         )
         source = GoalSource.from(
             try container.decodeIfPresent(String.self, forKey: .source)
+        )
+        category = GoalCategory.from(
+            try container.decodeIfPresent(String.self, forKey: .category)
         )
         latestEntry = try container.decodeIfPresent(
             BridgeGoalEntry.self, forKey: .latestEntry
@@ -464,8 +474,8 @@ public struct BridgeMilestoneDraft: Encodable, Equatable, Sendable {
 }
 
 /// POST /goals 请求体：{title, note?, milestones?,
-/// parentId?, source?}——可选字段为 nil 时不落键（合成
-/// Encodable 对 Optional 走 encodeIfPresent）
+/// parentId?, source?, category?}——可选字段为 nil 时不
+/// 落键（合成 Encodable 对 Optional 走 encodeIfPresent）
 public struct BridgeGoalCreateRequest: Encodable, Equatable, Sendable {
     public let title: String
     public let note: String?
@@ -475,24 +485,29 @@ public struct BridgeGoalCreateRequest: Encodable, Equatable, Sendable {
     /// P2：创建来源；App 表单/子目标添加恒 manual，
     /// chat 只由未来的对话式创建路径带
     public let source: GoalSource?
+    /// 0.40.0：分类——分类创建流预置进表单的值（用户在
+    /// 表单里可改/可清）；子目标创建不带（恒未分类）
+    public let category: GoalCategory?
 
     public init(
         title: String, note: String?,
         milestones: [BridgeMilestoneDraft]?,
-        parentId: String? = nil, source: GoalSource? = nil
+        parentId: String? = nil, source: GoalSource? = nil,
+        category: GoalCategory? = nil
     ) {
         self.title = title
         self.note = note
         self.milestones = milestones
         self.parentId = parentId
         self.source = source
+        self.category = category
     }
 
     /// 表单口径收口：标题/备注去首尾空白，备注空→不带
     /// 字段、里程碑空标题行剔除、全空→不带字段
     public static func make(
         title: String, note: String, milestoneTitles: [String],
-        parentId: String? = nil
+        parentId: String? = nil, category: GoalCategory? = nil
     ) -> BridgeGoalCreateRequest {
         let trimmedNote = note.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -506,7 +521,8 @@ public struct BridgeGoalCreateRequest: Encodable, Equatable, Sendable {
             note: trimmedNote.isEmpty ? nil : trimmedNote,
             milestones: drafts.isEmpty ? nil : drafts,
             parentId: parentId,
-            source: parentId == nil ? nil : .manual
+            source: parentId == nil ? nil : .manual,
+            category: category
         )
     }
 }
@@ -519,6 +535,33 @@ public struct BridgeGoalStatusPatchRequest: Encodable, Equatable, Sendable {
 
     public init(status: GoalStatus) {
         self.status = status
+    }
+}
+
+/// PATCH /goals/{id} 分类专用体：{category}——与状态同
+/// 纪律，分类变更是独立动作（编辑 sheet 里改类别），不
+/// 与全量编辑体混发。注意 nil 必须显式编码为 JSON null
+/// （「清除分类」是合法动作），不能靠合成 Encodable 的
+/// encodeIfPresent 把键省掉——省键在桥侧是「不改」
+public struct BridgeGoalCategoryPatchRequest: Encodable, Equatable,
+    Sendable {
+    public let category: GoalCategory?
+
+    public init(category: GoalCategory?) {
+        self.category = category
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case category
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        if let category {
+            try container.encode(category, forKey: .category)
+        } else {
+            try container.encodeNil(forKey: .category)
+        }
     }
 }
 

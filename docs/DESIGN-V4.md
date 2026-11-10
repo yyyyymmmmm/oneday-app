@@ -7584,3 +7584,30 @@ def greet(name):
 - **生成侧落点**：规格 §1.4 已定论＝生成住桥（伴生 oneday 模块），本包从规格未自创；两段模型调用仍走 /v1/runs（规划＋逐方向著帖），与点子/简报管道同底座。
 - **版本位**：五处版本本包未动（预制包口径，合并时主线定 0.38.0 号）。
 - **未决**：①Tavily/Firecrawl 生产密钥注入 companion.env 后须实跑一轮真调研验产出质量（本包只验桩链）；②扩写轮与调研轮的真实耗时（/v1/runs 同步等待）待生产实测，App 侧已按异步对账设计、不阻塞呈现；③深读图池的图源版权口径沿「来源页真图＋详情标来源链接」现状，未另设过滤。
+
+## §105 目标分类流包 0.40.0（2026-11-11，预制分支 feat/goals-v2；节号为本分支自选尾号，合并时主线终审顺延）
+
+缘起：规格 three-pages-mechanism-v2-20261110.md 第三章（2026-11-10 17:42 用户「按推荐全定」，开放问题 4 选 A 案）。§61 有目标态呈现已对齐，所缺三件：无目标时的分类创建流（现行普通空态）、桥 goal.category 字段、设计档 §2.4 原案欠账的委派与关联两件。本包全量补落；B 案对话式创建仍随收官窗口 9B 门面另行切换（桥 source=chat 契约 §61 已备，本包不动）。
+
+### 105.1 桥（oneday_bridge.py，契约先行）
+
+- **category 字段**：GOAL_CATEGORIES＝health|relationships|finance|career|interest|efficiency|other。goal 视图新增 category（存储值在枚举内原样回、否则 null）；POST 校验（缺省/null 合法、枚举外含非字符串 400 人话）；PATCH 增量支持 category（显式 null 清回未分类）。**存量不自动归类**：旧记录无此字段一律读 null，桥与 App 都不做标题关键词推断（规格 3.4）；补分类的唯一路径是用户在编辑 sheet 自选。
+- **goal_task_links 集合**：{id(gl_), goalId, taskId, milestoneId|null, createdAt, completionEntryAt|null}。端点 GET/POST /goals/{id}/task-links（POST：taskId 必填非空、milestoneId 须为该目标真实里程碑否则 400、目标不存在 404；(goalId, taskId) 重复 POST 幂等回既有记录——委派回写重试不双记）。载体定案：kanban 卡面无 goalId 字段、无通用 metadata 位（0.39.0 已核查），不往卡面塞未验字段，关联只住桥侧本集合。
+- **级联**：删目标（及子目标）时其 links 随删；kanban 任务本体不动（沿 §61「点子/监测只解绑、目标自有物随删」口径，links 属目标自有物）。
+- **完成自动记一条**：feed 的 kanban 轮询（_feed_poll_remote）在快照差分同轮扫 links——关联任务现值落入 done 态集合且 completionEntryAt 未落戳时，给目标追加一条进展条目（source=agent、正文只写可验证事实「任务《标题》已完成（任务号 id）」），并落戳保证恰好一次；规格 3.4 事实门：不写「进展顺利」式感想句。
+- **自测**：新 p6 自测 26 项（Phase A HTTP 契约：类别校验/旧目标 null/links 建查校验/幂等/删目标级联＋点子监测只解绑；Phase B 进程内桩板轮询：done 落一条、复轮不重记、后完成者各自落条），登记 run_bridge_selftests.sh。全套：overview 8／p2 34／p3 26／p4 19／p5 21／p6 26／write-gate 22／ledger 60／model-combos OK／device OK；device_sync 仍 1 例失败（reminders 种子跨日界既有问题、与本包无关，与前几包同）。
+
+### 105.2 App
+
+- **Core**：新文件 GoalCategory.swift（七类枚举＋title/symbolName，rawValue 与桥枚举逐字一致、from 宽容收）；BridgeGoal 加 category 宽容解码；BridgeGoalCreateRequest 加 category（make 同步）；新 BridgeGoalCategoryPatchRequest（nil 显式编码 JSON null——省键在桥侧是「不改」、清分类必须落 null）；BridgeMonitor 补 goalId 解码（P2 桥字段 App 此前未解，关联段要用）；新文件 GoalTaskLinks.swift（BridgeGoalTaskLink/Response/CreateRequest＋GoalAssociations 拼装纯函数：ideas/monitors 按 goalId 过滤、linkedTasks 经 links 反查任务板现值，取不到如实 nil）。新测 GoalCategoryTests **11 法**（枚举对齐/宽容解码/落键口径/拼装/解码）。
+- **分类创建流**：GoalsView 空态整页换分类流（「＋创建目标」标题行＋实话说明「选一个类别，先把目标记下来……」＋GoalCategoryRowsView 七行：SF Symbols 同语义位图标＋类名＋右端＋），点行直接开预置该类别的新建表单；有目标时底部创建区与工具栏＋改为先出分类选择 sheet（同一组件），选完同 sheet 内换成表单。普通空态（「暂无目标」ContentUnavailableView）废弃。新建表单加类别行（未分类＋七类 Picker，预置可改可清）；子目标创建不经分类流、类别恒未分类。
+- **编辑补分类**：GoalEditView 加类别行；保存＝全量 saveEdits 后、类别草稿与服务端现值不一致才走专用 PATCH {category}＋回读确认（两步各自对账，分类失败留表单内报错、正文编辑已落不回滚）。
+- **详情呈现**：头部状态 chip 行加类别 Label（有类别才显）；新增「安排一件事」段（入口＋说明）与「关联」段（在子目标段后、状态动作前；三路全空整段不出现）。关联行点达：点子→IdeaDetailView、任务→KanbanTaskDetailView（状态经 KanbanStatusPresentation 译名表呈现）、监测→MonitorDetailView（跳管理）。详情页自持 ideas/monitors/kanban 三个 Store 实例只读拼装（各回各的真源，与动态页 refs 点达的跨 Store 呈现同形），不建本地副本账。
+- **委派**：GoalDelegateView 表单（事情标题＋可选挂里程碑）；GoalsStore.delegateTask 与 IdeasStore.convertToTask 同链——KanbanStore 探板（未开通如实止步）→createTaskReturningID 建卡确认→POST task-links 回写→回读确认关联出现；卡面正文只写事实「为目标《X》安排的一件事。」；回写失败如实留 notes、不假成功不回滚任务。
+
+### 105.3 存量呈现口径与未决项
+
+- **存量目标**：category 一律 null——列表行不显类别（列表形态 §61 不动）、详情头部不显类别标、新建/编辑之外无任何自动归类；用户编辑时自选补上后，详情头部才出现类别标。
+- **版本位**：五处版本本包未动（预制包口径，合并时主线定 0.40.0 号/构建号）。
+- **终判**：本机无 Swift 工具链，App 侧已做静态自查（构造点/引用/括号配平），编译与单测终判等合并后 CI；桥侧自测已在本机全套实跑（见 105.1）。
+- **未决**：①按类筛选/分组呈现按规格登记缓办、本包未做（详情呈现＋创建预置已落）；②B 案对话创建随 9B 门面（收官窗口）切换时分类流与 category 零返工，本包未预埋对话入口；③委派自动记条目走 feed 轮询节奏（非实时），任务完成到条目出现之间隔一个轮询周期，真机终审时按此口径看。

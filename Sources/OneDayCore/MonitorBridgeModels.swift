@@ -39,6 +39,9 @@ public struct BridgeMonitor: Decodable, Equatable, Identifiable, Sendable {
     public let latestChangeAt: Double?
     public let createdAt: Double
     public let updatedAt: Double
+    /// 挂靠目标 id（P2 桥字段，0.40.0 起 App 才解）：目标
+    /// 详情「关联」段按此过滤；未挂靠/旧载荷缺失为 nil
+    public let goalId: String?
 
     public init(
         id: String, name: String, target: String,
@@ -47,7 +50,8 @@ public struct BridgeMonitor: Decodable, Equatable, Identifiable, Sendable {
         lastResult: String?, lastError: String?,
         unreadChanges: Int, latestChangeSummary: String?,
         latestChangeAt: Double?,
-        createdAt: Double, updatedAt: Double
+        createdAt: Double, updatedAt: Double,
+        goalId: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -63,12 +67,14 @@ public struct BridgeMonitor: Decodable, Equatable, Identifiable, Sendable {
         self.latestChangeAt = latestChangeAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.goalId = goalId
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, target, scheduleText, cronJobId, enabled
         case lastCheckedAt, lastResult, lastError, unreadChanges
         case latestChangeSummary, latestChangeAt, createdAt, updatedAt
+        case goalId
     }
 
     public init(from decoder: Decoder) throws {
@@ -111,6 +117,9 @@ public struct BridgeMonitor: Decodable, Equatable, Identifiable, Sendable {
         updatedAt = try container.decodeIfPresent(
             Double.self, forKey: .updatedAt
         ) ?? 0
+        goalId = try container.decodeIfPresent(
+            String.self, forKey: .goalId
+        )
     }
 
     /// 解析后的检查结果；原文不在契约三分内 → nil

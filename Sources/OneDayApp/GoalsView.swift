@@ -9,10 +9,27 @@ import SwiftUI
 /// 「呈现页」（简报/里程碑/进展时间线/子目标/状态动作），
 /// 编辑收进独立编辑 sheet。桥未连接/未开通如实露、零假
 /// 数据；写动作全部走 GoalsStore 的回读确认口径。
+/// 创建流的两步（0.40.0）：先选分类、再开预置好分类的
+/// 表单——空态整页与有目标时的底部创建区/工具栏共用
+/// 同一条流（分类组件 GoalCategoryRowsView 共用）
+private enum GoalCreateSheet: Identifiable {
+    case categories
+    case form(GoalCategory?)
+
+    var id: String {
+        switch self {
+        case .categories:
+            return "categories"
+        case .form(let category):
+            return "form-\(category?.rawValue ?? "none")"
+        }
+    }
+}
+
 struct GoalsView: View {
     @Environment(AppState.self) private var appState
     @State private var store = GoalsStore()
-    @State private var showCreate = false
+    @State private var createSheet: GoalCreateSheet?
     @State private var expandedActive = false
     @State private var showCompletedGroup = false
     @State private var expandedCompleted = false
@@ -57,7 +74,7 @@ struct GoalsView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        showCreate = true
+                        createSheet = .categories
                     } label: {
                         Label("新建目标", systemImage: "plus")
                     }
@@ -66,8 +83,17 @@ struct GoalsView: View {
             .task {
                 await store.load(appState: appState)
             }
-            .sheet(isPresented: $showCreate) {
-                GoalCreateView(store: store)
+            .sheet(item: $createSheet) { sheet in
+                switch sheet {
+                case .categories:
+                    GoalCategorySheetView { category in
+                        createSheet = .form(category)
+                    }
+                case .form(let category):
+                    GoalCreateView(
+                        store: store, presetCategory: category
+                    )
+                }
             }
             .sheet(item: $editTarget) { goal in
                 GoalEditView(store: store, goalID: goal.id)
@@ -98,11 +124,7 @@ struct GoalsView: View {
     @ViewBuilder
     private var readyContent: some View {
         if store.goals.isEmpty {
-            ContentUnavailableView(
-                "暂无目标",
-                systemImage: "checklist",
-                description: Text("点右上角＋新建第一个目标")
-            )
+            categoryCreateFlow
         } else {
             let groups = GoalBoard.grouped(store.goals)
             ScrollView {
@@ -127,6 +149,38 @@ struct GoalsView: View {
             .refreshable {
                 await store.load(appState: appState)
             }
+        }
+    }
+
+    /// 无目标态整页＝分类创建流（0.40.0，规格第三章）：
+    /// 「＋创建目标」标题行＋一句实话说明＋七分类行；点
+    /// 一行即以该类别预置打开新建表单（A 案：分类只是
+    /// 预置、不是当场生成方案，文案按实话写）。普通空态
+    /// （「暂无目标」＋单个按钮）自此废弃
+    private var categoryCreateFlow: some View {
+        ScrollView {
+            VStack(
+                alignment: .leading, spacing: OneDayMetrics.spacingL
+            ) {
+                VStack(
+                    alignment: .leading, spacing: OneDayMetrics.spacingS
+                ) {
+                    Label("创建目标", systemImage: "plus")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Palette.bodyInk)
+                    Text("选一个类别，先把目标记下来。记下之后，它的进展、任务和简报会慢慢长出来。")
+                        .font(.body)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                GoalCategoryRowsView { category in
+                    createSheet = .form(category)
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.vertical, OneDayMetrics.spacingM)
+        }
+        .refreshable {
+            await store.load(appState: appState)
         }
     }
 
@@ -254,23 +308,101 @@ struct GoalsView: View {
     }
 
     /// 列表底常驻创建区（照 Muse 目标页图位置）：分隔线
-    /// 下「＋ 创建目标」＋一句说明；点入走新建表单 sheet
+    /// 下「＋ 创建目标」＋一句说明；点入先出分类选择（与
+    /// 空态同一分类组件），选完再开预置分类的新建表单
     private var createArea: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             Divider()
             Button {
-                showCreate = true
+                createSheet = .categories
             } label: {
                 Label("创建目标", systemImage: "plus")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Palette.bodyInk)
             }
             .buttonStyle(.odPressable)
-            Text("起个名字、写下备注和里程碑，目标就会出现在这里，进展和简报会慢慢长出来。")
+            Text("先选一个类别，再起名字、写下备注和里程碑，目标就会出现在这里，进展和简报会慢慢长出来。")
                 .font(.body)
                 .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.top, OneDayMetrics.spacingS)
+    }
+}
+
+/// 分类七行（0.40.0）：图标＋类名＋右端「＋」，空态整页
+/// 与分类选择 sheet 共用同一组件（规格第三章：同一分类
+/// 组件两处复用）。图标走 SF Symbols 同语义位（宪法
+/// §4），不仿绘参照图的 3D/字形原图
+struct GoalCategoryRowsView: View {
+    var onPick: (GoalCategory) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(
+                Array(GoalCategory.creationOrder.enumerated()),
+                id: \.element
+            ) { index, category in
+                if index > 0 {
+                    GroupDivider()
+                }
+                Button {
+                    onPick(category)
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Image(systemName: category.symbolName)
+                            .font(.body)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .frame(width: 24)
+                        Text(category.title)
+                            .font(.body)
+                            .foregroundStyle(Palette.bodyInk)
+                        Spacer()
+                        Image(systemName: "plus")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Palette.inkMuted)
+                    }
+                    .contentShape(Rectangle())
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.vertical, OneDayMetrics.spacingSM)
+                }
+                .buttonStyle(.odPressable)
+            }
+        }
+        .odGroup()
+    }
+}
+
+/// 分类选择 sheet（有目标时从底部创建区/工具栏进入）：
+/// 选完把分类交给上层换成新建表单（同一个 sheet 内换
+/// 内容，不叠第二层 sheet）
+struct GoalCategorySheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    var onPick: (GoalCategory) -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(
+                    alignment: .leading, spacing: OneDayMetrics.spacingL
+                ) {
+                    Text("选一个类别，先把目标记下来。")
+                        .font(.body)
+                        .foregroundStyle(Palette.inkSecondary)
+                    GoalCategoryRowsView(onPick: onPick)
+                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXL)
+            }
+            .background(Palette.pageBG)
+            .navigationTitle("创建目标")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+            }
+        }
     }
 }
 
@@ -491,6 +623,14 @@ struct GoalDetailView: View {
     @State private var newEntryBody = ""
     @State private var newSubgoalTitle = ""
     @State private var subgoalError: String?
+    /// 关联段与委派的对侧数据面（0.40.0）：点子/监测/
+    /// 任务板各有自己的 Store 真源，详情页只读拼装
+    /// （GoalAssociations），不建本地副本账；委派建卡
+    /// 走 kanban 这一个实例，与点子采纳同路
+    @State private var ideasStore = IdeasStore()
+    @State private var monitorsStore = MonitorsStore()
+    @State private var kanban = KanbanStore()
+    @State private var showDelegate = false
 
     private var goal: BridgeGoal? { store.goal(id: goalID) }
     private var acting: Bool { store.actingIDs.contains(goalID) }
@@ -504,6 +644,14 @@ struct GoalDetailView: View {
         store.detailLoadedIDs.contains(goalID)
     }
 
+    /// 关联段三路数据各自回各自的真源刷新（失败保持旧
+    /// 数据不翻空，各 Store 自己的口径）
+    private func loadAssociationStores() async {
+        await ideasStore.load(appState: appState)
+        await monitorsStore.load(appState: appState)
+        await kanban.load(appState: appState)
+    }
+
     var body: some View {
         Group {
             if let goal {
@@ -515,10 +663,12 @@ struct GoalDetailView: View {
                         headerSection(goal)
                         briefingSection(goal)
                         milestonesSection(goal)
+                        delegationSection(goal)
                         entriesSection(goal)
                         if goal.parentId == nil {
                             subgoalsSection(goal)
                         }
+                        associationSection(goal)
                         actionsSection(goal)
                         if let note = store.notes[goalID] {
                             InlineError(note)
@@ -532,6 +682,12 @@ struct GoalDetailView: View {
                     await store.load(appState: appState)
                     await store.loadDetail(
                         appState: appState, goalID: goalID
+                    )
+                    await loadAssociationStores()
+                }
+                .sheet(isPresented: $showDelegate) {
+                    GoalDelegateView(
+                        store: store, goal: goal, kanban: kanban
                     )
                 }
             } else {
@@ -553,6 +709,7 @@ struct GoalDetailView: View {
         }
         .task {
             await store.loadDetail(appState: appState, goalID: goalID)
+            await loadAssociationStores()
         }
         .sheet(isPresented: $showEdit) {
             GoalEditView(store: store, goalID: goalID)
@@ -590,6 +747,14 @@ struct GoalDetailView: View {
                     Text("对话创建")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
+                }
+                if let category = goal.category {
+                    Label(
+                        category.title,
+                        systemImage: category.symbolName
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
                 }
                 if let parentID = goal.parentId,
                    let parent = store.goal(id: parentID) {
@@ -731,6 +896,175 @@ struct GoalDetailView: View {
                 .odGroup()
             }
         }
+    }
+
+    // MARK: 委派（安排一件事，0.40.0 欠账补落）
+
+    /// 目标下直接委派：入口开 GoalDelegateView 表单，提交
+    /// 走 GoalsStore.delegateTask（任务板建卡＋桥侧关联
+    /// 回写＋回读确认，与点子采纳同一条链）。任务办完后
+    /// 桥会在进展里自动记一条事实（来源「智能体记的」）
+    private func delegationSection(_ goal: BridgeGoal) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("安排一件事")
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                Button {
+                    showDelegate = true
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Image(systemName: "plus.circle")
+                            .font(.body)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Text("安排一件事")
+                            .font(.body)
+                            .foregroundStyle(Palette.bodyInk)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.vertical, OneDayMetrics.spacingSM)
+                }
+                .buttonStyle(.odPressable)
+                .disabled(acting)
+            }
+            .odGroup()
+            Text("把这个目标下的一件事放上任务板交给智能体办，并和这个目标关联起来；任务办完后，进展里会自动记上一条。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkMuted)
+                .padding(.top, OneDayMetrics.spacingS)
+        }
+    }
+
+    // MARK: 关联（0.40.0 欠账补落：客户端拼装、零新端点）
+
+    /// 挂靠点子（ideas 按 goalId 过滤）＋关联任务（经桥
+    /// goal_task_links 反查任务板现值）＋挂靠监测
+    /// （monitor.goalId），三路只读呈现、点行各自跳到
+    /// 对方详情/管理；全空时整段不出现，不留空壳标题
+    @ViewBuilder
+    private func associationSection(_ goal: BridgeGoal) -> some View {
+        let ideas = GoalAssociations.ideas(
+            for: goalID, in: ideasStore.ideas
+        )
+        let monitors = GoalAssociations.monitors(
+            for: goalID, in: monitorsStore.monitors
+        )
+        let tasks = GoalAssociations.linkedTasks(
+            links: store.taskLinksByGoal[goalID] ?? [],
+            tasks: kanban.snapshot?.tasks ?? []
+        )
+        if !GoalAssociations.isEmpty(
+            ideas: ideas, tasks: tasks, monitors: monitors
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionLabel("关联")
+                    .padding(.bottom, OneDayMetrics.spacingS)
+                VStack(spacing: 0) {
+                    ForEach(
+                        Array(ideas.enumerated()), id: \.element.id
+                    ) { index, idea in
+                        if index > 0 {
+                            GroupDivider()
+                        }
+                        NavigationLink {
+                            IdeaDetailView(
+                                store: ideasStore, kanban: kanban,
+                                ideaID: idea.id
+                            )
+                        } label: {
+                            associationRow(
+                                symbol: "lightbulb",
+                                title: idea.title,
+                                detail: "点子"
+                            )
+                        }
+                        .buttonStyle(.odPressable)
+                    }
+                    ForEach(
+                        Array(tasks.enumerated()),
+                        id: \.element.link.id
+                    ) { index, linked in
+                        if index > 0 || !ideas.isEmpty {
+                            GroupDivider()
+                        }
+                        NavigationLink {
+                            KanbanTaskDetailView(
+                                store: kanban,
+                                taskID: linked.link.taskId
+                            )
+                        } label: {
+                            associationRow(
+                                symbol: "checklist",
+                                title: linked.title ?? "任务",
+                                detail: linked.task.map { task in
+                                    KanbanStatusPresentation.resolve(
+                                        status: task.status,
+                                        blockKind: task.blockKind,
+                                        lastFailureError:
+                                            task.lastFailureError
+                                    ).label
+                                } ?? "任务"
+                            )
+                        }
+                        .buttonStyle(.odPressable)
+                    }
+                    ForEach(
+                        Array(monitors.enumerated()),
+                        id: \.element.id
+                    ) { index, monitor in
+                        if index > 0 || !ideas.isEmpty
+                            || !tasks.isEmpty {
+                            GroupDivider()
+                        }
+                        NavigationLink {
+                            MonitorDetailView(
+                                store: monitorsStore,
+                                monitorID: monitor.id
+                            )
+                        } label: {
+                            associationRow(
+                                symbol: "eye",
+                                title: monitor.name,
+                                detail: monitor.unreadChanges > 0
+                                    ? "监测 · \(monitor.unreadChanges) 条未读变化"
+                                    : "监测"
+                            )
+                        }
+                        .buttonStyle(.odPressable)
+                    }
+                }
+                .odGroup()
+            }
+        }
+    }
+
+    private func associationRow(
+        symbol: String, title: String, detail: String
+    ) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Image(systemName: symbol)
+                .font(.body)
+                .foregroundStyle(Palette.inkSecondary)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(Palette.bodyInk)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Palette.inkMuted)
+        }
+        .contentShape(Rectangle())
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .padding(.vertical, OneDayMetrics.spacingSM)
     }
 
     // MARK: 进展（时间线＋记一条）
@@ -1072,6 +1406,7 @@ struct GoalEditView: View {
 
     @State private var title: String
     @State private var note: String
+    @State private var category: GoalCategory?
     @State private var milestones: [MilestoneDraftState]
     @State private var newMilestoneTitle = ""
     @State private var isSaving = false
@@ -1083,6 +1418,7 @@ struct GoalEditView: View {
         let goal = store.goal(id: goalID)
         _title = State(initialValue: goal?.title ?? "")
         _note = State(initialValue: goal?.note ?? "")
+        _category = State(initialValue: goal?.category)
         _milestones = State(initialValue: (goal?.milestones ?? []).map {
             MilestoneDraftState(id: $0.id, title: $0.title, done: $0.done)
         })
@@ -1142,6 +1478,20 @@ struct GoalEditView: View {
                 FieldRow(label: "备注") {
                     TextField("可选", text: $note, axis: .vertical)
                         .lineLimit(2...5)
+                }
+                GroupDivider()
+                FieldRow(label: "类别") {
+                    Picker("类别", selection: $category) {
+                        Text("未分类")
+                            .tag(GoalCategory?.none)
+                        ForEach(
+                            GoalCategory.creationOrder, id: \.self
+                        ) { option in
+                            Text(option.title)
+                                .tag(GoalCategory?.some(option))
+                        }
+                    }
+                    .labelsHidden()
                 }
             }
             .odGroup()
@@ -1216,26 +1566,49 @@ struct GoalEditView: View {
             appState: appState, goalID: goalID, title: title,
             note: note, milestones: milestones
         )
-        if ok {
-            dismiss()
-        } else {
+        guard ok else {
             saveError = store.notes[goalID]
+            return
         }
+        // 类别是独立动作：全量编辑不带类别字段，草稿与
+        // 服务端现值不一致时再走专用 PATCH＋回读确认
+        // （存量目标补分类也走这一条，用户自选）
+        if store.goal(id: goalID)?.category != category {
+            let categoryOK = await store.setCategory(
+                appState: appState, goalID: goalID, category: category
+            )
+            guard categoryOK else {
+                saveError = store.notes[goalID]
+                    ?? "分类更新失败，请稍后重试。"
+                return
+            }
+        }
+        dismiss()
     }
 }
 
 /// 新建目标（sheet）：标题＋备注＋里程碑标题行（可多
 /// 行添加），创建走 GoalsStore 的回读确认——确认出现
-/// 才关表单，未确认原因留表单内
+/// 才关表单，未确认原因留表单内。0.40.0：从分类流进来
+/// 时类别已预置（presetCategory），表单里有类别行可
+/// 改可清；不经分类流的入口类别行为未分类
 struct GoalCreateView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
     let store: GoalsStore
+    let presetCategory: GoalCategory?
 
     @State private var title = ""
     @State private var note = ""
+    @State private var category: GoalCategory?
     @State private var milestoneTitles: [String] = []
+
+    init(store: GoalsStore, presetCategory: GoalCategory? = nil) {
+        self.store = store
+        self.presetCategory = presetCategory
+        _category = State(initialValue: presetCategory)
+    }
 
     private var isValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1256,6 +1629,21 @@ struct GoalCreateView: View {
                             FieldRow(label: "备注") {
                                 TextField("可选", text: $note, axis: .vertical)
                                     .lineLimit(2...5)
+                            }
+                            GroupDivider()
+                            FieldRow(label: "类别") {
+                                Picker("类别", selection: $category) {
+                                    Text("未分类")
+                                        .tag(GoalCategory?.none)
+                                    ForEach(
+                                        GoalCategory.creationOrder,
+                                        id: \.self
+                                    ) { option in
+                                        Text(option.title)
+                                            .tag(GoalCategory?.some(option))
+                                    }
+                                }
+                                .labelsHidden()
                             }
                         }
                         .odGroup()
@@ -1322,7 +1710,9 @@ struct GoalCreateView: View {
                         Task {
                             if await store.create(
                                 appState: appState, title: title,
-                                note: note, milestoneTitles: milestoneTitles
+                                note: note,
+                                milestoneTitles: milestoneTitles,
+                                category: category
                             ) {
                                 dismiss()
                             }
@@ -1331,6 +1721,116 @@ struct GoalCreateView: View {
                     .disabled(!isValid || store.creating)
                 }
             }
+        }
+    }
+}
+
+/// 委派表单（sheet，0.40.0）：一件事的标题＋可挂的里程
+/// 碑；提交走 GoalsStore.delegateTask（任务板建卡→桥侧
+/// 关联回写→回读确认），确认落定才关表单，失败原因留
+/// 表单内——与新建目标同一纪律
+struct GoalDelegateView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    let store: GoalsStore
+    let goal: BridgeGoal
+    let kanban: KanbanStore
+
+    @State private var title = ""
+    @State private var milestoneId: String?
+    @State private var isSubmitting = false
+    @State private var submitError: String?
+
+    private var isValid: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(
+                    alignment: .leading, spacing: OneDayMetrics.spacingL
+                ) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        SectionLabel("要办的事")
+                            .padding(.bottom, OneDayMetrics.spacingS)
+                        VStack(spacing: 0) {
+                            FieldRow(label: "事情") {
+                                TextField(
+                                    "如：把发言稿打印两份",
+                                    text: $title, axis: .vertical
+                                )
+                                .lineLimit(1...3)
+                            }
+                            if !goal.milestones.isEmpty {
+                                GroupDivider()
+                                FieldRow(label: "挂到里程碑（可选）") {
+                                    Picker(
+                                        "里程碑",
+                                        selection: $milestoneId
+                                    ) {
+                                        Text("不挂")
+                                            .tag(String?.none)
+                                        ForEach(
+                                            goal.milestones,
+                                            id: \.id
+                                        ) { milestone in
+                                            Text(milestone.title)
+                                                .tag(
+                                                    String?.some(
+                                                        milestone.id
+                                                    )
+                                                )
+                                        }
+                                    }
+                                    .labelsHidden()
+                                }
+                            }
+                        }
+                        .odGroup()
+                    }
+                    Text("提交后会在任务板上建一张卡，并和目标《\(goal.title)》关联起来；任务办完后，进展里会自动记上一条。")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    if let submitError {
+                        InlineError(submitError)
+                    }
+                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXL)
+            }
+            .background(Palette.pageBG)
+            .navigationTitle("安排一件事")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isSubmitting ? "安排中…" : "安排") {
+                        Task { await submit() }
+                    }
+                    .disabled(!isValid || isSubmitting)
+                }
+            }
+        }
+    }
+
+    private func submit() async {
+        isSubmitting = true
+        submitError = nil
+        defer { isSubmitting = false }
+        let ok = await store.delegateTask(
+            appState: appState, goalID: goal.id, title: title,
+            milestoneId: milestoneId, kanban: kanban
+        )
+        if ok {
+            dismiss()
+        } else {
+            submitError = store.notes[goal.id]
+                ?? "安排失败，请稍后重试。"
         }
     }
 }

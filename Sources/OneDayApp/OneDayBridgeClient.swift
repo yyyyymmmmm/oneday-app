@@ -132,6 +132,45 @@ final class OneDayBridgeClient: @unchecked Sendable {
         return response.items
     }
 
+    /// PATCH /goals/{id} 分类变更（0.40.0）：只送
+    /// {category}（nil 显式送 null＝清除分类）；回执全形
+    /// 供调用方对账
+    func patchGoalCategory(
+        config: ServerConfig, id: String, category: GoalCategory?
+    ) async throws -> BridgeGoal {
+        try await send(
+            config: config, path: "/goals/\(id)", method: "PATCH",
+            body: BridgeGoalCategoryPatchRequest(category: category),
+            endpoint: "目标分类", collection: false
+        )
+    }
+
+    /// GET /goals/{id}/task-links（0.40.0）：目标↔任务
+    /// 关联记录（createdAt 升序）；目标不在 → recordGone
+    func goalTaskLinks(
+        config: ServerConfig, goalID: String
+    ) async throws -> [BridgeGoalTaskLink] {
+        let response: BridgeGoalTaskLinksResponse = try await get(
+            config: config, path: "/goals/\(goalID)/task-links",
+            endpoint: "目标关联任务", collection: false
+        )
+        return response.items
+    }
+
+    /// POST /goals/{id}/task-links（0.40.0）：委派建卡后
+    /// 回写关联（与点子采纳回写 taskId 同形）；桥侧对
+    /// (goalId, taskId) 重复回写幂等
+    func createGoalTaskLink(
+        config: ServerConfig, goalID: String,
+        request body: BridgeGoalTaskLinkCreateRequest
+    ) async throws -> BridgeGoalTaskLink {
+        try await send(
+            config: config, path: "/goals/\(goalID)/task-links",
+            method: "POST", body: body, endpoint: "关联任务",
+            collection: false
+        )
+    }
+
     // MARK: - 点子
 
     func ideas(config: ServerConfig) async throws -> [BridgeIdea] {
