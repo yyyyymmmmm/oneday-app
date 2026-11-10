@@ -7132,3 +7132,38 @@ def greet(name):
 （注：样例中代码围栏前的零宽空格是防本文档自身围栏误合的排版手段，真机粘贴时去掉即可；实际发给 Hermes 时直接让它原样输出一段含以上元素的 Markdown 亦可。）
 
 §94.6 交付回填（0.36.25/92）：合并提交 3711512（DESIGN 尾部冲突 §93.5 与 §94 两段并存）；CI 42886305837 全步 success、单测 0 失败（预期 912 以 CI 全绿为准）；IPA 7,171,652 字节、md5 53e6e3c0d5c3a57b1a49169704d2fa9a、主线独立解包验 Info.plist＝0.36.25/92。真机复验按 §94.4/§94.5。
+## §95 手势与附件条定案修复包：右滑照 Stream 重做＋附件条移出量测层＋枢纽深度门控（0.36.26/93，2026-11-11）
+
+规格唯一出处：`production-patterns-research-20261111.md`（Stream Chat SwiftUI 5.17.0-SNAPSHOT 与 Exyte/Chat 本地克隆逐行实读）。用户 2026-11-11 03:40 拍板按推荐施工。本包三件，均为「把自制件换回生产同构/系统件组合」：右滑拆 UIKit 桥、附件条拆量测层、枢纽把栈内返回还给系统 pop。
+
+### 95.1 件一·右滑引用照 Stream 重做（拆桥）
+
+- **整件删除**：`SwipeReplyGestureBridge.swift`（0.36.20 立的 UIKit 探针桥）、`SwipeReplyDiagnostics.swift`（0.36.23 临时诊断件，使命结束随桥退役；其三打点读数未及回收即随版本迭代失效，P-15 定案改以本轮构造替换＋真机复验为准，见错题本 P-15 收口记）。
+- **新构造**（`ChatView.SwipeReplyModifier`，与 Stream `MessageItemView.swift:263-375` 的 `SwipeToReplyModifier` 逐项同构）：行内容 `.contentShape(Rectangle())`（命中域＝整条消息容器）→ `.coordinateSpace(name: "swipeToReply")` → `.offset(x: displayOffset)` → `.simultaneousGesture(DragGesture(minimumDistance: 30, coordinateSpace: .named("swipeToReply")))`。onChanged 只消费横向分量写 offset（Core `SwipeReplyMotion.dragOffset`：负事件弃/未达 30 归 0/达线 1:1 不扣段）；offset 越 60 在**拖动途中**当场触发 `beginReply`＋轻触觉（整段只一次，`hasTriggered` 把守），松手只以 MotionTokens.swap 动画回位、不再判触发。不设方向比值门、不做任何识别器编排——纵滑时横向分量≈0、offset 恒 0，纵滚完整归列表。
+- **阈值单源**（Core `SwipeReplyMotion`）：起滑 `minimumDistance = 30`、途中触发 `triggerOffset = 60`（`shouldTrigger` 为严格大于，与 Stream `offsetX > replyThreshold` 逐字同义）、显示封顶 `maxOffset = 90`（＝触发线＋起滑线，Stream maximumHorizontalSwipeDisplacement 同式）；状态值可越封顶、显示层 `displayOffset` 钳制；箭头显形 `revealProgress` 分母换 60、武装态与触发同刻。
+- **起始点排除区**（Stream `SwipeToReplyExcludedFrameKey` 同款）：新设同名 PreferenceKey＋`View.swipeReplyExcluded()`（背景 GeometryReader 在命名坐标空间发布帧），行修饰符以 `onPreferenceChange` 收集、Core `isExcluded` 按 `value.startLocation` 判定整段忽略。落点＝行内自有横向交互的两处：MarkdownText 代码块横滚区、表格横滚区（Stream 对应面为音频进度条）。其余行内子区（图片点开、链接、长按菜单）无横向拖动、不登记。
+- **与第 1 轮（0.36.19 同族失败）的差异销账**（报告 §1.5 表）：起滑 6→30 ✓、onChanged 方向门→无门只取横向分量 ✓、松手触发→途中触发 ✓、封顶 76→90 ✓、无坐标/排除→命名坐标空间＋排除区 ✓，五项全销。
+- **与 Stream 的自选偏离（明示）**：①触觉用本仓动效宪法既定 .light（Stream 为 .medium），落点口径不随构造迁移而改；②回位动画用本仓 MotionTokens.swap（Stream 为 interpolatingSpring 170/20），同理；③箭头沿用本仓左缘下层 ZStack 形态（Stream 为 overlay 右随式），呈现资产不借构造迁移重做。
+- **保留不动**：触发落点 `beginReply` 全链、长按菜单「回复」、门控口径（纯图片消息不挂）。
+
+### 95.2 件二·附件条移出量测层
+
+- **改法**：attachmentsStrip 退出 SmoothExpand，作 composerCard 根 VStack 的**直接子级**（Stream `MessageComposerView.swift:496-506` 的 attachmentsTray 同位）；显隐改条件包含（`if !attachments.isEmpty`）＋`.transition(.opacity)`；分隔线随条同进同出（挂同一直接子级的小 VStack 内）。删尽三处 `.frame(maxWidth: .infinity, alignment: .leading)` 补丁：条本体、条内 HStack、0.36.23 加在 SmoothExpand 调用点的那层。条内只剩 `ScrollView(.horizontal) { HStack { chips } .padding(.horizontal, spacingSM) .padding(.vertical, spacingXS) }`。
+- **不跳变论证（代码层）**：条高只在 attachments 空↔非空之间变，composerCard 根 VStack 挂 `.animation(MotionTokens.resolved(MotionTokens.swap), value: attachments.isEmpty)`——高度变化进动画事务后卡高与安全区留白同帧插值，不再靠 SmoothExpand 的「量内容理想高→回写状态→定高」回路；玻璃圆角半径由卡层既有 `onGeometryChange` 实测高连续函数逐帧跟随，无离散跳变源；条内容本身以 opacity transition 防闪现。取舍明示：放弃 SmoothExpand 式的逐帧裁剪展开，换取与生产构造同构的单一高度权威（根栈布局本身）。
+- **引用块不动**：仍在 SmoothExpand＋其调用点 frame 保留，本轮最小范围（报告 §2.4 建议同治，本轮按施工单口径未动，登记为潜伏项——其内容近满宽、缺陷被掩盖，若日后引用块出现窄内容形态再同法治）。
+
+### 95.3 件三·枢纽深度门控（C-1）
+
+- **改法**（`AgentHubView`）：NavigationStack 绑 `hubPath: NavigationPath`（`@State`）；HubEdgeSwipeProbe 启用条件由 `segment != .browser` 改为 `hubPath.isEmpty && segment != .browser`——path 非空即探针 `isEnabled=false`（桥侧 didSet 同步落识别器本体、根本不追踪），系统 `interactivePopGestureRecognizer` 在全部推入页恢复原权。桥本体（HubEdgeSwipeBridge）与 Core HubEdgeSwipe 零改动，根页行为保持 0.36.24 现行口径。
+- **兼容盘点**：枢纽内全部 NavigationLink（AgentHubView/OverviewView/HubCronSection/HubIdentitySection×3/HubMonitorSection/HubTaskSection）均为目标式链接、全仓 hub 面无 navigationDestination——绑 NavigationPath 与目标式推入兼容（推入同样追加进 path，`isEmpty` 即根页真值）。四段内容、深链回调（StatusView 的 onOpenSession 等走闭包不走栈）零改动。
+
+### 95.4 测试增减账（如实记数）
+
+- `SwipeReplyMotionTests` 整件换代：退役 24 条断言（shouldBeginPan 15＋engages 5＋旧 followedOffset 扣锁定段 4）、重写 8 条（shouldTrigger 3→4 条且语义改途中严格大于；revealProgress 5→5 条、分母 52→60）、新增 20 条（参数单源 4＋dragOffset 8＋displayOffset 4＋isExcluded 4）。本文件 8 方法/32 断言 → 9 方法/29 断言。
+- 全仓测试方法数：基线 912（分支内 grep 点清）→ 913（净 +1）。本机 VM 无 Swift 工具链、未本地编译，构建与单测实数等主线合并后随 CI 实证，本节不预填结果。
+
+### 95.5 真机复验清单
+
+1. 聊天右滑：从气泡上起手**纵滚顺畅**（气泡纹丝不动、列表照常滚）＋**右滑途中**过约 60pt 当场弹引用条并轻震一次（不等松手）；从代码块/宽表格上起手右滑＝代码/表格自己横滚、不触发引用；斜向慢滑不误触。
+2. 附件条：单图贴卡内左边、多图横排可滚且可继续加图；加图/删图时卡高平滑增减不跳；引用块与附件条同现时版式无回退。
+3. 枢纽：状态页（及任意推入页）右滑能返回上一层；枢纽**根页**左缘右滑能退出（0.36.24 口径不回退）；浏览器段内右滑不误退；四段切换与开会话深链无回归。
