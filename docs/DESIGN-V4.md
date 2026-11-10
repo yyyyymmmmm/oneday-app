@@ -4746,3 +4746,9 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.32.1／CURRENT_PROJECT_VERSION 62／CFBundleShortVersionString 0.32.1／CFBundleVersion 62）＋SettingsView 页脚「OneDay v0.32.1」。
 - F04 桥止血同批独立交付（见 60.1）：本地桩测 13/13、生产已部署实测。五桥凭据分权服务器侧（R8 后半）于本 IPA 出包后执行，钥匙组文件 bridge-keys.txt 交付用户导入（GG3）；过渡期影响：装 0.32.1 前各桥照常（服务器尚未轮换）、装后未导入前靠旧钥回退照常、导入一次即完成分权。
 - GG1–GG4 待真机终审（本版终审代号 GG，承 §59 的 FF 序）。
+
+### 60.6 服务器侧轮换落账（R8 后半，同日执行）
+
+- 执行序：本 IPA（0.32.1/62）出包后才动服务器钥匙。五桥逐桥轮换（备份 *.bak-20261110-f03 共 10 份、只重建该桥容器）：各桥独立随机钥＋各自 env 变量名（OVERVIEW_/ONEDAY_/WRITE_GATE_/BOX_/DEVICE_BRIDGE_KEY），旧 WRITE_GATE_KEY 从五桥 env 全数退役（0 残留）；验收矩阵 30 格全对（每桥仅己钥可通、余四新钥＋旧钥全 401）；Hermes 本体未动。全程记录见 ~/workspace/hermes-deploy/bridge-keys-rollout-20261110.md。
+- 服务端例外一处：overview 内部调 write-gate /status 改用 write-gate 钥作服务凭据（仅服务器 env、App 不持有），待批数与源端 counts 实测一致。
+- **过渡期真实影响（更正 60.3 的乐观口径）**：轮换完成后，旧共用钥已被各桥退役——现装 0.32.0 的桥功能即刻 401（聊天本体不受影响）；装 0.32.1 后、导入钥匙组之前，回退读到的旧钥同样被拒、桥面呈未连接诚实态；粘贴 bridge-keys.txt 导入一次即全恢复并完成分权。回退机制保留至下一版删除的口径不变（其价值在轮换前的窗口与单桥再轮换场景）。
