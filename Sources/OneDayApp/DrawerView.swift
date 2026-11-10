@@ -481,13 +481,20 @@ struct DrawerView: View {
         }
     }
 
-    /// 频道行（规格 §3.2）：沿导航行档（图标槽＋标
-    /// 题 Body 17＋drawerRowHeight），行尾 chevron
-    /// 示「进去是一个面」；**不给计数徽标**（抽屉拉
-    /// 取口径与全量不一致，挂数即埋假新鲜，S7 纪
-    /// 律）；图标用注册表资产（Hermes＝0.36.3 登记
-    /// 的本机服务定制图面 LocalHermes）；选中态问
-    /// 单一选择政策（.channel 命中才带胶囊）
+    /// 频道行（规格 §3.2＋对 Muse 抽屉对图改平）：
+    /// 与导航行完全同构的平排——图标槽＋标题 Body
+    /// 17＋drawerRowHeight，选中才带与导航行同式
+    /// 的胶囊；无卡片底、无 chevron（Muse 频道行
+    /// 与普通行同构，宪法 §7）；**不给计数徽标**
+    /// （抽屉拉取口径与全量不一致，挂数即埋假新
+    /// 鲜，S7 纪律）；图标用注册表资产（Hermes＝
+    /// 0.36.3 登记的本机服务定制图面 LocalHermes），
+    /// 资产本体落字形档 21 居中于 30 槽内、与导航
+    /// 行 SF 字形同尺寸——旧落法资产填满 30 槽，
+    /// 实色方块比线形字形重一圈，是真机截图里本
+    /// 行「卡片感」的主源，本包改平（见 DESIGN
+    /// §101）；选中态问单一选择政策（.channel 命
+    /// 中才带胶囊）
     private func drawerChannelRow(_ channel: ChannelDescriptor) -> some View {
         let selected = drawerSelection == .channel(channel.id)
         return Button {
@@ -500,6 +507,10 @@ struct DrawerView: View {
                         Image(asset)
                             .resizable()
                             .scaledToFit()
+                            .frame(
+                                width: FrameworkIcon.drawerGlyphSize,
+                                height: FrameworkIcon.drawerGlyphSize
+                            )
                     } else {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .font(.system(
@@ -519,10 +530,6 @@ struct DrawerView: View {
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: OneDayMetrics.drawerRowHeight)
@@ -1002,10 +1009,17 @@ struct DrawerView: View {
     }
 
     /// 发丝线（左右留 drawerInset 20）：组间分隔的唯
-    /// 一形态（立宪：分组＝13–14 灰标签＋发丝线）
+    /// 一形态（立宪：分组＝灰标签＋发丝线，分隔几何
+    /// 全名单只此一种，宪法 §3）。色改挂 Palette
+    /// .separator（宪法 §3 定版的分隔单色、与全 App
+    /// GroupDivider 同源，α 语义压任何面保持可辨）：
+    /// 旧挂 hairline 的浅档 #EEEEF0 与抽屉磨砂底近
+    /// 同色、真机截图里三处组间线全不可见（用户
+    /// 05:34 对图点题），本包改挂显形、几何（20 线、
+    /// 高 1）不动，见 DESIGN §101
     private var drawerDivider: some View {
         Rectangle()
-            .fill(Palette.hairline)
+            .fill(Palette.separator)
             .frame(height: 1)
             .padding(.horizontal, OneDayMetrics.drawerInset)
     }
