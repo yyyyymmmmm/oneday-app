@@ -59,7 +59,7 @@ final class ServerLabelsTests: XCTestCase {
             (name: "d", cat: "llm"),
             (name: "e", cat: nil as String?),
         ]
-        let groups = ServerLabels.grouped(items, locale: Locale(identifier: "zh-Hans")) { $0.cat }
+        let groups = ServerLabels.grouped(items, category: { $0.cat }, locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(groups.map(\.label), ["搜索", "模型", "其他"])
         XCTAssertEqual(groups[1].items.map(\.name), ["b", "d"])
         XCTAssertEqual(groups[2].items.map(\.name), ["a", "e"])
