@@ -5008,3 +5008,31 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.36.1／CURRENT_PROJECT_VERSION 68／CFBundleShortVersionString 0.36.1／CFBundleVersion 68）＋SettingsView 页脚「OneDay v0.36.1」。
 - 台账销项（0.36.1）：全销 D1、D2、D3、D4、D5、D6、D8、D9；D7 全销（核对通过口径，FileIconBox 余项在 C8 行内归批二、不在本行）；C2 暗档验收部分销随 D4 收口（代码层已销、真机对照在途）。
 - 待真机：全表面暗色对照（设置/连接器/文件/目标/点子逐面）、曜黑主题弱面暗底近隐形肉眼验、暗色冷启动闪白消除确认——并入在途真机终审积压。
+
+## §67 0.36.2/69 体验包一（分段控件重做＋触感矩阵落地）（2026-11-10）
+
+体验三件规格（experience-trio-spec-20261110.md）第一、二节的施工批；第三节图片查看器按规格打包建议单列后续版本。规格口径要点：分段控件的病根是「角色反置＋全面偏大」——令牌 selectionFill 色值本身没错（与实测 #F3F4F6 差 ≤3 通道），错在被用作轨道、白 surface 被用作药丸还带阴影；触感的病根是「只有结果一个维度」——selection/impact 零落点、失败普遍拿 warning 冒充。
+
+### 67.1 件一·分段控件（DeliverablesView.segmentControl 重写）
+
+- 落值（SegmentedControlSpec 单源常量，Design 层）：总高 48（旧 60）、药丸高 36（旧 52）、内缩 6（旧 4）、左右边距 16（旧 pageGutter 20，本控件局部口径）；轨道＝Palette.surface 白＋Palette.separator 发丝边、全胶囊 r24；药丸＝Palette.selectionFill 灰垫、r18（同心＝24−6，与药丸高/2 同值即 Capsule）、**删阴影**；字 `.bodyText` 17 semibold（旧 regular）、两态皆 Palette.ink（旧未选 inkSecondary 灰化退役）——选中区分只靠灰垫有无。
+- 切换：药丸 matchedGeometryEffect 滑移；弹簧新令牌 MotionTokens.selectionSpring＝spring(response 0.35, dampingFraction 1.0)——动效宪法默认档（点按触发、无手势来源、零回弹），与 liquidSpring 跟手档（0.72）分工，旧「liquidSpring 滑移」落点随之改挂。Reduce Motion 走 resolved 出口瞬时。
+- 防回潮：SegmentedControlSpecTests 专钉绝对值（48/36/6/16）＋同心关系（药丸高＝总高−2×内缩、轨道圆角＝总高/2、药丸圆角＝轨道圆角−内缩＝药丸高/2）。
+- 旧注「段高约 63pt，照 Muse 资源库图复刻」的目测高估口径（高出真值 15pt）连同注释退役；全仓自制分段仅此一处，系统 Picker(.segmented) 四处（Logs/AllConversations/Computer/Connectors）按全面原生令未动。
+
+### 67.2 件二·触感矩阵（规格 §2.3 总表逐项）
+
+- Haptics 枚举扩三函数：error()、selection()、impact(_:)（与 success/warning 同形、即用即建）；头注改《动效宪法》表 D 口径——0.3.2「只挂结果」纪律（§17）退役，防腻清单成文写入头注防回潮。
+- 新增感知点：①分段切换 selection（.sensoryFeedback trigger＝segment）；②GoalCheckBox＋MilestoneCheckRow 勾选完成 success（.sensoryFeedback 条件边沿：仅未完成→完成响，done 为回读确认后真状态、响在落定刻；取消勾选不对称不加）；③点子采纳 success（IdeasStore.convertToTask 回读确认 taskId 落字分支，未确认分支只留 notes 不响）；④审批批准 success／驳回 warning（AgentHubStore.decide 的 response.success 落定分支，未生效/异常不响；驳回取 warning 本义＝需注意类决定）；⑤删除确认落锤 impact heavy（FilesBrowserView 与 DeliverablesView 两确认弹窗的「删除」钮）＋两处 delete() 的事后 success 撤销——同一因果链只震一次；失败时 error 照常（结果事件、非同响）。
+- 改判 error 共 13 处（逐处按语义核、非无脑全替）：ChatView 会话链接失败／driveRun sessionExpired／finishRunPresentation(failed:)（含其文档注同步）、ConnectView 地址无效／连接失败、GatewayView 操作失败、ServerDetailView 地址无效／保存失败、SettingsView 重启失败、FilesView 上传／新建文件夹／删除失败、DeliverablesView 删除失败。**保留 warning 一处**：FilesView 删除后回读「删除未生效、仍在目录中」——请求已发、结果未确认，属 warning 本义（需注意未失败），是本批「逐处判」的明证。
+- 保持 success 不动：消息完成有正文、上传回读确认、新建文件夹回读确认、连接成功、网关指令成功、服务器保存成功、设置重启指令成功、复制（CopyButton 既有 .sensoryFeedback）。
+- 防腻清单执行（代码审计口径）：普通点按／行点击／tab 切换／页面进出／滚动／键盘／抽屉开合／下拉刷新／翻页／系统 Toggle 与 Picker 均未新增触感；impact light 条件项（抽屉手势吸附／拖放落位）本仓无对应手势实现、无落点，如实记账不硬造。
+- 与规格的出入（如实记）：规格 §2.5 把点子采纳落点写作 IdeasView、审批写作 AgentHub/Overview——实际完成信号在 Store 层（回读确认／裁决落定），落点下沉至 IdeasStore/AgentHubStore，语义更准（响在真落定刻而非点按刻）；Overview 无独立审批动作面（同一 HubApprovalSection），无第二落点。
+
+### 67.3 交付实录
+
+- 提交链：ce13d14（整包）→本节文档提交；顶端以文档提交为准，代码顶端 ce13d14。
+- CI：42799338677 **success**，Executed **656 tests, 0 failures**（基线 654＋新测 2：SegmentedControlSpecTests，只增不减）。
+- IPA：6,185,181 字节、md5 4ffa0c4417ddd67d8c09a51c2a1584be、独立解包验 Info.plist＝0.36.2/69，落 ~/workspace/your_files/oneday-v0.36.2/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.36.2／CURRENT_PROJECT_VERSION 69／CFBundleShortVersionString 0.36.2／CFBundleVersion 69）＋SettingsView 页脚「OneDay v0.36.2」。
+- 待真机：分段灰垫/48 高/无阴影肉眼判；触感四点逐个点测（分段切换、目标勾选、删除落锤、失败报错 error 档）——并入在途真机终审积压。
