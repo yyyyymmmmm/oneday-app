@@ -269,14 +269,24 @@ public enum DeviceRegistration {
 // MARK: - 目录行状态文案
 
 public enum DeviceRowStatus {
-    /// 目录行状态字（单一映射）：授权态＋调用开关态
-    /// ＋一句本地读数（有才拼，取不到不编）。批二两
-    /// 件恒「待签名权益」——行在、状态如实、不点入
-    /// 假页面。metric 例：「今天 3 个日程」
+    /// 目录行状态字（单一映射）：只由本地可验事实拼
+    /// 成——系统权限＋调用开关＋设备会话是否在线＋
+    /// 一句本地读数（有才拼，取不到不编）。批二两件
+    /// 恒「待签名权益」——行在、状态如实、不点入假
+    /// 页面。metric 例：「今天 3 个日程」。
+    /// 0.36.10（真机判词 4 收口）：旧实现只凭权限＋
+    /// 开关就拼「可调用」，把服务端未注册的半截说成
+    /// 已通（详情页自家文案与之打架）。服务端注册状
+    /// 态 App 验不了、不许写；「可调用」只许在会话
+    /// 在线时出现——会话是 App 自家与桥的连接、在线
+    /// 与否本地可验；开关开但会话离线如实降为「会话
+    /// 未连接」。详情页与总览页共用本映射，不许两套
+    /// 口径再打架
     public static func line(
         descriptor: DeviceSourceDescriptor,
         permission: DevicePermissionState,
         agentCallEnabled: Bool,
+        sessionOnline: Bool,
         metric: String?
     ) -> String {
         guard descriptor.isWired else { return "待签名权益" }
@@ -289,7 +299,13 @@ public enum DeviceRowStatus {
             return "仅写入权限 · 不能读取"
         case .granted, .limited:
             var parts = [permission.label]
-            parts.append(agentCallEnabled ? "可调用" : "调用已关")
+            if !agentCallEnabled {
+                parts.append("调用已关")
+            } else if sessionOnline {
+                parts.append("可调用")
+            } else {
+                parts.append("会话未连接")
+            }
             if let metric, !metric.isEmpty {
                 parts.append(metric)
             }

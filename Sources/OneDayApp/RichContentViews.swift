@@ -13,79 +13,313 @@ import UIKit
 
 // MARK: - 工具卡
 
+/// 工具卡（0.36.10 按诊断 D3 重做）：卡面收敛为一
+/// 行——图标盒＋人话标题＋一句话摘要＋状态字；参数
+/// 原文与结果全文撤出卡面、点开卡进详情区（卡内展
+/// 开）。状态是卡级的：只看本卡结果回没回（Core
+/// ToolCardPresentation），整轮未落定不再把已完成
+/// 的卡拖回「进行中」（诊断 D2 第一名）。旧形态（整
+/// 卡平铺＋结果内联＋整轮 isLive）退役。
+/// plain＝组内嵌模式：无自家卡面（组卡承接），行
+/// 本体与详情展开同口径。
 struct ToolCardView: View {
     let card: ToolCard
-    /// 流式进行中（结果未回）：标题行右侧出「进行中」
-    var isLive: Bool = false
+    var plain: Bool = false
     @State private var expanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let collapseLimit = 280
+    private var state: ToolCardPresentation.State {
+        ToolCardPresentation.state(of: card)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(card.category.tint)
-                    .frame(width: 36, height: 36)
-                    .overlay {
-                        Image(systemName: card.category.symbol)
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundStyle(Palette.ink)
-                    }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(card.title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Palette.ink)
-                    if !card.summary.isEmpty {
-                        Text(card.summary)
-                            .font(.caption)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(2)
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(
+                    MotionTokens.resolved(
+                        MotionTokens.swap, reduceMotion: reduceMotion
+                    )
+                ) {
+                    expanded.toggle()
                 }
-                Spacer(minLength: OneDayMetrics.spacingS)
-                if card.resultFailed {
-                    Text("失败")
-                        // 0.23.0（审计 G6）：徽标文字升角色
-                        // badgeOnly（caption 12；旧 caption2
-                        // 11 退出文字位）
-                        .font(.badgeOnly.weight(.medium))
-                        .foregroundStyle(Palette.danger)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(
-                            Palette.errorSurface,
-                            in: Capsule()
-                        )
-                } else if isLive {
-                    HStack(spacing: 5) {
-                        ProgressView()
-                            .controlSize(.mini)
-                        Text("进行中")
-                            // 0.23.0（审计 G6/G1）：状态小字升
-                            // badgeOnly（12）＋inkSecondary
-                            .font(.badgeOnly)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                }
+            } label: {
+                rowContent
             }
-            if let pageLine = browserPageLine {
-                HStack(spacing: 5) {
-                    Image(systemName: "link")
-                    Text(pageLine)
-                        .lineLimit(1)
-                }
-                // 0.23.0（审计 G6）：11pt 字形字面量清零
-                // ——字形随行文字走 caption 档（12）同缩
-                .font(.caption)
-                .foregroundStyle(Palette.inkSecondary)
-            }
-            if let result = card.result, !result.isEmpty {
+            .buttonStyle(.odPressable)
+            .accessibilityLabel(
+                "\(card.title)，\(ToolCardPresentation.statusLine(of: card))"
+            )
+            if expanded {
                 Rectangle()
                     .fill(Palette.hairline)
                     .frame(height: 1)
-                resultBody(result)
+                    .padding(.top, OneDayMetrics.spacingS)
+                detailBody
+                    .padding(.top, OneDayMetrics.spacingS)
+            }
+        }
+        .padding(plain ? 0 : 15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            if !plain {
+                RoundedRectangle(
+                    cornerRadius: OneDayMetrics.bubbleCorner
+                )
+                .fill(Palette.surface)
+            }
+        }
+        .overlay {
+            if !plain {
+                RoundedRectangle(
+                    cornerRadius: OneDayMetrics.bubbleCorner
+                )
+                .stroke(Palette.hairline, lineWidth: 1)
+            }
+        }
+    }
+
+    /// 一行本体：图标盒 36＋标题/摘要两行字＋状态字
+    private var rowContent: some View {
+        HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
+            RoundedRectangle(cornerRadius: 9)
+                .fill(card.category.tint)
+                .frame(width: 36, height: 36)
+                .overlay {
+                    Image(systemName: card.category.symbol)
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(Palette.ink)
+                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(card.title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            statusMark
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// 副行：参数摘要优先（浏览器卡用页面 URL，与旧
+    /// 地址行口径同）；无摘要时成功无输出显「（无输
+    /// 出）」、失败显原因首行（诊断 D3-7/D3-9）
+    private var subtitle: String {
+        if let pageLine = browserPageLine { return pageLine }
+        if !card.summary.isEmpty { return card.summary }
+        switch state {
+        case .succeeded:
+            return ToolResultUnwrap.isMeaningless(card.result ?? "")
+                ? "（无输出）" : ""
+        case .failed:
+            return ToolCardPresentation.firstMeaningfulLine(
+                of: card.result
+            ) ?? ""
+        case .running:
+            return ""
+        }
+    }
+
+    /// 状态字（卡级）：进行中＝转圈＋「进行中」（只
+    /// 在本卡结果未回时）；失败＝失败徽标；其余＝展
+    /// 开指示 chevron（可点必有指示，宪法 §9）
+    @ViewBuilder
+    private var statusMark: some View {
+        switch state {
+        case .running:
+            HStack(spacing: 5) {
+                ProgressView()
+                    .controlSize(.mini)
+                Text("进行中")
+                    .font(.badgeOnly)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        case .failed:
+            Text("失败")
+                .font(.badgeOnly.weight(.medium))
+                .foregroundStyle(Palette.danger)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(
+                    Palette.errorSurface,
+                    in: Capsule()
+                )
+        case .succeeded:
+            Image(
+                systemName: expanded ? "chevron.up" : "chevron.down"
+            )
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Palette.inkSecondary)
+            .accessibilityHidden(true)
+        }
+    }
+
+    /// 详情区：参数原文＋结果全文＋工具原名（英文短
+    /// 名只进这里，诊断 D3-3）。直播卡结果是 events
+    /// 预览、落定后由 transcript 全文替换（呈现层不
+    /// 标注两者区别，口径在 Core unwrap 归一）
+    private var detailBody: some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            if let arguments = card.arguments, !arguments.isEmpty {
+                detailField(
+                    "参数", text: Self.prettyArguments(arguments),
+                    monospaced: true
+                )
+            } else if !card.summary.isEmpty {
+                detailField("参数", text: card.summary, monospaced: false)
+            }
+            if let result = card.result {
+                detailField(
+                    "结果",
+                    text: ToolResultUnwrap.isMeaningless(result)
+                        ? "（无输出）" : result,
+                    monospaced: card.category == .terminal
+                )
+            } else {
+                detailField("结果", text: "进行中…", monospaced: false)
+            }
+            HStack(spacing: 5) {
+                Text("工具名")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Palette.inkSecondary)
+                Text(
+                    ToolCardClassifier.shortName(
+                        forToolName: card.toolName
+                    )
+                )
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(Palette.inkSecondary)
+                .textSelection(.enabled)
+            }
+        }
+    }
+
+    private func detailField(
+        _ label: String, text: String, monospaced: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Palette.inkSecondary)
+            Text(text)
+                .font(
+                    monospaced
+                        ? .system(.caption, design: .monospaced)
+                        : .caption
+                )
+                .foregroundStyle(Palette.bodyInk)
+                .textSelection(.enabled)
+        }
+    }
+
+    /// 参数详情排版：JSON 能解则美化（键序稳定），
+    /// 解不出原文呈现——不丢内容
+    private static func prettyArguments(_ raw: String) -> String {
+        guard let data = raw.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(
+                  with: data
+              ),
+              let pretty = try? JSONSerialization.data(
+                  withJSONObject: object,
+                  options: [.prettyPrinted, .sortedKeys,
+                            .withoutEscapingSlashes]
+              ),
+              let text = String(data: pretty, encoding: .utf8)
+        else { return raw }
+        return text
+    }
+
+    /// 浏览器导航结果首行形态（生产实查）：
+    /// "Page: Example Domain (https://example.com/)" →
+    /// 副行只出 URL（标题在结果正文里已有，不重复）
+    private var browserPageLine: String? {
+        guard card.category == .browser,
+              let result = card.result,
+              result.hasPrefix("Page: "),
+              let open = result.firstIndex(of: "("),
+              let close = result.firstIndex(of: ")"),
+              open < close else { return nil }
+        let url = String(result[result.index(after: open)..<close])
+        return url.hasPrefix("http") ? url : nil
+    }
+}
+
+/// 工具组（0.36.10，诊断 D3-8）：同轮连续 ≥2 张卡
+/// 收成一组——组头一行（Core groupHeader：总数＋
+/// 命运分布，失败不隐藏），默认收起；点开组逐卡一
+/// 行（ToolCardView plain 模式），逐卡再点开各自详
+/// 情。单卡轮次不走本组件、保持单行卡
+struct ToolCardGroupView: View {
+    let cards: [ToolCard]
+    @State private var expanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(
+                    MotionTokens.resolved(
+                        MotionTokens.swap, reduceMotion: reduceMotion
+                    )
+                ) {
+                    expanded.toggle()
+                }
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    RoundedRectangle(cornerRadius: 9)
+                        .fill(Palette.fieldFill)
+                        .frame(width: 36, height: 36)
+                        .overlay {
+                            Image(
+                                systemName: "wrench.and.screwdriver"
+                            )
+                            .font(
+                                .system(size: 16, weight: .regular)
+                            )
+                            .foregroundStyle(Palette.ink)
+                        }
+                    Text(ToolCardPresentation.groupHeader(cards: cards))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    if cards.contains(where: { $0.result == nil }) {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
+                    Image(
+                        systemName: expanded
+                            ? "chevron.up" : "chevron.down"
+                    )
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            if expanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(cards.enumerated()), id: \.element.id) {
+                        index, card in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(Palette.hairline)
+                                .frame(height: 1)
+                                .padding(
+                                    .vertical, OneDayMetrics.spacingS
+                                )
+                        }
+                        ToolCardView(card: card, plain: true)
+                    }
+                }
+                .padding(.top, OneDayMetrics.spacingS)
             }
         }
         .padding(15)
@@ -103,61 +337,6 @@ struct ToolCardView: View {
             .stroke(Palette.hairline, lineWidth: 1)
         }
     }
-
-    /// 浏览器导航结果首行形态（生产实查）：
-    /// "Page: Example Domain (https://example.com/)" →
-    /// 地址行只出 URL（标题在结果正文里已有，不重复）
-    private var browserPageLine: String? {
-        guard card.category == .browser,
-              let result = card.result,
-              result.hasPrefix("Page: "),
-              let open = result.firstIndex(of: "("),
-              let close = result.firstIndex(of: ")"),
-              open < close else { return nil }
-        let url = String(result[result.index(after: open)..<close])
-        return url.hasPrefix("http") ? url : nil
-    }
-
-    @ViewBuilder
-    private func resultBody(_ result: String) -> some View {
-        let needsCollapse = result.count > Self.collapseLimit
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-            Text(
-                needsCollapse && !expanded
-                    ? String(result.prefix(Self.collapseLimit)) + "…"
-                    : result
-            )
-            .font(
-                card.category == .terminal
-                    ? .system(.caption, design: .monospaced)
-                    : .caption
-            )
-            .foregroundStyle(Palette.bodyInk)
-            .textSelection(.enabled)
-            if needsCollapse {
-                Button(expanded ? "收起" : "展开结果") {
-                    // 0.25.0（动效专包）：展开/收起原为无
-                    // 动画硬切（卡高跳变）——走 swap 令牌
-                    // （令牌册自注 swap 含折叠展开）＋
-                    // resolved 出口，卡高平滑过渡
-                    withAnimation(
-                        MotionTokens.resolved(
-                            MotionTokens.swap, reduceMotion: reduceMotion
-                        )
-                    ) {
-                        expanded.toggle()
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(Palette.primary)
-                .buttonStyle(.odPressable)
-                // 0.23.0（审计 C2 同批）：展开钮命中域补
-                // 到 44 高（视觉字形不变、行内左对齐）
-                .frame(minHeight: OneDayMetrics.minTapTarget)
-                .contentShape(Rectangle())
-            }
-        }
-    }
 }
 
 extension ToolCardCategory {
@@ -172,6 +351,8 @@ extension ToolCardCategory {
         case .skill: return "puzzlepiece.extension"
         case .vision: return "eye"
         case .task: return "checklist"
+        case .connection: return "cable.connector"
+        case .device: return "iphone"
         case .other: return "wrench.and.screwdriver"
         }
     }
@@ -187,6 +368,8 @@ extension ToolCardCategory {
         case .skill: return Palette.tintLavender
         case .vision: return Palette.tintSky
         case .task: return Palette.tintGreen
+        case .connection: return Palette.tintLavender
+        case .device: return Palette.tintGreen
         case .other: return Palette.fieldFill
         }
     }

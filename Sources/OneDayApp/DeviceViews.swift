@@ -297,6 +297,23 @@ struct DeviceStatusHeader: View {
         controller.permissions[source] ?? .notDetermined
     }
 
+    /// 通道脚注（0.36.10）：只由本地可验事实拼——
+    /// 系统权限、调用开关、设备会话在线三件，与目
+    /// 录行状态字同源同口径，不许再出现 App 验不了
+    /// 的服务端状态宣称
+    private var channelNote: String {
+        guard permission.isUsable else {
+            return "先在上方开好系统权限，智能体才有机会调用这一件。"
+        }
+        guard controller.agentCallEnabled[source] ?? false else {
+            return "调用开关已关：智能体问不到这一件，数据不会被调用。"
+        }
+        if controller.sessionOnline {
+            return "设备会话在线：智能体发来调用时，这台手机现读现回，数据只过境、不存服务器。"
+        }
+        return "设备会话当前未连接：智能体现在叫不到这台手机；回到 App 前台、会话恢复在线后才可调用。"
+    }
+
     var body: some View {
         Group {
             // 领头段（0.36.3，详情页语法五段式）：
@@ -368,9 +385,13 @@ struct DeviceStatusHeader: View {
             } header: {
                 headerText("通道状态")
             } footer: {
-                // 0.36.3：门面注册口径由卡内成段文字
-                // 下沉为本节页脚小字（一行交代）
-                Text("智能体实际调用待服务器侧门面注册开通；开通前数据不会被调用。")
+                // 0.36.10（判词 3/4 口径统一）：旧静态
+                // 句「待服务器侧门面注册开通」整句退
+                // 役——那是 App 验不了的服务端状态、又
+                // 与目录行「可调用」互斥打架；改由本地
+                // 可验事实动态拼（channelNote），与目
+                // 录行 DeviceRowStatus 同源同口径
+                Text(channelNote)
             }
             .listRowBackground(Palette.surface)
         }
@@ -1217,7 +1238,10 @@ struct DevicePermissionsView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                Text("会话只在 App 前台时活着；智能体实际调用还差服务器侧门面注册（下个收官窗口开通）。")
+                // 0.36.10：旧句「还差服务器侧门面注册」
+                // 是 App 验不了的服务端状态、且已与事
+                // 实脱节，换本地可验口径
+                Text("会话只在 App 前台时活着；未连接时智能体叫不到这台手机，回到前台会自动恢复连接。")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             } header: {
@@ -1265,6 +1289,7 @@ struct DevicePermissionsView: View {
             permission: permission,
             agentCallEnabled:
                 controller.agentCallEnabled[descriptor.sourceID] ?? false,
+            sessionOnline: controller.sessionOnline,
             metric: nil
         )
     }

@@ -211,6 +211,94 @@ final class RichContentTests: XCTestCase {
         )
     }
 
+    /// 0.36.10（诊断 D3-3）：连接管理与设备类工具的
+    /// 分类/标题补齐；未知工具回落中文类名、不再是
+    /// 英文短名
+    func testClassifierConnectionAndDeviceTools() {
+        XCTAssertEqual(
+            ToolCardClassifier.category(
+                forToolName: "manage_connections"
+            ),
+            .connection
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.title(
+                forToolName: "manage_connections", arguments: "{}"
+            ),
+            "管理连接"
+        )
+        // contacts_search 含 search 字样也归设备
+        XCTAssertEqual(
+            ToolCardClassifier.category(
+                forToolName: "contacts_search"
+            ),
+            .device
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.title(
+                forToolName: "contacts_search", arguments: "{}"
+            ),
+            "查通讯录"
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.title(
+                forToolName: "calendar_list_events", arguments: "{}"
+            ),
+            "查询日历日程"
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.title(
+                forToolName: "reminders_complete", arguments: "{}"
+            ),
+            "完成提醒"
+        )
+        // 未知工具：映射表回 nil、回落中文类名
+        XCTAssertNil(
+            ToolCardClassifier.title(
+                forToolName: "mcp__foo__do_thing", arguments: "{}"
+            )
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.fallbackTitle(
+                forToolName: "mcp__foo__do_thing"
+            ),
+            "工具调用"
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.fallbackTitle(
+                forToolName: "some_browser_thing"
+            ),
+            "浏览器操作"
+        )
+    }
+
+    /// 0.36.10（诊断 D3-5）：复合命令摘要呈「N 条命
+    /// 令 · 首条」，不整段直出；多行脚本仍取首行
+    func testCompoundCommandSummary() {
+        XCTAssertEqual(
+            ToolCardClassifier.summary(
+                forToolName: "terminal",
+                arguments: #"{"command": "command -v gws; command -v himalaya; ls ~/.contacts 2>/dev/null"}"#
+            ),
+            "3 条命令 · command -v gws"
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.summary(
+                forToolName: "terminal",
+                arguments: #"{"command": "ls -la\npwd"}"#
+            ),
+            "ls -la"
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.commandSummary("a && b || c"),
+            "3 条命令 · a"
+        )
+        XCTAssertEqual(
+            ToolCardClassifier.commandSummary("git status"),
+            "git status"
+        )
+    }
+
     // MARK: - 剥包裹分型
 
     func testUnwrapShapes() {

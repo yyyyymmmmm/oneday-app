@@ -48,7 +48,8 @@ struct ChatView: View {
     @State private var streamingText: String?
     /// 流式思考（reasoning）已发布快照（0.5.1，§32）：
     /// 非 nil 表示本轮已收到思考增量；思考原文经发布
-    /// 闸合并后写入，呈现走 streamingRow 内的折叠单元
+    /// 闸合并后写入，呈现走直播区折叠单元（live-
+    /// ReasoningBlock，0.36.10 起按事件序落位）
     @State private var streamingReasoning: String?
     /// 本轮首个思考增量的到达时刻（0.5.1）：折叠单元
     /// 实时计时与落盘 reasoningSeconds 的计时起点
@@ -172,6 +173,24 @@ struct ChatView: View {
     @State private var imageViewerSession: ImageViewerSession?
     @State private var filePreviewItem: ChatFilePreviewItem?
     @State private var liveToolCards: [ToolCard] = []
+    /// 直播区事件序标记（0.36.10，诊断 D3-10）：思考/
+    /// 工具/正文按首达顺序记位，渲染层（liveZone）据
+    /// 此交错呈现——旧形态恒「卡列在前、思考正文在
+    /// 后」，与事件真实先后倒序
+    @State private var liveOrder: [LiveOrderItem] = []
+
+    private enum LiveOrderItem: Equatable {
+        case reasoning
+        case text
+        case tool(String)
+    }
+
+    private func noteLiveOrder(_ item: LiveOrderItem) {
+        if !liveOrder.contains(item) {
+            liveOrder.append(item)
+        }
+    }
+
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
     /// GlassEffectContainer＋union 撤销（§11：容器在新承载
     /// 下不再承担布局，且 Session 219 忌玻璃叠玻璃）
@@ -1008,6 +1027,139 @@ struct ChatView: View {
             .accessibilityLabel("时间 \(text)")
     }
 
+    // MARK: - 工具卡成组与直播区（0.36.10，诊断 D3-8/D3-10）
+
+    /// 落定条目渲染计划：连续工具卡条目 ≥2 收成一
+    /// 组、单卡仍走 .entry 原路（bubble 内 ToolCard-
+    /// View）。时间分隔走查只认会话条目、与本计划无
+    /// 关（映射在 timelineDividers 独立计算）
+    private enum EntryRenderItem: Identifiable {
+        case entry(ChatEntry)
+        case toolGroup([ChatEntry])
+
+        var id: UUID {
+            switch self {
+            case .entry(let entry): return entry.id
+            case .toolGroup(let entries): return entries[0].id
+            }
+        }
+    }
+
+    private func entryRenderItems(
+        for entries: [ChatEntry]
+    ) -> [EntryRenderItem] {
+        var items: [EntryRenderItem] = []
+        var run: [ChatEntry] = []
+        func flush() {
+            if run.count == 1 {
+                items.append(.entry(run[0]))
+            } else if run.count > 1 {
+                items.append(.toolGroup(run))
+            }
+            run = []
+        }
+        for entry in entries {
+            if entry.toolCard != nil {
+                run.append(entry)
+            } else {
+                flush()
+                items.append(.entry(entry))
+            }
+        }
+        flush()
+        return items
+    }
+
+    /// 直播区渲染计划：按 liveOrder 标记交错思考/工
+    /// 具/正文，连续工具标记 ≥2 收成组；标记外的卡
+    /// （恢复回填等）按卡序殿后、正文标记缺失时殿后
+    /// 补位——只重排呈现、不丢段
+    private enum LiveRenderItem: Identifiable {
+        case reasoning
+        case text
+        case tool(ToolCard)
+        case toolGroup([ToolCard])
+
+        var id: String {
+            switch self {
+            case .reasoning: return "live-reasoning"
+            case .text: return "live-text"
+            case .tool(let card): return "tool-\(card.id)"
+            case .toolGroup(let cards):
+                return "toolgroup-\(cards.first?.id ?? "none")"
+            }
+        }
+    }
+
+    private func liveRenderItems() -> [LiveRenderItem] {
+        var items: [LiveRenderItem] = []
+        var pendingTools: [ToolCard] = []
+        var seenCardIDs: Set<String> = []
+        func flushTools() {
+            if pendingTools.count == 1 {
+                items.append(.tool(pendingTools[0]))
+            } else if pendingTools.count > 1 {
+                items.append(.toolGroup(pendingTools))
+            }
+            pendingTools = []
+        }
+        for marker in liveOrder {
+            switch marker {
+            case .reasoning:
+                flushTools()
+                if streamingReasoning != nil {
+                    items.append(.reasoning)
+                }
+            case .text:
+                flushTools()
+                if streamingText != nil {
+                    items.append(.text)
+                }
+            case .tool(let id):
+                if let card = liveToolCards.first(
+                    where: { $0.id == id }
+                ) {
+                    pendingTools.append(card)
+                    seenCardIDs.insert(id)
+                }
+            }
+        }
+        flushTools()
+        let leftovers = liveToolCards.filter {
+            !seenCardIDs.contains($0.id)
+        }
+        if leftovers.count == 1 {
+            items.append(.tool(leftovers[0]))
+        } else if leftovers.count > 1 {
+            items.append(.toolGroup(leftovers))
+        }
+        if streamingText != nil, !liveOrder.contains(.text) {
+            items.append(.text)
+        }
+        return items
+    }
+
+    @ViewBuilder
+    private var liveZone: some View {
+        ForEach(liveRenderItems()) { item in
+            switch item {
+            case .reasoning:
+                liveReasoningBlock
+            case .text:
+                if let streamingText {
+                    streamingBubble(streamingText)
+                        .id("streaming")
+                }
+            case .tool(let card):
+                ToolCardView(card: card)
+                    .id("tool-\(card.id)")
+            case .toolGroup(let cards):
+                ToolCardGroupView(cards: cards)
+                    .id("toolgroup-\(cards.first?.id ?? "none")")
+            }
+        }
+    }
+
     private func messageList(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
@@ -1022,30 +1174,39 @@ struct ChatView: View {
                     let dividers = timelineDividers(
                         for: thread.sortedEntries
                     )
-                    ForEach(thread.sortedEntries) { entry in
-                        VStack(
-                            alignment: .leading,
-                            spacing: OneDayMetrics.spacingS
-                        ) {
-                            if let dividerText = dividers[entry.id] {
-                                timelineDivider(dividerText)
+                    ForEach(
+                        entryRenderItems(for: thread.sortedEntries)
+                    ) { item in
+                        switch item {
+                        case .entry(let entry):
+                            VStack(
+                                alignment: .leading,
+                                spacing: OneDayMetrics.spacingS
+                            ) {
+                                if let dividerText
+                                    = dividers[entry.id] {
+                                    timelineDivider(dividerText)
+                                }
+                                bubble(entry)
                             }
-                            bubble(entry)
+                            .id(entry.id)
+                        case .toolGroup(let groupEntries):
+                            // 连续工具卡 ≥2 成组（0.36.10，
+                            // 诊断 D3-8）：组 id 借首条条目
+                            // id，与 .entry 形态互斥不撞
+                            ToolCardGroupView(
+                                cards: groupEntries
+                                    .compactMap(\.toolCard)
+                            )
+                            .id(groupEntries[0].id)
                         }
-                        .id(entry.id)
                     }
                 }
-                // 0.8.0（P1）：流内工具卡——累积完成即
-                // 入列（结果不在流内、卡面只出动作），
-                // 本轮收尾随助手正文一并落盘
-                ForEach(liveToolCards) { card in
-                    ToolCardView(card: card, isLive: true)
-                        .id("tool-\(card.id)")
-                }
-                if let streamingText {
-                    streamingRow(streamingText)
-                        .id("streaming")
-                }
+                // 直播区（0.36.10 重做）：思考/工具/正文
+                // 按事件到达序交错（liveOrder），连续工
+                // 具 ≥2 收成组；旧形态「卡列恒在前、正
+                // 文恒在后」与真实先后倒序（诊断 D3-10）
+                liveZone
                 // 0.7.0（D2 回告入线）：任务/审批等完成回告
                 // 以卡片只出现在主线——数据走总览桥通知、
                 // 在呈现层拼装呈现，绝不写入任何 Hermes
@@ -1793,26 +1954,22 @@ struct ChatView: View {
         .onTapGesture { showHub = true }
     }
 
-    private func streamingRow(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            // 0.5.1（§32）：思考先于正文到达时，折叠单
-            // 元在等待泡/流式泡上方展开呈现（恒展开＋
-            // 实时计时，ReasoningBlock 流式态）
-            if let reasoning = streamingReasoning {
-                ReasoningBlock(
-                    text: reasoning,
-                    seconds: nil,
-                    isStreaming: true,
-                    startedAt: reasoningStartedAt,
-                    // 0.20.0 相位入参：正文已发布或工具
-                    // 卡已到即思考期结束——折叠单元据此
-                    // 自动收起（硬规格：正文起流后思考
-                    // 不许继续整屏展开）
-                    contentStarted: !text.isEmpty
-                        || !liveToolCards.isEmpty
-                )
-            }
-            streamingBubble(text)
+    /// 直播思考块（0.36.10 自 streamingRow 拆出）：
+    /// 折叠单元独立成段、按 liveOrder 落位（诊断
+    /// D3-10）；相位口径不变——正文已发布或工具卡已
+    /// 到即思考期结束，折叠单元据此自动收起（硬规
+    /// 格：正文起流后思考不许继续整屏展开）
+    @ViewBuilder
+    private var liveReasoningBlock: some View {
+        if let reasoning = streamingReasoning {
+            ReasoningBlock(
+                text: reasoning,
+                seconds: nil,
+                isStreaming: true,
+                startedAt: reasoningStartedAt,
+                contentStarted: !(streamingText ?? "").isEmpty
+                    || !liveToolCards.isEmpty
+            )
         }
     }
 
@@ -2991,6 +3148,8 @@ private struct ComposerBarLayout: Layout {
         streamingText = ""
         // 0.8.0：上一轮的流式工具卡列清空，从本轮累积
         liveToolCards = []
+        // 0.36.10：事件序标记同步清零，从本轮重记
+        liveOrder = []
         sendTask = Task {
             // 0.21.0：出门前先定发送形态（判定与载荷取
             // 形是 Core 纯函数、网络动作在本页）。
@@ -3399,6 +3558,8 @@ private struct ComposerBarLayout: Layout {
             case .contentDelta(let delta),
                  .interim(let delta):
                 if !delta.isEmpty {
+                    // 0.36.10：正文首达记位（事件序编排）
+                    noteLiveOrder(.text)
                     if let snapshot = contentPublishGate
                         .offer(delta, at: now) {
                         streamingText = snapshot
@@ -3408,6 +3569,8 @@ private struct ComposerBarLayout: Layout {
                 if reasoningStartedAt == nil {
                     reasoningStartedAt = Date()
                 }
+                // 0.36.10：思考首达记位（事件序编排）
+                noteLiveOrder(.reasoning)
                 if let snapshot = reasoningPublishGate
                     .offer(text, at: now) {
                     streamingReasoning = snapshot
@@ -3448,18 +3611,25 @@ private struct ComposerBarLayout: Layout {
         guard !liveToolCards.contains(
             where: { $0.id == cardID }
         ) else { return }
+        // 0.36.10（诊断 D3-3/D3-4）：标题回落改中文类
+        // 名（旧实现英文短名直出卡面）；摘要过净化与
+        // 落定同口径。events 通道不带参数分片，靠参数
+        // 分形的标题（memory/skill 动作形）直播期用泛
+        // 称、落定以 transcript 真参数重建修正——两期
+        // 形态差异只在标题粒度，落定为准
         let title = ToolCardClassifier.title(
             forToolName: name, arguments: ""
-        ) ?? ToolCardClassifier.shortName(forToolName: name)
-            .replacingOccurrences(of: "_", with: " ")
+        ) ?? ToolCardClassifier.fallbackTitle(forToolName: name)
         liveToolCards.append(ToolCard(
             id: cardID, toolName: name,
             category: ToolCardClassifier.category(
                 forToolName: name
             ),
-            title: title, summary: preview,
+            title: title,
+            summary: ToolCardClassifier.sanitizedSummary(preview),
             result: nil, resultFailed: false
         ))
+        noteLiveOrder(.tool(cardID))
     }
 
     private func completeLiveToolCard(
@@ -3478,11 +3648,18 @@ private struct ComposerBarLayout: Layout {
             return
         }
         let old = liveToolCards[index]
+        // 0.36.10（诊断 D3-6）：直播结果先过 unwrap 与
+        // 落定同口径——旧实现 preview 原文直存，与落
+        // 定的剥包裹/分型形态前后两套，同一卡直播与
+        // 落定可能长得不一样；失败标记取事件信号与
+        // 结果自带信号的并集，落定时再以 transcript
+        // 信号为准重算（D3-9）
+        let unwrapped = ToolResultUnwrap.unwrap(preview)
         liveToolCards[index] = ToolCard(
             id: old.id, toolName: old.toolName,
             category: old.category, title: old.title,
-            summary: old.summary, result: preview,
-            resultFailed: failed
+            summary: old.summary, result: unwrapped.text,
+            resultFailed: failed || unwrapped.failed
         )
     }
 
@@ -3890,6 +4067,15 @@ private struct ComposerBarLayout: Layout {
         reasoningStartedAt = nil
         sendTask = nil
         activeRunThreadID = nil
+        // 0.36.10（诊断 D2 补根）：直播区至此必须清
+        // 空——旧实现漏清 liveToolCards，落定条目已
+        // 入列后残留直播卡仍在列表尾同屏渲染、且挂
+        // 「进行中」，正是判词 5 截图底部那截残影。
+        // 本函数是全部落定/失败/取消出口的共用收尾，
+        // 清在此处不误伤对账中途（persistRunPartials
+        // 在调用本函数之前已把半截转入条目）
+        liveToolCards = []
+        liveOrder = []
     }
 
     /// 停止（0.31.0）：runs 通道真取消——发 stop 后
@@ -3951,6 +4137,7 @@ private struct ComposerBarLayout: Layout {
         // 半截呈现回填：上次落盘的本轮条目即当前可见
         // 内容（落定时以 transcript 整段替换）
         liveToolCards = []
+        liveOrder = []
         livePartialEntryIDs = []
         if let userEntry = thread.entries.first(
             where: { $0.id.uuidString == entry.userEntryID }
@@ -3978,6 +4165,10 @@ private struct ComposerBarLayout: Layout {
         } else {
             streamingText = ""
         }
+        // 0.36.10：恢复回填的事件序＝卡序在前、正文殿
+        // 后（半截落盘的原始交错序已不可考，落定以
+        // transcript 重建为准）
+        liveOrder = liveToolCards.map { .tool($0.id) } + [.text]
         isDrivingRun = true
         var mutableEntry = entry
         await reconcileRun(

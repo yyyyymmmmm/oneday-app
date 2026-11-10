@@ -201,42 +201,48 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: health, permission: .notDetermined,
-                agentCallEnabled: false, metric: nil
+                agentCallEnabled: false, sessionOnline: false,
+                metric: nil
             ),
             "待签名权益"
         )
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: calendar, permission: .notDetermined,
-                agentCallEnabled: false, metric: nil
+                agentCallEnabled: false, sessionOnline: true,
+                metric: nil
             ),
             "未授权"
         )
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: calendar, permission: .denied,
-                agentCallEnabled: true, metric: nil
+                agentCallEnabled: true, sessionOnline: true,
+                metric: nil
             ),
             "被拒"
         )
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: calendar, permission: .granted,
-                agentCallEnabled: true, metric: "今天 3 个日程"
+                agentCallEnabled: true, sessionOnline: true,
+                metric: "今天 3 个日程"
             ),
             "已授权 · 可调用 · 今天 3 个日程"
         )
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: calendar, permission: .granted,
-                agentCallEnabled: false, metric: nil
+                agentCallEnabled: false, sessionOnline: true,
+                metric: nil
             ),
             "已授权 · 调用已关"
         )
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: calendar, permission: .writeOnly,
-                agentCallEnabled: true, metric: nil
+                agentCallEnabled: true, sessionOnline: true,
+                metric: nil
             ),
             "仅写入权限 · 不能读取"
         )
@@ -244,9 +250,42 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertEqual(
             DeviceRowStatus.line(
                 descriptor: contacts, permission: .limited,
-                agentCallEnabled: true, metric: nil
+                agentCallEnabled: true, sessionOnline: true,
+                metric: nil
             ),
             "已授权 · 部分联系人 · 可调用"
+        )
+    }
+
+    /// 0.36.10（判词 4）：开关开但设备会话离线——不许
+    /// 再拼「可调用」，如实降为「会话未连接」；开关关
+    /// 时仍以「调用已关」为准（与在线与否无关）
+    func testRowStatusLineSessionOffline() {
+        let calendar = DeviceSourceDirectory.descriptor(.calendar)
+        XCTAssertEqual(
+            DeviceRowStatus.line(
+                descriptor: calendar, permission: .granted,
+                agentCallEnabled: true, sessionOnline: false,
+                metric: "今天 3 个日程"
+            ),
+            "已授权 · 会话未连接 · 今天 3 个日程"
+        )
+        XCTAssertEqual(
+            DeviceRowStatus.line(
+                descriptor: calendar, permission: .granted,
+                agentCallEnabled: false, sessionOnline: false,
+                metric: nil
+            ),
+            "已授权 · 调用已关"
+        )
+        let contacts = DeviceSourceDirectory.descriptor(.contacts)
+        XCTAssertEqual(
+            DeviceRowStatus.line(
+                descriptor: contacts, permission: .limited,
+                agentCallEnabled: true, sessionOnline: false,
+                metric: nil
+            ),
+            "已授权 · 部分联系人 · 会话未连接"
         )
     }
 

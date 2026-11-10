@@ -180,23 +180,80 @@ struct ConnectorsView: View {
 
     // MARK: - 分段
 
+    @Namespace private var segmentNamespace
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
+    /// 分段胶囊（0.36.10，判词 2 按图量测对齐）：系
+    /// 统 segmented 退役——实拍三宗错：轨道灰
+    /// （#E3E2E8 量测）＋选中片白（角色与定版语言
+    /// 正反）、轨道高仅约 31pt、胶囊上方留白实测约
+    /// 56pt。改与文件页同源的自制控件（Segmented-
+    /// ControlSpec 钉死）：轨道＝surface 白＋发丝边、
+    /// 全胶囊总高 48；选中药丸＝selectionFill 浅灰
+    /// 垫（#F0F1F2，与 Muse 实测选中片 #F3F4F6 同
+    /// 级）、高 36、内缩 6、无阴影；字 17 semibold
+    /// 两态皆 ink，区分只靠灰垫。对照量测（2026-
+    /// 11-10 用户图，3x 像素实测）：Muse 轨白
+    /// #FFFFFF、选中片 #F3F4F6、总高 ≈47.5pt、内缩
+    /// ≈5pt、搜索框→轨道 16pt、轨道→分组头 ≈30pt；
+    /// 本页左右边距由 List 行距 20 承接（Muse 连
+    /// 接器页实测 ≈21pt、同本页页面节奏）。行上下
+    /// 内边距归零，间距只由 listSectionSpacing（16）
+    /// 一处出——对照旧实测 56pt 的叠加留白
     private var segmentSection: some View {
         Section {
-            Picker("连接器分组", selection: $segment) {
+            HStack(spacing: 0) {
                 ForEach(Segment.allCases) { item in
-                    Text(item.rawValue).tag(item)
+                    segmentButton(item)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            .padding(SegmentedControlSpec.inset)
+            .background(Palette.surface, in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(Palette.separator, lineWidth: 1)
+            }
+            .sensoryFeedback(.selection, trigger: segment)
         }
         .listRowBackground(Color.clear)
-        // 0.36.7：胶囊行自身上下内边距 4→0，胶囊的上
-        // 下间距只由 listSectionSpacing 一处出（16），
-        // 不两处叠加
         .listRowInsets(
             EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
         )
+    }
+
+    private func segmentButton(_ item: Segment) -> some View {
+        let selected = segment == item
+        return Button {
+            withAnimation(
+                MotionTokens.resolved(
+                    MotionTokens.selectionSpring,
+                    reduceMotion: reduceMotion
+                )
+            ) { segment = item }
+        } label: {
+            Text(item.rawValue)
+                .font(.bodyText.weight(.semibold))
+                .foregroundStyle(Palette.ink)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: SegmentedControlSpec.pillHeight
+                )
+                .background {
+                    if selected {
+                        Capsule()
+                            .fill(Palette.selectionFill)
+                            .matchedGeometryEffect(
+                                id: "connectorSegmentPill",
+                                in: segmentNamespace
+                            )
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+        .accessibilityLabel(item.rawValue)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     // MARK: - 本机服务（0.29.0 补组，进页实时探活）
@@ -303,6 +360,10 @@ struct ConnectorsView: View {
                     .permissions[descriptor.sourceID] ?? .notDetermined,
                 agentCallEnabled: appState.deviceSession
                     .agentCallEnabled[descriptor.sourceID] ?? false,
+                // 0.36.10（判词 4）：「可调用」须有自家
+                // 会话在线这一本地可验事实托底，离线如
+                // 实降级（DeviceRowStatus 口径）
+                sessionOnline: appState.deviceSession.sessionOnline,
                 metric: deviceMetrics[descriptor.sourceID]
             )
         }
@@ -322,9 +383,13 @@ struct ConnectorsView: View {
             }
         } header: {
             headerText("你的设备")
-        } footer: {
-            Text("这台手机自家的数据：授权与数据都留在手机上，智能体被问到时才现读现回、服务器不存副本。健康与家庭还差系统签名权益，开通前只列名。")
         }
+        // 0.36.10（判词 1）：组下解释段整段删除——
+        // 「数据留在手机上、现读现回、不存副本」逐件
+        // 已在各自详情页尾的口径脚注里（descriptor
+        // .footnote），「健康/家庭待签名权益」在各自
+        // 行状态字与详情里都有；目录页不再成段复述，
+        // 也不换位置再出现
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)
     }
@@ -509,13 +574,11 @@ struct ConnectorsView: View {
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
         }
-        Section {
-            Text("以上服务尚未接入。点开条目可看各自的接入路径——接入需逐家在服务器端配置并完成授权，App 内暂不提供一键连接。")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .listRowBackground(Color.clear)
-        .listRowInsets(rowInsets)
+        // 0.36.10（判词 1）：页底总结段整段删除——
+        // 「尚未接入」在每行状态字、「接入路径」在各
+        // 自详情页（接入路径行＋accessDetail 明写 App
+        // 内暂不能直接连接），信息一件不少、目录页
+        // 不再成段复述
     }
 
     private func catalogRow(_ entry: ConnectorCatalogEntry) -> some View {

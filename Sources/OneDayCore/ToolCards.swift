@@ -28,7 +28,29 @@ public enum ToolCardCategory: String, Codable, Sendable, CaseIterable {
     case skill
     case vision
     case task
+    case connection
+    case device
     case other
+
+    /// 中文类名（0.36.10，诊断 D3-3）：未知工具的标
+    /// 题回落只许用它——英文短名只进详情，不上卡面
+    /// （宪法 §8 零外文漏出）
+    public var fallbackTitle: String {
+        switch self {
+        case .browser: return "浏览器操作"
+        case .desktop: return "电脑操作"
+        case .search: return "搜索查找"
+        case .file: return "文件操作"
+        case .terminal: return "运行命令"
+        case .memory: return "记忆操作"
+        case .skill: return "技能操作"
+        case .vision: return "看图分析"
+        case .task: return "任务操作"
+        case .connection: return "连接管理"
+        case .device: return "手机设备"
+        case .other: return "工具调用"
+        }
+    }
 }
 
 /// 一张工具调用卡（可落盘：ChatEntry 以 JSON 编码保存）。
@@ -45,11 +67,17 @@ public struct ToolCard: Codable, Equatable, Sendable, Identifiable {
     public let summary: String
     public let result: String?
     public let resultFailed: Bool
+    /// 原始参数全文（0.36.10，诊断 D3-1：参数原文撤
+    /// 出卡面、只进点开详情）。旧落盘卡无此键——
+    /// Optional 合成解码缺键回 nil，兼容既有数据；
+    /// 直播卡由 events 构造、无参数通道，恒 nil，
+    /// 落定以 transcript 重建补齐
+    public let arguments: String?
 
     public init(
         id: String, toolName: String, category: ToolCardCategory,
         title: String, summary: String, result: String?,
-        resultFailed: Bool
+        resultFailed: Bool, arguments: String? = nil
     ) {
         self.id = id
         self.toolName = toolName
@@ -58,6 +86,7 @@ public struct ToolCard: Codable, Equatable, Sendable, Identifiable {
         self.summary = summary
         self.result = result
         self.resultFailed = resultFailed
+        self.arguments = arguments
     }
 }
 
@@ -117,6 +146,17 @@ public enum ToolCardClassifier {
         }
         // Box 桌面系（截图/接管/状态/桌面内 shell）归电脑卡
         if lower.hasPrefix("mcp__box__") { return .desktop }
+        // 手机设备系（0.36.10）：须排在 search 之前——
+        // contacts_search 含 search 字样、归设备不归搜索
+        if short.hasPrefix("calendar_") || short.hasPrefix("reminders_")
+            || short.hasPrefix("contacts_") || short.hasPrefix("health_")
+            || short.hasPrefix("home_") || short.hasPrefix("device_") {
+            return .device
+        }
+        // 连接管理系（0.36.10，诊断 D3-3 盲区补齐）
+        if short == "manage_connections" || short.contains("connection") {
+            return .connection
+        }
         if short.contains("vision") || short == "image" {
             return .vision
         }
@@ -135,8 +175,8 @@ public enum ToolCardClassifier {
     }
 
     /// 中文人话标题：已知工具逐个映射；memory/skill 的
-    /// 动作从参数 operations 里取；未知回落短名（下划线
-    /// 转空格），由调用方再兜服务端 label
+    /// 动作从参数 operations 里取；未知回 nil，调用方
+    /// 以 fallbackTitle（中文类名）兜底（0.36.10）
     public static func title(
         forToolName name: String, arguments: String
     ) -> String? {
@@ -161,6 +201,17 @@ public enum ToolCardClassifier {
         case "execute_code": return "运行代码"
         case "vision_analyze": return "看图分析"
         case "tool_search": return "查找工具"
+        case "manage_connections": return "管理连接"
+        case "device_status": return "查看设备状态"
+        case "calendar_list_events": return "查询日历日程"
+        case "calendar_create_event": return "新建日程"
+        case "calendar_update_event": return "修改日程"
+        case "reminders_list": return "查看提醒事项"
+        case "reminders_create": return "新建提醒"
+        case "reminders_complete": return "完成提醒"
+        case "contacts_search": return "查通讯录"
+        case "health_daily_summary": return "查看健康摘要"
+        case "home_status": return "查看家庭状态"
         case "web_search": return "联网搜索"
         case "tool_describe": return "查阅工具说明"
         case "tool_call": return "调用工具"
@@ -193,6 +244,42 @@ public enum ToolCardClassifier {
         }
     }
 
+    /// 标题回落（0.36.10，诊断 D3-3）：映射表与服务
+    /// 端 label 都没有时，用分类的中文类名——英文短
+    /// 名从此不上卡面（只进详情的「工具名」行）
+    public static func fallbackTitle(forToolName name: String) -> String {
+        category(forToolName: name).fallbackTitle
+    }
+
+    /// 直播期摘要净化（0.36.10）：events 的 preview 原
+    /// 文单行化＋90 字截断，与落定摘要同口径
+    public static func sanitizedSummary(_ text: String) -> String {
+        ToolArguments.truncate(text)
+    }
+
+    /// 命令摘要（0.36.10，诊断 D3-5）：先取首行；首
+    /// 行内以 ; ／ && ／ || 拼接多条命令时呈「N 条
+    /// 命令 · 首条 …」，不整段直出（实拍事故：整串
+    /// 复合命令上卡两行截断）。多行脚本仍只取首行
+    public static func commandSummary(_ command: String) -> String {
+        let firstLine = command
+            .split(separator: "\n")
+            .first.map(String.init) ?? ""
+        let segments = firstLine
+            .replacingOccurrences(of: "&&", with: ";")
+            .replacingOccurrences(of: "||", with: ";")
+            .split(separator: ";")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard segments.count > 1, let first = segments.first
+        else {
+            return ToolArguments.truncate(firstLine)
+        }
+        return ToolArguments.truncate(
+            "\(segments.count) 条命令 · \(first)"
+        )
+    }
+
     /// 关键参数摘要：按工具取最能说明「在干什么」的一个
     /// 字段；取不到给空串（卡面只剩标题，不编造）
     public static func summary(
@@ -203,8 +290,12 @@ public enum ToolCardClassifier {
         let raw: String?
         switch short {
         case "terminal":
-            raw = ToolArguments.string(dict, "command")?
-                .split(separator: "\n").first.map(String.init)
+            // 复合命令走命令摘要（N 条命令 · 首条），
+            // 不整段直出（0.36.10，诊断 D3-5）
+            if let command = ToolArguments.string(dict, "command") {
+                return commandSummary(command)
+            }
+            raw = nil
         case "execute_code":
             raw = ToolArguments.string(dict, "code")?
                 .split(separator: "\n")
@@ -234,9 +325,18 @@ public enum ToolCardClassifier {
         case "kanban_complete":
             raw = ToolArguments.string(dict, "summary")
         default:
-            raw = ["url", "path", "file_path", "file", "query", "name", "command"]
-                .compactMap { ToolArguments.string(dict, $0) }
-                .first
+            // 默认字段序命中即取；命中 command 字段同
+            // 走命令摘要净化（0.36.10，诊断 D3-5）
+            var picked: String?
+            for key in ["url", "path", "file_path", "file",
+                        "query", "name", "command"] {
+                if let value = ToolArguments.string(dict, key) {
+                    picked = key == "command"
+                        ? commandSummary(value) : value
+                    break
+                }
+            }
+            raw = picked
         }
         return raw.map { ToolArguments.truncate($0) } ?? ""
     }
@@ -248,6 +348,23 @@ public enum ToolResultUnwrap {
     public struct Result: Equatable, Sendable {
         public let text: String
         public let failed: Bool
+    }
+
+    /// 无意义输出判定（0.36.10，诊断 D3-7）：空、或
+    /// 通篇只有分隔符/空白（如 terminal 回的 "---"）
+    /// ——呈现层据此显「（无输出）」，不把符号当内容
+    /// 画（实拍事故：虚线般的 "---" 被当结果正文）
+    public static func isMeaningless(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        if trimmed.isEmpty { return true }
+        let separators = CharacterSet(
+            charactersIn: "-=*_~#·•—–―|/\\<> "
+        )
+        return trimmed.unicodeScalars.allSatisfy {
+            separators.contains($0)
+        }
     }
 
     /// tool 行 content → 可展示文本＋失败标记。处理链：
@@ -345,6 +462,94 @@ public enum ToolResultUnwrap {
     }
 }
 
+// MARK: - 卡级呈现（0.36.10，诊断 D2/D3）
+
+/// 工具卡的呈现判定单一真源：状态只看本卡自己的结
+/// 果回没回（诊断 D2 第一名：旧实现拿整轮 isLive 冒
+/// 充每张卡进行中，结果已回的卡也挂转圈）。整轮进
+/// 行中归轮次级指示（发送舱/导航区），永不下放单卡。
+public enum ToolCardPresentation {
+    public enum State: Equatable, Sendable {
+        /// 本卡结果未回
+        case running
+        case succeeded
+        case failed
+    }
+
+    public static func state(of card: ToolCard) -> State {
+        guard card.result != nil else { return .running }
+        return card.resultFailed ? .failed : .succeeded
+    }
+
+    /// 结果首行净化（单行化＋截断）：无意义输出回
+    /// nil（呈现层据此显「（无输出）」占位）
+    public static func firstMeaningfulLine(
+        of result: String?, limit: Int = 60
+    ) -> String? {
+        guard let result,
+              !ToolResultUnwrap.isMeaningless(result)
+        else { return nil }
+        // 浏览器结果首行形态 "Page: 标题 (URL)"：卡
+        // 面只出 URL（标题在详情正文里已有，不重复）
+        if result.hasPrefix("Page: "),
+           let open = result.firstIndex(of: "("),
+           let close = result.firstIndex(of: ")"),
+           open < close {
+            let url = String(
+                result[result.index(after: open)..<close]
+            )
+            if url.hasPrefix("http") { return url }
+        }
+        let line = result
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty } ?? ""
+        guard !line.isEmpty else { return nil }
+        return ToolArguments.truncate(line, limit: limit)
+    }
+
+    /// 一行状态语（卡面副行/详情状态行共用）：
+    /// · 进行中 → 「进行中」
+    /// · 失败 → 「失败」＋原因首行（有才拼）
+    /// · 成功有输出 → 输出首行净化
+    /// · 成功无输出 → 「（无输出）」
+    public static func statusLine(of card: ToolCard) -> String {
+        switch state(of: card) {
+        case .running:
+            return "进行中"
+        case .failed:
+            if let reason = firstMeaningfulLine(of: card.result) {
+                return "失败 · \(reason)"
+            }
+            return "失败"
+        case .succeeded:
+            return firstMeaningfulLine(of: card.result)
+                ?? "（无输出）"
+        }
+    }
+
+    /// 组头摘要（诊断 D3-8）：同轮连续 ≥2 张卡收成
+    /// 一组，组头一行说清总数与命运分布；失败不隐藏
+    /// （D3-9），进行中如实计数
+    public static func groupHeader(cards: [ToolCard]) -> String {
+        let total = cards.count
+        let running = cards.filter { $0.result == nil }.count
+        let failed = cards.filter {
+            $0.result != nil && $0.resultFailed
+        }.count
+        var parts = ["调用了 \(total) 个工具"]
+        if running > 0 {
+            parts.append("\(running) 个进行中")
+            if failed > 0 { parts.append("\(failed) 个失败") }
+        } else if failed > 0 {
+            parts.append("\(failed) 个失败")
+        } else {
+            parts.append("全部完成")
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
 // MARK: - 配对拼装
 
 /// 历史消息 → 呈现项：普通消息与工具卡按服务端原序。
@@ -399,12 +604,13 @@ public enum ToolCardBuilder {
         if let rowName = row?.toolName, !rowName.isEmpty {
             realName = rowName
         }
-        let label = message.toolCallLabels[call.id]?.first
+        // 0.36.10（诊断 D3-3）：标题回落改中文类名——
+        // 服务端 label 与英文短名退出卡面回落链（label
+        // 可能是外文、短名必为外文，宪法 §8）；英文
+        // 原名保留在 toolName、只进详情
         let title = ToolCardClassifier.title(
             forToolName: realName, arguments: effectiveArguments
-        ) ?? label?.text
-            ?? ToolCardClassifier.shortName(forToolName: realName)
-            .replacingOccurrences(of: "_", with: " ")
+        ) ?? ToolCardClassifier.fallbackTitle(forToolName: realName)
         let unwrapped = row.map { ToolResultUnwrap.unwrap($0.content) }
         return ToolCard(
             id: call.id.isEmpty
@@ -416,7 +622,9 @@ public enum ToolCardBuilder {
                 forToolName: realName, arguments: effectiveArguments
             ),
             result: unwrapped?.text,
-            resultFailed: unwrapped?.failed ?? false
+            resultFailed: unwrapped?.failed ?? false,
+            arguments: effectiveArguments.isEmpty
+                ? nil : effectiveArguments
         )
     }
 
@@ -609,13 +817,13 @@ public struct ToolCallStreamAccumulator: Sendable {
             category: ToolCardClassifier.category(forToolName: name),
             title: ToolCardClassifier.title(
                 forToolName: name, arguments: arguments
-            ) ?? ToolCardClassifier.shortName(forToolName: name)
-                .replacingOccurrences(of: "_", with: " "),
+            ) ?? ToolCardClassifier.fallbackTitle(forToolName: name),
             summary: ToolCardClassifier.summary(
                 forToolName: name, arguments: arguments
             ),
             result: nil,
-            resultFailed: false
+            resultFailed: false,
+            arguments: arguments.isEmpty ? nil : arguments
         )
     }
 }
