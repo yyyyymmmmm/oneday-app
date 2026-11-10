@@ -325,8 +325,9 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
     /// board 面的会话写（PATCH 改名/归档等）走围栏
     /// 协议——请求须带 expected_revision 等于此值，
     /// 无围栏必 409 client_upgrade_required（本包生
-    /// 产实证）；网关面投影可能不带此字段，故可选
-    public let runtimeRevision: Int?
+    /// 产实证）；网关面投影可能不带此字段，故可选；
+    /// 默认 nil 兼容既有直构点（解码时有键照常取值）
+    public let runtimeRevision: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, source, model, profile
