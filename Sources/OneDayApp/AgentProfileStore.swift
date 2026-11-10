@@ -46,17 +46,24 @@ final class AgentProfileStore {
         let usesCustom = defaults.bool(forKey: Keys.usesCustomAvatar)
         let presetID = defaults.string(forKey: Keys.avatarPresetID)
             ?? AgentAvatarPreset.defaultID
-        profile = AgentProfile(
+        // 先算局部量再统一赋值：@Observable 类的
+        // init 在全部存储属性就位前不许读 self（CI
+        // run 42878183115 实证——条件赋值 customAva-
+        // tar 后读 self.profile 会被 definite-init
+        // 检查拦下）
+        let loadedProfile = AgentProfile(
             displayNameOverride: name,
             avatar: usesCustom
                 ? .custom
                 : .preset(id: presetID)
         )
-        if usesCustom {
-            customAvatar = Self.loadCustomAvatarFile()
-        }
+        let loadedCustom = usesCustom
+            ? Self.loadCustomAvatarFile()
+            : nil
+        profile = loadedProfile
+        customAvatar = loadedCustom
         avatarUIImage = Self.resolveAvatar(
-            profile: profile, customAvatar: customAvatar
+            profile: loadedProfile, customAvatar: loadedCustom
         )
     }
 

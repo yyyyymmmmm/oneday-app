@@ -6902,4 +6902,10 @@ exact matches，编译器候选只列 URL/String 两个
 渲染后落盘 caches/AgentShareCard/OneDay-Agent-
 Card.png、ShareLink 按文件 URL 分享；载荷与红
 线不变（仍只有名＋头像＋域名），纯文本兜底分
-支原样保留。版本号不动（仍 0.36.22/89）。
+支原样保留。版本号不动（仍 0.36.22/89）。其后
+第二轮 CI（run 42878183115）又浮出一处被首轮
+失败遮住的错误：AgentProfileStore.init 在
+@Observable 类里条件赋值 customAvatar 后即读
+self.profile，definite-init 检查不过；修法＝
+先算局部量再统一赋值、派生头像图也从局部量
+算，语义不变。
