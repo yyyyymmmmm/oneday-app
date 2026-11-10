@@ -1787,6 +1787,7 @@ struct ChatView: View {
                     }
                 }
                 .modifier(messageMenu(for: entry))
+                .modifier(swipeReply(for: entry))
             }
         } else {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
@@ -1842,6 +1843,7 @@ struct ChatView: View {
                 }
             }
             .modifier(messageMenu(for: entry))
+            .modifier(swipeReply(for: entry))
         }
     }
 
@@ -1917,6 +1919,17 @@ struct ChatView: View {
             : entry.content
     }
 
+    /// 回复动作（0.4.1 长按菜单立制，0.36.19 起右滑引
+    /// 用共用同一入口——两路触发的落点逐字一致：设待
+    /// 发送引用、清分流种子标、聚焦输入舱）
+    private func beginReply(to entry: ChatEntry) {
+        pendingQuote = MessageQuote(
+            role: entry.role, content: entry.content
+        )
+        pendingQuoteIsFork = false
+        composerFocusHandle.focus()
+    }
+
     /// 气泡长按菜单挂载（0.4.1）：纯图片消息（正文空）
     /// 不挂——四项全是文本动作，空文本挂上只剩坏体验
     /// （引用摘要为空、复制/分享空串）
@@ -1926,17 +1939,27 @@ struct ChatView: View {
             isEnabled: !entry.content.isEmpty,
             plainText: text,
             onReply: {
-                pendingQuote = MessageQuote(
-                    role: entry.role, content: entry.content
-                )
-                pendingQuoteIsFork = false
-                composerFocusHandle.focus()
+                beginReply(to: entry)
             },
             onFork: {
                 forkToSideChat(from: entry)
             },
             onSelect: {
                 selectionPayload = SelectionPayload(text: text)
+            }
+        )
+    }
+
+    /// 右滑引用挂载（0.36.19，§84.3）：与长按菜单同门
+    /// 控（纯图片消息不挂）——自己与对方的消息都可滑，
+    /// 触发走 beginReply 同一入口；与长按菜单并存不
+    /// 互斥（长按是静止按压、右滑是横向拖动，形态不
+    /// 重叠）
+    private func swipeReply(for entry: ChatEntry) -> SwipeReplyModifier {
+        SwipeReplyModifier(
+            isEnabled: !entry.content.isEmpty,
+            onReply: {
+                beginReply(to: entry)
             }
         )
     }
@@ -4378,6 +4401,103 @@ private struct MessageMenuModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// 右滑引用（0.36.19，§84.3）：气泡向右滑，横向拖
+/// 动显出回复箭头，过阈松手触发引用——与长按菜单
+/// 「回复」同一动作（beginReply），两路并存不互斥
+/// （长按是静止按压、右滑是横向拖动，形态不重叠）。
+/// 判定全走 Core SwipeReplyMotion（方向门/跟手位移/
+/// 阈值/显形进度，单测把守），本层只持拖动状态与呈现：
+/// - 手势以 simultaneousGesture 旁听：方向门（右向
+///   ＋横向主导，抽屉 S2 同源）接管前不写任何位移，
+///   纵向拖动永远锁不上、列表照常滚动；接管后位移
+///   只横向写入 content 的 offset，滚动与贴底判定
+///   等滚动侧逻辑一概不碰
+/// - 箭头在内容左缘下层：随显形进度淡入/缩放，过
+///   阈转武装态（主色盘＋白箭头）预告松手即触发
+/// - 松手：过阈 → 轻触觉＋onReply；未过阈/未接管
+///   → 位移回弹归零、不触发
+private struct SwipeReplyModifier: ViewModifier {
+    let isEnabled: Bool
+    let onReply: () -> Void
+
+    @State private var dragOffset: CGFloat = 0
+    @State private var lockTranslation: CGFloat?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            ZStack(alignment: .leading) {
+                replyArrow
+                content
+                    .offset(x: dragOffset)
+            }
+            .simultaneousGesture(swipeGesture)
+        } else {
+            content
+        }
+    }
+
+    /// 左缘回复箭头：显形进度驱动透明度与缩放，过阈
+    /// 武装态换主色盘（Palette.primary＋onPrimary 箭头）
+    private var replyArrow: some View {
+        let progress = SwipeReplyMotion.revealProgress(
+            offset: dragOffset
+        )
+        let armed = SwipeReplyMotion.shouldTrigger(offset: dragOffset)
+        return Image(systemName: MessageActionSymbols.reply)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(
+                armed ? Palette.onPrimary : Palette.inkSecondary
+            )
+            .frame(width: 30, height: 30)
+            .background(
+                armed ? Palette.primary : Palette.fieldFill,
+                in: Circle()
+            )
+            .opacity(progress)
+            .scaleEffect(0.6 + 0.4 * progress)
+            .padding(.leading, 4)
+            .accessibilityHidden(true)
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { value in
+                if lockTranslation == nil {
+                    guard SwipeReplyMotion.engages(
+                        dx: value.translation.width,
+                        dy: value.translation.height
+                    ) else { return }
+                    lockTranslation = value.translation.width
+                }
+                dragOffset = SwipeReplyMotion.followedOffset(
+                    dx: value.translation.width,
+                    lockTranslation: lockTranslation ?? 0
+                )
+            }
+            .onEnded { _ in
+                let triggered = lockTranslation != nil
+                    && SwipeReplyMotion.shouldTrigger(offset: dragOffset)
+                lockTranslation = nil
+                withAnimation(
+                    MotionTokens.resolved(
+                        MotionTokens.swap, reduceMotion: reduceMotion
+                    )
+                ) {
+                    dragOffset = 0
+                }
+                if triggered {
+                    // 轻触觉（动效宪法表 D，impact .light
+                    // 落点新增，见 Haptics 头注）：与引用
+                    // 落定同一因果链，只震这一次
+                    Haptics.impact(.light)
+                    onReply()
+                }
+            }
     }
 }
 
