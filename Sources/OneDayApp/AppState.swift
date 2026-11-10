@@ -289,24 +289,6 @@ final class AppState {
 
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
-        // 0.36.20（§86.2/§86.4）：连接稳固两路信号接线。
-        // 回调都从非隔离域（URLSession 队列/monitor 队
-        // 列）触发、只许经 Task 显式跳回主隔离写计数；
-        // @Sendable 闭包不直接捕获本类，经 @unchecked
-        // Sendable 弱盒转手（盒内只持 weak 引用）
-        let signalBox = WeakAppStateBox(self)
-        if let hermesClient = client as? HermesClient {
-            hermesClient.onTransportSuccess = {
-                Task { @MainActor in
-                    signalBox.value?.noteHermesBusinessSuccess()
-                }
-            }
-        }
-        NetworkPathObserver.shared.start {
-            Task { @MainActor in
-                signalBox.value?.noteNetworkPathRecovered()
-            }
-        }
         isDemo = demoMode.isDemo
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
         runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
@@ -335,6 +317,26 @@ final class AppState {
             break
         case .off:
             restore()
+        }
+        // 0.36.20（§86.2/§86.4）：连接稳固两路信号接线
+        // ——必须在全部存储属性初始化完成后（self 完整
+        // 成立后才许把 self 装进弱盒）。回调都从非隔离
+        // 域（URLSession 队列/monitor 队列）触发、只许
+        // 经 Task 显式跳回主隔离写计数；@Sendable 闭包
+        // 不直接捕获本类，经 @unchecked Sendable 弱盒
+        // 转手（盒内只持 weak 引用）
+        let signalBox = WeakAppStateBox(self)
+        if let hermesClient = client as? HermesClient {
+            hermesClient.onTransportSuccess = {
+                Task { @MainActor in
+                    signalBox.value?.noteHermesBusinessSuccess()
+                }
+            }
+        }
+        NetworkPathObserver.shared.start {
+            Task { @MainActor in
+                signalBox.value?.noteNetworkPathRecovered()
+            }
         }
     }
 
