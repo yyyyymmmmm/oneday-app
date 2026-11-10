@@ -23,11 +23,6 @@ public struct MessageQuote: Equatable, Sendable {
         self.content = content
     }
 
-    /// 注入上下文时引用正文的字符上限：长回复全文引用
-    /// 会把每轮重放的上下文撑爆，截断并明示省略；引用
-    /// 条/引用块的视觉摘要另走 summary（更短）
-    public static let injectionCharacterLimit = 1000
-
     /// 人话称呼：助手恒为 Hermes（产品内智能体名），
     /// 用户为「我」；未知角色回落「对方」
     public static func speakerName(for role: String) -> String {
@@ -50,15 +45,16 @@ public struct MessageQuote: Equatable, Sendable {
         return String(collapsed.prefix(maxLength)) + "…"
     }
 
-    /// 引用块正文（注入用）：超 injectionCharacterLimit
-    /// 截断并以「…（以下省略）」明示，不静默截断
-    public var injectionText: String {
-        guard content.count > Self.injectionCharacterLimit else {
-            return content
-        }
-        return String(content.prefix(Self.injectionCharacterLimit))
-            + "\n…（以下省略）"
-    }
+    /// 引用块正文（注入用）：**全文原样**，不设上限、不
+    /// 拼任何标记（0.36.19 定版，错题本 P-12）。旧口径
+    /// （0.4.1）曾以 1000 字为上限截断并拼「…（以下省
+    /// 略）」明示——2026-11-11 真机定案：打包给模型的
+    /// 用户内容被砍残、编辑标记还进了模型正文，Hermes
+    /// 拿到半截引用反问用户。口径改照 Muse 全文打
+    /// 包：被引内容本就在会话内、每轮重放已有尾 20 条
+    /// 管总盘，单条引用不再设备级截断。引用条/引用块
+    /// 的视觉摘要另走 summary（更短），与注入不同源
+    public var injectionText: String { content }
 
     /// 组装一条消息发往服务端的 content：无引用原样
     /// 返回；有引用时在正文前拼引用块——

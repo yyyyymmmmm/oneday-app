@@ -56,22 +56,31 @@ final class MessageActionsTests: XCTestCase {
         )
     }
 
-    func testInjectionTruncatesLongQuoteWithNotice() {
-        let long = String(
-            repeating: "a",
-            count: MessageQuote.injectionCharacterLimit + 50
-        )
+    // 0.36.19（P-12）：引用注入全文化——旧 1000 字截
+    // 断＋「…（以下省略）」编辑标记退役，打包给模型的
+    // 用户内容不许静默截断、更不许拼编辑标记
+    func testInjectionKeepsLongQuoteVerbatim() {
+        let tail = "尾巴标记"
+        let long = String(repeating: "a", count: 5000) + tail
         let quote = MessageQuote(role: "assistant", content: long)
+        XCTAssertEqual(quote.injectionText, long)
         let composed = MessageQuote.outgoingContent(
             userText: "问", quote: quote
         )
-        XCTAssertTrue(composed.contains("…（以下省略）"))
-        XCTAssertTrue(composed.hasSuffix("问"))
-        // 引用块本体不超过上限＋标记行＋省略注的量级
-        XCTAssertLessThan(
-            composed.count,
-            MessageQuote.injectionCharacterLimit + 60
-        )
+        XCTAssertTrue(composed.hasPrefix("[引用 Hermes 的消息]\n"))
+        // 全文逐字在场、尾段可达，出站末尾是用户正文
+        XCTAssertTrue(composed.contains(long))
+        XCTAssertTrue(composed.hasSuffix(tail + "\n\n问"))
+        XCTAssertFalse(composed.contains("以下省略"))
+    }
+
+    func testInjectionBoundaryLengthsVerbatim() {
+        // 旧上限 1000 及其两侧、与病理级长文一律全文往返
+        for count in [999, 1000, 1001, 20000] {
+            let content = String(repeating: "字", count: count)
+            let quote = MessageQuote(role: "user", content: content)
+            XCTAssertEqual(quote.injectionText, content)
+        }
     }
 
     // MARK: - 纯文本口径

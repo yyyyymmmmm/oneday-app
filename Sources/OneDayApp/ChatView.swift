@@ -207,9 +207,11 @@ struct ChatView: View {
     /// 0.2.7：发送舱玻璃直接施加在行本体上，0.2.4–0.2.6 的
     /// GlassEffectContainer＋union 撤销（§11：容器在新承载
     /// 下不再承担布局，且 Session 219 忌玻璃叠玻璃）
-    /// 发送舱实测高（0.3.5，§20）：由 composerRow 的
-    /// onGeometryChange 在布局周期内回写，只喂玻璃圆角
-    /// 的连续半径函数（ComposerLayout.cornerRadius）。
+    /// 发送舱实测高（0.3.5，§20）：由卡层（composer-
+    /// Card，0.36.19 前为 composerRow）的 onGeometry-
+    /// Change 在布局周期内回写，只喂玻璃圆角的连续半
+    /// 径函数（ComposerLayout.cornerRadius）。0.36.19
+    /// 起量整卡高（引用块并入后计入舱高）
     /// 0.2.6–0.3.4 的离散形态状态 composerMultiline 已
     /// 撤销——它由 Layout 内异步回写、滞后布局一拍，是
     /// 0.3.4 真机回车重影的定因（见 §20.1）
@@ -2228,13 +2230,6 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
-            // 0.4.1：引用条（长按「回复」发起）——出现/
-            // 消失与附件条同走 SmoothExpand 平滑高度
-            SmoothExpand(isExpanded: pendingQuote != nil) {
-                if let pendingQuote {
-                    quoteBar(pendingQuote)
-                }
-            }
             // 条 7（§14）：附件条的出现/消失走平滑高度
             // 动画（SmoothExpand，0fr→1fr 等价），禁跳变
             SmoothExpand(isExpanded: !attachments.isEmpty) {
@@ -2253,39 +2248,23 @@ struct ChatView: View {
                     dictationNoticeBar(notice)
                 }
             }
-            // 表面沿革：0.2.7 裸玻璃 → 0.3.7 卡 19 撤玻璃
-            // 改灰填充 → 0.3.8 第 28 条白浮纸（floatFill＋
-            // 发丝边＋双环影）→ **0.4.1 回系统玻璃**（用户
-            // 10:06/10:07 两点名：第 3 修「输入栏与底部导
-            // 航栏颜色不一致」＋第 7 修「改 Muse 本体形
-            // 态：白色大圆角卡片」）：.glassEffect(.regular)
-            // 与原生底栏同为 iOS 26 Liquid Glass 家族——
-            // 同材质即同观感，不再自调灰阶对色。形态要素
-            // 沿既有结构：圆角连续函数封顶 24（大圆角量
-            // 级）、＋在卡内左下、发送圆形键在卡内右下、
-            // 多行上文下钮（ComposerBarLayout，0.3.4 定
-            // 版）；自量高＋硬封顶（例外 E1）结构不动。
-            // 白浮纸的发丝边与双环手搓影一并撤销（玻璃自
-            // 带边缘折光与层级，§14 条 2 的影口径随材质
-            // 换代退役）
-            composerRow
-                // 第 1 修（P0 键盘不弹）的聚焦保底层：整卡
-                // 背景命中域内点按（文本区外的卡面空隙）经
-                // 焦点句柄聚焦文本视图。根因与定位见
-                // DESIGN-V4 §26.7：焦点机器代码 0.3.8→
-                // 0.4.0 逐字未动（diff 实证），回归随底栏
-                // 可见化同批出现——文本视图自身触摸成为单
-                // 点故障，本层把「点输入栏必弹键盘」改成
-                // 双通道构造（文本视图直触＋卡面点按），
-                // 不再依赖单一路径的环境状态
-                .background {
-                    Color.clear
-                        .contentShape(composerShape)
-                        .onTapGesture {
-                            composerFocusHandle.focus()
-                        }
-                }
-                .glassEffect(.regular, in: composerShape)
+            // 输入舱卡（0.36.19 起引用块并入同卡，见
+            // composerCard）：表面沿革——0.2.7 裸玻璃 →
+            // 0.3.7 卡 19 撤玻璃改灰填充 → 0.3.8 第 28 条
+            // 白浮纸（floatFill＋发丝边＋双环影）→ **0.4.1
+            // 回系统玻璃**（用户 10:06/10:07 两点名：第 3
+            // 修「输入栏与底部导航栏颜色不一致」＋第 7 修
+            // 「改 Muse 本体形态：白色大圆角卡片」）：
+            // .glassEffect(.regular) 与原生底栏同为 iOS 26
+            // Liquid Glass 家族——同材质即同观感，不再自
+            // 调灰阶对色。形态要素沿既有结构：圆角连续函
+            // 数封顶 24（大圆角量级）、＋在卡内左下、发送
+            // 圆形键在卡内右下、多行上文下钮（Composer-
+            // BarLayout，0.3.4 定版）；自量高＋硬封顶（例
+            // 外 E1）结构不动。白浮纸的发丝边与双环手搓
+            // 影一并撤销（玻璃自带边缘折光与层级，§14 条
+            // 2 的影口径随材质换代退役）
+            composerCard
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.top, OneDayMetrics.spacingS)
@@ -2366,12 +2345,16 @@ struct ChatView: View {
         )
     }
 
-    /// 引用条（0.4.1，照 Muse 样板「正在回复＋摘要」）：
-    /// 左细线＋两行（正在回复 X／摘要一行截断）＋右端
-    /// ✕ 取消。发送后由 send() 清除、点 ✕ 即时清除、
-    /// 切换线程经 onChange 清除（见 body）
+    /// 引用块（0.4.1 立制、0.36.19 入舱改形，§84）：输
+    /// 入舱卡内的上段——左细线＋两行（正在回复 X／摘
+    /// 要一行截断）＋右上 ✕ 取消，下接发丝分隔线与输
+    /// 入行（见 composerCard）。0.4.1–0.36.18 它是输入
+    /// 舱外一张带 fieldFill 底垫的独立浮卡；入舱后底
+    /// 垫撤销（卡面即玻璃，不卡上叠卡），✕ 自右中改
+    /// 右上贴首行。发送后由 send() 清除、点 ✕ 即时清
+    /// 除、切换线程经 onChange 清除（见 body）
     private func quoteBar(_ quote: MessageQuote) -> some View {
-        HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Rectangle()
                 .fill(Palette.inkMuted)
                 .frame(width: 2, height: 30)
@@ -2415,10 +2398,71 @@ struct ChatView: View {
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.vertical, OneDayMetrics.spacingS)
-        .background(
-            Palette.fieldFill,
-            in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
-        )
+    }
+
+    /// 输入舱卡（0.36.19 入舱，§84）：玻璃卡的承载层——
+    /// 待发送引用块在上（有则显）、发丝分隔线、输入行
+    /// （composerRow，标准行/录音条两态）在下，一张卡。
+    /// 0.4.1–0.36.18 引用条是输入舱外的一张独立浮卡，
+    /// 用户 2026-11-11 00:24 点题「一个在输入框里面，
+    /// 一个在外面」不对——对照 Muse 本体：引用嵌在输
+    /// 入舱内（引用块在上、分隔线、打字行在下）。
+    /// 高度核算：舱高＝引用块＋分隔线＋输入行整卡实测
+    /// （本层的 onGeometryChange 回写喂玻璃圆角连续半
+    /// 径）；输入行内部的文本量测与 6 行封顶只管文本
+    /// 域本身（ComposerLayout/ComposerBarLayout 口径
+    /// 不变），引用块高计入舱高、不挤占打字行数
+    private var composerCard: some View {
+        VStack(spacing: 0) {
+            // 引用块出现/消失走 SmoothExpand 平滑高度
+            // （条 7）；分隔线随引用块同进同出
+            SmoothExpand(isExpanded: pendingQuote != nil) {
+                if let pendingQuote {
+                    VStack(spacing: 0) {
+                        quoteBar(pendingQuote)
+                        Rectangle()
+                            .fill(Palette.hairline)
+                            .frame(height: 1)
+                            .padding(
+                                .horizontal, OneDayMetrics.spacingSM
+                            )
+                    }
+                }
+            }
+            composerRow
+        }
+        // 第 1 修（P0 键盘不弹）的聚焦保底层：整卡背景
+        // 命中域内点按（文本区外的卡面空隙，含引用块
+        // 段的空隙）经焦点句柄聚焦文本视图。根因与定
+        // 位见 DESIGN-V4 §26.7：焦点机器代码 0.3.8→
+        // 0.4.0 逐字未动（diff 实证），回归随底栏可见化
+        // 同批出现——文本视图自身触摸成为单点故障，本
+        // 层把「点输入栏必弹键盘」改成双通道构造（文本
+        // 视图直触＋卡面点按），不再依赖单一路径的环境
+        // 状态。0.4.1 起本层挂在 composerRow 上，0.36.19
+        // 随玻璃施加点上移到卡层、命中域扩到整卡
+        .background {
+            Color.clear
+                .contentShape(composerShape)
+                .onTapGesture {
+                    composerFocusHandle.focus()
+                }
+        }
+        .glassEffect(.regular, in: composerShape)
+        // 实测高在布局周期内回写（0.3.5，§20）：只喂玻
+        // 璃圆角的连续半径（见 composerShape），高度本
+        // 身不经任何动画——形态切换一帧落定。回写点
+        // 0.4.1–0.36.18 在 composerRow 上（只量输入行），
+        // 0.36.19 起上移卡层量整卡（引用块计入舱高）；
+        // 0.2.6–0.3.4 的离散形状动画已整条撤销（理由见
+        // standardComposerRow 沿革注）
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { _, newHeight in
+            if abs(newHeight - composerCapsuleHeight) > 0.5 {
+                composerCapsuleHeight = newHeight
+            }
+        }
     }
 
     /// 发送舱内容（0.3.3 上文下钮，DESIGN-V4 §18）：自研
@@ -2436,8 +2480,8 @@ struct ChatView: View {
     /// 发送舱行总装（0.36.6 分流）：录音态（准备中/
     /// 录音中/收尾）由 DictationBar 占住同一玻璃胶囊
     /// （0.36.17 起只剩控制行，录时零文字），其余时候
-    /// 是标准三件行；玻璃与实测高回写挂在本层，两态
-    /// 共用（见 inputBar 的 glassEffect 施加点）
+    /// 是标准三件行；玻璃与实测高回写挂在卡层，两态
+    /// 共用（见 composerCard 的 glassEffect 施加点）
     private var composerRow: some View {
         Group {
             if dictation.isActive {
@@ -2453,18 +2497,8 @@ struct ChatView: View {
                 standardComposerRow
             }
         }
-        // 实测高在布局周期内回写（0.3.5，§20）：只喂玻
-        // 璃圆角的连续半径（见 composerShape），高度本
-        // 身不经任何动画——形态切换一帧落定。0.2.6–
-        // 0.3.4 的离散形状动画已整条撤销（理由见
-        // standardComposerRow 沿革注）
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height
-        } action: { _, newHeight in
-            if abs(newHeight - composerCapsuleHeight) > 0.5 {
-                composerCapsuleHeight = newHeight
-            }
-        }
+        // 实测高回写已上移到 composerCard 卡层（0.36.19，
+        // §84：整卡实测、引用块计入舱高）
     }
 
     private var standardComposerRow: some View {
