@@ -6908,4 +6908,10 @@ Card.png、ShareLink 按文件 URL 分享；载荷与红
 @Observable 类里条件赋值 customAvatar 后即读
 self.profile，definite-init 检查不过；修法＝
 先算局部量再统一赋值、派生头像图也从局部量
-算，语义不变。
+算，语义不变。第三轮 CI run 42878867512 全步
+success（jobs API 逐项核：Build/Unit tests/
+Package/Upload 全 success），单测 870（基线
+857＋本包新增 13）、0 失败；IPA 7,113,192 字
+节、md5 39e6cc806e78dc458f83fb38f1afda75、解
+包验 Info.plist＝0.36.22/89，已落
+your_files/oneday-v0.36.22/。
