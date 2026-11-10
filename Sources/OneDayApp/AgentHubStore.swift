@@ -74,11 +74,14 @@ final class AgentHubStore {
     /// 实体、不是智能体身份，「默认档案」退出标题位
     private(set) var identityName: String?
 
-    /// 页头大名：全局身份名（AppState，全局唯一解析
-    /// 点）→ 本店 soul 解析 → 回落 Hermes；与抽屉/
-    /// 胶囊同源同值（OneDayCore.AgentName）
+    /// 页头大名：本地档案覆盖（0.36.22）→ 全局身份名
+    /// （AppState，全局唯一解析点）→ 本店 soul 解析
+    /// → 回落 Hermes；与抽屉/胶囊同源同值
     var displayName: String {
-        appState.identityName ?? identityName ?? AgentName.fallback
+        appState.profileNameOverride
+            ?? appState.identityName
+            ?? identityName
+            ?? AgentName.fallback
     }
 
     /// 状态行（0.6.1 改口径，用户真机点名）：只报可证

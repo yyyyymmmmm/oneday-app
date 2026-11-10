@@ -1,5 +1,6 @@
 import Foundation
 import OneDayCore
+import SwiftUI
 
 /// 三步探活的步骤口径：连接页与设置页「重新测试连接」共用。
 enum ProbeStep: Int, CaseIterable {
@@ -224,6 +225,43 @@ final class AppState {
               })
         else { return }
         identityName = AgentName.resolve(soulContent: document.content)
+    }
+
+    /// 智能体本地档案（0.36.22，枢纽页对齐包）：用户
+    /// 在本机改的显示名覆盖与头像，全 App 露脸面经下
+    /// 方收敛口读，不再各自拼 identityName 回落链、更
+    /// 不许写死字面名。档案只管呈现：identityName 仍
+    /// 是 soul 解析的服务端真源，覆盖没设时自动跟随
+    let agentProfileStore = AgentProfileStore()
+
+    /// 露脸面显示名单一出口：档案覆盖 → soul 解析名
+    /// → Hermes 回落（OneDayCore.AgentDisplayName）
+    var agentDisplayName: String {
+        AgentDisplayName.resolve(
+            override: agentProfileStore.profile.displayNameOverride,
+            soulName: identityName
+        )
+    }
+
+    /// 档案改名覆盖原值（枢纽店头的多源链还要再叠一
+    /// 层本店 soul 解析，故单独出口）
+    var profileNameOverride: String? {
+        agentProfileStore.profile.displayNameOverride
+    }
+
+    /// 露脸面头像单一出口：档案解析图（预置/符号盘/
+    /// 自定义图已在存储层收敛成一张）
+    var agentAvatarImage: Image {
+        agentProfileStore.avatarImage
+    }
+
+    /// 分享名片域名：只出 host（AgentServerHost 红线
+    /// 口径）——读 Keychain 里的服务器地址串当场提取，
+    /// 不缓存、不带出任何其他部分
+    var serverShareHost: String? {
+        AgentServerHost.extract(
+            from: KeychainStore.read(account: CredentialKey.baseURL)
+        )
     }
 
     /// 跨页深链（总览 → 智能体格/设置格二级页）：目标页消费后置 nil
