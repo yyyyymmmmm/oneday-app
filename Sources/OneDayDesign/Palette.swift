@@ -37,6 +37,13 @@ private func omHex(_ hex: UInt32) -> (CGFloat, CGFloat, CGFloat) {
     )
 }
 
+/// 0.26.0 主题双档色：自 Core 主题表的一对十六进制值
+/// 拼装——与 omColor 同机制（浅/暗随 traits 取档），
+/// 只是值来自当前主题而非编译期常量。
+private func themedColor(light: UInt32, dark: UInt32) -> Color {
+    omColor(light: omHex(light), dark: omHex(dark))
+}
+
 public enum Palette {
     /// 页面底（OpenMuse canvas #FCFCFC，ui.tsx:19；
     /// 暗色派生：以其 text #11191C 再压一档 #101619 作底）
@@ -82,13 +89,39 @@ public enum Palette {
     public static let floatFill = omColor(
         light: omHex(0xFFFFFF), dark: omHex(0x1B2226)
     )
+    /// 当前聊天主题（0.26.0）：Palette 主题角色的读
+    /// 口——每次求值现读 UserDefaults（主题变更后
+    /// RootView/聊天页的 AppStorage 观察触发重渲、重
+    /// 新求值即新值；单一真源＝Core ChatThemes 表）
+    public static var currentChatTheme: ChatTheme {
+        AppearancePreferences.chatTheme()
+    }
+
     /// 用户泡（OpenMuse 用户泡＝colors.blue #C8E7FF，
     /// chat.tsx:593——浅蓝填充是它聊天页的标志面，旧封存
     /// #F0F0F2 自本版让位；暗色取其 blueDark #1473C8 原值
     /// 作深档，保其上浅字对比）
-    public static let userBubbleFill = omColor(
-        light: omHex(0xC8E7FF), dark: omHex(0x1473C8)
-    )
+    /// 0.26.0 起主题化：值自当前主题表——默认「三狗」
+    /// 行与上述旧值逐字相同，切回默认即回原貌。
+    public static var userBubbleFill: Color {
+        let theme = currentChatTheme
+        return themedColor(
+            light: theme.bubbleLight, dark: theme.bubbleDark
+        )
+    }
+
+    /// 用户泡上的文字（0.26.0 新增）：默认「三狗」浅
+    /// 档＝主墨 #11191C（与此前 bodyInk 呈现一致）；暗
+    /// 档＝纯白——此前泡上字走 bodyInk 暗档反演墨
+    /// #EDF1F3、对暗泡实算对比仅 4.28 压线，本版随主
+    /// 题表修正为 4.87（§53 登记）
+    public static var userBubbleText: Color {
+        let theme = currentChatTheme
+        return themedColor(
+            light: theme.bubbleTextLight,
+            dark: theme.bubbleTextDark
+        )
+    }
 
     // 抽屉纱（0.4.1 第 10 修量测对齐，例外 E5 自有形态）：
     // OpenMuse 无对应物（它的 modalShade 是模态遮罩、非
@@ -150,29 +183,50 @@ public enum Palette {
 
     /// 强调（OpenMuse blueDark #1473C8，ui.tsx:25——链
     /// 接/图标/角标/光标的实色；暗色派生亮化 #5EB1EF）
-    public static let primary = omColor(
-        light: omHex(0x1473C8), dark: omHex(0x5EB1EF)
-    )
-    public static let primaryFill = omColor(
-        light: omHex(0x1473C8), dark: omHex(0x5EB1EF)
-    )
+    /// 0.26.0 起主题化：值自当前主题强调行——默认
+    /// 「三狗」行与上述旧值逐字相同。
+    public static var primary: Color {
+        let theme = currentChatTheme
+        return themedColor(
+            light: theme.accentLight, dark: theme.accentDark
+        )
+    }
+    /// 强调实填：与 primary 同源同值（0.26.0 前即同
+    /// 值双名，本版直接别名化，语义不变）
+    public static var primaryFill: Color { primary }
     /// 主填充蓝（OpenMuse blue #C8E7FF，ui.tsx:24——它
     /// 的主按钮面色：浅蓝填充＋深墨字，与用户泡同源；
     /// 暗色取 blueDark #1473C8 作深档）
-    public static let primaryPale = omColor(
-        light: omHex(0xC8E7FF), dark: omHex(0x1473C8)
-    )
+    /// 0.26.0 起主题化＝主题气泡行（同源关系的字面
+    /// 落实：与 userBubbleFill 恒同值）
+    public static var primaryPale: Color {
+        let theme = currentChatTheme
+        return themedColor(
+            light: theme.bubbleLight, dark: theme.bubbleDark
+        )
+    }
     /// 强调弱面（OpenMuse sky #EDF7FD，ui.tsx:26——图
     /// 标盒/附件牌/聚焦钮面；取代旧 accentColor 12% 透
     /// 明度近似值；暗色派生 #16242E）
-    public static let primaryTint = omColor(
-        light: omHex(0xEDF7FD), dark: omHex(0x16242E)
-    )
+    /// 0.26.0 起主题化＝主题弱面行（默认值逐字同旧）
+    public static var primaryTint: Color {
+        let theme = currentChatTheme
+        return themedColor(
+            light: theme.tintLight, dark: theme.tintDark
+        )
+    }
     /// 填充钮上的字色（OpenMuse 主钮文字恒 text
-    /// #11191C，浅蓝填充配深字，ui.tsx:77＋s.text）
-    public static let onPrimary = omColor(
-        light: omHex(0x11191C), dark: omHex(0xEDF1F3)
-    )
+    /// #11191C，浅蓝填充配深字，ui.tsx:77＋s.text；
+    /// 消费面恒骑 primaryPale——发送钮/主按钮）
+    /// 0.26.0 起主题化＝主题泡字行（浅档与旧值同；
+    /// 暗档随泡字修正 #EDF1F3→#FFFFFF，§53）
+    public static var onPrimary: Color {
+        let theme = currentChatTheme
+        return themedColor(
+            light: theme.bubbleTextLight,
+            dark: theme.bubbleTextDark
+        )
+    }
 
     // pastel 点缀家族（OpenMuse 图标盒/chip/状态卡的轮
     // 换底色，ui.tsx:26-29；暗色一律派生压暗同色相面）

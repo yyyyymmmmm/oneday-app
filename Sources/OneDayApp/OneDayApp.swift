@@ -1,3 +1,4 @@
+import OneDayCore
 import OneDayDesign
 import SwiftData
 import SwiftUI
@@ -47,9 +48,20 @@ struct RootView: View {
     /// ＝nil）
     @AppStorage("appearanceMode") private var appearanceModeRaw =
         AppearanceMode.system.rawValue
+    /// 外观·聊天主题/形象大小（0.26.0）：根层只观察
+    /// （body 里读一次挂上依赖）——任一键变更即重渲
+    /// 整棵树，Palette 主题角色与各页档位在重渲中重
+    /// 新求值，是主题/形象切换即时全 App 生效的机制
+    /// 本体（值本身由 Palette/各组件各自消费）
+    @AppStorage(AppearanceStorageKeys.chatTheme)
+    private var chatThemeRaw = ChatThemes.defaultID
+    @AppStorage(AppearanceStorageKeys.avatarSize)
+    private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
 
     var body: some View {
-        Group {
+        _ = chatThemeRaw
+        _ = avatarSizeRaw
+        return Group {
             switch appState.phase {
             case .needsConnection:
                 ConnectView()

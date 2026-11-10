@@ -86,6 +86,21 @@ struct ChatView: View {
         var partialEntryIDs: [UUID] = []
     }
 
+    /// 外观·聊天主题/形象大小（0.26.0）：本页观察两
+    /// 键——主题变更即重渲本页（气泡/强调重新求值）、
+    /// 形象档喂胶囊头像与空态形象边长。键名单一出处
+    /// ＝Core AppearanceStorageKeys
+    @AppStorage(AppearanceStorageKeys.chatTheme)
+    private var chatThemeID = ChatThemes.defaultID
+    @AppStorage(AppearanceStorageKeys.avatarSize)
+    private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
+
+    /// 当前形象档（脏值回中档，与 Appearance-
+    /// Preferences 同口径）
+    private var avatarTier: AvatarSizeTier {
+        AvatarSizeTier(rawValue: avatarSizeRaw) ?? .medium
+    }
+
     @State private var errorMessage: String?
     /// 0.2.1：非错误提示（如文件附件未发送说明），可关闭
     @State private var notice: String?
@@ -648,7 +663,14 @@ struct ChatView: View {
                     Image("SangouPartner")
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 28, height: 28)
+                        // 0.26.0：边长走形象档（小 24/
+                        // 中 28/大 34；中档＝旧值）——
+                        // 名字 fixedSize＋最高优先、胶囊
+                        // hug 宽随内容，±6 不挤断名字
+                        .frame(
+                            width: avatarTier.capsulePointSize,
+                            height: avatarTier.capsulePointSize
+                        )
                         .clipShape(Circle())
                         .accessibilityHidden(true)
                     if showName {
@@ -862,14 +884,25 @@ struct ChatView: View {
                     }
                 }
                 if currentThread == nil && !isStreaming {
-                    // 空状态收敛（DESIGN-V4 §5）：小图标＋
-                    // 两行字，不占大块视觉重量
+                    // 空状态（DESIGN-V4 §5 两行字口径保
+                    // 留）：0.26.0 起形象位由 SF 符号换三
+                    // 狗头像、边长走形象档空态值（48/56/
+                    // 68）——用户外观令点名的作用面
                     VStack(spacing: OneDayMetrics.spacingS) {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            // 0.23.0（审计 G6）：26 light 改
-                            // regular——Light 字重退出本面
-                            .font(.system(size: 26, weight: .regular))
-                            .foregroundStyle(Palette.inkMuted)
+                        Image("SangouPartner")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(
+                                width: avatarTier.emptyStatePointSize,
+                                height: avatarTier.emptyStatePointSize
+                            )
+                            .clipShape(Circle())
+                            .overlay {
+                                Circle().stroke(
+                                    Palette.hairline, lineWidth: 0.5
+                                )
+                            }
+                            .accessibilityHidden(true)
                         Text("和你的 Hermes 聊聊")
                             // 0.3.3 收编：手写 fontWeight 漂移
                             // 改走 sectionTitle 角色（阶梯账
@@ -1237,7 +1270,10 @@ struct ChatView: View {
                             // 语义载体）＋墨换 bodyInk
                             // （#262626），四处正文同改
                             .font(.callout)
-                            .foregroundStyle(Palette.bodyInk)
+                            // 0.26.0：泡上字改走主题泡字色
+                            // （默认行浅档与 bodyInk 同值、
+                            // 暗档修正见 Palette 注）
+                            .foregroundStyle(Palette.userBubbleText)
                             .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                             .padding(.vertical, OneDayMetrics.bubblePaddingV)
                             .background(

@@ -502,6 +502,17 @@ public struct IdentityAnchor: View {
     /// 换器并排即露馅，本版起三面同源
     private let avatarImage: Image?
     @Environment(\.colorScheme) private var colorScheme
+    /// 形象大小档（0.26.0）：与聊天胶囊同源同档——
+    /// 0.22.0 F3 定版「同一头像三面同源」，聊天胶囊
+    /// 换档而本锚不跟＝再造双源，故本组件自观察同键
+    /// （登记为外观令两命名面之外的同源顺带，§53）
+    @AppStorage(AppearanceStorageKeys.avatarSize)
+    private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
+
+    private var avatarPointSize: CGFloat {
+        (AvatarSizeTier(rawValue: avatarSizeRaw) ?? .medium)
+            .capsulePointSize
+    }
 
     public init(
         name: String, statusWord: String, statusColor: Color,
@@ -545,7 +556,7 @@ public struct IdentityAnchor: View {
                 avatarImage
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 28, height: 28)
+                    .frame(width: avatarPointSize, height: avatarPointSize)
                     .clipShape(Circle())
                     .accessibilityHidden(true)
             } else {
@@ -557,7 +568,7 @@ public struct IdentityAnchor: View {
                         .foregroundStyle(Palette.ink)
                         .accessibilityHidden(true)
                 }
-                .frame(width: 28, height: 28)
+                .frame(width: avatarPointSize, height: avatarPointSize)
             }
             Text(name)
                 .font(.headline)
