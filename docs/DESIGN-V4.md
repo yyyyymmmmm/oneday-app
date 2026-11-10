@@ -4570,3 +4570,52 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - CC8 详情证据：四条详情的「证据来源」与实际探活端点一致（目标与点子、总览数据两条应注明无专用健康端点、取最轻只读端点）。
 
 - 交付实录：功能提交 9a1a80c；CI 42757396350 success，Executed 506 tests, 0 failures（485 基线＋LocalServicesTests 12 测＋MainlineExclusionTests 9 测，零删测）；IPA 5,101,724 字节、md5 09c895681111e06ce16494d59b223f8d、独立解包验 Info.plist＝0.29.0/58、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.29.0/OneDay-0.29.0.ipa。版本五处同改＋grep 验（注：设置页页脚在基线滞留 v0.26.0——0.27.0/0.28.0 两包漏改页脚，本包一并归正为 v0.29.0）。§14/MotionTokens/0.26.0 外观/0.27.0 会话链/0.28.0 目录既有条目状态语义零改动；探活全只读 GET、生产零写；未自截真机图。
+
+## 57. 会话页签恢复语义＋聊天时间系统（0.30.0/59）
+
+用户 2026-11-10 12:56 录屏讲解 Muse 模型并点名两件：①主要聊天是与旁聊平级的单独入口、底部「会话」页签不与主线同步——不管在旁聊还是主聊，点页签跳回的都是上次停留的对话；②对话页没有时间显示不科学，按微信/QQ 等大厂规划做（今天/昨天/星期/日期分档）。
+
+### 57.1 现行偏差审计（改前实查）
+
+| 面 | 改前行为 | 偏差 |
+|---|---|---|
+| 冷启落点 | ChatView `.onAppear`：`currentThreadID == nil` 即 `mainID ?? threads.first`——恒落主线（0.7.0 D1 口径） | 与 Muse 模型反：冷启应恢复上次线程 |
+| 上次线程记忆 | 无。`currentThreadID` 只是 ChatView 的 `@State`、不落盘；SideChatStore 无此键 | 进程重启即丢，恢复无从谈起 |
+| 页签切换（进程内） | 靠 @State 存活＋onAppear 的 nil 守卫「碰巧」保持——非设计保证，视图重建即被上一行恒落主线吞掉 | 语义靠运气 |
+| 抽屉「主线聊天」行 | 动作只有 `onClose＋onSelectTab(.chat)`——不切线程：在旁聊里点它，落回的还是那条旁聊 | 与页签语义互串：标着主线的入口不去主线、页签被迫兼任回主线 |
+| 聊天时间 | 消息流零时间呈现（条目 createdAt 只用于排序） | 用户点名不科学 |
+| 设置 sheet「回聊天」动作 | 只切页签（onRequestChat）——非主线入口 | 无偏差：新模型下同走落点解析回上次对话，未改 |
+
+### 57.2 落值一：页签与主线解绑
+
+- Core 新增 `ChatLandingResolution.landing(currentID:lastThreadID:existingIDs:mainThreadID:)` 四态：`.keep`（进程内当前线程仍在，页签切回保持）／`.restore`（恢复上次）／`.main`（无记录或记录失效回钦定主线）／`.none`（三者均不在名单，调用方沿旧兜底落第一条/空态）。当前 id 已失效（指向已删线程）不粘死、继续向下解析。
+- 持久化：`SideChatStore.lastThreadID`（键 `sideChats.lastThreadID`，与主线钦定同仓 UserDefaults，不另造第二套状态；演示模式纯内存同既有口径）。**唯一写入点**＝ChatView `body` 的 `onChange(of: currentThreadID)` 回调——切线程/新建/续聊导入/删当前线程全部经此一处；置空即清记录，下次按记录失效回主线。
+- ChatView `.onAppear` 落点改走解析（抽屉选线程仍最优先、待续聊会话仍先行拦截，两条显式改道不变）；0.7.0「冷启永远先落主线」注释原地标注作废。
+- 抽屉「主线聊天」行：动作加经 `drawerThreadSelection` 直切钦定主线（ChatView 消费切换并经唯一写入点落盘为上次线程），成**唯一显式回主线入口**；钦定未落定时退化为只切页签、落点解析以主线兜底。
+- 未动：0.27.0 会话链接/种子/发送链、0.29.0 `SideChatClassifier.isMain` 双信号、删线程的 `drawerDeletedThreadID` 通道语义（置空后落点由解析接管）。
+
+### 57.3 落值二：聊天时间系统（Core ChatTimeline）
+
+- 落点（锚点走查）：会话首条前恒挂一条；其后与**上一条已挂分隔条的消息**间隔 > 300 秒再挂，恰 300 秒不挂。口径来源（2026-11-10 查证）：微信官方帮助中心《WeChat訊息是如何顯示時間？》「當天的訊息會以每5分鐘為一個跨度地顯示時間」；腾讯云 IM 官方文档《聊天IM的时间戳显示规则》「与最后一次显示时间戳的时间间隔大于5分钟时则再追加」。**与「只看相邻两条间隔」的差别如实记**：4 分钟一条连发时相邻口径全程只有首条，跨度口径约每 5 分钟再挂一条——从官方文档口径取跨度。
+- 文案五档（本地时区、日历注入）：今天 HH:mm／昨天 HH:mm／日差 2...6 星期X HH:mm／本年 M月d日 HH:mm／跨年 yyyy年M月d日 HH:mm。相对优先：昨天跨月仍「昨天」、跨年但日差 ≤6 仍走星期档、跨年日差 1 仍「昨天」；未来条目（时钟漂移）只给时刻不编造相对日。
+- 渲染：ChatView 消息流逐行前置（微信式素字）——居中、`.meta`（Footnote 13）角色、Palette.inkSecondary、无气泡无底色块；行距沿 LazyVStack spacingL、分隔与所属消息间距 spacingS。
+- 条目口径：只对会话条目（user/assistant，即 toolCard 为 nil 者）走查——**工具卡条目不单独占分隔、也不重置锚点**（以所属回合的会话条目时间为准）；思考是 assistant 条目内字段、随其消息回合走；流式行与流内工具卡是当前回合的呈现层尾巴、不另起分隔（本回合分隔由其 user 条目承担）。
+- 顺带核查·只登记未改：①抽屉旁聊行/管理页副题走 Core `LocalThreadSubtitle`/`sessionDayTimeText`（今天/昨天/M月d日 三档、无星期档、今天带「今天」前缀）——名单行紧凑口径，与聊天分隔条五档不一，本包未动；②文件页时间走 `AdminFormat.short`（恒 M月d日 HH:mm）——同登记。后续若要全 App 时间口径统一，另包处理。
+
+### 57.4 DD 系列真机终审项
+
+- DD1 页签恢复：在某条旁聊里聊两轮 → 切到文件/目标页签 → 点回会话页签，仍在那条旁聊、位置与内容不动。
+- DD2 冷启恢复：停在旁聊里杀进程重开——直接落回那条旁聊（不是主线）。
+- DD3 主线入口：停在旁聊 → 开抽屉点「主线聊天」——切到主线本体；之后点页签切走再切回，仍是主线（主线此时即上次线程）。
+- DD4 记录失效：删掉当前停留的旁聊后冷启——回主线，不报错不空白死锁。
+- DD5 时间分隔·跨度：连发数条间隔 <5 分钟——只有首条上方一条时间；停 6 分钟再发——新消息上方再挂一条；连发中每隔约 5 分钟周期出现一条（跨度口径）。
+- DD6 时间文案：翻历史——今天只时刻、昨天带「昨天」、一周内带星期、更早带月日、去年带年月日，各档抽查一条与微信同口径对照。
+- DD7 工具/思考回合：带工具卡的一轮——工具卡前后不单独出分隔条，分隔只挂在回合的会话消息上。
+- DD8 分隔样式：居中素字、灰、无底色块，与气泡间距自然；暗色模式下同样可读。
+
+### 57.5 交付实录
+
+- 功能提交 7dadd70；CI 42759538188 success，Executed 528 tests, 0 failures（506 基线＋ChatLandingTests 9 测＋ChatTimelineTests 13 测，零删测零改值）。
+- IPA：5,107,798 字节、md5 9e3bbd4a578b0943807b863367ba2ffd、独立解包验 Info.plist＝0.30.0/59、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.30.0/OneDay-0.30.0.ipa。
+- 版本五处同改＋grep 验：Project.swift 的 MARKETING_VERSION／CURRENT_PROJECT_VERSION／CFBundleShortVersionString／CFBundleVersion 四处＋SettingsView 页脚「OneDay v0.30.0」一处（本包未漏页脚）。
+- §14/MotionTokens/外观定版零改动；0.27.0 会话链与 0.29.0 主线分类器语义未动；施工期生产零写；未自截真机图。
