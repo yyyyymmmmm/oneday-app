@@ -5256,3 +5256,30 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - 本案根因结论来自礼记同案的 .ips 实锤＋本仓代码亲读坐实同雷形态；OneDay 自身的 .ips 仍未到手。若本版真机仍崩，预备页/失败行已上屏的 lastStage 就是下一轮第一证据，按同案纪律停猜、先拿日志。
 - 重签对 TCC 的实际影响（回落未决定／保持已授）本侧不可验；同步门按两端设计：已授不重走回调、未决定才发唯一一次。
 - 「点麦克风不再闪退」的最终判定归用户真机首试：CI 绿只证构建与逻辑，不冒充真机验收。
+
+## §75 0.36.10/77——五判词修复包（用户 2026-11-10 20:45 对 0.36.7 的五条真机判词；诊断 redevice-verdicts-diagnosis-20261110.md D2/D3）
+
+判词来源：用户装 0.36.7 后连发五条——①连接器页脚注没删干净 ②分段胶囊间距修偏（0.36.7 修的是 section 间距，病根在系统控件本体） ③工具卡又多又复杂 ④通讯录授权了目录行写「可调用」是越界宣称（device MCP 当时未注册） ⑤回答完了底部还挂「进行中」＋卡里一条「虚线」。①②③⑤在本包，④的服务端注册由并行线同晚办讫（App 侧只改文案口径）。
+
+### 75.1 五件逐条对账
+
+1. **脚注删净（ConnectorsView）**：「你的设备」组 footer 解释段与页面最底总结段整段删除，目录页自此零说明段。信息不丢失的落点：数据边界逐件在各自详情页（descriptor.footnote 在 DeviceStatusHeader 尾段，如通讯录「只有你打开调用开关…」）；接入路径在目录条目详情（catalogDetail 的 accessSummary/accessDetail，含「App 内暂不能直接连接」如实句）。判词点名的两段原文已 grep 验零残留（App 呈现层）。
+2. **分段胶囊量测对齐**：系统 Picker.segmented 退役，改与文件页同源的自制胶囊（SegmentedControlSpec，0.36.2 定版）：轨道 Palette.surface 白＋发丝边、总高 48、药丸高 36、内缩 6、选中 Palette.selectionFill #F0F1F2 灰垫、字 17 semibold 两态皆 ink、matchedGeometry 滑移＋.selection 触感；行 insets 上下 0、左右 20，分段与上下节间距只由 listSectionSpacing 16 一处出。量测（2026-11-10 用户图，1206×2622 @3x 像素量）：Muse 对照页轨道纯白 #FFFFFF（边 ≈#E9EAEC）、选中片 #F3F4F6（与页面底同值）、轨道高 ≈47.5pt、内缩 ≈5pt、搜索框底→轨道顶 16pt、轨道左右边距 ≈21pt；OneDay 0.36.7 实拍轨道 #E3E2E8 灰紫、选中片白（角色反）、轨道高 ≈31pt、搜索框底→轨道顶 ≈55.7pt。spec 落值与 Muse 量测 ±1pt 内吻合，故直接同源复用、不新造数值；左右边距 20 由本页 List 行距承接（与 Muse ≈21 及本页节奏一致）。
+3. **设备目录行文案改实话**：Core DeviceRowStatus.line 并入「设备会话是否在线」（DeviceSessionController.sessionOnline，本地可验）：已授权＋开关开＋会话在线才拼「可调用」；开关开但离线降为「会话未连接」；开关关「调用已关」；权限未授/被拒/仅写入权限/待签名权益各分支如实不变。消费方两处（ConnectorsView 目录行、DeviceViews 总览状态）同传 sessionOnline。详情页通道状态节脚注改动态 channelNote（权限/开关/在线三件本地事实拼成），旧静态句「智能体实际调用待服务器侧门面注册开通…」退役；DevicePermissionsView 通道状态行同类旧句改会话实话（前台才活着、未连接叫不到、回前台自动恢复）。目录行/详情页/总览三面自此同源同口径，不许再出现 App 验不了的服务端状态宣称——服务端注册是事实（同晚已办），但 App 写「可调用」的依据只能是会话在线这一可验信号。
+4. **工具卡紧凑化（诊断 D3 十条逐销）**：D3-1 卡面收敛一行（36 图标盒＋标题＋副行＋状态字），整卡点开卡内详情（调用参数 pretty JSON 原文／结果全文／状态／工具原名行）；ToolCard 新增 arguments 存原始参数全文，旧落盘卡缺键解码回 nil 兼容（单测钉死）。D3-2 摘要单行化：副行 = 参数摘要（截断）→ 结果首行净化 → 「（无输出）」，浏览器卡副行优先页面 URL。D3-3 标题映射补 manage_connections→管理连接＋设备十工具中文名；分类新增 .connection/.device（device 前缀须排在 search 之前：contacts_search 归设备）；未知工具回落改 Core fallbackTitle 中文类名，Builder 与累积器的回落链中服务端 label 与英文短名彻底退出卡面（英文原名保留 toolName、只进详情）。D3-4（适配）：runs events 通道不带参数分片，直播卡无真参数——直播期以分类标题＋中文兜底＋净化 preview 摘要呈现，落定以 transcript 真参数重建为权威，此偏差如实记录。D3-5 terminal 复合命令摘要改「N 条命令 · 首条」（Core commandSummary，summary 的 terminal 分支与默认字段序 command 命中同走），combo 夹具旧断言随之迁移为精确等值（意图不变）。D3-6 直播结果先过 ToolResultUnwrap.unwrap 再存卡，与落定同口径；直播期失败标记 = 事件 failed 与 unwrap 信号取并集（D3-9 一并），落定以 transcript unwrap 为准。D3-7 unwrap.isMeaningless 新增：空或通篇分隔符/空白（如 "---"）判无意义，卡面呈「（无输出）」、不画符号——判词⑤截图的「虚线」即此。D3-8 连续 ≥2 卡成组：落定走 entryRenderItems（连续 toolCard 条目收 ToolCardGroupView，组头 Core groupHeader「调用了 N 个工具 · 全部完成／F 个失败／R 个进行中 · F 个失败」）、直播走 liveRenderItems 同制，单卡不进组。D3-10 直播区按事件序：liveOrder 标记（思考/正文首达、工具卡创建时记位）交错渲染，标记外卡殿后成组、正文缺标记殿后补位；落定序本就是 transcript 原序，不动。
+5. **进行中改卡级（诊断 D2）**：Core ToolCardPresentation.state(of:) 单一真源——本卡 result==nil 才 running，回来即按 resultFailed 落 succeeded/failed；ToolCardView 删除整轮 isLive 入参，状态字/转圈/失败徽标全走卡级；组头计数同源。**补根（诊断外新发现，判词⑤的另一半）**：finishRunPresentation 从不清空 liveToolCards——落定条目入列后，残留的直播卡仍挂在列表尾同屏渲染、且因 result 恒 nil 永远「进行中」，正是用户截图底部那截残影（"…age connections"＋"Searching tools · contacts list"）；收尾统一清 liveToolCards＋liveOrder（全部落定/失败/取消出口共用此收尾，persistRunPartials 在其前调用、对账不误伤）。思考段 contentStarted 口径不变、正文气泡 id "streaming" 保留。
+
+### 75.2 验证
+
+- 版本五处同改 0.36.10/77（Project.swift 四处＋SettingsView 页脚），grep 验讫。
+- 单测 741 → **751**（+10，只增不减）：ToolCardPresentationTests 7（卡级状态三分支/无意义判定/状态语六例/组头四例/累积器中文兜底/旧卡解码兼容/arguments 往返）、RichContentTests +2（connection/device 分类与标题、复合命令摘要含实拍样本）、DeviceSourcesTests +1（会话离线三断言）；另 combo 夹具 1 条旧断言按 D3-5 迁移（计数不变）。
+- CI：首轮 42822808738 红（仅上述夹具断言 1 条，属口径迁移漏网），迁移提交后 **42824509891 绿**（head f04d08e），Executed 751 tests, 0 failures。
+- IPA：~/workspace/your_files/oneday-v0.36.10/oneday-unsigned.ipa，6,635,541 字节，md5 77f5e19ce793d839a5a2cc973f16e770，解包 Info.plist = 0.36.10/77/site.didichou.oneday；二进制内验到本包新文案长字面量（channelNote 两句在 OneDayApp 内命中；≤15 字节短串走 Swift 小字符串立即数编码、不以连续字节存，此为 Release 常态）。
+- 发送链与 0.31.0 任务制语义零改动：本包只动呈现层判定与文案，followRunEvents 的落盘/对账/重试逻辑未改（仅在既有挂点记事件序与净化直播结果）。
+
+### 75.3 诚实边界
+
+- 分段胶囊的本体落值（轨/药丸/字/色）已按量测对齐，但 List 平台内边距（首节上距、分组头内距）不可完全细控：上方总留白由 ≈56pt 收到 16 附近是设计口径，最终观感（与 Muse 并排的贴合度）归用户真机终审。
+- 工具卡组默认收起的取舍（信息密度 vs 一眼全貌）、详情展开手感、直播事件序交错的实际观感（思考块在工具组之间落位是否顺眼），均无本地可验手段，归真机终审。
+- D3-4 适配偏差（直播期无真参数）为通道事实：靠参数分形的标题（memory/skill 动作形）直播期用泛称、落定纠正；若日后 events 通道补参数分片，直播期可与落定完全同口径，届时删此边界。
+- 「可调用」在会话在线时的成立，还以服务端 device MCP 注册为前提（同晚并行线已办并实调验活）；App 侧不验服务端、只认会话在线——若服务端注册日后被摘除，目录行仍会写「可调用」，此为本口径的已知边界（验服务端状态须另立健康检查，不在本包）。
