@@ -48,7 +48,7 @@ struct DeliverablesView: View {
     @Namespace private var viewerNamespace
 
     /// 查看器集合载荷：同段图片条目＋起始索引
-    private struct ImageViewerRoute: Identifiable {
+    private struct ImageViewerRoute: Identifiable, Hashable {
         let entries: [WorkspaceFileEntry]
         let initialIndex: Int
         var id: String { entries[initialIndex].path }

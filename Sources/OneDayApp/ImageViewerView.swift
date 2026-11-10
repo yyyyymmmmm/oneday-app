@@ -8,7 +8,7 @@ import UIKit
 /// （聊天图/文件行/影音网格/Box 图）统一经它进查
 /// 看器——旧单图 item 模型（进查看器即孤岛、无翻
 /// 页）退役。
-struct ImageViewerSession: Identifiable {
+struct ImageViewerSession: Identifiable, Hashable {
     let items: [ChatImageViewerItem]
     let initialIndex: Int
 
@@ -435,8 +435,9 @@ private final class ZoomHostingController<Content: View>:
     override func viewDidLoad() {
         super.viewDidLoad()
         preferredTransition = .zoom(
-            options: UIViewController.Transition.ZoomOptions()
-        ) { _ in nil }
+            options: UIViewController.Transition.ZoomOptions(),
+            sourceViewProvider: nil
+        )
     }
 }
 
