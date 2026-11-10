@@ -5205,3 +5205,29 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - A 部模板表覆盖通知类型：write_gate_decision 的记忆四文法（add/remove/replace/apply）＋技能 batch 一文法（含 create/write_file 分列计数）、monitor_change 直通、未知 kind 直通兜底；截图 8 条实样逐条入单测（M1 驳回实样、M2 实样、M4 实样、S1/S2/S3 实样）。
 - C 部五场景验证方式：①看主线 ②看旁聊（报障原图场景）③非聊天页签 ④旁聊回主线 ⑤切页签再回聊天——五场景均落 Core 政策单测逐条断言（DrawerSelectionTests 前五测一一对应）＋静态代码审计（全仓 grep：activeThreadID 零残留、DrawerView 无 currentTab == 私判、行 selected 全出政策）；ChatView 两处同步点与抽屉两处导航置位点逐点核对。真机逐场景肉眼验归用户终审（§10.4 口径）。
 - **待真机（不许假报）**：铃铛页三行密度与组头节奏、相对时间三档实显、全部已读失败路径实感（需桥侧故障才触发）、展开次级详情的手感；连接器胶囊收紧后的实际呼吸感（16 为代码量测、观感归用户）；抽屉五场景胶囊唯一性真机复验；本人裁决回执 refId 联动回归（桥已部署、待下一次真实裁决自然验）。
+
+## §73 0.36.8/75 语音闪退热修（2026-11-10）
+
+起因：0.36.6 真机首用语音，预备页走完、系统权限点「允许」后立即闪退。诊断定稿 voice-crash-diagnosis-20261110.md（根因排序：①installTap 喂未验的 0 Hz 输入格式抛 NSException、Swift catch 不住；②多余的 SFSpeechRecognizer 授权门——官方口径 SpeechAnalyzer 不需要、且重签包 plist 若被动过此步必 SIGABRT；③管线比值无有限性守卫）。本版按诊断 §5 同包全修，两根因互不冲突、不等 .ips 实锤先修后关账。
+
+### 73.1 五条修法落点
+
+1. **删整道语音识别授权门**（DictationController）：prepConfirmStart 只请求麦克风；handleMicTap 已授权直启判断只看 AVAudioApplication.recordPermission（.granted 直启／.denied 失败行／其余进预备页）；requestSpeechPermission 整删，全仓 requestAuthorization 零残留（仅余 ImageViewerView 的相册授权、与本包无关）。DictationViews 预备页删「需要开语音识别」行、失败文案改只提麦克风；Core 的 permissionDenied 注释同步。NSSpeechRecognitionUsageDescription 键保留在 plist（Project.swift 未动、无害），代码不再调用该 API。
+2. **tap 格式有效性门**（Core 新设 DictationAudioFormatPolicy.isUsable＋DictationController.startEngine）：读 inputNode.outputFormat 后先过门（sampleRate 有限且 >0、channelCount >0）；无效先 engine.prepare() 复读一次，仍无效清 session 走 .unavailable 失败路并落 formatInvalid 面包屑（带实际 rate/channels 值），绝不把无效格式递给 converter/installTap。installTap 改传 format: nil（节点实时格式）；转换器改由 DictationAudioPipe 以首个 buffer 的实际 format 惰性建立（格式变更自动重建），开录前快照竞态整类消除。管线比值改走 Core conversionRatio 有限性守卫，无效整帧丢弃（原 UInt32(∞) trap 面消除）。
+3. **音频会话对齐 WWDC25 样例**：setCategory 改 .playAndRecord、mode 改 .spokenAudio（原 .record/.default）。回归面核查：全仓无其他 AVAudioSession 类别设置、无 AVAudioPlayer/AVPlayer 播放面，不存在与既有播放共存的冲突面；录音条/电平链未动。
+4. **os.Logger 阶段面包屑**（DictationController）：subsystem site.didichou.oneday、category dictation；markStage 同步把末阶段写入 UserDefaults dictation.lastStage。打点：micGranted/micDenied、moduleBuilt、assetReady、sessionActive、formatReady/formatInvalid、tapInstalled、analyzerStarted、engineStarted、recording、firstResult、startupFault/engineFault——授权、资产、会话、格式、引擎、首结果全阶段各一行。
+5. **假录音根除**（Core 新设 DictationFaultPolicy＋App pipelineFault）：analyzer.start 与结果流抛错统一走 pipelineFault，按政策分相位处置——.recording→.engineError 失败收尾；.requestingPermission/.preparing→置 startupFault 闩，startEngine 在 engine.start() 成功后、宣布 .started 前检查并拆管道回 .startFailed（startPipeline 据此 fail(.engineError)，不走回退链误报不可用）；已落定/收尾中/代次不符→ignore。旧 engineFailed 的 phase==.recording 守卫整删。
+
+### 73.2 验收
+
+- 提交：3513249（整包，代码顶端）；本节为补记提交。
+- CI：42818056427 **success**，独立计数 **739 tests 全过、0 failures**（基线 736＋新增 3：testAudioFormatPolicyGate／testConversionRatioGuards／testFaultPolicyMatrix，只增不减）。
+- IPA：6,589,021 字节、md5 7d0cd7f6aec43a52f5a3d5419ae3620f、独立解包验 Info.plist＝0.36.8/75、双 UsageDescription 键仍在包内，落 ~/workspace/your_files/oneday-v0.36.8/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION/CURRENT_PROJECT_VERSION/CFBundleShortVersionString/CFBundleVersion＝0.36.8/75）＋SettingsView 页脚「OneDay v0.36.8」。
+- 未碰：发送链与贴底逻辑零改动；NSSpeechRecognitionUsageDescription plist 键未动。
+
+### 73.3 诚实边界
+
+- **首授时序只能真机验**：根因 1 的触发条件（首次授权瞬间格式未就绪）是真机 TCC＋音频 HAL 时序，CI 模拟器复现不了；本版以「格式门＋nil 格式＋惰性转换器」把该窗口整类消除，但「点允许不再闪退」的最终判定归用户真机首试。
+- **根因 2 是否中招仍未实锤**：万能签重签后安装包 plist 状态本侧未验；删门后该路径已不存在（代码零调用），无论重签是否动过 plist 都不再受影响。.ips 关账仍欢迎：若用户方便提供崩溃日志，可回填诊断档判定两根因各自的实际占比。
+- .playAndRecord/.spokenAudio 在真机上的副作用（外放/听筒路由、与系统听写共存）未真机验，归真机终审一并看。
