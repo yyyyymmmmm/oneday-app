@@ -210,6 +210,13 @@ struct ContentView: View {
             // 只是深 tint 不再到达栏件；栏件回系统默认
             // 中性着色。设置 sheet/全部对话/抽屉都在
             // TabView 之外、本就不吃这行 tint，不受影响
+            // 0.33.1 口径更新：栏件无 tint 的副作用是选
+            // 中字形回落系统蓝（用户 16:10 点名）——tint
+            // 已改挂 TabView 本层只达栏件（见 tabView 修
+            // 饰链 0.33.1 注）；本注「垫按 .primary 派生
+            // 成深灰黑」的判因同步更正（垫为中性玻璃透
+            // 镜、字形才吃 tint，0.33.0 默认蓝 tint 下垫
+            // 仍浅灰为证）
             Tab(value: MainTab.chat) {
                 ChatView(overviewStore: overviewStore)
                     .tint(.primary)
@@ -246,6 +253,19 @@ struct ContentView: View {
         // （去蓝，见文件头 0.4.1 注）；0.32.0 起作用域
         // 收窄到各格内容根（见上方 Tab 内注），本层不再
         // 挂根 tint
+        // 0.33.1（用户 16:10 真机截图点名）：tint 改挂
+        // TabView 本层——0.32.0 收窄后栏件失去 tint 来
+        // 源、回落系统默认强调蓝（选中字形呈系统蓝、与
+        // Muse 深色字形不符）。本层 tint 只达栏件宿主
+        // 构建处（内容根各自 .tint(.primary) 同值覆盖、
+        // 内容区观感一字不变；设置/抽屉在本层之外不受
+        // 影响）。选中垫不随 tint 变色：0.33.0 在默认蓝
+        // tint 下真机垫已是中性浅灰——垫是玻璃透镜本
+        // 体、字形才吃 tint（与 0.32.0 注里「垫按
+        // .primary 派生」的旧判因就此更正：当年的深是
+        // 字形＋标签同染的整体观感）。终审以 JJ 并排
+        // 为准（垫明度/字形色逐项对 Muse）
+        .tint(.primary)
         // 0.17.0（真机五修①附带，用户下令去掉）：滚动
         // 收起退役——0.4.1 为学 Muse 本体加的 .onScroll-
         // Down 最小化（commit 95ab47e）会把底栏缩成左下
@@ -295,6 +315,14 @@ struct ContentView: View {
         } icon: {
             Image(systemName: pair.normal)
                 .symbolVariant(.none)
+                // 0.33.1：渲染模式钉 monochrome（系统栏件
+                // 惯例）——单色模板渲染，杜绝 hierarchical/
+                // palette 派生让字形发实发花的余地；符号名
+                // 全表本就是 outline 原名（TabBarSymbols-
+                // Tests 钉死禁 .fill、两态同名），选中态的
+                // 填充观感来自宿主对栏件的自动 .fill 变体
+                // 派生，变体锁（本处＋根环境）双锁保留
+                .symbolRenderingMode(.monochrome)
                 // 0.22.0 字形定版（审计 T1 复量）：符号
                 // 不换、字重 regular→light 一档——探针实
                 // 测（24pt 紧致密度）：message .270→.222、

@@ -1,12 +1,13 @@
 import Foundation
 
-/// 审批桥钥匙的设置状态（纯判定，设置页与单测共用）。
+/// 凭据值的设置状态（纯判定，单测共用）。
 ///
 /// 语义只有一条：Keychain 里有非空值＝已设置。空串与纯
-/// 空白一律按未设置——桥客户端拿到空钥匙与没钥匙无异，
-/// 不许让「存了个空串」冒充已设置。实际读写在 App 层走
-/// KeychainStore＋CredentialKey.writeGateKey，与枢纽页
-/// WriteGateClient 的读取处同一键（§31 代码层自证）。
+/// 空白一律按未设置——客户端拿到空钥匙与没钥匙无异，
+/// 不许让「存了个空串」冒充已设置。0.33.1 后本枚举的
+/// 桥钥匙状态用途已退役（桥钥匙整节删除），仅余
+/// sanitizedForStorage 清洗函数供 BridgeCredential
+/// 统一取钥复用（清洗口径不变，故整件保留）。
 public enum WriteGateKeyStatus: Equatable, Sendable {
     case notSet
     case set

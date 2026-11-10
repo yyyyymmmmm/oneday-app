@@ -13,9 +13,9 @@ enum BoxBridgeError: Error, Sendable, Equatable {
 /// 盒桥客户端（P2，契约见 box-bridge-rollout-20261109）：
 /// 路径挂在当前服务器根下 /api/box-bridge（与桥部署
 /// 口径一致，用户改址后桥随服务器走）；Bearer 只从
-/// BridgeKeyStore 的 .box 分项读（0.32.1 分权，
-/// F03/R8；分项未配置时过渡回退旧共用钥）；读不到
-/// 钥匙一律
+/// BridgeCredential 统一读（0.33.1：聊天同一份
+/// Hermes 登录密钥，入口在服务器内部换桥钥）；
+/// 读不到钥匙一律
 /// noKey、不发请求、不冒充已接通。
 /// 超时分档：状态读 20 秒；截图/接管要唤醒 Box 并等
 /// 厂商回图，给 100 秒（nginx 上限 120 秒之内）。
@@ -35,7 +35,7 @@ final class BoxBridgeClient: @unchecked Sendable {
     }
 
     private var bridgeKey: String? {
-        BridgeKeyStore.read(.box)
+        BridgeCredential.read()
     }
 
     func status(config: ServerConfig) async throws -> BoxBridgeStatus {

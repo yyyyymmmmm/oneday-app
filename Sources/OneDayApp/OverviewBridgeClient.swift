@@ -15,10 +15,9 @@ enum OverviewBridgeError: Error, Sendable, Equatable {
 /// 服务器根下（默认 https://hermes.didichou.site 的
 /// /api/overview-bridge，与桥部署口径一致；用户改址后
 /// 桥随服务器走）。Bearer 只从 Keychain 的
-/// BridgeKeyStore 的 .overview 分项读（0.32.1 分权，
-/// F03/R8；分项未配置时过渡回退旧共用钥，见
-/// BridgeKeyStore）；读不到
-/// 钥匙一律 noKey、不发请求、不冒充已接通。
+/// BridgeCredential 统一读（0.33.1：聊天同一份
+/// Hermes 登录密钥，入口在服务器内部换桥钥）；
+/// 读不到钥匙一律 noKey、不发请求、不冒充已接通。
 final class OverviewBridgeClient: @unchecked Sendable {
     private let session: URLSession
     private let decoder = JSONDecoder()
@@ -30,7 +29,7 @@ final class OverviewBridgeClient: @unchecked Sendable {
     }
 
     private var bridgeKey: String? {
-        BridgeKeyStore.read(.overview)
+        BridgeCredential.read()
     }
 
     func overview(config: ServerConfig) async throws -> OverviewSnapshot {

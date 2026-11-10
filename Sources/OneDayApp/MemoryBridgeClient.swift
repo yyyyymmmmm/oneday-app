@@ -5,9 +5,9 @@ import OneDayCore
 /// memory-bridge-contract-20261109.md——条目读与
 /// propose 暂存是 write-gate 桥待扩展的 /memories
 /// 路由组，与待批/裁决同基址（/api/write-gate）、
-/// 同一 Bearer 钥匙（BridgeKeyStore 的 .writegate
-/// 分项，0.32.1 分权 F03/R8；与 WriteGateClient 同
-/// scope）。错误口径沿 WriteGateError：
+/// 同一 Bearer 钥匙（BridgeCredential 统一读，
+/// 0.33.1：聊天同一份 Hermes 登录密钥；与 WriteGate-
+/// Client 同口径）。错误口径沿 WriteGateError：
 /// 无钥 noKey、钥匙被拒 unauthorized、集合 404＝
 /// 路由组未部署（bridgeMissing，面上露「记忆条目
 /// 尚未开通」）、条目 404＝记录已不在、409＝闸门
@@ -26,7 +26,7 @@ final class MemoryBridgeClient: @unchecked Sendable {
     }
 
     private var bridgeKey: String? {
-        BridgeKeyStore.read(.writegate)
+        BridgeCredential.read()
     }
 
     // MARK: - 条目读（契约端点）

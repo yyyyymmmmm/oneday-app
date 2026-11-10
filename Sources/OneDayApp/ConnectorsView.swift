@@ -771,7 +771,6 @@ struct ConnectorsView: View {
         case .writeGate:
             entryRow("记忆") { jumpAgent(.memory) }
             entryRow("技能") { jumpAgent(.skills) }
-            entryRow("桥钥匙") { jumpSettings(.writeGateKey) }
         case .oneDayBridge:
             entryRow("目标") { jumpTab(.goals) }
             entryRow("点子") { jumpTab(.ideas) }

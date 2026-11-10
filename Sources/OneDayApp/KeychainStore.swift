@@ -8,49 +8,41 @@ enum CredentialKey {
     static let username = "auth.username"
     static let password = "auth.password"
     static let apiKey = "api.key"
-    /// write-gate 桥单独钥匙（桥方案 §2.2：不复用聊天
-    /// 钥匙，审批权可独立轮换）。不并入 all（断开连接不清
-    /// 它，生命周期独立）。发放通道＝0.5.0 起设置页「审批
-    /// 桥钥匙」粘贴一次写入本键（WriteGateKeySettings-
-    /// View），WriteGateClient 只读；读不到即审核段落
-    /// 「通道未接通」诚实态
+    /// 旧桥共用钥的发放键（0.5.0–0.32.1 历史）：设置页
+    /// 「桥钥匙」曾写入本键、桥客户端曾以它作 Bearer。
+    /// 0.33.1 起无人读写（桥请求改用 api.key、入口在服
+    /// 务器内部换钥，见 BridgeCredential）；键名保留作档
+    /// 案，存量值不删（回滚 0.32.1 时仍可用），不并入
+    /// all（断开连接不清它，生命周期独立）
     static let writeGateKey = "writegate.key"
-
-    /// 桥分项钥（0.32.1，审计 F03/R8）：五桥按 scope
-    /// 各自一把，键名 bridge.key.<scope>。writeGateKey
-    /// 自此降为【过渡回退】来源（见 BridgeKeyStore），
-    /// 服务器轮换完成后的下一版连键带回退一并删除
-    static func bridgeKey(_ scope: BridgeKeyScope) -> String {
-        "bridge.key.\(scope.rawValue)"
-    }
 
     static let all = [baseURL, username, password, apiKey]
 }
 
-/// 分桥钥匙读取（0.32.1，F03/R8）：各桥客户端只经此
-/// 读自己 scope 的钥。优先分项钥；分项未配置时临时
-/// 回退旧共用钥 writeGateKey——【仅过渡期】：服务器
-/// 五桥轮换完成前，现装版本靠回退照常工作；轮换后
-/// 旧钥在各桥 env 退役、回退值会被桥拒绝而自然失
-/// 效。回退在轮换完成后下一版删除。注意：设置页的
-/// 逐项状态只认分项本体（scopedValue），不许拿回退
-/// 的可用冒充已分权。
-enum BridgeKeyStore {
-    /// 客户端实际取钥：分项优先、旧钥过渡回退
-    static func read(_ scope: BridgeKeyScope) -> String? {
-        if let scoped = scopedValue(scope) {
-            return scoped
-        }
-        return WriteGateKeyStatus.sanitizedForStorage(
-            KeychainStore.read(account: CredentialKey.writeGateKey)
+/// 桥客户端统一取钥（0.33.1，用户 16:08 定版）：用户
+/// 只持一把 Hermes 登录密钥——桥请求直接以聊天同一
+/// 份 api.key 作 Bearer，nginx 入口校验通过后在服务
+/// 器内部换成各桥自己的服务钥（分权是服务器内部的
+/// 事、用户无感、不再懂五把钥）。0.32.1 的 BridgeKey-
+/// Store 五分项读取与旧共用钥回退自此整件退役。
+enum BridgeCredential {
+    static func read() -> String? {
+        WriteGateKeyStatus.sanitizedForStorage(
+            KeychainStore.read(account: CredentialKey.apiKey)
         )
     }
+}
 
-    /// 分项本体（设置页逐项状态专用，不含回退）
-    static func scopedValue(_ scope: BridgeKeyScope) -> String? {
-        WriteGateKeyStatus.sanitizedForStorage(
-            KeychainStore.read(account: CredentialKey.bridgeKey(scope))
-        )
+/// 退役桥钥残项清理（0.33.1）：启动时把 0.32.1 写进
+/// Keychain 的五条 bridge.key.* 删净。删除面由
+/// OneDayCore.RetiredBridgeKeyAccounts 钉死——只删本
+/// App 自己写过的这组键，登录凭据与 writegate.key
+/// 存量一概不动。幂等：键已不在时 SecItemDelete 无害。
+enum RetiredBridgeKeyCleanup {
+    static func purge() {
+        for account in RetiredBridgeKeyAccounts.accounts {
+            KeychainStore.delete(account: account)
+        }
     }
 }
 

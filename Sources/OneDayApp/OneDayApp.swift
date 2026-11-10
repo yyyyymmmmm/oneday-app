@@ -9,6 +9,11 @@ struct OneDayApp: App {
     private let container: ModelContainer
 
     init() {
+        // 0.33.1：退役桥钥残项清理——0.32.1 写进 Keychain
+        // 的五条 bridge.key.* 分项钥在启动时删净（清单与
+        // 删除面见 RetiredBridgeKeyCleanup，只删这组键、
+        // 登录凭据不动）；每次启动跑一遍、幂等无害
+        RetiredBridgeKeyCleanup.purge()
         // 演示模式（截图验收环）：启动参数触发，换假客户端＋
         // 内存库，正常启动路径与持久化口径零变化。
         let demo = DemoMode.current

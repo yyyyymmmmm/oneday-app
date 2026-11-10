@@ -56,14 +56,6 @@ struct SettingsView: View {
     @State private var showRestartConfirm = false
     @State private var showDisconnectConfirm = false
     @State private var notice: String?
-    /// 审批桥钥匙状态（0.5.0 §31 追加件）：只存状态枚举、
-    /// 不碰钥匙原文；由 Keychain 回读派生（refreshWrite-
-    /// GateKeyStatus），行值位只显「已设置／未设置」
-    @State private var writeGateKeyStatus: WriteGateKeyStatus = .notSet
-    /// 桥钥匙组已配置分项数（0.32.1，F03/R8）：与旧钥
-    /// 状态一起派生「桥钥匙」行汇总文案，只存计数
-    @State private var bridgeKeyScopedCount: Int = 0
-
     var body: some View {
         NavigationStack(path: $path) {
             List {
@@ -135,7 +127,6 @@ struct SettingsView: View {
             .task { await loadSummaries() }
             .onAppear {
                 consumePendingRoutes()
-                refreshWriteGateKeyStatus()
             }
             .onChange(of: appState.pendingSettingsRoute) { _, _ in
                 consumePendingRoutes()
@@ -159,8 +150,6 @@ struct SettingsView: View {
                     GatewayView()
                 case .logs:
                     LogsView()
-                case .writeGateKey:
-                    WriteGateKeySettingsView()
                 case .appearance:
                     AppearanceView()
                 case .agent(let agentRoute):
@@ -351,7 +340,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.33.0")
+            Text("OneDay v0.33.1")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
@@ -376,19 +365,10 @@ struct SettingsView: View {
                 icon: "archivebox", title: "档案",
                 route: .profiles
             )
-            // 0.5.0（§31 追加件）：状态永不带钥匙原文
-            // （原文只存 Keychain）。0.7.0：桥鉴权失败
-            // （未粘/被拒）时如实露「桥未连接」——桥是
-            // 总览/待审批/通知的数据面，连不上要一眼看
-            // 到；0.22.0 值位撤除后本行改状态副行形态
-            // 保住这条（statusNavRow），不回行尾小字
-            statusNavRow(
-                icon: "key", title: "桥钥匙",
-                status: appState.overviewBridgeAuthFailed
-                    ? "桥未连接"
-                    : bridgeKeyGroupStatusText,
-                route: .writeGateKey
-            )
+            // 0.33.1：「桥钥匙」行整行退役（用户 16:08
+            // 定版：只持一把 Hermes 登录密钥、桥分权纯
+            // 服务器内部）——桥鉴权与登录同钥，桥连不
+            // 上即登录面问题、不再单设钥匙行与状态文案
             // 0.27.0：主线会话链接状态如实展示——已链
             // 接显会话 id、未链接显最近一次链接失败的
             // 错误原文（链接失败不许再静默，见串话热
@@ -743,8 +723,9 @@ struct SettingsView: View {
     /// 0.22.0（设置图实测规格）：**行尾值位整件撤除**
     /// ——参考图所有导航行只有题＋chevron，值一律进各
     /// 自详情页（档案名/计数摘要/模型名/用量读数同
-    /// 此）；确属状态展示不可撤的两行（审批桥钥匙、
-    /// 网关状态）走下方 statusNavRow 降为题下副行。
+    /// 此）；确属状态展示不可撤的行（网关状态；桥钥匙
+    /// 行已于 0.33.1 随整节退役）走下方 statusNavRow
+    /// 降为题下副行。
     /// 旧值位组件（ValueStyle/等宽读数/numericText 过
     /// 渡）随撤除退役
     private func navRow(
@@ -858,32 +839,6 @@ struct SettingsView: View {
         default:
             path = [.agent(route)]
         }
-    }
-
-    /// 桥钥匙状态回读（与 WriteGateKeySettingsView 同一
-    /// 读法：分项走 BridgeKeyStore.scopedValue、旧钥走
-    /// CredentialKey.writeGateKey；只派生状态、不留原文）
-    private func refreshWriteGateKeyStatus() {
-        writeGateKeyStatus = WriteGateKeyStatus.resolve(
-            storedValue: KeychainStore.read(account: CredentialKey.writeGateKey)
-        )
-        bridgeKeyScopedCount = BridgeKeyScope.allCases.filter {
-            BridgeKeyStore.scopedValue($0) != nil
-        }.count
-    }
-
-    /// 钥匙组汇总文案（0.32.1，F03/R8 诚实口径）：分项
-    /// 配齐显「已分权」；部分配置如实报数；一项未配时
-    /// 旧钥在＝过渡态、旧钥不在＝未设置——不许拿回退
-    /// 的可用冒充已分权
-    private var bridgeKeyGroupStatusText: String {
-        if bridgeKeyScopedCount == BridgeKeyScope.allCases.count {
-            return "已分权 · \(bridgeKeyScopedCount)/\(BridgeKeyScope.allCases.count)"
-        }
-        if bridgeKeyScopedCount > 0 {
-            return "已配置 \(bridgeKeyScopedCount)/\(BridgeKeyScope.allCases.count)"
-        }
-        return writeGateKeyStatus == .set ? "旧钥匙（过渡）" : "未设置"
     }
 
     /// 0.22.0 瘦身：值位撤除后本页只剩 status 一个数

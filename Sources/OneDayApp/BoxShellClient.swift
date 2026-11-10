@@ -30,7 +30,7 @@ final class BoxShellClient: @unchecked Sendable {
     }
 
     private var bridgeKey: String? {
-        BridgeKeyStore.read(.box)
+        BridgeCredential.read()
     }
 
     func run(

@@ -17,9 +17,9 @@ enum OneDayBridgeError: Error, Sendable, Equatable {
 /// 仓（0.12.0 增监测面，契约 monitor-bridge-contract-
 /// 20261109.md），路径挂在当前服务器根下（/api/oneday-bridge，
 /// 与桥部署口径一致）。Bearer 只从 Keychain 的
-/// BridgeKeyStore 的 .oneday 分项读（0.32.1 分权，
-/// F03/R8；分项未配置时过渡回退旧共用钥）；读不到
-/// 钥匙一律 noKey、
+/// BridgeCredential 统一读（0.33.1：聊天同一份
+/// Hermes 登录密钥，入口在服务器内部换桥钥）；
+/// 读不到钥匙一律 noKey、
 /// 不发请求、不冒充已接通。
 final class OneDayBridgeClient: @unchecked Sendable {
     private let session: URLSession
@@ -33,7 +33,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     }
 
     private var bridgeKey: String? {
-        BridgeKeyStore.read(.oneday)
+        BridgeCredential.read()
     }
 
     // MARK: - 目标

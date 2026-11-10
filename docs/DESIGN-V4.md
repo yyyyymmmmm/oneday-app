@@ -4803,3 +4803,55 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 桥 P2 同批独立交付（见 61.1/61.2 与 rollout 附录 P2 节）：本地自测 34/34、生产已部署实测（手动一轮真产 1 封、验后删净、生产数据零残留）；下一轮自动简报 2026-11-16（周一）08:00（届时有 active 且有素材的目标才成信，生产当前 0 目标、如实 0 封）。
 - 9B 对话式创建本版未落（见 61.4）：桥 source=chat 契约已备，App 入口保持表单；替代方案待用户拍板。
 - HH1–HH7 待真机终审（本版终审代号 HH，承 §60 的 GG 序）。
+
+## §62 0.33.1/64 凭据体验纠正（用户只持一把登录密钥）＋底栏通透/字形修正
+
+### 62.1 用户定版口径（2026-11-10 16:08–16:11 三连纠正）
+
+- 原话：「谁家的密钥这么多？不需要懂吗？能不能提高用户体验，就一个单独的 Hermes 登录密钥就行，其他不需要」「底部导航栏仍显实心」「人家的灯泡不是实心的」。
+- 定版：**用户永远只持一把 Hermes 登录密钥**——分权（F03/R8）是对的、但那是服务器内部的事；产品级原则（大厂逻辑：一次登录、内部服务凭据用户不可见）。0.32.1 的 App 侧五分项钥＋粘贴导入整套作废退役。
+- 落法：App 桥请求统一以聊天同一份登录密钥（api.key）作 Bearer；服务器 nginx 入口以 auth_request 向 Hermes 网关面验这把钥、通过后在服务器内部换成各桥自己的服务钥（桥钥只存服务器 env、轮换不再打扰用户）。服务器段见本版交付实录与 hermes-deploy/bridge-keys-rollout 追记；nginx 过渡双模（旧桥钥直通）在用户装 0.33.1 确认后撤除。
+
+### 62.2 App 退役清单（本节代码面）
+
+- 删除：`OneDayCore/BridgeKeyScope.swift`（BridgeKeyScope 五值＋BridgeKeyImport 解析器整件）；`OneDayApp/WriteGateKeySettingsView.swift`（「桥钥匙」设置页整件）；`Tests/BridgeKeyImportTests.swift`（6 测随解析器退役，由 62.3 新测等量接替、总数只增不减）。
+- 设置页：删「桥钥匙」导航行＋汇总四档文案（已分权 N/5／已配置 N/5／旧钥匙（过渡）／未设置）＋状态回读（refreshWriteGateKeyStatus/bridgeKeyGroupStatusText/两枚 @State）；路由 `.writeGateKey` 自 SettingsRoute 退役；连接器目录 writeGate 服务的「桥钥匙」入口行删除；`navigationDestination` 对应分支删除。
+- 取钥统一：七个桥客户端（WriteGate/Memory/Overview/OneDay/Box/BoxFiles/BoxShell）的 `bridgeKey` 一律改读 `BridgeCredential.read()`＝聊天同一份 api.key（WriteGateKeyStatus.sanitizedForStorage 清洗口径复用）；`BridgeKeyStore`（分项优先＋旧钥回退）整件删除；`CredentialKey.bridgeKey(_:)` 删除；`CredentialKey.writeGateKey` 键名保留作档案（无人读写、存量值不删、回滚 0.32.1 仍可用）。
+- 启动清理：`OneDayApp.init` 调 `RetiredBridgeKeyCleanup.purge()`——按 OneDayCore `RetiredBridgeKeyAccounts` 清单删 Keychain 五条 bridge.key.*（只删本 App 写过的这组键；api.key/auth.*/server.baseURL/writegate.key 一概不动）；每次启动幂等执行。
+- 保留：`WriteGateKeyStatus`（Core）整件保留——其 sanitizedForStorage 仍是凭据清洗的单一口径，枚举的桥钥匙状态用途退役已在文件头注明。
+
+### 62.3 新测（等量接替、只增不减）
+
+- 新增 `Tests/RetiredBridgeKeyAccountsTests.swift` 6 测：清单恰五条且与 0.32.1 scope 序逐字一致／全带 bridge.key. 前缀／无重复／全在场时 purge 全量返回／登录凭据与 writegate.key 永不入 purge（只回 bridge.key.box）／canonical 顺序与空集。删 BridgeKeyImportTests 6 测，总数与 0.33.0 基线 595 持平起步（以 CI 实测为准）。
+
+### 62.4 底栏查证与落值（16:10/16:11 追加项）
+
+查证（先查机制、只用官方开关；红线：不自绘底栏）：
+- ①外覆写残留：全仓 grep toolbarBackground/UITabBarAppearance/scrollEdgeAppearance/standardAppearance——**零命中**；Assets.xcassets 无 AccentColor（只有 AppIcon/LaunchBackground/SangouPartner）→ App 无全局强调色，栏件 tint 无来源时回落系统蓝，此即 0.33.0 选中字形呈系统蓝的机制根源。
+- ②背景层：DrawerShell 不给 TabView 加任何 modifier（0.17.0 定案）；聊天页背景 Palette.chatSurface（#FCFCFC）全出血到屏底——栏下采样源是平色画布，与 Muse 同构（其画布同为近白平色），非本 App 独有的「垫底」问题；各页 ScrollView/List 在 iOS 26 本就从栏下穿过。结论：栏身材质就是系统玻璃、无任何覆写把它压实；「发实」观感的主因在字形（蓝＋填充观感），不在材质层。
+- ③符号名：四格现行名 message/lightbulb/checklist/tray 全为 outline 原名、selected≡normal、零 .fill（TabBarSymbolsTests 钉死）——用户所见「实心灯泡/实心蓝气泡」不是选名问题：SwiftUI 宿主构建栏件时对选中态自动派生 .fill 变体（苹果对齐资料口径：SwiftUI applies .fill for you in TabView items），既有双锁（label 内 .symbolVariant(.none)＋TabView 根环境 symbolVariants .none）保留并继续钉。
+- ④选中色机制：栏件字形吃 TabView 本层环境的 tint（内容根的 tint 到不了宿主构建处，0.4.3 已证）；选中垫是玻璃透镜本体、呈中性——0.33.0 在默认蓝 tint 下真机垫已是中性浅灰（用户截图自证），故「垫随 tint 派生变深」的 0.32.0 旧判因更正为：当年深观感是根 tint 把字形与标签同染的整体效果。
+
+落值（全为官方修饰符、零自绘）：
+- ContentView.tabView 修饰链加 `.tint(.primary)`（TabView 本层）——只达栏件宿主：选中字形回深色（.primary 标签色）；内容根各自 .tint(.primary) 同值覆盖、内容区观感不变；设置 sheet/抽屉在本层之外不受影响。
+- tabLabel 的 Image 补 `.symbolRenderingMode(.monochrome)`——单色模板渲染对齐系统栏件惯例，杜绝 hierarchical/palette 派生。
+- 符号名零改动（已合规，见③）；ContentView 内 0.32.0 tint 注与 tabLabel 注已加 0.33.1 口径更新、旧判因在原处标注更正。
+
+### 62.5 II 系列终审项（凭据）
+
+- II1 设置无桥钥匙：设置页「服务器与连接」组里不再有「桥钥匙」行；连接器目录 writeGate 服务详情不再有「桥钥匙」入口。
+- II2 零配置恢复：从 0.32.1（或更早）覆盖装 0.33.1 后，不做任何粘贴/配置，总览/审批/目标/点子/Box 五面桥功能直接可用（与聊天同钥）。
+- II3 聊天不受影响：登录态、会话列表、发消息全程与升级前一致；断开重连仍只填 Hermes 登录信息一处。
+- II4 残项清理：装后启动一次，旧桥钥匙文件 bridge-keys.txt 即使留着也无用武之地（App 不再读分项钥）——文件由我方在用户确认后删除（服务器段纪律）。
+
+### 62.6 JJ 系列终审项（底栏，与 Muse 并排）
+
+- JJ1 栏身通透：聊天页滚动时内容从栏下滚过、栏身呈玻璃层次而非整块实白，与 Muse 并排对（同为浅色画布场景）。
+- JJ2 选中字形色：选中格字形为深色（非系统蓝），与 Muse 并排对。
+- JJ3 图标描边逐格对：气泡（message）/灯泡（lightbulb）/清单（checklist）/文件（tray）四格，选中与未选两态的线宽与空心形态与 Muse 并排逐格对——重点看选中态灯泡与气泡是否仍呈填充观感（宿主 .fill 派生若双锁压不住，在此项如实记并回主线议 UIKit 路线，不自绘）。
+- JJ4 选中垫明度：选中垫保持中性浅灰玻璃（不回 0.32.0 前的深垫），与 Muse 并排对。
+
+### 62.7 交付实录
+
+- （出包后回填：功能提交／CI／测试数／IPA 字节与 md5／五处版本点。）
+- 服务器段（nginx 单钥入口＋过渡双模）与本节同批交付，实录见 hermes-deploy/bridge-keys-rollout-20261110.md 追记；fallback 撤销条件＝用户装 0.33.1 并确认桥功能正常后另行派单撤除。
