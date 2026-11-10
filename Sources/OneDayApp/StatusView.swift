@@ -141,7 +141,7 @@ struct StatusView: View {
                             .frame(minHeight: OneDayMetrics.rowHeight)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.odPressable)
                     }
                 }
                 .odGroup()

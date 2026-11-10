@@ -46,7 +46,7 @@ struct EnvVarsView: View {
                                 } label: {
                                     entryRow(entry)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.odPressable)
                             }
                         }
                         .odGroup()

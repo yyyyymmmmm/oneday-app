@@ -240,7 +240,7 @@ struct AgentHubView: View {
                     )
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
             .accessibilityLabel("编辑身份")
             }
         }
@@ -283,7 +283,7 @@ struct AgentHubView: View {
                         .frame(minHeight: OneDayMetrics.rowHeight)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.odPressable)
                 }
                 GroupDivider(inset: OneDayMetrics.spacingM)
                 NavigationLink {
@@ -305,7 +305,7 @@ struct AgentHubView: View {
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .frame(minHeight: OneDayMetrics.rowHeight)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
             }
             .odGroup()
             .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -428,7 +428,7 @@ struct AgentHubView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .listRowSeparator(.hidden)
     }
 

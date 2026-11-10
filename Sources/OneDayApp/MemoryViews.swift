@@ -142,7 +142,7 @@ struct MemoryView: View {
                     } label: {
                         providerRow(provider, status: status)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.odPressable)
                 }
             }
             .odGroup()
@@ -247,7 +247,7 @@ struct MemoryView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     // MARK: - 数据

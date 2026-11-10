@@ -130,7 +130,7 @@ struct ComputerView: View {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14, weight: .medium))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
                 .foregroundStyle(Palette.inkSecondary)
                 .accessibilityLabel("刷新状态")
             }

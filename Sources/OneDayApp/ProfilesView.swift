@@ -190,7 +190,7 @@ struct ProfilesView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .contextMenu {
             if !isActive {
                 Button("切换到此档案") {

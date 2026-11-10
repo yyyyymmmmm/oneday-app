@@ -46,7 +46,7 @@ struct SkillsView: View {
                         }
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.odPressable)
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .padding(.vertical, OneDayMetrics.spacingS)
                     .frame(minHeight: OneDayMetrics.rowHeight)
@@ -161,7 +161,7 @@ struct SkillsView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
             Toggle("", isOn: toggleBinding(for: skill))
                 .labelsHidden()
                 .disabled(skill.locked == true || toggling == skill.name)

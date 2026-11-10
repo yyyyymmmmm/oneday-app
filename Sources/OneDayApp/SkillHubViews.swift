@@ -103,7 +103,7 @@ struct SkillHubView: View {
                     in: Capsule()
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     /// 已搜过才随来源切换重搜；还没搜时只记选择
@@ -203,7 +203,7 @@ struct SkillHubView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
         .frame(minHeight: OneDayMetrics.rowHeight)

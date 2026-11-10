@@ -20,9 +20,15 @@ import SwiftUI
 ///   保持（旧形态流式期标题非按钮、点不动）。
 /// - 排版：footnote 小一号＋次级色（Palette
 ///   .inkSecondary），与工具卡的折叠同为「头行＋点按
-///   展开」一族（同构口径：头行 Button＋.default 系
-///   统动画，不自绘曲线）；左界与气泡正文对齐
+///   展开」一族；左界与气泡正文对齐
 ///   （bubblePaddingH），左竖线沿容器高。
+/// - 动效（0.25.0 专包收编）：展开/收起原走
+///   withAnimation(.default) 裸动画、且相位自动收展
+///   （正文起流）无动画硬切——统一改容器级
+///   .animation(resolved(swap), value: expanded)：
+///   点按与相位两条触发路径同曲线同出口，Reduce
+///   Motion 时瞬时；chevron 上下翻转走 symbolEffect
+///   形变（与复制钮/发送键同语言）。
 /// - 流式打字 blur 渐显纪律（§14 条 4）在正文泡侧、
 ///   不在本单元：思考原文是草稿文本、走纯 Text 不进
 ///   Markdown 解析（0.5.1 口径沿用）。
@@ -43,6 +49,7 @@ struct ReasoningBlock: View {
     /// 用户点按覆盖（nil＝跟相位默认）：一旦点按，本
     /// 轮内不再被相位自动收/展覆盖
     @State private var userOverride: Bool?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var phase: ReasoningPhase {
         guard isStreaming else { return .finished }
@@ -62,6 +69,15 @@ struct ReasoningBlock: View {
             }
         }
         .padding(.leading, OneDayMetrics.bubblePaddingH)
+        // 0.25.0：展开态变化（点按/相位自动）统一经此
+        // 动画——swap 令牌＋resolved 出口；动画值驱动
+        // 的过渡可中途重定向（流式中点按不跳）
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: expanded
+        )
     }
 
     /// 有界正文区：限高＋区内滚动（系统 ScrollView）；
@@ -103,13 +119,12 @@ struct ReasoningBlock: View {
     }
 
     /// 标题行（0.20.0 起两态恒为按钮）：流式期实时计
-    /// 时（TimelineView 现算）；点按翻转覆盖态，动画
-    /// 走系统 .default（与工具卡折叠同口径、不自绘）
+    /// 时（TimelineView 现算）；点按只翻转覆盖态，动
+    /// 画由 body 的容器级 .animation(value: expanded)
+    /// 统一驱动（0.25.0 收编，原 withAnimation(.default)）
     private var header: some View {
         Button {
-            withAnimation(.default) {
-                userOverride = !expanded
-            }
+            userOverride = !expanded
         } label: {
             if isStreaming {
                 TimelineView(
@@ -137,7 +152,7 @@ struct ReasoningBlock: View {
                 )
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .accessibilityLabel(
             expanded ? "收起思考过程" : "展开思考过程"
         )
@@ -157,6 +172,8 @@ struct ReasoningBlock: View {
                 Image(systemName: chevron)
                     .font(.caption2)
                     .foregroundStyle(Palette.inkMuted)
+                    // 0.25.0：上下 chevron 形变切换（原硬切）
+                    .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
             }
         }

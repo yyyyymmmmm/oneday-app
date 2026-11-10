@@ -113,7 +113,7 @@ struct HubIdentitySection: View {
                     gradient: Self.soulGradient
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
 
             NavigationLink {
                 MemoryView()
@@ -126,7 +126,7 @@ struct HubIdentitySection: View {
                     gradient: Self.memoryGradient
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
         }
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(

@@ -20,6 +20,8 @@ struct AllConversationsView: View {
     var onClose: () -> Void
 
     @Environment(AppState.self) private var appState
+    // 0.25.0（动效专包）：本面动画走令牌＋resolved 出口
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var store = AllConversationsStore()
     @State private var segment: Segment = .station
     @State private var searchText = ""
@@ -92,7 +94,15 @@ struct AllConversationsView: View {
                 if segment == .station || segment == .archived {
                     ToolbarItem(placement: .primaryAction) {
                         Button(editMode.isEditing ? "取消选择" : "选择") {
-                            withAnimation {
+                            // 0.25.0（动效专包）：原裸
+                            // withAnimation（隐式 .default）——
+                            // 收编 swap 令牌＋resolved 出口
+                            withAnimation(
+                                MotionTokens.resolved(
+                                    MotionTokens.swap,
+                                    reduceMotion: reduceMotion
+                                )
+                            ) {
                                 editMode = editMode.isEditing
                                     ? .inactive : .active
                             }

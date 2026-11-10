@@ -32,7 +32,7 @@ struct MemoryEntriesSection: View {
                         Label("新建", systemImage: "plus")
                             .font(.subheadline.weight(.medium))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.odPressable)
                     .foregroundStyle(Palette.primary)
                     .disabled(store.memoryGateEnabled == false)
                 }
@@ -154,7 +154,7 @@ struct MemoryEntriesSection: View {
                         .font(.system(size: 14))
                         .foregroundStyle(Palette.inkMuted)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
                 .accessibilityLabel("清空搜索")
             }
         }
@@ -264,7 +264,7 @@ struct MemoryEntriesSection: View {
                     } label: {
                         entryRow(entry)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.odPressable)
                 }
             }
             .odGroup()

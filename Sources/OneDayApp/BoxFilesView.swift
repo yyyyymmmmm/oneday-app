@@ -106,7 +106,7 @@ struct BoxFilesView: View {
                                         ? Palette.ink : Palette.primary
                                 )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.odPressable)
                         .disabled(index == crumbs.count - 1)
                     }
                 }

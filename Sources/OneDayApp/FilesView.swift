@@ -58,7 +58,7 @@ struct FileSearchField: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(Palette.inkMuted)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
                 .accessibilityLabel("清空搜索")
             }
         }
@@ -471,7 +471,7 @@ struct FilesBrowserView: View {
                                     ? Palette.ink : Palette.primary
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.odPressable)
                     .disabled(index == crumbs.count - 1)
                 }
             }

@@ -191,7 +191,7 @@ struct ServerSessionsView: View {
                     .frame(minHeight: OneDayMetrics.rowHeight)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
             }
             .odGroup()
         }
@@ -209,7 +209,7 @@ struct ServerSessionsView: View {
                 } label: {
                     rowContent(session, selecting: true)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
             } else {
                 // 0.4.0（§3.4）：点会话改道聊天页续聊；本页
                 // 只保留管理面（选择/批量删/清空）
@@ -218,7 +218,7 @@ struct ServerSessionsView: View {
                 } label: {
                     rowContent(session, selecting: false)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
             }
         }
     }
@@ -327,7 +327,7 @@ struct ServerSessionsView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     /// 命中片段：带上命中角色（服务端 role 原值只译

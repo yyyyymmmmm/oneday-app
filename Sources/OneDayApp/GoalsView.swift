@@ -82,7 +82,7 @@ struct GoalsView: View {
                         } label: {
                             GoalCardView(goal: goal)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.odPressable)
                         if let note = store.notes[goal.id] {
                             Text(note)
                                 .font(.footnote)
@@ -187,7 +187,7 @@ struct MilestoneCheckRow: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 }
 
@@ -321,7 +321,7 @@ struct GoalDetailView: View {
                                 )
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.odPressable)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .padding(.vertical, OneDayMetrics.spacingSM)
@@ -461,7 +461,7 @@ struct GoalCreateView: View {
                                             )
                                             .contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.odPressable)
                                 }
                                 .padding(.horizontal, OneDayMetrics.spacingM)
                                 .padding(.vertical, OneDayMetrics.spacingSM)

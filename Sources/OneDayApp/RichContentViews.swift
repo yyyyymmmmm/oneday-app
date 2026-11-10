@@ -18,6 +18,7 @@ struct ToolCardView: View {
     /// 流式进行中（结果未回）：标题行右侧出「进行中」
     var isLive: Bool = false
     @State private var expanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let collapseLimit = 280
 
@@ -135,11 +136,21 @@ struct ToolCardView: View {
             .textSelection(.enabled)
             if needsCollapse {
                 Button(expanded ? "收起" : "展开结果") {
-                    expanded.toggle()
+                    // 0.25.0（动效专包）：展开/收起原为无
+                    // 动画硬切（卡高跳变）——走 swap 令牌
+                    // （令牌册自注 swap 含折叠展开）＋
+                    // resolved 出口，卡高平滑过渡
+                    withAnimation(
+                        MotionTokens.resolved(
+                            MotionTokens.swap, reduceMotion: reduceMotion
+                        )
+                    ) {
+                        expanded.toggle()
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(Palette.primary)
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
                 // 0.23.0（审计 C2 同批）：展开钮命中域补
                 // 到 44 高（视觉字形不变、行内左对齐）
                 .frame(minHeight: OneDayMetrics.minTapTarget)
@@ -486,7 +497,7 @@ struct FileChip: View {
                 in: RoundedRectangle(cornerRadius: 16)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 }
 

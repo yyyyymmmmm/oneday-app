@@ -112,7 +112,7 @@ struct ServerDetailView: View {
                         .frame(minHeight: OneDayMetrics.rowHeight)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.odPressable)
                     .disabled(isRetesting)
                     if let retestResult {
                         GroupDivider(inset: OneDayMetrics.spacingM)

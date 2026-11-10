@@ -527,7 +527,7 @@ struct ChatView: View {
                         )
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
                 .accessibilityLabel("会话列表")
 
                 Spacer()
@@ -589,7 +589,7 @@ struct ChatView: View {
                     )
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
                 .accessibilityLabel(
                     overviewBadgeCount > 0
                         ? "通知，\(overviewBadgeCount) 条待处理"
@@ -669,7 +669,7 @@ struct ChatView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
             .accessibilityLabel("\(appState.identityName ?? AgentName.fallback)，\(overviewStatusWord)，打开枢纽")
 
             Rectangle()
@@ -742,13 +742,25 @@ struct ChatView: View {
                     scrollToBottomButton(proxy)
                 }
                 .padding(.trailing, OneDayMetrics.spacingM)
-                .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                // 0.25.0（动效专包）：入场 scale 起点
+                // 0.85→0.9——实物不自虚空出现、入场缩放
+                // 起点 ≥0.9（Emil 审查标准 5）；高度本
+                // 身仍由下方容器 swap 动画单调驱动，缩
+                // 放只是钮本体的渲染变换、不碰布局
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
             if let errorMessage {
                 errorBanner(errorMessage)
+                    // 0.25.0（动效专包）：错误/提示条进出
+                    // 原为无过渡硬入硬出（高度跳变）——补
+                    // opacity 过渡，高度与淡入同走下方
+                    // swap 容器动画（单调无过冲，与回到底
+                    // 部钮同口径）
+                    .transition(.opacity)
             }
             if let notice {
                 noticeBar(notice)
+                    .transition(.opacity)
             }
             inputBar
         }
@@ -768,6 +780,22 @@ struct ChatView: View {
                 MotionTokens.swap, reduceMotion: reduceMotion
             ),
             value: isNearBottom
+        )
+        // 0.25.0（动效专包）：错误/提示条的显隐同走本
+        // 容器 swap 动画（与 isNearBottom 同口径同出
+        // 口）——条本体淡入淡出、容器高度同步单调滑
+        // 动，不再硬跳
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: errorMessage
+        )
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: notice
         )
     }
 
@@ -790,7 +818,7 @@ struct ChatView: View {
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .accessibilityLabel("回到底部")
     }
 
@@ -1465,7 +1493,7 @@ struct ChatView: View {
                     )
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
             .accessibilityLabel("标为已读")
         }
         .padding(OneDayMetrics.spacingM)
@@ -1566,6 +1594,7 @@ struct ChatView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("关闭")
+                .buttonStyle(.odPressable)
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.vertical, OneDayMetrics.spacingS)
@@ -1602,6 +1631,7 @@ struct ChatView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("关闭")
+                .buttonStyle(.odPressable)
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.vertical, OneDayMetrics.spacingS)
@@ -1743,7 +1773,7 @@ struct ChatView: View {
                     )
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
             .accessibilityLabel("取消引用")
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
@@ -1931,13 +1961,36 @@ private struct ComposerBarLayout: Layout {
     /// - 流式中：停止键（逻辑沿用 sendTask?.cancel()）
     /// - 有可发送内容（文字或附件）：发送箭头
     /// - 空输入：裸麦克风符号占位（无圆盘底、无描边）
-    @ViewBuilder
+    /// 0.25.0（动效专包）：三态判定收敛 Core
+    /// ComposerTrailingState（单测把守）；mic↔圆盘键的
+    /// 切换原为两视图硬切——改同槽 ZStack 交叉淡化：
+    /// 切换只发生在「空↔首字」「发送↔流式起止」的低
+    /// 频边沿（非逐键），swap 0.2 淡化在频率预算内；
+    /// 发送↔停止在圆盘键内部走 symbolEffect 形变（既
+    /// 有）、不经本淡化。Reduce Motion 时 resolved 归
+    /// 零、回硬切（瞬时）
+    private var trailingState: ComposerTrailingState {
+        ComposerTrailingState.resolve(
+            isStreaming: isStreaming, canSend: canSend
+        )
+    }
+
     private var trailingControl: some View {
-        if isStreaming || canSend {
-            sendStopButton
-        } else {
-            micButton
+        ZStack {
+            if trailingState.isDiscKey {
+                sendStopButton
+                    .transition(.opacity)
+            } else {
+                micButton
+                    .transition(.opacity)
+            }
         }
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: trailingState
+        )
     }
 
     /// 发送↔停止变形键（0.3.0 动效包，animated-icons 技

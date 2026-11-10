@@ -28,6 +28,8 @@ import SwiftUI
 /// 染文件名作单测钉死。此后本面首屏只应剩真交付物。
 struct DeliverablesView: View {
     @Environment(AppState.self) private var appState
+    // 0.25.0（动效专包）：本面动画走令牌＋resolved 出口
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 0＝文件、1＝影音内容
     @State private var segment = 0
@@ -95,18 +97,25 @@ struct DeliverablesView: View {
                 } label: {
                     headerCircleButton("line.3.horizontal")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
                 .accessibilityLabel("会话列表")
                 Spacer()
                 Button {
-                    withAnimation(.default) {
+                    // 0.25.0（动效专包）：原 withAnimation
+                    // (.default) 裸动画——收编 swap 令牌＋
+                    // resolved 出口（Reduce Motion 时瞬时）
+                    withAnimation(
+                        MotionTokens.resolved(
+                            MotionTokens.swap, reduceMotion: reduceMotion
+                        )
+                    ) {
                         searchVisible.toggle()
                         if !searchVisible { query = "" }
                     }
                 } label: {
                     headerCircleButton("magnifyingglass")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
                 .accessibilityLabel(searchVisible ? "收起搜索" : "搜索文件")
             }
             IdentityAnchor(
@@ -177,7 +186,14 @@ struct DeliverablesView: View {
     private func segmentButton(title: String, tag: Int) -> some View {
         let selected = segment == tag
         return Button {
-            withAnimation(.default) { segment = tag }
+            // 0.25.0（动效专包）：原 withAnimation(.default)
+            // 裸动画——选择指示器滑移按令牌册归 liquidSpring
+            // 档＋resolved 出口（Reduce Motion 时瞬时）
+            withAnimation(
+                MotionTokens.resolved(
+                    MotionTokens.liquidSpring, reduceMotion: reduceMotion
+                )
+            ) { segment = tag }
         } label: {
             Text(title)
                 // 0.23.0：落字阶角色 rowTitleLSemi（title3
@@ -202,7 +218,7 @@ struct DeliverablesView: View {
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .accessibilityLabel(title)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
@@ -417,7 +433,7 @@ struct DeliverablesView: View {
                         } label: {
                             MediaCell(entry: item.entry)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.odPressable)
                         .contextMenu {
                             Button(role: .destructive) {
                                 pendingDelete = item

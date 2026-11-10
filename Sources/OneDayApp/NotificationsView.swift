@@ -94,7 +94,7 @@ struct NotificationsView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .accessibilityLabel(
             item.read ? item.title : "未读，\(item.title)"
         )

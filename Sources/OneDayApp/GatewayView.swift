@@ -217,7 +217,7 @@ struct GatewayView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .disabled(isActing)
     }
 

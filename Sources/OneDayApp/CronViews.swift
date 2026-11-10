@@ -171,7 +171,7 @@ struct CronJobsView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     private func load() async {
@@ -421,7 +421,7 @@ struct CronJobDetailView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     private func runSubtitle(_ run: ServerSession) -> String {
@@ -460,7 +460,7 @@ struct CronJobDetailView: View {
                     .frame(minHeight: OneDayMetrics.rowHeight)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
             }
             .odGroup()
         }
@@ -487,7 +487,7 @@ struct CronJobDetailView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     // MARK: - 数据与动作

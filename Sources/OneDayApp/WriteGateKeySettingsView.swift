@@ -93,7 +93,7 @@ struct WriteGateKeySettingsView: View {
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
             .disabled(WriteGateKeyStatus.sanitizedForStorage(draft) == nil)
             if isReplacing {
                 GroupDivider(inset: OneDayMetrics.spacingM)
@@ -111,7 +111,7 @@ struct WriteGateKeySettingsView: View {
                     .frame(minHeight: OneDayMetrics.rowHeight)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.odPressable)
             }
         }
     }
@@ -141,7 +141,7 @@ struct WriteGateKeySettingsView: View {
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
             GroupDivider(inset: OneDayMetrics.spacingM)
             Button(role: .destructive) {
                 showRemoveConfirm = true
@@ -155,7 +155,7 @@ struct WriteGateKeySettingsView: View {
                 .frame(minHeight: OneDayMetrics.rowHeight)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
         }
     }
 

@@ -117,7 +117,7 @@ struct HubMonitorSection: View {
                             .font(.subheadline.weight(.medium))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.odPressable)
                     .foregroundStyle(Palette.primary)
                     if store.totalUnread > 0 {
                         Text("\(store.totalUnread) 条变化未读")
@@ -136,7 +136,7 @@ struct HubMonitorSection: View {
                                     .contains(monitor.id)
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.odPressable)
                         .contextMenu {
                             monitorActions(monitor)
                         }

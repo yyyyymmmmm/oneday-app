@@ -151,7 +151,7 @@ struct OverviewView: View {
                 .frame(minHeight: OneDayMetrics.minTapTarget)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.odPressable)
             .accessibilityLabel("状态详情")
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.top, OneDayMetrics.spacingM)
@@ -384,7 +384,7 @@ struct OverviewView: View {
                                 color: Palette.danger
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.odPressable)
                     }
                 }
                 .odGroup()
@@ -510,7 +510,7 @@ struct OverviewView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     private func localThreadRow(_ thread: ChatThread) -> some View {
@@ -539,7 +539,7 @@ struct OverviewView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     // MARK: - 快捷动作（IA v3 定版三项，裁定保留）
@@ -590,7 +590,7 @@ struct OverviewView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
     }
 
     private func errorSection(_ message: String) -> some View {

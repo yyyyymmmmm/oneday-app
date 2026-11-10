@@ -689,7 +689,7 @@ struct DrawerView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
         .accessibilityLabel(title)
     }
@@ -735,7 +735,7 @@ struct DrawerView: View {
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
         // 0.22.0（并排图节奏复量，审计外用户 00:29 点
         // 名）：旧形态本行自带顶距 12 叠加发丝线的顶距
@@ -818,6 +818,9 @@ struct DrawerView: View {
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("清空搜索")
+                    // 0.25.0（动效专包）：清除钮原无按钮样
+                    // 式（无按压反馈）——补 .odPressable
+                    .buttonStyle(.odPressable)
                 }
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)

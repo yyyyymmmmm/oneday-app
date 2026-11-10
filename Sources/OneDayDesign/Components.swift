@@ -193,6 +193,7 @@ public struct PrimaryButtonStyle: ButtonStyle {
     private struct PrimaryButtonBody: View {
         let configuration: Configuration
         @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
         var body: some View {
             configuration.label
@@ -211,6 +212,16 @@ public struct PrimaryButtonStyle: ButtonStyle {
                     in: RoundedRectangle(cornerRadius: OneDayMetrics.buttonCorner)
                 )
                 .opacity(configuration.isPressed ? 0.85 : 1)
+                // 0.25.0（动效专包）：按压透明原为无动画
+                // 硬切——补 press 令牌（按下即响应、触
+                // 发在 touch-down 的 isPressed 上）＋走
+                // resolved 出口（Reduce Motion 时瞬时）
+                .animation(
+                    MotionTokens.resolved(
+                        MotionTokens.press, reduceMotion: reduceMotion
+                    ),
+                    value: configuration.isPressed
+                )
         }
     }
 }
@@ -224,16 +235,35 @@ public struct SecondaryButtonStyle: ButtonStyle {
     public init() {}
 
     public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.body)
-            .foregroundStyle(Palette.ink)
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.minTapTarget)
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(cornerRadius: OneDayMetrics.buttonCorner)
-            )
-            .opacity(configuration.isPressed ? 0.7 : 1)
+        SecondaryButtonBody(configuration: configuration)
+    }
+
+    private struct SecondaryButtonBody: View {
+        let configuration: Configuration
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            configuration.label
+                .font(.body)
+                .foregroundStyle(Palette.ink)
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .frame(minHeight: OneDayMetrics.minTapTarget)
+                .background(
+                    Palette.surface,
+                    in: RoundedRectangle(cornerRadius: OneDayMetrics.buttonCorner)
+                )
+                .opacity(configuration.isPressed ? 0.7 : 1)
+                // 0.25.0（动效专包）：与主钮同改——按压
+                // 透明补 press 令牌＋resolved 出口（原为
+                // 无动画硬切）；为此由 makeBody 直出改
+                // Body 视图承载（读 Reduce Motion 环境）
+                .animation(
+                    MotionTokens.resolved(
+                        MotionTokens.press, reduceMotion: reduceMotion
+                    ),
+                    value: configuration.isPressed
+                )
+        }
     }
 }
 
