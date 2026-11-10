@@ -6982,3 +6982,21 @@ SwiftUI 尺寸协商里，父按子的理想尺寸在栈内定位，里层 flexi
 3. **删光收回**：isExpanded 判据（`!attachments.isEmpty`）与 SmoothExpand 高度动画均未动，删至空仍平滑收至 0 高。
 4. **引用块两态**：引用块单独出现时 claim 满宽、quoteBar 左起＋分隔线通栏；与附件条同现时两块同口径满宽左对齐、自上而下贴合。
 5. **失败／通知条不回退**：inputBar 两处 SmoothExpand 调用点与 SmoothExpand 本体均未改动，宽度行为原样。
+## §92 选图多选：选图口与文件口对齐（0.36.23/90 续件，2026-11-11）
+
+### 92.1 点题与定案
+
+用户 2026-11-11 03:02 真机点题「选图片只能选一个」。主线查码定案：ChatView 选图绑定是单个 `@State photoItem: PhotosPickerItem?`，PhotosPicker 单项绑定天然单选；文件导入早就是多选（`allowsMultipleSelection: true`），数据侧 `attachments` 数组与附件条都支持多个——纯属选图口没开，下游零瓶颈。
+
+### 92.2 修法
+
+- 绑定改 `[PhotosPickerItem]` 数组（`photoItems`，selectionLimit 不设）；onChange 先把绑定清空再异步批量加载——清空触发的空数组回调被 guard 挡下，防重入（与旧单选「置 nil 再加载」同构）。
+- `loadPickedPhotos` 按点选顺序逐个 `loadTransferable` 后经原 `appendImage` 入列（转 JPEG 等下游一律不动），顺序与点选一致。
+- 大小口径与文件路对齐：单张超 20MB 只报不收、不影响其余，超限张数汇总一条 notice（「有 N 张图片超过 20MB，未加入待发列表。」）。
+
+### 92.3 验收自查（代码层，真机终验在用户）
+
+1. **多张一次进来**：数组绑定一次可选多张，onChange 一次拿到整组、逐个入列，附件条同现多张（§91 满宽左对齐下横排可滚）。
+2. **顺序对**：数组顺序即点选顺序，串行 await 逐个 append，不并发乱序。
+3. **超限单张被拦不影响其余**：超 20MB 者计数跳过，其余照常入列，notice 汇总明示张数。
+4. **不重入**：清空绑定触发的第二次 onChange（空数组）被 guard 拦截，不会重复加载或清掉已入列附件。

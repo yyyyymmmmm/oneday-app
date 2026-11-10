@@ -148,7 +148,10 @@ struct ChatView: View {
     @State private var demoStreamStarted = false
     /// 0.2.1 附件与键盘：待发附件、三种选择器开关、输入焦点
     @State private var attachments: [PendingAttachment] = []
-    @State private var photoItem: PhotosPickerItem?
+    // 0.36.23 起选图多选（用户 03:02 点题）：绑数
+    // 组、一次可选多张；旧单 PhotosPickerItem 绑定
+    // 天然单选，数据侧 attachments 本就支持多个
+    @State private var photoItems: [PhotosPickerItem] = []
     @State private var showPhotoPicker = false
     @State private var showCamera = false
     @State private var showFileImporter = false
@@ -417,13 +420,15 @@ struct ChatView: View {
         // 销。0.4.0 删 topFade 的前置至此才真正补完
         .photosPicker(
             isPresented: $showPhotoPicker,
-            selection: $photoItem,
+            selection: $photoItems,
             matching: .images
         )
-        .onChange(of: photoItem) { _, item in
-            guard let item else { return }
-            photoItem = nil
-            Task { await loadPickedPhoto(item) }
+        .onChange(of: photoItems) { _, items in
+            guard !items.isEmpty else { return }
+            // 先清空再异步加载：清空触发的空数组回调
+            // 被上面的 guard 挡下，防 onChange 重入
+            photoItems = []
+            Task { await loadPickedPhotos(items) }
         }
         .fileImporter(
             isPresented: $showFileImporter,
@@ -2986,9 +2991,23 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    private func loadPickedPhoto(_ item: PhotosPickerItem) async {
-        if let data = try? await item.loadTransferable(type: Data.self) {
+    /// 多选批量加载（0.36.23）：按用户点选顺序逐个
+    /// 载入并 append，顺序不乱序；大小口径与文件路
+    /// 对齐——单张超 20MB 只报不收、不影响其余，超
+    /// 限张数汇总一条 notice 明示
+    private func loadPickedPhotos(_ items: [PhotosPickerItem]) async {
+        var oversized = 0
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self)
+            else { continue }
+            guard data.count <= 20 * 1024 * 1024 else {
+                oversized += 1
+                continue
+            }
             appendImage(data)
+        }
+        if oversized > 0 {
+            notice = "有 \(oversized) 张图片超过 20MB，未加入待发列表。"
         }
     }
 
