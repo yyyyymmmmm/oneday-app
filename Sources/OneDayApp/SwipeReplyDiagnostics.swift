@@ -15,7 +15,11 @@ import UIKit
 /// 带时刻，杀进程不丢）。读数发回路径：真机复验后
 /// 把落盘环内容经既有诊断通道回传（键 swipeReply.
 /// diagTrace），或抓统一日志同 category 段。
-final class SwipeReplyDiagnostics: NSObject {
+// @unchecked Sendable 的依据（NetworkPathObserver
+// 同款口径）：全部调用点都是主线程的 UIKit 手势回
+// 调，实例无可变状态，落盘走 UserDefaults（线程安
+// 全）；0.36.23 出包 CI 首轮实证缺此标注编不过
+final class SwipeReplyDiagnostics: NSObject, @unchecked Sendable {
     static let shared = SwipeReplyDiagnostics()
 
     private static let log = Logger(
@@ -31,18 +35,24 @@ final class SwipeReplyDiagnostics: NSObject {
     }()
 
     /// 已挂只读 target 的 ScrollView 标记键（关联对象
-    /// 随视图生死，不留悬挂引用）
-    private static var watchedKey: UInt8 = 0
+    /// 随视图生死，不留悬挂引用）；键须是稳定地址——
+    /// 旧形 static var 在 Swift 6 下是全局可变状态编
+    /// 不过，改进程级稳定指针常量（本文件临时件，撤
+    /// 除时随件消亡，不回收）
+    private static let watchedKey: UnsafeRawPointer =
+        UnsafeRawPointer(
+            UnsafeMutableRawPointer.allocate(
+                byteCount: 1, alignment: 1))
 
     /// 打点 3 的装载：给宿主 ScrollView 自己的 pan
     /// 加一个只记录 .began 时刻的 target（寄生打点、
     /// 不改其任何行为），同一 ScrollView 只挂一次
     func watchScrollPan(_ scrollView: UIScrollView) {
-        if objc_getAssociatedObject(scrollView, &Self.watchedKey) != nil {
+        if objc_getAssociatedObject(scrollView, Self.watchedKey) != nil {
             return
         }
         objc_setAssociatedObject(
-            scrollView, &Self.watchedKey, true,
+            scrollView, Self.watchedKey, true,
             .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         scrollView.panGestureRecognizer.addTarget(
             self, action: #selector(handleWatchedScrollPan(_:)))
