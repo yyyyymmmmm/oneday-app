@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// 语音输入纯逻辑层（0.36.6，DESIGN-V4 §71；规格
 /// voice-input-spec-20261110.md §3）：状态机守卫、转写
