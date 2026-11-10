@@ -234,6 +234,13 @@ final class AppState {
     /// 是 soul 解析的服务端真源，覆盖没设时自动跟随
     let agentProfileStore = AgentProfileStore()
 
+    /// 伴生探测（本包，DESIGN §110）：登录后自动探
+    /// 测伴生存在与版本（/api/companion/info），派生
+    /// 态供设置页版本组消费；触发点在 RootView（连接
+    /// 成立/回前台/冷启恢复，与设备会话同拍），派生
+    /// 与缓存口径在 Core CompanionProbe 一件
+    let companionProbe = CompanionProbeStore()
+
     /// 露脸面显示名单一出口：档案覆盖 → soul 解析名
     /// → Hermes 回落（OneDayCore.AgentDisplayName）
     var agentDisplayName: String {
