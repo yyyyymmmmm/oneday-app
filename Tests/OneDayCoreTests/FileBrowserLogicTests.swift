@@ -216,4 +216,38 @@ final class FileBrowserLogicTests: XCTestCase {
         )
         XCTAssertTrue((0...3).contains(FileBrowserLogic.tintIndex(for: other)))
     }
+
+    // MARK: 排序方向（0.36.31：系统文件页排序行方向钮）
+
+    func testSortNameDescendingReversesNameOnly() {
+        let entries = [
+            entry(name: "b.txt", size: 1, mtime: 3),
+            entry(name: "zeta", isDirectory: true),
+            entry(name: "a.txt", size: 9, mtime: 9),
+            entry(name: "alpha", isDirectory: true),
+        ]
+        let sorted = FileBrowserLogic.sorted(
+            entries, by: .name, ascending: false
+        )
+        // 目录恒在前（方向只翻文件/目录各自组内的名称序）
+        XCTAssertEqual(
+            sorted.map(\.name),
+            ["zeta", "alpha", "b.txt", "a.txt"]
+        )
+    }
+
+    func testSortModifiedAscendingPutsOldestFirst() {
+        let entries = [
+            entry(name: "new.txt", mtime: 30),
+            entry(name: "old.txt", mtime: 10),
+            entry(name: "mid.txt", mtime: 20),
+        ]
+        let sorted = FileBrowserLogic.sorted(
+            entries, by: .modified, ascending: true
+        )
+        XCTAssertEqual(
+            sorted.map(\.name),
+            ["old.txt", "mid.txt", "new.txt"]
+        )
+    }
 }

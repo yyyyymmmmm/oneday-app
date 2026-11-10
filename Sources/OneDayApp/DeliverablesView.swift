@@ -1,34 +1,43 @@
 import OneDayCore
 import OneDayDesign
 import SwiftUI
+import UIKit
 
-/// 文件格（0.20.0 第七条，底栏第四格由「应用」换
-/// 「文件」）：照用户给的 Muse 资源库页重做——顶部
-/// 身份区沿用聊天页同款（左抽屉钮／中央身份胶囊／
-/// 右搜索钮），其下大分段 [文件｜影音内容]，文件段
-/// ＝交付物列表（类型图标＋标题＋类型小字＋行尾
-/// ⋮），影音段＝媒体三列网格。
+/// 文件格（0.20.0 底栏第四格）：照用户给的 Muse 资
+/// 源库页——顶部身份区（左抽屉钮／中央身份胶囊／右
+/// 钮），其下大分段 [文件｜影音内容]。
 ///
 /// **交付物口径（用户原话：用户让做的东西做好之后
 /// 放里面的，如 PPT——不是服务器全部文件）**：数据
-/// 沿 P8（0.14.0）既有产出聚合通道，是全仓唯一现成
-/// 的「产出」信号面——/api/files（根锁 /opt/data）
-/// 扫产出根（递归 ≤3 层）＋根目录散文件，按 mtime
-/// 倒序。服务端文件全量浏览不在本页（已迁设置「管
-/// 理」服务器文件）。v1 缺口如实记 §47：产出与会话
-/// 之间无关联字段，来源只标到产出目录级；聊天内附
-/// 件（本地 imageData）与服务端工作区散件不在此面。
-/// **0.22.0 去污（视觉审计 F1，用户 00:12 实机首屏
-/// 9 行全是 state.db-wal 类服务器内脏）**：准入改
-/// Core 纯函数 DeliverableAdmission 四层把守——产
-/// 出根十→七（scratch 临时产出与 image/audio_cache
-/// 下载缓存退出本面、仍可在服务器文件里达）、根散
-/// 文件改扩展名白名单、内部名形态拦截全来源生效、
-/// 旧 deny 名单保留作第二道；拒收样本以实机 9 个污
-/// 染文件名作单测钉死。此后本面首屏只应剩真交付物。
+/// 沿 P8（0.14.0）产出聚合通道——/api/files（根锁
+/// /opt/data）扫产出根（递归 ≤3 层、600 封顶）＋根
+/// 目录散文件，全量先过 DeliverableAdmission 准入
+/// （0.22.0 去污）与敏感名单第二道（单源 Sensitive-
+/// FilePolicy.protectedNames，0.36.31 并源）。服务端
+/// 文件全量浏览不在本页（••• 菜单组3「系统文件」与
+/// 设置「管理」共用 FilesBrowserView）。
+///
+/// **0.36.31 文件页 v2（规格 files-page-design-
+/// 20261110 §4＋两附记）**：右上搜索钮撤除、改 •••
+/// 菜单收纳（组1 显示 列表/网格、组2 排序 上次打开/
+/// 上次修改/标题——页级状态 @AppStorage 持久化、两
+/// 段共用；组3 系统文件；组4 上传文件）；搜索改下拉
+/// 露出（滚动偏移触发、无新增手势件；下拉刷新因此
+/// 退役——同一拉动手势只供一主，失败态给显式重试钮
+/// 补位）；文件段网格＝双列内容卡（缩略首面＋展示标
+/// 题＋类型签，§4.3 落值）；影音段补列表态；网格态
+/// 文件段按 7 天窗分「最近/全部」（§4.5 自有口径）；
+/// 打开写本地上次打开记录（排序辅助、丢了不伤数
+/// 据，非第二真源——规格 §六切割声明）；条目菜单与
+/// 打开分流按类型走 Core FileActionPolicy（附记硬规
+/// 矩：文本类进文档阅读页并给复制文字/导出 PDF，敏
+/// 感文件在本面已被准入挡下、浏览器面另有锁定）；
+/// 聚合根新增 attachments（聊天发送的文件副本，
+/// 0.36.29 通道落点——服务端无自动过期，本面呈现＋
+/// 删除即其生命周期出口）。
 struct DeliverablesView: View {
     @Environment(AppState.self) private var appState
-    // 0.25.0（动效专包）：本面动画走令牌＋resolved 出口
+    // 动效走令牌＋resolved 出口（0.25.0 起本面口径）
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 0＝文件、1＝影音内容
@@ -41,11 +50,29 @@ struct DeliverablesView: View {
     @State private var query = ""
     @State private var searchVisible = false
     @State private var previewEntry: WorkspaceFileEntry?
+    @State private var readerEntry: WorkspaceFileEntry?
     /// 图片查看器路由（0.36.4）：图片直达查看器（系
-    /// 统 zoom 转场、源＝网格 cell 的 matched 标记），
-    /// 不再先进 FilePreviewView 预览页
+    /// 统 zoom 转场、源＝格/卡的 matched 标记），不
+    /// 再先进 FilePreviewView 预览页
     @State private var viewerRoute: ImageViewerRoute?
     @Namespace private var viewerNamespace
+    /// 上次打开记录（§4.3/§4.5 排序辅助，本地表）
+    @State private var openHistory = FileOpenHistoryStore()
+    /// 显示方式与排序：页级状态、持久化（§4.2）
+    @AppStorage("files.displayMode")
+    private var displayModeRaw = LibraryDisplayMode.list.rawValue
+    @AppStorage("files.sort")
+    private var sortRaw = LibrarySort.lastOpened.rawValue
+    @State private var uploadPickerPresented = false
+    @State private var systemFilesPresented = false
+
+    private var displayMode: LibraryDisplayMode {
+        LibraryDisplayMode(rawValue: displayModeRaw) ?? .list
+    }
+
+    private var sort: LibrarySort {
+        LibrarySort(rawValue: sortRaw) ?? .lastOpened
+    }
 
     /// 查看器集合载荷：同段图片条目＋起始索引
     private struct ImageViewerRoute: Identifiable, Hashable {
@@ -58,20 +85,30 @@ struct DeliverablesView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 identityHeader
-                segmentControl
                 if searchVisible {
-                    searchRow
+                    searchFieldRow
                 }
+                segmentControl
                 if segment == 0 {
-                    fileList
+                    filesContent
                 } else {
-                    mediaGrid
+                    mediaContent
                 }
             }
             .background(Palette.pageBG)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $previewEntry) { entry in
                 FilePreviewView(entry: entry)
+            }
+            .navigationDestination(item: $readerEntry) { entry in
+                DocumentReaderView(entry: entry)
+            }
+            .navigationDestination(
+                isPresented: $systemFilesPresented
+            ) {
+                FilesBrowserView()
+                    .navigationTitle("系统文件")
+                    .navigationBarTitleDisplayMode(.inline)
             }
             .navigationDestination(item: $viewerRoute) { route in
                 ImageViewerView(
@@ -97,7 +134,19 @@ struct DeliverablesView: View {
                 )
             }
             .task { await collect() }
-            .refreshable { await collect() }
+            .modifier(
+                FileUploadPickerModifier(
+                    appState: appState,
+                    isPresented: $uploadPickerPresented,
+                    targetDirectory: Self.uploadsPath,
+                    ensureDirectory: true
+                ) { message, confirmed in
+                    notice = message
+                    if confirmed {
+                        Task { await collect() }
+                    }
+                }
+            )
             .confirmationDialog(
                 "删除「\(pendingDelete?.entry.name ?? "")」？",
                 isPresented: Binding(
@@ -126,7 +175,7 @@ struct DeliverablesView: View {
         }
     }
 
-    // MARK: - 顶部身份区（沿用聊天页同款三件）
+    // MARK: - 顶部身份区（左抽屉钮／中央胶囊／右 •••）
 
     private var identityHeader: some View {
         ZStack {
@@ -139,23 +188,68 @@ struct DeliverablesView: View {
                 .buttonStyle(.odPressable)
                 .accessibilityLabel("会话列表")
                 Spacer()
-                Button {
-                    // 0.25.0（动效专包）：原 withAnimation
-                    // (.default) 裸动画——收编 swap 令牌＋
-                    // resolved 出口（Reduce Motion 时瞬时）
-                    withAnimation(
-                        MotionTokens.resolved(
-                            MotionTokens.swap, reduceMotion: reduceMotion
-                        )
-                    ) {
-                        searchVisible.toggle()
-                        if !searchVisible { query = "" }
+                // §4.1/§4.2：右上改 ••• 菜单钮（搜索钮
+                // 撤除）——组1 显示、组2 排序（每组单
+                // 选、当前项占对号列）、组3 系统文件、
+                // 组4 上传文件（OneDay 扩展，规格标注）
+                Menu {
+                    Section("显示") {
+                        ForEach(
+                            LibraryDisplayMode.allCases, id: \.self
+                        ) { mode in
+                            Button {
+                                displayModeRaw = mode.rawValue
+                            } label: {
+                                if mode == displayMode {
+                                    Label(
+                                        mode.label,
+                                        systemImage: "checkmark"
+                                    )
+                                } else {
+                                    Text(mode.label)
+                                }
+                            }
+                        }
+                    }
+                    Section("排序") {
+                        ForEach(
+                            LibrarySort.allCases, id: \.self
+                        ) { option in
+                            Button {
+                                sortRaw = option.rawValue
+                            } label: {
+                                if option == sort {
+                                    Label(
+                                        option.label,
+                                        systemImage: "checkmark"
+                                    )
+                                } else {
+                                    Text(option.label)
+                                }
+                            }
+                        }
+                    }
+                    Section {
+                        Button {
+                            systemFilesPresented = true
+                        } label: {
+                            Label("系统文件", systemImage: "folder")
+                        }
+                    }
+                    Section {
+                        Button {
+                            uploadPickerPresented = true
+                        } label: {
+                            Label(
+                                "上传文件",
+                                systemImage: "arrow.up.doc"
+                            )
+                        }
                     }
                 } label: {
-                    headerCircleButton("magnifyingglass")
+                    headerCircleButton("ellipsis")
                 }
-                .buttonStyle(.odPressable)
-                .accessibilityLabel(searchVisible ? "收起搜索" : "搜索文件")
+                .accessibilityLabel("文件页菜单")
             }
             IdentityAnchor(
                 // 0.36.22：名与头像收敛档案出口
@@ -163,10 +257,8 @@ struct DeliverablesView: View {
                 statusWord: appState.config == nil ? "未连接" : "在线",
                 statusColor: appState.config == nil
                     ? Palette.inkMuted : Palette.success,
-                // 0.22.0（审计 F3）：真头像注入，与聊天页
-                // 胶囊同一头像源（此前是 sparkles 占位、
-                // 切换器并排即露馅的身份双源）；0.36.22
-                // 起同源点改档案头像
+                // 真头像注入（0.22.0 审计 F3），与聊天页
+                // 胶囊同一头像源
                 avatarImage: appState.agentAvatarImage
             )
         }
@@ -186,12 +278,10 @@ struct DeliverablesView: View {
                 width: HeaderButtonSpec.diameter,
                 height: HeaderButtonSpec.diameter
             )
-            // 0.23.0（审计 T2）：与聊天页顶栏圆钮同改
-            // ——白浮纸换系统玻璃 .glassEffect(.regular)，
-            // 与同排身份胶囊同族材质；视觉盘 40 不变
+            // 与聊天页顶栏圆钮同族材质：系统玻璃
+            // .glassEffect(.regular)，视觉盘 40 不变
             .glassEffect(.regular, in: Circle())
-            // 0.23.0（命中域审计）：命中域外扩 44（视觉
-            // 盘居中不变），与聊天页顶栏钮同口径
+            // 命中域外扩 44（视觉盘居中不变）
             .frame(
                 width: OneDayMetrics.minTapTarget,
                 height: OneDayMetrics.minTapTarget
@@ -199,21 +289,42 @@ struct DeliverablesView: View {
             .contentShape(Rectangle())
     }
 
-    // MARK: - 大分段（照 Muse 资源库图自制）
+    /// 下拉露出搜索栏（§4.2）：搜当前聚合集的文件名
+    /// （本地过滤）；展开/收起由内容滚动偏移驱动（见
+    /// handleScrollOffset），不新增手势识别器
+    private var searchFieldRow: some View {
+        FileSearchField(query: $query)
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.bottom, OneDayMetrics.spacingSM)
+    }
 
-    /// 分段控件（0.36.2 按体验三件规格 §1.6 重做）：
-    /// 系统 segmented 量级不符、本页自制（偏离原生
-    /// 登记 §47）。旧形态三宗错——角色反置（轨道灰
-    /// selectionFill／药丸白 surface＋阴影浮起）、全
-    /// 面偏大（总高 60／药丸 52，源头是旧注「段高约
-    /// 63 照图复刻」的目测高估）、未选字灰化。本版
-    /// 按实测落值（SegmentedControlSpec 钉死）：轨道
-    /// ＝surface 白＋发丝边、全胶囊，总高 48；选中
-    /// 药丸＝selectionFill 灰垫、高 36、内缩 6、无
-    /// 阴影；字 17 semibold 两态皆 ink——选中区分
-    /// 只靠灰垫有无。切换＝药丸 matchedGeometry 滑
-    /// 移（弹簧走动效宪法默认档 selectionSpring，
-    /// 无手势来源零回弹）＋selection 触感（表 D）。
+    /// 下拉触发口径：内容被下拉过顶 56pt 露出搜索；
+    /// 回滚到顶且关键词为空才收起（输入态——关键词
+    /// 非空——保持展开，§4.2）
+    private func handleScrollOffset(_ y: CGFloat) {
+        if y < -56, !searchVisible {
+            withAnimation(
+                MotionTokens.resolved(
+                    MotionTokens.swap, reduceMotion: reduceMotion
+                )
+            ) { searchVisible = true }
+        } else if y > 10, searchVisible, query.isEmpty {
+            withAnimation(
+                MotionTokens.resolved(
+                    MotionTokens.swap, reduceMotion: reduceMotion
+                )
+            ) { searchVisible = false }
+        }
+    }
+
+    // MARK: - 大分段（照 Muse 资源库图自制，0.36.2 落值）
+
+    /// 分段控件：轨道＝surface 白＋发丝边、全胶囊，
+    /// 总高 48；选中药丸＝selectionFill 灰垫、高 36、
+    /// 内缩 6、无阴影；字 17 semibold 两态皆 ink——
+    /// 选中区分只靠灰垫有无（规格 §1.6 落值，Seg-
+    /// mentedControlSpec 钉死）。切换＝药丸 matched-
+    /// Geometry 滑移＋selection 触感（表 D）
     @Namespace private var segmentNamespace
 
     private var segmentControl: some View {
@@ -244,9 +355,6 @@ struct DeliverablesView: View {
             ) { segment = tag }
         } label: {
             Text(title)
-                // 字 17 semibold、两态皆 ink（规格
-                // §1.6：字号沿现行 17，只改字重与
-                // 未选色——区分只靠灰垫）
                 .font(.bodyText.weight(.semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(
@@ -255,9 +363,6 @@ struct DeliverablesView: View {
                 )
                 .background {
                     if selected {
-                        // 药丸圆角 18＝药丸高/2，Capsule
-                        // 与落值同值（SegmentedControlSpec
-                        // .pillCorner 同心口径）
                         Capsule()
                             .fill(Palette.selectionFill)
                             .matchedGeometryEffect(
@@ -273,24 +378,7 @@ struct DeliverablesView: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    private var searchRow: some View {
-        HStack(spacing: OneDayMetrics.spacingM) {
-            FileSearchField(query: $query)
-            FileUploadControl(
-                targetDirectory: Self.uploadsPath,
-                ensureDirectory: true
-            ) { message, confirmed in
-                notice = message
-                if confirmed {
-                    Task { await collect() }
-                }
-            }
-        }
-        .padding(.horizontal, OneDayMetrics.pageGutter)
-        .padding(.bottom, OneDayMetrics.spacingSM)
-    }
-
-    // MARK: - 文件段（交付物列表）
+    // MARK: - 派生集（过滤→页级排序→分组）
 
     /// App 上传落点（与 P8 同址：managed 根下专属目录）
     static var uploadsPath: String {
@@ -312,90 +400,152 @@ struct DeliverablesView: View {
         }
     }
 
-    private var fileList: some View {
+    private var mediaItems: [Deliverable] {
+        (deliverables ?? []).filter {
+            $0.entry.mediaKind != nil && matchesQuery($0)
+        }
+    }
+
+    /// 排序后的条目（Core LibraryOrdering 单源：上次
+    /// 打开＝本地记录优先、无记录 mtime 兜底）
+    private func ordered(
+        _ items: [Deliverable]
+    ) -> [WorkspaceFileEntry] {
+        LibraryOrdering.sorted(
+            items.map(\.entry), by: sort,
+            openedAt: openHistory.openedAtMap
+        )
+    }
+
+    private var sortedDocuments: [WorkspaceFileEntry] {
+        ordered(documents)
+    }
+
+    private var sortedMedia: [WorkspaceFileEntry] {
+        ordered(mediaItems)
+    }
+
+    private func deliverable(
+        for entry: WorkspaceFileEntry
+    ) -> Deliverable {
+        deliverables?.first(where: { $0.entry.path == entry.path })
+            ?? Deliverable(entry: entry, source: "")
+    }
+
+    // MARK: - 文件段
+
+    @ViewBuilder
+    private var filesContent: some View {
+        if deliverables == nil && loadError == nil {
+            loadingState
+        } else if let loadError, deliverables == nil {
+            failureState(message: loadError)
+        } else if documents.isEmpty {
+            emptyState(
+                title: query.isEmpty ? "暂无交付物" : "没有匹配的文件",
+                symbol: query.isEmpty
+                    ? "doc.text.magnifyingglass" : "magnifyingglass",
+                message: query.isEmpty
+                    ? "智能体生成的文件与定时任务产出会出现在这里。"
+                    : "换个关键词试试。"
+            )
+        } else if displayMode == .list {
+            fileListView
+        } else {
+            fileGridView
+        }
+    }
+
+    private var loadingState: some View {
+        ProgressView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 失败态带显式重试（下拉刷新退役后的补位，见页头注）
+    private func failureState(message: String) -> some View {
+        ContentUnavailableView {
+            Label("读取失败", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("重试") {
+                Task { await collect() }
+            }
+        }
+    }
+
+    private func emptyState(
+        title: String, symbol: String, message: String
+    ) -> some View {
+        ContentUnavailableView(
+            title, systemImage: symbol,
+            description: Text(message)
+        )
+    }
+
+    @ViewBuilder
+    private var noticeView: some View {
+        if let notice {
+            Text(notice)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+        }
+    }
+
+    /// 列表态：平铺不分组（§4.5——分组只在网格态）
+    private var fileListView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if deliverables == nil && loadError == nil {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, OneDayMetrics.spacingXXL)
-                } else if let loadError, deliverables == nil {
-                    EmptyState(
-                        icon: "exclamationmark.triangle",
-                        title: "读取失败",
-                        message: loadError
-                    )
-                    .padding(.top, OneDayMetrics.spacingXXL)
-                } else if documents.isEmpty {
-                    // 0.24.0：空态迁系统 ContentUnavail-
-                    // ableView 原生形态（图标/标题/副题全
-                    // 走系统默认排版），自绘 EmptyState 在
-                    // 本页退役（他页仍用，见 §51）
-                    if query.isEmpty {
-                        ContentUnavailableView(
-                            "暂无交付物",
-                            systemImage: "doc.text.magnifyingglass",
-                            description: Text(
-                                "智能体生成的文件与定时任务产出会出现在这里。"
+                VStack(spacing: 0) {
+                    ForEach(
+                        Array(sortedDocuments.enumerated()),
+                        id: \.element.id
+                    ) { index, entry in
+                        if index > 0 {
+                            GroupDivider(
+                                inset: OneDayMetrics.dividerInset
                             )
-                        )
-                        .padding(.top, OneDayMetrics.spacingXXL)
-                    } else {
-                        ContentUnavailableView(
-                            "没有匹配的文件",
-                            systemImage: "magnifyingglass",
-                            description: Text("换个关键词试试。")
-                        )
-                        .padding(.top, OneDayMetrics.spacingXXL)
-                    }
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(
-                            Array(documents.enumerated()),
-                            id: \.element.id
-                        ) { index, item in
-                            if index > 0 {
-                                GroupDivider(
-                                    inset: OneDayMetrics.dividerInset
-                                )
-                            }
-                            deliverableRow(item)
                         }
+                        deliverableRow(entry)
                     }
                 }
-                if let notice {
-                    Text(notice)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
-                        .padding(.horizontal, OneDayMetrics.pageGutter)
-                }
+                noticeView
             }
             .padding(.top, OneDayMetrics.spacingXS)
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y
+        } action: { _, newValue in
+            handleScrollOffset(newValue)
+        }
     }
 
-    /// 交付物行（照 Muse 资源库 Files 图）：类型图
-    /// 标盒＋标题（20）＋类型小字（15 灰，Deliver-
-    /// ableFileType）＋行尾 ⋮（菜单只两件：预览/分
-    /// 享）；点行本体进预览（FilePreviewView，
-    /// QuickLook）；删除留在长按菜单（与 P8 同口径，
-    /// 带确认）
-    private func deliverableRow(_ item: Deliverable) -> some View {
+    /// 文件行：类型图标盒＋展示标题（去扩展名，§4.3
+    /// 行口径修正）＋类型小字＋行尾 ⋮；⋮ 与长按同出
+    /// 一套按类型适配的动作集（FileActionPolicy 附记
+    /// 硬规矩，覆盖 §4.7 的两件旧口径）；点行按类型
+    /// 分流打开
+    private func deliverableRow(
+        _ entry: WorkspaceFileEntry
+    ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            FileIconBox(entry: item.entry)
+            FileIconBox(entry: entry)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.entry.name)
-                    // 0.23.0：行题/类型小字落字阶角色
-                    // rowTitleL/rowSubtitle（默认 20/15 等值）
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                Text(
+                    DeliverableFileType.displayTitle(
+                        forFileName: entry.name
+                    )
+                )
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
                 Text(
                     DeliverableFileType.label(
-                        forFileName: item.entry.name
+                        forFileName: entry.name
                     )
                 )
                 .font(.rowSubtitle)
@@ -404,23 +554,13 @@ struct DeliverablesView: View {
             }
             Spacer(minLength: OneDayMetrics.spacingS)
             Menu {
-                Button {
-                    openEntry(item.entry, among: documents)
-                } label: {
-                    Label("预览", systemImage: "eye")
-                }
-                Button {
-                    Task { await download(item.entry) }
-                } label: {
-                    Label("分享", systemImage: "square.and.arrow.up")
-                }
+                actionItems(for: entry, among: sortedDocuments)
             } label: {
                 Image(systemName: "ellipsis")
                     .rotationEffect(.degrees(90))
                     .font(.system(size: 18, weight: .regular))
                     .foregroundStyle(Palette.inkSecondary)
-                    // 0.22.0（审计 F4）：命中域 32→44
-                    // （字形 18 不变、行高 64 内可容纳）
+                    // 命中域 44（0.22.0 审计 F4，字形不变）
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -429,39 +569,455 @@ struct DeliverablesView: View {
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: 64)
         .contentShape(Rectangle())
-        .onTapGesture { openEntry(item.entry, among: documents) }
+        .onTapGesture {
+            openEntry(entry, among: sortedDocuments)
+        }
         .contextMenu {
-            Button {
-                Task { await download(item.entry) }
-            } label: {
-                Label("下载到本地", systemImage: "arrow.down.to.line")
+            actionItems(for: entry, among: sortedDocuments)
+        }
+    }
+
+    /// 网格态（§4.3）：双列、边距 16/列距 12/行距
+    /// 16；排序≠标题时分「最近/全部」两组（§4.5）
+    private var fileGridView: some View {
+        let sections = LibraryOrdering.grouped(
+            sortedDocuments,
+            openedAt: openHistory.openedAtMap, now: Date()
+        )
+        return ScrollView {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
+                ForEach(
+                    Array(sections.enumerated()), id: \.offset
+                ) { _, section in
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingM
+                    ) {
+                        if let title = section.title {
+                            Text(title)
+                                .font(.sectionLabel)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .padding(
+                                    .horizontal,
+                                    OneDayMetrics.spacingM
+                                )
+                        }
+                        LazyVGrid(
+                            columns: Self.cardColumns,
+                            spacing: OneDayMetrics.spacingM
+                        ) {
+                            ForEach(section.entries) { entry in
+                                fileCard(entry)
+                            }
+                        }
+                        .padding(
+                            .horizontal, OneDayMetrics.spacingM
+                        )
+                    }
+                }
+                noticeView
             }
-            Button(role: .destructive) {
-                pendingDelete = item
+            .padding(.top, OneDayMetrics.spacingM)
+            .padding(.bottom, OneDayMetrics.spacingXL)
+        }
+        .background(Palette.pageBG)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y
+        } action: { _, newValue in
+            handleScrollOffset(newValue)
+        }
+    }
+
+    private static let cardColumns = [
+        GridItem(.flexible(), spacing: OneDayMetrics.spacingSM),
+        GridItem(.flexible(), spacing: OneDayMetrics.spacingSM),
+    ]
+
+    /// 内容卡（§4.3）：预览区 112（缩略首面/类型面，
+    /// FileThumbnailStore 分档生成）＋信息条 64（展
+    /// 示标题 semibold 一行＋类型签）；卡上无 ⋮（与
+    /// 实拍一致），动作走长按菜单；图片卡带 zoom 转
+    /// 场源标记（0.36.4 衔接）
+    private func fileCard(_ entry: WorkspaceFileEntry) -> some View {
+        Button {
+            openEntry(entry, among: sortedDocuments)
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                FileThumbnailView(entry: entry, targetPixelSize: 440)
+                    .frame(height: 112)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .matchedTransitionSource(
+                        id: entry.path, in: viewerNamespace
+                    )
+                VStack(
+                    alignment: .leading, spacing: 2
+                ) {
+                    Text(
+                        DeliverableFileType.displayTitle(
+                            forFileName: entry.name
+                        )
+                    )
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    Text(typeTag(for: entry))
+                        .font(.meta)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, OneDayMetrics.spacingSM)
+                .padding(.vertical, OneDayMetrics.spacingS)
+                .frame(height: 64, alignment: .top)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(
+                Palette.surface,
+                in: RoundedRectangle(cornerRadius: 16)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Palette.separator, lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.odPressable)
+        .contextMenu {
+            actionItems(for: entry, among: sortedDocuments)
+        }
+    }
+
+    /// 类型签（§4.3）：媒体给人话词（图片/视频/音
+    /// 频）、文本类给「文本」，其余沿 Deliverable-
+    /// FileType 大写扩展名表（PDF/DOCX/PPTX/HTML…）
+    private func typeTag(
+        for entry: WorkspaceFileEntry
+    ) -> String {
+        switch entry.mediaKind {
+        case .image: return "图片"
+        case .video: return "视频"
+        case .audio: return "音频"
+        case nil: break
+        }
+        if DocumentTextKind.kind(forFileName: entry.name) != nil {
+            return "文本"
+        }
+        return DeliverableFileType.label(forFileName: entry.name)
+    }
+
+    // MARK: - 影音段
+
+    @ViewBuilder
+    private var mediaContent: some View {
+        if deliverables == nil && loadError == nil {
+            loadingState
+        } else if let loadError, deliverables == nil {
+            failureState(message: loadError)
+        } else if mediaItems.isEmpty {
+            emptyState(
+                title: query.isEmpty
+                    ? "暂无影音交付" : "没有匹配的文件",
+                symbol: query.isEmpty
+                    ? "photo.on.rectangle.angled" : "magnifyingglass",
+                message: query.isEmpty
+                    ? "智能体生成的图片、视频与音频会出现在这里。"
+                    : "换个关键词试试。"
+            )
+        } else if displayMode == .grid {
+            mediaGridView
+        } else {
+            mediaListView
+        }
+    }
+
+    private let mediaColumns = [
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2),
+    ]
+
+    /// 影音网格维持三列方形媒体格（§4.4：媒体本身即
+    /// 内容、方形格是系统相册惯例，不随文件段网格变）
+    private var mediaGridView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                LazyVGrid(columns: mediaColumns, spacing: 2) {
+                    ForEach(sortedMedia, id: \.id) { entry in
+                        Button {
+                            openEntry(entry, among: sortedMedia)
+                        } label: {
+                            MediaCell(entry: entry)
+                                // zoom 转场源标记（0.36.4）
+                                .matchedTransitionSource(
+                                    id: entry.path,
+                                    in: viewerNamespace
+                                )
+                        }
+                        .buttonStyle(.odPressable)
+                        .contextMenu {
+                            actionItems(
+                                for: entry, among: sortedMedia
+                            )
+                        }
+                    }
+                }
+                noticeView
+            }
+            .padding(.bottom, OneDayMetrics.spacingXL)
+        }
+        .background(Palette.pageBG)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y
+        } action: { _, newValue in
+            handleScrollOffset(newValue)
+        }
+    }
+
+    /// 影音列表（§4.4 新补）：56pt 缩略行——标题＋类
+    /// 型签＋大小·日期小字（服务端无时长字段，时长
+    /// 不摆、如实以大小日期代，§七同口径）
+    private var mediaListView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(spacing: 0) {
+                    ForEach(
+                        Array(sortedMedia.enumerated()),
+                        id: \.element.id
+                    ) { index, entry in
+                        if index > 0 {
+                            GroupDivider(
+                                inset: OneDayMetrics.dividerInset
+                            )
+                        }
+                        mediaRow(entry)
+                    }
+                }
+                noticeView
+            }
+            .padding(.top, OneDayMetrics.spacingXS)
+            .padding(.bottom, OneDayMetrics.spacingXL)
+        }
+        .background(Palette.pageBG)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y
+        } action: { _, newValue in
+            handleScrollOffset(newValue)
+        }
+    }
+
+    private func mediaRow(_ entry: WorkspaceFileEntry) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            ZStack {
+                FileThumbnailView(entry: entry, targetPixelSize: 168)
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                if entry.mediaKind == .video {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(
+                            Color.white, Palette.ink.opacity(0.55)
+                        )
+                        .accessibilityHidden(true)
+                }
+            }
+            .matchedTransitionSource(
+                id: entry.path, in: viewerNamespace
+            )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(
+                    DeliverableFileType.displayTitle(
+                        forFileName: entry.name
+                    )
+                )
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                Text(mediaSubtitle(entry))
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Menu {
+                actionItems(for: entry, among: sortedMedia)
             } label: {
-                Label("删除", systemImage: "trash")
+                Image(systemName: "ellipsis")
+                    .rotationEffect(.degrees(90))
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("更多操作")
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(minHeight: 64)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            openEntry(entry, among: sortedMedia)
+        }
+        .contextMenu {
+            actionItems(for: entry, among: sortedMedia)
+        }
+    }
+
+    private func mediaSubtitle(
+        _ entry: WorkspaceFileEntry
+    ) -> String {
+        let size = entry.size.map {
+            ByteCountFormatter.string(
+                fromByteCount: $0, countStyle: .file
+            )
+        }
+        let date = AdminFormat.short(entry.modifiedAt)
+        return [typeTag(for: entry), size, date]
+            .compactMap { $0 }.joined(separator: " · ")
+    }
+
+    // MARK: - 条目动作（按类型适配，附记硬规矩）
+
+    /// ⋮ 与长按共用同一动作集：FileActionPolicy.menu-
+    /// Actions 按类型出项（文本类多复制文字/导出
+    /// PDF、二进制只给分享/下载/删除），删除项红色
+    @ViewBuilder
+    private func actionItems(
+        for entry: WorkspaceFileEntry,
+        among siblings: [WorkspaceFileEntry]
+    ) -> some View {
+        ForEach(
+            FileActionPolicy.menuActions(for: entry), id: \.self
+        ) { action in
+            if action == .delete {
+                Button(role: .destructive) {
+                    pendingDelete = deliverable(for: entry)
+                } label: {
+                    Label(
+                        action.label,
+                        systemImage: action.systemImage
+                    )
+                }
+            } else {
+                Button {
+                    perform(action, on: entry, among: siblings)
+                } label: {
+                    Label(
+                        action.label,
+                        systemImage: action.systemImage
+                    )
+                }
             }
         }
     }
 
-    /// 条目打开分流（0.36.4）：图片直达查看器（集
-    /// 合＝同段全部图片、可翻页），其余仍走 File-
-    /// PreviewView（QuickLook）。文件段条目恒非图
-    /// 片（documents 已按 mediaKind 过滤），分流在
-    /// 此只对影音段实际生效、文件段同路无副作用
-    private func openEntry(
-        _ entry: WorkspaceFileEntry, among siblings: [Deliverable]
+    private func perform(
+        _ action: FileItemAction,
+        on entry: WorkspaceFileEntry,
+        among siblings: [WorkspaceFileEntry]
     ) {
+        switch action {
+        case .preview:
+            openEntry(entry, among: siblings)
+        case .copyText:
+            Task { await copyText(entry) }
+        case .exportPDF:
+            Task { await exportPDF(entry) }
+        case .share, .download:
+            // 分享与下载到本地同走系统分享单（全 App
+            // 既有口径：取回临时文件→分享单，含「存
+            // 储到文件」出口）
+            Task { await download(entry) }
+        case .delete:
+            // 删除在菜单构造处直接挂确认（actionItems），
+            // 不经本分发
+            break
+        }
+    }
+
+    /// 条目打开分流（0.36.31 按类型）：先写上次打开
+    /// 记录；图片直达查看器（集合＝同段全部图片、可
+    /// 翻页）；可读文本进文档阅读页（资料库层）；其
+    /// 余走 FilePreviewView（QuickLook）
+    private func openEntry(
+        _ entry: WorkspaceFileEntry,
+        among siblings: [WorkspaceFileEntry]
+    ) {
+        openHistory.record(path: entry.path)
         if entry.mediaKind == .image {
-            let images = siblings.map(\.entry).filter {
+            let images = siblings.filter {
                 $0.mediaKind == .image
             }
             viewerRoute = ImageViewerRoute(
                 entries: images,
                 initialIndex: images.firstIndex(of: entry) ?? 0
             )
+        } else if FileActionPolicy.opensInReader(entry) {
+            readerEntry = entry
         } else {
             previewEntry = entry
+        }
+    }
+
+    private func fetchData(
+        _ entry: WorkspaceFileEntry
+    ) async throws -> Data {
+        try await appState.performAdmin { client, config in
+            try await client.fileData(config: config, path: entry.path)
+        }
+    }
+
+    private func copyText(_ entry: WorkspaceFileEntry) async {
+        do {
+            let data = try await fetchData(entry)
+            guard let text = FileTextExtractor.plainText(
+                from: data, entry: entry
+            ) else {
+                notice = "「\(entry.name)」没能读出文字。"
+                Haptics.error()
+                return
+            }
+            UIPasteboard.general.string = text
+            notice = "已复制「\(entry.name)」的文字。"
+            Haptics.success()
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "读取文件失败，请稍后再试。"
+            Haptics.error()
+        }
+    }
+
+    private func exportPDF(_ entry: WorkspaceFileEntry) async {
+        do {
+            let data = try await fetchData(entry)
+            guard let text = FileTextExtractor.plainText(
+                from: data, entry: entry
+            ) else {
+                notice = "「\(entry.name)」没能读出文字，无法导出 PDF。"
+                Haptics.error()
+                return
+            }
+            let kind = DocumentTextKind.kind(
+                forFileName: entry.name
+            ) ?? .plain
+            let title = DeliverableFileType.displayTitle(
+                forFileName: entry.name
+            )
+            guard let pdf = DocumentPDFExporter.pdfData(
+                title: title,
+                blocks: DocumentReading.blocks(
+                    for: text, kind: kind
+                )
+            ) else {
+                notice = "导出 PDF 失败，请稍后再试。"
+                Haptics.error()
+                return
+            }
+            shareItem = try FileShareItem.write(
+                data: pdf, name: "\(title).pdf"
+            )
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "导出 PDF 失败，请稍后再试。"
+            Haptics.error()
         }
     }
 
@@ -485,72 +1041,15 @@ struct DeliverablesView: View {
         }
     }
 
-    // MARK: - 影音段（媒体三列网格）
-
-    private var mediaItems: [Deliverable] {
-        (deliverables ?? []).filter {
-            $0.entry.mediaKind != nil && matchesQuery($0)
-        }
-    }
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-    ]
-
-    private var mediaGrid: some View {
-        ScrollView {
-            if deliverables == nil && loadError == nil {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, OneDayMetrics.spacingXXL)
-            } else if mediaItems.isEmpty {
-                // 0.24.0：同文件段，迁系统 ContentUn-
-                // availableView 原生形态
-                ContentUnavailableView(
-                    "暂无影音交付",
-                    systemImage: "photo.on.rectangle.angled",
-                    description: Text(
-                        "智能体生成的图片、视频与音频会出现在这里。"
-                    )
-                )
-                .padding(.top, OneDayMetrics.spacingXXL)
-            } else {
-                LazyVGrid(columns: columns, spacing: 2) {
-                    ForEach(mediaItems) { item in
-                        Button {
-                            openEntry(item.entry, among: mediaItems)
-                        } label: {
-                            MediaCell(entry: item.entry)
-                                // zoom 转场源标记（0.36.4）：
-                                // 点开的图自本格长成查看器卡
-                                .matchedTransitionSource(
-                                    id: item.entry.path,
-                                    in: viewerNamespace
-                                )
-                        }
-                        .buttonStyle(.odPressable)
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                pendingDelete = item
-                            } label: {
-                                Label("删除", systemImage: "trash")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .background(Palette.pageBG)
-    }
-
     // MARK: - 聚合与动作（P8 通道沿用）
 
     /// 聚合各产出根（每根递归 ≤3 层、全局条目上限保
-    /// 护）＋根目录散文件，按 mtime 倒序、路径去重；
-    /// 全部条目先过 DeliverableAdmission 准入（0.22.0
-    /// 去污：形态拦截全来源、根散另过扩展名白名单）
+    /// 护）＋根目录散文件；全部条目先过 Deliverable-
+    /// Admission 准入（0.22.0 去污：形态拦截全来源、
+    /// 根散另过扩展名白名单），根散再过敏感名单第二
+    /// 道（单源 SensitiveFilePolicy，0.36.31 并源）。
+    /// 排序不在此处定案——视图层按页级排序状态走
+    /// LibraryOrdering（本函数只负责聚合集本身）
     private func collect() async {
         var found: [Deliverable] = []
         var seenPaths = Set<String>()
@@ -591,14 +1090,11 @@ struct DeliverablesView: View {
             }
         ) {
             for entry in rootListing.entries where !entry.isDirectory {
-                // 0.22.0：根散文件准入＝扩展名白名单＋形
-                // 态拦截（DeliverableAdmission）；旧 deny
-                // 名单保留作第二道（.md 白名单会放行人
-                // 格文件、靠它挡回）
                 guard DeliverableAdmission.isAdmitted(
                           name: entry.name, isRootLooseFile: true
                       ),
-                      !Self.rootDenyList.contains(entry.name)
+                      !SensitiveFilePolicy.protectedNames
+                          .contains(entry.name)
                 else { continue }
                 absorb(entry, source: "工作区根目录")
             }
@@ -608,7 +1104,7 @@ struct DeliverablesView: View {
                 try await client.files(config: config, path: nil)
             }
             if probe == nil {
-                loadError = "产出目录读取失败，请下拉重试。"
+                loadError = "产出目录读取失败，请稍后重试。"
             }
         }
         deliverables = found.sorted {
@@ -643,11 +1139,7 @@ struct DeliverablesView: View {
     /// （FileShareItem/FileShareSheet，P8 同通道）
     private func download(_ entry: WorkspaceFileEntry) async {
         do {
-            let data = try await appState.performAdmin { client, config in
-                try await client.fileData(
-                    config: config, path: entry.path
-                )
-            }
+            let data = try await fetchData(entry)
             shareItem = try FileShareItem.write(
                 data: data, name: entry.name
             )
@@ -681,25 +1173,18 @@ struct Deliverable: Identifiable {
 
 extension DeliverablesView {
     /// 产出根（路径, 来源名）——P8 实查口径起，0.22.0
-    /// 按审计 F1 策展规格收紧十→七：cache/scratch（临
-    /// 时产出）、image_cache、audio_cache（下载缓存）
-    /// 退出本面——它们的东西在设置「管理」服务器文件
-    /// 里仍可达，交付物面只认成果；uploads 为 App 上
-    /// 传落点
+    /// 按审计 F1 策展规格收紧为七；0.36.31 新增
+    /// attachments（聊天发送的文件副本落点，0.36.29
+    /// 文件真发送通道）：服务端副本无自动过期，本面
+    /// 呈现＋既有删除通道即其生命周期出口
     fileprivate static let outputRoots: [(path: String, label: String)] = [
         ("/opt/data/uploads", "App 上传"),
+        ("/opt/data/attachments", "聊天发送"),
         ("/opt/data/cache/images", "生成图片"),
         ("/opt/data/cache/documents", "生成文档"),
         ("/opt/data/cache/screenshots", "浏览器截图"),
         ("/opt/data/cache/videos", "生成的视频"),
         ("/opt/data/cache/audio", "生成的音频"),
         ("/opt/data/cron/output", "定时任务产出"),
-    ]
-
-    /// 根目录散文件的排除名单：服务端自身的配置/人
-    /// 格/状态文件，不是交付物
-    fileprivate static let rootDenyList: Set<String> = [
-        "config.yaml", ".env", "auth.json",
-        "SOUL.md", "AGENTS.md", "USER.md", "MEMORY.md", "IDENTITY.md",
     ]
 }

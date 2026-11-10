@@ -44,22 +44,36 @@ public enum FileBrowserLogic {
     /// 排序：目录恒在前；name 升序，modified/size 降序
     /// （文件面惯例，新/大在前）；同键以名称升序兜底，
     /// 保证结果稳定。目录的 size 为 nil 不参与比较。
+    /// ascending（0.36.31，系统文件页排序行方向钮）：
+    /// nil＝沿上文默认向；true/false 显式定方向——name
+    /// 降序直接反转比较，modified/size 升序改小/旧在
+    /// 前；兜底名称比较恒升序（只翻主比较向，稳定口径
+    /// 不变）。
     public static func sorted(
-        _ entries: [WorkspaceFileEntry], by key: SortKey
+        _ entries: [WorkspaceFileEntry], by key: SortKey,
+        ascending: Bool? = nil
     ) -> [WorkspaceFileEntry] {
         entries.sorted { a, b in
             if a.isDirectory != b.isDirectory { return a.isDirectory }
             switch key {
             case .name:
-                break
+                if ascending == false {
+                    return a.name.localizedStandardCompare(b.name)
+                        == .orderedDescending
+                }
             case .modified:
                 let am = a.mtime ?? 0
                 let bm = b.mtime ?? 0
-                if am != bm { return am > bm }
+                if am != bm {
+                    return ascending == true ? am < bm : am > bm
+                }
             case .size:
                 let aSize = a.size ?? -1
                 let bSize = b.size ?? -1
-                if aSize != bSize { return aSize > bSize }
+                if aSize != bSize {
+                    return ascending == true
+                        ? aSize < bSize : aSize > bSize
+                }
             }
             return a.name.localizedStandardCompare(b.name)
                 == .orderedAscending

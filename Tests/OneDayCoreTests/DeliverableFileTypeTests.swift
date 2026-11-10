@@ -16,4 +16,33 @@ final class DeliverableFileTypeTests: XCTestCase {
         XCTAssertEqual(DeliverableFileType.label(forFileName: "README"), "文件")
         XCTAssertEqual(DeliverableFileType.label(forFileName: ".env"), "文件")
     }
+
+    // MARK: 展示标题（0.36.31 §4.3：去扩展名、尾巴进类型签）
+
+    func testDisplayTitleStripsExtension() {
+        XCTAssertEqual(
+            DeliverableFileType.displayTitle(forFileName: "复盘.docx"),
+            "复盘"
+        )
+        XCTAssertEqual(
+            DeliverableFileType.displayTitle(forFileName: "报告.pdf"),
+            "报告"
+        )
+        // 双扩展只去末段，与类型签 GZ 对位
+        XCTAssertEqual(
+            DeliverableFileType.displayTitle(forFileName: "a.tar.gz"),
+            "a.tar"
+        )
+    }
+
+    func testDisplayTitleKeepsExtensionlessAndDotfiles() {
+        XCTAssertEqual(
+            DeliverableFileType.displayTitle(forFileName: "README"),
+            "README"
+        )
+        XCTAssertEqual(
+            DeliverableFileType.displayTitle(forFileName: ".env"),
+            ".env"
+        )
+    }
 }
