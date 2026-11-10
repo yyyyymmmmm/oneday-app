@@ -4339,3 +4339,79 @@ X1 设置页行题与苹果设置并排：同为 17 regular 观感、行图标�
 ### 52.7 真机终审项（Y 系列）
 Y1 按压手感抽查：抽屉导航行/管理行、设置任意行、枢纽行、总览卡——按下即回落（不等抬手）、松手回弹，无「点了没反应」感；Y2 发送舱右端：空输入麦克风→打出首字淡化成发送箭头、发送后圆盘内变停止键、流结束回落，全程无硬跳；Y3 错误/提示条：断网发送触发错误条——淡入＋底栏平滑长高，点 ✕ 淡出收起；Y4 回到底部钮：上滑后淡入带轻放（0.9 起）出现、点按回底；Y5 思考块：正文起流时自动收起为平滑滑动（不再突然消失）、点标题行重展、chevron 翻转有形变感；Y6 工具卡长结果展开/收起平滑长高收回；Y7 文件页：搜索框开关顺滑、分段切换白面滑移；Y8 管理页「选择」进出编辑模式顺滑；Y9 减弱动态效果开：Y2–Y8 全部变瞬时切换（无滑动无缩放）、抽屉拖动仍 1:1 跟手、松手瞬时到位；Y10 主按钮（连接/保存）：按压透明柔和过渡、不硬闪。
 - 交付实录：功能提交 d0804c3，CI 42743391015 success，Executed 451 tests, 0 failures（447 基线＋MotionGateTests 4 新增、零删测零改值）；IPA 4,870,215 字节、md5 dbaa7ebf4620fa19270a2ad05cd86c23、独立解包验 Info.plist＝0.25.0/54、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.25.0/OneDay-0.25.0.ipa。施工期生产零写请求；未自截真机图；§14 十条/MotionTokens 九支数值零改动（冲突五项登记 52.5 待拍板）。
+
+## 53. 外观页专包（0.26.0/55）
+
+用户 2026-11-10 10:28 令：外观页对标 Muse 外观页截图（88771D9E），由「只剩模式三档」的 0.4.0 占位结构重做为四件套，全部真功能真持久化。机制定案（施工前）：主题＝Palette 级变体单一真源（Core ChatThemes 注册表），Palette 六个主题角色改计算型令牌、求值时现读 UserDefaults；RootView 与 ChatView 观察 chatTheme/avatarSize 两键触发重渲。色值全表经 WCAGContrast 同式脚本校准后落码，闸进单测。
+
+### 53.1 四件套落值表
+
+| 件 | 落法 | 落值 |
+|---|---|---|
+| 实时预览 | List 首节白卡（行盒 12）内迷你聊天框：头像＋名签胶囊、用户泡×2（148×44/108×30）、助手条泡（188×30）、灰卡块（205×58），空白形状无假文字 | 框圆角 containerCorner 23、内距 spacingM 16、描边＝当前主题强调色（预览明暗档）50% 1.5pt；框内 .environment(\.colorScheme, 预览档) 局部演示：预览档＝模式显式选浅/暗按所选、跟随系统按当前系统；页底走 Palette.pageBG 按演示档解析、助手泡走 Palette.bubbleFill；用户泡/描边走主题表显式取档色（traits 解析在局部环境内不可靠的位以显式色兜底） |
+| 聊天主题 | 横滑色板（ScrollView 横排、行盒 左 20/右 0、格距 14）＋44pt 圆（命中域 48） | 默认「三狗」以头像图为样、余 7 款以气泡色（预览明暗档）填充；选中＝Palette.primary 描边环 2.5pt＋泡字色对勾 13 bold；点按经 MotionTokens.resolved(swap) 写 AppStorage(chatTheme)，即时全 App 生效 |
+| 虚拟形象大小 | 原生 Menu 行（Menu 内嵌 Picker＝系统菜单勾选形态）：头像图槽 iconSlot 30＋题 rowTitleL＋当前档名 inkSecondary＋chevron.up.chevron.down | 档位：小 24/中 28/大 34（胶囊，中档＝现行 28 锚）；空态 48/56/68（胶囊×2）；作用面见 53.4 |
+| 模式 | 三行自定义勾选行（图标槽宽占位对齐、题 rowTitleL、行高 settingsRowHeight 60、选中行尾 Palette.primary 对勾 .body semibold） | 写既有键 appearanceMode，RootView preferredColorScheme 链与 AppearanceMode 枚举零改动；老用户已选值不重置（键名 0.4.0 沿用、不改名不迁移） |
+| 页面规范 | List(.insetGrouped)＋settingsBG＋组距 settingsSectionSpacing 28＋行盒（横 20/纵 0，与设置首页 settingsRowInsets 同值复刻）＋分区头 sectionLabel(Footnote 13)/inkSecondary/.textCase(nil)（settingsHeader 同口径复刻）＋新行全 .odPressable、裸动画 0、.plain 0 | 标题 .inline「外观」（推送页系统惯例，设置首页 .large 大标题不动） |
+
+### 53.2 主题色值全表（浅泡/浅泡字/暗泡/暗泡字/浅强调/暗强调/浅弱面/暗弱面＋实算对比）
+
+对比以 WCAGContrast 同式实算：泡字列＝泡字对同档气泡、强调列＝强调对页底（浅 #FCFCFC/暗 #101619）。全款四项 ≥4.74，闸由 ChatThemeTests 钉（≥4.5）。
+
+| 主题 | 气泡浅 | 泡字浅 | 气泡暗 | 泡字暗 | 强调浅 | 强调深 | 弱面浅 | 弱面暗 | 泡字对比 浅/暗 | 强调对比 浅/暗 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 三狗 sangou（默认） | C8E7FF | 11191C | 1473C8 | FFFFFF | 1473C8 | 5EB1EF | EDF7FD | 16242E | 13.84/4.87 | 4.74/7.83 |
+| 浅蓝 iceBlue | D9EEFC | 14324E | 1D5FA8 | FFFFFF | 1F6FC4 | 7FB8F0 | EAF5FD | 152736 | 11.02/6.45 | 4.96/8.70 |
+| 曜黑 obsidian | 23272B | FFFFFF | 2C3138 | FFFFFF | 23272B | C9D1D9 | ECEEF0 | 1E2429 | 15.04/13.10 | 14.66/11.82 |
+| 米灰 greige | E7DED2 | 46392A | 6B5B45 | FFF7EA | 84643F | C9A87C | F4EEE5 | 262019 | 8.40/6.16 | 5.28/8.15 |
+| 天蓝 skyBlue | A9D6F8 | 103A5E | 1663AC | FFFFFF | 0B74BC | 6FB3EE | E3F1FD | 132636 | 7.64/6.15 | 4.83/8.13 |
+| 浅紫 lavender | DCD2F5 | 3B2A63 | 5E4FA3 | FFFFFF | 6440C8 | A78BFA | F0EEFA | 221F31 | 8.59/6.72 | 6.58/6.71 |
+| 粉 pink | FBD3E4 | 6E2147 | 9E3565 | FFFFFF | BC3A78 | F28BBD | FDEDF4 | 2C1A22 | 7.88/6.66 | 5.10/8.00 |
+| 蜜桃 peach | FBE0C3 | 65350F | 9E5A1C | FFFFFF | AC5A12 | F5A95C | FDF0DF | 2B2113 | 8.00/5.34 | 4.84/9.31 |
+
+默认行映射钉：三狗行气泡/强调/弱面三组与 0.25.0 前 Palette 旧值逐字相同（ChatThemeTests.testDefaultThemeMatchesLegacyPalette 钉），切回默认即回原貌。**全表唯一旧值修正**：暗档泡字——旧呈现为 bodyInk 暗档反演墨 #EDF1F3、对暗泡 #1473C8 实算 4.28 压线（且 onPrimary 暗档同值骑 primaryPale 暗档同病），本版泡字暗档改纯白 #FFFFFF（4.87），onPrimary 随泡字行同改；浅档零变化。
+
+### 53.3 强调位应用清单（跟/不跟）
+
+跟主题走（经 Palette 主题化令牌，默认值＝三狗行时呈现与旧版逐字相同）：
+- Palette.primary（→主题强调行）：全 App 自绘强调唯一源——链接与消息内链接、选中态与勾选、未读/计数角标填充、光标 caret、开关与进度类强调，实查 24 处/17 文件。
+- Palette.primaryFill（→强调行，与 primary 同值别名化）：令牌主题化；实查当前无视图直接消费（仅 DesignTokens 注释提及），保留别名防未来位漂移。
+- Palette.primaryPale（→主题气泡行）：主按钮面、发送钮圆盘等浅填充面（4 处）——其令牌本义即「与用户泡同源的主填充蓝」，本版把同源关系落成字面同值。
+- Palette.primaryTint（→主题弱面行）：强调语境弱填充——图标盒/附件牌/身份位底（5 处）。
+- Palette.userBubbleFill＋新增 userBubbleText（→气泡行＋泡字行）：聊天页用户气泡底与正文字（本版将气泡正文字由 bodyInk 改走 userBubbleText，助手侧 bodyInk 不动）。
+- Palette.onPrimary（→泡字行）：骑 primaryPale 的两面——发送钮箭头、主按钮字（3 处）。
+
+明确不跟（及理由）：
+- 界面底色与文字基线（pageBG/surface/settingsBG/chatSurface/bubbleFill 助手泡/ink/bodyInk/inkSecondary/inkSecondaryOnFill/inkMuted/hairline/selectionFill/scrim）：冷中性基线，简报明令不许动——主题只染气泡与强调，界面不许被染花。
+- pastel 点缀家族（tintSky/tintGreen/tintLavender/tintOrange）：内容类别色（文件类型/监控分类的语义区分），与聊天主题无关；注：其中 tintSky/tintLavender/tintOrange 的色值与三款主题的弱面行巧合相同——那是 OpenMuse 原色板同源之故，令牌本体独立、不随主题变。
+- success/warning/danger：语义状态色，跨主题恒义。
+- 根 .tint(.primary)（系统 label 色）：0.5.2 定版，系统控件着色不涉 Palette.primary。
+- codeFill/代码面、文件类型真色块（0.22.0 定版 W/P/X/PDF 品牌色）：内容本色，不染。
+
+### 53.4 形象大小作用面与同源顺带登记
+
+- 聊天胶囊头像（ChatView capsuleRow 硬编码 28→avatarTier.capsulePointSize）：ViewThatFits 双档（showName true/false）皆只换头像边长；名字 .headline＋fixedSize＋胶囊 hug 宽随内容、状态/模型段 fixedSize——头像 24↔34 只改胶囊总宽 ±10、不触发档位切换条件变化之外的截断（构造论证；真机终判 Z3）。
+- 聊天空态形象（currentThread==nil 分支）：SF 符号 bubble.left.and.bubble.right 26pt 退役→SangouPartner 头像按 emptyStatePointSize（48/56/68）圆裁＋hairline 描边；两行字（§5 口径）原样保留。此项使空态视觉重量大于 §5「小图标」旧口径——系用户本令点名的作用面，覆盖关系在此登记。
+- **同源顺带（简报两命名面之外）**：IdentityAnchor（总览/文件页顶栏锚，Components.swift）头像与 sparkles 占位边长 28→同档 capsulePointSize——0.22.0 F3 已定版「同一头像三面同源、并排即露馅」，只改聊天胶囊必再造双源，故同轮同档处理，在此明示登记。
+- 不在辖区：枢纽页 110 大头像（品牌呈现面）、连接页吉祥物、抽屉名字头——不动。
+
+### 53.5 偏离与差异登记
+
+1. 分区头：参考图约 15pt 灰 vs 本页 Footnote 13＋inkSecondary——守 0.24.0 角色表定版，不为单页破例（简报已预登记）。
+2. 预览名签：参考图为头像下缘重叠的白色小胶囊（底带浅描边环）——本页以 VStack 负间距 -5 复刻重叠形态，字 caption2 semibold；像素级对位归 Z1 真机判。
+3. 主题切换的跨页即时性：聊天页与根层有显式观察（必即时）；其余页面（总览/文件/枢纽等）的强调色在其下一次重渲/出现时刷新——SwiftUI 树重渲语义内，无独立广播机制，不冒充全树瞬时。
+4. primaryTint 暗档：旧为蓝 22% 透明叠底的随底等效色，本版取主题暗泡实色——默认主题下暗档呈现与旧版有可感差异（更实），系主题化必然，登记备查。
+5. §14 十条/MotionTokens 九支数值零改动（本包唯一动效＝主题/模式写入点经 resolved(swap) 出口）；版本源五处同改 0.26.0/55＋grep 验；施工期生产零写请求；未自截真机图。
+
+### 53.6 真机终审项（Z 系列）
+
+Z1 外观页全貌对图（参考 88771D9E）：四组分区序与命名、预览框形态（头像＋名签重叠、泡位、卡块、主题色描边）、色板横滑与选中环＋勾、形象行菜单形态、模式三行行尾勾——逐项与参考图并排判。
+Z2 预览实时性：依次改主题/形象档/模式三组，预览的气泡色、头像大小、明暗须逐项当场变；模式选「深色」时全 App 变暗之外，预览框演示档与之同向。
+Z3 形象三档回归：大档 34 时聊天胶囊名字不断行不截断、状态词与模型短名正常；小档 24 时胶囊不塌；空态头像随档 48/56/68；总览/文件页顶栏锚头像同档跟随（同源顺带验收）。
+Z4 主题真生效：任选一非默认主题（如粉/曜黑）→返回聊天页：用户气泡底与字色、发送钮与主按钮面、链接与选中色当场换色；切回「三狗」与 0.25.0 观感逐面一致（默认行零漂移验收）。
+Z5 深色模式下全主题抽查：暗档气泡字可读（尤其三狗暗泡白字）、色板填充切暗档色、预览框暗档演示正常。
+Z6 持久化：杀进程重开，三组选择保持；模式为跟随系统时改系统明暗，App 与预览同向跟随。
+Z7 减弱动态效果开：主题/模式切换变瞬时、无残余动画。
+Z8 形象行 Menu：点开为系统菜单、三档带勾在当前档、选手感与系统设置一致。
+
+- 交付实录：功能提交 3b8b423，CI 42745926878 success，Executed 459 tests, 0 failures（451 基线＋ChatThemeTests 8 新增、零删测零改值）；IPA 4,926,466 字节、md5 bb58277b09ba7851ae75b428869181af、独立解包验 Info.plist＝0.26.0/55、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.26.0/OneDay-0.26.0.ipa。
