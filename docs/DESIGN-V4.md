@@ -4663,3 +4663,10 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - EE6 工具卡对账：带工具调用的一轮落定后，工具卡与管理页 transcript 一致（张数/成败），无直播半截卡残留。
 - EE7 叠发守卫：上一轮未落定（切后台刚回来对账中）时发新消息——被拦下并提示「上一条还在生成中…」，旧轮落定后可正常发送。
 - EE8 模型面回归：三候选（flash/v4-pro/Qwen）各发一轮可正常落定（Qwen 以渠道恢复为前提，渠道停用时应得服务端失败原文而非客户端网络错误）。
+
+### 58.5 交付实录
+
+- 功能提交 458f6a6＋测试修正两笔（72a9918 相位比较关联值、e940d3a 提交中流断归未知——均为测试对齐状态机转移表，实现未改）；CI 42768305956 success，Executed 563 tests, 0 failures（528 基线－StreamRecoveryTests 6＋RunTurnTests 40，净增 35）。
+- IPA：5,164,319 字节、md5 ea044f360e00e75e41cb9c1c88879b9f、独立解包验 Info.plist＝0.31.0/60、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.31.0/OneDay-0.31.0.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION／CURRENT_PROJECT_VERSION／CFBundleShortVersionString／CFBundleVersion）＋SettingsView 页脚「OneDay v0.31.0」。
+- 施工期生产零写（仅阶段 A 探针：两条 oneday-probe-run* 会话已归档复验；write-gate 待审批一条 staged 未落库，见 58.2）；未自截真机图；EE1–EE8 待真机终审。
