@@ -144,17 +144,44 @@ final class DeviceSessionController {
     // MARK: - 权限与开关（详情页/总览页驱动）
 
     /// 重读系统权限；变了且会话在线就重注册（桥侧权
-    /// 限快照跟着更新，下一次注册即生效——设计档口径）
+    /// 限快照跟着更新，下一次注册即生效——设计档口径）。
+    /// 0.36.18 收敛：记录型五件的「允许调用」不再有
+    /// 独立开关——每次重读时一律对齐真实权限（授权
+    /// 即可调用、权限关即不可调用），0.36.16 的同步
+    /// 开关镜像与启动对齐都收进这一处；健康/家庭不
+    /// 在此列（批二未接线、恒关）
     func refreshPermissions() {
         let fresh = DevicePermissions.currentStates()
-        guard fresh != permissions else { return }
+        var changed = fresh != permissions
         permissions = fresh
-        if machine.isOnline { beginRegister() }
+        for dataset in DeviceSyncDataset.allCases {
+            let want = DeviceSyncControl.agentCanQuery(
+                permission: fresh[dataset.sourceID] ?? .notDetermined
+            )
+            if agentCallEnabled[dataset.sourceID] != want {
+                agentCallEnabled[dataset.sourceID] = want
+                DevicePreferences.setAgentCallEnabled(
+                    dataset.sourceID, want
+                )
+                changed = true
+            }
+        }
+        if changed, machine.isOnline { beginRegister() }
     }
 
-    /// 申请某件的系统权限（用到才问：详情页「开启」
-    /// 触发，绝不在启动时一揽子索权）
+    /// 申请某件的系统权限（用到才问：详情页开关拨
+    /// 开时触发，绝不在启动时一揽子索权）。授权铁
+    /// 律在本口落死：先同步读现态，只有真未决定才
+    /// 发那一次请求——已决定（已授权/已拒绝/受限）
+    /// 一律只重读状态，绝不重走异步请求回调
     func requestAccess(for source: DeviceSourceID) async {
+        if DeviceSyncDataset.fromSource(source) != nil,
+           DevicePermissions.currentStates()[source]
+            != .notDetermined
+        {
+            refreshPermissions()
+            return
+        }
         switch source {
         case .calendar:
             _ = await dispatcher.events.requestCalendarAccess()

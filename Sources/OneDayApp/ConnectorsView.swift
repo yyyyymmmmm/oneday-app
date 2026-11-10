@@ -369,13 +369,17 @@ struct ConnectorsView: View {
                 sessionOnline: appState.deviceSession.sessionOnline,
                 metric: deviceMetrics[descriptor.sourceID],
                 // 0.36.14：同步件在行尾拼同步段（副本条
-                // 数＋新到什么时候，Core 同口径组装）
+                // 数＋新到什么时候，Core 同口径组装）；
+                // 0.36.18 起授权态只认真实权限
                 syncSegment: dataset.map {
                     DeviceSyncPresentation.segment(
                         dataset: $0,
                         status: appState.deviceSync.statuses[$0],
-                        syncEnabled: appState.deviceSync
-                            .isSyncEnabled($0),
+                        authorized: DeviceSyncControl.agentCanQuery(
+                            permission: appState.deviceSession
+                                .permissions[descriptor.sourceID]
+                                ?? .notDetermined
+                        ),
                         now: Date()
                     )
                 },

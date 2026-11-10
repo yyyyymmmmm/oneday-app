@@ -280,10 +280,12 @@ final class DeviceSyncTests: XCTestCase {
 
     func testPlannerDecisions() {
         let now = date(2026, 11, 10, 12, 0)
+        // 0.36.18：唯一门是权限——没有第二个开关
+        // 参与判定（blockedSwitchOff 已退役）
         XCTAssertEqual(
             DeviceSyncPlanner.foregroundDecision(
                 dataset: .contacts, permissionUsable: false,
-                syncEnabled: true, lastSuccessAt: nil,
+                lastSuccessAt: nil,
                 pendingWrite: false, now: now
             ),
             .blockedPermission
@@ -291,15 +293,7 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPlanner.foregroundDecision(
                 dataset: .contacts, permissionUsable: true,
-                syncEnabled: false, lastSuccessAt: nil,
-                pendingWrite: false, now: now
-            ),
-            .blockedSwitchOff
-        )
-        XCTAssertEqual(
-            DeviceSyncPlanner.foregroundDecision(
-                dataset: .contacts, permissionUsable: true,
-                syncEnabled: true, lastSuccessAt: nil,
+                lastSuccessAt: nil,
                 pendingWrite: false, now: now
             ),
             .sync, "从未同步过恒到期"
@@ -307,7 +301,6 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPlanner.foregroundDecision(
                 dataset: .contacts, permissionUsable: true,
-                syncEnabled: true,
                 lastSuccessAt: date(2026, 11, 10, 11, 50),
                 pendingWrite: false, now: now
             ),
@@ -316,7 +309,6 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPlanner.foregroundDecision(
                 dataset: .contacts, permissionUsable: true,
-                syncEnabled: true,
                 lastSuccessAt: date(2026, 11, 10, 11, 50),
                 pendingWrite: true, now: now
             ),
@@ -325,7 +317,6 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPlanner.foregroundDecision(
                 dataset: .motion, permissionUsable: true,
-                syncEnabled: true,
                 lastSuccessAt: date(2026, 11, 10, 11, 30),
                 pendingWrite: false, now: now
             ),
@@ -334,11 +325,42 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPlanner.foregroundDecision(
                 dataset: .motion, permissionUsable: true,
-                syncEnabled: true,
                 lastSuccessAt: date(2026, 11, 10, 10, 59),
                 pendingWrite: false, now: now
             ),
             .sync, "步数满 1 小时到期"
+        )
+    }
+
+    func testPlannerChangePendingBypassesThrottle() {
+        let now = date(2026, 11, 10, 12, 0)
+        // 系统变更记号在手：节流期内也立即对账
+        XCTAssertEqual(
+            DeviceSyncPlanner.foregroundDecision(
+                dataset: .contacts, permissionUsable: true,
+                lastSuccessAt: date(2026, 11, 10, 11, 59),
+                pendingWrite: false, changePending: true, now: now
+            ),
+            .sync, "1 分钟前刚同步过，有变更记号仍立即对账"
+        )
+        // 变更记号不越权限门
+        XCTAssertEqual(
+            DeviceSyncPlanner.foregroundDecision(
+                dataset: .contacts, permissionUsable: false,
+                lastSuccessAt: nil,
+                pendingWrite: false, changePending: true, now: now
+            ),
+            .blockedPermission
+        )
+        // 步数没有系统变更通知：changePending 恒假、
+        // 仍走 1 小时节流（此处只钉判据形状）
+        XCTAssertEqual(
+            DeviceSyncPlanner.foregroundDecision(
+                dataset: .motion, permissionUsable: true,
+                lastSuccessAt: date(2026, 11, 10, 11, 30),
+                pendingWrite: false, changePending: false, now: now
+            ),
+            .skipThrottled
         )
     }
 
@@ -485,19 +507,20 @@ final class DeviceSyncTests: XCTestCase {
 
     func testSegmentLines() {
         let now = date(2026, 11, 10, 12, 0)
+        // 0.36.18：没有副本时只报权限侧事实
         XCTAssertEqual(
             DeviceSyncPresentation.segment(
                 dataset: .contacts, status: nil,
-                syncEnabled: false, now: now, calendar: utc
+                authorized: false, now: now, calendar: utc
             ),
-            "同步未开"
+            "未授权"
         )
         XCTAssertEqual(
             DeviceSyncPresentation.segment(
                 dataset: .contacts, status: nil,
-                syncEnabled: true, now: now, calendar: utc
+                authorized: true, now: now, calendar: utc
             ),
-            "同步已开 · 还没有同步"
+            "还没有同步"
         )
         let status = DeviceSyncDatasetStatus(
             dataset: .contacts, synced: true,
@@ -511,98 +534,121 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPresentation.segment(
                 dataset: .contacts, status: status,
-                syncEnabled: true, now: now, calendar: utc
+                authorized: true, now: now, calendar: utc
             ),
             "已同步 156 人 · 今天 09:41"
+        )
+        // 有副本就如实报副本：权限关掉后桥状态带撤
+        // 销记号，段文跟着如实标——不许因本地未授
+        // 权就把已存在的副本说成没有
+        let revoked = DeviceSyncDatasetStatus(
+            dataset: .contacts, synced: true,
+            syncedAt: date(2026, 11, 10, 9, 41),
+            freshness: nil, expired: false, itemCount: 156,
+            authRange: "full", permissionState: "revoked",
+            pendingWrite: false, syncing: false, lastError: nil,
+            coverageStart: nil, coverageEnd: nil,
+            reminderTodayCompleted: nil, reminderOverdueAtSync: nil
+        )
+        XCTAssertEqual(
+            DeviceSyncPresentation.segment(
+                dataset: .contacts, status: revoked,
+                authorized: false, now: now, calendar: utc
+            ),
+            "已同步 156 人 · 今天 09:41 · 权限已撤销"
         )
         XCTAssertEqual(
             DeviceSyncPresentation.rangeLine(status), "全部"
         )
     }
 
-    // MARK: - 一开关映射（0.36.16）
+    // MARK: - 权限开关映射（0.36.18）
 
-    func testOneSwitchAgentCanQueryTruthTable() {
-        // 开＝权限可用才可查；关＝一律不可用
+    func testPermissionSwitchIsOnTruthTable() {
+        // 开关只认真实权限：可用两档呈开、其余呈关
+        XCTAssertTrue(DeviceSyncControl.switchIsOn(.granted))
+        XCTAssertTrue(DeviceSyncControl.switchIsOn(.limited))
+        XCTAssertFalse(DeviceSyncControl.switchIsOn(.notDetermined))
+        XCTAssertFalse(DeviceSyncControl.switchIsOn(.denied))
+        XCTAssertFalse(DeviceSyncControl.switchIsOn(.restricted))
+        XCTAssertFalse(DeviceSyncControl.switchIsOn(.writeOnly))
+    }
+
+    func testAgentCanQueryFollowsPermissionOnly() {
+        // 0.36.18：供给判据收敛为权限一源（双因子
+        // 判据退役）——授权即可查、权限关即停供
         XCTAssertTrue(DeviceSyncControl.agentCanQuery(
-            permission: .granted, syncEnabled: true
+            permission: .granted
         ))
         XCTAssertTrue(DeviceSyncControl.agentCanQuery(
-            permission: .limited, syncEnabled: true
+            permission: .limited
         ))
         XCTAssertFalse(DeviceSyncControl.agentCanQuery(
-            permission: .granted, syncEnabled: false
+            permission: .denied
         ))
         XCTAssertFalse(DeviceSyncControl.agentCanQuery(
-            permission: .denied, syncEnabled: true
+            permission: .notDetermined
         ))
         XCTAssertFalse(DeviceSyncControl.agentCanQuery(
-            permission: .notDetermined, syncEnabled: true
+            permission: .writeOnly
         ))
         XCTAssertFalse(DeviceSyncControl.agentCanQuery(
-            permission: .writeOnly, syncEnabled: true
-        ))
-        XCTAssertFalse(DeviceSyncControl.agentCanQuery(
-            permission: .restricted, syncEnabled: true
+            permission: .restricted
         ))
     }
 
-    func testEnableActionMapping() {
+    func testToggleActionMapping() {
+        // 拨开：已授权兜底 alreadyOn；未决定发那一
+        // 次请求；已决定不可用去设置（不重走请求）
         XCTAssertEqual(
-            DeviceSyncControl.enableAction(for: .granted), .enable
+            DeviceSyncControl.toggleOnAction(for: .granted),
+            .alreadyOn
         )
         XCTAssertEqual(
-            DeviceSyncControl.enableAction(for: .limited), .enable
+            DeviceSyncControl.toggleOnAction(for: .limited),
+            .alreadyOn
         )
         XCTAssertEqual(
-            DeviceSyncControl.enableAction(for: .notDetermined),
+            DeviceSyncControl.toggleOnAction(for: .notDetermined),
             .requestPermission
         )
         XCTAssertEqual(
-            DeviceSyncControl.enableAction(for: .denied),
+            DeviceSyncControl.toggleOnAction(for: .denied),
             .openSettings
         )
         XCTAssertEqual(
-            DeviceSyncControl.enableAction(for: .restricted),
+            DeviceSyncControl.toggleOnAction(for: .restricted),
             .openSettings
         )
         XCTAssertEqual(
-            DeviceSyncControl.enableAction(for: .writeOnly),
+            DeviceSyncControl.toggleOnAction(for: .writeOnly),
             .openSettings
+        )
+        // 拨关：恒去设置（App 关不掉系统权限）
+        XCTAssertEqual(
+            DeviceSyncControl.toggleOffAction(), .openSettings
         )
     }
 
-    func testPermissionStatusText() {
+    func testPermissionEnableSequenceOrder() {
+        // 先落账 → 发请求 → 授权到手起同步
         XCTAssertEqual(
-            DeviceSyncControl.permissionStatusText(.granted), "已授权"
-        )
-        XCTAssertEqual(
-            DeviceSyncControl.permissionStatusText(.limited),
-            "已授权 · 部分"
-        )
-        XCTAssertEqual(
-            DeviceSyncControl.permissionStatusText(.notDetermined),
-            "未授权"
-        )
-        XCTAssertEqual(
-            DeviceSyncControl.permissionStatusText(.denied),
-            "未授权 · 去设置"
-        )
-        XCTAssertEqual(
-            DeviceSyncControl.permissionStatusText(.writeOnly),
-            "仅写入 · 去设置"
-        )
-        XCTAssertEqual(
-            DeviceSyncControl.permissionStatusText(.restricted),
-            "受限制"
+            DeviceSyncControl.permissionEnableSequence,
+            [.logEnabling, .requestPermission, .startSyncWhenGranted]
         )
     }
 
-    func testEnableSequenceOrder() {
-        // P-10 解耦序：先落日志 → 关说明 → 翻状态 → 起引擎
-        XCTAssertEqual(
-            DeviceSyncControl.enableSequence,
-            [.logEnabling, .dismissIntro, .flipSwitchOn, .startSync]
+    func testDetailSubtitleIsOneLine() {
+        // 副题口径：一句说清副本/查副本/自动同步，
+        // 不许带换行长成第二段
+        XCTAssertFalse(
+            DeviceSyncPresentation.detailSubtitle.contains("\n")
+        )
+        XCTAssertTrue(
+            DeviceSyncPresentation.detailSubtitle.contains("服务器")
+        )
+        XCTAssertTrue(
+            DeviceSyncPresentation.detailSubtitle.contains("自动同步")
         )
     }
 
@@ -681,6 +727,46 @@ final class DeviceSyncTests: XCTestCase {
                 previousTotal: 160, newTotal: 156
             ), 0, "变少报 0、不报负数"
         )
+    }
+
+    func testSyncLogTimeTextAndFailureFlag() {
+        let now = date(2026, 11, 11, 0, 30)
+        func entry(
+            _ kind: DeviceSyncLogEntry.Kind, at: Date
+        ) -> DeviceSyncLogEntry {
+            DeviceSyncLogEntry(at: at, kind: kind)
+        }
+        // 时间打头：今天/昨天短标与状态字同源
+        XCTAssertEqual(
+            DeviceSyncLogPresentation.timeText(
+                for: entry(.syncCompleted, at: date(2026, 11, 11, 0, 1)),
+                now: now, calendar: utc
+            ),
+            "今天 00:01"
+        )
+        XCTAssertEqual(
+            DeviceSyncLogPresentation.timeText(
+                for: entry(.syncCompleted, at: date(2026, 11, 10, 23, 58)),
+                now: now, calendar: utc
+            ),
+            "昨晚 23:58"
+        )
+        // 只有失败行带红标记，其余全中性
+        XCTAssertTrue(DeviceSyncLogPresentation.isFailure(
+            entry(.syncFailed, at: now)
+        ))
+        for kind: DeviceSyncLogEntry.Kind in [
+            .enabling, .enabled, .disabled, .syncStarted,
+            .syncCompleted, .permissionRevoked,
+            .permissionRestored, .copyDeleted,
+        ] {
+            XCTAssertFalse(
+                DeviceSyncLogPresentation.isFailure(
+                    entry(kind, at: now)
+                ),
+                "\(kind) 不许标红"
+            )
+        }
     }
 
     func testSyncLogEntryCodableRoundTrip() throws {

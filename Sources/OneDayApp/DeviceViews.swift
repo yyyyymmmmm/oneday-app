@@ -8,11 +8,14 @@ import UIKit
 #endif
 
 /// 本机连接器详情页组（0.34.0 批一，设计档 §6.2 通
-/// 用骨架）：状态头（系统权限行＋调用去向行＋「允
-/// 许智能体调用」开关＋设备会话态＋最近调用元数据）
-/// → 内容区（逐件形态）→ 口径脚注。被拒/未授权时内
-/// 容区换降级说明、不留空白页；每次进页重读系统权
-/// 限（不缓存上次的绿）。
+/// 用骨架）：状态头 → 内容区（逐件形态）。被拒/
+/// 未授权时内容区换降级说明、不留空白页；每次进
+/// 页重读系统权限（不缓存上次的绿）。0.36.18 起
+/// 记录型五件的状态头只剩领头段（大图标＋名称＋
+/// 一句副题）——权限开关/状态字/日志在同步区
+/// （DeviceSyncViews），授权区、通道状态区与页尾
+/// 口径脚注整组退役；健康/家庭保持原双层状态头
+/// （权限开关＋允许调用＋通道状态）不动。
 /// 0.36.3（详情页语法重做，用户 18:05 点名）：状
 /// 态头按五段式模板重排——瓷砖＋名称＋一句话能力
 /// 领头（居中）、系统权限行带可操作控件（S4）、
@@ -356,31 +359,18 @@ struct DeviceStatusHeader: View {
     private var permission: DevicePermissionState {
         controller.permissions[source] ?? .notDetermined
     }
-    /// 五件记录型数据集走一开关形态（0.36.16）；
-    /// 健康/家庭不在此列、保持原双层呈现不动
+    /// 五件记录型数据集走「权限即同步」终形态
+    /// （0.36.18）：状态头只出领头段；健康/家庭不
+    /// 在此列、保持原双层呈现不动
     private var syncDataset: DeviceSyncDataset? {
         DeviceSyncDataset.fromSource(source)
     }
 
-    /// 通道脚注（0.36.10）：只由本地可验事实拼——
-    /// 系统权限、调用开关、设备会话在线三件，与目
-    /// 录行状态字同源同口径，不许再出现 App 验不了
-    /// 的服务端状态宣称
+    /// 通道脚注（0.36.10，只剩健康/家庭用）：只由
+    /// 本地可验事实拼——系统权限、调用开关、设备
+    /// 会话在线三件，与目录行状态字同源同口径，不
+    /// 许再出现 App 验不了的服务端状态宣称
     private var channelNote: String {
-        // 一开关口径（0.36.16）：五件记录型的供给只
-        // 看同步开关与权限状态两件本地事实
-        if let dataset = syncDataset {
-            guard permission.isUsable else {
-                return "系统权限还没开好，智能体用不了这一件；点上方「系统权限」那一行就能处理。"
-            }
-            if appState.deviceSync.isSyncEnabled(dataset) {
-                if controller.sessionOnline {
-                    return "这一件已开同步：整份清单类问题，智能体查你服务器上的副本（新到上次同步为止，见下方数据同步区）；设备会话在线时，单条问题也能现读现回。"
-                }
-                return "这一件已开同步：智能体查的是你服务器上的副本，新到上次同步为止；副本有多少条、是什么时候的，下方数据同步区随时看得到。"
-            }
-            return "同步没开：这一件对智能体不可用，副本也不会再更新。想让智能体用，把下方数据同步的开关打开就行。"
-        }
         guard permission.isUsable else {
             return "先在上方开好系统权限，智能体才有机会用这一件。"
         }
@@ -397,8 +387,12 @@ struct DeviceStatusHeader: View {
         Group {
             // 领头段（0.36.3，详情页语法五段式）：
             // 居中大真图标（苹果画法瓷砖 64）→名称→
-            // 一句话能力说明。旧设置式分组头＋居中
-            // 导航标题退役（对照授权页参考图）
+            // 一句话说明。旧设置式分组头＋居中导航
+            // 标题退役（对照授权页参考图）。
+            // 0.36.18：记录型五件的副题换成副本口径
+            // 一句（Core detailSubtitle）——副本在
+            // 哪、谁来查、授权后自动同步，一句说清，
+            // 本页不再出现第二段口径文字
             Section {
                 VStack(spacing: OneDayMetrics.spacingS) {
                     DeviceAppIconView(source: source, size: 64)
@@ -406,28 +400,24 @@ struct DeviceStatusHeader: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Palette.ink)
                         .multilineTextAlignment(.center)
-                    Text(descriptor.blurb)
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
+                    Text(
+                        syncDataset != nil
+                            ? DeviceSyncPresentation.detailSubtitle
+                            : descriptor.blurb
+                    )
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, OneDayMetrics.spacingSM)
             }
             .listRowBackground(Color.clear)
 
-            if syncDataset != nil {
-                // 一开关形态（0.36.16）：本区只剩系统
-                // 权限状态行——它只是状态字、不是开
-                // 关；供给由下方数据同步的唯一开关管
-                Section {
-                    permissionStatusRow
-                } header: {
-                    headerText("授权")
-                }
-                .listRowBackground(Palette.surface)
-            } else {
+            if syncDataset == nil {
+                // 健康/家庭（批二）保持原双层呈现不
+                // 动：权限开关＋允许调用＋通道状态
                 Section {
                     permissionRow
                     Toggle(isOn: agentCallBinding) {
@@ -449,42 +439,45 @@ struct DeviceStatusHeader: View {
                     headerText("授权与调用")
                 }
                 .listRowBackground(Palette.surface)
-            }
 
-            Section {
-                detailRow(
-                    "设备会话",
-                    controller.sessionOnline ? "在线" : "离线"
-                )
-                if let entry = controller.lastCallEntries[source] {
-                    detailRow("最近调用", entry.summaryLine)
+                Section {
                     detailRow(
-                        "调用时刻",
-                        DisplayDate.dateTime(
-                            Date(timeIntervalSince1970: entry.at)
-                        )
+                        "设备会话",
+                        controller.sessionOnline ? "在线" : "离线"
                     )
-                    detailRow("调用工具", entry.tool)
-                } else {
-                    detailRow("最近调用", "暂无调用记录")
+                    if let entry = controller.lastCallEntries[source] {
+                        detailRow("最近调用", entry.summaryLine)
+                        detailRow(
+                            "调用时刻",
+                            DisplayDate.dateTime(
+                                Date(timeIntervalSince1970: entry.at)
+                            )
+                        )
+                        detailRow("调用工具", entry.tool)
+                    } else {
+                        detailRow("最近调用", "暂无调用记录")
+                    }
+                    if let error = controller.sessionError {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.danger)
+                    }
+                } header: {
+                    headerText("通道状态")
+                } footer: {
+                    // 0.36.10（判词 3/4 口径统一）：脚
+                    // 注由本地可验事实动态拼（channel-
+                    // Note），与目录行 DeviceRowStatus
+                    // 同源同口径；服务端状态 App 验不
+                    // 了、不许写
+                    Text(channelNote)
                 }
-                if let error = controller.sessionError {
-                    Text(error)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.danger)
-                }
-            } header: {
-                headerText("通道状态")
-            } footer: {
-                // 0.36.10（判词 3/4 口径统一）：旧静态
-                // 句「待服务器侧门面注册开通」整句退
-                // 役——那是 App 验不了的服务端状态、又
-                // 与目录行「可调用」互斥打架；改由本地
-                // 可验事实动态拼（channelNote），与目
-                // 录行 DeviceRowStatus 同源同口径
-                Text(channelNote)
+                .listRowBackground(Palette.surface)
             }
-            .listRowBackground(Palette.surface)
+            // 记录型五件：本组件到领头段为止——权限
+            // 开关、状态字与日志由 DeviceSyncSection
+            // 承接，授权区/通道状态区整组退役（用户
+            // 00:03 定版：只剩一个开关）
         }
         .listRowInsets(
             EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)
@@ -539,58 +532,6 @@ struct DeviceStatusHeader: View {
                 }
             }
         )
-    }
-
-    /// 系统权限状态行（一开关形态，0.36.16）：权限
-    /// 在这里只是状态字、不是开关——右侧报现态
-    /// （Core 的 permissionStatusText 一处真源）。
-    /// 还没开好时整行可点：未决定→当场走那一次系
-    /// 统请求；被拒/受限/仅写入→跳系统设置（授权
-    /// 铁律：已决定状态绝不重走异步请求回调）。
-    /// 已授权时不可点、不带任何控件相
-    private var permissionStatusRow: some View {
-        Group {
-            if permission.isUsable {
-                permissionStatusContent
-            } else {
-                Button {
-                    switch permission {
-                    case .notDetermined:
-                        Task {
-                            await controller.requestAccess(
-                                for: source
-                            )
-                        }
-                    case .denied, .restricted, .writeOnly:
-                        openSystemSettings()
-                    case .granted, .limited:
-                        break
-                    }
-                } label: {
-                    permissionStatusContent
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
-    }
-
-    private var permissionStatusContent: some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            permissionTitle
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(
-                DeviceSyncControl.permissionStatusText(permission)
-            )
-            .font(.body)
-            .foregroundStyle(Palette.inkSecondary)
-            if !permission.isUsable {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .accessibilityHidden(true)
-            }
-        }
     }
 
     private var permissionTitle: some View {
@@ -674,34 +615,20 @@ struct DevicePermissionGate: View {
     }
 
     /// 降级说明（0.36.3 瘦身）：一句事实＋一个下
-    /// 一步，不成段（续编 S11 空态句式同理）
+    /// 一步，不成段（续编 S11 空态句式同理）。
+    /// 0.36.18：指路对象改成上方那一个权限开关
     private var gateMessage: String {
         let name = DeviceSourceDirectory.descriptor(source).name
         switch permission {
         case .notDetermined:
-            return "点上方「系统权限」那一行，系统会问你是否允许读取\(name)。"
+            return "打开上方那一个开关，系统会问你是否允许读取\(name)。"
         case .denied, .restricted:
-            return "点上方「系统权限」那一行会跳到系统设置，打开\(name)权限后即可。"
+            return "打开上方那一个开关会跳到系统设置，在那里打开\(name)权限后即可。"
         case .writeOnly:
             return "当前只有写入权限，看不到已有安排。"
         default:
             return "当前状态下读不到数据。"
         }
-    }
-}
-
-/// 口径脚注（详情页尾）
-struct DeviceFootnote: View {
-    let source: DeviceSourceID
-
-    var body: some View {
-        Section {
-            Text(DeviceSourceDirectory.descriptor(source).footnote)
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        .listRowBackground(Color.clear)
-        .listRowInsets(deviceRowInsets)
     }
 }
 
@@ -758,7 +685,6 @@ struct CalendarDetailView: View {
             } else {
                 DevicePermissionGate(source: .calendar, permission: permission)
             }
-            DeviceFootnote(source: .calendar)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -970,7 +896,6 @@ struct RemindersDetailView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(deviceRowInsets)
             }
-            DeviceFootnote(source: .reminders)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -1184,7 +1109,6 @@ struct ContactsDetailView: View {
                     source: .contacts, permission: permission
                 )
             }
-            DeviceFootnote(source: .contacts)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -1370,7 +1294,7 @@ struct DevicePermissionsView: View {
             } header: {
                 headerText("你的设备")
             } footer: {
-                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个同步开关管齐：开着智能体就能用，系统权限在页里只是状态行。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
+                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1442,7 +1366,7 @@ struct DevicePermissionsView: View {
             } header: {
                 headerText("数据同步")
             } footer: {
-                Text("同步开着的件，整份清单存在你自己的服务器上供智能体查；删副本只删服务器那一份，手机上的数据和系统权限都不动。开关还开着的话，下次打开 App 会重新同步回来。")
+                Text("权限开着的件，整份清单自动同步一份在你自己的服务器上供智能体查；删副本只删服务器那一份，手机上的数据和系统权限都不动。权限还开着的话，下次打开 App 会自动重新同步回来。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1463,7 +1387,7 @@ struct DevicePermissionsView: View {
                     let ok = await appState.deviceSync
                         .deleteAllCopies(config: appState.config)
                     deleteAllNote = ok
-                        ? "已删除。同步开关还开着的件，下次打开 App 会重新同步回来。"
+                        ? "已删除。权限还开着的件，下次打开 App 会自动重新同步回来。"
                         : "没删成，检查服务器连接后再试。"
                 }
             }
@@ -1483,7 +1407,10 @@ struct DevicePermissionsView: View {
         DeviceSyncPresentation.segment(
             dataset: dataset,
             status: appState.deviceSync.statuses[dataset],
-            syncEnabled: appState.deviceSync.isSyncEnabled(dataset),
+            authorized: DeviceSyncControl.agentCanQuery(
+                permission: controller.permissions[dataset.sourceID]
+                    ?? .notDetermined
+            ),
             now: Date()
         )
     }

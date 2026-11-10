@@ -6,11 +6,11 @@ import SwiftUI
 import UIKit
 #endif
 
-/// 同步制视图（0.36.14 立制，0.36.16 改一开关＋
-/// 同步日志＋页内首启）：详情页「数据同步」区、
-/// 首次开启说明区、同步记录区、照片/步数两件的
-/// 详情页。文案口径：说人话、零行话——同步什么、
-/// 存哪、新到什么时候、怎么删，全部摆在明面上
+/// 同步制视图（0.36.14 立制，0.36.18 改「权限即
+/// 同步」终形态）：详情页只剩一个权限开关＋安静
+/// 状态字＋同步记录，照片/步数两件的详情页也在
+/// 本文件。文案口径：说人话、零行话——存哪、新
+/// 到什么时候、怎么删，一句说清、不成段
 
 private func syncSectionHeader(_ title: String) -> some View {
     Text(title)
@@ -23,14 +23,12 @@ private let syncRowInsets = EdgeInsets(
     top: 0, leading: 20, bottom: 0, trailing: 20
 )
 
-// MARK: - 详情页「数据同步」区
+// MARK: - 详情页权限开关区（0.36.18 终形态）
 
 struct DeviceSyncSection: View {
     @Environment(AppState.self) private var appState
     let source: DeviceSourceID
 
-    @State private var showIntroInline = false
-    @State private var showTurnOffInline = false
     @State private var showDeleteDialog = false
     @State private var actionNote: String?
 
@@ -48,7 +46,6 @@ struct DeviceSyncSection: View {
     private var status: DeviceSyncDatasetStatus? {
         sync.statuses[dataset]
     }
-    private var enabled: Bool { sync.isSyncEnabled(dataset) }
     private var hasCopy: Bool {
         status?.synced == true || sync.receipts[dataset] != nil
     }
@@ -90,26 +87,26 @@ struct DeviceSyncSection: View {
         return nil
     }
 
-    private var rangeLine: String? {
-        guard hasCopy else { return nil }
-        let range = status?.authRange
-            ?? sync.receipts[dataset]?.authRange
-        return range == "limited"
-            ? "部分（你在系统里勾选的那些）" : "全部"
+    /// 状态字一行：副本条数 · 数据新到（安静呈现，
+    /// 不摆行、不带控件）
+    private var copyStatusLine: String? {
+        guard let countLine else { return nil }
+        var parts = ["服务器上的副本 \(countLine)"]
+        if let freshnessLine { parts.append(freshnessLine) }
+        return parts.joined(separator: " · ")
     }
 
-    /// 撤销停供明示（用户拍板口径：权限一关，智能
-    /// 体立刻查不到，副本保留、重开恢复）
+    /// 权限关但副本还在（完全停供的用户面说法：
+    /// 查不到、副本保留、重开恢复）
     private var revokedLine: String? {
-        guard status?.permissionState == "revoked",
-              status?.synced == true else { return nil }
-        return "系统权限已经关掉：智能体现在查不到这一件了。服务器上的副本还在，重新打开权限就会恢复。"
+        guard !permission.isUsable, hasCopy else { return nil }
+        return "权限已关：智能体现在查不到这一件。服务器上的副本还在，重新打开权限就会恢复。"
     }
 
     private var expiredLine: String? {
         guard status?.expired == true, revokedLine == nil
         else { return nil }
-        return "这份副本超过一天没更新了：把 App 切回前台就会自动同步一次。"
+        return "这份副本超过一天没更新了：回到 App 前台会自动同步一次。"
     }
 
     /// 本件同步日志（新在上，控制器与偏好同值）
@@ -117,65 +114,50 @@ struct DeviceSyncSection: View {
         sync.logs[dataset] ?? []
     }
 
-    private var toggleBinding: Binding<Bool> {
+    /// 唯一的开关：绑真实权限状态（Core 映射一处
+    /// 真源），显示永远回读现态、不认本地偏好
+    private var switchBinding: Binding<Bool> {
         Binding(
-            get: { enabled },
+            get: { DeviceSyncControl.switchIsOn(permission) },
             set: { newValue in
-                if newValue {
-                    // 首次先在页内看清同步什么再开（内
-                    // 联首启区，0.36.16：不再用 sheet，
-                    // 人全程留在详情页——P-10 定案）
-                    if DevicePreferences.syncIntroAcked(
-                        for: dataset
-                    ) {
-                        beginEnable()
-                    } else {
-                        showIntroInline = true
-                    }
-                } else if hasCopy {
-                    // 有副本：关开关时在页内问清去留
-                    showTurnOffInline = true
-                } else {
-                    sync.disableFromUser(dataset)
-                }
+                if newValue { turnOn() } else { turnOff() }
             }
         )
     }
 
-    /// 开启动作（已读说明后）：时序按 Core 的
-    /// enableSequence——先落日志「正在开启」，再翻
-    /// 状态起引擎；中断（去设置/被拒）也留痕
-    private func beginEnable() {
-        sync.noteEnabling(dataset)
-        performEnable()
-    }
-
-    /// 首启区确认：落日志 → 记已读并收起说明 →
-    /// 翻状态起引擎（说明收起与状态翻转分步走，
-    /// 不与任何呈现动画同帧——P-10）
-    private func confirmIntro() {
-        sync.noteEnabling(dataset)
-        DevicePreferences.setSyncIntroAcked(for: dataset)
-        showIntroInline = false
-        performEnable()
-    }
-
-    private func performEnable() {
-        switch DeviceSyncControl.enableAction(for: permission) {
-        case .openSettings:
-            // 权限已决定为不可用：App 内无路可走，
-            // 只能去系统设置（授权铁律：不重走请求）
-            openSystemSettings()
-        case .enable, .requestPermission:
-            // 未决定时那一次系统请求在 syncNow 内发
-            sync.enableFromUser(dataset)
+    /// 拨开（用户亲定语义）：未决定——先落日志
+    /// 「正在开启」，再发那一次系统请求，授权到
+    /// 手当场补首轮自动同步；已决定为不可用（系
+    /// 统不再弹窗）——跳系统设置；已授权不会走
+    /// 到这里（开关本就呈开态）
+    private func turnOn() {
+        switch DeviceSyncControl.toggleOnAction(for: permission) {
+        case .requestPermission:
+            sync.noteEnabling(dataset)
             actionNote = nil
             Task {
-                _ = await sync.syncNow(
-                    dataset, config: appState.config, origin: .user
-                )
+                await session.requestAccess(for: source)
+                if DeviceSyncControl.switchIsOn(
+                    session.permissions[source] ?? .notDetermined
+                ) {
+                    await sync.detailPageCheck(
+                        dataset: dataset, config: appState.config
+                    )
+                }
             }
+        case .openSettings:
+            openSystemSettings()
+        case .alreadyOn:
+            break
         }
+    }
+
+    /// 拨关（用户亲定语义）：跳系统设置由用户亲
+    /// 手关权限——App 关不掉、也不假装已关；关没
+    /// 关成，回前台按真实状态回读，停供与日志记
+    /// 账在状态上报里落
+    private func turnOff() {
+        openSystemSettings()
     }
 
     private func openSystemSettings() {
@@ -189,160 +171,47 @@ struct DeviceSyncSection: View {
     var body: some View {
         Group {
             Section {
-                Toggle(isOn: toggleBinding) {
+                Toggle(isOn: switchBinding) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("同步到我的服务器")
+                        Text("访问权限")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)
                         Text(
-                            enabled
-                                ? "开着：整份清单有一份副本在你自己的服务器上，智能体能整份地查"
-                                : "关着：智能体用不了这一件，服务器上也没有这一件的新副本"
+                            DeviceSyncControl.switchIsOn(permission)
+                                ? "开着：自动同步到你的服务器，智能体可以查"
+                                : "关着：智能体用不了这一件"
                         )
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                     }
                 }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
 
-                if showIntroInline {
-                    DeviceSyncIntroView(dataset: dataset) {
-                        confirmIntro()
-                    } onCancel: {
-                        showIntroInline = false
+                statusBlock
+
+                if hasCopy {
+                    Button(role: .destructive) {
+                        showDeleteDialog = true
+                    } label: {
+                        Text("删除服务器上的副本")
                     }
                 }
-
-                if showTurnOffInline {
-                    turnOffInline
-                }
-
-                if enabled {
-                    if let countLine {
-                        syncDetailRow("服务器上的副本", countLine)
-                    }
-                    if let freshnessLine {
-                        syncDetailRow("数据新到", freshnessLine)
-                    }
-                    if let rangeLine {
-                        syncDetailRow("同步范围", rangeLine)
-                    }
-                    if let revokedLine {
-                        warningRow(revokedLine)
-                    } else if let expiredLine {
-                        warningRow(expiredLine)
-                    }
-                    if sync.isRunning(dataset) {
-                        HStack(spacing: OneDayMetrics.spacingSM) {
-                            ProgressView()
-                            Text(
-                                sync.progress[dataset] ?? "正在同步…"
-                            )
-                            .font(.body)
-                            .foregroundStyle(Palette.inkSecondary)
-                        }
-                        .frame(
-                            minHeight: OneDayMetrics.settingsRowHeight
-                        )
-                    } else {
-                        Button {
-                            actionNote = nil
-                            Task {
-                                _ = await sync.syncNow(
-                                    dataset,
-                                    config: appState.config,
-                                    origin: .user
-                                )
-                            }
-                        } label: {
-                            Text("立即同步")
-                        }
-                        if let error = sync.lastErrors[dataset] {
-                            HStack(
-                                spacing: OneDayMetrics.spacingSM
-                            ) {
-                                Text(error)
-                                    .font(.footnote)
-                                    .foregroundStyle(Palette.warning)
-                                Spacer(
-                                    minLength: OneDayMetrics.spacingS
-                                )
-                                Button("重试") {
-                                    actionNote = nil
-                                    Task {
-                                        _ = await sync.syncNow(
-                                            dataset,
-                                            config: appState.config,
-                                            origin: .user
-                                        )
-                                    }
-                                }
-                                .font(.footnote.weight(.semibold))
-                            }
-                        }
-                    }
-                    if hasCopy {
-                        Button(role: .destructive) {
-                            showDeleteDialog = true
-                        } label: {
-                            Text("删除服务器上的副本")
-                        }
-                    }
-                    if let actionNote {
-                        Text(actionNote)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                }
-            } header: {
-                syncSectionHeader("数据同步")
-            } footer: {
-                Text("同步只在打开 App 时进行，不在后台跑。智能体查到的，就是「数据新到」那一行写到的时刻为止的内容。")
-            }
-            .listRowBackground(Palette.surface)
-            .listRowInsets(syncRowInsets)
-
-            // 同步日志（0.36.16）：开关下方的明账——
-            // 开关开/关、每次同步的开始与成败、条数
-            // 变化、失败原因、权限变化，失败不隐藏
-            Section {
-                if logEntries.isEmpty {
-                    Text("还没有记录。开启同步、每次同步的结果都会记在这里。")
+                if let actionNote {
+                    Text(actionNote)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                } else {
-                    ForEach(
-                        Array(logEntries.enumerated()),
-                        id: \.offset
-                    ) { _, entry in
-                        VStack(
-                            alignment: .leading, spacing: 2
-                        ) {
-                            Text(
-                                DeviceSyncLogPresentation.line(
-                                    for: entry, dataset: dataset
-                                )
-                            )
-                            .font(.body)
-                            .foregroundStyle(Palette.ink)
-                            Text(
-                                DisplayDate.dateTime(entry.at)
-                            )
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                        }
-                        .padding(
-                            .vertical, OneDayMetrics.spacingXS
-                        )
-                    }
                 }
-            } header: {
-                syncSectionHeader("同步记录")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(syncRowInsets)
+
+            logSection
         }
         .task {
-            await sync.refreshStatus(config: appState.config)
+            // 触发③：进页补查（过期才真跑同步）
+            await sync.detailPageCheck(
+                dataset: dataset, config: appState.config
+            )
         }
         .confirmationDialog(
             "删掉服务器上的\(dataset.label)副本？",
@@ -355,7 +224,7 @@ struct DeviceSyncSection: View {
                         dataset, config: appState.config
                     )
                     actionNote = ok
-                        ? "副本已删除。同步开关还开着，下次打开 App 会重新同步回来；不想再同步就把上面的开关关掉。"
+                        ? "副本已删除。权限还开着，下次打开 App 会自动重新同步回来；不想再同步就关掉上方开关。"
                         : "没删成，检查服务器连接后再试。"
                 }
             }
@@ -365,156 +234,93 @@ struct DeviceSyncSection: View {
         }
     }
 
-    /// 关同步时的副本去留（页内确认，不用弹窗）：
-    /// 删为推荐项但不预选，点哪条走哪条
-    private var turnOffInline: some View {
-        Group {
-            Text("服务器上还有这一件的副本：删掉后智能体就整份查不到了；只关同步的话副本保留、但不再更新。")
-                .font(.callout)
-                .foregroundStyle(Palette.inkSecondary)
-            Button(role: .destructive) {
-                showTurnOffInline = false
-                sync.disableFromUser(dataset)
-                Task {
-                    _ = await sync.deleteCopy(
-                        dataset, config: appState.config
-                    )
-                }
-            } label: {
-                Text("连副本一起删掉（推荐）")
-            }
-            Button {
-                showTurnOffInline = false
-                sync.disableFromUser(dataset)
-            } label: {
-                Text("只关同步，副本先留着")
-            }
-            Button {
-                showTurnOffInline = false
-            } label: {
-                Text("先不关")
-            }
-        }
-    }
-
-    private func syncDetailRow(
-        _ title: String, _ value: String
-    ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(title)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.ink)
-            Spacer(minLength: OneDayMetrics.spacingS)
-            Text(value)
-                .font(.body)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.trailing)
-        }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
-    }
-
-    private func warningRow(_ text: String) -> some View {
-        Text(text)
-            .font(.footnote)
-            .foregroundStyle(Palette.warning)
-    }
-}
-
-// MARK: - 首次开启说明（页内展开）
-
-/// 首启说明（规格 §6.3，0.36.16 改页内展开）：
-/// 同步什么/不同步什么/存哪/怎么删，四件说清才
-/// 给「开启同步」；用户只点确认，不填任何东西
-struct DeviceSyncIntroView: View {
-    let dataset: DeviceSyncDataset
-    let onConfirm: () -> Void
-    let onCancel: () -> Void
-
-    private var syncedFields: [String] {
-        switch dataset {
-        case .contacts:
-            return ["姓名", "电话号码", "邮箱", "公司", "所在分组"]
-        case .calendar:
-            return [
-                "日程标题", "开始和结束时间", "属于哪个日历",
-                "地点",
-            ]
-        case .reminders:
-            return [
-                "没做完的提醒：标题、到期时间、优先级、属于哪个清单",
-                "两个计数：今天完成了几项、过期了几项",
-            ]
-        case .photos:
-            return [
-                "拍摄时间", "是照片还是视频", "宽高（视频还有时长）",
-                "是否收藏", "在哪个相册",
-                "有没有拍摄地点（只记有或没有）",
-            ]
-        case .motion:
-            return ["每天的步数总和", "每天的距离", "每天的爬楼层数"]
-        }
-    }
-
-    private var notSyncedFields: [String] {
-        switch dataset {
-        case .contacts:
-            return ["备注", "地址", "生日", "头像照片"]
-        case .calendar:
-            return [
-                "日程备注", "参加的人",
-                "过去 30 天之前、未来 90 天之后的日程",
-            ]
-        case .reminders:
-            return ["提醒的备注", "做完的提醒本身（只记上面的计数）"]
-        case .photos:
-            return ["照片和视频本身", "缩略图", "拍摄地点的具体位置"]
-        case .motion:
-            return ["每一步的时间", "走过的路线"]
-        }
-    }
-
-    /// 页内展开形态（0.36.16）：本视图只产出详情页
-    /// 同步区里的说明行与确认行——没有自己的页面、
-    /// 没有 sheet，确认后人留在原地看同步全程
-    var body: some View {
-        Group {
-            Text("\(dataset.label)现在只能零散地现查：问「具体某一条」能答，问「一共有多少」「哪天最忙」这类整份的问题答不了。开启同步后，App 会把下面这些内容同步一份到你自己的服务器上，智能体就能整份地查了。")
-                .font(.body)
-                .foregroundStyle(Palette.ink)
-            introGroupLabel("会同步这些")
-            ForEach(syncedFields, id: \.self) { field in
-                Text(field)
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-            }
-            introGroupLabel("不会同步这些")
-            ForEach(notSyncedFields, id: \.self) { field in
-                Text(field)
-                    .font(.body)
+    /// 开关下方的安静状态字：同步中/停供/失败/副
+    /// 本现状，互斥优先、如实报——只是一行小字，
+    /// 不摆行、不带控件（立即同步钮随本版退役，
+    /// 失败会在下次回前台/数据变更时自动重试）
+    @ViewBuilder
+    private var statusBlock: some View {
+        if sync.isRunning(dataset) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                ProgressView()
+                Text(sync.progress[dataset] ?? "同步中…")
+                    .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             }
-            introGroupLabel("存在哪里、怎么删")
-            Text("副本存在你自己的服务器上，和 OneDay 配套的那个服务里。它只新到上次同步为止，页面上会一直标着同步时刻。想关随时关：关的时候可以顺手删副本，也可以之后在这一页单独删。删副本只删服务器那一份，手机上的数据和系统权限都不动。同步只在打开 App 时进行，不在后台偷偷跑。")
-                .font(.body)
-                .foregroundStyle(Palette.ink)
-            Button {
-                onConfirm()
-            } label: {
-                Text("开启同步")
-                    .fontWeight(.semibold)
-            }
-            Button {
-                onCancel()
-            } label: {
-                Text("先不开")
+        } else if let revokedLine {
+            Text(revokedLine)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+        } else if let error = sync.lastErrors[dataset] {
+            Text(error)
+                .font(.footnote)
+                .foregroundStyle(Palette.danger)
+        } else if let copyStatusLine {
+            Text(copyStatusLine)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            if let expiredLine {
+                Text(expiredLine)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.warning)
             }
         }
     }
 
-    private func introGroupLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.footnote.weight(.semibold))
+    /// 同步日志（用户亲定形态）：时间打头一行一
+    /// 条——时间 12pt 次级色在前、事由脚注级常
+    /// 规字重、数字等宽；发丝线分隔、密排；只有
+    /// 失败行带红点＋红字。事件分类与存储上限沿
+    /// 0.36.16 不变
+    private var logSection: some View {
+        Section {
+            if logEntries.isEmpty {
+                Text("还没有记录。")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            } else {
+                ForEach(
+                    Array(logEntries.enumerated()), id: \.offset
+                ) { _, entry in
+                    logRow(entry)
+                }
+            }
+        } header: {
+            syncSectionHeader("同步记录")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(syncRowInsets)
+    }
+
+    private func logRow(_ entry: DeviceSyncLogEntry) -> some View {
+        let failed = DeviceSyncLogPresentation.isFailure(entry)
+        return HStack(
+            alignment: .firstTextBaseline,
+            spacing: OneDayMetrics.spacingSM
+        ) {
+            Text(
+                DeviceSyncLogPresentation.timeText(
+                    for: entry, now: Date()
+                )
+            )
+            .font(.caption)
             .foregroundStyle(Palette.inkSecondary)
+            .monospacedDigit()
+            if failed {
+                Circle()
+                    .fill(Palette.danger)
+                    .frame(width: 6, height: 6)
+                    .accessibilityHidden(true)
+            }
+            Text(
+                DeviceSyncLogPresentation.line(
+                    for: entry, dataset: dataset
+                )
+            )
+            .font(.footnote)
+            .foregroundStyle(failed ? Palette.danger : Palette.ink)
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -560,7 +366,6 @@ struct PhotosDetailView: View {
                     source: .photos, permission: permission
                 )
             }
-            DeviceFootnote(source: .photos)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -640,7 +445,6 @@ struct MotionDetailView: View {
                     source: .motion, permission: permission
                 )
             }
-            DeviceFootnote(source: .motion)
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)

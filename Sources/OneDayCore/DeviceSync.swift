@@ -479,30 +479,29 @@ public enum SyncMotionPlan {
     }
 }
 
-// MARK: - 前台计划与节流（规格 §3.2）
+// MARK: - 自动同步计划与节流（规格 §3.2，0.36.18 改自动制）
 
 public enum SyncForegroundDecision: Equatable, Sendable {
     case sync
     case skipThrottled
     case blockedPermission
-    case blockedSwitchOff
 }
 
-/// 前台同步决策（纯函数）：三层开关里同步只看两
-/// 层——系统权限可用＋同步开关开（「允许智能体调
-/// 用」管的是工具面、不拦同步，规格 §6.1 分层）；
-/// 节流按数据集下限；有未同步写入标记时无视节流
-/// 优先同步；从未同步过（lastSuccessAt 为 nil）恒
-/// 到期
+/// 自动同步决策（纯函数，0.36.18）：同步的唯一门
+/// 是系统权限——授权即自动同步，0.36.16 的同步开
+/// 关退出判定（blockedSwitchOff 随之退役）。节流
+/// 按数据集下限；有未同步写入标记、或收到系统变
+/// 更记号（changePending）时无视节流立即对账；
+/// 从未同步过（lastSuccessAt 为 nil）恒到期
 public enum DeviceSyncPlanner {
     public static func foregroundDecision(
         dataset: DeviceSyncDataset,
-        permissionUsable: Bool, syncEnabled: Bool,
-        lastSuccessAt: Date?, pendingWrite: Bool, now: Date
+        permissionUsable: Bool,
+        lastSuccessAt: Date?, pendingWrite: Bool,
+        changePending: Bool = false, now: Date
     ) -> SyncForegroundDecision {
         guard permissionUsable else { return .blockedPermission }
-        guard syncEnabled else { return .blockedSwitchOff }
-        if pendingWrite { return .sync }
+        if pendingWrite || changePending { return .sync }
         guard let lastSuccessAt else { return .sync }
         return now.timeIntervalSince(lastSuccessAt)
             >= dataset.throttleSeconds
@@ -691,24 +690,33 @@ public enum DeviceSyncPresentation {
     }
 
     /// 目录行/总览行的同步段（拼在 DeviceRowStatus
-    /// 后面）：只由「开关态＋服务器状态」拼，状态
-    /// 取不到时退本地语义（开/未开），不编条数
+    /// 后面）：只由「权限态＋服务器状态」拼（0.36.18
+    /// 起授权即同步、没有独立开关态可报）；服务器
+    /// 有副本就如实报副本（权限已关时桥状态带撤销
+    /// 记号），没副本才退本地语义，不编条数
     public static func segment(
         dataset: DeviceSyncDataset,
         status: DeviceSyncDatasetStatus?,
-        syncEnabled: Bool, now: Date,
+        authorized: Bool, now: Date,
         calendar: Calendar = .current
     ) -> String {
-        guard syncEnabled else { return "同步未开" }
-        guard let status, status.synced, let syncedAt = status.syncedAt
-        else { return "同步已开 · 还没有同步" }
-        var text = "已同步 \(status.itemCount) \(dataset.countUnit)"
-            + " · \(dayLabel(syncedAt, now: now, calendar: calendar))"
-        if status.isLimited { text += " · 部分" }
-        if status.expired { text += " · 已过期" }
-        if status.isRevoked { text += " · 权限已撤销" }
-        return text
+        if let status, status.synced, let syncedAt = status.syncedAt {
+            var text = "已同步 \(status.itemCount) \(dataset.countUnit)"
+                + " · \(dayLabel(syncedAt, now: now, calendar: calendar))"
+            if status.isLimited { text += " · 部分" }
+            if status.expired { text += " · 已过期" }
+            if status.isRevoked { text += " · 权限已撤销" }
+            return text
+        }
+        return authorized ? "还没有同步" : "未授权"
     }
+
+    /// 详情页副题（0.36.18，一句封顶）：副本在哪、
+    /// 谁来查、授权后自动同步——三件事一句说清，
+    /// 页面不许再出现第二段口径文字（旧的逐件脚注
+    /// 段随本版退役）
+    public static let detailSubtitle =
+        "副本在你自己的服务器上，智能体查副本；开着权限就自动同步"
 
     /// 授权范围人话（详情页同步区用）
     public static func rangeLine(
@@ -719,72 +727,75 @@ public enum DeviceSyncPresentation {
     }
 }
 
-// MARK: - 一开关映射（0.36.16，用户 23:09–23:20 拍板）
+// MARK: - 权限开关映射（0.36.18，用户 00:03–00:05 三连定版）
 
-/// 开启同步时对着权限现态的处置（授权铁律的映射
-/// 形）：已授权直接开；未决定当场发那一次系统请
-/// 求；已决定为不可用（被拒/受限/仅写入）App 内
-/// 无路可走、只能去系统设置——绝不重走异步请求
-/// 回调、绝不假装已开
-public enum DeviceSyncSwitchAction: Equatable, Sendable {
-    case enable
+/// 拨动权限开关时的处置（用户亲定语义）：开——
+/// 未决定时当场发那一次系统授权请求；已决定为不
+/// 可用（被拒/受限/仅写入，系统不再弹窗）跳系统
+/// 设置本 App 页。关——App 关不掉已授出的系统权
+/// 限，一律跳系统设置由用户亲手关，绝不假装已关。
+/// 已授权时拨「开」不会发生（开关本就呈开态），
+/// .alreadyOn 只作兜底
+public enum DeviceSyncPermissionAction: Equatable, Sendable {
     case requestPermission
     case openSettings
+    case alreadyOn
 }
 
-/// 开启确认事务的步骤序（P-10 定案的解耦落法）：
-/// 先把「正在开启」落进日志（中断也留痕），再关
-/// 说明，然后才翻开关状态、起同步引擎——状态翻
-/// 转与说明关闭绝不同帧发生
-public enum DeviceSyncEnableStep: Equatable, Sendable {
+/// 开权限的动作序（先落账纪律的映射形）：先把
+/// 「正在开启」落进同步日志（请求中途被拒/被打
+/// 断也留痕），再发那一次系统请求；授权到手，自
+/// 动同步随即启动——用户没有第二个开关可点
+public enum DeviceSyncPermissionStep: Equatable, Sendable {
     case logEnabling
-    case dismissIntro
-    case flipSwitchOn
-    case startSync
+    case requestPermission
+    case startSyncWhenGranted
 }
 
-/// 一开关语义的纯映射（视图与控制器共用一处）：
-/// 五件记录型数据集用户只见一个「同步」开关——
-/// 开＝权限可用时同步且智能体可查；关＝停供。
-/// 系统权限退为状态字（不是控件），「允许智能体
-/// 调用」整层取消、并入本映射
+/// 权限开关语义的纯映射（视图与控制器共用一处，
+/// 0.36.18）：记录型五件的详情页只剩这一个开关，
+/// 它绑的就是系统权限本身——显示永远回读真实状
+/// 态，同步与智能体供给都只看这一件事（授权即自
+/// 动同步、即可查；权限关＝完全停供，旧规不变）。
+/// 0.36.16 的同步开关、首启区、权限状态行与
+/// agentCanQuery 双因子判据至此整组退役
 public enum DeviceSyncControl {
-    public static let enableSequence: [DeviceSyncEnableStep] = [
-        .logEnabling, .dismissIntro, .flipSwitchOn, .startSync,
-    ]
+    public static let permissionEnableSequence:
+        [DeviceSyncPermissionStep] = [
+            .logEnabling, .requestPermission, .startSyncWhenGranted,
+        ]
 
-    /// 智能体能不能用这一件：权限可用＋同步开，
-    /// 缺一不可（关同步＝完全不可用，与权限撤销
-    /// 的完全停供同口径）
-    public static func agentCanQuery(
-        permission: DevicePermissionState, syncEnabled: Bool
+    /// 开关呈开还是关：只认真实权限状态，不认任
+    /// 何本地偏好
+    public static func switchIsOn(
+        _ permission: DevicePermissionState
     ) -> Bool {
-        permission.isUsable && syncEnabled
+        permission.isUsable
     }
 
-    public static func enableAction(
+    /// 智能体能不能用这一件：与开关同源——权限
+    /// 可用即可查；权限关即完全停供
+    public static func agentCanQuery(
+        permission: DevicePermissionState
+    ) -> Bool {
+        permission.isUsable
+    }
+
+    /// 用户把开关拨到「开」
+    public static func toggleOnAction(
         for permission: DevicePermissionState
-    ) -> DeviceSyncSwitchAction {
+    ) -> DeviceSyncPermissionAction {
         switch permission {
-        case .granted, .limited: return .enable
+        case .granted, .limited: return .alreadyOn
         case .notDetermined: return .requestPermission
         case .writeOnly, .denied, .restricted: return .openSettings
         }
     }
 
-    /// 系统权限状态字（详情页状态行用；这是状态
-    /// 不是控件文案，不许再画成开关）
-    public static func permissionStatusText(
-        _ permission: DevicePermissionState
-    ) -> String {
-        switch permission {
-        case .granted: return "已授权"
-        case .limited: return "已授权 · 部分"
-        case .notDetermined: return "未授权"
-        case .denied: return "未授权 · 去设置"
-        case .writeOnly: return "仅写入 · 去设置"
-        case .restricted: return "受限制"
-        }
+    /// 用户把开关拨到「关」：跳系统设置
+    public static func toggleOffAction(
+    ) -> DeviceSyncPermissionAction {
+        .openSettings
     }
 }
 
@@ -844,8 +855,33 @@ public enum DeviceSyncLogBook {
     }
 }
 
-/// 日志行文案（一处真源，视图只渲染）
+/// 日志行文案（一处真源，视图只渲染）。kind 里的
+/// enabled/disabled 是 0.36.16 存量条目（同步开关
+/// 时代），新流程不再产生——开关动作改由权限请求
+/// 与 permissionRevoked/Restored 记账；回读呈现不
+/// 变，存量账不许丢
 public enum DeviceSyncLogPresentation {
+    /// 行首时间字（0.36.18 日志改版，用户亲定形
+    /// 态）：时间打头——「今天 00:01」「昨天
+    /// 23:58」「11月3日 09:41」，与状态字同一套
+    /// 时刻短标（一处真源，不另起格式）
+    public static func timeText(
+        for entry: DeviceSyncLogEntry, now: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        DeviceSyncPresentation.dayLabel(
+            entry.at, now: now, calendar: calendar
+        )
+    }
+
+    /// 失败行标记（0.36.18）：整本日志只有失败行
+    /// 带红点＋红字事由，其余全中性
+    public static func isFailure(
+        _ entry: DeviceSyncLogEntry
+    ) -> Bool {
+        entry.kind == .syncFailed
+    }
+
     public static func line(
         for entry: DeviceSyncLogEntry,
         dataset: DeviceSyncDataset

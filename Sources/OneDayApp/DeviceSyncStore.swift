@@ -1,10 +1,12 @@
 import Foundation
 import OneDayCore
 
-/// 同步制偏好（0.36.14）：逐数据集同步开关（默认
-/// 关）/ 说明屏已读标记 / 本地回执 / 最近上报的权
-/// 限与范围。回执只是状态行的兜底，真状态以桥
-/// status 为准（桥取不到时才用回执拼新鲜度行）
+/// 同步制偏好（0.36.14）：本地回执 / 最近上报的权
+/// 限与范围 / 同步日志。回执只是状态行的兜底，真
+/// 状态以桥 status 为准（桥取不到时才用回执拼新
+/// 鲜度行）。0.36.18 起不再有同步开关与说明已读标
+/// 记可存——授权即自动同步，旧键留在 defaults 里
+/// 不读不管（无副本数据、不必清理）
 extension DevicePreferences {
     private static var defaults: UserDefaults { .standard }
 
@@ -12,26 +14,6 @@ extension DevicePreferences {
         _ dataset: DeviceSyncDataset, _ suffix: String
     ) -> String {
         "device.sync.\(dataset.bridgeName).\(suffix)"
-    }
-
-    static func syncEnabled(for dataset: DeviceSyncDataset) -> Bool {
-        defaults.bool(forKey: syncKey(dataset, "enabled"))
-    }
-
-    static func setSyncEnabled(
-        _ on: Bool, for dataset: DeviceSyncDataset
-    ) {
-        defaults.set(on, forKey: syncKey(dataset, "enabled"))
-    }
-
-    static func syncIntroAcked(for dataset: DeviceSyncDataset)
-        -> Bool
-    {
-        defaults.bool(forKey: syncKey(dataset, "introAcked"))
-    }
-
-    static func setSyncIntroAcked(for dataset: DeviceSyncDataset) {
-        defaults.set(true, forKey: syncKey(dataset, "introAcked"))
     }
 
     /// 本地同步回执（条数与时刻取桥 complete 的回执）
@@ -121,24 +103,24 @@ extension DevicePreferences {
     }
 }
 
-/// 同步控制器（0.36.14 立制，0.36.16 改一开关）：
-/// 五数据集的状态拉取/单件同步/状态上报/副本删除/
-/// 同步日志。一开关语义：同步资格与智能体供给同
-/// 看一件事——同步开关（权限是系统层状态、不是
-/// 控件）；开关翻转经 onSyncSwitchChanged 镜像到
-/// 设备会话的「允许调用」偏好，现调路由此跟随。
-/// 权限撤销的停供由桥据上报判定，本层保证回前台
-/// 第一时间上报。授权铁律：每轮先同步读权限现态，
-/// 仅未决定时走那一次请求（DevicePermissions 内判）；
-/// 回调隔离铁律：本层不挂任何系统回调闭包
+/// 同步控制器（0.36.14 立制，0.36.18 改「权限即
+/// 同步」）：五数据集的状态拉取/单件同步/状态上
+/// 报/副本删除/同步日志。供给与同步的唯一门是系
+/// 统权限——授权即自动同步、权限关即完全停供；
+/// 0.36.16 的同步开关态与镜像层整组退役，本层不
+/// 再持有任何开关。自动触发三路：①回前台对账
+/// ②系统变更记号（DeviceChangeWatcher）③进详情
+/// 页补查。权限撤销的停供由桥据上报判定，本层保
+/// 证回前台第一时间上报。授权铁律：每轮先同步读
+/// 权限现态，仅未决定时走那一次请求（Device-
+/// Permissions 内判）；回调隔离铁律：系统变更回
+/// 调只在观察者内转手，不进本类
 @MainActor
 @Observable
 final class DeviceSyncController {
     /// 桥 status 读到的逐件状态（真状态源）
     private(set) var statuses:
         [DeviceSyncDataset: DeviceSyncDatasetStatus] = [:]
-    /// 逐件同步开关（与偏好同值，视图绑定读这里）
-    private(set) var syncEnabledState: [DeviceSyncDataset: Bool]
     /// 逐件进度人话（非 nil＝正在同步）
     private(set) var progress: [DeviceSyncDataset: String] = [:]
     /// 逐件最近一次失败人话（成功即清）
@@ -158,22 +140,23 @@ final class DeviceSyncController {
     /// 的引擎：日历/提醒/通讯录读走它）
     var dispatcher: DeviceToolDispatcher?
 
-    /// 由 AppState 接线：一开关镜像——同步开关翻
-    /// 转时把同一值写进设备会话的「允许调用」，现
-    /// 调路（单条现读现回）随之开/关（0.36.16）
-    var onSyncSwitchChanged: ((DeviceSyncDataset, Bool) -> Void)?
-
     private var foregroundTask: Task<Void, Never>?
+    /// 最近一次可用的服务器配置（变更记号与详情
+    /// 页补查的对账目标；没连上过就没有，记号攒着
+    /// 等下一次前台检查消费）
+    private var lastConfig: ServerConfig?
+    /// 系统变更记号（触发②）：观察者落记、防抖合
+    /// 并后统一对账（日历/通讯录的编辑是连珠炮式
+    /// 通知，逐条同步只会空转）
+    private var pendingChanges: Set<DeviceSyncDataset> = []
+    private var changeDebounceTask: Task<Void, Never>?
+    private let changeWatcher = DeviceChangeWatcher()
 
     init() {
-        var enabled: [DeviceSyncDataset: Bool] = [:]
         var receipts: [DeviceSyncDataset: DevicePreferences.SyncReceipt]
             = [:]
         var logs: [DeviceSyncDataset: [DeviceSyncLogEntry]] = [:]
         for dataset in DeviceSyncDataset.allCases {
-            enabled[dataset] = DevicePreferences.syncEnabled(
-                for: dataset
-            )
             if let receipt = DevicePreferences.syncReceipt(
                 for: dataset
             ) {
@@ -181,20 +164,15 @@ final class DeviceSyncController {
             }
             logs[dataset] = DevicePreferences.syncLog(for: dataset)
         }
-        syncEnabledState = enabled
         self.receipts = receipts
         self.logs = logs
-    }
-
-    func isSyncEnabled(_ dataset: DeviceSyncDataset) -> Bool {
-        syncEnabledState[dataset] ?? false
-    }
-
-    func setSyncEnabled(_ dataset: DeviceSyncDataset, _ on: Bool) {
-        let changed = syncEnabledState[dataset] != on
-        syncEnabledState[dataset] = on
-        DevicePreferences.setSyncEnabled(on, for: dataset)
-        if changed { onSyncSwitchChanged?(dataset, on) }
+        changeWatcher.onChange = { [weak self] dataset in
+            // 观察者保证在主队列转手，这里再按本仓
+            // 观察者惯例跳回 MainActor 落记
+            Task { @MainActor [weak self] in
+                self?.noteExternalChange(dataset)
+            }
+        }
     }
 
     // MARK: - 同步日志（0.36.16）
@@ -215,21 +193,10 @@ final class DeviceSyncController {
         DevicePreferences.setSyncLog(updated, for: dataset)
     }
 
-    /// 开启动作第一步（先于一切执行，中断也留痕）
+    /// 开权限动作第一步（先于那一次系统请求落账，
+    /// 请求被拒/被打断也留痕——先落账纪律）
     func noteEnabling(_ dataset: DeviceSyncDataset) {
         appendLog(dataset, kind: .enabling)
-    }
-
-    /// 用户开开关：翻状态＋落「已开启」账
-    func enableFromUser(_ dataset: DeviceSyncDataset) {
-        setSyncEnabled(dataset, true)
-        appendLog(dataset, kind: .enabled)
-    }
-
-    /// 用户关开关：翻状态＋落「已关闭」账（停供）
-    func disableFromUser(_ dataset: DeviceSyncDataset) {
-        setSyncEnabled(dataset, false)
-        appendLog(dataset, kind: .disabled)
     }
 
     func isRunning(_ dataset: DeviceSyncDataset) -> Bool {
@@ -254,13 +221,41 @@ final class DeviceSyncController {
         statuses = DeviceSyncStatusResponse.decode(data)
     }
 
-    // MARK: - 前台检查（回前台/冷启/连接就绪时调）
+    // MARK: - 自动对账（三路触发共用一副骨架）
 
-    /// 顺序：①先上报各件权限与范围变化（撤销→桥
-    /// 停供、范围变→下轮整本重灌）②再按计划器逐件
-    /// 判定节流同步。整轮串行慢工，异步自跑不挡界面
+    /// 单件对账：先上报权限与范围变化（撤销→桥停
+    /// 供、范围变→下轮整本重灌），再按计划器判定要
+    /// 不要真同步（节流/变更记号都在计划器里）
+    private func reconcile(
+        dataset: DeviceSyncDataset,
+        permission: DevicePermissionState,
+        config: ServerConfig, changePending: Bool
+    ) async {
+        await reportStateIfChanged(
+            dataset: dataset, permission: permission, config: config
+        )
+        let decision = DeviceSyncPlanner.foregroundDecision(
+            dataset: dataset,
+            permissionUsable: permission.isUsable,
+            lastSuccessAt: statuses[dataset]?.syncedAt
+                ?? receipts[dataset].map {
+                    Date(timeIntervalSince1970: $0.syncedAt)
+                },
+            pendingWrite: statuses[dataset]?.pendingWrite ?? false,
+            changePending: changePending,
+            now: Date()
+        )
+        if decision == .sync {
+            _ = await syncNow(dataset, config: config)
+        }
+    }
+
+    /// 触发①（回前台/冷启/连接就绪时调）：逐件对
+    /// 账；途中攒下的变更记号一并消费。整轮串行慢
+    /// 工，异步自跑不挡界面
     func foregroundCheck(config: ServerConfig?) {
         guard let config else { return }
+        lastConfig = config
         foregroundTask?.cancel()
         foregroundTask = Task { [weak self] in
             guard let self else { return }
@@ -268,49 +263,81 @@ final class DeviceSyncController {
             let permissions = DevicePermissions.currentStates()
             for dataset in DeviceSyncDataset.allCases {
                 if Task.isCancelled { return }
-                let permission = permissions[dataset.sourceID]
-                    ?? .notDetermined
-                await self.reportStateIfChanged(
-                    dataset: dataset, permission: permission,
-                    config: config
-                )
-                let decision = DeviceSyncPlanner.foregroundDecision(
+                await self.reconcile(
                     dataset: dataset,
-                    permissionUsable: permission.isUsable,
-                    syncEnabled: self.isSyncEnabled(dataset),
-                    lastSuccessAt: self.statuses[dataset]?.syncedAt
-                        ?? self.receipts[dataset].map {
-                            Date(timeIntervalSince1970: $0.syncedAt)
-                        },
-                    pendingWrite:
-                        self.statuses[dataset]?.pendingWrite ?? false,
-                    now: Date()
+                    permission: permissions[dataset.sourceID]
+                        ?? .notDetermined,
+                    config: config,
+                    changePending:
+                        self.pendingChanges.remove(dataset) != nil
                 )
-                if decision == .sync {
-                    _ = await self.syncNow(
-                        dataset, config: config
-                    )
-                }
+            }
+        }
+    }
+
+    /// 触发③（进详情页时调）：状态先刷新，再对本
+    /// 件对账——数据没过期只回状态、不真跑同步
+    func detailPageCheck(
+        dataset: DeviceSyncDataset, config: ServerConfig?
+    ) async {
+        guard let config else { return }
+        lastConfig = config
+        await refreshStatus(config: config)
+        let permission = DevicePermissions.currentStates()[
+            dataset.sourceID
+        ] ?? .notDetermined
+        await reconcile(
+            dataset: dataset, permission: permission,
+            config: config,
+            changePending: pendingChanges.remove(dataset) != nil
+        )
+    }
+
+    /// 触发②落记：系统变更通知到手只记一笔，防抖
+    /// 2.5 秒合并后统一对账（配置还没就绪就攒着，
+    /// 等触发①消费）
+    private func noteExternalChange(_ dataset: DeviceSyncDataset) {
+        pendingChanges.insert(dataset)
+        changeDebounceTask?.cancel()
+        changeDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            if Task.isCancelled { return }
+            guard let self, let config = self.lastConfig else {
+                return
+            }
+            let marked = self.pendingChanges
+            self.pendingChanges.removeAll()
+            guard !marked.isEmpty else { return }
+            await self.refreshStatus(config: config)
+            let permissions = DevicePermissions.currentStates()
+            for dataset in marked {
+                await self.reconcile(
+                    dataset: dataset,
+                    permission: permissions[dataset.sourceID]
+                        ?? .notDetermined,
+                    config: config, changePending: true
+                )
             }
         }
     }
 
     // MARK: - 单件同步
 
-    /// 同步发起方：用户当页点的（开启/立即同步/重
-    /// 试）失败要落日志；前台自动检查的门前失败保
-    /// 持静默（不拿节流期的状态刷日志）。引擎一旦
-    /// 真启动，起止成败两方都落账
+    /// 同步发起方：用户在场的（开权限后首同步/详
+    /// 情页补查）门前失败要落日志；自动对账的门前
+    /// 失败保持静默（不拿节流期的状态刷日志）。引
+    /// 擎一旦真启动，起止成败两方都落账
     enum SyncOrigin {
         case user
         case foreground
     }
 
-    /// 一轮同步：门（权限→开关）→ 组装 → 分批暂存
-    /// → 完成确认整批换入 → 回执＋状态刷新。任一步
-    /// 失败：桥上旧副本原样保留（暂存不换入），错
-    /// 误人话落 lastErrors 并进同步日志（0.36.16：
-    /// 日志是失败的正式出口，不再只有一行橙字）
+    /// 一轮同步：权限门 → 组装 → 分批暂存 → 完成
+    /// 确认整批换入 → 回执＋状态刷新（0.36.18 起没
+    /// 有开关门，权限是唯一门）。任一步失败：桥上
+    /// 旧副本原样保留（暂存不换入），错误人话落
+    /// lastErrors 并进同步日志（日志是失败的正式
+    /// 出口，不再只有一行橙字）
     @discardableResult
     func syncNow(
         _ dataset: DeviceSyncDataset, config: ServerConfig?,
@@ -343,17 +370,7 @@ final class DeviceSyncController {
         guard permission.isUsable else {
             lastErrors[dataset] = permission == .restricted
                 ? "这件被系统限制住了（家长控制等），同步不了"
-                : "系统权限还没开：点上方「系统权限」那一行去开启，再回来同步"
-            if origin == .user {
-                appendLog(
-                    dataset, kind: .syncFailed,
-                    reason: lastErrors[dataset]
-                )
-            }
-            return false
-        }
-        guard isSyncEnabled(dataset) else {
-            lastErrors[dataset] = "这一件的同步开关还没开"
+                : "系统权限还没开：打开这一页上方那一个开关就能开启"
             if origin == .user {
                 appendLog(
                     dataset, kind: .syncFailed,
@@ -622,8 +639,8 @@ final class DeviceSyncController {
 
     // MARK: - 删除副本
 
-    /// 删单件副本（手机数据/权限/配对都不动；开关
-    /// 还开着的话，下次打开 App 会重新同步回来）
+    /// 删单件副本（手机数据/权限/配对都不动；权限
+    /// 还开着的话，下次打开 App 会自动同步回来）
     @discardableResult
     func deleteCopy(
         _ dataset: DeviceSyncDataset, config: ServerConfig?
