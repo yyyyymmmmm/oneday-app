@@ -479,14 +479,18 @@ final class ContactsEngine: @unchecked Sendable {
     let store = CNContactStore()
 
     private static var keysToFetch: [CNKeyDescriptor] {
-        [
-            CNContactGivenNameKey,
-            CNContactFamilyNameKey,
-            CNContactOrganizationNameKey,
-            CNContactPhoneNumbersKey,
-            CNContactEmailAddressesKey,
-            CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
-        ] as [CNKeyDescriptor]
+        // 键是 String 常量、描述符是 CNKeyDescriptor，
+        // 异构字面量推断不稳——命令式组装（逐个桥 NSString）
+        var keys: [CNKeyDescriptor] = []
+        keys.append(CNContactGivenNameKey as NSString)
+        keys.append(CNContactFamilyNameKey as NSString)
+        keys.append(CNContactOrganizationNameKey as NSString)
+        keys.append(CNContactPhoneNumbersKey as NSString)
+        keys.append(CNContactEmailAddressesKey as NSString)
+        keys.append(
+            CNContactFormatter.descriptorForRequiredKeys(for: .fullName)
+        )
+        return keys
     }
 
     func requestAccess() async -> DevicePermissionState {
