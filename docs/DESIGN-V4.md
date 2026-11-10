@@ -7513,3 +7513,40 @@ def greet(name):
 
 - 纯视觉改：无 Core 结构变化，不加钉测（单测增减 0）；本机无 Swift 工具链，终判等合并后 CI。
 - 真机复验点：①抽屉三处组界（选项卡↔管理、管理↔频道、频道↔旁聊；频道区隐藏时两处）发丝线清晰可辨、深浅两档都成立；②Hermes 行与上下行同重同高、无箭头、图标与导航图标同尺寸观感；③点 Hermes 行仍开频道页、选中胶囊仍只归当前面。
+## §103 模型包（0.37.0/100）：模型管理三层＋云电脑配置面＋进展胶囊（2026-11-11，预制分支 feat/model-pkg）
+
+依据：model-provider-status-design-20261110（下称「三问档」）＋cloud-computer-product-design-20261110（下称「云电脑档」）＋2026-11-10 19:07 三层定调/19:50 凭据自助扩展/20:34 云电脑拍板。本包为 App 半：Core 四件＋客户端三件＋Store 两件＋UI 五处；服务端新面（渠道管理面、组合 meta 面）未上线处一律契约先行＋如实空态，不放假数据假按钮。
+
+### 103.1 施工前实测（2026-11-11，只读，服务器内存 51%）
+
+- **伴生 connections 契约在产可用**：GET /api/companion/connections 以 App 单钥 Bearer 回 200，记录含 box（simular_box、configured=true）与 vps_agent-1（用户先前建的、未配置）；POST 创建/credential/verify/disconnect 与 front 源码逐项对齐（凭据验活＋失败回滚在服务端）。云电脑配置面的数据来源即此，不新造。
+- **网关渠道只读面未开通**：GET /api/companion/gateway-channels 回 404；New API /api/pricing（公开）只有模型定价与厂商、无渠道名/状态/优先级；渠道管理 API 须管理员凭据、App 永不持有（三问档 §3.2）。结论：渠道区按契约留位，待伴生线补「桥持凭据的只读代理端点」后零改动点亮。
+- **组合激活写面有落点（三问档附 B-1 销账）**：Dashboard GET /api/config 规范化回执顶层含 auxiliary（22 键）/delegation/fallback_providers/moa/providers/model——组合拼装可走既有 performAdmin 全量写回通道。仍未测：写回后热生效范围（附 B-3），激活后提示文案已如实带「若没立刻变、随下次重启生效」，终验归收官窗口。
+- **组合存储面未建**：oneday 桥只有 /meta/brief，/meta/model-combos 未上线——客户端按三问档 §5.3 契约先行，404 走 bridgeMissing 如实空态（台账 App 半同先例）。
+
+### 103.2 接入层
+
+- **提供商名册**（Core `ProviderRegistry`）：条目自 config providers 字典解（name/base_url/key_env/models）；添加表单四件套（三问档 §6.2）——名称/接口地址/SecureField 密钥/模型；**连通性检查＝拿刚填的密钥直连对方 GET /models**（ProviderProbeClient，密钥只过手不留存），拉到默认全选可取消，拉不到降级手填（§6.4 OpenWebUI 口径）；保存顺序＝先 PUT /api/env 落钥（env 名自提供商名派生 `ONEDAY_PROVIDER_<SLUG>_KEY`，仅 ASCII slug、纯中文名回落兜底段且有碰撞闸）→再写 config 条目（只存 key_env 引用）；删除连 env 钥一并删（失败如实带注）。config 明文不存钥、App 本地不存钥（单钥原则不破例）。
+- **网关渠道只读**（Core `GatewayChannel(s)`＋`GatewayChannelsFace` 四态）：面未开通/读失败/空/有数据分开露面；ready 时行＝名＋状态人话（使用中/已停用/出错后自动停用/状态未知）＋「可用模型 N 个·优先级·分组」；全区零按钮（启停/排序是管理面写操作，本包只留位，不明示可点）。
+- **云电脑配置面**（Core `CompanionConnection(s)`/`ConnectionStatusWording`/`ConnectionPayloads`/`CredentialFlowPhase` ＋ `CompanionFrontClient`/`ConnectionsStore`）：连接器目录新增「云电脑」组（云电脑档 §6.1）——每台一行（名＋类型＋状态词，词表与伴生面板同源、优先服务端 effective 原文）；Simular Box 自已连接组迁入本组（同机只出现一处，记录没读到时不滤、避免两处皆空）；添加流＝选类型（托管/VPS）→名字→建记录→就地凭据验活：托管类只填密钥（端点常量在服务端、不让用户填，§3.1），VPS 类地址＋令牌＋**配置串整串粘贴自动拆分**（JSON/两行/空格三形态，Core 解析钉测）；公网明文 http 地址给一次性钥匙风险明示（§5.5 口径）；详情页＝状态/最近验活原文/凭据已配置布尔/更换凭据/测试连接/断开（断开文案明示厂商侧吊销与 VPS 侧卸载是用户在那边的事）。验活成败与回滚全在服务端，App 状态机只回显 detail 原文。
+
+### 103.3 清单层
+
+- **来源标注**（Core `AnnotatedModel`/`ModelSourceAnnotation`）：全部模型＝网关候选（AppState 既有管线）在前＋具名提供商声明模型（直连）在后；同名可双路并存（「deepseek-flash（经网关）」与「deepseek-flash（直连·X）」是两个条目，选路即选来源，不另设提供商切换开关——三问档 §6.5）；**两路都硬排除网关别名**（ModelCatalog 纪律不回退）。行呈现：模型名＋别名标注（沿旧）＋来源短标＋当前标；只有经网关行可点设默认（直连模型设全局默认只有名没有路，点了也是坏的——不给这个入口，槽位里按直连用）。
+
+### 103.4 分配层（组合）
+
+- **数据模型**（Core `ModelCombo`/`ModelComboDocument`/`SlotChoice`）：只存被改过的槽位（aux 稀疏字典）；fallback 用 includesFallback 区分「不动」与「显式清空」；文档整体 GET/PUT 桥 meta（契约 `/meta/model-combos`）。
+- **编辑器**：名字＋主模型（只列网关候选）＋辅助槽位（常用 12 格目录序＋config 实存的其他键补后；每格开关＋走哪条路/用哪个模型两菜单，provider 候选只给自动/主端点/已添加提供商——三问档 §5.7 不端官方全量名单）＋委派＋备用链（增删＋onMove 排序）；每格副行带现行值（ComboCurrentValues 自 config 读）。
+- **激活**（Core `ComboActivation.apply` 纯函数拼装＋Store 执行）：读最新 config→只改点名键（aux 槽位只动 provider/model 两键、同槽位其余键如 timeout 原样保留；未知字段全程保留）→整包写回→meta 标激活；主模型不在网关候选内拦下不写并说明；确认弹窗与结果提示带粒度诚实边界（全局生效/已有会话不受影响/辅助槽位全机共用，§5.3）。
+- **起始示例**：空清单时给「把当前配置存为第一套组合」（ComboStarter 只收非默认槽位）——现状快照、用户点名才存、可删改，不称推荐/预设（§5.6）。
+
+### 103.5 进展胶囊
+
+- 按三问档 §4 落：聊天页顶 safeAreaBar 内、身份胶囊下方一颗玻璃 pill（头像位以 agentDisplayName 文本＋ProgressView 占位，与台账 §96 的 glyph 欠账同口径），内容＝名字＋正在做什么＋已耗时（TimelineView 逐秒、LedgerElapsed 同台账算法）。
+- **同源纪律**：数据源唯一＝台账 items（本面包内 ChatView 表面自持一个 LedgerStore 实例消费同一 /ledger payload——与枢纽段同构的表面自持模式，派生/文案/耗时口径全在 Core，不存在第二套状态语义）；Core `ProgressCapsule.derive` 剔除当前会话名下条目（本聊呈现归消息区）、blockedApproval 不进（归审批角标）、多件收敛「正在进行 N 件 · 最近标题」；点胶囊→台账详情 sheet（LedgerDetailView 复用），条目带会话链接可经 pendingChatSessionID 直达。
+
+### 103.6 钉测与欠账
+
+- 新增 41 法（ProviderRegistry 13＋ModelCombos 12＋CompanionConnections 11＋ProgressCapsule 5；基线 995 → 预期 1036，终判等合并后 CI，本机无 Swift 工具链）。
+- 欠账/未决：①渠道只读代理端点待伴生线（契约已定：GET /api/companion/gateway-channels → {channels:[{id,name,status,models,priority,weight,group}]}，App 已按此解码）；②组合 meta 面待伴生线（契约 GET/PUT /api/oneday-bridge/meta/model-combos，文档 {combos, activeComboID}）；③aux/delegation/fallback 写回的热生效范围未测（收官窗口）；④具名 provider 的选用语法（会话锁/逐请求引用）未实测——本包只做到名册与候选呈现，聊天里实际选直连模型走哪条路归窗口实测后另包；⑤providers 条目里 models 字段经 Dashboard 规范化往返是否无损未实测（若被规范化剥掉，清单层直连标注退化为「条目在、模型清单空」，添加流不受影响）；⑥VPS 能力面（shell/文件/状态卡）与默认台语义随云电脑档 P1 后段另包，本包只到连接配置面。
