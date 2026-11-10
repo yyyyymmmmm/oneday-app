@@ -151,15 +151,21 @@ public enum ApprovalHeadline {
     }
 }
 
-/// 审批面相对时间（0.36.21）：显式钉 zh_CN locale，
-/// 不跟随设备默认口径（用户真机相对时间漏英文 "44
-/// minutes ago" 的定案）。审批面（待批卡/就地卡/已决
-/// 历史）的时间一律走本处；其他面的同类呈现清单见
-/// DESIGN §87（本包不扩围改）。
+/// 审批面相对时间（0.36.21）：当年显式钉 zh_CN
+/// locale，不跟随设备默认口径（用户真机相对时间漏
+/// 英文 "44 minutes ago" 的定案）。0.42.0 国际化包
+/// 续编：钉的改为 App 界面语言本身（AppLocale.
+/// uiLocale）——界面中文时仍是中文、英文时是英文，
+/// 漏出异语言的混排在三语下都不发生。审批面（待
+/// 批卡/就地卡/已决历史）的时间一律走本处；其他面
+/// 的同类呈现清单见 DESIGN §87（本包不扩围改）。
 public enum ApprovalTimeText {
-    public static func relative(_ date: Date, now: Date = Date()) -> String {
+    public static func relative(
+        _ date: Date, now: Date = Date(),
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.locale = locale
         formatter.unitsStyle = .full
         return formatter.localizedString(for: date, relativeTo: now)
     }

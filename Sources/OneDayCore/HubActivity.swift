@@ -209,7 +209,8 @@ public enum HubActivityAssembler {
         fetchedAt: Date,
         now: Date,
         calendar: Calendar = .current,
-        firstUserMessages: [String: String] = [:]
+        firstUserMessages: [String: String] = [:],
+        locale: Locale = AppLocale.uiLocale
     ) -> [HubActivityDayGroup] {
         // 第一步：会话主表（列表版本优先，字段最全）
         var main: [String: ServerSession] = [:]
@@ -388,10 +389,9 @@ public enum HubActivityAssembler {
         items = Array(items.prefix(maxItems))
 
         // 分组：今天/昨天/M月d日（自然日差口径与
-        // SessionDisplay 同源，用 startOfDay 对齐）
-        let monthDay = DateFormatter()
-        monthDay.locale = Locale(identifier: "zh_CN")
-        monthDay.dateFormat = "M月d日"
+        // SessionDisplay 同源，用 startOfDay 对齐；
+        // 0.42.0 起文案走目录取词与 DisplayDate 月
+        // 日格式器，钉注入 locale）
         var groups: [HubActivityDayGroup] = []
         for item in items {
             let dayStart = calendar.startOfDay(for: item.occurredAt)
@@ -402,9 +402,12 @@ public enum HubActivityAssembler {
             ).day ?? Int.max
             let label: String
             switch dayDiff {
-            case 0: label = "今天"
-            case 1: label = "昨天"
-            default: label = monthDay.string(from: item.occurredAt)
+            case 0: label = L10n.string("今天", locale: locale)
+            case 1: label = L10n.string("昨天", locale: locale)
+            default:
+                label = DisplayDate.monthDay(
+                    item.occurredAt, now: now, calendar: calendar, locale: locale
+                )
             }
             if var last = groups.last, last.dayStart == dayStart {
                 groups[groups.count - 1] = HubActivityDayGroup(

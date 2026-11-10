@@ -68,13 +68,17 @@ public enum DeviceSyncDataset: String, CaseIterable, Identifiable, Sendable, Cod
     }
 
     /// 条数单位（状态呈现用）
-    public var countUnit: String {
+    public var countUnit: String { countUnit(locale: AppLocale.uiLocale) }
+
+    /// 条数单位的目录取词形（0.42.0：单位词随界面
+    /// 语言；呈现函数把自己的 locale 透传到这里）
+    public func countUnit(locale: Locale) -> String {
         switch self {
-        case .contacts: return "人"
-        case .calendar: return "条"
-        case .reminders: return "项"
-        case .photos: return "项"
-        case .motion: return "天"
+        case .contacts: return L10n.string("人", locale: locale)
+        case .calendar: return L10n.string("条", locale: locale)
+        case .reminders: return L10n.string("项", locale: locale)
+        case .photos: return L10n.string("项", locale: locale)
+        case .motion: return L10n.string("天", locale: locale)
         }
     }
 
@@ -643,23 +647,30 @@ public enum DeviceSyncPresentation {
     /// 09:41」「昨晚 23:10」「昨天 09:41」「11月
     /// 3日 09:41」
     public static func dayLabel(
-        _ date: Date, now: Date, calendar: Calendar = .current
+        _ date: Date, now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
-        let time = DisplayDate.timeOnly(date)
+        // 0.42.0：相对日词走目录、月日走系统格式器
+        // （钉 locale），档位与旧口径不变
+        let time = DisplayDate.timeOnly(date, calendar: calendar, locale: locale)
         if calendar.isDate(date, inSameDayAs: now) {
-            return "今天 \(time)"
+            return L10n.format("今天 %@", locale: locale, time)
         }
         if let yesterday = calendar.date(
             byAdding: .day, value: -1, to: now
            ), calendar.isDate(date, inSameDayAs: yesterday) {
             let hour = calendar.component(.hour, from: date)
-            return hour >= 18 ? "昨晚 \(time)" : "昨天 \(time)"
+            return hour >= 18
+                ? L10n.format("昨晚 %@", locale: locale, time)
+                : L10n.format("昨天 %@", locale: locale, time)
         }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
-        return "\(formatter.string(from: date)) \(time)"
+        let monthDay = date.formatted(
+            Date.FormatStyle(
+                locale: locale, calendar: calendar,
+                timeZone: calendar.timeZone
+            ).month().day()
+        )
+        return "\(monthDay) \(time)"
     }
 
     /// 本地新鲜度句（与伴生 freshness_text 同措辞；
@@ -667,24 +678,33 @@ public enum DeviceSyncPresentation {
     /// 不到时的本地兜底——同一件事不许两种说法）
     public static func freshnessLine(
         syncedAt: Date, now: Date, pendingWrite: Bool,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
-        let label = dayLabel(syncedAt, now: now, calendar: calendar)
+        // 0.42.0：整句模板走目录（键「数据截至%@…」
+        // 一组），措辞与伴生 freshness_text 同步本地化
+        let label = dayLabel(syncedAt, now: now, calendar: calendar, locale: locale)
         let age = now.timeIntervalSince(syncedAt)
         var text: String
         if age > 24 * 3600 {
-            text = "数据截至\(label)，已过期"
+            text = L10n.format("数据截至%@，已过期", locale: locale, label)
         } else if age < 90 {
-            text = "数据截至\(label)，刚刚同步"
+            text = L10n.format("数据截至%@，刚刚同步", locale: locale, label)
         } else if age < 3600 {
-            text = "数据截至\(label)，约 \(max(1, Int(age / 60))) 分钟前同步"
+            text = L10n.format(
+                "数据截至%@，约 %@ 分钟前同步", locale: locale,
+                label, String(max(1, Int(age / 60)))
+            )
         } else if calendar.isDate(syncedAt, inSameDayAs: now) {
-            text = "数据截至\(label)，约 \(Int(age / 3600)) 小时前同步"
+            text = L10n.format(
+                "数据截至%@，约 %@ 小时前同步", locale: locale,
+                label, String(Int(age / 3600))
+            )
         } else {
-            text = "数据截至\(label)"
+            text = L10n.format("数据截至%@", locale: locale, label)
         }
         if pendingWrite {
-            text += "；刚写入的一条可能还没反映在副本里"
+            text += L10n.string("；刚写入的一条可能还没反映在副本里", locale: locale)
         }
         return text
     }
@@ -698,17 +718,22 @@ public enum DeviceSyncPresentation {
         dataset: DeviceSyncDataset,
         status: DeviceSyncDatasetStatus?,
         authorized: Bool, now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
         if let status, status.synced, let syncedAt = status.syncedAt {
-            var text = "已同步 \(status.itemCount) \(dataset.countUnit)"
-                + " · \(dayLabel(syncedAt, now: now, calendar: calendar))"
-            if status.isLimited { text += " · 部分" }
-            if status.expired { text += " · 已过期" }
-            if status.isRevoked { text += " · 权限已撤销" }
+            var text = L10n.format(
+                "已同步 %lld %@", locale: locale,
+                status.itemCount, dataset.countUnit(locale: locale)
+            ) + " · \(dayLabel(syncedAt, now: now, calendar: calendar, locale: locale))"
+            if status.isLimited { text += L10n.string(" · 部分", locale: locale) }
+            if status.expired { text += L10n.string(" · 已过期", locale: locale) }
+            if status.isRevoked { text += L10n.string(" · 权限已撤销", locale: locale) }
             return text
         }
-        return authorized ? "还没有同步" : "未授权"
+        return authorized
+            ? L10n.string("还没有同步", locale: locale)
+            : L10n.string("未授权", locale: locale)
     }
 
     /// 详情页副题（0.36.18，一句封顶）：副本在哪、
@@ -720,10 +745,13 @@ public enum DeviceSyncPresentation {
 
     /// 授权范围人话（详情页同步区用）
     public static func rangeLine(
-        _ status: DeviceSyncDatasetStatus?
+        _ status: DeviceSyncDatasetStatus?,
+        locale: Locale = AppLocale.uiLocale
     ) -> String? {
         guard let status, status.synced else { return nil }
-        return status.isLimited ? "部分（不是全部）" : "全部"
+        return status.isLimited
+            ? L10n.string("部分（不是全部）", locale: locale)
+            : L10n.string("全部", locale: locale)
     }
 }
 
@@ -867,10 +895,11 @@ public enum DeviceSyncLogPresentation {
     /// 时刻短标（一处真源，不另起格式）
     public static func timeText(
         for entry: DeviceSyncLogEntry, now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
         DeviceSyncPresentation.dayLabel(
-            entry.at, now: now, calendar: calendar
+            entry.at, now: now, calendar: calendar, locale: locale
         )
     }
 
@@ -884,29 +913,39 @@ public enum DeviceSyncLogPresentation {
 
     public static func line(
         for entry: DeviceSyncLogEntry,
-        dataset: DeviceSyncDataset
+        dataset: DeviceSyncDataset,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
+        // 0.42.0：日志行模板走目录；失败原因等条目
+        // 自带文本是记录内容、不译
         switch entry.kind {
         case .enabling:
-            return "正在开启同步"
+            return L10n.string("正在开启同步", locale: locale)
         case .enabled:
-            return "同步已开启"
+            return L10n.string("同步已开启", locale: locale)
         case .disabled:
-            return "同步已关闭，智能体用不了这一件了"
+            return L10n.string("同步已关闭，智能体用不了这一件了", locale: locale)
         case .syncStarted:
-            return "开始同步"
+            return L10n.string("开始同步", locale: locale)
         case .syncCompleted:
-            let unit = dataset.countUnit
-            return "同步完成：新增 \(entry.added ?? 0) \(unit)，"
-                + "共 \(entry.total ?? 0) \(unit)"
+            let unit = dataset.countUnit(locale: locale)
+            return L10n.format(
+                "同步完成：新增 %lld %@，", locale: locale,
+                entry.added ?? 0, unit
+            ) + L10n.format(
+                "共 %lld %@", locale: locale, entry.total ?? 0, unit
+            )
         case .syncFailed:
-            return "同步没成：\(entry.reason ?? "原因没记下来")"
+            return L10n.format(
+                "同步没成：%@", locale: locale,
+                entry.reason ?? L10n.string("原因没记下来", locale: locale)
+            )
         case .permissionRevoked:
-            return "系统权限被关掉了：已停供，智能体查不到这一件了"
+            return L10n.string("系统权限被关掉了：已停供，智能体查不到这一件了", locale: locale)
         case .permissionRestored:
-            return "系统权限恢复了"
+            return L10n.string("系统权限恢复了", locale: locale)
         case .copyDeleted:
-            return "服务器上的副本已删除"
+            return L10n.string("服务器上的副本已删除", locale: locale)
         }
     }
 }

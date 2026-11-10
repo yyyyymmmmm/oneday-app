@@ -38,18 +38,19 @@ public enum SidebarGrouping {
         items: [Item<Key>],
         now: Date,
         calendar: Calendar = .current,
-        searching: Bool = false
+        searching: Bool = false,
+        locale: Locale = AppLocale.uiLocale
     ) -> [Group<Key>] {
         let sorted = items.sorted { $0.updatedAt > $1.updatedAt }
         if searching {
             return sorted.isEmpty
                 ? []
-                : [Group(label: "搜索结果", keys: sorted.map(\.key))]
+                : [Group(label: L10n.string("搜索结果", locale: locale), keys: sorted.map(\.key))]
         }
         var result: [Group<Key>] = []
         let pinned = sorted.filter(\.isPinned)
         if !pinned.isEmpty {
-            result.append(Group(label: "置顶", keys: pinned.map(\.key)))
+            result.append(Group(label: L10n.string("置顶", locale: locale), keys: pinned.map(\.key)))
         }
         let todayStart = calendar.startOfDay(for: now)
         func dayDiff(_ date: Date) -> Int {
@@ -89,22 +90,31 @@ public enum SidebarGrouping {
             }
         }
         if !today.isEmpty {
-            result.append(Group(label: "今天", keys: today))
+            result.append(Group(label: L10n.string("今天", locale: locale), keys: today))
         }
         if !yesterday.isEmpty {
-            result.append(Group(label: "昨天", keys: yesterday))
+            result.append(Group(label: L10n.string("昨天", locale: locale), keys: yesterday))
         }
         if !week.isEmpty {
-            result.append(Group(label: "过去 7 天", keys: week))
+            result.append(Group(label: L10n.string("过去 7 天", locale: locale), keys: week))
         }
         if !month.isEmpty {
-            result.append(Group(label: "过去 30 天", keys: month))
+            result.append(Group(label: L10n.string("过去 30 天", locale: locale), keys: month))
         }
         let nowYear = calendar.component(.year, from: now)
         for bucket in olderOrder {
+            // 月组标题走系统格式器（钉 locale）：简体
+            // 「11月」/「2025年11月」、英文「November」/
+            // 「November 2025」，字段序由格式器按语言定
+            let bucketDate = calendar.date(
+                from: DateComponents(year: bucket.year, month: bucket.month, day: 1)
+            ) ?? now
+            let monthStyle = Date.FormatStyle(
+                locale: locale, calendar: calendar, timeZone: calendar.timeZone
+            )
             let label = bucket.year == nowYear
-                ? "\(bucket.month)月"
-                : "\(bucket.year)年\(bucket.month)月"
+                ? bucketDate.formatted(monthStyle.month(.wide))
+                : bucketDate.formatted(monthStyle.year().month(.wide))
             result.append(Group(
                 label: label,
                 keys: olderKeys["\(bucket.year)-\(bucket.month)"] ?? []

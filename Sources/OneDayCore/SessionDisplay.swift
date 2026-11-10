@@ -1,19 +1,8 @@
 import Foundation
 
-/// 人话时间的固定中文短格式（不随系统语言漂移）
-private let sessionMonthDayFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "zh_CN")
-    formatter.dateFormat = "M月d日"
-    return formatter
-}()
-
-private let sessionTimeFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "zh_CN")
-    formatter.dateFormat = "HH:mm"
-    return formatter
-}()
+// 0.42.0 国际化包：旧版钉 zh_CN 的两个固定格式器
+// 退役——月日与时刻改走 DisplayDate 同源系统格式
+// 器（钉注入 locale），相对日词走目录取词。
 
 /// 「日 + 时刻」单段时间文本（今天/昨天 HH:mm、更早
 /// M月d日 HH:mm）：服务端副题、本地副题与 0.17.0 抽
@@ -23,23 +12,35 @@ private let sessionTimeFormatter: DateFormatter = {
 /// .isDateInToday——它锚真实系统时钟、忽略注入的
 /// now，0.3.6 单测实证）。
 private func sessionDayTimeText(
-    for date: Date, now: Date, calendar: Calendar
+    for date: Date, now: Date, calendar: Calendar,
+    locale: Locale = AppLocale.uiLocale
 ) -> String {
-    let dayDiff = calendar.dateComponents(
-        [.day],
-        from: calendar.startOfDay(for: date),
-        to: calendar.startOfDay(for: now)
-    ).day ?? Int.max
+    let dayDiff = DisplayDate.dayDifference(of: date, now: now, calendar: calendar)
     let day: String
     switch dayDiff {
     case 0:
-        day = "今天"
+        day = L10n.string("今天", locale: locale)
     case 1:
-        day = "昨天"
+        day = L10n.string("昨天", locale: locale)
     default:
-        day = sessionMonthDayFormatter.string(from: date)
+        day = DisplayDate.absoluteDate(of: date, now: now, calendar: calendar, locale: locale)
     }
-    return "\(day) \(sessionTimeFormatter.string(from: date))"
+    let time = DisplayDate.timeText(of: date, calendar: calendar, locale: locale)
+    return "\(day) \(time)"
+}
+
+/// 来源人话标签的目录取词形（0.42.0）：public 的
+/// sourceLabel 计算属性保持旧口径不动（单测钉死、
+/// 无 locale 入参面），副题函数经本形按注入语言
+/// 取词，两处措辞同源（键即旧字面量）
+private func sessionSourceLabel(_ source: String?, locale: Locale) -> String {
+    switch source?.lowercased() {
+    case "api_server": return L10n.string("其他应用", locale: locale)
+    case "dashboard": return L10n.string("控制台", locale: locale)
+    case "cli": return L10n.string("命令行", locale: locale)
+    case "cron", "cron_job", "scheduler": return L10n.string("定时任务", locale: locale)
+    default: return L10n.string("服务端", locale: locale)
+    }
 }
 
 /// 服务端会话的屏上文案（0.3.6 立 §21.4，0.3.7 按卡
@@ -180,17 +181,20 @@ public extension ServerSession {
     /// 齐，与 SidebarGrouping 同口径；不许用
     /// Calendar.isDateInToday——它锚真实系统时钟、忽
     /// 略注入的 now，0.3.6 单测实证）。
-    func humanSubtitle(now: Date, calendar: Calendar = .current) -> String {
+    func humanSubtitle(
+        now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
         var parts: [String] = []
         if let date = startedDate {
             parts.append(
-                sessionDayTimeText(for: date, now: now, calendar: calendar)
+                sessionDayTimeText(for: date, now: now, calendar: calendar, locale: locale)
             )
         }
         if let messageCount {
-            parts.append("\(messageCount) 条")
+            parts.append(L10n.format("%lld 条", locale: locale, messageCount))
         }
-        parts.append(sourceLabel)
+        parts.append(sessionSourceLabel(source, locale: locale))
         return parts.joined(separator: " · ")
     }
 
@@ -198,10 +202,11 @@ public extension ServerSession {
     /// 间段（与副题首段逐字一致），条数/来源不上行；
     /// 无开始时间返回 nil（行尾留空，不编造）
     func listTimeText(
-        now: Date, calendar: Calendar = .current
+        now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String? {
         guard let date = startedDate else { return nil }
-        return sessionDayTimeText(for: date, now: now, calendar: calendar)
+        return sessionDayTimeText(for: date, now: now, calendar: calendar, locale: locale)
     }
 
     /// 首条用户消息（0.6.1 立、0.18.0 降为回落层素
@@ -227,13 +232,14 @@ public extension ServerSession {
 public enum LocalThreadSubtitle {
     public static func text(
         updatedAt: Date, messageCount: Int,
-        now: Date, calendar: Calendar = .current
+        now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
         var parts = [
-            sessionDayTimeText(for: updatedAt, now: now, calendar: calendar)
+            sessionDayTimeText(for: updatedAt, now: now, calendar: calendar, locale: locale)
         ]
         if messageCount > 0 {
-            parts.append("\(messageCount) 条")
+            parts.append(L10n.format("%lld 条", locale: locale, messageCount))
         }
         return parts.joined(separator: " · ")
     }
@@ -242,9 +248,10 @@ public enum LocalThreadSubtitle {
     /// 间段、条数不上行（与 text() 首段逐字一致）
     public static func timeText(
         updatedAt: Date,
-        now: Date, calendar: Calendar = .current
+        now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
-        sessionDayTimeText(for: updatedAt, now: now, calendar: calendar)
+        sessionDayTimeText(for: updatedAt, now: now, calendar: calendar, locale: locale)
     }
 }
 

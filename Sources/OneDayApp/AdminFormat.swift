@@ -1,22 +1,12 @@
 import Foundation
+import OneDayCore
 
 /// 管理面通用格式：日期/计数/金额的呈现口径全 App 一处定死，
 /// 避免各页各写一套（0.1.3 抽屉时间格式漂移的教训）。
+/// 0.42.0 国际化包：日期口径收编 DisplayDate（系统
+/// 格式器、钉界面语言），旧版钉 zh_CN 的固定中文格
+/// 式器退役——格式仍一处定死，只是不再写死语言。
 enum AdminFormat {
-    /// 固定中文短格式（11月8日 13:43），不随系统语言漂移
-    private static let shortFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
-        return formatter
-    }()
-
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
-        return formatter
-    }()
 
     // ISO8601DateFormatter 非 Sendable，Swift 6 下不许做静态
     // 存储属性；解析频次低，按需构造即可。
@@ -30,13 +20,14 @@ enum AdminFormat {
         ISO8601DateFormatter()
     }
 
+    /// 短格式（11月8日 13:43）：绝对月日＋时刻，无相对档
     static func short(_ date: Date?) -> String {
         guard let date else { return "—" }
-        return shortFormatter.string(from: date)
+        return DisplayDate.absoluteDateTime(date)
     }
 
     static func day(_ date: Date) -> String {
-        dayFormatter.string(from: date)
+        DisplayDate.monthDay(date)
     }
 
     /// 服务端 ISO 串（cron 的 last/next_run_at）→ Date，两种精度都认
@@ -47,10 +38,7 @@ enum AdminFormat {
 
     /// 仅时间（HH:mm），指标行等窄格用
     static func timeOnly(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "HH:mm"
-        return f.string(from: date)
+        DisplayDate.timeOnly(date)
     }
 
     /// 日志行展示清洗：去掉行首的 ISO 时间戳 token，日志页保留原文
@@ -62,10 +50,13 @@ enum AdminFormat {
     }
 
     /// 用量日串（yyyy-MM-dd）→ 短日格式，解析不了原样返回
-    static func usageDay(_ string: String) -> String {        let parser = DateFormatter()
+    /// （yyyy-MM-dd 是服务端日串的解析格式、非呈现格式，保留）
+    static func usageDay(_ string: String) -> String {
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
         parser.dateFormat = "yyyy-MM-dd"
         guard let date = parser.date(from: string) else { return string }
-        return dayFormatter.string(from: date)
+        return day(date)
     }
 
     /// 千分位计数（Token、请求数）：等宽读数口径

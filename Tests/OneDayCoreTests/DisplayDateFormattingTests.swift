@@ -8,6 +8,10 @@ import XCTest
 /// 断言。
 final class DisplayDateFormattingTests: XCTestCase {
 
+    /// 0.42.0：断言钉简体（格式化器 locale 显式注入，
+    /// 不随测试运行环境语言漂移）
+    private var zhHans: Locale { Locale(identifier: "zh-Hans") }
+
     private var calendar: Calendar {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
@@ -30,14 +34,14 @@ final class DisplayDateFormattingTests: XCTestCase {
 
     func testDateTimeTodayShowsTimeOnly() {
         XCTAssertEqual(
-            DisplayDate.dateTime(date(2026, 11, 10, 9, 5), now: now, calendar: calendar),
+            DisplayDate.dateTime(date(2026, 11, 10, 9, 5), now: now, calendar: calendar, locale: zhHans),
             "09:05"
         )
     }
 
     func testDateTimeYesterday() {
         XCTAssertEqual(
-            DisplayDate.dateTime(date(2026, 11, 9, 23, 40), now: now, calendar: calendar),
+            DisplayDate.dateTime(date(2026, 11, 9, 23, 40), now: now, calendar: calendar, locale: zhHans),
             "昨天 23:40"
         )
     }
@@ -45,21 +49,21 @@ final class DisplayDateFormattingTests: XCTestCase {
     func testDateTimeWithinWeekShowsWeekday() {
         // 2026-11-07 是星期六（日差 3）
         XCTAssertEqual(
-            DisplayDate.dateTime(date(2026, 11, 7, 8, 0), now: now, calendar: calendar),
+            DisplayDate.dateTime(date(2026, 11, 7, 8, 0), now: now, calendar: calendar, locale: zhHans),
             "星期六 08:00"
         )
     }
 
     func testDateTimeSameYearShowsMonthDay() {
         XCTAssertEqual(
-            DisplayDate.dateTime(date(2026, 3, 5, 12, 30), now: now, calendar: calendar),
+            DisplayDate.dateTime(date(2026, 3, 5, 12, 30), now: now, calendar: calendar, locale: zhHans),
             "3月5日 12:30"
         )
     }
 
     func testDateTimeCrossYearShowsFullDate() {
         XCTAssertEqual(
-            DisplayDate.dateTime(date(2025, 12, 31, 12, 30), now: now, calendar: calendar),
+            DisplayDate.dateTime(date(2025, 12, 31, 12, 30), now: now, calendar: calendar, locale: zhHans),
             "2025年12月31日 12:30"
         )
     }
@@ -73,8 +77,8 @@ final class DisplayDateFormattingTests: XCTestCase {
         ]
         for sample in samples {
             XCTAssertEqual(
-                DisplayDate.dateTime(sample, now: now, calendar: calendar),
-                ChatTimeline.dividerText(for: sample, now: now, calendar: calendar),
+                DisplayDate.dateTime(sample, now: now, calendar: calendar, locale: zhHans),
+                ChatTimeline.dividerText(for: sample, now: now, calendar: calendar, locale: zhHans),
                 "日期 \(sample) 两处口径漂移"
             )
         }
@@ -84,35 +88,35 @@ final class DisplayDateFormattingTests: XCTestCase {
 
     func testDateOnlyRelativeDays() {
         XCTAssertEqual(
-            DisplayDate.dateOnly(date(2026, 11, 10, 9, 0), now: now, calendar: calendar),
+            DisplayDate.dateOnly(date(2026, 11, 10, 9, 0), now: now, calendar: calendar, locale: zhHans),
             "今天"
         )
         XCTAssertEqual(
-            DisplayDate.dateOnly(date(2026, 11, 9, 9, 0), now: now, calendar: calendar),
+            DisplayDate.dateOnly(date(2026, 11, 9, 9, 0), now: now, calendar: calendar, locale: zhHans),
             "昨天"
         )
         XCTAssertEqual(
-            DisplayDate.dateOnly(date(2026, 11, 11, 9, 0), now: now, calendar: calendar),
+            DisplayDate.dateOnly(date(2026, 11, 11, 9, 0), now: now, calendar: calendar, locale: zhHans),
             "明天"
         )
         XCTAssertEqual(
-            DisplayDate.dateOnly(date(2026, 11, 7, 9, 0), now: now, calendar: calendar),
+            DisplayDate.dateOnly(date(2026, 11, 7, 9, 0), now: now, calendar: calendar, locale: zhHans),
             "星期六"
         )
     }
 
     func testDateOnlyAbsolute() {
         XCTAssertEqual(
-            DisplayDate.dateOnly(date(2026, 3, 5), now: now, calendar: calendar),
+            DisplayDate.dateOnly(date(2026, 3, 5), now: now, calendar: calendar, locale: zhHans),
             "3月5日"
         )
         XCTAssertEqual(
-            DisplayDate.dateOnly(date(2025, 12, 31), now: now, calendar: calendar),
+            DisplayDate.dateOnly(date(2025, 12, 31), now: now, calendar: calendar, locale: zhHans),
             "2025年12月31日"
         )
         // 未来远期（过期日场景）：落日期本形，不编相对日
         XCTAssertEqual(
-            DisplayDate.dateOnly(date(2026, 12, 10), now: now, calendar: calendar),
+            DisplayDate.dateOnly(date(2026, 12, 10), now: now, calendar: calendar, locale: zhHans),
             "12月10日"
         )
     }
@@ -121,30 +125,30 @@ final class DisplayDateFormattingTests: XCTestCase {
 
     func testRelativeDateTime() {
         XCTAssertEqual(
-            DisplayDate.relativeDateTime(date(2026, 11, 10, 9, 5), now: now, calendar: calendar),
+            DisplayDate.relativeDateTime(date(2026, 11, 10, 9, 5), now: now, calendar: calendar, locale: zhHans),
             "今天 09:05"
         )
         XCTAssertEqual(
-            DisplayDate.relativeDateTime(date(2026, 11, 9, 23, 40), now: now, calendar: calendar),
+            DisplayDate.relativeDateTime(date(2026, 11, 9, 23, 40), now: now, calendar: calendar, locale: zhHans),
             "昨天 23:40"
         )
         XCTAssertEqual(
-            DisplayDate.relativeDateTime(date(2026, 11, 7, 8, 0), now: now, calendar: calendar),
+            DisplayDate.relativeDateTime(date(2026, 11, 7, 8, 0), now: now, calendar: calendar, locale: zhHans),
             "星期六"
         )
         XCTAssertEqual(
-            DisplayDate.relativeDateTime(date(2026, 3, 5, 12, 30), now: now, calendar: calendar),
+            DisplayDate.relativeDateTime(date(2026, 3, 5, 12, 30), now: now, calendar: calendar, locale: zhHans),
             "3月5日"
         )
     }
 
     func testTimeOnlyZeroPadded() {
         XCTAssertEqual(
-            DisplayDate.timeOnly(date(2026, 11, 10, 9, 5), calendar: calendar),
+            DisplayDate.timeOnly(date(2026, 11, 10, 9, 5), calendar: calendar, locale: zhHans),
             "09:05"
         )
         XCTAssertEqual(
-            DisplayDate.timeOnly(date(2026, 11, 10, 23, 59), calendar: calendar),
+            DisplayDate.timeOnly(date(2026, 11, 10, 23, 59), calendar: calendar, locale: zhHans),
             "23:59"
         )
     }

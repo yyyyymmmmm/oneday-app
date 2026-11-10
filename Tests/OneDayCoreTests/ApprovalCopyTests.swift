@@ -280,7 +280,8 @@ final class ApprovalCopyTests: XCTestCase {
     func testRelativeTimeChinese() {
         let now = Date(timeIntervalSince1970: 1_760_100_000)
         let text = ApprovalTimeText.relative(
-            now.addingTimeInterval(-44 * 60), now: now
+            now.addingTimeInterval(-44 * 60), now: now,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertTrue(text.contains("44"), "实际输出：\(text)")
         XCTAssertTrue(text.contains("分钟"), "实际输出：\(text)")

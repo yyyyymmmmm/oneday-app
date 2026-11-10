@@ -25,7 +25,7 @@ final class ChatTimelineTests: XCTestCase {
     }
 
     private func text(_ date: Date, now: Date) -> String {
-        ChatTimeline.dividerText(for: date, now: now, calendar: calendar)
+        ChatTimeline.dividerText(for: date, now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans"))
     }
 
     // MARK: - 落点：锚点走查

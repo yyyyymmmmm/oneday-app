@@ -763,11 +763,10 @@ struct CalendarDetailView: View {
     }
 
     private func eventSubline(_ event: DeviceAgendaEvent) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
+        // 0.42.0：时刻走 DisplayDate 唯一格式器
         var text = event.isAllDay
-            ? "全天"
-            : "\(formatter.string(from: event.start)) – \(formatter.string(from: event.end))"
+            ? L10n.string("全天")
+            : "\(DisplayDate.timeOnly(event.start)) – \(DisplayDate.timeOnly(event.end))"
         text += " · \(event.calendarName)"
         if let location = event.location, !location.isEmpty {
             text += " · \(location)"
@@ -776,17 +775,22 @@ struct CalendarDetailView: View {
     }
 
     private func dayTitle(_ day: Date) -> String {
+        // 0.42.0：「M月d日 星期X」走系统格式器字段
+        // 拼装（钉界面语言、字段序随语言）；今天/明
+        // 天前缀走目录模板
         let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 EEEE"
+        let style = Date.FormatStyle(
+            locale: AppLocale.uiLocale, calendar: calendar,
+            timeZone: calendar.timeZone
+        )
+        let styled = day.formatted(style.month().day().weekday(.wide))
         if calendar.isDateInToday(day) {
-            return "今天 · \(formatter.string(from: day))"
+            return L10n.format("今天 · %@", styled)
         }
         if calendar.isDateInTomorrow(day) {
-            return "明天 · \(formatter.string(from: day))"
+            return L10n.format("明天 · %@", styled)
         }
-        return formatter.string(from: day)
+        return styled
     }
 
     private func load() {
@@ -983,18 +987,19 @@ struct RemindersDetailView: View {
 
     private func reminderSubline(_ item: DeviceReminderItem) -> String? {
         guard let due = item.due else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
+        // 0.42.0：日期时刻走 DisplayDate 绝对档；
+        // 过期句模板走目录（键「已过期 %lld 天 · %@」
+        // 等一组）
+        let stamp = DisplayDate.absoluteDateTime(due)
         if item.isOverdue {
             let days = Calendar.current.dateComponents(
                 [.day], from: due, to: Date()
             ).day ?? 0
             return days > 0
-                ? "已过期 \(days) 天 · \(formatter.string(from: due))"
-                : "已过期 · \(formatter.string(from: due))"
+                ? L10n.format("已过期 %@ 天 · %@", String(days), stamp)
+                : L10n.format("已过期 · %@", stamp)
         }
-        return formatter.string(from: due)
+        return stamp
     }
 
     private func toggle(_ item: DeviceReminderItem) async {
