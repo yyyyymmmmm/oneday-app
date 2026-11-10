@@ -119,12 +119,18 @@ final class RichContentTests: XCTestCase {
         XCTAssertTrue(vision?.result?.contains("Unsupported Image") ?? false)
         XCTAssertEqual(vision?.resultFailed, false)
 
-        // exit_code 127 → 失败卡，摘要是命令首行
+        // exit_code 127 → 失败卡；摘要走命令摘要
+        // （0.36.10，诊断 D3-5）：复合命令呈「N 条命令
+        // · 首条」，不再整串直出（旧「命令首行」口径
+        // 于此迁移）
         let terminal = items[2].toolCard
         XCTAssertEqual(terminal?.toolName, "terminal")
         XCTAssertEqual(terminal?.category, .terminal)
         XCTAssertEqual(terminal?.title, "运行命令")
-        XCTAssertTrue(terminal?.summary.hasPrefix("cd /opt/data/cache") ?? false)
+        XCTAssertEqual(
+            terminal?.summary,
+            "3 条命令 · cd /opt/data/cache/documents/native-inputs/FIXTUREHASH/"
+        )
         XCTAssertTrue(terminal?.result?.contains("total 20") ?? false)
         XCTAssertEqual(terminal?.resultFailed, true)
     }
