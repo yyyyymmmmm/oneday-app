@@ -378,6 +378,27 @@ final class RenderMeasureTests: XCTestCase {
         )
     }
 
+    /// 语义同一性断言（0.36.1）：系统语义色解析后是
+    /// Display P3 空间分量（getRed 读数与 sRGB 文档值
+    /// 不等，如 systemRed 暗档 G/B 分量互换量级），且
+    /// 个别 α 常量与文档表不符（systemFill 暗 0.36、
+    /// quaternaryLabel 暗 40/255）——这类令牌钉「解
+    /// 析值与系统语义色本尊相等」，比分量钉更准
+    private func assertSemantic(
+        _ color: Color, dark: Bool, equals semantic: UIColor,
+        _ label: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let traits = UITraitCollection(
+            userInterfaceStyle: dark ? .dark : .light
+        )
+        XCTAssertEqual(
+            UIColor(color).resolvedColor(with: traits),
+            semantic.resolvedColor(with: traits),
+            label, file: file, line: line
+        )
+    }
+
     /// 暗档语义梯专钉（0.36.1，批一B／审计 D1–D6）：
     /// 0.6.1 的派生色板退役后，Palette 暗档解析值必须
     /// 逐项落在苹果语义梯上——背景三层（D1/D2）、标
@@ -438,10 +459,13 @@ final class RenderMeasureTests: XCTestCase {
             equals: (235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.30),
             "inkMuted 暗"
         )
-        assertResolved(
+        // 四级标签与系统色以「语义同一性」钉（见下方
+        // assertSemantic 注：解析分量是 P3 空间值、且
+        // quaternaryLabel 暗档 α 实测 40/255，分量钉
+        // 会钉错口径）
+        assertSemantic(
             Palette.inkQuaternary, dark: true,
-            equals: (235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.18),
-            "inkQuaternary 暗"
+            equals: .quaternaryLabel, "inkQuaternary 暗"
         )
         // 发丝描边：opaqueSeparator #38383A
         assertResolved(
@@ -449,30 +473,28 @@ final class RenderMeasureTests: XCTestCase {
             equals: (0x38 / 255.0, 0x38 / 255.0, 0x3A / 255.0, 1),
             "hairline 暗"
         )
-        // fill 阶梯：基色 (120,120,128)、α 0.32/0.28
-        assertResolved(
+        // fill 阶梯与状态色：语义同一性钉（systemFill
+        // 暗档 α 实测 0.36、secondarySystemFill 0.32，
+        // 与 sRGB 文档表口径不同，以系统实测为准）
+        assertSemantic(
             Palette.selectionFill, dark: true,
-            equals: (120.0 / 255.0, 120.0 / 255.0, 128.0 / 255.0, 0.32),
-            "selectionFill 暗"
+            equals: .systemFill, "selectionFill 暗"
         )
-        assertResolved(
+        assertSemantic(
             Palette.fillSecondary, dark: true,
-            equals: (120.0 / 255.0, 120.0 / 255.0, 128.0 / 255.0, 0.28),
-            "fillSecondary 暗"
+            equals: .secondarySystemFill, "fillSecondary 暗"
         )
-        // 状态色：systemRed/Green/Orange 暗值（保饱和）
-        assertResolved(
+        assertSemantic(
             Palette.danger, dark: true,
-            equals: (1, 0x45 / 255.0, 0x3A / 255.0, 1), "danger 暗"
+            equals: .systemRed, "danger 暗"
         )
-        assertResolved(
+        assertSemantic(
             Palette.success, dark: true,
-            equals: (0x30 / 255.0, 0xD1 / 255.0, 0x58 / 255.0, 1),
-            "success 暗"
+            equals: .systemGreen, "success 暗"
         )
-        assertResolved(
+        assertSemantic(
             Palette.warning, dark: true,
-            equals: (1, 0x9F / 255.0, 0x0A / 255.0, 1), "warning 暗"
+            equals: .systemOrange, "warning 暗"
         )
         // 浅档守恒：本批未动的三钉
         assertResolved(

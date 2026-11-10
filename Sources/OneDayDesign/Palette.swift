@@ -108,10 +108,11 @@ public enum Palette {
         light: 0xFCFCFC, dark: .systemBackground
     )
     /// 选中填充（OpenMuse 底栏激活项 #F0F1F2，App.tsx:
-    /// 464；暗档 0.36.1 改挂 systemFill (120,120,128,
-    /// α0.32)——压卡面合成实算 1.48:1，旧派生 #232B30
-    /// 仅 1.12:1 暗档几乎不可辨，审计 D5；本色即 fill
-    /// 四级阶梯的一级，见下方 fillPrimary）
+    /// 464；暗档 0.36.1 改挂 systemFill (120,120,128，
+    /// α 为系统常量、暗档实测 0.36)——压卡面合成实算
+    /// ≈1.6:1，旧派生 #232B30 仅 1.12:1 暗档几乎不可
+    /// 辨，审计 D5；本色即 fill 四级阶梯的一级，见下
+    /// 方 fillPrimary）
     public static let selectionFill = appleColor(
         light: 0xF0F1F2, dark: .systemFill
     )
@@ -135,12 +136,12 @@ public enum Palette {
 
     /// fill 四级阶梯（0.36.1，审计 D5）：苹果 systemFill
     /// 四级 α 阶梯双档直挂语义色——选中态/胶囊/输入
-    /// 底/弱填充按强度取级（暗档 α 0.32/0.28/0.24/
-    /// 0.18、浅档 α 0.20/0.16/0.12/0.08，基色同为
-    /// (120,120,128)），强度由 α 定义、随所压面自适
-    /// 应；新消费点一律取此梯，不许再手派生填充值。
-    /// selectionFill 是其一档的历史角色（浅档保留
-    /// OpenMuse 原值、暗档同源 systemFill）
+    /// 底/弱填充按强度取级（基色同为 (120,120,128)；
+    /// α 为系统常量，暗档实测 systemFill 0.36、
+    /// secondarySystemFill 0.32），强度由 α 定义、随
+    /// 所压面自适应；新消费点一律取此梯，不许再手派
+    /// 生填充值。selectionFill 是其一档的历史角色
+    /// （浅档保留 OpenMuse 原值、暗档同源 systemFill）
     public static let fillPrimary = Color(UIColor.systemFill)
     public static let fillSecondary = Color(
         UIColor.secondarySystemFill
@@ -241,10 +242,10 @@ public enum Palette {
         light: 0x949B9F, dark: .tertiaryLabel
     )
     /// 四级墨（0.36.1 新设，审计 D3 标签四级补齐）：
-    /// quaternaryLabel 双档直挂语义色 (235,235,245,
-    /// α0.18／浅档 (60,60,67,α0.18))——时间戳级、占
-    /// 位级的最弱档，此前无处安放只能借 inkMuted 硬
-    /// 凑；本色是新令牌、双档皆语义（无旧浅档可守）
+    /// quaternaryLabel 双档直挂语义色（暗档 α 系统
+    /// 实测 40/255）——时间戳级、占位级的最弱档，此
+    /// 前无处安放只能借 inkMuted 硬凑；本色是新令
+    /// 牌、双档皆语义（无旧浅档可守）
     public static let inkQuaternary = Color(
         UIColor.quaternaryLabel
     )

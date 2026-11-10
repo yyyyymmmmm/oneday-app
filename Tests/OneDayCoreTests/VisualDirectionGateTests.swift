@@ -189,7 +189,7 @@ final class VisualDirectionGateTests: XCTestCase {
         // 暗档可见性闸（0.36.1，审计 D4/D5）：分隔线与
         // 发丝描边、选中填充压卡面合成对比 ≥1.4——旧
         // 实色口径分别为 1.17/1.17/1.12 近乎消失，新
-        // 语义口径实算 1.60/1.45/1.48
+        // 语义口径实算约 1.60/1.45/1.62（CI 实测过闸）
         XCTAssertGreaterThanOrEqual(
             compositedRatio(
                 Palette.separator, on: Palette.surface, dark: true
