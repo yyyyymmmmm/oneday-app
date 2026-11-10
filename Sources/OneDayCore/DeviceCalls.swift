@@ -51,27 +51,26 @@ public enum DeviceToolError: Error, Equatable, Sendable {
 // MARK: - ISO 8601 时刻（桥契约的时刻格式）
 
 public enum DeviceISO8601 {
-    private static let withFraction: ISO8601DateFormatter = {
+    // ISO8601DateFormatter 非 Sendable，Swift 6 下不许
+    // 作静态共享——按次构造（调用频度低、成本可忽略）
+    private static func makeFormatter(fractional: Bool) -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.formatOptions = fractional
+            ? [.withInternetDateTime, .withFractionalSeconds]
+            : [.withInternetDateTime]
         return formatter
-    }()
-
-    private static let plain: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
+    }
 
     /// 解析桥下发的 ISO 8601 时刻（带/不带小数秒、
     /// 带时区偏移均可）；解析不了回 nil，不猜
     public static func parse(_ text: String) -> Date? {
-        withFraction.date(from: text) ?? plain.date(from: text)
+        makeFormatter(fractional: true).date(from: text)
+            ?? makeFormatter(fractional: false).date(from: text)
     }
 
     /// 出参时刻统一带小数秒的 ISO 8601（UTC）
     public static func format(_ date: Date) -> String {
-        withFraction.string(from: date)
+        makeFormatter(fractional: true).string(from: date)
     }
 }
 

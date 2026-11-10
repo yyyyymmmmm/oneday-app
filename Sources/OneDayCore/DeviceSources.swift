@@ -21,7 +21,7 @@ import Foundation
 
 /// 数据源标识（名册序即目录呈现序；rawValue 与桥
 /// permissions 字典的键逐字一致）
-public enum DeviceSourceID: String, CaseIterable, Identifiable, Sendable {
+public enum DeviceSourceID: String, CaseIterable, Identifiable, Sendable, Codable {
     case calendar
     case reminders
     case contacts
