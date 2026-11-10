@@ -2543,6 +2543,12 @@ struct ChatView: View {
             // 得。分隔线随条同进同出（挂同一直接子
             // 级的小 VStack 内）。引用块本轮不动
             // （仍在 SmoothExpand，最小范围）
+            // 0.36.27 订正：上段「元凶是量测层」的单
+            // 一归因已被 0.36.26 真机证伪（移出后仍居
+            // 中）——真定案是包装层缺满宽 claim＋两层
+            // 父栈默认 .center 对齐，修法见下方包装层
+            // 的 frame 注（§97 件四）；移出量测层本身
+            // 保留（与生产构造同构、无回退理由）
             if !attachments.isEmpty {
                 VStack(spacing: 0) {
                     attachmentsStrip
@@ -2553,6 +2559,19 @@ struct ChatView: View {
                             .horizontal, OneDayMetrics.spacingSM
                         )
                 }
+                // 0.36.27（§97 件四，真定案）：满宽 claim
+                // 补在本包装层——0.36.26 移出量测层后真
+                // 机仍居中，主线逐行定案：条本体无病，病
+                // 在对齐链——本包装 VStack 与卡根 VStack
+                // 均默认 .center 对齐，横向 ScrollView 在
+                // 未定宽提议下只报内容理想宽（两图≈124），
+                // 窄条遂被两层父栈居中；引用块没事正因其
+                // SmoothExpand 挂着这行 claim、条的包装层
+                // 恰恰没有。故「ScrollView 贪婪」要先有满
+                // 宽提议＋claim 才成立，§2.3 的单一归因
+                // （量测层）被真机证伪（详见 DESIGN §97.4
+                // 与错题本 P-13 真定案）
+                .frame(maxWidth: .infinity, alignment: .leading)
                 // 条内容只淡入淡出防闪现；高度变化由
                 // 卡根 .animation(attachments.isEmpty)
                 // 的事务插值承接（见 composerCard 尾注）

@@ -135,105 +135,61 @@ final class AgentProfileTests: XCTestCase {
     }
 }
 
-/// 枢纽边缘右滑仲裁（0.36.22 立、0.36.24 改判）：生
-/// 死关无方向判据（速度门已退役——begin 时刻量未累
-/// 积恒假死，P-15 同病复发），方向改 handler 内按
-/// translation 仲裁、跟手钳制、松手裁决表——桥层只
-/// 许照表执行，不许在 UIKit 侧另写比值。
+/// 枢纽根页左缘右滑退出判读（0.36.27 §97 件五整
+/// 桥退役后）：桥时代的 handler 仲裁/跟手钳制/松手
+/// 裁决表（速度＋比值）已随 HubEdgeSwipeBridge 删
+/// 除退役；现只钉阈值单源与「左缘起手＋横向过线」
+/// 一条纯判读——视图层照此执行，不许另写数。
 final class HubEdgeSwipeTests: XCTestCase {
 
-    func testArbitrationStaysUndecidedBelowDecisionFloor() {
-        // 主导轴未过决定下限：方向读数还是噪声，不表态
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 0, translationY: 0),
-            .undecided
+    func testThresholdConstantsAreSingleSourced() {
+        XCTAssertEqual(HubEdgeSwipe.edgeWidth, 28)
+        // 起滑线与聊天右滑引用同值（同族构造口径）
+        XCTAssertEqual(HubEdgeSwipe.minimumDistance, 30)
+        XCTAssertEqual(HubEdgeSwipe.triggerTranslation, 60)
+    }
+
+    func testEdgeStartInsideBand() {
+        XCTAssertTrue(HubEdgeSwipe.isEdgeStart(globalX: 0))
+        XCTAssertTrue(HubEdgeSwipe.isEdgeStart(globalX: 14))
+        // 带边界恰 28 算带内
+        XCTAssertTrue(HubEdgeSwipe.isEdgeStart(globalX: 28))
+    }
+
+    func testEdgeStartOutsideBand() {
+        XCTAssertFalse(HubEdgeSwipe.isEdgeStart(globalX: 29))
+        XCTAssertFalse(HubEdgeSwipe.isEdgeStart(globalX: 120))
+    }
+
+    func testTriggerRequiresEdgeStart() {
+        XCTAssertTrue(
+            HubEdgeSwipe.shouldTrigger(startGlobalX: 10, translationX: 61)
         )
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 7, translationY: 0),
-            .undecided
+        // 起点不在左缘带内：位移再大也不触发（页面中
+        // 央起手的横拖不是返回意图）
+        XCTAssertFalse(
+            HubEdgeSwipe.shouldTrigger(startGlobalX: 100, translationX: 61)
         )
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 0, translationY: -7),
-            .undecided
-        )
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 5, translationY: 5),
-            .undecided
+        XCTAssertFalse(
+            HubEdgeSwipe.shouldTrigger(startGlobalX: 100, translationX: 200)
         )
     }
 
-    func testArbitrationFollowsClearRightwardDrag() {
-        // 纯横向右滑
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 30, translationY: 0),
-            .follow
+    func testTriggerIsStrictlyGreaterAndRightwardOnly() {
+        // 恰在线上不触发（严格大于，与聊天右滑引用
+        // shouldTrigger 同义）
+        XCTAssertFalse(
+            HubEdgeSwipe.shouldTrigger(startGlobalX: 10, translationX: 60)
         )
-        // 横向主导（比值 1.5 内）跟手，上下偏都认
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 30, translationY: 19),
-            .follow
+        XCTAssertTrue(
+            HubEdgeSwipe.shouldTrigger(startGlobalX: 10, translationX: 61)
         )
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 30, translationY: -19),
-            .follow
+        // 左向/零位移不触发（纵滚横向分量≈0 同理）
+        XCTAssertFalse(
+            HubEdgeSwipe.shouldTrigger(startGlobalX: 10, translationX: -80)
         )
-        // 比值边界（30 = 20 × 1.5）恰过线也跟手
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 30, translationY: 20),
-            .follow
+        XCTAssertFalse(
+            HubEdgeSwipe.shouldTrigger(startGlobalX: 10, translationX: 0)
         )
-        // 决定下限边界：主导轴恰 8 且纯横向
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 8, translationY: 0),
-            .follow
-        )
-    }
-
-    func testArbitrationYieldsEverythingElseToScroll() {
-        // 纵向主导（列表滚动形态）让位
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 5, translationY: 30),
-            .yieldToScroll
-        )
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 0, translationY: -40),
-            .yieldToScroll
-        )
-        // 左向让位（本手势只认右滑返回）
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: -30, translationY: 2),
-            .yieldToScroll
-        )
-        // 斜向不明确（过不了 1.5 比值）让位：退出的代
-        // 价高于滚动，含糊一律判给滚动
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 20, translationY: 20),
-            .yieldToScroll
-        )
-        XCTAssertEqual(
-            HubEdgeSwipe.arbitration(translationX: 29, translationY: 20),
-            .yieldToScroll
-        )
-    }
-
-    func testFollowedOffsetClamps() {
-        XCTAssertEqual(HubEdgeSwipe.followedOffset(translationX: -20), 0)
-        XCTAssertEqual(HubEdgeSwipe.followedOffset(translationX: 120), 120)
-        XCTAssertEqual(
-            HubEdgeSwipe.followedOffset(translationX: 9999),
-            HubEdgeSwipe.maxFollowOffset
-        )
-    }
-
-    func testShouldDismissTable() {
-        // 位移直达线
-        XCTAssertTrue(HubEdgeSwipe.shouldDismiss(translationX: 90, velocityX: 0))
-        XCTAssertFalse(HubEdgeSwipe.shouldDismiss(translationX: 89, velocityX: 0))
-        // 半线＋快甩
-        XCTAssertTrue(HubEdgeSwipe.shouldDismiss(translationX: 40, velocityX: 500))
-        XCTAssertFalse(HubEdgeSwipe.shouldDismiss(translationX: 40, velocityX: 499))
-        XCTAssertFalse(HubEdgeSwipe.shouldDismiss(translationX: 39, velocityX: 900))
-        // 反向速度不救
-        XCTAssertFalse(HubEdgeSwipe.shouldDismiss(translationX: 60, velocityX: -800))
     }
 }

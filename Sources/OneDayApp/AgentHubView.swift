@@ -78,17 +78,9 @@ struct AgentHubView: View {
 
     @State private var store: AgentHubStore?
     @State private var segment: HubSegment = .activity
-    /// 枢纽栈深（0.36.26 §95 深度门控 C-1）：边缘探
-    /// 针的启用条件要读它——栈里有推入页即停用探
-    /// 针、右滑返回交还系统 pop（见 body 探针注）。
-    /// 现行全量 NavigationLink 均为目标式（无值式
-    /// 链接/无 navigationDestination），绑 Naviga-
-    /// tionPath 与之兼容：目标式推入同样追加进
-    /// path，isEmpty 即「在根页」的真值
-    @State private var hubPath = NavigationPath()
-    /// 边缘右滑跟手位移（0.36.22）：只由边缘桥回调写，
-    /// 松手回弹或 dismiss 后归零
-    @State private var edgeOffset: CGFloat = 0
+    /// 根页边缘拖退出已触发旗（0.36.27 §97 件五）：
+    /// 整段拖动只许 dismiss 一次，松手复位防重入
+    @State private var edgeDismissTriggered = false
     /// 头像/名称编辑面（0.36.22 档案菜单两项）
     @State private var showAvatarEditor = false
     @State private var showNameEditor = false
@@ -113,12 +105,46 @@ struct AgentHubView: View {
             + "|\(appState.serverShareHost ?? "")"
     }
 
+    /// 根页左缘右滑退出手势（0.36.27 §97 件五）：起
+    /// 始点须落在左缘 28pt 内（.global 坐标判），只
+    /// 消费横向分量、途中过 60 即 dismiss（整段只触
+    /// 发一次、旗防重入，松手复位）；浏览器段排除
+    /// （与退役探针的 segment 门一致，网页自有横移
+    /// 手势优先）。纵向拖动横向分量≈0、永不过线，
+    /// 枢纽内纵滚不受扰
+    private var hubEdgeDismissGesture: some Gesture {
+        DragGesture(
+            minimumDistance: HubEdgeSwipe.minimumDistance,
+            coordinateSpace: .global
+        )
+        .onChanged { value in
+            guard segment != .browser, !edgeDismissTriggered
+            else { return }
+            if HubEdgeSwipe.shouldTrigger(
+                startGlobalX: value.startLocation.x,
+                translationX: value.translation.width
+            ) {
+                edgeDismissTriggered = true
+                dismiss()
+            }
+        }
+        .onEnded { _ in
+            edgeDismissTriggered = false
+        }
+    }
+
     var body: some View {
         ZStack {
-            // 整页 cover 的底色先行：边缘右滑跟手时内
-            // 容横移、露出的空位是页底色而不是系统黑
+            // 整页 cover 的底色先行：cover 升起/退下与
+            // 内容切换的空位是页底色而不是系统黑
+            // （0.36.27 前此注的「边缘右滑跟手横移」已
+            // 随整桥退役作废——新边缘拖不带页面跟手）
             Palette.pageBG.ignoresSafeArea()
-            NavigationStack(path: $hubPath) {
+            // 0.36.27（§97 件五）：栈绑回无参——0.36.26
+            // 的 path 绑定深度门控已被真机证伪（path
+            // 不追踪目标式推入、恒空），整桥退役后栈内
+            // 页右滑返回全归系统 pop，不再需要栈深
+            NavigationStack {
                 Group {
                     if let store {
                         content(store)
@@ -127,40 +153,14 @@ struct AgentHubView: View {
                     }
                 }
                 .background(Palette.pageBG)
+                // 根页左缘右滑退出（0.36.27 §97 件五）：
+                // 挂点＝栈根内容本体——推入页覆盖其上、
+                // 触摸不达此处，「仅根页生效」由挂点天
+                // 然成立；构造与聊天右滑引用同族（同宿
+                // 主已真机证明），判读走 Core HubEdge-
+                // Swipe 阈值小件
+                .simultaneousGesture(hubEdgeDismissGesture)
             }
-            .offset(x: edgeOffset)
-        }
-        .background {
-            // 左边缘右滑返回（0.36.22）：cover 没有导
-            // 航栈 pop 手势，系统边缘识别器桥补齐（判
-            // 据 Core HubEdgeSwipe 单源；浏览器段禁用，
-            // 网页自有横移手势优先）
-            // 0.36.26（§95 深度门控 C-1，调研裁决
-            // production-patterns-research-20261111
-            // §3.2）：探针罩在栈的祖先层、与系统 pop
-            // 识别器默认互斥抢左缘触摸，0.36.24 前无
-            // 深度门——状态页等一切推入页的系统右滑
-            // 返回被它杀死（用户 03:34 同机对照：设
-            // 置子页可返回、枢纽状态页不能）。本轮启
-            // 用条件加栈深一维：path 非空即 isEnabled
-            // =false（桥侧同步落识别器本体、根本不追
-            // 踪），pop 在全部推入页恢复原权；根页
-            // （path 空）行为保持 0.36.24 现行口径
-            HubEdgeSwipeProbe(
-                isEnabled: hubPath.isEmpty && segment != .browser,
-                onProgress: { edgeOffset = $0 },
-                onRelease: { shouldDismiss in
-                    if shouldDismiss {
-                        edgeOffset = 0
-                        dismiss()
-                    } else if edgeOffset != 0 {
-                        withAnimation(.snappy(duration: 0.25)) {
-                            edgeOffset = 0
-                        }
-                    }
-                }
-            )
-            .allowsHitTesting(false)
         }
         .sheet(isPresented: $showAvatarEditor) {
             AgentAvatarEditorView()
