@@ -72,14 +72,20 @@ struct ConnectorsView: View {
         case connected(String)
         case catalog(String)
         case local(LocalServiceID)
+        case device(DeviceSourceID)
         var id: String {
             switch self {
             case .connected(let name): return "c-\(name)"
             case .catalog(let id): return "a-\(id)"
             case .local(let service): return "l-\(service.rawValue)"
+            case .device(let source): return "d-\(source.rawValue)"
             }
         }
     }
+
+    // 本机连接器（0.34.0 批一）：目录行读数（本地现读
+    // 的一句数：今天日程数/未完成提醒数；取不到不拼）
+    @State private var deviceMetrics: [DeviceSourceID: String] = [:]
 
     private var connected: [ConnectedConnector] {
         ConnectorDirectory.connectedEntries(from: servers)
@@ -103,6 +109,7 @@ struct ConnectorsView: View {
                 searchSections
             } else {
                 localSection
+                deviceSection
                 segmentSection
                 if segment == .connected {
                     connectedSections
@@ -134,10 +141,12 @@ struct ConnectorsView: View {
         .refreshable {
             await load()
             await probeLocals()
+            await probeDevices()
         }
         .task {
             await load()
             await probeLocals()
+            await probeDevices()
         }
         .sheet(item: $detailTarget) { target in
             detailSheet(for: target)
@@ -250,6 +259,109 @@ struct ConnectorsView: View {
                 .frame(width: 7, height: 7)
                 .accessibilityHidden(true)
         }
+    }
+
+    // MARK: - 你的设备（0.34.0 批一，本机连接器）
+
+    /// 设备组状态行字典（目录行与搜索共用一处映射）
+    private var deviceStatusLines: [DeviceSourceID: String] {
+        var lines: [DeviceSourceID: String] = [:]
+        for descriptor in DeviceSourceDirectory.roster {
+            lines[descriptor.sourceID] = DeviceRowStatus.line(
+                descriptor: descriptor,
+                permission: appState.deviceSession
+                    .permissions[descriptor.sourceID] ?? .notDetermined,
+                agentCallEnabled: appState.deviceSession
+                    .agentCallEnabled[descriptor.sourceID] ?? false,
+                metric: deviceMetrics[descriptor.sourceID]
+            )
+        }
+        return lines
+    }
+
+    /// 你的设备组：恒显（在本机服务之后、分段控件之
+    /// 前——两组都是「自家的东西」，与 MCP 的已连接/
+    /// 可连接语义无关，不被分段切换藏掉，设计档
+    /// §6.1）。批一三件可点进详情；健康/家庭待签名
+    /// 权益，行在、状态如实、无假入口
+    private var deviceSection: some View {
+        Section {
+            ForEach(DeviceSourceDirectory.roster) { descriptor in
+                deviceRow(descriptor)
+            }
+        } header: {
+            headerText("你的设备")
+        } footer: {
+            Text("这台手机自家的数据：授权与数据都留在手机上，智能体被问到时才现读现回、服务器不存副本。健康与家庭还差系统签名权益，开通前只列名。")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(rowInsets)
+    }
+
+    @ViewBuilder
+    private func deviceRow(
+        _ descriptor: DeviceSourceDescriptor
+    ) -> some View {
+        let status = deviceStatusLines[descriptor.sourceID] ?? ""
+        if descriptor.isWired {
+            Button {
+                detailTarget = .device(descriptor.sourceID)
+            } label: {
+                deviceRowLabel(descriptor, status: status, chevron: true)
+            }
+            .buttonStyle(.odPressable)
+        } else {
+            deviceRowLabel(descriptor, status: status, chevron: false)
+        }
+    }
+
+    private func deviceRowLabel(
+        _ descriptor: DeviceSourceDescriptor, status: String,
+        chevron: Bool
+    ) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            DeviceSymbolTile(
+                symbol: descriptor.tileSymbol,
+                colorHex: descriptor.tileColorHex, size: 40
+            )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(descriptor.name)
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                Text(status)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .contentShape(Rectangle())
+    }
+
+    /// 设备读数（本地现读，进页/下拉时算）：日历＝今
+    /// 天日程数、提醒＝未完成数；通讯录全量计数要整
+    /// 表枚举、不为一行读数付这个成本，取不到就不拼
+    private func probeDevices() async {
+        appState.deviceSession.refreshPermissions()
+        let controller = appState.deviceSession
+        var metrics: [DeviceSourceID: String] = [:]
+        if (controller.permissions[.calendar] ?? .notDetermined).isUsable {
+            let count = controller.dispatcher.events.todayEventCount()
+            metrics[.calendar] = "今天 \(count) 个日程"
+        }
+        if (controller.permissions[.reminders] ?? .notDetermined).isUsable {
+            let items = await controller.dispatcher.events.reminderItems()
+            let open = items.filter { !$0.isCompleted }.count
+            metrics[.reminders] = "\(open) 项未完成"
+        }
+        deviceMetrics = metrics
     }
 
     // MARK: - 已连接（实查数据链）
@@ -403,13 +515,17 @@ struct ConnectorsView: View {
         let hitLocal = LocalServiceProbeMapping.filtered(
             states: localStates, query: query
         )
+        let hitDevices = DeviceRowStatus.filtered(
+            statusLines: deviceStatusLines, query: query
+        )
         let hitConnected = ConnectorDirectory.filteredConnected(
             connected, query: query
         )
         let hitCatalog = ConnectorDirectory.filteredCatalog(
             available, query: query
         )
-        if hitLocal.isEmpty && hitConnected.isEmpty && hitCatalog.isEmpty {
+        if hitLocal.isEmpty && hitDevices.isEmpty
+            && hitConnected.isEmpty && hitCatalog.isEmpty {
             Section {
                 EmptyState(
                     icon: "magnifyingglass",
@@ -428,6 +544,17 @@ struct ConnectorsView: View {
                     }
                 } header: {
                     headerText("本机服务")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(rowInsets)
+            }
+            if !hitDevices.isEmpty {
+                Section {
+                    ForEach(hitDevices) { descriptor in
+                        deviceRow(descriptor)
+                    }
+                } header: {
+                    headerText("你的设备")
                 }
                 .listRowBackground(Palette.surface)
                 .listRowInsets(rowInsets)
@@ -481,6 +608,26 @@ struct ConnectorsView: View {
                     LocalServiceDirectory.descriptor(serviceID)
                 )
             }
+        case .device(let source):
+            NavigationStack {
+                deviceDetail(source)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("关闭") { detailTarget = nil }
+                        }
+                    }
+            }
+        }
+    }
+
+    /// 设备详情分发（批一三件；批二两件无详情、不点入）
+    @ViewBuilder
+    private func deviceDetail(_ source: DeviceSourceID) -> some View {
+        switch source {
+        case .calendar: CalendarDetailView()
+        case .reminders: RemindersDetailView()
+        case .contacts: ContactsDetailView()
+        case .health, .home: EmptyView()
         }
     }
 

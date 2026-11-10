@@ -47,6 +47,9 @@ struct OneDayApp: App {
 struct RootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
+    /// 设备会话生命周期驱动（0.34.0）：前台＋已连接
+    /// 才注册设备会话，退后台即断开（见 deviceHooks）
+    @Environment(\.scenePhase) private var scenePhase
     /// 外观三档（0.4.0，§1.1 AccentTheme 废止后的最小
     /// 改型）：AppearanceView 的 Picker 写同一 AppStorage
     /// 键，根层在此施加 .preferredColorScheme（跟随系统
@@ -81,7 +84,33 @@ struct RootView: View {
             AppearanceMode(rawValue: appearanceModeRaw)?.colorScheme
         )
         .background(Palette.pageBG)
+        // 设备会话（0.34.0）：连接成立且在前台→激活；
+        // 退后台/断开→停会话。桥侧另有 45 秒无心跳自
+        // 动判离线兜底，杀进程也不会留假在线
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                appState.deviceSession.activate(
+                    config: appState.config, isDemo: appState.isDemo
+                )
+            } else if newPhase == .background {
+                appState.deviceSession.deactivate()
+            }
+        }
+        .onChange(of: appState.phase == .connected) { _, connected in
+            if connected {
+                appState.deviceSession.activate(
+                    config: appState.config, isDemo: appState.isDemo
+                )
+            } else {
+                appState.deviceSession.deactivate()
+            }
+        }
         .task {
+            // 冷启恢复的连接不触发 onChange，设备会话
+            // 在此补一次激活（activate 内部幂等）
+            appState.deviceSession.activate(
+                config: appState.config, isDemo: appState.isDemo
+            )
             // 演示样本播种：内存库为空时种一轮拟真对话（仅演示模式）
             if DemoMode.current.isDemo {
                 DemoSeeder.seedIfNeeded(context: modelContext)

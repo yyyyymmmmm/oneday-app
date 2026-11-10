@@ -281,6 +281,11 @@ struct ContentView: View {
         // tabLabel 内的 .symbolVariant(.none) 保留作第
         // 二道锁（单独无效、叠加无冲突）。0.4.5 起符号
         // 本体已换线条画法、本锁降为第二道防线（§30）
+        // 0.34.0 更正：本层（TabView 外层）环境在
+        // 0.33.1 真机仍判不够——用户 16:32 图证四格全
+        // 实心含未选中态；按论坛调研，正解主锁改挂
+        // tabLabel 本体（见 tabLabel 内 0.34.0 注），
+        // 本行保留不动以保真机判读归因
         .environment(\.symbolVariants, .none)
     }
 
@@ -336,6 +341,27 @@ struct ContentView: View {
                 .font(.system(size: 24, weight: .light))
         }
         .labelStyle(.iconOnly)
+        // 0.34.0（底栏填充正解，论坛调研 tabbar-fill-
+        // forum-research-20261110.md）：WWDC24 session
+        // 10147 官方机制——标签栏宿主对 symbol image
+        // 统一自动选 fill 变体、与选中态无关；
+        // .symbolVariant(.none) 是累积语义、清不掉宿
+        // 主注入的 fill（先前两道锁打错靶子的根因）。
+        // 唯一清除法是给 symbolVariants 环境**赋值**
+        // .none，且必须罩住标签渲染点：生产库 call-
+        // stack/react-native-bottom-tabs 的 noneSymbol-
+        // Variant() 正是挂在 TabItem（label 视图）上、
+        // 不在 TabView 本体修饰链里。OneDay 此前只试
+        // 过 label 内累积修饰与 TabView 外层环境（后者
+        // 0.33.1 真机 16:32 图证仍全格实心、判够不着
+        // 渲染点）；本版把赋值环境改挂 label 本体为
+        // 主锁。TabView 外层环境与 label 内 .symbol-
+        // Variant 保留不动（无冲突，且保真机判读归
+        // 因：若本版回描边、功劳只可能来自本处新增）。
+        // CI 侧无法证伪/证实此项，终审仍以 JJ 真机逐
+        // 格对 Muse 为准；本版判死则转备选 B（四字
+        // 形导出模板图资产、脱离 symbol 身份）
+        .environment(\.symbolVariants, .none)
         .accessibilityLabel(pair.title)
     }
 }

@@ -189,6 +189,8 @@ struct SettingsView: View {
             // 本闭包回设置页开管理组总览 sheet（总览的
             // 承载在本页 manageSheet、不另立第二份）
             ConnectorsView(onOpenOverview: { manageSheet = .overview })
+        case .devicePermissions:
+            DevicePermissionsView()
         }
     }
 
@@ -340,7 +342,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.33.1")
+            Text("OneDay v0.34.0")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
@@ -508,6 +510,12 @@ struct SettingsView: View {
             navRow(
                 icon: "cable.connector", title: "连接器",
                 route: .agent(.mcp)
+            )
+            // 0.34.0：本机连接器批一——五件数据源的授
+            // 权与调用开关总览（与连接器同组、紧随其后）
+            navRow(
+                icon: "iphone", title: "设备与权限",
+                route: .agent(.devicePermissions)
             )
         } header: {
             settingsHeader("智能体")

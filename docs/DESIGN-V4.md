@@ -4829,7 +4829,7 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 查证（先查机制、只用官方开关；红线：不自绘底栏）：
 - ①外覆写残留：全仓 grep toolbarBackground/UITabBarAppearance/scrollEdgeAppearance/standardAppearance——**零命中**；Assets.xcassets 无 AccentColor（只有 AppIcon/LaunchBackground/SangouPartner）→ App 无全局强调色，栏件 tint 无来源时回落系统蓝，此即 0.33.0 选中字形呈系统蓝的机制根源。
 - ②背景层：DrawerShell 不给 TabView 加任何 modifier（0.17.0 定案）；聊天页背景 Palette.chatSurface（#FCFCFC）全出血到屏底——栏下采样源是平色画布，与 Muse 同构（其画布同为近白平色），非本 App 独有的「垫底」问题；各页 ScrollView/List 在 iOS 26 本就从栏下穿过。结论：栏身材质就是系统玻璃、无任何覆写把它压实；「发实」观感的主因在字形（蓝＋填充观感），不在材质层。
-- ③符号名：四格现行名 message/lightbulb/checklist/tray 全为 outline 原名、selected≡normal、零 .fill（TabBarSymbolsTests 钉死）——用户所见「实心灯泡/实心蓝气泡」不是选名问题：SwiftUI 宿主构建栏件时对选中态自动派生 .fill 变体（苹果对齐资料口径：SwiftUI applies .fill for you in TabView items），既有双锁（label 内 .symbolVariant(.none)＋TabView 根环境 symbolVariants .none）保留并继续钉。
+- ③符号名：四格现行名 message/lightbulb/checklist/tray 全为 outline 原名、selected≡normal、零 .fill（TabBarSymbolsTests 钉死）——用户所见「实心灯泡/实心蓝气泡」不是选名问题：SwiftUI 宿主构建栏件时对选中态自动派生 .fill 变体（苹果对齐资料口径：SwiftUI applies .fill for you in TabView items），既有双锁（label 内 .symbolVariant(.none)＋TabView 根环境 symbolVariants .none）保留并继续钉。**（0.34.0 更正：本条的「选中态派生」定性被 WWDC24 session 10147 官方机制与用户 16:32 真机图证推翻——自动选 fill 作用于全部标签、与选中态无关，且 .symbolVariant(.none) 是累积语义非清除、TabView 外层环境未罩住标签渲染点；正解见 §63.4。）**
 - ④选中色机制：栏件字形吃 TabView 本层环境的 tint（内容根的 tint 到不了宿主构建处，0.4.3 已证）；选中垫是玻璃透镜本体、呈中性——0.33.0 在默认蓝 tint 下真机垫已是中性浅灰（用户截图自证），故「垫随 tint 派生变深」的 0.32.0 旧判因更正为：当年深观感是根 tint 把字形与标签同染的整体效果。
 
 落值（全为官方修饰符、零自绘）：
@@ -4848,7 +4848,7 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 
 - JJ1 栏身通透：聊天页滚动时内容从栏下滚过、栏身呈玻璃层次而非整块实白，与 Muse 并排对（同为浅色画布场景）。
 - JJ2 选中字形色：选中格字形为深色（非系统蓝），与 Muse 并排对。
-- JJ3 图标描边逐格对：气泡（message）/灯泡（lightbulb）/清单（checklist）/文件（tray）四格，选中与未选两态的线宽与空心形态与 Muse 并排逐格对——重点看选中态灯泡与气泡是否仍呈填充观感（宿主 .fill 派生若双锁压不住，在此项如实记并回主线议 UIKit 路线，不自绘）。
+- JJ3 图标描边逐格对：气泡（message）/灯泡（lightbulb）/清单（checklist）/文件（tray）四格，选中与未选两态的线宽与空心形态与 Muse 并排逐格对——重点看选中态灯泡与气泡是否仍呈填充观感（宿主 .fill 派生若双锁压不住，在此项如实记并回主线议 UIKit 路线，不自绘）。**（0.34.0 更正：本项后半的 UIKit 后手指针作废——论坛调研以两处真机证据判死 UITabBarAppearance 路线（iOS 26 玻璃栏整体忽略 appearance、且 appearance 本不管符号变体）；根因与正解见 §63.4，终局备选为模板图资产（备选 B）。JJ 终审口径本身不变。）**
 - JJ4 选中垫明度：选中垫保持中性浅灰玻璃（不回 0.32.0 前的深垫），与 Muse 并排对。
 
 ### 62.7 交付实录
@@ -4858,3 +4858,58 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.33.1／CURRENT_PROJECT_VERSION 64／CFBundleShortVersionString 0.33.1／CFBundleVersion 64）＋SettingsView 页脚「OneDay v0.33.1」。
 - 服务器段（nginx 单钥入口＋过渡双模）与本节同批交付且已先于用户装机生效，实录见 hermes-deploy/bridge-keys-rollout-20261110.md 的 0.33.1 追记（验矩阵全绿、备份 bak-20261110-singlekey、内存 51.6%）；fallback 撤销条件＝用户装 0.33.1 并确认桥功能正常后另行派单撤除。
 - II1–II4、JJ1–JJ4 待真机终审（本版终审代号 II＋JJ，承 §61 的 HH 序）。
+
+## §63 0.34.0/65 本机连接器批一（工具调用制 App 接线）＋底栏填充正解 A
+
+定版依据：设计档 `oneday-design-review/device-connectors-design-20261110.md`（14:49–14:52 用户拍板全条已决）＋桥契约以服务器源码 `hermes-deploy/device_bridge.py` 为准；底栏追加项依据论坛调研 `oneday-design-review/tabbar-fill-forum-research-20261110.md`。基线 0.33.1/64 顶端 22aa4e7、595 测，只增不减。
+
+### 63.1 服务器段：device-bridge 公网路由（严格单钥）
+
+- nginx `hermes.didichou.site` 新增 `location /api/device-bridge/` → 127.0.0.1:8647，照 0.33.1 单钥入口同形：`auth_request /__bridge_auth` 验 Hermes 登录钥 → `proxy_set_header Authorization` 注入 device 桥自己的服务钥（钥在服务器内从容器 env 直读直注、未经过任何本地文件/聊天）；`proxy_read_timeout 120s`＋`proxy_buffering off`（长轮询 ≤25s、转发调用 ≤30s）。
+- **直接严格单钥、无过渡双模**：本桥新立、唯一客户端就是 0.34.0 的 App（持登录钥），不存在旧桥钥客户端要保——与四桥的双模情形不同，不留 fallback。
+- **Hermes config 注册 MCP 门面不在本版**（留收官窗口与 Notion/GitHub 验活同批）：`/api/device-mcp` 路由未启用，智能体本版尚调不到设备工具——App 呈现按此诚实口径（见 63.5）。
+- 备份：`hermes.didichou.site.conf.bak-20261110-devicebridge`（0600，改前整份）；回滚＝覆盖回备份＋`nginx -t`＋reload。改前内存 51.6%、改后 51.6%，未触红线，未动 Hermes 本体与其余桥。
+- 验矩阵（公网实测全绿）：`GET /api/device-bridge/health` 登录钥 200（`{"ok":true,"service":"device-bridge",...}`）／随机错钥 401／无钥 401；会话全环冒烟（登录钥）：POST `/device/session` 201 得 sessionId → GET `/device/poll?wait=1` 回 `{"call":null}` → POST `/device/heartbeat` `{"ok":true}` → POST `/device/disconnect` `{"ok":true}`、断后 health 的 sessionOnline 回 false（冒烟会话已断净、不留残会话）。
+
+### 63.2 Core 落值（纯逻辑，单测钉死）
+
+- `OneDayCore/DeviceSources.swift`：五件名册单一真源（日历/提醒/通讯录批一 `batch 1`、健康/家庭批二 `batch 2` 待签名权益；蓝牙永不入册，单测钉 `DeviceSourceID(rawValue:"bluetooth") == nil`）；`DevicePermissionState` 六档与桥口径映射（桥只认精确 `granted` 放行；通讯录 limited 报 granted 放行＋`contactsScope=limited` 注解随注册载荷透传进 device_status，子集由系统框架天然收敛，不许因桥口径把已授权子集误报 permission_denied）；工具名册与桥 TOOLS 表逐字对齐（十件、写工具恰四件、无 delete），App 可执行集恰批一七件；`DeviceRegistration.payload` 双层开关语义（permissions 报系统原态，tools 只列「已接线＋权限可用＋开关开」——开关关掉的件桥回 tool_unavailable；批二即使假设授权＋开关开也永不上报工具）；目录行状态文案单一映射与搜索纯函数（名称＋说明＋状态词）。
+- `OneDayCore/DeviceCalls.swift`：`DeviceToolError` 五码（permission_denied/tool_unavailable/invalid_arguments/update_not_allowed/device_error）；ISO 8601 解析/格式化；逐工具参数解析（必填与 idempotencyKey 必填、日历窗口 14 天在 App 侧收敛并标 clamped、通讯录 limit 缺省 20 收敛 1...50）；`DeviceSessionMachine` 会话状态机（注册→轮询→执行→回执全环，409/心跳失效回注册，噪声事件不演进）；`WriteKeyLedger` 写键账本（24 小时窗口、只存 key 与对象 id）；`DeviceCallLogEntry` 调用元数据（工具名/时刻/成败/错误码，永不记内容）。
+
+### 63.3 App 落值
+
+- 会话通道：`DeviceBridgeClient`（注册/心跳/长轮询/回执/断开五口，Bearer 走 BridgeCredential＝api.key 与其余桥同口径；轮询专用 session 超时 45s）；`DeviceSessionController`（@MainActor @Observable，AppState 持有，RootView 按 scenePhase＋连接态驱动 activate/deactivate——前台＋已连接才注册、退后台断开、演示模式恒不激活；权限/开关变更在线时重注册即时生效；心跳 20s 兜轮询停顿期，404 即重注册）。
+- 执行器（`DeviceExecutors.swift`，App 层框架面）：EventKit 日历＋提醒同 store（`requestFullAccessToEvents/Reminders`）、Contacts 现查。写纪律四条落点：①确认在对话内完成（桥/智能体侧纪律，App 不二次弹确认）；②幂等双层——桥 write-keys 之外 App 侧 `WriteKeyLedger` 落 UserDefaults，命中回原对象回读、不真写第二次；③回读验证——create/update/complete 写完必 `event(withIdentifier:)`/`calendarItem(withIdentifier:)` 取回对象才许报 success，取不到回 failed 人话；④离线即失败在桥侧（device_offline）＋App 执行时复查（权限/开关以当下为准，不认注册快照）。红线：update 他人组织的日程回 update_not_allowed、只读日历同理；删除不进任何工具；提醒勾完成对已完成项回已完成态（天然幂等）。
+- 权限双层：Info.plist（Project.swift extendingDefault）加 NSCalendarsFullAccessUsageDescription／NSRemindersFullAccessUsageDescription／NSContactsUsageDescription 三键（人话用途＋现读现回口径；健康/家庭/蓝牙键不加，entitlements 待批二签名核查）；逐件「允许智能体调用」开关默认关（UserDefaults `device.agentCall.*`），申请时机逐件用到才问（详情页「开启」触发系统弹窗，启动零索权）；通讯录 limited 在目录行与详情页如实显「部分联系人」与子集人数。
+- 呈现：连接器目录新增「你的设备」恒显组（本机服务之后、分段控件之前，SF Symbol 瓷砖与行规格同本机服务；批一三件点进详情、健康/家庭行在但无入口、状态「待签名权益」；搜索纳入五件）；三件详情页共用状态头骨架（系统权限行＋动作、调用开关＋粒度口径、设备会话态、最近调用元数据、口径脚注）＋各自内容区（日历＝今起 14 天议程按日分组＋系统 EKEventEditViewController 新建；提醒＝按清单分组未完成在前、过期红字、行内点勾完成、新建小表；通讯录＝搜索现查列表＋联系人详情卡、离页不留副本）；设置页「设备与权限」总览行（紧随连接器行）＋总览页（五件状态汇总＋会话态）。
+
+### 63.4 底栏填充正解 A（追加项，承 §62.6 JJ3）
+
+- 根因（官方机制，证据出处：调研报告）：WWDC24 session 10147——标签栏宿主对它承载的 symbol image **统一自动选 fill 变体、与选中/未选中无关**；WWDC21 session 10349 佐证该机制属 SwiftUI 环境变体系统。先前判因（§62.4③「选中态派生」）就此作废更正。
+- 先前两锁为何无效：`.symbolVariant(.none)` 是**累积语义**不是清除（Sarunw 机制解析），子层写它清不掉宿主注入的 fill；环境赋值 `.none` 是唯一清除法，但**注入层级必须罩住标签渲染点**。
+- 层级复核实录：现行 `.environment(\.symbolVariants, .none)` 自 0.4.3 起挂在 **TabView 外层修饰链**——0.33.1 真机（用户 16:32 图证四格全实心、含未选中态）判此层级够不着渲染点；生产库 callstack/react-native-bottom-tabs 的 `noneSymbolVariant()` 经其 DeepWiki 源码文档复核**不在 TabViewImpl 本体修饰链内、而是挂在 TabItem（label 视图）上**，ShipSwift/Google-Blogger-iOS-App 两处独立源码同法（环境赋值挂标签侧）。
+- 本版落值：`ContentView.tabLabel` 的 Label 本体加 `.environment(\.symbolVariants, .none)` 为主锁（赋值语义、罩住标签渲染点）；TabView 外层环境与 label 内 `.symbolVariant(.none)`、`.symbolRenderingMode(.monochrome)`、TabView 层 `.tint(.primary)` 全部保留不动（无冲突，且保真机判读归因——若本版回描边，变量只剩本处新增）。
+- **§62 后手指针作废**：原 JJ3「回主线议 UIKit UITabBarAppearance 路线」已被调研以两处真机证据判死（DOSBTS 日志：iOS 26 玻璃栏整体忽略 UITabBar.appearance 的 iconColor/backgroundColor；cupertino_native_better 变更日志：真机验旧 tint 与现代 appearance 两路皆无效）且 appearance API 本无符号变体维度——不是没试，是判死，§62.4/JJ3 原处已加更正注。
+- 终局备选 B（本版不实施）：四字形按 SF Symbols 官方流程导出模板图进资产目录、标签改用资产图（脱离 symbol image 身份，宿主无变体可换，确定性最高；Muse 五格字形疑似自有图标集为同构推断、无实锤）。A 若真机判死即转 B，不再另议路线。
+- 证伪边界（如实）：此项在 CI 侧无法证伪/证实（无真机渲染断言手段），能验的只有构建与符号名单测；终审仍以 JJ 真机逐格对 Muse 为准，灯泡（lightbulb）先看。
+
+### 63.5 诚实边界（本版不许宣称的）
+
+- **智能体尚不能实际调用设备工具**：Hermes 侧 MCP 门面注册不在本版（收官窗口），App 状态头与总览页均明说「还差服务器侧门面注册」；设备会话在线只代表手机侧通道活着。
+- 健康/家庭只有目录行与总览行（「待签名权益」），无执行器、无数据呈现、无假页面；蓝牙整件不做（§4.6 判死记录）。
+- 设备会话以 App 前台为限：退后台/被杀即离线，工具侧如实回 device_offline，不排队、不拿旧数据冒充（桥契约与桥侧 TTL 45s 兜底）。
+
+### 63.6 KK 系列终审项（本机连接器，真机）
+
+- KK1 目录设备组：连接器页「你的设备」组在本机服务之后，五件齐（日历/提醒事项/通讯录/健康/家庭），状态字与各件实际授权一致；健康/家庭显「待签名权益」且点不动。
+- KK2 双层开关：任一件关掉「允许智能体调用」后目录行变「调用已关」；系统设置里撤权后重进目录变「被拒」、详情页出「去系统设置」。
+- KK3 日历详情：议程与系统日历 App 逐日对得上（全天/跨日事件在内）；新建日程（系统编辑器）保存后议程当场出现。
+- KK4 提醒详情：未完成数与系统提醒 App 一致；行内勾掉一条，系统提醒 App 同步消失；新建提醒带到期保存成功。
+- KK5 通讯录详情：搜「秦」出对应联系人；若给的是受限授权，页内明说「仅显示你勾选的 N 位」。
+- KK6 权限申请时机：全新安装后不打开设备页就不弹任何权限窗；首次进某件详情点「开启」才弹该件的系统窗。
+- KK7 会话在线态：App 前台时总览页「设备会话」显在线；切后台超过约 1 分钟再回来看（或以桥侧 health 查）应为离线——不许留假在线。
+- KK8（待收官窗口后另验，不属本版）：Hermes 注册门面后，智能体实调 calendar_list_events 现读、杀 App 后同调回 device_offline、写工具复述确认＋幂等＋回读全环。
+
+### 63.7 交付实录
+
+- （CI 与 IPA 数据后回填。）

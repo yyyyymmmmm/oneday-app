@@ -8,8 +8,8 @@ let project = Project(
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1",
-        "MARKETING_VERSION": "0.33.1",
-        "CURRENT_PROJECT_VERSION": "64",
+        "MARKETING_VERSION": "0.34.0",
+        "CURRENT_PROJECT_VERSION": "65",
     ]),
     targets: [
         .target(
@@ -43,8 +43,8 @@ let project = Project(
                 // 版本号直写 Info.plist（沿礼记 v4.4 实证口径）：Tuist 默认
                 // 模板不把工程设置的 MARKETING_VERSION 展开进 plist，
                 // 只写字面量才进包。
-                "CFBundleShortVersionString": "0.33.1",
-                "CFBundleVersion": "64",
+                "CFBundleShortVersionString": "0.34.0",
+                "CFBundleVersion": "65",
                 "ITSAppUsesNonExemptEncryption": false,
                 "UILaunchScreen": ["UIColorName": "LaunchBackground"],
                 // 自托管场景：允许连接局域网内的自建服务器（http）。
@@ -53,6 +53,14 @@ let project = Project(
                 "NSAppTransportSecurity": [
                     "NSAllowsLocalNetworking": true,
                 ],
+                // 本机连接器批一（0.34.0，设计档 §6.4）：
+                // 逐件用到才申请，文案说清「被智能体问
+                // 到时现读现回、服务器不保存」；健康/
+                // 家庭（批二）与蓝牙（已决不做）的键不在
+                // 此列，entitlements 待签名权益核查后另加
+                "NSCalendarsFullAccessUsageDescription": "OneDay 需要读取你的日历：安排只在这台手机上查看；你开启智能体调用后，智能体被问到时才现读现回，服务器不保存日程内容。",
+                "NSRemindersFullAccessUsageDescription": "OneDay 需要读取你的提醒事项：待办只在这台手机上查看；你开启智能体调用后，智能体被问到时才现读现回，服务器不保存提醒内容。",
+                "NSContactsUsageDescription": "OneDay 需要按关键词查询你的通讯录：搜索在手机上完成、只有命中条目会显示；你开启智能体调用后，被问到时才现查现回，通讯录全量从不离开手机。",
             ]),
             sources: ["Sources/OneDayApp/**"],
             resources: ["App/Resources/**"],

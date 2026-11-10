@@ -8,6 +8,9 @@ enum AgentRoute: Hashable {
     case serverSessions
     case serverSessionDetail(String)
     case mcp
+    /// 设备与权限总览（0.34.0，本机连接器批一）：五件
+    /// 数据源的授权状态＋调用开关汇总（设计档 §6.3）
+    case devicePermissions
 }
 
 /// （应用格内页面枚举 AppsPage 已于 0.20.0 随应用格

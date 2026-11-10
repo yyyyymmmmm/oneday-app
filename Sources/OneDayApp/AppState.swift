@@ -112,6 +112,12 @@ final class AppState {
     /// 未落定 run 账本（0.31.0）：生成中切后台/杀进程
     /// 后靠它恢复对账（ChatView 驱动消费）
     let runLedger: RunLedgerStore
+    /// 设备会话控制器（0.34.0，本机连接器批一）：前
+    /// 台＋已连接时向 device-bridge 注册会话、领智能
+    /// 体的设备工具调用现读现回；生命周期由 RootView
+    /// 按 scenePhase/连接态驱动（见 DeviceSession-
+    /// Controller）。演示模式下控制器恒不激活
+    let deviceSession: DeviceSessionController
 
     /// 总览桥鉴权失败旗（0.7.0）：由 OverviewBridgeStore
     /// 在每轮刷新时回写——桥钥匙未粘（noKey）或被拒
@@ -210,6 +216,7 @@ final class AppState {
         isDemo = demoMode.isDemo
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
         runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
+        deviceSession = DeviceSessionController()
         switch demoMode {
         case .connected:
             // 演示会话：地址与账号只是展示数据，密钥由假客户端消化
