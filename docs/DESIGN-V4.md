@@ -5062,3 +5062,37 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - 版本五处同改＋grep 验：Project.swift 四处（0.36.3/70）＋SettingsView 页脚「OneDay v0.36.3」。
 - 台账销项：C1-补、C6-补新增已销；P8 改已销（例外经用户推翻）；D 节补登四资产；G 节记本批全项。
 - 待真机（并入终审积压）：设置页分隔引导是否被原生 List 采纳（不采纳即下版自绘行盒）；抽屉材质深浅双档呈现与底条衔接；设备详情页新语法与权限行三态（未授权/已授权/被拒）实点；本机服务四图标双档辨识度；详情页居中领头段观感。
+
+## §69 0.36.4/71——体验包二：图片查看器重做＋模型菜单对齐＋抽屉颜色反转修复（规格 experience-trio-spec §3＋用户 18:48/19:0x 两件追加点名）
+
+### 69.1 查看器落法（ImageViewerView，Sources/OneDayApp/ImageViewerView.swift）
+
+1. **入参集合化**：`ImageViewerSession(items, initialIndex)`＋`ImageViewerView(items:initialIndex:onDeleteItem:)`，收敛六处入口——聊天四点（用户本地图/用户远端图/助手远端图/openChatFile 图片支，经 ChatView.openImageViewer 汇集同线程图片序、点中项不在集合回落单图）、DeliverablesView 文件行与影音网格（openEntry 按同段图片集合开 viewerRoute）、FilesBrowserView 文件行（同 shownEntries 图片集合）、FilePreviewView 图片支（防御落点单图）、BoxFilesView.DataFilePreviewView 图片支、BrowserView 截图（后二处为单图集合的同构收敛，超出规格「四入口」字面）。旧 ImageFullScreenView 整段退役（RichContentViews 原位留墓碑注），全仓调用清零。
+2. **状态逻辑进 Core**：ImageViewerState（Sources/OneDayCore/ImageViewerLogic.swift）——count/index 夹紧、mode card|immersive、isZoomed、换页清缩放、回卡态清缩放、pagingEnabled=!isZoomed、chromeVisible=卡态；ImageViewerLayout.fittedSize 按图宽高比装入上限框不放大、非法尺寸回落 min 边正方形。ImageViewerSpec 落值进 DesignTokens（卡边距 16/卡圆角 16/关闭钮 44/胶囊高 40/钮宽 44，规格 §3.5）。
+3. **双态**：卡态＝Palette.pageBG 底、图按 fittedSize 成卡（surface 底＋RoundedRectangle 16 裁切、居上、上限高 0.68 屏高）；沉浸＝纯黑全幅；点图 toggleMode（ZoomableImageView 新增单/双击识别器分流，单击 require(toFail:) 双击），回卡态经 resetToken 令 ZoomableImageView 复位缩放。
+4. **翻页（有意偏离规格字面，理由记此）**：规格写 TabView(.page)，实际落横向 ScrollView＋.scrollTargetBehavior(.paging)＋.scrollPosition(id:) 双向绑 state.index。理由：TabView 的 .disabled 会连内层 UIScrollView 缩放手势一并封死，放大态无法查看；ScrollView 方案下 `.scrollDisabled(!pagingEnabled)` 只关外层翻页、内层缩放照常。沉浸翻页整页推移形态等价。
+5. **chrome（仅卡态，glassEffect 系统玻璃件）**：左上 ✕ 玻璃圆钮 44；右上玻璃胶囊＝下载钮＋Menu（复制/分享/分隔/删除 destructive，删除仅当宿主给了 onDeleteItem）。动作作用于当前页已加载 UIImage：保存＝PHPhotoLibrary .addOnly 授权→performChanges（Project.swift 补 NSPhotoLibraryAddUsageDescription，.addOnly 口径文案）；复制＝UIPasteboard；分享＝PNG 落盘 FileShareItem（远端图沿原文件名、本地图名「OneDay图片.png」）；删除＝Haptics.impact(.heavy)→宿主闭包→dismiss。结果 notice 小胶囊 2.5 秒＋success/error 触感；翻页/切态/开关零触感（动效宪法 §2.3）。
+6. **转场**：文件侧（Deliverables/FilesBrowser）＝NavigationStack 内 matchedTransitionSource（网格 cell/文件行按 path）＋.navigationTransition(.zoom(sourceID:in:))；聊天侧无栈＝fullScreenCover 内 ZoomTransitionCover（UIViewControllerRepresentable＋ZoomHostingController，viewDidLoad 设 preferredTransition=.zoom(options:sourceViewProvider: { _ in nil })）。**诚实边界**：聊天缩略图是 SwiftUI 视图、无 UIView 句柄，源视图提供者返回 nil，系统无源时 zoom 的确切降级形态未验、真机待验；聊天栈化时并轨 matchedTransitionSource。
+7. **下拉关闭（追加验收项一）**：根 ZStack simultaneousGesture DragGesture（minimumDistance 8）：未放大时纵向主导（|dy|>|dx|）且 dy>0 才跟手——根视图 offset(y:)+背景渐隐（≤0.35）；dy>110（沿旧查看器 0.8.0 实证阈值）且纵向主导→dismiss()，否则 MotionTokens.dragSpring 回位。横向翻页与纵向关闭按主导方向分流，放大态不接管。
+8. **关闭钮可达（追加验收项二）**：卡态 chrome 恒显（chromeVisible 裁决在 Core 有测钉死）；沉浸态点图即回卡态、chrome 随之出现——不存在「下拉关不了又找不到按钮」的死局。
+9. **FilePreviewView 图片分支退役**：struct 重写——mediaKind==.image 直进 ImageViewerView 单图集合，非图保留 QuickLook 全套（标题/下载/分享不动）。
+10. **存量死链顺带修复（如实登记）**：FilesBrowserView 的行 NavigationLink(value: entry) 此前全仓无 WorkspaceFileEntry 目的地注册、点按无落点；本包在其 body 补 .navigationDestination(for: WorkspaceFileEntry.self)（图片→新查看器、非图→FilePreviewView）。
+11. **文件名漏出全仓扫描**：MediaCell 缩略失败占位的 Text(entry.name)（等宽字体压格、生成图名多为哈希串）已撤、只留类型图标。其余保留并判定为文件管理面本义、非漏出：FilesBrowserView 行名、DeliverablesView 行标题、聊天 FileChip（lastPathComponent）、DataFilePreviewView QuickLook 头名、FilePreviewView 非图标题。
+
+### 69.2 模型菜单对齐（用户 18:48 点名）
+
+ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 Core——checkmarkSlotWidth 18/spacing 6）＋模型名，选中显 ✓、未选留空占位，模型名同列对齐。模型数据与 selectChatModel 逻辑零改动。
+
+### 69.3 抽屉颜色反转修复（追加项一，根因单列）
+
+- **实拍证据**：用户装 0.36.3 后浅色实拍——抽屉整面灰雾、选中行纯白胶囊浮灰底；Muse 对照为近白明亮面板＋浅灰选中垫，明暗关系反转。
+- **根因（图层证据）**：DrawerShell 的 ZStack 自下而上＝内容→整屏黑蒙层（DrawerMotion.scrimOpacity 峰值 0.32）→DrawerView；0.36.3 的 drawerBackdrop .thinMaterial 采样的是合成链中它下方的画面——正压在其下的就是被黑蒙层压暗 32% 的内容，糊出来必然灰雾。选中行代码审计：drawerNavRow/drawerSideThreadRow 本就用 Palette.selectionFill（浅档 #F0F1F2），并非纯白——是雾底把浅灰垫反衬成刺眼纯白，属明暗关系整体反转，非令牌错误。
+- **落法**：蒙层加 .offset(x: drawerOffset)（ContentView.DrawerShell 中层）——蒙层左缘恒贴抽屉当前右缘、只罩抽屉之外的露出区；抽屉材质改采样未压暗的内容本体：浅档明亮近白＋selectionFill 灰垫回位，暗档内容本深、材质压深不翻亮。选中行零代码改动。橡皮筋越界时蒙层随 drawerOffset 同步、衔接不变；点按关/横拖关只落露出区，抽屉本体手势无损；右缘柔影落在露出区蒙层上。底条霜层采样对象为抽屉材质本体、随底回正未动；Reduce Transparency 实色回退保持。
+
+### 69.4 交付实录
+
+- 提交链：56575a1（整包）→6040403（CI 修一：Hashable＋zoom 显式标签）→a2804ce（CI 修二：sourceViewProvider 非可选闭包 { _ in nil }）→本节补记提交；代码顶端 a2804ce。CI 前两轮 failure 均为新 API 签名编译错（navigationDestination(item:) 要求 Hashable、.zoom 重载歧义、ZoomSourceViewProvider 非可选闭包），第三轮绿。
+- CI：42805444703 **success**，Executed **669 tests, 0 failures**（基线 657＋新测 12：ImageViewerLogicTests 9＋ImageViewerSpecTests 2＋ModelMenuSpecTests 1，只增不减）。
+- IPA：6,377,981 字节、md5 07caa10c1625eacbf98094b77df2f23f、独立解包验 Info.plist＝0.36.4/71 且 NSPhotoLibraryAddUsageDescription 在包内，落 ~/workspace/your_files/oneday-v0.36.4/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.4/71，含新增相册权限键）＋SettingsView 页脚「OneDay v0.36.4」。
+- 待真机（并入终审积压）：文件侧 zoom 转场源图衔接实感；聊天侧无源 zoom 降级形态；下拉关闭跟手感与横滚分流；沉浸点图回卡态；保存入相册全链（权限弹窗→相册可见）；抽屉双档修复后观感（浅档近白＋灰垫、暗档压深）；设置页分隔引导（0.36.3 遗留）。
