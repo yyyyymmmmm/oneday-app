@@ -41,6 +41,9 @@ struct ChatView: View {
 
     @State private var currentThreadID: UUID?
     @State private var input = ""
+    /// 语音输入控制器（0.36.6，§71）：端上识别、录音
+    /// 条占住发送舱；文本经 onTextChange 回写 input
+    @State private var dictation = DictationController()
     /// 非 nil 表示正在生成：值是已累积的流式文本
     @State private var streamingText: String?
     /// 流式思考（reasoning）已发布快照（0.5.1，§32）：
@@ -419,6 +422,15 @@ struct ChatView: View {
             await resumeRunIfNeeded()
         }
         .onAppear {
+            // 0.36.6：语音控制器回调接线——识别文本回
+            // 写 input（落稿后即普通草稿、可改可发）；
+            // 预备页选键盘听写时聚焦输入框
+            dictation.onTextChange = { text, _ in
+                input = text
+            }
+            dictation.onUseKeyboardDictation = {
+                composerFocusHandle.focus()
+            }
             // 0.7.0（D1 主线钦定）：先落钦定——存量钦定且
             // 线程还在则沿用，否则新建本地主线并钦定。
             // （0.30.0 注：0.7.0 的「冷启落点永远先落主
@@ -519,6 +531,11 @@ struct ChatView: View {
             AgentHubView(mode: .activity, onApprovalChanged: {
                 Task { await overviewStore?.refresh(appState: appState) }
             })
+        }
+        // 0.36.6：语音输入权限预备页（问前先讲用途，
+        // 续编 S1–S4；点麦克风且权限未定时才出现）
+        .sheet(isPresented: $dictation.showPrep) {
+            DictationPrepSheet(controller: dictation)
         }
     }
 
@@ -1929,6 +1946,19 @@ struct ChatView: View {
             SmoothExpand(isExpanded: !attachments.isEmpty) {
                 attachmentsStrip
             }
+            // 0.36.6（§71）：语音失败行与到限提示行——
+            // 三段式文案（发生了什么＋影响＋怎么办），
+            // 权限被拒在此给「去设置」降级路（续编 S4）
+            SmoothExpand(isExpanded: dictation.failure != nil) {
+                if let failure = dictation.failure {
+                    dictationFailureBar(failure)
+                }
+            }
+            SmoothExpand(isExpanded: dictation.notice != nil) {
+                if let notice = dictation.notice {
+                    dictationNoticeBar(notice)
+                }
+            }
             // 表面沿革：0.2.7 裸玻璃 → 0.3.7 卡 19 撤玻璃
             // 改灰填充 → 0.3.8 第 28 条白浮纸（floatFill＋
             // 发丝边＋双环影）→ **0.4.1 回系统玻璃**（用户
@@ -1969,6 +1999,72 @@ struct ChatView: View {
         // 提议链断环（0.2.5 根因注，§9）：本 VStack 的高度
         // 只认内容，不许把外层提议透传给胶囊
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// 语音失败行（0.36.6）：左警示图标＋三段式文案
+    /// ＋右端 ✕；权限类多一个「去设置」文字动作
+    private func dictationFailureBar(
+        _ failure: DictationFailure
+    ) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 14))
+                .foregroundStyle(Palette.warning)
+                .padding(.top, 1)
+            Text(dictationFailureMessage(failure))
+                .font(.caption)
+                .foregroundStyle(Palette.ink)
+            Spacer(minLength: 0)
+            if failure == .permissionDenied {
+                Button("去设置") {
+                    if let url = URL(
+                        string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Palette.primary)
+                .buttonStyle(.odPressable)
+            }
+            Button {
+                dictation.clearFailure()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel("关闭提示")
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+        .background(
+            Palette.fieldFill,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+        )
+    }
+
+    /// 语音到限提示行（0.36.6）：非失败类告知（已自
+    /// 动落稿保内容），控制器 5 秒后自清
+    private func dictationNoticeBar(_ notice: String) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 14))
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.top, 1)
+            Text(notice)
+                .font(.caption)
+                .foregroundStyle(Palette.ink)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+        .background(
+            Palette.fieldFill,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+        )
     }
 
     /// 引用条（0.4.1，照 Muse 样板「正在回复＋摘要」）：
@@ -2038,7 +2134,40 @@ struct ChatView: View {
     /// §20）；Layout 保持子视图身份，形态切换不重建
     /// UITextView、焦点不丢。高度全走
     /// ComposerLayout.capsuleHeight(narrow:full:) 纯函数
+    /// 发送舱行总装（0.36.6 分流）：录音态（准备中/
+    /// 录音中/收尾）由 DictationBar 占住同一玻璃胶囊
+    /// （文本行＋控制行，与多行形态同构），其余时候
+    /// 是标准三件行；玻璃与实测高回写挂在本层，两态
+    /// 共用（见 inputBar 的 glassEffect 施加点）
     private var composerRow: some View {
+        Group {
+            if dictation.isActive {
+                DictationBar(
+                    controller: dictation,
+                    text: $input,
+                    focusHandle: composerFocusHandle,
+                    caretColor: UIColor(Palette.primary),
+                    reduceMotion: reduceMotion
+                )
+            } else {
+                standardComposerRow
+            }
+        }
+        // 实测高在布局周期内回写（0.3.5，§20）：只喂玻
+        // 璃圆角的连续半径（见 composerShape），高度本
+        // 身不经任何动画——形态切换一帧落定。0.2.6–
+        // 0.3.4 的离散形状动画已整条撤销（理由见
+        // standardComposerRow 沿革注）
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { _, newHeight in
+            if abs(newHeight - composerCapsuleHeight) > 0.5 {
+                composerCapsuleHeight = newHeight
+            }
+        }
+    }
+
+    private var standardComposerRow: some View {
         ComposerBarLayout {
             attachButton
             // 0.2.7：SwiftUI 纵向 TextField 换自量高
@@ -2060,21 +2189,9 @@ struct ChatView: View {
             trailingControl
         }
         .fixedSize(horizontal: false, vertical: true)
-        // 实测高在布局周期内回写（0.3.5，§20）：只喂玻
-        // 璃圆角的连续半径（见 composerShape），高度本
-        // 身不经任何动画——形态切换一帧落定。0.2.6–
-        // 0.3.4 的离散形状动画（.animation(value:
-        // composerMultiline)＋异步形态状态）已整条撤
-        // 销：回车跨行时布局先落多行几何、形状隔一拍
-        // 才跟，旧 Capsule 被拉成体育场形盖住新几何再
-        // 跳成圆角矩形——录屏里的双层重影（定因 §20.1）
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height
-        } action: { _, newHeight in
-            if abs(newHeight - composerCapsuleHeight) > 0.5 {
-                composerCapsuleHeight = newHeight
-            }
-        }
+        // 实测高回写已上移到 composerRow 总装层（0.36.6
+        // 两态共用）；0.2.6–0.3.4 的离散形状动画撤销史
+        // 见 §20.1，不在此复述
     }
 
 /// 发送舱布局（0.3.3 上文下钮）：子视图序固定为
@@ -2271,12 +2388,15 @@ private struct ComposerBarLayout: Layout {
 
     /// （旧发送/停止两键已合并为 sendStopButton 变形键，见上。）
 
-    /// 语音占位（0.2.5）：裸麦克风符号——无圆盘底、无描边，
-    /// 与 Muse 空输入态的右端形态一致。语音输入尚未接入，
-    /// 点按无动作，仅占形态位；接入时在此挂起录音流程
+    /// 语音输入入口（0.2.5 占位 → 0.36.6 接入，§71）：
+    /// 裸麦克风符号——无圆盘底、无描边，与 Muse 空输
+    /// 入态的右端形态一致（形态自 0.2.5 未动）。点按
+    /// 先收键盘、再交语音控制器走权限门/开录（点按切
+    /// 换、非按住；录音中本键被录音条取代不再出现）
     private var micButton: some View {
         Button {
-            // 语音输入未接入：占位符号，点按无动作
+            composerFocusHandle.dismiss()
+            dictation.handleMicTap(baseDraft: input)
         } label: {
             Image(systemName: "mic")
                 // 0.3.8 第 32 条：字形 16→15（笔画约 2.5→
@@ -2293,7 +2413,7 @@ private struct ComposerBarLayout: Layout {
                 .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
-        .accessibilityLabel("语音输入（尚未开放）")
+        .accessibilityLabel("语音输入")
     }
 
     private var attachButton: some View {

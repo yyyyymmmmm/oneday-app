@@ -45,6 +45,14 @@ struct ComposerTextView: UIViewRepresentable {
     /// 「跟主题变」一侧——由 ChatView 传入强调色令牌的
     /// UIKit 形态；输入框填充/边框则归中性，两事分开）
     var caretColor: UIColor
+    /// 未定稿尾段字数（0.36.6 语音输入，§71）：>0 时
+    /// 把文本尾部这么多字染成次级色（流式识别的未定
+    /// 稿段，整段替换不跳字）；只改渲染、不改文本本
+    /// 体，落稿时传 0 即恢复全色。普通输入恒传 0
+    var volatileTailLength: Int = 0
+    /// 占位符文案（0.36.6）：普通态「发消息…」，录音
+    /// 态由录音条传「正在聆听…」
+    var placeholderText: String = "发消息…"
     // 0.3.3：onMeasuredHeight 通道撤销——多行形态判据改
     // 由布局层（ChatView.ComposerBarLayout）以 sizeThat-
     // Fits 量测回写，视图不再反向驱动布局状态
@@ -90,7 +98,7 @@ struct ComposerTextView: UIViewRepresentable {
         // 视图内部后命中路径上再无外来层；UILabel 默认不
         // 接收触摸，亦显式关闭
         let placeholder = UILabel()
-        placeholder.text = "发消息…"
+        placeholder.text = placeholderText
         placeholder.font = Self.bodyFont
         placeholder.textColor = .tertiaryLabel
         placeholder.isUserInteractionEnabled = false
@@ -121,8 +129,10 @@ struct ComposerTextView: UIViewRepresentable {
         if textView.text != text, textView.markedTextRange == nil {
             textView.text = text
         }
+        context.coordinator.placeholderLabel?.text = placeholderText
         context.coordinator.placeholderLabel?.isHidden =
             !(textView.text?.isEmpty ?? true)
+        applyVolatileTint(textView, coordinator: context.coordinator)
         // 0.3.3 几何兜底：每次更新重申统一几何（防系统
         // 在重排/旋转时改回默认 inset/padding）
         ComposerTextMetrics.applyGeometry(to: textView)
@@ -156,6 +166,55 @@ struct ComposerTextView: UIViewRepresentable {
         )
     }
 
+    /// 未定稿尾段染灰（0.36.6）：以当前文本重建属性
+    /// 串——正文段恒 label 色、尾 volatileTailLength
+    /// 字（Character 计）染 secondaryLabel；只动渲染
+    /// 属性不动文本，程序化赋值不触发 textViewDid-
+    /// Change、不回写绑定；IME 组合期跳过（不打断
+    /// marked text）；选区原样保留。重建只在（文本,
+    /// 尾长）键变化时发生（coordinator 缓存把守），
+    /// 普通打字 tail 恒 0 且从未染过时零干预；染过后
+    /// tail 回 0 只做一次恢复。NSRange 按 UTF-16 换算
+    private func applyVolatileTint(
+        _ textView: UITextView, coordinator: Coordinator
+    ) {
+        guard textView.markedTextRange == nil else { return }
+        let current = textView.text ?? ""
+        let tail = min(max(volatileTailLength, 0), current.count)
+        if tail == 0, coordinator.tintTail <= 0 {
+            coordinator.tintText = current
+            return
+        }
+        if coordinator.tintText == current,
+           coordinator.tintTail == tail {
+            return
+        }
+        coordinator.tintText = current
+        coordinator.tintTail = tail
+        guard !current.isEmpty else { return }
+        let selected = textView.selectedRange
+        let attributed = NSMutableAttributedString(
+            string: current,
+            attributes: [
+                .font: Self.bodyFont,
+                .foregroundColor: UIColor.label,
+            ]
+        )
+        if tail > 0 {
+            let tailUTF16 = current.suffix(tail).utf16.count
+            let totalUTF16 = current.utf16.count
+            attributed.addAttribute(
+                .foregroundColor, value: UIColor.secondaryLabel,
+                range: NSRange(
+                    location: totalUTF16 - tailUTF16,
+                    length: tailUTF16))
+        }
+        textView.attributedText = attributed
+        if selected.location + selected.length <= current.utf16.count {
+            textView.selectedRange = selected
+        }
+    }
+
     /// 过上限才内滚（在文本变化与回写时刷新，不在量高里改状态）
     private func refreshScroll(_ textView: UITextView) {
         guard textView.bounds.width > 0 else { return }
@@ -170,6 +229,11 @@ struct ComposerTextView: UIViewRepresentable {
         var parent: ComposerTextView
         /// 占位符子标签（makeUIView 时挂上）
         weak var placeholderLabel: UILabel?
+        /// 染灰键缓存（0.36.6）：上次已施加染灰的
+        /// （文本, 尾长），防每次 updateUIView 重建
+        /// 属性串；tintTail<=0 表示当前未染
+        var tintText: String?
+        var tintTail: Int = 0
 
         init(parent: ComposerTextView) {
             self.parent = parent

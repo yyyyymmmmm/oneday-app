@@ -8,8 +8,8 @@ let project = Project(
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1",
-        "MARKETING_VERSION": "0.36.5",
-        "CURRENT_PROJECT_VERSION": "72",
+        "MARKETING_VERSION": "0.36.6",
+        "CURRENT_PROJECT_VERSION": "73",
     ]),
     targets: [
         .target(
@@ -43,8 +43,8 @@ let project = Project(
                 // 版本号直写 Info.plist（沿礼记 v4.4 实证口径）：Tuist 默认
                 // 模板不把工程设置的 MARKETING_VERSION 展开进 plist，
                 // 只写字面量才进包。
-                "CFBundleShortVersionString": "0.36.5",
-                "CFBundleVersion": "72",
+                "CFBundleShortVersionString": "0.36.6",
+                "CFBundleVersion": "73",
                 "ITSAppUsesNonExemptEncryption": false,
                 "UILaunchScreen": ["UIColorName": "LaunchBackground"],
                 // 自托管场景：允许连接局域网内的自建服务器（http）。
@@ -65,6 +65,11 @@ let project = Project(
                 // 看器里点「下载」时申请 addOnly、只保存
                 // 用户选中的那一张；不读相册、不作其他用
                 "NSPhotoLibraryAddUsageDescription": "OneDay 需要把图片存入你的相册：只在你在图片查看器里点「下载」时保存你选中的那一张图片，不会读取你的相册。",
+                // 语音输入（0.36.6）：端上识别——只在用
+                // 户点麦克风时申请；文案说清录音只在本
+                // 机处理、不出手机（规格 §3.4 定版文案）
+                "NSMicrophoneUsageDescription": "OneDay 需要使用麦克风，把你说的话转成文字填入输入框；录音只在本机处理，不上传服务器。",
+                "NSSpeechRecognitionUsageDescription": "OneDay 使用语音识别把你的话转成文字；识别在你的 iPhone 本机完成，录音不会离开手机。",
             ]),
             sources: ["Sources/OneDayApp/**"],
             resources: ["App/Resources/**"],

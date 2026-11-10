@@ -5135,3 +5135,28 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - 台账/总纲：宪法 §4 修订文本已落总纲（ui-design-philosophy §三.4，标 19:19 修订）；台账 C7 升级注、D 节 0.36.5 五件补登、H 节本批六条补记；C16 底栏终审同日经用户 19:34 真机通过销项（非本批施工）。
 - 桥侧：overview_bridge.py refId 改动与 overview_bridge_selftest.py 在 ~/workspace/hermes-deploy 本地完成、自测 8/8；**未部署生产**（待拍板），部署前 C 部 App 联动不成立。
 - 待真机（并入终审积压）：发送后贴底实感（含长线程）；回底钮在事实信号下消失时机；胶囊新序与默认落地；权限开关五态实点（未定请求弹窗/已授权拨关跳设置）；设备五件图标辨识度（日历动态日期、通讯录彩签、健康渐变心对版）；详情页下拉关闭与 ✕ 并存手感；抽屉标题浮层下名单穿行与右缘无指示器观感、Dynamic Type 极端档标题压首行边界；角标联动待桥部署后才可验。
+
+## §71 0.36.6/73 语音输入（端上路线，用户 2026-11-10 18:37 点批；规格 voice-input-spec-20261110.md）
+
+### 71.1 定位与红线
+发送舱麦克风自 0.2.5 起是纯占位（action 为空、无障碍标签写死「尚未开放」、全仓零录音/识别代码、无麦克风/语音识别 UsageDescription）。本版接入真语音输入。红线：**服务端路线不做**——Hermes 无转写端点、上游 DeepSeek 无 STT；只走端上 iOS 26 SpeechAnalyzer＋SpeechTranscriber，录音不出手机。回退链 DictationTranscriber→键盘听写（预备页与失败行均明示此路）。
+
+### 71.2 落法
+- **纯逻辑沉 Core**（Sources/OneDayCore/Dictation.swift，单测 DictationTests 19 个）：DictationPhase 六相位＋DictationPhasePolicy 转移守卫（迟到回调想把已落定相位拽回一律拒绝）；DictationSession 转写会话合并（开录记 baseDraft；final 段只追加并清 volatile、volatile 整段替换禁逐字追加；落稿 committedText(includeVolatile:)；取消只回 baseDraft；中英拼接空格启发式）；DictationLevel（RMS/dB 归一化 -50..-10dB）＋DictationLevelSmoother（一阶低通、快攻 60ms/慢放 180ms）＋DictationWaveform（9 条采样环）；DictationTiming（上限 300s、警示 270s、m:ss）；SilenceTracker（归一化电平 <0.05 连续 10s 出提示）；DictationLanguage 三语（普通话 zh_CN/粤语 yue_CN 回退 zh_HK/英语 en_US）；DictationFailure 六类。
+- **App 接线**（DictationController @MainActor @Observable）：权限门（AVAudioApplication.recordPermission＋SFSpeechRecognizer.authorizationStatus 双查：双授直开录、未定弹预备页、被拒走失败行不弹系统窗）；资产门（AssetInventory.status→未装进 .preparing 相位、assetInstallationRequest.downloadAndInstall 带进度）；引擎链（supportedLocale(equivalentTo:) 规范化 locale→SpeechTranscriber(.volatileResults)→bestAvailableAudioFormat（资产后取）→AVAudioEngine tap（硬件格式）经 AVAudioConverter（primeMethod=.none）转码分发：一路 yield AnalyzerInput、一路 RMS 写无锁盒供 10Hz 计时轮驱动波形/电平/静音/计时）；结果消费任务先于 analyzer.start 启动（DocC 口径）；收尾 finalizeAndFinishThroughEndOfInput＋2s 超时 cancelAndFinishNow 兜底、结果流 drain 上限 2s；代次（generation）守卫作废一切迟到回调；来电/媒体服务重置中断→已定稿＋当前未定稿落框＋失败行 interrupted；引擎抛错→已定稿保留、未定稿弃＋engineError。
+- **交互**：点按切换（非按住）；录音条 DictationBar 占住发送舱同一玻璃胶囊——文本行（既有 ComposerTextView）在上、控制行（✕/波形＋计时/✓）在下；字幕直进文本视图、未定稿尾段经 ComposerTextView 新增 volatileTailLength 染 secondaryLabel（只改渲染属性、（文本,尾长）键缓存防重建、UTF-16 换算、IME 期跳过）；落框即普通草稿、可改、**不自动发送**；5 分钟到限自动落稿＋warning 触感＋提示行（5 秒自清）；4:30 起计时变 Palette.warning 色；连续 10 秒无声只提示不停录；没识别到字→nothingHeard 失败行；失败行三段式文案（零行话）＋权限类带「去设置」。
+- **权限**：双 UsageDescription 入包（§71.4 验）；预备页 DictationPrepSheet 五段式（一句话能力/本机识别不上传披露/麦克风与语音识别分开列/语言三选/整宽主按钮「开始使用」＋「用键盘听写」纯文字降级＋键盘听写说明小字）；点「开始使用」才触发系统弹窗（S1–S4）；sheet 手势关＝放弃回 idle（prepFlowActive 防 onDisappear 误杀进行中的权限流）。
+- **触感**：先修《动效宪法》表 D 增五行再施工（宪法第 6 条）——开始录音 impact light、取消 impact light（不用 heavy）、停止落稿无、达上限 notification warning、失败/打断归 error 行。Haptics.swift 头注同步更新落点。
+
+### 71.3 预登记出入（如实）
+1. **录音形态**：规格 §3.3「字幕直进文本视图」为硬要求，录音条取胶囊内两行形态（文本行＋控制行）而非字面同一行——与发送舱既有多行形态同构、不新造高度轴，玻璃与实测高回写两态共用。
+2. **带草稿入口**：mic 沿现行 ComposerTrailingState 三态（仅空输入态出现，0.25.0 定版不推翻），故「已有草稿时点 mic」本版不可达；Core 的 baseDraft 追加合并已完整实现并单测把守，入口放开只待后续包改三态口径。
+3. **270s 警示**：只变色不震，warning 触感落在 300s 自动停一刻（表 D 落值行）。
+4. **语言切换入口**：只在预备页（权限未定时出现）；授权后改语言暂无入口，待后续包并入设置页。
+
+### 71.4 宪法逐条过（摘要）
+设计宪法：①录音条一屏一主角（波形＋计时）②数值出自标尺（间距走 OneDayMetrics、键径 ComposerLayout.buttonHeight）③不新增分隔面 ④图标全 SF Symbols 系统源（mic/xmark/checkmark/exclamationmark——无名功能面）⑤录音条无标题、预备页内容领头 ⑥层级≤3 ⑦同构列表（语言三选行）⑧文案零行话零外文（失败/预备页全中文人话、禁用词 8 词零命中）⑨可点必有指示、点必有反馈（✓ 准备中禁用＋淡化、失败行带动作）⑩仿机制：点按切换＋流式灰字＋落框可改照大厂共识（ChatGPT 按住式回滚为反例据）。动效宪法：触感按表 D 新行投放；波形动画为真实电平驱动的信息承载（非装饰）、Reduce Motion 降为单条电平尺；无新增弹簧面。续编：S1 冷启动禁问（只在点 mic 时）、S2 问前预备页、S3 系统权限与功能分开说、S4 被拒有降级（去设置＋键盘听写）、S10 报错三段式、状态呈现各相位齐备（准备中带进度、录音中波形计时、失败带行）。
+
+### 71.5 验收与诚实边界
+- CI/单测/IPA 数据见本节补记（交付时回填）。
+- **待真机（不许假报）**：识别准确率与首字延迟；电平波形实感（tap 若为非 Float 格式，电平退化为 0、识别不受影响）；权限弹窗链（麦克风＋语音识别双弹窗的实际次序、SpeechAnalyzer 是否要求语音识别授权的运行时行为）；资产下载的真实耗时与进度形态；来电中断的真实触发；粤语 yue_CN 在真机资产的可用性；录音条与玻璃胶囊的高度衔接观感；染灰尾段在真机渲染的跟随感。
