@@ -4517,3 +4517,56 @@ Z8 形象行 Menu：点开为系统菜单、三档带勾在当前档、选手感
 - BB7 分类与行规格：可连接段分组序为 效率提升（2）/办公协作（3）/开发工具（1）/生活（2）；行题 17 regular、瓷砖 40、行高与设置首页一致，无粗体泛滥。
 
 - 交付实录：功能提交 c18a3f3＋修复提交 4d9aee2（ConnectedConnector 去 Equatable——MCPServerItem 非 Equatable 合成失败，CI 首跑 42751527952 因此编译错、修复后重跑）；CI 42751655037 success，Executed 485 tests, 0 failures（475 基线＋ConnectorCatalogTests 10 测，零删测）；IPA 5,033,330 字节、md5 c1a65db10958a2fac2bc7d2d792b9c5f、独立解包验 Info.plist＝0.28.0/57、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.28.0/OneDay-0.28.0.ipa。§14/MotionTokens/0.26.0 外观/0.27.0 会话链零改动；施工期除只读查外生产零写；未自截真机图。
+
+## 56. 连接器目录补本机服务组＋主线不进旁聊集（0.29.0/58）
+
+用户 2026-11-10 12:30 点名（连接器目录「已连接」只数 MCP 在册一条，自家本机线没名分）、12:31 两令同下：①目录补「本机服务」组；②设计修正——主线不得出现在任何「旁聊」名义的列表里（对标 Muse：主线有自己独立入口，旁聊列表纯旁聊）。基线 183ff45（0.28.0/57、485 测）。
+
+### 56.1 本机服务组（名册/探活证据/状态口径）
+
+Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）、探活结局→状态映射、状态文案、搜索纯函数。瓷砖续 0.28.0 彩色字母/字形瓷砖语言（H/记/标/览，非品牌图标）。
+
+| 条 | 探活路径（既有客户端，与功能页同源） | 证据与读数口径 |
+| --- | --- | --- |
+| Hermes 服务 | GET /health（HermesClient.health，连接页探活一） | 200 且 status=ok 判正常；读数取回执 version（如「版本 0.23.0」），无版本不出 |
+| 记忆与技能 | GET /api/write-gate/status（WriteGateClient.gateStatus，枢纽/记忆页同源） | 200 判正常；详情另列闸门模块/记忆闸门/技能闸门原值；计数为尽力读数——记忆条数走记忆页的 MemoryBridgeClient.entries、技能数走技能页的 HermesClient.skills，任一取不到就不出该数、不编造 |
+| 目标与点子 | GET /api/oneday-bridge/goals（OneDayBridgeClient.goals，目标页同源） | **本桥无专用健康端点**，取最轻只读端点探活；读数＝目标数＋点子数（ideas 尽力而为） |
+| 总览数据 | GET /api/overview-bridge/overview（OverviewBridgeClient.overview，总览页同源） | **本桥无专用健康端点**，取快照端点探活；待批数 >0 时作读数；详情显快照 generatedAt 原值 |
+
+- 状态四档：正常（本次探活成功，绿点）／异常（本次探活失败，红点，详情显错误原文＋最近探活时间）／未配置（灰点，专指审批桥钥匙未设置——三桥共用同一把 Keychain 钥匙，各桥既有客户端在无钥匙时根本不发请求、以 noKey 结局回，映射到此档；判定与 WriteGateKeyStatus 同一把钥匙同一读法，App 层不另立第二套）／读取中（首帧小转圈，不拿灰点冒充已探）。
+- 无缓存口径：状态只存视图 @State（本页生命周期），进页 .task 整批探活、下拉刷新整批重探；重进页必从读取中起，不存在跨页缓存的绿色。
+- 详情 sheet：说明＋状态＋证据来源＋最近探活＋功能入口——记忆/技能/服务器详情/审批桥钥匙走既有 pending 路由（SettingsView 消费落位）；目标/点子经新增 AppState.mainTabSwitchRequest（ContentView 消费：关设置＋切底栏格，与 settingsSheetRequested 同式）；总览经 SettingsView 注入闭包回管理组 manageSheet 开总览（承载不另立第二份）。
+- 电脑口径：Simular Box 是 MCP 在册连接，留在「已连接」组原位，本组不重复列（组脚注与详情均有说明）；box-bridge（8645）是电脑页内部设施，同 0.28.0 口径不列。
+- 搜索：本机四条进搜索（名称＋说明＋状态词，Core 纯函数），命中恒列第一组（分组序：本机服务→已连接→可连接）。
+- 页面规范续 0.24.0/0.28.0：行题 rowTitleL、分区头 sectionLabel、行高 settingsRowHeight、瓷砖 40。
+
+### 56.2 主线排除审计（逐面；口径＝用户 12:31 令）
+
+收敛点：Core `SideChatClassifier.isMain` 双信号单一函数族——本地线程版（钦定 id 命中 ∨ 关联会话为主线会话）与服务端会话版（钦定 id 命中 ∨ `oneday-main-` 生成前缀）；存量 zone() 两函数保留给非名单面（当前线程归类等），名单面一律改走 isMain。
+
+| 面 | 改前：主线在不在（代码证据） | 改后 |
+| --- | --- | --- |
+| 抽屉「旁聊」区 | **判定在、单信号有缺口**：sideThreads 经 DrawerSideChatFilter.threadListed(isMainThread: thread.id == mainThreadID) 剔除，钦定 id 命中时不在；但钦定丢失/指向他条时，绑着主线会话的真主线线程无第二信号可剔，会以旁聊行出现（本地库不可远程核、是否已在用户机上发生未判死——串话诊断档未判死项 #3 同源） | 行源改走 isMain(localThreadID:linkedServerSessionID:mainThreadID:mainServerSessionID:) 双信号 |
+| 抽屉底条搜索 | 与旁聊区同一行源（drawerSearchList 与 drawerSideSection 同吃 sideThreads，filteredThreads 只按词收窄）——同上缺口 | 随行源同改、自动同口径，无独立改动 |
+| 管理页·主线段 | 主线行只在此段（mainRow、钦定保护、无菜单）——按设计保留（简报明示可保留） | 未动 |
+| 管理页·站内段 | 等值过滤 `$0.id != mainSessionID`：钦定已回存时不在；钦定未回存（nil）时过滤恒真，主线会话会以普通行混入 | 改走 isMain(serverSessionID:mainServerSessionID:) 双信号 |
+| 管理页·已归档段 | 同站内等值过滤 | 同改 |
+| 管理页·外部段 | 无数据源（externalContent 只有静态 EmptyState「通道未开通」）——本就不在 | 未动（只报证据） |
+| 管理页·搜索结果 | 服务端全量搜索（/api/sessions/search）可命中主线会话行——属「全部对话」全页搜索、非旁聊名义分段，主线在管理页的家是主线段本身 | 不在本次口径内，未动（仅登记） |
+| 总览页「最近会话」 | 服务端名单含全部会话、本地回退 localThreads.prefix(3) 未过滤——该面名义为「最近会话」、不复用旁聊数据源 | 不在口径内，未动（仅登记） |
+| 抽屉导航组「主线聊天」行 | 主线唯一 sanctioned 入口 | 形态未动（简报明令） |
+
+单测钉死（MainlineExclusionTests 9 测）：钦定命中、绑主线会话的非钦定线程、前缀兜底三路判主线；无关联/绑 oneday-side-/绑 api- 桶的线程判非主线；旁聊集组装主线两形态全剔且集非空；服务端版钦定/前缀判主线、side/api/probe 判非主线。
+
+### 56.3 CC 系列真机终审项
+
+- CC1 本机组齐全与落定：设置→连接器，进页第一组「本机服务」四条齐（Hermes 服务/记忆与技能/目标与点子/总览数据），首帧读取中、随后逐条变「正常」绿点；组脚注有 Box 不重复列的说明，已连接段里 Box 仍在原位。
+- CC2 状态与计数对账：四条的读数与功能页逐个对（技能数＝技能页「已装 N 个」、记忆数＝记忆页条数、目标/点子数＝两页条数）；任一功能页打不开时对应条不许显正常。
+- CC3 飞行模式异常：开飞行模式进连接器页或下拉刷新——四条应转「异常」红点、不显绿；点开详情有错误原文与最近探活时间；关飞行模式下拉刷新恢复正常。
+- CC4 未配置一档：在「审批桥钥匙」页清除钥匙后进连接器页——三条桥显「未配置」灰点（不是异常红点）、Hermes 服务不受影响仍正常；桥条详情有成因说明与「审批桥钥匙」入口；补设钥匙后下拉刷新转正常。
+- CC5 入口跳转：记忆与技能详情点「记忆」/「技能」落对应页；目标与点子详情点「目标」关设置并切到底栏目标格、「点子」同理；总览数据详情点「总览」打开总览；Hermes 服务详情点「服务器详情」达服务器详情页。
+- CC6 搜索覆盖：搜「审批」只出记忆与技能；搜「总览」出总览数据；飞行模式下搜「异常」出异常条目；本机命中恒排在已连接/可连接之前；搜乱码出空态。
+- CC7 主线不进旁聊：抽屉「旁聊」区与底条搜索里找主线对话——不出现（重点验历史上以「你好」开头的形态）；主线只从导航组「主线聊天」行进入；管理全部对话：主线只在「主线」段，「站内」「已归档」段无主线行；旁聊条目仍在、名单没被误杀空。
+- CC8 详情证据：四条详情的「证据来源」与实际探活端点一致（目标与点子、总览数据两条应注明无专用健康端点、取最轻只读端点）。
+
+- 交付实录：功能提交 9a1a80c；CI 42757396350 success，Executed 506 tests, 0 failures（485 基线＋LocalServicesTests 12 测＋MainlineExclusionTests 9 测，零删测）；IPA 5,101,724 字节、md5 09c895681111e06ce16494d59b223f8d、独立解包验 Info.plist＝0.29.0/58、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.29.0/OneDay-0.29.0.ipa。版本五处同改＋grep 验（注：设置页页脚在基线滞留 v0.26.0——0.27.0/0.28.0 两包漏改页脚，本包一并归正为 v0.29.0）。§14/MotionTokens/0.26.0 外观/0.27.0 会话链/0.28.0 目录既有条目状态语义零改动；探活全只读 GET、生产零写；未自截真机图。
