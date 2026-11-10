@@ -29,6 +29,7 @@ enum DocumentPickerBridge {
     private static let coordinatorBox =
         OSAllocatedUnfairLock<Coordinator?>(initialState: nil)
 
+    @MainActor
     static func present(onPick: @escaping ([URL]) -> Void) {
         // 延一拍：等触发它的 Menu 收起落定再呈现，
         // 不与 dismissal 同拍撞车（minis-open 的
