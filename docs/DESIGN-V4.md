@@ -4280,3 +4280,62 @@ W1 大字号（设置→辅助功能→更大字体拉满）：抽屉/设置/文
 ### 51.7 真机终审项（X 系列）
 X1 设置页行题与苹果设置并排：同为 17 regular 观感、行图标细线同列、无实心件；X2 抽屉：名字头 28 bold 不压人、导航行 17 regular、旁聊题 17＋时间戳 13 灰、分区头 13 灰；X3 文件页分段：两段字同大同粗、选中只靠白面浮起；X4 文件页空态为系统 ContentUnavailableView 形态（图标/题/副题系统排版）；X5 设置页静止态：大标题左对齐在位、身份卡 Hermes 与地址行完整无切；轻滚设置页：内容滑入栏下为渐隐、无半截字硬切；X6 服务端会话行图标不再压字、记忆/电脑/档案/外观四行新图标可辨识；X7 大字号拉满：五面随 DT 放大不断行（Body/Footnote/Title1 皆文本样式）；X8 管理页/总览会话行题为 regular 17（rowTitle 改档连带面）。
 - 交付实录：单轮定版——功能提交 7286dfc，CI 42741249148 success，Executed 447 tests, 0 failures（与基线 447 持平：本轮为断言改值型整改——角色表/令牌值/ListRowSpec 三处断言随规格改值、无删测、无新增）。量测闸一次过、无校准轮：21pt regular 设置列紧致密度 0.230（sun.max）–0.645（cable.connector，7pt 窄盒离群、格口径 0.055 反为最疏，沿 0.22.0 点名口径）、格口径全列 ≤0.126（闸 0.32）、离散比 2.80（闸 3.0）；新换五件 memorychip 0.378/bubble.left 0.291/display 0.317/archivebox 0.427/sun.max 0.230 全部落带内；抽屉名单 21 regular 紧致 0.276–0.381（闸 0.05–0.45）。IPA 4,858,061 字节、md5 7ce27562c7ee852f57b1e081d9f73743、独立解包验 Info.plist＝0.24.0/53、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.24.0/OneDay-0.24.0.ipa。施工期生产零写请求；未自截真机图；§14 十条/MotionTokens/SideChatLink 与发送链零改动。
+
+## §52 0.25.0/54「交互与动效专包」（依据：Emil 技能包六件【emil-design-eng 动效四问＋频率表/review-animations/improve-animations/gestures/choreograph/apple-design】＋native-ios-design＋§14 十条＋MotionTokens 现值；方法：全量审计→逐项裁决→按裁决修；证据分级：【官方】HIG/SDK 事实【技能】Emil 条文【定版】用户既往拍板/令牌册【实查】代码审计事实）
+
+### 52.0 审计方法与总则
+- 全 App 十面（聊天/抽屉/文件/设置/点子/目标/总览/枢纽/管理页/底栏）逐元素过四问（该不该动/目的/曲线/时长）＋频率分级（高频＝逐日数十次级：零装饰动画；中频：仅功能性短动画；低频/稀有：可有入场）。高频面结论先行：发送/切页/键盘/打字/滚动跟随全部零装饰（既有口径、全数合规维持）。
+- 铁律执行：§14 十条与 MotionTokens 九支数值零改动；冲突只登记待拍板（52.5）；手势驱动动画全数可打断（抽屉逐帧重定向/原生滚动/动画值驱动）；能用系统内置动效（TabView/sheet/NavigationStack/List 高亮/系统控件）的不自制——全仓转场审计结论：无自制页面转场（RootTabView 系统 TabView、设置 sheet、枢纽/管理 push 全系统），无可删项。
+
+### 52.1 审计总表（面·元素·频率·裁决·改前→改后；「合规不动」只列要害行）
+| 面·元素 | 频率 | 裁决 | 改前→改后 |
+|---|---|---|---|
+| 抽屉·拖动开合＋蒙层 | 中 | 合规不动 | DrawerShell 非桥接 1:1 直写零弹簧延迟【技能：直接操纵】、桥接走 drawerSpring 逐帧重定向保速衔接（速度连续、非自静止起步）、方向锁/橡皮筋/800pt/s fling＋30% 动量投影、scrim 同源 progress 派生（同曲线同步的构造等价）——全链已是全仓动效标杆 |
+| 抽屉·导航行/管理行按压 | 中 | 修 | .plain 无反馈→.odPressable（touch-down 0.92） |
+| 抽屉·底条搜索清除钮 | 低 | 修 | 无 buttonStyle→补 .odPressable（旁聊行/圆钮本已 odPressable） |
+| 聊天·发送舱右端 mic↔圆盘键 | 低频边沿（空↔首字/发送↔流式） | 修 | 两视图硬切→Core ComposerTrailingState 三态收敛（单测把守、流式优先）＋同槽 ZStack opacity 交叉淡化（swap＋resolved）；发送↔停止仍走圆盘内 symbolEffect 形变（既有） |
+| 聊天·错误/提示条进出 | 低 | 修 | 无过渡（高度硬跳）→条 .transition(.opacity)＋容器补 errorMessage/notice 两条 swap 动画值（与 isNearBottom 同口径、高度单调）；两 ✕ 钮补 .odPressable |
+| 聊天·回到底部钮入场 | 中 | 修（小） | transition scale 起点 0.85→0.9【技能：入场缩放 ≥0.9、不自虚空出现】；高度驱动仍为容器 swap（单调） |
+| 聊天·流式上屏/打字点/光标 | 高 | 合规不动 | §14 条 4/条 10 定版（blur 6px/120ms/错峰 30ms、符号形变）；数值零碰 |
+| 聊天·思考块展开/收起 | 中 | 修 | 点按 withAnimation(.default)＋相位自动收展无动画，两路不一致→容器级 .animation(resolved(swap), value: expanded) 统一两路；chevron 上下硬切→contentTransition symbolEffect 形变 |
+| 聊天·工具卡展开结果 | 中 | 修 | 无动画硬切（卡高跳变）→withAnimation(resolved(swap))；钮补 .odPressable |
+| 聊天·列表行/通知/胶囊/引用条 ✕ 等 6 钮 | 中 | 修 | .plain→.odPressable（ChatView 内扫荡，见 52.2） |
+| 文件·搜索开关/分段切换 | 中 | 修 | withAnimation(.default) 裸动画→swap（搜索）/liquidSpring（分段，令牌册明定选择指示器滑移归此档）＋resolved 出口（本面原无 reduceMotion 环境、本轮补） |
+| 文件·分段钮/顶栏圆钮/影音格 | 中 | 修 | .plain→.odPressable |
+| 设置·全部行（navRow 助手一处） | 中 | 修 | .plain→.odPressable（一处修全页行）；页内 inline 小钮（眼睛/清除）系统 .bordered 保留 |
+| 管理页·编辑模式切换 | 低 | 修 | 裸 withAnimation{}（隐式 .default）→resolved(swap)＋补 reduceMotion 环境 |
+| 全面·行/图标钮按压（枢纽/总览/目标/点子/服务器各面等 25 文件） | 中 | 修 | .buttonStyle(.plain) 全量→.odPressable，OneDayApp 内 .plain 归零（grep 证据）；唯一豁免见 52.2 |
+| 组件·主/次按钮按压 | 中 | 修 | isPressed 透明硬跳→补 .animation(resolved(press), value: isPressed)（按下即响应、touch-down 触发）；Secondary 为读环境拆 Body 视图（同 Primary 款式） |
+| 底栏·切页 | 高 | 合规不动 | 系统 TabView 原生、无自制转场、无装饰动画 |
+| 转场·sheet/push/QuickLook/分享/图片查看 | 中 | 合规不动 | 全系统呈现；自制仅图片查看器关闭钮（系统 close 同款）与 ConnectView entrance（令牌册圈定稀有首跑面、§14 条 4 豁免面） |
+| 状态·加载/空态/刷新 | 中高 | 合规不动 | ProgressView 系统转轮、ContentUnavailableView 系统空态、.refreshable 系统下拉——零自制装饰；总览/用量 numericText 为系统内容过渡（数字滚动属系统件、非装饰缩放） |
+| 数字/符号形变族 | 中 | 合规不动 | Overview numericText、身份胶囊 chevron、发送键箭头、复制钮（§14 条 10）全走系统 contentTransition/symbolEffect |
+
+### 52.2 按压反馈扫荡口径
+- 范围：Sources/OneDayApp 全部 .buttonStyle(.plain)（改前 50 处）＋无样式钮 3（错误/提示条 ✕×2、抽屉搜索清除）＋ReasoningBlock 头行（.plain→odPressable 随扫荡）。改后 OneDayApp 内 .plain＝0。
+- 唯一豁免（注册例外）：OneDayDesign/Components.swift 的 CopyButton 保留 .plain——它有自有反馈语言（复制成功符号形变＋触感，§14 条 10 定版面，0.2.5 已审），odPressable 的 0.92 缩放与之叠加反成双重反馈；登记为有据例外、非漏改。
+- 安全核查：被扫荡位逐文件抽查上下文——皆普通行/图标钮；List 整行钮的 .plain 本就绕过系统行高亮（原无反馈）、odPressable 只加 label 级缩放透明、不与 swipeActions/编辑模式冲突；系统控件（.bordered/.glass/Picker/Menu label）不在扫荡内。
+
+### 52.3 令牌收编（.default/裸动画清点）
+- withAnimation(.default) 改前 3 处（文件页 ×2、思考块 ×1）→全数收编令牌＋resolved；裸 withAnimation{} 改前 1 处（管理页）→收编。改后全仓 withAnimation(.default)＝0、裸 withAnimation{}＝0（grep 证据，注释提及不计）。
+- 余留 .animation(.default) 1 处＝SmoothExpand 护栏注释内的历史口径文字（非代码）；SmoothExpand 本体走 swap＋resolved＋>400pt 瞬时护栏（§14 条 7 定版等价实现），不动。
+
+### 52.4 Reduce Motion 覆盖（逐面登记）
+- 出口：全仓动画经 MotionTokens.resolved（Reduce Motion→nil 瞬时）或系统组件自管（TabView/sheet/List/ProgressView/玻璃由系统回退【官方】）；本轮给 DeliverablesView、AllConversationsView 两面补齐 reduceMotion 环境（原缺失、且各有 withAnimation 站点）。
+- 代码闸：MotionGateTests 新增断言——九支令牌 resolved(true) 恒 nil、resolved(false) 恒非 nil（＋ComposerTrailingState 三态判定 3 测），共 +4 测，基线 447→451（预估、实测以 CI 为准）。
+- 大位移面回退：抽屉（resolved(drawerSpring)→瞬时开合，位移仍由手势本身驱动、无自动大位移）、思考/工具卡高度（swap→瞬时）、回到底部钮（swap→瞬时显隐）、发送舱右端（swap→硬切）——全数经 resolved 出口自动回退，无独立分支代码。
+
+### 52.5 待拍板清单（本包不动、附理由）
+1. §14 条 9 落法文字与 0.7.1 chrome 裁决的口径差：条 9 定版「拖拽弹簧 1200/80、点赞弹簧 380/18」——1200/80 现为 dragSpring 令牌（值在册），但抽屉拖拽自 0.7.1 起实际走 drawerSpring（0.34·0.86，MotionTokens 注释有档：1200/80 刚度过高、跟手发木而换）。建议：修 §14 落法注记为「抽屉归 drawerSpring、dragSpring 留他用」，数值两边都不动；本包未改 §14 文字、未改令牌。
+2. 非桥接拖拽松手的起步速度：SwiftUI 弹簧无 initial velocity 参数【SDK 事实】——抽屉非桥接路径松手后归位弹簧自静止起步（去向已由 settleOpens 以松手速度＋动量投影判定，桥接路径走 velocity 重定向保速）。属平台上限；根治需 UIKit 手势桥，代价与「全面原生」纪律相冲，不建议动，登记备查。
+3. entrance 0.45 与 Emil「UI 动画 ≤300ms」上限的形式冲突：令牌册已将 entrance 圈定为「全屏级罕见转换」（现仅 ConnectView 首跑面消费），Emil 频率表对稀有面亦放行入场动画——审计裁合规、登记为已知的有据例外，不改值。
+4. SmoothExpand 高度动画与 §14 条 7（Grid 0fr→1fr）：现实现为高度直算＋swap 的定版等价（§50 前已多轮定版），非本包新冲突，settled 不重议、仅在此对账。
+5. CopyButton .plain 注册例外（52.2）：若用户要求全仓零例外，可改为 odPressable 并去掉其一重反馈，但将动 §14 条 10 的复制反馈定版面——待拍板。
+
+### 52.6 不动项
+- §14 十条、MotionTokens 九支数值、DrawerShell/DrawerMotion 全链、StreamingText/TypingDots/StreamingCaret、SmoothExpand、发送链与 SideChatLink、ComposerLayout 几何、TabView/sheet/导航形态——零改动。
+- 版本源五处同改 0.25.0/54：Project.swift 四字面量＋SettingsView.versionFooter「OneDay v0.25.0」，全仓 grep 验。
+
+### 52.7 真机终审项（Y 系列）
+Y1 按压手感抽查：抽屉导航行/管理行、设置任意行、枢纽行、总览卡——按下即回落（不等抬手）、松手回弹，无「点了没反应」感；Y2 发送舱右端：空输入麦克风→打出首字淡化成发送箭头、发送后圆盘内变停止键、流结束回落，全程无硬跳；Y3 错误/提示条：断网发送触发错误条——淡入＋底栏平滑长高，点 ✕ 淡出收起；Y4 回到底部钮：上滑后淡入带轻放（0.9 起）出现、点按回底；Y5 思考块：正文起流时自动收起为平滑滑动（不再突然消失）、点标题行重展、chevron 翻转有形变感；Y6 工具卡长结果展开/收起平滑长高收回；Y7 文件页：搜索框开关顺滑、分段切换白面滑移；Y8 管理页「选择」进出编辑模式顺滑；Y9 减弱动态效果开：Y2–Y8 全部变瞬时切换（无滑动无缩放）、抽屉拖动仍 1:1 跟手、松手瞬时到位；Y10 主按钮（连接/保存）：按压透明柔和过渡、不硬闪。
+- 交付实录：功能提交 d0804c3，CI 42743391015 success，Executed 451 tests, 0 failures（447 基线＋MotionGateTests 4 新增、零删测零改值）；IPA 4,870,215 字节、md5 dbaa7ebf4620fa19270a2ad05cd86c23、独立解包验 Info.plist＝0.25.0/54、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.25.0/OneDay-0.25.0.ipa。施工期生产零写请求；未自截真机图；§14 十条/MotionTokens 九支数值零改动（冲突五项登记 52.5 待拍板）。
