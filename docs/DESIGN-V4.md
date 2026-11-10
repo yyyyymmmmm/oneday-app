@@ -7262,3 +7262,48 @@ def greet(name):
 - 下钻时间线与详情 history 一致；打开会话跳回
   对应会话。
 - 伴生停机再启：段显停更口径、恢复后 10 秒内自活。
+
+## §97 0.36.27/94 组合包：台账合并＋发送舱上方收一档＋抽屉纯系统朦胧（2026-11-11）
+
+版本五处同改 0.36.27/94＋grep 验（Project.swift 四处＋设置页脚）。本包三件入册（97.1–97.3）；件四/件五暂停注记见 97.4。
+
+### 97.1 件一·台账分支合并账
+
+- `feat/ledger-app`（顶端 70afc78）合入本分支（合并提交 b2d4144）。唯一冲突＝DESIGN 尾部节号：手势包 §95 保持不动，台账 §95 整段顺延改号为 **§96**（96.1–96.6 与内部交叉引用「95.4」两处一并改「96.4」），§96 标题的「待合并出号」同步改已合并口径。AgentHubView 两边文件面无交叉、自动合并（台账只动活动段）。
+- 单测账：main 代码口径 913 ＋ 台账新增 31 ＝ **944**（合并后分支内 grep 点清）。构建与实数等主线合并后随 CI 实证，本节不预填结果。
+- 台账两条明示欠账（§96.4）**原样保留、本包不接线**：①进行中指示用系统 ProgressView 的偏差；②`POST /ledger/report` 发送链未接线（发送主链 0.36.20 刚收口，挂点等主线另定）。伴生 1.0.3 部署不在本包，随后另行报批。
+
+### 97.2 件二·发送舱上方留白收一档（用户 03:48 点题「输入框上面有点大，小点就行」）
+
+先量后改。稳态（无回底钮/无错误条/无提示条）下「最后一条消息底 → 发送舱卡顶」纵向链逐项现值与改法：
+
+| 环节 | 改前 | 改后 |
+|---|---|---|
+| 消息列表 `.contentMargins(.bottom)` | spacingS＝8 | **spacingXS＝4** |
+| `.safeAreaBar(edge: .bottom, spacing:)` | 0 | 0 |
+| bottomBar VStack（稳态只剩 inputBar 一个子级） | 0 | 0 |
+| inputBar `.padding(.top)` | spacingS＝8 | **spacingXS＝4** |
+| inputBar VStack spacing ×2（失败/通知两层 SmoothExpand 折叠高 0、spacing 照计） | 8×2＝16 | 16（不动） |
+| **合计** | **32** | **24** |
+
+- 收幅 −8：施工口径为约 4–6，两处指定钮（列表底 contentMargins、卡上外距＝inputBar 顶 padding）均为令牌一档 4pt、合计 −8，超 sizing 2pt——如实记账；两钮独立，真机若觉过紧回任一钮即回到 −4 档。
+- 不动：卡内行高、`.scrollEdgeEffectStyle(.soft)` 边缘效果、键盘跟随结构、inputBar 底 padding。`BottomFollow` 落定误差注释的口径数字同步对齐（contentMargins 8→4、正常误差约 17→13，复贴阈值 24 不动、逻辑无涉）。
+
+### 97.3 件三·抽屉朦胧改纯系统路线（用户 03:54 拍板）
+
+- **注册**：`drawerBottomBar` 改挂名单 ScrollView 的 `.safeAreaBar(edge: .bottom)`（与聊天页 bottomBar 同挂法）；名单 `.scrollEdgeEffectStyle(.soft, for: .bottom)` 保留，朦胧由系统在注册栏高内发放。底条三件本体（齿轮/搜索/新建玻璃件）不动、不给注册 bar 自加 background（WWDC25-323 口径）；落点不变（条底 padding 4、停 indicator 线上方 4pt）。
+- **整套删除**：手排霜层（`ultraThinMaterial` Rectangle 高 96＋`LinearGradient` mask 上透下实）及其 Reduce Transparency 实色分支、ZStack 浮置底条、名单 `.ignoresSafeArea(edges: .bottom)`。
+- **末行避让**：手排 `.padding(.bottom, 84)` 退役，改由注册留位（条高 68＝顶 padding 12＋件高 52＋底 padding 4）＋ `.contentMargins(.bottom, spacingS＝8)` 承接——末行滚到底停在底条上方 8pt、不被压。
+- **不动**：顶部标题浮层与名单 `.contentMargins(.top, 70)`（0.36.5 定版）；面板底 `drawerBackdrop` 及其 TransparencyFallback 实色回退（面板材质本路、与底条无关）。
+- **两态一致性**：搜索态（drawerSearchList）与普通态（drawerNavList）共用同一 ScrollView 与同一注册，逐一过毕、无第二挂点。
+- **Reduce Transparency 口径**：边缘效果是系统效果，开启减透明时系统自动提高其不透明度、无需手排回退；霜层时代的实色回退当年防的是「手排 mask 淡出段不受系统增不透明管辖、末行透过霜层与底条字叠读」——注册路线下不存在手排淡出段，病源随构造消失，故回退随霜层一并删除（错题本 P-17 已补追记）。
+
+### 97.4 件四/件五暂停注记（未入本包提交）
+
+件四（附件条满宽 claim 定案修复）、件五（枢纽边缘桥整桥退役＋根页 SwiftUI 边缘拖）于 2026-11-11 04:04 经用户点名暂停：先做外部核查（苹果文档/论坛同类结论对账）再动。两件的草稿改动**未提交**、停留在施工 worktree 的工作区（ChatView 附件条包装层 2 个 hunk；AgentHubView 注册/手势改写、Core HubEdgeSwipe 阈值小件化与钉测换代、HubEdgeSwipeBridge.swift 删除），等主线核查结论回令后决定取舍，本节暂不落两件的定案与落法。
+
+### 97.5 真机复验清单（件一至三）
+
+1. 台账（部署 1.0.3 后）：枢纽活动段页首计数与进行中真转、已耗时秒跳、下钻事件时间线；未部署时整面「台账还没上线」口径成立、段内自重试自活。
+2. 发送舱上方：短消息贴底停住，末条与发送舱之间的空带比 0.36.26 收小一档且不贴死；键盘升起/收起跟随无回归。
+3. 抽屉：名单滚到底——末行停在底条上方不被压；底条下方朦胧直达屏底（无手排霜层时代的 96pt 霜带）；齿轮/搜索/新建点按与搜索过滤如常，搜索态底条与朦胧同口径；顶部标题滚动透字形态不变；开 Reduce Transparency 时底条不透字叠读。
