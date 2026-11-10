@@ -350,3 +350,47 @@ public enum DictationFaultPolicy {
         }
     }
 }
+
+/// 麦克风权限状态（Core 口径）：App 层只做系统枚举
+/// （AVAudioApplication.recordPermission）→本枚举的
+/// 映射，判定全走 MicPermissionGate 单点，不散写
+public enum MicPermissionStatus: String, Sendable, Equatable, CaseIterable {
+    case granted
+    case denied
+    case undetermined
+}
+
+/// 麦克风权限同步门（0.36.9 热修二轮，与礼记
+/// liqian-app 同案终局对齐）：礼记同症状猜错两轮
+/// （权限文案、格式闸门都修了仍崩），最终靠崩溃日
+/// 志破案——权限早已授过、处于「已决定」状态时，
+/// 代码每次仍重走异步授权回调（requestRecord-
+/// Permission 的 completion 续体）；iOS 26 上这类
+/// 回调由系统在特殊线程投递、闭包线程隔离对不上
+/// 就在回调入口崩，专挑已决定状态触发、不弹框点
+/// 就崩。铁律：先同步读状态；已授权直接启动、永
+/// 不重走异步回调；已拒绝走失败降级；只有真未决
+/// 定才许发那唯一一次异步请求
+public enum MicPermissionGate {
+    public enum Action: String, Sendable, Equatable {
+        /// 已授权：直接启动业务，绝不重走异步回调
+        case start
+        /// 已拒绝：失败降级，不弹系统窗、不发请求
+        case failDenied
+        /// 未决定：唯一允许发异步授权请求的情形
+        /// （入口点按处＝先开预备页讲用途；预备页
+        /// 确认后＝发那一次请求）
+        case requestOnce
+    }
+
+    public static func action(for status: MicPermissionStatus) -> Action {
+        switch status {
+        case .granted:
+            return .start
+        case .denied:
+            return .failDenied
+        case .undetermined:
+            return .requestOnce
+        }
+    }
+}

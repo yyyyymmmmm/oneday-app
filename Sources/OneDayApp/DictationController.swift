@@ -93,6 +93,28 @@ final class DictationController {
         defaults.set(stage, forKey: Self.lastStageKey)
     }
 
+    /// 当前麦克风权限（同步读，0.36.9 同步门）：只
+    /// 做系统枚举→Core 状态的映射，判定全走
+    /// MicPermissionGate 单点——已决定状态绝不重走
+    /// 异步回调是礼记同案实锤的铁律，见 Core 注释
+    static var micPermissionStatus: MicPermissionStatus {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted:
+            return .granted
+        case .denied:
+            return .denied
+        default:
+            return .undetermined
+        }
+    }
+
+    /// 末阶段快照（0.36.9 诊断可见化，礼记同案后
+    /// 手）：预备页页脚与失败行据此上屏，用户截图
+    /// 即可定位死点
+    static var lastStageSnapshot: String? {
+        UserDefaults.standard.string(forKey: lastStageKey)
+    }
+
     @ObservationIgnored
     private var session = DictationSession(baseDraft: "")
     @ObservationIgnored
@@ -156,18 +178,20 @@ final class DictationController {
         case .idle, .failed:
             failure = nil
             notice = nil
-            // 0.36.8：只看麦克风一道门——SpeechAnalyzer
-            // 路线官方口径不需要语音识别授权（诊断 §3），
-            // 原 SFSpeechRecognizer 授权门整道删除
-            switch AVAudioApplication.shared.recordPermission {
-            case .granted:
+            // 只看麦克风一道门（0.36.8：SpeechAnalyzer
+            // 路线官方口径不需要语音识别授权，原
+            // SFSpeechRecognizer 授权门整道删除）＋同
+            // 步门判定（0.36.9：先同步读状态，已决定
+            // 绝不重走异步回调——礼记同案铁律）
+            switch MicPermissionGate.action(for: Self.micPermissionStatus) {
+            case .start:
                 Task { await self.startPipeline(baseDraft: baseDraft) }
-            case .denied:
+            case .failDenied:
                 // 被拒不再弹系统窗：失败行给「去设置」
                 // 与键盘听写两条降级路（续编 S4）
                 fail(.permissionDenied)
                 Haptics.error()
-            default:
+            case .requestOnce:
                 pendingBaseDraft = baseDraft
                 setPhase(.requestingPermission)
                 showPrep = true
@@ -179,20 +203,37 @@ final class DictationController {
 
     // MARK: - 预备页动作
 
-    /// 预备页「开始使用」：此刻才触发系统权限弹窗
-    /// （0.36.8：只请求麦克风——删门理由见 handleMicTap）
+    /// 预备页「开始使用」：先同步门复读状态再决定要
+    /// 不要发请求（0.36.9 热修二轮，本版主修）——旧
+    /// 实现无条件 await 异步授权回调：权限已处于
+    /// 「已决定」状态时（重签使 TCC 状态回落的只是
+    /// 一端，另一端是授权其实已授过/期间已在别处授
+    /// 过），iOS 26 上该回调在特殊线程投递、闭包隔
+    /// 离对不上就在入口崩、不弹框点就崩（礼记同案
+    /// 靠崩溃日志破的案，本仓 0.36.8 真机仍崩后对
+    /// 齐）。已授权直达管道、已拒绝走失败、只有真
+    /// 未决定才发那唯一一次请求
     func prepConfirmStart() {
         prepFlowActive = true
         showPrep = false
-        Task {
-            let micOK = await Self.requestMicrophonePermission()
-            markStage(micOK ? "micGranted" : "micDenied")
-            guard phase == .requestingPermission else { return }
-            if micOK {
-                await startPipeline(baseDraft: pendingBaseDraft)
-            } else {
-                fail(.permissionDenied)
-                Haptics.error()
+        switch MicPermissionGate.action(for: Self.micPermissionStatus) {
+        case .start:
+            markStage("micAlreadyGranted")
+            Task { await self.startPipeline(baseDraft: pendingBaseDraft) }
+        case .failDenied:
+            fail(.permissionDenied)
+            Haptics.error()
+        case .requestOnce:
+            Task {
+                let micOK = await Self.requestMicrophonePermission()
+                markStage(micOK ? "micGranted" : "micDenied")
+                guard phase == .requestingPermission else { return }
+                if micOK {
+                    await startPipeline(baseDraft: pendingBaseDraft)
+                } else {
+                    fail(.permissionDenied)
+                    Haptics.error()
+                }
             }
         }
     }

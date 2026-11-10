@@ -5231,3 +5231,26 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - **首授时序只能真机验**：根因 1 的触发条件（首次授权瞬间格式未就绪）是真机 TCC＋音频 HAL 时序，CI 模拟器复现不了；本版以「格式门＋nil 格式＋惰性转换器」把该窗口整类消除，但「点允许不再闪退」的最终判定归用户真机首试。
 - **根因 2 是否中招仍未实锤**：万能签重签后安装包 plist 状态本侧未验；删门后该路径已不存在（代码零调用），无论重签是否动过 plist 都不再受影响。.ips 关账仍欢迎：若用户方便提供崩溃日志，可回填诊断档判定两根因各自的实际占比。
 - .playAndRecord/.spokenAudio 在真机上的副作用（外放/听筒路由、与系统听写共存）未真机验，归真机终审一并看。
+
+## §74 0.36.9/76 语音闪退热修二轮（2026-11-10）
+
+起因：0.36.8 真机仍闪退。本轮不再自研猜测，转按礼记（liqian-app）同案终局结论对齐：该案 2026-11-07/08 前后猜错两轮（缺权限文案、采样率 0 格式闸门都修了仍崩），最终靠 .ips 崩溃日志破案——**权限早已授过、处「已决定」状态时，代码每次仍重走异步授权回调；iOS 26 上该回调在特殊线程投递、闭包隔离对不上就在回调入口崩，专挑已决定状态、不弹框点就崩**；终修＝先同步读状态、已授权直接启动、永不重走异步回调。OneDay 亲读坐实同雷：`prepConfirmStart()` 无条件 `await Self.requestMicrophonePermission()`（内部即 `AVAudioApplication.requestRecordPermission` 回调续体）——0.36.8 删掉的是 SFSpeech 门，麦克风这道仍在无条件重走；而 handleMicTap 一侧反而早已是同步读 recordPermission 的正确形态。用户为万能签重签安装，重签可能使 TCC 状态回落未决定、也可能保持已授，预备页路径是高频入口，两端都须覆盖。
+
+### 74.1 修法落点
+
+1. **同步门政策入 Core**（OneDayCore/Dictation.swift 新设 `MicPermissionStatus`＋`MicPermissionGate`）：granted→.start／denied→.failDenied／undetermined→.requestOnce；App 层 `DictationController.micPermissionStatus` 只做系统枚举→Core 状态的映射，判定单点化不在接线层散写。
+2. **prepConfirmStart 改同步门**（DictationController）：确认时先同步复读——.start 分支 `markStage("micAlreadyGranted")` 直达 startPipeline，不发任何请求；.failDenied 走 fail(.permissionDenied)＋触感；仅 .requestOnce 才调 `requestMicrophonePermission()`（全仓唯一异步请求点、受门调用）。handleMicTap 同步改走 Gate（行为与 0.36.8 一致、判定收归单点）。
+3. **grep 证据**：`requestRecordPermission` 全仓仅剩 DictationController.swift 一处实现（L772，受门）；`requestAuthorization` 仅余 ImageViewerView 的相册授权（与听写无关，沿 §73 注）。
+4. **诊断可见化**（礼记同案后手）：新设 `DictationStageDiagnosticLine`（DictationViews）上屏 `dictation.lastStage`——预备页页脚与聊天页失败行各一处，整行明标「诊断信息 · 上次语音停在：xxx」，阶段码为内部记号、与用户文案口径分开标注；读取口为 `DictationController.lastStageSnapshot`。
+5. **保留不动**：0.36.8 全部修法（格式门、installTap 传 nil 格式＋惰性转换器、.playAndRecord/.spokenAudio、阶段面包屑、FaultPolicy 假录音根除）；发送链与贴底逻辑零改动。
+
+### 74.2 验收
+
+- 单测：741 全过、0 failures（基线 739＋新增 2：testMicPermissionGateThreeBranches／testMicPermissionGateNeverRequestsWhenDecided，只增不减）——CI 计数待回填确认。
+- CI／IPA／提交：待回填。
+
+### 74.3 诚实边界
+
+- 本案根因结论来自礼记同案的 .ips 实锤＋本仓代码亲读坐实同雷形态；OneDay 自身的 .ips 仍未到手。若本版真机仍崩，预备页/失败行已上屏的 lastStage 就是下一轮第一证据，按同案纪律停猜、先拿日志。
+- 重签对 TCC 的实际影响（回落未决定／保持已授）本侧不可验；同步门按两端设计：已授不重走回调、未决定才发唯一一次。
+- 「点麦克风不再闪退」的最终判定归用户真机首试：CI 绿只证构建与逻辑，不冒充真机验收。

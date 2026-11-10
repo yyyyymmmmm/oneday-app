@@ -231,12 +231,29 @@ struct DictationPrepSheet: View {
                 Text("键盘听写：点输入框后，用键盘上的麦克风按钮也能说话输入，不需要这里的权限。")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
+
+                DictationStageDiagnosticLine()
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, OneDayMetrics.spacingS)
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.vertical, OneDayMetrics.spacingM)
         }
         .presentationDragIndicator(.visible)
         .onDisappear { controller.prepDismissed() }
+    }
+}
+
+/// 诊断行（0.36.9，礼记同案后手）：末阶段面包屑
+/// 上屏——闪退后用户重开截一张图即知上次死在哪一
+/// 步，不再靠猜。阶段码是内部记号、非用户文案，
+/// 故整行明标「诊断信息」以别于正文口径
+struct DictationStageDiagnosticLine: View {
+    var body: some View {
+        Text("诊断信息 · 上次语音停在："
+            + (DictationController.lastStageSnapshot ?? "暂无记录"))
+            .font(.caption2)
+            .foregroundStyle(Palette.inkSecondary)
     }
 }
 

@@ -314,4 +314,34 @@ final class DictationTests: XCTestCase {
             DictationFaultPolicy.action(
                 generationMatches: true, phase: .failed), .ignore)
     }
+
+    // MARK: - 麦克风权限同步门（0.36.9 热修二轮，礼记同案）
+
+    func testMicPermissionGateThreeBranches() {
+        // 已授权：直接启动——永不重走异步回调（礼记
+        // 同案实锤：已决定状态重走 requestRecord-
+        // Permission 回调会在回调入口崩）
+        XCTAssertEqual(
+            MicPermissionGate.action(for: .granted), .start)
+        // 已拒绝：失败降级，不弹系统窗、不发请求
+        XCTAssertEqual(
+            MicPermissionGate.action(for: .denied), .failDenied)
+        // 真未决定：唯一允许发那一次异步请求的分支
+        XCTAssertEqual(
+            MicPermissionGate.action(for: .undetermined), .requestOnce)
+        // 状态枚举三值齐全，漏一值即漏一条分支
+        XCTAssertEqual(MicPermissionStatus.allCases.count, 3)
+    }
+
+    func testMicPermissionGateNeverRequestsWhenDecided() {
+        // 铁律的否定面：两个已决定状态遍历全集，都
+        // 不许落进 requestOnce——将来枚举加值时此测
+        // 会逼新值先表态
+        for status in MicPermissionStatus.allCases
+        where status != .undetermined {
+            XCTAssertNotEqual(
+                MicPermissionGate.action(for: status), .requestOnce,
+                "已决定状态 \(status) 不许重走异步授权回调")
+        }
+    }
 }
