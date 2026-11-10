@@ -2545,12 +2545,23 @@ struct ChatView: View {
             // （仍在 SmoothExpand，最小范围）
             // 0.36.27 订正：上段「元凶是量测层」的单
             // 一归因已被 0.36.26 真机证伪（移出后仍居
-            // 中）——真定案是包装层缺满宽 claim＋两层
-            // 父栈默认 .center 对齐，修法见下方包装层
-            // 的 frame 注（§97 件四）；移出量测层本身
-            // 保留（与生产构造同构、无回退理由）
+            // 中）；0.36.27 续记的「包装层缺满宽 claim」
+            // 说亦已被 0.36.28 真机证伪——第五轮定案
+            // （0.36.29）：四轮共同死因是范畴错误，决
+            // 定层是包装栈自身的 alignment 参数，修
+            // 法见下方包装栈注与错题本 P-13；移出量测
+            // 层本身保留（与生产构造同构、无回退理由）
             if !attachments.isEmpty {
-                VStack(spacing: 0) {
+                // 0.36.29（P-13 第五轮定案）：条的横向位
+                // 置由本包装栈自身的 alignment 参数决
+                // 定——四轮全灭皆因改的是 .frame 的
+                // alignment（只管「栈整体在他处怎么
+                // 放」、管不到栈内子视图），栈自身
+                // alignment 四轮一直默认 .center 从未
+                // 被改。此处改 .leading 一词落到决定
+                // 层；第 4 轮挂的 frame claim 经定案属
+                // 无效修饰、一并删除（详见错题本 P-13）
+                VStack(alignment: .leading, spacing: 0) {
                     attachmentsStrip
                     Rectangle()
                         .fill(Palette.hairline)
@@ -2559,19 +2570,6 @@ struct ChatView: View {
                             .horizontal, OneDayMetrics.spacingSM
                         )
                 }
-                // 0.36.27（§97 件四，真定案）：满宽 claim
-                // 补在本包装层——0.36.26 移出量测层后真
-                // 机仍居中，主线逐行定案：条本体无病，病
-                // 在对齐链——本包装 VStack 与卡根 VStack
-                // 均默认 .center 对齐，横向 ScrollView 在
-                // 未定宽提议下只报内容理想宽（两图≈124），
-                // 窄条遂被两层父栈居中；引用块没事正因其
-                // SmoothExpand 挂着这行 claim、条的包装层
-                // 恰恰没有。故「ScrollView 贪婪」要先有满
-                // 宽提议＋claim 才成立，§2.3 的单一归因
-                // （量测层）被真机证伪（详见 DESIGN §97.4
-                // 与错题本 P-13 真定案）
-                .frame(maxWidth: .infinity, alignment: .leading)
                 // 条内容只淡入淡出防闪现；高度变化由
                 // 卡根 .animation(attachments.isEmpty)
                 // 的事务插值承接（见 composerCard 尾注）
@@ -3059,24 +3057,43 @@ private struct ComposerBarLayout: Layout {
     }
 
     private func loadPickedFiles(_ result: Result<[URL], Error>) {
-        guard case .success(let urls) = result else { return }
-        for url in urls {
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer {
-                if scoped { url.stopAccessingSecurityScopedResource() }
-            }
-            guard let data = try? Data(contentsOf: url) else {
-                notice = "读取「\(url.lastPathComponent)」失败，未加入待发列表。"
-                continue
-            }
-            // 待发上限 20MB：超限只报不收，不静默截断
-            guard data.count <= 20 * 1024 * 1024 else {
-                notice = "「\(url.lastPathComponent)」超过 20MB，未加入待发列表。"
-                continue
-            }
-            attachments.append(
-                PendingAttachment(kind: .file(name: url.lastPathComponent, data: data))
+        // 0.36.29（题 C①）：本函数所有出口必须有声
+        // ——原首行 guard 把 .failure 静默吞掉，是
+        // 「选了文件没反应」的定案断点（选 iCloud
+        // 未下载文件/第三方云盘提供方出错时，系统
+        // completion 回 Error 而非 URL）；failure
+        // 出人话 notice＋错误原文落诊断面，success
+        // 空数组同理出声，不许再留无声出口
+        switch result {
+        case .failure(let error):
+            notice = "这个文件没能读取，可能还在云端未下载到本机，请先在「文件」App 里把它下载到本机再选。"
+            ChatDiagTrace.record(
+                "选文件 failure：\(error.localizedDescription) \(error)"
             )
+            return
+        case .success(let urls):
+            guard !urls.isEmpty else {
+                notice = "没有选到文件，未加入待发列表。"
+                return
+            }
+            for url in urls {
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer {
+                    if scoped { url.stopAccessingSecurityScopedResource() }
+                }
+                guard let data = try? Data(contentsOf: url) else {
+                    notice = "读取「\(url.lastPathComponent)」失败，未加入待发列表。"
+                    continue
+                }
+                // 待发上限 20MB：超限只报不收，不静默截断
+                guard data.count <= 20 * 1024 * 1024 else {
+                    notice = "「\(url.lastPathComponent)」超过 20MB，未加入待发列表。"
+                    continue
+                }
+                attachments.append(
+                    PendingAttachment(kind: .file(name: url.lastPathComponent, data: data))
+                )
+            }
         }
     }
 
@@ -3437,7 +3454,7 @@ private struct ComposerBarLayout: Layout {
         // 落两份
         let seedSnapshot = Self.seedEntries(of: thread)
         let imageDatas = pending.compactMap(\.imageData)
-        let fileNames = pending.compactMap(\.fileName)
+        let filePayloads = pending.compactMap(\.filePayload)
         let newEntry = ChatEntry(
             role: "user", content: text, thread: thread,
             imageData: imageDatas.first, quote: quote
@@ -3482,19 +3499,73 @@ private struct ComposerBarLayout: Layout {
                 imageDataURLs: urls
             )
         }
-        // 文件直发：/api/chat/file-upload 在 openapi 里有端点，
-        // 但其回执与 /v1 消息的拼装契约未经实测（红线：不对
-        // 生产发写请求验证），本版只做选择与待发列表，发送时
-        // 如实说明未随条发送，不静默丢弃
-        if !fileNames.isEmpty {
-            notice = "文件直发尚未开放：\(fileNames.joined(separator: "、")) 未随本条发送。"
-        }
+        // 文件真发送（0.36.29，契约实测冻结后开放）：
+        // 待发文件在 sendTask 起手逐个上传到服务端
+        // attachments/，回执路径拼进尾条 input 的
+        // @file 引用（见 sendTask 内）；原「尚未开
+        // 放」notice 随本版退役
         streamingText = ""
         // 0.8.0：上一轮的流式工具卡列清空，从本轮累积
         liveToolCards = []
         // 0.36.10：事件序标记同步清零，从本轮重记
         liveOrder = []
         sendTask = Task {
+            // 0.36.29（件四）：带文件时先逐个上传——
+            // 任一失败整条拦下（与链接失败同舞步：删
+            // 本轮条目、输入与附件原样退回、报错点名
+            // 文件），不许丢下文件只发文本；全成才攒
+            // 下回执路径，尾条拼装时拼 @file 引用
+            var fileServerPaths: [String] = []
+            if !filePayloads.isEmpty {
+                do {
+                    fileServerPaths = try await
+                        uploadPendingFiles(filePayloads)
+                } catch let failure as FileUploadFailure {
+                    modelContext.delete(newEntry)
+                    try? modelContext.save()
+                    input = text
+                    attachments = pending
+                    pendingQuote = quote
+                    errorMessage = "文件「\(failure.fileName)」没能上传，本条未发送："
+                        + failure.reason
+                        + "处理后重新发送即可。"
+                    Haptics.error()
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
+                } catch is CancellationError {
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
+                } catch {
+                    // uploadPendingFiles 只抛 FileUpload-
+                    // Failure/取消，此兜底防未知错误形态
+                    // 被静默吞（有声口径）
+                    modelContext.delete(newEntry)
+                    try? modelContext.save()
+                    input = text
+                    attachments = pending
+                    pendingQuote = quote
+                    errorMessage = "文件上传失败，本条未发送，请稍后再试。"
+                    Haptics.error()
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
+                }
+                if Task.isCancelled {
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
+                }
+            }
             // 0.21.0：出门前先定发送形态（判定与载荷取
             // 形是 Core 纯函数、网络动作在本页）。
             // 0.27.0：prepareSendShape 改为可抛——链接
@@ -3555,14 +3626,67 @@ private struct ComposerBarLayout: Layout {
             // 载荷只取尾条这点不变（历史在服务端会话
             // 里），变的只是投递与生成形态：提交得
             // run_id、生成脱离连接、断线走对账
+            // 0.36.29（件四）：尾条定形——带文件时把
+            // @file 引用拼进尾条文本尾（run 的 input
+            // 即尾条文本，契约拼装口径；与引用拼装同
+            // 层、只属本轮，不进本地落盘条目）
+            let tail = FileSendAssembly.appendingFileRefs(
+                to: shape.messages.last
+                    ?? ChatMessage(role: "user", content: text),
+                serverPaths: fileServerPaths
+            )
             await driveRun(
                 thread: thread,
-                tail: shape.messages.last
-                    ?? ChatMessage(role: "user", content: text),
+                tail: tail,
                 sessionID: shape.sessionID,
                 userEntry: newEntry
             )
         }
+    }
+
+    /// 待发文件逐个上传（0.36.29，件四）：顺序即待
+    /// 发顺序（@file 拼装顺序从它）；逐个经 9119
+    /// 文件通道写 attachments/<文件名>（overwrite
+    /// 覆盖同名）、取回执绝对路径；任一失败或回执
+    /// 无落点即抛 FileUploadFailure 点名该文件——
+    /// 整条拦下在 send 侧，不在此处吞单个文件。
+    /// 服务端 attachments/ 副本无自动过期，本轮只
+    /// 记账不做清理策略（契约报告边界口径）
+    private func uploadPendingFiles(
+        _ payloads: [(name: String, data: Data)]
+    ) async throws -> [String] {
+        var paths: [String] = []
+        for payload in payloads {
+            let receipt: ManagedFileUploadReceipt
+            do {
+                receipt = try await appState.performAdmin {
+                    client, cfg in
+                    try await client.uploadAttachment(
+                        config: cfg,
+                        path: FileSendAssembly.uploadPath(
+                            fileName: payload.name
+                        ),
+                        dataURL: FileSendAssembly.dataURL(
+                            fileName: payload.name,
+                            data: payload.data
+                        )
+                    )
+                }
+            } catch let error as HermesError {
+                throw FileUploadFailure(
+                    fileName: payload.name,
+                    reason: error.userMessage
+                )
+            }
+            guard let serverPath = receipt.serverPath else {
+                throw FileUploadFailure(
+                    fileName: payload.name,
+                    reason: "服务端没有返回文件落点。"
+                )
+            }
+            paths.append(serverPath)
+        }
+        return paths
     }
 
     /// 本轮出门形态（0.27.0 重写，状态机见 OneDayCore
@@ -4227,6 +4351,14 @@ private struct ComposerBarLayout: Layout {
                     config: cfg, id: entry.sessionID
                 )
             }) else { return false }
+        // 0.36.29（题 B 自愈）：段落定之前先对账补
+        // 缺——存档有、本地缺的 user 条目补回（定
+        // 案与口径见 healMissingUserEntries），补完
+        // 再走既有落定，助手条目不归此路补造
+        healMissingUserEntries(
+            thread: thread, sessionID: entry.sessionID,
+            messages: messages
+        )
         let settled = RunTranscriptSettle.settle(
             messages: messages
         )
@@ -4251,6 +4383,47 @@ private struct ComposerBarLayout: Layout {
             thread: thread, entry: entry, settled: settled
         )
         return true
+    }
+
+    /// 落定对账补缺（0.36.29，题 B 自愈）：新建旁聊
+    /// 首发出现过「服务端存档完好、本地线程只剩助
+    /// 手回复」的首句消失——静态审计已排除发送/落
+    /// 盘/导入/落定四链的删除与过滤路径，剩余嫌疑
+    /// 在新建＋切换＋首发同瞬间的本地时序缝（未证
+    /// 死，定案等级中）。修法不赌竞态细节：以已拉
+    /// 取的 transcript 为锚，Core 对账判缺（内容＋
+    /// 时间窗、只认 user 条目），缺的补回呈现层；
+    /// 发送链与落盘删除面一律不动。补缺发生时记
+    /// 一条诊断读数（会话 id＋补回条数）留证，供
+    /// 后续升格定案
+    private func healMissingUserEntries(
+        thread: ChatThread, sessionID: String,
+        messages: [SessionMessage]
+    ) {
+        let localUsers = thread.entries
+            .filter { $0.role == "user" }
+            .map { (content: $0.content, createdAt: $0.createdAt) }
+        let missing = RunTranscriptSettle.missingUserMessages(
+            messages: messages, localUserEntries: localUsers
+        )
+        guard !missing.isEmpty else { return }
+        for message in missing {
+            let healed = ChatEntry(
+                role: "user", content: message.content,
+                thread: thread
+            )
+            // 时刻以服务端存档为准（排序锚）；存档
+            // 无时刻时保留插入时刻（落定助手条目随
+            // 后以当前时刻落位，相对序仍成立）
+            if let date = message.date {
+                healed.createdAt = date
+            }
+            modelContext.insert(healed)
+        }
+        try? modelContext.save()
+        ChatDiagTrace.record(
+            "落定补缺 session=\(sessionID) healed=\(missing.count)"
+        )
     }
 
     /// 状态 output 合成落定（transcript 迟迟不落或演
@@ -4848,6 +5021,22 @@ private struct PendingAttachment: Identifiable {
         if case .file(let name, _) = kind { return name }
         return nil
     }
+
+    /// 文件真发送载荷（0.36.29）：名＋数据成对取，
+    /// 上传与拼装只认它，不再只取名字
+    var filePayload: (name: String, data: Data)? {
+        if case .file(let name, let data) = kind {
+            return (name, data)
+        }
+        return nil
+    }
+}
+
+/// 文件上传失败（0.36.29）：点名文件＋人话原因，
+/// send 整条拦下时拼报错文案用，不静默吞单个文件
+private struct FileUploadFailure: Error {
+    let fileName: String
+    let reason: String
 }
 
 /// 系统相机包装：模拟器无相机，入口在附件菜单里已按可用性禁用
