@@ -6891,3 +6891,48 @@ agentAvatarImage）：
 流只在 push main 触发，本分支 push 不触发 CI，
 构建与单测待主线合并回 main 后随正式出包跑，
 本节不预填结果。
+
+## §90 右滑引用第四修：失败要求编排＋位移纯比值回归（0.36.23/90，2026-11-11）
+
+### 90.1 裁决来源（先搜后改，本轮唯一施工依据）
+
+三轮真机失败史：0.36.19 DragGesture＋onChanged 方向门压死纵滚；0.36.20 UIKit 桥祖先层装 pan、shouldBegin 读位移带 10pt 量级门，滚动恢复、右滑全灭；0.36.21 同桥改读 velocity（依据 SwipeCellKit PR #381），真机仍全灭，用户 2026-11-11 02:25 点选确认失败形态①「完全没反应、气泡纹丝不动」。
+
+外部调研（报告 oneday-design-review/swipe-reply-arbitration-research-20261111.md，逐源核过）裁决：
+
+- **死因不在判据量纲，在装载层级＋零编排**。逐一核过的生产实现——SwipeCellKit＝pan 装 cell 本体、Stream UIKit＝列表层＋failure-requirement delegate 三件套、LiveFront＝pan 装 UIScrollView 本体、Telegram＝借用隐藏 scroll view 自己的 pan、WWDC 2011-104 苹果范式＝UIScrollView 本体＋requireToFail——没有一把竞争 pan 装在滚动视图的祖先层且零编排；第 2、3 轮正是这个无先例组合，两轮死状相同且随量纲更换不变。
+- **第 3 轮立论不成立**：SwipeCellKit 现行 master（SwipeController.swift:714-724）shouldBegin 仍是 translation 纯比值 `abs(translation.y) <= abs(translation.x)`、无任何量级门；velocity＋22.5° 角门只存在于 2020 年 PR #381 的 patch，合入状态未证实（GitHub API 403）。第 3 轮拿未证实合入的 PR 形态换掉了生产真形态。
+- **苹果官方口径**（Event Handling Guide，TP40009541）：识别器之间默认没有求值顺序保证、默认互斥，定序必须显式声明（requireGestureRecognizerToFail: 等）；等待方停在 Possible 等判决，对方 begin 则它直接 Failed、对方 fail 它才开始分析。shouldBegin 是离开 Possible 的一次性闸门，答 NO 即当场 Failed——任何量级/距离判据放进 shouldBegin 在数学上过不去（第 2 轮死因与此吻合）。WWDC 2011-104、WWDC 2014-235 工程师原话均背书拿 scroll pan 做 failure requirements 编排。
+
+修法＝报告候选 1（行本体装载＋scroll pan 显式 require(toFail:)＋shouldBegin 回归 translation 纯比值），改动面最小、生产实证最完整。候选 2（寄生宿主 pan）仲裁最稳但有未定案窗漂移补偿的手感债，列备选不动；候选 3（同时识别＋自取消）第三。
+
+### 90.2 装载与编排（时序）
+
+- **装载**：每行一个 UIPanGestureRecognizer，仍由零尺寸探针视图（SwipeReplyPanProbe，不参与命中测试）装到本行修饰符 ZStack 容器的宿主视图上——每行一个、位于该行自己的视图层级，不再向上爬祖先层装载。物理视图与 0.36.20/21 同为行容器，本轮不夸大此点：装载层级是否真在命中链上，由诊断打点 1（shouldReceive＋视图链）实证，见 90.4。
+- **编排（本轮核心新增）**：Coordinator.orchestrateIfNeeded 在挂载后从行宿主向上找到包围本行的 UIScrollView，执行 `scrollView.panGestureRecognizer.require(toFail: rowPan)`；装载当刻层级未接全时不强求，updateUIView／didMoveToWindow 再请补齐；行回收换宿主时随 detach 清零重绑。行 pan 被移除后其失败要求随识别器消亡由系统按已失败处理，不留悬挂等待。
+- **时序**：①手指落气泡：两识别器同追踪，scroll pan 因失败要求停在 Possible 等判决；②首次移动数 pt：行 pan 试图离开 Possible，shouldBegin 被咨询，纯比值当场定案（与量级无关，一次咨询即决）；③横向右滑胜：shouldBegin 允→行 pan Began，scroll pan 随即被置 Failed，本段触摸内列表绝不滚动，handler 以 translation 驱动位移；④纵向胜：shouldBegin 拒→行 pan 当场 Failed，失败要求满足，scroll pan 立即接管滚动（延迟仅首次移动一个事件量级，与系统自身方向锁体感同级）；⑤松手/取消：行 pan 只复位自身，全程未动 isScrollEnabled、无恢复动作、无残留状态。
+- **handler 段全部原样**：52pt 触发（SwipeReplyMotion.triggerOffset）、76 封顶（maxOffset）、跟手扣锁定段（followedOffset，begin 时 translation 即锁定段、接管无跳）、箭头显形（revealProgress）、回弹动画、轻触觉、beginReply 共用入口一律未动；长按菜单五项、点图、贴底/回底、抽屉手势均不在本包动面。枢纽边缘右滑 HubEdgeSwipe 不在本包范围，未动（其速度域判据是边缘手势的独立裁决，不与本节混读）。
+
+### 90.3 判据（公式与退役）
+
+- 现行：`SwipeReplyMotion.shouldBeginPan(dx:dy:)` ＝ `dx > 0 && |dx| ≥ DrawerMotion.directionLockRatio × |dy|`。位移入参、纯比值、**无量级/距离分量**。比值常量 1.5 引 DrawerMotion.directionLockRatio（抽屉 S2）单源，本处不另写数字；上游 SwipeCellKit 的 1.0 松口径不采（与本仓 S2 单源冲突，且 90.5 的「斜向慢滑不误触」要更严的门）。
+- 与 engages 的分工钉死在单测里：engages 带 10pt 锁定距离、是「接管跟手」的语义判据；shouldBeginPan 无量级门、是「一次性闸门」的生死判据。同一组 (3, 2)：engages 判 false、shouldBeginPan 判 true——0.36.20 把带量级门的判据喂闸门正是全灭病根，钉测 testShouldBeginPanHasNoMagnitudeGate 防其以任何形式回来。
+- **速度域退役**：`shouldBeginPan(velocityX:velocityY:)` 整体删除，桥与测试同步改位移入参。退役理由＝90.1 第二条（立论不成立）＋三轮死状不随量纲变（死因在编排）。后续任何人想再把判据换域，先出示生产 master 级证据，不许再拿未合入 PR 当依据（P-15 铁律候选，定案后入册）。
+
+### 90.4 诊断打点清单（临时件，随本构建保留一轮）
+
+SwipeReplyDiagnostics（App 层新文件）＋桥内三处挂钩，代码内均标「下一轮撤」；落双通道（照听写诊断先例）：os.Logger（subsystem `site.didichou.oneday`、category `swipeReply`）＋UserDefaults 落盘环（键 `swipeReply.diagTrace`，最近 40 条带时刻，杀进程不丢）；不进任何正常 UI。
+
+1. **shouldReceive＋视图链**：Coordinator 的 `gestureRecognizer(_:shouldReceive:)` 恒 true 只记——时间戳＋recognizer.view 的完整 superview 类名链。从未触发＝H3（装载点不在命中链上）。
+2. **shouldBegin＋实测值**：进入即记当刻 translation（dx/dy）与 Core 判决。有 shouldReceive、无本条、且 scroll pan 有 began＝H1（被仲裁抢先）；本条出现且判 false＝判据问题（H2 位移版形态）。
+3. **宿主 scroll pan .began 时刻**：watchScrollPan 给宿主 panGestureRecognizer 加只读 target（寄生打点、不改行为），与 1/2 同轴对时。
+
+**读数发回路径**：用户真机复验（90.5）后，把落盘环内容经既有诊断通道回传——或由主线抓统一日志 `swipeReply` category 段；判读按上表三分支定案 H1/H2/H3，定案当天回填错题本 P-15 并在下一轮构建撤除全部打点（桥内挂钩、Diagnostics 文件、watchScrollPan 三件同撤）。
+
+### 90.5 复验口径（真机）
+
+并列第一条（缺一不可）：**从气泡起手纵滚正常，且右滑过半程（52pt）触发引用＋轻震**。另加一条：**斜向慢滑（约 45° 慢速右下拖）不误触引用、列表照常滚动**。其余沿 §85：长按菜单五项、点图全屏、贴底/回底、流式跟随无回归。复验时同步回收 90.4 诊断读数（无论成败都要发回——成功则作 P-15 定案证据，失败则按判读表定 H 分支）。
+
+### 90.6 施工实录
+
+独立 worktree（oneday-worktrees/swipe-fix-03623）＋分支 feat/swipe-fix-0.36.23 与 0.36.22 出包并行预制（用户 02:15 定版「CI 等待期不停工」），基线 main 顶端 71c8990（0.36.22 全部代码）。单测基线 870（分支内实数），本包 shouldBeginPan 速度域三测按位移纯比值重写（三测对三测）＋新增无量级门对照钉测一枚，预期 871、只增不减。版本五处同改 0.36.23/90 并 grep 验（残留 velocity 引用经查全属 HubEdgeSwipe 枢纽边缘手势，范围外未动）。**CI 口径如实**：工作流只在 push main 触发，本分支 push 不触发 CI，构建与单测待主线在 0.36.22 交付后合并回 main 随正式出包跑，本节不预填结果；合并注意事项见施工回报（预判冲突面：ChatView 未动、DESIGN 尾部 §90 与 §89 相邻追加、Project.swift 版本行与后续包版本顺延需复核）。
