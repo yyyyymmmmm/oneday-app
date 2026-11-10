@@ -6104,3 +6104,281 @@ App（或停在日历详情页）：数秒内日志应多出一轮同步记录
 平滑收回。⑦已发图片：发一张竖长手机截图——显示高不
 过 240pt 量级（约半屏的一半），横图宽不过 220；点开仍
 是全屏原图查看器。
+
+## §85 右滑引用手势热修：UIKit 方向锁桥（0.36.20/87，P-15 终修）
+
+起因：用户 2026-11-11 01:09 真机原话「现在在气泡栏不能上
+下滑动，上下滑会话不动，只能右滑」——0.36.19 装机后，消
+息气泡区域纵向拖动滚不动会话列表，只有右滑有反应。聊天
+滚动是核心功能，定性发布级回归、单件最高优先级热修（后
+经用户 01:12 拍板与连接稳固包合并为 0.36.20 一包交付，
+连接面见 §86）。
+
+### 85.1 定案
+
+0.36.19 的 SwipeReplyModifier 用 `DragGesture(minimum-
+Distance: 6)` 经 `.simultaneousGesture` 挂在整行内容上，
+方向门写在 onChanged 里（Core `SwipeReplyMotion.engages`
+判横向主导才写位移，纵向不写）。文件注释声称「纵向拖动
+永远锁不上、列表照常滚动」——真机证伪。定案机理：
+DragGesture 在识别层无法自我失败：minimumDistance 仅
+6pt，手指一动识别即成立，纵滚意图在 onChanged 判读之前
+就已被手势系统卷入与 ScrollView 平移识别器仲裁；方向门
+只挡住了位移写入，挡不住识别抢占。呈现层手势单测全过
+（判据本身没错），错在「DragGesture＋事后门控能与滚动
+共存」这个从未在识别层验过的假设（错题本 P-15）。
+
+### 85.2 外部核查对账（改前先搜，本包硬门槛）
+
+三路检索（SwiftUI DragGesture 压制 ScrollView 纵滚／
+UIPanGestureRecognizer shouldBegin 方向锁／生产级滑动
+单元格实现），三档结论：
+
+- **与拟定修法一致（主档）**：①「DragGesture 即使经
+  simultaneousGesture 挂在 ScrollView 行上也会赢走触
+  摸、冻结纵滚」是已知问题——真实项目 Revela 的工程档
+  （GitHub 仓库 CLAUDE.md）实测报告与本次回归逐字同
+  型：「raw DragGesture (even via .simultaneousGesture)
+  wins the touch over the scroll pan whenever the finger
+  starts on a row, so vertical scrolling silently
+  freezes… and no amount of gesture-gating fixed it」；
+  w3tutorials 的手势冲突文同述子视图 DragGesture 劫持
+  触摸、ScrollView 收不到。纯 SwiftUI 的 onChanged 方
+  向门路线就此判死。②UIKit 方向锁是通行解：在
+  `gestureRecognizerShouldBegin` 里按平移方向决定识别
+  器生死（多份实现均为 abs(x)＞abs(y) 家族判据）；生
+  产级滑动单元格库 SwipeCellKit 的 SwipeController 即
+  此模式（shouldBegin 内按 translation/velocity 角度
+  门控）＋滚动侧排斥仲裁。③开发者手势参考（app-
+  builders-club/design-builder 的 iOS 手势参考档）把
+  「drop to UIKit、经 UIGestureRecognizerDelegate 与
+  滚动 pan 仲裁」明列为 ScrollView×DragGesture 冲突
+  的修法之一。
+- **更优现成解：无**。有来源建议 `.simultaneous-
+  Gesture(DragGesture(minimumDistance: 20))`＋方向检
+  查——即本包已证伪路线的变体（我们用的正是 simulta-
+  neous＋同一门控，仅 minimumDistance 更小），证据强
+  度低于桥方案，不采。`List.swipeActions` 不适用：本
+  页是 ScrollView＋LazyVStack 自研列表，且要的是跟
+  手位移＋箭头显形＋松手触发的连续形态，不是动作
+  按钮。
+- **外部无记录项**：无与本形态（祖先级 UIPan＋
+  shouldBegin 复用自有 Core 判据）完全同款的公开案
+  例；不影响定案，前两档证据已足。
+
+### 85.3 修法（接管层换桥，判据与呈现全保留）
+
+- 新增 `SwipeReplyGestureBridge.swift`：零尺寸探针视
+  图（`isUserInteractionEnabled=false`、SwiftUI 侧
+  `allowsHitTesting(false)`）把 UIPanGestureRecognizer
+  装到修饰符 ZStack 容器的父视图上——识别器是内容
+  的祖先级识别器，能收整行触摸又不靠覆盖层拦截命
+  中；**不用覆盖全行的 overlay UIView**（会吞内容子
+  视图触摸、连带打坏长按菜单与点图，违反验收③）。
+- 生死判据：Coordinator 的 `gestureRecognizerShould-
+  Begin` 只问 Core `SwipeReplyMotion.shouldBeginPan`
+  （0.36.20 新增命名出口，与 engages 同一口径：右向
+  ＋|dx|≥10＋|dx|≥1.5|dy|），桥侧不许另写比值。
+  纵向主导 → 不 begin、识别器对本次触摸死亡、纵滚
+  完整归 ScrollView；横向主导 → begin，呈现层才开
+  始写 offset（验收④：offset 只在横向 begin 后写，
+  贴底/回底判定不被干扰）。
+- 仲裁：不实现 simultaneous 代理（默认排斥）——
+  横向 begin 后滚动平移不得同行；`.cancelled/.failed`
+  只复位不触发（系统夺走的手势不许触发引用）；
+  `.ended` 走原 onEnded 语义（shouldTrigger 判定＋
+  动画归零＋轻触觉＋beginReply 共用入口）。
+- 保留不动：Core 的 followedOffset（扣锁定段，锁定
+  段＝识别器 begin 瞬间的 translation.x，与旧语义等
+  价）/triggerOffset 52/revealProgress/箭头呈现（左
+  缘 30×30 圆盘、progress 驱动、armed 主色）/回弹
+  动画（MotionTokens.swap）/纯图片消息不挂的门控。
+  抽屉冲突面已排除：壳层抽屉拖拽只挂左缘 24pt 热区
+  （壳层顶层独立条、不在消息行祖先链上），与行级桥
+  识别器不相交，无需额外仲裁。
+- 单测：SwipeReplyMotionTests 新增方向生死判据 4 测
+  （纵拒/横允含恰达 10pt 锁定线/临界比值 1.5 两侧/
+  左拖与未达距拒/与 engages 网格逐点同源），基线
+  831 → 本节 +4（合并包总账见 §86.7）。
+
+### 85.4 真机复验口径（缺一不可）
+
+①从任意气泡（自己的与对方的各一）上起手纵向拖动，
+会话列表正常滚动、气泡纹丝不动——本包立身之本，验
+收第一条。②右滑照旧：箭头随滑渐显、过约 52pt 转主
+色、松手轻震＋引用块进输入舱；短滑未过阈松手只回
+弹、不引用。③长按任意气泡，菜单五项照常弹出、点
+图/点链接照常。④长线程里右滑引用后上下滚动，回底
+钮出现/消失与贴底跟随与 0.36.19 之前一致（桥不写
+滚动侧状态）。⑤来电/下拉通知中心等系统手势中途夺
+走滑动时，气泡只复位、不误触发引用。
+
+## §86 连接稳固五件（0.36.20/87，P-14 终修；与 §85 合并一包）
+
+起因：用户 2026-11-11 00:56 点题「还时不时说网络断开」。
+内部审计 disconnect-audit-20261111.md 定案残余三路：
+R1 探活单点无迟滞（30s 一发 /health、一次失败即翻「联
+系不上」、业务成功不回写）、R2 发送链接步单发无重试、
+R3 切网瞬间全链裸奔（无 NWPathMonitor、无 waitsFor-
+Connectivity）；外部调研 disconnect-solutions-20261111
+与审计对账一致（通行解＝服务端心跳＋断≠死＋客户端静默
+退避重试＋可达性只作触发器＋呈现分档），冲突处以审计的
+代码实查为准。用户 01:02 拍板连接包插队、01:12 再拍板
+与 §85 热修合并为 0.36.20 一包一次交付。
+
+### 86.1 静默流探针（⓪，只诊断、未动生产）
+
+施工前实查：服务器内存约 51%（红线 80% 内）；凭据自
+hermes-deploy/credentials.txt 取、未落盘未外传；测试请
+求共 2 条 run（首条因探针进程被外壳回收、日志丢失，重
+跑 1 条，合计未超最少量口径）。方法：建会话→提交一条
+指令（终端工具 sleep 45、执行期零输出）→拉 /v1/runs/
+{id}/events 全程逐行记字节时序。实测（run_615fd293…
+会话 api_1794331381_df931abd，探针日志留会话工作区）：
+- 流一建立即有 `: open` 注释行；tool.started 后工具实
+  跑 45.2s，静默期 **`: keepalive` 每 10.00s 一发**（全
+  程 4 发在静默窗内）；tool.completed→message.delta→
+  run.completed 依次到达，流以 `: stream closed` 正常
+  收尾。**全程最长无字节间隙＝10.00s，流未中途死**。
+- 结论：**生产 Hermes 的 events 流已有心跳**（10s 间隔，
+  优于外部调研的 15–25s 通行带），且开流先发注释、终态
+  后关流——调研 A 组（服务端心跳）现状已达标，**无需
+  任何生产变更，本包未动服务器**。nginx /v1/ 段 600s
+  基线与 10s 心跳相差 60 倍，中间层掐流不成立为当前
+  「断开」体感来源；与 86.5 互印：即便会话级 30s 空闲
+  超时支配流（R5 的悲观分支），10s 心跳也永不让流空
+  闲到 30s。建议主线：心跳事项就此销项，不再另行报批。
+
+### 86.2 在线判定多信号＋迟滞（①，治 R1＋R4）
+
+- 判定抽 Core `ConnectionLiveness`（新文件 Connection-
+  Stability.swift，单测把守）：连续失败满 **3 次**才定
+  版离线；阈值前失败只累加、isUp 保持上一结论；任一
+  成功立即清零回写在线。阈值取 3 的理由：探活 30s 一
+  轮、轮内另设快速重探（下条），单次抖动（负载尖峰/
+  旁路由节点切换/TLS 建连失败）只吃 1 次计数永不达
+  阈；真断时快速重探数秒内连失 3 次即定版，不等三轮
+  30s。取 2 则两次相邻抖动（同一旁路由切换窗口内并
+  非独立事件）即可误翻，取 4 以上真断呈现又迟到——3
+  是「独立抖动不达阈、真断一轮内定版」的最小值。
+- OverviewBridgeStore.refresh 的探活步改走 probe-
+  Channel：失败按 Core `RetryBackoff`（base 1.0/cap
+  4.0 全抖动）在**轮内快速重探**，连失满阈才写
+  hermesChannelUp=false；任务取消不记账（退后台不是
+  失败）。呈现位置与文案不变、只换判据：Overview-
+  StatusLine.classify 与状态行/状态点零改动。
+- 业务成功回写（治 R4）：HermesClient 的 dataRequest
+  漏斗在任一**业务端点**收到完整 HTTP 响应（任何状态
+  码——收到响应即通道可达的实证）时回调 onTransport-
+  Success（/health 除外，防探活响应先把自己的失败计
+  数洗掉）；AppState 转为 hermesBusinessSuccessTick，
+  ContentView 观察即调 store.noteBusinessSuccess()
+  清零回写。聊天刚收发成功、胶囊还挂旧「联系不上」
+  最长约 30s 的词与事实打架自此消除。
+
+### 86.3 发送链接步退避重试（②，治 R2）
+
+- ChatView.send 的链接步改走 prepareSendShapeWith-
+  Retry 包装：只对 `HermesError.isTransient`（既有失
+  败分型——瞬断类）重试，总尝试 = Core RetryBackoff.
+  maxAttempts（首发＋2 次，与提交步同 key 重试同量
+  级）、全抖动退避（base 1.2/cap 5.0，AWS full
+  jitter 式，与提交步固定 1.2s 间隔同量级且更防齐
+  发）；鉴权/业务失败不重试、原样上抛；取消即转
+  CancellationError 走既有静默收尾。重试语义与用户
+  手动重按发送完全一致（主线 ensure 幂等；旁聊每次
+  尝试内现铸定 id，极端时序可能在服务端多留一个空
+  会话——无消息落入，与手按重发同性质，不另造跨尝
+  试 id 托管）。
+- 与提交步的 ambiguous 口径对齐说明：链接步没有服
+  务端 run 可对账，瞬断重试耗尽即由调用方既有分支
+  出失败横幅——此时本条消息从未进入提交步、「未发
+  送」属实，属 86.5 呈现三档的第三档（重试耗尽才
+  出失败文案），不是提前翻脸。
+
+### 86.4 网络变化只作触发器＋waitsForConnectivity（③，治 R3）
+
+- 新增 NetworkPathObserver（NWPathMonitor，全 App
+  单例、只启一次、与 App 同寿）：path 由不可达变可
+  达、或可达状态下接口集合变化（WiFi↔蜂窝）时触发
+  一次——ContentView 据此立即重探活一轮、ChatView
+  据此走 resumeRunIfNeeded 续对账。永不预判/拦截
+  请求、永不凭 path 单独置离线呈现（苹果 WWDC19-
+  712/713 官方口径：可达性只作信号不当判决书）。首
+  次 path 回报只播种基线、不触发。
+- **回调隔离验收**：NWPathMonitor 在自家队列投递
+  pathUpdateHandler——NetworkPathObserver 是非隔离
+  普通类，handler 闭包不继承任何 actor 隔离，只碰
+  OSAllocatedUnfairLock 护着的转手盒；跨界通知走注
+  册方 @Sendable 闭包，AppState 侧以 `Task { @Main-
+  Actor in }` 显式跳回主隔离写计数。全仓 grep 自查：
+  本包新增的跨隔离回调共两处（path handler 与
+  HermesClient.onTransportSuccess），均为「非隔离
+  转手＋显式跳回」形态，无第三处同类新形态。
+- waitsForConnectivity：短请求开——HermesClient 短
+  请求会话与 OverviewBridgeClient 会话均置 true
+  （探活/总览/通知取数/提交/状态查询在无路径时先等
+  连通再开始，不立刻失败；WWDC17-709 官方推荐）。
+  流式长连接不开：waitsForConnectivity 只管「开始之
+  前」，流在进行中的掉线不在其覆盖内，且让订阅在
+  离线时悬等会搅乱失败/重挂时机——流的生死归既有
+  对账链管。
+
+### 86.5 流式超时口径定谳（⑤，R5）＋呈现三档（④）
+
+- **定谳**：NSURLRequest 的 timeoutInterval 与
+  URLSessionConfiguration.timeoutIntervalForRequest
+  的关系，苹果文档口径为请求级覆盖配置级
+  （URLRequest.timeoutInterval 文档：请求自带值优
+  先），但社区对 AsyncBytes 流式任务有不同实测报
+  告，光凭文档不能对 events 流的空闲判死打包票。
+  **修法是把争议从构造上掐死**：HermesClient 拆双
+  会话——短请求会话（timeoutIntervalForRequest=30
+  ＋waitsForConnectivity）与流式会话（timeout-
+  IntervalForRequest=**600**、waitsForConnectivity=
+  false），runEvents 与遗留 chatStream 改走流式会
+  话；请求级本就是 600，两层同值后无论哪层支配、
+  空闲判死都是 600s 口径。再叠 86.1 探针实证（心跳
+  10s），流空闲判死在事实上永不触发。cookie 走
+  .shared 存储、双会话共享，登录态不受影响。
+- **呈现三档**（判定与重试共用同一策略源：Core
+  ConnectionLiveness＋RetryBackoff）：一档静默期
+  ——探活连失未满 3 次、链接步重试未耗尽期间，不
+  出任何断开文案，状态词保持上一结论；静默窗口算
+  式：探活侧＝轮内 3 次尝试（快速失败时≈退避 0–3s
+  ＋尝试耗时，通常数秒内定版；全超时极端 ≤15s×3＋
+  退避≈48s 上限），链接侧＝3 次尝试＋退避期望约
+  3.6s（快速失败）——与「约 10–15s 量级」的典型窗
+  口对齐，极端值如实记上限。二档进行时——run 链断
+  流走既有对账 notice（「生成仍在服务器进行中…」/
+  「已重新连接，回复已补齐」），不造第二套横幅。三
+  档失败——仅服务端明确终态或重试耗尽才出失败文
+  案（链接步横幅、提交步明确拒绝、探活定版离线后
+  的状态词）。单一信号（一次 URLError、一次 path
+  unsatisfied、一次桥失败）永不单独翻脸。
+
+### 86.6 错题本与单测
+
+- 错题本新增 P-14（在线判定单信号无迟滞＋关键前置
+  步零重试）与 P-15（见 §85），同包入册。
+- 单测：ConnectionStabilityTests 新增 9 测（连失计
+  数/阈值翻转/成功清零/抖动不翻/静默期标志/全抖动
+  公式与帽/自定义 base·cap/重试上限），§85 的 4 测
+  另计；831 → 844，只增不减。
+
+### 86.7 合并包总账与真机复验口径
+
+- 版本 0.36.20/87 五处同改（Project.swift 两处＋
+  plist 两处＋SettingsView 页脚），grep 验毕。
+- 连接面真机复验：①聊天页停留不动，旁路由/路由器
+  制造一次数秒抖动（或短暂断开 WiFi 再恢复）：胶囊
+  不许闪现「联系不上」；抖动后业务照常、状态保持
+  「在线」。②飞行模式开 1 分钟再关：关后数秒内胶
+  囊自行回「在线」（path 触发重探），不许等满 30s。
+  ③发消息瞬间切网（发送同时切换 WiFi/蜂窝）：消息
+  应发出或静默重试后发出，不许一点发送就弹「会话
+  链接失败」。④长工具/长思考一轮（1 分钟以上）：
+  回复完整到达、无「已重新连接」notice 反复出现
+  （心跳＋600 口径下流应全程不断）。⑤真断网（服务
+  器不可达持续 1 分钟以上）：胶囊最终落「联系不
+  上」——迟滞不是永不报，恢复后回「在线」。
