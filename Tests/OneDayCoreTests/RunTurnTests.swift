@@ -44,10 +44,12 @@ final class RunTurnTests: XCTestCase {
         XCTAssertEqual(machine.phase, .unknown)
     }
 
-    func testStreamLostIgnoredOutsideGenerating() {
+    func testStreamLostFromSubmittingAlsoUnknown() {
+        // 提交窗口内报流断同理：受理与否不明，归未知
+        // 走对账，不留在 submitting 假装还在提交
         var machine = RunTurnStateMachine()
         machine.apply(.streamLost)
-        XCTAssertEqual(machine.phase, .submitting)
+        XCTAssertEqual(machine.phase, .unknown)
     }
 
     func testUnknownForegroundedGoesReconciling() {
