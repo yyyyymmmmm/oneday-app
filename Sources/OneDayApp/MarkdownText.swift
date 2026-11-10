@@ -2,10 +2,16 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 轻量 Markdown 渲染（里程碑 1）：块级分代码块 / 标题 / 段落三类，
-/// 行内走系统 AttributedString 的 markdown 解析（粗斜体、行内代码、
-/// 链接）。流式中的半截代码围栏按代码块收尾，不炸版。
-/// 完整 CommonMark（表格、嵌套列表）留待后续按需升级。
+/// Markdown 渲染（0.36.25 渲染补全）：块级解析在 Core
+/// MarkdownParser（可测层），本视图只按结构呈现——段
+/// 落／标题 1–6 级／代码块（语言标＋轻量高亮）／引用
+/// 块／列表（嵌套＋任务清单）／表格（横滑）／分割线。
+/// 行内走系统 AttributedString 解析（粗斜体、行内代
+/// 码、链接），删除线由 Core MarkdownInline 分段补齐
+/// （系统行内解析不消费 ~~，审计 §1.2 实证）。流式半
+/// 截的降级口径在 Core 解析层（未闭合围栏续渲、半截
+/// 表格不成表、未闭合行内标记字面呈现），本视图对任
+/// 意中间态文本渲染结果确定、不跳版。
 struct MarkdownText: View {
     let content: String
     @Environment(\.colorScheme) private var colorScheme
@@ -14,61 +20,8 @@ struct MarkdownText: View {
         self.content = content
     }
 
-    private enum Block {
-        case paragraph(String)
-        case heading(String, Int)
-        case code(String)
-    }
-
-    private var blocks: [Block] {
-        var result: [Block] = []
-        var paragraph: [String] = []
-        var code: [String]?
-        func flushParagraph() {
-            if !paragraph.isEmpty {
-                result.append(.paragraph(paragraph.joined(separator: "\n")))
-                paragraph = []
-            }
-        }
-        for rawLine in content.components(separatedBy: "\n") {
-            let line = rawLine
-            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
-                if let existing = code {
-                    result.append(.code(existing.joined(separator: "\n")))
-                    code = nil
-                } else {
-                    flushParagraph()
-                    code = []
-                }
-                continue
-            }
-            if code != nil {
-                code?.append(line)
-                continue
-            }
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty {
-                flushParagraph()
-                continue
-            }
-            if trimmed.hasPrefix("### ") {
-                flushParagraph()
-                result.append(.heading(String(trimmed.dropFirst(4)), 3))
-            } else if trimmed.hasPrefix("## ") {
-                flushParagraph()
-                result.append(.heading(String(trimmed.dropFirst(3)), 2))
-            } else if trimmed.hasPrefix("# ") {
-                flushParagraph()
-                result.append(.heading(String(trimmed.dropFirst(2)), 1))
-            } else {
-                paragraph.append(line)
-            }
-        }
-        flushParagraph()
-        if let code {
-            result.append(.code(code.joined(separator: "\n")))
-        }
-        return result
+    private var blocks: [MarkdownBlock] {
+        MarkdownParser.parse(content)
     }
 
     var body: some View {
@@ -76,77 +29,320 @@ struct MarkdownText: View {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .paragraph(let text):
-                    // 条 8（§14）：段落渲染前过断行整形
-                    // （尾行孤字防护）
-                    inline(
-                        TextShaping.prettyWrapDocument(text),
-                        strongFont: .callout.weight(.bold)
-                    )
-                        // 0.4.4（§29）：正文字号 17→16——
-                        // 量测 Muse 正文覆盖 14.8% vs 本
-                        // 页 20.7%，取 16 落覆盖率；语义载
-                        // 体走 .callout（HIG 字体表 Callout
-                        // ＝16 regular），守 DesignTokens
-                        // 「不许 Font.system(size:) 写死」
-                        // 纪律。0.3.8 第 29 条的 17 regular
-                        // 角色与 0.4.1 第 9 修的行高口径
-                        // （回系统默认 leading、不自调）不
-                        // 变，只是基准样式由 Body 换 Callout
-                        .font(.callout)
-                        // 0.4.4（§29）：正文墨换 bodyInk
-                        // （#262626 炭灰、笔芯量测 ≈38），
-                        // 不再用 Color.primary 近纯黑
-                        .foregroundStyle(Palette.bodyInk)
+                    paragraphView(text)
                 case .heading(let text, let level):
-                    // 0.4.1 第 9 修（细化第 6 修）：标题从
-                    // body regular 基准派生——HIG 字体规
-                    // 范表里 Body 之上、字重仍为 regular
-                    // 的语义样式只有 Title2（22 regular）；
-                    // Headline（17 semibold）/Title3（20
-                    // semibold）沾 semibold 即显粗、禁用。
-                    // 一级标题走 .title2（层级由字号承
-                    // 担），二级以下回 .body 基准（层级由
-                    // 块间距承担）；标题内 strong 与正文
-                    // 同规则——只对应内容本身的 **、映射
-                    // 同字号 bold 一档，不再有「标题角色
-                    // 自带 semibold」的旧口径
-                    inline(
-                        text,
-                        strongFont: level == 1
-                            ? .title2.weight(.bold)
-                            : .callout.weight(.bold)
+                    headingView(text, level: level)
+                case .code(let code, let language):
+                    codeView(code, language: language)
+                case .blockquote(let lines):
+                    blockquoteView(lines)
+                case .list(let items):
+                    listView(items)
+                case .table(let header, let alignments, let rows):
+                    tableView(
+                        header: header,
+                        alignments: alignments,
+                        rows: rows
                     )
-                        // 0.4.4（§29）：二级以下标题的字
-                        // 号基准随正文 17→16（.body→
-                        // .callout）、墨随正文换 bodyInk；
-                        // 一级标题 .title2 尺寸不动、只换墨
-                        .font(level == 1
-                            ? .title2
-                            : .callout)
-                        .foregroundStyle(Palette.bodyInk)
-                case .code(let code):
-                    Text(code)
-                        .font(.system(.footnote, design: .monospaced))
-                        // 0.4.4（§29）：代码块在助手泡内、
-                        // 墨随正文换 bodyInk（字号字体不动）
-                        .foregroundStyle(Palette.bodyInk)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(OneDayMetrics.spacingSM)
-                        .background(
-                            Palette.fieldFill,
-                            in: RoundedRectangle(
-                                cornerRadius: OneDayMetrics.codeCorner
-                            )
-                        )
-                        .textSelection(.enabled)
-                        // 条 10（§14）：代码块复制钮——对勾
-                        // 确认态 2.5s 自隐（CopyButton 共用件）
-                        .overlay(alignment: .topTrailing) {
-                            CopyButton(text: code)
-                                .padding(2)
-                        }
+                case .divider:
+                    GroupDivider()
                 }
             }
+        }
+    }
+
+    // MARK: - 段落与标题
+
+    /// 段落（沿用 §29 口径：.callout 16＋bodyInk，渲染
+    /// 前过断行整形 §14）
+    private func paragraphView(_ text: String) -> some View {
+        inline(
+            TextShaping.prettyWrapDocument(text),
+            strongFont: .callout.weight(.bold)
+        )
+        .font(.callout)
+        .foregroundStyle(Palette.bodyInk)
+    }
+
+    /// 标题分级（0.36.25 补 4–6 级）：字阶梯 22／20／
+    /// 17／15／13／13——H1 .title2、H2 .title3、H3
+    /// .body（17，比正文 16 大一档）、H4 .subheadline、
+    /// H5/H6 .footnote（H6 再降墨色分档），任何一级都
+    /// 不与正文同大（旧版 ##/### 与正文同号只靠间距的
+    /// 病根在此销掉）。字重沿第 9 修口径：基准 regular，
+    /// 标题内 ** 才映射同字号 bold
+    private func headingView(_ text: String, level: Int) -> some View {
+        let font = Self.headingFont(level)
+        return inline(text, strongFont: font.weight(.bold))
+            .font(font)
+            .foregroundStyle(
+                level >= 6
+                    ? Palette.inkSecondaryOnFill : Palette.bodyInk
+            )
+    }
+
+    private static func headingFont(_ level: Int) -> Font {
+        switch level {
+        case 1: return .title2
+        case 2: return .title3
+        case 3: return .body
+        case 4: return .subheadline
+        default: return .footnote
+        }
+    }
+
+    // MARK: - 代码块
+
+    /// 代码块：头行左语言标（小字次墨，无标不占位）＋
+    /// 右复制钮；正文轻量高亮（Core CodeHighlight 五
+    /// 类词法），横向可滚（长行不折行撑版），文字可选
+    private func codeView(_ code: String, language: String?) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+            HStack(alignment: .center) {
+                if let language {
+                    Text(language)
+                        .font(.meta)
+                        .foregroundStyle(Palette.inkSecondaryOnFill)
+                }
+                Spacer(minLength: 0)
+                CopyButton(text: code)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(highlighted(code, language: language))
+                    .textSelection(.enabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(OneDayMetrics.spacingSM)
+        .background(
+            Palette.fieldFill,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.codeCorner
+            )
+        )
+    }
+
+    /// 高亮拼装：等宽 footnote 为底，类色映射——关键
+    /// 词紫／字符串绿／数字蓝／注释次墨／普通正文墨
+    private func highlighted(
+        _ code: String, language: String?
+    ) -> AttributedString {
+        var result = AttributedString()
+        for token in CodeHighlight.tokens(
+            code: code, language: language
+        ) {
+            var piece = AttributedString(token.text)
+            piece.font = .system(.footnote, design: .monospaced)
+            piece.foregroundColor = Self.color(for: token.kind)
+            result.append(piece)
+        }
+        return result
+    }
+
+    private static func color(for kind: CodeTokenKind) -> Color {
+        switch kind {
+        case .plain: return Palette.bodyInk
+        case .keyword: return Palette.codeKeyword
+        case .string: return Palette.codeString
+        case .comment: return Palette.inkSecondaryOnFill
+        case .number: return Palette.codeNumber
+        }
+    }
+
+    // MARK: - 引用块
+
+    /// 引用块（对标 Muse：左竖条＋弱化文字）：竖条走
+    /// 装饰弱墨（非文字用途合规），正文用填充面次墨；
+    /// depth ≥2 逐级再缩进一档
+    private func blockquoteView(
+        _ lines: [MarkdownQuoteLine]
+    ) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(Palette.inkMuted)
+                .frame(width: 3)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                ForEach(
+                    Array(lines.enumerated()), id: \.offset
+                ) { _, line in
+                    inline(
+                        line.text,
+                        strongFont: .callout.weight(.bold)
+                    )
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondaryOnFill)
+                    .padding(
+                        .leading,
+                        CGFloat(max(0, line.depth - 1))
+                            * OneDayMetrics.spacingM
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - 列表
+
+    /// 列表：标记列固定宽右对齐（序号不跳列），嵌套按
+    /// level 逐级缩进；任务项呈勾选框形态（只读，对标
+    /// 口径为呈现非控件）。项间 XS 间距
+    private func listView(_ items: [MarkdownListItem]) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+            ForEach(
+                Array(items.enumerated()), id: \.offset
+            ) { _, item in
+                HStack(
+                    alignment: .firstTextBaseline,
+                    spacing: OneDayMetrics.spacingS
+                ) {
+                    markerView(item)
+                        .frame(width: 22, alignment: .trailing)
+                    inline(
+                        item.text,
+                        strongFont: .callout.weight(.bold)
+                    )
+                    .font(.callout)
+                    .foregroundStyle(Palette.bodyInk)
+                }
+                .padding(
+                    .leading,
+                    CGFloat(item.level) * OneDayMetrics.spacingM
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func markerView(_ item: MarkdownListItem) -> some View {
+        switch item.marker {
+        case .task(let checked):
+            Image(
+                systemName: checked
+                    ? "checkmark.square.fill" : "square"
+            )
+            .font(.footnote)
+            .foregroundStyle(
+                checked ? Palette.success : Palette.inkSecondary
+            )
+        case .ordered(let number):
+            Text("\(number).")
+                .font(.callout)
+                .foregroundStyle(Palette.inkSecondaryOnFill)
+        case .bullet:
+            Text(item.level == 0 ? "•" : (item.level == 1 ? "◦" : "▪"))
+                .font(.callout)
+                .foregroundStyle(Palette.inkSecondaryOnFill)
+        }
+    }
+
+    // MARK: - 表格
+
+    /// 表格：Grid 按内容定列宽，整体横向可滚（宽表不
+    /// 挤字）；表头 bold＋发丝线与行分隔（全 App 同一
+    /// 种分隔几何：整行贯通发丝线）；列对齐来自分隔
+    /// 行的 : 标记
+    private func tableView(
+        header: [String],
+        alignments: [MarkdownTableAlignment],
+        rows: [[String]]
+    ) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Grid(
+                alignment: .leading,
+                horizontalSpacing: OneDayMetrics.spacingM,
+                verticalSpacing: OneDayMetrics.spacingXS
+            ) {
+                GridRow {
+                    ForEach(
+                        Array(header.enumerated()), id: \.offset
+                    ) { column, cell in
+                        inline(
+                            cell,
+                            strongFont: .callout.weight(.bold)
+                        )
+                        .font(.callout)
+                        .foregroundStyle(Palette.bodyInk)
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: Self.frameAlignment(
+                                alignments[column]
+                            )
+                        )
+                        .multilineTextAlignment(
+                            Self.textAlignment(alignments[column])
+                        )
+                    }
+                }
+                GridRow {
+                    GroupDivider()
+                        .gridCellColumns(header.count)
+                }
+                ForEach(
+                    Array(rows.enumerated()), id: \.offset
+                ) { _, row in
+                    GridRow {
+                        ForEach(
+                            Array(row.enumerated()), id: \.offset
+                        ) { column, cell in
+                            inline(
+                                cell,
+                                strongFont: .callout.weight(.bold)
+                            )
+                            .font(.callout)
+                            .foregroundStyle(Palette.bodyInk)
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: Self.frameAlignment(
+                                    alignments[column]
+                                )
+                            )
+                            .multilineTextAlignment(
+                                Self.textAlignment(
+                                    alignments[column]
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private static func frameAlignment(
+        _ alignment: MarkdownTableAlignment
+    ) -> Alignment {
+        switch alignment {
+        case .left: return .leading
+        case .center: return .center
+        case .right: return .trailing
+        }
+    }
+
+    private static func textAlignment(
+        _ alignment: MarkdownTableAlignment
+    ) -> TextAlignment {
+        switch alignment {
+        case .left: return .leading
+        case .center: return .center
+        case .right: return .trailing
+        }
+    }
+
+    // MARK: - 行内
+
+    /// 行内渲染：先经 Core MarkdownInline 切删除线段，
+    /// 每段再走系统行内解析；删除线段整段加删线（其
+    /// 中的行内代码段除外——代码不许被划）
+    private func inline(_ text: String, strongFont: Font) -> Text {
+        MarkdownInline.segments(text).reduce(Text("")) { partial, segment in
+            partial + Text(inlineAttributed(
+                segment.text,
+                strongFont: strongFont,
+                strikethrough: segment.strikethrough
+            ))
         }
     }
 
@@ -154,30 +350,41 @@ struct MarkdownText: View {
     /// 字重口径（0.3.3 收编、0.4.1 第 9 修定版）：strong
     /// 只对应内容本身的 **——按 InlinePresentation-
     /// Intent.stronglyEmphasized 找粗体段、重映射到
-    /// strongFont（正文/标题语境一律同字号 .weight
-    /// (.bold)，与 regular 基准恰差一档）；标题角色自
-    /// 带 semibold 的旧口径已随第 9 修废止（标题回
-    /// regular 基准，见 heading 分支）；行内代码段
-    /// （.code）不碰、斜体段在 strong 字体上叠 .italic
-    private func inline(_ text: String, strongFont: Font) -> Text {
+    /// strongFont（同字号 .weight(.bold)，与 regular
+    /// 基准恰差一档）；斜体段在 strong 字体上叠
+    /// .italic；行内代码段（.code）字重与删线都不碰
+    private func inlineAttributed(
+        _ text: String,
+        strongFont: Font,
+        strikethrough: Bool
+    ) -> AttributedString {
         guard var attributed = try? AttributedString(
             markdown: text,
             options: AttributedString.MarkdownParsingOptions(
                 interpretedSyntax: .inlineOnlyPreservingWhitespace
             )
         ) else {
-            return Text(text)
-        }
-        for run in attributed.runs {
-            guard let intent = run.inlinePresentationIntent,
-                  intent.contains(.stronglyEmphasized),
-                  !intent.contains(.code) else { continue }
-            var font = strongFont
-            if intent.contains(.emphasized) {
-                font = font.italic()
+            var fallback = AttributedString(text)
+            if strikethrough {
+                fallback.strikethroughStyle = .single
             }
-            attributed[run.range].font = font
+            return fallback
         }
-        return Text(attributed)
+        for run in Array(attributed.runs) {
+            let intent = run.inlinePresentationIntent
+            let isCode = intent?.contains(.code) ?? false
+            if let intent,
+               intent.contains(.stronglyEmphasized), !isCode {
+                var font = strongFont
+                if intent.contains(.emphasized) {
+                    font = font.italic()
+                }
+                attributed[run.range].font = font
+            }
+            if strikethrough, !isCode {
+                attributed[run.range].strikethroughStyle = .single
+            }
+        }
+        return attributed
     }
 }
