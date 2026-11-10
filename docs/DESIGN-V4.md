@@ -5427,3 +5427,44 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - 菜单件：展开模型菜单应只有一勾、且随切换移动（渲染层问题、单测钉不住，见 §78.1）。
 - 底部件：长线程（≥100 条、含高气泡）键盘升起后静止，量气泡底↔输入舱顶距离，验收线 ≤ 钮行高＋16pt；同线程收键盘再看一次；回底钮在视觉已到底时应消失、对方回复时跟随应恢复。
 - 听写件：录音时录音条上诊断行在场，四格齐（preset/sup/inst/avail）＋vol/fin 可读；据此读数按 §78.3 口径定下一轮修法，本包不承诺实时出字已修。
+
+## §79 0.36.14/81 同步制 App 包——五数据集同步引擎＋三层开关＋副本呈现与删除（2026-11-10）
+
+### 79.1 规格与拍板对齐
+
+- 规格＝oneday-design-review/device-sync-design-20261110.md：用户 21:52 拍板整个本地数据面照 Muse 改同步制（授权→同步最小化副本到用户自有伴生服务→智能体查库）；21:58 两处拍板照单执行——①权限撤销后完全停供（工具只回状态错误、副本不删、重开权限恢复）②照片整本相册全量元数据索引（不存原图、不存定位坐标），「授权了就给全量」为通则。device-connectors 第 7 条「现读现回、服务器不囤副本」对记录型数据作废（实时型/动作型照旧），三处旧口径文案（日历/提醒/通讯录详情 descriptor 与三条权限申请文案）已随本包改实话。
+- 伴生侧先行部署（1.0.2，SYNC-BUILD-REPORT）：接收接口 batch/complete/manifest/state/delete/status 与查库工具 21 件在线；本包 App 侧接口形状逐字对源码核过（complete 的混排键、manifest/state 的 snake_case、409 sync_count_mismatch 的对账语义、complete 前须至少一个 batch 登记批次）。
+
+### 79.2 五数据集同步策略落点
+
+- 通讯录（ContactsEngine.syncSnapshot＋DeviceSyncController.assemble）：一次整本枚举同时产出标识＋字段指纹清单（Core ContactFingerprint，SHA256、标签入纹）与全量最小字段记录；先 manifest 比对——副本为空或桥回 reimport_required（授权范围变化）走整本 full，否则只传 changed 子集＋removedIds 删除（incremental）。字段最小化红线：只取姓名/电话/邮箱/公司/分组，备注/地址/生日/头像的键从不出现在记录 JSON 里（单测钉死）。
+- 日历（EventKitEngine.syncOccurrences）：Core SyncCalendarWindow 划窗（今天 −30 天零点 → +90 天当日次日零点），predicate 按场次展开、occurrenceId＝事件标识＋场次开始时刻，整窗 full 换入、coverage 随 complete 上报。
+- 提醒（EventKitEngine.reminderSyncSnapshot）：未完成提醒全量 full 换入；已完成只进聚合——Core SyncReminderAggregates.compute 与桥同口径（todayCompleted＝完成时刻 ≥今日零点；overdue＝未完成且 due <今日零点），完成条目本身不上行。
+- 步数（MotionEngine.recentDays）：Core SyncMotionPlan 近 7 天逐日区间（连续不重叠、今天收尾在次日零点、查询时截到当前时刻），CMPedometer completion 回调只在引擎内拆成 Sendable 值过线；mode=merge 按日新盖旧，系统只留 7 天、长历史靠历次同步在伴生攒。单日查询失败跳过不拖垮整批。
+- 照片（PhotosEngine.collectRecords）：整本资产全量索引——拍摄时间/类型/子型（截图、实况、全景、延时、高帧率=慢动作）/宽高/时长/收藏/相册名（用户相册成员反查、首命中）/hasLocation 只记有无；原图、缩略图、坐标一律不碰（记录 JSON 键单测钉死）。创建时间缺失的极少数资产以零点占位保全量（通则优先于时间精度）。
+
+### 79.3 触发、三层开关与供给边界
+
+- 触发：首次开启同步即首同步（说明屏确认后直达）、前台节流增量（Core DeviceSyncPlanner.foregroundDecision：记录型 15 分钟、步数 1 小时；桥报 pendingWrite 时无视节流优先）、详情页「立即同步」手动钮。同步只在 App 前台进行，文案明示不在后台跑。
+- 三层开关各就其位：系统权限（iOS 管）／同步开关（默认关、逐数据集、DevicePreferences 落盘）／允许智能体调用（既有）。同步资格只看前两层（规格 §6.1 分层）；查库供给的硬停供只由权限撤销触发——App 回前台第一时间经 sync/state 上报权限与范围（只认变化才打桥），桥据 revoked 标记让工具只回状态错误。
+- 授权铁律落点：同步每轮先同步读 currentStates；仅 .notDetermined 才走那一次请求（照片 requestAuthorization／计步以一次当日查询触发询问／余件走各自引擎请求口），已决定状态绝不重走异步回调（DeviceSyncExecutors 内判）。回调隔离铁律：本包不挂任何系统回调闭包（CMPedometer 的 completion 只在引擎内部拆值）。
+
+### 79.4 呈现与删除
+
+- 详情页「数据同步」区（五件同构）：开关（首次先过说明屏：同步什么/不同步什么/存哪/怎么删，四段人话）、副本条数、「数据新到」新鲜度行（桥 freshness 整句优先、本地 Core freshnessLine 同措辞兜底）、同步范围（全部/部分）、撤销停供与过期两条明示行、进度行（分批已送/应到）、失败人话（409 对账失败单列）、删除副本入口（确认文案照 Muse 语义：删副本不动手机数据与权限、开关开着会重建）。关开关时弹问副本去留，删除为推荐项不预选。
+- 目录行与总览行：DeviceRowStatus.line 尾拼同步段（Core DeviceSyncPresentation.segment：已同步 N 条/人/项/天 · 新到时刻；照片/步数无现调通道、不拼调用态）；总览页加「数据同步」区五件状态行＋删除全部副本。
+- 状态头 channelNote 改口：开了同步的件不再说「不存服务器」，改明示查库主路＋新鲜度出处；照片/步数新增详情页（本地计数/近 7 日步数＋同步区），应用图标按宪法 §4 例外复刻官方构图（照片八瓣花、健身三环）。
+
+### 79.5 交付数字与诚实边界
+
+- 提交：3f67f73（整包）＋d383b73（CI 首轮四处接口名误写修正：PHAssetMediaSubtype 慢动作用 videoHighFrameRate、DeviceBridgeError 无 badEndpoint 改 unauthorized/unknownSession 映射、状态字段名 freshness 且桥句原样呈现）。CI 42839059879 success（首轮 42838445614 failure 已修）。
+- 单测：768 → 785（+17，DeviceSyncTests 17 个方法全过：名册/节流、指纹稳定与敏感性、五件记录 JSON 键契约含最小化红线、日历窗口、提醒聚合、步数日区间、计划器七组合、批次切分、状态解码两形状＋坏数据、呈现文案；DeviceSourcesTests 名册 5→7 同步修订）。只增不减守住。
+- IPA：6,839,910 字节，md5 0093ba6fcad2df8f960b39a77890cf94，独立解包自验 Info.plist＝0.36.14/81、NSPhotoLibraryUsageDescription 与 NSMotionUsageDescription 在位。落 ~/workspace/your_files/oneday-v0.36.14/。
+- 诚实边界（单测钉不住的）：①同步全链（枚举→比对→分批→换入→查库）只能真机＋真伴生验：首次开启通讯录同步后，在 OneDay 问「通讯录一共多少人、数据是什么时候的」，应答出真数＋新鲜度；照片整本枚举在万级相册上的耗时未实测（进度行只在分批阶段更新，枚举期显示「正在读取手机上的清单…」）。②照片/步数详情页的「允许智能体调用」开关沿用同一状态头：这两件没有现调工具、供给全走查库，该开关对它们实际只影响呈现口径、停供硬闸在权限层——如实记录，不假装它能单独停供。③步数授权状态在从未查询过时恒为未决定，首次进详情页由闸门引导、点同步时以一次查询触发系统询问，属预期形态。
+
+### 79.6 真机复验点
+
+- 五件逐件：开权限→详情页开同步（首次过说明屏）→首同步完成，看副本条数与「数据新到」行；回目录看行尾同步段。
+- 通讯录验收问句（规格 §10 第 4 步）：问 OneDay「通讯录一共多少人、数据是什么时候的」——答数与本机通讯录一致、且带同步时刻；再关系统权限回前台，问通讯录应只回「权限已关」类状态错误（完全停供）；重开权限后恢复。
+- 删除面：详情页删单件副本、总览页删全部——删后问智能体应查不到；开关仍开着时重开 App 应重新同步回来。
+- 照片：受限授权（勾选部分照片）下同步范围行应显「部分」；步数：详情页近 7 日与系统计步对得上。
