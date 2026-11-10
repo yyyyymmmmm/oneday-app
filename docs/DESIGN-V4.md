@@ -5246,8 +5246,10 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 
 ### 74.2 验收
 
-- 单测：741 全过、0 failures（基线 739＋新增 2：testMicPermissionGateThreeBranches／testMicPermissionGateNeverRequestsWhenDecided，只增不减）——CI 计数待回填确认。
-- CI／IPA／提交：待回填。
+- 提交：770cbd9（整包，代码顶端）；本节为补记提交。
+- CI：42819802613 **success**，独立计数 **741 tests 全过、0 failures**（基线 739＋新增 2：testMicPermissionGateThreeBranches／testMicPermissionGateNeverRequestsWhenDecided，两条新测日志逐条 passed，只增不减）。
+- IPA：6,595,556 字节、md5 ee5afbd221a6e12af1651c9f25e97ca1、独立解包验 Info.plist＝0.36.9/76、双 UsageDescription 键仍在包内，落 ~/workspace/your_files/oneday-v0.36.9/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION/CURRENT_PROJECT_VERSION/CFBundleShortVersionString/CFBundleVersion＝0.36.9/76）＋SettingsView 页脚「OneDay v0.36.9」。
 
 ### 74.3 诚实边界
 
