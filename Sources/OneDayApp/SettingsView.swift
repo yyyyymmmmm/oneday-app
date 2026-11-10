@@ -66,6 +66,7 @@ struct SettingsView: View {
                 gatewaySection
                 appearanceSection
                 serverSection
+                versionSection
                 aboutSection
                 disconnectSection
                 versionFooter
@@ -118,7 +119,16 @@ struct SettingsView: View {
             .sheet(item: $manageSheet) { item in
                 manageSheetContent(item)
             }
-            .task { await loadSummaries() }
+            .task {
+                await loadSummaries()
+                // 伴生探测（DESIGN §110）：打开设置时
+                // 节流补探一次——RootView 的登录/前台触
+                // 发是主路，本处保证用户直奔设置时版本
+                // 组也是近鲜的（节流口径在 Store）
+                await appState.companionProbe.probeIfNeeded(
+                    appState: appState
+                )
+            }
             .onAppear {
                 consumePendingRoutes()
             }
@@ -601,6 +611,70 @@ struct SettingsView: View {
         .listRowInsets(settingsRowInsets)
     }
 
+    // MARK: - 版本（本包，DESIGN §110）
+
+    /// 版本组（服务端收口形态定版的「版本对齐两行」
+    /// 落点）：Hermes 本体版本一行（真源＝/api/status
+    /// 的 version，loadSummaries 既有读数；读不到如
+    /// 实显「未知」——本组立项时一并废除关于组旧行
+    /// 在 status 缺失时写死 "Hermes v0.23.0" 的兜底，
+    /// 那是拿已知生产版本冒充现读）＋伴生一行（版
+    /// 本＋状态副行，派生全在 Core CompanionStatus）。
+    /// 伴生缺失/需升级 App 时组脚注给一句可行动的
+    /// 人话；不弹警告、不阻断任何功能
+    private var versionSection: some View {
+        Section {
+            LabeledContent("Hermes") {
+                Text(hermesVersionText)
+                    .font(.system(.callout, design: .monospaced))
+            }
+            .settingsSeparatorToIconEdge()
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text("伴生服务")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Text(companionVersionLine)
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: OneDayMetrics.spacingS)
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            .contentShape(Rectangle())
+            .settingsSeparatorToIconEdge()
+        } footer: {
+            if let note = companionFooterNote {
+                Text(note)
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
+    }
+
+    /// Hermes 版本位：status 读到才有版本，version
+    /// 字段缺失或整份 status 没读到都如实显「未知」
+    private var hermesVersionText: String {
+        status?.version.map { "v\($0)" }
+            ?? L10n.string("未知")
+    }
+
+    /// 伴生副行：探测态未立（还没探过）显「尚未检
+    /// 测」；其余形态（现读/上次读到/未检测到/暂时
+    /// 读不到）全由 Core 派生态出整行
+    private var companionVersionLine: String {
+        guard let status = appState.companionProbe.status
+        else { return L10n.string("尚未检测") }
+        return status.settingsLine()
+    }
+
+    private var companionFooterNote: String? {
+        appState.companionProbe.status?.footerNote()
+    }
+
     // MARK: - 关于
 
     private var aboutSection: some View {
@@ -608,11 +682,8 @@ struct SettingsView: View {
             // （OneDay 版本行 0.20.0 移出本组：版本号改
             // 页脚居中小灰字行 versionFooter，照 Muse
             // 设置图页脚形态；版本源第五处随之移位）
-            LabeledContent("服务端") {
-                Text(status.map { "Hermes v\($0.version ?? "—")" } ?? "Hermes v0.23.0")
-                    .font(.system(.callout, design: .monospaced))
-            }
-            .settingsSeparatorToIconEdge()
+            // （服务端版本行本包移出本组：升入上方版本
+            // 组与伴生行成对，见 versionSection）
             Link(destination: URL(string: "https://github.com/NousResearch/hermes-agent")!) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Color.clear

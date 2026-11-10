@@ -7744,3 +7744,31 @@ def greet(name):
 - GoalsStore.delegateBody「为目标《%@》安排的一件事。」是 App 生成的卡面模板（键已入目录）已转；它与用户自拟的任务标题的区别在于是模板而非内容，标题本体仍原样直通。
 - ConnectorCatalog 的分类搜索语料仍为简体 rawValue：非简体界面下按分类名搜索不命中（按名称/说明搜索随条目构造语言），属搜索语料口径、留后续。
 - 英文计数单复数 stringsdict 仍按 §108.4 另包；App 层 Store 串在赋值时以当时 uiLocale 定格，运行中切换系统语言需相关页面重拉才换语言（与 0.42.0 既有属性形口径一致）。
+## §110 伴生探测契约包（2026-11-11，预制分支 feat/companion-probe；§109 已被国际化长尾包预占，本节自选 §110，合并时主线终审顺延）
+
+缘起：服务端收口形态定版（双容器）的 App 侧欠账——「App 登录后自动探测伴生存在与版本」此前只有台账包的旁证式探测（LedgerBridgeClient.probeCompanion，只服务台账「还没上线」的说明），没有面向设置页版本组的正式消费点。本包补齐：探测时机、派生口径、缓存与呈现。
+
+### 110.1 契约与真源（亲查实证）
+
+- **伴生面**：GET /api/companion/info（front 8650、公网经 hermes.didichou.site 同源、单钥 Bearer），build_info() 实产字段＝companionVersion／apiLevel／minAppVersion／hermesUp（布尔）／modules{writeGate, overview, box, oneday, device → {state, detail?, degraded?（仅 oneday 恒带）}}／generatedAt。模块状态词表据 aggregate()＋probe_module() 实产：up／degraded／down／crash-loop／disabled／unknown。
+- **Hermes 本体版本真源（实情）**：info 面**没有** hermesVersion 字段（只有 hermesUp 布尔）——拿不到，不许从 info 编。真源在 Hermes 自家面：GET /api/status 的 version（实测样本 "0.23.0"，ServerStatus.version，设置页 loadSummaries 既有读数）；/health 亦带 version。本包版本组 Hermes 行即用前者。
+- **顺带销账**：设置页关于组旧「服务端」行在 status 读不到时写死兜底 "Hermes v0.23.0"——拿已知生产版本冒充现读，本包废除：新版本组读不到如实显「未知」，旧行移出关于组（与伴生行成组，避免同页两处版本）。
+
+### 110.2 Core 派生（新件 OneDayCore/CompanionProbe.swift，逐项钉测）
+
+- **CompanionVersionForm**：定版形态＝三段数字（可带 v 前缀）；两段/四段/后缀（-beta）/非数字＝格式异常。异常串显示照原文（服务器自报），但 compare 不给结论（nil）；比较走数值序（1.10.0 > 1.9.0）。
+- **CompanionModuleHealth**：disabled 单列不算异常；state=degraded 或 degraded 旗 → 降级；up → 正常；其余一切（含未见过的词）→ 不可用；info 缺席的模块不下结论。名单恒按 front 名册序（writeGate→overview→box→oneday→device）、未识 id 殿后字面序。模块人话名与 front MODULE_META 的 name 对齐（审批/总览通知/云电脑/目标点子/手机设备），未识 id 原样显。
+- **CompanionStatus**：presence 三档（present/absent＝info 面 404/unknown＝读不到不下结论）。现读派生给健康与升级门；**缓存派生 health 恒 nil、isStale 恒 true**（旧健康不冒充现况）。升级门：minAppVersion 格式正常且严格大于 App 版本才给出（相等不算、异常不给结论）。
+- **CompanionProbeResolver**（结果×缓存→状态＋缓存动作）：detected → 现读＋落盘新记录（CompanionProbeRecord，Codable 快照形——CompanionInfo 本体只有 Decodable 不能直接落盘）；missing → absent＋**清缓存**；unreadable/unreachable → 有缓存回落 stale、缓存保留，无缓存给 unknown。
+
+### 110.3 App 接线（CompanionProbeStore＋RootView＋设置页）
+
+- **时机**：登录成功（RootView onChange phase==.connected）无条件探一次；回前台（scenePhase .active）与冷启恢复（RootView .task）走节流版——距上次尝试 <60 秒跳过；设置页打开时再节流补探一次。网络动作复用 LedgerBridgeClient.probeCompanion（不另起第二套请求），App 层枚举 1:1 映射 Core 的 CompanionProbeOutcome。演示模式不探（探针走真网络、不许把演示态探成真结论）。
+- **缓存**：UserDefaults 键 companionProbeRecord.v1（JSON，只存 info 事实＋探测时刻）；冷启先由缓存派生 stale 态占位、现读回来替换。
+- **呈现**：设置页服务器组后新增「版本」组（无组题、沿本页语法）——Hermes 行 LabeledContent（等宽值 vX.Y.Z／未知）；伴生行题＋副行（现读：「v1.0.7 · 运行正常」／异常分段「云电脑降级运行；目标点子暂时不可用」；缓存：「v1.0.7 · 上次读到 3 小时前」；absent「未检测到」；unknown「暂时读不到」；未探「尚未检测」）。脚注只在 absent（点名受影响功能＋去服务器确认启动＋回来自动重测）或需升级 App（点名目标版本）时出现。不弹警告、不阻断聊天。
+- **文案**：全走 L10n，目录补 15 键（伴生服务/运行正常/未检测到/尚未检测/暂时读不到/上次读到 %@/%@降级运行/%@暂时不可用/总览通知/目标点子/版本未知/Hermes 暂时联系不上/Hermes＋两条脚注），三语齐备、validate_i18n.py 通过（2264 键）。
+
+### 110.4 单测与未决
+
+- 单测：新增 CompanionProbeTests **30 法**（版本形态/比较 4＋健康派生 7＋现读派生 4＋升级门 2＋解析 4＋记录互转 1＋呈现文案 8），既有测试零改动。本机无 Swift 工具链：括号配平/键对账/签名衔接静态自查已做，编译与全套单测终判等合并后 CI。
+- 未决：①minAppVersion 的服务端现值（front 默认 0.37.0、env 可覆盖）App 侧只消费不校验服务端配置；②探测失败不进台账/通知（安静口径，设置页一行说清即可）；③伴生 apiLevel 的消费（App 侧桥面兼容判断）未立项，info 已回、暂不消费。

@@ -101,6 +101,14 @@ struct RootView: View {
                         config: appState.config
                     )
                 }
+                // 伴生探测（DESIGN §110）：回前台节流
+                // 再探（距上次尝试 <60 秒跳过，口径在
+                // CompanionProbeStore）
+                Task {
+                    await appState.companionProbe.probeIfNeeded(
+                        appState: appState
+                    )
+                }
             } else if newPhase == .background {
                 appState.deviceSession.deactivate()
             }
@@ -113,6 +121,13 @@ struct RootView: View {
                 if !appState.isDemo {
                     appState.deviceSync.foregroundCheck(
                         config: appState.config
+                    )
+                }
+                // 伴生探测（DESIGN §110）：登录成功即
+                // 探一次（不受回前台节流约束）
+                Task {
+                    await appState.companionProbe.probe(
+                        appState: appState
                     )
                 }
             } else {
@@ -130,6 +145,12 @@ struct RootView: View {
                     config: appState.config
                 )
             }
+            // 伴生探测（DESIGN §110）：冷启恢复连接同
+            // 样在此补一次（节流口径，刚登录探过的不会
+            // 立刻重探）
+            await appState.companionProbe.probeIfNeeded(
+                appState: appState
+            )
             // 演示样本播种：内存库为空时种一轮拟真对话（仅演示模式）
             if DemoMode.current.isDemo {
                 DemoSeeder.seedIfNeeded(context: modelContext)
