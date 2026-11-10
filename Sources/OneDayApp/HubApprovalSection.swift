@@ -17,6 +17,8 @@ struct HubApprovalSection: View {
 
     @State private var diffTarget: WriteGateRecord?
     @State private var rejectTarget: WriteGateRecord?
+    @State private var alwaysTarget: WriteGateRecord?
+    @State private var revokeTarget: WriteGateRule?
 
     var body: some View {
         Group {
@@ -53,7 +55,8 @@ struct HubApprovalSection: View {
                     .buttonStyle(.bordered)
                 }
             case .ready(let records):
-                if records.isEmpty && store.decisionHistory.isEmpty {
+                if records.isEmpty && store.decisionHistory.isEmpty
+                    && store.approvalRules.isEmpty {
                     ContentUnavailableView(
                         "暂无待批写入",
                         systemImage: "checkmark.circle",
@@ -68,6 +71,7 @@ struct HubApprovalSection: View {
                                 }
                             }
                         }
+                        rulesSection
                         if !store.decisionHistory.isEmpty {
                             Section("已决历史") {
                                 ForEach(store.decisionHistory) { item in
@@ -107,6 +111,44 @@ struct HubApprovalSection: View {
         } message: { _ in
             Text("驳回后这条写入不会生效。")
         }
+        .confirmationDialog(
+            "总是允许这一类？",
+            isPresented: Binding(
+                get: { alwaysTarget != nil },
+                set: { if !$0 { alwaysTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: alwaysTarget
+        ) { record in
+            Button("总是允许") {
+                Task { await store.decideAlways(record) }
+                alwaysTarget = nil
+            }
+            Button("取消", role: .cancel) {
+                alwaysTarget = nil
+            }
+        } message: { record in
+            Text("这条会立即批准；以后「\(ApprovalCardCopy.alwaysAllowScope(for: record))」的写入将直接通过，不再逐条询问。规则可以在下方「审批规则」里随时撤销。")
+        }
+        .confirmationDialog(
+            "撤销这条规则？",
+            isPresented: Binding(
+                get: { revokeTarget != nil },
+                set: { if !$0 { revokeTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: revokeTarget
+        ) { rule in
+            Button("撤销规则", role: .destructive) {
+                Task { await store.revokeRule(rule) }
+                revokeTarget = nil
+            }
+            Button("取消", role: .cancel) {
+                revokeTarget = nil
+            }
+        } message: { rule in
+            Text("撤销后，「\(rule.scopeLabel)」的写入会重新逐条等你审批。")
+        }
     }
 
     /// 待批卡片（实色面内容卡，非玻璃——规格 §0 材质总则）
@@ -121,15 +163,21 @@ struct HubApprovalSection: View {
                     .background(Palette.primaryTint, in: Capsule())
                 Spacer()
                 if let createdAt = record.createdAt {
-                    Text(createdAt.formatted(.relative(presentation: .named)))
+                    Text(ApprovalTimeText.relative(createdAt))
                         .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
 
-            Text(record.displaySummary)
+            Text(record.headline)
                 .font(.headline)
                 .foregroundStyle(Palette.ink)
+            if let preview = record.previewLine, preview != record.headline {
+                Text(preview)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(2)
+            }
 
             Text("来源：\(record.originLabel)")
                 .font(.caption)
@@ -165,10 +213,20 @@ struct HubApprovalSection: View {
                         }
                         .buttonStyle(.borderedProminent)
                     } else {
-                        Text("这类写入暂不支持在 App 内审批")
+                        Text("这类写入暂不支持在 App 内审批，请在 Hermes 中处理")
                             .font(.caption)
                             .foregroundStyle(Palette.inkSecondary)
                     }
+                }
+                if record.canDecide {
+                    // 第三档（0.36.21）：全宽一行，与聊
+                    // 天就地卡同动作（store.decideAlways：
+                    // 先建规则后批准，失败不假装记住）
+                    Button("总是允许这一类") {
+                        alwaysTarget = record
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
@@ -201,14 +259,26 @@ struct HubApprovalSection: View {
                     .background(
                         decisionColor(item).opacity(0.12), in: Capsule()
                     )
+                if item.isRuleApproved {
+                    // 按规则放行必须标明（0.36.21）：与
+                    // 人工批准分开呈现，账本 via_rule 是据
+                    Text("按规则放行")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Palette.primaryTint, in: Capsule()
+                        )
+                }
                 Spacer()
                 if let decidedAt = item.decidedAt {
-                    Text(decidedAt.formatted(.relative(presentation: .named)))
+                    Text(ApprovalTimeText.relative(decidedAt))
                         .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            Text(item.summary)
+            Text(item.headline)
                 .font(.subheadline)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(2)
@@ -225,6 +295,56 @@ struct HubApprovalSection: View {
         if item.isApproved { return Palette.success }
         if item.isRejected { return Palette.danger }
         return Palette.inkMuted
+    }
+
+    /// 审批规则区（0.36.21，规格 §4）：规则只存桥侧，
+    /// 这里是只读镜像＋撤销入口——没有撤销面不许交付
+    /// 是本包的硬口径。规则为空与未拉到分开说（诚实
+    /// 呈现），撤销失败留人话提示在区首
+    private var rulesSection: some View {
+        Section("审批规则") {
+            if let note = store.rulesNote {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(Palette.danger)
+            }
+            if store.approvalRules.isEmpty {
+                Text(store.rulesLoaded
+                    ? "暂无规则。在待批卡上点「总是允许这一类」后，会在这里留下一条，可随时撤销。"
+                    : "规则还没有拉到，下拉刷新后再看。")
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            ForEach(store.approvalRules) { rule in
+                ruleRow(rule)
+            }
+        }
+    }
+
+    private func ruleRow(_ rule: WriteGateRule) -> some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(rule.scopeLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.ink)
+                if let createdAt = rule.createdAt {
+                    Text("建立于 \(ApprovalTimeText.relative(createdAt))")
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            Spacer()
+            if store.revokingRuleIDs.contains(rule.id) {
+                ProgressView()
+            } else {
+                Button("撤销", role: .destructive) {
+                    revokeTarget = rule
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -244,27 +364,7 @@ struct HubDiffView: View {
         Group {
             if let detail {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
-                        ForEach(detail.review.noteLabels, id: \.self) { label in
-                            Label(label, systemImage: "exclamationmark.triangle")
-                                .font(.footnote)
-                                .foregroundStyle(Palette.warning)
-                        }
-                        if detail.review.requestedOldString != nil {
-                            Label(
-                                "这条修订要改的原文已经不存在，可能基于旧内容，批准前请仔细核对。",
-                                systemImage: "exclamationmark.triangle"
-                            )
-                            .font(.footnote)
-                            .foregroundStyle(Palette.warning)
-                        }
-                        Text(detail.review.displayDiff)
-                            .font(.system(.footnote, design: .monospaced))
-                            .foregroundStyle(Palette.ink)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(OneDayMetrics.pageGutter)
+                    ApprovalReviewContent(detail: detail, record: record)
                 }
             } else if let errorText {
                 ContentUnavailableView(
@@ -291,5 +391,57 @@ struct HubDiffView: View {
                 errorText = "通道未接通或读取出错，请稍后重试。"
             }
         }
+    }
+}
+
+/// 差异内容体（0.36.21 从 HubDiffView 抽出）：枢纽
+/// sheet 与聊天就地卡的 inline 展开共用同一份内容与
+/// 口径（规格 §2）——notes 警示、patch 原文失效提示、
+/// diff 正文，再加「原始信息」折叠区：服务端原始摘
+/// 要与来源原值只许在这里出现（默认折叠、供排障，
+/// P-16），卡面与列表一律走人话模板
+struct ApprovalReviewContent: View {
+    let detail: WriteGateDetail
+    let record: WriteGateRecord
+    /// 内嵌进卡片时为 true：卡面已有内边距，内容体不
+    /// 再叠页面级边距（默认 false＝sheet 独立呈现）
+    var embedded: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
+            ForEach(detail.review.noteLabels, id: \.self) { label in
+                Label(label, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.warning)
+            }
+            if detail.review.requestedOldString != nil {
+                Label(
+                    "这条修订要改的原文已经不存在，可能基于旧内容，批准前请仔细核对。",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.footnote)
+                .foregroundStyle(Palette.warning)
+            }
+            Text(detail.review.displayDiff)
+                .font(.system(.footnote, design: .monospaced))
+                .foregroundStyle(Palette.ink)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            DisclosureGroup("原始信息（排障用）") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("服务端摘要：\(record.summary)")
+                    Text("来源原值：\(record.origin)")
+                    Text("记录编号：\(record.id)")
+                }
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
+            }
+            .font(.footnote)
+            .foregroundStyle(Palette.inkSecondary)
+        }
+        .padding(embedded ? 0 : OneDayMetrics.pageGutter)
     }
 }

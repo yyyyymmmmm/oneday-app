@@ -156,6 +156,25 @@ final class AppState {
             forKey: "selfDecidedApprovalIDs"
         ) ?? [])
 
+    /// 全局共享的枢纽 store（0.36.21，审批卡包）：聊
+    /// 天内就地审批卡与枢纽审核段必须读同一份 /pending
+    /// 数据、走同一个裁决动作（规格 §6），store 自此
+    /// 由 AppState 持有单例、懒建；此前 AgentHubView
+    /// 每次打开自建一份，聊天侧无从共享。审批终态回
+    /// 调（刷新总览桥角标）仍由呈现枢纽的 ChatView 经
+    /// AgentHubView 注入 store.onApprovalChanged
+    private var hubStoreInstance: AgentHubStore?
+
+    func sharedHubStore() -> AgentHubStore {
+        if let hubStoreInstance { return hubStoreInstance }
+        let store = AgentHubStore(
+            appState: self,
+            gateClient: isDemo ? DemoWriteGateClient() : WriteGateClient()
+        )
+        hubStoreInstance = store
+        return store
+    }
+
     /// 记一笔本人裁决（AgentHubStore.decide 成功落
     /// 账后调用；recordGone 等他人先裁的路径不记——
     /// 那类回执是「未读重要事件」、不归本人消账）

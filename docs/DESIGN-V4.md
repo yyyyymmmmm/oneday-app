@@ -6393,3 +6393,282 @@ hermes-deploy/credentials.txt 取、未落盘未外传；测试请
   （心跳＋600 口径下流应全程不断）。⑤真断网（服务
   器不可达持续 1 分钟以上）：胶囊最终落「联系不
   上」——迟滞不是永不报，恢复后回「在线」。
+
+## §87 审批卡包：对话流就地审批＋「总是允许」规则面＋审批文案人话化（0.36.21/88，2026-11-11）
+
+起因：用户 2026-11-11 01:17 发 Muse 审批卡截图点题——
+审批卡就地长在对话流里、人话标题、三档裁决（允许一
+次／总是允许／拒绝）、裁决后有结果痕迹；01:18 拍板
+插队成本包；01:55 再点第三件：枢纽已决历史的条目全
+是英文运维串（「batch(3 ops: patch, patch, patch) on
+…」「add to memory: …」）、来源漏原始标识「oneday_
+app」、相对时间也是英文——「现在的审批都是英文，普
+通用户怎么看的懂？」规格 approval-card-design-2026-
+1111.md；本节与 §88（右滑再修）同属 0.36.21 合并包。
+
+### 87.1 数据前提结论（决定挂卡形态，实查定案）
+
+- **无会话归属字段 → 退位形态**。三处对齐实查：桥
+  `write_gate_bridge.py` 的 `_norm_record` 只出 id/
+  subsystem/action/summary/origin/created_at(/payload
+  详情)；方案文档 write-approval-bridge-plan.md 字段
+  清单相同；App `WriteGateRecord` CodingKeys 同构。
+  origin 是来源标签（foreground/background_review/
+  assistant_tool/oneday_app/cli…），不是会话 id。
+- 定案形态：**待批卡置于当前对话流末尾**（全部未决
+  汇到用户正在看的流）＋**枢纽兜底**（总账/历史/规
+  则）。给桥补 thread_id 属上游改造（stage_write 的
+  记录结构没有该字段），本包不做。
+- **「暂不支持在 App 内审批」枚举定案**：即
+  `WriteGateRecord.canDecide == false` ⟺ subsystem
+  ∉ {memory, skills}（解码落 `.unknown`——桥将来新
+  增子系统、或枚举外字符串）；桥 decide/detail 路由
+  对非这两类返回 400（App 侧 pathSegment 为 nil），
+  故既不能裁决也不能拉详情。现行桥只产出 memory/
+  skills 两类，此分支为纯防御。处理：卡面保留只读
+  ＋明示「请在 Hermes 中处理」，不静默缺失（聊天卡
+  与枢纽卡同口径，本包已把枢纽旧文案补齐去向）。
+
+### 87.2 就地卡形态（ChatApprovalCards.swift）
+
+- 挂载：ChatView 的 LazyVStack 中回告卡之后、空态
+  之前——只在呈现层拼装、绝不写入会话（0.7.0 红线
+  D4 先例）；仅 `approvalState == .ready` 时渲染，
+  未接通/未启用/失败态不在聊天里闹（枢纽如实呈现）。
+- 卡面：徽章＋相对时间（zh_CN，§87.5）、人话标题问
+  句（Core `ApprovalCardCopy.question`：动作＋对象走
+  结构化字段模板）、结构化头条（§87.5）作说明行、
+  内容预览、来源人话、一句后果说明、canDecide 时示
+  「总是允许范围：<子系统·来源>（可在枢纽撤销）」。
+- 「查看详情」就地 inline 展开：按需拉桥 detail，
+  内容体与枢纽 sheet 共用 `ApprovalReviewContent`
+  （自 HubDiffView 抽出，含 notes 警示/patch 原文失
+  效提示/diff 正文＋原始信息折叠区），不跳 sheet。
+- 三档全宽堆叠：批准（.borderedProminent）／总是允
+  许这一类（先确认弹窗）／驳回（末位、确认弹窗）；
+  裁决中态、失败留痕沿用 store 的 decidingIDs/
+  cardNotes；裁决后卡原地收成结果行（已批准/已驳
+  回/已批准 · 已记住这一类/已按规则放行，上限 20
+  条、按记录 id 去重）。
+- 刷新触发四点：进/切对话（.task id: 线程）、回前
+  台（scenePhase.active，与 resumeRunIfNeeded 并
+  行）、网络路径变化（networkPathEpoch）、生成结
+  束（isStreaming 下降沿——写入最可能刚被暂存的时
+  刻）。聊天侧走 `refreshApprovalForChat` 静默刷
+  新：ready 态不回 loading、不闪卡；失败保留现态。
+
+### 87.3 共享 store（同数据同路径，规格 §6）
+
+- `AgentHubStore` 自此由 `AppState.sharedHubStore()`
+  懒建单例持有（客户端按 isDemo 选，onApproval-
+  Changed 改 var、由 AgentHubView 注入——全 App 唯
+  一枢纽呈现点仍是 ChatView 的 sheet）。聊天卡与枢
+  纽卡读同一份 /pending、走同一 decide 路径。
+- 一致性代价与对冲：loadApproval 的「枢纽已打开就
+  跳过重拉」缓存语义不变，但 AgentHubView 打开时改
+  走 force:true——保住「每次打开枢纽必刷新」的既有
+  语义，防共享后枢纽数据发陈。
+- 结果行对账：每次成功拉取后，用「上一轮 ready 快
+  照 − 本轮 pending」∩ 已决历史补结果行（via_rule
+  →已按规则放行）。覆盖关键生命周期：卡已显示→用
+  户建了规则（或规则早已存在）→桥 sweep 自动放行
+  →卡消失但结果行如实出现，不无声蒸发。
+
+### 87.4 桥侧规则面（只施工未部署，部署另行报批）
+
+契约（companion/modules/write_gate_bridge.py，本包
+新增；自测 tests/write_gate_rules_selftest.py 22/22，
+全套回归除 device_sync 一项既有时间敏感失败外全过
+——该项种子数据按「今天」算到期数、跨日漂移，与本
+包文件零交集，已核时间戳为 11-10 旧文件）：
+
+- 存储：`<HERMES_HOME>/write-gate/rules.json`（与
+  decisions.jsonl 同目录），tmp＋rename 原子写；
+  **规则键＝（subsystem, 原始 origin）**；rule id＝
+  `"rule_" + sha256(subsystem + "\x00" + origin)[:16]`；
+  建规则幂等（同键回既有、created=false）。
+- 放行：staging 发生在 Hermes 内部 `wa.stage_write`、
+  不经桥，唯一钩子是 sweep——`_sweep_rules()` 在
+  GET /pending、GET /status 前先跑，另有 main() 起
+  的 5 秒后台 sweeper 线程兜底；命中规则的 pending
+  走与 HTTP decide 完全同一的 `_apply_decision`
+  路径（批准→执行→落账），decision 记 "approved"、
+  另带 `via_rule=<rule id>`——历史/台账/面板据此显
+  示「按规则放行」，不与人工批准混同。
+- 端点（全 Bearer）：GET /rules；POST /rules（校验
+  subsystem ∈ {memory, skills}、origin 非空 ≤200 字
+  无控制字符；新建 201/已存在 200）；DELETE /rules/
+  {id}（200/404 不存在/400 id 格式非法）。规则端点
+  在写闸 SUPPORTED=False 时也可达（桥本地状态）。
+- App 侧失败语义：`decideAlways` **先建规则后批
+  准**——建规则失败→cardNotes 留痕「没能记住」、不
+  批准、记录留待批（不许假装已记住）；建成→刷新规
+  则镜像→打 always 标记→走既有 decide(approve)。
+  建成后、批准前记录被 sweep 抢走的，按 recordGone
+  路径据账本补「已按规则放行」结果行，如实。
+- 撤销面同批落地（无撤销不交付）：枢纽「审批规则」
+  区列 scope（子系统 · 来源人话）＋建立时间＋撤销
+  （确认弹窗）；撤销失败保留并留人话、按桥真值重
+  拉对账。规则只存桥侧，App 本地零存储。
+- **部署清单（待主线报用户批准）**：文件仅
+  modules/write_gate_bridge.py 一个（＋自测文件不
+  上生产）；回滚基线＝现行生产 write_gate_bridge.py
+  原文件；动作＝替换文件＋重启伴生容器（write-gate
+  模块随容器重启加载）；数据面新增 rules.json（首
+  次建规则时生成，删除即全量回滚规则面）；App 侧
+  在桥未部署前：/rules 404/501→规则列表保持空、
+  「总是允许」走 bridgeMissing 留痕失败、既有两档
+  裁决不受影响。
+
+### 87.5 文案人话化（宪法 §8 在审批面的收口，P-16）
+
+- 头条模板 `ApprovalHeadline`（Core）：由结构化字
+  段拼中文——batch(3×patch) on 技能 X→「修改技能
+  《X》：共 3 处改动」；create→「新建技能《X》」；
+  add＋预览→「新增一条记忆：〈预览〉」；remove＋
+  user 目标→「从个人资料删除：〈预览〉」。待批卡、
+  就地卡、已决历史、记忆页待批行四处同口径（历史
+  行 Text(item.summary) 与枢纽卡 displaySummary 直
+  用原串的两处漏点已改 headline）。
+- 字段来源在桥侧补齐（同 §87.4 文件，未部署）：
+  `_structured_fields` 从 replay payload 提取 op
+  （有效动作）/target_name/op_count/op_kinds/mem_
+  target/content_preview（≤120 字），_norm_record
+  与 _append_decision 同源输出——**不许 App 对英文
+  串做字符串替换凑数**；桥未部署前字段缺失，模板
+  退通用中文句（动词＋类别），任何情况下头条不回
+  落英文原串。说明行（previewLine）：内容预览优
+  先；无预览且原摘要中文主导才用摘要；英文摘要→
+  无说明行。原始串只许进详情「原始信息（排障用）」
+  折叠区（摘要/来源原值/记录编号，默认折叠）。
+- 来源映射：`WriteGateLabels.originLabel` 新增
+  oneday_app→「本机 App」；**未知值口径修订（用户
+  点名，覆盖 0.36.x 旧「回落原始值诚实呈现」）**：
+  未知 origin →「其他来源」，原始标识只进详情折
+  叠区。规则键仍用 origin 原值（桥侧匹配），映射
+  只管呈现。
+- 相对时间：审批面三处改走 `ApprovalTimeText`
+  （RelativeDateTimeFormatter 钉 zh_CN locale），
+  不再 `.formatted(.relative)` 跟随设备口径。
+  **审批面之外的同类漏点清单（本包不扩围、留后续
+  包）**：HubCronSection.swift 1 处 `.relative
+  (presentation:)`（定时任务段的相对时间，同病同
+  源，建议随下个枢纽相关包一并收口）。全仓仅此一
+  处余量（已 grep 核清：HubApprovalSection 2 处已
+  改、ChatApprovalCards 新增即用新口径）。
+- 钉测（Tests/OneDayCoreTests/ApprovalCopyTests
+  .swift，13 个用例）：四类真实串形态＋兜底分支＋
+  「英文原串永不当头条」＋via_rule 解码与同模板头
+  条＋问句模板（含结构化 op 优先于顶层 action）＋
+  规则模型解码＋相对时间中文断言；既有 HubGate-
+  AndBrowserTests 的未知来源断言同步改新口径。
+
+### 87.6 复验口径（真机，五条＋一条）
+
+1. 对话中触发一条待批写入：当前对话流末尾就地出
+   卡，不用去枢纽页找；
+2. 点「查看详情」：差异在卡内就地展开，不跳页；
+3. 点「总是允许这一类」：该条批准生效；再触发同
+   类（同子系统、同来源）写入：不再出卡、自动放
+   行，已决历史里标「按规则放行」；
+4. 枢纽「审批规则」撤销该规则后，再触发同类写
+   入：重新出卡等待审批；
+5. 点「驳回」：写入不生效，卡原地收成「已驳回」
+   一行；
+6. 文案：打开枢纽已决历史，最近几条头条全中文可
+   读，英文只在点开详情的「原始信息」折叠区里。
+   （前置：§87.4 规则面部署获批并完成后第 3/4 条
+   才可验；未部署前第 3 条会如实报「没能记住」。）
+
+## §88 右滑再修：shouldBegin 生死判据改速度域（0.36.21/88，P-15 续修）
+
+真机回归第二轮：0.36.20 装后用户 01:53 报「右滑不
+行了」——纵向滚动恢复、右滑引用完全没反应。上一轮
+修过头：滚动与右滑只保住一头。与 §87 合并一包（用
+户原话「审批和修复一个版本搞」）。
+
+### 88.1 外部核查对账（先搜后改，三档）
+
+- **与拟定修法一致且给出生产实证（主证据）**：
+  SwipeCellKit PR #381 ——其 `gestureRecognizer-
+  ShouldBegin` 原用 translation 判方向（`abs(t.y)
+  <= abs(t.x)`，与我方 0.36.20 首版同型同病），被
+  改为 velocity＋角度门 `atan2(|vy|,|vx|) < π/8`
+  （22.5°，即 |vx|/|vy| ≳ 2.41）。生产级库在同一回
+  调位置踩过同一坑、修法是换信号域。
+- **旁证同向**：LiveFront 的可拖拽 ScrollView 工程
+  文、onmyway133 的 UICollectionView 横滑文——
+  shouldBegin 里的方向决策在野实现均用 `velocity
+  (in:)`；Exyte Chat 的滑动动作建在 UITableView 系
+  统滑动操作（UISwipeActionsConfiguration）上，仲
+  裁由系统接管，不适用于自研 LazyVStack（与 §85 旧
+  判一致，不采）；Xtend 工程博客记录其聊天右滑回
+  复「花了六个提交才与邻居手势共存」，佐证此坑的
+  通行难度。
+- **未核到**：Telegram iOS 的具体实现细节未检索到
+  可用证据（结果为无障碍 issue 噪声）；其列表为自
+  研 AsyncDisplayKit 面、实现不可迁移——如实记未核
+  到，不凑数。
+
+### 88.2 根因定案（主线头号嫌疑坐实）
+
+`gestureRecognizerShouldBegin` 在 pan 刚要离开
+.possible 时被咨询，此时累计 translation 远未够到
+Core 锁定距离（DrawerMotion.directionLockDistance
+＝10pt），`SwipeReplyMotion.shouldBeginPan` 的位移
+判据（|dx|≥10 且 |dx|≥1.5|dy|）对几乎每次触摸恒为
+false → 识别器永远 begin 不了 → handler 永不被调、
+右滑全无反应；纵滚则因本识别器从不竞争而完好无
+损——两个版本两种相反症状（0.36.19 纵滚死、0.36.20
+右滑死），病根都是方向门放错了层或用错了信号。次
+嫌疑「默认排斥仲裁恒输」被 SwipeCellKit 生产实证
+推翻为非主因（同形态仲裁在生产可用）。
+
+### 88.3 修法（形态 A：判据换域，不换结构）
+
+- Core：`SwipeReplyMotion.shouldBeginPan` 改速度签
+  名 `(velocityX:velocityY:)`——`vx > 0 && |vx| >=
+  DrawerMotion.directionLockRatio × |vy|`。比值引
+  DrawerMotion 单源（1.5，与 SwipeCellKit 的 2.41
+  角度门口径不同但同族：本仓抽屉 S2 与右滑共用一
+  个方向比值是 §84 起的单源纪律，不为对齐外部数字
+  另立一份）；速度域不设距离下限——pt/s 与 pt 不同
+  量纲，硬套 10pt 距离门正是本轮病根，SwipeCellKit
+  亦为纯角度门、无速度大小门。
+- 桥：shouldBegin 改读 `pan.velocity(in: view)`；
+  handler 的位移锁定段（.began/.changed 后用
+  engages 的 translation 口径定跟手）不动——begin
+  之后位移已真实累积，位移判据在该阶段成立。
+- 不动的：阈值 52pt、显形进度、箭头呈现、回弹、触
+  觉、beginReply 入口、长按菜单、点图、贴底/回底；
+  不设 isScrollEnabled 开关（SwipeCellKit 亦不
+  做：横向 begin 后禁滚靠系统默认排斥仲裁）；回调
+  隔离形态不变（桥 Coordinator 非 actor 隔离，与
+  §85 一致）。
+- 仲裁四态对本形态的落点（扩围简报四条）：未定案
+  零写入＝位移只从 .began/.changed 回调写＋拒判用
+  例钉测；纵向定案自取消＝纵向主导速度判 false、
+  识别器在识别层自毙（等效 .cancelled 于本次触
+  摸）；横向定案禁滚＝begin 后系统默认排斥仲裁（构
+  造性，无代码开关）；松手/取消必恢复滚动＝全程不
+  改任何滚动状态、.cancelled/.failed 只走既有
+  onCancelled 复位位移——无状态可恢复即构造性成
+  立。原「begin 后 handler 内纵向再定案自取消」的
+  备选形态（B）不采：shouldBegin 已按速度定生死，
+  再在 handler 里加一层取消是重复仲裁、且会引入新
+  的中途闪断面。
+- 钉测：SwipeReplyMotionTests 的 shouldBeginPan
+  组按速度域重写（右向主导含临界 150/100 恰达 1.5
+  倍允、纵向主导拒、左向拒、零速拒、慢速方向明确
+  允）；位移域的 MatchesEngages 逐点同源断言随判
+  据换域退役（两域不同量纲、逐点相等不再成立），
+  engages 本体用例保留。
+
+### 88.4 复验口径（真机）
+
+第一条并列两件、缺一不可：**从气泡上起手纵向拖
+动，列表滚动正常；且右滑过半程（52pt）触发引用、
+出引用块**。其余沿 §85：纵滑全程气泡零横移；右滑
+未过半松手回弹不触发；长按菜单五项不受影响；点图
+开预览不受影响；贴底与回底钮照常；手势被系统夺
+走（来电/控制中心）只复位不误触发。

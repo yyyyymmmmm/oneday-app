@@ -116,11 +116,33 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     /// replay payload 原样（列表可省略，详情必带）；只供
     /// 详情内次级呈现，不进列表摘要
     public let payload: JSONValue?
+    // 结构化头条字段（0.36.21，桥 _structured_fields 提
+    // 供）：用户面标题由 ApprovalHeadline 从这些字段拼
+    // 中文人话，原始 summary 英文运维串不直达用户面
+    // （宪法 §8）。旧桥未部署前字段缺失，模板走通用
+    // 中文兜底——任何情况下头条不回落英文原串
+    /// 有效 op（payload 内的真实动作，优先于顶层 action）
+    public let op: String?
+    /// skills 目标名（技能名）
+    public let targetName: String?
+    /// batch 的操作数与逐项 op 名
+    public let opCount: Int?
+    public let opKinds: [String]?
+    /// memory 目标："memory" / "user"（个人资料）
+    public let memTarget: String?
+    /// 内容预览（桥截断至 120 字，模板再收口）
+    public let contentPreview: String?
 
     enum CodingKeys: String, CodingKey {
         case id, subsystem, action, summary, origin, payload
         case createdAt = "created_at"
         case createdAtApprox = "created_at_approx"
+        case op
+        case targetName = "target_name"
+        case opCount = "op_count"
+        case opKinds = "op_kinds"
+        case memTarget = "mem_target"
+        case contentPreview = "content_preview"
     }
 
     public init(from decoder: Decoder) throws {
@@ -136,6 +158,20 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
             Bool.self, forKey: .createdAtApprox
         ) ?? false
         payload = try container.decodeIfPresent(JSONValue.self, forKey: .payload)
+        op = try container.decodeIfPresent(String.self, forKey: .op)
+        targetName = try container.decodeIfPresent(
+            String.self, forKey: .targetName
+        )
+        opCount = try container.decodeIfPresent(Int.self, forKey: .opCount)
+        opKinds = try container.decodeIfPresent(
+            [String].self, forKey: .opKinds
+        )
+        memTarget = try container.decodeIfPresent(
+            String.self, forKey: .memTarget
+        )
+        contentPreview = try container.decodeIfPresent(
+            String.self, forKey: .contentPreview
+        )
         // created_at：桥转 ISO8601 字符串；也宽容 epoch 数值
         if let text = (try? container.decodeIfPresent(
             String.self, forKey: .createdAt
@@ -153,7 +189,10 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     public init(
         id: String, subsystem: WriteGateSubsystem, action: String,
         summary: String, origin: String, createdAt: Date?,
-        createdAtApprox: Bool = false, payload: JSONValue? = nil
+        createdAtApprox: Bool = false, payload: JSONValue? = nil,
+        op: String? = nil, targetName: String? = nil,
+        opCount: Int? = nil, opKinds: [String]? = nil,
+        memTarget: String? = nil, contentPreview: String? = nil
     ) {
         self.id = id
         self.subsystem = subsystem
@@ -163,6 +202,38 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         self.createdAt = createdAt
         self.createdAtApprox = createdAtApprox
         self.payload = payload
+        self.op = op
+        self.targetName = targetName
+        self.opCount = opCount
+        self.opKinds = opKinds
+        self.memTarget = memTarget
+        self.contentPreview = contentPreview
+    }
+
+    /// 有效动作：桥结构化 op 优先，缺失回落顶层 action
+    public var effectiveOp: String {
+        if let op, !op.isEmpty { return op }
+        return action
+    }
+
+    /// 用户面头条（0.36.21）：结构化模板拼中文，原始
+    /// 英文 summary 不当头条（见 ApprovalHeadline）
+    public var headline: String {
+        ApprovalHeadline.title(
+            subsystem: subsystem, op: effectiveOp,
+            targetName: targetName, opCount: opCount,
+            opKinds: opKinds, memTarget: memTarget,
+            contentPreview: contentPreview
+        )
+    }
+
+    /// 头条下的说明行：内容预览优先；无预览且原始摘
+    /// 要已是中文时用摘要；都没有（或摘要是英文运维
+    /// 串）返回 nil——英文原串只进详情原始信息区
+    public var previewLine: String? {
+        ApprovalHeadline.previewLine(
+            contentPreview: contentPreview, summary: summary
+        )
     }
 
     /// 是否可裁决：未知子系统不开批准/驳回口（契约红线）
@@ -385,10 +456,14 @@ public enum ApprovalSectionState: Equatable, Sendable {
 
 /// 来源/action/notes 的人话映射。origin 取值域经桥侧
 /// 实测确认比上游 docstring 写的 foreground/background_
-/// review 更宽（实测有 assistant_tool），本表按「实测
-/// 枚举可扩展」做：已知值给人话译名，未知值回落原始值
-/// 的诚实呈现——不许按二值写死、不许因为来源没见过就
-/// 丢弃整张卡；新取值出现时往本表加一行即可。
+/// review 更宽（实测有 assistant_tool、oneday_app），
+/// 本表按「实测枚举可扩展」做：已知值给人话译名。未
+/// 知值口径（0.36.21 用户点名修订，覆盖旧「回落原
+/// 值」）：给通用中文兜底「其他来源」——原始标识是
+/// 内部记账名、属宪法 §8 的外文/行话漏出，不许当标
+/// 签直达用户面；原始值仍可在详情原始信息区排障。
+/// 新取值出现时往本表加一行即可，不许因为来源没见
+/// 过就丢弃整张卡。
 public enum WriteGateLabels {
     public static func actionVerb(_ action: String) -> String {
         switch action.lowercased() {
@@ -410,14 +485,15 @@ public enum WriteGateLabels {
         if key.contains("background") { return "后台自检" }
         switch key {
         case "assistant_tool": return "智能体工具调用"
+        case "oneday_app": return "本机 App"
         case "foreground": return "对话中写入"
         case "cli": return "命令行"
         case "dashboard", "web": return "控制台"
         case "chat", "gateway", "api_server", "api": return "对话中写入"
         default:
-            // 未知来源：回落原始值诚实呈现，不编造译名、
-            // 不丢卡（实测枚举可扩展口径，见本节文件头）
-            return raw
+            // 未知来源：通用中文兜底，不漏原始标识
+            // （0.36.21 口径，见本节头注）
+            return "其他来源"
         }
     }
 
@@ -434,5 +510,87 @@ public enum WriteGateLabels {
         default:
             return "这条待批带有一条桥侧提示，批准前请打开改动核对。"
         }
+    }
+}
+
+// MARK: - 「总是允许」规则（0.36.21，桥 /rules 契约）
+//
+// 规则键＝（子系统，来源范围 origin 原值）；规则只存
+// 桥侧（write-gate/rules.json），App 只读/建/撤销、
+// 本地不存。命中规则的新写入由桥自动放行并在已决账
+// 本里以 via_rule 留痕（见 WriteGateDecisionRecord）。
+
+/// 一条持久规则
+public struct WriteGateRule: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let subsystem: WriteGateSubsystem
+    /// 来源范围（origin 原值——作规则键用，不上屏；
+    /// 上屏走 originLabel 的人话映射）
+    public let origin: String
+    public let createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, subsystem, origin
+        case createdAt = "created_at"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        subsystem = try container.decodeIfPresent(
+            WriteGateSubsystem.self, forKey: .subsystem
+        ) ?? .unknown
+        origin = try container.decodeIfPresent(
+            String.self, forKey: .origin
+        ) ?? ""
+        if let text = (try? container.decodeIfPresent(
+            String.self, forKey: .createdAt
+        )) ?? nil {
+            createdAt = ProfileSoulDocument.parseDate(.string(text))
+        } else if let epoch = (try? container.decodeIfPresent(
+            Double.self, forKey: .createdAt
+        )) ?? nil {
+            createdAt = ProfileSoulDocument.parseDate(.number(epoch))
+        } else {
+            createdAt = nil
+        }
+    }
+
+    public init(
+        id: String, subsystem: WriteGateSubsystem,
+        origin: String, createdAt: Date?
+    ) {
+        self.id = id
+        self.subsystem = subsystem
+        self.origin = origin
+        self.createdAt = createdAt
+    }
+
+    /// 来源人话（与待批卡同一译表）
+    public var originLabel: String {
+        WriteGateLabels.originLabel(origin)
+    }
+
+    /// 规则范围一行话：子系统＋来源（如「记忆 · 本机 App」）
+    public var scopeLabel: String {
+        "\(subsystem.badgeLabel) · \(originLabel)"
+    }
+}
+
+/// GET /rules
+public struct WriteGateRulesResponse: Decodable, Equatable, Sendable {
+    public let rules: [WriteGateRule]
+
+    public init(rules: [WriteGateRule]) {
+        self.rules = rules
+    }
+}
+
+/// POST /rules 回执
+public struct WriteGateRuleResponse: Decodable, Equatable, Sendable {
+    public let rule: WriteGateRule
+
+    public init(rule: WriteGateRule) {
+        self.rule = rule
     }
 }

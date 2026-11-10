@@ -2,12 +2,12 @@ import OneDayCore
 import SwiftUI
 import UIKit
 
-/// 右滑引用手势桥（0.36.20，§85，P-15 终修）：把右滑
-/// 引用的接管层从 SwiftUI DragGesture 换成 UIKit 平移
-/// 识别器——生死在 `gestureRecognizerShouldBegin` 阶
-/// 段按 Core `SwipeReplyMotion.shouldBeginPan` 同一判
-/// 据决定：横向主导才 begin，纵向主导直接不 begin、
-/// 纵滚完整让给 ScrollView。
+/// 右滑引用手势桥（0.36.20 §85 立桥、0.36.21 §88 改
+/// 生死判据域）：把右滑引用的接管层从 SwiftUI Drag-
+/// Gesture 换成 UIKit 平移识别器——生死在 `gesture-
+/// RecognizerShouldBegin` 阶段按 Core `SwipeReply-
+/// Motion.shouldBeginPan` 决定：横向主导才 begin，纵
+/// 向主导直接不 begin、纵滚完整让给 ScrollView。
 ///
 /// 为什么必须下到 UIKit（外部核查对账见 DESIGN §85）：
 /// DragGesture 在识别层无法自我失败——minimumDistance
@@ -16,6 +16,14 @@ import UIKit
 /// 挡不住识别抢占（真实项目 Revela 的实测报告与本次
 /// 真机回归逐字同型）。UIKit 的 shouldBegin 是通行解
 /// （SwipeCellKit 等生产级滑动单元格库同模式）。
+///
+/// 0.36.21 改判据域（§88 定案）：shouldBegin 拿**速
+/// 度**判生死，不拿位移——shouldBegin 被咨询时识别
+/// 器尚在 .possible、位移没够到锁定距离，0.36.20 首
+/// 版拿位移问 shouldBeginPan 恒为 false、识别器永远
+/// begin 不了（真机右滑全灭、纵滚则因它永不 begin
+/// 而完好）。SwipeCellKit 的 shouldBegin 亦由位移改
+/// 判速度（PR #381），与本修同型。
 ///
 /// 挂载形态：零尺寸探针视图（不参与命中测试）把识别
 /// 器装到修饰符容器的父视图上——识别器由此成为消息
@@ -118,15 +126,18 @@ struct SwipeReplyPanProbe: UIViewRepresentable {
         /// 触摸直接死亡，ScrollView 的平移识别器完整
         /// 接管纵滚；横向主导才许 begin。判据只认 Core
         /// 单源（SwipeReplyMotion.shouldBeginPan），本
-        /// 处不许另写比值
+        /// 处不许另写比值。**读速度不读位移**（§88）：
+        /// 本回调被咨询时位移尚不足锁定距离、位移判据
+        /// 恒拒（0.36.20 右滑全灭的定案）；速度在触摸
+        /// 起步即有方向意义
         func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
                   let view = pan.view else { return false }
-            let translation = pan.translation(in: view)
+            let velocity = pan.velocity(in: view)
             return SwipeReplyMotion.shouldBeginPan(
-                dx: translation.x, dy: translation.y
+                velocityX: velocity.x, velocityY: velocity.y
             )
         }
 

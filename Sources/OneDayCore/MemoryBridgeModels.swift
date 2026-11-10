@@ -358,14 +358,49 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
     /// "approved" / "rejected"（桥原值）
     public let decision: String
     public let decidedAt: Date?
+    /// 按规则自动放行时的规则 id（0.36.21，桥账本
+    /// via_rule）；非空即「按规则放行」，呈现层据此
+    /// 标明，不许与人工批准混同
+    public let viaRule: String?
+    // 结构化头条字段（0.36.21，与待批记录同源同名，
+    // 桥 _append_decision 一并落账）：历史行头条与待
+    // 批卡同模板（ApprovalHeadline），不直用 summary
+    public let op: String?
+    public let targetName: String?
+    public let opCount: Int?
+    public let opKinds: [String]?
+    public let memTarget: String?
+    public let contentPreview: String?
 
     public var isApproved: Bool { decision == "approved" }
     public var isRejected: Bool { decision == "rejected" }
+    /// 是否按「总是允许」规则自动放行
+    public var isRuleApproved: Bool { viaRule != nil }
+
+    /// 有效动作：结构化 op 优先，缺失回落顶层 action
+    public var effectiveOp: String {
+        if let op, !op.isEmpty { return op }
+        return action
+    }
+
+    /// 用户面头条（与待批卡同一模板）
+    public var headline: String {
+        ApprovalHeadline.title(
+            subsystem: subsystem, op: effectiveOp,
+            targetName: targetName, opCount: opCount,
+            opKinds: opKinds, memTarget: memTarget,
+            contentPreview: contentPreview
+        )
+    }
 
     public init(
         id: String, subsystem: WriteGateSubsystem, action: String,
         summary: String, origin: String, decision: String,
-        decidedAt: Date?
+        decidedAt: Date?,
+        viaRule: String? = nil, op: String? = nil,
+        targetName: String? = nil, opCount: Int? = nil,
+        opKinds: [String]? = nil, memTarget: String? = nil,
+        contentPreview: String? = nil
     ) {
         self.id = id
         self.subsystem = subsystem
@@ -374,11 +409,25 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
         self.origin = origin
         self.decision = decision
         self.decidedAt = decidedAt
+        self.viaRule = viaRule
+        self.op = op
+        self.targetName = targetName
+        self.opCount = opCount
+        self.opKinds = opKinds
+        self.memTarget = memTarget
+        self.contentPreview = contentPreview
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, subsystem, action, summary, origin, decision
         case decidedAt = "decided_at"
+        case viaRule = "via_rule"
+        case op
+        case targetName = "target_name"
+        case opCount = "op_count"
+        case opKinds = "op_kinds"
+        case memTarget = "mem_target"
+        case contentPreview = "content_preview"
     }
 
     public init(from decoder: Decoder) throws {
@@ -399,6 +448,23 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
         decision = try container.decodeIfPresent(
             String.self, forKey: .decision
         ) ?? ""
+        viaRule = try container.decodeIfPresent(
+            String.self, forKey: .viaRule
+        )
+        op = try container.decodeIfPresent(String.self, forKey: .op)
+        targetName = try container.decodeIfPresent(
+            String.self, forKey: .targetName
+        )
+        opCount = try container.decodeIfPresent(Int.self, forKey: .opCount)
+        opKinds = try container.decodeIfPresent(
+            [String].self, forKey: .opKinds
+        )
+        memTarget = try container.decodeIfPresent(
+            String.self, forKey: .memTarget
+        )
+        contentPreview = try container.decodeIfPresent(
+            String.self, forKey: .contentPreview
+        )
         if let text = (try? container.decodeIfPresent(
             String.self, forKey: .decidedAt
         )) ?? nil {

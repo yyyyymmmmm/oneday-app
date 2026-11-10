@@ -2,57 +2,67 @@ import OneDayCore
 import XCTest
 
 /// 右滑引用纯逻辑（0.36.19，§84.3；0.36.20 §85 补
-/// 方向生死判据）：方向门/跟手位移/触发阈值/显形进
-/// 度。0.36.19 的教训（P-15）：本文件旧头注写「呈现
-/// 层手势与滚动的仲裁不在此测」——判据全过、共存从
-/// 未验，纵滚在真机被压死。自 0.36.20 起方向生死判
-/// 据（shouldBeginPan）也在此钉死，且验收必含真机
-/// 「从气泡上起手纵滚」一条（见 DESIGN §85 复验口径）
+/// 方向生死判据；0.36.21 §88 生死判据改速度域）：
+/// 方向门/跟手位移/触发阈值/显形进度。0.36.19 的教
+/// 训（P-15）：本文件旧头注写「呈现层手势与滚动的
+/// 仲裁不在此测」——判据全过、共存从未验，纵滚在真
+/// 机被压死。方向生死判据（shouldBeginPan）自 0.36.20
+/// 起在此钉死、0.36.21 改判速度域（位移域版随 §88
+/// 定案退役），且验收必含真机「从气泡上起手纵滚」
+/// 与「右滑过半程触发引用」并列两条（见 DESIGN §88
+/// 复验口径）
 final class SwipeReplyMotionTests: XCTestCase {
 
-    // MARK: - 方向生死判据（0.36.20：UIKit 桥 shouldBegin 同源）
+    // MARK: - 方向生死判据（0.36.21 §88：速度域，桥 shouldBegin 同源）
+    //
+    // 0.36.20 的位移域判据（shouldBeginPan(dx:dy:) 与
+    // engages 逐点相等那组测试）已随定案退役：should-
+    // Begin 时位移未达锁定距离、位移判据恒拒，右滑在
+    // 真机全灭。速度域判据只保留方向与比值（比值引
+    // DrawerMotion.directionLockRatio 单源），pt/s 与
+    // pt 不同量纲、不设距离门。仲裁四态对本形态的映
+    // 射：拒 begin＝识别层自取消（本次触摸零写入）；
+    // 允 begin 后禁滚由系统默认排斥仲裁承担；全程不
+    // 改任何滚动开关，松手/系统取消无状态可恢复、
+    // 只复位位移（呈现层口径，见桥与修饰符）
 
-    func testShouldBeginPanRejectsVerticalDominant() {
-        // 纯纵向与纵向主导的斜拖：识别器必死、纵滚归列表
-        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(dx: 0, dy: 30))
-        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(dx: 5, dy: 40))
-        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(dx: 12, dy: 20))
-        // 临界比值外侧：|dx| 只差一点不到 1.5×|dy| 仍拒
-        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(dx: 14, dy: 10))
-        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(dx: 10, dy: 7))
+    func testShouldBeginPanRejectsVerticalDominantVelocity() {
+        // 纯纵向与纵向主导的速度：拒 begin、纵滚归列表
+        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 0, velocityY: 300))
+        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 50, velocityY: 400))
+        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 120, velocityY: 200))
+        // 临界比值外侧：vx 只差一点不到 1.5×vy 仍拒
+        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 149, velocityY: 100))
     }
 
-    func testShouldBeginPanAllowsHorizontalDominant() {
-        // 纯右拖与横向主导：必允
-        XCTAssertTrue(SwipeReplyMotion.shouldBeginPan(dx: 20, dy: 0))
-        XCTAssertTrue(SwipeReplyMotion.shouldBeginPan(dx: 30, dy: 20))
-        // 恰达锁定距离 10pt：允
-        XCTAssertTrue(SwipeReplyMotion.shouldBeginPan(dx: 10, dy: 0))
-        // 临界比值恰达 1.5 倍：按 engages 既有口径（≥）允
-        XCTAssertTrue(SwipeReplyMotion.shouldBeginPan(dx: 15, dy: 10))
+    func testShouldBeginPanAllowsHorizontalDominantVelocity() {
+        // 纯右向与横向主导的速度：必允
+        XCTAssertTrue(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 300, velocityY: 0))
+        XCTAssertTrue(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 300, velocityY: 200))
+        // 临界比值恰达 1.5 倍：按 ≥ 口径允
+        XCTAssertTrue(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 150, velocityY: 100))
+        // 慢速但方向明确的右拖同样允（速度域不设大小
+        // 门——SwipeCellKit 同形态：只问角度不问快慢）
+        XCTAssertTrue(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 40, velocityY: 10))
     }
 
-    func testShouldBeginPanRejectsLeftwardAndShort() {
-        // 左拖不归本手势
-        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(dx: -20, dy: 0))
-        // 未达锁定距离：不 begin（与滚动的先手之争不许
-        // 在 10pt 内发生）
-        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(dx: 9, dy: 0))
-        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(dx: 0, dy: 0))
-    }
-
-    func testShouldBeginPanMatchesEngages() {
-        // 桥判据与方向门永远同源：抽查网格逐点相等，
-        // 防将来任一处改口径另一处漏改
-        for dx in stride(from: -30.0, through: 30.0, by: 5.0) {
-            for dy in stride(from: -30.0, through: 30.0, by: 5.0) {
-                XCTAssertEqual(
-                    SwipeReplyMotion.shouldBeginPan(dx: dx, dy: dy),
-                    SwipeReplyMotion.engages(dx: dx, dy: dy),
-                    "dx=\(dx) dy=\(dy)"
-                )
-            }
-        }
+    func testShouldBeginPanRejectsLeftwardAndStillVelocity() {
+        // 左向不归本手势
+        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(
+            velocityX: -300, velocityY: 0))
+        // 静止/未定案：不 begin（本次触摸零写入）
+        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 0, velocityY: 0))
+        XCTAssertFalse(SwipeReplyMotion.shouldBeginPan(
+            velocityX: 0, velocityY: -200))
     }
 
     // MARK: - 方向门（右向＋横向主导，与抽屉 S2 同源）

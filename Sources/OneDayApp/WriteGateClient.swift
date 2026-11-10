@@ -42,6 +42,17 @@ protocol WriteGateClientProtocol: Sendable {
     func decisions(
         config: ServerConfig, limit: Int
     ) async throws -> [WriteGateDecisionRecord]
+    /// GET /rules（0.36.21「总是允许」规则面；规则只
+    /// 存桥侧，App 不落本地）
+    func rules(config: ServerConfig) async throws -> [WriteGateRule]
+    /// POST /rules：按（子系统，来源原值）建规则，桥
+    /// 侧幂等——同键已有规则时回既有规则
+    func createRule(
+        config: ServerConfig, subsystem: WriteGateSubsystem,
+        origin: String
+    ) async throws -> WriteGateRule
+    /// DELETE /rules/{id}：撤销一条规则
+    func deleteRule(config: ServerConfig, id: String) async throws
 }
 
 /// URLSession 实现：Base＝<服务器>/api/write-gate（nginx
@@ -104,6 +115,73 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
             endpoint: "已决记录"
         )
         return response.decisions
+    }
+
+    func rules(config: ServerConfig) async throws -> [WriteGateRule] {
+        let response: WriteGateRulesResponse = try await get(
+            config: config, path: "/rules", endpoint: "审批规则"
+        )
+        return response.rules
+    }
+
+    func createRule(
+        config: ServerConfig, subsystem: WriteGateSubsystem,
+        origin: String
+    ) async throws -> WriteGateRule {
+        guard let segment = subsystem.pathSegment else {
+            throw WriteGateError.failed("未知类型不支持建规则")
+        }
+        let body = try JSONSerialization.data(
+            withJSONObject: ["subsystem": segment, "origin": origin]
+        )
+        var request = try makeRequest(
+            config: config, path: "/rules", method: "POST"
+        )
+        request.httpBody = body
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        let (data, http) = try await send(request, endpoint: "建立规则")
+        switch http.statusCode {
+        case 200...299:
+            do {
+                return try decoder.decode(
+                    WriteGateRuleResponse.self, from: data
+                ).rule
+            } catch {
+                throw WriteGateError.failed("建立规则回执格式无法识别")
+            }
+        case 401:
+            throw WriteGateError.unauthorized
+        case 404, 501:
+            throw WriteGateError.bridgeMissing
+        case 409:
+            throw WriteGateError.conflict
+        default:
+            throw WriteGateError.failed("建立规则返回 \(http.statusCode)")
+        }
+    }
+
+    func deleteRule(config: ServerConfig, id: String) async throws {
+        let request = try makeRequest(
+            config: config, path: "/rules/\(id)", method: "DELETE"
+        )
+        let (_, http) = try await send(request, endpoint: "撤销规则")
+        switch http.statusCode {
+        case 200...299:
+            return
+        case 401:
+            throw WriteGateError.unauthorized
+        case 404:
+            // 规则已不在（可能已在别处撤销）：按「撤销
+            // 未生效」如实上报，调用方保留列表并提示，
+            // 不许假装撤成
+            throw WriteGateError.failed("这条规则已不存在，可能已被撤销。")
+        case 501:
+            throw WriteGateError.bridgeMissing
+        default:
+            throw WriteGateError.failed("撤销规则返回 \(http.statusCode)")
+        }
     }
 
     // MARK: - 请求底座
@@ -201,6 +279,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
 /// 内容（数据设计 §5.7：pending 正文不进 Demo 真数据）。
 final class DemoWriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
     private let lock = NSLock()
+    private var demoRules: [WriteGateRule] = []
     private var records: [WriteGateRecord]
     /// 演示已决历史（P10）：一条合成旧记录打底，演示中
     /// 的裁决实时追加到最前——与真实桥「裁决即落账」
@@ -287,6 +366,41 @@ final class DemoWriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         config: ServerConfig, limit: Int
     ) async throws -> [WriteGateDecisionRecord] {
         lock.withLock { Array(decidedRecords.prefix(limit)) }
+    }
+
+    // 演示规则面（0.36.21）：内存规则表，与真实桥同
+    // 语义（同键幂等、撤销即消失）；内容全合成
+    func rules(config: ServerConfig) async throws -> [WriteGateRule] {
+        lock.withLock { demoRules }
+    }
+
+    func createRule(
+        config: ServerConfig, subsystem: WriteGateSubsystem,
+        origin: String
+    ) async throws -> WriteGateRule {
+        lock.withLock {
+            if let existing = demoRules.first(where: {
+                $0.subsystem == subsystem && $0.origin == origin
+            }) {
+                return existing
+            }
+            let rule = WriteGateRule(
+                id: "demo-rule-\(demoRules.count + 1)",
+                subsystem: subsystem, origin: origin,
+                createdAt: Date()
+            )
+            demoRules.append(rule)
+            return rule
+        }
+    }
+
+    func deleteRule(config: ServerConfig, id: String) async throws {
+        try lock.withLock {
+            guard demoRules.contains(where: { $0.id == id }) else {
+                throw WriteGateError.failed("这条规则已不存在，可能已被撤销。")
+            }
+            demoRules.removeAll { $0.id == id }
+        }
     }
 
     private func decide(

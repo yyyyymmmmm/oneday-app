@@ -95,17 +95,21 @@ struct AgentHubView: View {
         .presentationDragIndicator(.visible)
         .task {
             if store == nil {
-                store = AgentHubStore(
-                    appState: appState,
-                    gateClient: appState.isDemo
-                        ? DemoWriteGateClient()
-                        : WriteGateClient(),
-                    onApprovalChanged: onApprovalChanged
-                )
+                // 0.36.21：store 改走 AppState 共享单例
+                // （就地审批卡与枢纽共用同一份 /pending
+                // 数据与裁决路径，规格 §6）；审批终态回
+                // 调仍在此注入（本视图是全 App 唯一呈现
+                // 枢纽的入口）
+                let shared = appState.sharedHubStore()
+                shared.onApprovalChanged = onApprovalChanged
+                store = shared
             }
             await store?.loadInitial()
             if mode == .activity {
-                await store?.loadApproval()
+                // 共享 store 后 loadApproval 默认可复用
+                // 缓存（chat 刷新刚拉过会跳过），枢纽语
+                // 义是「每次打开必刷新」——强制重拉保住
+                await store?.loadApproval(force: true)
             }
         }
     }

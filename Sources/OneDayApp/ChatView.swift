@@ -461,6 +461,11 @@ struct ChatView: View {
                 // 台时已弃置产物，见下方 background 分支）
                 dictation.armPreheat()
                 Task { await resumeRunIfNeeded() }
+                // 0.36.21：回前台刷新待批（就地卡）
+                Task {
+                    await appState.sharedHubStore()
+                        .refreshApprovalForChat()
+                }
             } else if phase == .background {
                 // 0.36.15：退后台弃置已备分析器——不在
                 // 后台占着系统语音资源；录音中的分析器
@@ -473,6 +478,21 @@ struct ChatView: View {
         // 路径信号只做触发器、不预判成败
         .onChange(of: appState.networkPathEpoch) {
             Task { await resumeRunIfNeeded() }
+            // 0.36.21：网络恢复同样刷新待批
+            Task {
+                await appState.sharedHubStore().refreshApprovalForChat()
+            }
+        }
+        // 0.36.21：生成结束（流式下降沿）刷新待批——
+        // 写入恰在这轮生成里被暂存的概率最高，静默刷
+        // 新把新卡顶到流末尾
+        .onChange(of: isStreaming) { wasStreaming, nowStreaming in
+            if wasStreaming && !nowStreaming {
+                Task {
+                    await appState.sharedHubStore()
+                        .refreshApprovalForChat()
+                }
+            }
         }
         // 0.36.15：离开聊天页关预热总闸并弃置产物
         .onDisappear {
@@ -480,6 +500,9 @@ struct ChatView: View {
         }
         .task(id: currentThreadID) {
             await resumeRunIfNeeded()
+            // 0.36.21：进/切对话刷新待批（就地卡数据源，
+            // 与枢纽共享同一 store）
+            await appState.sharedHubStore().refreshApprovalForChat()
         }
         .onAppear {
             // 0.36.6：语音控制器回调接线——识别文本回
@@ -1282,6 +1305,13 @@ struct ChatView: View {
                         reportCard(item, store: overviewStore)
                     }
                 }
+                // 就地审批（0.36.21，规格 §1/§3）：待批
+                // 写入在流末尾出卡——桥载荷无会话归属字
+                // 段，走退位形态（全部未决汇到当前流＋
+                // 枢纽兜底）；与回告卡同纪律：只在呈现
+                // 层拼装、绝不写入会话；store 与枢纽共
+                // 享同一份（AppState.sharedHubStore）
+                ChatApprovalZone(store: appState.sharedHubStore())
                 if currentThread == nil && !isStreaming {
                     // 空状态（DESIGN-V4 §5 两行字口径保
                     // 留）：0.26.0 起形象位由 SF 符号换三
@@ -4503,6 +4533,9 @@ private struct MessageMenuModifier: ViewModifier {
 ///   ——纵向主导不 begin、纵滚完整归 ScrollView；横
 ///   向 begin 后位移才横向写入 content 的 offset
 ///   （只在 begin 后写，滚动与贴底判定一概不碰）
+///   0.36.21（§88）：生死判据在 shouldBegin 读**速
+///   度**定方向——0.36.20 首版读位移、咨询时位移未
+///   达锁定距离恒被拒，右滑全灭，已改判速度域
 /// - 0.36.19 首版用 DragGesture＋onChanged 方向门，
 ///   真机证明识别层抢占挡不住、气泡区纵滚被压死，
 ///   已退役（P-15）；旧注释「纵向永远锁不上」是没

@@ -214,7 +214,7 @@ struct MemoryEntriesSection: View {
     private func externalPendingRow(_ record: WriteGateRecord) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(record.displaySummary)
+                Text(record.headline)
                     .font(.body)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)

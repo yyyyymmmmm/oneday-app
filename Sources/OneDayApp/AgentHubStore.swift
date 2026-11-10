@@ -6,14 +6,48 @@ import OneDayCore
 /// 打开时冻结 profile（原则 4）：首次请求前捕获档案名，
 /// 加载完成后复查，变了就整页快照作废重拉，不把两次
 /// 上下文的数据混在一页。
+/// 就地审批卡的裁决结果行（0.36.21）：卡被裁决（或
+/// 被规则放行）后原地收成的一行——标题（裁决当时的人
+/// 话头条）＋结果措辞；上限 20 条，超出弃最旧（呈现
+/// 层痕迹，权威账本是桥 /decisions）
+struct ApprovalResolvedLine: Identifiable, Equatable {
+    enum Outcome: Equatable {
+        case approved
+        case rejected
+        /// 经「总是允许」裁掉（规则已建成并落账）
+        case approvedAlways
+        /// 被既有规则自动放行（桥账本 via_rule）
+        case ruleApproved
+
+        var label: String {
+            switch self {
+            case .approved: return "已批准"
+            case .rejected: return "已驳回"
+            case .approvedAlways: return "已批准 · 已记住这一类"
+            case .ruleApproved: return "已按规则放行"
+            }
+        }
+
+        var isPositive: Bool { self != .rejected }
+    }
+
+    let id: String
+    let summary: String
+    let outcome: Outcome
+    let at: Date
+}
+
 @MainActor
 @Observable
 final class AgentHubStore {
     private let appState: AppState
     private let gateClient: WriteGateClientProtocol
     /// 审批终态回调（0.6.0）：活动格据此刷新总览桥角标，
-    /// 不等下一轮 30 秒轮询
-    private let onApprovalChanged: (() -> Void)?
+    /// 不等下一轮 30 秒轮询。0.36.21 起 store 由
+    /// AppState 共享持有，回调改由呈现枢纽的 AgentHub-
+    /// View 在注入时赋值（全 App 只有 ChatView 一处呈
+    /// 现枢纽，见 AppState.sharedHubStore）
+    var onApprovalChanged: (() -> Void)?
 
     init(
         appState: AppState, gateClient: WriteGateClientProtocol,
@@ -115,6 +149,24 @@ final class AgentHubStore {
     /// 已决历史（P10）：与待批同轮 best-effort 拉取——
     /// 拉不到保持上次值（首拉为空），不拖累待批呈现
     private(set) var decisionHistory: [WriteGateDecisionRecord] = []
+    /// 「总是允许」规则（0.36.21）：桥侧规则的只读镜
+    /// 像——规则只存桥、App 不落本地；拉取 best-effort，
+    /// 失败保持旧值（rulesLoaded 区分「拉过且为空」与
+    /// 「还没拉到」，枢纽规则区据此诚实呈现）
+    private(set) var approvalRules: [WriteGateRule] = []
+    private(set) var rulesLoaded = false
+    /// 规则面行内提示（撤销失败等人话）
+    private(set) var rulesNote: String?
+    /// 正在撤销的规则 id（只禁用当前行）
+    private(set) var revokingRuleIDs: Set<String> = []
+    /// 就地卡裁决结果行（0.36.21）：本进程内已收口的
+    /// 卡——裁决后原地收成一行，不凭空消失（规格 §1）；
+    /// 权威账本仍是桥 /decisions，这里只是呈现层痕迹
+    private(set) var resolvedLines: [ApprovalResolvedLine] = []
+    /// 经「总是允许」路径批准中的记录 id（裁决落定后
+    /// 据此把结果行标成 approvedAlways，decide 成功分
+    /// 支消费后即除名）
+    private var alwaysApproveMarks: Set<String> = []
 
     // 浏览器段已于 0.9.0 迁出本 Store：状态改读盒桥，
     // 由 BrowserFaceView 自持 BoxBridgeStore（见
@@ -378,6 +430,7 @@ final class AgentHubStore {
             approvalState = .gateDisabled
             return
         }
+        let previousPending = currentPendingRecords()
         do {
             let list = try await gateClient.pendingList(config: config)
             approvalState = .ready(list.records)
@@ -389,6 +442,14 @@ final class AgentHubStore {
             return
         }
         await refreshDecisionHistory()
+        // 结果行对账（0.36.21）：上一轮还在待批、本轮
+        // 已消失且已决账本里查得到的记录，补一行结果
+        // ——覆盖「卡已显示、又被规则自动放行」的生命
+        // 周期，卡不许无声蒸发
+        reconcileResolvedLines(
+            previous: previousPending, current: currentPendingRecords()
+        )
+        await loadRules()
     }
 
     /// 已决历史刷新（P10）：桥 /decisions 现成面；失败
@@ -469,6 +530,16 @@ final class AgentHubStore {
                 }
                 // 决刚落账，此时刷新已决历史最准（P10）
                 await refreshDecisionHistory()
+                // 结果行（0.36.21）：卡原地收成一行，
+                // 不凭空消失；经「总是允许」路径的标明
+                // 规则已记住
+                appendResolvedLine(
+                    id: record.id, summary: record.headline,
+                    outcome: alwaysApproveMarks.contains(record.id)
+                        ? .approvedAlways
+                        : (approve ? .approved : .rejected)
+                )
+                alwaysApproveMarks.remove(record.id)
             } else {
                 cardNotes[record.id] = "裁决未生效，请重新打开改动核对后再试。"
             }
@@ -477,6 +548,17 @@ final class AgentHubStore {
             case .recordGone:
                 removeRecord(record.id)
                 await refreshDecisionHistory()
+                if let entry = decisionHistory.first(
+                    where: { $0.id == record.id }
+                ) {
+                    appendResolvedLine(
+                        id: entry.id, summary: entry.headline,
+                        outcome: entry.isRuleApproved
+                            ? .ruleApproved
+                            : (entry.isApproved ? .approved : .rejected)
+                    )
+                }
+                alwaysApproveMarks.remove(record.id)
             case .conflict:
                 cardNotes[record.id] = "这条写入的内容已变化，已按最新状态刷新，请重新核对。"
                 decidingIDs.remove(record.id)
@@ -499,6 +581,135 @@ final class AgentHubStore {
             approvalState = .ready(records)
         }
         onApprovalChanged?()
+    }
+
+    // MARK: - 「总是允许」与规则（0.36.21，规格 §4）
+
+    /// 第三档裁决：先建规则、后批准（顺序是失败语义的
+    /// 关键）。规则没建成——不批准、不移除，卡面留痕
+    /// 说明「没能记住」，记录仍在待批中，绝不假装已记
+    /// 住；规则建成—再走既有 approve 路径，结果行标
+    /// 「已批准 · 已记住这一类」。规则由桥落（App 不
+    /// 本地存），此后同（子系统，来源）的写入由桥自
+    /// 动放行并以 via_rule 留痕
+    func decideAlways(_ record: WriteGateRecord) async {
+        guard record.canDecide, let config = appState.config else { return }
+        guard !decidingIDs.contains(record.id) else { return }
+        decidingIDs.insert(record.id)
+        cardNotes.removeValue(forKey: record.id)
+        do {
+            _ = try await gateClient.createRule(
+                config: config, subsystem: record.subsystem,
+                origin: record.origin
+            )
+        } catch {
+            cardNotes[record.id] =
+                "「总是允许」没能记住（规则建立失败），这条仍在待批中。"
+            decidingIDs.remove(record.id)
+            return
+        }
+        await loadRules()
+        alwaysApproveMarks.insert(record.id)
+        decidingIDs.remove(record.id)
+        await decide(record, approve: true)
+    }
+
+    /// 规则列表刷新：best-effort，失败保持旧值（与已
+    /// 决历史同口径），rulesLoaded 只在成功后置真
+    func loadRules() async {
+        guard let config = appState.config else { return }
+        if let rules = try? await gateClient.rules(config: config) {
+            approvalRules = rules
+            rulesLoaded = true
+        }
+    }
+
+    /// 撤销一条规则（枢纽规则管理区）：成功即从镜像
+    /// 移除；失败保留并留人话提示，随后按桥真值重拉
+    /// 对账（404「已不存在」时重拉会自然消失）
+    func revokeRule(_ rule: WriteGateRule) async {
+        guard let config = appState.config else { return }
+        guard !revokingRuleIDs.contains(rule.id) else { return }
+        revokingRuleIDs.insert(rule.id)
+        rulesNote = nil
+        do {
+            try await gateClient.deleteRule(config: config, id: rule.id)
+            approvalRules.removeAll { $0.id == rule.id }
+        } catch let error as WriteGateError {
+            if case .failed(let message) = error {
+                rulesNote = message
+            } else {
+                rulesNote = "撤销没能生效，请稍后重试。"
+            }
+            await loadRules()
+        } catch {
+            rulesNote = "撤销没能生效，请稍后重试。"
+        }
+        revokingRuleIDs.remove(rule.id)
+    }
+
+    // MARK: - 聊天侧刷新与结果行对账（0.36.21）
+
+    /// 聊天侧静默刷新（就地卡的触发点调用）：已在
+    /// ready 态时不打回 loading（卡面不闪），整段 best-
+    /// effort——失败保留现态，聊天里不闹；从未成功加
+    /// 载过则走完整 loadApproval 把状态立起来（状态异
+    /// 常由枢纽如实呈现，就地卡仅 ready 时渲染）
+    func refreshApprovalForChat() async {
+        guard case .ready = approvalState else {
+            await loadApproval(force: true)
+            return
+        }
+        guard let config = appState.config,
+              let status = try? await gateClient.gateStatus(config: config),
+              status.supported, status.anyGateEnabled,
+              let list = try? await gateClient.pendingList(config: config)
+        else { return }
+        let previous = currentPendingRecords()
+        await refreshDecisionHistory()
+        approvalState = .ready(list.records)
+        reconcileResolvedLines(previous: previous, current: list.records)
+        await loadRules()
+    }
+
+    private func currentPendingRecords() -> [WriteGateRecord] {
+        if case .ready(let records) = approvalState { return records }
+        return []
+    }
+
+    /// 结果行对账：上一轮待批、本轮消失、且已决账本
+    /// 里有据的记录补一行（via_rule→已按规则放行）
+    private func reconcileResolvedLines(
+        previous: [WriteGateRecord], current: [WriteGateRecord]
+    ) {
+        guard !previous.isEmpty else { return }
+        let currentIDs = Set(current.map(\.id))
+        for record in previous where !currentIDs.contains(record.id) {
+            guard let entry = decisionHistory.first(
+                where: { $0.id == record.id }
+            ) else { continue }
+            appendResolvedLine(
+                id: entry.id, summary: entry.headline,
+                outcome: entry.isRuleApproved
+                    ? .ruleApproved
+                    : (entry.isApproved ? .approved : .rejected)
+            )
+        }
+    }
+
+    private func appendResolvedLine(
+        id: String, summary: String,
+        outcome: ApprovalResolvedLine.Outcome
+    ) {
+        guard !resolvedLines.contains(where: { $0.id == id }) else { return }
+        resolvedLines.append(
+            ApprovalResolvedLine(
+                id: id, summary: summary, outcome: outcome, at: Date()
+            )
+        )
+        if resolvedLines.count > 20 {
+            resolvedLines.removeFirst(resolvedLines.count - 20)
+        }
     }
 
 }

@@ -39,9 +39,10 @@ final class HubGateAndBrowserTests: XCTestCase {
         """.utf8))
         XCTAssertEqual(record.subsystem, .unknown)
         XCTAssertFalse(record.canDecide)
-        // 未知来源回落原始值诚实呈现（实测枚举可扩展
-        // 口径）：不编造译名、卡不丢弃
-        XCTAssertEqual(record.originLabel, "somewhere_new")
+        // 未知来源给通用中文兜底（0.36.21 用户点名修
+        // 订，覆盖旧「回落原始值」口径）：原始标识是
+        // 内部记账名、不许当标签漏给用户；卡不丢弃
+        XCTAssertEqual(record.originLabel, "其他来源")
     }
 
     /// origin 实测取值 assistant_tool（桥侧实测，取值域
