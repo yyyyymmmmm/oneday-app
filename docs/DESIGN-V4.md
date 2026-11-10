@@ -4738,3 +4738,11 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 - GG2 未导入前回归：不做任何导入，现装使用——总览/目标点子/审批/Box 各面照常工作（旧钥回退）。
 - GG3 导入全链：设置·桥钥匙粘贴 bridge-keys.txt 整段导入——五项状态全变「已配置」，设置汇总行显「已分权 · 5/5」；各桥功能照常（此时走分项钥）。
 - GG4 部分导入诚实态：只导入一两项时，逐项状态与汇总行如实报数（如「已配置 2/5」），未配项不许显已配置。
+
+### 60.5 交付实录
+
+- 功能提交 a7589ef（23 文件，+560/−112）；CI 42774943285 success，Executed 582 tests, 0 failures（574 基线＋8 新测，只增不减：ChatModels 改写 4 测＋新增下线名保留/落回提示 2 测、BridgeKeyImport 新立 6 测）。
+- IPA：5,266,243 字节、md5 9e975e4cc1c7f61c3fe989b7f24c481c、独立解包验 Info.plist＝0.32.1/62、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.32.1/OneDay-0.32.1.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（MARKETING_VERSION 0.32.1／CURRENT_PROJECT_VERSION 62／CFBundleShortVersionString 0.32.1／CFBundleVersion 62）＋SettingsView 页脚「OneDay v0.32.1」。
+- F04 桥止血同批独立交付（见 60.1）：本地桩测 13/13、生产已部署实测。五桥凭据分权服务器侧（R8 后半）于本 IPA 出包后执行，钥匙组文件 bridge-keys.txt 交付用户导入（GG3）；过渡期影响：装 0.32.1 前各桥照常（服务器尚未轮换）、装后未导入前靠旧钥回退照常、导入一次即完成分权。
+- GG1–GG4 待真机终审（本版终审代号 GG，承 §59 的 FF 序）。
