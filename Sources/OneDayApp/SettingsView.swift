@@ -339,7 +339,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.36.1")
+            Text("OneDay v0.36.2")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
@@ -868,7 +868,8 @@ struct SettingsView: View {
             Haptics.success()
         } catch {
             notice = (error as? HermesError)?.userMessage ?? "重启失败，请稍后再试。"
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
         }
     }
 }

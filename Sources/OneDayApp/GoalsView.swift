@@ -335,6 +335,13 @@ struct GoalCheckBox: View {
         // 状态」，不再是无标签裸按钮
         .accessibilityLabel(done ? "重新打开目标" : "标记目标完成")
         .accessibilityValue(done ? "已完成" : "未完成")
+        // 触感矩阵（0.36.2，规格 §2.3/§2.5）：勾选
+        // 完成＝notification success；只在 未完成→
+        // 完成 边沿响（done 是回读确认后的真状态，
+        // 响在落定刻）；取消勾选不对称、不加
+        .sensoryFeedback(.success, trigger: done) { old, new in
+            !old && new
+        }
     }
 }
 
@@ -456,6 +463,12 @@ struct MilestoneCheckRow: View {
         // 0.36.0（无障碍 A11Y-V5）：补状态值，
         // VoiceOver 能读出里程碑当前勾选状态
         .accessibilityValue(done ? "已完成" : "未完成")
+        // 触感矩阵（0.36.2，规格 §2.3）：里程碑勾选
+        // 完成与目标同档＝notification success，同
+        // 样只在 未完成→完成 边沿响、取消不响
+        .sensoryFeedback(.success, trigger: done) { old, new in
+            !old && new
+        }
     }
 }
 

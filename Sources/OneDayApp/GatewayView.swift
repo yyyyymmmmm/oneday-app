@@ -264,7 +264,8 @@ struct GatewayView: View {
             await load()
         } catch {
             notice = (error as? HermesError)?.userMessage ?? "操作失败，请稍后再试。"
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
         }
     }
 }

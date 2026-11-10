@@ -103,10 +103,44 @@ public enum MotionTokens {
         stiffness: 380, damping: 18
     )
 
+    /// selectionSpring：选择指示器滑移（0.36.2 新增，
+    /// 动效宪法默认档——spring(response 0.35,
+    /// dampingFraction 1.0)）：点按触发、无手势来源
+    /// 的滑移零回弹（宪法条 3），与 liquidSpring 的
+    /// 跟手档（0.72 有回弹）分工；首个消费面＝文件页
+    /// 分段控件药丸 matchedGeometry 滑移
+    public static let selectionSpring = Animation.spring(
+        response: 0.35, dampingFraction: 1.0
+    )
+
     /// Reduce Motion 降级口径：开启时返回 nil（调用方以
     /// withAnimation(resolved) 包裹，nil 即瞬时切换）；Reduce
     /// Transparency 的降级由系统玻璃自动回退实色，不在代码层处理。
     public static func resolved(_ animation: Animation, reduceMotion: Bool) -> Animation? {
         reduceMotion ? nil : animation
     }
+}
+
+// MARK: - 分段控件落值（文件页 [文件｜影音内容]）
+
+/// 自制分段控件的尺寸真源（0.36.2，体验三件规格
+/// §1.6；Muse 文件页实测口径）：总高 48、药丸高
+/// 36、内缩 6、左右边距 16；轨道全胶囊（r＝总高/2
+/// ＝24）、药丸同心收（r＝24−6＝18，与药丸高/2 同
+/// 值、即胶囊）。旧口径「段高约 63 照图复刻」系目
+/// 测高估 15pt（总高曾达 60、药丸 52），自本版退
+/// 役；数值由 SegmentedControlSpecTests 钉死防回潮。
+public enum SegmentedControlSpec {
+    /// 控件总高
+    public static let totalHeight: CGFloat = 48
+    /// 选中药丸高（＝总高 − 2×内缩）
+    public static let pillHeight: CGFloat = 36
+    /// 药丸内缩（容器 padding，上下左右同值）
+    public static let inset: CGFloat = 6
+    /// 控件左右页边距（本控件局部口径，覆盖 pageGutter 20）
+    public static let horizontalMargin: CGFloat = 16
+    /// 轨道圆角（全胶囊＝总高/2）
+    public static var trackCorner: CGFloat { totalHeight / 2 }
+    /// 药丸圆角（同心＝轨道圆角 − 内缩；与药丸高/2 同值）
+    public static var pillCorner: CGFloat { trackCorner - inset }
 }

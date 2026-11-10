@@ -265,7 +265,8 @@ struct FileUploadControl: View {
                 )
             }
         } catch {
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
             onFinished(
                 (error as? HermesError)?.userMessage
                     ?? "上传失败，请稍后再试。",
@@ -375,6 +376,10 @@ struct FilesBrowserView: View {
             titleVisibility: .visible
         ) {
             Button("删除", role: .destructive) {
+                // 触感矩阵（规格 §2.3）：删除确认
+                // 落锤＝impact heavy；删除成功后不
+                // 再叠 success（同一因果链只震一次）
+                Haptics.impact(.heavy)
                 if let entry = pendingDelete {
                     Task { await delete(entry) }
                 }
@@ -564,7 +569,8 @@ struct FilesBrowserView: View {
         } catch {
             notice = (error as? HermesError)?.userMessage
                 ?? "新建文件夹失败，请稍后再试。"
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
         }
     }
 
@@ -580,15 +586,19 @@ struct FilesBrowserView: View {
                 where: { $0.path == entry.path }
             ) == true {
                 notice = "删除未生效，「\(entry.name)」仍在目录中。"
+                // 保留 warning 本义：请求已发、结果
+                // 未确认——需注意未失败（规格 §2.3）
                 Haptics.warning()
             } else {
                 notice = "已删除「\(entry.name)」。"
-                Haptics.success()
+                // 成功无触感：确认时的 heavy 落锤已
+                // 代表本链（同一因果链只震一次）
             }
         } catch {
             notice = (error as? HermesError)?.userMessage
                 ?? "删除失败，请稍后再试。"
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
         }
     }
 

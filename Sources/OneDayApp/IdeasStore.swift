@@ -287,6 +287,12 @@ final class IdeasStore {
             let after = ideas.first { $0.id == idea.id }
             if after?.taskId != taskID {
                 notes[idea.id] = "任务已建在任务板上，但点子的「已转」标记回写后没确认上，请刷新核对。"
+            } else {
+                // 触感矩阵（0.36.2，规格 §2.3）：点子
+                // 采纳＝任务成功——只在回读确认 taskId
+                // 落字（＝采纳真落定）时响，未确认分支
+                // 只留 notes 不响
+                Haptics.success()
             }
         } catch let error as OneDayBridgeError {
             notes[idea.id] = "任务已建在任务板上，但回写点子状态失败："

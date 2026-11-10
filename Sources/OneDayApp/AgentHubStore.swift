@@ -454,6 +454,15 @@ final class AgentHubStore {
                 )
             if response.success {
                 removeRecord(record.id)
+                // 触感矩阵（0.36.2，规格 §2.3）：审批
+                // 落定才响——批准＝success、驳回＝
+                // warning（需注意类决定、未失败）；
+                // 未生效/异常分支不响
+                if approve {
+                    Haptics.success()
+                } else {
+                    Haptics.warning()
+                }
                 // 决刚落账，此时刷新已决历史最准（P10）
                 await refreshDecisionHistory()
             } else {

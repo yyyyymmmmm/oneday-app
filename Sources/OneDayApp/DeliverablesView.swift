@@ -72,6 +72,10 @@ struct DeliverablesView: View {
                 titleVisibility: .visible
             ) {
                 Button("删除", role: .destructive) {
+                    // 触感矩阵（规格 §2.3）：删除确认
+                    // 落锤＝impact heavy；删除成功后不
+                    // 再叠 success（同一因果链只震一次）
+                    Haptics.impact(.heavy)
                     if let item = pendingDelete {
                         Task { await delete(item) }
                     }
@@ -160,62 +164,71 @@ struct DeliverablesView: View {
 
     // MARK: - 大分段（照 Muse 资源库图自制）
 
-    /// 分段控件照图复刻：图中段高约 63pt——系统
-    /// segmented（约 28 高）量级明显不符，本页自制
-    /// （偏离原生登记 §47）：浅灰槽＋选中段白面浮起，
-    /// 高 52，动画只用系统 .default、不自绘曲线。
-    /// 0.24.0（用户当日指令）：段字由 20 半粗改 Body
-    /// 17 regular（HIG 落档）——选中/未选只靠填充与
-    /// 墨色区分、不靠字重字号（本形态原本即如此）
+    /// 分段控件（0.36.2 按体验三件规格 §1.6 重做）：
+    /// 系统 segmented 量级不符、本页自制（偏离原生
+    /// 登记 §47）。旧形态三宗错——角色反置（轨道灰
+    /// selectionFill／药丸白 surface＋阴影浮起）、全
+    /// 面偏大（总高 60／药丸 52，源头是旧注「段高约
+    /// 63 照图复刻」的目测高估）、未选字灰化。本版
+    /// 按实测落值（SegmentedControlSpec 钉死）：轨道
+    /// ＝surface 白＋发丝边、全胶囊，总高 48；选中
+    /// 药丸＝selectionFill 灰垫、高 36、内缩 6、无
+    /// 阴影；字 17 semibold 两态皆 ink——选中区分
+    /// 只靠灰垫有无。切换＝药丸 matchedGeometry 滑
+    /// 移（弹簧走动效宪法默认档 selectionSpring，
+    /// 无手势来源零回弹）＋selection 触感（表 D）。
+    @Namespace private var segmentNamespace
+
     private var segmentControl: some View {
         HStack(spacing: 0) {
             segmentButton(title: "文件", tag: 0)
             segmentButton(title: "影音内容", tag: 1)
         }
-        .padding(4)
-        .background(
-            Palette.selectionFill,
-            in: RoundedRectangle(
-                cornerRadius: 22, style: .continuous
-            )
-        )
-        .padding(.horizontal, OneDayMetrics.pageGutter)
+        .padding(SegmentedControlSpec.inset)
+        .background(Palette.surface, in: Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(Palette.separator, lineWidth: 1)
+        }
+        .padding(.horizontal, SegmentedControlSpec.horizontalMargin)
         .padding(.vertical, OneDayMetrics.spacingSM)
+        // 触感矩阵（规格 §2.3）：分段切换＝selection
+        .sensoryFeedback(.selection, trigger: segment)
     }
 
     private func segmentButton(title: String, tag: Int) -> some View {
         let selected = segment == tag
         return Button {
-            // 0.25.0（动效专包）：原 withAnimation(.default)
-            // 裸动画——选择指示器滑移按令牌册归 liquidSpring
-            // 档＋resolved 出口（Reduce Motion 时瞬时）
             withAnimation(
                 MotionTokens.resolved(
-                    MotionTokens.liquidSpring, reduceMotion: reduceMotion
+                    MotionTokens.selectionSpring,
+                    reduceMotion: reduceMotion
                 )
             ) { segment = tag }
         } label: {
             Text(title)
-                // 0.23.0：落字阶角色 rowTitleLSemi（title3
-                // semibold，默认 20 等值，审计 G2）
-                // 0.24.0：改 bodyText（Body 17 regular，
-                // 角色 Semi 退役，见 §51）
-                .font(.bodyText)
-                .foregroundStyle(
-                    selected ? Palette.ink : Palette.inkSecondary
+                // 字 17 semibold、两态皆 ink（规格
+                // §1.6：字号沿现行 17，只改字重与
+                // 未选色——区分只靠灰垫）
+                .font(.bodyText.weight(.semibold))
+                .foregroundStyle(Palette.ink)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: SegmentedControlSpec.pillHeight
                 )
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(
-                    selected ? Palette.surface : Color.clear,
-                    in: RoundedRectangle(
-                        cornerRadius: 18, style: .continuous
-                    )
-                )
-                .shadow(
-                    color: selected
-                        ? Palette.shadowBase.opacity(0.08) : .clear,
-                    radius: 6, y: 2
-                )
+                .background {
+                    if selected {
+                        // 药丸圆角 18＝药丸高/2，Capsule
+                        // 与落值同值（SegmentedControlSpec
+                        // .pillCorner 同心口径）
+                        Capsule()
+                            .fill(Palette.selectionFill)
+                            .matchedGeometryEffect(
+                                id: "segmentPill",
+                                in: segmentNamespace
+                            )
+                    }
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
@@ -531,12 +544,14 @@ struct DeliverablesView: View {
                 )
             }
             notice = "已删除「\(item.entry.name)」。"
-            Haptics.success()
+            // 成功无触感：确认时的 heavy 落锤已代表
+            // 本链（规格 §2.3，同一因果链只震一次）
             await collect()
         } catch {
             notice = (error as? HermesError)?.userMessage
                 ?? "删除失败，请稍后再试。"
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
         }
     }
 

@@ -2770,7 +2770,8 @@ private struct ComposerBarLayout: Layout {
                     + ((error as? HermesError)?.userMessage
                         ?? "服务端会话建立失败")
                     + "。链接恢复后重新发送即可。"
-                Haptics.warning()
+                // 失败改判 error（0.36.2，表 D 语义归位）
+                Haptics.error()
                 streamingText = nil
                 streamingReasoning = nil
                 reasoningStartedAt = nil
@@ -2978,7 +2979,8 @@ private struct ComposerBarLayout: Layout {
             streamingReasoning = nil
             reasoningStartedAt = nil
             errorMessage = HermesError.sessionExpired.userMessage
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
             sendTask = nil
             return
         }
@@ -3613,11 +3615,12 @@ private struct ComposerBarLayout: Layout {
     }
 
     /// 呈现收尾：清流式状态与在途标记（触感由各落定
-    /// 分支自理，此处只在失败时补 .warning——调用方
-    /// 已给触感的路径传 failed=false 防双响）
+    /// 分支自理，此处只在失败时补 .error——调用方
+    /// 已给触感的路径传 failed=false 防双响；0.36.2
+    /// 失败触感自 .warning 改判 .error，表 D 归位）
     private func finishRunPresentation(failed: Bool) {
         if failed {
-            Haptics.warning()
+            Haptics.error()
         }
         streamingText = nil
         streamingReasoning = nil

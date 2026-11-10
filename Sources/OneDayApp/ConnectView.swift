@@ -204,8 +204,8 @@ struct ConnectView: View {
         currentStep = nil
         guard let config = ServerConfig(rawInput: serverText) else {
             errorMessage = HermesError.invalidServerAddress.userMessage
-            // 结果触感（0.3.2 纪律）：失败 .warning
-            Haptics.warning()
+            // 结果触感：失败 .error（0.36.2 表 D 归位）
+            Haptics.error()
             return
         }
         isProbing = true
@@ -231,7 +231,8 @@ struct ConnectView: View {
                 stepStates[current] = .failed
             }
             errorMessage = (error as? HermesError)?.userMessage ?? "连接失败，请稍后再试。"
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
         }
     }
 }

@@ -170,7 +170,8 @@ struct ServerDetailView: View {
         guard let config = ServerConfig(rawInput: serverText) else {
             saveFailed = true
             saveResult = HermesError.invalidServerAddress.userMessage
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
             return
         }
         isSaving = true
@@ -186,7 +187,8 @@ struct ServerDetailView: View {
         } catch {
             saveFailed = true
             saveResult = (error as? HermesError)?.userMessage ?? "保存失败，请稍后再试。"
-            Haptics.warning()
+            // 失败改判 error（0.36.2，表 D 语义归位）
+            Haptics.error()
         }
     }
 
