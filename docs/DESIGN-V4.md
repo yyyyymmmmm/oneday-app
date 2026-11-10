@@ -5383,3 +5383,47 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - **§77.2 的 1b 定性作废**：「主引擎把 volatile 攒到落定才交付＝模块在本机/本语言下的交付节奏」这一口径已被外部证据推翻，不作交账结论。外部实证（WWDC25 277 逐字稿＋苹果官方示例＋第三方实测）表明：主引擎开 [.volatileResults] 后本应实时交付草稿；回退引擎的 .progressiveLongDictation 渐进预设本应给初步结果。因此下轮真机若出现 engine=main 且 vol=0，**不许再归因于「模块天生节奏」**——成因在四格实查（下条）齐备前保持未定。
 - **四格增补（随 0.36.13 补，本包已出仓）**：选引擎打点在引擎种类＋规范化 locale 之外加记——①实际生效的预设名（回退引擎为所构造的 DictationTranscriber 预设；主引擎记其 reportingOptions 构成）；②supportedLocales 对当前 locale 的实查布尔；③installedLocales 实查布尔；④SpeechTranscriber.isAvailable 原值（在守卫消费前取值）。四格齐备后，engine=main/vol=0 的成因才许下结论。
 - §77.2 其余部分（帧证据、四环全通、仪表三点施工、FaultPolicy 与回车件）不受本修订影响。
+
+## §78 0.36.13/80 跟进包——模型菜单 Picker 化＋底部贴底收口与事实路堵洞＋听写仪表四格与录音条实时诊断行（2026-11-10）
+
+### 78.1 模型菜单双勾（用户 22:11 真机截图，诊断 model-menu-checkmark-diagnosis-20261110）
+
+- 证据：对勾判定单源（AppState.chatModel）、点选真生效，坏的是渲染通道——0.36.4 的等宽对号槽＋`.opacity()` 藏勾，Menu 条目转 UIKit 时只提取符号图本体、透明度被剥，每行对勾原样同显。外部核查（community-solutions-check 第 1 题）与拟定修法一致：苹果反馈 FB16679936 明示菜单带勾正道只有 Toggle/Picker；社区手工画勾一律条件渲染、opacity 藏勾无先例。
+- 修法：`modelMenu` 改系统 Picker 承载（`Menu { Picker }`，同外观页虚拟形象大小的既有形态），勾由系统绘制、单选互斥由 UIKit 保证；行只剩 `Text(displayName).tag(id)`。Picker 的 selection 经桥绑定：读先过 Core 纯函数 `ModelMenuSelection.checkedID(itemIDs:selected:)`（清单内才返回选中值、未知 id/空串/nil 恒 nil＝零勾），写直达唯一写入口 selectChatModel。不动 AppState/ChatModels/发送链。
+- 退役：ModelMenuSpec 对号槽常数（18/6）随 opacity 形态一并删除（grep 确认消费者只有本菜单与其钉测）。
+- 单测：新增 ModelMenuSelectionTests 三组（双模型各选其一恒一勾、未知 id 零勾、flash→pro→flash 切换序列勾随动）；删 ModelMenuSpecTests 一条槽常数钉测（随形态退役，净账见 §78.5）。**诚实边界：本 bug 在 SwiftUI→UIKit 菜单转换层，单测只能钉判定函数、钉不住渲染通道——验收须真机展开菜单看一勾且随切换移动。**
+
+### 78.2 底部贴底（用户 22:11 真机双问，诊断 chat-bottom-geometry-diagnosis-20261110）
+
+- 证据：两问同源于 LazyVStack 估算高度——程式化贴底按估算落点单发无收尾，静止位离真底 ≈57pt 纯空白（截图量测气泡底↔输入舱顶 ≈109pt、写死留白仅 ≈17pt）；距底判定同吃估算数，迟滞退出阈值 176 一旦被越过即锁死「离底」，而事实路（最后一条可见）有三洞（末条 id≠渲染目标 id／createdAt 单键排序／只在可见集变化时重算）未能纠偏；流式跟随共用同一门控、一并停摆。外部核查（第 2 题）与修法一致：估算机制系 WWDC 官方明说，复贴与社区通行补救（double-scroll）同形且有量实原理背书（vellum PR #30693）；换 List/VStack 结构路不采、记为后手。
+- 修法 (a) 落定复贴（收口一处）：`scrollToBottom` 拆本体 `performScrollToBottom`＋复核——一切贴底出口（回底钮/键盘锚底/条目与流式跟随/发送贴底/线程恢复/首屏定版）首贴后 120ms（与发送路径既有复贴同延迟）复核实测距底（`lastBottomDistance` 由 onScrollGeometryChange 同路另存），仍 >24pt（Core `BottomSettle.shouldRestick`，阈值 24：正常落定误差 ≈17pt 不触发、估算误差 ≈57pt 必触发）才无动画再贴一次；只贴一次、复贴走本体不成环；线程被切走则作废。
+- 修法 (b) 事实路堵洞：末条判定改查最后一个渲染项的滚动目标 id——Core 纯函数 `LastScrollTarget.lastScrollTargetID`（与 entryRenderItems 成组规则同构：末条非工具→本身、尾部工具连段 ≥2→连段首条、连段 1→本身、空→nil）；可见集存档 `@State lastVisibleEntryIDs`，事实信号收口 `refreshLastEntryVisible()` 单点算，可见集变化与条目数变化两路共用（堵「只在可见集变化时重算」）；切线程先清零可见集与信号、不拿旧集判新线程。洞 2（同刻排序）随渲染项序（即视觉序）自动缓解。
+- 修法 (c) 初始落位兜底（核查增补）：消息列表 ScrollView 加挂 `.defaultScrollAnchor(.bottom)`。**落点注明**：声明式锚只定内容首次布局的落点——命令式 scrollTo 在新内容量实前触发会落错位（vellum PR #21760 实证），锚兜的就是这一帧；它与 scrollTo 不冲突（锚只管初始位、其后全归命令式与 .task 定版链），键盘升起/流式跟随的落点误差不归它、仍以 (a) 为主治。
+- 不动：BottomProximity 迟滞阈值（96/176）与 0.36.5「事实信号不改跟随门控」边界不破（跟随恢复靠 (a)、不靠改门控）；回底钮浮层化＋离底未读计数仍留 0.41.x、不混入。
+- 单测：BottomFollowTests 增 6 条——迟滞锁死序列（200→false、140 仍 false、95 才 true，钉死现行语义防 (a) 落地后误改阈值）、lastScrollTargetID 四形态（末条文本/末条单工具/末条在 ≥2 工具组内含连段被文本截断边界/空数组）、BottomSettle 阈值边界（17/24 不触发、25/57 触发、负距不触发）。Policy 两路四组合旧测已全覆盖、不重复。
+
+### 78.3 听写仪表四格（§77.6 增补落点）
+
+- 在 0.36.12 的 markDiag 选引擎打点上扩记四格，与 engine/locale/vol/fin 同串上诊断行：①实际生效预设名——回退引擎记所构造的 DictationTranscriber 预设 `progressiveLongDictation`、主引擎记 reportingOptions 构成 `rep:volatileResults`（与构造逐字同值）；②`SpeechTranscriber.supportedLocales` 对当前 locale 的实查布尔（主引擎对规范化后 locale、回退对请求 locale——回退为何发生、主引擎侧支持状态正是要留的账）；③`installedLocales` 同口径实查布尔（取选引擎时刻、资产下载前的快照）；④`SpeechTranscriber.isAvailable` 原值——在 startEngine 入口先于现有 guard 取值落账、guard 改用该同一值消费，诊断串读到的就是守卫真正看到的。四格按尝试归零重记（与计数同口径），选引擎的 markDiag 首写即四格齐。
+- **1b 作废口径的承接**：§77.6 已判 1b「模块天生节奏」说作废，本节不复活——四格齐备前 engine=main 且 vol=0 的成因保持未定；下轮真机一段录音即可在「引擎/预设/资产/locale」四格里定位，不再猜改引擎代码。
+
+### 78.4 呈现修正：诊断串挂上录音条（追加件，用户 22:26 真机录屏实证）
+
+- 问题：诊断行旧只挂失败行与预备页——录音成功时不在场，用户录完也看不见诊断串，四格仪表无从被截图读回。
+- 修法：DictationBar 文本行（「正在聆听…」）下方新增 `DictationLiveDiagnosticLine`：与事后行读同一对快照（lastStage＋lastDiag），录音条随波形逐帧重算、每次重算读最新落盘值，打点一更新（选引擎/首草稿/首定稿）行内即跟变——录音进行时即可截图。样式守宪法：caption2 级、弱化色（inkSecondary）、居中、不抢主行；VoiceOver 隐藏（诊断脚手架非用户文案，与事后行明标「诊断信息」同口径）。
+- **脚手架注记：本行与两处事后诊断行同属定案脚手架，「实时不出字」定案并修复后可整组移除，移除时连同 lastDiag/lastStage 落盘一并评估。**
+- 单测：呈现层无可测点（快照读 UserDefaults＋视图拼接，与 0.36.12 事后行同形态、当时亦无单测）——靠真机验：录音中诊断行在场且四格齐、vol 随说话跳动。
+
+### 78.5 验收
+
+- 提交：0fc906e（整包，含追加呈现修正）。
+- CI：42834591793 **success**（首轮即绿）。
+- 单测：**768 全过、0 failures**（基线 760，净增 8：＋ModelMenuSelection 3、＋BottomFollow 6、−ModelMenuSpec 退役 1，只增不减口径按总账记）。
+- IPA：6,654,247 字节、md5 76f19598aa09efa379ee1776b2c096fc、独立解包验 Info.plist＝0.36.13/80、双 UsageDescription 键仍在包内，落 ~/workspace/your_files/oneday-v0.36.13/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.13/80）＋SettingsView 页脚「OneDay v0.36.13」；0.36.12 残留只剩历史注释。
+
+### 78.6 诚实边界（真机复验点）
+
+- 菜单件：展开模型菜单应只有一勾、且随切换移动（渲染层问题、单测钉不住，见 §78.1）。
+- 底部件：长线程（≥100 条、含高气泡）键盘升起后静止，量气泡底↔输入舱顶距离，验收线 ≤ 钮行高＋16pt；同线程收键盘再看一次；回底钮在视觉已到底时应消失、对方回复时跟随应恢复。
+- 听写件：录音时录音条上诊断行在场，四格齐（preset/sup/inst/avail）＋vol/fin 可读；据此读数按 §78.3 口径定下一轮修法，本包不承诺实时出字已修。
