@@ -142,7 +142,8 @@ final class DictationTests: XCTestCase {
         XCTAssertEqual(wave.bars.first, 0)
         for i in 1...9 { wave.push(Double(i) / 10) }
         XCTAssertEqual(wave.bars.count, DictationWaveform.barCount)
-        XCTAssertEqual(wave.bars.last, 0.9, accuracy: 1e-9)
+        XCTAssertEqual(
+            wave.bars[DictationWaveform.barCount - 1], 0.9, accuracy: 1e-9)
         wave.push(2) // 越界钳到 1
         XCTAssertEqual(wave.bars.last, 1)
         wave.reset()
