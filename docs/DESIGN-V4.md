@@ -5603,3 +5603,16 @@ different analyzer instance」缓存已加载资源）——与常备束是同�
 84.9999… 被截成 84（85/210/10234 三值同病）。修法：换算改取最近
 值（`.rounded()`），毫秒读数本就该是最近值；测试期望不变。教训
 与既有口径一致：时间差换算不许裸截断。
+
+### 80.7 交付锚点（0.36.15/82）
+
+- 顶端提交 a3e3569（主体 eab8e2d＋§80.6 换算修）；CI
+  42844360350 success（首轮 42842566410 单测红→§80.6 修后绿）。
+- 单测 796（785＋11 DictationPreheatTimingTests），TEST
+  SUCCEEDED，独立复核日志总计行。
+- IPA：6,862,761 字节，md5 6b18756f67dbf13dca98984393c998c0，
+  解包 Info.plist 自验 0.36.15/82、bundle site.didichou.oneday；
+  落 ~/workspace/your_files/oneday-v0.36.15/oneday-unsigned.ipa。
+- 待真机复验（§80.5 口径）：停留数秒等首束备好→5 秒短录音应
+  中途出字＋诊断行「首结果+Xms」与约 10000ms 对比；第二段起看
+  常备束的账（preheatConsumed 阶段标记可辨）。
