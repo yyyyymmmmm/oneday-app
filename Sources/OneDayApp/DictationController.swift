@@ -69,6 +69,10 @@ final class DictationController {
     var language: DictationLanguage {
         didSet {
             defaults.set(language.rawValue, forKey: Self.languageKey)
+            // 语言变了（0.36.15 预热）：备好的分析器
+            // 是旧语言的——弃置并按新语言重备
+            dropPreparedBundle()
+            warmIfNeeded()
         }
     }
     /// 本次是否走了回退引擎（DictationTranscriber）
@@ -165,6 +169,13 @@ final class DictationController {
         }
         text += " vol=\(volatileResultCount)"
             + " fin=\(finalResultCount)"
+        // 时序段（0.36.15）：四点相对毫秒随串进诊断
+        // 行——首结果迟到从此读的是逐段账（eng/ana/
+        // 首结果），不是停录后一个总数印象
+        let timingSegment = startTiming.diagnosticSegment
+        if !timingSegment.isEmpty {
+            text += " " + timingSegment
+        }
         Self.log.info("diag=\(text, privacy: .public)")
         defaults.set(text, forKey: Self.diagKey)
     }
@@ -242,6 +253,53 @@ final class DictationController {
     @ObservationIgnored
     private var interruptionTokens: [NSObjectProtocol] = []
 
+    /// 起步时序钟（0.36.15）：零点在点按（预备页路
+    /// 径为确认/授权通过时刻），四点相对毫秒由
+    /// markStartPoint 喂、markDiag 拼进诊断串
+    @ObservationIgnored
+    private var startTiming = DictationStartTiming()
+
+    /// 预热产物（0.36.15）：模块/分析器/格式/语言与
+    /// 仪表四格在点麦克风之前备齐，点按只剩开音频
+    /// 会话与喂入。分析器单次使用制（finish 后会话
+    /// 终结、官方口径不再接受新输入），消费即弃、
+    /// 录后重备下一份——「复用」的实体是这条常备
+    /// 流水线，不是同一实例反复 start
+    private struct PreparedDictation {
+        let analyzer: SpeechAnalyzer
+        let transcriber: SpeechTranscriber
+        let format: AVAudioFormat
+        let language: DictationLanguage
+        let localeID: String
+        let presetName: String
+        let supported: Bool?
+        let installed: Bool?
+        let available: Bool?
+    }
+
+    /// 预热态：Core 状态机单点驱动（DictationPreheat-
+    /// Policy），本类只存状态/任务/产物，不散写转移
+    @ObservationIgnored
+    private var preheatState: DictationPreheatState = .cold
+    /// 预热轮次令牌：每轮 beginWarm/弃置递增，任务
+    /// 回执先对轮次——旧轮的迟到回执（取消尾巴）不
+    /// 许踩新轮的状态与任务引用
+    @ObservationIgnored
+    private var preheatRound = 0
+    @ObservationIgnored
+    private var preheatTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var preparedBundle: PreparedDictation?
+    /// 预热总闸：ChatView 在场（armPreheat）才许备；
+    /// 离场 disarm、退后台 suspend（只弃产物、闸保
+    /// 持，回前台由 ChatView 再 arm 触发重备）
+    @ObservationIgnored
+    private var preheatArmed = false
+    /// 在备一轮是否卡在资产下载（点按时若在下，下
+    /// 载窗要以 .preparing 相位示人，不许界面无反应）
+    @ObservationIgnored
+    private var preheatAssetDownloading = false
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         let raw = defaults.string(forKey: Self.languageKey)
@@ -267,6 +325,7 @@ final class DictationController {
             // 绝不重走异步回调——礼记同案铁律）
             switch MicPermissionGate.action(for: Self.micPermissionStatus) {
             case .start:
+                beginStartTiming()
                 Task { await self.startPipeline(baseDraft: baseDraft) }
             case .failDenied:
                 // 被拒不再弹系统窗：失败行给「去设置」
@@ -301,6 +360,7 @@ final class DictationController {
         switch MicPermissionGate.action(for: Self.micPermissionStatus) {
         case .start:
             markStage("micAlreadyGranted")
+            beginStartTiming()
             Task { await self.startPipeline(baseDraft: pendingBaseDraft) }
         case .failDenied:
             fail(.permissionDenied)
@@ -311,6 +371,7 @@ final class DictationController {
                 markStage(micOK ? "micGranted" : "micDenied")
                 guard phase == .requestingPermission else { return }
                 if micOK {
+                    beginStartTiming()
                     await startPipeline(baseDraft: pendingBaseDraft)
                 } else {
                     fail(.permissionDenied)
@@ -409,6 +470,187 @@ final class DictationController {
             fail(.engineUnavailable)
         }
         Haptics.error()
+        // 全失败也重备一轮（0.36.15）：失败态可再备，
+        // 用户重试时先看已备产物、备成则走快路
+        warmIfNeeded()
+    }
+
+    // MARK: - 预热（0.36.15，语音延迟修复包）
+
+    /// 时序零点：点按（已授权直达）/预备页确认/授
+    /// 权通过三个开录入口共用——读说明与等授权的
+    /// 时间不是管道延迟，不计入
+    private func beginStartTiming() {
+        startTiming.begin(
+            atUptime: ProcessInfo.processInfo.systemUptime)
+    }
+
+    private func markStartPoint(_ point: DictationStartPoint) {
+        startTiming.mark(
+            point, atUptime: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// 进聊天页（ChatView onAppear/scenePhase 回前
+    /// 台驱动）：打开总闸并备下一段录音的分析器。
+    /// 预热只构造模块/分析器、确保资产、调
+    /// prepareToAnalyze——不碰音频会话、不开引擎、
+    /// 不发任何权限请求（麦克风仍是点按时按同步状
+    /// 态门走，授权铁律不因预热破例）；系统录音指
+    /// 示（橙点）只随发射段激活音频会话出现，预热
+    /// 不污染它的语义
+    func armPreheat() {
+        preheatArmed = true
+        warmIfNeeded()
+    }
+
+    /// 离开聊天页：关闸＋弃置产物，在备的取消。控
+    /// 制器随 ChatView 销毁时产物自然释放，此处是
+    /// 视图尚在但已离场的显式收束
+    func disarmPreheat() {
+        preheatArmed = false
+        dropPreparedBundle()
+    }
+
+    /// 退后台：只弃产物、总闸保持——分析器不在后
+    /// 台占着系统语音资源；回前台由 ChatView 的
+    /// scenePhase 钩子再 arm 触发重备
+    func suspendPreheat() {
+        dropPreparedBundle()
+    }
+
+    /// 发起一轮预热（状态机放行＋相位允许才动）：
+    /// 已备/备中不起第二轮；录音/收尾/准备中不备
+    /// （不与在飞的管道抢分析器资源）
+    private func warmIfNeeded() {
+        guard preheatArmed else { return }
+        guard phase == .idle || phase == .failed else { return }
+        guard DictationPreheatPolicy.canBeginWarm(preheatState)
+        else { return }
+        preheatState = DictationPreheatPolicy.transition(
+            from: preheatState, event: .beginWarm)
+        markStage("preheatStart")
+        preheatRound += 1
+        let round = preheatRound
+        preheatTask = Task { [weak self] in
+            let bundle = await self?.buildPreparedBundle()
+            guard let self, self.preheatRound == round else { return }
+            self.preheatTask = nil
+            if let bundle, !Task.isCancelled {
+                self.preparedBundle = bundle
+                self.preheatState =
+                    DictationPreheatPolicy.transition(
+                        from: self.preheatState, event: .warmSucceeded)
+                self.markStage("preheatReady")
+            } else {
+                self.preheatState =
+                    DictationPreheatPolicy.transition(
+                        from: self.preheatState, event: .warmFailed)
+                self.markStage("preheatFailed")
+            }
+        }
+    }
+
+    /// 备一份产物：选主引擎模块→规范化 locale→
+    /// 资产确保（未装走系统下载、无界面进度）→建
+    /// 分析器→取最佳格式→prepareToAnalyze 把系统
+    /// 侧资源（模型/locale 分配）先加载掉——官方
+    /// 口径「may improve how quickly the modules
+    /// return their first results」，正是本案 10 秒
+    /// 首结果的对症面。任何一步不成回 nil：预热失
+    /// 败不向用户报错，点按时冷路径以原有形态兜底
+    /// （含它自己的失败呈现）。回退引擎不预热（无
+    /// prepare 面、且它是主引擎不可用时的降级路，
+    /// 冷启代价可接受）
+    private func buildPreparedBundle() async -> PreparedDictation? {
+        let forLanguage = language
+        let available = SpeechTranscriber.isAvailable
+        guard available else { return nil }
+        var locale = await SpeechTranscriber.supportedLocale(
+            equivalentTo: Locale(identifier: forLanguage.localeIdentifier)
+        )
+        if locale == nil, let fallbackID =
+            forLanguage.fallbackLocaleIdentifier {
+            locale = await SpeechTranscriber.supportedLocale(
+                equivalentTo: Locale(identifier: fallbackID)
+            )
+        }
+        guard let locale else { return nil }
+        let module = SpeechTranscriber(
+            locale: locale,
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults],
+            attributeOptions: [.audioTimeRange]
+        )
+        let modules: [any SpeechModule] = [module]
+        let supported = await SpeechTranscriber.supportedLocales
+            .contains { $0.identifier == locale.identifier }
+        // inst 快照＝下载前（与冷路径选引擎时刻同口径）
+        let installed = await SpeechTranscriber.installedLocales
+            .contains { $0.identifier == locale.identifier }
+        let status = await AssetInventory.status(forModules: modules)
+        if status != .installed {
+            preheatAssetDownloading = true
+            do {
+                guard let request = try await AssetInventory
+                    .assetInstallationRequest(supporting: modules)
+                else {
+                    preheatAssetDownloading = false
+                    return nil
+                }
+                try await request.downloadAndInstall()
+            } catch {
+                preheatAssetDownloading = false
+                return nil
+            }
+            preheatAssetDownloading = false
+        }
+        let analyzer = SpeechAnalyzer(modules: modules)
+        guard let format = await SpeechAnalyzer
+            .bestAvailableAudioFormat(compatibleWith: modules)
+        else { return nil }
+        do {
+            try await analyzer.prepareToAnalyze(in: format)
+        } catch {
+            return nil
+        }
+        return PreparedDictation(
+            analyzer: analyzer, transcriber: module, format: format,
+            language: forLanguage, localeID: locale.identifier,
+            presetName: "rep:volatileResults",
+            supported: supported, installed: installed,
+            available: available)
+    }
+
+    /// 取已备产物（startEngine 主引擎尝试专用）：
+    /// 备中则等它落地再看——等的是已启程的预热，
+    /// 仍快于从零冷启；等候期间若在下资产，以
+    /// .preparing 相位示人（不许界面无反应）。语
+    /// 言不符或备失败回 nil 走冷路径
+    private func takePreparedBundle() async -> PreparedDictation? {
+        if preheatState == .warming {
+            if preheatAssetDownloading { setPhase(.preparing) }
+            if let task = preheatTask { await task.value }
+        }
+        guard preheatState == .ready, let bundle = preparedBundle,
+              bundle.language == language else { return nil }
+        preparedBundle = nil
+        preheatState = DictationPreheatPolicy.transition(
+            from: preheatState, event: .consume)
+        return bundle
+    }
+
+    /// 弃置产物（语言变更/退后台/离场共用）：在备
+    /// 的取消、已备的释放，状态机回冷态。轮次令牌
+    /// 同步递增——在备任务的迟到回执对不上轮次直
+    /// 接作废，不许踩新一轮的状态与任务引用
+    private func dropPreparedBundle() {
+        preheatRound += 1
+        preheatTask?.cancel()
+        preheatTask = nil
+        preparedBundle = nil
+        preheatAssetDownloading = false
+        preheatState = DictationPreheatPolicy.transition(
+            from: preheatState, event: .invalidate)
     }
 
     private func startEngine(
@@ -432,6 +674,26 @@ final class DictationController {
         // 一个值，诊断串读到的才是守卫真正看到的
         let transcriberAvailable = SpeechTranscriber.isAvailable
         diagTranscriberAvailable = transcriberAvailable
+        // 预热消费（0.36.15）：主引擎尝试先看已备产
+        // 物——命中则选模块/资产/建分析器整段跳过、
+        // 直进发射；尚在备则等它落地再看（它比点按
+        // 先启程，等也比冷启快）；语言不符/备失败回
+        // nil、走下方冷路径。四格快照以产物建成时刻
+        // 为准（那就是这份产物的选引擎时刻）
+        if !useFallback, let bundle = await takePreparedBundle() {
+            diagLocaleID = bundle.localeID
+            diagPresetName = bundle.presetName
+            diagSupportedLocale = bundle.supported
+            diagInstalledLocale = bundle.installed
+            diagTranscriberAvailable = bundle.available
+            startupFault = false
+            markStage("preheatConsumed")
+            markDiag()
+            return await launchPipeline(
+                analyzer: bundle.analyzer,
+                transcriber: bundle.transcriber, dictation: nil,
+                format: bundle.format, generation: gen)
+        }
         // 1) 选模块并规范化语言（locale 必须经
         // supportedLocale 规范化——苹果工程师口径）
         var speechModule: (any SpeechModule)?
@@ -457,7 +719,7 @@ final class DictationController {
                 locale: locale,
                 transcriptionOptions: [],
                 reportingOptions: [.volatileResults],
-                attributeOptions: []
+                attributeOptions: [.audioTimeRange]
             )
             transcriber = module
             speechModule = module
@@ -540,7 +802,23 @@ final class DictationController {
         guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(
             compatibleWith: modules
         ) else { return .unavailable }
+        return await launchPipeline(
+            analyzer: analyzer,
+            transcriber: transcriber, dictation: dictation,
+            format: format, generation: gen)
+    }
 
+    /// 发射（0.36.15 拆分）：分析器/模块/格式备齐后
+    /// 的共用尾段——预热消费与冷启构造两路在此汇
+    /// 合，音频会话/tap/结果环/start 的次序与守卫
+    /// 只此一份，不许两路各写一份日后漂移
+    private func launchPipeline(
+        analyzer: SpeechAnalyzer,
+        transcriber: SpeechTranscriber?,
+        dictation: DictationTranscriber?,
+        format: AVAudioFormat,
+        generation gen: Int
+    ) async -> EngineAttempt {
         // 4) 音频会话＋引擎＋tap 转码（一路音频分发
         // 识别与电平两用，规格施工坑注）。0.36.8 热修
         // 三点（诊断 §2/§5.2）：①会话对齐 WWDC25 样例
@@ -629,6 +907,7 @@ final class DictationController {
         }
         analyzeTask = Task { [weak self] in
             await self?.markStage("analyzerStarted")
+            await self?.markStartPoint(.analyzerStarted)
             do {
                 try await analyzer.start(inputSequence: stream)
             } catch {
@@ -656,6 +935,7 @@ final class DictationController {
             return .startFailed
         }
         markStage("engineStarted")
+        markStartPoint(.engineStarted)
 
         registerInterruptionObservers()
         startedAt = Date()
@@ -685,6 +965,12 @@ final class DictationController {
         // 计数并同步进诊断串；定稿计数在首条定稿时连
         // 同当时的草稿计数落盘，「草稿先行还是全程为
         // 零」一录定案
+        // 首结果时序点（0.36.15）：vol/fin 不分型，
+        // 第一条到达即记——须赶在下方首条 markDiag
+        // 之前落账，诊断串当场就带首结果毫秒数
+        if volatileResultCount == 0, finalResultCount == 0 {
+            markStartPoint(.firstResult)
+        }
         if isFinal {
             finalResultCount += 1
             if finalResultCount == 1 {
@@ -784,6 +1070,10 @@ final class DictationController {
             fail(.engineError)
             Haptics.error()
         }
+        // 录完即重备下一段（0.36.15）：本段分析器已
+        // 随 finish 终结，下一份备在背景里——用户下
+        // 次点麦克风时只剩开录与喂入
+        warmIfNeeded()
         volatileLength = 0
         waveform.reset()
         waveformBars = waveform.bars

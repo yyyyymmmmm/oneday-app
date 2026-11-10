@@ -450,3 +450,127 @@ public final class DictationAudioFeedBox: @unchecked Sendable {
         }
     }
 }
+
+/// 起步时序点（0.36.15，语音延迟修复包）：首结果
+/// 迟到型的量尺四点——点麦克风（零点）→音频引擎
+/// 启动→分析器 start 调用→首条结果（vol/fin 不
+/// 分型，第一条到达即记）。零点的口径：已授权直达
+/// 时为点按本身；首用预备页路径为确认/授权通过的
+/// 那一刻（读说明的时间不是管道延迟，不计入）
+public enum DictationStartPoint: String, Sendable, Equatable, CaseIterable {
+    case engineStarted
+    case analyzerStarted
+    case firstResult
+}
+
+/// 起步时序钟（纯逻辑）：uptime 由 App 层喂单调时
+/// 钟（systemUptime），本结构只做相对毫秒换算与拼
+/// 串——每点只认第一次到达（迟到的重复打点作废，
+/// 与代次守卫同精神）；未 begin 时 mark 一律忽略
+public struct DictationStartTiming: Sendable, Equatable {
+    public private(set) var originUptime: TimeInterval?
+    public private(set) var offsetsMs: [DictationStartPoint: Int] = [:]
+
+    public init() {}
+
+    /// 起点：开新一轮（旧轮各点清空）
+    public mutating func begin(atUptime uptime: TimeInterval) {
+        originUptime = uptime
+        offsetsMs = [:]
+    }
+
+    /// 整轮作废（收尾/弃置时调用，防迟到打点污染
+    /// 下一轮的诊断串）
+    public mutating func reset() {
+        originUptime = nil
+        offsetsMs = [:]
+    }
+
+    /// 记一个点：相对零点的毫秒（时钟回拨等异常
+    /// 钳到 0，不许出负数）；同点已有值则忽略
+    public mutating func mark(
+        _ point: DictationStartPoint, atUptime uptime: TimeInterval
+    ) {
+        guard let originUptime, offsetsMs[point] == nil else { return }
+        offsetsMs[point] = max(0, Int((uptime - originUptime) * 1000))
+    }
+
+    public func offsetMs(_ point: DictationStartPoint) -> Int? {
+        offsetsMs[point]
+    }
+
+    /// 首结果相对零点的毫秒（本案的 headline 数字）
+    public var firstResultMs: Int? { offsetsMs[.firstResult] }
+
+    /// 诊断串时序段：已到点按时序拼
+    /// `eng+85ms ana+210ms 首结果+10234ms`；一
+    /// 点未到返回空串（诊断行不留半截占位）
+    public var diagnosticSegment: String {
+        var parts: [String] = []
+        if let value = offsetsMs[.engineStarted] {
+            parts.append("eng+\(value)ms")
+        }
+        if let value = offsetsMs[.analyzerStarted] {
+            parts.append("ana+\(value)ms")
+        }
+        if let value = offsetsMs[.firstResult] {
+            parts.append("首结果+\(value)ms")
+        }
+        return parts.joined(separator: " ")
+    }
+}
+
+/// 预热状态（0.36.15）：分析器在点麦克风之前备齐
+/// 的四态——冷（无产物）／备中／已备（可消费）／
+/// 备失败（不挡路，点按走冷路径兜底）
+public enum DictationPreheatState: String, Sendable, Equatable, CaseIterable {
+    case cold
+    case warming
+    case ready
+    case failed
+}
+
+/// 预热事件（0.36.15）
+public enum DictationPreheatEvent: String, Sendable, Equatable, CaseIterable {
+    /// 发起一轮预热（冷/失败态才放行）
+    case beginWarm
+    case warmSucceeded
+    case warmFailed
+    /// 已备产物被一段录音消费（分析器单次使用制，
+    /// 消费即回冷态，录后由控制器发起下一轮）
+    case consume
+    /// 弃置（语言变更/退后台/离开页面）：备中取消、
+    /// 已备弃置，一律回冷态
+    case invalidate
+}
+
+/// 预热状态机（纯政策）：转移全表在此单点，控制
+/// 器只存状态与产物、不散写转移。表外组合一律保
+/// 持原态（迟到事件不许把状态拽回头）
+public enum DictationPreheatPolicy {
+    public static func transition(
+        from state: DictationPreheatState,
+        event: DictationPreheatEvent
+    ) -> DictationPreheatState {
+        switch (state, event) {
+        case (.cold, .beginWarm), (.failed, .beginWarm):
+            return .warming
+        case (.warming, .warmSucceeded):
+            return .ready
+        case (.warming, .warmFailed):
+            return .failed
+        case (.ready, .consume):
+            return .cold
+        case (.warming, .invalidate), (.ready, .invalidate),
+             (.failed, .invalidate):
+            return .cold
+        default:
+            return state
+        }
+    }
+
+    /// 可否发起新一轮预热（已备/备中不起第二轮）
+    public static func canBeginWarm(_ state: DictationPreheatState) -> Bool {
+        state == .cold || state == .failed
+    }
+}

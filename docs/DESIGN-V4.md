@@ -5468,3 +5468,130 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 - 通讯录验收问句（规格 §10 第 4 步）：问 OneDay「通讯录一共多少人、数据是什么时候的」——答数与本机通讯录一致、且带同步时刻；再关系统权限回前台，问通讯录应只回「权限已关」类状态错误（完全停供）；重开权限后恢复。
 - 删除面：详情页删单件副本、总览页删全部——删后问智能体应查不到；开关仍开着时重开 App 应重新同步回来。
 - 照片：受限授权（勾选部分照片）下同步范围行应显「部分」；步数：详情页近 7 日与系统计步对得上。
+
+## §80 语音起步时序账＋分析器预热（0.36.15/82，语音延迟修复包）
+
+承 §77.6 定案：不实时出字＝**首结果交付延迟型**——engine=main、
+preset=rep:volatileResults、sup/inst/avail 全绿，我方结果链（单处
+for-await 直读 transcriber.results）逐段验净；录 5 秒全程 vol/fin
+双零、停录整块涌入，录 20–30 秒中途出字，**首结果约在第 10 秒**
+（用户亲测点选）。外部对账：beta 期约 14 秒的同类报告在正式版＋
+热启动（模型已装、locale 已分配）下收敛到 0.3–0.5s；同构实测实
+现（dev.to simple_memo 两篇）的做法＝分析器提前构造、ensureModel
+前置、结果环先于麦克风启动、收尾 finalizeAndFinishThroughEndOfInput。
+变量在预热/配置，不在结果链——本包两刀：先把延迟量成账，再把构造
+成本搬出点按路径。
+
+### 80.1 起步时序账（先量尺，后验收）
+
+Core `DictationStartTiming`（纯逻辑，uptime 由 App 层喂
+ProcessInfo.systemUptime）：四点＝点麦克风（零点）→引擎启动
+（engine.start 成功）→分析器 start（analyze 任务发起）→首条结果
+（vol/fin 不分型，第一条到达即记，每点只认第一次）。零点口径：
+已授权直达＝点按本身；首用预备页路径＝确认/授权通过那一刻——读
+说明与等授权的时间不是管道延迟，不计入。诊断串（markDiag）在
+vol/fin 之后拼时序段，读法示例：
+
+```
+… vol=3 fin=0 eng+85ms ana+210ms 首结果+10234ms
+```
+
+eng/ana 两点把「我方起步开销」与「系统首结果延迟」分开：eng+ana
+若为百毫秒级而首结果仍上万，账在系统侧热身；eng 本身迟到则是
+我方会话/tap 路径的问题。首结果点在 applyResult 内、首条
+markDiag 之前落账，诊断串当场带数（录音条实时可见）；fin 收尾
+markDiag 再落一次全量。Core 单测 7 个钉住换算/首记胜/缺项省略/
+段序。
+
+### 80.2 预热：常备一束管道（不是实例复用）
+
+施工单原文要求「分析器跨次复用」——与框架口径冲突，落法修正并
+记明：DocC 明言分析器会话进入 finished 态后不再接受新输入序列
+或模块，`finalizeAndFinishThroughEndOfInput` 即终结会话 ⇒
+**分析器是单次使用制，同一实例无法跨段 start**。可复用的实体改
+为「常备一束」流水线：永远保持一束已 prepare 的 bundle 待命
+（SpeechTranscriber＋SpeechAnalyzer＋最佳格式＋规范化 locale＋
+仪表四格快照），点按消费一束、录后立即再备下一束——构造/资产/
+prepare 的成本全落在预热里，点按路径只剩音频会话＋引擎/tap＋
+start。
+
+- 备束内容（buildPreparedBundle，仅主引擎）：isAvailable 门→
+  supportedLocale 规范化（与冷路径同口径，含 fallback）→四格
+  实查（inst 为下载前快照）→资产未装走系统下载→建分析器→
+  bestAvailableAudioFormat→`prepareToAnalyze(in: format)`。
+  DocC 签名实查：`prepareToAnalyze(in audioFormat:
+  AVAudioFormat?)`（参数是音频格式、非时间区间），原文「To
+  proactively load system resources and 'preheat' the analyzer,
+  call prepareToAnalyze(in:) after setting its modules. This
+  may improve how quickly the modules return their first
+  results.」
+- 状态机：Core `DictationPreheatPolicy` 全表单点（cold/warming/
+  ready/failed × beginWarm/warmSucceeded/warmFailed/consume/
+  invalidate），控制器只存状态/任务/产物。迟到回执另设**轮次令
+  牌**（beginWarm/弃置递增，回执先对轮次）：取消尾巴不许踩新一
+  轮的状态与任务引用。Core 单测 4 个钉全表关键转移与表外保持。
+- 消费（takePreparedBundle）：startEngine 主引擎尝试先行——
+  ready 直接进发射；warming 则等它落地再看（已启程的预热仍快
+  于从零冷启；等候中若在下资产，相位转 .preparing 示人）；语
+  言不符/备失败回 nil 走原冷路径（含其全部失败呈现）。回退引
+  擎不预热：无 prepare 面、且是降级路，冷启代价可接受。
+- 发射拆分：startEngine 尾段（音频会话→tap→结果环→分析器
+  start→引擎 start）抽为 `launchPipeline`，预热消费与冷启构造
+  两路汇合一份——次序与守卫不许两路各写一份漂移。既有次序与
+  dev.to 实测实现对齐：结果消费任务**先于** analyzer.start 建
+  立、analyzer.start 先于 engine.start（DocC 口径，0.36.6 起
+  即如此，本包未动）。
+- 收尾口径核对：现行已是 finalize 口径——`finalizeWithTimeout`
+  包 `analyzer.finalizeAndFinishThroughEndOfInput()`＋2 秒超时
+  `cancelAndFinishNow()` 兜底＋drainResults，本包未改。
+- attributeOptions：冷/热两路统一补 `[.audioTimeRange]`，与
+  苹果样例及实测实现对齐（此前为 []）。
+- 预设维持手动 `[.volatileResults]` 不换 `.progressive-
+  Transcription`：同构反例（dev.to）用手动 volatile 即实时出
+  字，预设不是已证变量；单变量原则——本包只动预热与打点，数
+  字仍差再议预设。
+
+### 80.3 生命周期红线（预热≠开录）
+
+- 触发点：ChatView onAppear 与 scenePhase 回 .active 调
+  `armPreheat()`；退 .background 调 `suspendPreheat()`（只弃产
+  物、总闸保持，回前台再 arm 重备）；onDisappear 调
+  `disarmPreheat()`（关闸＋弃置）。
+- 切会话**不失效**：bundle 不含任何会话数据、只与识别语言绑
+  定，线程切换无需重备（ChatView 实例随线程重建时 onAppear
+  自然再 arm，已备束在控制器上保留）。
+- 失效触发：语言变更（language didSet 弃置＋按新语言重备）、
+  退后台、离页。录音/收尾/准备中不发起新一轮（不与在飞管道抢
+  资源）；录后（finishRecording 末尾）与全失败收束各发起一轮。
+- 指示器语义：预热只构造模块/分析器、确保资产、调 prepare——
+  **不碰 AVAudioSession、不开引擎/tap、不发任何权限请求**
+  （麦克风仍是点按时按 MicPermissionGate 同步状态门走，授权铁
+  律不因预热破例）；系统录音指示（橙点）只随发射段激活音频会
+  话出现，预热不污染。
+- 预热失败静默：任何一步不成回 nil＋状态机落 failed，不向用
+  户报错；点按冷路径以原有形态兜底。failed 态可再备（用户重试
+  或下一次 arm 触发）。
+
+### 80.4 未采：SpeechAnalyzer.Options 的 ModelRetention
+
+DocC 另有 `SpeechAnalyzer.Options`（priority＋modelRetention：
+.lingering/.processLifetime/.whileInUse，为「later use by a
+different analyzer instance」缓存已加载资源）——与常备束是同一
+问题的另一解。本包**不用**：①Priority 枚举的成员名未及核实，
+不许在 CI 里猜名（猜错即红、且错在无关处）；②常备束本人持有
+分析器实例，资源随实例存活，retention 的增量价值未证。记为后
+手：真机数字若仍差，先核实 Options 口径再议。
+
+### 80.5 单测与诚实边界
+
+- 单测：新增 DictationPreheatTimingTests 11 个（时序 7＋预热状
+  态机 4），785 → 796，只增不减。
+- 本地无 Xcode，App 层接线（预热消费、ChatView 三钩子、时序打
+  点位置）由 CI 编译＋真机验收兜底；Core 逻辑已钉测。
+- **真机复验口径（本包成败在此）**：装 0.36.15 后先进聊天页停
+  留数秒（等第一束备好），录同句式 5 秒短录音——应**中途出
+  字**；录音条诊断行读 `首结果+Xms`：与 0.36.13 的约 10000ms
+  对比。注意第一段录音可能仍吃冷路径（进页即点、束未备好时消
+  费等待或回落冷启），第二段起才是常备束的账。若首结果仍在秒
+  级以上：eng/ana 分段先分清我方/系统侧，再议 §80.4 后手与预
+  设变量，不许无账加改。

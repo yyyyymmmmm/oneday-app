@@ -455,8 +455,20 @@ struct ChatView: View {
         // RunIfNeeded，无账本即空转返回）
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
+                // 0.36.15：回前台重备语音分析器（退后
+                // 台时已弃置产物，见下方 background 分支）
+                dictation.armPreheat()
                 Task { await resumeRunIfNeeded() }
+            } else if phase == .background {
+                // 0.36.15：退后台弃置已备分析器——不在
+                // 后台占着系统语音资源；录音中的分析器
+                // 不在此列（走中断/收尾原有路径）
+                dictation.suspendPreheat()
             }
+        }
+        // 0.36.15：离开聊天页关预热总闸并弃置产物
+        .onDisappear {
+            dictation.disarmPreheat()
         }
         .task(id: currentThreadID) {
             await resumeRunIfNeeded()
@@ -471,6 +483,11 @@ struct ChatView: View {
             dictation.onUseKeyboardDictation = {
                 composerFocusHandle.focus()
             }
+            // 0.36.15：进聊天页即预热语音分析器（背
+            // 景构造＋资产确保＋prepareToAnalyze），
+            // 点麦克风时只剩开录与喂入——首结果 10
+            // 秒迟到的对症面（DESIGN-V4 §80）
+            dictation.armPreheat()
             // 0.7.0（D1 主线钦定）：先落钦定——存量钦定且
             // 线程还在则沿用，否则新建本地主线并钦定。
             // （0.30.0 注：0.7.0 的「冷启落点永远先落主
