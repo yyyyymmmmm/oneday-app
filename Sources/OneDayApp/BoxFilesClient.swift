@@ -44,15 +44,15 @@ final class BoxFilesClient: @unchecked Sendable {
         let request = try makeRequest(
             config: config, path: "/files", query: query
         )
-        let (data, http) = try await send(request, endpoint: "电脑文件列表")
+        let (data, http) = try await send(request, endpoint: L10n.string("电脑文件列表"))
         if http.statusCode == 404 {
             throw BoxFilesError.notAvailable
         }
-        try check(http, endpoint: "电脑文件列表")
+        try check(http, endpoint: L10n.string("电脑文件列表"))
         do {
             return try decoder.decode(FilesListing.self, from: data)
         } catch {
-            throw BoxFilesError.failed("电脑文件列表返回格式无法识别")
+            throw BoxFilesError.failed(L10n.string("电脑文件列表返回格式无法识别"))
         }
     }
 
@@ -65,11 +65,11 @@ final class BoxFilesClient: @unchecked Sendable {
             query: [URLQueryItem(name: "path", value: path)],
             timeout: 60
         )
-        let (data, http) = try await send(request, endpoint: "电脑文件读取")
+        let (data, http) = try await send(request, endpoint: L10n.string("电脑文件读取"))
         if http.statusCode == 404 {
-            throw BoxFilesError.failed("这个文件已不存在。")
+            throw BoxFilesError.failed(L10n.string("这个文件已不存在。"))
         }
-        try check(http, endpoint: "电脑文件读取")
+        try check(http, endpoint: L10n.string("电脑文件读取"))
         return data
     }
 
@@ -104,7 +104,7 @@ final class BoxFilesClient: @unchecked Sendable {
             throw BoxFilesError.unauthorized
         }
         guard (200...299).contains(http.statusCode) else {
-            throw BoxFilesError.failed("\(endpoint)返回 \(http.statusCode)")
+            throw BoxFilesError.failed(L10n.format("%@返回 %@", endpoint, String(http.statusCode)))
         }
     }
 
@@ -114,13 +114,13 @@ final class BoxFilesClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw BoxFilesError.failed("\(endpoint)无响应")
+                throw BoxFilesError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as BoxFilesError {
             throw error
         } catch {
-            throw BoxFilesError.failed("\(endpoint)网络不可达")
+            throw BoxFilesError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

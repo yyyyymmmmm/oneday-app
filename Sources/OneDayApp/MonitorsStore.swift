@@ -63,7 +63,7 @@ final class MonitorsStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
-            loadState = .failed("尚未连接服务器。")
+            loadState = .failed(L10n.string("尚未连接服务器。"))
             return
         }
         loadInFlight = true
@@ -76,7 +76,7 @@ final class MonitorsStore {
             loadState = Self.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed("监测读取失败，请稍后重试。")
+            loadState = .failed(L10n.string("监测读取失败，请稍后重试。"))
         }
     }
 
@@ -92,18 +92,18 @@ final class MonitorsStore {
         switch error {
         case .noKey:
             return .notConnected(
-                "还没有可用的登录信息：监测用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
+                L10n.string("还没有可用的登录信息：监测用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。")
             )
         case .unauthorized:
             return .notConnected(
-                "服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。"
+                L10n.string("服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。")
             )
         case .bridgeMissing:
             return .sourceNotOpened(
-                "服务器上的数据桥还没有开通监测面。开通后，你盯着的页面和对象有变化就会出现在这里。"
+                L10n.string("服务器上的数据桥还没有开通监测面。开通后，你盯着的页面和对象有变化就会出现在这里。")
             )
         case .recordGone:
-            return .failed("这条记录已经不在了，请刷新后重试。")
+            return .failed(L10n.string("这条记录已经不在了，请刷新后重试。"))
         case .failed(let message):
             return .failed(message)
         }
@@ -112,13 +112,13 @@ final class MonitorsStore {
     static func message(for error: OneDayBridgeError) -> String {
         switch error {
         case .noKey:
-            return "数据桥未连接：还没有可用的登录信息。"
+            return L10n.string("数据桥未连接：还没有可用的登录信息。")
         case .unauthorized:
-            return "数据桥未连接：服务器拒绝了这次登录。"
+            return L10n.string("数据桥未连接：服务器拒绝了这次登录。")
         case .bridgeMissing:
-            return "监测数据源还没有开通。"
+            return L10n.string("监测数据源还没有开通。")
         case .recordGone:
-            return "这条记录已经不在了。"
+            return L10n.string("这条记录已经不在了。")
         case .failed(let message):
             return message
         }
@@ -129,7 +129,7 @@ final class MonitorsStore {
     func loadChanges(appState: AppState, monitorID: String) async {
         guard !changesLoading.contains(monitorID) else { return }
         guard let config = appState.config else {
-            changesErrors[monitorID] = "尚未连接服务器。"
+            changesErrors[monitorID] = L10n.string("尚未连接服务器。")
             return
         }
         changesLoading.insert(monitorID)
@@ -147,7 +147,7 @@ final class MonitorsStore {
             }
         } catch {
             if changes[monitorID] == nil {
-                changesErrors[monitorID] = "变化记录读取失败，请稍后重试。"
+                changesErrors[monitorID] = L10n.string("变化记录读取失败，请稍后重试。")
             }
         }
     }
@@ -203,7 +203,7 @@ final class MonitorsStore {
             return false
         }
         guard let config = appState.config else {
-            createError = "尚未连接服务器。"
+            createError = L10n.string("尚未连接服务器。")
             return false
         }
         creating = true
@@ -220,13 +220,13 @@ final class MonitorsStore {
             if monitors.contains(where: { $0.id == created.id }) {
                 return true
             }
-            createError = "监测已提交，但还没有在列表里确认出现，请关闭后刷新核对。"
+            createError = L10n.string("监测已提交，但还没有在列表里确认出现，请关闭后刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             createError = Self.message(for: error)
             return false
         } catch {
-            createError = "监测创建失败，请稍后重试。"
+            createError = L10n.string("监测创建失败，请稍后重试。")
             return false
         }
     }
@@ -239,7 +239,7 @@ final class MonitorsStore {
     func checkNow(appState: AppState, monitorID: String) async {
         guard !actingIDs.contains(monitorID) else { return }
         guard let config = appState.config else {
-            notes[monitorID] = "尚未连接服务器。"
+            notes[monitorID] = L10n.string("尚未连接服务器。")
             return
         }
         actingIDs.insert(monitorID)
@@ -252,18 +252,18 @@ final class MonitorsStore {
             )
             await refetch(appState: appState)
             guard let current = monitor(id: monitorID) else {
-                notes[monitorID] = "检查已发出，但再确认时监测不见了，请刷新核对。"
+                notes[monitorID] = L10n.string("检查已发出，但再确认时监测不见了，请刷新核对。")
                 return
             }
             let advanced = (current.lastCheckedAt ?? -.infinity)
                 > (previousCheckedAt ?? -.infinity)
             if !advanced {
-                notes[monitorID] = "检查已发出，但再确认时状态还没更新，请刷新核对。"
+                notes[monitorID] = L10n.string("检查已发出，但再确认时状态还没更新，请刷新核对。")
             }
         } catch let error as OneDayBridgeError {
             notes[monitorID] = Self.message(for: error)
         } catch {
-            notes[monitorID] = "检查失败，请稍后重试。"
+            notes[monitorID] = L10n.string("检查失败，请稍后重试。")
         }
     }
 
@@ -274,7 +274,7 @@ final class MonitorsStore {
     ) async {
         guard !actingIDs.contains(monitorID) else { return }
         guard let config = appState.config else {
-            notes[monitorID] = "尚未连接服务器。"
+            notes[monitorID] = L10n.string("尚未连接服务器。")
             return
         }
         actingIDs.insert(monitorID)
@@ -292,20 +292,20 @@ final class MonitorsStore {
             }
             await refetch(appState: appState)
             guard let current = monitor(id: monitorID) else {
-                notes[monitorID] = "操作已发出，但再确认时监测不见了，请刷新核对。"
+                notes[monitorID] = L10n.string("操作已发出，但再确认时监测不见了，请刷新核对。")
                 return
             }
             if current.enabled != enabled {
                 notes[monitorID] = enabled
-                    ? "恢复已发出，但再确认时仍是暂停状态，请刷新核对。"
-                    : "暂停已发出，但再确认时仍是启用状态，请刷新核对。"
+                    ? L10n.string("恢复已发出，但再确认时仍是暂停状态，请刷新核对。")
+                    : L10n.string("暂停已发出，但再确认时仍是启用状态，请刷新核对。")
             }
         } catch let error as OneDayBridgeError {
             notes[monitorID] = Self.message(for: error)
         } catch {
             notes[monitorID] = enabled
-                ? "恢复失败，请稍后重试。"
-                : "暂停失败，请稍后重试。"
+                ? L10n.string("恢复失败，请稍后重试。")
+                : L10n.string("暂停失败，请稍后重试。")
         }
     }
 
@@ -314,7 +314,7 @@ final class MonitorsStore {
     func delete(appState: AppState, monitorID: String) async -> Bool {
         guard !actingIDs.contains(monitorID) else { return false }
         guard let config = appState.config else {
-            notes[monitorID] = "尚未连接服务器。"
+            notes[monitorID] = L10n.string("尚未连接服务器。")
             return false
         }
         actingIDs.insert(monitorID)
@@ -329,7 +329,7 @@ final class MonitorsStore {
                 purgeCaches(monitorID: monitorID)
                 return true
             }
-            notes[monitorID] = "删除已发出，但列表里还在，请刷新核对。"
+            notes[monitorID] = L10n.string("删除已发出，但列表里还在，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
             // 记录本就已不在＝删除目的已达（回读同口径）
@@ -343,7 +343,7 @@ final class MonitorsStore {
             notes[monitorID] = Self.message(for: error)
             return false
         } catch {
-            notes[monitorID] = "删除失败，请稍后重试。"
+            notes[monitorID] = L10n.string("删除失败，请稍后重试。")
             return false
         }
     }

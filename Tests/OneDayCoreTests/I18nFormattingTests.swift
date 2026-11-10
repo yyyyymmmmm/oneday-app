@@ -58,6 +58,49 @@ final class I18nFormattingTests: XCTestCase {
         XCTAssertTrue(tw.contains("zh-Hant"))
     }
 
+    // MARK: - 0.42.1 长尾转码面的取词形态
+
+    /// 长尾包新转的 Core 呈现面：带 locale 的取词
+    /// 形已就位；逻辑宿主无目录时回落简体源串（与
+    /// 本文件头注的恒等式同理），三语真值由目录校
+    /// 验与 App 宿主把守
+    func testTailSurfacesResolveThroughL10n() {
+        XCTAssertEqual(
+            ServerLabels.platformName("api_server", locale: en), "API 接口"
+        )
+        XCTAssertEqual(
+            ServerLabels.gatewayState("running", running: nil, locale: zhHant),
+            "运行中"
+        )
+        XCTAssertEqual(
+            KanbanStatusPresentation.running.label(locale: en), "进行中"
+        )
+        XCTAssertEqual(GoalCategory.finance.title(locale: zhHant), "财务")
+        XCTAssertEqual(
+            LedgerText.statusWord(.blockedApproval, locale: en), "等待审批"
+        )
+        XCTAssertEqual(
+            ToolCardCategory.other.fallbackTitle(locale: en), "工具调用"
+        )
+        XCTAssertEqual(
+            DevicePermissionState.granted.label(locale: zhHant), "已授权"
+        )
+        XCTAssertEqual(
+            ConnectorEvidence.none.label(locale: en), "无连接证据"
+        )
+        XCTAssertEqual(
+            SlotChoice.auto.providerLabel(locale: en), "自动"
+        )
+        XCTAssertEqual(
+            DeviceSyncPresentation.detailSubtitle(locale: en),
+            "副本在你自己的服务器上，智能体查副本；开着权限就自动同步"
+        )
+        XCTAssertEqual(
+            HermesError.transientNetwork.userMessage(locale: en),
+            HermesError.transientNetwork.userMessage(locale: zhHans)
+        )
+    }
+
     // MARK: - 英文形态（系统格式化器产出）
 
     func testEnglishAbsoluteDates() {

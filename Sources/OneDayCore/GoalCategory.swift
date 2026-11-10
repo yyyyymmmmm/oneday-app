@@ -1,3 +1,5 @@
+import Foundation
+
 /// 目标分类（0.40.0，规格 three-pages-mechanism-v2 第三章）：
 /// 人生领域的七分——无目标时分类创建流的入口、创建时的
 /// 语境、点子 G 源与目标简报组织素材的维度。分类是用户
@@ -23,15 +25,19 @@ public enum GoalCategory: String, Sendable, Equatable, Codable,
     }
 
     /// 用户面类名（与桥 400 人话里的七类同词）
-    public var title: String {
+    public var title: String { title(locale: AppLocale.uiLocale) }
+
+    /// 类名的目录取词形（0.42.1 国际化长尾包：类名随
+    /// 界面语言，呈现层把自己的 locale 透传到这里）
+    public func title(locale: Locale) -> String {
         switch self {
-        case .health: return "健康"
-        case .relationships: return "人际关系"
-        case .finance: return "财务"
-        case .career: return "事业"
-        case .interest: return "兴趣"
-        case .efficiency: return "效率提升"
-        case .other: return "其他"
+        case .health: return L10n.string("健康", locale: locale)
+        case .relationships: return L10n.string("人际关系", locale: locale)
+        case .finance: return L10n.string("财务", locale: locale)
+        case .career: return L10n.string("事业", locale: locale)
+        case .interest: return L10n.string("兴趣", locale: locale)
+        case .efficiency: return L10n.string("效率提升", locale: locale)
+        case .other: return L10n.string("其他", locale: locale)
         }
     }
 

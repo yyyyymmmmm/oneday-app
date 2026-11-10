@@ -40,7 +40,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
 
     func goals(config: ServerConfig) async throws -> [BridgeGoal] {
         let response: BridgeGoalsResponse = try await get(
-            config: config, path: "/goals", endpoint: "目标列表",
+            config: config, path: "/goals", endpoint: L10n.string("目标列表"),
             collection: true
         )
         return response.items
@@ -51,7 +51,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeGoal {
         try await send(
             config: config, path: "/goals", method: "POST",
-            body: body, endpoint: "新建目标", collection: true
+            body: body, endpoint: L10n.string("新建目标"), collection: true
         )
     }
 
@@ -61,14 +61,14 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeGoal {
         try await send(
             config: config, path: "/goals/\(id)", method: "PATCH",
-            body: body, endpoint: "保存目标", collection: false
+            body: body, endpoint: L10n.string("保存目标"), collection: false
         )
     }
 
     func deleteGoal(config: ServerConfig, id: String) async throws {
         let _: BridgeOKResponse = try await sendEmpty(
             config: config, path: "/goals/\(id)", method: "DELETE",
-            endpoint: "删除目标"
+            endpoint: L10n.string("删除目标")
         )
     }
 
@@ -80,7 +80,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         try await send(
             config: config, path: "/goals/\(id)", method: "PATCH",
             body: BridgeGoalStatusPatchRequest(status: status),
-            endpoint: "目标状态", collection: false
+            endpoint: L10n.string("目标状态"), collection: false
         )
     }
 
@@ -91,7 +91,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> [BridgeGoalEntry] {
         let response: BridgeGoalEntriesResponse = try await get(
             config: config, path: "/goals/\(goalID)/entries",
-            endpoint: "进展记录", collection: false
+            endpoint: L10n.string("进展记录"), collection: false
         )
         return response.items
     }
@@ -104,7 +104,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeGoalEntry {
         try await send(
             config: config, path: "/goals/\(goalID)/entries",
-            method: "POST", body: body, endpoint: "记录进展",
+            method: "POST", body: body, endpoint: L10n.string("记录进展"),
             collection: false
         )
     }
@@ -116,7 +116,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         let _: BridgeOKResponse = try await sendEmpty(
             config: config,
             path: "/goals/\(goalID)/entries/\(entryID)",
-            method: "DELETE", endpoint: "删除进展"
+            method: "DELETE", endpoint: L10n.string("删除进展")
         )
     }
 
@@ -127,7 +127,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> [BridgeBriefing] {
         let response: BridgeBriefingsResponse = try await get(
             config: config, path: "/goals/\(goalID)/briefings",
-            endpoint: "目标简报", collection: false
+            endpoint: L10n.string("目标简报"), collection: false
         )
         return response.items
     }
@@ -141,7 +141,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         try await send(
             config: config, path: "/goals/\(id)", method: "PATCH",
             body: BridgeGoalCategoryPatchRequest(category: category),
-            endpoint: "目标分类", collection: false
+            endpoint: L10n.string("目标分类"), collection: false
         )
     }
 
@@ -152,7 +152,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> [BridgeGoalTaskLink] {
         let response: BridgeGoalTaskLinksResponse = try await get(
             config: config, path: "/goals/\(goalID)/task-links",
-            endpoint: "目标关联任务", collection: false
+            endpoint: L10n.string("目标关联任务"), collection: false
         )
         return response.items
     }
@@ -166,7 +166,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeGoalTaskLink {
         try await send(
             config: config, path: "/goals/\(goalID)/task-links",
-            method: "POST", body: body, endpoint: "关联任务",
+            method: "POST", body: body, endpoint: L10n.string("关联任务"),
             collection: false
         )
     }
@@ -175,7 +175,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
 
     func ideas(config: ServerConfig) async throws -> [BridgeIdea] {
         let response: BridgeIdeasResponse = try await get(
-            config: config, path: "/ideas", endpoint: "点子列表",
+            config: config, path: "/ideas", endpoint: L10n.string("点子列表"),
             collection: true
         )
         return response.items
@@ -186,14 +186,14 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeIdea {
         try await send(
             config: config, path: "/ideas", method: "POST",
-            body: body, endpoint: "新建点子", collection: true
+            body: body, endpoint: L10n.string("新建点子"), collection: true
         )
     }
 
     func deleteIdea(config: ServerConfig, id: String) async throws {
         let _: BridgeOKResponse = try await sendEmpty(
             config: config, path: "/ideas/\(id)", method: "DELETE",
-            endpoint: "删除点子"
+            endpoint: L10n.string("删除点子")
         )
     }
 
@@ -206,7 +206,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeIdea {
         try await send(
             config: config, path: "/ideas/\(id)", method: "PATCH",
-            body: body, endpoint: "更新点子", collection: false
+            body: body, endpoint: L10n.string("更新点子"), collection: false
         )
     }
 
@@ -219,7 +219,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeGenerationInfo {
         try await get(
             config: config, path: "/ideas/generation",
-            endpoint: "生成记录", collection: true
+            endpoint: L10n.string("生成记录"), collection: true
         )
     }
 
@@ -229,7 +229,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     /// （bridgeMissing），与 goals/ideas 同口径分流
     func monitors(config: ServerConfig) async throws -> [BridgeMonitor] {
         let response: BridgeMonitorsResponse = try await get(
-            config: config, path: "/monitors", endpoint: "监测列表",
+            config: config, path: "/monitors", endpoint: L10n.string("监测列表"),
             collection: true
         )
         return response.items
@@ -240,7 +240,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> [BridgeMonitorChange] {
         let response: BridgeMonitorChangesResponse = try await get(
             config: config, path: "/monitors/\(monitorID)/changes",
-            endpoint: "变化记录", collection: true
+            endpoint: L10n.string("变化记录"), collection: true
         )
         return response.items
     }
@@ -254,7 +254,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
             config: config,
             path: "/monitors/\(monitorID)/changes/\(changeID)/read",
             method: "POST",
-            endpoint: "标记已读"
+            endpoint: L10n.string("标记已读")
         )
     }
 
@@ -268,7 +268,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeMonitor {
         try await send(
             config: config, path: "/monitors", method: "POST",
-            body: body, endpoint: "新建监测", collection: true
+            body: body, endpoint: L10n.string("新建监测"), collection: true
         )
     }
 
@@ -279,7 +279,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeMonitor {
         try await sendEmpty(
             config: config, path: "/monitors/\(monitorID)/check",
-            method: "POST", endpoint: "立即检查"
+            method: "POST", endpoint: L10n.string("立即检查")
         )
     }
 
@@ -289,7 +289,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeMonitor {
         try await sendEmpty(
             config: config, path: "/monitors/\(monitorID)/pause",
-            method: "POST", endpoint: "暂停监测"
+            method: "POST", endpoint: L10n.string("暂停监测")
         )
     }
 
@@ -299,7 +299,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeMonitor {
         try await sendEmpty(
             config: config, path: "/monitors/\(monitorID)/resume",
-            method: "POST", endpoint: "恢复监测"
+            method: "POST", endpoint: L10n.string("恢复监测")
         )
     }
 
@@ -309,7 +309,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws {
         let _: BridgeOKResponse = try await sendEmpty(
             config: config, path: "/monitors/\(monitorID)",
-            method: "DELETE", endpoint: "删除监测"
+            method: "DELETE", endpoint: L10n.string("删除监测")
         )
     }
 
@@ -319,7 +319,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     /// 倒序、过期不回）；集合端点 404＝动态面未开通
     func feedPosts(config: ServerConfig) async throws -> [BridgeFeedPost] {
         let response: BridgeFeedPostsResponse = try await get(
-            config: config, path: "/feed?days=30", endpoint: "动态列表",
+            config: config, path: "/feed?days=30", endpoint: L10n.string("动态列表"),
             collection: true
         )
         return response.items
@@ -333,7 +333,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeFeedGeneration {
         try await get(
             config: config, path: "/feed/generation",
-            endpoint: "动态账面", collection: true
+            endpoint: L10n.string("动态账面"), collection: true
         )
     }
 
@@ -344,7 +344,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     ) async throws -> BridgeFeedPost {
         try await sendEmpty(
             config: config, path: "/feed/\(id)/read", method: "POST",
-            endpoint: "标记已读"
+            endpoint: L10n.string("标记已读")
         )
     }
 
@@ -354,7 +354,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     func feedBrief(config: ServerConfig) async throws -> BridgeBriefDoc {
         try await get(
             config: config, path: "/meta/brief",
-            endpoint: "动态简报", collection: true
+            endpoint: L10n.string("动态简报"), collection: true
         )
     }
 
@@ -367,7 +367,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         try await send(
             config: config, path: "/meta/brief", method: "PUT",
             body: BridgeBriefSaveRequest(interest: interest),
-            endpoint: "保存简报兴趣", collection: false
+            endpoint: L10n.string("保存简报兴趣"), collection: false
         )
     }
 
@@ -379,7 +379,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         try await send(
             config: config, path: "/meta/brief", method: "PUT",
             body: BridgeBriefSaveRequest(brief: brief),
-            endpoint: "保存执行简报", collection: false
+            endpoint: L10n.string("保存执行简报"), collection: false
         )
     }
 
@@ -388,7 +388,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
     func generateFeed(config: ServerConfig) async throws {
         let _: BridgeOKResponse = try await sendEmpty(
             config: config, path: "/feed/generate", method: "POST",
-            endpoint: "生成动态"
+            endpoint: L10n.string("生成动态")
         )
     }
 
@@ -418,7 +418,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)返回格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
         }
     }
 
@@ -430,7 +430,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         do {
             request.httpBody = try encoder.encode(body)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)请求组装失败")
+            throw OneDayBridgeError.failed(L10n.format("%@请求组装失败", endpoint))
         }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, http) = try await send(request, endpoint: endpoint)
@@ -438,7 +438,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)回执格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
         }
     }
 
@@ -452,7 +452,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)回执格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
         }
     }
 
@@ -485,7 +485,7 @@ final class OneDayBridgeClient: @unchecked Sendable {
                 throw OneDayBridgeError.failed(body.error)
             }
             throw OneDayBridgeError.failed(
-                "\(endpoint)返回 \(http.statusCode)"
+                L10n.format("%@返回 %@", endpoint, String(http.statusCode))
             )
         }
     }
@@ -496,13 +496,13 @@ final class OneDayBridgeClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw OneDayBridgeError.failed("\(endpoint)无响应")
+                throw OneDayBridgeError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as OneDayBridgeError {
             throw error
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)网络不可达")
+            throw OneDayBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

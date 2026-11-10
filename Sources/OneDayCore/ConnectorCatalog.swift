@@ -30,11 +30,14 @@ public enum ConnectorEvidence: String, Sendable, Equatable, CaseIterable {
     /// 无证据
     case none
 
-    public var label: String {
+    public var label: String { label(locale: AppLocale.uiLocale) }
+
+    /// 档位名的目录取词形（0.42.1 国际化长尾包）
+    public func label(locale: Locale) -> String {
         switch self {
-        case .liveVerified: return "服务端实时读取"
-        case .configuredOnly: return "仅配置在册 · 未验活"
-        case .none: return "无连接证据"
+        case .liveVerified: return L10n.string("服务端实时读取", locale: locale)
+        case .configuredOnly: return L10n.string("仅配置在册 · 未验活", locale: locale)
+        case .none: return L10n.string("无连接证据", locale: locale)
         }
     }
 }
@@ -45,6 +48,15 @@ public enum ConnectorCategory: String, Sendable, Equatable, CaseIterable {
     case office = "办公协作"
     case development = "开发工具"
     case life = "生活"
+
+    /// 分类的呈现名（0.42.1 国际化长尾包）：rawValue
+    /// 是简体源串，同时充当搜索语料与分组 id，不
+    /// 动；上屏走本形按当前语言取目录值
+    public var title: String { title(locale: AppLocale.uiLocale) }
+
+    public func title(locale: Locale) -> String {
+        L10n.string(rawValue, locale: locale)
+    }
 }
 
 /// 图标呈现口径（0.36.0，设计宪法 §4 图标三源
@@ -115,11 +127,16 @@ public struct ConnectedConnector: Identifiable, Sendable {
         known?.name ?? server.name
     }
 
-    public var blurb: String {
-        if let known { return known.blurb }
+    public var blurb: String { blurb(locale: AppLocale.uiLocale) }
+
+    /// 一句话说明的目录取词形（0.42.1 国际化长尾包）：
+    /// knownServers 的 blurb 存简体源串（目录键），
+    /// 在此按 locale 解析；专名 name 不译
+    public func blurb(locale: Locale) -> String {
+        if let known { return L10n.string(known.blurb, locale: locale) }
         return server.isPluginProvided
-            ? "插件预置的 MCP 连接"
-            : "手动配置的 MCP 连接"
+            ? L10n.string("插件预置的 MCP 连接", locale: locale)
+            : L10n.string("手动配置的 MCP 连接", locale: locale)
     }
 
     /// 图标口径（§4）：已知在册者走其登记呈现；未
@@ -132,7 +149,14 @@ public struct ConnectedConnector: Identifiable, Sendable {
 
     /// 状态文案单一映射（列表行与详情共用一处）
     public var statusLabel: String {
-        server.enabled ? "已连接 · 已启用" : "已连接 · 已停用"
+        statusLabel(locale: AppLocale.uiLocale)
+    }
+
+    /// 状态文案的目录取词形（0.42.1 国际化长尾包）
+    public func statusLabel(locale: Locale) -> String {
+        server.enabled
+            ? L10n.string("已连接 · 已启用", locale: locale)
+            : L10n.string("已连接 · 已停用", locale: locale)
     }
 }
 
@@ -161,9 +185,41 @@ public enum ConnectorDirectory {
         ),
     ]
 
-    /// 可连接目录（静态全集）：主流服务八家，全为
-    /// 未接入＋接入路径如实标注
-    public static let catalog: [ConnectorCatalogEntry] = [
+    /// 可连接目录（当前界面语言版）
+    public static var catalog: [ConnectorCatalogEntry] {
+        catalog(locale: AppLocale.uiLocale)
+    }
+
+    /// 可连接目录的目录取词形（0.42.1 国际化长尾
+    /// 包）：源表 catalogSource 存简体源串（目录
+    /// 键），按 locale 在构造时解析四件文本字段；
+    /// id/分类/图标是语言无关口径，原样保留。专名
+    /// （Gmail/Notion 等）不是目录键、L10n 缺键回
+    /// 键本身，解析后仍是原名
+    public static func catalog(
+        locale: Locale
+    ) -> [ConnectorCatalogEntry] {
+        catalogSource.map { entry in
+            ConnectorCatalogEntry(
+                id: entry.id,
+                name: L10n.string(entry.name, locale: locale),
+                blurb: L10n.string(entry.blurb, locale: locale),
+                category: entry.category,
+                iconSpec: entry.iconSpec,
+                accessSummary: L10n.string(
+                    entry.accessSummary, locale: locale
+                ),
+                accessDetail: L10n.string(
+                    entry.accessDetail, locale: locale
+                )
+            )
+        }
+    }
+
+    /// 可连接目录源表（静态全集）：主流服务八家，
+    /// 全为未接入＋接入路径如实标注；文本字段存简
+    /// 体源串、经 catalog(locale:) 解析后才上屏
+    private static let catalogSource: [ConnectorCatalogEntry] = [
         ConnectorCatalogEntry(
             id: "gmail", name: "Gmail",
             blurb: "收发、搜索与整理你的 Gmail 邮件",
@@ -243,8 +299,15 @@ public enum ConnectorDirectory {
     public static func availableEntries(
         connected: [ConnectedConnector]
     ) -> [ConnectorCatalogEntry] {
+        availableEntries(connected: connected, locale: AppLocale.uiLocale)
+    }
+
+    /// 可连接名单的目录取词形（0.42.1 国际化长尾包）
+    public static func availableEntries(
+        connected: [ConnectedConnector], locale: Locale
+    ) -> [ConnectorCatalogEntry] {
         let taken = Set(connected.map { $0.server.name })
-        return catalog.filter { !taken.contains($0.id) }
+        return catalog(locale: locale).filter { !taken.contains($0.id) }
     }
 
     // MARK: - 搜索（真过滤：名称＋分类＋说明，纯函数）
@@ -263,13 +326,14 @@ public enum ConnectorDirectory {
     }
 
     public static func matches(
-        _ entry: ConnectedConnector, query: String
+        _ entry: ConnectedConnector, query: String,
+        locale: Locale = AppLocale.uiLocale
     ) -> Bool {
         let q = normalized(query)
         if q.isEmpty { return true }
         let fields = [
             entry.displayName, entry.server.name,
-            entry.blurb, entry.statusLabel,
+            entry.blurb(locale: locale), entry.statusLabel(locale: locale),
         ]
         return fields.contains { normalized($0).contains(q) }
     }
@@ -281,9 +345,10 @@ public enum ConnectorDirectory {
     }
 
     public static func filteredConnected(
-        _ entries: [ConnectedConnector], query: String
+        _ entries: [ConnectedConnector], query: String,
+        locale: Locale = AppLocale.uiLocale
     ) -> [ConnectedConnector] {
-        entries.filter { matches($0, query: query) }
+        entries.filter { matches($0, query: query, locale: locale) }
     }
 
     /// 分类分组（保持分类声明序与目录原序）

@@ -10,9 +10,9 @@ enum ProbeStep: Int, CaseIterable {
 
     var label: String {
         switch self {
-        case .health: return "健康检查"
-        case .login: return "登录面板"
-        case .apiKey: return "验证 API 密钥"
+        case .health: return L10n.string("健康检查")
+        case .login: return L10n.string("登录面板")
+        case .apiKey: return L10n.string("验证 API 密钥")
         }
     }
 }

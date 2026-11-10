@@ -29,7 +29,7 @@ final class GoalCategoryTests: XCTestCase {
              "interest", "efficiency", "other"]
         )
         XCTAssertEqual(
-            GoalCategory.creationOrder.map(\.title),
+            GoalCategory.creationOrder.map { $0.title(locale: Locale(identifier: "zh-Hans")) },
             ["健康", "人际关系", "财务", "事业", "兴趣", "效率提升", "其他"]
         )
         XCTAssertEqual(

@@ -25,7 +25,7 @@ final class ModelComboClient: @unchecked Sendable {
     ) async throws -> ModelComboDocument {
         try await get(
             config: config, path: "/meta/model-combos",
-            endpoint: "组合清单"
+            endpoint: L10n.string("组合清单")
         )
     }
 
@@ -36,7 +36,7 @@ final class ModelComboClient: @unchecked Sendable {
     ) async throws {
         let _: ModelComboDocument = try await send(
             config: config, path: "/meta/model-combos",
-            method: "PUT", body: document, endpoint: "保存组合"
+            method: "PUT", body: document, endpoint: L10n.string("保存组合")
         )
     }
 
@@ -68,7 +68,7 @@ final class ModelComboClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)返回格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
         }
     }
 
@@ -80,7 +80,7 @@ final class ModelComboClient: @unchecked Sendable {
         do {
             request.httpBody = try encoder.encode(body)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)请求组装失败")
+            throw OneDayBridgeError.failed(L10n.format("%@请求组装失败", endpoint))
         }
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
@@ -90,7 +90,7 @@ final class ModelComboClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)回执格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
         }
     }
 
@@ -109,7 +109,7 @@ final class ModelComboClient: @unchecked Sendable {
                 : OneDayBridgeError.recordGone
         default:
             throw OneDayBridgeError.failed(
-                "\(endpoint)返回 \(http.statusCode)"
+                L10n.format("%@返回 %@", endpoint, String(http.statusCode))
             )
         }
     }
@@ -120,13 +120,13 @@ final class ModelComboClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw OneDayBridgeError.failed("\(endpoint)无响应")
+                throw OneDayBridgeError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as OneDayBridgeError {
             throw error
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)网络不可达")
+            throw OneDayBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

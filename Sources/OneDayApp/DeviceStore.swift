@@ -244,7 +244,7 @@ final class DeviceSessionController {
             } catch {
                 _ = self.machine.handle(.registrationFailed)
                 self.sessionOnline = false
-                self.sessionError = "设备会话注册失败"
+                self.sessionError = L10n.string("设备会话注册失败")
             }
         }
     }
@@ -336,9 +336,9 @@ final class DeviceSessionController {
 
     private static func errorLine(_ error: DeviceBridgeError) -> String {
         switch error {
-        case .noKey: return "还没有登录密钥，设备会话未注册。"
-        case .unauthorized: return "登录密钥被拒（401），设备会话未注册。"
-        case .unknownSession: return "设备会话已过期。"
+        case .noKey: return L10n.string("还没有登录密钥，设备会话未注册。")
+        case .unauthorized: return L10n.string("登录密钥被拒（401），设备会话未注册。")
+        case .unknownSession: return L10n.string("设备会话已过期。")
         case .failed(let message): return message
         }
     }

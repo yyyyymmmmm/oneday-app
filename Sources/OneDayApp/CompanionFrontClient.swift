@@ -29,7 +29,7 @@ final class CompanionFrontClient: @unchecked Sendable {
             let connections: [CompanionConnection]
         }
         let response: Response = try await get(
-            config: config, path: "/connections", endpoint: "连接清单"
+            config: config, path: "/connections", endpoint: L10n.string("连接清单")
         )
         return response.connections
     }
@@ -45,7 +45,7 @@ final class CompanionFrontClient: @unchecked Sendable {
         let response: Response = try await post(
             config: config, path: "/connections",
             body: ConnectionPayloads.create(provider: provider, name: name),
-            endpoint: "添加电脑"
+            endpoint: L10n.string("添加电脑")
         )
         return response.connection
     }
@@ -58,7 +58,7 @@ final class CompanionFrontClient: @unchecked Sendable {
     ) async throws -> (ok: Bool, detail: String, connection: CompanionConnection?) {
         let response: CredentialResponse = try await post(
             config: config, path: "/connections/\(id)/credential",
-            body: body, endpoint: "保存凭据"
+            body: body, endpoint: L10n.string("保存凭据")
         )
         return (response.ok, response.detail ?? "", response.connection)
     }
@@ -69,7 +69,7 @@ final class CompanionFrontClient: @unchecked Sendable {
     ) async throws -> (ok: Bool, detail: String, connection: CompanionConnection?) {
         let response: CredentialResponse = try await post(
             config: config, path: "/connections/\(id)/verify",
-            body: [:], endpoint: "测试连接"
+            body: [:], endpoint: L10n.string("测试连接")
         )
         return (response.ok, response.detail ?? "", response.connection)
     }
@@ -81,7 +81,7 @@ final class CompanionFrontClient: @unchecked Sendable {
     ) async throws -> CompanionConnection? {
         let response: CredentialResponse = try await post(
             config: config, path: "/connections/\(id)/disconnect",
-            body: [:], endpoint: "断开连接"
+            body: [:], endpoint: L10n.string("断开连接")
         )
         return response.connection
     }
@@ -101,7 +101,7 @@ final class CompanionFrontClient: @unchecked Sendable {
         config: ServerConfig
     ) async -> GatewayChannelsFace {
         guard let key = bridgeKey, !key.isEmpty else {
-            return .failed("还没有登录凭据，读不到网关渠道。")
+            return .failed(L10n.string("还没有登录凭据，读不到网关渠道。"))
         }
         var request = URLRequest(
             url: config.endpoint("/api/companion/gateway-channels")
@@ -114,7 +114,7 @@ final class CompanionFrontClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                return .failed("网关渠道读取失败，请稍后再试。")
+                return .failed(L10n.string("网关渠道读取失败，请稍后再试。"))
             }
             switch http.statusCode {
             case 200:
@@ -123,16 +123,16 @@ final class CompanionFrontClient: @unchecked Sendable {
                 ) {
                     return .ready(decoded.channels)
                 }
-                return .failed("网关渠道的返回格式无法识别。")
+                return .failed(L10n.string("网关渠道的返回格式无法识别。"))
             case 404:
                 return .faceMissing
             case 401:
-                return .failed("登录凭据被拒绝，读不到网关渠道。")
+                return .failed(L10n.string("登录凭据被拒绝，读不到网关渠道。"))
             default:
-                return .failed("网关渠道读取失败（\(http.statusCode)）。")
+                return .failed(L10n.format("网关渠道读取失败（%@）。", String(http.statusCode)))
             }
         } catch {
-            return .failed("网关渠道读取失败，请稍后再试。")
+            return .failed(L10n.string("网关渠道读取失败，请稍后再试。"))
         }
     }
 
@@ -163,7 +163,7 @@ final class CompanionFrontClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)返回格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
         }
     }
 
@@ -175,7 +175,7 @@ final class CompanionFrontClient: @unchecked Sendable {
         do {
             request.httpBody = try encoder.encode(body)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)请求组装失败")
+            throw OneDayBridgeError.failed(L10n.format("%@请求组装失败", endpoint))
         }
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
@@ -185,7 +185,7 @@ final class CompanionFrontClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)回执格式无法识别")
+            throw OneDayBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
         }
     }
 
@@ -211,7 +211,7 @@ final class CompanionFrontClient: @unchecked Sendable {
                 throw OneDayBridgeError.failed(message)
             }
             throw OneDayBridgeError.failed(
-                "\(endpoint)返回 \(http.statusCode)"
+                L10n.format("%@返回 %@", endpoint, String(http.statusCode))
             )
         }
     }
@@ -222,13 +222,13 @@ final class CompanionFrontClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw OneDayBridgeError.failed("\(endpoint)无响应")
+                throw OneDayBridgeError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as OneDayBridgeError {
             throw error
         } catch {
-            throw OneDayBridgeError.failed("\(endpoint)网络不可达")
+            throw OneDayBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

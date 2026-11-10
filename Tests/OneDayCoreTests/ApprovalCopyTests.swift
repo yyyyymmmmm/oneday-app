@@ -160,11 +160,11 @@ final class ApprovalCopyTests: XCTestCase {
          "op_count": 3, "op_kinds": ["patch", "patch", "patch"]}
         """.utf8))
         XCTAssertEqual(
-            record.headline, "修改技能《personal-data-insights》：共 3 处改动"
+            record.headline(locale: Locale(identifier: "zh-Hans")), "修改技能《personal-data-insights》：共 3 处改动"
         )
         // 无内容预览＋英文摘要：说明行宁缺毋滥（nil）
         XCTAssertNil(record.previewLine)
-        XCTAssertEqual(record.originLabel, "本机 App")
+        XCTAssertEqual(record.originLabel(locale: Locale(identifier: "zh-Hans")), "本机 App")
         XCTAssertEqual(record.effectiveOp, "batch")
     }
 
@@ -176,7 +176,7 @@ final class ApprovalCopyTests: XCTestCase {
         """.utf8))
         // 存量中文摘要作说明行保留，头条仍走模板
         XCTAssertEqual(record.previewLine, "把一条新的巡检结论写入长期记忆")
-        XCTAssertEqual(record.headline, "新增一条记忆")
+        XCTAssertEqual(record.headline(locale: Locale(identifier: "zh-Hans")), "新增一条记忆")
     }
 
     // MARK: - 已决记录：via_rule 与同模板头条
@@ -191,7 +191,7 @@ final class ApprovalCopyTests: XCTestCase {
          "mem_target": "memory", "content_preview": "出差时住公司附近"}
         """.utf8))
         XCTAssertTrue(item.isRuleApproved)
-        XCTAssertEqual(item.headline, "新增一条记忆：出差时住公司附近")
+        XCTAssertEqual(item.headline(locale: Locale(identifier: "zh-Hans")), "新增一条记忆：出差时住公司附近")
         // 无 via_rule 的旧账本条目解码不受影响
         let plain = try decoder.decode(WriteGateDecisionRecord.self, from: Data("""
         {"id": "d2", "subsystem": "skills", "action": "edit",
@@ -218,22 +218,22 @@ final class ApprovalCopyTests: XCTestCase {
     func testQuestionTemplates() throws {
         XCTAssertEqual(
             ApprovalCardCopy.question(for: try makeRecord(
-                subsystem: "memory", action: "add")),
+                subsystem: "memory", action: "add"), locale: Locale(identifier: "zh-Hans")),
             "允许智能体新增一条长期记忆？"
         )
         XCTAssertEqual(
             ApprovalCardCopy.question(for: try makeRecord(
-                subsystem: "skills", action: "create")),
+                subsystem: "skills", action: "create"), locale: Locale(identifier: "zh-Hans")),
             "允许智能体新建一个技能？"
         )
         XCTAssertEqual(
             ApprovalCardCopy.question(for: try makeRecord(
-                subsystem: "skills", action: "delete")),
+                subsystem: "skills", action: "delete"), locale: Locale(identifier: "zh-Hans")),
             "允许智能体删除整个技能？"
         )
         XCTAssertEqual(
             ApprovalCardCopy.question(for: try makeRecord(
-                subsystem: "tools", action: "run")),
+                subsystem: "tools", action: "run"), locale: Locale(identifier: "zh-Hans")),
             "允许智能体执行这项写入？"
         )
     }
@@ -245,7 +245,7 @@ final class ApprovalCopyTests: XCTestCase {
             subsystem: "skills", action: "edit", op: "batch"
         )
         XCTAssertEqual(
-            ApprovalCardCopy.question(for: record),
+            ApprovalCardCopy.question(for: record, locale: Locale(identifier: "zh-Hans")),
             "允许智能体批量修改技能文件？"
         )
     }
@@ -253,10 +253,10 @@ final class ApprovalCopyTests: XCTestCase {
     func testConsequenceAndScope() throws {
         let record = try makeRecord(subsystem: "memory", action: "remove")
         XCTAssertTrue(
-            ApprovalCardCopy.consequence(for: record).contains("驳回")
+            ApprovalCardCopy.consequence(for: record, locale: Locale(identifier: "zh-Hans")).contains("驳回")
         )
         XCTAssertEqual(
-            ApprovalCardCopy.alwaysAllowScope(for: record),
+            ApprovalCardCopy.alwaysAllowScope(for: record, locale: Locale(identifier: "zh-Hans")),
             "记忆 · 本机 App"
         )
     }
@@ -271,7 +271,7 @@ final class ApprovalCopyTests: XCTestCase {
             """.utf8)
         )
         XCTAssertEqual(response.rules.count, 1)
-        XCTAssertEqual(response.rules[0].scopeLabel, "记忆 · 本机 App")
+        XCTAssertEqual(response.rules[0].scopeLabel(locale: Locale(identifier: "zh-Hans")), "记忆 · 本机 App")
         XCTAssertNotNil(response.rules[0].createdAt)
     }
 

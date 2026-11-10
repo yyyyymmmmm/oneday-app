@@ -21,10 +21,10 @@ struct ApprovalResolvedLine: Identifiable, Equatable {
 
         var label: String {
             switch self {
-            case .approved: return "已批准"
-            case .rejected: return "已驳回"
-            case .approvedAlways: return "已批准 · 已记住这一类"
-            case .ruleApproved: return "已按规则放行"
+            case .approved: return L10n.string("已批准")
+            case .rejected: return L10n.string("已驳回")
+            case .approvedAlways: return L10n.string("已批准 · 已记住这一类")
+            case .ruleApproved: return L10n.string("已按规则放行")
             }
         }
 
@@ -92,29 +92,33 @@ final class AgentHubStore {
     /// 显示「状态未确认」，不给离线假结论（失败口径
     /// 沿数据设计）
     var statusText: String {
-        guard let serverStatus else { return "状态未确认" }
+        guard let serverStatus else { return L10n.string("状态未确认") }
         let word = ServerLabels.gatewayState(
             serverStatus.gatewayState, running: serverStatus.gatewayRunning
         )
-        if word == "运行中" {
+        // 比较与 gatewayState 的返回值同源取词（同一
+        // uiLocale 解析），语言切换后仍恒等（0.42.1）
+        if word == L10n.string("运行中") {
             if case .ready(let records) = approvalState, !records.isEmpty {
-                return "在线 · \(records.count) 条待审批"
+                return L10n.format(
+                    "在线 · %lld 条待审批", records.count
+                )
             }
-            return "在线"
+            return L10n.string("在线")
         }
-        return "网关\(word)"
+        return L10n.format("网关%@", word)
     }
 
     var isOnline: Bool {
         guard let serverStatus else { return false }
         return ServerLabels.gatewayState(
             serverStatus.gatewayState, running: serverStatus.gatewayRunning
-        ) == "运行中"
+        ) == L10n.string("运行中")
     }
 
     /// 分享摘要（页头分享圆钮）：名＋状态＋当前模型
     var shareText: String {
-        "\(displayName) · \(statusText) · 当前模型 "
+        L10n.format("%@ · %@ · 当前模型 ", displayName, statusText)
             + ChatModels.displayName(for: appState.chatModel)
     }
 
@@ -422,7 +426,7 @@ final class AgentHubStore {
             approvalState = mapGateError(error)
             return
         } catch {
-            approvalState = .failed("审批状态读取失败")
+            approvalState = .failed(L10n.string("审批状态读取失败"))
             return
         }
         guard status.supported else {
@@ -441,7 +445,7 @@ final class AgentHubStore {
             approvalState = mapGateError(error)
             return
         } catch {
-            approvalState = .failed("待批列表读取失败")
+            approvalState = .failed(L10n.string("待批列表读取失败"))
             return
         }
         await refreshDecisionHistory()
@@ -495,7 +499,7 @@ final class AgentHubStore {
         } catch let error as WriteGateError {
             return .failure(error)
         } catch {
-            return .failure(.failed("改动读取失败"))
+            return .failure(.failed(L10n.string("改动读取失败")))
         }
     }
 
@@ -544,7 +548,7 @@ final class AgentHubStore {
                 )
                 alwaysApproveMarks.remove(record.id)
             } else {
-                cardNotes[record.id] = "裁决未生效，请重新打开改动核对后再试。"
+                cardNotes[record.id] = L10n.string("裁决未生效，请重新打开改动核对后再试。")
             }
         } catch let error as WriteGateError {
             switch error {
@@ -563,17 +567,17 @@ final class AgentHubStore {
                 }
                 alwaysApproveMarks.remove(record.id)
             case .conflict:
-                cardNotes[record.id] = "这条写入的内容已变化，已按最新状态刷新，请重新核对。"
+                cardNotes[record.id] = L10n.string("这条写入的内容已变化，已按最新状态刷新，请重新核对。")
                 decidingIDs.remove(record.id)
                 await loadApproval(force: true)
                 return
             case .failed(let message):
                 cardNotes[record.id] = message
             case .noKey, .bridgeMissing, .unauthorized:
-                cardNotes[record.id] = "审批通道未接通，裁决没有发出。"
+                cardNotes[record.id] = L10n.string("审批通道未接通，裁决没有发出。")
             }
         } catch {
-            cardNotes[record.id] = "裁决发送失败，记录仍在待批中。"
+            cardNotes[record.id] = L10n.string("裁决发送失败，记录仍在待批中。")
         }
         decidingIDs.remove(record.id)
     }
@@ -606,8 +610,9 @@ final class AgentHubStore {
                 origin: record.origin
             )
         } catch {
-            cardNotes[record.id] =
+            cardNotes[record.id] = L10n.string(
                 "「总是允许」没能记住（规则建立失败），这条仍在待批中。"
+            )
             decidingIDs.remove(record.id)
             return
         }
@@ -642,11 +647,11 @@ final class AgentHubStore {
             if case .failed(let message) = error {
                 rulesNote = message
             } else {
-                rulesNote = "撤销没能生效，请稍后重试。"
+                rulesNote = L10n.string("撤销没能生效，请稍后重试。")
             }
             await loadRules()
         } catch {
-            rulesNote = "撤销没能生效，请稍后重试。"
+            rulesNote = L10n.string("撤销没能生效，请稍后重试。")
         }
         revokingRuleIDs.remove(rule.id)
     }

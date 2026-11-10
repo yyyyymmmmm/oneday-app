@@ -23,7 +23,7 @@ final class ConnectorCatalogTests: XCTestCase {
     // MARK: - 目录完整性
 
     func testCatalogIntegrity() {
-        let catalog = ConnectorDirectory.catalog
+        let catalog = ConnectorDirectory.catalog(locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(catalog.count, 8)
         XCTAssertEqual(Set(catalog.map(\.id)).count, catalog.count, "id 唯一")
         for entry in catalog {
@@ -51,7 +51,7 @@ final class ConnectorCatalogTests: XCTestCase {
 
     func testCatalogIDsMatchBrief() {
         XCTAssertEqual(
-            ConnectorDirectory.catalog.map(\.id),
+            ConnectorDirectory.catalog(locale: Locale(identifier: "zh-Hans")).map(\.id),
             ["gmail", "google-calendar", "google-drive",
              "google-sheets", "notion", "github",
              "spotify", "instagram"]
@@ -71,7 +71,7 @@ final class ConnectorCatalogTests: XCTestCase {
                 entry.evidence, .liveVerified,
                 "端点读到的已连接必带实活档位：\(entry.id)"
             )
-            XCTAssertEqual(entry.evidence.label, "服务端实时读取")
+            XCTAssertEqual(entry.evidence.label(locale: Locale(identifier: "zh-Hans")), "服务端实时读取")
         }
     }
 
@@ -81,7 +81,7 @@ final class ConnectorCatalogTests: XCTestCase {
         ])[0]
         XCTAssertEqual(box.displayName, "Simular Box")
         XCTAssertEqual(box.iconSpec, .symbol("desktopcomputer"))
-        XCTAssertTrue(box.blurb.contains("云电脑"))
+        XCTAssertTrue(box.blurb(locale: Locale(identifier: "zh-Hans")).contains("云电脑"))
     }
 
     func testUnknownServerFallsBackToRawName() {
@@ -92,11 +92,11 @@ final class ConnectorCatalogTests: XCTestCase {
         // 0.36.0：未知连接不再拿首字母冒充品牌——
         // 统一通用符号（宪法 §4 降级路）
         XCTAssertEqual(entry.iconSpec, .symbol("puzzlepiece.extension"))
-        XCTAssertEqual(entry.blurb, "插件预置的 MCP 连接")
+        XCTAssertEqual(entry.blurb(locale: Locale(identifier: "zh-Hans")), "插件预置的 MCP 连接")
         let manual = ConnectorDirectory.connectedEntries(from: [
             server("hand", source: nil),
         ])[0]
-        XCTAssertEqual(manual.blurb, "手动配置的 MCP 连接")
+        XCTAssertEqual(manual.blurb(locale: Locale(identifier: "zh-Hans")), "手动配置的 MCP 连接")
     }
 
     // MARK: - 状态文案映射
@@ -108,16 +108,16 @@ final class ConnectorCatalogTests: XCTestCase {
         let off = ConnectorDirectory.connectedEntries(from: [
             server("box", enabled: false),
         ])[0]
-        XCTAssertEqual(on.statusLabel, "已连接 · 已启用")
-        XCTAssertEqual(off.statusLabel, "已连接 · 已停用")
-        XCTAssertEqual(ConnectorEvidence.configuredOnly.label, "仅配置在册 · 未验活")
-        XCTAssertEqual(ConnectorEvidence.none.label, "无连接证据")
+        XCTAssertEqual(on.statusLabel(locale: Locale(identifier: "zh-Hans")), "已连接 · 已启用")
+        XCTAssertEqual(off.statusLabel(locale: Locale(identifier: "zh-Hans")), "已连接 · 已停用")
+        XCTAssertEqual(ConnectorEvidence.configuredOnly.label(locale: Locale(identifier: "zh-Hans")), "仅配置在册 · 未验活")
+        XCTAssertEqual(ConnectorEvidence.none.label(locale: Locale(identifier: "zh-Hans")), "无连接证据")
     }
 
     // MARK: - 搜索过滤
 
     func testSearchMatchesNameBlurbCategory() {
-        let all = ConnectorDirectory.catalog
+        let all = ConnectorDirectory.catalog(locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(
             ConnectorDirectory.filteredCatalog(all, query: "gmail").map(\.id),
             ["gmail"], "拉丁名不分大小写"
@@ -149,15 +149,15 @@ final class ConnectorCatalogTests: XCTestCase {
             server("other", enabled: false),
         ])
         XCTAssertEqual(
-            ConnectorDirectory.filteredConnected(connected, query: "Simular").map(\.id),
+            ConnectorDirectory.filteredConnected(connected, query: "Simular", locale: Locale(identifier: "zh-Hans")).map(\.id),
             ["box"], "显示名命中"
         )
         XCTAssertEqual(
-            ConnectorDirectory.filteredConnected(connected, query: "已停用").map(\.id),
+            ConnectorDirectory.filteredConnected(connected, query: "已停用", locale: Locale(identifier: "zh-Hans")).map(\.id),
             ["other"], "状态文案命中"
         )
         XCTAssertEqual(
-            ConnectorDirectory.filteredConnected(connected, query: "云电脑").map(\.id),
+            ConnectorDirectory.filteredConnected(connected, query: "云电脑", locale: Locale(identifier: "zh-Hans")).map(\.id),
             ["box"], "说明命中"
         )
     }
@@ -168,15 +168,15 @@ final class ConnectorCatalogTests: XCTestCase {
         let connected = ConnectorDirectory.connectedEntries(from: [
             server("notion"),
         ])
-        let available = ConnectorDirectory.availableEntries(connected: connected)
+        let available = ConnectorDirectory.availableEntries(connected: connected, locale: Locale(identifier: "zh-Hans"))
         XCTAssertFalse(available.contains { $0.id == "notion" })
         XCTAssertEqual(available.count, 7)
-        let none = ConnectorDirectory.availableEntries(connected: [])
+        let none = ConnectorDirectory.availableEntries(connected: [], locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(none.count, 8)
     }
 
     func testGroupingPreservesCategoryOrder() {
-        let groups = ConnectorDirectory.grouped(ConnectorDirectory.catalog)
+        let groups = ConnectorDirectory.grouped(ConnectorDirectory.catalog(locale: Locale(identifier: "zh-Hans")))
         XCTAssertEqual(
             groups.map(\.category),
             [.productivity, .office, .development, .life]

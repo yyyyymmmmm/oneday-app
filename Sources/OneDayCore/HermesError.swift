@@ -36,31 +36,64 @@ public enum HermesError: Error, Sendable {
     case cancelled
 
     public var userMessage: String {
+        userMessage(locale: AppLocale.uiLocale)
+    }
+
+    /// 人话文案的目录取词形（0.42.1 国际化长尾包）：
+    /// 状态码经 %@ 形目录键拼入（显示文本与旧版逐字
+    /// 一致）；endpoint 名是调用方给的接口人话名，随
+    /// 调用方的语言解析
+    public func userMessage(locale: Locale) -> String {
         switch self {
         case .invalidServerAddress:
-            return "服务器地址看起来不对，检查一下再试。"
+            return L10n.string(
+                "服务器地址看起来不对，检查一下再试。", locale: locale
+            )
         case .unreachable(let detail):
-            return "连不上服务器（\(detail)）。检查地址是否正确、服务器是否在线。"
+            return L10n.format(
+                "连不上服务器（%@）。检查地址是否正确、服务器是否在线。",
+                locale: locale, detail
+            )
         case .transientNetwork:
-            return "网络好像断了一下，这条没发出去。等网络稳一点，再发一次试试。"
+            return L10n.string(
+                "网络好像断了一下，这条没发出去。等网络稳一点，再发一次试试。",
+                locale: locale
+            )
         case .healthCheckFailed(let status):
-            return "服务器健康检查没通过（状态 \(status)），可能不是 Hermes 服务，或版本太旧。"
+            return L10n.format(
+                "服务器健康检查没通过（状态 %@），可能不是 Hermes 服务，或版本太旧。",
+                locale: locale, String(status)
+            )
         case .loginRejected:
-            return "登录被拒：面板账号或密码不对。"
+            return L10n.string("登录被拒：面板账号或密码不对。", locale: locale)
         case .loginFailed(let status):
-            return "登录失败（状态 \(status)），请稍后再试。"
+            return L10n.format(
+                "登录失败（状态 %@），请稍后再试。",
+                locale: locale, String(status)
+            )
         case .apiKeyRejected:
-            return "API 密钥被拒：检查密钥是否填对、是否已被撤销。"
+            return L10n.string(
+                "API 密钥被拒：检查密钥是否填对、是否已被撤销。", locale: locale
+            )
         case .unexpectedStatus(let endpoint, let status):
-            return "\(endpoint) 返回了状态 \(status)，请稍后再试。"
+            return L10n.format(
+                "%@ 返回了状态 %@，请稍后再试。",
+                locale: locale, endpoint, String(status)
+            )
         case .decodingFailed(let endpoint):
-            return "\(endpoint) 的返回看不懂，可能是服务端版本与 App 不匹配。"
+            return L10n.format(
+                "%@ 的返回看不懂，可能是服务端版本与 App 不匹配。",
+                locale: locale, endpoint
+            )
         case .sessionExpired:
-            return "登录已过期，重新登录后再试。"
+            return L10n.string("登录已过期，重新登录后再试。", locale: locale)
         case .modelNotUpstream(let model):
-            return "「\(model)」不在上游可用模型列表里（网关别名不能设为默认模型），已拦截，未写入配置。"
+            return L10n.format(
+                "「%@」不在上游可用模型列表里（网关别名不能设为默认模型），已拦截，未写入配置。",
+                locale: locale, model
+            )
         case .cancelled:
-            return "已取消。"
+            return L10n.string("已取消。", locale: locale)
         }
     }
 
@@ -84,16 +117,18 @@ public enum HermesError: Error, Sendable {
     /// - 地址档（unreachable）：只有主机名解析失败
     ///   （找不到主机/DNS）才配让用户查地址；
     /// - 其余网络错误归 unreachable「网络错误」。
-    public static func fromURLError(_ error: URLError) -> HermesError {
+    public static func fromURLError(
+        _ error: URLError, locale: Locale = AppLocale.uiLocale
+    ) -> HermesError {
         switch error.code {
         case .timedOut, .networkConnectionLost,
              .notConnectedToInternet, .cannotConnectToHost,
              .dataNotAllowed, .internationalRoamingOff:
             return .transientNetwork
         case .cannotFindHost, .dnsLookupFailed:
-            return .unreachable("无法建立连接")
+            return .unreachable(L10n.string("无法建立连接", locale: locale))
         default:
-            return .unreachable("网络错误")
+            return .unreachable(L10n.string("网络错误", locale: locale))
         }
     }
 }

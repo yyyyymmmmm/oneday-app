@@ -76,22 +76,22 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
     }
 
     func gateStatus(config: ServerConfig) async throws -> WriteGateStatus {
-        try await get(config: config, path: "/status", endpoint: "审批状态")
+        try await get(config: config, path: "/status", endpoint: L10n.string("审批状态"))
     }
 
     func pendingList(config: ServerConfig) async throws -> WriteGatePendingList {
-        try await get(config: config, path: "/pending", endpoint: "待批列表")
+        try await get(config: config, path: "/pending", endpoint: L10n.string("待批列表"))
     }
 
     func detail(
         config: ServerConfig, subsystem: WriteGateSubsystem, id: String
     ) async throws -> WriteGateDetail {
         guard let segment = subsystem.pathSegment else {
-            throw WriteGateError.failed("未知类型不支持查看")
+            throw WriteGateError.failed(L10n.string("未知类型不支持查看"))
         }
         return try await get(
             config: config, path: "/pending/\(segment)/\(id)",
-            endpoint: "待批详情", isDetail: true
+            endpoint: L10n.string("待批详情"), isDetail: true
         )
     }
 
@@ -112,14 +112,14 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
     ) async throws -> [WriteGateDecisionRecord] {
         let response: WriteGateDecisionsResponse = try await get(
             config: config, path: "/decisions?limit=\(limit)",
-            endpoint: "已决记录"
+            endpoint: L10n.string("已决记录")
         )
         return response.decisions
     }
 
     func rules(config: ServerConfig) async throws -> [WriteGateRule] {
         let response: WriteGateRulesResponse = try await get(
-            config: config, path: "/rules", endpoint: "审批规则"
+            config: config, path: "/rules", endpoint: L10n.string("审批规则")
         )
         return response.rules
     }
@@ -129,7 +129,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         origin: String
     ) async throws -> WriteGateRule {
         guard let segment = subsystem.pathSegment else {
-            throw WriteGateError.failed("未知类型不支持建规则")
+            throw WriteGateError.failed(L10n.string("未知类型不支持建规则"))
         }
         let body = try JSONSerialization.data(
             withJSONObject: ["subsystem": segment, "origin": origin]
@@ -141,7 +141,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
         )
-        let (data, http) = try await send(request, endpoint: "建立规则")
+        let (data, http) = try await send(request, endpoint: L10n.string("建立规则"))
         switch http.statusCode {
         case 200...299:
             do {
@@ -149,7 +149,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
                     WriteGateRuleResponse.self, from: data
                 ).rule
             } catch {
-                throw WriteGateError.failed("建立规则回执格式无法识别")
+                throw WriteGateError.failed(L10n.string("建立规则回执格式无法识别"))
             }
         case 401:
             throw WriteGateError.unauthorized
@@ -158,7 +158,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         case 409:
             throw WriteGateError.conflict
         default:
-            throw WriteGateError.failed("建立规则返回 \(http.statusCode)")
+            throw WriteGateError.failed(L10n.format("建立规则返回 %@", String(http.statusCode)))
         }
     }
 
@@ -166,7 +166,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         let request = try makeRequest(
             config: config, path: "/rules/\(id)", method: "DELETE"
         )
-        let (_, http) = try await send(request, endpoint: "撤销规则")
+        let (_, http) = try await send(request, endpoint: L10n.string("撤销规则"))
         switch http.statusCode {
         case 200...299:
             return
@@ -176,11 +176,11 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
             // 规则已不在（可能已在别处撤销）：按「撤销
             // 未生效」如实上报，调用方保留列表并提示，
             // 不许假装撤成
-            throw WriteGateError.failed("这条规则已不存在，可能已被撤销。")
+            throw WriteGateError.failed(L10n.string("这条规则已不存在，可能已被撤销。"))
         case 501:
             throw WriteGateError.bridgeMissing
         default:
-            throw WriteGateError.failed("撤销规则返回 \(http.statusCode)")
+            throw WriteGateError.failed(L10n.format("撤销规则返回 %@", String(http.statusCode)))
         }
     }
 
@@ -209,7 +209,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
             do {
                 return try decoder.decode(T.self, from: data)
             } catch {
-                throw WriteGateError.failed("\(endpoint)返回格式无法识别")
+                throw WriteGateError.failed(L10n.format("%@返回格式无法识别", endpoint))
             }
         case 401:
             throw WriteGateError.unauthorized
@@ -220,7 +220,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         case 409:
             throw WriteGateError.conflict
         default:
-            throw WriteGateError.failed("\(endpoint)返回 \(http.statusCode)")
+            throw WriteGateError.failed(L10n.format("%@返回 %@", endpoint, String(http.statusCode)))
         }
     }
 
@@ -229,14 +229,14 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         id: String, action: String
     ) async throws -> WriteGateDecisionResponse {
         guard let segment = subsystem.pathSegment else {
-            throw WriteGateError.failed("未知类型不支持裁决")
+            throw WriteGateError.failed(L10n.string("未知类型不支持裁决"))
         }
         let request = try makeRequest(
             config: config,
             path: "/pending/\(segment)/\(id)/\(action)",
             method: "POST"
         )
-        let (data, http) = try await send(request, endpoint: "审批裁决")
+        let (data, http) = try await send(request, endpoint: L10n.string("审批裁决"))
         switch http.statusCode {
         case 200...299:
             do {
@@ -244,7 +244,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
                     WriteGateDecisionResponse.self, from: data
                 )
             } catch {
-                throw WriteGateError.failed("裁决回执格式无法识别")
+                throw WriteGateError.failed(L10n.string("裁决回执格式无法识别"))
             }
         case 401:
             throw WriteGateError.unauthorized
@@ -253,7 +253,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         case 409:
             throw WriteGateError.conflict
         default:
-            throw WriteGateError.failed("裁决返回 \(http.statusCode)")
+            throw WriteGateError.failed(L10n.format("裁决返回 %@", String(http.statusCode)))
         }
     }
 
@@ -263,13 +263,13 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw WriteGateError.failed("\(endpoint)无响应")
+                throw WriteGateError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as WriteGateError {
             throw error
         } catch {
-            throw WriteGateError.failed("\(endpoint)网络不可达")
+            throw WriteGateError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

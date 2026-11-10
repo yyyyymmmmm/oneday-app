@@ -37,7 +37,8 @@ public enum NotificationSummary {
     }
 
     public static func presentation(
-        kind: String, title: String, body: String
+        kind: String, title: String, body: String,
+        locale: Locale = AppLocale.uiLocale
     ) -> NotificationPresentation {
         guard kind == "write_gate_decision" else {
             // 监测类（monitor_change）与未知 kind：成
@@ -57,7 +58,9 @@ public enum NotificationSummary {
         // 模板无从落语态——宁可降级通用句，不许拿批
         // 准式文案冒充已执行（§9 如实）
         if decision != .unknown,
-           let translated = translateSummary(body, decision: decision) {
+           let translated = translateSummary(
+               body, decision: decision, locale: locale
+           ) {
             return NotificationPresentation(
                 summary: translated,
                 rawDetail: body.isEmpty || body == translated ? nil : body
@@ -65,7 +68,7 @@ public enum NotificationSummary {
         }
         return NotificationPresentation(
             summary: genericSentence(
-                subsystem: subsystem, decision: decision
+                subsystem: subsystem, decision: decision, locale: locale
             ),
             rawDetail: body.isEmpty ? nil : body
         )
@@ -74,45 +77,53 @@ public enum NotificationSummary {
     // MARK: - 文法分发
 
     private static func translateSummary(
-        _ body: String, decision: Decision
+        _ body: String, decision: Decision, locale: Locale
     ) -> String? {
         if body.hasPrefix("batch(") {
-            return translateSkillBatch(body, decision: decision)
+            return translateSkillBatch(body, decision: decision, locale: locale)
         }
-        return translateMemoryOps(body, decision: decision)
+        return translateMemoryOps(body, decision: decision, locale: locale)
     }
 
     // MARK: - 记忆类（M1–M4）
 
     private static func translateMemoryOps(
-        _ body: String, decision: Decision
+        _ body: String, decision: Decision, locale: Locale
     ) -> String? {
         if body.hasPrefix("apply ") {
-            return translateApply(body, decision: decision)
+            return translateApply(body, decision: decision, locale: locale)
         }
-        if let (target, detail) = parseSimpleOp(body, verb: "add to ") {
+        if let (target, detail) = parseSimpleOp(
+            body, verb: "add to ", locale: locale
+        ) {
             let d = foldDetail(detail)
             guard !d.isEmpty else { return nil }
-            let verb = decision == .approved ? "已写入" : "未写入"
-            return "「\(d)」\(verb)\(target)"
+            return decision == .approved
+                ? L10n.format("「%@」已写入%@", locale: locale, d, target)
+                : L10n.format("「%@」未写入%@", locale: locale, d, target)
         }
-        if let (target, detail) = parseSimpleOp(body, verb: "remove from ") {
+        if let (target, detail) = parseSimpleOp(
+            body, verb: "remove from ", locale: locale
+        ) {
             let d = foldDetail(detail)
             guard !d.isEmpty else { return nil }
-            let verb = decision == .approved ? "已从" : "未从"
-            return "「\(d)」\(verb)\(target)删除"
+            return decision == .approved
+                ? L10n.format("「%@」已从%@删除", locale: locale, d, target)
+                : L10n.format("「%@」未从%@删除", locale: locale, d, target)
         }
         if body.hasPrefix("replace in ") {
-            return translateReplace(body, decision: decision)
+            return translateReplace(body, decision: decision, locale: locale)
         }
         return nil
     }
 
     /// 文法标签 → 人话目标（§3.2 通则）
-    private static func targetName(forLabel label: String) -> String? {
+    private static func targetName(
+        forLabel label: String, locale: Locale
+    ) -> String? {
         switch label {
-        case "memory": return "长期记忆"
-        case "user profile": return "用户档案"
+        case "memory": return L10n.string("长期记忆", locale: locale)
+        case "user profile": return L10n.string("用户档案", locale: locale)
         default: return nil
         }
     }
@@ -120,14 +131,14 @@ public enum NotificationSummary {
     /// 解 `{verb}{label}: {detail}`（M1/M2 共用），
     /// label 只认 memory／user profile 两值
     private static func parseSimpleOp(
-        _ body: String, verb: String
+        _ body: String, verb: String, locale: Locale
     ) -> (target: String, detail: String)? {
         guard body.hasPrefix(verb) else { return nil }
         let rest = body.dropFirst(verb.count)
         for label in ["user profile", "memory"] {
             let head = label + ": "
             if rest.hasPrefix(head),
-               let target = targetName(forLabel: label) {
+               let target = targetName(forLabel: label, locale: locale) {
                 return (target, String(rest.dropFirst(head.count)))
             }
         }
@@ -137,13 +148,13 @@ public enum NotificationSummary {
     /// M3：`replace in {label}: entry matching: {old}`
     /// 换行 `whole entry becomes: {new}`
     private static func translateReplace(
-        _ body: String, decision: Decision
+        _ body: String, decision: Decision, locale: Locale
     ) -> String? {
         let rest = body.dropFirst("replace in ".count)
         for label in ["user profile", "memory"] {
             let head = label + ": entry matching: "
             guard rest.hasPrefix(head),
-                  let target = targetName(forLabel: label)
+                  let target = targetName(forLabel: label, locale: locale)
             else { continue }
             let tail = String(rest.dropFirst(head.count))
             let parts = tail.components(
@@ -153,8 +164,15 @@ public enum NotificationSummary {
             let old = foldDetail(parts[0])
             let new = foldDetail(parts[1])
             guard !old.isEmpty, !new.isEmpty else { return nil }
-            let verb = decision == .approved ? "已改为" : "未改为"
-            return "\(target)里的「\(old)」\(verb)「\(new)」"
+            return decision == .approved
+                ? L10n.format(
+                    "%@里的「%@」已改为「%@」",
+                    locale: locale, target, old, new
+                )
+                : L10n.format(
+                    "%@里的「%@」未改为「%@」",
+                    locale: locale, target, old, new
+                )
         }
         return nil
     }
@@ -162,7 +180,7 @@ public enum NotificationSummary {
     /// M4：`apply {N} op(s) to {label}: ` 后逐行
     /// `- {verb}: {detail}`（verb ∈ add/remove/replace）
     private static func translateApply(
-        _ body: String, decision: Decision
+        _ body: String, decision: Decision, locale: Locale
     ) -> String? {
         var rest = body.dropFirst("apply ".count)
         var digits = ""
@@ -179,7 +197,7 @@ public enum NotificationSummary {
         for label in ["user profile", "memory"] {
             let head = label + ": "
             if rest.hasPrefix(head) {
-                target = targetName(forLabel: label)
+                target = targetName(forLabel: label, locale: locale)
                 opsText = String(rest.dropFirst(head.count))
                 break
             }
@@ -210,19 +228,28 @@ public enum NotificationSummary {
             case "add":
                 let d = foldDetail(op.detail)
                 guard !d.isEmpty else { return nil }
-                shorts.append("新增「\(d)」")
+                shorts.append(L10n.format("新增「%@」", locale: locale, d))
             case "remove":
                 let d = foldDetail(op.detail)
                 guard !d.isEmpty else { return nil }
-                shorts.append("删除「\(d)」")
+                shorts.append(L10n.format("删除「%@」", locale: locale, d))
             default:
-                shorts.append("替换一处")
+                shorts.append(L10n.string("替换一处", locale: locale))
             }
         }
-        let state = decision == .approved ? "已生效" : "未生效"
-        var result = "对\(target)的 \(count) 处改动\(state)："
-            + shorts.joined(separator: "、")
-        if count > 2 { result += "等共 \(count) 处" }
+        var result = decision == .approved
+            ? L10n.format(
+                "对%@的 %lld 处改动已生效：", locale: locale, target, count
+            )
+            : L10n.format(
+                "对%@的 %lld 处改动未生效：", locale: locale, target, count
+            )
+        result += shorts.joined(
+            separator: L10n.string("、", locale: locale)
+        )
+        if count > 2 {
+            result += L10n.format("等共 %lld 处", locale: locale, count)
+        }
         return result
     }
 
@@ -231,7 +258,7 @@ public enum NotificationSummary {
     /// `batch({N} ops: {op, op, …}) on {name, name, …}`，
     /// op 只认 patch／write_file／create（表外整条兜底）
     private static func translateSkillBatch(
-        _ body: String, decision: Decision
+        _ body: String, decision: Decision, locale: Locale
     ) -> String? {
         var rest = body.dropFirst("batch(".count)
         var digits = ""
@@ -268,26 +295,42 @@ public enum NotificationSummary {
         }
         let quotedNames = names.prefix(2).map { "「\($0)」" }.joined()
         let namesSuffix = names.count > 2
-            ? "等共 \(names.count) 个技能" : ""
+            ? L10n.format("等共 %lld 个技能", locale: locale, names.count)
+            : ""
         if decision == .rejected {
             // 驳回形：规格只给了 M4 的「未生效」聚合式，
             // 技能类按同式落（完成式动词不进驳回句）
-            return "技能\(quotedNames)\(namesSuffix)的 \(total) 处改动未生效"
+            return L10n.format(
+                "技能%@%@的 %lld 处改动未生效",
+                locale: locale, quotedNames, namesSuffix, total
+            )
         }
         if names.count == 1, order == ["patch"], counts["patch"] == 1 {
-            return "改了技能「\(names[0])」的内容"
+            return L10n.format(
+                "改了技能「%@」的内容", locale: locale, names[0]
+            )
         }
         var phrases: [String] = []
         for op in order {
             let n = counts[op] ?? 0
             switch op {
-            case "patch": phrases.append("改了 \(n) 处内容")
-            case "write_file": phrases.append("写了 \(n) 个文件")
-            default: phrases.append("新建了 \(n) 个文件")
+            case "patch":
+                phrases.append(
+                    L10n.format("改了 %@ 处内容", locale: locale, String(n))
+                )
+            case "write_file":
+                phrases.append(
+                    L10n.format("写了 %@ 个文件", locale: locale, String(n))
+                )
+            default:
+                phrases.append(
+                    L10n.format("新建了 %@ 个文件", locale: locale, String(n))
+                )
             }
         }
-        return "更新了技能\(quotedNames)\(namesSuffix)："
-            + phrases.joined(separator: "、")
+        return L10n.format(
+            "更新了技能%@%@：", locale: locale, quotedNames, namesSuffix
+        ) + phrases.joined(separator: L10n.string("、", locale: locale))
     }
 
     // MARK: - 兜底与文本处理
@@ -295,16 +338,23 @@ public enum NotificationSummary {
     /// 解析失败的通用句（与桥自带兜底同式）：只说对
     /// 象类与裁决结论，不带任何原文
     private static func genericSentence(
-        subsystem: Subsystem, decision: Decision
+        subsystem: Subsystem, decision: Decision, locale: Locale
     ) -> String {
         switch (subsystem, decision) {
-        case (.memory, .approved): return "一项记忆写入已批准"
-        case (.memory, .rejected): return "一项记忆写入已被驳回"
-        case (.skill, .approved): return "一项技能写入已批准"
-        case (.skill, .rejected): return "一项技能写入已被驳回"
-        case (.unknown, .approved): return "一项写入已批准"
-        case (.unknown, .rejected): return "一项写入已被驳回"
-        case (_, .unknown): return "一项写入已处理"
+        case (.memory, .approved):
+            return L10n.string("一项记忆写入已批准", locale: locale)
+        case (.memory, .rejected):
+            return L10n.string("一项记忆写入已被驳回", locale: locale)
+        case (.skill, .approved):
+            return L10n.string("一项技能写入已批准", locale: locale)
+        case (.skill, .rejected):
+            return L10n.string("一项技能写入已被驳回", locale: locale)
+        case (.unknown, .approved):
+            return L10n.string("一项写入已批准", locale: locale)
+        case (.unknown, .rejected):
+            return L10n.string("一项写入已被驳回", locale: locale)
+        case (_, .unknown):
+            return L10n.string("一项写入已处理", locale: locale)
         }
     }
 

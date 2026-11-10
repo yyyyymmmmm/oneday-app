@@ -82,7 +82,7 @@ final class MemoriesStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
-            loadState = .failed("尚未连接服务器。")
+            loadState = .failed(L10n.string("尚未连接服务器。"))
             return
         }
         loadInFlight = true
@@ -95,7 +95,7 @@ final class MemoriesStore {
             loadState = Self.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed("记忆条目读取失败，请稍后重试。")
+            loadState = .failed(L10n.string("记忆条目读取失败，请稍后重试。"))
         }
         if loadState == .ready {
             await refreshApprovals(appState: appState)
@@ -165,15 +165,15 @@ final class MemoriesStore {
     static func note(for status: MemoryProposalStatus) -> String? {
         switch status {
         case .pending:
-            return "已提交待审批，批准后才会生效。"
+            return L10n.string("已提交待审批，批准后才会生效。")
         case .landed:
             return nil
         case .approvedUnconfirmed:
-            return "已批准，但还没确认到变化，请下拉刷新核对。"
+            return L10n.string("已批准，但还没确认到变化，请下拉刷新核对。")
         case .rejected:
-            return "这条提交被驳回了，记忆保持原样。"
+            return L10n.string("这条提交被驳回了，记忆保持原样。")
         case .unresolved:
-            return "这条提交已不在待批里，又没查到裁决记录，结果未确认。"
+            return L10n.string("这条提交已不在待批里，又没查到裁决记录，结果未确认。")
         }
     }
 
@@ -181,20 +181,20 @@ final class MemoriesStore {
         switch error {
         case .noKey:
             return .notConnected(
-                "还没有可用的登录信息：记忆条目用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
+                L10n.string("还没有可用的登录信息：记忆条目用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。")
             )
         case .unauthorized:
             return .notConnected(
-                "服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。"
+                L10n.string("服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。")
             )
         case .bridgeMissing:
             return .sourceNotOpened(
-                "服务器上的写入审批桥还没有开通记忆条目面。开通后，智能体的长期记忆会逐条出现在这里。"
+                L10n.string("服务器上的写入审批桥还没有开通记忆条目面。开通后，智能体的长期记忆会逐条出现在这里。")
             )
         case .recordGone:
-            return .failed("这条记忆已经不在了，请刷新后重试。")
+            return .failed(L10n.string("这条记忆已经不在了，请刷新后重试。"))
         case .conflict:
-            return .failed("内容已经变化，请刷新后重试。")
+            return .failed(L10n.string("内容已经变化，请刷新后重试。"))
         case .failed(let message):
             return .failed(message)
         }
@@ -203,15 +203,15 @@ final class MemoriesStore {
     static func message(for error: WriteGateError) -> String {
         switch error {
         case .noKey:
-            return "数据桥未连接：还没有可用的登录信息。"
+            return L10n.string("数据桥未连接：还没有可用的登录信息。")
         case .unauthorized:
-            return "数据桥未连接：服务器拒绝了这次登录。"
+            return L10n.string("数据桥未连接：服务器拒绝了这次登录。")
         case .bridgeMissing:
-            return "记忆条目面还没有开通。"
+            return L10n.string("记忆条目面还没有开通。")
         case .recordGone:
-            return "这条记忆已经不在了。"
+            return L10n.string("这条记忆已经不在了。")
         case .conflict:
-            return "内容已经变化，请刷新后重试。"
+            return L10n.string("内容已经变化，请刷新后重试。")
         case .failed(let message):
             return message
         }
@@ -222,7 +222,7 @@ final class MemoriesStore {
     func loadDetail(appState: AppState, id: String) async {
         guard details[id] == nil, !detailLoading.contains(id) else { return }
         guard let config = appState.config else {
-            detailErrors[id] = "尚未连接服务器。"
+            detailErrors[id] = L10n.string("尚未连接服务器。")
             return
         }
         detailLoading.insert(id)
@@ -233,7 +233,7 @@ final class MemoriesStore {
         } catch let error as WriteGateError {
             detailErrors[id] = Self.message(for: error)
         } catch {
-            detailErrors[id] = "详情读取失败，请稍后重试。"
+            detailErrors[id] = L10n.string("详情读取失败，请稍后重试。")
         }
     }
 
@@ -248,7 +248,7 @@ final class MemoriesStore {
     /// 唯一事实源），失败人话照样透传
     private func gateBlocked() -> Bool {
         if memoryGateEnabled == false {
-            proposeError = "记忆写入审批未启用，暂时不能提交。"
+            proposeError = L10n.string("记忆写入审批未启用，暂时不能提交。")
             return true
         }
         return false
@@ -265,7 +265,7 @@ final class MemoriesStore {
             return false
         }
         guard let config = appState.config else {
-            proposeError = "尚未连接服务器。"
+            proposeError = L10n.string("尚未连接服务器。")
             return false
         }
         guard !gateBlocked() else { return false }
@@ -289,7 +289,7 @@ final class MemoriesStore {
             proposeError = Self.message(for: error)
             return false
         } catch {
-            proposeError = "提交失败，请稍后重试。"
+            proposeError = L10n.string("提交失败，请稍后重试。")
             return false
         }
     }
@@ -307,7 +307,7 @@ final class MemoriesStore {
             return false
         }
         guard let config = appState.config else {
-            proposeError = "尚未连接服务器。"
+            proposeError = L10n.string("尚未连接服务器。")
             return false
         }
         guard !gateBlocked() else { return false }
@@ -331,7 +331,7 @@ final class MemoriesStore {
             proposeError = Self.message(for: error)
             return false
         } catch {
-            proposeError = "提交失败，请稍后重试。"
+            proposeError = L10n.string("提交失败，请稍后重试。")
             return false
         }
     }
@@ -341,7 +341,7 @@ final class MemoriesStore {
     ) async -> Bool {
         guard !proposing else { return false }
         guard let config = appState.config else {
-            notesOnDelete = "尚未连接服务器。"
+            notesOnDelete = L10n.string("尚未连接服务器。")
             return false
         }
         guard !gateBlocked() else {
@@ -367,7 +367,7 @@ final class MemoriesStore {
             notesOnDelete = Self.message(for: error)
             return false
         } catch {
-            notesOnDelete = "提交失败，请稍后重试。"
+            notesOnDelete = L10n.string("提交失败，请稍后重试。")
             return false
         }
     }

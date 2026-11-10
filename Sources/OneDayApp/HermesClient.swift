@@ -416,7 +416,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             return hermesError
         }
         guard let urlError = error as? URLError else {
-            return .unreachable("网络错误")
+            return .unreachable(L10n.string("网络错误"))
         }
         return HermesError.fromURLError(urlError)
     }
@@ -425,7 +425,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw HermesError.unreachable("无响应")
+                throw HermesError.unreachable(L10n.string("无响应"))
             }
             // 业务成功即通道可达的实证（§86.2）：通知
             // 在线判定清零；/health 除外（见属性头注）
@@ -534,7 +534,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         do {
             return try decoder.decode(HealthResponse.self, from: data)
         } catch {
-            throw HermesError.decodingFailed(endpoint: "健康检查")
+            throw HermesError.decodingFailed(endpoint: L10n.string("健康检查"))
         }
     }
 
@@ -562,11 +562,11 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     }
 
     func status(config: ServerConfig) async throws -> ServerStatus {
-        try await getJSON(config: config, path: "/api/status", endpoint: "状态接口")
+        try await getJSON(config: config, path: "/api/status", endpoint: L10n.string("状态接口"))
     }
 
     func configSummary(config: ServerConfig) async throws -> ServerConfigSummary {
-        try await getJSON(config: config, path: "/api/config", endpoint: "配置接口")
+        try await getJSON(config: config, path: "/api/config", endpoint: L10n.string("配置接口"))
     }
 
     func models(config: ServerConfig, apiKey: String) async throws -> [String] {
@@ -579,12 +579,12 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         case 401, 403:
             throw HermesError.apiKeyRejected
         default:
-            throw HermesError.unexpectedStatus(endpoint: "模型接口", status: http.statusCode)
+            throw HermesError.unexpectedStatus(endpoint: L10n.string("模型接口"), status: http.statusCode)
         }
         do {
             return try decoder.decode(ModelsResponse.self, from: data).ids
         } catch {
-            throw HermesError.decodingFailed(endpoint: "模型接口")
+            throw HermesError.decodingFailed(endpoint: L10n.string("模型接口"))
         }
     }
 
@@ -646,14 +646,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                     // 超时同为 600，不与短请求共用 30 的会话）
                     let (bytes, response) = try await streamSession.bytes(for: request)
                     guard let http = response as? HTTPURLResponse else {
-                        throw HermesError.unreachable("无响应")
+                        throw HermesError.unreachable(L10n.string("无响应"))
                     }
                     guard http.statusCode == 200 else {
                         if http.statusCode == 401 || http.statusCode == 403 {
                             throw HermesError.apiKeyRejected
                         }
                         throw HermesError.unexpectedStatus(
-                            endpoint: "聊天接口", status: http.statusCode
+                            endpoint: L10n.string("聊天接口"), status: http.statusCode
                         )
                     }
                     let parser = SSEParser()
@@ -742,7 +742,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             throw HermesError.apiKeyRejected
         default:
             throw HermesError.unexpectedStatus(
-                endpoint: "发送接口", status: http.statusCode
+                endpoint: L10n.string("发送接口"), status: http.statusCode
             )
         }
         do {
@@ -750,7 +750,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                 RunSubmitResponse.self, from: data
             )
         } catch {
-            throw HermesError.decodingFailed(endpoint: "发送接口")
+            throw HermesError.decodingFailed(endpoint: L10n.string("发送接口"))
         }
     }
 
@@ -774,7 +774,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             throw HermesError.apiKeyRejected
         default:
             throw HermesError.unexpectedStatus(
-                endpoint: "生成状态接口", status: http.statusCode
+                endpoint: L10n.string("生成状态接口"), status: http.statusCode
             )
         }
         do {
@@ -783,7 +783,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             )
         } catch {
             throw HermesError.decodingFailed(
-                endpoint: "生成状态接口"
+                endpoint: L10n.string("生成状态接口")
             )
         }
     }
@@ -874,7 +874,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             throw HermesError.apiKeyRejected
         default:
             throw HermesError.unexpectedStatus(
-                endpoint: "停止接口", status: http.statusCode
+                endpoint: L10n.string("停止接口"), status: http.statusCode
             )
         }
     }
@@ -895,13 +895,13 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     // MARK: - 记忆
 
     func memoryStatus(config: ServerConfig) async throws -> MemoryStatus {
-        try await getJSON(config: config, path: "/api/memory", endpoint: "记忆接口")
+        try await getJSON(config: config, path: "/api/memory", endpoint: L10n.string("记忆接口"))
     }
 
     func setMemoryProvider(config: ServerConfig, name: String) async throws {
         try await sendJSON(
             config: config, path: "/api/memory/provider", method: "PUT",
-            endpoint: "记忆提供方切换", body: ["provider": .string(name)]
+            endpoint: L10n.string("记忆提供方切换"), body: ["provider": .string(name)]
         )
     }
 
@@ -911,7 +911,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         try await getJSON(
             config: config,
             path: "/api/memory/providers/\(name)/config",
-            endpoint: "记忆提供方配置"
+            endpoint: L10n.string("记忆提供方配置")
         )
     }
 
@@ -920,7 +920,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws {
         try await sendJSON(
             config: config, path: "/api/memory/providers/\(name)/config",
-            method: "PUT", endpoint: "记忆提供方配置",
+            method: "PUT", endpoint: L10n.string("记忆提供方配置"),
             body: ["values": .object(values)]
         )
     }
@@ -928,19 +928,19 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func resetMemory(config: ServerConfig, target: String) async throws {
         try await sendJSON(
             config: config, path: "/api/memory/reset", method: "POST",
-            endpoint: "记忆重置", body: ["target": .string(target)]
+            endpoint: L10n.string("记忆重置"), body: ["target": .string(target)]
         )
     }
 
     // MARK: - 技能
 
     func skills(config: ServerConfig) async throws -> [SkillItem] {
-        try await getJSON(config: config, path: "/api/skills", endpoint: "技能接口")
+        try await getJSON(config: config, path: "/api/skills", endpoint: L10n.string("技能接口"))
     }
 
     func skillContent(config: ServerConfig, name: String) async throws -> SkillContent {
         try await getJSON(
-            config: config, path: "/api/skills/content", endpoint: "技能内容",
+            config: config, path: "/api/skills/content", endpoint: L10n.string("技能内容"),
             query: [URLQueryItem(name: "name", value: name)]
         )
     }
@@ -948,7 +948,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func updateSkillContent(config: ServerConfig, name: String, content: String) async throws {
         try await sendJSON(
             config: config, path: "/api/skills/content", method: "PUT",
-            endpoint: "技能内容",
+            endpoint: L10n.string("技能内容"),
             body: ["name": .string(name), "content": .string(content)]
         )
     }
@@ -956,7 +956,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func toggleSkill(config: ServerConfig, name: String, enabled: Bool) async throws {
         try await sendJSON(
             config: config, path: "/api/skills/toggle", method: "PUT",
-            endpoint: "技能开关",
+            endpoint: L10n.string("技能开关"),
             body: ["name": .string(name), "enabled": .bool(enabled)]
         )
     }
@@ -964,7 +964,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func lockSkill(config: ServerConfig, name: String, locked: Bool) async throws {
         try await sendJSON(
             config: config, path: "/api/skills/lock", method: "PUT",
-            endpoint: "技能锁定",
+            endpoint: L10n.string("技能锁定"),
             body: ["name": .string(name), "locked": .bool(locked)]
         )
     }
@@ -980,7 +980,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func skillHubSources(config: ServerConfig) async throws -> [HubSource] {
         let response: HubSourcesResponse = try await getJSON(
             config: config, path: "/api/skills/hub/sources",
-            endpoint: "技能商店来源", timeout: Self.hubTimeout
+            endpoint: L10n.string("技能商店来源"), timeout: Self.hubTimeout
         )
         return response.sources
     }
@@ -997,7 +997,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
         let response: HubSearchResponse = try await getJSON(
             config: config, path: "/api/skills/hub/search",
-            endpoint: "技能商店搜索", query: queryItems,
+            endpoint: L10n.string("技能商店搜索"), query: queryItems,
             timeout: Self.hubTimeout
         )
         return response.results
@@ -1008,7 +1008,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws -> HubPreview {
         try await getJSON(
             config: config, path: "/api/skills/hub/preview",
-            endpoint: "技能预览",
+            endpoint: L10n.string("技能预览"),
             query: [URLQueryItem(name: "identifier", value: identifier)],
             timeout: Self.hubTimeout
         )
@@ -1017,7 +1017,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func skillHubInstall(config: ServerConfig, identifier: String) async throws {
         try await sendJSON(
             config: config, path: "/api/skills/hub/install", method: "POST",
-            endpoint: "技能安装",
+            endpoint: L10n.string("技能安装"),
             body: ["identifier": .string(identifier)],
             timeout: Self.hubTimeout
         )
@@ -1026,7 +1026,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func skillHubUninstall(config: ServerConfig, name: String) async throws {
         try await sendJSON(
             config: config, path: "/api/skills/hub/uninstall", method: "POST",
-            endpoint: "技能卸载",
+            endpoint: L10n.string("技能卸载"),
             body: ["name": .string(name)],
             timeout: Self.hubTimeout
         )
@@ -1035,7 +1035,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     // MARK: - 定时任务
 
     func cronJobs(config: ServerConfig) async throws -> [CronJob] {
-        try await getJSON(config: config, path: "/api/cron/jobs", endpoint: "定时任务接口")
+        try await getJSON(config: config, path: "/api/cron/jobs", endpoint: L10n.string("定时任务接口"))
     }
 
     func createCronJob(
@@ -1053,7 +1053,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
         return try await sendJSONDecoding(
             config: config, path: "/api/cron/jobs", method: "POST",
-            endpoint: "定时任务创建", body: body
+            endpoint: L10n.string("定时任务创建"), body: body
         )
     }
 
@@ -1062,28 +1062,28 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws {
         try await sendJSON(
             config: config, path: "/api/cron/jobs/\(id)", method: "PUT",
-            endpoint: "定时任务更新", body: ["updates": .object(updates)]
+            endpoint: L10n.string("定时任务更新"), body: ["updates": .object(updates)]
         )
     }
 
     func deleteCronJob(config: ServerConfig, id: String) async throws {
         try await sendJSON(
             config: config, path: "/api/cron/jobs/\(id)", method: "DELETE",
-            endpoint: "定时任务删除"
+            endpoint: L10n.string("定时任务删除")
         )
     }
 
     func pauseCronJob(config: ServerConfig, id: String) async throws {
         try await sendJSON(
             config: config, path: "/api/cron/jobs/\(id)/pause", method: "POST",
-            endpoint: "定时任务暂停"
+            endpoint: L10n.string("定时任务暂停")
         )
     }
 
     func resumeCronJob(config: ServerConfig, id: String) async throws {
         try await sendJSON(
             config: config, path: "/api/cron/jobs/\(id)/resume", method: "POST",
-            endpoint: "定时任务恢复"
+            endpoint: L10n.string("定时任务恢复")
         )
     }
 
@@ -1091,14 +1091,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         // 触发是同步执行：服务端等任务跑完才回执，放宽超时
         try await sendJSON(
             config: config, path: "/api/cron/jobs/\(id)/trigger", method: "POST",
-            endpoint: "定时任务触发", timeout: 600
+            endpoint: L10n.string("定时任务触发"), timeout: 600
         )
     }
 
     func cronRuns(config: ServerConfig, id: String, limit: Int) async throws -> [ServerSession] {
         let response: CronRunsResponse = try await getJSON(
             config: config, path: "/api/cron/jobs/\(id)/runs",
-            endpoint: "定时任务运行记录",
+            endpoint: L10n.string("定时任务运行记录"),
             query: [URLQueryItem(name: "limit", value: String(limit))]
         )
         return response.runs
@@ -1108,14 +1108,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func serverSessions(config: ServerConfig, limit: Int) async throws -> SessionsPage {
         try await getJSON(
-            config: config, path: "/api/sessions", endpoint: "服务端会话",
+            config: config, path: "/api/sessions", endpoint: L10n.string("服务端会话"),
             query: [URLQueryItem(name: "limit", value: String(limit))]
         )
     }
 
     func serverSession(config: ServerConfig, id: String) async throws -> ServerSession {
         try await getJSON(
-            config: config, path: "/api/sessions/\(id)", endpoint: "服务端会话详情"
+            config: config, path: "/api/sessions/\(id)", endpoint: L10n.string("服务端会话详情")
         )
     }
 
@@ -1124,7 +1124,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         // 体组装走 Core 纯函数（单测把守形态）
         let created: CreatedSession = try await sendJSONDecoding(
             config: config, path: "/api/sessions", method: "POST",
-            endpoint: "服务端会话创建",
+            endpoint: L10n.string("服务端会话创建"),
             body: SideChatLink.createSessionBody(id: id, title: title),
             bearer: apiKey
         )
@@ -1138,7 +1138,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         // 不带（见协议注）。0.27.0：网关面 Bearer 送达
         let created: CreatedSession = try await sendJSONDecoding(
             config: config, path: "/api/sessions", method: "POST",
-            endpoint: "旁聊会话创建",
+            endpoint: L10n.string("旁聊会话创建"),
             body: SideChatLink.linkedCreateSessionBody(id: id, model: model),
             bearer: apiKey
         )
@@ -1155,7 +1155,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         // 靠调用方 GET 回读对账（O-4）
         try await sendJSON(
             config: config, path: "/api/sessions/import", method: "POST",
-            endpoint: "会话种子导入",
+            endpoint: L10n.string("会话种子导入"),
             body: SideChatLink.importRequestBody(
                 requestID: requestID,
                 expectedRevision: expectedRevision,
@@ -1167,14 +1167,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func updateServerSessionModel(config: ServerConfig, id: String, model: String) async throws {
         try await sendJSON(
             config: config, path: "/api/sessions/\(id)/model", method: "POST",
-            endpoint: "会话模型切换", body: ["model": .string(model)]
+            endpoint: L10n.string("会话模型切换"), body: ["model": .string(model)]
         )
     }
 
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage] {
         let response: SessionMessagesResponse = try await getJSON(
             config: config, path: "/api/sessions/\(id)/messages",
-            endpoint: "服务端会话消息"
+            endpoint: L10n.string("服务端会话消息")
         )
         return response.messages
     }
@@ -1184,7 +1184,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws -> [SessionSearchHit] {
         let response: SessionSearchResponse = try await getJSON(
             config: config, path: "/api/sessions/search",
-            endpoint: "会话搜索",
+            endpoint: L10n.string("会话搜索"),
             query: [
                 URLQueryItem(name: "q", value: query),
                 URLQueryItem(name: "limit", value: String(limit)),
@@ -1196,14 +1196,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func deleteServerSession(config: ServerConfig, id: String) async throws {
         try await sendJSON(
             config: config, path: "/api/sessions/\(id)", method: "DELETE",
-            endpoint: "服务端会话删除"
+            endpoint: L10n.string("服务端会话删除")
         )
     }
 
     func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws {
         try await sendJSON(
             config: config, path: "/api/sessions/bulk-delete", method: "POST",
-            endpoint: "服务端会话批量删除",
+            endpoint: L10n.string("服务端会话批量删除"),
             body: ["ids": .array(ids.map(JSONValue.string))]
         )
     }
@@ -1212,7 +1212,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         struct CountResponse: Decodable { let count: Int? }
         let response: CountResponse = try await getJSON(
             config: config, path: "/api/sessions/empty/count",
-            endpoint: "空会话计数"
+            endpoint: L10n.string("空会话计数")
         )
         return response.count ?? 0
     }
@@ -1220,7 +1220,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func deleteEmptySessions(config: ServerConfig) async throws {
         try await sendJSON(
             config: config, path: "/api/sessions/empty", method: "DELETE",
-            endpoint: "空会话清理"
+            endpoint: L10n.string("空会话清理")
         )
     }
 
@@ -1235,7 +1235,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             query.append(URLQueryItem(name: "archived", value: archived))
         }
         return try await getJSON(
-            config: config, path: "/api/sessions", endpoint: "服务端会话",
+            config: config, path: "/api/sessions", endpoint: L10n.string("服务端会话"),
             query: query
         )
     }
@@ -1263,7 +1263,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             do {
                 try await sendJSON(
                     config: config, path: "/api/sessions/\(id)",
-                    method: "PATCH", endpoint: "服务端会话更新",
+                    method: "PATCH", endpoint: L10n.string("服务端会话更新"),
                     body: body
                 )
                 return
@@ -1282,7 +1282,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws -> Int? {
         let receipt: JSONValue = try await sendJSONDecoding(
             config: config, path: "/api/sessions/prune", method: "POST",
-            endpoint: "服务端会话清理",
+            endpoint: L10n.string("服务端会话清理"),
             body: [
                 "older_than_days": .number(olderThanDays),
                 "dry_run": .bool(dryRun),
@@ -1295,14 +1295,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func profiles(config: ServerConfig) async throws -> [ProfileItem] {
         let response: ProfilesResponse = try await getJSON(
-            config: config, path: "/api/profiles", endpoint: "档案接口"
+            config: config, path: "/api/profiles", endpoint: L10n.string("档案接口")
         )
         return response.profiles
     }
 
     func activeProfileName(config: ServerConfig) async throws -> String? {
         let response: ActiveProfileResponse = try await getJSON(
-            config: config, path: "/api/profiles/active", endpoint: "当前档案"
+            config: config, path: "/api/profiles/active", endpoint: L10n.string("当前档案")
         )
         return response.name
     }
@@ -1310,7 +1310,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func setActiveProfile(config: ServerConfig, name: String) async throws {
         try await sendJSON(
             config: config, path: "/api/profiles/active", method: "POST",
-            endpoint: "档案切换", body: ["name": .string(name)]
+            endpoint: L10n.string("档案切换"), body: ["name": .string(name)]
         )
     }
 
@@ -1331,7 +1331,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         config: ServerConfig, name: String
     ) async throws -> ProfileSoulDocument {
         try await getJSON(
-            config: config, path: soulPath(name: name), endpoint: "档案人设"
+            config: config, path: soulPath(name: name), endpoint: L10n.string("档案人设")
         )
     }
 
@@ -1340,7 +1340,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws {
         try await sendJSON(
             config: config, path: soulPath(name: name), method: "PUT",
-            endpoint: "档案人设",
+            endpoint: L10n.string("档案人设"),
             body: ["content": .string(content)]
         )
     }
@@ -1365,14 +1365,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
         try await sendJSON(
             config: config, path: "/api/profiles", method: "POST",
-            endpoint: "档案创建", body: body
+            endpoint: L10n.string("档案创建"), body: body
         )
     }
 
     func deleteProfile(config: ServerConfig, name: String) async throws {
         try await sendJSON(
             config: config, path: profilePath(name: name), method: "DELETE",
-            endpoint: "档案删除"
+            endpoint: L10n.string("档案删除")
         )
     }
 
@@ -1381,7 +1381,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws -> ProfileExportResult {
         try await sendJSONDecoding(
             config: config, path: profilePath(name: name, suffix: "/export"),
-            method: "POST", endpoint: "档案导出", body: [:]
+            method: "POST", endpoint: L10n.string("档案导出"), body: [:]
         )
     }
 
@@ -1394,7 +1394,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
         try await sendJSON(
             config: config, path: "/api/profiles/import", method: "POST",
-            endpoint: "档案导入", body: body
+            endpoint: L10n.string("档案导入"), body: body
         )
     }
 
@@ -1412,7 +1412,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func mcpServers(config: ServerConfig) async throws -> [MCPServerItem] {
         let response: MCPServersResponse = try await getJSON(
-            config: config, path: "/api/mcp/servers", endpoint: "MCP 连接"
+            config: config, path: "/api/mcp/servers", endpoint: L10n.string("MCP 连接")
         )
         return response.servers
     }
@@ -1422,7 +1422,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws {
         try await sendJSON(
             config: config, path: mcpPath(name: name, suffix: "/enabled"),
-            method: "PUT", endpoint: "MCP 开关",
+            method: "PUT", endpoint: L10n.string("MCP 开关"),
             body: ["enabled": .bool(enabled)]
         )
     }
@@ -1432,7 +1432,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws -> MCPTestResult {
         try await sendJSONDecoding(
             config: config, path: mcpPath(name: name, suffix: "/test"),
-            method: "POST", endpoint: "MCP 测试", body: [:]
+            method: "POST", endpoint: L10n.string("MCP 测试"), body: [:]
         )
     }
 
@@ -1441,26 +1441,26 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     ) async throws -> ComputerUseStatus {
         try await getJSON(
             config: config, path: "/api/tools/computer-use/status",
-            endpoint: "电脑操作状态"
+            endpoint: L10n.string("电脑操作状态")
         )
     }
 
     // MARK: - 配置与密钥
 
     func rawConfig(config: ServerConfig) async throws -> [String: JSONValue] {
-        try await getJSON(config: config, path: "/api/config", endpoint: "配置接口")
+        try await getJSON(config: config, path: "/api/config", endpoint: L10n.string("配置接口"))
     }
 
     func updateConfig(config: ServerConfig, newConfig: [String: JSONValue]) async throws {
         try await sendJSON(
             config: config, path: "/api/config", method: "PUT",
-            endpoint: "配置写入", body: ["config": .object(newConfig)]
+            endpoint: L10n.string("配置写入"), body: ["config": .object(newConfig)]
         )
     }
 
     func envVars(config: ServerConfig) async throws -> [EnvVarEntry] {
         let response: EnvVars = try await getJSON(
-            config: config, path: "/api/env", endpoint: "密钥接口"
+            config: config, path: "/api/env", endpoint: L10n.string("密钥接口")
         )
         return response.entries
     }
@@ -1468,7 +1468,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func setEnvVar(config: ServerConfig, key: String, value: String) async throws {
         try await sendJSON(
             config: config, path: "/api/env", method: "PUT",
-            endpoint: "密钥写入",
+            endpoint: L10n.string("密钥写入"),
             body: ["key": .string(key), "value": .string(value)]
         )
     }
@@ -1476,7 +1476,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func deleteEnvVar(config: ServerConfig, key: String) async throws {
         try await sendJSON(
             config: config, path: "/api/env", method: "DELETE",
-            endpoint: "密钥删除", body: ["key": .string(key)]
+            endpoint: L10n.string("密钥删除"), body: ["key": .string(key)]
         )
     }
 
@@ -1487,7 +1487,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         request.httpBody = try encoder.encode(["key": JSONValue.string(key)])
         let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(endpoint: "密钥查看", status: http.statusCode)
+            throw HermesError.unexpectedStatus(endpoint: L10n.string("密钥查看"), status: http.statusCode)
         }
         // 回执形态宽容：{"value": "…"} / {"key": "…", "value": "…"} / 纯字符串
         let value = try decoder.decode(JSONValue.self, from: data)
@@ -1498,9 +1498,9 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             if let text = object["value"]?.stringValue {
                 return text
             }
-            throw HermesError.decodingFailed(endpoint: "密钥查看")
+            throw HermesError.decodingFailed(endpoint: L10n.string("密钥查看"))
         default:
-            throw HermesError.decodingFailed(endpoint: "密钥查看")
+            throw HermesError.decodingFailed(endpoint: L10n.string("密钥查看"))
         }
     }
 
@@ -1508,14 +1508,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func usageAnalytics(config: ServerConfig, days: Int) async throws -> UsageAnalytics {
         try await getJSON(
-            config: config, path: "/api/analytics/usage", endpoint: "用量接口",
+            config: config, path: "/api/analytics/usage", endpoint: L10n.string("用量接口"),
             query: [URLQueryItem(name: "days", value: String(days))]
         )
     }
 
     func modelAnalytics(config: ServerConfig, days: Int) async throws -> ModelAnalytics {
         try await getJSON(
-            config: config, path: "/api/analytics/models", endpoint: "模型用量接口",
+            config: config, path: "/api/analytics/models", endpoint: L10n.string("模型用量接口"),
             query: [URLQueryItem(name: "days", value: String(days))]
         )
     }
@@ -1524,7 +1524,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         // 回执在 OpenAPI 里未定型：先以 JSONValue 整树接住，
         // 再由 ModelCatalog 宽容提取（形状容忍优先于强解码）
         let root: JSONValue = try await getJSON(
-            config: config, path: "/api/model/options", endpoint: "模型列表接口"
+            config: config, path: "/api/model/options", endpoint: L10n.string("模型列表接口")
         )
         return ModelCatalog.extractModelIDs(from: root)
     }
@@ -1540,12 +1540,12 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             query.append(URLQueryItem(name: "search", value: search))
         }
         return try await getJSON(
-            config: config, path: "/api/logs", endpoint: "日志接口", query: query
+            config: config, path: "/api/logs", endpoint: L10n.string("日志接口"), query: query
         )
     }
 
     func egressStatus(config: ServerConfig) async throws -> EgressStatus {
-        try await getJSON(config: config, path: "/api/egress/status", endpoint: "出口状态")
+        try await getJSON(config: config, path: "/api/egress/status", endpoint: L10n.string("出口状态"))
     }
 
     // MARK: - 网关动作
@@ -1553,21 +1553,21 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     func gatewayRestart(config: ServerConfig) async throws {
         try await sendJSON(
             config: config, path: "/api/gateway/restart", method: "POST",
-            endpoint: "网关重启", timeout: 120
+            endpoint: L10n.string("网关重启"), timeout: 120
         )
     }
 
     func gatewayStart(config: ServerConfig) async throws {
         try await sendJSON(
             config: config, path: "/api/gateway/start", method: "POST",
-            endpoint: "网关启动", timeout: 120
+            endpoint: L10n.string("网关启动"), timeout: 120
         )
     }
 
     func gatewayStop(config: ServerConfig) async throws {
         try await sendJSON(
             config: config, path: "/api/gateway/stop", method: "POST",
-            endpoint: "网关停止", timeout: 120
+            endpoint: L10n.string("网关停止"), timeout: 120
         )
     }
 
@@ -1579,14 +1579,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             query.append(URLQueryItem(name: "path", value: path))
         }
         return try await getJSON(
-            config: config, path: "/api/files", endpoint: "文件列表", query: query
+            config: config, path: "/api/files", endpoint: L10n.string("文件列表"), query: query
         )
     }
 
     func deleteFile(config: ServerConfig, path: String, recursive: Bool) async throws {
         try await sendJSON(
             config: config, path: "/api/files", method: "DELETE",
-            endpoint: "删除文件",
+            endpoint: L10n.string("删除文件"),
             body: ["path": .string(path), "recursive": .bool(recursive)]
         )
     }
@@ -1600,7 +1600,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         )
         let (data, http) = try await dataRequest(request)
         guard http.statusCode == 200 else {
-            throw HermesError.unexpectedStatus(endpoint: "文件下载", status: http.statusCode)
+            throw HermesError.unexpectedStatus(endpoint: L10n.string("文件下载"), status: http.statusCode)
         }
         return data
     }
@@ -1613,7 +1613,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         // 调用方回读列表对账为准（sendJSON 既有口径）
         try await sendJSON(
             config: config, path: "/api/files/upload", method: "POST",
-            endpoint: "文件上传",
+            endpoint: L10n.string("文件上传"),
             body: [
                 "path": .string(path),
                 "data_url": .string(dataURL),
@@ -1646,7 +1646,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
             throw HermesError.unexpectedStatus(
-                endpoint: "文件上传", status: http.statusCode
+                endpoint: L10n.string("文件上传"), status: http.statusCode
             )
         }
         do {
@@ -1654,20 +1654,20 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                 ManagedFileUploadReceipt.self, from: data
             )
         } catch {
-            throw HermesError.decodingFailed(endpoint: "文件上传")
+            throw HermesError.decodingFailed(endpoint: L10n.string("文件上传"))
         }
     }
 
     func makeDirectory(config: ServerConfig, path: String) async throws {
         try await sendJSON(
             config: config, path: "/api/files/mkdir", method: "POST",
-            endpoint: "新建文件夹",
+            endpoint: L10n.string("新建文件夹"),
             body: ["path": .string(path)]
         )
     }
 
     func systemStats(config: ServerConfig) async throws -> SystemStats {
-        try await getJSON(config: config, path: "/api/system/stats", endpoint: "系统状态")
+        try await getJSON(config: config, path: "/api/system/stats", endpoint: L10n.string("系统状态"))
     }
 }
 
@@ -1741,14 +1741,14 @@ extension HermesClient {
     func kanbanWorkflow(config: ServerConfig) async throws -> KanbanWorkflow {
         try await getJSON(
             config: config, path: "\(kanbanBase)/workflow",
-            endpoint: "任务系统探针"
+            endpoint: L10n.string("任务系统探针")
         )
     }
 
     func kanbanBoards(config: ServerConfig) async throws -> [String] {
         let value: JSONValue = try await getJSON(
             config: config, path: "\(kanbanBase)/boards",
-            endpoint: "任务板清单"
+            endpoint: L10n.string("任务板清单")
         )
         return KanbanBoardList.slugs(from: value)
     }
@@ -1758,7 +1758,7 @@ extension HermesClient {
     ) async throws -> KanbanBoardSnapshot {
         try await getJSON(
             config: config, path: "\(kanbanBase)/board",
-            endpoint: "任务板", query: kanbanQuery(board: board)
+            endpoint: L10n.string("任务板"), query: kanbanQuery(board: board)
         )
     }
 
@@ -1767,7 +1767,7 @@ extension HermesClient {
     ) async throws -> KanbanTaskDetail {
         try await getJSON(
             config: config, path: "\(kanbanBase)/tasks/\(id)",
-            endpoint: "任务详情", query: kanbanQuery(board: board)
+            endpoint: L10n.string("任务详情"), query: kanbanQuery(board: board)
         )
     }
 
@@ -1785,7 +1785,7 @@ extension HermesClient {
         }
         return try await kanbanSendDecoding(
             config: config, path: "\(kanbanBase)/tasks", method: "POST",
-            endpoint: "任务创建", query: kanbanQuery(board: board),
+            endpoint: L10n.string("任务创建"), query: kanbanQuery(board: board),
             body: payload
         )
     }
@@ -1795,7 +1795,7 @@ extension HermesClient {
     ) async throws -> KanbanDispatchReceipt {
         try await kanbanSendDecoding(
             config: config, path: "\(kanbanBase)/dispatch", method: "POST",
-            endpoint: "任务派发", query: kanbanQuery(board: board)
+            endpoint: L10n.string("任务派发"), query: kanbanQuery(board: board)
         )
     }
 
@@ -1804,7 +1804,7 @@ extension HermesClient {
     ) async throws {
         try await kanbanSend(
             config: config, path: "\(kanbanBase)/tasks/\(id)",
-            method: "PATCH", endpoint: "任务状态更新",
+            method: "PATCH", endpoint: L10n.string("任务状态更新"),
             query: kanbanQuery(board: board),
             body: ["status": .string(status)]
         )
@@ -1815,7 +1815,7 @@ extension HermesClient {
     ) async throws {
         try await kanbanSend(
             config: config, path: "\(kanbanBase)/tasks/\(id)",
-            method: "DELETE", endpoint: "任务删除",
+            method: "DELETE", endpoint: L10n.string("任务删除"),
             query: kanbanQuery(board: board)
         )
     }
@@ -1825,7 +1825,7 @@ extension HermesClient {
     ) async throws {
         try await kanbanSend(
             config: config, path: "\(kanbanBase)/tasks/\(id)/comments",
-            method: "POST", endpoint: "任务答题",
+            method: "POST", endpoint: L10n.string("任务答题"),
             query: kanbanQuery(board: board),
             body: [
                 "body": .string(body),
@@ -1839,7 +1839,7 @@ extension HermesClient {
     ) async throws {
         try await kanbanSend(
             config: config, path: "\(kanbanBase)/tasks/\(id)/reclaim",
-            method: "POST", endpoint: "任务急停",
+            method: "POST", endpoint: L10n.string("任务急停"),
             query: kanbanQuery(board: board),
             body: ["reason": .string("App 停止")]
         )
@@ -1850,7 +1850,7 @@ extension HermesClient {
     ) async throws {
         try await kanbanSend(
             config: config, path: "\(kanbanBase)/runs/\(runID)/terminate",
-            method: "POST", endpoint: "运行终止",
+            method: "POST", endpoint: L10n.string("运行终止"),
             query: kanbanQuery(board: board),
             body: ["reason": .string("App 停止")]
         )

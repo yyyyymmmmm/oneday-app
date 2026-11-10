@@ -344,7 +344,7 @@ final class DeviceSyncController {
         origin: SyncOrigin = .foreground
     ) async -> Bool {
         guard let config else {
-            lastErrors[dataset] = "还没连上服务器，同步不了"
+            lastErrors[dataset] = L10n.string("还没连上服务器，同步不了")
             if origin == .user {
                 appendLog(
                     dataset, kind: .syncFailed,
@@ -369,8 +369,8 @@ final class DeviceSyncController {
         )
         guard permission.isUsable else {
             lastErrors[dataset] = permission == .restricted
-                ? "这件被系统限制住了（家长控制等），同步不了"
-                : "系统权限还没开：打开这一页上方那一个开关就能开启"
+                ? L10n.string("这件被系统限制住了（家长控制等），同步不了")
+                : L10n.string("系统权限还没开：打开这一页上方那一个开关就能开启")
             if origin == .user {
                 appendLog(
                     dataset, kind: .syncFailed,
@@ -380,7 +380,7 @@ final class DeviceSyncController {
             return false
         }
         guard let dispatcher else {
-            lastErrors[dataset] = "设备通道还没准备好，稍后再试"
+            lastErrors[dataset] = L10n.string("设备通道还没准备好，稍后再试")
             if origin == .user {
                 appendLog(
                     dataset, kind: .syncFailed,
@@ -390,7 +390,7 @@ final class DeviceSyncController {
             return false
         }
         appendLog(dataset, kind: .syncStarted)
-        progress[dataset] = "正在读取手机上的清单…"
+        progress[dataset] = L10n.string("正在读取手机上的清单…")
         defer { progress[dataset] = nil }
         do {
             let result = try await assemble(
@@ -462,8 +462,10 @@ final class DeviceSyncController {
             )
             return false
         } catch {
-            lastErrors[dataset] =
-                "同步没成：\(error.localizedDescription)；服务器上的副本还是上一份"
+            lastErrors[dataset] = L10n.format(
+                "同步没成：%@；服务器上的副本还是上一份",
+                error.localizedDescription
+            )
             appendLog(
                 dataset, kind: .syncFailed,
                 reason: lastErrors[dataset]
@@ -477,15 +479,17 @@ final class DeviceSyncController {
     {
         switch error {
         case .noKey:
-            return "还没填登录密钥，连不上自己的服务器"
+            return L10n.string("还没填登录密钥，连不上自己的服务器")
         case .unauthorized:
-            return "登录密钥被服务器拒绝了，去设置里检查一次"
+            return L10n.string("登录密钥被服务器拒绝了，去设置里检查一次")
         case .unknownSession:
-            return "设备会话对不上，回到前台重连后再同步"
+            return L10n.string("设备会话对不上，回到前台重连后再同步")
         case .failed(let detail) where detail == "sync_count_mismatch":
-            return "这一批条数对不上，桥没有收；服务器上的副本还是上一份，下次同步会从头重来"
+            return L10n.string("这一批条数对不上，桥没有收；服务器上的副本还是上一份，下次同步会从头重来")
         case .failed(let detail):
-            return "同步没成（\(detail)）；服务器上的副本还是上一份"
+            return L10n.format(
+                "同步没成（%@）；服务器上的副本还是上一份", detail
+            )
         }
     }
 
@@ -510,7 +514,7 @@ final class DeviceSyncController {
         switch dataset {
         case .contacts:
             let snapshot = try dispatcher.contacts.syncSnapshot()
-            progress[.contacts] = "正在和服务器上的副本比对清单…"
+            progress[.contacts] = L10n.string("正在和服务器上的副本比对清单…")
             let manifest = try await client.syncManifest(
                 config: config, entries: snapshot.entries
             )
@@ -587,8 +591,10 @@ final class DeviceSyncController {
             )
             sent += slice.count
             if records.count > SyncBatchPlan.batchSize {
-                progress[dataset] =
-                    "已送 \(sent) / \(records.count) \(dataset.countUnit)"
+                progress[dataset] = L10n.format(
+                    "已送 %lld / %lld %@",
+                    sent, records.count, dataset.countUnit
+                )
             }
         }
     }
@@ -693,9 +699,9 @@ final class DeviceSyncController {
         guard permission == .limited else { return nil }
         switch dataset {
         case .contacts:
-            return "这是用户在系统里勾选的部分联系人，不是全部"
+            return L10n.string("这是用户在系统里勾选的部分联系人，不是全部")
         case .photos:
-            return "这是用户在系统里勾选的部分照片，不是全部"
+            return L10n.string("这是用户在系统里勾选的部分照片，不是全部")
         case .calendar, .reminders, .motion:
             return nil
         }

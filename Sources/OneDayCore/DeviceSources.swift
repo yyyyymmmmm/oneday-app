@@ -71,14 +71,17 @@ public enum DevicePermissionState: String, Equatable, Sendable {
     }
 
     /// 状态人话（目录行与详情页共用一处）
-    public var label: String {
+    public var label: String { label(locale: AppLocale.uiLocale) }
+
+    /// 状态人话的目录取词形（0.42.1 国际化长尾包）
+    public func label(locale: Locale) -> String {
         switch self {
-        case .notDetermined: return "未授权"
-        case .granted: return "已授权"
-        case .limited: return "已授权 · 部分联系人"
-        case .writeOnly: return "仅写入权限"
-        case .denied: return "被拒"
-        case .restricted: return "受限制"
+        case .notDetermined: return L10n.string("未授权", locale: locale)
+        case .granted: return L10n.string("已授权", locale: locale)
+        case .limited: return L10n.string("已授权 · 部分联系人", locale: locale)
+        case .writeOnly: return L10n.string("仅写入权限", locale: locale)
+        case .denied: return L10n.string("被拒", locale: locale)
+        case .restricted: return L10n.string("受限制", locale: locale)
         }
     }
 
@@ -138,9 +141,40 @@ public struct DeviceSourceDescriptor: Identifiable, Equatable, Sendable {
 }
 
 public enum DeviceSourceDirectory {
-    /// 名册全集（呈现序：日历→提醒→通讯录→照片→
-    /// 步数→健康→家庭；蓝牙已决不做、永不入册）
-    public static let roster: [DeviceSourceDescriptor] = [
+    /// 名册全集（当前界面语言版）
+    public static var roster: [DeviceSourceDescriptor] {
+        roster(locale: AppLocale.uiLocale)
+    }
+
+    /// 名册的目录取词形（0.42.1 国际化长尾包）：
+    /// 源表 rosterSource 存简体源串（目录键），按
+    /// locale 在构造时解析五件文本字段；sourceID/
+    /// 字形/颜色/批次是语言无关口径，原样保留
+    public static func roster(
+        locale: Locale
+    ) -> [DeviceSourceDescriptor] {
+        rosterSource.map { entry in
+            DeviceSourceDescriptor(
+                sourceID: entry.sourceID,
+                name: L10n.string(entry.name, locale: locale),
+                blurb: L10n.string(entry.blurb, locale: locale),
+                tileSymbol: entry.tileSymbol,
+                tileColorHex: entry.tileColorHex,
+                batch: entry.batch,
+                agentNote: L10n.string(entry.agentNote, locale: locale),
+                capabilityLine: L10n.string(
+                    entry.capabilityLine, locale: locale
+                ),
+                footnote: L10n.string(entry.footnote, locale: locale)
+            )
+        }
+    }
+
+    /// 名册源表（呈现序：日历→提醒→通讯录→照片→
+    /// 步数→健康→家庭；蓝牙已决不做、永不入册）；
+    /// 文本字段存简体源串、经 roster(locale:) 解析
+    /// 后才上屏
+    private static let rosterSource: [DeviceSourceDescriptor] = [
         DeviceSourceDescriptor(
             sourceID: .calendar,
             name: "日历",
@@ -212,9 +246,17 @@ public enum DeviceSourceDirectory {
     public static func descriptor(
         _ id: DeviceSourceID
     ) -> DeviceSourceDescriptor {
+        descriptor(id, locale: AppLocale.uiLocale)
+    }
+
+    /// 单件取词形（0.42.1 国际化长尾包）
+    public static func descriptor(
+        _ id: DeviceSourceID, locale: Locale
+    ) -> DeviceSourceDescriptor {
         // 名册恒含五件全集，查不到即编程错误——以首
         // 条兜底而非崩溃（呈现层宁可显错条不许闪退）
-        roster.first { $0.sourceID == id } ?? roster[0]
+        let entries = roster(locale: locale)
+        return entries.first { $0.sourceID == id } ?? entries[0]
     }
 }
 
@@ -316,28 +358,31 @@ public enum DeviceRowStatus {
         sessionOnline: Bool,
         metric: String?,
         syncSegment: String? = nil,
-        showsCallState: Bool = true
+        showsCallState: Bool = true,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
-        guard descriptor.isWired else { return "待签名权益" }
+        guard descriptor.isWired else {
+            return L10n.string("待签名权益", locale: locale)
+        }
         switch permission {
         case .notDetermined:
-            return "未授权"
+            return L10n.string("未授权", locale: locale)
         case .denied, .restricted:
-            return "被拒"
+            return L10n.string("被拒", locale: locale)
         case .writeOnly:
-            return "仅写入权限 · 不能读取"
+            return L10n.string("仅写入权限 · 不能读取", locale: locale)
         case .granted, .limited:
-            var parts = [permission.label]
+            var parts = [permission.label(locale: locale)]
             // 照片/步数没有现调通道（showsCallState
             // 为假）：不拼「可调用/调用已关」，它们的
             // 通道就是同步副本、由 syncSegment 说清
             if showsCallState {
                 if !agentCallEnabled {
-                    parts.append("调用已关")
+                    parts.append(L10n.string("调用已关", locale: locale))
                 } else if sessionOnline {
-                    parts.append("可调用")
+                    parts.append(L10n.string("可调用", locale: locale))
                 } else {
-                    parts.append("会话未连接")
+                    parts.append(L10n.string("会话未连接", locale: locale))
                 }
             }
             if let syncSegment, !syncSegment.isEmpty {
@@ -372,9 +417,10 @@ public enum DeviceRowStatus {
     /// 名册按搜索词过滤（保持名册序）；状态行由调用
     /// 方按当前状态逐件算好传入（映射只此一处）
     public static func filtered(
-        statusLines: [DeviceSourceID: String], query: String
+        statusLines: [DeviceSourceID: String], query: String,
+        locale: Locale = AppLocale.uiLocale
     ) -> [DeviceSourceDescriptor] {
-        DeviceSourceDirectory.roster.filter { descriptor in
+        DeviceSourceDirectory.roster(locale: locale).filter { descriptor in
             matches(
                 descriptor,
                 statusLine: statusLines[descriptor.sourceID] ?? "",

@@ -13,7 +13,7 @@ final class NotificationSummaryTests: XCTestCase {
     ) -> NotificationPresentation {
         NotificationSummary.presentation(
             kind: "write_gate_decision", title: title, body: body
-        )
+        , locale: Locale(identifier: "zh-Hans"))
     }
 
     // MARK: - 记忆类实样
@@ -225,7 +225,7 @@ final class NotificationSummaryTests: XCTestCase {
         let p = NotificationSummary.presentation(
             kind: "monitor_change", title: "监测有变化",
             body: "  监测目标\n有  新变化  "
-        )
+        , locale: Locale(identifier: "zh-Hans"))
         XCTAssertEqual(p.summary, "监测目标 有 新变化")
         XCTAssertNil(p.rawDetail)
     }

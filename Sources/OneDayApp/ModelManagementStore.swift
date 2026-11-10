@@ -66,7 +66,7 @@ final class ModelManagementStore {
             }
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "配置读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? L10n.string("配置读取失败。")
         }
         await appState.refreshModelCatalog()
         if let config = appState.config {
@@ -104,9 +104,9 @@ final class ModelManagementStore {
         do {
             try await writeBack(appState: appState) { $0["model"] = .string(model) }
             appState.noteDefaultModel(model)
-            notice = "默认模型已切换为 \(model)。"
+            notice = L10n.format("默认模型已切换为 %@。", model)
         } catch {
-            notice = (error as? HermesError)?.userMessage ?? "切换失败，请稍后再试。"
+            notice = (error as? HermesError)?.userMessage ?? L10n.string("切换失败，请稍后再试。")
         }
     }
 
@@ -141,7 +141,7 @@ final class ModelManagementStore {
                 )
             }
         } catch {
-            notice = "密钥没能保存到服务端，这家提供商还没加上。"
+            notice = L10n.string("密钥没能保存到服务端，这家提供商还没加上。")
             return false
         }
         do {
@@ -153,10 +153,10 @@ final class ModelManagementStore {
                 providers[name] = ProviderRegistry.configValue(for: entry)
                 config["providers"] = .object(providers)
             }
-            notice = "提供商 \(name) 已添加。"
+            notice = L10n.format("提供商 %@ 已添加。", name)
             return true
         } catch {
-            notice = "密钥已保存到服务端，但提供商条目没写成；再保存一次即可（同名密钥会被覆盖）。"
+            notice = L10n.string("密钥已保存到服务端，但提供商条目没写成；再保存一次即可（同名密钥会被覆盖）。")
             return false
         }
     }
@@ -173,7 +173,7 @@ final class ModelManagementStore {
                 }
             }
         } catch {
-            notice = (error as? HermesError)?.userMessage ?? "删除失败，请稍后再试。"
+            notice = (error as? HermesError)?.userMessage ?? L10n.string("删除失败，请稍后再试。")
             return
         }
         var envNote = ""
@@ -183,10 +183,10 @@ final class ModelManagementStore {
                     try await client.deleteEnvVar(config: config, key: keyEnv)
                 }
             } catch {
-                envNote = "（它的密钥还留在服务端，稍后可在「密钥」页删掉）"
+                envNote = L10n.string("（它的密钥还留在服务端，稍后可在「密钥」页删掉）")
             }
         }
-        notice = "提供商 \(entry.name) 已删除。\(envNote)"
+        notice = L10n.format("提供商 %@ 已删除。%@", entry.name, envNote)
     }
 
     // MARK: - 组合（分配层）
@@ -203,10 +203,10 @@ final class ModelManagementStore {
         do {
             try await comboClient.saveDocument(config: config, document: document)
             comboDocument = document
-            notice = "组合「\(combo.name)」已保存。"
+            notice = L10n.format("组合「%@」已保存。", combo.name)
             return true
         } catch {
-            notice = "组合没能存到服务端，请稍后再试。"
+            notice = L10n.string("组合没能存到服务端，请稍后再试。")
             return false
         }
     }
@@ -221,9 +221,9 @@ final class ModelManagementStore {
         do {
             try await comboClient.saveDocument(config: config, document: document)
             comboDocument = document
-            notice = "组合「\(combo.name)」已删除。"
+            notice = L10n.format("组合「%@」已删除。", combo.name)
         } catch {
-            notice = "删除没能存到服务端，请稍后再试。"
+            notice = L10n.string("删除没能存到服务端，请稍后再试。")
         }
     }
 
@@ -231,7 +231,7 @@ final class ModelManagementStore {
     /// 快照、用户点名保存、可删改，不称推荐）
     func saveStarterCombo(appState: AppState) async {
         let starter = ComboStarter.fromCurrentConfig(
-            rawConfig, id: UUID().uuidString, name: "当前配置",
+            rawConfig, id: UUID().uuidString, name: L10n.string("当前配置"),
             updatedAt: Date().timeIntervalSince1970
         )
         await saveCombo(starter, appState: appState)
@@ -244,7 +244,7 @@ final class ModelManagementStore {
     func activateCombo(_ combo: ModelCombo, appState: AppState) async {
         if let mainModel = combo.mainModel,
            !ModelCatalog.isWritable(mainModel, candidates: appState.availableModels) {
-            notice = "这套组合的主模型 \(mainModel) 不在网关可用的模型里，没法设为全局默认；先在编辑里换一个，或把它放到某个槽位里按直连用。"
+            notice = L10n.format("这套组合的主模型 %@ 不在网关可用的模型里，没法设为全局默认；先在编辑里换一个，或把它放到某个槽位里按直连用。", mainModel)
             return
         }
         do {
@@ -267,9 +267,9 @@ final class ModelManagementStore {
                 )
                 comboDocument = document
             }
-            notice = "组合「\(combo.name)」已启用。辅助槽位若没立刻变，随服务下次重启生效。"
+            notice = L10n.format("组合「%@」已启用。辅助槽位若没立刻变，随服务下次重启生效。", combo.name)
         } catch {
-            notice = (error as? HermesError)?.userMessage ?? "启用失败，请稍后再试。"
+            notice = (error as? HermesError)?.userMessage ?? L10n.string("启用失败，请稍后再试。")
         }
     }
 

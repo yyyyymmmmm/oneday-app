@@ -1129,7 +1129,7 @@ final class DictationController {
             ) == .fillComposer {
                 settle(text: session.committedText(includeVolatile: true))
                 Haptics.warning()
-                showNotice("已录满 5 分钟，识别到的内容已填入输入框")
+                showNotice(L10n.string("已录满 5 分钟，识别到的内容已填入输入框"))
             } else {
                 settle(text: session.baseDraft)
             }

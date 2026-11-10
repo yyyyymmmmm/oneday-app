@@ -64,7 +64,7 @@ final class FeedStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
-            loadState = .failed("尚未连接服务器。")
+            loadState = .failed(L10n.string("尚未连接服务器。"))
             return
         }
         loadInFlight = true
@@ -77,7 +77,7 @@ final class FeedStore {
             loadState = GoalsStore.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed("动态读取失败，请稍后重试。")
+            loadState = .failed(L10n.string("动态读取失败，请稍后重试。"))
         }
         // 附带面：账面失败只降级胶囊/空态口径，帖子照常
         if let fetched = try? await client.feedGeneration(
@@ -135,7 +135,7 @@ final class FeedStore {
             briefError = GoalsStore.message(for: error)
             return false
         } catch {
-            briefError = "保存失败，请稍后重试。"
+            briefError = L10n.string("保存失败，请稍后重试。")
             return false
         }
     }
@@ -157,7 +157,7 @@ final class FeedStore {
             briefError = GoalsStore.message(for: error)
             return false
         } catch {
-            briefError = "没能开始生成，请稍后重试。"
+            briefError = L10n.string("没能开始生成，请稍后重试。")
             return false
         }
     }

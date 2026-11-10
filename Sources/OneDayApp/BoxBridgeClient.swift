@@ -39,13 +39,13 @@ final class BoxBridgeClient: @unchecked Sendable {
     }
 
     func status(config: ServerConfig) async throws -> BoxBridgeStatus {
-        try await get(config: config, path: "/status", endpoint: "云电脑状态")
+        try await get(config: config, path: "/status", endpoint: L10n.string("云电脑状态"))
     }
 
     func screenshot(config: ServerConfig) async throws -> BoxScreenshot {
         try await post(
             config: config, path: "/screenshot",
-            body: BoxScreenshotRequest(), endpoint: "桌面截图"
+            body: BoxScreenshotRequest(), endpoint: L10n.string("桌面截图")
         )
     }
 
@@ -54,7 +54,7 @@ final class BoxBridgeClient: @unchecked Sendable {
     ) async throws -> BoxActResponse {
         try await post(
             config: config, path: "/act",
-            body: request, endpoint: "接管动作"
+            body: request, endpoint: L10n.string("接管动作")
         )
     }
 
@@ -78,7 +78,7 @@ final class BoxBridgeClient: @unchecked Sendable {
         do {
             bodyData = try encoder.encode(body)
         } catch {
-            throw BoxBridgeError.failed("\(endpoint)请求组装失败")
+            throw BoxBridgeError.failed(L10n.format("%@请求组装失败", endpoint))
         }
         let request = try makeRequest(
             config: config, path: path, method: "POST", body: bodyData
@@ -117,7 +117,7 @@ final class BoxBridgeClient: @unchecked Sendable {
             throw BoxBridgeError.unauthorized
         }
         guard (200...299).contains(http.statusCode) else {
-            throw BoxBridgeError.failed("\(endpoint)返回 \(http.statusCode)")
+            throw BoxBridgeError.failed(L10n.format("%@返回 %@", endpoint, String(http.statusCode)))
         }
     }
 
@@ -127,7 +127,7 @@ final class BoxBridgeClient: @unchecked Sendable {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw BoxBridgeError.failed("\(endpoint)返回格式无法识别")
+            throw BoxBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
         }
     }
 
@@ -137,13 +137,13 @@ final class BoxBridgeClient: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw BoxBridgeError.failed("\(endpoint)无响应")
+                throw BoxBridgeError.failed(L10n.format("%@无响应", endpoint))
             }
             return (data, http)
         } catch let error as BoxBridgeError {
             throw error
         } catch {
-            throw BoxBridgeError.failed("\(endpoint)网络不可达")
+            throw BoxBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }

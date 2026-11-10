@@ -56,8 +56,8 @@ final class SessionDisplayTests: XCTestCase {
             startedAt: epoch(2026, 11, 8, 21, 30),
             endedAt: epoch(2026, 11, 8, 22, 0), messageCount: 7
         )
-        XCTAssertEqual(a.humanTitle, "未命名会话")
-        XCTAssertEqual(b.humanTitle, "未命名会话")
+        XCTAssertEqual(a.humanTitle(locale: Locale(identifier: "zh-Hans")), "未命名会话")
+        XCTAssertEqual(b.humanTitle(locale: Locale(identifier: "zh-Hans")), "未命名会话")
         let subA = a.humanSubtitle(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans"))
         let subB = b.humanSubtitle(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans"))
         // 0.3.8 第 18 条改序：时间 · 条数 · 来源（来源
@@ -68,7 +68,7 @@ final class SessionDisplayTests: XCTestCase {
         XCTAssertEqual(subB, "昨天 21:30 · 7 条 · 其他应用")
         XCTAssertNotEqual(subA, subB)
         XCTAssertFalse(subA.contains("api_server"))
-        XCTAssertEqual(a.sourceLabel, "其他应用")
+        XCTAssertEqual(a.sourceLabel(locale: Locale(identifier: "zh-Hans")), "其他应用")
     }
 
     /// 人话 display_name 直接采用；标识符形态的
@@ -79,13 +79,13 @@ final class SessionDisplayTests: XCTestCase {
             startedAt: epoch(2026, 11, 9, 6, 12), messageCount: 3
         )
         XCTAssertTrue(named.hasHumanName)
-        XCTAssertEqual(named.humanTitle, "帮我写周报")
+        XCTAssertEqual(named.humanTitle(locale: Locale(identifier: "zh-Hans")), "帮我写周报")
         let raw = session(
             displayName: "api_server",
             startedAt: epoch(2026, 11, 5, 9, 0), messageCount: nil
         )
         XCTAssertFalse(raw.hasHumanName)
-        XCTAssertEqual(raw.humanTitle, "未命名会话")
+        XCTAssertEqual(raw.humanTitle(locale: Locale(identifier: "zh-Hans")), "未命名会话")
     }
 
     /// 首条用户消息摘要（待裁 5 已裁口径）：取首个
@@ -111,12 +111,12 @@ final class SessionDisplayTests: XCTestCase {
 
         let plain = session()
         XCTAssertEqual(
-            plain.contentTitle(firstUserMessage: "查一下服务器状态"),
+            plain.contentTitle(firstUserMessage: "查一下服务器状态", locale: Locale(identifier: "zh-Hans")),
             "查一下服务器状态"
         )
-        XCTAssertEqual(plain.contentTitle(firstUserMessage: nil), "未命名会话")
+        XCTAssertEqual(plain.contentTitle(firstUserMessage: nil, locale: Locale(identifier: "zh-Hans")), "未命名会话")
         let named = session(displayName: "帮我写周报")
-        XCTAssertEqual(named.contentTitle(firstUserMessage: nil), "帮我写周报")
+        XCTAssertEqual(named.contentTitle(firstUserMessage: nil, locale: Locale(identifier: "zh-Hans")), "帮我写周报")
     }
 
     /// 兜底：未知来源只给「服务端」，原样标识永不透出。
@@ -125,14 +125,14 @@ final class SessionDisplayTests: XCTestCase {
         // 时间/条数全缺时副题只剩来源段（0.6.1 起无
         // 「进行中」段可带）
         let bare = session(source: "some_internal_bus", endedAt: 1)
-        XCTAssertEqual(bare.humanTitle, "未命名会话")
+        XCTAssertEqual(bare.humanTitle(locale: Locale(identifier: "zh-Hans")), "未命名会话")
         XCTAssertEqual(
             bare.humanSubtitle(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans")), "服务端"
         )
-        XCTAssertEqual(bare.sourceLabel, "服务端")
-        XCTAssertEqual(session(source: nil).sourceLabel, "服务端")
-        XCTAssertEqual(session(source: "dashboard").sourceLabel, "控制台")
-        XCTAssertEqual(session(source: "cron").sourceLabel, "定时任务")
+        XCTAssertEqual(bare.sourceLabel(locale: Locale(identifier: "zh-Hans")), "服务端")
+        XCTAssertEqual(session(source: nil).sourceLabel(locale: Locale(identifier: "zh-Hans")), "服务端")
+        XCTAssertEqual(session(source: "dashboard").sourceLabel(locale: Locale(identifier: "zh-Hans")), "控制台")
+        XCTAssertEqual(session(source: "cron").sourceLabel(locale: Locale(identifier: "zh-Hans")), "定时任务")
     }
     /// 首条 user 消息提取（0.6.1 派生标题数据源）：
     /// 按数组原序取第一条 role=user 的非空消息，
@@ -168,12 +168,12 @@ final class SessionDisplayTests: XCTestCase {
         let llm = session(serverTitle: "确认链路正常", titleSource: "llm")
         XCTAssertTrue(llm.hasServerTitle)
         XCTAssertEqual(
-            llm.resolvedTitle(firstUserMessage: "只回复四个字：链路正常"),
+            llm.resolvedTitle(firstUserMessage: "只回复四个字：链路正常", locale: Locale(identifier: "zh-Hans")),
             "确认链路正常"
         )
         let user = session(serverTitle: "我手动改的名字", titleSource: "user")
         XCTAssertEqual(
-            user.resolvedTitle(firstUserMessage: "随便什么首句"),
+            user.resolvedTitle(firstUserMessage: "随便什么首句", locale: Locale(identifier: "zh-Hans")),
             "我手动改的名字"
         )
         // derived 占位也是服务端标题：压过本地摘要
@@ -181,14 +181,14 @@ final class SessionDisplayTests: XCTestCase {
             serverTitle: "你好，用一句话说说西安的特", titleSource: "derived"
         )
         XCTAssertEqual(
-            derived.resolvedTitle(firstUserMessage: "你好，用一句话说说西安的特色。"),
+            derived.resolvedTitle(firstUserMessage: "你好，用一句话说说西安的特色。", locale: Locale(identifier: "zh-Hans")),
             "你好，用一句话说说西安的特"
         )
         // 空白标题不算有标题（清洗后落回落层）
         let blank = session(serverTitle: "   ", titleSource: "llm")
         XCTAssertFalse(blank.hasServerTitle)
         XCTAssertEqual(
-            blank.resolvedTitle(firstUserMessage: "查一下服务器状态"),
+            blank.resolvedTitle(firstUserMessage: "查一下服务器状态", locale: Locale(identifier: "zh-Hans")),
             "查一下服务器状态"
         )
     }
@@ -202,12 +202,12 @@ final class SessionDisplayTests: XCTestCase {
         let qwen = session(serverTitle: nil, titleSource: nil)
         XCTAssertFalse(qwen.hasServerTitle)
         XCTAssertEqual(
-            qwen.resolvedTitle(firstUserMessage: "请仔细看这张图片并回答"),
+            qwen.resolvedTitle(firstUserMessage: "请仔细看这张图片并回答", locale: Locale(identifier: "zh-Hans")),
             "请仔细看这张图片并回答"
         )
-        XCTAssertEqual(qwen.resolvedTitle(firstUserMessage: nil), "未命名会话")
+        XCTAssertEqual(qwen.resolvedTitle(firstUserMessage: nil, locale: Locale(identifier: "zh-Hans")), "未命名会话")
         XCTAssertEqual(
-            qwen.resolvedTitle(firstUserMessage: "   "), "未命名会话"
+            qwen.resolvedTitle(firstUserMessage: "   ", locale: Locale(identifier: "zh-Hans")), "未命名会话"
         )
     }
 
@@ -263,7 +263,7 @@ final class SessionDisplayTests: XCTestCase {
         )
         XCTAssertEqual(byID["api-aaaa0001"]?.titleSource, "llm")
         XCTAssertEqual(
-            byID["api-aaaa0001"]?.resolvedTitle(firstUserMessage: nil),
+            byID["api-aaaa0001"]?.resolvedTitle(firstUserMessage: nil, locale: Locale(identifier: "zh-Hans")),
             "确认链路正常"
         )
         XCTAssertEqual(byID["api-bbbb0002"]?.titleSource, "user")

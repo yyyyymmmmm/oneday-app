@@ -26,8 +26,8 @@ final class HubGateAndBrowserTests: XCTestCase {
          "created_at": "2026-11-09T02:00:00Z"}
         """.utf8))
         XCTAssertEqual(record.subsystem, .skills)
-        XCTAssertEqual(record.displaySummary, "修改一个技能")
-        XCTAssertEqual(record.originLabel, "后台自检")
+        XCTAssertEqual(record.displaySummary(locale: Locale(identifier: "zh-Hans")), "修改一个技能")
+        XCTAssertEqual(record.originLabel(locale: Locale(identifier: "zh-Hans")), "后台自检")
         XCTAssertTrue(record.canDecide)
         XCTAssertNotNil(record.createdAt)
     }
@@ -42,7 +42,7 @@ final class HubGateAndBrowserTests: XCTestCase {
         // 未知来源给通用中文兜底（0.36.21 用户点名修
         // 订，覆盖旧「回落原始值」口径）：原始标识是
         // 内部记账名、不许当标签漏给用户；卡不丢弃
-        XCTAssertEqual(record.originLabel, "其他来源")
+        XCTAssertEqual(record.originLabel(locale: Locale(identifier: "zh-Hans")), "其他来源")
     }
 
     /// origin 实测取值 assistant_tool（桥侧实测，取值域
@@ -53,7 +53,7 @@ final class HubGateAndBrowserTests: XCTestCase {
          "summary": "记一条", "origin": "assistant_tool",
          "created_at": null}
         """.utf8))
-        XCTAssertEqual(record.originLabel, "智能体工具调用")
+        XCTAssertEqual(record.originLabel(locale: Locale(identifier: "zh-Hans")), "智能体工具调用")
     }
 
     func testSectionStateResolve() {

@@ -29,10 +29,16 @@ public struct SlotChoice: Codable, Equatable, Sendable {
 
     /// provider 的人话短标（编辑器与详情共用）
     public var providerLabel: String {
+        providerLabel(locale: AppLocale.uiLocale)
+    }
+
+    /// 短标的目录取词形（0.42.1 国际化长尾包）：
+    /// provider 名是用户自加的内容、原样直通
+    public func providerLabel(locale: Locale) -> String {
         switch provider {
-        case "auto": return "自动"
-        case "main": return "主端点（经网关）"
-        default: return "直连 · \(provider)"
+        case "auto": return L10n.string("自动", locale: locale)
+        case "main": return L10n.string("主端点（经网关）", locale: locale)
+        default: return L10n.format("直连 · %@", locale: locale, provider)
         }
     }
 }
@@ -73,15 +79,34 @@ public struct ModelCombo: Codable, Equatable, Identifiable, Sendable {
 
     /// 组合摘要（一行人话：动了哪些格，给列表行用）
     public var summaryLine: String {
+        summaryLine(locale: AppLocale.uiLocale)
+    }
+
+    /// 摘要的目录取词形（0.42.1 国际化长尾包）：
+    /// 模型名是内容、原样直通，只模板走目录
+    public func summaryLine(locale: Locale) -> String {
         var parts: [String] = []
-        if let mainModel { parts.append("主模型 \(mainModel)") }
-        if !aux.isEmpty { parts.append("\(aux.count) 个辅助槽位") }
-        if delegation != nil { parts.append("含委派设置") }
+        if let mainModel {
+            parts.append(L10n.format("主模型 %@", locale: locale, mainModel))
+        }
+        if !aux.isEmpty {
+            parts.append(L10n.format(
+                "%lld 个辅助槽位", locale: locale, aux.count
+            ))
+        }
+        if delegation != nil {
+            parts.append(L10n.string("含委派设置", locale: locale))
+        }
         if includesFallback {
             parts.append(fallback.isEmpty
-                ? "备用链未启用" : "备用链 \(fallback.count) 级")
+                ? L10n.string("备用链未启用", locale: locale)
+                : L10n.format(
+                    "备用链 %lld 级", locale: locale, fallback.count
+                ))
         }
-        return parts.isEmpty ? "还没有设置任何槽位" : parts.joined(separator: " · ")
+        return parts.isEmpty
+            ? L10n.string("还没有设置任何槽位", locale: locale)
+            : parts.joined(separator: " · ")
     }
 }
 
@@ -104,10 +129,31 @@ public struct ModelComboDocument: Codable, Equatable, Sendable {
 // MARK: - 槽位目录（编辑器呈现口径）
 
 public enum AuxSlotCatalog {
-    /// 常用槽位（用户能直接感知的场景在前，§5.1(2)）：
-    /// (键, 人话名, 一句说明)。说明只许说用途、不许编
-    /// 造服务端没有的行为。
-    public static let primary: [(key: String, title: String, detail: String)] = [
+    /// 常用槽位（当前界面语言版）
+    public static var primary: [(key: String, title: String, detail: String)] {
+        primary(locale: AppLocale.uiLocale)
+    }
+
+    /// 槽位目录的目录取词形（0.42.1 国际化长尾
+    /// 包）：源表存简体源串（目录键），按 locale
+    /// 解析名与说明；槽位键是协议口径、不译
+    public static func primary(
+        locale: Locale
+    ) -> [(key: String, title: String, detail: String)] {
+        primarySource.map { slot in
+            (
+                key: slot.key,
+                title: L10n.string(slot.title, locale: locale),
+                detail: L10n.string(slot.detail, locale: locale)
+            )
+        }
+    }
+
+    /// 常用槽位源表（用户能直接感知的场景在前，
+    /// §5.1(2)）：(键, 人话名, 一句说明)。说明只许
+    /// 说用途、不许编造服务端没有的行为；文本存简
+    /// 体源串、经 primary(locale:) 解析后上屏
+    private static let primarySource: [(key: String, title: String, detail: String)] = [
         ("vision", "看图", "分析图片、看截图用哪个模型"),
         ("title_generation", "会话标题", "给新会话起标题"),
         ("compression", "长聊压缩", "对话太长时压缩上下文"),
@@ -124,7 +170,14 @@ public enum AuxSlotCatalog {
 
     /// 人话名（目录外键回落键名本身，不假装认识）
     public static func title(forKey key: String) -> String {
-        primary.first { $0.key == key }?.title ?? key
+        title(forKey: key, locale: AppLocale.uiLocale)
+    }
+
+    /// 人话名的目录取词形（0.42.1 国际化长尾包）
+    public static func title(
+        forKey key: String, locale: Locale
+    ) -> String {
+        primary(locale: locale).first { $0.key == key }?.title ?? key
     }
 
     public static func isPrimary(_ key: String) -> Bool {
@@ -282,17 +335,28 @@ public enum ComboActivation {
     /// 激活前的人话说明（确认弹窗与结果提示共用，含
     /// 粒度诚实边界，§5.3）：写清动哪些格＋已有会话不
     /// 受影响＋辅助槽位全机共用。
-    public static func activationNotice(for combo: ModelCombo) -> String {
+    public static func activationNotice(
+        for combo: ModelCombo, locale: Locale = AppLocale.uiLocale
+    ) -> String {
         var lines: [String] = []
         if combo.mainModel != nil {
-            lines.append("新会话将默认用 \(combo.mainModel ?? "")；已有会话不受影响。")
+            lines.append(L10n.format(
+                "新会话将默认用 %@；已有会话不受影响。",
+                locale: locale, combo.mainModel ?? ""
+            ))
         }
         if !combo.aux.isEmpty || combo.delegation != nil
             || combo.includesFallback {
-            lines.append("看图、标题等辅助设置对整台服务生效，所有会话共用。")
+            lines.append(L10n.string(
+                "看图、标题等辅助设置对整台服务生效，所有会话共用。",
+                locale: locale
+            ))
         }
         if lines.isEmpty {
-            lines.append("这套组合还没有设置任何槽位，激活不会改动现在的配置。")
+            lines.append(L10n.string(
+                "这套组合还没有设置任何槽位，激活不会改动现在的配置。",
+                locale: locale
+            ))
         }
         return lines.joined(separator: "\n")
     }
