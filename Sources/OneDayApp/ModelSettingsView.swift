@@ -205,7 +205,7 @@ struct ModelSettingsView: View {
     private func modelRow(_ entry: AnnotatedModel) -> some View {
         let isCurrent = entry.model == store.currentModel
         let content = HStack(spacing: OneDayMetrics.spacingSM) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(entry.model)
                     .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(Palette.ink)
@@ -265,7 +265,7 @@ struct ModelSettingsView: View {
                         GroupDivider()
                     }
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text(provider.name)
                                 .font(.body)
                                 .foregroundStyle(Palette.ink)
@@ -332,7 +332,7 @@ struct ModelSettingsView: View {
                             GroupDivider()
                         }
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                 Text(channel.name)
                                     .font(.body)
                                     .foregroundStyle(Palette.ink)
@@ -465,7 +465,7 @@ struct ModelSettingsView: View {
             Button {
                 editingCombo = combo
             } label: {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text(combo.name)
                             .font(.body)

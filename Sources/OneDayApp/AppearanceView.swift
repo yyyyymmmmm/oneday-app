@@ -155,8 +155,8 @@ struct AppearanceView: View {
                 Text(appState.agentDisplayName)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Palette.ink)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, OneDayMetrics.rowInnerGap)
+                    .padding(.vertical, OneDayMetrics.spacingMicro)
                     .background(Palette.surface, in: Capsule())
                     .overlay {
                         Capsule().stroke(Palette.hairline, lineWidth: 0.5)
@@ -179,7 +179,7 @@ struct AppearanceView: View {
                 previewBubble(width: 108, height: 30, fill: bubble)
             }
             HStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
                     .fill(Palette.bubbleFill)
                     .frame(width: 205, height: 58)
                     .accessibilityHidden(true)
@@ -217,7 +217,7 @@ struct AppearanceView: View {
     private var themeSection: some View {
         Section {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
+                HStack(spacing: OneDayMetrics.spacingSM) {
                     ForEach(ChatThemes.all) { item in
                         themeSwatch(item)
                     }

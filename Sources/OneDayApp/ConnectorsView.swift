@@ -314,11 +314,11 @@ struct ConnectorsView: View {
                 ConnectorIconView(
                     spec: .asset(descriptor.iconAssetName), size: 40
                 )
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(descriptor.name)
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
-                    HStack(spacing: 5) {
+                    HStack(spacing: OneDayMetrics.iconTextGap) {
                         localStatusMark(state)
                         Text(state.subline)
                             .font(.footnote)
@@ -497,7 +497,7 @@ struct ConnectorsView: View {
                 .font(.system(size: 20))
                 .foregroundStyle(Palette.primary)
                 .frame(width: 40, height: 40)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(connection.name)
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
@@ -542,7 +542,7 @@ struct ConnectorsView: View {
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             DeviceAppIconView(source: descriptor.sourceID, size: 40)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(descriptor.name)
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
@@ -639,7 +639,11 @@ struct ConnectorsView: View {
             } header: {
                 headerText("已连接 · \(connected.count)")
             } footer: {
-                Text("状态来自服务端实时读取（MCP 服务器列表），与服务器实际配置一致；读取失败不会拿旧数据冒充。")
+                // 0.41.0（收口批 P7 余项）：页脚由整句说
+                // 明瘦身为一句事实——去「MCP／服务端」术
+                // 语（宪法 §8），只留用户需要知道的：状
+                // 态是现读的、读不到不冒充（S7 如实）
+                Text("这里的状态是刚刚向服务器确认过的，读不到会如实显示。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
@@ -652,11 +656,11 @@ struct ConnectorsView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 ConnectorIconView(spec: entry.iconSpec, size: 40)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(entry.displayName)
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
-                    HStack(spacing: 5) {
+                    HStack(spacing: OneDayMetrics.iconTextGap) {
                         Circle()
                             .fill(
                                 entry.server.enabled
@@ -716,7 +720,7 @@ struct ConnectorsView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 ConnectorIconView(spec: entry.iconSpec, size: 40)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(entry.name)
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
@@ -960,7 +964,7 @@ struct ConnectorsView: View {
                 detailRow("来源", server.originLabel)
                 detailRow("传输方式", transportLabel(server))
                 if let endpoint = server.endpointLine {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text("连接地址")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.ink)

@@ -100,7 +100,7 @@ struct ModelComboEditorView: View {
                     Toggle("改备用链", isOn: $fallbackEnabled)
                     if fallbackEnabled {
                         ForEach(Array(fallback.enumerated()), id: \.offset) { index, _ in
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.rowInnerGap) {
                                 Text("第 \(index + 1) 级")
                                     .font(.footnote)
                                     .foregroundStyle(Palette.inkSecondary)
@@ -161,9 +161,9 @@ struct ModelComboEditorView: View {
             get: { slotEnabled[key] ?? false },
             set: { slotEnabled[key] = $0 }
         )
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.rowInnerGap) {
             Toggle(isOn: enabled) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(AuxSlotCatalog.title(forKey: key))
                         .font(.body)
                         .foregroundStyle(Palette.ink)
@@ -177,7 +177,7 @@ struct ModelComboEditorView: View {
                 choicePickers(choice: bindingForSlot(key))
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, OneDayMetrics.spacingMicro)
     }
 
     /// 槽位副行：目录说明（常用槽位）＋当前值

@@ -486,7 +486,7 @@ struct OverviewView: View {
                 // 0.6.1：绿点（isActive 时）删除——与假
                 // 「进行中」同源：ended_at 缺失下全量行
                 // 恒挂绿点、等于逐行宣称正在进行，不许
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     // 卡 16/18 同源：副题 humanSubtitle，
                     // 原始 title/source 不上屏；标题 0.6.1
                     // 起走全局派生（解析器 contentTitle，
@@ -522,7 +522,7 @@ struct OverviewView: View {
             onOpenChat()
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(thread.title)
                         .font(.rowTitle)
                         .foregroundStyle(Palette.ink)

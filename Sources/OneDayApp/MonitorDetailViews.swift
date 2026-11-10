@@ -77,7 +77,7 @@ struct MonitorDetailView: View {
                 }
                 if MonitorPresentation.status(of: monitor) == .failed,
                    let error = monitor.lastError, !error.isEmpty {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text("失败原因")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
@@ -199,7 +199,7 @@ struct MonitorDetailView: View {
                     .frame(width: 7, height: 7)
                     .accessibilityLabel("未读")
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(change.summary)
                     .font(.subheadline)
                     .foregroundStyle(Palette.bodyInk)
@@ -216,7 +216,7 @@ struct MonitorDetailView: View {
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             Text(label)
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)

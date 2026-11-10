@@ -160,7 +160,7 @@ struct UsageDetailView: View {
                         GroupDivider()
                     }
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text(model.model)
                                 .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle(Palette.ink)
@@ -172,7 +172,7 @@ struct UsageDetailView: View {
                             }
                         }
                         Spacer(minLength: OneDayMetrics.spacingS)
-                        VStack(alignment: .trailing, spacing: 2) {
+                        VStack(alignment: .trailing, spacing: OneDayMetrics.spacingMicro) {
                             Text(AdminFormat.count(model.tokens))
                                 .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle(Palette.ink)

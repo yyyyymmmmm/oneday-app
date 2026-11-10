@@ -136,7 +136,7 @@ struct CronJobsView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 StatusDot(color: job.enabled ? Palette.success : Palette.inkMuted)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(job.title)
                         .font(.body)
                         .foregroundStyle(Palette.ink)
@@ -402,7 +402,7 @@ struct CronJobDetailView: View {
             appState.pendingChatSessionID = run.id
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(AdminFormat.short(run.startedDate))
                         .font(.body)
                         .foregroundStyle(Palette.ink)

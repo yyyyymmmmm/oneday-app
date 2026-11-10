@@ -285,7 +285,9 @@ public enum Palette {
     /// 强调（OpenMuse blueDark #1473C8，ui.tsx:25——链
     /// 接/图标/角标/光标的实色；暗色派生亮化 #5EB1EF）
     /// 0.26.0 起主题化：值自当前主题强调行——默认
-    /// 「三狗」行与上述旧值逐字相同。
+    /// 「三狗」行浅档 0.41.0 起按浅档专项加深一档
+    /// （0x1473C8→0x136FC1，见 ChatTheme 注），与上
+    /// 述旧值脱钩是本意；暗档仍逐字相同。
     public static var primary: Color {
         let theme = currentChatTheme
         return themedColor(
@@ -474,8 +476,13 @@ public enum OneDayMetrics {
     /// 设置页行最小高（0.20.0，Muse 设置图推算行距
     /// 约 63 含卡内呼吸，行本体取 60）
     public static let settingsRowHeight: CGFloat = 60
-    /// 设置页组间距（0.20.0，图中组间约 28）
-    public static let settingsSectionSpacing: CGFloat = 28
+    /// 设置页组间距（0.20.0 图中组间约 28；0.41.0 收
+    /// 口批 C4 处置：28 不在间距梯队内、收编为梯队值
+    /// spacingL 24——组间 24 对组内行距（8/12）仍达
+    /// 2–3 倍分段比，宪法 §3.2 的分段可读性不减；全
+    /// App 设置型页面的组距随之统一小收 4pt，真机若
+    /// 觉挤可单独回 28 并入宪法修订，本批先入梯队）
+    public static let settingsSectionSpacing: CGFloat = 24
     /// 名单行图标字形（0.23.0 单源化：改引用 Core
     /// FrameworkIcon，本处只留别名、不再自带数值）
     public static let navGlyph: CGFloat = FrameworkIcon.navGlyphSize
@@ -503,6 +510,23 @@ public enum OneDayMetrics {
     public static let composerCorner: CGFloat = 24
     /// 代码块（正文区内的内容面）
     public static let codeCorner: CGFloat = 10
+
+    // —— 圆角角色令牌（0.41.0 收口批 C15：散值 6/9/12/
+    // 14/16 按角色收编；旧「梯队 {7,10,28}」与卡面实
+    // 际形态脱节，本表即新梯队——同心推导面（气泡/容
+    // 器/字段等上方专名令牌）不在此列、不受影响）——
+    /// 小符号瓷砖（34–36pt 方砖：类型砖/工具类砖）
+    public static let radiusTile: CGFloat = 9
+    /// 缩略图（54pt 级图面）
+    public static let radiusThumb: CGFloat = 10
+    /// 一般卡面（来源卡/正文卡/状态卡/链接卡）
+    public static let radiusCard: CGFloat = 12
+    /// 大卡/预览面（文档预览卡/横幅行/终端卡；图片查
+    /// 看器卡圆角 16 与此同值、走 ImageViewerSpec）
+    public static let radiusPreview: CGFloat = 16
+    /// 勾选框（24pt 方框的形状圆角，与 AppSymbolTile
+    /// 的 size×0.26 比例画法同源量级）
+    public static let radiusCheckbox: CGFloat = 6
 
     /// 页面左右边距（内容页）
     public static let pageGutter: CGFloat = 20
@@ -570,4 +594,19 @@ public enum OneDayMetrics {
     public static let spacingL: CGFloat = 24
     public static let spacingXL: CGFloat = 32
     public static let spacingXXL: CGFloat = 48
+
+    // —— 组件内微距（0.41.0 收口批 C5 收编：题/副题紧
+    // 排、字形与文字的贴身间隙等组件内部量，不作页
+    // 面布局间距使用；数值与收编前字面量逐一相同、
+    // 版式零变化，变的只是出处归一到本表）——
+    /// 贴身微距（同组两行字/字形与计数等的最紧间隙）
+    public static let spacingMicro: CGFloat = 2
+    /// 题副紧排（行内标题与副题的纵向贴合）
+    public static let stackGap: CGFloat = 3
+    /// 图文贴身（小图标/状态点与相邻文字）
+    public static let iconTextGap: CGFloat = 5
+    /// 行内小组（行内两三个元素成组时的组内距）
+    public static let rowInnerGap: CGFloat = 6
+    /// 卡内一组（横幅行/卡内图标与文字列的间距）
+    public static let cardInnerGap: CGFloat = 10
 }

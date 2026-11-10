@@ -161,7 +161,7 @@ struct ComputerView: View {
 
     @ViewBuilder
     private func readyDetails(_ status: BoxBridgeStatus) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             Text(status.pageTitleText)
                 .font(.body)
                 .foregroundStyle(Palette.ink)

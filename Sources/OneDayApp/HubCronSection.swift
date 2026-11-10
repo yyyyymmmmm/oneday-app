@@ -59,8 +59,8 @@ struct HubCronSection: View {
             case .interval:
                 clockDisc
             }
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                HStack(spacing: OneDayMetrics.rowInnerGap) {
                     Text(item.job.title)
                         .font(.body)
                         .foregroundStyle(
@@ -125,9 +125,9 @@ struct HubCronSection: View {
     private func calendarTile(withBadge: Bool) -> some View {
         ZStack(alignment: .bottomTrailing) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb)
                     .fill(Palette.surface)
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb)
                     .stroke(Palette.hairline, lineWidth: 0.5)
                 Image(systemName: "calendar")
                     .font(.system(size: 20, weight: .regular))

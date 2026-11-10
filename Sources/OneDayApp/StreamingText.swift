@@ -54,7 +54,7 @@ struct StreamingText: View {
                     )
             }
             StreamingCaret()
-                .padding(.leading, 2)
+                .padding(.leading, OneDayMetrics.spacingMicro)
         }
         .onChange(of: text, initial: true) { _, newText in
             let newTokens = Self.tokenize(newText)

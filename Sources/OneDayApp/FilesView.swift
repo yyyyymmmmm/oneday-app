@@ -85,7 +85,7 @@ struct FileSearchField: View {
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
-        .background(Palette.fieldFill, in: RoundedRectangle(cornerRadius: 10))
+        .background(Palette.fieldFill, in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb))
     }
 }
 
@@ -106,7 +106,7 @@ struct FileIconBox: View {
             forFileName: entry.name, isDirectory: entry.isDirectory
         )
         ZStack {
-            RoundedRectangle(cornerRadius: 9)
+            RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
                 .fill(Color(hexRGB: style.backgroundHex))
             switch style.glyph {
             case .letter(let letter):
@@ -942,7 +942,7 @@ struct FileBrowserRow: View {
     var body: some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             FileIconBox(entry: entry)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(entry.name)
                     .font(.callout)
                     .foregroundStyle(Palette.ink)

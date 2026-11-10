@@ -180,8 +180,8 @@ struct HermesChannelView: View {
     /// 行面：标题（统一管线）＋置顶标＋人话副题，与
     /// 全部对话页行同型（标题/副题管线全 App 同源）
     private func rowLabel(_ session: ServerSession) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
+            HStack(spacing: OneDayMetrics.rowInnerGap) {
                 Text(rowTitle(session))
                     .font(.rowTitle)
                     .foregroundStyle(Palette.ink)

@@ -154,11 +154,40 @@ struct FeedView: View {
         }
     }
 
+    /// 横幅行共用外壳（0.41.0 收口批 P4）：胶囊行与简
+    /// 报行原各写一套 spacing 10／横 padding 14／纵 12
+    /// ／圆角 16／insets 6·16 的自定值——收成一处：
+    /// 横 padding 走 spacingM（14→16、与页面行内容缘
+    /// 同线）、纵 spacingSM、圆角 radiusPreview、行间
+    /// 距走 cardInnerGap（消费点 HStack）
+    private func bannerRowChrome<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingSM)
+            .background(
+                Palette.surface,
+                in: RoundedRectangle(
+                    cornerRadius: OneDayMetrics.radiusPreview
+                )
+            )
+            .contentShape(Rectangle())
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(
+                top: OneDayMetrics.rowInnerGap,
+                leading: OneDayMetrics.spacingM,
+                bottom: OneDayMetrics.rowInnerGap,
+                trailing: OneDayMetrics.spacingM
+            ))
+    }
+
     /// 简报胶囊：今日汇编摘要＋未读数，点开落对应帖
     /// （落点口径在 FeedBoard.capsulePost）；无帖时只
     /// 显今日暂无、不做假入口
     private var capsuleRow: some View {
-        HStack(spacing: 10) {
+        bannerRowChrome {
+        HStack(spacing: OneDayMetrics.cardInnerGap) {
             Image(systemName: "doc.text")
                 .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(Palette.inkSecondary)
@@ -179,7 +208,7 @@ struct FeedView: View {
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(Palette.primary)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.vertical, OneDayMetrics.stackGap)
                     .background(
                         Palette.selectionFill,
                         in: Capsule()
@@ -191,28 +220,24 @@ struct FeedView: View {
                     .foregroundStyle(Palette.inkSecondary)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16))
-        .contentShape(Rectangle())
+        }
         .onTapGesture {
             if let post = store.capsulePost {
                 path.append(Route.post(post.id))
             }
         }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
     }
 
     /// 简报行（0.38.0）：兴趣摘要＋未读数，点开进简
     /// 报编辑器（两层制）；还没写过兴趣时走引导文案。
     /// 旧胶囊的「点开落帖」自此退役——这一行只管简报
     private func briefRow(_ doc: BridgeBriefDoc) -> some View {
-        HStack(spacing: 10) {
+        bannerRowChrome {
+        HStack(spacing: OneDayMetrics.cardInnerGap) {
             Image(systemName: "slider.horizontal.3")
                 .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(Palette.inkSecondary)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 if let line = FeedBriefBoard.summaryLine(doc) {
                     Text(line)
                         .font(.subheadline)
@@ -243,7 +268,7 @@ struct FeedView: View {
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(Palette.primary)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.vertical, OneDayMetrics.stackGap)
                     .background(
                         Palette.selectionFill,
                         in: Capsule()
@@ -253,15 +278,10 @@ struct FeedView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Palette.inkSecondary)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16))
-        .contentShape(Rectangle())
+        }
         .onTapGesture {
             briefEditorShown = true
         }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
     }
 
     /// 帖子扁平行：kind 瓷砖＋标题（未读点）＋正文摘
@@ -269,17 +289,21 @@ struct FeedView: View {
     private func postRow(_ post: BridgeFeedPost) -> some View {
         HStack(alignment: .top, spacing: 12) {
             kindTile(post.kind)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .top, spacing: 6) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.iconTextGap) {
+                HStack(alignment: .top, spacing: OneDayMetrics.rowInnerGap) {
                     Text(post.title)
-                        .font(.headline)
+                        // 0.41.0（收口批 C14）：行题回收
+                        // 角色表——.headline（17 semibold）
+                        // 与 Body regular 双轨并存是本条病
+                        // 灶，同点子行一并归 .rowTitle
+                        .font(.rowTitle)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(2)
                     if !post.isRead {
                         Circle()
                             .fill(Palette.primary)
                             .frame(width: 7, height: 7)
-                            .padding(.top, 6)
+                            .padding(.top, OneDayMetrics.rowInnerGap)
                     }
                 }
                 if !post.body.isEmpty {
@@ -333,7 +357,7 @@ struct FeedView: View {
                     }
                 }
                 .frame(width: 54, height: 54)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb))
             }
         }
         .padding(.vertical, 4)
@@ -344,7 +368,7 @@ struct FeedView: View {
     }
 
     private func kindTile(_ kind: FeedPostKind) -> some View {
-        RoundedRectangle(cornerRadius: 9)
+        RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
             .fill(Palette.selectionFill)
             .frame(width: 34, height: 34)
             .overlay {
@@ -358,7 +382,7 @@ struct FeedView: View {
     /// 解析不到时回类别文案，不编名）
     private func refsRow(_ refs: [BridgeFeedRef]) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 14) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
                 ForEach(
                     Array(refs.enumerated()), id: \.offset
                 ) { _, ref in
@@ -470,7 +494,10 @@ struct FeedPostDetailView: View {
                             .foregroundStyle(Palette.inkSecondary)
                         }
                         Text(post.title)
-                            .font(.title3.weight(.semibold))
+                            // 0.41.0（C14/P5）：字面量收编
+                            // 内容标题定点 FontRoles
+                            // .contentTitle（值不变）
+                            .font(.contentTitle)
                             .foregroundStyle(Palette.ink)
                         // 整幅图（0.38.0）：第一张来源真图；
                         // 加载失败/无图整块不显，不摆假图
@@ -484,12 +511,12 @@ struct FeedPostDetailView: View {
                                 }
                             }
                             .clipShape(
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
                             )
                         }
                         MarkdownText(post.body)
                         if let why = post.why, !why.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.rowInnerGap) {
                                 Text("为什么选这篇")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(Palette.inkSecondary)
@@ -501,7 +528,7 @@ struct FeedPostDetailView: View {
                             .padding(12)
                             .background(
                                 Palette.surface,
-                                in: RoundedRectangle(cornerRadius: 12)
+                                in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
                             )
                         }
                         if let card = post.sourceCard {
@@ -518,7 +545,7 @@ struct FeedPostDetailView: View {
                                 ) { _, link in
                                     if let url = URL(string: link.url) {
                                         Link(destination: url) {
-                                            HStack(spacing: 6) {
+                                            HStack(spacing: OneDayMetrics.rowInnerGap) {
                                                 Image(
                                                     systemName: "link"
                                                 )
@@ -549,7 +576,7 @@ struct FeedPostDetailView: View {
                                         Button {
                                             onOpenRef(ref)
                                         } label: {
-                                            HStack(spacing: 6) {
+                                            HStack(spacing: OneDayMetrics.rowInnerGap) {
                                                 Image(
                                                     systemName: type.symbolName
                                                 )
@@ -586,15 +613,16 @@ struct FeedPostDetailView: View {
                 )
             }
         }
-        .navigationTitle("动态")
-        .navigationBarTitleDisplayMode(.inline)
+        // 0.41.0（收口批 P5，随 C9 先例）：栏题「动态」
+        // 与帖子自身大标题并存属标题冗余（宪法 §5）——
+        // 撤栏题、内容领头；回退靠系统返回钮自明
     }
 
     /// 来源嵌入卡（0.38.0）：头像＋名＋简介＋事实行，
     /// 整卡点开来源原页；数据全是桥侧真抓，App 只摆
     @ViewBuilder
     private func sourceCardView(_ card: BridgeFeedSourceCard) -> some View {
-        let content = HStack(alignment: .top, spacing: 10) {
+        let content = HStack(alignment: .top, spacing: OneDayMetrics.cardInnerGap) {
             if let imageUrl = card.imageUrl,
                let url = URL(string: imageUrl) {
                 AsyncImage(url: url) { phase in
@@ -609,9 +637,12 @@ struct FeedPostDetailView: View {
                 .frame(width: 40, height: 40)
                 .clipShape(Circle())
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
                 Text(card.name)
-                    .font(.subheadline.weight(.semibold))
+                    // 0.41.0（C14 同账）：副题级加粗回收
+                    // 角色——来源名走 rowSubtitle regular，
+                    // 与行题单轨同理
+                    .font(.rowSubtitle)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 if !card.description.isEmpty {
@@ -642,7 +673,7 @@ struct FeedPostDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Palette.surface,
-            in: RoundedRectangle(cornerRadius: 12)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
         )
         if let url = URL(string: card.url) {
             Link(destination: url) { content }

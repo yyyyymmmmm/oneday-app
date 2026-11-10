@@ -424,7 +424,9 @@ struct GoalGroupHeader: View {
                     .frame(width: 6.5, height: 6.5)
             }
             Text(title)
-                .font(.body.weight(.semibold))
+                // 0.41.0（C14 同账）：组头回收 regular，
+                // 分段靠状态色与位置、不靠字重
+                .font(.body)
                 .foregroundStyle(
                     completed ? Palette.inkSecondary : Palette.success
                 )
@@ -441,9 +443,9 @@ struct GoalCheckBox: View {
     var body: some View {
         Button(action: onToggle) {
             ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: OneDayMetrics.radiusCheckbox, style: .continuous)
                     .fill(done ? Palette.ink : Color.clear)
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: OneDayMetrics.radiusCheckbox, style: .continuous)
                     .strokeBorder(
                         done ? Color.clear : Palette.hairline,
                         lineWidth: 1.5
@@ -494,13 +496,16 @@ struct GoalRowView: View {
                 onToggleStatus()
             }
             .disabled(acting)
-            .padding(.top, 2)
+            .padding(.top, OneDayMetrics.spacingMicro)
             NavigationLink {
                 GoalDetailView(store: store, goalID: goal.id)
             } label: {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
                     Text(goal.title)
-                        .font(.title3.weight(.semibold))
+                        // 0.41.0（C14）：列表行题归角色表
+                        // .rowTitle（Body regular），全 App
+                        // 行题单轨
+                        .font(.rowTitle)
                         .foregroundStyle(Palette.bodyInk)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -566,9 +571,9 @@ struct MilestoneCheckRow: View {
         Button(action: onToggle) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: OneDayMetrics.radiusCheckbox, style: .continuous)
                         .fill(done ? Palette.ink : Color.clear)
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: OneDayMetrics.radiusCheckbox, style: .continuous)
                         .strokeBorder(
                             done ? Color.clear : Palette.hairline,
                             lineWidth: 1.5
@@ -739,7 +744,10 @@ struct GoalDetailView: View {
     private func headerSection(_ goal: BridgeGoal) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             Text(goal.title)
-                .font(.title2.weight(.semibold))
+                // 0.41.0（P6）：详情页题收编 FontRoles
+                // .detailTitle 定点（值不变）——本页唯
+                // 一的第一级，其余全压回角色表
+                .font(.detailTitle)
                 .foregroundStyle(Palette.bodyInk)
             HStack(spacing: OneDayMetrics.spacingS) {
                 GoalStatusChip(goal: goal)
@@ -816,7 +824,9 @@ struct GoalDetailView: View {
                     ) {
                         HStack {
                             Text(latest.title)
-                                .font(.headline)
+                                // 0.41.0（C14）：链接行题归
+                                // .rowTitle
+                                .font(.rowTitle)
                                 .foregroundStyle(Palette.bodyInk)
                                 .multilineTextAlignment(.leading)
                             Spacer()
@@ -1115,10 +1125,12 @@ struct GoalDetailView: View {
     }
 
     private func entryRow(_ entry: BridgeGoalEntry) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Text(entry.source == .user ? "你记的" : "智能体记的")
-                    .font(.footnote.weight(.semibold))
+                    // 0.41.0（P6）：元信息标回收 footnote
+                    // regular，与同行时间戳同级
+                    .font(.footnote)
                     .foregroundStyle(
                         entry.source == .user
                             ? Palette.bodyInk : Palette.inkSecondary
@@ -1182,10 +1194,12 @@ struct GoalDetailView: View {
                             GoalDetailView(store: store, goalID: child.id)
                         } label: {
                             VStack(
-                                alignment: .leading, spacing: 3
+                                alignment: .leading, spacing: OneDayMetrics.stackGap
                             ) {
                                 Text(child.title)
-                                    .font(.body.weight(.medium))
+                                    // 0.41.0（C14）：行题归
+                                    // .rowTitle
+                                    .font(.rowTitle)
                                     .foregroundStyle(Palette.bodyInk)
                                     .multilineTextAlignment(.leading)
                                 let summary = GoalBoard.summary(
@@ -1293,7 +1307,7 @@ struct GoalStatusChip: View {
     let goal: BridgeGoal
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: OneDayMetrics.iconTextGap) {
             Circle()
                 .fill(
                     goal.status == .completed
@@ -1301,7 +1315,9 @@ struct GoalStatusChip: View {
                 )
                 .frame(width: 6.5, height: 6.5)
             Text(label)
-                .font(.footnote.weight(.semibold))
+                // 0.41.0（P6）：chip 字回收 footnote
+                // regular，状态靠色与点、不靠字重
+                .font(.footnote)
                 .foregroundStyle(
                     goal.status == .completed
                         ? Palette.inkSecondary : Palette.success
@@ -1357,7 +1373,9 @@ struct GoalBriefingsView: View {
                         spacing: OneDayMetrics.spacingS
                     ) {
                         Text(briefing.title)
-                            .font(.title3.weight(.semibold))
+                            // 0.41.0（C14/P6）：列表行题归
+                            // .rowTitle
+                            .font(.rowTitle)
                             .foregroundStyle(Palette.bodyInk)
                         Text(
                             "\(ChatTimeline.dividerText(for: Date(timeIntervalSince1970: briefing.createdAt), now: Date())) · \(briefing.period)"

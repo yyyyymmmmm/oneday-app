@@ -19,6 +19,17 @@ public extension Font {
     /// 题档（旧 largeTitle 34 semibold 让位：Muse 量
     /// 测口径被用户当日指令覆盖，见 §51）
     static let screenName: Font = .title.weight(.bold)
+    /// 内容标题（0.41.0 收口批 C14/P5 定点登记）：帖
+    /// 子详情等「对象本体的标题」——不是界面行题、不
+    /// 进 TypeRole 角色表（角色表只管界面文字）；与
+    /// §51 Headline 定点同属内容层定点，消费点只许对
+    /// 象标题（帖子详情题、文档阅读页题）
+    static let contentTitle: Font = .title3.weight(.semibold)
+    /// 详情页题（0.41.0 收口批 P6 定点登记）：对象详
+    /// 情页的页题（目标详情头）——一页至多一处、是该
+    /// 页唯一的第一级；Title2 semibold。行题/分区头
+    /// 各归角色表，本定点只管详情页题本体
+    static let detailTitle: Font = .title2.weight(.semibold)
     /// 行题（抽屉旁聊题/设置行题/交付物题/会话行题）：
     /// Body 17 regular（旧 title3 20 让位）
     static let rowTitleL: Font = .body

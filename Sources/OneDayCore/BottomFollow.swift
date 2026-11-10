@@ -149,3 +149,81 @@ public enum BottomSettle {
         distance > restickThreshold
     }
 }
+
+/// 离底未读计数（0.41.0，全局收口批·聊天细节余项正
+/// 修，台账 H 节）：用户上翻离开底部后，新到条目计在
+/// 回底钮的角标上；回到底部、自发发送、切换线程即清
+/// 零。判定全在本结构体（呈现层只喂事实、读计数）：
+/// · 在底部（atBottom）时计数恒 0，并把「水位」推进
+///   到当前末条——其后离底新增的条目才计；
+/// · 离底时水位冻结，计数＝水位之后的新条目数；
+/// · 条目被删/列表回退时水位若已不在列表内，计数回
+///   落为 0 并以当前末条重立水位（不虚报）；
+/// · 自发发送（noteOwnSend）无条件清零——发送路径本
+///   就无条件贴底（BottomFollowPolicy 同口径）。
+/// 流式条目在列表里是同一条的原地生长（id 不变），
+/// 不产生新 id、不计数——计数只认新条目 id。
+public struct AwayUnreadCounter: Equatable, Sendable {
+    /// 显示封顶：超过此数角标显「99+」
+    public static let displayCap = 99
+
+    /// 水位：已计入「看过」的最后一条 id；在底时随末
+    /// 条推进，离底时冻结
+    private var watermark: UUID?
+    public private(set) var count = 0
+
+    public init() {}
+
+    /// 喂入当前有序条目 id 全表与在底事实，回新计数
+    @discardableResult
+    public mutating func ingest(
+        entryIDs: [UUID], isAtBottom: Bool
+    ) -> Int {
+        guard let last = entryIDs.last else {
+            watermark = nil
+            count = 0
+            return count
+        }
+        if isAtBottom {
+            watermark = last
+            count = 0
+            return count
+        }
+        guard let mark = watermark,
+              let markIndex = entryIDs.firstIndex(of: mark)
+        else {
+            // 无水位（刚离底首帧）或水位条目已删：以当
+            // 前末条立水位、本帧不计——宁少计不虚报
+            watermark = last
+            count = 0
+            return count
+        }
+        count = entryIDs.count - markIndex - 1
+        return count
+    }
+
+    /// 自发发送：清零并把水位推到当前末条（发送后贴
+    /// 底跟随接续，见 BottomFollowPolicy）
+    public mutating func noteOwnSend(entryIDs: [UUID]) {
+        watermark = entryIDs.last
+        count = 0
+    }
+
+    /// 回到底部（点回底钮）：计数清零；水位由下一帧
+    /// ingest 的在底事实推进
+    public mutating func reset() {
+        count = 0
+    }
+
+    /// 切换线程：水位与计数全清，新线程从零起算
+    public mutating func resetAll() {
+        watermark = nil
+        count = 0
+    }
+
+    /// 角标文案：0 不显；超封顶显「99+」
+    public var displayText: String? {
+        guard count > 0 else { return nil }
+        return count > Self.displayCap ? "\(Self.displayCap)+" : "\(count)"
+    }
+}

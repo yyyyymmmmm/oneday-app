@@ -158,7 +158,7 @@ struct HubTaskSection: View {
 
     private func taskRow(_ task: KanbanTask) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
+            HStack(spacing: OneDayMetrics.rowInnerGap) {
                 Text(task.displayTitle)
                     .font(.body)
                     .foregroundStyle(Palette.ink)
@@ -172,7 +172,7 @@ struct HubTaskSection: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(2)
             }
-            HStack(spacing: 6) {
+            HStack(spacing: OneDayMetrics.rowInnerGap) {
                 if let created = task.createdAt {
                     Text(AdminFormat.short(created))
                 }
@@ -189,7 +189,7 @@ struct HubTaskSection: View {
             .font(.caption)
             .foregroundStyle(Palette.inkSecondary)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, OneDayMetrics.spacingMicro)
     }
 
     /// 状态 chip：需人处理/活跃/终态给色面，其余中性
@@ -200,7 +200,7 @@ struct HubTaskSection: View {
         Text(presentation.label)
             .font(.caption.weight(.medium))
             .padding(.horizontal, 8)
-            .padding(.vertical, 3)
+            .padding(.vertical, OneDayMetrics.stackGap)
             .background(chipFill(presentation), in: Capsule())
             .foregroundStyle(chipInk(presentation))
     }

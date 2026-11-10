@@ -84,7 +84,7 @@ private struct ChatApprovalCard: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.primary)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.vertical, OneDayMetrics.stackGap)
                     .background(Palette.primaryTint, in: Capsule())
                 Text("待审批")
                     .font(.caption.weight(.semibold))

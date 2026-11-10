@@ -122,7 +122,7 @@ struct StatusView: View {
                             HStack(spacing: OneDayMetrics.spacingSM) {
                                 StatusDot(color: session.isActive
                                     ? Palette.success : Palette.inkMuted)
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                     // 卡 16/18 同源：SessionDisplay
                                     // 人话标题＋副题，原始名不上屏
                                     Text(session.humanTitle)
@@ -162,7 +162,7 @@ struct StatusView: View {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
                     ForEach(Array(logLines.enumerated()), id: \.offset) { _, line in
                         let entry = LogDisplay.parse(line)
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text(entry.headline)
                                 .font(.callout)
                                 .foregroundStyle(Palette.ink)
@@ -204,7 +204,7 @@ struct StatusView: View {
                             GroupDivider()
                         }
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                 Text(job.title)
                                     .font(.body)
                                     .foregroundStyle(Palette.ink)

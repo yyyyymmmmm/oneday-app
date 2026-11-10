@@ -159,7 +159,7 @@ struct HubApprovalSection: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.primary)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.vertical, OneDayMetrics.stackGap)
                     .background(Palette.primaryTint, in: Capsule())
                 Spacer()
                 if let createdAt = record.createdAt {
@@ -249,13 +249,13 @@ struct HubApprovalSection: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.primary)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.vertical, OneDayMetrics.stackGap)
                     .background(Palette.primaryTint, in: Capsule())
                 Text(item.decisionLabel)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(decisionColor(item))
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.vertical, OneDayMetrics.stackGap)
                     .background(
                         decisionColor(item).opacity(0.12), in: Capsule()
                     )
@@ -266,7 +266,7 @@ struct HubApprovalSection: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
+                        .padding(.vertical, OneDayMetrics.stackGap)
                         .background(
                             Palette.primaryTint, in: Capsule()
                         )
@@ -323,7 +323,7 @@ struct HubApprovalSection: View {
 
     private func ruleRow(_ rule: WriteGateRule) -> some View {
         HStack(spacing: OneDayMetrics.spacingS) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(rule.scopeLabel)
                     .font(.subheadline)
                     .foregroundStyle(Palette.ink)
@@ -344,7 +344,7 @@ struct HubApprovalSection: View {
                 .controlSize(.small)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, OneDayMetrics.spacingMicro)
     }
 }
 

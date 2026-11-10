@@ -199,7 +199,7 @@ struct DocumentReaderView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Palette.primaryPale,
-            in: RoundedRectangle(cornerRadius: 10)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb)
         )
     }
 

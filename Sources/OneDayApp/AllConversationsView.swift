@@ -313,7 +313,7 @@ struct AllConversationsView: View {
                     Button {
                         onOpenSession(hit.sessionID)
                     } label: {
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
                             Text(hit.displayTitle)
                                 .font(.rowTitle)
                                 .foregroundStyle(Palette.ink)
@@ -410,7 +410,7 @@ struct AllConversationsView: View {
                                 .frame(width: 40, height: 40)
                                 .accessibilityHidden(true)
                         }
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
                             Text(ChannelRegistry.hermes.name)
                                 .font(.rowTitle)
                                 .foregroundStyle(Palette.ink)
@@ -527,8 +527,8 @@ struct AllConversationsView: View {
 
     /// 行面：标题（统一管线）＋置顶标＋人话副题
     private func rowLabel(_ session: ServerSession) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
+            HStack(spacing: OneDayMetrics.rowInnerGap) {
                 Text(rowTitle(session))
                     // 0.23.0（审计 M1）：会话行升内容行档
                     // ——题 rowTitle（0.24.0 起 Body 17

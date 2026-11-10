@@ -300,7 +300,7 @@ struct ServerSessionsView: View {
             appState.pendingChatSessionID = hit.sessionID
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
                     Text(hit.displayTitle)
                         .font(.body)
                         .foregroundStyle(Palette.ink)
@@ -551,7 +551,7 @@ struct ServerSessionDetailView: View {
                 // §3.3 第 6 处：历史记录属性、留只读——走显
                 // 示名映射，原始 id 退次级小字
                 LabeledContent("模型") {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: OneDayMetrics.spacingMicro) {
                         Text(ModelDisplayNames.displayName(for: model) ?? model)
                         if ModelDisplayNames.displayName(for: model) != nil {
                             Text(model)
@@ -610,7 +610,7 @@ struct ServerSessionDetailView: View {
                         .font(.body)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, OneDayMetrics.spacingMicro)
         } else {
             // 工具/系统类消息：摘要行＋展开看原文（raw
             // JSON 只许躺在 DisclosureGroup 里，不直出）

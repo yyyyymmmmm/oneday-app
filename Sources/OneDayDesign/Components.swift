@@ -18,12 +18,15 @@ public extension View {
                 Palette.surface,
                 in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
             )
-            .overlay(
-                // 0.2.3（DESIGN-V4 §1）：页面底回归纯白后，分组面
-                // 改靠 0.5pt 发丝线成面，不再靠底色对比
-                RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
-                    .stroke(Palette.hairline, lineWidth: 0.5)
-            )
+            // 0.41.0（收口批 C3）：0.5pt 发丝描边整段退
+            // 役——定版 §3.4 原文即「surface 底、零描边
+            // 零阴影」，描边是 0.2.3 纯白页底时代的成面
+            // 补丁；现行页面底为 Palette.pageBG（浅
+            // #FCFCFC／暗 systemBackground），与 surface
+            // 的底色差单机制已足成面。78 处消费点同帧
+            // 生效：浅档下组边界改由底色差＋间距呈现、
+            // 观感变淡，真机验收重点项（见 DESIGN 本
+            // 批记账）
             .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner))
     }
 }
@@ -36,10 +39,20 @@ public extension View {
 /// 对齐文字、1pt 高、hairline 实色）自本版退役。
 public struct GroupDivider: View {
     private let inset: CGFloat
+    private let trailingInset: CGFloat
     @Environment(\.displayScale) private var displayScale
 
-    public init(inset: CGFloat = OneDayMetrics.dividerInset) {
+    /// trailingInset（0.41.0 收口批 P3）：尾端内缩，
+    /// 默认 0（整行贯通不变）；抽屉组间线是唯一消费
+    /// 点——抽屉形态定版为左右同 inset 的段内线（与
+    /// 名单行同宽），由消费点显式传双侧同值，不改全
+    /// App 贯通几何
+    public init(
+        inset: CGFloat = OneDayMetrics.dividerInset,
+        trailingInset: CGFloat = 0
+    ) {
         self.inset = inset
+        self.trailingInset = trailingInset
     }
 
     public var body: some View {
@@ -47,6 +60,7 @@ public struct GroupDivider: View {
             .fill(Palette.separator)
             .frame(height: 1 / max(displayScale, 1))
             .padding(.leading, inset)
+            .padding(.trailing, trailingInset)
     }
 }
 
@@ -156,7 +170,7 @@ public struct ContentRow: View {
                     // 条 5（§14）：图标相对文字下移 0.125em
                     .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(title)
                     // 0.23.0：走字阶角色 rowTitle（17
                     // semibold）——0.3.3 注「行内唯一半
@@ -210,7 +224,7 @@ public struct FieldRow<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.rowInnerGap) {
             Text(label)
                 .font(.footnote)
                 .foregroundStyle(isActive ? Palette.ink : Palette.inkSecondary)
@@ -620,7 +634,7 @@ public struct IdentityAnchor: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(2)
-            HStack(spacing: 5) {
+            HStack(spacing: OneDayMetrics.iconTextGap) {
                 StatusDot(color: statusColor)
                 if let statusWord {
                     Text(statusWord)
@@ -634,7 +648,7 @@ public struct IdentityAnchor: View {
                 Rectangle()
                     .fill(Palette.hairline)
                     .frame(width: 0.5, height: 18)
-                HStack(spacing: 3) {
+                HStack(spacing: OneDayMetrics.stackGap) {
                     Text(model)
                         .font(.callout)
                         .foregroundStyle(Palette.ink)
@@ -699,7 +713,7 @@ public struct UnifiedRow: View {
                     )
                     .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(title)
                     // 0.23.0：走字阶角色 rowTitle（与
                     // ContentRow 同步，审计 G2/I1）

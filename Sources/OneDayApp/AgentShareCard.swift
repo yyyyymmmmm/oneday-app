@@ -72,6 +72,8 @@ struct AgentShareCardView: View {
     let avatarImage: Image
 
     var body: some View {
+        // 名片成图构图值（头像 132 与文字区的固定间距，
+        // 导出图版式自洽、不随 App 间距梯队走，C5 清点注记）
         HStack(spacing: 28) {
             avatarImage
                 .resizable()
@@ -81,7 +83,7 @@ struct AgentShareCardView: View {
                 .overlay {
                     Circle().stroke(Palette.hairline, lineWidth: 1)
                 }
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.cardInnerGap) {
                 Text(name)
                     .font(.system(size: 44, weight: .bold))
                     .foregroundStyle(Palette.ink)

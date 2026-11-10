@@ -76,7 +76,7 @@ struct LogsView: View {
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
                         ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                             let entry = LogDisplay.parse(line)
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                                 Text(entry.headline)
                                     .font(.callout)
                                     .foregroundStyle(

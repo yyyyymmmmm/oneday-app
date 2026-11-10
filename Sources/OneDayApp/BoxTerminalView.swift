@@ -132,7 +132,7 @@ struct BoxTerminalView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Palette.codeFill,
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview, style: .continuous)
         )
     }
 

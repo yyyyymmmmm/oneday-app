@@ -148,7 +148,7 @@ struct DictationBar: View {
     /// 9 根竖条：高度只由真实电平采样决定（Core 波
     /// 形环），无电平即平线——不许假动画
     private var waveform: some View {
-        HStack(alignment: .center, spacing: 3) {
+        HStack(alignment: .center, spacing: OneDayMetrics.stackGap) {
             ForEach(
                 Array(controller.waveformBars.enumerated()),
                 id: \.offset

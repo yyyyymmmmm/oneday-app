@@ -7637,3 +7637,40 @@ def greet(name):
 - **终判**：本机无 Swift 工具链，App 侧已做静态自查（构造点/引用/括号配平），编译与单测终判等合并后 CI；桥侧自测已在本机全套实跑（见 106.1）。
 - **未决**：①按类筛选/分组呈现按规格登记缓办、本包未做（详情呈现＋创建预置已落）；②B 案对话创建随 9B 门面（收官窗口）切换时分类流与 category 零返工，本包未预埋对话入口；③委派自动记条目走 feed 轮询节奏（非实时），任务完成到条目出现之间隔一个轮询周期，真机终审时按此口径看。
 
+## §107 全局收口批（0.41.0 预制，源分支 feat/polish-041，2026-11-11）：审计余项逐条收口＋字阶/标尺单轨＋回底钮浮层化与离底未读
+
+依据＝全局审计 global-ui-audit-20261110.md（25 条＋深色 D1–D9）与整改台账 ui-remediation-ledger-20261110.md。销项纪律：本节只记施工事实，台账销项状态由主线按「已修待验收／用户拍板豁免」更新，施工方不自销。版本五处未动（合并时主线定 0.41.0 号）；**节号预制自选 §106 与目标分类流节撞号，合并时顺延为 §107**（目标节定 §106 在前、本节 §107 在后）。
+
+### 107.1 核实销账（病灶已被前序版本修掉、本包只复核补钉，代码零改或仅补测）
+
+- **P1**：工具卡未映射回落英文短名——0.36.10 已改中文类名回落（ToolCards.fallbackTitle），本包补钉测 testFallbackTitlesNeverContainASCIILetters 防回潮。
+- **P2**：抽屉名单手算 padding 84——0.36.27 已退役（safeAreaBar 注册＋contentMargins 承接），全仓 grep 无 84 残留。
+- **P9**：提醒详情两整段说明——0.36.3 已瘦身（一句事实＋一个下一步）、0.36.18 同步制已重排结构（状态头＋同步区＋内容），病灶不存在。
+- **深色 D1–D9 代码层**：0.36.1 已全销（批一B）；余 D4 全表面暗档真机对照、D9 曜黑弱面暗底真机肉眼验——均非代码项，留真机验收清单。
+
+### 107.2 本包实修
+
+- **聊天回底钮正修（台账 H 节）**：钮移出 bottomBar 布局流，改挂发送区容器顶缘 overlay（trailing spacingM、视觉盘在发送舱上方约 13pt），显隐不再动列表底部 inset；原两条以钮显隐为键的容器高度动画退役（错误/提示条动画保留）。Core 新件 **AwayUnreadCounter**（BottomFollow.swift）：在底恒 0 并推进水位、离底冻结水位计新增、自发发送清零、切线程 resetAll、水位条目被删不虚报、displayText 封顶「99+」；ChatView 两路喂入（条目数变化／可见集变化，经同一 feedAwayUnread、在底事实与钮显隐同走 BottomFollowPolicy 派生），角标挂钮盘右上、无障碍标签「回到底部，N 条新消息」。钉测 +9 法。
+- **P3**：抽屉 drawerDivider 自绘 Rectangle（高 1pt）收编 GroupDivider 本体——GroupDivider 扩 trailingInset（默认 0、全 App 贯通几何不变），抽屉显式传双侧 drawerInset。**视觉变化：线高由 1pt 变物理发丝（更细、与全 App 同粗），待真机验。**
+- **C3**：odGroup 去 0.5pt 发丝描边，回定版 §3.4「surface 底、零描边零阴影」单机制（78 处消费同帧生效）。**视觉变化：浅档下组边界改由底色差＋间距成界、观感变淡，真机验收重点。**
+- **C4**：settingsSectionSpacing 28→24 入梯队（spacingL；组间/组内比 24/12＝2 达标）；pageGutter/cardPadding 的 20 为 OpenMuse 令牌出处值（ui.tsx:52），保留并以本节记账为「入宪法修订」处置——梯队自述同步订正为「含 20（pageGutter/cardPadding 令牌位）」的事实口径留主线合并时在 §3.2 一并订正，本包不动宪法文件。
+- **C5**：标尺外 spacing 字面量收编 156 处（stack spacing 121＋padding 33＋跨行 2）：按角色入 OneDayMetrics 微距令牌（spacingMicro 2／stackGap 3／iconTextGap 5／rowInnerGap 6／cardInnerGap 10，数值与原字面量逐一相同、版式零变化）；spacing 14 两处 snap 至 spacingSM 12。残留注记：padding 7 ×3、padding 1 ×5、spacing 1 ×2 为光学微调字面量（胶囊纵距/字形贴合），分享名片 HStack 28 为成图构图值（文件内已注记）——均属「梯外具名」同族，留账不扫。
+- **C14＋P6（字阶字重双轨）**：行题统一归 FontRoles.rowTitle——动态帖行（.headline→）、点子行（.headline→）、目标列表行（.title3 semibold→）、目标详情内简报卡题（.headline→）、子目标行（.body medium→）、简报列表行（.title3 semibold→）；元信息级回收 regular——目标条目来源标与状态 chip（footnote semibold→footnote）、目标组头（body semibold→body）、动态来源卡名（subheadline semibold→rowSubtitle）。目标详情页压回三级：页题（FontRoles.detailTitle 定点，title2 semibold、值不变）／SectionLabel／body 与 footnote。帖子详情题收编 FontRoles.contentTitle 定点（title3 semibold、值不变）。TypeRole 角色表未动（contentTitle/detailTitle 为内容层定点、同 §51 Headline 定点口径）。
+- **P4**：FeedView 胶囊行与简报行共用外壳 bannerRowChrome——横 padding 14→spacingM 16、纵 spacingSM、圆角 radiusPreview、行距 rowInnerGap、行内距 cardInnerGap，两行形态自此单源。
+- **P5**：帖子详情撤 navigationTitle「动态」（内容标题领头，宪法 §5，随 C9 先例）。
+- **P7 余项**：连接页「已连接」组页脚整句瘦身为一句事实并去「MCP／服务端」术语（宪法 §8）；审计点名的两段原文已在前序版本消失，本处只处置现存一处。
+- **C15**：圆角角色令牌立表（radiusTile 9／radiusThumb 10／radiusCard 12／radiusPreview 16／radiusCheckbox 6）并扫替 32 处字面量（6×4、9×5、10×6、12×8、16×7，另 8→radiusThumb 与 14→radiusPreview 两处 snap——媒体缩略夹与终端卡）。残留注记：23 ×4 为浏览器/电脑胶囊条的半高圆角（胶囊几何）、≤4 的微装饰圆角 ×6（图表条/代码装饰）不在卡面族、不扫。旧「梯队 {7,10,28}」与卡面实际形态脱节，本表即新梯队，留主线合并时在 §3.2 记账订正。
+- **浅档专项（§66.1 候选 (a) 落地）**：三款 accentLight 同色相加深一档——sangou 0x1473C8→0x136FC1（对 tintLight 4.48→4.74）、skyBlue 0x0B74BC→0x0A6BAE（4.31→4.90）、peach 0xAC5A12→0xA55611（4.43→4.73）；iceBlue 现值 4.60 已过闸不动。新增对比闸④（全款 accentLight 对自家 tintLight ≥4.5）钉住。**视觉变化：默认主题链接/强调色略深一档，待真机复核；备选 (b)「泡内链接改走 ink」未采用。**Palette.primary 注释与 ChatThemeTests 旧值钉已同步订正。
+
+### 107.3 跳过清单（不在本包处置，依据逐条）
+
+- **C8**（FileIconBox＋DeliverableIconStyle 字母块）：处置二选一（真图标资产／降级 SF 符号＋中性面）属设计拍板——现行字母色块是 0.22.0 视觉审计 F2 的定版设计（对位 Muse 资源库类型图标、DeliverableIconStyleTests 钉住），且文件页 v2 后真缩略图已优先、字母块只作回落。施工方不擅自推翻定版，呈主线请用户拍板（建议：保留回落形态、或随上架线一并换真图标资产）。
+- **C13**（可点指示三轨并存，27 处 chevron／19 文件）：统一方向（全 NavigationLink 化／全明示）横跨全 App 且 0.36.32 已有逐面裁决先例（频道行删 chevron），不宜一刀切，留逐面处置。
+- **无障碍 19 项主体**：独立无障碍专项、挂上架线（台账原口径）；A11Y-D2 固定字号散点属该专项，本包字阶收口只动字重/角色、不动其字号钉。
+- **已登记触发项**：iPad/横屏、数据可视化、声音反馈、多语言（0.42.0 独立包）——宪法续编登记触发未到，跳过。
+- **D4/D9 真机项**：非代码，留真机验收清单（见 107.1）。
+
+### 107.4 单测与未决
+
+- 单测：+11 法（AwayUnreadCounter 9＋对比闸④ 1＋P1 回落钉 1）；改 1 钉（ChatThemeTests 默认主题 accentLight 旧值→新值，防回潮方向反转已注记）。终判等合并后 CI（本机无 Swift 工具链，预制包口径）。
+- 未决：①C8 拍板（见 107.3）；②C4/C15 的梯队口径订正须主线在合并时同步落 §3.2 与台账（本节已给文本口径）；③overlay 浮钮在 safeAreaBar 容器上的实际呈现（溢出渲染/边缘柔效交界）只能真机验——若被裁切，备选落点＝挂消息列表本体的 .overlay 并以实测发送区高让位（不回布局流）。
