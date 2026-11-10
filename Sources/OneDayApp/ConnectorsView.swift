@@ -31,8 +31,11 @@ import SwiftUI
 /// 用户口径是它们同样要能在目录里看到通断。状态进
 /// 页实时探活（各桥既有客户端的只读 GET、与功能页
 /// 同源同钥匙），不缓存上次结果冒充实时；电脑
-/// （Simular Box）留在已连接组原位、本组不重复列
-/// （box-bridge 是电脑页的内部设施、同样不列）。
+/// （Simular Box）0.29.0 时留在已连接组原位、本组
+/// 不重复列（box-bridge 是电脑页的内部设施、同样
+/// 不列）——0.37.0 起按云电脑规格 §6.1 收敛：Box
+/// 迁入新设「云电脑」组，已连接组滤掉其在册行，
+/// 同一台电脑全页只出现一处。
 struct ConnectorsView: View {
     @Environment(AppState.self) private var appState
 
@@ -82,12 +85,14 @@ struct ConnectorsView: View {
         case catalog(String)
         case local(LocalServiceID)
         case device(DeviceSourceID)
+        case computer(String)
         var id: String {
             switch self {
             case .connected(let name): return "c-\(name)"
             case .catalog(let id): return "a-\(id)"
             case .local(let service): return "l-\(service.rawValue)"
             case .device(let source): return "d-\(source.rawValue)"
+            case .computer(let id): return "pc-\(id)"
             }
         }
     }
@@ -96,8 +101,22 @@ struct ConnectorsView: View {
     // 的一句数：今天日程数/未完成提醒数；取不到不拼）
     @State private var deviceMetrics: [DeviceSourceID: String] = [:]
 
+    // 云电脑（0.37.0，规格 §6.1）：连接记录走伴生
+    // connections 契约（ConnectionsStore），组内每台
+    // 一行＋添加入口；Simular Box 自已连接组迁入本组
+    @State private var connectionsStore = ConnectionsStore()
+    @State private var showAddComputer = false
+
     private var connected: [ConnectedConnector] {
-        ConnectorDirectory.connectedEntries(from: servers)
+        // 0.37.0（云电脑规格 §6.1 收敛）：Simular Box
+        // 迁入下方「云电脑」组单独呈现，同一台电脑只
+        // 许出现一处——已连接组滤掉 box 在册行（连接
+        // 记录里有这台时才滤，避免记录没读到时两处皆空）
+        let entries = ConnectorDirectory.connectedEntries(from: servers)
+        guard connectionsStore.cloudComputers.contains(
+            where: { $0.provider == "simular_box" }
+        ) else { return entries }
+        return entries.filter { $0.id != "box" }
     }
 
     private var available: [ConnectorCatalogEntry] {
@@ -123,6 +142,7 @@ struct ConnectorsView: View {
                 segmentSection
                 localSection
                 deviceSection
+                computerSection
                 if segment == .connected {
                     connectedSections
                 } else {
@@ -160,14 +180,19 @@ struct ConnectorsView: View {
             await load()
             await probeLocals()
             await probeDevices()
+            await connectionsStore.load(appState: appState)
         }
         .task {
             await load()
             await probeLocals()
             await probeDevices()
+            await connectionsStore.load(appState: appState)
         }
         .sheet(item: $detailTarget) { target in
             detailSheet(for: target)
+        }
+        .sheet(isPresented: $showAddComputer) {
+            AddComputerView(store: connectionsStore)
         }
     }
 
@@ -416,6 +441,82 @@ struct ConnectorsView: View {
         // 也不换位置再出现
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)
+    }
+
+    // 云电脑组（0.37.0，规格 §6.1）：每台一行（名＋
+    // 类型＋状态词，词表与伴生面板同源），行尾添加
+    // 入口。状态来自 connections 契约的实时读取；读
+    // 失败如实露一行，不拿旧列表冒充
+    @ViewBuilder
+    private var computerSection: some View {
+        Section {
+            if let loadError = connectionsStore.loadError,
+               connectionsStore.cloudComputers.isEmpty {
+                Text(loadError)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            }
+            ForEach(connectionsStore.cloudComputers) { connection in
+                Button {
+                    detailTarget = .computer(connection.id)
+                } label: {
+                    computerRowLabel(connection)
+                }
+                .buttonStyle(.odPressable)
+            }
+            Button {
+                showAddComputer = true
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Palette.primary)
+                    Text("添加电脑")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+        } header: {
+            headerText("云电脑")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(rowInsets)
+    }
+
+    private func computerRowLabel(
+        _ connection: CompanionConnection
+    ) -> some View {
+        let status = ConnectionStatusWording.evaluate(connection)
+        return HStack(spacing: OneDayMetrics.spacingSM) {
+            Image(systemName: "desktopcomputer")
+                .font(.system(size: 20))
+                .foregroundStyle(Palette.primary)
+                .frame(width: 40, height: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(connection.name)
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                Text("\(connection.providerWording) · \(status.text)")
+                    .font(.footnote)
+                    .foregroundStyle(
+                        status.tone == .ok ? Palette.success
+                            : status.tone == .bad ? Palette.danger
+                            : Palette.inkSecondary
+                    )
+                    .lineLimit(1)
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder
@@ -745,6 +846,12 @@ struct ConnectorsView: View {
         case .device(let source):
             sheetStack {
                 deviceDetail(source)
+            }
+        case .computer(let id):
+            sheetStack {
+                CloudComputerDetailView(
+                    store: connectionsStore, connectionID: id
+                )
             }
         }
     }

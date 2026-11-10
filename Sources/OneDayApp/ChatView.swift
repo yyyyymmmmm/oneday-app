@@ -1439,7 +1439,21 @@ struct ChatView: View {
             // 顶栏自此不挂任何 background：静止态直接
             // 坐在画布上同色无缝，滚动态由下方 .soft
             // 在栏高内柔化（官方结构，§3.1）
-            headerBar
+            // 0.37.0（模型包·进展胶囊）：身份胶囊下方
+            // 同 bar 内加进展胶囊一颗——他聊/后台有进
+            // 行中工作时才出现（派生在 Core
+            // ProgressCapsule，数据源与台账同源）；胶
+            // 囊本体自带玻璃，是内容不是背景层，不犯
+            // 上方「bar 后不挂 background」的裁决
+            VStack(spacing: 6) {
+                headerBar
+                ProgressCapsuleView(
+                    currentSessionID: currentThread?.serverSessionID,
+                    onOpenSession: { sessionID in
+                        appState.pendingChatSessionID = sessionID
+                    }
+                )
+            }
         }
         .scrollEdgeEffectStyle(.soft, for: .top)
         // 0.4.2（用户 10:54 圈图点名，二期 M3 卡提前落

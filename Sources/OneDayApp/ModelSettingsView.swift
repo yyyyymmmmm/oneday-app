@@ -2,58 +2,39 @@ import OneDayDesign
 import OneDayCore
 import SwiftUI
 
-/// 模型管理（设置·模型与密钥）：服务端默认模型切换＋
-/// 提供商清单。读写走 /api/config 全量：先读全量 JSON、
-/// 只改 model/providers 键、整包写回，未知字段原样保留
-/// （JSONValue 载体保证不丢字段）。候选与聊天页选择器
-/// 同源（0.2.4）：AppState 的上游管线——/api/model/options
-/// 优先、用量回落、网关别名硬排除；写回前有候选集校验，
-/// 非法值（网关别名等）拦截不写。对话调用网关时填的别名
-/// （AppState.modelID）不在此改。
+/// 模型管理（0.37.0 模型包，设置·模型与密钥）：三层
+/// 一页——接入层（提供商名册＋网关渠道只读）、清单层
+/// （全部模型带来源标注）、分配层（模型组合）。口径
+/// 依 model-provider-status-design-20261110 定版：
+/// 用户自加/自组合，我方只做机制；密钥经 /api/env 落
+/// 服务端、配置只存引用；渠道管理凭据不进 App，本页
+/// 只读。数据中枢 ModelManagementStore（config 写回
+/// 沿旧纪律：先读全量、只改目标键、整包写回）。
 struct ModelSettingsView: View {
     @Environment(AppState.self) private var appState
 
-    @State private var rawConfig: [String: JSONValue] = [:]
-    @State private var candidates: [String] = []
-    @State private var errorMessage: String?
-    @State private var notice: String?
-    @State private var isLoading = false
+    @State private var store = ModelManagementStore()
     @State private var pendingModel: String?
-    @State private var pendingDeleteProvider: String?
-
-    private var currentModel: String? {
-        rawConfig["model"]?.stringValue
-    }
-
-    /// 候选＝拉取并集去掉当前值（当前值在上方单独成组展示）
-    private var switchableModels: [String] {
-        candidates.filter { $0 != currentModel }
-    }
-
-    private var providers: [(name: String, baseURL: String?)] {
-        guard case .object(let dict) = rawConfig["providers"] ?? .null else {
-            return []
-        }
-        return dict.keys.sorted().map { name in
-            var baseURL: String?
-            if case .object(let fields) = dict[name] ?? .null {
-                baseURL = fields["base_url"]?.stringValue
-            }
-            return (name, baseURL)
-        }
-    }
+    @State private var pendingDeleteProvider: ProviderRegistry.Entry?
+    @State private var showProviderEditor = false
+    @State private var editingCombo: ModelCombo?
+    @State private var showNewCombo = false
+    @State private var pendingActivateCombo: ModelCombo?
+    @State private var pendingDeleteCombo: ModelCombo?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 currentGroup
-                candidatesGroup
+                modelsGroup
                 providersGroup
-                if let errorMessage {
+                channelsGroup
+                combosGroup
+                if let errorMessage = store.errorMessage {
                     InlineError(errorMessage)
                         .padding(.top, OneDayMetrics.spacingL)
                 }
-                if let notice {
+                if let notice = store.notice {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
@@ -65,12 +46,25 @@ struct ModelSettingsView: View {
             .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
-        // 0.4.0（审计 §3.3 #5）：页名与设置行同口径改
-        // 「服务端默认模型」，明示本页语义
-        .navigationTitle("服务端默认模型")
+        .navigationTitle("模型与提供商")
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await load() }
-        .task { await load() }
+        .refreshable { await store.load(appState: appState) }
+        .task { await store.load(appState: appState) }
+        .sheet(isPresented: $showProviderEditor) {
+            ProviderEditorView(store: store) { added in
+                if added { Task { await store.load(appState: appState) } }
+            }
+        }
+        .sheet(item: $editingCombo) { combo in
+            ModelComboEditorView(store: store, combo: combo) {
+                Task { await store.load(appState: appState) }
+            }
+        }
+        .sheet(isPresented: $showNewCombo) {
+            ModelComboEditorView(store: store, combo: nil) {
+                Task { await store.load(appState: appState) }
+            }
+        }
         .confirmationDialog(
             "切换默认模型？",
             isPresented: Binding(
@@ -81,7 +75,7 @@ struct ModelSettingsView: View {
         ) {
             Button("切换到 \(pendingModel ?? "")") {
                 if let model = pendingModel {
-                    Task { await setModel(model) }
+                    Task { await store.setDefaultModel(model, appState: appState) }
                 }
                 pendingModel = nil
             }
@@ -98,37 +92,73 @@ struct ModelSettingsView: View {
             titleVisibility: .visible
         ) {
             Button("删除", role: .destructive) {
-                if let name = pendingDeleteProvider {
-                    Task { await deleteProvider(name) }
+                if let entry = pendingDeleteProvider {
+                    Task { await store.deleteProvider(entry, appState: appState) }
                 }
                 pendingDeleteProvider = nil
             }
             Button("取消", role: .cancel) { pendingDeleteProvider = nil }
         } message: {
-            Text("将从服务端配置里移除该提供商；使用它的会话可能受影响。")
+            Text("将从服务端配置里移除这家提供商，它的密钥也会一并删掉；正在用它的会话可能受影响。")
+        }
+        .confirmationDialog(
+            "启用这套组合？",
+            isPresented: Binding(
+                get: { pendingActivateCombo != nil },
+                set: { if !$0 { pendingActivateCombo = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("启用「\(pendingActivateCombo?.name ?? "")」") {
+                if let combo = pendingActivateCombo {
+                    Task { await store.activateCombo(combo, appState: appState) }
+                }
+                pendingActivateCombo = nil
+            }
+            Button("取消", role: .cancel) { pendingActivateCombo = nil }
+        } message: {
+            if let combo = pendingActivateCombo {
+                Text(ComboActivation.activationNotice(for: combo))
+            }
+        }
+        .confirmationDialog(
+            "删除组合？",
+            isPresented: Binding(
+                get: { pendingDeleteCombo != nil },
+                set: { if !$0 { pendingDeleteCombo = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let combo = pendingDeleteCombo {
+                    Task { await store.deleteCombo(combo, appState: appState) }
+                }
+                pendingDeleteCombo = nil
+            }
+            Button("取消", role: .cancel) { pendingDeleteCombo = nil }
+        } message: {
+            Text("只删这套组合的定义；已经启用到服务端的设置不会被撤回。")
         }
     }
+
+    // MARK: - 当前默认（旧段平移）
 
     private var currentGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("服务端默认模型")
                 .padding(.bottom, OneDayMetrics.spacingS)
-            // 0.4.0（审计 §3.3 #5）：页内语义明示——此值是
-            // 服务端新会话的默认，与聊天页胶囊里本机逐请
-            // 求选择的模型相互独立
             Text("服务端新会话的默认模型；聊天时实际用的模型由聊天页顶栏胶囊决定。")
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    // 0.3.7 卡 8：当前值升摘要卡主读数（等宽大字）
-                    Text(currentModel ?? "未配置")
+                    Text(store.currentModel ?? "未配置")
                         .font(.system(.title3, design: .monospaced))
                         .foregroundStyle(Palette.ink)
                         .textSelection(.enabled)
                     Spacer()
-                    if isLoading {
+                    if store.isLoading {
                         ProgressView()
                     }
                 }
@@ -139,75 +169,98 @@ struct ModelSettingsView: View {
         }
     }
 
-    private var candidatesGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("可切换的模型")
+    // MARK: - 清单层（全部模型·来源标注）
+
+    private var modelsGroup: some View {
+        let annotated = store.annotatedModels(appState: appState)
+        return VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("全部模型")
                 .padding(.top, 28)
                 .padding(.bottom, OneDayMetrics.spacingS)
+            Text("每个模型都标了从哪条路走：经网关，或直连某家提供商（直连不经过网关、没有网关的用量记录）。点经网关的模型可设为默认。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                if switchableModels.isEmpty {
-                    Text("服务端没有返回可切换的模型。")
+                if annotated.isEmpty {
+                    Text("服务端没有返回可用的模型。")
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .padding(.vertical, OneDayMetrics.spacingSM)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                ForEach(Array(switchableModels.enumerated()), id: \.element) { index, model in
+                ForEach(Array(annotated.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 {
                         GroupDivider()
                     }
-                    Button {
-                        if model != currentModel {
-                            pendingModel = model
-                        }
-                    } label: {
-                        HStack(spacing: OneDayMetrics.spacingSM) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(model)
-                                    .font(.system(.callout, design: .monospaced))
-                                    .foregroundStyle(Palette.ink)
-                                    .lineLimit(1)
-                                if let runtime = ModelCatalog.aliasRuntime[model] {
-                                    Text("别名 · 将按 \(runtime) 运行")
-                                        .font(.footnote)
-                                        .foregroundStyle(Palette.inkSecondary)
-                                        .lineLimit(1)
-                                }
-                            }
-                            Spacer(minLength: OneDayMetrics.spacingS)
-                            if model == currentModel {
-                                Text("当前")
-                                    .font(.footnote)
-                                    .foregroundStyle(Palette.success)
-                            }
-                        }
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .frame(minHeight: OneDayMetrics.rowHeight)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.odPressable)
+                    modelRow(entry)
                 }
             }
             .odGroup()
         }
     }
 
+    @ViewBuilder
+    private func modelRow(_ entry: AnnotatedModel) -> some View {
+        let isCurrent = entry.model == store.currentModel
+        let content = HStack(spacing: OneDayMetrics.spacingSM) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.model)
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                if let runtime = ModelCatalog.aliasRuntime[entry.model] {
+                    Text("别名 · 将按 \(runtime) 运行")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(entry.source.label)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            if isCurrent {
+                Text("当前")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.success)
+            }
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(minHeight: OneDayMetrics.rowHeight)
+        .contentShape(Rectangle())
+
+        if case .gateway = entry.source, !isCurrent {
+            Button {
+                pendingModel = entry.model
+            } label: {
+                content
+            }
+            .buttonStyle(.odPressable)
+        } else {
+            content
+        }
+    }
+
+    // MARK: - 接入层·提供商名册
+
     private var providersGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("提供商")
                 .padding(.top, 28)
-            .padding(.bottom, OneDayMetrics.spacingS)
+                .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                if providers.isEmpty {
-                    Text("暂无提供商条目。")
+                if store.providers.isEmpty {
+                    Text("还没有添加提供商。添加后，它家的模型会出现在上面的清单里，也能在组合里按槽位选用。")
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .padding(.vertical, OneDayMetrics.spacingSM)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    GroupDivider()
                 }
-                ForEach(Array(providers.enumerated()), id: \.element.name) { index, provider in
+                ForEach(Array(store.providers.enumerated()), id: \.element.name) { index, provider in
                     if index > 0 {
                         GroupDivider()
                     }
@@ -222,10 +275,15 @@ struct ModelSettingsView: View {
                                     .foregroundStyle(Palette.inkSecondary)
                                     .lineLimit(1)
                             }
+                            if !provider.models.isEmpty {
+                                Text("模型 \(provider.models.count) 个")
+                                    .font(.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
+                            }
                         }
                         Spacer(minLength: OneDayMetrics.spacingS)
                         Button("删除", role: .destructive) {
-                            pendingDeleteProvider = provider.name
+                            pendingDeleteProvider = provider
                         }
                         .font(.callout)
                     }
@@ -233,69 +291,216 @@ struct ModelSettingsView: View {
                     .padding(.vertical, OneDayMetrics.spacingS)
                     .frame(minHeight: OneDayMetrics.rowHeight)
                 }
+                GroupDivider()
+                Button {
+                    showProviderEditor = true
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(Palette.primary)
+                        Text("添加提供商")
+                            .font(.body)
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
             }
             .odGroup()
         }
     }
 
-    // MARK: - 数据与写入（先读全量、只改目标键、整包写回）
+    // MARK: - 接入层·网关渠道（只读）
 
-    private func load() async {
-        guard !isLoading else { return }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            rawConfig = try await appState.performAdmin { client, config in
-                try await client.rawConfig(config: config)
-            }
-            errorMessage = nil
-        } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "配置读取失败。"
-        }
-        // 0.2.4：候选与聊天页选择器共用 AppState 管线
-        // （上游 options 优先、用量回落、网关别名硬排除），
-        // 本页不再自拼并集——0.2.2 在这里拼的那份正是把
-        // hermes-agent 送进候选的 bug 路径之一
-        await appState.refreshModelCatalog()
-        candidates = appState.availableModels
-    }
-
-    private func writeBack(_ mutate: (inout [String: JSONValue]) -> Void) async throws {
-        var updated = rawConfig
-        mutate(&updated)
-        try await appState.performAdmin { client, config in
-            try await client.updateConfig(config: config, newConfig: updated)
-        }
-        rawConfig = updated
-    }
-
-    private func setModel(_ model: String) async {
-        // 写入校验（0.2.4）：与选择器同一道闸——不在候选
-        // 集内（含网关别名）直接拦截，不发写请求
-        guard ModelCatalog.isWritable(model, candidates: candidates) else {
-            notice = HermesError.modelNotUpstream(model).userMessage
-            return
-        }
-        do {
-            try await writeBack { $0["model"] = .string(model) }
-            appState.noteDefaultModel(model)
-            notice = "默认模型已切换为 \(model)。"
-        } catch {
-            notice = (error as? HermesError)?.userMessage ?? "切换失败，请稍后再试。"
-        }
-    }
-
-    private func deleteProvider(_ name: String) async {
-        do {
-            try await writeBack { config in
-                if case .object(var providers) = config["providers"] ?? .null {
-                    providers[name] = nil
-                    config["providers"] = .object(providers)
+    private var channelsGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("网关渠道")
+                .padding(.top, 28)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            Text("经网关的模型从这些渠道走。这里只看：启停与顺序在网关那边管理，App 不碰网关的管理员凭据。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                if case .ready(let channels) = store.channelsFace,
+                   !channels.isEmpty {
+                    ForEach(Array(channels.enumerated()), id: \.element.id) { index, channel in
+                        if index > 0 {
+                            GroupDivider()
+                        }
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(channel.name)
+                                    .font(.body)
+                                    .foregroundStyle(Palette.ink)
+                                Text(channel.detailLine)
+                                    .font(.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: OneDayMetrics.spacingS)
+                            Text(channel.statusWording)
+                                .font(.footnote)
+                                .foregroundStyle(
+                                    channel.statusWording == "使用中"
+                                        ? Palette.success : Palette.inkSecondary
+                                )
+                        }
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .padding(.vertical, OneDayMetrics.spacingS)
+                        .frame(minHeight: OneDayMetrics.rowHeight)
+                    }
+                } else if let placeholder = store.channelsFace.placeholderText {
+                    Text(placeholder)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .padding(.vertical, OneDayMetrics.spacingSM)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            notice = "提供商 \(name) 已删除。"
-        } catch {
-            notice = (error as? HermesError)?.userMessage ?? "删除失败，请稍后再试。"
+            .odGroup()
         }
+    }
+
+    // MARK: - 分配层·组合
+
+    private var combosGroup: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("模型组合")
+                .padding(.top, 28)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            Text("把主模型、看图、标题等每个位置用哪个模型存成一套，整套切换。组合对整台服务生效；只有主模型能按单个会话另换。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                if store.combosFaceMissing {
+                    Text("组合的服务端存储还没开通，这里先留位。开通前，默认模型与提供商照常可用。")
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .padding(.vertical, OneDayMetrics.spacingSM)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if store.combosLoadFailed {
+                    Text("组合清单读取失败，请下拉重试。")
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .padding(.vertical, OneDayMetrics.spacingSM)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    let combos = store.comboDocument?.combos ?? []
+                    if combos.isEmpty {
+                        Text("还没有组合。可以新建一套，或先把当前配置存为第一套再改。")
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .padding(.horizontal, OneDayMetrics.spacingM)
+                            .padding(.vertical, OneDayMetrics.spacingSM)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        GroupDivider()
+                        starterButton
+                        GroupDivider()
+                        newComboButton
+                    } else {
+                        ForEach(Array(combos.enumerated()), id: \.element.id) { index, combo in
+                            if index > 0 {
+                                GroupDivider()
+                            }
+                            comboRow(combo)
+                        }
+                        GroupDivider()
+                        newComboButton
+                    }
+                }
+            }
+            .odGroup()
+        }
+    }
+
+    private var starterButton: some View {
+        Button {
+            Task { await store.saveStarterCombo(appState: appState) }
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: "tray.and.arrow.down")
+                    .foregroundStyle(Palette.primary)
+                Text("把当前配置存为第一套组合")
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+    }
+
+    private var newComboButton: some View {
+        Button {
+            showNewCombo = true
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(Palette.primary)
+                Text("新建组合")
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+    }
+
+    private func comboRow(_ combo: ModelCombo) -> some View {
+        let isActive = store.comboDocument?.activeComboID == combo.id
+        return HStack(spacing: OneDayMetrics.spacingSM) {
+            Button {
+                editingCombo = combo
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Text(combo.name)
+                            .font(.body)
+                            .foregroundStyle(Palette.ink)
+                        if isActive {
+                            Text("使用中")
+                                .font(.footnote)
+                                .foregroundStyle(Palette.success)
+                        }
+                    }
+                    Text(combo.summaryLine)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            if !isActive {
+                Button("启用") {
+                    pendingActivateCombo = combo
+                }
+                .font(.callout)
+            }
+            Button {
+                pendingDeleteCombo = combo
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(Palette.danger)
+            }
+            .buttonStyle(.odPressable)
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+        .frame(minHeight: OneDayMetrics.rowHeight)
     }
 }
