@@ -32,6 +32,11 @@ final class GoalsStore {
     /// 桥的现值，本地不另立账（审计 R 档口径）
     private(set) var entriesByGoal: [String: [BridgeGoalEntry]] = [:]
     private(set) var briefingsByGoal: [String: [BridgeBriefing]] = [:]
+    /// 详情面关联任务（0.40.0）：目标↔任务的桥侧关联记录，
+    /// 与条目/简报同纪律——进详情时拉、委派写后回读刷新，
+    /// 本地不另立账
+    private(set) var taskLinksByGoal:
+        [String: [BridgeGoalTaskLink]] = [:]
     /// 详情面已拉过至少一次的目标（区分「还没拉」与
     /// 「拉过、确实为空」——空态不许靠猜）
     private(set) var detailLoadedIDs: Set<String> = []
@@ -115,7 +120,8 @@ final class GoalsStore {
 
     func create(
         appState: AppState, title: String, note: String,
-        milestoneTitles: [String], parentId: String? = nil
+        milestoneTitles: [String], parentId: String? = nil,
+        category: GoalCategory? = nil
     ) async -> Bool {
         guard !creating else { return false }
         guard let config = appState.config else {
@@ -127,7 +133,7 @@ final class GoalsStore {
         defer { creating = false }
         let request = BridgeGoalCreateRequest.make(
             title: title, note: note, milestoneTitles: milestoneTitles,
-            parentId: parentId
+            parentId: parentId, category: category
         )
         do {
             let created = try await client.createGoal(
@@ -277,6 +283,47 @@ final class GoalsStore {
         }
     }
 
+    // MARK: - 分类变更（0.40.0：PATCH {category}→回读确认）
+
+    /// 改/清分类：分类是独立动作（编辑 sheet 里改），走
+    /// 专用小体 PATCH、不混全量编辑；回读后分类与请求
+    /// 一致才算数。存量目标补分类也走这里（用户自选，
+    /// 系统不推断）
+    func setCategory(
+        appState: AppState, goalID: String,
+        category: GoalCategory?
+    ) async -> Bool {
+        guard !actingIDs.contains(goalID) else { return false }
+        guard let config = appState.config else {
+            notes[goalID] = "尚未连接服务器。"
+            return false
+        }
+        actingIDs.insert(goalID)
+        notes.removeValue(forKey: goalID)
+        defer { actingIDs.remove(goalID) }
+        do {
+            _ = try await client.patchGoalCategory(
+                config: config, id: goalID, category: category
+            )
+            await refetch(appState: appState)
+            guard let current = goal(id: goalID) else {
+                notes[goalID] = "分类已提交，但再确认时目标不见了，请刷新核对。"
+                return false
+            }
+            if current.category == category {
+                return true
+            }
+            notes[goalID] = "分类已提交，但再确认时对不上，请刷新核对。"
+            return false
+        } catch let error as OneDayBridgeError {
+            notes[goalID] = Self.message(for: error)
+            return false
+        } catch {
+            notes[goalID] = "分类更新失败，请稍后重试。"
+            return false
+        }
+    }
+
     /// 里程碑就地勾选（P2 呈现页）：走既有全量 PATCH＋
     /// 逐项对账的 saveEdits 口径，只是草稿取服务端现值
     /// 翻一项——不新开第二条写路
@@ -309,16 +356,34 @@ final class GoalsStore {
         async let briefingsFetch = client.goalBriefings(
             config: config, goalID: goalID
         )
+        async let linksFetch = client.goalTaskLinks(
+            config: config, goalID: goalID
+        )
         let entries = try? await entriesFetch
         let briefings = try? await briefingsFetch
+        let links = try? await linksFetch
         if let entries {
             entriesByGoal[goalID] = entries
         }
         if let briefings {
             briefingsByGoal[goalID] = briefings
         }
+        if let links {
+            taskLinksByGoal[goalID] = links
+        }
         if entries != nil || briefings != nil {
             detailLoadedIDs.insert(goalID)
+        }
+    }
+
+    private func refetchTaskLinks(
+        appState: AppState, goalID: String
+    ) async {
+        guard let config = appState.config else { return }
+        if let fetched = try? await client.goalTaskLinks(
+            config: config, goalID: goalID
+        ) {
+            taskLinksByGoal[goalID] = fetched
         }
     }
 
@@ -369,6 +434,85 @@ final class GoalsStore {
             notes[goalID] = "记录进展失败，请稍后重试。"
             return false
         }
+    }
+
+    // MARK: - 委派「安排一件事」（0.40.0）
+
+    /// 流程与点子采纳同形：先让 KanbanStore 探板（未开通
+    /// →如实提示、不往下走）→ createTaskReturningID（建卡
+    /// →催派→回板确认并回任务 id）→ POST 回写桥关联
+    /// （goal_task_links，可挂里程碑）→ 回读确认关联出现
+    /// 才算完成。回写失败时任务已在板上、关联未记：如实
+    /// 留在 notes，不假成功、也不回滚任务
+    func delegateTask(
+        appState: AppState, goalID: String, title: String,
+        milestoneId: String?, kanban: KanbanStore
+    ) async -> Bool {
+        guard !actingIDs.contains(goalID) else { return false }
+        guard let config = appState.config else {
+            notes[goalID] = "尚未连接服务器。"
+            return false
+        }
+        actingIDs.insert(goalID)
+        notes.removeValue(forKey: goalID)
+        defer { actingIDs.remove(goalID) }
+
+        await kanban.load(appState: appState)
+        switch kanban.loadState {
+        case .notProvisioned:
+            notes[goalID] = "任务板未开通，暂时不能安排任务。"
+            return false
+        case .failed(let message):
+            notes[goalID] = message
+            return false
+        case .loading:
+            notes[goalID] = "任务板状态还没确认好，请稍后再试。"
+            return false
+        case .ready:
+            break
+        }
+        let taskID = await kanban.createTaskReturningID(
+            appState: appState,
+            title: title.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ),
+            body: delegateBody(goalID: goalID)
+        )
+        guard let taskID else {
+            notes[goalID] = kanban.createError
+                ?? "任务没有确认建成，请到枢纽任务段核对（聊天页点顶部胶囊打开）。"
+            return false
+        }
+        do {
+            let link = try await client.createGoalTaskLink(
+                config: config, goalID: goalID,
+                request: BridgeGoalTaskLinkCreateRequest(
+                    taskId: taskID, milestoneId: milestoneId
+                )
+            )
+            await refetchTaskLinks(appState: appState, goalID: goalID)
+            if taskLinksByGoal[goalID]?.contains(
+                where: { $0.id == link.id && $0.taskId == taskID }
+            ) == true {
+                return true
+            }
+            notes[goalID] = "任务已建在任务板上，但与目标的关联回写后没确认上，请刷新核对。"
+            return false
+        } catch let error as OneDayBridgeError {
+            notes[goalID] = "任务已建在任务板上，但关联回写失败："
+                + Self.message(for: error)
+            return false
+        } catch {
+            notes[goalID] = "任务已建在任务板上，但关联回写失败，请刷新核对。"
+            return false
+        }
+    }
+
+    /// 委派任务的卡面正文：只写事实（为哪个目标安排的），
+    /// 让任务板上单看这张卡也知道出处
+    private func delegateBody(goalID: String) -> String {
+        guard let goal = goal(id: goalID) else { return "" }
+        return "为目标《\(goal.title)》安排的一件事。"
     }
 
     /// 删一条进展纠错（DELETE→回读确认消失才算完成）
