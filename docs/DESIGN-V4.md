@@ -5331,8 +5331,11 @@ ChatView.modelMenu 每行改同构 HStack：固定对号槽（ModelMenuSpec 进 
 
 ### 76.5 验收
 
-- 提交与 CI、单测增量、IPA 验包数字见本节回填（出包后补）。
-- 版本五处同改＋grep 验：Project.swift 四处（0.36.11/78）＋SettingsView 页脚「OneDay v0.36.11」。
+- 提交：fa5a977（整包）＋55504d7（补 import os 修复提交）；文档回填为其后补记提交。
+- CI：首轮 42827566841 **failure**——构建错 `cannot find 'OSAllocatedUnfairLock' in scope`（Core 的 Dictation.swift 未 import os，App 侧文件本有此 import 故未暴露），55504d7 补一行 import 后重跑 42827880912 **success**。
+- 单测：**755 全过、0 failures**（基线 751＋新增 4，只增不减）：DictationTapFeedBoxTests 四条（testIngestFromConcurrentQueues／testIngestFromDetachedTask／testIngestEmptySamples／testResetClearsState）逐条 passed。
+- IPA：6,638,465 字节、md5 77dc4c965e35ce07a78f6c3917e63f73、独立解包验 Info.plist＝0.36.11/78、双 UsageDescription 键仍在包内，落 ~/workspace/your_files/oneday-v0.36.11/oneday-unsigned.ipa。
+- 版本五处同改＋grep 验：Project.swift 四处（0.36.11/78）＋SettingsView 页脚「OneDay v0.36.11」；grep 复验 requestRecordPermission 全仓唯一实现一处、progressObservation/rmsBox 旧符号零残留。
 
 ### 76.6 诚实边界
 
