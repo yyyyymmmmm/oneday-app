@@ -62,12 +62,16 @@ public enum TabBarSymbols {
         selected: "message"
     )
     /// 动态格（0.35.0 P3，拍板 1A 五格第二格）：动态
-    /// 的本体是「个人报」（设计档第三章），取报纸同
-    /// 语义位 newspaper（outline 原名、两态同名）
+    /// 的本体是「个人报」（设计档第三章），取带字纸
+    /// 页同语义位 doc.text（outline 原名、两态同名）。
+    /// 初版 newspaper 经 CI 量测判死：紧致密度 0.477
+    /// 出抽屉名单带（0.05–0.45）、格口径 0.138 出底
+    /// 栏线条画法档（≤0.12）——报纸字形满版栏目线太
+    /// 密，与 §30 线条画法纪律相冲，换 doc.text
     public static let feed = TabSymbolPair(
         id: "feed", title: "动态",
-        normal: "newspaper",
-        selected: "newspaper"
+        normal: "doc.text",
+        selected: "doc.text"
     )
     public static let activity = TabSymbolPair(
         id: "activity", title: "活动",

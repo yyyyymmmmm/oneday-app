@@ -19,7 +19,8 @@ import XCTest
 /// activity 同例），不再占底栏格。
 /// 0.35.0 五格（P3 拍板 1A）：动态进第二格——all 改
 /// 钉五格（聊天/动态/点子/目标/文件），动态符号取
-/// 报纸同语义位 newspaper（outline 原名）。
+/// 带字纸页同语义位 doc.text（outline 原名；
+/// newspaper 经量测密度判死，见 TabBarSymbols 注）。
 final class TabBarSymbolsTests: XCTestCase {
     /// 五条目名对全表钉死（id／标题／未选／选中、顺序）
     func testTabSymbolPairsArePinned() {
@@ -31,8 +32,8 @@ final class TabBarSymbolsTests: XCTestCase {
             ),
             TabSymbolPair(
                 id: "feed", title: "动态",
-                normal: "newspaper",
-                selected: "newspaper"
+                normal: "doc.text",
+                selected: "doc.text"
             ),
             TabSymbolPair(
                 id: "ideas", title: "点子",

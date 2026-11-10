@@ -14,11 +14,11 @@ final class FeedBoardTests: XCTestCase {
 
     private func date(
         _ year: Int, _ month: Int, _ day: Int,
-        _ hour: Int = 12, _ minute: Int = 0
+        _ hour: Int = 12, _ minute: Int = 0, _ second: Int = 0
     ) -> Date {
         calendar.date(from: DateComponents(
             year: year, month: month, day: day,
-            hour: hour, minute: minute
+            hour: hour, minute: minute, second: second
         ))!
     }
 
@@ -79,7 +79,8 @@ final class FeedBoardTests: XCTestCase {
                 calendar: calendar
             )
         }
-        XCTAssertEqual(rel(date(2026, 11, 10, 15, 29)), "刚刚")
+        XCTAssertEqual(rel(date(2026, 11, 10, 15, 29, 40)), "刚刚")
+        XCTAssertEqual(rel(date(2026, 11, 10, 15, 29, 0)), "1分钟")
         XCTAssertEqual(rel(date(2026, 11, 10, 15, 10)), "20分钟")
         XCTAssertEqual(rel(date(2026, 11, 10, 13, 30)), "2小时")
         XCTAssertEqual(rel(date(2026, 11, 9, 22, 5)), "昨天 22:05")

@@ -19,7 +19,7 @@ public enum FeedPostKind: String, Sendable {
     public var symbolName: String {
         switch self {
         case .morning: return "sunrise"
-        case .digest: return "newspaper"
+        case .digest: return "doc.text"
         case .unknown: return "doc.text"
         }
     }

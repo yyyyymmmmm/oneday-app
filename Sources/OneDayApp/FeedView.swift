@@ -96,7 +96,7 @@ struct FeedView: View {
             case .neverProduced:
                 ContentUnavailableView(
                     "动态刚上线",
-                    systemImage: "newspaper",
+                    systemImage: "doc.text",
                     description: Text(
                         "站内有新点子、新简报或任务变化时，这里会先汇编一篇；第一篇晨报明早 8:30 到。"
                     )
@@ -137,7 +137,7 @@ struct FeedView: View {
     /// 显今日暂无、不做假入口
     private var capsuleRow: some View {
         HStack(spacing: 10) {
-            Image(systemName: "newspaper")
+            Image(systemName: "doc.text")
                 .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(Palette.inkSecondary)
             if let post = store.capsulePost {
@@ -449,7 +449,7 @@ struct FeedPostDetailView: View {
             } else {
                 ContentUnavailableView(
                     "帖子已不在",
-                    systemImage: "newspaper",
+                    systemImage: "doc.text",
                     description: Text("可能已过期或被删除。")
                 )
             }

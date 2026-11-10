@@ -4935,7 +4935,7 @@ Core 新 `LocalServices.swift` 单一真源：名册四条（序＝呈现序）�
 
 ### 64.2 App
 
-- 底栏五格（1A）：MainTab 增 .feed 第二格，顺序 聊天/动态/点子/目标/文件；新格与四格同走 ContentView.tabLabel（0.34.0 symbolVariants 主锁自动覆盖）；TabBarSymbols 增 feed 对（id "feed"、标题「动态」、newspaper——动态本体是个人报、取报纸同语义位，设计档「先 SF Symbol 同语义位」口径；outline 原名、两态同名），all 改钉五格、TabBarSymbolsTests 全表同步。抽屉「选项卡」组同步加动态行（枢纽动作行不占格位序）。0.30.0 落点逻辑未动（默认仍落聊天/上次线程）。
+- 底栏五格（1A）：MainTab 增 .feed 第二格，顺序 聊天/动态/点子/目标/文件；新格与四格同走 ContentView.tabLabel（0.34.0 symbolVariants 主锁自动覆盖）；TabBarSymbols 增 feed 对（id "feed"、标题「动态」、doc.text——动态本体是个人报、取带字纸页同语义位，设计档「先 SF Symbol 同语义位」口径；outline 原名、两态同名。初版 newspaper 经 CI 量测判死：紧致密度 0.477 出抽屉名单带 0.05–0.45、格口径 0.138 出底栏线条画法档 ≤0.12，满版栏目线与 §30 线条画法纪律相冲，换 doc.text，汇编帖 kind 瓷砖同名对齐），all 改钉五格、TabBarSymbolsTests 全表同步。抽屉「选项卡」组同步加动态行（枢纽动作行不占格位序）。0.30.0 落点逻辑未动（默认仍落聊天/上次线程）。
 - 动态页（FeedView/FeedStore）：顶栏＋大标题「动态」＋简报胶囊（FeedBoard.capsulePost：今日汇编→今日晨报→最近未读→最新；标题单行省略＋未读徽标，点开落对应帖）；帖子扁平行（34pt kind 瓷砖——晨报 sunrise/汇编 newspaper、标题 Headline 两行＋未读点、正文摘 3 行（FeedBoard.excerpt 剥 Markdown 形）、refs 蓝字内链横滑、动作行类别左＋相对时间右）；按日分组（组头与 ChatTimeline 同族口径）；帖子详情（Markdown 全文＋why 块＋链接清单＋引用列表，打开即 POST 已读、以桥回执对账）；下拉刷新；空态二分（neverProduced「动态刚上线＋第一篇晨报明早 8:30 到」/quiet「近来没有新动态」，均如实、不填假帖）；桥未连接/失败与点子格同分法。
 - refs 点达：本栈复用各详情页——idea→IdeaDetailView、goal→GoalDetailView、briefing→凭 goalId 富化直达所属 GoalDetailView、task→KanbanTaskDetailView、monitor→MonitorDetailView；引用标题从同批加载的各 Store 解析，解析不到回类别文案、不编名。
 - Core：FeedModels（BridgeFeedPost/Ref/Link/Generation DTO 宽容解码＋FeedBoard：排序/日组/相对时间五档/未读数/胶囊落点/空态二分/excerpt）＋FeedBoardTests 12 测、TabBarSymbolsTests 改钉五格。
