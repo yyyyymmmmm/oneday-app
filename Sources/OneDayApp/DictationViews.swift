@@ -4,39 +4,35 @@ import SwiftUI
 import UIKit
 
 /// 语音输入视图面（0.36.6，DESIGN-V4 §71）：录音条
-/// （占住发送舱同一玻璃胶囊：文本行在上、控制行在
-/// 下——与发送舱多行形态同构，不新造高度轴）与权限
-/// 预备页。字幕直进既有 ComposerTextView、未定稿尾
-/// 段染灰；波形由真实电平驱动
+/// （占住发送舱同一玻璃胶囊）与权限预备页。
+/// 0.36.17 改判（DESIGN-V4 §82，用户 23:48 照 Muse
+/// 听写条定版）：录音条只剩一行控制行——左废弃／
+/// 中音波＋计时／右停与发送两钮；录时零文字（文本
+/// 行与实时诊断行整组撤下），波形由真实电平驱动
 
-/// 录音条：✕ 取消（丢本次段）／波形＋计时／✓ 停录
-/// 落稿。准备中相位中部换进度呈现
+/// 录音条（0.36.17 形态）：垃圾桶废弃（丢本次段与
+/// 已得文本）／波形＋计时／■ 停（落稿进输入框）／
+/// ↑ 发送（落定直发）。准备中中部换模型进度、整理
+/// 中换「正在整理…」；三钮可用性走 Core 的
+/// DictationBarPolicy 单点表，视图不自判
 struct DictationBar: View {
     var controller: DictationController
-    @Binding var text: String
-    var focusHandle: ComposerFocusHandle
-    var caretColor: UIColor
     var reduceMotion: Bool
+
+    private var controls: DictationBarPolicy.Controls {
+        DictationBarPolicy.controls(for: controller.phase)
+    }
 
     var body: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
-            ComposerTextView(
-                text: $text,
-                focusHandle: focusHandle,
-                onFocusChange: { _ in },
-                caretColor: caretColor,
-                volatileTailLength: controller.volatileLength,
-                placeholderText: "正在聆听…"
-            )
-            // 实时诊断行（0.36.13 呈现修正，用户 22:26
-            // 录屏实证）：诊断串旧只挂失败行与预备页，
-            // 录音成功时用户根本看不见——挂到录音条本
-            // 体、文本行下方：录音中随波形刷新读最新落
-            // 盘串（选引擎/首草稿/首定稿各打点更新），
-            // 用户录着就能截图定案。caption 级弱化色、
-            // 不抢主行；这是诊断脚手架，定案后可移除
-            // （DESIGN-V4 §78 注记）
-            DictationLiveDiagnosticLine()
+            HStack(alignment: .center) {
+                discardButton
+                Spacer(minLength: OneDayMetrics.spacingM)
+                centerCluster
+                Spacer(minLength: OneDayMetrics.spacingM)
+                stopButton
+                sendButton
+            }
             if controller.showSilenceHint,
                controller.phase == .recording {
                 Text("还没听到声音，把手机拿近一点试试")
@@ -44,25 +40,18 @@ struct DictationBar: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
-            HStack(alignment: .center) {
-                cancelButton
-                Spacer(minLength: OneDayMetrics.spacingM)
-                centerCluster
-                Spacer(minLength: OneDayMetrics.spacingM)
-                doneButton
-            }
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.vertical, OneDayMetrics.spacingS)
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var cancelButton: some View {
+    private var discardButton: some View {
         Button {
             controller.cancel()
         } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 13, weight: .bold))
+            Image(systemName: "trash")
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(
                     width: ComposerLayout.buttonHeight,
@@ -72,14 +61,36 @@ struct DictationBar: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
-        .accessibilityLabel("取消语音输入")
+        .disabled(!controls.discardEnabled)
+        .opacity(controls.discardEnabled ? 1 : 0.4)
+        .accessibilityLabel("丢弃本次录音")
     }
 
-    private var doneButton: some View {
+    private var stopButton: some View {
         Button {
             controller.stopAndCommit()
         } label: {
-            Image(systemName: "checkmark")
+            Image(systemName: "stop.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .frame(
+                    width: ComposerLayout.buttonHeight,
+                    height: ComposerLayout.buttonHeight
+                )
+                .background(Palette.fieldFill, in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.odPressable)
+        .disabled(!controls.stopEnabled)
+        .opacity(controls.stopEnabled ? 1 : 0.4)
+        .accessibilityLabel("停止录音，把文字填入输入框")
+    }
+
+    private var sendButton: some View {
+        Button {
+            controller.stopAndSend()
+        } label: {
+            Image(systemName: "arrow.up")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Palette.onPrimary)
                 .frame(
@@ -90,9 +101,9 @@ struct DictationBar: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.odPressable)
-        .disabled(controller.phase != .recording)
-        .opacity(controller.phase == .recording ? 1 : 0.4)
-        .accessibilityLabel("停止录音，把文字填入输入框")
+        .disabled(!controls.sendEnabled)
+        .opacity(controls.sendEnabled ? 1 : 0.4)
+        .accessibilityLabel("停止录音并发送")
     }
 
     @ViewBuilder
@@ -104,6 +115,16 @@ struct DictationBar: View {
                     ? "正在准备语音模型 "
                         + "\(Int(controller.assetProgress * 100))%"
                     : "正在准备语音模型…")
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        } else if controller.phase == .finishing {
+            // 整理中（0.36.17）：停/发送已按下、终稿
+            // 未落定——final 交付可达数秒，条上必须
+            // 有明确在办的信号，不许假死无反馈
+            HStack(spacing: OneDayMetrics.spacingS) {
+                ProgressView()
+                Text("正在整理…")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
             }
@@ -180,8 +201,8 @@ struct DictationPrepSheet: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
 
-                Text("点一下麦克风，说话就会变成文字填进输入框。"
-                    + "填好后你可以改完再发，不会自动发送。")
+                Text("点一下麦克风，说完点「停」，文字会填进输入框，"
+                    + "改完再发；点「发送」则停录后直接发出去。")
                     .font(.body)
                     .foregroundStyle(Palette.ink)
 
@@ -262,10 +283,12 @@ struct DictationPrepSheet: View {
 /// 屏截一张图即可读出：实际跑的哪个引擎、草稿到
 /// 底到没到（vol＞0）还是全程只有定稿（vol＝0）
 /// 0.36.13：串内加四格（预设/sup/inst/avail，见
-/// DictationController 仪表四格注）；同批新增录音
-/// 条上的实时版 DictationLiveDiagnosticLine（录
-/// 音成功时本行不在场，用户看不见——22:26 录屏
-/// 实证后补）
+/// DictationController 仪表四格注）；同批曾在录音
+/// 条上加实时版一行（录音成功时本行不在场、用户
+/// 看不见——22:26 录屏实证后补）。0.36.17 改判：
+/// 实时版整组撤下（录音条零文字），本行回归唯一
+/// 诊断面载体（预备页页脚＋失败行），串内另加
+/// 「落字+…ms」（停后落字，fastResults 记账位）
 struct DictationStageDiagnosticLine: View {
     var body: some View {
         Text("诊断信息 · 上次语音停在："
@@ -273,33 +296,6 @@ struct DictationStageDiagnosticLine: View {
             + diagSuffix)
             .font(.caption2)
             .foregroundStyle(Palette.inkSecondary)
-    }
-
-    private var diagSuffix: String {
-        guard let diag = DictationController.lastDiagSnapshot
-        else { return "" }
-        return "｜" + diag
-    }
-}
-
-/// 录音条上的实时诊断行（0.36.13 呈现修正）：与
-/// DictationStageDiagnosticLine 读同一对快照（末阶
-/// 段＋诊断串，0.36.13 串内含四格），差别只在场合
-/// 与措辞——那边是事后回看（「上次停在」）、这边是
-/// 录音进行时：录音条随波形逐帧重算、每次重算都
-/// 读最新落盘值，打点一更新（选引擎/首草稿/首定
-/// 稿）行内即跟变，用户录着截一张图就是定案材料。
-/// 居中、caption2 弱化色，与无声提示行同档。诊断
-/// 脚手架：定案后可随 DESIGN-V4 §78 注记整行移除
-struct DictationLiveDiagnosticLine: View {
-    var body: some View {
-        Text("诊断 · "
-            + (DictationController.lastStageSnapshot ?? "暂无记录")
-            + diagSuffix)
-            .font(.caption2)
-            .foregroundStyle(Palette.inkSecondary)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .accessibilityHidden(true)
     }
 
     private var diagSuffix: String {

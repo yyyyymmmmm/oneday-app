@@ -480,6 +480,12 @@ struct ChatView: View {
             dictation.onTextChange = { text, _ in
                 input = text
             }
+            // 0.36.17：听写发送钮——控制器保证先落稿
+            // 回写 input、后触发本回调，本处只管走正
+            // 常发送路（send 自带空文/在飞守卫）
+            dictation.onSendRequest = {
+                send()
+            }
             dictation.onUseKeyboardDictation = {
                 composerFocusHandle.focus()
             }
@@ -2429,17 +2435,18 @@ struct ChatView: View {
     /// ComposerLayout.capsuleHeight(narrow:full:) 纯函数
     /// 发送舱行总装（0.36.6 分流）：录音态（准备中/
     /// 录音中/收尾）由 DictationBar 占住同一玻璃胶囊
-    /// （文本行＋控制行，与多行形态同构），其余时候
+    /// （0.36.17 起只剩控制行，录时零文字），其余时候
     /// 是标准三件行；玻璃与实测高回写挂在本层，两态
     /// 共用（见 inputBar 的 glassEffect 施加点）
     private var composerRow: some View {
         Group {
             if dictation.isActive {
+                // 0.36.17 改判：录音条只剩控制行（废弃
+                // ／音波＋计时／停／发送），不再带文本
+                // 视图——文本只在落稿时经 onTextChange
+                // 一次性回写 input
                 DictationBar(
                     controller: dictation,
-                    text: $input,
-                    focusHandle: composerFocusHandle,
-                    caretColor: UIColor(Palette.primary),
                     reduceMotion: reduceMotion
                 )
             } else {

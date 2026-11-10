@@ -577,3 +577,119 @@ public enum DictationPreheatPolicy {
         state == .cold || state == .failed
     }
 }
+
+/// 停录意图（0.36.17，听写改判包；用户 2026-11-10
+/// 23:48 产品改判）：录音条照 Muse 形态——录时只
+/// 音波＋计时、不呈现任何识别文字；停录分两路：
+/// ■停＝整段落进输入框待编辑，↑发送＝落定后直接
+/// 发送。废弃（垃圾桶）走既有 cancel 路、不在此列
+public enum DictationStopIntent: String, Sendable, Equatable, CaseIterable {
+    /// ■ 停：停录→落稿进输入框，用户改完再发
+    case commitToComposer
+    /// ↑ 发送：停录→落稿→立即发送（空稿不发，见
+    /// DictationSettlePolicy）
+    case commitAndSend
+}
+
+/// 落稿路径判定（纯政策）：停录后走哪条路只由「意
+/// 图×有没有识别到字」决定，单点钉死——空稿两路
+/// 都静默回待机：不落空内容、不发空消息、不弹
+/// 「没听清」失败行（改判口径：录音条收掉就是收
+/// 掉，没录到字不构成一次失败呈报）
+public enum DictationSettlePolicy {
+    public enum Route: String, Sendable, Equatable {
+        /// 落稿进输入框待编辑
+        case fillComposer
+        /// 落稿并立即发送
+        case fillAndSend
+        /// 空稿：草稿原样、静默回待机
+        case silentIdle
+    }
+
+    public static func route(
+        intent: DictationStopIntent, hasRecognizedText: Bool
+    ) -> Route {
+        guard hasRecognizedText else { return .silentIdle }
+        switch intent {
+        case .commitToComposer:
+            return .fillComposer
+        case .commitAndSend:
+            return .fillAndSend
+        }
+    }
+}
+
+/// 录音条控件政策（纯政策）：三钮（废弃／停／发
+/// 送）在各相位的可用性单点定表，视图只读——录
+/// 音中三钮全活；准备中只许废弃（资产下载可中
+/// 途作废，停/发送无录音可停、置灰）；整理中
+/// （.finishing，停后终稿未落定）三钮全禁，不
+/// 许用户在落定前再点出第二条路径；其余相位录
+/// 音条不在场、全禁
+public enum DictationBarPolicy {
+    public struct Controls: Sendable, Equatable {
+        public let discardEnabled: Bool
+        public let stopEnabled: Bool
+        public let sendEnabled: Bool
+
+        public init(
+            discardEnabled: Bool, stopEnabled: Bool, sendEnabled: Bool
+        ) {
+            self.discardEnabled = discardEnabled
+            self.stopEnabled = stopEnabled
+            self.sendEnabled = sendEnabled
+        }
+    }
+
+    public static func controls(for phase: DictationPhase) -> Controls {
+        switch phase {
+        case .recording:
+            return Controls(
+                discardEnabled: true, stopEnabled: true, sendEnabled: true)
+        case .preparing:
+            return Controls(
+                discardEnabled: true, stopEnabled: false, sendEnabled: false)
+        case .finishing, .idle, .requestingPermission, .failed:
+            return Controls(
+                discardEnabled: false, stopEnabled: false,
+                sendEnabled: false)
+        }
+    }
+}
+
+/// 停后落字钟（0.36.17，纯逻辑）：量「按下停/发
+/// 送→终稿应用到输入框」这一段——改判后用户唯一
+/// 还要等的就是它，fastResults 内部实验的提速效
+/// 果也只认这个读数。uptime 由 App 层喂单调时钟；
+/// 每轮 begin 覆盖上一轮读数（诊断位记的是最近一
+/// 次）；complete 只认 begin 之后的第一次，迟到/
+/// 重复 complete 作废；未成对不出读数
+public struct DictationSettleLatency: Sendable, Equatable {
+    public private(set) var lastMs: Int?
+    private var pendingOrigin: TimeInterval?
+
+    public init() {}
+
+    /// 按下停/发送：开新一轮（旧读数清空——新一轮
+    /// 未落定前诊断位不许挂着上一轮的数字冒充本轮）
+    public mutating func begin(atUptime uptime: TimeInterval) {
+        pendingOrigin = uptime
+        lastMs = nil
+    }
+
+    /// 终稿已应用：落读数（毫秒取最近值、钳 0，与
+    /// 起步时序钟同口径）；无 pending 或已落过读数
+    /// 则忽略
+    public mutating func complete(atUptime uptime: TimeInterval) {
+        guard let origin = pendingOrigin, lastMs == nil else { return }
+        lastMs = max(0, Int(((uptime - origin) * 1000).rounded()))
+        pendingOrigin = nil
+    }
+
+    /// 诊断串落字段：有读数拼 `落字+1234ms`，无则
+    /// 空串（不留半截占位，与起步时序段同规矩）
+    public var diagnosticSegment: String {
+        guard let lastMs else { return "" }
+        return "落字+\(lastMs)ms"
+    }
+}

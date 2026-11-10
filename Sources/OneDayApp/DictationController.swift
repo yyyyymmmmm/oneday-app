@@ -12,8 +12,9 @@ import UIKit
 /// 手机；服务端无转写端点，此路不通也不许走。
 /// 纯逻辑（会话合并/电平/计时/相位守卫）在 OneDayCore
 /// 的 Dictation.swift，本类只做引擎与系统 API 接线。
-/// 交互定版：点按切换、流式上屏（未定稿灰字整段替
-/// 换）、落框可改、不自动发送；单次上限 5 分钟。
+/// 交互定版：点按切换、落框可改；单次上限 5 分钟。
+/// （流式上屏与「不自动发送」两条已被 0.36.17 改判
+/// 撤销，见文件下方 0.36.17 注与 DESIGN-V4 §82。）
 /// 0.36.8 热修（DESIGN-V4 §73；诊断 voice-crash-
 /// diagnosis-20261110.md）：删语音识别授权门（官方口
 /// 径只需麦克风）、tap 格式有效性门＋installTap 传
@@ -35,6 +36,16 @@ import UIKit
 /// nonisolated；喂入逻辑核下沉 Core 的
 /// DictationAudioFeedBox 并以任意队列调用单测钉死。
 /// 回调隔离铁律见 AGENTS.md（2026-11-10）。
+/// 0.36.17 听写改判（DESIGN-V4 §82；用户 2026-11-10
+/// 23:48 产品改判＋论坛核查 dictation-latency-forum-
+/// check-20261110.md）：不再追实时出字——引擎交付
+/// 段天生秒级节奏（外部多方实测），预热只治启动段。
+/// 录音条改 Muse 形态：录时零文字（结果照常进会
+/// 话攒稿、只是不呈现、不回写输入框）、停/发送两
+/// 钮、停后整段落字。诊断行撤下录音条，移回预备页
+/// 与失败行的阶段诊断行（沿现行载体），另加「停后
+/// 落字 ms」记账；reportingOptions 开 .fastResults
+/// 作内部杠杆（唯一未开的官方延迟开关），不作承诺。
 @MainActor
 @Observable
 final class DictationController {
@@ -42,7 +53,9 @@ final class DictationController {
     // MARK: - 可观察状态（视图只读这些）
 
     private(set) var phase: DictationPhase = .idle
-    /// 录音中文本视图应显示的全文（草稿＋识别段）
+    /// 会话当前全文（草稿＋识别段）：0.36.17 起只
+    /// 作内部账（settle 时取 committedText 落稿），
+    /// 录音中不向任何视图呈现
     private(set) var displayText: String = ""
     /// displayText 尾部未定稿段字数（渲染层染灰用）
     private(set) var volatileLength: Int = 0
@@ -92,10 +105,18 @@ final class DictationController {
 
     // MARK: - 回调（ChatView 在 onAppear 挂）
 
-    /// 文本落点：录音中逐结果回写、落稿时终值回写
+    /// 文本落点：只在落稿（settle）时回写终值——
+    /// 0.36.17 改判后录音中不再逐结果回写输入框
+    /// （录时零文字，见类头注）
     /// （text, volatileTailLength）
     @ObservationIgnored
     var onTextChange: ((String, Int) -> Void)?
+    /// 发送钮落定回调（0.36.17）：↑ 发送路径在
+    /// settle 回写完输入框之后由本控制器触发，
+    /// ChatView 据此走它自己的 send()——顺序由本
+    /// 类保证（先落稿、后发送），视图不许自拼
+    @ObservationIgnored
+    var onSendRequest: (() -> Void)?
     /// 预备页「用键盘听写」：交回 ChatView 聚焦输入框
     @ObservationIgnored
     var onUseKeyboardDictation: (() -> Void)?
@@ -175,6 +196,14 @@ final class DictationController {
         let timingSegment = startTiming.diagnosticSegment
         if !timingSegment.isEmpty {
             text += " " + timingSegment
+        }
+        // 落字段（0.36.17）：停后落字毫秒——改判后
+        // 用户唯一还要等的一段，fastResults 实验的
+        // 提速只认它；收尾 settle 后再调一次 markDiag
+        // 才落得进串（见 finishRecording）
+        let settleSegment = settleLatency.diagnosticSegment
+        if !settleSegment.isEmpty {
+            text += " " + settleSegment
         }
         Self.log.info("diag=\(text, privacy: .public)")
         defaults.set(text, forKey: Self.diagKey)
@@ -258,6 +287,13 @@ final class DictationController {
     /// markStartPoint 喂、markDiag 拼进诊断串
     @ObservationIgnored
     private var startTiming = DictationStartTiming()
+
+    /// 停后落字钟（0.36.17）：停/发送按下起、终稿
+    /// 应用到输入框止；到限自动停同记（起点＝到限
+    /// 触发收尾那一刻）。废弃/中断/引擎错路径不
+    /// complete，读数只对「用户等字」的一段负责
+    @ObservationIgnored
+    private var settleLatency = DictationSettleLatency()
 
     /// 预热产物（0.36.15）：模块/分析器/格式/语言与
     /// 仪表四格在点麦克风之前备齐，点按只剩开音频
@@ -400,10 +436,23 @@ final class DictationController {
 
     // MARK: - 录音面动作
 
-    /// ✓／点按停止：停录并落稿（不自动发送）
+    /// ■ 停／麦克风点按停止：停录并整段落稿进输
+    /// 入框（不自动发送）。按下这一刻起落字钟
     func stopAndCommit() {
         guard phase == .recording else { return }
+        settleLatency.begin(
+            atUptime: ProcessInfo.processInfo.systemUptime)
         Task { await self.finishRecording(outcome: .commit) }
+    }
+
+    /// ↑ 发送（0.36.17）：停录→整段落定后直接发
+    /// 送（空稿只收条不发，路径由 Core 的
+    /// DictationSettlePolicy 判定、本类执行）
+    func stopAndSend() {
+        guard phase == .recording else { return }
+        settleLatency.begin(
+            atUptime: ProcessInfo.processInfo.systemUptime)
+        Task { await self.finishRecording(outcome: .send) }
     }
 
     /// ✕：丢弃本次口述段，既有草稿原样保留
@@ -578,7 +627,12 @@ final class DictationController {
         let module = SpeechTranscriber(
             locale: locale,
             transcriptionOptions: [],
-            reportingOptions: [.volatileResults],
+            // fastResults（0.36.17）：DocC 语义＝小
+            // 上下文窗降结果延迟，官方预设 progressive-
+            // Transcription 与手动形态的唯一差量即此
+            // 项（论坛核查定案）——内部实验杠杆，只
+            // 认停后落字钟读数、不作 UI 承诺
+            reportingOptions: [.volatileResults, .fastResults],
             attributeOptions: [.audioTimeRange]
         )
         let modules: [any SpeechModule] = [module]
@@ -616,7 +670,7 @@ final class DictationController {
         return PreparedDictation(
             analyzer: analyzer, transcriber: module, format: format,
             language: forLanguage, localeID: locale.identifier,
-            presetName: "rep:volatileResults",
+            presetName: "rep:volatileResults+fastResults",
             supported: supported, installed: installed,
             available: available)
     }
@@ -718,7 +772,9 @@ final class DictationController {
             let module = SpeechTranscriber(
                 locale: locale,
                 transcriptionOptions: [],
-                reportingOptions: [.volatileResults],
+                // fastResults 与预热束同口径（0.36.17，
+                // 见 buildPreparedBundle 注）
+                reportingOptions: [.volatileResults, .fastResults],
                 attributeOptions: [.audioTimeRange]
             )
             transcriber = module
@@ -728,7 +784,7 @@ final class DictationController {
             // 对规范化后的 locale 查 SpeechTranscriber
             // 的支持/已装清单原表——inst 是资产下载前
             // 的选引擎时刻快照，正是定案要的时点
-            diagPresetName = "rep:volatileResults"
+            diagPresetName = "rep:volatileResults+fastResults"
             diagSupportedLocale =
                 await SpeechTranscriber.supportedLocales
                     .contains { $0.identifier == locale.identifier }
@@ -987,7 +1043,10 @@ final class DictationController {
         session.applyResult(text: text, isFinal: isFinal)
         displayText = session.displayText
         volatileLength = session.volatileLength
-        onTextChange?(displayText, volatileLength)
+        // 0.36.17 改判：录音中不回写输入框——结果只
+        // 进会话攒稿，呈现等停录落稿一次性给（录音
+        // 条上零文字）。旧逐结果回写是「实时上屏」
+        // 路线的呈现口，该路线已被产品改判撤销
     }
 
     /// 引擎侧故障统一入口（0.36.8，诊断 §6）：处置由
@@ -1013,6 +1072,7 @@ final class DictationController {
 
     private enum FinishOutcome {
         case commit
+        case send
         case cancel
         case limit
         case interrupted
@@ -1022,8 +1082,17 @@ final class DictationController {
     private func finishRecording(outcome: FinishOutcome) async {
         guard phase == .recording else { return }
         // 先落相位再 await：同帧重入（中断与引擎错
-        // 同时到）在此被守卫挡下
+        // 同时到）在此被守卫挡下。.finishing 即改判
+        // 后的「整理中」态——录音条在此相位转「正
+        // 在整理…」、三钮全禁（DictationBarPolicy）
         setPhase(.finishing)
+        // 到限自动停没有「按下」动作：落字钟以收尾
+        // 触发这一刻为起点（停/发送的起点在各自入
+        // 口按下时已记，见 stopAndCommit/stopAndSend）
+        if outcome == .limit {
+            settleLatency.begin(
+                atUptime: ProcessInfo.processInfo.systemUptime)
+        }
         // 收尾把最终计数落盘（0.36.12 仪表）：会话结
         // 束后诊断行读到的是全程总数，不是首条时刻的
         markDiag()
@@ -1045,17 +1114,29 @@ final class DictationController {
 
         switch outcome {
         case .commit:
-            settle(text: session.committedText(includeVolatile: true))
-            if session.hasRecognizedText {
-                setPhase(.idle)
-            } else {
-                fail(.nothingHeard)
-                Haptics.error()
-            }
+            applyStopSettle(intent: .commitToComposer)
+            setPhase(.idle)
+        case .send:
+            applyStopSettle(intent: .commitAndSend)
+            setPhase(.idle)
         case .limit:
-            settle(text: session.committedText(includeVolatile: true))
-            Haptics.warning()
-            showNotice("已录满 5 分钟，识别到的内容已填入输入框")
+            // 到限与「停」同路（有字落稿＋提示、空
+            // 稿静默——提示文案说「已填入」，空稿时
+            // 不许撒谎），判定走同一张政策表
+            if DictationSettlePolicy.route(
+                intent: .commitToComposer,
+                hasRecognizedText: session.hasRecognizedText
+            ) == .fillComposer {
+                settle(text: session.committedText(includeVolatile: true))
+                Haptics.warning()
+                showNotice("已录满 5 分钟，识别到的内容已填入输入框")
+            } else {
+                settle(text: session.baseDraft)
+            }
+            settleLatency.complete(
+                atUptime: ProcessInfo.processInfo.systemUptime)
+            markStage("settleApplied")
+            markDiag()
             setPhase(.idle)
         case .cancel:
             settle(text: session.baseDraft)
@@ -1079,6 +1160,31 @@ final class DictationController {
         waveformBars = waveform.bars
         level = 0
         showSilenceHint = false
+    }
+
+    /// 停/发送的落稿执行（0.36.17）：路径由 Core 的
+    /// DictationSettlePolicy 判定（有字落稿／落稿并
+    /// 发／空稿静默回待机），本类只执行——落稿先
+    /// 行、落字钟随即停、最终计数与落字段一并落盘
+    /// （诊断面读到的才是完整账），发送触发垫在最
+    /// 后：ChatView 的 send() 读输入框时稿已落定
+    private func applyStopSettle(intent: DictationStopIntent) {
+        let route = DictationSettlePolicy.route(
+            intent: intent,
+            hasRecognizedText: session.hasRecognizedText)
+        switch route {
+        case .fillComposer, .fillAndSend:
+            settle(text: session.committedText(includeVolatile: true))
+        case .silentIdle:
+            settle(text: session.baseDraft)
+        }
+        settleLatency.complete(
+            atUptime: ProcessInfo.processInfo.systemUptime)
+        markStage("settleApplied")
+        markDiag()
+        if route == .fillAndSend {
+            onSendRequest?()
+        }
     }
 
     /// finalize 带 2 秒超时：超时走 cancelAndFinishNow，
