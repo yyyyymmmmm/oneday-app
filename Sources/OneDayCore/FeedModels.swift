@@ -3,11 +3,14 @@ import Foundation
 // MARK: - 动态帖（P3，oneday-bridge /feed 契约）
 
 /// 帖子类别：digest＝段一确定性汇编（当日真实事件），
-/// morning＝段二晨报（模型写稿＋联网调研）。未知值按
-/// unknown 收，呈现走通用形态、不猜。
+/// morning＝段二旧晨报（0.38.0 前，只读呈现），
+/// research＝段二调研帖（0.38.0 起，简报驱动的外网
+/// 调研五步链产出）。未知值按 unknown 收，呈现走
+/// 通用形态、不猜。
 public enum FeedPostKind: String, Sendable {
     case digest
     case morning
+    case research
     case unknown
 
     public static func from(_ raw: String?) -> FeedPostKind {
@@ -15,10 +18,12 @@ public enum FeedPostKind: String, Sendable {
     }
 
     /// kind 瓷砖符号（SF Symbol outline 原名，设计档
-    /// §3.4 落点：晨报＝日出；汇编帖取报纸形态）
+    /// §3.4 落点：晨报＝日出；汇编帖取报纸形态；
+    /// 调研帖取放大镜）
     public var symbolName: String {
         switch self {
         case .morning: return "sunrise"
+        case .research: return "magnifyingglass"
         case .digest: return "doc.text"
         case .unknown: return "doc.text"
         }
@@ -27,6 +32,7 @@ public enum FeedPostKind: String, Sendable {
     public var label: String {
         switch self {
         case .morning: return "晨报"
+        case .research: return "调研"
         case .digest: return "今日动态"
         case .unknown: return "动态"
         }
@@ -125,6 +131,108 @@ public struct BridgeFeedLink: Decodable, Equatable, Sendable {
     }
 }
 
+/// 调研帖配图：只来自来源页真图（桥侧深读抽取＋可达
+/// 性校验后才落库）；sourceUrl＝这张图出自哪篇来源
+public struct BridgeFeedImage: Decodable, Equatable, Sendable {
+    public let url: String
+    public let sourceUrl: String
+
+    public init(url: String, sourceUrl: String) {
+        self.url = url
+        self.sourceUrl = sourceUrl
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case url, sourceUrl
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        url = try container.decodeIfPresent(
+            String.self, forKey: .url
+        ) ?? ""
+        sourceUrl = try container.decodeIfPresent(
+            String.self, forKey: .sourceUrl
+        ) ?? ""
+    }
+}
+
+/// 来源嵌入卡的一条事实（如仓库卡的星标数）
+public struct BridgeFeedCardFact: Decodable, Equatable, Sendable {
+    public let label: String
+    public let value: String
+
+    public init(label: String, value: String) {
+        self.label = label
+        self.value = value
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case label, value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        label = try container.decodeIfPresent(
+            String.self, forKey: .label
+        ) ?? ""
+        value = try container.decodeIfPresent(
+            String.self, forKey: .value
+        ) ?? ""
+    }
+}
+
+/// 来源嵌入卡（0.38.0）：数据与图均自来源真抓（如
+/// GitHub 仓库卡＝仓库接口原样字段）；桥抓不到就不
+/// 带卡，App 不自拼、不假造
+public struct BridgeFeedSourceCard: Decodable, Equatable, Sendable {
+    public let kind: String
+    public let name: String
+    public let description: String
+    public let url: String
+    public let imageUrl: String?
+    public let facts: [BridgeFeedCardFact]
+
+    public init(
+        kind: String, name: String, description: String,
+        url: String, imageUrl: String? = nil,
+        facts: [BridgeFeedCardFact] = []
+    ) {
+        self.kind = kind
+        self.name = name
+        self.description = description
+        self.url = url
+        self.imageUrl = imageUrl
+        self.facts = facts
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, name, description, url, imageUrl, facts
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decodeIfPresent(
+            String.self, forKey: .kind
+        ) ?? ""
+        name = try container.decodeIfPresent(
+            String.self, forKey: .name
+        ) ?? ""
+        description = try container.decodeIfPresent(
+            String.self, forKey: .description
+        ) ?? ""
+        url = try container.decodeIfPresent(
+            String.self, forKey: .url
+        ) ?? ""
+        imageUrl = try container.decodeIfPresent(
+            String.self, forKey: .imageUrl
+        )
+        facts = try container.decodeIfPresent(
+            [BridgeFeedCardFact].self, forKey: .facts
+        ) ?? []
+    }
+}
+
 /// 一篇动态帖（桥 feedPosts 的读视图）：已读以服务
 /// 端 readAt 为真源；expiresAt 过期帖桥端列表不回。
 public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
@@ -135,8 +243,14 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
     public let body: String
     public let refs: [BridgeFeedRef]
     public let links: [BridgeFeedLink]
-    /// 「为什么选这篇」（晨报帖才有）
+    /// 「为什么选这篇」（晨报/调研帖才有）
     public let why: String?
+    /// 配图（调研帖才有；只含来源页真图）
+    public let images: [BridgeFeedImage]
+    /// 来源嵌入卡（调研帖可选）
+    public let sourceCard: BridgeFeedSourceCard?
+    /// 所属简报方向名（调研帖才有）
+    public let direction: String?
     /// epoch 秒（float）
     public let createdAt: Double
     public let expiresAt: Double?
@@ -149,6 +263,9 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         id: String, kind: FeedPostKind, title: String,
         body: String, refs: [BridgeFeedRef] = [],
         links: [BridgeFeedLink] = [], why: String? = nil,
+        images: [BridgeFeedImage] = [],
+        sourceCard: BridgeFeedSourceCard? = nil,
+        direction: String? = nil,
         createdAt: Double, expiresAt: Double? = nil,
         readAt: Double? = nil
     ) {
@@ -159,6 +276,9 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         self.refs = refs
         self.links = links
         self.why = why
+        self.images = images
+        self.sourceCard = sourceCard
+        self.direction = direction
         self.createdAt = createdAt
         self.expiresAt = expiresAt
         self.readAt = readAt
@@ -170,6 +290,8 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         BridgeFeedPost(
             id: id, kind: kind, title: title, body: body,
             refs: refs, links: links, why: why,
+            images: images, sourceCard: sourceCard,
+            direction: direction,
             createdAt: createdAt, expiresAt: expiresAt,
             readAt: ts
         )
@@ -177,6 +299,7 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, title, body, refs, links, why
+        case images, sourceCard, direction
         case createdAt, expiresAt, readAt
     }
 
@@ -199,6 +322,15 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
             [BridgeFeedLink].self, forKey: .links
         ) ?? []
         why = try container.decodeIfPresent(String.self, forKey: .why)
+        images = try container.decodeIfPresent(
+            [BridgeFeedImage].self, forKey: .images
+        ) ?? []
+        sourceCard = try container.decodeIfPresent(
+            BridgeFeedSourceCard.self, forKey: .sourceCard
+        )
+        direction = try container.decodeIfPresent(
+            String.self, forKey: .direction
+        )
         createdAt = try container.decodeIfPresent(
             Double.self, forKey: .createdAt
         ) ?? 0
@@ -273,15 +405,24 @@ public struct BridgeFeedAssembly: Decodable, Equatable, Sendable {
     }
 }
 
-/// 动态账面全形：段一汇编＋段二晨报（与点子生成账
-/// 面同形 BridgeGenerationInfo）＋未读数
+/// 动态账面全形：段一汇编＋段二账面（与点子生成账
+/// 面同形 BridgeGenerationInfo）＋未读数。段二账面
+/// 桥侧双键同指一份：morning＝0.38.0 前的键名（兼容
+/// 旧读法），research＝0.38.0 起的正名；解码两键都
+/// 收，新代码读 research，缺 research 时回落 morning
 public struct BridgeFeedGeneration: Decodable, Equatable, Sendable {
     public let assembly: BridgeFeedAssembly?
     public let morning: BridgeGenerationInfo?
+    public let research: BridgeGenerationInfo?
     public let unread: Int
 
+    /// 段二账面正读口径：research 优先、morning 兜底
+    public var segmentTwo: BridgeGenerationInfo? {
+        research ?? morning
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case assembly, morning, unread
+        case assembly, morning, research, unread
     }
 
     public init(from decoder: Decoder) throws {
@@ -292,6 +433,9 @@ public struct BridgeFeedGeneration: Decodable, Equatable, Sendable {
         morning = try container.decodeIfPresent(
             BridgeGenerationInfo.self, forKey: .morning
         )
+        research = try container.decodeIfPresent(
+            BridgeGenerationInfo.self, forKey: .research
+        )
         unread = try container.decodeIfPresent(
             Int.self, forKey: .unread
         ) ?? 0
@@ -299,10 +443,12 @@ public struct BridgeFeedGeneration: Decodable, Equatable, Sendable {
 
     public init(
         assembly: BridgeFeedAssembly?,
-        morning: BridgeGenerationInfo?, unread: Int
+        morning: BridgeGenerationInfo?,
+        research: BridgeGenerationInfo? = nil, unread: Int
     ) {
         self.assembly = assembly
         self.morning = morning
+        self.research = research
         self.unread = unread
     }
 }

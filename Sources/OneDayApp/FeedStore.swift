@@ -15,9 +15,15 @@ final class FeedStore {
 
     private(set) var loadState: LoadState = .loading
     private(set) var posts: [BridgeFeedPost] = []
-    /// 双生产者账面（汇编状态＋晨报节奏＋未读数）；
+    /// 双生产者账面（汇编状态＋段二节奏＋未读数）；
     /// 旧桥无此端点时为 nil，对应呈现降级
     private(set) var generation: BridgeFeedGeneration?
+    /// 简报两层（0.38.0）：兴趣层＋执行层＋扩写状态；
+    /// 拉不到时为 nil，简报行与编辑器呈现降级
+    private(set) var briefDoc: BridgeBriefDoc?
+    private(set) var briefSaving = false
+    /// 简报保存的就地错误（人话，呈现于编辑器内）
+    private(set) var briefError: String?
 
     private let client = OneDayBridgeClient()
     private var loadInFlight = false
@@ -44,7 +50,7 @@ final class FeedStore {
     var emptyKind: FeedBoard.EmptyKind {
         FeedBoard.emptyKind(
             hasAnyPost: !posts.isEmpty,
-            morningLastRunAt: generation?.morning?.lastRunAt,
+            morningLastRunAt: generation?.segmentTwo?.lastRunAt,
             eventsToday: generation?.assembly?.eventsToday ?? 0
         )
     }
@@ -79,6 +85,81 @@ final class FeedStore {
         ) {
             generation = fetched
         }
+        // 简报两层同为附带面：失败只降级简报行
+        if let doc = try? await client.feedBrief(config: config) {
+            briefDoc = doc
+        }
+    }
+
+    // MARK: - 简报两层（0.38.0）
+
+    /// 保存兴趣层：回执即保存后全文；扩写在桥侧异步
+    /// 进行，回来时以 expandStarted 知会「已开始整理」，
+    /// 执行层与新帖在下次加载/回读时对账
+    @discardableResult
+    func saveInterest(appState: AppState, _ text: String) async -> Bool {
+        await saveBrief(appState: appState) {
+            try await $0.saveFeedInterest(config: $1, interest: text)
+        }
+    }
+
+    /// 保存执行层（用户在编辑器里直改正式简报）
+    @discardableResult
+    func savePrompt(appState: AppState, _ text: String) async -> Bool {
+        await saveBrief(appState: appState) {
+            try await $0.saveFeedPrompt(config: $1, brief: text)
+        }
+    }
+
+    private func saveBrief(
+        appState: AppState,
+        _ call: (OneDayBridgeClient, ServerConfig) async throws
+            -> BridgeBriefDoc
+    ) async -> Bool {
+        guard let config = appState.config, !briefSaving else {
+            return false
+        }
+        briefSaving = true
+        defer { briefSaving = false }
+        do {
+            briefDoc = try await call(client, config)
+            briefError = nil
+            // 对账：扩写状态与账面一并回读，呈现不靠猜
+            if let gen = try? await client.feedGeneration(
+                config: config
+            ) {
+                generation = gen
+            }
+            return true
+        } catch let error as OneDayBridgeError {
+            briefError = GoalsStore.message(for: error)
+            return false
+        } catch {
+            briefError = "保存失败，请稍后重试。"
+            return false
+        }
+    }
+
+    /// 手动起一轮调研（编辑器/空态入口）；在跑时桥回
+    /// 409，错误原样回给呈现层
+    @discardableResult
+    func generateNow(appState: AppState) async -> Bool {
+        guard let config = appState.config else { return false }
+        do {
+            try await client.generateFeed(config: config)
+            if let gen = try? await client.feedGeneration(
+                config: config
+            ) {
+                generation = gen
+            }
+            return true
+        } catch let error as OneDayBridgeError {
+            briefError = GoalsStore.message(for: error)
+            return false
+        } catch {
+            briefError = "没能开始生成，请稍后重试。"
+            return false
+        }
     }
 
     // MARK: - 已读（服务端真源）
@@ -98,6 +179,7 @@ final class FeedStore {
                 generation = BridgeFeedGeneration(
                     assembly: gen.assembly,
                     morning: gen.morning,
+                    research: gen.research,
                     unread: FeedBoard.unreadCount(posts)
                 )
             }

@@ -309,6 +309,50 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
+    /// GET /meta/brief（0.38.0）：简报两层全文——兴趣
+    /// 层（用户原话）＋执行层（AI 扩写维护的正式简报）
+    /// ＋扩写状态；旧桥无两层字段时按宽容解码收
+    func feedBrief(config: ServerConfig) async throws -> BridgeBriefDoc {
+        try await get(
+            config: config, path: "/meta/brief",
+            endpoint: "动态简报", collection: true
+        )
+    }
+
+    /// PUT /meta/brief {interest}：存兴趣层；真变更时
+    /// 桥侧起扩写，扩写落盘且执行层变了再触发一轮
+    /// 调研；回执为保存后的全文（含 expandStarted）
+    func saveFeedInterest(
+        config: ServerConfig, interest: String
+    ) async throws -> BridgeBriefDoc {
+        try await send(
+            config: config, path: "/meta/brief", method: "PUT",
+            body: BridgeBriefSaveRequest(interest: interest),
+            endpoint: "保存简报兴趣", collection: false
+        )
+    }
+
+    /// PUT /meta/brief {brief}：直改执行层；真变更时
+    /// 桥侧直接触发一轮调研；回执同上
+    func saveFeedPrompt(
+        config: ServerConfig, brief: String
+    ) async throws -> BridgeBriefDoc {
+        try await send(
+            config: config, path: "/meta/brief", method: "PUT",
+            body: BridgeBriefSaveRequest(brief: brief),
+            endpoint: "保存执行简报", collection: false
+        )
+    }
+
+    /// POST /feed/generate：手动起一轮调研（已有轮次
+    /// 在跑时桥回 409，错误文案原样呈现）
+    func generateFeed(config: ServerConfig) async throws {
+        let _: BridgeOKResponse = try await sendEmpty(
+            config: config, path: "/feed/generate", method: "POST",
+            endpoint: "生成动态"
+        )
+    }
+
     // MARK: - 请求底座
 
     private func makeRequest(
