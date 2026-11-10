@@ -6370,6 +6370,17 @@ hermes-deploy/credentials.txt 取、未落盘未外传；测试请
 
 - 版本 0.36.20/87 五处同改（Project.swift 两处＋
   plist 两处＋SettingsView 页脚），grep 验毕。
+- 交付数字：提交 `7f2cc45`（整包）＋`9855bb7`（本
+  §85/§86 文档）＋`d3123ee`（CI 修：AppState 信号接
+  线移至 init 末尾——首轮 CI 42865024065 的 Build 步
+  报 self 未初始化先用，Tests/Package 步 skipped；
+  修后终验 CI **42866756617** 全步 success）；CI 总
+  计行 Executed **844 tests, 0 failures**（831＋手势
+  4＋连接 9，只增不减）；IPA 6,919,048 字节，md5
+  `eb8bad838ac9b78c6256a48c8912dc24`，独立解包自验
+  Info.plist＝0.36.20/87、bundle `site.didichou.
+  oneday`；落 ~/workspace/your_files/oneday-v0.36.20/
+  oneday-unsigned.ipa。
 - 连接面真机复验：①聊天页停留不动，旁路由/路由器
   制造一次数秒抖动（或短暂断开 WiFi 再恢复）：胶囊
   不许闪现「联系不上」；抖动后业务照常、状态保持
