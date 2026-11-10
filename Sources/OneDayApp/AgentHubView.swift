@@ -78,6 +78,14 @@ struct AgentHubView: View {
 
     @State private var store: AgentHubStore?
     @State private var segment: HubSegment = .activity
+    /// 枢纽栈深（0.36.26 §95 深度门控 C-1）：边缘探
+    /// 针的启用条件要读它——栈里有推入页即停用探
+    /// 针、右滑返回交还系统 pop（见 body 探针注）。
+    /// 现行全量 NavigationLink 均为目标式（无值式
+    /// 链接/无 navigationDestination），绑 Naviga-
+    /// tionPath 与之兼容：目标式推入同样追加进
+    /// path，isEmpty 即「在根页」的真值
+    @State private var hubPath = NavigationPath()
     /// 边缘右滑跟手位移（0.36.22）：只由边缘桥回调写，
     /// 松手回弹或 dismiss 后归零
     @State private var edgeOffset: CGFloat = 0
@@ -110,7 +118,7 @@ struct AgentHubView: View {
             // 整页 cover 的底色先行：边缘右滑跟手时内
             // 容横移、露出的空位是页底色而不是系统黑
             Palette.pageBG.ignoresSafeArea()
-            NavigationStack {
+            NavigationStack(path: $hubPath) {
                 Group {
                     if let store {
                         content(store)
@@ -127,8 +135,19 @@ struct AgentHubView: View {
             // 航栈 pop 手势，系统边缘识别器桥补齐（判
             // 据 Core HubEdgeSwipe 单源；浏览器段禁用，
             // 网页自有横移手势优先）
+            // 0.36.26（§95 深度门控 C-1，调研裁决
+            // production-patterns-research-20261111
+            // §3.2）：探针罩在栈的祖先层、与系统 pop
+            // 识别器默认互斥抢左缘触摸，0.36.24 前无
+            // 深度门——状态页等一切推入页的系统右滑
+            // 返回被它杀死（用户 03:34 同机对照：设
+            // 置子页可返回、枢纽状态页不能）。本轮启
+            // 用条件加栈深一维：path 非空即 isEnabled
+            // =false（桥侧同步落识别器本体、根本不追
+            // 踪），pop 在全部推入页恢复原权；根页
+            // （path 空）行为保持 0.36.24 现行口径
             HubEdgeSwipeProbe(
-                isEnabled: segment != .browser,
+                isEnabled: hubPath.isEmpty && segment != .browser,
                 onProgress: { edgeOffset = $0 },
                 onRelease: { shouldDismiss in
                     if shouldDismiss {

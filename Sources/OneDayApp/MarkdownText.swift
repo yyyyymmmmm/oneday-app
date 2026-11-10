@@ -111,6 +111,10 @@ struct MarkdownText: View {
                 Text(highlighted(code, language: language))
                     .textSelection(.enabled)
             }
+            // 右滑引用排除区（0.36.26 §95）：本区横
+            // 滑归代码横滚，起始点落在此不触发本行
+            // 右滑引用（SwipeReplyModifier 同款）
+            .swipeReplyExcluded()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(OneDayMetrics.spacingSM)
@@ -309,6 +313,9 @@ struct MarkdownText: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // 右滑引用排除区（0.36.26 §95）：本区横滑归
+        // 表格横滚，起始点落在此不触发本行右滑引用
+        .swipeReplyExcluded()
     }
 
     private static func frameAlignment(

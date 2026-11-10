@@ -2515,26 +2515,27 @@ struct ChatView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            // 待发附件条（0.36.19 入舱，§84.4）：0.2.1 起
-            // 它挂在输入舱外（inputBar 的 VStack 里）——
-            // VStack 默认居中对齐＋strip 无满宽左锚，
-            // 单张图时整条按内容宽被居中，缩略图飘到屏
-            // 幕中间（用户 00:41 真机点题）。并入卡内
-            // （引用块之下、输入行之上），与引用块同款
-            // SmoothExpand＋分隔线随进随出；条高计入整
-            // 卡实测（卡层 onGeometryChange 同路），圆
-            // 角连续函数随高自适应
-            // 0.36.23 续修（P-13 续案，用户 02:59 真机再
-            // 报「添加的图片怎么还是居中」）：0.36.19 把
-            // 满宽锚加在 strip 内部两层，没生效——本卡
-            // VStack 默认居中对齐，SmoothExpand 只锁高
-            // 不锁宽、按内容理想宽收缩，卡按收缩宽把整
-            // 条居中定位；里层 flexible frame 只能用被
-            // 提议到的宽度，撑不开外层收缩。修法＝在卡
-            // 的直接子层 claim 满宽（本行 frame），块本
-            // 身满宽、内容靠左；strip 内部原有 frame 保
-            // 留。引用块同层同病同修（见上）
-            SmoothExpand(isExpanded: !attachments.isEmpty) {
+            // 待发附件条（0.36.19 入舱 §84.4；0.36.26
+            // §95 移出量测层）：0.36.19 把满宽锚加在条
+            // 内部两层、0.36.23 上移到卡直接子层，两
+            // 轮真机居中分毫未动。调研裁决（produc-
+            // tion-patterns-research-20261111 §2.3）：
+            // 元凶是包着条的 SmoothExpand 量测层——
+            // 它以实测内容理想尺寸为准定尺寸，条收到
+            // 的宽度提议在到达条之前已被换成内容宽，
+            // .frame(maxWidth:) 只能花提议到的宽
+            // 度，两轮挪落点自然全数落空（同在该层下
+            // 的引用块因自身近满宽把缺陷掩盖至今）。
+            // 本轮按两家生产构造同构改（Stream
+            // attachmentsTray／Exyte viewOnTop 同
+            // 位）：条作卡根 VStack 的直接子级、条件
+            // 包含显隐、链上三处 frame 补丁删尽；满
+            // 宽由 ScrollView 对根栈提议的默认贪婪获
+            // 得，左起由滚动内容自带横向 padding 获
+            // 得。分隔线随条同进同出（挂同一直接子
+            // 级的小 VStack 内）。引用块本轮不动
+            // （仍在 SmoothExpand，最小范围）
+            if !attachments.isEmpty {
                 VStack(spacing: 0) {
                     attachmentsStrip
                     Rectangle()
@@ -2544,10 +2545,27 @@ struct ChatView: View {
                             .horizontal, OneDayMetrics.spacingSM
                         )
                 }
+                // 条内容只淡入淡出防闪现；高度变化由
+                // 卡根 .animation(attachments.isEmpty)
+                // 的事务插值承接（见 composerCard 尾注）
+                .transition(.opacity)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             composerRow
         }
+        // 条显隐的高度动画（0.36.26 §95）：条高只在
+        // 空↔非空之间变，键在 attachments.isEmpty
+        // 上——变化进动画事务后卡高（及安全区留白）
+        // 同帧插值，不再靠 SmoothExpand 的实测回
+        // 写；玻璃半径由卡层 onGeometryChange 的实
+        // 测高连续函数逐帧跟随，无跳变源。动画令牌
+        // 与 SmoothExpand 同源（MotionTokens.
+        // swap、Reduce Motion 经 resolved 收口）
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: attachments.isEmpty
+        )
         // 第 1 修（P0 键盘不弹）的聚焦保底层：整卡背景
         // 命中域内点按（文本区外的卡面空隙，含引用块
         // 段的空隙）经焦点句柄聚焦文本视图。根因与定
@@ -2907,11 +2925,15 @@ private struct ComposerBarLayout: Layout {
     }
 
     /// 待发附件条：图片出缩略图、文件出名牌，都可单独
-    /// 移除。0.36.19 起满宽左对齐锚钉死左起（§84.4）：
-    /// 本体与内容各挂一层 maxWidth .infinity＋leading
-    /// ——入舱前它在居中对齐的 VStack 里按内容宽被居
-    /// 中，单张图飘到屏幕中间；横向内边距改 spacingSM
-    /// 与卡内引用块/分隔线同一起点
+    /// 移除。0.36.26（§95）起链上零 frame：条已移出
+    /// SmoothExpand 直挂卡根 VStack（见 composer-
+    /// Card 注），满宽由 ScrollView 对根栈提议的默认
+    /// 贪婪获得、左起由内容横向 padding（spacingSM，
+    /// 与卡内引用块/分隔线同一起点）获得——0.36.19/
+    /// 0.36.23 两轮在此处与调用点叠的 .frame(max-
+    /// Width: .infinity, alignment: .leading) 补丁经
+    /// 调研裁决无效（提议在到达条之前已被量测层换
+    /// 成内容宽），本轮删尽，与两家生产构造同构
     private var attachmentsStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -2921,9 +2943,7 @@ private struct ComposerBarLayout: Layout {
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .padding(.vertical, OneDayMetrics.spacingXS)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -4567,35 +4587,45 @@ private struct MessageMenuModifier: ViewModifier {
     }
 }
 
-/// 右滑引用（0.36.19，§84.3；0.36.20 §85 换桥）：
-/// 气泡向右滑，横向拖动显出回复箭头，过阈松手触发
-/// 引用——与长按菜单「回复」同一动作（beginReply），
-/// 两路并存不互斥（长按是静止按压、右滑是横向拖动，
-/// 形态不重叠）。判定全走 Core SwipeReplyMotion（方
-/// 向生死/跟手位移/阈值/显形进度，单测把守），本层
-/// 只持拖动状态与呈现：
-/// - 接管层是 UIKit 平移识别器桥（SwipeReplyPan-
-///   Probe）：方向生死在识别器 shouldBegin 阶段就定
-///   ——纵向主导不 begin、纵滚完整归 ScrollView；横
-///   向 begin 后位移才横向写入 content 的 offset
-///   （只在 begin 后写，滚动与贴底判定一概不碰）
-///   0.36.21（§88）：生死判据在 shouldBegin 读**速
-///   度**定方向——0.36.20 首版读位移、咨询时位移未
-///   达锁定距离恒被拒，右滑全灭，已改判速度域
-/// - 0.36.19 首版用 DragGesture＋onChanged 方向门，
-///   真机证明识别层抢占挡不住、气泡区纵滚被压死，
-///   已退役（P-15）；旧注释「纵向永远锁不上」是没
-///   在识别层验过的空话，一并作废
-/// - 箭头在内容左缘下层：随显形进度淡入/缩放，过
-///   阈转武装态（主色盘＋白箭头）预告松手即触发
-/// - 松手：过阈 → 轻触觉＋onReply；未过阈/被系统
-///   夺走 → 位移回弹归零、不触发
+/// 右滑引用（0.36.19 立；0.36.26 §95 按生产同
+/// 构整件重做）：气泡向右滑，横向拖动显出回复箭
+/// 头，拖动途中过线即触发引用——与长按菜单「回
+/// 复」同一动作（beginReply），两路并存不互斥
+/// （长按是静止按压、右滑是横向拖动，形态不重
+/// 叠）。
+///
+/// 构造（Stream Chat SwiftUI 现行生产代码逐行
+/// 同构，调研报告 production-patterns-research-
+/// 20261111 §1.2/§1.5）：行内容挂 `.simultane-
+/// ousGesture(DragGesture(minimumDistance:
+/// 30))`，onChanged 只消费横向分量写 offset
+/// （判定全走 Core SwipeReplyMotion，阈值以
+/// Stream 参数为单源：起滑 30/途中触发 60/显
+/// 示封顶 90）；不设方向比值门、不做任何识别
+/// 器编排——纵滑时横向分量≈0、offset 恒 0、气
+/// 泡不动，纵滚完整归列表。0.36.20–0.36.23 的
+/// UIKit 探针桥四轮真机全灭（P-15），整桥与诊
+/// 断件本轮退役；第 1 轮同族构造的失败差异
+/// （起滑 6/方向门/松手触发/封顶 76/无坐标空
+/// 间与排除区）逐项按 Stream 销账，见 DESIGN
+/// §95。
+/// 起始点排除区（Stream 同款）：行内自有横向
+/// 交互的子区（代码块/表格的横向滚动区）经
+/// PreferenceKey 发布其在命名坐标空间内的
+/// 帧，拖动起始点落在其中则整段忽略——那片
+/// 区域的横滑归它自己。
+/// 箭头在内容左缘下层：随显形进度淡入/缩放，
+/// 越线转武装态，且触发与触觉在越线同一刻发
+/// 生（途中触发，不等松手）；松手只做回位
 private struct SwipeReplyModifier: ViewModifier {
     let isEnabled: Bool
     let onReply: () -> Void
 
     @State private var dragOffset: CGFloat = 0
-    @State private var lockTranslation: CGFloat?
+    /// 整段拖动只触发一次（越线当场置位、松手复位）
+    @State private var hasTriggered = false
+    /// 起始点排除帧（行内横向滚动子区发布，本层收集）
+    @State private var excludedFrames: [CGRect] = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @ViewBuilder
@@ -4604,71 +4634,84 @@ private struct SwipeReplyModifier: ViewModifier {
             ZStack(alignment: .leading) {
                 replyArrow
                 content
-                    .offset(x: dragOffset)
-            }
-            .background {
-                // 桥探针：零尺寸、不命中，只负责把
-                // UIKit 平移识别器装到本容器上（§85）
-                SwipeReplyPanProbe(
-                    onBegan: { dx in
-                        lockTranslation = dx
-                        applyOffset(dx: dx)
-                    },
-                    onChanged: { dx in
-                        applyOffset(dx: dx)
-                    },
-                    onEnded: {
-                        finishGesture(triggerAllowed: true)
-                    },
-                    onCancelled: {
-                        finishGesture(triggerAllowed: false)
+                    // 命中域＝整条消息容器（Stream
+                    // 行同款 contentShape）：行内空
+                    // 区起手也能拖
+                    .contentShape(Rectangle())
+                    .coordinateSpace(name: "swipeToReply")
+                    .offset(
+                        x: SwipeReplyMotion.displayOffset(
+                            for: dragOffset
+                        )
+                    )
+                    .simultaneousGesture(swipeGesture)
+                    .onPreferenceChange(
+                        SwipeReplyExcludedFrameKey.self
+                    ) { frames in
+                        excludedFrames = frames
                     }
-                )
-                .allowsHitTesting(false)
             }
         } else {
             content
         }
     }
 
-    /// 跟手位移：只在识别器 begin 后由桥回调驱动——
-    /// 判定（扣锁定段/钳制）走 Core 单源，本处只写状态
-    private func applyOffset(dx: CGFloat) {
-        guard let lockTranslation else { return }
-        dragOffset = SwipeReplyMotion.followedOffset(
-            dx: dx, lockTranslation: lockTranslation
+    /// 右滑手势本体：只消费横向分量写 offset（判
+    /// 定走 Core 单源）；起始点落在排除区整段忽
+    /// 略；越线当场触发＋触觉（整段只一次）；松
+    /// 手动画回位、不再判触发
+    private var swipeGesture: some Gesture {
+        DragGesture(
+            minimumDistance: SwipeReplyMotion.minimumDistance,
+            coordinateSpace: .named("swipeToReply")
         )
-    }
-
-    /// 收尾：过阈且未被系统夺走才触发引用；位移一律
-    /// 动画归零（短滑回弹与触发后复位同路）
-    private func finishGesture(triggerAllowed: Bool) {
-        let triggered = triggerAllowed
-            && lockTranslation != nil
-            && SwipeReplyMotion.shouldTrigger(offset: dragOffset)
-        lockTranslation = nil
-        withAnimation(
-            MotionTokens.resolved(
-                MotionTokens.swap, reduceMotion: reduceMotion
+        .onChanged { value in
+            if SwipeReplyMotion.isExcluded(
+                startLocation: value.startLocation,
+                frames: excludedFrames
+            ) {
+                return
+            }
+            let newOffset = SwipeReplyMotion.dragOffset(
+                translationWidth: value.translation.width,
+                currentOffset: dragOffset
             )
-        ) {
-            dragOffset = 0
+            dragOffset = newOffset
+            if !hasTriggered,
+               SwipeReplyMotion.shouldTrigger(
+                   offset: newOffset
+               ) {
+                hasTriggered = true
+                // 轻触觉（动效宪法表 D，impact
+                // .light 落点不变）：与引用落定同
+                // 一因果链，只震这一次
+                Haptics.impact(.light)
+                onReply()
+            }
         }
-        if triggered {
-            // 轻触觉（动效宪法表 D，impact .light
-            // 落点不变）：与引用落定同一因果链，只震这一次
-            Haptics.impact(.light)
-            onReply()
+        .onEnded { _ in
+            hasTriggered = false
+            withAnimation(
+                MotionTokens.resolved(
+                    MotionTokens.swap,
+                    reduceMotion: reduceMotion
+                )
+            ) {
+                dragOffset = 0
+            }
         }
     }
 
-    /// 左缘回复箭头：显形进度驱动透明度与缩放，过阈
-    /// 武装态换主色盘（Palette.primary＋onPrimary 箭头）
+    /// 左缘回复箭头：显形进度驱动透明度与缩放，过
+    /// 线武装态换主色盘（Palette.primary＋onPri-
+    /// mary 箭头）——武装与触发同刻（途中触发口径）
     private var replyArrow: some View {
         let progress = SwipeReplyMotion.revealProgress(
             offset: dragOffset
         )
-        let armed = SwipeReplyMotion.shouldTrigger(offset: dragOffset)
+        let armed = SwipeReplyMotion.shouldTrigger(
+            offset: dragOffset
+        )
         return Image(systemName: MessageActionSymbols.reply)
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(
@@ -4684,7 +4727,42 @@ private struct SwipeReplyModifier: ViewModifier {
             .padding(.leading, 4)
             .accessibilityHidden(true)
     }
+}
 
+/// 右滑引用排除帧（Stream SwipeToReplyExcluded-
+/// FrameKey 同款）：行内子视图把自己在「swipeTo-
+/// Reply」命名坐标空间里的帧发布上来，行修饰符
+/// 收集后按拖动起始点判定整段忽略
+struct SwipeReplyExcludedFrameKey: PreferenceKey {
+    nonisolated static let defaultValue: [CGRect] = []
+
+    static func reduce(
+        value: inout [CGRect], nextValue: () -> [CGRect]
+    ) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+extension View {
+    /// 标记右滑引用排除区：本视图区域内的横滑归
+    /// 它自己的横向交互（代码块/表格横滚），不触
+    /// 发本行右滑引用（Stream 音频进度条同款落法：
+    /// 背景 GeometryReader 在命名坐标空间发布帧）
+    func swipeReplyExcluded() -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear
+                    .preference(
+                        key: SwipeReplyExcludedFrameKey.self,
+                        value: [
+                            proxy.frame(
+                                in: .named("swipeToReply")
+                            )
+                        ]
+                    )
+            }
+        }
+    }
 }
 
 /// 「选择」sheet 载荷（0.4.1）
