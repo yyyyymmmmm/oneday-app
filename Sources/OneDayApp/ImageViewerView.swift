@@ -436,7 +436,7 @@ private final class ZoomHostingController<Content: View>:
         super.viewDidLoad()
         preferredTransition = .zoom(
             options: UIViewController.Transition.ZoomOptions(),
-            sourceViewProvider: nil
+            sourceViewProvider: { _ in nil }
         )
     }
 }
