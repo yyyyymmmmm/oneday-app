@@ -326,12 +326,9 @@ struct SettingsView: View {
         case .serverFiles:
             NavigationStack {
                 FilesBrowserView()
-                    .navigationTitle("服务器文件")
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("关闭") { manageSheet = nil }
-                        }
-                    }
+                // 0.36.0（宪法 §5／审计 C9 同族）：撤
+                // 居中标题与手写关闭——文件列表内容领
+                // 头、关闭走系统下拉手势
             }
         }
     }
@@ -342,7 +339,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.35.0")
+            Text("OneDay v0.36.0")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）

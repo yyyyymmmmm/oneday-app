@@ -36,7 +36,7 @@ struct MonitorCreateView: View {
                             FieldRow(label: "名称") {
                                 TextField("如：PokePay 价格页", text: $name)
                             }
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                             FieldRow(label: "链接") {
                                 TextField(
                                     "https://…", text: $target

@@ -92,11 +92,11 @@ final class MonitorsStore {
         switch error {
         case .noKey:
             return .notConnected(
-                "还没有粘贴数据桥钥匙。在设置里粘贴桥钥匙后，监测就能用了。"
+                "还没有可用的登录信息：监测用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
             )
         case .unauthorized:
             return .notConnected(
-                "数据桥钥匙被拒绝了。请到设置里检查桥钥匙是否粘对。"
+                "服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。"
             )
         case .bridgeMissing:
             return .sourceNotOpened(
@@ -112,9 +112,9 @@ final class MonitorsStore {
     static func message(for error: OneDayBridgeError) -> String {
         switch error {
         case .noKey:
-            return "数据桥未连接：还没有粘贴桥钥匙。"
+            return "数据桥未连接：还没有可用的登录信息。"
         case .unauthorized:
-            return "数据桥未连接：桥钥匙被拒绝。"
+            return "数据桥未连接：服务器拒绝了这次登录。"
         case .bridgeMissing:
             return "监测数据源还没有开通。"
         case .recordGone:
@@ -252,13 +252,13 @@ final class MonitorsStore {
             )
             await refetch(appState: appState)
             guard let current = monitor(id: monitorID) else {
-                notes[monitorID] = "检查已发出，但回读时监测不见了，请刷新核对。"
+                notes[monitorID] = "检查已发出，但再确认时监测不见了，请刷新核对。"
                 return
             }
             let advanced = (current.lastCheckedAt ?? -.infinity)
                 > (previousCheckedAt ?? -.infinity)
             if !advanced {
-                notes[monitorID] = "检查已发出，但回读状态还没更新，请刷新核对。"
+                notes[monitorID] = "检查已发出，但再确认时状态还没更新，请刷新核对。"
             }
         } catch let error as OneDayBridgeError {
             notes[monitorID] = Self.message(for: error)
@@ -292,13 +292,13 @@ final class MonitorsStore {
             }
             await refetch(appState: appState)
             guard let current = monitor(id: monitorID) else {
-                notes[monitorID] = "操作已发出，但回读时监测不见了，请刷新核对。"
+                notes[monitorID] = "操作已发出，但再确认时监测不见了，请刷新核对。"
                 return
             }
             if current.enabled != enabled {
                 notes[monitorID] = enabled
-                    ? "恢复已发出，但回读仍是暂停状态，请刷新核对。"
-                    : "暂停已发出，但回读仍是启用状态，请刷新核对。"
+                    ? "恢复已发出，但再确认时仍是暂停状态，请刷新核对。"
+                    : "暂停已发出，但再确认时仍是启用状态，请刷新核对。"
             }
         } catch let error as OneDayBridgeError {
             notes[monitorID] = Self.message(for: error)

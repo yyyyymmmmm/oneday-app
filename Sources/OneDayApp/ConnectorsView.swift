@@ -191,7 +191,7 @@ struct ConnectorsView: View {
         } header: {
             headerText("本机服务")
         } footer: {
-            Text("这台服务器自家的线，进页当场探活；电脑（Simular Box）是 MCP 连接、在下方「已连接」里，本组不重复列。")
+            Text("这台服务器自家的线，状态是打开页面时当场检查的；电脑（Simular Box）是 MCP 连接、在下方「已连接」里，本组不重复列。")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)
@@ -205,9 +205,8 @@ struct ConnectorsView: View {
             detailTarget = .local(descriptor.serviceID)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                ConnectorTile(
-                    glyph: descriptor.tileGlyph,
-                    colorHex: descriptor.tileColorHex, size: 40
+                ConnectorIconView(
+                    spec: .symbol(descriptor.symbolName), size: 40
                 )
                 VStack(alignment: .leading, spacing: 2) {
                     Text(descriptor.name)
@@ -422,10 +421,7 @@ struct ConnectorsView: View {
             detailTarget = .connected(entry.id)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                ConnectorTile(
-                    glyph: entry.tileGlyph,
-                    colorHex: entry.tileColorHex, size: 40
-                )
+                ConnectorIconView(spec: entry.iconSpec, size: 40)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.displayName)
                         .font(.rowTitleL)
@@ -484,10 +480,7 @@ struct ConnectorsView: View {
             detailTarget = .catalog(entry.id)
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                ConnectorTile(
-                    glyph: entry.tileGlyph,
-                    colorHex: entry.tileColorHex, size: 40
-                )
+                ConnectorIconView(spec: entry.iconSpec, size: 40)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.name)
                         .font(.rowTitleL)
@@ -611,11 +604,6 @@ struct ConnectorsView: View {
         case .device(let source):
             NavigationStack {
                 deviceDetail(source)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("关闭") { detailTarget = nil }
-                        }
-                    }
             }
         }
     }
@@ -632,10 +620,10 @@ struct ConnectorsView: View {
     }
 
     private func sheetHeader(
-        glyph: String, colorHex: UInt32, name: String, subline: String
+        spec: ConnectorIconSpec, name: String, subline: String
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            ConnectorTile(glyph: glyph, colorHex: colorHex, size: 48)
+            ConnectorIconView(spec: spec, size: 48)
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                     .font(.rowTitleL)
@@ -670,8 +658,7 @@ struct ConnectorsView: View {
         return List {
             Section {
                 sheetHeader(
-                    glyph: entry.tileGlyph,
-                    colorHex: entry.tileColorHex,
+                    spec: entry.iconSpec,
                     name: entry.displayName, subline: entry.blurb
                 )
             }
@@ -744,13 +731,9 @@ struct ConnectorsView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
-        .navigationTitle("连接详情")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("关闭") { detailTarget = nil }
-            }
-        }
+        // 0.36.0（宪法 §5／审计 C9）：撤居中标题栏与
+        // 手写关闭——sheetHeader 内容领头、关闭走系
+        // 统下拉手势，不再双份呈现
     }
 
     /// 可连接详情：只有状态与接入说明，没有任何
@@ -759,20 +742,20 @@ struct ConnectorsView: View {
         List {
             Section {
                 sheetHeader(
-                    glyph: entry.tileGlyph,
-                    colorHex: entry.tileColorHex,
+                    spec: entry.iconSpec,
                     name: entry.name, subline: entry.blurb
                 )
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
 
+            // 0.36.0（§5／C9）：原分区头「状态」与首
+            // 行行题「状态」同词重复——去分区头，行
+            // 本身即状态呈现
             Section {
                 detailRow("状态", "未接入")
                 detailRow("分类", entry.category.rawValue)
                 detailRow("接入路径", entry.accessSummary)
-            } header: {
-                headerText("状态")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(rowInsets)
@@ -792,13 +775,8 @@ struct ConnectorsView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
-        .navigationTitle("连接器详情")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("关闭") { detailTarget = nil }
-            }
-        }
+        // 0.36.0（§5／C9）：同 connectedDetail，撤
+        // 标题与手写关闭、内容领头
     }
 
     /// 本机服务详情（0.29.0）：状态/证据/探活时间如
@@ -812,8 +790,7 @@ struct ConnectorsView: View {
         return List {
             Section {
                 sheetHeader(
-                    glyph: descriptor.tileGlyph,
-                    colorHex: descriptor.tileColorHex,
+                    spec: .symbol(descriptor.symbolName),
                     name: descriptor.name, subline: descriptor.blurb
                 )
             }
@@ -836,10 +813,8 @@ struct ConnectorsView: View {
                 }
                 if let lastProbeAt {
                     detailRow(
-                        "最近探活",
-                        lastProbeAt.formatted(
-                            date: .abbreviated, time: .shortened
-                        )
+                        "最近检查",
+                        DisplayDate.dateTime(lastProbeAt)
                     )
                 }
                 if descriptor.serviceID == .writeGate,
@@ -877,7 +852,7 @@ struct ConnectorsView: View {
 
             if case .notConfigured = state {
                 Section {
-                    Text("桥钥匙还没在这台手机上设置：本机服务靠桥钥匙探活，没设时不会发出任何探活请求。到「设置 · 桥钥匙」里粘贴或导入钥匙组后，回到本页下拉刷新即可。")
+                    Text("这台手机上还没有登录信息：本机服务用的就是你的 Hermes 登录，没有登录信息时不会发出任何检查请求。先到「设置」里确认已经连接并登录，再回到本页下拉刷新即可。")
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.vertical, OneDayMetrics.spacingS)
@@ -900,13 +875,8 @@ struct ConnectorsView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
-        .navigationTitle("服务详情")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("关闭") { detailTarget = nil }
-            }
-        }
+        // 0.36.0（§5／C9）：同 connectedDetail，撤
+        // 标题与手写关闭、内容领头
     }
 
     /// 功能入口（按服务分发到各自既有页，不新造页面）
@@ -1107,18 +1077,18 @@ struct ConnectorsView: View {
             case .noKey:
                 return .keyNotConfigured
             case .unauthorized:
-                return .failure("桥钥匙被拒（401）")
+                return .failure("服务器拒绝了这次登录，请到「设置」里检查登录是否还有效")
             case .bridgeMissing:
-                return .failure("审批桥端点不存在（404）")
+                return .failure("审批服务还没有在服务器上开通")
             case .recordGone:
-                return .failure("审批桥记录已不在")
+                return .failure("要看的记录已经不在了")
             case .conflict:
-                return .failure("审批桥状态冲突（409）")
+                return .failure("服务器上的状态对不上，请下拉刷新重试")
             case .failed(let message):
                 return .failure(message)
             }
         } catch {
-            return .failure("审批桥探活请求失败")
+            return .failure("没能连上审批服务")
         }
     }
 
@@ -1141,16 +1111,16 @@ struct ConnectorsView: View {
             case .noKey:
                 return .keyNotConfigured
             case .unauthorized:
-                return .failure("桥钥匙被拒（401）")
+                return .failure("服务器拒绝了这次登录，请到「设置」里检查登录是否还有效")
             case .bridgeMissing:
-                return .failure("桥未开通（目标端点 404）")
+                return .failure("这项服务还没有在服务器上开通")
             case .recordGone:
-                return .failure("记录已不在")
+                return .failure("要看的记录已经不在了")
             case .failed(let message):
                 return .failure(message)
             }
         } catch {
-            return .failure("目标桥探活请求失败")
+            return .failure("没能连上目标服务")
         }
     }
 
@@ -1174,12 +1144,12 @@ struct ConnectorsView: View {
             case .noKey:
                 return .keyNotConfigured
             case .unauthorized:
-                return .failure("桥钥匙被拒（401）")
+                return .failure("服务器拒绝了这次登录，请到「设置」里检查登录是否还有效")
             case .failed(let message):
                 return .failure(message)
             }
         } catch {
-            return .failure("总览桥探活请求失败")
+            return .failure("没能连上总览服务")
         }
     }
 
@@ -1232,37 +1202,31 @@ struct ConnectorsView: View {
     }
 }
 
-/// 近似品牌瓷砖：彩色圆角底＋白色字形（单字母/
-/// 字形，非官方品牌图标，§55 登记）
-private struct ConnectorTile: View {
-    let glyph: String
-    let colorHex: UInt32
+/// 连接器图标（0.36.0，宪法 §4／审计 C6）：口径
+/// 只两路——官方品牌原图资产（.asset，来源登记
+/// 在整改台账 D 节）或 SF Symbol 通用瓷砖
+/// （.symbol，走 Design 层 AppSymbolTile 的苹果
+/// 应用图标画法）。旧「彩色圆角底＋白色字母/汉
+/// 字」近似瓷砖（§55 登记）整类退役：既是字块、
+/// 又是仿绘品牌，双触 §4。
+private struct ConnectorIconView: View {
+    let spec: ConnectorIconSpec
     var size: CGFloat = 40
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(
-                cornerRadius: size * 0.26, style: .continuous
-            )
-            .fill(tileColor)
-            Text(glyph)
-                .font(
-                    .system(
-                        size: glyph.count > 1 ? size * 0.33 : size * 0.46,
-                        weight: .bold, design: .rounded
-                    )
+        Group {
+            switch spec {
+            case .asset(let name):
+                Image(name)
+                    .resizable()
+                    .scaledToFit()
+            case .symbol(let name):
+                AppSymbolTile(
+                    symbol: name, glyphColor: Palette.ink, size: size
                 )
-                .foregroundStyle(.white)
+            }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
-    }
-
-    private var tileColor: Color {
-        Color(
-            red: Double((colorHex >> 16) & 0xFF) / 255,
-            green: Double((colorHex >> 8) & 0xFF) / 255,
-            blue: Double(colorHex & 0xFF) / 255
-        )
     }
 }

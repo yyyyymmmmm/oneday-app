@@ -260,7 +260,7 @@ struct FileUploadControl: View {
                 onFinished("已上传「\(name)」并在服务端确认。", true)
             } else {
                 onFinished(
-                    "上传已发出，但回读没有确认「\(name)」落盘，请刷新核对。",
+                    "上传已发出，但没确认服务器上有了「\(name)」，请刷新核对。",
                     false
                 )
             }
@@ -559,7 +559,7 @@ struct FilesBrowserView: View {
                 notice = "已新建文件夹「\(name)」。"
                 Haptics.success()
             } else {
-                notice = "新建请求已发出，但回读未见「\(name)」，请刷新核对。"
+                notice = "新建请求已发出，但再确认时没见到「\(name)」，请刷新核对。"
             }
         } catch {
             notice = (error as? HermesError)?.userMessage

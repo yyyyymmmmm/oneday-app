@@ -49,13 +49,9 @@ struct NotificationsView: View {
                 }
             }
             .background(Palette.pageBG)
-            .navigationTitle("通知")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("关闭") { dismiss() }
-                }
-            }
+            // 0.36.0（宪法 §5／审计 C9 同族）：撤居中
+            // 标题与手写关闭——列表内容领头、关闭走
+            // 系统下拉手势
             .task {
                 await store.loadNotifications(appState: appState)
             }

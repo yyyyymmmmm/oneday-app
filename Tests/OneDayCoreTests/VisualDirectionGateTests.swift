@@ -109,6 +109,13 @@ final class VisualDirectionGateTests: XCTestCase {
             ratio(Palette.inkSecondary, on: Palette.pageBG, dark: false),
             4.5
         )
+        // 0.36.0（审计 C1／无障碍 A11Y-C1）：同一色
+        // 在设置底上原 4.46 压线——浅档加深一档
+        // （#646B71）后必须 ≥4.5，最吃紧的底先过闸
+        XCTAssertGreaterThanOrEqual(
+            ratio(Palette.inkSecondary, on: Palette.settingsBG, dark: false),
+            4.5
+        )
         // 浅色：填充面次级文字（C4 新角色）在助手泡上 ≥4.5
         XCTAssertGreaterThanOrEqual(
             ratio(

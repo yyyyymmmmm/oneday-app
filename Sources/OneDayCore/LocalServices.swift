@@ -11,13 +11,14 @@ import Foundation
 /// 另起第二套地址/钥匙配置。
 ///
 /// 状态真实纪律（与 ConnectorCatalog 同）：状态只
-/// 来自进页当场探活——正常＝本次探活成功；异常＝
-/// 本次探活失败（错误原文随状态带出、上详情显）；
-/// 未配置＝专指桥钥匙未设置（0.32.1 起各桥分项钥、
-/// 未配分项时回退旧共用钥；两处皆空时客户端根本不
-/// 发请求，noKey 结局映
-/// 射到此档，不许探成异常）；读取中＝首帧未回。不
-/// 设「上次结果」缓存位，视图每次进页/下拉重探。
+/// 来自进页当场检查——正常＝本次检查成功；异常＝
+/// 本次检查失败（错误原文随状态带出、上详情显）；
+/// 未配置＝登录信息不在这台手机上（0.33.1 起各桥
+/// 统一走 Hermes 登录一把钥、服务器内部分权对
+/// App 不可见；无登录信息时客户端根本不发请求，
+/// noKey 结局映射到此档，不许报成异常）；读取中
+/// ＝首帧未回。不设「上次结果」缓存位，视图每次
+/// 进页/下拉重探。
 
 /// 本机服务标识（名册序即目录呈现序）
 public enum LocalServiceID: String, CaseIterable, Identifiable, Sendable {
@@ -29,31 +30,32 @@ public enum LocalServiceID: String, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
 }
 
-/// 本机服务静态条目：名称/说明/瓷砖/探活证据全在
-/// Core 单一真源，视图只渲染（与 ConnectorCatalog
-/// Entry 同式）。evidenceLine 是探活的证据口径——
-/// 探的哪个端点、为何选它，详情页如实列给用户看。
+/// 本机服务静态条目：名称/说明/图标/检查证据全
+/// 在 Core 单一真源，视图只渲染（与
+/// ConnectorCatalog Entry 同式）。本机服务不是品
+/// 牌，图标走 SF Symbol（宪法 §4 降级口径，旧汉
+/// 字字块自 0.36.0 退役）。evidenceLine 是检查的
+/// 证据口径——检查的是什么、为何这样查，详情页
+/// 以用户语言如实列出（接口细节不进主文案，§8）。
 public struct LocalServiceDescriptor: Identifiable, Equatable, Sendable {
     public let serviceID: LocalServiceID
     public let name: String
     /// 一句说明（列表行副题与详情共用）
     public let blurb: String
-    public let tileGlyph: String
-    public let tileColorHex: UInt32
-    /// 探活证据来源（端点口径）
+    public let symbolName: String
+    /// 检查证据来源（用户语言）
     public let evidenceLine: String
 
     public var id: String { serviceID.rawValue }
 
     public init(
         serviceID: LocalServiceID, name: String, blurb: String,
-        tileGlyph: String, tileColorHex: UInt32, evidenceLine: String
+        symbolName: String, evidenceLine: String
     ) {
         self.serviceID = serviceID
         self.name = name
         self.blurb = blurb
-        self.tileGlyph = tileGlyph
-        self.tileColorHex = tileColorHex
+        self.symbolName = symbolName
         self.evidenceLine = evidenceLine
     }
 }
@@ -67,29 +69,29 @@ public enum LocalServiceDirectory {
             serviceID: .hermes,
             name: "Hermes 服务",
             blurb: "智能体本体 · 对话、工具与会话都跑在它上面",
-            tileGlyph: "H", tileColorHex: 0x4A6FA5,
-            evidenceLine: "探活：GET /health（Hermes 健康端点，免鉴权）"
+            symbolName: "server.rack",
+            evidenceLine: "检查的是 Hermes 本体回的健康状态（打开本页时当场问的，不需要登录）"
         ),
         LocalServiceDescriptor(
             serviceID: .writeGate,
             name: "记忆与技能",
             blurb: "审批桥 · 记忆和技能的写入先过这道闸门",
-            tileGlyph: "记", tileColorHex: 0x7A5C9E,
-            evidenceLine: "探活：GET /api/write-gate/status（审批桥状态端点）"
+            symbolName: "checkmark.shield",
+            evidenceLine: "检查的是审批闸门的工作状态（打开本页时当场问的）"
         ),
         LocalServiceDescriptor(
             serviceID: .oneDayBridge,
             name: "目标与点子",
             blurb: "目标与点子的云端仓 · 底栏目标/点子两格的数据源",
-            tileGlyph: "标", tileColorHex: 0x2E7D5B,
-            evidenceLine: "探活：GET /api/oneday-bridge/goals（目标列表——本桥无专用健康端点，取最轻只读端点）"
+            symbolName: "target",
+            evidenceLine: "检查的是目标列表能不能读到（这项服务没有专门的健康检查，拿最轻的一次读取代替）"
         ),
         LocalServiceDescriptor(
             serviceID: .overviewBridge,
             name: "总览数据",
             blurb: "总览桥 · 总览页与通知角标的数据来源",
-            tileGlyph: "览", tileColorHex: 0xB06A2C,
-            evidenceLine: "探活：GET /api/overview-bridge/overview（总览快照端点——本桥无专用健康端点，取最轻只读端点）"
+            symbolName: "square.grid.2x2",
+            evidenceLine: "检查的是总览数据能不能读到（这项服务没有专门的健康检查，拿最轻的一次读取代替）"
         ),
     ]
 
@@ -108,9 +110,9 @@ public enum LocalServiceDirectory {
 /// 目标数——取不到为 nil，不编造）。
 public enum LocalServiceProbeOutcome: Equatable, Sendable {
     case success(metric: String?)
-    /// 探活失败（人话错误原文，详情显）
+    /// 检查失败（人话错误原文，详情显）
     case failure(String)
-    /// 桥钥匙未设置（客户端未发请求）
+    /// 登录信息未设置（客户端未发请求）
     case keyNotConfigured
 }
 

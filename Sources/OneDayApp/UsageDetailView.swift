@@ -77,18 +77,18 @@ struct UsageDetailView: View {
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingS)
-            GroupDivider(inset: OneDayMetrics.spacingM)
+            GroupDivider()
             VStack(spacing: 0) {
                 LabeledContent("请求数") {
                     Text(AdminFormat.count(usage.totals.totalAPICalls ?? 0))
                         .font(.system(.callout, design: .monospaced))
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 LabeledContent("会话数") {
                     Text(AdminFormat.count(usage.totals.totalSessions ?? 0))
                         .font(.system(.callout, design: .monospaced))
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 LabeledContent("估算费用") {
                     Text(AdminFormat.cost(usage.totals.totalEstimatedCost ?? 0))
                         .font(.system(.callout, design: .monospaced))
@@ -108,7 +108,7 @@ struct UsageDetailView: View {
             VStack(spacing: 0) {
                 ForEach(Array(usage.daily.enumerated()), id: \.element.id) { index, day in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         Text(AdminFormat.usageDay(day.day))
@@ -157,7 +157,7 @@ struct UsageDetailView: View {
             VStack(spacing: 0) {
                 ForEach(Array(models.models.enumerated()), id: \.element.id) { index, model in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         VStack(alignment: .leading, spacing: 2) {

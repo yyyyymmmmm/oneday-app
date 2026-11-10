@@ -303,8 +303,9 @@ struct MonitorCardView: View {
         if status == .neverChecked {
             parts.append("还没检查过")
         } else if let checkedAt = monitor.lastCheckedAt {
-            let time = Date(timeIntervalSince1970: checkedAt)
-                .formatted(date: .abbreviated, time: .shortened)
+            let time = DisplayDate.dateTime(
+                Date(timeIntervalSince1970: checkedAt)
+            )
             parts.append("上次检查 \(time)·\(MonitorPresentation.statusText(of: monitor))")
         } else {
             parts.append(MonitorPresentation.statusText(of: monitor))
@@ -314,8 +315,9 @@ struct MonitorCardView: View {
 
     private func latestChangeLine(_ summary: String) -> String {
         if let changedAt = monitor.latestChangeAt {
-            let time = Date(timeIntervalSince1970: changedAt)
-                .formatted(date: .abbreviated, time: .shortened)
+            let time = DisplayDate.dateTime(
+                Date(timeIntervalSince1970: changedAt)
+            )
             return "最近变化：\(summary)（\(time)）"
         }
         return "最近变化：\(summary)"

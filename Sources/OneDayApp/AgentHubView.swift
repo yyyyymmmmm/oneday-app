@@ -258,7 +258,7 @@ struct AgentHubView: View {
                     id: \.element.id
                 ) { index, item in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     Button {
                         appState.selectChatModel(item.id)
@@ -285,7 +285,7 @@ struct AgentHubView: View {
                     }
                     .buttonStyle(.odPressable)
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 NavigationLink {
                     ModelSettingsView()
                 } label: {

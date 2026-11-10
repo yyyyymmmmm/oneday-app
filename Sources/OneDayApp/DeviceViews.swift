@@ -16,7 +16,12 @@ import SwiftUI
 /// 与总览页都明说「智能体实际调用待服务器侧开通」，
 /// 不许写成已可调用。
 
-// MARK: - 瓷砖（SF Symbol 版，与云服务字母瓷砖分开）
+// MARK: - 瓷砖（0.36.0，宪法 §4／审计 C7）
+// 苹果应用图标画法：白底 squircle＋标志元素字形
+// ——字形用各件的标志色（原色表语义由「底色」改
+// 为「字形色」），容器走 Design 层 AppSymbolTile
+// 单一实现。旧「饱和纯色块压白字形」自本版退役
+// （既非官方原图、亦非苹果画法）。
 
 struct DeviceSymbolTile: View {
     let symbol: String
@@ -24,17 +29,7 @@ struct DeviceSymbolTile: View {
     var size: CGFloat = 40
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(
-                cornerRadius: size * 0.26, style: .continuous
-            )
-            .fill(tileColor)
-            Image(systemName: symbol)
-                .font(.system(size: size * 0.46, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
+        AppSymbolTile(symbol: symbol, glyphColor: tileColor, size: size)
     }
 
     private var tileColor: Color {
@@ -99,8 +94,9 @@ struct DeviceStatusHeader: View {
                     detailRow("最近调用", entry.summaryLine)
                     detailRow(
                         "调用时刻",
-                        Date(timeIntervalSince1970: entry.at)
-                            .formatted(date: .abbreviated, time: .shortened)
+                        DisplayDate.dateTime(
+                            Date(timeIntervalSince1970: entry.at)
+                        )
                     )
                     detailRow("调用工具", entry.tool)
                 } else {
@@ -802,13 +798,11 @@ struct ContactsDetailView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
+        // 0.36.0（§5／审计 C9）：撤手写关闭（走系统
+        // 下拉手势）；标题是联系人名＝内容身份本身、
+        // 非通用栏题，保留（台账 E2 豁免候选）
         .navigationTitle(contact.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("关闭") { selected = nil }
-            }
-        }
     }
 
     private func labeledRow(_ label: String, _ value: String) -> some View {

@@ -140,6 +140,9 @@ struct ContentView: View {
         ) {
             tabView
         }
+        // 0.36.0（无障碍 A11Y-S3）：粗体文字映射全
+        // App 只挂根视图这一处
+        .boldTextMapping()
         .fullScreenCover(isPresented: $showAllConversations) {
             AllConversationsView(
                 onOpenSession: { id in

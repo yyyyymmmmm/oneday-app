@@ -70,8 +70,9 @@ struct MonitorDetailView: View {
                 if let checkedAt = monitor.lastCheckedAt {
                     infoRow(
                         "最近检查",
-                        Date(timeIntervalSince1970: checkedAt)
-                            .formatted(date: .abbreviated, time: .shortened)
+                        DisplayDate.dateTime(
+                            Date(timeIntervalSince1970: checkedAt)
+                        )
                     )
                 }
                 if MonitorPresentation.status(of: monitor) == .failed,
@@ -204,8 +205,9 @@ struct MonitorDetailView: View {
                     .foregroundStyle(Palette.bodyInk)
                     .lineLimit(2)
                 Text(
-                    Date(timeIntervalSince1970: change.detectedAt)
-                        .formatted(date: .abbreviated, time: .shortened)
+                    DisplayDate.dateTime(
+                        Date(timeIntervalSince1970: change.detectedAt)
+                    )
                 )
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)

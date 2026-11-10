@@ -964,9 +964,10 @@ public enum KanbanControlPlan {
     }
 
     /// 新建任务的固定序列：建卡（回执 id）→ 催派 →
-    /// 回板确认出现（App 层执行，此处只立语义锚）
+    /// 回板确认出现（App 层执行，此处只立语义锚；
+    /// 文案走用户语言，接口细节不进呈现文案，§8）
     public static let createFlowDescription =
-        "POST /tasks 建卡 → POST /dispatch 催派 → GET /board 回读确认"
+        "建卡 → 催派 → 回到看板确认出现"
 }
 
 /// 动作可用性策略：按呈现态给动作集；闸门两条——

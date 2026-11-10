@@ -58,7 +58,7 @@ struct ServerSessionsView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
                             if index > 0 {
-                                GroupDivider(inset: OneDayMetrics.spacingM)
+                                GroupDivider()
                             }
                             sessionRow(session)
                         }
@@ -285,7 +285,7 @@ struct ServerSessionsView: View {
                     Array(searchHits.enumerated()), id: \.element.id
                 ) { index, hit in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     searchHitRow(hit)
                 }
@@ -346,7 +346,7 @@ struct ServerSessionsView: View {
             parts.append(model)
         }
         if let date = hit.startedDate {
-            parts.append(date.formatted(date: .abbreviated, time: .shortened))
+            parts.append(DisplayDate.dateTime(date))
         }
         if let count = hit.messageCount {
             parts.append("\(count) 条消息")

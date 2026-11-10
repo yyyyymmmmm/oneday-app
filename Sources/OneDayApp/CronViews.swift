@@ -118,7 +118,7 @@ struct CronJobsView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(groupJobs.enumerated()), id: \.element.id) { index, job in
                         if index > 0 {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         jobRow(job)
                     }
@@ -262,13 +262,13 @@ struct CronJobDetailView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 LabeledContent("状态", value: current.enabled ? "启用" : "已暂停")
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 LabeledContent("计划") {
                     Text(current.scheduleText)
                         .font(.system(.callout, design: .monospaced))
                 }
                 if let next = AdminFormat.iso(current.nextRunAt) {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("下次运行", value: AdminFormat.short(next))
                 }
             }
@@ -292,15 +292,15 @@ struct CronJobDetailView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if let last = AdminFormat.iso(current.lastRunAt) {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("上次运行", value: AdminFormat.short(last))
                 }
                 if let deliver = current.deliver, !deliver.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("投递到", value: deliver)
                 }
                 if let model = current.model, !model.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("模型") {
                         // 0.4.0（审计 §3.3 #7）：只读行走显示
                         // 名映射，未知 id 回落原文
@@ -309,7 +309,7 @@ struct CronJobDetailView: View {
                     }
                 }
                 if let prompt = current.prompt, !prompt.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                         Text("指令")
                             .font(.callout)
@@ -323,7 +323,7 @@ struct CronJobDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 if let error = current.lastError, !error.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
                         Image(systemName: "exclamationmark.circle")
                             .font(.system(size: 15))
@@ -354,7 +354,7 @@ struct CronJobDetailView: View {
                 ) {
                     Task { await togglePause() }
                 }
-                GroupDivider(inset: 56)
+                GroupDivider()
                 actionRow(
                     title: isTriggering ? "触发中（等任务跑完）…" : "立即触发一次",
                     icon: "play.circle"
@@ -362,7 +362,7 @@ struct CronJobDetailView: View {
                     Task { await trigger() }
                 }
                 .disabled(isTriggering)
-                GroupDivider(inset: 56)
+                GroupDivider()
                 actionRow(title: "编辑", icon: "pencil.circle") {
                     showEdit = true
                 }
@@ -386,7 +386,7 @@ struct CronJobDetailView: View {
                 }
                 ForEach(Array(runs.enumerated()), id: \.element.id) { index, run in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     runRow(run)
                 }
@@ -600,12 +600,12 @@ struct CronJobFormView: View {
                         FieldRow(label: "名称（可选）") {
                             TextField("如：节点巡检", text: $name)
                         }
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                         FieldRow(label: "指令") {
                             TextField("要 Hermes 执行的事", text: $prompt, axis: .vertical)
                                 .lineLimit(2...5)
                         }
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                         FieldRow(label: "计划（cron 表达式）") {
                             TextField("0 9 * * *", text: $schedule)
                                 .font(.system(.body, design: .monospaced))

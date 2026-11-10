@@ -169,7 +169,7 @@ final class MemoriesStore {
         case .landed:
             return nil
         case .approvedUnconfirmed:
-            return "已批准，但回读还没确认到变化，请下拉刷新核对。"
+            return "已批准，但还没确认到变化，请下拉刷新核对。"
         case .rejected:
             return "这条提交被驳回了，记忆保持原样。"
         case .unresolved:
@@ -181,11 +181,11 @@ final class MemoriesStore {
         switch error {
         case .noKey:
             return .notConnected(
-                "还没有粘贴数据桥钥匙。在设置里粘贴桥钥匙后，记忆条目就能用了。"
+                "还没有可用的登录信息：记忆条目用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
             )
         case .unauthorized:
             return .notConnected(
-                "数据桥钥匙被拒绝了。请到设置里检查桥钥匙是否粘对。"
+                "服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。"
             )
         case .bridgeMissing:
             return .sourceNotOpened(
@@ -203,9 +203,9 @@ final class MemoriesStore {
     static func message(for error: WriteGateError) -> String {
         switch error {
         case .noKey:
-            return "数据桥未连接：还没有粘贴桥钥匙。"
+            return "数据桥未连接：还没有可用的登录信息。"
         case .unauthorized:
-            return "数据桥未连接：桥钥匙被拒绝。"
+            return "数据桥未连接：服务器拒绝了这次登录。"
         case .bridgeMissing:
             return "记忆条目面还没有开通。"
         case .recordGone:

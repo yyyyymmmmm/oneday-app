@@ -47,19 +47,27 @@ public enum ConnectorCategory: String, Sendable, Equatable, CaseIterable {
     case life = "生活"
 }
 
+/// 图标呈现口径（0.36.0，设计宪法 §4 图标三源
+/// 制）：品牌条目只许官方原图资产（asset＝App 资
+/// 源名，来源与日期登记在整改台账 D 节）；无官方
+/// 资产可取的（内部服务、未知服务器）降级为通用
+/// SF Symbol。字母/汉字＋彩色底块与仿绘品牌图标
+/// 自本版整类退役（审计 C6）。
+public enum ConnectorIconSpec: Equatable, Sendable {
+    case asset(String)
+    case symbol(String)
+}
+
 /// 可连接目录条目（静态数据）：名称/说明/分类/接
-/// 入说明全在 Core 单一真源，视图只渲染。tileGlyph
-/// ＋tileColorHex 是近似品牌瓷砖（彩色底＋白字形），
-/// 不是官方品牌图标——市面无授权素材可用，宁可近
-/// 似、不拿错图标冒充（§55 登记）。
+/// 入说明全在 Core 单一真源，视图只渲染。图标走
+/// iconSpec——八家均为官方原图资产（台账 D 节）。
 public struct ConnectorCatalogEntry: Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
     /// 一句说明（列表行与详情共用）
     public let blurb: String
     public let category: ConnectorCategory
-    public let tileGlyph: String
-    public let tileColorHex: UInt32
+    public let iconSpec: ConnectorIconSpec
     /// 接入路径一句话（详情状态区）
     public let accessSummary: String
     /// 接入说明全文（详情 sheet）：未接入就直说未
@@ -69,15 +77,14 @@ public struct ConnectorCatalogEntry: Identifiable, Equatable, Sendable {
     public init(
         id: String, name: String, blurb: String,
         category: ConnectorCategory,
-        tileGlyph: String, tileColorHex: UInt32,
+        iconSpec: ConnectorIconSpec,
         accessSummary: String, accessDetail: String
     ) {
         self.id = id
         self.name = name
         self.blurb = blurb
         self.category = category
-        self.tileGlyph = tileGlyph
-        self.tileColorHex = tileColorHex
+        self.iconSpec = iconSpec
         self.accessSummary = accessSummary
         self.accessDetail = accessDetail
     }
@@ -115,13 +122,12 @@ public struct ConnectedConnector: Identifiable, Sendable {
             : "手动配置的 MCP 连接"
     }
 
-    public var tileGlyph: String {
-        if let known { return known.glyph }
-        return String(server.name.prefix(1)).uppercased()
-    }
-
-    public var tileColorHex: UInt32 {
-        known?.colorHex ?? 0x8A94A6
+    /// 图标口径（§4）：已知在册者走其登记呈现；未
+    /// 知服务器一律通用符号——旧「取首字母作字块」
+    /// 兜底自 0.36.0 退役，不许再以字母冒充图标
+    public var iconSpec: ConnectorIconSpec {
+        if let known { return known.iconSpec }
+        return .symbol("puzzlepiece.extension")
     }
 
     /// 状态文案单一映射（列表行与详情共用一处）
@@ -134,14 +140,12 @@ public struct ConnectedConnector: Identifiable, Sendable {
 public struct ConnectorServerPresentation: Equatable, Sendable {
     public let name: String
     public let blurb: String
-    public let glyph: String
-    public let colorHex: UInt32
+    public let iconSpec: ConnectorIconSpec
 
-    public init(name: String, blurb: String, glyph: String, colorHex: UInt32) {
+    public init(name: String, blurb: String, iconSpec: ConnectorIconSpec) {
         self.name = name
         self.blurb = blurb
-        self.glyph = glyph
-        self.colorHex = colorHex
+        self.iconSpec = iconSpec
     }
 }
 
@@ -153,7 +157,7 @@ public enum ConnectorDirectory {
         "box": ConnectorServerPresentation(
             name: "Simular Box",
             blurb: "云电脑 · 智能体可操作一台云端电脑",
-            glyph: "B", colorHex: 0x5B7DB1
+            iconSpec: .symbol("desktopcomputer")
         ),
     ]
 
@@ -164,7 +168,7 @@ public enum ConnectorDirectory {
             id: "gmail", name: "Gmail",
             blurb: "收发、搜索与整理你的 Gmail 邮件",
             category: .productivity,
-            tileGlyph: "M", tileColorHex: 0xD93025,
+            iconSpec: .asset("BrandGmail"),
             accessSummary: "需服务器端配置 MCP 并完成 Google 授权",
             accessDetail: "尚未接入。接入路径：在 Hermes 服务器端配置 Gmail 的 MCP 服务器，并以你的 Google 账号完成 OAuth 授权。Google 未提供面向个人的一键接入，需要自备 Google Cloud 项目的授权凭据，全程在服务器端完成，App 内暂不能直接连接。"
         ),
@@ -172,7 +176,7 @@ public enum ConnectorDirectory {
             id: "google-calendar", name: "Google 日历",
             blurb: "查看日程、创建与修改日历活动",
             category: .productivity,
-            tileGlyph: "31", tileColorHex: 0x4285F4,
+            iconSpec: .asset("BrandGoogleCalendar"),
             accessSummary: "需服务器端配置 MCP 并完成 Google 授权",
             accessDetail: "尚未接入。接入路径与 Gmail 相同：在 Hermes 服务器端配置日历的 MCP 服务器并完成 Google 账号 OAuth 授权，需要自备 Google Cloud 项目的授权凭据，App 内暂不能直接连接。"
         ),
@@ -180,7 +184,7 @@ public enum ConnectorDirectory {
             id: "google-drive", name: "Google 云端硬盘",
             blurb: "查找、读取与整理云端硬盘文件",
             category: .office,
-            tileGlyph: "D", tileColorHex: 0x1FA463,
+            iconSpec: .asset("BrandGoogleDrive"),
             accessSummary: "需服务器端配置 MCP 并完成 Google 授权",
             accessDetail: "尚未接入。接入路径与 Gmail 相同：在 Hermes 服务器端配置云端硬盘的 MCP 服务器并完成 Google 账号 OAuth 授权，需要自备 Google Cloud 项目的授权凭据，App 内暂不能直接连接。"
         ),
@@ -188,7 +192,7 @@ public enum ConnectorDirectory {
             id: "google-sheets", name: "Google 表格",
             blurb: "读取与编辑 Google 表格数据",
             category: .office,
-            tileGlyph: "S", tileColorHex: 0x188038,
+            iconSpec: .asset("BrandGoogleSheets"),
             accessSummary: "需服务器端配置 MCP 并完成 Google 授权",
             accessDetail: "尚未接入。接入路径与 Gmail 相同：在 Hermes 服务器端配置表格的 MCP 服务器并完成 Google 账号 OAuth 授权，需要自备 Google Cloud 项目的授权凭据，App 内暂不能直接连接。"
         ),
@@ -196,7 +200,7 @@ public enum ConnectorDirectory {
             id: "notion", name: "Notion",
             blurb: "搜索与编辑 Notion 页面和数据库",
             category: .office,
-            tileGlyph: "N", tileColorHex: 0x1B1B1B,
+            iconSpec: .asset("BrandNotion"),
             accessSummary: "有官方远程 MCP · 需服务器端添加并授权",
             accessDetail: "尚未接入。Notion 提供官方远程 MCP（mcp.notion.com），接入路径：在 Hermes 服务器配置中添加该地址，并完成一次 Notion 账号授权。是目录里接入成本较低的一家，但仍需在服务器端操作，App 内暂不能直接连接。"
         ),
@@ -204,7 +208,7 @@ public enum ConnectorDirectory {
             id: "github", name: "GitHub",
             blurb: "查看仓库、议题与拉取请求",
             category: .development,
-            tileGlyph: "G", tileColorHex: 0x24292F,
+            iconSpec: .asset("BrandGitHub"),
             accessSummary: "有官方远程 MCP · 需服务器端添加并授权",
             accessDetail: "尚未接入。GitHub 提供官方远程 MCP，接入路径：在 Hermes 服务器配置中添加，并以 GitHub 授权（OAuth 或访问令牌）完成接入。是目录里接入成本较低的一家，但仍需在服务器端操作，App 内暂不能直接连接。"
         ),
@@ -212,7 +216,7 @@ public enum ConnectorDirectory {
             id: "spotify", name: "Spotify",
             blurb: "搜索音乐、管理歌单与播放",
             category: .life,
-            tileGlyph: "♪", tileColorHex: 0x1DB954,
+            iconSpec: .asset("BrandSpotify"),
             accessSummary: "无官方 MCP · 需开发者凭据＋社区服务器",
             accessDetail: "尚未接入。Spotify 没有官方 MCP；社区服务器需要在 Spotify 开发者平台自建应用、取得凭据后在服务器端配置。门槛高于官方路径，App 内暂不能直接连接。"
         ),
@@ -220,7 +224,7 @@ public enum ConnectorDirectory {
             id: "instagram", name: "Instagram",
             blurb: "查看主页动态与帖子互动",
             category: .life,
-            tileGlyph: "IG", tileColorHex: 0xC13584,
+            iconSpec: .asset("BrandInstagram"),
             accessSummary: "官方暂无 MCP 接入路径",
             accessDetail: "尚未接入。Meta 未提供官方 MCP 接入，第三方方案的稳定性与账号风险都不可控，何时能接取决于官方支持，目前没有可靠的接入路径。"
         ),

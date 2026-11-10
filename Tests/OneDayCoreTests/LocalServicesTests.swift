@@ -21,10 +21,17 @@ final class LocalServicesTests: XCTestCase {
         for entry in roster {
             XCTAssertFalse(entry.name.isEmpty, entry.id)
             XCTAssertFalse(entry.blurb.isEmpty, entry.id)
-            XCTAssertFalse(entry.tileGlyph.isEmpty, entry.id)
-            XCTAssertTrue(
+            XCTAssertFalse(entry.symbolName.isEmpty, entry.id)
+            // 0.36.0（宪法 §8＋S11）：证据行改用户语
+            // 言——不许再出现接口方法名/端点行话
+            XCTAssertFalse(entry.evidenceLine.isEmpty, entry.id)
+            XCTAssertFalse(
                 entry.evidenceLine.contains("GET"),
-                "证据行必须写明探活端点：\(entry.id)"
+                "证据行不许写接口方法名：\(entry.id)"
+            )
+            XCTAssertFalse(
+                entry.evidenceLine.contains("端点"),
+                "证据行不许写端点行话：\(entry.id)"
             )
         }
         for id in LocalServiceID.allCases {

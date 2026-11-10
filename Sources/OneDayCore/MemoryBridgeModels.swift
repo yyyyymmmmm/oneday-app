@@ -538,7 +538,7 @@ public struct MemoryProposal: Equatable, Sendable, Identifiable {
         switch status {
         case .pending: return "待审批"
         case .landed: return "已生效"
-        case .approvedUnconfirmed: return "已批准，待回读确认"
+        case .approvedUnconfirmed: return "已批准，待确认生效"
         case .rejected: return "已驳回"
         case .unresolved: return "结果未确认"
         }

@@ -28,9 +28,15 @@ public extension View {
     }
 }
 
-/// 分组内发丝线：内缩至全页同一条对齐线（定版 §3.2）。
+/// 分组内分隔线（0.36.0，宪法 §3／审计 C1＋C2）：
+/// 整行贯通（默认 inset＝0、起点＝容器左缘、全
+/// App 一个 x 值）、物理发丝高（1/displayScale）、
+/// 系统 separator 语义色。末行无线由消费方排版保
+/// 证（线只出现在行与行之间）。旧形态（inset 62
+/// 对齐文字、1pt 高、hairline 实色）自本版退役。
 public struct GroupDivider: View {
     private let inset: CGFloat
+    @Environment(\.displayScale) private var displayScale
 
     public init(inset: CGFloat = OneDayMetrics.dividerInset) {
         self.inset = inset
@@ -38,9 +44,47 @@ public struct GroupDivider: View {
 
     public var body: some View {
         Rectangle()
-            .fill(Palette.hairline)
-            .frame(height: 1)
+            .fill(Palette.separator)
+            .frame(height: 1 / max(displayScale, 1))
             .padding(.leading, inset)
+    }
+}
+
+/// SF Symbol 瓷砖（0.36.0，宪法 §4／审计 C6+C7）：
+/// 苹果应用图标画法——白底 squircle＋发丝描边＋标
+/// 志元素字形（字形色由消费点给：设备五件用各自
+/// 标志色、本机服务用主墨）。双档同形（白底是应
+/// 用图标本貌，暗色下亦然），与品牌官方原图资产
+/// 并列为仅有的两种瓷砖形态；彩色底＋字母/汉字字
+/// 块自本版整类退役。设备瓷砖与连接器符号瓷砖共
+/// 用本实现，不许再各写一份。
+public struct AppSymbolTile: View {
+    private let symbol: String
+    private let glyphColor: Color
+    private let size: CGFloat
+
+    public init(symbol: String, glyphColor: Color, size: CGFloat = 40) {
+        self.symbol = symbol
+        self.glyphColor = glyphColor
+        self.size = size
+    }
+
+    public var body: some View {
+        ZStack {
+            RoundedRectangle(
+                cornerRadius: size * 0.26, style: .continuous
+            )
+            .fill(Color.white)
+            RoundedRectangle(
+                cornerRadius: size * 0.26, style: .continuous
+            )
+            .strokeBorder(Palette.hairline, lineWidth: 1)
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.46, weight: .semibold))
+                .foregroundStyle(glyphColor)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 

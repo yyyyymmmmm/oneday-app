@@ -38,14 +38,14 @@ struct ServerDetailView: View {
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .frame(minHeight: OneDayMetrics.rowHeight)
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     FieldRow(label: "服务器地址") {
                         TextField("https://hermes.didichou.site", text: $serverText)
                             .keyboardType(.URL)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     FieldRow(label: "密钥") {
                         HStack(spacing: OneDayMetrics.spacingS) {
                             if showAPIKey {
@@ -115,7 +115,7 @@ struct ServerDetailView: View {
                     .buttonStyle(.odPressable)
                     .disabled(isRetesting)
                     if let retestResult {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                         Group {
                             if retestFailed {
                                 InlineError(retestResult)

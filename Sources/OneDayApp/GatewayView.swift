@@ -116,13 +116,13 @@ struct GatewayView: View {
                 }
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .padding(.vertical, OneDayMetrics.spacingSM)
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 LabeledContent("服务端版本") {
                     Text(status.version.map { "v\($0)" } ?? "—")
                         .font(.system(.callout, design: .monospaced))
                 }
                 if let date = status.releaseDate {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("发布日期") {
                         Text(date)
                             .font(.system(.callout, design: .monospaced))
@@ -151,7 +151,7 @@ struct GatewayView: View {
                     id: \.element
                 ) { index, name in
                     if index > 0 {
-                        GroupDivider(inset: 36)
+                        GroupDivider()
                     }
                     if let platform = status.platforms[name] {
                         HStack(spacing: OneDayMetrics.spacingSM) {
@@ -185,7 +185,7 @@ struct GatewayView: View {
                 actionRow(title: "重启网关", danger: false) {
                     pendingAction = "restart"
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 if running {
                     actionRow(title: "停止网关", danger: true) {
                         pendingAction = "stop"

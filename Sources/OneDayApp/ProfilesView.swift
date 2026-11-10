@@ -51,7 +51,7 @@ struct ProfilesView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
                             if index > 0 {
-                                GroupDivider(inset: OneDayMetrics.spacingM)
+                                GroupDivider()
                             }
                             profileRow(profile)
                         }
@@ -524,13 +524,9 @@ struct ProfileExportSheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(OneDayMetrics.pageGutter)
-            .navigationTitle("导出档案")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("关闭") { dismiss() }
-                }
-            }
+            // 0.36.0（宪法 §5／审计 C9 同族）：撤居中
+            // 标题与手写关闭——导出状态内容领头、关
+            // 闭走系统下拉手势
             .task {
                 do {
                     result = try await appState.performAdmin { client, config in

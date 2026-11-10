@@ -112,7 +112,7 @@ struct StatusView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
                         if index > 0 {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         Button {
                             onOpenSession(session.id)
@@ -199,7 +199,7 @@ struct StatusView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(upcomingJobs.enumerated()), id: \.element.id) { index, job in
                         if index > 0 {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -256,20 +256,20 @@ struct StatusView: View {
                 VStack(spacing: 0) {
                     percentRow("内存", percent: stats.memory?.percent,
                                detail: memoryDetail(stats))
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     percentRow("磁盘", percent: stats.disk?.percent,
                                detail: diskDetail(stats))
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("CPU", value: stats.cpuPercent.map {
                         "\(AdminFormat.count($0))% · \(stats.cpuCount ?? 0) 核"
                     } ?? "—")
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("负载", value: stats.loadAvg.map {
                         $0.map { AdminFormat.count($0) }.joined(separator: " / ")
                     } ?? "—")
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("运行时间", value: stats.uptimeSeconds.map(uptimeText) ?? "—")
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("进程内存", value: stats.process?.rss.map(byteText) ?? "—")
                 }
                 .odGroup()
@@ -281,23 +281,23 @@ struct StatusView: View {
                         Text(stats.hermesVersion.map { "v\($0)" } ?? "—")
                             .font(.system(.callout, design: .monospaced))
                     }
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("主机") {
                         Text(stats.hostname ?? "—")
                             .font(.system(.callout, design: .monospaced))
                     }
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("系统") {
                         Text([stats.os, stats.arch]
                         .compactMap { $0 }.joined(separator: " · "))
                             .font(.system(.callout, design: .monospaced))
                     }
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("Python") {
                         Text(stats.pythonVersion ?? "—")
                             .font(.system(.callout, design: .monospaced))
                     }
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("内核") {
                         Text(stats.osRelease ?? "—")
                             .font(.system(.callout, design: .monospaced))

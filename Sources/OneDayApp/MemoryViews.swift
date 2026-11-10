@@ -136,7 +136,7 @@ struct MemoryView: View {
             VStack(spacing: 0) {
                 builtinRow(status)
                 ForEach(status.providers) { provider in
-                    GroupDivider(inset: 56)
+                    GroupDivider()
                     NavigationLink {
                         MemoryProviderConfigView(provider: provider, isActive: isActive(provider, in: status))
                     } label: {
@@ -196,7 +196,7 @@ struct MemoryView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 fileRow(label: "MEMORY（长期记忆）", value: status.builtinFiles["memory"])
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 fileRow(label: "USER（用户档案）", value: status.builtinFiles["user"])
             }
             .odGroup()
@@ -224,9 +224,9 @@ struct MemoryView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 resetRow(title: "重置全部记忆", target: "all")
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 resetRow(title: "只重置 MEMORY", target: "memory")
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 resetRow(title: "只重置 USER", target: "user")
             }
             .odGroup()
@@ -353,14 +353,14 @@ struct MemoryProviderConfigView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 LabeledContent("可用", value: provider.available == true ? "是" : "否")
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 LabeledContent("已配置", value: provider.configured == true ? "是" : "否")
                 if let state = provider.status, !state.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     LabeledContent("状态", value: state)
                 }
                 if isActive {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     HStack {
                         Text("当前提供方")
                             .font(.body)
@@ -395,7 +395,7 @@ struct MemoryProviderConfigView: View {
             VStack(spacing: 0) {
                 ForEach(Array(config.fields.enumerated()), id: \.element.id) { index, field in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     fieldRow(field)
                 }

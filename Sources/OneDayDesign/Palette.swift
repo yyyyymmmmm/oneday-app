@@ -153,8 +153,13 @@ public enum Palette {
     )
     /// 次墨（OpenMuse muted #697176，ui.tsx:22；暗色派生
     /// 亮化 #9AA3A8）
+    /// 0.36.0（无障碍 A11Y-C1）：浅档同色相加深一档至
+    /// #646B71——原值落设置页底 #F2F2F7 实算 4.46:1
+    /// 压线下，新值三面实算：设置底 4.85／页面底
+    /// 5.27／卡面 5.41，全过 4.5（闸在
+    /// VisualDirectionGateTests）
     public static let inkSecondary = omColor(
-        light: omHex(0x697176), dark: omHex(0x9AA3A8)
+        light: omHex(0x646B71), dark: omHex(0x9AA3A8)
     )
     /// 弱墨（OpenMuse 三档弱色无独立令牌，取其输入占位
     /// 色 #949B9F 为实证弱档，chat.tsx:948；暗色派生
@@ -180,6 +185,20 @@ public enum Palette {
     public static let hairline = omColor(
         light: omHex(0xEEEEF0), dark: omHex(0x262E33)
     )
+
+    /// 分隔线色（0.36.0，宪法 §3／审计 C2）：改挂系
+    /// 统 separator 语义色——浅 (60,60,67,α0.29)／
+    /// 暗 (84,84,88,α0.60)，α 定义使其压在任何层
+    /// 级的面上都保持可辨（旧 hairline 实色平移在暗
+    /// 档对卡面仅 1.17:1 近乎消失，审计 D4）。本色
+    /// 是 0.6.1「字面直给」旧口径的宪法级例外：α 体
+    /// 系即其定义本身、字面 hex 无法表达跨面自适
+    /// 应，故按 §3 口径改挂语义色（S19：宪法为单一
+    /// 真源）；暗档取值与批一B 同源、由批一B 真机
+    /// 验收收口，本处不另定第二套值。GroupDivider
+    /// 专用；odGroup 描边仍走 hairline（C3/D4 归批
+    /// 一B/批三处置）
+    public static let separator = Color(UIColor.separator)
 
     /// 强调（OpenMuse blueDark #1473C8，ui.tsx:25——链
     /// 接/图标/角标/光标的实色；暗色派生亮化 #5EB1EF）
@@ -357,8 +376,13 @@ public enum OneDayMetrics {
     /// 设置/抽屉统一取 30，ListRowSpec.iconSlotWidth
     /// 同值，见 §51）
     public static let iconSlot: CGFloat = 30
-    /// 发丝线内缩：边距 20＋槽 30＋间距 12
-    public static let dividerInset: CGFloat = 62
+    /// 分隔线起点（0.36.0，宪法 §3／审计 C1 定版）：
+    /// 整行贯通——起点＝容器左缘、全 App 一个 x
+    /// 值，恒 0。旧值 62（边距 20＋槽 30＋间距 12、
+    /// 对齐文字）与定版几何相反，自本版退役；显式
+    /// 传 inset 的消费点是详情正文内的段落分隔、不
+    /// 在此列（各自上下文里核过）
+    public static let dividerInset: CGFloat = 0
     /// 内容行最小高（0.3.3 按礼记行口径放大：礼记
     /// MeView.entryLabel minHeight 44＋List 行内边距的实
     /// 效行高约 56；OneDay 自 52 提到 56，行不再挤）

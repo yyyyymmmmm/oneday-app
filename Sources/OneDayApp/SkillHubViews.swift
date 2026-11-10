@@ -143,7 +143,7 @@ struct SkillHubView: View {
                     Array(skills.enumerated()), id: \.element.id
                 ) { index, skill in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     hubRow(skill)
                 }

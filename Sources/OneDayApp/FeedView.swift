@@ -213,6 +213,14 @@ struct FeedView: View {
                     Text(post.kind.label)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
+                    // 0.36.0（无障碍 A11Y-C5）：未读除蓝
+                    // 点外补文字通道——不靠颜色单独传信
+                    // 息，VoiceOver/色弱下同样可辨
+                    if !post.isRead {
+                        Text("未读")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.primary)
+                    }
                     Spacer()
                     Text(FeedBoard.relativeText(
                         for: post.createdAt, now: Date()

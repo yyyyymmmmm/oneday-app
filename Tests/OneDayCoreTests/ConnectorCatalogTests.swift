@@ -29,7 +29,13 @@ final class ConnectorCatalogTests: XCTestCase {
         for entry in catalog {
             XCTAssertFalse(entry.name.isEmpty, entry.id)
             XCTAssertFalse(entry.blurb.isEmpty, entry.id)
-            XCTAssertFalse(entry.tileGlyph.isEmpty, entry.id)
+            // 0.36.0（宪法 §4）：目录八家一律官方
+            // 资产图，不许再有字母字块
+            guard case .asset(let assetName) = entry.iconSpec else {
+                XCTFail("目录条目必须用官方资产图：\(entry.id)")
+                continue
+            }
+            XCTAssertFalse(assetName.isEmpty, entry.id)
             XCTAssertFalse(entry.accessSummary.isEmpty, entry.id)
             XCTAssertTrue(
                 entry.accessDetail.contains("尚未接入"),
@@ -74,7 +80,7 @@ final class ConnectorCatalogTests: XCTestCase {
             server("box", source: "plugin", plugin: "box"),
         ])[0]
         XCTAssertEqual(box.displayName, "Simular Box")
-        XCTAssertEqual(box.tileGlyph, "B")
+        XCTAssertEqual(box.iconSpec, .symbol("desktopcomputer"))
         XCTAssertTrue(box.blurb.contains("云电脑"))
     }
 
@@ -83,7 +89,9 @@ final class ConnectorCatalogTests: XCTestCase {
             server("my-tool", source: "plugin", plugin: "p"),
         ])[0]
         XCTAssertEqual(entry.displayName, "my-tool")
-        XCTAssertEqual(entry.tileGlyph, "M")
+        // 0.36.0：未知连接不再拿首字母冒充品牌——
+        // 统一通用符号（宪法 §4 降级路）
+        XCTAssertEqual(entry.iconSpec, .symbol("puzzlepiece.extension"))
         XCTAssertEqual(entry.blurb, "插件预置的 MCP 连接")
         let manual = ConnectorDirectory.connectedEntries(from: [
             server("hand", source: nil),

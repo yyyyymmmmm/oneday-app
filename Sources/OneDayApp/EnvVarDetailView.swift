@@ -27,7 +27,7 @@ struct EnvVarDetailView: View {
                             .font(.system(.callout, design: .monospaced))
                     }
                     if let description = entry.description, !description.isEmpty {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                         Text(description)
                             .font(.callout)
                             .foregroundStyle(Palette.inkSecondary)
@@ -36,10 +36,10 @@ struct EnvVarDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if let category = entry.category, !category.isEmpty {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                         LabeledContent("类别", value: ServerLabels.categoryLabel(category))
                     }
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     valueRow
                 }
                 .odGroup()
@@ -52,14 +52,14 @@ struct EnvVarDetailView: View {
                         showEditor = true
                     }
                     if entry.isSet {
-                        GroupDivider(inset: 56)
+                        GroupDivider()
                         actionRow(
                             title: isRevealing ? "拉取中…" : "查看明文",
                             icon: "eye.circle"
                         ) {
                             Task { await reveal() }
                         }
-                        GroupDivider(inset: 56)
+                        GroupDivider()
                         Button(role: .destructive) {
                             showDeleteConfirm = true
                         } label: {

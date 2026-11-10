@@ -1,3 +1,4 @@
+import OneDayCore
 import SwiftUI
 
 // MARK: - 字阶角色（0.23.0 立表，视觉审计 G2；0.24.0 按 HIG 重排）
@@ -44,4 +45,46 @@ public extension Font {
     static let captionText: Font = .footnote
     /// 仅徽标：12，禁作正文
     static let badgeOnly: Font = .caption
+}
+
+// MARK: - 粗体文字映射（0.36.0，无障碍 A11Y-S3）
+// 系统「粗体文本」开关的唯一接线点：挂在根视图
+// 一处。策略在 Core BoldTextPolicy（关＝不干预、
+// 开＝未钉字重的文本样式字体统一按 semibold 环
+// 境字重渲染）；钉死字重的字体（Font.weight 烘
+// 入）与近处显式 .fontWeight 声明不受环境字重影
+// 响——与系统粗体文本的作用域一致。
+public struct BoldTextRootModifier: ViewModifier {
+    @Environment(\.legibilityWeight) private var legibilityWeight
+
+    public init() {}
+
+    public func body(content: Content) -> some View {
+        if let weight = BoldTextPolicy.rootWeight(
+            boldTextEnabled: legibilityWeight == .bold
+        ) {
+            content.fontWeight(weight.fontWeight)
+        } else {
+            content
+        }
+    }
+}
+
+public extension View {
+    /// 根视图挂一处，全 App 文本随系统粗体文本开
+    /// 关（A11Y-S3）；非根处不许重复挂
+    func boldTextMapping() -> some View {
+        modifier(BoldTextRootModifier())
+    }
+}
+
+private extension BoldTextPolicy.Weight {
+    var fontWeight: Font.Weight {
+        switch self {
+        case .regular: return .regular
+        case .medium: return .medium
+        case .semibold: return .semibold
+        case .bold: return .bold
+        }
+    }
 }

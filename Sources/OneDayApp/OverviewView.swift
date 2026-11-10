@@ -191,7 +191,7 @@ struct OverviewView: View {
                 .padding(.top, OneDayMetrics.spacingM)
             }
 
-            GroupDivider(inset: OneDayMetrics.spacingM)
+            GroupDivider()
                 .padding(.top, OneDayMetrics.spacingM)
 
             // 卡内次级指标（原指标行收编，深链保留）
@@ -281,7 +281,7 @@ struct OverviewView: View {
                     id: \.element
                 ) { index, name in
                     if index > 0 {
-                        GroupDivider(inset: 36)
+                        GroupDivider()
                     }
                     if let platform = status.platforms[name] {
                         platformRow(name: name, platform: platform)
@@ -351,7 +351,7 @@ struct OverviewView: View {
                     }
                     ForEach(Array(abnormalPlatforms.enumerated()), id: \.element.name) { index, item in
                         if index > 0 {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         todoRow(
                             icon: "exclamationmark.triangle",
@@ -361,7 +361,7 @@ struct OverviewView: View {
                     }
                     if egressAbnormal {
                         if !abnormalPlatforms.isEmpty {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         todoRow(
                             icon: "exclamationmark.triangle",
@@ -371,7 +371,7 @@ struct OverviewView: View {
                     }
                     if errorLogCount > 0 {
                         if !abnormalPlatforms.isEmpty || egressAbnormal {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         // 卡 2 纠正 2：日志原文不上总览，只留
                         // 一条人话摘要，点去日志页看原文
@@ -451,14 +451,14 @@ struct OverviewView: View {
                     )
                     ForEach(Array(recent.enumerated()), id: \.element.id) { index, session in
                         if index > 0 {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         serverSessionRow(session)
                     }
                 } else if !localThreads.isEmpty {
                     ForEach(Array(localThreads.prefix(3).enumerated()), id: \.element.id) { index, thread in
                         if index > 0 {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         localThreadRow(thread)
                     }
@@ -553,12 +553,12 @@ struct OverviewView: View {
                 actionRow(title: "重启网关", icon: "arrow.clockwise.circle") {
                     showRestartConfirm = true
                 }
-                GroupDivider(inset: 56)
+                GroupDivider()
                 actionRow(title: "新建定时任务", icon: "plus.circle") {
                     appState.cronCreateRequested = true
                     onOpenAgent(.cron)
                 }
-                GroupDivider(inset: 56)
+                GroupDivider()
                 actionRow(title: "看日志", icon: "doc.text.magnifyingglass") {
                     onOpenSettings(.logs)
                 }

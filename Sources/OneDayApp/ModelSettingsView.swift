@@ -155,7 +155,7 @@ struct ModelSettingsView: View {
                 }
                 ForEach(Array(switchableModels.enumerated()), id: \.element) { index, model in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     Button {
                         if model != currentModel {
@@ -209,7 +209,7 @@ struct ModelSettingsView: View {
                 }
                 ForEach(Array(providers.enumerated()), id: \.element.name) { index, provider in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         VStack(alignment: .leading, spacing: 2) {

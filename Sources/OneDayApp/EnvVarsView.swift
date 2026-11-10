@@ -37,7 +37,7 @@ struct EnvVarsView: View {
                         VStack(spacing: 0) {
                             ForEach(Array(group.items.enumerated()), id: \.element.id) { index, entry in
                                 if index > 0 {
-                                    GroupDivider(inset: OneDayMetrics.spacingM)
+                                    GroupDivider()
                                 }
                                 NavigationLink {
                                     EnvVarDetailView(entry: entry) {

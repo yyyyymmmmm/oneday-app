@@ -218,7 +218,7 @@ final class EventKitEngine: @unchecked Sendable {
         }
         // 回读验证：取回刚建的对象才许报成功
         guard let saved = store.event(withIdentifier: event.eventIdentifier) else {
-            throw DeviceToolError.failed("新建后回读不到该日程，不报成功")
+            throw DeviceToolError.failed("新建后没能确认该日程已保存，不报成功")
         }
         return (saved.eventIdentifier, .object([
             "objectId": .string(saved.eventIdentifier),
@@ -259,7 +259,7 @@ final class EventKitEngine: @unchecked Sendable {
             throw DeviceToolError.failed("修改日程失败：\(error.localizedDescription)")
         }
         guard let saved = store.event(withIdentifier: args.eventID) else {
-            throw DeviceToolError.failed("修改后回读不到该日程，不报成功")
+            throw DeviceToolError.failed("修改后没能确认该日程已保存，不报成功")
         }
         return (saved.eventIdentifier, .object([
             "objectId": .string(saved.eventIdentifier),
@@ -406,7 +406,7 @@ final class EventKitEngine: @unchecked Sendable {
         guard let saved = store.calendarItem(
             withIdentifier: reminder.calendarItemIdentifier
         ) as? EKReminder else {
-            throw DeviceToolError.failed("新建后回读不到该提醒，不报成功")
+            throw DeviceToolError.failed("新建后没能确认该提醒已保存，不报成功")
         }
         return (saved.calendarItemIdentifier, .object([
             "objectId": .string(saved.calendarItemIdentifier),
@@ -464,7 +464,7 @@ final class EventKitEngine: @unchecked Sendable {
         guard let saved = store.calendarItem(
             withIdentifier: id
         ) as? EKReminder else {
-            throw DeviceToolError.failed("更新后回读不到该提醒，不报成功")
+            throw DeviceToolError.failed("更新后没能确认该提醒已保存，不报成功")
         }
         return (saved.calendarItemIdentifier, .object([
             "objectId": .string(saved.calendarItemIdentifier),

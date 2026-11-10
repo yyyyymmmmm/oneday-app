@@ -276,13 +276,11 @@ struct HubDiffView: View {
                 ProgressView()
             }
         }
+        // 0.36.0（§5／审计 C9 同族）：撤手写关闭
+        // （走系统下拉手势）；标题是审批对象名＝内
+        // 容身份本身，保留（台账 E2 豁免候选）
         .navigationTitle(detail?.review.targetLabel ?? "查看改动")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("关闭") { dismiss() }
-            }
-        }
         .task {
             switch await store.loadDetail(record) {
             case .success(let loaded):

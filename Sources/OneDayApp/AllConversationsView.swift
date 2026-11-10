@@ -536,7 +536,7 @@ struct AllConversationsView: View {
             selection.removeAll()
             editMode = .inactive
             store.notice = failedCount == 0
-                ? "已处理 \(ids.count) 条，全部回读落定。"
+                ? "已处理 \(ids.count) 条，全部确认完成。"
                 : "\(ids.count - failedCount) 条已落定，\(failedCount) 条未落定——名单已按服务端现状刷新，请核对。"
             await store.load(appState: appState)
         }

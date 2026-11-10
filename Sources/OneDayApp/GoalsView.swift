@@ -322,10 +322,19 @@ struct GoalCheckBox: View {
                         .foregroundStyle(.white)
                 }
             }
-            .frame(width: 22, height: 22)
+            // 命中域 44×44（视觉框 22 不变）：-11 内
+            // 边距抵消额外命中域、不改行布局
+            // （0.36.0，无障碍 A11Y-V1/T1）
+            .frame(width: 44, height: 44)
             .contentShape(Rectangle())
+            .padding(-11)
         }
         .buttonStyle(.odPressable)
+        // 开关语义（A11Y-V5）：动作标签＋状态值，
+        // VoiceOver 能读出「这是什么开关、现在什么
+        // 状态」，不再是无标签裸按钮
+        .accessibilityLabel(done ? "重新打开目标" : "标记目标完成")
+        .accessibilityValue(done ? "已完成" : "未完成")
     }
 }
 
@@ -444,6 +453,9 @@ struct MilestoneCheckRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
+        // 0.36.0（无障碍 A11Y-V5）：补状态值，
+        // VoiceOver 能读出里程碑当前勾选状态
+        .accessibilityValue(done ? "已完成" : "未完成")
     }
 }
 
@@ -686,7 +698,7 @@ struct GoalDetailView: View {
                         id: \.element.id
                     ) { index, milestone in
                         if index > 0 {
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                         }
                         MilestoneCheckRow(
                             done: milestone.done, title: milestone.title
@@ -804,7 +816,7 @@ struct GoalDetailView: View {
                 ForEach(Array(children.enumerated()), id: \.element.id) {
                     index, child in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     HStack(
                         alignment: .top, spacing: OneDayMetrics.spacingS
@@ -854,7 +866,7 @@ struct GoalDetailView: View {
                     .padding(.vertical, OneDayMetrics.spacingSM)
                 }
                 if !children.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                 }
                 HStack(spacing: OneDayMetrics.spacingS) {
                     TextField("新增子目标", text: $newSubgoalTitle)
@@ -1113,7 +1125,7 @@ struct GoalEditView: View {
                 FieldRow(label: "标题") {
                     TextField("目标标题", text: $title)
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 FieldRow(label: "备注") {
                     TextField("可选", text: $note, axis: .vertical)
                         .lineLimit(2...5)
@@ -1130,7 +1142,7 @@ struct GoalEditView: View {
             VStack(spacing: 0) {
                 ForEach(milestones.indices, id: \.self) { index in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     HStack(spacing: OneDayMetrics.spacingS) {
                         MilestoneCheckRow(
@@ -1156,7 +1168,7 @@ struct GoalEditView: View {
                     .padding(.vertical, OneDayMetrics.spacingSM)
                 }
                 if !milestones.isEmpty {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                 }
                 HStack(spacing: OneDayMetrics.spacingS) {
                     TextField("新增里程碑", text: $newMilestoneTitle)
@@ -1227,7 +1239,7 @@ struct GoalCreateView: View {
                             FieldRow(label: "标题") {
                                 TextField("如：婚礼筹备收尾", text: $title)
                             }
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                             FieldRow(label: "备注") {
                                 TextField("可选", text: $note, axis: .vertical)
                                     .lineLimit(2...5)
@@ -1241,7 +1253,7 @@ struct GoalCreateView: View {
                         VStack(spacing: 0) {
                             ForEach(milestoneTitles.indices, id: \.self) { index in
                                 if index > 0 {
-                                    GroupDivider(inset: OneDayMetrics.spacingM)
+                                    GroupDivider()
                                 }
                                 HStack(spacing: OneDayMetrics.spacingS) {
                                     TextField(
@@ -1265,7 +1277,7 @@ struct GoalCreateView: View {
                                 .padding(.vertical, OneDayMetrics.spacingSM)
                             }
                             if !milestoneTitles.isEmpty {
-                                GroupDivider(inset: OneDayMetrics.spacingM)
+                                GroupDivider()
                             }
                             Button {
                                 milestoneTitles.append("")

@@ -129,7 +129,7 @@ struct ConnectView: View {
                     .autocorrectionDisabled()
                     .focused($focusedField, equals: .server)
             }
-            GroupDivider(inset: OneDayMetrics.spacingM)
+            GroupDivider()
             FieldRow(label: "密钥", isActive: focusedField == .apiKey) {
                 if DemoMode.current == .connectPage {
                     // 演示占位：与假串等长的圆点（理由见文件头注释）
@@ -149,7 +149,7 @@ struct ConnectView: View {
         VStack(spacing: 0) {
             ForEach(Array(Self.steps.enumerated()), id: \.element.rawValue) { index, step in
                 if index > 0 {
-                    GroupDivider(inset: 42)
+                    GroupDivider()
                 }
                 HStack(spacing: OneDayMetrics.spacingS) {
                     stepIcon(step)

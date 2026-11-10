@@ -74,7 +74,7 @@ struct SkillsView: View {
                         VStack(spacing: 0) {
                             ForEach(Array(group.items.enumerated()), id: \.element.id) { index, skill in
                                 if index > 0 {
-                                    GroupDivider(inset: OneDayMetrics.spacingM)
+                                    GroupDivider()
                                 }
                                 skillRow(skill)
                             }
@@ -276,7 +276,7 @@ struct SkillDetailView: View {
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .padding(.vertical, OneDayMetrics.spacingSM)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                 }
                 HStack {
                     Text("启用")
@@ -292,7 +292,7 @@ struct SkillDetailView: View {
                 }
                 .padding(.horizontal, OneDayMetrics.spacingM)
                 .frame(minHeight: OneDayMetrics.rowHeight)
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("锁定")

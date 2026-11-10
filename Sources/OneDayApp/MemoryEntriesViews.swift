@@ -172,13 +172,13 @@ struct MemoryEntriesSection: View {
             VStack(spacing: 0) {
                 ForEach(store.proposals) { proposal in
                     proposalRow(proposal)
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                 }
                 ForEach(store.externalPending) { record in
                     externalPendingRow(record)
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                 }
-                Text("批准或驳回在枢纽的审批区进行（聊天页点顶部胶囊打开）；批准后这里会回读确认。")
+                Text("批准或驳回在枢纽的审批区进行（聊天页点顶部胶囊打开）；批准后这里会刷新确认结果。")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                     .padding(.horizontal, OneDayMetrics.spacingM)
@@ -257,7 +257,7 @@ struct MemoryEntriesSection: View {
                     id: \.element.id
                 ) { index, entry in
                     if index > 0 {
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                     }
                     NavigationLink {
                         MemoryEntryDetailView(store: store, entryID: entry.id)
@@ -398,7 +398,7 @@ struct MemoryEntryDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 0) {
                 LabeledContent("来源", value: entry.target.label)
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 LabeledContent(
                     "更新时间",
                     value: AdminFormat.short(

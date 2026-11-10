@@ -34,7 +34,7 @@ struct EnvVarEditorView: View {
                                 .autocorrectionDisabled()
                                 .disabled(existingKey != nil)
                         }
-                        GroupDivider(inset: OneDayMetrics.spacingM)
+                        GroupDivider()
                         FieldRow(label: "值") {
                             SecureField("输入新值", text: $value)
                                 .textInputAutocapitalization(.never)

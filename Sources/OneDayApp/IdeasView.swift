@@ -205,17 +205,11 @@ struct IdeasView: View {
     }
 
     /// 行内日期口径：今天/昨天带时刻、再远只给日期
+    /// （0.36.0 收编至全 App 唯一格式器 DisplayDate，
+    /// 审计 C11——旧实现远期档走 .formatted 随系统
+    /// locale 漏英文）
     static func dayTimeText(_ epoch: Double) -> String {
-        let date = Date(timeIntervalSince1970: epoch)
-        let calendar = Calendar.current
-        let time = date.formatted(date: .omitted, time: .shortened)
-        if calendar.isDateInToday(date) {
-            return "今天 \(time)"
-        }
-        if calendar.isDateInYesterday(date) {
-            return "昨天 \(time)"
-        }
-        return date.formatted(date: .abbreviated, time: .omitted)
+        DisplayDate.relativeDateTime(Date(timeIntervalSince1970: epoch))
     }
 }
 
@@ -465,29 +459,31 @@ struct IdeaDetailView: View {
                 FieldRow(label: "来源") {
                     Text(idea.source == .generated ? "生成" : "手记")
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 FieldRow(label: idea.source == .generated ? "生成于" : "记于") {
                     Text(
-                        Date(timeIntervalSince1970: idea.createdAt)
-                            .formatted(date: .abbreviated, time: .shortened)
+                        DisplayDate.dateTime(
+                            Date(timeIntervalSince1970: idea.createdAt)
+                        )
                     )
                 }
                 if let expiresAt = idea.expiresAt {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     FieldRow(label: "过期") {
                         Text(
-                            Date(timeIntervalSince1970: expiresAt)
-                                .formatted(date: .abbreviated, time: .omitted)
+                            DisplayDate.dateOnly(
+                                Date(timeIntervalSince1970: expiresAt)
+                            )
                         )
                     }
                 }
                 if let goalTitle = store.goalTitle(for: idea) {
-                    GroupDivider(inset: OneDayMetrics.spacingM)
+                    GroupDivider()
                     FieldRow(label: "关联目标") {
                         Text(goalTitle)
                     }
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 FieldRow(label: "状态") {
                     Text(statusText(idea))
                 }
@@ -517,7 +513,7 @@ struct IdeaDetailView: View {
                         ) ?? "已转任务"
                     )
                 }
-                GroupDivider(inset: OneDayMetrics.spacingM)
+                GroupDivider()
                 FieldRow(label: "任务") {
                     Button("打开任务详情") { showTask = true }
                 }
@@ -601,12 +597,12 @@ struct IdeaCreateView: View {
                             FieldRow(label: "标题") {
                                 TextField("一句话说清这个点子", text: $title)
                             }
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                             FieldRow(label: "详情") {
                                 TextField("可选", text: $detail, axis: .vertical)
                                     .lineLimit(2...6)
                             }
-                            GroupDivider(inset: OneDayMetrics.spacingM)
+                            GroupDivider()
                             FieldRow(label: "关联目标") {
                                 Picker("关联目标", selection: $goalId) {
                                     Text("不关联").tag(String?.none)

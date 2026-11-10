@@ -81,11 +81,11 @@ final class GoalsStore {
         switch error {
         case .noKey:
             return .notConnected(
-                "还没有粘贴数据桥钥匙。在设置里粘贴桥钥匙后，目标和点子就能用了。"
+                "还没有可用的登录信息：目标和点子用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
             )
         case .unauthorized:
             return .notConnected(
-                "数据桥钥匙被拒绝了。请到设置里检查桥钥匙是否粘对。"
+                "服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。"
             )
         case .bridgeMissing:
             return .notConnected("服务器上的数据桥还没有开通。")
@@ -99,9 +99,9 @@ final class GoalsStore {
     static func message(for error: OneDayBridgeError) -> String {
         switch error {
         case .noKey:
-            return "数据桥未连接：还没有粘贴桥钥匙。"
+            return "数据桥未连接：还没有可用的登录信息。"
         case .unauthorized:
-            return "数据桥未连接：桥钥匙被拒绝。"
+            return "数据桥未连接：服务器拒绝了这次登录。"
         case .bridgeMissing:
             return "服务器上的数据桥还没有开通。"
         case .recordGone:
@@ -175,7 +175,7 @@ final class GoalsStore {
             )
             await refetch(appState: appState)
             guard let current = goal(id: goalID) else {
-                notes[goalID] = "保存已发出，但回读时目标不见了，请刷新核对。"
+                notes[goalID] = "保存已发出，但再确认时目标不见了，请刷新核对。"
                 return false
             }
             let confirmed = current.title == request.title
@@ -190,7 +190,7 @@ final class GoalsStore {
             if confirmed {
                 return true
             }
-            notes[goalID] = "保存已发出，但回读内容对不上，请刷新核对。"
+            notes[goalID] = "保存已发出，但再确认时内容对不上，请刷新核对。"
             return false
         } catch let error as OneDayBridgeError {
             notes[goalID] = Self.message(for: error)
@@ -256,7 +256,7 @@ final class GoalsStore {
             )
             await refetch(appState: appState)
             guard let current = goal(id: goalID) else {
-                notes[goalID] = "状态已提交，但回读时目标不见了，请刷新核对。"
+                notes[goalID] = "状态已提交，但再确认时目标不见了，请刷新核对。"
                 return false
             }
             let confirmed = current.status == status
@@ -266,7 +266,7 @@ final class GoalsStore {
             if confirmed {
                 return true
             }
-            notes[goalID] = "状态已提交，但回读对不上，请刷新核对。"
+            notes[goalID] = "状态已提交，但再确认时对不上，请刷新核对。"
             return false
         } catch let error as OneDayBridgeError {
             notes[goalID] = Self.message(for: error)

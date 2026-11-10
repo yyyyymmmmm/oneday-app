@@ -136,13 +136,17 @@ struct HubCronSection: View {
             .frame(width: 44, height: 44)
 
             if withBadge {
+                // 0.36.0（无障碍 A11Y-D2 部分）：角标
+                // 字形原 8pt 过小——徽标 16→18、字形
+                // 8→10 放大一档（图形角标非文字，放大
+                // 后仍属装饰级尺寸，已在台账注明）
                 ZStack {
                     Circle().fill(Self.amber)
                     Image(systemName: "clock.fill")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
                 }
-                .frame(width: 16, height: 16)
+                .frame(width: 18, height: 18)
                 .offset(x: 4, y: 4)
             }
         }
