@@ -16,6 +16,20 @@ enum ProbeStep: Int, CaseIterable {
     }
 }
 
+/// AppState 弱引用转手盒（0.36.20）：供 @Sendable 回
+/// 调（URLSession 队列/monitor 队列触发）安全持有
+/// AppState——盒本身 @unchecked Sendable、只持 weak
+/// 引用，回调经盒取值后以 `Task { @MainActor in }`
+/// 显式跳回主隔离，不让 @Sendable 闭包直接捕获主隔
+/// 离类实例
+final class WeakAppStateBox: @unchecked Sendable {
+    weak var value: AppState?
+
+    init(_ value: AppState) {
+        self.value = value
+    }
+}
+
 /// 连接状态单点：持有当前服务器配置与客户端，负责
 /// 启动恢复、三步探活、凭据存取、会话过期自动重登、断开连接。
 /// 凭据只经 Keychain 进出，本类不落任何明文副本到磁盘。
@@ -253,8 +267,46 @@ final class AppState {
     /// 正显示该线程则置空 currentThreadID 并清零）
     var drawerDeletedThreadID: UUID?
 
+    /// 业务成功信号代次（0.36.20，§86.2）：HermesClient
+    /// 任一业务请求收到 HTTP 响应即经回调递增，壳层观
+    /// 察变化把在线判定清零回写（治 R4 双通道互不作证）
+    private(set) var hermesBusinessSuccessTick = 0
+    /// 网络路径恢复/切换代次（0.36.20，§86.4）：
+    /// NetworkPathObserver 触发即递增——壳层据此立即
+    /// 重探活、聊天页据此续对账；只是触发器，不携带
+    /// 任何「离线」结论
+    private(set) var networkPathEpoch = 0
+
+    /// 业务成功信号落点（0.36.20）：只许主隔离上调
+    func noteHermesBusinessSuccess() {
+        hermesBusinessSuccessTick += 1
+    }
+
+    /// 路径触发信号落点（0.36.20）：只许主隔离上调
+    func noteNetworkPathRecovered() {
+        networkPathEpoch += 1
+    }
+
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
+        // 0.36.20（§86.2/§86.4）：连接稳固两路信号接线。
+        // 回调都从非隔离域（URLSession 队列/monitor 队
+        // 列）触发、只许经 Task 显式跳回主隔离写计数；
+        // @Sendable 闭包不直接捕获本类，经 @unchecked
+        // Sendable 弱盒转手（盒内只持 weak 引用）
+        let signalBox = WeakAppStateBox(self)
+        if let hermesClient = client as? HermesClient {
+            hermesClient.onTransportSuccess = {
+                Task { @MainActor in
+                    signalBox.value?.noteHermesBusinessSuccess()
+                }
+            }
+        }
+        NetworkPathObserver.shared.start {
+            Task { @MainActor in
+                signalBox.value?.noteNetworkPathRecovered()
+            }
+        }
         isDemo = demoMode.isDemo
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
         runLedger = RunLedgerStore(persisted: !demoMode.isDemo)

@@ -351,9 +351,24 @@ protocol HermesClientProtocol: Sendable {
 /// 后续 /api/* 自动带上；进程重启后 cookie 仍在（系统持久化），
 /// 过期则由 AppState 的自动重登兜底。
 final class HermesClient: HermesClientProtocol, @unchecked Sendable {
+    /// 短请求会话（探活/提交/状态/会话面等普通请求）
     private let session: URLSession
+    /// 流式会话（0.36.20，§86.5）：只供 events 订阅与
+    /// 遗留 chatStream——会话级空闲超时与请求级同为
+    /// 600，把「会话级 30 与请求级 600 谁支配流空闲判
+    /// 死」的口径之争从构造上掐死（见 §86.5 定谳）
+    private let streamSession: URLSession
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
+
+    /// 业务成功信号（0.36.20，§86.2）：任一业务端点
+    /// 收到完整 HTTP 响应（任何状态码——收到响应本身
+    /// 即证明通道可达）时回调一次，供 AppState 转给
+    /// 在线判定清零（治审计 R4：业务与探活互不作证）。
+    /// /health 不在此列（探活有自己的记账，别让探活
+    /// 的响应先把失败计数洗掉）。回调在 URLSession 队
+    /// 列触发、非隔离，转手方须自行跳回主隔离
+    var onTransportSuccess: (@Sendable () -> Void)?
 
     init() {
         let configuration = URLSessionConfiguration.default
@@ -361,7 +376,22 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         configuration.httpShouldSetCookies = true
         configuration.httpCookieAcceptPolicy = .always
         configuration.timeoutIntervalForRequest = 30
+        // 短请求开 waitsForConnectivity（0.36.20，
+        // §86.4）：无路径时先等连通再开始、别立刻失败
+        // （苹果 WWDC17-709 推荐口径）；只解决「开始
+        // 之前没网」，进行中掉线不在其覆盖内。流式长
+        // 连接不开——开始前等连通会把订阅的失败/重挂
+        // 时机搅乱，流的生死归对账管
+        configuration.waitsForConnectivity = true
         session = URLSession(configuration: configuration)
+
+        let streamConfiguration = URLSessionConfiguration.default
+        streamConfiguration.httpCookieStorage = .shared
+        streamConfiguration.httpShouldSetCookies = true
+        streamConfiguration.httpCookieAcceptPolicy = .always
+        streamConfiguration.timeoutIntervalForRequest = 600
+        streamConfiguration.waitsForConnectivity = false
+        streamSession = URLSession(configuration: streamConfiguration)
     }
 
     // MARK: - 基础请求
@@ -389,6 +419,11 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 throw HermesError.unreachable("无响应")
+            }
+            // 业务成功即通道可达的实证（§86.2）：通知
+            // 在线判定清零；/health 除外（见属性头注）
+            if request.url?.path != "/health" {
+                onTransportSuccess?()
             }
             return (data, http)
         } catch let error as HermesError {
@@ -600,7 +635,9 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                     }
                     request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
-                    let (bytes, response) = try await session.bytes(for: request)
+                    // 流式走流式会话（§86.5：会话级空闲
+                    // 超时同为 600，不与短请求共用 30 的会话）
+                    let (bytes, response) = try await streamSession.bytes(for: request)
                     guard let http = response as? HTTPURLResponse else {
                         throw HermesError.unreachable("无响应")
                     }
@@ -774,7 +811,7 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
                             forHTTPHeaderField: "Last-Event-ID"
                         )
                     }
-                    let (bytes, response) = try await session.bytes(
+                    let (bytes, response) = try await streamSession.bytes(
                         for: request
                     )
                     guard let http = response as? HTTPURLResponse,

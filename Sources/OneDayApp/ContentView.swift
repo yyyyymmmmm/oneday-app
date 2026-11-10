@@ -203,6 +203,16 @@ struct ContentView: View {
                 await overviewStore.poll(appState: appState)
             }
         }
+        // 0.36.20（§86.2）：业务成功信号一到即把在线判
+        // 定清零回写——不等 30 秒轮询，胶囊与事实同拍
+        .onChange(of: appState.hermesBusinessSuccessTick) {
+            overviewStore.noteBusinessSuccess()
+        }
+        // 0.36.20（§86.4）：网络路径恢复/切换即刻重探
+        // 一轮（触发器语义：只催办、不下结论）
+        .onChange(of: appState.networkPathEpoch) {
+            Task { await overviewStore.refresh(appState: appState) }
+        }
     }
 
     private var tabView: some View {

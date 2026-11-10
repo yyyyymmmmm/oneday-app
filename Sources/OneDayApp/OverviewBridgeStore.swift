@@ -26,6 +26,13 @@ final class OverviewBridgeStore {
     /// nil＝尚未探到，状态行退回桥快照口径
     private(set) var hermesChannelUp: Bool?
 
+    /// 在线判定迟滞（0.36.20，§86.2，治审计 R1）：探
+    /// 活成败先过 Core ConnectionLiveness 记账——连失
+    /// 3 次才许把 hermesChannelUp 写 false，阈值前保持
+    /// 上一结论（静默期不出断开文案）；任一成功（探
+    /// 活或业务，见 noteBusinessSuccess）立即清零回写
+    private var liveness = ConnectionLiveness()
+
     private let client = OverviewBridgeClient()
     private var isRefreshing = false
 
@@ -63,6 +70,7 @@ final class OverviewBridgeStore {
         guard appState.phase == .connected, let config = appState.config else {
             snapshot = nil
             hermesChannelUp = nil
+            liveness = ConnectionLiveness()
             appState.overviewBridgeAuthFailed = false
             return
         }
@@ -73,6 +81,7 @@ final class OverviewBridgeStore {
                 unreadNotifications: 0,
                 generatedAt: ISO8601DateFormatter().string(from: Date())
             )
+            liveness.recordSuccess()
             hermesChannelUp = true
             return
         }
@@ -80,12 +89,7 @@ final class OverviewBridgeStore {
         defer { isRefreshing = false }
         // 通道探活与桥取数相互独立、互不等待结论：探活
         // 失败只落 hermesChannelUp，桥失败只落 snapshot
-        do {
-            _ = try await appState.client.health(config: config)
-            hermesChannelUp = true
-        } catch {
-            hermesChannelUp = false
-        }
+        await probeChannel(appState: appState, config: config)
         do {
             snapshot = try await client.overview(config: config)
             appState.overviewBridgeAuthFailed = false
@@ -98,6 +102,57 @@ final class OverviewBridgeStore {
             }
         } catch {
             snapshot = nil
+        }
+    }
+
+    /// 通道探活一轮（0.36.20，§86.2）：失败不立即翻脸
+    /// ——先按 Core RetryBackoff 在轮内快速重探，连失
+    /// 满阈值（3 次）才把 hermesChannelUp 写 false；任
+    /// 一次成功即清零回写 true。任务取消（退后台）不
+    /// 记账：取消不是失败，别让场景切换冒充断网
+    private func probeChannel(
+        appState: AppState, config: ServerConfig
+    ) async {
+        var failuresThisRound = 0
+        while true {
+            do {
+                _ = try await appState.client.health(config: config)
+                liveness.recordSuccess()
+                hermesChannelUp = true
+                return
+            } catch {
+                if Task.isCancelled { return }
+                failuresThisRound += 1
+                let verdict = liveness.recordFailure()
+                if verdict == false {
+                    hermesChannelUp = false
+                    return
+                }
+                // 未达阈值：轮内快速重探（全抖动退避，
+                // base 1.0/cap 4.0——与链接步同源策略、
+                // 量级更小，静默期算式见 §86.5）
+                let wait = RetryBackoff.delay(
+                    afterFailure: failuresThisRound,
+                    base: 1.0, cap: 4.0,
+                    jitterUnit: Double.random(in: 0...1)
+                )
+                if wait > 0 {
+                    try? await Task.sleep(for: .seconds(wait))
+                }
+                if Task.isCancelled { return }
+            }
+        }
+    }
+
+    /// 业务成功回写（0.36.20，§86.2）：Hermes 通道上任
+    /// 一真实业务收到响应即算通道活证——计数清零、状
+    /// 态立即回「在线」，不等下一轮探活（治审计 R4：
+    /// 聊天明明刚收发成功、胶囊还挂着旧探活失败的
+    /// 「联系不上」最长约 30 秒）
+    func noteBusinessSuccess() {
+        liveness.recordSuccess()
+        if hermesChannelUp != true {
+            hermesChannelUp = true
         }
     }
 

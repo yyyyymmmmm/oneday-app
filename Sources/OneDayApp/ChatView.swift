@@ -468,6 +468,12 @@ struct ChatView: View {
                 dictation.suspendPreheat()
             }
         }
+        // 0.36.20（§86.4）：网络路径恢复/切换即刻续对
+        // 账——与回前台同一入口（resumeRunIfNeeded），
+        // 路径信号只做触发器、不预判成败
+        .onChange(of: appState.networkPathEpoch) {
+            Task { await resumeRunIfNeeded() }
+        }
         // 0.36.15：离开聊天页关预热总闸并弃置产物
         .onDisappear {
             dictation.disarmPreheat()
@@ -3375,7 +3381,7 @@ private struct ComposerBarLayout: Layout {
             // 默收尾（条目保留、与旧口径一致）
             let shape: (messages: [ChatMessage], sessionID: String?)
             do {
-                shape = try await prepareSendShape(
+                shape = try await prepareSendShapeWithRetry(
                     thread: thread, fullContext: context,
                     seedEntries: seedSnapshot
                 )
@@ -3456,6 +3462,54 @@ private struct ComposerBarLayout: Layout {
     ///   catch。用户在链接窗口内主动停止抛
     ///   CancellationError、不留痕（send 按停止语义
     ///   静默收尾）。
+    /// 发送链接步退避重试（0.36.20，§86.3，治审计
+    /// R2）：prepareSendShape 此前单发无重试——点发送
+    /// 撞上瞬断即整轮不发＋弹横幅，是全发送链重试覆盖
+    /// 最薄一环。本包装只对瞬断类失败（HermesError.
+    /// isTransient，既有失败分型）做有界退避重试：总
+    /// 尝试与提交步同量级（Core RetryBackoff.max-
+    /// Attempts＝首发＋2 次）、全抖动退避同源；鉴权/
+    /// 业务失败不重试、原样上抛走既有失败分支。重试
+    /// 期间不产任何新文案（§86.5 呈现一档：静默期），
+    /// 耗尽后才由调用方既有分支出失败横幅——本条消息
+    /// 从未进入提交步，「未发送」口径属实。重试语义与
+    /// 用户手动重按发送完全一致（主线是 ensure 幂等；
+    /// 旁聊每次尝试内现铸定 id，极端时序下可能在服务
+    /// 端多留一个空会话——无消息落入、与手按重发同
+    /// 性质，不为此另造跨尝试 id 托管）
+    private func prepareSendShapeWithRetry(
+        thread: ChatThread, fullContext: [ChatMessage],
+        seedEntries: [SeedEntry]
+    ) async throws -> (messages: [ChatMessage], sessionID: String?) {
+        var attempts = 0
+        while true {
+            attempts += 1
+            do {
+                return try await prepareSendShape(
+                    thread: thread, fullContext: fullContext,
+                    seedEntries: seedEntries
+                )
+            } catch let error as HermesError {
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+                guard error.isTransient,
+                      RetryBackoff.shouldRetry(afterAttempts: attempts)
+                else { throw error }
+                let wait = RetryBackoff.delay(
+                    afterFailure: attempts,
+                    jitterUnit: Double.random(in: 0...1)
+                )
+                if wait > 0 {
+                    try? await Task.sleep(for: .seconds(wait))
+                }
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+            }
+        }
+    }
+
     private func prepareSendShape(
         thread: ChatThread, fullContext: [ChatMessage],
         seedEntries: [SeedEntry]
@@ -4437,21 +4491,26 @@ private struct MessageMenuModifier: ViewModifier {
     }
 }
 
-/// 右滑引用（0.36.19，§84.3）：气泡向右滑，横向拖
-/// 动显出回复箭头，过阈松手触发引用——与长按菜单
-/// 「回复」同一动作（beginReply），两路并存不互斥
-/// （长按是静止按压、右滑是横向拖动，形态不重叠）。
-/// 判定全走 Core SwipeReplyMotion（方向门/跟手位移/
-/// 阈值/显形进度，单测把守），本层只持拖动状态与呈现：
-/// - 手势以 simultaneousGesture 旁听：方向门（右向
-///   ＋横向主导，抽屉 S2 同源）接管前不写任何位移，
-///   纵向拖动永远锁不上、列表照常滚动；接管后位移
-///   只横向写入 content 的 offset，滚动与贴底判定
-///   等滚动侧逻辑一概不碰
+/// 右滑引用（0.36.19，§84.3；0.36.20 §85 换桥）：
+/// 气泡向右滑，横向拖动显出回复箭头，过阈松手触发
+/// 引用——与长按菜单「回复」同一动作（beginReply），
+/// 两路并存不互斥（长按是静止按压、右滑是横向拖动，
+/// 形态不重叠）。判定全走 Core SwipeReplyMotion（方
+/// 向生死/跟手位移/阈值/显形进度，单测把守），本层
+/// 只持拖动状态与呈现：
+/// - 接管层是 UIKit 平移识别器桥（SwipeReplyPan-
+///   Probe）：方向生死在识别器 shouldBegin 阶段就定
+///   ——纵向主导不 begin、纵滚完整归 ScrollView；横
+///   向 begin 后位移才横向写入 content 的 offset
+///   （只在 begin 后写，滚动与贴底判定一概不碰）
+/// - 0.36.19 首版用 DragGesture＋onChanged 方向门，
+///   真机证明识别层抢占挡不住、气泡区纵滚被压死，
+///   已退役（P-15）；旧注释「纵向永远锁不上」是没
+///   在识别层验过的空话，一并作废
 /// - 箭头在内容左缘下层：随显形进度淡入/缩放，过
 ///   阈转武装态（主色盘＋白箭头）预告松手即触发
-/// - 松手：过阈 → 轻触觉＋onReply；未过阈/未接管
-///   → 位移回弹归零、不触发
+/// - 松手：过阈 → 轻触觉＋onReply；未过阈/被系统
+///   夺走 → 位移回弹归零、不触发
 private struct SwipeReplyModifier: ViewModifier {
     let isEnabled: Bool
     let onReply: () -> Void
@@ -4468,9 +4527,59 @@ private struct SwipeReplyModifier: ViewModifier {
                 content
                     .offset(x: dragOffset)
             }
-            .simultaneousGesture(swipeGesture)
+            .background {
+                // 桥探针：零尺寸、不命中，只负责把
+                // UIKit 平移识别器装到本容器上（§85）
+                SwipeReplyPanProbe(
+                    onBegan: { dx in
+                        lockTranslation = dx
+                        applyOffset(dx: dx)
+                    },
+                    onChanged: { dx in
+                        applyOffset(dx: dx)
+                    },
+                    onEnded: {
+                        finishGesture(triggerAllowed: true)
+                    },
+                    onCancelled: {
+                        finishGesture(triggerAllowed: false)
+                    }
+                )
+                .allowsHitTesting(false)
+            }
         } else {
             content
+        }
+    }
+
+    /// 跟手位移：只在识别器 begin 后由桥回调驱动——
+    /// 判定（扣锁定段/钳制）走 Core 单源，本处只写状态
+    private func applyOffset(dx: CGFloat) {
+        guard let lockTranslation else { return }
+        dragOffset = SwipeReplyMotion.followedOffset(
+            dx: dx, lockTranslation: lockTranslation
+        )
+    }
+
+    /// 收尾：过阈且未被系统夺走才触发引用；位移一律
+    /// 动画归零（短滑回弹与触发后复位同路）
+    private func finishGesture(triggerAllowed: Bool) {
+        let triggered = triggerAllowed
+            && lockTranslation != nil
+            && SwipeReplyMotion.shouldTrigger(offset: dragOffset)
+        lockTranslation = nil
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            )
+        ) {
+            dragOffset = 0
+        }
+        if triggered {
+            // 轻触觉（动效宪法表 D，impact .light
+            // 落点不变）：与引用落定同一因果链，只震这一次
+            Haptics.impact(.light)
+            onReply()
         }
     }
 
@@ -4497,41 +4606,6 @@ private struct SwipeReplyModifier: ViewModifier {
             .accessibilityHidden(true)
     }
 
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 6)
-            .onChanged { value in
-                if lockTranslation == nil {
-                    guard SwipeReplyMotion.engages(
-                        dx: value.translation.width,
-                        dy: value.translation.height
-                    ) else { return }
-                    lockTranslation = value.translation.width
-                }
-                dragOffset = SwipeReplyMotion.followedOffset(
-                    dx: value.translation.width,
-                    lockTranslation: lockTranslation ?? 0
-                )
-            }
-            .onEnded { _ in
-                let triggered = lockTranslation != nil
-                    && SwipeReplyMotion.shouldTrigger(offset: dragOffset)
-                lockTranslation = nil
-                withAnimation(
-                    MotionTokens.resolved(
-                        MotionTokens.swap, reduceMotion: reduceMotion
-                    )
-                ) {
-                    dragOffset = 0
-                }
-                if triggered {
-                    // 轻触觉（动效宪法表 D，impact .light
-                    // 落点新增，见 Haptics 头注）：与引用
-                    // 落定同一因果链，只震这一次
-                    Haptics.impact(.light)
-                    onReply()
-                }
-            }
-    }
 }
 
 /// 「选择」sheet 载荷（0.4.1）

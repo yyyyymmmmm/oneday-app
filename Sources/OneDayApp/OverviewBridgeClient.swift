@@ -25,6 +25,10 @@ final class OverviewBridgeClient: @unchecked Sendable {
     init() {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 15
+        // 短请求开 waitsForConnectivity（0.36.20，§86.4，
+        // 与 HermesClient 短请求会话同口径）：总览/通知
+        // 取数在无路径时先等连通再开始，不立刻失败
+        configuration.waitsForConnectivity = true
         session = URLSession(configuration: configuration)
     }
 
