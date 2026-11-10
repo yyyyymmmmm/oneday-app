@@ -32,6 +32,12 @@ final class SideChatStore {
     /// 不许再静默——原文落此、设置页「服务器与连接」
     /// 区如实展示，链接成功即清
     private(set) var mainLinkLastError: String?
+    /// 上次停留线程（0.30.0）：聊天页签的落点记忆——
+    /// 冷启/视图重建时恢复上次对话（Muse 模型：页签
+    /// 不与主线绑定，点页签回上次对话）。唯一写入点
+    /// ＝ChatView 的 currentThreadID 变更回调（置空即
+    /// 清记录），落点解析在 Core ChatLandingResolution
+    private(set) var lastThreadID: UUID?
     private(set) var archivedKeys: Set<String> = []
     /// 删除归档失败留痕（0.21.0）：本地线程已删、关
     /// 联服务端会话归档 PATCH 失败待对账的会话 id
@@ -49,6 +55,7 @@ final class SideChatStore {
         static let mainServerConfirmed = "sideChats.mainServerConfirmed"
         static let mainServerSeeded = "sideChats.mainServerSeeded"
         static let mainLinkLastError = "sideChats.mainLinkLastError"
+        static let lastThreadID = "sideChats.lastThreadID"
         static let archivedKeys = "sideChats.archivedKeys"
         static let failedArchiveSessionIDs =
             "sideChats.failedArchiveSessionIDs"
@@ -67,6 +74,9 @@ final class SideChatStore {
         mainServerConfirmed = defaults.bool(forKey: Key.mainServerConfirmed)
         mainServerSeeded = defaults.bool(forKey: Key.mainServerSeeded)
         mainLinkLastError = defaults.string(forKey: Key.mainLinkLastError)
+        if let raw = defaults.string(forKey: Key.lastThreadID) {
+            lastThreadID = UUID(uuidString: raw)
+        }
         archivedKeys = Set(defaults.stringArray(forKey: Key.archivedKeys) ?? [])
         failedArchiveSessionIDs = Self.decode(
             [String].self, defaults, Key.failedArchiveSessionIDs
@@ -129,6 +139,20 @@ final class SideChatStore {
     func noteMainLinkError(_ message: String) {
         mainLinkLastError = message
         defaults?.set(message, forKey: Key.mainLinkLastError)
+    }
+
+    // MARK: - 落点记忆（0.30.0）
+
+    /// 记/清上次停留线程：传 nil 即清记录（当前线程
+    /// 被删时由 ChatView 的变更回调统一落到这里），
+    /// 下次落点按「记录失效回主线」解析，不留死键
+    func setLastThreadID(_ id: UUID?) {
+        lastThreadID = id
+        if let id {
+            defaults?.set(id.uuidString, forKey: Key.lastThreadID)
+        } else {
+            defaults?.removeObject(forKey: Key.lastThreadID)
+        }
     }
 
     // MARK: - 归档（M2）

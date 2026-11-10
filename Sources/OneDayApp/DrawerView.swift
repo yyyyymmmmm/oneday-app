@@ -303,6 +303,17 @@ struct DrawerView: View {
                 selected: currentTab == .chat
             ) {
                 onClose()
+                // 0.30.0（用户 12:56 录屏点名 Muse 模
+                // 型）：本行是显式回主线的唯一入口——经
+                // 线程选择通道直切钦定主线（ChatView 消
+                // 费切换、并经落点记忆落盘）；底部页签本
+                // 身不再承担回主线语义（点页签回上次对
+                // 话，见 ChatLandingResolution）。钦定尚
+                // 未落定时只切页签，ChatView 落点解析会
+                // 以主线兜底
+                if let mainID = appState.sideChats.mainThreadID {
+                    appState.drawerThreadSelection = mainID
+                }
                 onSelectTab(.chat)
             }
             // 枢纽行：枢纽 sheet 本体长在聊天页（胶囊入

@@ -244,6 +244,11 @@ struct ChatView: View {
         // 不许跨线程带过去；0.7.0 两处增补——草稿轻保活
         // （M1）与分流种子转入（M4），见下
         .onChange(of: currentThreadID) { oldID, newID in
+            // 0.30.0（落点记忆）：当前线程恒落盘——冷启/
+            // 视图重建时由 ChatLandingResolution 恢复上
+            // 次对话（页签不与主线绑定）；这是全仓唯一
+            // 写入点，置空（删当前线程）即清记录
+            appState.sideChats.setLastThreadID(newID)
             // 0.7.0（M1 轻保活）：切走前把输入框草稿存回
             // 旁聊状态、切入后恢复目标线程的草稿（发送后
             // 的空串存回即删草稿）；线程已被删的切走不回
@@ -396,9 +401,11 @@ struct ChatView: View {
         }
         .onAppear {
             // 0.7.0（D1 主线钦定）：先落钦定——存量钦定且
-            // 线程还在则沿用，否则新建本地主线并钦定；
-            // 冷启落点在无其他改道（抽屉选线程/待续聊）
-            // 时永远先落主线
+            // 线程还在则沿用，否则新建本地主线并钦定。
+            // （0.30.0 注：0.7.0 的「冷启落点永远先落主
+            // 线」已被用户 12:56 录屏纠正作废——落点改
+            // 走下方 ChatLandingResolution 恢复上次线
+            // 程，本步只保证钦定主线存在、供解析兜底）
             let mainID = ensureMainThread()
             // 0.4.5：同理补消费抽屉线程选择（从其他格开
             // 抽屉选线程切过来时，本页可能尚未挂载、
@@ -406,8 +413,30 @@ struct ChatView: View {
             if let id = appState.drawerThreadSelection {
                 appState.drawerThreadSelection = nil
                 currentThreadID = id
-            } else if appState.pendingChatSessionID == nil, currentThreadID == nil {
-                currentThreadID = mainID ?? threads.first?.id
+            } else if appState.pendingChatSessionID == nil {
+                // 0.30.0（用户 12:56 录屏点名 Muse 模
+                // 型，取代 0.7.0「冷启永远先落主线」）：
+                // 落点走 Core ChatLandingResolution——
+                // 进程内已在某线程（页签切回）保持、冷
+                // 启恢复上次线程、记录失效回主线；显式
+                // 回主线只剩抽屉「主线聊天」行一个入口
+                switch ChatLandingResolution.landing(
+                    currentID: currentThreadID,
+                    lastThreadID: appState.sideChats.lastThreadID,
+                    existingIDs: threads.map(\.id),
+                    mainThreadID: mainID
+                ) {
+                case .keep(let id), .restore(let id), .main(let id):
+                    if currentThreadID != id {
+                        currentThreadID = id
+                    }
+                case .none:
+                    // 当前/上次/主线均不在名单（钦定失败
+                    // 的极端情形）：沿旧兜底落第一条
+                    if currentThread == nil {
+                        currentThreadID = threads.first?.id
+                    }
+                }
             }
             // 0.4.5：当前线程初始回写（抽屉高亮当前位）
             appState.activeThreadID = currentThread?.id
@@ -855,13 +884,65 @@ struct ChatView: View {
 
     // MARK: - 消息列表
 
+    /// 时间分隔条落点（0.30.0，Core ChatTimeline）：只
+    /// 对会话条目走查——工具卡条目（toolCard 非 nil）
+    /// 不单独占分隔、也不重置锚点，以其所属回合的会
+    /// 话条目时间为准；返回 条目 id → 分隔条文案
+    private func timelineDividers(
+        for entries: [ChatEntry]
+    ) -> [UUID: String] {
+        let conversational = entries.filter { $0.toolCard == nil }
+        let indices = ChatTimeline.dividerIndices(
+            dates: conversational.map(\.createdAt)
+        )
+        var result: [UUID: String] = [:]
+        let now = Date()
+        for index in indices {
+            let entry = conversational[index]
+            result[entry.id] = ChatTimeline.dividerText(
+                for: entry.createdAt, now: now
+            )
+        }
+        return result
+    }
+
+    /// 时间分隔条（0.30.0，微信式素字）：居中、Foot-
+    /// note 级（meta 角色）灰字、无气泡无底色块；文
+    /// 案与落点全由 Core ChatTimeline 计算、本视图
+    /// 只渲染
+    private func timelineDivider(_ text: String) -> some View {
+        Text(text)
+            .font(.meta)
+            .foregroundStyle(Palette.inkSecondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .accessibilityLabel("时间 \(text)")
+    }
+
     private func messageList(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
                 if let thread = currentThread {
+                    // 0.30.0（聊天时间系统）：分隔条落点与
+                    // 文案由 Core ChatTimeline 按会话条目
+                    // 走查（工具卡条目不单独占分隔、也不
+                    // 重置锚点——以所属回合时间为准）；流
+                    // 式行/流内工具卡是当前回合的呈现层尾
+                    // 巴、不另起分隔（本回合的分隔由其
+                    // user 条目承担，见 timelineDividers）
+                    let dividers = timelineDividers(
+                        for: thread.sortedEntries
+                    )
                     ForEach(thread.sortedEntries) { entry in
-                        bubble(entry)
-                            .id(entry.id)
+                        VStack(
+                            alignment: .leading,
+                            spacing: OneDayMetrics.spacingS
+                        ) {
+                            if let dividerText = dividers[entry.id] {
+                                timelineDivider(dividerText)
+                            }
+                            bubble(entry)
+                        }
+                        .id(entry.id)
                     }
                 }
                 // 0.8.0（P1）：流内工具卡——累积完成即
