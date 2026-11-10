@@ -1,3 +1,4 @@
+import os
 import UIKit
 import UniformTypeIdentifiers
 
@@ -25,7 +26,8 @@ enum DocumentPickerBridge {
     /// 是弱引用，present 返回后若无人持有 coordi-
     /// nator，回调永远不会来——持有到选定/取消为
     /// 止，关闭时在回调里释放
-    private static var retainedCoordinator: Coordinator?
+    private static let coordinatorBox =
+        OSAllocatedUnfairLock<Coordinator?>(initialState: nil)
 
     static func present(onPick: @escaping ([URL]) -> Void) {
         // 延一拍：等触发它的 Menu 收起落定再呈现，
@@ -41,7 +43,7 @@ enum DocumentPickerBridge {
             picker.allowsMultipleSelection = true
             let coordinator = Coordinator(onPick: onPick)
             picker.delegate = coordinator
-            retainedCoordinator = coordinator
+            coordinatorBox.withLock { $0 = coordinator }
             presenter.present(picker, animated: true)
         }
     }
@@ -49,6 +51,7 @@ enum DocumentPickerBridge {
     /// 沿 presentedViewController 链走到当前最顶层
     /// VC（干净的呈现上下文，不借道任何 SwiftUI
     /// 呈现修饰符的宿主）
+    @MainActor
     private static func topmostViewController() -> UIViewController? {
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -62,7 +65,7 @@ enum DocumentPickerBridge {
     }
 
     private static func releaseCoordinator() {
-        retainedCoordinator = nil
+        coordinatorBox.withLock { $0 = nil }
     }
 
     private final class Coordinator: NSObject, UIDocumentPickerDelegate {
