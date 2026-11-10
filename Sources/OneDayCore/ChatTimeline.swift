@@ -46,54 +46,29 @@ public enum ChatTimeline {
         return indices
     }
 
-    /// 分隔条文案（五档见文件头）
+    /// 分隔条文案（五档见文件头；0.42.0 国际化包：
+    /// 档位结构不变，各档文案改走 DisplayDate 同源
+    /// 的系统格式化器与目录取词，locale 钉 App 界
+    /// 面语言——简体输出与旧口径逐字一致）
     public static func dividerText(
-        for date: Date, now: Date, calendar: Calendar = .current
+        for date: Date, now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
-        let time = timeText(for: date, calendar: calendar)
-        let dayDiff = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: date),
-            to: calendar.startOfDay(for: now)
-        ).day ?? Int.max
+        let time = DisplayDate.timeText(of: date, calendar: calendar, locale: locale)
+        let dayDiff = DisplayDate.dayDifference(of: date, now: now, calendar: calendar)
         switch dayDiff {
         case ..<1:
             // 今天；日期晚于 now（时钟漂移/未来条目）
             // 同档，只给时刻不编造相对日
             return time
         case 1:
-            return "昨天 \(time)"
+            return L10n.format("昨天 %@", locale: locale, time)
         case 2...6:
-            return "\(weekdayText(for: date, calendar: calendar)) \(time)"
+            let weekday = DisplayDate.weekdayText(of: date, calendar: calendar, locale: locale)
+            return "\(weekday) \(time)"
         default:
-            let parts = calendar.dateComponents(
-                [.year, .month, .day], from: date
-            )
-            guard let year = parts.year, let month = parts.month,
-                  let day = parts.day else { return time }
-            if year == calendar.component(.year, from: now) {
-                return "\(month)月\(day)日 \(time)"
-            }
-            return "\(year)年\(month)月\(day)日 \(time)"
+            let absolute = DisplayDate.absoluteDate(of: date, now: now, calendar: calendar, locale: locale)
+            return "\(absolute) \(time)"
         }
-    }
-
-    private static func timeText(for date: Date, calendar: Calendar) -> String {
-        let hour = calendar.component(.hour, from: date)
-        let minute = calendar.component(.minute, from: date)
-        return String(format: "%02d:%02d", hour, minute)
-    }
-
-    private static let weekdayNames = [
-        "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
-    ]
-
-    private static func weekdayText(
-        for date: Date, calendar: Calendar
-    ) -> String {
-        // Calendar.weekday：1＝周日 … 7＝周六
-        let weekday = calendar.component(.weekday, from: date)
-        guard (1...7).contains(weekday) else { return "" }
-        return weekdayNames[weekday - 1]
     }
 }

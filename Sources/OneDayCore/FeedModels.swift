@@ -482,12 +482,13 @@ public enum FeedBoard {
     /// yyyy年M月d日），只到日、不带时刻
     public static func dayGroups(
         _ posts: [BridgeFeedPost], now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> [DayGroup] {
         var groups: [DayGroup] = []
         for post in posts {
             let date = Date(timeIntervalSince1970: post.createdAt)
-            let title = groupTitle(for: date, now: now, calendar: calendar)
+            let title = groupTitle(for: date, now: now, calendar: calendar, locale: locale)
             if var last = groups.last, last.title == title {
                 last = DayGroup(
                     title: last.title, posts: last.posts + [post]
@@ -501,70 +502,55 @@ public enum FeedBoard {
     }
 
     public static func groupTitle(
-        for date: Date, now: Date, calendar: Calendar = .current
+        for date: Date, now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
-        let dayDiff = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: date),
-            to: calendar.startOfDay(for: now)
-        ).day ?? Int.max
+        // 0.42.0：档位不变，文案走 DisplayDate 同源格
+        // 式器与目录取词（未来侧恒「今天」，与
+        // DisplayDate.dateOnly 的明天档分工不变）
+        let dayDiff = DisplayDate.dayDifference(of: date, now: now, calendar: calendar)
         switch dayDiff {
         case ..<1:
-            return "今天"
+            return L10n.string("今天", locale: locale)
         case 1:
-            return "昨天"
+            return L10n.string("昨天", locale: locale)
         case 2...6:
-            return weekdayText(for: date, calendar: calendar)
+            return DisplayDate.weekdayText(of: date, calendar: calendar, locale: locale)
         default:
-            let parts = calendar.dateComponents(
-                [.year, .month, .day], from: date
-            )
-            guard let year = parts.year, let month = parts.month,
-                  let day = parts.day else { return "" }
-            if year == calendar.component(.year, from: now) {
-                return "\(month)月\(day)日"
-            }
-            return "\(year)年\(month)月\(day)日"
+            return DisplayDate.absoluteDate(of: date, now: now, calendar: calendar, locale: locale)
         }
     }
 
     /// 动作行相对时间（对标 Muse 动态：7分钟/1小时
     /// 式；过日界走日期口径，与 ChatTimeline 五档同族）
     public static func relativeText(
-        for ts: Double, now: Date, calendar: Calendar = .current
+        for ts: Double, now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
     ) -> String {
+        // 0.42.0：分/时紧凑档走目录模板（"%@分钟"/
+        // "%@小时"），过日界各档与 ChatTimeline 同源
         let date = Date(timeIntervalSince1970: ts)
         let diff = now.timeIntervalSince(date)
         if diff < 60 {
-            return "刚刚"
+            return L10n.string("刚刚", locale: locale)
         }
-        let dayDiff = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: date),
-            to: calendar.startOfDay(for: now)
-        ).day ?? Int.max
+        let dayDiff = DisplayDate.dayDifference(of: date, now: now, calendar: calendar)
         if dayDiff <= 0 {
             if diff < 3600 {
-                return "\(Int(diff / 60))分钟"
+                return L10n.format("%@分钟", locale: locale, String(Int(diff / 60)))
             }
-            return "\(Int(diff / 3600))小时"
+            return L10n.format("%@小时", locale: locale, String(Int(diff / 3600)))
         }
-        let time = timeText(for: date, calendar: calendar)
+        let time = DisplayDate.timeText(of: date, calendar: calendar, locale: locale)
         switch dayDiff {
         case 1:
-            return "昨天 \(time)"
+            return L10n.format("昨天 %@", locale: locale, time)
         case 2...6:
-            return "\(weekdayText(for: date, calendar: calendar)) \(time)"
+            let weekday = DisplayDate.weekdayText(of: date, calendar: calendar, locale: locale)
+            return "\(weekday) \(time)"
         default:
-            let parts = calendar.dateComponents(
-                [.year, .month, .day], from: date
-            )
-            guard let year = parts.year, let month = parts.month,
-                  let day = parts.day else { return time }
-            if year == calendar.component(.year, from: now) {
-                return "\(month)月\(day)日 \(time)"
-            }
-            return "\(year)年\(month)月\(day)日 \(time)"
+            let absolute = DisplayDate.absoluteDate(of: date, now: now, calendar: calendar, locale: locale)
+            return "\(absolute) \(time)"
         }
     }
 
@@ -638,23 +624,5 @@ public enum FeedBoard {
             return flat
         }
         return String(flat.prefix(maxLength)) + "…"
-    }
-
-    private static func timeText(for date: Date, calendar: Calendar) -> String {
-        let hour = calendar.component(.hour, from: date)
-        let minute = calendar.component(.minute, from: date)
-        return String(format: "%02d:%02d", hour, minute)
-    }
-
-    private static let weekdayNames = [
-        "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
-    ]
-
-    private static func weekdayText(
-        for date: Date, calendar: Calendar
-    ) -> String {
-        let weekday = calendar.component(.weekday, from: date)
-        guard (1...7).contains(weekday) else { return "" }
-        return weekdayNames[weekday - 1]
     }
 }

@@ -60,7 +60,8 @@ final class FeedBoardTests: XCTestCase {
             post(id: "x1", createdAt: date(2025, 12, 31, 10)),
         ])
         let groups = FeedBoard.dayGroups(
-            posts, now: now, calendar: calendar
+            posts, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(
             groups.map(\.title),
@@ -76,7 +77,8 @@ final class FeedBoardTests: XCTestCase {
         func rel(_ d: Date) -> String {
             FeedBoard.relativeText(
                 for: d.timeIntervalSince1970, now: now,
-                calendar: calendar
+                calendar: calendar,
+                locale: Locale(identifier: "zh-Hans")
             )
         }
         XCTAssertEqual(rel(date(2026, 11, 10, 15, 29, 40)), "刚刚")

@@ -1,0 +1,182 @@
+{
+  "sourceLanguage": "zh-Hans",
+  "strings": {
+    "NSCalendarsFullAccessUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要读取你的日历：安排只在这台手机上查看；开启智能体调用后，被问到时现读现回；只有你在连接器详情页亲手开启「数据同步」时，才会把过去 30 天到未来 90 天日程的标题与时间同步一份到你自己的服务器，供智能体整份查询。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要讀取你的行事曆：行程只在這台手機上查看；開啟智慧代理呼叫後，被問到時現讀現回；只有你在連接器詳情頁親手開啟「資料同步」時，才會把過去 30 天到未來 90 天行程的標題與時間同步一份到你自己的伺服器，供智慧代理整份查詢。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay needs to read your calendar. Events are viewed only on this phone. When agent calls are on, they're read live when asked. Only when you personally turn on Data Sync in the connector details will the titles and times of events from the past 30 days to the next 90 days be synced to your own server, so the agent can query the whole set."
+          }
+        }
+      }
+    },
+    "NSRemindersFullAccessUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要读取你的提醒事项：待办只在这台手机上查看；开启智能体调用后，被问到时现读现回；只有你在连接器详情页亲手开启「数据同步」时，才会把没做完的提醒同步一份到你自己的服务器，供智能体整份查询。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要讀取你的提醒事項：待辦只在這台手機上查看；開啟智慧代理呼叫後，被問到時現讀現回；只有你在連接器詳情頁親手開啟「資料同步」時，才會把沒做完的提醒同步一份到你自己的伺服器，供智慧代理整份查詢。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay needs to read your reminders. To-dos are viewed only on this phone. When agent calls are on, they're read live when asked. Only when you personally turn on Data Sync in the connector details will unfinished reminders be synced to your own server, so the agent can query the whole set."
+          }
+        }
+      }
+    },
+    "NSContactsUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要读取你的通讯录：搜索在手机上完成；开启智能体调用后，被问到时现查现回；只有你在连接器详情页亲手开启「数据同步」时，才会把姓名、电话、邮箱同步一份到你自己的服务器（不含备注、地址、生日、头像），供智能体整份查询。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要讀取你的聯絡人：搜尋在手機上完成；開啟智慧代理呼叫後，被問到時現查現回；只有你在連接器詳情頁親手開啟「資料同步」時，才會把姓名、電話、郵箱同步一份到你自己的伺服器（不含備註、地址、生日、頭像），供智慧代理整份查詢。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay needs to read your contacts. Searches run on the phone. When agent calls are on, lookups happen live when asked. Only when you personally turn on Data Sync in the connector details will names, phone numbers, and emails be synced to your own server (notes, addresses, birthdays, and avatars are not included), so the agent can query the whole set."
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要读取你的照片清单：只看每项的拍摄时间、类型和大小，用来在手机上展示数量；只有你在连接器详情页亲手开启「数据同步」时，才会把这份清单（不含照片本身、不含拍摄地点）同步一份到你自己的服务器，供智能体查询。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要讀取你的照片清單：只看每項的拍攝時間、類型和大小，用來在手機上展示數量；只有你在連接器詳情頁親手開啟「資料同步」時，才會把這份清單（不含照片本身、不含拍攝地點）同步一份到你自己的伺服器，供智慧代理查詢。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay needs to read your photo inventory. It only looks at each item's capture time, type, and size, to show counts on the phone. Only when you personally turn on Data Sync in the connector details will this inventory (without the photos themselves and without capture locations) be synced to your own server for the agent to query."
+          }
+        }
+      }
+    },
+    "NSMotionUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要读取手机计步的每日合计：只看每天的步数、距离和爬楼层数；只有你在连接器详情页亲手开启「数据同步」时，才会把每日合计同步一份到你自己的服务器，供智能体查询。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要讀取手機計步的每日合計：只看每天的步數、距離和爬樓層數；只有你在連接器詳情頁親手開啟「資料同步」時，才會把每日合計同步一份到你自己的伺服器，供智慧代理查詢。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay needs to read the phone pedometer's daily totals. It only looks at each day's steps, distance, and floors climbed. Only when you personally turn on Data Sync in the connector details will the daily totals be synced to your own server for the agent to query."
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要把图片存入你的相册：只在你在图片查看器里点「下载」时保存你选中的那一张图片，不会读取你的相册。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要把圖片存入你的相簿：只在你在圖片檢視器裡點「下載」時儲存你選中的那一張圖片，不會讀取你的相簿。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay needs to save images to your photo library. It only saves the one image you selected, when you tap Download in the image viewer. It never reads your photo library."
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要使用麦克风，把你说的话转成文字填入输入框；录音只在本机处理，不上传服务器。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要使用麥克風，把你說的話轉成文字填入輸入框；錄音只在本機處理，不上傳伺服器。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay needs the microphone to turn your speech into text in the input field. Recordings are processed only on this device and are never uploaded to a server."
+          }
+        }
+      }
+    },
+    "NSSpeechRecognitionUsageDescription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 使用语音识别把你的话转成文字；识别在你的 iPhone 本机完成，录音不会离开手机。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 使用語音辨識把你的話轉成文字；辨識在你的 iPhone 本機完成，錄音不會離開手機。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay uses speech recognition to turn your speech into text. Recognition happens entirely on your iPhone, and recordings never leave the phone."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

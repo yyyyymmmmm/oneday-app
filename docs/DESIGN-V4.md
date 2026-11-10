@@ -7637,3 +7637,35 @@ def greet(name):
 - **终判**：本机无 Swift 工具链，App 侧已做静态自查（构造点/引用/括号配平），编译与单测终判等合并后 CI；桥侧自测已在本机全套实跑（见 106.1）。
 - **未决**：①按类筛选/分组呈现按规格登记缓办、本包未做（详情呈现＋创建预置已落）；②B 案对话创建随 9B 门面（收官窗口）切换时分类流与 category 零返工，本包未预埋对话入口；③委派自动记条目走 feed 轮询节奏（非实时），任务完成到条目出现之间隔一个轮询周期，真机终审时按此口径看。
 
+
+## §107 国际化包 0.42.0（2026-11-11，预制分支 feat/i18n-042；本节号为本分支自选尾号，0.41.x 全局收口批若先占 §107，合并时主线终审顺延）
+
+缘起：用户 2026-11-11 02:34 拍板把国际化提进正式计划。口径：String Catalogs 落地（源语言简体中文，目标繁体中文＋英文）；繁体走简繁术语人工校对（台港常用法）；英文产品文案口径、专名不译；宪法 §8 零行话三语一致；日期/相对时间/数字随系统语言走系统格式化器、不许手拼格式串；App 内不加语言切换开关（随系统）。不动范围：服务端回串（桥/Hermes 人话字段）、用户内容（消息/帖/目标标题）、商店元数据（上架线）。
+
+### 107.1 目录（App/Resources/）
+
+- **Localizable.xcstrings**：2241 键（源串为键、插值按实参类型落 %@/%lld；提取时发现 6 条占位符误判已按源码实参修正——组合名/模型名等字符串被误猜为 %lf/%lld 的一律改 %@）。每键 zh-Hans（＝键本身）/zh-Hant/en 三语齐备。另补 2 键为代码收编所需（「已同步 %lld %@」修正键＋提取漏网的「原因没记下来」）。
+- **InfoPlist.xcstrings**：8 条 NS*UsageDescription 三语化（简体原文与 Project.swift 逐字一致，值随系统语言由系统弹框自取）。
+- **繁体术语口径（人工校对、非机器逐字转）**：设置→設定、文件→檔案（文档→文件）、信息→資訊、消息→訊息、视频→影片、默认→預設、创建→建立、添加→新增、保存→儲存、登录→登入、账号→帳號、网络→網路、在线→線上、搜索→搜尋、复制→複製、远程→遠端、密钥→金鑰、令牌→權杖、会话（对话义）→對話、频道→頻道、归档→封存、日历→行事曆、日程（EventKit）→行程、通讯录→聯絡人、相册→相簿、文件夹→資料夾、导出→匯出、导入→匯入、界面→介面、服务器→伺服器、用户→使用者、智能体→智慧代理、台账→臺帳、凭据→憑證、网关→閘道、渠道→管道、数据桥→資料橋、云电脑→雲端電腦、短信→簡訊、识别（语音）→辨識、麦克风→麥克風、吊销→撤銷、置顶→釘選、帖子→貼文、刷新→重新整理、归档→封存。
+- **校验**：Scripts/validate_i18n.py（仓内常设）：三语齐备、占位符按位置-类型一致（定位符 %n$ 形兼容）、行话黑名单「译文不得引入源串没有的行话」（校验中实拦 1 条：英文译文误用 scope 一词已改 range）。本包交付时实跑通过：2249 键（含 InfoPlist 8）。
+
+### 107.2 代码收编
+
+- **新件 OneDayCore/AppLocale.swift**：AppLocale.uiLocale（取主 bundle 已解析本地化＝App 实际界面语言）＋L10n 取词口（按 locale 解析 .lproj bundle 取词；无目录宿主回落键本身，单测确定性不随运行环境漂移）。
+- **C11 口径调和（重要）**：0.36.0 审计 C11 定「中文写定、不随 locale 变脸」，防的是界面中文时日期漏英文的混排。本包续编为「钉 App 当前语言本身」：locale 一律钉 uiLocale，界面语言与日期/数字语言恒一致，混排在三语下都不发生。App 根 `.environment(\.locale, zh_CN)` 写死随之改为钉 AppLocale.uiLocale；ApprovalTimeText 的 zh_CN 写死同理收编。
+- **DisplayDate/ChatTimeline**：档位结构不变；绝对日期改 Date.FormatStyle 字段拼装（month/day、year/month/day，钉 locale＋日历时区）、星期改 .weekday(.wide)、时刻改本地化模板「HH:mm」（24 小时零填充、三语一致、与旧口径逐字）、相对档分/时改 RelativeDateTimeFormatter（钉 locale、全形）。**有意口径变更一处**：相对档简体输出「3分钟前」（系统格式器无空格；旧手拼「3 分钟前」），DisplayDateRelativeTests 期望已同步。新增公开助手 monthDay/absoluteDateTime 供管理面与到期行收编。
+- **手拼格式点全清**：AdminFormat（short/day/timeOnly）、SessionDisplay（退役两支 zh_CN 格式器）、FeedModels（groupTitle/relativeText）、DeviceSyncPresentation（dayLabel/freshnessLine/segment/rangeLine/日志行＋countUnit 单位词）、HubActivity 分组标签、SidebarGrouping（月组标题走 FormatStyle、字段序随语言）、DeviceViews（日程行/日标题/到期行）、DeviceSyncViews（步数日标）——仓内呈现用 dateFormat 手拼串清零（余者仅解析格式 yyyy-MM-dd 与 POSIX 钟面 LedgerClock/BoxTimeText：纯数字无语言内容、按其文件内既定口径保留）。
+- **SwiftUI 字面量零改码**：App 层全部 View 字面量由系统按目录自动取词（目录落 App 目标 Resources，Bundle.main 单目录覆盖三 target）。
+- **Core 呈现转换的边界（如实记账）**：已转＝上述格式化/呈现函数族（均带 locale 注入面、单测钉 zh-Hans）。**未转（目录已备键、代码仍直出简体）**＝其余 Core 呈现枚举（ServerLabels、KanbanModels 状态名、ApprovalCardCopy/Headline 标题族、ToolCards 工具名、ConnectorCatalog、DeviceSources 说明、NotificationSummary、LedgerBoard/Models、GoalCategory、HermesError、ModelCombos 槽位名等）与 SessionDisplay 的 sourceLabel/humanTitle 计算属性、DeviceSyncPresentation.detailSubtitle 常量——共同原因：这些面被既有单测以无 locale 入参的形态钉死简体断言，转换须逐面加注入面并改测，属另一小包的工作；本包先把目录与格式面落齐，转换路径为逐处 `L10n.string(键, locale:)` 一行改。App 层 Store/Client 赋给状态再显示的静态串同理（键已入目录，长尾未逐处收编）。
+
+### 107.3 单测
+
+- 新增 I18nFormattingTests（8 法）：取词回落恒等式、语言候选序、英文绝对日期/星期档/相对档、繁体星期/月日/相对档、简体相对新形态、侧栏月组标题三语。
+- 既有测试钉 locale：DisplayDateFormattingTests（20 处）、DisplayDateRelativeTests（期望改无空格＋钉 locale）、ChatTimelineTests、FeedBoardTests、DeviceSyncTests、SessionDisplayTests、HubActivityTests（9 处 assemble）、SidebarGroupingTests（5 处）、ApprovalCopyTests。用例只增不减（相对档期望属同用例改期望、已在本节与测试文件头注明）。
+- 终判：本机无 Swift 工具链，静态自查（签名/引用/括号）已做；编译与全套单测等合并后 CI。knownRegions/CFBundleLocalizations 未动——目录声明语言以 xcstrings 的 sourceLanguage＋localizations 为准，生效终判等 CI 构建产物验（主线解包看 .app 内 lproj）。
+
+### 107.4 未决项
+
+- 英文计数单复数：走 RelativeDateTimeFormatter 的相对档已由系统处理单复数；其余拼串计数键（如 "%lld 条" 族）英文可能出现 "1 items" 式小瑕疵，属呈现长尾优化、后续以 stringsdict 复数规则另包处理。
+- 目录键与运行时实参类型以源码实参为准对齐（6 条已修正）；若个别键实参在不同调用点类型不一致，取词回落简体源串、不崩。
+- 演示内容（DemoHermesClient/DemoMode 示例对话）与 DeviceCalls 协议错误体（回给桥的机器协议、非 UI 铬面）明确不在目录覆盖面；服务端回串与用户内容按规格不动。

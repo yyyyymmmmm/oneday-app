@@ -45,7 +45,8 @@ final class HubActivityTests: XCTestCase {
         let groups = HubActivityAssembler.assemble(
             sessions: [main], runsByJobID: ["job-1": [run]],
             jobTitles: ["job-1": "节点巡检"], logs: [],
-            fetchedAt: now, now: now, calendar: calendar
+            fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(groups.count, 1)
         XCTAssertEqual(groups[0].items.count, 1)
@@ -63,7 +64,8 @@ final class HubActivityTests: XCTestCase {
         let groups = HubActivityAssembler.assemble(
             sessions: [], runsByJobID: ["job-b": [run], "job-a": [run]],
             jobTitles: ["job-a": "任务甲", "job-b": "任务乙"], logs: [],
-            fetchedAt: now, now: now, calendar: calendar
+            fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(groups[0].items.count, 1)
         XCTAssertEqual(groups[0].items[0].jobID, "job-a")
@@ -85,7 +87,8 @@ final class HubActivityTests: XCTestCase {
         let groups = HubActivityAssembler.assemble(
             sessions: [main], runsByJobID: [:], jobTitles: [:],
             logs: [inWindow, jsonLine, noTimestamp],
-            fetchedAt: now, now: now, calendar: calendar
+            fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         let item = groups[0].items[0]
         // JSON 行与无时间戳行都不作副题；结构化人话行入选
@@ -112,7 +115,8 @@ final class HubActivityTests: XCTestCase {
         )
         let groups = HubActivityAssembler.assemble(
             sessions: [long, short], runsByJobID: [:], jobTitles: [:],
-            logs: [log], fetchedAt: now, now: now, calendar: calendar
+            logs: [log], fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         let items = groups.flatMap(\.items)
         let shortItem = items.first { $0.sessionID == "short" }
@@ -132,7 +136,8 @@ final class HubActivityTests: XCTestCase {
         let ended = try baseSession(id: "end")
         let groups = HubActivityAssembler.assemble(
             sessions: [active, ended], runsByJobID: [:], jobTitles: [:],
-            logs: [], fetchedAt: now, now: now, calendar: calendar
+            logs: [], fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(groups[0].items.map(\.sessionID), ["end", "act"])
         XCTAssertEqual(groups[0].label, "今天")
@@ -147,7 +152,8 @@ final class HubActivityTests: XCTestCase {
         let today = try baseSession()
         let groups = HubActivityAssembler.assemble(
             sessions: [yesterday, today], runsByJobID: [:], jobTitles: [:],
-            logs: [], fetchedAt: now, now: now, calendar: calendar
+            logs: [], fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(groups.map(\.label), ["今天", "昨天"])
     }
@@ -158,7 +164,8 @@ final class HubActivityTests: XCTestCase {
         """)
         let groups = HubActivityAssembler.assemble(
             sessions: [ghost], runsByJobID: [:], jobTitles: [:],
-            logs: [], fetchedAt: now, now: now, calendar: calendar
+            logs: [], fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertTrue(groups.isEmpty)
     }
@@ -177,6 +184,7 @@ final class HubActivityTests: XCTestCase {
         let groups = HubActivityAssembler.assemble(
             sessions: [unnamed], runsByJobID: [:], jobTitles: [:],
             logs: [], fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans"),
             firstUserMessages: ["s9": "帮我查一下节点状态"]
         )
         let item = groups[0].items[0]
@@ -189,7 +197,8 @@ final class HubActivityTests: XCTestCase {
         // 无注入时回落未命名（不假造标题）
         let plain = HubActivityAssembler.assemble(
             sessions: [unnamed], runsByJobID: [:], jobTitles: [:],
-            logs: [], fetchedAt: now, now: now, calendar: calendar
+            logs: [], fetchedAt: now, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(plain[0].items[0].title, "未命名会话")
         XCTAssertEqual(plain[0].items[0].meta, item.meta)

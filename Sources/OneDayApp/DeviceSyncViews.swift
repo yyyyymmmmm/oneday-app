@@ -480,17 +480,16 @@ struct MotionDetailView: View {
     }
 
     /// "yyyy-MM-dd" → 人话日名（今天/昨天/M月d日）
+    /// （yyyy-MM-dd 是存储日串的解析格式、保留
+    /// POSIX；呈现走 DisplayDate 与目录取词，0.42.0）
     private func dayLabel(_ day: String) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         guard let date = formatter.date(from: day) else { return day }
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "今天" }
-        if calendar.isDateInYesterday(date) { return "昨天" }
-        let out = DateFormatter()
-        out.locale = Locale(identifier: "zh_CN")
-        out.dateFormat = "M月d日"
-        return out.string(from: date)
+        if calendar.isDateInToday(date) { return L10n.string("今天") }
+        if calendar.isDateInYesterday(date) { return L10n.string("昨天") }
+        return DisplayDate.monthDay(date, calendar: calendar)
     }
 }

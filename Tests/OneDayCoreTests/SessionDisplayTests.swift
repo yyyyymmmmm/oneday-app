@@ -58,8 +58,8 @@ final class SessionDisplayTests: XCTestCase {
         )
         XCTAssertEqual(a.humanTitle, "未命名会话")
         XCTAssertEqual(b.humanTitle, "未命名会话")
-        let subA = a.humanSubtitle(now: now, calendar: calendar)
-        let subB = b.humanSubtitle(now: now, calendar: calendar)
+        let subA = a.humanSubtitle(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans"))
+        let subB = b.humanSubtitle(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans"))
         // 0.3.8 第 18 条改序：时间 · 条数 · 来源（来源
         // 退尾）；0.6.1 再删「进行中」段——Hermes 不写
         // ended_at、活跃判定全量恒真，是假数据（用户
@@ -127,7 +127,7 @@ final class SessionDisplayTests: XCTestCase {
         let bare = session(source: "some_internal_bus", endedAt: 1)
         XCTAssertEqual(bare.humanTitle, "未命名会话")
         XCTAssertEqual(
-            bare.humanSubtitle(now: now, calendar: calendar), "服务端"
+            bare.humanSubtitle(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans")), "服务端"
         )
         XCTAssertEqual(bare.sourceLabel, "服务端")
         XCTAssertEqual(session(source: nil).sourceLabel, "服务端")
@@ -284,36 +284,38 @@ final class SessionDisplayTests: XCTestCase {
             startedAt: epoch(2026, 11, 9, 6, 12), messageCount: 24
         )
         XCTAssertEqual(
-            today.listTimeText(now: now, calendar: calendar), "今天 06:12"
+            today.listTimeText(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans")), "今天 06:12"
         )
         XCTAssertEqual(
-            today.humanSubtitle(now: now, calendar: calendar),
+            today.humanSubtitle(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans")),
             "今天 06:12 · 24 条 · 其他应用"
         )
         let yesterday = session(startedAt: epoch(2026, 11, 8, 21, 30))
         XCTAssertEqual(
-            yesterday.listTimeText(now: now, calendar: calendar), "昨天 21:30"
+            yesterday.listTimeText(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans")), "昨天 21:30"
         )
         let older = session(startedAt: epoch(2026, 10, 30, 9, 5))
         XCTAssertEqual(
-            older.listTimeText(now: now, calendar: calendar), "10月30日 09:05"
+            older.listTimeText(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans")), "10月30日 09:05"
         )
         // 无开始时间：nil（行尾留空，不编造）
-        XCTAssertNil(session().listTimeText(now: now, calendar: calendar))
+        XCTAssertNil(session().listTimeText(now: now, calendar: calendar, locale: Locale(identifier: "zh-Hans")))
         // 本地行尾时间同源：与 LocalThreadSubtitle.text 首段一致
         let updated = calendar.date(from: DateComponents(
             year: 2026, month: 11, day: 9, hour: 6, minute: 12
         ))!
         XCTAssertEqual(
             LocalThreadSubtitle.timeText(
-                updatedAt: updated, now: now, calendar: calendar
+                updatedAt: updated, now: now, calendar: calendar,
+                locale: Locale(identifier: "zh-Hans")
             ),
             "今天 06:12"
         )
         XCTAssertEqual(
             LocalThreadSubtitle.text(
                 updatedAt: updated, messageCount: 24,
-                now: now, calendar: calendar
+                now: now, calendar: calendar,
+                locale: Locale(identifier: "zh-Hans")
             ),
             "今天 06:12 · 24 条"
         )

@@ -36,7 +36,8 @@ final class SidebarGroupingTests: XCTestCase {
             Item(key: "day8", updatedAt: date(2026, 11, 1), isPinned: false),
         ]
         let groups = SidebarGrouping.groups(
-            items: items, now: now, calendar: calendar
+            items: items, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(groups.map(\.label), [
             "置顶", "今天", "昨天", "过去 7 天", "过去 30 天",
@@ -61,16 +62,19 @@ final class SidebarGroupingTests: XCTestCase {
             Item(key: "c", updatedAt: date(2026, 11, 8), isPinned: false),
         ]
         let groups = SidebarGrouping.groups(
-            items: items, now: now, calendar: calendar, searching: true
+            items: items, now: now, calendar: calendar, searching: true,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(groups.count, 1)
         XCTAssertEqual(groups[0].label, "搜索结果")
         XCTAssertEqual(groups[0].keys, ["a", "c", "b"])
         XCTAssertTrue(SidebarGrouping.groups(
-            items: [Item](), now: now, calendar: calendar, searching: true
+            items: [Item](), now: now, calendar: calendar, searching: true,
+            locale: Locale(identifier: "zh-Hans")
         ).isEmpty)
         XCTAssertTrue(SidebarGrouping.groups(
-            items: [Item](), now: now, calendar: calendar
+            items: [Item](), now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         ).isEmpty)
     }
 
@@ -82,7 +86,8 @@ final class SidebarGroupingTests: XCTestCase {
             Item(key: "future", updatedAt: date(2026, 11, 12), isPinned: false)
         ]
         let groups = SidebarGrouping.groups(
-            items: items, now: now, calendar: calendar
+            items: items, now: now, calendar: calendar,
+            locale: Locale(identifier: "zh-Hans")
         )
         XCTAssertEqual(groups.map(\.label), ["今天"])
     }

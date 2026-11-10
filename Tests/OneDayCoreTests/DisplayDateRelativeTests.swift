@@ -5,6 +5,10 @@ import XCTest
 /// §3.3）：五条边界逐一钉——59/60 秒、59/60 分、
 /// 23:59/24:00、跨日界但 elapsed<24h 不许跳「昨
 /// 天」、elapsed≥24h 但日差 1 落五档「昨天 HH:mm」。
+/// 0.42.0：分/时档改走系统相对格式器（钉注入
+/// locale），简体输出无空格（「1分钟前」——旧手
+/// 拼「1 分钟前」的空格随系统格式器形态退役，本
+/// 文件期望已同步）；断言钉 zh-Hans locale。
 final class DisplayDateRelativeTests: XCTestCase {
 
     private var calendar: Calendar {
@@ -24,8 +28,10 @@ final class DisplayDateRelativeTests: XCTestCase {
         now.addingTimeInterval(-seconds)
     }
 
+    private var zhHans: Locale { Locale(identifier: "zh-Hans") }
+
     private func rel(_ date: Date) -> String {
-        DisplayDate.relative(date, now: now, calendar: calendar)
+        DisplayDate.relative(date, now: now, calendar: calendar, locale: zhHans)
     }
 
     func testFutureAndJustNow() {
@@ -36,23 +42,23 @@ final class DisplayDateRelativeTests: XCTestCase {
 
     func testSecondBoundary() {
         XCTAssertEqual(rel(ago(59)), "刚刚")
-        XCTAssertEqual(rel(ago(60)), "1 分钟前")
+        XCTAssertEqual(rel(ago(60)), "1分钟前")
     }
 
     func testMinutes() {
-        XCTAssertEqual(rel(ago(45 * 60)), "45 分钟前")
-        XCTAssertEqual(rel(ago(59 * 60)), "59 分钟前")
+        XCTAssertEqual(rel(ago(45 * 60)), "45分钟前")
+        XCTAssertEqual(rel(ago(59 * 60)), "59分钟前")
     }
 
     func testHourBoundary() {
-        XCTAssertEqual(rel(ago(60 * 60)), "1 小时前")
-        XCTAssertEqual(rel(ago(5 * 3_600)), "5 小时前")
-        XCTAssertEqual(rel(ago(10 * 3_600)), "10 小时前")
+        XCTAssertEqual(rel(ago(60 * 60)), "1小时前")
+        XCTAssertEqual(rel(ago(5 * 3_600)), "5小时前")
+        XCTAssertEqual(rel(ago(10 * 3_600)), "10小时前")
     }
 
     func testDayBoundaryStaysRelative() {
         // 23:59 已流逝仍在相对档
-        XCTAssertEqual(rel(ago(86_340)), "23 小时前")
+        XCTAssertEqual(rel(ago(86_340)), "23小时前")
     }
 
     func testCrossMidnightUnder24hStaysRelative() {
@@ -66,8 +72,8 @@ final class DisplayDateRelativeTests: XCTestCase {
             year: 2026, month: 11, day: 9, hour: 23, minute: 0
         ))!
         XCTAssertEqual(
-            DisplayDate.relative(event, now: earlyNow, calendar: calendar),
-            "5 小时前"
+            DisplayDate.relative(event, now: earlyNow, calendar: calendar, locale: zhHans),
+            "5小时前"
         )
     }
 

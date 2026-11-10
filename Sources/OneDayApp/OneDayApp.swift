@@ -35,8 +35,12 @@ struct OneDayApp: App {
         WindowGroup {
             RootView()
                 .environment(appState)
-                // 全 App 固定中文区域（沿礼记口径：系统控件跟随中文）
-                .environment(\.locale, Locale(identifier: "zh_CN"))
+                // 0.42.0 国际化包：旧版「全 App 固定中文
+                // 区域」（沿礼记口径钉 zh_CN）退役——环
+                // 境语言改钉 AppLocale.uiLocale（App 随
+                // 系统语言解析出的界面语言），系统控件
+                // 与视图内格式化器随之与界面语言一致
+                .environment(\.locale, AppLocale.uiLocale)
         }
         .modelContainer(container)
     }

@@ -460,47 +460,47 @@ final class DeviceSyncTests: XCTestCase {
         let now = date(2026, 11, 10, 12, 0)
         XCTAssertEqual(
             DeviceSyncPresentation.dayLabel(
-                date(2026, 11, 10, 9, 41), now: now, calendar: utc
+                date(2026, 11, 10, 9, 41), now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "今天 09:41"
         )
         XCTAssertEqual(
             DeviceSyncPresentation.dayLabel(
-                date(2026, 11, 9, 23, 10), now: now, calendar: utc
+                date(2026, 11, 9, 23, 10), now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "昨晚 23:10"
         )
         XCTAssertEqual(
             DeviceSyncPresentation.dayLabel(
-                date(2026, 11, 9, 10, 0), now: now, calendar: utc
+                date(2026, 11, 9, 10, 0), now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "昨天 10:00"
         )
         XCTAssertEqual(
             DeviceSyncPresentation.freshnessLine(
                 syncedAt: date(2026, 11, 10, 11, 59),
-                now: now, pendingWrite: false, calendar: utc
+                now: now, pendingWrite: false, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "数据截至今天 11:59，刚刚同步"
         )
         XCTAssertEqual(
             DeviceSyncPresentation.freshnessLine(
                 syncedAt: date(2026, 11, 10, 11, 40),
-                now: now, pendingWrite: false, calendar: utc
+                now: now, pendingWrite: false, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "数据截至今天 11:40，约 20 分钟前同步"
         )
         XCTAssertEqual(
             DeviceSyncPresentation.freshnessLine(
                 syncedAt: date(2026, 11, 8, 12, 0),
-                now: now, pendingWrite: false, calendar: utc
+                now: now, pendingWrite: false, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "数据截至11月8日 12:00，已过期"
         )
         XCTAssertTrue(
             DeviceSyncPresentation.freshnessLine(
                 syncedAt: date(2026, 11, 10, 11, 40),
-                now: now, pendingWrite: true, calendar: utc
+                now: now, pendingWrite: true, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ).hasSuffix("；刚写入的一条可能还没反映在副本里")
         )
     }
@@ -511,14 +511,14 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPresentation.segment(
                 dataset: .contacts, status: nil,
-                authorized: false, now: now, calendar: utc
+                authorized: false, now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "未授权"
         )
         XCTAssertEqual(
             DeviceSyncPresentation.segment(
                 dataset: .contacts, status: nil,
-                authorized: true, now: now, calendar: utc
+                authorized: true, now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "还没有同步"
         )
@@ -534,7 +534,7 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPresentation.segment(
                 dataset: .contacts, status: status,
-                authorized: true, now: now, calendar: utc
+                authorized: true, now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "已同步 156 人 · 今天 09:41"
         )
@@ -553,7 +553,7 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncPresentation.segment(
                 dataset: .contacts, status: revoked,
-                authorized: false, now: now, calendar: utc
+                authorized: false, now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "已同步 156 人 · 今天 09:41 · 权限已撤销"
         )
@@ -665,7 +665,8 @@ final class DeviceSyncTests: XCTestCase {
                     at: at, kind: kind, added: added,
                     total: total, reason: reason
                 ),
-                dataset: .contacts
+                dataset: .contacts,
+                locale: Locale(identifier: "zh-Hans")
             )
         }
         XCTAssertEqual(line(.enabling), "正在开启同步")
@@ -740,14 +741,14 @@ final class DeviceSyncTests: XCTestCase {
         XCTAssertEqual(
             DeviceSyncLogPresentation.timeText(
                 for: entry(.syncCompleted, at: date(2026, 11, 11, 0, 1)),
-                now: now, calendar: utc
+                now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "今天 00:01"
         )
         XCTAssertEqual(
             DeviceSyncLogPresentation.timeText(
                 for: entry(.syncCompleted, at: date(2026, 11, 10, 23, 58)),
-                now: now, calendar: utc
+                now: now, calendar: utc, locale: Locale(identifier: "zh-Hans")
             ),
             "昨晚 23:58"
         )
