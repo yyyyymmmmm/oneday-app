@@ -14,6 +14,12 @@ import UIKit
 /// 的 Dictation.swift，本类只做引擎与系统 API 接线。
 /// 交互定版：点按切换、流式上屏（未定稿灰字整段替
 /// 换）、落框可改、不自动发送；单次上限 5 分钟。
+/// 0.36.8 热修（DESIGN-V4 §73；诊断 voice-crash-
+/// diagnosis-20261110.md）：删语音识别授权门（官方口
+/// 径只需麦克风）、tap 格式有效性门＋installTap 传
+/// nil 格式＋管线惰性建转换器、音频会话对齐 WWDC 样
+/// 例、os.Logger 阶段面包屑、启动期引擎错误必达失败
+/// 态（根除假录音）。
 @MainActor
 @Observable
 final class DictationController {
@@ -74,6 +80,18 @@ final class DictationController {
     @ObservationIgnored
     private let defaults: UserDefaults
     private static let languageKey = "dictation.language"
+    /// 阶段面包屑落盘键（0.36.8，诊断 §5.4）：闪退后
+    /// 读末阶段即知死点，不再靠猜
+    private static let lastStageKey = "dictation.lastStage"
+    private static let log = Logger(
+        subsystem: "site.didichou.oneday", category: "dictation")
+
+    /// 阶段打点：一行日志＋末阶段落盘（授权结果/资产
+    /// 状态/会话激活/格式值/引擎启动/首结果各一处）
+    private func markStage(_ stage: String) {
+        Self.log.info("stage=\(stage, privacy: .public)")
+        defaults.set(stage, forKey: Self.lastStageKey)
+    }
 
     @ObservationIgnored
     private var session = DictationSession(baseDraft: "")
@@ -87,6 +105,11 @@ final class DictationController {
     /// 代次守卫：每次开录/收尾递增，迟到回调比对后作废
     @ObservationIgnored
     private var generation = 0
+    /// 启动期故障闩（0.36.8，诊断 §6）：analyzer.start
+    /// 在相位进 .recording 前抛错时由 pipelineFault 置
+    /// 位，startEngine 在宣布启动成功前检查并作废管道
+    @ObservationIgnored
+    private var startupFault = false
 
     @ObservationIgnored
     private var analyzer: SpeechAnalyzer?
@@ -133,17 +156,18 @@ final class DictationController {
         case .idle, .failed:
             failure = nil
             notice = nil
-            let mic = AVAudioApplication.shared.recordPermission
-            let speech = SFSpeechRecognizer.authorizationStatus()
-            if mic == .granted, speech == .authorized {
+            // 0.36.8：只看麦克风一道门——SpeechAnalyzer
+            // 路线官方口径不需要语音识别授权（诊断 §3），
+            // 原 SFSpeechRecognizer 授权门整道删除
+            switch AVAudioApplication.shared.recordPermission {
+            case .granted:
                 Task { await self.startPipeline(baseDraft: baseDraft) }
-            } else if mic == .denied || speech == .denied
-                || speech == .restricted {
+            case .denied:
                 // 被拒不再弹系统窗：失败行给「去设置」
                 // 与键盘听写两条降级路（续编 S4）
                 fail(.permissionDenied)
                 Haptics.error()
-            } else {
+            default:
                 pendingBaseDraft = baseDraft
                 setPhase(.requestingPermission)
                 showPrep = true
@@ -156,14 +180,15 @@ final class DictationController {
     // MARK: - 预备页动作
 
     /// 预备页「开始使用」：此刻才触发系统权限弹窗
+    /// （0.36.8：只请求麦克风——删门理由见 handleMicTap）
     func prepConfirmStart() {
         prepFlowActive = true
         showPrep = false
         Task {
             let micOK = await Self.requestMicrophonePermission()
-            let speechOK = await Self.requestSpeechPermission()
+            markStage(micOK ? "micGranted" : "micDenied")
             guard phase == .requestingPermission else { return }
-            if micOK && speechOK {
+            if micOK {
                 await startPipeline(baseDraft: pendingBaseDraft)
             } else {
                 fail(.permissionDenied)
@@ -226,6 +251,9 @@ final class DictationController {
         case started
         case assetFailed
         case unavailable
+        /// 引擎已起但分析器启动抛错被闩住作废（0.36.8）：
+        /// 与「不可用」分开报——失败文案走 engineError
+        case startFailed
     }
 
     private func startPipeline(baseDraft: String) async {
@@ -241,12 +269,19 @@ final class DictationController {
             Haptics.error()
             return
         }
+        if first == .startFailed {
+            fail(.engineError)
+            Haptics.error()
+            return
+        }
         guard generation == gen else { return }
         // 主引擎不可用（不支持/无格式/起不来）→ 回退链
         let second = await startEngine(useFallback: true, generation: gen)
         if second == .started { return }
         if second == .assetFailed {
             fail(.assetDownloadFailed)
+        } else if second == .startFailed {
+            fail(.engineError)
         } else {
             fail(.engineUnavailable)
         }
@@ -292,6 +327,8 @@ final class DictationController {
         }
         guard let module = speechModule else { return .unavailable }
         let modules: [any SpeechModule] = [module]
+        startupFault = false
+        markStage("moduleBuilt")
 
         // 2) 语言资产：未装先下载（准备中相位带进度）
         let status = await AssetInventory.status(forModules: modules)
@@ -319,6 +356,7 @@ final class DictationController {
             progressObservation = nil
             guard generation == gen else { return .unavailable }
         }
+        markStage("assetReady")
 
         // 3) 分析器与音频格式（资产装好后才取得到）
         let analyzer = SpeechAnalyzer(modules: modules)
@@ -327,35 +365,55 @@ final class DictationController {
         ) else { return .unavailable }
 
         // 4) 音频会话＋引擎＋tap 转码（一路音频分发
-        // 识别与电平两用，规格施工坑注）
+        // 识别与电平两用，规格施工坑注）。0.36.8 热修
+        // 三点（诊断 §2/§5.2）：①会话对齐 WWDC25 样例
+        // 的 .playAndRecord＋.spokenAudio；②tap 格式先
+        // 过有效性门——首次授权后格式可为 0 Hz，未经
+        // 校验递给 installTap 会抛 NSException 当场闪
+        // 退，无效时 prepare 后复读一次、仍无效走不可
+        // 用失败路；③installTap 传 nil 格式（用节点实
+        // 时格式）、转换器改由管线按首个 buffer 的真实
+        // 格式惰性建立，快照竞态整类消除
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.record, mode: .default)
+            try audioSession.setCategory(
+                .playAndRecord, mode: .spokenAudio)
             try audioSession.setActive(true)
         } catch {
             return .unavailable
         }
+        markStage("sessionActive")
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
-        let tapFormat = inputNode.outputFormat(forBus: 0)
-        guard let converter = AVAudioConverter(
-            from: tapFormat, to: format
-        ) else {
+        var tapFormat = inputNode.outputFormat(forBus: 0)
+        if !DictationAudioFormatPolicy.isUsable(
+            sampleRate: tapFormat.sampleRate,
+            channelCount: Int(tapFormat.channelCount)) {
+            engine.prepare()
+            tapFormat = inputNode.outputFormat(forBus: 0)
+        }
+        guard DictationAudioFormatPolicy.isUsable(
+            sampleRate: tapFormat.sampleRate,
+            channelCount: Int(tapFormat.channelCount)) else {
+            Self.log.error(
+                "stage=formatInvalid rate=\(tapFormat.sampleRate) channels=\(tapFormat.channelCount)")
+            markStage("formatInvalid")
             try? audioSession.setActive(
                 false, options: .notifyOthersOnDeactivation)
             return .unavailable
         }
-        converter.primeMethod = .none
+        markStage("formatReady")
         let (stream, continuation) =
             AsyncStream<AnalyzerInput>.makeStream()
         let pipe = DictationAudioPipe(
-            converter: converter, continuation: continuation
+            targetFormat: format, continuation: continuation
         )
         inputNode.installTap(
-            onBus: 0, bufferSize: 1024, format: tapFormat
+            onBus: 0, bufferSize: 1024, format: nil
         ) { buffer, _ in
             pipe.consume(buffer)
         }
+        markStage("tapInstalled")
         self.analyzer = analyzer
         self.audioEngine = engine
         self.audioPipe = pipe
@@ -372,7 +430,7 @@ final class DictationController {
                             text: text, isFinal: isFinal, generation: gen)
                     }
                 } catch {
-                    await self?.engineFailed(generation: gen)
+                    await self?.pipelineFault(generation: gen)
                 }
             }
         } else if let dictation {
@@ -385,15 +443,16 @@ final class DictationController {
                             text: text, isFinal: isFinal, generation: gen)
                     }
                 } catch {
-                    await self?.engineFailed(generation: gen)
+                    await self?.pipelineFault(generation: gen)
                 }
             }
         }
         analyzeTask = Task { [weak self] in
+            await self?.markStage("analyzerStarted")
             do {
                 try await analyzer.start(inputSequence: stream)
             } catch {
-                await self?.engineFailed(generation: gen)
+                await self?.pipelineFault(generation: gen)
             }
         }
 
@@ -408,6 +467,15 @@ final class DictationController {
             teardownAudio(deactivateSession: true)
             return .unavailable
         }
+        // 启动期故障闩（0.36.8，诊断 §6）：分析器在进
+        // 录音态前已抛错——拆管道、报 startFailed，绝
+        // 不带着坏分析器进 .recording 假录音
+        if startupFault {
+            startupFault = false
+            teardownAudio(deactivateSession: true)
+            return .startFailed
+        }
+        markStage("engineStarted")
 
         registerInterruptionObservers()
         startedAt = Date()
@@ -417,6 +485,7 @@ final class DictationController {
         silenceTracker.reset()
         showSilenceHint = false
         setPhase(.recording)
+        markStage("recording")
         Haptics.impact(.light)
         startTimer(generation: gen)
         return .started
@@ -429,15 +498,32 @@ final class DictationController {
     ) {
         guard generation == gen else { return }
         guard phase == .recording || phase == .finishing else { return }
+        if !session.hasRecognizedText {
+            markStage("firstResult")
+        }
         session.applyResult(text: text, isFinal: isFinal)
         displayText = session.displayText
         volatileLength = session.volatileLength
         onTextChange?(displayText, volatileLength)
     }
 
-    private func engineFailed(generation gen: Int) {
-        guard generation == gen, phase == .recording else { return }
-        Task { await self.finishRecording(outcome: .engineError) }
+    /// 引擎侧故障统一入口（0.36.8，诊断 §6）：处置由
+    /// Core 的 DictationFaultPolicy 按相位定——录音中
+    /// 失败收尾；启动中置闩作废（startEngine 宣布成功
+    /// 前检查）；已落定则迟到信号作废。旧实现只认
+    /// .recording，启动期抛错被静默吞＝假录音根源
+    private func pipelineFault(generation gen: Int) {
+        switch DictationFaultPolicy.action(
+            generationMatches: generation == gen, phase: phase) {
+        case .finishWithError:
+            markStage("engineFault")
+            Task { await self.finishRecording(outcome: .engineError) }
+        case .abortStartup:
+            markStage("startupFault")
+            startupFault = true
+        case .ignore:
+            break
+        }
     }
 
     // MARK: - 收尾
@@ -647,36 +733,50 @@ final class DictationController {
             }
         }
     }
-
-    private static func requestSpeechPermission() async -> Bool {
-        await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { status in
-                continuation.resume(returning: status == .authorized)
-            }
-        }
-    }
 }
 
 /// 音频管线（tap 线程侧）：硬件格式 buffer 在此转码
 /// 到分析器格式并 yield，同时把原始电平写进无锁盒
 /// 供主线程 10Hz 轮询——识别与电平共用一路 tap，
 /// 不另开采集（规格施工坑注）。tap 回调在实时音频
-/// 线程，只许做转码与写盒，不碰任何 UI/主线程状态
+/// 线程，只许做转码与写盒，不碰任何 UI/主线程状态。
+/// 0.36.8：转换器不再由开录前格式快照预建——改为以
+/// 首个实际 buffer 的格式惰性建立（格式变更时重建），
+/// 转码比值先过 Core 有限性守卫，无效整帧丢弃
 final class DictationAudioPipe: @unchecked Sendable {
-    private let converter: AVAudioConverter
+    private let targetFormat: AVAudioFormat
     private let continuation: AsyncStream<AnalyzerInput>.Continuation
     private let rmsBox = OSAllocatedUnfairLock(initialState: 0.0)
     private let consumedBox = OSAllocatedUnfairLock(initialState: false)
+    private let converterBox = OSAllocatedUnfairLock<AVAudioConverter?>(
+        initialState: nil)
 
     init(
-        converter: AVAudioConverter,
+        targetFormat: AVAudioFormat,
         continuation: AsyncStream<AnalyzerInput>.Continuation
     ) {
-        self.converter = converter
+        self.targetFormat = targetFormat
         self.continuation = continuation
     }
 
     var latestRMS: Double { rmsBox.withLock { $0 } }
+
+    /// 按输入格式取转换器：已有且输入格式一致直接用，
+    /// 否则惰性新建（建不出回 nil，调用方丢帧）
+    private func converter(
+        for inputFormat: AVAudioFormat
+    ) -> AVAudioConverter? {
+        converterBox.withLock { current in
+            if let current, current.inputFormat == inputFormat {
+                return current
+            }
+            let created = AVAudioConverter(
+                from: inputFormat, to: targetFormat)
+            created?.primeMethod = .none
+            current = created
+            return created
+        }
+    }
 
     func consume(_ buffer: AVAudioPCMBuffer) {
         if let channel = buffer.floatChannelData?[0] {
@@ -685,8 +785,12 @@ final class DictationAudioPipe: @unchecked Sendable {
             let rms = DictationLevel.rms(samples: samples)
             rmsBox.withLock { $0 = rms }
         }
-        let ratio = converter.outputFormat.sampleRate
-            / converter.inputFormat.sampleRate
+        guard buffer.frameLength > 0,
+              let converter = converter(for: buffer.format),
+              let ratio = DictationAudioFormatPolicy.conversionRatio(
+                  inputSampleRate: buffer.format.sampleRate,
+                  outputSampleRate: targetFormat.sampleRate)
+        else { return }
         let capacity = AVAudioFrameCount(
             Double(buffer.frameLength) * ratio) + 16
         guard let converted = AVAudioPCMBuffer(

@@ -239,4 +239,79 @@ final class DictationTests: XCTestCase {
         // 六类失败全在（App 文案映射按此枚举，漏一类即漏一种呈现）
         XCTAssertEqual(DictationFailure.allCases.count, 6)
     }
+
+    // MARK: - tap 格式有效性门（0.36.8 热修，诊断 §2/§5.2）
+
+    func testAudioFormatPolicyGate() {
+        // 诊断实锤形态：采样率 0——首次授权后硬件未就
+        // 绪的合法形态，必须挡在 installTap 之前
+        XCTAssertFalse(DictationAudioFormatPolicy.isUsable(
+            sampleRate: 0, channelCount: 2))
+        XCTAssertFalse(DictationAudioFormatPolicy.isUsable(
+            sampleRate: 48000, channelCount: 0))
+        XCTAssertFalse(DictationAudioFormatPolicy.isUsable(
+            sampleRate: -44100, channelCount: 2))
+        XCTAssertFalse(DictationAudioFormatPolicy.isUsable(
+            sampleRate: .nan, channelCount: 1))
+        XCTAssertFalse(DictationAudioFormatPolicy.isUsable(
+            sampleRate: .infinity, channelCount: 1))
+        XCTAssertTrue(DictationAudioFormatPolicy.isUsable(
+            sampleRate: 48000, channelCount: 1))
+        XCTAssertTrue(DictationAudioFormatPolicy.isUsable(
+            sampleRate: 16000, channelCount: 2))
+    }
+
+    func testConversionRatioGuards() {
+        // 正常降采样比值
+        let ratio = DictationAudioFormatPolicy.conversionRatio(
+            inputSampleRate: 48000, outputSampleRate: 16000)
+        XCTAssertNotNil(ratio)
+        XCTAssertEqual(ratio ?? 0, 1.0 / 3.0, accuracy: 1e-9)
+        // 输入 0 率：比值无定义，整帧丢弃而不是算出 inf
+        XCTAssertNil(DictationAudioFormatPolicy.conversionRatio(
+            inputSampleRate: 0, outputSampleRate: 16000))
+        XCTAssertNil(DictationAudioFormatPolicy.conversionRatio(
+            inputSampleRate: 48000, outputSampleRate: 0))
+        XCTAssertNil(DictationAudioFormatPolicy.conversionRatio(
+            inputSampleRate: .nan, outputSampleRate: 16000))
+        XCTAssertNil(DictationAudioFormatPolicy.conversionRatio(
+            inputSampleRate: 48000, outputSampleRate: .infinity))
+    }
+
+    // MARK: - 故障传播政策（0.36.8 热修，诊断 §6）
+
+    func testFaultPolicyMatrix() {
+        // 代次不符：任何相位都作废（迟到信号）
+        for phase in DictationPhase.allCases {
+            XCTAssertEqual(
+                DictationFaultPolicy.action(
+                    generationMatches: false, phase: phase),
+                .ignore)
+        }
+        // 录音中抛错：失败收尾，错误必达用户面
+        XCTAssertEqual(
+            DictationFaultPolicy.action(
+                generationMatches: true, phase: .recording),
+            .finishWithError)
+        // 启动中抛错（旧实现在此静默吞＝假录音根源）：
+        // 闩住作废，绝不许进录音态
+        XCTAssertEqual(
+            DictationFaultPolicy.action(
+                generationMatches: true, phase: .requestingPermission),
+            .abortStartup)
+        XCTAssertEqual(
+            DictationFaultPolicy.action(
+                generationMatches: true, phase: .preparing),
+            .abortStartup)
+        // 已落定/收尾中：收尾流程自己管，不重复触发
+        XCTAssertEqual(
+            DictationFaultPolicy.action(
+                generationMatches: true, phase: .idle), .ignore)
+        XCTAssertEqual(
+            DictationFaultPolicy.action(
+                generationMatches: true, phase: .finishing), .ignore)
+        XCTAssertEqual(
+            DictationFaultPolicy.action(
+                generationMatches: true, phase: .failed), .ignore)
+    }
 }

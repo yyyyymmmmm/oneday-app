@@ -147,9 +147,11 @@ struct DictationBar: View {
     }
 }
 
-/// 权限预备页（续编 S1–S4：问前先讲用途、系统权限
-/// 两件分开说、语言同页选）：点「开始使用」才触发
-/// 系统弹窗；被拒后的降级路（键盘听写）同页明示
+/// 权限预备页（续编 S1–S4：问前先讲用途、语言同页
+/// 选）：点「开始使用」才触发系统弹窗；被拒后的降
+/// 级路（键盘听写）同页明示。0.36.8：权限只剩麦克
+/// 风一件——SpeechAnalyzer 路线官方口径不需要语音
+/// 识别授权，原「语音识别」行整行删除
 struct DictationPrepSheet: View {
     @Bindable var controller: DictationController
     @Environment(\.dismiss) private var dismiss
@@ -184,11 +186,6 @@ struct DictationPrepSheet: View {
                         Text("需要开麦克风：把你说的话录下来")
                     } icon: {
                         Image(systemName: "mic")
-                    }
-                    Label {
-                        Text("需要开语音识别：把录音转成文字")
-                    } icon: {
-                        Image(systemName: "waveform")
                     }
                 }
                 .font(.subheadline)
@@ -248,7 +245,7 @@ struct DictationPrepSheet: View {
 func dictationFailureMessage(_ failure: DictationFailure) -> String {
     switch failure {
     case .permissionDenied:
-        return "语音输入没开权限，暂时用不了。去设置里打开麦克风和语音识别，或者直接打字、用键盘自带的听写。"
+        return "语音输入没开权限，暂时用不了。去设置里打开麦克风，或者直接打字、用键盘自带的听写。"
     case .nothingHeard:
         return "没有听清，请再试一次。靠近麦克风、说慢一点会更清楚。"
     case .interrupted:

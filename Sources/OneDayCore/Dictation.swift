@@ -57,7 +57,8 @@ public enum DictationPhasePolicy {
 /// 失败分类（App 层据此配三段式文案：发生了什么＋
 /// 影响＋怎么办，续编 S10）
 public enum DictationFailure: String, Sendable, Equatable, CaseIterable {
-    /// 麦克风或语音识别权限被拒/受限
+    /// 麦克风权限被拒/受限（0.36.8 起只此一道权限门：
+    /// SpeechAnalyzer 路线官方口径不需要语音识别授权）
     case permissionDenied
     /// 停录时一个字都没识别到
     case nothingHeard
@@ -283,4 +284,69 @@ public struct SilenceTracker: Sendable, Equatable {
     }
 
     public mutating func reset() { silentDuration = 0 }
+}
+
+/// tap 格式有效性门（0.36.8 热修，诊断 voice-crash-
+/// diagnosis-20261110.md §2/§5.2）：首次授权刚通过时
+/// 输入硬件格式可合法地报出采样率 0，未经校验就递给
+/// installTap/AVAudioConverter 会触发 AVFAudio 的
+/// NSException（Swift catch 不住、进程当场死）。开录
+/// 前读到的格式快照必须先过此门，无效宁可报不可用
+public enum DictationAudioFormatPolicy {
+    /// 格式可安全用于音频链的最低条件：采样率与声
+    /// 道数都为正且采样率有限（NaN/∞ 不许过门）
+    public static func isUsable(
+        sampleRate: Double, channelCount: Int
+    ) -> Bool {
+        sampleRate.isFinite && sampleRate > 0 && channelCount > 0
+    }
+
+    /// 转码比值（输出采样率÷输入采样率）：任一端非
+    /// 正/非有限则无可用比值，调用方整帧丢弃——不许
+    /// 拿 inf/NaN 去做帧数换算（UInt32(∞) 是运行时
+    /// trap，诊断 §1 候选 3）
+    public static func conversionRatio(
+        inputSampleRate: Double, outputSampleRate: Double
+    ) -> Double? {
+        guard isUsable(sampleRate: inputSampleRate, channelCount: 1),
+              isUsable(sampleRate: outputSampleRate, channelCount: 1)
+        else { return nil }
+        let ratio = outputSampleRate / inputSampleRate
+        guard ratio.isFinite, ratio > 0 else { return nil }
+        return ratio
+    }
+}
+
+/// 引擎故障信号的传播政策（0.36.8 热修，诊断 §6 附
+/// 带发现）：analyzer.start/结果流抛错可能发生在相
+/// 位进入 .recording 之前，旧实现按 phase==.recording
+/// 守卫会把启动期错误静默吞掉、随后照常进录音态，
+/// 出现「录音条在走、永不出字」的假录音。错误必达
+/// 失败态：录音中→失败收尾；启动中→闩住作废（宣布
+/// started 前由启动方检查并拆除管道）；已落定/收尾
+/// 中→迟到信号作废
+public enum DictationFaultPolicy {
+    public enum Action: String, Sendable, Equatable {
+        /// 已在录音：走 .engineError 失败收尾
+        case finishWithError
+        /// 尚在启动（请求权限/准备中）：置闩作废本次
+        /// 启动，绝不许进录音态
+        case abortStartup
+        /// 代次不符或相位已落定：迟到信号，不理
+        case ignore
+    }
+
+    public static func action(
+        generationMatches: Bool, phase: DictationPhase
+    ) -> Action {
+        guard generationMatches else { return .ignore }
+        switch phase {
+        case .recording:
+            return .finishWithError
+        case .requestingPermission, .preparing:
+            return .abortStartup
+        case .idle, .finishing, .failed:
+            return .ignore
+        }
+    }
 }
