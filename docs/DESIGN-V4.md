@@ -4415,3 +4415,47 @@ Z7 减弱动态效果开：主题/模式切换变瞬时、无残余动画。
 Z8 形象行 Menu：点开为系统菜单、三档带勾在当前档、选手感与系统设置一致。
 
 - 交付实录：功能提交 3b8b423，CI 42745926878 success，Executed 459 tests, 0 failures（451 基线＋ChatThemeTests 8 新增、零删测零改值）；IPA 4,926,466 字节、md5 bb58277b09ba7851ae75b428869181af、独立解包验 Info.plist＝0.26.0/55、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.26.0/OneDay-0.26.0.ipa。
+
+## 54. 主线/旁聊串话热修（0.27.0/56）
+
+根因（诊断档 oneday-design-review/main-sidechat-bleed-diagnosis-20261110.md＋step1-session-probe-20261110.md 双判死）：Hermes api_server 对无会话头对话按开头派生合并落库＋前缀去重续写；主线恒无头重放、旁聊建会话打 Dashboard 面必 405 被静默吞——主线与同开头旁聊在服务端实为同一条会话（合并桶 api-592647b9ae21ec54 39 条、api-e8c923beeaebed9c 150 条，均已导出留底、冻结不删洗）。用户 2026-11-10 10:55 批准五步序（含生产写操作授权）。
+
+### 54.1 服务端契约实证（源码＋活探针，不凭记忆）
+
+- 建会话端点只在网关面 8642（api_server.py 路由表）；Dashboard 9119 的 sessions 路由只有 GET——405 的根。
+- 带会话发送契约（api_server_openai_routes.py:899 起）：POST /v1/chat/completions＋X-Hermes-Session-Id 头＋Bearer；带头时历史以 state.db 为准、body 只取最后一条 user 消息；无头则按指纹派生（合并桶机制本体）。/api/sessions/{id}/chat/stream 是另一套类型化事件协议，本包不采用（沿用现有 SSE 通道）。
+- 种子唯一官方口子：Dashboard POST /api/sessions/import（sessions 字典带 messages 全量导入；model/model_config 为透传列可随导入落锁）；走 mutation 围栏：request_id 每发新铸＋expected_revision＝锚点 runtime_revision（新锚 0）。活探针：import 两条消息 200 落库（revision 1）、回读 message_count=2；重复导入同锚 expected_revision=0 回 409 revision_conflict（围栏按设计工作）。
+- Dashboard PATCH（改名/归档/置顶）无围栏必 409 client_upgrade_required（活探针判死）——0.18.0 以来管理页写动作与删除归档联动在生产从未真正落定，本包顺带修复：updateServerSession 内先 GET 取 runtime_revision、带围栏发、409 重读重试一次、落定仍靠调用方 GET 回读（O-4 口径不变）。围栏 PATCH 活探针：200、operation=sidebar、归档落值回读验。
+
+### 54.2 五件施工落值
+
+1. 送达改路：nginx hermes.didichou.site 新增 location = /api/sessions（POST 经 error_page 418 内部转 @gateway_session_create→8642、其余方法原样回 9119；改前备份 hermes.didichou.site.conf.bak-20261110-oneday027、nginx -t 过后 reload、动前内存 51%）；客户端 createServerSession/createLinkedServerSession 改带 App 既有 /v1 Bearer（sendJSONDecoding 加 bearer 形参），请求体组装收进 Core 纯函数（createSessionBody/linkedCreateSessionBody，单测把守形态）。不放宽其他 /api/*。
+2. 主线转真会话：ensureMainServerSession（失败全静默）退役→ensureMainLink：未链（SideChatStore 新增 mainServerSeeded、与 mainServerConfirmed 由 markMainLinked 一并置真）时走共用 performLink；失败原因原文落 mainLinkLastError 持久化，设置页「服务器与连接」新增主线会话状态行（statusInfoRow：已链接显 id、未链接显错误原文）。主线发送自此与旁聊同口径走 sendPlan（钦定 id＋双位代入）。
+3. 旁聊下线无头回退：SideChatSendPlan.legacyReplay 整类删除；sendPlan 改判 (serverSessionID, serverSeeded)：无绑定/绑合并桶/自有未种子→linkAndSeed，其余→session。链接共用 performLink 三路：不存在→无种子网关建、有种子 import 落行＋全量（围栏 0）；存在空行＋有种子→import 补种（围栏取 GET 的 runtime_revision）；存在有消息→认链。种子快照取本轮条目落盘前（防本轮消息在服务端落两份）；链接失败抛错→send() 删本轮条目、输入原样退回发送舱、错误横幅明示原因（旁聊失败计数/原因落线程既有字段）；用户链接窗口内停止抛 CancellationError 静默收尾（旧口径）。存量两条旁聊下次发送自动懒链接：绑桶者解绑覆盖为自有新 id（桶本体零动作）、各自本地条目成种。恢复链（reconcile）重发分支同步改判：旧待恢复账 sessionID 为 nil 时，已链接改带头只发尾条、未链接不硬发（留待下次发送一并种子）。
+4. 硬化两处：①currentThread 删除 ?? threads.first 静默回落→Core CurrentThreadResolution 精确解析（失配 nil/空态）；ensureThread 三路（useExisting/createFresh/mismatch），mismatch 置可见错误、整轮不发、输入退回。②删除联动加闸：Core mayArchiveOnDelete 只认 oneday- 前缀（DrawerView 接线）；管理页对两条合并桶的归档/删除加二次确认并写明牵连主线历史（Core mergeBucketWarning 单一文案；ServerSessionRow 归档/删除＋AllConversationsView 批量归档/删除四入口全覆盖，恢复方向不拦）。ChatThread 新增 serverSeeded（续聊导入线程落盘置真、自有会话链接收尾置真）。
+5. 收尾与生产验收：探针三条（oneday-probe-20261110、oneday-probe-20261110-main、oneday-probe-import-20261110）＋验收两条（oneday-verify-20261110、oneday-verify-seed-20261110）已全部 PATCH archived=true 落定（网关面）；两条合并桶本体未动。
+
+### 54.3 公网端到端复验证据（与 App 完全同形）
+
+- 公网 POST https://hermes.didichou.site/api/sessions（Bearer＋旁聊形态 payload）→ 201，会话 oneday-verify-20261110 落库（Dashboard 回读：model=deepseek-flash、model_config 含锁）。
+- import 种子（Dashboard cookie 通道）→ 200 imported=1；回读 message_count=2、model/锁随导入落；随后以 App 发送形态（/v1/chat/completions＋X-Hermes-Session-Id＋仅尾条）发问「我第一句问的是什么」，模型答「你的第一句是：验收种子问」——种子上下文真续上；该会话 message_count 2→4（本轮 user＋assistant 追加进同一会话）。
+- VM 本机出站链路当日多次连接重置（login 一发被断）——系本机透明拦截老毛病，服务端行为以服务器本机复测＋公网 201 双证为准，不归因服务端。
+
+### 54.4 已知残留（登记待拍板，本包未动）
+
+1. 会话内模型重锁端点 POST /api/sessions/{id}/model 只在网关面，公网现行路由（本包按简报只加 POST /api/sessions 精确一条）下达不到——已链接旁聊胶囊改选后的重锁仍为尽力而为、失败下轮再试（发送本体的逐请求 model＋provider 不受影响）。如需根治，另批一条 nginx 精确路由（POST /api/sessions/oneday-*/model 同式）即可。
+2. performLink「存在空行＋有种子」分支的 import-into-existing-anchor 语义未单独活验（生产首跑走的都是新锚路径）：该分支 payload 含全量种子＋锁，即使服务端按整行替换语义处理落值亦正确；若回 409/400 则链接如实报错、不产生无头发送。
+3. 绑合并桶的导入线程若本地条目本身即合并历史（经管理页续聊导入形成），解绑重链后种子内容仍含混杂——本地 entries 为真源口径下无客户端侧可行的再分割手段，登记备查。
+
+### 54.5 AA 系列真机终审项（验法逐项写明）
+
+- AA1 主线种子对账：装 0.27.0 后打开聊天页一次（触发主线链接预热）→设置页「主线会话」行应显「已链接 · oneday-main-…」；再到管理页（全部对话→主线段）看主线行 message_count——应与手机本地主线中 user＋assistant 正文条数一致（工具卡不计入种子、图片消息正文为空者不计）。不一致即报数回查。
+- AA2 旁聊分家：两条存量旁聊各发一条（如问一个只有本聊提过的问题）→回复不得引用另一条/主线的内容；管理页站内段应出现两条 oneday-side- 新会话，计数各为（该旁聊本地既往条数＋2）。
+- AA3 新旁聊首发：新建旁聊发一条→管理页即时出现对应 oneday-side- 会话且只有本聊内容；回主线发一条，主线计数只增本轮 2 条。
+- AA4 断网可见失败：开飞行模式在任一未链接过的旁聊/主线发送→应弹「会话链接失败，本条未发送：…」横幅、输入退回发送舱、条目不落盘；关飞行模式重发应成功。旧版此情形会静默发进合并桶。
+- AA5 删除闸：删一条绑 api- 的导入线程（或任一非 oneday- 绑定线程）→只删本地，管理页对应服务端会话仍在未归档段；删一条 oneday-side- 旁聊→其服务端会话转入已归档段。
+- AA6 合并桶确认：管理页对「友好问候」（api-592647…）点归档或删除→先弹带「混存着主线与旁聊的历史」说明的二次确认；取消后桶与主线记录无任何变化。
+- AA7 设置页状态：链接失败场景下（可用 AA4 的飞行模式在聊天页触发一次主线链接失败后）设置页「主线会话」行显「未链接 · <错误原文>」；恢复网络打开聊天页链接成功后该行转「已链接」。
+- AA8 主线历史连续性：装机链接后在主线问一件只有主线旧对话里提过的事（如某个旧决定），模型应答得上（种子上下文生效）；在「你好」旁聊里问同一件事，应答不上或明确无关（分家生效）。
+
+- 交付实录：功能提交 b7ebffc＋修复提交 1621c41（ServerSession.runtimeRevision 默认值，CI 首跑 42749072689 因此编译错、修复后重跑）；CI 42749644784 success，Executed 475 tests, 0 failures（459 基线＋SessionLinkHotfixTests 15＋SideChatLinkTests 改判净增 1，零删测）；IPA 4,948,355 字节、md5 6658834ff07419e1fd2a29ed02393fd3、独立解包验 Info.plist＝0.27.0/56、bundle site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.27.0/OneDay-0.27.0.ipa。§14/MotionTokens/0.26.0 外观成果零改动；未自截真机图。
