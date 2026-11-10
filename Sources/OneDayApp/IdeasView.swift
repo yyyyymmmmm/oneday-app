@@ -186,6 +186,16 @@ struct IdeasView: View {
                         )
                     }
                 }
+                if idea.source == .generated {
+                    Button("太泛了，忽略") {
+                        Task {
+                            await store.dismiss(
+                                appState: appState, idea: idea,
+                                tooGeneric: true
+                            )
+                        }
+                    }
+                }
             }
             Button("删除", role: .destructive) {
                 deleteCandidate = idea
@@ -226,12 +236,11 @@ struct IdeaRowView: View {
 
     private var tileSymbol: String {
         guard idea.source == .generated else { return "pencil" }
-        switch idea.evidenceRef?.first {
-        case "S": return "text.bubble"
-        case "G": return "target"
-        case "M": return "dot.radiowaves.left.and.right"
-        default: return "lightbulb"
-        }
+        // 锚点模型（0.39.0）：S/G/M 映射与旧 switch 逐一
+        // 对齐，K（任务）/R（记忆）新增各自瓷砖
+        let kind = IdeaAnchor(evidenceRef: idea.evidenceRef)?.kind
+            ?? .unknown
+        return kind.tileSymbol
     }
 
     private var infoText: String {
@@ -555,6 +564,25 @@ struct IdeaDetailView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(acting)
+                if idea.source == .generated {
+                    Button {
+                        Task {
+                            await store.dismiss(
+                                appState: appState, idea: idea,
+                                tooGeneric: true
+                            )
+                            dismiss()
+                        }
+                    } label: {
+                        Label(
+                            "太泛了，忽略",
+                            systemImage: "hand.thumbsdown"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(acting)
+                }
             }
             Button(role: .destructive) {
                 confirmDelete = true

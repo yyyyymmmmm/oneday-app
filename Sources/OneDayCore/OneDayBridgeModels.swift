@@ -195,8 +195,15 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
     public let source: IdeaSource
     /// 生成卡的依据一句；手记卡为空串
     public let evidence: String
-    /// 依据指向的素材编号（S/G/M 编号等），可空
+    /// 依据指向的素材编号（S/G/M/K/R 编号，轮内编号），可空
     public let evidenceRef: String?
+    /// 0.39.0 新增：evidenceRef 解析出的真实锚点
+    /// （"<源字母>:<对象 id>"），跨轮去重的键在桥侧；
+    /// 旧载荷/手记卡为 nil
+    public let anchorId: String?
+    /// 0.39.0 新增：忽略原因（目前只有 "tooGeneric"＝用户
+    /// 标了「太泛了」）；未标为 nil
+    public let dismissReason: String?
     public let status: IdeaStatus
     /// 采纳后回写的 kanban 任务 id；未采纳为 nil。
     /// 这是「已转任务」的服务端真源（取代旧本地标记）
@@ -208,7 +215,9 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         id: String, title: String, detail: String,
         goalId: String?, createdAt: Double,
         source: IdeaSource = .manual, evidence: String = "",
-        evidenceRef: String? = nil, status: IdeaStatus = .pending,
+        evidenceRef: String? = nil, anchorId: String? = nil,
+        dismissReason: String? = nil,
+        status: IdeaStatus = .pending,
         taskId: String? = nil, expiresAt: Double? = nil
     ) {
         self.id = id
@@ -219,6 +228,8 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         self.source = source
         self.evidence = evidence
         self.evidenceRef = evidenceRef
+        self.anchorId = anchorId
+        self.dismissReason = dismissReason
         self.status = status
         self.taskId = taskId
         self.expiresAt = expiresAt
@@ -231,7 +242,8 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, title, detail, goalId, createdAt
-        case source, evidence, evidenceRef, status, taskId, expiresAt
+        case source, evidence, evidenceRef, anchorId, dismissReason
+        case status, taskId, expiresAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -254,6 +266,12 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         evidenceRef = try container.decodeIfPresent(
             String.self, forKey: .evidenceRef
         )
+        anchorId = try container.decodeIfPresent(
+            String.self, forKey: .anchorId
+        )
+        dismissReason = try container.decodeIfPresent(
+            String.self, forKey: .dismissReason
+        )
         status = IdeaStatus.from(
             try container.decodeIfPresent(String.self, forKey: .status)
         )
@@ -266,26 +284,36 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
-/// PATCH /ideas/{id} 请求体：桥只许改 status 与 taskId
-/// 两项；nil 字段不落键（不带＝不改）。回写 taskId 时桥
-/// 侧同时把 status 置 adopted（采纳是事实、不是请求）
+/// PATCH /ideas/{id} 请求体：桥只许改 status、taskId 与
+/// dismissReason 三项；nil 字段不落键（不带＝不改）。回写
+/// taskId 时桥侧同时把 status 置 adopted（采纳是事实、
+/// 不是请求）；dismissReason 只在转 dismissed 时可带
+/// （"tooGeneric"＝用户标「太泛了」，桥计入生成避让）
 public struct BridgeIdeaPatchRequest: Encodable, Equatable, Sendable {
     public let status: IdeaStatus?
     public let taskId: String?
+    public let dismissReason: String?
 
-    public init(status: IdeaStatus? = nil, taskId: String? = nil) {
+    public init(
+        status: IdeaStatus? = nil, taskId: String? = nil,
+        dismissReason: String? = nil
+    ) {
         self.status = status
         self.taskId = taskId
+        self.dismissReason = dismissReason
     }
 
     private enum CodingKeys: String, CodingKey {
-        case status, taskId
+        case status, taskId, dismissReason
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(status?.rawValue, forKey: .status)
         try container.encodeIfPresent(taskId, forKey: .taskId)
+        try container.encodeIfPresent(
+            dismissReason, forKey: .dismissReason
+        )
     }
 }
 
