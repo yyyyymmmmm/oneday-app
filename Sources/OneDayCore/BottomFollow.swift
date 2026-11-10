@@ -138,7 +138,8 @@ public enum LastScrollTarget {
 /// 本阈值才再贴一次（尾部行在第一贴后已被量实、
 /// 第二贴落点才准——vellum PR #30693 的量实原理）。
 /// 阈值取小：正常落定误差（尾锚 1＋栈底 padding 8
-/// ＋contentMargins 8 ≈17pt）不触发复贴，估算误差
+/// ＋contentMargins 4 ≈13pt；contentMargins 原 8、
+/// 0.36.27 §97 件二收一档）不触发复贴，估算误差
 /// （实测 ≈57pt 起）必触发。
 public enum BottomSettle {
     /// 复贴触发的实测距底阈值（pt）：大于才补贴

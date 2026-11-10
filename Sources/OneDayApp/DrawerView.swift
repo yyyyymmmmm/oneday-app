@@ -53,7 +53,9 @@ import SwiftUI
 ///   注销）。（0.36.5 订正：底条 0.20.0 已改浮置、
 ///   顶 safeAreaBar 注册本版整块取消——标题改浮
 ///   层、只有文字本体，见 body 内 D3 注；本段与
-///   下文 0.20.0 注中「顶条维持实色注册」只存沿革。）
+///   下文 0.20.0 注中「顶条维持实色注册」只存沿革。
+///   0.36.27 再订正：底条浮置＋霜层退役、改注册名
+///   单 safeAreaBar 走纯系统朦胧，见 body 内注。）
 struct DrawerView: View {
     /// 面板宽＝壳层量测给（录屏量测 0.79×屏宽、上限
     /// 400，见 ContentView 壳层注）
@@ -79,8 +81,9 @@ struct DrawerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
-    /// 减透明（0.23.0）：底条霜层的实色回退分支读它
-    /// （经 Core TransparencyFallback 裁决）
+    /// 减透明（0.23.0）：面板底 drawerBackdrop 的实
+    /// 色回退读它（经 Core TransparencyFallback 裁
+    /// 决）；底条霜层的那路已于 0.36.27 随霜层删除
     @Environment(\.accessibilityReduceTransparency)
     private var reduceTransparency
     @Query(sort: \ChatThread.updatedAt, order: .reverse)
@@ -102,17 +105,24 @@ struct DrawerView: View {
     @State private var renameText = ""
 
     var body: some View {
-        // 0.20.0 第一条（用户点名「抽屉底条要朦胧不要
-        // 纯白」，覆盖 0.6.1 定式与文件头旧注）：底条
-        // 自 safeAreaBar 实色注册退役、改 ZStack 浮置
-        // ——名单 ScrollView 忽略底安全区、内容可滚到
-        // 底条之下；底条本体留在安全区内（落点仍是
-        // indicator 线上方 4pt）；条下垫一条系统
-        // Material（ultraThinMaterial）渐变霜层（上沿
-        // 渐隐化入名单、下段真 backdrop 模糊）＋条内
-        // 三件本体既有的 .glassEffect(.regular) 玻璃，
-        // 两层都是系统材质、无自绘模糊、无 E11 私有
-        // 件。顶条维持 0.6.1 实色注册不变（本条只改底）
+        // 0.36.27（§97 件三，用户 03:54 拍板「抽屉朦
+        // 胧与聊天页一样走纯系统路线比较好点」）：底
+        // 条改注册为名单 ScrollView 的 .safeAreaBar
+        // (edge: .bottom)——与聊天页发送舱同构，朦胧
+        // 由名单 .scrollEdgeEffectStyle(.soft, for:
+        // .bottom) 在注册栏高内发放，零自绘。0.20.0
+        // 的浮置构造（ZStack 浮置＋ultraThinMaterial
+        // 霜层＋LinearGradient 渐隐 mask＋霜层实色回
+        // 退分支）整套退役；名单 .ignoresSafeArea
+        // (.bottom) 与手排末行避让（padding 84）随之
+        // 退役，末行避让改由注册留位＋contentMargins
+        // 底 8 承接。底条三件本体与落点（indicator
+        // 线上方 4pt）不变、不给注册 bar 自加 back-
+        // ground（WWDC25-323 口径）；顶部标题浮层不
+        // 动（0.36.5 定版）。Reduce Transparency 下
+        // 边缘效果由系统自理（系统自动增不透明），
+        // 霜层时代的手排实色回退随霜层一并删除（理
+        // 由见 DESIGN §97.3）
         ZStack(alignment: .bottom) {
             // 0.36.5（D2，用户实拍右缘贯穿长线）：长线
             // 即名单 ScrollView 的默认滚动指示器——关
@@ -129,10 +139,9 @@ struct DrawerView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                // 浮置底条不再占布局：名单底部补避让，
-                // 末行停在底条上方不被玻璃压住（条高
-                // 52＋顶边距 12＋霜层呼吸，取 84）
-                .padding(.bottom, 84)
+                // 0.36.27：手排末行避让（padding 84）退
+                // 役——改由下方 safeAreaBar 注册留位（条
+                // 高 68）＋contentMargins 底 8 承接
             }
             // 0.36.5（D3，用户 19:27 对照 Muse 本体
             // 抽屉实拍纠正，覆盖顶带「统一材质」口
@@ -151,9 +160,21 @@ struct DrawerView: View {
             .contentMargins(
                 .top, Self.titleStripHeight, for: .scrollContent
             )
-            .ignoresSafeArea(edges: .bottom)
+            // 0.36.27：末行与注册底条之间留一档小间隙
+            // （与聊天页列表底口径同式）；注册留位之外
+            // 本面唯一的底部手排数
+            .contentMargins(
+                .bottom, OneDayMetrics.spacingS, for: .scrollContent
+            )
             .scrollDismissesKeyboard(.interactively)
             .scrollEdgeEffectStyle(.soft, for: .bottom)
+            // 0.36.27（§97 件三）：底条注册（与聊天页
+            // bottomBar 同挂法）——搜索态与普通态两套
+            // 名单共用本 ScrollView，注册只此一处、两
+            // 态一致
+            .safeAreaBar(edge: .bottom) {
+                drawerBottomBar
+            }
             // 标题浮层：ZStack 顶＝安全区顶（状态栏
             // 之下），只有文字、无底块无色带；不承
             // 命中——标题区拖动归名单/壳层手势
@@ -162,39 +183,6 @@ struct DrawerView: View {
                 Spacer()
             }
             .allowsHitTesting(false)
-            // 霜层：系统 Material 矩形＋渐变 mask（上透
-            // 下实），只承视觉、不承命中
-            // 0.23.0（三设置检查·减透明）：Reduce Trans-
-            // parency 开启时渐变 mask 的淡出段不受系统
-            // 材质自动增不透明的管辖、名单末行会透过霜
-            // 层与底条字叠读——经 Core Transparency-
-            // Fallback 裁决落实色分支（整幅实色面、无
-            // mask），裁决纯函数有单测把守
-            VStack {
-                Spacer()
-                if TransparencyFallback.surface(
-                    reduceTransparency: reduceTransparency
-                ) == .solid {
-                    Rectangle()
-                        .fill(Palette.surface)
-                        .frame(height: 96)
-                        .ignoresSafeArea(edges: .bottom)
-                } else {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .frame(height: 96)
-                        .mask {
-                            LinearGradient(
-                                colors: [.clear, .black],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        }
-                        .ignoresSafeArea(edges: .bottom)
-                }
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-            drawerBottomBar
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
@@ -205,7 +193,8 @@ struct DrawerView: View {
         // 磨砂、后面聊天内容隐约透出、标题与行直接浮
         // 于材质上。只用系统材质 API（thinMaterial）；
         // Reduce Transparency 时经 Core 裁决落实色面
-        // （chatSurface 同档），与底条霜层回退同口径。
+        // （chatSurface 同档；底条霜层的那路回退已于
+        // 0.36.27 随霜层删除，此处只剩面板底本路）。
         // 私有 variableBlur 永不碰（E11 已注销）
         .background {
             drawerBackdrop
