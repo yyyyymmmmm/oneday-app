@@ -9149,3 +9149,31 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **xcstrings 并集**：自动合并后逐键断言——HEAD 2626 键零丢失、新增精确 2 键（「交付内容」／「%@（文件已删除）」）→ 2628；validate_i18n 通过（2641 键含 InfoPlist 13，三语全覆盖）。
 - **单测总对账**：1496（0.50.13）＋21（DeliveryMarkerTests 18＋BridgeDeliveryDecodeTests 3）＝**1517**，中间 CI 与发版 CI（run 43012492950，jobs 逐项终判 build-native 及全部 steps **success**）双实测 Executed 1517、0 failures，只增不减。
 - **定版与验包**：定版 0b80e01（版本五处＝Project.swift 四处 0.50.14/136＋SettingsView 页脚，grep 验 0.50.13 零残留）。IPA 落 ~/workspace/your_files/oneday-v0.50.14/OneDay-0.50.14.ipa：**10,209,072 字节、md5 `7e46699465779f05f83b60c434b3ee12`**，主线独立解包复核 Info.plist 实读 0.50.14／136／site.didichou.oneday。真机待验沿 §146.3 五条（试验会话白卡／新图登记内联／假号纯文本／删文件 gone 行／老消息兜底不回归）。
+
+## §149 模型重构·顶栏包：全量分组清单＋本会话作用域＋别名单源（2026-11-11，用户 19:22 报障「设置的模型换了状态栏没换」→19:33 拍板「用市面上最成熟办法」→19:39 批准按报告全做；依据 hermes-studio-model-picker-20261111.md 必改 B1+B2+B4；预制分支 feat/model-picker-topbar，基线 main dccdc85／0.50.14，只预制不合并；节号自选 §149，现行末尾 §147＋附件面板合并记账（无 §148——19:32 那份 §148 诊断记账写在别的副本上未入本线，合并时主线核对、如入册则本节顺延），代码注释以 §149 自引、合并改注时全量同步）
+
+### 149.1 前置核查：/api/model/options 原始回执生产定型（报告点名项，已抓实）
+- 通道：ssh 118 → docker exec hermes 容器内 python 自调 Dashboard 9119（Bearer 取进程 environ 只进变量、未打印未落文件；宿主机内存 53% 未触红线；未动任何服务）。GET http://127.0.0.1:9119/api/model/options → 200。
+- 结构与报告预期一致、且超出预期：顶层键 {default_label, model, provider, providers}；provider="custom:ailey"、model="gpt-5.6"（与 §148 诊断回读互证）。providers 是数组、每行恰四键 {slug, label, is_current, models}：行 1 slug=custom（label=Custom endpoint、is_current=false、models 132 个＝New API 全目录）；行 2 slug=Ailey（label=Ailey、is_current=true、models 恰 61＝注册表 Ailey.models 61 逐字全等）；行 3 slug=deepseek（label=deepseek、is_current=false、models=[deepseek-chat, deepseek-flash, deepseek-reasoner]）。
+- 三条定型结论：①分组齐全且由服务端按注册表拼装（具名行 models 与注册表逐字同），B1 的主数据源就是回执 providers 行，注册表只补 Gateway 具名条目（服务端注册时已在网关行内、回执无独立 Gateway 行）；②默认模型 gpt-5.6 同时在网关行清单里——默认标记必须「默认模型×is_current 行」同中才算，禁按名全局标（否则网关组同名行冒充默认）；③label 字段在册但与 slug 同值（Ailey/deepseek），段头用注册表原名/回执 slug 即可，不另设显示名层。回执全文未落盘（含目录全量、无密钥字段，已逐键核对 providers 行只有 slug/label/is_current/models 四键，无 api_key 下发——与报告对 Studio 的警示点不同，Hermes 本端点干净）。
+
+### 149.2 B1：顶栏全量分组清单
+- Core 新 ChatModelGroups（ChatModelGroups.swift）：ChatModelChoice{model（执行值）, providerField, isDefault}＋ChatModelGroup{title, choices}＋build 唯一拼装口＋filtered 搜索口。拼装序：网关组（回执 custom/Gateway 行＋注册表 Gateway 条目清单合并、回落 availableModels 扁平候选）→具名组（注册表序、providerField=custom:<归一 slug>）→回执注册表外行（如 deepseek 官方行，providerField=nil、发送走服务端自理路）。硬排除网关别名、空组不呈现；默认标记按 149.1 结论②。
+- 取数：HermesClient 新增 modelOptionsRaw（整树一次取回），refreshModelCatalog 一趟里同时喂扁平管线（设置页候选，口径不动）与分组拼装；分组全空不覆盖已有（离线保旧，与 availableModels 同纪律）。DemoHermesClient 同步给同构演示回执。
+- 呈现：新 ChatModelPickerView（sheet＋NavigationStack＋系统 List .insetGrouped 分段＋.searchable 跨组搜＋页脚「只对这条对话生效」＋空态 ContentUnavailableView）；触发器形态不变（短名＋chevron），点开不再走 Menu/Picker（理由见 149.4 四问②）。
+
+### 149.3 B2：本会话作用域＋chatModel 私有层退场
+- AppState：私有全局 chatModel 与 selectChatModel 整层删除；新账 sessionModelChoices 按会话键落盘（UserDefaults chatModelBySession 一份 JSON；键＝服务端会话 id 优先、否则线程 id、主线未链接＝main）。解析单口 sessionModelChoice(serverSessionID:threadID:)（Core SessionModelResolution：会话自选（须仍在清单）＞服务端默认播种＞分组首项；分组未就绪回落旧口径保顶栏有值）。
+- 发送同源：ChatView 全部发送点（driveRun 首提/重演、relock 判定与推送、linkAndSeed 建会话与落账）改读本会话 choice 的 model＋providerField；ChatModels.providerField(for:) 不再被发送链消费（Core 内标记退役，显示名/退役名映射/落回提示三职保留）。
+- 枢纽模型区（AgentHubView.modelZone）与分享摘要（AgentHubStore.shareText）同批收口：模型区改全量分组拍平呈现＋按主线键读写（枢纽语境＝主线）；不再有任何面读已删的全局值。
+- 迁移：refreshModelCatalog 内一次性把旧 chatModelID（仅写死清单内值）播种给主线键（标记 chatModelMigrated149），旧键此后只读不写；modelFallbackNotice 改读旧键原值、消费不再回写。
+- 会话锁既有机制（linkedModel/POST /api/sessions/{id}/model）不动：relock 判定输入由全局值换成本会话值，语义是「本会话选了什么就锁什么」，比旧全局口径更准。
+
+### 149.4 B4：别名单源收口
+- Core ModelDisplayNames 新增 canonicalID（消费 ModelCatalog.aliasRuntime 唯一登记，不另存副本）＋triggerLabel（短名只出 ChatModels 单源表、清单外回落全名/原文，禁字符串截断）。触发器、displayModelName、selectSessionModel 落账、离线回落四处全经归一——服务端默认若是别名，顶栏与发送自动同为规范名，「Flash/deepseek-flash 双名」在结构上不再可能（§148 诊断里顶栏短名 Flash 的来源即此）。
+- 新面准入四问：①入口——既有顶栏模型域原位替换，不新增入口；②重复——与枢纽模型区同数据同账（本包同步收口，不留第二套写死清单面）；与设置页分工不变（设置管默认、本面包管本会话，页脚文案明示）；③令牌与公用件——间距/字阶全走 OneDayMetrics/Palette 既有令牌，列表/搜索/空态全用系统件（List/.searchable/ContentUnavailableView），无页面直写数值；④AX 与深色——行高走系统 List 默认（随 Dynamic Type 涨），模型名 lineLimit 2＋副行 caption，深色靠 Palette 语义色与系统列表底，施工时以代码口径自检、真机帧验随合并后验收单（本包预制不做截图验收，沿既有纪律）。
+
+### 149.5 文件边界与合并注意（与管理面包交叉点）
+- 本包动：Core（ChatModelGroups 新、ModelDisplayNames、ChatModels 注释）、AppState 模型节、ChatView 顶栏＋发送点、ChatModelPickerView 新、AgentHubView/AgentHubStore 模型区、HermesClient/DemoHermesClient 取数口、xcstrings +4 键（只对这条对话生效/搜索模型/还没有可用的模型/空态说明句）。设置页本体（ModelSettingsView/ModelManagementStore/ProviderEditorView）零触碰。
+- 交叉点（合并合裁）：①AppState.refreshModelCatalog 是两面包共同入口——管理面包若动默认回读/noteDefaultModel 一带，与本包的同函数改动按段合裁；②xcstrings 走并集脚本（本包 +4 键、外科插入、分支 validate 2650 键含 InfoPlist 13）；③MainModelAssignment/ChatModels 两 Core 文件管理面包可能同动注释口径，冲突按「本包 B4 口径优先、文案归管理面包」合裁。
+- 真机待验（合并后）：顶栏点开见三组（默认服务商/Ailey 61 个/deepseek 行）、搜 gpt 能跨组命中；在旁聊选 Ailey 的模型发一条、回主线顶栏仍是主线自己的选择（作用域实证）；顶栏选 Flash 后杀 App 重进仍在；设置页改默认后新开会话以新默认播种、已开会话不动（与 B3 文案合验）；AX 大字号＋深色各一帧看选择面。

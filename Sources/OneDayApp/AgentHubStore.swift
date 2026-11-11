@@ -117,9 +117,14 @@ final class AgentHubStore {
     }
 
     /// 分享摘要（页头分享圆钮）：名＋状态＋当前模型
+    /// （§149：主线会话的执行值，与顶栏同源）
     var shareText: String {
-        L10n.format("%@ · %@ · 当前模型 ", displayName, statusText)
-            + ChatModels.displayName(for: appState.chatModel)
+        let model = appState.chatModel(
+            serverSessionID: appState.sideChats.mainServerSessionID,
+            threadID: nil
+        )
+        return L10n.format("%@ · %@ · 当前模型 ", displayName, statusText)
+            + (ModelDisplayNames.displayName(for: model) ?? model)
     }
 
     // MARK: - 活动段

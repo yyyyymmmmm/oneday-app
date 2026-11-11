@@ -47,39 +47,146 @@ final class AppState {
     private(set) var username: String?
     /// 对话模型 id：探活第三步从 /v1/models 取第一个，缺失时回退实测值
     private(set) var modelID: String = "hermes-agent"
-    /// 聊天模型（0.3.0 接线，DESIGN-V4 §15）：写死清单
-    /// （ChatModels；0.32.1 起两项，Qwen 已下线见
-    /// §60）、本地选择、逐请求生效（请求带
-    /// provider=custom 切上游）；与服务端默认模型
-    /// （defaultModel，设置页管理面口径）互不干扰。
-    /// 持久化于 UserDefaults，初始口径见 ChatModels
-    private(set) var chatModel: String = ChatModels.initialSelection(
-        stored: UserDefaults.standard.string(forKey: "chatModelID"),
-        serverDefault: nil
-    )
+    // MARK: - §149 本会话模型（顶栏包 B1/B2/B4）
 
-    /// 已下线模型落回提示（0.32.1，F05 止血）：已存选
-    /// 择命中已停用模型时，chatModel 已由 initialSelec-
-    /// tion 落回默认，本提示供聊天页一次性如实告知；
-    /// 消费后落回值同步落盘，永不重现（见 consume 函数）
+    /// 顶栏全量分组清单（§149 B1）：网关组（options
+    /// 回执分组）＋具名服务商各组（注册表）同源拼装
+    /// （Core ChatModelGroups.build 唯一拼装口），随
+    /// 目录刷新一并重建；设置页增删服务商后同源刷新
+    /// （refreshModelCatalog 是两面的共同入口）
+    private(set) var chatModelGroups: [ChatModelGroup] = []
+
+    /// 本会话选择账（§149 B2）：按会话键记各自的执行
+    /// 选择（model＋providerField），UserDefaults 一份
+    /// JSON 字典落盘（键＝会话键，见 sessionModelKey）。
+    /// 私有 chatModel 全局单值层自此退场——旧键
+    /// chatModelID 只在迁移播种时读一次（见
+    /// refreshModelCatalog），不再写入
+    private(set) var sessionModelChoices: [String: ChatModelChoice] = [:]
+
+    /// 旧全局选择迁移标记（只迁一次：把 chatModelID
+    /// 旧值播种给主线会话，免用户升级后被默认顶掉）
+    private var legacyChatModelMigrated: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "chatModelMigrated149")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "chatModelMigrated149")
+        }
+    }
+
+    /// 会话键：服务端会话 id 优先（跨设备/重装同认）；
+    /// 尚无服务端 id 的本地线程用线程 id；主线未链接
+    /// 时用固定键 main
+    static func sessionModelKey(
+        serverSessionID: String?, threadID: UUID?
+    ) -> String {
+        if let serverSessionID, !serverSessionID.isEmpty {
+            return "s:\(serverSessionID)"
+        }
+        if let threadID { return "t:\(threadID.uuidString)" }
+        return "main"
+    }
+
+    /// 本会话执行选择（B2/B4 同源口）：会话自选（仍在
+    /// 清单内）＞服务端默认播种＞分组首项；分组未就绪
+    /// 时回落历史口径（旧 chatModelID＞服务端默认＞
+    /// 写死 fallback），保证离线/未刷新时顶栏仍有值
+    func sessionModelChoice(
+        serverSessionID: String?, threadID: UUID?
+    ) -> ChatModelChoice {
+        let key = Self.sessionModelKey(
+            serverSessionID: serverSessionID, threadID: threadID
+        )
+        if let resolved = SessionModelResolution.resolve(
+            stored: sessionModelChoices[key],
+            groups: chatModelGroups,
+            serverDefault: SessionModelResolution.serverDefaultChoice(
+                in: chatModelGroups, defaultModel: defaultModel
+            )
+        ) {
+            return resolved
+        }
+        let legacy = UserDefaults.standard.string(forKey: "chatModelID")
+            ?? defaultModel ?? ChatModels.fallbackID
+        return ChatModelChoice(
+            model: ModelDisplayNames.canonicalID(for: legacy),
+            providerField: ChatModels.contains(legacy) ? "custom" : nil
+        )
+    }
+
+    /// 本会话模型 id（发送与触发器共用此口，不许两处
+    /// 各算一份）
+    func chatModel(
+        serverSessionID: String?, threadID: UUID?
+    ) -> String {
+        sessionModelChoice(
+            serverSessionID: serverSessionID, threadID: threadID
+        ).model
+    }
+
+    /// 本会话选择落账（顶栏/枢纽选择器唯一写入点）：
+    /// 别名先归一（B4），只记账不发网络请求、不改服
+    /// 务端默认——作用域就是本会话
+    func selectSessionModel(
+        _ choice: ChatModelChoice,
+        serverSessionID: String?, threadID: UUID?
+    ) {
+        let key = Self.sessionModelKey(
+            serverSessionID: serverSessionID, threadID: threadID
+        )
+        let canonical = ChatModelChoice(
+            model: ModelDisplayNames.canonicalID(for: choice.model),
+            providerField: choice.providerField,
+            isDefault: choice.isDefault
+        )
+        sessionModelChoices[key] = canonical
+        persistSessionModelChoices()
+    }
+
+    private func persistSessionModelChoices() {
+        let dict: [String: [String: String]] = sessionModelChoices
+            .mapValues { choice in
+                var fields = ["model": choice.model]
+                if let provider = choice.providerField {
+                    fields["provider"] = provider
+                }
+                return fields
+            }
+        if let data = try? JSONEncoder().encode(dict) {
+            UserDefaults.standard.set(data, forKey: "chatModelBySession")
+        }
+    }
+
+    private func loadSessionModelChoices() {
+        guard let data = UserDefaults.standard.data(
+            forKey: "chatModelBySession"
+        ),
+        let dict = try? JSONDecoder().decode(
+            [String: [String: String]].self, from: data
+        ) else { return }
+        sessionModelChoices = dict.compactMapValues { fields in
+            guard let model = fields["model"], !model.isEmpty
+            else { return nil }
+            return ChatModelChoice(
+                model: model, providerField: fields["provider"]
+            )
+        }
+    }
+
+    /// 已下线模型落回提示（0.32.1，F05 止血）：旧全局
+    /// 选择命中已停用模型时一次性如实告知（§149 后判
+    /// 定输入改读旧键原值，语义不变）
     private(set) var modelFallbackNotice: String? =
         ChatModels.retiredFallbackNotice(
             stored: UserDefaults.standard.string(forKey: "chatModelID")
         )
 
-    /// 选择聊天模型（本地生效，不发网络请求、不改服务端）
-    func selectChatModel(_ id: String) {
-        guard ChatModels.contains(id) else { return }
-        chatModel = id
-        UserDefaults.standard.set(id, forKey: "chatModelID")
-    }
-
-    /// 消费落回提示：清提示并把落回后的当前选择落盘
-    /// （否则已存值仍是下线模型、每次冷启都会重报）
+    /// 消费落回提示：清提示（旧键自 §149 起只读不写，
+    /// 消费后靠本标记防重报——提示本身由本属性承载、
+    /// 清掉即不再生成）
     func consumeModelFallbackNotice() {
-        guard modelFallbackNotice != nil else { return }
         modelFallbackNotice = nil
-        UserDefaults.standard.set(chatModel, forKey: "chatModelID")
     }
 
     /// 抽屉数据刷新令牌（0.21.0）：已链接旁聊标题
@@ -463,6 +570,11 @@ final class AppState {
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
         isDemo = demoMode.isDemo
+        // §149：本会话选择账开账（演示模式不落盘、
+        // 内存空账起步）
+        if !demoMode.isDemo {
+            loadSessionModelChoices()
+        }
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
         runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
         deviceSession = DeviceSessionController()
@@ -669,22 +781,17 @@ final class AppState {
     /// 本身永不进候选（0.2.2 的并集口径是 bug 源头）
     func refreshModelCatalog() async {
         guard phase == .connected else { return }
+        var registryEntries: [ProviderRegistry.Entry] = []
         if let raw = try? await performAdmin({ client, config in
             try await client.rawConfig(config: config)
         }), let current = raw["model"]?.stringValue {
             defaultModel = current
             // §119 未配模型判定输入：具名服务商的模型
             // 总数（读到配置才有值；未知时判定不报）
-            providerModelTotal = ProviderRegistry
+            registryEntries = ProviderRegistry
                 .entries(from: raw["providers"])
+            providerModelTotal = registryEntries
                 .reduce(0) { $0 + $1.models.count }
-            // 聊天模型初始播种（0.3.0）：用户没选过时，若
-            // 服务端默认在写死清单内则以它为初始选择
-            if UserDefaults.standard.string(forKey: "chatModelID") == nil {
-                chatModel = ChatModels.initialSelection(
-                    stored: nil, serverDefault: current
-                )
-            }
         }
         var aliases = Set<String>()
         if let apiKey,
@@ -695,10 +802,12 @@ final class AppState {
         }
         gatewayAliases = aliases
         var options: [String] = []
-        if let ids = try? await performAdmin({ client, config in
-            try await client.modelOptions(config: config)
+        var optionsRoot: JSONValue?
+        if let root = try? await performAdmin({ client, config in
+            try await client.modelOptionsRaw(config: config)
         }) {
-            options = ids
+            optionsRoot = root
+            options = ModelCatalog.extractModelIDs(from: root)
         }
         var usage: [String] = []
         if let analytics = try? await performAdmin({ client, config in
@@ -712,6 +821,39 @@ final class AppState {
         )
         if !merged.isEmpty {
             availableModels = merged
+        }
+        // §149 B1：顶栏全量分组同源重建（网关组回执
+        // 分组＋注册表具名组）；拼装失败/全空不覆盖
+        // 已有分组（离线保旧清单，与 availableModels
+        // 同纪律）
+        let groups = ChatModelGroups.build(
+            optionsRoot: optionsRoot,
+            providers: registryEntries,
+            gatewayCandidates: merged,
+            defaultModel: defaultModel,
+            gatewayAliases: aliases
+        )
+        if !groups.isEmpty {
+            chatModelGroups = groups
+        }
+        // §149 旧全局选择一次性迁移：chatModelID 旧值
+        // 播种给主线会话键（升级不丢用户既有选择）；
+        // 此后旧键只读不写
+        if !isDemo, !legacyChatModelMigrated {
+            legacyChatModelMigrated = true
+            if let legacy = UserDefaults.standard
+                .string(forKey: "chatModelID"),
+               ChatModels.contains(legacy),
+               sessionModelChoices[Self.sessionModelKey(
+                   serverSessionID: nil, threadID: nil
+               )] == nil {
+                sessionModelChoices[Self.sessionModelKey(
+                    serverSessionID: nil, threadID: nil
+                )] = ChatModelChoice(
+                    model: legacy, providerField: "custom"
+                )
+                persistSessionModelChoices()
+            }
         }
     }
 

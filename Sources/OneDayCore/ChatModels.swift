@@ -106,6 +106,17 @@ public enum ChatModels {
         contains(model) ? "custom" : nil
     }
 
+    /// 退役判定（§149 顶栏包 B2）：顶栏全量分组清单
+    /// （ChatModelGroups）接管可选集后，本写死清单不
+    /// 再是可选集真源——发送层逐请求 provider 只认会
+    /// 话选择自带的 providerField（ChatModelChoice）。
+    /// 本枚举保留三职：①显示名/短名单源（ModelDisplay-
+    /// Names 消费）；②退役名映射与落回提示（历史消息
+    /// 名牌）；③演示模式的分组种子（DemoHermesClient
+    /// 演示回执由 items 派生）。providerField(for:) 与
+    /// initialSelection 随私有 chatModel 层退场停用，
+    /// 仅存量测试锚点保留（§149.3 记账）。
+
     /// 初始选择口径：已存选择优先；否则服务端默认若在
     /// 清单内则用之；再否则 fallback
     public static func initialSelection(

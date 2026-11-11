@@ -277,6 +277,12 @@ protocol HermesClientProtocol: Sendable {
     /// ModelPickerDialog 同源端点）；回执未定型，经
     /// ModelCatalog.extractModelIDs 宽容提取为 id 列表
     func modelOptions(config: ServerConfig) async throws -> [String]
+    /// GET /api/model/options 的原始回执整树（§149）：
+    /// 顶栏全量分组（ChatModelGroups）与默认回读共用
+    /// 一次取数——结构已于 2026-11-11 生产定型（顶层
+    /// {provider, model, providers:[{slug, is_current,
+    /// models}]}），不再只宽容提取 id 把分组扔掉
+    func modelOptionsRaw(config: ServerConfig) async throws -> JSONValue
     /// POST /api/model/set {scope:"main", provider, model}：
     /// 全局默认指派的官方写面（§141）。具名服务商靠它落盘
     /// provider: custom:<名>；拍平的 config PUT 改不了
@@ -1533,12 +1539,16 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         )
     }
 
-    func modelOptions(config: ServerConfig) async throws -> [String] {
-        // 回执在 OpenAPI 里未定型：先以 JSONValue 整树接住，
-        // 再由 ModelCatalog 宽容提取（形状容忍优先于强解码）
-        let root: JSONValue = try await getJSON(
+    func modelOptionsRaw(config: ServerConfig) async throws -> JSONValue {
+        try await getJSON(
             config: config, path: "/api/model/options", endpoint: L10n.string("模型列表接口")
         )
+    }
+
+    func modelOptions(config: ServerConfig) async throws -> [String] {
+        // 扁平 id 口径保留给设置页候选管线（ModelCatalog）；
+        // 整树由 modelOptionsRaw 出，顶栏分组走它（§149）
+        let root = try await modelOptionsRaw(config: config)
         return ModelCatalog.extractModelIDs(from: root)
     }
 

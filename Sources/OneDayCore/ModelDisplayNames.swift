@@ -37,4 +37,31 @@ public enum ModelDisplayNames {
     public static func identityLabel(for id: String?) -> String {
         displayName(for: id) ?? "服务端默认"
     }
+
+    // MARK: - §149 别名单源收口（B4）
+
+    /// 执行模型的规范 id（B4 别名收一的唯一口）：别名
+    /// （deepseek-chat/reasoner 这类服务端别名）一律归
+    /// 一到它实际运行的规范名（ModelCatalog.aliasRuntime
+    /// 是别名事实的唯一登记处，本函数只消费、不另存副
+    /// 本）；非别名原样返回。触发器显示、会话存储、逐
+    /// 请求发送三处都经此口——顶栏再不会出现「Flash」
+    /// 与「deepseek-flash」指同一物却两副面孔
+    public static func canonicalID(for id: String) -> String {
+        ModelCatalog.aliasRuntime[id] ?? id
+    }
+
+    /// 触发器短名（B4）：短名只许来自 ChatModels 单源
+    /// 表（整词缩短、不截断词中间）；清单外模型无短名
+    /// 口径、回落全名——全名优先取服务端清单带来的显
+    /// 示名（本表翻译），再回落模型 id 原文（具名服务
+    /// 商的模型名就是它在自家目录里的名字，如实呈现）
+    public static func triggerLabel(for id: String) -> String {
+        let canonical = canonicalID(for: id)
+        if ChatModels.contains(canonical)
+            || ChatModels.isRetired(canonical) {
+            return ChatModels.shortDisplayName(for: canonical)
+        }
+        return displayName(for: canonical) ?? canonical
+    }
 }
