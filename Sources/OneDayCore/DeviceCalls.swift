@@ -682,7 +682,7 @@ public struct AlarmSetArgs: Equatable, Sendable {
         let title = try requiredString(args, "title", "闹钟标题")
         let at = try optionalDate(args, "at", "定点时刻")
         var afterSeconds: TimeInterval?
-        if let raw = args["afterSeconds"]?.numberValue {
+        if case .number(let raw)? = args["afterSeconds"] {
             guard raw >= Self.minCountdownSeconds,
                   raw <= Self.maxCountdownSeconds
             else {
@@ -780,7 +780,7 @@ public struct NotifyPostArgs: Equatable, Sendable {
         let title = try requiredString(args, "title", "通知标题")
         let body = try requiredString(args, "body", "通知正文")
         var delaySeconds: TimeInterval = 0
-        if let raw = args["delaySeconds"]?.numberValue {
+        if case .number(let raw)? = args["delaySeconds"] {
             guard raw >= 0, raw <= Self.maxDelaySeconds else {
                 throw DeviceToolError.invalidArguments(
                     "延迟秒数要在 0 到 7 天之间"
