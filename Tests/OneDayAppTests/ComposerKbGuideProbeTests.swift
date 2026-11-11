@@ -37,15 +37,18 @@ private struct ProbeTextView: UIViewRepresentable {
 /// 每次布局时按 min(guideTop, floorY) 补偿（键盘升起跟引导线、
 /// 落下停在地板＝坞顶）。
 private final class ProbeHostController: UIViewController {
-    let barHost = UIHostingController(
-        rootView: VStack(spacing: 8) {
-            Text("notice-row").font(.caption)
-            ProbeTextView().frame(height: 38)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(.systemBackground))
-    )
+    let barHost: UIHostingController<AnyView> = {
+        let root = AnyView(
+            VStack(spacing: 8) {
+                Text("notice-row").font(.caption)
+                ProbeTextView().frame(height: 38)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground))
+        )
+        return UIHostingController(rootView: root)
+    }()
     private var bottomConstraint: NSLayoutConstraint!
 
     override func viewDidLoad() {
