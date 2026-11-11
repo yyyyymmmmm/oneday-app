@@ -596,7 +596,7 @@ struct DeliverablesView: View {
             }
             .background(Palette.pageBG)
             // §165（用户 2026-11-11 23:28 亲定）：底部导
-            // 航栏收边与发送舱底缘同档——本格四个滚动面
+            // 航栏同档收边（与输入框下方收边同档）——本格四个滚动面
             // （文件列表/网格、影音列表/网格）底缘一律
             // 挂 .hard，口径与映射见 FeedView 同注与
             // DESIGN §165.2
