@@ -8267,3 +8267,35 @@ Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发�
 - **合并后 CI**：run 42962305282 success（build-native success，head 53f0e86）。
 - **独立验包**：IPA 9,098,746 字节、md5 `220c983db9cd480bf4f6ba2988f5493f`、Info.plist 实读 0.47.1／115／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.47.1/OneDay-0.47.1.ipa`（落盘 md5 一致）。
 - **真机验收点**：见 §121.6 五条（回底钮出现/落位/点按、自发文件立即出牌、.ipa 落分享单、失败五分文案、旧消息 GestaltX 补牌）。
+## §122 三页修正包（2026-11-11，预制分支 feat/three-pages-fix，基线 main 5a9e1a1；§118–§121 在各自预制分支，合并时主线按序拼接）
+
+起因：用户 2026-11-11 12:41 装 0.47.0 后 6 张截图报障三题，12:45 再发 Muse 动态页真机截图作对尺标准；同日审计（similar-issues-audit-20261111.md）附录 A 给出 kanban 事件 kind 生产全集与「执行：default」实证、N1 把详情页图列为题二同根扩围。版本五处未动（合并时主线定号）。
+
+### 122.1 题一 · 点子采纳落点改开旁聊（覆盖 §105/§117 旧口径）
+
+- **覆盖声明**：§105「采纳落点 kanban（4A）」与 §117 详情主钮「打开任务」口径就此作废——采纳落点改旁聊。与 2026-11-11 12:48/12:55 闭环标准 C1 定版同向（用户亲手发起的执行会话进旁聊；纯系统/定时/探针仍归台账，不在本包）。
+- **kanban 照旧后台建**：IdeasStore.convertToTask 全链一字不动（探板→建任务→回写 taskId→回读确认→触感），台账记账不动；开旁聊的落定判据与 store 回读确认同口径——回读后 taskId 已落字且无失败留痕才开，未落定留在详情页看 notes 原因。
+- **旁聊走既有创建链**：本地插入 ChatThread 即出生记录（DrawerView.createThread／动态「讨论」同形），服务端会话由该线程首发时经 SideChatLink 铸 oneday-side- id 走 8642 建会话（0.21.0 既有链）——采纳点不另建第二套建会话代码。
+- **上下文＝预填不代发**：Core 纯函数 IdeaChatPrefill.make 拼标题／说明／依据（仅生成卡，与详情依据小节同口径）／交付物清单，写入输入舱草稿（SideChatStore.setDraft），用户点发送为准。核对结论：§105 旧账无「采纳自动发送」的批准口径（当年只定落点），全仓发送红线为不代发，故只预填。
+- **「打开任务」改「打开对话」**：关联存 SideChatStore.ideaThreadIDs（点子 id→线程 id，UserDefaults 落盘）。存量已采纳点子无关联、或关联线程已被删——点按时补建旁聊＋预填＋改写关联（本包定版处置）；回既有线程不覆盖其草稿。详情页原 showTask 任务详情 sheet 入口撤销（任务详情仍可从动态 refs 与枢纽到达）。
+- **连带·事件人话化**：Core KanbanEventKind.label——映射表按附录 A 生产全集 10 种建（created 任务已创建／claimed 已认领／spawned 已开始执行／owner_admitted 已确认接手／worker_bound 执行者已就位／worker_result 已交回结果／review_requested 已发起复核／commented 有新留言／completed 已完成／heartbeat 过滤），不凭枚举猜；未知与空 kind 落「有新进展」兜底、不直印英文。heartbeat 占样本 10/38、无用户意义，映射为 nil＝整条不进证据列表（只译不滤会被心跳淹没）。evidenceItems 接线，其旧注「event.kind 原样直通不译」同步更正。P-16 同族复发面收口。
+- **连带·「执行：default」**：生产实证 oneday 板 assignee 全为 default（缺省 profile 内部名，附录 A）。Core KanbanTask.displayAssignee 收口：default／空→nil（整行不出现），具名 profile 原样（谁在执行要看得清，与评论作者口径同理）；两处落点同改——KanbanTaskDetailView 头部、HubTaskSection 任务行。
+
+### 122.2 题二 · 动态图片定尺（行内＋详情，审计 N1 扩围）
+
+- **机理**：行内旧形把 aspectRatio(16/9) 挂在 AsyncImage 本体——成功相图片以自然尺寸参与行高求解，整页截图类长图（自然比极端）撑成数屏高（用户截图实证，整页翻不到头）；详情页旧形 scaledToFit 无任何限高、按自然比全高呈现，同根（审计 N1）。
+- **修法**：新立 FeedPostImageBox 定尺盒——形状层（Color.clear）承担 16:9 定尺寸、图片降为 overlay 以 scaledToFill 裁切（0.36.24 媒体格定案的同族正案：定尺落在承担定尺寸的那一层）。行内只喂第一张（旧口径不变）；详情逐张 16:9 排列（旧形只显第一张，随扩围改逐张）。加载未成／失败整块不显、无占位（旧口径不变）；详情图无障碍标签（A11yText.imageLabel）保留。来源卡在 GitHub 类帖代照片的形态（§117 既有）不动。
+- **胶囊避让**：动态页 List 加顶部 contentMargins（spacingXXL＋spacingM＝64pt），静止时首行正文落在页顶全局状态胶囊下沿之外；只动动态页，胶囊本体与其他页一字不动。对尺附记：Muse 自家浮标亦会压住帖子一行——我方以避让胜之，此条不抄。
+
+### 122.3 题三 · 动态行太长（修订 §117「行内恒全文」口径）
+
+- **对尺**（用户 12:45 Muse 截图）：帖＝标题一行内、正文两三句（约 80–150 字）全文铺、图一张全宽圆角（约 16:9）、动作行四件。我方行内结构 §117 已同形，差在源头帖长——审计实测生产帖正文中位 853 字、5/7 超 600 字；源头收紧归桥侧生成面（伴生写短口径另行），App 侧阈值只作安全网。
+- **口径**：短帖（≤300 字符）零截断、全文内联，§117 对标口径在短帖不变；超阈值截到最后一个完整句界＋「展开全文」入口（点开进详情看全文）；来源卡／refs／动作行在截断后保留。阈值＝Core 常量 FeedBoard.rowBodyCharacterLimit＝300（约 Muse 样本上限两倍余量）。
+- **纯函数收口**：FeedBoard.rowBodyPresentation——Character 计数（多字节／emoji 安全）；句界＝。！？；、后随空白／换行的 .!?; 与段落换行，ASCII 点号须后随空白或收尾符才算界（防 0.47 小数点、域名点号误判，后随字符看到上限外一字）；句界须落在上限后半段才采用（太靠前截完近空行），无合格句界则硬截上限字数＋省略号；截点落未闭合代码围栏（```）内时回退到围栏开始之前（回退后为空则回硬截）。FeedBoard.rowShowsFullBody 口径随改为「本帖行内是否全文」，MuseAlign117Tests 的 testFeedRowShowsFullBodyRegardlessOfLength 断言同步更正（§117.6 的恒真口径就此修订）。
+
+### 122.4 单测与校验
+
+- 新增 ThreePages122Tests 18 测：截断 8（短帖全文／恰限全文／句界截断／无句界硬截／emoji 计数／早句界回退硬截／围栏守卫／rowShowsFullBody 随动）、事件映射 4（生产全集逐条／heartbeat 过滤／未知与空兜底／evidenceItems 集成）、displayAssignee 3、IdeaChatPrefill 3（全拼装／空段省略／手记不带依据）。MuseAlign117Tests 旧断言 1 处按新口径更正（测试计数不减）。
+- 三语新增 15 键（Localizable 2437 键＋InfoPlist 13＝2450），validate_i18n.py 通过。
+- 红线守界：未碰 ChatView §116／回底钮段；§117 点子行／sheet 形态与动态行结构不动（只改本节三处）；简报胶囊与搜索不动。
+- 真机待验：采纳全链（任务后台建成＋旁聊打开＋预填在舱未代发）、存量已采纳点「打开对话」补建、长帖行内截断与展开全文、整页截图类图片在行内与详情均不再撑高、动态页静止位胶囊不遮首行正文。

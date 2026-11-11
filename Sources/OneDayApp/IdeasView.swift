@@ -1,5 +1,6 @@
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 点子格（0.11.0 P5 转正；0.47.0 §117 对标重做）：
@@ -315,19 +316,24 @@ struct IdeaRowView: View {
 /// 现——标题→正文全文→依据小节→「包含哪些内容」
 /// 交付物清单（蓝勾圆）→信息组小字；底部固定动作
 /// 栏＝左侧浅灰圆形「···」菜单（太泛了/忽略/删除，
-/// 沿用既有 store 动作）＋通栏蓝色胶囊主钮（待阅＝
-/// 「开始吧」采纳转任务；已采纳＝「打开任务」）。
-/// 深链落点（动态 refs 点达）以同一视图推页呈现，
-/// 形态与动作不变。
+/// 沿用既有 store 动作）＋通栏蓝色胶囊主钮。
+/// 0.48.0（§122，用户亲定）：主钮落点改开旁聊——
+/// 待阅「开始吧」＝后台照旧建 kanban 任务（台账记
+/// 账不动），成功后新建旁聊、点子上下文预填进输入
+/// 舱（不代发）、切聊天页打开；已采纳主钮改「打开
+/// 对话」回同一条旁聊（关联存 SideChatStore，存量
+/// 无关联/线程已删时点按补建）。不再把用户丢进任
+/// 务详情。深链落点（动态 refs 点达）以同一视图推
+/// 页呈现，形态与动作不变。
 struct IdeaDetailView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     let store: IdeasStore
     let kanban: KanbanStore
     let ideaID: String
 
-    @State private var showTask = false
     @State private var confirmDelete = false
 
     private var idea: BridgeIdea? {
@@ -388,11 +394,6 @@ struct IdeaDetailView: View {
             }
         }
         .background(Palette.pageBG)
-        .sheet(isPresented: $showTask) {
-            if let taskId = idea?.taskId {
-                KanbanTaskDetailView(store: kanban, taskID: taskId)
-            }
-        }
         .confirmationDialog(
             "删除这个点子？",
             isPresented: $confirmDelete,
@@ -587,6 +588,15 @@ struct IdeaDetailView: View {
                             appState: appState, idea: idea,
                             kanban: kanban
                         )
+                        // 采纳落定判据与 store 内回读确认
+                        // 同口径：任务 id 已落字且无失败留
+                        // 痕才开旁聊；未落定留在本页看原因
+                        if let fresh = store.ideas.first(
+                            where: { $0.id == idea.id }
+                        ), fresh.taskId != nil,
+                           store.notes[idea.id] == nil {
+                            openIdeaChat(fresh)
+                        }
                     }
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingS) {
@@ -603,9 +613,9 @@ struct IdeaDetailView: View {
                 .disabled(acting)
             } else if idea.isAdopted, idea.taskId != nil {
                 Button {
-                    showTask = true
+                    openIdeaChat(idea)
                 } label: {
-                    Text("打开任务")
+                    Text("打开对话")
                         .font(.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -618,6 +628,44 @@ struct IdeaDetailView: View {
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.vertical, OneDayMetrics.spacingSM)
         .background(Palette.pageBG)
+    }
+
+    /// 开旁聊（§122）：关联线程还在就回那条；没有关
+    /// 联（存量已采纳点子）或线程已被删，则现在补建
+    /// 一条并记关联——建线程走既有旁聊创建链（Drawer-
+    /// View.createThread／动态「讨论」同形：本地插入
+    /// ChatThread 即出生记录，服务端会话由该线程首
+    /// 发时经 SideChatLink 铸 oneday-side- 会话），
+    /// 点子上下文只在新建时预填进输入舱草稿（不代
+    /// 发，用户点发送为准）；回既有线程不覆盖草稿
+    private func openIdeaChat(_ idea: BridgeIdea) {
+        let thread: ChatThread
+        if let linkedID = appState.sideChats.threadID(
+            forIdeaID: idea.id
+        ), let existing = fetchThread(linkedID) {
+            thread = existing
+        } else {
+            let fresh = ChatThread()
+            modelContext.insert(fresh)
+            try? modelContext.save()
+            appState.sideChats.setDraft(
+                IdeaChatPrefill.make(idea: idea), for: fresh.id
+            )
+            appState.sideChats.linkThread(
+                fresh.id, forIdeaID: idea.id
+            )
+            thread = fresh
+        }
+        appState.drawerThreadSelection = thread.id
+        appState.mainTabSwitchRequest = .chat
+        dismiss()
+    }
+
+    private func fetchThread(_ id: UUID) -> ChatThread? {
+        let descriptor = FetchDescriptor<ChatThread>(
+            predicate: #Predicate { $0.id == id }
+        )
+        return try? modelContext.fetch(descriptor).first
     }
 }
 

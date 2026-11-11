@@ -120,7 +120,7 @@ struct KanbanTaskDetailView: View {
                         .padding(.vertical, OneDayMetrics.stackGap)
                         .background(Palette.fieldFill, in: Capsule())
                         .foregroundStyle(Palette.inkSecondary)
-                    if let assignee = task.assignee, !assignee.isEmpty {
+                    if let assignee = task.displayAssignee {
                         Text("执行：\(assignee)")
                             .font(.caption)
                             .foregroundStyle(Palette.inkSecondary)

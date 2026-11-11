@@ -176,7 +176,7 @@ struct HubTaskSection: View {
                 if let created = task.createdAt {
                     Text(AdminFormat.short(created))
                 }
-                if let assignee = task.assignee, !assignee.isEmpty {
+                if let assignee = task.displayAssignee {
                     Text("执行：\(assignee)")
                 }
                 if task.presentation == .failed,

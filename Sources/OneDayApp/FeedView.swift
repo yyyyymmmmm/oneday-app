@@ -33,6 +33,14 @@ struct FeedView: View {
     /// 来源小 sheet 的当前帖（动作行 ⓘ 点按）
     @State private var sourcesPost: BridgeFeedPost?
 
+    /// 顶部胶囊避让（0.48.0，§122）：全局智能体状态
+    /// 胶囊浮在本页页顶中央，静止时正压首屏帖子正文
+    /// （用户 12:41 截图多处遮字）——列表加顶部
+    /// inset，让首行正文落在胶囊下沿之外。只动本
+    /// 页：胶囊本体、其他页一字不动
+    private static let topCapsuleClearance: CGFloat =
+        OneDayMetrics.spacingXXL + OneDayMetrics.spacingM
+
     enum Route: Hashable {
         case post(String)
         case ref(BridgeFeedRef)
@@ -181,6 +189,10 @@ struct FeedView: View {
                 }
             }
             .listStyle(.plain)
+            .contentMargins(
+                .top, Self.topCapsuleClearance,
+                for: .scrollContent
+            )
             .searchable(
                 text: $searchText, isPresented: $isSearching,
                 prompt: "搜索动态"
@@ -367,14 +379,17 @@ struct FeedView: View {
 
     /// 帖子行（0.47.0 §117 对标形态）：内容 emoji 大
     /// 字（桥值优先、kind 缺省兜底）＋semibold 标题＋
-    /// 正文全文内联（Markdown、链接可点、不截断——
-    /// 判定在 Core FeedBoard.rowShowsFullBody）＋第一
-    /// 张图通栏大图＋来源卡＋refs 蓝字内链＋动作行
-    /// （讨论/类别/相对时间/ⓘ来源）。整行点按开详情
-    /// 的旧形态退役：标题点按仍可达详情（深链与 ⓘ
-    /// 的落点），正文区让给链接与文本选择。已读口径
-    /// 随全文内联改版：行露面即已读（onAppear 回写，
-    /// §117.3 定版），各交互点按同样回写。
+    /// 正文内联（Markdown、链接可点）＋第一张图通栏
+    /// 大图＋来源卡＋refs 蓝字内链＋动作行（讨论/类
+    /// 别/相对时间/ⓘ来源）。整行点按开详情的旧形态
+    /// 退役：标题点按仍可达详情（深链与 ⓘ 的落点），
+    /// 正文区让给链接与文本选择。已读口径随全文内联
+    /// 改版：行露面即已读（onAppear 回写，§117.3 定
+    /// 版），各交互点按同样回写。
+    /// 0.48.0（§122）：正文改安全网口径——短帖仍全文
+    /// 内联，长帖经 Core FeedBoard.rowBodyPresentation
+    /// 句界截断＋「展开全文」进详情；图改 FeedPost-
+    /// ImageBox 定尺盒（见该类型注）
     private func postRow(_ post: BridgeFeedPost) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
             Text(post.displayEmoji)
@@ -413,25 +428,41 @@ struct FeedView: View {
                     openPost(post)
                 }
                 if !post.body.isEmpty {
-                    MarkdownText(post.body)
+                    let rowBody = FeedBoard.rowBodyPresentation(
+                        post.body
+                    )
+                    MarkdownText(rowBody.text)
+                    if rowBody.isTruncated {
+                        Button {
+                            openPost(post)
+                        } label: {
+                            Text("展开全文")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Palette.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                // 通栏大图（0.47.0）：只用第一张来源真
-                // 图，16:9 裁切；加载未成/失败整块不
-                // 显（宁无图不假图、不摆占位）
+                // 通栏大图：只用第一张来源真图；定尺走
+                // FeedPostImageBox（形状层承担 16:9、图
+                // 片降 overlay 裁切）。0.47.0 旧形把
+                // aspectRatio 挂在 AsyncImage 本体上——
+                // 成功相的图片以自然尺寸参与行高求解，
+                // 整页截图类长图撑成数屏高（§122 题二
+                // 机理，用户 12:41 截图实证）；加载未
+                // 成/失败整块不显（宁无图不假图、不摆
+                // 占位，旧口径不变）
                 if let first = post.images.first,
                    let url = URL(string: first.url) {
                     AsyncImage(url: url) { phase in
                         if case .success(let image) = phase {
-                            image
-                                .resizable()
-                                .scaledToFill()
+                            FeedPostImageBox(
+                                image: image,
+                                cornerRadius: OneDayMetrics
+                                    .radiusPreview
+                            )
                         }
                     }
-                    .aspectRatio(16 / 9, contentMode: .fit)
-                    .clipped()
-                    .clipShape(RoundedRectangle(
-                        cornerRadius: OneDayMetrics.radiusPreview
-                    ))
                     .accessibilityHidden(true)
                 }
                 if let card = post.sourceCard {
@@ -654,29 +685,44 @@ struct FeedPostDetailView: View {
                             // .contentTitle（值不变）
                             .font(.contentTitle)
                             .foregroundStyle(Palette.ink)
-                        // 整幅图（0.38.0）：第一张来源真图；
-                        // 加载失败/无图整块不显，不摆假图
-                        if let first = post.images.first,
-                           let url = URL(string: first.url) {
-                            AsyncImage(url: url) { phase in
-                                if case .success(let image) = phase {
-                                    image
-                                        .resizable()
-                                        .scaledToFit()
+                        // 配图（0.38.0 首版只显第一张；
+                        // 0.48.0 §122 题二扩围）：逐张以
+                        // 16:9 定尺盒排列——旧形 scaledTo-
+                        // Fit 无任何限高，整页截图类长图进
+                        // 详情照样按自然比撑爆整页（审计
+                        // N1，与行内同根）；与行内同走
+                        // FeedPostImageBox，加载失败/无图
+                        // 整块不显，不摆假图
+                        ForEach(
+                            Array(post.images.enumerated()),
+                            id: \.offset
+                        ) { _, item in
+                            if let url = URL(string: item.url) {
+                                AsyncImage(url: url) { phase in
+                                    if case .success(let image)
+                                        = phase {
+                                        FeedPostImageBox(
+                                            image: image,
+                                            cornerRadius:
+                                                OneDayMetrics
+                                                .radiusCard
+                                        )
+                                    }
                                 }
-                            }
-                            .clipShape(
-                                RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
-                            )
-                            // 0.43.0（A11Y-V2）：详情大图的
-                            // 文本等价——以图片 URL 文件名
-                            // 为最低口径（A11yText 拼装）
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(
-                                A11yText.imageLabel(
-                                    fileName: url.lastPathComponent
+                                // 0.43.0（A11Y-V2）：详情大
+                                // 图的文本等价——以图片 URL
+                                // 文件名为最低口径（A11y-
+                                // Text 拼装）
+                                .accessibilityElement(
+                                    children: .ignore
                                 )
-                            )
+                                .accessibilityLabel(
+                                    A11yText.imageLabel(
+                                        fileName: url
+                                            .lastPathComponent
+                                    )
+                                )
+                            }
                         }
                         MarkdownText(post.body)
                         if let why = post.why, !why.isEmpty {
@@ -780,6 +826,31 @@ struct FeedPostDetailView: View {
         // 0.41.0（收口批 P5，随 C9 先例）：栏题「动态」
         // 与帖子自身大标题并存属标题冗余（宪法 §5）——
         // 撤栏题、内容领头；回退靠系统返回钮自明
+    }
+}
+
+/// 帖图定尺盒（0.48.0，§122 题二）：形状层承担
+/// 16:9 定尺寸、图片降为 overlay 以 fill 裁切——
+/// 0.36.24 媒体格定案的同族正案（定尺必须落在承
+/// 担定尺寸的那一层，不许把比例约束挂在会以自然
+/// 尺寸参与求解的图片载体本体上）。帖行（只喂第
+/// 一张）与详情（逐张）共用；是否出现由外层
+/// AsyncImage 相位决定（成功才建盒，失败整块不
+/// 显、无占位，旧口径不变）
+private struct FeedPostImageBox: View {
+    let image: Image
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(16 / 9, contentMode: .fit)
+            .overlay {
+                image
+                    .resizable()
+                    .scaledToFill()
+            }
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 }
 

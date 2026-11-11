@@ -44,6 +44,10 @@ final class SideChatStore {
     /// 集（口径见 noteFailedSessionArchive）
     private(set) var failedArchiveSessionIDs: [String] = []
     private(set) var titleOverrides: [String: String] = [:]
+    /// 点子→旁聊关联（0.48.0，§122）：采纳时建的旁聊
+    /// 线程 id 按点子 id 落盘，「打开对话」回同一条；
+    /// 线程被删后关联失效、点按时补建并改写本表
+    private(set) var ideaThreadIDs: [String: String] = [:]
     private var drafts: [String: String] = [:]
     private var scrollAnchors: [String: SideChatScrollAnchor] = [:]
 
@@ -60,6 +64,7 @@ final class SideChatStore {
         static let failedArchiveSessionIDs =
             "sideChats.failedArchiveSessionIDs"
         static let titleOverrides = "sideChats.titleOverrides"
+        static let ideaThreadIDs = "sideChats.ideaThreadIDs"
         static let drafts = "sideChats.drafts"
         static let scrollAnchors = "sideChats.scrollAnchors"
     }
@@ -82,6 +87,7 @@ final class SideChatStore {
             [String].self, defaults, Key.failedArchiveSessionIDs
         ) ?? []
         titleOverrides = Self.decode([String: String].self, defaults, Key.titleOverrides) ?? [:]
+        ideaThreadIDs = Self.decode([String: String].self, defaults, Key.ideaThreadIDs) ?? [:]
         drafts = Self.decode([String: String].self, defaults, Key.drafts) ?? [:]
         scrollAnchors = Self.decode([String: SideChatScrollAnchor].self, defaults, Key.scrollAnchors) ?? [:]
     }
@@ -217,6 +223,17 @@ final class SideChatStore {
             titleOverrides[serverSessionID] = nil
         }
         persist(titleOverrides, Key.titleOverrides)
+    }
+
+    // MARK: - 点子旁聊关联（§122）
+
+    func threadID(forIdeaID id: String) -> UUID? {
+        ideaThreadIDs[id].flatMap { UUID(uuidString: $0) }
+    }
+
+    func linkThread(_ threadID: UUID, forIdeaID id: String) {
+        ideaThreadIDs[id] = threadID.uuidString
+        persist(ideaThreadIDs, Key.ideaThreadIDs)
     }
 
     // MARK: - 轻保活（M1：草稿与滚动位置，进程内语义＋本地落盘）

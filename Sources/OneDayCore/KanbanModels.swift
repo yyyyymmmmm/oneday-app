@@ -245,6 +245,18 @@ public struct KanbanTask: Decodable, Equatable, Sendable, Identifiable {
     public let startedAt: Date?
     public let completedAt: Date?
 
+    /// 呈现用执行者名（0.48.0，§122）：assignee 是服务端
+    /// profile 名，生产实证 oneday 板全部任务均为
+    /// "default"（缺省 profile 的内部名），直印即用户
+    /// 截图里的「执行：default」——缺省执行者不点名
+    /// （返回 nil、视图整行不出现）；具名 profile 原样
+    /// 呈现（谁在执行要看得清，与评论作者口径同理）
+    public var displayAssignee: String? {
+        guard let assignee, !assignee.isEmpty,
+              assignee != "default" else { return nil }
+        return assignee
+    }
+
     public init(
         id: String, title: String = "", body: String = "",
         status: String = "", assignee: String? = nil,
@@ -687,6 +699,46 @@ public enum KanbanRunOutcome {
     }
 }
 
+/// 事件 kind 人话映射（0.48.0，§122）：task_events 的
+/// kind 是服务端机器名（worker_bound/owner_admitted
+/// 等），此前以原文作证据行标题直印（P-16 同族，用
+/// 户 12:41 截图实证）。映射表按生产全集建（2026-
+/// 11-11 审计附录 A 实查 oneday 板 38 条事件共 10
+/// 种，不凭枚举猜）；未知值落「有新进展」兜底、不
+/// 直印英文。heartbeat 是执行心跳、无用户意义（占
+/// 样本 10/38），返回 nil＝整条不进证据列表——只
+/// 译不滤会让证据列表被心跳淹没
+public enum KanbanEventKind {
+    public static func label(
+        for kind: String, locale: Locale = AppLocale.uiLocale
+    ) -> String? {
+        switch kind {
+        case "heartbeat":
+            return nil
+        case "created":
+            return L10n.string("任务已创建", locale: locale)
+        case "claimed":
+            return L10n.string("已认领", locale: locale)
+        case "spawned":
+            return L10n.string("已开始执行", locale: locale)
+        case "owner_admitted":
+            return L10n.string("已确认接手", locale: locale)
+        case "worker_bound":
+            return L10n.string("执行者已就位", locale: locale)
+        case "worker_result":
+            return L10n.string("已交回结果", locale: locale)
+        case "review_requested":
+            return L10n.string("已发起复核", locale: locale)
+        case "commented":
+            return L10n.string("有新留言", locale: locale)
+        case "completed":
+            return L10n.string("已完成", locale: locale)
+        default:
+            return L10n.string("有新进展", locale: locale)
+        }
+    }
+}
+
 /// 证据条目（spike 对照 3：证据面＝result＋runs＋
 /// events＋attachments 拼装）：结果置顶、运行与事件
 /// 各按时刻倒序
@@ -823,8 +875,10 @@ public struct KanbanTaskDetail: Decodable, Equatable, Sendable {
     }
 
     /// 证据拼装的目录取词形（0.42.1 国际化长尾包）：
-    /// 条目标题模板走目录；result/summary/text 与
-    /// event.kind 是服务端内容、原样直通不译
+    /// 条目标题模板走目录；result/summary/text 是服
+    /// 务端内容、原样直通不译。0.48.0（§122）更正：
+    /// event.kind 不再直通——经 KanbanEventKind 人话
+    /// 映射作标题，映射为 nil 的（心跳）整条不进列表
     public func evidenceItems(locale: Locale) -> [KanbanEvidenceItem] {
         var items: [KanbanEvidenceItem] = []
         if let result = task.result, !result.isEmpty {
@@ -856,10 +910,12 @@ public struct KanbanTaskDetail: Decodable, Equatable, Sendable {
             }
             .prefix(50)
         for event in sortedEvents {
+            guard let title = KanbanEventKind.label(
+                for: event.kind, locale: locale
+            ) else { continue }
             items.append(KanbanEvidenceItem(
                 id: "event-\(event.id)", kind: .event,
-                title: event.kind.isEmpty
-                    ? L10n.string("事件", locale: locale) : event.kind,
+                title: title,
                 detail: event.text, at: event.createdAt
             ))
         }
