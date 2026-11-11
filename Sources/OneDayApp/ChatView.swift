@@ -1053,7 +1053,7 @@ struct ChatView: View {
     /// 167pt 宽纯文字、无头像无 Hermes 名——第 30 条点名）
     private var headerBar: some View {
         VStack(spacing: OneDayMetrics.rowInnerGap) {
-            HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
+            HStack(alignment: .center, spacing: 0) {
                 Button {
                     // 0.4.5：开抽屉只写语义状态，壳层据
                     // drawerPresented 执行推式动画（并先
@@ -1088,7 +1088,7 @@ struct ChatView: View {
                 .buttonStyle(.odPressable)
                 .accessibilityLabel("会话列表")
 
-                Spacer()
+                Spacer(minLength: OneDayMetrics.spacingS)
 
                 // 0.6.0 顶栏三件套之中（蓝图 §4 一期＋追加
                 // 硬规格 2）：胶囊仍一颗装头像＋名＋状态＋
@@ -1098,11 +1098,13 @@ struct ChatView: View {
                 // 线＋短名＋chevron）§153 起点开分组选择面
                 // （本会话作用域，见 modelMenu），不许埋掉
                 // 或降级。头像换三狗搭档款定版图
+                // §179.4：删除 layoutPriority(1)，两侧 Spacer
+                // 改 minLength 确保最小间距，胶囊在剩余空间
+                // 居中、限行截断但不压缩 Spacer
                 identityCapsule
-                    // 0.4.1：胶囊在顶栏 HStack 里优先保宽
-                    .layoutPriority(1)
+                    .lineLimit(1)
 
-                Spacer()
+                Spacer(minLength: OneDayMetrics.spacingS)
 
                 // 0.6.0 顶栏三件套之右：铃铛＋角标（角标＝
                 // 未读通知＋待审批，总览桥聚合）。原右钮

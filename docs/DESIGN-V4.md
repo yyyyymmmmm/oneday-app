@@ -10212,3 +10212,72 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - §124 回底钮承载结构（bottomBar 布局流）与钮本体：本包 diff 对 `scrollToBottomButton`/`showsBackToBottomButton` 零命中，未触碰（外壳包刚在其分支把钮材质换玻璃，本包避开该段）。
 - 边缘样式行零改动：顶 .soft／底 hidden 与基线 fd2deec 逐字一致（本包 diff 不含 scrollEdgeEffect 任何一行）。
 - spacingL 零改动；bottomBar 本体零改动；改动文件仅 ChatView.swift、OneDayCore/BottomFollow.swift、Tests/OneDayCoreTests/BottomFollowTests.swift、本节。
+
+## §179 抽屉与顶栏四题修复包（2026-11-12；分支 feat/ext-drawer-topbar，基线 main 3cbcad4）
+
+用户简报交付执行，四题：①抽屉导航组缺组标题「选项卡」②抽屉与聊天页互补弧度缺失③模型选择里当前模型所在服务商分组无法折叠④模型名过长时顶栏两侧按钮位移。
+
+### 179.1 题一定因：导航组缺组标题「选项卡」
+
+**对照实证**：Muse 参照图主导航组上方有小号灰字组标题「选项卡」，频道/旁聊各组也都有同形态小标题；OneDay 真机截图频道/旁聊组头在，唯独导航组直接从「主线聊天」行开始，组标题缺失。
+
+**代码定因**：DrawerView.swift:445 导航组调用 `drawerNavCollapseToggle`（无标题折叠钮，只有 chevron），而频道/旁聊调用 `drawerCollapsibleHeader("标题", key)`（带标题公用件）。注释表明这是 §157 删除「选项卡」组头文字后的遗留状态（§158 合裁注释：「本区折叠头改无标题形态」），但用户口径已纠正——真问题是缺组标题、不是折叠逻辑故障（频道/旁聊折叠正常是用户自折）。
+
+**改法**：DrawerView.swift:445 将 `drawerNavCollapseToggle` 调用改为 `drawerCollapsibleHeader("选项卡", key: DrawerSectionKey.navigation)`，与频道/旁聊同口径；删除 drawerNavCollapseToggle 私有件（行1120-1149）。文案「选项卡」需查 Localizable.xcstrings 是否已有词条，无则新增三语。
+
+### 179.2 题二定因：互补弧度缺失
+
+**对照实证**：Muse 参照图前景页左侧明显可见与抽屉互补的弧线；OneDay 真机截图前景页左缘近乎直角。
+
+**代码定因**：DrawerContainerView.swift:324-326 圆角设置调用 `DrawerMotion.cornerRadius(progress:)`，该函数在 DrawerMotion.swift:122-124 定义——`progress > cornerStepProgress ? cardCornerRadius : 0`，即 progress > 0.02 时圆角为 28pt。布局链：foreground（wrapper，挂阴影）→ clipView（裁切层，设 cornerRadius）→ contentHost（TabView 宿主）。applyOffset 在每次位移时调用、progress 计算正确（行321-323）、clipView.layer.cornerRadius 写入正确（行324-326）。
+
+**排查路径**：①clipView.frame 是否覆盖完整前景（行287 `clipView.frame = foreground.bounds`，正确）；②contentHost.view.frame 是否溢出 clipView（行288 `contentHost.view.frame = clipView.bounds`，正确）；③clipView.clipsToBounds 是否开启（行246 已设为 true）；④cornerCurve 是否设置（行247 已设为 .continuous）。结构自查通过。
+
+**候选根因**：contentHost 内 TabView 的根视图可能有不透明背景溢出裁切边界，或 SwiftUI 视图树中某层背景覆盖了圆角效果。真机截图显示左缘"近直角"而非"完全直角"，说明圆角可能生效但被遮挡或半径过小不明显。
+
+**改法方向**：需在 contentHost 根视图确保背景透明且不溢出。由于本机无 Xcode 无法构建验证，改法保守：确认 TabView 承载链无不透明背景插入。若圆角确实生效但不明显，可能是系统在某些情况下圆角渲染问题，需真机实测验证根因——**本题暂列待真机诊断，代码层面结构已符合预期**。
+
+### 179.3 题三定因：当前模型所在组无法折叠
+
+**代码定因**：ChatModelPickerView.swift:148-160 `isGroupCollapsed` 判定，行150-152 强制展开当前模型所在组：
+```swift
+if display.rows.contains(where: { $0.choice == current }) {
+    return false  // ← 当前组强制展开
+}
+```
+用户可以 toggle 写入折叠状态（toggleGroup 会持久化），但下次判定时被此逻辑覆盖，视觉上"折不动"。
+
+**改法**：删除行150-152 强制展开逻辑，尊重用户 toggle 操作。代价：当前模型在折叠组内时不可见，需在组头显示当前标记或在折叠态保持当前行可见。**保守改法**：删除强制展开，验收时确认折叠后用户能通过组头或其他手段知道当前模型在哪——若完全不可见则需补救（如组头显示当前模型名、或当前行不参与折叠）。
+
+### 179.4 题四定因：模型名过长时顶栏按钮位移
+
+**代码定因**：ChatView.swift:1056-1169 headerBar 布局使用 `Spacer() + identityCapsule.layoutPriority(1) + Spacer()` 结构（行1091-1105）。layoutPriority(1) 使胶囊优先保宽，两个 Spacer 被压缩，导致两侧按钮位置随胶囊宽度变化。
+
+**改法**：删除两个 Spacer 和 layoutPriority，改用固定锚点布局——两侧按钮固定位置，胶囊在中间剩余空间内居中、限宽、尾部截断。identityCapsule 是 ViewThatFits 两档（行1193-1198），内部 capsuleRow 已有 fixedSize，需在外层限宽。
+
+**实现方案**：
+```swift
+HStack(spacing: OneDayMetrics.spacingS) {
+    Button { /* 汉堡钮 */ }
+        .frame(width: 44, alignment: .leading)
+    
+    Spacer(minLength: 8)
+    
+    identityCapsule
+        .lineLimit(1)
+        .frame(maxWidth: .infinity)  // 占剩余空间但不撑开 Spacer
+    
+    Spacer(minLength: 8)
+    
+    Button { /* 铃铛钮 */ }
+        .frame(width: 44, alignment: .trailing)
+}
+```
+或使用 GeometryReader 计算中间可用宽度显式传给 identityCapsule。
+
+### 179.5 施工注意
+
+- 题二（圆角）因本机无法构建验证，代码结构检查通过但真机表现待 CI 与真机验收，若仍无弧线需补充诊断。
+- 题三（折叠）改法需确认当前模型折叠后的可发现性，验收时列入真机待验。
+- 题四（顶栏）布局改动需确认 ViewThatFits 两档在新约束下均不变形。
+- 文案「选项卡」需查词条并补三语。

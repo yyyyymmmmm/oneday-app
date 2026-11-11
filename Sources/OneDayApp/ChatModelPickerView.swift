@@ -142,14 +142,12 @@ struct ChatModelPickerView: View {
         var id: String { choice.id }
     }
 
-    /// 折叠判定：搜索态恒展开；当前执行组恒展开（不
-    /// 许把正在用的组折掉看不见）；其余查账，缺键走
-    /// Core 默认态（主列展开／内置收纳组收起）
+    /// 折叠判定：搜索态恒展开；其余查账，缺键走 Core
+    /// 默认态（主列展开／内置收纳组收起）
+    /// §179.3：删除当前组强制展开逻辑——用户应能折叠
+    /// 任何组（含当前模型所在组），尊重 toggle 操作
     private func isGroupCollapsed(_ display: DisplayGroup) -> Bool {
         if isSearching { return false }
-        if display.rows.contains(where: { $0.choice == current }) {
-            return false
-        }
         return SectionCollapseState.isCollapsed(
             key: display.group.title,
             in: SectionCollapseState.decode(collapseData),
@@ -175,16 +173,25 @@ struct ChatModelPickerView: View {
     }
 
     /// 段头：标题＋计数＋chevron，整行可点（命中高
-    /// ≥44）；长按隐藏分两形——普通可隐藏组（网关
-    /// 组，Core 组键非 nil）整组一项；收纳组按原组
-    /// 逐家列（收纳组不是一家、没有自己的组键，藏
-    /// 的是行背后的原组）；具名组不给（删除走设置
-    /// 页既有删除服务商）
+    /// ≥44）；§179.3 补：当前模型所在组在标题后显示
+    /// 当前标记（•），折叠时用户仍能知道当前在哪组；
+    /// 长按隐藏分两形——普通可隐藏组（网关组，Core
+    /// 组键非 nil）整组一项；收纳组按原组逐家列（收
+    /// 纳组不是一家、没有自己的组键，藏的是行背后的
+    /// 原组）；具名组不给（删除走设置页既有删除服务商）
     @ViewBuilder
     private func groupHeader(_ display: DisplayGroup) -> some View {
         let collapsed = isGroupCollapsed(display)
+        let isCurrent = display.rows.contains(where: { $0.choice == current })
         let header = HStack(spacing: 6) {
             Text(display.group.title)
+            // §179.3：当前模型所在组显示当前标记（•），
+            // 折叠时用户仍能知道当前在哪
+            if isCurrent {
+                Text("•")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Palette.accent)
+            }
             Text("\(display.rows.count)")
                 .foregroundStyle(Palette.inkSecondary)
             Spacer(minLength: 0)
