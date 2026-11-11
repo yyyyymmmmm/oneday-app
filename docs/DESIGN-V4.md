@@ -8235,7 +8235,7 @@ Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手�
 
 ### 118.2 单测与校验
 
-新增 10 个测试函数（Tests/OneDayCoreTests 三个新文件）：ApprovalCardSpecTests 4（几何落值 48/10、可裁决三档栈序与主钮唯一、不可裁决零钮、三钮文案）、ApprovalSummaryLineTests 3（无预览只剩头条、记忆头条内嵌预览不重复拼、中文预览以「：」衔接）、LibraryMenuResolutionTests 5（两枚举 resolved 往返/回落、任意原值恰一勾不变量、服务器排序选项集次序/文案/rawValue 唯一）。单测只增不减。无新 UI 文案（三钮与链接文案均为既有目录键，Picker 标题复用「显示/排序」键），validate_i18n.py 实跑通过（2428 键不变）。本机无 Swift 工具链：编译与全套单测终判等 CI。
+新增 13 个测试函数（Tests/OneDayCoreTests 三个新文件）：ApprovalCardSpecTests 4（几何落值 48/10、可裁决三档栈序与主钮唯一、不可裁决零钮、三钮文案）、ApprovalSummaryLineTests 3（无预览只剩头条、记忆头条内嵌预览不重复拼、中文预览以「：」衔接）、LibraryMenuResolutionTests 6（两枚举 resolved 往返/回落、任意原值恰一勾不变量、服务器排序选项集次序/文案/rawValue 唯一）。单测只增不减。无新 UI 文案（三钮与链接文案均为既有目录键，Picker 标题复用「显示/排序」键），validate_i18n.py 实跑通过（2428 键不变）。本机无 Swift 工具链：编译与全套单测终判等 CI。
 
 ### 118.3 未验与知悉
 
