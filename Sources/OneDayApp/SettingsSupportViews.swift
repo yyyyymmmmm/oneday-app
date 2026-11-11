@@ -7,8 +7,8 @@ import SwiftUI
 /// （版本源第五处自此收敛为本常量，grep 校验照旧
 /// 命中版本号字面）
 enum OneDayVersionLabel {
-    static let full = "OneDay v0.50.17 (139)"
-    static let hero = "v0.50.17 (139)"
+    static let full = "OneDay v0.50.19 (141)"
+    static let hero = "v0.50.19 (141)"
 }
 
 /// 支持组共用行盒（与设置首页/外观页同口径复刻）
