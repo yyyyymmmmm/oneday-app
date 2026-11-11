@@ -9470,7 +9470,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 补原型式建议条三条（Core EmptyChatSuggestions 单一出处：今天服务器状态怎么样？／把这周的会议整理成纪要／有哪些定时任务在跑？），点按＝input 落值走现行 send() 全链发送，不另建发送路。
 
 ### 157.5 单测与词条
-- 新增 Tests/OneDayCoreTests/OnboardingTests.swift 12 法：四步顺序、classify 五型映射（含直通与未知归 other）、五型标题互不相同、summaryLine 全项/缺项/全缺/空版本四态、建议条三条同序。只增不减。
+- 新增 Tests/OneDayCoreTests/OnboardingTests.swift 13 法：四步顺序、classify 五型映射（含直通与未知归 other）、五型标题互不相同、summaryLine 全项/缺项/全缺/空版本四态、建议条三条同序。只增不减。
 - xcstrings +69 键（另 2 键与命名包逐字同文案同译，1 键「返回」存量已存），validate_i18n 通过：2727 键三语全覆盖。
 
 ### 157.6 真机待验清单（合并后回收）
