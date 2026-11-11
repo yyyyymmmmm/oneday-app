@@ -8654,7 +8654,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **两处如实约束的呈现位置**：①具名服务商不给「设为默认」——设默认只在默认服务商（网关）卡的模型行（点行弹「切换默认模型？」确认）；具名卡模型行无此动作，说明文案在预设编辑器 PresetEditorView（「只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。」），具名模型经辅助模型页行/预设行给具体用途选用。②默认服务商卡地址/密钥只看不改——ModelSettingsView 默认服务商卡内两行 infoRow：「接口地址：在服务器上配置，App 里只看不改」「密钥：在服务器上保管」。
 - **遗留口径**：§119.4 所记「§120 扩版校验器复跑」随 §120 合并单处置（本包 validate 以现行校验器通过）；辅助写回热生效实测仍并入收官窗口重启；真机待验见 §119.5。
 
-## §128（图标） 文件图标接入包（C8 定版落地，2026-11-11，预制分支 feat/file-icons，基线 main 18c6b39；不合并、版本号未改，合并时主线定号）
+## §128（图标） 文件图标接入包（C8 定版落地，2026-11-11，预制分支 feat/file-icons，基线 main 18c6b39；合并时主线定号 0.50.2／124）
 
 ### 128.1 定版口径（用户 14:32→14:38→14:41→14:46 四步拍板）
 
@@ -8684,3 +8684,11 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 守界：未碰聊天文件牌链与出牌口径（§116/§121）、FileOpenRoute 路由表（§125）、缩略图取图与缓存（FileThumbnailStore 本体仅 FileTypeFace 一面换图）；版本号未改。
 - 真机待验（合并后随版）：三面（待发筹码 36／聊天文件卡 40／打开页文件头 56／文件页行与网格类型面）图标均为新图且圆角砖干净；深色模式亮砖观感与总览拼图一致；.html 与 .py 落 code 枚、.ipa 落 app 枚；无扩展名与 .ex5 落 unknown 灰页问号枚、不空白。
+
+### 128.6 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.50.2／124。分支 feat/file-icons（顶端 edb4b8e，基线 18c6b39）分支 CI run 42975217028 success（单测口径 1322）；合并提交 d8e9a8b（冲突一处：DESIGN-V4.md 尾部顺序拼接——§119 节与本节全保留、§119 在前本节随后；FilesView.swift 自动合并，main 侧 §120 文案改动与分支 FileTypeFace／FileIconImageView 换图 grep 双在位）；定版提交 805978d（版本五处＝Project.swift 四处 0.50.2/124＋SettingsView 页脚「OneDay v0.50.2」，grep 验无 0.50.1 残留）。
+- **节号改注（消歧）**：本节预制时自题「§128 文件图标接入包」，与审批锚点规格 §128（approval-anchor-spec-20261111.md／ANCHOR-128）同号。合并记账时改注为「§128（图标） 文件图标接入包」（标题括注＋节首括注同步改为「合并时主线定号 0.50.2／124」），小节号 128.1–128.6 不变；锚点线仍称 §128，两线自此以「（图标）」括注区分，后续引用图标包一律写 §128（图标）。
+- **合并后 CI**：run 42982512903 success（jobs API 逐项终判：build-native success、head 805978d）；单测 Executed 1341、0 failures（main 0.50.1 基线 1336＋DeliverableIconStyleTests 整表重写 +5，只增不减；分支口径 1322＝其旧基线 1317＋5，差额 19 为分叉后 main 侧 §119 增量）。
+- **独立验包**：IPA 9,934,942 字节、md5 `23980525e502e82b90cdfb79e71a558b`、Info.plist 实读 0.50.2／124／bundle id site.didichou.oneday；Assets.car 内 fileicon-* 15 枚名齐（app/archive/audio/code/document/folder/folder-open/image/pdf/sheet/slides/text/unknown/video/word）；DeliverableIconStyle 表驱动单源在位、backgroundHex／hexRGB 代码零残留（仅测试墓碑注释）；交付件 `~/workspace/your_files/oneday-v0.50.2/OneDay-0.50.2.ipa`（落盘 md5 与 CI 产物一致）。
+- **真机待验**：见 §128.5（待发筹码／聊天文件卡／打开页文件头／文件页行与网格四面新图＋深色亮砖＋code/app/unknown 落枚）。
