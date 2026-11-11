@@ -66,7 +66,23 @@ struct DeliverablesView: View {
     @AppStorage("files.sort")
     private var sortRaw = LibrarySort.lastOpened.rawValue
     @State private var uploadPickerPresented = false
-    @State private var systemFilesPresented = false
+    @State private var systemFilesRoute: SystemFilesRoute?
+    /// 定位高亮（§131）：「在文件页中打开」消费后置
+    /// 位目标路径，行/卡闪高亮、数秒后自清
+    @State private var revealedPath: String?
+
+    /// 系统文件目的地（§131 泛化）：常规入口 dir/
+    /// highlight 皆空；定位回指落空（文件不在聚合集
+    /// 内）时带父目录＋文件名直达浏览器定位
+    private struct SystemFilesRoute: Identifiable, Hashable {
+        let dir: String?
+        let highlight: String?
+        var id: String { "\(dir ?? "")|\(highlight ?? "")" }
+    }
+
+    /// 置顶集（§131）：全 App 单例，与打开页切换态
+    /// 同一份（FilePinStore 口径）
+    private var pinStore: FilePinStore { .shared }
 
     private var displayMode: LibraryDisplayMode {
         LibraryDisplayMode.resolved(rawValue: displayModeRaw)
@@ -142,12 +158,13 @@ struct DeliverablesView: View {
                     origin: .serverFile
                 )
             }
-            .navigationDestination(
-                isPresented: $systemFilesPresented
-            ) {
-                FilesBrowserView()
-                    .navigationTitle("系统文件")
-                    .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(item: $systemFilesRoute) { route in
+                FilesBrowserView(
+                    initialPath: route.dir,
+                    highlightName: route.highlight
+                )
+                .navigationTitle("系统文件")
+                .navigationBarTitleDisplayMode(.inline)
             }
             .navigationDestination(item: $viewerRoute) { route in
                 ImageViewerView(
@@ -172,7 +189,14 @@ struct DeliverablesView: View {
                     )
                 )
             }
-            .task { await collect() }
+            // §131：以文件库修订号为键——打开页改名成
+            // 功递增修订号，本页重聚合不留旧名残影
+            .task(id: appState.fileLibraryRevision) {
+                await collect()
+            }
+            .onChange(of: appState.fileRevealPath) { _, _ in
+                consumeRevealIfReady()
+            }
             .modifier(
                 FileUploadPickerModifier(
                     appState: appState,
@@ -259,7 +283,9 @@ struct DeliverablesView: View {
                     }
                     Section {
                         Button {
-                            systemFilesPresented = true
+                            systemFilesRoute = SystemFilesRoute(
+                                dir: nil, highlight: nil
+                            )
                         } label: {
                             Label("系统文件", systemImage: "folder")
                         }
@@ -451,13 +477,15 @@ struct DeliverablesView: View {
     }
 
     /// 排序后的条目（Core LibraryOrdering 单源：上次
-    /// 打开＝本地记录优先、无记录 mtime 兜底）
+    /// 打开＝本地记录优先、无记录 mtime 兜底；§131
+    /// 置顶集整段居前、段内仍走所选排序）
     private func ordered(
         _ items: [Deliverable]
     ) -> [WorkspaceFileEntry] {
         LibraryOrdering.sorted(
             items.map(\.entry), by: sort,
-            openedAt: openHistory.openedAtMap
+            openedAt: openHistory.openedAtMap,
+            pinned: pinStore.pinnedPaths
         )
     }
 
@@ -538,33 +566,55 @@ struct DeliverablesView: View {
         }
     }
 
-    /// 列表态：平铺不分组（§4.5——分组只在网格态）
+    /// 列表态：平铺不分组（§4.5——分组只在网格态）；
+    /// §131 加 ScrollViewReader 承定位滚动（行 id＝
+    /// 路径，与 reveal 消费同口径）
     private var fileListView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(spacing: 0) {
-                    ForEach(
-                        Array(sortedDocuments.enumerated()),
-                        id: \.element.id
-                    ) { index, entry in
-                        if index > 0 {
-                            GroupDivider(
-                                inset: OneDayMetrics.dividerInset
-                            )
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(
+                            Array(sortedDocuments.enumerated()),
+                            id: \.element.id
+                        ) { index, entry in
+                            if index > 0 {
+                                GroupDivider(
+                                    inset: OneDayMetrics.dividerInset
+                                )
+                            }
+                            deliverableRow(entry)
                         }
-                        deliverableRow(entry)
                     }
+                    noticeView
                 }
-                noticeView
+                .padding(.top, OneDayMetrics.spacingXS)
+                .padding(.bottom, OneDayMetrics.spacingXL)
             }
-            .padding(.top, OneDayMetrics.spacingXS)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+            .background(Palette.pageBG)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y
+            } action: { _, newValue in
+                handleScrollOffset(newValue)
+            }
+            .onChange(of: revealedPath) { _, path in
+                scrollToRevealed(path, proxy: proxy)
+            }
         }
-        .background(Palette.pageBG)
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y
-        } action: { _, newValue in
-            handleScrollOffset(newValue)
+    }
+
+    /// 定位滚动（§131 四面共用）：revealedPath 置位即
+    /// 滚到该行居中；清零不滚
+    private func scrollToRevealed(
+        _ path: String?, proxy: ScrollViewProxy
+    ) {
+        guard let path else { return }
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            )
+        ) {
+            proxy.scrollTo(path, anchor: .center)
         }
     }
 
@@ -624,7 +674,13 @@ struct DeliverablesView: View {
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: 64)
+        // §131：定位高亮（reveal 消费置位、数秒自清）
+        .background(
+            revealedPath == entry.path
+                ? Palette.selectionFill : Color.clear
+        )
         .contentShape(Rectangle())
+        .id(entry.path)
         // 0.43.0（A11Y-V7）：Rotor 行标记
         .accessibilityRotorEntry(id: entry.name, in: fileRotorNamespace)
         .onTapGesture {
@@ -640,49 +696,55 @@ struct DeliverablesView: View {
     private var fileGridView: some View {
         let sections = LibraryOrdering.grouped(
             sortedDocuments,
-            openedAt: openHistory.openedAtMap, now: Date()
+            openedAt: openHistory.openedAtMap, now: Date(),
+            pinned: pinStore.pinnedPaths
         )
-        return ScrollView {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
-                ForEach(
-                    Array(sections.enumerated()), id: \.offset
-                ) { _, section in
-                    VStack(
-                        alignment: .leading,
-                        spacing: OneDayMetrics.spacingM
-                    ) {
-                        if let title = section.title {
-                            Text(title)
-                                .font(.sectionLabel)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .padding(
-                                    .horizontal,
-                                    OneDayMetrics.spacingM
-                                )
-                        }
-                        LazyVGrid(
-                            columns: Self.cardColumns,
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
+                    ForEach(
+                        Array(sections.enumerated()), id: \.offset
+                    ) { _, section in
+                        VStack(
+                            alignment: .leading,
                             spacing: OneDayMetrics.spacingM
                         ) {
-                            ForEach(section.entries) { entry in
-                                fileCard(entry)
+                            if let title = section.title {
+                                Text(title)
+                                    .font(.sectionLabel)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .padding(
+                                        .horizontal,
+                                        OneDayMetrics.spacingM
+                                    )
                             }
+                            LazyVGrid(
+                                columns: Self.cardColumns,
+                                spacing: OneDayMetrics.spacingM
+                            ) {
+                                ForEach(section.entries) { entry in
+                                    fileCard(entry)
+                                }
+                            }
+                            .padding(
+                                .horizontal, OneDayMetrics.spacingM
+                            )
                         }
-                        .padding(
-                            .horizontal, OneDayMetrics.spacingM
-                        )
                     }
+                    noticeView
                 }
-                noticeView
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXL)
             }
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
-        }
-        .background(Palette.pageBG)
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y
-        } action: { _, newValue in
-            handleScrollOffset(newValue)
+            .background(Palette.pageBG)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y
+            } action: { _, newValue in
+                handleScrollOffset(newValue)
+            }
+            .onChange(of: revealedPath) { _, path in
+                scrollToRevealed(path, proxy: proxy)
+            }
         }
     }
 
@@ -693,21 +755,23 @@ struct DeliverablesView: View {
 
     /// 内容卡（§4.3）：预览区 112（缩略首面/类型面，
     /// FileThumbnailStore 分档生成）＋信息条 64（展
-    /// 示标题 semibold 一行＋类型签）；卡上无 ⋮（与
-    /// 实拍一致），动作走长按菜单；图片卡带 zoom 转
-    /// 场源标记（0.36.4 衔接）
+    /// 示标题 semibold 一行＋类型签）；图片卡带 zoom
+    /// 转场源标记（0.36.4 衔接）。
+    /// §131 翻案：信息条尾加 ⋮ 钮（与行 ⋮/长按同源
+    /// actionItems，§125「卡上无 ⋮」口径作废）——卡
+    /// 本体由 Button 改点按手势＋无障碍按钮语义（行
+    /// 同式），⋮ 才有独立命中、不被整卡点击吞掉
     private func fileCard(_ entry: WorkspaceFileEntry) -> some View {
-        Button {
-            openEntry(entry, among: sortedDocuments)
-        } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                FileThumbnailView(entry: entry, targetPixelSize: 440)
-                    .frame(height: 112)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                    .matchedTransitionSource(
-                        id: entry.path, in: viewerNamespace
-                    )
+        VStack(alignment: .leading, spacing: 0) {
+            FileThumbnailView(entry: entry, targetPixelSize: 440)
+                .frame(height: 112)
+                .frame(maxWidth: .infinity)
+                .clipped()
+                .matchedTransitionSource(
+                    id: entry.path, in: viewerNamespace
+                )
+                .accessibilityHidden(true)
+            HStack(alignment: .top, spacing: OneDayMetrics.spacingXS) {
                 VStack(
                     alignment: .leading, spacing: OneDayMetrics.spacingMicro
                 ) {
@@ -724,22 +788,54 @@ struct DeliverablesView: View {
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
-                .padding(.horizontal, OneDayMetrics.spacingSM)
-                .padding(.vertical, OneDayMetrics.spacingS)
-                .frame(height: 64, alignment: .top)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction {
+                    openEntry(entry, among: sortedDocuments)
+                }
+                Spacer(minLength: 0)
+                Menu {
+                    actionItems(for: entry, among: sortedDocuments)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .rotationEffect(.degrees(90))
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("更多操作")
             }
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
-                    .strokeBorder(Palette.separator, lineWidth: 1)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview))
+            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .padding(.vertical, OneDayMetrics.spacingS)
+            .frame(height: 64, alignment: .top)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.odPressable)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
+                .strokeBorder(Palette.separator, lineWidth: 1)
+        }
+        .overlay {
+            // §131：定位高亮（reveal 消费置位、数秒自清）
+            if revealedPath == entry.path {
+                RoundedRectangle(
+                    cornerRadius: OneDayMetrics.radiusPreview
+                )
+                .strokeBorder(Palette.primary, lineWidth: 2)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview))
+        .contentShape(
+            RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
+        )
+        .onTapGesture {
+            openEntry(entry, among: sortedDocuments)
+        }
+        .id(entry.path)
         // 0.43.0（A11Y-V7）：Rotor 卡标记（网格态）
         .accessibilityRotorEntry(id: entry.name, in: fileRotorNamespace)
         .contextMenu {
@@ -799,41 +895,57 @@ struct DeliverablesView: View {
     /// 影音网格维持三列方形媒体格（§4.4：媒体本身即
     /// 内容、方形格是系统相册惯例，不随文件段网格变）
     private var mediaGridView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                LazyVGrid(columns: mediaColumns, spacing: OneDayMetrics.spacingMicro) {
-                    ForEach(sortedMedia, id: \.id) { entry in
-                        Button {
-                            openEntry(entry, among: sortedMedia)
-                        } label: {
-                            MediaCell(entry: entry)
-                                // zoom 转场源标记（0.36.4）
-                                .matchedTransitionSource(
-                                    id: entry.path,
-                                    in: viewerNamespace
-                                )
-                        }
-                        .buttonStyle(.odPressable)
-                        // 0.43.0（A11Y-V7）：Rotor 卡标记
-                        .accessibilityRotorEntry(
-                            id: entry.name, in: fileRotorNamespace
-                        )
-                        .contextMenu {
-                            actionItems(
-                                for: entry, among: sortedMedia
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    LazyVGrid(columns: mediaColumns, spacing: OneDayMetrics.spacingMicro) {
+                        ForEach(sortedMedia, id: \.id) { entry in
+                            Button {
+                                openEntry(entry, among: sortedMedia)
+                            } label: {
+                                MediaCell(entry: entry)
+                                    // zoom 转场源标记（0.36.4）
+                                    .matchedTransitionSource(
+                                        id: entry.path,
+                                        in: viewerNamespace
+                                    )
+                                    // §131：定位高亮描边
+                                    .overlay {
+                                        if revealedPath == entry.path {
+                                            Rectangle()
+                                                .strokeBorder(
+                                                    Palette.primary,
+                                                    lineWidth: 2
+                                                )
+                                        }
+                                    }
+                            }
+                            .buttonStyle(.odPressable)
+                            .id(entry.path)
+                            // 0.43.0（A11Y-V7）：Rotor 卡标记
+                            .accessibilityRotorEntry(
+                                id: entry.name, in: fileRotorNamespace
                             )
+                            .contextMenu {
+                                actionItems(
+                                    for: entry, among: sortedMedia
+                                )
+                            }
                         }
                     }
+                    noticeView
                 }
-                noticeView
+                .padding(.bottom, OneDayMetrics.spacingXL)
             }
-            .padding(.bottom, OneDayMetrics.spacingXL)
-        }
-        .background(Palette.pageBG)
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y
-        } action: { _, newValue in
-            handleScrollOffset(newValue)
+            .background(Palette.pageBG)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y
+            } action: { _, newValue in
+                handleScrollOffset(newValue)
+            }
+            .onChange(of: revealedPath) { _, path in
+                scrollToRevealed(path, proxy: proxy)
+            }
         }
     }
 
@@ -841,31 +953,36 @@ struct DeliverablesView: View {
     /// 型签＋大小·日期小字（服务端无时长字段，时长
     /// 不摆、如实以大小日期代，§七同口径）
     private var mediaListView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(spacing: 0) {
-                    ForEach(
-                        Array(sortedMedia.enumerated()),
-                        id: \.element.id
-                    ) { index, entry in
-                        if index > 0 {
-                            GroupDivider(
-                                inset: OneDayMetrics.dividerInset
-                            )
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(
+                            Array(sortedMedia.enumerated()),
+                            id: \.element.id
+                        ) { index, entry in
+                            if index > 0 {
+                                GroupDivider(
+                                    inset: OneDayMetrics.dividerInset
+                                )
+                            }
+                            mediaRow(entry)
                         }
-                        mediaRow(entry)
                     }
+                    noticeView
                 }
-                noticeView
+                .padding(.top, OneDayMetrics.spacingXS)
+                .padding(.bottom, OneDayMetrics.spacingXL)
             }
-            .padding(.top, OneDayMetrics.spacingXS)
-            .padding(.bottom, OneDayMetrics.spacingXL)
-        }
-        .background(Palette.pageBG)
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y
-        } action: { _, newValue in
-            handleScrollOffset(newValue)
+            .background(Palette.pageBG)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y
+            } action: { _, newValue in
+                handleScrollOffset(newValue)
+            }
+            .onChange(of: revealedPath) { _, path in
+                scrollToRevealed(path, proxy: proxy)
+            }
         }
     }
 
@@ -926,7 +1043,13 @@ struct DeliverablesView: View {
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: 64)
+        // §131：定位高亮（与文件行同口径）
+        .background(
+            revealedPath == entry.path
+                ? Palette.selectionFill : Color.clear
+        )
         .contentShape(Rectangle())
+        .id(entry.path)
         // 0.43.0（A11Y-V7）：Rotor 行标记
         .accessibilityRotorEntry(id: entry.name, in: fileRotorNamespace)
         .onTapGesture {
@@ -1005,6 +1128,11 @@ struct DeliverablesView: View {
         case .delete:
             // 删除在菜单构造处直接挂确认（actionItems），
             // 不经本分发
+            break
+        case .pin, .unpin, .rename, .openInFiles:
+            // 条目菜单（menuActions）不出这四项（打开页
+            // 专属，见 openPageActions），落到即策略表
+            // 漂移——静默不执行
             break
         }
     }
@@ -1116,6 +1244,45 @@ struct DeliverablesView: View {
         }
     }
 
+    // MARK: - 定位消费（§131「在文件页中打开」）
+
+    /// 定位请求消费：聚合未完成先不消费（collect 末
+    /// 尾再试）；消费即清零请求、收栈回根、清搜索
+    /// ——命中聚合集切到对应段滚动高亮；不在聚合集
+    /// 的文件（任意服务器路径）落系统文件浏览器父
+    /// 目录＋文件名高亮，不假装它在文件页收录里
+    private func consumeRevealIfReady() {
+        guard let path = appState.fileRevealPath else { return }
+        guard deliverables != nil else { return }
+        appState.fileRevealPath = nil
+        systemFilesRoute = nil
+        previewEntry = nil
+        viewerRoute = nil
+        query = ""
+        if documents.contains(where: { $0.entry.path == path }) {
+            segment = 0
+            flashReveal(path: path)
+        } else if mediaItems.contains(
+            where: { $0.entry.path == path }
+        ) {
+            segment = 1
+            flashReveal(path: path)
+        } else {
+            systemFilesRoute = SystemFilesRoute(
+                dir: (path as NSString).deletingLastPathComponent,
+                highlight: (path as NSString).lastPathComponent
+            )
+        }
+    }
+
+    private func flashReveal(path: String) {
+        revealedPath = path
+        Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            if revealedPath == path { revealedPath = nil }
+        }
+    }
+
     // MARK: - 聚合与动作（P8 通道沿用）
 
     /// 聚合各产出根（每根递归 ≤3 层、全局条目上限保
@@ -1188,6 +1355,10 @@ struct DeliverablesView: View {
         if loadError != nil && !(deliverables?.isEmpty ?? true) {
             loadError = nil
         }
+        // 聚合落定后补消费定位请求（请求先于数据到达
+        // 时 onChange 已触发过、那时 deliverables 为空
+        // 未消费，见 consumeRevealIfReady 的守卫）
+        consumeRevealIfReady()
     }
 
     private func delete(_ item: Deliverable) async {

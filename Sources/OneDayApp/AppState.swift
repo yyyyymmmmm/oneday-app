@@ -291,6 +291,16 @@ final class AppState {
     /// Requested 同式；目标格枚举与底栏本体同源
     /// （ContentView.MainTab），不另立第二套格名
     var mainTabSwitchRequest: ContentView.MainTab?
+    /// 文件页定位请求（§131，D8「在文件页中打开」）：
+    /// 打开页动作置位目标路径并同行置 mainTabSwitch-
+    /// Request=.files 切格，DeliverablesView 消费后
+    /// 滚动定位＋高亮该行并清零——置位—消费—清零与
+    /// pendingChatSessionID 同式
+    var fileRevealPath: String?
+    /// 文件库内容修订号（§131）：打开页改名成功后递
+    /// 增，文件页以此为 .task(id:) 键重聚合——改名
+    /// 结果不在文件页留旧名残影
+    var fileLibraryRevision = 0
     /// 待续聊的服务端会话 id（0.4.0，审计 §3.4）：四处
     /// 入口（抽屉／服务端会话页／状态页／定时运行记录）
     /// 置位，ContentView 据此切聊天格、ChatView 消费后

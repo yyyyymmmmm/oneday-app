@@ -25,6 +25,19 @@ public enum FileItemAction: String, CaseIterable, Sendable {
     case share
     case download
     case delete
+    /// 置顶/取消置顶（§131 对齐包，D8）：客户端整理
+    /// 动作——只改本机置顶集（FilePinSet），不触服务
+    /// 器状态（与 Muse Pin 同语义）。两态同表出签，
+    /// 由宿主按当前置顶态取一
+    case pin
+    case unpin
+    /// 重命名（§131，D8）：服务端无改名端点，宿主走
+    /// 既有原语组合链（下载→上传新名→回读校验→删
+    /// 旧），判定与新名规整在 FileRenamePlan 单源
+    case rename
+    /// 在文件页中打开（§131，D8）：回指文件页并定
+    /// 位高亮该行（AppState.fileRevealPath 通道）
+    case openInFiles
 
     public var label: String {
         switch self {
@@ -34,6 +47,10 @@ public enum FileItemAction: String, CaseIterable, Sendable {
         case .share: return "分享"
         case .download: return "下载到本地"
         case .delete: return "删除"
+        case .pin: return "置顶"
+        case .unpin: return "取消置顶"
+        case .rename: return "重命名"
+        case .openInFiles: return "在文件页中打开"
         }
     }
 
@@ -45,6 +62,10 @@ public enum FileItemAction: String, CaseIterable, Sendable {
         case .share: return "square.and.arrow.up"
         case .download: return "arrow.down.to.line"
         case .delete: return "trash"
+        case .pin: return "pin"
+        case .unpin: return "pin.slash"
+        case .rename: return "pencil"
+        case .openInFiles: return "folder"
         }
     }
 }
@@ -208,6 +229,23 @@ public enum FileActionPolicy {
               !SensitiveFilePolicy.isSensitive(fileName: entry.name)
         else { return [] }
         return typeSpecificActions(for: entry) + [.share, .download]
+    }
+
+    /// 打开页（中间页）顶栏菜单动作集（§131 对齐包，
+    /// D8 补齐）：置顶态打头（按当前态出 pin/unpin
+    /// 一项）、类型专属居中、分享/下载、重命名与「在
+    /// 文件页中打开」收尾。仍守阅读面克制——不给删
+    /// 除（删除归列表面，D8 口径删除不进本包）；敏
+    /// 感文件与目录全收回（空表），与全表同纪律
+    public static func openPageActions(
+        for entry: WorkspaceFileEntry, isPinned: Bool
+    ) -> [FileItemAction] {
+        guard !entry.isDirectory,
+              !SensitiveFilePolicy.isSensitive(fileName: entry.name)
+        else { return [] }
+        return [isPinned ? .unpin : .pin]
+            + typeSpecificActions(for: entry)
+            + [.share, .download, .rename, .openInFiles]
     }
 
     private static func typeSpecificActions(

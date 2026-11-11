@@ -51,10 +51,24 @@ struct FileOpenContent: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
-    let target: FileOpenTarget
+    /// 当前呈现目标（§131）：构造时以入参为种子，改
+    /// 名成功后切到新名新路径的新目标——页内一切呈
+    /// 现与动作都读 target 计算属性，只换此一处
+    @State private var currentTarget: FileOpenTarget
+    private var target: FileOpenTarget { currentTarget }
     var origin: FileOpenOrigin = .serverFile
     var showsCloseButton: Bool = false
     var onRequestResend: ((String) -> Void)? = nil
+
+    init(
+        target: FileOpenTarget,
+        origin: FileOpenOrigin = .serverFile,
+        showsCloseButton: Bool = false
+    ) {
+        _currentTarget = State(initialValue: target)
+        self.origin = origin
+        self.showsCloseButton = showsCloseButton
+    }
 
     private enum Phase: Equatable {
         case ready
@@ -77,8 +91,14 @@ struct FileOpenContent: View {
     @State private var showDetails = false
     @State private var metaDone = false
     @State private var downloadTask: Task<Void, Never>?
+    /// 改名表单（§131）：草稿＋待确认新名（扩展名变
+    /// 更时先过确认框，确认后才执行组合链）
+    @State private var renamePresented = false
+    @State private var renameDraft = ""
+    @State private var pendingRenameName: String?
 
     private var store: FileMetadataStore { .shared }
+    private var pinStore: FilePinStore { .shared }
     private var entry: WorkspaceFileEntry { target.workspaceEntry }
     private var route: FileOpenRoute {
         FileOpenRoute.resolve(target: target)
@@ -121,6 +141,16 @@ struct FileOpenContent: View {
         FileActionPolicy.readingActions(for: entry)
     }
 
+    /// 顶栏菜单动作集（§131，D8）：打开页全集——置
+    /// 顶态＋类型专属＋分享/下载＋重命名＋回指文件
+    /// 页（openPageActions 单源）；页内动作列仍走
+    /// readingActions 快捷子集，两处不另立第二套表
+    private var menuActions: [FileItemAction] {
+        FileActionPolicy.openPageActions(
+            for: entry, isPinned: pinStore.isPinned(path: target.path)
+        )
+    }
+
     var body: some View {
         Group {
             switch route {
@@ -159,9 +189,9 @@ struct FileOpenContent: View {
             if route != .locked {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        ForEach(secondaryActions, id: \.self) { action in
+                        ForEach(menuActions, id: \.self) { action in
                             Button {
-                                performSecondary(action)
+                                performMenu(action)
                             } label: {
                                 Label(
                                     action.label,
@@ -169,7 +199,7 @@ struct FileOpenContent: View {
                                 )
                             }
                         }
-                        if !secondaryActions.isEmpty {
+                        if !menuActions.isEmpty {
                             Divider()
                         }
                         Button {
@@ -210,9 +240,34 @@ struct FileOpenContent: View {
                 modifiedAt: resolvedModified
             )
         }
+        .alert("重命名", isPresented: $renamePresented) {
+            TextField("文件名", text: $renameDraft)
+            Button("取消", role: .cancel) {}
+            Button("保存") { requestRename() }
+        } message: {
+            Text("只改名字，文件还在原来的文件夹。")
+        }
+        .confirmationDialog(
+            "扩展名变了",
+            isPresented: Binding(
+                get: { pendingRenameName != nil },
+                set: { if !$0 { pendingRenameName = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("继续改名") {
+                if let name = pendingRenameName {
+                    pendingRenameName = nil
+                    Task { await performRename(to: name) }
+                }
+            }
+            Button("取消", role: .cancel) { pendingRenameName = nil }
+        } message: {
+            Text("新名字的扩展名和原来不一样，文件类型会跟着变。确定要改吗？")
+        }
         .task {
             if target.size == nil {
-                await store.backfillFromListing(
+                await store.ensureSize(
                     path: target.path, appState: appState
                 )
             }
@@ -560,10 +615,161 @@ struct FileOpenContent: View {
             Task { await exportPDF() }
         case .share, .download:
             downloadAndShare()
-        case .preview, .delete:
-            // readingActions 不含这两项，落到即策略表
-            // 漂移——静默不执行（与阅读页同口径）
+        case .preview, .delete, .pin, .unpin, .rename, .openInFiles:
+            // readingActions 不含这几项（后四项由顶栏菜
+            // 单 performMenu 分发），落到即策略表漂移
+            // ——静默不执行（与阅读页同口径）
             break
+        }
+    }
+
+    /// 顶栏菜单分发（§131）：打开页专属三件（置顶/
+    /// 重命名/在文件页中打开）在本处落，通用件转
+    /// performSecondary 与页内动作列共用执行体
+    private func performMenu(_ action: FileItemAction) {
+        switch action {
+        case .pin, .unpin:
+            let pinned = pinStore.toggle(path: target.path)
+            notice = pinned
+                ? L10n.string("已置顶")
+                : L10n.string("已取消置顶")
+        case .rename:
+            renameDraft = target.name
+            renamePresented = true
+        case .openInFiles:
+            // 回指文件页：先置定位请求、再切格、本页
+            // 退场——DeliverablesView 消费后滚动高亮
+            // （跨面通道口径见 AppState.fileRevealPath）
+            appState.fileRevealPath = target.path
+            appState.mainTabSwitchRequest = .files
+            dismiss()
+        case .copyText, .exportPDF, .share, .download:
+            performSecondary(action)
+        case .preview, .delete:
+            // openPageActions 不出这两项
+            break
+        }
+    }
+
+    // MARK: - 改名（§131，D8：组合链，判定走 FileRenamePlan）
+
+    /// 改名提交口：规整校验→无变化拦截→扩展名变更
+    /// 先确认→才执行组合链
+    private func requestRename() {
+        guard let normalized = FileRenamePlan.normalizedName(renameDraft)
+        else {
+            notice = L10n.string("文件名不合法：不能为空，也不能带「/」。")
+            Haptics.error()
+            return
+        }
+        if normalized == target.name {
+            notice = L10n.string("名字没有变化。")
+            return
+        }
+        if !FileRenamePlan.keepsExtension(
+            oldName: target.name, newName: normalized
+        ) {
+            pendingRenameName = normalized
+            return
+        }
+        Task { await performRename(to: normalized) }
+    }
+
+    /// 改名组合链：服务端无改名端点（openapi 实查），
+    /// 以既有原语组合——同名冲突预检（父目录列表）→
+    /// 取原件字节→以新名上传（不覆盖）→回读校验新
+    /// 条目在且字节一致→才删旧。任一步失败原件保持
+    /// 不变并如实回告；只有删旧失败是例外：新名已确
+    /// 认落好，呈现切新名、双份并存明示
+    private func performRename(to newName: String) async {
+        let oldPath = target.path
+        let newPath = FileRenamePlan.targetPath(
+            currentPath: oldPath, newName: newName
+        )
+        let parent = (oldPath as NSString).deletingLastPathComponent
+        do {
+            let listing = try await appState.performAdmin {
+                client, config in
+                try await client.files(config: config, path: parent)
+            }
+            if FileRenamePlan.conflicts(
+                targetPath: newPath, currentPath: oldPath,
+                siblingPaths: listing.entries.map(\.path)
+            ) {
+                notice = L10n.format(
+                    "已存在同名文件「%@」，换个名字试试。", newName
+                )
+                Haptics.error()
+                return
+            }
+            let data = try await fetchBytes()
+            guard FileRenamePlan.isChainAllowed(byteCount: data.count)
+            else {
+                notice = L10n.string("文件太大，暂时不能在 App 里改名。")
+                Haptics.error()
+                return
+            }
+            try await appState.performAdmin { client, config in
+                try await client.uploadFile(
+                    config: config, path: newPath,
+                    dataURL: FileBrowserLogic.makeDataURL(
+                        data: data, fileName: newName
+                    ),
+                    overwrite: false
+                )
+            }
+            let verify = try? await appState.performAdmin {
+                client, config in
+                try await client.files(config: config, path: parent)
+            }
+            guard let newEntry = verify?.entries.first(where: {
+                      $0.path == newPath && !$0.isDirectory
+                  }),
+                  newEntry.size == Int64(data.count)
+            else {
+                notice = L10n.string(
+                    "改名没完成：新文件没有确认成功，原文件保持不变。"
+                )
+                Haptics.error()
+                return
+            }
+            var oldRemoved = true
+            do {
+                try await appState.performAdmin { client, config in
+                    try await client.deleteFile(
+                        config: config, path: oldPath, recursive: false
+                    )
+                }
+            } catch {
+                oldRemoved = false
+            }
+            // 本地账跟随新名：元数据缓存迁移、置顶迁
+            // 移、文件页重聚合——不留旧名残影
+            let now = Date()
+            store.forget(path: oldPath)
+            store.record(
+                path: newPath, size: Int64(data.count), modifiedAt: now
+            )
+            pinStore.renamed(from: oldPath, to: newPath)
+            currentTarget = FileOpenTarget(
+                name: newName, path: newPath,
+                size: Int64(data.count), modifiedAt: now,
+                mimeType: target.mimeType, anchor: target.anchor
+            )
+            appState.fileLibraryRevision += 1
+            if oldRemoved {
+                notice = L10n.format("已改名为「%@」", newName)
+                Haptics.success()
+            } else {
+                notice = L10n.string(
+                    "新名字已生效，但原文件没能删掉，现在有两份相同内容的文件。"
+                )
+                Haptics.warning()
+            }
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? L10n.string("改名失败，请稍后再试。")
+            Haptics.error()
         }
     }
 
@@ -725,7 +931,10 @@ struct QuickLookHostView: View {
                 notice = "已复制全文。"
                 Haptics.success()
             }
-        case .exportPDF, .preview, .delete:
+        case .exportPDF, .preview, .delete,
+             .pin, .unpin, .rename, .openInFiles:
+            // readingActions 不出这几项（后四项是打开
+            // 页专属），落到即策略表漂移——静默不执行
             break
         }
     }

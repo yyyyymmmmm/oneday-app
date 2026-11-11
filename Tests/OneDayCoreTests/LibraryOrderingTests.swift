@@ -130,6 +130,63 @@ final class LibraryOrderingTests: XCTestCase {
         XCTAssertNil(sections[0].title)
     }
 
+    // MARK: 置顶（§131）
+
+    func testSortedPinnedFirstWithinSortOrder() {
+        let a = entry(name: "a.md", mtime: 100)
+        let b = entry(name: "b.md", mtime: 300)
+        let c = entry(name: "c.md", mtime: 200)
+        // c 置顶 → 居首；余者仍按上次打开/mtime 序
+        let sorted = LibraryOrdering.sorted(
+            [a, b, c], by: .lastOpened,
+            openedAt: [b.path: 500], pinned: [c.path]
+        )
+        XCTAssertEqual(sorted.map(\.name), ["c.md", "b.md", "a.md"])
+    }
+
+    func testSortedEmptyPinnedKeepsLegacyOrder() {
+        let a = entry(name: "a.md", mtime: 100)
+        let b = entry(name: "b.md", mtime: 300)
+        let sorted = LibraryOrdering.sorted(
+            [a, b], by: .lastOpened, openedAt: [:], pinned: []
+        )
+        XCTAssertEqual(sorted.map(\.name), ["b.md", "a.md"])
+    }
+
+    func testGroupedPinnedSectionLeads() {
+        let pinnedOld = entry(
+            name: "pin.md", mtime: 1_700_000_000 - 700_000
+        )
+        let fresh = entry(
+            name: "fresh.md", mtime: 1_700_000_000 - 60
+        )
+        let stale = entry(
+            name: "stale.md", mtime: 1_700_000_000 - 700_000
+        )
+        let ordered = LibraryOrdering.sorted(
+            [stale, fresh, pinnedOld], by: .lastModified,
+            openedAt: [:], pinned: [pinnedOld.path]
+        )
+        let sections = LibraryOrdering.grouped(
+            ordered, openedAt: [:], now: now, pinned: [pinnedOld.path]
+        )
+        XCTAssertEqual(sections.map(\.title), ["置顶", "最近", "全部"])
+        XCTAssertEqual(sections[0].entries.map(\.name), ["pin.md"])
+        XCTAssertEqual(sections[1].entries.map(\.name), ["fresh.md"])
+        XCTAssertEqual(sections[2].entries.map(\.name), ["stale.md"])
+    }
+
+    func testGroupedAllPinnedSinglePinnedSection() {
+        let fresh = entry(
+            name: "fresh.md", mtime: 1_700_000_000 - 60
+        )
+        let sections = LibraryOrdering.grouped(
+            [fresh], openedAt: [:], now: now, pinned: [fresh.path]
+        )
+        XCTAssertEqual(sections.count, 1)
+        XCTAssertEqual(sections[0].title, "置顶")
+    }
+
     // MARK: 打开记录表
 
     func testOpenHistoryRecordAndSerializeRoundtrip() {

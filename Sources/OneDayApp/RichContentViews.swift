@@ -655,16 +655,43 @@ struct ZoomableImageView: UIViewRepresentable {
 /// （FileIconBox 单源表）＋文件名（.body semibold、
 /// 至多 2 行）＋副行「类型 · 大小」。大小只来自
 /// FileMetadataStore 的实测回填（发送记账/下载回
-/// 填/父目录列表回读），拿不到只显类型、不编造；
-/// 卡整体可点，长按沿用消息菜单，不设卡级按钮。
+/// 填/父目录列表回读），拿不到只显类型、不编造。
+///
+/// §131 翻案（用户 2026-11-11 15:13 拍板「对齐」，
+/// §125「不设卡级按钮」口径作废）：卡右加「···」
+/// 钮——卡级动作入口（对差表 D3），动作集与文件页
+/// 行/长按同源同序（FileActionPolicy.menuActions
+/// 单源，不另立第二套）；卡主体点击仍走 onOpen、
+/// 长按仍沿用消息菜单，两路并存。大小回读改走
+/// ensureSize（D1：可见即回读＋失败递增重试，不
+/// 再等打开页才补）。
 struct FileChip: View {
     @Environment(AppState.self) private var appState
 
     let path: String
     let onOpen: () -> Void
 
+    @State private var shareItem: FileShareItem?
+    @State private var deletePending = false
+    @State private var notice: String?
+
     private var name: String {
         (path as NSString).lastPathComponent
+    }
+
+    /// 策略表用的合成条目：只有路径与（已回填的）大
+    /// 小是实测，其余按名称口径推导——与 FileOpen-
+    /// Target.workspaceEntry 同法，不冒充服务器回读
+    private var entry: WorkspaceFileEntry {
+        WorkspaceFileEntry(
+            name: name, path: path, isDirectory: false,
+            size: FileMetadataStore.shared.metadata(for: path)?.size,
+            mtime: nil, mimeType: nil
+        )
+    }
+
+    private var actions: [FileItemAction] {
+        FileActionPolicy.menuActions(for: entry)
     }
 
     private var subtitle: String {
@@ -681,26 +708,47 @@ struct FileChip: View {
     }
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                FileIconBox(name: name, size: 40)
-                VStack(
-                    alignment: .leading,
-                    spacing: OneDayMetrics.spacingXS
-                ) {
-                    Text(name)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+            HStack(spacing: 0) {
+                Button(action: onOpen) {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        FileIconBox(name: name, size: 40)
+                        VStack(
+                            alignment: .leading,
+                            spacing: OneDayMetrics.spacingXS
+                        ) {
+                            Text(name)
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
                 }
-                Spacer(minLength: 0)
+                .buttonStyle(.odPressable)
+                if !actions.isEmpty {
+                    Menu {
+                        actionItems
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .rotationEffect(.degrees(90))
+                            .font(.system(size: 18, weight: .regular))
+                            .foregroundStyle(Palette.inkSecondary)
+                            // 命中域 44（与文件页行 ⋮ 同
+                            // 口径，字形不变）
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("更多操作")
+                }
             }
-            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .padding(.leading, OneDayMetrics.spacingSM)
             .padding(.vertical, 10)
             .background(
                 Palette.surface,
@@ -713,12 +761,177 @@ struct FileChip: View {
                     cornerRadius: OneDayMetrics.radiusPreview
                 )
             )
+            if let notice {
+                Text(notice)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
         }
-        .buttonStyle(.odPressable)
         .task(id: path) {
-            await FileMetadataStore.shared.backfillFromListing(
+            await FileMetadataStore.shared.ensureSize(
                 path: path, appState: appState
             )
+        }
+        .sheet(item: $shareItem) { item in
+            FileShareSheet(url: item.url)
+        }
+        .confirmationDialog(
+            "删除「\(name)」？",
+            isPresented: $deletePending,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                Haptics.impact(.heavy)
+                Task { await deleteFile() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删除后无法恢复。")
+        }
+    }
+
+    /// 菜单项与文件页行同源渲染：删除走确认框，其余
+    /// 直达 perform（与 DeliverablesView.actionItems
+    /// 同式）
+    @ViewBuilder
+    private var actionItems: some View {
+        ForEach(actions, id: \.self) { action in
+            if action == .delete {
+                Button(role: .destructive) {
+                    deletePending = true
+                } label: {
+                    Label(action.label, systemImage: action.systemImage)
+                }
+            } else {
+                Button {
+                    perform(action)
+                } label: {
+                    Label(action.label, systemImage: action.systemImage)
+                }
+            }
+        }
+    }
+
+    private func perform(_ action: FileItemAction) {
+        notice = nil
+        switch action {
+        case .preview:
+            onOpen()
+        case .copyText:
+            Task { await copyText() }
+        case .exportPDF:
+            Task { await exportPDF() }
+        case .share, .download:
+            Task { await downloadAndShare() }
+        case .delete:
+            deletePending = true
+        case .pin, .unpin, .rename, .openInFiles:
+            // menuActions 不出这四项（打开页专属，见
+            // openPageActions），落到即策略表漂移——
+            // 静默不执行（与打开页 performSecondary 同口径）
+            break
+        }
+    }
+
+    /// 取字节（与打开页 fetchBytes 同通道）：到手即
+    /// 回填元数据缓存——卡面大小吃这份实测（回填路②）
+    private func fetchBytes() async throws -> Data {
+        let data = try await appState.performAdmin {
+            client, config in
+            try await client.fileData(config: config, path: path)
+        }
+        FileMetadataStore.shared.recordDownload(
+            path: path, byteCount: data.count
+        )
+        return data
+    }
+
+    private func copyText() async {
+        do {
+            let data = try await fetchBytes()
+            if let text = FileTextExtractor.plainText(
+                from: data, entry: entry
+            ) {
+                UIPasteboard.general.string = text
+                notice = "已复制全文。"
+                Haptics.success()
+            } else {
+                notice = "这个文件没能读出文字。"
+            }
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "下载失败，请稍后再试。"
+            Haptics.error()
+        }
+    }
+
+    private func exportPDF() async {
+        do {
+            let data = try await fetchBytes()
+            guard let kind = DocumentTextKind.kind(forFileName: name),
+                  let text = FileTextExtractor.plainText(
+                      from: data, entry: entry
+                  ),
+                  let pdf = DocumentPDFExporter.pdfData(
+                      title: DeliverableFileType.displayTitle(
+                          forFileName: name
+                      ),
+                      blocks: DocumentReading.blocks(
+                          for: text, kind: kind
+                      )
+                  )
+            else {
+                notice = "导出 PDF 失败，请稍后再试。"
+                Haptics.error()
+                return
+            }
+            shareItem = try FileShareItem.write(
+                data: pdf,
+                name: "\(DeliverableFileType.displayTitle(forFileName: name)).pdf"
+            )
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "下载失败，请稍后再试。"
+            Haptics.error()
+        }
+    }
+
+    private func downloadAndShare() async {
+        do {
+            let data = try await fetchBytes()
+            shareItem = try FileShareItem.write(data: data, name: name)
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "下载失败，请稍后再试。"
+            Haptics.error()
+        }
+    }
+
+    private func deleteFile() async {
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.deleteFile(
+                    config: config, path: path, recursive: false
+                )
+            }
+            // 回读核对（本仓纪律：删除以列表无此项为准）
+            let parent = (path as NSString).deletingLastPathComponent
+            let listing = try? await appState.performAdmin {
+                client, config in
+                try await client.files(config: config, path: parent)
+            }
+            if listing?.entries.contains(where: { $0.path == path }) == true {
+                notice = "删除未生效，「\(name)」仍在服务器上。"
+                Haptics.warning()
+            } else {
+                FileMetadataStore.shared.forget(path: path)
+                FilePinStore.shared.removed(path: path)
+                notice = "已删除「\(name)」。"
+            }
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "删除失败，请稍后再试。"
+            Haptics.error()
         }
     }
 }

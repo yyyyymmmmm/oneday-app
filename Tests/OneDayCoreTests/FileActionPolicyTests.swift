@@ -158,6 +158,60 @@ final class FileActionPolicyTests: XCTestCase {
         )
     }
 
+    // MARK: 打开页动作集（§131，D8）
+
+    func testOpenPageActionsTextUnpinned() {
+        XCTAssertEqual(
+            FileActionPolicy.openPageActions(
+                for: entry(name: "笔记.md"), isPinned: false
+            ),
+            [.pin, .copyText, .exportPDF, .share, .download,
+             .rename, .openInFiles]
+        )
+    }
+
+    func testOpenPageActionsPinnedShowsUnpin() {
+        XCTAssertEqual(
+            FileActionPolicy.openPageActions(
+                for: entry(name: "报告.pdf"), isPinned: true
+            ),
+            [.unpin, .copyText, .share, .download,
+             .rename, .openInFiles]
+        )
+    }
+
+    func testOpenPageActionsNeverOffersDelete() {
+        // 打开页守阅读面克制：删除只归列表面（D8 口径）
+        for name in ["笔记.md", "报告.pdf", "图.png", "包.zip"] {
+            XCTAssertFalse(
+                FileActionPolicy.openPageActions(
+                    for: entry(name: name), isPinned: false
+                ).contains(.delete),
+                "\(name) 不应含删除"
+            )
+        }
+    }
+
+    func testOpenPageActionsSensitiveWithdrawn() {
+        XCTAssertEqual(
+            FileActionPolicy.openPageActions(
+                for: entry(name: "auth.json"), isPinned: false
+            ),
+            []
+        )
+    }
+
+    func testNewActionLabelsAndSymbols() {
+        XCTAssertEqual(FileItemAction.pin.label, "置顶")
+        XCTAssertEqual(FileItemAction.unpin.label, "取消置顶")
+        XCTAssertEqual(FileItemAction.rename.label, "重命名")
+        XCTAssertEqual(FileItemAction.openInFiles.label, "在文件页中打开")
+        XCTAssertEqual(FileItemAction.pin.systemImage, "pin")
+        XCTAssertEqual(FileItemAction.unpin.systemImage, "pin.slash")
+        XCTAssertEqual(FileItemAction.rename.systemImage, "pencil")
+        XCTAssertEqual(FileItemAction.openInFiles.systemImage, "folder")
+    }
+
     // MARK: 阅读页分流
 
     func testOpensInReader() {

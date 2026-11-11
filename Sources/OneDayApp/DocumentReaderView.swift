@@ -190,10 +190,12 @@ struct DocumentReaderView: View {
             exportPDF()
         case .share, .download:
             Task { await shareOriginal() }
-        case .preview, .delete:
-            // 阅读面策略表不给这两项（见 FileActionPolicy
-            // .readingActions），落到这里即策略表漂移——
-            // 静默不执行、靠单测钉住表本身
+        case .preview, .delete, .pin, .unpin, .rename, .openInFiles:
+            // 阅读面策略表不给这几项（见 FileActionPolicy
+            // .readingActions；pin/rename/openInFiles 是
+            // 打开页专属，见 .openPageActions），落到这
+            // 里即策略表漂移——静默不执行、靠单测钉住
+            // 表本身
             break
         }
     }
