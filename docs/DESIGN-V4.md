@@ -9030,3 +9030,32 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **单测与自测（分支口径）**：App 新增 ViewerImageProgressionTests 11 法（档位序与长边/种子即显/逐档升/迟到低档不降级/种子不顶高档/无图失败进 failed/有图失败 degraded 且补档清除/重试门与计数/失败后迟到成功恢复/复位/缓存键稳定与分离）；伴生 rendition 自测 22 检全过（见①）。三语新增 1 键（「图片预览」端点名；「重试」为既有键），validate_i18n 通过。
 - **分支验包记账（预制分支口径，合并时主线复核）**：feat/media-perf 顶端 48057cf；CI run 42996888623（07139bb）与 run 42998143434（48057cf，最终顶端）均 jobs 逐项终判 build-native **success**，单测 Executed **1434、0 failures**（分支基线 b895f32／0.50.8 口径 1423＋本包新增 11，只增不减）。三语新增 1 键（「图片预览」），validate_i18n 通过（2637 键含 InfoPlist 13）。**节号警告**：本节自选 §144 在预制期间已被先行合并的包占用（0.50.9/131 的 §144 合并记账），合并时须顺延改注（预计 §140）并同步代码注释内 §144 引用。**伴生侧**：1.0.23 已部署上线（部署由主线侧按同一仓库树先行执行、容器 2026-11-11T09:33:45Z 启动；施工方回读验收全过——模块 md5 三方逐字一致 `86592847…`、Hermes StartedAt 逐字不变、内存约 53%、生产实拉三档 200 image/jpeg（68,026B 原图→360 档 8,390B）、无钥 401；报告 hermes-deploy/companion/RENDITION-123-REPORT.md）。
 
+# §145 语言切换（2026-11-11，预制分支 feat/i18n-language，基线 main 15cc649／0.50.10；依据 i18n-leak-audit-20261111.md §1.4 C 方案／包 0，用户 17:41 点名「设置里没有呀」）
+
+### 145.1 定版口径
+
+- 0.42.0「App 不设语言开关、纯跟随系统」口径作废：设置页外观加语言四档——跟随系统／简体中文／繁體中文／English，用户在 App 内即可切换、三语当场可验。
+- 生效方式取审计 C 案（进程内真切换）：不写 appleLanguages、不重启；系统托管面（系统权限弹窗、分享单、文件选择器）仍随系统语言，属平台常态——设置行区脚小字如实注明，不作全覆盖承诺。听写识别语言是独立既有设置，不并入本档。
+
+### 145.2 落法
+
+- **Core（AppLocale.swift）**：新增 `AppLanguagePreference` 四档枚举（rawValue 即持久化值：system／zh-Hans／zh-Hant／en；显式档 rawValue 即其 Locale 标识）＋ `LanguageStorageKeys.appLanguage` 键名单一出处（照 AppearanceStorageKeys 先例）。`AppLocale.uiLocale` 改覆盖优先：`resolve(preference:preferredLocalizations:)` 纯函数——显式档直取 Locale、跟随系统档回 `Bundle.main.preferredLocalizations` 首项、清单空回 autoupdatingCurrent（0.42.0 旧解析尾巴同口径）；读口 `languagePreference(in:)` 未设/脏值回 .system、写口 `setLanguagePreference(_:in:)` 供非视图层与单测。取词口零新基建：L10n 既有 `bundle(for:)` 本就按语言取 .lproj，本包仅给它加基底 bundle 可注入的内部门（`bundle(for:in:)`，生产恒 .main、钉测载 fixture）。格式化器与 Core 各呈现面默认参同引 uiLocale 一口，覆盖自动全网生效。
+- **根层（OneDayApp.swift）**：@AppStorage 读同一键（单一事实源、本层只消费）；`.environment(\.locale, AppLocale.uiLocale)` 仍只读 uiLocale 一口，另以语言档值作 `.id` 施于 RootView——改档即整树按新语言重建，字面量取词、Core 格式化与各页语言形态全体换档、即时生效。appState 与 ModelContainer 在 .id 之外（App @State／Scene 修饰），重建不丢会话与数据。
+- **设置页（AppearanceView.swift）**：模式区后加 ⑤ 语言区，形态与 ④ 模式勾选行同构（@AppStorage 写、选中打勾）；档名不直写字面量过 Text(String) 原样面——经 `L10n.string(档名键)` 按当前界面语言取词，切档后本页在新语言下重渲、档名随之换语。区脚小字注明系统托管面仍随系统语言（文案走目录）。
+
+### 145.3 新增目录键（4 条，三语齐）
+
+「简体中文」「繁体中文」「English」三档名（「跟随系统」「语言」为存量键复用）＋区脚小字「系统弹窗与分享界面等由系统显示的部分，仍跟随系统语言。」。Localizable 2623→2627 键，validate_i18n 通过（2640 键含 InfoPlist 13、三语全覆盖、占位符一致、无行话引入）；文件 diff 纯新增（新键按原文件排序惯例就近插入，未动存量键序与值）。
+
+### 145.4 附则自查（§139.4）
+
+- 新增 UserDefaults 键 `appLanguage` 一枚，理由：语言是与外观（模式/主题/形象）正交的用户级全局偏好，消费方在 Core（AppLocale 解析）与根层，既有四套旁挂状态（外观三键等）语义都接不住；故按 AppearanceStorageKeys 先例在 Core 新立 LanguageStorageKeys 单一出处，AppStorage 与 UserDefaults 读口同引、不散写字面量。未新开 Store/Client，未动既有键。
+
+### 145.5 单测
+
+- 新增 LanguageSwitchTests 4 法：四档解析（显式三档直取、与系统清单无关）、跟随系统回落 preferredLocalizations（首项胜出＋空清单回 autoupdatingCurrent）、覆盖值持久化回读（未设回 .system、四档逐档写读一致＋落盘原值核对、脏值回默认）、四档取词命中（fixture .lproj 载目录真值键「跟随系统」三语，跟随系统/簡體/繁體/English 逐档经 resolve→bundle(for:in:)→NSLocalizedString 断言命中对应语言）。目录本体三语真值由 validate_i18n 把守、fixture 只验机制，与 I18nFormattingTests 宿主口径分工。既有测零删改，只增不减。
+
+### 145.6 预制验收记账（2026-11-11）
+
+- 分支 feat/i18n-language：代码提交 0241d1a，基线 main 15cc649（0.50.10/132）。validate_i18n 本地实跑通过（2640 键）。分支 CI run 42998569663（workflow_dispatch 触发，head 0241d1a）completed success、build-native 单 job 全部 steps 全绿，单测 Executed **1436、0 failures**（基线 1432＋新增 LanguageSwitchTests 4 法，逐法 passed 日志在案；既有测零删改，只增不减）。未合并、版本号未动，待主线按序合并定版。合并后真机待验：切 English 后主面＋设置页＋设备页即时变、杀进程重进保持所选档、切回跟随系统复原；系统权限弹窗/分享单仍随系统语言（区脚口径、非缺陷）。
+
