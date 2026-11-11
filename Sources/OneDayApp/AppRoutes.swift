@@ -40,4 +40,11 @@ enum SettingsRoute: Hashable {
     case about
     case privacy
     case terms
+    /// prototype-2（DESIGN §164 升级）：四个二级枢纽页
+    case agentConfig        // 智能体配置枢纽页
+    case serverManagement   // 服务器管理枢纽页
+    case sessionManagement  // 会话管理枢纽页
+    case workspaceHub       // 工作区枢纽页
+    case mainSession        // 主线会话详情页
+    case restartGateway     // 重启网关页
 }
