@@ -9384,3 +9384,12 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 二轮 run 43015098481 failure：loadSessionModelChoices 调用点在 init 前段、存储属性未全初始化即调 self 方法；移至 init 末段（signalBox 接线前）修复。
 - 三轮 run 43015719776：编译全过、单测 1534 执行仅 1 失败——ChatModelGroupsTests.testFallbackWithoutOptionsRoot 回落期望与实现层级不一致（实现：注册表 Gateway 清单与回执同级为真源、扁平候选只兜两源皆缺；测试：按无回执即整组回落写）。裁定实现口径为准（生产两源同批取数、注册表独有模型不许被候选覆盖），测试期望改钉两级回落并加两源皆缺断言，断言只增不减。
 - 四轮 run 43017569146 **success**（jobs API 逐项终判 build-native success）：Executed **1534**、0 failures（1517 基线＋ChatModelGroupsTests 7＝1524 应增，实测 1534——多出的 10 为基线后其他线并行入册的测试，合并时按当时 main 复核；本包净增 7 法、断言只增不减）。分支顶端 5dc132c，预制完成待队列合并。
+
+### 153.7 攒包五件合并与发版总账（2026-11-11，0.50.16/138）
+
+- 合并序（攒包口径：中间只跑合并 CI、发版只跑一次）：§148 诊断记账先行单独提交 `891f279`（纯追加 19 行、内容经核完整）；①文本可选 merge `c72448b`（分支自记 §146→改注 **§149**）CI 43014661837 success；②多图修复 merge `6f8ade1`（分支自记 §147 与附件面板撞号→改注 **§150**，其在 ChatView 的既有 §147 附件面板注释不动）CI 43016227532 success；③模型管理面 merge `6205aaa`（分支自记 §150→改注 **§151**）CI 43016288060 success；④附件面板修订 merge `8cc9442`（分支自记 §149/§150→改注 **§152**）CI 43017897276 success；⑤模型顶栏包 merge `e0357fb`（分支自记 §149→改注 **§153**）CI 43019379266 success。
+- 冲突合裁：每包仅 DESIGN 文末拼接冲突，取双边全保留＋节序 §149→§150→§151→§152→§153 顺延，代码注释全量同步改注（多图包 ChatView 内附件面板 §147 注释按文件级归属豁免、保持不动）。xcstrings 逐包并集对账：管理面包 +7 键（2633→2640）、附件修订包并集 2641、顶栏包走 merge_xcstrings.py 三方并集（base 2633→2645、无冲突），终值 Localizable 2645 键、validate_i18n 通过（2658 键含 InfoPlist 13、三语全覆盖）。
+- 管理面↔顶栏包交叉点合裁（§151.5/§153.5）：作用域文案 defaultScopeText 单源在 ModelSettingsView、顶栏包 B2 本会话语义同批落地，文案与实现同批成立、未先行；refreshModelCatalog 两包接线同在且无互斥改动；channelsFace/GatewayChannelsFace 读面本体保留（ModelManagementStore 仍消费），设置面呈现层已撤、读面不删。
+- 定版：版本五处同改 0.50.16／138 commit `702fb4b`＋补丁 `1e25cc4`（验包实读发现 Info.plist 直写 CFBundleVersion 漏改 137、已补齐重跑）。发版 CI run **43021211318** jobs 逐项终判 build-native **success**；单测 Executed **1562、0 failures**（0.50.15 的 1527＋文本 13＋多图 5＋管理面 6＋附件修订 11＋顶栏 0 净增*，只增不减；*顶栏包分支口径 1534 相对其基线 0.50.14 的 1517 为 +17，与其余各包同基线增量有重叠口径，发版总账以主线实测 1562 为准）。
+- 验包：IPA 落 ~/workspace/your_files/oneday-v0.50.16/OneDay-0.50.16.ipa：**10,309,008 字节、md5 `ad20469e3e53ad147c9f93d0a57e55d7`**，主线独立解包复核 Info.plist 实读 0.50.16／138／site.didichou.oneday 一致。
+- 真机待验（随本版回收）：§149.6 文本选字清单、§150.5 多图清单、§151 管理面三段与默认作用域文案、§152.6 附件面板修订清单、§153.5 顶栏分组选择与作用域实证五条。
