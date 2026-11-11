@@ -124,12 +124,11 @@ struct ContentView: View {
     /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与枢纽
     /// sheet 共同消费；前台 30 秒轮询由下方 scenePhase 驱动
     @State private var overviewStore = OverviewBridgeStore()
-    /// 动态未读数（0.38.0）：壳层持有、动态格角标消
-    /// 费；只认桥 /feed/generation 的 unread。APNs 到
-    /// 位前这就是「有新动态」的唯一提醒形态——呈现
-    /// 与文案都不冒充系统推送
-    @State private var feedUnread = 0
-    private let feedBadgeClient = OneDayBridgeClient()
+    /// 动态未读角标已整套撤下（§126，用户 2026-11-11
+    /// 拍板「动态不要提醒」）：0.38.0 的壳层 feedUnread
+    /// 状态、角标轮询与专用客户端一并退役；已读账本
+    /// （readAt/回写）保留在 FeedStore/桥侧静默运行，
+    /// 只停提醒面与为角标服务的轮询，不停账本
     /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
     /// 理全部对话」行置位，全屏页自带导航栈呈现
     @State private var showAllConversations = false
@@ -229,14 +228,6 @@ struct ContentView: View {
                 await overviewStore.poll(appState: appState)
             }
         }
-        // 0.38.0：动态未读角标轮询——与总览轮询同节奏
-        // （前台 30 秒一轮、scenePhase 驱动起停）；未
-        // 连接/拉不到时保持上次数字、不清零造假象
-        .task(id: scenePhase) {
-            if scenePhase == .active {
-                await pollFeedUnread()
-            }
-        }
         // 0.36.20（§86.2）：业务成功信号一到即把在线判
         // 定清零回写——不等 30 秒轮询，胶囊与事实同拍
         .onChange(of: appState.hermesBusinessSuccessTick) {
@@ -246,20 +237,6 @@ struct ContentView: View {
         // 一轮（触发器语义：只催办、不下结论）
         .onChange(of: appState.networkPathEpoch) {
             Task { await overviewStore.refresh(appState: appState) }
-        }
-    }
-
-    /// 动态未读轮询（0.38.0）：30 秒一轮，只在拿到桥
-    /// 的账面时更新数字；失败保持旧值（角标宁可慢半
-    /// 拍，不许忽有忽无）
-    private func pollFeedUnread() async {
-        while !Task.isCancelled {
-            if let config = appState.config,
-               let generation = try? await feedBadgeClient
-                .feedGeneration(config: config) {
-                feedUnread = generation.unread
-            }
-            try? await Task.sleep(for: .seconds(30))
         }
     }
 
@@ -299,7 +276,7 @@ struct ContentView: View {
             } label: {
                 tabLabel(TabBarSymbols.feed)
             }
-            .badge(feedUnread)
+            // 动态格角标已撤（§126）：动态不以角标催读
 
             Tab(value: MainTab.ideas) {
                 IdeasView()

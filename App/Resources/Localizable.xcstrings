@@ -16492,29 +16492,6 @@
         }
       }
     },
-    "%lld 未读": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 未读"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 未讀"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld unread"
-          }
-        }
-      }
-    },
     "8:30 例行一轮，有新发现就多一篇，": {
       "extractionState": "manual",
       "localizations": {
@@ -16653,29 +16630,6 @@
         }
       }
     },
-    "今日暂无动态": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "今日暂无动态"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "今日暫無動態"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nothing new today"
-          }
-        }
-      }
-    },
     "保存兴趣": {
       "extractionState": "manual",
       "localizations": {
@@ -16741,29 +16695,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Save formal brief"
-          }
-        }
-      }
-    },
-    "写下你感兴趣什么，我每天替你去看": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "写下你感兴趣什么，我每天替你去看"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "寫下你感興趣什麼，我每天替你去看"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Write down what you're interested in, and I'll go look for you every day"
           }
         }
       }
@@ -17247,29 +17178,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "If there's nothing, it won't pad the count."
-          }
-        }
-      }
-    },
-    "点按写简报": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "点按写简报"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "點按寫簡報"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tap to write a brief"
           }
         }
       }

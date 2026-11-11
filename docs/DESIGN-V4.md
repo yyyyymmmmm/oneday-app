@@ -8347,3 +8347,65 @@ Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发�
 - **交付定版**：0.48.1／117。分支 feat/back-bottom-fix（顶端 2599a4c，基线 bc58930）分支 CI run 42964921055 全绿；合并提交 0fc584c（冲突仅 DESIGN-V4.md 一处，顺序拼接 §122.5 在前、§124 在后，两节全保留）；定版提交 d828830（版本五处＝Project.swift 四处 0.48.1/117＋SettingsView 页脚「OneDay v0.48.1」，grep 验无 0.48.0 残留）即合并后 main 顶端。
 - **合并后 CI**：run 42965760654 success（build-native success，head d828830）。
 - **独立验包**：IPA 9,106,854 字节、md5 `ebcdf251c2051ff4b28d52b0052bb496`、Info.plist 实读 0.48.1／117／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.48.1/OneDay-0.48.1.ipa`（落盘 md5 一致）。
+
+## §126 动态页紧凑化包（2026-11-11，预制分支 feat/feed-compact，基线 main 4271410；§123/§125/§118–§120 在各自预制分支，合并时主线按序拼接）
+
+起因：用户 2026-11-11 13:19–13:24 连点三题——图一（OneDay 动态）页头两处死空（原话「搜索框下面留这么多是给鬼留的」「今天下面也留这么多干什么」）、「动态不要提醒，顶部这个设置提示词的删掉，右上角有设置按钮呢」；13:37 对调研报告（muse-three-pages-essence-20261111.md 第 2.3/5.1 节）拍板「按推荐全做」（紧凑化＋搜索改点开式，点子加强 G1+G2 不在本包、归桥侧生成面）。版本五处未动（合并时主线定号）。
+
+### 126.1 覆盖声明（旧口径作废）
+
+- **§117「顶部简报胶囊常驻」作废**：胶囊行整行删除（本节 126.2），简报设置入口只归工具栏滑杆钮。
+- **§104/§117 动态未读提醒口径作废**：底栏角标、胶囊内「N 未读」、帖行蓝点、动作行「未读」文字四面全撤（126.3）；已读管线（桥侧 readAt、App 打开/露面回写、FeedBoard.unreadCount 与 generation 账面）保留为静默账本，只停提醒面与为角标服务的轮询，不连根删管线——将来确认不再用于排序/恢复/审计再单独退役（调研报告 0.2 处置意见）。
+- **§122 的 64pt 顶距处置修订**：§122「不得遮字」的验收目的保留，实现由无条件 contentMargins 改为条件化政策（126.4）；§122.2 的「对尺附记」中避让一条随之修订。
+- **§117 搜索常驻行口径修订（证据更新）**：常驻 .searchable 行改为工具栏点开式（126.6）。§117 当年按用户所发 Muse 截图定常驻形态，本轮同一页的更新并排图已无常驻搜索行，按调研报告标注为证据更新，不假装旧定版从未存在。
+
+### 126.2 删简报胶囊行
+
+- FeedView List 第一个 Section（briefRow/capsuleRow 二选一呈现）整段删除，bannerRowChrome 共用外壳随之退役（全仓仅此二行消费）。删后列表第一段即第一个日期分组，标题之下直接接分组头/首帖。
+- **入口核实**：工具栏滑杆钮（slider.horizontal.3）现行实现即 `briefEditorShown = true` → sheet 呈现 FeedBriefEditorView（两层制编辑器本体一字未动），无需补接；FeedStore 照旧加载 briefDoc 供编辑器消费，store 侧不删字段。FeedBriefBoard.summaryLine、FeedBoard.capsulePost 等 Core 纯函数随呈现退役而无消费方，保留原地（单测仍钉其口径，不为删呈现而拆 Core 账）。
+
+### 126.3 撤一切未读提醒面
+
+- **底栏角标**：ContentView 删 `.badge(feedUnread)`；壳层为角标服务的整套一并退役——`feedUnread` 状态、专用 `feedBadgeClient`、scenePhase 驱动的 30 秒轮询 task 与 `pollFeedUnread()`（该轮询只喂角标一处，grep 实证无第二消费方）。ContentView 本包 diff 只动上述动态角标相关行（§123 闭环包在同文件加 M3 点子角标，合并时主线对账）。
+- **行内两面**：postRow 标题旁未读蓝点（Circle 7pt）删除；actionRow「未读」文字删除（其 A11Y-C5「蓝点另有文字通道」的配对关系随两面同撤而消解，不留单边）。
+- **静默账本保留**：postRow onAppear 回写、openPost/详情页 markRead、FeedStore.markRead 全链一字未动；FeedStore 头注③同步更正（账面只供空态口径）。
+
+### 126.4 顶距条件化
+
+- **政策收口 Core**：`FeedBoard.topClearance(overlayHeight:gap:)`——overlayHeight 为 nil 或 ≤0 恒 0；真重叠＝实测重叠高度＋gap。单测 5 法钉死（nil/0/负→0、44+8→52、gap 原样透传），见 126.8。
+- **视图接线**：FeedView 以 `@State topOverlayHeight: CGFloat?` 为唯一喂入口，`topMargin` 计算属性走政策、gap 传令牌 spacingS(8)。**如实记账**：现行壳层没有覆盖本页的浮层（全仓核查——任务进展胶囊只在聊天页 safeAreaBar 内，本页工具栏由导航栏安全区托管），故本值恒为 nil、顶距恒 0；壳层将来在本页上方挂浮层时把实测高度写进此入口即按政策生效。此处不许再写任何无条件数字冒充条件化（§122 的病即在此）。
+- §122 的 64pt（spacingXXL＋spacingM）与 `topCapsuleClearance` 常量整段删除，grep 零残留。
+
+### 126.5 日期段几何收编
+
+- 段头改自定义 header（dateGroupHeader）：字阶/配色对齐原系统段头呈现（.subheadline semibold＋Palette.inkSecondary，不另造字号），上下 padding 显式定值 spacingXS(4)。
+- 段间 `.listSectionSpacing(spacingM 16)` 显式设定（此前未设，约 62pt 系统默认几何无人拥有——调研量测死空二的主体）。
+- header 布局底→首行内容顶不另加距：帖行自身 `.padding(.vertical, spacingS)` 的顶部 8pt 只计一次（帖行原有口径不动）。构造账：「今天」字形下沿→首帖标题上沿 ≈ header 底 padding 4＋帖行顶 padding 8 ≈ 12pt（目标 ≤32pt）。
+
+### 126.6 搜索改点开式
+
+- `.searchable` 落点由默认（常驻行）改 `.toolbar`：放大镜在工具栏内点开才展开搜索场，未展开时不占行。0.47.0 的自绘放大镜 ToolbarItem 与系统落点自带入口重复占位，一并退役；滑杆钮保留（126.2 入口核实）。
+- 过滤逻辑一字未动（visiblePosts 按标题＋正文命中、与全量同走 FeedBoard 分组）；收起即清过滤态——`onChange(of: isSearching)` 在关闭时清空 searchText，照系统惯例不留隐形过滤。
+
+### 126.7 量测前后对照（口径同调研报告 2.3：402×874pt 截图字形/形状边缘）
+
+| 段 | 改前（量测实证） | 改后（构造值） |
+|---|---:|---:|
+| 常驻搜索框 | 44pt 占行 | 0（未展开时不存在） |
+| 死空一（搜索框下沿→胶囊上沿） | 80pt | 随搜索行与胶囊行一并消失；顶距条件化后恒 0 |
+| 简报胶囊行 | 45pt＋上下 insets | 整行删除 |
+| 「今天」字形下沿→首帖上沿 | 约 70pt | ≈12pt（126.5 构造账），目标 ≤32pt |
+| 首帖标题起点 | 屏高 53.0% | 构造上 ≈ 标题区＋段头 ≈ 屏高 16% 上下，验收线 ≤27%（合并后真机按同口径复量为准） |
+
+### 126.8 单测与校验
+
+- 新增 FeedCompact126Tests 5 测（顶距政策：无重叠三态归零、重叠加 gap、gap 透传），全仓单测只增不减。
+- 三语文案：随删行清理孤立键 4 个——「%lld 未读」「今日暂无动态」「点按写简报」「写下你感兴趣什么，我每天替你去看」（grep 实证仅被删行消费；「未读」「未读，%@」另有监测/通知消费方，不动）。目录 2457→2453 键，validate_i18n.py 通过。
+- 红线守界：未碰 ChatView/输入舱（§124 承载结构）、未碰点子面、未碰 §125 文件面在飞代码；FeedView 之外只动 ContentView 角标相关行与 FeedStore 一行头注。
+
+### 126.9 真机待验
+
+- 页头栈：标题→（无搜索常驻行、无胶囊行）→「今天」段头→首帖，首帖标题不晚于屏高 27%；「今天」下空段 ≤32pt；最大字号档与深色模式各一帧。
+- 搜索：点工具栏放大镜展开搜索场、过滤按标题＋正文生效、取消收起后过滤清空且列表位置不乱跳。
+- 简报：滑杆钮打开两层编辑器、保存链与从前一致（胶囊行删除不影响编辑器数据）。
+- 未读：底栏动态格无角标、新帖到达不出现任何催读面；打开帖子后已读回写照旧（服务端 readAt 落字、重进页不回弹未读——账本仍在工作，只是无声）。
