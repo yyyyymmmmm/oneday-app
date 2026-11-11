@@ -1057,21 +1057,45 @@ struct FeedBriefEditorView: View {
                 }
 
                 Section {
+                    // S2-11：保存钮提主钮层级——照 §118 审批
+                    // 卡主钮同款形态（通栏胶囊、高
+                    // ApprovalCardSpec.buttonHeight、蓝实心
+                    // 白字），不再用 Form 文本行式 Button
                     Button {
                         Task { await saveInterest() }
                     } label: {
-                        HStack {
+                        ZStack {
                             Text("保存兴趣")
-                            Spacer()
+                                .font(.headline)
+                                .foregroundStyle(Color.white)
                             if store.briefSaving {
-                                ProgressView()
-                                    .controlSize(.small)
+                                HStack {
+                                    Spacer()
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .tint(Color.white)
+                                }
+                                .padding(
+                                    .trailing,
+                                    OneDayMetrics.spacingM
+                                )
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: ApprovalCardSpec.buttonHeight)
+                        .background(Palette.primary, in: Capsule())
+                        .contentShape(Capsule())
+                        .opacity(
+                            store.briefSaving || !interestChanged
+                                ? 0.45 : 1
+                        )
                     }
+                    .buttonStyle(.odPressable)
                     .disabled(
                         store.briefSaving || !interestChanged
                     )
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 } footer: {
                     Text("保存后先整理简报；整理出新版就立刻"
                          + "按新简报去看一轮。平时每天早上 "
@@ -1110,12 +1134,31 @@ struct FeedBriefEditorView: View {
                 }
 
                 Section {
+                    // S2-11：次钮同几何、降一档——浅灰填充
+                    // 墨字通栏胶囊，与上方主钮主次分明
                     Button {
                         Task { await savePrompt() }
                     } label: {
                         Text("保存正式简报")
+                            .font(.headline)
+                            .foregroundStyle(Palette.ink)
+                            .frame(maxWidth: .infinity)
+                            .frame(
+                                height: ApprovalCardSpec.buttonHeight
+                            )
+                            .background(
+                                Palette.selectionFill, in: Capsule()
+                            )
+                            .contentShape(Capsule())
+                            .opacity(
+                                store.briefSaving || !promptChanged
+                                    ? 0.45 : 1
+                            )
                     }
+                    .buttonStyle(.odPressable)
                     .disabled(store.briefSaving || !promptChanged)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 }
 
                 if let note = savedNote {

@@ -557,32 +557,35 @@ struct FilesBrowserView: View {
     }
 
     /// 排序行（0.36.31，规格 §七）：左＝当前排序键菜
-    /// 单（名称／修改时间／大小，当前项对号），右端
-    /// ＝方向钮（升 ↑／降 ↓ 点按切换，文件夹恒在前、
-    /// 方向只翻组内序，Core 钉测）；新建文件夹钮同
-    /// 行右侧——§4.6 既有能力保留，••• 纯度（只放
-    /// 上传两项）优先于把它也塞进菜单，此安放为本版
-    /// 取舍、已在 §99 记账
+    /// 单（名称／修改时间／大小），右端＝方向钮（升
+    /// ↑／降 ↓ 点按切换，文件夹恒在前、方向只翻组内
+    /// 序，Core 钉测）；新建文件夹钮同行右侧——§4.6
+    /// 既有能力保留，••• 纯度（只放上传两项）优先于
+    /// 把它也塞进菜单，此安放为本版取舍、已在 §99
+    /// 记账。样式二期 S2-05：单选改系统 Picker 承载
+    /// （勾由系统绘制、固定左槽，与文件页 v2 菜单同
+    /// 形态；旧手工对勾塞图标位退役，同 S2-04 口
+    /// 径）；锚点补 chevron 展开指示（旧形态纯文字
+    /// 裸锚、违宪法 §9 可点必有指示）
     private var sortRow: some View {
         HStack(spacing: OneDayMetrics.spacingM) {
             Menu {
-                ForEach(
-                    FileBrowserLogic.SortKey.allCases, id: \.self
-                ) { key in
-                    Button {
-                        sortKey = key
-                    } label: {
-                        if sortKey == key {
-                            Label(key.label, systemImage: "checkmark")
-                        } else {
-                            Text(key.label)
-                        }
+                Picker("排序", selection: $sortKey) {
+                    ForEach(
+                        FileBrowserLogic.SortKey.allCases, id: \.self
+                    ) { key in
+                        Text(key.label).tag(key)
                     }
                 }
             } label: {
-                Text(sortKey.label)
-                    .font(.callout)
-                    .foregroundStyle(Palette.ink)
+                HStack(spacing: OneDayMetrics.stackGap) {
+                    Text(sortKey.label)
+                        .font(.callout)
+                        .foregroundStyle(Palette.ink)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Palette.inkSecondary)
+                }
             }
             .accessibilityLabel("排序方式，当前按\(sortKey.label)")
             Spacer()

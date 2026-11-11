@@ -67,11 +67,28 @@ struct DeliverablesView: View {
     @State private var systemFilesPresented = false
 
     private var displayMode: LibraryDisplayMode {
-        LibraryDisplayMode(rawValue: displayModeRaw) ?? .list
+        LibraryDisplayMode.resolved(rawValue: displayModeRaw)
     }
 
     private var sort: LibrarySort {
-        LibrarySort(rawValue: sortRaw) ?? .lastOpened
+        LibrarySort.resolved(rawValue: sortRaw)
+    }
+
+    /// 「更多」菜单两组 Picker 的 selection 绑定（样式
+    /// 二期 S2-04）：读经 Core resolved 解析（未知原值
+    /// 回落默认档、恰一勾），写回落盘原值
+    private var displayModeBinding: Binding<LibraryDisplayMode> {
+        Binding(
+            get: { displayMode },
+            set: { displayModeRaw = $0.rawValue }
+        )
+    }
+
+    private var sortBinding: Binding<LibrarySort> {
+        Binding(
+            get: { sort },
+            set: { sortRaw = $0.rawValue }
+        )
     }
 
     /// 查看器集合载荷：同段图片条目＋起始索引
@@ -205,42 +222,31 @@ struct DeliverablesView: View {
                 Spacer()
                 // §4.1/§4.2：右上改 ••• 菜单钮（搜索钮
                 // 撤除）——组1 显示、组2 排序（每组单
-                // 选、当前项占对号列）、组3 系统文件、
-                // 组4 上传文件（OneDay 扩展，规格标注）
+                // 选）、组3 系统文件、组4 上传文件
+                // （OneDay 扩展，规格标注）。两组单选改
+                // 系统 Picker 承载（样式二期 S2-04）：
+                // 勾由系统按 selection 绘制、占固定左
+                // 槽、文字同 x 对齐；旧手工对勾塞 Label
+                // 图标位的形态（选中行文字右移、无勾行
+                // 贴边，与模型双勾 P-04 同根）整段退役，
+                // 正道据 ChatView 模型菜单注释与苹果反
+                // 馈 FB16679936（Toggle/Picker）
                 Menu {
                     Section("显示") {
-                        ForEach(
-                            LibraryDisplayMode.allCases, id: \.self
-                        ) { mode in
-                            Button {
-                                displayModeRaw = mode.rawValue
-                            } label: {
-                                if mode == displayMode {
-                                    Label(
-                                        mode.label,
-                                        systemImage: "checkmark"
-                                    )
-                                } else {
-                                    Text(mode.label)
-                                }
+                        Picker("显示", selection: displayModeBinding) {
+                            ForEach(
+                                LibraryDisplayMode.allCases, id: \.self
+                            ) { mode in
+                                Text(mode.label).tag(mode)
                             }
                         }
                     }
                     Section("排序") {
-                        ForEach(
-                            LibrarySort.allCases, id: \.self
-                        ) { option in
-                            Button {
-                                sortRaw = option.rawValue
-                            } label: {
-                                if option == sort {
-                                    Label(
-                                        option.label,
-                                        systemImage: "checkmark"
-                                    )
-                                } else {
-                                    Text(option.label)
-                                }
+                        Picker("排序", selection: sortBinding) {
+                            ForEach(
+                                LibrarySort.allCases, id: \.self
+                            ) { option in
+                                Text(option.label).tag(option)
                             }
                         }
                     }

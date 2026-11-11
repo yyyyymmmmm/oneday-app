@@ -8221,6 +8221,33 @@ Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手�
 - **独立验包**：IPA 9,095,130 字节、md5 `f84cb4cfaa2bf797413a3e8c953f92a1`、Info.plist 实读 CFBundleShortVersionString 0.47.0／CFBundleVersion 114／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.47.0/OneDay-0.47.0.ipa`（落盘 md5 与取件一致）。
 - **S2-11 核查结论（顺带项）**：**未随 §117 落地**——分支 diff 对简报编辑器保存钮零触碰，合并后 FeedBriefEditorView 的「保存兴趣」「保存正式简报」仍为纯 Form 文本行式 Button、无主按钮层级（与 style-audit-2 的 S2-11 登记现状一致）；转后续样式包处理，本包不夹带。
 
+## §118 样式热修包 A·审批卡双面统一＋选择菜单 Picker 化（样式审计二期首包，2026-11-11，预制分支 feat/style-fix-a，基线 main 2ed1d4f；节号自选 §118——§117 为在飞对标包预留，合并时主线终审如撞号顺延）
+
+依据：样式审计二期 style-audit-2-20261111.md 的收口切分「热修包 A」——全是用户 2026-11-11 本轮点名项（审批卡样式／文件页菜单对勾／服务器文件页同病），病灶都在组件与单点实现层。本包五条与审计编号一一对应，版本暂不改、合并时主线定号。
+
+### 118.1 五条处置
+
+1. **S2-01 审批卡按钮形态（聊天＋枢纽）**：弃 .bordered/.borderedProminent 家族——旧机理是 frame 写在 buttonStyle 之后、背景只按标签内容绘制，三钮 hug 成内容宽药丸且默认居中（主钮还吃环境 tint 漂移）。新形态自绘通栏胶囊钮（新文件 ApprovalCardFace.swift 内 ApprovalCardButton）：标签 Text 在背景内层 `.frame(maxWidth: .infinity)`，三钮同宽同高；主钮恒 Palette.primary 实心＋白字「批准」，次钮 Palette.selectionFill 浅灰填充＋墨字「总是允许这一类」「驳回」（驳回不预红、仍走既有 confirmationDialog，与参照「拒绝」中性灰同口径）。几何单源＝Core 新增 ApprovalCardSpec（钮高 48、钮距 10，参照 Muse 审批卡真机量测带：高约 50、距约 10）；动作集/次序/主次角色单源＝Core ApprovalCardAction（actionStack(canDecide:)：可裁决恒三档全栈、不可裁决零钮）。
+2. **S2-02 聊天卡面文案收敛**：标题下最多五段灰字收成一行说明＋句尾行内蓝链——Core 新增 ApprovalCardCopy.summaryLine（头条为主体；内容预览存在、与头条不同且未被头条包含时以「：」衔接在后，记忆类头条已内嵌同一预览、包含判定防拼两遍）；视图层单行截断＋链接 fixedSize 钉行尾不被截掉，点按走既有 SmoothExpand 就地展开（展开区 ApprovalReviewContent 与两只确认弹窗不动）。删：来源行（只进详情原始信息区）、后果行（裁决钮与确认弹窗已表意）、「总是允许范围」行（确认弹窗文案 :161 已有同一信息，重复陈述）、徽章行「待审批」橙字与子系统胶囊（与问句/头条重复表意，二选一留时间）。
+3. **S2-03 审批卡双面统一**：抽共用卡面组件 ApprovalCardFace（时间行＋问句标题＋说明行＋钮栈），聊天（ChatApprovalCards）与枢纽（HubApprovalSection）同实现同几何同句式——枢纽标题自此同走 ApprovalCardCopy.question 问句（旧为 headline 陈述句）。两面只差详情入口一参：聊天＝就地展开（链接文案随态换「查看详情/收起详情」、展开区注入）、枢纽＝「查看改动」打开既有 diff sheet（链接恒「查看改动」、展开区恒空）；确认弹窗与 store 裁决路径两面各自原样（聊天自持 showReject/showAlways、枢纽走段级 rejectTarget/alwaysTarget）。已决历史行徽章收敛：至多两件（子系统＋结论胶囊），「按规则放行」由第三颗胶囊降为结论后的普通灰字后缀（via_rule 标注义务不变）。
+4. **S2-04 文件页 v2「更多」菜单**：组1 显示/组2 排序的手工对勾（Label 塞 checkmark 图标位、选中行文字右移、无勾行贴边，与模型双勾 P-04 同根）整段删除，改系统 Picker 塞进 Menu 的 Section 承载——勾由系统按 selection 绘制、占固定左槽、文字同 x 对齐；分组小标签（显示/排序）沿用 Section header；组3/组4 动作行（系统文件/上传文件）不动。正道据：ChatView.swift 模型菜单注释（FB16679936：菜单带勾正道只有 Toggle/Picker）＋AppearanceView 形象大小 Picker 先例。喂 Picker 的 selection 恒经新增 Binding（读＝Core LibraryDisplayMode.resolved/LibrarySort.resolved 解析落盘原值、未知回落默认档，写＝回写 rawValue），解析口径入 Core 钉测（同 ModelMenuSelection 恰一勾口径）。
+5. **S2-05 服务器文件页排序菜单**：同病第三处同法——sortRow 菜单改 Picker 承载（$sortKey 直绑，选项集 FileBrowserLogic.SortKey.allCases 单源）；锚点由纯文字裸锚补 chevron.down 展开指示（caption2 bold＋inkSecondary，与聊天页模型菜单锚点同式），与文件页 v2 菜单形态一致（宪法 §9 可点必有指示）。
+
+### 118.2 单测与校验
+
+新增 13 个测试函数（Tests/OneDayCoreTests 三个新文件）：ApprovalCardSpecTests 4（几何落值 48/10、可裁决三档栈序与主钮唯一、不可裁决零钮、三钮文案）、ApprovalSummaryLineTests 3（无预览只剩头条、记忆头条内嵌预览不重复拼、中文预览以「：」衔接）、LibraryMenuResolutionTests 6（两枚举 resolved 往返/回落、任意原值恰一勾不变量、服务器排序选项集次序/文案/rawValue 唯一）。单测只增不减。无新 UI 文案（三钮与链接文案均为既有目录键，Picker 标题复用「显示/排序」键），validate_i18n.py 实跑通过（2428 键不变）。本机无 Swift 工具链：编译与全套单测终判等 CI。
+
+### 118.3 未验与知悉
+
+- 真机终验点（合并出包后）：聊天/枢纽两面审批卡三钮等宽满宽、主钮恒蓝；展开任一待批菜单（文件页更多/服务器排序）看恰一勾且文字同线；枢纽已决历史行「按规则放行」为灰字后缀。
+- 冲突面自查：本包只动 ChatApprovalCards.swift 的审批卡区段，未碰 0.46.1 §116 的解析/文件牌/回底钮代码段；ApprovalCardFace 为新文件、零交叠。基线 2ed1d4f 已含 0.46.1 全部代码，本包在其上施工。
+- 审计余项不在本包：S2-06～S2-09/S2-13（令牌卫生小包 B）、S2-11（并入 0.47.0 对标包与否由主线定）、S2-10/S2-12（只登记不排期），均按审计切分表原样保留。
+
+### 118.4 S2-11 落地（合并单续办补入，2026-11-11）
+
+- §117.8 核查定论 S2-11 未随对标包落地、转本包尾巴，本单补入：FeedBriefEditorView 两颗保存钮自 Form 文本行式 Button 提主钮层级，照 §118 审批卡主钮同款形态口径——「保存兴趣」＝主钮（Palette.primary 实心＋白字、通栏胶囊、高 ApprovalCardSpec.buttonHeight 48、保存中右端白转菊花保留）；「保存正式简报」＝次钮（同几何、Palette.selectionFill 浅灰填充＋墨字），主次分明。两钮均 .odPressable、行 chrome 改 listRowInsets 零＋listRowBackground 透明（胶囊自成面、不套行卡底），禁用态以 0.45 透明度明示（条件与旧口径逐字不变）。文案（既有目录键）与 saveInterest/savePrompt 逻辑一字未动；无新文案键，validate_i18n 不变。
+
+
 ## §121 热修：回底钮消失＋自己发的文件没牌/点开落点（0.46.1 真机报障，2026-11-11 12:27）
 
 用户真机四张截图报障：①回底钮在 0.46.1 直接不见了（0.41.0 是看得见点不动、§116.6 迁位后整钮消失）；②12:24 发 GestaltX_1.0.4.ipa 问「这是个什么文件」，自己气泡里没有文件牌（助手侧牌正常出）；点开文件牌的预览落点可疑；③（只查）Hermes 智能体 12:26 仍称「这个通道只能内联图片、IPA 没法回传」。基线 a11c52f（动工时 main 已并入 §117/0.47.0，实际基线取 main 顶端 669e5bb）。
