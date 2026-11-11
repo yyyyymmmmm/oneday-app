@@ -52,7 +52,8 @@ public enum DeviceSyncDataset: String, CaseIterable, Identifiable, Sendable, Cod
         case .reminders: return .reminders
         case .photos: return .photos
         case .motion: return .motion
-        case .health, .home, .clipboard, .files: return nil
+        case .health, .home, .clipboard, .files,
+             .alarm, .notifications, .opener: return nil
         }
     }
 

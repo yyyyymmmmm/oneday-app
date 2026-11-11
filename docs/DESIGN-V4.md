@@ -7883,3 +7883,61 @@ def greet(name):
 
 - V7 自定义动作半、S6 其余运行态点、网格卡 AX 格、DocumentReaderView 排版梯：留真机 VO/AX 走查定点，不预造。
 - 本机无 Swift 工具链：静态自查已做（逐文件括号配平与 HEAD 基线同差、新标识符引用全量对账、Rotor API 经 WWDC21 session 10119 与社区实证外部核查并修正条目构造形态、目录键与代码引用对账）；编译与全套单测终判等合并后 CI。
+
+## §113 设备扩容批二（预制分支 feat/device-x2，基线 main fc1f940；节号自选 §113，合并时主线终审如撞号顺延）
+
+缘起：设备表面图（device-surface-map-20261110.md）A 档第三批「写与拉起」欠账——闹钟（A11）/本地通知（A10）/拉起（A20）三组动作型工具一直只有草案名。本包按任务定名与连接器设计档既有四纪律落成 App 侧全量（闹钟走 iOS 26 AlarmKit 真闹钟），桥侧 TOOLS 表单列待办（113.5）。
+
+### 113.1 工具契约（App 侧已接线，DeviceToolRegistry 逐字名册）
+
+| 工具 | 入参 | 成功回执 | 备注 |
+|---|---|---|---|
+| alarm_set | {title, at 与 afterSeconds 恰给其一, idempotencyKey} | 闹钟回读对象 {id, kind: fixed/countdown, state, title?, fireAt}＋verified＋humanSummary | 倒计时收敛 5 秒～24 小时；定点时刻已过解析后执行层拒；调度后回读系统闹钟列表含 id 才报成功 |
+| alarm_list | 无 | {count, alarms[{id, kind, state, title?, fireAt}], readAt} | 存在性/状态以系统列表为准；标题由本机登记表补（见 113.3），登记缺失不编标题 |
+| alarm_cancel | {alarmId（UUID 形）, idempotencyKey} | {cancelled, wasPresent, verified, humanSummary} | 正在响走 stop、其余走 cancel、回读不在册才报成功；本就不在册语义收敛但如实标 wasPresent=false；写工具（理由见 113.6 之 3） |
+| notify_post | {title, body, delaySeconds?（缺省 0＝立即）, idempotencyKey} | {posted, verified, id, title, humanSummary, deliverAt?} | 延迟上限 7 天；调度后回读待发∪已送达含 id 才报成功；延时待发满 64 条如实拒（系统上限） |
+| open_target | {target（白名单 id）, idempotencyKey} | {opened, target, name, humanSummary} | 目标未命中白名单在 Core 解析层就拒、不下发执行层；执行层设置页直开、应用先探装没装 |
+
+四纪律照旧：写工具必带 idempotencyKey（解析层强校验）＋桥/App 双层去重（App 账本 24 小时窗口；批二引擎多为 async，分发器补 writeWithLedgerAsync，账本语义与同步形逐字一致）；回读验证才报成功（逐工具落点见上表）；离线即失败不排队（既有会话机制；open_target 打开成功即离 App、会话断开属预期，本次回执以 open 完成回调为准，重连后靠账本回放不重复跳）；复述确认载荷＝每件动作回执含 humanSummary（Core 参数层同源生成，智能体复述与用户确认同一句话）。
+
+### 113.2 授权状态机与呈现分工（系统授权铁律的落法）
+
+- Core 纯函数 DevicePermissionGate.decision(for:)：granted/limited/notApplicable→proceed、notDetermined→requestOnce、denied/restricted/writeOnly→degrade。引擎的授权请求函数一律先过此门再动作——铁律落进引擎本身、不靠调用方自觉（DeviceCallsTests.testPermissionGateDecisions 全档钉）。
+- 闹钟：AlarmManager.authorizationState 是同步属性，先同步读现态（AlarmEngine.systemState）；只有 requestOnce 才发那一次 requestAuthorization；执行 setAlarm 时引擎内再复查现态。AlarmKit 全程 async/await、无 completion 回调，回调隔离铁律在本件无落点（登记确认）。
+- 通知：UN 没有同步读状态 API——唯一出入，见 113.6 之 4。落法：状态缓存最近一次异步刷新值（NotificationEngine.cachedState，NSLock 护），刷新点三处＝进前台（DeviceStore.activate 补刷）、进详情页（NotificationsDetailView.reload 先刷）、执行前（分发器对 notifications 源先 await readSystemState 再判门，引擎 post 内再复查一次）——绝不拿陈缓存放行。getNotificationSettings 的 completion 闭包只 resume continuation（照 EK fetchReminders 的 nonisolated 先例），不碰引擎其他状态。provisional/ephemeral 归 granted 档（都是能发的临时授权形态，呈现不夸大）。
+- 呈现分工（与批一严格区分）：闹钟/通知有真系统权限，走既有权限开关终形态——详情页状态头渲染「系统权限」开关（未定→requestAccess、已拒绝→跳设置页、拨关→跳设置页，DeviceViews.permissionBinding 既有语义自动成立）＋「允许智能体调用」开关双层；打开目标无系统权限，走批一 notApplicable 单开关形态（同 clipboard/files）。注册载荷：alarm/notifications 是真权限键、报系统原态；opener 报 granted（notApplicable 口径）。
+- Project.swift：新增 NSAlarmKitUsageDescription（缺此键 schedule 必失败；文案说清「只有你在对话里确认、或在闹钟详情页亲手添加时才会设定」）＋LSApplicationQueriesSchemes 五条（App-prefs/weixin/alipay/iosamap/maps，供 canOpenURL 探测；系统上限 50 条远未及）。版本五处未动（合并时主线定号）。
+
+### 113.3 AlarmKit 落法注记
+
+- 呈现只给 Alert（标题＋系统默认停止钮，secondaryButton 不设）：倒计时/暂停的自绘界面才需要 widget 扩展，本包不建扩展、系统默认界面兜底（苹果官方示例与实战项目 RingWhen 均证 alert-only 可行）；倒计时进行中的灵动岛呈现走系统默认样式、无自绘——取舍登记。
+- 标题登记表：Alarm 值回读不回吐 attributes，标题另存本机 UserDefaults 登记表（alarmID→标题/kind/预计响铃时刻，device.alarmRegistry.v1），只补呈现与对账；倒计时的预计响铃时刻按设定时刻＋时长在本机算（系统不直接给）。登记与系统不一致时以系统为准（取消/响过后回读不在册即不在册）。
+- 配置构造照苹果官方示例五参形（countdownDuration/schedule/attributes/stopIntent: nil/secondaryIntent: nil，省略 intents 走系统标准停止行为）；倒计时＝CountdownDuration(preAlert: 秒, postAlert: nil)＋schedule: nil；定点＝Schedule.fixed(时刻)。元数据用自有 DeviceAlarmMetadata（AlarmMetadata，只含 title）。
+
+### 113.4 拉起白名单（Core 可测）
+
+- OpenTargetCatalog（Core）14 条：设置页 10（OneDay 自家设置页哨兵 app-settings＋Wi-Fi/蓝牙/蜂窝网络/通用/显示与亮度/声音与触感/通知/电池/隐私与安全性，App-prefs 根地址）＋应用 4（微信 weixin://、支付宝 alipay://、高德地图 iosamap://、苹果地图 maps://）。钉测守不变量：id 唯一、地址只许这四类已审计形态、http(s) 永不入册（testOpenTargetCatalogSafety）。
+- 执行层边界：设置页恒在直接开（以 open 完成回调为成败准绳）；应用先 canOpenURL 探装没装，没装如实回「没有装在这台手机上」——注意 canOpenURL 只对 LSApplicationQueriesSchemes 已声明的 scheme 有效，声明与目录同批落地（113.2）。
+
+### 113.5 桥侧待办清单（device-bridge／伴生 device 模块，后续接线包）
+
+1. TOOLS 表补五件（名与 App 侧 DeviceToolRegistry 逐字一致）：alarm_set/alarm_list/alarm_cancel/notify_post/open_target；入参/回执契约按 113.1 表。表面图草案名 alarm_schedule/alarm_timer/notify_schedule/open_link/open_app 已被任务定名取代，桥表不留草案别名双轨。
+2. permissions 字典新增键 alarm/notifications/opener：alarm/notifications 是真权限键——App 报系统原态（granted/denied/notDetermined…），桥可据此先行回 permission_denied，与 clipboard/files 的 granted 恒通口径本质不同、桥不许混；opener 同 notApplicable 口径报 granted，门控只认注册 tools 清单。
+3. 写工具桥侧 write-keys 一层去重对 alarm_set/alarm_cancel/notify_post/open_target 同样启用（App 账本为第二层）；open_target 尤其要紧：用户被带离 App 后会话重连，智能体重发同键调用必须回放原回执、不许再跳一次。
+4. 上线顺序同批一：桥表未补前 App 开关默认关、不列工具，无影响；接线验收先补桥表再开开关实测。桥未上线时 App 侧 tool_unavailable 三条路径在分发器已走通，不假装已通。
+
+### 113.6 与设计档出入（逐条）
+
+1. 工具名与合并：表面图 A11 草案 alarm_schedule＋alarm_timer 两件 → 任务定名合一为 alarm_set（时刻/倒计时二选一，解析层恰一校验）；A10 草案 notify_schedule/notify_pending/notify_cancel/notify_delivered 四件 → 任务定名只落 notify_post 一件，待发读面落在通知详情页本地呈现（不设工具），notify_cancel 不做（登记：任务范围未定；待发通知的撤销若后续要给智能体，另立小包再议）；A20 草案 open_link/open_app（任意 URL/scheme）→ 任务定名 open_target 白名单制（任意 URL 在解析层无入口）。
+2. 授权呈现：批一为无权限件新立 notApplicable 档；本批闹钟/通知明确不套此档（任务明示），走既有双层权限开关终形态；只有 opener 套 notApplicable——三者在 DeviceStatusHeader 的分工由 permission 档自动分流，无新呈现代码。
+3. alarm_cancel 与连接器设计档「删除不进任何工具面」红线的关系：该红线针对用户数据（日历/提醒/通讯录等系统数据源的删除）；闹钟是动作的产物、取消是该动作的配对收敛操作（表面图 A11 本就列 alarm_cancel，任务亦明文定名），且只能按 id 取消、取消前先查在册。它按写工具落（带幂等键走账本、回执可重放）。登记为红线的范围澄清，不作删用户数据的先例。
+4. 通知权限的异步读出入：连接器设计档 §3.3/§6.5 的「App 现读现回、状态同步现读」口径在 UN 框架上无同步 API 可落——本包以「缓存＋三处刷新＋执行前真状态判门」等价落地（113.2），是全批唯一与铁律字面形态的出入：铁律的实质（已决定不重走请求回调、只有未决定才发那一次请求）由 DevicePermissionGate 在引擎请求函数内照样守死，差的只是状态读数多走一跳异步刷新。
+5. AlarmKit entitlement 冲突核查（改前先搜口径）：个别网源（swiftcrafted 指南）称 AlarmKit 需向苹果申请 entitlement；与表面图已查证的苹果工程师论坛定谳（com.apple.developer.alarmkit 是不存在的假钥匙、无此 entitlement、A 档）冲突——从设计档既有定谳，不加任何 entitlement；若合并后真机 schedule 报权益类错误，回表修订本条。
+6. 详情页门控文案：DevicePermissionGate 的未定文案动词随件走（闹钟「设定」/通知「发送」/余件「读取」），不拿「读取」糊弄动作权限——呈现层小改、同批登记。
+7. 状态头 notApplicable 说明句为三件共用文案（「关掉后智能体就读不到、也写不了」），对 opener 是近似表述（打开目标无读/写语义、本质是「用不了」）；opener 名册 agentNote 已把边界写准，本包未为一句脚注拆共用组件——登记知悉，后续若逐面收口 C13 时一并处理。
+
+### 113.7 单测与终判口径
+
+- 新增 11 个测试函数（DeviceSourcesTests +2：批二载荷门控/文案诚实；DeviceCallsTests +8：授权门全档/闹钟参数两组/取消参数/通知参数/打开参数/白名单不变量/时长人话；RichContentTests +1：五工具分类与标题），全仓测试函数 1191→1202 只增不减。既有 6 处钉值更新（名册计数 9→12 与呈现序、批次接线 +3、工具全集 15→20 与写集 6→10、可执行集 12→17、全开载荷补三件断言、搜索空集计数、非同步数据集 +3 断言），口径随名册扩容顺延、非放宽。
+- L10n 补 32 键（目录 2311→2343、连 InfoPlist 8→9 共 2352 键，validate_i18n.py 实跑通过）：名册五字段×3（「通知」名键已存在复用）、工具卡标题 5、拉起目标名 13（「微信」已存在复用）、NSAlarmKitUsageDescription 三语；繁体守既有惯例（智能体→智慧代理、调用→呼叫、设置→設定、闹钟→鬧鐘、白名单→白名單、锁屏→鎖定畫面）。详情页与引擎回执文本按 §109.5/§111.4 先例不入目录（执行层回执不入目录；详情页硬编码文案随既有详情页惯例如实登记——批一详情页同形态）。
+- 本机无 Swift 工具链：静态自查已做（逐文件括号配平与 HEAD 基线同差、目录键与代码引用全量对账、DeviceSourceID 全部穷尽 switch 逐点排查并补臂——DevicePermissions.currentStates、DeviceStore 三处、DeviceSyncExecutors.requestAccess、DeviceSyncDataset.fromSource、DeviceViews 图标两开关＋详情分发、ConnectorsView.deviceDetail；AlarmKit/UN API 形态经苹果官方示例与生产项目外部核查定谳，见 113.3）；编译与全套单测终判等合并后 CI。

@@ -78,6 +78,15 @@ let project = Project(
                 // 机处理、不出手机（规格 §3.4 定版文案）
                 "NSMicrophoneUsageDescription": "OneDay 需要使用麦克风，把你说的话转成文字填入输入框；录音只在本机处理，不上传服务器。",
                 "NSSpeechRecognitionUsageDescription": "OneDay 使用语音识别把你的话转成文字；识别在你的 iPhone 本机完成，录音不会离开手机。",
+                // 闹钟（设备扩容批二，AlarmKit）：文
+                // 案说清谁在什么时机设定——只有用户
+                // 在对话里确认、或在闹钟详情页亲手添
+                // 加时才设定；缺此键 schedule 必失败
+                "NSAlarmKitUsageDescription": "OneDay 需要设定闹钟与倒计时：只有你在对话里确认、或在闹钟详情页亲手添加时才会设定；到点由系统响铃，能穿透静音与专注模式。",
+                // 拉起白名单的「装没装」探测声明（设
+                // 置页根地址＋四个登记应用的 scheme；
+                // 系统上限 50 条，本表只用 5 条）
+                "LSApplicationQueriesSchemes": ["App-prefs", "weixin", "alipay", "iosamap", "maps"],
             ]),
             sources: ["Sources/OneDayApp/**"],
             resources: ["App/Resources/**"],

@@ -92,6 +92,13 @@ final class DeviceSessionController {
         // 开关、默认关
         .clipboard: DevicePreferences.agentCallEnabled(.clipboard),
         .files: DevicePreferences.agentCallEnabled(.files),
+        // 批二三件：闹钟/通知有真系统权限（开关与权
+        // 限分开，与日历等现调件同）；打开目标无系
+        // 统权限、开关即唯一的门（与剪贴板同）
+        .alarm: DevicePreferences.agentCallEnabled(.alarm),
+        .notifications: DevicePreferences
+            .agentCallEnabled(.notifications),
+        .opener: DevicePreferences.agentCallEnabled(.opener),
         .health: false,
         .home: false,
     ]
@@ -125,6 +132,13 @@ final class DeviceSessionController {
         guard !isDemo, let config else { return }
         self.config = config
         refreshPermissions()
+        // 通知状态只有异步读法：进前台补刷一次真状
+        // 态回填缓存，变了 refreshPermissions 会带着
+        // 重注册（§113 登记的出入落点之一）
+        Task {
+            await NotificationEngine.readSystemState()
+            refreshPermissions()
+        }
         if machine.phase == .offline {
             _ = machine.handle(.startRequested)
             beginRegister()
@@ -198,10 +212,14 @@ final class DeviceSessionController {
             _ = await DevicePermissions.requestPhotosAccess()
         case .motion:
             _ = await DevicePermissions.requestMotionAccess()
-        case .clipboard, .files:
+        case .alarm:
+            _ = await dispatcher.alarms.requestAccess()
+        case .notifications:
+            _ = await dispatcher.notifications.requestAccess()
+        case .clipboard, .files, .opener:
             break // 无系统权限可申请：开关即唯一的门
         case .health, .home:
-            break // 批二未接线，不申请
+            break // 未接线，不申请
         }
         refreshPermissions()
     }

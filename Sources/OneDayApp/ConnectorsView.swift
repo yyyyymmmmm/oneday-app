@@ -903,6 +903,9 @@ struct ConnectorsView: View {
         case .motion: MotionDetailView(inSheet: true)
         case .clipboard: ClipboardDetailView()
         case .files: FilesDetailView()
+        case .alarm: AlarmDetailView()
+        case .notifications: NotificationsDetailView()
+        case .opener: OpenTargetDetailView()
         case .health, .home: EmptyView()
         }
     }

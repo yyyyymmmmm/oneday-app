@@ -13,14 +13,15 @@ final class DeviceSourcesTests: XCTestCase {
 
     func testRosterIntegrity() {
         let roster = DeviceSourceDirectory.roster(locale: Locale(identifier: "zh-Hans"))
-        XCTAssertEqual(roster.count, 9)
+        XCTAssertEqual(roster.count, 12)
         XCTAssertEqual(
             roster.map(\.sourceID),
             [
                 .calendar, .reminders, .contacts, .photos,
-                .motion, .clipboard, .files, .health, .home,
+                .motion, .clipboard, .files, .alarm,
+                .notifications, .opener, .health, .home,
             ],
-            "名册序＝目录呈现序（0.36.14 加照片/步数，扩容批一加剪贴板/文件）"
+            "名册序＝目录呈现序（0.36.14 加照片/步数，扩容批一加剪贴板/文件，扩容批二加闹钟/通知/打开目标）"
         )
         XCTAssertEqual(Set(roster.map(\.id)).count, roster.count)
         for entry in roster {
@@ -63,16 +64,19 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.motion, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.clipboard, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.files, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.alarm, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.notifications, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.opener, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.health, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.home, locale: Locale(identifier: "zh-Hans")).isWired)
     }
 
     // MARK: - 工具名册
 
-    /// 与 device-bridge TOOLS 表逐字对齐（十五件全
-    /// 集；扩容批一的五件待桥侧 TOOLS 表补齐后才真
-    /// 正双向对齐——App 侧先行定义、桥未上线时调用
-    /// 在桥侧就不存在，App 侧门控见注册载荷钉测）
+    /// 与 device-bridge TOOLS 表逐字对齐（二十件全
+    /// 集；扩容批一/批二的十件待桥侧 TOOLS 表补齐后
+    /// 才真正双向对齐——App 侧先行定义、桥未上线时
+    /// 调用在桥侧就不存在，App 侧门控见注册载荷钉测）
     func testToolRegistryMatchesBridge() {
         XCTAssertEqual(
             DeviceToolRegistry.all.map(\.name),
@@ -83,6 +87,8 @@ final class DeviceSourcesTests: XCTestCase {
                 "reminders_complete", "contacts_search",
                 "clipboard_get", "clipboard_set",
                 "files_list", "files_read", "files_write",
+                "alarm_set", "alarm_list", "alarm_cancel",
+                "notify_post", "open_target",
                 "health_daily_summary", "home_status",
             ]
         )
@@ -92,15 +98,17 @@ final class DeviceSourcesTests: XCTestCase {
                 "calendar_create_event", "calendar_update_event",
                 "reminders_create", "reminders_complete",
                 "clipboard_set", "files_write",
+                "alarm_set", "alarm_cancel",
+                "notify_post", "open_target",
             ],
-            "写工具恰六件（无 delete，设计档红线）"
+            "写工具恰十件（无 delete；alarm_cancel 是取消自设闹钟的配对动作、不是删用户数据，见 §113.6）"
         )
         XCTAssertFalse(
             DeviceToolRegistry.all.contains { $0.name.contains("delete") }
         )
     }
 
-    /// App 可执行集：已接线数据源的十二个；
+    /// App 可执行集：已接线数据源的十七个；
     /// device_status 桥本地应答不经手机；健康/家庭
     /// 未接线不上报
     func testAppExecutableSet() {
@@ -113,6 +121,8 @@ final class DeviceSourcesTests: XCTestCase {
                 "contacts_search",
                 "clipboard_get", "clipboard_set",
                 "files_list", "files_read", "files_write",
+                "alarm_set", "alarm_list", "alarm_cancel",
+                "notify_post", "open_target",
             ]
         )
     }
@@ -144,10 +154,13 @@ final class DeviceSourcesTests: XCTestCase {
                 .calendar: .granted, .reminders: .granted,
                 .contacts: .granted,
                 .clipboard: .notApplicable, .files: .notApplicable,
+                .alarm: .granted, .notifications: .granted,
+                .opener: .notApplicable,
             ],
             agentCallEnabled: [
                 .calendar: true, .reminders: true, .contacts: true,
                 .clipboard: true, .files: true,
+                .alarm: true, .notifications: true, .opener: true,
             ]
         )
         XCTAssertEqual(payload.permissions["calendar"], "granted")
@@ -159,8 +172,20 @@ final class DeviceSourcesTests: XCTestCase {
         )
         XCTAssertEqual(payload.permissions["files"], "granted")
         XCTAssertEqual(
+            payload.permissions["alarm"], "granted",
+            "闹钟是真权限键：报系统原态，桥可据此先行拦权限错误"
+        )
+        XCTAssertEqual(
+            payload.permissions["notifications"], "granted",
+            "通知同为真权限键，与 clipboard/files 的恒通口径不同、不许混"
+        )
+        XCTAssertEqual(
+            payload.permissions["opener"], "granted",
+            "打开目标无系统权限，同 notApplicable 放行口径"
+        )
+        XCTAssertEqual(
             payload.permissions["health"], "notDetermined",
-            "批二两件未接线，权限报未申请原态"
+            "健康/家庭未接线，权限报未申请原态"
         )
         XCTAssertNil(payload.permissions["contactsScope"])
         XCTAssertEqual(
@@ -322,7 +347,7 @@ final class DeviceSourcesTests: XCTestCase {
             .home: "待签名权益",
         ]
         XCTAssertEqual(
-            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 9
+            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 12
         )
         XCTAssertEqual(
             DeviceRowStatus.filtered(
@@ -422,6 +447,9 @@ final class DeviceSourcesTests: XCTestCase {
     func testNewSourcesAreNotSyncDatasets() {
         XCTAssertNil(DeviceSyncDataset.fromSource(.clipboard))
         XCTAssertNil(DeviceSyncDataset.fromSource(.files))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.alarm))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.notifications))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.opener))
     }
 
     /// 文案诚实钉：剪贴板说明必须如实写明读取会触
@@ -434,5 +462,63 @@ final class DeviceSourcesTests: XCTestCase {
         let files = DeviceSourceDirectory.descriptor(.files, locale: Locale(identifier: "zh-Hans"))
         XCTAssertTrue(files.agentNote.contains("文件夹之外"))
         XCTAssertTrue(files.footnote.contains("256 KB"))
+    }
+
+    // MARK: - 动作型三件（设备扩容批二）
+
+    /// 真权限两件的门控：权限不可用→工具不列、权限
+    /// 原样上报（桥据此先行回 permission_denied，与
+    /// clipboard/files 的 granted 恒通口径本质不同）；
+    /// 打开目标无系统权限、只认调用开关
+    func testRegistrationActionGating() {
+        let alarmOK = DeviceRegistration.payload(
+            permissions: [.alarm: .granted],
+            agentCallEnabled: [.alarm: true]
+        )
+        XCTAssertEqual(alarmOK.permissions["alarm"], "granted")
+        XCTAssertTrue(alarmOK.tools.contains("alarm_set"))
+        XCTAssertTrue(alarmOK.tools.contains("alarm_list"))
+        XCTAssertTrue(alarmOK.tools.contains("alarm_cancel"))
+        let alarmDenied = DeviceRegistration.payload(
+            permissions: [.alarm: .denied],
+            agentCallEnabled: [.alarm: true]
+        )
+        XCTAssertEqual(
+            alarmDenied.permissions["alarm"], "denied",
+            "真权限键报原态，不许学无权限件报 granted"
+        )
+        XCTAssertTrue(alarmDenied.tools.allSatisfy {
+            !$0.hasPrefix("alarm_")
+        })
+        let notifyUndecided = DeviceRegistration.payload(
+            permissions: [.notifications: .notDetermined],
+            agentCallEnabled: [.notifications: true]
+        )
+        XCTAssertFalse(notifyUndecided.tools.contains("notify_post"))
+        let openerOn = DeviceRegistration.payload(
+            permissions: [.opener: .notApplicable],
+            agentCallEnabled: [.opener: true]
+        )
+        XCTAssertTrue(openerOn.tools.contains("open_target"))
+        let openerOff = DeviceRegistration.payload(
+            permissions: [.opener: .notApplicable],
+            agentCallEnabled: [.opener: false]
+        )
+        XCTAssertFalse(openerOff.tools.contains("open_target"))
+    }
+
+    /// 文案诚实钉（批二）：闹钟必须写明穿透静音与
+    /// 专注（这是 AlarmKit 与普通通知的本质区别）；
+    /// 通知必须写明 64 条待发上限；打开目标必须写
+    /// 明白名单封闭——三件的承诺边界都写在明处
+    func testActionSourceCopyHonesty() {
+        let alarm = DeviceSourceDirectory.descriptor(.alarm, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(alarm.agentNote.contains("专注"))
+        XCTAssertTrue(alarm.blurb.contains("全屏"))
+        let notifications = DeviceSourceDirectory.descriptor(.notifications, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(notifications.agentNote.contains("64"))
+        let opener = DeviceSourceDirectory.descriptor(.opener, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(opener.agentNote.contains("白名单"))
+        XCTAssertTrue(opener.footnote.contains("白名单"))
     }
 }
