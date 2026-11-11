@@ -59,7 +59,7 @@ public enum CodeHighlight {
         code: String, language: String?
     ) -> [CodeToken] {
         guard !code.isEmpty else { return [] }
-        let key = normalizeLanguage(language) + "\u{1}" + code
+        let key = (normalizeLanguage(language) ?? "") + "\u{1}" + code
         return MarkdownParseMemos.codeTokens.value(for: key) {
             tokensUncached(code: code, language: language)
         }
