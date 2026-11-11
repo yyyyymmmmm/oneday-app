@@ -8941,3 +8941,11 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 分支 feat/provider-default（worktree ~/workspace/oneday-worktrees/pkg-provider-default，基线 main 3af9674／0.50.1），顶端以推送为准：代码 49c5d95＋记账 2115fde＋修复 8646835（if let 条件禁尾随闭包，load 回读改先赋值再绑定）。未合并、版本号未改。
 - 分支 CI：首跑 run 42982847656 于 Build 步失败（上述语法错，jobs API 终判 failure）；修复后 run 42983168116 **success**（jobs API build-native success、steps 零失败）。单测 Executed **1346、0 failures**（基线 1336＋本包新增 MainModelAssignmentTests 10，只增不减）。
 - i18n：validate_i18n 与 --check-code 双过（2620 键含 InfoPlist 13，三语全覆盖）；目录删旧键 1（预设错误文案）、新增 5（新文案/端点名/提示/两条行值格式）。
+
+### 141.7 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.50.12／134。merge a6f1f93（feat/provider-default 886437e → main，基线 3af9674／0.50.1；分支 CI run 42983168116 success、分支单测口径 1346）。**冲突两处**：Localizable.xcstrings——用入仓脚本 merge_xcstrings.py 三方并集（base 2603／ours 2622／theirs 2607 → 2626、**零冲突**），逐键核对分支有意删改精确落入：删旧键 1（「只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。」）、新增 5（「预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。」／「默认模型切换」／「在服务商「%@」」／「在「%@」」／「这台服务器还没登记网关服务商，暂时切不回默认服务商。」）、零改值；成品按 §140 先例取 main 现行文件做同键外科增删（删 1 增 5），与脚本并集逐键断言全等；ours 侧增删未被复活/丢失。DESIGN-V4.md——HEAD 侧 §128–§140 全保留，本节自 §119.6 后顺接文末改注 §141。Swift 全部自动合并：基线后 main 侧动过同名文件的只有 §137（DemoHermesClient 演示冻结），合并结果＝冻结形态＋本包两口演示存根（与相邻 modelOptions 存根同形态，模型面属演示保留面）；§119 两块式模型页形态、§120 人话文案（xcstrings 以 ours 为底外科合入）、§140 notice 接线均未动。
+- **节号改注（消歧）**：分支自选 §132 与发送空屏修复包 §135 节头注记的撞号脉络相冲（§133 MEDIA／§134 cx-model 均已被占、现行已用至 §140），顺延改注 **§141**、原自选号作废；141.1–141.6 小节号随迁、本条为 141.7；代码注释同步改注 11 处（HermesClient 2／ModelManagementStore 3／ModelSettingsView 3／MainModelAssignment 2／MainModelAssignmentTests 1），改后代码内 §132 零残留（DESIGN §135 历史记账中提及本分支自选号的原文属史实、不动）。
+- **单测对账**：Tests/ 仅新增 MainModelAssignmentTests.swift 一文件 10 法、既有测零删改（与分支 diff 逐项一致）；合并后 CI 单测 Executed **1451、0 failures**（合并前 main 1441＋本包 10，只增不减，与预期分毫不差），无例外项。validate_i18n 与 --check-code 双过（2639 键含 InfoPlist 13，三语全覆盖）。
+- **合并后 CI**：run 43000262723，jobs API 逐项终判 build-native 及全部 steps **success**（head fa2bf24）。定版 fa2bf24（版本五处＝Project.swift 四处 0.50.12/134＋SettingsView 页脚「OneDay v0.50.12」，grep 验无 0.50.11 残留）。
+- **独立验包**：IPA 落 ~/workspace/your_files/oneday-v0.50.12/OneDay-0.50.12.ipa，10,063,161 字节，md5 `56de1470cbfa61421d0cb05602fd44ab`（落盘与 CI 产物逐字一致），Info.plist 实读 0.50.12／134／site.didichou.oneday。真机待验沿 141.5 清单四条（Ailey 设默认徽标互换／主卡切回网关／杀 App 回读一致／端点不可达拒写有提示）。
