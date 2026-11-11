@@ -52,7 +52,7 @@ public enum DeviceSyncDataset: String, CaseIterable, Identifiable, Sendable, Cod
         case .reminders: return .reminders
         case .photos: return .photos
         case .motion: return .motion
-        case .health, .home: return nil
+        case .health, .home, .clipboard, .files: return nil
         }
     }
 
@@ -833,6 +833,11 @@ public enum DeviceSyncControl {
         case .granted, .limited: return .alreadyOn
         case .notDetermined: return .requestPermission
         case .writeOnly, .denied, .restricted: return .openSettings
+        case .notApplicable:
+            // 同步数据集永不取此态（只有剪贴板/文件
+            // 两件无系统权限、且不在同步面）；臂仅为
+            // 穷尽——无系统门可求，视同已开
+            return .alreadyOn
         }
     }
 

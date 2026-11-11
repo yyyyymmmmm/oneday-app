@@ -4,7 +4,10 @@ import Foundation
 /// design-20261110.md 定版）：手机自家的数据源——
 /// 日历/提醒/通讯录/健康/家庭（蓝牙已决不做、不列）；
 /// 0.36.14 同步制加照片/步数两件（无现调工具，通道
-/// 只有同步副本，见 DeviceSync）。
+/// 只有同步副本，见 DeviceSync）。设备扩容批一（预
+/// 制）再加剪贴板/文件两件：现调工具、限 App 自有
+/// Documents 区；iOS 没有这两件的系统权限，状态恒
+/// notApplicable、「允许智能体调用」开关即唯一的门。
 /// 机制＝大厂工具调用制：授权与数据都留在手机，智能
 /// 体需要时经 device-bridge 发工具调用、App 在线时现
 /// 读现回；服务器不存设备数据副本，桥只留会话状态与
@@ -32,6 +35,11 @@ public enum DeviceSourceID: String, CaseIterable, Identifiable, Sendable, Codabl
     /// 手机计步、不碰健康权益）
     case photos
     case motion
+    /// 剪贴板与 App 沙盒文件（设备扩容批一）：现调
+    /// 工具两组；无系统权限概念，权限状态恒
+    /// notApplicable，开关即唯一的门（名册文案说清）
+    case clipboard
+    case files
     case health
     case home
 
@@ -53,6 +61,12 @@ public enum DevicePermissionState: String, Equatable, Sendable {
     case writeOnly
     case denied
     case restricted
+    /// 无系统权限概念的数据源（剪贴板/沙盒文件）：
+    /// 不是「已授权」——iOS 压根没有这道门，App 内
+    /// 「允许智能体调用」开关是唯一的门。桥侧放行口
+    /// 径与 granted 同（bridgeValue 报 granted），但
+    /// 呈现必须用本档专名，不许冒充系统已授权
+    case notApplicable
 
     /// 上报给桥 permissions 字典的值。桥以精确等于
     /// "granted" 放行调用；limited 的子集在 App 内由
@@ -62,7 +76,7 @@ public enum DevicePermissionState: String, Equatable, Sendable {
     /// 已授权子集误报成 permission_denied
     public var bridgeValue: String {
         switch self {
-        case .granted, .limited: return "granted"
+        case .granted, .limited, .notApplicable: return "granted"
         case .notDetermined: return "notDetermined"
         case .writeOnly: return "writeOnly"
         case .denied: return "denied"
@@ -82,13 +96,14 @@ public enum DevicePermissionState: String, Equatable, Sendable {
         case .writeOnly: return L10n.string("仅写入权限", locale: locale)
         case .denied: return L10n.string("被拒", locale: locale)
         case .restricted: return L10n.string("受限制", locale: locale)
+        case .notApplicable: return L10n.string("无需系统权限", locale: locale)
         }
     }
 
     /// 权限是否足以执行该件工具（读或写）
     public var isUsable: Bool {
         switch self {
-        case .granted, .limited: return true
+        case .granted, .limited, .notApplicable: return true
         case .notDetermined, .writeOnly, .denied, .restricted:
             return false
         }
@@ -171,9 +186,9 @@ public enum DeviceSourceDirectory {
     }
 
     /// 名册源表（呈现序：日历→提醒→通讯录→照片→
-    /// 步数→健康→家庭；蓝牙已决不做、永不入册）；
-    /// 文本字段存简体源串、经 roster(locale:) 解析
-    /// 后才上屏
+    /// 步数→剪贴板→文件→健康→家庭；蓝牙已决不做、
+    /// 永不入册）；文本字段存简体源串、经 roster
+    /// (locale:) 解析后才上屏
     private static let rosterSource: [DeviceSourceDescriptor] = [
         DeviceSourceDescriptor(
             sourceID: .calendar,
@@ -222,6 +237,26 @@ public enum DeviceSourceDirectory {
             agentNote: "智能体可调用：读取同步副本里的每日步数、距离与爬楼（来源是手机计步，不是健康 App）",
             capabilityLine: "查每日步数 · 手机计步",
             footnote: "数据来自手机自身的计步，只同步按日合计；它和「健康」里的日摘要是两条来源，不混在一起。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .clipboard,
+            name: "剪贴板",
+            blurb: "你复制的文字 · 智能体可读也可写；读取时系统会弹出粘贴提示",
+            tileSymbol: "doc.on.clipboard", tileColorHex: 0x5856D6,
+            batch: 1,
+            agentNote: "智能体可调用：读取你当前剪贴板里的文字，或把一段文字放进你的剪贴板。这一件没有系统权限可开可关，详情页里的开关就是唯一的门；每次读取，系统都会弹出提示问你是否允许粘贴（这是苹果的规矩，绕不过去），App 不在前台时也读不到",
+            capabilityLine: "读你复制的文字 · 也可写入",
+            footnote: "剪贴板内容现读现回、不存副本；读取会触发系统粘贴提示，属正常现象。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .files,
+            name: "文件",
+            blurb: "OneDay 自己文件夹里的文件 · 智能体可列、读、写文本文件",
+            tileSymbol: "folder.fill", tileColorHex: 0x0A84FF,
+            batch: 1,
+            agentNote: "智能体可调用：列出、读取、写入 OneDay 自己文件夹里的文本文件，文件夹之外的任何东西都碰不到。这一件没有系统权限可开可关，详情页里的开关就是唯一的门",
+            capabilityLine: "只碰 OneDay 文件夹里的文件",
+            footnote: "只限 OneDay 自己文件夹内的文本文件；单次读取/写入上限 256 KB，路径越出这个文件夹一律拒绝。"
         ),
         DeviceSourceDescriptor(
             sourceID: .health,
@@ -287,6 +322,11 @@ public enum DeviceToolRegistry {
         DeviceToolSpec(name: "reminders_create", source: .reminders, isWrite: true),
         DeviceToolSpec(name: "reminders_complete", source: .reminders, isWrite: true),
         DeviceToolSpec(name: "contacts_search", source: .contacts, isWrite: false),
+        DeviceToolSpec(name: "clipboard_get", source: .clipboard, isWrite: false),
+        DeviceToolSpec(name: "clipboard_set", source: .clipboard, isWrite: true),
+        DeviceToolSpec(name: "files_list", source: .files, isWrite: false),
+        DeviceToolSpec(name: "files_read", source: .files, isWrite: false),
+        DeviceToolSpec(name: "files_write", source: .files, isWrite: true),
         DeviceToolSpec(name: "health_daily_summary", source: .health, isWrite: false),
         DeviceToolSpec(name: "home_status", source: .home, isWrite: false),
     ]
@@ -295,9 +335,10 @@ public enum DeviceToolRegistry {
         all.first { $0.name == name }
     }
 
-    /// 本版 App 真能执行的工具（批一三件的七个；
-    /// device_status 桥本地应答、不经手机，不在此列；
-    /// 健康/家庭的工具定义先行、App 未接线，不上报）
+    /// 本版 App 真能执行的工具（已接线数据源的十二
+    /// 个；device_status 桥本地应答、不经手机，不在
+    /// 此列；健康/家庭的工具定义先行、App 未接线，
+    /// 不上报）
     public static let appExecutable: [DeviceToolSpec] = all.filter {
         guard let source = $0.source else { return false }
         return DeviceSourceDirectory.descriptor(source).isWired
@@ -308,7 +349,7 @@ public enum DeviceToolRegistry {
 
 public enum DeviceRegistration {
     /// 组装 POST /device/session 的 permissions 与
-    /// tools：permissions 报五件系统权限原态（桥据此
+    /// tools：permissions 报各件系统权限原态（桥据此
     /// 先行拦 permission_denied、不惊动手机）；tools
     /// 只列「批一已接线＋权限可用＋调用开关开」的工
     /// 具——开关关掉的件不列，桥回 tool_unavailable。
@@ -371,7 +412,7 @@ public enum DeviceRowStatus {
             return L10n.string("被拒", locale: locale)
         case .writeOnly:
             return L10n.string("仅写入权限 · 不能读取", locale: locale)
-        case .granted, .limited:
+        case .granted, .limited, .notApplicable:
             var parts = [permission.label(locale: locale)]
             // 照片/步数没有现调通道（showsCallState
             // 为假）：不拼「可调用/调用已关」，它们的

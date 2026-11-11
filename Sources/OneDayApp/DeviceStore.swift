@@ -87,6 +87,11 @@ final class DeviceSessionController {
         .contacts: DevicePreferences.agentCallEnabled(.contacts),
         .photos: DevicePreferences.agentCallEnabled(.photos),
         .motion: DevicePreferences.agentCallEnabled(.motion),
+        // 剪贴板/文件无系统权限：开关不与权限对齐
+        // （没有权限可对齐），保持用户亲手拨的独立
+        // 开关、默认关
+        .clipboard: DevicePreferences.agentCallEnabled(.clipboard),
+        .files: DevicePreferences.agentCallEnabled(.files),
         .health: false,
         .home: false,
     ]
@@ -193,6 +198,8 @@ final class DeviceSessionController {
             _ = await DevicePermissions.requestPhotosAccess()
         case .motion:
             _ = await DevicePermissions.requestMotionAccess()
+        case .clipboard, .files:
+            break // 无系统权限可申请：开关即唯一的门
         case .health, .home:
             break // 批二未接线，不申请
         }

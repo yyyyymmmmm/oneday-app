@@ -75,6 +75,10 @@ extension DevicePermissions {
         case .contacts:
             let engine = ContactsEngine()
             return await engine.requestAccess()
+        case .clipboard, .files:
+            // 无系统权限概念：没有可发的系统请求，
+            // 现态即 notApplicable
+            return .notApplicable
         case .health, .home:
             return .notDetermined
         }

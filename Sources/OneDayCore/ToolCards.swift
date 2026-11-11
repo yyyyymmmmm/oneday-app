@@ -155,7 +155,8 @@ public enum ToolCardClassifier {
         // contacts_search 含 search 字样、归设备不归搜索
         if short.hasPrefix("calendar_") || short.hasPrefix("reminders_")
             || short.hasPrefix("contacts_") || short.hasPrefix("health_")
-            || short.hasPrefix("home_") || short.hasPrefix("device_") {
+            || short.hasPrefix("home_") || short.hasPrefix("device_")
+            || short.hasPrefix("clipboard_") || short.hasPrefix("files_") {
             return .device
         }
         // 连接管理系（0.36.10，诊断 D3-3 盲区补齐）
@@ -217,6 +218,11 @@ public enum ToolCardClassifier {
         case "reminders_create": return L10n.string("新建提醒", locale: locale)
         case "reminders_complete": return L10n.string("完成提醒", locale: locale)
         case "contacts_search": return L10n.string("查通讯录", locale: locale)
+        case "clipboard_get": return L10n.string("读取剪贴板", locale: locale)
+        case "clipboard_set": return L10n.string("写入剪贴板", locale: locale)
+        case "files_list": return L10n.string("查看文件列表", locale: locale)
+        case "files_read": return L10n.string("读取文件", locale: locale)
+        case "files_write": return L10n.string("写入文件", locale: locale)
         case "health_daily_summary": return L10n.string("查看健康摘要", locale: locale)
         case "home_status": return L10n.string("查看家庭状态", locale: locale)
         case "web_search": return L10n.string("联网搜索", locale: locale)

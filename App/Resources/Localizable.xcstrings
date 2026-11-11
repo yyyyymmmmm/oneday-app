@@ -52394,6 +52394,604 @@
           }
         }
       }
+    },
+    "无需系统权限": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无需系统权限"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無需系統權限"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No system permission needed"
+          }
+        }
+      }
+    },
+    "剪贴板": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪貼板"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clipboard"
+          }
+        }
+      }
+    },
+    "你复制的文字 · 智能体可读也可写；读取时系统会弹出粘贴提示": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你复制的文字 · 智能体可读也可写；读取时系统会弹出粘贴提示"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你複製的文字 · 智慧代理可讀也可寫；讀取時系統會彈出貼上提示"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text you copied · The agent can read and write it; reading triggers the system paste prompt"
+          }
+        }
+      }
+    },
+    "智能体可调用：读取你当前剪贴板里的文字，或把一段文字放进你的剪贴板。这一件没有系统权限可开可关，详情页里的开关就是唯一的门；每次读取，系统都会弹出提示问你是否允许粘贴（这是苹果的规矩，绕不过去），App 不在前台时也读不到": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：读取你当前剪贴板里的文字，或把一段文字放进你的剪贴板。这一件没有系统权限可开可关，详情页里的开关就是唯一的门；每次读取，系统都会弹出提示问你是否允许粘贴（这是苹果的规矩，绕不过去），App 不在前台时也读不到"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：讀取你目前剪貼板裡的文字，或把一段文字放進你的剪貼板。這一件沒有系統權限可開可關，詳情頁裡的開關就是唯一的門；每次讀取，系統都會彈出提示問你是否允許貼上（這是蘋果的規矩，繞不過去），App 不在前台時也讀不到"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent can read the text currently on your clipboard, or put text onto it. There's no system permission for this one — the switch on the detail page is the only gate. Every read pops up the system prompt asking whether to allow pasting (that's Apple's rule; there's no way around it), and nothing can be read while the app is in the background."
+          }
+        }
+      }
+    },
+    "读你复制的文字 · 也可写入": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读你复制的文字 · 也可写入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讀你複製的文字 · 也可寫入"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reads what you copied · Can also write"
+          }
+        }
+      }
+    },
+    "剪贴板内容现读现回、不存副本；读取会触发系统粘贴提示，属正常现象。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板内容现读现回、不存副本；读取会触发系统粘贴提示，属正常现象。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪貼板內容現讀現回、不存副本；讀取會觸發系統貼上提示，屬正常現象。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clipboard content is read on demand and never stored. Reading triggers the system paste prompt — that's expected."
+          }
+        }
+      }
+    },
+    "OneDay 自己文件夹里的文件 · 智能体可列、读、写文本文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 自己文件夹里的文件 · 智能体可列、读、写文本文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 自己資料夾裡的檔案 · 智慧代理可列、讀、寫文字檔案"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files in OneDay's own folder · The agent can list, read, and write text files"
+          }
+        }
+      }
+    },
+    "智能体可调用：列出、读取、写入 OneDay 自己文件夹里的文本文件，文件夹之外的任何东西都碰不到。这一件没有系统权限可开可关，详情页里的开关就是唯一的门": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：列出、读取、写入 OneDay 自己文件夹里的文本文件，文件夹之外的任何东西都碰不到。这一件没有系统权限可开可关，详情页里的开关就是唯一的门"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：列出、讀取、寫入 OneDay 自己資料夾裡的文字檔案，資料夾之外的任何東西都碰不到。這一件沒有系統權限可開可關，詳情頁裡的開關就是唯一的門"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent can list, read, and write text files in OneDay's own folder — and nothing outside that folder. There's no system permission for this one; the switch on the detail page is the only gate."
+          }
+        }
+      }
+    },
+    "只碰 OneDay 文件夹里的文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只碰 OneDay 文件夹里的文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只碰 OneDay 資料夾裡的檔案"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only touches files in OneDay's folder"
+          }
+        }
+      }
+    },
+    "只限 OneDay 自己文件夹内的文本文件；单次读取/写入上限 256 KB，路径越出这个文件夹一律拒绝。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只限 OneDay 自己文件夹内的文本文件；单次读取/写入上限 256 KB，路径越出这个文件夹一律拒绝。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只限 OneDay 自己資料夾內的文字檔案；單次讀取/寫入上限 256 KB，路徑越出這個資料夾一律拒絕。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limited to text files inside OneDay's own folder. 256 KB max per read or write, and any path outside the folder is refused."
+          }
+        }
+      }
+    },
+    "读取剪贴板": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取剪贴板"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讀取剪貼板"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read clipboard"
+          }
+        }
+      }
+    },
+    "写入剪贴板": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写入剪贴板"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "寫入剪貼板"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write to clipboard"
+          }
+        }
+      }
+    },
+    "查看文件列表": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看文件列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看檔案列表"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "List files"
+          }
+        }
+      }
+    },
+    "这一件没有系统权限可开可关：这个开关就是唯一的门，关掉后智能体就读不到、也写不了。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这一件没有系统权限可开可关：这个开关就是唯一的门，关掉后智能体就读不到、也写不了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一件沒有系統權限可開可關：這個開關就是唯一的門，關掉後智慧代理就讀不到、也寫不了。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There's no system permission for this one — this switch is the only gate. Turn it off and the agent can neither read nor write."
+          }
+        }
+      }
+    },
+    "当前内容": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前內容"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current content"
+          }
+        }
+      }
+    },
+    "这里不会自动读你的剪贴板。想看现在剪贴板里的文字，点下面的按钮现读一次——读取时系统可能弹出粘贴提示，这是苹果的规矩。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里不会自动读你的剪贴板。想看现在剪贴板里的文字，点下面的按钮现读一次——读取时系统可能弹出粘贴提示，这是苹果的规矩。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這裡不會自動讀你的剪貼板。想看現在剪貼板裡的文字，點下面的按鈕現讀一次——讀取時系統可能彈出貼上提示，這是蘋果的規矩。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This page never reads your clipboard on its own. To see the text currently on it, tap the button below to read it once — iOS may show a paste prompt when it does; that's Apple's rule."
+          }
+        }
+      }
+    },
+    "查看当前剪贴板文字": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看当前剪贴板文字"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看目前剪貼板文字"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View current clipboard text"
+          }
+        }
+      }
+    },
+    "（剪贴板是空的）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（剪贴板是空的）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（剪貼板是空的）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(The clipboard is empty)"
+          }
+        }
+      }
+    },
+    "剪贴板里现在没有文字（可能是图片，或者本来就是空的）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板里现在没有文字（可能是图片，或者本来就是空的）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪貼板裡現在沒有文字（可能是圖片，或者本來就是空的）。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There's no text on the clipboard right now — it may hold an image, or simply be empty."
+          }
+        }
+      }
+    },
+    "根目录": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "根目录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "根目錄"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Root folder"
+          }
+        }
+      }
+    },
+    "这个文件夹里还没有文件。智能体写入的文件会出现在这里。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个文件夹里还没有文件。智能体写入的文件会出现在这里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個資料夾裡還沒有檔案。智慧代理寫入的檔案會出現在這裡。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No files in this folder yet. Files the agent writes will appear here."
+          }
+        }
+      }
+    },
+    "这个文件夹是空的。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个文件夹是空的。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個資料夾是空的。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This folder is empty."
+          }
+        }
+      }
+    },
+    "返回上一级": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回上一级"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回上一級"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to parent folder"
+          }
+        }
+      }
+    },
+    "读取文件夹失败": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取文件夹失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讀取資料夾失敗"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to read the folder"
+          }
+        }
+      }
+    },
+    "读取文件失败": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取文件失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讀取檔案失敗"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to read the file"
+          }
+        }
+      }
+    },
+    "通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。健康与家庭还差系统签名权益，开通前只列名、不显数据。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。健康与家庭还差系统签名权益，开通前只列名、不显数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通訊錄、日曆、提醒、照片、步數這五件，進詳情頁只有一個權限開關：開著就自動同步、智慧代理能用，關要去系統設定裡關。剪貼板與檔案沒有系統權限，詳情頁裡的開關就是唯一的門。健康與家庭還差系統簽名權益，開通前只列名、不顯資料。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For Contacts, Calendar, Reminders, Photos, and Steps there is a single permission switch on the detail page: on means auto-sync and the agent can use it; turning it off happens in system Settings. Clipboard and Files have no system permission — the switch on their detail page is the only gate. Health and Home still need signing entitlements; until then they are listed by name only, with no data shown."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

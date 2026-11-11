@@ -73,7 +73,8 @@ struct DeviceAppIconView: View {
         switch source {
         case .contacts:
             return Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
-        case .calendar, .reminders, .photos, .motion, .health, .home:
+        case .calendar, .reminders, .photos, .motion, .health, .home,
+             .clipboard, .files:
             return .white
         }
     }
@@ -88,6 +89,8 @@ struct DeviceAppIconView: View {
         case .motion: motionArtwork
         case .health: healthArtwork
         case .home: homeArtwork
+        case .clipboard: clipboardArtwork
+        case .files: filesArtwork
         }
     }
 
@@ -344,6 +347,86 @@ struct DeviceAppIconView: View {
         path.closeSubpath()
         return path
     }
+
+    // 剪贴板（设备扩容批一）：没有对应的系统应用
+    // 可复刻，按通用字形自绘——浅灰板身＋顶部夹子
+    // ＋两行字线，中性灰、不冒充任何 App 图标
+    private var clipboardArtwork: some View {
+        ZStack {
+            RoundedRectangle(
+                cornerRadius: size * 0.10, style: .continuous
+            )
+            .fill(Color(hex: 0xE9E9EE))
+            .frame(width: size * 0.62, height: size * 0.74)
+            RoundedRectangle(
+                cornerRadius: size * 0.06, style: .continuous
+            )
+            .fill(Color(hex: 0xC7C7CC))
+            .frame(width: size * 0.30, height: size * 0.13)
+            .offset(y: -size * 0.36)
+            VStack(spacing: size * 0.09) {
+                RoundedRectangle(cornerRadius: size * 0.03)
+                    .fill(Color(hex: 0xAEAEB2))
+                    .frame(width: size * 0.38, height: size * 0.07)
+                RoundedRectangle(cornerRadius: size * 0.03)
+                    .fill(Color(hex: 0xAEAEB2))
+                    .frame(width: size * 0.30, height: size * 0.07)
+            }
+            .offset(y: size * 0.08)
+        }
+        .frame(width: size, height: size)
+    }
+
+    // 文件（设备扩容批一）：指称系统「文件」应用，
+    // 按其官方构图复刻蓝文件夹——后板带左耳、前盖
+    // 略浅，两层蓝（同 §4 复刻例外口径）
+    private var filesArtwork: some View {
+        let box = CGRect(
+            x: size * 0.04, y: size * 0.08,
+            width: size * 0.92, height: size * 0.84
+        )
+        return ZStack {
+            folderBackPath(in: box).fill(Color(hex: 0x0A84FF))
+            folderFrontPath(in: box).fill(Color(hex: 0x59ACFF))
+        }
+        .frame(width: size, height: size)
+    }
+
+    /// 文件夹后板（100×100 设计盒：左上凸耳＋主体）
+    private func folderBackPath(in rect: CGRect) -> Path {
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(
+                x: rect.minX + x / 100 * rect.width,
+                y: rect.minY + y / 100 * rect.height
+            )
+        }
+        var path = Path()
+        path.move(to: pt(8, 80))
+        path.addLine(to: pt(8, 28))
+        path.addLine(to: pt(42, 28))
+        path.addLine(to: pt(50, 38))
+        path.addLine(to: pt(92, 38))
+        path.addLine(to: pt(92, 80))
+        path.closeSubpath()
+        return path
+    }
+
+    /// 文件夹前盖（100×100 设计盒：上宽下窄的梯形）
+    private func folderFrontPath(in rect: CGRect) -> Path {
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(
+                x: rect.minX + x / 100 * rect.width,
+                y: rect.minY + y / 100 * rect.height
+            )
+        }
+        var path = Path()
+        path.move(to: pt(4, 46))
+        path.addLine(to: pt(96, 46))
+        path.addLine(to: pt(89, 84))
+        path.addLine(to: pt(11, 84))
+        path.closeSubpath()
+        return path
+    }
 }
 
 // MARK: - 状态头（五件共用）
@@ -417,9 +500,14 @@ struct DeviceStatusHeader: View {
 
             if syncDataset == nil {
                 // 健康/家庭（批二）保持原双层呈现不
-                // 动：权限开关＋允许调用＋通道状态
+                // 动：权限开关＋允许调用＋通道状态。
+                // 剪贴板/文件（扩容批一）无系统权限：
+                // 不画假的「系统权限」行，只剩调用开
+                // 关这一个门，卡内一句说清区别
                 Section {
-                    permissionRow
+                    if permission != .notApplicable {
+                        permissionRow
+                    }
                     Toggle(isOn: agentCallBinding) {
                         VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text("允许智能体调用")
@@ -435,6 +523,11 @@ struct DeviceStatusHeader: View {
                         }
                     }
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    if permission == .notApplicable {
+                        Text("这一件没有系统权限可开可关：这个开关就是唯一的门，关掉后智能体就读不到、也写不了。")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
                 } header: {
                     headerText("授权与调用")
                 }
@@ -525,6 +618,10 @@ struct DeviceStatusHeader: View {
                     case .denied, .restricted, .writeOnly:
                         openSystemSettings()
                     case .granted, .limited:
+                        break
+                    case .notApplicable:
+                        // 无系统权限两件不渲染权限行，
+                        // 此臂仅为穷尽（不会走到）
                         break
                     }
                 } else if permission.isUsable {
@@ -1299,7 +1396,7 @@ struct DevicePermissionsView: View {
             } header: {
                 headerText("你的设备")
             } footer: {
-                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
+                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1472,7 +1569,235 @@ struct DevicePermissionsView: View {
         case .contacts: ContactsDetailView()
         case .photos: PhotosDetailView()
         case .motion: MotionDetailView()
+        case .clipboard: ClipboardDetailView()
+        case .files: FilesDetailView()
         case .health, .home: EmptyView()
+        }
+    }
+}
+
+// MARK: - 剪贴板详情（设备扩容批一）
+
+/// 剪贴板详情：状态头（无系统权限行、只有调用开
+/// 关）＋当前内容区。内容区不自动读剪贴板——读别
+/// 家 App 的内容会触发系统粘贴提示，必须由用户亲
+/// 手点按钮这一读才发生，文案如实说明
+struct ClipboardDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var preview: String?
+    @State private var previewNote: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .clipboard)
+            Section {
+                Text("这里不会自动读你的剪贴板。想看现在剪贴板里的文字，点下面的按钮现读一次——读取时系统可能弹出粘贴提示，这是苹果的规矩。")
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                Button("查看当前剪贴板文字") { readPreview() }
+                if let preview {
+                    Text(preview)
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                        .textSelection(.enabled)
+                } else if let previewNote {
+                    Text(previewNote)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            } header: {
+                headerText("当前内容")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+    }
+
+    private func readPreview() {
+        if let text = controller.dispatcher.clipboard.currentText() {
+            preview = text.isEmpty ? "（剪贴板是空的）" : text
+            previewNote = nil
+        } else {
+            preview = nil
+            previewNote = "剪贴板里现在没有文字（可能是图片，或者本来就是空的）。"
+        }
+    }
+}
+
+// MARK: - 文件详情（设备扩容批一）
+
+/// 文件详情：状态头＋本地文件夹浏览（只限 OneDay
+/// 自己的文件夹，与工具同一引擎同一边界）。点文
+/// 件夹下钻、点文件看文本预览；读不出（非文本/
+/// 超限）如实显错误原文。本页不挂下拉刷新（sheet
+/// 与 push 两路共用，下拉手势归 sheet 关闭——
+/// 0.36.5 的教训），靠导航动作重读
+struct FilesDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var currentPath = ""
+    @State private var items: [DeviceFileItem] = []
+    @State private var loadError: String?
+    @State private var previewTitle: String?
+    @State private var previewText: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .files)
+            Section {
+                if let loadError {
+                    Text(loadError)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                } else if items.isEmpty {
+                    Text(
+                        currentPath.isEmpty
+                            ? "这个文件夹里还没有文件。智能体写入的文件会出现在这里。"
+                            : "这个文件夹是空的。"
+                    )
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .padding(.vertical, OneDayMetrics.spacingS)
+                }
+                ForEach(items) { item in
+                    fileRow(item)
+                }
+            } header: {
+                headerText(
+                    currentPath.isEmpty ? "根目录" : currentPath
+                )
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+
+            if !currentPath.isEmpty {
+                Section {
+                    Button("返回上一级") { goUp() }
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
+            }
+
+            if let previewTitle {
+                Section {
+                    Text(previewTitle)
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    if let previewText {
+                        Text(previewText)
+                            .font(.body)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .textSelection(.enabled)
+                    }
+                } header: {
+                    headerText("预览")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .task { load() }
+    }
+
+    private func fileRow(_ item: DeviceFileItem) -> some View {
+        Button {
+            if item.isDirectory {
+                currentPath = item.path
+                previewTitle = nil
+                previewText = nil
+                load()
+            } else {
+                showPreview(item)
+            }
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(
+                    systemName: item.isDirectory
+                        ? "folder.fill" : "doc.text"
+                )
+                .foregroundStyle(
+                    item.isDirectory
+                        ? Color(hex: 0x0A84FF) : Palette.inkSecondary
+                )
+                .accessibilityHidden(true)
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.spacingMicro
+                ) {
+                    Text(item.name)
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Text(subline(item))
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+    }
+
+    private func subline(_ item: DeviceFileItem) -> String {
+        if item.isDirectory { return "文件夹" }
+        let size = ByteCountFormatter.string(
+            fromByteCount: item.sizeBytes, countStyle: .file
+        )
+        return "\(size) · \(DisplayDate.dateTime(item.modifiedAt))"
+    }
+
+    private func goUp() {
+        let parts = currentPath.split(separator: "/")
+        currentPath = parts.dropLast().joined(separator: "/")
+        previewTitle = nil
+        previewText = nil
+        load()
+    }
+
+    private func load() {
+        do {
+            items = try controller.dispatcher.files.listItems(
+                relativePath: currentPath
+            )
+            loadError = nil
+        } catch let error as DeviceToolError {
+            loadError = error.message
+            items = []
+        } catch {
+            loadError = "读取文件夹失败"
+            items = []
+        }
+    }
+
+    private func showPreview(_ item: DeviceFileItem) {
+        previewTitle = item.name
+        do {
+            previewText = try controller.dispatcher.files
+                .readText(relativePath: item.path)
+        } catch let error as DeviceToolError {
+            previewText = error.message
+        } catch {
+            previewText = "读取文件失败"
         }
     }
 }

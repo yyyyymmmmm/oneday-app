@@ -13,14 +13,14 @@ final class DeviceSourcesTests: XCTestCase {
 
     func testRosterIntegrity() {
         let roster = DeviceSourceDirectory.roster(locale: Locale(identifier: "zh-Hans"))
-        XCTAssertEqual(roster.count, 7)
+        XCTAssertEqual(roster.count, 9)
         XCTAssertEqual(
             roster.map(\.sourceID),
             [
                 .calendar, .reminders, .contacts, .photos,
-                .motion, .health, .home,
+                .motion, .clipboard, .files, .health, .home,
             ],
-            "名册序＝目录呈现序（0.36.14 加照片/步数）"
+            "名册序＝目录呈现序（0.36.14 加照片/步数，扩容批一加剪贴板/文件）"
         )
         XCTAssertEqual(Set(roster.map(\.id)).count, roster.count)
         for entry in roster {
@@ -61,13 +61,18 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.contacts, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.photos, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.motion, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.clipboard, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.files, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.health, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.home, locale: Locale(identifier: "zh-Hans")).isWired)
     }
 
     // MARK: - 工具名册
 
-    /// 与 device-bridge TOOLS 表逐字对齐（十件全集）
+    /// 与 device-bridge TOOLS 表逐字对齐（十五件全
+    /// 集；扩容批一的五件待桥侧 TOOLS 表补齐后才真
+    /// 正双向对齐——App 侧先行定义、桥未上线时调用
+    /// 在桥侧就不存在，App 侧门控见注册载荷钉测）
     func testToolRegistryMatchesBridge() {
         XCTAssertEqual(
             DeviceToolRegistry.all.map(\.name),
@@ -76,6 +81,8 @@ final class DeviceSourcesTests: XCTestCase {
                 "calendar_create_event", "calendar_update_event",
                 "reminders_list", "reminders_create",
                 "reminders_complete", "contacts_search",
+                "clipboard_get", "clipboard_set",
+                "files_list", "files_read", "files_write",
                 "health_daily_summary", "home_status",
             ]
         )
@@ -84,16 +91,18 @@ final class DeviceSourcesTests: XCTestCase {
             [
                 "calendar_create_event", "calendar_update_event",
                 "reminders_create", "reminders_complete",
+                "clipboard_set", "files_write",
             ],
-            "写工具恰四件（无 delete，设计档红线）"
+            "写工具恰六件（无 delete，设计档红线）"
         )
         XCTAssertFalse(
             DeviceToolRegistry.all.contains { $0.name.contains("delete") }
         )
     }
 
-    /// App 可执行集：批一三件的七个；device_status 桥
-    /// 本地应答不经手机；健康/家庭未接线不上报
+    /// App 可执行集：已接线数据源的十二个；
+    /// device_status 桥本地应答不经手机；健康/家庭
+    /// 未接线不上报
     func testAppExecutableSet() {
         XCTAssertEqual(
             Set(DeviceToolRegistry.appExecutable.map(\.name)),
@@ -102,6 +111,8 @@ final class DeviceSourcesTests: XCTestCase {
                 "calendar_update_event", "reminders_list",
                 "reminders_create", "reminders_complete",
                 "contacts_search",
+                "clipboard_get", "clipboard_set",
+                "files_list", "files_read", "files_write",
             ]
         )
     }
@@ -132,14 +143,21 @@ final class DeviceSourcesTests: XCTestCase {
             permissions: [
                 .calendar: .granted, .reminders: .granted,
                 .contacts: .granted,
+                .clipboard: .notApplicable, .files: .notApplicable,
             ],
             agentCallEnabled: [
                 .calendar: true, .reminders: true, .contacts: true,
+                .clipboard: true, .files: true,
             ]
         )
         XCTAssertEqual(payload.permissions["calendar"], "granted")
         XCTAssertEqual(payload.permissions["reminders"], "granted")
         XCTAssertEqual(payload.permissions["contacts"], "granted")
+        XCTAssertEqual(
+            payload.permissions["clipboard"], "granted",
+            "无系统权限两件：桥侧放行口径报 granted（呈现层另用专名，不冒充已授权）"
+        )
+        XCTAssertEqual(payload.permissions["files"], "granted")
         XCTAssertEqual(
             payload.permissions["health"], "notDetermined",
             "批二两件未接线，权限报未申请原态"
@@ -304,7 +322,7 @@ final class DeviceSourcesTests: XCTestCase {
             .home: "待签名权益",
         ]
         XCTAssertEqual(
-            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 7
+            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 9
         )
         XCTAssertEqual(
             DeviceRowStatus.filtered(
@@ -325,5 +343,96 @@ final class DeviceSourcesTests: XCTestCase {
             , locale: Locale(identifier: "zh-Hans")).map(\.sourceID),
             [.health, .home]
         )
+    }
+
+    // MARK: - 无系统权限两件（设备扩容批一）
+
+    /// notApplicable 语义钉：桥口径放行（granted）、
+    /// 可用性为真，但呈现专名是「无需系统权限」——
+    /// 绝不许与「已授权」混同（不画假的系统权限）
+    func testNotApplicablePermissionSemantics() {
+        let state = DevicePermissionState.notApplicable
+        XCTAssertEqual(state.bridgeValue, "granted")
+        XCTAssertTrue(state.isUsable)
+        XCTAssertEqual(
+            state.label(locale: Locale(identifier: "zh-Hans")),
+            "无需系统权限"
+        )
+        XCTAssertNotEqual(
+            state.label(locale: Locale(identifier: "zh-Hans")),
+            DevicePermissionState.granted.label(
+                locale: Locale(identifier: "zh-Hans")
+            )
+        )
+    }
+
+    /// 一开关门控：无系统权限两件的工具只由「允许
+    /// 智能体调用」开关决定列不列——关→不列（桥回
+    /// tool_unavailable；桥端 TOOLS 未上线时同理，
+    /// 工具压根不在注册清单里）；开→全列
+    func testRegistrationNotApplicableGating() {
+        let off = DeviceRegistration.payload(
+            permissions: [
+                .clipboard: .notApplicable, .files: .notApplicable,
+            ],
+            agentCallEnabled: [.clipboard: false, .files: false]
+        )
+        XCTAssertTrue(off.tools.allSatisfy {
+            !$0.hasPrefix("clipboard_") && !$0.hasPrefix("files_")
+        })
+        let on = DeviceRegistration.payload(
+            permissions: [
+                .clipboard: .notApplicable, .files: .notApplicable,
+            ],
+            agentCallEnabled: [.clipboard: true, .files: true]
+        )
+        XCTAssertEqual(
+            Set(on.tools),
+            [
+                "clipboard_get", "clipboard_set",
+                "files_list", "files_read", "files_write",
+            ]
+        )
+    }
+
+    /// 目录行：无系统权限两件的状态字以专名打头、
+    /// 后接调用态（不许出现「已授权」）
+    func testRowStatusNotApplicable() {
+        let clipboard = DeviceSourceDirectory.descriptor(.clipboard, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertEqual(
+            DeviceRowStatus.line(
+                descriptor: clipboard, permission: .notApplicable,
+                agentCallEnabled: true, sessionOnline: true,
+                metric: nil
+            , locale: Locale(identifier: "zh-Hans")),
+            "无需系统权限 · 可调用"
+        )
+        XCTAssertEqual(
+            DeviceRowStatus.line(
+                descriptor: clipboard, permission: .notApplicable,
+                agentCallEnabled: false, sessionOnline: true,
+                metric: nil
+            , locale: Locale(identifier: "zh-Hans")),
+            "无需系统权限 · 调用已关"
+        )
+    }
+
+    /// 剪贴板/文件不是同步数据集：同步制五件之外，
+    /// fromSource 恒回 nil（不许混进副本通道）
+    func testNewSourcesAreNotSyncDatasets() {
+        XCTAssertNil(DeviceSyncDataset.fromSource(.clipboard))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.files))
+    }
+
+    /// 文案诚实钉：剪贴板说明必须如实写明读取会触
+    /// 发系统粘贴提示（不许假装无感）；文件说明必
+    /// 须写明只限自家文件夹与大小上限
+    func testNewSourceCopyHonesty() {
+        let clipboard = DeviceSourceDirectory.descriptor(.clipboard, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(clipboard.blurb.contains("粘贴提示"))
+        XCTAssertTrue(clipboard.agentNote.contains("没有系统权限"))
+        let files = DeviceSourceDirectory.descriptor(.files, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(files.agentNote.contains("文件夹之外"))
+        XCTAssertTrue(files.footnote.contains("256 KB"))
     }
 }

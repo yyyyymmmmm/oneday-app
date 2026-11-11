@@ -7772,3 +7772,60 @@ def greet(name):
 
 - 单测：新增 CompanionProbeTests **30 法**（版本形态/比较 4＋健康派生 7＋现读派生 4＋升级门 2＋解析 4＋记录互转 1＋呈现文案 8），既有测试零改动。本机无 Swift 工具链：括号配平/键对账/签名衔接静态自查已做，编译与全套单测终判等合并后 CI。
 - 未决：①minAppVersion 的服务端现值（front 默认 0.37.0、env 可覆盖）App 侧只消费不校验服务端配置；②探测失败不进台账/通知（安静口径，设置页一行说清即可）；③伴生 apiLevel 的消费（App 侧桥面兼容判断）未立项，info 已回、暂不消费。
+
+## §111 设备扩容批一（预制分支 feat/device-x1，基线 main 4ce2df1；节号自选 §111，合并时主线终审如撞号顺延）
+
+缘起：设备表面图（device-surface-map-20261110.md）A 档欠账——剪贴板（A12）与文件（A13）两件一直只有草案名、未接线。本包按连接器设计档既有纪律把两件落成与现行七件同构的现调工具（App 侧全量），桥侧 TOOLS 表在 Hermes 仓外、单列待办（111.5）。
+
+### 111.1 工具契约（App 侧已接线，DeviceToolRegistry 逐字名册）
+
+| 工具 | 入参 | 成功回执 | 备注 |
+|---|---|---|---|
+| clipboard_get | 无 | {readAt, type: text/url/image/empty, text?, note?} | 非文字只回类型、不编内容；读别家 App 内容触发系统粘贴提示（见 111.4 文案钉） |
+| clipboard_set | {text（必填，空串合法＝清空）, idempotencyKey} | {written, verified, characters} | 写后回读比对才报成功；账本 objectID 恒 "clipboard"（单例对象，只记元数据） |
+| files_list | {path?（缺省根目录）} | {path, readAt, count, entries[{name, path, isDirectory, sizeBytes?, modifiedAt}], truncated?} | 一层不递归；上限 500 条、超了标 truncated |
+| files_read | {path} | {path, readAt, bytes, content} | 只回 UTF-8 文本；超 256 KB/非文本如实报错、不静默截断 |
+| files_write | {path, content, idempotencyKey} | {path, written, verified, bytes} | 父目录自动建、原子写、回读逐字节比对；账本 objectID＝规范相对路径；回放只带文件元数据、不重读内容 |
+
+四纪律照旧：写工具必带 idempotencyKey（解析层强校验）＋桥/App 双层去重（App 账本 24 小时窗口）；写完回读验证才报成功；设备离线即失败不排队（既有会话机制，桥 45 秒无心跳判离线）；错误结构化（invalid_arguments/permission_denied/tool_unavailable/device_error 与既有契约同码）。
+
+### 111.2 授权形态：新权限档 notApplicable（跟一开关原则）
+
+- 两件在 iOS 没有系统权限概念。DevicePermissionState 新增 .notApplicable：bridgeValue 报 "granted"（桥侧放行口径）、isUsable 为真、label 专名「无需系统权限」——与「已授权」严格区分，不画假的系统权限状态（钉测 testNotApplicablePermissionSemantics）。
+- App 层 DevicePermissions.currentStates 对两件恒报此档；DeviceSessionController 的开关不与权限对齐（refreshPermissions 的对齐只作用于同步五件），保持用户亲手拨的独立开关、默认关、UserDefaults 逐件存。
+- 详情页状态头：不渲染「系统权限」行（DeviceStatusHeader 对 notApplicable 省行），只剩「允许智能体调用」一个开关＋卡内一句「这一件没有系统权限可开可关：这个开关就是唯一的门…」；目录行/总览行状态字同源拼「无需系统权限 · 可调用/调用已关/会话未连接」。
+- 注册载荷：permissions 两键恒 "granted"（桥不要据此拦 permission_denied，见 111.5），tools 只由开关门控（关→不列）。
+
+### 111.3 路径安全（文件件）
+
+- Core 纯函数 SandboxPath.normalize：相对路径限定——绝对路径（/ 开头）拒、".." 弹栈越界拒、NUL 拒、空段与 "." 收敛；读/写另经 normalizeFilePath 拒根目录本身。逐条钉测（testSandboxPathNormalize）。
+- App 层 SandboxFilesEngine 二次保险：URL 逐段拼后 resolvingSymlinksInPath＋standardizedFileURL 仍须落在 Documents 根内（前缀校验），越界回 invalid_arguments。
+- 上限：单次读/写 256 KB（SandboxPath.maxContentBytes，写在解析层先拒）、列表 500 条。
+
+### 111.4 呈现与文案
+
+- 名册 7→9（呈现序：日历→提醒→通讯录→照片→步数→剪贴板→文件→健康→家庭）；两件 batch 1 已接线。剪贴板条目文案如实写明「读取时系统会弹出粘贴提示」（blurb/agentNote/footnote 三处口径一致，testNewSourceCopyHonesty 钉）；文件条目写明只限自家文件夹与 256 KB 上限。
+- 详情页两页新件：剪贴板页不自动读剪贴板（读本身可能触发系统提示），当前内容区只在用户亲手点按钮时现读一次；文件页＝本地文件夹浏览（与工具同一引擎同一边界，下钻/文本预览/错误原文如实显），不挂下拉刷新（sheet 与 push 共用，下拉归 sheet 关闭——0.36.5 口径）。
+- 图标：文件按宪法 §4 复刻例外自绘系统「文件」蓝文件夹；剪贴板无对应系统应用，中性灰自绘字形、不冒充 App 图标。
+- ToolCards：五工具归 .device 类（files_* 不被通用 file 类吞），中文标题五条（读取/写入剪贴板、查看文件列表、读取/写入文件）。
+- L10n 补 26 键（目录 2278→2304 键、连 InfoPlist 共 2312 键，validate_i18n.py 实跑通过）：名册五字段×2、无需系统权限、卡片标题 3、详情页与总览文案等；繁体按目录既有惯例（智能体→智慧代理、调用→呼叫、文件夹→資料夾）。总览页脚文案换新整句（旧键留目录待主线处置，同 §109.5 先例）。执行层回执文本（引擎错误人话，给桥与智能体读）按 §109.5 先例不入目录。
+
+### 111.5 桥侧待办清单（device-bridge／伴生 device 模块，后续接线包）
+
+1. TOOLS 表补五件（名与 App 侧 DeviceToolRegistry 逐字一致）：clipboard_get/clipboard_set/files_list/files_read/files_write；入参/回执契约按 111.1 表。注意：表面图草案名 pasteboard_read/pasteboard_write 已被任务定名 clipboard_get/clipboard_set 取代，桥表若有草案残留须改名对齐、不留别名双轨。
+2. permissions 字典新增键 clipboard/files：App 侧恒报 "granted"（无系统权限），桥对这两件不许走 permission_denied 拦截，门控只认注册 tools 清单在不在（开关关→不在清单→tool_unavailable，与既有件同路）。
+3. 写工具桥侧 write-keys 一层去重对 clipboard_set/files_write 同样启用（App 账本为第二层）。
+4. 上线顺序：桥表未补前，App 开关默认关、不列工具，无影响；接线验收时先补桥表再开 App 开关实测。桥未上线时 App 侧如实回 tool_unavailable 的三条路径（未知工具名/已定义未接线/开关关）在分发器已走通，Core 层以注册载荷门控钉测钉死（testRegistrationNotApplicableGating 等），不假装已通。
+
+### 111.6 与设计档出入（逐条）
+
+1. 工具名：表面图 A12 草案 pasteboard_read/pasteboard_write → 任务定名 clipboard_get/clipboard_set 落地（桥侧待办 1 提示对账）。
+2. 工具集：表面图 A13 草案含 files_search → 本包按任务范围只做列/读/写三件，搜索不做（沙盒内全文搜索留后续）。
+3. 文件范围：表面图 A13 设想「用户在文件选择器亲手选目录＋安全范围书签」的已授权目录 → 本包按任务收窄为 App 自有 Documents 区，选目录/书签面不做。
+4. 授权形态：连接器设计档的双层呈现（系统权限行＋调用开关，健康/家庭形态）→ 两件无系统权限可呈，落为新档 notApplicable＋单开关（111.2），与一开关原则（用户 2026-11-10 拍板）一致；健康/家庭双层呈现未动。
+5. A12 的「读需 App 前台、触发系统允许粘贴弹窗、只探测不触发」口径与本包实现一致（先 has* 探测后取内容），无出入、登记确认。
+
+### 111.7 单测与终判口径
+
+- 新增 11 个测试函数（DeviceSourcesTests +5：notApplicable 语义/载荷门控/目录行/非同步数据集/文案诚实；DeviceCallsTests +5：三组参数解析＋路径规范化组；RichContentTests +1：五工具分类与标题），全仓测试函数 1170→1181 只增不减。既有 6 个测试函数更新钉值（名册计数 7→9 与呈现序、批次、工具全集 10→15 与写集 4→6、可执行集 7→12、全开载荷、搜索计数），断言口径随名册扩容顺延、非放宽。
+- 版本五处未动（合并时主线定号）。本机无 Swift 工具链：静态自查已做（逐文件括号配平与 HEAD 基线同差、目录键与代码引用全量对账零缺口、DeviceSourceID/DevicePermissionState 全部穷尽 switch 逐点排查并补臂——DeviceSyncDataset.fromSource、DeviceSyncControl.toggleOnAction、DeviceSyncExecutors.requestAccess、DeviceViews.permissionBinding、DeviceStore.requestAccess、两处详情分发）；编译与全套单测终判等合并后 CI。

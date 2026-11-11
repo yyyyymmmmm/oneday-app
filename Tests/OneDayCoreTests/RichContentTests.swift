@@ -278,6 +278,38 @@ final class RichContentTests: XCTestCase {
         )
     }
 
+    /// 设备扩容批一：剪贴板/文件五工具同归设备类，
+    /// 标题各有中文映射（files_read 不许被通用
+    /// file 类吞掉——它是手机里的文件，不是服务端
+    /// 文件工具 read_file）
+    func testClassifierDeviceExpansionTools() {
+        for name in [
+            "clipboard_get", "clipboard_set",
+            "files_list", "files_read", "files_write",
+        ] {
+            XCTAssertEqual(
+                ToolCardClassifier.category(forToolName: name),
+                .device, name
+            )
+        }
+        let titles: [(String, String)] = [
+            ("clipboard_get", "读取剪贴板"),
+            ("clipboard_set", "写入剪贴板"),
+            ("files_list", "查看文件列表"),
+            ("files_read", "读取文件"),
+            ("files_write", "写入文件"),
+        ]
+        for (name, expected) in titles {
+            XCTAssertEqual(
+                ToolCardClassifier.title(
+                    forToolName: name, arguments: "{}",
+                    locale: Locale(identifier: "zh-Hans")
+                ),
+                expected, name
+            )
+        }
+    }
+
     /// 0.36.10（诊断 D3-5）：复合命令摘要呈「N 条命
     /// 令 · 首条」，不整段直出；多行脚本仍取首行
     func testCompoundCommandSummary() {

@@ -901,6 +901,8 @@ struct ConnectorsView: View {
         case .contacts: ContactsDetailView(inSheet: true)
         case .photos: PhotosDetailView(inSheet: true)
         case .motion: MotionDetailView(inSheet: true)
+        case .clipboard: ClipboardDetailView()
+        case .files: FilesDetailView()
         case .health, .home: EmptyView()
         }
     }

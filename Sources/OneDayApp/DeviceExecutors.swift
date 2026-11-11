@@ -2,6 +2,9 @@ import Contacts
 import EventKit
 import Foundation
 import OneDayCore
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// 系统权限翻译层：EK/CN 的授权状态逐件翻成 Core
 /// 的 DevicePermissionState（呈现与注册载荷只认这
@@ -17,6 +20,12 @@ enum DevicePermissions {
             // （PhotoKit/CoreMotion 翻译层同文件）
             .photos: photosState(),
             .motion: motionState(),
+            // 剪贴板/沙盒文件（设备扩容批一）：iOS 没
+            // 有这两件的系统权限，如实报 notApplicable
+            // ——不许拿 granted 冒充系统已授权；能不能
+            // 调用只看「允许智能体调用」开关
+            .clipboard: .notApplicable,
+            .files: .notApplicable,
             .health: .notDetermined,
             .home: .notDetermined,
         ]
@@ -90,6 +99,18 @@ struct DeviceContactItem: Identifiable, Sendable {
     let phones: [String]
     let emails: [String]
     let organization: String?
+}
+
+/// 沙盒文件条目（文件详情页本地浏览用）：path 是
+/// 相对 Documents 根的规范路径，既是身份也是定位
+struct DeviceFileItem: Identifiable, Sendable {
+    let name: String
+    let path: String
+    let isDirectory: Bool
+    let sizeBytes: Int64
+    let modifiedAt: Date
+
+    var id: String { path }
 }
 
 // MARK: - EventKit 执行器（日历＋提醒同 store）
@@ -742,6 +763,314 @@ final class ContactsEngine: @unchecked Sendable {
     }
 }
 
+// MARK: - 剪贴板执行器（设备扩容批一）
+
+/// 剪贴板现读现写：内容在别家 App 手里时，读取动作
+/// 本身会触发系统粘贴提示横幅（iOS 16+ 的规矩，数据
+/// 源说明里已如实写明、不装无感）；只探测类型
+/// （hasStrings 等）不触发提示，故先探测后取内容，
+/// 非文字内容如实回类型、不编内容。写完回读比对才
+/// 报成功（写纪律与既有写工具同）。
+final class ClipboardEngine: @unchecked Sendable {
+
+    /// clipboard_get 结果：文字原样回；链接回其文字
+    /// 形态；只有图片时回类型说明、无内容
+    func getResult() -> JSONValue {
+        let board = UIPasteboard.general
+        var result: [String: JSONValue] = [
+            "readAt": .string(DeviceISO8601.format(Date())),
+        ]
+        if board.hasStrings, let text = board.string {
+            result["type"] = .string("text")
+            result["text"] = .string(text)
+        } else if board.hasURLs, let url = board.url {
+            result["type"] = .string("url")
+            result["text"] = .string(url.absoluteString)
+        } else if board.hasImages {
+            result["type"] = .string("image")
+            result["note"] = .string("剪贴板里是一张图片，没有文字内容")
+        } else {
+            result["type"] = .string("empty")
+            result["note"] = .string("剪贴板是空的")
+        }
+        return .object(result)
+    }
+
+    /// clipboard_set：写入后回读比对（回读自家刚写
+    /// 的内容不触发系统提示）；不一致即失败
+    func setClipboard(
+        _ args: ClipboardSetArgs
+    ) throws -> (objectID: String, result: JSONValue) {
+        let board = UIPasteboard.general
+        board.string = args.text
+        guard board.string == args.text else {
+            throw DeviceToolError.failed("写入后核对不一致，不报成功")
+        }
+        return ("clipboard", .object([
+            "written": .bool(true),
+            "verified": .bool(true),
+            "characters": .number(Double(args.text.count)),
+        ]))
+    }
+
+    /// 详情页本地预览（页面只在用户亲手点按钮时调，
+    /// 因为这一读同样可能触发系统粘贴提示）
+    func currentText() -> String? {
+        UIPasteboard.general.string
+    }
+}
+
+// MARK: - 沙盒文件执行器（设备扩容批一）
+
+/// App 自有 Documents 区的文本文件列/读/写：路径先
+/// 过 Core 的 SandboxPath 规范化（防越界纯逻辑），落
+/// 到 URL 后再做一次「解析符号链接＋标准化后仍在根
+/// 内」的前缀校验，双保险。写完回读字节比对才报成
+/// 功；二进制/超限如实报错、不静默截断。
+final class SandboxFilesEngine: @unchecked Sendable {
+
+    private var rootURL: URL {
+        FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        )[0]
+    }
+
+    /// 规范相对路径 → 根内 URL（越界即 invalidArguments）
+    private func resolvedURL(
+        forNormalizedPath path: String
+    ) throws -> URL {
+        var url = rootURL
+        for component in path.split(separator: "/") {
+            url = url.appendingPathComponent(String(component))
+        }
+        let root = rootURL.resolvingSymlinksInPath
+            .standardizedFileURL.path
+        let resolved = url.resolvingSymlinksInPath
+            .standardizedFileURL.path
+        guard resolved == root || resolved.hasPrefix(root + "/")
+        else {
+            throw DeviceToolError.invalidArguments(
+                "路径越出了 OneDay 文件夹的范围"
+            )
+        }
+        return url
+    }
+
+    /// 文件元数据对象（列表条目与写回放共用）：只
+    /// 含名/路径/大小/修改时刻，不含内容
+    static func fileObject(
+        _ item: DeviceFileItem
+    ) -> [String: JSONValue] {
+        var object: [String: JSONValue] = [
+            "name": .string(item.name),
+            "path": .string(item.path),
+            "isDirectory": .bool(item.isDirectory),
+            "modifiedAt": .string(
+                DeviceISO8601.format(item.modifiedAt)
+            ),
+        ]
+        if !item.isDirectory {
+            object["sizeBytes"] = .number(Double(item.sizeBytes))
+        }
+        return object
+    }
+
+    /// 某相对路径的当前条目（不在/越界回 nil）：写
+    /// 回放与详情页共用
+    func item(relativePath: String) -> DeviceFileItem? {
+        guard !relativePath.isEmpty,
+              let url = try? resolvedURL(
+                forNormalizedPath: relativePath
+              ),
+              let values = try? url.resourceValues(forKeys: [
+                .isDirectoryKey, .fileSizeKey,
+                .contentModificationDateKey,
+              ])
+        else { return nil }
+        return DeviceFileItem(
+            name: url.lastPathComponent,
+            path: relativePath,
+            isDirectory: values.isDirectory ?? false,
+            sizeBytes: Int64(values.fileSize ?? 0),
+            modifiedAt: values.contentModificationDate
+                ?? Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    /// 一层列表（不递归；工具与详情页共用）：目录
+    /// 在前、同类按名序，输出确定性
+    func listItems(
+        relativePath: String
+    ) throws -> [DeviceFileItem] {
+        let url = try resolvedURL(forNormalizedPath: relativePath)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: url.path, isDirectory: &isDirectory
+        ) else {
+            throw DeviceToolError.failed(
+                relativePath.isEmpty
+                    ? "文件夹不存在"
+                    : "文件夹不存在：\(relativePath)"
+            )
+        }
+        guard isDirectory.boolValue else {
+            throw DeviceToolError.failed(
+                "「\(relativePath)」是文件，不是文件夹"
+            )
+        }
+        let children: [URL]
+        do {
+            children = try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: [
+                    .isDirectoryKey, .fileSizeKey,
+                    .contentModificationDateKey,
+                ],
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            throw DeviceToolError.failed(
+                "读取文件夹失败：\(error.localizedDescription)"
+            )
+        }
+        let prefix = relativePath.isEmpty ? "" : relativePath + "/"
+        let items = children.map { child -> DeviceFileItem in
+            let values = try? child.resourceValues(forKeys: [
+                .isDirectoryKey, .fileSizeKey,
+                .contentModificationDateKey,
+            ])
+            return DeviceFileItem(
+                name: child.lastPathComponent,
+                path: prefix + child.lastPathComponent,
+                isDirectory: values?.isDirectory ?? false,
+                sizeBytes: Int64(values?.fileSize ?? 0),
+                modifiedAt: values?.contentModificationDate
+                    ?? Date(timeIntervalSince1970: 0)
+            )
+        }
+        return items.sorted {
+            if $0.isDirectory != $1.isDirectory {
+                return $0.isDirectory && !$1.isDirectory
+            }
+            return $0.name.localizedStandardCompare($1.name)
+                == .orderedAscending
+        }
+    }
+
+    /// files_list 结果：条目上限在 Core 常量，超了
+    /// 截断并标 truncated（不装全给了）
+    func listResult(_ args: FilesListArgs) throws -> JSONValue {
+        let items = try listItems(relativePath: args.path)
+        let capped = Array(
+            items.prefix(SandboxPath.maxListEntries)
+        )
+        var result: [String: JSONValue] = [
+            "path": .string(args.path),
+            "readAt": .string(DeviceISO8601.format(Date())),
+            "count": .number(Double(capped.count)),
+            "entries": .array(
+                capped.map { .object(Self.fileObject($0)) }
+            ),
+        ]
+        if items.count > capped.count {
+            result["truncated"] = .bool(true)
+        }
+        return .object(result)
+    }
+
+    /// 读文本（工具与详情页预览共用）：不存在/是目
+    /// 录/超限/非 UTF-8 文本一律如实报错
+    func readText(relativePath: String) throws -> String {
+        let url = try resolvedURL(forNormalizedPath: relativePath)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: url.path, isDirectory: &isDirectory
+        ) else {
+            throw DeviceToolError.failed("文件不存在：\(relativePath)")
+        }
+        guard !isDirectory.boolValue else {
+            throw DeviceToolError.failed(
+                "「\(relativePath)」是文件夹，读不出文本"
+            )
+        }
+        let attributes = try? FileManager.default
+            .attributesOfItem(atPath: url.path)
+        let size = (attributes?[.size] as? NSNumber)?.int64Value
+            ?? 0
+        guard size <= SandboxPath.maxContentBytes else {
+            throw DeviceToolError.failed(
+                "文件超过 256 KB 上限，不整份读取"
+            )
+        }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw DeviceToolError.failed(
+                "读取文件失败：\(error.localizedDescription)"
+            )
+        }
+        guard let text = String(data: data, encoding: .utf8)
+        else {
+            throw DeviceToolError.failed(
+                "这个文件不是文本内容，读不出文字"
+            )
+        }
+        return text
+    }
+
+    /// files_read 结果：内容＋字节数＋现读时刻
+    func readResult(_ args: FilesReadArgs) throws -> JSONValue {
+        let text = try readText(relativePath: args.path)
+        return .object([
+            "path": .string(args.path),
+            "readAt": .string(DeviceISO8601.format(Date())),
+            "bytes": .number(Double(text.utf8.count)),
+            "content": .string(text),
+        ])
+    }
+
+    /// files_write：父目录自动建、原子写、回读逐字
+    /// 节比对才报成功；objectID＝规范相对路径（账
+    /// 本只存路径这一元数据，不存内容）
+    func writeFile(
+        _ args: FilesWriteArgs
+    ) throws -> (objectID: String, result: JSONValue) {
+        let url = try resolvedURL(forNormalizedPath: args.path)
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(
+            atPath: url.path, isDirectory: &isDirectory
+        ), isDirectory.boolValue {
+            throw DeviceToolError.failed(
+                "同名文件夹已存在，写不进去：\(args.path)"
+            )
+        }
+        let data = Data(args.content.utf8)
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw DeviceToolError.failed(
+                "写入文件失败：\(error.localizedDescription)"
+            )
+        }
+        guard let back = try? Data(contentsOf: url),
+              back == data
+        else {
+            throw DeviceToolError.failed("写入后核对不一致，不报成功")
+        }
+        return (args.path, .object([
+            "path": .string(args.path),
+            "written": .bool(true),
+            "verified": .bool(true),
+            "bytes": .number(Double(data.count)),
+        ]))
+    }
+}
+
 // MARK: - 工具分发器（执行前复查＋幂等＋回读）
 
 /// 一次桥下发调用的执行：先按注册时口径复查（权限
@@ -753,6 +1082,8 @@ final class ContactsEngine: @unchecked Sendable {
 final class DeviceToolDispatcher: @unchecked Sendable {
     let events = EventKitEngine()
     let contacts = ContactsEngine()
+    let clipboard = ClipboardEngine()
+    let files = SandboxFilesEngine()
 
     private static let ledgerKey = "device.writeKeyLedger.v1"
 
@@ -791,6 +1122,14 @@ final class DeviceToolDispatcher: @unchecked Sendable {
             case "reminders_create", "reminders_complete":
                 if let reminder = events.reminderObjectByID(objectID) {
                     result["reminder"] = .object(reminder)
+                }
+            case "files_write":
+                // 回放只带文件元数据（还在不在、多大），
+                // 不重读内容——内容不该在回放里再过境
+                if let item = files.item(relativePath: objectID) {
+                    result["file"] = .object(
+                        SandboxFilesEngine.fileObject(item)
+                    )
                 }
             default:
                 break
@@ -857,6 +1196,24 @@ final class DeviceToolDispatcher: @unchecked Sendable {
             case "contacts_search":
                 let args = try ContactsSearchArgs.parse(call.arguments)
                 return (try contacts.search(args), nil)
+            case "clipboard_get":
+                return (clipboard.getResult(), nil)
+            case "clipboard_set":
+                let args = try ClipboardSetArgs.parse(call.arguments)
+                return try writeWithLedger(
+                    key: args.idempotencyKey, tool: call.tool
+                ) { try clipboard.setClipboard(args) }
+            case "files_list":
+                let args = try FilesListArgs.parse(call.arguments)
+                return (try files.listResult(args), nil)
+            case "files_read":
+                let args = try FilesReadArgs.parse(call.arguments)
+                return (try files.readResult(args), nil)
+            case "files_write":
+                let args = try FilesWriteArgs.parse(call.arguments)
+                return try writeWithLedger(
+                    key: args.idempotencyKey, tool: call.tool
+                ) { try files.writeFile(args) }
             default:
                 return (nil, .toolUnavailable("工具 \(call.tool) 尚未接线"))
             }

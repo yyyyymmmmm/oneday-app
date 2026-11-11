@@ -251,4 +251,131 @@ final class DeviceCallsTests: XCTestCase {
         )
         XCTAssertEqual(bad.summaryLine, "最近调用：失败（permission_denied）")
     }
+
+    // MARK: - 剪贴板与文件参数（设备扩容批一）
+
+    func testClipboardSetArgs() throws {
+        let args = try ClipboardSetArgs.parse([
+            "text": .string("开场词"),
+            "idempotencyKey": .string("cb-1"),
+        ])
+        XCTAssertEqual(args.text, "开场词")
+        XCTAssertEqual(args.idempotencyKey, "cb-1")
+        // 空串合法（把剪贴板设为空）——与「没给参
+        // 数」是两回事，不许混
+        let cleared = try ClipboardSetArgs.parse([
+            "text": .string(""),
+            "idempotencyKey": .string("cb-2"),
+        ])
+        XCTAssertEqual(cleared.text, "")
+        XCTAssertThrowsError(try ClipboardSetArgs.parse([
+            "idempotencyKey": .string("cb-3"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        XCTAssertThrowsError(try ClipboardSetArgs.parse([
+            "text": .string("x"),
+        ])) { error in
+            XCTAssertTrue(
+                (error as? DeviceToolError)?.message
+                    .contains("幂等键") ?? false,
+                "写工具缺幂等键必须报错（双层去重纪律）"
+            )
+        }
+    }
+
+    /// 路径规范化防越界组：合法形态收敛、越界形态
+    /// 一律拒——这是文件工具的安全边界，逐条钉死
+    func testSandboxPathNormalize() throws {
+        XCTAssertEqual(try SandboxPath.normalize(""), "")
+        XCTAssertEqual(try SandboxPath.normalize("a/b.txt"), "a/b.txt")
+        XCTAssertEqual(try SandboxPath.normalize("a//b/./c"), "a/b/c")
+        XCTAssertEqual(try SandboxPath.normalize("a/../b"), "b")
+        XCTAssertEqual(try SandboxPath.normalize("."), "")
+        XCTAssertEqual(try SandboxPath.normalize("a/"), "a")
+        for bad in ["/etc/passwd", "..", "../x", "a/../../x", "/"] {
+            XCTAssertThrowsError(
+                try SandboxPath.normalize(bad), bad
+            ) { error in
+                XCTAssertEqual(
+                    (error as? DeviceToolError)?.code,
+                    "invalid_arguments"
+                )
+            }
+        }
+        XCTAssertThrowsError(try SandboxPath.normalize("a\0b"))
+        // 文件路径不许是根目录本身
+        XCTAssertThrowsError(try SandboxPath.normalizeFilePath(""))
+        XCTAssertThrowsError(try SandboxPath.normalizeFilePath("."))
+        XCTAssertEqual(
+            try SandboxPath.normalizeFilePath("a.txt"), "a.txt"
+        )
+    }
+
+    func testFilesListArgs() throws {
+        XCTAssertEqual(try FilesListArgs.parse([:]).path, "")
+        XCTAssertEqual(
+            try FilesListArgs.parse([
+                "path": .string("notes/2026"),
+            ]).path,
+            "notes/2026"
+        )
+        XCTAssertThrowsError(try FilesListArgs.parse([
+            "path": .string("../outside"),
+        ]))
+    }
+
+    func testFilesReadArgs() throws {
+        XCTAssertEqual(
+            try FilesReadArgs.parse([
+                "path": .string("a.txt"),
+            ]).path,
+            "a.txt"
+        )
+        XCTAssertThrowsError(try FilesReadArgs.parse([:]))
+        XCTAssertThrowsError(try FilesReadArgs.parse([
+            "path": .string("/abs.txt"),
+        ]))
+    }
+
+    func testFilesWriteArgs() throws {
+        let args = try FilesWriteArgs.parse([
+            "path": .string("notes/a.txt"),
+            "content": .string("正文"),
+            "idempotencyKey": .string("fw-1"),
+        ])
+        XCTAssertEqual(args.path, "notes/a.txt")
+        XCTAssertEqual(args.content, "正文")
+        // 路径在解析层先规范化：不越界的 .. 回退收敛
+        let folded = try FilesWriteArgs.parse([
+            "path": .string("notes/../a.txt"),
+            "content": .string(""),
+            "idempotencyKey": .string("fw-2"),
+        ])
+        XCTAssertEqual(folded.path, "a.txt")
+        XCTAssertThrowsError(try FilesWriteArgs.parse([
+            "path": .string("a.txt"), "content": .string("x"),
+        ]), "缺幂等键必报错")
+        XCTAssertThrowsError(try FilesWriteArgs.parse([
+            "path": .string("a.txt"),
+            "idempotencyKey": .string("fw-3"),
+        ]), "缺内容必报错")
+        let oversized = String(
+            repeating: "x",
+            count: SandboxPath.maxContentBytes + 1
+        )
+        XCTAssertThrowsError(try FilesWriteArgs.parse([
+            "path": .string("a.txt"),
+            "content": .string(oversized),
+            "idempotencyKey": .string("fw-4"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
 }

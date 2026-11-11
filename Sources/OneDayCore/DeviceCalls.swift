@@ -265,6 +265,155 @@ public struct ContactsSearchArgs: Equatable, Sendable {
     }
 }
 
+// MARK: - 剪贴板与沙盒文件参数（设备扩容批一）
+
+/// 沙盒路径规范化（纯函数，钉测防越界）：入参是桥
+/// 下发的相对路径——只许在 App 自有 Documents 区内
+/// 活动。规则：去首尾空白；以 / 开头（绝对路径）直
+/// 接拒；按 / 切段，空段与 "." 段丢弃，".." 段弹栈、
+/// 栈空还弹＝越界拒；含 NUL 拒。返回规范相对路径
+/// （""＝根目录本身）。App 层解析 URL 后再做一次标
+/// 准化前缀校验（双保险，见 SandboxFilesEngine）。
+public enum SandboxPath {
+    /// 单次读/写文本的字节上限（256 KB）：文件工具只
+    /// 碰文本，超限如实报错、不静默截断
+    public static let maxContentBytes = 256 * 1024
+    /// 单次列目录的条目上限：超了截断并在结果里标明
+    public static let maxListEntries = 500
+
+    public static func normalize(_ raw: String) throws -> String {
+        if raw.contains("\0") {
+            throw DeviceToolError.invalidArguments("路径含有非法字符")
+        }
+        let trimmed = raw.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        if trimmed.hasPrefix("/") {
+            throw DeviceToolError.invalidArguments(
+                "路径要从 OneDay 文件夹根算起，不能以 / 开头"
+            )
+        }
+        var stack: [String] = []
+        for part in trimmed.split(
+            separator: "/", omittingEmptySubsequences: true
+        ) {
+            let component = String(part)
+            if component == "." { continue }
+            if component == ".." {
+                guard !stack.isEmpty else {
+                    throw DeviceToolError.invalidArguments(
+                        "路径越出了 OneDay 文件夹的范围"
+                    )
+                }
+                stack.removeLast()
+                continue
+            }
+            stack.append(component)
+        }
+        return stack.joined(separator: "/")
+    }
+
+    /// 读/写目标必须是具体文件：规范化后为空（根目
+    /// 录本身）不许当文件用
+    public static func normalizeFilePath(
+        _ raw: String
+    ) throws -> String {
+        let path = try normalize(raw)
+        guard !path.isEmpty else {
+            throw DeviceToolError.invalidArguments(
+                "缺少必填参数：文件路径"
+            )
+        }
+        return path
+    }
+}
+
+public struct ClipboardSetArgs: Equatable, Sendable {
+    public let text: String
+    public let idempotencyKey: String
+
+    /// text 必须在场（空串合法＝把剪贴板设为空，
+    /// 与「没给参数」是两回事）；幂等键必填（写纪
+    /// 律与既有四件同）
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> ClipboardSetArgs {
+        guard let text = args["text"]?.stringValue else {
+            throw DeviceToolError.invalidArguments(
+                "缺少必填参数：文字内容"
+            )
+        }
+        return ClipboardSetArgs(
+            text: text,
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+}
+
+public struct FilesListArgs: Equatable, Sendable {
+    /// 规范相对路径；缺省 ""＝根目录
+    public let path: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> FilesListArgs {
+        FilesListArgs(
+            path: try SandboxPath.normalize(
+                optionalString(args, "path") ?? ""
+            )
+        )
+    }
+}
+
+public struct FilesReadArgs: Equatable, Sendable {
+    public let path: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> FilesReadArgs {
+        FilesReadArgs(
+            path: try SandboxPath.normalizeFilePath(
+                requiredString(args, "path", "文件路径")
+            )
+        )
+    }
+}
+
+public struct FilesWriteArgs: Equatable, Sendable {
+    public let path: String
+    public let content: String
+    public let idempotencyKey: String
+
+    /// content 必须在场（空串合法＝写空文件）；超
+    /// 256 KB 在解析层就拒（粒度在 App 侧收敛）
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> FilesWriteArgs {
+        let path = try SandboxPath.normalizeFilePath(
+            requiredString(args, "path", "文件路径")
+        )
+        guard let content = args["content"]?.stringValue else {
+            throw DeviceToolError.invalidArguments(
+                "缺少必填参数：文件内容"
+            )
+        }
+        guard content.utf8.count <= SandboxPath.maxContentBytes
+        else {
+            throw DeviceToolError.invalidArguments(
+                "文件内容超过 256 KB 上限"
+            )
+        }
+        return FilesWriteArgs(
+            path: path, content: content,
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+}
+
 // MARK: - 设备会话状态机（客户端生命周期）
 
 /// 设备会话的纯状态机：桥契约的生命周期——注册→长
