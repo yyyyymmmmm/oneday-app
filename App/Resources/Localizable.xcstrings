@@ -61220,6 +61220,2053 @@
           }
         }
       }
+    },
+    "形象与名称": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance & Name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形象与名称"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形象與名稱"
+          }
+        }
+      }
+    },
+    "配置档案": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profiles"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置档案"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置檔案"
+          }
+        }
+      }
+    },
+    "帮助与反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help & Feedback"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮助与反馈"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "幫助與意見回饋"
+          }
+        }
+      }
+    },
+    "隐私政策": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy Policy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私政策"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱私政策"
+          }
+        }
+      }
+    },
+    "用户协议": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User Agreement"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户协议"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用者協議"
+          }
+        }
+      }
+    },
+    "头像、显示名": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avatar and display name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "头像、显示名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頭像、顯示名"
+          }
+        }
+      }
+    },
+    "决定人设与系统提示，保存在服务器": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Defines the persona and system prompt, stored on the server"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "决定人设与系统提示，保存在服务器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "決定人設與系統提示，儲存在伺服器"
+          }
+        }
+      }
+    },
+    "长期偏好与记忆条目": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long-term preferences and memory entries"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长期偏好与记忆条目"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長期偏好與記憶條目"
+          }
+        }
+      }
+    },
+    "智能体可用的能力，可启停": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capabilities available to the agent; can be turned on or off"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可用的能力，可启停"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可用的能力，可啟停"
+          }
+        }
+      }
+    },
+    "默认模型、服务商与辅助模型": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default model, providers and auxiliary models"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认模型、服务商与辅助模型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設模型、服務商與輔助模型"
+          }
+        }
+      }
+    },
+    "按计划自动执行的任务": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tasks that run automatically on a schedule"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按计划自动执行的任务"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按計畫自動執行的任務"
+          }
+        }
+      }
+    },
+    "在网页端等其他入口产生的会话": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversations started on the web or other entry points"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在网页端等其他入口产生的会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在網頁端等其他入口產生的對話"
+          }
+        }
+      }
+    },
+    "地址、密钥与连接状态": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Address, key and connection status"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址、密钥与连接状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址、金鑰與連線狀態"
+          }
+        }
+      }
+    },
+    "外部服务与设备能力": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "External services and device capabilities"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外部服务与设备能力"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外部服務與裝置能力"
+          }
+        }
+      }
+    },
+    "本机数据授权与同步": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On-device data authorization and sync"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机数据授权与同步"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機資料授權與同步"
+          }
+        }
+      }
+    },
+    "网关运行状态与重启": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gateway status and restart"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网关运行状态与重启"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閘道運行狀態與重啟"
+          }
+        }
+      }
+    },
+    "服务端运行日志": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server runtime logs"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务端运行日志"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器端運行日誌"
+          }
+        }
+      }
+    },
+    "保存在服务器上的密钥": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keys stored on the server"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存在服务器上的密钥"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存在伺服器上的金鑰"
+          }
+        }
+      }
+    },
+    "模型用量统计": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model usage statistics"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型用量统计"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型用量統計"
+          }
+        }
+      }
+    },
+    "状态与最近活动": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status and recent activity"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态与最近活动"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "狀態與最近活動"
+          }
+        }
+      }
+    },
+    "智能体使用的电脑": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The computer used by the agent"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体使用的电脑"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理使用的電腦"
+          }
+        }
+      }
+    },
+    "聊天配色、形象大小、模式与语言": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat colors, avatar size, appearance mode and language"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聊天配色、形象大小、模式与语言"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聊天配色、形象大小、模式與語言"
+          }
+        }
+      }
+    },
+    "连接帮助与问题反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection help and problem feedback"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接帮助与问题反馈"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線幫助與問題回饋"
+          }
+        }
+      }
+    },
+    "版本、隐私与开源": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version, privacy and open source"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本、隐私与开源"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本、隱私與開源"
+          }
+        }
+      }
+    },
+    "我们如何处理你的数据": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How we handle your data"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我们如何处理你的数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我們如何處理你的資料"
+          }
+        }
+      }
+    },
+    "使用 OneDay 的条款": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The terms for using OneDay"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 OneDay 的条款"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 OneDay 的條款"
+          }
+        }
+      }
+    },
+    "搜索设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋設定"
+          }
+        }
+      }
+    },
+    "智能体": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理"
+          }
+        }
+      }
+    },
+    "工作区": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Workspace"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作区"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作區"
+          }
+        }
+      }
+    },
+    "支持": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支援"
+          }
+        }
+      }
+    },
+    "清除搜索": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Search"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜索"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜尋"
+          }
+        }
+      }
+    },
+    "没有找到「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No results for “%@”"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有找到「%@」"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有找到「%@」"
+          }
+        }
+      }
+    },
+    "试试「服务器」「记忆」或「外观」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try “server”, “memory” or “appearance”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "试试「服务器」「记忆」或「外观」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試試「伺服器」「記憶」或「外觀」。"
+          }
+        }
+      }
+    },
+    "本机显示名 · 服务器身份 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On-device name · Server identity %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机显示名 · 服务器身份 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機顯示名 · 伺服器身份 %@"
+          }
+        }
+      }
+    },
+    "本机资料": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On This Device"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机资料"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機資料"
+          }
+        }
+      }
+    },
+    "预置形象或从相册选择": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset avatars or choose from your photo library"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预置形象或从相册选择"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預置形象或從相簿選擇"
+          }
+        }
+      }
+    },
+    "最多 20 个字，只影响这台手机": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up to 20 characters; only affects this phone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多 20 个字，只影响这台手机"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多 20 個字，只影響這台手機"
+          }
+        }
+      }
+    },
+    "最近活动": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent Activity"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近活动"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近活動"
+          }
+        }
+      }
+    },
+    "服务器状态": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server Status"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器狀態"
+          }
+        }
+      }
+    },
+    "形象与名称只保存在本机，不回写服务器。配置档案决定人设，在「智能体」里管理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance and name are stored only on this device and never written back to the server. Profiles define the persona and are managed under “Agent”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形象与名称只保存在本机，不回写服务器。配置档案决定人设，在「智能体」里管理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形象與名稱只儲存在本機，不回寫伺服器。配置檔案決定人設，在「智慧代理」裡管理。"
+          }
+        }
+      }
+    },
+    "连接帮助": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection Help"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接帮助"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線幫助"
+          }
+        }
+      }
+    },
+    "形如 https://hermes.example.com，不要带结尾斜杠。手机需要能直接访问这个地址，不能用 localhost。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In the form https://hermes.example.com, without a trailing slash. Your phone must be able to reach this address directly; localhost will not work."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形如 https://hermes.example.com，不要带结尾斜杠。手机需要能直接访问这个地址，不能用 localhost。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形如 https://hermes.example.com，不要帶結尾斜線。手機需要能直接存取這個地址，不能用 localhost。"
+          }
+        }
+      }
+    },
+    "登录凭据": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in Credentials"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录凭据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入憑據"
+          }
+        }
+      }
+    },
+    "可以用伴生服务的面板密码登录，也可以用 Hermes 的 API 密钥登录；密钥在 Hermes 服务端的配置中生成。连接不上先在「当前服务器」里重新测试连接。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can sign in with the companion service's panel password or with a Hermes API key; keys are generated in the Hermes server configuration. If you cannot connect, retest the connection under “Current Server” first."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以用伴生服务的面板密码登录，也可以用 Hermes 的 API 密钥登录；密钥在 Hermes 服务端的配置中生成。连接不上先在「当前服务器」里重新测试连接。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以用伴生服務的面板密碼登入，也可以用 Hermes 的 API 金鑰登入；金鑰在 Hermes 伺服器端的設定中產生。連不上先在「目前伺服器」裡重新測試連線。"
+          }
+        }
+      }
+    },
+    "反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "意見回饋"
+          }
+        }
+      }
+    },
+    "在 GitHub 提交问题": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report an Issue on GitHub"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 提交问题"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 提交問題"
+          }
+        }
+      }
+    },
+    "附上复现步骤与系统版本": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include reproduction steps and your system version"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附上复现步骤与系统版本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附上重現步驟與系統版本"
+          }
+        }
+      }
+    },
+    "Hermes 部署文档": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes Deployment Docs"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes 部署文档"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes 部署文件"
+          }
+        }
+      }
+    },
+    "请勿在公开议题中粘贴密钥、服务器地址或个人数据。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do not paste keys, server addresses or personal data into public issues."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请勿在公开议题中粘贴密钥、服务器地址或个人数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請勿在公開議題中貼上金鑰、伺服器地址或個人資料。"
+          }
+        }
+      }
+    },
+    "服务": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Service"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服務"
+          }
+        }
+      }
+    },
+    "法律与隐私": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legal & Privacy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "法律与隐私"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "法律與隱私"
+          }
+        }
+      }
+    },
+    "开源与署名": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Source & Credits"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开源与署名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開源與署名"
+          }
+        }
+      }
+    },
+    "OneDay 开源项目": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay Open Source Project"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 开源项目"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 開源專案"
+          }
+        }
+      }
+    },
+    "OneDay 是客户端，服务端是 Hermes 开源项目；智能体的名字以你服务器上的人设为准。OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay is the client; the server side is the open-source Hermes project, and the agent's name follows the persona on your server. OneDay only talks to your own server; credentials stay in this device's keychain, chat history stays on this device, and server data belongs to you."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 是客户端，服务端是 Hermes 开源项目；智能体的名字以你服务器上的人设为准。OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 是用戶端，伺服器端是 Hermes 開源專案；智慧代理的名字以你伺服器上的人設為準。OneDay 只與你自己的伺服器通訊；憑據存本機鑰匙圈，聊天記錄存本機，伺服器端資料歸你所有。"
+          }
+        }
+      }
+    },
+    "生效日期：2026 年 11 月 11 日": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effective date: November 11, 2026"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生效日期：2026 年 11 月 11 日"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生效日期：2026 年 11 月 11 日"
+          }
+        }
+      }
+    },
+    "运营方与联系方式": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who We Are and How to Reach Us"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运营方与联系方式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "營運方與聯絡方式"
+          }
+        }
+      }
+    },
+    "没有账号，也不收集使用数据": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Accounts, and No Usage Data Collection"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有账号，也不收集使用数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有帳號，也不收集使用資料"
+          }
+        }
+      }
+    },
+    "服务器地址与凭据只存本机": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server Address and Credentials Stay on This Device"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器地址与凭据只存本机"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器地址與憑據只存本機"
+          }
+        }
+      }
+    },
+    "对话与文件只在你与你的服务器之间流转": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversations and Files Flow Only Between You and Your Server"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话与文件只在你与你的服务器之间流转"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "對話與檔案只在你與你的伺服器之間流轉"
+          }
+        }
+      }
+    },
+    "设备数据：逐项授权、副本在你自己的服务器": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device Data: Per-Item Permission, Copies on Your Own Server"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备数据：逐项授权、副本在你自己的服务器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裝置資料：逐項授權、副本在你自己的伺服器"
+          }
+        }
+      }
+    },
+    "你配置的第三方服务": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Third-Party Services You Configure"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你配置的第三方服务"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你設定的第三方服務"
+          }
+        }
+      }
+    },
+    "你的权利": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Rights"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的权利"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的權利"
+          }
+        }
+      }
+    },
+    "未成年人": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minors"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未成年人"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未成年人"
+          }
+        }
+      }
+    },
+    "政策变更与生效": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes and Effectiveness"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "政策变更与生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "政策變更與生效"
+          }
+        }
+      }
+    },
+    "服务定位": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What OneDay Is"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务定位"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服務定位"
+          }
+        }
+      }
+    },
+    "自托管与责任划分": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Self-Hosting and Allocation of Responsibility"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自托管与责任划分"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自架與責任劃分"
+          }
+        }
+      }
+    },
+    "可接受使用": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceptable Use"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可接受使用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可接受使用"
+          }
+        }
+      }
+    },
+    "AI 输出与操作确认": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI Output and Confirming Actions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 输出与操作确认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 輸出與操作確認"
+          }
+        }
+      }
+    },
+    "知识产权": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intellectual Property"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "知识产权"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧財產權"
+          }
+        }
+      }
+    },
+    "责任限制": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limitation of Liability"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "责任限制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "責任限制"
+          }
+        }
+      }
+    },
+    "终止": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Termination"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "终止"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終止"
+          }
+        }
+      }
+    },
+    "适用法律与协议变更": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Governing Law and Changes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "适用法律与协议变更"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "適用法律與協議變更"
+          }
+        }
+      }
+    },
+    "OneDay 由知和数智（下称「我们」）开发并维护。本政策说明 OneDay 在你使用过程中如何处理信息。如有疑问，或要行使下文所述的权利，可通过 GitHub 仓库 Issues（github.com/yyyyymmmmm/oneday-app/issues）或邮箱 inkroot001@gmail.com 联系我们。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay is developed and maintained by Zhihe Shuzhi (“we”). This policy explains how OneDay handles information while you use it. If you have questions, or wish to exercise the rights described below, contact us via GitHub Issues (github.com/yyyyymmmmm/oneday-app/issues) or by email at inkroot001@gmail.com."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 由知和数智（下称「我们」）开发并维护。本政策说明 OneDay 在你使用过程中如何处理信息。如有疑问，或要行使下文所述的权利，可通过 GitHub 仓库 Issues（github.com/yyyyymmmmm/oneday-app/issues）或邮箱 inkroot001@gmail.com 联系我们。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 由知和數智（下稱「我們」）開發並維護。本政策說明 OneDay 在你使用過程中如何處理資訊。如有疑問，或要行使下文所述的權利，可透過 GitHub 倉庫 Issues（github.com/yyyyymmmmm/oneday-app/issues）或信箱 inkroot001@gmail.com 聯絡我們。"
+          }
+        }
+      }
+    },
+    "OneDay 没有账号体系，不要求注册，我们也没有承接用户数据的服务器。App 不向我们回传你的对话、文件、设备数据或使用行为；App 内不集成广告 SDK，也不集成统计、崩溃上报等第三方数据收集 SDK。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay has no account system and requires no registration, and we run no server that receives user data. The app sends none of your conversations, files, device data or usage behavior back to us; it integrates no advertising SDKs and no third-party data-collection SDKs such as analytics or crash reporting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 没有账号体系，不要求注册，我们也没有承接用户数据的服务器。App 不向我们回传你的对话、文件、设备数据或使用行为；App 内不集成广告 SDK，也不集成统计、崩溃上报等第三方数据收集 SDK。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 沒有帳號體系，不要求註冊，我們也沒有承接使用者資料的伺服器。App 不向我們回傳你的對話、檔案、裝置資料或使用行為；App 內不整合廣告 SDK，也不整合統計、當機回報等第三方資料收集 SDK。"
+          }
+        }
+      }
+    },
+    "你填写的服务器地址与登录凭据（面板密码或 API 密钥）只保存在这台设备的系统钥匙串中，用于连接你自己的 Hermes 服务器。凭据不上传给我们，也不同步到任何第三方云服务。清除方法见下文「你的权利」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server address and sign-in credentials you enter (a panel password or an API key) are stored only in this device's system keychain, to connect to your own Hermes server. Credentials are never uploaded to us or synced to any third-party cloud service. See “Your Rights” below for how to remove them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你填写的服务器地址与登录凭据（面板密码或 API 密钥）只保存在这台设备的系统钥匙串中，用于连接你自己的 Hermes 服务器。凭据不上传给我们，也不同步到任何第三方云服务。清除方法见下文「你的权利」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你填寫的伺服器地址與登入憑據（面板密碼或 API 金鑰）只儲存在這台裝置的系統鑰匙圈中，用於連線你自己的 Hermes 伺服器。憑據不上傳給我們，也不同步到任何第三方雲端服務。清除方法見下文「你的權利」。"
+          }
+        }
+      }
+    },
+    "你的对话内容，以及你上传、智能体生成的文件，只在这台设备与你自己的 Hermes 服务器之间直接传输，不经过我们或任何第三方的中转。对话与文件的保留时长由你决定，可随时在设备与服务器上删除。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your conversations, and the files you upload or the agent generates, are transferred directly between this device and your own Hermes server, with no relay by us or any third party. How long conversations and files are kept is up to you, and you can delete them on the device and the server at any time."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的对话内容，以及你上传、智能体生成的文件，只在这台设备与你自己的 Hermes 服务器之间直接传输，不经过我们或任何第三方的中转。对话与文件的保留时长由你决定，可随时在设备与服务器上删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的對話內容，以及你上傳、智慧代理產生的檔案，只在這台裝置與你自己的 Hermes 伺服器之間直接傳輸，不經過我們或任何第三方的中轉。對話與檔案的保留時長由你決定，可隨時在裝置與伺服器上刪除。"
+          }
+        }
+      }
+    },
+    "日历、提醒事项、通讯录、照片元数据与步数这五类数据，只有在你逐项授予 iOS 系统权限后才会被读取。授权后自动同步：同步副本只写入你自己的服务器（伴生服务），供智能体在你的服务器上查询，不会发给我们。其中照片只同步元数据索引，不含照片原图与拍摄地点；步数只同步每日汇总。\n\n同步了哪些数据、副本有多少条，可在「设置 → 设备与权限」中逐项查看；该页提供一键删除全部同步副本，删除只删服务器上的副本，不动手机上的原始数据与系统权限。你也可以在该页逐项关闭，或到 iOS 系统设置中撤回权限；撤回后智能体立即停供该类数据，不再读取已有副本。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Five kinds of data — calendar, reminders, contacts, photo metadata and step counts — are read only after you grant the iOS system permission for each one. Once granted, sync is automatic: synced copies are written only to your own server (the companion service), for the agent to query on your server, and are never sent to us. For photos, only a metadata index is synced — no original images and no capture locations; for steps, only daily totals.\n\nYou can review, per item, what is synced and how many copies exist under “Settings → Device & Permissions”; that page offers one-tap deletion of all synced copies, which removes only the copies on the server and leaves the original data and system permissions on your phone untouched. You can also turn items off on that page, or revoke permission in iOS Settings; once revoked, the agent immediately stops being supplied with that kind of data and no longer reads existing copies."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历、提醒事项、通讯录、照片元数据与步数这五类数据，只有在你逐项授予 iOS 系统权限后才会被读取。授权后自动同步：同步副本只写入你自己的服务器（伴生服务），供智能体在你的服务器上查询，不会发给我们。其中照片只同步元数据索引，不含照片原图与拍摄地点；步数只同步每日汇总。\n\n同步了哪些数据、副本有多少条，可在「设置 → 设备与权限」中逐项查看；该页提供一键删除全部同步副本，删除只删服务器上的副本，不动手机上的原始数据与系统权限。你也可以在该页逐项关闭，或到 iOS 系统设置中撤回权限；撤回后智能体立即停供该类数据，不再读取已有副本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "行事曆、提醒事項、通訊錄、照片中繼資料與步數這五類資料，只有在你逐項授予 iOS 系統權限後才會被讀取。授權後自動同步：同步副本只寫入你自己的伺服器（伴生服務），供智慧代理在你的伺服器上查詢，不會發給我們。其中照片只同步中繼資料索引，不含照片原圖與拍攝地點；步數只同步每日彙總。\n\n同步了哪些資料、副本有多少條，可在「設定 → 裝置與權限」中逐項查看；該頁提供一鍵刪除全部同步副本，刪除只刪伺服器上的副本，不動手機上的原始資料與系統權限。你也可以在該頁逐項關閉，或到 iOS 系統設定中撤回權限；撤回後智慧代理立即停供該類資料，不再讀取已有副本。"
+          }
+        }
+      }
+    },
+    "你在 App 中自行添加的模型服务商、连接器等第三方服务（例如你自己的模型网关），由你提供地址与密钥；经这些服务处理的数据，适用你与该服务商之间的约定及其自身的隐私政策，不适用本政策。我们无法查看，也无法控制这些服务的数据处理方式。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Third-party services you add in the app yourself — model providers, connectors and the like (for example your own model gateway) — are configured with addresses and keys you supply; data processed by them is governed by your agreement with that provider and its own privacy policy, not by this policy. We cannot see or control how those services handle data."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你在 App 中自行添加的模型服务商、连接器等第三方服务（例如你自己的模型网关），由你提供地址与密钥；经这些服务处理的数据，适用你与该服务商之间的约定及其自身的隐私政策，不适用本政策。我们无法查看，也无法控制这些服务的数据处理方式。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你在 App 中自行新增的模型服務商、連接器等第三方服務（例如你自己的模型閘道），由你提供地址與金鑰；經這些服務處理的資料，適用你與該服務商之間的約定及其自身的隱私政策，不適用本政策。我們無法查看，也無法控制這些服務的資料處理方式。"
+          }
+        }
+      }
+    },
+    "你的数据都在你的设备与你自己的服务器上，查询、删除与撤回授权都可以在 App 内直接完成：\n\n查询：对话在聊天页查看；设备数据的同步状态与副本条数在「设置 → 设备与权限」查看；保存在服务器上的文件在「文件」页查看。\n\n删除：在「设置 → 设备与权限」一键删除全部同步副本；在设置页底部「断开连接」可清除本机保存的服务器凭据与登录会话；卸载 App 将清除本机聊天记录等本地数据；服务器一侧的数据可通过服务器文件管理自行删除。\n\n撤回授权：在「设置 → 设备与权限」逐项关闭，或到 iOS 系统设置中撤回权限，撤回后立即停供。\n\n如需协助，可通过上文联系方式联系我们；但因我们不持有你的数据，具体操作仍需在你自己的设备与服务器上完成。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your data lives on your device and your own server, and access, deletion and revocation can all be done directly in the app:\n\nAccess: view conversations on the chat page; view sync status and copy counts under “Settings → Device & Permissions”; view files stored on the server on the Files page.\n\nDeletion: delete all synced copies with one tap under “Settings → Device & Permissions”; use “Disconnect” at the bottom of the Settings page to remove the server credentials and sign-in session stored on this device; uninstalling the app removes local data such as on-device chat history; data on the server can be deleted by you through server file management.\n\nRevoking authorization: turn items off one by one under “Settings → Device & Permissions”, or revoke permission in iOS Settings; supply stops immediately upon revocation.\n\nIf you need help, contact us using the details above; but because we do not hold your data, the actual steps still have to be carried out on your own device and server."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的数据都在你的设备与你自己的服务器上，查询、删除与撤回授权都可以在 App 内直接完成：\n\n查询：对话在聊天页查看；设备数据的同步状态与副本条数在「设置 → 设备与权限」查看；保存在服务器上的文件在「文件」页查看。\n\n删除：在「设置 → 设备与权限」一键删除全部同步副本；在设置页底部「断开连接」可清除本机保存的服务器凭据与登录会话；卸载 App 将清除本机聊天记录等本地数据；服务器一侧的数据可通过服务器文件管理自行删除。\n\n撤回授权：在「设置 → 设备与权限」逐项关闭，或到 iOS 系统设置中撤回权限，撤回后立即停供。\n\n如需协助，可通过上文联系方式联系我们；但因我们不持有你的数据，具体操作仍需在你自己的设备与服务器上完成。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的資料都在你的裝置與你自己的伺服器上，查詢、刪除與撤回授權都可以在 App 內直接完成：\n\n查詢：對話在聊天頁查看；裝置資料的同步狀態與副本條數在「設定 → 裝置與權限」查看；儲存在伺服器上的檔案在「檔案」頁查看。\n\n刪除：在「設定 → 裝置與權限」一鍵刪除全部同步副本；在設定頁底部「中斷連線」可清除本機儲存的伺服器憑據與登入工作階段；卸載 App 將清除本機聊天記錄等本地資料；伺服器一側的資料可透過伺服器檔案管理自行刪除。\n\n撤回授權：在「設定 → 裝置與權限」逐項關閉，或到 iOS 系統設定中撤回權限，撤回後立即停供。\n\n如需協助，可透過上文聯絡方式聯絡我們；但因我們不持有你的資料，具體操作仍需在你自己的裝置與伺服器上完成。"
+          }
+        }
+      }
+    },
+    "OneDay 面向能够自行部署与管理服务器的用户。未成年人应在监护人指导下使用；监护人如发现未成年人未经同意使用并产生了数据，可按上文路径在设备与服务器上删除，或联系我们获取操作说明。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay is intended for users who can deploy and manage a server themselves. Minors should use it under a guardian's guidance; if a guardian finds that a minor has used it without consent and data was created, they may delete it on the device and server following the paths above, or contact us for instructions."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 面向能够自行部署与管理服务器的用户。未成年人应在监护人指导下使用；监护人如发现未成年人未经同意使用并产生了数据，可按上文路径在设备与服务器上删除，或联系我们获取操作说明。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 面向能夠自行部署與管理伺服器的使用者。未成年人應在監護人指導下使用；監護人如發現未成年人未經同意使用並產生了資料，可按上文路徑在裝置與伺服器上刪除，或聯絡我們取得操作說明。"
+          }
+        }
+      }
+    },
+    "本政策自 2026 年 11 月 11 日起生效。如我们变更信息的处理方式，会先更新本页并注明新的生效日期；涉及重大变化时，会在 App 内显著提示。更新后继续使用，即视为接受变更后的政策。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This policy takes effect on November 11, 2026. If we change how information is handled, we will update this page first and note the new effective date; material changes will be prominently flagged in the app. Continued use after an update means you accept the revised policy."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本政策自 2026 年 11 月 11 日起生效。如我们变更信息的处理方式，会先更新本页并注明新的生效日期；涉及重大变化时，会在 App 内显著提示。更新后继续使用，即视为接受变更后的政策。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本政策自 2026 年 11 月 11 日起生效。如我們變更資訊的處理方式，會先更新本頁並註明新的生效日期；涉及重大變化時，會在 App 內顯著提示。更新後繼續使用，即視為接受變更後的政策。"
+          }
+        }
+      }
+    },
+    "OneDay 是客户端软件，用于连接你自己部署的 Hermes 服务。Hermes 是由 Nous Research 维护的开源项目。OneDay 本身不提供云服务：没有我们的服务器承接你的对话、文件或设备数据。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay is client software for connecting to a Hermes service you deploy yourself. Hermes is an open-source project maintained by Nous Research. OneDay itself provides no cloud service: no server of ours receives your conversations, files or device data."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 是客户端软件，用于连接你自己部署的 Hermes 服务。Hermes 是由 Nous Research 维护的开源项目。OneDay 本身不提供云服务：没有我们的服务器承接你的对话、文件或设备数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 是用戶端軟體，用於連線你自己部署的 Hermes 服務。Hermes 是由 Nous Research 維護的開源專案。OneDay 本身不提供雲端服務：沒有我們的伺服器承接你的對話、檔案或裝置資料。"
+          }
+        }
+      }
+    },
+    "服务器的部署、运行、可用性与安全维护，由你或你的服务器提供方负责；对话、文件与同步副本等数据的保管、备份与删除也在你一侧。我们提供的是客户端软件及其更新，无法保证你的服务器持续可用，也不为服务器故障、第三方服务中断造成的数据损失负责。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deploying, operating, keeping available and securing the server is the responsibility of you or your server provider; custody, backup and deletion of data such as conversations, files and synced copies also rest on your side. We provide the client software and its updates; we cannot guarantee that your server remains available, and we are not liable for data loss caused by server failures or interruptions of third-party services."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器的部署、运行、可用性与安全维护，由你或你的服务器提供方负责；对话、文件与同步副本等数据的保管、备份与删除也在你一侧。我们提供的是客户端软件及其更新，无法保证你的服务器持续可用，也不为服务器故障、第三方服务中断造成的数据损失负责。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器的部署、運行、可用性與安全維護，由你或你的伺服器提供方負責；對話、檔案與同步副本等資料的保管、備份與刪除也在你一側。我們提供的是用戶端軟體及其更新，無法保證你的伺服器持續可用，也不為伺服器故障、第三方服務中斷造成的資料損失負責。"
+          }
+        }
+      }
+    },
+    "你承诺遵守所在地法律法规，不利用 OneDay 从事违法活动，不侵害他人合法权益，不攻击或干扰你无权访问的系统与服务。因你使用 OneDay 的方式产生的后果由你承担。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You agree to comply with the laws and regulations of your jurisdiction, not to use OneDay for unlawful activity, not to infringe the lawful rights of others, and not to attack or interfere with systems or services you are not authorized to access. You bear the consequences of the way you use OneDay."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你承诺遵守所在地法律法规，不利用 OneDay 从事违法活动，不侵害他人合法权益，不攻击或干扰你无权访问的系统与服务。因你使用 OneDay 的方式产生的后果由你承担。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你承諾遵守所在地法律法規，不利用 OneDay 從事違法活動，不侵害他人合法權益，不攻擊或干擾你無權存取的系統與服務。因你使用 OneDay 的方式產生的後果由你承擔。"
+          }
+        }
+      }
+    },
+    "智能体的回复由模型生成，可能不准确或不完整，不构成医疗、法律、财务等专业建议，重要决定请自行核实。通过智能体执行的操作（包括发送消息、修改文件、调用设备能力等），应由你在执行前确认；你对已确认执行的操作及其结果负责。涉及审批的写入操作会在聊天中请你批准，请勿批准你不理解的操作。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent's replies are generated by a model and may be inaccurate or incomplete; they do not constitute professional advice in areas such as medicine, law or finance, and you should verify important decisions yourself. Actions carried out through the agent (including sending messages, modifying files and invoking device capabilities) should be confirmed by you before execution; you are responsible for actions you confirm and their outcomes. Write operations subject to approval will ask for your approval in chat — do not approve operations you do not understand."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体的回复由模型生成，可能不准确或不完整，不构成医疗、法律、财务等专业建议，重要决定请自行核实。通过智能体执行的操作（包括发送消息、修改文件、调用设备能力等），应由你在执行前确认；你对已确认执行的操作及其结果负责。涉及审批的写入操作会在聊天中请你批准，请勿批准你不理解的操作。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理的回覆由模型產生，可能不準確或不完整，不構成醫療、法律、財務等專業建議，重要決定請自行核實。透過智慧代理執行的操作（包括傳送訊息、修改檔案、呼叫裝置能力等），應由你在執行前確認；你對已確認執行的操作及其結果負責。涉及審批的寫入操作會在聊天中請你批准，請勿批准你不理解的操作。"
+          }
+        }
+      }
+    },
+    "OneDay 客户端以开源形式发布于 GitHub 仓库（github.com/yyyyymmmmm/oneday-app），其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The OneDay client is published as open source in its GitHub repository (github.com/yyyyymmmmm/oneday-app), and its use and distribution are governed by the license included in that repository. Hermes is an open-source project of Nous Research, and rights in it belong to its rights holders. Other names and marks mentioned in this agreement belong to their respective owners and imply no affiliation or endorsement."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 客户端以开源形式发布于 GitHub 仓库（github.com/yyyyymmmmm/oneday-app），其使用与分发遵循仓库内所附的许可证。Hermes 为 Nous Research 的开源项目，权利归其权利人所有。本协议提及的其他名称与标识归各自权利人所有，不表示隶属或背书关系。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 用戶端以開源形式發佈於 GitHub 倉庫（github.com/yyyyymmmmm/oneday-app），其使用與散佈遵循倉庫內所附的授權條款。Hermes 為 Nous Research 的開源專案，權利歸其權利人所有。本協議提及的其他名稱與標識歸各自權利人所有，不表示隸屬或背書關係。"
+          }
+        }
+      }
+    },
+    "在法律允许的最大范围内，OneDay 按「现状」提供，我们不对软件无错误、无中断作出明示或默示保证；对于因使用或无法使用 OneDay 引起的间接、偶然或后果性损失，我们不承担责任。本条不排除依法不得排除的责任。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To the maximum extent permitted by law, OneDay is provided “as is”, and we make no express or implied warranty that the software is error-free or uninterrupted; we are not liable for indirect, incidental or consequential losses arising from the use of, or inability to use, OneDay. This section does not exclude liability that cannot lawfully be excluded."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在法律允许的最大范围内，OneDay 按「现状」提供，我们不对软件无错误、无中断作出明示或默示保证；对于因使用或无法使用 OneDay 引起的间接、偶然或后果性损失，我们不承担责任。本条不排除依法不得排除的责任。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在法律允許的最大範圍內，OneDay 按「現狀」提供，我們不對軟體無錯誤、無中斷作出明示或默示保證；對於因使用或無法使用 OneDay 引起的間接、偶然或後果性損失，我們不承擔責任。本條不排除依法不得排除的責任。"
+          }
+        }
+      }
+    },
+    "你可以随时停止使用并卸载 OneDay，凭据与本地数据的清除方式见隐私政策。我们如停止维护，会在 GitHub 仓库公告；已安装的客户端与你的服务器之间的数据不受影响。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You may stop using and uninstall OneDay at any time; see the Privacy Policy for how credentials and local data are removed. If we discontinue maintenance, we will announce it in the GitHub repository; data between your installed client and your server is unaffected."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你可以随时停止使用并卸载 OneDay，凭据与本地数据的清除方式见隐私政策。我们如停止维护，会在 GitHub 仓库公告；已安装的客户端与你的服务器之间的数据不受影响。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你可以隨時停止使用並卸載 OneDay，憑據與本地資料的清除方式見隱私政策。我們如停止維護，會在 GitHub 倉庫公告；已安裝的用戶端與你的伺服器之間的資料不受影響。"
+          }
+        }
+      }
+    },
+    "本协议适用中华人民共和国法律，自 2026 年 11 月 11 日起生效。我们更新协议时，会先更新本页并注明新的生效日期；重大变更会在 App 内显著提示，更新后继续使用即视为接受。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This agreement is governed by the laws of the People's Republic of China and takes effect on November 11, 2026. When we update this agreement, we will update this page first and note the new effective date; material changes will be prominently flagged in the app, and continued use after an update means you accept the revised agreement."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本协议适用中华人民共和国法律，自 2026 年 11 月 11 日起生效。我们更新协议时，会先更新本页并注明新的生效日期；重大变更会在 App 内显著提示，更新后继续使用即视为接受。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本協議適用中華人民共和國法律，自 2026 年 11 月 11 日起生效。我們更新協議時，會先更新本頁並註明新的生效日期；重大變更會在 App 內顯著提示，更新後繼續使用即視為接受。"
+          }
+        }
+      }
     }
   }
 }
