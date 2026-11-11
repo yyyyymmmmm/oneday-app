@@ -9531,3 +9531,8 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 7. 聊天卡详情：点「查看详情」展开长改动 → 滚到底部有「收起」钮、点之收起；顶部「收起详情」仍可用；枢纽「查看改动」sheet 形态不变。
 8. 锚定行三态流转：待批卡 → 裁决后已决行 → （构造上游丢弃样本或等账本滚出）两轮刷新后「已失效」灰行，行不消失、正文标题仍是快照标题。
 9. AX 最大字号档＋深色各一帧：锚定卡/已决行/失效行与「查看原对话」钮不裁字、不溢出。
+
+### 156.9 CI 补记（预制终判）
+- CI 两轮：一轮 run 43031840127 failure——decisionsForAnchor 只落了具体类、漏协议声明与 Demo 桩 conformance，另 HubApprovalSection/NotificationsView 用 FetchDescriptor 未导入 SwiftData；修复提交 7aae668（协议＋演示桩＋两处 import）。
+- 二轮 run **43032578083**（workflow_dispatch 于本分支顶端 7aae668）：jobs API 终判 build-native **success**；单测 Executed **1587、0 failures**（基线 c9a2392 的 1569＋本包 ApprovalAnchorTests 12 法＋同批在飞包带入的增量，只增不减、本包新增 12 法逐法 passed 在案）。基线 1569 为 HUB-1 合并后主线口径（§155.7），本包相对基线净增即 12 法。
+- 交付形态：只预制不合并、版本号未动（仍 0.50.17/139），合并与 §156 顺延归主线合裁；合并注意——与在飞包的文件交集：ChatView（抽屉容器/呈现包同动，本包动 bubble 分支/列表排除参/两处 onChange 邻位，冲突面小）、xcstrings（+2 键，文本插入、并集可解）、AppState/AgentHubStore（模型包系在飞包可能同动 store 邻域）。
