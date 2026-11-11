@@ -8247,6 +8247,14 @@ Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手�
 
 - §117.8 核查定论 S2-11 未随对标包落地、转本包尾巴，本单补入：FeedBriefEditorView 两颗保存钮自 Form 文本行式 Button 提主钮层级，照 §118 审批卡主钮同款形态口径——「保存兴趣」＝主钮（Palette.primary 实心＋白字、通栏胶囊、高 ApprovalCardSpec.buttonHeight 48、保存中右端白转菊花保留）；「保存正式简报」＝次钮（同几何、Palette.selectionFill 浅灰填充＋墨字），主次分明。两钮均 .odPressable、行 chrome 改 listRowInsets 零＋listRowBackground 透明（胶囊自成面、不套行卡底），禁用态以 0.45 透明度明示（条件与旧口径逐字不变）。文案（既有目录键）与 saveInterest/savePrompt 逻辑一字未动；无新文案键，validate_i18n 不变。
 
+### 118.5 交付记账（合并单续办，2026-11-11）
+
+- **交付定版**：0.49.1／119。原预制分支 feat/style-fix-a（顶端 18da930，基线老 main 2ed1d4f）首轮合并单按纪律停在分支 CI 红——唯一失败 FileIntakeTests.testTranscodeGBKTextToUTF8 系基线旧账（§116 的 GBK 终修 P-21 在现行 main、分支 diff 不触 FileIntake）。本续办单先变基到现行 main c3e1729（变基后顶端 7228c90＋2a36a2f）：冲突仅 DESIGN-V4.md 一处，按顺序拼接、§118 节归位至 §117 与 §121 之间（§116／§117／§121／§122／§124／§123 全保留）；代码面（FilesView／HubApprovalSection 等）自动合并、无审批卡面与 §123 通知面的取舍冲突；Localizable.xcstrings 分支零触碰，main 2487 键原样、validate_i18n 通过。变基后分支 CI run 42968708726 全绿（单测 1296＝main 基线 1283＋本包 13、0 failures，GBK 旧账随终修转绿）；续补 S2-11（提交 8024d99，见 §118.4）后第二轮分支 CI run 42969772410 全绿。
+- **合并**：合并提交 3a82ae2（--no-ff，零冲突）；定版提交 c2748f0（版本五处＝Project.swift 四处 0.49.1/119＋SettingsView 页脚「OneDay v0.49.1」，grep 验无 0.49.0 残留）即合并后 main 顶端。
+- **合并后 CI**：run 42970583976 success（build-native success，head c2748f0）；单测 1296、0 failures（只增不减）。
+- **独立验包**：IPA 9,197,811 字节、md5 `add8ce495c9918d4fceb925b3616566a`、Info.plist 实读 0.49.1／119／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.49.1/OneDay-0.49.1.ipa`（落盘 md5 一致）。
+- **真机待验**：§118.3 三点（两面审批卡三钮等宽满宽、主钮恒蓝；两处菜单恰一勾且文字同线；已决历史行「按规则放行」灰字后缀）＋S2-11 两钮（简报编辑器主钮蓝实心通栏、次钮浅灰同高、禁用态变淡、保存中转菊花）。
+
 
 ## §121 热修：回底钮消失＋自己发的文件没牌/点开落点（0.46.1 真机报障，2026-11-11 12:27）
 
