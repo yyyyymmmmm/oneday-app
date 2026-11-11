@@ -499,7 +499,16 @@ public enum OneDayMetrics {
     /// 抽屉导航/旁聊行高（0.20.0，用户给的 Muse 抽屉
     /// 真机图推算：选中垫行高约 53、旁聊行距约 58，
     /// 取 58 统一抽屉行档；推算锚点见 DESIGN-V4 §47）
+    /// §154 起本档只管旁聊会话行（56–60 区间内取 58
+    /// 不动），导航簇改走 drawerNavRowHeight
     public static let drawerRowHeight: CGFloat = 58
+    /// 抽屉导航簇行高（§154，用户 2026-11-11 21:01 补
+    /// 充方案②）：导航行/频道行/管理行的最小行高——
+    /// 导航紧一点、把空间让给会话。54 是设计起点值
+    /// （建议区间 52–56 的中点），不是 Muse 实测参
+    /// 数；仍是 minHeight 语义，大字体时行高随内容
+    /// 增长，不钉死
+    public static let drawerNavRowHeight: CGFloat = 54
     /// 设置页行最小高（0.20.0，Muse 设置图推算行距
     /// 约 63 含卡内呼吸，行本体取 60）
     public static let settingsRowHeight: CGFloat = 60

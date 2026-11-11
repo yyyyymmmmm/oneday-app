@@ -21,6 +21,9 @@ final class VisualDirectionGateTests: XCTestCase {
         // 内容题归 Body、名字头 Title1 28 bold、meta/
         // sectionLabel 归 Footnote、rowTitleLSemi 退役
         // ——九角色（断言随规格改值、非删测）
+        // §154 增抽屉局部三角色（用户 2026-11-11 补
+        // 充方案：导航 medium/次要 regular/当前 semi-
+        // bold，只许抽屉消费）——十二角色
         let expected: [TypeRole: (style: String, pt: CGFloat, weight: String)] = [
             .screenName: ("title", 28, "bold"),
             .rowTitleL: ("body", 17, "regular"),
@@ -31,6 +34,9 @@ final class VisualDirectionGateTests: XCTestCase {
             .sectionLabel: ("footnote", 13, "regular"),
             .captionText: ("footnote", 13, "regular"),
             .badgeOnly: ("caption", 12, "regular"),
+            .drawerNavTitle: ("body", 17, "medium"),
+            .drawerRowTitle: ("body", 17, "regular"),
+            .drawerRowTitleCurrent: ("body", 17, "semibold"),
         ]
         XCTAssertEqual(Set(TypeRole.allCases), Set(expected.keys))
         for (role, spec) in expected {
@@ -52,6 +58,11 @@ final class VisualDirectionGateTests: XCTestCase {
             ("rowTitle", .rowTitle),
             ("meta", .meta),
             ("captionText", .captionText),
+            // §154 抽屉局部角色同受本闸把守（带字重的
+            // 文本样式字体也必须真随 Dynamic Type 缩放）
+            ("drawerNavTitle", .drawerNavTitle),
+            ("drawerRowTitle", .drawerRowTitle),
+            ("drawerRowTitleCurrent", .drawerRowTitleCurrent),
         ]
         for (name, font) in roles {
             let base = renderedTextHeight(font: font, category: .large)

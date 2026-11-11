@@ -13,9 +13,17 @@ import Foundation
 /// now，0.3.6 单测实证）。
 private func sessionDayTimeText(
     for date: Date, now: Date, calendar: Calendar,
-    locale: Locale = AppLocale.uiLocale
+    locale: Locale = AppLocale.uiLocale,
+    dropsTodayPrefix: Bool = false
 ) -> String {
     let dayDiff = DisplayDate.dayDifference(of: date, now: now, calendar: calendar)
+    let time = DisplayDate.timeText(of: date, calendar: calendar, locale: locale)
+    // §154 紧凑口径：今天不带日标——行尾只剩 HH:mm，
+    // 给标题让宽（抽屉行尾专用，见 LocalThread-
+    // Subtitle.compactTimeText）
+    if dayDiff == 0, dropsTodayPrefix {
+        return time
+    }
     let day: String
     switch dayDiff {
     case 0:
@@ -25,7 +33,6 @@ private func sessionDayTimeText(
     default:
         day = DisplayDate.absoluteDate(of: date, now: now, calendar: calendar, locale: locale)
     }
-    let time = DisplayDate.timeText(of: date, calendar: calendar, locale: locale)
     return "\(day) \(time)"
 }
 
@@ -267,6 +274,23 @@ public enum LocalThreadSubtitle {
         locale: Locale = AppLocale.uiLocale
     ) -> String {
         sessionDayTimeText(for: updatedAt, now: now, calendar: calendar, locale: locale)
+    }
+
+    /// 抽屉行尾紧凑时间（§154，用户 2026-11-11 21:01
+    /// 补充方案④）：今天只给 HH:mm（「19:43」），不
+    /// 再让「今天」二字与标题争宽；跨日沿现行相对日
+    /// 期规则收敛——昨天仍「昨天 HH:mm」、更早仍绝
+    /// 对日期＋时间，与 timeText 只差今天一段。只许
+    /// 抽屉会话行消费，管理页等其余面仍走 timeText
+    public static func compactTimeText(
+        updatedAt: Date,
+        now: Date, calendar: Calendar = .current,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        sessionDayTimeText(
+            for: updatedAt, now: now, calendar: calendar,
+            locale: locale, dropsTodayPrefix: true
+        )
     }
 }
 
