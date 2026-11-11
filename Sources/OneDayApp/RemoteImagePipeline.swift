@@ -94,7 +94,7 @@ final class RemoteImagePipeline {
         if let task = inFlight[key] {
             return await task.value
         }
-        let task = Task { @MainActor in
+        let task = Task {
             await self.fetch(
                 path: path, mtime: mtime, tier: tier,
                 config: config, originalLoader: originalLoader)
@@ -119,13 +119,13 @@ final class RemoteImagePipeline {
               diskData(path: path, mtime: mtime, tier: tier) == nil,
               inFlight[key] == nil, prefetchTasks[key] == nil
         else { return }
-        let task = Task(priority: .utility) { @MainActor in
+        let task = Task(priority: .utility) {
             await self.fetch(
                 path: path, mtime: mtime, tier: tier,
                 config: config, originalLoader: originalLoader)
         }
         prefetchTasks[key] = task
-        Task { @MainActor in
+        Task {
             _ = await task.value
             self.prefetchTasks[key] = nil
         }
