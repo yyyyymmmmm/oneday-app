@@ -973,6 +973,49 @@ struct AssistantFileChip: View {
     }
 }
 
+/// 助手侧 MEDIA: 图片的存在性门（§136）：标记行
+/// 已在 Core 拆分时从正文摘除，这里只管出不出图
+/// ——判定与文件牌同源（§129 三分）：确证存在才
+/// 按既有远端图形态出图（ServerRemoteImage §130
+/// 定高卡，点开/无障碍与 remoteImagePaths 行同
+/// 口径，由 onOpen 回 ChatView 的查看器入口）；
+/// 确证不在、还没查完、或校验没查成（unverified
+/// 只记账不下结论），一律不出图——整行就此不显
+/// 示，绝不退回露 `MEDIA:` 原文（用户报障的正
+/// 是原文漏出）；unverified 非终局，下次渲染重
+/// 查、查实后原地出图。
+struct AssistantMediaImage: View {
+    @Environment(AppState.self) private var appState
+
+    let path: String
+    let onOpen: () -> Void
+
+    var body: some View {
+        Group {
+            if FileMetadataStore.shared.existence(for: path)
+                == .exists {
+                ServerRemoteImage(path: path)
+                    .onTapGesture { onOpen() }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        A11yText.imageLabel(
+                            fileName: (path as NSString)
+                                .lastPathComponent
+                        )
+                    )
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint(L10n.string("查看大图"))
+                    .accessibilityAction { onOpen() }
+            }
+        }
+        .task(id: path) {
+            await FileMetadataStore.shared.verifyExistence(
+                path: path, appState: appState
+            )
+        }
+    }
+}
+
 /// QuickLook 预览载荷：字节落临时目录后以 URL 呈现
 struct ChatFilePreviewItem: Identifiable {
     let url: URL
