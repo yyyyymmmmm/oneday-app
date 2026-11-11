@@ -552,6 +552,36 @@ final class RunTurnTests: XCTestCase {
         XCTAssertTrue(missing.isEmpty)
     }
 
+    func testReconcilePairsExpandedServerUserWithCleanLocal() {
+        // 0.46.1（§116）本案形态：服务端 user 行存的
+        // 是网关展开全文、本地条目是干净正文——规范形
+        // 判同应配上对、不判缺（旧原文比对必判缺、再
+        // 补一份展开块进来与本地干净条目双份并存）
+        let expanded = """
+        你可以看到这是什么吗
+        @file:/opt/data/attachments/三藏.zip
+
+        --- Attached Context ---
+
+        📎 @file:/opt/data/attachments/三藏.zip (application/zip, 660.6 KB) — binary file, not inlined as text. It is available on disk at `/opt/data/attachments/三藏.zip`. Use your tools to work with it (read or convert it, extract its text, or view/render it as needed); do not tell the user the file type is unsupported.
+        """
+        let missing = RunTranscriptSettle.missingUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: expanded, at: 3_000
+                ),
+                timedMessage(
+                    role: "assistant", content: "在。", at: 3_001
+                ),
+            ],
+            localUserEntries: [
+                (content: "你可以看到这是什么吗",
+                 createdAt: Date(timeIntervalSince1970: 3_000))
+            ]
+        )
+        XCTAssertTrue(missing.isEmpty)
+    }
+
     func testReconcileNeverFabricatesAssistantEntries() {
         // 助手条目本地缺失也不归本对账管：只补 user
         let missing = RunTranscriptSettle.missingUserMessages(

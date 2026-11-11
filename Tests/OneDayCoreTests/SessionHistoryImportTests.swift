@@ -33,6 +33,42 @@ final class SessionHistoryImportTests: XCTestCase {
         )
     }
 
+    /// 0.46.1（§116）：user 消息的网关展开块在导入时
+    /// 还原——content 只剩干净正文、附件路径进
+    /// fileRefs，英文脚手架不进线程
+    func testRichItemsNormalizesAttachedContextBlock() {
+        let expanded = """
+        你可以看到这是什么吗
+        @file:/opt/data/attachments/三藏.zip
+
+        --- Attached Context ---
+
+        📎 @file:/opt/data/attachments/三藏.zip (application/zip, 660.6 KB) — binary file, not inlined as text. It is available on disk at `/opt/data/attachments/三藏.zip`. Use your tools to work with it (read or convert it, extract its text, or view/render it as needed); do not tell the user the file type is unsupported.
+        """
+        let items = SessionHistoryImport.richItems(from: [
+            SessionMessage(
+                id: 947, role: "user", content: expanded,
+                timestamp: 1762000000, displayKind: nil
+            ),
+            SessionMessage(
+                id: 948, role: "assistant",
+                content: "这是一个压缩包。",
+                timestamp: 1762000001, displayKind: nil
+            ),
+        ])
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(items[0].role, "user")
+        XCTAssertEqual(items[0].content, "你可以看到这是什么吗")
+        XCTAssertEqual(
+            items[0].fileRefs, ["/opt/data/attachments/三藏.zip"]
+        )
+        XCTAssertTrue(items[0].imagePaths.isEmpty)
+        XCTAssertFalse(items[0].content.contains("Attached"))
+        // assistant 不走规范化、正文原样、fileRefs 恒空
+        XCTAssertEqual(items[1].content, "这是一个压缩包。")
+        XCTAssertTrue(items[1].fileRefs.isEmpty)
+    }
+
     func testEmptyWhenNothingImportable() throws {
         let loaded = try messages("""
         {"messages": [

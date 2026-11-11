@@ -146,6 +146,75 @@ final class RichContentTests: XCTestCase {
         XCTAssertTrue(plain.paths.isEmpty)
     }
 
+    // MARK: - 网关附件展开块（0.46.1，§116）
+
+    /// 生产样本原文形态（消息 947）：正文＋@file 行＋
+    /// 分隔行＋📎 说明与英文指令全文
+    private var attachedContextZipSample: String {
+        """
+        你可以看到这是什么吗
+        @file:/opt/data/attachments/三藏.zip
+
+        --- Attached Context ---
+
+        📎 @file:/opt/data/attachments/三藏.zip (application/zip, 660.6 KB) — binary file, not inlined as text. It is available on disk at `/opt/data/attachments/三藏.zip`. Use your tools to work with it (read or convert it, extract its text, or view/render it as needed); do not tell the user the file type is unsupported.
+        """
+    }
+
+    func testAttachedContextRefParse() {
+        // zip 样本：正文还原、路径进 fileRefs、指令全丢
+        let parsed = AttachedContextRef.parse(
+            attachedContextZipSample
+        )
+        XCTAssertEqual(parsed.text, "你可以看到这是什么吗")
+        XCTAssertEqual(
+            parsed.fileRefs, ["/opt/data/attachments/三藏.zip"]
+        )
+        XCTAssertTrue(parsed.imagePaths.isEmpty)
+        XCTAssertFalse(parsed.text.contains("Attached Context"))
+        XCTAssertFalse(parsed.text.contains("binary file"))
+
+        // 带引号路径（FileSendAssembly 对含空格/括号路
+        // 径的包裹形）、无尾部块
+        let quoted = AttachedContextRef.parse(
+            "看看这个\n@file:\"/opt/data/attachments/我的 文件 (1).zip\""
+        )
+        XCTAssertEqual(quoted.text, "看看这个")
+        XCTAssertEqual(
+            quoted.fileRefs,
+            ["/opt/data/attachments/我的 文件 (1).zip"]
+        )
+
+        // 无分隔块、只有独立 @file 行：同样剥离收集
+        let headOnly = AttachedContextRef.parse(
+            "帮我看看\n@file:/opt/data/docs/a.pdf"
+        )
+        XCTAssertEqual(headOnly.text, "帮我看看")
+        XCTAssertEqual(headOnly.fileRefs, ["/opt/data/docs/a.pdf"])
+
+        // 图片扩展名归图片口径
+        let image = AttachedContextRef.parse(
+            "看图\n@file:/opt/data/cache/p.png\n\n"
+                + "--- Attached Context ---\n\n"
+                + "📎 @file:/opt/data/cache/p.png (image/png, 12 KB)"
+        )
+        XCTAssertEqual(image.text, "看图")
+        XCTAssertEqual(image.imagePaths, ["/opt/data/cache/p.png"])
+        XCTAssertTrue(image.fileRefs.isEmpty)
+
+        // 普通消息逐字不变；行内提及 @file: 不是引用行、
+        // 同样不动
+        let plain = AttachedContextRef.parse("普通消息")
+        XCTAssertEqual(plain.text, "普通消息")
+        XCTAssertTrue(plain.imagePaths.isEmpty)
+        XCTAssertTrue(plain.fileRefs.isEmpty)
+        let inline = AttachedContextRef.parse(
+            "他说 @file:/opt/data/x.zip 好像不错"
+        )
+        XCTAssertEqual(inline.text, "他说 @file:/opt/data/x.zip 好像不错")
+        XCTAssertTrue(inline.fileRefs.isEmpty)
+    }
+
     // MARK: - 分类 / 标题 / 摘要
 
     func testClassifierCategories() {
@@ -537,6 +606,34 @@ final class RichContentTests: XCTestCase {
         )
         XCTAssertTrue(FileRefDetector.isImagePath("/x/y.PNG"))
         XCTAssertFalse(FileRefDetector.isImagePath("/x/y.pdf"))
+    }
+
+    func testFileRefDetectorChineseNames() {
+        // 0.46.1：中文名路径命中（此前字符集纯 ASCII、
+        // 中文名文件探不到不出牌）
+        XCTAssertEqual(
+            FileRefDetector.detect(
+                in: "已生成 /opt/data/attachments/三藏.zip，请查收"
+            ),
+            ["/opt/data/attachments/三藏.zip"]
+        )
+        XCTAssertEqual(
+            FileRefDetector.detect(
+                in: "文件在 /opt/data/报告.pdf 和 /opt/data/notes.txt"
+            ),
+            ["/opt/data/报告.pdf", "/opt/data/notes.txt"]
+        )
+        // 中文名 URL 仍不误报（护栏不变）
+        XCTAssertTrue(
+            FileRefDetector.detect(
+                in: "见 https://example.com/files/三藏.zip"
+            ).isEmpty
+        )
+        XCTAssertTrue(
+            FileRefDetector.detect(
+                in: "见 https://example.com/文件/a.pdf"
+            ).isEmpty
+        )
     }
 
     // MARK: - 流式累积与 SSE

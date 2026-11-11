@@ -1971,6 +1971,27 @@ struct ChatView: View {
                                 in: RoundedRectangle(cornerRadius: OneDayMetrics.bubbleCorner)
                             )
                     }
+                    // 0.46.1（§116）：用户附件文件牌——
+                    // 展开块剥出的非图片附件（导入/补缺
+                    // 落盘 remoteFilePaths）挂正文泡下方
+                    // 同列，与助手侧同构（同一 FileChip、
+                    // 同一 openChatFile 打开链：下载取回
+                    // →QuickLook）；图片已由上方图片行承
+                    // 接，不到这里
+                    if !entry.remoteFilePaths.isEmpty {
+                        VStack(
+                            alignment: .trailing,
+                            spacing: OneDayMetrics.spacingXS
+                        ) {
+                            ForEach(
+                                entry.remoteFilePaths, id: \.self
+                            ) { path in
+                                FileChip(path: path) {
+                                    openChatFile(path)
+                                }
+                            }
+                        }
+                    }
                 }
                 .modifier(messageMenu(for: entry))
                 .modifier(swipeReply(for: entry))
@@ -3738,7 +3759,8 @@ private struct ComposerBarLayout: Layout {
                 let chatEntry = ChatEntry(
                     role: entry.role, content: entry.content,
                     thread: thread, toolCard: entry.toolCard,
-                    remoteImagePaths: entry.imagePaths
+                    remoteImagePaths: entry.imagePaths,
+                    remoteFilePaths: entry.fileRefs
                 )
                 if let date = entry.date {
                     chatEntry.createdAt = date
@@ -4752,9 +4774,16 @@ private struct ComposerBarLayout: Layout {
         )
         guard !missing.isEmpty else { return }
         for message in missing {
+            // 0.46.1（§116）：补回也走规范化——展开块
+            // 还原成干净正文＋附件路径落盘，不把给模型
+            // 的脚手架原文补进气泡
+            let normalized = SessionHistoryImport
+                .normalizedUserContent(message.content)
             let healed = ChatEntry(
-                role: "user", content: message.content,
-                thread: thread
+                role: "user", content: normalized.text,
+                thread: thread,
+                remoteImagePaths: normalized.imagePaths,
+                remoteFilePaths: normalized.fileRefs
             )
             // 时刻以服务端存档为准（排序锚）；存档
             // 无时刻时保留插入时刻（落定助手条目随

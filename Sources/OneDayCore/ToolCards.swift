@@ -764,6 +764,142 @@ public enum AttachedImageRef {
     }
 }
 
+// MARK: - 网关附件展开块
+
+/// 网关把 user 消息尾的 `@file:` 引用展开成给模型看的
+/// 指令块、并把展开全文存进会话记录（0.46.1 热修，
+/// 生产样本＝消息 947）：头部＝用户正文＋独立成行的
+/// `@file:` 引用行，`--- Attached Context ---` 行之后
+/// 是逐条 `📎 @file:` 附件说明＋英文指令全文。展开块
+/// 是给模型的脚手架、不是用户的话——导入与对账判同
+/// 都先过本解析还原成（干净正文，附件路径两分）。
+/// 解析保守：无分隔块且无独立成行 `@file:` 引用、或
+/// 剥不出任何路径时，原文逐字返回（正文里的行内
+/// `@file:` 提及不动）。
+public enum AttachedContextRef {
+    public struct Parsed: Equatable, Sendable {
+        public let text: String
+        public let imagePaths: [String]
+        public let fileRefs: [String]
+
+        public init(
+            text: String, imagePaths: [String], fileRefs: [String]
+        ) {
+            self.text = text
+            self.imagePaths = imagePaths
+            self.fileRefs = fileRefs
+        }
+    }
+
+    /// 分隔行原文（网关展开块的头尾分界）
+    public static let separatorLine = "--- Attached Context ---"
+
+    public static func parse(_ content: String) -> Parsed {
+        guard content.contains("@file:") else {
+            return Parsed(text: content, imagePaths: [], fileRefs: [])
+        }
+        let lines = content.components(separatedBy: "\n")
+        var headLines = lines
+        var tailLines: [String] = []
+        if let index = lines.firstIndex(where: {
+            $0.trimmingCharacters(in: .whitespaces)
+                == separatorLine
+        }) {
+            headLines = Array(lines[..<index])
+            tailLines = Array(lines[(index + 1)...])
+        }
+        var paths: [String] = []
+        var seen = Set<String>()
+        func collect(_ path: String) {
+            if seen.insert(path).inserted { paths.append(path) }
+        }
+        // 头部：独立成行的 @file 引用行剥掉收路径，其
+        // 余行即用户正文（保原序原样）
+        var kept: [String] = []
+        for line in headLines {
+            if let path = standaloneFileRef(in: line) {
+                collect(path)
+            } else {
+                kept.append(line)
+            }
+        }
+        // 尾部：只认 📎 @file: 行的路径，其余文字（给
+        // 模型的指令）一律丢弃不进正文
+        for line in tailLines {
+            if let path = clipLinePath(in: line) {
+                collect(path)
+            }
+        }
+        // 一条路径都没剥出＝不是展开块形态（如正文里
+        // 行内提及 @file:），保守回原文逐字不变
+        guard !paths.isEmpty else {
+            return Parsed(text: content, imagePaths: [], fileRefs: [])
+        }
+        // 引用行抽走后收拾空行（与 AttachedImageRef 同
+        // 口径：三连换行压两连、去首尾空白）
+        var text = kept.joined(separator: "\n")
+        while text.contains("\n\n\n") {
+            text = text.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var imagePaths: [String] = []
+        var fileRefs: [String] = []
+        for path in paths {
+            if FileRefDetector.isImagePath(path) {
+                imagePaths.append(path)
+            } else {
+                fileRefs.append(path)
+            }
+        }
+        return Parsed(
+            text: text, imagePaths: imagePaths, fileRefs: fileRefs
+        )
+    }
+
+    /// 独立成行的 `@file:` 引用（头部形态）：整行只有
+    /// 引用本身——直写形 `@file:<路径>`（路径不含空白）
+    /// 或带引号形 `@file:"<路径>"`（FileSendAssembly 对
+    /// 含空格/括号路径的包裹形，引号后不许再有内容）
+    private static func standaloneFileRef(in line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("@file:") else { return nil }
+        let rest = String(trimmed.dropFirst("@file:".count))
+        if rest.hasPrefix("\"") {
+            guard rest.count >= 2, rest.hasSuffix("\"") else {
+                return nil
+            }
+            let inner = String(rest.dropFirst().dropLast())
+            return inner.isEmpty ? nil : inner
+        }
+        guard !rest.isEmpty,
+              !rest.contains(where: { $0.isWhitespace })
+        else { return nil }
+        return rest
+    }
+
+    /// 尾部 `📎 @file:` 说明行的路径：路径在 `@file:`
+    /// 后——带引号形取引号内、直写形取首个空白前一段
+    /// （其后是括号里的 MIME/大小与指令句，不入路径）
+    private static func clipLinePath(in line: String) -> String? {
+        var trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("📎") else { return nil }
+        trimmed = String(trimmed.dropFirst())
+            .trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("@file:") else { return nil }
+        let rest = String(trimmed.dropFirst("@file:".count))
+        if rest.hasPrefix("\"") {
+            let after = rest.dropFirst()
+            guard let close = after.firstIndex(of: "\"") else {
+                return nil
+            }
+            let inner = String(after[..<close])
+            return inner.isEmpty ? nil : inner
+        }
+        let path = String(rest.prefix(while: { !$0.isWhitespace }))
+        return path.isEmpty ? nil : path
+    }
+}
+
 // MARK: - 文件引用探测
 
 /// 从消息文本里探测可预览的服务端文件路径（绝对路径＋
@@ -776,8 +912,12 @@ public enum FileRefDetector {
         "png", "jpg", "jpeg", "gif", "webp", "heic",
     ]
 
+    // 0.46.1：路径段字符集扩 Unicode（\u0080–\uFFFF）——
+    // 中文名文件（如 /opt/data/attachments/三藏.zip）
+    // 此前探不到、不出牌；护栏不变（冒号前置跳 URL 残
+    // 段、// 开头跳过、至少一层目录、扩展名白名单）
     private static let pattern =
-        #"/[A-Za-z0-9_\-./]+?\.(?:pdf|docx?|xlsx?|pptx?|md|txt|csv|json|zip|png|jpe?g|gif|webp|heic|mp3|wav|m4a|mp4|mov)\b"#
+        #"/[A-Za-z0-9_\-./\u0080-\uFFFF]+?\.(?:pdf|docx?|xlsx?|pptx?|md|txt|csv|json|zip|png|jpe?g|gif|webp|heic|mp3|wav|m4a|mp4|mov)\b"#
 
     public static func detect(
         in text: String, excluding excluded: [String] = []

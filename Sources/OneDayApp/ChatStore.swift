@@ -99,10 +99,15 @@ final class ChatEntry {
     /// （[String]）——图片本体在服务器，呈现时经文件
     /// 下载通道取回；本地发送消息的图片仍走 imageData
     var remoteImagePathsData: Data? = nil
+    /// 0.46.1（§116）：历史导入/对账补缺的 user 消息
+    /// 里网关展开块剥出的非图片附件路径（JSON 编码，
+    /// 与 remoteImagePathsData 同形态）——呈现走用户
+    /// 气泡文件牌、点开同走文件下载通道
+    var remoteFilePathsData: Data? = nil
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = []) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = []) {
         id = UUID()
         self.role = role
         self.content = content
@@ -117,6 +122,9 @@ final class ChatEntry {
         remoteImagePathsData = remoteImagePaths.isEmpty
             ? nil
             : try? JSONEncoder().encode(remoteImagePaths)
+        remoteFilePathsData = remoteFilePaths.isEmpty
+            ? nil
+            : try? JSONEncoder().encode(remoteFilePaths)
         createdAt = Date()
         self.thread = thread
     }
@@ -134,6 +142,14 @@ final class ChatEntry {
         guard let remoteImagePathsData else { return [] }
         return (try? JSONDecoder().decode(
             [String].self, from: remoteImagePathsData
+        )) ?? []
+    }
+
+    /// 服务端文件路径（历史导入/对账补缺的用户附件用）
+    var remoteFilePaths: [String] {
+        guard let remoteFilePathsData else { return [] }
+        return (try? JSONDecoder().decode(
+            [String].self, from: remoteFilePathsData
         )) ?? []
     }
 

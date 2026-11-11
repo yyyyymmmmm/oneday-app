@@ -594,6 +594,15 @@ public enum RunTranscriptSettle {
     /// 区分、不误补不漏补；hidden 行与空白行不作锚
     /// （与服务端读面口径同）；**只补 user**——助手
     /// 条目由 settle 段落定自理，此处永不补造
+    /// 0.46.1（§116）规范形判同：比对键不再用原文——
+    /// 服务端 user 行存的是网关展开全文、本地条目是
+    /// 干净正文，原文永不相等会把已在场的条目判缺、
+    /// 再补一份展开块进来双份并存（用户截图实证）。
+    /// 两边同过 user 规范化（SessionHistoryImport.
+    /// normalizedUserContent）比（干净正文＋附件路径
+    /// 集）：任一侧路径集为空时只比正文（本地发送条
+    /// 目不落文件路径、集恒空，不因缺记录判异），两
+    /// 侧都有路径时须全等，防同文异附件错配
     public static func missingUserMessages(
         messages: [SessionMessage],
         localUserEntries: [(content: String, createdAt: Date)],
@@ -605,18 +614,32 @@ public enum RunTranscriptSettle {
                     in: .whitespacesAndNewlines
                 ).isEmpty
         }
-        var locals = localUserEntries.sorted {
-            $0.createdAt < $1.createdAt
-        }
+        var locals = localUserEntries.map { entry in
+            let normalized = SessionHistoryImport
+                .normalizedUserContent(entry.content)
+            return (
+                text: normalized.text.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ),
+                paths: Set(normalized.allPaths),
+                createdAt: entry.createdAt
+            )
+        }.sorted { $0.createdAt < $1.createdAt }
         var missing: [SessionMessage] = []
         for server in serverUsers {
-            let serverText = server.content.trimmingCharacters(
+            let normalized = SessionHistoryImport
+                .normalizedUserContent(server.content)
+            let serverText = normalized.text.trimmingCharacters(
                 in: .whitespacesAndNewlines
             )
+            let serverPaths = Set(normalized.allPaths)
             let pairedIndex = locals.firstIndex { local in
-                guard local.content.trimmingCharacters(
-                    in: .whitespacesAndNewlines
-                ) == serverText else { return false }
+                guard local.text == serverText else {
+                    return false
+                }
+                guard serverPaths.isEmpty || local.paths.isEmpty
+                        || serverPaths == local.paths
+                else { return false }
                 guard let serverDate = server.date else {
                     return true
                 }

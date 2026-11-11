@@ -8117,3 +8117,31 @@ B 档 11 项全部卡付费开发者账号（B1 健康/B2 家庭两件已在名�
 - 新增 7 个测试函数（DeviceSourcesTests +2：批四载荷分档门控/文案诚实；DeviceCallsTests +4：定位参数/媒体参数/撰写参数/快捷指令与文件呈现参数；RichContentTests +1：十五工具分类标题＋read_file 不误收），全仓测试函数口径以 CI 实跑为准、只增不减（合并前基线 1210，预期 1217）。既有 7 处钉值更新（名册计数 17→22 与呈现序、批次接线 +5、工具全集 27→42 与写集 12→14、可执行集 24→39、全开载荷补五件断言、搜索空集计数 17→22、非同步数据集 +5 断言），口径随名册扩容顺延、非放宽。
 - L10n 补 40 键（Localizable 2373→2413）＋InfoPlist 补 2 键（11→13），合计 2384→2426，validate_i18n.py 实跑通过；繁体守既有惯例（智能体→智慧代理、调用→呼叫、文件夹→資料夾、档案用檔案、定位→定位、存储→儲存）。
 - 静态自查已做：逐文件括号配平与基线同差；DeviceSourceID 全部穷尽点逐点排查并补臂（DevicePermissions.currentStates、DeviceStore 开关字典＋requestAccess、DeviceSyncExecutors.requestAccess、DeviceSyncDataset.fromSource、DeviceViews 图标底色/字形两开关＋详情分发、ConnectorsView.deviceDetail）；名册五字段与工具标题的源串与目录键经脚本逐字对账、全中；在场协调者沿批三纪律（@unchecked Sendable＋访问纪律注记、系统回调不继承 actor 隔离、可用性检查不在本包新增主 actor 隔离面）；MPMediaPlaylist/MPMediaItem 跨边界盒包照批二先例；定位授权等待者自持防提前释放。本机无 Swift 工具链：编译与全套单测终判等合并后 CI。
+
+## §116 热修 0.46.1·附件展开块还原（用户真机报障，2026-11-11）
+
+### 116.1 病灶（生产实证，主线核完）
+
+用户在 App 发文件（三藏.zip）后，Hermes 网关把消息尾的 `@file:` 引用展开成给模型看的英文指令块、并**把展开全文存进会话记录**（生产样本＝state.db 消息 947，形态：`用户正文\n@file:/opt/data/attachments/三藏.zip\n\n--- Attached Context ---\n\n📎 @file:<路径> (application/zip, 660.6 KB) — binary file, not inlined as text. It is available on disk at `<路径>`. Use your tools…; do not tell the user the file type is unsupported.`）。App 侧两处漏接：
+
+1. 历史导入（SessionHistoryImport.richItems，ChatView 活线同走它）只剥 `[Image attached at:]` 图片标记，非图片文件的展开块原样进用户气泡＝满屏英文脚手架（给模型的指令被当成用户原话渲染）。
+2. 同一条消息双份并存：落定对账补缺（RunTranscriptSettle.missingUserMessages）按原文（去首尾空白）判同，本地干净条目与服务器展开条目永不相等→展开条目被判「缺失」补插一份，与本地干净条目并排（用户截图实证：干净问句一行＋展开块一大坨）。
+3. 助手侧文件牌探测 FileRefDetector 的路径正则字符集纯 ASCII，中文名文件路径（如 /opt/data/attachments/三藏.zip）探不到、不出牌——附件「服务器收到了、软件不显示」的另一半。
+
+### 116.2 五件处置
+
+1. **Core 新增 AttachedContextRef 解析**（ToolCards.swift，AttachedImageRef 旁）：以 `--- Attached Context ---` 行分头尾；头部剥独立成行的 `@file:` 引用行（直写形＋FileSendAssembly 带引号形，引号后不许有尾巴），尾部只认 `📎 @file:` 行取路径（反引号里的同值路径不另取）、其余文字一律丢弃。图片扩展名归 imagePaths、其余归 fileRefs，头尾同路径去重。保守门：无 `@file:`、或剥不出任何路径（如正文行内提及）→原文逐字返回。
+2. **规范化单点＋导入接线**：SessionHistoryImport.normalizedUserContent（展开块解析＋图片标记剥离合并，两路图片路径去重保序）为 user 消息规范化唯一入口；richItems 的 user 分支改走它，RichItem 新增 fileRefs（默认空，assistant 恒空）；ChatView 导入构造把 fileRefs 带进 ChatEntry 新增落盘字段 remoteFilePaths（JSON 编码，与 remoteImagePathsData 同形态、轻量迁移）。
+3. **用户气泡文件牌**：正文泡下方同列渲染 entry.remoteFilePaths——与助手侧同构（同一 FileChip、同一 openChatFile 打开链：/api/files/download 取回→QuickLook）；图片已由图片行承接不到这里。助手侧仍走正文探测出牌，旧口径不动。
+4. **FileRefDetector 字符集扩 Unicode**：路径段加 \u0080–\uFFFF（中文名命中）；护栏全保留——冒号前置跳 URL 残段、`//` 开头跳过、至少一层目录、扩展名白名单、excluding 语义不变。
+5. **判同改规范形**：missingUserMessages 的比对键换成两边规范化后的（干净正文＋附件路径集）——任一侧路径集为空只比正文（本地发送条目不落文件路径、集恒空，不因缺记录判异），两侧都有路径须全等防同文异附件错配；贪心配对＋时间窗不变。对账补缺的插入端（ChatView.healMissingUserEntries）同步走规范化落盘：真缺的条目补回来也是干净正文＋文件牌，不再补脚手架原文。
+
+### 116.3 单测与校验
+
+新增 4 个测试函数：AttachedContextRef 解析（zip 样本原文形态逐字用／带引号路径／无尾部块只有 @file 行／图片分流／普通消息与行内提及不变，RichContentTests）、FileRefDetector 中文两例（命中＋中文名 URL 不误报，同上）、richItems 规范化一例（SessionHistoryImportTests）、判同规范形回归一例（展开全文 vs 干净正文应配对不判缺，RunTurnTests）。无新 UI 文案，validate_i18n 实跑通过（2426 键不变）。本机无 Swift 工具链：编译与全套单测终判等 CI。
+
+### 116.4 未验与知悉
+
+- 真机终验待用户：发中文名 zip→气泡只剩正文＋文件牌、点牌能开；同一条不双份；助手回复里提中文名路径出牌。
+- 文本类文件的网关展开形态未取生产样本：契约口径是文本全文内联进尾部块，本包按同一分隔块口径剥尾（内联文本不进气泡，文件本体经文件牌下载打开）——登记知悉，若真机发现文本附件有别的存档形态回表再议。
+- 旧版本已补插进本地线程的展开块存量条目不迁移：其 content 是展开原文，呈现层未加二次规范化；判同规范化后不会再新增双份，存量靠用户删线程或后续导入新线程自然消解——登记知悉。

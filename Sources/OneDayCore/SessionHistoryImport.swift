@@ -51,17 +51,61 @@ public enum SessionHistoryImport {
         public let date: Date?
         public let imagePaths: [String]
         public let toolCard: ToolCard?
+        /// 0.46.1（§116）：user 消息展开块里剥出的非图
+        /// 片附件路径（呈现走用户气泡文件牌）；助手消
+        /// 息恒空（其文件引用由正文探测出牌，旧口径）
+        public let fileRefs: [String]
 
         public init(
             role: String, content: String, date: Date?,
-            imagePaths: [String], toolCard: ToolCard?
+            imagePaths: [String], toolCard: ToolCard?,
+            fileRefs: [String] = []
         ) {
             self.role = role
             self.content = content
             self.date = date
             self.imagePaths = imagePaths
             self.toolCard = toolCard
+            self.fileRefs = fileRefs
         }
+    }
+
+    /// user 消息规范化（0.46.1，§116 单点）：网关展开
+    /// 块（AttachedContextRef）与图片标记（Attached
+    /// ImageRef）一并剥离，还原（干净正文，图片路径，
+    /// 文件路径）。导入、对账补缺、对账判同三处同走
+    /// 本口径，不许各写一份
+    public struct NormalizedUserContent: Equatable, Sendable {
+        public let text: String
+        public let imagePaths: [String]
+        public let fileRefs: [String]
+
+        public init(
+            text: String, imagePaths: [String], fileRefs: [String]
+        ) {
+            self.text = text
+            self.imagePaths = imagePaths
+            self.fileRefs = fileRefs
+        }
+
+        /// 附件路径全集（图片＋文件）——判同的路径集口径
+        public var allPaths: [String] { imagePaths + fileRefs }
+    }
+
+    public static func normalizedUserContent(
+        _ content: String
+    ) -> NormalizedUserContent {
+        let attached = AttachedContextRef.parse(content)
+        let imageParsed = AttachedImageRef.parse(attached.text)
+        var imagePaths = attached.imagePaths
+        for path in imageParsed.paths
+        where !imagePaths.contains(path) {
+            imagePaths.append(path)
+        }
+        return NormalizedUserContent(
+            text: imageParsed.text, imagePaths: imagePaths,
+            fileRefs: attached.fileRefs
+        )
     }
 
     public static func richItems(
@@ -75,6 +119,27 @@ public enum SessionHistoryImport {
                     imagePaths: [], toolCard: card
                 )
             case .message(let message):
+                // 0.46.1（§116）：user 消息先过规范化
+                // ——网关展开块还原成正文＋文件牌路径，
+                // 不再把给模型的英文脚手架当用户原话
+                // 渲染；assistant 维持图片标记旧口径
+                if message.role == "user" {
+                    let normalized = normalizedUserContent(
+                        message.content
+                    )
+                    guard !normalized.text.isEmpty
+                            || !normalized.imagePaths.isEmpty
+                            || !normalized.fileRefs.isEmpty
+                    else { return nil }
+                    return RichItem(
+                        role: message.role,
+                        content: normalized.text,
+                        date: message.date,
+                        imagePaths: normalized.imagePaths,
+                        toolCard: nil,
+                        fileRefs: normalized.fileRefs
+                    )
+                }
                 let parsed = AttachedImageRef.parse(message.content)
                 guard !parsed.text.isEmpty || !parsed.paths.isEmpty
                 else { return nil }
