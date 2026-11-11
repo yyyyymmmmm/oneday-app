@@ -8,7 +8,8 @@ import UIKit
 /// 全屏图片查看器、文件 QuickLook 预览。形态按《设计
 /// 标准》§5.5/§5.7：工具卡统一骨架（card 面、圆角 22、
 /// 内边距 15、36×36 圆角 9 图标盒＋标题＋状态 chip）；
-/// 文件牌 sky 底圆角 16；图片圆角 12 缩略、点开全屏。
+/// 文件牌 §125 起升卡（白卡＋类型图标盒＋大小副
+/// 行）；图片圆角 12 缩略、点开全屏。
 /// 卡片只呈现动作与结果，不写说明性文案（红线）。
 
 // MARK: - 工具卡
@@ -604,31 +605,78 @@ struct ZoomableImageView: UIViewRepresentable {
 
 // MARK: - 文件牌与 QuickLook 预览
 
-/// 文件牌（设计标准 §5.5 原式）：sky 底、圆角 16、
-/// 内边距 11×8、文件名＋doc 图标
+/// 文件卡（§125 升卡——设计标准 §5.5 FileChip 原式
+/// 修订声明见 DESIGN §125：天蓝胶囊＋通用 doc 图标
+/// 退役）：白卡（surface 底、圆角 16、内边距 12×10、
+/// 随气泡宽，用户/助手两侧同形）＝40pt 类型图标盒
+/// （FileIconBox 单源表）＋文件名（.body semibold、
+/// 至多 2 行）＋副行「类型 · 大小」。大小只来自
+/// FileMetadataStore 的实测回填（发送记账/下载回
+/// 填/父目录列表回读），拿不到只显类型、不编造；
+/// 卡整体可点，长按沿用消息菜单，不设卡级按钮。
 struct FileChip: View {
+    @Environment(AppState.self) private var appState
+
     let path: String
     let onOpen: () -> Void
 
+    private var name: String {
+        (path as NSString).lastPathComponent
+    }
+
+    private var subtitle: String {
+        let type = DeliverableFileType.label(forFileName: name)
+        let sizeText = FileMetadataStore.shared
+            .metadata(for: path)?.size
+            .map {
+                ByteCountFormatter.string(
+                    fromByteCount: $0, countStyle: .file
+                )
+            }
+        return [type, sizeText]
+            .compactMap { $0 }.joined(separator: " · ")
+    }
+
     var body: some View {
         Button(action: onOpen) {
-            HStack(spacing: OneDayMetrics.rowInnerGap) {
-                Image(systemName: "doc")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Palette.primary)
-                Text((path as NSString).lastPathComponent)
-                    .font(.caption)
-                    .foregroundStyle(Palette.bodyInk)
-                    .lineLimit(1)
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                FileIconBox(name: name, size: 40)
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.spacingXS
+                ) {
+                    Text(name)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 8)
+            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .padding(.vertical, 10)
             .background(
-                Palette.tintSky,
-                in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview)
+                Palette.surface,
+                in: RoundedRectangle(
+                    cornerRadius: OneDayMetrics.radiusPreview
+                )
+            )
+            .contentShape(
+                RoundedRectangle(
+                    cornerRadius: OneDayMetrics.radiusPreview
+                )
             )
         }
         .buttonStyle(.odPressable)
+        .task(id: path) {
+            await FileMetadataStore.shared.backfillFromListing(
+                path: path, appState: appState
+            )
+        }
     }
 }
 

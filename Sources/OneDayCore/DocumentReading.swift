@@ -114,4 +114,45 @@ public enum DocumentReading {
             $0.trimmingCharacters(in: .whitespaces)
         }
     }
+
+    /// 段落行段（§125 锚点定位）：plain 口径每段所占
+    /// 的行段（1 起、含两端），与 plainBlocks 的段落
+    /// 序一一对应——分段口径与 plainBlocks 逐字同
+    /// 规（空行分段、段＝连续非空行），阅读页据此把
+    /// `#L` 锚点落到具体段落高亮
+    public static func plainParagraphLineRanges(
+        for text: String
+    ) -> [ClosedRange<Int>] {
+        var ranges: [ClosedRange<Int>] = []
+        var start: Int?
+        let lines = text.components(separatedBy: "\n")
+        for (index, line) in lines.enumerated() {
+            let lineNumber = index + 1
+            if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                if let start {
+                    ranges.append(start...(lineNumber - 1))
+                    start = nil
+                }
+            } else if start == nil {
+                start = lineNumber
+            }
+        }
+        if let start {
+            ranges.append(start...lines.count)
+        }
+        return ranges
+    }
+
+    /// 锚点摘录（§125）：取行段原文，越界部分收敛到
+    /// 文本实际行数；行段完全落在文本外回 nil（宿主
+    /// 据此不摆摘录卡，不编造定位）
+    public static func excerpt(
+        for text: String, anchor: FileLineAnchor
+    ) -> String? {
+        let lines = text.components(separatedBy: "\n")
+        guard anchor.startLine <= lines.count else { return nil }
+        let end = min(anchor.endLine, lines.count)
+        return lines[(anchor.startLine - 1)..<end]
+            .joined(separator: "\n")
+    }
 }

@@ -99,35 +99,61 @@ struct FileSearchField: View {
 /// 行 46 均可容纳）。图片在影音段另有 MediaCell 真
 /// 缩略图面，本盒只给回落字形（规格表 photo.fill）
 struct FileIconBox: View {
-    let entry: WorkspaceFileEntry
+    let name: String
+    let isDirectory: Bool
+    /// 边长（§125 加尺寸参数）：列表 36（默认，与旧
+    /// 形态逐值一致）／聊天文件卡 40／打开页文件头
+    /// 56——字形与圆角按边长比例推导，一处改三面齐变
+    var size: CGFloat = 36
+
+    init(entry: WorkspaceFileEntry, size: CGFloat = 36) {
+        self.name = entry.name
+        self.isDirectory = entry.isDirectory
+        self.size = size
+    }
+
+    init(
+        name: String, isDirectory: Bool = false,
+        size: CGFloat = 36
+    ) {
+        self.name = name
+        self.isDirectory = isDirectory
+        self.size = size
+    }
 
     var body: some View {
         let style = DeliverableIconStyle.style(
-            forFileName: entry.name, isDirectory: entry.isDirectory
+            forFileName: name, isDirectory: isDirectory
         )
         ZStack {
-            RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
+            RoundedRectangle(cornerRadius: cornerRadius)
                 .fill(Color(hexRGB: style.backgroundHex))
             switch style.glyph {
             case .letter(let letter):
                 Text(letter)
                     // 图标字形非阅读文字，固定字号合法
-                    // （审计图标规格：17 bold 白）
-                    // 0.23.0：数值改引用 FrameworkIcon
-                    // .fileGlyphSize 单源（17 不变，审计 G3）
+                    // （审计图标规格：36 档 17 bold 白；
+                    // 0.23.0 单源 FrameworkIcon
+                    // .fileGlyphSize，其余档按比例推导）
                     .font(.system(
-                        size: FrameworkIcon.fileGlyphSize,
+                        size: size * FrameworkIcon.fileGlyphSize / 36,
                         weight: .bold
                     ))
                     .foregroundStyle(Color.white)
             case .symbol(let name):
                 Image(systemName: name)
-                    .font(.system(size: 16))
+                    .font(.system(size: size * 16 / 36))
                     .foregroundStyle(Color.white)
             }
         }
-        .frame(width: 36, height: 36)
+        .frame(width: size, height: size)
         .accessibilityHidden(true)
+    }
+
+    /// 圆角按边长 0.25 推导：36→9（radiusTile）、
+    /// 40→10（radiusThumb 同值）、56→14，下限 radiusTile
+    private var cornerRadius: CGFloat {
+        max(OneDayMetrics.radiusTile, size * 0.25)
     }
 }
 
@@ -489,8 +515,7 @@ struct FilesBrowserView: View {
         // 行目的地（0.36.4 补注册）：此前全仓无 Work-
         // spaceFileEntry 目的地注册、行点按无落点；
         // 图片直达查看器（zoom 转场、集合＝当前列表
-        // 全部图片），其余走 FilePreviewView（Quick-
-        // Look）
+        // 全部图片），其余走文件打开页（§125 中间页）
         .navigationDestination(for: WorkspaceFileEntry.self) { entry in
             if entry.mediaKind == .image {
                 let images = shownEntries.filter {
@@ -519,7 +544,12 @@ struct FilesBrowserView: View {
                     )
                 )
             } else {
-                FilePreviewView(entry: entry)
+                // §125：非图统一落文件打开页（中间页
+                // push 形态，与聊天 sheet 同一壳）
+                FileOpenContent(
+                    target: FileOpenTarget(entry: entry),
+                    origin: .serverFile
+                )
             }
         }
         .alert("新建文件夹", isPresented: $mkdirPresented) {
@@ -1044,257 +1074,13 @@ struct MediaCell: View {
     }
 }
 
-// MARK: - 预览（与 P1 共用组件）
+// MARK: - 预览（§125 收编）
 
-/// 文件预览：非图文件落临时文件走 QuickLook 原生
-/// 预览（PDF 原生阅读、视频/音频原生播放，设计标
-/// 准 §5.7/§7）；撤 0.2.x 的自绘 AVPlayer 与内联文
-/// 本渲染，不另造预览器。
-/// 0.36.4：图片分支整支退役——旧形态先进本页（图
-/// 小上置＋标题露原始文件名，哈希名实证漏出）再点
-/// 才进全屏查看器，两段式断链；本版图片由各宿主
-/// 直达 ImageViewerView，本视图只作防御落点（万一
-/// 有旧路径把图片送进来，同样直达查看器、不复活
-/// 中间页）。
-struct FilePreviewView: View {
-    @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
-    let entry: WorkspaceFileEntry
-
-    @State private var quickLookItem: ChatFilePreviewItem?
-    @State private var loadError: String?
-    @State private var shareItem: FileShareItem?
-    @State private var rawData: Data?
-    @State private var notice: String?
-
-    private var isSensitive: Bool {
-        !entry.isDirectory
-            && SensitiveFilePolicy.isSensitive(fileName: entry.name)
-    }
-
-    var body: some View {
-        if isSensitive {
-            // 敏感防御（0.36.31，规格 §4.6）：即便有旧
-            // 路径把凭据文件送进预览面，也不加载不渲染
-            // ——只给说明，动作只给「知道了」（失败页动
-            // 作表对敏感类同此收敛）
-            ContentUnavailableView {
-                Label("无法预览", systemImage: "lock.fill")
-            } description: {
-                Text(SensitiveFilePolicy.explanation)
-            } actions: {
-                Button("知道了") { dismiss() }
-            }
-            .background(Palette.pageBG)
-            .navigationTitle(entry.name)
-            .navigationBarTitleDisplayMode(.inline)
-        } else if entry.mediaKind == .image {
-            ImageViewerView(
-                items: [
-                    ChatImageViewerItem(source: .remotePath(entry.path))
-                ],
-                initialIndex: 0
-            )
-        } else {
-            quickLookBody
-        }
-    }
-
-    private var quickLookBody: some View {
-        Group {
-            if let quickLookItem {
-                QuickLookPreview(url: quickLookItem.url)
-            } else if let loadError {
-                failureView(loadError)
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .background(Palette.pageBG)
-        .navigationTitle(entry.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                // 工具栏按类型出项（0.36.31 附记硬规
-                // 矩）：旧形态只有一个下载钮——文本/PDF
-                // 类现给复制文字（＋文本类的导出 PDF 在
-                // 阅读页/条目菜单面，预览面动作表同源
-                // readingActions），与阅读页同一策略表
-                Menu {
-                    ForEach(
-                        FileActionPolicy.readingActions(for: entry),
-                        id: \.self
-                    ) { action in
-                        Button {
-                            perform(action)
-                        } label: {
-                            Label(
-                                action.label,
-                                systemImage: action.systemImage
-                            )
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .disabled(rawData == nil)
-                .accessibilityLabel("文件操作")
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if let notice {
-                Text(notice)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.horizontal, OneDayMetrics.pageGutter)
-                    .padding(.vertical, OneDayMetrics.spacingS)
-            }
-        }
-        .sheet(item: $shareItem) { item in
-            FileShareSheet(url: item.url)
-        }
-        .task { await load() }
-    }
-
-    /// 失败页按类型给动作（附记硬规矩）：可渲染类给
-    /// 重试＋下载（取原文件走分享单，QuickLook 写临
-    /// 时文件失败时此路常仍可通），不可渲染类只给下
-    /// 载＋知道了
-    private func failureView(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("预览失败", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            ForEach(
-                FileActionPolicy.failureActions(for: entry),
-                id: \.self
-            ) { action in
-                Button(action.label) {
-                    performFailure(action)
-                }
-            }
-        }
-    }
-
-    private func performFailure(_ action: FileFailureAction) {
-        switch action {
-        case .retry:
-            Task { await load() }
-        case .download:
-            Task { await shareOriginal() }
-        case .dismiss:
-            dismiss()
-        }
-    }
-
-    private func perform(_ action: FileItemAction) {
-        switch action {
-        case .copyText:
-            guard let rawData,
-                  let text = FileTextExtractor.plainText(
-                      from: rawData, entry: entry
-                  )
-            else {
-                notice = "这个文件没能读出文字。"
-                return
-            }
-            UIPasteboard.general.string = text
-            notice = "已复制全文。"
-            Haptics.success()
-        case .exportPDF:
-            exportPDF()
-        case .share, .download:
-            Task { await shareOriginal() }
-        case .preview, .delete:
-            // 预览面策略表不给这两项，同阅读页口径：
-            // 落到这里即策略表漂移，靠单测钉表本身
-            break
-        }
-    }
-
-    private func exportPDF() {
-        guard let rawData,
-              let text = FileTextExtractor.plainText(
-                  from: rawData, entry: entry
-              )
-        else {
-            notice = "这个文件没能读出文字，无法导出 PDF。"
-            return
-        }
-        let kind = DocumentTextKind.kind(
-            forFileName: entry.name
-        ) ?? .plain
-        let title = DeliverableFileType.displayTitle(
-            forFileName: entry.name
-        )
-        guard let pdf = DocumentPDFExporter.pdfData(
-            title: title,
-            blocks: DocumentReading.blocks(for: text, kind: kind)
-        ) else {
-            notice = "导出 PDF 失败，请稍后再试。"
-            return
-        }
-        shareItem = try? FileShareItem.write(
-            data: pdf, name: "\(title).pdf"
-        )
-    }
-
-    private func shareOriginal() async {
-        if let rawData {
-            shareItem = try? FileShareItem.write(
-                data: rawData, name: entry.name
-            )
-            return
-        }
-        do {
-            let data = try await appState.performAdmin {
-                client, config in
-                try await client.fileData(
-                    config: config, path: entry.path
-                )
-            }
-            shareItem = try FileShareItem.write(
-                data: data, name: entry.name
-            )
-        } catch {
-            notice = (error as? HermesError)?.userMessage
-                ?? "下载失败，请稍后再试。"
-        }
-    }
-
-    private func load() async {
-        loadError = nil
-        do {
-            let data = try await appState.performAdmin { client, config in
-                try await client.fileData(config: config, path: entry.path)
-            }
-            rawData = data
-            let item = try ChatFilePreviewItem.write(
-                data: data, name: entry.name
-            )
-            // §121 题二 b：QL 资格门——不可预览类型
-            // （.ipa 等）不写 QL 件硬呈死页，直接落
-            // 失败页＋五分文案，动作仍走 failure-
-            // Actions 按类出项（.other/.archive＝下
-            // 载＋知道了）；取数失败同样走五分，不再
-            // 一句状态码兜底
-            if item.canPreview {
-                quickLookItem = item
-            } else {
-                loadError = FileOpenFailure.unsupportedType
-                    .message()
-            }
-        } catch let error as HermesError {
-            loadError = FileOpenFailure.classify(
-                error: error
-            ).message()
-        } catch {
-            loadError = FileOpenFailure.other.message()
-        }
-    }
-}
+/// 旧 FilePreviewView 已退役：文件打开统一走
+/// FileOpenView/FileOpenContent 中间页（文件头＋主
+/// 钮＋五态），QL 承载/失败页/敏感锁定三段均已收
+/// 编进打开页（QuickLookHostView 等）——此处不留
+/// 第二套 QL 宿主页，防后人误接。
 
 // MARK: - 分享小件
 

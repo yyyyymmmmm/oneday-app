@@ -5314,167 +5314,167 @@
         }
       }
     },
-      "服务器上没有这个文件，可能已被移动或删除。": {
-        "extractionState": "manual",
-        "localizations": {
-          "zh-Hans": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "服务器上没有这个文件，可能已被移动或删除。"
-            }
-          },
-          "zh-Hant": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "伺服器上沒有這個檔案，可能已被移動或刪除。"
-            }
-          },
-          "en": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "This file isn't on the server anymore. It may have been moved or deleted."
-            }
+    "服务器上没有这个文件，可能已被移动或删除。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器上没有这个文件，可能已被移动或删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器上沒有這個檔案，可能已被移動或刪除。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file isn't on the server anymore. It may have been moved or deleted."
           }
         }
-      },
-      "文件太大了，没法直接打开；可以先下载到本地再看。": {
-        "extractionState": "manual",
-        "localizations": {
-          "zh-Hans": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "文件太大了，没法直接打开；可以先下载到本地再看。"
-            }
-          },
-          "zh-Hant": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "檔案太大了，沒法直接打開；可以先下載到本地再看。"
-            }
-          },
-          "en": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "This file is too large to open directly. Try downloading it first."
-            }
+      }
+    },
+    "文件太大了，没法直接打开；可以先下载到本地再看。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件太大了，没法直接打开；可以先下载到本地再看。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案太大了，沒法直接打開；可以先下載到本地再看。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file is too large to open directly. Try downloading it first."
           }
         }
-      },
-      "服务器暂时连不上，稍后再试。": {
-        "extractionState": "manual",
-        "localizations": {
-          "zh-Hans": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "服务器暂时连不上，稍后再试。"
-            }
-          },
-          "zh-Hant": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "伺服器暫時連不上，稍後再試。"
-            }
-          },
-          "en": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "Can't reach the server right now. Try again later."
-            }
+      }
+    },
+    "服务器暂时连不上，稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器暂时连不上，稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器暫時連不上，稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't reach the server right now. Try again later."
           }
         }
-      },
-      "打开超时，网络可能不稳，稍后再试。": {
-        "extractionState": "manual",
-        "localizations": {
-          "zh-Hans": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "打开超时，网络可能不稳，稍后再试。"
-            }
-          },
-          "zh-Hant": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "開啟超時，網路可能不穩，稍後再試。"
-            }
-          },
-          "en": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "Opening timed out. The network may be unstable — try again later."
-            }
+      }
+    },
+    "打开超时，网络可能不稳，稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开超时，网络可能不稳，稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟超時，網路可能不穩，稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opening timed out. The network may be unstable — try again later."
           }
         }
-      },
-      "这个文件的路径不对，打不开。": {
-        "extractionState": "manual",
-        "localizations": {
-          "zh-Hans": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "这个文件的路径不对，打不开。"
-            }
-          },
-          "zh-Hant": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "這個檔案的路徑不對，打不開。"
-            }
-          },
-          "en": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "This file's path doesn't look right, so it can't be opened."
-            }
+      }
+    },
+    "这个文件的路径不对，打不开。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个文件的路径不对，打不开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個檔案的路徑不對，打不開。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file's path doesn't look right, so it can't be opened."
           }
         }
-      },
-      "这个文件不允许在 App 里打开。": {
-        "extractionState": "manual",
-        "localizations": {
-          "zh-Hans": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "这个文件不允许在 App 里打开。"
-            }
-          },
-          "zh-Hant": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "這個檔案不允許在 App 裡開啟。"
-            }
-          },
-          "en": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "This file isn't allowed to be opened in the app."
-            }
+      }
+    },
+    "这个文件不允许在 App 里打开。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个文件不允许在 App 里打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個檔案不允許在 App 裡開啟。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file isn't allowed to be opened in the app."
           }
         }
-      },
-      "这个类型没法直接预览，可以下载到本地再打开。": {
-        "extractionState": "manual",
-        "localizations": {
-          "zh-Hans": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "这个类型没法直接预览，可以下载到本地再打开。"
-            }
-          },
-          "zh-Hant": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "這個類型沒法直接預覽，可以下載到本地再開啟。"
-            }
-          },
-          "en": {
-            "stringUnit": {
-              "state": "translated",
-              "value": "This type can't be previewed directly. Download it to open it locally."
-            }
+      }
+    },
+    "这个类型没法直接预览，可以下载到本地再打开。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个类型没法直接预览，可以下载到本地再打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個類型沒法直接預覽，可以下載到本地再開啟。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This type can't be previewed directly. Download it to open it locally."
           }
         }
-      },
+      }
+    },
     "文件打开失败，请稍后再试。": {
       "extractionState": "manual",
       "localizations": {
@@ -56209,6 +56209,443 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open chat"
+          }
+        }
+      }
+    },
+    "修改于 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改于 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改於 %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modified %@"
+          }
+        }
+      }
+    },
+    "共 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共 %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total %@"
+          }
+        }
+      }
+    },
+    "工作表": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作表"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Worksheet"
+          }
+        }
+      }
+    },
+    "文件名": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案名稱"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File name"
+          }
+        }
+      }
+    },
+    "服务器上的文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器上的文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器上的檔案"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File on the server"
+          }
+        }
+      }
+    },
+    "来自这条对话": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自这条对话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來自這條對話"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From this conversation"
+          }
+        }
+      }
+    },
+    "正在下载…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下載…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading…"
+          }
+        }
+      }
+    },
+    "第 %lld 行": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 行"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 行"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Line %lld"
+          }
+        }
+      }
+    },
+    "第 %lld–%lld 行": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld–%lld 行"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld–%lld 行"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lines %lld–%lld"
+          }
+        }
+      }
+    },
+    "表格是空的": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格是空的"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格是空的"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty spreadsheet"
+          }
+        }
+      }
+    },
+    "表格转换": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格转换"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格轉換"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spreadsheet conversion"
+          }
+        }
+      }
+    },
+    "表格转换失败，没能读出内容；可以下载原文件再打开。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格转换失败，没能读出内容；可以下载原文件再打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格轉換失敗，沒能讀出內容；可以下載原檔案再開啟。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't convert the spreadsheet. Download the original file to open it instead."
+          }
+        }
+      }
+    },
+    "表格转换返回格式无法识别": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格转换返回格式无法识别"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格轉換回傳格式無法識別"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spreadsheet conversion returned an unrecognized format"
+          }
+        }
+      }
+    },
+    "表格较大，只显示前 %lld 行（共 %lld 行）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格较大，只显示前 %lld 行（共 %lld 行）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表格較大，只顯示前 %lld 行（共 %lld 行）。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This spreadsheet is large, so only the first %lld of %lld rows are shown."
+          }
+        }
+      }
+    },
+    "路径": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "路径"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "路徑"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Path"
+          }
+        }
+      }
+    },
+    "这个文件没有可读的工作表。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个文件没有可读的工作表。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個檔案沒有可讀的工作表。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file has no readable worksheets."
+          }
+        }
+      }
+    },
+    "这类文件不能在 App 内预览，可以下载到本地或分享到其他 App 打开。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这类文件不能在 App 内预览，可以下载到本地或分享到其他 App 打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這類檔案不能在 App 內預覽，可以下載到本機或分享到其他 App 開啟。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This kind of file can't be previewed in the app. Download it or share it to another app to open it."
+          }
+        }
+      }
+    },
+    "工作表是空的": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作表是空的"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作表是空的"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty worksheet"
+          }
+        }
+      }
+    },
+    "这个工作表没有内容。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个工作表没有内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個工作表沒有內容。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This worksheet has no content."
           }
         }
       }

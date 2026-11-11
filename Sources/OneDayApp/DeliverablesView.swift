@@ -49,11 +49,13 @@ struct DeliverablesView: View {
     @State private var notice: String?
     @State private var query = ""
     @State private var searchVisible = false
+    /// 非图条目打开目的地（§125 合并）：旧
+    /// previewEntry/readerEntry 双状态分流（预览页/
+    /// 阅读页）退役，统一先进文件打开页
     @State private var previewEntry: WorkspaceFileEntry?
-    @State private var readerEntry: WorkspaceFileEntry?
     /// 图片查看器路由（0.36.4）：图片直达查看器（系
     /// 统 zoom 转场、源＝格/卡的 matched 标记），不
-    /// 再先进 FilePreviewView 预览页
+    /// 再先进预览页
     @State private var viewerRoute: ImageViewerRoute?
     @Namespace private var viewerNamespace
     /// 上次打开记录（§4.3/§4.5 排序辅助，本地表）
@@ -112,11 +114,16 @@ struct DeliverablesView: View {
             }
             .background(Palette.pageBG)
             .toolbar(.hidden, for: .navigationBar)
+            // §125：打开分流收口——非图条目一律落文
+            // 件打开页（中间页），文本类的阅读在其页
+            // 内主钮进阅读页；旧 previewEntry/
+            // readerEntry 双目的地分流退役（状态合并
+            // 至 previewEntry）
             .navigationDestination(item: $previewEntry) { entry in
-                FilePreviewView(entry: entry)
-            }
-            .navigationDestination(item: $readerEntry) { entry in
-                DocumentReaderView(entry: entry)
+                FileOpenContent(
+                    target: FileOpenTarget(entry: entry),
+                    origin: .serverFile
+                )
             }
             .navigationDestination(
                 isPresented: $systemFilesPresented
@@ -996,10 +1003,9 @@ struct DeliverablesView: View {
         }
     }
 
-    /// 条目打开分流（0.36.31 按类型）：先写上次打开
-    /// 记录；图片直达查看器（集合＝同段全部图片、可
-    /// 翻页）；可读文本进文档阅读页（资料库层）；其
-    /// 余走 FilePreviewView（QuickLook）
+    /// 条目打开分流：先写上次打开记录；图片直达查
+    /// 看器（集合＝同段全部图片、可翻页）；其余一律
+    /// 落文件打开页（§125 中间页，类型内分流归它）
     private func openEntry(
         _ entry: WorkspaceFileEntry,
         among siblings: [WorkspaceFileEntry]
@@ -1013,9 +1019,9 @@ struct DeliverablesView: View {
                 entries: images,
                 initialIndex: images.firstIndex(of: entry) ?? 0
             )
-        } else if FileActionPolicy.opensInReader(entry) {
-            readerEntry = entry
         } else {
+            // §125：文本类不再从本面直达阅读页——与
+            // 聊天/文件浏览器同路先进中间页（单源壳）
             previewEntry = entry
         }
     }

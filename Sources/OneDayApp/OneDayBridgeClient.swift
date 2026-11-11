@@ -392,6 +392,49 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
+    // MARK: - 表格转码（§125，桥 /files/spreadsheet）
+
+    /// GET /files/spreadsheet?path=：xlsx 按 sheet 转
+    /// CSV（值口径）。本端点不走 checkStatus 的人话
+    /// 收敛——状态码原样包成 HermesError.unexpected-
+    /// Status 交调用方走 FileOpenFailure.classify-
+    /// Spreadsheet 分型（422 转码专档/413 过大/404
+    /// 不存在各有出路，收敛成一句会丢分型）；无钥匙
+    /// 仍走 OneDayBridgeError.noKey 口径
+    func spreadsheet(
+        config: ServerConfig, path: String
+    ) async throws -> BridgeSpreadsheet {
+        let allowed = CharacterSet.alphanumerics.union(
+            CharacterSet(charactersIn: "-._~/")
+        )
+        let encoded = path.addingPercentEncoding(
+            withAllowedCharacters: allowed
+        ) ?? path
+        let request = try makeRequest(
+            config: config,
+            path: "/files/spreadsheet?path=\(encoded)",
+            method: "GET"
+        )
+        let (data, http) = try await send(
+            request, endpoint: L10n.string("表格转换")
+        )
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.unexpectedStatus(
+                endpoint: L10n.string("表格转换"),
+                status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(
+                BridgeSpreadsheet.self, from: data
+            )
+        } catch {
+            throw OneDayBridgeError.failed(
+                L10n.string("表格转换返回格式无法识别")
+            )
+        }
+    }
+
     // MARK: - 请求底座
 
     private func makeRequest(

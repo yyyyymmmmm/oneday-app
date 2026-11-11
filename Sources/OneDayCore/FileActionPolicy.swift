@@ -73,6 +73,39 @@ public enum FileFailureAction: String, CaseIterable, Sendable {
     }
 }
 
+/// 中间页主钮（§125 落点列）：按类型一颗主钮——文
+/// 本类「阅读」、可预览类「预览」、音视频「播放」、
+/// 表格「查看表格」、压缩包「保存到文件」；其余不
+/// 可预览类与敏感文件无主钮（nil），中间页只给说明
+/// 行与次动作。文案在本表单源钉死
+public enum FileLandingAction: String, CaseIterable, Sendable {
+    case read
+    case preview
+    case play
+    case viewTable
+    case saveToFiles
+
+    public var label: String {
+        switch self {
+        case .read: return "阅读"
+        case .preview: return "预览"
+        case .play: return "播放"
+        case .viewTable: return "查看表格"
+        case .saveToFiles: return "保存到文件"
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .read: return "doc.text"
+        case .preview: return "eye"
+        case .play: return "play.fill"
+        case .viewTable: return "tablecells"
+        case .saveToFiles: return "square.and.arrow.down"
+        }
+    }
+}
+
 /// 按类型出项的策略表（条目菜单/阅读面工具栏/失败页
 /// 三面共用）：
 /// - 复制文字：只给能确定性读出文字的类——可读文本
@@ -89,17 +122,30 @@ public enum FileActionPolicy {
         of entry: WorkspaceFileEntry
     ) -> FileItemCategory {
         guard !entry.isDirectory else { return .other }
-        if let mediaKind = entry.mediaKind {
+        return category(
+            forFileName: entry.name, mediaKind: entry.mediaKind
+        )
+    }
+
+    /// 分类名称口径（§125）：中间页/路由表只有文件
+    /// 名与媒体种类、没有完整条目时走本口径，与条目
+    /// 口径同序同果（先媒体种类、再可读文本类、余按
+    /// 扩展名）
+    public static func category(
+        forFileName name: String,
+        mediaKind: WorkspaceFileEntry.MediaKind?
+    ) -> FileItemCategory {
+        if let mediaKind {
             switch mediaKind {
             case .image: return .image
             case .video: return .video
             case .audio: return .audio
             }
         }
-        if DocumentTextKind.kind(forFileName: entry.name) != nil {
+        if DocumentTextKind.kind(forFileName: name) != nil {
             return .text
         }
-        switch (entry.name as NSString).pathExtension.lowercased() {
+        switch (name as NSString).pathExtension.lowercased() {
         case "pdf":
             return .pdf
         case "html", "htm":
@@ -111,6 +157,16 @@ public enum FileActionPolicy {
             return .archive
         default:
             return .other
+        }
+    }
+
+    /// 表格文件（xls/xlsx）：office 档内的转码呈现
+    /// 特判（§125 路由表与中间页落点列共用本判据，
+    /// 不许各写一份扩展名判断）
+    public static func isSpreadsheet(_ name: String) -> Bool {
+        switch (name as NSString).pathExtension.lowercased() {
+        case "xls", "xlsx": return true
+        default: return false
         }
     }
 
@@ -177,6 +233,40 @@ public enum FileActionPolicy {
             return [.retry, .download]
         case .archive, .other:
             return [.download, .dismiss]
+        }
+    }
+
+    /// 中间页主钮（§125 落点列，新增第四列；既有三
+    /// 列语义不动）：按分类出主钮，敏感文件收回
+    public static func landingPrimary(
+        for entry: WorkspaceFileEntry
+    ) -> FileLandingAction? {
+        guard !entry.isDirectory else { return nil }
+        return landingPrimary(
+            forFileName: entry.name, mediaKind: entry.mediaKind
+        )
+    }
+
+    /// 中间页主钮名称口径：与路由表同判（表格特判
+    /// 先于 office 一般预览）
+    public static func landingPrimary(
+        forFileName name: String,
+        mediaKind: WorkspaceFileEntry.MediaKind?
+    ) -> FileLandingAction? {
+        guard !SensitiveFilePolicy.isSensitive(fileName: name)
+        else { return nil }
+        if isSpreadsheet(name) { return .viewTable }
+        switch category(forFileName: name, mediaKind: mediaKind) {
+        case .text:
+            return .read
+        case .pdf, .office, .html, .image:
+            return .preview
+        case .video, .audio:
+            return .play
+        case .archive:
+            return .saveToFiles
+        case .other:
+            return nil
         }
     }
 }

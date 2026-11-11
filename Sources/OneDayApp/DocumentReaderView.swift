@@ -37,8 +37,12 @@ struct DocumentReaderView: View {
     @Environment(\.dismiss) private var dismiss
 
     let entry: WorkspaceFileEntry
+    /// 行号锚点（§125，可选）：由打开页透传——text
+    /// 类点开定位高亮该行段，呈现分工见 readerBody
+    var anchor: FileLineAnchor? = nil
 
     @State private var blocks: [MarkdownBlock]?
+    @State private var textKind: DocumentTextKind?
     @State private var rawText: String?
     @State private var rawData: Data?
     @State private var loadError: String?
@@ -97,26 +101,286 @@ struct DocumentReaderView: View {
         .task { await load() }
     }
 
-    // MARK: - 正文（飞书式块排版）
+    // MARK: - 正文（块渲染收口 DocumentBlocksView，
+    // §125 起与表格呈现页共用同一渲染器）
 
     private func readerBody(_ blocks: [MarkdownBlock]) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
-                if let notice {
-                    Text(notice)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-                ForEach(
-                    Array(blocks.enumerated()), id: \.offset
-                ) { index, block in
-                    blockView(block)
-                        .padding(.top, topGap(for: block, at: index))
+        DocumentBlocksView(
+            blocks: blocks,
+            notice: notice,
+            anchorExcerpt: anchorExcerpt,
+            highlightLines: anchorHighlightLines,
+            paragraphLineRanges: anchorParagraphRanges
+        )
+    }
+
+    /// 块内高亮行段：plain（段落行段可精算）与
+    /// structured（整段代码块、行号即原文行号）走块
+    /// 内定位高亮；markdown/csv 无行↔块映射，走摘录
+    /// 卡（anchorExcerpt），不假装能落到块
+    private var anchorHighlightLines: ClosedRange<Int>? {
+        guard let anchor,
+              textKind == .plain || textKind == .structured
+        else { return nil }
+        return anchor.startLine...anchor.endLine
+    }
+
+    private var anchorParagraphRanges: [ClosedRange<Int>]? {
+        guard anchor != nil, textKind == .plain,
+              let rawText
+        else { return nil }
+        return DocumentReading.plainParagraphLineRanges(
+            for: rawText
+        )
+    }
+
+    private var anchorExcerpt: (
+        anchor: FileLineAnchor, text: String
+    )? {
+        guard let anchor, let rawText,
+              textKind == .markdown || textKind == .csv,
+              let excerpt = DocumentReading.excerpt(
+                  for: rawText, anchor: anchor
+              )
+        else { return nil }
+        return (anchor, excerpt)
+    }
+
+    // MARK: - 失败页（按类型给动作）
+
+    private func failureView(_ message: String) -> some View {
+        ContentUnavailableView {
+            Label("打开失败", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        } actions: {
+            ForEach(
+                FileActionPolicy.failureActions(for: entry),
+                id: \.self
+            ) { action in
+                Button(action.label) {
+                    performFailure(action)
                 }
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.vertical, OneDayMetrics.spacingL)
         }
+    }
+
+    private func performFailure(_ action: FileFailureAction) {
+        switch action {
+        case .retry:
+            Task { await load() }
+        case .download:
+            Task { await shareOriginal() }
+        case .dismiss:
+            dismiss()
+        }
+    }
+
+    // MARK: - 动作与取数
+
+    private func perform(_ action: FileItemAction) {
+        switch action {
+        case .copyText:
+            if let rawText {
+                UIPasteboard.general.string = rawText
+                notice = "已复制全文。"
+                Haptics.success()
+            }
+        case .exportPDF:
+            exportPDF()
+        case .share, .download:
+            Task { await shareOriginal() }
+        case .preview, .delete:
+            // 阅读面策略表不给这两项（见 FileActionPolicy
+            // .readingActions），落到这里即策略表漂移——
+            // 静默不执行、靠单测钉住表本身
+            break
+        }
+    }
+
+    private func exportPDF() {
+        guard let blocks,
+              let data = DocumentPDFExporter.pdfData(
+                  title: displayTitle, blocks: blocks
+              )
+        else {
+            notice = "导出 PDF 失败，请稍后再试。"
+            Haptics.error()
+            return
+        }
+        shareItem = try? FileShareItem.write(
+            data: data, name: "\(displayTitle).pdf"
+        )
+    }
+
+    private func shareOriginal() async {
+        if let rawData {
+            shareItem = try? FileShareItem.write(
+                data: rawData, name: entry.name
+            )
+            return
+        }
+        do {
+            let data = try await fetchData()
+            shareItem = try FileShareItem.write(
+                data: data, name: entry.name
+            )
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "下载失败，请稍后再试。"
+        }
+    }
+
+    private func fetchData() async throws -> Data {
+        try await appState.performAdmin { client, config in
+            try await client.fileData(config: config, path: entry.path)
+        }
+    }
+
+    private func load() async {
+        loadError = nil
+        do {
+            let data = try await fetchData()
+            rawData = data
+            guard let kind = DocumentTextKind.kind(
+                      forFileName: entry.name
+                  ),
+                  let text = FileTextExtractor.plainText(
+                      from: data, entry: entry
+                  )
+            else {
+                loadError = "这个文件没能读出文字。"
+                return
+            }
+            textKind = kind
+            rawText = text
+            blocks = DocumentReading.blocks(for: text, kind: kind)
+        } catch let error as HermesError {
+            // §121 题二 b：失败文案走五分（不存在时
+            // 如实说服务器上没有这个文件），不再一
+            // 句兜底
+            loadError = FileOpenFailure.classify(
+                error: error
+            ).message()
+        } catch {
+            loadError = FileOpenFailure.other.message()
+        }
+    }
+}
+
+
+/// 文档块渲染器（§125 抽出）：飞书式块排版单源——
+/// 阅读页与表格呈现页（转码 CSV 成块）共用，块距/
+/// 标题呼吸/高亮块/代码块/表格框线只此一份实现。
+/// §125 增锚点呈现：摘录卡（无行↔块映射的种类）与
+/// 块内高亮（plain 段落/structured 代码块）二选一，
+/// 由宿主按种类算好传入，本件只管呈现。
+struct DocumentBlocksView: View {
+    let blocks: [MarkdownBlock]
+    var notice: String? = nil
+    var anchorExcerpt: (anchor: FileLineAnchor, text: String)? = nil
+    var highlightLines: ClosedRange<Int>? = nil
+    var paragraphLineRanges: [ClosedRange<Int>]? = nil
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
+                    if let notice {
+                        Text(notice)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    if let anchorExcerpt {
+                        excerptCard(
+                            anchor: anchorExcerpt.anchor,
+                            text: anchorExcerpt.text
+                        )
+                    }
+                    ForEach(
+                        Array(blocks.enumerated()), id: \.offset
+                    ) { index, block in
+                        blockView(block, at: index)
+                            .padding(.top, topGap(for: block, at: index))
+                            .id(index)
+                    }
+                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.vertical, OneDayMetrics.spacingL)
+            }
+            .onAppear {
+                if let target = firstHighlightedIndex {
+                    // 定位滚动不抢首帧布局：下一轮循环再滚
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(target, anchor: .top)
+                    }
+                }
+            }
+        }
+    }
+
+    /// 锚点摘录卡：行段原文整段呈现（定位落点），
+    /// accent 底＋行段标头——用户点 `#L12-L20` 进来
+    /// 第一眼就看到被引用的那几行
+    private func excerptCard(
+        anchor: FileLineAnchor, text: String
+    ) -> some View {
+        VStack(
+            alignment: .leading, spacing: OneDayMetrics.spacingXS
+        ) {
+            Text(
+                anchor.startLine == anchor.endLine
+                    ? L10n.format("第 %lld 行", Int64(anchor.startLine))
+                    : L10n.format(
+                        "第 %lld–%lld 行",
+                        Int64(anchor.startLine), Int64(anchor.endLine)
+                    )
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Palette.inkSecondary)
+            Text(text)
+                .font(.system(.footnote, design: .monospaced))
+                .foregroundStyle(Palette.bodyInk)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(OneDayMetrics.spacingSM)
+        .background(
+            Palette.primaryPale,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusThumb
+            )
+        )
+    }
+
+    private var firstHighlightedIndex: Int? {
+        guard let highlightLines else { return nil }
+        for (index, block) in blocks.enumerated() {
+            switch block {
+            case .paragraph:
+                if let paragraphLineRanges,
+                   index < paragraphLineRanges.count,
+                   paragraphLineRanges[index].overlaps(highlightLines) {
+                    return index
+                }
+            case .code(let code, _):
+                let lineCount = code
+                    .components(separatedBy: "\n").count
+                if highlightLines.lowerBound <= lineCount {
+                    return index
+                }
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    private func paragraphHighlighted(at index: Int) -> Bool {
+        guard let highlightLines, let paragraphLineRanges,
+              index < paragraphLineRanges.count
+        else { return false }
+        return paragraphLineRanges[index].overlaps(highlightLines)
     }
 
     /// 标题前额外留白（块式呼吸感的一半来源）：一级/
@@ -131,19 +395,35 @@ struct DocumentReaderView: View {
     }
 
     @ViewBuilder
-    private func blockView(_ block: MarkdownBlock) -> some View {
+    private func blockView(
+        _ block: MarkdownBlock, at index: Int
+    ) -> some View {
         switch block {
         case .paragraph(let text):
             inlineText(TextShaping.prettyWrapDocument(text))
                 .font(.bodyText)
                 .lineSpacing(7)
                 .foregroundStyle(Palette.bodyInk)
+                .background {
+                    // 锚点段落高亮：底色外扩不占布局，
+                    // 段落本体几何与无锚点时逐字一致
+                    if paragraphHighlighted(at: index) {
+                        RoundedRectangle(
+                            cornerRadius: OneDayMetrics.radiusThumb
+                        )
+                        .fill(Palette.primaryPale)
+                        .padding(-OneDayMetrics.spacingS)
+                    }
+                }
         case .heading(let text, let level):
             inlineText(text)
                 .font(Self.headingFont(level))
                 .foregroundStyle(Palette.bodyInk)
         case .code(let code, let language):
-            codeView(code, language: language)
+            codeView(
+                code, language: language,
+                highlightLines: highlightLines
+            )
         case .blockquote(let lines):
             highlightBlock(lines)
         case .list(let items):
@@ -203,7 +483,10 @@ struct DocumentReaderView: View {
         )
     }
 
-    private func codeView(_ code: String, language: String?) -> some View {
+    private func codeView(
+        _ code: String, language: String?,
+        highlightLines: ClosedRange<Int>? = nil
+    ) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             HStack(alignment: .center) {
                 if let language {
@@ -215,10 +498,43 @@ struct DocumentReaderView: View {
                 CopyButton(text: code)
             }
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(code)
-                    .font(.system(.footnote, design: .monospaced))
-                    .foregroundStyle(Palette.bodyInk)
+                if let highlightLines,
+                   highlightLines.lowerBound
+                       <= code.components(separatedBy: "\n").count {
+                    // 锚点高亮：按行分组渲染，锚点行段
+                    // 整段 accent 底（structured 整段一
+                    // 块、行号即原文行号，映射精确）
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(
+                            Array(
+                                Self.codeLineGroups(
+                                    code: code,
+                                    highlightLines: highlightLines
+                                ).enumerated()
+                            ),
+                            id: \.offset
+                        ) { _, group in
+                            Text(group.text)
+                                .font(
+                                    .system(
+                                        .footnote, design: .monospaced
+                                    )
+                                )
+                                .foregroundStyle(Palette.bodyInk)
+                                .background(
+                                    group.highlighted
+                                        ? Palette.primaryPale
+                                        : Color.clear
+                                )
+                        }
+                    }
                     .textSelection(.enabled)
+                } else {
+                    Text(code)
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(Palette.bodyInk)
+                        .textSelection(.enabled)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -229,6 +545,25 @@ struct DocumentReaderView: View {
                 cornerRadius: OneDayMetrics.codeCorner
             )
         )
+    }
+
+    /// 代码行分组（锚点高亮用）：相邻同态行并组，保
+    /// 持原文换行——组内以 \n 连接整段渲染
+    private static func codeLineGroups(
+        code: String, highlightLines: ClosedRange<Int>
+    ) -> [(text: String, highlighted: Bool)] {
+        var groups: [(text: String, highlighted: Bool)] = []
+        for (index, line) in code
+            .components(separatedBy: "\n").enumerated() {
+            let highlighted = highlightLines.contains(index + 1)
+            if var last = groups.last, last.highlighted == highlighted {
+                last.text += "\n" + line
+                groups[groups.count - 1] = last
+            } else {
+                groups.append((line, highlighted))
+            }
+        }
+        return groups
     }
 
     private func listView(_ items: [MarkdownListItem]) -> some View {
@@ -411,125 +746,6 @@ struct DocumentReaderView: View {
         return attributed
     }
 
-    // MARK: - 失败页（按类型给动作）
-
-    private func failureView(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("打开失败", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            ForEach(
-                FileActionPolicy.failureActions(for: entry),
-                id: \.self
-            ) { action in
-                Button(action.label) {
-                    performFailure(action)
-                }
-            }
-        }
-    }
-
-    private func performFailure(_ action: FileFailureAction) {
-        switch action {
-        case .retry:
-            Task { await load() }
-        case .download:
-            Task { await shareOriginal() }
-        case .dismiss:
-            dismiss()
-        }
-    }
-
-    // MARK: - 动作与取数
-
-    private func perform(_ action: FileItemAction) {
-        switch action {
-        case .copyText:
-            if let rawText {
-                UIPasteboard.general.string = rawText
-                notice = "已复制全文。"
-                Haptics.success()
-            }
-        case .exportPDF:
-            exportPDF()
-        case .share, .download:
-            Task { await shareOriginal() }
-        case .preview, .delete:
-            // 阅读面策略表不给这两项（见 FileActionPolicy
-            // .readingActions），落到这里即策略表漂移——
-            // 静默不执行、靠单测钉住表本身
-            break
-        }
-    }
-
-    private func exportPDF() {
-        guard let blocks,
-              let data = DocumentPDFExporter.pdfData(
-                  title: displayTitle, blocks: blocks
-              )
-        else {
-            notice = "导出 PDF 失败，请稍后再试。"
-            Haptics.error()
-            return
-        }
-        shareItem = try? FileShareItem.write(
-            data: data, name: "\(displayTitle).pdf"
-        )
-    }
-
-    private func shareOriginal() async {
-        if let rawData {
-            shareItem = try? FileShareItem.write(
-                data: rawData, name: entry.name
-            )
-            return
-        }
-        do {
-            let data = try await fetchData()
-            shareItem = try FileShareItem.write(
-                data: data, name: entry.name
-            )
-        } catch {
-            notice = (error as? HermesError)?.userMessage
-                ?? "下载失败，请稍后再试。"
-        }
-    }
-
-    private func fetchData() async throws -> Data {
-        try await appState.performAdmin { client, config in
-            try await client.fileData(config: config, path: entry.path)
-        }
-    }
-
-    private func load() async {
-        loadError = nil
-        do {
-            let data = try await fetchData()
-            rawData = data
-            guard let kind = DocumentTextKind.kind(
-                      forFileName: entry.name
-                  ),
-                  let text = FileTextExtractor.plainText(
-                      from: data, entry: entry
-                  )
-            else {
-                loadError = "这个文件没能读出文字。"
-                return
-            }
-            rawText = text
-            blocks = DocumentReading.blocks(for: text, kind: kind)
-        } catch let error as HermesError {
-            // §121 题二 b：失败文案走五分（不存在时
-            // 如实说服务器上没有这个文件），不再一
-            // 句兜底
-            loadError = FileOpenFailure.classify(
-                error: error
-            ).message()
-        } catch {
-            loadError = FileOpenFailure.other.message()
-        }
-    }
 }
 
 /// 导出 PDF（阅读页块→A4 文本 PDF）：CoreText 排版分

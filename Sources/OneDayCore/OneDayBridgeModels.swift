@@ -1000,6 +1000,34 @@ public enum IdeaTaskPlan {
     }
 }
 
+// MARK: - 表格转码（§125，桥 /files/spreadsheet）
+
+/// xlsx 转码回执：伴生把每个 sheet 转成 CSV 文本
+/// （值口径——公式取缓存值），App 侧走 Document-
+/// Reading 的 csv 块呈现。单 sheet 超行数上限时桥
+/// 侧截断并明示（truncated＋totalRows），不许静默
+/// 截断；notes 是如实标注（如某公式无缓存值），
+/// 原样呈现、不加工
+public struct BridgeSpreadsheet: Decodable, Equatable, Sendable {
+    public struct Sheet: Decodable, Equatable, Identifiable, Sendable {
+        public let name: String
+        public let csv: String
+        public let totalRows: Int
+        public let truncated: Bool
+
+        public var id: String { name }
+
+        private enum CodingKeys: String, CodingKey {
+            case name, csv, truncated
+            case totalRows = "total_rows"
+        }
+    }
+
+    public let name: String
+    public let sheets: [Sheet]
+    public let notes: [String]
+}
+
 // MARK: - 已转任务本地标记
 
 /// 【0.32.0 退役为真源】「已转任务」标记曾只存本地

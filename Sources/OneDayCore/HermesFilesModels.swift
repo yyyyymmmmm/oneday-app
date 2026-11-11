@@ -24,6 +24,24 @@ public struct WorkspaceFileEntry: Decodable, Sendable, Identifiable, Hashable {
 
     public var id: String { path }
 
+    /// 程序构造（§125）：打开链内部按轻量目标合成
+    /// 等价条目用，解码路径不变
+    public init(
+        name: String,
+        path: String,
+        isDirectory: Bool,
+        size: Int64?,
+        mtime: Double?,
+        mimeType: String?
+    ) {
+        self.name = name
+        self.path = path
+        self.isDirectory = isDirectory
+        self.size = size
+        self.mtime = mtime
+        self.mimeType = mimeType
+    }
+
     enum CodingKeys: String, CodingKey {
         case name, path, size, mtime
         case isDirectory = "is_directory"
