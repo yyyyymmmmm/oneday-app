@@ -843,9 +843,9 @@ final class SandboxFilesEngine: @unchecked Sendable {
         for component in path.split(separator: "/") {
             url = url.appendingPathComponent(String(component))
         }
-        let root = rootURL.resolvingSymlinksInPath
+        let root = rootURL.resolvingSymlinksInPath()
             .standardizedFileURL.path
-        let resolved = url.resolvingSymlinksInPath
+        let resolved = url.resolvingSymlinksInPath()
             .standardizedFileURL.path
         guard resolved == root || resolved.hasPrefix(root + "/")
         else {
