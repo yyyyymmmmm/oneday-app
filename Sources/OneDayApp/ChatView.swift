@@ -279,6 +279,12 @@ struct ChatView: View {
     @State private var topVisibleEntryID: UUID?
     /// 0.4.1：长按「选择」的纯文本 sheet 载荷
     @State private var selectionPayload: SelectionPayload?
+    /// §146：正文选区在场的条目 id（选字期间关该行
+    /// 右滑引用防拖柄误触）；消选经延迟清账（块间
+    /// 切换选区时旧块先报消、新块后报选，立即清账
+    /// 会误关新选区的行保护）
+    @State private var activeSelectionEntryID: UUID?
+    @State private var selectionClearTask: Task<Void, Never>?
     /// 0.8.0（P1 富内容）：图片全屏查看与文件 QuickLook
     /// 预览的呈现载荷；流式工具卡列（累积完成即入列、
     /// 本轮收尾落盘，见 driveRun）
@@ -2173,18 +2179,31 @@ struct ChatView: View {
                     if !entry.content.isEmpty {
                         // 条 8（§14）：段落渲染前过断行整形
                         // （尾行孤字防护，TextShaping 纯函数）
-                        Text(TextShaping.prettyWrapDocument(entry.content))
-                            // 0.3.8 第 29 条：气泡正文走显式
-                            // 角色，与助手侧 MarkdownText/
-                            // StreamingText 同口径。0.4.4
-                            // （§29）：基准 17→16（.callout
-                            // 语义载体）＋墨换 bodyInk
-                            // （#262626），四处正文同改
-                            .font(.callout)
-                            // 0.26.0：泡上字改走主题泡字色
-                            // （默认行浅档与 bodyInk 同值、
-                            // 暗档修正见 Palette 注）
-                            .foregroundStyle(Palette.userBubbleText)
+                        // §146：正文改走 SelectableInline-
+                        // Text 原地可选（plainRuns 不解析
+                        // markdown、原文逐字呈现，与旧裸
+                        // Text 一致）；字阶角色与旧口径同
+                        // ——0.3.8 第 29 条 .callout 基准
+                        // （0.4.4 定 16）由 textStyle 承
+                        // 担、0.26.0 主题泡字色由 fore-
+                        // ground 承担（默认行浅档与
+                        // bodyInk 同值、暗档见 Palette 注）
+                        SelectableInlineText(
+                            paragraphs: [
+                                .plain(
+                                    TextShaping.prettyWrapDocument(
+                                        entry.content
+                                    )
+                                )
+                            ],
+                            textStyle: .callout,
+                            foreground: Palette.userBubbleText,
+                            onSelectionChange: { active in
+                                noteTextSelection(
+                                    entryID: entry.id, active: active
+                                )
+                            }
+                        )
                             .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                             .padding(.vertical, OneDayMetrics.bubblePaddingV)
                             .background(
@@ -2349,7 +2368,16 @@ struct ChatView: View {
                     || (mediaSplit.imagePaths.isEmpty
                         && inlineImages.isEmpty) {
                     assistantBubble {
-                        MarkdownText(displayText)
+                        // §146：选区回报接行级记账（选
+                        // 字期间关本行右滑引用）
+                        MarkdownText(
+                            displayText,
+                            onSelectionChange: { active in
+                                noteTextSelection(
+                                    entryID: entry.id, active: active
+                                )
+                            }
+                        )
                     }
                 }
                 // 0.8.0（P1）：正文里的服务端文件路径出
@@ -2477,6 +2505,27 @@ struct ChatView: View {
         composerFocusHandle.focus()
     }
 
+    /// §146 选区在场记账：正文文本块（Selectable-
+    /// InlineText）经 onSelectionChange 回报——选
+    /// 区在场时该行右滑引用停用（拖选字手柄的横向
+    /// 位移不许误触引用，DESIGN §146.3 第 4 条）；
+    /// 消选延迟 350ms 清账，防同一条内换块选字时
+    /// 旧块消选先于新块报选到达、把保护误清
+    private func noteTextSelection(entryID: UUID, active: Bool) {
+        if active {
+            selectionClearTask?.cancel()
+            selectionClearTask = nil
+            activeSelectionEntryID = entryID
+        } else if activeSelectionEntryID == entryID {
+            selectionClearTask?.cancel()
+            selectionClearTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+                activeSelectionEntryID = nil
+            }
+        }
+    }
+
     /// 气泡长按菜单挂载（0.4.1）：纯图片消息（正文空）
     /// 不挂——四项全是文本动作，空文本挂上只剩坏体验
     /// （引用摘要为空、复制/分享空串）
@@ -2504,7 +2553,12 @@ struct ChatView: View {
     /// 重叠）
     private func swipeReply(for entry: ChatEntry) -> SwipeReplyModifier {
         SwipeReplyModifier(
-            isEnabled: !entry.content.isEmpty,
+            // §146：本行正文有选区在场时停用——拖
+            // 选字手柄与右滑引用同为横向拖动手势，
+            // 选字优先（仲裁见 DESIGN §146.3 第 4
+            // 条）；选区清空（延迟清账后）自动恢复
+            isEnabled: !entry.content.isEmpty
+                && activeSelectionEntryID != entry.id,
             onReply: {
                 beginReply(to: entry)
             }
@@ -5860,11 +5914,14 @@ private struct SelectionPayload: Identifiable {
     let text: String
 }
 
-/// 「选择」承载页（0.4.1）：整条消息的纯文本在系统
-/// sheet 里以 .textSelection(.enabled) 呈现——选择
-/// 手柄、长按拷贝菜单全是系统行为，可跨段划选任意
-/// 部分。选型理由（为何不直接在气泡上划选）见
-/// DESIGN-V4 §26
+/// 「选择」承载页（0.4.1 立、§146 升级）：整条消息
+/// 的纯文本在系统 sheet 里跨段划选任意部分——气
+/// 泡内选字粒度是单个文本块（§146.3），跨块任意
+/// 选段的口子保留在本页。0.4.1 时本页用 SwiftUI
+/// Text＋.textSelection（iOS 26 下只有整段菜单），
+/// §146 起换 SelectableInlineText（UITextView 真
+/// 选段：双击选词／拖柄扩选／系统编辑菜单），与气
+/// 泡内同源同口径
 private struct SelectableTextSheet: View {
     let text: String
     @Environment(\.dismiss) private var dismiss
@@ -5872,11 +5929,13 @@ private struct SelectableTextSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                Text(text)
-                    .textSelection(.enabled)
-                    .font(.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(OneDayMetrics.pageGutter)
+                SelectableInlineText(
+                    paragraphs: [.plain(text)],
+                    textStyle: .body,
+                    foreground: Palette.bodyInk
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(OneDayMetrics.pageGutter)
             }
             .navigationTitle("选择文本")
             .navigationBarTitleDisplayMode(.inline)

@@ -9059,3 +9059,53 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 分支 feat/i18n-language：代码提交 0241d1a，基线 main 15cc649（0.50.10/132）。validate_i18n 本地实跑通过（2640 键）。分支 CI run 42998569663（workflow_dispatch 触发，head 0241d1a）completed success、build-native 单 job 全部 steps 全绿，单测 Executed **1436、0 failures**（基线 1432＋新增 LanguageSwitchTests 4 法，逐法 passed 日志在案；既有测零删改，只增不减）。未合并、版本号未动，待主线按序合并定版。合并后真机待验：切 English 后主面＋设置页＋设备页即时变、杀进程重进保持所选档、切回跟随系统复原；系统权限弹窗/分享单仍随系统语言（区脚口径、非缺陷）。
 
+## §146 聊天文本可选包：气泡正文原地选字（2026-11-11，用户 19:04 真机报障两条；预制分支 feat/chat-text-selection，基线 main 9119674／0.50.13，只预制不合并）
+
+用户报障（附 Muse 对照双图）：①Muse 里双击消息文字出蓝色选字手柄、拖光标选段、弹系统菜单（拷贝／全选／查询／翻译），OneDay 气泡文字怎么点都选不中；②「咱们的好像还是英文」——消息相关菜单疑有英文漏出。本包两条一并处理。
+
+### 146.1 诊断：为什么现行气泡选不中（源码实证）
+
+- 助手正文＝MarkdownText：段落／标题／引用／列表／表格全部是 SwiftUI `Text(AttributedString)` 拼接，**通篇没有一处 `.textSelection`**——只有代码块内的 `Text` 挂了 `.textSelection(.enabled)`（MarkdownText.swift:112）。用户气泡＝裸 `Text`（ChatView 气泡正文），同样没挂。
+- 唯一的选字通道是 §26.4 的绕行：长按菜单「选择」→ 打开 SelectableTextSheet，整条消息纯文本在 sheet 里以 `.textSelection(.enabled)` 呈现。当年选 sheet 的三条理由（§26.4）：①气泡上已有 contextMenu 长按、再叠 textSelection 长按手势仲裁不可控；②Markdown 复合排版多 Text 块、逐块选跨不了块；③确定性优先。
+- 三条理由的现状：①②仍是 SwiftUI `.textSelection` 的真实边界（见 146.2 外部核查），但用户要的形态（双击出柄、拖段、系统菜单）恰恰是这条路给不出的；③当年「本批无真机截图验收环、手感风险按确定性裁」的语境已变——用户真机直接点名要 Muse 形态。绕行口径就此被用户口径覆盖：选字必须回到气泡原地。
+
+### 146.2 外部核查：iOS 上聊天 App 实现可选的通行做法（2026-11-11 查）
+
+- **SwiftUI `.textSelection` 在 iOS ≤26 没有选段能力**：长按只唤出作用于**整个 Text** 的菜单（拷贝／分享＝全有或全无），不出选字手柄、不能选范围（Robb Böhnke《SwiftUI Text Selection Still Isn't Good Enough》、多篇 limitations 汇总一致）。选段手柄是 **iOS 27** 才给同一修饰符补上的，且 iOS 27 下**仍不能跨多个 Text 视图选**（robb.is 明示：选区「just won't expand」出单个 Text 的边界）。本 App 跑 iOS 26、MarkdownText 一条消息几十个 Text——`.textSelection` 路线在本机型上连「段内选段」都交付不了，更跨不了块。**这解释了现行不可选的全部表象**：不是少挂一个修饰符，是这条 API 在当前系统版本上没有这个能力。
+- **通行落法＝UITextView（selectable、非 editable）**：系统文本交互自 iPhone OS 3 起即整段可选——双击选词、长按出柄、拖柄扩选、系统编辑菜单（拷贝／全选／查询／翻译，系统按语言呈现）全是 UIKit 原生行为，主流聊天／文档 App 的富文本可选均走此路（或 TextKit 自绘）。SwiftUI 侧以 UIViewRepresentable 包装、isScrollEnabled=false＋inset/lineFragmentPadding 归零＋sizeThatFits 自量高，是社区与生产代码的标准形态（tutorialpedia 等 SelectableText 包装范式）。
+- 取舍定案：**气泡正文改走 UITextView 包装**（新 SelectableInlineText），不用 `.textSelection` 补丁。代价与边界如实记：选区粒度＝**单个文本块内**（段落／标题／引用整块／列表项）——单 UITextView 内的整段可选已达成；跨块（如从第一段拖到第三段）需要把整条消息塞进单个 UITextView，会牺牲表格 Grid 横滑与代码块横滑＋复制钮的既有形态，代价大于收益、本包不做；跨块任意选段的口子保留在长按菜单「选择」sheet，且 sheet 本次同步升级为真选段（见 146.3 第 5 条）。
+
+### 146.3 修法（本包代码）
+
+1. **Core 新 InlineRunBuilder**（Foundation 纯函数、可测）：行内 markdown → [InlineRun]（text／strong／emphasis／code／link／strikethrough 六维标记）。分段先走既有 MarkdownInline（删除线口径单源不另抄），段内走系统 AttributedString 行内解析读 InlinePresentationIntent——与 MarkdownText.inlineAttributed 现行读法逐项同口径（strong 只认 stronglyEmphasized 且代码段除外；链接取 run.link）。相邻同标记 run 合并。另给 plainRuns（用户气泡与选择 sheet 用：整串一个普通 run、绝不解析 markdown——用户原文里的 `**` 保持字面，与现行裸 Text 呈现一致）。
+2. **App 新 SelectableInlineText**（SelectableTextView.swift）：UIViewRepresentable 包装 UITextView（isSelectable=true、isEditable=false、isScrollEnabled=false、背景透明、textContainerInset=.zero、lineFragmentPadding=0、dataDetectorTypes 空）。NSAttributedString 由 run 拼装：字体走 UIFontMetrics 按环境 dynamicTypeSize 档缩放（DynamicTypeSize.contentSizeCategory 既有映射），系统粗体文本开启时基字重升 semibold（与 BoldTextRootModifier 根口径同档）；strong＝基字体加 traitBold、emphasis＝traitItalic、code＝同字号等宽；颜色经 Color.resolve(in:) 把 Palette 角色（bodyInk／inkSecondaryOnFill／userBubbleText／链接 primary）快照成 UIColor、环境（深浅／对比度／字号档）变化即重拼。sizeThatFits 自量高＋拼装结果按（文本＋样式键）缓存防列表重排抖动；updateUIView 内容未变不重设 attributedText、不动已有选区。链接点按经 UITextViewDelegate 拦下走环境 openURL（与 SwiftUI Text 链接同一出口）、不让系统直开。复制经子类 override copy：剥掉 TextShaping 的 WORD JOINER 再上剪贴板（整形字符只管断行、不许混进复制内容）。
+3. **接线**：MarkdownText 段落／标题改 SelectableInlineText；引用块整块合一（逐行 runs＋按 depth 的 headIndent＋行间 paragraphSpacing=spacingXS，与旧逐行 VStack 的 XS 间距同值）；列表项正文改 SelectableInlineText 并以 alignmentGuide(.firstTextBaseline) 对齐标记列（基线值＝基字体 ascender，真机待验逐项核）；用户气泡正文改 SelectableInlineText（plainRuns＋userBubbleText 色）。**表格单元格保留 SwiftUI Text、补 `.textSelection(.enabled)`**——Grid 按内容定列宽＋整体横滑的几何里塞 UIViewRepresentable 有量测循环风险，且横滑容器内拖柄必被滚动抢手势，属已知次档（iOS 26 下整格菜单、iOS 27 起格内选段），如实登记不冒充同档。代码块维持现状（横滑＋.textSelection＋CopyButton，零回退）。流式 StreamingText 不动：流式中不可选、落定成条后即 MarkdownText 可选（符合「落定后可选」口径，流式组件零改动即零崩险）。
+4. **手势仲裁（写死）**：①选字（双击／长按／拖柄）归文字帧内的 UITextView 本体——UIKit 文本交互在最深视图、优先于祖先的 UIContextMenuInteraction，这是系统既定关系、非自制仲裁；②消息长按菜单（contextMenu）保留挂整行容器：长按落在文字上＝选字（与 Muse 对照图一致），落在气泡 padding／图片／文件牌等非文字区＝照旧出菜单，五项动作一个不少；③右滑引用：选区活动期间（任一文本块 selectedRange 非空）经 onSelectionChange 回报 ChatView（按 entry.id 记账、消选延迟 350ms 清账防块间切换误关），该行 SwipeReplyModifier 置 isEnabled=false——拖选字手柄的横向位移不再能误触引用；选区清空即恢复。④纵向滚动：UITextView 关滚动后不吞纵向 pan，列表滚动归列表。
+5. **「选择」sheet 升级**：SelectableTextSheet 的 SwiftUI Text 换 SelectableInlineText（plainRuns、.body 档、bodyInk）——整条消息跨段任意选段自此是真手柄选段，不再是 iOS 26 的整段菜单。标题「选择文本」与「完成」不变。
+6. MarkdownText 其他消费面（动态 Feed／服务端会话／技能页）同源受益：同组件改渲染，选字口径全 App 一致；这些面无 contextMenu／右滑手势，仲裁不涉。
+
+### 146.4 英文清查（消息长按菜单／编辑菜单／引用／复制相关，全量 grep 实证）
+
+方法：对 ChatView／MarkdownText／StreamingText／ReasoningBlock／ChatApprovalCards／DictationViews／ComposerTextView 全部字符串字面量扫描（滤 SF Symbol 名／id／格式碎片），再对全 App UI 构造点（Button／Label／Text／navigationTitle／Toggle／Picker／Menu／accessibilityLabel 等首参）做拉丁字符串扫描，逐条对 Localizable.xcstrings（2626 键）核对。结论：**消息相关代码内不存在用户可见的硬编码英文**——逐项清单：
+
+- 长按菜单五词「回复／在旁聊里接着问／复制／选择／分享」：中文、五词全在目录 ✓
+- 「选择」sheet 标题「选择文本」＋工具栏「完成」：中文、在目录 ✓
+- 引用条／引用块（「正在回复 …」族）、复制口径：中文、在目录 ✓
+- 审批卡按钮（「驳回／取消／总是允许」等）：中文 ✓；工具卡标题走 Core 中文映射＋中文类名兜底、英文短名已退出卡面回落链（ToolCards.swift:686 注）✓；图片查看器动作（「复制／删除／保存到相册／关闭／更多操作」）中文 ✓；听写面仅符号与百分比格式、无英文文案 ✓
+- 全 App UI 构造点拉丁命中仅 7 条，逐条定性：`Esc`（浏览器面键盘钮，键帽惯例字面）、`Icons by Lordicon`（设置页图标版权署名，专名）、`OneDay v0.50.13`（设置页版本行，专名＋版本号）、3 条系插值拼装串（连接器／动态／记忆面，非词条漏出）——均不在消息面、不属本包改动范围，登记备查。
+- **用户所见英文的最可能来源＝系统编辑菜单本身**：选字菜单的「拷贝／全选／查询／翻译」由 iOS 绘制、不经 App 词条，其语言随系统给 App 解析的本地化走；旧「选择」sheet 里 SwiftUI Text 在 iOS 26 唤出的是整段菜单（Copy／Share 族系统项），与气泡内无选字叠加，观感上即「人家的菜单是中文选字、咱们的是英文整段菜单」。本包改走真 UITextView 后，编辑菜单与 Muse 同为系统原生选字菜单（设备中文环境下即中文呈现），此面由系统保证、不在词条层——如实定性，不冒充词条修复。
+- 顺带登记（§52 机制漏范畴、本包不动）：FileActionPolicy 的动作 label（预览／删除／置顶／取消置顶／重命名／在文件页中打开／阅读／播放／查看表格／保存到文件／重试等）是 Core 中文字面量经 String 变量直印、不在目录——中文环境呈现无碍（非用户本次所指英文），英／繁环境下不跟随翻译，归 §52 包 2 机制漏收口一并处理。
+
+### 146.5 单测
+
+- 新增 InlineRunBuilderTests（Core）：纯文本单 run／strong／emphasis／strong+emphasis 三态分 run／行内代码（code 标记＋内部 `**` 不升 strong）／链接 run 带 URL／删除线段（~~ 内 strong 叠加 strikethrough）／未闭合 `**` 字面保留／混合段拼回可见文本逐字一致／plainRuns 不解析（`**` 字面、单 run）。既有测零删改、只增不减。
+
+### 146.6 真机待验（合并后随版）
+
+- 助手消息段落：双击选词出蓝色手柄、拖柄扩选到句段、菜单「拷贝」粘出到别处内容干净（无整形字符）
+- 长消息含标题／列表／引用：各块内可选；列表标记与首行基线对齐无可见错位；引用块整块可选
+- 用户气泡：同样可选、拷贝内容为原文
+- 手势不打架：选字拖柄横拖不触发右滑引用；选区在场时长按非文字区仍出消息菜单；无选区时右滑引用与长按菜单照旧
+- 流式生成中不崩、落定后同一条消息即可选；表格单元格长按出整格菜单（次档口径）；代码块横滑与复制钮不回退
+- 深色模式＋大字号（AX 档）＋系统粗体文本三帧：SelectableInlineText 字号字重跟随、无截断无重叠
+
