@@ -130,11 +130,17 @@ public enum FileActionPolicy {
     /// 分类名称口径（§125）：中间页/路由表只有文件
     /// 名与媒体种类、没有完整条目时走本口径，与条目
     /// 口径同序同果（先媒体种类、再可读文本类、余按
-    /// 扩展名）
+    /// 扩展名）。mediaKind 传 nil＝无 mime 线索：经
+    /// 合成条目按扩展名推导（影音扩展名表在条目
+    /// mediaKind 里，单源复用、不另抄一份）
     public static func category(
         forFileName name: String,
         mediaKind: WorkspaceFileEntry.MediaKind?
     ) -> FileItemCategory {
+        let mediaKind = mediaKind ?? WorkspaceFileEntry(
+            name: name, path: name, isDirectory: false,
+            size: nil, mtime: nil, mimeType: nil
+        ).mediaKind
         if let mediaKind {
             switch mediaKind {
             case .image: return .image

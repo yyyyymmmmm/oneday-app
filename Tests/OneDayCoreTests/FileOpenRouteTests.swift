@@ -183,6 +183,11 @@ final class FileOpenRouteTests: XCTestCase {
             ("页.html", .html),
             ("包.zip", .archive),
             ("数据.xyz", .other),
+            // 影音类靠扩展名推导（mediaKind=nil 时经
+            // 合成条目取条目同表，不许落 .other）
+            ("图.png", .image),
+            ("片.mp4", .video),
+            ("声.mp3", .audio),
         ] {
             XCTAssertEqual(
                 FileActionPolicy.category(
