@@ -203,8 +203,9 @@ struct ProviderEditorView: View {
             selectedModels = models
             probeOutcome = .connected(modelCount: models.count)
         } catch let error as ProviderProbeClient.ProbeFailure {
-            probeOutcome = error == .emptyList
-                ? .connectedNoCatalog : .failed(message: error.message)
+            probeOutcome = error.connectionOutcome
+        } catch HermesError.demoLimitReached {
+            probeOutcome = .failed(message: HermesError.demoLimitReached.userMessage)
         } catch {
             probeOutcome = .failed(message: L10n.string("拉取没能完成，可以手动填模型名。"))
         }

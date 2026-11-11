@@ -33,6 +33,19 @@ final class ProviderProbeClient: @unchecked Sendable {
                 return L10n.string("连上了，但对方没返回任何模型；可以手动填模型名。")
             }
         }
+
+        /// 失败结局 → Core 呈现结局的唯一映射（第 9
+        /// 项）：emptyList 是「通了但没目录」＝降级形
+        /// 态（ProviderConnectionOutcome.connectedNo-
+        /// Catalog，其状态词经 ServiceHealth 词表出
+        /// degraded），其余失败一律 failed＋人话原因。
+        /// 此前三处调用方各写一份三目分流，自此只许
+        /// 经这一处
+        var connectionOutcome: ProviderConnectionOutcome {
+            self == .emptyList
+                ? .connectedNoCatalog
+                : .failed(message: message)
+        }
     }
 
     /// GET {base}/models → 模型 id 列表（Core 解析）。

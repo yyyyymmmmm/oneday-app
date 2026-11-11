@@ -547,7 +547,7 @@ final class AppState {
     ) async throws {
         onStep(.health)
         let health = try await client.health(config: config)
-        guard health.isOK else {
+        guard ServiceHealth.from(health: health) == .up else {
             throw HermesError.healthCheckFailed(status: 200)
         }
         onStep(.login)
@@ -583,7 +583,7 @@ final class AppState {
     ) async throws {
         onStep(.health)
         let health = try await client.health(config: config)
-        guard health.isOK else {
+        guard ServiceHealth.from(health: health) == .up else {
             throw HermesError.healthCheckFailed(status: 200)
         }
         onStep(.apiKey)
@@ -616,7 +616,7 @@ final class AppState {
         } else {
             onStep(.health)
             let health = try await client.health(config: config)
-            guard health.isOK else {
+            guard ServiceHealth.from(health: health) == .up else {
                 throw HermesError.healthCheckFailed(status: 200)
             }
             onStep(.apiKey)

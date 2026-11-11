@@ -219,6 +219,10 @@ struct SkillHubView: View {
                 )
             }
             phase = .results(results)
+        } catch HermesError.demoLimitReached {
+            // 演示空态（第 4 项）：统一文案一条，不走
+            // 本面的超时归因文案
+            phase = .failed(HermesError.demoLimitReached.userMessage)
         } catch {
             phase = .failed("搜索失败：服务端连接外部技能库超时或出错，请稍后再试。")
         }
@@ -253,6 +257,9 @@ struct HubSkillDetailView: View {
 
     @State private var preview: HubPreview?
     @State private var previewFailed = false
+    /// 预览失败文案覆盖（演示空态时为统一文案，其余
+    /// 失败走呈现位的固定句式）
+    @State private var previewFailureMessage: String?
     @State private var isActing = false
     @State private var actionNote: String?
     @State private var confirmUninstall = false
@@ -380,7 +387,7 @@ struct HubSkillDetailView: View {
             }
         } else if previewFailed {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
-                InlineError("预览读取失败：服务端连接外部技能库超时或出错。")
+                InlineError(previewFailureMessage ?? "预览读取失败：服务端连接外部技能库超时或出错。")
                 Button("重试") { Task { await loadPreview() } }
                     .buttonStyle(.odSecondary)
             }
@@ -396,12 +403,18 @@ struct HubSkillDetailView: View {
 
     private func loadPreview() async {
         previewFailed = false
+        previewFailureMessage = nil
         do {
             preview = try await appState.performAdmin { client, config in
                 try await client.skillHubPreview(
                     config: config, identifier: skill.identifier
                 )
             }
+        } catch HermesError.demoLimitReached {
+            // 演示空态（第 4 项）：统一文案一条，不走
+            // 本面的超时归因文案
+            previewFailed = true
+            previewFailureMessage = HermesError.demoLimitReached.userMessage
         } catch {
             previewFailed = true
         }
@@ -419,6 +432,9 @@ struct HubSkillDetailView: View {
                     config: config, identifier: skill.identifier
                 )
             }
+        } catch HermesError.demoLimitReached {
+            actionNote = HermesError.demoLimitReached.userMessage
+            return
         } catch {
             actionNote = "安装提交失败，请稍后再试。"
             return
@@ -440,6 +456,9 @@ struct HubSkillDetailView: View {
                     config: config, name: skill.installedName
                 )
             }
+        } catch HermesError.demoLimitReached {
+            actionNote = HermesError.demoLimitReached.userMessage
+            return
         } catch {
             actionNote = "卸载提交失败，请稍后再试。"
             return

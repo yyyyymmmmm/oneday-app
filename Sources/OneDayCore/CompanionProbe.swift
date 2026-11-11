@@ -443,6 +443,18 @@ public enum CompanionProbeResolver {
     }
 }
 
+// MARK: - 统一健康派生（复杂化全清·第 9 项）
+
+extension CompanionStatus {
+    /// 本状态在全仓统一词表里的档位：设置页版本组与
+    /// 其余各面只许经 ServiceHealth 取状态词，不许再
+    /// 从 presence/health 各自拼词（派生口径在
+    /// ServiceHealth.from(companion:) 一处钉测）
+    public var serviceHealth: ServiceHealth {
+        ServiceHealth.from(companion: self)
+    }
+}
+
 // MARK: - 呈现文案（设置页版本组，L10n 三语）
 
 extension CompanionStatus {
@@ -491,6 +503,9 @@ extension CompanionStatus {
             var segments: [String] = []
             if let health {
                 if health.isHealthy {
+                    // 健康词与统一词表同源（第 9 项）：
+                    // 「运行正常」是 up 档在本行的整行
+                    // 形态，与词表 label「正常」同档
                     segments.append(
                         L10n.string("运行正常", locale: locale)
                     )

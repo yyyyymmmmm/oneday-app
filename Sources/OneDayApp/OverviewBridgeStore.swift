@@ -116,7 +116,16 @@ final class OverviewBridgeStore {
         var failuresThisRound = 0
         while true {
             do {
-                _ = try await appState.client.health(config: config)
+                let health = try await appState.client.health(
+                    config: config
+                )
+                // 通道判活经全仓统一派生（第 9 项）：
+                // 此前只看「不抛错」——回执 status 非
+                // ok 也算活；自此与连接页硬门同判词，
+                // 非 ok 按失败进退避重探
+                guard ServiceHealth.from(health: health) == .up else {
+                    throw HermesError.healthCheckFailed(status: 200)
+                }
                 liveness.recordSuccess()
                 hermesChannelUp = true
                 return
