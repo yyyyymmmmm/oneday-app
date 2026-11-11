@@ -10206,7 +10206,8 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 ### 178.3 施工（3 个生产文件）
 1. **新增 `Sources/OneDayApp/ComposerGuideHost.swift`**：`ComposerGuideHost`（UIViewControllerRepresentable）＋`ComposerGuideHostController`＋透传根视图。
-   - 桥在 ChatView 上下文读环境（AppState／modelContext／locale／reduceMotion／dynamicTypeSize），逐项注入舱宿主根视图＋`.boldTextMapping()`（DrawerContainer §156 先例：构建闭包在外层上下文求值、rootView 反复赋值不重建舱内状态）。
+   - 桥在 ChatView 上下文读环境（AppState／modelContext／locale），逐项注入舱宿主根视图＋`.boldTextMapping()`（DrawerContainer §156 先例：构建闭包在外层上下文求值、rootView 反复赋值不重建舱内状态）。trait 类（深色／字号／减动态）不快照注入（环境键路无写入口、抽屉桥同例），经控制器层级 trait 自动派生且持续同步。
+   - **活根纪律（宿主测试实证）**：舱本体经 `ComposerRootView` 活根承载、构建闭包在活根 body 里求值——若在桥的 apply 里直接求值成快照，bottomBar 的结构条件（错误条／回底钮行／听写条显隐）会被冻在赋值时刻、只随 ChatView 重渲才刷新（舱内独有状态如听写失败条存在陈旧窗口；实证为快照形态下替身舱内容长高不生效）。活根使闭包读数进入托管树自身依赖追踪，舱内状态变化即时重估，与 ChatView 的重渲节奏解耦。
    - 控制器：舱宿主 `UIHostingController` 设 `sizingOptions=[.intrinsicContentSize]`、`safeAreaRegions=[]`（托管树安全区归零，防双计——舱是自包含栈、内边距全在内容里）；舱视图 leading/trailing 贴宿主视图、底边一条约束钉 `view.keyboardLayoutGuide.topAnchor`；地板钳制在 `viewDidLayoutSubviews` 逐拍按 `constant = min(guideTop, 视图底边) − guideTop` 补偿（只在偏差 >0.25 时写、新常数次拍生效——地板交接只发生在近静止段）。
    - 舱顶实测回报：舱帧换算窗口坐标，报「舱顶→窗口底距离」，变化 >0.5pt 才外发、经主队列下一拍写回 ChatView 状态（避布局拍内同步改状态）。
    - 根视图透传：`hitTest` 命中本体（舱带之外）返回 nil——列表的点空白收键盘、滚动手势的作用域不被全帧层吞掉；舱带内正常命中舱子树。

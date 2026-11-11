@@ -208,12 +208,41 @@ final class ComposerGuideHostTests: XCTestCase {
         spinRunLoop(seconds: seconds)
     }
 
-    /// 等舱帧首次落盒（渲染完成判据），上限约 6 秒
-    private func waitForBarFrame() {
+    /// 等指定帧首次落盒（渲染完成判据），上限约 6 秒
+    private func waitForFrame(_ name: String) {
         let deadline = Date().addingTimeInterval(6)
-        while box.frames["bar"] == nil, Date() < deadline {
+        while box.frames[name] == nil, Date() < deadline {
             spinRunLoop(seconds: 0.25)
         }
+    }
+
+    private func waitForBarFrame() {
+        waitForFrame("bar")
+    }
+
+    /// 等回报值稳定（两读相隔 0.3 秒相等）：首帧布局
+    /// 的瞬态值（实测可差约 9pt）落定后才许采样
+    private func stableBottomSpace() -> CGFloat {
+        var previous = state.bottomSpace
+        let deadline = Date().addingTimeInterval(4)
+        while Date() < deadline {
+            spinRunLoop(seconds: 0.3)
+            let current = state.bottomSpace
+            if abs(current - previous) < 0.1 { return current }
+            previous = current
+        }
+        return state.bottomSpace
+    }
+
+    /// 舱的活量帧：经控制器层级找舱宿主视图直接换算
+    /// （reporter 的帧在纯 transform 位移下不重报、会
+    /// 陈旧；活量对变换即时准确）
+    private func liveBarFrame() -> CGRect? {
+        guard let host = guideHostController(),
+              let barHostView = host.children.first?.view,
+              let window
+        else { return nil }
+        return barHostView.convert(barHostView.bounds, to: window)
     }
 
     private func tabBar() -> UITabBar? {
@@ -246,13 +275,14 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 底停在舱顶上方恰一个单点边距（8）
     func testRestGeometry_barDockedListSpacingAndReport() {
         waitForBarFrame()
-        // 再给 .task 的滚底与留位回报落定留一拍
-        settle(1.0)
+        // 末行要等 .task 滚底把惰性行建出来才有帧
+        waitForFrame("lastRow")
+        settle(0.6)
         guard let tab = tabBar(),
               let bar = box.frames["bar"],
               let lastRow = box.frames["lastRow"]
         else {
-            XCTFail("量具未齐：tab=\(tabBar() != nil) frames=\(box.frames.keys.sorted())")
+            XCTFail("量具未齐：tab=\(tabBar() != nil) frames=\(box.frames.keys.sorted()) bottomSpace=\(state.bottomSpace)")
             return
         }
         let tabTop = tab.convert(tab.bounds, to: window).minY
@@ -272,13 +302,21 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 同步增 40±2
     func testBarGrowth_topRisesBottomPinned() {
         waitForBarFrame()
+        // 采样前等回报落稳（首帧瞬态差约 9pt，不落稳
+        // 会把瞬态记成变化量）
+        let spaceBefore = stableBottomSpace()
         guard let before = box.frames["bar"] else {
             XCTFail("首帧未到")
             return
         }
-        let spaceBefore = state.bottomSpace
         state.tallBar = true
-        settle()
+        // 等回报跟上长高（活根重估→布局→回报链）
+        let deadline = Date().addingTimeInterval(4)
+        while abs(state.bottomSpace - spaceBefore) < 1,
+              Date() < deadline {
+            spinRunLoop(seconds: 0.25)
+        }
+        settle(0.4)
         guard let after = box.frames["bar"] else {
             XCTFail("长高后帧丢失")
             return
@@ -345,14 +383,15 @@ final class ComposerGuideHostTests: XCTestCase {
     }
 
     /// 抽屉开合：舱随前景整体滑动、关后几何复原。前
-    /// 景平移走 transform、不触发深层 layoutSubviews，
-    /// 宿主根视图用活量换算（convert 即时反映变换）、
-    /// 舱帧经一次内容长高戳动强制重报后读取
+    /// 景平移走 transform（纯水平位移，DrawerContainer-
+    /// Controller.applyOffset 实证）、不触发深层
+    /// layoutSubviews——帧一律活量（convert 即时反映
+    /// 变换），不用 reporter 的落盒帧（会陈旧）
     func testDrawerOpenClose_composerRidesForeground() {
         waitForBarFrame()
         guard let host = guideHostController(),
               let hostView = host.view,
-              let before = box.frames["bar"]
+              let before = liveBarFrame()
         else {
             XCTFail("host 或首帧未就位")
             return
@@ -366,12 +405,8 @@ final class ComposerGuideHostTests: XCTestCase {
         XCTAssertGreaterThan(
             hostFrameOpened.minX, hostFrameBefore.minX + 40,
             "开抽屉时宿主应随前景右移（同在前景层级）")
-        // 戳一次长高让舱帧在变换下重报：纵向钉位不变、
-        // 横向随前景走、高恰多 40
-        state.tallBar = true
-        settle(0.8)
-        guard let openedBar = box.frames["bar"] else {
-            XCTFail("抽屉开后舱帧丢失")
+        guard let openedBar = liveBarFrame() else {
+            XCTFail("抽屉开后舱活量帧丢失")
             return
         }
         XCTAssertGreaterThan(
@@ -381,20 +416,16 @@ final class ComposerGuideHostTests: XCTestCase {
             openedBar.maxY, before.maxY, accuracy: 2,
             "前景平移不改舱的纵向钉位")
         XCTAssertEqual(
-            openedBar.height, before.height + 40, accuracy: 2)
-        state.tallBar = false
+            openedBar.height, before.height, accuracy: 2,
+            "前景平移不改舱高")
         container.setDrawer(false, animated: false)
         settle(0.8)
-        state.tallBar = true
-        settle(0.8)
-        state.tallBar = false
-        settle(0.8)
-        guard let closedBar = box.frames["bar"] else {
-            XCTFail("抽屉关后舱帧丢失")
+        guard let closedBar = liveBarFrame() else {
+            XCTFail("抽屉关后舱活量帧丢失")
             return
         }
         XCTAssertEqual(closedBar.minX, before.minX, accuracy: 2)
         XCTAssertEqual(closedBar.maxY, before.maxY, accuracy: 2)
-        XCTAssertEqual(closedBar.height, before.height, accuracy: 2)
     }
+
 }

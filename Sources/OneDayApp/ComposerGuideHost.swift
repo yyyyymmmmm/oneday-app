@@ -114,19 +114,33 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 把当前 SwiftUI 侧状态（环境＋舱本体）刷进托管
     /// 控制器：舱宿主根视图以同型新值更新（SwiftUI 按
     /// 身份 diff、舱内 @State 不重建，与 DrawerContainer
-    /// 内容宿主同机制）
+    /// 内容宿主同机制）。舱本体经 ComposerRootView 活
+    /// 根承载：构建闭包在活根的 body 里求值、其状态读
+    /// 数由托管树自身追踪——若在桥内直接求值成快照，
+    /// bottomBar 的结构条件（错误条/回底钮行/听写条
+    /// 的显隐）会被冻在赋值时刻、只随 ChatView 重渲才
+    /// 刷新，舱内独有状态存在陈旧窗口（宿主测试实证：
+    /// 快照形态下内容长高不生效）
     private func apply(to controller: ComposerGuideHostController) {
         let appState = appState
         let modelContext = modelContext
         let locale = locale
         controller.composerRoot = AnyView(
-            content()
+            ComposerRootView { content() }
                 .environment(appState)
                 .environment(\.modelContext, modelContext)
                 .environment(\.locale, locale)
                 .boldTextMapping()
         )
     }
+}
+
+/// 托管活根：只做一件事——在自己的 body 里求值舱构
+/// 建闭包，使闭包捕获的状态读数进入托管树的依赖追
+/// 踪（见 ComposerGuideHost.apply 注）
+private struct ComposerRootView<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    var body: some View { content() }
 }
 
 /// 透传根视图：只有舱宿主子视图的实帧接命中，本体空
