@@ -25,13 +25,13 @@ struct InlineTextParagraph {
     var spaceAfter: CGFloat = 0
     /// §161：段级字阶覆盖（合并段内标题段用）；
     /// nil＝随视图的 textStyle
-    var textStyleOverride: UIFont.TextStyle?
+    var textStyleOverride: UIFont.TextStyle? = nil
     /// §161：段级次级墨色（H6 走弱化档，与旧标题
     /// 视图的前景分档同口径）
     var dimmed: Bool = false
     /// §161：列表标记（合并段内列表项用）；非空时
     /// headIndent 由标记几何接管（levelIndent 起排）
-    var listMarker: InlineListMarker?
+    var listMarker: InlineListMarker? = nil
 
     /// markdown 行内文本一段（经 Core 拼装）
     static func markdown(
