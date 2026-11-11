@@ -8735,3 +8735,10 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 ### 129.7 预制验收记账（2026-11-11）
 
 - 分支 feat/file-ref-404：代码提交 171efe6、记账提交 54ae413，基线 main 18c6b39；分支 CI run 42976295338（head 54ae413）completed success、build-native 单 job 全绿，单测 Executed 1329（基线 1317＋新增 12，只增不减）、0 failures。validate_i18n.py 与 --check-code 本地实跑通过（2506 键）。未合并、版本号未改，待主线按序合并定版。
+
+### 129.8 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.50.3／125。分支 feat/file-ref-404（顶端 5b240cf，基线 18c6b39）分支 CI run 42976295338 success（分支单测口径 1329）；合并提交 2bb6e1d（冲突两处：Localizable.xcstrings 按 key 三方并集——分支纯增 4 键、零删除零改值，main 2603＋4＝2607 键，validate_i18n 通过 2620 键含 InfoPlist 13；DESIGN-V4.md 顺序拼接，§129 节顺接于 §128（图标）之后全保留。ChatView/RichContentViews 自动合并，接线 grep 复核 detectStandaloneAnchored／verifyExistence／AssistantFileChip／FileResendPrefill 均在位）；定版提交 7265879（版本五处＝Project.swift 四处 0.50.3/125＋SettingsView 页脚「OneDay v0.50.3」，grep 验无 0.50.2 残留）。
+- **合并后 CI**：run 42983985572，jobs API 逐项终判 build-native success；单测 Executed 1353、0 failures（合并前 main 口径 1341＋§129 新增 12，只增不减；分支口径 1329＝其旧基线 1317＋12，差额为分叉后 main 侧增量）。
+- **独立验包**：IPA 9,951,874 字节、md5 `f566ed0d5ca916f2325a7d943f9b8dd9`、Info.plist 实读 0.50.3／125／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.50.3/OneDay-0.50.3.ipa`（落盘 md5 与取件一致）。
+- **遗留口径**：真机待验见 §129.6 五条；诊断 4.2 服务端治本（交付登记制）仍登记待拍板，不在本包。
