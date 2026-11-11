@@ -23,11 +23,11 @@ struct HubLedgerSection: View {
             case .loading:
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .notLive(let message):
+            case .unavailable(let message):
                 ContentUnavailableView {
                     Label("台账还没上线", systemImage: "list.bullet")
                 } description: {
-                    Text(message)
+                    Text(message ?? "台账服务还没上线。上线后，这里会自动开始记录每件工作的进度。")
                 } actions: {
                     Button("重新检查") {
                         Task { await store.load(appState: appState) }

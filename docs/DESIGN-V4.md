@@ -8735,3 +8735,42 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 ### 129.7 预制验收记账（2026-11-11）
 
 - 分支 feat/file-ref-404：代码提交 171efe6、记账提交 54ae413，基线 main 18c6b39；分支 CI run 42976295338（head 54ae413）completed success、build-native 单 job 全绿，单测 Executed 1329（基线 1317＋新增 12，只增不减）、0 failures。validate_i18n.py 与 --check-code 本地实跑通过（2506 键）。未合并、版本号未改，待主线按序合并定版。
+
+## §133 复杂化清理·丁包（2026-11-11，预制分支 feat/cx-misc，基线 main 7265879／0.50.3；依据 complexity-audit-20261111.md 第 7、10、13、12 项，只预制不合并）
+
+### 133.1 第 7 项 · 阅读器宿主合一
+
+- DocumentBlocksView（§125 已抽出的块渲染共用件）之上再收一层：新增 `FileReaderHost`（与 DocumentBlocksView 同文件）——背景／标题／加载转圈／失败页（文案＋FileActionPolicy.failureActions 动作行）只此一份实现，两阅读器共用。
+- DocumentReaderView 只留数据准备（本地取字节→FileTextExtractor 提取→DocumentReading 分块）与自家正文（空文件态、锚点呈现参数、工具栏动作）；SpreadsheetReaderView 只留数据准备（伴生转码→sheet 选段→CSV 分块＋截断注记）与正文。两家原各自一份的 failureView 已删。
+- FileOpenFailure 九分保留不动（审计原话：文案资产、不算运行复杂度）。
+- 逐类型回归口径（代码走查，合并后真机复验）：md＝DocumentReaderView markdown 分块→DocumentBlocksView（含锚点摘录卡）；xlsx＝SpreadsheetReaderView 转码 CSV→DocumentBlocksView（sheet 切换与 500 行截断注记在正文闭包内，未入宿主）；csv＝DocumentReaderView csv 分块（锚点走摘录卡）＋表格页 csv 块渲染，两路共用同一渲染器。
+
+### 133.2 第 10 项（App 部分）· 台账两 Store 合一
+
+- Core 新增 `StoreLoadState`（loading／unavailable(String?)／failed(String)／ready）＋两口错误映射：`failure(for: HermesError)`（服务端人话直达 failed）、`from(bridgeError:unavailableMessage:recordGoneMessage:)`（钥匙类与未开通归 unavailable、recordGone 归 failed、桥侧人话直传）；未连接统一落态 `.notConnected`。
+- `OneDayBridgeError` 自 App 层 OneDayBridgeClient.swift 下沉 Core（OneDayBridgeModels.swift），使映射与错误类型同层；客户端只负责抛出，引用面 12 文件原已全部 import OneDayCore、零新增导入。
+- KanbanStore：删自有 LoadState，未开通＝`.unavailable(nil)`（文案在呈现面固定），404 判未开通的专属语义留在 Store 内、只产出共用态。LedgerStore：删自有 LoadState，还没上线＝`.unavailable(说明)`；bridgeMissing 的探测旁证（probeCompanion 把说明说准）是本面专属语义、留在 handleLoadError 内，同样只产出共用态。
+- 消费面同步：HubTaskSection、HubLedgerSection、GoalsStore 与 IdeasStore 内对 kanban.loadState 的 switch 改新 case 名；GoalsStore／FeedStore／IdeasStore／MemoriesStore／MonitorsStore 自有 LoadState 不在本包范围（审计第 10 项只点 Kanban＋Ledger 两套），后续如收敛可按本包形态续做。
+- 账本本体与伴生采集器不在本包（审计原案：不减账本、只减 App 侧对账面）。
+
+### 133.3 第 13 项 · i18n 三方对账脚本化
+
+- 仓内工具 `Scripts/merge_xcstrings.py`：输入 base/ours/theirs 三个 xcstrings，按「键 × 单元（条目元数据＋每语言）」三方合并，输出合并结果＋冲突点名清单（冲突先取我方、退出码 2、须人工裁）；键级删除先判（删＋未动＝删、删＋改＝整键冲突逐单元点名）。合并后仍跑 validate_i18n.py 把关三语完整性。
+- 自测样本 `Scripts/fixtures/xcstrings-merge/`：§119/§120 两次合并的真实三方条目（出处 commit 见样本 README），含 §120 唯一真冲突「默认服务商（经网关）」zh-Hant；历史里没有的「改既有键／删改相撞」用构造样本补齐并注明。`--self-test` 已通过。
+- 全量回放（施工时实测）：§119 全量三方跑工具与历史合并结果逐键逐值全等（2627 键、零冲突）；§120 差异恰为 1 处被点名冲突（历史人工取他方）＋9 个键的人工编辑差（旧组合文案合并时一并清理、合并轮补键），非对账错误。
+
+### 133.4 第 12 项 · 新面准入附则（本节即附则本体）
+
+> **新面准入附则**（与 §123.7 新面准入四问同单执行）：新功能默认进既有 Store／Client 分组——先找现有 Store／Client 里语义最近的一家落，没有才许新开。新开 Store、新开 Client、新增 UserDefaults 键（含给既有 Store 加新键），必须在施工单里逐项说明理由（为什么既有分组接不住），与新面准入四问（入口／重复／令牌与公用件／AX 与深色）写在同一张施工单上交审；理由不成立即打回并入既有分组。本附则只立规矩、不追溯存量（现行 23 Store／14 Client／四套 UserDefaults 旁挂状态维持现状，收敛随各自专项包顺手做）。
+
+- ChatView 拆分本包不做：与发送空屏修复包（feat/send-blank）同文件、在飞避让；审计第 12 项的「按 MARK 段先拆落定／对账两段」待发送包合并后再单独立包。
+- 本包自身合规自查：新增文件仅两处且均按附则精神说明——Core `StoreLoadState.swift`（第 10 项的共用定义本体，无既有文件可落：KanbanModels／LedgerModels 各属一面、放任一面即偏袒）、`Scripts/merge_xcstrings.py`＋样本目录（第 13 项的工具本体，Scripts/ 为仓内既有工具目录、与 validate_i18n.py 同列）；未新开 Store／Client、未新增 UserDefaults 键。FileReaderHost 落 DocumentReaderView.swift 既有文件（与 DocumentBlocksView 同居），未新开文件。
+
+### 133.5 单测与校验
+
+- Core 单测新增 StoreLoadStateTests 8 测（HermesError 映射 2／未连接落态 1／桥错误映射 3／态形 2）；阅读器合一为呈现层结构动作、无新增单测（块渲染与分型口径由既有 MarkdownBlocksTests／FileOpenFailure 相关测钉住，未动）。
+- validate_i18n.py：本包零新增目录键（复用既有文案原样搬移），合并前本地实跑为准（见预制验收记账）。
+
+### 133.6 预制验收记账（2026-11-11）
+
+- 待 CI 回填。

@@ -12,14 +12,10 @@ import OneDayCore
 @MainActor
 @Observable
 final class KanbanStore {
-    enum LoadState: Equatable {
-        case loading
-        case notProvisioned
-        case failed(String)
-        case ready
-    }
-
-    private(set) var loadState: LoadState = .loading
+    /// 加载态与错误映射走 Core 共用定义（§133，与
+    /// LedgerStore 同一口）：未开通＝.unavailable(nil)
+    /// （文案在呈现面固定），失败＝StoreLoadState 映射
+    private(set) var loadState: StoreLoadState = .loading
     private(set) var snapshot: KanbanBoardSnapshot?
     /// 版本探针判漂移后的只读态（动作全闸，横幅明示）
     private(set) var readOnly = false
@@ -47,7 +43,7 @@ final class KanbanStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard appState.config != nil else {
-            loadState = .failed(L10n.string("尚未连接服务器。"))
+            loadState = .notConnected
             return
         }
         loadInFlight = true
@@ -74,7 +70,7 @@ final class KanbanStore {
             provisioned = slugs.contains(board)
         }
         if provisioned == false {
-            loadState = .notProvisioned
+            loadState = .unavailable(nil)
             return
         }
         await fetchBoard(
@@ -101,9 +97,9 @@ final class KanbanStore {
             if loadState == .ready, snapshot != nil { return }
             if case .unexpectedStatus(_, let status) = error,
                status == 404, missingMeansUnprovisioned {
-                loadState = .notProvisioned
+                loadState = .unavailable(nil)
             } else {
-                loadState = .failed(error.userMessage)
+                loadState = StoreLoadState.failure(for: error)
             }
         } catch {
             if loadState == .ready, snapshot != nil { return }

@@ -1046,3 +1046,19 @@ public enum IdeaConversionMarks {
         return Set(raw.filter { !$0.isEmpty })
     }
 }
+
+// MARK: - 桥错误口径（§133 自 App 层 OneDayBridgeClient 下沉 Core）
+
+/// oneday-bridge 错误口径：与总览桥同分法——「没有钥匙」
+/// 「钥匙被拒（401）」是桥未连接（钥匙问题），要在面
+/// 上如实露；集合端点 404 是「桥未开通」；条目端点
+/// 404 是记录已不在；其余失败给人话、不混报。
+/// §133 起定义在 Core：错误→加载态的映射（StoreLoadState）
+/// 与本类型同层共置，App 层客户端只负责抛出。
+public enum OneDayBridgeError: Error, Sendable, Equatable {
+    case noKey
+    case unauthorized
+    case bridgeMissing
+    case recordGone
+    case failed(String)
+}

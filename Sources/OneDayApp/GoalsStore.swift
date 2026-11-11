@@ -459,7 +459,7 @@ final class GoalsStore {
 
         await kanban.load(appState: appState)
         switch kanban.loadState {
-        case .notProvisioned:
+        case .unavailable:
             notes[goalID] = L10n.string("任务板未开通，暂时不能安排任务。")
             return false
         case .failed(let message):

@@ -37,7 +37,15 @@ struct SpreadsheetReaderView: View {
     }
 
     var body: some View {
-        Group {
+        FileReaderHost(
+            title: target.name,
+            failureMessage: failure?.message(),
+            failureActions: FileActionPolicy.failureActions(
+                for: entry
+            ),
+            onFailureAction: performFailure,
+            isLoading: spreadsheet == nil && failure == nil
+        ) {
             if let spreadsheet {
                 if spreadsheet.sheets.isEmpty {
                     ContentUnavailableView(
@@ -48,16 +56,8 @@ struct SpreadsheetReaderView: View {
                 } else {
                     sheetBody(spreadsheet)
                 }
-            } else if let failure {
-                failureView(failure)
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Palette.pageBG)
-        .navigationTitle(target.name)
-        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $shareItem) { item in
             FileShareSheet(url: item.url)
         }
@@ -138,23 +138,6 @@ struct SpreadsheetReaderView: View {
         }
         lines.append(contentsOf: spreadsheet.notes)
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
-    }
-
-    private func failureView(_ failure: FileOpenFailure) -> some View {
-        ContentUnavailableView {
-            Label("打开失败", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(failure.message())
-        } actions: {
-            ForEach(
-                FileActionPolicy.failureActions(for: entry),
-                id: \.self
-            ) { action in
-                Button(action.label) {
-                    performFailure(action)
-                }
-            }
-        }
     }
 
     private func performFailure(_ action: FileFailureAction) {
