@@ -12,15 +12,11 @@ import OneDayCore
 @MainActor
 @Observable
 final class LedgerStore {
-    enum LoadState: Equatable {
-        case loading
-        /// 台账还没上线／还没连接（说明文案说清是哪种）
-        case notLive(String)
-        case failed(String)
-        case ready
-    }
-
-    private(set) var loadState: LoadState = .loading
+    /// 加载态与错误映射走 Core 共用定义（§139，与
+    /// KanbanStore 同一口）：还没上线＝.unavailable(说明)
+    /// （文案由 notLiveMessage / notLiveMessage(for:) 按
+    /// 情形提供），失败＝StoreLoadState 映射
+    private(set) var loadState: StoreLoadState = .loading
     private(set) var items: [LedgerItem] = []
     private(set) var summary: LedgerSummary?
     private(set) var snapshotSeq: Int?
@@ -83,7 +79,7 @@ final class LedgerStore {
     func load(appState: AppState) async {
         guard !loadInFlight else { return }
         guard let config = appState.config else {
-            loadState = .failed(L10n.string("尚未连接服务器。"))
+            loadState = .notConnected
             return
         }
         loadInFlight = true
@@ -115,7 +111,7 @@ final class LedgerStore {
             switch loadState {
             case .ready:
                 await poll(appState: appState)
-            case .notLive:
+            case .unavailable:
                 await load(appState: appState)
             case .loading, .failed:
                 break
@@ -182,38 +178,54 @@ final class LedgerStore {
         probe = nil
     }
 
+    /// 错误落态走 Core 共用映射（§139）：钥匙类归
+    /// unavailable（文案 notLiveMessage(for:)）、记录
+    /// 消失与桥侧失败归 failed（已就绪时保旧快照不翻
+    /// 态）；bridgeMissing 是本面专属语义——/ledger
+    /// 读面不存在＝台账未上线，探测作旁证把说明说准
+    /// （探测本身失败不改变结论），仍只产出共用态
     private func handleLoadError(
         _ error: OneDayBridgeError, config: ServerConfig
     ) async {
-        switch error {
-        case .noKey:
-            loadState = .notLive(
-                L10n.string("还没有可用的登录信息：台账用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。")
-            )
-        case .unauthorized:
-            loadState = .notLive(
-                L10n.string("服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。")
-            )
-        case .bridgeMissing:
-            // /ledger 读面不存在＝台账未上线（伴生旧版
-            // 无此面）；探测作旁证把说明说准，探测本身
-            // 失败不改变结论
-            loadState = .notLive(Self.notLiveMessage(probe: nil))
+        if case .bridgeMissing = error {
+            loadState = .unavailable(Self.notLiveMessage(probe: nil))
             let result = await client.probeCompanion(config: config)
             probe = result
             if loadState != .ready {
-                loadState = .notLive(
+                loadState = .unavailable(
                     Self.notLiveMessage(probe: result)
                 )
             }
-        case .recordGone:
-            if loadState != .ready {
-                loadState = .failed(L10n.string("台账没读出来，可能是网络或服务暂时没响应"))
-            }
-        case .failed(let message):
-            if loadState != .ready {
-                loadState = .failed(message)
-            }
+            return
+        }
+        switch error {
+        case .recordGone, .failed:
+            guard loadState != .ready else { return }
+        case .noKey, .unauthorized:
+            break
+        case .bridgeMissing:
+            return // 已在上方处理
+        }
+        loadState = StoreLoadState.from(
+            bridgeError: error,
+            unavailableMessage: Self.notLiveMessage(for:),
+            recordGoneMessage: L10n.string("台账没读出来，可能是网络或服务暂时没响应")
+        )
+    }
+
+    /// 钥匙类错误的「还没上线／还没连接」说明（共用
+    /// 映射的文案供给口）：说清是登录信息缺失还是被
+    /// 拒，不编时间不编版本
+    static func notLiveMessage(
+        for error: OneDayBridgeError
+    ) -> String {
+        switch error {
+        case .noKey:
+            return L10n.string("还没有可用的登录信息：台账用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。")
+        case .unauthorized:
+            return L10n.string("服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。")
+        case .bridgeMissing, .recordGone, .failed:
+            return L10n.string("台账服务还没上线。上线后，这里会自动开始记录每件工作的进度。")
         }
     }
 

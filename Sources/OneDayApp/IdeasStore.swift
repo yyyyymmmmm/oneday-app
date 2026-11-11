@@ -263,7 +263,7 @@ final class IdeasStore {
 
         await kanban.load(appState: appState)
         switch kanban.loadState {
-        case .notProvisioned:
+        case .unavailable:
             notes[idea.id] = L10n.string("任务板未开通，暂时不能把点子转成任务。")
             return
         case .failed(let message):

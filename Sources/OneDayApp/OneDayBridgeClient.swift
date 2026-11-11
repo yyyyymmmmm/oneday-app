@@ -1,18 +1,6 @@
 import Foundation
 import OneDayCore
 
-/// oneday-bridge 错误口径：与总览桥同分法——「没有钥匙」
-/// 「钥匙被拒（401）」是桥未连接（钥匙问题），要在面
-/// 上如实露；集合端点 404 是「桥未开通」；条目端点
-/// 404 是记录已不在；其余失败给人话、不混报。
-enum OneDayBridgeError: Error, Sendable, Equatable {
-    case noKey
-    case unauthorized
-    case bridgeMissing
-    case recordGone
-    case failed(String)
-}
-
 /// oneday-bridge 客户端（0.11.0，冻结契约）：目标/点子
 /// 仓（0.12.0 增监测面，契约 monitor-bridge-contract-
 /// 20261109.md），路径挂在当前服务器根下（/api/oneday-bridge，

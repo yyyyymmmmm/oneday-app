@@ -20,7 +20,7 @@ struct HubTaskSection: View {
             case .loading:
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .notProvisioned:
+            case .unavailable:
                 ContentUnavailableView {
                     Label("任务板未开通", systemImage: "checklist")
                 } description: {

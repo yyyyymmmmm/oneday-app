@@ -54,7 +54,15 @@ struct DocumentReaderView: View {
     }
 
     var body: some View {
-        Group {
+        FileReaderHost(
+            title: displayTitle,
+            failureMessage: loadError,
+            failureActions: FileActionPolicy.failureActions(
+                for: entry
+            ),
+            onFailureAction: performFailure,
+            isLoading: blocks == nil && loadError == nil
+        ) {
             if let blocks {
                 if blocks.isEmpty {
                     ContentUnavailableView(
@@ -65,16 +73,8 @@ struct DocumentReaderView: View {
                 } else {
                     readerBody(blocks)
                 }
-            } else if let loadError {
-                failureView(loadError)
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Palette.pageBG)
-        .navigationTitle(displayTitle)
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -146,24 +146,7 @@ struct DocumentReaderView: View {
         return (anchor, excerpt)
     }
 
-    // MARK: - 失败页（按类型给动作）
-
-    private func failureView(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("打开失败", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            ForEach(
-                FileActionPolicy.failureActions(for: entry),
-                id: \.self
-            ) { action in
-                Button(action.label) {
-                    performFailure(action)
-                }
-            }
-        }
-    }
+    // MARK: - 失败页动作（失败页本体在 FileReaderHost）
 
     private func performFailure(_ action: FileFailureAction) {
         switch action {
@@ -270,6 +253,58 @@ struct DocumentReaderView: View {
     }
 }
 
+
+/// 阅读器呈现宿主（§139 合一，复杂度审计第 7 项）：
+/// 文档阅读页与表格呈现页共用一套宿主——背景/标
+/// 题/加载转圈/失败页（文案＋按类型给的动作行）只
+/// 此一份实现；两阅读器只保留各自的数据准备（本
+/// 地解析／伴生转码）与正文，正文块渲染走下方
+/// DocumentBlocksView。失败分型九分（FileOpen-
+/// Failure）是文案资产、不在此动。
+struct FileReaderHost<Content: View>: View {
+    let title: String
+    /// 失败文案（nil＝未失败）；分型与文案由各阅读
+    /// 器按自家口径算好传入（文档页 String、表格页
+    /// FileOpenFailure.message()）
+    var failureMessage: String? = nil
+    /// 失败页动作（FileActionPolicy.failureActions
+    /// 按类型给，不摆一套打天下）
+    var failureActions: [FileFailureAction] = []
+    var onFailureAction: (FileFailureAction) -> Void = { _ in }
+    /// 无失败且正文未就绪时转圈
+    var isLoading: Bool = false
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Group {
+            if let failureMessage {
+                failureView(failureMessage)
+            } else if isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                content()
+            }
+        }
+        .background(Palette.pageBG)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func failureView(_ message: String) -> some View {
+        ContentUnavailableView {
+            Label("打开失败", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        } actions: {
+            ForEach(failureActions, id: \.self) { action in
+                Button(action.label) {
+                    onFailureAction(action)
+                }
+            }
+        }
+    }
+}
 
 /// 文档块渲染器（§125 抽出）：飞书式块排版单源——
 /// 阅读页与表格呈现页（转码 CSV 成块）共用，块距/
