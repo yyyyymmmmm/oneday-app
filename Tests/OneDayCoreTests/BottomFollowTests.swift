@@ -333,4 +333,67 @@ extension BottomFollowTests {
         _ = counter.ingest(entryIDs: ids(5), isAtBottom: false)
         XCTAssertEqual(counter.ingest(entryIDs: [], isAtBottom: false), 0)
     }
+
+    // MARK: - 回底钮落位（0.46.1 热修：看得见点不动）
+
+    /// 落位算术：宿主 390×844、发送区 frame 顶缘
+    /// y=700、右距 16、间距 8 → 中心＝(390−16−22,
+    /// 700−8−22)＝(352, 670)，命中域完整落在宿主内
+    func testBackToBottomCenterAndReachability() throws {
+        let host = CGSize(width: 390, height: 844)
+        let bar = CGRect(x: 0, y: 700, width: 390, height: 100)
+        let center = try XCTUnwrap(
+            BackToBottomPlacement.center(
+                hostSize: host, barFrame: bar,
+                trailingInset: 16, gap: 8
+            )
+        )
+        XCTAssertEqual(center, CGPoint(x: 352, y: 670))
+        let hit = BackToBottomPlacement.hitRect(center: center)
+        XCTAssertEqual(hit, CGRect(x: 330, y: 648, width: 44, height: 44))
+        XCTAssertTrue(
+            BackToBottomPlacement.isReachable(
+                hitRect: hit, hostBounds: CGRect(origin: .zero, size: host)
+            )
+        )
+    }
+
+    /// 病灶复现钉（0.41.0 旧形态）：宿主＝发送区容
+    /// 器自身（390×100、顶缘 y=700）、钮负偏移悬到
+    /// 其上方——命中域对宿主 bounds 代入 isReach-
+    /// able 必为 false（出界被剪枝、点不动）；同一
+    /// 钮 rect 对整页宿主必为 true
+    func testBackToBottomOldOverlayShapeWasUnreachable() {
+        let hitAboveBar = CGRect(x: 330, y: 648, width: 44, height: 44)
+        let barBounds = CGRect(x: 0, y: 700, width: 390, height: 100)
+        XCTAssertFalse(
+            BackToBottomPlacement.isReachable(
+                hitRect: hitAboveBar, hostBounds: barBounds
+            )
+        )
+        XCTAssertTrue(
+            BackToBottomPlacement.isReachable(
+                hitRect: hitAboveBar,
+                hostBounds: CGRect(x: 0, y: 0, width: 390, height: 844)
+            )
+        )
+    }
+
+    /// 发送区 frame 未发布/未实测时不给落位（钮不
+    /// 显），不许按猜测坐标把钮放出界
+    func testBackToBottomCenterNilWithoutBarFrame() {
+        let host = CGSize(width: 390, height: 844)
+        XCTAssertNil(
+            BackToBottomPlacement.center(
+                hostSize: host, barFrame: .null,
+                trailingInset: 16, gap: 8
+            )
+        )
+        XCTAssertNil(
+            BackToBottomPlacement.center(
+                hostSize: host, barFrame: .zero,
+                trailingInset: 16, gap: 8
+            )
+        )
+    }
 }

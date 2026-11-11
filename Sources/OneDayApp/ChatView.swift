@@ -150,6 +150,12 @@ struct ChatView: View {
     /// onChange）、发送走 noteOwnSend、切线程 resetAll；
     /// 呈现只读 count/displayText（回底钮角标）
     @State private var awayUnread = AwayUnreadCounter()
+    /// 发送区在 chatSurface 坐标空间内的实测 frame
+    /// （0.46.1 热修）：bottomBar 经 PreferenceKey 发
+    /// 布、回底钮 overlay 按它算落位（钮已迁出发送区
+    /// 宿主，见 chatSurface 的 overlay 注）；未发布
+    /// 前为 .null、钮不显
+    @State private var bottomBarFrame: CGRect = .null
 
     /// 计数口径的「在底」事实：与回底钮显隐同一政策
     /// 派生（BottomFollowPolicy）——钮不显即在底，两
@@ -159,6 +165,17 @@ struct ChatView: View {
             isNearBottom: isNearBottom,
             lastEntryVisible: lastEntryVisible
         )
+    }
+
+    /// 回底钮显隐（单一出处：发送区旧址与现 overlay
+    /// 共用同一派生，不许两处各算一遍分叉）——无现
+    /// 线程恒不显；政策本体在 Core BottomFollowPolicy
+    private var showsBackToBottomButton: Bool {
+        currentThread != nil
+            && BottomFollowPolicy.showsScrollToBottomButton(
+                isNearBottom: isNearBottom,
+                lastEntryVisible: lastEntryVisible
+            )
     }
 
     /// 未读计数喂入（条目/可见集两路共用一处，口径不
@@ -428,6 +445,53 @@ struct ChatView: View {
     private var chatSurface: some View {
         ScrollViewReader { proxy in
             messageList(proxy)
+                // 回底钮落位坐标空间（0.46.1 热修）：
+                // 发送区在此空间发布 frame、钮 overlay
+                // 在同空间取位（与右滑引用的 swipeTo-
+                // Reply 空间互不相干）
+                .coordinateSpace(name: "chatSurface")
+                .onPreferenceChange(ChatBottomBarFrameKey.self) {
+                    bottomBarFrame = $0
+                }
+                // 回底钮浮层（0.46.1 热修迁位，用户真
+                // 机报障「看得见点不动」）：0.41.0 把钮
+                // 挂在发送区容器的 overlay 上再负偏移
+                // 出界悬空——命中被宿主 frame 剪枝全灭
+                // （确诊见 Core BackToBottomPlacement
+                // 注）。迁到消息列表本体：宿主＝整页、
+                // 钮恒在宿主 bounds 内可命中；落位按发
+                // 送区实测 frame 算（BackToBottomPlac-
+                // ement），键盘升降/提示条增减都经
+                // frame 跟随，钮外区域无命中形、列表
+                // 滚动与点击照常穿透
+                .overlay {
+                    GeometryReader { geo in
+                        if showsBackToBottomButton,
+                           let center = BackToBottomPlacement.center(
+                               hostSize: geo.size,
+                               barFrame: bottomBarFrame,
+                               trailingInset: OneDayMetrics.spacingM,
+                               gap: OneDayMetrics.spacingS
+                           ) {
+                            scrollToBottomButton(proxy)
+                                .position(x: center.x, y: center.y)
+                                .transition(
+                                    .opacity.combined(
+                                        with: .scale(scale: 0.9)
+                                    )
+                                )
+                        }
+                    }
+                }
+                // 钮出入动画（0.25.0 Emil 口径沿用）：
+                // 宿主自 0.41.0 浮层化起即在 overlay
+                // 侧，本轮随钮迁位保留在此
+                .animation(
+                    MotionTokens.resolved(
+                        MotionTokens.swap, reduceMotion: reduceMotion
+                    ),
+                    value: showsBackToBottomButton
+                )
         }
         // 0.7.1（chrome 裁决档 §3.2，背景同源主治）：背
         // 景层穿过底部安全区直达屏底——0.6.1 截图底部
@@ -998,8 +1062,9 @@ struct ChatView: View {
     /// 底部发送区（0.2.6 起由消息列表的安全区承载、不
     /// 再是覆盖层；0.2.6–0.4.2 为 .safeAreaInset，0.4.3
     /// 改 .safeAreaBar 注册，§28）：错误/提示条＋发送
-    /// 舱（回底钮 0.41.0 起改挂本区顶缘 overlay 浮层、
-    /// 不再占布局流，见 bottomBar 内注）＋发送
+    /// 舱（回底钮 0.41.0 起退出布局流、0.46.1 迁挂消
+    /// 息列表本体 overlay，本区只发布 frame 供其落
+    /// 位）＋发送
     /// 舱，自下而上排在列表下方的安全区留位里。键盘收起时
     /// 留位贴原生底栏上方；键盘升起时系统安全区扩张、整段
     /// 被顶到键盘上方（系统通道，见 chatSurface 换代注）。
@@ -1014,21 +1079,16 @@ struct ChatView: View {
         // 0.36.5（审计 bug 2 短修）：钮显隐走 Core 政
         // 策——几何判定离底之外并入事实信号（最后一
         // 条已可见即在底），治估算距离驻留迟滞带的永
-        // 不消失；正修（浮层化＋未读计数）已于 0.41.0
-        // 收口批落地（台账 H 节），见下方 overlay 与
-        // AwayUnreadCounter 接线
-        let showScrollButton = currentThread != nil
-            && BottomFollowPolicy.showsScrollToBottomButton(
-                isNearBottom: isNearBottom,
-                lastEntryVisible: lastEntryVisible
-            )
+        // 不消失；显隐派生已提为全页单一出处 shows-
+        // BackToBottomButton（本函数不再自算）；正修
+        // （浮层化＋未读计数）于 0.41.0 落地，0.46.1
+        // 热修再迁钮宿主（见 chatSurface 的 overlay
+        // 注），本容器只发布自身 frame 供钮落位
         return VStack(spacing: OneDayMetrics.spacingS) {
             // 0.41.0（收口批·台账 H 节正修）：回底钮自此
-            // 不在布局流里——改挂本容器顶缘的 overlay 浮
-            // 层（见下方 .overlay），显隐不再增减容器高
-            // 度、消息列表底部 inset 不再随钮跳动；钮的
-            // 位置锚在发送舱上方、随安全区（键盘）升降
-            // 自动跟随
+            // 不在布局流里、显隐不增减容器高度、消息列
+            // 表底部 inset 不随钮跳动（0.46.1 迁位后仍
+            // 然，钮挂消息列表本体 overlay）
             if let errorMessage {
                 errorBanner(errorMessage)
                     // 0.25.0（动效专包）：错误/提示条进出
@@ -1051,31 +1111,20 @@ struct ChatView: View {
         // 高度动画键（isNearBottom／showScrollButton）
         // 随之退役：钮显隐不再动容器高度，0.4.2 防的
         // 「锚点骑高度摆动」自此结构性消失；钮本体的
-        // 出入走下方 animation(showScrollButton) 驱动
-        // overlay 的 transition（淡入＋0.9 起点缩放，
-        // 0.25.0 Emil 标准沿用）
-        .animation(
-            MotionTokens.resolved(
-                MotionTokens.swap, reduceMotion: reduceMotion
-            ),
-            value: showScrollButton
-        )
-        // 回底钮浮层（0.41.0）：锚容器顶缘右角、整体上
-        // 移一个命中域＋spacingS——视觉盘落在发送舱上
-        // 方约 13pt、右缘与旧布局流位置（trailing
-        // spacingM）同线。overlay 不占布局：容器高度
-        // 只由错误/提示条与发送舱决定
-        .overlay(alignment: .topTrailing) {
-            if showScrollButton {
-                scrollToBottomButton(proxy)
-                    .padding(.trailing, OneDayMetrics.spacingM)
-                    .offset(
-                        y: -(OneDayMetrics.minTapTarget
-                            + OneDayMetrics.spacingS)
-                    )
-                    .transition(
-                        .opacity.combined(with: .scale(scale: 0.9))
-                    )
+        // 出入动画 0.46.1 起随钮迁到消息列表侧（见
+        // chatSurface 的 animation，同 swap 口径、同
+        // 淡入＋0.9 起点缩放）
+        // 发送区 frame 发布（0.46.1 热修）：回底钮已
+        // 迁到消息列表本体 overlay，落位要本容器的实
+        // 测位置——经背景 GeometryReader 在 chatSur-
+        // face 命名空间发布（与右滑引用排除区的发布
+        // 同款构造）；本容器只发布、不再承载钮本体
+        .background {
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: ChatBottomBarFrameKey.self,
+                    value: geo.frame(in: .named("chatSurface"))
+                )
             }
         }
         // 0.25.0（动效专包）：错误/提示条的显隐同走本
@@ -5358,6 +5407,20 @@ struct SwipeReplyExcludedFrameKey: PreferenceKey {
         value: inout [CGRect], nextValue: () -> [CGRect]
     ) {
         value.append(contentsOf: nextValue())
+    }
+}
+
+/// 发送区 frame 发布键（0.46.1 热修）：bottomBar 在
+/// chatSurface 命名空间发布自身帧，聊天页 overlay
+/// 侧的回底钮据此落位（单发布者，reduce 直取新值；
+/// 未发布时 defaultValue＝.null、钮不显）
+struct ChatBottomBarFrameKey: PreferenceKey {
+    nonisolated static let defaultValue: CGRect = .null
+
+    static func reduce(
+        value: inout CGRect, nextValue: () -> CGRect
+    ) {
+        value = nextValue()
     }
 }
 

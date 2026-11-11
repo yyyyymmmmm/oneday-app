@@ -227,3 +227,61 @@ public struct AwayUnreadCounter: Equatable, Sendable {
         return count > Self.displayCap ? "\(Self.displayCap)+" : "\(count)"
     }
 }
+
+/// 回底钮落位（0.46.1 热修，用户真机报障「钮看得见
+/// 点不动」）：0.41.0 浮层化把钮挂在发送区容器（safe-
+/// AreaBar 承载的小 VStack）的 overlay 上、再以负
+/// offset 整体上移约 52pt——钮的 44pt 命中域完整落
+/// 在宿主 frame 之外（悬在消息列表上空）。SwiftUI
+/// 命中测试按祖先 frame 逐层剪枝：触点不在宿主框
+/// 内就永不下探 overlay 子树，那个位置的触摸全被
+/// 下方 ScrollView 吃掉；渲染不裁剪、命中裁剪，故
+/// 「看得见、点不动」（action 绑定与目标锚经查无
+/// 恙，钮在布局流内时可点、浮层化后才死，时间线吻
+/// 合）。正修：钮迁到消息列表本体的 overlay（宿主
+/// ＝整页），落位按发送区在同坐标空间发布的 frame
+/// 实测计算——本枚举即该落位的纯逻辑：中心点计算
+/// 与「命中域完整落在宿主内」的回归判定
+public enum BackToBottomPlacement {
+    /// 钮命中域边长（与 App 层 OneDayMetrics.minTap-
+    /// Target 同值 44，Core 不反依赖 App 令牌、在此
+    /// 钉死同数）
+    public static let hitSize: CGFloat = 44
+
+    /// 钮中心点（宿主坐标系）：右缘距宿主右缘
+    /// trailingInset，底缘悬在发送区顶缘上方 gap
+    /// 处。发送区 frame 未发布（.null）或高度未实
+    /// 测（≤0）时返回 nil——位置未知宁可不显，不
+    /// 许把钮放到错位/出界处（旧病灶正是出界）
+    public static func center(
+        hostSize: CGSize, barFrame: CGRect,
+        trailingInset: CGFloat, gap: CGFloat
+    ) -> CGPoint? {
+        guard !barFrame.isNull, barFrame.height > 0,
+              hostSize.width > 0, hostSize.height > 0
+        else { return nil }
+        return CGPoint(
+            x: hostSize.width - trailingInset - hitSize / 2,
+            y: barFrame.minY - gap - hitSize / 2
+        )
+    }
+
+    /// 命中域矩形（以中心为锚的 hitSize 见方）
+    public static func hitRect(center: CGPoint) -> CGRect {
+        CGRect(
+            x: center.x - hitSize / 2,
+            y: center.y - hitSize / 2,
+            width: hitSize, height: hitSize
+        )
+    }
+
+    /// 命中可达判定：命中域必须完整落在宿主 bounds
+    /// 内——出界即被祖先 frame 剪枝、点不动（本热
+    /// 修的回归钉：旧形态代入必为 false、新形态必
+    /// 为 true）
+    public static func isReachable(
+        hitRect: CGRect, hostBounds: CGRect
+    ) -> Bool {
+        hostBounds.contains(hitRect)
+    }
+}
