@@ -33,6 +33,17 @@ struct ModelSettingsView: View {
     @State private var testResults: [String: ProviderConnectionOutcome] = [:]
     @State private var busyCards: Set<String> = []
     @State private var detailQuery = ""
+    /// 服务商行组折叠账（§158）：与选择面共账同源
+    /// （Core SectionCollapseState；本面用固定键——
+    /// 本段就是一组行，不按家分键）
+    @AppStorage(SectionCollapseStorageKeys.modelSections)
+    private var modelCollapseData: Data = Data()
+    /// 隐藏网关组待确认（§158）：网关是现行默认通
+    /// 道，隐藏前弹后果确认（B6 收编口径）；内置组
+    /// 的恢复在本页、隐藏动作在选择面长按
+    @State private var pendingHideGateway = false
+
+    private static let providersFoldKey = "settings.providers"
 
     private struct PendingRefresh: Identifiable {
         var entry: ProviderRegistry.Entry
@@ -124,6 +135,19 @@ struct ModelSettingsView: View {
             Button("取消", role: .cancel) { pendingDeleteProvider = nil }
         } message: {
             Text("将从服务端配置里移除这家服务商，它的密钥也会一并删掉；如果有辅助模型或预设还指着它，会先拦下来告诉你。")
+        }
+        .confirmationDialog(
+            "隐藏默认服务商？",
+            isPresented: $pendingHideGateway,
+            titleVisibility: .visible
+        ) {
+            Button("隐藏服务商", role: .destructive) {
+                appState.hideProviderGroup(key: "gateway")
+                pendingHideGateway = false
+            }
+            Button("取消", role: .cancel) { pendingHideGateway = false }
+        } message: {
+            Text("隐藏后，这个服务商和它的模型不会再出现在模型列表里。之后可以在设置页的「已隐藏的服务商」中恢复。")
         }
         .confirmationDialog(
             "更新模型清单？",
@@ -253,46 +277,133 @@ struct ModelSettingsView: View {
         }
     }
 
-    // MARK: - 第二段：服务商（B5，一家一行）
+    // MARK: - 第二段：服务商（B5，一家一行；§158 行组折叠＋隐藏治理）
+
+    /// 行组折叠判定（默认展开——本段全是已配置面）
+    private var providersFolded: Bool {
+        SectionCollapseState.isCollapsed(
+            key: Self.providersFoldKey,
+            in: SectionCollapseState.decode(modelCollapseData),
+            defaultCollapsed: false
+        )
+    }
 
     private var providersSection: some View {
         Section {
-            NavigationLink {
-                gatewayDetail
-            } label: {
-                providerRowLabel(
-                    name: L10n.string("默认服务商"),
-                    modelCount: appState.availableModels.count,
-                    isDefaultOwner: gatewayOwnsDefault
-                )
-            }
-            ForEach(store.userProviders, id: \.name) { entry in
-                NavigationLink {
-                    providerDetail(entry)
+            // §158 折叠头行：List 段头是系统样式不可
+            // 点，折叠落在段内首行（标题＋计数＋
+            // chevron，整行 ≥44 可点，VO 值报展开态）
+            CollapsibleSectionHeader(
+                title: L10n.string("服务商"),
+                isCollapsed: providersFolded,
+                titleFont: .body,
+                onToggle: {
+                    withAnimation(.smooth(duration: 0.3)) {
+                        modelCollapseData = SectionCollapseState.encode(
+                            SectionCollapseState.toggled(
+                                key: Self.providersFoldKey,
+                                in: SectionCollapseState.decode(
+                                    modelCollapseData
+                                ),
+                                defaultCollapsed: false
+                            )
+                        ) ?? modelCollapseData
+                    }
+                }
+            )
+            if !providersFolded {
+                if !gatewayGroupHidden {
+                    NavigationLink {
+                        gatewayDetail
+                    } label: {
+                        providerRowLabel(
+                            name: L10n.string("默认服务商"),
+                            modelCount: appState.availableModels.count,
+                            isDefaultOwner: gatewayOwnsDefault
+                        )
+                    }
+                    // 网关组隐藏（§158）：长按行给动作；
+                    // 网关是现行默认通道——点隐藏先弹后
+                    // 果确认（pendingHideGateway 的确认框
+                    // 在 body），不直接落账
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            pendingHideGateway = true
+                        } label: {
+                            Label("从列表中隐藏", systemImage: "eye.slash")
+                        }
+                    }
+                }
+                ForEach(store.userProviders, id: \.name) { entry in
+                    NavigationLink {
+                        providerDetail(entry)
+                    } label: {
+                        providerRowLabel(
+                            name: entry.name,
+                            modelCount: entry.models.count,
+                            isDefaultOwner: store.defaultAssignment?.owner
+                                == .named(entry.name)
+                        )
+                    }
+                }
+                Button {
+                    showProviderEditor = true
                 } label: {
-                    providerRowLabel(
-                        name: entry.name,
-                        modelCount: entry.models.count,
-                        isDefaultOwner: store.defaultAssignment?.owner
-                            == .named(entry.name)
-                    )
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(Palette.primary)
+                        Text("添加服务商")
+                            .font(.body)
+                            .foregroundStyle(Palette.ink)
+                    }
                 }
             }
-            Button {
-                showProviderEditor = true
-            } label: {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundStyle(Palette.primary)
-                    Text("添加服务商")
-                        .font(.body)
-                        .foregroundStyle(Palette.ink)
-                }
-            }
+            hiddenProvidersRows
         } header: {
             Text("服务商")
         } footer: {
             Text("填接口和密钥，获取模型，再选用。密钥只保存在你的服务端，App 不留存。")
+        }
+    }
+
+    /// 网关组是否已被隐藏（本机账，AppState 唯一账本）
+    private var gatewayGroupHidden: Bool {
+        appState.hiddenProviderGroupKeys.contains("gateway")
+    }
+
+    /// 「已隐藏的服务商」恢复区（§158）：仅当本机隐
+    /// 藏名单非空时出现——逐行＝回执里真实存在且已
+    /// 隐藏的组（Core hiddenEntries 对账全量分组），
+    /// 点「恢复」回原位；网关组隐藏后其行也归此区
+    /// （标题「默认服务商」）。隐藏只是本机不呈现，
+    /// footer 把这层说清（不是服务端删除）
+    @ViewBuilder
+    private var hiddenProvidersRows: some View {
+        let entries = ProviderGroupVisibility.hiddenEntries(
+            in: appState.chatModelGroups,
+            hidden: appState.hiddenProviderGroupKeys
+        )
+        if !entries.isEmpty {
+            Text("已隐藏的服务商")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            ForEach(entries, id: \.key) { entry in
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Text(entry.title)
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Button("恢复") {
+                        appState.restoreProviderGroup(key: entry.key)
+                    }
+                    .font(.body)
+                    .foregroundStyle(Palette.primary)
+                }
+            }
+            Text("隐藏后，这个服务商和它的模型不会再出现在模型列表里。之后可以在设置页的「已隐藏的服务商」中恢复。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
         }
     }
 
