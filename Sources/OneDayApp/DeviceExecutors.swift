@@ -1300,7 +1300,10 @@ final class AlarmEngine: @unchecked Sendable {
             alert: AlarmPresentation.Alert(
                 title: LocalizedStringResource(
                     stringLiteral: args.title
-                )
+                ),
+                // 26.0 形态：停止钮必传、给系统标准钮；
+                // 无 stopButton 参的构造是 26.1 才有的
+                stopButton: .stopButton
             )
         )
         let attributes = AlarmAttributes(
