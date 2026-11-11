@@ -144,7 +144,7 @@ final class LocalServicesTests: XCTestCase {
 
     func testSearchByBlurb() {
         let hits = LocalServiceProbeMapping.filtered(
-            states: allUp(), query: "审批桥"
+            states: allUp(), query: "批准"
         )
         XCTAssertEqual(hits.map(\.serviceID), [.writeGate])
     }
