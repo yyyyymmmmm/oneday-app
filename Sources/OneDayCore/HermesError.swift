@@ -34,6 +34,11 @@ public enum HermesError: Error, Sendable {
     case modelNotUpstream(String)
     /// 用户主动停止生成 / 取消任务
     case cancelled
+    /// 演示模式空态信号（复杂化全清·第 4 项，演示面
+    /// 冻结清单）：清单外接口在 DemoHermesClient 不再
+    /// 逐个写假实现，统一抛此信号；界面呈现统一文案
+    /// 一条（userMessage），不许各面自拼演示文案
+    case demoLimitReached
 
     public var userMessage: String {
         userMessage(locale: AppLocale.uiLocale)
@@ -94,6 +99,11 @@ public enum HermesError: Error, Sendable {
             )
         case .cancelled:
             return L10n.string("已取消。", locale: locale)
+        case .demoLimitReached:
+            return L10n.string(
+                "演示模式到此为止，连接你的服务器后可用。",
+                locale: locale
+            )
         }
     }
 

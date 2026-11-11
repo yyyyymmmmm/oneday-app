@@ -128,14 +128,13 @@ public enum LocalServiceProbeState: Equatable, Sendable {
     case down(message: String)
     case notConfigured
 
-    /// 状态文案单一映射（列表行与详情共用一处）
+    /// 状态文案单一映射（列表行与详情共用一处）：
+    /// 词本身出自全仓统一词表 ServiceHealth（复杂化
+    /// 全清·第 9 项）——本档只做状态入表，词不许在此
+    /// 自拼（旧版四词字面量直写于此，与伴生/提供商两
+    /// 面各说各话，自此退役）
     public var statusLabel: String {
-        switch self {
-        case .loading: return "读取中"
-        case .up: return "正常"
-        case .down: return "异常"
-        case .notConfigured: return "未配置"
-        }
+        ServiceHealth.from(local: self).label()
     }
 
     public var metric: String? {

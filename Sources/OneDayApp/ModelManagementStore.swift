@@ -402,8 +402,11 @@ extension ModelManagementStore {
             )
             return .connected(modelCount: models.count)
         } catch let error as ProviderProbeClient.ProbeFailure {
-            return error == .emptyList
-                ? .connectedNoCatalog : .failed(message: error.message)
+            return error.connectionOutcome
+        } catch HermesError.demoLimitReached {
+            // 演示空态（第 4 项）：取钥面在演示里不存在，
+            // 统一文案一条
+            return .failed(message: HermesError.demoLimitReached.userMessage)
         } catch {
             return .failed(message: L10n.string("测试没能完成，请稍后再试。"))
         }
@@ -440,9 +443,10 @@ extension ModelManagementStore {
             )
             return (.connected(modelCount: models.count), models)
         } catch let error as ProviderProbeClient.ProbeFailure {
-            let outcome: ProviderConnectionOutcome = error == .emptyList
-                ? .connectedNoCatalog : .failed(message: error.message)
+            let outcome = error.connectionOutcome
             return (outcome, nil)
+        } catch HermesError.demoLimitReached {
+            return (.failed(message: HermesError.demoLimitReached.userMessage), nil)
         } catch {
             return (.failed(message: L10n.string("拉取没能完成，请稍后再试。")), nil)
         }

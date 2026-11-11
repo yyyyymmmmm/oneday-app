@@ -64,7 +64,11 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
              .loginFailed, .apiKeyRejected:
             return .serviceUnavailable
         case .invalidServerAddress, .decodingFailed,
-             .modelNotUpstream, .cancelled:
+             .modelNotUpstream, .cancelled,
+             .demoLimitReached:
+            // demoLimitReached（第 4 项空态信号）：文件
+            // 读面在演示里是保留面、本分型实际不会收到
+            // 它；归 other 兜底，不冒充已分类
             return .other
         }
     }

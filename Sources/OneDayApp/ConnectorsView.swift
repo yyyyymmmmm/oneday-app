@@ -351,8 +351,13 @@ struct ConnectorsView: View {
     private func localStatusMark(
         _ state: LocalServiceProbeState
     ) -> some View {
-        switch state {
-        case .loading:
+        // 状态点形态经全仓统一派生取值（第 9 项）：
+        // 本地服务入 ServiceHealth 词表后按档位选形，
+        // 不在此按探针自有枚举自拼（本地四档只入
+        // checking/up/down/notConfigured 四档，其余
+        // 档位在本面不出现、走灰点兜底不冒充已探）
+        switch ServiceHealth.from(local: state) {
+        case .checking:
             ProgressView()
                 .controlSize(.small)
         case .up:
@@ -365,7 +370,7 @@ struct ConnectorsView: View {
                 .fill(Palette.danger)
                 .frame(width: 7, height: 7)
                 .accessibilityHidden(true)
-        case .notConfigured:
+        default:
             Circle()
                 .fill(Palette.inkSecondary)
                 .frame(width: 7, height: 7)
@@ -1336,7 +1341,7 @@ struct ConnectorsView: View {
     ) async -> LocalServiceProbeOutcome {
         do {
             let health = try await appState.client.health(config: config)
-            if health.isOK {
+            if ServiceHealth.from(health: health) == .up {
                 return .success(
                     metric: health.version.map { "版本 \($0)" }
                 )
