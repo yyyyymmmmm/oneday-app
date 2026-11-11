@@ -99,7 +99,7 @@ struct DeliverablesView: View {
             // 与行/卡标记同名对位（见 fileRotorNames-
             // pace 注）
             .accessibilityRotor(
-                L10n.string("文件"), in: fileRotorNamespace
+                L10n.string("文件")
             ) {
                 ForEach(rotorEntryNames, id: \.self) { name in
                     AccessibilityRotorEntry(

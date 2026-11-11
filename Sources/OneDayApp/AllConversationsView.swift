@@ -300,7 +300,7 @@ struct AllConversationsView: View {
         // 0.43.0（A11Y-V7）：「会话」Rotor——VO 转子
         // 里按标题字母/浏览直达长列表任意一行（条
         // 目与行标记同 id 对位，见 rotorTargets）
-        .accessibilityRotor(L10n.string("会话"), in: rotorNamespace) {
+        .accessibilityRotor(L10n.string("会话")) {
             ForEach(rotorTargets) { target in
                 AccessibilityRotorEntry(
                     target.title, target.id, in: rotorNamespace
