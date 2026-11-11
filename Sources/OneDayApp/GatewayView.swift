@@ -232,7 +232,7 @@ struct GatewayView: View {
             status = try await appState.client.status(config: config)
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "网关状态读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "网关状态没读出来，可能是网络或服务暂时没响应"
         }
     }
 

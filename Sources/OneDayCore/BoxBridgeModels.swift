@@ -180,9 +180,9 @@ public struct BoxBridgeStatus: Decodable, Equatable, Sendable {
         guard let image, !image.isEmpty else { return nil }
         if upgradeAvailable == true, let latestImage,
            !latestImage.isEmpty, latestImage != image {
-            return "镜像 \(image) · 可更新到 \(latestImage)"
+            return "系统 \(image) · 可更新到 \(latestImage)"
         }
-        return "镜像 \(image)"
+        return "系统 \(image)"
     }
 
     /// 额度行（全 App 单一口径，浏览器面与电脑面共用）：
@@ -214,7 +214,7 @@ public struct BoxBridgeStatus: Decodable, Equatable, Sendable {
         case .live(let page), .lastKnown(let page, _):
             return page.titleText
         case .none:
-            return "暂无页面"
+            return "还没有打开的页面"
         }
     }
 
@@ -249,9 +249,9 @@ public enum BoxBridgeHubState: Equatable, Sendable {
         case .ready(let status):
             return status.statusLine
         case .bridgeUnavailable:
-            return "桥未连接"
+            return "还没连上"
         case .failed:
-            return "云电脑状态读取失败"
+            return "云电脑状态没读出来，可能是网络或服务暂时没响应"
         }
     }
 }

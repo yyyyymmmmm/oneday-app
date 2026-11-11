@@ -45,7 +45,7 @@ struct GoalsView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .notConnected(let message):
                     ContentUnavailableView {
-                        Label("数据桥未连接", systemImage: "link.badge.plus")
+                        Label("还没连上你的服务", systemImage: "link.badge.plus")
                     } description: {
                         Text(message)
                     } actions: {
@@ -56,7 +56,7 @@ struct GoalsView: View {
                     }
                 case .failed(let message):
                     ContentUnavailableView {
-                        Label("目标读取失败", systemImage: "exclamationmark.triangle")
+                        Label("目标没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
                     } description: {
                         Text(message)
                     } actions: {
@@ -1600,7 +1600,7 @@ struct GoalEditView: View {
             )
             guard categoryOK else {
                 saveError = store.notes[goalID]
-                    ?? "分类更新失败，请稍后重试。"
+                    ?? "分类更新失败，请稍后再试。"
                 return
             }
         }
@@ -1851,7 +1851,7 @@ struct GoalDelegateView: View {
             dismiss()
         } else {
             submitError = store.notes[goal.id]
-                ?? "安排失败，请稍后重试。"
+                ?? "安排失败，请稍后再试。"
         }
     }
 }

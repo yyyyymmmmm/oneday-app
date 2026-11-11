@@ -36,8 +36,8 @@ struct BoxTerminalView: View {
             case .notConnected:
                 EmptyState(
                     icon: "key.slash",
-                    title: "数据桥未连接",
-                    message: "先在设置里填好数据桥钥匙，才能在电脑里执行命令。"
+                    title: "还没连上你的服务",
+                    message: "还没有可用的登录信息：在电脑里执行命令用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
                 )
                 .padding(.top, OneDayMetrics.spacingXXL)
                 Spacer()

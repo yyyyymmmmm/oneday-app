@@ -201,7 +201,7 @@ struct UsageDetailView: View {
             }
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "用量读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "用量没读出来，可能是网络或服务暂时没响应"
         }
         models = try? await appState.performAdmin { client, config in
             try await client.modelAnalytics(config: config, days: days)

@@ -142,7 +142,7 @@ struct BrowserFaceView: View {
                     }
                 }
             case .bridgeUnavailable:
-                Text("云电脑走桥钥匙的云电脑分项（未配时回退旧共用钥），在「设置 · 桥钥匙」粘贴或导入后生效。")
+                Text("云电脑还没连上：先到「设置」里确认已经连接并登录，再回来刷新状态。")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             case .failed:

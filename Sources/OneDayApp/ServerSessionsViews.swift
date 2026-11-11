@@ -414,7 +414,7 @@ struct ServerSessionsView: View {
             total = page.total ?? page.sessions.count
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "会话读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "会话没读出来，可能是网络或服务暂时没响应"
         }
         if let count = try? await appState.performAdmin({ client, config in
             try await client.emptySessionCount(config: config)
@@ -647,7 +647,7 @@ struct ServerSessionDetailView: View {
             }
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "会话读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "会话没读出来，可能是网络或服务暂时没响应"
         }
         if let loaded = try? await appState.performAdmin({ client, config in
             try await client.sessionMessages(config: config, id: sessionID)

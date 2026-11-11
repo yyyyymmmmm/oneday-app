@@ -239,7 +239,7 @@ struct ProfilesView: View {
             activeName = try await active
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "档案读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "档案没读出来，可能是网络或服务暂时没响应"
         }
     }
 
@@ -511,7 +511,7 @@ struct ProfileExportSheet: View {
                             .foregroundStyle(Palette.ink)
                     }
                 } else if failed {
-                    InlineError("导出失败，请稍后重试。")
+                    InlineError("导出失败，请稍后再试。")
                 } else {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()

@@ -622,25 +622,25 @@
         }
       }
     },
-    "审批状态读取失败": {
+    "审批状态没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "审批状态读取失败"
+            "value": "审批状态没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "審批狀態讀取失敗"
+            "value": "審批狀態沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read approval status"
+            "value": "Couldn't read approval status; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -760,71 +760,48 @@
         }
       }
     },
-    "待批列表读取失败": {
+    "待批列表没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "待批列表读取失败"
+            "value": "待批列表没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "待批列表讀取失敗"
+            "value": "待批清單沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the pending list"
+            "value": "Couldn't read the pending list; the network or the service may be temporarily unavailable."
           }
         }
       }
     },
-    "撤销没能生效，请稍后重试。": {
+    "改动没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "撤销没能生效，请稍后重试。"
+            "value": "改动没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "撤銷沒能生效，請稍後重試。"
+            "value": "改動沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The revocation didn't take effect. Try again later."
-          }
-        }
-      }
-    },
-    "改动读取失败": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改动读取失败"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改動讀取失敗"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read the change"
+            "value": "Couldn't read the changes; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -1358,48 +1335,48 @@
         }
       }
     },
-    "%lld 条已落定，%lld 条未落定——名单已按服务端现状刷新，请核对。": {
+    "%lld 条已改好，%lld 条没改成——列表已按服务器现状刷新，你核对一下。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld 条已落定，%lld 条未落定——名单已按服务端现状刷新，请核对。"
+            "value": "%lld 条已改好，%lld 条没改成——列表已按服务器现状刷新，你核对一下。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld 條已落定，%lld 條未落定——名單已按伺服器端現況重新整理，請核對。"
+            "value": "%lld 條已改好，%lld 條沒改成——清單已按伺服器現況刷新，你核對一下。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld settled, %lld unsettled — the list has been refreshed from the server. Please check it."
+            "value": "%lld changed, %lld didn't — the list has been refreshed from the server; please check it."
           }
         }
       }
     },
-    "「%@」%@未落定：%@": {
+    "「%@」%@没改成：%@": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "「%@」%@未落定：%@"
+            "value": "「%@」%@没改成：%@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "「%@」%@未落定：%@"
+            "value": "「%@」%@沒改成：%@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“%@” %@ not settled: %@"
+            "value": "\"%@\" %@ didn't change: %@"
           }
         }
       }
@@ -2117,25 +2094,25 @@
         }
       }
     },
-    "未落定的项本地值仍保留，下次打开本页会再试。": {
+    "没改成的项先按你改的样子显示，下次打开本页会自动再试。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "未落定的项本地值仍保留，下次打开本页会再试。"
+            "value": "没改成的项先按你改的样子显示，下次打开本页会自动再试。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "未落定的項本機值仍保留，下次打開本頁會再試。"
+            "value": "沒改成的項先照你改的樣子顯示，下次打開本頁會自動再試。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Unsettled items keep their local values. They'll be tried again next time you open this page."
+            "value": "Items that didn't change still show your edit for now; they'll be retried automatically next time you open this page."
           }
         }
       }
@@ -2899,25 +2876,25 @@
         }
       }
     },
-    "桥未连接，接管动作没有发出。": {
+    "还没连上，这次操作没有发出去。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "桥未连接，接管动作没有发出。"
+            "value": "还没连上，这次操作没有发出去。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "橋未連接，接管動作沒有發出。"
+            "value": "還沒連上，這次操作沒有發出去。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The bridge isn't connected, so the takeover action wasn't sent."
+            "value": "Not connected — this action wasn't sent."
           }
         }
       }
@@ -3037,71 +3014,71 @@
         }
       }
     },
-    "先在设置里填好数据桥钥匙，才能读电脑里的文件。": {
+    "还没有可用的登录信息：电脑文件用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "先在设置里填好数据桥钥匙，才能读电脑里的文件。"
+            "value": "还没有可用的登录信息：电脑文件用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "先在設定裡填好資料橋金鑰，才能讀電腦裡的檔案。"
+            "value": "還沒有可用的登入資訊：電腦檔案用的是你的 Hermes 登入。先到「設定」裡確認已經連接並登入，就能用了。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fill in the data bridge key in Settings first to read files on the computer."
+            "value": "There's no usable sign-in information yet: computer files use your Hermes sign-in. Confirm in Settings that you're connected and signed in, and they'll work."
           }
         }
       }
     },
-    "数据桥未连接": {
+    "还没连上你的服务": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "数据桥未连接"
+            "value": "还没连上你的服务"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "資料橋未連接"
+            "value": "還沒連上你的服務"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Data bridge not connected"
+            "value": "Your service isn't connected yet"
           }
         }
       }
     },
-    "数据桥未连接。": {
+    "还没连上你的服务。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "数据桥未连接。"
+            "value": "还没连上你的服务。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "資料橋未連接。"
+            "value": "還沒連上你的服務。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The data bridge isn't connected."
+            "value": "Your service isn't connected yet."
           }
         }
       }
@@ -3221,71 +3198,71 @@
         }
       }
     },
-    "读取失败": {
+    "没读出来": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "读取失败"
+            "value": "没读出来"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取失敗"
+            "value": "沒讀出來"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Read failed"
+            "value": "Couldn't read it"
           }
         }
       }
     },
-    "读取文件失败，请稍后再试。": {
+    "文件没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "读取文件失败，请稍后再试。"
+            "value": "文件没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取檔案失敗，請稍後再試。"
+            "value": "檔案沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the file. Try again later."
+            "value": "Couldn't read the file; the network or the service may be temporarily unavailable."
           }
         }
       }
     },
-    "读取电脑文件失败，请稍后再试。": {
+    "电脑里的文件没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "读取电脑文件失败，请稍后再试。"
+            "value": "电脑里的文件没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取電腦檔案失敗，請稍後再試。"
+            "value": "電腦裡的檔案沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the computer file. Try again later."
+            "value": "Couldn't read the files on the computer; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -3451,25 +3428,25 @@
         }
       }
     },
-    "先在设置里填好数据桥钥匙，才能在电脑里执行命令。": {
+    "还没有可用的登录信息：在电脑里执行命令用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "先在设置里填好数据桥钥匙，才能在电脑里执行命令。"
+            "value": "还没有可用的登录信息：在电脑里执行命令用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "先在設定裡填好資料橋金鑰，才能在電腦裡執行指令。"
+            "value": "還沒有可用的登入資訊：在電腦裡執行命令用的是你的 Hermes 登入。先到「設定」裡確認已經連接並登入，就能用了。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fill in the data bridge key in Settings first to run commands on the computer."
+            "value": "There's no usable sign-in information yet: running commands on the computer uses your Hermes sign-in. Confirm in Settings that you're connected and signed in, and it'll work."
           }
         }
       }
@@ -3727,25 +3704,25 @@
         }
       }
     },
-    "云电脑走桥钥匙的云电脑分项（未配时回退旧共用钥），在「设置 · 桥钥匙」粘贴或导入后生效。": {
+    "云电脑还没连上：先到「设置」里确认已经连接并登录，再回来刷新状态。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "云电脑走桥钥匙的云电脑分项（未配时回退旧共用钥），在「设置 · 桥钥匙」粘贴或导入后生效。"
+            "value": "云电脑还没连上：先到「设置」里确认已经连接并登录，再回来刷新状态。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "雲端電腦走橋金鑰的雲端電腦分項（未配時回退舊共用鑰），在「設定 · 橋金鑰」貼上或匯入後生效。"
+            "value": "雲端電腦還沒連上：先到「設定」裡確認已經連接並登入，再回來刷新狀態。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The cloud computer uses the cloud-computer entry of the bridge key (falling back to the old shared key when unset). Paste or import it under Settings · Bridge Key to take effect."
+            "value": "The cloud computer isn't connected yet: confirm in Settings that you're connected and signed in, then come back and refresh."
           }
         }
       }
@@ -4348,29 +4325,6 @@
         }
       }
     },
-    "改动读取失败，通道未接通或读取出错。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改动读取失败，通道未接通或读取出错。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改動讀取失敗，通道未接通或讀取出錯。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read the change — the channel isn't connected or the read failed."
-          }
-        }
-      }
-    },
     "来源：%@": {
       "extractionState": "manual",
       "localizations": {
@@ -4670,25 +4624,25 @@
         }
       }
     },
-    "上一条还在生成中，正在确认结果，落定后可继续发送。": {
+    "上一条还在生成中，正在确认结果，确认完就能继续发送。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "上一条还在生成中，正在确认结果，落定后可继续发送。"
+            "value": "上一条还在生成中，正在确认结果，确认完就能继续发送。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "上一條還在產生中，正在確認結果，落定後可繼續傳送。"
+            "value": "上一條還在生成中，正在確認結果，確認完就能繼續傳送。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The previous message is still generating. Its result is being confirmed; you can send again once it settles."
+            "value": "The previous reply is still generating and its result is being confirmed; you can send once it's done."
           }
         }
       }
@@ -7269,29 +7223,6 @@
         }
       }
     },
-    "镜像": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "镜像"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "鏡像"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mirror"
-          }
-        }
-      }
-    },
     "额度": {
       "extractionState": "manual",
       "localizations": {
@@ -7614,25 +7545,25 @@
         }
       }
     },
-    "电脑列表读取失败，请稍后再试。": {
+    "电脑列表没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "电脑列表读取失败，请稍后再试。"
+            "value": "电脑列表没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "電腦列表讀取失敗，請稍後再試。"
+            "value": "電腦清單沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the computer list. Try again later."
+            "value": "Couldn't read the computer list; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -8258,25 +8189,25 @@
         }
       }
     },
-    "快照生成": {
+    "生成存档": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "快照生成"
+            "value": "生成存档"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快照產生"
+            "value": "生成存檔"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Snapshot generation"
+            "value": "Archive generated"
           }
         }
       }
@@ -8350,25 +8281,25 @@
         }
       }
     },
-    "技能闸门": {
+    "技能改动先审批": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "技能闸门"
+            "value": "技能改动先审批"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "技能閘門"
+            "value": "技能改動先審批"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skills gate"
+            "value": "Skill changes need approval first"
           }
         }
       }
@@ -9017,25 +8948,25 @@
         }
       }
     },
-    "记忆闸门": {
+    "记忆写入先审批": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "记忆闸门"
+            "value": "记忆写入先审批"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "記憶閘門"
+            "value": "記憶寫入先審批"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Memory gate"
+            "value": "Memory writes need approval first"
           }
         }
       }
@@ -9270,71 +9201,71 @@
         }
       }
     },
-    "连接状态读取失败。": {
+    "连接状态没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "连接状态读取失败。"
+            "value": "连接状态没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "連接狀態讀取失敗。"
+            "value": "連接狀態沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the connection status."
+            "value": "Couldn't read connection status; the network or the service may be temporarily unavailable."
           }
         }
       }
     },
-    "闸门未启用": {
+    "写入审批没开": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "闸门未启用"
+            "value": "写入审批没开"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "閘門未啟用"
+            "value": "寫入審批沒開"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gate not enabled"
+            "value": "Write approval is off"
           }
         }
       }
     },
-    "闸门模块": {
+    "写入审批": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "闸门模块"
+            "value": "写入审批"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "閘門模組"
+            "value": "寫入審批"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gate module"
+            "value": "Write approval"
           }
         }
       }
@@ -9818,29 +9749,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Scheduled tasks"
-          }
-        }
-      }
-    },
-    "定时任务读取失败。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "定时任务读取失败。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "定時任務讀取失敗。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read scheduled tasks."
           }
         }
       }
@@ -10420,25 +10328,25 @@
         }
       }
     },
-    "运行记录读取失败。": {
+    "运行记录没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "运行记录读取失败。"
+            "value": "运行记录没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "執行記錄讀取失敗。"
+            "value": "運行紀錄沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the run history."
+            "value": "Couldn't read run history; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -10604,25 +10512,25 @@
         }
       }
     },
-    "产出目录读取失败，请稍后重试。": {
+    "产出目录没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "产出目录读取失败，请稍后重试。"
+            "value": "产出目录没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "產出目錄讀取失敗，請稍後重試。"
+            "value": "產出目錄沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the output folder. Try again later."
+            "value": "Couldn't read the output folder; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -11547,52 +11455,6 @@
         }
       }
     },
-    "轮询回执格式无法识别": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "轮询回执格式无法识别"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輪詢回執格式無法辨識"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The polling receipt came back in an unrecognized format"
-          }
-        }
-      }
-    },
-    "轮询地址组装失败": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "轮询地址组装失败"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輪詢位址組裝失敗"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't build the polling address"
-          }
-        }
-      }
-    },
     "通讯录清单比对": {
       "extractionState": "manual",
       "localizations": {
@@ -12168,25 +12030,25 @@
         }
       }
     },
-    "通讯录读取失败：%@": {
+    "通讯录没读出来：%@": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "通讯录读取失败：%@"
+            "value": "通讯录没读出来：%@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "聯絡人讀取失敗：%@"
+            "value": "通訊錄沒讀出來：%@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Contacts read failed: %@"
+            "value": "Couldn't read contacts: %@"
           }
         }
       }
@@ -12559,25 +12421,25 @@
         }
       }
     },
-    "这一批条数对不上，桥没有收；服务器上的副本还是上一份，下次同步会从头重来": {
+    "这一批条数对不上，没有收下；服务器上的副本还是上一份，下次同步会从头重来": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这一批条数对不上，桥没有收；服务器上的副本还是上一份，下次同步会从头重来"
+            "value": "这一批条数对不上，没有收下；服务器上的副本还是上一份，下次同步会从头重来"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這一批條數對不上，橋沒有收；伺服器上的副本還是上一份，下次同步會從頭重來"
+            "value": "這一批筆數對不上，沒有收下；伺服器上的副本還是上一份，下次同步會從頭重來"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This batch's count doesn't match, so the bridge didn't accept it. The copy on the server is still the previous one, and the next sync will start over"
+            "value": "This batch's count doesn't add up, so it wasn't accepted; the copy on the server is still the previous one, and the next sync will start over"
           }
         }
       }
@@ -14606,25 +14468,25 @@
         }
       }
     },
-    "通讯录读取失败": {
+    "通讯录没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "通讯录读取失败"
+            "value": "通讯录没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "聯絡人讀取失敗"
+            "value": "通訊錄沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read contacts"
+            "value": "Couldn't read contacts; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -16193,25 +16055,25 @@
         }
       }
     },
-    "密钥读取失败。": {
+    "密钥没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "密钥读取失败。"
+            "value": "密钥没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "金鑰讀取失敗。"
+            "value": "金鑰沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the key."
+            "value": "Couldn't read keys; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -16258,75 +16120,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reading keys…"
-          }
-        }
-      }
-    },
-    "保存失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "儲存失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save failed. Try again later."
-          }
-        }
-      }
-    },
-    "动态读取失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "动态读取失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動態讀取失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read the feed. Try again later."
-          }
-        }
-      }
-    },
-    "没能开始生成，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没能开始生成，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "沒能開始產生，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Generation couldn't be started. Try again later."
           }
         }
       }
@@ -16653,25 +16446,25 @@
         }
       }
     },
-    "动态读取失败": {
+    "动态没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "动态读取失败"
+            "value": "动态没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "動態讀取失敗"
+            "value": "動態沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the feed"
+            "value": "Couldn't read the feed; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -18056,19 +17849,19 @@
         }
       }
     },
-    "读取所选文件失败。": {
+    "所选文件没读出来。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "读取所选文件失败。"
+            "value": "所选文件没读出来。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取所選檔案失敗。"
+            "value": "所選檔案沒讀出來。"
           }
         },
         "en": {
@@ -18079,19 +17872,19 @@
         }
       }
     },
-    "读取所选照片失败。": {
+    "所选照片没读出来。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "读取所选照片失败。"
+            "value": "所选照片没读出来。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取所選照片失敗。"
+            "value": "所選照片沒讀出來。"
           }
         },
         "en": {
@@ -18102,48 +17895,25 @@
         }
       }
     },
-    "读取文件失败。": {
+    "目录没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "读取文件失败。"
+            "value": "目录没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取檔案失敗。"
+            "value": "目錄沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the file."
-          }
-        }
-      }
-    },
-    "读取目录失败，请稍后再试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "读取目录失败，请稍后再试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "讀取目錄失敗，請稍後再試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read the folder. Try again later."
+            "value": "Couldn't read the directory; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -18562,25 +18332,25 @@
         }
       }
     },
-    "网关状态读取失败。": {
+    "网关状态没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "网关状态读取失败。"
+            "value": "网关状态没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "閘道狀態讀取失敗。"
+            "value": "閘道狀態沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the gateway status."
+            "value": "Couldn't read gateway status; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -18953,52 +18723,6 @@
         }
       }
     },
-    "分类更新失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "分类更新失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "分類更新失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Category update failed. Try again later."
-          }
-        }
-      }
-    },
-    "删除失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete failed. Try again later."
-          }
-        }
-      }
-    },
     "删除已发出，但列表里还在，请刷新核对。": {
       "extractionState": "manual",
       "localizations": {
@@ -19045,94 +18769,71 @@
         }
       }
     },
-    "删除进展失败，请稍后重试。": {
+    "还没连上你的服务：服务器拒绝了这次登录。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "删除进展失败，请稍后重试。"
+            "value": "还没连上你的服务：服务器拒绝了这次登录。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪除進展失敗，請稍後重試。"
+            "value": "還沒連上你的服務：伺服器拒絕了這次登入。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't delete the progress entry. Try again later."
+            "value": "Your service isn't connected yet: the server refused this sign-in."
           }
         }
       }
     },
-    "数据桥未连接：服务器拒绝了这次登录。": {
+    "还没连上你的服务：还没有可用的登录信息。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "数据桥未连接：服务器拒绝了这次登录。"
+            "value": "还没连上你的服务：还没有可用的登录信息。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "資料橋未連接：伺服器拒絕了這次登入。"
+            "value": "還沒連上你的服務：還沒有可用的登入資訊。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Data bridge not connected: the server rejected this sign-in."
+            "value": "Your service isn't connected yet: there's no usable sign-in information yet."
           }
         }
       }
     },
-    "数据桥未连接：还没有可用的登录信息。": {
+    "服务器上这项服务还没有开通。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "数据桥未连接：还没有可用的登录信息。"
+            "value": "服务器上这项服务还没有开通。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "資料橋未連接：還沒有可用的登入資訊。"
+            "value": "伺服器上這項服務還沒有開通。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Data bridge not connected: there's no usable sign-in information yet."
-          }
-        }
-      }
-    },
-    "服务器上的数据桥还没有开通。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "服务器上的数据桥还没有开通。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "伺服器上的資料橋還沒有開通。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The data bridge on the server isn't available yet."
+            "value": "This service hasn't been enabled on the server yet."
           }
         }
       }
@@ -19206,52 +18907,6 @@
         }
       }
     },
-    "状态更新失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "状态更新失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "狀態更新失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Status update failed. Try again later."
-          }
-        }
-      }
-    },
-    "目标创建失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目标创建失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目標建立失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't create the goal. Try again later."
-          }
-        }
-      }
-    },
     "目标已提交，但还没有在列表里确认出现，请关闭后刷新核对。": {
       "extractionState": "manual",
       "localizations": {
@@ -19271,52 +18926,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The goal was submitted but hasn't been confirmed in the list yet. Close this and refresh to check."
-          }
-        }
-      }
-    },
-    "目标读取失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目标读取失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目標讀取失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read goals. Try again later."
-          }
-        }
-      }
-    },
-    "记录进展失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "记录进展失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "記錄進展失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't record progress. Try again later."
           }
         }
       }
@@ -19896,29 +19505,6 @@
         }
       }
     },
-    "安排失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安排失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安排失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arranging failed. Try again later."
-          }
-        }
-      }
-    },
     "对话创建": {
       "extractionState": "manual",
       "localizations": {
@@ -20448,25 +20034,25 @@
         }
       }
     },
-    "目标读取失败": {
+    "目标没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "目标读取失败"
+            "value": "目标没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "目標讀取失敗"
+            "value": "目標沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read goals"
+            "value": "Couldn't read goals; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -23461,29 +23047,6 @@
         }
       }
     },
-    "通道未接通或读取出错，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通道未接通或读取出错，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通道未接通或讀取出錯，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The channel isn't connected or the read failed. Try again later."
-          }
-        }
-      }
-    },
     "上次运行 %@": {
       "extractionState": "manual",
       "localizations": {
@@ -23507,25 +23070,25 @@
         }
       }
     },
-    "定时任务读取失败": {
+    "定时任务没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "定时任务读取失败"
+            "value": "定时任务没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "定時任務讀取失敗"
+            "value": "定時任務沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read scheduled tasks"
+            "value": "Couldn't read scheduled tasks; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -23549,29 +23112,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "No scheduled tasks yet"
-          }
-        }
-      }
-    },
-    "请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Try again later."
           }
         }
       }
@@ -23622,25 +23162,25 @@
         }
       }
     },
-    "人设读取失败": {
+    "人设没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "人设读取失败"
+            "value": "人设没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "人設讀取失敗"
+            "value": "人設沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the persona"
+            "value": "Couldn't read the persona; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -23783,25 +23323,25 @@
         }
       }
     },
-    "台账读取失败": {
+    "台账没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "台账读取失败"
+            "value": "台账没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "臺帳讀取失敗"
+            "value": "臺帳沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the ledger"
+            "value": "Couldn't read the ledger; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -24220,25 +23760,25 @@
         }
       }
     },
-    "监测读取失败": {
+    "监测没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "监测读取失败"
+            "value": "监测没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "監測讀取失敗"
+            "value": "監測沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read monitors"
+            "value": "Couldn't read monitors; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -24381,25 +23921,25 @@
         }
       }
     },
-    "任务读取失败": {
+    "任务没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "任务读取失败"
+            "value": "任务没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "任務讀取失敗"
+            "value": "任務沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read tasks"
+            "value": "Couldn't read tasks; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -24680,29 +24220,6 @@
         }
       }
     },
-    "忽略失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "忽略失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "忽略失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dismiss failed. Try again later."
-          }
-        }
-      }
-    },
     "忽略已发出，但列表里还在，请刷新核对。": {
       "extractionState": "manual",
       "localizations": {
@@ -24726,29 +24243,6 @@
         }
       }
     },
-    "点子创建失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "点子创建失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "點子建立失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't create the idea. Try again later."
-          }
-        }
-      }
-    },
     "点子已提交，但还没有在列表里确认出现，请关闭后刷新核对。": {
       "extractionState": "manual",
       "localizations": {
@@ -24768,29 +24262,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The idea was submitted but hasn't been confirmed in the list yet. Close this and refresh to check."
-          }
-        }
-      }
-    },
-    "点子读取失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "点子读取失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "點子讀取失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read ideas. Try again later."
           }
         }
       }
@@ -25439,25 +24910,25 @@
         }
       }
     },
-    "点子读取失败": {
+    "点子没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "点子读取失败"
+            "value": "点子没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "點子讀取失敗"
+            "value": "點子沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read ideas"
+            "value": "Couldn't read ideas; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -25761,25 +25232,25 @@
         }
       }
     },
-    "图片加载失败": {
+    "图片没加载出来": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "图片加载失败"
+            "value": "图片没加载出来"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "圖片載入失敗"
+            "value": "圖片沒載入出來"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Image failed to load"
+            "value": "Couldn't load the image"
           }
         }
       }
@@ -25922,29 +25393,6 @@
         }
       }
     },
-    "任务创建失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "任务创建失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "任務建立失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Task creation failed. Try again later."
-          }
-        }
-      }
-    },
     "任务已提交，但还没有在任务板上确认出现，请关闭后刷新核对。": {
       "extractionState": "manual",
       "localizations": {
@@ -25964,52 +25412,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The task was submitted but hasn't been confirmed on the board yet. Close this and refresh to check."
-          }
-        }
-      }
-    },
-    "任务读取失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "任务读取失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "任務讀取失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read tasks. Try again later."
-          }
-        }
-      }
-    },
-    "动作发送失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "动作发送失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動作傳送失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't send the action. Try again later."
           }
         }
       }
@@ -26796,25 +26198,25 @@
         }
       }
     },
-    "对账纠正": {
+    "已纠正": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "对账纠正"
+            "value": "已纠正"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "對帳糾正"
+            "value": "已糾正"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reconciliation correction"
+            "value": "Corrected"
           }
         }
       }
@@ -27440,29 +26842,6 @@
         }
       }
     },
-    "台账读取失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "台账读取失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "臺帳讀取失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read the ledger. Try again later."
-          }
-        }
-      }
-    },
     "现在这台伴生服务是 %@ 版，还没有台账功能。等它升级后，这里会自动开始记录每件工作的进度。": {
       "extractionState": "manual",
       "localizations": {
@@ -27601,25 +26980,25 @@
         }
       }
     },
-    "日志读取失败。": {
+    "日志没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "日志读取失败。"
+            "value": "日志没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "日誌讀取失敗。"
+            "value": "日誌沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the logs."
+            "value": "Couldn't read logs; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -27808,48 +27187,25 @@
         }
       }
     },
-    "提交失败，请稍后重试。": {
+    "服务器上的写入审批还没有开通记忆条目。开通后，智能体的长期记忆会逐条出现在这里。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "提交失败，请稍后重试。"
+            "value": "服务器上的写入审批还没有开通记忆条目。开通后，智能体的长期记忆会逐条出现在这里。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "提交失敗，請稍後重試。"
+            "value": "伺服器上的寫入審批還沒有開通記憶條目。開通後，智慧代理的長期記憶會逐條出現在這裡。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Submission failed. Try again later."
-          }
-        }
-      }
-    },
-    "服务器上的写入审批桥还没有开通记忆条目面。开通后，智能体的长期记忆会逐条出现在这里。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "服务器上的写入审批桥还没有开通记忆条目面。开通后，智能体的长期记忆会逐条出现在这里。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "伺服器上的寫入審批橋還沒有開通記憶條目面。開通後，智慧代理的長期記憶會逐條出現在這裡。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The write-approval bridge on the server doesn't expose memory entries yet. Once it does, the agent's long-term memories will appear here one by one."
+            "value": "Write approval for memory entries isn't enabled on the server yet. Once it is, the agent's long-term memory will appear here entry by entry."
           }
         }
       }
@@ -27877,25 +27233,25 @@
         }
       }
     },
-    "记忆条目读取失败，请稍后重试。": {
+    "记忆条目没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "记忆条目读取失败，请稍后重试。"
+            "value": "记忆条目没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "記憶條目讀取失敗，請稍後重試。"
+            "value": "記憶條目沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read memory entries. Try again later."
+            "value": "Couldn't read memory entries; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -27923,25 +27279,25 @@
         }
       }
     },
-    "详情读取失败，请稍后重试。": {
+    "详情没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "详情读取失败，请稍后重试。"
+            "value": "详情没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "詳情讀取失敗，請稍後重試。"
+            "value": "詳情沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the details. Try again later."
+            "value": "Couldn't read details; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -29648,25 +29004,25 @@
         }
       }
     },
-    "记忆状态读取失败。": {
+    "记忆状态没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "记忆状态读取失败。"
+            "value": "记忆状态没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "記憶狀態讀取失敗。"
+            "value": "記憶狀態沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the memory status."
+            "value": "Couldn't read memory status; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -29717,25 +29073,25 @@
         }
       }
     },
-    "配置读取失败。": {
+    "配置没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "配置读取失败。"
+            "value": "配置没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "設定讀取失敗。"
+            "value": "設定沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the configuration."
+            "value": "Couldn't read the configuration; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -31212,25 +30568,25 @@
         }
       }
     },
-    "组合清单读取失败，请下拉重试。": {
+    "组合清单没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "组合清单读取失败，请下拉重试。"
+            "value": "组合清单没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "組合清單讀取失敗，請下拉重試。"
+            "value": "組合清單沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the combo list. Pull down to retry."
+            "value": "Couldn't read the combo list; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -31764,48 +31120,25 @@
         }
       }
     },
-    "变化记录读取失败，请稍后重试。": {
+    "变化记录没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "变化记录读取失败，请稍后重试。"
+            "value": "变化记录没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "變化記錄讀取失敗，請稍後重試。"
+            "value": "變化紀錄沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read change records. Try again later."
-          }
-        }
-      }
-    },
-    "恢复失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "恢复失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "恢復失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resume failed. Try again later."
+            "value": "Couldn't read change records; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -31856,29 +31189,6 @@
         }
       }
     },
-    "暂停失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂停失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暫停失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pause failed. Try again later."
-          }
-        }
-      }
-    },
     "暂停已发出，但再确认时仍是启用状态，请刷新核对。": {
       "extractionState": "manual",
       "localizations": {
@@ -31902,48 +31212,25 @@
         }
       }
     },
-    "服务器上的数据桥还没有开通监测面。开通后，你盯着的页面和对象有变化就会出现在这里。": {
+    "服务器上还没有开通监测。开通后，你盯着的页面和对象有变化就会出现在这里。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "服务器上的数据桥还没有开通监测面。开通后，你盯着的页面和对象有变化就会出现在这里。"
+            "value": "服务器上还没有开通监测。开通后，你盯着的页面和对象有变化就会出现在这里。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "伺服器上的資料橋還沒有開通監測面。開通後，你盯著的頁面和對象有變化就會出現在這裡。"
+            "value": "伺服器上還沒有開通監測。開通後，你盯著的頁面和對象有變化就會出現在這裡。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The data bridge on the server doesn't expose monitors yet. Once it does, changes to the pages and items you watch will appear here."
-          }
-        }
-      }
-    },
-    "检查失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "检查失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "檢查失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Check failed. Try again later."
+            "value": "Monitoring isn't enabled on the server yet. Once it is, changes to the pages and things you're watching will appear here."
           }
         }
       }
@@ -31994,29 +31281,6 @@
         }
       }
     },
-    "监测创建失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "监测创建失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "監測建立失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't create the monitor. Try again later."
-          }
-        }
-      }
-    },
     "监测已提交，但还没有在列表里确认出现，请关闭后刷新核对。": {
       "extractionState": "manual",
       "localizations": {
@@ -32059,29 +31323,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The monitor data source isn't available yet."
-          }
-        }
-      }
-    },
-    "监测读取失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "监测读取失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "監測讀取失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read monitors. Try again later."
           }
         }
       }
@@ -33259,25 +32500,25 @@
         }
       }
     },
-    "状态读取失败。": {
+    "状态没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "状态读取失败。"
+            "value": "状态没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "狀態讀取失敗。"
+            "value": "狀態沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the status."
+            "value": "Couldn't read the status; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -33715,29 +32956,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Import profile"
-          }
-        }
-      }
-    },
-    "导出失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导出失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯出失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Export failed. Try again later."
           }
         }
       }
@@ -34248,25 +33466,25 @@
         }
       }
     },
-    "档案读取失败。": {
+    "档案没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "档案读取失败。"
+            "value": "档案没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檔案讀取失敗。"
+            "value": "檔案沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read profiles."
+            "value": "Couldn't read the profile; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -35145,25 +34363,25 @@
         }
       }
     },
-    "删除未落定：这条会话在服务端还在。": {
+    "没删掉：这条会话在服务器上还在，稍后再试一次。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "删除未落定：这条会话在服务端还在。"
+            "value": "没删掉：这条会话在服务器上还在，稍后再试一次。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "刪除未落定：這條對話在伺服器端還在。"
+            "value": "沒刪掉：這條對話在伺服器上還在，稍後再試一次。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deletion not settled: this conversation still exists on the server."
+            "value": "Not deleted: this conversation is still on the server. Try again in a bit."
           }
         }
       }
@@ -35214,25 +34432,25 @@
         }
       }
     },
-    "归档未落定：服务端状态还没有变过来。": {
+    "没归档成：服务器上这条还是未归档的样子，稍后再试一次。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "归档未落定：服务端状态还没有变过来。"
+            "value": "没归档成：服务器上这条还是未归档的样子，稍后再试一次。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "封存未落定：伺服器端狀態還沒有變過來。"
+            "value": "沒歸檔成：伺服器上這條還是未歸檔的樣子，稍後再試一次。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Archiving not settled: the server state hasn't changed yet."
+            "value": "Not archived: on the server this one is still unarchived. Try again in a bit."
           }
         }
       }
@@ -35260,25 +34478,25 @@
         }
       }
     },
-    "操作未落定": {
+    "没改成": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "操作未落定"
+            "value": "没改成"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "操作未落定"
+            "value": "沒改成"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Action not settled"
+            "value": "Didn't change"
           }
         }
       }
@@ -35306,48 +34524,48 @@
         }
       }
     },
-    "改名未落定：服务端标题还没有变过来。": {
+    "没改名成：服务器上的标题还是原来的，稍后再试一次。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "改名未落定：服务端标题还没有变过来。"
+            "value": "没改名成：服务器上的标题还是原来的，稍后再试一次。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "改名未落定：伺服器端標題還沒有變過來。"
+            "value": "沒改名成：伺服器上的標題還是原來的，稍後再試一次。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rename not settled: the server title hasn't changed yet."
+            "value": "Not renamed: the title on the server is still the old one. Try again in a bit."
           }
         }
       }
     },
-    "置顶未落定：服务端状态还没有变过来。": {
+    "没置顶成：服务器上这条还是没置顶的样子，稍后再试一次。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "置顶未落定：服务端状态还没有变过来。"
+            "value": "没置顶成：服务器上这条还是没置顶的样子，稍后再试一次。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "釘選未落定：伺服器端狀態還沒有變過來。"
+            "value": "沒置頂成：伺服器上這條還是沒置頂的樣子，稍後再試一次。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pin not settled: the server state hasn't changed yet."
+            "value": "Not pinned: on the server this one is still unpinned. Try again in a bit."
           }
         }
       }
@@ -35444,25 +34662,25 @@
         }
       }
     },
-    "会话读取失败。": {
+    "会话没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "会话读取失败。"
+            "value": "会话没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "對話讀取失敗。"
+            "value": "對話沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read conversations."
+            "value": "Couldn't read the conversation; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -36709,29 +35927,6 @@
         }
       }
     },
-    "卸载提交失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "卸载提交失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "解除安裝提交失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uninstall submission failed. Try again later."
-          }
-        }
-      }
-    },
     "卸载这个技能？": {
       "extractionState": "manual",
       "localizations": {
@@ -36774,29 +35969,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Install"
-          }
-        }
-      }
-    },
-    "安装提交失败，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安装提交失败，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安裝提交失敗，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Install submission failed. Try again later."
           }
         }
       }
@@ -36958,29 +36130,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Search"
-          }
-        }
-      }
-    },
-    "搜索失败：服务端连接外部技能库超时或出错，请稍后重试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索失败：服务端连接外部技能库超时或出错，请稍后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜尋失敗：伺服器端連接外部技能庫逾時或出錯，請稍後重試。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Search failed: the server timed out or hit an error connecting to the external skill library. Try again later."
           }
         }
       }
@@ -37261,25 +36410,25 @@
         }
       }
     },
-    "内容读取失败。": {
+    "内容没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "内容读取失败。"
+            "value": "内容没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "內容讀取失敗。"
+            "value": "內容沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the content."
+            "value": "Couldn't read the content; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -37376,25 +36525,25 @@
         }
       }
     },
-    "技能读取失败。": {
+    "技能没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "技能读取失败。"
+            "value": "技能没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "技能讀取失敗。"
+            "value": "技能沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read skills."
+            "value": "Couldn't read skills; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -37721,25 +36870,25 @@
         }
       }
     },
-    "暂无日志": {
+    "暂无日志。有新事件时，会记在这里。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暂无日志"
+            "value": "暂无日志。有新事件时，会记在这里。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "暫無日誌"
+            "value": "暫無日誌。有新事件時，會記在這裡。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No logs yet"
+            "value": "No logs yet. New events will be recorded here."
           }
         }
       }
@@ -38158,25 +37307,25 @@
         }
       }
     },
-    "用量读取失败。": {
+    "用量没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "用量读取失败。"
+            "value": "用量没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "用量讀取失敗。"
+            "value": "用量沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read usage."
+            "value": "Couldn't read usage data; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -38568,75 +37717,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revoke rule returned %@"
-          }
-        }
-      }
-    },
-    "未知类型不支持建规则": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未知类型不支持建规则"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未知類型不支援建規則"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rules can't be created for unknown types"
-          }
-        }
-      }
-    },
-    "未知类型不支持查看": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未知类型不支持查看"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未知類型不支援查看"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Viewing isn't supported for unknown types"
-          }
-        }
-      }
-    },
-    "未知类型不支持裁决": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未知类型不支持裁决"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未知類型不支援裁決"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Decisions aren't supported for unknown types"
           }
         }
       }
@@ -39768,25 +38848,25 @@
         }
       }
     },
-    "云电脑状态读取失败": {
+    "云电脑状态没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "云电脑状态读取失败"
+            "value": "云电脑状态没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "雲端電腦狀態讀取失敗"
+            "value": "雲端電腦狀態沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't read the cloud computer status"
+            "value": "Couldn't read the cloud computer status; the network or the service may be temporarily unavailable."
           }
         }
       }
@@ -39837,25 +38917,25 @@
         }
       }
     },
-    "暂无页面": {
+    "还没有打开的页面": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暂无页面"
+            "value": "还没有打开的页面"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "暫無頁面"
+            "value": "還沒有打開的頁面"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No pages yet"
+            "value": "No page open yet"
           }
         }
       }
@@ -39906,25 +38986,25 @@
         }
       }
     },
-    "桥未连接": {
+    "还没连上": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "桥未连接"
+            "value": "还没连上"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "橋未連接"
+            "value": "還沒連上"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bridge not connected"
+            "value": "Not connected yet"
           }
         }
       }
@@ -39952,48 +39032,48 @@
         }
       }
     },
-    "镜像 %@": {
+    "系统 %@": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "镜像 %@"
+            "value": "系统 %@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "映像 %@"
+            "value": "系統 %@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Image %@"
+            "value": "System %@"
           }
         }
       }
     },
-    "镜像 %@ · 可更新到 %@": {
+    "系统 %@ · 可更新到 %@": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "镜像 %@ · 可更新到 %@"
+            "value": "系统 %@ · 可更新到 %@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "映像 %@ · 可更新到 %@"
+            "value": "系統 %@ · 可更新到 %@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Image %@ · Updatable to %@"
+            "value": "System %@ · %@ available"
           }
         }
       }
@@ -40688,25 +39768,25 @@
         }
       }
     },
-    "验活没过": {
+    "连接没通过": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "验活没过"
+            "value": "连接没通过"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "驗活沒過"
+            "value": "連接沒通過"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verification failed"
+            "value": "The connection check didn't pass"
           }
         }
       }
@@ -40803,25 +39883,25 @@
         }
       }
     },
-    "仅配置在册 · 未验活": {
+    "已保存，还没测过连接": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "仅配置在册 · 未验活"
+            "value": "已保存，还没测过连接"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "僅設定在冊 · 未驗活"
+            "value": "已儲存，還沒測過連接"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Configured only · Not verified live"
+            "value": "Saved; connection not tested yet"
           }
         }
       }
@@ -44437,25 +43517,25 @@
         }
       }
     },
-    "「%@」不在上游可用模型列表里（网关别名不能设为默认模型），已拦截，未写入配置。": {
+    "「%@」是网关内部的别名，不能设为默认模型，这次没有写入。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "「%@」不在上游可用模型列表里（网关别名不能设为默认模型），已拦截，未写入配置。"
+            "value": "「%@」是网关内部的别名，不能设为默认模型，这次没有写入。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "「%@」不在上游可用模型列表裡（閘道別名不能設為預設模型），已攔截，未寫入設定。"
+            "value": "「%@」是閘道內部的別名，不能設為預設模型，這次沒有寫入。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“%@” isn't in the upstream list of available models (a gateway alias can't be set as the default model). Blocked — nothing was written to the configuration."
+            "value": "\"%@\" is an internal gateway alias and can't be set as the default model; nothing was written."
           }
         }
       }
@@ -45771,29 +44851,6 @@
         }
       }
     },
-    "对账补记": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "对账补记"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "對帳補記"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconciliation backfill"
-          }
-        }
-      }
-    },
     "已取消": {
       "extractionState": "manual",
       "localizations": {
@@ -46346,25 +45403,25 @@
         }
       }
     },
-    "审批桥 · 记忆和技能的写入先过这道闸门": {
+    "记忆和技能的写入，先经你批准再生效": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "审批桥 · 记忆和技能的写入先过这道闸门"
+            "value": "记忆和技能的写入，先经你批准再生效"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "審批橋 · 記憶和技能的寫入先過這道閘門"
+            "value": "記憶和技能的寫入，先經你批准再生效"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Approval bridge · Writes to memory and skills pass through this gate first"
+            "value": "Memory and skill writes take effect only after you approve them"
           }
         }
       }
@@ -46392,25 +45449,25 @@
         }
       }
     },
-    "总览桥 · 总览页与通知角标的数据来源": {
+    "总览 · 总览页与通知角标的数据来源": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "总览桥 · 总览页与通知角标的数据来源"
+            "value": "总览 · 总览页与通知角标的数据来源"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "總覽橋 · 總覽頁與通知角標的資料來源"
+            "value": "總覽 · 總覽頁與通知角標的資料來源"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Overview bridge · The data source for the Overview page and notification badges"
+            "value": "Overview · Where the overview page and notification badge get their data"
           }
         }
       }
@@ -46461,25 +45518,25 @@
         }
       }
     },
-    "检查的是审批闸门的工作状态（打开本页时当场问的）": {
+    "检查的是写入审批的工作状态（打开本页时当场问的）": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "检查的是审批闸门的工作状态（打开本页时当场问的）"
+            "value": "检查的是写入审批的工作状态（打开本页时当场问的）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檢查的是審批閘門的工作狀態（開啟本頁時當場問的）"
+            "value": "檢查的是寫入審批的工作狀態（打開本頁時當場問的）"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checks the approval gate's working state (asked on the spot when this page opens)"
+            "value": "Checks whether write approval is working (asked on the spot when this page opens)"
           }
         }
       }
@@ -47105,25 +46162,25 @@
         }
       }
     },
-    "主端点（经网关）": {
+    "默认服务商（经网关）": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "主端点（经网关）"
+            "value": "默认服务商（经网关）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "主端點（經閘道）"
+            "value": "預設服務商（經閘道）"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Main endpoint (via gateway)"
+            "value": "Default provider (via gateway)"
           }
         }
       }
@@ -51613,25 +50670,25 @@
         }
       }
     },
-    "这条待批带有一条桥侧提示，批准前请打开改动核对。": {
+    "这条待批带有一条额外提示，批准前请打开改动核对。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这条待批带有一条桥侧提示，批准前请打开改动核对。"
+            "value": "这条待批带有一条额外提示，批准前请打开改动核对。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這條待批帶有一條橋側提示，批准前請開啟改動核對。"
+            "value": "這條待批帶有一條額外提示，批准前請打開改動核對。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This pending item carries a note from the bridge — open the changes and check before approving."
+            "value": "This pending item carries an extra note; open the changes to check before approving."
           }
         }
       }
@@ -53131,48 +52188,48 @@
         }
       }
     },
-    "读取文件夹失败": {
+    "文件夹没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "读取文件夹失败"
+            "value": "文件夹没读出来，可能是网络或服务暂时没响应"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取資料夾失敗"
+            "value": "資料夾沒讀出來，可能是網路或服務暫時沒回應"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Failed to read the folder"
+            "value": "Couldn't read the folder; the network or the service may be temporarily unavailable."
           }
         }
       }
     },
-    "读取文件失败": {
+    "文件没读出来。": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "读取文件失败"
+            "value": "文件没读出来。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "讀取檔案失敗"
+            "value": "檔案沒讀出來。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Failed to read the file"
+            "value": "Couldn't read the file."
           }
         }
       }
@@ -55703,6 +54760,581 @@
           "stringUnit": {
             "state": "translated",
             "value": "Print file"
+          }
+        }
+      }
+    },
+    "撤销没能生效，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销没能生效，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤銷沒能生效，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The revocation didn't take effect. Try again later."
+          }
+        }
+      }
+    },
+    "没能开始生成，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能开始生成，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒能開始產生，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generation couldn't be started. Try again later."
+          }
+        }
+      }
+    },
+    "分类更新失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分类更新失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分類更新失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category update failed. Try again later."
+          }
+        }
+      }
+    },
+    "删除进展失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除进展失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除進展失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't delete the progress entry. Try again later."
+          }
+        }
+      }
+    },
+    "状态更新失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态更新失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "狀態更新失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status update failed. Try again later."
+          }
+        }
+      }
+    },
+    "目标创建失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标创建失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目標建立失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't create the goal. Try again later."
+          }
+        }
+      }
+    },
+    "记录进展失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录进展失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記錄進展失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't record progress. Try again later."
+          }
+        }
+      }
+    },
+    "安排失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安排失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安排失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arranging failed. Try again later."
+          }
+        }
+      }
+    },
+    "通道未接通或读取出错，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道未接通或读取出错，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道未接通或讀取出錯，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The channel isn't connected or the read failed. Try again later."
+          }
+        }
+      }
+    },
+    "请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again later."
+          }
+        }
+      }
+    },
+    "忽略失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忽略失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忽略失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss failed. Try again later."
+          }
+        }
+      }
+    },
+    "点子创建失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点子创建失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點子建立失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't create the idea. Try again later."
+          }
+        }
+      }
+    },
+    "任务创建失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务创建失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任務建立失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task creation failed. Try again later."
+          }
+        }
+      }
+    },
+    "动作发送失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作发送失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動作傳送失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't send the action. Try again later."
+          }
+        }
+      }
+    },
+    "提交失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Submission failed. Try again later."
+          }
+        }
+      }
+    },
+    "恢复失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢復失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume failed. Try again later."
+          }
+        }
+      }
+    },
+    "暂停失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂停失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫停失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause failed. Try again later."
+          }
+        }
+      }
+    },
+    "检查失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check failed. Try again later."
+          }
+        }
+      }
+    },
+    "监测创建失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "监测创建失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "監測建立失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't create the monitor. Try again later."
+          }
+        }
+      }
+    },
+    "导出失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯出失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export failed. Try again later."
+          }
+        }
+      }
+    },
+    "卸载提交失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卸载提交失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解除安裝提交失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uninstall submission failed. Try again later."
+          }
+        }
+      }
+    },
+    "安装提交失败，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装提交失败，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安裝提交失敗，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install submission failed. Try again later."
+          }
+        }
+      }
+    },
+    "搜索失败：服务端连接外部技能库超时或出错，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索失败：服务端连接外部技能库超时或出错，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋失敗：伺服器端連接外部技能庫逾時或出錯，請稍後再試。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search failed: the server timed out or hit an error connecting to the external skill library. Try again later."
+          }
+        }
+      }
+    },
+    "这一步的结果没确认回来，请再试一次；如果反复这样，把这条记录发我看。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这一步的结果没确认回来，请再试一次；如果反复这样，把这条记录发我看。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一步的結果沒確認回來，請再試一次；如果反覆這樣，把這條紀錄發我看。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This step's result didn't come back confirmed. Try again; if it keeps happening, send me this record."
+          }
+        }
+      }
+    },
+    "这类审批 App 里还处理不了，请在 Hermes 网页端处理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这类审批 App 里还处理不了，请在 Hermes 网页端处理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這類審批 App 裡還處理不了，請在 Hermes 網頁端處理。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app can't handle this kind of approval yet — please handle it in the Hermes web UI."
           }
         }
       }

@@ -128,7 +128,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
             throw DeviceBridgeError.noKey
         }
         guard let url = components?.url else {
-            throw DeviceBridgeError.failed(L10n.string("轮询地址组装失败"))
+            throw DeviceBridgeError.failed(L10n.string("这一步的结果没确认回来，请再试一次；如果反复这样，把这条记录发我看。"))
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -148,7 +148,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
         do {
             return try decoder.decode(PollBody.self, from: data).call
         } catch {
-            throw DeviceBridgeError.failed(L10n.string("轮询回执格式无法识别"))
+            throw DeviceBridgeError.failed(L10n.string("这一步的结果没确认回来，请再试一次；如果反复这样，把这条记录发我看。"))
         }
     }
 

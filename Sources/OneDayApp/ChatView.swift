@@ -3904,7 +3904,7 @@ private struct ComposerBarLayout: Layout {
             input = text
             attachments = pending
             pendingQuote = quote
-            notice = "上一条还在生成中，正在确认结果，落定后可继续发送。"
+            notice = "上一条还在生成中，正在确认结果，确认完就能继续发送。"
             Task { await resumeRunIfNeeded() }
             return
         }

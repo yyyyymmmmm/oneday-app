@@ -644,7 +644,7 @@ struct AllConversationsView: View {
                         .font(.captionText)
                         .foregroundStyle(Palette.inkSecondary)
                 }
-                Text("未落定的项本地值仍保留，下次打开本页会再试。")
+                Text("没改成的项先按你改的样子显示，下次打开本页会自动再试。")
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
             }
@@ -749,7 +749,7 @@ struct AllConversationsView: View {
             editMode = .inactive
             store.notice = failedCount == 0
                 ? "已处理 \(ids.count) 条，全部确认完成。"
-                : "\(ids.count - failedCount) 条已落定，\(failedCount) 条未落定——名单已按服务端现状刷新，请核对。"
+                : "\(ids.count - failedCount) 条已改好，\(failedCount) 条没改成——列表已按服务器现状刷新，你核对一下。"
             await store.load(appState: appState)
         }
     }
@@ -941,7 +941,7 @@ final class AllConversationsStore {
             )
         }
         migrationFailures = outcome.failures.map { failure in
-            "「\(failure.item.sessionID)」\(failure.item.actionLabel)未落定：\(failure.reason)"
+            "「\(failure.item.sessionID)」\(failure.item.actionLabel)没改成：\(failure.reason)"
         }
         await load(appState: appState)
     }

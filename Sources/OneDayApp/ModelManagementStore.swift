@@ -66,7 +66,7 @@ final class ModelManagementStore {
             }
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? L10n.string("配置读取失败。")
+            errorMessage = (error as? HermesError)?.userMessage ?? L10n.string("配置没读出来，可能是网络或服务暂时没响应")
         }
         await appState.refreshModelCatalog()
         if let config = appState.config {

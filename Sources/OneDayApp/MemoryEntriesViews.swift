@@ -44,7 +44,7 @@ struct MemoryEntriesSection: View {
                 loadingRow
             case .notConnected(let message):
                 stateCard(
-                    title: "数据桥未连接", message: message
+                    title: "还没连上你的服务", message: message
                 )
             case .sourceNotOpened(let message):
                 stateCard(

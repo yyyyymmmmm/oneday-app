@@ -521,7 +521,7 @@ struct DocumentReaderView: View {
             blocks = DocumentReading.blocks(for: text, kind: kind)
         } catch {
             loadError = (error as? HermesError)?.userMessage
-                ?? "读取文件失败，请稍后再试。"
+                ?? "文件没读出来，可能是网络或服务暂时没响应"
         }
     }
 }

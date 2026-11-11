@@ -346,7 +346,7 @@ final class LedgerModelsTests: XCTestCase {
         XCTAssertEqual(LedgerText.sourceWord(.bridge, locale: Locale(identifier: "zh-Hans")), "自动作业")
         XCTAssertEqual(LedgerText.originWord("reported", locale: Locale(identifier: "zh-Hans")), "实时上报")
         XCTAssertEqual(LedgerText.originWord("bridge_self", locale: Locale(identifier: "zh-Hans")), "自动记录")
-        XCTAssertEqual(LedgerText.originWord("reconciled", locale: Locale(identifier: "zh-Hans")), "对账补记")
+        XCTAssertEqual(LedgerText.originWord("reconciled", locale: Locale(identifier: "zh-Hans")), "补记")
         XCTAssertEqual(
             LedgerText.titleSourceWord("user_excerpt", locale: Locale(identifier: "zh-Hans")), "你的原话"
         )

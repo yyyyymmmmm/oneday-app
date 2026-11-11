@@ -419,7 +419,7 @@ struct ServerRemoteImage: View {
             } else if failed {
                 HStack(spacing: OneDayMetrics.rowInnerGap) {
                     Image(systemName: "photo")
-                    Text("图片加载失败")
+                    Text("图片没加载出来")
                 }
                 .font(.caption)
                 // 0.23.0（审计 C4）：本字落在 bubbleFill

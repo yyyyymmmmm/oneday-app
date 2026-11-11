@@ -36,7 +36,7 @@ public enum ConnectorEvidence: String, Sendable, Equatable, CaseIterable {
     public func label(locale: Locale) -> String {
         switch self {
         case .liveVerified: return L10n.string("服务端实时读取", locale: locale)
-        case .configuredOnly: return L10n.string("仅配置在册 · 未验活", locale: locale)
+        case .configuredOnly: return L10n.string("已保存，还没测过连接", locale: locale)
         case .none: return L10n.string("无连接证据", locale: locale)
         }
     }

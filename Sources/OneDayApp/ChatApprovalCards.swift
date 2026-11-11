@@ -257,7 +257,7 @@ private struct ChatApprovalCard: View {
             case .failure(.recordGone):
                 detailError = "这条待批已被处理或已失效。"
             case .failure:
-                detailError = "改动读取失败，通道未接通或读取出错。"
+                detailError = "改动没读出来，可能是网络或服务暂时没响应"
             }
             detailLoading = false
         }

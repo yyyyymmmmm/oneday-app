@@ -190,7 +190,7 @@ struct SkillsView: View {
             }
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "技能读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "技能没读出来，可能是网络或服务暂时没响应"
         }
     }
 
@@ -386,7 +386,7 @@ struct SkillDetailView: View {
             content = loaded.content
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "内容读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "内容没读出来，可能是网络或服务暂时没响应"
         }
     }
 

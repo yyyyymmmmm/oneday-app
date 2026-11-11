@@ -144,7 +144,7 @@ struct EnvVarsView: View {
             }
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "密钥读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "密钥没读出来，可能是网络或服务暂时没响应"
         }
     }
 }

@@ -485,7 +485,7 @@ final class DeviceSyncController {
         case .unknownSession:
             return L10n.string("设备会话对不上，回到前台重连后再同步")
         case .failed(let detail) where detail == "sync_count_mismatch":
-            return L10n.string("这一批条数对不上，桥没有收；服务器上的副本还是上一份，下次同步会从头重来")
+            return L10n.string("这一批条数对不上，没有收下；服务器上的副本还是上一份，下次同步会从头重来")
         case .failed(let detail):
             return L10n.format(
                 "同步没成（%@）；服务器上的副本还是上一份", detail

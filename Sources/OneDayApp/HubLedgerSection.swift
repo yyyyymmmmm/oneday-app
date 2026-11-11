@@ -36,7 +36,7 @@ struct HubLedgerSection: View {
                 }
             case .failed(let message):
                 ContentUnavailableView {
-                    Label("台账读取失败", systemImage: "exclamationmark.triangle")
+                    Label("台账没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(message)
                 } actions: {

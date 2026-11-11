@@ -1123,17 +1123,17 @@ struct ConnectorsView: View {
                 }
                 if descriptor.serviceID == .writeGate,
                    let gate = gateSnapshot {
-                    detailRow("闸门模块", gate.supported ? "已启用" : "未启用")
+                    detailRow("写入审批", gate.supported ? "已启用" : "未启用")
                     detailRow(
-                        "记忆闸门", gate.memoryGateEnabled ? "开" : "关"
+                        "记忆写入先审批", gate.memoryGateEnabled ? "开" : "关"
                     )
                     detailRow(
-                        "技能闸门", gate.skillsGateEnabled ? "开" : "关"
+                        "技能改动先审批", gate.skillsGateEnabled ? "开" : "关"
                     )
                 }
                 if descriptor.serviceID == .overviewBridge,
                    let generated = overviewGeneratedAt {
-                    detailRow("快照生成", generated)
+                    detailRow("生成存档", generated)
                 }
             }
             .listRowBackground(Palette.surface)
@@ -1284,7 +1284,7 @@ struct ConnectorsView: View {
             errorMessage = nil
         } catch {
             errorMessage = (error as? HermesError)?.userMessage
-                ?? "连接状态读取失败。"
+                ?? "连接状态没读出来，可能是网络或服务暂时没响应"
         }
     }
 
@@ -1363,7 +1363,7 @@ struct ConnectorsView: View {
             )
             gateSnapshot = status
             guard status.supported else {
-                return .success(metric: "闸门未启用")
+                return .success(metric: "写入审批没开")
             }
             let memoryCount = (try? await memoryBridgeClient.entries(
                 config: config

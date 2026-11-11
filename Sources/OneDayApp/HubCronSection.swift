@@ -12,9 +12,9 @@ struct HubCronSection: View {
     var body: some View {
         if store.cronFailed {
             ContentUnavailableView {
-                Label("定时任务读取失败", systemImage: "exclamationmark.triangle")
+                Label("定时任务没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
             } description: {
-                Text("请稍后重试。")
+                Text("请稍后再试。")
             } actions: {
                 Button("重试") {
                     Task { await store.loadCronIfNeeded() }

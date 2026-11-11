@@ -65,7 +65,7 @@ public enum LedgerText {
         switch raw {
         case "reported": return L10n.string("实时上报", locale: locale)
         case "bridge_self": return L10n.string("自动记录", locale: locale)
-        case "reconciled": return L10n.string("对账补记", locale: locale)
+        case "reconciled": return L10n.string("补记", locale: locale)
         default: return raw.isEmpty ? "—" : raw
         }
     }

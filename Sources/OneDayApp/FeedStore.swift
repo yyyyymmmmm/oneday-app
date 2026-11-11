@@ -77,7 +77,7 @@ final class FeedStore {
             loadState = GoalsStore.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed(L10n.string("动态读取失败，请稍后重试。"))
+            loadState = .failed(L10n.string("动态没读出来，可能是网络或服务暂时没响应"))
         }
         // 附带面：账面失败只降级胶囊/空态口径，帖子照常
         if let fetched = try? await client.feedGeneration(
@@ -135,7 +135,7 @@ final class FeedStore {
             briefError = GoalsStore.message(for: error)
             return false
         } catch {
-            briefError = L10n.string("保存失败，请稍后重试。")
+            briefError = L10n.string("保存失败，请稍后再试。")
             return false
         }
     }
@@ -157,7 +157,7 @@ final class FeedStore {
             briefError = GoalsStore.message(for: error)
             return false
         } catch {
-            briefError = L10n.string("没能开始生成，请稍后重试。")
+            briefError = L10n.string("没能开始生成，请稍后再试。")
             return false
         }
     }

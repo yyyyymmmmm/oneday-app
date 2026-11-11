@@ -37,7 +37,7 @@ public struct SlotChoice: Codable, Equatable, Sendable {
     public func providerLabel(locale: Locale) -> String {
         switch provider {
         case "auto": return L10n.string("自动", locale: locale)
-        case "main": return L10n.string("主端点（经网关）", locale: locale)
+        case "main": return L10n.string("默认服务商（经网关）", locale: locale)
         default: return L10n.format("直连 · %@", locale: locale, provider)
         }
     }

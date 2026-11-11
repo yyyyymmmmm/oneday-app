@@ -33,9 +33,9 @@ final class ConnectionsStore {
         } catch let error as OneDayBridgeError {
             loadError = error == .noKey
                 ? L10n.string("还没有登录凭据，读不到电脑列表。")
-                : L10n.string("电脑列表读取失败，请稍后再试。")
+                : L10n.string("电脑列表没读出来，可能是网络或服务暂时没响应")
         } catch {
-            loadError = L10n.string("电脑列表读取失败，请稍后再试。")
+            loadError = L10n.string("电脑列表没读出来，可能是网络或服务暂时没响应")
         }
     }
 

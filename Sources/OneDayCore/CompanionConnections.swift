@@ -91,7 +91,7 @@ public enum ConnectionStatusWording {
             if verify.detail.contains("已断开") {
                 return ("已断开", .bad)
             }
-            return ("验活没过", .bad)
+            return ("连接没通过", .bad)
         }
         switch connection.configured {
         case .some(true):

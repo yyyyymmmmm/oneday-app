@@ -80,9 +80,9 @@ public enum LocalServiceDirectory {
         LocalServiceDescriptor(
             serviceID: .writeGate,
             name: "记忆与技能",
-            blurb: "审批桥 · 记忆和技能的写入先过这道闸门",
+            blurb: "记忆和技能的写入，先经你批准再生效",
             iconAssetName: "LocalWriteGate",
-            evidenceLine: "检查的是审批闸门的工作状态（打开本页时当场问的）"
+            evidenceLine: "检查的是写入审批的工作状态（打开本页时当场问的）"
         ),
         LocalServiceDescriptor(
             serviceID: .oneDayBridge,
@@ -94,7 +94,7 @@ public enum LocalServiceDirectory {
         LocalServiceDescriptor(
             serviceID: .overviewBridge,
             name: "总览数据",
-            blurb: "总览桥 · 总览页与通知角标的数据来源",
+            blurb: "总览 · 总览页与通知角标的数据来源",
             iconAssetName: "LocalOverviewBridge",
             evidenceLine: "检查的是总览数据能不能读到（这项服务没有专门的健康检查，拿最轻的一次读取代替）"
         ),

@@ -45,7 +45,7 @@ struct HubApprovalSection: View {
                 }
             case .failed(let message):
                 ContentUnavailableView {
-                    Label("读取失败", systemImage: "exclamationmark.triangle")
+                    Label("没读出来", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(message)
                 } actions: {
@@ -368,7 +368,7 @@ struct HubDiffView: View {
                 }
             } else if let errorText {
                 ContentUnavailableView(
-                    "改动读取失败",
+                    "改动没读出来，可能是网络或服务暂时没响应",
                     systemImage: "exclamationmark.triangle",
                     description: Text(errorText)
                 )
@@ -388,7 +388,7 @@ struct HubDiffView: View {
             case .failure(.recordGone):
                 errorText = "这条待批已被处理或已失效。"
             case .failure:
-                errorText = "通道未接通或读取出错，请稍后重试。"
+                errorText = "通道未接通或读取出错，请稍后再试。"
             }
         }
     }

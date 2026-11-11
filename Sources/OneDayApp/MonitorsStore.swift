@@ -76,7 +76,7 @@ final class MonitorsStore {
             loadState = Self.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed(L10n.string("监测读取失败，请稍后重试。"))
+            loadState = .failed(L10n.string("监测没读出来，可能是网络或服务暂时没响应"))
         }
     }
 
@@ -100,7 +100,7 @@ final class MonitorsStore {
             )
         case .bridgeMissing:
             return .sourceNotOpened(
-                L10n.string("服务器上的数据桥还没有开通监测面。开通后，你盯着的页面和对象有变化就会出现在这里。")
+                L10n.string("服务器上还没有开通监测。开通后，你盯着的页面和对象有变化就会出现在这里。")
             )
         case .recordGone:
             return .failed(L10n.string("这条记录已经不在了，请刷新后重试。"))
@@ -112,9 +112,9 @@ final class MonitorsStore {
     static func message(for error: OneDayBridgeError) -> String {
         switch error {
         case .noKey:
-            return L10n.string("数据桥未连接：还没有可用的登录信息。")
+            return L10n.string("还没连上你的服务：还没有可用的登录信息。")
         case .unauthorized:
-            return L10n.string("数据桥未连接：服务器拒绝了这次登录。")
+            return L10n.string("还没连上你的服务：服务器拒绝了这次登录。")
         case .bridgeMissing:
             return L10n.string("监测数据源还没有开通。")
         case .recordGone:
@@ -147,7 +147,7 @@ final class MonitorsStore {
             }
         } catch {
             if changes[monitorID] == nil {
-                changesErrors[monitorID] = L10n.string("变化记录读取失败，请稍后重试。")
+                changesErrors[monitorID] = L10n.string("变化记录没读出来，可能是网络或服务暂时没响应")
             }
         }
     }
@@ -226,7 +226,7 @@ final class MonitorsStore {
             createError = Self.message(for: error)
             return false
         } catch {
-            createError = L10n.string("监测创建失败，请稍后重试。")
+            createError = L10n.string("监测创建失败，请稍后再试。")
             return false
         }
     }
@@ -263,7 +263,7 @@ final class MonitorsStore {
         } catch let error as OneDayBridgeError {
             notes[monitorID] = Self.message(for: error)
         } catch {
-            notes[monitorID] = L10n.string("检查失败，请稍后重试。")
+            notes[monitorID] = L10n.string("检查失败，请稍后再试。")
         }
     }
 
@@ -304,8 +304,8 @@ final class MonitorsStore {
             notes[monitorID] = Self.message(for: error)
         } catch {
             notes[monitorID] = enabled
-                ? L10n.string("恢复失败，请稍后重试。")
-                : L10n.string("暂停失败，请稍后重试。")
+                ? L10n.string("恢复失败，请稍后再试。")
+                : L10n.string("暂停失败，请稍后再试。")
         }
     }
 
@@ -343,7 +343,7 @@ final class MonitorsStore {
             notes[monitorID] = Self.message(for: error)
             return false
         } catch {
-            notes[monitorID] = L10n.string("删除失败，请稍后重试。")
+            notes[monitorID] = L10n.string("删除失败，请稍后再试。")
             return false
         }
     }
