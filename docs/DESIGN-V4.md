@@ -10063,7 +10063,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 节号映射（自选→定号）：§155→§162｜§157→§163｜§160→§164｜§156→§165｜§157→§166｜§157→§167｜§161→§168｜§161→§169｜§165→§170｜§165→§172；各节代码/测试注释已同步。
 - 合并合裁四项：①设置身份卡——以 §164 IA 为终局，§159 的 Menu 形态退役（SettingsView 残留呈现旗与两张 sheet 已清），编辑面本体经 IdentityDetailView 复用、版本页脚收敛 OneDayVersionLabel 单源（第五处字面在本版由 0.50.17 旧值一并归正为现行版）；②通知落点——§166 的 destination(for:) 先查 §165 ApprovalNotificationRouting 本机锚再回落 §123 集，详情按钮 hasAnchorRoute 由落点档位派生；连带补 NotificationDetail.destinationLabel 对锚点两档的穷尽分支（首轮合并 CI 红于此、9a41112 修复）；③底缘——ChatView 底缘以 §170 hidden（整条撤带）为终局，§167 的 .hard 不取（§170 节内已记作废补记），§167 其余（解析缓存等）照常；④xcstrings 三轮并集均实读校验（三语全覆盖，终值 2872 键＋InfoPlist）；§164 与引导线共有的 8 个反馈类键英文译法冲突取已合入的引导线版（中文同文、无功能差）。
 - 抽屉热修时序补记：本节初稿曾记其「未赶上」（当时其分支 CI 未绿、无就绪确认）；随后 CI 43059901058 转绿且就绪确认到达，因 0.50.19 尚未产出 IPA 未交付，按 ⑩ 并入本版，初稿口径作废。
-- 发版验包（待补记）：发版 CI run／单测／IPA 字节与 md5 见本节补记。
+- 发版验包补记：发版 CI 以最终树 7573714 的 run **43066818091** 为准（jobs API 终判 build-native **success**）；先行两跑作废——43062266756（同树首跑）红于宿主测试 testAnimatedCloseReturnsToZero 的 runner 停顿型超时（无断言失败、Core 1669 全过；43066818091 同用例 2.03 秒 passed，定谳 flake）、43061763175 为不含热修的旧树 049a6aa（success 但不作数）。单测 **Executed 1669（OneDayCoreTests）＋8（OneDayAppTests）、0 failures**（0.50.18 基线 1591 净增 86，只增不减）。IPA：**10,879,000 字节，md5 `0e2720ef2f3d687ef5824f3463b935fa`**，主线独立解包实读 Info.plist＝0.50.19／**141**／site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.19/OneDay-v0.50.19-141.ipa。
 
 ## §172 抽屉打不开阻断热修：布局往返反解 center 吃掉 transform 位移（2026-11-11 夜，用户真机录屏点名；预制分支 feat/drawer-open-hotfix，基线 main edab9f0，只预制不合并；节号自选 §165，合并时主线合裁顺延 §172）
 
