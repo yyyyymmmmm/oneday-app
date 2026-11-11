@@ -54764,29 +54764,6 @@
         }
       }
     },
-    "只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "只有經網關的模型能設為全域預設；直連服務商的模型請在下面給具體用途指定。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Only models reached through the gateway can become the global default; assign a direct provider's models to specific purposes below."
-          }
-        }
-      }
-    },
     "名字是这家服务商的标识，不能改名；要换名字请删掉重新添加。密钥只在保存时发给你的服务端保存，App 不留存。": {
       "extractionState": "manual",
       "localizations": {
@@ -59866,6 +59843,121 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't read the preset list; the network or the service may be temporarily unavailable."
+          }
+        }
+      }
+    },
+    "预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設的預設模型從網關清單裡選；要把某家服務商設為全域預設，在它的卡片裡點模型即可。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A preset's default model comes from the gateway list. To make a provider the global default, tap one of its models on its card."
+          }
+        }
+      }
+    },
+    "默认模型切换": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认模型切换"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設模型切換"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default model switch"
+          }
+        }
+      }
+    },
+    "这台服务器还没登记网关服务商，暂时切不回默认服务商。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台服务器还没登记网关服务商，暂时切不回默认服务商。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台伺服器還沒登記網關服務商，暫時切不回預設服務商。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This server doesn't have a registered gateway provider yet, so the default can't be switched back for now."
+          }
+        }
+      }
+    },
+    "在服务商「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在服务商「%@」"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在服務商「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the %@ provider"
+          }
+        }
+      }
+    },
+    "在「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「%@」"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On %@"
           }
         }
       }

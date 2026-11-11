@@ -125,7 +125,7 @@ struct AuxModelsView: View {
                     )
                 }
             }
-            ForEach(store.providers, id: \.name) { provider in
+            ForEach(store.userProviders, id: \.name) { provider in
                 Section(provider.name) {
                     ForEach(provider.models, id: \.self) { model in
                         optionButton(
