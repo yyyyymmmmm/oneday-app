@@ -8243,6 +8243,10 @@ Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手�
 - 冲突面自查：本包只动 ChatApprovalCards.swift 的审批卡区段，未碰 0.46.1 §116 的解析/文件牌/回底钮代码段；ApprovalCardFace 为新文件、零交叠。基线 2ed1d4f 已含 0.46.1 全部代码，本包在其上施工。
 - 审计余项不在本包：S2-06～S2-09/S2-13（令牌卫生小包 B）、S2-11（并入 0.47.0 对标包与否由主线定）、S2-10/S2-12（只登记不排期），均按审计切分表原样保留。
 
+### 118.4 S2-11 落地（合并单续办补入，2026-11-11）
+
+- §117.8 核查定论 S2-11 未随对标包落地、转本包尾巴，本单补入：FeedBriefEditorView 两颗保存钮自 Form 文本行式 Button 提主钮层级，照 §118 审批卡主钮同款形态口径——「保存兴趣」＝主钮（Palette.primary 实心＋白字、通栏胶囊、高 ApprovalCardSpec.buttonHeight 48、保存中右端白转菊花保留）；「保存正式简报」＝次钮（同几何、Palette.selectionFill 浅灰填充＋墨字），主次分明。两钮均 .odPressable、行 chrome 改 listRowInsets 零＋listRowBackground 透明（胶囊自成面、不套行卡底），禁用态以 0.45 透明度明示（条件与旧口径逐字不变）。文案（既有目录键）与 saveInterest/savePrompt 逻辑一字未动；无新文案键，validate_i18n 不变。
+
 
 ## §121 热修：回底钮消失＋自己发的文件没牌/点开落点（0.46.1 真机报障，2026-11-11 12:27）
 
