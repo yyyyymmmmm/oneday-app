@@ -1,5 +1,6 @@
 {
   "sourceLanguage": "zh-Hans",
+  "version": "1.0",
   "strings": {
     " · %lld 个工具": {
       "extractionState": "manual",
@@ -60195,6 +60196,12 @@
     "降级运行": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running degraded"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60206,18 +60213,18 @@
             "state": "translated",
             "value": "降級運行"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Running degraded"
-          }
         }
       }
     },
     "上次读到": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last read"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60229,18 +60236,18 @@
             "state": "translated",
             "value": "上次讀到"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last read"
-          }
         }
       }
     },
     "演示模式到此为止，连接你的服务器后可用。": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's as far as the demo goes. Connect your own server to use this."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60251,12 +60258,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "演示模式到此為止，連接你的伺服器後可用。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "That's as far as the demo goes. Connect your own server to use this."
           }
         }
       }
@@ -60287,6 +60288,12 @@
     "预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A preset's default model comes from the gateway list. To make a provider the global default, tap one of its models on its card."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60298,18 +60305,18 @@
             "state": "translated",
             "value": "預設的預設模型從網關清單裡選；要把某家服務商設為全域預設，在它的卡片裡點模型即可。"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A preset's default model comes from the gateway list. To make a provider the global default, tap one of its models on its card."
-          }
         }
       }
     },
     "默认模型切换": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default model switch"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60321,18 +60328,18 @@
             "state": "translated",
             "value": "預設模型切換"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Default model switch"
-          }
         }
       }
     },
     "这台服务器还没登记网关服务商，暂时切不回默认服务商。": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This server doesn't have a registered gateway provider yet, so the default can't be switched back for now."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60344,18 +60351,18 @@
             "state": "translated",
             "value": "這台伺服器還沒登記網關服務商，暫時切不回預設服務商。"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This server doesn't have a registered gateway provider yet, so the default can't be switched back for now."
-          }
         }
       }
     },
     "在服务商「%@」": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the %@ provider"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60367,18 +60374,18 @@
             "state": "translated",
             "value": "在服務商「%@」"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "On the %@ provider"
-          }
         }
       }
     },
     "在「%@」": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On %@"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60389,12 +60396,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在「%@」"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "On %@"
           }
         }
       }
@@ -60444,7 +60445,121 @@
           }
         }
       }
+    },
+    "资源库": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资源库"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資源庫"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library"
+          }
+        }
+      }
+    },
+    "查看全部": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看全部"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看全部"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View All"
+          }
+        }
+      }
+    },
+    "添加文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加檔案"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add File"
+          }
+        }
+      }
+    },
+    "添加视频": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加视频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加影片"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Video"
+          }
+        }
+      }
+    },
+    "有 %lld 张图片读取失败，未加入待发列表。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 %lld 张图片读取失败，未加入待发列表。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 %lld 張圖片讀取失敗，未加入待傳送列表。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld photos couldn't be read and weren't added to the send list."
+          }
+        }
+      }
     }
-  },
-  "version": "1.0"
+  }
 }

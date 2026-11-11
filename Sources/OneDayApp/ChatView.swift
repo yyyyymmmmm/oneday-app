@@ -1,5 +1,6 @@
 import OneDayDesign
 import OneDayCore
+import Photos
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -247,6 +248,13 @@ struct ChatView: View {
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showPhotoPicker = false
     @State private var showCamera = false
+    // §147 附件面板改版：「+」改开底部附件面板
+    // sheet（旧浮窗小卡 Menu 退役）；视频走独立
+    // PhotosUI 选图器（视频过滤、与图片选图器分开
+    // 两套绑定，互不串扰）
+    @State private var showAttachPanel = false
+    @State private var videoItems: [PhotosPickerItem] = []
+    @State private var showVideoPicker = false
     // 文件选择自 0.36.31 起走 UIKit 桥 Document-
     // PickerBridge 命令式呈现，不再有 SwiftUI 呈现
     // 状态（旧 showFileImporter 随 .fileImporter
@@ -556,6 +564,50 @@ struct ChatView: View {
             // 被上面的 guard 挡下，防 onChange 重入
             photoItems = []
             Task { await loadPickedPhotos(items) }
+        }
+        // §147：视频选图器（面板「添加视频」开；视频
+        // 过滤、入条走文件路——视频是文件不是多模态
+        // 图片 part，命名与大小闸走 Core/FileIntake）
+        .photosPicker(
+            isPresented: $showVideoPicker,
+            selection: $videoItems,
+            matching: .videos
+        )
+        .onChange(of: videoItems) { _, items in
+            guard !items.isEmpty else { return }
+            videoItems = []
+            Task { await loadPickedVideos(items) }
+        }
+        // §147：附件面板 sheet 本体（形态见 Attach-
+        // mentPanelView）；面板内各动作先收面板、隔一
+        // 拍再呈现下一层（相机/选图器/文件桥），不与
+        // sheet 收起同帧抢呈现（同 DocumentPicker-
+        // Bridge 延拍口径）
+        .sheet(isPresented: $showAttachPanel) {
+            AttachmentPanelView(
+                onCamera: {
+                    afterAttachPanelDismiss { showCamera = true }
+                },
+                onPickPhoto: { assetID in
+                    showAttachPanel = false
+                    Task { await loadStripPhoto(assetID: assetID) }
+                },
+                onViewAll: {
+                    afterAttachPanelDismiss { showPhotoPicker = true }
+                },
+                onAddFile: {
+                    afterAttachPanelDismiss {
+                        DocumentPickerBridge.present { urls in
+                            loadPickedFiles(urls: urls)
+                        }
+                    }
+                },
+                onAddVideo: {
+                    afterAttachPanelDismiss { showVideoPicker = true }
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
         // 0.36.31（件二）：.fileImporter 已删——侧载
         // 设备类上其 coordinator 会死在被拆的呈现上
@@ -3475,28 +3527,14 @@ private struct ComposerBarLayout: Layout {
     }
 
     private var attachButton: some View {
-        Menu {
-            Button {
-                showCamera = true
-            } label: {
-                Label("拍照", systemImage: "camera")
-            }
-            .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
-            Button {
-                showPhotoPicker = true
-            } label: {
-                Label("相册选图", systemImage: "photo.on.rectangle")
-            }
-            Button {
-                // 0.36.31（件二）：走 UIKit 桥呈现（桥
-                // 内延一拍避开本 Menu 的收起瞬间、回
-                // 调先 dismiss 再喂回 loadPickedFiles）
-                DocumentPickerBridge.present { urls in
-                    loadPickedFiles(urls: urls)
-                }
-            } label: {
-                Label("选文件", systemImage: "doc")
-            }
+        // §147 改版：点「+」开底部附件面板 sheet（资
+        // 源库照片条＋添加文件/视频动作行，见 Attach-
+        // mentPanelView）；旧浮窗小卡 Menu（三行：拍
+        // 照/相册选图/选文件）整套退役——三条路全部
+        // 由面板承接（相机格/查看全部选图器/添加文件
+        // 行走 DocumentPickerBridge，P-18 桥不回退）
+        Button {
+            showAttachPanel = true
         } label: {
             // 0.2.5：裸符号——撤掉 0.2.4 的玻璃圆外圈与 union
             // 融合（胶囊玻璃里再套一圈圆是嵌套毛病）；＋号
@@ -3515,7 +3553,22 @@ private struct ComposerBarLayout: Layout {
                 )
                 .contentShape(Circle())
         }
+        .buttonStyle(.odPressable)
         .accessibilityLabel("添加附件")
+    }
+
+    /// §147：附件面板内动作的统一收尾——先收面板、
+    /// 隔一拍再执行呈现型动作（相机全屏盖/选图器/
+    /// 文件桥），不与 sheet 收起动画同帧抢呈现上下
+    /// 文（同 DocumentPickerBridge 的延拍口径）
+    private func afterAttachPanelDismiss(
+        _ action: @escaping () -> Void
+    ) {
+        showAttachPanel = false
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            action()
+        }
     }
 
     /// 待发附件条：图片出缩略图、文件出名牌，都可单独
@@ -3718,21 +3771,96 @@ private struct ComposerBarLayout: Layout {
     /// 内嵌发送、不经文件上传契约，0.36.31 文件闸
     /// 抬 100MB 不牵动本闸）
     private func loadPickedPhotos(_ items: [PhotosPickerItem]) async {
-        var oversized = 0
+        var dataList: [Data?] = []
         for item in items {
-            guard let data = try? await item.loadTransferable(type: Data.self)
-            else { continue }
-            guard data.count <= 20 * 1024 * 1024 else {
+            dataList.append(
+                try? await item.loadTransferable(type: Data.self)
+            )
+        }
+        ingestPhotoData(dataList)
+    }
+
+    /// 图片入条共用口（§147 收编）：选图器与附件面
+    /// 板照片条两条取图路在此合流——同一大小闸
+    /// （Core AttachmentPanel.photoFits）、同一汇总
+    /// 口径（超限/失败各一条 notice、不静默吞，P-18）
+    private func ingestPhotoData(_ dataList: [Data?]) {
+        var oversized = 0
+        var failed = 0
+        for data in dataList {
+            guard let data else {
+                failed += 1
+                continue
+            }
+            guard AttachmentPanel.photoFits(byteCount: data.count) else {
                 oversized += 1
                 continue
             }
             appendImage(data)
         }
-        if oversized > 0 {
-            showNotice(
-                "有 \(oversized) 张图片超过 20MB，未加入待发列表。",
-                tier: .extended
+        let notices = [
+            AttachmentPanel.oversizedPhotosNotice(count: oversized),
+            AttachmentPanel.failedPhotosNotice(count: failed),
+        ].compactMap { $0 }
+        if !notices.isEmpty {
+            showNotice(notices.joined(), tier: .extended)
+        }
+    }
+
+    /// 附件面板照片条点选（§147）：按资产 id 取原图
+    /// 数据（允许 iCloud 下载），入条走共用口——与
+    /// 选图器同闸同口径，不另开一套
+    private func loadStripPhoto(assetID: String) async {
+        let result = PHAsset.fetchAssets(
+            withLocalIdentifiers: [assetID], options: nil
+        )
+        guard let asset = result.firstObject else {
+            ingestPhotoData([nil])
+            return
+        }
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.isNetworkAccessAllowed = true
+        let data = await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImageDataAndOrientation(
+                for: asset, options: options
+            ) { data, _, _, _ in
+                continuation.resume(returning: data)
+            }
+        }
+        ingestPhotoData([data])
+    }
+
+    /// 选视频入条（§147）：视频是文件不是图片 part
+    /// ——以文件形态入条（名由 Core 拼装、大小走
+    /// FileIntake 同闸、被拒点名汇总），后续上传与
+    /// 发送拼装与普通文件完全同路
+    private func loadPickedVideos(_ items: [PhotosPickerItem]) async {
+        var oversized: [String] = []
+        var unreadable: [String] = []
+        for item in items {
+            let name = AttachmentPanel.videoFileName(
+                preferredExtension: item.supportedContentTypes
+                    .first?.preferredFilenameExtension
             )
+            guard let data = try? await item.loadTransferable(
+                type: Data.self
+            ) else {
+                unreadable.append(name)
+                continue
+            }
+            guard !FileIntake.isOversized(byteCount: data.count) else {
+                oversized.append(name)
+                continue
+            }
+            attachments.append(
+                PendingAttachment(kind: .file(name: name, data: data))
+            )
+        }
+        if let notice = FileIntake.rejectionNotice(
+            oversized: oversized, unreadable: unreadable
+        ) {
+            showNotice(notice, tier: .extended)
         }
     }
 

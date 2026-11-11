@@ -9107,3 +9107,36 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 分支 feat/delivery-registry（worktree ~/workspace/oneday-worktrees/pkg-delivery-registry，基线 main fa2bf24／0.50.12），未合并、版本号未改。基线取开工时 main 顶端；主线五合一版本若先行落地，合并时以主线合裁为准（ChatView 接线点与 §136 相邻、xcstrings 纯新增 2 键，预判冲突面小）。
 - 分支 CI：workflow_dispatch run 43001417390 **success**（jobs API 终判 build-native 及全部 steps success）；单测 Executed **1472、0 failures**，其中本包新增 DeliveryMarkerTests 18 法＋BridgeDeliveryDecodeTests 3 法两套全 passed；既有测试文件零删改（Tests/ diff 仅新增一文件）。
+
+# §147 附件面板改版（2026-11-11，用户 19:01 点题附双图；预制分支 feat/attachment-panel，基线 main 6042a77／五合一合并中口径，只预制不合并，节号分支自选 §146 已被登记制占用，合并时主线合裁顺延 §147）
+
+### 147.1 用户点题与定版形态
+
+- 用户对照 Muse 截图点题：现行点「+」弹浮动小卡三行（选文件／相册选图／拍照），改为图一（Muse）式底部附件面板。
+- 目标形态：底部升起 sheet——顶部「资源库」区（左标题「资源库」、右「查看全部」蓝链）；其下横滑缩略图条（第一格相机格，点之直接开相机；其后相册最近照片缩略图，点任意一张直接进待发附件条）；「查看全部」开全量选图器。再往下动作行列表：「添加文件」「添加视频」（图标＋标题行、行间分隔）。
+
+### 147.2 落法
+
+- **Core（AttachmentPanel.swift，新）**：纯函数三组——①授权政策 `PhotoAccess` 五态＋`showsLibrary`（只有 authorized/limited 显资源库区；面板只同步读现态、绝不发授权请求、不是新授权流；有限授权下 PHAsset 取数天然只回已授权子集，不另过滤）；②照片条拼装 `stripCells`（相机格恒首、id 去重取首现、上限 `stripPhotoLimit=30` 截断）；③接入判定：图片闸 `maxPhotoBytes=20MB` 自 ChatView 内联常量收编（`photoFits`），选图器与照片条两路共用，超限/失败汇总文案 `oversizedPhotosNotice`/`failedPhotosNotice` 单一出处（失败计数为本包新增——旧选图器路径对加载失败静默 continue，本包按 P-18 有声口径收编）；视频入条命名 `videoFileName`（「视频」＋清洗后首选扩展名、无可用回落 mov）。
+- **App 面板（AttachmentPanelView.swift，新）**：sheet 本体。资源库区仅 `showsLibrary` 时呈现；照片条 PHAsset 按 creationDate 倒序取 30、PHImageManager 机会式缩略图（76pt 方格、radiusCard 圆角、bubbleFill 占位）；相机格相机不可用时 disabled。动作行 paperclip「添加文件」／play.circle「添加视频」、minHeight 52、分隔线 Palette.separator。间距全走 OneDayMetrics 梯队、字阶走系统 .headline/.body、无直写数值（方格边长 76 为形态值、已在代码注明出处）。
+- **ChatView 接线**：attachButton 的 Menu 整套删除、改 Button 开 `.sheet(isPresented: $showAttachPanel)`（.medium detent＋拖拽指示）。面板四路动作：相机格/查看全部/添加文件/添加视频一律先收面板、隔 450ms 再呈现下一层（`afterAttachPanelDismiss`，同 DocumentPickerBridge 延拍口径、防 sheet 收起与下一呈现同帧抢上下文）；照片条点选不需再呈现、直接取数入条。「添加文件」复用 DocumentPickerBridge 原样（P-18，绝不回退 fileImporter）；「查看全部」复用既有 `.photosPicker(matching: .images)` 多选链；「添加视频」新开第二套 `.photosPicker(matching: .videos)` 绑定，入条走文件形态（FileIntake 100MiB 闸＋rejectionNotice 点名），与图片 part 路分开。取图入条合流 `ingestPhotoData`（选图器与照片条共用一闸一口径）；选中后附件条筹码、上传链、发送拼装零改动。
+
+### 147.3 新面准入四问（开工答卷）
+
+- ①入口：「+」按钮位置与点开手势不变，只是落点由浮窗菜单换成 sheet，无新入口、无孤儿面。
+- ②重复：本面板是附件三路（文件/图片/视频＋相机）的唯一聚合面，旧 Menu 同步整套退役、grep 零残留（ChatView 内余下 Menu 字样均为顶栏模型菜单、不相干）；选图器/文件桥/相机三条既有呈现链各只剩面板一个发起点（照片条点选为新增直达路，与「查看全部」选图器是同源两档：条内最近 30 张直达、全量走选图器，不构成重复面）。
+- ③令牌与公用件：间距 OneDayMetrics 梯队、圆角 radiusCard、分隔 Palette.separator、按压反馈 .odPressable 公用样式；新增 Core 纯函数 AttachmentPanel 而非页面内散写判定。
+- ④AX 与深色：构造层自查——动作行与标题行字阶走系统语义字体随 AX 缩放、行高 minHeight 只作下限不截断文字；格子为固定形态值（图片缩略图语义、与 §130 定高卡同族）；颜色全走 Palette 语义色（ink/bubbleFill/primary/separator）双模式自适应、无写死色值。真机 AX 最大档＋深色各一帧终验归用户。
+
+### 147.4 三语词条
+
+- 新增 5 键：「资源库」「查看全部」「添加文件」「添加视频」＋「有 %lld 张图片读取失败，未加入待发列表。」（繁体依目录存量口径：檔案/影片/待傳送列表）。Localizable 2626→2631 键，validate_i18n 通过（2644 键含 InfoPlist 13、三语全覆盖、占位符一致、无行话引入）；diff 纯新增 115 行、未动存量键。
+
+### 147.5 单测
+
+- 新增 AttachmentPanelTests 10 法：授权政策五态矩阵、照片条拼装（相机恒首＋顺序、空集只相机、去重取首现、上限截断、默认上限）、图片闸边界（恰 20MB 收、+1 拒、0 收）、超限/失败文案（0 张不出声、逐字断言）、视频命名（小写化、nil/空回落 mov、点前缀清洗）。既有测零删改，只增不减。
+
+### 147.6 预制验收记账（2026-11-11）
+
+- 分支 feat/attachment-panel：代码提交 1a32428，基线 main 6042a77（五合一合并序中口径：0.50.12 的 1451＋cx-model 7＋inline 23＋media 11＋i18n 4＝1496）。validate_i18n 本地实跑通过（2644 键）。分支 CI run 43009070440（workflow_dispatch 触发，head 1a32428）jobs 终判 build-native **success**，单测 Executed **1506、0 failures**（基线 1496＋新增 AttachmentPanelTests 10 法，逐法 passed 日志在案；既有测零删改，只增不减）。未合并、版本号未动，待主线按序合并定版（合并时与五合一后 main 的 ChatView/xcstrings 冲突由主线合裁；§146 已被占、本次合并已顺延改注 §147 并同步代码注释）。
+- 合并后真机待验：点「+」升起面板形态与截图对版；相机格点开相机、照片条点图直接入待发条、查看全部开多选选图器、添加文件走文件桥、添加视频入文件形态附件；未授权相册时资源库区不显、动作行照常；AX 最大字号档与深色模式各一帧。
