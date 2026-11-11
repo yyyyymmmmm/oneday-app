@@ -1517,16 +1517,20 @@ final class NotificationEngine: @unchecked Sendable {
     /// 异步刷新真状态并回填缓存（呈现与分发共用）
     @discardableResult
     static func readSystemState() async -> DevicePermissionState {
-        let settings = await withCheckedContinuation {
+        // 只把 Sendable 的状态枚举带出回调：设置对象本身
+        // 不跨越并发边界（Swift 6 区域隔离会拦）
+        let status = await withCheckedContinuation {
             (continuation:
-                CheckedContinuation<UNNotificationSettings, Never>
+                CheckedContinuation<UNAuthorizationStatus, Never>
             ) in
             UNUserNotificationCenter.current()
                 .getNotificationSettings { settings in
-                    continuation.resume(returning: settings)
+                    continuation.resume(
+                        returning: settings.authorizationStatus
+                    )
                 }
         }
-        let state = translate(settings.authorizationStatus)
+        let state = translate(status)
         updateCache(state)
         return state
     }
