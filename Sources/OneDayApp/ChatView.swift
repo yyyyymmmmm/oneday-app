@@ -2157,6 +2157,13 @@ struct ChatView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                // §133：MEDIA: 图片标记拆分（Core 纯
+                // 函数）——独立成行的图片标记从正文
+                // 摘除、走下方图片行出图，正文只喂摘
+                // 除后的文本（标记原文不再漏进气泡）
+                let mediaSplit = MediaMarker.split(
+                    in: entry.content
+                )
                 // 0.5.1（§32）：思考折叠单元挂在正文泡
                 // 上方同一列——有落盘思考才出现，默认折
                 // 叠、点开看原文（ReasoningBlock）
@@ -2202,8 +2209,27 @@ struct ChatView: View {
                             )
                         }
                 }
-                assistantBubble {
-                    MarkdownText(entry.content)
+                // §133：MEDIA: 标记的图片行——存在性
+                // 门在 AssistantMediaImage（与 §129
+                // 文件牌同源三分判定：确证存在才出
+                // 图，查无/查不成整行不显示、绝不露
+                // 标记原文）
+                ForEach(mediaSplit.imagePaths, id: \.self) { path in
+                    AssistantMediaImage(path: path) {
+                        openImageViewer(
+                            ChatImageViewerItem(
+                                source: .remotePath(path)
+                            )
+                        )
+                    }
+                }
+                // 正文只剩标记行被摘空时不渲染空气泡；
+                // 无标记的旧消息行为逐字不变
+                if !mediaSplit.text.isEmpty
+                    || mediaSplit.imagePaths.isEmpty {
+                    assistantBubble {
+                        MarkdownText(mediaSplit.text)
+                    }
                 }
                 // 0.8.0（P1）：正文里的服务端文件路径出
                 // 文件牌（探测纯函数在 Core，标记图片路
@@ -2222,9 +2248,12 @@ struct ChatView: View {
                 // 本；诊断 file-ref-404-diagnosis-
                 // 20261111：旧口径约 38% 助手侧牌点
                 // 开必 404）
+                // §133：MEDIA: 图片路径已由图片行承
+                // 接，一并排除、不再重复成文件牌
                 let fileRefs = FileRefDetector.detectStandaloneAnchored(
                     in: entry.content,
                     excluding: entry.remoteImagePaths
+                        + mediaSplit.imagePaths
                 )
                 if !fileRefs.isEmpty {
                     VStack(
