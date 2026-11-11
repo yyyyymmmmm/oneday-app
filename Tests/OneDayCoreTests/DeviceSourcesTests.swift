@@ -506,6 +506,7 @@ final class DeviceSourcesTests: XCTestCase {
             [
                 "clipboard_get", "clipboard_set",
                 "files_list", "files_read", "files_write",
+                "file_preview", "file_print",
             ]
         )
     }
