@@ -34,26 +34,30 @@ struct MarkdownText: View {
         MarkdownParser.parse(content)
     }
 
+    /// §168：呈现段（Core 装配）——连续散文合并成
+    /// 一段 prose 进单个文本视图；结构块各自成段
+    private var segments: [MarkdownMessageSegment] {
+        MarkdownMessageAssembler.segments(from: blocks)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                switch block {
-                case .paragraph(let text):
-                    paragraphView(text)
-                case .heading(let text, let level):
-                    headingView(text, level: level)
+            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                switch segment {
+                case .prose(let paragraphs):
+                    proseView(paragraphs)
+                case .quote(let lines):
+                    blockquoteView(lines)
                 case .code(let code, let language):
                     codeView(code, language: language)
-                case .blockquote(let lines):
-                    blockquoteView(lines)
-                case .list(let items):
-                    listView(items)
                 case .table(let header, let alignments, let rows):
                     tableView(
                         header: header,
                         alignments: alignments,
                         rows: rows
                     )
+                case .taskList(let items):
+                    listView(items)
                 case .divider:
                     GroupDivider()
                 }
@@ -63,37 +67,75 @@ struct MarkdownText: View {
 
     // MARK: - 段落与标题
 
-    /// 段落（沿用 §29 口径：.callout 16＋bodyInk，渲染
-    /// 前过断行整形 §14）。§149 起改走 Selectable-
-    /// InlineText（UITextView 可选）：SwiftUI Text
-    /// 在 iOS 26 无选段能力，见 DESIGN §149.2
-    private func paragraphView(_ text: String) -> some View {
+    /// 合并散文段（§168）：整段散文（段落＋标题＋普
+    /// 通列表）同住一个 SelectableInlineText＝一个
+    /// UITextView 的同一文本存储——双击选词／手柄
+    /// 拖扩／跨段扩选在段内连续成立（苹果选择体系
+    /// 的前提，诊断报告 chat-text-selection-
+    /// diagnosis-20261111）。段间几何与旧逐块呈现同
+    /// 值：块间段后距 spacingSM、列表项间 spacingXS、
+    /// 末段归零（段间由外层 VStack 的 spacingSM 接）
+    private func proseView(
+        _ paragraphs: [MarkdownProseParagraph]
+    ) -> some View {
         SelectableInlineText(
-            paragraphs: [
-                .markdown(TextShaping.prettyWrapDocument(text))
-            ],
+            paragraphs: paragraphs.enumerated().map { index, paragraph in
+                var result = InlineTextParagraph(runs: paragraph.runs)
+                result.spaceAfter = index == paragraphs.count - 1
+                    ? 0
+                    : (paragraph.tightAfter
+                        ? OneDayMetrics.spacingXS
+                        : OneDayMetrics.spacingSM)
+                switch paragraph.kind {
+                case .body:
+                    break
+                case .heading(let level):
+                    result.textStyleOverride =
+                        Self.headingTextStyle(level)
+                    result.dimmed = level >= 6
+                case .listItem(let level, let marker):
+                    result.listMarker = InlineListMarker(
+                        text: Self.markerText(
+                            marker: marker, level: level
+                        ),
+                        levelIndent: CGFloat(level)
+                            * OneDayMetrics.spacingM,
+                        columnWidth: 22,
+                        textGap: OneDayMetrics.spacingS
+                    )
+                }
+                return result
+            },
             textStyle: .callout,
             foreground: Palette.bodyInk,
             onSelectionChange: onSelectionChange
         )
     }
 
-    /// 标题分级（0.36.25 补 4–6 级）：字阶梯 22／20／
-    /// 17／15／13／13——H1 .title2、H2 .title3、H3
-    /// .body（17，比正文 16 大一档）、H4 .subheadline、
-    /// H5/H6 .footnote（H6 再降墨色分档），任何一级都
-    /// 不与正文同大（旧版 ##/### 与正文同号只靠间距的
-    /// 病根在此销掉）。字重沿第 9 修口径：基准 regular，
-    /// 标题内 ** 才映射同字号 bold
-    private func headingView(_ text: String, level: Int) -> some View {
-        SelectableInlineText(
-            paragraphs: [.markdown(text)],
-            textStyle: Self.headingTextStyle(level),
-            foreground: level >= 6
-                ? Palette.inkSecondaryOnFill : Palette.bodyInk,
-            onSelectionChange: onSelectionChange
-        )
+    /// 列表标记文字（与旧 markerView 同字同档）：
+    /// 无序按 level 换字形、有序用序号。task 不会到
+    /// 达这里（Core 装配已把含任务项的列表整块分
+    /// 流），兜底字形只为不丢标记
+    private static func markerText(
+        marker: MarkdownListItem.Marker, level: Int
+    ) -> String {
+        switch marker {
+        case .bullet:
+            return level == 0 ? "•" : (level == 1 ? "◦" : "▪")
+        case .ordered(let number):
+            return "\(number)."
+        case .task(let checked):
+            return checked ? "☑" : "☐"
+        }
     }
+
+    // 标题分级口径（0.36.25 补 4–6 级）：字阶梯
+    // 22／20／17／15／13／13——H1 .title2、H2
+    // .title3、H3 .body（17，比正文 16 大一档）、
+    // H4 .subheadline、H5/H6 .footnote（H6 再降墨
+    // 色分档），任何一级都不与正文同大。§168 起标
+    // 题不再独立成视图，字阶经段级覆盖进合并散文
+    // 段（proseView），本表仍是唯一映射源
 
     /// 标题字阶的 UIKit 档（§149）：与 headingFont
     /// 的 SwiftUI 梯逐级同档（title2／title3／
@@ -208,9 +250,13 @@ struct MarkdownText: View {
 
     // MARK: - 列表
 
-    /// 列表：标记列固定宽右对齐（序号不跳列），嵌套按
-    /// level 逐级缩进；任务项呈勾选框形态（只读，对标
-    /// 口径为呈现非控件）。项间 XS 间距
+    /// 任务清单（§168 分流后本视图只剩此用途）：勾
+    /// 选框是 SF Symbol 图形标记、进不了文本存储，
+    /// 含任务项的列表整块留旧呈现——标记列固定宽右
+    /// 对齐（序号不跳列），嵌套按 level 逐级缩进；
+    /// 任务项呈勾选框形态（只读，呈现非控件），项
+    /// 正文仍逐项可选（§149）。普通列表已进合并散
+    /// 文段（proseView），不在此渲染
     private func listView(_ items: [MarkdownListItem]) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             ForEach(
