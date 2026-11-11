@@ -9637,6 +9637,6 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 ### 161.6 文件边界、新面四问与验收
 
-- 动：Core `FeedModels.swift`（likedAt＋两请求体）、Core 新 `FeedDiscussSignal.swift`、桥客户端两端点、FeedStore.toggleLiked、FeedView（动作行/讨论登记/详情 why）、SideChatStore 待发表、ChatView 发送挂点、xcstrings +3 键（点赞/取消点赞/讨论信号，三语齐）、Core 单测新 `FeedAppATests` 8 法。
+- 动：Core `FeedModels.swift`（likedAt＋两请求体）、Core 新 `FeedDiscussSignal.swift`、桥客户端两端点、FeedStore.toggleLiked、FeedView（动作行/讨论登记/详情 why）、SideChatStore 待发表、ChatView 发送挂点、xcstrings +3 键（点赞/取消点赞/讨论信号，三语齐）、Core 单测新 `FeedAppATests` 9 法。
 - 新面四问：①入口——无新面，爱心在原动作行、why 在原详情、信号无 UI；②重复——点赞态只认桥 likedAt 一源、无本地第二账；③令牌——爱心字阶/配色走既有 .subheadline 与 Palette，无新令牌新数值；④AX 与深色——爱心钮带无障碍标签、填充态不单靠颜色（fill 图形本身可辨）、深色随 Palette 语义色，真机各验一帧入待验清单。
 - 真机待验：点赞→杀 App 重开仍填充（桥真源）；断网点赞行面不假装、恢复后以桥为准；点讨论→旁聊发首句（含自述句/不含各一次）→查桥口味账 discussHints +1 且自述句入账；讨论线程第二句不再发信号；详情 why 在正文上方一行、ⓘ 面板 why 段在位；动态流序与落盘序一致、无 edition 分组。
