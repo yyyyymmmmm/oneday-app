@@ -8963,3 +8963,8 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 新增键 2：「交付内容」（端点名）、「%@（文件已删除）」（gone 降级行）；validate_i18n 通过（2641 键含 InfoPlist 13，三语全覆盖）。
 - 真机待验：①试验会话打开——试验文件成白卡（纸面封面＋名＋大小）、点开进打开页可读；②让智能体新发一张图（新会话走登记）——图直接内联成 §130 卡、点开查看器递进清晰；③手写一个假号独立成行发给自己看——只显一行符号文本不成卡；④删掉已登记文件再进会话——该项落「（文件已删除）」一行不可点；⑤老消息（MEDIA/裸路径）呈现与本版前一致（兜底不回归）。
+
+### 142.4 预制记账（分支侧，合并时主线补合并记账）
+
+- 分支 feat/delivery-registry（worktree ~/workspace/oneday-worktrees/pkg-delivery-registry，基线 main fa2bf24／0.50.12），未合并、版本号未改。基线取开工时 main 顶端；主线五合一版本若先行落地，合并时以主线合裁为准（ChatView 接线点与 §136 相邻、xcstrings 纯新增 2 键，预判冲突面小）。
+- 分支 CI：workflow_dispatch run 43001417390 **success**（jobs API 终判 build-native 及全部 steps success）；单测 Executed **1472、0 failures**，其中本包新增 DeliveryMarkerTests 18 法＋BridgeDeliveryDecodeTests 3 法两套全 passed；既有测试文件零删改（Tests/ diff 仅新增一文件）。
