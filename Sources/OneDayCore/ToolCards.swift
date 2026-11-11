@@ -1225,6 +1225,339 @@ public enum FileRefDetector {
         let ext = (path as NSString).pathExtension.lowercased()
         return imageExtensions.contains(ext)
     }
+
+    // MARK: - §143 内联图片候选
+
+    /// §143：助手正文里「裸路径图片」的内联候选——
+    /// 路径本体（出现序去重）＋它是不是独立成行
+    /// （整行恰是这一条路径，含 §129 的一层行首/
+    /// 包裹剥离；段内单独成词为 false）
+    public struct InlineImageRef: Equatable, Sendable {
+        public let path: String
+        public let isStandaloneLine: Bool
+
+        public init(path: String, isStandaloneLine: Bool) {
+            self.path = path
+            self.isStandaloneLine = isStandaloneLine
+        }
+    }
+
+    /// 段内「单独成词」的前界字符集（§143）：路径
+    /// 前一字符必须是行首、空白或标点分隔，才算单
+    /// 独成词；紧贴汉字/字母数字的提及不算（§129
+    /// 纪律：语义不明的行内提及维持纯文本）。不收
+    /// ASCII 冒号（与 scan 的 URL 护栏同判），全角
+    /// 冒号收——中文正文「图在这：/opt/…」是主形
+    /// 态、且绝不出现在 URL 里
+    private static let wordPrecedingDelimiters: Set<Character> = [
+        " ", "\t", "，", "。", "、", "；", "：", "？", "！",
+        "·", "—", "…", "「", "『", "（", "【", "《", "〈", "﹝",
+        "(", "[", "{", "<", "\"", "'", "`", "*",
+    ]
+
+    /// 段内「单独成词」的后界字符集（§143）：路径
+    /// （含其 #L 锚点原文）后一字符必须是行尾、空
+    /// 白或标点分隔；紧跟字母数字/下划线/路径字符
+    /// 的是更长词元的一部分，不算
+    private static let wordFollowingDelimiters: Set<Character> = [
+        " ", "\t", "，", "。", "、", "；", "：", "？", "！",
+        "·", "—", "…", "」", "』", "）", "】", "》", "〉", "﹞",
+        ")", "]", "}", ">", "\"", "'", "`", "*",
+        ",", ";", ":", "!", "?", ".",
+    ]
+
+    /// 内联图片候选探测（§143，用户 2026-11-11
+    /// 17:13 报障）：助手侧图片此前只有两条内联通
+    /// 道——落盘登记的 remoteImagePaths 与 §136 的
+    /// MEDIA: 标记行；裸写在正文里的图片路径（独
+    /// 立成行或段内单独成词）一律落文件牌链、出通
+    /// 用文件卡，点开才看得见（生产实证：state.db
+    /// 消息 1775 的截图路径独立成行、文件真实存
+    /// 在，仍只出文件牌）。本口把图片从文件牌链分
+    /// 出来：扩展名是图片（imageExtensions）＋在下
+    /// 载根内＋形态二选一（独立成行／段内单独成
+    /// 词），即为内联候选；是否真出图由 App 层按
+    /// §129 三分存在性判定（Core 不判存在性，与
+    /// MediaMarker 同分工）。§129 的门一项不松：
+    /// 根外路径不收、围栏内不收、紧贴正文的提及
+    /// 不收、拟议未落盘的由存在性门在 App 层挡；
+    /// 非图片文件完全不走本口，独立成行判据与成
+    /// 牌链逐字不变
+    public static func inlineImageCandidates(
+        in text: String, excluding excluded: [String] = []
+    ) -> [InlineImageRef] {
+        guard text.contains("/") else { return [] }
+        var collected: [InlineImageRef] = []
+        var indexByPath: [String: Int] = [:]
+        var seen: Set<String> = Set(excluded)
+        var inFence = false
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                inFence.toggle()
+                continue
+            }
+            if inFence { continue }
+            // 独立成行：整行恰一条路径（复用 §129
+            // 成牌口的整行判据，含下载根校验）
+            let standalone = detectStandaloneAnchored(in: line)
+            if standalone.count == 1, let ref = standalone.first {
+                // 整行多图粘连形先于单条判：两条绝对
+                // 路径被中文标点粘成一条正则词元时，
+                // 拆回逐条收（各自再过图片＋根内门）
+                if degluedPathPieces(ref.path).count > 1 {
+                    if let glued = gluedStandalonePieces(in: line) {
+                        for piece in glued
+                        where isImagePath(piece)
+                            && isInDownloadRoot(piece) {
+                            if seen.insert(piece).inserted {
+                                indexByPath[piece] = collected.count
+                                collected.append(
+                                    InlineImageRef(
+                                        path: piece,
+                                        isStandaloneLine: true
+                                    )
+                                )
+                            } else if let idx = indexByPath[piece],
+                                      !collected[idx].isStandaloneLine {
+                                collected[idx] = InlineImageRef(
+                                    path: piece,
+                                    isStandaloneLine: true
+                                )
+                            }
+                        }
+                    }
+                    continue
+                }
+                if isImagePath(ref.path) {
+                    if seen.insert(ref.path).inserted {
+                        indexByPath[ref.path] = collected.count
+                        collected.append(
+                            InlineImageRef(
+                                path: ref.path, isStandaloneLine: true
+                            )
+                        )
+                    } else if let idx = indexByPath[ref.path],
+                              !collected[idx].isStandaloneLine {
+                        // 同路径先以段内词出现、后又独立
+                        // 成行：升级标记——App 层据此在确
+                        // 证存在后摘除那一行
+                        collected[idx] = InlineImageRef(
+                            path: ref.path, isStandaloneLine: true
+                        )
+                    }
+                    continue
+                }
+            }
+            // 段内单独成词：原始扫描后逐条验边界；
+            // 扫描词元先拆粘连（中文列表句里两条绝
+            // 对路径会被 §116 扩过的路径字符集粘成
+            // 一条词元，见 degluedPathPieces）
+            let refs = scan(in: line, excluding: Array(seen))
+            for ref in refs {
+                let pieces = degluedPathPieces(ref.path)
+                for piece in pieces
+                where isImagePath(piece)
+                    && isInDownloadRoot(piece) {
+                    guard isStandaloneWord(
+                        path: piece,
+                        hasAnchor: pieces.count == 1
+                            && ref.anchor != nil,
+                        in: line
+                    ) else { continue }
+                    if seen.insert(piece).inserted {
+                        indexByPath[piece] = collected.count
+                        collected.append(
+                            InlineImageRef(
+                                path: piece, isStandaloneLine: false
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        return collected
+    }
+
+    /// 段内单独成词判定：路径在行内的某处出现，其
+    /// 前一字符是行首或前界分隔符、后一字符（带锚
+    /// 点时跳过 #L 锚点原文）是行尾或后界分隔符；
+    /// 任一处出现满足即算
+    private static func isStandaloneWord(
+        path: String, hasAnchor: Bool, in line: String
+    ) -> Bool {
+        var searchFrom = line.startIndex
+        while let range = line.range(
+            of: path, range: searchFrom..<line.endIndex
+        ) {
+            let beforeOK: Bool
+            if range.lowerBound == line.startIndex {
+                beforeOK = true
+            } else {
+                let before = line[line.index(
+                    before: range.lowerBound
+                )]
+                beforeOK = wordPrecedingDelimiters.contains(before)
+            }
+            var tail = range.upperBound
+            if hasAnchor {
+                tail = line.index(
+                    range.upperBound,
+                    offsetBy: anchorFragmentLength(
+                        in: line, from: range.upperBound
+                    )
+                )
+            }
+            let afterOK: Bool
+            if tail == line.endIndex {
+                afterOK = true
+            } else {
+                afterOK = wordFollowingDelimiters.contains(line[tail])
+            }
+            if beforeOK && afterOK { return true }
+            searchFrom = range.upperBound
+        }
+        return false
+    }
+
+    /// 路径尾 #L 锚点原文的长度（#L12／#L12-L20
+    /// 形态）；不是锚点形态回 0
+    private static func anchorFragmentLength(
+        in line: String, from start: String.Index
+    ) -> Int {
+        var idx = start
+        guard idx < line.endIndex, line[idx] == "#" else { return 0 }
+        idx = line.index(after: idx)
+        guard idx < line.endIndex, line[idx] == "L" else { return 0 }
+        idx = line.index(after: idx)
+        var digits = 0
+        while idx < line.endIndex, line[idx].isNumber {
+            idx = line.index(after: idx)
+            digits += 1
+        }
+        guard digits > 0 else { return 0 }
+        if idx < line.endIndex, line[idx] == "-" {
+            var tail = line.index(after: idx)
+            if tail < line.endIndex, line[tail] == "L" {
+                tail = line.index(after: tail)
+            }
+            var tailDigits = 0
+            while tail < line.endIndex, line[tail].isNumber {
+                tail = line.index(after: tail)
+                tailDigits += 1
+            }
+            if tailDigits > 0 { idx = tail }
+        }
+        return line.distance(from: start, to: idx)
+    }
+
+    /// 拆粘连词元（§143）：路径字符集含 \u0080–
+    /// \uFFFF（§116 为中文文件名扩的），中文列表
+    /// 句里两条绝对路径会被正则粘成一条词元（形
+    /// 如 a.png、/opt/… 连写）。在「中文标点＋紧
+    /// 跟 /」处切开——那是第二条绝对路径的起点；
+    /// 单个文件名内部的标点后不接 /、不误伤。拆
+    /// 不出（≤1 段）原样返回单元素数组
+    private static func degluedPathPieces(
+        _ path: String
+    ) -> [String] {
+        let separators: Set<Character> = [
+            "、", "，", "。", "；", "：", "？", "！", "·",
+        ]
+        let chars = Array(path)
+        var pieces: [String] = []
+        var current = ""
+        for i in chars.indices {
+            let c = chars[i]
+            if separators.contains(c), !current.isEmpty,
+               i + 1 < chars.count, chars[i + 1] == "/" {
+                pieces.append(current)
+                current = ""
+                continue
+            }
+            current.append(c)
+        }
+        if !current.isEmpty { pieces.append(current) }
+        return pieces.count > 1 ? pieces : [path]
+    }
+
+    /// 整行多图粘连形的拆分（§143）：一行经整行
+    /// 判据剥壳后只剩一条扫描词元、且该词元可拆
+    /// 成多条路径、行内除这些路径外只剩空白与分
+    /// 隔标点时，返回拆出的路径组；否则 nil
+    private static func gluedStandalonePieces(
+        in line: String
+    ) -> [String]? {
+        let candidate = standaloneLineCandidate(line)
+        guard !candidate.isEmpty else { return nil }
+        let refs = scan(in: candidate)
+        guard refs.count == 1,
+              let ref = refs.first else { return nil }
+        let pieces = degluedPathPieces(ref.path)
+        guard pieces.count > 1 else { return nil }
+        var rest = candidate
+        for piece in pieces {
+            guard let range = rest.range(of: piece)
+            else { return nil }
+            rest.removeSubrange(range)
+        }
+        let clean = rest.allSatisfy {
+            $0.isWhitespace
+                || wordPrecedingDelimiters.contains($0)
+                || wordFollowingDelimiters.contains($0)
+        }
+        return clean ? pieces : nil
+    }
+
+    /// 摘除独立成行的路径行（§143）：paths 内的路
+    /// 径若在正文里独立成行（§129 整行判据、围栏
+    /// 内除外），整行摘除并收拾空行（MediaMarker
+    /// 同款：三连换行压一个空行、首尾修剪）；段内
+    /// 提及同路径不动（句子完整性优先）。App 层只
+    /// 对「存在性已确证」的独立行图片调用本函数
+    /// ——查无此图的路径行不摘、维持纯文本（§129
+    /// 降级口径：内容不许凭空消失）
+    public static func strippingStandaloneLines(
+        in text: String, paths: Set<String>
+    ) -> String {
+        guard !paths.isEmpty, text.contains("/") else { return text }
+        var kept: [String] = []
+        var removed = false
+        var inFence = false
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                inFence.toggle()
+                kept.append(line)
+                continue
+            }
+            if !inFence {
+                let refs = detectStandaloneAnchored(in: line)
+                if refs.count == 1, let ref = refs.first,
+                   paths.contains(ref.path) {
+                    removed = true
+                    continue
+                }
+                // 整行多图粘连形：拆出的路径全在摘
+                // 除集内才整行摘（混着没确证的图或
+                // 非图文件时整行保留、内容不消失）
+                if let glued = gluedStandalonePieces(in: line),
+                   glued.allSatisfy({ paths.contains($0) }) {
+                    removed = true
+                    continue
+                }
+            }
+            kept.append(line)
+        }
+        guard removed else { return text }
+        var result = kept.joined(separator: "\n")
+        while result.contains("\n\n\n") {
+            result = result.replacingOccurrences(
+                of: "\n\n\n", with: "\n\n"
+            )
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 // MARK: - 流式工具调用累积
