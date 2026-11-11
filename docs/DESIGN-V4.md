@@ -9182,3 +9182,4 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 一轮 run 43014564400 failure：ChatModelPickerView 缺 OneDayDesign import（Palette/OneDayMetrics 在设计模块）；补 import 修复。
 - 二轮 run 43015098481 failure：loadSessionModelChoices 调用点在 init 前段、存储属性未全初始化即调 self 方法；移至 init 末段（signalBox 接线前）修复。
 - 三轮 run 43015719776：编译全过、单测 1534 执行仅 1 失败——ChatModelGroupsTests.testFallbackWithoutOptionsRoot 回落期望与实现层级不一致（实现：注册表 Gateway 清单与回执同级为真源、扁平候选只兜两源皆缺；测试：按无回执即整组回落写）。裁定实现口径为准（生产两源同批取数、注册表独有模型不许被候选覆盖），测试期望改钉两级回落并加两源皆缺断言，断言只增不减。
+- 四轮 run 43017569146 **success**（jobs API 逐项终判 build-native success）：Executed **1534**、0 failures（1517 基线＋ChatModelGroupsTests 7＝1524 应增，实测 1534——多出的 10 为基线后其他线并行入册的测试，合并时按当时 main 复核；本包净增 7 法、断言只增不减）。分支顶端 5dc132c，预制完成待队列合并。
