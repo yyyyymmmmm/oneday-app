@@ -10259,29 +10259,15 @@ if display.rows.contains(where: { $0.choice == current }) {
 
 ### 179.4 题四定因：模型名过长时顶栏按钮位移
 
-**代码定因**：ChatView.swift:1056-1169 headerBar 布局使用 `Spacer() + identityCapsule.layoutPriority(1) + Spacer()` 结构（行1091-1105）。layoutPriority(1) 使胶囊优先保宽，两个 Spacer 被压缩，导致两侧按钮位置随胶囊宽度变化。
+**代码定因**：ChatView.swift:1056-1169 headerBar 布局使用 `Spacer() + identityCapsule.layoutPriority(1) + Spacer()` 结构（行1091-1105）。layoutPriority(1) 使胶囊优先保宽，两个 Spacer 被压缩，导致两侧按钮位置随胶囊宽度变化。**真正的撑宽源**：capsuleRow 内 modelMenu 的模型名 Text 是 `.fixedSize(horizontal: true)`（行1280），容器级 lineLimit 对它无效，长名仍会把胶囊撑爆。
 
-**改法**：删除两个 Spacer 和 layoutPriority，改用固定锚点布局——两侧按钮固定位置，胶囊在中间剩余空间内居中、限宽、尾部截断。identityCapsule 是 ViewThatFits 两档（行1193-1198），内部 capsuleRow 已有 fixedSize，需在外层限宽。
+**改法**（已落码）：
+1. **删除撑宽源**：ChatView.swift:1269-1292 modelMenu 中模型名 Text（行1274-1280）去掉 `fixedSize(horizontal: true)`，保留 `lineLimit(1)` + 尾部截断，使其成为胶囊内唯一可压缩元素；chevron 与其余元素（头像/名字/状态段）维持现行 fixedSize 口径不动。
+2. **顺序口径**：空间不足时先由 ViewThatFits 落无名档（行1196-1199），再不够才截断模型名；短名时胶囊照常 hug 内容宽。
+3. **删除无效修饰**：identityCapsule 上 51ddb0e 加的 `.lineLimit(1)` 删除（行1105）——容器级 lineLimit 对内部 fixedSize 元素无效，保留无实效且误导。
+4. **修订注释**：capsuleRow 上方注释（行1213-1217）更新为「名字/状态段 fixedSize、§179.4：模型段除外（长名截断保钮位）」；identityCapsule 调用处注释（行1101-1104）更新为实际落法（ViewThatFits → 截断模型名）。
 
-**实现方案**：
-```swift
-HStack(spacing: OneDayMetrics.spacingS) {
-    Button { /* 汉堡钮 */ }
-        .frame(width: 44, alignment: .leading)
-    
-    Spacer(minLength: 8)
-    
-    identityCapsule
-        .lineLimit(1)
-        .frame(maxWidth: .infinity)  // 占剩余空间但不撑开 Spacer
-    
-    Spacer(minLength: 8)
-    
-    Button { /* 铃铛钮 */ }
-        .frame(width: 44, alignment: .trailing)
-}
-```
-或使用 GeometryReader 计算中间可用宽度显式传给 identityCapsule。
+**51ddb0e 与实际落法差异**：51ddb0e 的 §179.4 写了「固定钮宽」等未实作方案，实际只删了 layoutPriority、改了 Spacer(minLength:)、加了容器级 lineLimit(1)——但撑宽源 modelMenu 的 fixedSize 未动，容器级 lineLimit 对它无效，长名仍撑宽胶囊。本补正把截断真正落到模型段本人。
 
 ### 179.5 施工注意
 

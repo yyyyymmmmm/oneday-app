@@ -1097,12 +1097,13 @@ struct ChatView: View {
                 // 改道，0.6.0–0.16.0 是跳活动格）；模型域（分隔
                 // 线＋短名＋chevron）§153 起点开分组选择面
                 // （本会话作用域，见 modelMenu），不许埋掉
-                // 或降级。头像换三狗搭档款定版图
+                // 或降级。头像换三狗搭档款定版图。
                 // §179.4：删除 layoutPriority(1)，两侧 Spacer
-                // 改 minLength 确保最小间距，胶囊在剩余空间
-                // 居中、限行截断但不压缩 Spacer
+                // 改 minLength 确保最小间距；空间不足时先由
+                // ViewThatFits 落无名档、再不够才截断模型名
+                // （modelMenu 内 Text 去 fixedSize）；短名
+                // 时胶囊照常 hug 内容宽
                 identityCapsule
-                    .lineLimit(1)
 
                 Spacer(minLength: OneDayMetrics.spacingS)
 
@@ -1212,8 +1213,9 @@ struct ChatView: View {
                         .scaledToFill()
                         // 0.26.0：边长走形象档（小 24/
                         // 中 28/大 34；中档＝旧值）——
-                        // 名字 fixedSize＋最高优先、胶囊
-                        // hug 宽随内容，±6 不挤断名字
+                        // 名字/状态段 fixedSize、胶囊 hug
+                        // 宽随内容，±6 不挤断。§179.4：
+                        // 模型段除外（长名截断保钮位）
                         .frame(
                             width: avatarTier.capsulePointSize,
                             height: avatarTier.capsulePointSize
@@ -1265,7 +1267,10 @@ struct ChatView: View {
     /// 构造保证（FB16679936 的教训是自绘勾被 UIKit
     /// 剥透明度，双勾源于自绘而非列表形态本身）。
     /// 选择只写本会话账（selectCurrentChoice），不改
-    /// 服务端默认、不发网络请求
+    /// 服务端默认、不发网络请求。
+    /// §179.4：模型名 Text 不 fixedSize、允许尾部截断
+    /// （用户口径：长名截断保钮位）；chevron 维持
+    /// fixedSize 不压缩
     private var modelMenu: some View {
         Button {
             showModelPicker = true
@@ -1277,7 +1282,9 @@ struct ChatView: View {
                     .font(.callout)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    // §179.4：去掉 fixedSize(horizontal:)，
+                    // 使模型名成为胶囊内唯一可压缩元素、
+                    // 长名时尾部截断不撑宽胶囊
                 Image(systemName: "chevron.down")
                     // 0.23.0（审计 G6）：9pt 字形升 caption2
                     // 角色（默认 11 视觉当量、随 Dynamic
