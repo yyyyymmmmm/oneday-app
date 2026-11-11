@@ -1,6 +1,7 @@
 import OneDayCore
 import OneDayDesign
 import SwiftUI
+import UIKit
 
 /// Markdown 渲染（0.36.25 渲染补全）：块级解析在 Core
 /// MarkdownParser（可测层），本视图只按结构呈现——段
@@ -14,10 +15,19 @@ import SwiftUI
 /// 意中间态文本渲染结果确定、不跳版。
 struct MarkdownText: View {
     let content: String
+    /// §149：选区活动回报（聊天页据此在选字期间关
+    /// 本行右滑引用）；其他消费面不传＝不回报
+    let onSelectionChange: ((Bool) -> Void)?
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.legibilityWeight) private var legibilityWeight
 
-    init(_ content: String) {
+    init(
+        _ content: String,
+        onSelectionChange: ((Bool) -> Void)? = nil
+    ) {
         self.content = content
+        self.onSelectionChange = onSelectionChange
     }
 
     private var blocks: [MarkdownBlock] {
@@ -54,14 +64,18 @@ struct MarkdownText: View {
     // MARK: - 段落与标题
 
     /// 段落（沿用 §29 口径：.callout 16＋bodyInk，渲染
-    /// 前过断行整形 §14）
+    /// 前过断行整形 §14）。§149 起改走 Selectable-
+    /// InlineText（UITextView 可选）：SwiftUI Text
+    /// 在 iOS 26 无选段能力，见 DESIGN §149.2
     private func paragraphView(_ text: String) -> some View {
-        inline(
-            TextShaping.prettyWrapDocument(text),
-            strongFont: .callout.weight(.bold)
+        SelectableInlineText(
+            paragraphs: [
+                .markdown(TextShaping.prettyWrapDocument(text))
+            ],
+            textStyle: .callout,
+            foreground: Palette.bodyInk,
+            onSelectionChange: onSelectionChange
         )
-        .font(.callout)
-        .foregroundStyle(Palette.bodyInk)
     }
 
     /// 标题分级（0.36.25 补 4–6 级）：字阶梯 22／20／
@@ -72,16 +86,21 @@ struct MarkdownText: View {
     /// 病根在此销掉）。字重沿第 9 修口径：基准 regular，
     /// 标题内 ** 才映射同字号 bold
     private func headingView(_ text: String, level: Int) -> some View {
-        let font = Self.headingFont(level)
-        return inline(text, strongFont: font.weight(.bold))
-            .font(font)
-            .foregroundStyle(
-                level >= 6
-                    ? Palette.inkSecondaryOnFill : Palette.bodyInk
-            )
+        SelectableInlineText(
+            paragraphs: [.markdown(text)],
+            textStyle: Self.headingTextStyle(level),
+            foreground: level >= 6
+                ? Palette.inkSecondaryOnFill : Palette.bodyInk,
+            onSelectionChange: onSelectionChange
+        )
     }
 
-    private static func headingFont(_ level: Int) -> Font {
+    /// 标题字阶的 UIKit 档（§149）：与 headingFont
+    /// 的 SwiftUI 梯逐级同档（title2／title3／
+    /// body／subheadline／footnote）
+    private static func headingTextStyle(
+        _ level: Int
+    ) -> UIFont.TextStyle {
         switch level {
         case 1: return .title2
         case 2: return .title3
@@ -165,23 +184,24 @@ struct MarkdownText: View {
             RoundedRectangle(cornerRadius: 1.5)
                 .fill(Palette.inkMuted)
                 .frame(width: 3)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                ForEach(
-                    Array(lines.enumerated()), id: \.offset
-                ) { _, line in
-                    inline(
-                        line.text,
-                        strongFont: .callout.weight(.bold)
+            // §149：整块合一走单个可选文本（逐行一
+            // 段：depth 缩进走段级 headIndent、行间
+            // 距走段后距 spacingXS——与旧逐行
+            // VStack 的几何同值），整块内任意选段
+            SelectableInlineText(
+                paragraphs: lines.enumerated().map { index, line in
+                    InlineTextParagraph(
+                        runs: InlineRunBuilder.runs(for: line.text),
+                        headIndent: CGFloat(max(0, line.depth - 1))
+                            * OneDayMetrics.spacingM,
+                        spaceAfter: index == lines.count - 1
+                            ? 0 : OneDayMetrics.spacingXS
                     )
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondaryOnFill)
-                    .padding(
-                        .leading,
-                        CGFloat(max(0, line.depth - 1))
-                            * OneDayMetrics.spacingM
-                    )
-                }
-            }
+                },
+                textStyle: .callout,
+                foreground: Palette.inkSecondaryOnFill,
+                onSelectionChange: onSelectionChange
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -202,12 +222,24 @@ struct MarkdownText: View {
                 ) {
                     markerView(item)
                         .frame(width: 22, alignment: .trailing)
-                    inline(
-                        item.text,
-                        strongFont: .callout.weight(.bold)
+                    // §149：项正文改可选文本；基线以
+                    // alignmentGuide 钉到基字体
+                    // ascender（inset 归零后的首行
+                    // 基线），与标记列保持首行对齐
+                    SelectableInlineText(
+                        paragraphs: [.markdown(item.text)],
+                        textStyle: .callout,
+                        foreground: Palette.bodyInk,
+                        onSelectionChange: onSelectionChange
                     )
-                    .font(.callout)
-                    .foregroundStyle(Palette.bodyInk)
+                    .alignmentGuide(.firstTextBaseline) { _ in
+                        InlineTextFonts.firstBaseline(
+                            textStyle: .callout,
+                            category: dynamicTypeSize
+                                .contentSizeCategory,
+                            boldText: legibilityWeight == .bold
+                        )
+                    }
                 }
                 .padding(
                     .leading,
@@ -268,6 +300,11 @@ struct MarkdownText: View {
                         )
                         .font(.callout)
                         .foregroundStyle(Palette.bodyInk)
+                        // §149 次档（DESIGN §149.3 第
+                        // 3 条）：单元格留 SwiftUI
+                        // Text＋可选——整格菜单（iOS
+                        // 27 起格内选段），不冒充同档
+                        .textSelection(.enabled)
                         .frame(
                             maxWidth: .infinity,
                             alignment: Self.frameAlignment(
@@ -296,6 +333,7 @@ struct MarkdownText: View {
                             )
                             .font(.callout)
                             .foregroundStyle(Palette.bodyInk)
+                            .textSelection(.enabled)
                             .frame(
                                 maxWidth: .infinity,
                                 alignment: Self.frameAlignment(
