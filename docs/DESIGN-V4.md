@@ -9483,3 +9483,51 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 伴生零改动：soul 读写走 Hermes 9119 既有 /api/profiles/{name}/soul（GET/PUT 均已在 HermesClient 落地），无需新端点、无部署动作。
 - CI run **43024033338**（workflow_dispatch 于本分支）：jobs API 终判 build-native **success**；单测 Executed **1569、0 failures**（基线 0.50.16 的 1562＋新增 SoulSaveVerificationTests 7 法，逐法 passed，既有测零删改）。
 - 真机待验清单（规格 §7 包一八条，按本包落法收口）：①胶囊开枢纽默认活动段、七段齐全可点无空白段；②浏览器段见真实截图刷新、接管可操作、接管中任务段派发被互斥、左缘右滑在本段不退枢纽；③定时段分组与 CronJobsView 同数据对读条数一致、点行进详情、管理页新建后回段刷新出现；④身份段见当前档案名与人设呈现，编辑改一处→保存→「已保存」→杀 App 重开仍是新内容；断网保存→失败明示、草稿不丢、段内仍显旧内容；⑤soul 改名（无本机覆盖）→聊天胶囊名随动，设本机覆盖后 soul 改名不顶掉覆盖，页头改名/换头像如常；⑥模型区快切当前会话生效、已选勾在位，设置页模型面不受影响；⑦审批通知点达枢纽审核段聚焦、监测通知点达监测段详情（§123 不回退）；⑧身份段最大字号档双卡不裁字、深色下七段与页头瓷砖观感成立；⑨审核段记录制：待批只有记录行＋查看改动、无任何批准/驳回按钮，在聊天里裁决后回枢纽刷新，待批消失、已决历史多一条。
+
+## §156 审批锚点 App 包（2026-11-11，预制分支 feat/approval-anchor，基线 main c9a2392／0.50.17＋HUB-1 已合并顶端，只预制不合并；节号分支自选 §156——基线末节为 §155（HUB-1 合并顺延后），合并时若被在飞包占用由主线合裁顺延并同步代码注释；规格唯一依据 approval-anchor-spec-20261111.md §3/§4，任务三件＝点达原对话定位／已决记录一致呈现／聊天卡「收起」下移；用户 15:02 定版「枢纽只有记录、审批只在聊天」与 HUB-1 §155.3 的锚点留口在此销账）
+
+### 156.1 前置事实（开工实查，与任务简报的出入如实记）
+- 本包开工时 main 已前进：HUB-1 已于 c9a2392 合入 main（§154→§155 顺延完成、HubApprovalSection 已是记录制形态），基线实际取 c9a2392 而非 0.50.17 定版点 2ca568b。任务件 2「已决记录呈现与聊天内卡状态一致」在枢纽侧已由 §155 落地（结论 chip＋时间＋只读），本包不重做枢纽行，只补其点达与聊天侧呈现收敛（见 156.4）。
+- 伴生侧证据：ANCHOR-128-REPORT 实证 1.0.19 已上线、anchor 恒输出键（null 或 {sessionId, tier}），生产回放 background_review 7/7 命中 T3；现行伴生 1.0.26 只在其后叠加，无回退。decisions 行 anchor 按其 created_at 同算（规格 §3 出口契约），created_at 字段在 decisions.jsonl 行内本有（报告样本列含 created_at），App 侧 DTO 此前未声明、本包补上。
+
+### 156.2 数据层（Core，纯加法）
+- `WriteGateAnchor{sessionId, tier}` 新模型；`WriteGateRecord.anchor` 与 `WriteGateDecisionRecord.anchor` 两 DTO 补可选字段（旧桥无字段/显式 null 均解 nil，行为与今天逐字一致）；`WriteGateDecisionRecord` 补 `created_at` 解码（已决锚定条目落位时刻）。
+- `ApprovalAnchor`（新文件）：key 拼装（wg:<子系统>:<id>）、物化规划 plan（pending 无时刻门、decisions 回溯窗 30 天且须有时刻、两集同 id 只规划一条、existingKeys 命中即跳过＝冻结口径的执行点）、行呈现态 rowState（pending＞decided＞stale，数据未就绪/缺席未满两轮＝loading 不提前判死）、缺席计数（满 2 轮才 stale）、anchoredRecordIDs/recordID 键解析。
+- `ApprovalAnchorNavigation`（新文件）：点达解析三档——已物化条目（最硬证据）→定位；anchor 会话有本地线程→只达线程不定位；皆无→none 降级。`ApprovalNotificationRouting`：审批回执先查锚、未命中回 §123 resolve 原样。
+- `NotificationDestination` 新增两落点：`.approvalAnchor(threadID, approvalKey)`、`.approvalThread(threadID)`；文件头注按规格 §4.4 修订 §123「不回原会话」表述（契约无字段仍为真、归属由伴生关联补出——H2 的枢纽落点降为未关联时的降级落点，不推翻）。
+
+### 156.3 物化与单源呈现（App）
+- `ChatEntry.approvalKey` 新字段（可选＋默认 nil、轻量迁移，与 echoKey 同例）；init 增参；createdAt 落盘后由物化方改写为记录 created_at（sortedEntries 排序定位、不做中段手术）。四处守卫谓词统一为 `ChatEntry.isSystemAnchored`（echoKey||approvalKey）：发送上下文排除、落定整段替换跳过、半截名单排除、半截回填排除——一处定义、四处引用。
+- 物化器 `ApprovalAnchorMaterialization`（新文件）：共享 store 每次审批刷新成功（loadApproval 与 refreshApprovalForChat 两路尾部新增 notify）后由 ChatView 注入的回调触发（store 不碰 SwiftData、与 onApprovalChanged 同分工；回调在 ChatView.onAppear 幂等接线）。找线程只认 serverSessionID 绑定、找不到不建空线程；thread.updatedAt 不动（物化不顶抽屉序）；回写 store 两份派生状态（anchoredRecordIDs、anchorMissCounts）。
+- 回溯宽集：日常 decisionHistory 只取最近 50 条，30 天回溯窗内的带锚记录可能在窗口外——store 新增 anchorDecisions（WriteGateClient.decisionsForAnchor，limit 500，10 分钟节流，best-effort 保持旧值），物化与通知反查优先消费它、未就绪回落 decisionHistory。日常 50 条口径（枢纽历史/角标对账）零改动。
+- 锚定行渲染（ChatView.bubble 首分支）：状态走 store.anchorRowState（内部调 Core rowState）——pending＝与流末尾区同一张 ChatApprovalCard（ChatApprovalCards 里由 private 改 internal、双宿主共用，裁决同一路径）；decided＝结论行（图标＋headline＋结论词/「已按规则放行」，与枢纽历史行、流末尾 resolvedRow 同句式）；stale＝快照标题＋「已失效」灰行；loading＝转圈占位行。ChatApprovalZone 新增 anchoredRecordIDs 排除参：已锚记录的待批卡与结果行都从流末尾区撤下（单源，规格 §4.3），默认空集时行为不变。
+
+### 156.4 点达（任务件 1/2）
+- 枢纽（§155 记录制形态上）：待批记录行在「查看改动」旁、已决历史行在行尾，各加「查看原对话」钮——仅当 Core 解析命中（已物化或锚会话有线程）才出现，无锚不出钮、不给假入口；点按落 AppState.approvalAnchorRequest 后 dismiss 枢纽，ChatView 消费（切线程→滚动定位→primaryTint 点亮 2.5 秒）。已决行呈现零改动（§155 已与聊天卡同口径：已批准/已驳回＋时间、无裁决入口）。
+- 通知：NotificationsView 对审批回执改走 destination(for:)——refId 经共享 store 已决集（含宽集）反查子系统与 anchor，再经 Core 路由：命中物化→approvalAnchor、只命中线程→approvalThread、未命中→§123 原落点（枢纽段聚焦）逐字不变。落点分发 AppState.requestHubDestination 对两新落点改落 approvalAnchorRequest 且不进 hubDestinationRequest（枢纽不消费锚点落点）；ChatView 在通知 sheet onDismiss 优先消费锚点请求、不开枢纽。AgentHubView 落点 switch 补两新 case 的防御性落空（穷尽性）。
+- 降级总口径（规格 §4.5）：anchor=null／有锚无线程／桥未升级——全部退回现行形态（流末尾出卡＋枢纽兜底＋通知达枢纽段）；本包全部机制只做加法。
+
+### 156.5 卡面修订（任务件 3＋与规格 §5 的一处明示偏离）
+- 「收起」下移：ChatApprovalCard 详情展开区在内容（或错误行）下方新增「收起」钮（与顶部详情链同一 toggleDetail 收起路、形态沿卡面链句式）；顶部链展开后文案「收起详情」保留（双入口、同动作）——按任务件 3「移至展开内容下方」落为下方主位＋顶部保留，未删顶部以免收起路径在短内容时反而变远，合并时请主线复核此取舍。
+- 规格 §5「删卡面相对时间」本包未执行：该条与现行 §155 枢纽记录行/历史行的时间呈现（台账信息）及卡面现形态的冲突取舍归主线合裁，本包不擅动卡面其余部分；记账明示、不静默丢规格项。
+
+### 156.6 已知边界（如实记）
+- 锚定行的滚动定位在消费时以「切线程＋点亮」实现，LazyVStack 对已渲染条目的实际滚动帧未在代码层强制（消费侧等 350ms 后置点亮；若点亮行在视口外，用户滚动可见底色）——真机验此点（清单第 6 条），不冒充已精确定位到帧。
+- 物化只由聊天页在场的刷新回调触发：用户长居枢纽/其他页期间新暂存的锚，要等下一次聊天侧刷新（进/切对话、回前台、生成结束）才落条目；枢纽行点达走 threadOnly 档兜底（有锚会话线程即达），不丢落点。
+- anchorDecisions 宽集与物化都依赖 decisions 出口的 anchor/created_at 字段——以 ANCHOR-128 报告与规格契约互证，未在本包内再连生产实查（伴生零改动、无部署动作）。
+
+### 156.7 词条、单测与验收
+- xcstrings 文本插入 +2 键（查看原对话/已失效；「收起」「已按规则放行」为存量键复用），Localizable 2662→2664，Scripts/validate_i18n.py 通过（2677 键含 InfoPlist 13，三语全覆盖）。新代码文案全走字面量 L10n 通道（与全仓同式），无直写数值（点亮 2.5 秒/350ms 为时序常量、非布局令牌面）。
+- 新增 Tests/OneDayCoreTests/ApprovalAnchorTests.swift 12 法：anchor 解码（pending 命中/null/缺失、decisions anchor＋created_at）、plan（pending 物化、无锚跳过、冻结不迁移、30 天窗、双集去重、无时刻跳过）、rowState 优先级与 stale 门、缺席计数、键往返、点达三档、通知路由四路。既有测零删改（NotificationDestination 增 case 的穷尽性影响面已全仓核：AppState/AgentHubView 两处 switch 已补）。
+- CI 与单测总数见 156.8 补记。
+
+### 156.8 真机待验清单
+1. 旁聊里让智能体改一个技能（foreground 暂存）→ 卡出现在该旁聊对应轮次位置（锚定行全卡形态）；切到另一对话，其流末尾不再出现这张卡；回该旁聊在锚定行上裁决，行原地翻已决行；杀 App 重开，行还在原位。
+2. 结束一段对话等后台审查暂存（background_review）→ 被审查的那段对话里出现锚定卡/行；枢纽待批记录同步可见同一条（总账），其行有「查看原对话」且点达定位＋点亮。
+3. 在枢纽（或网页端）裁决一条已锚记录 → 回其线程，行已翻已决态（结论＋时间与枢纽历史行一致），无重复卡、无残留待批卡。
+4. anchor=null 的自然例（双会话真并行等）→ 行为与今天完全一致（当前对话流末尾出卡＋枢纽记录行无「查看原对话」钮），任何线程不出现来历不明的条目。
+5. App 记忆面提一条记忆提案（oneday_app）→ 只在枢纽/记忆面出现，任何对话里无锚定行（T0 直判）。
+6. 点审批通知：已锚的 → 落到对应线程并定位点亮锚定行（重点验 156.6 的滚动帧）；未锚的 → 落枢纽审核段聚焦（现行行为）；锚会话有线程但还没物化的 → 只达线程不定位、不报错。
+7. 聊天卡详情：点「查看详情」展开长改动 → 滚到底部有「收起」钮、点之收起；顶部「收起详情」仍可用；枢纽「查看改动」sheet 形态不变。
+8. 锚定行三态流转：待批卡 → 裁决后已决行 → （构造上游丢弃样本或等账本滚出）两轮刷新后「已失效」灰行，行不消失、正文标题仍是快照标题。
+9. AX 最大字号档＋深色各一帧：锚定卡/已决行/失效行与「查看原对话」钮不裁字、不溢出。

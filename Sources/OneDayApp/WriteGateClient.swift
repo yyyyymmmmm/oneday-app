@@ -42,6 +42,12 @@ protocol WriteGateClientProtocol: Sendable {
     func decisions(
         config: ServerConfig, limit: Int
     ) async throws -> [WriteGateDecisionRecord]
+    /// 锚点回溯专用（§156）：与 decisions 同端点、大
+    /// limit 拉取——回溯窗 30 天的带锚记录可能在日常
+    /// 50 条窗口之外，口径分开声明在协议层
+    func decisionsForAnchor(
+        config: ServerConfig, limit: Int
+    ) async throws -> [WriteGateDecisionRecord]
     /// GET /rules（0.36.21「总是允许」规则面；规则只
     /// 存桥侧，App 不落本地）
     func rules(config: ServerConfig) async throws -> [WriteGateRule]
@@ -381,6 +387,15 @@ final class DemoWriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         config: ServerConfig, limit: Int
     ) async throws -> [WriteGateDecisionRecord] {
         lock.withLock { Array(decidedRecords.prefix(limit)) }
+    }
+
+    /// 演示锚点回溯（§156）：与演示 decisions 同源同
+    /// 语义，演示数据无 anchor 字段——回溯恒空锚，行
+    /// 为与未升级桥一致
+    func decisionsForAnchor(
+        config: ServerConfig, limit: Int
+    ) async throws -> [WriteGateDecisionRecord] {
+        try await decisions(config: config, limit: limit)
     }
 
     // 演示规则面（0.36.21）：内存规则表，与真实桥同

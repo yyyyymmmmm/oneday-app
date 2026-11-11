@@ -1,5 +1,6 @@
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 通知 sheet（0.6.0 一期，总览桥；0.36.7 按规格
