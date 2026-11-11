@@ -32,4 +32,12 @@ enum SettingsRoute: Hashable {
     case agent(AgentRoute)
     /// 0.2.1：外观（主题）
     case appearance
+    /// 设置页重塑（DESIGN §164）：身份卡详情页与支持
+    /// 组三页（帮助/关于/协议草稿）——目的地与 Core
+    /// SettingsCatalog 一一对应
+    case identity
+    case help
+    case about
+    case privacy
+    case terms
 }
