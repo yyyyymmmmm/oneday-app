@@ -1301,39 +1301,78 @@ public enum FileRefDetector {
             // 独立成行：整行恰一条路径（复用 §129
             // 成牌口的整行判据，含下载根校验）
             let standalone = detectStandaloneAnchored(in: line)
-            if standalone.count == 1, let ref = standalone.first,
-               isImagePath(ref.path) {
-                if seen.insert(ref.path).inserted {
-                    indexByPath[ref.path] = collected.count
-                    collected.append(
-                        InlineImageRef(
+            if standalone.count == 1, let ref = standalone.first {
+                // 整行多图粘连形先于单条判：两条绝对
+                // 路径被中文标点粘成一条正则词元时，
+                // 拆回逐条收（各自再过图片＋根内门）
+                if degluedPathPieces(ref.path).count > 1 {
+                    if let glued = gluedStandalonePieces(in: line) {
+                        for piece in glued
+                        where isImagePath(piece)
+                            && isInDownloadRoot(piece) {
+                            if seen.insert(piece).inserted {
+                                indexByPath[piece] = collected.count
+                                collected.append(
+                                    InlineImageRef(
+                                        path: piece,
+                                        isStandaloneLine: true
+                                    )
+                                )
+                            } else if let idx = indexByPath[piece],
+                                      !collected[idx].isStandaloneLine {
+                                collected[idx] = InlineImageRef(
+                                    path: piece,
+                                    isStandaloneLine: true
+                                )
+                            }
+                        }
+                    }
+                    continue
+                }
+                if isImagePath(ref.path) {
+                    if seen.insert(ref.path).inserted {
+                        indexByPath[ref.path] = collected.count
+                        collected.append(
+                            InlineImageRef(
+                                path: ref.path, isStandaloneLine: true
+                            )
+                        )
+                    } else if let idx = indexByPath[ref.path],
+                              !collected[idx].isStandaloneLine {
+                        // 同路径先以段内词出现、后又独立
+                        // 成行：升级标记——App 层据此在确
+                        // 证存在后摘除那一行
+                        collected[idx] = InlineImageRef(
                             path: ref.path, isStandaloneLine: true
                         )
-                    )
-                } else if let idx = indexByPath[ref.path],
-                          !collected[idx].isStandaloneLine {
-                    // 同路径先以段内词出现、后又独立
-                    // 成行：升级标记——App 层据此在确
-                    // 证存在后摘除那一行
-                    collected[idx] = InlineImageRef(
-                        path: ref.path, isStandaloneLine: true
-                    )
+                    }
+                    continue
                 }
-                continue
             }
-            // 段内单独成词：原始扫描后逐条验边界
+            // 段内单独成词：原始扫描后逐条验边界；
+            // 扫描词元先拆粘连（中文列表句里两条绝
+            // 对路径会被 §116 扩过的路径字符集粘成
+            // 一条词元，见 degluedPathPieces）
             let refs = scan(in: line, excluding: Array(seen))
-            for ref in refs
-            where isImagePath(ref.path)
-                && isInDownloadRoot(ref.path) {
-                guard isStandaloneWord(ref, in: line) else { continue }
-                if seen.insert(ref.path).inserted {
-                    indexByPath[ref.path] = collected.count
-                    collected.append(
-                        InlineImageRef(
-                            path: ref.path, isStandaloneLine: false
+            for ref in refs {
+                let pieces = degluedPathPieces(ref.path)
+                for piece in pieces
+                where isImagePath(piece)
+                    && isInDownloadRoot(piece) {
+                    guard isStandaloneWord(
+                        path: piece,
+                        hasAnchor: pieces.count == 1
+                            && ref.anchor != nil,
+                        in: line
+                    ) else { continue }
+                    if seen.insert(piece).inserted {
+                        indexByPath[piece] = collected.count
+                        collected.append(
+                            InlineImageRef(
+                                path: piece, isStandaloneLine: false
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -1341,15 +1380,15 @@ public enum FileRefDetector {
     }
 
     /// 段内单独成词判定：路径在行内的某处出现，其
-    /// 前一字符是行首或前界分隔符、后一字符（跳过
-    /// 它自己的 #L 锚点原文）是行尾或后界分隔符；
+    /// 前一字符是行首或前界分隔符、后一字符（带锚
+    /// 点时跳过 #L 锚点原文）是行尾或后界分隔符；
     /// 任一处出现满足即算
     private static func isStandaloneWord(
-        _ ref: FileAnchoredRef, in line: String
+        path: String, hasAnchor: Bool, in line: String
     ) -> Bool {
         var searchFrom = line.startIndex
         while let range = line.range(
-            of: ref.path, range: searchFrom..<line.endIndex
+            of: path, range: searchFrom..<line.endIndex
         ) {
             let beforeOK: Bool
             if range.lowerBound == line.startIndex {
@@ -1361,7 +1400,7 @@ public enum FileRefDetector {
                 beforeOK = wordPrecedingDelimiters.contains(before)
             }
             var tail = range.upperBound
-            if ref.anchor != nil {
+            if hasAnchor {
                 tail = line.index(
                     range.upperBound,
                     offsetBy: anchorFragmentLength(
@@ -1412,6 +1451,64 @@ public enum FileRefDetector {
         return line.distance(from: start, to: idx)
     }
 
+    /// 拆粘连词元（§138）：路径字符集含 \u0080–
+    /// \uFFFF（§116 为中文文件名扩的），中文列表
+    /// 句里两条绝对路径会被正则粘成一条词元（形
+    /// 如 a.png、/opt/… 连写）。在「中文标点＋紧
+    /// 跟 /」处切开——那是第二条绝对路径的起点；
+    /// 单个文件名内部的标点后不接 /、不误伤。拆
+    /// 不出（≤1 段）原样返回单元素数组
+    private static func degluedPathPieces(
+        _ path: String
+    ) -> [String] {
+        let separators: Set<Character> = [
+            "、", "，", "。", "；", "：", "？", "！", "·",
+        ]
+        let chars = Array(path)
+        var pieces: [String] = []
+        var current = ""
+        for i in chars.indices {
+            let c = chars[i]
+            if separators.contains(c), !current.isEmpty,
+               i + 1 < chars.count, chars[i + 1] == "/" {
+                pieces.append(current)
+                current = ""
+                continue
+            }
+            current.append(c)
+        }
+        if !current.isEmpty { pieces.append(current) }
+        return pieces.count > 1 ? pieces : [path]
+    }
+
+    /// 整行多图粘连形的拆分（§138）：一行经整行
+    /// 判据剥壳后只剩一条扫描词元、且该词元可拆
+    /// 成多条路径、行内除这些路径外只剩空白与分
+    /// 隔标点时，返回拆出的路径组；否则 nil
+    private static func gluedStandalonePieces(
+        in line: String
+    ) -> [String]? {
+        guard let candidate = standaloneLineCandidate(line)
+        else { return nil }
+        let refs = scan(in: candidate)
+        guard refs.count == 1,
+              let ref = refs.first else { return nil }
+        let pieces = degluedPathPieces(ref.path)
+        guard pieces.count > 1 else { return nil }
+        var rest = candidate
+        for piece in pieces {
+            guard let range = rest.range(of: piece)
+            else { return nil }
+            rest.removeSubrange(range)
+        }
+        let clean = rest.allSatisfy {
+            $0.isWhitespace
+                || wordPrecedingDelimiters.contains($0)
+                || wordFollowingDelimiters.contains($0)
+        }
+        return clean ? pieces : nil
+    }
+
     /// 摘除独立成行的路径行（§138）：paths 内的路
     /// 径若在正文里独立成行（§129 整行判据、围栏
     /// 内除外），整行摘除并收拾空行（MediaMarker
@@ -1438,6 +1535,14 @@ public enum FileRefDetector {
                 let refs = detectStandaloneAnchored(in: line)
                 if refs.count == 1, let ref = refs.first,
                    paths.contains(ref.path) {
+                    removed = true
+                    continue
+                }
+                // 整行多图粘连形：拆出的路径全在摘
+                // 除集内才整行摘（混着没确证的图或
+                // 非图文件时整行保留、内容不消失）
+                if let glued = gluedStandalonePieces(in: line),
+                   glued.allSatisfy({ paths.contains($0) }) {
                     removed = true
                     continue
                 }

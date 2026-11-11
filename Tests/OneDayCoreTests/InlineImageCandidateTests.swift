@@ -322,4 +322,47 @@ final class InlineImageCandidateTests: XCTestCase {
             text
         )
     }
+
+    // MARK: - 粘连形（CI 首轮实证：§116 扩过的路径
+    // 字符集含中文标点，列表句里两条绝对路径会被
+    // 正则粘成一条词元，须在标点＋/ 处拆回）
+
+    func testGluedStandaloneLineTwoImages() {
+        let refs = FileRefDetector.inlineImageCandidates(
+            in: "/opt/data/a.png、/opt/data/b.webp"
+        )
+        XCTAssertEqual(
+            refs.map(\.path),
+            ["/opt/data/a.png", "/opt/data/b.webp"]
+        )
+        XCTAssertTrue(refs.allSatisfy(\.isStandaloneLine))
+    }
+
+    func testGluedMixedLineOnlyImageCollected() {
+        // 粘着的非图片不收、图片照收（独立行标记）
+        let refs = FileRefDetector.inlineImageCandidates(
+            in: "/opt/data/report.pdf、/opt/data/b.png"
+        )
+        XCTAssertEqual(refs.map(\.path), ["/opt/data/b.png"])
+        XCTAssertEqual(refs.first?.isStandaloneLine, true)
+    }
+
+    func testGluedStrippingNeedsAllConfirmed() {
+        let text = "两张都发了\n\n/opt/data/a.png、/opt/data/b.webp"
+        XCTAssertEqual(
+            FileRefDetector.strippingStandaloneLines(
+                in: text,
+                paths: ["/opt/data/a.png", "/opt/data/b.webp"]
+            ),
+            "两张都发了"
+        )
+        // 只确证一张：整行保留（另一张的路径不许凭
+        // 空消失，§129 降级口径）
+        XCTAssertEqual(
+            FileRefDetector.strippingStandaloneLines(
+                in: text, paths: ["/opt/data/a.png"]
+            ),
+            text
+        )
+    }
 }
