@@ -23277,29 +23277,6 @@
         }
       }
     },
-    "已重新连接，回复已补齐。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconnected, and the reply has been filled in."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已重新连接，回复已补齐。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已重新連接，回覆已補齊。"
-          }
-        }
-      }
-    },
     "已重置。新的记忆会从下一次对话重新积累。": {
       "extractionState": "manual",
       "localizations": {

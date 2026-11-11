@@ -8892,3 +8892,14 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **xcstrings 三方并集（用本包入仓脚本实跑）**：merge_xcstrings.py 以 base＝7265879、ours＝main 8e6b655、theirs＝feat/cx-misc 跑 Localizable——base 2607／ours 2623／theirs 2607，**零冲突**；分支相对基线零新增、零删除、零改值（逐键对账：added／removed／changed 三单皆空），并集结果与 main 现行 2623 键语义逐键全等，故文件保留 main 现行版（脚本输出键序按其 base 序＋新增序、与现行文件序不同，不为对账改序）；InfoPlist 同法跑：13 键三方全等、零冲突。merge_xcstrings.py --self-test 通过；validate_i18n 通过（2636 键含 InfoPlist 13，三语全覆盖）。
 - **单测对账**：Tests/ 仅新增 StoreLoadStateTests.swift 一文件 8 法，既有测零删改；合并后 CI 单测 Executed **1432、0 failures**（合并前 main 1424＋本包 8，只增不减，与预期分毫不差），无例外项。
 - 定版 c0de202（版本五处＝Project.swift 四处 0.50.10/132＋SettingsView 页脚「OneDay v0.50.10」，grep 验无 0.50.9 残留）。CI run 42996454744：jobs API 逐项终判 build-native 及全部 steps **success**（head c0de202）。IPA 落 ~/workspace/your_files/oneday-v0.50.10/OneDay-0.50.10.ipa，10,036,158 字节，md5 `1ff23adc3f4bae424c2fa0f92be47d5a`（落盘与 CI 产物逐字一致），Info.plist 实读 0.50.10／132／site.didichou.oneday。真机待验沿 139.6 清单（md/xlsx/csv 各开一份真文件、表格切 sheet、两阅读器各造一次失败态核对失败页与动作）。
+
+## §140 提示纪律第一包：重连播报摘除＋notice 分档自消（2026-11-11，预制分支 feat/notice-discipline，基线 main a003384；用户 15:12 点题、15:14 拍板「改」，规格唯一依据 notice-response-audit-20261111.md 第一包范围；节号改注：分支自选 §131 已被文件呈现对齐包占用（该包先合并），且现行已用至 §139，合并时主线顺延改注 §140、原自选号作废，代码注释同步改注 §140）
+
+- **140.1 N1 整条摘除**：`applySettledTurn` 里「已重新连接，回复已补齐。」赋值删除，`runWasDetached` 整旗退役（声明、发送起手复位、driveRun 断流置旗、resumeRunIfNeeded 置旗四处全清，代码零残留、仅落定处一句墓碑注释记出处）。断流/切后台/杀进程回来对账成功全程静默——纪律第 1 条「成功不报」。xcstrings 三语键随唯一引用一并删（键数较基线 -1，见 140.5 对账）。
+- **140.2 notice 机制分档自消**：Core 新增 `ChatNotice`/`ChatNoticeTier`/`NoticePresentation`（ChatNotice.swift）——档位两档：brief 5s（中性告知）、extended 8s（重要告知），秒数单点在 Core；呈现状态机以条目 `id` 为代号，`expire(id:)` 仅代号吻合才清。App 侧 `notice: String?` 退役，赋值唯一口 `showNotice(_:tier:)`（赋值即起计时、换代先取消旧计时，模式沿听写行先例）、关闭唯一口 `dismissNotice()`（✕ 与发送起手共用）；noticeBar 渲染与 ✕ 保留，自清前仍可手关，自清后不留残影（显隐键改当前条 id、随既有 swap 动画淡出）。错误族（errorMessage/E1–E6）本包不动：常驻保留、动作位归第二包。
+- **140.3 甲组转档逐项对表**（审计表 N2–N8）：N2 已停止生成→brief；N3 对账预算耗尽→extended；N4 叠发被拦→brief；N5 模型落回默认→brief（保留「在场不抢占」语义，判定改 `isPresenting`）；N6 选文件汇总（汇总拼接＋图片超限＋空选三处，同族）→extended；N7 频道收养→brief；N8 文件牌非法路径→brief。乙组（状态面）、丙组（静默机制）未动。
+- **140.4 纪律入宪**：五条提示纪律（成功不报／进行中只报状态／告知瞬时自消／常驻只留给需要用户动手且带动作位／失败必须带出路）已写入设计宪法文档（ui-design-philosophy-20261110.md）§8 续节，验收按是非题引用「宪法 §8 续第 N 条」。
+- **140.5 钉测与对账**：Core 新增 ChatNoticeTests 9 测（两档秒数、档位集恰两档、呈现/换代、代号唯一、expire 吻合才清、旧代号不误清新条、手关后旧计时不复活、未知代号空转）。i18n：删 1 键（已重新连接）、无新增键，三语校验口径以 CI validate 为准。
+- **140.6 真机待验**（沿审计 §五验收点）：①断网/切后台后恢复一轮落定，对话内无条残留、内容完整；②按停生成，「已停止生成。」5 秒内自消；③选超限文件，点名条出现且 8 秒内自消；④任一提示在场时点 ✕ 即消、自清计时不复活已关条；⑤恢复对账后顶栏状态词与对话内容如常（乙组未动旁证）。
+- **第二包候选（登记不施工）**：E 族动作位（按档重试/填回输入/去设置/重选文件）、M2 消息级失败标记＋原地重发、M1 限流专档（读 Retry-After＋倒计时出路）。
+- **140.7 预制验收**：分支 CI run 42978653095（workflow_dispatch，head 2a0ecce）build-native success；单测 Executed 1345、0 failures（基线 a003384 口径 1336＋本包 ChatNoticeTests 9，只增不减）；validate_i18n 与 --check-code 本地双过（2639 键×三语，删「已重新连接」键后仍全覆盖）。未合并、版本号未改，待主线按合并序接入。
