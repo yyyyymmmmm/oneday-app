@@ -89,21 +89,35 @@ public enum FileIntake {
         if String(data: data, encoding: .utf8) != nil {
             return TranscodeResult(data: data, outcome: .unchanged)
         }
-        // kCFStringEncodingGB_18030_2000 的常量名在
-        // Swift 桥接里不可见（CI 实证），用其文档原
-        // 始值 0x0630 直接构造 CFStringEncoding
-        let gb18030 = String.Encoding(
-            rawValue: CFStringConvertEncodingToNSStringEncoding(
-                CFStringEncoding(0x0630)
-            )
-        )
-        guard let decoded = String(data: data, encoding: gb18030),
+        guard let decoded = decodeGB18030(data),
               !decoded.contains("\0"),
               let reencoded = decoded.data(using: .utf8)
         else {
             return TranscodeResult(data: data, outcome: .undecodable)
         }
         return TranscodeResult(data: reencoded, outcome: .transcoded)
+    }
+
+    /// GB18030 解码（纯 CF 通道，0.46.1 CI 两轮实
+    /// 证后定版）：编码常量名 kCFStringEncodingGB_
+    /// 18030_2000 在 Swift 桥接里不可见；改写死数
+    /// 值 0x0630 后，NSString 编码映射表又解不出
+    /// （String(data:encoding:) 恒 nil、真 GBK 样
+    /// 本被判 undecodable）。终修：编码号经 IANA
+    /// 名 "GB18030" 动态取，解码走 CFString 外部
+    /// 表示转换——全程不经 NSString 映射表
+    private static func decodeGB18030(_ data: Data) -> String? {
+        let encoding = CFStringConvertIANACharSetNameToEncoding(
+            "GB18030" as CFString
+        )
+        // kCFStringEncodingInvalidId 的字面值
+        guard encoding != CFStringEncoding(0xFFFF_FFFF) else {
+            return nil
+        }
+        guard let cfString = CFStringCreateFromExternalRepresentation(
+            nil, data as CFData, encoding
+        ) else { return nil }
+        return cfString as String
     }
 
     /// 转码提示汇总（与 rejectionNotice 同风格：点名
