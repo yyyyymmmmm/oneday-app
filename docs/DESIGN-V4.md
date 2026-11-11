@@ -8007,3 +8007,113 @@ def greet(name):
 - 新增 8 个测试函数（DeviceSourcesTests +2：批三载荷分档门控/文案诚实；DeviceCallsTests +5：拍照扫描必带键/识别路径规范化/翻译参数/端上参数/本人确认参数；RichContentTests +1：七工具分类标题＋vision_analyze 不误收），全仓测试函数口径以 CI 实跑为准、只增不减（合并前基线 1202，预期 1210）。既有 7 处钉值更新（名册计数 12→17 与呈现序、批次接线 +5、工具全集 20→27 与写集 10→12、可执行集 17→24、全开载荷补五件断言、搜索空集计数 12→17、非同步数据集 +5 断言），口径随名册扩容顺延、非放宽。
 - L10n 补 30 键（Localizable 2343→2373）＋InfoPlist 补 2 键（9→11），合计 2352→2384，validate_i18n.py 实跑通过；繁体守既有惯例（智能体→智慧代理、调用→呼叫、文件夹→資料夾、档案用檔案、端上智能→端上智慧）。
 - 静态自查已做：逐文件括号配平与基线同差；DeviceSourceID 全部穷尽点逐点排查并补臂（DevicePermissions.currentStates、DeviceStore 开关字典＋requestAccess＋注册过滤、DeviceSyncExecutors.requestAccess、DeviceSyncDataset.fromSource、DeviceViews 图标底色/字形两开关＋门控动词＋详情分发、ConnectorsView.deviceDetail）；目录键与代码引用全量对账；框架 API 形态经苹果官方文档与多篇实作外部核查定谳（114.3）。本机无 Swift 工具链：编译与全套单测终判等合并后 CI。
+
+## §115 设备扩容批四·日常面（预制分支 feat/device-x4，基线 main 3be6e05；节号自选 §115，合并时主线终审如撞号顺延）
+
+缘起：清设备表面图（device-surface-map-20261110.md）A 档剩余欠账。§114.6 之 8 点名登记的四组（A14 媒体库、A21 拉起撰写、A22 快捷指令、A26 文件呈现/打印）＋本包开工核查发现的同类欠账两条（A7 定位在代码里完全不存在——全仓无 CoreLocation、无定位数据源、DESIGN 从未处置；A16 的 device_status 由桥本地应答、只含会话/权限面，草案的机型/电量/存储/网络等设备事实字段从未实现）一并落成 App 侧全量：新数据源五件＋新工具十五件（其中 file_preview/file_print 两件挂既有 files 源）。桥侧 TOOLS 表单列待办（115.5）。A 档 26 项逐项去向见 115.1 尾表——至此 A 档全部条目都有明确处置。
+
+### 115.1 表面图条目与工具契约（App 侧已接线，DeviceToolRegistry 逐字名册）
+
+| 表面图条目（原文摘要） | 工具 | 入参 | 成功回执 | 备注 |
+|---|---|---|---|---|
+| A7 定位·当前与附近 `location_current`/`location_search_places`/`location_geocode`（CoreLocation＋MapKit，NSLocationWhenInUseUsageDescription；「临时一次授权也是合法回值须处理」；「『我在哪』『附近有没有药店』类问答的主力」） | location_current | {}（无入参） | {readAt, latitude, longitude, accuracyMeters, locatedAt, placeName?, address?, humanSummary} | 一次性定位（百米级精度档、20 秒超时）；地名逆地理尽力而为、查不到字段缺省不编；精度原样带出（临时一次授权与正式授权在状态上同档、靠精度读数如实呈现） |
+| 同上 | location_search_places | {query, limit?（缺省 10、收敛 1…20）} | {readAt, query, count, places[{name, latitude, longitude, distanceMeters, address?}], humanSummary} | 先定位再以当前位置为中心检索（见 115.6 之 5）；距离是与当前位置的直线距离、现算现回 |
+| 同上 | location_geocode | {address} 或 {latitude, longitude}（恰给其一，解析层钉死） | {readAt, mode: forward/reverse, address?, latitude, longitude, placeName?, humanSummary} | 正逆双向；坐标范围逐个校验；查不到如实失败 |
+| A14 音乐媒体库 `media_library_search`/`media_playlists`/`media_playlist_create`/`media_playback_control`（MediaPlayer，NSAppleMusicUsageDescription＋MPMediaLibrary.requestAuthorization；「读不到『别的 App 正在放什么』（见 C6）；Apple Music 订阅内容可检索、播放受订阅态约束」） | media_library_search | {query, kind?（song/album/artist/playlist/podcast/any，缺省 any）, limit?（缺省 20、收敛 1…50）} | {readAt, query, kind, count, truncated?, results[按 type 分形], humanSummary} | 歌按标题∪艺人合并去重；专辑/艺人按集合（带 itemCount）；歌单按名过滤（带 name/itemCount）；只回书目信息、音频本体不出手机 |
+| 同上 | media_playlists | {}（无入参） | {readAt, count, truncated?, playlists[{type, id, name, itemCount}]} | 全量列歌单、上限 200 收敛（与 files_list 同口径） |
+| 同上 | media_playlist_create（写） | {name（≤100 字）, idempotencyKey} | 歌单对象 {type, id, name, itemCount}＋created＋verified＋humanSummary | 系统口建空歌单；账本 objectID＝persistentID，建完按 id 在歌单列表回读核对才报成功；回放带歌单当前回读、不再建第二个 |
+| 同上 | media_playback_control（写） | {action（play/pause/stop/next/previous）, query?（仅 play：先按关键词找到那首歌再播）, idempotencyKey} | {action, verified, state, nowPlaying{title, artist?}?, humanSummary} | 作用于系统音乐播放器；动作后轮询回读至多约 1.5 秒、达成口径逐动作定（见 115.6 之 6），达不到如实失败 |
+| A21 拉起撰写 `call_start`/`compose_sms`/`compose_email`/`share_sheet`（MessageUI/UIKit，无权限弹窗、需用户在场交互；「发出动作永远由用户在系统面上亲手点」「这是『把人带到发送门口』，不是代发」） | call_start | {number（形态校验：数字与 +*#-() 空格、≥1 位数字、≤32 字符）} | {initiated, number, note, humanSummary} | 打开 tel: 地址、系统弹拨号确认面；号码里的 #/* 在 URL 里转义；不带幂等键、不入写集（见 115.6 之 2） |
+| 同上 | compose_sms | {recipients[≥1，逐个过号码形态校验], body?（≤2000 字）} | {presented, outcome: sent/cancelled, sent, note?, humanSummary} | 预填打开系统短信撰写面；canSendText 先判；结果以面上当场事实为准（用户取消是正常结局、以结果回不作错误） |
+| 同上 | compose_email | {to[≥1，逐个粗验含 @], subject?（≤200 字）, body?（≤5000 字）} | {presented, outcome: sent/savedDraft/cancelled, sent, note?, humanSummary} | 同短信口径；「存了草稿」单独一档（savedDraft、sent=false），不许混进已发送；canSendMail 先判、没配邮件账户如实失败 |
+| 同上 | share_sheet | {text?（≤4000 字）, path?（OneDay 文件夹内）}（至少给一样） | {presented, shared, note?, humanSummary} | 文字与/或文件递到系统分享面；用户选了去向才算 shared=true，取消如实回 false、不作错误 |
+| A22 运行指定快捷指令 `shortcut_run`（Shortcuts URL 方案，无权限、需用户在场；「可带文本输入，x-callback 变体可取回结果」「只能按名运行、不能枚举（见 C7）；成败以回调为准，无回调只报『已发起』不许报成功」） | shortcut_run | {name（≤100 字）, input?（≤2000 字）} | 成功 {ran, callbackReceived, name, result?, humanSummary}；取消 {ran: false, callbackReceived, outcome: cancelled, note}；无回执 {initiated, callbackReceived: false, name, note}；出错走 device_error | x-callback-url 变体：回执地址带一次性 nonce 对号（oneday://shortcut-callback/<nonce>/<档>，RootView.onOpenURL 交 ShortcutCallbackCenter）；等待上限 100 秒（见 115.6 之 4）；不带幂等键、不入写集（每次必真跑一次） |
+| A16 设备与网络状态 `device_info`（UIKit/ProcessInfo/Network，「全部免权限」「给智能体当『先导判断』：电量低别派重活、离线别查网络；例外：用户给手机起的名字在 B7」） | device_info | {}（无入参） | {readAt, model, modelIdentifier, systemName, systemVersion, batteryState, batteryPercent?（读不到时 batteryKnown: false）, lowPowerMode, storageTotalBytes, storageFreeBytes, network, humanSummary} | 机型只报标识原文（见 115.6 之 7）；电量开监测现读；网络走 NWPathMonitor 一次性快照（5 秒兜底回「未知」）；B7 手机名/B8 Wi-Fi 名卡付费权益不在此列、名册文案已明说 |
+| A26 打印与预览 `file_preview`/`file_print`（UIKit QuickLook/UIPrint，无权限、需用户在场；「价值在『让用户当场看到智能体产出的文件』，与文件页共用渲染」） | file_preview | {path（OneDay 文件夹内，与 files_read 同一套 SandboxPath 规范化）} | {viewed, path, humanSummary} | 系统 QuickLook 面打开给用户看；以用户关掉预览面（DidDismiss）为完成信号；挂 files 源、权限与开关随文件走 |
+| 同上 | file_print | {path（同上）} | {presented, printed, path, note?, humanSummary} | canPrint 先判、打不了的文件如实失败；系统打印面完成回调为准，取消如实回 printed=false、不作错误 |
+
+四纪律落点：写工具（media_playlist_create/media_playback_control）必带 idempotencyKey＋双层去重（回放语义逐工具见上表——建歌单回放带回读、播放控制回放上次回执不重发动作）；回读验证才报成功（建歌单按 persistentID 回读、播放控制轮询回读状态、定位/设备信息现读现回本身即事实）；离线即失败不排队（既有会话机制；在场等待被桥侧取消时各呈现桥自关界面、以取消错误收尾）；复述确认载荷＝动作回执含 humanSummary（Core 参数层同源生成）。在场六件（call_start/compose_*/share_sheet/shortcut_run/file_preview/file_print）不入写集的定性见 115.6 之 2。
+
+**A 档 26 项全处置表**（批一 §111／批二 §113／批三 §114／本包 §115／其他通道／登记不做）：
+
+| # | 项 | 去向 |
+|---|---|---|
+| A1 日历 | 批一已上线（§111） |
+| A2 提醒事项 | 批一已上线（§111） |
+| A3 通讯录 | 批一已上线（§111） |
+| A4 照片图库 | 读面（计数与元数据）已由同步副本承担（0.36.14 照片数据集、桥查同步索引）：草案 photos_search/photos_recent 的能力面与副本查询同义，现调版不重复建（见 115.6 之 3）；photos_fetch_image（取图本体）表面图自注「二段再议」至今未议、photos_save_image（写入相册）是新相册写面且照片源现调形态未定——两件登记不做，待二段议定再排 |
+| A5 相机 | 批三已上线（§114） |
+| A6 麦克风录音 | 登记不做：工单明示不碰——与听写（A25）共用麦克风权限、表面图未分入任何一批 |
+| A7 定位·当前与附近 | 本包落三件（见上表） |
+| A8 定位·后台与到达离开 | 登记不做：表面图明示「不进前四批」（授权最重、审核最严） |
+| A9 运动步数 | 已由同步副本承担（0.36.14 步数数据集、手机计步按日合计）：现调 motion_steps 与副本同义、不重复建（见 115.6 之 3） |
+| A10 本地通知 | notify_post 已由批二落（定名与草案 notify_schedule 不同、以 §113 为准）；notify_cancel 登记待议（§113.6 已立：取消用户可能需要的提醒须另议口径，本包不擅自补）；notify_pending/notify_delivered 的读面由通知详情页本地呈现承担，工具面登记待议 |
+| A11 闹钟与计时器 | 批二已上线（§113） |
+| A12 剪贴板 | 批一已上线（§111） |
+| A13 文件 | 批一已上线（§111；files_search 当时已收窄不做）；本包另补 file_preview/file_print 两件（A26） |
+| A14 音乐媒体库 | 本包落四件（见上表） |
+| A15 蓝牙外设 | 登记不做：用户已拍板不做（表面图本行自注） |
+| A16 设备与网络状态 | 本包落 device_info 一件（见上表） |
+| A17 翻译 | 批三已上线（§114） |
+| A18 文字识别与扫码 | 批三已上线（§114） |
+| A19 端上大模型 | 批三已上线（§114） |
+| A20 打开应用与链接 | 批二已上线（§113 的 open_target 白名单封闭形态；定名与草案 open_link/open_app 不同、以 §113 为准） |
+| A21 拉起撰写 | 本包落四件（见上表） |
+| A22 运行指定快捷指令 | 本包落 shortcut_run 一件（见上表） |
+| A23 自家动作注册（被调用方向） | 登记不做：方向相反（让系统调 OneDay）、不是桥工具，表面图自注「单列不混」，属产品面另议 |
+| A24 生物识别确认 | 批三已上线（§114） |
+| A25 语音识别（听写） | 已上线（0.36.x 听写，非设备工具面） |
+| A26 打印与预览 | 本包落 file_preview/file_print 两件（见上表） |
+
+B 档 11 项全部卡付费开发者账号（B1 健康/B2 家庭两件已在名册 batch 2 占位、B7/B8 是 device_info 的两个缺省字段）、C 档 12 项系统不给、未证 2 项（U1 专注状态/U2 附近交互）——本包均不碰，维持原登记。
+
+### 115.2 授权分档与呈现分工（两档不许混的批四落法）
+
+- 定位（location）是真系统权限：CLLocationManager().authorizationStatus 同步可读，LocationEngine.systemState 现读、requestAccess 先过 OneDayCore.DevicePermissionGate（只有未决定才发那一次请求，等待者自持活到回调、回调只 resume 不碰别的状态）；详情页走权限开关终形态；注册载荷报系统原态、桥可先行拦 permission_denied。只有「使用时」一档（不申请「始终」——那是 A8 的面，本包不碰）。
+- 媒体库（media）是真系统权限：MPMediaLibrary.authorizationStatus 同步可读，requestAccess 同过门落法（requestAuthorization 的回调只带出状态枚举）；详情页走权限开关终形态；播放控制与检索共用同一道门。
+- 拨号与撰写/快捷指令/设备信息三件没有可开关的系统权限，恒 notApplicable、单开关即唯一的门（批一先例）：撰写的把关在系统撰写面当场（用户亲手点发送）、快捷指令的把关在按名＋回执、设备信息全是免权限现读。file_preview/file_print 随 files 源的 notApplicable 单开关，不新设门。
+- Project.swift：新增 NSLocationWhenInUseUsageDescription＋NSAppleMusicUsageDescription（InfoPlist 键 11→13；文案钉死边界：定位不做后台/不存副本、媒体库只回书目不出音频）；新增 CFBundleURLTypes 注册 oneday scheme（快捷指令 x-callback 回执专用）；LSApplicationQueriesSchemes 补 shortcuts（5→6 条，系统上限 50）。版本五处未动（合并时主线定号）。
+
+### 115.3 框架落法注记（外部核查出处，2026-11-11 本包施工前逐条核对）
+
+- 快捷指令 URL 方案定谳：苹果《快捷指令用户指南》（表面图出处清单已引）——shortcuts://run-shortcut 按名运行、x-callback-url 变体以 x-success/x-error/x-cancel 三个回调地址取回结果，成功时文本输出随 result 参数带回；无「列出全部快捷指令」的 API（C7），故详情页只能亲手填名。本包回执中心按一次性 nonce 对号，任意外部链接打进 oneday scheme 对不上 nonce 即安静忽略。
+- MediaPlayer：MPMediaLibrary.getPlaylist(with:creationMetadata:) 是系统建歌单正道（完成回调给出 MPMediaPlaylist，creationMetadata 以 MPMediaPlaylistPropertyName 给名）；MPMusicPlayerController.systemMusicPlayer 即 A14 口径的「系统音乐播放器」（setQueue/play/pause/skip 与 playbackState/nowPlayingItem 回读面齐全）；MPMediaQuery 的 songs/albums/artists/playlists/podcasts 五查询＋MPMediaPropertyPredicate contains 过滤是书目检索正道。MPMediaPlaylist 跨 continuation 边界照批二 ReminderBox 先例盒包。
+- MessageUI：MFMessageComposeViewController.canSendText/MFMailComposeViewController.canSendMail 是类方法先判面；结果枚举逐档映射（短信 sent/cancelled/failed、邮件 sent/saved/cancelled/failed），delegate 先 dismiss 再交回（批三协调者形态）。
+- CoreLocation 一次性定位：requestLocation＋CLLocationManagerDelegate（didUpdateLocations/didFailWithError）是正道；授权状态是实例的同步属性。delegate 回调在管理器创建线程（主线程）的运行循环投递——协调者状态只在主线程回调与主 actor 任务里触碰、回调不继承 actor 隔离（回调隔离铁律，批三协调者同纪律）。
+- MKPlacemark 在 iOS 26 已标弃用但仍可用：地点检索的坐标/地址分量本包仍用 placemark 取（与 CLPlacemark 同族字段、行为已验），不冒进 26 新增的 MKAddress 面；弃用只是警告、不影响构建，登记知悉（见 115.6 之 8）。
+- 打印与预览：UIPrintInteractionController.present(animated:completionHandler:) 在 iPhone（本工程 TARGETED_DEVICE_FAMILY=1）直接可用、canPrint(URL) 先判可打性；QLPreviewController 以 previewControllerDidDismiss 为「用户看完了」的完成信号（预览没有成败回调，这就是它的全部事实）。
+- iOS 26.0 目标口径：批二 AlarmKit 26.1 构造式教训在前——本包所用 API 全部是 26.0 SDK 既有形态，26.1+ 新增形态一律不用。
+
+### 115.4 名册与呈现
+
+- 名册五件插在 biometric 之后、health 之前（按接线批次序追加，健康/家庭恒居尾）；图标沿批三自绘语汇（彩色圆角底＋白色 SF 字形共用 glyphArtwork 构造：定位蓝/location.fill、媒体库红/music.note、拨号与撰写浅蓝/square.and.pencil、快捷指令深靛/bolt.fill、设备信息灰/iphone），不冒充系统应用图标。
+- 详情页五页均只有状态头＋一节本地面：定位＝本地试读一次（地名＋精度原样显，权限不可用时换降级说明）；媒体库＝播放状态一行＋歌单列表（名＋首数现读，权限不可用时换降级说明）；拨号与撰写＝空预填试写短信/邮件（与工具同桥同结果口径）；快捷指令＝亲手填名运行一条（系统不给枚举、这是对名字的唯一办法）；设备信息＝快照逐行（机型标识/系统/电量/低电量/存储/网络）＋重读按钮。file_preview/file_print 不新增详情页（文件页已有自家文本预览；工具面给的是系统 QuickLook/打印面，形态不同、互不冒充）。
+- 在场面单飞门（本包新增 DevicePresenceGate）：撰写/分享/预览/打印/快捷指令回执等待同一时间只许一件在场，第二件如实回「先处理完前一个」；批三拍照/扫描有各自桥内协调者、不经此门（本包不回改批三，两套并存的口径差登记知悉——分发器串行执行工具调用，此门主要防详情页本地动作与工具调用撞面）。
+- 工具卡分类：ToolCards 设备分支补 location_/media_/compose_/shortcut_ 前缀＋call_start/share_sheet/file_preview/file_print 逐名（file_* 两件须抢在 contains("file") 的文件类之前落设备类；read_file 等服务端文件工具仍归文件类，钉测守）。
+
+### 115.5 桥侧待办清单（device-bridge／伴生 device 模块，后续接线包）
+
+1. TOOLS 表补十五件（名与 App 侧 DeviceToolRegistry 逐字一致）：location_current/location_search_places/location_geocode/media_library_search/media_playlists/media_playlist_create/media_playback_control/call_start/compose_sms/compose_email/share_sheet/shortcut_run/device_info/file_preview/file_print；入参/回执契约按 115.1 表。批一至批三的十七件已由伴生 1.0.8–1.0.10 逐批接线，本批十五件是当前唯一待补批；草案名与定名一处不同：A21 草案 share_sheet 等四名与定名一致、A14/A22/A26 亦一致，无别名双轨问题。
+2. permissions 字典新增键 location/media/compose/shortcuts/deviceinfo：location/media 是真权限键（App 报系统原态，桥可先行回 permission_denied，与 alarm/notifications/camera 同档）；compose/shortcuts/deviceinfo 是 notApplicable 口径报 granted、门控只认注册 tools 清单——两档不许混。file_preview/file_print 随既有 files 键放行、无新键。
+3. 写工具桥侧 write-keys 一层去重只对 media_playlist_create/media_playback_control 启用（App 账本为第二层）；call_start/compose_sms/compose_email/share_sheet/shortcut_run/file_preview/file_print 明确不许套 write-keys 回放——与 auth_biometric 同理：回放一枚旧「已打开撰写面」回执会让智能体以为这次也交到了、把在场前提放掉（接线时点名，防顺手套模板）。
+4. 在场类超时口径：compose_sms/compose_email/share_sheet/file_preview/file_print 要等用户当面操作、shortcut_run 要等 x-callback 回执（App 侧等待上限 100 秒）——桥侧 tool_call 超时按批三在场类同档给足（伴生 1.0.10 已落的 150 秒可覆盖本批）；location_*/media_*/device_info 是现读现回，走普通超时即可。
+5. 上线顺序同前三批：桥表未补前 App 开关默认关、不列工具，无影响；接线验收先补桥表再开开关实测。真机端到端（定位现读＋附近检索、媒体检索/建歌单/播放控制、拨号确认、短信与邮件的发出/取消各一、分享、带回执的快捷指令跑通一条、设备信息、文件预览/打印各一）随 App 版本发出后另验，不冒充已通。
+
+### 115.6 与设计档出入（逐条）
+
+1. 批四扩入 A7/A16（超出 §114.6 之 8 点名的四组）：开工核查实证——定位在代码里完全不存在（全仓无 CoreLocation 引用、无 location 数据源，DESIGN 亦从未处置，尽管表面图第二章曾把它列进「第一批·纯读」）；A16 的 device_status 由桥本地应答、只含会话/权限面，草案设备事实字段从未实现。两条同属「A 档剩余欠账」且与本批形态同族（真权限现读/零权限现读），本包一并清掉、不再留第五批；回报里单独标明此扩围。
+2. 在场六件不入写集、不带 idempotencyKey 的定性：与四纪律「写/动作类必带」表面冲突——call_start/compose_*/share_sheet/shortcut_run/file_preview/file_print 不自己改变任何系统状态，只是把系统界面交到用户手上（发出与否、跑不跑完、看不看完都由用户当场决定）；账本回放一枚旧「已打开」回执恰好把这件存在的前提（在场）放掉，与用途正相反。故按非写落（无键、每次必真开一次面），与 auth_biometric 的定性同族（§114.6 之 3 的先例延伸、不作其他状态写动作的破例先例）；DeviceToolSpec 注释与写集钉测（14 件）同步登记此口径。真正改状态的两件（media_playlist_create/media_playback_control）照写集带键。
+3. A4/A9 以同步副本「覆盖」的口径差：表面图第二章把 A4 读面与 A9 列入「第一批·纯读」（现调形态），但同步制是 2026-11-10 21:52 用户拍板、晚于表面图分批且已上线成既成通道（照片整本元数据索引＋步数按日合计，智能体经桥查副本）——同一能力面不建第二条现调路。取图本体与写入相册不在副本能力面内、登记不做（115.1 尾表 A4 行）。
+4. shortcut_run 的回执等待上限：表面图只说「无回调只报已发起」；本包给等待上 100 秒上限（在桥侧在场超时 150 秒之内），等满回 noCallback 档（initiated=true、callbackReceived=false、note 写明不确认跑没跑完），不无限挂住调用；超时后才到的回执中心已无人等、安静忽略。
+5. location_search_places 必须先定位：草案没写检索中心从哪来。本包落法＝先取一次当前位置、以其为中心（约 0.08 度幅）检索；定位失败如实失败——不拿无区域的全局结果冒充「附近」。
+6. media_playback_control 的回读验证形态：播放状态切换是异步的（系统音乐播放器跨进程），落法为动作后轮询回读至多约 1.5 秒、达成口径逐动作定：播＝正在播放、停＝已停止、暂停＝不在播放、切歌＝正在播的条目已换（队列到头切不动即未达成）；达不到如实失败并报当下真实状态。暂停接受「已停止」一档的理由：播放器本就停着时暂停是无操作，「没有在播」是回读到的事实、不是假成功。
+7. device_info 只报机型标识原文：营销名映射表（如 iPhone17,2＝iPhone 16 Pro）不在本层维护——编表必过期、错名比标识原文更坏；modelIdentifier 是可验事实，营销名要认由智能体侧知识补。另 B7（手机的名字）/B8（Wi-Fi 名）卡付费权益，device_info 如实缺省这两项、名册文案已明说，不编。
+8. MKPlacemark 弃用知悉：见 115.3——用已弃用但可用的旧面取地点分量，是为行为确定性付的账；后续系统移除该面时回表换 MKAddress 再施工。
+9. 详情页与引擎回执文本按 §109.5/§111.4 先例不入 L10n 目录（执行层回执不入目录；详情页硬编码文案随既有详情页惯例登记）；入目录的是名册五字段与工具卡标题（经 L10n.string 取词，两处合计 40 键）＋InfoPlist 两键。
+10. 本批范围界线：A23 自家动作注册（反方向、表面图「单列不混」）、A6 麦克风录音（工单明示不碰、与听写共用权限）、A8 后台定位（表面图明示不进前四批）、A15 蓝牙（已决不做）、A10 的 notify_cancel（§113.6 已登记待议、不在本包）均登记不做，逐项见 115.1 尾表；B/C/未证三档维持原登记。
+
+### 115.7 单测与终判口径
+
+- 新增 7 个测试函数（DeviceSourcesTests +2：批四载荷分档门控/文案诚实；DeviceCallsTests +4：定位参数/媒体参数/撰写参数/快捷指令与文件呈现参数；RichContentTests +1：十五工具分类标题＋read_file 不误收），全仓测试函数口径以 CI 实跑为准、只增不减（合并前基线 1210，预期 1217）。既有 7 处钉值更新（名册计数 17→22 与呈现序、批次接线 +5、工具全集 27→42 与写集 12→14、可执行集 24→39、全开载荷补五件断言、搜索空集计数 17→22、非同步数据集 +5 断言），口径随名册扩容顺延、非放宽。
+- L10n 补 40 键（Localizable 2373→2413）＋InfoPlist 补 2 键（11→13），合计 2384→2426，validate_i18n.py 实跑通过；繁体守既有惯例（智能体→智慧代理、调用→呼叫、文件夹→資料夾、档案用檔案、定位→定位、存储→儲存）。
+- 静态自查已做：逐文件括号配平与基线同差；DeviceSourceID 全部穷尽点逐点排查并补臂（DevicePermissions.currentStates、DeviceStore 开关字典＋requestAccess、DeviceSyncExecutors.requestAccess、DeviceSyncDataset.fromSource、DeviceViews 图标底色/字形两开关＋详情分发、ConnectorsView.deviceDetail）；名册五字段与工具标题的源串与目录键经脚本逐字对账、全中；在场协调者沿批三纪律（@unchecked Sendable＋访问纪律注记、系统回调不继承 actor 隔离、可用性检查不在本包新增主 actor 隔离面）；MPMediaPlaylist/MPMediaItem 跨边界盒包照批二先例；定位授权等待者自持防提前释放。本机无 Swift 工具链：编译与全套单测终判等合并后 CI。

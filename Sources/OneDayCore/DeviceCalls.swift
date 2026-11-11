@@ -1161,3 +1161,512 @@ public struct BiometricAuthArgs: Equatable, Sendable {
 
     public var humanSummary: String { "本人确认：\(reason)" }
 }
+
+// MARK: - 批四·日常面参数（定位/媒体库/撰写/快捷指令/设备信息/文件呈现）
+
+/// 批四的量级收敛（粒度在 App 侧执行的既有口径）：
+/// 检索类一律有条数上限并在回执标 truncated；撰写
+/// 类的预填文本有字数上限（撰写面是给人当场改的，
+/// 不是长文投递口）；快捷指令名/输入、电话号码都
+/// 在解析层收敛，形不对不下发执行层
+public enum EverydayLimits {
+    /// 附近地点检索的条数上限
+    public static let maxPlaces = 20
+    /// 媒体书目检索的条数上限
+    public static let maxMediaResults = 50
+    /// 歌单列表的条目上限（超出截断并标明）
+    public static let maxPlaylists = 200
+    /// 歌单名上限（字）
+    public static let maxPlaylistNameChars = 100
+    /// 电话号码上限（字符，含 + 与分隔符）
+    public static let maxPhoneNumberChars = 32
+    /// 短信预填正文上限（字）
+    public static let maxSMSBodyChars = 2_000
+    /// 邮件主题上限（字）
+    public static let maxEmailSubjectChars = 200
+    /// 邮件预填正文上限（字）
+    public static let maxEmailBodyChars = 5_000
+    /// 分享文字上限（字）
+    public static let maxShareTextChars = 4_000
+    /// 快捷指令名上限（字）
+    public static let maxShortcutNameChars = 100
+    /// 快捷指令文本输入上限（字）
+    public static let maxShortcutInputChars = 2_000
+}
+
+/// 收件人数组解析（compose_sms/compose_email 共
+/// 用）：必须是字符串数组、至少一个、逐个去空白；
+/// 元素形不对在解析层拒（不把乱码递进系统撰写面）
+private func requiredRecipients(
+    _ args: [String: JSONValue], _ key: String, _ field: String
+) throws -> [String] {
+    guard case .array(let values)? = args[key] else {
+        throw DeviceToolError.invalidArguments("缺少必填参数：\(field)")
+    }
+    let cleaned = values.compactMap { $0.stringValue }
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
+    guard cleaned.count == values.count, !cleaned.isEmpty else {
+        throw DeviceToolError.invalidArguments("\(field)至少要有一个有效的")
+    }
+    return cleaned
+}
+
+/// 电话号码形态校验：只许数字与 +、空格、连字符、
+/// 括号，且至少含一位数字；字母与其余符号在解析
+/// 层拒（tel: 地址不许被塞进别的东西）
+private func validatedPhoneNumber(
+    _ raw: String, field: String
+) throws -> String {
+    let number = raw.trimmingCharacters(in: .whitespaces)
+    let allowed = CharacterSet(
+        charactersIn: "0123456789+*#-() "
+    )
+    guard !number.isEmpty,
+          number.count <= EverydayLimits.maxPhoneNumberChars,
+          number.unicodeScalars.allSatisfy({ allowed.contains($0) }),
+          number.contains(where: { $0.isNumber })
+    else {
+        throw DeviceToolError.invalidArguments(
+            "\(field)不是合法的电话号码"
+        )
+    }
+    return number
+}
+
+/// location_current 参数：没有入参——读哪儿、何时
+/// 读由系统定位服务当下决定，智能体只负责问一次
+public struct LocationCurrentArgs: Equatable, Sendable {
+    /// 详情页本地试读也要构造（与 BiometricAuthArgs
+    /// 的公开 init 同例）
+    public init() {}
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> LocationCurrentArgs {
+        LocationCurrentArgs()
+    }
+
+    public var humanSummary: String { "查看当前位置" }
+}
+
+/// location_search_places 参数：关键词必填；条数
+/// 缺省 10、收敛到 1...20（粒度在 App 侧收敛）
+public struct LocationSearchPlacesArgs: Equatable, Sendable {
+    public let query: String
+    public let limit: Int
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> LocationSearchPlacesArgs {
+        var limit = 10
+        if case .number(let raw)? = args["limit"] {
+            limit = Int(raw)
+        }
+        return LocationSearchPlacesArgs(
+            query: try requiredString(args, "query", "搜索关键词"),
+            limit: min(max(limit, 1), EverydayLimits.maxPlaces)
+        )
+    }
+
+    public var humanSummary: String { "搜索附近地点：\(query)" }
+}
+
+/// location_geocode 参数：正向（地址→坐标）与逆向
+/// （坐标→地址）恰给其一——同给必有歧义、同缺无
+/// 从换算，解析层直接拒；坐标范围逐个校验
+public struct LocationGeocodeArgs: Equatable, Sendable {
+    public let address: String?
+    public let latitude: Double?
+    public let longitude: Double?
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> LocationGeocodeArgs {
+        let address = optionalString(args, "address")
+        var latitude: Double?
+        var longitude: Double?
+        if case .number(let raw)? = args["latitude"] {
+            latitude = raw
+        }
+        if case .number(let raw)? = args["longitude"] {
+            longitude = raw
+        }
+        let hasAddress = address != nil
+        let hasCoordinate = latitude != nil && longitude != nil
+        if (latitude == nil) != (longitude == nil) {
+            throw DeviceToolError.invalidArguments(
+                "纬度与经度要成对给"
+            )
+        }
+        guard hasAddress != hasCoordinate else {
+            throw DeviceToolError.invalidArguments(
+                "地址与坐标只能给一个"
+            )
+        }
+        if let latitude, latitude < -90 || latitude > 90 {
+            throw DeviceToolError.invalidArguments("纬度超出范围")
+        }
+        if let longitude, longitude < -180 || longitude > 180 {
+            throw DeviceToolError.invalidArguments("经度超出范围")
+        }
+        return LocationGeocodeArgs(
+            address: address, latitude: latitude, longitude: longitude
+        )
+    }
+
+    public var humanSummary: String {
+        if let address { return "查这个地址的坐标：\(address)" }
+        return "查这个坐标是什么地方"
+    }
+}
+
+/// 媒体书目类别（media_library_search 的 kind）：
+/// 封闭枚举，表外值在解析层拒、不下发执行层猜
+public enum MediaSearchKind: String, Equatable, Sendable {
+    case song
+    case album
+    case artist
+    case playlist
+    case podcast
+    case any
+}
+
+/// media_library_search 参数：关键词必填；类别缺
+/// 省 any（歌/专辑/艺人/歌单/播客都查）；条数缺
+/// 省 20、收敛到 1...50
+public struct MediaLibrarySearchArgs: Equatable, Sendable {
+    public let query: String
+    public let kind: MediaSearchKind
+    public let limit: Int
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> MediaLibrarySearchArgs {
+        var kind: MediaSearchKind = .any
+        if let raw = optionalString(args, "kind") {
+            guard let parsed = MediaSearchKind(rawValue: raw) else {
+                throw DeviceToolError.invalidArguments(
+                    "类别只能是 song/album/artist/playlist/podcast/any"
+                )
+            }
+            kind = parsed
+        }
+        var limit = 20
+        if case .number(let raw)? = args["limit"] {
+            limit = Int(raw)
+        }
+        return MediaLibrarySearchArgs(
+            query: try requiredString(args, "query", "搜索关键词"),
+            kind: kind,
+            limit: min(
+                max(limit, 1), EverydayLimits.maxMediaResults
+            )
+        )
+    }
+
+    public var humanSummary: String { "搜索媒体库：\(query)" }
+}
+
+/// media_playlists 参数：没有入参——全量列歌单
+/// （上限在执行层收敛、超了标 truncated）
+public struct MediaPlaylistsArgs: Equatable, Sendable {
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> MediaPlaylistsArgs {
+        MediaPlaylistsArgs()
+    }
+}
+
+/// media_playlist_create 参数：歌单名必填且有字数
+/// 收敛；建歌单在资料库里留一份新歌单（状态变
+/// 化），照写工具带防重复键——同键重发回放已建的
+/// 那一份，不许再建第二个同名歌单
+public struct MediaPlaylistCreateArgs: Equatable, Sendable {
+    public let name: String
+    public let idempotencyKey: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> MediaPlaylistCreateArgs {
+        let name = try requiredString(args, "name", "歌单名")
+        guard name.count <= EverydayLimits.maxPlaylistNameChars
+        else {
+            throw DeviceToolError.invalidArguments(
+                "歌单名超过 \(EverydayLimits.maxPlaylistNameChars) 字上限"
+            )
+        }
+        return MediaPlaylistCreateArgs(
+            name: name,
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+
+    public var humanSummary: String { "新建歌单：\(name)" }
+}
+
+/// 播放动作（media_playback_control 的 action）：
+/// 封闭枚举，表外值在解析层拒
+public enum MediaPlaybackAction: String, Equatable, Sendable {
+    case play
+    case pause
+    case stop
+    case next
+    case previous
+}
+
+/// media_playback_control 参数：动作必填；query 只
+/// 对 play 有意义（先按关键词在资料库里找到那首
+/// 歌再播）；控制会真改变播放状态，照写工具带防
+/// 重复键——桥重发同键时回放上次回执，不许把「下
+/// 一首」按两次
+public struct MediaPlaybackControlArgs: Equatable, Sendable {
+    public let action: MediaPlaybackAction
+    public let query: String?
+    public let idempotencyKey: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> MediaPlaybackControlArgs {
+        let raw = try requiredString(args, "action", "播放动作")
+        guard let action = MediaPlaybackAction(rawValue: raw) else {
+            throw DeviceToolError.invalidArguments(
+                "播放动作只能是 play/pause/stop/next/previous"
+            )
+        }
+        return MediaPlaybackControlArgs(
+            action: action,
+            query: optionalString(args, "query"),
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+
+    public var humanSummary: String {
+        switch action {
+        case .play:
+            if let query { return "播放：\(query)" }
+            return "继续播放"
+        case .pause: return "暂停播放"
+        case .stop: return "停止播放"
+        case .next: return "下一首"
+        case .previous: return "上一首"
+        }
+    }
+}
+
+/// call_start 参数：号码必填且过形态校验。拨号只
+/// 把系统确认面弹出来，拨不拨由用户当场点——不带
+/// 幂等键、不入写集（定性见 DeviceToolSpec 批四注记）
+public struct CallStartArgs: Equatable, Sendable {
+    public let number: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> CallStartArgs {
+        CallStartArgs(
+            number: try validatedPhoneNumber(
+                requiredString(args, "number", "电话号码"),
+                field: "电话号码"
+            )
+        )
+    }
+
+    public var humanSummary: String { "拨打电话：\(number)" }
+}
+
+/// compose_sms 参数：收件人至少一个（逐个过电话
+/// 号码形态校验）、正文可选且有字数收敛。撰写面
+/// 预填后由用户亲手改与发——不带幂等键、不入写集
+public struct ComposeSMSArgs: Equatable, Sendable {
+    public let recipients: [String]
+    public let body: String?
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> ComposeSMSArgs {
+        let recipients = try requiredRecipients(
+            args, "recipients", "收件人"
+        ).map {
+            try validatedPhoneNumber($0, field: "收件人号码")
+        }
+        let body = optionalString(args, "body")
+        if let body, body.count > EverydayLimits.maxSMSBodyChars {
+            throw DeviceToolError.invalidArguments(
+                "短信正文超过 \(EverydayLimits.maxSMSBodyChars) 字上限"
+            )
+        }
+        return ComposeSMSArgs(recipients: recipients, body: body)
+    }
+
+    public var humanSummary: String {
+        "写短信给 \(recipients.joined(separator: "、"))"
+    }
+}
+
+/// compose_email 参数：收件人至少一个（逐个粗验含
+/// @、不做投递性验证）、主题/正文可选且有字数收
+/// 敛。同 compose_sms 口径：不带幂等键、不入写集
+public struct ComposeEmailArgs: Equatable, Sendable {
+    public let recipients: [String]
+    public let subject: String?
+    public let body: String?
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> ComposeEmailArgs {
+        let recipients = try requiredRecipients(
+            args, "to", "收件人"
+        )
+        for recipient in recipients {
+            guard recipient.contains("@"),
+                  recipient.count <= 254 else {
+                throw DeviceToolError.invalidArguments(
+                    "收件人「\(recipient)」不像邮箱地址"
+                )
+            }
+        }
+        let subject = optionalString(args, "subject")
+        if let subject,
+           subject.count > EverydayLimits.maxEmailSubjectChars {
+            throw DeviceToolError.invalidArguments(
+                "邮件主题超过 \(EverydayLimits.maxEmailSubjectChars) 字上限"
+            )
+        }
+        let body = optionalString(args, "body")
+        if let body, body.count > EverydayLimits.maxEmailBodyChars {
+            throw DeviceToolError.invalidArguments(
+                "邮件正文超过 \(EverydayLimits.maxEmailBodyChars) 字上限"
+            )
+        }
+        return ComposeEmailArgs(
+            recipients: recipients, subject: subject, body: body
+        )
+    }
+
+    public var humanSummary: String {
+        "写邮件给 \(recipients.joined(separator: "、"))"
+    }
+}
+
+/// share_sheet 参数：文字与文件至少给一样（文件走
+/// OneDay 文件夹的沙盒路径、与 files_read 同一套
+/// 规范化）。分享面递到用户手上、发不发由他决定
+/// ——不带幂等键、不入写集
+public struct ShareSheetArgs: Equatable, Sendable {
+    public let text: String?
+    public let path: String?
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> ShareSheetArgs {
+        let text = optionalString(args, "text")
+        if let text, text.count > EverydayLimits.maxShareTextChars {
+            throw DeviceToolError.invalidArguments(
+                "分享文字超过 \(EverydayLimits.maxShareTextChars) 字上限"
+            )
+        }
+        var path: String?
+        if let rawPath = optionalString(args, "path") {
+            path = try SandboxPath.normalizeFilePath(rawPath)
+        }
+        guard text != nil || path != nil else {
+            throw DeviceToolError.invalidArguments(
+                "要分享的文字与文件至少给一样"
+            )
+        }
+        return ShareSheetArgs(text: text, path: path)
+    }
+
+    public var humanSummary: String {
+        if let path { return "分享文件：\(path)" }
+        return "分享一段文字"
+    }
+}
+
+/// shortcut_run 参数：名字必填（系统只能按名运
+/// 行、不能枚举，见表面图 A22/C7）、文本输入可
+/// 选且有字数收敛。成败以 x-callback 回执为准，
+/// 没有回执只报「已发起」——不带幂等键、不入写集
+public struct ShortcutRunArgs: Equatable, Sendable {
+    public let name: String
+    public let input: String?
+
+    /// 详情页本地运行也要构造（名字由用户在页面里
+    /// 亲手填，与 BiometricAuthArgs 的公开 init 同例）
+    public init(name: String, input: String?) {
+        self.name = name
+        self.input = input
+    }
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> ShortcutRunArgs {
+        let name = try requiredString(args, "name", "快捷指令名")
+        guard name.count <= EverydayLimits.maxShortcutNameChars
+        else {
+            throw DeviceToolError.invalidArguments(
+                "快捷指令名超过 \(EverydayLimits.maxShortcutNameChars) 字上限"
+            )
+        }
+        let input = optionalString(args, "input")
+        if let input,
+           input.count > EverydayLimits.maxShortcutInputChars {
+            throw DeviceToolError.invalidArguments(
+                "输入文字超过 \(EverydayLimits.maxShortcutInputChars) 字上限"
+            )
+        }
+        return ShortcutRunArgs(name: name, input: input)
+    }
+
+    public var humanSummary: String { "运行快捷指令：\(name)" }
+}
+
+/// file_preview 参数：只认 OneDay 文件夹内的路径
+/// （与 files_read 同一套规范化，越界在解析层拒）
+public struct FilePreviewArgs: Equatable, Sendable {
+    public let path: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> FilePreviewArgs {
+        FilePreviewArgs(
+            path: try SandboxPath.normalizeFilePath(
+                requiredString(args, "path", "文件路径")
+            )
+        )
+    }
+
+    public var humanSummary: String { "预览文件：\(path)" }
+}
+
+/// file_print 参数：同 file_preview 的路径口径；
+/// 打印面由系统拉起、打不打由用户在面上决定
+public struct FilePrintArgs: Equatable, Sendable {
+    public let path: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> FilePrintArgs {
+        FilePrintArgs(
+            path: try SandboxPath.normalizeFilePath(
+                requiredString(args, "path", "文件路径")
+            )
+        )
+    }
+
+    public var humanSummary: String { "打印文件：\(path)" }
+}
+
+/// device_info 参数：没有入参——全部免权限现读，
+/// 读哪项由执行层固定清单决定，不开任意查询口
+public struct DeviceInfoArgs: Equatable, Sendable {
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> DeviceInfoArgs {
+        DeviceInfoArgs()
+    }
+}

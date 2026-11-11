@@ -107,6 +107,16 @@ final class DeviceSessionController {
         .translate: DevicePreferences.agentCallEnabled(.translate),
         .ondevice: DevicePreferences.agentCallEnabled(.ondevice),
         .biometric: DevicePreferences.agentCallEnabled(.biometric),
+        // 批四五件：定位/媒体库有真系统权限（开关与
+        // 权限分开，与相机同）；拨号与撰写/快捷指
+        // 令/设备信息无系统权限、开关即唯一的门
+        // （与剪贴板同）
+        .location: DevicePreferences.agentCallEnabled(.location),
+        .media: DevicePreferences.agentCallEnabled(.media),
+        .compose: DevicePreferences.agentCallEnabled(.compose),
+        .shortcuts: DevicePreferences.agentCallEnabled(.shortcuts),
+        .deviceinfo: DevicePreferences
+            .agentCallEnabled(.deviceinfo),
         .health: false,
         .home: false,
     ]
@@ -226,8 +236,13 @@ final class DeviceSessionController {
             _ = await dispatcher.notifications.requestAccess()
         case .camera:
             _ = await dispatcher.camera.requestAccess()
+        case .location:
+            _ = await dispatcher.location.requestAccess()
+        case .media:
+            _ = await dispatcher.media.requestAccess()
         case .clipboard, .files, .opener, .vision, .translate,
-             .ondevice, .biometric:
+             .ondevice, .biometric, .compose, .shortcuts,
+             .deviceinfo:
             break // 无系统权限可申请：开关即唯一的门
         case .health, .home:
             break // 未接线，不申请

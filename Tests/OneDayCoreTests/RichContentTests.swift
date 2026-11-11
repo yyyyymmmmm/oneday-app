@@ -381,6 +381,59 @@ final class RichContentTests: XCTestCase {
         }
     }
 
+    /// 设备扩容批四：日常面十五工具同归设备类（特
+    /// 别是 file_preview/file_print——名字含 file，
+    /// 不许被下方的文件类按 contains 抢走；call_
+    /// start/share_sheet 无设备前缀、逐名归类），
+    /// 标题各有中文映射
+    func testClassifierDeviceEverydayTools() {
+        for name in [
+            "location_current", "location_search_places",
+            "location_geocode",
+            "media_library_search", "media_playlists",
+            "media_playlist_create", "media_playback_control",
+            "call_start", "compose_sms", "compose_email",
+            "share_sheet", "shortcut_run", "device_info",
+            "file_preview", "file_print",
+        ] {
+            XCTAssertEqual(
+                ToolCardClassifier.category(forToolName: name),
+                .device, name
+            )
+        }
+        // 服务端文件工具仍归文件类、不被设备分支误收
+        XCTAssertNotEqual(
+            ToolCardClassifier.category(forToolName: "read_file"),
+            .device
+        )
+        let titles: [(String, String)] = [
+            ("location_current", "查看当前位置"),
+            ("location_search_places", "搜索附近地点"),
+            ("location_geocode", "地址坐标换算"),
+            ("media_library_search", "搜索媒体库"),
+            ("media_playlists", "查看歌单"),
+            ("media_playlist_create", "新建歌单"),
+            ("media_playback_control", "控制音乐播放"),
+            ("call_start", "拨打电话"),
+            ("compose_sms", "写短信"),
+            ("compose_email", "写邮件"),
+            ("share_sheet", "分享内容"),
+            ("shortcut_run", "运行快捷指令"),
+            ("device_info", "查看设备信息"),
+            ("file_preview", "预览文件"),
+            ("file_print", "打印文件"),
+        ]
+        for (name, expected) in titles {
+            XCTAssertEqual(
+                ToolCardClassifier.title(
+                    forToolName: name, arguments: "{}",
+                    locale: Locale(identifier: "zh-Hans")
+                ),
+                expected, name
+            )
+        }
+    }
+
     /// 0.36.10（诊断 D3-5）：复合命令摘要呈「N 条命
     /// 令 · 首条」，不整段直出；多行脚本仍取首行
     func testCompoundCommandSummary() {

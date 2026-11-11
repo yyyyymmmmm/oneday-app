@@ -911,6 +911,11 @@ struct ConnectorsView: View {
         case .translate: TranslateDetailView()
         case .ondevice: OnDeviceDetailView()
         case .biometric: BiometricDetailView()
+        case .location: LocationDetailView()
+        case .media: MediaDetailView()
+        case .compose: ComposeDetailView()
+        case .shortcuts: ShortcutsDetailView()
+        case .deviceinfo: DeviceInfoDetailView()
         case .health, .home: EmptyView()
         }
     }

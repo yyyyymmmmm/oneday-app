@@ -78,7 +78,8 @@ struct DeviceAppIconView: View {
             return .black
         case .calendar, .reminders, .photos, .motion, .health, .home,
              .clipboard, .files, .notifications, .opener,
-             .camera, .vision, .translate, .ondevice, .biometric:
+             .camera, .vision, .translate, .ondevice, .biometric,
+             .location, .media, .compose, .shortcuts, .deviceinfo:
             return .white
         }
     }
@@ -103,6 +104,11 @@ struct DeviceAppIconView: View {
         case .translate: translateArtwork
         case .ondevice: ondeviceArtwork
         case .biometric: biometricArtwork
+        case .location: locationArtwork
+        case .media: mediaArtwork
+        case .compose: composeArtwork
+        case .shortcuts: shortcutsArtwork
+        case .deviceinfo: deviceinfoArtwork
         }
     }
 
@@ -203,6 +209,44 @@ struct DeviceAppIconView: View {
     private var biometricArtwork: some View {
         glyphArtwork(
             colorHex: 0x1C1C1E, symbol: "faceid", scale: 0.44
+        )
+    }
+
+    // 日常面五件（设备扩容批四）：同样无对应的系统
+    // 应用图标可复刻（定位/媒体库虽有系统应用，这
+    // 里的条目是「能力」不是那个应用本身），沿批三
+    // 自绘语汇——彩色圆角底＋白色 SF 字形
+    private var locationArtwork: some View {
+        glyphArtwork(
+            colorHex: 0x0A84FF, symbol: "location.fill",
+            scale: 0.42
+        )
+    }
+
+    private var mediaArtwork: some View {
+        glyphArtwork(
+            colorHex: 0xFA2D48, symbol: "music.note",
+            scale: 0.42
+        )
+    }
+
+    private var composeArtwork: some View {
+        glyphArtwork(
+            colorHex: 0x64D2FF, symbol: "square.and.pencil",
+            scale: 0.40
+        )
+    }
+
+    private var shortcutsArtwork: some View {
+        glyphArtwork(
+            colorHex: 0x3A3A8C, symbol: "bolt.fill",
+            scale: 0.42
+        )
+    }
+
+    private var deviceinfoArtwork: some View {
+        glyphArtwork(
+            colorHex: 0x8E8E93, symbol: "iphone", scale: 0.42
         )
     }
 
@@ -1736,6 +1780,11 @@ struct DevicePermissionsView: View {
         case .translate: TranslateDetailView()
         case .ondevice: OnDeviceDetailView()
         case .biometric: BiometricDetailView()
+        case .location: LocationDetailView()
+        case .media: MediaDetailView()
+        case .compose: ComposeDetailView()
+        case .shortcuts: ShortcutsDetailView()
+        case .deviceinfo: DeviceInfoDetailView()
         case .health, .home: EmptyView()
         }
     }
@@ -2603,5 +2652,437 @@ struct BiometricDetailView: View {
                 note = error.localizedDescription
             }
         }
+    }
+}
+
+// MARK: - 定位详情（设备扩容批四）
+
+/// 定位详情：状态头（真系统权限、权限开关终形态）
+/// ＋本地试一次区——亲手点一次现读当前位置，把地
+/// 名与精度如实显出来（与工具同一条引擎路）。没
+/// 有后台定位这回事，文案与名册口径一致
+struct LocationDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var note: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+    private var permission: DevicePermissionState {
+        controller.permissions[.location] ?? .notDetermined
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .location)
+            if permission.isUsable {
+                Section {
+                    Button("看看我现在在哪") { locateLocal() }
+                    if let note {
+                        Text(note)
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                } header: {
+                    headerText("在这台手机上试一次")
+                } footer: {
+                    Text("只现读这一次，不做后台定位、不存位置副本。")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
+            } else {
+                DevicePermissionGate(
+                    source: .location, permission: permission
+                )
+            }
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+    }
+
+    private func locateLocal() {
+        Task {
+            do {
+                let result = try await controller.dispatcher
+                    .location.currentResult(LocationCurrentArgs())
+                if case .object(let object) = result {
+                    let place = object["placeName"]?.stringValue
+                        ?? object["address"]?.stringValue
+                    var accuracyText = ""
+                    if case .number(let meters)? =
+                        object["accuracyMeters"] {
+                        accuracyText =
+                            "（精度约 \(Int(meters.rounded())) 米）"
+                    }
+                    note = (place ?? "已读到坐标，但没查到地名")
+                        + accuracyText
+                }
+            } catch let error as DeviceToolError {
+                note = error.message
+            } catch {
+                note = error.localizedDescription
+            }
+        }
+    }
+}
+
+// MARK: - 媒体库详情（设备扩容批四）
+
+/// 媒体库详情：状态头（真系统权限）＋播放状态一
+/// 行（本地现读）＋歌单区（与工具同一引擎：名＋
+/// 首数）。检索面不在详情页复刻，详情页只给用户
+/// 一个「我的资料库大概什么样」的本地事实面
+struct MediaDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var playbackLine: String?
+    @State private var playlists: [[String: JSONValue]] = []
+    @State private var note: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+    private var permission: DevicePermissionState {
+        controller.permissions[.media] ?? .notDetermined
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .media)
+            if permission.isUsable {
+                Section {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Text("系统音乐播放器")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Spacer(minLength: OneDayMetrics.spacingS)
+                        Text(playbackLine ?? "读取中")
+                            .font(.body)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .frame(
+                        minHeight: OneDayMetrics.settingsRowHeight
+                    )
+                } header: {
+                    headerText("播放状态")
+                } footer: {
+                    Text("这里只看系统音乐播放器的状态；其他 App 在放什么，系统不给读。")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
+
+                Section {
+                    if let note {
+                        Text(note)
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    if playlists.isEmpty && note == nil {
+                        Text("资料库里还没有歌单。")
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    ForEach(
+                        Array(playlists.enumerated()),
+                        id: \.offset
+                    ) { _, playlist in
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Text(
+                                playlist["name"]?.stringValue ?? ""
+                            )
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                            Spacer(
+                                minLength: OneDayMetrics.spacingS
+                            )
+                            Text(
+                                "\(playlist["itemCount"]?.displayString ?? "") 首"
+                            )
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                        }
+                        .frame(
+                            minHeight: OneDayMetrics
+                                .settingsRowHeight
+                        )
+                    }
+                } header: {
+                    headerText("我的歌单")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
+            } else {
+                DevicePermissionGate(
+                    source: .media, permission: permission
+                )
+            }
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .task { await reload() }
+    }
+
+    private func reload() async {
+        playbackLine = await controller.dispatcher.media
+            .localPlaybackLine()
+        do {
+            playlists = try controller.dispatcher.media
+                .localPlaylists()
+            note = nil
+        } catch let error as DeviceToolError {
+            note = error.message
+        } catch {
+            note = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - 拨号与撰写详情（设备扩容批四）
+
+/// 拨号与撰写详情：状态头（无系统权限、单开关）
+/// ＋本地试一次区——空预填打开短信/邮件撰写面，
+/// 让用户先亲眼看看智能体能递到手上的是什么面；
+/// 发出永远是用户在面上亲手点的事，文案钉死
+struct ComposeDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var note: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .compose)
+            Section {
+                Button("试着写一条短信") { trialSMS() }
+                Button("试着写一封邮件") { trialMail() }
+                if let note {
+                    Text(note)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            } header: {
+                headerText("在这台手机上试一次")
+            } footer: {
+                Text("打开的是空撰写面，收件人和内容都由你亲手填；智能体也只能做到把预填好的面递到你手上，发不发由你在面上点。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+    }
+
+    private func trialSMS() {
+        Task {
+            do {
+                let outcome = try await controller.dispatcher
+                    .compose.trialSMS()
+                note = Self.outcomeText(outcome)
+            } catch let error as DeviceToolError {
+                note = error.message
+            } catch {
+                note = error.localizedDescription
+            }
+        }
+    }
+
+    private func trialMail() {
+        Task {
+            do {
+                let outcome = try await controller.dispatcher
+                    .compose.trialMail()
+                note = Self.outcomeText(outcome)
+            } catch let error as DeviceToolError {
+                note = error.message
+            } catch {
+                note = error.localizedDescription
+            }
+        }
+    }
+
+    private static func outcomeText(
+        _ outcome: ComposeOutcome
+    ) -> String {
+        switch outcome {
+        case .sent: return "已由你亲手发出。"
+        case .savedDraft: return "你把这封邮件存成了草稿，没有发。"
+        case .cancelled: return "你取消了，没有发出。"
+        }
+    }
+}
+
+// MARK: - 快捷指令详情（设备扩容批四）
+
+/// 快捷指令详情：状态头（无系统权限、单开关）＋
+/// 本地运行区——系统不给枚举，只能按名运行：用
+/// 户亲手填一个名字运行一次，既是试用、也是给智
+/// 能体对名字的唯一办法（名字对不对当场见分晓）
+struct ShortcutsDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var name = ""
+    @State private var note: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .shortcuts)
+            Section {
+                TextField("快捷指令的名字", text: $name)
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                Button("运行这一条") { runLocal() }
+                    .disabled(
+                        name.trimmingCharacters(
+                            in: .whitespaces
+                        ).isEmpty
+                    )
+                if let note {
+                    Text(note)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            } header: {
+                headerText("按名运行")
+            } footer: {
+                Text("系统没有列出全部快捷指令的办法，只能按名字运行你已经建好的一条；运行会切到快捷指令去执行。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+    }
+
+    private func runLocal() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        Task {
+            do {
+                let outcome = try await controller.dispatcher
+                    .shortcuts.runLocal(name: trimmed)
+                switch outcome {
+                case .success(let result):
+                    note = result.map {
+                        "运行完了，它回的内容是：\($0)"
+                    } ?? "运行完了。"
+                case .cancelled:
+                    note = "你在快捷指令那边取消了运行。"
+                case .failed(let message):
+                    note = message.map {
+                        "快捷指令那边回了出错：\($0)"
+                    } ?? "快捷指令那边回了出错。"
+                case .noCallback:
+                    note = "已发起运行，但一直没等到回执，不确认它跑没跑完。"
+                }
+            } catch let error as DeviceToolError {
+                note = error.message
+            } catch {
+                note = error.localizedDescription
+            }
+        }
+    }
+}
+
+// MARK: - 设备信息详情（设备扩容批四）
+
+/// 设备信息详情：状态头（无系统权限、单开关）＋
+/// 本地现读区——机型/系统/电量/存储/网络逐行如
+/// 实列（与工具同一份快照）。读不到的项显「未知」
+/// 原样，不编
+struct DeviceInfoDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var snapshot: DeviceInfoSnapshot?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .deviceinfo)
+            Section {
+                if let snapshot {
+                    infoRow("机型标识", snapshot.modelIdentifier)
+                    infoRow(
+                        "系统",
+                        "\(snapshot.systemName) \(snapshot.systemVersion)"
+                    )
+                    infoRow(
+                        "电量",
+                        snapshot.batteryPercent.map {
+                            "\($0)% · \(snapshot.batteryStateText)"
+                        } ?? "未知"
+                    )
+                    infoRow(
+                        "低电量模式",
+                        snapshot.lowPowerMode ? "开" : "关"
+                    )
+                    infoRow(
+                        "存储还剩",
+                        Self.bytesText(snapshot.storageFreeBytes)
+                            + "（共 "
+                            + Self.bytesText(snapshot.storageTotalBytes)
+                            + "）"
+                    )
+                    infoRow("当前网络", snapshot.networkText)
+                } else {
+                    Text("读取中")
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Button("重新读一次") { reload() }
+            } header: {
+                headerText("这台手机现在")
+            } footer: {
+                Text("全部现读现回、不存副本；手机的名字与当前 Wi-Fi 名称需要签名权益才读得到，不在此列。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .task { reload() }
+    }
+
+    private func infoRow(_ title: String, _ value: String) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(title)
+                .font(.rowTitleL)
+                .foregroundStyle(Palette.ink)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(value)
+                .font(.body)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.trailing)
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+    }
+
+    private func reload() {
+        Task {
+            snapshot = await controller.dispatcher.deviceInfo
+                .snapshot()
+        }
+    }
+
+    private static func bytesText(_ bytes: Int64) -> String {
+        let gb = Double(bytes) / 1_000_000_000
+        return String(format: "%.1f GB", gb)
     }
 }
