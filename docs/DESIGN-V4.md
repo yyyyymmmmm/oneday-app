@@ -8158,3 +8158,41 @@ B 档 11 项全部卡付费开发者账号（B1 健康/B2 家庭两件已在名�
 - **确诊机理**：回底钮 0.41.0 浮层化后挂在发送区容器（safeAreaBar 承载的小 VStack）的 `.overlay(.topTrailing)` 上、再以 `.offset(y: -(44+spacingS))` 整体上移——44pt 命中域完整落在宿主 frame 之外、悬在消息列表上空。SwiftUI 命中测试按祖先 frame 逐层剪枝：触点不在宿主框内永不下探 overlay 子树，该位置触摸全被下方 ScrollView 吃掉；渲染不裁剪、命中裁剪，故看得见点不动。action 绑定（scrollToBottom，列表内多处共用）与目标锚经查无恙；钮在布局流内时可点、浮层化后才死，时间线吻合。角标同在死区、同病同修。
 - **修法**：钮迁挂消息列表本体 overlay（宿主＝整页、命中域恒在 bounds 内）；落位改实测驱动——bottomBar 经背景 GeometryReader 在命名空间 `chatSurface` 发布 frame（ChatBottomBarFrameKey，与右滑引用排除区同款构造），overlay 侧以 Core 纯逻辑 BackToBottomPlacement 按（宿主尺寸，发送区 frame，右距 spacingM，间距 spacingS）算中心点 .position 落位：键盘升降、错误/提示条增减都经 frame 自动跟随，视觉位置与旧口径逐点一致（右缘 spacingM、盘底距发送区顶 spacingS＋5）。钮外区域无命中形，列表滚动/点击照常穿透；显隐派生提为全页单一出处 showsBackToBottomButton，出入动画随钮迁到列表侧（swap 口径不变）。
 - **可测判定**：BackToBottomPlacement 三件钉进 BottomFollowTests——落位算术（中心/命中域数值）、病灶复现（旧形态命中域对发送区宿主 bounds 代入 isReachable＝false、对整页宿主＝true）、frame 未发布（.null/.zero）不给落位。真机点按（点钮回底＋角标清零）列交付后验收项。
+
+## §119 模型设置简化重做（预制分支 feat/model-simple，基线 main a11c52f；用户 2026-11-11 12:10 亲定＋12:15 六点拍板，调研报告 research_notes/model-settings-simple-20261111.md）
+
+呈现层重组＋辅助面新建，0.37.0 管道（ProviderRegistry、密钥 PUT /api/env 只存 key_env 引用、验活、组合经伴生 meta＋Dashboard 全量写回）能复用全复用；2026-11-10「网关渠道必须显示且可管理」的**呈现口径**由本节覆盖（渠道降为卡内标记＋详情查看），底层注册/密钥落盘/组合存储不动。版本未动，合并时主线定号（预计 0.48.0）。
+
+### 119.1 与调研报告映射表逐项对应
+
+- **服务商卡＝`providers.<名>` 一条**（报告 3.1）：ModelSettingsView 改卡面，一卡一件——名称、接口地址、密钥状态（只显已存/未存、永不回显值）、默认标记、动作（获取模型/测连接/编辑/删除/设为默认，设默认只在默认服务商卡的模型行上，见 119.5 约束）。模型清单回归卡内展开；网关卡的模型按渠道读面（channelsFace）交叉标来源渠道名，读面没就绪不标不编造。
+- **清单刷新 ekko 式**（报告 3.1/ekko B 族）：具名卡「获取模型」先拉新清单算差异（Core ModelListDiff 保序），没变直接报「没有变化」；有变弹确认（将删 N 个＋名单/新增 M 个＋名单），确认后才落盘；落盘前把现清单暂存本机 UserDefaults（键 `providerPrevModels.<名>`，只存模型名清单、非敏感），卡上出现「恢复上一份模型清单」（恢复与现清单互换、可再撤）。默认服务商卡的清单是服务端现读、不落 App 存储，无差异/恢复概念，「获取模型」即重拉目录＋报数。
+- **测连接三态**（Core ProviderConnectionOutcome）：连通报发现数／通但无目录（connectedNoCatalog：探针 emptyList 不再算失败）教手填模型 ID／失败给「仍然保存」出路——编辑器里 canSaveAnyway 时出现该钮，只绕过 validateDraft/validateEditDraft 的「模型为空」一闸，其余闸（名字/地址/密钥）照走。既有卡测连接的密钥经 /api/env reveal 只过手、不留存。
+- **主端点卡＝现行顶层 model 本体**（报告 3.3）：卡名「默认服务商」，零迁移；其模型清单即网关候选（availableModels 管线），逐个可设默认（既有 setDefaultModel 候选校验＋写回）。Dashboard config 表示里 model 被压成字符串、主端点地址/密钥不在此表示内——卡面如实呈「接口地址：在服务器上配置，App 里只看不改」「密钥：在服务器上保管」，不假装可编辑。渠道九条只读列表降为该卡内「查看渠道」展开（原 channelsGroup 平移）。
+- **辅助页每行一槽**（报告 3.2）：数据源 Core 新注册表 AuxSlotCatalog——19 活槽（键名依 Hermes `_aux` 工厂实查），死三槽（web_extract/session_search/skills_hub）永不呈现、旧 AuxSlotCatalog 12 槽目录（含死槽）已删。值域统一：跟随主模型｜任一服务商的任一模型；落盘 provider 口径：跟随＝"auto"＋""；指默认服务商写 "custom"（与生产 vision 现行写形一致），读时 "custom"/"main" 均归一为默认服务商；"auto" 且带模型归一为默认服务商指定（本部署 auto 实际走主通道，语义等价）；不在册的 provider 串原样保真呈现（行内「现在的设置（不在服务商名单里）」组），不吞不改。写只动 provider/model（enabled 给了才动），同槽位其余键（timeout 等）原样保留（AuxAssignments.applying 纯函数＋钉测）。
+- **组合降预设**（报告 3.4）：存储沿用 ModelComboDocument（桥 meta）**零数据迁移**，旧组合自动即预设、呈现改名。新预设抓取口径改整套快照（PresetSnapshot.capture：默认模型＋全部 19 槽当前分配、跟随项显式记 auto，启用即真重置；与 ComboStarter 只收非跟随项的稀疏口径不同，旧组合启用时仍按其稀疏语义只动点名键）。编辑器 PresetEditorView 替代 ModelComboEditorView：名＋默认模型（仅网关候选，激活守卫口径不变）＋辅助行（与辅助页共用呈现模型）；保存旧预设时其 delegation/fallback 字段原样保留不编辑、不丢，编辑器内有一行说明。入口文案与 MoA 划清一句：「预设不是多模型汇总——那是几个模型一起答一道题」。
+- **未配模型引导**（ekko 差集③）：Core ModelSetupGuidance.needsSetup 纯函数——网关候选为空且具名服务商模型总数为零才为真；总数未知（配置未读到）恒假，不误报（生产现行：命名服务商为零但网关有候选＋默认已设，恒假，钉测四例覆盖）。AppState.refreshModelCatalog 顺带派生 providerModelTotal。聊天页落点＝空态（currentThread==nil 且未在生成）下方引导卡「还没配置模型」＋[先等等（本次消卡）][去设置（pendingSettingsRoute=.models＋settingsSheetRequested 现成通道直达本页）]；未碰 ChatView 的 §116 解析/文件牌/回底钮段。
+
+### 119.2 六点拍板落账（2026-11-11 12:15「按推荐全定」）
+
+①辅助行分层＝常用 11＋折叠 8，按报告 §3.2 线并作一处调和：报告把 review 列常用、mcp 列折叠，任务单另定 review 放折叠层——以任务单为准，mcp 提至常用凑 11（常用＝vision/compression/title_generation/approval/background_review/voice_chat/mcp/kanban_decomposer/triage_specifier/goal_judge/curator；折叠＝review/memory_query_rewrite/tts_audio_tags/profile_describer/group_router/monitor/moa_reference/moa_aggregator），钉测锁定。②MoA 两行仅当任一已被设为非跟随、或当前激活预设含 MoA 分配时出现（AuxSlotCatalog.sections 判定＋钉测三例）。③review 行放折叠层，行说明点明其异形（自带调用方式、与其他行只选模型不同）。④辅助写回文案如实标「保存后下次重启 Hermes 后生效」（热生效未验，实测并入收官窗口那次重启，见 119.5）。⑤title_generation/background_review 的 enabled 开关在行内露出（只露 enabled，其余附属项不露；读缺失按开、出厂口径）。⑥渠道降为标记＋卡内详情，按简化定版执行。
+
+### 119.3 写回通道选型
+
+辅助读写选定 **Dashboard config 全量写回**（GET/PUT /api/config，与服务商条目、默认模型同一条既有写路：先读全量、只改点名键、未知字段原样保留）。**不给伴生加新端点**——伴生侧零改动、零部署。理由：auxiliary 本就住在 Hermes config 里，组合激活（0.37.0）已用同一通道写同一段并验过；再开伴生端点只会多一条要对账的路。
+
+### 119.4 细节审计对账行（追加并入，2026-11-11）
+
+- **D3-01（「槽位」词族 8 条）逐条销**：①小节名「辅助槽位」→新页只有「辅助模型」②「%lld 个辅助槽位」→「已给 %lld 个用途指定模型」（且只数非跟随项）③组合启用回执→「预设「%@」已启用。辅助模型若没立刻变，随服务下次重启生效。」④空态「还没有设置任何槽位」→「还没有给任何用途单独指定，都跟随主模型」⑤「这套组合还没有设置任何槽位，激活不会改动现在的配置。」→「这套预设还没有给任何用途单独指定，启用不会改动现在的配置。」⑥编辑器引导「看图、标题、压缩这些活各用哪个模型。没打开的槽位保持现在的设置不动。」→随旧编辑器退役，新预设编辑器/辅助页文案无此词⑦报错「…把它放到某个槽位里按直连用。」→「…或在辅助模型里给某个用途指定它。」⑧「还没有添加提供商。添加后，它家的模型会出现在上面的清单里，也能在组合里按槽位选用。」→旧清单页下线、该串不再引用（同时销 D3-16）。新写文案全程避开「槽位」词族（代码标识符与注释不在用户面，不计）。
+- **D3-16（「提供商」16 条）逐条销**：16 键全部位于本包改动面（模型页/编辑器/Store/校验/探针），新串一律「服务商」：页面标题「模型与提供商」→「模型与服务商」；其余 15 条（添加/删除/校验三条/探针一条/Store 回执五条/空态与留位两条/清单说明一条）均已换词或随旧页退役。旧键留作目录存量孤儿（与 §109.5 坏键未删同例），不删目录既有键。
+- **D3-13（顺带销）**：「主端点（经网关）」→「默认服务商（经网关）」（SlotChoice.providerLabel，main/custom 同归一）。
+- **D3-10 定位备注（不在本包范围）**：「验活没过」「仅配置在册 · 未验活」两键实查位于云电脑/连接面（CloudComputerViews/CompanionFrontClient 一带），非模型面；本包测连接三态已按人话定版，云电脑面两键随连接器下一包处理，此处只登记定位。
+- **新文案自查**：本包全部新源串避开报告词族（槽位/桥/闸门/端点/验活/轮询/上游/未落定/对账/镜像）；validate_i18n.py 通过（2566 键，新增 138 键三语齐、目录 diff 纯增零删）。§120 人话包将扩校验器黑名单并覆盖源串，合并时以扩后校验器复跑为准。
+
+### 119.5 约束、未验与知悉
+
+- **具名服务商「设为默认」不落**：Dashboard config 表示里 model 只有模型名字符串、没有 provider 指向，具名模型的选用语法未实测（§103.6 旧账④）；硬写名字会把默认指去网关路造成坏配置。故具名卡不给「设为默认」钮，其模型经辅助行/预设行选用（可用路径真实存在）。待收官窗口实测具名 provider 会话锁/默认语法后再议。
+- **辅助写回热生效未验**（旧账③延续）：文案已按「下次重启生效」写；实测并入收官窗口重启（PAT 窗口）一并验，不单独折腾生产。
+- **编辑服务商名字锁定**：名字是 providers 字典的键，改名＝换键（牵动 env 钥名与引用），编辑态禁用改名并明示「要换名字请删掉重新添加」。
+- **真机待验**：卡面展开/测连接三态/清单差异弹窗/恢复上一份、辅助页 19 行选择器与两开关、预设快照启用、未配模型引导卡（须在真空配置下验，生产恒不出现）、AgentHub 入口进本页后辅助页 NavigationLink 的栈行为（设置 sheet 路径已确认有栈；枢纽路径待真机一验）。
+- **已知存量**：目录旧键（槽位 8＋提供商 16＋主端点 1）成孤儿保留，不在本包删键（删键口径随 §120 校验器扩版一并处置）。

@@ -108,6 +108,9 @@ final class AppState {
     /// 当前值」，且硬排除网关别名（见 ModelCatalog）。0.2.2
     /// 把网关 /v1/models 的别名并进候选是 bug，已撤销
     private(set) var availableModels: [String] = []
+    /// 具名服务商模型总数（§119 未配模型判定用，随
+    /// 目录刷新从 config 派生；nil＝还没读到配置）
+    private(set) var providerModelTotal: Int?
     /// 网关别名集（/v1/models 返回的 id，如 hermes-agent）：
     /// 是客户端调网关时填的模型名、不是上游模型；只许在
     /// 连接信息里只读出现，永不进默认模型候选
@@ -579,6 +582,11 @@ final class AppState {
             try await client.rawConfig(config: config)
         }), let current = raw["model"]?.stringValue {
             defaultModel = current
+            // §119 未配模型判定输入：具名服务商的模型
+            // 总数（读到配置才有值；未知时判定不报）
+            providerModelTotal = ProviderRegistry
+                .entries(from: raw["providers"])
+                .reduce(0) { $0 + $1.models.count }
             // 聊天模型初始播种（0.3.0）：用户没选过时，若
             // 服务端默认在写死清单内则以它为初始选择
             if UserDefaults.standard.string(forKey: "chatModelID") == nil {

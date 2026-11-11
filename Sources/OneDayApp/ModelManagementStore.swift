@@ -24,6 +24,11 @@ final class ModelManagementStore {
     private(set) var combosFaceMissing = false
     private(set) var combosLoadFailed = false
 
+    // 辅助模型（§119）：自 rawConfig 派生的现行分配
+    // 与两行 enabled 开关现值，load/写回后重算
+    private(set) var auxAssignments: [String: AuxAssignment] = [:]
+    private(set) var auxEnabled: [String: Bool] = [:]
+
     private let frontClient = CompanionFrontClient()
     private let comboClient = ModelComboClient()
     private let probeClient = ProviderProbeClient()
@@ -73,6 +78,7 @@ final class ModelManagementStore {
             channelsFace = await frontClient.gatewayChannels(config: config)
         }
         await loadCombos(appState: appState)
+        recomputeAux()
     }
 
     private func loadCombos(appState: AppState) async {
@@ -141,7 +147,7 @@ final class ModelManagementStore {
                 )
             }
         } catch {
-            notice = L10n.string("密钥没能保存到服务端，这家提供商还没加上。")
+            notice = L10n.string("密钥没能保存到服务端，这家服务商还没加上。")
             return false
         }
         do {
@@ -153,18 +159,28 @@ final class ModelManagementStore {
                 providers[name] = ProviderRegistry.configValue(for: entry)
                 config["providers"] = .object(providers)
             }
-            notice = L10n.format("提供商 %@ 已添加。", name)
+            notice = L10n.format("服务商 %@ 已添加。", name)
             return true
         } catch {
-            notice = L10n.string("密钥已保存到服务端，但提供商条目没写成；再保存一次即可（同名密钥会被覆盖）。")
+            notice = L10n.string("密钥已保存到服务端，但服务商条目没写成；再保存一次即可（同名密钥会被覆盖）。")
             return false
         }
     }
 
-    /// 删除提供商：摘条目＋删 env 钥（删钥失败不回滚
-    /// 条目删除——孤儿钥在服务端 env 里无引用、不生效，
-    /// notice 如实带一句）
+    /// 删除服务商：先查引用——有辅助模型或预设还指着
+    /// 它就拦下并点名（§119 报告 3.1），不许删出悬空
+    /// 引用；无引用才摘条目＋删 env 钥（删钥失败不回
+    /// 滚条目删除——孤儿钥在服务端 env 里无引用、不生
+    /// 效，notice 如实带一句）
     func deleteProvider(_ entry: ProviderRegistry.Entry, appState: AppState) async {
+        let references = providerReferences(entry.name)
+        if !references.isEmpty {
+            notice = L10n.format(
+                "「%@」正被这些地方用着：%@。先去改掉，再回来删。",
+                entry.name, references.joined(separator: "、")
+            )
+            return
+        }
         do {
             try await writeBack(appState: appState) { config in
                 if case .object(var providers) = config["providers"] ?? .null {
@@ -186,7 +202,7 @@ final class ModelManagementStore {
                 envNote = L10n.string("（它的密钥还留在服务端，稍后可在「密钥」页删掉）")
             }
         }
-        notice = L10n.format("提供商 %@ 已删除。%@", entry.name, envNote)
+        notice = L10n.format("服务商 %@ 已删除。%@", entry.name, envNote)
     }
 
     // MARK: - 组合（分配层）
@@ -203,10 +219,10 @@ final class ModelManagementStore {
         do {
             try await comboClient.saveDocument(config: config, document: document)
             comboDocument = document
-            notice = L10n.format("组合「%@」已保存。", combo.name)
+            notice = L10n.format("预设「%@」已保存。", combo.name)
             return true
         } catch {
-            notice = L10n.string("组合没能存到服务端，请稍后再试。")
+            notice = L10n.string("预设没能存到服务端，请稍后再试。")
             return false
         }
     }
@@ -221,20 +237,23 @@ final class ModelManagementStore {
         do {
             try await comboClient.saveDocument(config: config, document: document)
             comboDocument = document
-            notice = L10n.format("组合「%@」已删除。", combo.name)
+            notice = L10n.format("预设「%@」已删除。", combo.name)
         } catch {
             notice = L10n.string("删除没能存到服务端，请稍后再试。")
         }
     }
 
-    /// 把当前配置存为第一套组合（起始示例口径：现状
-    /// 快照、用户点名保存、可删改，不称推荐）
-    func saveStarterCombo(appState: AppState) async {
-        let starter = ComboStarter.fromCurrentConfig(
-            rawConfig, id: UUID().uuidString, name: L10n.string("当前配置"),
+    /// 把当前设置存为一份预设（§119 快照口径：默认
+    /// 模型＋全部用途的整套分配，跟随项也显式记下；
+    /// 用户点名保存、可删改，不称推荐）
+    func saveCurrentAsPreset(appState: AppState) async {
+        let preset = PresetSnapshot.capture(
+            config: rawConfig,
+            namedProviders: providers.map(\.name),
+            id: UUID().uuidString, name: L10n.string("当前配置"),
             updatedAt: Date().timeIntervalSince1970
         )
-        await saveCombo(starter, appState: appState)
+        await saveCombo(preset, appState: appState)
     }
 
     /// 激活：读最新 config → Core 拼装 → 整包写回 →
@@ -244,7 +263,7 @@ final class ModelManagementStore {
     func activateCombo(_ combo: ModelCombo, appState: AppState) async {
         if let mainModel = combo.mainModel,
            !ModelCatalog.isWritable(mainModel, candidates: appState.availableModels) {
-            notice = L10n.format("这套组合的主模型 %@ 不在网关可用的模型里，没法设为全局默认；先在编辑里换一个，或把它放到某个槽位里按直连用。", mainModel)
+            notice = L10n.format("这套预设的主模型 %@ 不在网关可用的模型里，没法设为全局默认；先在编辑里换一个，或在辅助模型里给某个用途指定它。", mainModel)
             return
         }
         do {
@@ -267,7 +286,7 @@ final class ModelManagementStore {
                 )
                 comboDocument = document
             }
-            notice = L10n.format("组合「%@」已启用。辅助槽位若没立刻变，随服务下次重启生效。", combo.name)
+            notice = L10n.format("预设「%@」已启用。辅助模型若没立刻变，随服务下次重启生效。", combo.name)
         } catch {
             notice = (error as? HermesError)?.userMessage ?? L10n.string("启用失败，请稍后再试。")
         }
@@ -286,5 +305,258 @@ final class ModelManagementStore {
             try await client.updateConfig(config: config, newConfig: updated)
         }
         rawConfig = updated
+    }
+}
+
+// MARK: - §119 简化形态（服务商卡面＋辅助模型）
+
+extension ModelManagementStore {
+
+    /// 辅助面派生态重算（呈现只读本表，不各行现算）
+    func recomputeAux() {
+        let names = providers.map(\.name)
+        auxAssignments = AuxAssignments.allAssignments(
+            in: rawConfig, namedProviders: names
+        )
+        var enabled: [String: Bool] = [:]
+        for slot in AuxSlotCatalog.all where slot.hasEnabledSwitch {
+            enabled[slot.key] = AuxAssignments.enabled(
+                in: rawConfig, slot: slot.key
+            )
+        }
+        auxEnabled = enabled
+    }
+
+    /// 当前启用的预设是否含 MoA 分配（MoA 行显隐）
+    var activePresetUsesMoA: Bool {
+        guard let document = comboDocument,
+              let active = document.combos.first(where: {
+                  $0.id == document.activeComboID
+              })
+        else { return false }
+        return PresetSnapshot.usesMoA(active)
+    }
+
+    /// 保存一行辅助分配：走 Dashboard config 全量写
+    /// 回（通道选型见 DESIGN §119——与服务商/默认模
+    /// 型同一条既有写路，不给伴生加新端点）；写回文
+    /// 案如实标重启生效（热生效未验，§103.6 旧账③）
+    func saveAux(
+        slot key: String, assignment: AuxAssignment,
+        enabled: Bool?, appState: AppState
+    ) async {
+        let staged = AuxAssignments.applying(
+            assignment, enabled: enabled, slot: key, to: rawConfig
+        )
+        do {
+            try await writeBack(appState: appState) { config in
+                config["auxiliary"] = staged["auxiliary"]
+            }
+            recomputeAux()
+            notice = L10n.string("已保存，下次重启 Hermes 后生效。")
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? L10n.string("保存失败，请稍后再试。")
+        }
+    }
+
+    /// 谁在引用这家服务商：现行辅助分配（扫 config
+    /// auxiliary 原始 provider 值，含注册表外用途）＋
+    /// 已存预设。删卡前点名用
+    func providerReferences(_ name: String) -> [String] {
+        var out: [String] = []
+        if case .object(let aux) = rawConfig["auxiliary"] ?? .null {
+            for (key, value) in aux {
+                guard case .object(let slotObject) = value,
+                      slotObject["provider"]?.stringValue == name
+                else { continue }
+                out.append(L10n.format(
+                    "辅助模型 · %@", AuxSlotCatalog.title(forKey: key)
+                ))
+            }
+        }
+        for combo in comboDocument?.combos ?? []
+        where combo.aux.values.contains(where: { $0.provider == name }) {
+            out.append(L10n.format("预设「%@」", combo.name))
+        }
+        return out.sorted()
+    }
+
+    // MARK: 测连接（三态；密钥经 reveal 只过手不留存）
+
+    func testConnection(
+        entry: ProviderRegistry.Entry, appState: AppState
+    ) async -> ProviderConnectionOutcome {
+        guard let baseURL = entry.baseURL, !baseURL.isEmpty else {
+            return .failed(message: L10n.string("这家服务商还没填接口地址。"))
+        }
+        guard let keyEnv = entry.keyEnv, !keyEnv.isEmpty else {
+            return .failed(message: L10n.string("这家服务商还没保存密钥。"))
+        }
+        do {
+            let key = try await appState.performAdmin { client, config in
+                try await client.revealEnvVar(config: config, key: keyEnv)
+            }
+            let models = try await probeClient.fetchModels(
+                baseURL: baseURL, apiKey: key
+            )
+            return .connected(modelCount: models.count)
+        } catch let error as ProviderProbeClient.ProbeFailure {
+            return error == .emptyList
+                ? .connectedNoCatalog : .failed(message: error.message)
+        } catch {
+            return .failed(message: L10n.string("测试没能完成，请稍后再试。"))
+        }
+    }
+
+    /// 默认服务商（主通道）测连接：以目录刷新结果
+    /// 为准——读到清单即连通
+    func testMainEndpoint(
+        appState: AppState
+    ) async -> ProviderConnectionOutcome {
+        await appState.refreshModelCatalog()
+        return appState.availableModels.isEmpty
+            ? .failed(message: L10n.string("没能读到网关的模型清单，检查网络与登录状态后再试。"))
+            : .connected(modelCount: appState.availableModels.count)
+    }
+
+    // MARK: 清单刷新（先报差异，确认后才写）
+
+    /// 拉新清单但不落盘：回结局＋新清单（连通时）
+    func fetchRefreshedModels(
+        entry: ProviderRegistry.Entry, appState: AppState
+    ) async -> (outcome: ProviderConnectionOutcome, models: [String]?) {
+        guard let baseURL = entry.baseURL, !baseURL.isEmpty,
+              let keyEnv = entry.keyEnv, !keyEnv.isEmpty
+        else {
+            return (.failed(message: L10n.string("这家服务商还没填接口地址。")), nil)
+        }
+        do {
+            let key = try await appState.performAdmin { client, config in
+                try await client.revealEnvVar(config: config, key: keyEnv)
+            }
+            let models = try await probeClient.fetchModels(
+                baseURL: baseURL, apiKey: key
+            )
+            return (.connected(modelCount: models.count), models)
+        } catch let error as ProviderProbeClient.ProbeFailure {
+            let outcome: ProviderConnectionOutcome = error == .emptyList
+                ? .connectedNoCatalog : .failed(message: error.message)
+            return (outcome, nil)
+        } catch {
+            return (.failed(message: L10n.string("拉取没能完成，请稍后再试。")), nil)
+        }
+    }
+
+    private func stashKey(for providerName: String) -> String {
+        "providerPrevModels.\(providerName)"
+    }
+
+    /// 上一份清单（本机存模型名清单，非敏感；刷新
+    /// 落盘时暂存，供「恢复上一份」）
+    func previousModels(for entry: ProviderRegistry.Entry) -> [String]? {
+        guard let data = UserDefaults.standard.data(
+            forKey: stashKey(for: entry.name)
+        ),
+        let models = try? JSONDecoder().decode([String].self, from: data),
+        models != entry.models
+        else { return nil }
+        return models
+    }
+
+    /// 确认后落盘新清单：先把现清单暂存为「上一份」
+    func applyRefreshedModels(
+        entry: ProviderRegistry.Entry, models: [String],
+        appState: AppState
+    ) async {
+        if let data = try? JSONEncoder().encode(entry.models) {
+            UserDefaults.standard.set(
+                data, forKey: stashKey(for: entry.name)
+            )
+        }
+        var updated = entry
+        updated.models = models
+        do {
+            try await writeProviderEntry(updated, appState: appState)
+            notice = L10n.format("「%@」的模型清单已更新，共 %lld 个。", entry.name, models.count)
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? L10n.string("清单没能保存，请稍后再试。")
+        }
+    }
+
+    /// 恢复上一份清单（与现清单互换，恢复本身可再撤）
+    func restorePreviousModels(
+        entry: ProviderRegistry.Entry, appState: AppState
+    ) async {
+        guard let previous = previousModels(for: entry) else { return }
+        if let data = try? JSONEncoder().encode(entry.models) {
+            UserDefaults.standard.set(
+                data, forKey: stashKey(for: entry.name)
+            )
+        }
+        var updated = entry
+        updated.models = previous
+        do {
+            try await writeProviderEntry(updated, appState: appState)
+            notice = L10n.format("「%@」的模型清单已恢复到上一份，共 %lld 个。", entry.name, previous.count)
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? L10n.string("恢复没能保存，请稍后再试。")
+        }
+    }
+
+    // MARK: 编辑服务商
+
+    /// 编辑：改地址/清单；新密钥非空才经 /api/env 覆
+    /// 盖（留空＝保留已存），条目只存 key_env 引用
+    func updateProvider(
+        entry: ProviderRegistry.Entry, baseURL: String,
+        newKey: String, models: [String], appState: AppState
+    ) async -> Bool {
+        var updated = entry
+        updated.baseURL = baseURL
+        updated.models = models
+        if updated.keyEnv == nil {
+            updated.keyEnv = ProviderRegistry.envKey(
+                forProviderName: entry.name
+            )
+        }
+        if !newKey.isEmpty {
+            do {
+                try await appState.performAdmin { client, config in
+                    try await client.setEnvVar(
+                        config: config,
+                        key: updated.keyEnv ?? "", value: newKey
+                    )
+                }
+            } catch {
+                notice = L10n.string("新密钥没能保存到服务端，这次修改还没生效。")
+                return false
+            }
+        }
+        do {
+            try await writeProviderEntry(updated, appState: appState)
+            notice = L10n.format("服务商 %@ 已更新。", entry.name)
+            return true
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? L10n.string("修改没能保存，请稍后再试。")
+            return false
+        }
+    }
+
+    /// 条目写回底座（providers 字典只动点名条目）
+    private func writeProviderEntry(
+        _ entry: ProviderRegistry.Entry, appState: AppState
+    ) async throws {
+        try await writeBack(appState: appState) { config in
+            var providers: [String: JSONValue] = [:]
+            if case .object(let existing) = config["providers"] ?? .null {
+                providers = existing
+            }
+            providers[entry.name] = ProviderRegistry.configValue(for: entry)
+            config["providers"] = .object(providers)
+        }
     }
 }

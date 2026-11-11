@@ -104,9 +104,9 @@ public enum ProviderRegistry {
         /// 人话文案（宪法 §8：不出现字段名以外的行话）
         public var message: String {
             switch self {
-            case .emptyName: return "先给这家提供商起个名字。"
-            case .duplicateName: return "已经有一家同名的提供商了，换个名字。"
-            case .envKeyCollision: return "这个名字与已有提供商的密钥位置冲突，换个名字（加个英文词区分一下）。"
+            case .emptyName: return "先给这家服务商起个名字。"
+            case .duplicateName: return "已经有一家同名的服务商了，换个名字。"
+            case .envKeyCollision: return "这个名字与已有服务商的密钥位置冲突，换个名字（加个英文词区分一下）。"
             case .badBaseURL: return "接口地址不对：要以 http:// 或 https:// 开头。"
             case .emptyKey: return "密钥还没填。"
             case .noModels: return "还没有模型：先拉取模型列表，或手动填一个模型名。"
@@ -135,6 +135,24 @@ public enum ProviderRegistry {
             return .emptyKey
         }
         if models.allSatisfy({
+            $0.trimmingCharacters(in: .whitespaces).isEmpty
+        }) { return .noModels }
+        return nil
+    }
+
+    /// 编辑既有服务商的校验（§119）：名字是条目的键、
+    /// 编辑态锁定不改名（重名/派生碰撞两闸不适用）；
+    /// 密钥留空＝保留已存的那把（跳过空钥闸）；模型
+    /// 为空仅当 allowNoModels（测连接失败后用户点
+    /// 「仍然保存」）才放行，其余闸照走
+    public static func validateEditDraft(
+        baseURL: String, apiKey: String, models: [String],
+        allowNoModels: Bool = false
+    ) -> DraftProblem? {
+        let url = baseURL.trimmingCharacters(in: .whitespaces)
+        guard url.hasPrefix("http://") || url.hasPrefix("https://"),
+              url.count > 8 else { return .badBaseURL }
+        if !allowNoModels, models.allSatisfy({
             $0.trimmingCharacters(in: .whitespaces).isEmpty
         }) { return .noModels }
         return nil

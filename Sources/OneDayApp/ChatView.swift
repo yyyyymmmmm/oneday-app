@@ -108,6 +108,48 @@ struct ChatView: View {
     @State private var errorMessage: String?
     /// 0.2.1：非错误提示（如文件附件未发送说明），可关闭
     @State private var notice: String?
+    /// §119 未配模型引导卡：「先等等」点过后本次不再
+    /// 显示（判定本体在 Core ModelSetupGuidance，有
+    /// 任何可用模型时永不出现、生产恒不误报）
+    @State private var modelSetupCardDismissed = false
+
+    private var showsModelSetupCard: Bool {
+        currentThread == nil
+            && !modelSetupCardDismissed
+            && ModelSetupGuidance.needsSetup(
+                gatewayModels: appState.availableModels,
+                providerModelTotal: appState.providerModelTotal
+            )
+    }
+
+    /// 未配模型引导卡（空态处）：去设置直达服务商
+    /// 管理页（pendingSettingsRoute 现成通道）
+    private var modelSetupCard: some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            Text("还没配置模型")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(Palette.ink)
+            Text("先去加一家服务商、选好模型，回来就能聊。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            HStack(spacing: OneDayMetrics.spacingM) {
+                Button("先等等") {
+                    modelSetupCardDismissed = true
+                }
+                .font(.callout)
+                .foregroundStyle(Palette.inkSecondary)
+                Button("去设置") {
+                    appState.pendingSettingsRoute = .models
+                    appState.settingsSheetRequested = true
+                }
+                .font(.callout)
+                .foregroundStyle(Palette.primary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(OneDayMetrics.spacingM)
+        .odGroup()
+    }
     // （0.4.5 迁出：抽屉开合/跟手/搜索/重命名/服务端会
     // 话组状态随抽屉本体迁往 DrawerView 与壳层
     // ContentView，见 §30）
@@ -1465,6 +1507,13 @@ struct ChatView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, OneDayMetrics.spacingXL)
+                    // §119：无任何可用模型时，空态下方出
+                    // 引导卡（判定见 showsModelSetupCard；
+                    // 有模型时永不出现）
+                    if showsModelSetupCard {
+                        modelSetupCard
+                            .padding(.top, OneDayMetrics.spacingL)
+                    }
                 }
                 Color.clear
                     .frame(height: 1)
