@@ -19,6 +19,15 @@ import SwiftUI
 ///   「标已读」——桥只有 /read 一个写端点，「标未
 ///   读」无服务端落点且角标以桥为准（规格 §3.5），
 ///   不造本地假态（出入登记 DESIGN-V4 §72）。
+/// - §123（H2，闭环包）：条目按类型点达对象——落点
+///   解析在 Core NotificationDestination（审批回枢
+///   纽审批段/聚焦已决记录、监测达监测详情/具体变
+///   化、存量监测只达监测段）；有落点的行带去向箭
+///   头，点按＝标已读＋关本页＋开枢纽达对象（枢纽
+///   开启走 ChatView sheet 的 onDismiss 接力，避免
+///   两个呈现打架）；机器原文（rawDetail）改走行内
+///   独立的「原始记录」折叠钮——默认折起、与导航点
+///   按互不干扰，不再靠点整行展开。
 /// - 桥不可达时明示「暂时联系不上」，不拿空列表
 ///   冒充没有通知；真空态文案只在加载成功且确为
 ///   空时出现。断桥无缓存态不适用：现行 store 失
@@ -157,12 +166,24 @@ struct NotificationsView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
+    /// 落点导航（§123 H2）：落点字段先落 AppState，
+    /// 再关通知页——枢纽由 ChatView 在 sheet 关闭后接
+    /// 力打开（见 ChatView 通知 sheet 的 onDismiss）
+    private func openDestination(
+        _ destination: NotificationDestination
+    ) {
+        guard appState.requestHubDestination(destination)
+        else { return }
+        dismiss()
+    }
+
     private func notificationRow(
         _ item: OverviewNotification
     ) -> some View {
         let presentation = NotificationSummary.presentation(
             kind: item.kind, title: item.title, body: item.body
         )
+        let destination = NotificationDestination.resolve(item)
         let expanded = expandedIDs.contains(item.id)
         return VStack(alignment: .leading, spacing: 0) {
             Button {
@@ -172,7 +193,11 @@ struct NotificationsView: View {
                             appState: appState, id: item.id
                         )
                     }
-                } else if presentation.rawDetail != nil {
+                }
+                if destination.hasDestination {
+                    openDestination(destination)
+                } else if item.read,
+                          presentation.rawDetail != nil {
                     if expanded {
                         expandedIDs.remove(item.id)
                     } else {
@@ -221,30 +246,62 @@ struct NotificationsView: View {
                             .monospacedDigit()
                     }
                     Spacer(minLength: 0)
+                    if destination.hasDestination {
+                        // §123（H2）：有落点的行明示可达
+                        // （宪法 §9：可点必有指示）
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundStyle(Palette.inkMuted)
+                            .padding(.top, OneDayMetrics.spacingS)
+                            .accessibilityHidden(true)
+                    }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.odPressable)
-            if expanded, let raw = presentation.rawDetail {
-                // 次级详情（S10）：原文只在此处出现，
-                // 「原始记录」标明性质、等宽小字呈现
-                VStack(
-                    alignment: .leading,
-                    spacing: OneDayMetrics.spacingXS
-                ) {
-                    Text("原始记录")
-                        .font(.footnote)
+            if let raw = presentation.rawDetail {
+                // 机器原文折叠（§123 H2）：独立小钮开合，
+                // 默认折起；行面只留人话摘要，原文只在
+                // 展开区出现（S10 的「原始记录」标性＋
+                // 等宽小字口径不变）
+                Button {
+                    if expanded {
+                        expandedIDs.remove(item.id)
+                    } else {
+                        expandedIDs.insert(item.id)
+                    }
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
+                        Text("原始记录")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkMuted)
+                        Image(
+                            systemName: expanded
+                                ? "chevron.up" : "chevron.down"
+                        )
+                        .font(.system(size: 10, weight: .regular))
                         .foregroundStyle(Palette.inkMuted)
-                    Text(raw)
-                        .font(.footnote)
-                        .monospaced()
-                        .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.odPressable)
                 .padding(.top, OneDayMetrics.spacingS)
                 .padding(
                     .leading,
                     8 + OneDayMetrics.spacingSM
                 )
+                if expanded {
+                    Text(raw)
+                        .font(.footnote)
+                        .monospaced()
+                        .foregroundStyle(Palette.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, OneDayMetrics.spacingXS)
+                        .padding(
+                            .leading,
+                            8 + OneDayMetrics.spacingSM
+                        )
+                }
             }
         }
         .listRowInsets(EdgeInsets(

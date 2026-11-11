@@ -15,6 +15,12 @@ import SwiftUI
 struct HubApprovalSection: View {
     let store: AgentHubStore
 
+    @Environment(AppState.self) private var appState
+    /// 通知落点聚焦的已决记录 id（§123 H2）：通知中心
+    /// 点审批回执达本段时置位，本段消费后滚动定位＋
+    /// 行底色点亮，消费即清 AppState 字段防复活
+    @State private var focusDecisionID: String?
+
     @State private var diffTarget: WriteGateRecord?
     @State private var rejectTarget: WriteGateRecord?
     @State private var alwaysTarget: WriteGateRecord?
@@ -63,28 +69,55 @@ struct HubApprovalSection: View {
                         description: Text("记忆与技能的写入会先到这里等你批准")
                     )
                 } else {
-                    List {
-                        if !records.isEmpty {
-                            Section("待审批") {
-                                ForEach(records) { record in
-                                    card(record)
+                    ScrollViewReader { proxy in
+                        List {
+                            if !records.isEmpty {
+                                Section("待审批") {
+                                    ForEach(records) { record in
+                                        card(record)
+                                    }
+                                }
+                            }
+                            rulesSection
+                            if !store.decisionHistory.isEmpty {
+                                Section("已决历史") {
+                                    ForEach(store.decisionHistory) { item in
+                                        historyRow(item)
+                                            .id(item.id)
+                                            .listRowBackground(
+                                                item.id == focusDecisionID
+                                                    ? Palette.primaryTint
+                                                    : Color.clear
+                                            )
+                                    }
                                 }
                             }
                         }
-                        rulesSection
-                        if !store.decisionHistory.isEmpty {
-                            Section("已决历史") {
-                                ForEach(store.decisionHistory) { item in
-                                    historyRow(item)
-                                }
-                            }
+                        .listStyle(.plain)
+                        .refreshable {
+                            await store.loadApproval(force: true)
                         }
-                    }
-                    .listStyle(.plain)
-                    .refreshable {
-                        await store.loadApproval(force: true)
+                        // §123（H2）：聚焦滚动两路触发——
+                        // 焦点置位时一次、历史数据落位后
+                        // 再一次（段刚开时可能还在加载，
+                        // 只有置位那一拍滚不到目标行）
+                        .onChange(of: focusDecisionID) { _, id in
+                            scrollToFocus(proxy, id: id)
+                        }
+                        .onChange(of: store.decisionHistory) { _, _ in
+                            scrollToFocus(proxy, id: focusDecisionID)
+                        }
                     }
                 }
+            }
+        }
+        .task {
+            // §123（H2）：消费通知落点的聚焦字段（置位
+            // —消费—清零）；记录不在已载历史里时聚焦自
+            // 然落空——段本身就是记录的家，不假装定位
+            if let id = appState.hubApprovalFocusID {
+                focusDecisionID = id
+                appState.hubApprovalFocusID = nil
             }
         }
         .sheet(item: $diffTarget) { record in
@@ -287,6 +320,19 @@ struct HubApprovalSection: View {
                 .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.vertical, 4)
+    }
+
+    /// 聚焦滚动（§123 H2）：目标行已在历史里才滚，
+    /// 不在（未载完/已被桥侧滚动淘汰）就静默落空
+    private func scrollToFocus(
+        _ proxy: ScrollViewProxy, id: String?
+    ) {
+        guard let id,
+              store.decisionHistory.contains(where: { $0.id == id })
+        else { return }
+        withAnimation {
+            proxy.scrollTo(id, anchor: .center)
+        }
     }
 
     private func decisionColor(_ item: WriteGateDecisionRecord) -> Color {

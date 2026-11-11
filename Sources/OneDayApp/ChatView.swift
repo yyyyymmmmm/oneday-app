@@ -689,7 +689,14 @@ struct ChatView: View {
         // 纽自带导航栈），换模型仍走胶囊内模型段 Menu
         // （见 modelMenu）。本 sheet 是顶栏铃铛的通知面
         // （总览桥驱动）
-        .sheet(isPresented: $showNotifications) {
+        // §123（H2）：通知条目点达对象时先关本 sheet、
+        // 再开枢纽——两个呈现不能同帧抢，枢纽开启在此
+        // onDismiss 接力（落点字段已由通知行落 AppState）
+        .sheet(isPresented: $showNotifications, onDismiss: {
+            if appState.hubDestinationRequest != nil {
+                appState.hubOpenRequested = true
+            }
+        }) {
             if let overviewStore {
                 NotificationsView(store: overviewStore)
             }
@@ -1882,9 +1889,38 @@ struct ChatView: View {
         }
     }
 
+    /// 目标委派回响行（§123 H1）：居中安静一行——小
+    /// 图标＋事实正文＋时刻；不带气泡底、不挂长按菜单
+    /// （它不是谁发的言）。入口四问备注：入口＝目标详
+    /// 情「安排一件事」绑定的线程本身；形态与聊天流里
+    /// 的系统性提示同族（居中、次级色），不新建视觉件
+    private func echoRow(_ entry: ChatEntry) -> some View {
+        HStack(spacing: OneDayMetrics.spacingXS) {
+            Image(systemName: "flag.checkered")
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.inkSecondary)
+                .accessibilityHidden(true)
+            Text(entry.content)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.center)
+            Text(entry.createdAt, format: .dateTime.hour().minute())
+                .font(.caption2)
+                .foregroundStyle(Palette.inkMuted)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, OneDayMetrics.spacingXS)
+        .accessibilityElement(children: .combine)
+    }
+
     @ViewBuilder
     private func bubble(_ entry: ChatEntry) -> some View {
-        if let card = entry.toolCard {
+        if entry.echoKey != nil {
+            // §123（H1）：目标委派回响条目——居中通知
+            // 行，不是气泡、不冒充任何一方发言（回响
+            // 是 App 按真源落的事实记录，见 GoalEcho）
+            echoRow(entry)
+        } else if let card = entry.toolCard {
             // 0.8.0（P1）：工具卡条目（role="tool"）——
             // 不进气泡形态、不挂长按菜单、不进发送上下文
             ToolCardView(card: card)
@@ -3935,8 +3971,14 @@ private struct ComposerBarLayout: Layout {
         // 无引用的消息原样（纯函数保证）
         // 0.8.0：先滤角色再取尾 20——工具卡条目（role=
         // "tool"）只呈现、永不进重放上下文
+        // §123（H1）：回响条目（echoKey 非空，role 借
+        // "assistant" 落盘）同样只呈现、永不进上下文——
+        // 它是 App 的事实记录，不是智能体说过的话
         var context = thread.sortedEntries
-            .filter { $0.role == "user" || $0.role == "assistant" }
+            .filter {
+                ($0.role == "user" || $0.role == "assistant")
+                    && $0.echoKey == nil
+            }
             .suffix(20).map {
             ChatMessage(
                 role: $0.role,
@@ -5078,6 +5120,11 @@ private struct ComposerBarLayout: Layout {
         for candidate in thread.entries
         where candidate.id != userEntry.id
             && candidate.createdAt > userEntry.createdAt {
+            // §123（H1）：回响条目不属本轮——它可能恰在
+            // 一轮进行中由目标详情侧落盘（跨面并发），
+            // 「用户条目之后必属本轮」的发送互斥前提对
+            // 它不成立，整段替换不许删它
+            guard candidate.echoKey == nil else { continue }
             modelContext.delete(candidate)
         }
         try? modelContext.save()
@@ -5233,9 +5280,13 @@ private struct ComposerBarLayout: Layout {
         if let userEntry = thread.entries.first(
             where: { $0.id.uuidString == entry.userEntryID }
         ) {
+            // §123（H1）：回响条目（echoKey 非空）不是
+            // 本轮半截——不进半截名单、正文回填也不许
+            // 把它当作助手半截正文吞进流式区
             let partials = thread.entries.filter {
                 $0.id != userEntry.id
                     && $0.createdAt > userEntry.createdAt
+                    && $0.echoKey == nil
             }
             livePartialEntryIDs = partials.map(\.id)
             liveToolCards = partials

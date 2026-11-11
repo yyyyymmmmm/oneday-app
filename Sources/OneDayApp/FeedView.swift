@@ -547,18 +547,17 @@ struct FeedView: View {
     /// ——本地建线程（DrawerView.createThread 同形）、
     /// 预填开场（标题＋正文摘录）进输入框草稿、切到
     /// 聊天格选中该线程；用户改完再发，本钮不代发
+    /// §123（M2）：预填拼装收口 Core FeedDiscussPrefill
+    /// ——超长正文改句界节选＋明标「原帖节选」，尾行带
+    /// 原帖回指（旧实现 prefix(1200) 硬截无标记无回指）
     private func discuss(_ post: BridgeFeedPost) {
         markRead(post)
         let thread = ChatThread()
         modelContext.insert(thread)
         try? modelContext.save()
-        var prefill = String(
-            format: String(localized: "我们来聊聊这篇动态：《%@》"),
-            post.title
+        let prefill = FeedDiscussPrefill.make(
+            title: post.title, body: post.body
         )
-        if !post.body.isEmpty {
-            prefill += "\n\n" + String(post.body.prefix(1200))
-        }
         appState.sideChats.setDraft(prefill, for: thread.id)
         appState.drawerThreadSelection = thread.id
         appState.mainTabSwitchRequest = .chat

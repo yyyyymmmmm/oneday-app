@@ -252,12 +252,22 @@ struct ContentView: View {
     /// 动态未读轮询（0.38.0）：30 秒一轮，只在拿到桥
     /// 的账面时更新数字；失败保持旧值（角标宁可慢半
     /// 拍，不许忽有忽无）
+    /// §123（M3）：点子角标搭同一拍顺带刷新——点子无
+    /// 服务端未读账，走既有 /ideas 读面＋本地水位增量
+    /// 判定（Core IdeasBadge）。不新增轮询回路：还是
+    /// 这一条 30 秒拍，只是每拍多读一个既有端点；失
+    /// 败同样保持旧值不清零
     private func pollFeedUnread() async {
         while !Task.isCancelled {
             if let config = appState.config,
                let generation = try? await feedBadgeClient
                 .feedGeneration(config: config) {
                 feedUnread = generation.unread
+            }
+            if let config = appState.config,
+               let ideas = try? await feedBadgeClient
+                .ideas(config: config) {
+                appState.refreshIdeasUnread(ideas: ideas)
             }
             try? await Task.sleep(for: .seconds(30))
         }
@@ -307,6 +317,10 @@ struct ContentView: View {
             } label: {
                 tabLabel(TabBarSymbols.ideas)
             }
+            // §123（M3）：点子新卡角标，与动态格同机制
+            // （原生 .badge）、同清零口径（进页即清，
+            // 清零动作在 IdeasView 的 markIdeasSeen）
+            .badge(appState.ideasUnread)
 
             Tab(value: MainTab.goals) {
                 GoalsView()

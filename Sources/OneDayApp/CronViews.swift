@@ -204,6 +204,9 @@ struct CronJobDetailView: View {
     @State private var isTriggering = false
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
+    /// 错误原文折叠态（§123 N2）：正文位只显摘要，
+    /// 全文收进「原始信息（排障用）」折叠、默认收起
+    @State private var showErrorRaw = false
 
     init(job: CronJob, onChange: @escaping () -> Void = {}) {
         self.job = job
@@ -295,9 +298,14 @@ struct CronJobDetailView: View {
                     GroupDivider()
                     LabeledContent("上次运行", value: AdminFormat.short(last))
                 }
-                if let deliver = current.deliver, !deliver.isEmpty {
+                if let deliverText = CronPresentation.deliverLabel(
+                    current.deliver
+                ) {
                     GroupDivider()
-                    LabeledContent("投递到", value: deliver)
+                    // §123（N2）：投递目标走值域译名，
+                    // 原始 deliver 值（origin/local/平台
+                    // :会话 id）不上行面
+                    LabeledContent("投递到", value: deliverText)
                 }
                 if let model = current.model, !model.isEmpty {
                     GroupDivider()
@@ -324,14 +332,51 @@ struct CronJobDetailView: View {
                 }
                 if let error = current.lastError, !error.isEmpty {
                     GroupDivider()
-                    HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
-                        Image(systemName: "exclamationmark.circle")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Palette.danger)
-                            .accessibilityHidden(true)
-                        Text(error)
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.ink)
+                    // §123（N2）：错误正文位只留摘要（原文
+                    // 第一行限长，Core CronPresentation），
+                    // 全文进折叠——长堆栈不再整段直铺主区
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingXS
+                    ) {
+                        HStack(
+                            alignment: .top,
+                            spacing: OneDayMetrics.spacingS
+                        ) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.system(size: 15))
+                                .foregroundStyle(Palette.danger)
+                                .accessibilityHidden(true)
+                            Text(CronPresentation.errorSummary(error))
+                                .font(.subheadline)
+                                .foregroundStyle(Palette.ink)
+                        }
+                        Button {
+                            showErrorRaw.toggle()
+                        } label: {
+                            HStack(
+                                spacing: OneDayMetrics.spacingXS
+                            ) {
+                                Text("原始信息（排障用）")
+                                    .font(.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                Image(
+                                    systemName: showErrorRaw
+                                        ? "chevron.up" : "chevron.down"
+                                )
+                                .font(.system(size: 10, weight: .regular))
+                                .foregroundStyle(Palette.inkMuted)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.odPressable)
+                        if showErrorRaw {
+                            Text(error)
+                                .font(.footnote)
+                                .monospaced()
+                                .foregroundStyle(Palette.inkSecondary)
+                                .textSelection(.enabled)
+                        }
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .padding(.vertical, OneDayMetrics.spacingSM)
@@ -426,8 +471,13 @@ struct CronJobDetailView: View {
 
     private func runSubtitle(_ run: ServerSession) -> String {
         var parts: [String] = []
-        if let reason = run.endReason, !reason.isEmpty {
-            parts.append(reason == "completed" ? "已完成" : reason)
+        // §123（N2）：结束原因走全集映射，未知值落
+        // 「已结束」兜底——ws_orphan_reap 等内部原值
+        // 不再直印副题
+        if let reasonText = CronPresentation.endReasonLabel(
+            run.endReason
+        ) {
+            parts.append(reasonText)
         }
         if let count = run.messageCount {
             parts.append("\(count) 条消息")

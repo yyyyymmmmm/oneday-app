@@ -68,9 +68,21 @@ struct IdeasView: View {
             }
             .task {
                 await store.load(appState: appState)
+                // §123（M3）：进页即清角标——水位推进到
+                // 本次已知的最新生成卡（与动态角标进页
+                // 已读同口径）；加载失败时 store.ideas
+                // 还是旧值，推进只认本次列表、不误清
+                appState.markIdeasSeen(ideas: store.ideas)
                 if !store.adoptedIdeas.isEmpty {
                     await kanban.load(appState: appState)
                 }
+            }
+            // §123（M3）：页内刷新（下拉/动作回读）后
+            // 列表更新同样算「已看到」——本 store 只被
+            // 本页加载与操作驱动，列表变化必发生在用户
+            // 正看着这页时，水位随之推进、角标不残留
+            .onChange(of: store.ideas) { _, ideas in
+                appState.markIdeasSeen(ideas: ideas)
             }
             .sheet(isPresented: $showCreate) {
                 IdeaCreateView(store: store)

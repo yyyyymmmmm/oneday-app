@@ -13,6 +13,9 @@ struct MonitorDetailView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var confirmingDelete = false
+    /// 通知落点深链（§123 H2）：编程式推入的变化 id
+    /// （与变化行 NavigationLink 并存）
+    @State private var deepLinkChangeID: String?
 
     var body: some View {
         Group {
@@ -30,6 +33,26 @@ struct MonitorDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await store.loadChanges(appState: appState, monitorID: monitorID)
+            // §123（H2）：深链对号消费——monitorID 对上
+            // 且变化确在账上才继续推变化详情，消费即清
+            // AppState（防下次手动进本页时旧链复活）；
+            // 对不上/变化已滚没了就停在本页，如实降级
+            if let deepLink = appState.monitorDeepLink,
+               deepLink.monitorID == monitorID {
+                appState.monitorDeepLink = nil
+                if let changeID = deepLink.changeID,
+                   store.changes[monitorID]?.contains(
+                       where: { $0.id == changeID }
+                   ) == true {
+                    deepLinkChangeID = changeID
+                }
+            }
+        }
+        .navigationDestination(item: $deepLinkChangeID) { changeID in
+            MonitorChangeDetailView(
+                store: store, monitorID: monitorID,
+                changeID: changeID
+            )
         }
         .refreshable {
             await store.load(appState: appState)
@@ -238,6 +261,10 @@ struct MonitorChangeDetailView: View {
     let changeID: String
 
     @Environment(AppState.self) private var appState
+    /// 原文展开态（§123 N3）：变化前/后各自独立开合，
+    /// 默认收起只显预览
+    @State private var beforeExpanded = false
+    @State private var afterExpanded = false
 
     private var change: BridgeMonitorChange? {
         store.changes[monitorID]?.first { $0.id == changeID }
@@ -266,12 +293,22 @@ struct MonitorChangeDetailView: View {
                     }
                     if let before = rows.before {
                         Section("变化前") {
-                            originalText(before)
+                            originalBlock(
+                                full: before,
+                                preview: rows.beforePreview ?? before,
+                                truncated: rows.beforeTruncated,
+                                expanded: $beforeExpanded
+                            )
                         }
                     }
                     if let after = rows.after {
                         Section("变化后") {
-                            originalText(after)
+                            originalBlock(
+                                full: after,
+                                preview: rows.afterPreview ?? after,
+                                truncated: rows.afterTruncated,
+                                expanded: $afterExpanded
+                            )
                         }
                     }
                     if !rows.hasOriginalText {
@@ -301,11 +338,38 @@ struct MonitorChangeDetailView: View {
         }
     }
 
-    private func originalText(_ text: String) -> some View {
-        Text(text)
-            .font(.subheadline)
-            .foregroundStyle(Palette.bodyInk)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    /// 原文块（§123 N3）：默认只铺预览（Core 限长截
+    /// 断），被截断时给「展开全文」开合钮，展开后全
+    /// 文原样呈现；没截断的短原文直接全显、无多余
+    /// 钮。桥没有要点数据——不编造要点，结构化只到
+    /// 摘要（页头）＋预览＋原文折叠这一层
+    @ViewBuilder
+    private func originalBlock(
+        full: String, preview: String, truncated: Bool,
+        expanded: Binding<Bool>
+    ) -> some View {
+        if truncated {
+            Text(expanded.wrappedValue ? full : preview)
+                .font(.subheadline)
+                .foregroundStyle(Palette.bodyInk)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                expanded.wrappedValue.toggle()
+            } label: {
+                Text(
+                    expanded.wrappedValue
+                        ? "收起全文" : "展开全文"
+                )
+                .font(.footnote)
+            }
+            .buttonStyle(.odPressable)
+        } else {
+            Text(full)
+                .font(.subheadline)
+                .foregroundStyle(Palette.bodyInk)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }

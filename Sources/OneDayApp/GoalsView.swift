@@ -1,5 +1,6 @@
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 目标格（0.11.0 P4 转正；0.33.0 P2 改呈现形态）：列表
@@ -622,6 +623,7 @@ struct MilestoneCheckRow: View {
 struct GoalDetailView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     let store: GoalsStore
     let goalID: String
@@ -660,6 +662,53 @@ struct GoalDetailView: View {
         await kanban.load(appState: appState)
     }
 
+    /// 委派回响物化（§123 H1）：三路真源（关联账＋任务
+    /// 板＋目标本体）都到位后，按 Core GoalEcho 规划把
+    /// 还没落过的回响按序落进绑定线程。触发点只有详情
+    /// 的首载与下拉刷新这两处——无 APNs 的现实下，回响
+    /// 在用户下次打开这个目标时补齐（与动态角标的轮询
+    /// 延迟同级约束，§123 记账）；没绑线程的目标（没在
+    /// 这里安排过事）直接跳过，不为看一眼详情就建线程
+    private func materializeGoalEchoes() {
+        guard let threadID = appState.sideChats
+            .threadID(forGoalID: goalID) else { return }
+        let descriptor = FetchDescriptor<ChatThread>(
+            predicate: #Predicate { $0.id == threadID }
+        )
+        guard let thread = try? modelContext.fetch(descriptor).first
+        else { return }
+        let linked = GoalAssociations.linkedTasks(
+            links: store.taskLinksByGoal[goalID] ?? [],
+            tasks: kanban.snapshot?.tasks ?? []
+        )
+        let existing = Set(thread.entries.compactMap(\.echoKey))
+        let planned = GoalEcho.plan(
+            linkedTasks: linked, existingKeys: existing
+        )
+        guard !planned.isEmpty else { return }
+        for item in planned {
+            let entry = ChatEntry(
+                role: "assistant",
+                content: GoalEcho.text(
+                    kind: item.kind, taskTitle: item.taskTitle
+                ),
+                thread: thread, echoKey: item.key
+            )
+            modelContext.insert(entry)
+        }
+        thread.updatedAt = Date()
+        try? modelContext.save()
+    }
+
+    /// 打开这个目标的进展对话（绑定线程）：与点子采纳
+    /// 开旁聊同一条切格通道
+    private func openGoalThread() {
+        guard let threadID = appState.sideChats
+            .threadID(forGoalID: goalID) else { return }
+        appState.drawerThreadSelection = threadID
+        appState.mainTabSwitchRequest = .chat
+    }
+
     var body: some View {
         Group {
             if let goal {
@@ -692,6 +741,7 @@ struct GoalDetailView: View {
                         appState: appState, goalID: goalID
                     )
                     await loadAssociationStores()
+                    materializeGoalEchoes()
                 }
                 .sheet(isPresented: $showDelegate) {
                     GoalDelegateView(
@@ -718,6 +768,7 @@ struct GoalDetailView: View {
         .task {
             await store.loadDetail(appState: appState, goalID: goalID)
             await loadAssociationStores()
+            materializeGoalEchoes()
         }
         .sheet(isPresented: $showEdit) {
             GoalEditView(store: store, goalID: goalID)
@@ -940,9 +991,35 @@ struct GoalDetailView: View {
                 }
                 .buttonStyle(.odPressable)
                 .disabled(acting)
+                // §123（H1）：已绑进展对话时给入口——回响
+                // 落在对话里，用户得有路点进去（新面准
+                // 入四问①：有落点必须有入口）
+                if appState.sideChats.threadID(forGoalID: goal.id) != nil {
+                    GroupDivider()
+                    Button {
+                        openGoalThread()
+                    } label: {
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Image(systemName: "bubble.left.and.text.bubble.right")
+                                .font(.body)
+                                .foregroundStyle(Palette.inkSecondary)
+                            Text("进展对话")
+                                .font(.body)
+                                .foregroundStyle(Palette.bodyInk)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(Palette.inkMuted)
+                        }
+                        .contentShape(Rectangle())
+                        .padding(.horizontal, OneDayMetrics.spacingM)
+                        .padding(.vertical, OneDayMetrics.spacingSM)
+                    }
+                    .buttonStyle(.odPressable)
+                }
             }
             .odGroup()
-            Text("把这个目标下的一件事放上任务板交给智能体办，并和这个目标关联起来；任务办完后，进展里会自动记上一条。")
+            Text("把这个目标下的一件事放上任务板交给智能体办，并和这个目标关联起来；开始、办完或失败，都会记进这个目标的进展对话，进展里也会留一条。")
                 .font(.footnote)
                 .foregroundStyle(Palette.inkMuted)
                 .padding(.top, OneDayMetrics.spacingS)
@@ -1753,6 +1830,7 @@ struct GoalCreateView: View {
 struct GoalDelegateView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     let store: GoalsStore
     let goal: BridgeGoal
@@ -1811,7 +1889,7 @@ struct GoalDelegateView: View {
                         }
                         .odGroup()
                     }
-                    Text("提交后会在任务板上建一张卡，并和目标《\(goal.title)》关联起来；任务办完后，进展里会自动记上一条。")
+                    Text("提交后会在任务板上建一张卡，并和目标《\(goal.title)》关联起来；开始、办完或失败，都会记进这个目标的进展对话。")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                     if let submitError {
@@ -1839,6 +1917,24 @@ struct GoalDelegateView: View {
         }
     }
 
+    /// 进展对话绑定（§123 H1）：委派确认落定后给目标绑
+    /// 一个旁聊（没有才建、已有复用），绑定落盘在
+    /// SideChatStore.goalThreadIDs。线程以目标名为题并
+    /// 钉住标题（titleIsManual）——它在抽屉里的身份就
+    /// 是这个目标，不让服务端 AI 标题改掉；回响条目本
+    /// 身由目标详情的物化点按真源补落（GoalEcho），这
+    /// 里只立绑定，不预写任何状态
+    private func ensureGoalThread() {
+        if appState.sideChats.threadID(forGoalID: goal.id) != nil {
+            return
+        }
+        let thread = ChatThread(title: goal.title)
+        thread.titleIsManual = true
+        modelContext.insert(thread)
+        try? modelContext.save()
+        appState.sideChats.linkThread(thread.id, forGoalID: goal.id)
+    }
+
     private func submit() async {
         isSubmitting = true
         submitError = nil
@@ -1848,6 +1944,7 @@ struct GoalDelegateView: View {
             milestoneId: milestoneId, kanban: kanban
         )
         if ok {
+            ensureGoalThread()
             dismiss()
         } else {
             submitError = store.notes[goal.id]

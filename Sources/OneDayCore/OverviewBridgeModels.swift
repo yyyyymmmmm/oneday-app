@@ -38,10 +38,16 @@ public struct OverviewNotification: Decodable, Equatable, Identifiable, Sendable
     /// （回执按普通未读事件呈现），不许拿摘要文本等
     /// 弱信号冒充联动键
     public let refId: String?
+    /// 变化联动键（§123 H2，伴生 1.0.14 起）：monitor_
+    /// change 通知带出其变化记录 id（refId 为监测 id），
+    /// 通知点达可直达那一条变化；旧桥通知无此字段、
+    /// 解码为 nil，落点只达监测详情
+    public let changeId: String?
 
     public init(
         id: String, kind: String, title: String, body: String,
-        createdAt: String, read: Bool, refId: String? = nil
+        createdAt: String, read: Bool, refId: String? = nil,
+        changeId: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -50,6 +56,7 @@ public struct OverviewNotification: Decodable, Equatable, Identifiable, Sendable
         self.createdAt = createdAt
         self.read = read
         self.refId = refId
+        self.changeId = changeId
     }
 
     /// 是否为审批裁决回执（kind 与 overview-bridge

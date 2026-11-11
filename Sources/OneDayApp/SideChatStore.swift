@@ -48,6 +48,11 @@ final class SideChatStore {
     /// 线程 id 按点子 id 落盘，「打开对话」回同一条；
     /// 线程被删后关联失效、点按时补建并改写本表
     private(set) var ideaThreadIDs: [String: String] = [:]
+    /// 目标→旁聊绑定（§123 H1）：目标 id → 线程 id 串。
+    /// 用户在目标里「安排一件事」时创建/复用并落盘，
+    /// 委派任务的进展与完成回响落进这个线程（绑定模式
+    /// 与点子采纳的 ideaThreadIDs 同形，§122）
+    private(set) var goalThreadIDs: [String: String] = [:]
     private var drafts: [String: String] = [:]
     private var scrollAnchors: [String: SideChatScrollAnchor] = [:]
 
@@ -65,6 +70,7 @@ final class SideChatStore {
             "sideChats.failedArchiveSessionIDs"
         static let titleOverrides = "sideChats.titleOverrides"
         static let ideaThreadIDs = "sideChats.ideaThreadIDs"
+        static let goalThreadIDs = "sideChats.goalThreadIDs"
         static let drafts = "sideChats.drafts"
         static let scrollAnchors = "sideChats.scrollAnchors"
     }
@@ -88,6 +94,7 @@ final class SideChatStore {
         ) ?? []
         titleOverrides = Self.decode([String: String].self, defaults, Key.titleOverrides) ?? [:]
         ideaThreadIDs = Self.decode([String: String].self, defaults, Key.ideaThreadIDs) ?? [:]
+        goalThreadIDs = Self.decode([String: String].self, defaults, Key.goalThreadIDs) ?? [:]
         drafts = Self.decode([String: String].self, defaults, Key.drafts) ?? [:]
         scrollAnchors = Self.decode([String: SideChatScrollAnchor].self, defaults, Key.scrollAnchors) ?? [:]
     }
@@ -249,6 +256,19 @@ final class SideChatStore {
             drafts[threadID.uuidString] = text
         }
         persist(drafts, Key.drafts)
+    }
+
+    // MARK: - 目标绑定（§123 H1：委派回响的落点线程）
+
+    /// 目标绑定的旁聊线程 id；未绑（还没在这个目标里
+    /// 安排过事）为 nil
+    func threadID(forGoalID goalID: String) -> UUID? {
+        goalThreadIDs[goalID].flatMap(UUID.init(uuidString:))
+    }
+
+    func linkThread(_ threadID: UUID, forGoalID goalID: String) {
+        goalThreadIDs[goalID] = threadID.uuidString
+        persist(goalThreadIDs, Key.goalThreadIDs)
     }
 
     func scrollAnchor(for threadID: UUID) -> SideChatScrollAnchor? {
