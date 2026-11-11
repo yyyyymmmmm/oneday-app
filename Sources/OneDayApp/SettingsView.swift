@@ -434,7 +434,7 @@ struct SettingsView: View {
     /// PROJECT_VERSION／CFBundleVersion 同值）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.50.17 (139)")
+            Text("OneDay v0.50.18 (140)")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
