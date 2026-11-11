@@ -24,13 +24,17 @@ final class SettingsCatalogTests: XCTestCase {
         }
     }
 
-    /// 原型搜索索引十一项（用户亲递原型 SEARCH_INDEX）
-    /// 在清单里逐项有锚
+    /// 原型搜索索引（prototype-2，29 项）在清单里逐项有锚
     func testPrototypeIndexIsCovered() {
         let ids = Set(SettingsCatalog.entries.map(\.id))
         for id in [
-            "identity", "profiles", "memory", "skills", "models",
-            "server", "connectors", "devicePermissions",
+            "agentConfig", "serverManagement", "sessionManagement", "workspace",
+            "privacy", "terms",
+            "identity", "profiles", "memory", "skills", "models", "cron",
+            "mainSession", "serverSessions",
+            "server", "gateway", "restartGateway", "logs", "envVars", "usage",
+            "connectors", "devicePermissions",
+            "overview", "computer", "serverFiles",
             "appearance", "help", "about",
         ] {
             XCTAssertTrue(ids.contains(id), "原型索引缺条目 \(id)")
@@ -48,21 +52,56 @@ final class SettingsCatalogTests: XCTestCase {
             .serverDetail, .connectors, .devicePermissions,
             .gateway, .logs, .overview, .computer, .serverFiles,
             .appearance, .help, .about, .privacy, .terms,
+            // prototype-2 新增
+            .agentConfig, .serverManagement, .sessionManagement,
+            .workspaceHub, .mainSession, .restartGateway,
         ]
         XCTAssertEqual(covered, Set(all))
     }
 
+    /// prototype-2：agent 组只剩 models/agentConfig/cron 三行
     func testAgentGroupBrowseOrder() {
         XCTAssertEqual(
             SettingsCatalog.browseEntries(in: .agent).map(\.id),
-            ["profiles", "memory", "skills", "models", "cron", "serverSessions"]
+            ["models", "agentConfig", "cron"]
         )
     }
 
+    /// prototype-2：serverAndWorkspace 组三个枢纽页
+    func testServerAndWorkspaceGroupBrowseOrder() {
+        XCTAssertEqual(
+            SettingsCatalog.browseEntries(in: .serverAndWorkspace).map(\.id),
+            ["serverManagement", "sessionManagement", "workspace"]
+        )
+    }
+
+    /// prototype-2：preferences 组三行
+    func testPreferencesGroupBrowseOrder() {
+        XCTAssertEqual(
+            SettingsCatalog.browseEntries(in: .preferences).map(\.id),
+            ["appearance", "connectors", "devicePermissions"]
+        )
+    }
+
+    /// prototype-2：隐藏条目（不在根页显示）——identity/privacy/terms
+    /// ＋移入枢纽页的子项（profiles/memory/skills 等）
     func testHiddenFromBrowseEntries() {
         let hidden = SettingsCatalog.entries
             .filter { !$0.showsInBrowse }.map(\.id)
-        XCTAssertEqual(Set(hidden), ["identity", "privacy", "terms"])
+        XCTAssertEqual(
+            Set(hidden),
+            [
+                "identity", "privacy", "terms",
+                // agentConfig 页内
+                "profiles", "memory", "skills",
+                // serverManagement 页内
+                "server", "gateway", "logs", "usage", "envVars", "restartGateway",
+                // sessionManagement 页内
+                "mainSession", "serverSessions",
+                // workspace 页内
+                "overview", "computer", "serverFiles",
+            ]
+        )
     }
 
     func testSearchByChineseTitle() {
@@ -71,10 +110,10 @@ final class SettingsCatalogTests: XCTestCase {
     }
 
     func testSearchMatchesSummaryAndKeywords() {
-        // 「服务器」命中当前服务器（标题）、配置档案
+        // 「服务器」命中服务器管理（标题）、配置档案
         // （副行含「服务器」）等多条，按清单序返回
         let hits = SettingsCatalog.search("服务器")
-        XCTAssertTrue(hits.contains { $0.id == "server" })
+        XCTAssertTrue(hits.contains { $0.id == "serverManagement" })
         XCTAssertTrue(hits.contains { $0.id == "profiles" })
         // 英文关键词大小写不敏感
         XCTAssertEqual(
@@ -82,6 +121,12 @@ final class SettingsCatalogTests: XCTestCase {
         )
         XCTAssertEqual(
             SettingsCatalog.search("mcp").map(\.id), ["connectors"]
+        )
+        // prototype-2 监工纠正④：断开连接搜索命中服务器管理
+        let disconnectHits = SettingsCatalog.search("断开连接")
+        XCTAssertTrue(
+            disconnectHits.contains { $0.id == "serverManagement" },
+            "断开连接应命中服务器管理（关键词含「断开连接」）"
         )
     }
 
