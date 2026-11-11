@@ -29,6 +29,9 @@ final class FeedStore {
 
     private let client = OneDayBridgeClient()
     private var loadInFlight = false
+    /// 点赞在飞集（FA-1）：同帖连点防竞态——在飞期
+    /// 间再点直接忽略，等回执落定后才接受下一次
+    private var likeInFlight: Set<String> = []
 
     // MARK: - 呈现口径（收口在 Core FeedBoard）
 
@@ -161,6 +164,24 @@ final class FeedStore {
         } catch {
             briefError = L10n.string("没能开始生成，请稍后再试。")
             return false
+        }
+    }
+
+    // MARK: - 点赞（桥为真源，FA-1）
+
+    /// 点/取消点赞：目标态由当前桥下发态取反；回执
+    /// 到达以桥落字整帖替换本地行。失败不本地假装
+    /// ——行面保持原状，下次点按重试（契约 rev2
+    /// §1.9：无本地假账）
+    func toggleLiked(appState: AppState, post: BridgeFeedPost) async {
+        guard let config = appState.config,
+              !likeInFlight.contains(post.id) else { return }
+        likeInFlight.insert(post.id)
+        defer { likeInFlight.remove(post.id) }
+        if let settled = try? await client.setFeedPostLiked(
+            config: config, id: post.id, liked: !post.isLiked
+        ) {
+            posts = posts.map { $0.id == settled.id ? settled : $0 }
         }
     }
 

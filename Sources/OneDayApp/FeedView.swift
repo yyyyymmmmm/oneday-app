@@ -364,6 +364,22 @@ struct FeedView: View {
     /// ——合并会吞掉按钮的可达性
     private func actionRow(_ post: BridgeFeedPost) -> some View {
         HStack(spacing: OneDayMetrics.spacingM) {
+            // 爱心（FA-1）：填充态读桥 likedAt（桥为
+            // 真源）、点按走 FeedStore.toggleLiked 幂
+            // 等写、失败不本地假装；行面只加一钮，
+            // 不新增 why/edition 字样（守 §126 行面栈
+            // 与 rev2 §1.9 冻结契约）
+            Button {
+                Task { await store.toggleLiked(appState: appState, post: post) }
+            } label: {
+                Image(systemName: post.isLiked ? "heart.fill" : "heart")
+                    .font(.subheadline)
+                    .foregroundStyle(
+                        post.isLiked ? Palette.primary : Palette.inkSecondary
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(post.isLiked ? "取消点赞" : "点赞")
             Button {
                 discuss(post)
             } label: {
@@ -424,11 +440,15 @@ struct FeedView: View {
     /// §123（M2）：预填拼装收口 Core FeedDiscussPrefill
     /// ——超长正文改句界节选＋明标「原帖节选」，尾行带
     /// 原帖回指（旧实现 prefix(1200) 硬截无标记无回指）
+    /// FA-1：建聊同时登记待发信号关联——该旁聊第一
+    /// 条用户消息发出后，ChatView 据此发一记 discuss
+    /// 信号（契约 rev2 §1.9；本钮仍不代发消息）
     private func discuss(_ post: BridgeFeedPost) {
         markRead(post)
         let thread = ChatThread()
         modelContext.insert(thread)
         try? modelContext.save()
+        appState.sideChats.linkFeedDiscussThread(thread.id, postID: post.id)
         let prefill = FeedDiscussPrefill.make(
             title: post.title, body: post.body
         )
@@ -597,23 +617,28 @@ struct FeedPostDetailView: View {
                                 )
                             }
                         }
-                        MarkdownText(post.body)
+                        // why 一行（FA-1，契约 rev2
+                        // §1.9 冻结）：正文上方一行
+                        // 「为什么选这篇 · {why}」——
+                        // 此前形态是正文下方的卡片块
+                        // （标题＋正文＋底色），与冻结
+                        // 契约的一行口径不符，本包归位
                         if let why = post.why, !why.isEmpty {
-                            VStack(alignment: .leading, spacing: OneDayMetrics.rowInnerGap) {
+                            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                                // 标题走既有目录键；后段
+                                // 是分隔符＋桥下发原文，
+                                // 以变量入 Text 走原文呈
+                                // 现，不造新本地化键
                                 Text("为什么选这篇")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(Palette.inkSecondary)
-                                Text(why)
-                                    .font(.subheadline)
-                                    .foregroundStyle(Palette.ink)
+                                Text(" · " + why)
+                                    .font(.footnote)
+                                    .foregroundStyle(Palette.inkSecondary)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(
-                                Palette.surface,
-                                in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
-                            )
                         }
+                        MarkdownText(post.body)
                         if let card = post.sourceCard {
                             FeedSourceCardView(card: card)
                         }

@@ -14055,6 +14055,29 @@
         }
       }
     },
+    "取消点赞": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlike"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消点赞"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消點讚"
+          }
+        }
+      }
+    },
     "取消置顶": {
       "extractionState": "manual",
       "localizations": {
@@ -43472,6 +43495,29 @@
         }
       }
     },
+    "点赞": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Like"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点赞"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點讚"
+          }
+        }
+      }
+    },
     "照片": {
       "extractionState": "manual",
       "localizations": {
@@ -50552,6 +50598,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "討論"
+          }
+        }
+      }
+    },
+    "讨论信号": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discuss signal"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讨论信号"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "討論信號"
           }
         }
       }

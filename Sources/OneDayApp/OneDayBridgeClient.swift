@@ -336,6 +336,33 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
+    /// POST /feed/{id}/like {liked}（FA-1，契约 rev2
+    /// §1.9 冻结）：幂等，回执为帖视图全形——点赞态
+    /// 以桥 likedAt 为唯一真源，调用方以回执整帖替换
+    func setFeedPostLiked(
+        config: ServerConfig, id: String, liked: Bool
+    ) async throws -> BridgeFeedPost {
+        try await send(
+            config: config, path: "/feed/\(id)/like", method: "POST",
+            body: BridgeFeedLikeRequest(liked: liked),
+            endpoint: L10n.string("点赞"), collection: false
+        )
+    }
+
+    /// POST /feed/{id}/signal {type:"discuss", note?}
+    /// （FA-1，契约 rev2 §1.9 冻结）：讨论建聊后发一
+    /// 记；note 只取用户在旁聊首句的自述偏好句（Core
+    /// FeedDiscussSignal 提取），无则不带、桥记弱信号
+    func sendFeedDiscussSignal(
+        config: ServerConfig, id: String, note: String?
+    ) async throws {
+        let _: BridgeOKResponse = try await send(
+            config: config, path: "/feed/\(id)/signal", method: "POST",
+            body: BridgeFeedSignalRequest(type: "discuss", note: note),
+            endpoint: L10n.string("讨论信号"), collection: false
+        )
+    }
+
     /// GET /meta/brief（0.38.0）：简报两层全文——兴趣
     /// 层（用户原话）＋执行层（AI 扩写维护的正式简报）
     /// ＋扩写状态；旧桥无两层字段时按宽容解码收

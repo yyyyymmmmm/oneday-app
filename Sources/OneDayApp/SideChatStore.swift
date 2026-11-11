@@ -53,6 +53,13 @@ final class SideChatStore {
     /// 委派任务的进展与完成回响落进这个线程（绑定模式
     /// 与点子采纳的 ideaThreadIDs 同形，§122）
     private(set) var goalThreadIDs: [String: String] = [:]
+    /// 动态讨论待发信号（FA-1）：线程 id → 帖 id。
+    /// 点「讨论」建旁聊时落盘；该线程第一条用户消息
+    /// 发出后 ChatView 据此发一记 discuss 信号并销
+    /// 账——信号只认首句（note 取首句自述偏好句），
+    /// 漏发/永不发送的关联留着无副作用（下次该线程
+    /// 首发仍是首句）
+    private(set) var feedDiscussPostIDs: [String: String] = [:]
     private var drafts: [String: String] = [:]
     private var scrollAnchors: [String: SideChatScrollAnchor] = [:]
 
@@ -71,6 +78,7 @@ final class SideChatStore {
         static let titleOverrides = "sideChats.titleOverrides"
         static let ideaThreadIDs = "sideChats.ideaThreadIDs"
         static let goalThreadIDs = "sideChats.goalThreadIDs"
+        static let feedDiscussPostIDs = "sideChats.feedDiscussPostIDs"
         static let drafts = "sideChats.drafts"
         static let scrollAnchors = "sideChats.scrollAnchors"
     }
@@ -95,6 +103,7 @@ final class SideChatStore {
         titleOverrides = Self.decode([String: String].self, defaults, Key.titleOverrides) ?? [:]
         ideaThreadIDs = Self.decode([String: String].self, defaults, Key.ideaThreadIDs) ?? [:]
         goalThreadIDs = Self.decode([String: String].self, defaults, Key.goalThreadIDs) ?? [:]
+        feedDiscussPostIDs = Self.decode([String: String].self, defaults, Key.feedDiscussPostIDs) ?? [:]
         drafts = Self.decode([String: String].self, defaults, Key.drafts) ?? [:]
         scrollAnchors = Self.decode([String: SideChatScrollAnchor].self, defaults, Key.scrollAnchors) ?? [:]
     }
@@ -269,6 +278,29 @@ final class SideChatStore {
     func linkThread(_ threadID: UUID, forGoalID goalID: String) {
         goalThreadIDs[goalID] = threadID.uuidString
         persist(goalThreadIDs, Key.goalThreadIDs)
+    }
+
+    // MARK: - 动态讨论待发信号（FA-1）
+
+    /// 讨论建聊时登记：线程的第一条用户消息要替这
+    /// 篇帖发一记 discuss 信号
+    func linkFeedDiscussThread(_ threadID: UUID, postID: String) {
+        feedDiscussPostIDs[threadID.uuidString] = postID
+        persist(feedDiscussPostIDs, Key.feedDiscussPostIDs)
+    }
+
+    func feedDiscussPostID(forThreadID threadID: UUID) -> String? {
+        feedDiscussPostIDs[threadID.uuidString]
+    }
+
+    /// 信号发出即销账：一线程只报一次，note 只认
+    /// 首句——销账先行于网络调用，失败不补发第二句
+    func clearFeedDiscuss(forThreadID threadID: UUID) {
+        guard feedDiscussPostIDs[threadID.uuidString] != nil else {
+            return
+        }
+        feedDiscussPostIDs[threadID.uuidString] = nil
+        persist(feedDiscussPostIDs, Key.feedDiscussPostIDs)
     }
 
     func scrollAnchor(for threadID: UUID) -> SideChatScrollAnchor? {

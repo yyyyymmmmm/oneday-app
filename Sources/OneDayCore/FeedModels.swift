@@ -271,8 +271,15 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
     public let expiresAt: Double?
     /// 已读时刻；nil＝未读
     public let readAt: Double?
+    /// 点赞时刻（epoch 秒）；nil＝未赞（FA-1，契约
+    /// rev2 §1.9 冻结：桥 `_feed_view` 下发、桥为真
+    /// 源，App 只读呈现、绝不本地自立点赞账）
+    public let likedAt: Double?
 
     public var isRead: Bool { readAt != nil }
+
+    /// 已赞判定：唯一口径＝桥下发的 likedAt 非空
+    public var isLiked: Bool { likedAt != nil }
 
     /// 行首 emoji 呈现值：桥值优先、kind 缺省兜底
     public var displayEmoji: String {
@@ -295,7 +302,8 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         sourceCard: BridgeFeedSourceCard? = nil,
         direction: String? = nil,
         createdAt: Double, expiresAt: Double? = nil,
-        readAt: Double? = nil, emoji: String? = nil
+        readAt: Double? = nil, emoji: String? = nil,
+        likedAt: Double? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -311,6 +319,7 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         self.expiresAt = expiresAt
         self.readAt = readAt
         self.emoji = emoji
+        self.likedAt = likedAt
     }
 
     /// 本地已读副本（回执到达前的呈现不回退用；真源
@@ -322,14 +331,28 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
             images: images, sourceCard: sourceCard,
             direction: direction,
             createdAt: createdAt, expiresAt: expiresAt,
-            readAt: ts, emoji: emoji
+            readAt: ts, emoji: emoji, likedAt: likedAt
+        )
+    }
+
+    /// 点赞态副本（桥回执到达前的衔接不用本地造——
+    /// 本函数只供解码后同形重组与测试构造；呈现真源
+    /// 恒为桥回执整帖替换，见 FeedStore.setLiked）
+    public func withLikedAt(_ ts: Double?) -> BridgeFeedPost {
+        BridgeFeedPost(
+            id: id, kind: kind, title: title, body: body,
+            refs: refs, links: links, why: why,
+            images: images, sourceCard: sourceCard,
+            direction: direction,
+            createdAt: createdAt, expiresAt: expiresAt,
+            readAt: readAt, emoji: emoji, likedAt: ts
         )
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, title, body, refs, links, why
         case images, sourceCard, direction
-        case createdAt, expiresAt, readAt, emoji
+        case createdAt, expiresAt, readAt, emoji, likedAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -372,11 +395,48 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         emoji = try container.decodeIfPresent(
             String.self, forKey: .emoji
         )
+        likedAt = try container.decodeIfPresent(
+            Double.self, forKey: .likedAt
+        )
     }
 }
 
 public struct BridgeFeedPostsResponse: Decodable, Sendable {
     public let items: [BridgeFeedPost]
+}
+
+/// 点赞请求（POST /feed/{id}/like，契约 rev2 §1.9
+/// 冻结）：{liked:bool} 幂等，回执为帖视图全形
+public struct BridgeFeedLikeRequest: Encodable, Sendable, Equatable {
+    public let liked: Bool
+
+    public init(liked: Bool) {
+        self.liked = liked
+    }
+}
+
+/// 讨论信号请求（POST /feed/{id}/signal，契约 rev2
+/// §1.9 冻结）：type 只许 "discuss"（其余桥回 400）；
+/// note 为用户自述偏好句，无则整键不发（桥按弱信号
+/// 记账），讨论正文永不进 note
+public struct BridgeFeedSignalRequest: Encodable, Sendable, Equatable {
+    public let type: String
+    public let note: String?
+
+    public init(type: String, note: String? = nil) {
+        self.type = type
+        self.note = note
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type, note
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(note, forKey: .note)
+    }
 }
 
 // MARK: - 生成账面（GET /feed/generation）
