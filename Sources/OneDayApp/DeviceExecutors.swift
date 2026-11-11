@@ -1125,7 +1125,7 @@ final class AlarmEngine: @unchecked Sendable {
     /// requestOnce 才真发请求，其余档只回读现态
     func requestAccess() async -> DevicePermissionState {
         let current = Self.systemState()
-        guard DevicePermissionGate.decision(for: current)
+        guard OneDayCore.DevicePermissionGate.decision(for: current)
             == .requestOnce else { return current }
         _ = try? await AlarmManager.shared.requestAuthorization()
         return Self.systemState()
@@ -1300,9 +1300,7 @@ final class AlarmEngine: @unchecked Sendable {
             alert: AlarmPresentation.Alert(
                 title: LocalizedStringResource(
                     stringLiteral: args.title
-                ),
-                secondaryButton: nil,
-                secondaryButtonBehavior: nil
+                )
             )
         )
         let attributes = AlarmAttributes(
@@ -1463,22 +1461,35 @@ final class NotificationEngine: @unchecked Sendable {
 
     // MARK: 授权状态（缓存＋异步刷新）
 
-    private static let stateLock = NSLock()
-    private static var cachedStateStorage:
-        DevicePermissionState = .notDetermined
+    /// 锁盒：静态缓存值与锁同居一盒（Swift 6 并发安全形态，
+    /// 与本仓锁盒先例同式），外部只经存取口进出
+    private final class StateCacheBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: DevicePermissionState = .notDetermined
+
+        func get() -> DevicePermissionState {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+
+        func set(_ newValue: DevicePermissionState) {
+            lock.lock()
+            defer { lock.unlock() }
+            value = newValue
+        }
+    }
+
+    private static let stateCache = StateCacheBox()
 
     static var cachedState: DevicePermissionState {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        return cachedStateStorage
+        stateCache.get()
     }
 
     private static func updateCache(
         _ state: DevicePermissionState
     ) {
-        stateLock.lock()
-        cachedStateStorage = state
-        stateLock.unlock()
+        stateCache.set(state)
     }
 
     static func translate(
@@ -1518,7 +1529,7 @@ final class NotificationEngine: @unchecked Sendable {
     /// 步请求（铁律在异步读框架上的等价落法）
     func requestAccess() async -> DevicePermissionState {
         let current = await Self.readSystemState()
-        guard DevicePermissionGate.decision(for: current)
+        guard OneDayCore.DevicePermissionGate.decision(for: current)
             == .requestOnce else { return current }
         _ = try? await UNUserNotificationCenter.current()
             .requestAuthorization(
