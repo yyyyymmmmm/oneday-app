@@ -2,35 +2,37 @@ import OneDayDesign
 import OneDayCore
 import SwiftUI
 
-/// 模型设置（§119 简化定版，用户 2026-11-11 亲定）：
-/// 只留两块——①服务商管理：填接口＋密钥→获取模型
-/// →选择，一家一卡，模型清单回归卡内；网关不再单
-/// 设一层，它就是「默认服务商」这张卡本体，渠道降
-/// 为卡内来源标记＋详情查看。②辅助模型：独立页给
-/// 各用途分配（AuxModelsView）。旧「组合」降为轻量
-/// 预设（快照切换，存储零迁移）。管道沿 0.37.0：密
-/// 钥经 /api/env 保存、配置只存引用，写回先读全量、
-/// 只改点名键。文案口径：服务商（D3-16）、辅助模型
-/// （D3-01），不用旧词。
+/// 模型与服务商（§119 两块骨架＋§150 管理面重构，
+/// 报告 hermes-studio-model-picker-20261111.md 的
+/// B3/B5/B6；用户 2026-11-11 批准按报告全做）：
+/// 本页改系统 List 三段——①「默认」只有一行（模型
+/// 的唯一语义＝新对话起点，作用域在段下写全，B3）；
+/// ②「服务商」一家一行（名＋计数＋默认徽标，徽标
+/// 全页只用「默认」一种说法），点进详情页再展开清
+/// 单与动作；③「辅助模型」一行入口，预设降为其下
+/// 一行入口（B5）。卡面信息定额：部署说明与「渠道」
+/// 行话段撤出用户面（渠道读面 store.channelsFace
+/// 本体保留、仅视图段退场，留合并合裁）。设默认点
+/// 即生效、不再弹窗（B6）；弹窗只留删除服务商与刷
+/// 新清单有移除项两类不可逆事。模型清单呈现走
+/// Core ModelListGovernance（搜索＋超 40 折叠）。
+/// 管道沿 §119：密钥经 /api/env 保存、配置只存引
+/// 用；本包只动设置侧，顶栏选择器与 AppState 模型
+/// 取数层不碰（交叉点见 DESIGN §150 记账）。
 struct ModelSettingsView: View {
     @Environment(AppState.self) private var appState
 
     @State private var store = ModelManagementStore()
-    @State private var pendingSwitch: PendingDefaultSwitch?
     @State private var showProviderEditor = false
     @State private var editingProvider: ProviderRegistry.Entry?
     @State private var pendingDeleteProvider: ProviderRegistry.Entry?
-    @State private var editingPreset: ModelCombo?
-    @State private var showNewPreset = false
-    @State private var pendingActivatePreset: ModelCombo?
-    @State private var pendingDeletePreset: ModelCombo?
     @State private var pendingRefresh: PendingRefresh?
 
-    // 卡面本地态：展开的卡、测连接结果、进行中标记
-    @State private var expandedCards: Set<String> = []
-    @State private var channelsExpanded = false
+    // 详情页本地态：测连接结果、进行中标记、清单搜索
+    // （两个详情页共用一词，栈里同时只见一页，可接受）
     @State private var testResults: [String: ProviderConnectionOutcome] = [:]
     @State private var busyCards: Set<String> = []
+    @State private var detailQuery = ""
 
     private struct PendingRefresh: Identifiable {
         var entry: ProviderRegistry.Entry
@@ -41,38 +43,12 @@ struct ModelSettingsView: View {
 
     private static let mainCardID = "默认服务商"
 
-    /// 待确认的默认切换（§141）：三条来路共用同一
-    /// 确认文案——主卡旧路（改名写回，默认本就在网关
-    /// 时安全）、切回网关（默认在具名家时经 Gateway
-    /// 具名条目指派）、具名卡设默认（/api/model/set）
-    private enum PendingDefaultSwitch: Identifiable {
-        case gateway(String)
-        case gatewayReturn(String)
-        case provider(ProviderRegistry.Entry, String)
+    /// 作用域成文（B3，Codex 式写全：管什么、不管
+    /// 什么、例外是什么；全 App 只此一处口径）
+    static let defaultScopeText = "默认模型只管新对话从哪个开始；正在聊的对话不受影响，要换在对话顶部点模型名。在顶栏单独选过的对话，之后也不会跟着默认变。"
 
-        var model: String {
-            switch self {
-            case .gateway(let model), .gatewayReturn(let model):
-                return model
-            case .provider(_, let model):
-                return model
-            }
-        }
-
-        var id: String {
-            switch self {
-            case .gateway(let model):
-                return "gw:\(model)"
-            case .gatewayReturn(let model):
-                return "gwr:\(model)"
-            case .provider(let entry, let model):
-                return "pv:\(entry.name):\(model)"
-            }
-        }
-    }
-
-    /// 默认是否在网关主通道（回读未到/归属不明时
-    /// 回落 §119 旧呈现：主卡持徽、按现行默认显示）
+    /// 默认是否在默认服务商（网关）名下（回读未到/
+    /// 归属不明时回落 §119 旧呈现：默认归主通道）
     private var gatewayOwnsDefault: Bool {
         switch store.defaultAssignment?.owner {
         case .named, .other:
@@ -82,44 +58,41 @@ struct ModelSettingsView: View {
         }
     }
 
-    /// 主卡「默认模型」行取值：默认不在网关时如实
-    /// 指向所在服务商，不把别家的模型记在主卡名下
-    private var mainCardDefaultModelText: String {
-        if gatewayOwnsDefault {
-            return store.currentModel ?? "未配置"
+    /// 第一段「默认模型」行右值：服务商名 · 模型名
+    private var defaultRowValue: String {
+        guard let model = store.defaultAssignment?.model
+            ?? store.currentModel else {
+            return L10n.string("未配置")
         }
         switch store.defaultAssignment?.owner {
         case .named(let name):
-            return L10n.format("在服务商「%@」", name)
+            return "\(name) · \(model)"
         case .other(let slug):
-            return L10n.format("在「%@」", slug)
-        default:
-            return store.currentModel ?? "未配置"
+            return "\(slug) · \(model)"
+        case .gateway, .unknown, nil:
+            return L10n.format("默认服务商 · %@", model)
         }
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                providersGroup
-                auxGroup
-                presetsGroup
-                if let errorMessage = store.errorMessage {
+        List {
+            defaultSection
+            providersSection
+            auxSection
+            if let errorMessage = store.errorMessage {
+                Section {
                     InlineError(errorMessage)
-                        .padding(.top, OneDayMetrics.spacingL)
                 }
-                if let notice = store.notice {
+            }
+            if let notice = store.notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
         .navigationTitle("模型与服务商")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await store.load(appState: appState) }
@@ -133,34 +106,6 @@ struct ModelSettingsView: View {
             ProviderEditorView(store: store, editing: entry) { saved in
                 if saved { Task { await store.load(appState: appState) } }
             }
-        }
-        .sheet(item: $editingPreset) { combo in
-            PresetEditorView(store: store, combo: combo) {
-                Task { await store.load(appState: appState) }
-            }
-        }
-        .sheet(isPresented: $showNewPreset) {
-            PresetEditorView(store: store, combo: nil) {
-                Task { await store.load(appState: appState) }
-            }
-        }
-        .confirmationDialog(
-            "切换默认模型？",
-            isPresented: Binding(
-                get: { pendingSwitch != nil },
-                set: { if !$0 { pendingSwitch = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("切换到 \(pendingSwitch?.model ?? "")") {
-                if let pending = pendingSwitch {
-                    Task { await performSwitch(pending) }
-                }
-                pendingSwitch = nil
-            }
-            Button("取消", role: .cancel) { pendingSwitch = nil }
-        } message: {
-            Text("新的会话将默认使用该模型；已有会话不受影响。")
         }
         .confirmationDialog(
             "删除服务商？",
@@ -205,44 +150,6 @@ struct ModelSettingsView: View {
                 Text(refreshDialogMessage(pending))
             }
         }
-        .confirmationDialog(
-            "启用这份预设？",
-            isPresented: Binding(
-                get: { pendingActivatePreset != nil },
-                set: { if !$0 { pendingActivatePreset = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("启用「\(pendingActivatePreset?.name ?? "")」") {
-                if let combo = pendingActivatePreset {
-                    Task { await store.activateCombo(combo, appState: appState) }
-                }
-                pendingActivatePreset = nil
-            }
-            Button("取消", role: .cancel) { pendingActivatePreset = nil }
-        } message: {
-            if let combo = pendingActivatePreset {
-                Text(ComboActivation.activationNotice(for: combo))
-            }
-        }
-        .confirmationDialog(
-            "删除预设？",
-            isPresented: Binding(
-                get: { pendingDeletePreset != nil },
-                set: { if !$0 { pendingDeletePreset = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("删除", role: .destructive) {
-                if let combo = pendingDeletePreset {
-                    Task { await store.deleteCombo(combo, appState: appState) }
-                }
-                pendingDeletePreset = nil
-            }
-            Button("取消", role: .cancel) { pendingDeletePreset = nil }
-        } message: {
-            Text("只删这份预设的定义；已经启用到服务端的设置不会被撤回。")
-        }
     }
 
     private func refreshDialogMessage(_ pending: PendingRefresh) -> String {
@@ -265,167 +172,80 @@ struct ModelSettingsView: View {
         return parts.joined(separator: "\n")
     }
 
-    // MARK: - 服务商管理（卡面）
+    // MARK: - 第一段：默认（B3，本页主角）
 
-    private var providersGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("服务商")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            Text("填接口和密钥，获取模型，再选用。密钥只保存在你的服务端，App 不留存。")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: OneDayMetrics.spacingM) {
-                mainCard
-                ForEach(store.userProviders, id: \.name) { entry in
-                    providerCard(entry)
-                }
-                addProviderButton
-            }
-        }
-    }
-
-    private var addProviderButton: some View {
-        Button {
-            showProviderEditor = true
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(Palette.primary)
-                Text("添加服务商")
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .odGroup()
-    }
-
-    /// 默认服务商卡：服务器的主通道（经网关）本体——
-    /// 默认模型住在这里；地址与密钥在服务器上配置，
-    /// 本卡只呈现状、清单与渠道来源
-    private var mainCard: some View {
-        let expanded = expandedCards.contains(Self.mainCardID)
-        return VStack(spacing: 0) {
-            cardHeader(
-                title: "默认服务商",
-                subtitle: "服务器的主通道，经网关转发",
-                badge: gatewayOwnsDefault ? "默认" : nil
-            )
-            GroupDivider()
-            infoRow("默认模型", mainCardDefaultModelText)
-            infoRow("接口地址", "在服务器上配置，App 里只看不改")
-            infoRow("密钥", "在服务器上保管")
-            GroupDivider()
-            expandRow(
-                title: L10n.format("模型（%lld）", appState.availableModels.count),
-                expanded: expanded
-            ) {
-                toggleCard(Self.mainCardID)
-            }
-            if expanded {
-                ForEach(appState.availableModels, id: \.self) { model in
-                    GroupDivider()
-                    gatewayModelRow(model)
-                }
-            }
-            GroupDivider()
-            cardActions {
-                actionButton("获取模型", busy: busyCards.contains(Self.mainCardID)) {
-                    await refreshMainCard()
-                }
-                actionButton("测连接", busy: busyCards.contains(Self.mainCardID)) {
-                    testResults[Self.mainCardID] = await store.testMainEndpoint(
-                        appState: appState
-                    )
-                }
-                actionButton(
-                    channelsExpanded ? "收起渠道" : "查看渠道", busy: false
-                ) {
-                    channelsExpanded.toggle()
-                }
-            }
-            if let outcome = testResults[Self.mainCardID] {
-                outcomeLine(outcome)
-            }
-            if channelsExpanded {
-                GroupDivider()
-                channelsList
-            }
-        }
-        .odGroup()
-    }
-
-    private func gatewayModelRow(_ model: String) -> some View {
-        let isCurrent = gatewayOwnsDefault && model == store.currentModel
-        let channels = channelNames(for: model)
-        let content = HStack(spacing: OneDayMetrics.spacingSM) {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(model)
-                    .font(.system(.callout, design: .monospaced))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                if let runtime = ModelCatalog.aliasRuntime[model] {
-                    Text("别名 · 将按 \(runtime) 运行")
-                        .font(.footnote)
+    private var defaultSection: some View {
+        Section {
+            NavigationLink {
+                DefaultModelPickerView(
+                    store: store,
+                    gatewayModels: appState.availableModels,
+                    providers: store.userProviders,
+                    isCurrentDefault: isCurrentDefault,
+                    onSelect: { selection in
+                        Task { await performSwitch(selection) }
+                    }
+                )
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Text("默认模型")
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Text(defaultRowValue)
+                        .font(.body)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
+                    if store.isLoading {
+                        ProgressView()
+                    }
                 }
             }
-            Spacer(minLength: OneDayMetrics.spacingS)
-            if !channels.isEmpty {
-                Text(channels.joined(separator: "、"))
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
-            if isCurrent {
-                Text("当前默认")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.success)
-            }
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-        .contentShape(Rectangle())
-
-        if isCurrent {
-            return AnyView(content)
-        }
-        return AnyView(
-            Button { tapGatewayModel(model) } label: { content }
-                .buttonStyle(.odPressable)
-        )
-    }
-
-    /// 点主卡模型行：默认本就在网关→旧改名路；默认
-    /// 在别家→经 Gateway 具名条目切回（§141）；服务
-    /// 器没登记网关条目时如实提示，不拿改名冒充切回
-    private func tapGatewayModel(_ model: String) {
-        switch store.defaultAssignment?.owner {
-        case .named, .other:
-            if store.gatewayEntry != nil {
-                pendingSwitch = .gatewayReturn(model)
-            } else {
-                store.notice = L10n.string("这台服务器还没登记网关服务商，暂时切不回默认服务商。")
-            }
-        case .gateway, .unknown, nil:
-            pendingSwitch = .gateway(model)
+        } header: {
+            Text("默认")
+        } footer: {
+            Text(Self.defaultScopeText)
         }
     }
 
-    private func performSwitch(_ pending: PendingDefaultSwitch) async {
-        switch pending {
+    /// 某家某模型是不是当前默认（默认的唯一判定口，
+    /// 选择面/详情清单/徽标共用，不许各算各的）
+    private func isCurrentDefault(
+        owner: DefaultPickOwner, model: String
+    ) -> Bool {
+        let currentModel = store.defaultAssignment?.model
+            ?? store.currentModel
+        guard model == currentModel else { return false }
+        switch (owner, store.defaultAssignment?.owner) {
+        case (.gateway, .gateway), (.gateway, .unknown), (.gateway, nil):
+            return gatewayOwnsDefault
+        case (.provider(let name), .named(let current)):
+            return name == current
+        case (.provider(let name), .other(let slug)):
+            return name == slug
+        default:
+            return false
+        }
+    }
+
+    /// 设默认即时生效（B6，不再弹窗）：三条来路与
+    /// §141 同——主通道旧改名路、经 Gateway 具名条
+    /// 目切回、具名家经 /api/model/set 指派
+    private func performSwitch(_ selection: DefaultPickSelection) async {
+        switch selection {
         case .gateway(let model):
-            await store.setDefaultModel(model, appState: appState)
-        case .gatewayReturn(let model):
-            await store.setDefaultViaGateway(
-                model: model, appState: appState
-            )
+            switch store.defaultAssignment?.owner {
+            case .named, .other:
+                if store.gatewayEntry != nil {
+                    await store.setDefaultViaGateway(
+                        model: model, appState: appState
+                    )
+                } else {
+                    store.notice = L10n.string("这台服务器还没登记网关服务商，暂时切不回默认服务商。")
+                }
+            case .gateway, .unknown, nil:
+                await store.setDefaultModel(model, appState: appState)
+            }
         case .provider(let entry, let model):
             await store.setDefaultModel(
                 provider: entry, model: model, appState: appState
@@ -433,219 +253,247 @@ struct ModelSettingsView: View {
         }
     }
 
-    /// 模型 → 渠道来源标记（渠道读面里声明了该模型
-    /// 的渠道名；读面没就绪时不标，不编造）
-    private func channelNames(for model: String) -> [String] {
-        guard case .ready(let channels) = store.channelsFace
-        else { return [] }
-        return channels
-            .filter { $0.models.contains(model) }
-            .map { $0.name }
-    }
+    // MARK: - 第二段：服务商（B5，一家一行）
 
-    private var channelsList: some View {
-        VStack(spacing: 0) {
-            if case .ready(let channels) = store.channelsFace,
-               !channels.isEmpty {
-                ForEach(Array(channels.enumerated()), id: \.element.id) { index, channel in
-                    if index > 0 {
-                        GroupDivider()
-                    }
-                    HStack(spacing: OneDayMetrics.spacingSM) {
-                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                            Text(channel.name)
-                                .font(.body)
-                                .foregroundStyle(Palette.ink)
-                            Text(channel.detailLine)
-                                .font(.footnote)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: OneDayMetrics.spacingS)
-                        Text(channel.statusWording)
-                            .font(.footnote)
-                            .foregroundStyle(
-                                channel.statusWording == "使用中"
-                                    ? Palette.success : Palette.inkSecondary
-                            )
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingS)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
-                }
-                Text("渠道的启停与顺序在网关那边管理，App 不碰网关的管理员凭据。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingS)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else if let placeholder = store.channelsFace.placeholderText {
-                Text(placeholder)
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingSM)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+    private var providersSection: some View {
+        Section {
+            NavigationLink {
+                gatewayDetail
+            } label: {
+                providerRowLabel(
+                    name: L10n.string("默认服务商"),
+                    modelCount: appState.availableModels.count,
+                    isDefaultOwner: gatewayOwnsDefault
+                )
             }
-        }
-    }
-
-    private func providerCard(_ entry: ProviderRegistry.Entry) -> some View {
-        let expanded = expandedCards.contains(entry.name)
-        let isDefaultProvider =
-            store.defaultAssignment?.owner == .named(entry.name)
-        return VStack(spacing: 0) {
-            cardHeader(
-                title: entry.name,
-                subtitle: entry.baseURL ?? "",
-                badge: isDefaultProvider ? "默认" : nil
-            )
-            GroupDivider()
-            infoRow(
-                "密钥",
-                (entry.keyEnv?.isEmpty == false) ? "已保存" : "未保存"
-            )
-            GroupDivider()
-            expandRow(
-                title: L10n.format("模型（%lld）", entry.models.count),
-                expanded: expanded
-            ) {
-                toggleCard(entry.name)
-            }
-            if expanded {
-                if entry.models.isEmpty {
-                    GroupDivider()
-                    Text("还没有模型清单。点「获取模型」拉一次，或在编辑里手动填。")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .padding(.vertical, OneDayMetrics.spacingSM)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                ForEach(entry.models, id: \.self) { model in
-                    GroupDivider()
-                    providerModelRow(entry, model)
-                }
-            }
-            GroupDivider()
-            cardActions {
-                actionButton("获取模型", busy: busyCards.contains(entry.name)) {
-                    await refreshProviderCard(entry)
-                }
-                actionButton("测连接", busy: busyCards.contains(entry.name)) {
-                    testResults[entry.name] = await store.testConnection(
-                        entry: entry, appState: appState
+            ForEach(store.userProviders, id: \.name) { entry in
+                NavigationLink {
+                    providerDetail(entry)
+                } label: {
+                    providerRowLabel(
+                        name: entry.name,
+                        modelCount: entry.models.count,
+                        isDefaultOwner: store.defaultAssignment?.owner
+                            == .named(entry.name)
                     )
                 }
-                actionButton("编辑", busy: false) {
-                    editingProvider = entry
-                }
-                actionButton("删除", busy: false, destructive: true) {
-                    pendingDeleteProvider = entry
+            }
+            Button {
+                showProviderEditor = true
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(Palette.primary)
+                    Text("添加服务商")
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
                 }
             }
-            if let outcome = testResults[entry.name] {
-                outcomeLine(outcome)
-            }
-            if store.previousModels(for: entry) != nil {
-                GroupDivider()
-                Button {
-                    Task {
-                        await store.restorePreviousModels(
-                            entry: entry, appState: appState
-                        )
-                    }
-                } label: {
-                    HStack {
-                        Text("恢复上一份模型清单")
-                            .font(.callout)
-                            .foregroundStyle(Palette.primary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.odPressable)
-            }
+        } header: {
+            Text("服务商")
+        } footer: {
+            Text("填接口和密钥，获取模型，再选用。密钥只保存在你的服务端，App 不留存。")
         }
-        .odGroup()
     }
 
-    /// 具名卡模型行（§141，与主卡模型行同形态）：
-    /// 当前默认行只呈标记、不可点；其余行可点→确认
-    /// 后经 /api/model/set 设为全局默认
-    private func providerModelRow(
-        _ entry: ProviderRegistry.Entry, _ model: String
+    /// 服务商行定额：名＋计数＋默认徽标（只此一种
+    /// 说法），地址/密钥状态/清单一律进详情页
+    private func providerRowLabel(
+        name: String, modelCount: Int, isDefaultOwner: Bool
     ) -> some View {
-        let isCurrent =
-            store.defaultAssignment?.owner == .named(entry.name)
-            && model == (store.defaultAssignment?.model
-                ?? store.currentModel)
-        let content = HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(model)
-                .font(.system(.callout, design: .monospaced))
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(name)
+                .font(.body)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
             Spacer(minLength: OneDayMetrics.spacingS)
-            if isCurrent {
-                Text("当前默认")
+            if isDefaultOwner {
+                Text("默认")
                     .font(.footnote)
                     .foregroundStyle(Palette.success)
             }
+            Text(L10n.format("%lld 个模型", modelCount))
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-        .contentShape(Rectangle())
-
-        if isCurrent {
-            return AnyView(content)
-        }
-        return AnyView(
-            Button {
-                pendingSwitch = .provider(entry, model)
-            } label: { content }
-                .buttonStyle(.odPressable)
-        )
     }
 
-    // MARK: - 卡面部件
+    // MARK: - 第三段：辅助模型＋预设入口（B5，降权）
 
-    private func cardHeader(
-        title: String, subtitle: String, badge: String?
-    ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Palette.ink)
-                if !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(
-                            .caption,
-                            design: subtitle.hasPrefix("http")
-                                ? .monospaced : .default
-                        ))
+    private var auxSection: some View {
+        Section {
+            NavigationLink {
+                AuxModelsView(store: store)
+            } label: {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text("给各用途分配模型")
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                    Text(auxSummaryLine)
+                        .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
                 }
             }
-            Spacer(minLength: OneDayMetrics.spacingS)
-            if let badge {
-                Text(badge)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.success)
+            NavigationLink {
+                PresetsView(store: store)
+            } label: {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text("预设")
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                    Text("把默认模型和辅助分配存成一份，整套切换。")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                }
             }
-            if store.isLoading {
-                ProgressView()
-            }
+        } header: {
+            Text("辅助模型")
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(minHeight: OneDayMetrics.rowHeight)
     }
 
-    private func infoRow(_ label: String, _ value: String) -> some View {
+    private var auxSummaryLine: String {
+        let specified = store.auxAssignments.values
+            .filter { !$0.isFollow }.count
+        return specified == 0
+            ? L10n.string("全部用途都跟随主模型")
+            : L10n.format("已给 %lld 个用途单独指定", specified)
+    }
+
+    // MARK: - 详情页：默认服务商
+
+    private var gatewayDetail: some View {
+        List {
+            Section {
+                detailInfoRow("密钥", "在服务器上保管")
+            } header: {
+                Text("默认服务商")
+            } footer: {
+                Text("服务器的主通道，新对话默认从这里开始。")
+            }
+            Section {
+                GovernedModelRows(
+                    models: appState.availableModels,
+                    query: detailQuery,
+                    isDefault: { model in
+                        isCurrentDefault(owner: .gateway, model: model)
+                    },
+                    onSelect: { model in
+                        Task {
+                            await performSwitch(.gateway(model))
+                        }
+                    }
+                )
+            } header: {
+                Text(L10n.format("模型（%lld）", appState.availableModels.count))
+            } footer: {
+                Text("点一行设为默认，立即生效。")
+            }
+            Section {
+                actionRow("获取模型", busy: busyCards.contains(Self.mainCardID)) {
+                    await refreshMainCard()
+                }
+                actionRow("测连接", busy: busyCards.contains(Self.mainCardID)) {
+                    testResults[Self.mainCardID] = await store.testMainEndpoint(
+                        appState: appState
+                    )
+                }
+                if let outcome = testResults[Self.mainCardID] {
+                    outcomeRow(outcome)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .searchable(text: $detailQuery, prompt: Text("搜索模型"))
+        .navigationTitle("默认服务商")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: - 详情页：具名服务商
+
+    private func providerDetail(_ entry: ProviderRegistry.Entry) -> some View {
+        List {
+            Section {
+                if let baseURL = entry.baseURL, !baseURL.isEmpty {
+                    detailInfoRow("接口地址", baseURL)
+                }
+                detailInfoRow(
+                    "密钥",
+                    (entry.keyEnv?.isEmpty == false) ? "已保存" : "未保存"
+                )
+            } header: {
+                Text(entry.name)
+            }
+            Section {
+                if entry.models.isEmpty {
+                    Text("还没有模型清单。获取一次，或在编辑里手动填。")
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                } else {
+                    GovernedModelRows(
+                        models: entry.models,
+                        query: detailQuery,
+                        isDefault: { model in
+                            isCurrentDefault(
+                                owner: .provider(entry.name), model: model
+                            )
+                        },
+                        onSelect: { model in
+                            Task {
+                                await performSwitch(
+                                    .provider(entry, model)
+                                )
+                            }
+                        }
+                    )
+                }
+            } header: {
+                Text(L10n.format("模型（%lld）", entry.models.count))
+            } footer: {
+                Text("点一行设为默认，立即生效。")
+            }
+            Section {
+                actionRow("获取模型", busy: busyCards.contains(entry.name)) {
+                    await refreshProviderCard(entry)
+                }
+                actionRow("测连接", busy: busyCards.contains(entry.name)) {
+                    testResults[entry.name] = await store.testConnection(
+                        entry: entry, appState: appState
+                    )
+                }
+                actionRow("编辑", busy: false) {
+                    editingProvider = entry
+                }
+                if let outcome = testResults[entry.name] {
+                    outcomeRow(outcome)
+                }
+                if store.previousModels(for: entry) != nil {
+                    actionRow("恢复上一份模型清单", busy: false) {
+                        await store.restorePreviousModels(
+                            entry: entry, appState: appState
+                        )
+                    }
+                }
+            }
+            Section {
+                Button(role: .destructive) {
+                    pendingDeleteProvider = entry
+                } label: {
+                    Text("删除服务商")
+                        .font(.body)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .searchable(text: $detailQuery, prompt: Text("搜索模型"))
+        .navigationTitle(entry.name)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: - 详情页部件
+
+    private func detailInfoRow(_ label: String, _ value: String) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
             Text(label)
                 .font(.callout)
@@ -656,43 +504,10 @@ struct ModelSettingsView: View {
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
     }
 
-    private func expandRow(
-        title: String, expanded: Bool, toggle: @escaping () -> Void
-    ) -> some View {
-        Button(action: toggle) {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Text(title)
-                    .font(.callout)
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-                Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                    .font(.caption)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-    }
-
-    private func cardActions(
-        @ViewBuilder content: () -> some View
-    ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingL) {
-            content()
-            Spacer()
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
-    }
-
-    private func actionButton(
-        _ title: String, busy: Bool, destructive: Bool = false,
+    private func actionRow(
+        _ title: String, busy: Bool,
         action: @escaping () async -> Void
     ) -> some View {
         Button {
@@ -703,20 +518,15 @@ struct ModelSettingsView: View {
                     ProgressView()
                 }
                 Text(title)
-                    .font(.callout)
-                    .foregroundStyle(
-                        destructive ? Palette.danger : Palette.primary
-                    )
+                    .font(.body)
+                    .foregroundStyle(Palette.primary)
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
         .disabled(busy)
     }
 
-    private func outcomeLine(_ outcome: ProviderConnectionOutcome) -> some View {
+    private func outcomeRow(_ outcome: ProviderConnectionOutcome) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-            GroupDivider()
             Text(outcome.headline())
                 .font(.footnote)
                 .foregroundStyle(Palette.ink)
@@ -725,17 +535,6 @@ struct ModelSettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             }
-        }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func toggleCard(_ id: String) {
-        if expandedCards.contains(id) {
-            expandedCards.remove(id)
-        } else {
-            expandedCards.insert(id)
         }
     }
 
@@ -748,8 +547,9 @@ struct ModelSettingsView: View {
             : .connected(modelCount: appState.availableModels.count)
     }
 
-    /// 获取模型（具名卡）：先拉新清单算差异——没变
-    /// 直接报，没变差才弹确认，不许默默覆盖
+    /// 获取模型（具名家）：先拉新清单算差异——没变
+    /// 直接报；有移除项才弹确认（不可逆，B6 保留），
+    /// 纯新增直接落（K4 的 diff 呈现打磨不在本包）
     private func refreshProviderCard(_ entry: ProviderRegistry.Entry) async {
         busyCards.insert(entry.name)
         defer { busyCards.remove(entry.name) }
@@ -764,181 +564,153 @@ struct ModelSettingsView: View {
         if diff.isUnchanged {
             testResults[entry.name] = .connected(modelCount: models.count)
             store.notice = L10n.format("「%@」的模型清单没有变化。", entry.name)
+        } else if diff.removed.isEmpty {
+            await store.applyRefreshedModels(
+                entry: entry, models: models, appState: appState
+            )
         } else {
             pendingRefresh = PendingRefresh(
                 entry: entry, diff: diff, models: models
             )
         }
     }
+}
 
-    // MARK: - 辅助模型入口
+/// 默认的归属口（选择面与详情清单共用同一套语言）
+enum DefaultPickOwner: Equatable {
+    case gateway
+    case provider(String)
+}
 
-    private var auxGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("辅助模型")
-                .padding(.top, OneDayMetrics.spacingL)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                NavigationLink {
-                    AuxModelsView(store: store)
-                } label: {
-                    HStack(spacing: OneDayMetrics.spacingSM) {
-                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                            Text("给各用途分配模型")
-                                .font(.body)
-                                .foregroundStyle(Palette.ink)
-                            Text(auxSummaryLine)
-                                .font(.footnote)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: OneDayMetrics.spacingS)
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.odPressable)
+/// 设默认的一次点选（ModelSettingsView.performSwitch 消费）
+enum DefaultPickSelection {
+    case gateway(String)
+    case provider(ProviderRegistry.Entry, String)
+}
+
+/// 治理过的模型行组（搜索＋折叠，口径在 Core
+/// ModelListGovernance）：当前默认行显「默认」标
+/// （全页唯一说法）且不可再点，其余行整行可点，
+/// 点选动作由宿主给（设默认/选择面回填共用）
+struct GovernedModelRows: View {
+    let models: [String]
+    /// 搜索词由宿主持有（宿主 List 挂 .searchable），
+    /// 分组多实例时各组同词过滤
+    let query: String
+    let isDefault: (String) -> Bool
+    let onSelect: (String) -> Void
+
+    @State private var expanded = false
+
+    var body: some View {
+        let presentation = ModelListGovernance.presentation(
+            models: models, query: query, expanded: expanded
+        )
+        ForEach(presentation.shown, id: \.self) { model in
+            modelRow(model)
+        }
+        if presentation.isFiltering && presentation.matchCount == 0 {
+            Text("没有找到匹配的模型")
+                .font(.callout)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        if presentation.hiddenCount > 0 {
+            Button {
+                expanded = true
+            } label: {
+                Text(L10n.format("显示全部（还有 %lld 个）", presentation.hiddenCount))
+                    .font(.callout)
+                    .foregroundStyle(Palette.primary)
             }
-            .odGroup()
         }
     }
 
-    private var auxSummaryLine: String {
-        let specified = store.auxAssignments.values
-            .filter { !$0.isFollow }.count
-        return specified == 0
-            ? L10n.string("全部用途都跟随主模型")
-            : L10n.format("已给 %lld 个用途单独指定", specified)
+    private func modelRow(_ model: String) -> some View {
+        let current = isDefault(model)
+        let content = HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(model)
+                .font(.system(.callout, design: .monospaced))
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            if current {
+                Text("默认")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.success)
+            }
+        }
+        .contentShape(Rectangle())
+        if current {
+            return AnyView(content)
+        }
+        return AnyView(
+            Button { onSelect(model) } label: { content }
+                .buttonStyle(.odPressable)
+        )
     }
+}
 
-    // MARK: - 预设
+/// 默认模型选择面（第一段点入）：与顶栏同构的分组
+/// 列表——默认服务商组＋各具名家组，段头带计数；点
+/// 一行即设默认并返回（B6 点即生效），当前默认行
+/// 打勾（系统选择器惯例）＋「默认」标双保险但措辞
+/// 仍只一种。作用域全句在页脚（B3，与设置页段下
+/// 同一句，不许两处两说）
+struct DefaultModelPickerView: View {
+    let store: ModelManagementStore
+    let gatewayModels: [String]
+    let providers: [ProviderRegistry.Entry]
+    let isCurrentDefault: (DefaultPickOwner, String) -> Bool
+    let onSelect: (DefaultPickSelection) -> Void
 
-    private var presetsGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("预设")
-                .padding(.top, OneDayMetrics.spacingL)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            Text("把默认模型和整套辅助分配存成一份快照，整套切换。预设不是多模型汇总——那是几个模型一起答一道题。")
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    var body: some View {
+        List {
+            Section {
+                GovernedModelRows(
+                    models: gatewayModels,
+                    query: query,
+                    isDefault: { isCurrentDefault(.gateway, $0) },
+                    onSelect: { model in
+                        onSelect(.gateway(model))
+                        dismiss()
+                    }
+                )
+            } header: {
+                Text(L10n.format("默认服务商（%lld）", gatewayModels.count))
+            }
+            ForEach(providers, id: \.name) { entry in
+                Section {
+                    GovernedModelRows(
+                        models: entry.models,
+                        query: query,
+                        isDefault: {
+                            isCurrentDefault(.provider(entry.name), $0)
+                        },
+                        onSelect: { model in
+                            onSelect(.provider(entry, model))
+                            dismiss()
+                        }
+                    )
+                } header: {
+                    Text(L10n.format("%@（%lld）", entry.name, entry.models.count))
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .searchable(text: $query, prompt: Text("搜索模型"))
+        .navigationTitle("默认模型")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Text(ModelSettingsView.defaultScopeText)
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                // 第 5 项起预设落本地：不再有「服务端存储
-                // 未开通/清单没读出来」两态，清单即本地文档
-                let presets = store.comboDocument?.combos ?? []
-                if presets.isEmpty {
-                    Text("还没有预设。可以新建一份，或先把当前设置存为第一份再改。")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .padding(.vertical, OneDayMetrics.spacingSM)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    GroupDivider()
-                    starterButton
-                    GroupDivider()
-                    newPresetButton
-                } else {
-                    ForEach(Array(presets.enumerated()), id: \.element.id) { index, preset in
-                        if index > 0 {
-                            GroupDivider()
-                        }
-                        presetRow(preset)
-                    }
-                    GroupDivider()
-                    newPresetButton
-                }
-            }
-            .odGroup()
-        }
-    }
-
-    private var starterButton: some View {
-        Button {
-            Task { await store.saveCurrentAsPreset(appState: appState) }
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: "tray.and.arrow.down")
-                    .foregroundStyle(Palette.primary)
-                Text("把当前设置存为预设")
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-    }
-
-    private var newPresetButton: some View {
-        Button {
-            showNewPreset = true
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(Palette.primary)
-                Text("新建预设")
-                    .font(.body)
-                    .foregroundStyle(Palette.ink)
-                Spacer()
-            }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-    }
-
-    private func presetRow(_ preset: ModelCombo) -> some View {
-        let isActive = store.comboDocument?.activeComboID == preset.id
-        return HStack(spacing: OneDayMetrics.spacingSM) {
-            Button {
-                editingPreset = preset
-            } label: {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        Text(preset.name)
-                            .font(.body)
-                            .foregroundStyle(Palette.ink)
-                        if isActive {
-                            Text("使用中")
-                                .font(.footnote)
-                                .foregroundStyle(Palette.success)
-                        }
-                    }
-                    Text(preset.summaryLine)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(2)
-                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.vertical, OneDayMetrics.spacingS)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.odPressable)
-            if !isActive {
-                Button("启用") {
-                    pendingActivatePreset = preset
-                }
-                .font(.callout)
-            }
-            Button {
-                pendingDeletePreset = preset
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(Palette.danger)
-            }
-            .buttonStyle(.odPressable)
-            .accessibilityLabel(
-                L10n.string("删除预设") + "：" + preset.name
-            )
+                .background(Palette.pageBG)
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(minHeight: OneDayMetrics.rowHeight)
     }
 }

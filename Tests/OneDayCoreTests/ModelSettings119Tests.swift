@@ -366,3 +366,64 @@ final class ModelSettings119Tests: XCTestCase {
         ), "「仍然保存」只绕过无模型一闸")
     }
 }
+
+/// §150 清单治理（B5）：折叠阈值、搜索过滤、展开全量
+final class ModelListGovernanceTests: XCTestCase {
+
+    private func models(_ count: Int) -> [String] {
+        (1...count).map { "model-\($0)" }
+    }
+
+    func testUnderThresholdShowsAll() {
+        let p = ModelListGovernance.presentation(
+            models: models(40), query: "", expanded: false
+        )
+        XCTAssertEqual(p.shown.count, 40)
+        XCTAssertEqual(p.hiddenCount, 0)
+        XCTAssertFalse(p.isFiltering)
+    }
+
+    func testOverThresholdFoldsAtForty() {
+        let p = ModelListGovernance.presentation(
+            models: models(132), query: "", expanded: false
+        )
+        XCTAssertEqual(p.shown.count, 40)
+        XCTAssertEqual(p.hiddenCount, 92)
+        XCTAssertEqual(p.matchCount, 132)
+    }
+
+    func testExpandedShowsAll() {
+        let p = ModelListGovernance.presentation(
+            models: models(132), query: "", expanded: true
+        )
+        XCTAssertEqual(p.shown.count, 132)
+        XCTAssertEqual(p.hiddenCount, 0)
+    }
+
+    func testSearchIgnoresFoldAndIsCaseInsensitive() {
+        let p = ModelListGovernance.presentation(
+            models: ["DeepSeek-Flash", "gpt-5", "deepseek-pro"],
+            query: "DEEPSEEK", expanded: false
+        )
+        XCTAssertTrue(p.isFiltering)
+        XCTAssertEqual(p.shown, ["DeepSeek-Flash", "deepseek-pro"])
+        XCTAssertEqual(p.hiddenCount, 0)
+    }
+
+    func testSearchNoMatch() {
+        let p = ModelListGovernance.presentation(
+            models: models(10), query: "zzz", expanded: false
+        )
+        XCTAssertTrue(p.isFiltering)
+        XCTAssertEqual(p.matchCount, 0)
+        XCTAssertTrue(p.shown.isEmpty)
+    }
+
+    func testBlankQueryIsNotFiltering() {
+        let p = ModelListGovernance.presentation(
+            models: models(3), query: "   ", expanded: false
+        )
+        XCTAssertFalse(p.isFiltering)
+        XCTAssertEqual(p.shown.count, 3)
+    }
+}
