@@ -9427,6 +9427,12 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - InlineImageCandidateTests +1 法：消息 1878 原文形态钉测——MEDIA 拆分承接、§143 候选按分工不收、裸行仍是独立成行参照、并集摘行后只剩 PDF 行与正文。
 - xcstrings 零新增（无新文案）。
 
+### 154.7 预制验收记账（2026-11-11）
+
+- 分支 feat/hotfix-attach-panel-05017（worktree pkg-hotfix-attach-panel）：代码＋测试 `b26199a`＋记账 `befeef3`，基线 main 866a5c8／0.50.16（单测 1562 口径）。
+- CI run **43025353152**（workflow_dispatch 于本分支）：jobs API 逐项终判 build-native **success**；单测 Executed **1567、0 failures**（1562＋本包 5，只增不减），新增 5 法逐法 passed 日志在案。
+- 未合并、版本号未动——阻断级热修按攒包规矩的例外情形走单包发版，待主线指令（合并＋定版＋验包）。
+
 ### 154.6 真机待验（随热修版回收）
 
 - 点「+」面板必开：已授权态高度贴内容（约一排大格＋两行动作、无死空）、未授权态矮版贴合；连开带关多次每次都开；选 1 张出确认行时面板跟高、取消选回落。
