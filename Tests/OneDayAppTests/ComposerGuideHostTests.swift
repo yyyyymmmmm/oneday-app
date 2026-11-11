@@ -196,7 +196,7 @@ final class ComposerGuideHostTests: XCTestCase {
         while !condition(), Date() < deadline {
             RunLoop.main.run(
                 mode: .default,
-                until: Date().addingTimeInterval(0.05))
+                before: Date().addingTimeInterval(0.05))
         }
     }
 
