@@ -9528,3 +9528,23 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - CI 两轮：一轮 run 43025770182 failure——唯一 error 为 DrawerContainerView.swift:416 CATransform3D 无 tx 成员（presentation 变换取 tx 应走 m41）；改 m41 后二轮 run 43026410862 jobs API 终判 build-native **success**。单测 Executed **1565、0 failures**（0.50.16 主线口径 1562＋本包 DrawerSpringTimingTests 净增 3，只增不减；xcstrings 本包零新增键——纯容器替换无新文案）。
 - 分支 feat/drawer-uikit-container（worktree pkg-drawer-uikit），基线 main 866a5c8（0.50.16/138 定版顶端）；代码提交 3b049b1＋修复 1 提交。注意：主仓另有附件面板热修（feat/hotfix-attach-panel-05017，基线同为 866a5c8）在飞——其动 ChatView/附件面，与本包动 ContentView/DrawerView 注/新文件，文件面不重叠，合并序由主线定、冲突以主线合裁为准；本包 DESIGN 自记 §156，合并时若被占顺延改注（含代码注释内 §156 字样）。
 - 真机待验清单：①开抽屉底栏不下沉、Home Indicator 区无重叠、输入框可正常聚焦输入（第一轮核心）；②左缘开/窄条点关与左拖关手感、跟手 1:1 无起步跳；③动画中反向抓拖不跳变；④二级页（如设置内页/文件详情）左缘返回手势优先于开抽屉、根页开抽屉不迟滞；⑤抽屉纵滚从名单中段起滑不触发横拖；⑥打开抽屉后聊天滚动位/未发草稿/生成中回复不丢（双宿主常驻实证）；⑦圆角 28 与柔影观感、窄条明亮无黑罩；⑧AX 最大字号档＋深色模式各一帧；⑨横屏/旋转后开态比例与抽屉宽正确；⑩VoiceOver 开关焦点进出抽屉、关后焦点落点；⑪减少动态效果开时归位瞬时无残影。
+
+
+## §157 聊天两修：输入框朦胧收敛＋滑动不顺畅（2026-11-11，用户 21:47 报障两条＋附截图；预制分支 feat/chat-polish-scroll-blur，基线 main 6932d8d／0.50.17＋§155＋§156 合并后顶端，只预制不合并，节号分支自选 §157，合并时主线合裁顺延并同步代码注释；诊断全文 chat-scroll-diagnosis-20261111.md）
+
+### 157.1 修一·朦胧感收敛（用户原话「输入框附近的朦胧感有点大了，让他和输入框对齐就行」）
+- 定位：发送舱胶囊自身的 `.glassEffect(.regular, in: composerShape)`（composerCard）本就贴合卡面、不是元凶；过大的朦胧＝底缘 `.scrollEdgeEffectStyle(.soft, for: .bottom)` 的渐进模糊带——作用范围＝**全宽 × 整个 bottomBar 高**（基线＝inputBar 上距 4＋发送舱卡 46＋下距 8 ≈ 58pt；回底钮行显示时 +52 ≈ 110pt、错误/提示横幅显示时更高），而胶囊横向内缩（左右 spacingSM），故视觉上比输入框大出一整条带。
+- 改法：底缘 `.soft` → `.hard`（一字＋注释）。依据苹果文档：.soft 为渐进扩散、.hard 为整栏均匀锐利截断、适合内容在边缘干净终止。改后输入框附近唯一的模糊只剩胶囊自身玻璃，边界与输入框本体对齐。前后范围：改前＝全宽 × 58–110pt+ 渐进模糊带；改后＝胶囊轮廓（宽＝屏宽 −2×spacingSM、高 46）＋栏缘锐利截断。
+- 范围纪律：顶缘 .soft 不动（用户未点名、身份胶囊即顶栏内容本体；社区「同层不混 soft/hard」为非官方建议，与 API 按边独立定型的本义冲突时以 API 为准，取舍已记诊断 §4）；§124 回底钮所在的 bottomBar VStack 承载结构零改动。
+
+### 157.2 修二·滑动不顺畅（先诊断后动手，外部核查见诊断报告 §1）
+- 证实主因 A＋放大器 B：markdown 三解析入口（MarkdownParser.parse／InlineRunBuilder.runs 内含 AttributedString(markdown:)／CodeHighlight.tokens）此前**零记忆化**，每次行 body 求值全量重跑；§149 的 attributed 缓存键由 runs 拼成、解析费在查缓存前已付。流式期 streamingText 增量触发整页 body 重算、已落定行全部陪跑（StreamFollowGate 只节流贴底滚动不节流 body）。外部同向实证：Tactic Remote 复盘（解析＋富文本重建真贵、修法＝解析加 LRU 缓存）、SwiftyChat（解析在 init 缓存、布局期只跑廉价合并）、WWDC25-306（长 body × 不必要的更新）、WWDC25 性能实验室（盯 body 贵活、行包单一容器——本仓已合规）。
+- 修法：Core 新文件 MarkdownParseMemo.swift——有界 LRU 记忆盒 ParseMemoBox（锁保护、compute 在锁外、命中/未命中计数），三入口各一盒（块 256／runs 1024／词元 256），入口签名与输出逐字不变、纯函数同文同果；MarkdownParseMetrics 为验收代理指标读面。
+- 证实次因 C：FileRefDetector.scan 每次调用现编译 NSRegularExpression（图案恒定），且位于助手气泡 body 路径（detectStandaloneAnchored／inlineImageCandidates）——编译结果提升为静态单例 anchoredRegex，匹配语义逐字不变。ToolCards.swift:743 另一现编译点不在 body 热路径（解码期），记录不修。
+- 病因 D 与修一合并：底缘全宽渐进模糊带逐帧重采样即 157.1 的 .hard 改动，一改双收。
+- 排除不动（证据见诊断 §2/§3）：图片走 RemoteImagePipeline 异步＋分级缓存、body 无同步解码；LazyVStack 行 id 稳定＋渲染计划已缓存＋行包单一容器；`.scrollTargetLayout()` 外部脚坑（与 scrollPosition 绑定组合）与本仓用法（仅可见性回调做锚点保存）对不上、Tactic 活锁的 scrollTo 互等场景已于 §135 工程化排除——保留并记为残余观察项，将来真机 Instruments 若指向它再单独立项。
+
+### 157.3 验收（代理指标＋CI，真机手感待验不冒充）
+- 新增单测 MarkdownParseMemoTests 5 条：三入口「同文第二次必命中、未命中增量恰为 1、两次输出逐字相等」、记忆盒 LRU 淘汰本体（容量 2 挤出最久未用）、记忆化结构守恒（标题/段落/列表与旧口径逐项对齐）。基线对照：改前同文重复求值未命中每次 +1（无缓存构造性事实），改后 +0。
+- CI 与单测总数见本分支合并注意回填；版本五处不在本包动（预制不发版）。
+- 真机待验：①滑动手感（长会话快速上下滑、流式中滑动）是否顺畅；②.hard 底缘观感——栏界是否出现可见分隔线、与发送舱/回底钮行/横幅同现时是否突兀；③输入框附近朦胧是否与胶囊对齐（用户原题）；④AX 最大字号档＋深色模式各一帧底缘观感。

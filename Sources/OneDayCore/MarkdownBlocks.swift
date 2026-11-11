@@ -78,7 +78,16 @@ public enum MarkdownTableAlignment: Equatable {
 /// 块级解析器：逐行状态机，无状态残留，可对任意文本
 /// （含流式半截）反复调用得确定结果
 public enum MarkdownParser {
+    /// §157（2026-11-11）：入口先过解析记忆——同文再
+    /// 算即查表（MarkdownParseMemo），纯函数同文同
+    /// 果、输出逐字不变；未命中才走 parseUncached
     public static func parse(_ content: String) -> [MarkdownBlock] {
+        MarkdownParseMemos.blocks.value(for: content) {
+            parseUncached(content)
+        }
+    }
+
+    private static func parseUncached(_ content: String) -> [MarkdownBlock] {
         let lines = content.components(separatedBy: "\n")
         var blocks: [MarkdownBlock] = []
         var paragraph: [String] = []

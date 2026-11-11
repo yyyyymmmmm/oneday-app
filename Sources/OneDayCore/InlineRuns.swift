@@ -48,7 +48,18 @@ public enum InlineRunBuilder {
     /// run.link。解析失败整段降级为普通 run（永不
     /// 丢字，与旧口径一致）。相邻同标记 run 合并，
     /// 输出确定性与输入顺序一致
+    /// §157（2026-11-11）：入口先过解析记忆——段内含
+    /// AttributedString(markdown:) 全量解析、是三处入
+    /// 口里最贵的一处；同文再算即查表（Markdown-
+    /// ParseMemo），纯函数同文同果、输出逐字不变
     public static func runs(for markdownText: String) -> [InlineRun] {
+        guard !markdownText.isEmpty else { return [] }
+        return MarkdownParseMemos.runs.value(for: markdownText) {
+            runsUncached(for: markdownText)
+        }
+    }
+
+    private static func runsUncached(for markdownText: String) -> [InlineRun] {
         var result: [InlineRun] = []
         for segment in MarkdownInline.segments(markdownText) {
             guard let attributed = try? AttributedString(

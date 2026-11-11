@@ -1063,6 +1063,19 @@ public enum FileRefDetector {
     private static let anchoredPattern =
         Self.pattern + #"(#L[0-9]+(?:-L?[0-9]+)?)?"#
 
+    /// §157（2026-11-11）：图案与选项恒定，编译结果提
+    /// 升为静态单例（Swift 静态量一次性线程安全初始
+    /// 化）。旧写法在 scan 内每次调用现编译 NSRegular-
+    /// Expression，而 scan 位于助手气泡 body 求值路
+    /// 径（detectStandaloneAnchored／inlineImage-
+    /// Candidates），滚动与流式期被反复触发；匹配语
+    /// 义逐字不变。诊断见 chat-scroll-diagnosis-
+    /// 20261111.md 病因 C
+    private static let anchoredRegex: NSRegularExpression? =
+        try? NSRegularExpression(
+            pattern: anchoredPattern, options: [.caseInsensitive]
+        )
+
     public static func detect(
         in text: String, excluding excluded: [String] = []
     ) -> [String] {
@@ -1167,9 +1180,8 @@ public enum FileRefDetector {
         in text: String, excluding excluded: [String] = []
     ) -> [FileAnchoredRef] {
         guard text.contains("/") else { return [] }
-        guard let regex = try? NSRegularExpression(
-            pattern: Self.anchoredPattern, options: [.caseInsensitive]
-        ) else { return [] }
+        // §157：编译结果已提升为静态单例 anchoredRegex
+        guard let regex = Self.anchoredRegex else { return [] }
         let range = NSRange(text.startIndex..., in: text)
         var seen: Set<String> = Set(excluded)
         var found: [FileAnchoredRef] = []

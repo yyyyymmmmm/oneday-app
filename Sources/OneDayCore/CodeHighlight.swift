@@ -51,10 +51,23 @@ public enum CodeHighlight {
         }
     }
 
+    /// §157（2026-11-11）：入口先过解析记忆——键＝归
+    /// 一化语言＋代码原文；同代码块再算即查表
+    /// （MarkdownParseMemo），纯函数同入同果、输出逐
+    /// 字不变；未命中才走 tokensUncached
     public static func tokens(
         code: String, language: String?
     ) -> [CodeToken] {
         guard !code.isEmpty else { return [] }
+        let key = normalizeLanguage(language) + "\u{1}" + code
+        return MarkdownParseMemos.codeTokens.value(for: key) {
+            tokensUncached(code: code, language: language)
+        }
+    }
+
+    private static func tokensUncached(
+        code: String, language: String?
+    ) -> [CodeToken] {
         let config = LexConfig(language: normalizeLanguage(language))
         let chars = Array(code)
         var raw: [CodeToken] = []
