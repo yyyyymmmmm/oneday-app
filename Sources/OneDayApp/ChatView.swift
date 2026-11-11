@@ -480,6 +480,11 @@ struct ChatView: View {
         .sheet(item: $selectionPayload) { payload in
             SelectableTextSheet(text: payload.text)
         }
+        // 选择面使用唯一、稳定的宿主；胶囊全量/紧凑档
+        // 与 safeAreaBar 的布局切换不再重建呈现锚点。
+        .sheet(isPresented: $showModelPicker) {
+            modelPickerSheet
+        }
         // 0.8.0（P1）：图片点开全屏查看（本地图与历史
         // 服务端图共用一个查看器）；文件牌点开走系统
         // QuickLook（字节先经文件下载通道落临时目录）
@@ -1282,38 +1287,39 @@ struct ChatView: View {
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel("当前模型 \(displayModelName)，切换模型")
-        .sheet(isPresented: $showModelPicker) {
-            ChatModelPickerView(
-                // §158：呈现清单过隐藏过滤（全量本体在
-                // AppState，本面只消费过滤后清单）
-                groups: appState.pickerModelGroups,
-                current: currentChoice,
-                onSelect: { choice in
-                    selectCurrentChoice(choice)
-                    showModelPicker = false
-                },
-                onHideGroup: { group in
-                    requestHideProviderGroup(group)
-                }
-            )
-            .confirmationDialog(
-                "隐藏默认服务商？",
-                isPresented: Binding(
-                    get: { pendingHideGroup != nil },
-                    set: { if !$0 { pendingHideGroup = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button("隐藏服务商", role: .destructive) {
-                    if let group = pendingHideGroup {
-                        commitHideProviderGroup(group)
-                    }
-                    pendingHideGroup = nil
-                }
-                Button("取消", role: .cancel) { pendingHideGroup = nil }
-            } message: {
-                Text("隐藏这家，服务端的新对话默认也会随之改走默认服务商。当前已经打开的对话不受影响。")
+    }
+
+    /// 模型面只由稳定的聊天根呈现，不挂在 ViewThatFits
+    /// 的两个候选按钮上；保留选择、隐藏确认和作用域逻辑。
+    private var modelPickerSheet: some View {
+        ChatModelPickerView(
+            groups: appState.pickerModelGroups,
+            current: currentChoice,
+            onSelect: { choice in
+                selectCurrentChoice(choice)
+                showModelPicker = false
+            },
+            onHideGroup: { group in
+                requestHideProviderGroup(group)
             }
+        )
+        .confirmationDialog(
+            "隐藏默认服务商？",
+            isPresented: Binding(
+                get: { pendingHideGroup != nil },
+                set: { if !$0 { pendingHideGroup = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("隐藏服务商", role: .destructive) {
+                if let group = pendingHideGroup {
+                    commitHideProviderGroup(group)
+                }
+                pendingHideGroup = nil
+            }
+            Button("取消", role: .cancel) { pendingHideGroup = nil }
+        } message: {
+            Text("隐藏这家，服务端的新对话默认也会随之改走默认服务商。当前已经打开的对话不受影响。")
         }
     }
 

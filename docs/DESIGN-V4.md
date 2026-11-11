@@ -10135,3 +10135,13 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 合并 CI：run **43069618466**（push，head=8c83f5c）build-native **success**；单测 **Executed 1669（OneDayCoreTests）＋8（OneDayAppTests）、0 failures**（与 0.50.19 基线逐数一致，本包零新增/零退役，符合观感修饰符改动预期）。
 - 定版：五处字面同改 0.50.20/142（Project.swift 四处＋SettingsSupportViews 的 OneDayVersionLabel 一处两面），grep 验代码内无 0.50.19 残留。
 - 发版验包补记：定版提交 `b87f261`；发版 CI 以 workflow_dispatch run **43071330463**（head=b87f261）为准、只跑一次，jobs API 终判 build-native **success**；单测 **Executed 1669（OneDayCoreTests）＋8（OneDayAppTests）、0 failures**（日志实读，与合并 CI 逐数一致）。IPA：**10,877,129 字节，md5 `5357c8c0fbe707921dafd21f280421c4`**，主线独立解包实读 Info.plist＝0.50.20／**142**／site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.20/OneDay-v0.50.20-142.ipa。真机待验＝§173.5 五项（长消息溶化形态并排对参照／回底钮带高 106 观感裁决／四页同语言／深色各一帧／键盘态不断层）。
+
+## §175 外部补丁发版：抽屉折叠容器单列化＋模型弹窗宿主迁移（2026-11-12，用户 02:03 提供补丁并令构建）
+
+- 来源：用户提供的外部补丁 `oneday-drawer-model-layout.patch`（244 行），系 0.50.19 真机两缺陷（抽屉展开内容左溢出截断、模型选择页压系统状态栏）的外部修复；两面已由用户 01:45 亲定交他人处理，本节只负责忠实应用＋构建交付，不改补丁逻辑。`git apply --check` 对 main 顶端 f1ccf94（0.50.20/142）干净通过。
+- 改动一（DrawerView）：抽屉折叠容器原用 `Grid { GridRow { content() } }`——ViewBuilder 多条导航/会话被当作多个横向 cell，撑宽内容、根内容居中致左缘溢出，与真机截图吻合。改抽独立件 `DrawerCollapsibleContent`：单列 VStack 纵向堆叠，保留高度收 0＋裁剪＋淡隐的折叠口径，新增折叠后 `.allowsHitTesting(false)` 与 `.accessibilityHidden`。
+- 改动二（ChatView）：模型选择弹窗原挂在身份胶囊的局部按钮上，胶囊经 ViewThatFits 在完整/紧凑两套布局间切换、呈现宿主不稳定；弹窗迁至聊天根节点的唯一 `.sheet(isPresented:)`，内容抽为 `modelPickerSheet`，选择、搜索、分组、隐藏确认逻辑原样保留。**对方自注：此项针对可疑路径修正，是否彻底解决顶部重叠仍需真机验证。**
+- 测试（DrawerContainerControllerTests）：新增 3 个宿主几何测试——展开五条导航同列量测（minX/宽度/纵向不重叠）、折叠高度为 0、ForEach 六行旁聊窄宽堆叠总高。App 宿主测试 8 → 11。
+- 定版：五处字面同改 0.50.21/143（Project.swift 四处＋SettingsSupportViews 的 OneDayVersionLabel），grep 验无 0.50.20/142 残留（本节总账行除外）。
+- 发版验包补记：见 §176 不另设，验包数回填本节——（发版时补记）
+- 真机待验：①抽屉展开：导航与旁聊纵向排列、文字图标不再左溢出截断，折叠动画在、折叠后点不到；②顶栏胶囊打开模型选择页：标题/取消入口正常、列表不压状态栏；③§173.5 朦胧五项可一并验。

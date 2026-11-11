@@ -99,6 +99,91 @@ final class DrawerContainerControllerTests: XCTestCase {
         XCTAssertFalse(controller.semanticPresented)
         XCTAssertEqual(foregroundTx, 0, accuracy: 1.0)
     }
+
+    /// 直接测生产折叠件的 TupleView：五条导航必须同列，
+    /// 不能被 GridRow 拆成五个 cell。不能只验壳层 tx。
+    func testExpandedNavigationChildrenStayInOneColumn() throws {
+        let frames = DrawerLayoutMeasurements()
+        let root = DrawerCollapsibleContent(collapsed: false) {
+            measuredDrawerRow(0)
+            measuredDrawerRow(1)
+            measuredDrawerRow(2)
+            measuredDrawerRow(3)
+            measuredDrawerRow(4)
+        }
+        .frame(width: 310, alignment: .leading)
+        .coordinateSpace(name: "drawer-layout-test")
+        .onPreferenceChange(DrawerRowFramesKey.self) { value in
+            Task { @MainActor in frames.rows = value }
+        }
+        let host = UIHostingController(rootView: root)
+        window.rootViewController = host
+        host.view.layoutIfNeeded()
+        spinRunLoop(seconds: 0.5)
+        XCTAssertEqual(frames.rows.count, 5)
+        for index in 0..<5 {
+            let rect = try XCTUnwrap(frames.rows[index])
+            XCTAssertEqual(rect.minX, 0, accuracy: 1)
+            XCTAssertEqual(rect.width, 310, accuracy: 1)
+            if index > 0 {
+                let previous = try XCTUnwrap(frames.rows[index - 1])
+                XCTAssertGreaterThanOrEqual(rect.minY, previous.maxY - 1)
+            }
+        }
+    }
+
+    func testCollapsedNavigationConsumesNoHeight() {
+        let host = UIHostingController(rootView:
+            DrawerCollapsibleContent(collapsed: true) {
+                measuredDrawerRow(0)
+                measuredDrawerRow(1)
+            }
+        )
+        let size = host.sizeThatFits(in: CGSize(width: 310, height: 700))
+        XCTAssertEqual(size.height, 0, accuracy: 1)
+    }
+
+    /// ForEach 多条旁聊也需要堆叠，不只修写死的导航行。
+    func testExpandedThreadRowsAccumulateHeightAtNarrowWidth() {
+        let host = UIHostingController(rootView:
+            DrawerCollapsibleContent(collapsed: false) {
+                ForEach(0..<6) { index in measuredDrawerRow(index) }
+            }
+        )
+        let size = host.sizeThatFits(in: CGSize(width: 253, height: 700))
+        XCTAssertLessThanOrEqual(size.width, 254)
+        XCTAssertEqual(size.height, 6 * 54, accuracy: 1)
+    }
+}
+
+private struct DrawerRowFramesKey: PreferenceKey {
+    static let defaultValue: [Int: CGRect] = [:]
+
+    static func reduce(
+        value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
+@MainActor
+private final class DrawerLayoutMeasurements {
+    var rows: [Int: CGRect] = [:]
+}
+
+@MainActor
+private func measuredDrawerRow(_ index: Int) -> some View {
+    Color.clear
+        .frame(height: 54)
+        .overlay(alignment: .leading) { Text("导航 \(index)") }
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: DrawerRowFramesKey.self,
+                    value: [index: proxy.frame(in: .named("drawer-layout-test"))]
+                )
+            }
+        }
 }
 
 extension DrawerContainerControllerTests {

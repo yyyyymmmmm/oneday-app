@@ -1168,25 +1168,14 @@ struct DrawerView: View {
         .padding(.bottom, OneDayMetrics.spacingSM)
     }
 
-    /// 折叠内容容器（视觉宪法 §⑦ Grid 0fr→1fr 等价
-    /// 平滑高度）：折叠时高度收到 0 且内容裁掉，不闪
-    /// 跳、不留空高；展开/折叠动画由 toggle 的事务承接
+    /// 折叠内容必须是单列：ViewBuilder 的多条导航/会话
+    /// 直接放进 GridRow 会成为多个横向 cell，撑宽名单并
+    /// 让居中的根内容从左缘溢出。高度折叠仍由原事务承接。
     private func drawerCollapsibleContent<Content: View>(
         collapsed: Bool,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        Grid(verticalSpacing: 0) {
-            GridRow {
-                content()
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
-            }
-        }
-        .frame(height: collapsed ? 0 : nil)
-        .clipped()
-        .opacity(collapsed ? 0 : 1)
+        DrawerCollapsibleContent(collapsed: collapsed, content: content)
     }
 
     /// 导航行（0.19.0，对 Muse 样板「选项卡」行）：单
@@ -1487,5 +1476,29 @@ struct DrawerView: View {
         modelContext.insert(thread)
         try? modelContext.save()
         appState.drawerThreadSelection = thread.id
+    }
+}
+
+/// 单列折叠布局，独立成件供宿主几何回归测试直接覆盖。
+/// 不使用 GridRow；多子视图和 ForEach 都必须纵向堆叠。
+struct DrawerCollapsibleContent<Content: View>: View {
+    var collapsed: Bool
+    let content: Content
+
+    init(collapsed: Bool, @ViewBuilder content: () -> Content) {
+        self.collapsed = collapsed
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: collapsed ? 0 : nil, alignment: .top)
+        .clipped()
+        .opacity(collapsed ? 0 : 1)
+        .allowsHitTesting(!collapsed)
+        .accessibilityHidden(collapsed)
     }
 }
