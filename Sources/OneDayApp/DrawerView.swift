@@ -113,6 +113,11 @@ struct DrawerView: View {
     /// 本地旁聊行重命名（长按四件之一，0.18.0 沿革）
     @State private var renamingThread: ChatThread?
     @State private var renameText = ""
+    /// 分区折叠账（§156）：按区持久化（Core
+    /// SectionCollapseState 唯一口径，键见
+    /// DrawerSectionKey），杀 App 重进保持
+    @AppStorage(SectionCollapseStorageKeys.drawerSections)
+    private var drawerCollapseData: Data = Data()
 
     var body: some View {
         // 0.36.27（§97 件三，用户 03:54 拍板「抽屉朦
@@ -354,7 +359,14 @@ struct DrawerView: View {
     /// 旁聊平铺，见旁聊区注）
     private var drawerNavList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            drawerGroupHeader("选项卡")
+            drawerCollapsibleHeader(
+                "选项卡", key: DrawerSectionKey.navigation
+            )
+            drawerCollapsibleContent(
+                collapsed: drawerSectionCollapsed(
+                    DrawerSectionKey.navigation
+                )
+            ) {
             drawerNavRow(
                 symbol: TabBarSymbols.chat.normal,
                 title: "主线聊天",
@@ -425,8 +437,11 @@ struct DrawerView: View {
                 onClose()
                 onSelectTab(.files)
             }
-            drawerDivider
-                .padding(.top, OneDayMetrics.spacingS)
+            }
+            if !drawerSectionCollapsed(DrawerSectionKey.navigation) {
+                drawerDivider
+                    .padding(.top, OneDayMetrics.spacingS)
+            }
             drawerManageRow
             // 0.36.29（频道规格 §3.1）：频道区插在管
             // 理行与旁聊区之间（面先于条，与 Muse 样
@@ -437,8 +452,12 @@ struct DrawerView: View {
                     .padding(.top, OneDayMetrics.spacingS)
                 drawerChannelSection
             }
-            drawerDivider
-                .padding(.top, OneDayMetrics.spacingS)
+            if !drawerSectionCollapsed(
+                DrawerSectionKey.sideChats
+            ) {
+                drawerDivider
+                    .padding(.top, OneDayMetrics.spacingS)
+            }
             drawerSideSection
             Color.clear
                 .frame(height: OneDayMetrics.spacingL)
@@ -475,9 +494,15 @@ struct DrawerView: View {
     /// 外部频道未通不占位——通一个显一个）
     @ViewBuilder
     private var drawerChannelSection: some View {
-        drawerGroupHeader("频道")
-        ForEach(ChannelRegistry.phaseOne) { channel in
-            drawerChannelRow(channel)
+        drawerCollapsibleHeader(
+            "频道", key: DrawerSectionKey.channels
+        )
+        drawerCollapsibleContent(
+            collapsed: drawerSectionCollapsed(DrawerSectionKey.channels)
+        ) {
+            ForEach(ChannelRegistry.phaseOne) { channel in
+                drawerChannelRow(channel)
+            }
         }
     }
 
@@ -561,7 +586,10 @@ struct DrawerView: View {
     /// 道新建入口在哪）
     @ViewBuilder
     private var drawerSideSection: some View {
-        drawerGroupHeader("旁聊")
+        drawerCollapsibleHeader("旁聊", key: DrawerSectionKey.sideChats)
+        drawerCollapsibleContent(
+            collapsed: drawerSectionCollapsed(DrawerSectionKey.sideChats)
+        ) {
         if sideThreads.isEmpty {
             Text("还没有旁聊")
                 .font(.footnote)
@@ -574,6 +602,7 @@ struct DrawerView: View {
                 drawerSideThreadRow(thread)
             }
         }
+        }
     }
 
     /// 搜索态名单：只显命中的旁聊行（导航组与管理行
@@ -582,7 +611,19 @@ struct DrawerView: View {
     @ViewBuilder
     private var drawerSearchList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            drawerGroupHeader("旁聊")
+            // §156：搜索态头走同一折叠件但状态被呈现
+            // 层强制为展开（搜到一半不许被折叠挡住）；
+            // 点它切换的是同一本账（旁聊区键）
+            CollapsibleSectionHeader(
+                title: "旁聊",
+                isCollapsed: false,
+                titleFont: .sectionLabel,
+                onToggle: {
+                    toggleDrawerSection(DrawerSectionKey.sideChats)
+                }
+            )
+            .foregroundStyle(Palette.inkSecondary)
+            .padding(.horizontal, OneDayMetrics.drawerInset)
             if sideThreads.isEmpty {
                 Text("没有匹配的旁聊")
                     .font(.footnote)
@@ -888,6 +929,70 @@ struct DrawerView: View {
             .padding(.horizontal, OneDayMetrics.drawerInset)
             .padding(.top, OneDayMetrics.spacingS)
             .padding(.bottom, OneDayMetrics.spacingSM)
+    }
+
+    // MARK: - 分区折叠（§156）
+
+    /// 折叠账读口（Core 唯一判定）：抽屉三区默认展开
+    private func drawerSectionCollapsed(_ key: String) -> Bool {
+        SectionCollapseState.isCollapsed(
+            key: key,
+            in: SectionCollapseState.decode(drawerCollapseData),
+            defaultCollapsed: false
+        )
+    }
+
+    private func toggleDrawerSection(_ key: String) {
+        withAnimation(.smooth(duration: 0.3)) {
+            drawerCollapseData = SectionCollapseState.encode(
+                SectionCollapseState.toggled(
+                    key: key,
+                    in: SectionCollapseState.decode(drawerCollapseData),
+                    defaultCollapsed: false
+                )
+            ) ?? drawerCollapseData
+        }
+    }
+
+    /// 可折叠分区头：公用件 CollapsibleSectionHeader
+    /// 本体（标题角色与旧 drawerGroupHeader 同档
+    /// sectionLabel、颜色在本面补 inkSecondary——公用
+    /// 件不私定颜色，与旧头呈现一贯），外距与旧头同
+    /// 口径（drawerInset 横距＋上下 S/SM）
+    private func drawerCollapsibleHeader(
+        _ title: String, key: String
+    ) -> some View {
+        CollapsibleSectionHeader(
+            title: title,
+            isCollapsed: drawerSectionCollapsed(key),
+            titleFont: .sectionLabel,
+            onToggle: { toggleDrawerSection(key) }
+        )
+        .foregroundStyle(Palette.inkSecondary)
+        .padding(.horizontal, OneDayMetrics.drawerInset)
+        .padding(.top, OneDayMetrics.spacingS)
+        .padding(.bottom, OneDayMetrics.spacingSM)
+    }
+
+    /// 折叠内容容器（视觉宪法 §⑦ Grid 0fr→1fr 等价
+    /// 平滑高度）：折叠时高度收到 0 且内容裁掉，不闪
+    /// 跳、不留空高；展开/折叠动画由 toggle 的事务承接
+    private func drawerCollapsibleContent<Content: View>(
+        collapsed: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Grid(verticalSpacing: 0) {
+            GridRow {
+                content()
+                    .frame(
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
+            }
+        }
+        .frame(height: collapsed ? 0 : nil)
+        .clipped()
+        .opacity(collapsed ? 0 : 1)
     }
 
     /// 导航行（0.19.0，对 Muse 样板「选项卡」行）：单

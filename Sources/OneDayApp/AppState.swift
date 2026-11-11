@@ -115,6 +115,52 @@ final class AppState {
         )
     }
 
+    // MARK: - §156 已隐藏服务商（本机呈现治理）
+
+    /// 已隐藏服务商的组键集（本机持久化，UserDefaults
+    /// 一键 JSON；Core ProviderGroupVisibility 编解码
+    /// 唯一口径）。隐藏只撤呈现：服务端 config 不动、
+    /// 执行管线（availableModels/sessionModelChoices）
+    /// 不读本账
+    private(set) var hiddenProviderGroupKeys: Set<String> = {
+        ProviderGroupVisibility.decodeHidden(
+            UserDefaults.standard.data(
+                forKey: SectionCollapseStorageKeys.hiddenProviders
+            )
+        )
+    }()
+
+    /// 选择器呈现分组：全量分组过隐藏过滤（Core 唯一
+    /// 过滤口，含默认组结构闸在此）
+    var pickerModelGroups: [ChatModelGroup] {
+        ProviderGroupVisibility.visibleGroups(
+            chatModelGroups, hidden: hiddenProviderGroupKeys
+        )
+    }
+
+    /// 隐藏一组（管理动作的唯一写入点）：只落本机账
+    /// 并重算呈现，不发任何网络请求、不改服务端
+    func hideProviderGroup(key: String) {
+        hiddenProviderGroupKeys.insert(key)
+        UserDefaults.standard.set(
+            ProviderGroupVisibility.encodeHidden(
+                hiddenProviderGroupKeys
+            ),
+            forKey: SectionCollapseStorageKeys.hiddenProviders
+        )
+    }
+
+    /// 恢复一组（设置页「已隐藏的服务商」唯一写入点）
+    func restoreProviderGroup(key: String) {
+        hiddenProviderGroupKeys.remove(key)
+        UserDefaults.standard.set(
+            ProviderGroupVisibility.encodeHidden(
+                hiddenProviderGroupKeys
+            ),
+            forKey: SectionCollapseStorageKeys.hiddenProviders
+        )
+    }
+
     /// 本会话模型 id（发送与触发器共用此口，不许两处
     /// 各算一份）
     func chatModel(
@@ -835,6 +881,11 @@ final class AppState {
             gatewayAliases: aliases
         )
         if !groups.isEmpty {
+            // §156：隐藏名单过滤只作用于呈现清单——
+            // chatModelGroups 本体保留全量（枢纽模型
+            // 区/恢复名单/默认解析都要拿全量对账），
+            // 选择器消费端过 Core visibleGroups；含默
+            // 认的组结构上不许被滤掉（Core 闸）
             chatModelGroups = groups
         }
         // §153 旧全局选择一次性迁移：chatModelID 旧值

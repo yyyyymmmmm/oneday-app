@@ -32,6 +32,10 @@ struct ChatView: View {
     @State private var showHub = false
     /// §153：顶栏模型分组选择面（sheet）开关
     @State private var showModelPicker = false
+    /// 隐藏服务商待确认（§156）：点隐藏的组正是服务
+    /// 端当前默认所在组时先弹后果确认（B6 收编口径：
+    /// 仅有后果才弹），确认后才走 AppState 落账
+    @State private var pendingHideGroup: ChatModelGroup?
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -366,6 +370,29 @@ struct ChatView: View {
     }
 
     private var isStreaming: Bool { streamingText != nil }
+
+    // MARK: - §156 隐藏服务商（本面管理动作）
+
+    /// 隐藏请求分流：组键取不到（具名组）不处理；组
+    /// 里带默认标记＝服务端当前默认正走这组——先弹
+    /// 后果确认（pendingHideGroup 的确认框在本面
+    /// sheet 上声明）；其余直接落账隐藏。隐藏全程只
+    /// 动本机呈现账（AppState），服务端与执行链零触碰
+    private func requestHideProviderGroup(_ group: ChatModelGroup) {
+        guard ProviderGroupVisibility.groupKey(for: group) != nil
+        else { return }
+        if ProviderGroupVisibility.containsDefault(group) {
+            pendingHideGroup = group
+        } else {
+            commitHideProviderGroup(group)
+        }
+    }
+
+    private func commitHideProviderGroup(_ group: ChatModelGroup) {
+        guard let key = ProviderGroupVisibility.groupKey(for: group)
+        else { return }
+        appState.hideProviderGroup(key: key)
+    }
 
     /// 本会话的执行选择（§153 B2）：顶栏触发器、发送
     /// 链、枢纽模型区共用此一口——显示与执行同源。
@@ -1174,13 +1201,36 @@ struct ChatView: View {
         .accessibilityLabel("当前模型 \(displayModelName)，切换模型")
         .sheet(isPresented: $showModelPicker) {
             ChatModelPickerView(
-                groups: appState.chatModelGroups,
+                // §156：呈现清单过隐藏过滤（全量本体在
+                // AppState，本面只消费过滤后清单）
+                groups: appState.pickerModelGroups,
                 current: currentChoice,
                 onSelect: { choice in
                     selectCurrentChoice(choice)
                     showModelPicker = false
+                },
+                onHideGroup: { group in
+                    requestHideProviderGroup(group)
                 }
             )
+            .confirmationDialog(
+                "隐藏默认服务商？",
+                isPresented: Binding(
+                    get: { pendingHideGroup != nil },
+                    set: { if !$0 { pendingHideGroup = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("隐藏服务商", role: .destructive) {
+                    if let group = pendingHideGroup {
+                        commitHideProviderGroup(group)
+                    }
+                    pendingHideGroup = nil
+                }
+                Button("取消", role: .cancel) { pendingHideGroup = nil }
+            } message: {
+                Text("隐藏这家，服务端的新对话默认也会随之改走默认服务商。当前已经打开的对话不受影响。")
+            }
         }
     }
 

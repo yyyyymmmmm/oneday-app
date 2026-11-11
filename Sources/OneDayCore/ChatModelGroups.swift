@@ -63,6 +63,10 @@ public enum ChatModelGroups {
     /// 上游渠道，§15 既有实测口径）
     public static let gatewayProviderField = "custom"
 
+    /// 网关组标题（拼装与判定同源单点，§156：呈现层
+    /// 与可见性判定不许再散写这四个字面量比对）
+    public static let gatewayGroupTitle = "默认服务商"
+
     /// 全量分组拼装（B1 唯一拼装口）：
     /// 1. 网关组在前：options 回执 providers 行中
     ///    is_current 之外的 custom 行＋Gateway 具名条
@@ -171,7 +175,7 @@ public enum ChatModelGroups {
         }
         if !gatewayModels.isEmpty {
             groups.append(ChatModelGroup(
-                title: "默认服务商",
+                title: gatewayGroupTitle,
                 choices: gatewayModels.map {
                     choice(
                         $0, providerField: gatewayProviderField,
