@@ -8884,3 +8884,11 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 ### 139.6 预制验收记账（2026-11-11）
 
 - 分支 feat/cx-misc：代码提交 c5ee06a，基线 main 7265879（0.50.3）；分支 CI run 42986061035（head c5ee06a，workflow_dispatch 触发）completed success、build-native 单 job 全绿，单测 Executed 1361、0 failures（新增 StoreLoadStateTests 8 测全过；Tests/ 仅新增一文件、既有测零删改，只增不减）。validate_i18n.py 本地实跑通过（2620 键、零新增键）；merge_xcstrings.py --self-test 通过、全量回放结论见 139.3。未合并、版本号未动，待主线按序合并定版；合并后真机待验：md/xlsx/csv 三类各开一份真文件、表格切 sheet、两阅读器各造一次失败态（断网开文件）核对失败页与动作。
+
+### 139.7 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.50.10／132。merge 81057e7（feat/cx-misc 8a67b9d → main，基线 7265879／0.50.3；分支 CI run 42986061035 success、分支单测口径 1361＝其基线 1353＋8）。冲突一处：DESIGN-V4.md——HEAD 侧 §129.8–§138 全保留在前、本节顺接文末；其余文件自动合并，接线复核全在位：§129 verifyExistence 两呼叫点（RichContentViews）、§131 fileRevealPath、§135 BottomStickCoordinator／renderPlan 五处、§136 MediaMarker.split／AssistantMediaImage、§137 ServiceHealth.from(health:) 五处、§138 FileBackfillPolicy 单试＋DictationLanguage.localeIdentifiers＋.fastResults 选项、本包 FileReaderHost 两阅读器共用与 OneDayBridgeError Core 单一定义。
+- **节号改注（消歧）**：本节预制时预占 §133，现行已用至 §138（§133 已被占用），合并时主线顺延改注 **§139**、原预占号作废（节头已写明）；139.1–139.6 小节号随迁，本节为 139.7。分支代码与脚本注释内的 §133 引用同步改注 §139（10 处：DocumentReaderView／KanbanStore／LedgerStore 2／OneDayBridgeModels 2／StoreLoadState／StoreLoadStateTests／merge_xcstrings.py／样本 README 各 1），改后本包 §133 零残留（§135／§136 节内对 cx-misc 预占 §133 的历史记述保留原样）。
+- **xcstrings 三方并集（用本包入仓脚本实跑）**：merge_xcstrings.py 以 base＝7265879、ours＝main 8e6b655、theirs＝feat/cx-misc 跑 Localizable——base 2607／ours 2623／theirs 2607，**零冲突**；分支相对基线零新增、零删除、零改值（逐键对账：added／removed／changed 三单皆空），并集结果与 main 现行 2623 键语义逐键全等，故文件保留 main 现行版（脚本输出键序按其 base 序＋新增序、与现行文件序不同，不为对账改序）；InfoPlist 同法跑：13 键三方全等、零冲突。merge_xcstrings.py --self-test 通过；validate_i18n 通过（2636 键含 InfoPlist 13，三语全覆盖）。
+- **单测对账**：Tests/ 仅新增 StoreLoadStateTests.swift 一文件 8 法，既有测零删改；合并后 CI 单测 Executed **1432、0 failures**（合并前 main 1424＋本包 8，只增不减，与预期分毫不差），无例外项。
+- 定版 c0de202（版本五处＝Project.swift 四处 0.50.10/132＋SettingsView 页脚「OneDay v0.50.10」，grep 验无 0.50.9 残留）。CI run 42996454744：jobs API 逐项终判 build-native 及全部 steps **success**（head c0de202）。IPA 落 ~/workspace/your_files/oneday-v0.50.10/OneDay-0.50.10.ipa，10,036,158 字节，md5 `1ff23adc3f4bae424c2fa0f92be47d5a`（落盘与 CI 产物逐字一致），Info.plist 实读 0.50.10／132／site.didichou.oneday。真机待验沿 139.6 清单（md/xlsx/csv 各开一份真文件、表格切 sheet、两阅读器各造一次失败态核对失败页与动作）。
