@@ -37,9 +37,13 @@ final class ComposerGuideHostTests: XCTestCase {
         var tallBar = false
     }
 
-    /// 帧采集盒：GuideFrameReporter 逐布局拍回写窗口帧
+    /// 帧采集盒：GuideFrameReporter 逐布局拍回写窗口
+    /// 帧，并登记视图本体供断言时活量（滚动不改行在
+    /// 内容视图内的帧、不会重触发其 layoutSubviews，
+    /// 落盒帧是滚动前的旧值——实证差 1139pt）
     private final class FrameBox: @unchecked Sendable {
         var frames: [String: CGRect] = [:]
+        var views: [String: UIView] = [:]
         var notes: [String: String] = [:]
     }
 
@@ -71,6 +75,7 @@ final class ComposerGuideHostTests: XCTestCase {
             }
             private func report() {
                 guard let window, bounds.height > 0 else { return }
+                box?.views[name] = self
                 box?.frames[name] = convert(bounds, to: window)
             }
         }
@@ -268,6 +273,14 @@ final class ComposerGuideHostTests: XCTestCase {
         return state.bottomSpace
     }
 
+    /// 登记视图的活量帧（滚动/变换后即时准确，绕开
+    /// 落盒帧的陈旧窗口）
+    private func liveFrame(_ name: String) -> CGRect? {
+        guard let view = box.views[name], let window
+        else { return nil }
+        return view.convert(view.bounds, to: window)
+    }
+
     /// 舱的活量帧：经控制器层级找舱宿主视图直接换算
     /// （reporter 的帧在纯 transform 位移下不重报、会
     /// 陈旧；活量对变换即时准确）
@@ -339,7 +352,7 @@ final class ComposerGuideHostTests: XCTestCase {
         settle(0.4)
         guard let tab = tabBar(),
               let bar = box.frames["bar"],
-              let lastRow = box.frames["lastRow"]
+              let lastRow = liveFrame("lastRow")
         else {
             XCTFail("量具未齐：tab=\(tabBar() != nil) frames=\(box.frames.keys.sorted()) bottomSpace=\(state.bottomSpace) geo=\(box.notes["geo"] ?? "-")")
             return

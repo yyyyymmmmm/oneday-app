@@ -163,11 +163,18 @@ private final class ComposerPassthroughView: UIView {
 /// 引导线托管控制器本体：只管舱宿主的钉位（引导线＋
 /// 地板钳制）与舱顶实测回报，不知业务页面
 final class ComposerGuideHostController: UIViewController {
-    /// 舱根视图（桥注入；赋值即刷进舱宿主）
+    /// 舱根视图（桥注入；赋值即刷进舱宿主）。赋值后
+    /// 显式失效理想高并请求重排：嵌套托管下换 rootView
+    /// 不自动重算 UIHostingController 的 intrinsic 高
+    /// （宿主测试实证：内容长高 40 时宿主高恒 76、舱
+    /// 顶不动——错误条/回底钮行等结构增高走同一路径，
+    /// 属生产缺陷、非测试伪影）
     var composerRoot: AnyView? {
         didSet {
             if let composerRoot {
                 composerHost.rootView = composerRoot
+                composerHost.view.invalidateIntrinsicContentSize()
+                view.setNeedsLayout()
             }
         }
     }
