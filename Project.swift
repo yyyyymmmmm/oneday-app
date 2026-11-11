@@ -44,7 +44,7 @@ let project = Project(
                 // 模板不把工程设置的 MARKETING_VERSION 展开进 plist，
                 // 只写字面量才进包。
                 "CFBundleShortVersionString": "0.50.16",
-                "CFBundleVersion": "137",
+                "CFBundleVersion": "138",
                 "ITSAppUsesNonExemptEncryption": false,
                 "UILaunchScreen": ["UIColorName": "LaunchBackground"],
                 // 自托管场景：允许连接局域网内的自建服务器（http）。
