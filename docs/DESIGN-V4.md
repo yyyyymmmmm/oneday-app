@@ -8763,4 +8763,5 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **连带收口**：文件牌探测 detectStandaloneAnchored 的 excluding 增补 mediaSplit.imagePaths——MEDIA 图片路径不再重复成一张文件牌。
 - **边界（不在本包）**：落盘数据不改（entry.content 原文保留标记，呈现层拆分，与 §129 渲染层降级同层）；复制/引用仍取原文；流式生成中途不做拆分，落定入 entry 后生效（与 §129 文件牌同层级）；服务端把 MEDIA: 转正式附件（与 §129 登记制终局同题）仍登记待议，不在本包。
 - **真机待验**：让智能体再拍一张云电脑截图——回复里直接出图（定高卡）、正文无 MEDIA: 原文残留；连发两三张图逐张成卡；引用一条不存在的图片路径——整行不显示、无原文漏出；断网打开含标记的历史消息——先不出图、恢复网络重进后出图。
-- **分支终局**：feat/media-marker（worktree pkg-media-marker），版本号未改（合并时主线定版）。
+- **单测与 CI**：分支 CI run 42986530074 success（jobs API 终判 build-native success、steps 零失败），单测 Executed 1369、0 failures（基线 1355＋MediaMarkerTests 新增 14，只增不减）。三语零新增文案（复用「查看大图」既有键）。
+- **分支终局**：feat/media-marker（worktree pkg-media-marker），顶端以记账补录提交为准；版本号未改（合并时主线定版）。
