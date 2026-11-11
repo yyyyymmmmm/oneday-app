@@ -142,13 +142,28 @@ let project = Project(
                 .target(name: "OneDayDesign"),
             ]
         ),
+        // App 宿主测试（抽屉热修诊断起）：控制器级
+        // 行为只能在 App 模块内验（@testable 宿主
+        // 测试），与 Core 纯逻辑测试分家
+        .target(
+            name: "OneDayAppTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "site.didichou.oneday.app.tests",
+            deploymentTargets: iOS26,
+            infoPlist: .default,
+            sources: ["Tests/OneDayAppTests/**"],
+            dependencies: [
+                .target(name: "OneDayApp"),
+            ]
+        ),
     ],
     schemes: [
         .scheme(
             name: "OneDayApp",
             shared: true,
             buildAction: .buildAction(targets: ["OneDayApp"]),
-            testAction: .targets(["OneDayCoreTests"]),
+            testAction: .targets(["OneDayCoreTests", "OneDayAppTests"]),
             runAction: .runAction(executable: "OneDayApp")
         ),
     ]
