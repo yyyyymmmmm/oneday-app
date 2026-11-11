@@ -11,7 +11,9 @@ import Foundation
 ///
 /// 新口径（本枚举是已发图渲染的唯一尺寸口径：
 /// 用户本地图 ChatView.bubble、远端图
-/// ServerRemoteImage——用户与助手两侧共用）：
+/// ServerRemoteImage——用户与助手两侧共用；
+/// §147 起用户本地图多图成行走 rowCardSizes，
+/// 仍在本枚举内收口）：
 /// - 卡高恒定 190pt，不随图变；卡宽按图比例算
 ///   （卡高 × 宽高比），封顶 260pt、下限 96pt
 /// - 图在卡内等比完整显示（fittedSize 给帧尺寸、
@@ -73,5 +75,52 @@ public enum ChatImageSizing {
     /// 加载占位／失败态的卡尺寸（高度与正式卡一致）
     public static var placeholderCardSize: CGSize {
         CGSize(width: cardPlaceholderWidth, height: cardHeight)
+    }
+
+    /// 多图成行整行宽上限（§147）：用户气泡列在最
+    /// 窄设备上的保守可用宽——单图封顶 260、双竖图
+    /// 并排约 200 都在其内；整行超此宽才收窄（见
+    /// rowCardSizes），不逐图单独钳制、保同高成行
+    public static let multiRowMaxWidth: CGFloat = 320
+    /// 多图成行卡间距（呈现层以 OneDayMetrics.
+    /// spacingS 同值传入，拼装口径以本值为默认单源）
+    public static let multiRowSpacing: CGFloat = 8
+    /// 多图收窄时单卡宽下限：宁可整行略超上限，也
+    /// 不把卡缩成细缝（极端多图/极端宽图保底）
+    public static let multiRowMinCardWidth: CGFloat = 48
+
+    /// 多图成行卡尺寸（§147，2026-11-11 用户 19:11
+    /// 截图点题）：同一条消息的多张图并排成行、每张
+    /// 一张固定高卡——对齐 Muse 多图用户消息形态
+    /// （两张并排、同高卡片，用户截图实证）。口径：
+    /// - 每张先按单图口径 cardSize 定卡（高恒定 190）
+    /// - 整行宽（卡宽和＋(n−1)×间距）未超 maxRow-
+    ///   Width 时原样返回——单张时与 cardSize 逐字
+    ///   一致、零回归
+    /// - 超宽时全行卡宽乘同一收窄系数（保各卡比例
+    ///   关系）、卡高恒定不变；收窄后单卡宽不低于
+    ///   multiRowMinCardWidth（保底优先于贴合，极
+    ///   端时整行可略超上限）
+    /// - 图在收窄卡内的帧仍走 fittedSize（等比完整
+    ///   显示、居中露卡底），卡高不变故同行恒同高
+    /// - 空数组回空数组
+    public static func rowCardSizes(
+        for imageSizes: [CGSize],
+        maxRowWidth: CGFloat = multiRowMaxWidth,
+        spacing: CGFloat = multiRowSpacing
+    ) -> [CGSize] {
+        let cards = imageSizes.map { cardSize(for: $0) }
+        guard cards.count > 1 else { return cards }
+        let spacingTotal = spacing * CGFloat(cards.count - 1)
+        let widthTotal = cards.reduce(0) { $0 + $1.width }
+        guard widthTotal + spacingTotal > maxRowWidth
+        else { return cards }
+        let scale = (maxRowWidth - spacingTotal) / widthTotal
+        return cards.map { card in
+            CGSize(
+                width: max(card.width * scale, multiRowMinCardWidth),
+                height: cardHeight
+            )
+        }
     }
 }

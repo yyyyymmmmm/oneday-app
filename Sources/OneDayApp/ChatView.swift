@@ -2070,70 +2070,18 @@ struct ChatView: View {
                     if let quote = entry.quote {
                         quoteBlock(quote)
                     }
-                    if let data = entry.imageData, let image = UIImage(data: data) {
-                        // §130：已发图固定高度卡（Core
-                        // ChatImageSizing）——卡高恒定
-                        // 190、卡宽按比例钳制 [96, 260]，
-                        // 图居中完整显示不裁切、图窄于
-                        // 卡时两侧露 bubbleFill 底；旧
-                        // 0.36.19 双封盒（220×240、呈现
-                        // 尺寸随图比例变）口径作废
-                        let cardSize = ChatImageSizing.cardSize(
-                            for: image.size
-                        )
-                        let fittedSize = ChatImageSizing.fittedSize(
-                            for: image.size,
-                            in: cardSize
-                        )
-                        ZStack {
-                            Image(uiImage: image)
-                                .resizable()
-                                .frame(
-                                    width: fittedSize.width,
-                                    height: fittedSize.height
-                                )
-                        }
-                        .frame(
-                            width: cardSize.width,
-                            height: cardSize.height
-                        )
-                        .background(
-                            Palette.bubbleFill,
-                            in: RoundedRectangle(
-                                cornerRadius: OneDayMetrics.radiusCard
-                            )
-                        )
-                        .clipShape(
-                            RoundedRectangle(
-                                cornerRadius: OneDayMetrics.radiusCard
-                            )
-                        )
-                            // 点开查看器（0.36.4：集合
-                            // 载荷、同线程可翻页）
-                            .onTapGesture {
-                                openImageViewer(
-                                    ChatImageViewerItem(
-                                        source: .data(data)
-                                    )
-                                )
-                            }
-                            // 0.43.0（A11Y-V2）：本地图最低
-                            // 文本等价——发送时刻（A11yText
-                            // 拼装、Core 钉测）；动作与点按
-                            // 同一入口（openImageViewer）
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(
-                                A11yText.imageLabel(sentAt: entry.createdAt)
-                            )
-                            .accessibilityAddTraits(.isButton)
-                            .accessibilityHint(L10n.string("查看大图"))
-                            .accessibilityAction {
-                                openImageViewer(
-                                    ChatImageViewerItem(
-                                        source: .data(data)
-                                    )
-                                )
-                            }
+                    // §147：本地图走全集（allImage-
+                    // Datas）成行——多图并排同高、单
+                    // 图与旧单图块同形（卡尺寸同出
+                    // rowCardSizes、单张逐字等于
+                    // cardSize，卡体抽共用函数
+                    // localImageCard）；旧单槽
+                    // imageData 只取首图的呈现口径
+                    // 随单槽落盘一并作废（见 Chat-
+                    // Entry.imageDatasData）
+                    let localImageDatas = entry.allImageDatas
+                    if !localImageDatas.isEmpty {
+                        localImageRow(localImageDatas, entry: entry)
                     }
                     // 0.8.0（P1）：历史导入的服务端图片
                     // （标记路径）——缩略经文件下载通道
@@ -2400,17 +2348,107 @@ struct ChatView: View {
         }
     }
 
+    /// 本地图成行（§147）：一条消息的全部本地图并
+    /// 排成一行、每张一张 §130 固定高卡——对齐
+    /// Muse 多图用户消息形态（并排、同高，用户
+    /// 19:11 截图点题）。卡尺寸走 Core ChatImage-
+    /// Sizing.rowCardSizes（成行收窄口径单源、钉
+    /// 测覆盖）；解码失败的单张不出卡（与旧单图块
+    /// 的 UIImage(data:) 守卫同口径），其余照显
+    private func localImageRow(
+        _ datas: [Data], entry: ChatEntry
+    ) -> some View {
+        let pairs: [(data: Data, image: UIImage)] =
+            datas.compactMap { data in
+                guard let image = UIImage(data: data)
+                else { return nil }
+                return (data: data, image: image)
+            }
+        let cardSizes = ChatImageSizing.rowCardSizes(
+            for: pairs.map { $0.image.size },
+            spacing: OneDayMetrics.spacingS
+        )
+        return HStack(spacing: OneDayMetrics.spacingS) {
+            ForEach(
+                Array(zip(pairs, cardSizes).enumerated()),
+                id: \.offset
+            ) { _, item in
+                localImageCard(
+                    data: item.0.data, image: item.0.image,
+                    cardSize: item.1, entry: entry
+                )
+            }
+        }
+    }
+
+    /// 本地图单卡（§130 固定高卡体，§147 自气泡内
+    /// 联块抽出、单图与多图成行共用）：卡高恒定
+    /// 190、卡宽由调用方经 rowCardSizes 给定（单
+    /// 图时等于 cardSize），图居中完整显示不裁
+    /// 切、图窄于卡时两侧露 bubbleFill 底；点开
+    /// 查看器（0.36.4 集合载荷、同线程可翻页）
+    private func localImageCard(
+        data: Data, image: UIImage, cardSize: CGSize,
+        entry: ChatEntry
+    ) -> some View {
+        let fittedSize = ChatImageSizing.fittedSize(
+            for: image.size, in: cardSize
+        )
+        return ZStack {
+            Image(uiImage: image)
+                .resizable()
+                .frame(
+                    width: fittedSize.width,
+                    height: fittedSize.height
+                )
+        }
+        .frame(width: cardSize.width, height: cardSize.height)
+        .background(
+            Palette.bubbleFill,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusCard
+            )
+        )
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusCard
+            )
+        )
+        .onTapGesture {
+            openImageViewer(
+                ChatImageViewerItem(source: .data(data))
+            )
+        }
+        // 0.43.0（A11Y-V2）：本地图最低文本等价——
+        // 发送时刻（A11yText 拼装、Core 钉测）；动
+        // 作与点按同一入口（openImageViewer）
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            A11yText.imageLabel(sentAt: entry.createdAt)
+        )
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(L10n.string("查看大图"))
+        .accessibilityAction {
+            openImageViewer(
+                ChatImageViewerItem(source: .data(data))
+            )
+        }
+    }
+
     /// 打开图片查看器（0.36.4）：集合＝同线程全部图
-    /// 片（本地图 imageData＋远端图 remoteImagePaths，
-    /// 按消息时间序、工具卡不占位）；点中项不在集合
-    /// 内（如正文文件牌探测出的图）时回落单图集合，
-    /// 不假装它在会话图片序里
+    /// 片（本地图 allImageDatas 全集＋远端图 remote-
+    /// ImagePaths，按消息时间序、工具卡不占位）；
+    /// 点中项不在集合内（如正文文件牌探测出的图）
+    /// 时回落单图集合，不假装它在会话图片序里
     private func openImageViewer(_ item: ChatImageViewerItem) {
         var collected: [ChatImageViewerItem] = []
         if let thread = currentThread {
             for entry in thread.sortedEntries
             where entry.toolCard == nil {
-                if let data = entry.imageData {
+                // §147：本地图按全集逐张入集合
+                // （旧口径只取 imageData 首图，多
+                // 图消息在查看器里同样丢张）
+                for data in entry.allImageDatas {
                     collected.append(
                         ChatImageViewerItem(source: .data(data))
                     )
@@ -4231,7 +4269,8 @@ private struct ComposerBarLayout: Layout {
         sendFrameRestickLogged = false
         let newEntry = ChatEntry(
             role: "user", content: text, thread: thread,
-            imageData: imageDatas.first, quote: quote
+            imageData: imageDatas.first, imageDatas: imageDatas,
+            quote: quote
         )
         modelContext.insert(newEntry)
         // 0.7.0（M3）：主线标题恒「主线」、不被首条消息
@@ -5144,13 +5183,17 @@ private struct ComposerBarLayout: Layout {
         let text = MessageQuote.outgoingContent(
             userText: userEntry.content, quote: userEntry.quote
         )
-        if let imageData = userEntry.imageData {
+        // §147：重演源头是本地条目全集——旧口径只
+        // 取 imageData 首图，同 key 重演（提交回执
+        // 丢失时）会把多图消息在服务端降成单图
+        let localImages = userEntry.allImageDatas
+        if !localImages.isEmpty {
             return .message(ChatMessage(
                 role: "user", text: text,
-                imageDataURLs: [
+                imageDataURLs: localImages.map {
                     "data:image/jpeg;base64,"
-                        + imageData.base64EncodedString()
-                ]
+                        + $0.base64EncodedString()
+                }
             ))
         }
         return .text(text)
