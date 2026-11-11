@@ -9604,3 +9604,33 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 本包动：Core 新 `SectionCollapse.swift`＋`CollapsibleSectionHeader.swift`、ChatModelGroups 网关标题单点化、DrawerView 分区头与折叠态、ChatModelPickerView 分段折叠＋隐藏长按、AppState 呈现组过滤接线（chatModelGroups 拼装后过 visibleGroups）、ModelSettingsView 服务商折叠行组＋隐藏恢复区、ModelManagementStore 隐藏名单转发、xcstrings +9 键、Core 单测新 `SectionCollapseTests`。
 - 真机待验：抽屉三区逐个折叠/展开动画顺滑＋杀 App 重进保持；选择面内置区默认收起、展开见 nous/deepseek 等行且可选；长按 nous 组隐藏后选择面与设置面均不见、设置页恢复区可恢复；隐藏当前默认组先弹确认、隐藏后已开对话照常发消息、新对话默认走网关；AX 大字号折叠头不裁字＋深色一帧；VoiceOver 读「已折叠/已展开」。
+
+## 161 聊天文本选择修复包（2026-11-11，分支 feat/chat-text-selection-fix，基线 main 9f032b6；§160 已由设置重塑包占用，本包取 §161，合并顺延以主线为准）
+
+### 161.1 报障与定性
+
+用户真机 0.50.17 录屏：对助手消息反复双击选不了词——只整块高亮／唤出长按菜单（回复／在旁聊里接着问／复制／选择／分享），无双击选词＋手柄拖扩。用户定性「人家的好像是文本，咱们的好像是图片」。诊断全文：`~/workspace/oneday-design-review/chat-text-selection-diagnosis-20261111.md`。录屏帧实读：全程无选区手柄；约 5–8.5 秒整屏发白＝contextMenu platter 相；末帧气泡整块抬起作 preview——任务单所称「重影」即 preview 复制，与选区无关、非病灶。
+
+### 161.2 §149 覆盖图与病灶（代码实证）
+
+§149 的 SelectableInlineText 在 0.50.17 树内（非未装上），但落地形态是「一块一视图」：段落／每个标题／每个列表项各自一个 UITextView，引用多行合一，表格与代码块走 SwiftUI Text＋.textSelection 次档。§149 当时明文只承诺块内可选，跨块以「整条单视图须牺牲表格横滑／代码横滑」为由未做。病灶分两半：①结构性（坐实）——苹果选择体系的前提是整段内容同处一个文本存储，碎片拼装下跨块扩选物理上不存在；②双击块内不达标（未证死）——两条代码级候选：甲＝祖先三层手势（栈级 onTapGesture 收键盘＋行级 contextMenu＋右滑 simultaneousGesture）仲裁令文本交互不胜出；乙（代码事实已坐实、因果待真机）＝SelectableTextRepresentable.sizeThatFits 在布局期把 attributed 写回承载视图本体，绕过 updateUIView 的「内容未变不重设」防线，布局往返即可冲掉刚成形的选区。本包拆乙、不动甲（行手势各有已验职责；Muse 同有行菜单而双击可用，差别在承载形态不在行菜单）；甲若真机复验仍败，下一轮立诊断构建打点定案，不许再靠读代码赌（P-15 教训同款）。抽屉遮罩吞触摸已排除（关闭态交互开启且 contextMenu 可唤出）；「渲染成图片」已排除（无位图化路径）。
+
+### 161.3 外部核查（改前先搜，与主线补发三条结论逐条相符）
+
+①苹果 Messages／Notes 底层 UITextView＋TextKit，选择前提＝整段同文本存储；iOS 13 起文本交互走 UITextInteraction、iOS 15 起放大镜退役改选区气泡，均只在一个文本视图内部成立。②SwiftUI .textSelection 是弱化版：robb.is 实测 iOS 27 给了手柄仍不能跨多个 Text 视图扩选（"just won't expand"）；Linear 工程师公开结论＝文档／长消息场景不可交付、正解下沉 UIKit。③WhatsApp／Telegram 部分选择同理：整条消息是一个可选择文本整体。三源同指一修法：整条消息一份富文本、单个 UITextView、系统接管选择与菜单。
+
+### 161.4 修法与逐项处置（不许静默绕过）
+
+- **合并散文段**：Core 新 `MarkdownMessageAssembler` 把块序列重组为呈现段——连续的段落／标题／普通列表合并为一段 prose，App 层装进**单个** SelectableInlineText（一个 UITextView、TextKit 2）。段级呈现：标题经 textStyleOverride 用既有 headingTextStyle 字阶、H6 dimmed 次级墨；列表标记进文本存储——右对齐制表位收标记（列宽 22 与旧标记列同值）、左对齐制表位起正文（其后 spacingS）、headIndent 悬挂对齐、level 逐级 spacingM——几何与旧「标记列＋正文」同值。段后距：块间 spacingSM、列表项间 spacingXS、末段归零由外层 VStack 接。
+- **分流记账**：引用块＝独立段（竖条跨不了文本存储；块内多行同住一视图、块内可选，与散文的跨界选择不提供）；任务清单＝整块旧呈现（SF Symbol 勾选框进不了文本存储；项内文本逐项可选）；代码块＝独立段维持现形态，**块内选择如实记档：仍为 SwiftUI .textSelection 次档**（整块菜单形态、iOS 27 起可格内选段），本包不动它——原因：横滑＋等宽高亮＋复制钮的表面与单文本存储的取舍 §149 已裁，本包不翻案，只把「次档」写明不冒充同档（后续若要升同档单独立包）；表格＝独立段维持（单元格次档同 §149）；分割线独立段。
+- **承载加固**：SelectableUITextView 显式 `usingTextLayoutManager: true`（TextKit 2）；sizeThatFits 改离屏量测视图——布局期永不改写承载文本，updateUIView 为唯一写入点且拼装缓存保证同内容同实例、isEqual 实际恒等短路。
+- **手势优先级裁决**：行手势三层（栈 tap 收键盘／行 contextMenu／右滑 simultaneous）**全部保留零改动**——回复／接着问等入口不为选词牺牲；优先级按苹果原生文本习惯：文本内双击归系统选词（最深层文本交互），长按的气泡级菜单与文本编辑菜单按原生形态共存，本包不自设仲裁器。选区活动关本行右滑的 §149 通路不变。
+- **流式口径**：播中不可选（动画词元、无稳定文本存储），落定转 MarkdownText 即可选——大厂同此（ChatGPT 流式中不可选），§149 既有口径不变。
+- **缓存管线**：装配层坐在解析层之上，MarkdownParser／InlineRunBuilder 产出方式零改动；InlineTextRenderCache 键扩段级字段（字阶覆盖／dimmed／标记）与次级墨色。chat-polish 包的 MarkdownParseMemo 在其未合并分支上，合并后装配自动受益，本包不重复造缓存。
+- **混排**：工具卡／图片／文件牌是非文本段，本就不进文本存储，与散文段在消息 VStack 中顺序相邻、选择以散文段为界——与 Muse 卡片打断形态一致。
+
+### 161.5 文件边界与验收
+
+- 本包动：Core 新 `MarkdownMessage.swift`（装配器）＋单测 `MarkdownMessageTests` 9 法；App `MarkdownText.swift`（分发改呈现段＋proseView 段级映射，paragraphView／headingView 退役、listView 收窄为任务清单专用）、`SelectableTextView.swift`（段级字阶／dimmed／标记制表位、TK2 装配、量测离屏化、缓存键扩展）。**无新用户可见文案，xcstrings 零改动**（i18n 校验脚本照跑）。
+- 真机待验（逐项）：①长消息正文双击选中一词（中英文各一）、双手柄出现；②拖手柄跨行扩选、拷贝内容正确（WORD JOINER 已剥）；③跨段扩选：段落→列表项、列表→段落双向（本包核心新能力）；④长按文本出系统编辑菜单、长按非文本区出气泡菜单，不打架；⑤代码块内选择按真机形态如实记录（次档预期，不冒充）；⑥表格单元格选择、引用块内跨行选择；⑦流式中不可选、落定立刻可选；选区活动关右滑、取消恢复；⑧AX 最大字号＋深色各一帧（标题字阶、列表标记对齐）；⑨用户气泡双击选词。
+- 错题本：本障入「未结案」区候选（候选甲未证死），真机复验定案当天迁正册。

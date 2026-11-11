@@ -3,6 +3,18 @@ import OneDayDesign
 import SwiftUI
 import UIKit
 
+/// 列表标记（§161）：合并散文段内由文本存储自带
+/// 标记——标记文字经右对齐制表位落在固定列宽内、
+/// 正文经左对齐制表位起排、续行以 headIndent 悬挂
+/// 对齐正文（与旧「标记列＋正文」HStack 几何同值：
+/// 列宽 22＋其后 spacingS 间隔、level 逐级 spacingM）
+struct InlineListMarker {
+    var text: String
+    var levelIndent: CGFloat
+    var columnWidth: CGFloat = 22
+    var textGap: CGFloat = 8
+}
+
 /// 可选段落（§149）：SelectableInlineText 的输入单
 /// 位——一段＝一组 Core InlineRun＋段级缩进／段后
 /// 距。段落、正文标题、用户泡都是单段；引用块多行
@@ -11,6 +23,15 @@ struct InlineTextParagraph {
     var runs: [InlineRun]
     var headIndent: CGFloat = 0
     var spaceAfter: CGFloat = 0
+    /// §161：段级字阶覆盖（合并段内标题段用）；
+    /// nil＝随视图的 textStyle
+    var textStyleOverride: UIFont.TextStyle?
+    /// §161：段级次级墨色（H6 走弱化档，与旧标题
+    /// 视图的前景分档同口径）
+    var dimmed: Bool = false
+    /// §161：列表标记（合并段内列表项用）；非空时
+    /// headIndent 由标记几何接管（levelIndent 起排）
+    var listMarker: InlineListMarker?
 
     /// markdown 行内文本一段（经 Core 拼装）
     static func markdown(
@@ -53,10 +74,20 @@ struct InlineTextParagraph {
 /// 拼装结果按（文本＋样式键）缓存，列表滚动重排
 /// 不反复解析 markdown。updateUIView 内容未变不
 /// 重设 attributedText——已有选区不被父级重渲冲掉。
+///
+/// §161 增补：段落可带段级字阶覆盖／次级墨色／列
+/// 表标记（制表位悬挂缩进）——一条消息的全部散文
+/// 段由此同住一个文本视图（Core MarkdownMessage-
+/// Assembler 装配），双击选词与手柄扩选在整段散文
+/// 内连续成立；承载视图显式 TextKit 2，量测走离
+/// 屏视图、不再在布局期改写承载文本。
 struct SelectableInlineText: View {
     var paragraphs: [InlineTextParagraph]
     var textStyle: UIFont.TextStyle = .callout
     var foreground: Color = Palette.bodyInk
+    /// §161：次级墨色解析源（dimmed 段与列表标记
+    /// 用）；默认与引用块前景同档
+    var dimmedForeground: Color = Palette.inkSecondaryOnFill
     var onSelectionChange: ((Bool) -> Void)?
 
     @Environment(\.self) private var environment
@@ -96,8 +127,19 @@ struct SelectableInlineText: View {
         let built = Self.build(
             paragraphs: paragraphs,
             baseFont: baseFont,
+            overrideFont: { style in
+                InlineTextFonts.baseFont(
+                    textStyle: style,
+                    category: dynamicTypeSize.contentSizeCategory,
+                    boldText: boldTextEnabled
+                )
+            },
             textColor: UIColor(
                 cgColor: foreground.resolve(in: environment).cgColor
+            ),
+            dimmedColor: UIColor(
+                cgColor: dimmedForeground
+                    .resolve(in: environment).cgColor
             )
         )
         InlineTextRenderCache.shared.setObject(built, forKey: key)
@@ -115,10 +157,18 @@ struct SelectableInlineText: View {
             foreground.resolve(in: environment).cgColor
                 .components?.map { "\($0)" }.joined(separator: ",")
                 ?? "",
+            dimmedForeground.resolve(in: environment).cgColor
+                .components?.map { "\($0)" }.joined(separator: ",")
+                ?? "",
         ]
         for paragraph in paragraphs {
             parts.append(
                 "p\(paragraph.headIndent)/\(paragraph.spaceAfter)"
+                    + "/\(paragraph.textStyleOverride?.rawValue ?? "-")"
+                    + "/\(paragraph.dimmed ? "d" : "-")"
+                    + "/\(paragraph.listMarker.map {
+                        "\($0.text)@\($0.levelIndent)/\($0.columnWidth)/\($0.textGap)"
+                    } ?? "-")"
             )
             for run in paragraph.runs {
                 parts.append(
@@ -136,15 +186,65 @@ struct SelectableInlineText: View {
     private static func build(
         paragraphs: [InlineTextParagraph],
         baseFont: UIFont,
-        textColor: UIColor
+        overrideFont: (UIFont.TextStyle) -> UIFont,
+        textColor: UIColor,
+        dimmedColor: UIColor
     ) -> NSAttributedString {
         let result = NSMutableAttributedString()
         for (index, paragraph) in paragraphs.enumerated() {
             let paragraphStart = result.length
+            // §161：段级字体／墨色——合并段内标题段
+            // 用自己的字阶、H6 用次级墨，其余随视图
+            // 基准（与旧逐块视图的逐块参数同口径）
+            let font = paragraph.textStyleOverride
+                .map(overrideFont) ?? baseFont
+            let color = paragraph.dimmed ? dimmedColor : textColor
+            let style = NSMutableParagraphStyle()
+            style.lineBreakMode = .byWordWrapping
+            style.paragraphSpacing = paragraph.spaceAfter
+            if let marker = paragraph.listMarker {
+                // 标记几何：首行自 levelIndent 起，
+                // \t 落右对齐制表位（标记收尾于列
+                // 宽内、与旧标记列右对齐同形），再
+                // \t 落左对齐制表位起正文；续行
+                // headIndent＝正文起点，悬挂对齐
+                let markerEnd = marker.levelIndent
+                    + marker.columnWidth
+                let textStart = markerEnd + marker.textGap
+                style.firstLineHeadIndent = marker.levelIndent
+                style.headIndent = textStart
+                style.tabStops = [
+                    NSTextTab(
+                        textAlignment: .right, location: markerEnd
+                    ),
+                    NSTextTab(
+                        textAlignment: .left, location: textStart
+                    ),
+                ]
+                let tabAttributes: [NSAttributedString.Key: Any] = [
+                    .font: font, .foregroundColor: color,
+                ]
+                result.append(NSAttributedString(
+                    string: "\t", attributes: tabAttributes
+                ))
+                result.append(NSAttributedString(
+                    string: marker.text,
+                    attributes: [
+                        .font: font,
+                        .foregroundColor: dimmedColor,
+                    ]
+                ))
+                result.append(NSAttributedString(
+                    string: "\t", attributes: tabAttributes
+                ))
+            } else {
+                style.headIndent = paragraph.headIndent
+                style.firstLineHeadIndent = paragraph.headIndent
+            }
             for run in paragraph.runs {
                 result.append(
                     attributedRun(
-                        run, baseFont: baseFont, textColor: textColor
+                        run, baseFont: font, textColor: color
                     )
                 )
             }
@@ -154,11 +254,6 @@ struct SelectableInlineText: View {
             if index < paragraphs.count - 1 {
                 result.append(NSAttributedString(string: "\n"))
             }
-            let style = NSMutableParagraphStyle()
-            style.headIndent = paragraph.headIndent
-            style.firstLineHeadIndent = paragraph.headIndent
-            style.paragraphSpacing = paragraph.spaceAfter
-            style.lineBreakMode = .byWordWrapping
             result.addAttribute(
                 .paragraphStyle, value: style,
                 range: NSRange(
@@ -327,7 +422,14 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> SelectableUITextView {
-        let textView = SelectableUITextView()
+        // §161：显式 TextKit 2 装配——苹果现行文本
+        // 栈（Messages／Notes 同代），选择交互（双
+        // 击选词／手柄扩选／编辑菜单）由文本布局管
+        // 理器原生驱动；默认初始化在旧系统路径上可
+        // 能落 TextKit 1，不作口径依赖
+        let textView = SelectableUITextView(
+            frame: .zero, usingTextLayoutManager: true
+        )
         textView.isEditable = false
         textView.isSelectable = true
         textView.isScrollEnabled = false
@@ -351,6 +453,10 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
     ) {
         context.coordinator.onSelectionChange = onSelectionChange
         context.coordinator.openURL = openURL
+        // §161：拼装走进程内缓存、同内容恒同实例，
+        // isEqual 在此实际为恒等短路——内容键未变
+        // 绝不重设文本（重设即冲选区）；布局期量测
+        // 已离屏化，本方法是承载文本唯一写入点
         if !uiView.attributedText.isEqual(to: attributed) {
             let previousRange = uiView.selectedRange
             uiView.attributedText = attributed
@@ -372,6 +478,27 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
         ]
     }
 
+    /// 离屏量测视图（§161）：与承载视图同构配置、
+    /// 只量不用。旧形态 sizeThatFits 在布局期把新
+    /// 文本写回**承载**视图——SwiftUI 在一次手势的
+    /// 布局往返里重跑量测时，承载文本被重设、刚成
+    /// 形的选区随之被冲（诊断报告机理候选二）；量
+    /// 测自此永不碰承载视图，updateUIView 是唯一
+    /// 写入点且只在内容键真变时写。量测在主线程
+    /// 布局期串行发生，共用一台安全
+    private static let measuringView: SelectableUITextView = {
+        let view = SelectableUITextView(
+            frame: .zero, usingTextLayoutManager: true
+        )
+        view.isEditable = false
+        view.isSelectable = false
+        view.isScrollEnabled = false
+        view.backgroundColor = .clear
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        return view
+    }()
+
     /// 自量高：宽有提议按提议宽量高（换行后高度），
     /// 宽无提议按自然单行宽量——与 SwiftUI Text 在
     /// 气泡／列表行内的尺寸口径对齐
@@ -380,21 +507,22 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
         uiView: SelectableUITextView,
         context: Context
     ) -> CGSize? {
-        if !uiView.attributedText.isEqual(to: attributed) {
-            uiView.attributedText = attributed
+        let measure = Self.measuringView
+        if !measure.attributedText.isEqual(to: attributed) {
+            measure.attributedText = attributed
         }
         guard let proposedWidth = proposal.width,
               proposedWidth > 0,
               proposedWidth < .greatestFiniteMagnitude
         else {
-            return uiView.sizeThatFits(
+            return measure.sizeThatFits(
                 CGSize(
                     width: CGFloat(10_000),
                     height: CGFloat.greatestFiniteMagnitude
                 )
             )
         }
-        return uiView.sizeThatFits(
+        return measure.sizeThatFits(
             CGSize(
                 width: proposedWidth,
                 height: CGFloat.greatestFiniteMagnitude
