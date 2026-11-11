@@ -3,10 +3,17 @@ import OneDayDesign
 import SwiftUI
 
 /// 动态格（P3，0.35.0；0.38.0 换代）：形态按设计档
-/// 第三章向 Muse 动态页收——大标题下简报行（兴趣
-/// 摘要＋未读数，点开进简报编辑器）、帖子扁平排版
-/// （kind 瓷砖＋标题＋正文摘＋真图缩略＋refs 蓝字内
-/// 链＋相对时间）、按日分组。
+/// 第三章向 Muse 动态页收——帖子扁平排版（kind
+/// 瓷砖＋标题＋正文摘＋真图缩略＋refs 蓝字内链＋相
+/// 对时间）、按日分组。
+/// 紧凑化（§126，用户 2026-11-11 13:24/13:37 拍
+/// 板）：顶部简报胶囊行整行删除（§117 胶囊口径作
+/// 废），简报设置只归工具栏滑杆钮；一切未读提醒面
+/// 撤下（底栏角标/行内蓝点/动作行未读文字，§104/
+/// §117 未读口径作废）——已读回写与 readAt 保留为
+/// 静默账本，只停提醒面、不停账本；搜索改工具栏
+/// 点开式（.toolbar 落点，不再常驻一行）；日期段
+/// 几何收编令牌、列表顶距改条件化（见 topMargin）。
 /// 数据口径：双生产者在桥端（段一确定性汇编＋段二
 /// 简报驱动的调研五步链），App 只读＋已读回写；已
 /// 读以服务端 readAt 为真源。简报两层在编辑器里分
@@ -26,20 +33,37 @@ struct FeedView: View {
     @State private var path = NavigationPath()
     /// 简报编辑器（0.38.0 两层制）呈现
     @State private var briefEditorShown = false
-    /// 搜索（0.47.0 §117）：工具栏放大镜切换，按标
-    /// 题＋正文过滤当前已载帖
+    /// 搜索（0.47.0 §117；§126 改点开式）：落点改
+    /// 工具栏（.toolbar）——放大镜在工具栏内点开才
+    /// 展开搜索场，不再以 .searchable 默认落点常驻
+    /// 一整行；按标题＋正文过滤当前已载帖，收起即
+    /// 清过滤态（见 readyContent 的 onChange）
     @State private var searchText = ""
     @State private var isSearching = false
     /// 来源小 sheet 的当前帖（动作行 ⓘ 点按）
     @State private var sourcesPost: BridgeFeedPost?
 
-    /// 顶部胶囊避让（0.48.0，§122）：全局智能体状态
-    /// 胶囊浮在本页页顶中央，静止时正压首屏帖子正文
-    /// （用户 12:41 截图多处遮字）——列表加顶部
-    /// inset，让首行正文落在胶囊下沿之外。只动本
-    /// 页：胶囊本体、其他页一字不动
-    private static let topCapsuleClearance: CGFloat =
-        OneDayMetrics.spacingXXL + OneDayMetrics.spacingM
+    /// 页顶浮层的实测重叠高度（§126）：顶距改条件
+    /// 化——§122 的无条件 64pt（spacingXXL＋spacingM）
+    /// 在浮层不在场时照收、压出搜索框下约 80pt 死空
+    /// （调研量测实证），本包废止。现行壳层没有覆盖
+    /// 本页的浮层（全仓核查：任务进展胶囊只在聊天页
+    /// safeAreaBar 内，本页工具栏由导航栏安全区托
+    /// 管），故本值恒为 nil、顶距恒 0；壳层将来在本
+    /// 页上方挂浮层时，把其实测高度写进此处，顶距
+    /// 即按 FeedBoard.topClearance 政策（重叠高＋
+    /// spacingS）生效。不许再回到无条件写死
+    @State private var topOverlayHeight: CGFloat?
+
+    /// 列表顶部边距（§126）：政策收口在 Core
+    /// FeedBoard.topClearance——无重叠恒 0，真重叠
+    /// ＝实测重叠高度＋spacingS
+    private var topMargin: CGFloat {
+        FeedBoard.topClearance(
+            overlayHeight: topOverlayHeight,
+            gap: OneDayMetrics.spacingS
+        )
+    }
 
     enum Route: Hashable {
         case post(String)
@@ -82,14 +106,10 @@ struct FeedView: View {
             .background(Palette.pageBG)
             .navigationTitle("动态")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isSearching = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    .accessibilityLabel("搜索动态")
-                }
+                // 搜索入口（§126）：.searchable 的
+                // .toolbar 落点自带工具栏放大镜，与滑
+                // 杆钮同舱呈现；0.47.0 的自绘放大镜钮
+                // 与其重复占位，一并退役
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         briefEditorShown = true
@@ -159,17 +179,9 @@ struct FeedView: View {
             }
         } else {
             List {
-                if !isSearching {
-                    Section {
-                        if let doc = store.briefDoc {
-                            briefRow(doc)
-                        } else {
-                            capsuleRow
-                        }
-                    }
-                    .listRowSeparator(.hidden)
-                }
-
+                // 简报胶囊行已整行删除（§126）：简报
+                // 入口只剩工具栏滑杆钮；动态不再有占
+                // 行的页头横幅，标题之下直接是日期分组
                 if isSearching, visiblePosts.isEmpty {
                     Section {
                         ContentUnavailableView(
@@ -181,22 +193,34 @@ struct FeedView: View {
                 }
 
                 ForEach(visibleDayGroups, id: \.title) { group in
-                    Section(group.title) {
+                    Section {
                         ForEach(group.posts) { post in
                             postRow(post)
                         }
+                    } header: {
+                        dateGroupHeader(group.title)
                     }
                 }
             }
             .listStyle(.plain)
-            .contentMargins(
-                .top, Self.topCapsuleClearance,
-                for: .scrollContent
-            )
+            // 日期段间距收编（§126）：段间走令牌
+            // spacingM——此前未设 listSectionSpacing、
+            // 段头无自定义几何，约 62pt 系统默认段距
+            // 无人拥有（调研量测死空二的主体）
+            .listSectionSpacing(OneDayMetrics.spacingM)
+            .contentMargins(.top, topMargin, for: .scrollContent)
+            // 搜索点开式（§126）：落点改工具栏——点
+            // 放大镜才展开搜索场，不再常驻一行；收起
+            // 即清过滤态（下方 onChange）
             .searchable(
                 text: $searchText, isPresented: $isSearching,
-                prompt: "搜索动态"
+                placement: .toolbar, prompt: "搜索动态"
             )
+            .onChange(of: isSearching) { _, searching in
+                if !searching {
+                    searchText = ""
+                }
+            }
             .refreshable {
                 await reload()
             }
@@ -223,158 +247,18 @@ struct FeedView: View {
         )
     }
 
-    /// 横幅行共用外壳（0.41.0 收口批 P4）：胶囊行与简
-    /// 报行原各写一套 spacing 10／横 padding 14／纵 12
-    /// ／圆角 16／insets 6·16 的自定值——收成一处：
-    /// 横 padding 走 spacingM（14→16、与页面行内容缘
-    /// 同线）、纵 spacingSM、圆角 radiusPreview、行间
-    /// 距走 cardInnerGap（消费点 HStack）
-    private func bannerRowChrome<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .padding(.vertical, OneDayMetrics.spacingSM)
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.radiusPreview
-                )
-            )
-            .contentShape(Rectangle())
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(
-                top: OneDayMetrics.rowInnerGap,
-                leading: OneDayMetrics.spacingM,
-                bottom: OneDayMetrics.rowInnerGap,
-                trailing: OneDayMetrics.spacingM
-            ))
-    }
-
-    /// 简报胶囊：今日汇编摘要＋未读数，点开落对应帖
-    /// （落点口径在 FeedBoard.capsulePost）；无帖时只
-    /// 显今日暂无、不做假入口
-    private var capsuleRow: some View {
-        bannerRowChrome {
-        HStack(spacing: OneDayMetrics.cardInnerGap) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(Palette.inkSecondary)
-            if let post = store.capsulePost {
-                Text(post.title)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.ink)
-                    // 0.43.0（A11Y-D3）：AX 档放宽行数
-                    .a11yLineLimit(1, ax: 2)
-            } else {
-                Text("今日暂无动态")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
-            }
-            Spacer()
-            if store.unreadCount > 0 {
-                Text("\(store.unreadCount) 未读")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Palette.primary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, OneDayMetrics.stackGap)
-                    .background(
-                        Palette.selectionFill,
-                        in: Capsule()
-                    )
-            }
-            if store.capsulePost != nil {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-        }
-        }
-        .onTapGesture {
-            if let post = store.capsulePost {
-                path.append(Route.post(post.id))
-            }
-        }
-        // 0.43.0（A11Y-V4）：整行合并为一个元素——
-        // 拼读序：题→未读数（C5 文字已在行内）；有
-        // 帖时才是按钮（无帖行只是状态陈述、不给假
-        // 按钮语义），默认动作与点按同一落点
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(
-            store.capsulePost != nil ? .isButton : []
-        )
-        .accessibilityAction {
-            if let post = store.capsulePost {
-                path.append(Route.post(post.id))
-            }
-        }
-    }
-
-    /// 简报行（0.38.0）：兴趣摘要＋未读数，点开进简
-    /// 报编辑器（两层制）；还没写过兴趣时走引导文案。
-    /// 旧胶囊的「点开落帖」自此退役——这一行只管简报
-    private func briefRow(_ doc: BridgeBriefDoc) -> some View {
-        bannerRowChrome {
-        HStack(spacing: OneDayMetrics.cardInnerGap) {
-            Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundStyle(Palette.inkSecondary)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                if let line = FeedBriefBoard.summaryLine(doc) {
-                    // 0.47.0（§117）：已设简报时胶囊收成
-                    // 单行——只剩兴趣一句话，未读徽标与
-                    // chevron 已把「可点/有新」说清，第
-                    // 二行说明文案退役
-                    Text(line)
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.ink)
-                        // 0.43.0（A11Y-D3）：AX 档放宽
-                        .a11yLineLimit(1, ax: 2)
-                } else {
-                    Text("写下你感兴趣什么，我每天替你去看")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.ink)
-                        // 0.43.0（A11Y-D3）：AX 档放宽
-                        .a11yLineLimit(1, ax: 2)
-                    Text("点按写简报")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer()
-            if doc.expanding {
-                ProgressView()
-                    .controlSize(.small)
-            }
-            if store.unreadCount > 0 {
-                Text("\(store.unreadCount) 未读")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Palette.primary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, OneDayMetrics.stackGap)
-                    .background(
-                        Palette.selectionFill,
-                        in: Capsule()
-                    )
-            }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Palette.inkSecondary)
-        }
-        }
-        .onTapGesture {
-            briefEditorShown = true
-        }
-        // 0.43.0（A11Y-V4）：整行合并为按钮元素（拼
-        // 读：摘要→说明→未读数），默认动作与点按同
-        // 一入口（开简报编辑器）
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
-            briefEditorShown = true
-        }
+    /// 日期分组头（§126）：几何收编——系统默认段
+    /// 头在此前的量测里贡献约 62pt 无主空段；改自
+    /// 定义 header 后，上下 padding 走令牌 spacingXS
+    /// 显式定值，字阶与配色对齐原系统段头呈现（次色
+    /// semibold），不另造字号。header 布局底到首行
+    /// 内容顶不另加距：帖行自身顶部 spacingS 只计
+    /// 一次（见 postRow）
+    private func dateGroupHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Palette.inkSecondary)
+            .padding(.vertical, OneDayMetrics.spacingXS)
     }
 
     /// 帖子行（0.47.0 §117 对标形态）：内容 emoji 大
@@ -409,14 +293,8 @@ struct FeedView: View {
                         .foregroundStyle(Palette.ink)
                         // 0.43.0（A11Y-D3）：AX 档放宽
                         .a11yLineLimit(2, ax: 4)
-                    if !post.isRead {
-                        Circle()
-                            .fill(Palette.primary)
-                            .frame(width: 7, height: 7)
-                            .padding(.top, OneDayMetrics.rowInnerGap)
-                            // 未读另有动作行文字通道
-                            .accessibilityHidden(true)
-                    }
+                    // 未读蓝点已撤（§126）：动态取消一切
+                    // 未读提醒面；已读回写保留为静默账本
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -506,12 +384,8 @@ struct FeedView: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
-            // 未读除蓝点外补文字通道（A11Y-C5 口径）
-            if !post.isRead {
-                Text("未读")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.primary)
-            }
+            // 动作行「未读」文字已撤（§126）：与底栏
+            // 角标、行内蓝点同批取消未读提醒面
             Spacer()
             Text(FeedBoard.relativeText(
                 for: post.createdAt, now: Date()

@@ -590,6 +590,21 @@ public enum FeedBoard {
         posts.count { !$0.isRead }
     }
 
+    /// 列表顶部避让政策（§126）：顶距只为
+    /// 「真的有浮层压在列表顶部」而存在——无重叠
+    /// （overlayHeight 为 nil 或 ≤0）恒 0，不许留一
+    /// 个无条件小数字冒充条件化（§122 的无条件
+    /// 64pt 即此病：胶囊不在场也照收、压出死空）；
+    /// 真重叠时＝实测重叠高度＋gap（视图侧传令牌
+    /// spacingS）。重叠高度必须由浮层的宿主实测喂
+    /// 入，不许在列表侧反推或写死
+    public static func topClearance(
+        overlayHeight: CGFloat?, gap: CGFloat
+    ) -> CGFloat {
+        guard let overlayHeight, overlayHeight > 0 else { return 0 }
+        return overlayHeight + gap
+    }
+
     /// 简报胶囊落点：今日汇编帖优先，其次今日晨报，
     /// 再其次最近未读，最后最近一篇（全读时胶囊仍
     /// 指最新动态）；无帖为 nil（胶囊显「今日暂无」）

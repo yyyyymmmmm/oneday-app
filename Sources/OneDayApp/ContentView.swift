@@ -124,11 +124,13 @@ struct ContentView: View {
     /// 总览桥状态（0.6.0）：壳层持有，聊天页顶栏与枢纽
     /// sheet 共同消费；前台 30 秒轮询由下方 scenePhase 驱动
     @State private var overviewStore = OverviewBridgeStore()
-    /// 动态未读数（0.38.0）：壳层持有、动态格角标消
-    /// 费；只认桥 /feed/generation 的 unread。APNs 到
-    /// 位前这就是「有新动态」的唯一提醒形态——呈现
-    /// 与文案都不冒充系统推送
-    @State private var feedUnread = 0
+    /// 动态未读角标已整套撤下（§126，用户 2026-11-11
+    /// 拍板「动态不要提醒」）：0.38.0 的壳层 feedUnread
+    /// 状态与动态角标轮询退役；已读账本（readAt/回写）
+    /// 保留在 FeedStore/桥侧静默运行，只停提醒面、
+    /// 不停账本。桥客户端不随之退役——§123（M3）点
+    /// 子角标的 30 秒轮询仍经它读 /ideas（见下方
+    /// pollIdeasBadge），合并对账见 DESIGN §126.10
     private let feedBadgeClient = OneDayBridgeClient()
     /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
     /// 理全部对话」行置位，全屏页自带导航栈呈现
@@ -229,12 +231,13 @@ struct ContentView: View {
                 await overviewStore.poll(appState: appState)
             }
         }
-        // 0.38.0：动态未读角标轮询——与总览轮询同节奏
-        // （前台 30 秒一轮、scenePhase 驱动起停）；未
-        // 连接/拉不到时保持上次数字、不清零造假象
+        // §123（M3）：点子角标前台轮询（30 秒一轮，与
+        // 总览同节奏、scenePhase 驱动起停）；§126 前
+        // 本回路同拍兼管动态未读，动态半边已随 §126
+        // 撤销，现只余点子角标一职
         .task(id: scenePhase) {
             if scenePhase == .active {
-                await pollFeedUnread()
+                await pollIdeasBadge()
             }
         }
         // 0.36.20（§86.2）：业务成功信号一到即把在线判
@@ -249,21 +252,15 @@ struct ContentView: View {
         }
     }
 
-    /// 动态未读轮询（0.38.0）：30 秒一轮，只在拿到桥
-    /// 的账面时更新数字；失败保持旧值（角标宁可慢半
-    /// 拍，不许忽有忽无）
-    /// §123（M3）：点子角标搭同一拍顺带刷新——点子无
-    /// 服务端未读账，走既有 /ideas 读面＋本地水位增量
-    /// 判定（Core IdeasBadge）。不新增轮询回路：还是
-    /// 这一条 30 秒拍，只是每拍多读一个既有端点；失
-    /// 败同样保持旧值不清零
-    private func pollFeedUnread() async {
+    /// 点子角标轮询（§123 M3）：30 秒一轮——点子无
+    /// 服务端未读账，走既有 /ideas 读面＋本地水位增
+    /// 量判定（Core IdeasBadge）；失败保持旧值不清零
+    /// §126 合并对账：本回路前身 pollFeedUnread（0.38.0）
+    /// 同拍兼刷动态未读；动态角标与 feedGeneration 取
+    /// 数已随 §126 整套删除，本回路只余点子角标一职，
+    /// 不为动态取任何数（DESIGN §126.10）
+    private func pollIdeasBadge() async {
         while !Task.isCancelled {
-            if let config = appState.config,
-               let generation = try? await feedBadgeClient
-                .feedGeneration(config: config) {
-                feedUnread = generation.unread
-            }
             if let config = appState.config,
                let ideas = try? await feedBadgeClient
                 .ideas(config: config) {
@@ -309,7 +306,7 @@ struct ContentView: View {
             } label: {
                 tabLabel(TabBarSymbols.feed)
             }
-            .badge(feedUnread)
+            // 动态格角标已撤（§126）：动态不以角标催读
 
             Tab(value: MainTab.ideas) {
                 IdeasView()
