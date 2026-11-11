@@ -453,6 +453,12 @@ final class OneDayBridgeClient: @unchecked Sendable {
         guard (200...299).contains(http.statusCode) else {
             throw HermesError.unexpectedStatus(
                 endpoint: L10n.string("图片预览"),
+                status: http.statusCode
+            )
+        }
+        return data
+    }
+
     // MARK: - 文件交付登记（§146，规格 delivery-registry-spec-20261111 §5/§7）
 
     /// GET /deliveries/{id}：登记元数据＋读时状态
