@@ -1488,8 +1488,8 @@ public enum FileRefDetector {
     private static func gluedStandalonePieces(
         in line: String
     ) -> [String]? {
-        guard let candidate = standaloneLineCandidate(line)
-        else { return nil }
+        let candidate = standaloneLineCandidate(line)
+        guard !candidate.isEmpty else { return nil }
         let refs = scan(in: candidate)
         guard refs.count == 1,
               let ref = refs.first else { return nil }
