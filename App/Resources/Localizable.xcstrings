@@ -59869,6 +59869,98 @@
           }
         }
       }
+    },
+    "让智能体重新发": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让智能体重新发"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讓智慧代理重新發"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask the agent to resend it"
+          }
+        }
+      }
+    },
+    "这个文件我打不开，服务器上没有找到：《%@》": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个文件我打不开，服务器上没有找到：《%@》"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個檔案我打不開，伺服器上沒有找到：《%@》"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I can't open this file — it isn't on the server: “%@”"
+          }
+        }
+      }
+    },
+    "它原来的路径是：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它原来的路径是：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它原來的路徑是：%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The path it pointed to was: %@"
+          }
+        }
+      }
+    },
+    "请把文件重新保存好，确认真的存在后，再把正确路径单独写一行发给我。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请把文件重新保存好，确认真的存在后，再把正确路径单独写一行发给我。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請把檔案重新保存好，確認真的存在後，再把正確路徑單獨寫一行發給我。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Please save the file again, make sure it really exists, and then send me the correct path on a line of its own."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

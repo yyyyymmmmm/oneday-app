@@ -680,6 +680,43 @@ struct FileChip: View {
     }
 }
 
+/// 助手侧文件牌的存在性门（§129）：正文探测来的
+/// 路径没有登记背书（用户侧 @file: 登记制不走本
+/// 门），渲染前先经 FileMetadataStore 校验——确
+/// 证存在才出 FileChip；确证不在、还没查完、或
+/// 校验没查成（网络类，只记 unverified 不下「不
+/// 在」的结论），一律降为纯文本一行（路径原文照
+/// 显、可选中，不假装是可点的文件）。校验是异步
+/// 升级：消息先以文本落位，查实后原地换成牌，
+/// 不阻塞整条消息渲染。历史消息同享此判定——存
+/// 量坏牌不改数据、渲染层自动降级。
+struct AssistantFileChip: View {
+    @Environment(AppState.self) private var appState
+
+    let path: String
+    let onOpen: () -> Void
+
+    var body: some View {
+        Group {
+            if FileMetadataStore.shared.existence(for: path)
+                == .exists {
+                FileChip(path: path, onOpen: onOpen)
+            } else {
+                Text(path)
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .task(id: path) {
+            await FileMetadataStore.shared.verifyExistence(
+                path: path, appState: appState
+            )
+        }
+    }
+}
+
 /// QuickLook 预览载荷：字节落临时目录后以 URL 呈现
 struct ChatFilePreviewItem: Identifiable {
     let url: URL

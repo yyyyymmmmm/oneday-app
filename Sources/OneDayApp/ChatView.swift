@@ -392,8 +392,21 @@ struct ChatView: View {
         }
         // §125：文件打开页（中间页）——聊天侧点牌的
         // 唯一落点（图片仍走上方全屏查看器、不经此页）
+        // §129：失败页「让智能体重新发」的落点——预
+        // 填直接落当前线程输入舱并聚焦（同线程不走
+        // setDraft 的换线程加载路），发不发由用户点
+        // 发送为准
         .sheet(item: $fileOpenTarget) { target in
-            FileOpenView(target: target, origin: .conversation)
+            FileOpenView(
+                target: target, origin: .conversation,
+                onRequestResend: { prefill in
+                    fileOpenTarget = nil
+                    if currentThreadID != nil {
+                        input = prefill
+                        composerFocusHandle.focus()
+                    }
+                }
+            )
         }
         // 0.4.1：引用是发送舱的临时态，切换线程即作废，
         // 不许跨线程带过去；0.7.0 两处增补——草稿轻保活
@@ -2180,7 +2193,16 @@ struct ChatView: View {
                 // §125：锚点感知探测——路径带 `#L12-
                 // L20` 时牌透传锚点，打开页进阅读页
                 // 定位高亮（仅 text 类消费）
-                let fileRefs = FileRefDetector.detectAnchored(
+                // §129：成牌收紧——改走 detectStand-
+                // aloneAnchored（只有单独成行的路径才
+                // 成牌、且须在下载根内；行内提及的拟
+                // 议/举例路径一律纯文本），呈现走
+                // AssistantFileChip 的存在性门（校验
+                // 确证存在才出牌，查无此文件降纯文
+                // 本；诊断 file-ref-404-diagnosis-
+                // 20261111：旧口径约 38% 助手侧牌点
+                // 开必 404）
+                let fileRefs = FileRefDetector.detectStandaloneAnchored(
                     in: entry.content,
                     excluding: entry.remoteImagePaths
                 )
@@ -2190,7 +2212,7 @@ struct ChatView: View {
                         spacing: OneDayMetrics.spacingXS
                     ) {
                         ForEach(fileRefs, id: \.path) { ref in
-                            FileChip(path: ref.path) {
+                            AssistantFileChip(path: ref.path) {
                                 openChatFile(
                                     ref.path, anchor: ref.anchor
                                 )
