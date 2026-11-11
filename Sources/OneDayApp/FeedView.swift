@@ -224,6 +224,14 @@ struct FeedView: View {
             .refreshable {
                 await reload()
             }
+            // §170（用户 2026-11-11 23:28 亲定「底部导航
+            // 栏上边、下边都加上同款朦胧收边，与输入框下
+            // 边那套同档」）：本页根 List 底缘挂 .hard——
+            // 系统在原生 TabView 坞高内发放与输入框下方收边
+            // 同档的均匀收边（坞浮于带内、带的上沿即坞
+            // 的上边、下沿即坞的下边；原生坞无独立的上/
+            // 下缘 API，映射口径见 DESIGN §170.2）
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
         }
     }
 
