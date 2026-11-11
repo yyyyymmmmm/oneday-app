@@ -63,7 +63,7 @@ final class BottomFollowTests: XCTestCase {
         )
     }
 
-    // MARK: - 发送贴底与回底钮事实信号（0.36.5 审计双修）
+    // MARK: - 发送贴底与回底钮显隐（0.36.5 审计双修；§132 显隐改几何单源）
 
     func testNearBottomAfterOwnSendIsAlwaysTrue() {
         // 自己发送是「离底不打扰」的唯一例外：落盘成
@@ -71,31 +71,24 @@ final class BottomFollowTests: XCTestCase {
         XCTAssertTrue(BottomFollowPolicy.nearBottomAfterOwnSend())
     }
 
-    func testScrollButtonHiddenWhenLastEntryVisible() {
-        // 审计 bug 2 的驻留回路：几何估算说离底、但最
-        // 后一条已在可见集内（事实在底）——钮必须消失
+    func testScrollButtonHiddenWhenNearBottom() {
+        // §132 几何单源：判在底即不显——「钮不显即在
+        // 底」是回底钮与未读计数共用的唯一口径
         XCTAssertFalse(
             BottomFollowPolicy.showsScrollToBottomButton(
-                isNearBottom: false, lastEntryVisible: true
-            )
-        )
-        // 已判贴底时恒不显（与旧口径一致）
-        XCTAssertFalse(
-            BottomFollowPolicy.showsScrollToBottomButton(
-                isNearBottom: true, lastEntryVisible: true
-            )
-        )
-        XCTAssertFalse(
-            BottomFollowPolicy.showsScrollToBottomButton(
-                isNearBottom: true, lastEntryVisible: false
+                isNearBottom: true
             )
         )
     }
 
-    func testScrollButtonShownOnlyWhenOffBottomAndLastEntryUnseen() {
+    func testScrollButtonShownWhenOffBottom() {
+        // §132 改判：0.36.5 的事实信号纠偏（几何离底
+        // 但末条在可见集内则压显）已随其 @State 回写
+        // 风暴一并退役——几何离底即显示，不问末条可
+        // 见与否（旧断言两法随口径作废改写于此）
         XCTAssertTrue(
             BottomFollowPolicy.showsScrollToBottomButton(
-                isNearBottom: false, lastEntryVisible: false
+                isNearBottom: false
             )
         )
     }

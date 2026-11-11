@@ -162,20 +162,27 @@ struct ChatView: View {
     /// 令牌通道回到列表作用域执行；链接失败回滚删条
     /// 目的分支不递增、不贴底
     @State private var sendPinToken = 0
-    /// 最后一条条目是否在可见集内（0.36.5，审计
-    /// bug 2）：onScrollTargetVisibilityChange 回写
-    /// 的事实信号，只参与回底钮显隐（Core Bottom-
-    /// FollowPolicy），不改跟随门控——距底距离取自
-    /// LazyVStack 估算总高、长线程可驻留迟滞带，事
-    /// 实信号是它的纠偏源
-    @State private var lastEntryVisible = false
-    /// 最近一次可见集（0.36.13，诊断 chat-bottom-
-    /// geometry §2.3 堵洞 3）：旧实现只在可见集变化
-    /// 时顺带算 lastEntryVisible，末条落盘后可见集
-    /// 不再变则持旧值、无复核时机。本状态存下最近
-    /// 可见集，条目数变化时由 refreshLastEntryVisible
-    /// 用存量集主动重算
-    @State private var lastVisibleEntryIDs: Set<UUID> = []
+    /// （最后一条可见事实信号与最近可见集已于 §132
+    /// 退役，发送空屏诊断 A 案：回底钮显隐改几何单
+    /// 源派生，可见集只余 topVisibleEntryID 一职喂
+    /// 滚动锚存取，见 messageList 的可见性回调注）
+    /// 贴底单一所有者记账（§132）：一切贴底请求经
+    /// scrollToBottom 单口裁决（同帧合并＋全局唯一
+    /// 复贴），判定在 Core BottomStickCoordinator
+    @State private var stickCoordinator = BottomStickCoordinator()
+    /// 所有者在途的唯一复贴任务（新贴底顶替旧任务）
+    @State private var stickRestickTask: Task<Void, Never>?
+    /// 渲染计划缓存（§132 B 案）：按键（Core Chat-
+    /// RenderPlanKey）命中即复用上轮的排序＋分隔＋
+    /// 成组结果，无关状态写入不再全线程重算
+    @State private var renderPlanCache = RenderPlanCache()
+    /// 发送帧打点（§132 D 案）：本轮发送的起手时刻
+    /// ——落盘→链接、首帧复核、发送→落定三段读数经
+    /// ChatDiagTrace 留痕供真机复验对读数；无在飞
+    /// 发送时为 nil、不留痕
+    @State private var sendFrameStartedAt: Date?
+    /// 发送帧首帧复核读数是否已留痕（每轮只记一笔）
+    @State private var sendFrameRestickLogged = false
     /// 最近一次实测距底（0.36.13，修法 1 落定复贴）：
     /// 与 isNearBottom 同出 onScrollGeometryChange
     /// 一路——迟滞判定消费它之外，原始读数另存一份
@@ -202,8 +209,7 @@ struct ChatView: View {
     /// 处判定永不分叉
     private var isAtBottomForUnread: Bool {
         !BottomFollowPolicy.showsScrollToBottomButton(
-            isNearBottom: isNearBottom,
-            lastEntryVisible: lastEntryVisible
+            isNearBottom: isNearBottom
         )
     }
 
@@ -214,8 +220,7 @@ struct ChatView: View {
     private var showsBackToBottomButton: Bool {
         currentThread != nil
             && BottomFollowPolicy.showsScrollToBottomButton(
-                isNearBottom: isNearBottom,
-                lastEntryVisible: lastEntryVisible
+                isNearBottom: isNearBottom
             )
     }
 
@@ -1098,11 +1103,12 @@ struct ChatView: View {
 
     private func bottomBar(_ proxy: ScrollViewProxy) -> some View {
         // 0.36.5（审计 bug 2 短修）：钮显隐走 Core 政
-        // 策——几何判定离底之外并入事实信号（最后一
-        // 条已可见即在底），治估算距离驻留迟滞带的永
-        // 不消失；显隐派生已提为全页单一出处 shows-
-        // BackToBottomButton（本函数不再自算）；未读
-        // 计数于 0.41.0 落地（AwayUnreadCounter），
+        // 策——当时是几何判定离底之外并入事实信号；
+        // §132 改判几何单源（事实信号链退役，见
+        // BottomFollowPolicy §132 注，迟滞带晚消失列
+        // 真机待验）；显隐派生已提为全页单一出处
+        // showsBackToBottomButton（本函数不再自算）；
+        // 未读计数于 0.41.0 落地（AwayUnreadCounter），
         // 钮的宿主与落位于 §124 改归本区布局流（输
         // 入舱上方一行，见栈内钮行注）
         return VStack(spacing: OneDayMetrics.spacingS) {
@@ -1128,9 +1134,10 @@ struct ChatView: View {
             // （P-20 正案）。显隐由本行的存在承载：行
             // 高（44 命中域）＋间距的变化随下方容器
             // swap 动画与错误/提示条同口径滑动；显隐
-            // 抖动的护栏在判定层（迟滞双阈值＋末条事
-            // 实信号，0.36.5 钉死），不靠把钮逐出布局
-            // 流——三轮浮层落位病史见 DESIGN §124
+            // 抖动的护栏在判定层（迟滞双阈值，0.36.5
+            // 钉死；末条事实信号已于 §132 退役、显隐
+            // 改几何单源），不靠把钮逐出布局流——三
+            // 轮浮层落位病史见 DESIGN §124
             if showsBackToBottomButton {
                 HStack {
                     Spacer(minLength: 0)
@@ -1153,8 +1160,9 @@ struct ChatView: View {
         // 手段是把钮逐出布局流）；§124 钮回到布局流，
         // 显隐键（showsBackToBottomButton）作第三键
         // 以同口径回归——防摆护栏改由判定层迟滞双阈
-        // 值＋末条事实信号承担（0.36.5 钉死），三轮
-        // 浮层落位的病史与取舍见 §124
+        // 值承担（0.36.5 钉死；末条事实信号已于 §132
+        // 随信号链退役），三轮浮层落位的病史与取舍
+        // 见 §124
         // 0.25.0（动效专包）：条本体淡入淡出、容器
         // 高度同步单调滑动，不再硬跳
         .animation(
@@ -1302,6 +1310,50 @@ struct ChatView: View {
         return items
     }
 
+    /// 渲染计划缓存（§132 B 案）：存上轮的分隔映射
+    /// 与成组计划及命中键——引用型纯记账，不参与呈
+    /// 现判定；键（Core ChatRenderPlanKey）由条目集
+    /// 投影（id／工具卡数据有无／createdAt）＋线程
+    /// ＋当日零点构成，任一失效条件变化即键变、计
+    /// 划重算
+    private final class RenderPlanCache {
+        var key: ChatRenderPlanKey?
+        var dividers: [UUID: String] = [:]
+        var items: [EntryRenderItem] = []
+    }
+
+    /// 本帧渲染计划：先按键查缓存，未命中才走全量
+    /// （sortedEntries 排序＋timelineDividers＋entry-
+    /// RenderItems 三件一并缓存——只缓存其一、另一
+    /// 件每帧现算等于没减负）。键的投影取 thread.
+    /// entries 原始集（未排序）：投影不解码、不排序，
+    /// 键内自带定序（见 Core make）
+    private func renderPlan(
+        for thread: ChatThread
+    ) -> (dividers: [UUID: String], items: [EntryRenderItem]) {
+        let key = ChatRenderPlanKey.make(
+            threadID: thread.id,
+            entries: thread.entries.map {
+                ChatRenderPlanKey.EntryStub(
+                    id: $0.id,
+                    hasToolCardData: $0.toolCardData != nil,
+                    createdAt: $0.createdAt
+                )
+            },
+            dayStamp: Calendar.current.startOfDay(for: Date())
+        )
+        if renderPlanCache.key == key {
+            return (renderPlanCache.dividers, renderPlanCache.items)
+        }
+        let sorted = thread.sortedEntries
+        let dividers = timelineDividers(for: sorted)
+        let items = entryRenderItems(for: sorted)
+        renderPlanCache.key = key
+        renderPlanCache.dividers = dividers
+        renderPlanCache.items = items
+        return (dividers, items)
+    }
+
     /// 直播区渲染计划：按 liveOrder 标记交错思考/工
     /// 具/正文，连续工具标记 ≥2 收成组；标记外的卡
     /// （恢复回填等）按卡序殿后、正文标记缺失时殿后
@@ -1403,12 +1455,11 @@ struct ChatView: View {
                     // 式行/流内工具卡是当前回合的呈现层尾
                     // 巴、不另起分隔（本回合的分隔由其
                     // user 条目承担，见 timelineDividers）
-                    let dividers = timelineDividers(
-                        for: thread.sortedEntries
-                    )
-                    ForEach(
-                        entryRenderItems(for: thread.sortedEntries)
-                    ) { item in
+                    // §132 B 案：渲染计划走缓存单口（排
+                    // 序＋分隔＋成组三件一并按键复用），
+                    // 不再每遍 body 对全线程现算两遍
+                    let plan = renderPlan(for: thread)
+                    ForEach(plan.items) { item in
                         switch item {
                         case .entry(let entry):
                             VStack(
@@ -1416,7 +1467,7 @@ struct ChatView: View {
                                 spacing: OneDayMetrics.spacingS
                             ) {
                                 if let dividerText
-                                    = dividers[entry.id] {
+                                    = plan.dividers[entry.id] {
                                     timelineDivider(dividerText)
                                 }
                                 bubble(entry)
@@ -1649,15 +1700,16 @@ struct ChatView: View {
             // 全出血，见彼处注）
             bottomBar(proxy)
         }
-        // 初始落位兜底（0.36.13，外部核查 community-
-        // solutions-check 第 2 题吸收 vellum PR #21760）：
-        // 声明式锚只管内容首次布局的落点——命令式
-        // scrollTo 在新内容量实前触发会落错位置，无锚
-        // 兜底时首帧可停在顶部。与 scrollTo 不冲突（锚
-        // 只定初始位、后续滚动全归命令式与 .task 定版
-        // 链）；键盘升起/流式跟随的落点误差不归它管、
-        // 仍以 scrollToBottom 的落定复贴为主治
-        .defaultScrollAnchor(.bottom)
+        // （声明式锚 .defaultScrollAnchor 已于 §132
+        // 退役：0.36.13 引入时注称「与 scrollTo 不冲
+        // 突、只管首帧」——发送空屏诊断的外部实证与
+        // 之相左（Apple Developer Forums thread/
+        // 741406：LazyVStack＋defaultScrollAnchor＋命
+        // 令式 scrollTo 并存是聊天类重入空白的经典组
+        // 合；Tactic Remote 的 scrollTo livelock 受控
+        // 复现），冲突时以外部实证为准、旧注作废。首
+        // 帧落位由下方 .task 定版链单点承担（0.22.0：
+        // 无存量滚动锚的线程出现一拍后无动画贴底））
         .scrollDismissesKeyboard(.interactively)
         // 距底距离回写（0.4.2，§27）：判定改迟滞双阈值
         // （OneDayCore.BottomProximity：进入 <96／退出
@@ -1672,17 +1724,29 @@ struct ChatView: View {
         } action: { _, distance in
             // 0.36.13：原始读数另存一份喂落定复贴复核
             // （见 lastBottomDistance 注）
-            lastBottomDistance = distance
-            isNearBottom = BottomProximity.update(
+            // §132：两处回写加等值守卫——几何回调在滚
+            // 动中逐帧到达，值未变的回写不许再触发一
+            // 轮 body 重算（距底读数在静止期恒同值）
+            if lastBottomDistance != distance {
+                lastBottomDistance = distance
+            }
+            let proximity = BottomProximity.update(
                 distance: distance, wasNearBottom: isNearBottom
             )
+            if proximity != isNearBottom {
+                isNearBottom = proximity
+            }
         }
         // 列表可视高回写（0.3.5）：喂内容栈的撑满
         // minHeight（点空白收键盘命中域，见栈内撑满注）
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.containerSize.height
         } action: { _, newHeight in
-            listViewportHeight = newHeight
+            // §132：等值守卫——可视高只在键盘/旋转等场
+            // 景变，逐帧同值回写纯属空转
+            if listViewportHeight != newHeight {
+                listViewportHeight = newHeight
+            }
         }
         // 「点空白收键盘」手势在内容栈上（见 messageList 内注），
         // 不挂 ScrollView 本体——其命中域含发送舱 inset
@@ -1696,43 +1760,39 @@ struct ChatView: View {
             if isNearBottom {
                 scrollToBottom(proxy, animated: false)
             }
-            // 0.36.13（诊断 §2.3 堵洞 3）：条目变化时用
-            // 存量可见集主动重算事实信号——末条刚落盘
-            // 而可见集未再变化时，旧实现持上一条的判定
-            // 不动，钮显隐可长期错位
-            refreshLastEntryVisible()
-            // 0.41.0：未读计数同路喂入（先刷新事实信号、
-            // 再按新判定计账，顺序不可反）
+            // （0.36.13 的事实信号重算已于 §132 随信
+            // 号链退役：显隐改几何单源，本路不再重算
+            // 任何可见集派生量）
+            // 0.41.0：未读计数同路喂入（在底事实由几
+            // 何派生，见 isAtBottomForUnread）
             feedAwayUnread()
         }
         // 0.7.0（M1 轻保活）：首个可见条目回写（UUID 型
         // id 只有消息条目持有，流式行/底部锚是字符串 id、
         // 不在此列）
-        // 0.36.5（审计 bug 2）：同批回写事实信号——最
-        // 后一条条目在不在可见集内（喂回底钮政策判定，
-        // 见 topVisibleEntryID 同处与 BottomFollow-
-        // Policy）；线程为空时恒 false
-        // 0.36.13（诊断 §2.3 堵洞 1＋3）：判定改查「最
-        // 后一个渲染项的滚动目标 id」（Core LastScroll-
-        // Target，与渲染成组同构——末条在工具组内时目
-        // 标是组首条，旧实现拿末条 id 比可见集永假）；
-        // 可见集先存档，事实信号由 refreshLastEntry-
-        // Visible 单点算（可见集变化与条目变化两路共用）
+        // §132 降权定版（发送空屏诊断 A 案）：可见集
+        // 只余「滚动锚存取」一职——topVisibleEntryID
+        // 供切线程时存锚（恢复走 currentThreadID 的
+        // onChange）。0.36.5/0.36.13 的末条事实信号
+        // （lastEntryVisible/refreshLastEntryVisible）
+        // 与 0.41.0 的可见集喂未读两路均已退役：显隐
+        // 与计数改几何单源（见 BottomFollowPolicy
+        // §132 注）；回写加等值守卫，同值不再触发重
+        // 算。scrollTargetLayout 本体保留——锚存取的
+        // id 回报靠它
         .onScrollTargetVisibilityChange(idType: UUID.self) { ids in
-            topVisibleEntryID = ids.first
-            lastVisibleEntryIDs = Set(ids)
-            refreshLastEntryVisible()
-            // 0.41.0：可见集变化是在底事实的另一路输入
-            // （用户手动滚回底部即清零、滚离即冻结水位）
-            feedAwayUnread()
+            if topVisibleEntryID != ids.first {
+                topVisibleEntryID = ids.first
+            }
         }
         // 0.36.5（审计 bug 1）：发送贴底——send() 落盘
-        // 且链接成功后递增令牌，本处执行三步：置真跟
+        // 且链接成功后递增令牌，本处执行两步：置真跟
         // 随态（Core 政策：自己发送无条件贴底，其后
-        // 流式跟随与落定跟随自动接续）、即时无动画贴
-        // 底、120ms 延迟复贴一次（等发送舱塌缩动画与
-        // LazyVStack 布局落定后校正落点，与本文件既
-        // 有 80/120/300ms 复贴模式同族）
+        // 流式跟随与落定跟随自动接续）、经单一所有者
+        // 即时无动画贴底。§132 前本处在所有者的内置
+        // 复贴之外自外加一层 120ms 复贴——双层复贴
+        // 连发是发送空屏的成因链之一，已删；复贴全
+        // 局只剩所有者一层（BottomStickCoordinator）
         .onChange(of: sendPinToken) { _, _ in
             // 0.41.0：自发发送清未读账（Core 口径：发送
             // 无条件贴底、水位推到当前末条）
@@ -1741,12 +1801,6 @@ struct ChatView: View {
             )
             isNearBottom = BottomFollowPolicy.nearBottomAfterOwnSend()
             scrollToBottom(proxy, animated: false)
-            let pinnedThreadID = currentThreadID
-            Task {
-                try? await Task.sleep(for: .milliseconds(120))
-                guard currentThreadID == pinnedThreadID else { return }
-                scrollToBottom(proxy, animated: false)
-            }
         }
         // 0.7.0（M1 轻保活）：滚动位置随线程存锚——切走
         // 记当前锚（在底记 atBottom、否则记首个可见条目），
@@ -1765,11 +1819,16 @@ struct ChatView: View {
                     for: oldID
                 )
             }
-            // 0.36.13：可见集与事实信号是上一线程的家
-            // 当——切入先清零，新线程的可见性回调随布
-            // 局落定自会重填，不拿旧集判新线程的末条
-            lastVisibleEntryIDs = []
-            lastEntryVisible = false
+            // §132：贴底在途状态与发送打点是上一线程
+            // 的家当——切入先作废协调者、取消挂账复贴
+            // 任务、清打点标记，防旧线程的复贴与读数
+            // 落到新线程头上（可见集状态已随信号链退
+            // 役，不再有旧集可清）
+            stickCoordinator.invalidate()
+            stickRestickTask?.cancel()
+            stickRestickTask = nil
+            sendFrameStartedAt = nil
+            sendFrameRestickLogged = false
             // 0.41.0：未读账同属上一线程家当——水位与
             // 计数一并清零，新线程从零起算
             awayUnread.resetAll()
@@ -1866,55 +1925,71 @@ struct ChatView: View {
         }
     }
 
-    /// 事实信号单点重算（0.36.13，诊断 chat-bottom-
-    /// geometry §2.3）：以最后一个渲染项的滚动目标
-    /// id（Core LastScrollTarget，与 entryRenderItems
-    /// 的成组规则同构）查存量可见集——可见集变化与
-    /// 条目数变化两路都经此一处，判定口径不再分叉；
-    /// 线程为空/无条目恒 false
-    private func refreshLastEntryVisible() {
-        guard let entries = currentThread?.sortedEntries,
-              let lastID = LastScrollTarget.lastScrollTargetID(
-                  entries: entries.map {
-                      LastScrollTarget.EntryStub(
-                          id: $0.id, isToolCard: $0.toolCard != nil
-                      )
-                  }
-              )
-        else {
-            lastEntryVisible = false
-            return
-        }
-        lastEntryVisible = lastVisibleEntryIDs.contains(lastID)
-    }
-
-    /// 滚到底部锚点。animated=true 只给人发起的滚动
-    /// （回到底部钮、键盘锚底）：走页面过渡曲线滑过
-    /// 去；内容跟随（新条目落地、流式生长）必须
-    /// animated=false 一步贴合当前底部——0.4.2 定因：
-    /// 带动画的 scrollTo 追逐随内容生长不断移动的锚
-    /// 点，是划到底抖动的主因（§27）
-    /// 0.36.13（诊断修法 1，落定复贴收口）：一切出口
-    /// 在贴底后一拍（120ms，与发送路径既有复贴同
-    /// 延迟）复核实测距底——LazyVStack 按估算总高落
-    /// 点、尾行未量实时落点离真底可差数十 pt；一拍
-    /// 后尾行已被量实，距底仍 >24pt（Core Bottom-
-    /// Settle）才以无动画再贴一次（只贴一次、不成
-    /// 环）。键盘锚底、条目/流式跟随、发送贴底、线
-    /// 程恢复、首屏定版全经此一处收口受益；线程在
-    /// 等待间隙被切走则作废
+    /// 滚到底部锚点——全列表唯一的贴底所有者（§132
+    /// 收口，发送空屏诊断 A 案）：六路触发（条目数
+    /// 变化／发送令牌／流式跟随／键盘两路／首帧定
+    /// 版／线程恢复）与回底钮一律经此一口，不许直
+    /// 呼 performScrollToBottom。animated=true 只给
+    /// 人发起的滚动（回到底部钮、键盘锚底）：走页面
+    /// 过渡曲线滑过去；内容跟随必须 animated=false
+    /// 一步贴合当前底部——带动画的 scrollTo 追逐随
+    /// 内容生长不断移动的锚点，是划到底抖动的主因
+    /// （0.4.2 定因，§27，口径不变）。
+    /// 所有者职责（判定在 Core BottomStickCoordi-
+    /// nator，钉测把守）：同帧重复请求合并为一贴；
+    /// 复贴全局只挂一笔——新贴底顶替旧复贴、复贴至
+    /// 多消费一次、切线程作废。复贴本体沿 0.36.13
+    /// 量实原理：贴底后 120ms 复核实测距底，尾行已
+    /// 量实后距底仍 >24pt（Core BottomSettle）才以
+    /// 无动画再贴一次；§132 前发送令牌路在这一层之
+    /// 外自带第二层复贴（一次发送连发 3–5 贴），已
+    /// 删，现全局只此一层
     private func scrollToBottom(
         _ proxy: ScrollViewProxy, animated: Bool = true
     ) {
-        performScrollToBottom(proxy, animated: animated)
-        let pinnedThreadID = currentThreadID
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
-            guard currentThreadID == pinnedThreadID else { return }
-            guard BottomSettle.shouldRestick(
-                distance: lastBottomDistance
-            ) else { return }
-            performScrollToBottom(proxy, animated: false)
+        switch stickCoordinator.requestStick(
+            at: Date().timeIntervalSince1970
+        ) {
+        case .coalesced:
+            // 同帧已贴、复贴挂账中：落点由挂账复贴在
+            // 120ms 处校正，本路不再连发
+            return
+        case .perform(let generation):
+            performScrollToBottom(proxy, animated: animated)
+            stickRestickTask?.cancel()
+            let pinnedThreadID = currentThreadID
+            stickRestickTask = Task { @MainActor in
+                try? await Task.sleep(
+                    for: .milliseconds(
+                        BottomStickCoordinator
+                            .restickDelayMilliseconds
+                    )
+                )
+                guard !Task.isCancelled,
+                      currentThreadID == pinnedThreadID,
+                      stickCoordinator.consumeRestick(
+                          generation: generation
+                      )
+                else { return }
+                let shouldRestick = BottomSettle.shouldRestick(
+                    distance: lastBottomDistance
+                )
+                // §132 D 案打点：发送帧的首帧复核读数
+                // （复核距底＋距发送耗时），每轮只记一笔
+                if let started = sendFrameStartedAt,
+                   !sendFrameRestickLogged {
+                    sendFrameRestickLogged = true
+                    ChatDiagTrace.record(
+                        "发送打点 首帧复核 距底"
+                            + " \(Int(lastBottomDistance))pt"
+                            + " 复贴 \(shouldRestick)"
+                            + " 距发送 "
+                            + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
+                    )
+                }
+                guard shouldRestick else { return }
+                performScrollToBottom(proxy, animated: false)
+            }
         }
     }
 
@@ -3993,6 +4068,12 @@ private struct ComposerBarLayout: Layout {
         let seedSnapshot = Self.seedEntries(of: thread)
         let imageDatas = pending.compactMap(\.imageData)
         let filePayloads = pending.compactMap(\.filePayload)
+        // §132 D 案打点：发送帧起手时刻（条目落盘前）
+        // ——落盘→链接、首帧复核、发送→落定三段读数
+        // 以此为零点（记账点见 sendPinToken 递增处、
+        // 复贴复核点与 applySettledTurn 入口）
+        sendFrameStartedAt = Date()
+        sendFrameRestickLogged = false
         let newEntry = ChatEntry(
             role: "user", content: text, thread: thread,
             imageData: imageDatas.first, quote: quote
@@ -4192,8 +4273,16 @@ private struct ComposerBarLayout: Layout {
             }
             // 0.36.5（审计 bug 1）：链接已成、条目确定
             // 留下——递增发送贴底令牌，messageList 侧
-            // 执行贴底三步。链接失败的回滚分支（上方
+            // 执行贴底两步。链接失败的回滚分支（上方
             // catch 删条目）与停止分支都到不了这里
+            // §132 D 案打点：落盘→链接一段（链接成功
+            // 才走到这里，读数只记成功轮）
+            if let started = sendFrameStartedAt {
+                ChatDiagTrace.record(
+                    "发送打点 落盘→链接 "
+                        + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
+                )
+            }
             sendPinToken += 1
             // 0.31.0：发送通道迁 /v1/runs——会话模式的
             // 载荷只取尾条这点不变（历史在服务端会话
@@ -5095,6 +5184,19 @@ private struct ComposerBarLayout: Layout {
         thread: ChatThread, entry: RunLedgerEntry,
         settled: SettledRunTurn
     ) {
+        // §132 D 案打点：发送→落定全程一段（仅用户
+        // 在飞发送的落定轮有起点；恢复轮与后台轮无
+        // 起点、不记）。入口先记先清：失败分支同样
+        // 消费读数，不许残留起点污染下一轮
+        if entry.threadID == thread.id,
+           let started = sendFrameStartedAt {
+            ChatDiagTrace.record(
+                "发送打点 发送→落定 "
+                    + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
+            )
+            sendFrameStartedAt = nil
+            sendFrameRestickLogged = false
+        }
         runMachine.apply(.transcriptSettled)
         let phase = runMachine.phase
         deleteTurnPartialEntries(thread: thread, entry: entry)

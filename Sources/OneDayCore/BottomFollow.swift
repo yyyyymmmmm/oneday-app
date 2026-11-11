@@ -38,25 +38,33 @@ public enum BottomProximity {
 ///   无任何贴底动作、跟随又被 isNearBottom 门控，用
 ///   户上滑回看时发送，自己的消息与整段回复全被挡
 ///   在视外（审计 bug 1）。
-/// - 回底钮显隐除几何判定外并入事实信号「最后一条
-///   条目已在可见集内」：距底距离取自 LazyVStack 的
-///   估算总高，长线程误差可把估算距离驻留在迟滞带
-///   （96…176）内——用户已划到视觉底部、最后一条
-///   肉眼可见，几何却仍报离底，钮永不消失（审计
-///   bug 2）。事实信号只参与钮显隐，不改跟随门控
-///   与滚动锚口径。
+/// - 回底钮显隐（§132 改判，发送空屏诊断 A 案）：
+///   0.36.5 曾并入事实信号「最后一条条目已在可见
+///   集内」纠偏几何估算（审计 bug 2）——该信号的
+///   代价是 scrollTargetLayout 可见集每次滚动都回
+///   写多枚 @State、与条目变化两路全量重算事实信
+///   号，是发送空屏的成因链之一。§132 按外部实证
+///   （成熟 SwiftUI 客户端不用 scrollTargetLayout
+///   ＋可见集回写）把信号链整条退役：钮显隐只由距
+///   底几何（BottomProximity 迟滞双阈值）单源派
+///   生，「钮不显即在底」成为唯一口径。如实记风
+///   险：长线程估算距离驻留迟滞带时钮可能晚消失，
+///   以尾行量实后几何收敛＋复贴校正兜底，真机复验
+///   见 DESIGN §132 待验条。
 public enum BottomFollowPolicy {
     /// 发送落盘成功后 isNearBottom 的目标值：恒真
     /// ——置真后流式跟随与落定跟随自动接续，发送路
-    /// 径只需再补即时贴底＋延迟复贴两步（视图层）
+    /// 径只需再补一步即时贴底（复贴归 BottomStick-
+    /// Coordinator 单点，视图层）
     public static func nearBottomAfterOwnSend() -> Bool { true }
 
-    /// 回底钮显隐：几何判定离底、且最后一条条目不
-    /// 在可见集内，两条同时成立才显示
+    /// 回底钮显隐（§132 几何单源）：几何判定离底即
+    /// 显示——钮不显即在底，回底钮与未读计数的
+    /// 「在底」事实共用本派生、永不分叉
     public static func showsScrollToBottomButton(
-        isNearBottom: Bool, lastEntryVisible: Bool
+        isNearBottom: Bool
     ) -> Bool {
-        !isNearBottom && !lastEntryVisible
+        !isNearBottom
     }
 }
 
@@ -93,7 +101,9 @@ public struct StreamFollowGate: Equatable {
 }
 
 /// 最后一个渲染项的滚动目标 id（0.36.13，诊断
-/// chat-bottom-geometry §2.3 事实路堵洞）：回底钮的
+/// chat-bottom-geometry §2.3 事实路堵洞；§132 起
+/// App 侧消费退役——事实信号链随发送空屏诊断 A 案
+/// 拆除，本函数与钉测保留在 Core 备查）：回底钮的
 /// 事实信号「最后一条已可见」旧实现拿条目数组的末
 /// 条 id 去比可见集——但渲染经成组分流：末条若是
 /// ≥2 条连续工具条目组的成员，该组的滚动目标 id

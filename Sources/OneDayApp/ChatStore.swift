@@ -137,12 +137,30 @@ final class ChatEntry {
         self.thread = thread
     }
 
-    /// 工具卡 payload 解码（无或损坏为 nil）
+    /// 工具卡解码缓存（§132 B 案，非持久化）：旧形
+    /// 态 toolCard 是计算属性、每次访问现解码——一遍
+    /// 列表 body 内每条工具条目被解码 2–3 次（成组
+    /// 走查／分隔过滤／气泡渲染），外加事实信号的全
+    /// 量走查，是发送帧全量重算的一环。缓存以源数
+    /// 据本体为失效键：toolCardData 变更（落定回填、
+    /// 导入覆写）即源不等、自动重解；解码失败（损坏
+    /// 数据）同样入缓存，不许每帧重试解码
+    @Transient var toolCardCacheValue: ToolCard? = nil
+    @Transient var toolCardCacheSource: Data? = nil
+
+    /// 工具卡 payload 解码（无或损坏为 nil；结果按
+    /// 源数据缓存，见 toolCardCacheSource）
     var toolCard: ToolCard? {
         guard let toolCardData else { return nil }
-        return try? JSONDecoder().decode(
+        if toolCardCacheSource == toolCardData {
+            return toolCardCacheValue
+        }
+        let decoded = try? JSONDecoder().decode(
             ToolCard.self, from: toolCardData
         )
+        toolCardCacheValue = decoded
+        toolCardCacheSource = toolCardData
+        return decoded
     }
 
     /// 服务端图片路径（历史导入消息用）
