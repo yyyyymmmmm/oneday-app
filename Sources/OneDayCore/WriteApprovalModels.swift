@@ -137,6 +137,12 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     public let memTarget: String?
     /// 内容预览（桥截断至 120 字，模板再收口）
     public let contentPreview: String?
+    /// 时序关联锚点（§156，伴生 1.0.19 起）：桥在出口
+    /// 按暂存时刻对表 state.db 算出的发起会话；null＝
+    /// 未关联（并列/无候选/oneday_app 直判），旧桥无
+    /// 此字段解码为 nil——App 据此点达原对话，缺失时
+    /// 如实降级、不许假定位（见 ApprovalAnchor）
+    public let anchor: WriteGateAnchor?
 
     enum CodingKeys: String, CodingKey {
         case id, subsystem, action, summary, origin, payload
@@ -148,6 +154,7 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         case opKinds = "op_kinds"
         case memTarget = "mem_target"
         case contentPreview = "content_preview"
+        case anchor
     }
 
     public init(from decoder: Decoder) throws {
@@ -177,6 +184,9 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         contentPreview = try container.decodeIfPresent(
             String.self, forKey: .contentPreview
         )
+        anchor = try container.decodeIfPresent(
+            WriteGateAnchor.self, forKey: .anchor
+        )
         // created_at：桥转 ISO8601 字符串；也宽容 epoch 数值
         if let text = (try? container.decodeIfPresent(
             String.self, forKey: .createdAt
@@ -197,7 +207,8 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         createdAtApprox: Bool = false, payload: JSONValue? = nil,
         op: String? = nil, targetName: String? = nil,
         opCount: Int? = nil, opKinds: [String]? = nil,
-        memTarget: String? = nil, contentPreview: String? = nil
+        memTarget: String? = nil, contentPreview: String? = nil,
+        anchor: WriteGateAnchor? = nil
     ) {
         self.id = id
         self.subsystem = subsystem
@@ -213,6 +224,7 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         self.opKinds = opKinds
         self.memTarget = memTarget
         self.contentPreview = contentPreview
+        self.anchor = anchor
     }
 
     /// 有效动作：桥结构化 op 优先，缺失回落顶层 action

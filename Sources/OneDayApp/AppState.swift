@@ -502,9 +502,22 @@ final class AppState {
     /// 监测段深链：直达的监测 id 与变化 id（变化 id 为
     /// nil 时只达监测详情）
     var monitorDeepLink: (monitorID: String, changeID: String?)?
+    /// 锚点点达请求（§156）：枢纽记录行/通知回执命中本
+    /// 机锚时置位——目标线程＋锚定键（键为 nil＝只切线
+    /// 程不定位）；ChatView 消费（切线程→滚动定位→点
+    /// 亮→清零），与 hubDestinationRequest 分家：锚点
+    /// 落点不在枢纽里、不经枢纽开启接力
+    var approvalAnchorRequest: (
+        threadID: UUID, approvalKey: String?
+    )?
 
-    /// 通知条目落点分发：把落点拆成枢纽各段能消费的
-    /// 字段；返回 false 表示无落点（调用方不导航）
+    /// 通知条目落点分发：把落点拆成各消费方能消费的
+    /// 字段；返回 false 表示无落点（调用方不导航）。
+    /// §156：锚点落点（approvalAnchor/approvalThread）
+    /// 不进 hubDestinationRequest——它由通知页直接切聊
+    /// 天格＋置 approvalAnchorRequest，ChatView 消费；
+    /// 返回 true 表示落点成立（调用方关通知页即可，不
+    /// 走枢纽接力）
     @discardableResult
     func requestHubDestination(
         _ destination: NotificationDestination
@@ -514,6 +527,12 @@ final class AppState {
             hubApprovalFocusID = id
         case .monitorChange(let monitorID, let changeID):
             monitorDeepLink = (monitorID, changeID)
+        case .approvalAnchor(let threadID, let key):
+            approvalAnchorRequest = (threadID, key)
+            return destination.hasDestination
+        case .approvalThread(let threadID):
+            approvalAnchorRequest = (threadID, nil)
+            return destination.hasDestination
         case .approvalHome, .monitorsHome, .none:
             break
         }

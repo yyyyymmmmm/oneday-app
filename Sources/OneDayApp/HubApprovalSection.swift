@@ -21,6 +21,11 @@ struct HubApprovalSection: View {
     let store: AgentHubStore
 
     @Environment(AppState.self) private var appState
+    /// 锚点点达的本地索引来源（§156）：线程表（找锚定
+    /// 条目与会话绑定）——点按解析在 Core
+    /// （ApprovalAnchorNavigation），本段只备数据
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     /// 通知落点聚焦的已决记录 id（§123 H2）：通知中心
     /// 点审批回执达本段时置位，本段消费后滚动定位＋
     /// 行底色点亮，消费即清 AppState 字段防复活
@@ -184,12 +189,112 @@ struct HubApprovalSection: View {
                 .font(.caption)
                 .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(2)
-            Button("查看改动") {
-                diffTarget = record
+            HStack(spacing: OneDayMetrics.spacingM) {
+                Button("查看改动") {
+                    diffTarget = record
+                }
+                // §156（锚点包，规格 §4.4／HUB-1 §154.3
+                // 留口）：记录带锚且本机有对应线程时给
+                // 「查看原对话」——点达发起对话的锚定
+                // 行（未物化时只达对话不定位）；无锚不
+                // 出此钮，不许假定位
+                if hasAnchorTarget(
+                    subsystem: record.subsystem, id: record.id,
+                    anchorSessionID: record.anchor?.sessionId
+                ) {
+                    Button("查看原对话") {
+                        goToAnchor(
+                            subsystem: record.subsystem,
+                            id: record.id,
+                            anchorSessionID: record.anchor?.sessionId
+                        )
+                    }
+                }
             }
             .font(.caption)
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - 锚点点达（§156）
+
+    /// 本机锚索引：一次扫线程表得三份映射（锚定键→线
+    /// 程/条目、服务端会话→线程）。记录量级为个位数、
+    /// 点按时现扫即可，不另立缓存状态
+    private func anchorIndex() -> (
+        materialized: ApprovalAnchorNavigation.MaterializedIndex,
+        threadIDBySession: [String: UUID]
+    ) {
+        let threads = (try? modelContext.fetch(
+            FetchDescriptor<ChatThread>()
+        )) ?? []
+        var threadIDByKey: [String: UUID] = [:]
+        var entryIDByKey: [String: UUID] = [:]
+        var bySession: [String: UUID] = [:]
+        for thread in threads {
+            if let sessionID = thread.serverSessionID,
+               !sessionID.isEmpty {
+                bySession[sessionID] = thread.id
+            }
+            for entry in thread.entries {
+                if let key = entry.approvalKey {
+                    threadIDByKey[key] = thread.id
+                    entryIDByKey[key] = entry.id
+                }
+            }
+        }
+        return (
+            ApprovalAnchorNavigation.MaterializedIndex(
+                threadIDByKey: threadIDByKey,
+                entryIDByKey: entryIDByKey
+            ),
+            bySession
+        )
+    }
+
+    private func anchorTarget(
+        subsystem: WriteGateSubsystem, id: String,
+        anchorSessionID: String?
+    ) -> ApprovalAnchorNavigation.Target {
+        let index = anchorIndex()
+        return ApprovalAnchorNavigation.target(
+            subsystem: subsystem, recordID: id,
+            anchorSessionID: anchorSessionID,
+            threadIDByServerSessionID: index.threadIDBySession,
+            materialized: index.materialized
+        )
+    }
+
+    private func hasAnchorTarget(
+        subsystem: WriteGateSubsystem, id: String,
+        anchorSessionID: String?
+    ) -> Bool {
+        anchorTarget(
+            subsystem: subsystem, id: id,
+            anchorSessionID: anchorSessionID
+        ) != .none
+    }
+
+    /// 点达执行：落点先落 AppState（与通知落点同字段
+    /// approvalAnchorRequest），再关枢纽回聊天格——
+    /// ChatView 消费请求切线程＋定位；解析为 .none 时
+    /// 本函数不出手（钮已按同一解析隐藏，此为防御）
+    private func goToAnchor(
+        subsystem: WriteGateSubsystem, id: String,
+        anchorSessionID: String?
+    ) {
+        switch anchorTarget(
+            subsystem: subsystem, id: id,
+            anchorSessionID: anchorSessionID
+        ) {
+        case .entry(let threadID, let key):
+            appState.approvalAnchorRequest = (threadID, key)
+        case .threadOnly(let threadID):
+            appState.approvalAnchorRequest = (threadID, nil)
+        case .none:
+            return
+        }
+        dismiss()
     }
 
     /// 已决历史行（P10）：只读呈现——类别徽章＋结论
@@ -236,6 +341,22 @@ struct HubApprovalSection: View {
             Text("来源：\(item.originText)")
                 .font(.caption)
                 .foregroundStyle(Palette.inkSecondary)
+            // §156：已决记录同样可点达原对话（呈现与
+            // 聊天内已决行一致：结论＋时间在上方行内已
+            // 备，本钮只补去向、无任何裁决入口）；无
+            // 锚不出钮（任务第 2 件）
+            if hasAnchorTarget(
+                subsystem: item.subsystem, id: item.id,
+                anchorSessionID: item.anchor?.sessionId
+            ) {
+                Button("查看原对话") {
+                    goToAnchor(
+                        subsystem: item.subsystem, id: item.id,
+                        anchorSessionID: item.anchor?.sessionId
+                    )
+                }
+                .font(.caption)
+            }
         }
         .padding(.vertical, 4)
     }

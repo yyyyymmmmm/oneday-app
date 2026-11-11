@@ -117,6 +117,21 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         return response.decisions
     }
 
+    /// 锚点回溯专用（§156）：decisions 桥侧按新近序返回
+    /// 且 8646 读面只取最近一页——50 条窗口外的带锚已
+    /// 决记录（回溯窗 30 天）会被日常历史刷新漏掉，故
+    /// 锚点物化单独走大 limit 拉取，不动日常历史的 50
+    /// 条口径（枢纽历史呈现与角标对账都不受影响）
+    func decisionsForAnchor(
+        config: ServerConfig, limit: Int
+    ) async throws -> [WriteGateDecisionRecord] {
+        let response: WriteGateDecisionsResponse = try await get(
+            config: config, path: "/decisions?limit=\(limit)",
+            endpoint: L10n.string("已决记录")
+        )
+        return response.decisions
+    }
+
     func rules(config: ServerConfig) async throws -> [WriteGateRule] {
         let response: WriteGateRulesResponse = try await get(
             config: config, path: "/rules", endpoint: L10n.string("审批规则")

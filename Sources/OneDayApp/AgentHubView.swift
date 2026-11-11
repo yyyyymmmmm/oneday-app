@@ -210,6 +210,11 @@ struct AgentHubView: View {
                     segment = .approval
                 case .monitorChange, .monitorsHome:
                     segment = .monitors
+                case .approvalAnchor, .approvalThread:
+                    // §156：锚点落点不在枢纽（在原对话
+                    // 里），本请求恒不经枢纽分发——防御
+                    // 性落空，不切段
+                    break
                 case .none:
                     break
                 }
