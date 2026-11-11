@@ -16,31 +16,27 @@ struct MainSessionView: View {
         List {
             Section {
                 // 状态行
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    Text("状态")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .frame(width: 80, alignment: .leading)
+                LabeledContent {
                     Text(statusText)
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
-                        .multilineTextAlignment(.trailing)
-                    Spacer(minLength: 0)
+                } label: {
+                    Text("状态")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .listRowBackground(Palette.surface)
 
                 // 智能体行
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    Text("智能体")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .frame(width: 80, alignment: .leading)
+                LabeledContent {
                     Text(appState.agentDisplayName)
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
-                        .multilineTextAlignment(.trailing)
-                    Spacer(minLength: 0)
+                } label: {
+                    Text("智能体")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
                 .listRowBackground(Palette.surface)
@@ -49,26 +45,28 @@ struct MainSessionView: View {
                 if let sessionID = appState.sideChats.mainServerSessionID,
                    appState.sideChats.mainServerConfirmed,
                    appState.sideChats.mainServerSeeded {
-                    HStack(spacing: OneDayMetrics.spacingSM) {
+                    LabeledContent {
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Text(sessionID)
+                                .font(.metaMonospaced)
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer(minLength: 0)
+                            Button {
+                                UIPasteboard.general.string = sessionID
+                                showCopyToast = true
+                                Haptics.success()
+                            } label: {
+                                Text("复制")
+                                    .font(.rowTitleL)
+                                    .foregroundStyle(Palette.primary)
+                            }
+                        }
+                    } label: {
                         Text("会话 ID")
                             .font(.rowTitleL)
                             .foregroundStyle(Palette.inkSecondary)
-                            .frame(width: 80, alignment: .leading)
-                        Text(sessionID)
-                            .font(.metaMonospaced)
-                            .foregroundStyle(Palette.ink)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer(minLength: 0)
-                        Button {
-                            UIPasteboard.general.string = sessionID
-                            showCopyToast = true
-                            Haptics.success()
-                        } label: {
-                            Text("复制")
-                                .font(.rowTitleL)
-                                .foregroundStyle(Palette.primary)
-                        }
                     }
                     .frame(minHeight: OneDayMetrics.settingsRowHeight)
                     .listRowBackground(Palette.surface)
