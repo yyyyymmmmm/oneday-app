@@ -63,11 +63,13 @@ struct FileOpenContent: View {
     init(
         target: FileOpenTarget,
         origin: FileOpenOrigin = .serverFile,
-        showsCloseButton: Bool = false
+        showsCloseButton: Bool = false,
+        onRequestResend: ((String) -> Void)? = nil
     ) {
         _currentTarget = State(initialValue: target)
         self.origin = origin
         self.showsCloseButton = showsCloseButton
+        self.onRequestResend = onRequestResend
     }
 
     private enum Phase: Equatable {
