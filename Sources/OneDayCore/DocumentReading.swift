@@ -129,8 +129,8 @@ public enum DocumentReading {
         for (index, line) in lines.enumerated() {
             let lineNumber = index + 1
             if line.trimmingCharacters(in: .whitespaces).isEmpty {
-                if let start {
-                    ranges.append(start...(lineNumber - 1))
+                if let currentStart = start {
+                    ranges.append(currentStart...(lineNumber - 1))
                     start = nil
                 }
             } else if start == nil {

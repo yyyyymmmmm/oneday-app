@@ -8328,7 +8328,7 @@ Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发�
 - **§121 落点修订声明**：§121「不可预览点牌直落分享单」收编进中间页——QL 资格门与五分文案机制不变，落点由分享单升级为中间页失败态（unsupportedType＋failureActions）；§116 文件面口径（网关五形态出牌、GBK 转码）不动，牌面形态按 125.1 升卡。
 - FileActionPolicy.category 收名称口径为原语（category(forFileName:mediaKind:)），条目口径委托之、逐格同果（钉测对账）；WorkspaceFileEntry 补公开 memberwise init（解码路径不变）。
 
-### 125.4 表格转码二期（伴生 1.0.14）
+### 125.4 表格转码二期（伴生 1.0.15；版本号顺延注：施工中发现并行线已先行部署 1.0.14，本地原拟 1.0.14 改 1.0.15；源码基线以生产 build-114 的 oneday_bridge.py 实测 diff 对账——本地补丁为纯增 330 行、零删改，恰为超集）
 
 - **端点**：oneday-bridge 新增 GET /files/spreadsheet?path=（Bearer 单钥鉴权走既有 _authed）。路径合规照 Hermes files 下载同规：根锁 /opt/data（SPREADSHEET_ROOT 可覆盖）、不存在 404、非文件 400、敏感 403（名单与 App SensitiveFilePolicy 逐项镜像：protectedNames/敏感扩展/词元＋子串兜底）、超 100MiB 413、旧版 .xls（OLE 魔数）与不可解析 422。
 - **转码口径**：零依赖 stdlib（zipfile＋XML，镜像内无表格库、不新引依赖）；值口径——公式取缓存值、无缓存值渲染空并计数进 notes 如实标注；合并单元格值只在左上格（格式本身如此存，CSV 即此读法，无格式还原）；日期经 styles.xml 数字格式识别渲 ISO（内置日期格式 id 集＋自定义格式码启发式；Excel 序列 60 的虚构 1900-02-29 折叠至 1900-03-01，只读呈现妥协、记账在此）；数字整数去尾 .0。单 sheet 500 数据行截断（total_rows 报实数、truncated 明示，App 侧已显示行数由回带 CSV 实算、上限不写死端上）；sheet 上限 50。
