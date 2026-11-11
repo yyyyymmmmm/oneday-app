@@ -765,7 +765,11 @@ final class MediaEngine: @unchecked Sendable {
                     CheckedContinuation<PlaylistBox, Error>) in
                 let metadata =
                     MPMediaPlaylistCreationMetadata()
-                metadata.name = args.name
+                // Swift 导入把 name 标成只读，底层 ObjC
+                // 属性可写，走 KVC 赋值（同名字段）
+                metadata.setValue(
+                    args.name, forKey: "name"
+                )
                 MPMediaLibrary.default().getPlaylist(
                     with: UUID(),
                     creationMetadata: metadata
@@ -1267,7 +1271,6 @@ enum DeviceComposeBridge {
             self.continuation = continuation
         }
 
-        @MainActor
         func mailComposeController(
             _ controller: MFMailComposeViewController,
             didFinishWith result: MFMailComposeResult,
@@ -2093,14 +2096,14 @@ enum DeviceFilePresenceBridge {
     }
 
     /// 预览协调者：数据源就是这一份文件；用户关掉
-    /// 预览面（DidDismiss）即完成。QuickLook 的数据
-    /// 源/委托协议在现行 SDK 是主 actor 隔离的，协调
-    /// 者整体挂 @MainActor（创建与存取本来就全在主
-    /// actor 任务与锁盒里发生）
-    @MainActor
+    /// 预览面（DidDismiss）即完成。QuickLook 委托要
+    /// 求是非隔离的，协调者照批三协调者正形：非隔离
+    /// ＋@unchecked Sendable，状态只在主线程回调与
+    /// 锁盒内触碰（url 是 let、continuation 只由回
+    /// 调与 finish 动）
     private final class PreviewCoordinator: NSObject,
         QLPreviewControllerDataSource,
-        QLPreviewControllerDelegate {
+        QLPreviewControllerDelegate, @unchecked Sendable {
         private var continuation:
             CheckedContinuation<Void, Error>?
         private let url: URL
