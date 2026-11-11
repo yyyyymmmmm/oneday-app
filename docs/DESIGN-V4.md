@@ -9393,3 +9393,49 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 定版：版本五处同改 0.50.16／138 commit `702fb4b`＋补丁 `1e25cc4`（验包实读发现 Info.plist 直写 CFBundleVersion 漏改 137、已补齐重跑）。发版 CI run **43021211318** jobs 逐项终判 build-native **success**；单测 Executed **1562、0 failures**（0.50.15 的 1527＋文本 13＋多图 5＋管理面 6＋附件修订 11＋顶栏 0 净增*，只增不减；*顶栏包分支口径 1534 相对其基线 0.50.14 的 1517 为 +17，与其余各包同基线增量有重叠口径，发版总账以主线实测 1562 为准）。
 - 验包：IPA 落 ~/workspace/your_files/oneday-v0.50.16/OneDay-0.50.16.ipa：**10,309,008 字节、md5 `ad20469e3e53ad147c9f93d0a57e55d7`**，主线独立解包复核 Info.plist 实读 0.50.16／138／site.didichou.oneday 一致。
 - 真机待验（随本版回收）：§149.6 文本选字清单、§150.5 多图清单、§151 管理面三段与默认作用域文案、§152.6 附件面板修订清单、§153.5 顶栏分组选择与作用域实证五条。
+
+## §154 抽屉容器换 UIKit（用户 2026-11-11 20:58 亲递方案定调，预制未合并）
+
+### 154.1 方案要点与落法
+- 用户方案：保留现有 SwiftUI 页面与底栏，只重做抽屉外层容器——主页面保持完整尺寸整体右移露出侧栏（不是侧栏盖上来）；UIKit 做容器、页面继续 SwiftUI；先位移与安全区、再圆角阴影、不急缩放（第一版不做）。本包逐项照此施工，未另起炉灶。
+- 新文件 Sources/OneDayApp/DrawerContainerView.swift：DrawerContainer（UIViewControllerRepresentable 桥）＋DrawerContainerController（UIKit 本体）。容器内两个长期存在的 UIHostingController：底层 drawerHost（DrawerView，静止）＋前景 contentHost（现有 TabView）；开关抽屉从不重建宿主——聊天滚动位/输入草稿/导航栈/生成中回复的结构性保全点在此。
+- ContentView：调用点 DrawerShell→DrawerContainer（新增 presented 入参＝body 内读 appState.drawerPresented 喂桥，观察在 ContentView 层成立、桥在 update 时对账执行；容器侧变化经 onPresentedChange 回写同一值、guard 防回环）；覆盖式 DrawerShell 结构体整套删除（约 340 行）。fullScreenCover/sheet 等呈现链一字未动（仍挂 ContentView、boldTextMapping 仍挂调用点保覆盖内容继承）。
+- 环境显式注入（方案点名项）：桥读出 AppState/modelContext/locale/reduceMotion，逐项写进两个宿主根视图（.environment(appState)/.environment(\.modelContext)/.environment(\.locale)＋.boldTextMapping()）；宿主不假设环境自动穿透。scenePhase/深色/reduceTransparency 等 trait 派生项由宿主自动获得；语言切换靠 OneDayApp 根 .id(appLanguageRaw) 整树重建、桥与宿主随之新建（与旧壳同口径）。
+
+### 154.2 关键技术点对账
+- 只移不变形：主页面恒按容器全尺寸布局（contentHost.view.frame＝容器 bounds 恒定），位移只写前景 wrapper 的 transform.translationX；拖动期不改宽高约束、不动安全区。0.4.5 推式页卡的病根是变换承载 TabView 本人；本代变换落在容器自有普通 UIView 上，TabView 在宿主内仍是零修饰根级安放——与 0.17.0「TabView 不被包裹」的定案不冲突（包裹层换成宿主＋普通视图、变换不落在 SwiftUI 视图链上）。
+- 圆角与阴影分层：wrapper 只挂阴影（DrawerMotion §3.4 定值：shadowBase、radius 10、offset x −4、alpha＝shadowOpacity(progress) 峰值 0.12；shadowPath 随布局更新），内层 clipView 只管裁切（cornerRadius 走 DrawerMotion.cornerRadius 一步到位：progress>0.02 即 28pt、.continuous 曲线）；阴影不被裁、圆角不带影。
+- 强黑蒙层退役：覆盖形态的 scrim（峰值 0.32）整套删除；分离感由圆角＋柔影＋右侧明亮窄条承担（方案「右侧窄条保持明亮」）。
+- 参数起点（方案给定＝现行 §30 量测口径）：travel＝min(容器宽×0.79, 400)（未随 OneDayMetrics 的 drawerWidthFraction 0.75/drawerMaxWidth 340 令牌改——那组令牌现行壳层本就未消费，合并时如要收口另议）；圆角 28pt。
+- 弹簧对应：Core 新 DrawerSpringTiming——MotionTokens.drawerSpring（interactiveSpring response 0.34/ζ 0.86）的 UIKit 换算唯一口：k＝(2π/response)²≈341.5、c＝2ζ(2π/response)≈31.8（质量 1），UISpringTimingParameters 直接消费；松手初速按 velocity/delta 换算相对初速交接；单测以回算恒等钉死（DrawerSpringTimingTests 3 法）。
+
+### 154.3 手势清单落法
+- 关闭态左缘开：24pt 热区（OneDayMetrics.drawerEdgeZone）上的 UIPan；纵向滚动不被横拖抢走 DrawerMotion 方向锁定（|dx|≥10 且 |dx|≥1.5|dy|）达成前不写任何位移，纵向主导过锁定距即自取消手势。
+- 二级页返回优先：左缘手势经 delegate require 系统 UIScreenEdgePanGestureRecognizer（导航返回手势）先失败——根页该手势即刻失败、不拖慢开抽屉；二级页返回先行（跨宿主仲裁的实际效力列真机待验）。
+- 打开态：前景窄条 UIPan 左拖跟手关（写入走 followedOffset：扣锁定段＋橡皮筋越界）＋点按关（tap require pan 先失败防拖动误触）；松手走 settleOpens（fling 800 直通＋动量投影，UIKit 无 predictedEndTranslation、以速度×0.22s 近似外推增量、判定仍走同一纯函数）。
+- 抽屉面不挂横拖手势：纵滚天然不被抢（与旧壳差异项，见 154.5）。
+- 动画中再拖：stopAnimatorCapturingPresentation——pause 后读 presentation 层 transform.m41 收回位移事实源、finishAnimation(.current) 后由手势接管，无跳变帧（S7 桥接的 UIKit 等价落法；旧壳的 SwiftUI 弹簧重定向退役）。
+- 打开先收键盘（sendAction resignFirstResponder，旧纪律）；开态 contentHost 交互关闭防穿透（offset>0 即断、回 0 恢复）。
+- VoiceOver：归位后 syncAccessibility——开态抽屉出树/内容隐藏、关态反之，发 screenChanged（开→drawerHost.view、关→contentHost.view）；回触发钮（聊天页汉堡钮）本体的精确焦点落点未做（宿主内元素定位待真机方案），列待验。
+
+### 154.4 三轮验收（代码级自查口径；真机帧验随合并后验收单，本包预制不做截图验收、沿既有纪律）
+- 第一轮·纯横移：位移只走 transform、frame 恒全尺寸（viewDidLayoutSubviews 唯一写 frame 处、位移路径零 frame 写入）✓；底栏不下沉/Home Indicator 不重叠——contentHost 安全区由宿主链自 VC 根视图派生、容器未加 additionalSafeAreaInsets、未包 GeometryReader ✓（结构自查，真机终验）；输入框随主页面同移（输入框在 contentHost 内、与底栏同体）✓。
+- 第二轮·圆角阴影：强黑蒙层零残留（grep scrim 在新容器零命中、DrawerMotion.scrimOpacity 仅余 Core 数据与旧记账）✓；圆角 28 一步到位＋阴影分层（wrapper 影/clip 裁）✓。
+- 第三轮·跟手细节：反向拖动（开态左拖/合态右拖同一 followedOffset 双向）✓；动画打断从 presentation 接管 ✓；大字体/深色——宿主 trait 派生、DrawerView/TabView 本体未动 ✓（结构自查）；横竖屏——layout 时 travel 重算、开态无拖无动画位移跟到新 travel、抽屉根按新宽重建 ✓；减少动态效果——reduceMotion 注入容器、归位瞬时 ✓。以上均为代码口径结论，手感与帧级表现以真机待验清单为准、不冒充已验。
+
+### 154.5 与旧 DrawerShell 的行为差异清单
+1. 形态：覆盖滑入（抽屉动、内容静止＋蒙层压暗）→推式（抽屉静止、内容整体右移、无蒙层、右侧明亮窄条）。
+2. 抽屉面横拖关：旧壳抽屉面共用壳层拖拽可拖关 → 新容器抽屉面不挂横拖（关抽屉走窄条拖/点、导航点选、汉堡语义）；纵滚零抢占换来此差。
+3. 挂载语义：旧 S5 预挂载/迟卸载（关静止时抽屉树卸载、零绘制）→ 新双宿主常驻（关时 drawerHost 隐藏＋a11y 出树，但树不卸载）——内存/绘制成本以常驻换状态保全与起步零建树，取舍按用户方案（严禁重建主页面）定。
+4. 动画引擎：SwiftUI withAnimation（MotionTokens.drawerSpring 本体）→ UIViewPropertyAnimator＋换算弹簧（DrawerSpringTiming）；点按开合与手势归位同源一只 animator，桥接由 presentation 接管代弹簧重定向。
+5. 蒙层命中关：旧点蒙层关 → 新点前景窄条关（同一手势位置语义、承载不同）。
+6. 左缘热区：旧 SwiftUI 覆盖条＋simultaneousGesture 预挂载旁听 → 新 UIKit 热区视图＋UIPan，预挂载旁听退役（常驻使起步帧本就零建树）；新增对系统返回手势的 require-failure 让行（旧壳无此仲裁、热区恒优先）。
+7. 不变项：AppState.drawerPresented 语义面、DrawerView 全部回调口径（onClose 先行再 onSelectTab 等行内顺序由 DrawerView 本体维持）、位移三件纯逻辑与定值（锁定 10/1.5、吸附 30%/800、橡皮筋 c 0.55）、travel 与圆角定值、开抽屉先收键盘、.tabBarMinimizeBehavior(.never) 等 TabView 本体口径。
+
+### 154.6 新面准入四问
+①入口：不新增入口——汉堡钮/左缘/语义面全是既有入口，容器是承载替换、用户路径一字不变。②重复：全 App 抽屉承载只此一处，旧 DrawerShell 同批整删、无双壳并存期。③令牌与公用件：位移/吸附/圆角/阴影全消费 DrawerMotion 既有定值，热区宽走 OneDayMetrics.drawerEdgeZone，弹簧走 DrawerSpringTiming 单源换算，底色/影色走 Palette（pageBG/shadowBase）；travel 的 0.79/400 沿现行壳层量测值未入令牌（沿革如此、非本包新造数值）。④AX 与深色：a11y 树随开合切换＋screenChanged 已落（焦点精确落点待真机）；深色靠宿主 trait 与 Palette 语义色、代码口径自查过，真机各一帧列待验。
+
+### 154.7 CI 实证与合并注意
+- CI 两轮：一轮 run 43025770182 failure——唯一 error 为 DrawerContainerView.swift:416 CATransform3D 无 tx 成员（presentation 变换取 tx 应走 m41）；改 m41 后二轮 run 43026410862 jobs API 终判 build-native **success**。单测 Executed **1565、0 failures**（0.50.16 主线口径 1562＋本包 DrawerSpringTimingTests 净增 3，只增不减；xcstrings 本包零新增键——纯容器替换无新文案）。
+- 分支 feat/drawer-uikit-container（worktree pkg-drawer-uikit），基线 main 866a5c8（0.50.16/138 定版顶端）；代码提交 3b049b1＋修复 1 提交。注意：主仓另有附件面板热修（feat/hotfix-attach-panel-05017，基线同为 866a5c8）在飞——其动 ChatView/附件面，与本包动 ContentView/DrawerView 注/新文件，文件面不重叠，合并序由主线定、冲突以主线合裁为准；本包 DESIGN 自记 §154，合并时若被占顺延改注（含代码注释内 §154 字样）。
+- 真机待验清单：①开抽屉底栏不下沉、Home Indicator 区无重叠、输入框可正常聚焦输入（第一轮核心）；②左缘开/窄条点关与左拖关手感、跟手 1:1 无起步跳；③动画中反向抓拖不跳变；④二级页（如设置内页/文件详情）左缘返回手势优先于开抽屉、根页开抽屉不迟滞；⑤抽屉纵滚从名单中段起滑不触发横拖；⑥打开抽屉后聊天滚动位/未发草稿/生成中回复不丢（双宿主常驻实证）；⑦圆角 28 与柔影观感、窄条明亮无黑罩；⑧AX 最大字号档＋深色模式各一帧；⑨横屏/旋转后开态比例与抽屉宽正确；⑩VoiceOver 开关焦点进出抽屉、关后焦点落点；⑪减少动态效果开时归位瞬时无残影。
