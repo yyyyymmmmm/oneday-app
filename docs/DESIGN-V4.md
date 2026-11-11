@@ -8920,4 +8920,4 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 ### 140.6 预制验收记账（2026-11-11）
 
-- 分支 feat/i18n-language：基线 main 15cc649（0.50.10/132）。validate_i18n 本地实跑通过（2640 键）。未合并、版本号未动，待主线按序合并定版。合并后真机待验：切 English 后主面＋设置页＋设备页即时变、杀进程重进保持所选档、切回跟随系统复原；系统权限弹窗/分享单仍随系统语言（区脚口径、非缺陷）。
+- 分支 feat/i18n-language：代码提交 0241d1a，基线 main 15cc649（0.50.10/132）。validate_i18n 本地实跑通过（2640 键）。分支 CI run 42998569663（workflow_dispatch 触发，head 0241d1a）completed success、build-native 单 job 全部 steps 全绿，单测 Executed **1436、0 failures**（基线 1432＋新增 LanguageSwitchTests 4 法，逐法 passed 日志在案；既有测零删改，只增不减）。未合并、版本号未动，待主线按序合并定版。合并后真机待验：切 English 后主面＋设置页＋设备页即时变、杀进程重进保持所选档、切回跟随系统复原；系统权限弹窗/分享单仍随系统语言（区脚口径、非缺陷）。
