@@ -2,92 +2,36 @@ import OneDayCore
 import XCTest
 
 /// §117 对标包（0.47.0）呈现口径钉测：点子 emoji 解
-/// 析（桥值优先、按锚点 kind 兜底）、deliverables 容
-/// 缺解码与小节呈现判定、动态帖 emoji 容缺解码与行
-/// 内全文呈现判定。旧载荷（无新字段）一律不炸。
+/// 析（桥值优先、§177 改判后缺失统一 💡 兜底）、
+/// deliverables 容缺解码与小节呈现判定、动态帖
+/// emoji 容缺解码与行内全文呈现判定。旧载荷（无新
+/// 字段）一律不炸。
 final class MuseAlign117Tests: XCTestCase {
 
     // MARK: - 点子 emoji
 
     func testIdeaEmojiBridgeValueWins() {
         XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: "💍", evidenceRef: "S1",
-                anchorId: nil, source: .generated
-            ),
+            IdeaEmoji.resolve(emoji: "💍"),
             "💍"
         )
         // 桥值带空白先裁再用
         XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: " 📄 ", evidenceRef: nil,
-                anchorId: nil, source: .manual
-            ),
+            IdeaEmoji.resolve(emoji: " 📄 "),
             "📄"
         )
     }
 
-    func testIdeaEmojiFallsBackByAnchorKind() {
-        XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: nil, evidenceRef: "S2",
-                anchorId: nil, source: .generated
-            ),
-            "💬"
-        )
-        XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: nil, evidenceRef: nil,
-                anchorId: "G:g_1", source: .generated
-            ),
-            "🎯"
-        )
-        XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: "", evidenceRef: "M1",
-                anchorId: nil, source: .generated
-            ),
-            "📡"
-        )
-        XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: nil, evidenceRef: "K3",
-                anchorId: nil, source: .generated
-            ),
-            "✅"
-        )
-        XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: nil, evidenceRef: "R1",
-                anchorId: nil, source: .generated
-            ),
-            "🧠"
-        )
-        // anchorId 优先于 evidenceRef
-        XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: nil, evidenceRef: "S1",
-                anchorId: "K:t_1", source: .generated
-            ),
-            "✅"
-        )
-    }
-
-    func testIdeaEmojiManualAndUnknown() {
-        XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: nil, evidenceRef: nil,
-                anchorId: nil, source: .manual
-            ),
-            "✏️"
-        )
-        XCTAssertEqual(
-            IdeaEmoji.resolve(
-                emoji: nil, evidenceRef: "X9",
-                anchorId: nil, source: .generated
-            ),
-            "💡"
-        )
+    /// §177 改判：兜底不再按锚点来源分档（旧
+    /// testIdeaEmojiFallsBackByAnchorKind 与
+    /// testIdeaEmojiManualAndUnknown 断言的 💬/🎯/
+    /// 📡/✅/🧠/✏️ 分档口径随用户 2026-11-12 亲定
+    /// 退役）——缺失形态只有一种结果 💡
+    func testIdeaEmojiFallbackIsUnified() {
+        XCTAssertEqual(IdeaEmoji.resolve(emoji: nil), "💡")
+        XCTAssertEqual(IdeaEmoji.resolve(emoji: ""), "💡")
+        XCTAssertEqual(IdeaEmoji.resolve(emoji: "   "), "💡")
+        XCTAssertEqual(IdeaEmoji.fallback, "💡")
     }
 
     // MARK: - 点子新字段解码

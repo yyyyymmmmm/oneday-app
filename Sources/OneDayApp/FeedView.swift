@@ -5,15 +5,21 @@ import SwiftUI
 /// 动态格（P3，0.35.0；0.38.0 换代）：形态按设计档
 /// 第三章向 Muse 动态页收——帖子扁平排版（kind
 /// 瓷砖＋标题＋正文摘＋真图缩略＋refs 蓝字内链＋相
-/// 对时间）、按日分组。
+/// 对时间）、单条时间流（§177 撤日期分组：无「今
+/// 天/昨天」小节、纯发布时间序，与 Muse 一致）。
 /// 紧凑化（§126，用户 2026-11-11 13:24/13:37 拍
 /// 板）：顶部简报胶囊行整行删除（§117 胶囊口径作
 /// 废），简报设置只归工具栏滑杆钮；一切未读提醒面
 /// 撤下（底栏角标/行内蓝点/动作行未读文字，§104/
 /// §117 未读口径作废）——已读回写与 readAt 保留为
 /// 静默账本，只停提醒面、不停账本；搜索改工具栏
-/// 点开式（.toolbar 落点，不再常驻一行）；日期段
-/// 几何收编令牌、列表顶距改条件化（见 topMargin）。
+/// 点开式（.toolbar 落点，不再常驻一行）；列表顶
+/// 距改条件化（见 topMargin）。§177：帖面不单独设
+/// 色——根 List 与点子页同口径隐藏系统滚动底、透
+/// 出页面底 pageBG，帖行同色（此前本页根 List 没
+/// 隐藏系统滚动底，列表区被系统默认底罩住、与页
+/// 底 #FCFCFC 两色；同为 List 形态的点子页早有此
+/// 口径，本页此前独缺）。
 /// 数据口径：双生产者在桥端（段一确定性汇编＋段二
 /// 简报驱动的调研五步链），App 只读＋已读回写；已
 /// 读以服务端 readAt 为真源。简报两层在编辑器里分
@@ -181,7 +187,7 @@ struct FeedView: View {
             List {
                 // 简报胶囊行已整行删除（§126）：简报
                 // 入口只剩工具栏滑杆钮；动态不再有占
-                // 行的页头横幅，标题之下直接是日期分组
+                // 行的页头横幅，标题之下直接是帖流
                 if isSearching, visiblePosts.isEmpty {
                     Section {
                         ContentUnavailableView(
@@ -192,21 +198,28 @@ struct FeedView: View {
                     }
                 }
 
-                ForEach(visibleDayGroups, id: \.title) { group in
+                // §177：单条时间流——一个无头 Section
+                // 盛全部帖（FeedBoard.sorted 纯时间
+                // 序）；日期分组与分组头整套撤下（用
+                // 户亲定「不要今天、昨天这些时间」）
+                if !visiblePosts.isEmpty {
                     Section {
-                        ForEach(group.posts) { post in
+                        ForEach(FeedBoard.sorted(visiblePosts)) { post in
                             postRow(post)
                         }
-                    } header: {
-                        dateGroupHeader(group.title)
                     }
                 }
             }
             .listStyle(.plain)
-            // 日期段间距收编（§126）：段间走令牌
-            // spacingM——此前未设 listSectionSpacing、
-            // 段头无自定义几何，约 62pt 系统默认段距
-            // 无人拥有（调研量测死空二的主体）
+            // §177：帖面与页面同色——与点子页同口径
+            // 隐藏 List 系统滚动底、透出页面底（外层
+            // Group 已挂 pageBG），帖行再以
+            // listRowBackground 同色钉死（postRow）
+            .scrollContentBackground(.hidden)
+            .background(Palette.pageBG)
+            // 分区间距（§126 令牌口径保留）：现行只
+            // 余搜索空态段与帖流段两段，段距仍走令牌
+            // spacingM，不回系统默认
             .listSectionSpacing(OneDayMetrics.spacingM)
             .contentMargins(.top, topMargin, for: .scrollContent)
             // 搜索点开式（§126）：落点改工具栏——点
@@ -238,9 +251,10 @@ struct FeedView: View {
         }
     }
 
-    /// 搜索过滤（0.47.0）：标题或正文命中即留；分组
-    /// 与全量同走 FeedBoard 唯一口径（store.dayGroups
-    /// 同一函数），不另立分组逻辑
+    /// 搜索过滤（0.47.0）：标题或正文命中即留；排
+    /// 序与全量同走 FeedBoard.sorted 唯一口径（单条
+    /// 时间流，§177 起不再经 dayGroups 分组——该函
+    /// 数保留在 Core 仅作口径存档，不再有呈现调用方）
     private var visiblePosts: [BridgeFeedPost] {
         let query = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -250,26 +264,6 @@ struct FeedView: View {
             $0.title.localizedCaseInsensitiveContains(query)
                 || $0.body.localizedCaseInsensitiveContains(query)
         }
-    }
-
-    private var visibleDayGroups: [FeedBoard.DayGroup] {
-        FeedBoard.dayGroups(
-            FeedBoard.sorted(visiblePosts), now: Date()
-        )
-    }
-
-    /// 日期分组头（§126）：几何收编——系统默认段
-    /// 头在此前的量测里贡献约 62pt 无主空段；改自
-    /// 定义 header 后，上下 padding 走令牌 spacingXS
-    /// 显式定值，字阶与配色对齐原系统段头呈现（次色
-    /// semibold），不另造字号。header 布局底到首行
-    /// 内容顶不另加距：帖行自身顶部 spacingS 只计
-    /// 一次（见 postRow）
-    private func dateGroupHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Palette.inkSecondary)
-            .padding(.vertical, OneDayMetrics.spacingXS)
     }
 
     /// 帖子行（0.47.0 §117 对标形态）：内容 emoji 大
@@ -364,6 +358,9 @@ struct FeedView: View {
             }
         }
         .padding(.vertical, OneDayMetrics.spacingS)
+        // §177：帖面与页面同色（与列表滚动底口径成
+        // 对，见 readyContent 注）
+        .listRowBackground(Palette.pageBG)
         .onAppear {
             markRead(post)
         }

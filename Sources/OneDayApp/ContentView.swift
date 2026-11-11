@@ -144,10 +144,11 @@ struct ContentView: View {
     /// 拍板「动态不要提醒」）：0.38.0 的壳层 feedUnread
     /// 状态与动态角标轮询退役；已读账本（readAt/回写）
     /// 保留在 FeedStore/桥侧静默运行，只停提醒面、
-    /// 不停账本。桥客户端不随之退役——§123（M3）点
-    /// 子角标的 30 秒轮询仍经它读 /ideas（见下方
-    /// pollIdeasBadge），合并对账见 DESIGN §126.10
-    private let feedBadgeClient = OneDayBridgeClient()
+    /// 不停账本。§177（用户 2026-11-12 亲定点子不要
+    /// 待阅呈现）：§123 M3 点子底栏角标随之整套退役
+    /// ——角标轮询、AppState 水位与 .badge 一并下线，
+    /// 本客户端不再为任何角标取数（合并对账见
+    /// DESIGN §126.10 与 §177）
     /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
     /// 理全部对话」行置位，全屏页自带导航栈呈现
     @State private var showAllConversations = false
@@ -248,15 +249,6 @@ struct ContentView: View {
                 await overviewStore.poll(appState: appState)
             }
         }
-        // §123（M3）：点子角标前台轮询（30 秒一轮，与
-        // 总览同节奏、scenePhase 驱动起停）；§126 前
-        // 本回路同拍兼管动态未读，动态半边已随 §126
-        // 撤销，现只余点子角标一职
-        .task(id: scenePhase) {
-            if scenePhase == .active {
-                await pollIdeasBadge()
-            }
-        }
         // 0.36.20（§86.2）：业务成功信号一到即把在线判
         // 定清零回写——不等 30 秒轮询，胶囊与事实同拍
         .onChange(of: appState.hermesBusinessSuccessTick) {
@@ -266,24 +258,6 @@ struct ContentView: View {
         // 一轮（触发器语义：只催办、不下结论）
         .onChange(of: appState.networkPathEpoch) {
             Task { await overviewStore.refresh(appState: appState) }
-        }
-    }
-
-    /// 点子角标轮询（§123 M3）：30 秒一轮——点子无
-    /// 服务端未读账，走既有 /ideas 读面＋本地水位增
-    /// 量判定（Core IdeasBadge）；失败保持旧值不清零
-    /// §126 合并对账：本回路前身 pollFeedUnread（0.38.0）
-    /// 同拍兼刷动态未读；动态角标与 feedGeneration 取
-    /// 数已随 §126 整套删除，本回路只余点子角标一职，
-    /// 不为动态取任何数（DESIGN §126.10）
-    private func pollIdeasBadge() async {
-        while !Task.isCancelled {
-            if let config = appState.config,
-               let ideas = try? await feedBadgeClient
-                .ideas(config: config) {
-                appState.refreshIdeasUnread(ideas: ideas)
-            }
-            try? await Task.sleep(for: .seconds(30))
         }
     }
 
@@ -331,10 +305,8 @@ struct ContentView: View {
             } label: {
                 tabLabel(TabBarSymbols.ideas)
             }
-            // §123（M3）：点子新卡角标，与动态格同机制
-            // （原生 .badge）、同清零口径（进页即清，
-            // 清零动作在 IdeasView 的 markIdeasSeen）
-            .badge(appState.ideasUnread)
+            // 点子格角标已随 §177 退役：「待阅」呈现整
+            // 套下线（分区/状态字/角标），不以数字催看
 
             Tab(value: MainTab.goals) {
                 GoalsView()

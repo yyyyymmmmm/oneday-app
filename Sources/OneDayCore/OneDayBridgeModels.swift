@@ -224,8 +224,15 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
     /// 契约全形带 detail；缺失/null 按空串收（同 note 口径）
     public let detail: String
     /// 内容 emoji（0.47.0，§117）：桥按内容选定；旧记
-    /// 录为 nil，呈现走 IdeaEmoji 按锚点 kind 兜底
+    /// 录为 nil，呈现走 IdeaEmoji 统一兜底（§177 改判：
+    /// 不再按锚点来源分，见 IdeaPresentation）
     public let emoji: String?
+    /// 主题分类（§177，用户 2026-11-12 亲定「点子必
+    /// 须有分类、照 Muse 分法」）：桥按内容归类下发
+    /// （键或中文名），App 只读分组、不自判；旧桥/旧
+    /// 记录为 nil——无分类的卡不进点子列表（硬口径，
+    /// 见 IdeaBoard.categorySections）
+    public let category: String?
     /// 交付物清单（0.47.0，§117）：旧记录为空数组
     public let deliverables: [BridgeIdeaDeliverable]
     /// 挂靠目标 id；未挂为 nil
@@ -261,13 +268,14 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         dismissReason: String? = nil,
         status: IdeaStatus = .pending,
         taskId: String? = nil, expiresAt: Double? = nil,
-        emoji: String? = nil,
+        emoji: String? = nil, category: String? = nil,
         deliverables: [BridgeIdeaDeliverable] = []
     ) {
         self.id = id
         self.title = title
         self.detail = detail
         self.emoji = emoji
+        self.category = category
         self.deliverables = deliverables
         self.goalId = goalId
         self.createdAt = createdAt
@@ -290,7 +298,7 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         case id, title, detail, goalId, createdAt
         case source, evidence, evidenceRef, anchorId, dismissReason
         case status, taskId, expiresAt
-        case emoji, deliverables
+        case emoji, deliverables, category
     }
 
     public init(from decoder: Decoder) throws {
@@ -302,6 +310,9 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         ) ?? ""
         emoji = try container.decodeIfPresent(
             String.self, forKey: .emoji
+        )
+        category = try container.decodeIfPresent(
+            String.self, forKey: .category
         )
         deliverables = try container.decodeIfPresent(
             [BridgeIdeaDeliverable].self, forKey: .deliverables
@@ -514,6 +525,143 @@ public enum IdeaBoard {
         guard idea.isAdopted else { return nil }
         guard let raw = taskStatusRaw else { return nil }
         return raw == "done" ? "任务已完成" : "任务进行中"
+    }
+
+    /// 点子列表的分类小节（§177）：自上而下全程「分
+    /// 类标题＋其下卡片」，不设无分类区。可见面沿旧
+    /// 口径（待阅全量＋已转近 30 天；已忽略/已过期不
+    /// 呈现——状态只决定进不进列表，页面不再出现
+    /// 「待阅/已采纳」分区与状态字，用户 2026-11-12
+    /// 亲定）；其中**无分类（桥未下发/空串）的卡不进
+    /// 列表**——归类是桥的职责，App 不代判、不留散卡
+    /// 区。小节序：已知七类按定表序，未知分类（桥扩
+    /// 展的集合，如「购物」）排已知之后、按标题字典
+    /// 序；小节内按 createdAt 倒序（与动态单条时间
+    /// 流同口径，不再有待阅段的生成优先规则）
+    public static func categorySections(
+        _ ideas: [BridgeIdea], now: Double
+    ) -> [IdeaCategorySection] {
+        let visible = ideas.filter {
+            $0.status == .pending
+                || ($0.status == .adopted
+                    && $0.createdAt >= now - 30 * 24 * 3600)
+        }
+        var byTitle: [String: (IdeaCategory, [BridgeIdea])] = [:]
+        for idea in visible {
+            guard let category = IdeaCategory.resolve(
+                idea.category
+            ) else { continue }
+            var entry = byTitle[category.title] ?? (category, [])
+            entry.1.append(idea)
+            byTitle[category.title] = entry
+        }
+        return byTitle.values
+            .map { category, cards in
+                IdeaCategorySection(
+                    category: category,
+                    ideas: cards.sorted {
+                        $0.createdAt > $1.createdAt
+                    }
+                )
+            }
+            .sorted { a, b in
+                switch (a.category.knownOrder, b.category.knownOrder) {
+                case let (x?, y?):
+                    return x != y
+                        ? x < y
+                        : a.category.title < b.category.title
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    return a.category.title
+                        .localizedCompare(b.category.title)
+                        == .orderedAscending
+                }
+            }
+    }
+}
+
+/// 点子主题分类（§177）：分类集合归桥下发，App 只做
+/// 「键/名 → 小节标题」的对齐与定序，不自创分类。
+/// 已知七类与桥的目标分类同表（GOAL_CATEGORIES：
+/// health/relationships/finance/career/interest/
+/// efficiency/other），桥下发英文键或中文名都收；
+/// 表外的值（如 Muse 截图实证的「购物」）原样成段、
+/// 排在已知七类之后。Muse 分类的全集与小节全序未
+/// 核全（对标规格只实证到人际关系/购物/财务/健康四
+/// 类），桥侧 category 通道落地时以桥枚举为单一真源
+/// 再对齐本表——本表在此之前只是呈现对齐、不是分
+/// 类定义
+public struct IdeaCategory: Equatable, Sendable {
+    /// 小节标题（已知类一律中文名；未知类为桥原文）
+    public let title: String
+    /// 已知七类的定序位；未知分类为 nil
+    public let knownOrder: Int?
+
+    private static let knownTable: [(key: String, title: String)] = [
+        ("health", "健康"),
+        ("relationships", "人际关系"),
+        ("finance", "财务"),
+        ("career", "事业"),
+        ("interest", "兴趣"),
+        ("efficiency", "效率提升"),
+        ("other", "其他"),
+    ]
+
+    /// 新建点子表单的分类选项（键＋中文名，与桥目标
+    /// 分类同表）；表单必选——无分类的卡不进列表，
+    /// 入口处就不能产出无分类卡
+    public static var pickerOptions: [IdeaCategoryOption] {
+        knownTable.map {
+            IdeaCategoryOption(key: $0.key, title: $0.title)
+        }
+    }
+
+    /// 桥原文 → 分类：nil/空白回 nil（＝无分类）；键
+    /// 或中文名命中已知表归已知类；其余原样归未知类
+    public static func resolve(_ raw: String?) -> IdeaCategory? {
+        guard let raw else { return nil }
+        let value = raw.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !value.isEmpty else { return nil }
+        for (index, entry) in knownTable.enumerated() {
+            if value == entry.key || value == entry.title {
+                return IdeaCategory(
+                    title: entry.title, knownOrder: index
+                )
+            }
+        }
+        return IdeaCategory(title: value, knownOrder: nil)
+    }
+}
+
+/// 新建点子表单的一条分类选项（§177）
+public struct IdeaCategoryOption: Equatable, Sendable, Identifiable {
+    public let key: String
+    public let title: String
+
+    public var id: String { key }
+
+    public init(key: String, title: String) {
+        self.key = key
+        self.title = title
+    }
+}
+
+/// 分类小节（§177）：标题＋其下卡片，点子列表的唯
+/// 一结构单位
+public struct IdeaCategorySection: Equatable, Identifiable {
+    public let category: IdeaCategory
+    public let ideas: [BridgeIdea]
+
+    public var id: String { category.title }
+
+    public init(category: IdeaCategory, ideas: [BridgeIdea]) {
+        self.category = category
+        self.ideas = ideas
     }
 }
 
@@ -940,22 +1088,32 @@ public enum GoalBoard {
 
 // MARK: - 请求体（POST 新建点子）
 
-/// POST /ideas 请求体：{title, detail?, goalId?}——
-/// 可选字段为 nil 时不落键
+/// POST /ideas 请求体：{title, detail?, goalId?,
+/// category?}——可选字段为 nil 时不落键。category
+/// （§177）值为分类键（IdeaCategory.pickerOptions）；
+/// 桥侧通道未落地前桥忽略未知键、按无分类存——该卡
+/// 在桥回填分类前不进列表（硬口径见 IdeaBoard
+/// 的 categorySections），桥落地后同键即生效
 public struct BridgeIdeaCreateRequest: Encodable, Equatable, Sendable {
     public let title: String
     public let detail: String?
     public let goalId: String?
+    public let category: String?
 
-    public init(title: String, detail: String?, goalId: String?) {
+    public init(
+        title: String, detail: String?, goalId: String?,
+        category: String? = nil
+    ) {
         self.title = title
         self.detail = detail
         self.goalId = goalId
+        self.category = category
     }
 
     /// 表单口径收口：标题/详情去首尾空白，详情空→不带字段
     public static func make(
-        title: String, detail: String, goalId: String?
+        title: String, detail: String, goalId: String?,
+        category: String? = nil
     ) -> BridgeIdeaCreateRequest {
         let trimmedDetail = detail.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -963,7 +1121,8 @@ public struct BridgeIdeaCreateRequest: Encodable, Equatable, Sendable {
         return BridgeIdeaCreateRequest(
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             detail: trimmedDetail.isEmpty ? nil : trimmedDetail,
-            goalId: goalId
+            goalId: goalId,
+            category: category
         )
     }
 }
