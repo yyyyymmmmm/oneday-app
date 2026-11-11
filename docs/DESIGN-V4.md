@@ -9109,3 +9109,10 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 流式生成中不崩、落定后同一条消息即可选；表格单元格长按出整格菜单（次档口径）；代码块横滑与复制钮不回退
 - 深色模式＋大字号（AX 档）＋系统粗体文本三帧：SelectableInlineText 字号字重跟随、无截断无重叠
 
+### 146.7 预制验收记账（2026-11-11）
+
+- 分支 feat/chat-text-selection：代码提交 d1144d3＋并发修复 af7563b，基线 main 9119674（0.50.13/135）。validate_i18n 本地实跑通过（2639 键含 InfoPlist 13，三语全覆盖；本包零新增词条——消息面英文清查结论为代码内无硬编码英文、系统编辑菜单不在词条层，见 §146.4）。
+- 首轮 CI run 43010565851 failure：唯一 error 为 Swift 6 并发检查（InlineTextRenderCache 单例非 Sendable），af7563b 标 @unchecked Sendable（内部仅 NSCache、系统保证线程安全）后二轮 run 43011084769 **success**，jobs API 终判 build-native conclusion=success。
+- 单测 Executed **1509、0 failures**（基线 1496＝0.50.13 四包合账 1451＋7＋23＋11＋4；本包新增 InlineRunBuilderTests 13 法逐法 passed、既有测零删改，只增不减）。
+- 未合并、版本号未动，待主线按序合并（合并时节号以主线为准，本包分支自记 §146 如与在飞包撞号由主线顺延改注）。
+
