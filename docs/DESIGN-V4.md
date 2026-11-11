@@ -8502,3 +8502,12 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 搜索：点工具栏放大镜展开搜索场、过滤按标题＋正文生效、取消收起后过滤清空且列表位置不乱跳。
 - 简报：滑杆钮打开两层编辑器、保存链与从前一致（胶囊行删除不影响编辑器数据）。
 - 未读：底栏动态格无角标、新帖到达不出现任何催读面；打开帖子后已读回写照旧（服务端 readAt 落字、重进页不回弹未读——账本仍在工作，只是无声）。
+
+### 126.10 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.49.2／120。分支 feat/feed-compact（顶端 0041b17，基线 4271410）分支 CI run 42967724270 全绿；合并提交 a1030e0——冲突两处按对账处理：DESIGN 顺序拼接（§123 在前、§126 在后，两节全保留）；ContentView 逐行对账（见下）。定版提交 c8289a8（版本五处＝Project.swift 四处 0.49.2/120＋SettingsView 页脚「OneDay v0.49.2」，grep 验无 0.49.1 残留）。
+- **ContentView 对账（如实记账，含对 §126.3 预制口径的一处修订）**：126.3 记「轮询只喂角标一处」系预制基线（4271410）当时的实情；§123 合并后 M3 点子角标搭同一条 pollFeedUnread 的 30 秒拍顺带刷新（AppState.refreshIdeasUnread 全仓唯一调用点即在此回路）。合并处置：动态半边全删——feedUnread 状态、feedGeneration 取数、底栏 .badge(feedUnread) 合并后零残留；回路改名 pollIdeasBadge、只余点子角标一职，scenePhase 驱动保留，feedBadgeClient 因 M3 仍在用而保留（126.3「专用客户端一并退役」一句随此修订作废）。§123 的 .badge(appState.ideasUnread) 与 IdeasBadge 判定链未动。FeedView 侧 §123 discuss（FeedDiscussPrefill.make）、§122 行呈现/16:9 图盒、§118 S2-11 主钮经 grep 逐项核在位；ChatView 未入合并 diff（§124 回底钮承载段未动）；readAt/markRead 静默账本全链保留（FeedView 未读字样仅剩记账注释）。
+- **xcstrings**：并集后按 126.8 删 4 孤儿键（删前 grep 全仓复核：短键零消费方；FeedView 空态长句「写下你感兴趣什么，我每天替你去看；第一轮…」系另一键、仍在目录且在用，未误删）；目录 2487→2483 键（validate 口径，含 InfoPlist 13），validate_i18n 通过。
+- **合并后 CI**：run 42971891493 success（build-native success，head c8289a8）；单测 1301（CI 根套件 Executed 数与合并树 func test 计数一致；0.49.1 基线 1296＋FeedCompact126Tests 5，只增不减）。
+- **独立验包**：IPA 9,163,448 字节、md5 `d22d5e8b3f62cc20c6e7b016f8e6dd17`、Info.plist 实读 0.49.2／120／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.49.2/OneDay-0.49.2.ipa`（落盘 md5 与 CI 产物一致）。
+- **真机待验**：见 §126.9 四条；另加 §123 回归一条——点子新轮生成后底栏点子角标照常出数、进点子页清零（验 pollIdeasBadge 改名续接后链路不断）。
