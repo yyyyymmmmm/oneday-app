@@ -2239,6 +2239,33 @@ struct ChatView: View {
                 let mediaSplit = MediaMarker.split(
                     in: entry.content
                 )
+                // §138：裸路径图片内联——独立成行/段内
+                // 单独成词的图片路径（形态判定在
+                // Core）不再降为文件牌：走下方图片行
+                // 出图（AssistantMediaImage 的存在性
+                // 门把关，未确证不出图、查无不露牌）；
+                // 独立成行且已确证存在的，把路径行从
+                // 气泡正文摘除（只剩图、不剩生路径一
+                // 行）；未确证/查无的正文维持原样纯文
+                // 本（§129 降级口径，内容不消失）
+                let inlineImages = FileRefDetector
+                    .inlineImageCandidates(
+                        in: mediaSplit.text,
+                        excluding: entry.remoteImagePaths
+                            + mediaSplit.imagePaths
+                    )
+                let displayText = FileRefDetector
+                    .strippingStandaloneLines(
+                        in: mediaSplit.text,
+                        paths: Set(
+                            inlineImages.filter {
+                                $0.isStandaloneLine
+                                    && FileMetadataStore.shared
+                                        .existence(for: $0.path)
+                                        == .exists
+                            }.map(\.path)
+                        )
+                    )
                 // 0.5.1（§32）：思考折叠单元挂在正文泡
                 // 上方同一列——有落盘思考才出现，默认折
                 // 叠、点开看原文（ReasoningBlock）
@@ -2298,12 +2325,28 @@ struct ChatView: View {
                         )
                     }
                 }
+                // §138：裸路径图片行——与 MEDIA 行同
+                // 形态（AssistantMediaImage §130 定高
+                // 卡），存在性门在视图本体
+                ForEach(inlineImages, id: \.path) { ref in
+                    AssistantMediaImage(path: ref.path) {
+                        openImageViewer(
+                            ChatImageViewerItem(
+                                source: .remotePath(ref.path)
+                            )
+                        )
+                    }
+                }
                 // 正文只剩标记行被摘空时不渲染空气泡；
                 // 无标记的旧消息行为逐字不变
-                if !mediaSplit.text.isEmpty
-                    || mediaSplit.imagePaths.isEmpty {
+                // §138：正文喂摘除已确证独立行图片后
+                // 的 displayText；整条只剩图片时同理
+                // 不渲染空气泡
+                if !displayText.isEmpty
+                    || (mediaSplit.imagePaths.isEmpty
+                        && inlineImages.isEmpty) {
                     assistantBubble {
-                        MarkdownText(mediaSplit.text)
+                        MarkdownText(displayText)
                     }
                 }
                 // 0.8.0（P1）：正文里的服务端文件路径出
@@ -2325,10 +2368,14 @@ struct ChatView: View {
                 // 开必 404）
                 // §136：MEDIA: 图片路径已由图片行承
                 // 接，一并排除、不再重复成文件牌
+                // §138：裸路径图片候选同理排除——图
+                // 片永不降为文件卡（查无此图时正文纯
+                // 文本就是它的降级形态）
                 let fileRefs = FileRefDetector.detectStandaloneAnchored(
                     in: entry.content,
                     excluding: entry.remoteImagePaths
                         + mediaSplit.imagePaths
+                        + inlineImages.map(\.path)
                 )
                 if !fileRefs.isEmpty {
                     VStack(
