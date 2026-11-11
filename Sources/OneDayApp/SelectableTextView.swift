@@ -216,8 +216,10 @@ struct SelectableInlineText: View {
 }
 
 /// 拼装缓存（进程内）：键含全文与样式键，滚动重
-/// 排命中即免解析；封顶 256 条防长会话无限涨
-private final class InlineTextRenderCache {
+/// 排命中即免解析；封顶 256 条防长会话无限涨。
+/// 内部只有 NSCache（系统保证线程安全），故
+/// @unchecked Sendable——可变状态全在它内部
+private final class InlineTextRenderCache: @unchecked Sendable {
     static let shared = InlineTextRenderCache()
     private let cache = NSCache<NSString, NSAttributedString>()
 
