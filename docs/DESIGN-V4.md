@@ -9140,3 +9140,12 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 分支 feat/attachment-panel：代码提交 1a32428，基线 main 6042a77（五合一合并序中口径：0.50.12 的 1451＋cx-model 7＋inline 23＋media 11＋i18n 4＝1496）。validate_i18n 本地实跑通过（2644 键）。分支 CI run 43009070440（workflow_dispatch 触发，head 1a32428）jobs 终判 build-native **success**，单测 Executed **1506、0 failures**（基线 1496＋新增 AttachmentPanelTests 10 法，逐法 passed 日志在案；既有测零删改，只增不减）。未合并、版本号未动，待主线按序合并定版（合并时与五合一后 main 的 ChatView/xcstrings 冲突由主线合裁；§146 已被占、本次合并已顺延改注 §147 并同步代码注释）。
 - 合并后真机待验：点「+」升起面板形态与截图对版；相机格点开相机、照片条点图直接入待发条、查看全部开多选选图器、添加文件走文件桥、添加视频入文件形态附件；未授权相册时资源库区不显、动作行照常；AX 最大字号档与深色模式各一帧。
+
+### 146.5 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.50.14／136。merge 70cac12（feat/delivery-registry 5774243 → main，基线 fa2bf24／0.50.12；分支 CI run 43001417390 success、分支单测口径 1472＝基线 1451＋21）。**节号改注**：分支自选 §142 已被打包线占用（§142＝预设本地化），顺延改注 **§146**（146.1–146.4 随迁、本条 146.5），代码注释同步改注（DeliveryMarker/DeliveryStore/DeliveryViews/DeliveryMarkerTests 全量、OneDayBridgeClient 与 OneDayBridgeModels 的登记 MARK、ChatView 接线注）。
+- **冲突三处合裁**：ChatView——§143 内联图块与 §146 交付项块并集（呈现序 MEDIA 行→§143 裸图行→§146 交付项行同列），空气泡判据三路并集（displayText 空且 MEDIA/内联/交付三者皆空才不渲染）；接线复核在位——`DeliveryMarker.split`（2244）先于 `MediaMarker.split`（2251，在其 text 上）、inlineImages（2263）、displayText（2269）序与 §146.1 一致。OneDayBridgeClient——§144 rendition 与 §146 delivery/deliveryImage 两节并集。DESIGN——HEAD §141.7–§145.7 全保留、§146 接文末。
+- **合并修复一处**：首轮中间 CI run 43010703033 failure——BridgeClient 并集时 rendition 与 deliveryImage 的共用收尾被当作单份，rendition 函数尾（状态码收尾＋return data＋闭合）被吞，编译断在 462 行；修复 1a43812 补回（+6 行、括号配平深 0），非功能改动。二轮中间 CI run 43011077709 **success**（jobs 逐项全 success）。
+- **xcstrings 并集**：自动合并后逐键断言——HEAD 2626 键零丢失、新增精确 2 键（「交付内容」／「%@（文件已删除）」）→ 2628；validate_i18n 通过（2641 键含 InfoPlist 13，三语全覆盖）。
+- **单测总对账**：1496（0.50.13）＋21（DeliveryMarkerTests 18＋BridgeDeliveryDecodeTests 3）＝**1517**，中间 CI 与发版 CI（run 43012492950，jobs 逐项终判 build-native 及全部 steps **success**）双实测 Executed 1517、0 failures，只增不减。
+- **定版与验包**：定版 0b80e01（版本五处＝Project.swift 四处 0.50.14/136＋SettingsView 页脚，grep 验 0.50.13 零残留）。IPA 落 ~/workspace/your_files/oneday-v0.50.14/OneDay-0.50.14.ipa：**10,209,072 字节、md5 `7e46699465779f05f83b60c434b3ee12`**，主线独立解包复核 Info.plist 实读 0.50.14／136／site.didichou.oneday。真机待验沿 §146.3 五条（试验会话白卡／新图登记内联／假号纯文本／删文件 gone 行／老消息兜底不回归）。
