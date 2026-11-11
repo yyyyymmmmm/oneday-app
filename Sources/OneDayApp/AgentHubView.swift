@@ -196,6 +196,20 @@ struct AgentHubView: View {
                 // 义是「每次打开必刷新」——强制重拉保住
                 await store?.loadApproval(force: true)
             }
+            // §123（H2）：通知落点消费——按落点切到对
+            // 应段（聚焦字段由各段自己消费），消费后清
+            // 零，不许陈年请求在下次手动开枢纽时复活
+            if let destination = appState.hubDestinationRequest {
+                switch destination {
+                case .approvalDecision, .approvalHome:
+                    segment = .approval
+                case .monitorChange, .monitorsHome:
+                    segment = .monitors
+                case .none:
+                    break
+                }
+                appState.hubDestinationRequest = nil
+            }
         }
     }
 

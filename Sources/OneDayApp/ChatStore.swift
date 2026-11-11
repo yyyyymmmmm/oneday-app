@@ -104,10 +104,17 @@ final class ChatEntry {
     /// 与 remoteImagePathsData 同形态）——呈现走用户
     /// 气泡文件牌、点开同走文件下载通道
     var remoteFilePathsData: Data? = nil
+    /// §123（H1）：目标委派回响标记——非 nil 即本条是
+    /// App 按真源（桥完成戳/任务板状态）落的回响条目，
+    /// 值＝去重键（Core GoalEcho.key）。回响不是智能体
+    /// 发言：呈现走居中通知行、不进发送上下文、不被
+    /// 落定整段替换当半截删（见 ChatView 三处守卫）
+    /// （可选＋默认 nil、SwiftData 轻量迁移）
+    var echoKey: String? = nil
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = []) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil) {
         id = UUID()
         self.role = role
         self.content = content
@@ -125,6 +132,7 @@ final class ChatEntry {
         remoteFilePathsData = remoteFilePaths.isEmpty
             ? nil
             : try? JSONEncoder().encode(remoteFilePaths)
+        self.echoKey = echoKey
         createdAt = Date()
         self.thread = thread
     }

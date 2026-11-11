@@ -18,6 +18,10 @@ struct HubMonitorSection: View {
     @State private var showingCreate = false
     /// 待确认删除的监测（破坏性动作先确认再发）
     @State private var pendingDelete: BridgeMonitor?
+    /// 通知落点深链（§123 H2）：编程式推入的监测 id
+    /// （与卡片的 NavigationLink 并存，栈仍是 §97 的
+    /// 无 path 形态，不复活路径绑定）
+    @State private var deepLinkMonitorID: String?
 
     var body: some View {
         Group {
@@ -64,6 +68,24 @@ struct HubMonitorSection: View {
         }
         .task {
             await store.load(appState: appState)
+            // §123（H2）：消费通知落点深链——目标监测还
+            // 在列表里才推详情（已被删的如实落空、停在
+            // 监测段）；变化 id 留 AppState 由详情页按
+            // monitorID 对号消费
+            if let deepLink = appState.monitorDeepLink {
+                if store.monitors.contains(where: {
+                    $0.id == deepLink.monitorID
+                }) {
+                    deepLinkMonitorID = deepLink.monitorID
+                } else {
+                    // 目标监测已不在：死链就地清掉，不许
+                    // 留在 AppState 里等下次误触发
+                    appState.monitorDeepLink = nil
+                }
+            }
+        }
+        .navigationDestination(item: $deepLinkMonitorID) { monitorID in
+            MonitorDetailView(store: store, monitorID: monitorID)
         }
         .sheet(isPresented: $showingCreate) {
             MonitorCreateView(store: store)

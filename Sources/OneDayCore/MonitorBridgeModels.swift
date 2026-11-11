@@ -402,22 +402,44 @@ public enum MonitorCreateValidation {
 /// 变化详情页的行组装（纯函数，单测钉死）：摘要必有；
 /// before/after 有才成行；两者皆无时 hasOriginalText
 /// 为 false，页面据此明说「没有保存变化前后的原文」，
-/// 不拿摘要冒充 diff
+/// 不拿摘要冒充 diff。
+/// §123 N3 起 before/after 另带预览形（preview）：页面
+/// 默认只铺预览（限长、行界截断），全文收进展开区——
+/// 桥没有「要点」数据，不编造要点，结构化只做到
+/// 摘要＋预览＋原文折叠这一层。
 public enum MonitorChangeDetail {
+    /// 预览上限（字数）：监测原文是整页快照，动辄上千
+    /// 字；480 字够看出变没变、变在哪一段
+    public static let previewLimit = 480
+
     public struct Rows: Equatable, Sendable {
         public let summary: String
         public let before: String?
         public let after: String?
         public let hasOriginalText: Bool
+        /// 预览形（未截断时与原文相同）；原文为 nil 时同为 nil
+        public let beforePreview: String?
+        public let afterPreview: String?
+        /// 原文是否被预览截断（页面据此决定给不给展开入口）
+        public let beforeTruncated: Bool
+        public let afterTruncated: Bool
 
         public init(
             summary: String, before: String?,
-            after: String?, hasOriginalText: Bool
+            after: String?, hasOriginalText: Bool,
+            beforePreview: String? = nil,
+            afterPreview: String? = nil,
+            beforeTruncated: Bool = false,
+            afterTruncated: Bool = false
         ) {
             self.summary = summary
             self.before = before
             self.after = after
             self.hasOriginalText = hasOriginalText
+            self.beforePreview = beforePreview ?? before
+            self.afterPreview = afterPreview ?? after
+            self.beforeTruncated = beforeTruncated
+            self.afterTruncated = afterTruncated
         }
     }
 
@@ -426,12 +448,36 @@ public enum MonitorChangeDetail {
     ) -> Rows {
         let before = nonEmpty(change.before)
         let after = nonEmpty(change.after)
+        let beforePreview = before.map { preview(of: $0) }
+        let afterPreview = after.map { preview(of: $0) }
         return Rows(
             summary: change.summary,
             before: before,
             after: after,
-            hasOriginalText: before != nil || after != nil
+            hasOriginalText: before != nil || after != nil,
+            beforePreview: beforePreview?.text,
+            afterPreview: afterPreview?.text,
+            beforeTruncated: beforePreview?.truncated ?? false,
+            afterTruncated: afterPreview?.truncated ?? false
         )
+    }
+
+    /// 预览截断：超限时优先断在后半段的最后一个换行
+    /// 处（整行截断，不切半行），无好断点才硬断；断处
+    /// 带省略号明示后面还有
+    static func preview(
+        of text: String
+    ) -> (text: String, truncated: Bool) {
+        guard text.count > previewLimit else {
+            return (text, false)
+        }
+        var cut = String(text.prefix(previewLimit))
+        if let nl = cut.lastIndex(of: "\n"),
+           cut.distance(from: cut.startIndex, to: nl)
+                >= previewLimit / 2 {
+            cut = String(cut[..<nl])
+        }
+        return (cut + "…", true)
     }
 
     /// 空串与纯空白按「没存」处理（桥若落了空串，

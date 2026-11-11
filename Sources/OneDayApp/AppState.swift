@@ -310,6 +310,87 @@ final class AppState {
     var channelViewingOrigin: ChannelViewingOrigin?
     /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
     var cronCreateRequested = false
+    /// 点子底栏角标（§123 M3）：新到的生成待阅卡数。
+    /// 判定在 Core IdeasBadge（增量水位制），本类只持
+    /// 数与水位落盘：ContentView 既有 30 秒轮询拍顺带
+    /// 刷新（不新增轮询回路），进点子页即清零推进水位
+    /// ——与动态角标同清零口径
+    var ideasUnread = 0
+    /// 点子已见水位（UserDefaults 落盘；nil＝还没立过
+    /// 基线，首次刷新只立基线不报数，见 IdeasBadge）
+    var ideasSeenWatermark: Double? {
+        get {
+            UserDefaults.standard.object(
+                forKey: "ideas.seenWatermark"
+            ) as? Double
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(
+                    newValue, forKey: "ideas.seenWatermark"
+                )
+            } else {
+                UserDefaults.standard.removeObject(
+                    forKey: "ideas.seenWatermark"
+                )
+            }
+        }
+    }
+
+    /// 轮询拍刷新点子角标：无水位先立基线（存量不报
+    /// 数）；有水位按增量判定。拉取失败不调用本方法，
+    /// 角标保持旧值不清零（与动态角标同纪律）
+    func refreshIdeasUnread(ideas: [BridgeIdea]) {
+        guard let watermark = ideasSeenWatermark else {
+            ideasSeenWatermark = IdeasBadge.advancedWatermark(
+                ideas: ideas, current: nil
+            )
+            ideasUnread = 0
+            return
+        }
+        ideasUnread = IdeasBadge.newCount(
+            ideas: ideas, watermark: watermark
+        )
+    }
+
+    /// 进点子页：水位推进到当前最新生成卡、角标清零
+    func markIdeasSeen(ideas: [BridgeIdea]) {
+        ideasSeenWatermark = IdeasBadge.advancedWatermark(
+            ideas: ideas, current: ideasSeenWatermark
+        )
+        ideasUnread = 0
+    }
+
+    /// 通知落点请求（§123 H2）：通知中心点条目时置位
+    /// （落点解析在 Core NotificationDestination），
+    /// AgentHubView 开枢纽时消费段位、对应段消费各自
+    /// 的聚焦字段，消费后清零——置位—消费—清零与
+    /// hubOpenRequested 同式
+    var hubDestinationRequest: NotificationDestination?
+    /// 审批段聚焦的已决记录 id（approvalDecision 携带来）
+    var hubApprovalFocusID: String?
+    /// 监测段深链：直达的监测 id 与变化 id（变化 id 为
+    /// nil 时只达监测详情）
+    var monitorDeepLink: (monitorID: String, changeID: String?)?
+
+    /// 通知条目落点分发：把落点拆成枢纽各段能消费的
+    /// 字段；返回 false 表示无落点（调用方不导航）
+    @discardableResult
+    func requestHubDestination(
+        _ destination: NotificationDestination
+    ) -> Bool {
+        switch destination {
+        case .approvalDecision(let id):
+            hubApprovalFocusID = id
+        case .monitorChange(let monitorID, let changeID):
+            monitorDeepLink = (monitorID, changeID)
+        case .approvalHome, .monitorsHome, .none:
+            break
+        }
+        guard destination.hasDestination else { return false }
+        hubDestinationRequest = destination
+        return true
+    }
     /// 抽屉「枢纽」导航行的开枢纽请求（0.19.0）：抽屉置
     /// 位（先切聊天格再置位），ChatView 消费后开枢纽
     /// sheet 并清零——置位—消费—清零与 cronCreate-

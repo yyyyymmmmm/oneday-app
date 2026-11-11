@@ -8260,3 +8260,55 @@ Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手�
 ### 121.6 单测口径
 
 Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发布不给位」钉测随结构退役删除、换宿主本地量算术＋可达性钉）；reconcileUserMessages 族（带路径配对、同文异附件判缺、回填产出/不产出）；FileOpenFailure 分类表＋路径预检。单测只增不减（净增为正）。真机验收：离底时回底钮出现/落位/点按回底＋角标清零；发任意文件后自己气泡立即出牌且点开可预览；点 .ipa 牌落分享单而非 QL 死页；断网/改名文件点开见对应原因文案；旧会话里已发的 GestaltX 消息在同线程再发一轮落后牌补出。
+
+## §123 闭环包：回响落对话＋通知点达＋三处收口（similar-issues 审计 H1/H2/M2/M3/N2/N3，2026-11-11 12:55 用户按推荐拍板）
+
+基线 main 53f0e86（含 §121），分支 feat/closure-loop 预制；§122 合并排前（动 FeedView/点子面），本包按现行 main 施工、合并时主线三方对账。版本不改（合并时定）。伴生侧小改 1.0.14 已按伴生自动部署规矩上线（报告 hermes-deploy/companion/CLOSURE-114-REPORT.md）——**注意简报原文写「版本号顺延 1.0.13」，但 1.0.13 已于同日 12:54 由 FEED-113 上线，故本包伴生改动顺延为 1.0.14，特此记账**。
+
+### 123.1 题一 · H1 目标委派回响落对话（机制：App 本地回响；不注服务端会话）
+
+- **机制选型与证据**：候选三路——①伴生向绑定会话注入消息（服务端会话由首发铸造、绑定线程可能尚无服务端会话，且注入等于替智能体发言、污染上下文）②Hermes 侧写会话（同①且动本体）③App 本地回响条目（呈现层事实记录）。定③：回响的本质是「App 向用户报告一件已核实的事」，不是对话内容；本地落盘即可达「用户在对话面看到完成消息」的验收标准，且零服务端风险。代价如实记：回响不进服务端会话存档、换设备不跟随（绑定与回响都是本地账，与草稿/滚动锚同级）；智能体在该线程里看不到回响（上下文组装显式排除，见下）——用户在线程里追问时智能体不知情，此为已知取舍。
+- **绑定**：SideChatStore.goalThreadIDs（goalID→threadID，UserDefaults JSON 落盘，与 §122 ideaThreadIDs 同形、键名避撞）。创建点＝GoalDelegateView 提交确认落定后（ensureGoalThread）：无绑才建 ChatThread（题＝目标名、titleIsManual 钉住防服务端 AI 标题改掉其身份）、有绑复用。只看详情不建线程（存量关联不因此冒线程；下次在该目标委派时建线程并由规划器一次性补齐全部关联的历史回响，顺序＝关联序、每关联内 delegated→状态）。
+- **真源（不许造假回响）**：Core `GoalEcho.plan(linkedTasks:existingKeys:)`——完成只认桥戳 BridgeGoalTaskLink.completionEntryAt（桥在任务落完成集后写戳并落恰好一条进展事实条目，与 App 推测无关）；开始/等你回答/失败认任务板现值经 KanbanStatusPresentation.resolve 的呈现判定（.running/.needsInput/.failed）。「失败」是 blocked+transient+错误在场的呈现判定、非终态，文案只记「执行失败」时点事实、不冒充终局，后续重试转好不回撤（完成回响以戳为独立真源、与失败键分开去重）。任务板没取到任务且无戳→只落「已安排」。去重键 `goalTask:<linkID>:<kind>` 落 ChatEntry.echoKey（新字段，可选默认 nil 轻量迁移），跨启动稳定、重规划不重复落。
+- **物化点与时限**：GoalDetailView 首载（.task）与下拉刷新后、且三路真源（关联账＋任务板＋目标）到位时调 materializeGoalEchoes——无 APNs 的现实下，回响在用户下次打开该目标详情时补齐（与动态角标 30 秒轮询同级延迟约束，如实记账）。入口（四问①）：委派段已绑时出「进展对话」行直达绑定线程。
+- **呈现与三处守卫**：ChatView.bubble 顶部 echoKey 分支→居中安静通知行（flag 图标＋正文＋时刻；非气泡、无长按菜单、不冒充任何一方发言）。回响借 role "assistant" 落盘，故三处必须排除：①发送上下文组装 filter 加 echoKey==nil（不让 App 的话冒充智能体说过）②落定 deleteTurnPartialEntries 跳过 echoKey 条目（回响可能恰在一轮进行中由详情侧落盘，「用户条目之后必属本轮」的发送互斥前提对它不成立，不许被整段替换误删）③中断恢复的半截回填 filter 加 echoKey==nil（不许把回响当助手半截吞进流式区）。落定对账其余路径只认 user 条目/服务端消息，回响不在其作用域（施工时逐一核过 settle/heal 两路代码）。
+
+### 123.2 题二 · H2 通知中心点达对象（C3：保留汇集定位、不搬结果进对话；伴生 1.0.14）
+
+- **落点解析**：Core `NotificationDestination.resolve`（纯函数钉测）——审批回执（write_gate_decision）带 refId→枢纽审批段聚焦该条已决记录；无 refId→审批段。监测变化（monitor_change）带 refId→监测详情、带 changeId→续达具体变化；无 refId（存量）→监测段。其余 kind→无落点、行面不带箭头。
+- **「审批→回原会话」为何不成立（如实记账）**：write-gate 记录契约没有 thread/session 字段（ChatApprovalCards.swift 文件头注为据：裁决记录只有 origin 来源类标签），裁决可来自后台审查/网页端/自动规则，根本不存在「原会话」；聊天内待批卡本就是全局退位形态。本人裁决的 recordId→thread 映射现无留痕。故落点定为记录的家——枢纽审批段已决历史（带 id 时滚动聚焦＋行底色点亮；记录不在已载历史时聚焦落空、停在段内，不假装定位）。若将来要真回原会话，须先在聊天内裁决时新增本地留痕，另立项。
+- **伴生 1.0.14**：监测通知此前无任何 id（_notify_locked 记录只有派生切片 id）——oneday_bridge 补 refId=监测 id＋changeId=变化 id，overview 透传＋出口白名单加 changeId。存量通知无字段、落点降级监测段。部署与验收见 CLOSURE-114-REPORT.md（生产监测变化现为 0 条，端到端待第一条真变化＋真机验收）。
+- **呈现**：有落点的行带 chevron（宪法 §9 可点必有指示）；点按＝标已读（不等待）＋关通知 sheet＋枢纽接力开启（ChatView 通知 sheet onDismiss 置 hubOpenRequested，避免 sheet 与 fullScreenCover 同帧抢呈现）；AgentHubView 开时消费 hubDestinationRequest 切段并清零，各段消费各自聚焦字段（审批段 hubApprovalFocusID、监测段 monitorDeepLink——监测段验目标在列表才推、详情页按 monitorID 对号消费 changeID 并清零，死链就地清）。
+- **原文折叠**：机器原文（rawDetail）从「点整行展开」改行内独立「原始记录」折叠钮——默认折起、与导航点按互不干扰；行面只留人话摘要（既有口径不变）。
+
+### 123.3 题三 · M2 动态讨论预填（Core FeedDiscussPrefill）
+
+旧实现 `post.body.prefix(1200)` 硬截无标记无回指。收口 Core `FeedDiscussPrefill.make`：正文 ≤1200 全文进预填；超限在后半段最后一个句界（。/！/？/换行）截断（无边界才硬断），节选前明标「（以下为原帖节选）」；有正文时尾行恒带回指「（原帖全文在动态页：《标题》）」；空正文只有标题行。回指是纯文本线索（预填是草稿文本，给不了真链接，如实给全标题＋页名）。与 §122 行截断不冲突（那是行呈现、这是预填文本，两个面各自收口）。
+
+### 123.4 题四 · M3 点子底栏角标（Core IdeasBadge＋本地水位）
+
+点子无服务端未读账——走既有 /ideas 读面＋本地增量：新卡＝生成卡（source=.generated）＋待阅（status=.pending）＋createdAt 晚于水位；手记卡不给自己报新。角标搭 ContentView 既有 30 秒轮询同一拍顺带读 /ideas（**不新增轮询回路**），失败保持旧值不清零（与动态角标同纪律）。水位落 AppState（UserDefaults `ideas.seenWatermark`）：首次无水位只立基线不报数（存量不冒充刚到）；进点子页（.task 首载＋列表 onChange）推进水位、角标即清——与动态「进页即清」同口径。呈现＝原生 .badge（与动态格同机制）。
+
+### 123.5 题五 · N2 定时任务面原始值收口（Core CronPresentation；枚举全集已查）
+
+- **生产实查（2026-11-11，只读）**：state.db sessions.end_reason distinct 只有 ws_orphan_reap（13）与 NULL；completed 不在现生产数据里（既有翻译保留）。映射表按 Hermes 源码 end_reason 全部赋值字面量建全集：completed/cron_complete→已完成、cron_incomplete_no_output→已结束（没产出内容）、idle_timeout→空闲超时结束、lru_evict→会话被系统回收、onboarding_restart→初始化重启后结束、session_reset→会话已重置、superseded_by_resume→已被续聊接替、tui_close/tui_shutdown→终端里关掉的、ws_disconnect→连接断开后结束、ws_orphan_reap→连接失效后被回收、compression→上下文压缩后结束、branched→已分出新会话；未知值→「已结束」，绝不直印。落点：CronViews.runSubtitle。
+- **deliver**（源码值域）：origin→原对话、local→不投递、log→仅记日志、「平台:会话id」形→「<平台> 对话」（平台是专名照原样、会话 id 是内部编号不上行面）、其余→指定渠道。落点：详情「投递到」行。
+- **lastError**：正文位只显摘要（原文第一行、90 字内句界截断——原文自己的话不改写），全文收进「原始信息（排障用）」折叠（与审批面同名同形态），等宽可选。落点：详情错误块。
+
+### 123.6 题六 · N3 监测变化详情结构化（Core MonitorChangeDetail 预览形）
+
+桥无「要点」数据——不编造要点，结构化只到三层：摘要（页头既有）＋预览＋原文折叠。MonitorChangeDetail.Rows 增 beforePreview/afterPreview＋truncated 旗（预览 480 字、优先断在后半段最后换行处、断处带省略号）；页面默认铺预览，被截断才给「展开全文/收起全文」开合（变化前/后各自独立），短原文全显无多余钮。全文仍可选取复制。
+
+### 123.7 新面准入四问（本包新呈现逐项）
+
+- 回响行：入口＝目标详情委派段「进展对话」行（已绑才出）＋抽屉线程本体；无重复（进展流是桥事实账、回响是对话面报告，两面分工已在 123.1 记明）；形态走聊天流既有居中安静行族（次级色＋footnote），无页面直写新数值（间距全走 OneDayMetrics 令牌）；深色随 Palette 语义色、AX 档为纯文本行无定高容器。
+- 通知落点行：入口＝通知行本体（chevron 明示）；无新面；折叠钮与台账/审批「原始信息」同名同形态；无定高截断新增。
+- 监测原文展开钮、点子角标（原生 .badge 与动态格同件）：均为既有件复用，不立新规。
+
+### 123.8 单测与文案口径
+
+Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安排/三态映射/完成只认戳/去重/文案泛称）、NotificationDestination 四件＋changeId 解码、FeedDiscussPrefill 三件（短帖全带回指/空正文/长帖句界节选）、IdeasBadge 两件（计数口径/水位推进含手记不推进）、CronPresentation 三件（endReason 全集＋未知兜底/deliver 值域/错误摘要）、MonitorChangeDetail 预览两件。三语 +31 键（目录 2429→2460，validate_i18n 通过）；被替换的旧文案键 2 条（目标委派说明两处）留作目录孤儿不删（合并时与 §120 的键删改一并对账）。伴生自测全套计数不变全绿（见 CLOSURE-114-REPORT.md）。
+
+### 123.9 真机验收（合并后）
+
+①在目标里安排一件事→目标详情委派段出现「进展对话」→打开见「已安排」回响；在任务板把任务办完→再开目标详情→回绑定对话见「办完了」回响；失败/等回答各造一次同验。②通知中心：审批回执点按达枢纽审批段并聚焦那条已决记录；监测变化（须先有一条真变化）点按达监测详情/变化详情；存量监测通知达监测段；「原始记录」折叠默认收起、展开见原文。③动态长帖点「讨论」：预填带节选标记＋尾行回指；短帖全文无节选标记。④等一轮点子生成（07:30）后底栏点子格出角标、数字对；进点子页角标清零；手记一张点子不报角标。⑤定时任务详情：投递到显中文；有 lastError 的任务错误只显一行摘要、展开见全文；运行记录副题无英文原值（ws_orphan_reap 显「连接失效后被回收」）。⑥监测变化详情：长原文默认只显预览＋「展开全文」，展开见全文。
