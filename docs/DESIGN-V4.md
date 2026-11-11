@@ -9092,3 +9092,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - ChatImageSizingTests 新增 5 法（既有 8 法零删改）：单张与 cardSize 逐字一致（零回归锚）；**两张竖长截图并排出 2 卡、同高 190、整行 200 不收窄**（主案）；两张横长图等比收窄到整行恰 320、两卡同宽同高；混合比例三卡同高且同系数收窄；空数组回空。
 - 真机待验（合并后）：①选 2 张同批发送——气泡并排 2 张同高卡、点开查看器可翻到 2 张、杀 App 重进仍 2 张；②选 3 张——三卡同高成行不溢出；③图片＋文件混合——图成行、文件牌照旧、发送全到；④单图消息与存量旧消息呈现与改前一致。
+
+### 147.6 预制验收记账（2026-11-11）
+
+- 分支 feat/multi-image-row：代码 771806f＋记账 1b450c6（本节），基线 main 9119674（0.50.13/135）。CI run 43010656294（workflow_dispatch）completed **success**，jobs API 终判 build-native 全部 steps success；单测 Executed **1501、0 failures**（基线口径 1496＋本包新增 ChatImageSizingTests 5 法＝1501，逐法 passed 日志在案；既有测零删改，只增不减）。xcstrings 零改动（无新文案）。未合并、版本号未动，待主线按序合并定版（合并冲突预判：ChatView 气泡段与 §146 附件面板/选字包不相邻、ChatStore 与他包无交集、ChatImageSizing 为 §130 本体文件他包未动）。
