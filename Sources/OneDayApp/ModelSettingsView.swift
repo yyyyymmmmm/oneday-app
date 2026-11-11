@@ -16,7 +16,7 @@ struct ModelSettingsView: View {
     @Environment(AppState.self) private var appState
 
     @State private var store = ModelManagementStore()
-    @State private var pendingModel: String?
+    @State private var pendingSwitch: PendingDefaultSwitch?
     @State private var showProviderEditor = false
     @State private var editingProvider: ProviderRegistry.Entry?
     @State private var pendingDeleteProvider: ProviderRegistry.Entry?
@@ -40,6 +40,63 @@ struct ModelSettingsView: View {
     }
 
     private static let mainCardID = "默认服务商"
+
+    /// 待确认的默认切换（§141）：三条来路共用同一
+    /// 确认文案——主卡旧路（改名写回，默认本就在网关
+    /// 时安全）、切回网关（默认在具名家时经 Gateway
+    /// 具名条目指派）、具名卡设默认（/api/model/set）
+    private enum PendingDefaultSwitch: Identifiable {
+        case gateway(String)
+        case gatewayReturn(String)
+        case provider(ProviderRegistry.Entry, String)
+
+        var model: String {
+            switch self {
+            case .gateway(let model), .gatewayReturn(let model):
+                return model
+            case .provider(_, let model):
+                return model
+            }
+        }
+
+        var id: String {
+            switch self {
+            case .gateway(let model):
+                return "gw:\(model)"
+            case .gatewayReturn(let model):
+                return "gwr:\(model)"
+            case .provider(let entry, let model):
+                return "pv:\(entry.name):\(model)"
+            }
+        }
+    }
+
+    /// 默认是否在网关主通道（回读未到/归属不明时
+    /// 回落 §119 旧呈现：主卡持徽、按现行默认显示）
+    private var gatewayOwnsDefault: Bool {
+        switch store.defaultAssignment?.owner {
+        case .named, .other:
+            return false
+        case .gateway, .unknown, nil:
+            return true
+        }
+    }
+
+    /// 主卡「默认模型」行取值：默认不在网关时如实
+    /// 指向所在服务商，不把别家的模型记在主卡名下
+    private var mainCardDefaultModelText: String {
+        if gatewayOwnsDefault {
+            return store.currentModel ?? "未配置"
+        }
+        switch store.defaultAssignment?.owner {
+        case .named(let name):
+            return L10n.format("在服务商「%@」", name)
+        case .other(let slug):
+            return L10n.format("在「%@」", slug)
+        default:
+            return store.currentModel ?? "未配置"
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -90,18 +147,18 @@ struct ModelSettingsView: View {
         .confirmationDialog(
             "切换默认模型？",
             isPresented: Binding(
-                get: { pendingModel != nil },
-                set: { if !$0 { pendingModel = nil } }
+                get: { pendingSwitch != nil },
+                set: { if !$0 { pendingSwitch = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button("切换到 \(pendingModel ?? "")") {
-                if let model = pendingModel {
-                    Task { await store.setDefaultModel(model, appState: appState) }
+            Button("切换到 \(pendingSwitch?.model ?? "")") {
+                if let pending = pendingSwitch {
+                    Task { await performSwitch(pending) }
                 }
-                pendingModel = nil
+                pendingSwitch = nil
             }
-            Button("取消", role: .cancel) { pendingModel = nil }
+            Button("取消", role: .cancel) { pendingSwitch = nil }
         } message: {
             Text("新的会话将默认使用该模型；已有会话不受影响。")
         }
@@ -220,7 +277,7 @@ struct ModelSettingsView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: OneDayMetrics.spacingM) {
                 mainCard
-                ForEach(store.providers, id: \.name) { entry in
+                ForEach(store.userProviders, id: \.name) { entry in
                     providerCard(entry)
                 }
                 addProviderButton
@@ -257,10 +314,10 @@ struct ModelSettingsView: View {
             cardHeader(
                 title: "默认服务商",
                 subtitle: "服务器的主通道，经网关转发",
-                badge: "默认"
+                badge: gatewayOwnsDefault ? "默认" : nil
             )
             GroupDivider()
-            infoRow("默认模型", store.currentModel ?? "未配置")
+            infoRow("默认模型", mainCardDefaultModelText)
             infoRow("接口地址", "在服务器上配置，App 里只看不改")
             infoRow("密钥", "在服务器上保管")
             GroupDivider()
@@ -304,7 +361,7 @@ struct ModelSettingsView: View {
     }
 
     private func gatewayModelRow(_ model: String) -> some View {
-        let isCurrent = model == store.currentModel
+        let isCurrent = gatewayOwnsDefault && model == store.currentModel
         let channels = channelNames(for: model)
         let content = HStack(spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -340,9 +397,40 @@ struct ModelSettingsView: View {
             return AnyView(content)
         }
         return AnyView(
-            Button { pendingModel = model } label: { content }
+            Button { tapGatewayModel(model) } label: { content }
                 .buttonStyle(.odPressable)
         )
+    }
+
+    /// 点主卡模型行：默认本就在网关→旧改名路；默认
+    /// 在别家→经 Gateway 具名条目切回（§141）；服务
+    /// 器没登记网关条目时如实提示，不拿改名冒充切回
+    private func tapGatewayModel(_ model: String) {
+        switch store.defaultAssignment?.owner {
+        case .named, .other:
+            if store.gatewayEntry != nil {
+                pendingSwitch = .gatewayReturn(model)
+            } else {
+                store.notice = L10n.string("这台服务器还没登记网关服务商，暂时切不回默认服务商。")
+            }
+        case .gateway, .unknown, nil:
+            pendingSwitch = .gateway(model)
+        }
+    }
+
+    private func performSwitch(_ pending: PendingDefaultSwitch) async {
+        switch pending {
+        case .gateway(let model):
+            await store.setDefaultModel(model, appState: appState)
+        case .gatewayReturn(let model):
+            await store.setDefaultViaGateway(
+                model: model, appState: appState
+            )
+        case .provider(let entry, let model):
+            await store.setDefaultModel(
+                provider: entry, model: model, appState: appState
+            )
+        }
     }
 
     /// 模型 → 渠道来源标记（渠道读面里声明了该模型
@@ -404,11 +492,13 @@ struct ModelSettingsView: View {
 
     private func providerCard(_ entry: ProviderRegistry.Entry) -> some View {
         let expanded = expandedCards.contains(entry.name)
+        let isDefaultProvider =
+            store.defaultAssignment?.owner == .named(entry.name)
         return VStack(spacing: 0) {
             cardHeader(
                 title: entry.name,
                 subtitle: entry.baseURL ?? "",
-                badge: nil
+                badge: isDefaultProvider ? "默认" : nil
             )
             GroupDivider()
             infoRow(
@@ -434,15 +524,7 @@ struct ModelSettingsView: View {
                 }
                 ForEach(entry.models, id: \.self) { model in
                     GroupDivider()
-                    HStack {
-                        Text(model)
-                            .font(.system(.callout, design: .monospaced))
-                            .foregroundStyle(Palette.ink)
-                            .lineLimit(1)
-                        Spacer()
-                    }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    providerModelRow(entry, model)
                 }
             }
             GroupDivider()
@@ -488,6 +570,43 @@ struct ModelSettingsView: View {
             }
         }
         .odGroup()
+    }
+
+    /// 具名卡模型行（§141，与主卡模型行同形态）：
+    /// 当前默认行只呈标记、不可点；其余行可点→确认
+    /// 后经 /api/model/set 设为全局默认
+    private func providerModelRow(
+        _ entry: ProviderRegistry.Entry, _ model: String
+    ) -> some View {
+        let isCurrent =
+            store.defaultAssignment?.owner == .named(entry.name)
+            && model == (store.defaultAssignment?.model
+                ?? store.currentModel)
+        let content = HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(model)
+                .font(.system(.callout, design: .monospaced))
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            if isCurrent {
+                Text("当前默认")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.success)
+            }
+        }
+        .padding(.horizontal, OneDayMetrics.spacingM)
+        .frame(minHeight: OneDayMetrics.rowHeight)
+        .contentShape(Rectangle())
+
+        if isCurrent {
+            return AnyView(content)
+        }
+        return AnyView(
+            Button {
+                pendingSwitch = .provider(entry, model)
+            } label: { content }
+                .buttonStyle(.odPressable)
+        )
     }
 
     // MARK: - 卡面部件

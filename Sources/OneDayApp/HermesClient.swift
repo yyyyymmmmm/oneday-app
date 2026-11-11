@@ -277,6 +277,19 @@ protocol HermesClientProtocol: Sendable {
     /// ModelPickerDialog 同源端点）；回执未定型，经
     /// ModelCatalog.extractModelIDs 宽容提取为 id 列表
     func modelOptions(config: ServerConfig) async throws -> [String]
+    /// POST /api/model/set {scope:"main", provider, model}：
+    /// 全局默认指派的官方写面（§141）。具名服务商靠它落盘
+    /// provider: custom:<名>；拍平的 config PUT 改不了
+    /// provider，不许拿那条路冒充
+    func setMainModel(
+        config: ServerConfig, provider: String, model: String
+    ) async throws
+    /// GET /api/model/options 的结构化回读（§141）：当前
+    /// 默认的归属（哪家服务商＋哪个模型），Core
+    /// MainModelAssignment 解析、回读为准
+    func mainModelAssignment(
+        config: ServerConfig, providerNames: [String]
+    ) async throws -> MainModelAssignment
     /// GET /api/logs?level=&search=&lines=
     func logs(
         config: ServerConfig, level: String?, search: String?, lines: Int
@@ -1527,6 +1540,32 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             config: config, path: "/api/model/options", endpoint: L10n.string("模型列表接口")
         )
         return ModelCatalog.extractModelIDs(from: root)
+    }
+
+    func setMainModel(
+        config: ServerConfig, provider: String, model: String
+    ) async throws {
+        try await sendJSON(
+            config: config, path: "/api/model/set", method: "POST",
+            endpoint: L10n.string("默认模型切换"),
+            body: [
+                "scope": .string("main"),
+                "provider": .string(provider),
+                "model": .string(model),
+            ]
+        )
+    }
+
+    func mainModelAssignment(
+        config: ServerConfig, providerNames: [String]
+    ) async throws -> MainModelAssignment {
+        let root: JSONValue = try await getJSON(
+            config: config, path: "/api/model/options",
+            endpoint: L10n.string("模型列表接口")
+        )
+        return MainModelAssignment.parse(
+            optionsRoot: root, providerNames: providerNames
+        )
     }
 
     func logs(

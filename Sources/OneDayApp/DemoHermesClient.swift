@@ -61,6 +61,16 @@ struct DemoHermesClient: HermesClientProtocol {
         ["deepseek-flash", "deepseek-v4-pro", "deepseek-chat"]
     }
 
+    func setMainModel(
+        config: ServerConfig, provider: String, model: String
+    ) async throws {}
+
+    func mainModelAssignment(
+        config: ServerConfig, providerNames: [String]
+    ) async throws -> MainModelAssignment {
+        MainModelAssignment(owner: .gateway, model: "deepseek-flash")
+    }
+
     /// 演示流式：把定稿回复逐字慢速产出，演示态能看到
     /// 「已出半截字＋流式光标」的流式效果；总时长约 14 秒。
     func chatStream(

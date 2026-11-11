@@ -8904,3 +8904,40 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **第二包候选（登记不施工）**：E 族动作位（按档重试/填回输入/去设置/重选文件）、M2 消息级失败标记＋原地重发、M1 限流专档（读 Retry-After＋倒计时出路）。
 - **140.7 预制验收**：分支 CI run 42978653095（workflow_dispatch，head 2a0ecce）build-native success；单测 Executed 1345、0 failures（基线 a003384 口径 1336＋本包 ChatNoticeTests 9，只增不减）；validate_i18n 与 --check-code 本地双过（2639 键×三语，删「已重新连接」键后仍全覆盖）。未合并、版本号未改，待主线按合并序接入。
 - **140.8 合并与验包记账（2026-11-11，主线合并单）**：交付定版 **0.50.11／133**。merge 3956b23（feat/notice-discipline 0208249 → main，基线 a003384／0.50.0；分支 CI run 42978653095 success、分支单测口径 1345）。**冲突三处**：ChatView.swift 仅一处——N4 叠发被拦文案，§120 已在主线把措辞由「落定后可继续发送」改作「确认完就能继续发送」（代码与词条同步），分支沿基线旧文案转档，**合裁取主线现行文案＋分支 showNotice 形态（缺省 brief 档，与 140.3 的 N4→brief 对表一致）**；Localizable.xcstrings 用入仓脚本 merge_xcstrings.py 三方并集（base 2627／ours 2623／theirs 2626 → 2622、**零冲突**），逐键核对仅删 N1 键「已重新连接，回复已补齐。」、无其他键增删改；脚本输出键序与现行文件序不同，成品取 main 现行文件做同键外科删除（23 行，与分支原 diff 同尺寸，语义与脚本结果逐键断言全等）；DESIGN-V4.md——HEAD 侧 §119.6–§139 全保留，本节順接文末改注 §140。**节号改注（消歧）**：分支自选 §131 与文件呈现对齐包 §131 撞号（该包先合并占用），现行已用至 §139，顺延改注 **§140**、原自选号作废；140.1–140.7 小节号随迁、本条为 140.8；代码注释同步改注 8 处（ChatNotice.swift 2／ChatNoticeTests.swift 2／ChatView.swift 4），改后三文件 §131 零残留（均为本包自引、无正牌 §131 混入）。**接线复核**：showNotice 呼叫点全在位（N2 已停止生成 brief／N3 对账耗尽 extended／N4 叠发 brief／N5 模型落回 brief＋isPresenting 不抢占／N6 文件汇总三处 extended／N7 频道收养 brief／N8 非法路径 brief），notice 裸赋值全仓零残留、runWasDetached 仅落定处一句墓碑注释；§135 BottomStickCoordinator／renderPlan／ChatDiagTrace、§138 听写收口接线未动。**归档判断终审复核**：140.3 中「没有选到文件」空选提示归 N6 同族 extended——合并后代码复核（loadPickedFiles 空数组出口与图片超限、汇总拼接同函数族同档）仍成立，维持原判。**单测对账**：Tests/ 仅新增 ChatNoticeTests.swift 一文件 9 法、既有测零删改（与分支 diff 逐项一致）；合并后 CI 单测 Executed **1441、0 failures**（合并前 main 1432＋本包 9，只增不减，与预期分毫不差），无例外项。validate_i18n 通过（2635 键含 InfoPlist 13，三语全覆盖）。定版 d7b669b（版本五处＝Project.swift 四处 0.50.11/133＋SettingsView 页脚「OneDay v0.50.11」，grep 验无 0.50.10 残留）。CI run 42998383233：jobs API 逐项终判 build-native 及全部 steps **success**（head d7b669b）。IPA 落 ~/workspace/your_files/oneday-v0.50.11/OneDay-0.50.11.ipa，10,044,777 字节，md5 `e02dcf6d719a25c387f14eaa2add15d6`（落盘与 CI 产物逐字一致），Info.plist 实读 0.50.11／133／site.didichou.oneday。真机待验沿 140.6 清单五条（断网恢复无条残留／停生成 5s 自消／超限文件 8s 自消／✕ 即消不复活／恢复对账顶栏与内容如常）。
+## §141 具名服务商设为默认（2026-11-11，预制分支 feat/provider-default，基线 main 3af9674；用户 15:30 点题，核实报告 named-provider-default-check-20261111.md 结论档位①）；节号改注：分支自选 §132 已被发送空屏修复包改注占用脉络（§133–§140 均已排满），合并时主线顺延改注 §141、原自选号作废，代码注释同步改注 §141
+
+### 141.1 定案：机制本来就有，§119 是被拍平的 GET 形态误导
+
+- Hermes 全局默认是结构化字段 `model: {default, provider}`，provider 可指向 `providers:` 注册表具名条目；Dashboard 有专用写端点 `POST /api/model/set`（scope=main），落盘 `provider: custom:<名>` 并同步改写 base_url/凭据指针。§119.5 约束①的依据只是通用 config GET 把 model 拍平成名字字符串——那条通道确实改不了 provider，但不代表 config 本体没有。
+- 回读口径：`GET /api/model/options` 顶层带 provider/model、providers 行带 is_current（Dashboard 自己的模型页同源端点），是唯一能看到归属的结构化读面；拍平 config 继续只作模型名来源。
+
+### 141.2 服务端前置（已上线，纯加法）
+
+- 先把内联网关注册成注册表具名条目 `Gateway`（base_url=http://172.18.0.1:3000/v1、key_env=ONEDAY_PROVIDER_GATEWAY_KEY、models=网关实拉 61 个），钥值由现行 model.api_key 内联值在服务器内复制进 /opt/data/.env（不打印、不外传），使默认可在网关↔具名服务商间双向互切、可回滚。备份：/opt/data/config.yaml.bak-20261111-gateway-reg、/opt/data/.env.bak-20261111-gateway-reg。
+- 回读验证（2026-11-11 实测）：与备份做结构化 diff，结果只有 `/providers/Gateway ADDED` 一处；model.default/provider/base_url 逐字不变（deepseek-flash／custom／http://172.18.0.1:3000/v1）、内联 api_key 未动、Ailey 条目未动；解析器 resolve_requested_provider() 仍为 custom、具名 gateway 命中且钥在；options 清单里 Gateway 行取代裸 custom 行且 is_current=true（同址匹配）、顶层 provider/model 不变；Hermes 健康 ok、StartedAt 未变（未重启）、内存约 53%。
+- 已知形态变化一处：裸 custom 的解析来源标签变为 pool:custom:gateway（凭据池按同址匹配到 Gateway 条目，钥值与原内联钥同值、路由逐字等价）。
+
+### 141.3 App 落法（本包）
+
+- Core 新增 MainModelAssignment：解析 options 回执（is_current 行 slug 优先、顶层 provider 兜底；slug 归一化与服务端 runtime_provider_custom 逐字对齐）；Gateway 身份单点判定 isGatewayIdentity。钉测 10 例，形状全照生产实测回执（注册前/后两态＋设 Ailey 后形态）。
+- 客户端新增两口：POST /api/model/set（setMainModel）、GET /api/model/options 结构化回读（mainModelAssignment）；Demo 客户端同补存根。
+- Store：load 时回读归属存 defaultAssignment（读不到保持 nil、呈现回落 §119 旧形态）；具名设默认走 setDefaultModel(provider:model:) → 端点写入 → 整页重读，卡面标记以回读为准不靠本地记账；主卡切回走 setDefaultViaGateway（以 Gateway 条目为指派目标，同一写路）；gatewayEntry/userProviders 两派生——Gateway 条目并入主卡，不另立卡、不进来源标注与分配菜单（防同路双标）。
+- 卡面：具名卡模型行与主卡同形态（当前默认行绿标只呈、余行可点→同一确认弹窗「切换默认模型？」）；「默认」徽标主卡与具名卡互斥、只认回读归属；默认不在网关时主卡「默认模型」行如实指向所在服务商（「在服务商「X」」），不把别家模型记在主卡名下；回读未到时主卡持徽（旧形态）。
+
+### 141.4 §119.5 约束①销账
+
+- §119.5 原文：「**具名服务商「设为默认」不落**：Dashboard config 表示里 model 只有模型名字符串、没有 provider 指向，具名模型的选用语法未实测（§103.6 旧账④）；硬写名字会把默认指去网关路造成坏配置。故具名卡不给「设为默认」钮……待收官窗口实测具名 provider 会话锁/默认语法后再议。」——**本节销账**：前提（config 只有名字字符串）经源码＋生产实测证伪，正式机制与写端点俱在（141.1），App 已落地（141.3）；§119.6 记账里同条呈现位置说明（「设默认只在默认服务商卡」）随之失效。
+- 预设编辑器错误文案已改：旧「只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。」→新「预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。」（旧键已删、新键三语齐）。预设本身的主模型仍只存名字、仍从网关清单选——那是预设快照的既有语义，不在本包扩围。
+- 约束②（网关卡地址/密钥只看不改）与本案独立，维持不动。
+
+### 141.5 知悉与真机待验
+
+- /api/model/set 保存前会实探目标端点，端点不可达时服务端拒写（400）——是保护不是故障；App 侧失败走既有「切换失败」提示。
+- 服务商改名＝换身份（§119 既有口径）：已设为默认的具名服务商若在服务端被改名，默认指向需重设；App 内改名本就锁定（删后重加），重加后回本页重设默认即可。
+- 真机待验：①Ailey 模型行点设默认→确认→Ailey 卡亮「默认」徽、主卡徽灭、主卡默认模型行显示「在服务商「Ailey」」；②主卡点任一模型→切回网关（徽标互换、聊天新会话实走网关）；③杀 App 重进本页，徽标仍与回读一致；④Ailey 端点不可达时设默认被拒且有提示、默认不乱动。
+
+### 141.6 预制坐标（分支侧记账，合并时主线补合并记账）
+
+- 分支 feat/provider-default（worktree ~/workspace/oneday-worktrees/pkg-provider-default，基线 main 3af9674／0.50.1），顶端以推送为准：代码 49c5d95＋记账 2115fde＋修复 8646835（if let 条件禁尾随闭包，load 回读改先赋值再绑定）。未合并、版本号未改。
+- 分支 CI：首跑 run 42982847656 于 Build 步失败（上述语法错，jobs API 终判 failure）；修复后 run 42983168116 **success**（jobs API build-native success、steps 零失败）。单测 Executed **1346、0 failures**（基线 1336＋本包新增 MainModelAssignmentTests 10，只增不减）。
+- i18n：validate_i18n 与 --check-code 双过（2620 键含 InfoPlist 13，三语全覆盖）；目录删旧键 1（预设错误文案）、新增 5（新文案/端点名/提示/两条行值格式）。

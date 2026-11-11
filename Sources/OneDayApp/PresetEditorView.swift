@@ -71,7 +71,7 @@ struct PresetEditorView: View {
                 } header: {
                     Text("默认模型")
                 } footer: {
-                    Text("只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。")
+                    Text("预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。")
                 }
 
                 slotSection(title: "常用", slots: AuxSlotCatalog.common)
@@ -158,7 +158,7 @@ struct PresetEditorView: View {
                     )
                 }
             }
-            ForEach(store.providers, id: \.name) { provider in
+            ForEach(store.userProviders, id: \.name) { provider in
                 Section(provider.name) {
                     ForEach(provider.models, id: \.self) { model in
                         optionButton(

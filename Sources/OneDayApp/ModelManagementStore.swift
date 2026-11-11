@@ -29,6 +29,12 @@ final class ModelManagementStore {
     private(set) var auxAssignments: [String: AuxAssignment] = [:]
     private(set) var auxEnabled: [String: Bool] = [:]
 
+    // 全局默认归属（§141）：自 /api/model/options 结构
+    // 化回读派生——拍平 config 只给模型名、看不到
+    // provider，默认在哪家只认这条回读；读不到时为
+    // nil，呈现回落 §119 旧形态（主卡默认、无具名徽）
+    private(set) var defaultAssignment: MainModelAssignment?
+
     private let frontClient = CompanionFrontClient()
     private let comboClient = ModelComboClient()
     private let probeClient = ProviderProbeClient()
@@ -41,12 +47,29 @@ final class ModelManagementStore {
         ProviderRegistry.entries(from: rawConfig["providers"])
     }
 
+    /// 注册表里的网关具名条目（§141 服务端前置）：它
+    /// 是主通道的具名身份、不是又一家服务商——卡面与
+    /// 来源标注都并入默认服务商卡，不另立卡
+    var gatewayEntry: ProviderRegistry.Entry? {
+        providers.first {
+            MainModelAssignment.isGatewayIdentity($0.name)
+        }
+    }
+
+    /// 用户自建的服务商（卡面/标注/分配菜单枚举口径：
+    /// 注册表全集减去网关具名条目）
+    var userProviders: [ProviderRegistry.Entry] {
+        providers.filter {
+            !MainModelAssignment.isGatewayIdentity($0.name)
+        }
+    }
+
     /// 清单层：网关候选（AppState 管线）＋提供商直连
     /// 模型，来源标注、别名硬排除（Core 口径）
     func annotatedModels(appState: AppState) -> [AnnotatedModel] {
         ModelSourceAnnotation.annotate(
             gatewayCandidates: appState.availableModels,
-            providers: providers,
+            providers: userProviders,
             gatewayAliases: appState.gatewayAliases
         )
     }
@@ -74,6 +97,18 @@ final class ModelManagementStore {
             errorMessage = (error as? HermesError)?.userMessage ?? L10n.string("配置没读出来，可能是网络或服务暂时没响应")
         }
         await appState.refreshModelCatalog()
+        if appState.config != nil {
+            let names = providers.map(\.name)
+            let fetched = try? await appState.performAdmin {
+                client, config in
+                try await client.mainModelAssignment(
+                    config: config, providerNames: names
+                )
+            }
+            if let fetched {
+                defaultAssignment = fetched
+            }
+        }
         if let config = appState.config {
             channelsFace = await frontClient.gatewayChannels(config: config)
         }
@@ -114,6 +149,46 @@ final class ModelManagementStore {
         } catch {
             notice = (error as? HermesError)?.userMessage ?? L10n.string("切换失败，请稍后再试。")
         }
+    }
+
+    /// 具名服务商设为全局默认（§141）：走 Dashboard
+    /// /api/model/set 官方端点（scope=main），落盘
+    /// provider: custom:<名>；拍平 config 写回改不了
+    /// provider，不走那条路。写完整页重读——卡面
+    /// 「默认」标记以回读归属为准，不靠本地记账
+    func setDefaultModel(
+        provider entry: ProviderRegistry.Entry, model: String,
+        appState: AppState
+    ) async {
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.setMainModel(
+                    config: config, provider: entry.name, model: model
+                )
+            }
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? L10n.string("切换失败，请稍后再试。")
+            return
+        }
+        appState.noteDefaultModel(model)
+        await load(appState: appState)
+        notice = L10n.format("默认模型已切换为 %@。", model)
+    }
+
+    /// 默认在具名服务商时，从主卡把默认切回网关：
+    /// 以注册表里的 Gateway 具名条目为指派目标（与
+    /// 具名卡同一条 /api/model/set 写路，双向互切）；
+    /// 服务器没登记该条目时如实说明，不拿改名写回
+    /// 冒充切回（provider 不动、路其实没换）
+    func setDefaultViaGateway(model: String, appState: AppState) async {
+        guard let gateway = gatewayEntry else {
+            notice = L10n.string("这台服务器还没登记网关服务商，暂时切不回默认服务商。")
+            return
+        }
+        await setDefaultModel(
+            provider: gateway, model: model, appState: appState
+        )
     }
 
     // MARK: - 提供商（接入层）
