@@ -9545,7 +9545,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 8. **不回退钉**：伴生 1.0.27 已决回执已读出生与角标口径原样（本包零触碰）；已读通道走 store 既有 markRead/markAllRead（桥确认才改本地态、失败如实——全部已读部分失败 alert 沿旧）；人话翻译层与分组 Core 复用；旧行内「原始记录」展开退役、收编详情「技术记录」折叠（rawDetail 呈现位只此一处）；行面不再承载落点跳转（原型分工：行进详情、落点归详情按钮）。
 9. **字阶登记**：行标题未读加粗走 `.rowTitleL.weight(.semibold)` 运行时覆写（Font 角色表未新增角色）——依据＝已批准/未读三信号之一，与 §3.4 既有 `.rowTitle.weight(.semibold)` 同形态；若主线要求入表，合并时在 TypeScale 对账表补一行即可。
 
-单测：新增 `NotificationDetailTests`（16 例：iconKind 四类、categoryName 三类、outcome 裁决/恢复/语态不明 nil、技能批单名归属/多名零摊派/表外透传、记忆 add/apply/replace 行、文法不命中空行、approvalNote 仅裁决类、destinationLabel 三形＋锚点旗、filter、subtitle 两形）；既有 NotificationSummaryTests 钉重构行为不变。词条：新增 31 键（三语全覆盖，validate_i18n 通过；「写了 %@ 个文件/已被驳回/已完成」三键既存复用）。
+单测：新增 `NotificationDetailTests`（15 例：iconKind 四类、categoryName 三类、outcome 裁决/恢复/语态不明 nil、技能批单名归属/多名零摊派/表外透传、记忆 add/apply/replace 行、文法不命中空行、approvalNote 仅裁决类、destinationLabel 三形＋锚点旗、filter、subtitle 两形）；既有 NotificationSummaryTests 钉重构行为不变。词条：新增 31 键（三语全覆盖，validate_i18n 通过；「写了 %@ 个文件/已被驳回/已完成」三键既存复用）。
 
 真机待验清单（合并发版后逐条）：
 - 铃铛点开＝底部大面板（上缘留距、grab 可见），下滑可关、关闭钮可关；
