@@ -1993,23 +1993,43 @@ struct ChatView: View {
                         quoteBlock(quote)
                     }
                     if let data = entry.imageData, let image = UIImage(data: data) {
-                        // 0.36.19（§84.5）：已发图宽高双封
-                        // 盒（Core ChatImageSizing，220×240
-                        // 只缩不放大）——旧只封宽 220，竖长
-                        // 截图要长到约 477pt 高吃半屏
-                        let displaySize = ChatImageSizing.displaySize(
+                        // §130：已发图固定高度卡（Core
+                        // ChatImageSizing）——卡高恒定
+                        // 190、卡宽按比例钳制 [96, 260]，
+                        // 图居中完整显示不裁切、图窄于
+                        // 卡时两侧露 bubbleFill 底；旧
+                        // 0.36.19 双封盒（220×240、呈现
+                        // 尺寸随图比例变）口径作废
+                        let cardSize = ChatImageSizing.cardSize(
                             for: image.size
                         )
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(
-                                width: displaySize.width,
-                                height: displaySize.height
+                        let fittedSize = ChatImageSizing.fittedSize(
+                            for: image.size,
+                            in: cardSize
+                        )
+                        ZStack {
+                            Image(uiImage: image)
+                                .resizable()
+                                .frame(
+                                    width: fittedSize.width,
+                                    height: fittedSize.height
+                                )
+                        }
+                        .frame(
+                            width: cardSize.width,
+                            height: cardSize.height
+                        )
+                        .background(
+                            Palette.bubbleFill,
+                            in: RoundedRectangle(
+                                cornerRadius: OneDayMetrics.radiusCard
                             )
-                            .clipShape(
-                                RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
+                        )
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: OneDayMetrics.radiusCard
                             )
+                        )
                             // 点开查看器（0.36.4：集合
                             // 载荷、同线程可翻页）
                             .onTapGesture {
@@ -2041,10 +2061,10 @@ struct ChatView: View {
                     // （标记路径）——缩略经文件下载通道
                     // 取回，点开同一个全屏查看器
                     ForEach(entry.remoteImagePaths, id: \.self) { path in
+                        // §130：卡形由 ServerRemoteImage
+                        // 本体承载（radiusCard），此处不再
+                        // 外挂裁形（旧 spacingM 双重裁角）
                         ServerRemoteImage(path: path)
-                            .clipShape(
-                                RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
-                            )
                             .onTapGesture {
                                 openImageViewer(
                                     ChatImageViewerItem(
@@ -2151,10 +2171,10 @@ struct ChatView: View {
                 // 史导入形态）与用户侧同口径：缩略＋点开
                 // 全屏
                 ForEach(entry.remoteImagePaths, id: \.self) { path in
+                    // §130：卡形由 ServerRemoteImage
+                    // 本体承载（radiusCard），此处不再
+                    // 外挂裁形（旧 spacingM 双重裁角）
                     ServerRemoteImage(path: path)
-                        .clipShape(
-                            RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
-                        )
                         .onTapGesture {
                             openImageViewer(
                                 ChatImageViewerItem(

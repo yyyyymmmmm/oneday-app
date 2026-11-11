@@ -400,45 +400,88 @@ struct ServerRemoteImage: View {
     var body: some View {
         Group {
             if let data, let image = UIImage(data: data) {
-                // 0.36.19（§84.5）：已发图宽高双封盒
-                // （Core ChatImageSizing，220×240 只缩
-                // 不放大）——本处一改同时覆盖用户与助手
-                // 两侧的远端图；旧只封宽 220，竖长图吃
-                // 半屏。加载占位（220×150）形态未动：
-                // 占位在数据到达前不知宽高比，跳变以一
-                // 次为限、与旧口径同量级
-                let displaySize = ChatImageSizing.displaySize(
+                // §130：已发图固定高度卡（Core
+                // ChatImageSizing）——卡高恒定 190、
+                // 卡宽按比例钳制 [96, 260]，图居中完
+                // 整显示不裁切、图窄于卡时两侧露
+                // bubbleFill 底；本处一改同时覆盖用
+                // 户与助手两侧的远端图。旧 0.36.19
+                // 双封盒（220×240、呈现尺寸随图比例
+                // 变）口径作废
+                let cardSize = ChatImageSizing.cardSize(
                     for: image.size
                 )
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(
-                        width: displaySize.width,
-                        height: displaySize.height
-                    )
-            } else if failed {
-                HStack(spacing: OneDayMetrics.rowInnerGap) {
-                    Image(systemName: "photo")
-                    Text("图片没加载出来")
+                let fittedSize = ChatImageSizing.fittedSize(
+                    for: image.size,
+                    in: cardSize
+                )
+                ZStack {
+                    Image(uiImage: image)
+                        .resizable()
+                        .frame(
+                            width: fittedSize.width,
+                            height: fittedSize.height
+                        )
                 }
-                .font(.caption)
-                // 0.23.0（审计 C4）：本字落在 bubbleFill
-                // 填充面上——inkSecondary 在其上实算
-                // 4.29:1 压线下，换填充面专用加深档
-                // inkSecondaryOnFill（≈5.2:1）
-                .foregroundStyle(Palette.inkSecondaryOnFill)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .frame(
+                    width: cardSize.width,
+                    height: cardSize.height
+                )
                 .background(
                     Palette.bubbleFill,
-                    in: RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusCard
+                    )
+                )
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusCard
+                    )
+                )
+            } else if failed {
+                // §130：失败态同卡尺寸（占位卡口
+                // 径 190 高），不再随文案宽高变
+                ZStack {
+                    HStack(spacing: OneDayMetrics.rowInnerGap) {
+                        Image(systemName: "photo")
+                        Text("图片加载失败")
+                    }
+                    .font(.caption)
+                    // 0.23.0（审计 C4）：本字落在
+                    // bubbleFill 填充面上——
+                    // inkSecondary 在其上实算 4.29:1
+                    // 压线下，换填充面专用加深档
+                    // inkSecondaryOnFill（≈5.2:1）
+                    .foregroundStyle(Palette.inkSecondaryOnFill)
+                }
+                .frame(
+                    width: ChatImageSizing.placeholderCardSize.width,
+                    height: ChatImageSizing.placeholderCardSize.height
+                )
+                .background(
+                    Palette.bubbleFill,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusCard
+                    )
+                )
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusCard
+                    )
                 )
             } else {
-                RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
-                    .fill(Palette.bubbleFill)
-                    .frame(width: 220, height: 150)
-                    .overlay { ProgressView() }
+                // §130：加载占位同卡高（190），消除
+                // 旧 220×150 占位 → 实际高度的跳变；
+                // 比例未知，卡宽取占位口径
+                RoundedRectangle(
+                    cornerRadius: OneDayMetrics.radiusCard
+                )
+                .fill(Palette.bubbleFill)
+                .frame(
+                    width: ChatImageSizing.placeholderCardSize.width,
+                    height: ChatImageSizing.placeholderCardSize.height
+                )
+                .overlay { ProgressView() }
             }
         }
         .task(id: path) { await load() }
