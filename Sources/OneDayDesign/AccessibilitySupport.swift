@@ -24,6 +24,7 @@ public extension DynamicTypeSize {
         case .accessibility3: return .accessibilityExtraLarge
         case .accessibility4: return .accessibilityExtraExtraLarge
         case .accessibility5: return .accessibilityExtraExtraExtraLarge
+        @unknown default: return .large
         }
     }
 }
