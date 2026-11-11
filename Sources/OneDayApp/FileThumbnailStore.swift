@@ -212,9 +212,10 @@ actor ThumbnailGate {
 }
 
 /// 类型面（规格 §4.3 回落形态）：FileIconBox 的放大
-/// 版——身份色满底＋大号类型字形居中；缩略取不到、
-/// 视频/音频、生成中的占位都用它，不许留白、不许拿
-/// 文件名当占位（0.36.4 已立此规）
+/// 版——白砖面＋自制类型图标图居中（§128 路线 A，
+/// 与图标盒同源）；缩略取不到、视频/音频、生成中的
+/// 占位都用它，不许留白、不许拿文件名当占位
+/// （0.36.4 已立此规）
 struct FileTypeFace: View {
     let entry: WorkspaceFileEntry
 
@@ -224,19 +225,9 @@ struct FileTypeFace: View {
             isDirectory: entry.isDirectory
         )
         ZStack {
-            Rectangle().fill(Color(hexRGB: style.backgroundHex))
-            switch style.glyph {
-            case .letter(let letter):
-                Text(letter)
-                    // 图标字形非阅读文字，固定字号合法
-                    // （FileIconBox 同口径）
-                    .font(.system(size: 40, weight: .bold))
-                    .foregroundStyle(Color.white)
-            case .symbol(let name):
-                Image(systemName: name)
-                    .font(.system(size: 36))
-                    .foregroundStyle(Color.white)
-            }
+            Rectangle().fill(Color.white)
+            FileIconImageView(assetName: style.assetName)
+                .aspectRatio(contentMode: .fit)
         }
         .accessibilityHidden(true)
     }

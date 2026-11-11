@@ -40,8 +40,9 @@ public enum FrameworkIcon {
     /// 同值迁入，ContentRow/UnifiedRow 消费）
     public static let rowGlyphSize: CGFloat = 20
     /// 文件类型盒单字字形：17（0.22.0 图标规格 v2 的
-    /// W/P/X 白字档，FileIconBox 消费；符号回落 16 在
-    /// DeliverableIconStyle 表内、不属框架字形）
+    /// W/P/X 白字档；§128 字母块渲染退役后无消费面，
+    /// 值由 VisualDirectionGateTests 钉住保留，待令牌
+    /// 卫生轮处置）
     public static let fileGlyphSize: CGFloat = 17
 
     // MARK: - 0.3.8 分位尺寸（fixlist 第 15/24/32 条）

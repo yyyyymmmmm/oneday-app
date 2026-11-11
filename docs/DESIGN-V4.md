@@ -8607,6 +8607,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **合并后 CI**：run 42973245502 success（build-native success，head 9be8818）；单测 Executed 1317、0 failures（0.49.2 基线 1301＋FileOpenRouteTests 16，只增不减）。
 - **独立验包**：IPA 9,281,841 字节、md5 `a32bfe5cb1fad7712c3314a0ac62a1f1`、Info.plist 实读 0.49.3／121／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.49.3/OneDay-0.49.3.ipa`（落盘 md5 与 CI 产物一致）。
 - **真机待验**：见 §125.6 六条（xlsx 中间页查看表格全链、.ipa 说明行、文件卡大小三路回填、#L 锚点定位、文件页三入口、敏感锁定分支）。伴生端点 1.0.15 已先行上线（现行伴生 1.0.16），本包未动伴生。
+
 ## §119 模型设置简化重做（预制分支 feat/model-simple，基线 main a11c52f；用户 2026-11-11 12:10 亲定＋12:15 六点拍板，调研报告 research_notes/model-settings-simple-20261111.md）
 
 呈现层重组＋辅助面新建，0.37.0 管道（ProviderRegistry、密钥 PUT /api/env 只存 key_env 引用、验活、组合经伴生 meta＋Dashboard 全量写回）能复用全复用；2026-11-10「网关渠道必须显示且可管理」的**呈现口径**由本节覆盖（渠道降为卡内标记＋详情查看），底层注册/密钥落盘/组合存储不动。版本未动，合并时主线定号（预计 0.48.0）。
@@ -8652,3 +8653,34 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **独立验包**：IPA 9,410,629 字节、md5 `a48f9c9bfc715be26e24c99c88c63983`、Info.plist 实读 0.50.0／122／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.50.0/OneDay-0.50.0.ipa`（落盘 md5 与 CI 产物一致）。
 - **两处如实约束的呈现位置**：①具名服务商不给「设为默认」——设默认只在默认服务商（网关）卡的模型行（点行弹「切换默认模型？」确认）；具名卡模型行无此动作，说明文案在预设编辑器 PresetEditorView（「只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。」），具名模型经辅助模型页行/预设行给具体用途选用。②默认服务商卡地址/密钥只看不改——ModelSettingsView 默认服务商卡内两行 infoRow：「接口地址：在服务器上配置，App 里只看不改」「密钥：在服务器上保管」。
 - **遗留口径**：§119.4 所记「§120 扩版校验器复跑」随 §120 合并单处置（本包 validate 以现行校验器通过）；辅助写回热生效实测仍并入收官窗口重启；真机待验见 §119.5。
+
+## §128（图标） 文件图标接入包（C8 定版落地，2026-11-11，预制分支 feat/file-icons，基线 main 18c6b39；不合并、版本号未改，合并时主线定号）
+
+### 128.1 定版口径（用户 14:32→14:38→14:41→14:46 四步拍板）
+
+- C8 定版：查同行做法、用真实图标；调研定案（file-icons-benchmark-20261111.md）——Adobe／微软官方品牌图标第三方明文禁用（Adobe 许可仅限网站、微软明文不得用于软件应用程序），同行「真实感」全靠自绘成套（页形＋逐格式身份带），回落共识是中性页形＋扩展名标签、无人用彩色字母块；OneDay 旧表「品牌色块＋白单字 W/P/X」恰是与微软视觉识别最接近、风险最高且最显廉价的形态。
+- 风格定版：学 Muse 内部 3D 黏土风（949 枚现行代的语言；文件家族构成对表其 legacy 76 枚中的文件家族：通用文档＋7 格式变体＋文件夹开合＋图片／视频／音乐／归档），资产自制原创、不复制 Muse 资产本体。
+- 承载定版（路线 A）：生成管线交不出透明底（试点实测 alpha 不存在、白底烘焙均值 254.8）——15 枚全以白色圆角砖统一承载，深色模式保持亮砖（用户点选 A，总览拼图浅／深两栏已过目点头）。
+
+### 128.2 资产与映射（file-icons-assets/README 为准）
+
+- 资产：15 枚 fileicon-<slug>.png（256×256 白底）逐枚 imageset 进 App/Resources/Assets.xcassets（fileicon-<slug>.imageset，无深色变体——路线 A 恒亮砖；Project.swift 的 App/Resources/** glob 自动收编，无工程文件改动）。
+- Core：DeliverableIconStyle 改 slug 查表单源——struct 只余 slug／assetName／fallbackSlug／fallbackAssetName／allSlugs（15 枚），style(forFileName:isDirectory:isExpanded:) 出 slug。分组沿 0.22.0 旧表逐项对齐，增补四处：①code 组新增（源码类 34 个扩展名＋html/htm 自旧 safari 符号改归，代旧「落 default」）②app 组新增（ipa/apk/app/dmg/pkg/exe/msi 可安装件）③archive 补 rar ④document 文档类通用回落（odt/ods/odp、docm/xlsm/xlsb/pptm、pages/numbers/key、epub、log——text/office 类未命中专属组者）；folder-open 经 isExpanded 入参落表（现行宿主无内联展开态、恒 false，表与参数先行）；其余一切落 unknown。§125 FileItemCategory／FileOpenRoute 口径未动（sheet 仍由 xls/xlsx/csv 扩展名直达，与 spreadsheet 路由同果）。
+
+### 128.3 呈现（路线 A 落法）
+
+- FileIconBox v3：FileIconImageView(assetName:) 取图（UIImage(named:)）填盒，.background(Color.white)＋clipShape(RoundedRectangle) 成砖——圆角沿 §125 同一推导（边长×0.25、36→9／40→10／56→14），尺寸参数 36／40／56 沿用；图标 PNG 本体白底、盒面不再另涂身份底色（防双层砖）；contents 恒 1x 同图，深色模式不变暗、不露白方角（clipShape 裁角）。
+- FileTypeFace（§4.3 回落面）：同源换图——白 Rectangle 面＋FileIconImageView aspectRatio .fit 居中，FileIconBox 放大版口径不变。
+- 失败回落：FileIconImageView 资源缺失→unknown 枚（DeliverableIconStyle.fallbackAssetName），双缺失（理论不可达）落白砖 Color.white；不许空白、不许回退字形。
+- 退役清单：DeliverableIconStyle.Glyph／backgroundHex、FileIconBox 与 FileTypeFace 两处字形渲染、Color(hexRGB:) 扩展（全仓仅此二处消费）一并删除；grep 复核 backgroundHex／hexRGB／.letter(／safari.fill 在 Sources＋Tests 代码零残留（仅测试文件墓碑注释提及）。FrameworkIcon.fileGlyphSize＝17 数值与 VisualDirectionGateTests 钉测不动，注释改注「§128 退役后无消费面、待令牌卫生轮处置」。
+
+### 128.4 单测与校验
+
+- DeliverableIconStyleTests 整表重写 4→9 法：办公三组／文档组／code 组（html 改归＋源码样本）／archive（含 rar 与 .tar.gz）／影音三组／app 组／document 回落组／目录双态＋unknown 回落／assetName 与家族完整性（allSlugs 15 枚唯一＋样本产出不越表）。
+- 分支 CI：run 42975217028 success（build-native success，head 472eabb）；单测 Executed 1322、0 failures（基线 18c6b39 的 1317＋5，只增不减）。
+- 三语文案零新增（纯图替换），validate_i18n 免跑。
+
+### 128.5 守界与真机待验
+
+- 守界：未碰聊天文件牌链与出牌口径（§116/§121）、FileOpenRoute 路由表（§125）、缩略图取图与缓存（FileThumbnailStore 本体仅 FileTypeFace 一面换图）；版本号未改。
+- 真机待验（合并后随版）：三面（待发筹码 36／聊天文件卡 40／打开页文件头 56／文件页行与网格类型面）图标均为新图且圆角砖干净；深色模式亮砖观感与总览拼图一致；.html 与 .py 落 code 枚、.ipa 落 app 枚；无扩展名与 .ex5 落 unknown 灰页问号枚、不空白。

@@ -1,93 +1,96 @@
 import Foundation
 
-/// 交付物类型图标样式（0.22.0，视觉审计 F2 图标规格）：
-/// 扩展名→字形＋身份底色的单一事实源，供 FileIconBox
-/// 渲染。0.20.0 的旧画法是「SF 通用字形＋按类别哈希轮
-/// 换的 pastel 底」——颜色不表类型、与 Muse 资源库的类
-/// 型真图标（DOCX 蓝 W、PPTX 橙 P）并置即显廉价。本表
-/// 按审计规格改身份色块：办公三件用白色粗体单字（W/P/
-/// X，Office 品牌色）、PDF 红、图片/视频/音频各有专属
-/// 色，未知回落中性灰 doc。底色是图标身份色、不作文字
-/// 底，不受文字对比约束；pastel 轮换就此只留枢纽等装
-/// 饰面（FileBrowserLogic.tintIndex 本体保留）。
-/// 图片本体在影音段有 MediaCell 真缩略图面，本表只给
-/// 文件行图标盒的回落字形（photo.fill）。
+/// 文件类型图标解析（§128，C8 定版）：扩展名→图标资产
+/// slug 的单一事实源，供 FileIconBox／FileTypeFace 查
+/// 表渲染。资产是 15 枚自制 3D 黏土风图标（256×256
+/// 白底 PNG，Assets 内 fileicon-<slug>，路线 A 白色圆
+/// 角砖承载、深色模式保持亮砖），构成对表 Muse 内部
+/// legacy 文件家族（通用文档＋格式变体＋文件夹开合＋
+/// 影音＋归档），映射口径以 file-icons-assets/README
+/// 为准、对表 §125 的 FileItemCategory／FileOpenRoute。
+///
+/// 历史口径就此退役：0.22.0 的「身份色块＋白色粗体单
+/// 字／SF 符号」字形表（W/P/X 字母块）——C8 调研定案
+/// （file-icons-benchmark-20261111.md）：Adobe／微软
+/// 官方品牌图第三方明文禁用、同行真实感全靠自绘成
+/// 套，本表不再有字形与底色概念。分组沿旧表逐项对
+/// 齐，增补四处：①code 组新增（源码类扩展名旧表无
+/// 组、原落 default；html/htm 自 safari 符号改归本
+/// 组，尖括号即其语义）②app 组新增（可安装件）③
+/// archive 补 rar ④文档类通用回落 document（text/
+/// office 类未命中专属组者），其余一切落 unknown。
 public struct DeliverableIconStyle: Equatable, Sendable {
-    public enum Glyph: Equatable, Sendable {
-        /// 白色粗体单字（办公三件）
-        case letter(String)
-        /// SF 符号名（白色填充字形）
-        case symbol(String)
+    /// 资产 slug（15 枚家族成员名）
+    public let slug: String
+
+    public init(slug: String) {
+        self.slug = slug
     }
 
-    public let glyph: Glyph
-    /// 底色（RRGGBB hex、无 # 前缀）
-    public let backgroundHex: String
+    /// Assets.xcassets 内的 imageset 名
+    public var assetName: String { "fileicon-\(slug)" }
 
-    public init(glyph: Glyph, backgroundHex: String) {
-        self.glyph = glyph
-        self.backgroundHex = backgroundHex
-    }
+    /// 回落 slug／资源名：任一枚资源缺失时呈现端落它，
+    /// 不许空白、不许回退字形（§128 验收口径）
+    public static let fallbackSlug = "unknown"
+    public static let fallbackAssetName = "fileicon-unknown"
+
+    /// 全部 slug（资产完整性对账用，顺序同资产目录）
+    public static let allSlugs: [String] = [
+        "document", "word", "text", "pdf", "sheet",
+        "slides", "code", "archive", "folder", "folder-open",
+        "image", "video", "audio", "app", "unknown",
+    ]
 
     public static func style(
-        forFileName name: String, isDirectory: Bool = false
+        forFileName name: String,
+        isDirectory: Bool = false,
+        isExpanded: Bool = false
     ) -> DeliverableIconStyle {
         if isDirectory {
             return DeliverableIconStyle(
-                glyph: .symbol("folder.fill"), backgroundHex: "6E777D"
+                slug: isExpanded ? "folder-open" : "folder"
             )
         }
         let ext = (name as NSString).pathExtension.lowercased()
         switch ext {
         case "doc", "docx":
-            return DeliverableIconStyle(
-                glyph: .letter("W"), backgroundHex: "2B579A"
-            )
+            return DeliverableIconStyle(slug: "word")
         case "ppt", "pptx":
-            return DeliverableIconStyle(
-                glyph: .letter("P"), backgroundHex: "C43E1C"
-            )
+            return DeliverableIconStyle(slug: "slides")
         case "xls", "xlsx", "csv":
-            return DeliverableIconStyle(
-                glyph: .letter("X"), backgroundHex: "217346"
-            )
+            return DeliverableIconStyle(slug: "sheet")
         case "pdf":
-            return DeliverableIconStyle(
-                glyph: .symbol("doc.richtext.fill"),
-                backgroundHex: "D92D20"
-            )
+            return DeliverableIconStyle(slug: "pdf")
         case "md", "txt", "rtf":
-            return DeliverableIconStyle(
-                glyph: .symbol("doc.text.fill"),
-                backgroundHex: "5B6B7A"
-            )
-        case "html", "htm":
-            return DeliverableIconStyle(
-                glyph: .symbol("safari.fill"),
-                backgroundHex: "1473C8"
-            )
-        case "zip", "7z", "tar", "gz":
-            return DeliverableIconStyle(
-                glyph: .symbol("archivebox.fill"),
-                backgroundHex: "6E777D"
-            )
+            return DeliverableIconStyle(slug: "text")
+        case "html", "htm",
+             "swift", "py", "js", "ts", "jsx", "tsx",
+             "json", "yaml", "yml", "toml", "xml",
+             "css", "scss", "c", "h", "m", "mm",
+             "cpp", "cxx", "hpp", "java", "kt", "kts",
+             "go", "rs", "rb", "php", "sh", "bash",
+             "zsh", "sql", "pl", "lua", "vue":
+            return DeliverableIconStyle(slug: "code")
+        case "zip", "7z", "tar", "gz", "rar":
+            return DeliverableIconStyle(slug: "archive")
         case "png", "jpg", "jpeg", "gif", "webp", "heic":
-            return DeliverableIconStyle(
-                glyph: .symbol("photo.fill"),
-                backgroundHex: "2E7D4F"
-            )
+            return DeliverableIconStyle(slug: "image")
         case "mp4", "mov", "m4v":
-            return DeliverableIconStyle(
-                glyph: .symbol("film.fill"), backgroundHex: "6A4FD0"
-            )
+            return DeliverableIconStyle(slug: "video")
         case "mp3", "wav", "m4a", "aac":
-            return DeliverableIconStyle(
-                glyph: .symbol("waveform"), backgroundHex: "C77400"
-            )
+            return DeliverableIconStyle(slug: "audio")
+        case "ipa", "apk", "app", "dmg", "pkg", "exe", "msi":
+            return DeliverableIconStyle(slug: "app")
+        case "odt", "ods", "odp",
+             "docm", "xlsm", "xlsb", "pptm",
+             "pages", "numbers", "key", "epub", "log":
+            // 文档类通用回落：text/office 类里没有专属
+            // 身份的成员（开放文档格式、宏启 Office 变
+            // 体、iWork 三件、电子书、日志）
+            return DeliverableIconStyle(slug: "document")
         default:
-            return DeliverableIconStyle(
-                glyph: .symbol("doc.fill"), backgroundHex: "949B9F"
-            )
+            return DeliverableIconStyle(slug: "unknown")
         }
     }
 }
