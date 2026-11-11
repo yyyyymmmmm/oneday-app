@@ -8680,3 +8680,29 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 分支 feat/provider-default（worktree ~/workspace/oneday-worktrees/pkg-provider-default，基线 main 3af9674／0.50.1），顶端以推送为准：代码 49c5d95＋记账 2115fde＋修复 8646835（if let 条件禁尾随闭包，load 回读改先赋值再绑定）。未合并、版本号未改。
 - 分支 CI：首跑 run 42982847656 于 Build 步失败（上述语法错，jobs API 终判 failure）；修复后 run 42983168116 **success**（jobs API build-native success、steps 零失败）。单测 Executed **1346、0 failures**（基线 1336＋本包新增 MainModelAssignmentTests 10，只增不减）。
 - i18n：validate_i18n 与 --check-code 双过（2620 键含 InfoPlist 13，三语全覆盖）；目录删旧键 1（预设错误文案）、新增 5（新文案/端点名/提示/两条行值格式）。
+
+## §134 预设存储本地化：选模型五层收口（复杂化全清第 5 项，2026-11-11；节号预占，合并时主线终审对齐）
+
+用户 16:08 点名复杂化 13 项全解决；本项抉择书先行停点（complexity-resolution/item-05.md），用户 2026-11-11 16:33 拍板「两件都按建议办」——稠密化按 A 案、T2 另线处置。本节是 App 侧施工记账：**预制分支 feat/cx-model-storage（worktree ~/workspace/oneday-worktrees/pkg-cx-model，基线 feat/provider-default 顶端 886437e），未合并、版本号未动。**
+
+### 134.1 拍板口径（A 案全集）
+
+- 稠密化填法＝A：旧组合 aux 缺失的活槽转快照时填 .auto（跟随主模型），与 §119 PresetSnapshot 显式 auto 口径逐字合；迁移是无环境依赖的纯变换，启动时可跑、幂等。
+- 预设落 App 本地：0.37 §5「服务端为真源、防多设备双账」就此放弃，预设变本机数据、多设备不互通。
+- 附带口径（抉择 3，随 A 案一并确认）：delegation/fallback 迁移原样保留；目录外 aux 键（死槽/未知键）原样保留（aux 为开放字典，保留才无损）；迁移取数留 GET-only 一次性旧档读取器、由 migrated 标记门控，标记落盘后永不再调用。
+- 用户可感变化唯一一处：预设组「服务端存储还没开通／清单没读出来」两条留位文案消失（本地化后两态不复存在）。
+
+### 134.2 落法
+
+- Core 新增 PresetMigration（纯函数）：旧文档→稠密快照文档＋对账报告（条数/active/逐槽位映射）；活槽按注册表序写全 19 槽（缺失填跟随、已有逐字保留），注册表外旧键随后按字典序补入；verify 逐条把守（条数/次序/active/标量字段全等、活槽＝旧值或跟随、外键逐字在、无多余键）。
+- App 新增 PresetStore（UserDefaults JSON 文档＋migrated 标记＋迁移对账留痕，与 SideChatStore 同模式）；一次性 LegacyComboReader（GET-only）放同文件，门控逻辑在 ModelManagementStore.loadPresets：已迁移直读本地；未迁移读旧档→迁移→落本地置标记；旧档 404（确认不存在）按空文档迁移；网络/鉴权类失败本轮不置标记、下次加载再试，不拿空文档冒充迁完丢旧预设。
+- ModelManagementStore：comboDocument 改读本地镜像；save/delete 改本地落盘（去掉服务端失败文案）；activate 只剩 Dashboard config 写回＋本地 active 标记；combosFaceMissing/combosLoadFailed 两态删除。
+- ModelSettingsView：预设组删两条留位分支，呈现余部逐字不动。
+- 删 ModelComboClient.swift（PUT 写口随之退役）；ModelCombos.swift 头注存储口径改判记账。
+- i18n：删键 5（两条留位文案＋「预设没能存到服务端」＋「删除没能存到服务端」＋「保存组合」），无新增键；validate_i18n 通过（2615 键含 InfoPlist 13，三语全覆盖）。
+
+### 134.3 验收与待办
+
+- 钉测 PresetMigrationTests 7 法：空文档/纯稀疏填跟随/纯稠密恒等/混合文档标量与次序保留/注册表外键逐字保留/幂等二次跑不变/verify 抓篡改与丢键。单测只增不减（基线 1346＋7）。
+- 合并后待办（不在本包）：伴生线删 /meta/model-combos 端点本体。
+- 真机待验：①旧版升新版首次进模型页，旧预设（含稀疏组合）完整迁入且启用行为按 A 案（未指定用途重置为跟随）；②迁移后断网进模型页，预设照常在；③新建/编辑/删除/启用预设全程不依赖桥 meta 可用性。

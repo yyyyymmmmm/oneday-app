@@ -4,9 +4,12 @@ import Foundation
 /// 存成自己的组合、多套可切换。口径依 model-provider-
 /// status-design-20261110 §5 定版（用户「自定义部署」
 /// 原话）：开发方不预置决定，唯一例外是一套「当前配置」
-/// 起始示例（把现状存成组合供改、可删改）。组合定义存
-/// 服务端桥 meta（服务端为真源、防多设备双账），config
-/// 里只放当前激活的那套赋值。
+/// 起始示例（把现状存成组合供改、可删改）。config 里
+/// 只放当前激活的那套赋值。存储落点后随复杂化全清
+/// 第 5 项改判：组合定义落 App 本地（PresetStore），
+/// 「服务端为真源」口径作废、多设备不互通（用户
+/// 2026-11-11 16:33 按抉择书 A 案拍板；旧桥文档经
+/// PresetMigration 稠密化迁入，缺失活槽填跟随）。
 ///
 /// 粒度诚实边界（§5.3，UI 文案须如实）：组合全局生效；
 /// 只有主模型一格有会话级例外（会话锁），其余槽位
@@ -117,8 +120,10 @@ public struct ModelCombo: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-/// 桥 meta 上的组合文档（一把梭 GET/PUT，与 /meta/brief
-/// 的整体存取同构）：组合全集＋当前激活的那套 id。
+/// 组合文档：组合全集＋当前激活的那套 id。原为桥
+/// meta 上的整体存取形态（GET/PUT 一把梭），第 5 项
+/// 起同一形态落 App 本地 PresetStore，桥侧仅余一次
+/// 性迁移读取。
 public struct ModelComboDocument: Codable, Equatable, Sendable {
     public var combos: [ModelCombo]
     public var activeComboID: String?
