@@ -8892,3 +8892,32 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **xcstrings 三方并集（用本包入仓脚本实跑）**：merge_xcstrings.py 以 base＝7265879、ours＝main 8e6b655、theirs＝feat/cx-misc 跑 Localizable——base 2607／ours 2623／theirs 2607，**零冲突**；分支相对基线零新增、零删除、零改值（逐键对账：added／removed／changed 三单皆空），并集结果与 main 现行 2623 键语义逐键全等，故文件保留 main 现行版（脚本输出键序按其 base 序＋新增序、与现行文件序不同，不为对账改序）；InfoPlist 同法跑：13 键三方全等、零冲突。merge_xcstrings.py --self-test 通过；validate_i18n 通过（2636 键含 InfoPlist 13，三语全覆盖）。
 - **单测对账**：Tests/ 仅新增 StoreLoadStateTests.swift 一文件 8 法，既有测零删改；合并后 CI 单测 Executed **1432、0 failures**（合并前 main 1424＋本包 8，只增不减，与预期分毫不差），无例外项。
 - 定版 c0de202（版本五处＝Project.swift 四处 0.50.10/132＋SettingsView 页脚「OneDay v0.50.10」，grep 验无 0.50.9 残留）。CI run 42996454744：jobs API 逐项终判 build-native 及全部 steps **success**（head c0de202）。IPA 落 ~/workspace/your_files/oneday-v0.50.10/OneDay-0.50.10.ipa，10,036,158 字节，md5 `1ff23adc3f4bae424c2fa0f92be47d5a`（落盘与 CI 产物逐字一致），Info.plist 实读 0.50.10／132／site.didichou.oneday。真机待验沿 139.6 清单（md/xlsx/csv 各开一份真文件、表格切 sheet、两阅读器各造一次失败态核对失败页与动作）。
+
+## §140 语言切换（2026-11-11，预制分支 feat/i18n-language，基线 main 15cc649／0.50.10；依据 i18n-leak-audit-20261111.md §1.4 C 方案／包 0，用户 17:41 点名「设置里没有呀」）
+
+### 140.1 定版口径
+
+- 0.42.0「App 不设语言开关、纯跟随系统」口径作废：设置页外观加语言四档——跟随系统／简体中文／繁體中文／English，用户在 App 内即可切换、三语当场可验。
+- 生效方式取审计 C 案（进程内真切换）：不写 appleLanguages、不重启；系统托管面（系统权限弹窗、分享单、文件选择器）仍随系统语言，属平台常态——设置行区脚小字如实注明，不作全覆盖承诺。听写识别语言是独立既有设置，不并入本档。
+
+### 140.2 落法
+
+- **Core（AppLocale.swift）**：新增 `AppLanguagePreference` 四档枚举（rawValue 即持久化值：system／zh-Hans／zh-Hant／en；显式档 rawValue 即其 Locale 标识）＋ `LanguageStorageKeys.appLanguage` 键名单一出处（照 AppearanceStorageKeys 先例）。`AppLocale.uiLocale` 改覆盖优先：`resolve(preference:preferredLocalizations:)` 纯函数——显式档直取 Locale、跟随系统档回 `Bundle.main.preferredLocalizations` 首项、清单空回 autoupdatingCurrent（0.42.0 旧解析尾巴同口径）；读口 `languagePreference(in:)` 未设/脏值回 .system、写口 `setLanguagePreference(_:in:)` 供非视图层与单测。取词口零新基建：L10n 既有 `bundle(for:)` 本就按语言取 .lproj，本包仅给它加基底 bundle 可注入的内部门（`bundle(for:in:)`，生产恒 .main、钉测载 fixture）。格式化器与 Core 各呈现面默认参同引 uiLocale 一口，覆盖自动全网生效。
+- **根层（OneDayApp.swift）**：@AppStorage 读同一键（单一事实源、本层只消费）；`.environment(\.locale, AppLocale.uiLocale)` 仍只读 uiLocale 一口，另以语言档值作 `.id` 施于 RootView——改档即整树按新语言重建，字面量取词、Core 格式化与各页语言形态全体换档、即时生效。appState 与 ModelContainer 在 .id 之外（App @State／Scene 修饰），重建不丢会话与数据。
+- **设置页（AppearanceView.swift）**：模式区后加 ⑤ 语言区，形态与 ④ 模式勾选行同构（@AppStorage 写、选中打勾）；档名不直写字面量过 Text(String) 原样面——经 `L10n.string(档名键)` 按当前界面语言取词，切档后本页在新语言下重渲、档名随之换语。区脚小字注明系统托管面仍随系统语言（文案走目录）。
+
+### 140.3 新增目录键（4 条，三语齐）
+
+「简体中文」「繁体中文」「English」三档名（「跟随系统」「语言」为存量键复用）＋区脚小字「系统弹窗与分享界面等由系统显示的部分，仍跟随系统语言。」。Localizable 2623→2627 键，validate_i18n 通过（2640 键含 InfoPlist 13、三语全覆盖、占位符一致、无行话引入）；文件 diff 纯新增（新键按原文件排序惯例就近插入，未动存量键序与值）。
+
+### 140.4 附则自查（§139.4）
+
+- 新增 UserDefaults 键 `appLanguage` 一枚，理由：语言是与外观（模式/主题/形象）正交的用户级全局偏好，消费方在 Core（AppLocale 解析）与根层，既有四套旁挂状态（外观三键等）语义都接不住；故按 AppearanceStorageKeys 先例在 Core 新立 LanguageStorageKeys 单一出处，AppStorage 与 UserDefaults 读口同引、不散写字面量。未新开 Store/Client，未动既有键。
+
+### 140.5 单测
+
+- 新增 LanguageSwitchTests 4 法：四档解析（显式三档直取、与系统清单无关）、跟随系统回落 preferredLocalizations（首项胜出＋空清单回 autoupdatingCurrent）、覆盖值持久化回读（未设回 .system、四档逐档写读一致＋落盘原值核对、脏值回默认）、四档取词命中（fixture .lproj 载目录真值键「跟随系统」三语，跟随系统/簡體/繁體/English 逐档经 resolve→bundle(for:in:)→NSLocalizedString 断言命中对应语言）。目录本体三语真值由 validate_i18n 把守、fixture 只验机制，与 I18nFormattingTests 宿主口径分工。既有测零删改，只增不减。
+
+### 140.6 预制验收记账（2026-11-11）
+
+- 分支 feat/i18n-language：基线 main 15cc649（0.50.10/132）。validate_i18n 本地实跑通过（2640 键）。未合并、版本号未动，待主线按序合并定版。合并后真机待验：切 English 后主面＋设置页＋设备页即时变、杀进程重进保持所选档、切回跟随系统复原；系统权限弹窗/分享单仍随系统语言（区脚口径、非缺陷）。

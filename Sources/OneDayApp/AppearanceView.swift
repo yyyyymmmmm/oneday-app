@@ -39,7 +39,9 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 /// 一真源，切换即时生效于真实聊天页）③虚拟形象大小
 /// （原生 Menu 行，大/中/小，作用面＝聊天胶囊头像＋
 /// 空态形象）④模式（三行勾选行，复用既有
-/// preferredColorScheme 链）。全页遵 0.24.0 定版：
+/// preferredColorScheme 链）。§140 续加 ⑤语言四档
+/// （勾选行与 ④ 同构、区脚注明系统托管面仍随系统
+/// 语言，见 languageSection）。全页遵 0.24.0 定版：
 /// List(.insetGrouped)＋settingsBG、行题 Body 17
 /// regular（rowTitleL）、分区头 Footnote 13
 /// （sectionLabel）＋inkSecondary、行高 settingsRow-
@@ -59,6 +61,16 @@ struct AppearanceView: View {
     private var chatThemeID = ChatThemes.defaultID
     @AppStorage(AppearanceStorageKeys.avatarSize)
     private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
+    /// 语言四档（§140）：与模式同形态——AppStorage
+    /// 单一事实源（LanguageStorageKeys.appLanguage），
+    /// 本页写、根层 OneDayApp 消费（.environment＋
+    /// .id 整树重建，即时生效不重启）
+    @AppStorage(LanguageStorageKeys.appLanguage)
+    private var appLanguageRaw = AppLanguagePreference.system.rawValue
+
+    private var languagePreference: AppLanguagePreference {
+        AppLanguagePreference(rawValue: appLanguageRaw) ?? .system
+    }
 
     private var mode: AppearanceMode {
         AppearanceMode(rawValue: appearanceModeRaw) ?? .system
@@ -97,6 +109,7 @@ struct AppearanceView: View {
             themeSection
             avatarSection
             modeSection
+            languageSection
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
@@ -381,6 +394,54 @@ struct AppearanceView: View {
             }
         } header: {
             appearanceHeader("模式")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(rowInsets)
+    }
+
+    // MARK: - ⑤ 语言（§140）
+
+    /// 语言四档勾选行（形态与 ④ 模式同构）：档名
+    /// 经 L10n 按当前界面语言取词（切档瞬间整树重
+    /// 建、新语言下重渲本页，档名随之换语）；区脚
+    /// 小字如实注明系统托管面（权限弹窗/分享单等）
+    /// 仍随系统语言——平台常态、不在本档承诺内
+    private var languageSection: some View {
+        Section {
+            ForEach(AppLanguagePreference.allCases) { item in
+                Button {
+                    appLanguageRaw = item.rawValue
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Color.clear
+                            .frame(width: OneDayMetrics.iconSlot)
+                            .accessibilityHidden(true)
+                        Text(L10n.string(item.displayKey))
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                        if item == languagePreference {
+                            Image(systemName: "checkmark")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(Palette.primary)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
+                .accessibilityLabel(
+                    L10n.string(item.displayKey)
+                        + (item == languagePreference ? "，已选" : "")
+                )
+            }
+        } header: {
+            appearanceHeader(L10n.string("语言"))
+        } footer: {
+            Text(L10n.string("系统弹窗与分享界面等由系统显示的部分，仍跟随系统语言。"))
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(rowInsets)

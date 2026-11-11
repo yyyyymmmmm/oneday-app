@@ -7,6 +7,14 @@ import SwiftUI
 struct OneDayApp: App {
     @State private var appState: AppState
     private let container: ModelContainer
+    /// 语言覆盖档（§140）：设置页外观·语言 Picker
+    /// 写同一 AppStorage 键（LanguageStorageKeys.
+    /// appLanguage，单一事实源）；根层在此消费——
+    /// 改值即触发 body 重估，下方 .environment 与
+    /// .id 双管齐下整树按新语言重建、即时生效、
+    /// 不重启、不写 appleLanguages
+    @AppStorage(LanguageStorageKeys.appLanguage)
+    private var appLanguageRaw = AppLanguagePreference.system.rawValue
 
     init() {
         // 0.33.1：退役桥钥残项清理——0.32.1 写进 Keychain
@@ -40,7 +48,13 @@ struct OneDayApp: App {
                 // 境语言改钉 AppLocale.uiLocale（App 随
                 // 系统语言解析出的界面语言），系统控件
                 // 与视图内格式化器随之与界面语言一致
+                // §140：uiLocale 已改覆盖优先（设置页
+                // 语言档），此处仍只读它一口；再以语言
+                // 档值作 .id 强制整树重建——字面量取词、
+                // Core 格式化与各页缓存的语言形态在切
+                // 换瞬间全体换档，不留半吊子混排
                 .environment(\.locale, AppLocale.uiLocale)
+                .id(appLanguageRaw)
         }
         .modelContainer(container)
     }
