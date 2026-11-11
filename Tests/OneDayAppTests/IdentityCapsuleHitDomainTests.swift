@@ -24,7 +24,7 @@ final class IdentityCapsuleHitDomainTests: XCTestCase {
     }
 
     private struct FrameKey: PreferenceKey {
-        static let defaultValue: CGRect?
+        static var defaultValue: CGRect? { nil }
         static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
             value = nextValue() ?? value
         }
