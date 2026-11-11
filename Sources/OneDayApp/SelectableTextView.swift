@@ -162,13 +162,18 @@ struct SelectableInlineText: View {
                 ?? "",
         ]
         for paragraph in paragraphs {
+            let markerKey: String
+            if let marker = paragraph.listMarker {
+                markerKey = "\(marker.text)@\(marker.levelIndent)"
+                    + "/\(marker.columnWidth)/\(marker.textGap)"
+            } else {
+                markerKey = "-"
+            }
             parts.append(
                 "p\(paragraph.headIndent)/\(paragraph.spaceAfter)"
                     + "/\(paragraph.textStyleOverride?.rawValue ?? "-")"
                     + "/\(paragraph.dimmed ? "d" : "-")"
-                    + "/\(paragraph.listMarker.map {
-                        "\($0.text)@\($0.levelIndent)/\($0.columnWidth)/\($0.textGap)"
-                    } ?? "-")"
+                    + "/\(markerKey)"
             )
             for run in paragraph.runs {
                 parts.append(
