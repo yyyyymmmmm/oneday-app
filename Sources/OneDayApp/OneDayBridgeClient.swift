@@ -435,6 +435,42 @@ final class OneDayBridgeClient: @unchecked Sendable {
         }
     }
 
+    // MARK: - 图片变体（§138，桥 /media/rendition）
+
+    /// GET /media/rendition?path=&w=&kind=：回变体 JPEG
+    /// 字节（kind=image 取图变体、kind=poster 取视频首
+    /// 帧海报）。与 spreadsheet 同口径：状态码原样包成
+    /// HermesError.unexpectedStatus 交调用方分型（415
+    /// 格式不支持/404 不存在时回落原图通道），不收敛
+    /// 成一句人话丢分型；无钥匙仍走 noKey 口径
+    func rendition(
+        config: ServerConfig, path: String,
+        width: Int, kind: String = "image"
+    ) async throws -> Data {
+        let allowed = CharacterSet.alphanumerics.union(
+            CharacterSet(charactersIn: "-._~/")
+        )
+        let encoded = path.addingPercentEncoding(
+            withAllowedCharacters: allowed
+        ) ?? path
+        let request = try makeRequest(
+            config: config,
+            path: "/media/rendition?path=\(encoded)"
+                + "&w=\(width)&kind=\(kind)",
+            method: "GET"
+        )
+        let (data, http) = try await send(
+            request, endpoint: L10n.string("图片预览")
+        )
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.unexpectedStatus(
+                endpoint: L10n.string("图片预览"),
+                status: http.statusCode
+            )
+        }
+        return data
+    }
+
     // MARK: - 请求底座
 
     private func makeRequest(

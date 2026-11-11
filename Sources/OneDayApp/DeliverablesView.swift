@@ -169,7 +169,10 @@ struct DeliverablesView: View {
             .navigationDestination(item: $viewerRoute) { route in
                 ImageViewerView(
                     items: route.entries.map {
-                        ChatImageViewerItem(source: .remotePath($0.path))
+                        ChatImageViewerItem(
+                            source: .remotePath($0.path),
+                            mtime: $0.mtime ?? 0
+                        )
                     },
                     initialIndex: route.initialIndex,
                     onDeleteItem: { item in
@@ -922,6 +925,11 @@ struct DeliverablesView: View {
                             }
                             .buttonStyle(.odPressable)
                             .id(entry.path)
+                            // §138：以可见格为锚向后预
+                            // 取 2 行（6 格）360 档——
+                            // 滚动方向上先暖缓存，格到
+                            // 眼前时缩略已在、不阻塞布局
+                            .onAppear { prefetchMedia(after: entry) }
                             // 0.43.0（A11Y-V7）：Rotor 卡标记
                             .accessibilityRotorEntry(
                                 id: entry.name, in: fileRotorNamespace
@@ -1157,6 +1165,34 @@ struct DeliverablesView: View {
             // §125：文本类不再从本面直达阅读页——与
             // 聊天/文件浏览器同路先进中间页（单源壳）
             previewEntry = entry
+        }
+    }
+
+    /// 影音网格预取（§138）：以刚露面的格为锚，向后
+    /// 6 格（2 行）的图片/视频先把 360 档/海报暖进缩
+    /// 略缓存（FileThumbnailStore 自带去重与并发闸，
+    /// 已缓存的格零成本跳过）；滚动中只做占位→360
+    /// 的单向填充，不阻塞布局
+    private func prefetchMedia(after entry: WorkspaceFileEntry) {
+        guard let index = sortedMedia.firstIndex(
+            where: { $0.path == entry.path }) else { return }
+        let upcoming = sortedMedia
+            .dropFirst(index + 1).prefix(6)
+            .filter {
+                $0.mediaKind == .image || $0.mediaKind == .video
+            }
+        guard !upcoming.isEmpty else { return }
+        Task {
+            for next in upcoming {
+                _ = await FileThumbnailStore.shared.thumbnail(
+                    for: next, targetPixelSize: 360,
+                    loader: FileThumbnailStore.originalLoader(
+                        appState: appState, path: next.path),
+                    renditionLoader: FileThumbnailStore
+                        .renditionLoader(
+                            appState: appState, path: next.path)
+                )
+            }
         }
     }
 

@@ -6,17 +6,20 @@ import SwiftUI
 import UIKit
 
 /// 文件页缩略图（0.36.31，文件页 v2 规格 §4.3 一期策
-/// 略——服务端无缩略端点，全部在 App 侧生成，流量代
-/// 价如实存在、二期服务端根治）：
-/// - 图片：原字节经 ImageIO 降采样解码（禁全尺寸解
-///   码，影音格 0.36.4 前的全量解码病在本版一并销）；
+/// 略；§138 二期收口——服务端变体端点已上线）：
+/// - 图片：先走伴生变体端点 360 档（几十 KB），拿
+///   不到才回落原字节经 ImageIO 降采样解码（禁全
+///   尺寸解码，影音格 0.36.4 前的全量解码病已销）；
+/// - 视频：伴生海报帧（ffmpeg 首帧）当缩略源（§138
+///   新增）；拿不到回落类型面——整段下载抽帧仍不做；
+/// - 音频：不生成（类型面回落）；
 /// - PDF/Office/HTML/文本：落临时文件走系统 QLThumb-
 ///   nailGenerator 取首面（系统对这些类型有缩略提供
 ///   者）；取不到回落类型面（FileTypeFace），不留白；
-/// - 视频/音频：不生成（一期回落类型面＋角标，规格
-///   §4.3 定版：整段下载抽帧代价不成比例）；
 /// - 缓存：内存 NSCache＋磁盘（Caches/FileThumbs），
 ///   键含 path＋mtime＋目标像素——文件变了自动失效；
+///   图片缩略生成后同键播种 RemoteImagePipeline，
+///   供查看器首帧种子（点开即显的来源）；
 /// - 并发闸 2：滚动时不让缩略生成把带宽与解码打满。
 @MainActor
 final class FileThumbnailStore {
@@ -29,14 +32,44 @@ final class FileThumbnailStore {
         memoryCache.countLimit = 120
     }
 
-    /// loader＝宿主的取字节通道（performAdmin fileData）
+    /// 取字节通道组（§138）：原图走宿主 performAdmin
+    /// 文件下载、变体走桥 rendition 端点（桥钥在客户
+    /// 端内读，宽度固定 360 档）——FileThumbnailView／
+    /// 文件卡／影音预取三处同源，不各拼一份
+    static func originalLoader(
+        appState: AppState, path: String
+    ) -> () async -> Data? {
+        {
+            try? await appState.performAdmin { client, config in
+                try await client.fileData(
+                    config: config, path: path)
+            }
+        }
+    }
+
+    private static let bridgeClient = OneDayBridgeClient()
+
+    static func renditionLoader(
+        appState: AppState, path: String
+    ) -> (String) async -> Data? {
+        { kind in
+            guard let config = appState.config else { return nil }
+            return try? await bridgeClient.rendition(
+                config: config, path: path, width: 360,
+                kind: kind)
+        }
+    }
+
+    /// loader＝原图取字节通道；renditionLoader＝变体
+    /// 取字节通道（入参 kind：image/poster）
     func thumbnail(
         for entry: WorkspaceFileEntry,
         targetPixelSize: CGFloat,
-        loader: @escaping () async -> Data?
+        loader: @escaping () async -> Data?,
+        renditionLoader: ((String) async -> Data?)? = nil
     ) async -> UIImage? {
-        // 视频/音频不生成（类型面回落由调用方呈现）
-        if let kind = entry.mediaKind, kind != .image {
+        // 音频不生成（类型面回落由调用方呈现）
+        if entry.mediaKind == .audio {
             return nil
         }
         let key = cacheKey(for: entry, pixel: Int(targetPixelSize))
@@ -50,12 +83,19 @@ final class FileThumbnailStore {
         await gate.acquire()
         let image = await generate(
             for: entry, targetPixelSize: targetPixelSize,
-            loader: loader
+            loader: loader, renditionLoader: renditionLoader
         )
         await gate.release()
         if let image {
             memoryCache.setObject(image, forKey: key as NSString)
             saveToDisk(image, key: key)
+            // 播种管线：影音格/文件行点开查看器时，
+            // 这张 360 就是首帧种子（§138）
+            if entry.mediaKind == .image {
+                RemoteImagePipeline.shared.storeMemory(
+                    image, path: entry.path,
+                    mtime: entry.mtime ?? 0, tier: .thumb)
+            }
         }
         return image
     }
@@ -63,14 +103,34 @@ final class FileThumbnailStore {
     private func generate(
         for entry: WorkspaceFileEntry,
         targetPixelSize: CGFloat,
-        loader: () async -> Data?
+        loader: () async -> Data?,
+        renditionLoader: ((String) async -> Data?)?
     ) async -> UIImage? {
-        guard let data = await loader() else { return nil }
         if entry.mediaKind == .image {
+            // 变体优先（360 档 JPEG），回落原图降采样
+            if let renditionLoader,
+               let data = await renditionLoader("image"),
+               let image = Self.downsampledImage(
+                   data: data, pixelSize: targetPixelSize) {
+                return image
+            }
+            guard let data = await loader() else { return nil }
             return Self.downsampledImage(
                 data: data, pixelSize: targetPixelSize
             )
         }
+        if entry.mediaKind == .video {
+            // 海报帧当缩略源；拿不到回落类型面（调用
+            // 方呈现），整段下载抽帧不做（旧口径保留）
+            if let renditionLoader,
+               let data = await renditionLoader("poster") {
+                return Self.downsampledImage(
+                    data: data, pixelSize: targetPixelSize
+                )
+            }
+            return nil
+        }
+        guard let data = await loader() else { return nil }
         return await Self.quickLookThumbnail(
             data: data, entry: entry,
             targetPixelSize: targetPixelSize
@@ -255,15 +315,12 @@ struct FileThumbnailView: View {
         .task(id: entry.path) {
             guard image == nil else { return }
             image = await FileThumbnailStore.shared.thumbnail(
-                for: entry, targetPixelSize: targetPixelSize
-            ) {
-                try? await appState.performAdmin {
-                    client, config in
-                    try await client.fileData(
-                        config: config, path: entry.path
-                    )
-                }
-            }
+                for: entry, targetPixelSize: targetPixelSize,
+                loader: FileThumbnailStore.originalLoader(
+                    appState: appState, path: entry.path),
+                renditionLoader: FileThumbnailStore.renditionLoader(
+                    appState: appState, path: entry.path)
+            )
         }
     }
 }
