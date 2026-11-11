@@ -258,6 +258,13 @@ struct ChatView: View {
     // §152 修订二：附件面板内容实测高（面板经
     // PreferenceKey 回报），sheet detent 贴内容用
     @State private var attachPanelContentHeight: CGFloat = 0
+    // §154 热修：detent 钳顶用的宿主真高——本页根
+    // 层 onGeometryChange 回写（sheet 之外的呈现方
+    // 几何）。§152 误用 sheet 内容内 GeometryReader
+    // 所量（那是 detent 驱动的 sheet 自身高），钳顶
+    // 按 0.75 倍自噬塌陷、面板等于没出现，自此只
+    // 认本值；未回写（0）时 detent 决策回落默认档
+    @State private var hostViewHeight: CGFloat = 0
     @State private var videoItems: [PhotosPickerItem] = []
     @State private var showVideoPicker = false
     // 文件选择自 0.36.31 起走 UIKit 桥 Document-
@@ -414,6 +421,15 @@ struct ChatView: View {
         // 式下底栏坞是页卡的一部分、随卡同走，不需要
         // 也不应该再隐藏（口径变化见 §30）
         chatSurface
+        // §154 热修：宿主真高回写（附件面板 detent
+        // 钳顶的唯一屏高来源，见 hostViewHeight 注；
+        // 本页根几何独立于任何 sheet 呈现，不随
+        // detent 变化）
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { _, newHeight in
+            hostViewHeight = newHeight
+        }
         // 0.19.0：抽屉「枢纽」导航行的开枢纽请求通道
         //（AppState.hubOpenRequested 置位—消费—清零，
         // 与 cronCreateRequested 同式）：抽屉先切聊天格
@@ -628,36 +644,56 @@ struct ChatView: View {
         // 高度贴内容不留死空；未授权态与确认行增减
         // 都经同一量测自适应。确认入条是终结动作不
         // 呈现下一层，直接收面板后批量取数入条（多
-        // 选逐张走单张同一取数路，§152）
-        .sheet(isPresented: $showAttachPanel) {
-            GeometryReader { screen in
-                AttachmentPanelView(
-                    onCamera: {
-                        afterAttachPanelDismiss { showCamera = true }
-                    },
-                    onConfirmPhotos: { assetIDs in
-                        showAttachPanel = false
-                        Task { await loadStripPhotos(assetIDs: assetIDs) }
-                    },
-                    onViewAll: {
-                        afterAttachPanelDismiss { showPhotoPicker = true }
-                    },
-                    onAddFile: {
-                        afterAttachPanelDismiss {
-                            DocumentPickerBridge.present { urls in
-                                loadPickedFiles(urls: urls)
-                            }
+        // 选逐张走单张同一取数路，§152）。§154 热
+        // 修：钳顶屏高与量测保真两处已改（见下方
+        // sheet 本体的 §154 注），§152 的贴高/多选
+        // 收益不动
+        .sheet(isPresented: $showAttachPanel, onDismiss: {
+            // §154 热修：收面板即清量测——下次打开恒
+            // 自 .medium 兜底起、量到再贴合，不留跨
+            // 次陈值喂 detent
+            attachPanelContentHeight = 0
+        }) {
+            AttachmentPanelView(
+                onCamera: {
+                    afterAttachPanelDismiss { showCamera = true }
+                },
+                onConfirmPhotos: { assetIDs in
+                    showAttachPanel = false
+                    Task { await loadStripPhotos(assetIDs: assetIDs) }
+                },
+                onViewAll: {
+                    afterAttachPanelDismiss { showPhotoPicker = true }
+                },
+                onAddFile: {
+                    afterAttachPanelDismiss {
+                        DocumentPickerBridge.present { urls in
+                            loadPickedFiles(urls: urls)
                         }
-                    },
-                    onAddVideo: {
-                        afterAttachPanelDismiss { showVideoPicker = true }
                     }
-                )
-                .onPreferenceChange(AttachmentPanelHeightKey.self) { height in
-                    attachPanelContentHeight = height
+                },
+                onAddVideo: {
+                    afterAttachPanelDismiss { showVideoPicker = true }
                 }
-                .presentationDetents(attachPanelDetents(screenHeight: screen.size.height))
+            )
+            // §154 热修：量测取理想高——面板根挂
+            // fixedSize 纵向保真，内容高不随 detent
+            // 的提案伸缩（§152 旧构里横滑条会被撑满
+            // 回灌与 sheet 等高的伪量测）
+            .fixedSize(horizontal: false, vertical: true)
+            .onPreferenceChange(AttachmentPanelHeightKey.self) { height in
+                attachPanelContentHeight = height
             }
+            // §154 热修：钳顶屏高改喂宿主真高（本页
+            // 根层 onGeometryChange 回写，独立于
+            // sheet）；未回写（0）时决策回落默认档，
+            // 面板照常打开。§152 旧构把 Geometry-
+            // Reader 套在 sheet 内容里量「屏高」——
+            // 量到的是 sheet 自身高，钳顶自噬塌陷、
+            // 点「+」等于没反应（0.50.16 真机报障）
+            .presentationDetents(
+                attachPanelDetents(screenHeight: hostViewHeight)
+            )
             .presentationDragIndicator(.visible)
         }
         // 0.36.31（件二）：.fileImporter 已删——侧载
@@ -2312,6 +2348,25 @@ struct ChatView: View {
                         excluding: entry.remoteImagePaths
                             + mediaSplit.imagePaths
                     )
+                // §154 热修：摘行集补 §136 已承接的
+                // 图——同一路径既写了 MEDIA: 行、又在
+                // 正文裸写独立成行时，§143 候选被排除
+                // 集挡住（excluding 含 mediaSplit
+                // .imagePaths）、裸行没人摘：图已在上
+                // 方出，气泡里还留一行生路径（生产实
+                // 证消息 1878：cloud_pc_small.jpg 哨
+                // 兵已登记、图已出，正文仍留路径行，
+                // 用户读作「还是纯文本没出图」）。摘
+                // 除条件与 §143 逐字同口径：独立成行
+                // ＋存在性确证 .exists 才摘；查无/未
+                // 确证正文原样保留、内容不消失
+                let mediaStandalonePaths = Set(
+                    FileRefDetector
+                        .detectStandaloneAnchored(
+                            in: mediaSplit.text
+                        )
+                        .map(\.path)
+                )
                 let displayText = FileRefDetector
                     .strippingStandaloneLines(
                         in: mediaSplit.text,
@@ -2322,6 +2377,14 @@ struct ChatView: View {
                                         .existence(for: $0.path)
                                         == .exists
                             }.map(\.path)
+                        ).union(
+                            mediaSplit.imagePaths.filter {
+                                mediaStandalonePaths
+                                    .contains($0)
+                                    && FileMetadataStore.shared
+                                        .existence(for: $0)
+                                        == .exists
+                            }
                         )
                     )
                 // 0.5.1（§32）：思考折叠单元挂在正文泡
@@ -3679,7 +3742,10 @@ private struct ComposerBarLayout: Layout {
 
     /// §152 修订二：附件面板 sheet 的 detent 集——
     /// 内容高已量得时单档贴内容；尚未量得（首帧）回
-    /// 落 .medium 过渡，量到即换贴合高
+    /// 落 .medium 过渡，量到即换贴合高。§154 热修：
+    /// screenHeight 只许传宿主真高（根层回写值），
+    /// 且决策含可信下限——量测链任何一环坏掉都回
+    /// 落 .medium 照常开，绝不再现塌陷
     private func attachPanelDetents(
         screenHeight: CGFloat
     ) -> Set<PresentationDetent> {

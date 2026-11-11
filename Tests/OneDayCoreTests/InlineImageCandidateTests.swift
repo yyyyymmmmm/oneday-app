@@ -365,4 +365,68 @@ final class InlineImageCandidateTests: XCTestCase {
             text
         )
     }
+
+    // MARK: - §154 热修：MEDIA 行与裸行同现（生产实证 消息 1878）
+
+    /// state.db 消息 1878 原文形态：同一图片路径
+    /// 先写 MEDIA: 行（§136 摘除承接出图）、又在正
+    /// 文裸写独立成行。旧 App 摘行集只认 §143 候
+    /// 选，而候选探测把 §136 已承接的路径放进排除
+    /// 集——裸行永远摘不掉（图已出、气泡仍留生路
+    /// 径行，用户读作「没出图」）。本测钉住 §154
+    /// 并集摘行所依赖的三件 Core 事实：①MEDIA 拆
+    /// 分摘标记行且承接该路径；②候选探测按排除集
+    /// 不收它（与 §143 分工不变）；③该路径在拆分
+    /// 后正文里仍是独立成行参照（App 据此并入摘行
+    /// 集），摘后只剩 PDF 行与正文、PDF 不误删
+    func testMediaClaimedPathBareLineStillStrippable() {
+        let text = """
+        MEDIA:/opt/data/cloud_pc_small.jpg
+
+        这次压到 22KB 再发一遍，同时给你两个备选文件：
+
+        /opt/data/cloud_pc_small.jpg
+        /opt/data/cloud_pc_2.pdf
+
+        实话跟你说：看到图片就说明小图能过。
+        """
+        let split = MediaMarker.split(in: text)
+        XCTAssertEqual(
+            split.imagePaths, ["/opt/data/cloud_pc_small.jpg"]
+        )
+        XCTAssertFalse(split.text.contains("MEDIA:"))
+        // §143 候选按分工不收 §136 已承接的图
+        XCTAssertTrue(
+            FileRefDetector.inlineImageCandidates(
+                in: split.text,
+                excluding: split.imagePaths
+            ).isEmpty
+        )
+        // 裸行在拆分后正文里仍是独立成行参照
+        let standalone = FileRefDetector
+            .detectStandaloneAnchored(in: split.text)
+            .map(\.path)
+        XCTAssertTrue(
+            standalone.contains("/opt/data/cloud_pc_small.jpg")
+        )
+        XCTAssertTrue(
+            standalone.contains("/opt/data/cloud_pc_2.pdf")
+        )
+        // 并集摘行（App §154）：只摘图片裸行，PDF
+        // 行与正文完好
+        let stripped = FileRefDetector.strippingStandaloneLines(
+            in: split.text,
+            paths: ["/opt/data/cloud_pc_small.jpg"]
+        )
+        XCTAssertEqual(
+            stripped,
+            """
+            这次压到 22KB 再发一遍，同时给你两个备选文件：
+
+            /opt/data/cloud_pc_2.pdf
+
+            实话跟你说：看到图片就说明小图能过。
+            """
+        )
+    }
 }
