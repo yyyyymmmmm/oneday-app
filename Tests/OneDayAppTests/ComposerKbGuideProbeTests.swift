@@ -3,21 +3,30 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// 小样探针（§178 施工前验证，非正式测试）：与生产同构的嵌套——
-/// DrawerContainerController → 内容宿主（TabView）→ 聊天页替身，
-/// 聊天页内嵌引导线托管探针控制器（整栈替身挂 UIHostingController、
-/// 底边钉 view.keyboardLayoutGuide＋地板补偿）。量三组事实：
-/// 静止态几何、键盘升起后坞的去向（被键盘盖住还是骑到键盘上方）、
-/// 引导线与 additionalSafeAreaInsets 的实测值。结果以单行
-/// PROBE-REPORT 经 XCTFail 通道带出（本文件是探针、随施工定稿删除）。
+/// 小样探针第二轮（§178 施工前验证，非正式测试，随定稿删除）。
+/// 变体 G（拟定新承载）：列表 ignoresSafeArea(.bottom)＋引导线托管舱。
+/// 变体 A（现行承载 A/B 基准）：列表 safeAreaBar 挂替身舱。
+/// 量：静止帧／真聚焦后／合成键盘帧通知后 三态的坞帧、页帧、
+/// 舱帧、列表几何。结果以单行 PROBE2-REPORT 经 XCTFail 带出。
 @MainActor
 private final class ProbeBox {
     static let shared = ProbeBox()
     var textView: UITextView?
     var pageSafeBottom: CGFloat = -1
+    var pageHeight: CGFloat = -1
     var scrollInsetsBottom: CGFloat = -1
-    var keyboardEndFrames: [CGRect] = []
-    var floorInset: CGFloat = 83
+    var scrollContainerHeight: CGFloat = -1
+    var abBarFrame: CGRect = .zero
+    var floorInset: CGFloat = 0
+
+    func reset() {
+        textView = nil
+        pageSafeBottom = -1
+        pageHeight = -1
+        scrollInsetsBottom = -1
+        scrollContainerHeight = -1
+        abBarFrame = .zero
+    }
 }
 
 private struct ProbeTextView: UIViewRepresentable {
@@ -32,10 +41,21 @@ private struct ProbeTextView: UIViewRepresentable {
     func updateUIView(_ uiView: UITextView, context: Context) {}
 }
 
-/// 引导线托管探针控制器：职责与拟定生产件同构——
-/// 舱宿主底边钉本视图 keyboardLayoutGuide.top，地板常数在
-/// 每次布局时按 min(guideTop, floorY) 补偿（键盘升起跟引导线、
-/// 落下停在地板＝坞顶）。
+/// 帧回报件：把自身在窗口中的帧写进 box（A/B 基准舱用）
+private struct FrameReporter: UIViewRepresentable {
+    final class View: UIView {
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            if let window {
+                ProbeBox.shared.abBarFrame =
+                    convert(bounds, to: window)
+            }
+        }
+    }
+    func makeUIView(context: Context) -> View { View() }
+    func updateUIView(_ uiView: View, context: Context) {}
+}
+
 private final class ProbeHostController: UIViewController {
     let barHost: UIHostingController<AnyView> = {
         let root = AnyView(
@@ -72,6 +92,8 @@ private final class ProbeHostController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        // 地板＝本视图底边（探针一轮实证：页帧已收在坞上方、
+        // 视图底即坞顶，不得再减安全区数——双计）
         let guideTop = view.keyboardLayoutGuide.layoutFrame.minY
         let floorY = view.bounds.height - ProbeBox.shared.floorInset
         let target = min(guideTop, floorY)
@@ -91,47 +113,88 @@ private struct ProbeHostRep: UIViewControllerRepresentable {
     ) {}
 }
 
-private struct ProbeChatPage: View {
+private struct ProbePage<Content: View>: View {
+    @ViewBuilder var content: () -> Content
     var body: some View {
-        ZStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(0..<40, id: \.self) { i in
-                        Text("row \(i)")
+        content()
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onChange(
+                            of: proxy.safeAreaInsets.bottom,
+                            initial: true
+                        ) { _, v in
+                            ProbeBox.shared.pageSafeBottom = v
+                            ProbeBox.shared.pageHeight = proxy.size.height
+                        }
+                }
+            }
+    }
+}
+
+private func probeRows() -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+        ForEach(0..<40, id: \.self) { i in Text("row \(i)") }
+    }
+    .padding()
+}
+
+private struct ProbeShellGuide: View {
+    @State private var selection = 0
+    var body: some View {
+        TabView(selection: $selection) {
+            Tab("聊天", systemImage: "message", value: 0) {
+                ProbePage {
+                    ZStack {
+                        ScrollView { probeRows() }
+                            .ignoresSafeArea(edges: .bottom)
+                            .onScrollGeometryChange(
+                                for: CGFloat.self
+                            ) { $0.contentInsets.bottom } action: { _, v in
+                                ProbeBox.shared.scrollInsetsBottom = v
+                            }
+                            .onScrollGeometryChange(
+                                for: CGFloat.self
+                            ) { $0.containerSize.height } action: { _, v in
+                                ProbeBox.shared.scrollContainerHeight = v
+                            }
+                        ProbeHostRep()
                     }
                 }
-                .padding()
             }
-            .onScrollGeometryChange(for: CGFloat.self) {
-                $0.contentInsets.bottom
-            } action: { _, value in
-                ProbeBox.shared.scrollInsetsBottom = value
-            }
-            ProbeHostRep()
-        }
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onAppear {
-                        ProbeBox.shared.pageSafeBottom =
-                            proxy.safeAreaInsets.bottom
-                    }
-                    .onChange(of: proxy.safeAreaInsets.bottom) { _, v in
-                        if ProbeBox.shared.pageSafeBottom < 0 {
-                            ProbeBox.shared.pageSafeBottom = v
-                        }
-                    }
+            Tab("其他", systemImage: "square", value: 1) {
+                Text("other")
             }
         }
     }
 }
 
-private struct ProbeShell: View {
+private struct ProbeShellAB: View {
     @State private var selection = 0
     var body: some View {
         TabView(selection: $selection) {
             Tab("聊天", systemImage: "message", value: 0) {
-                ProbeChatPage()
+                ProbePage {
+                    ScrollView { probeRows() }
+                        .onScrollGeometryChange(
+                            for: CGFloat.self
+                        ) { $0.contentInsets.bottom } action: { _, v in
+                            ProbeBox.shared.scrollInsetsBottom = v
+                        }
+                        .onScrollGeometryChange(
+                            for: CGFloat.self
+                        ) { $0.containerSize.height } action: { _, v in
+                            ProbeBox.shared.scrollContainerHeight = v
+                        }
+                        .safeAreaBar(edge: .bottom, spacing: 0) {
+                            ZStack {
+                                Color(.systemBackground)
+                                ProbeTextView().frame(height: 38)
+                                FrameReporter()
+                            }
+                            .frame(height: 60)
+                        }
+                }
             }
             Tab("其他", systemImage: "square", value: 1) {
                 Text("other")
@@ -144,36 +207,22 @@ private struct ProbeShell: View {
 final class ComposerKbGuideProbeTests: XCTestCase {
     private var window: UIWindow!
     private var controller: DrawerContainerController!
-    private var frameObserver: NSObjectProtocol?
 
-    override func setUp() async throws {
-        try await super.setUp()
-        ProbeBox.shared.keyboardEndFrames = []
-        frameObserver = NotificationCenter.default.addObserver(
-            forName: UIResponder.keyboardWillChangeFrameNotification,
-            object: nil, queue: .main
-        ) { note in
-            if let frame = note.userInfo?[
-                UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-                ProbeBox.shared.keyboardEndFrames.append(frame)
-            }
-        }
+    private func boot(_ root: AnyView) {
+        ProbeBox.shared.reset()
         controller = DrawerContainerController()
-        controller.contentRoot = AnyView(ProbeShell())
-        window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+        controller.contentRoot = root
+        window = UIWindow(
+            frame: CGRect(x: 0, y: 0, width: 402, height: 874))
         window.rootViewController = controller
         window.makeKeyAndVisible()
         controller.view.layoutIfNeeded()
     }
 
     override func tearDown() async throws {
-        if let frameObserver {
-            NotificationCenter.default.removeObserver(frameObserver)
-        }
         window.isHidden = true
         window = nil
         controller = nil
-        ProbeBox.shared.textView = nil
         try await super.tearDown()
     }
 
@@ -196,11 +245,6 @@ final class ComposerKbGuideProbeTests: XCTestCase {
         return out
     }
 
-    private func frameInWindow(_ view: UIView) -> CGRect {
-        view.convert(view.bounds, to: window)
-    }
-
-    /// 在容器层级里定位探针控制器（内容宿主的 SwiftUI 树内）
     private func locateProbe() -> ProbeHostController? {
         func search(_ vc: UIViewController) -> ProbeHostController? {
             if let probe = vc as? ProbeHostController { return probe }
@@ -212,47 +256,73 @@ final class ComposerKbGuideProbeTests: XCTestCase {
         return search(controller)
     }
 
-    private func snapshot(_ label: String) -> String {
-        controller.view.layoutIfNeeded()
-        let tabs = findViews(UITabBar.self, in: window)
-        let tabDesc = tabs.map {
-            "tabBar@\(fmt(frameInWindow($0)))"
-        }.joined(separator: ",")
-        var probeDesc = "probe=nil"
-        if let probe = locateProbe() {
-            let pv = probe.view!
-            let guide = pv.keyboardLayoutGuide.layoutFrame
-            let bar = frameInWindow(probe.barHost.view)
-            probeDesc = "probeFrame@\(fmt(frameInWindow(pv)))"
-                + " addSAI=\(Int(probe.additionalSafeAreaInsets.bottom))"
-                + " viewSAI=\(Int(pv.safeAreaInsets.bottom))"
-                + " guide(minY=\(Int(guide.minY)),h=\(Int(guide.height)))"
-                + " bar@\(fmt(bar))"
-        }
-        let kbFrames = ProbeBox.shared.keyboardEndFrames
-            .map { fmt($0) }.joined(separator: ",")
-        return "\(label): \(tabDesc); \(probeDesc);"
-            + " pageSA=\(Int(ProbeBox.shared.pageSafeBottom))"
-            + " scrollInsetB=\(Int(ProbeBox.shared.scrollInsetsBottom))"
-            + " kbNotifs=[\(kbFrames)]"
-    }
-
     private func fmt(_ r: CGRect) -> String {
         "(\(Int(r.minX)),\(Int(r.minY)),\(Int(r.width))x\(Int(r.height)))"
     }
 
-    func testProbeReport() {
-        spin(0.8)
-        if ProbeBox.shared.pageSafeBottom > 0 {
-            ProbeBox.shared.floorInset = ProbeBox.shared.pageSafeBottom
+    private func snapshot(_ label: String) -> String {
+        controller.view.layoutIfNeeded()
+        let tabs = findViews(UITabBar.self, in: window).map {
+            "tab@\(fmt($0.convert($0.bounds, to: window)))"
+        }.joined(separator: ",")
+        var probeDesc = ""
+        if let probe = locateProbe() {
+            let pv = probe.view!
+            let guide = pv.keyboardLayoutGuide.layoutFrame
+            let bar = probe.barHost.view.convert(
+                probe.barHost.view.bounds, to: window)
+            probeDesc = " probe@\(fmt(pv.convert(pv.bounds, to: window)))"
+                + " guide(minY=\(Int(guide.minY)))"
+                + " bar@\(fmt(bar))"
         }
+        let wins = UIApplication.shared.windows.map {
+            "\(type(of: $0))@\(fmt($0.frame))"
+        }.joined(separator: ",")
+        return "\(label): \(tabs);\(probeDesc)"
+            + " pageSA=\(Int(ProbeBox.shared.pageSafeBottom))"
+            + " pageH=\(Int(ProbeBox.shared.pageHeight))"
+            + " scrInsetB=\(Int(ProbeBox.shared.scrollInsetsBottom))"
+            + " scrContH=\(Int(ProbeBox.shared.scrollContainerHeight))"
+            + " abBar@\(fmt(ProbeBox.shared.abBarFrame))"
+            + " isFR=\(ProbeBox.shared.textView?.isFirstResponder ?? false)"
+            + " wins=[\(wins)]"
+    }
+
+    private func postKeyboard(endY: CGFloat, height: CGFloat) {
+        let frame = CGRect(x: 0, y: endY, width: 402, height: height)
+        NotificationCenter.default.post(
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil,
+            userInfo: [
+                UIResponder.keyboardFrameEndUserInfoKey: frame,
+                UIResponder.keyboardAnimationDurationUserInfoKey: 0.25,
+                UIResponder.keyboardAnimationCurveUserInfoKey: 7,
+            ]
+        )
+    }
+
+    private func flow(_ tag: String) -> String {
+        spin(0.8)
         let rest = snapshot("REST")
         ProbeBox.shared.textView?.becomeFirstResponder()
-        spin(1.8)
-        let kb = snapshot("KBUP")
-        ProbeBox.shared.textView?.resignFirstResponder()
-        spin(1.4)
-        let rest2 = snapshot("REST2")
-        XCTFail("PROBE-REPORT | \(rest) | \(kb) | \(rest2)")
+        spin(1.6)
+        let real = snapshot("REALKB")
+        postKeyboard(endY: 538, height: 336)
+        spin(1.0)
+        let synth = snapshot("SYNTH")
+        postKeyboard(endY: 874, height: 336)
+        spin(1.0)
+        let restored = snapshot("RESTORED")
+        return "\(tag} | \(rest) | \(real) | \(synth) | \(restored)"
+    }
+
+    func testProbeGuideVariant() {
+        boot(AnyView(ProbeShellGuide()))
+        XCTFail("PROBE2-REPORT " + flow("GUIDE"))
+    }
+
+    func testProbeABVariant() {
+        boot(AnyView(ProbeShellAB()))
+        XCTFail("PROBE2-REPORT " + flow("AB"))
     }
 }
