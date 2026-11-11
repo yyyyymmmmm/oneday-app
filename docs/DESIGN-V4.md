@@ -9549,3 +9549,4 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - CI 与单测总数见本分支合并注意回填；版本五处不在本包动（预制不发版）。
 - 真机待验：①滑动手感（长会话快速上下滑、流式中滑动）是否顺畅；②.hard 底缘观感——栏界是否出现可见分隔线、与发送舱/回底钮行/横幅同现时是否突兀；③输入框附近朦胧是否与胶囊对齐（用户原题）；④AX 最大字号档＋深色模式各一帧底缘观感。
 - §157 撞号补记（2026-11-11 本包 CI 在跑时实查）：main 已前进，抽屉呈现第一批合并时经主线合裁取得 §157（run 43034009519）。本节在分支内保留 §157 自选号仅为预制记账，**合并时必顺延**（以主线当时末节为准，预计 §158 起）并同步全部代码注释与测试注释中的 §157 字样（MarkdownParseMemo／MarkdownBlocks／InlineRuns／CodeHighlight／ToolCards／ChatView／MarkdownParseMemoTests／诊断报告引用）。本包基线 6932d8d 不变，代码零受影响。
+- §157.3 实证回填（2026-11-11）：CI 两轮——一轮 run 43034118132 failure，唯一 error 为 CodeHighlight 记忆键拼接处 normalizeLanguage 返回 Optional 未解包（:62），解包后二轮 run 43034476672 jobs API 终判 build-native **success**。单测 Executed **1582、0 failures**（基线 main 6932d8d 口径 1577＝0.50.16 的 1562＋§154 热修 5＋§155 的 7＋§156 的 3，本包 MarkdownParseMemoTests 净增 5，只增不减）。分支顶端含三提交（两修本体＋撞号补记＋Optional 修复），预制完成待主线合入 0.50.18 后续版本。
