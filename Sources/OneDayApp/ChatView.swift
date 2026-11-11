@@ -1168,129 +1168,45 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
-    /// 身份胶囊（0.6.0；0.6.1 布局根修）：一颗胶囊，左
-    /// 域＝三狗头像＋身份名＋状态点/状态词（0.17.0 起点
-    /// 按开枢纽 sheet——活动格撤销前的落点是切活动格），
-    /// 右域＝模型 Menu（分隔线＋短名＋chevron）。点按分
-    /// 工与一颗装口径沿 0.6.0 不变。
-    /// 0.17.0（真机五修②，用户点名「漏字透明、要朦胧
-    /// 感玻璃感」）：本体材质由白浮纸（odFloatPaper：
-    /// 实填充＋发丝边、无 backdrop 采样）换系统玻璃
-    /// .glassEffect(.regular)——调研报告 §6.1/6.6 定案：
-    /// 浮件本体必须自带 backdrop 模糊与明度调整（带由
-    /// 列表的 scroll edge effect 负责、件由 glass 负责，
-    /// 缺一不可）；.clear 档是为「让内容透出」设计的、
-    /// 聊天页禁用，.regular 是系统 bar/浮件的默认档。
-    /// 0.6.0 真机缺陷根源（用户点名「Hermes ● …」）：
-    /// 胶囊内只有状态 Text 一个可压缩元素，状态长句
-    /// 必被压成省略号——名字/模型短名都 fixedSize、独
-    /// 它扛全部收缩。本版双管齐下：状态词语义先改短
-    /// （OverviewStatusLine 可证事实短词，Core）；布局
-    /// 改 ViewThatFits 两档——全量档（头像＋名＋状态＋
-    /// 模型）宽度不够时整档换紧凑档（只去名字），每
-    /// 档内全部文字 fixedSize 不许截断，任何宽度下都
-    /// 不出现裸「…」
+    /// 身份胶囊适配（本体 IdentityCapsuleView，设计
+    /// 沿革——0.6.0 一颗装双点按域、0.6.1 ViewThat-
+    /// Fits 两档根修、0.17.0 本体换玻璃、§179 玻璃
+    /// 降背景层与独立成件——全在该件文件头）
+    /// §179：胶囊本体独立成件（IdentityCapsuleView，
+    /// 供宿主命中域回归测试覆盖），本处只作适配——值
+    /// 与动作仍由本页单源派生，呈现宿主（模型面
+    /// sheet）留在本页根（§175），一件不多
     private var identityCapsule: some View {
-        ViewThatFits(in: .horizontal) {
-            capsuleRow(showName: true)
-            capsuleRow(showName: false)
-        }
+        IdentityCapsuleView(
+            avatar: appState.agentAvatarImage,
+            displayName: appState.agentDisplayName,
+            statusWord: overviewStatusWord,
+            statusColor: overviewStatusColor,
+            avatarPointSize: avatarTier.capsulePointSize,
+            modelTriggerLabel: ModelDisplayNames.triggerLabel(
+                for: currentChoice.model
+            ),
+            modelAccessibilityLabel: "当前模型 \(displayModelName)，切换模型",
+            onOpenHub: { showHub = true },
+            onOpenModelPicker: { showModelPicker = true }
+        )
     }
 
-    private func capsuleRow(showName: Bool) -> some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
-            Button {
-                showHub = true
-            } label: {
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    // 0.36.22：头像读本地档案（AppState
-                    // 单一出口），改名换头像此处同步
-                    appState.agentAvatarImage
-                        .resizable()
-                        .scaledToFill()
-                        // 0.26.0：边长走形象档（小 24/
-                        // 中 28/大 34；中档＝旧值）——
-                        // 名字 fixedSize＋最高优先、胶囊
-                        // hug 宽随内容，±6 不挤断名字
-                        .frame(
-                            width: avatarTier.capsulePointSize,
-                            height: avatarTier.capsulePointSize
-                        )
-                        .clipShape(Circle())
-                        .accessibilityHidden(true)
-                    if showName {
-                        // 0.36.22：显示名收敛档案出口
-                        // （档案覆盖→soul 名→Hermes）
-                        Text(appState.agentDisplayName)
-                            .font(.headline)
-                            .foregroundStyle(Palette.ink)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                    HStack(spacing: OneDayMetrics.iconTextGap) {
-                        StatusDot(color: overviewStatusColor)
-                        Text(overviewStatusWord)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.odPressable)
-            .accessibilityLabel("\(appState.agentDisplayName)，\(overviewStatusWord)，打开枢纽")
-
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(width: 0.5, height: 18)
-
-            modelMenu
-        }
-        .padding(.horizontal, OneDayMetrics.spacingSM)
-        .padding(.vertical, 7)
-        // 0.17.0：白浮纸退役、本体换 .glassEffect
-        // (.regular)（定案见 identityCapsule 注）
-        .glassEffect(.regular, in: Capsule())
-    }
-
-    /// 模型域（§153 B1/B2）：触发器形态不变（短名＋
-    /// chevron），点开改分组选择面（sheet）——旧原生
-    /// Menu＋Picker 只装得下写死两项、服务商分组无处
-    /// 安放（新面准入四问①②见 §153.4）。勾的纪律不
-    /// 回退：选择面是系统 List、当前执行行由系统
-    /// checkmark 呈现、单选互斥由「点行即落账关面」
-    /// 构造保证（FB16679936 的教训是自绘勾被 UIKit
-    /// 剥透明度，双勾源于自绘而非列表形态本身）。
-    /// 选择只写本会话账（selectCurrentChoice），不改
-    /// 服务端默认、不发网络请求
-    private var modelMenu: some View {
-        Button {
-            showModelPicker = true
-        } label: {
-            HStack(spacing: OneDayMetrics.stackGap) {
-                Text(ModelDisplayNames.triggerLabel(
-                    for: currentChoice.model
-                ))
-                    .font(.callout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                Image(systemName: "chevron.down")
-                    // 0.23.0（审计 G6）：9pt 字形升 caption2
-                    // 角色（默认 11 视觉当量、随 Dynamic
-                    // Type 缩放），与胶囊内同件同口径
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .accessibilityLabel("当前模型 \(displayModelName)，切换模型")
-    }
+    /// （胶囊行 capsuleRow 与模型触发钮 modelMenu 已
+    /// 随 §179 迁入 IdentityCapsuleView；§153 的选面
+    /// 纪律注记并入下方 modelPickerSheet 注）
 
     /// 模型面只由稳定的聊天根呈现，不挂在 ViewThatFits
     /// 的两个候选按钮上；保留选择、隐藏确认和作用域逻辑。
+    /// §153 B1/B2 纪律（随触发钮迁件自原 modelMenu 注
+    /// 移入）：分组选择面取代旧原生 Menu＋Picker（写死
+    /// 两项装不下服务商分组，新面准入四问①②见
+    /// §153.4）；勾的纪律不回退——选择面是系统 List、
+    /// 当前执行行由系统 checkmark 呈现、单选互斥由
+    /// 「点行即落账关面」构造保证（FB16679936 的教训
+    /// 是自绘勾被 UIKit 剥透明度，双勾源于自绘而非列
+    /// 表形态本身）；选择只写本会话账（selectCurrent-
+    /// Choice），不改服务端默认、不发网络请求
     private var modelPickerSheet: some View {
         ChatModelPickerView(
             groups: appState.pickerModelGroups,
