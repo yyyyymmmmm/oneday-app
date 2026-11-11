@@ -9983,3 +9983,41 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 真机待验（逐项）：①长消息正文双击选中一词（中英文各一）、双手柄出现；②拖手柄跨行扩选、拷贝内容正确（WORD JOINER 已剥）；③跨段扩选：段落→列表项、列表→段落双向（本包核心新能力）；④长按文本出系统编辑菜单、长按非文本区出气泡菜单，不打架；⑤代码块内选择按真机形态如实记录（次档预期，不冒充）；⑥表格单元格选择、引用块内跨行选择；⑦流式中不可选、落定立刻可选；选区活动关右滑、取消恢复；⑧AX 最大字号＋深色各一帧（标题字阶、列表标记对齐）；⑨用户气泡双击选词。
 - 错题本：本障入「未结案」区候选（候选甲未证死），真机复验定案当天迁正册。
 
+
+
+## §169 FA-1 动态 App 包 A：点赞/讨论信号接线＋why 归位（2026-11-11，三页对标规格 FA-1 包，契约以 rev2 §1.9 对 1.0.17 as-built 冻结为准；预制分支 feat/feed-app-a，基线 main 9f032b6／0.50.18 合并中顶端，只预制不合并；节号分支自选 §161——在飞分支已占 §159/§160，合并时主线合裁顺延 §169 并同步代码注释）
+
+### 169.1 范围与契约对账
+
+- 本包只做四件（任务枚举为准）：①帖子爱心接真线；②讨论 signal 接线；③why 呈现归位；④呈现序守契约（无代码改动、加测钉死）。对标规格 FA-1 行内的「空态文案改口径（F-7）」不在本包任务枚举内，未施工，留主线随 FD-1 digest 定位一并裁。
+- 桥侧零改动：`POST /feed/{id}/like {liked:bool}`（幂等、回 post 视图）、`POST /feed/{id}/signal {type:"discuss", note?}`（其余 type 回 400）、`_feed_view.likedAt` 均为 1.0.17 as-built（companion modules/oneday_bridge.py:82-88、:3338、:3421、:3446 实查），App 按契约施工、不反向要求桥改。
+
+### 169.2 点赞（①）
+
+- Core `BridgeFeedPost` 新增 `likedAt: Double?`（宽容解码：null/缺键均 nil）＋`isLiked` 唯一口径（likedAt 非空）＋`withLikedAt` 同形重组；`markedRead` 副本透传 likedAt 不丢赞态。
+- 桥客户端新增 `setFeedPostLiked`（回执帖视图全形）；请求体 `BridgeFeedLikeRequest` 落 Core。
+- FeedStore.`toggleLiked`：目标态＝当前桥态取反；在飞集防同帖连点竞态；**回执到达整帖替换本地行；失败本地一字不动**（无本地假账，沿契约口径——下次 load 以桥为准纠正）。
+- 行面：动作行最左加爱心钮（heart／heart.fill，赞态 Palette.primary、未赞 inkSecondary，与讨论同字阶），无障碍标签「点赞/取消点赞」。行面不新增 why/edition 字样、不加行高（守 §126 行面栈与 §1.9）。
+
+### 169.3 讨论信号（②）
+
+- 时机口径：信号在「讨论建聊成功后」发——本 App 的建聊是本地建线程＋预填草稿（不代发红线），「建聊成功」的落点＝用户在该旁聊**发出第一条消息**（与验收 F-A7 同口径：点讨论并在旁聊发出首句→信号落账）。点讨论只登记待发关联，不立即发信号——立即发会把「点开看看又放弃」的线程也记成讨论信号，且 note 无从取（首句还没写）。
+- 关联：SideChatStore 新增 `feedDiscussPostIDs`（线程 id→帖 id，UserDefaults 落盘，与 ideaThreadIDs/goalThreadIDs 同形）；FeedView.discuss 建线程后登记。
+- 挂点：ChatView.send 在本轮条目落盘前判定（feedDiscussSignalTarget：有关联且线程内尚无用户条目才认首句），落盘后 fireFeedDiscussSignal——**先销账再上报**（只报一次；第二句不再触发）；失败静默（弱回执，不在聊天摆错误面），桥未收下即无此记、如实无账。
+- note：Core 新 `FeedDiscussSignal.preferenceNote`——按句切分、只取首个含偏好标记（喜欢/没兴趣/多给我/少推/i prefer 等中英标记表）的句子整句上报，上限 120 字截断；无自述句则整键不发（`BridgeFeedSignalRequest` encodeIfPresent），桥按弱信号记 discussHints。讨论正文整段永不外送（Muse 口味纪律）。
+
+### 169.4 why 呈现（③）
+
+- 详情页：why 由「正文下方底色卡片块」改为**正文上方一行**「为什么选这篇 · {why}」（标题走既有目录键 semibold 次色、后段分隔符＋原文以变量入 Text 走原文呈现、不造新本地化键），与 §1.9 冻结口径逐字对齐。
+- 行面 ⓘ 来源面板（FeedSourcesSheet）：why 段已在 §117 就位（段头「为什么选这篇」＋正文），本包核对无缺、不重做。
+
+### 169.5 呈现序（④）
+
+- `FeedBoard.sorted` 现行即 createdAt 倒序（同刻 id 倒序定序）＝落盘序＝编辑序，App 不重排、不按 edition 分组——与 §1.9 一致，零代码改动；新增单测钉死「kind 混排纯时间倒序、同刻 id 定序」，防后人加分组/重排回归。
+
+### 169.6 文件边界、新面四问与验收
+
+- 动：Core `FeedModels.swift`（likedAt＋两请求体）、Core 新 `FeedDiscussSignal.swift`、桥客户端两端点、FeedStore.toggleLiked、FeedView（动作行/讨论登记/详情 why）、SideChatStore 待发表、ChatView 发送挂点、xcstrings +3 键（点赞/取消点赞/讨论信号，三语齐）、Core 单测新 `FeedAppATests` 9 法。
+- 新面四问：①入口——无新面，爱心在原动作行、why 在原详情、信号无 UI；②重复——点赞态只认桥 likedAt 一源、无本地第二账；③令牌——爱心字阶/配色走既有 .subheadline 与 Palette，无新令牌新数值；④AX 与深色——爱心钮带无障碍标签、填充态不单靠颜色（fill 图形本身可辨）、深色随 Palette 语义色，真机各验一帧入待验清单。
+- 真机待验：点赞→杀 App 重开仍填充（桥真源）；断网点赞行面不假装、恢复后以桥为准；点讨论→旁聊发首句（含自述句/不含各一次）→查桥口味账 discussHints +1 且自述句入账；讨论线程第二句不再发信号；详情 why 在正文上方一行、ⓘ 面板 why 段在位；动态流序与落盘序一致、无 edition 分组。
+

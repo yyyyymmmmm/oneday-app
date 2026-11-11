@@ -4841,6 +4841,38 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
+    /// FA-1：讨论信号待发判定——线程有待发关联、
+    /// 且线程内尚无任何用户条目（本轮将落的即首
+    /// 句）才返回帖 id；关联在但已有用户条目＝首句
+    /// 时机已过（信号只认首句，过期不补发）
+    private func feedDiscussSignalTarget(thread: ChatThread) -> String? {
+        guard let postID = appState.sideChats.feedDiscussPostID(
+            forThreadID: thread.id
+        ) else { return nil }
+        guard !thread.sortedEntries.contains(where: {
+            $0.role == "user"
+        }) else { return nil }
+        return postID
+    }
+
+    /// FA-1：发一记 discuss 信号——先销账（只报一
+    /// 次，防第二句重复触发），再尽力上报；失败静
+    /// 默（弱回执，不在聊天里摆错误面）。note 经
+    /// Core FeedDiscussSignal 只取首句中的自述偏好
+    /// 句，无自述则不带、桥按弱信号记账
+    private func fireFeedDiscussSignal(
+        postID: String, threadID: UUID, firstText: String
+    ) {
+        appState.sideChats.clearFeedDiscuss(forThreadID: threadID)
+        guard let config = appState.config else { return }
+        let note = FeedDiscussSignal.preferenceNote(in: firstText)
+        Task {
+            _ = try? await OneDayBridgeClient().sendFeedDiscussSignal(
+                config: config, id: postID, note: note
+            )
+        }
+    }
+
     private func send() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let pending = attachments
@@ -4878,6 +4910,12 @@ private struct ComposerBarLayout: Layout {
             Task { await resumeRunIfNeeded() }
             return
         }
+        // FA-1：动态讨论信号的待发判定要在本轮条目
+        // 落盘前算——本线程若由动态「讨论」建聊而来
+        // 且从未发过用户消息，本条即首句（信号 note
+        // 只许取首句，契约 rev2 §1.9）；判定收口在
+        // feedDiscussSignalTarget，落盘后据此发信号
+        let feedDiscussPostID = feedDiscussSignalTarget(thread: thread)
         // 0.27.0：种子快照要在本轮条目落盘前取——链
         // 接时的历史导入只含既往条目，本轮新消息由
         // 随后的会话模式发送单独投递，不许在服务端
@@ -4905,6 +4943,15 @@ private struct ComposerBarLayout: Layout {
         }
         thread.updatedAt = Date()
         try? modelContext.save()
+        // FA-1：首句已落盘——发讨论信号（销账先行、
+        // 只报一次；note 只取首句里的自述偏好句，
+        // 无则不带、桥记弱信号）
+        if let feedDiscussPostID {
+            fireFeedDiscussSignal(
+                postID: feedDiscussPostID, threadID: thread.id,
+                firstText: text
+            )
+        }
         // 0.4.1：上下文组装走 MessageQuote.outgoingContent
         // ——带引用的消息（含本轮新消息与历史回放）把引
         // 用块拼进 content，引用在每轮重放里持续在场；
