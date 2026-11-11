@@ -9680,4 +9680,4 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **设置页页脚（第 5 包×热修）**：第 5 包的「v0.50.16 (138)」新格式与热修已定的 0.50.17 撞行——合裁取新格式＋现行值「OneDay v0.50.17 (139)」，本版再升「v0.50.18 (140)」；页脚自此为「版本号 (构建号)」并列形态，仍是版本源第五处。
 - **xcstrings**：六包中三包动词条文件，合并全程自动并集无冲突，合并后实读 JSON 合法（2675 键）。
 
-发版验包（待补记）：发版 CI run／单测总数／IPA 字节·md5·Info.plist 三值，跑完另段补记。
+发版验包补记：定版提交 8f35981；发版 CI run **43041855822**，jobs API 逐项终判 build-native **success**；单测 **Executed 1591 tests, with 0 failures**＋TEST SUCCEEDED（基线 0.50.17 的 1567 净增 24、只增不减：HUB-1 +7／抽屉容器 +3／抽屉呈现 +1／折叠 +13／身份卡 +0／命名 +0，含热修基线口径差归并）；主线独立解包验 IPA：**10,446,790 字节、md5 `721e969984331915b88dc9d415f93735`**、Info.plist 实读 CFBundleShortVersionString＝0.50.18／CFBundleVersion＝**140**／CFBundleIdentifier＝site.didichou.oneday（0.50.16 漏过的直写位本次实读盯防通过）；落 `~/workspace/your_files/oneday-v0.50.18/OneDay-v0.50.18-140.ipa`。
