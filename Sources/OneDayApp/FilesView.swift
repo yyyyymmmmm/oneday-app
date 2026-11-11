@@ -89,21 +89,42 @@ struct FileSearchField: View {
     }
 }
 
-/// 类型图标盒 v2（0.22.0，视觉审计 F2 图标规格）：
-/// 字形与底色改由 Core 的 DeliverableIconStyle 表驱
-/// 动——办公三件白色粗体单字（W/P/X＋品牌色）、PDF
-/// 红、媒体各有身份色，与 Muse 资源库的类型真图标
-/// 对位；0.20.0 的「SF 通用字形＋pastel 类别轮换」
-/// （颜色不表类型）退役，pastel 只留枢纽等装饰面。
-/// 盒 36pt、圆角 9（行高口径：交付物行 64、浏览器
-/// 行 46 均可容纳）。图片在影音段另有 MediaCell 真
-/// 缩略图面，本盒只给回落字形（规格表 photo.fill）
+/// 类型图标图（§128）：按资源名取自制图标资产渲染；
+/// 资源缺失回落 unknown 枚——不许空白、不许回退字形
+/// （旧字母块渲染整套退役）。FileIconBox 与
+/// FileTypeFace 共用，呈现单源。
+struct FileIconImageView: View {
+    let assetName: String
+
+    var body: some View {
+        if let image = UIImage(named: assetName)
+            ?? UIImage(
+                named: DeliverableIconStyle.fallbackAssetName
+            ) {
+            Image(uiImage: image)
+                .resizable()
+        } else {
+            // 双缺失理论不可达（资产随包发布）：白砖兜底
+            Color.white
+        }
+    }
+}
+
+/// 类型图标盒 v3（§128，C8 定版）：Core 的
+/// DeliverableIconStyle 表给出资产 slug，本盒以白色
+/// 圆角砖承载自制 3D 图标（路线 A）——砖面恒白（含
+/// 深色模式，亮砖为有意设计），图标 PNG 本体即白底、
+/// 不另涂身份底色（防双层砖）；裁切圆角防白方角露
+/// 出。0.22.0 的身份色块＋白单字／SF 符号字形（W/P/X
+/// 字母块）整套退役。
+/// 边长（§125 尺寸参数）：列表 36（默认）／聊天文件
+/// 卡 40／打开页文件头 56——一处改三面齐变。
 struct FileIconBox: View {
     let name: String
     let isDirectory: Bool
-    /// 边长（§125 加尺寸参数）：列表 36（默认，与旧
-    /// 形态逐值一致）／聊天文件卡 40／打开页文件头
-    /// 56——字形与圆角按边长比例推导，一处改三面齐变
+    /// 目录披露态（展开→folder-open 枚；现行宿主无内
+    /// 联展开态、恒 false，表与参数先行落位）
+    var isExpanded: Bool = false
     var size: CGFloat = 36
 
     init(entry: WorkspaceFileEntry, size: CGFloat = 36) {
@@ -123,50 +144,23 @@ struct FileIconBox: View {
 
     var body: some View {
         let style = DeliverableIconStyle.style(
-            forFileName: name, isDirectory: isDirectory
+            forFileName: name,
+            isDirectory: isDirectory,
+            isExpanded: isExpanded
         )
-        ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(Color(hexRGB: style.backgroundHex))
-            switch style.glyph {
-            case .letter(let letter):
-                Text(letter)
-                    // 图标字形非阅读文字，固定字号合法
-                    // （审计图标规格：36 档 17 bold 白；
-                    // 0.23.0 单源 FrameworkIcon
-                    // .fileGlyphSize，其余档按比例推导）
-                    .font(.system(
-                        size: size * FrameworkIcon.fileGlyphSize / 36,
-                        weight: .bold
-                    ))
-                    .foregroundStyle(Color.white)
-            case .symbol(let name):
-                Image(systemName: name)
-                    .font(.system(size: size * 16 / 36))
-                    .foregroundStyle(Color.white)
-            }
-        }
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
+        FileIconImageView(assetName: style.assetName)
+            .frame(width: size, height: size)
+            .background(Color.white)
+            .clipShape(
+                RoundedRectangle(cornerRadius: cornerRadius)
+            )
+            .accessibilityHidden(true)
     }
 
     /// 圆角按边长 0.25 推导：36→9（radiusTile）、
     /// 40→10（radiusThumb 同值）、56→14，下限 radiusTile
     private var cornerRadius: CGFloat {
         max(OneDayMetrics.radiusTile, size * 0.25)
-    }
-}
-
-extension Color {
-    /// RRGGBB hex 字面量 → Color（DeliverableIconStyle
-    /// 的身份底色落色用；非法输入回落中性灰，不崩）
-    init(hexRGB hex: String) {
-        let value = UInt32(hex, radix: 16) ?? 0x949B9F
-        self.init(
-            red: Double((value >> 16) & 0xFF) / 255,
-            green: Double((value >> 8) & 0xFF) / 255,
-            blue: Double(value & 0xFF) / 255
-        )
     }
 }
 
