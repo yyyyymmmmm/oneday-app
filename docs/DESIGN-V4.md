@@ -9393,3 +9393,44 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 定版：版本五处同改 0.50.16／138 commit `702fb4b`＋补丁 `1e25cc4`（验包实读发现 Info.plist 直写 CFBundleVersion 漏改 137、已补齐重跑）。发版 CI run **43021211318** jobs 逐项终判 build-native **success**；单测 Executed **1562、0 failures**（0.50.15 的 1527＋文本 13＋多图 5＋管理面 6＋附件修订 11＋顶栏 0 净增*，只增不减；*顶栏包分支口径 1534 相对其基线 0.50.14 的 1517 为 +17，与其余各包同基线增量有重叠口径，发版总账以主线实测 1562 为准）。
 - 验包：IPA 落 ~/workspace/your_files/oneday-v0.50.16/OneDay-0.50.16.ipa：**10,309,008 字节、md5 `ad20469e3e53ad147c9f93d0a57e55d7`**，主线独立解包复核 Info.plist 实读 0.50.16／138／site.didichou.oneday 一致。
 - 真机待验（随本版回收）：§149.6 文本选字清单、§150.5 多图清单、§151 管理面三段与默认作用域文案、§152.6 附件面板修订清单、§153.5 顶栏分组选择与作用域实证五条。
+
+# §154 抽屉呈现优化·第一批（2026-11-11，用户 21:01 亲递抽屉补充方案之第一批；预制分支 feat/drawer-present-batch1，基线 main 866a5c8／0.50.16 定版后顶端，只预制不合并，节号分支自选 §154，合并时主线合裁顺延并同步代码注释）
+
+## 154.1 点题与边界
+- 用户核对源码后的定性：重命名/置顶/归档功能已在（长按菜单），缺的是呈现层级与可发现性——本批只动呈现、不重做功能，不动排序、不动长按四件本体。
+- 三批分工：第一批＝本包（身份可编辑/导航紧凑/选中态统一/时间简化）；第二批＝材质减法与底部玻璃（另包）；第三批＝推开式 UIKit 容器（feat/drawer-uikit-container 在飞）。本包不碰容器层（DrawerShell/ContentView 壳层零改动）、不碰材质（thinMaterial 面板底与底条玻璃控件零改动）、不动 DrawerMotion、不动底条。
+
+## 154.2 身份行可编辑（批①）
+- 旧形态实证：抽屉顶部只有名字 Text（drawerAgentName），且标题浮层整体 allowsHitTesting(false)——标题区点击被结构性关闭，用户无从知道去哪里改名换头像；编辑本体早已存在于枢纽（AgentAvatarEditorView/AgentNameEditorView，0.36.22，改本机档案 AgentProfileStore）。
+- 落法：drawerAgentName 改 drawerIdentityRow——小头像 36（AppState.agentAvatarImage 单一出口，scaledToFill＋圆裁＋0.5 发丝环，与枢纽同式）＋名字（.screenName 不动）＋铅笔字形（13 semibold、inkSecondary 弱档），整行成 Menu（「更换虚拟形象」「编辑名称」，与枢纽头像角标菜单同两项同序），点项置位 sheet 呈现枢纽同两张编辑页本体；浮层 Spacer 部分仍不承命中，行外拖动归名单/壳层手势。
+- 不进本行：服务器/模型信息、账号卡/关注数（§21.3 定义卡口径延续）；titleStripHeight 70→72（顶距 24＋行高 36＝头像档＞Title1 行高约 34 取大者＋底距 12）。
+
+## 154.3 导航紧凑（批②）
+- 新令牌 OneDayMetrics.drawerNavRowHeight＝54：导航行/频道行/管理行 minHeight 58→54；旁聊会话行保留 drawerRowHeight 58（用户给的 56–60 区间内不动）。54 是设计起点（用户建议区间 52–56 的中点），不是 Muse 实测参数；minHeight 语义不变，大字体时行高随内容增长。
+- 「选项卡」组头删除（drawerNavList 首行）；「频道」「旁聊」组头保留（标的是名单分区、非导航自明区）。
+- 边距核对：三类行文字/图标起点改前已同线（组头与会话标题、导航图标槽起点恒 drawerInset 20）——本批未动页面边距，几何调整只有会话行内外边距对调（见 154.4）。
+
+## 154.4 选中态统一＋字阶层级（批③）
+- 抽屉局部字阶三角色：Core TypeRole 新增 drawerNavTitle/drawerRowTitle/drawerRowTitleCurrent，FontRoles 落法同名对账——Body 17 medium（主要导航：五导航行/频道行）/regular（次要行：会话题、「管理全部对话」行题）/semibold（当前项）。这是 0.24.0「行题一律 regular」口径在抽屉内的局部例外（用户 21:01 亲令），全 App 其余九角色一字未动，本例外不许外溢其他页面；TypeRole 对账测与 Dynamic Type 缩放闸同步扩三角色。
+- 几何归一：导航/频道/会话三类行选中胶囊统一为外边距 spacingS 8＋内边距 spacingSM 12＋RoundedRectangle(fieldCorner 19, .continuous)＋selectionFill。会话行旧落法内外边距与导航相反（内 8/外 12）、形状无 .continuous，本批对齐；三类行标题/图标起点恒 20 不变。
+- 字重归一：当前项＝浅灰底＋semibold（旧口径「选中标题不变色不加粗」仅在抽屉内让位）；管理行题 regular 弱于导航 medium；分区头/时间保持 Footnote＋inkSecondary 弱档不动；既有 .isSelected 无障碍特征保留。
+- 单一选择：沿用 DrawerSelectionPolicy 单一政策（0.36.7），判定逻辑未动——看旁聊只亮旁聊行、主线行不亮；新字重恒与胶囊同出同一 isCurrent，不存在双高亮新源。
+
+## 154.5 时间简化＋会话行细节（批④）
+- Core 新增 LocalThreadSubtitle.compactTimeText：今天只给 HH:mm；昨天仍「昨天 HH:mm」；更早仍绝对日期＋时间——与 timeText 只差今天一段（私有 sessionDayTimeText 加 dropsTodayPrefix 开关派生，旧 timeText 本体口径不动、管理页等其余面不消费紧凑口径）。
+- 置顶呈现：行尾时间前加 pin.fill 小标（10 semibold、inkSecondary）；排序恒时间序不变；VoiceOver 经 accessibilityValue 播报「已置顶」（存量词条、零新键）。
+- AX 排向：dynamicTypeSize.isAccessibilitySize 时标题与行尾改上下排列（VStack＋spacingMicro），常态横排；标题 a11yLineLimit(1, ax: 2) 沿用。
+- 新面准入四问：①入口——抽屉既有面原位改造，身份行新入口复用枢纽已有编辑页、无新页面；②重复——编辑能力全 App 只一份本体（枢纽编辑页），抽屉只加呈现开关；紧凑时间是同一私有实现的派生变体、只供抽屉行，旧口径保留其余面，不成第二套相对日期规则；③令牌与公用件——行高走新令牌、字阶走新局部角色、间距全走既有梯队，新增字面量只有字形档（头像 36/图钉 10/铅笔 13），与既有行内字形字面量先例同类；④AX 与深色——AX 档上下排列＋新角色字体随 Dynamic Type 缩放（闸测覆盖），深色靠 Palette 语义色与材质底（本批未动任何色值），真机帧验随合并后验收单。
+
+## 154.6 待拍板留账（本批未动）
+- 「Hermes」频道展示名：用户补充方案建议改「服务器会话」，本批未动展示名、未动内部频道 ID/接口字段。其间用户已就三层命名拍板（21:06 定案：OneDay＝客户端产品名、智能体名跟随服务器、Hermes＝服务端，三层分工在连接页与设置关于区讲清，回落名「Hermes」保留，内部 ID/前缀/接口/Bundle ID 全不动）——频道展示名是否随定案调整，请主线按定案口径另行处置，本包只留账不先行。
+
+## 154.7 与第二批/容器包的边界
+- 未碰清单：DrawerShell 与 ContentView 壳层（容器包领地）、drawerBackdrop 材质、底条三件玻璃控件与搜索（第二批领地）、DrawerMotion、DrawerView 的 body 骨架与浮层结构。
+- 预判交叉：容器包改承载、本包改 DrawerView 内部行呈现，交叉面只在 DrawerView 文件本体；第二批若只动材质/底条，与本包零行交叉。
+
+## 154.8 验收
+- CI：run 43026542906，jobs API 逐项终判 build-native success。
+- 单测：Executed 1563、0 failures（基线 1562＋净增 1，只增不减）——新增 compactTimeText 钉测 1 法（今天/昨天/更早三段＋timeText 本体不动对账）；VisualDirectionGate 的 TypeRole 对账表扩至十二角色、Dynamic Type 缩放闸名单扩三角色（断言随规格扩充、非删测），三法逐法 passed 见 CI 日志。
+- xcstrings：本包零新键（「已置顶」为存量键、身份菜单两项为存量字面），validate_i18n 通过（2658 键含 InfoPlist 13、三语全覆盖）。
+- 真机待验清单：①身份行点开菜单两项、换头像/改名后抽屉与聊天页同拍更新；②导航五行 54 行高观感、点击域不小于 44；③三类行选中胶囊左右边界对齐、看旁聊时主线行无高亮；④今日会话行尾只 HH:mm、昨日带「昨天」、更早带日期；⑤置顶行图钉可见且排序未变、长按取消置顶后图钉即消；⑥AX 最大档：会话行上下排列、导航行高随字增长不截字、身份行名字不被头像挤没；⑦深色：胶囊/图钉/铅笔可辨；⑧VoiceOver：置顶行读出「已置顶」、身份行可达编辑菜单、选中行已选特征在；⑨100 条会话滚动：图钉/时间无错位、末行不被底条挡（底条注册留位未动）、滚动时行从身份行后方穿过不叠字。
