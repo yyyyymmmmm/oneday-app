@@ -763,13 +763,12 @@ final class MediaEngine: @unchecked Sendable {
             box = try await withCheckedThrowingContinuation {
                 (continuation:
                     CheckedContinuation<PlaylistBox, Error>) in
+                // 该类 designated init 是 init(name:)，
+                // 无参 init 在 Swift 侧不可用
                 let metadata =
-                    MPMediaPlaylistCreationMetadata()
-                // Swift 导入把 name 标成只读，底层 ObjC
-                // 属性可写，走 KVC 赋值（同名字段）
-                metadata.setValue(
-                    args.name, forKey: "name"
-                )
+                    MPMediaPlaylistCreationMetadata(
+                        name: args.name
+                    )
                 MPMediaLibrary.default().getPlaylist(
                     with: UUID(),
                     creationMetadata: metadata
@@ -2096,14 +2095,16 @@ enum DeviceFilePresenceBridge {
     }
 
     /// 预览协调者：数据源就是这一份文件；用户关掉
-    /// 预览面（DidDismiss）即完成。QuickLook 委托要
-    /// 求是非隔离的，协调者照批三协调者正形：非隔离
-    /// ＋@unchecked Sendable，状态只在主线程回调与
-    /// 锁盒内触碰（url 是 let、continuation 只由回
-    /// 调与 finish 动）
+    /// 预览面（DidDismiss）即完成。QuickLook 委托协
+    /// 议在现行 SDK 是 @MainActor 隔离的，符合须写
+    /// 隔离符合形（@MainActor 协议名，Swift 6.2）；
+    /// 类本身非隔离＋@unchecked Sendable，状态只在
+    /// 主线程回调与锁盒内触碰（url 是 let、
+    /// continuation 只由回调与 finish 动）
     private final class PreviewCoordinator: NSObject,
         QLPreviewControllerDataSource,
-        QLPreviewControllerDelegate, @unchecked Sendable {
+        @MainActor QLPreviewControllerDelegate,
+        @unchecked Sendable {
         private var continuation:
             CheckedContinuation<Void, Error>?
         private let url: URL
