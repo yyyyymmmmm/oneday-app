@@ -9188,3 +9188,8 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 ### 150.6 单测
 
 - 新增 ModelListGovernanceTests 6 法（阈值内全显、超阈折叠 40＋藏 92、展开全量、搜索大小写不敏感且不折叠、搜索无果、空白词不算过滤），并入 ModelSettings119Tests.swift。既有测零删改：旧四连弹窗是 App 层 View、无钉测覆盖（逐项核过 ModelSettings119Tests/ModelCombosTests 全为 Core 口径），activationNotice 钉测随 Core 本体保留不失效。只增不减：分支口径＝基线（合并时以主线现行总账为准）＋6。
+
+### 150.7 预制验收记账（2026-11-11）
+
+- 分支 feat/model-admin-rework：代码提交 6ec9638，基线 main dccdc85（0.50.14 定版顶端；开工后 main 已前进至 0.50.15 定版，合并时冲突由主线合裁）。validate_i18n 本地实跑通过（2653 键）。分支 CI run 43014227710（workflow_dispatch 触发，head 6ec9638）jobs API 终判 build-native **success**，单测 Executed **1533、0 failures**＝基线 1527（0.50.15 总账）＋ModelListGovernanceTests 6 法；既有测零删改，只增不减。未合并、版本号未动。
+- 合并后真机待验：第一段默认行点入选择面、点行即换默认且回读一致；设置页换默认后新对话起点生效、进行中对话不受影响（与顶栏包 B2 合流验）；详情页 132 模型搜索/折叠顺手；深色一帧＋AX 最大档一帧（默认行右值与详情信息行不截断主信息）。
