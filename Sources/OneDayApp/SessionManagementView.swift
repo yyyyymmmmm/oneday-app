@@ -7,6 +7,15 @@ import SwiftUI
 struct SessionManagementView: View {
     var body: some View {
         List {
+            // Lead 副标题
+            Section {
+                Text("继续当前对话，或查找服务器上的历史记录。")
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+
             Section {
                 NavigationLink(value: SettingsRoute.mainSession) {
                     rowContent(

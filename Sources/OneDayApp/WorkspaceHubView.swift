@@ -14,6 +14,15 @@ struct WorkspaceHubView: View {
 
     var body: some View {
         List {
+            // Lead 副标题
+            Section {
+                Text("了解运行情况，访问与你的智能体协作的设备和文件。")
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+
             Section {
                 Button {
                     manageSheet = .overview

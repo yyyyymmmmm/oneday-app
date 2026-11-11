@@ -8,6 +8,15 @@ import SwiftUI
 struct AgentConfigView: View {
     var body: some View {
         List {
+            // Lead 副标题
+            Section {
+                Text("决定它如何思考、记住什么，以及能做什么。")
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+
             Section {
                 NavigationLink(value: SettingsRoute.profiles) {
                     rowContent(

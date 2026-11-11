@@ -13,6 +13,15 @@ struct ServerManagementView: View {
 
     var body: some View {
         List {
+            // Lead 副标题
+            Section {
+                Text("连接、诊断与维护，集中在这里。")
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+
             // 当前服务器卡片
             Section {
                 NavigationLink(value: SettingsRoute.serverDetail) {

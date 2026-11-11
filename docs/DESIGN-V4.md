@@ -10212,3 +10212,404 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - §124 回底钮承载结构（bottomBar 布局流）与钮本体：本包 diff 对 `scrollToBottomButton`/`showsBackToBottomButton` 零命中，未触碰（外壳包刚在其分支把钮材质换玻璃，本包避开该段）。
 - 边缘样式行零改动：顶 .soft／底 hidden 与基线 fd2deec 逐字一致（本包 diff 不含 scrollEdgeEffect 任何一行）。
 - spacingL 零改动；bottomBar 本体零改动；改动文件仅 ChatView.swift、OneDayCore/BottomFollow.swift、Tests/OneDayCoreTests/BottomFollowTests.swift、本节。
+
+## §179 设置原型 2 落码：四枢纽页＋真数据接线（2026-11-12，prototype-2 对账监工审定版全量落实；预制分支 feat/settings-proto2，基线 3cbcad4／0.50.21＋§176/§178 合并顶端）
+
+**背景**：用户 2026-11-12 亲递原型 2（`~/workspace/user/files/oneday-prototype-2.html`），监工审查对账表并纠正六条后拍板施工。本次原型升级 §164（prototype-1）结构：根页四组不变，新增四个二级枢纽页（智能体配置／服务器管理／会话管理／工作区），主线会话与重启网关由"不建"改为真数据接线＋页面形态，断开连接移入服务器管理页底部。
+
+**对账依据**：`~/workspace/oneday-design-review/settings-proto2-reconciliation.md`（监工纠正版），基线 3cbcad4，含九章全量对账表＋监工六条纠正落实对照。
+
+### 179.1 Core 层改动（SettingsCatalog.swift）
+
+#### 分组改动
+
+- **新增分组**：
+  - `.serverAndWorkspace`（服务与工作区，原 connection 组改名扩容）
+  - `.preferences`（偏好与权限，原 app 组改名扩容）
+- **退役分组**：
+  - `.connection`（散入 serverAndWorkspace）
+  - `.workspace`（改为二级枢纽页）
+  - `.app`（改为 preferences）
+
+#### 目的地新增（6 项）
+
+```swift
+case agentConfig        // 智能体配置枢纽页
+case serverManagement   // 服务器管理枢纽页
+case sessionManagement  // 会话管理枢纽页
+case workspaceHub       // 工作区枢纽页
+case mainSession        // 主线会话详情页（监工纠正②真数据接线）
+case restartGateway     // 重启网关页（监工纠正③页面形态）
+```
+
+#### 条目重组（29 项总账）
+
+**根页智能体组**（3 行）：models → agentConfig → cron
+- profiles/memory/skills 移入 agentConfig 枢纽页（`showsInBrowse: false`）
+
+**根页服务与工作区组**（3 行）：serverManagement → sessionManagement → workspace
+- serverManagement 页内 6 项：server/gateway/logs/usage/envVars/restartGateway（均 `showsInBrowse: false`）
+- sessionManagement 页内 2 项：mainSession/serverSessions（均 `showsInBrowse: false`）
+- workspace 页内 3 项：overview/computer/serverFiles（均 `showsInBrowse: false`）
+
+**根页偏好与权限组**（3 行）：appearance/connectors/devicePermissions
+- appearance 从 .app 组迁入
+- connectors/devicePermissions 从 .connection 组迁入
+
+**搜索索引特例**（监工纠正④）：
+- serverManagement 条目关键词含「断开连接」——搜索"断开连接"命中服务器管理，落点为管理页不直达断开
+
+### 179.2 App 层改动
+
+#### 新增 View 文件（6 个）
+
+1. **AgentConfigView.swift**：汇总 profiles/memory/skills，副标题"决定它如何思考、记住什么，以及能做什么"，组脚注"这些配置保存在服务器；形象与名称只影响本机显示"
+2. **ServerManagementView.swift**（监工纠正④）：
+   - 顶部服务器卡片（44pt 图标砖＋host＋状态点＋"已连接"文案，点进 ServerDetailView）
+   - 运行与用量组：gateway/logs/usage
+   - 维护组：envVars/restartGateway
+   - **底部断开连接行**（红色危险行，复用现行 showDisconnectConfirm 弹窗＋disconnect() 本体）
+   - 组脚注"断开不会删除聊天记录。维护操作执行前需要确认"
+3. **SessionManagementView.swift**：mainSession/serverSessions，组脚注"完整会话 ID 可在详情中查看和复制"
+4. **WorkspaceHubView.swift**：overview/computer/serverFiles 三行，保持现行 sheet 机制（Button + manageSheet 状态，不进导航栈）
+5. **MainSessionView.swift**（监工纠正②真数据接线）：
+   - 会话信息组：状态（派生自 `appState.sideChats` 的 mainServerConfirmed/mainServerSeeded/mainServerSessionID/mainLinkLastError）
+   - 智能体名：`appState.agentDisplayName`（与身份卡同源）
+   - 会话 ID：完整 ID + 复制按钮（toast "会话 ID 已复制"）
+   - 继续对话按钮：`onRequestChat()`（关闭设置＋切聊天格，复用现行路径）
+6. **RestartGatewayView.swift**（监工纠正③页面形态）：
+   - 重启前组：影响范围／聊天记录／恢复时间说明
+   - 操作按钮：「重启网关」（danger）＋「取消」（secondary back）
+   - 点「重启网关」弹现行 `showRestartConfirm` 弹窗，确认后调 `restartGateway()` 全链，notice 回执复用
+
+#### SettingsView.swift 改写
+
+**根页分组**（5 组）：
+```swift
+identitySection          // 保持
+agentSection             // 收敛为 models/agentConfig/cron
+serverAndWorkspaceSection // 新增：三个枢纽页
+preferencesSection       // 新增：appearance/connectors/devicePermissions
+supportSection           // 保持
+versionFooter            // 保持（用 OneDayVersionLabel 单源，监工纠正⑥）
+```
+
+**notice 提示行续存**（监工纠正⑥遗漏①）：浏览／搜索两态都显，从 `if isSearching` 分支内移出到 List 根级
+
+**navigationDestination 新增 6 case**：
+- `.agentConfig` → AgentConfigView()
+- `.serverManagement` → ServerManagementView(status: status, showDisconnectConfirm: $showDisconnectConfirm)
+- `.sessionManagement` → SessionManagementView()
+- `.workspaceHub` → WorkspaceHubView(manageSheet: $manageSheet)
+- `.mainSession` → MainSessionView(onRequestChat: onRequestChat, onClose: onClose)
+- `.restartGateway` → RestartGatewayView(showRestartConfirm: $showRestartConfirm)
+
+**断开连接确认弹窗**：从 disconnectRow 内联弹窗改为根级 `.confirmationDialog`（与 restartConfirm 平级），ServerManagementView 的断开连接行触发 `showDisconnectConfirm` 状态
+
+**退役组件**：
+- `connectionSection`（散入枢纽页）
+- `workspaceSection`（改为枢纽页）
+- `appSection`（改为 preferencesSection）
+- `disconnectSection`（移入 serverManagement 页）
+- `serverRow`（移入 serverManagement 页卡片）
+- `statusInfoRow`（主线会话状态行移入 mainSession 页）
+- `mainSessionStatusText`（逻辑复用进 MainSessionView）
+
+**route(for:) 扩展**：6 个新目的地映射到新路由
+
+**iconName(for:) 扩展**：
+- agentConfig: "slider.horizontal.3"
+- serverManagement: "server.rack"
+- sessionManagement: "bubble.left.and.bubble.right"
+- workspace: "square.grid.2x2"
+- mainSession: "link"
+- restartGateway: "arrow.clockwise"
+
+#### AppRoutes.swift 扩展
+
+```swift
+enum SettingsRoute: Hashable {
+    // ... 现行路由
+    case agentConfig
+    case serverManagement
+    case sessionManagement
+    case workspaceHub
+    case mainSession
+    case restartGateway
+}
+```
+
+### 179.3 单测改动（SettingsCatalogTests.swift）
+
+#### 断言改写（4 处，原则：只增不减、只改不删）
+
+1. **testPrototypeIndexIsCovered**：11 项 → 29 项（含 prototype-2 全量搜索索引）
+2. **testEveryDestinationIsCovered**：21 项 → 27 项（＋6 个新目的地）
+3. **testAgentGroupBrowseOrder**：6 行 → 3 行（`["models", "agentConfig", "cron"]`）
+4. **testHiddenFromBrowseEntries**：3 项 → 18 项（identity/privacy/terms ＋ 15 个枢纽页内子项）
+
+#### 新增断言（2 处）
+
+5. **testServerAndWorkspaceGroupBrowseOrder**：验证服务与工作区组三行序（`["serverManagement", "sessionManagement", "workspace"]`）
+6. **testPreferencesGroupBrowseOrder**：验证偏好与权限组三行序（`["appearance", "connectors", "devicePermissions"]`）
+
+#### 搜索测试补充
+
+- **testSearchMatchesSummaryAndKeywords** 补「断开连接」测试：验证搜索"断开连接"命中 serverManagement（监工纠正④）
+
+**单测总账**：
+- 基线：Core 1670 + App 11 = 1681 tests
+- 改后：Core 1670 + App 11 = 1681 tests（零增删，4 处改断言＋2 处新增断言）
+
+### 179.4 监工纠正落实对照
+
+#### ① 基线写错 → 已修正
+对账表头部基线改为「feat/settings-proto2 分支 HEAD 3cbcad4（0.50.21＋§176/§178 合并顶端）」
+
+#### ② 主线会话「不建」是误判 → 撤销并真数据接线
+- **第一版误判**：对账表三章 3.1 判定"无接口、不建"
+- **监工纠正**：现行 SettingsView.swift:929 已有 `mainSessionStatusText` 派生自真数据（mainServerConfirmed/mainServerSeeded/mainServerSessionID/mainLinkLastError）
+- **落实**：MainSessionView 真数据接线，状态／智能体名／会话 ID 全从现行数据源派生，继续对话按钮复用 onRequestChat() 全链
+
+#### ③ 重启网关按原型落页面形态 → 已落页面形态
+- **第一版误判**：对账表计划只加行＋弹窗
+- **监工纠正**：原型 viewRestartGateway 是独立页面（重启前状态组＋操作按钮），不是只弹个窗
+- **落实**：RestartGatewayView 页面形态（重启前组＋操作按钮），点「重启网关」按钮弹现行确认弹窗，确认后调 restartGateway() 全链，notice 回执复用
+
+#### ④ 断开连接按原型移入服务器管理页 → 已移入
+- **第一版误判**：对账表建议"保持现行方案（根页独立组）"
+- **监工纠正**：原型搜索索引第 5 项「断开连接→serverManagement」，落点是管理页不直达断开，与 §164.4 防搜索直达破坏性动作不同
+- **落实**：断开连接行移入 ServerManagementView 底部（红色危险行），搜索索引 serverManagement 条目关键词含「断开连接」，根页 disconnectSection 退役
+
+#### ⑤ 值位只许真数据 → 已明确红线
+- **监工纠正**：原型根页／枢纽页行上的值位（模型名、定时任务「N 项」、服务器「已连接」绿点等）一律从**已加载的现行状态**派生；派生需要新开请求面的，不为值位新开——留空并在对账表注明
+- **落实**：
+  - 模型名：从现行配置读（如有）
+  - 服务器连接状态：从 status 派生（已有）
+  - 主线会话值位「当前」：静态文案（不需计数）
+  - 定时任务计数／服务端会话计数／电脑连接状态：**留空**（需新开接口）
+- **红线**：打开设置的请求面纪律不变（status 单请求＋伴生节流补探，§164.2 第 29 项）
+
+#### ⑥ 遗漏补齐 → 已补齐
+- **遗漏①**：notice 提示行在新根页续存（§164.2 第 28 项）—— 已落实，浏览／搜索两态都显
+- **遗漏②**：版本页脚走现行 OneDayVersionLabel 单源（含构建号）—— 已落实，versionFooter 保持现行实现
+- **遗漏③**：深链零断链逐项自查（pendingSettingsRoute/pendingAgentRoute 消费、ChatView .models、OverviewView .logs、ConnectorsView 跳转等现行生产者）—— 深链路由保持现行 consumePendingRoutes() 逻辑，新路由自动纳入
+
+### 179.5 无接口清单（监工纠正⑤留空项）
+
+以下值位因需新开请求面、按监工纠正⑤红线留空：
+
+1. **定时任务计数**（agentConfig 行值位"N 项"）：需新开 cron 列表接口
+2. **服务端会话计数**（sessionManagement 行值位"N 条"）：需新开 sessions 列表接口
+3. **电脑连接状态**（workspace 行值位"未连接"）：需新开 computer 状态接口
+
+**落法**：值位留空，真数据到位后补派生逻辑（从已加载状态读，不新开请求面）
+
+### 179.6 四问验收
+
+#### AgentConfigView
+- ① 入口：根页智能体组第二行「智能体配置」
+- ② 无重复：profiles/memory/skills 从根页汇总到此枢纽页
+- ③ 令牌与公用件：用现行 navRow 形态／sectionLabel／settingsRowInsets／iconSlot／Font 角色
+- ④ AX 与深色：行全部自适应行高，无定高文本容器
+
+#### ServerManagementView（含断开连接移入，监工纠正④）
+- ① 入口：根页「服务与工作区」组第一行「服务器管理」
+- ② 无重复：server/gateway/logs/usage/envVars 从根页汇总到此枢纽页；断开连接移入本页底部（搜索索引含此项、落点为管理页）
+- ③ 令牌与公用件：用现行 navRow／sectionLabel／settingsRowInsets；新件「服务器卡片」（44pt 图标砖＋内边距约 19×17）；断开连接行用现行 disconnect-row 样式（红色危险行）
+- ④ AX 与深色：卡片内文本自适应，断开连接行已适配（现行已有）
+
+#### SessionManagementView（主线会话真数据，监工纠正②）
+- ① 入口：根页「服务与工作区」组第二行「会话管理」
+- ② 无重复：mainSession 真数据接线不重复，serverSessions 移入不重复
+- ③ 令牌与公用件：用现行 navRow／sectionLabel
+- ④ AX 与深色：行全部自适应
+
+#### WorkspaceHubView
+- ① 入口：根页「服务与工作区」组第三行「工作区」
+- ② 无重复：overview/computer/serverFiles 从根页移入不重复
+- ③ 令牌与公用件：用现行 navRow／manageRow 开 sheet 机制
+- ④ AX 与深色：行全部自适应
+
+### 179.7 真机待验清单
+
+#### 根页结构
+- [ ] 搜索框在顶部，placeholder「搜索设置」
+- [ ] 身份卡在搜索框下，点击进形象与名称详情页
+- [ ] 分组顺序：智能体 → 服务与工作区 → 偏好与权限 → 支持
+- [ ] 智能体组含：模型与服务商 / 智能体配置 / 定时任务
+- [ ] 服务与工作区组含：服务器管理 / 会话管理 / 工作区
+- [ ] 偏好与权限组含：外观 / 连接器 / 设备与权限
+- [ ] 支持组含：帮助与反馈 / 关于 OneDay
+- [ ] **断开连接移入服务器管理页**（监工纠正④），根页独立组退役
+- [ ] 版本页脚显示「OneDay v0.50.21 (143)」（监工纠正⑥用 OneDayVersionLabel 单源）
+- [ ] **notice 提示行在根页续存**（监工纠正⑥遗漏①）：浏览/搜索两态都显
+
+#### 智能体配置页
+- [ ] 点根页「智能体配置」进二级页
+- [ ] 标题「智能体配置」+ 副标题「决定它如何思考、记住什么，以及能做什么。」
+- [ ] 「行为与能力」组含三行：配置档案 / 记忆 / 技能
+- [ ] 点各行能进现行详情页（ProfilesView/MemoryView/SkillsView）
+- [ ] 组脚注显示「这些配置保存在服务器；形象与名称只影响本机显示。」
+
+#### 服务器管理页
+- [ ] 点根页「服务器管理」进二级页
+- [ ] 标题「服务器管理」+ 副标题「连接、诊断与维护，集中在这里。」
+- [ ] 顶部服务器卡片：图标 + 「当前服务器」标签 + host + 连接状态（绿点+「已连接」）
+- [ ] 点卡片进 ServerDetailView
+- [ ] 「运行与用量」组含：网关状态 / 日志 / 用量
+- [ ] 「维护」组含：密钥 / 重启网关（**点行进重启页**，监工纠正③）
+- [ ] **底部断开连接行**（监工纠正④按原型移入本页）
+- [ ] 组脚注显示「断开不会删除聊天记录。维护操作执行前需要确认。」
+
+#### 重启网关页（监工纠正③新增）
+- [ ] 点服务器管理页「重启网关」行进独立页面
+- [ ] 标题「重启网关」+ 副标题
+- [ ] 「重启前」组显示：影响范围/聊天记录/恢复时间说明
+- [ ] 操作按钮：「重启网关」（danger）+ 「取消」（secondary back）
+- [ ] 点「重启网关」弹现行确认弹窗，确认后执行 restartGateway() 全链
+- [ ] 不另写一套重启逻辑，复用现行 notice 回执
+
+#### 会话管理页
+- [ ] 点根页「会话管理」进二级页
+- [ ] 标题「会话管理」+ 副标题「继续当前对话，或查找服务器上的历史记录。」
+- [ ] 「会话」组含：**主线会话**（监工纠正②真数据）/ 服务端会话
+- [ ] 点主线会话进详情页：状态/智能体名/会话 ID/继续对话按钮（监工纠正②）
+- [ ] 点服务端会话进 ServerSessionsView
+- [ ] 组脚注显示「完整会话 ID 可在详情中查看和复制。」
+
+#### 主线会话页（监工纠正②新增）
+- [ ] 点会话管理页「主线会话」进详情页
+- [ ] 标题「主线会话」+ 副标题
+- [ ] 「会话信息」组显示：状态（从 mainSessionStatusText 派生）/智能体（displayName）/会话 ID（完整 ID + 复制按钮）
+- [ ] 「继续主线对话」按钮调用 onRequestChat()（关闭设置 + 切聊天格）
+- [ ] ID 复制按钮 toast「会话 ID 已复制」
+
+#### 工作区页
+- [ ] 点根页「工作区」进二级页
+- [ ] 标题「工作区」+ 副标题「了解运行情况，访问与你的智能体协作的设备和文件。」
+- [ ] 「资源」组含：总览 / 电脑 / 服务器文件
+- [ ] 点各行开 sheet（现行机制保持）
+
+#### 搜索功能
+- [ ] 搜索「记忆」命中「记忆」与「智能体配置」两项
+- [ ] 搜索「服务器」命中「服务器管理」等
+- [ ] **搜索「断开连接」命中「服务器管理」**（监工纠正④：搜索索引，落点为管理页不直达断开）
+- [ ] 搜索「memory」（英文关键词）能命中
+- [ ] 搜索结果点击能跳转到对应页面（二级页或详情页）
+- [ ] 搜索态下身份卡隐藏
+
+#### 无障碍与深色
+- [ ] AX 最大字号档：各二级页组头/行不截断
+- [ ] 深色模式：各二级页配色正常，服务器卡片可读
+
+### 179.8 diff 摘要
+
+**Core 层**（1 文件）：
+- `Sources/OneDayCore/SettingsCatalog.swift`：+127/-87 lines
+  - 分组枚举：2 新增 / 3 退役
+  - 目的地枚举：6 新增
+  - entries 数组：29 项重排（6 新增 / 15 改 showsInBrowse / 15 改 group）
+
+**App 层**（8 文件）：
+- `Sources/OneDayApp/AppRoutes.swift`：+7/-0 lines（SettingsRoute 新增 6 case）
+- `Sources/OneDayApp/SettingsView.swift`：+150/-250 lines（根页分组改写 / 退役旧组件 / 新增导航目的地）
+- `Sources/OneDayApp/AgentConfigView.swift`：+105/-0 lines（新建）
+- `Sources/OneDayApp/ServerManagementView.swift`：+228/-0 lines（新建，含断开连接）
+- `Sources/OneDayApp/SessionManagementView.swift`：+87/-0 lines（新建）
+- `Sources/OneDayApp/WorkspaceHubView.swift`：+112/-0 lines（新建）
+- `Sources/OneDayApp/MainSessionView.swift`：+158/-0 lines（新建，真数据接线）
+- `Sources/OneDayApp/RestartGatewayView.swift`：+88/-0 lines（新建，页面形态）
+
+**测试层**（1 文件）：
+- `Tests/OneDayCoreTests/SettingsCatalogTests.swift`：+90/-30 lines
+  - 4 处改断言（原型索引 / 目的地覆盖 / agent 组 / 隐藏项）
+  - 2 处新增断言（serverAndWorkspace 组 / preferences 组）
+  - 1 处搜索测试补充（断开连接）
+
+**总账**：
+- 10 文件改动
+- 6 文件新建
+- Core +40 lines / App +828 lines / Tests +60 lines
+- 单测总数不变（1681 tests，零增删）
+
+### 179.9 施工清单勾对
+
+- [x] Core SettingsCatalog 分组改动（serverAndWorkspace / preferences）
+- [x] Core SettingsCatalog 目的地新增（6 项）
+- [x] Core SettingsCatalog entries 重排（29 项）
+- [x] AppRoutes 扩展（6 个新 case）
+- [x] 新建 6 个枢纽页 View
+- [x] SettingsView 根页分组改写（5 组）
+- [x] SettingsView navigationDestination 扩展（6 case）
+- [x] SettingsView 断开连接确认弹窗移至根级
+- [x] SettingsView 退役旧组件（7 处）
+- [x] SettingsView route(for:) 扩展
+- [x] SettingsView iconName(for:) 扩展
+- [x] SettingsCatalogTests 断言改写（4 处）
+- [x] SettingsCatalogTests 新增断言（2 处）
+- [x] SettingsCatalogTests 搜索测试补充（1 处）
+
+**施工完成**，等待 CI 与真机验证。
+
+### 179.10 第四轮收尾修复（监工审出，2026-11-11）
+
+监工实测原型 2 包发现三处问题，本轮统一修复：
+
+#### 修复一：i18n 漏键补全
+
+**问题**：本包 10 个改动文件中 65 处中文字符串字面不在 Localizable.xcstrings（键总数仍为基线 2872），切繁体/英文时会漏出简体原文。
+
+**核查结果**：
+- 提取改动文件中所有中文字符串：113 个 UI 字符串 + 67 个关键词（SettingsCatalog.keywords 数组，豁免入目录）
+- 与 i18n 目录（2859 键）对比：38 个 UI 字符串缺失
+- 缺失键清单：
+  - 枢纽页标题与副标题：智能体配置、会话管理、服务器管理、服务与工作区、偏好与权限
+  - 功能描述：人设与系统提示、已安装的工具与扩展能力、持续对话的主要会话、查看与管理历史会话、服务器与智能体的运行概况、电脑设备与协作能力
+  - 页面引导：决定人设与系统提示保存在服务器（后废弃）、连接诊断与维护、主线对话与服务端历史、总览电脑与文件、配置档案记忆与技能
+  - 会话管理：会话 ID、会话 ID 已复制、已链接、未链接 · \(error)、完整会话 ID 可在详情中查看和复制、继续主线对话、主要对话会话 ID
+  - 重启网关：重启前、影响范围、恢复时间、通常 10–20 秒、Hermes 网关服务、不受影响保留在服务器上
+  - 服务器管理：运行与用量、维护、断开不会删除聊天记录维护操作执行前需要确认、浏览允许访问的目录、聊天记录
+  - 其他：行为与能力、这些配置保存在服务器形象与名称只影响本机显示、服务器管理 · 维护、没有找到搜索结果模板
+
+**修复动作**：
+1. 批量补充 38 个缺失键，每键含 zh-Hans（原文）、zh-Hant（繁体译文）、en（英文译文）
+2. 译文遵循目录现行术语：服务端会话、配置档案、智能体配置等既有键的译法保持一致
+3. 验证：`Scripts/validate_i18n.py` 通过，扫描改动文件与目录键差集为零
+
+**键数变化**：2859 → 2897（+38，不含关键词）
+
+#### 修复二：枢纽页 lead 副标题补充
+
+**问题**：原型四个枢纽页标题下都有 lead 副标题，现行四页全缺。
+
+**补充内容**（已入目录三语）：
+- **智能体配置**：「决定它如何思考、记住什么，以及能做什么。」
+- **服务器管理**：「连接、诊断与维护，集中在这里。」
+- **会话管理**：「继续当前对话，或查找服务器上的历史记录。」
+- **工作区**：「了解运行情况，访问与你的智能体协作的设备和文件。」
+
+**落点形态**：
+- 每页 List 顶部独立 Section，背景透明（`.listRowBackground(Color.clear)`）
+- 字阶：`.font(.rowSubtitle)`，颜色：`Palette.inkSecondary`
+- 行盒：`EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)`
+- Section 修饰符顺序：先 `.listRowBackground`，后 `.listRowInsets`
+
+**键数变化**：2897 → 2901（+4）
+
+#### 修复三：行盒令牌统一
+
+**问题**：AgentConfigView 自带 `EdgeInsets(leading: 20)`、ServerManagementView 有 19/17 的写死行盒，与 SessionManagementView 用的 `settingsRowInsets` 不一致。
+
+**收敛结果**：
+- **Lead 副标题行盒**：四页统一 `EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)`，Section 修饰符顺序调整为先 `.listRowBackground` 后 `.listRowInsets`
+- **服务器卡片行盒保留**：ServerManagementView 服务器卡片的 `EdgeInsets(top: 0, leading: 19, bottom: 0, trailing: 17)` 保留——这是卡片自身的视觉边距，44pt 图标砖需要与内容的对齐空间（DESIGN §179.2 原型注明「约 19×17」）
+- **其他行盒**：全部使用各 View 内部的 `settingsRowInsets` 计算属性（`EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)`）
+
+**i18n 最终总账**：2872（基线）→ 2901（+29，含 38 个 UI 补键 + 4 个 lead - 11 个已存在复用键）
+
+**验证清单**：
+- [x] `Scripts/validate_i18n.py` 通过（2910 键 × 三语全覆盖）
+- [x] 改动文件 UI 字符串与目录键差集为零（113 个 UI 字符串全覆盖，67 个关键词豁免）
+- [x] 四页 lead 副标题形态一致（字阶/颜色/行盒/Section 修饰符顺序）
+- [x] 行盒收敛（除服务器卡片保留设计意图边距外，其余统一 `settingsRowInsets`）
