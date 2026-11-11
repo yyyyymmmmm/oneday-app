@@ -268,10 +268,10 @@ public enum NotificationDetail {
 
     /// 落点按钮文案：按落点类型定（审批记录/原对话/
     /// 监测详情三形与原型 destination 同构）。锚点落
-    /// 点（合并锚点包后的 approvalAnchor/approval-
-    /// Thread）由视图以 hasAnchorRoute 申报——本包基
-    /// 线（§123 落点集）上该旗恒不置起、文案先行落
-    /// 位，合并时合裁接线，不另建第二套跳转
+    /// 点（§165 approvalAnchor/approvalThread）由视
+    /// 图以 hasAnchorRoute 申报；§166 合裁后落点枚举
+    /// 本身亦直达同文案，两路同口径、不另建第二套
+    /// 跳转
     public static func destinationLabel(
         destination: NotificationDestination,
         hasAnchorRoute: Bool,
@@ -281,6 +281,8 @@ public enum NotificationDetail {
             return L10n.string("返回关联会话", locale: locale)
         }
         switch destination {
+        case .approvalAnchor, .approvalThread:
+            return L10n.string("返回关联会话", locale: locale)
         case .approvalDecision, .approvalHome:
             return L10n.string("查看审批记录", locale: locale)
         case .monitorChange, .monitorsHome:
