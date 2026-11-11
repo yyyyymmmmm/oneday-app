@@ -9270,3 +9270,46 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 ### 150.6 预制验收记账（2026-11-11）
 
 - 分支 feat/multi-image-row：代码 771806f＋记账 1b450c6（本节），基线 main 9119674（0.50.13/135）。CI run 43010656294（workflow_dispatch）completed **success**，jobs API 终判 build-native 全部 steps success；单测 Executed **1501、0 failures**（基线口径 1496＋本包新增 ChatImageSizingTests 5 法＝1501，逐法 passed 日志在案；既有测零删改，只增不减）。xcstrings 零改动（无新文案）。未合并、版本号未动，待主线按序合并定版（合并冲突预判：ChatView 气泡段与 §146 附件面板/选字包不相邻、ChatStore 与他包无交集、ChatImageSizing 为 §130 本体文件他包未动）。
+## §151 模型管理面重构（2026-11-11，用户批准按报告全做之第二包；预制分支 feat/model-admin-rework，基线 main dccdc85／0.50.14 定版后顶端，只预制不合并，节号分支自选 §151，合并时主线合裁顺延并同步代码注释）
+
+唯一依据：~/workspace/oneday-design-review/hermes-studio-model-picker-20261111.md 的必改 B3＋B5＋B6 与 §7.3 结构草图。顶栏包（B1/B2/B4，另一 worktree）与本包文件边界：本包只动设置侧模型管理面（ModelSettingsView 重写、新 PresetsView、Core ModelListGovernance、词条、钉测），顶栏选择器与 AppState 模型取数层（chatModel/refreshModelCatalog）一行不碰；交叉点两处留合并合裁：①作用域文案（150.1）预设了顶栏包 B2 的会话级选择语义，两包同批合并才成立、单独先合本包则文案先行一版；②默认徽标与触发器显示名的单源口径归 B4，本包只在设置面内收口。
+
+### 151.1 B3 默认单一语义＋作用域成文
+
+- 设置页第一段就叫「默认」，只有一行「默认模型」，右值＝服务商名 · 模型名（默认判定唯一口 isCurrentDefault，三种归属 gateway/named/other 一处算，选择面、详情清单共用，不许各算各的）。
+- 作用域全句单源 ModelSettingsView.defaultScopeText：「默认模型只管新对话从哪个开始；正在聊的对话不受影响，要换在对话顶部点模型名。在顶栏单独选过的对话，之后也不会跟着默认变。」——Codex 式写全（管什么/不管什么/例外），同一常量两处用：设置页第一段段脚＋默认选择面页脚，不许两处两说。
+- 「默认」说法收一：旧三说并存（卡头徽标「默认」、模型行绿字「当前默认」、页头副行「在服务商「X」」）→ 全页只剩「默认」一词（服务商行徽标、选择面与详情清单行尾标、段名）；xcstrings 里「当前默认」键本包不再引用，键本体留待卫生轮删（本包不删键防合并面扩大）。
+
+### 151.2 B5 系统 List 三段＋清单治理
+
+- ModelSettingsView 944 行 ScrollView＋VStack 手搓卡整套退役，改 List(.insetGrouped)：第一段「默认」一行（本页主角）；第二段「服务商」——默认服务商（网关）＋各具名家各一行（名＋「默认」徽标＋N 个模型计数，信息定额到此为止）、段尾「添加服务商」加号行、段脚留一句密钥保管说明；第三段「辅助模型」——辅助入口一行（副行＝现行汇总句）＋预设入口一行，预设本体迁新文件 PresetsView（列表形态，启用/删除沿现行 store 通路）。
+- 详情页两张（默认服务商/具名家）同为 List：信息行（密钥状态；具名家加接口地址——「在服务器上配置，App 里只看不改」「服务器的主通道，经网关转发」等部署说明整段撤出，网关详情页脚只留一句人话「服务器的主通道，新对话默认从这里开始。」）＋模型清单段＋动作段（获取模型/测连接/编辑/恢复上一份）＋具名家删除段（role: .destructive 行）。
+- 「渠道」面退场：主卡的渠道展开段、模型行尾渠道名、行内别名副行（「别名 · 将按 X 运行」）全部撤出设置面（报告 §7.2 第 4 条点名）。边界如实记：store.channelsFace 与 GatewayChannelsFace 读面本体保留未删（其他面是否消费未在本包核，合并时主线合裁其去留）；别名运行口径的信息承接归顶栏包 B4 的单源显示名，本包只撤不另造。
+- 清单治理（Core 新 ModelListGovernance 纯函数，App 侧 GovernedModelRows 共用组件）：搜索（宿主 List 挂 .searchable、词下传各分组实例同词过滤，大小写不敏感、含子串）＋超 40 折叠（阈值 40 为我方按手机屏收紧的取值，报告已标明 Studio 治理线是 100、非大厂原值），折叠行「显示全部（还有 N 个）」一行展开；搜索无果一行明示。选择面与两张详情清单三处同口径，132 模型不再整墙平铺。
+
+### 151.3 B6 弹窗收编
+
+- 设默认：确认弹窗删除，点即生效——选择面点行即写并返回、详情清单点行即写（performSwitch 三路与 §141 同：主通道旧改名路/经 Gateway 具名条目切回/具名家 /api/model/set）；当前默认行不可点（防无谓重写）。
+- 启用预设：确认弹窗删除，点「启用」即执行（ComboActivation.activationNotice 文案随弹窗退场，Core 本体与钉测在顶栏包外保留不动）。
+- 保留两类不可逆弹窗（confirmationDialog 仅剩二）：删除服务商（ModelSettingsView）、刷新清单有移除项。纯新增的刷新结果改直接落盘（applyRefreshedModels）——取舍如实记：K4 的 diff 呈现打磨本就在可缓档，纯新增无数据损失风险，「移除才确认」与 B6「弹窗只留不可逆事」逐字合；有移除时弹窗文案沿现行 refreshDialogMessage（差异明细＋可恢复说明）。
+- 删除预设弹窗随 PresetsView 迁入新文件保留（不可逆类）。
+
+### 151.4 新面准入四问＋AX/深色构造自查
+
+- ①入口：无新入口——设置页「模型与服务商」原入口原标题；详情/选择/预设三面全由本页行点入，无孤儿面。
+- ②重复：默认的选与看只此一面一组（选择面＝唯一默认选择器、与顶栏同构是报告定版形态而非重复建设，分工靠作用域文案）；旧卡面三套呈现（主卡/具名卡/预设段）整套退役、grep 零残留（ModelSettingsView 内旧部件 cardHeader/infoRow/expandRow/channelsList 等随重写全删）。
+- ③令牌与公用件：容器换系统 List 后段距/圆角/分隔由系统托管；行内间距走 OneDayMetrics 梯队、颜色走 Palette 语义色；清单治理下沉 Core 纯函数＋GovernedModelRows 共用件，不在页面散写判定。
+- ④AX 与深色（构造层自查，真机终验归用户）：行高由系统 List 托管随字号档生长、无定高截断；文字全走语义字体（.body/.callout/.footnote）随 AX 缩放；深色全走 Palette 语义色双模式自适应、无写死色值；系统粗体文本下 .body 自带的字重跟随不变（根口径）。待真机各验一帧：AX 最大档第一段右值长模型名截断位、深色下「默认」绿标对比。
+
+### 151.5 三语词条
+
+- 新增 7 键：作用域全句、「%lld 个模型」、「还没有模型清单。获取一次，或在编辑里手动填。」、「显示全部（还有 %lld 个）」、「没有找到匹配的模型」、「把默认模型和辅助分配存成一份，整套切换。」、「设为默认」（末键为备用语素、本轮界面未引用，随批入账防后续包再动目录）。Localizable 2633→2640 键，validate_i18n 通过（2653 键含 InfoPlist 13、三语全覆盖）。存量键零删改（「当前默认」等旧键仅失引用、留卫生轮）。
+
+### 151.6 单测
+
+- 新增 ModelListGovernanceTests 6 法（阈值内全显、超阈折叠 40＋藏 92、展开全量、搜索大小写不敏感且不折叠、搜索无果、空白词不算过滤），并入 ModelSettings119Tests.swift。既有测零删改：旧四连弹窗是 App 层 View、无钉测覆盖（逐项核过 ModelSettings119Tests/ModelCombosTests 全为 Core 口径），activationNotice 钉测随 Core 本体保留不失效。只增不减：分支口径＝基线（合并时以主线现行总账为准）＋6。
+
+### 151.7 预制验收记账（2026-11-11）
+
+- 分支 feat/model-admin-rework：代码提交 6ec9638，基线 main dccdc85（0.50.14 定版顶端；开工后 main 已前进至 0.50.15 定版，合并时冲突由主线合裁）。validate_i18n 本地实跑通过（2653 键）。分支 CI run 43014227710（workflow_dispatch 触发，head 6ec9638）jobs API 终判 build-native **success**，单测 Executed **1533、0 failures**＝基线 1527（0.50.15 总账）＋ModelListGovernanceTests 6 法；既有测零删改，只增不减。未合并、版本号未动。
+- 合并后真机待验：第一段默认行点入选择面、点行即换默认且回读一致；设置页换默认后新对话起点生效、进行中对话不受影响（与顶栏包 B2 合流验）；详情页 132 模型搜索/折叠顺手；深色一帧＋AX 最大档一帧（默认行右值与详情信息行不截断主信息）。

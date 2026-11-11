@@ -314,6 +314,64 @@ public struct ModelListDiff: Equatable, Sendable {
     }
 }
 
+// MARK: - 模型清单治理（§151 B5，报告 hermes-studio-model-picker §7.3）
+
+/// 清单呈现治理：搜索过滤＋超阈折叠的纯函数，设置
+/// 页详情清单与默认选择面共用同一口径。阈值 40 是
+/// 我方按手机屏收紧的取值（Studio 的治理线是 100，
+/// 报告已标明非大厂原值）
+public enum ModelListGovernance {
+    public static let foldThreshold = 40
+
+    public struct Presentation: Equatable, Sendable {
+        /// 实际呈现的行（已过滤、已折叠）
+        public var shown: [String]
+        /// 折叠藏起的行数（搜索态恒 0）
+        public var hiddenCount: Int
+        /// 是否处于搜索过滤态
+        public var isFiltering: Bool
+        /// 过滤后总行数（搜索无结果时为 0）
+        public var matchCount: Int
+
+        public init(
+            shown: [String], hiddenCount: Int,
+            isFiltering: Bool, matchCount: Int
+        ) {
+            self.shown = shown
+            self.hiddenCount = hiddenCount
+            self.isFiltering = isFiltering
+            self.matchCount = matchCount
+        }
+    }
+
+    public static func presentation(
+        models: [String], query: String, expanded: Bool
+    ) -> Presentation {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            if expanded || models.count <= foldThreshold {
+                return Presentation(
+                    shown: models, hiddenCount: 0,
+                    isFiltering: false, matchCount: models.count
+                )
+            }
+            return Presentation(
+                shown: Array(models.prefix(foldThreshold)),
+                hiddenCount: models.count - foldThreshold,
+                isFiltering: false, matchCount: models.count
+            )
+        }
+        let needle = trimmed.lowercased()
+        let matched = models.filter {
+            $0.lowercased().contains(needle)
+        }
+        return Presentation(
+            shown: matched, hiddenCount: 0,
+            isFiltering: true, matchCount: matched.count
+        )
+    }
+}
+
 // MARK: - 测连接三态（人话，D3-10 口径）
 
 public enum ProviderConnectionOutcome: Equatable, Sendable {

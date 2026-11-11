@@ -60560,6 +60560,160 @@
           }
         }
       }
+    },
+    "默认模型只管新对话从哪个开始；正在聊的对话不受影响，要换在对话顶部点模型名。在顶栏单独选过的对话，之后也不会跟着默认变。": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认模型只管新对话从哪个开始；正在聊的对话不受影响，要换在对话顶部点模型名。在顶栏单独选过的对话，之后也不会跟着默认变。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設模型只管新對話從哪個開始；正在聊的對話不受影響，要換在對話頂部點模型名。在頂欄單獨選過的對話，之後也不會跟著預設變。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The default model only decides what new chats start with. A chat already under way is not affected; to change it, tap the model name at the top of that chat. A chat you switched at the top will not follow the default later either."
+          }
+        }
+      }
+    },
+    "%lld 个模型": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个模型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個模型"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld models"
+          }
+        }
+      }
+    },
+    "还没有模型清单。获取一次，或在编辑里手动填。": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有模型清单。获取一次，或在编辑里手动填。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有模型清單。取得一次，或在編輯裡手動填。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No model list yet. Fetch it once, or add models manually in the editor."
+          }
+        }
+      }
+    },
+    "显示全部（还有 %lld 个）": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示全部（还有 %lld 个）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示全部（還有 %lld 個）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show all (%lld more)"
+          }
+        }
+      }
+    },
+    "没有找到匹配的模型": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有找到匹配的模型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有找到符合的模型"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching models"
+          }
+        }
+      }
+    },
+    "把默认模型和辅助分配存成一份，整套切换。": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把默认模型和辅助分配存成一份，整套切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把預設模型和輔助分配存成一份，整套切換。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save the default model and all auxiliary assignments as one preset and switch them together."
+          }
+        }
+      }
+    },
+    "设为默认": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设为默认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設為預設"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set as default"
+          }
+        }
+      }
     }
   }
 }
