@@ -37,7 +37,7 @@ struct AllConversationsView: View {
     /// 段/搜索态现算（rotorTargets），行标记挂在
     /// 各行分发处（selectableRow/mainRowButton/搜索
     /// 命中行），id 与条目一一对位
-    @AccessibilityRotorNamespace private var rotorNamespace
+    @Namespace private var rotorNamespace
     /// 本地线程全集（分类 R2 的关联集派生用，与抽屉
     /// /频道页同一 ThreadLinkage 派生）
     @Query private var threads: [ChatThread]

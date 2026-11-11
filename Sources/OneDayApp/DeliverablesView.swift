@@ -347,7 +347,7 @@ struct DeliverablesView: View {
     /// 现算（rotorEntryNames），行/卡标记挂在各行
     /// 构建处（deliverableRow/mediaRow/fileCard/
     /// 影音网格钮），id＝文件名与条目一一对位
-    @AccessibilityRotorNamespace private var fileRotorNamespace
+    @Namespace private var fileRotorNamespace
 
     /// Rotor 条目名册（当前段）：文件段＝文档集、
     /// 影音段＝媒体集，呈现标题走 displayTitle
