@@ -27,6 +27,12 @@ struct ProfilesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // 分工小字（§155，规格 §2.7 环 6）：本页管
+                // 档案的份数与选用，人设内容不在这里改
+                Text("这里管有哪些档案、现在用哪一份；每份档案的人设内容，在枢纽的身份段里编辑。")
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .padding(.bottom, OneDayMetrics.spacingM)
                 if !profiles.isEmpty {
                     // 0.3.7 卡 7：摘要卡——当前档案名＋「使用中」
                     if let activeName {

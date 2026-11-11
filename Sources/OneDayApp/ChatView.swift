@@ -908,8 +908,12 @@ struct ChatView: View {
         // ScreenCover（用户学 Muse 智能体页：整页进、
         // 左边缘右滑回、✕ 关闭）——内容与回调原样；呈
         // 现机制取舍（cover 而非导航推入）见 §89
+        // §155（HUB-1）：呈现改 .sheet 全量形态（七段＋
+        // 模型常驻区、默认活动段），.activity 四段形态
+        // 退役无入口；审批终态回调保留（裁决自聊天就地
+        // 卡发生、经共享 store 触发同一回调）
         .fullScreenCover(isPresented: $showHub) {
-            AgentHubView(mode: .activity, onApprovalChanged: {
+            AgentHubView(mode: .sheet, onApprovalChanged: {
                 Task { await overviewStore?.refresh(appState: appState) }
             })
         }

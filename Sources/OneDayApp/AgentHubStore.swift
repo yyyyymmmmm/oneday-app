@@ -411,6 +411,70 @@ final class AgentHubStore {
         identityLoading = false
     }
 
+    // MARK: - 身份段·soul 保存（§155 HUB-1，规格 §2.7 环 3–5）
+
+    /// 保存结果：只有 confirmed 才许编辑面报「已保存」
+    enum SoulSaveOutcome: Equatable {
+        /// 已写入且重新取回比对一致
+        case confirmed
+        /// 写入或取回失败、或取回内容对不上：没确认存
+        /// 好，草稿由编辑面保留
+        case unconfirmed
+        /// 编辑期间档案已被切换：冻结名与当前在用名不
+        /// 一致，已拦下未写（不把这份人设写到别份头上）
+        case profileChanged
+        /// 身份数据还没读到（无冻结名/无原文），不许存
+        case notReady
+    }
+
+    private(set) var soulSaving = false
+
+    /// 保存 soul 全文：保存前先复核在用档案名（环 5）
+    /// → 写入（环 3，本包是 updateProfileSoul 的第一个
+    /// 调用点）→ 立即重新取回比对（环 4，Core
+    /// SoulSaveVerification 口径）；确认后才更新本店呈
+    /// 现并让 AppState 重解析显示名
+    func saveSoul(content: String) async -> SoulSaveOutcome {
+        guard let name = frozenProfileName, soulDocument != nil else {
+            return .notReady
+        }
+        guard !soulSaving else { return .unconfirmed }
+        soulSaving = true
+        defer { soulSaving = false }
+
+        let current = try? await appState.performAdmin { client, config in
+            try await client.activeProfileName(config: config)
+        } ?? nil
+        // 在用名取不到＝无法复核，保守不写；取到但与冻
+        // 结名不一致＝档案已切换，拦下不写
+        guard let current else { return .unconfirmed }
+        guard current == name else { return .profileChanged }
+
+        do {
+            try await appState.performAdmin { client, config in
+                try await client.updateProfileSoul(
+                    config: config, name: name, content: content
+                )
+            }
+            let fetched = try await appState.performAdmin { client, config in
+                try await client.profileSoul(config: config, name: name)
+            }
+            if let fetchedName = fetched.profileName, fetchedName != name {
+                return .unconfirmed
+            }
+            guard SoulSaveVerification.isConfirmed(
+                submitted: content, fetched: fetched.content
+            ) else { return .unconfirmed }
+            soulDocument = fetched
+            soulSections = SoulSectionParser.parse(fetched.content)
+            identityName = AgentName.resolve(soulContent: fetched.content)
+            appState.reresolveIdentityName(soulContent: fetched.content)
+            return .confirmed
+        } catch {
+            return .unconfirmed
+        }
+    }
+
     // MARK: - 审核段（懒加载＋裁决）
 
     func loadApproval(force: Bool = false) async {

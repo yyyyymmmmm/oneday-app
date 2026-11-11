@@ -3,9 +3,13 @@ import OneDayDesign
 import SwiftUI
 
 /// 枢纽页身份段（规格 §3.5）：段内大名＋小头像、人设
-/// 正文、风格块、全宽编辑钮（跳 ProfilesView，用户
-/// 定案⑤：本页不直编）、SOUL/记忆双卡（L6，用户定案
-/// ④打包）。卡面日期取不到字段就省略，不编造。
+/// 正文、风格块、全宽编辑钮、SOUL/记忆双卡（L6，用
+/// 户定案④打包）。卡面日期取不到字段就省略，不编造。
+/// §155（HUB-1）：编辑钮改跳人设编辑面 SoulEditorView
+/// 直编全文（旧「跳 ProfilesView 改 soul」是空跳——该
+/// 页从无 soul 代码，失实注释一并销账）；段内明示当
+/// 前档案名与「页头名头像＝本机显示／本段＝服务器人
+/// 设」的分工小字。
 struct HubIdentitySection: View {
     let store: AgentHubStore
 
@@ -25,6 +29,7 @@ struct HubIdentitySection: View {
             List {
                 Section {
                     headerRow
+                    identityMeta
                     personaBlock(sections)
                     if let style = sections.style {
                         styleBlock(style)
@@ -63,6 +68,24 @@ struct HubIdentitySection: View {
         .listRowSeparator(.hidden)
     }
 
+    /// 档案名明示＋分工小字（§155，规格 §2.7 环 1 与双
+    /// 口径收尾）：编的是哪一份档案要让用户看见；页头
+    /// 的名称/头像是本机显示、本段改的是服务器上的人
+    /// 设，两件事在段内一句讲清
+    private var identityMeta: some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+            if let name = store.frozenProfileName {
+                Text("当前档案：\(name)")
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            Text("这里改的是智能体的人设，存在服务器上；页头的名称和头像只在这台手机上显示，两边互不影响。")
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .listRowSeparator(.hidden)
+    }
+
     private func personaBlock(_ sections: SoulSections) -> some View {
         Text(sections.displayedPersona)
             .font(.body)
@@ -83,11 +106,12 @@ struct HubIdentitySection: View {
     }
 
     /// 全宽「编辑」钮（规格 #40：系统 bordered 钮，内容
-    /// 层不用玻璃）：跳 ProfilesView 改 soul（PUT 由该
-    /// 页承载），本页只读
+    /// 层不用玻璃）：§155 改跳人设编辑面 SoulEditorView
+    /// ——编辑全文、保存与确认都在那一面完成（旧跳
+    /// ProfilesView 是空跳，该页只管档案列表与切换）
     private var editRow: some View {
         NavigationLink {
-            ProfilesView()
+            SoulEditorView(store: store)
         } label: {
             Label("编辑", systemImage: "pencil")
                 .frame(maxWidth: .infinity)
@@ -162,7 +186,10 @@ struct HubIdentitySection: View {
         }
         .padding(OneDayMetrics.spacingM)
         .frame(maxWidth: .infinity)
-        .frame(height: 110)
+        // §155（准入四问④）：旧定高 110 在最大字号档装
+        // 不下三行文本，改最小高自适应——常态观感不变、
+        // 大字号时卡随内容长高不裁字
+        .frame(minHeight: 110)
         .background(
             gradient,
             in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
@@ -205,7 +232,8 @@ struct HubIdentitySection: View {
 }
 
 /// SOUL 全文详情（SOUL 卡点按落点，规格 #41）：只读
-/// 呈现解析前的全文，编辑仍跳 ProfilesView
+/// 呈现解析前的全文；编辑走身份段的编辑钮（人设编辑
+/// 面 SoulEditorView）
 struct HubSoulDetailView: View {
     let store: AgentHubStore
 
