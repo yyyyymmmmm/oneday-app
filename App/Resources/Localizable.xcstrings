@@ -692,6 +692,29 @@
         }
       }
     },
+    "%@ 已就绪，可以开始对话了。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is ready — you can start chatting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已就绪，可以开始对话了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已就緒，可以開始對話了。"
+          }
+        }
+      }
+    },
     "%@ 条未读变化": {
       "extractionState": "manual",
       "localizations": {
@@ -1796,6 +1819,29 @@
         }
       }
     },
+    "%lld 个可用模型": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld models available"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个可用模型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個可用模型"
+          }
+        }
+      }
+    },
     "%lld 条": {
       "extractionState": "manual",
       "localizations": {
@@ -2463,6 +2509,29 @@
         }
       }
     },
+    "Hermes 官方仓库": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Official Hermes repository"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes 官方仓库"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes 官方倉庫"
+          }
+        }
+      }
+    },
     "Hermes 开源项目": {
       "extractionState": "manual",
       "localizations": {
@@ -2482,6 +2551,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hermes 開源專案"
+          }
+        }
+      }
+    },
+    "Hermes 是开源项目，部署在你自己的服务器上。按官方仓库的说明装好，再回来用上面的方式连接。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes is open source and runs on your own server. Install it following the official repository, then come back and connect as above."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes 是开源项目，部署在你自己的服务器上。按官方仓库的说明装好，再回来用上面的方式连接。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes 是開源專案，部署在你自己的伺服器上。按官方倉庫的說明裝好，再回來用上面的方式連接。"
           }
         }
       }
@@ -2551,6 +2643,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hermes 的 Bearer 金鑰"
+          }
+        }
+      }
+    },
+    "Hermes 的登录密钥": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Hermes login key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes 的登录密钥"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes 的登入金鑰"
           }
         }
       }
@@ -2666,6 +2781,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "MEMORY（長期記憶）"
+          }
+        }
+      }
+    },
+    "OneDay 不提供账号体系，你的数据只在你的服务器上。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay has no accounts of its own — your data lives only on your server."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 不提供账号体系，你的数据只在你的服务器上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 不提供帳號體系，你的資料只在你的伺服器上。"
           }
         }
       }
@@ -5522,6 +5660,29 @@
         }
       }
     },
+    "今天服务器状态怎么样？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How is the server doing today?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天服务器状态怎么样？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天伺服器狀態怎麼樣？"
+          }
+        }
+      }
+    },
     "今天没有值得一提的新发现；有动静时这里会先更新。": {
       "extractionState": "manual",
       "localizations": {
@@ -5978,6 +6139,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "任務原題"
+          }
+        }
+      }
+    },
+    "任务在服务器上继续运行，锁屏也不中断": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tasks keep running on your server, even with the screen locked"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务在服务器上继续运行，锁屏也不中断"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任務在伺服器上繼續執行，鎖屏也不中斷"
           }
         }
       }
@@ -7500,6 +7684,29 @@
         }
       }
     },
+    "你的智能体，随身继续。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent, always with you."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的智能体，随身继续。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的智慧代理，隨身繼續。"
+          }
+        }
+      }
+    },
     "你的设备": {
       "extractionState": "manual",
       "localizations": {
@@ -7519,6 +7726,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的裝置"
+          }
+        }
+      }
+    },
+    "你的账号密码是对的，但这台服务器没有返回登录密钥（API_SERVER_KEY）。请检查服务器配置，或改用密钥登录。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account and password are correct, but this server didn't return its login key (API_SERVER_KEY). Check the server configuration, or use key sign-in instead."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的账号密码是对的，但这台服务器没有返回登录密钥（API_SERVER_KEY）。请检查服务器配置，或改用密钥登录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的帳號密碼是對的，但這台伺服器沒有回傳登入金鑰（API_SERVER_KEY）。請檢查伺服器設定，或改用金鑰登入。"
+          }
+        }
+      }
+    },
+    "你的面板账号": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your panel account"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的面板账号"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的面板帳號"
           }
         }
       }
@@ -8439,6 +8692,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "修改記憶"
+          }
+        }
+      }
+    },
+    "修改连接信息": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit connection details"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改连接信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改連線資訊"
           }
         }
       }
@@ -10720,6 +10996,29 @@
         }
       }
     },
+    "凭据只保存在本机钥匙串": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Credentials stay in this device's Keychain"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "凭据只保存在本机钥匙串"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "憑據只保存在本機鑰匙圈"
+          }
+        }
+      }
+    },
     "凭据只发给你的服务端保存，App 不留存；这里也读不出已保存的值。": {
       "extractionState": "manual",
       "localizations": {
@@ -10739,6 +11038,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "憑證只發給你的伺服器端儲存，App 不留存；這裡也讀不出已儲存的值。"
+          }
+        }
+      }
+    },
+    "凭据有效": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Credential valid"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "凭据有效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "憑據有效"
+          }
+        }
+      }
+    },
+    "凭据未通过验证": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Credential not accepted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "凭据未通过验证"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "憑據未通過驗證"
           }
         }
       }
@@ -13917,6 +14262,29 @@
         }
       }
     },
+    "反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反饋"
+          }
+        }
+      }
+    },
     "发布日期": {
       "extractionState": "manual",
       "localizations": {
@@ -14791,6 +15159,29 @@
         }
       }
     },
+    "可以重试一次；还不行就修改连接信息，或看看连接帮助。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try once more; if it still fails, edit the connection details or see the connection help."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以重试一次；还不行就修改连接信息，或看看连接帮助。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以重試一次；還不行就修改連線資訊，或看看連線幫助。"
+          }
+        }
+      }
+    },
     "可用": {
       "extractionState": "manual",
       "localizations": {
@@ -14856,6 +15247,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "可能已過期或被刪除。"
+          }
+        }
+      }
+    },
+    "可能的原因": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Possible cause"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能的原因"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能的原因"
           }
         }
       }
@@ -16608,6 +17022,29 @@
         }
       }
     },
+    "在 GitHub 提交问题": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File an issue on GitHub"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 提交问题"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 提交問題"
+          }
+        }
+      }
+    },
     "在云电脑运行命令": {
       "extractionState": "manual",
       "localizations": {
@@ -16903,6 +17340,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "地址座標換算"
+          }
+        }
+      }
+    },
+    "地址格式": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Address format"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址格式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址格式"
+          }
+        }
+      }
+    },
+    "地址看起来不对": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The address doesn't look right"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址看起来不对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址看起來不對"
           }
         }
       }
@@ -19161,6 +19644,52 @@
         }
       }
     },
+    "密码只用来验证你的身份。验证通过后，服务器会把登录密钥交给 App 保管，你不用再填第二遍。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your password only verifies who you are. Once it checks out, the server hands the login key to the app — no second step."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码只用来验证你的身份。验证通过后，服务器会把登录密钥交给 App 保管，你不用再填第二遍。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密碼只用來驗證你的身份。驗證通過後，伺服器會把登入金鑰交給 App 保管，你不用再填第二遍。"
+          }
+        }
+      }
+    },
+    "密码登录": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Password"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密碼登入"
+          }
+        }
+      }
+    },
     "密钥": {
       "extractionState": "manual",
       "localizations": {
@@ -19322,6 +19851,29 @@
         }
       }
     },
+    "密钥是这台 Hermes 的登录密钥，在服务器配置中生成。只保存在本机钥匙串，不会上传到别处。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key is this Hermes server's login key, created in the server configuration. It stays in this device's Keychain and is never uploaded elsewhere."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密钥是这台 Hermes 的登录密钥，在服务器配置中生成。只保存在本机钥匙串，不会上传到别处。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "金鑰是這台 Hermes 的登入金鑰，在伺服器設定中產生。只保存在本機鑰匙圈，不會上傳到別處。"
+          }
+        }
+      }
+    },
     "密钥查看": {
       "extractionState": "manual",
       "localizations": {
@@ -19410,6 +19962,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "金鑰沒讀出來，可能是網路或服務暫時沒回應"
+          }
+        }
+      }
+    },
+    "密钥登录": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密钥登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "金鑰登入"
           }
         }
       }
@@ -19663,6 +20238,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "對話執行"
+          }
+        }
+      }
+    },
+    "对话预览": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话预览"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "對話預覽"
           }
         }
       }
@@ -22312,6 +22910,29 @@
         }
       }
     },
+    "已整理 6 场会议，冲突的周四已单独标出。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done — 6 meetings summarized, and Thursday's conflict is flagged separately."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已整理 6 场会议，冲突的周四已单独标出。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已整理 6 場會議，衝突的週四已單獨標出。"
+          }
+        }
+      }
+    },
     "已断开": {
       "extractionState": "manual",
       "localizations": {
@@ -23508,6 +24129,52 @@
         }
       }
     },
+    "帮助与反馈": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help and feedback"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮助与反馈"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "幫助與反饋"
+          }
+        }
+      }
+    },
+    "帮我把这周的会议整理成一页纪要。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn this week's meetings into a one-page summary."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮我把这周的会议整理成一页纪要。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "幫我把這週的會議整理成一頁紀要。"
+          }
+        }
+      }
+    },
     "常用": {
       "extractionState": "manual",
       "localizations": {
@@ -23596,6 +24263,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "應用"
+          }
+        }
+      }
+    },
+    "延迟 %lld ms": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ms latency"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "延迟 %lld ms"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "延遲 %lld ms"
           }
         }
       }
@@ -24010,6 +24700,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "開始吧"
+          }
+        }
+      }
+    },
+    "开始聊天": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start chatting"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始聊天"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始聊天"
           }
         }
       }
@@ -24746,6 +25459,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "錄音被打斷了。辨識到的內容已經保留在輸入框裡，可以接著說或直接改。"
+          }
+        }
+      }
+    },
+    "形如 https://hermes.example.com，不要带结尾斜杠。手机需要能直接访问这个地址，不能用 localhost。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Like https://hermes.example.com, with no trailing slash. Your phone must be able to reach the address directly — localhost won't work."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形如 https://hermes.example.com，不要带结尾斜杠。手机需要能直接访问这个地址，不能用 localhost。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形如 https://hermes.example.com，不要帶結尾斜線。手機需要能直接存取這個地址，不能用 localhost。"
+          }
+        }
+      }
+    },
+    "形象与名称": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Look and name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形象与名称"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "形象與名稱"
           }
         }
       }
@@ -27165,6 +27924,29 @@
         }
       }
     },
+    "找不到这台服务器": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't find this server"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到这台服务器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到這台伺服器"
+          }
+        }
+      }
+    },
     "技术信息": {
       "extractionState": "manual",
       "localizations": {
@@ -27855,6 +28637,29 @@
         }
       }
     },
+    "把这周的会议整理成纪要": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summarize this week's meetings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把这周的会议整理成纪要"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把這週的會議整理成紀要"
+          }
+        }
+      }
+    },
     "把默认模型和整套辅助分配存成一份快照，整套切换。预设不是多模型汇总——那是几个模型一起答一道题。": {
       "extractionState": "manual",
       "localizations": {
@@ -28472,6 +29277,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "換個關鍵字，或切換來源再試。"
+          }
+        }
+      }
+    },
+    "换取登录密钥": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fetching login key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "换取登录密钥"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "換取登入金鑰"
           }
         }
       }
@@ -35790,6 +36618,29 @@
         }
       }
     },
+    "有哪些定时任务在跑？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What scheduled tasks are running?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有哪些定时任务在跑？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有哪些定時任務在跑？"
+          }
+        }
+      }
+    },
     "有官方远程 MCP · 需服务器端添加并授权": {
       "extractionState": "manual",
       "localizations": {
@@ -36181,6 +37032,29 @@
         }
       }
     },
+    "服务器可达": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server reachable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器可达"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器可達"
+          }
+        }
+      }
+    },
     "服务器地址": {
       "extractionState": "manual",
       "localizations": {
@@ -36315,6 +37189,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "伺服器暫時連不上，稍後再試。"
+          }
+        }
+      }
+    },
+    "服务器没有交出登录密钥": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server didn't hand over the login key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器没有交出登录密钥"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器沒有交出登入金鑰"
           }
         }
       }
@@ -38711,6 +39608,29 @@
         }
       }
     },
+    "查看连接帮助": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See connection help"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看连接帮助"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看連線幫助"
+          }
+        }
+      }
+    },
     "查看闹钟": {
       "extractionState": "manual",
       "localizations": {
@@ -39401,6 +40321,29 @@
         }
       }
     },
+    "检查中": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查中"
+          }
+        }
+      }
+    },
     "检查地址与密钥后再试；也可以先保存这家服务商，之后再测。": {
       "extractionState": "manual",
       "localizations": {
@@ -39861,6 +40804,29 @@
         }
       }
     },
+    "欢迎": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "欢迎"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歡迎"
+          }
+        }
+      }
+    },
     "欢迎来到 OneDay": {
       "extractionState": "manual",
       "localizations": {
@@ -40294,6 +41260,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在產生"
+          }
+        }
+      }
+    },
+    "正在确认这台服务器可以安全使用。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking that this server is safe to use."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在确认这台服务器可以安全使用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在確認這台伺服器可以安全使用。"
           }
         }
       }
@@ -40850,6 +41839,29 @@
         }
       }
     },
+    "正在连接": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在连接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在連接"
+          }
+        }
+      }
+    },
     "正在连接技能库…服务端直连外部技能库，可能需要一会儿": {
       "extractionState": "manual",
       "localizations": {
@@ -41030,6 +42042,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "每 %@ 秒"
+          }
+        }
+      }
+    },
+    "每一步都以服务器的真实回应为准，通常几秒内完成。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every step waits for the server's real answer — usually a few seconds."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每一步都以服务器的真实回应为准，通常几秒内完成。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每一步都以伺服器的真實回應為準，通常幾秒內完成。"
           }
         }
       }
@@ -44668,6 +45703,29 @@
         }
       }
     },
+    "用你部署 Hermes 时设的面板账号和密码。验证通过后，App 会向你的服务器换取登录密钥并保存在本机钥匙串，之后不用再填。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use the panel account and password you set when deploying Hermes. Once verified, the app fetches the login key from your server and keeps it in this device's Keychain."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用你部署 Hermes 时设的面板账号和密码。验证通过后，App 会向你的服务器换取登录密钥并保存在本机钥匙串，之后不用再填。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用你部署 Hermes 時設的面板帳號和密碼。驗證通過後，App 會向你的伺服器換取登入金鑰並保存在本機鑰匙圈，之後不用再填。"
+          }
+        }
+      }
+    },
     "用哪个模型": {
       "extractionState": "manual",
       "localizations": {
@@ -45607,6 +46665,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "登入已過期，重新登入後再試。"
+          }
+        }
+      }
+    },
+    "登录方式": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in method"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录方式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入方式"
           }
         }
       }
@@ -46941,6 +48022,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "稍後再填"
+          }
+        }
+      }
+    },
+    "稍后可在设置里修改，只影响这台手机": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change it later in Settings — it only affects this phone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍后可在设置里修改，只影响这台手机"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍後可在設定裡修改，只影響這台手機"
           }
         }
       }
@@ -51752,6 +52856,29 @@
         }
       }
     },
+    "设备权限": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device permissions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备权限"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設備權限"
+          }
+        }
+      }
+    },
     "设备调用": {
       "extractionState": "manual",
       "localizations": {
@@ -52442,6 +53569,29 @@
         }
       }
     },
+    "请勿在公开议题中粘贴密钥、服务器地址或个人数据。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Never paste keys, server addresses, or personal data into public issues."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请勿在公开议题中粘贴密钥、服务器地址或个人数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請勿在公開議題中貼上金鑰、伺服器地址或個人資料。"
+          }
+        }
+      }
+    },
     "请填写监测名称。": {
       "extractionState": "manual",
       "localizations": {
@@ -52557,6 +53707,52 @@
         }
       }
     },
+    "请确认地址正确、服务器已启动，并且当前网络可以访问。企业网络或代理可能拦截请求。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check that the address is right, the server is running, and your current network can reach it. Work networks or proxies may block the request."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请确认地址正确、服务器已启动，并且当前网络可以访问。企业网络或代理可能拦截请求。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請確認地址正確、伺服器已啟動，並且目前網路可以存取。企業網路或代理可能攔截請求。"
+          }
+        }
+      }
+    },
+    "请确认填的凭据与服务器上的一致，是否已被撤销或改过，然后重试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check that the credential matches the one on your server and hasn't been revoked or changed, then try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请确认填的凭据与服务器上的一致，是否已被撤销或改过，然后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請確認填的憑據與伺服器上的一致，是否已被撤銷或改過，然後重試。"
+          }
+        }
+      }
+    },
     "请稍后再试。": {
       "extractionState": "manual",
       "localizations": {
@@ -52576,6 +53772,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "請稍後再試。"
+          }
+        }
+      }
+    },
+    "请输入完整地址，例如 https://hermes.example.com。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the full address, e.g. https://hermes.example.com."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入完整地址，例如 https://hermes.example.com。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請輸入完整地址，例如 https://hermes.example.com。"
           }
         }
       }
@@ -52760,6 +53979,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "讀取檔案"
+          }
+        }
+      }
+    },
+    "读取服务信息": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading service info"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取服务信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讀取服務資訊"
           }
         }
       }
@@ -53036,6 +54278,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "財務"
+          }
+        }
+      }
+    },
+    "账号": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账号"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帳號"
           }
         }
       }
@@ -53427,6 +54692,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "輸入網址"
+          }
+        }
+      }
+    },
+    "输入面板密码": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your panel password"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入面板密码"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入面板密碼"
           }
         }
       }
@@ -54393,6 +55681,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "還沒有旁聊"
+          }
+        }
+      }
+    },
+    "还没有服务器？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No server yet?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有服务器？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有伺服器？"
+          }
+        }
+      }
+    },
+    "还没有服务器？先看看怎么部署": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No server yet? See how to set one up"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有服务器？先看看怎么部署"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有伺服器？先看看怎麼部署"
           }
         }
       }
@@ -57088,6 +58422,52 @@
         }
       }
     },
+    "连接不上，或者想提一个建议？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't connect, or have a suggestion?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接不上，或者想提一个建议？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連不上，或者想提一個建議？"
+          }
+        }
+      }
+    },
+    "连接你的服务器": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect your server"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接你的服务器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接你的伺服器"
+          }
+        }
+      }
+    },
     "连接器": {
       "extractionState": "manual",
       "localizations": {
@@ -57199,6 +58579,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "連接失敗，請稍後再試。"
+          }
+        }
+      }
+    },
+    "连接帮助": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection help"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接帮助"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線幫助"
           }
         }
       }
@@ -57360,6 +58763,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "連接正常：校驗全部通過。"
+          }
+        }
+      }
+    },
+    "连接没成功": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection didn't succeed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接没成功"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線沒成功"
           }
         }
       }
@@ -58882,6 +60308,29 @@
         }
       }
     },
+    "重新连接": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新连接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新連接"
+          }
+        }
+      }
+    },
     "重置": {
       "extractionState": "manual",
       "localizations": {
@@ -59411,6 +60860,29 @@
         }
       }
     },
+    "附上复现步骤与系统版本": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include steps to reproduce and your system version"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附上复现步骤与系统版本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附上重現步驟與系統版本"
+          }
+        }
+      }
+    },
     "附件": {
       "extractionState": "manual",
       "localizations": {
@@ -59522,6 +60994,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "需伺服器端設定 MCP 並完成 Google 授權"
+          }
+        }
+      }
+    },
+    "需要帮助？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Need help?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要帮助？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要幫助？"
           }
         }
       }
@@ -60308,6 +61803,29 @@
         }
       }
     },
+    "验证并连接": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verify and connect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证并连接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證並連接"
+          }
+        }
+      }
+    },
     "高德地图": {
       "extractionState": "manual",
       "localizations": {
@@ -60350,6 +61868,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "預設"
+          }
+        }
+      }
+    },
+    "默认关闭，需要时逐项开启": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off by default — turn on only what you need"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认关闭，需要时逐项开启"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設關閉，需要時逐項開啟"
           }
         }
       }

@@ -781,6 +781,149 @@ final class AppState {
         phase = .connected
     }
 
+    // MARK: - 引导四步连接（欢迎/登录/连接中/成功面）
+
+    /// 引导·密码登录一步制（用户 2026-11-11 定版，覆盖
+    /// 原型两步）：地址＋账号＋密码一步连上。链路全是现
+    /// 行生产端点——健康检查（兼量延迟）→ Hermes 本体
+    /// password-login 验密码 → /api/env/reveal 换取登录
+    /// 密钥 API_SERVER_KEY（服务端代管下发）→ 用该钥验
+    /// /v1/models 并读服务信息。伴生 front 8650 的双方式
+    /// 登录查毕不可复用：它只发面板会话 cookie、明文凭
+    /// 据从不出其 API、且其密码无账号概念（查证见
+    /// DESIGN 引导线记账）。全过才落 Keychain（四件套，
+    /// 与 connect 同口径，performAdmin 静默重登靠它）；
+    /// 本方法不置 phase——成功面先行展示，用户点「开
+    /// 始聊天」再由 activatePreparedConnection 进主界面
+    /// （杀进程在成功面时 restore 照样凭 Keychain 成立）。
+    func connectWithPassword(
+        config: ServerConfig,
+        username: String,
+        password: String,
+        onStep: @escaping (OnboardingStep) -> Void = { _ in }
+    ) async throws -> ConnectionServiceInfo {
+        var step: OnboardingStep = .serverReachable
+        do {
+            onStep(step)
+            let started = Date()
+            let health = try await client.health(config: config)
+            guard ServiceHealth.from(health: health) == .up else {
+                throw HermesError.healthCheckFailed(status: 200)
+            }
+            let latencyMs = Int(
+                Date().timeIntervalSince(started) * 1000
+            )
+            step = .credentialValid
+            onStep(step)
+            try await client.login(
+                config: config, username: username, password: password
+            )
+            step = .serviceInfo
+            onStep(step)
+            // 演示模式：reveal 在演示客户端是冻结面——
+            // 用演示假钥（不出设备，与既有演示口径一致）
+            let fetchedKey: String
+            if isDemo {
+                fetchedKey = "demo-api-key"
+            } else {
+                fetchedKey = try await client.revealEnvVar(
+                    config: config, key: "API_SERVER_KEY"
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            guard !fetchedKey.isEmpty else {
+                throw OnboardingFailure(
+                    step: .serviceInfo, kind: .keyUnavailable
+                )
+            }
+            // 换来的钥必须真能用才算连上（不许拿空壳钥落盘）
+            let ids = try await client.models(
+                config: config, apiKey: fetchedKey
+            )
+            if let first = ids.first {
+                modelID = first
+            }
+            let status = try? await client.status(config: config)
+            let options = try? await client.modelOptions(config: config)
+            if !isDemo {
+                KeychainStore.save(
+                    config.baseString, account: CredentialKey.baseURL
+                )
+                KeychainStore.save(username, account: CredentialKey.username)
+                KeychainStore.save(password, account: CredentialKey.password)
+                KeychainStore.save(fetchedKey, account: CredentialKey.apiKey)
+            }
+            self.config = config
+            self.username = username
+            return ConnectionServiceInfo(
+                host: config.host,
+                hermesVersion: status?.version ?? health.version,
+                modelCount: options?.count,
+                latencyMs: latencyMs
+            )
+        } catch {
+            throw OnboardingFailure.classify(step: step, error: error)
+        }
+    }
+
+    /// 引导·密钥登录（后门保留，用户只持一把登录密钥）：
+    /// 健康检查（兼量延迟）→ /v1/models 验钥 → 读服务
+    /// 信息。无面板会话，模型目录数取不到就不显示
+    /// （ConnectionServiceInfo 口径）；落盘与
+    /// connectDirect 同口径（清旧账号/密码防静默重登
+    /// 拿错凭据）。同样不置 phase，成功面后再激活。
+    func connectWithKey(
+        config: ServerConfig,
+        apiKey: String,
+        onStep: @escaping (OnboardingStep) -> Void = { _ in }
+    ) async throws -> ConnectionServiceInfo {
+        var step: OnboardingStep = .serverReachable
+        do {
+            onStep(step)
+            let started = Date()
+            let health = try await client.health(config: config)
+            guard ServiceHealth.from(health: health) == .up else {
+                throw HermesError.healthCheckFailed(status: 200)
+            }
+            let latencyMs = Int(
+                Date().timeIntervalSince(started) * 1000
+            )
+            step = .credentialValid
+            onStep(step)
+            let ids = try await client.models(config: config, apiKey: apiKey)
+            if let first = ids.first {
+                modelID = first
+            }
+            step = .serviceInfo
+            onStep(step)
+            let status = try? await client.status(config: config)
+            if !isDemo {
+                KeychainStore.save(
+                    config.baseString, account: CredentialKey.baseURL
+                )
+                KeychainStore.save(apiKey, account: CredentialKey.apiKey)
+                KeychainStore.delete(account: CredentialKey.username)
+                KeychainStore.delete(account: CredentialKey.password)
+            }
+            self.config = config
+            username = nil
+            return ConnectionServiceInfo(
+                host: config.host,
+                hermesVersion: status?.version ?? health.version,
+                modelCount: nil,
+                latencyMs: latencyMs
+            )
+        } catch {
+            throw OnboardingFailure.classify(step: step, error: error)
+        }
+    }
+
+    /// 引导成功面「开始聊天」：凭据已落盘、config 已备，
+    /// 此处只翻连接态进主界面。
+    func activatePreparedConnection() {
+        guard config != nil else { return }
+        phase = .connected
+    }
+
     /// 设置页「重新测试连接」：存量四件套走三步探活；
     /// 直登连接（无面板密码）走两步（健康＋密钥），不改状态。
     func retestConnection(onStep: @escaping (ProbeStep) -> Void = { _ in }) async throws {
