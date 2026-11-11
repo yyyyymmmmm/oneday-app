@@ -8980,6 +8980,14 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 分支 feat/cx-model-storage（基线 feat/provider-default 顶端 886437e），代码提交 e5d0a85；未合并、版本号未改。
 - 分支 CI：run 42988451547 **success**（jobs API 终判 build-native completed/success、steps 零失败）。单测 Executed **1353、0 failures**（基线 1346＋本包新增 PresetMigrationTests 7，只增不减）。
 - i18n：validate_i18n 通过（2615 键含 InfoPlist 13，三语全覆盖）；删键 5、无新增。
+
+### 142.5 打包线合并与验包记账（2026-11-11，0.50.13）
+
+- 用户 2026-11-11 18:04 拍板「5 个一起合」：本包与 §143/§144/§145 三包一次合进 main、只发 **0.50.13/135**（0.50.12 已单独先行）。合并序 1→4 本包第一：merge commit `52ee1d6`（feat/cx-model-storage `359947c`，基线叠 provider-default `886437e`）；中间 CI run 43001975560 jobs 逐项终判 build-native **success**、单测 Executed **1458、0 failures**（1451＋本包 7，只增不减）。
+- 冲突两处：DESIGN（HEAD §141.7 全保留、分支 §134 改注 §142 顺接文末、134.1–134.4 随迁 142.1–142.4）＋Localizable.xcstrings（入仓脚本三方并集 base 2607／ours 2626／theirs 2602→2621 键零冲突；分支有意删 5 键逐键核对精确落入、无新增；成品按 §141 先例取 main 现行文件外科删 5 键、与脚本并集逐键断言全等）。
+- **伴生收尾同单办结**：/meta/model-combos 端点本体已删（路由＋handler＋两助手函数＋自测文件与登记，diff 删 75 行/改 1 行），伴生 **1.0.24** 已部署（镜像 sha256:b3eb47365625…、构建 /root/build-1.0.24、回滚 /root/companion-124-deploy-20261111/）；回读验收：GET/PUT /meta/model-combos 均 **404**、/meta/brief·/feed·/deliveries·/health 全 200、Hermes StartedAt 逐字不变、内存约 53%。删前只读核查：生产 meta.modelCombos 文档 combos=0、activeComboID 空——用户从未存过服务端预设，删端点零数据损失，App 迁移读 404 按空文档落本地，与实情一致。本地树已同步改毕（companion 仓 modules/oneday_bridge.py、tests、Dockerfile/compose 版本位 1.0.24）。
+- 发版总账见 §145.7（四包同版 0.50.13/135）。
+
 ## §143 助手侧裸路径图片内联包＋聊天文件卡封面规格增补（2026-11-11，用户 17:13 两问附双图点题；预制分支 feat/inline-images，基线 main b895f32／0.50.8，只预制不合并；节号说明：任务单下达时现行末尾为 §136，施工时 §137 已被复杂化收口包占用，顺延取 §138；合并时 §138 已被复杂化收口包占用、主线顺延改注 §143）
 
 ### 143.1 报障与定因（证据链，不许猜）
@@ -9014,6 +9022,11 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 让智能体引一张不存在的图：纯文本原样，无牌无图、不消失。
 - 非图片文件（PDF/文档）照旧出文件卡、点开中间页与「···」菜单不变。
 - 重进含消息 1775 的历史会话：那张截图自动升级为内联图（渲染层判定、不改数据）。
+
+### 143.6 打包线合并记账（2026-11-11，0.50.13）
+
+- 合并序第二：merge commit `662cf6d`（feat/inline-images `c984d10`）；中间 CI run 43003819336 **success**、单测 **1481、0 failures**（1458＋23）。冲突仅 DESIGN（ChatView 自动合并）：分支 §138 改注 **§143**（138.1–138.5 随迁 143.1–143.5，代码注释 §138 自引全量改注 §143、grep 零残留）。与 §144 的同面合裁按任务单口径落地：探测分流走本包候选口径、呈现走 §144 的 RemoteImagePipeline（AssistantMediaImage 经 ServerRemoteImage 接管线，合并后源码实证）。
+
 ## §144 影音性能包：白屏＋二次点击定因与查看器递进链（2026-11-11，用户 17:14 真机报障插队；§33 规格提前开工；预制分支 feat/media-perf，基线 main b895f32／0.50.8；伴生 1.0.23 同批部署）
 
 - **报障原文**：「还有图片这些都是点击是白屏，再点击才出现图片，这个不对吧，哪里的问题！影音里面的图片也有这个问题」——聊天与影音页两路同病。
@@ -9029,6 +9042,9 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **验收口径（写死）**：点开任意已缓存图＝即显；未缓存图＝先出中档（目标首屏亚秒级、按 §33 基线）、不再出现纯白屏、不需要第二次点击。真机待验（合并后随版）：①聊天里点已看过的图即显、首次点开先出中档不白屏②影音格点开首帧即格内那张图③弱网/断网重进：有缓存出图、无缓存落失败态＋重试可恢复④连翻多页不逐页白屏（预取生效）⑤视频条目出海报图、点开仍走中间页⑥放大到深处原图补齐不糊⑦杀 App 复开曾看图 ≤300ms 出图（磁盘层）。
 - **单测与自测（分支口径）**：App 新增 ViewerImageProgressionTests 11 法（档位序与长边/种子即显/逐档升/迟到低档不降级/种子不顶高档/无图失败进 failed/有图失败 degraded 且补档清除/重试门与计数/失败后迟到成功恢复/复位/缓存键稳定与分离）；伴生 rendition 自测 22 检全过（见①）。三语新增 1 键（「图片预览」端点名；「重试」为既有键），validate_i18n 通过。
 - **分支验包记账（预制分支口径，合并时主线复核）**：feat/media-perf 顶端 48057cf；CI run 42996888623（07139bb）与 run 42998143434（48057cf，最终顶端）均 jobs 逐项终判 build-native **success**，单测 Executed **1434、0 failures**（分支基线 b895f32／0.50.8 口径 1423＋本包新增 11，只增不减）。三语新增 1 键（「图片预览」），validate_i18n 通过（2637 键含 InfoPlist 13）。**节号警告**：本节自选 §144 在预制期间已被先行合并的包占用（0.50.9/131 的 §144 合并记账），合并时须顺延改注（预计 §140）并同步代码注释内 §144 引用。**伴生侧**：1.0.23 已部署上线（部署由主线侧按同一仓库树先行执行、容器 2026-11-11T09:33:45Z 启动；施工方回读验收全过——模块 md5 三方逐字一致 `86592847…`、Hermes StartedAt 逐字不变、内存约 53%、生产实拉三档 200 image/jpeg（68,026B 原图→360 档 8,390B）、无钥 401；报告 hermes-deploy/companion/RENDITION-123-REPORT.md）。
+
+
+- **打包线合并与验包记账（2026-11-11，0.50.13）**：合并序第三：merge commit `fb2377f`（feat/media-perf `bd970c7`）；中间 CI run 43005266614 **success**、单测 **1492、0 failures**（1481＋11）。冲突两处：xcstrings（脚本三方并集零冲突、仅新增「图片预览」1 键，成品外科插入与并集逐键断言全等，2622 键）＋DESIGN（分支 §138 改注 **§144**、代码注释自引全量改注；本节末「节号警告」为预制期原文，其预计改注号已被最终 §144 落定取代）。RichContentViews 自动合并，§143 接线实证见 143.6。
 
 # §145 语言切换（2026-11-11，预制分支 feat/i18n-language，基线 main 15cc649／0.50.10；依据 i18n-leak-audit-20261111.md §1.4 C 方案／包 0，用户 17:41 点名「设置里没有呀」）
 
@@ -9059,3 +9075,9 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 分支 feat/i18n-language：代码提交 0241d1a，基线 main 15cc649（0.50.10/132）。validate_i18n 本地实跑通过（2640 键）。分支 CI run 42998569663（workflow_dispatch 触发，head 0241d1a）completed success、build-native 单 job 全部 steps 全绿，单测 Executed **1436、0 failures**（基线 1432＋新增 LanguageSwitchTests 4 法，逐法 passed 日志在案；既有测零删改，只增不减）。未合并、版本号未动，待主线按序合并定版。合并后真机待验：切 English 后主面＋设置页＋设备页即时变、杀进程重进保持所选档、切回跟随系统复原；系统权限弹窗/分享单仍随系统语言（区脚口径、非缺陷）。
 
+### 145.7 打包线合并与发版总账（2026-11-11，0.50.13/135）
+
+- 合并序第四：merge commit `6042a77`（feat/i18n-language `97b3e49`）；中间 CI run 43007207200 **success**、单测 **1496、0 failures**（1492＋4）。冲突仅 DESIGN（xcstrings 自动合并且逐键核对无误：2622＋本包 4 新键＝2626、零删除零改值）：分支自立 §140 改注 **§145**（140.x 随迁 145.x、代码注释自引全量改注 §145）。
+- **xcstrings 四方并集总断言（最终统一）**：以 0.50.12 定版 `ea6509f` 的 2626 键为起点——cx-model 删 5、media-perf 增 1、i18n 增 4、inline 零动——期望 2626 键与成品文件逐键全等断言 **PASS**；validate_i18n 与 --check-code 双过（2639 键含 InfoPlist 13、三语全覆盖）。单测总对账：1451＋7（§142）＋23（§143）＋11（§144）＋4（§145）＝**1496**，与发版 CI 实测逐位一致、只增不减。
+- **定版与验包**：版本五处同改 0.50.13／135（Project.swift 四处＋SettingsView 页脚）commit `9119674`，grep 验 0.50.12 零残留；CI run **43008586093** jobs 逐项终判 build-native **success**、单测 Executed **1496、0 failures**。IPA 落 ~/workspace/your_files/oneday-v0.50.13/OneDay-0.50.13.ipa：**10,148,909 字节、md5 `7125d4c33b3d9506f65b278d02f4a4fd`**，主线独立解包复核 Info.plist 实读 0.50.13／135（本记账即复核记录）。
+- 真机待验汇总：§142.3 迁移三条、§143.5 五条、§144 验收七条、§145 验点四条（切 English 即时变/杀进程保持/切回跟随系统复原），随本版一并回收。
