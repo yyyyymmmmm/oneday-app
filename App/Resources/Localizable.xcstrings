@@ -7936,29 +7936,6 @@
         }
       }
     },
-    "保存组合": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save combo"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存组合"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "儲存組合"
-          }
-        }
-      }
-    },
     "保存配置": {
       "extractionState": "manual",
       "localizations": {
@@ -12233,29 +12210,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "刪除檔案？"
-          }
-        }
-      }
-    },
-    "删除没能存到服务端，请稍后再试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The deletion couldn't be saved on the server. Try again later."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除没能存到服务端，请稍后再试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除沒能存到伺服器端，請稍後再試。"
           }
         }
       }
@@ -59525,52 +59479,6 @@
         }
       }
     },
-    "预设没能存到服务端，请稍后再试。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The preset could not be saved on the server. Try again later."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预设没能存到服务端，请稍后再试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "預設沒能存到伺服器端，請稍後再試。"
-          }
-        }
-      }
-    },
-    "预设清单没读出来，可能是网络或服务暂时没响应": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't read the preset list; the network or the service may be temporarily unavailable."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预设清单没读出来，可能是网络或服务暂时没响应"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "預設清單沒讀出來，可能是網路或服務暫時沒回應"
-          }
-        }
-      }
-    },
     "预设清单读取失败，请下拉重试。": {
       "extractionState": "manual",
       "localizations": {
@@ -59590,29 +59498,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "預設清單讀取失敗，請下拉重試。"
-          }
-        }
-      }
-    },
-    "预设的服务端存储还没开通，这里先留位。开通前，服务商与默认模型照常可用。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preset storage on the server is not available yet — this space is reserved. Until it opens, providers and the default model work as usual."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预设的服务端存储还没开通，这里先留位。开通前，服务商与默认模型照常可用。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "預設的伺服器端儲存還沒開通，這裡先留位。開通前，服務商與預設模型照常可用。"
           }
         }
       }

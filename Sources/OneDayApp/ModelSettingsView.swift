@@ -827,43 +827,29 @@ struct ModelSettingsView: View {
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                if store.combosFaceMissing {
-                    Text("预设的服务端存储还没开通，这里先留位。开通前，服务商与默认模型照常可用。")
+                // 第 5 项起预设落本地：不再有「服务端存储
+                // 未开通/清单没读出来」两态，清单即本地文档
+                let presets = store.comboDocument?.combos ?? []
+                if presets.isEmpty {
+                    Text("还没有预设。可以新建一份，或先把当前设置存为第一份再改。")
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .padding(.vertical, OneDayMetrics.spacingSM)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                } else if store.combosLoadFailed {
-                    Text("预设清单没读出来，可能是网络或服务暂时没响应")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .padding(.vertical, OneDayMetrics.spacingSM)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    GroupDivider()
+                    starterButton
+                    GroupDivider()
+                    newPresetButton
                 } else {
-                    let presets = store.comboDocument?.combos ?? []
-                    if presets.isEmpty {
-                        Text("还没有预设。可以新建一份，或先把当前设置存为第一份再改。")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .padding(.horizontal, OneDayMetrics.spacingM)
-                            .padding(.vertical, OneDayMetrics.spacingSM)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        GroupDivider()
-                        starterButton
-                        GroupDivider()
-                        newPresetButton
-                    } else {
-                        ForEach(Array(presets.enumerated()), id: \.element.id) { index, preset in
-                            if index > 0 {
-                                GroupDivider()
-                            }
-                            presetRow(preset)
+                    ForEach(Array(presets.enumerated()), id: \.element.id) { index, preset in
+                        if index > 0 {
+                            GroupDivider()
                         }
-                        GroupDivider()
-                        newPresetButton
+                        presetRow(preset)
                     }
+                    GroupDivider()
+                    newPresetButton
                 }
             }
             .odGroup()

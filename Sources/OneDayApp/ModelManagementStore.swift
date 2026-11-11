@@ -19,10 +19,9 @@ final class ModelManagementStore {
     // 渠道只读面（初始 loading，load 时落定）
     private(set) var channelsFace: GatewayChannelsFace = .loading
 
-    // 组合（桥 meta）：faceMissing＝存储面未开通
+    // 预设（本地存储，第 5 项起）：comboDocument 是
+    // PresetStore 本地文档的镜像，呈现只读本面
     private(set) var comboDocument: ModelComboDocument?
-    private(set) var combosFaceMissing = false
-    private(set) var combosLoadFailed = false
 
     // 辅助模型（§119）：自 rawConfig 派生的现行分配
     // 与两行 enabled 开关现值，load/写回后重算
@@ -36,7 +35,8 @@ final class ModelManagementStore {
     private(set) var defaultAssignment: MainModelAssignment?
 
     private let frontClient = CompanionFrontClient()
-    private let comboClient = ModelComboClient()
+    private let presetStore = PresetStore()
+    private let legacyComboReader = LegacyComboReader()
     private let probeClient = ProviderProbeClient()
 
     // MARK: - 派生
@@ -112,25 +112,46 @@ final class ModelManagementStore {
         if let config = appState.config {
             channelsFace = await frontClient.gatewayChannels(config: config)
         }
-        await loadCombos(appState: appState)
+        await loadPresets(appState: appState)
         recomputeAux()
     }
 
-    private func loadCombos(appState: AppState) async {
-        guard let config = appState.config else { return }
-        do {
-            comboDocument = try await comboClient.loadDocument(config: config)
-            combosFaceMissing = false
-            combosLoadFailed = false
-        } catch let error as OneDayBridgeError {
-            if error == .bridgeMissing {
-                combosFaceMissing = true
-            } else {
-                combosLoadFailed = true
-            }
-        } catch {
-            combosLoadFailed = true
+    /// 预设加载（第 5 项起走本地）：已迁移直接读本地
+    /// 文档；未迁移时做一次性迁移——最后读一次桥上
+    /// 旧档、Core 稠密化（A 案填跟随）、对账后落本地
+    /// 并置标记。旧档确认不存在（端点 404）按空文档
+    /// 迁移；网络/鉴权类失败本轮不置标记、下次加载
+    /// 再试，不拿空文档冒充迁完、丢了用户旧预设。
+    private func loadPresets(appState: AppState) async {
+        if presetStore.migrated {
+            comboDocument = presetStore.document
+            return
         }
+        var legacy: ModelComboDocument?
+        if let config = appState.config {
+            do {
+                legacy = try await legacyComboReader.loadDocument(
+                    config: config
+                )
+            } catch let error as OneDayBridgeError
+            where error == .bridgeMissing {
+                legacy = .empty
+            } catch {
+                legacy = nil
+            }
+        }
+        guard let legacy else {
+            comboDocument = presetStore.document
+            return
+        }
+        let result = PresetMigration.migrate(legacy)
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let report = "条数 \(result.report.comboCount)"
+            + "／填跟随 \(result.report.filledCount)"
+            + "／对账 \(result.report.isConsistent ? "一致" : "不一致")"
+            + "／\(stamp)"
+        presetStore.completeMigration(result.document, report: report)
+        comboDocument = result.document
     }
 
     // MARK: - 默认模型（旧行为平移：候选校验＋写回）
@@ -282,40 +303,30 @@ final class ModelManagementStore {
 
     // MARK: - 组合（分配层）
 
-    /// 保存一套组合（新建/编辑同口：按 id 替换或追加）
+    /// 保存一套组合（新建/编辑同口：按 id 替换或追加；
+    /// 第 5 项起落本地 PresetStore，不再写服务端）
     func saveCombo(_ combo: ModelCombo, appState: AppState) async -> Bool {
-        guard let config = appState.config else { return false }
-        var document = comboDocument ?? .empty
+        var document = comboDocument ?? presetStore.document
         if let index = document.combos.firstIndex(where: { $0.id == combo.id }) {
             document.combos[index] = combo
         } else {
             document.combos.append(combo)
         }
-        do {
-            try await comboClient.saveDocument(config: config, document: document)
-            comboDocument = document
-            notice = L10n.format("预设「%@」已保存。", combo.name)
-            return true
-        } catch {
-            notice = L10n.string("预设没能存到服务端，请稍后再试。")
-            return false
-        }
+        presetStore.replace(document)
+        comboDocument = document
+        notice = L10n.format("预设「%@」已保存。", combo.name)
+        return true
     }
 
     func deleteCombo(_ combo: ModelCombo, appState: AppState) async {
-        guard let config = appState.config else { return }
-        var document = comboDocument ?? .empty
+        var document = comboDocument ?? presetStore.document
         document.combos.removeAll { $0.id == combo.id }
         if document.activeComboID == combo.id {
             document.activeComboID = nil
         }
-        do {
-            try await comboClient.saveDocument(config: config, document: document)
-            comboDocument = document
-            notice = L10n.format("预设「%@」已删除。", combo.name)
-        } catch {
-            notice = L10n.string("删除没能存到服务端，请稍后再试。")
-        }
+        presetStore.replace(document)
+        comboDocument = document
+        notice = L10n.format("预设「%@」已删除。", combo.name)
     }
 
     /// 把当前设置存为一份预设（§119 快照口径：默认
@@ -353,14 +364,10 @@ final class ModelManagementStore {
             if let mainModel = combo.mainModel {
                 appState.noteDefaultModel(mainModel)
             }
-            if let config = appState.config {
-                var document = comboDocument ?? .empty
-                document.activeComboID = combo.id
-                try? await comboClient.saveDocument(
-                    config: config, document: document
-                )
-                comboDocument = document
-            }
+            var document = comboDocument ?? presetStore.document
+            document.activeComboID = combo.id
+            presetStore.replace(document)
+            comboDocument = document
             notice = L10n.format("预设「%@」已启用。辅助模型若没立刻变，随服务下次重启生效。", combo.name)
         } catch {
             notice = (error as? HermesError)?.userMessage ?? L10n.string("启用失败，请稍后再试。")
