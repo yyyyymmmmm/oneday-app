@@ -731,9 +731,16 @@ struct SettingsView: View {
             // 0.22.0：脚注是阅读文字——13 footnote＋
             // inkMuted（2.75:1）升 15＋inkSecondary（小
             // 字清查＋审计 G1）
-            Text("OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。")
-                .font(.rowSubtitle)
-                .foregroundStyle(Palette.inkSecondary)
+            // §155 三层命名定案：脚注首行补关系说明，
+            // 给上方「Hermes 开源项目」链接行交代清
+            // OneDay（客户端）与 Hermes（服务端）的
+            // 分工，与连接页分工句同口径
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                Text("OneDay 是客户端，服务端是 Hermes 开源项目；智能体的名字以你服务器上的人设为准。")
+                Text("OneDay 只与你自己的服务器通信；凭据存本机钥匙串，聊天记录存本机，服务端数据归你所有。")
+            }
+            .font(.rowSubtitle)
+            .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)

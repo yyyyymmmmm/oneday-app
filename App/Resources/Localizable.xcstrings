@@ -2716,6 +2716,52 @@
         }
       }
     },
+    "OneDay 是客户端，服务端是 Hermes 开源项目；智能体的名字以你服务器上的人设为准。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay is the client; the server side is the open-source Hermes project, and your agent's name follows the persona on your server."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 是客户端，服务端是 Hermes 开源项目；智能体的名字以你服务器上的人设为准。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 是用戶端，伺服器端是 Hermes 開源專案；智慧代理的名字以你伺服器上的人設為準。"
+          }
+        }
+      }
+    },
+    "OneDay 是客户端，连接你自己部署的 Hermes 服务；智能体的名字以服务器上的人设为准。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay is the client app — it connects to your own Hermes server, and your agent's name follows the persona set on that server."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 是客户端，连接你自己部署的 Hermes 服务；智能体的名字以服务器上的人设为准。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 是用戶端，連接你自己部署的 Hermes 服務；智慧代理的名字以伺服器上的人設為準。"
+          }
+        }
+      }
+    },
     "OneDay 智能体": {
       "extractionState": "manual",
       "localizations": {
@@ -16075,6 +16121,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "指令行"
+          }
+        }
+      }
+    },
+    "和 %@ 聊聊": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat with %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "和 %@ 聊聊"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "和 %@ 聊聊"
           }
         }
       }

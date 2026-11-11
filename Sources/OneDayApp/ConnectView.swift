@@ -117,6 +117,15 @@ struct ConnectView: View {
             Text("你的 Hermes，随时在身边。")
                 .font(.subheadline)
                 .foregroundStyle(Palette.inkSecondary)
+            // §155 三层命名定案：连接页当场把分工讲清
+            // ——OneDay 是客户端、Hermes 是你部署的服
+            // 务端、智能体的名字跟服务器人设走，免得
+            // 连上后屏上名一变用户以为换了产品
+            Text("OneDay 是客户端，连接你自己部署的 Hermes 服务；智能体的名字以服务器上的人设为准。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.top, OneDayMetrics.spacingS)
         }
     }
 
