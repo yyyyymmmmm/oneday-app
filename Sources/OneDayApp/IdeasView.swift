@@ -191,6 +191,11 @@ struct IdeasView: View {
                     await kanban.load(appState: appState)
                 }
             }
+            // §165（用户 2026-11-11 23:28 亲定）：底部导
+            // 航栏收边与发送舱底缘同档——本页根 List 底
+            // 缘挂 .hard，口径与映射见 FeedView 同注与
+            // DESIGN §165.2
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
         }
     }
 

@@ -150,6 +150,11 @@ struct GoalsView: View {
             .refreshable {
                 await store.load(appState: appState)
             }
+            // §165（用户 2026-11-11 23:28 亲定）：底部导
+            // 航栏收边与发送舱底缘同档——本页根 Scroll-
+            // View 底缘挂 .hard，口径与映射见 FeedView
+            // 同注与 DESIGN §165.2
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
         }
     }
 
@@ -183,6 +188,10 @@ struct GoalsView: View {
         .refreshable {
             await store.load(appState: appState)
         }
+        // §165：无目标态（分类创建流）与有目标态同为本
+        // 格根滚动面，底缘同挂 .hard（口径见 ready-
+        // Content 同注）
+        .scrollEdgeEffectStyle(.hard, for: .bottom)
     }
 
     /// 状态分组（照 Muse 行形态）：色点组头＋扁平行，
