@@ -412,6 +412,20 @@ struct AgentHubView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.odPressable)
+                    // 0.43.0（A11Y-V5）：当前模型只有勾
+                    // 形——补「已选」播报（名＋注＋已选）
+                    // ＋特征，与房内先例同式
+                    .accessibilityLabel(
+                        appState.chatModel == item.id
+                            ? item.displayName + "，"
+                                + item.note + "，"
+                                + L10n.string("已选")
+                            : item.displayName + "，" + item.note
+                    )
+                    .accessibilityAddTraits(
+                        appState.chatModel == item.id
+                            ? [.isSelected] : []
+                    )
                 }
                 GroupDivider()
                 NavigationLink {

@@ -60,16 +60,33 @@ private func themedColor(light: UInt32, dark: UInt32) -> Color {
 /// 防漂移不再靠钉字面值：改由 RenderMeasureTests 的
 /// 解析值钉＋VisualDirectionGateTests 的合成对比闸
 /// 把守（双模式）。回滚基线＝本文件单文件回退。
-private func appleColor(light: UInt32, dark: UIColor) -> Color {
+private func appleColor(
+    light: UInt32, dark: UIColor, lightHighContrast: UInt32? = nil
+) -> Color {
     let darkResolved = dark.resolvedColor(
         with: UITraitCollection(userInterfaceStyle: .dark)
     )
     let (lr, lg, lb) = omHex(light)
+    // 高对比变体（0.43.0，无障碍专项 A11Y-S5）：仅
+    // 系统「增加对比度」开启且浅档时生效——动态色
+    // 的 traits 本就带 accessibilityContrast，变体
+    // 在解析层一步到位、消费点零改动；默认设置下
+    // 解析值与旧值逐字相同（视觉零变化，闸在
+    // AccessibilityPackageTests）。暗档的语义色
+    // （label 族/system 色）由系统自带高对比调整、
+    // 不在此重复设变体
+    let hc = lightHighContrast.map(omHex)
     return Color(
         UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? darkResolved
-                : UIColor(red: lr, green: lg, blue: lb, alpha: 1)
+            if traits.userInterfaceStyle == .dark {
+                return darkResolved
+            }
+            if traits.accessibilityContrast == .high, let hc {
+                return UIColor(
+                    red: hc.0, green: hc.1, blue: hc.2, alpha: 1
+                )
+            }
+            return UIColor(red: lr, green: lg, blue: lb, alpha: 1)
         }
     )
 }
@@ -224,8 +241,14 @@ public enum Palette {
     /// α0.60)——合成实算：页底 6.36／卡面 5.94／泡
     /// 面 5.29，随面自适应（旧实色 #9AA3A8 换面漂移
     /// 7.11→5.36 靠补丁档逐面救，审计 D3）
+    /// 0.43.0（A11Y-S5）：浅档高对比变体 #43494E
+    /// （同色相加深）——增加对比度开启时三面实算：
+    /// 设置底 8.18／页面底 8.89／卡面 9.12，全过
+    /// 7:1（WCAG 增强级）；默认解析不变（见
+    /// appleColor 注）
     public static let inkSecondary = appleColor(
-        light: 0x646B71, dark: .secondaryLabel
+        light: 0x646B71, dark: .secondaryLabel,
+        lightHighContrast: 0x43494E
     )
     /// 弱墨（OpenMuse 三档弱色无独立令牌，取其输入占位
     /// 色 #949B9F 为实证弱档，chat.tsx:948）
@@ -418,8 +441,12 @@ public enum Palette {
     /// 「提亮且保饱和」路线（对卡面实算 4.99:1）
     public static let success = Color(UIColor.systemGreen)
     public static let warning = Color(UIColor.systemOrange)
+    /// 0.43.0（A11Y-S5）：浅档高对比变体 #8C332C
+    /// ——对卡面 8.00:1、对 errorSurface 7.11:1，
+    /// 双面过 7:1；默认解析不变
     public static let danger = appleColor(
-        light: 0xAA4A45, dark: .systemRed
+        light: 0xAA4A45, dark: .systemRed,
+        lightHighContrast: 0x8C332C
     )
 
     /// 阴影基色：取 OpenMuse 浮动底栏阴影色 #132631

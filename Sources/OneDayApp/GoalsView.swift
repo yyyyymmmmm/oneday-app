@@ -552,6 +552,9 @@ struct GoalRowView: View {
                     )
                     .contentShape(Rectangle())
             }
+            // 0.43.0（A11Y-V6）：⋮ 菜单钮补标签（文件
+            // 行同钮已有「更多操作」先例，此处对齐）
+            .accessibilityLabel("更多操作")
             .disabled(acting)
         }
     }

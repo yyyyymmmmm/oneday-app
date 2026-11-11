@@ -32,6 +32,12 @@ struct AllConversationsView: View {
     @Environment(AppState.self) private var appState
     // 0.25.0（动效专包）：本面动画走令牌＋resolved 出口
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 「会话」Rotor 命名空间（0.43.0，A11Y-V7）：
+    /// 长列表里按标题直达任意一行——条目集随当前
+    /// 段/搜索态现算（rotorTargets），行标记挂在
+    /// 各行分发处（selectableRow/mainRowButton/搜索
+    /// 命中行），id 与条目一一对位
+    @AccessibilityRotorNamespace private var rotorNamespace
     /// 本地线程全集（分类 R2 的关联集派生用，与抽屉
     /// /频道页同一 ThreadLinkage 派生）
     @Query private var threads: [ChatThread]
@@ -278,15 +284,63 @@ struct AllConversationsView: View {
 
     @ViewBuilder
     private var content: some View {
+        Group {
+            if isSearching {
+                searchContent
+            } else {
+                switch segment {
+                case .main: mainContent
+                case .mine: mineContent
+                case .channels: channelsContent
+                case .archived: archivedContent
+                case .system: systemContent
+                }
+            }
+        }
+        // 0.43.0（A11Y-V7）：「会话」Rotor——VO 转子
+        // 里按标题字母/浏览直达长列表任意一行（条
+        // 目与行标记同 id 对位，见 rotorTargets）
+        .accessibilityRotor(L10n.string("会话"), in: rotorNamespace) {
+            ForEach(rotorTargets) { target in
+                AccessibilityRotorEntry(
+                    target.title, target.id, in: rotorNamespace
+                )
+            }
+        }
+    }
+
+    /// Rotor 条目（当前可见行集）：搜索态＝命中行、
+    /// 否则当前段的行集；标题与行面同源（rowTitle/
+    /// 命中标题），频道段是总览行、不入转子
+    private struct RotorTarget: Identifiable {
+        let id: String
+        let title: String
+    }
+
+    private var rotorTargets: [RotorTarget] {
         if isSearching {
-            searchContent
-        } else {
-            switch segment {
-            case .main: mainContent
-            case .mine: mineContent
-            case .channels: channelsContent
-            case .archived: archivedContent
-            case .system: systemContent
+            return searchResults.map {
+                RotorTarget(id: $0.sessionID, title: $0.displayTitle)
+            }
+        }
+        switch segment {
+        case .main:
+            return mainRow.map {
+                [RotorTarget(id: $0.id, title: rowTitle($0))]
+            } ?? []
+        case .mine:
+            return mineRows.map {
+                RotorTarget(id: $0.id, title: rowTitle($0))
+            }
+        case .channels:
+            return []
+        case .archived:
+            return archivedRows.map {
+                RotorTarget(id: $0.id, title: rowTitle($0))
+            }
+        case .system:
+            return systemRows.map {
+                RotorTarget(id: $0.id, title: rowTitle($0))
             }
         }
     }
@@ -317,19 +371,24 @@ struct AllConversationsView: View {
                             Text(hit.displayTitle)
                                 .font(.rowTitle)
                                 .foregroundStyle(Palette.ink)
-                                .lineLimit(1)
+                                // 0.43.0（A11Y-D3）：AX 档放宽
+                                .a11yLineLimit(1, ax: 2)
                             if let snippet = hit.snippet,
                                !snippet.isEmpty {
                                 Text(snippet)
                                     .font(.captionText)
                                     .foregroundStyle(Palette.inkSecondary)
-                                    .lineLimit(2)
+                                    .a11yLineLimit(2, ax: 4)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.odPressable)
+                    // 0.43.0（A11Y-V7）：Rotor 行标记
+                    .accessibilityRotorEntry(
+                        id: hit.sessionID, in: rotorNamespace
+                    )
                 }
             }
         }
@@ -502,6 +561,10 @@ struct AllConversationsView: View {
         if editMode.isEditing {
             rowLabel(session)
                 .tag(session.id)
+                // 0.43.0（A11Y-V7）：Rotor 行标记
+                .accessibilityRotorEntry(
+                    id: session.id, in: rotorNamespace
+                )
         } else {
             ServerSessionRow(
                 session: session,
@@ -512,6 +575,10 @@ struct AllConversationsView: View {
                 rowLabel(session)
             }
             .tag(session.id)
+            // 0.43.0（A11Y-V7）：Rotor 行标记
+            .accessibilityRotorEntry(
+                id: session.id, in: rotorNamespace
+            )
         }
     }
 
@@ -523,6 +590,8 @@ struct AllConversationsView: View {
             rowLabel(session)
         }
         .buttonStyle(.odPressable)
+        // 0.43.0（A11Y-V7）：Rotor 行标记
+        .accessibilityRotorEntry(id: session.id, in: rotorNamespace)
     }
 
     /// 行面：标题（统一管线）＋置顶标＋人话副题
@@ -536,7 +605,8 @@ struct AllConversationsView: View {
                     // meta（15），与点子/目标/总览会话行同尺
                     .font(.rowTitle)
                     .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                    // 0.43.0（A11Y-D3）：AX 档放宽行数
+                    .a11yLineLimit(1, ax: 2)
                 if session.isPinned == true {
                     Image(systemName: "pin.fill")
                         .font(.caption2)
@@ -546,7 +616,8 @@ struct AllConversationsView: View {
             Text(session.humanSubtitle(now: Date()))
                 .font(.meta)
                 .foregroundStyle(Palette.inkSecondary)
-                .lineLimit(1)
+                // 0.43.0（A11Y-D3）：AX 档放宽行数
+                .a11yLineLimit(1, ax: 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())

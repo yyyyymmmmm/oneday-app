@@ -41,6 +41,21 @@ struct AgentAvatarEditorView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.odPressable)
+                        // 0.43.0（A11Y-V5）：选中态只有勾
+                        // 形——补「已选」播报＋特征（与外
+                        // 观页/连接器页房内先例同式）
+                        .accessibilityLabel(
+                            store.profile.avatar
+                                == .preset(id: preset.id)
+                                ? preset.displayName + "，"
+                                    + L10n.string("已选")
+                                : preset.displayName
+                        )
+                        .accessibilityAddTraits(
+                            store.profile.avatar
+                                == .preset(id: preset.id)
+                                ? [.isSelected] : []
+                        )
                     }
                 }
 
@@ -70,6 +85,18 @@ struct AgentAvatarEditorView: View {
                             }
                         }
                     }
+                    // 0.43.0（A11Y-V5）：同预置行——自定
+                    // 义头像在用时补「已选」播报＋特征
+                    .accessibilityLabel(
+                        store.profile.avatar == .custom
+                            ? L10n.string("从相册选择") + "，"
+                                + L10n.string("已选")
+                            : L10n.string("从相册选择")
+                    )
+                    .accessibilityAddTraits(
+                        store.profile.avatar == .custom
+                            ? [.isSelected] : []
+                    )
                     if loadFailed {
                         Text("这张图读不出来，换一张试试。")
                             .font(.caption)

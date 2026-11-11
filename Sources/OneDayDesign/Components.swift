@@ -719,14 +719,16 @@ public struct UnifiedRow: View {
                     // ContentRow 同步，审计 G2/I1）
                     .font(.rowTitle)
                     .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                    // 0.43.0（A11Y-D3）：AX 档放宽行数
+                    // ——共享行一处收口多面同享
+                    .a11yLineLimit(1, ax: 2)
                 if let subtitle {
                     Text(subtitle)
                         // 0.23.0：副题升角色 rowSubtitle
                         // （15）＋inkSecondary（审计 G1/I1）
                         .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
+                        .a11yLineLimit(1, ax: 2)
                 }
             }
             Spacer(minLength: OneDayMetrics.spacingS)

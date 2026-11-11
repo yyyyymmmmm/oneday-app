@@ -946,11 +946,12 @@ struct FileBrowserRow: View {
                 Text(entry.name)
                     .font(.callout)
                     .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                    // 0.43.0（A11Y-D3）：AX 档放宽行数
+                    .a11yLineLimit(1, ax: 2)
                 Text(entry.browserSubtitle)
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
+                    .a11yLineLimit(1, ax: 2)
                     .tabularDigits()
             }
             Spacer(minLength: OneDayMetrics.spacingS)

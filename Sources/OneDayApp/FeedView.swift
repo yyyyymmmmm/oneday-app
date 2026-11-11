@@ -195,7 +195,8 @@ struct FeedView: View {
                 Text(post.title)
                     .font(.subheadline)
                     .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                    // 0.43.0（A11Y-D3）：AX 档放宽行数
+                    .a11yLineLimit(1, ax: 2)
             } else {
                 Text("今日暂无动态")
                     .font(.subheadline)
@@ -226,6 +227,19 @@ struct FeedView: View {
                 path.append(Route.post(post.id))
             }
         }
+        // 0.43.0（A11Y-V4）：整行合并为一个元素——
+        // 拼读序：题→未读数（C5 文字已在行内）；有
+        // 帖时才是按钮（无帖行只是状态陈述、不给假
+        // 按钮语义），默认动作与点按同一落点
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(
+            store.capsulePost != nil ? .isButton : []
+        )
+        .accessibilityAction {
+            if let post = store.capsulePost {
+                path.append(Route.post(post.id))
+            }
+        }
     }
 
     /// 简报行（0.38.0）：兴趣摘要＋未读数，点开进简
@@ -242,7 +256,8 @@ struct FeedView: View {
                     Text(line)
                         .font(.subheadline)
                         .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
+                        // 0.43.0（A11Y-D3）：AX 档放宽
+                        .a11yLineLimit(1, ax: 2)
                     Text("我的简报 · 点按编辑")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
@@ -251,7 +266,8 @@ struct FeedView: View {
                     Text("写下你感兴趣什么，我每天替你去看")
                         .font(.subheadline)
                         .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
+                        // 0.43.0（A11Y-D3）：AX 档放宽
+                        .a11yLineLimit(1, ax: 2)
                     Text("点按写简报")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
@@ -282,35 +298,67 @@ struct FeedView: View {
         .onTapGesture {
             briefEditorShown = true
         }
+        // 0.43.0（A11Y-V4）：整行合并为按钮元素（拼
+        // 读：摘要→说明→未读数），默认动作与点按同
+        // 一入口（开简报编辑器）
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            briefEditorShown = true
+        }
     }
 
     /// 帖子扁平行：kind 瓷砖＋标题（未读点）＋正文摘
     /// ＋refs 蓝字内链＋动作行（类别左、相对时间右）
     private func postRow(_ post: BridgeFeedPost) -> some View {
         HStack(alignment: .top, spacing: 12) {
+            // 类别字形瓷砖是装饰（类别词在动作行有文
+            // 字）——0.43.0（A11Y-V4）对 VO 隐藏
             kindTile(post.kind)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: OneDayMetrics.iconTextGap) {
-                HStack(alignment: .top, spacing: OneDayMetrics.rowInnerGap) {
-                    Text(post.title)
-                        // 0.41.0（收口批 C14）：行题回收
-                        // 角色表——.headline（17 semibold）
-                        // 与 Body regular 双轨并存是本条病
-                        // 灶，同点子行一并归 .rowTitle
-                        .font(.rowTitle)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(2)
-                    if !post.isRead {
-                        Circle()
-                            .fill(Palette.primary)
-                            .frame(width: 7, height: 7)
-                            .padding(.top, OneDayMetrics.rowInnerGap)
+                // 0.43.0（A11Y-V4）：题＋摘拆成独立合并
+                // 元素——整行不再是一个含内链的巨型元
+                // 素：题摘合读、自成按钮开帖；refs 内
+                // 链与动作行留在元素外各自可达。内层
+                // 间距与外层同值，几何逐字不变
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.iconTextGap
+                ) {
+                    HStack(alignment: .top, spacing: OneDayMetrics.rowInnerGap) {
+                        Text(post.title)
+                            // 0.41.0（收口批 C14）：行题回收
+                            // 角色表——.headline（17 semibold）
+                            // 与 Body regular 双轨并存是本条病
+                            // 灶，同点子行一并归 .rowTitle
+                            .font(.rowTitle)
+                            .foregroundStyle(Palette.ink)
+                            // 0.43.0（A11Y-D3）：AX 档放宽
+                            .a11yLineLimit(2, ax: 4)
+                        if !post.isRead {
+                            Circle()
+                                .fill(Palette.primary)
+                                .frame(width: 7, height: 7)
+                                .padding(.top, OneDayMetrics.rowInnerGap)
+                                // 未读状态字在下方动作行
+                                // （C5 已落）——蓝点对 VO
+                                // 隐藏、免同义双报
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    if !post.body.isEmpty {
+                        Text(FeedBoard.excerpt(post.body))
+                            .font(.subheadline)
+                            .foregroundStyle(Palette.inkSecondary)
+                            // 0.43.0（A11Y-D3）：AX 档放宽
+                            .a11yLineLimit(3, ax: 6)
                     }
                 }
-                if !post.body.isEmpty {
-                    Text(FeedBoard.excerpt(post.body))
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(3)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction {
+                    path.append(Route.post(post.id))
                 }
                 if !post.refs.isEmpty {
                     refsRow(post.refs)
@@ -341,6 +389,9 @@ struct FeedView: View {
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
                 }
+                // 0.43.0（A11Y-V4）：动作行自成合并元素
+                // （类别→未读→时间一次读完）
+                .accessibilityElement(children: .combine)
             }
             // 配图缩略（0.38.0）：只显第一张来源真图；
             // 无图不占位，行高不为图让路
@@ -358,6 +409,10 @@ struct FeedView: View {
                 }
                 .frame(width: 54, height: 54)
                 .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb))
+                // 0.43.0（A11Y-V4）：配图缩略是帖的装
+                // 饰预览（点开帖内有大图与来源）——
+                // 对 VO 隐藏，不冒充内容
+                .accessibilityHidden(true)
             }
         }
         .padding(.vertical, 4)
@@ -512,6 +567,15 @@ struct FeedPostDetailView: View {
                             }
                             .clipShape(
                                 RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
+                            )
+                            // 0.43.0（A11Y-V2）：详情大图的
+                            // 文本等价——以图片 URL 文件名
+                            // 为最低口径（A11yText 拼装）
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(
+                                A11yText.imageLabel(
+                                    fileName: url.lastPathComponent
+                                )
                             )
                         }
                         MarkdownText(post.body)

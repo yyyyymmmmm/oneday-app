@@ -156,6 +156,17 @@ struct ServerSessionRow<Content: View>: View {
     private var isPinned: Bool { session.isPinned == true }
     private var isArchived: Bool { session.isArchived == true }
 
+    /// 行状态值（0.43.0，A11Y-V6）：置顶/归档以值
+    /// 播报（取词走 L10n 与界面同语言）；两态并存
+    /// 以「，」拼（读序：置顶先行）、无态为空串
+    /// （修饰符对空值不播报）
+    private var stateValue: String {
+        var parts: [String] = []
+        if isPinned { parts.append(L10n.string("已置顶")) }
+        if isArchived { parts.append(L10n.string("已归档")) }
+        return parts.joined(separator: "，")
+    }
+
     var body: some View {
         Button {
             if let onOpenAsync {
@@ -167,6 +178,10 @@ struct ServerSessionRow<Content: View>: View {
             content()
         }
         .buttonStyle(.odPressable)
+        // 0.43.0（A11Y-V6）：置顶/归档态补值播报——
+        // 行面只有 pin 字形与段位区分、VO 读不到状
+        // 态；值随态拼（两键已在目录），无态不挂空值
+        .accessibilityValue(stateValue)
         .contextMenu {
             Button {
                 renameText = title

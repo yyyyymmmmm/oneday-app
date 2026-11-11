@@ -33,6 +33,10 @@ struct ChatView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 字号档（0.43.0，A11Y-D1）：发送舱量测按档贯穿
+    /// ——经 OneDayDesign 映射交给 ComposerBarLayout，
+    /// 与文本视图自身 trait 档同源（量测≡排版）
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 0.20.0 恢复链：本页自此观察前后台（此前全页无
     /// scenePhase 观察——切后台杀流后回前台无人对账，
     /// 是「显示无网络」误报的生命周期半侧定因）
@@ -518,6 +522,10 @@ struct ChatView: View {
         // 新把新卡顶到流末尾
         .onChange(of: isStreaming) { wasStreaming, nowStreaming in
             if wasStreaming && !nowStreaming {
+                // 0.43.0（A11Y-S6）：VO 运行时播报生成
+                // 完成——同一下降沿、同等静默（VO 关时
+                // 无声，见 A11yAnnouncer）
+                A11yAnnouncer.generationCompleted()
                 Task {
                     await appState.sharedHubStore()
                         .refreshApprovalForChat()
@@ -1881,6 +1889,23 @@ struct ChatView: View {
                                     )
                                 )
                             }
+                            // 0.43.0（A11Y-V2）：本地图最低
+                            // 文本等价——发送时刻（A11yText
+                            // 拼装、Core 钉测）；动作与点按
+                            // 同一入口（openImageViewer）
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(
+                                A11yText.imageLabel(sentAt: entry.createdAt)
+                            )
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint(L10n.string("查看大图"))
+                            .accessibilityAction {
+                                openImageViewer(
+                                    ChatImageViewerItem(
+                                        source: .data(data)
+                                    )
+                                )
+                            }
                     }
                     // 0.8.0（P1）：历史导入的服务端图片
                     // （标记路径）——缩略经文件下载通道
@@ -1891,6 +1916,25 @@ struct ChatView: View {
                                 RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
                             )
                             .onTapGesture {
+                                openImageViewer(
+                                    ChatImageViewerItem(
+                                        source: .remotePath(path)
+                                    )
+                                )
+                            }
+                            // 0.43.0（A11Y-V2）：服务端图以
+                            // 文件名为最低文本等价（A11yText
+                            // 拼装）；动作与点按同一入口
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(
+                                A11yText.imageLabel(
+                                    fileName: (path as NSString)
+                                        .lastPathComponent
+                                )
+                            )
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint(L10n.string("查看大图"))
+                            .accessibilityAction {
                                 openImageViewer(
                                     ChatImageViewerItem(
                                         source: .remotePath(path)
@@ -1952,6 +1996,25 @@ struct ChatView: View {
                             RoundedRectangle(cornerRadius: OneDayMetrics.spacingM)
                         )
                         .onTapGesture {
+                            openImageViewer(
+                                ChatImageViewerItem(
+                                    source: .remotePath(path)
+                                )
+                            )
+                        }
+                        // 0.43.0（A11Y-V2）：与用户侧同口
+                        // 径——文件名最低文本等价＋同一
+                        // 查看器入口
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            A11yText.imageLabel(
+                                fileName: (path as NSString)
+                                    .lastPathComponent
+                            )
+                        )
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityHint(L10n.string("查看大图"))
+                        .accessibilityAction {
                             openImageViewer(
                                 ChatImageViewerItem(
                                     source: .remotePath(path)
@@ -2747,7 +2810,9 @@ struct ChatView: View {
     }
 
     private var standardComposerRow: some View {
-        ComposerBarLayout {
+        ComposerBarLayout(
+            contentSizeCategory: dynamicTypeSize.contentSizeCategory
+        ) {
             attachButton
             // 0.2.7：SwiftUI 纵向 TextField 换自量高
             // UITextView（ComposerTextView）——高度由
@@ -2794,6 +2859,12 @@ private struct ComposerBarLayout: Layout {
     // Cache＋主队列异步派发）整条撤销——异步回写滞后
     // 布局一拍，是回车重影的合谋者
 
+    /// 当前字号档（0.43.0，A11Y-D1）：由 ChatView 从
+    /// 环境注入——Layout 协议无环境直读口，档位经
+    /// 本属性显式贯穿量测链，与文本视图 trait 档同
+    /// 源；档位变更即值变更、布局自然重算
+    var contentSizeCategory: UIContentSizeCategory = .large
+
     /// 量测：文本子视图在窄宽/全宽各 sizeThatFits 一次
     /// （ComposerTextView 的 sizeThatFits 以提议宽返回封
     /// 顶后的纯文本高，与 ComposerLayout 口径同源）
@@ -2818,9 +2889,12 @@ private struct ComposerBarLayout: Layout {
             )
         ).height
         return (
-            multiline: ComposerLayout.isMultiline(measured: narrowTextH),
+            multiline: ComposerLayout.isMultiline(
+                measured: narrowTextH, category: contentSizeCategory
+            ),
             totalHeight: ComposerLayout.capsuleHeight(
-                narrowMeasured: narrowTextH, fullMeasured: fullTextH
+                narrowMeasured: narrowTextH, fullMeasured: fullTextH,
+                category: contentSizeCategory
             )
         )
     }
@@ -3089,7 +3163,11 @@ private struct ComposerBarLayout: Layout {
                         .frame(maxWidth: 140)
                 }
                 .padding(.horizontal, OneDayMetrics.spacingSM)
-                .frame(height: 54)
+                // 0.43.0（A11Y-D3）：定高改最小高——默认
+                // 档内容高 54 不变，大字档下文件名行随
+                // 字号长高、不被 54 硬顶截断（本包唯一
+                // 固定高改动，视觉数值变更清单已记）
+                .frame(minHeight: 54)
                 .background(
                     Palette.surface,
                     in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)

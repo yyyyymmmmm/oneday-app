@@ -95,6 +95,21 @@ struct DeliverablesView: View {
                     mediaContent
                 }
             }
+            // 0.43.0（A11Y-V7）：「文件」Rotor——条目
+            // 与行/卡标记同名对位（见 fileRotorNames-
+            // pace 注）
+            .accessibilityRotor(
+                L10n.string("文件"), in: fileRotorNamespace
+            ) {
+                ForEach(rotorEntryNames, id: \.self) { name in
+                    AccessibilityRotorEntry(
+                        DeliverableFileType.displayTitle(
+                            forFileName: name
+                        ),
+                        name, in: fileRotorNamespace
+                    )
+                }
+            }
             .background(Palette.pageBG)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $previewEntry) { entry in
@@ -327,6 +342,22 @@ struct DeliverablesView: View {
     /// Geometry 滑移＋selection 触感（表 D）
     @Namespace private var segmentNamespace
 
+    /// 「文件」Rotor 命名空间（0.43.0，A11Y-V7）：
+    /// 长列表/网格里按文件名直达——条目随当前段
+    /// 现算（rotorEntryNames），行/卡标记挂在各行
+    /// 构建处（deliverableRow/mediaRow/fileCard/
+    /// 影音网格钮），id＝文件名与条目一一对位
+    @AccessibilityRotorNamespace private var fileRotorNamespace
+
+    /// Rotor 条目名册（当前段）：文件段＝文档集、
+    /// 影音段＝媒体集，呈现标题走 displayTitle
+    /// （与行面同源）
+    private var rotorEntryNames: [String] {
+        segment == 0
+            ? sortedDocuments.map(\.name)
+            : sortedMedia.map(\.name)
+    }
+
     private var segmentControl: some View {
         HStack(spacing: 0) {
             segmentButton(title: "文件", tag: 0)
@@ -533,24 +564,36 @@ struct DeliverablesView: View {
         _ entry: WorkspaceFileEntry
     ) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            FileIconBox(entry: entry)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(
-                    DeliverableFileType.displayTitle(
-                        forFileName: entry.name
+            // 0.43.0（A11Y-V4）：图标＋题＋类型合并为
+            // 一个按钮元素（默认动作与点行同一入口）；
+            // ⋮ 菜单留在元素外独立可达。内外间距同
+            // 值，几何逐字不变
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                FileIconBox(entry: entry)
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text(
+                        DeliverableFileType.displayTitle(
+                            forFileName: entry.name
+                        )
                     )
-                )
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.ink)
-                .lineLimit(1)
-                Text(
-                    DeliverableFileType.label(
-                        forFileName: entry.name
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                    // 0.43.0（A11Y-D3）：AX 档放宽
+                    .a11yLineLimit(1, ax: 2)
+                    Text(
+                        DeliverableFileType.label(
+                            forFileName: entry.name
+                        )
                     )
-                )
-                .font(.rowSubtitle)
-                .foregroundStyle(Palette.inkSecondary)
-                .lineLimit(1)
+                    .font(.rowSubtitle)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .a11yLineLimit(1, ax: 2)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                openEntry(entry, among: sortedDocuments)
             }
             Spacer(minLength: OneDayMetrics.spacingS)
             Menu {
@@ -569,6 +612,8 @@ struct DeliverablesView: View {
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: 64)
         .contentShape(Rectangle())
+        // 0.43.0（A11Y-V7）：Rotor 行标记
+        .accessibilityRotorEntry(id: entry.name, in: fileRotorNamespace)
         .onTapGesture {
             openEntry(entry, among: sortedDocuments)
         }
@@ -682,6 +727,8 @@ struct DeliverablesView: View {
             .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusPreview))
         }
         .buttonStyle(.odPressable)
+        // 0.43.0（A11Y-V7）：Rotor 卡标记（网格态）
+        .accessibilityRotorEntry(id: entry.name, in: fileRotorNamespace)
         .contextMenu {
             actionItems(for: entry, among: sortedDocuments)
         }
@@ -754,6 +801,10 @@ struct DeliverablesView: View {
                                 )
                         }
                         .buttonStyle(.odPressable)
+                        // 0.43.0（A11Y-V7）：Rotor 卡标记
+                        .accessibilityRotorEntry(
+                            id: entry.name, in: fileRotorNamespace
+                        )
                         .contextMenu {
                             actionItems(
                                 for: entry, among: sortedMedia
@@ -807,35 +858,45 @@ struct DeliverablesView: View {
 
     private func mediaRow(_ entry: WorkspaceFileEntry) -> some View {
         HStack(spacing: OneDayMetrics.spacingSM) {
-            ZStack {
-                FileThumbnailView(entry: entry, targetPixelSize: 168)
-                    .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb))
-                if entry.mediaKind == .video {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(
-                            Color.white, Palette.ink.opacity(0.55)
+            // 0.43.0（A11Y-V4）：与文件行同式——缩略
+            // ＋题＋副题合并为按钮元素，⋮ 菜单独立
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                ZStack {
+                    FileThumbnailView(entry: entry, targetPixelSize: 168)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb))
+                    if entry.mediaKind == .video {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(
+                                Color.white, Palette.ink.opacity(0.55)
+                            )
+                            .accessibilityHidden(true)
+                    }
+                }
+                .matchedTransitionSource(
+                    id: entry.path, in: viewerNamespace
+                )
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text(
+                        DeliverableFileType.displayTitle(
+                            forFileName: entry.name
                         )
-                        .accessibilityHidden(true)
+                    )
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                    // 0.43.0（A11Y-D3）：AX 档放宽
+                    .a11yLineLimit(1, ax: 2)
+                    Text(mediaSubtitle(entry))
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .a11yLineLimit(1, ax: 2)
                 }
             }
-            .matchedTransitionSource(
-                id: entry.path, in: viewerNamespace
-            )
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(
-                    DeliverableFileType.displayTitle(
-                        forFileName: entry.name
-                    )
-                )
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.ink)
-                .lineLimit(1)
-                Text(mediaSubtitle(entry))
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                openEntry(entry, among: sortedMedia)
             }
             Spacer(minLength: OneDayMetrics.spacingS)
             Menu {
@@ -853,6 +914,8 @@ struct DeliverablesView: View {
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: 64)
         .contentShape(Rectangle())
+        // 0.43.0（A11Y-V7）：Rotor 行标记
+        .accessibilityRotorEntry(id: entry.name, in: fileRotorNamespace)
         .onTapGesture {
             openEntry(entry, among: sortedMedia)
         }

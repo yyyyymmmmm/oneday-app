@@ -1,4 +1,5 @@
 import OneDayCore
+import OneDayDesign
 import SwiftUI
 import UIKit
 
@@ -61,13 +62,15 @@ struct ComposerTextView: UIViewRepresentable {
         Coordinator(parent: self)
     }
 
-    /// 正文口径：固定 16pt 系统字体——与 Muse 输入行看
-    /// 齐（其文字行约 20pt）。字体单一来源在 OneDayCore
-    /// 的 ComposerTextMetrics（量测与渲染共用，不许在此
-    /// 另立一份）；ComposerLayout.lineHeight=19.17 是该
-    /// 字体的实测行高、与 bodyFont.lineHeight 的一致性
-    /// 由单测把守（§13）。不再跟随 Dynamic Type 放大，
-    /// 否则单行规格随系统字号档漂移、量高与排版脱钩
+    /// 正文口径：基准 16pt 系统字体——与 Muse 输入行
+    /// 看齐（其文字行约 20pt）。字体单一来源在 OneDay-
+    /// Core 的 ComposerTextMetrics（量测与渲染共用，
+    /// 不许在此另立一份）；行高与字体同源（§13）。
+    /// 0.43.0（无障碍专项 A11Y-D1）：字体随 Dynamic
+    /// Type 档缩放——旧「不跟随、否则量高与排版脱
+    /// 钩」的顾虑由档位贯穿解决：本视图一切量测都
+    /// 显式带视图自身 traitCollection 的档位、布局
+    /// 层带环境档，与排版档恒同源（DESIGN §112）
     private static var bodyFont: UIFont { ComposerTextMetrics.bodyFont }
 
     func makeUIView(context: Context) -> UITextView {
@@ -100,7 +103,13 @@ struct ComposerTextView: UIViewRepresentable {
         let placeholder = UILabel()
         placeholder.text = placeholderText
         placeholder.font = Self.bodyFont
-        placeholder.textColor = .tertiaryLabel
+        // 0.43.0（无障碍专项 A11Y-C3 收口）：占位符
+        // 是字段的唯一说明、属「要读的信息」——退
+        // 出弱墨档（.tertiaryLabel 合成约 1.9:1），
+        // 改走文字级令牌 inkSecondary（对白面 4.97:
+        // 1）；档位/明暗变化时在 updateUIView 随视
+        // 图字体一并刷新（见彼处）
+        placeholder.textColor = UIColor(Palette.inkSecondary)
         placeholder.isUserInteractionEnabled = false
         placeholder.translatesAutoresizingMaskIntoConstraints = false
         textView.addSubview(placeholder)
@@ -136,6 +145,17 @@ struct ComposerTextView: UIViewRepresentable {
         // 0.3.3 几何兜底：每次更新重申统一几何（防系统
         // 在重排/旋转时改回默认 inset/padding）
         ComposerTextMetrics.applyGeometry(to: textView)
+        // 0.43.0（A11Y-D1/C3）：几何重申后视图字体即
+        // 当前档权威——占位符字体/颜色与打字属性同
+        // 步刷新（占位符是 UILabel 子视图、不随文本
+        // 视图字体自动变；打字属性是建视图时的快照，
+        // 档位/明暗后开 App 不重启也会漂移）
+        if let font = textView.font {
+            context.coordinator.placeholderLabel?.font = font
+            textView.typingAttributes[.font] = font
+        }
+        context.coordinator.placeholderLabel?.textColor =
+            UIColor(Palette.inkSecondary)
         // 主题切换时 caret 跟随新强调色（0.3.4）
         textView.tintColor = caretColor
         // 0.2.8：updateUIView 不再碰第一响应者（焦点桥已拆，
@@ -157,12 +177,19 @@ struct ComposerTextView: UIViewRepresentable {
         context: Context
     ) -> CGSize? {
         guard let width = proposal.width, width > 0 else { return nil }
+        // 量测档＝视图自身 trait 档（A11Y-D1 贯穿：
+        // 与 applyGeometry 施加给本视图的排版档恒同
+        // 一份，不许回落全局当前档另成一套账）
+        let category =
+            textView.traitCollection.preferredContentSizeCategory
         let reported = ComposerTextMetrics.textHeight(
-            for: textView.text ?? "", width: width
+            for: textView.text ?? "", width: width, category: category
         )
         return CGSize(
             width: width,
-            height: ComposerLayout.cappedTextHeight(measured: reported)
+            height: ComposerLayout.cappedTextHeight(
+                measured: reported, category: category
+            )
         )
     }
 
@@ -196,7 +223,11 @@ struct ComposerTextView: UIViewRepresentable {
         let attributed = NSMutableAttributedString(
             string: current,
             attributes: [
-                .font: Self.bodyFont,
+                // 字体取视图本体当前字体（applyGeometry
+                // 已按视图档位施加的单一来源）——0.43.0
+                // 前此处直读无参 bodyFont，D1 后档位以
+                // 视图为准、不许再绕回全局口重建第二份
+                .font: textView.font ?? Self.bodyFont,
                 .foregroundColor: UIColor.label,
             ]
         )
@@ -218,11 +249,14 @@ struct ComposerTextView: UIViewRepresentable {
     /// 过上限才内滚（在文本变化与回写时刷新，不在量高里改状态）
     private func refreshScroll(_ textView: UITextView) {
         guard textView.bounds.width > 0 else { return }
+        let category =
+            textView.traitCollection.preferredContentSizeCategory
         let fitted = ComposerTextMetrics.textHeight(
-            for: textView.text ?? "", width: textView.bounds.width
+            for: textView.text ?? "", width: textView.bounds.width,
+            category: category
         )
         textView.isScrollEnabled =
-            ComposerLayout.shouldScroll(measured: fitted)
+            ComposerLayout.shouldScroll(measured: fitted, category: category)
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {

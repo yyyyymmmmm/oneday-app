@@ -498,6 +498,11 @@ struct ModelSettingsView: View {
                     .foregroundStyle(Palette.danger)
             }
             .buttonStyle(.odPressable)
+            // 0.43.0（A11Y-V6）：纯图标删除钮补标签
+            // （带组合名——多组合并列时不靠位置猜）
+            .accessibilityLabel(
+                L10n.string("删除组合") + "：" + combo.name
+            )
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)

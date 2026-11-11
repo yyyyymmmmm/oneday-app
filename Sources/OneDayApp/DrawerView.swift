@@ -548,6 +548,9 @@ struct DrawerView: View {
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
         .accessibilityLabel(channel.name)
+        // 0.43.0（A11Y-V5）：选中态只靠胶囊底色——
+        // 补已选特征，VO 不靠颜色辨当前频道
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     // MARK: - 旁聊区（0.19.0 返工，22:45 纠正口径）
@@ -711,7 +714,8 @@ struct DrawerView: View {
                     // 落档，见 §51）——本行随角色变
                     .font(.rowTitleL)
                     .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                    // 0.43.0（A11Y-D3）：AX 档放宽行数
+                    .a11yLineLimit(1, ax: 2)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 Text(LocalThreadSubtitle.timeText(
                     updatedAt: thread.updatedAt,
@@ -952,6 +956,9 @@ struct DrawerView: View {
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
         .accessibilityLabel(title)
+        // 0.43.0（A11Y-V5）：选中态只靠浅灰垫——补
+        // 已选特征，与频道行同式
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     /// 「管理全部对话」行（0.18.0 立、0.19.0 随名单退

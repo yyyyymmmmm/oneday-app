@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// 发送舱高度口径（DESIGN-V4 §11 定案、§12.3 改基数）：
 /// 「实测文本高 → 应得高度」的纯逻辑，高度回归的单测把守
@@ -21,18 +22,50 @@ import Foundation
 /// 胶囊上限 146 → 141.02；单行规格不变（键侧 30 主导，
 /// 仍 46）。
 public enum ComposerLayout {
-    /// 正文行高：16pt 系统字体实测行高（CI 帧量测，
-    /// §13.2），与 ComposerTextView 的量高一致
+    /// 正文行高·基准档（.large）：16pt 系统字体实测
+    /// 行高（CI 帧量测，§13.2），与 ComposerTextView
+    /// 的量高一致。本常数自 0.43.0 起只是基准档的
+    /// 锚——实际行高按档派生（lineHeight(for:)），
+    /// .large 档下派生值与本常数逐字相同（旧钉测全
+    /// 数不变）
     public static let lineHeight: CGFloat = 19.17
+
+    /// 正文行高（按 Dynamic Type 档，0.43.0 无障碍
+    /// 专项 A11Y-D1）：基准行高 × 该档字体缩放比
+    /// （缩放比＝该档 bodyFont 字号／基准 16）——行
+    /// 高与字体同源派生、不许另立档位表；封顶行数
+    /// 不变（6 行），大字档下胶囊随行高长高、超封
+    /// 顶内滚，与小字档同一套形态规则
+    public static func lineHeight(
+        for category: UIContentSizeCategory
+    ) -> CGFloat {
+        lineHeight
+            * ComposerTextMetrics.bodyFont(for: category).pointSize
+            / ComposerTextMetrics.basePointSize
+    }
+
     /// 多行上限：实测高超过封顶后文本视图内滚
     public static let maxLines = 6
-    /// 文本封顶高（6 行）
+    /// 文本封顶高（6 行，当前档）
     public static var maxTextHeight: CGFloat {
-        lineHeight * CGFloat(maxLines)
+        maxTextHeight(for: ComposerTextMetrics.currentCategory)
+    }
+    /// 文本封顶高（6 行，按档）
+    public static func maxTextHeight(
+        for category: UIContentSizeCategory
+    ) -> CGFloat {
+        lineHeight(for: category) * CGFloat(maxLines)
     }
     /// 多行判据阈值：实测高跨过 1.5 行即视为多行形态
+    /// （当前档）
     public static var multilineThreshold: CGFloat {
-        lineHeight * 1.5
+        multilineThreshold(for: ComposerTextMetrics.currentCategory)
+    }
+    /// 多行判据阈值（按档）
+    public static func multilineThreshold(
+        for category: UIContentSizeCategory
+    ) -> CGFloat {
+        lineHeight(for: category) * 1.5
     }
     /// 文本视图纵向 padding 合计（5×2，ChatView.composerRow
     /// 施加于 ComposerTextView）
@@ -85,24 +118,69 @@ public enum ComposerLayout {
         )
     }
 
-    /// 空文本也按一行计：量高下限为一行
+    /// 空文本也按一行计：量高下限为一行（当前档）
     public static func effectiveTextHeight(measured: CGFloat) -> CGFloat {
-        max(measured, lineHeight)
+        effectiveTextHeight(
+            measured: measured,
+            category: ComposerTextMetrics.currentCategory
+        )
     }
 
-    /// 封顶后的文本高（高度权威的返回值口径）
+    /// 空文本也按一行计：量高下限为一行（按档）
+    public static func effectiveTextHeight(
+        measured: CGFloat, category: UIContentSizeCategory
+    ) -> CGFloat {
+        max(measured, lineHeight(for: category))
+    }
+
+    /// 封顶后的文本高（高度权威的返回值口径，当前档）
     public static func cappedTextHeight(measured: CGFloat) -> CGFloat {
-        min(effectiveTextHeight(measured: measured), maxTextHeight)
+        cappedTextHeight(
+            measured: measured,
+            category: ComposerTextMetrics.currentCategory
+        )
     }
 
-    /// 实测高过封顶才内滚
+    /// 封顶后的文本高（按档）
+    public static func cappedTextHeight(
+        measured: CGFloat, category: UIContentSizeCategory
+    ) -> CGFloat {
+        min(
+            effectiveTextHeight(measured: measured, category: category),
+            maxTextHeight(for: category)
+        )
+    }
+
+    /// 实测高过封顶才内滚（当前档）
     public static func shouldScroll(measured: CGFloat) -> Bool {
-        measured > maxTextHeight
+        shouldScroll(
+            measured: measured,
+            category: ComposerTextMetrics.currentCategory
+        )
     }
 
-    /// 多行形态判据（玻璃形状 Capsule ↔ 固定圆角矩形）
+    /// 实测高过封顶才内滚（按档）
+    public static func shouldScroll(
+        measured: CGFloat, category: UIContentSizeCategory
+    ) -> Bool {
+        measured > maxTextHeight(for: category)
+    }
+
+    /// 多行形态判据（玻璃形状 Capsule ↔ 固定圆角矩形，
+    /// 当前档）
     public static func isMultiline(measured: CGFloat) -> Bool {
-        effectiveTextHeight(measured: measured) > multilineThreshold
+        isMultiline(
+            measured: measured,
+            category: ComposerTextMetrics.currentCategory
+        )
+    }
+
+    /// 多行形态判据（按档）
+    public static func isMultiline(
+        measured: CGFloat, category: UIContentSizeCategory
+    ) -> Bool {
+        effectiveTextHeight(measured: measured, category: category)
+            > multilineThreshold(for: category)
     }
 
     /// 胶囊总高（0.3.3 上文下钮结构，DESIGN-V4 §18）：
@@ -117,20 +195,43 @@ public enum ComposerLayout {
     public static func capsuleHeight(
         narrowMeasured: CGFloat, fullMeasured: CGFloat
     ) -> CGFloat {
-        if isMultiline(measured: narrowMeasured) {
-            return cappedTextHeight(measured: fullMeasured)
+        capsuleHeight(
+            narrowMeasured: narrowMeasured, fullMeasured: fullMeasured,
+            category: ComposerTextMetrics.currentCategory
+        )
+    }
+
+    /// 胶囊总高（按档）：公式与无参口逐字同构，行高
+    /// 系数按档派生——单行规格在 .large 档仍为 46
+    public static func capsuleHeight(
+        narrowMeasured: CGFloat, fullMeasured: CGFloat,
+        category: UIContentSizeCategory
+    ) -> CGFloat {
+        if isMultiline(measured: narrowMeasured, category: category) {
+            return cappedTextHeight(measured: fullMeasured, category: category)
                 + textVerticalInsets + buttonRowSpacing
                 + buttonHeight + rowVerticalInsets
         }
         return max(
-            cappedTextHeight(measured: narrowMeasured) + textVerticalInsets,
+            cappedTextHeight(measured: narrowMeasured, category: category)
+                + textVerticalInsets,
             buttonHeight
         ) + rowVerticalInsets
     }
 
     /// 行数→文本高（规格推导与测试用）；行数下限 1
     public static func textHeight(forLineCount lines: Int) -> CGFloat {
-        lineHeight * CGFloat(max(lines, 1))
+        textHeight(
+            forLineCount: lines,
+            category: ComposerTextMetrics.currentCategory
+        )
+    }
+
+    /// 行数→文本高（按档）；行数下限 1
+    public static func textHeight(
+        forLineCount lines: Int, category: UIContentSizeCategory
+    ) -> CGFloat {
+        lineHeight(for: category) * CGFloat(max(lines, 1))
     }
 
     /// 胶囊圆角半径（0.3.5，DESIGN-V4 §20）：半径是胶囊

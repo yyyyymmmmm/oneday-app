@@ -351,6 +351,17 @@ struct AddComputerView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
+        // 0.43.0（A11Y-V5）：选中态只有勾形——补
+        // 「已选」播报（题＋详＋已选）＋特征
+        .accessibilityLabel(
+            provider == value
+                ? title + "，" + detail + "，"
+                    + L10n.string("已选")
+                : title + "，" + detail
+        )
+        .accessibilityAddTraits(
+            provider == value ? [.isSelected] : []
+        )
     }
 
     private func create() async {

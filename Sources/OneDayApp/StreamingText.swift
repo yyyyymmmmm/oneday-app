@@ -56,6 +56,13 @@ struct StreamingText: View {
             StreamingCaret()
                 .padding(.leading, OneDayMetrics.spacingMicro)
         }
+        // 0.43.0（A11Y-V3）：流式呈现对 VO 合并为整段
+        // 文本元素——词元是视觉动画单位、逐个可达只
+        // 会把一句话的朗读切碎；标签直读全文（text
+        // 状态），流式中焦点停留时按系统节奏刷新，
+        // 完成播报另有 S6 通道。视觉零变化
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
         .onChange(of: text, initial: true) { _, newText in
             let newTokens = Self.tokenize(newText)
             let oldCount = tokens.count

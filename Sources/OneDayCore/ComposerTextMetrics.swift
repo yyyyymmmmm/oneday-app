@@ -14,9 +14,41 @@ import UIKit
 /// 文本视图本体一致（lineFragmentPadding 0、无容器内边
 /// 距、按词缠绕），数出的行数就是视图里渲染的行数。
 public enum ComposerTextMetrics {
-    /// 正文字体单一来源（固定 16pt 系统字体，不随
-    /// Dynamic Type 漂移——量测口径与排版口径同源）
-    public static var bodyFont: UIFont { .systemFont(ofSize: 16) }
+    /// 正文字体基准（.large 档）：16pt 系统字体——
+    /// 0.2.9 定案的量测基准，本档下量测与排版与旧
+    /// 固定口径逐字一致
+    public static let basePointSize: CGFloat = 16
+
+    /// 正文字体单一来源（0.43.0 无障碍专项 A11Y-D1
+    /// 改版）：按 Dynamic Type 档位经 UIFontMetrics
+    /// （.body 样式）缩放基准字体。0.2.9 的构造不
+    /// 变——量测与渲染同读本口、同档取值，变的只是
+    /// 字体本身随档缩放；旧「固定 16pt、不随档漂
+    /// 移」口径防的是量测与排版各读一档的脱钩，本
+    /// 改版以「档位自调用方显式贯穿量测链」取代之
+    /// （视图取自身 traitCollection、布局取环境
+    /// 档），见 DESIGN §112。无参口回当前档
+    public static func bodyFont(
+        for category: UIContentSizeCategory
+    ) -> UIFont {
+        UIFontMetrics(forTextStyle: .body).scaledFont(
+            for: .systemFont(ofSize: basePointSize),
+            compatibleWith: UITraitCollection(
+                preferredContentSizeCategory: category
+            )
+        )
+    }
+
+    /// 当前档的正文字体（无参口：UITraitCollection
+    /// .current——布局/绘制上下文中即 App 当前档）
+    public static var bodyFont: UIFont {
+        bodyFont(for: currentCategory)
+    }
+
+    /// 当前内容大小档（量测链无参口的统一回落源）
+    public static var currentCategory: UIContentSizeCategory {
+        UITraitCollection.current.preferredContentSizeCategory
+    }
 
     // MARK: - 几何单一事实源（0.3.3，DESIGN-V4 §18）
     // 真机第 4/5 条定因方向：量测栈与视图排版栈的几何参
@@ -55,9 +87,17 @@ public enum ComposerTextMetrics {
     }
 
     /// 统一几何施加（工厂与 updateUIView 兜底共用）：
-    /// 字体/inset/padding/断行模式只许从本节出
+    /// 字体/inset/padding/断行模式只许从本节出。字
+    /// 体按视图自身 traitCollection 的档位取（视图
+    /// 所在环境的档即排版档，A11Y-D1 贯穿口径）；
+    /// adjustsFontForContentSizeCategory 同步打开作
+    /// 系统侧兜底——档位变化时 updateUIView 的重申
+    /// 仍是权威路径
     public static func applyGeometry(to textView: UITextView) {
-        textView.font = bodyFont
+        textView.font = bodyFont(
+            for: textView.traitCollection.preferredContentSizeCategory
+        )
+        textView.adjustsFontForContentSizeCategory = true
         textView.textContainerInset = textContainerInset
         textView.textContainer.lineFragmentPadding =
             lineFragmentPadding
@@ -65,12 +105,18 @@ public enum ComposerTextMetrics {
     }
 
     /// 以给定宽度数文本行数。空文本按 1 行（空态口径与
-    /// ComposerLayout.effectiveTextHeight 一致）
-    public static func lineCount(for text: String, width: CGFloat) -> Int {
+    /// ComposerLayout.effectiveTextHeight 一致）。档
+    /// 位决定量测字体（A11Y-D1）：量测档必须与排版
+    /// 档同源，调用方有明确档时显式传、无参回当前档
+    public static func lineCount(
+        for text: String, width: CGFloat,
+        category: UIContentSizeCategory = currentCategory
+    ) -> Int {
         guard width > 0 else { return 1 }
         if text.isEmpty { return 1 }
         let storage = NSTextStorage(
-            string: text, attributes: [.font: bodyFont]
+            string: text,
+            attributes: [.font: bodyFont(for: category)]
         )
         let layoutManager = NSLayoutManager()
         let container = NSTextContainer(
@@ -102,32 +148,40 @@ public enum ComposerTextMetrics {
         return max(lines, 1)
     }
 
-    /// 文本高＝行数 × ComposerLayout.lineHeight（行高常
-    /// 数与 bodyFont.lineHeight 的一致性由单测把守）
-    public static func textHeight(for text: String, width: CGFloat) -> CGFloat {
-        CGFloat(lineCount(for: text, width: width))
-            * ComposerLayout.lineHeight
+    /// 文本高＝行数 × 同档行高（行高与字体的同源一
+    /// 致性由单测把守，见 ComposerLayout.lineHeight
+    /// (for:) 的派生口径）
+    public static func textHeight(
+        for text: String, width: CGFloat,
+        category: UIContentSizeCategory = currentCategory
+    ) -> CGFloat {
+        CGFloat(lineCount(for: text, width: width, category: category))
+            * ComposerLayout.lineHeight(for: category)
     }
 
     /// 胶囊总高：只经 ComposerLayout 纯函数。入参为容器
     /// 宽——内部按单行窄宽与多行全宽各量一次（形态判据
     /// 恒走窄宽、全高走全宽，见 ComposerLayout 注）
     public static func capsuleHeight(
-        for text: String, containerWidth: CGFloat
+        for text: String, containerWidth: CGFloat,
+        category: UIContentSizeCategory = currentCategory
     ) -> CGFloat {
         ComposerLayout.capsuleHeight(
             narrowMeasured: textHeight(
                 for: text,
                 width: ComposerLayout.textWidth(
                     forContainerWidth: containerWidth
-                )
+                ),
+                category: category
             ),
             fullMeasured: textHeight(
                 for: text,
                 width: ComposerLayout.textWidth(
                     forContainerWidth: containerWidth, multiline: true
-                )
-            )
+                ),
+                category: category
+            ),
+            category: category
         )
     }
 }
