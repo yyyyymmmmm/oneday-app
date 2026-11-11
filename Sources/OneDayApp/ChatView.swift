@@ -2235,12 +2235,21 @@ struct ChatView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                // §146：登记交付标记先拆（Core 纯函
+                // 数）——`[[deliver:dlv_…]]` 独立行
+                // 从正文摘除、走下方交付项呈现（按
+                // 号取登记 meta 渲染，见 Delivery-
+                // Views）；裸路径兜底（§129/§136）
+                // 只管拆剩的正文，两层不打架
+                let deliverySplit = DeliveryMarker.split(
+                    in: entry.content
+                )
                 // §136：MEDIA: 图片标记拆分（Core 纯
                 // 函数）——独立成行的图片标记从正文
                 // 摘除、走下方图片行出图，正文只喂摘
                 // 除后的文本（标记原文不再漏进气泡）
                 let mediaSplit = MediaMarker.split(
-                    in: entry.content
+                    in: deliverySplit.text
                 )
                 // §143：裸路径图片内联——独立成行/段内
                 // 单独成词的图片路径（形态判定在
@@ -2340,14 +2349,39 @@ struct ChatView: View {
                         )
                     }
                 }
+                // §146（原分支 §142）：登记交付项——
+                // 呈现位与 §136 图片行同口径（正文摘
+                // 除后在此成卡/成图）；图片点开进查
+                // 看器、文件点开落 §125 打开页，都以
+                // 登记 meta 的 path 走既有通道
+                // （AssistantDeliveryItem 内部按
+                // kind 分流）
+                ForEach(
+                    deliverySplit.deliveryIDs, id: \.self
+                ) { deliveryID in
+                    AssistantDeliveryItem(
+                        id: deliveryID,
+                        onOpenImage: { meta in
+                            openImageViewer(
+                                ChatImageViewerItem(
+                                    source: .remotePath(meta.path)
+                                )
+                            )
+                        },
+                        onOpenFile: { meta in
+                            openChatFile(meta.path)
+                        }
+                    )
+                }
                 // 正文只剩标记行被摘空时不渲染空气泡；
-                // 无标记的旧消息行为逐字不变
-                // §143：正文喂摘除已确证独立行图片后
-                // 的 displayText；整条只剩图片时同理
-                // 不渲染空气泡
+                // 无标记的旧消息行为逐字不变。§143：
+                // 正文喂摘除已确证独立行图片后的
+                // displayText；整条只剩图片/交付项时
+                // 同理不渲染空气泡
                 if !displayText.isEmpty
                     || (mediaSplit.imagePaths.isEmpty
-                        && inlineImages.isEmpty) {
+                        && inlineImages.isEmpty
+                        && deliverySplit.deliveryIDs.isEmpty) {
                     assistantBubble {
                         MarkdownText(displayText)
                     }
