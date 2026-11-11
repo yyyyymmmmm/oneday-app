@@ -8765,3 +8765,45 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **真机待验**：聊天卡 ⋮ 钮命中与消息长按菜单并存、网格卡 ⋮ 与整卡点按分工、置顶段在网格/列表两态呈现、改名全链（尤其 overwrite=false 在生产 Hermes 的实际语义与回读校验）、定位高亮四面滚动落点、AX 大字档下卡内 ⋮ 钮与两行文件名的排布。
 
 - **合并与验包记账（2026-11-11，主线合并单）**：交付定版 **0.50.5／127**。merge c042c5c（feat/file-present-align 9565d12 → main，基线 main 11672b4／0.50.4；分支 CI run 42979941824 success、分支单测口径 1362＝其基线 a003384 口径 1336＋26）。冲突三处：①Localizable.xcstrings 按 key 三方并集——base 2627、main 2607、分支 2640（纯增 13）、并集 2620 键、零双改，validate_i18n 通过（2633 键含 InfoPlist 13，三语全覆盖）；②FileMetadataStore.swift 手工合裁——§129 存在性账（verifyExistence/absorb）与 D1 回读重试双在位：backfillFromListing 取分支 Bool＋冷却形态、成功路走 HEAD 的 absorb 保住兄弟存在性入账，两侧注释与属性（verifyInFlight/listingFailedAt）双留；③DESIGN 本文件顺序拼接（HEAD 侧 §119.6/§128/§129/§130 在前、本节随后）。**节号改注**：本节标题 §127→§131（分支自选 §127 与三页对标专项 §127 撞号、自选号作废），分支代码注释内的 §127 引用同步改注 §131（涉 17 文件，逐一核过 main 侧同文件 §127 零命中、均为本包引入）。定版 2b34282（版本五处＝Project.swift 四处 0.50.5/127＋SettingsView 页脚「OneDay v0.50.5」，grep 验无 0.50.4 残留）。首轮 CI run 42987273029 failure——FileOpenContent 的自定义 init（§131 currentTarget 种子化）顶掉成员wise init，§129 的 onRequestResend 呼叫点报 extra argument；修复 4291691（init 补 onRequestResend 形参并赋值）后 run 42987824342，jobs API 逐项终判 build-native **success**。单测 Executed **1381、0 failures**（0.50.4 合并后 main 1355＋本包 +26，只增不减；分支口径差额为分叉后 main 侧增量）。IPA 落 ~/workspace/your_files/oneday-v0.50.5/OneDay-0.50.5.ipa，10,036,817 字节，md5 `39a6105e1c670f33c678b72a55049e39`（落盘与 CI 产物一致），Info.plist 实读 0.50.5／127／site.didichou.oneday。真机待验沿本节末条清单。
+## §135 发送空屏修复包（2026-11-11，预制分支 feat/send-blank-fix，基线 main 805978d／0.50.2；节号改注：分支自选 §132 与具名默认 B 分支 feat/provider-default 的自选 §132 撞号，且 §133（在飞 MEDIA 兼容包／cx-misc 预占）、§134（在飞 cx-model-storage 预占）均已被占，合并时主线改注 §135、原自选号作废；分支代码注释内的 §132 引用同步改注 §135）
+
+### 135.1 病灶与定案（诊断 send-blank-diagnosis-20261111.md，摘要）
+
+- 用户 2026-11-11 15:55 真机报障：发送信息时空屏数秒。诊断定案：发送瞬间同一 ScrollView 上叠着的**五套贴底/锚定机制**被一次发送连发触发，每次命令式 `scrollTo("bottom")` 都强迫 LazyVStack 对长线程尾部做「估算总高→实例化重量级气泡→再估算」的布局 churn；同时 ChatView 每次状态写入都对**全线程**重算渲染计划（全量排序＋每条工具卡 JSON 现解码、无缓存）。两者叠加、主线程被占满，视口数秒无已实现视图可画——嫌疑一（高，主嫌疑）＝LazyVStack 视口未实现空白，缺帧级探针升实锤，故本包 D 案打点随行。
+- 外部实证（诊断 §二，冲突以外部实证为准）：①Tactic Remote《Hunting a UI Freeze》（2026-07 受控复现）——ScrollView＋LazyVStack 内容超一屏时任何 scrollTo 都可引发纯布局 livelock；②Apple Developer Forums thread/741406——LazyVStack＋defaultScrollAnchor＋命令式 scrollTo 并存出现重入空白；③Fatbobman/tbd 长列表调研——scrollTargetLayout＋scrollPosition 在大数据量 LazyVStack 上是公认性能 footgun。**本包裁定：无外部记录支持「保留五套机制再逐个调参」，只做减法。**
+- 修法定案＝A 减法收口＋B 关键帧减负（本包只取渲染计划缓存一项）＋D 打点随行；C 换容器（List 化）留终局、A/B 无效时再议。
+
+### 135.2 A 案：机制收口前后对照（五套→三件）
+
+| # | 收口前（基线落点） | 收口后 |
+|---|---|---|
+| 1 | ScrollViewReader＋命令式 scrollTo，六路触发直呼；scrollToBottom 内置一层 120ms 复贴，sendPinToken 路自带第二层 120ms 复贴——一次发送连发 3–5 次强制跳底 | **单一所有者** `scrollToBottom`：六路触发＋回底钮全经此一口；所有者内部经 Core `BottomStickCoordinator` 裁决（50ms 同帧合并窗、同帧重复请求.coalesced 不再即时贴）、**复贴全局只挂一笔**（新贴底顶替旧复贴、代号制至多消费一次、切线程 invalidate 作废）；全仓唯一的 `scrollTo("bottom")` 只在原语 performScrollToBottom 内（双形态同处） |
+| 2 | `.defaultScrollAnchor(.bottom)` 声明式锚与命令式并存，:1660 注释自称「分工不冲突」 | **删除**，注释口径作废（与 Forums thread/741406 实证相左）；首帧落位由.task 定版链（0.22.0：出现一拍后无动画贴底）单点承担，退役注留原文处 |
+| 3 | `.scrollTargetLayout()`＋onScrollTargetVisibilityChange 每次滚动回写三枚 @State（topVisibleEntryID／lastVisibleEntryIDs／lastEntryVisible）并触发两次全量 map 喂未读 | 可见集**降权只剩滚动锚存取**：只回写 topVisibleEntryID 且加等值守卫；`lastVisibleEntryIDs`、`lastEntryVisible`、`refreshLastEntryVisible()` 删除；未读喂入只保留条目数 onChange 一路；scrollTargetLayout 本体保留（锚存取 id 回报靠它） |
+| 4 | 两路 onScrollGeometryChange（距底／视口高）几何回调逐帧无条件回写 @State，形成「状态改布局→布局再触发几何」反馈环结构 | 两路本体保留（定案所需：前者喂迟滞判定＋所有者复贴复核，后者喂内容栈撑满 minHeight），**回写加等值守卫**：值未变不写 |
+| 5 | BottomProximity 迟滞近底判定（<96 进／≥176 出） | 保留不变（几何单源的判定本体） |
+| 6 | 回底钮显隐＝几何＋末条事实信号双信号（0.36.5 审计 bug 2 的纠偏：几何估算驻留迟滞带时靠事实信号压钮） | **改判几何单源**：`BottomFollowPolicy.showsScrollToBottomButton(isNearBottom:)` 单参＝!isNearBottom；isAtBottomForUnread 与钮显隐同源单参。明知风险已裁定接受：bug 2 的迟滞带驻留（末条肉眼可见钮晚消失）可能复现，兜底靠尾行量实后几何收敛＋所有者复贴校正，列真机待验重点观察 |
+
+- **红线守界**：§124 回底钮承载结构（bottomBar VStack 本体、钮行落位、命中域、动画键）**零代码/布局改动**，仅三处注释措辞随事实信号退役更新；键盘锚底 300ms 是触发延迟（等键盘动画）非复贴，保留、落点改走所有者；线程恢复的滚动锚 scrollTo（entryID）非贴底、不动。
+
+### 135.3 B 案：渲染计划缓存
+
+- Core 新 `ChatRenderPlanKey`：条目投影＝id＋toolCardData 有无＋createdAt（make 内按 id 排序入哈希，入参顺序不影响键），键含 threadID／dayStamp（当日零点）。**失效条件（钉测逐项把守）**：条目增删、工具卡数据有无翻转、createdAt 变化（同 id 重写）、线程切换、跨日——任一变即键变、计划重算；无关状态写入（notice/键盘/几何守卫后）键不变、零重算。
+- App 侧 `renderPlan(for:)` 单口：按键命中直接复用缓存的 (dividers, items)，未命中才取一次 sortedEntries 并同算 timelineDividers＋entryRenderItems 存入；messageList 由每遍 body 至少 3 次全量排序＋两遍走查收为至多一遍（键变时）。
+- `ChatEntry.toolCard` 解码 memo：@Transient 缓存对（值＋源 Data），源相等直返缓存（含解码失败 nil 的负缓存防每帧重试），**失效条件＝toolCardData 变更**。旧形态一遍 body 每条工具条目解码 2–3 次的开销消除。
+
+### 135.4 D 案：发送帧打点（ChatDiagTrace 三落点，诊断面可回收）
+
+- 起点：send() 条目落盘前置 `sendFrameStartedAt`；三段读数——①落盘→链接（sendPinToken 递增前、仅链接成功轮）②首帧复核（所有者复贴检查点：复核距底 pt＋是否复贴＋距发送 ms，每轮只记一笔）③发送→落定（applySettledTurn 入口先记先清，失败分支同样消费；恢复轮无起点不记）。切线程清标记，防跨线程污染。
+
+### 135.5 单测与校验
+
+- 新增：BottomStickTests 7 法（首请求 perform／窗内合并且代号不涨／窗外 perform 且旧复贴被顶替／复贴至多消费一次／合并后挂账仍可消费／复贴已消费后窗内请求不合并／invalidate 作废挂账与合并窗）；ChatRenderPlanKeyTests 8 法（同输入同键／入参乱序同键／增删键变／工具卡翻转键变／createdAt 键变／线程键变／跨日键变／空集稳定）。
+- 改写：BottomFollowTests 两法按新口径（testScrollButtonHiddenWhenNearBottom／testScrollButtonShownWhenOffBottom），旧双信号断言随口径作废、注释记明；方法数不减。
+- 分支 CI：run 42985878037 success（build-native success，jobs API 逐项终判，head 69689a4）；单测 Executed 1356、0 failures（0.50.2 合并后基线 1341＋本包新增 15，只增不减）。首轮 run 42985254439 编译失败一处：落定打点守卫把 RunLedgerEntry.threadID（String）与 thread.id（UUID）直比——按仓内 uuidString 口径一行修复后重跑全绿，记账在此、不隐瞒。
+- 三语文案零新增（打点串为诊断留痕、非用户面文案，与 ChatDiagTrace 既有口径一致），validate_i18n 免跑。
+
+### 135.6 守界与真机待验
+
+- 守界：未动发送数据正确性链（落盘、runLedger 互斥、种子/链接计划、模型重锁、落定整段替换、落定对账全保留原位）；未动 BottomProximity 阈值与 BottomSettle 24pt 门；C 案（换容器）未动。
+- 真机待验（合并后随版）：①长线程发送不再空屏（重点，配合诊断面「发送打点」三段读数对读：首帧复核距底与距发送 ms）②回底钮迟滞带晚消失观察（几何单源改判的已知风险：滚回底部后钮是否随尾行量实及时消失）③离底未读角标（手动滚回底部后角标由下一次 ingest 以在底事实清零、离底计数不丢）④切线程滚动锚恢复与首帧落位（defaultScrollAnchor 退役后.task 链单点承担）⑤键盘升降锚底与流式跟随不回归。
