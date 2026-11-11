@@ -164,17 +164,18 @@ private final class ComposerPassthroughView: UIView {
 /// 地板钳制）与舱顶实测回报，不知业务页面
 final class ComposerGuideHostController: UIViewController {
     /// 舱根视图（桥注入；赋值即刷进舱宿主）。赋值后
-    /// 显式失效理想高并请求重排：嵌套托管下换 rootView
-    /// 不自动重算 UIHostingController 的 intrinsic 高
-    /// （宿主测试实证：内容长高 40 时宿主高恒 76、舱
-    /// 顶不动——错误条/回底钮行等结构增高走同一路径，
-    /// 属生产缺陷、非测试伪影）
+    /// 立即按新内容重算宿主高（见 updateComposer-
+    /// Height）：嵌套托管下换 rootView 不自动重算
+    /// UIHostingController 的理想高（宿主测试实证：
+    /// 内容长高 40 时宿主高恒 76、舱顶不动——错误
+    /// 条/回底钮行等结构增高走同一路径，属生产缺
+    /// 陷、非测试伪影），故高度不走 intrinsic 通道、
+    /// 改由本控制器显式量测驱动
     var composerRoot: AnyView? {
         didSet {
             if let composerRoot {
                 composerHost.rootView = composerRoot
-                composerHost.view.invalidateIntrinsicContentSize()
-                view.setNeedsLayout()
+                updateComposerHeight()
             }
         }
     }
@@ -186,6 +187,7 @@ final class ComposerGuideHostController: UIViewController {
         rootView: AnyView(EmptyView())
     )
     private var bottomConstraint: NSLayoutConstraint!
+    private var heightConstraint: NSLayoutConstraint!
     private var lastReportedSpace: CGFloat = -1
 
     override func loadView() {
@@ -212,17 +214,41 @@ final class ComposerGuideHostController: UIViewController {
         bottomConstraint = composerHost.view.bottomAnchor
             .constraint(
                 equalTo: view.keyboardLayoutGuide.topAnchor)
+        heightConstraint = composerHost.view.heightAnchor
+            .constraint(equalToConstant: 0)
         NSLayoutConstraint.activate([
             composerHost.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor),
             composerHost.view.trailingAnchor.constraint(
                 equalTo: view.trailingAnchor),
             bottomConstraint,
+            heightConstraint,
         ])
+        updateComposerHeight()
+    }
+
+    /// 舱高显式量测：以宿主当前宽向托管内容问理想
+    /// 高、写入高度常数（与地板钳制同属「几何归本控
+    /// 制器」的口径）。宽为 0（未入窗）时跳过、待布
+    /// 局拍补量；常数只在偏差 >0.5 时写，防自激布局
+    /// 循环——内容在托管树内部生长（多行输入）时，
+    /// 理想高变化经宿主的布局拍在本函数补齐
+    private func updateComposerHeight() {
+        let width = view.bounds.width
+        guard width > 0 else { return }
+        let fitting = composerHost.sizeThatFits(
+            in: CGSize(
+                width: width,
+                height: CGFloat.greatestFiniteMagnitude))
+        if abs(heightConstraint.constant - fitting.height) > 0.5 {
+            heightConstraint.constant = fitting.height
+        }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        // 舱高补量（宽变/托管内生长都经此拍收口）
+        updateComposerHeight()
         // 地板钳制：舱底目标＝min(引导线顶, 视图底边)——
         // 键盘升起跟引导线走、落下停在视图底边（＝坞
         // 顶）；常数逐拍按当前帧重算，交互式收键盘拖到
