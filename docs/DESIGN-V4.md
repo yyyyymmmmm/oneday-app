@@ -8720,7 +8720,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 新增：BottomStickTests 7 法（首请求 perform／窗内合并且代号不涨／窗外 perform 且旧复贴被顶替／复贴至多消费一次／合并后挂账仍可消费／复贴已消费后窗内请求不合并／invalidate 作废挂账与合并窗）；ChatRenderPlanKeyTests 8 法（同输入同键／入参乱序同键／增删键变／工具卡翻转键变／createdAt 键变／线程键变／跨日键变／空集稳定）。
 - 改写：BottomFollowTests 两法按新口径（testScrollButtonHiddenWhenNearBottom／testScrollButtonShownWhenOffBottom），旧双信号断言随口径作废、注释记明；方法数不减。
-- 分支 CI：；单测总数（基线 0.50.2 合并后口径，只增不减）。
+- 分支 CI：run 42985878037 success（build-native success，jobs API 逐项终判，head 69689a4）；单测 Executed 1356、0 failures（0.50.2 合并后基线 1341＋本包新增 15，只增不减）。首轮 run 42985254439 编译失败一处：落定打点守卫把 RunLedgerEntry.threadID（String）与 thread.id（UUID）直比——按仓内 uuidString 口径一行修复后重跑全绿，记账在此、不隐瞒。
 - 三语文案零新增（打点串为诊断留痕、非用户面文案，与 ChatDiagTrace 既有口径一致），validate_i18n 免跑。
 
 ### 132.6 守界与真机待验
