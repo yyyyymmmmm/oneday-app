@@ -10172,3 +10172,43 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 间距三笔账（诊断 §2.4 的 O1 隐藏层 spacing −16／O2 尾随行距 −24／O3 复贴阈值收紧）与承载无关、在现行 safeAreaBar 上即可施工——是否按诊断选项另立包，请主线与用户裁（用户 02:05 定的是「用大厂成熟做法」，O 选项属诊断给出的收口路，与本包的结构迁移是两回事，不自动续作；主线裁定另立包，已由 §176 气泡间距收口落地，与本包同入 0.50.22 小批）。
 - 键盘沉坞的剩余候选：诊断 K1（焦点态驱动 `.toolbar(.hidden, for: .tabBar)`，现行承载上最低成本、与 HIG「键盘时坞可隐藏」口径合）或 UIKit inputAccessoryView 托管整栈（真·大厂通道，但逆 §10/§28 定版、须 UIHostingController 桥接整栈，工程量与回归面最大）——均待主线呈用户拍板。
 - 若日后系统版本演进（isEnabled 签名成为基线、键盘行为有官方实证），本节核查须先刷新再议重启配件通道。
+
+## §176 气泡间距收口：尾锚脱钩＋隐藏层不计费＋复贴阈值收紧（2026-11-12，用户 02:05 亲定「气泡间距用大厂成熟做法」；预制分支 feat/chat-spacing，基线 main fd2deec／0.50.21 定版＋§173 回退顶端，只预制不合并；节号取主线末节 §175 顺延——外壳包在其分支自选 §175（提交题注作 §175.1）与本号无关、两边顺延归主线合裁；另 §175 文内原「发版验包补记：见 §176」占位行已由主线 3671662 回填实文时删除、前向引用不复存在，本号由本节独占——主线合裁，2026-11-12）
+
+### 176.1 病账（诊断 top-bottom-solid-block-diagnosis-20261112.md 第二题）
+- 截图像素实测：末条气泡底→输入舱卡顶 **65.3pt**，Muse 同位 **24.0pt**。九环写死合计 57（尾随行距 24＋锚 1＋栈底 padding 8＋contentMargins 4＋safeAreaBar spacing 0＋bottomBar 栈 spacing 0＋inputBar 顶 padding 4＋隐藏层 spacing 16）＋落定残差 ≈8.3（复贴阈值 24 放行带内）。
+- §97.2 旧台账把此链记为 24——只数列表下缘以下五环，漏记栈内尾段 33 与残差；本节以九环全项为唯一对账口径，旧台账口径作废。
+
+### 176.2 三笔施工（ChatView.swift／BottomFollow.swift）
+1. **尾随行距（环 1，−24）**：尾锚移出 LazyVStack——外层 `VStack(spacing: 0)` 承载消息栈＋尾锚，LazyVStack 的 spacingL 只在消息之间生效。**spacingL 本值不动**（消息间密度不变）；锚的 id（"bottom"）与全部 scrollTo 出口不变，§78/§135 贴底四路落点仍是它；栈级修饰（scrollTargetLayout／padding／撑满 frame／contentShape／点空白收键盘手势）随之外提到承载 VStack，辖区不变。
+2. **隐藏层不计费（环 8，−16）**：inputBar 栈 spacing 归零；语音失败/到限提示两条的间距改由条本体底边距（spacingS）承载——SmoothExpand 实测高含此边距、展开帧高含它，收起时随帧高 0 一并裁掉。附带正修：旧形态下任一条展开时，隐藏的另一层仍替它收一份 spacing（单条展开时条→卡实距 16）；新形态展开时间距恒 8。
+3. **复贴阈值（环 9，残差带 24→7）**：`BottomSettle.restickThreshold` 24 → **7**。取舍算账：间距链写死已压到 17，本阈值即残差带上限——取 7 使稳态总量封顶 17＋7＝24（与 Muse 实测齐平），且诊断实测残差 8.3 自此必被复贴收掉；取 8 则带顶破 25 出带，取 6 则 7–13pt 的寻常落定误差几乎每贴必补、晚跳过频。代价如实记：落定误差落在 7–13pt 的贴底会多补一贴无动画校正（尾行已量实、第二贴落点准），以观感换紧凑（诊断 O3 同评），真机 AB 列 176.5 待验。
+
+### 176.3 单点所有权
+- 环 4 列表底 contentMargins 定为全链**唯一可调边距**：spacingXS 4 → spacingS 8；环 7 inputBar 顶 padding 同步归零（删除）——链上这一段总量不变（4＋4 → 8＋0），记账只剩一处。今后调这段距离只动 contentMargins 一处。
+- 环 3 内容栈底 padding（8）不是调节点：它是 §20.2 撑满结构量（minHeight 公式按它扣减），改值须连 §20.2 命中域一起验，不许在本链语境单独动。
+
+### 176.4 九环新对账（稳态：无错误/提示/回底钮、未流式）
+| # | 环节 | 旧 | 新 | 出处 |
+|---|---|---|---|---|
+| 1 | LazyVStack 尾随 spacing | 24 | **0** | 锚移出栈（176.2-1） |
+| 2 | 尾锚本体高 | 1 | 1 | 不变 |
+| 3 | 内容栈底 padding | 8 | 8 | §20.2 结构量（176.3） |
+| 4 | 列表底 contentMargins | 4 | **8** | 单点所有权（176.3） |
+| 5 | safeAreaBar spacing | 0 | 0 | 不变 |
+| 6 | bottomBar 栈 spacing（稳态） | 0 | 0 | 不变（§124 本体零触碰） |
+| 7 | inputBar 顶 padding | 4 | **0** | 删除（176.3） |
+| 8 | 隐藏层 spacing ×2 | 16 | **0** | 条自带底边距（176.2-2） |
+| | **写死合计** | **57** | **17** | |
+| 9 | 落定残差带 | 0–24（实测 8.3） | **0–7** | 阈值 7（176.2-3） |
+| | **稳态总量** | **65.3（实测）** | **17–24** | 带顶与 Muse 实测 24 齐平 |
+
+### 176.5 测试与复验
+- Core：`testBottomSettleRestickThreshold` 改断言（阈值定版变更——旧断言钉的是 24 的边界，随定版改钉 7 的边界，断言数 5 → 7，**非退役**，逐项对账见本包回报）；新增 `testBottomSettleThresholdValue` 钉阈值本值 7（改值必先改本节对账）。BottomFollowTests 31 → 32 法。贴底四路的 Core 判定（协调器合并/复贴消费、近底迟滞、末条目标、离底计数）全套复验过。
+- 分支 CI：run 43082192458（workflow_dispatch，ios-native.yml）success（jobs API 终判 build-native ⇒ success）；日志实数 OneDayCoreTests Executed 1670、0 failures（基线 1669＋新增 1），OneDayAppTests Executed 11、0 failures（本包零触碰），其中 BottomFollowTests 32 法全过。
+- 真机待验：①贴底四路逐路——首屏落位、发送贴底、流式跟随、回底钮显隐与点击回底（锚落点语义不变、App 侧无新判定，仍须真机过目）；②长线程滚动流畅度——尾锚外移后 LazyVStack 嵌套一层，其惰性量测/估高行为须真机确认与旧形态无异；③阈值 7 的晚跳观感——长线程跳底时 120ms 处小幅校正跳是否可感（诊断 O3 的 AB 项）；④语音失败/到限提示条展开各一帧：条→卡间距 8、展开动画平滑。
+
+### 176.6 红线自检
+- §124 回底钮承载结构（bottomBar 布局流）与钮本体：本包 diff 对 `scrollToBottomButton`/`showsBackToBottomButton` 零命中，未触碰（外壳包刚在其分支把钮材质换玻璃，本包避开该段）。
+- 边缘样式行零改动：顶 .soft／底 hidden 与基线 fd2deec 逐字一致（本包 diff 不含 scrollEdgeEffect 任何一行）。
+- spacingL 零改动；bottomBar 本体零改动；改动文件仅 ChatView.swift、OneDayCore/BottomFollow.swift、Tests/OneDayCoreTests/BottomFollowTests.swift、本节。

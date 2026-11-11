@@ -197,8 +197,8 @@ struct ChatView: View {
     /// 最近一次实测距底（0.36.13，修法 1 落定复贴）：
     /// 与 isNearBottom 同出 onScrollGeometryChange
     /// 一路——迟滞判定消费它之外，原始读数另存一份
-    /// 喂贴底后的复核（仍 >24pt 才补贴，Core
-    /// BottomSettle 钉死）
+    /// 喂贴底后的复核（仍 >7pt 才补贴，§176 阈值
+    /// 24 → 7 收紧，Core BottomSettle 钉死）
     @State private var lastBottomDistance: CGFloat = 0
     /// 流式跟随滚动节流闸（0.4.2，§27）：OneDayCore
     /// 纯逻辑记账，每 ≥40 字放行一次无动画贴底；流结
@@ -1690,174 +1690,185 @@ struct ChatView: View {
 
     private func messageList(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
-                if let thread = currentThread {
-                    // 0.30.0（聊天时间系统）：分隔条落点与
-                    // 文案由 Core ChatTimeline 按会话条目
-                    // 走查（工具卡条目不单独占分隔、也不
-                    // 重置锚点——以所属回合时间为准）；流
-                    // 式行/流内工具卡是当前回合的呈现层尾
-                    // 巴、不另起分隔（本回合的分隔由其
-                    // user 条目承担，见 timelineDividers）
-                    // §135 B 案：渲染计划走缓存单口（排
-                    // 序＋分隔＋成组三件一并按键复用），
-                    // 不再每遍 body 对全线程现算两遍
-                    let plan = renderPlan(for: thread)
-                    ForEach(plan.items) { item in
-                        switch item {
-                        case .entry(let entry):
-                            VStack(
-                                alignment: .leading,
-                                spacing: OneDayMetrics.spacingS
-                            ) {
-                                if let dividerText
-                                    = plan.dividers[entry.id] {
-                                    timelineDivider(dividerText)
+            // §176（2026-11-12，气泡间距收口）：尾锚移
+            // 出 LazyVStack 的行距体系——旧形态锚是栈
+            // 内最后一个子项，与末条之间照收一份
+            // spacingL（24pt，诊断九环第 1 环）；改由
+            // 外层 VStack(spacing: 0) 承载消息栈＋尾锚，
+            // 行距只在消息之间生效、列表尾与行距脱钩
+            // （spacingL 本值不动、消息间密度不变）。
+            // 锚的 id 与全部 scrollTo 出口不变，§78/
+            // §135 贴底四路的落点仍是它
+            VStack(spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
+                    if let thread = currentThread {
+                        // 0.30.0（聊天时间系统）：分隔条落点与
+                        // 文案由 Core ChatTimeline 按会话条目
+                        // 走查（工具卡条目不单独占分隔、也不
+                        // 重置锚点——以所属回合时间为准）；流
+                        // 式行/流内工具卡是当前回合的呈现层尾
+                        // 巴、不另起分隔（本回合的分隔由其
+                        // user 条目承担，见 timelineDividers）
+                        // §135 B 案：渲染计划走缓存单口（排
+                        // 序＋分隔＋成组三件一并按键复用），
+                        // 不再每遍 body 对全线程现算两遍
+                        let plan = renderPlan(for: thread)
+                        ForEach(plan.items) { item in
+                            switch item {
+                            case .entry(let entry):
+                                VStack(
+                                    alignment: .leading,
+                                    spacing: OneDayMetrics.spacingS
+                                ) {
+                                    if let dividerText
+                                        = plan.dividers[entry.id] {
+                                        timelineDivider(dividerText)
+                                    }
+                                    bubble(entry)
                                 }
-                                bubble(entry)
-                            }
-                            // §165：锚点点亮——点达请求命
-                            // 中的锚定行以 primaryTint 底
-                            // 色点亮（沿 §123 枢纽聚焦同
-                            // 手法），消费侧 2.5 秒后清
-                            .background(
-                                entry.id == anchorHighlightEntryID
-                                    ? Palette.primaryTint
-                                    : Color.clear,
-                                in: RoundedRectangle(
-                                    cornerRadius:
-                                        OneDayMetrics.containerCorner
-                                )
-                            )
-                            .id(entry.id)
-                        case .toolGroup(let groupEntries):
-                            // 连续工具卡 ≥2 成组（0.36.10，
-                            // 诊断 D3-8）：组 id 借首条条目
-                            // id，与 .entry 形态互斥不撞
-                            ToolCardGroupView(
-                                cards: groupEntries
-                                    .compactMap(\.toolCard)
-                            )
-                            .id(groupEntries[0].id)
-                        }
-                    }
-                }
-                // 直播区（0.36.10 重做）：思考/工具/正文
-                // 按事件到达序交错（liveOrder），连续工
-                // 具 ≥2 收成组；旧形态「卡列恒在前、正
-                // 文恒在后」与真实先后倒序（诊断 D3-10）
-                liveZone
-                // 0.7.0（D2 回告入线）：任务/审批等完成回告
-                // 以卡片只出现在主线——数据走总览桥通知、
-                // 在呈现层拼装呈现，绝不写入任何 Hermes
-                // 会话（红线 D4）；旁聊页经 ReportCard-
-                // Policy 恒为空。卡不入 SwiftData、不进发
-                // 送上下文（上下文只由 sortedEntries 组装、
-                // 构造上隔离）
-                if let overviewStore {
-                    ForEach(
-                        ReportCardPolicy.cards(
-                            notifications: overviewStore.notifications,
-                            isMainThread: isCurrentMainThread
-                        )
-                    ) { item in
-                        reportCard(item, store: overviewStore)
-                    }
-                }
-                // 就地审批（0.36.21，规格 §1/§3）：待批
-                // 写入在流末尾出卡——桥载荷无会话归属字
-                // 段，走退位形态（全部未决汇到当前流＋
-                // 枢纽兜底）；与回告卡同纪律：只在呈现
-                // 层拼装、绝不写入会话；store 与枢纽共
-                // 享同一份（AppState.sharedHubStore）
-                // §165（锚点包）：已在本机落锚的记录由
-                // 其锚定行承载（单源，规格 §4.3），本区
-                // 只出未锚记录；锚集随 store 刷新回写
-                // （ApprovalAnchorMaterialization）
-                ChatApprovalZone(
-                    store: appState.sharedHubStore(),
-                    anchoredRecordIDs: appState
-                        .sharedHubStore().anchoredRecordIDs
-                )
-                if currentThread == nil && !isStreaming {
-                    // 空状态（DESIGN-V4 §5 两行字口径保
-                    // 留）：0.26.0 起形象位由 SF 符号换三
-                    // 狗头像、边长走形象档空态值（48/56/
-                    // 68）——用户外观令点名的作用面
-                    VStack(spacing: OneDayMetrics.spacingS) {
-                        // 0.36.22：空态形象同样读档案头像
-                        appState.agentAvatarImage
-                            .resizable()
-                            .scaledToFill()
-                            .frame(
-                                width: avatarTier.emptyStatePointSize,
-                                height: avatarTier.emptyStatePointSize
-                            )
-                            .clipShape(Circle())
-                            .overlay {
-                                Circle().stroke(
-                                    Palette.hairline, lineWidth: 0.5
-                                )
-                            }
-                            .accessibilityHidden(true)
-                        Text(L10n.format(
-                            "和 %@ 聊聊", appState.agentDisplayName
-                        ))
-                            // 0.3.3 收编：手写 fontWeight 漂移
-                            // 改走 sectionTitle 角色（阶梯账
-                            // 见原字重账本，已废止）
-                            .font(.callout)
-                            .foregroundStyle(Palette.ink)
-                        Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
-                            .font(.caption)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, OneDayMetrics.spacingXL)
-                    // 引导线（原型 chat 面）：空态建议条三
-                    // 条，点按即发送（走现行 send() 全链，
-                    // 不另建发送路）。文案与图标名单一出处
-                    // 在 Core EmptyChatSuggestions
-                    VStack(spacing: OneDayMetrics.spacingS) {
-                        ForEach(
-                            Array(EmptyChatSuggestions.texts.enumerated()),
-                            id: \.offset
-                        ) { index, suggestion in
-                            Button {
-                                input = suggestion
-                                send()
-                            } label: {
-                                HStack(spacing: OneDayMetrics.spacingSM) {
-                                    Image(systemName: EmptyChatSuggestions.symbols[index])
-                                        .font(.system(size: 15))
-                                        .foregroundStyle(Palette.inkSecondary)
-                                    Text(L10n.string(suggestion))
-                                        .font(.callout)
-                                        .foregroundStyle(Palette.ink)
-                                    Spacer()
-                                }
-                                .padding(.horizontal, OneDayMetrics.spacingM)
-                                .frame(minHeight: 50)
+                                // §165：锚点点亮——点达请求命
+                                // 中的锚定行以 primaryTint 底
+                                // 色点亮（沿 §123 枢纽聚焦同
+                                // 手法），消费侧 2.5 秒后清
                                 .background(
-                                    Palette.surface,
+                                    entry.id == anchorHighlightEntryID
+                                        ? Palette.primaryTint
+                                        : Color.clear,
                                     in: RoundedRectangle(
-                                        cornerRadius: OneDayMetrics.fieldCorner,
-                                        style: .continuous
+                                        cornerRadius:
+                                            OneDayMetrics.containerCorner
                                     )
                                 )
+                                .id(entry.id)
+                            case .toolGroup(let groupEntries):
+                                // 连续工具卡 ≥2 成组（0.36.10，
+                                // 诊断 D3-8）：组 id 借首条条目
+                                // id，与 .entry 形态互斥不撞
+                                ToolCardGroupView(
+                                    cards: groupEntries
+                                        .compactMap(\.toolCard)
+                                )
+                                .id(groupEntries[0].id)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, OneDayMetrics.spacingL)
-                    // §119：无任何可用模型时，空态下方出
-                    // 引导卡（判定见 showsModelSetupCard；
-                    // 有模型时永不出现）
-                    if showsModelSetupCard {
-                        modelSetupCard
-                            .padding(.top, OneDayMetrics.spacingL)
+                    // 直播区（0.36.10 重做）：思考/工具/正文
+                    // 按事件到达序交错（liveOrder），连续工
+                    // 具 ≥2 收成组；旧形态「卡列恒在前、正
+                    // 文恒在后」与真实先后倒序（诊断 D3-10）
+                    liveZone
+                    // 0.7.0（D2 回告入线）：任务/审批等完成回告
+                    // 以卡片只出现在主线——数据走总览桥通知、
+                    // 在呈现层拼装呈现，绝不写入任何 Hermes
+                    // 会话（红线 D4）；旁聊页经 ReportCard-
+                    // Policy 恒为空。卡不入 SwiftData、不进发
+                    // 送上下文（上下文只由 sortedEntries 组装、
+                    // 构造上隔离）
+                    if let overviewStore {
+                        ForEach(
+                            ReportCardPolicy.cards(
+                                notifications: overviewStore.notifications,
+                                isMainThread: isCurrentMainThread
+                            )
+                        ) { item in
+                            reportCard(item, store: overviewStore)
+                        }
+                    }
+                    // 就地审批（0.36.21，规格 §1/§3）：待批
+                    // 写入在流末尾出卡——桥载荷无会话归属字
+                    // 段，走退位形态（全部未决汇到当前流＋
+                    // 枢纽兜底）；与回告卡同纪律：只在呈现
+                    // 层拼装、绝不写入会话；store 与枢纽共
+                    // 享同一份（AppState.sharedHubStore）
+                    // §165（锚点包）：已在本机落锚的记录由
+                    // 其锚定行承载（单源，规格 §4.3），本区
+                    // 只出未锚记录；锚集随 store 刷新回写
+                    // （ApprovalAnchorMaterialization）
+                    ChatApprovalZone(
+                        store: appState.sharedHubStore(),
+                        anchoredRecordIDs: appState
+                            .sharedHubStore().anchoredRecordIDs
+                    )
+                    if currentThread == nil && !isStreaming {
+                        // 空状态（DESIGN-V4 §5 两行字口径保
+                        // 留）：0.26.0 起形象位由 SF 符号换三
+                        // 狗头像、边长走形象档空态值（48/56/
+                        // 68）——用户外观令点名的作用面
+                        VStack(spacing: OneDayMetrics.spacingS) {
+                            // 0.36.22：空态形象同样读档案头像
+                            appState.agentAvatarImage
+                                .resizable()
+                                .scaledToFill()
+                                .frame(
+                                    width: avatarTier.emptyStatePointSize,
+                                    height: avatarTier.emptyStatePointSize
+                                )
+                                .clipShape(Circle())
+                                .overlay {
+                                    Circle().stroke(
+                                        Palette.hairline, lineWidth: 0.5
+                                    )
+                                }
+                                .accessibilityHidden(true)
+                            Text(L10n.format(
+                                "和 %@ 聊聊", appState.agentDisplayName
+                            ))
+                                // 0.3.3 收编：手写 fontWeight 漂移
+                                // 改走 sectionTitle 角色（阶梯账
+                                // 见原字重账本，已废止）
+                                .font(.callout)
+                                .foregroundStyle(Palette.ink)
+                            Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
+                                .font(.caption)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, OneDayMetrics.spacingXL)
+                        // 引导线（原型 chat 面）：空态建议条三
+                        // 条，点按即发送（走现行 send() 全链，
+                        // 不另建发送路）。文案与图标名单一出处
+                        // 在 Core EmptyChatSuggestions
+                        VStack(spacing: OneDayMetrics.spacingS) {
+                            ForEach(
+                                Array(EmptyChatSuggestions.texts.enumerated()),
+                                id: \.offset
+                            ) { index, suggestion in
+                                Button {
+                                    input = suggestion
+                                    send()
+                                } label: {
+                                    HStack(spacing: OneDayMetrics.spacingSM) {
+                                        Image(systemName: EmptyChatSuggestions.symbols[index])
+                                            .font(.system(size: 15))
+                                            .foregroundStyle(Palette.inkSecondary)
+                                        Text(L10n.string(suggestion))
+                                            .font(.callout)
+                                            .foregroundStyle(Palette.ink)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, OneDayMetrics.spacingM)
+                                    .frame(minHeight: 50)
+                                    .background(
+                                        Palette.surface,
+                                        in: RoundedRectangle(
+                                            cornerRadius: OneDayMetrics.fieldCorner,
+                                            style: .continuous
+                                        )
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, OneDayMetrics.spacingL)
+                        // §119：无任何可用模型时，空态下方出
+                        // 引导卡（判定见 showsModelSetupCard；
+                        // 有模型时永不出现）
+                        if showsModelSetupCard {
+                            modelSetupCard
+                                .padding(.top, OneDayMetrics.spacingL)
+                        }
                     }
                 }
                 Color.clear
@@ -1997,7 +2008,12 @@ struct ChatView: View {
         // spacingS 8 → spacingXS 4，与 inputBar 顶
         // padding 同步收（见 inputBar 注）；「末条消息
         // 底→发送舱卡顶」链总量 32 → 24（量账见 §97.2）
-        .contentMargins(.bottom, OneDayMetrics.spacingXS, for: .scrollContent)
+        // §176（2026-11-12）：本处定为这条链的唯一可
+        // 调边距（单点所有权）——回 spacingS 8，
+        // inputBar 顶 padding 同步归零（链上这一段的
+        // 总量不变、记账只剩一处）；链写死总量 17、
+        // 九环对账见 DESIGN §176
+        .contentMargins(.bottom, OneDayMetrics.spacingS, for: .scrollContent)
         // 0.2.6 承载换代核心：发送区进列表的底部安全区
         // 留位——Exyte/Stream 式「列表＋发送区同处布局流」
         // （DESIGN-V4 §10）。键盘避让自此走系统安全区通道：
@@ -2268,7 +2284,8 @@ struct ChatView: View {
     /// 复贴全局只挂一笔——新贴底顶替旧复贴、复贴至
     /// 多消费一次、切线程作废。复贴本体沿 0.36.13
     /// 量实原理：贴底后 120ms 复核实测距底，尾行已
-    /// 量实后距底仍 >24pt（Core BottomSettle）才以
+    /// 量实后距底仍 >7pt（Core BottomSettle，§176
+    /// 自 24 收紧）才以
     /// 无动画再贴一次；§135 前发送令牌路在这一层之
     /// 外自带第二层复贴（一次发送连发 3–5 贴），已
     /// 删，现全局只此一层
@@ -3404,18 +3421,31 @@ struct ChatView: View {
     }
 
     private var inputBar: some View {
-        VStack(spacing: OneDayMetrics.spacingS) {
+        // §176（2026-11-12，气泡间距收口）：栈间距归
+        // 零——旧 spacingS 下两层 SmoothExpand 折叠高
+        // 为 0 也照收两份间距（16pt，诊断九环第 8
+        // 环），且任一条展开时，隐藏的另一层仍在替它
+        // 收费（单条展开时条→卡实距 16）。改法：间距
+        // 改由展开条自带底边距承载（见两处条注），收
+        // 起时随帧高 0 被裁剪、不计费；展开时恒隔
+        // spacingS，与旧口径同值
+        VStack(spacing: 0) {
             // 0.36.6（§71）：语音失败行与到限提示行——
             // 三段式文案（发生了什么＋影响＋怎么办），
             // 权限被拒在此给「去设置」降级路（续编 S4）
+            // §176：底边距长在条本体上——SmoothExpand
+            // 的实测高含它、展开帧高含它；收起帧高 0
+            // 时一并裁掉（见栈头注）
             SmoothExpand(isExpanded: dictation.failure != nil) {
                 if let failure = dictation.failure {
                     dictationFailureBar(failure)
+                        .padding(.bottom, OneDayMetrics.spacingS)
                 }
             }
             SmoothExpand(isExpanded: dictation.notice != nil) {
                 if let notice = dictation.notice {
                     dictationNoticeBar(notice)
+                        .padding(.bottom, OneDayMetrics.spacingS)
                 }
             }
             // 输入舱卡（0.36.19 起引用块并入同卡，见
@@ -3440,7 +3470,9 @@ struct ChatView: View {
         // 0.36.27（§97 件二）：顶 padding 收一档
         // spacingS 8 → spacingXS 4（卡上外距，与列表
         // 底 contentMargins 同步，链总量 32 → 24）
-        .padding(.top, OneDayMetrics.spacingXS)
+        // §176：顶 padding 归零（本行删除）——气泡→
+        // 输入舱卡顶的边距单点归列表底 contentMar-
+        // gins 一处（见列表侧 §176 注），本处不再计量
         .padding(.bottom, OneDayMetrics.spacingS)
         // 提议链断环（0.2.5 根因注，§9）：本 VStack 的高度
         // 只认内容，不许把外层提议透传给胶囊

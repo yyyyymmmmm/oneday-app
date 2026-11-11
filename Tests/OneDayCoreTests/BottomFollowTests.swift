@@ -219,17 +219,29 @@ final class BottomFollowTests: XCTestCase {
         )
     }
 
-    // MARK: - 落定复贴阈值（0.36.13，诊断修法 1）
+    // MARK: - 落定复贴阈值（0.36.13，诊断修法 1；§176 收紧 24 → 7）
 
     func testBottomSettleRestickThreshold() {
-        // 正常落定误差（尾锚＋padding＋边距 ≈17pt）
-        // 不触发；阈值本值不触发（严格大于）；估算误
-        // 差量级（57pt）必触发；橡皮筋负距不触发
-        XCTAssertFalse(BottomSettle.shouldRestick(distance: 17))
-        XCTAssertFalse(BottomSettle.shouldRestick(distance: 24))
-        XCTAssertTrue(BottomSettle.shouldRestick(distance: 25))
+        // §176 阈值 7：带内残差（≤7）不触发；阈值本
+        // 值不触发（严格大于）；诊断截图实测残差 8.3
+        // 自此必触发（旧阈 24 时被放行）；旧口径下
+        // 「正常落定误差」带的 17 现亦触发（以观感
+        // 换紧凑的定版取舍）；估算误差量级（57pt）
+        // 必触发；橡皮筋负距不触发
+        XCTAssertFalse(BottomSettle.shouldRestick(distance: 3))
+        XCTAssertFalse(BottomSettle.shouldRestick(distance: 7))
+        XCTAssertTrue(BottomSettle.shouldRestick(distance: 8))
+        XCTAssertTrue(BottomSettle.shouldRestick(distance: 8.3))
+        XCTAssertTrue(BottomSettle.shouldRestick(distance: 17))
         XCTAssertTrue(BottomSettle.shouldRestick(distance: 57))
         XCTAssertFalse(BottomSettle.shouldRestick(distance: -10))
+    }
+
+    func testBottomSettleThresholdValue() {
+        // 阈值本值钉死（§176）：间距链写死 17＋本值
+        // 7＝稳态总量上限 24，与目标带对平；改值必
+        // 先改 DESIGN §176 的九环对账
+        XCTAssertEqual(BottomSettle.restickThreshold, 7)
     }
 }
 

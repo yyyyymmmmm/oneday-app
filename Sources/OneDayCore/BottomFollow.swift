@@ -151,9 +151,20 @@ public enum LastScrollTarget {
 /// ＋contentMargins 4 ≈13pt；contentMargins 原 8、
 /// 0.36.27 §97 件二收一档）不触发复贴，估算误差
 /// （实测 ≈57pt 起）必触发。
+/// §176 收紧（2026-11-12，气泡间距收口）：24 → 7。
+/// 间距链写死部分已压到 17pt（见 §176 九环对账），
+/// 本阈值即残差带上限——取 7 使稳态总量封顶
+/// 17＋7＝24（与 Muse 实测 24 齐平），且诊断截图
+/// 实测残差 8.3 自此必被复贴收掉（旧值 24 时放行、
+/// 正是 65.3 量值里残差一项的来源）；取 8 则带顶
+/// 破 25 出带，取 6 则 7–13pt 的寻常落定误差几乎
+/// 每贴必补、晚跳过频。代价如实记：落定误差落在
+/// 7–13pt 的贴底会多补一贴无动画校正（尾行已量
+/// 实、第二贴落点准），以观感换紧凑，真机 AB 列
+/// §176 待验。
 public enum BottomSettle {
     /// 复贴触发的实测距底阈值（pt）：大于才补贴
-    public static let restickThreshold: CGFloat = 24
+    public static let restickThreshold: CGFloat = 7
 
     public static func shouldRestick(distance: CGFloat) -> Bool {
         distance > restickThreshold
