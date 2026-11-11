@@ -61,6 +61,27 @@ struct DemoHermesClient: HermesClientProtocol {
         ["deepseek-flash", "deepseek-v4-pro", "deepseek-chat"]
     }
 
+    /// 演示回执（§153）：与生产定型同构——一行网关
+    /// custom（含默认 flash 与别名 chat 供别名收一演
+    /// 示）、is_current 落网关行
+    func modelOptionsRaw(config: ServerConfig) async throws -> JSONValue {
+        .object([
+            "model": .string("deepseek-flash"),
+            "provider": .string("custom"),
+            "providers": .array([
+                .object([
+                    "slug": .string("custom"),
+                    "is_current": .bool(true),
+                    "models": .array([
+                        .string("deepseek-flash"),
+                        .string("deepseek-v4-pro"),
+                        .string("deepseek-chat"),
+                    ]),
+                ]),
+            ]),
+        ])
+    }
+
     func setMainModel(
         config: ServerConfig, provider: String, model: String
     ) async throws {}

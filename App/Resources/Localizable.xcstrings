@@ -42437,29 +42437,6 @@
         }
       }
     },
-    "添加 %lld 张": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add %lld Photos"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加 %lld 张"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加 %lld 張"
-          }
-        }
-      }
-    },
     "添加提供商": {
       "extractionState": "manual",
       "localizations": {
@@ -60472,6 +60449,12 @@
     "资源库": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60483,18 +60466,18 @@
             "state": "translated",
             "value": "資源庫"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Library"
-          }
         }
       }
     },
     "查看全部": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View All"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60506,18 +60489,18 @@
             "state": "translated",
             "value": "查看全部"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "View All"
-          }
         }
       }
     },
     "添加文件": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add File"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60529,18 +60512,18 @@
             "state": "translated",
             "value": "添加檔案"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add File"
-          }
         }
       }
     },
     "添加视频": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Video"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60552,18 +60535,18 @@
             "state": "translated",
             "value": "添加影片"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Video"
-          }
         }
       }
     },
     "有 %lld 张图片读取失败，未加入待发列表。": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld photos couldn't be read and weren't added to the send list."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -60575,11 +60558,28 @@
             "state": "translated",
             "value": "有 %lld 張圖片讀取失敗，未加入待傳送列表。"
           }
-        },
+        }
+      }
+    },
+    "添加 %lld 张": {
+      "extractionState": "manual",
+      "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld photos couldn't be read and weren't added to the send list."
+            "value": "Add %lld Photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 %lld 张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 %lld 張"
           }
         }
       }
@@ -60734,6 +60734,98 @@
           "stringUnit": {
             "state": "translated",
             "value": "Set as default"
+          }
+        }
+      }
+    },
+    "只对这条对话生效": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applies to this conversation only"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只对这条对话生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只對這條對話生效"
+          }
+        }
+      }
+    },
+    "搜索模型": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search models"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索模型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋模型"
+          }
+        }
+      }
+    },
+    "还没有可用的模型": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No models available yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有可用的模型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有可用的模型"
+          }
+        }
+      }
+    },
+    "连接服务器后，这里会列出全部服务商的模型。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once connected, models from all your providers will appear here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接服务器后，这里会列出全部服务商的模型。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接伺服器後，這裡會列出全部服務商的模型。"
           }
         }
       }

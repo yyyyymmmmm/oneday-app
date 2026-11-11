@@ -30,6 +30,8 @@ struct ChatView: View {
     /// sheet（AgentHubView .activity 四段，自带导航栈；
     /// 0.6.0 的 onOpenActivity 切格注入自此退役）
     @State private var showHub = false
+    /// §153：顶栏模型分组选择面（sheet）开关
+    @State private var showModelPicker = false
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -365,13 +367,42 @@ struct ChatView: View {
 
     private var isStreaming: Bool { streamingText != nil }
 
-    /// 顶栏/抽屉展示的模型名（0.3.0 接线，§15）：展示本地
-    /// 聊天选择（ChatModels 写死三项的展示名）——顶栏选的
-    /// 就是逐请求发出的那个模型，名实一致；服务端默认
-    /// （defaultModel）是设置页管理面口径，不再冒充聊天
-    /// 模型展示
+    /// 本会话的执行选择（§153 B2）：顶栏触发器、发送
+    /// 链、枢纽模型区共用此一口——显示与执行同源。
+    /// 会话键：线程的服务端会话 id 优先（主线读
+    /// SideChatStore 的主线 id），未链接时线程 id，
+    /// 无线程（空态）落主线缺省键
+    private var currentChoice: ChatModelChoice {
+        let thread = currentThread
+        let serverID = thread?.serverSessionID
+            ?? (thread != nil
+                && thread?.id == appState.sideChats.mainThreadID
+                ? appState.sideChats.mainServerSessionID : nil)
+        return appState.sessionModelChoice(
+            serverSessionID: serverID, threadID: thread?.id
+        )
+    }
+
+    /// 本会话选择的写入（§153）：与 currentChoice 同键
+    private func selectCurrentChoice(_ choice: ChatModelChoice) {
+        let thread = currentThread
+        let serverID = thread?.serverSessionID
+            ?? (thread != nil
+                && thread?.id == appState.sideChats.mainThreadID
+                ? appState.sideChats.mainServerSessionID : nil)
+        appState.selectSessionModel(
+            choice, serverSessionID: serverID, threadID: thread?.id
+        )
+    }
+
+    /// 顶栏展示的模型名（§153 B4）：恒为本会话实际执
+    /// 行值的显示名——别名先经单源归一（canonicalID）
+    /// 再取名单源显示名，与逐请求发出的模型同物同名；
+    /// 服务端默认（defaultModel）是设置页管理面口径，
+    /// 不冒充本会话执行值
     private var displayModelName: String {
-        ChatModels.displayName(for: appState.chatModel)
+        let model = currentChoice.model
+        return ModelDisplayNames.displayName(for: model) ?? model
     }
 
     var body: some View {
@@ -949,9 +980,9 @@ struct ChatView: View {
                 // 模型，但拆两个点按域——身份域（头像/名/
                 // 总览桥状态行）点按开枢纽 sheet（0.17.0
                 // 改道，0.6.0–0.16.0 是跳活动格）；模型域（分隔
-                // 线＋短名＋chevron）是原生 Menu，点开换三
-                // 模型（selectChatModel＋会话锁机制原样，
-                // 不许埋掉或降级）。头像换三狗搭档款定版图
+                // 线＋短名＋chevron）§153 起点开分组选择面
+                // （本会话作用域，见 modelMenu），不许埋掉
+                // 或降级。头像换三狗搭档款定版图
                 identityCapsule
                     // 0.4.1：胶囊在顶栏 HStack 里优先保宽
                     .layoutPriority(1)
@@ -1108,36 +1139,24 @@ struct ChatView: View {
         .glassEffect(.regular, in: Capsule())
     }
 
-    /// 模型域（硬规格 2）：原生 Menu 点开三模型，当前项
-    /// 带勾；选择走 AppState.selectChatModel（本地持久化
-    /// ＋逐请求 provider=custom，会话锁机制不变）。Menu
-    /// 是系统件：呈现、勾选、关闭全走系统行为。
-    /// 0.36.13（用户 22:11 真机双勾，诊断 model-menu-
-    /// checkmark-diagnosis）：菜单改系统 Picker 承载
-    /// （同外观页虚拟形象大小的既有形态）——0.36.4 的
-    /// 等宽对号槽＋.opacity 藏勾在 Menu→UIKit 转换时
-    /// 透明度被剥掉、每行对勾图标原样提取，双勾同显；
-    /// 状态与生效链本无恙（判定单源 chatModel、点谁真
-    /// 走谁），坏的只是自绘勾的渲染通道。改 Picker 后
-    /// 勾由系统绘制、单选互斥由 UIKit 保证（苹果反馈
-    /// FB16679936：菜单带勾正道只有 Toggle/Picker；
-    /// 外部核查 community-solutions-check 第 1 题一
-    /// 致）。「哪行带勾」的语义口径收进 Core 的
-    /// ModelMenuSelection.checkedID 钉测：喂 Picker
-    /// 的 selection 先经它过——清单内才有勾、未知 id
-    /// 零勾；渲染通道本身单测钉不住，验收靠真机展开
-    /// 菜单看一勾（DESIGN-V4 §78）。ModelMenuSpec
-    /// 对号槽常数随旧形态退役。
+    /// 模型域（§153 B1/B2）：触发器形态不变（短名＋
+    /// chevron），点开改分组选择面（sheet）——旧原生
+    /// Menu＋Picker 只装得下写死两项、服务商分组无处
+    /// 安放（新面准入四问①②见 §153.4）。勾的纪律不
+    /// 回退：选择面是系统 List、当前执行行由系统
+    /// checkmark 呈现、单选互斥由「点行即落账关面」
+    /// 构造保证（FB16679936 的教训是自绘勾被 UIKit
+    /// 剥透明度，双勾源于自绘而非列表形态本身）。
+    /// 选择只写本会话账（selectCurrentChoice），不改
+    /// 服务端默认、不发网络请求
     private var modelMenu: some View {
-        Menu {
-            Picker("模型", selection: chatModelPickerBinding) {
-                ForEach(ChatModels.items, id: \.id) { item in
-                    Text(item.displayName).tag(item.id)
-                }
-            }
+        Button {
+            showModelPicker = true
         } label: {
             HStack(spacing: OneDayMetrics.stackGap) {
-                Text(ChatModels.shortDisplayName(for: appState.chatModel))
+                Text(ModelDisplayNames.triggerLabel(
+                    for: currentChoice.model
+                ))
                     .font(.callout)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
@@ -1151,24 +1170,18 @@ struct ChatView: View {
             }
             .contentShape(Rectangle())
         }
+        .buttonStyle(.odPressable)
         .accessibilityLabel("当前模型 \(displayModelName)，切换模型")
-    }
-
-    /// 模型 Picker 的 selection 桥（0.36.13）：读经
-    /// Core 判定口径过一遍（清单外 id 不喂给 Picker
-    /// 冒充有勾——回退原值时无任何行命中、零勾，与
-    /// checkedID 的零勾语义同口径）；写直达唯一写入
-    /// 口 selectChatModel，不动 AppState/发送链
-    private var chatModelPickerBinding: Binding<String> {
-        Binding(
-            get: {
-                ModelMenuSelection.checkedID(
-                    itemIDs: ChatModels.items.map(\.id),
-                    selected: appState.chatModel
-                ) ?? appState.chatModel
-            },
-            set: { appState.selectChatModel($0) }
-        )
+        .sheet(isPresented: $showModelPicker) {
+            ChatModelPickerView(
+                groups: appState.chatModelGroups,
+                current: currentChoice,
+                onSelect: { choice in
+                    selectCurrentChoice(choice)
+                    showModelPicker = false
+                }
+            )
+        }
     }
 
     /// 底部发送区（0.2.6 起由消息列表的安全区承载、不
@@ -4891,9 +4904,15 @@ private struct ComposerBarLayout: Layout {
         case .session(let sessionID):
             if !isMain, SideChatLink.needsModelRelock(
                 linkedModel: thread.linkedModel,
-                capsuleModel: appState.chatModel
+                capsuleModel: appState.chatModel(
+                    serverSessionID: thread.serverSessionID,
+                    threadID: thread.id
+                )
             ) {
-                let capsule = appState.chatModel
+                let capsule = appState.chatModel(
+                    serverSessionID: thread.serverSessionID,
+                    threadID: thread.id
+                )
                 var pushed = false
                 do {
                     try await appState
@@ -4945,11 +4964,16 @@ private struct ComposerBarLayout: Layout {
                         } ?? SideChatLink.newSessionID()
                     linkedID = try await performLink(
                         desiredID: desiredID, title: nil,
-                        model: appState.chatModel,
+                        model: appState.chatModel(
+                            serverSessionID: desiredID,
+                            threadID: thread.id
+                        ),
                         seedEntries: seedEntries
                     )
                     thread.serverSessionID = linkedID
-                    thread.linkedModel = appState.chatModel
+                    thread.linkedModel = appState.chatModel(
+                        serverSessionID: linkedID, threadID: thread.id
+                    )
                     thread.serverSeeded = true
                     thread.linkFailureCount = 0
                     thread.linkLastError = nil
@@ -5053,9 +5077,10 @@ private struct ComposerBarLayout: Layout {
         // 单元素消息形态（探针实测两形态均成立）
         let input: RunInput = tail.parts == nil
             ? .text(tail.content) : .message(tail)
-        let provider = ChatModels.providerField(
-            for: appState.chatModel
+        let choice = appState.sessionModelChoice(
+            serverSessionID: sessionID, threadID: thread.id
         )
+        let provider = choice.providerField
         var ledgerEntry = RunLedgerEntry(
             threadID: thread.id.uuidString,
             sessionID: sessionID ?? "",
@@ -5079,7 +5104,7 @@ private struct ComposerBarLayout: Layout {
                 let response = try await appState.client.submitRun(
                     config: config, apiKey: apiKey,
                     sessionID: sessionID ?? "",
-                    input: input, model: appState.chatModel,
+                    input: input, model: choice.model,
                     provider: provider,
                     idempotencyKey: ledgerEntry.idempotencyKey
                 )
@@ -5309,6 +5334,10 @@ private struct ComposerBarLayout: Layout {
             runMachine.apply(.foregrounded)
         }
         let deadline = Date().addingTimeInterval(600)
+        // §153：重演取回用本会话当前执行选择（与首提同源）
+        let replayChoice = appState.sessionModelChoice(
+            serverSessionID: entry.sessionID, threadID: thread.id
+        )
         var transcriptMisses = 0
         while !runMachine.isSettled {
             if Task.isCancelled { return }
@@ -5334,10 +5363,8 @@ private struct ComposerBarLayout: Layout {
                             config: config, apiKey: apiKey,
                             sessionID: entry.sessionID,
                             input: replayInput,
-                            model: appState.chatModel,
-                            provider: ChatModels.providerField(
-                                for: appState.chatModel
-                            ),
+                            model: replayChoice.model,
+                            provider: replayChoice.providerField,
                             idempotencyKey: entry.idempotencyKey
                         )
                     entry.runID = response.runID

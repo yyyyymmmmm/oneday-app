@@ -391,11 +391,32 @@ struct AgentHubView: View {
     /// 模型行无障碍标签拼装（A11Y-V5）：选中行多
     /// 念一截「已选」，与可见勾形同义
     private static func modelRowA11yLabel(
-        _ item: ChatModels.Item, isSelected: Bool
+        _ choice: ChatModelChoice, isSelected: Bool
     ) -> String {
-        isSelected
-            ? item.displayName + "，" + item.note + "，" + L10n.string("已选")
-            : item.displayName + "，" + item.note
+        let name = ModelDisplayNames.displayName(for: choice.model)
+            ?? choice.model
+        var parts = [name]
+        if let label = choice.sourceLabel {
+            parts.append(L10n.string(label))
+        }
+        if isSelected { parts.append(L10n.string("已选")) }
+        return parts.joined(separator: "，")
+    }
+
+    /// 枢纽模型区呈现集（§153）：全量分组清单拍平
+    /// （组序即行序），与顶栏同源同物；分组未就绪时
+    /// 为空（区内只剩默认行，不拿写死清单冒充）
+    private var hubModelChoices: [ChatModelChoice] {
+        appState.chatModelGroups.flatMap(\.choices)
+    }
+
+    /// 枢纽的会话键（§153）：枢纽自聊天页打开、语境
+    /// 是主线——用主线键读写，与顶栏在主线时同账
+    private var hubCurrentChoice: ChatModelChoice {
+        appState.sessionModelChoice(
+            serverSessionID: appState.sideChats.mainServerSessionID,
+            threadID: nil
+        )
     }
 
     /// 模型行无障碍特征（A11Y-V5）：选中行带
@@ -414,26 +435,35 @@ struct AgentHubView: View {
                 .padding(.horizontal, OneDayMetrics.pageGutter)
             VStack(spacing: 0) {
                 ForEach(
-                    Array(ChatModels.items.enumerated()),
+                    Array(hubModelChoices.enumerated()),
                     id: \.element.id
-                ) { index, item in
+                ) { index, choice in
                     if index > 0 {
                         GroupDivider()
                     }
                     Button {
-                        appState.selectChatModel(item.id)
+                        appState.selectSessionModel(
+                            choice,
+                            serverSessionID: appState
+                                .sideChats.mainServerSessionID,
+                            threadID: nil
+                        )
                     } label: {
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                                Text(item.displayName)
+                                Text(ModelDisplayNames.displayName(
+                                    for: choice.model
+                                ) ?? choice.model)
                                     .font(.body)
                                     .foregroundStyle(Palette.ink)
-                                Text(item.note)
-                                    .font(.caption)
-                                    .foregroundStyle(Palette.inkSecondary)
+                                if let label = choice.sourceLabel {
+                                    Text(L10n.string(label))
+                                        .font(.caption)
+                                        .foregroundStyle(Palette.inkSecondary)
+                                }
                             }
                             Spacer()
-                            if appState.chatModel == item.id {
+                            if hubCurrentChoice == choice {
                                 Image(systemName: "checkmark")
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(Palette.primary)
@@ -445,18 +475,18 @@ struct AgentHubView: View {
                     }
                     .buttonStyle(.odPressable)
                     // 0.43.0（A11Y-V5）：当前模型只有勾
-                    // 形——补「已选」播报（名＋注＋已选）
+                    // 形——补「已选」播报（名＋来源＋已选）
                     // ＋特征，与房内先例同式。拼装走助
                     // 手函数：内联三元＋连加曾把本区表
                     // 达式压过类型检查时限（CI 实证）
                     .accessibilityLabel(
                         Self.modelRowA11yLabel(
-                            item, isSelected: appState.chatModel == item.id
+                            choice, isSelected: hubCurrentChoice == choice
                         )
                     )
                     .accessibilityAddTraits(
                         Self.modelRowA11yTraits(
-                            appState.chatModel == item.id
+                            hubCurrentChoice == choice
                         )
                     )
                 }
