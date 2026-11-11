@@ -89,9 +89,12 @@ public enum FileIntake {
         if String(data: data, encoding: .utf8) != nil {
             return TranscodeResult(data: data, outcome: .unchanged)
         }
+        // kCFStringEncodingGB_18030_2000 的常量名在
+        // Swift 桥接里不可见（CI 实证），用其文档原
+        // 始值 0x0630 直接构造 CFStringEncoding
         let gb18030 = String.Encoding(
             rawValue: CFStringConvertEncodingToNSStringEncoding(
-                kCFStringEncodingGB_18030_2000
+                CFStringEncoding(0x0630)
             )
         )
         guard let decoded = String(data: data, encoding: gb18030),
