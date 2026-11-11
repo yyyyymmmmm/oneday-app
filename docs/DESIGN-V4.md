@@ -10277,4 +10277,5 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 件四·动态/点子呈现对标（§177）：动态去日期分组＋帖面与页底同色、点子撤待阅/采纳＋分类小节全程结构＋主题 emoji 兜底（桥侧分类已随伴生 1.0.34 上线）。合并 286eeab；合并时防回潮核验：四页底缘保持 §173 回退后的 .hard、与 0.50.19 口径一致，朦胧未带回。
 - 五页边缘口径不变：四页底缘 .hard／聊天底缘 hidden／顶缘 .soft（§173 朦胧整包已作废，不得复活）。
 - 定版：五处字面同改 0.50.22/144（Project.swift 四处＋SettingsSupportViews 的版本串 full/hero），grep 验无 0.50.21/143 残留（历史节与代码注释中的版本沿革引用除外）。
-- 单测与验包补记见本节末（发版构建实读后回填）。
+- 发版验包补记：定版提交 `9c634b0`；其 push CI run **43103751219** build-native **success**（jobs API 逐项实读）。发版 CI 以 workflow_dispatch run **43106169047**（head=9c634b0）为准、只跑一次，build-native **success**。单测（发版构建日志实读）：**Executed 1679（OneDayCoreTests）＋12（OneDayAppTests）、0 failures**——Core 与合并基线 1679 持平；App 11→12，增量＝§179 新增 IdentityCapsuleHitDomainTests 1 法（两组断言同法承载，DrawerContainerControllerTests 11 法不变）；无退役。IPA：**10,864,446 字节，md5 `9eba885b25313dfea6ef8514cd9e71e2`**，解包实读 Info.plist＝0.50.22／**144**／site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.22/OneDay-v0.50.22-144.ipa。
+- 真机待验（四包汇总）：①状态栏点按回顶不开面、点胶囊上缘玻璃带不开枢纽/模型面、两钮点各自域不串、胶囊观感与 0.50.21 一致、紧凑档同验（§179.4）；②间距贴底四路（回底/新消息/自发/切会话）＋长线程惰性量测流畅度＋复贴阈值 7 晚跳观感＋两提示条展开间距恒 8（§176）；③回底钮玻璃观感与点按（§178）；④动态无日期分组、帖面同色、点子全程分类小节＋长按/左滑放下＋底栏无角标（§177.6）。
