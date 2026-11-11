@@ -10595,7 +10595,7 @@ enum SettingsRoute: Hashable {
 - 行盒：`EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)`
 - Section 修饰符顺序：先 `.listRowBackground`，后 `.listRowInsets`
 
-**键数变化**：2897 → 2914（+17）
+**键数变化**：文件键 2897 → 2901（+4 lead）；validate 总账口径 2910 → 2914（+4）
 
 #### 修复三：行盒令牌统一
 
