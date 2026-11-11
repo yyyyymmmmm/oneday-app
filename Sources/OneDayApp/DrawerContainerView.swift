@@ -269,7 +269,18 @@ final class DrawerContainerController: UIViewController,
         drawerHost.view.frame = CGRect(
             x: 0, y: 0, width: travel, height: bounds.height
         )
-        foreground.frame = bounds
+        // 前景是全容器唯一带 transform 的视图：transform
+        // 非 identity 时 frame 未定义（Apple 文档明文），
+        // 布局只准以 bounds＋center 写「未变换几何」、位
+        // 移全部由 transform 承担。旧写法在此以 frame 重
+        // 设——animator 已把 model transform 承诺到目标
+        // 值，frame setter 按当前 transform 反解 center，
+        // 一次布局往返就把视觉位置补偿回原位（0.50.18
+        // 真机抽屉打不开的定案主因：动画只剩布局触发前
+        // 约 30pt 的呈现残移，见诊断报告与回归测试
+        // testAnimatedOpenSurvivesMidFlightResize）
+        foreground.bounds = CGRect(origin: .zero, size: bounds.size)
+        foreground.center = CGPoint(x: bounds.midX, y: bounds.midY)
         foreground.layer.shadowPath = UIBezierPath(
             rect: foreground.bounds
         ).cgPath
