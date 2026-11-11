@@ -100,3 +100,44 @@ final class DrawerContainerControllerTests: XCTestCase {
         XCTAssertEqual(foregroundTx, 0, accuracy: 1.0)
     }
 }
+
+extension DrawerContainerControllerTests {
+    /// 显示原点口径：transform.tx 是 model 值、被布局
+    /// 补偿时照样达标，必须直验前景的实际显示原点
+    /// （frame getter 按 center/bounds/transform 合成）
+    private var foregroundDisplayedOriginX: CGFloat {
+        let subviews = controller.view.subviews
+        guard subviews.count >= 2 else { return -1 }
+        return subviews[1].frame.origin.x
+    }
+
+    func testAnimatedOpenDisplayedOriginReachesTravel() {
+        controller.setDrawer(true, animated: true)
+        spinRunLoop(seconds: 2.0)
+        XCTAssertEqual(foregroundTx, controller.travel, accuracy: 1.0)
+        XCTAssertEqual(
+            foregroundDisplayedOriginX, controller.travel, accuracy: 1.0,
+            "model 位移达标但显示原点未达：位移被几何补偿吃掉"
+        )
+    }
+
+    /// 动画途中强制真实布局（改窗口宽→容器 bounds 变
+    /// →viewDidLayoutSubviews 必触发）：布局往返不得
+    /// 改写已承诺的开合显示位置
+    func testAnimatedOpenSurvivesMidFlightResize() {
+        controller.setDrawer(true, animated: true)
+        spinRunLoop(seconds: 0.15)
+        window.frame = CGRect(x: 0, y: 0, width: 403, height: 852)
+        controller.view.layoutIfNeeded()
+        spinRunLoop(seconds: 0.15)
+        window.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+        controller.view.layoutIfNeeded()
+        spinRunLoop(seconds: 2.0)
+        XCTAssertTrue(controller.semanticPresented)
+        XCTAssertEqual(foregroundTx, controller.travel, accuracy: 1.0)
+        XCTAssertEqual(
+            foregroundDisplayedOriginX, controller.travel, accuracy: 1.0,
+            "动画途中布局往返后显示原点未达 travel：frame 重设在 transform 下反解 center 吃掉位移"
+        )
+    }
+}
