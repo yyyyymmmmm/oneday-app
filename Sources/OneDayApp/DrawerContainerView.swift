@@ -413,7 +413,7 @@ final class DrawerContainerController: UIViewController,
         }
         animator.pauseAnimation()
         if let presentation = foreground.layer.presentation() {
-            offset = presentation.transform.tx
+            offset = presentation.transform.m41
         }
         animator.stopAnimation(false)
         animator.finishAnimation(at: .current)
