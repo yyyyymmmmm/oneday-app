@@ -334,88 +334,73 @@ extension BottomFollowTests {
         XCTAssertEqual(counter.ingest(entryIDs: [], isAtBottom: false), 0)
     }
 
-    // MARK: - 回底钮落位（§121 二代：宿主本地安全区量）
+    // MARK: - §124 补钉（落位整套退役后，判定层口径续钉）
 
-    /// 落位算术：宿主 390×844、安全区底 inset 144
-    /// （发送区顶缘距宿主底缘 144）、右距 16、间距
-    /// 8 → 中心＝(390−16−22, 844−144−8−22)＝(352,
-    /// 670)，命中域完整落在宿主内
-    func testBackToBottomCenterAndReachability() throws {
-        let host = CGSize(width: 390, height: 844)
-        let center = try XCTUnwrap(
-            BackToBottomPlacement.center(
-                hostSize: host, bottomInset: 144,
-                trailingInset: 16, gap: 8
-            )
-        )
-        XCTAssertEqual(center, CGPoint(x: 352, y: 670))
-        let hit = BackToBottomPlacement.hitRect(center: center)
-        XCTAssertEqual(hit, CGRect(x: 330, y: 648, width: 44, height: 44))
-        XCTAssertTrue(
-            BackToBottomPlacement.isReachable(
-                hitRect: hit, hostBounds: CGRect(origin: .zero, size: host)
-            )
-        )
+    /// 角标封顶边界：恰 99 显「99」、100 起才显
+    /// 「99+」——既有封顶测只钉 149，本测补边界本值
+    func testAwayUnreadDisplayTextAtCapBoundary() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(1), isAtBottom: true)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(100), isAtBottom: false), 99)
+        XCTAssertEqual(counter.displayText, "99")
+        XCTAssertEqual(counter.ingest(entryIDs: ids(101), isAtBottom: false), 100)
+        XCTAssertEqual(counter.displayText, "99+")
     }
 
-    /// 病灶复现钉（0.41.0 旧形态）：宿主＝发送区容
-    /// 器自身（390×100、顶缘 y=700）、钮负偏移悬到
-    /// 其上方——命中域对宿主 bounds 代入 isReach-
-    /// able 必为 false（出界被剪枝、点不动）；同一
-    /// 钮 rect 对整页宿主必为 true
-    func testBackToBottomOldOverlayShapeWasUnreachable() {
-        let hitAboveBar = CGRect(x: 330, y: 648, width: 44, height: 44)
-        let barBounds = CGRect(x: 0, y: 700, width: 390, height: 100)
-        XCTAssertFalse(
-            BackToBottomPlacement.isReachable(
-                hitRect: hitAboveBar, hostBounds: barBounds
-            )
-        )
-        XCTAssertTrue(
-            BackToBottomPlacement.isReachable(
-                hitRect: hitAboveBar,
-                hostBounds: CGRect(x: 0, y: 0, width: 390, height: 844)
-            )
-        )
+    /// 水位之后的条目被删：计数随现存条目回落，不
+    /// 停在删除前的虚高（结构体头注「计数回落」的
+    /// 部分删除分支，既有测只覆盖整表换血）
+    func testAwayUnreadShrinkAfterWatermarkReducesCount() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(3), isAtBottom: true)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(5), isAtBottom: false), 2)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(4), isAtBottom: false), 1)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(3), isAtBottom: false), 0)
     }
 
-    /// 键盘升起＝安全区底 inset 变大，钮等量上移跟
-    /// 随发送区（inset 144→480 时中心 y 670→334，
-    /// x 不动），命中域仍完整在宿主内
-    func testBackToBottomCenterFollowsInsetGrowth() throws {
-        let host = CGSize(width: 390, height: 844)
-        let center = try XCTUnwrap(
-            BackToBottomPlacement.center(
-                hostSize: host, bottomInset: 480,
-                trailingInset: 16, gap: 8
-            )
-        )
-        XCTAssertEqual(center, CGPoint(x: 352, y: 334))
-        XCTAssertTrue(
-            BackToBottomPlacement.isReachable(
-                hitRect: BackToBottomPlacement.hitRect(center: center),
-                hostBounds: CGRect(origin: .zero, size: host)
-            )
-        )
+    /// 点钮 reset 的语义钉：只清计数、水位不动——
+    /// 下一帧若仍离底，计数按水位如实重算（视图层
+    /// 点钮后程式贴底、随后 ingest 以在底事实推进
+    /// 水位，两步口径不许在 Core 侧混成「reset 即
+    /// 已读全部」）
+    func testAwayUnreadResetClearsCountButKeepsWatermark() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(3), isAtBottom: true)
+        _ = counter.ingest(entryIDs: ids(5), isAtBottom: false)
+        XCTAssertEqual(counter.count, 2)
+        counter.reset()
+        XCTAssertEqual(counter.count, 0)
+        XCTAssertNil(counter.displayText)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(5), isAtBottom: false), 2)
+        // 在底一帧后水位推进：其后新增从新水位起算
+        _ = counter.ingest(entryIDs: ids(5), isAtBottom: true)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(6), isAtBottom: false), 1)
     }
 
-    /// 退化帧不给落位：宿主尺寸未实测（0）或 inset
-    /// 大到放不下命中域——只防退化，不再有跨树发
-    /// 布依赖（§121 一代「frame 未发布不给位」钉随
-    /// 发布链退役）
-    func testBackToBottomCenterNilForDegenerateHost() {
-        XCTAssertNil(
-            BackToBottomPlacement.center(
-                hostSize: .zero, bottomInset: 144,
-                trailingInset: 16, gap: 8
-            )
-        )
-        XCTAssertNil(
-            BackToBottomPlacement.center(
-                hostSize: CGSize(width: 390, height: 844),
-                bottomInset: 800,
-                trailingInset: 16, gap: 8
-            )
+    /// 自发发送时列表为空（发送即清线程的边角）：
+    /// noteOwnSend 空表只清水位不留悬空标记，其后
+    /// 离底首帧仍按「只立水位」口径不虚报
+    func testAwayUnreadOwnSendWithEmptyList() {
+        var counter = AwayUnreadCounter()
+        _ = counter.ingest(entryIDs: ids(3), isAtBottom: true)
+        _ = counter.ingest(entryIDs: ids(5), isAtBottom: false)
+        XCTAssertEqual(counter.count, 2)
+        counter.noteOwnSend(entryIDs: [])
+        XCTAssertEqual(counter.count, 0)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(4, from: 200), isAtBottom: false), 0)
+        XCTAssertEqual(counter.ingest(entryIDs: ids(5, from: 200), isAtBottom: false), 1)
+    }
+
+    /// 列表只有一条且为工具条目：连段长 1、目标是
+    /// 其本身（既有单工具测是「文本＋工具」两条，
+    /// 本测钉全表仅一条的最小形）
+    func testLastScrollTargetSingleToolOnlyEntry() {
+        let only = UUID()
+        XCTAssertEqual(
+            LastScrollTarget.lastScrollTargetID(
+                entries: [stub(only, tool: true)]
+            ),
+            only
         )
     }
 }
