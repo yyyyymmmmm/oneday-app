@@ -10227,15 +10227,23 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 ### 179.2 题二定因：互补弧度缺失
 
-**对照实证**：Muse 参照图前景页左侧明显可见与抽屉互补的弧线；OneDay 真机截图前景页左缘近乎直角。
+**量测数据**（measure_corners_v2.py 像素级拟合）：
+- Muse 参照（127d193a8c4dc8249e9d92941d371c52.jpg）：1206×2622 px @3.07x，沿前景页左边界采样前景/底层亮度突变点，上角圆弧拟合半径 132 px → **43.0 pt**（折算口径：逻辑宽 393 pt）。边界外侧检测到颜色均匀的浅灰底层（RGB 204,205,206）。
+- OneDay 现状（2695ea6faf08352bb80c963fed51921b.png）：同尺寸，上角拟合半径 112 px → 36.5 pt。边界外侧检测到渐变（方差 74），为阴影特征。
+- **差距**：Muse 43 pt vs OneDay 现状 36.5 pt（差 6.5 pt），且用户真机报"无弧"——实缺陷，不能以"代码看着对"结案。
 
-**代码定因**：DrawerContainerView.swift:324-326 圆角设置调用 `DrawerMotion.cornerRadius(progress:)`，该函数在 DrawerMotion.swift:122-124 定义——`progress > cornerStepProgress ? cardCornerRadius : 0`，即 progress > 0.02 时圆角为 28pt。布局链：foreground（wrapper，挂阴影）→ clipView（裁切层，设 cornerRadius）→ contentHost（TabView 宿主）。applyOffset 在每次位移时调用、progress 计算正确（行321-323）、clipView.layer.cornerRadius 写入正确（行324-326）。
+**定因**（两处根因，按影响排序）：
+1. **主因**：DrawerContainerView.swift:284-286 阴影路径是直角矩形 `UIBezierPath(rect:)`，而圆角裁切只作用于 clipView。阴影挂在外层 foreground 上，shadowPath 的直角矩形在圆角区域外露、衬托下视觉上圆角"不显"（用户真机报无弧的定案主因）。
+2. **次因**：DrawerMotion.swift:35 cardCornerRadius = 28 pt，低于 Muse 参照的 43 pt。
 
-**排查路径**：①clipView.frame 是否覆盖完整前景（行287 `clipView.frame = foreground.bounds`，正确）；②contentHost.view.frame 是否溢出 clipView（行288 `contentHost.view.frame = clipView.bounds`，正确）；③clipView.clipsToBounds 是否开启（行246 已设为 true）；④cornerCurve 是否设置（行247 已设为 .continuous）。结构自查通过。
+**改法**（已落码）：
+1. DrawerMotion.swift:33-38 更新圆角定值为 43 pt，注释记录量测出处与折算口径。
+2. DrawerContainerView.swift:284-299（viewDidLayoutSubviews）与 326-345（applyOffset）：shadowPath 改用 `UIBezierPath(roundedRect:cornerRadius:)`，radius 参数从当前 progress 实算（与 clipView.layer.cornerRadius 同步）。布局期与位移期两处统一口径。
+3. Tests/OneDayCoreTests/DrawerMotionTests.swift:154-171 更新断言：圆角定值从 28 改为 43，注释同步。
 
-**候选根因**：contentHost 内 TabView 的根视图可能有不透明背景溢出裁切边界，或 SwiftUI 视图树中某层背景覆盖了圆角效果。真机截图显示左缘"近直角"而非"完全直角"，说明圆角可能生效但被遮挡或半径过小不明显。
+**真机待验**：抽屉半开态，前景页左边缘圆角弧线应清晰可见、与 Muse 参照视觉一致；阴影在圆角区域不露直角边。
 
-**改法方向**：需在 contentHost 根视图确保背景透明且不溢出。由于本机无 Xcode 无法构建验证，改法保守：确认 TabView 承载链无不透明背景插入。若圆角确实生效但不明显，可能是系统在某些情况下圆角渲染问题，需真机实测验证根因——**本题暂列待真机诊断，代码层面结构已符合预期**。
+**口径变更注**：§179.2 初稿写"结构自查通过、暂列待真机诊断"——用户真机明确报无弧后推翻此口径，补量测定因真施工（2026-11-11 补正 1）。
 
 ### 179.3 题三定因：当前模型所在组无法折叠
 

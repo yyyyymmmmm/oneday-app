@@ -154,10 +154,11 @@ final class DrawerMotionTests: XCTestCase {
     func testCornerRadiusStepsOnceAndShadowValuesAreFixed() {
         XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0), 0)
         XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.02), 0)
-        // 过阈一步到 28，之后恒定（拖动期不插值）
-        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.021), 28)
-        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.5), 28)
-        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 1), 28)
+        // 过阈一步到 43（§179.2 量测 Muse 参照定值），
+        // 之后恒定（拖动期不插值）
+        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.021), 43)
+        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.5), 43)
+        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 1), 43)
         // §3.4 柔影定值：radius 10／x −4／峰值 alpha 0.12
         XCTAssertEqual(DrawerMotion.shadowRadius, 10)
         XCTAssertEqual(DrawerMotion.shadowX, -4)
