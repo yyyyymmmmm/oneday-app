@@ -8551,3 +8551,11 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 红线守界：未碰回底钮/输入舱（§124 在飞）、§122 三页面、§123 在飞面；FileActionPolicy/DeliverableIconStyle/FileOpenFailure 三单源零分叉（落点列与转码档均为原表内增列增档）。
 - 真机待验：xlsx 点开中间页→查看表格全链（多表切换/截断明示/公式无缓存注记）、.ipa 中间页说明行＋分享下载、聊天文件卡大小副行三路回填、带 #L 锚点的助手文件牌进阅读页定位、文件页三入口落中间页、敏感文件锁定分支。
 - **分支终局**：feat/file-open-flow 顶端见合并单；分支 CI run 42968384303 success（build-native 全绿，head 74fa0bb），单测 Executed 1280、0 failures。伴生 1.0.15 已上线（FILE-115-REPORT.md：端点自测 20 全过、生产冒烟真实 iCost 表 3893 行截断明示、Hermes StartedAt 未动、内存 51%）。App 版本号未改（合并时主线定号）。
+
+### 125.7 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.49.3／121。分支 feat/file-open-flow（顶端 737cb2d、代码顶端 74fa0bb，基线 62c0b3c）分支 CI run 42968384303 success（单测 Executed 1280）；合并提交 f49e2b3（冲突两处：Localizable.xcstrings 按 key 三方并集——主线 2470＋分支新增 19＝2489 键、零双改、§126 已删 4 孤儿键保持删除，validate 口径 2502 键含 InfoPlist 13、validate_i18n 通过；DESIGN-V4.md 顺序拼接 §124→§123→§126→§125 四节全保留）；定版提交 9be8818（版本五处＝Project.swift 四处 0.49.3/121＋SettingsView 页脚「OneDay v0.49.3」，grep 验无 0.49.2 残留）。
+- **对账复核**：FilesView 排序 Picker（§118 S2-05）与 DeliverablesView 显示/排序 Picker（§118 S2-04）在位；FilePreviewView 整支删除（FilesView 留墓碑注释）、三入口（聊天 openChatFile／文件浏览器／资料库）全收编 FileOpenView/FileOpenContent 中间页；ChatView §116 文件牌链、§121 出牌回填（remoteFilePathsData 写回＋reconcileUserMessages）与 FileOpenFailure 五分、§123 echo 行与三处守卫、§124 回底钮 bottomBar 承载段逐项 grep 在位、无重复定义；Core FileOpenRoute/FileLineAnchor 为准，xlsx 走桥 spreadsheet 端点＋classifySpreadsheet 分型；DeliverableIconStyle 字母块表未入合并 diff（C8 按用户 14:32 定版另行调研先行，不在本包）。
+- **合并后 CI**：run 42973245502 success（build-native success，head 9be8818）；单测 Executed 1317、0 failures（0.49.2 基线 1301＋FileOpenRouteTests 16，只增不减）。
+- **独立验包**：IPA 9,281,841 字节、md5 `a32bfe5cb1fad7712c3314a0ac62a1f1`、Info.plist 实读 0.49.3／121／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.49.3/OneDay-0.49.3.ipa`（落盘 md5 与 CI 产物一致）。
+- **真机待验**：见 §125.6 六条（xlsx 中间页查看表格全链、.ipa 说明行、文件卡大小三路回填、#L 锚点定位、文件页三入口、敏感锁定分支）。伴生端点 1.0.15 已先行上线（现行伴生 1.0.16），本包未动伴生。
