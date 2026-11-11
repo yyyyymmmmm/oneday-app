@@ -8674,3 +8674,9 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - /api/model/set 保存前会实探目标端点，端点不可达时服务端拒写（400）——是保护不是故障；App 侧失败走既有「切换失败」提示。
 - 服务商改名＝换身份（§119 既有口径）：已设为默认的具名服务商若在服务端被改名，默认指向需重设；App 内改名本就锁定（删后重加），重加后回本页重设默认即可。
 - 真机待验：①Ailey 模型行点设默认→确认→Ailey 卡亮「默认」徽、主卡徽灭、主卡默认模型行显示「在服务商「Ailey」」；②主卡点任一模型→切回网关（徽标互换、聊天新会话实走网关）；③杀 App 重进本页，徽标仍与回读一致；④Ailey 端点不可达时设默认被拒且有提示、默认不乱动。
+
+### 132.6 预制坐标（分支侧记账，合并时主线补合并记账）
+
+- 分支 feat/provider-default（worktree ~/workspace/oneday-worktrees/pkg-provider-default，基线 main 3af9674／0.50.1），顶端以推送为准：代码 49c5d95＋记账 2115fde＋修复 8646835（if let 条件禁尾随闭包，load 回读改先赋值再绑定）。未合并、版本号未改。
+- 分支 CI：首跑 run 42982847656 于 Build 步失败（上述语法错，jobs API 终判 failure）；修复后 run 42983168116 **success**（jobs API build-native success、steps 零失败）。单测 Executed **1346、0 failures**（基线 1336＋本包新增 MainModelAssignmentTests 10，只增不减）。
+- i18n：validate_i18n 与 --check-code 双过（2620 键含 InfoPlist 13，三语全覆盖）；目录删旧键 1（预设错误文案）、新增 5（新文案/端点名/提示/两条行值格式）。
