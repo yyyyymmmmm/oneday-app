@@ -334,17 +334,17 @@ extension BottomFollowTests {
         XCTAssertEqual(counter.ingest(entryIDs: [], isAtBottom: false), 0)
     }
 
-    // MARK: - 回底钮落位（0.46.1 热修：看得见点不动）
+    // MARK: - 回底钮落位（§121 二代：宿主本地安全区量）
 
-    /// 落位算术：宿主 390×844、发送区 frame 顶缘
-    /// y=700、右距 16、间距 8 → 中心＝(390−16−22,
-    /// 700−8−22)＝(352, 670)，命中域完整落在宿主内
+    /// 落位算术：宿主 390×844、安全区底 inset 144
+    /// （发送区顶缘距宿主底缘 144）、右距 16、间距
+    /// 8 → 中心＝(390−16−22, 844−144−8−22)＝(352,
+    /// 670)，命中域完整落在宿主内
     func testBackToBottomCenterAndReachability() throws {
         let host = CGSize(width: 390, height: 844)
-        let bar = CGRect(x: 0, y: 700, width: 390, height: 100)
         let center = try XCTUnwrap(
             BackToBottomPlacement.center(
-                hostSize: host, barFrame: bar,
+                hostSize: host, bottomInset: 144,
                 trailingInset: 16, gap: 8
             )
         )
@@ -379,19 +379,41 @@ extension BottomFollowTests {
         )
     }
 
-    /// 发送区 frame 未发布/未实测时不给落位（钮不
-    /// 显），不许按猜测坐标把钮放出界
-    func testBackToBottomCenterNilWithoutBarFrame() {
+    /// 键盘升起＝安全区底 inset 变大，钮等量上移跟
+    /// 随发送区（inset 144→480 时中心 y 670→334，
+    /// x 不动），命中域仍完整在宿主内
+    func testBackToBottomCenterFollowsInsetGrowth() throws {
         let host = CGSize(width: 390, height: 844)
+        let center = try XCTUnwrap(
+            BackToBottomPlacement.center(
+                hostSize: host, bottomInset: 480,
+                trailingInset: 16, gap: 8
+            )
+        )
+        XCTAssertEqual(center, CGPoint(x: 352, y: 334))
+        XCTAssertTrue(
+            BackToBottomPlacement.isReachable(
+                hitRect: BackToBottomPlacement.hitRect(center: center),
+                hostBounds: CGRect(origin: .zero, size: host)
+            )
+        )
+    }
+
+    /// 退化帧不给落位：宿主尺寸未实测（0）或 inset
+    /// 大到放不下命中域——只防退化，不再有跨树发
+    /// 布依赖（§121 一代「frame 未发布不给位」钉随
+    /// 发布链退役）
+    func testBackToBottomCenterNilForDegenerateHost() {
         XCTAssertNil(
             BackToBottomPlacement.center(
-                hostSize: host, barFrame: .null,
+                hostSize: .zero, bottomInset: 144,
                 trailingInset: 16, gap: 8
             )
         )
         XCTAssertNil(
             BackToBottomPlacement.center(
-                hostSize: host, barFrame: .zero,
+                hostSize: CGSize(width: 390, height: 844),
+                bottomInset: 800,
                 trailingInset: 16, gap: 8
             )
         )

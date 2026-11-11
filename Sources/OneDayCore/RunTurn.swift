@@ -608,6 +608,75 @@ public enum RunTranscriptSettle {
         localUserEntries: [(content: String, createdAt: Date)],
         timeWindow: TimeInterval = 600
     ) -> [SessionMessage] {
+        reconcileUserMessages(
+            messages: messages,
+            localUserEntries: localUserEntries.map {
+                (content: $0.content, createdAt: $0.createdAt,
+                 filePaths: [String](), imagePaths: [String]())
+            },
+            timeWindow: timeWindow
+        ).missing
+    }
+
+    /// 对账回填（§121 题二 a）：配上对的本地条目缺
+    /// 服务端附件路径时，产出一条回填指令——App 侧
+    /// 据（text=本地条目规范正文、createdAt）定位条
+    /// 目，把服务端路径集写入其落盘字段。发送链已于
+    /// §121 改为发送即回填，本结构管存量与导入外条
+    /// 目（下一次落定对账自动补牌）
+    public struct PathBackfill: Equatable {
+        /// 本地条目的规范正文（去首尾空白）
+        public let text: String
+        /// 本地条目的创建时间（配对锚，与 App 侧传入
+        /// 的 createdAt 同值）
+        public let createdAt: Date
+        /// 服务端条目的文件路径集（规范化 fileRefs）
+        public let filePaths: [String]
+        /// 服务端条目的图片路径集（规范化 imagePaths）
+        public let imagePaths: [String]
+
+        public init(
+            text: String, createdAt: Date,
+            filePaths: [String], imagePaths: [String]
+        ) {
+            self.text = text
+            self.createdAt = createdAt
+            self.filePaths = filePaths
+            self.imagePaths = imagePaths
+        }
+    }
+
+    /// 对账结果：判缺清单＋路径回填清单（互斥——回
+    /// 填只对配上对的条目产出）
+    public struct UserMessageReconcile {
+        public let missing: [SessionMessage]
+        public let pathBackfills: [PathBackfill]
+
+        public init(
+            missing: [SessionMessage],
+            pathBackfills: [PathBackfill]
+        ) {
+            self.missing = missing
+            self.pathBackfills = pathBackfills
+        }
+    }
+
+    /// 落定对账全量版（§121）：判同口径与 missing-
+    /// UserMessages 完全一致（规范形正文＋路径集＋
+    /// 时间窗、贪心配对消耗），两点扩围——①本地条
+    /// 目已落盘的附件路径（filePaths/imagePaths 入
+    /// 参）并入配对路径集：发送回填后本地与服务端
+    /// 路径全等、配对更严（同文异附件双非空仍判
+    /// 异、不错配）；②配上对但本地缺服务端路径时
+    /// 产出 PathBackfill（本地已全持有则不产出）
+    public static func reconcileUserMessages(
+        messages: [SessionMessage],
+        localUserEntries: [(
+            content: String, createdAt: Date,
+            filePaths: [String], imagePaths: [String]
+        )],
+        timeWindow: TimeInterval = 600
+    ) -> UserMessageReconcile {
         let serverUsers = messages.filter {
             $0.role == "user" && $0.displayKind != "hidden"
                 && !$0.content.trimmingCharacters(
@@ -621,11 +690,18 @@ public enum RunTranscriptSettle {
                 text: normalized.text.trimmingCharacters(
                     in: .whitespacesAndNewlines
                 ),
-                paths: Set(normalized.allPaths),
+                paths: Set(normalized.allPaths)
+                    .union(entry.filePaths)
+                    .union(entry.imagePaths),
+                filePaths: Set(normalized.fileRefs)
+                    .union(entry.filePaths),
+                imagePaths: Set(normalized.imagePaths)
+                    .union(entry.imagePaths),
                 createdAt: entry.createdAt
             )
         }.sorted { $0.createdAt < $1.createdAt }
         var missing: [SessionMessage] = []
+        var backfills: [PathBackfill] = []
         for server in serverUsers {
             let normalized = SessionHistoryImport
                 .normalizedUserContent(server.content)
@@ -648,11 +724,27 @@ public enum RunTranscriptSettle {
                 ) <= timeWindow
             }
             if let pairedIndex {
-                locals.remove(at: pairedIndex)
+                let local = locals.remove(at: pairedIndex)
+                // 配上对：服务端路径本地未全持有才回填
+                // （fileRefs/imagePaths 分开核，任一缺
+                // 即整条产出，App 侧按字段各自补缺）
+                if !Set(normalized.fileRefs)
+                        .isSubset(of: local.filePaths)
+                    || !Set(normalized.imagePaths)
+                        .isSubset(of: local.imagePaths) {
+                    backfills.append(PathBackfill(
+                        text: local.text,
+                        createdAt: local.createdAt,
+                        filePaths: normalized.fileRefs,
+                        imagePaths: normalized.imagePaths
+                    ))
+                }
             } else {
                 missing.append(server)
             }
         }
-        return missing
+        return UserMessageReconcile(
+            missing: missing, pathBackfills: backfills
+        )
     }
 }

@@ -5314,6 +5314,167 @@
         }
       }
     },
+      "服务器上没有这个文件，可能已被移动或删除。": {
+        "extractionState": "manual",
+        "localizations": {
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "服务器上没有这个文件，可能已被移动或删除。"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "伺服器上沒有這個檔案，可能已被移動或刪除。"
+            }
+          },
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "This file isn't on the server anymore. It may have been moved or deleted."
+            }
+          }
+        }
+      },
+      "文件太大了，没法直接打开；可以先下载到本地再看。": {
+        "extractionState": "manual",
+        "localizations": {
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "文件太大了，没法直接打开；可以先下载到本地再看。"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "檔案太大了，沒法直接打開；可以先下載到本地再看。"
+            }
+          },
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "This file is too large to open directly. Try downloading it first."
+            }
+          }
+        }
+      },
+      "服务器暂时连不上，稍后再试。": {
+        "extractionState": "manual",
+        "localizations": {
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "服务器暂时连不上，稍后再试。"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "伺服器暫時連不上，稍後再試。"
+            }
+          },
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Can't reach the server right now. Try again later."
+            }
+          }
+        }
+      },
+      "打开超时，网络可能不稳，稍后再试。": {
+        "extractionState": "manual",
+        "localizations": {
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "打开超时，网络可能不稳，稍后再试。"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "開啟超時，網路可能不穩，稍後再試。"
+            }
+          },
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "Opening timed out. The network may be unstable — try again later."
+            }
+          }
+        }
+      },
+      "这个文件的路径不对，打不开。": {
+        "extractionState": "manual",
+        "localizations": {
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "这个文件的路径不对，打不开。"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "這個檔案的路徑不對，打不開。"
+            }
+          },
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "This file's path doesn't look right, so it can't be opened."
+            }
+          }
+        }
+      },
+      "这个文件不允许在 App 里打开。": {
+        "extractionState": "manual",
+        "localizations": {
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "这个文件不允许在 App 里打开。"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "這個檔案不允許在 App 裡開啟。"
+            }
+          },
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "This file isn't allowed to be opened in the app."
+            }
+          }
+        }
+      },
+      "这个类型没法直接预览，可以下载到本地再打开。": {
+        "extractionState": "manual",
+        "localizations": {
+          "zh-Hans": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "这个类型没法直接预览，可以下载到本地再打开。"
+            }
+          },
+          "zh-Hant": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "這個類型沒法直接預覽，可以下載到本地再開啟。"
+            }
+          },
+          "en": {
+            "stringUnit": {
+              "state": "translated",
+              "value": "This type can't be previewed directly. Download it to open it locally."
+            }
+          }
+        }
+      },
     "文件打开失败，请稍后再试。": {
       "extractionState": "manual",
       "localizations": {

@@ -150,12 +150,11 @@ struct ChatView: View {
     /// onChange）、发送走 noteOwnSend、切线程 resetAll；
     /// 呈现只读 count/displayText（回底钮角标）
     @State private var awayUnread = AwayUnreadCounter()
-    /// 发送区在 chatSurface 坐标空间内的实测 frame
-    /// （0.46.1 热修）：bottomBar 经 PreferenceKey 发
-    /// 布、回底钮 overlay 按它算落位（钮已迁出发送区
-    /// 宿主，见 chatSurface 的 overlay 注）；未发布
-    /// 前为 .null、钮不显
-    @State private var bottomBarFrame: CGRect = .null
+    /// （§121 题一：回底钮落位曾靠发送区 frame 的
+    /// PreferenceKey 发布链——真机未交付、整钮消失，
+    /// 发布链已全删；落位改读钮宿主自身的 safeArea-
+    /// Insets，见 chatSurface 的 overlay 注，无跨树
+    /// 状态）
 
     /// 计数口径的「在底」事实：与回底钮显隐同一政策
     /// 派生（BottomFollowPolicy）——钮不显即在底，两
@@ -237,6 +236,10 @@ struct ChatView: View {
     /// 本轮收尾落盘，见 driveRun）
     @State private var imageViewerSession: ImageViewerSession?
     @State private var filePreviewItem: ChatFilePreviewItem?
+    /// §121：不可预览类型的文件牌落点——分享单（保
+    /// 存到文件＝下载档），载荷与文件页共用 File-
+    /// ShareItem
+    @State private var fileShareItem: FileShareItem?
     @State private var liveToolCards: [ToolCard] = []
     /// 直播区事件序标记（0.36.10，诊断 D3-10）：思考/
     /// 工具/正文按首达顺序记位，渲染层（liveZone）据
@@ -348,6 +351,9 @@ struct ChatView: View {
         .sheet(item: $filePreviewItem) { item in
             QuickLookPreview(url: item.url)
         }
+        .sheet(item: $fileShareItem) { item in
+            FileShareSheet(url: item.url)
+        }
         // 0.4.1：引用是发送舱的临时态，切换线程即作废，
         // 不许跨线程带过去；0.7.0 两处增补——草稿轻保活
         // （M1）与分流种子转入（M4），见下
@@ -445,31 +451,27 @@ struct ChatView: View {
     private var chatSurface: some View {
         ScrollViewReader { proxy in
             messageList(proxy)
-                // 回底钮落位坐标空间（0.46.1 热修）：
-                // 发送区在此空间发布 frame、钮 overlay
-                // 在同空间取位（与右滑引用的 swipeTo-
-                // Reply 空间互不相干）
-                .coordinateSpace(name: "chatSurface")
-                .onPreferenceChange(ChatBottomBarFrameKey.self) {
-                    bottomBarFrame = $0
-                }
-                // 回底钮浮层（0.46.1 热修迁位，用户真
-                // 机报障「看得见点不动」）：0.41.0 把钮
-                // 挂在发送区容器的 overlay 上再负偏移
-                // 出界悬空——命中被宿主 frame 剪枝全灭
-                // （确诊见 Core BackToBottomPlacement
-                // 注）。迁到消息列表本体：宿主＝整页、
-                // 钮恒在宿主 bounds 内可命中；落位按发
-                // 送区实测 frame 算（BackToBottomPlac-
-                // ement），键盘升降/提示条增减都经
-                // frame 跟随，钮外区域无命中形、列表
-                // 滚动与点击照常穿透
+                // 回底钮浮层（§121 二代落位，换结构）：
+                // 0.41.0 浮层挂发送区容器＋负偏移出界
+                // →命中被宿主 frame 剪枝（点不动）；
+                // 0.46.1 迁列表 overlay＋Preference-
+                // Key 发布发送区 frame 算落位→发布链
+                // 真机未交付、整钮消失（§121 题一）。
+                // 本代落位只读宿主 GeometryReader 自
+                // 身的 safeAreaInsets.bottom：safe-
+                // AreaBar 是列表安全区的注册部分、发
+                // 送区顶缘距宿主底缘恒等于该 inset，
+                // 键盘升降经系统安全区同步跟随——无
+                // 跨树发布、无未发布态；落位算术在
+                // Core BackToBottomPlacement，钮恒在
+                // 宿主 bounds 内可命中，钮外区域无命
+                // 中形、列表滚动与点击照常穿透
                 .overlay {
                     GeometryReader { geo in
                         if showsBackToBottomButton,
                            let center = BackToBottomPlacement.center(
                                hostSize: geo.size,
-                               barFrame: bottomBarFrame,
+                               bottomInset: geo.safeAreaInsets.bottom,
                                trailingInset: OneDayMetrics.spacingM,
                                gap: OneDayMetrics.spacingS
                            ) {
@@ -1062,9 +1064,9 @@ struct ChatView: View {
     /// 底部发送区（0.2.6 起由消息列表的安全区承载、不
     /// 再是覆盖层；0.2.6–0.4.2 为 .safeAreaInset，0.4.3
     /// 改 .safeAreaBar 注册，§28）：错误/提示条＋发送
-    /// 舱（回底钮 0.41.0 起退出布局流、0.46.1 迁挂消
-    /// 息列表本体 overlay，本区只发布 frame 供其落
-    /// 位）＋发送
+    /// 舱（回底钮 0.41.0 起退出布局流、现挂消息列表
+    /// 本体 overlay，落位读列表安全区、与本区无发布
+    /// 关系，§121）＋发送
     /// 舱，自下而上排在列表下方的安全区留位里。键盘收起时
     /// 留位贴原生底栏上方；键盘升起时系统安全区扩张、整段
     /// 被顶到键盘上方（系统通道，见 chatSurface 换代注）。
@@ -1081,9 +1083,8 @@ struct ChatView: View {
         // 条已可见即在底），治估算距离驻留迟滞带的永
         // 不消失；显隐派生已提为全页单一出处 shows-
         // BackToBottomButton（本函数不再自算）；正修
-        // （浮层化＋未读计数）于 0.41.0 落地，0.46.1
-        // 热修再迁钮宿主（见 chatSurface 的 overlay
-        // 注），本容器只发布自身 frame 供钮落位
+        // （浮层化＋未读计数）于 0.41.0 落地，钮宿主
+        // 与落位见 chatSurface 的 overlay 注（§121）
         return VStack(spacing: OneDayMetrics.spacingS) {
             // 0.41.0（收口批·台账 H 节正修）：回底钮自此
             // 不在布局流里、显隐不增减容器高度、消息列
@@ -1114,19 +1115,10 @@ struct ChatView: View {
         // 出入动画 0.46.1 起随钮迁到消息列表侧（见
         // chatSurface 的 animation，同 swap 口径、同
         // 淡入＋0.9 起点缩放）
-        // 发送区 frame 发布（0.46.1 热修）：回底钮已
-        // 迁到消息列表本体 overlay，落位要本容器的实
-        // 测位置——经背景 GeometryReader 在 chatSur-
-        // face 命名空间发布（与右滑引用排除区的发布
-        // 同款构造）；本容器只发布、不再承载钮本体
-        .background {
-            GeometryReader { geo in
-                Color.clear.preference(
-                    key: ChatBottomBarFrameKey.self,
-                    value: geo.frame(in: .named("chatSurface"))
-                )
-            }
-        }
+        // （§121 题一：0.46.1 的发送区 frame 发布
+        // ——背景 GeometryReader＋ChatBottomBar-
+        // FrameKey——随发布链一并拆除，钮落位改读
+        // 宿主自身安全区，见 chatSurface 注）
         // 0.25.0（动效专包）：错误/提示条的显隐同走本
         // 容器 swap 动画（与 isNearBottom 同口径同出
         // 口）——条本体淡入淡出、容器高度同步单调滑
@@ -2159,11 +2151,20 @@ struct ChatView: View {
     /// 看器；其余经既有 /api/files/download 取回字节、
     /// 落临时目录走系统 QuickLook 预览；失败走既有
     /// notice 人话提示，不白屏
+    /// §121 题二 b 两修：失败文案走 Core FileOpen-
+    /// Failure 五分（不存在/过大/服务不可用/超时/路
+    /// 径无效），不再一句状态码兜底；QL 呈现前先验
+    /// 资格——不可预览类型（.ipa 等）改落分享单
+    /// （保存到文件＝下载档），不进 QL 死页
     private func openChatFile(_ path: String) {
         if FileRefDetector.isImagePath(path) {
             openImageViewer(
                 ChatImageViewerItem(source: .remotePath(path))
             )
+            return
+        }
+        if FileOpenFailure.isInvalidPath(path) {
+            notice = FileOpenFailure.invalidPath.message()
             return
         }
         Task {
@@ -2174,13 +2175,21 @@ struct ChatView: View {
                         config: config, path: path
                     )
                 }
-                filePreviewItem = try ChatFilePreviewItem.write(
+                let item = try ChatFilePreviewItem.write(
                     data: data,
                     name: (path as NSString).lastPathComponent
                 )
+                if item.canPreview {
+                    filePreviewItem = item
+                } else {
+                    fileShareItem = FileShareItem(url: item.url)
+                }
+            } catch let error as HermesError {
+                notice = FileOpenFailure.classify(
+                    error: error
+                ).message()
             } catch {
-                notice = (error as? HermesError)?.userMessage
-                    ?? "文件打开失败，请稍后再试。"
+                notice = FileOpenFailure.other.message()
             }
         }
     }
@@ -4025,6 +4034,21 @@ private struct ComposerBarLayout: Layout {
                     sendTask = nil
                     return
                 }
+                // §121 题二 a（发送回填）：上传全成后
+                // 立即把回执路径写回本地条目落盘——用
+                // 户气泡文件牌的唯一数据源就是 entry.
+                // remoteFilePaths，旧链只把路径拼进出
+                // 站文本、本地条目恒空，刚发的消息在
+                // 本地永远没牌（真机实证：助手牌正常、
+                // 自己牌缺失）。落点在此（失败分支全
+                // 已 return、走到这里即全成），流式期
+                // 间牌就在；其后发送形态失败删条目的
+                // 既有路径不受影响
+                if !fileServerPaths.isEmpty {
+                    newEntry.remoteFilePathsData =
+                        try? JSONEncoder().encode(fileServerPaths)
+                    try? modelContext.save()
+                }
             }
             // 0.21.0：出门前先定发送形态（判定与载荷取
             // 形是 Core 纯函数、网络动作在本页）。
@@ -4862,10 +4886,53 @@ private struct ComposerBarLayout: Layout {
     ) {
         let localUsers = thread.entries
             .filter { $0.role == "user" }
-            .map { (content: $0.content, createdAt: $0.createdAt) }
-        let missing = RunTranscriptSettle.missingUserMessages(
+            .map {
+                (content: $0.content, createdAt: $0.createdAt,
+                 filePaths: $0.remoteFilePaths,
+                 imagePaths: $0.remoteImagePaths)
+            }
+        let reconcile = RunTranscriptSettle.reconcileUserMessages(
             messages: messages, localUserEntries: localUsers
         )
+        // §121 题二 a（对账回填）：配上对但本地条目缺
+        // 服务端附件路径的，把路径集回填落盘——发送
+        // 回填（sendTask）管新消息，本路管存量（发送
+        // 回填上线前已发的消息在本线程下一次落定自
+        // 动补牌）。定位键＝规范正文＋createdAt（与
+        // Core 配对同锚）；回填只补缺字段、不动正文
+        if !reconcile.pathBackfills.isEmpty {
+            var backfilled = 0
+            for backfill in reconcile.pathBackfills {
+                guard let entry = thread.entries.first(where: {
+                    $0.role == "user"
+                        && $0.createdAt == backfill.createdAt
+                        && SessionHistoryImport
+                            .normalizedUserContent($0.content)
+                            .text.trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            ) == backfill.text
+                }) else { continue }
+                if !backfill.filePaths.isEmpty,
+                   entry.remoteFilePaths.isEmpty {
+                    entry.remoteFilePathsData =
+                        try? JSONEncoder().encode(backfill.filePaths)
+                    backfilled += 1
+                }
+                if !backfill.imagePaths.isEmpty,
+                   entry.remoteImagePaths.isEmpty {
+                    entry.remoteImagePathsData =
+                        try? JSONEncoder().encode(backfill.imagePaths)
+                    backfilled += 1
+                }
+            }
+            if backfilled > 0 {
+                try? modelContext.save()
+                ChatDiagTrace.record(
+                    "落定回填附件路径 session=\(sessionID) fields=\(backfilled)"
+                )
+            }
+        }
+        let missing = reconcile.missing
         guard !missing.isEmpty else { return }
         for message in missing {
             // 0.46.1（§116）：补回也走规范化——展开块
@@ -5407,20 +5474,6 @@ struct SwipeReplyExcludedFrameKey: PreferenceKey {
         value: inout [CGRect], nextValue: () -> [CGRect]
     ) {
         value.append(contentsOf: nextValue())
-    }
-}
-
-/// 发送区 frame 发布键（0.46.1 热修）：bottomBar 在
-/// chatSurface 命名空间发布自身帧，聊天页 overlay
-/// 侧的回底钮据此落位（单发布者，reduce 直取新值；
-/// 未发布时 defaultValue＝.null、钮不显）
-struct ChatBottomBarFrameKey: PreferenceKey {
-    nonisolated static let defaultValue: CGRect = .null
-
-    static func reduce(
-        value: inout CGRect, nextValue: () -> CGRect
-    ) {
-        value = nextValue()
     }
 }
 

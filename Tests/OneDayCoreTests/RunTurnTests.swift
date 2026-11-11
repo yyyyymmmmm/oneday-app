@@ -645,4 +645,109 @@ final class RunTurnTests: XCTestCase {
         )
         XCTAssertTrue(missing.isEmpty)
     }
+
+    // MARK: - 对账回填（§121 题二 a）
+
+    /// §121 本案形态：GestaltX 会话——服务端 user
+    /// 行存展开全文（带 @file 路径）、本地条目是发
+    /// 送时落盘的干净正文且未落文件路径：应配上对
+    /// （不判缺、不双份）且产出一条路径回填，App
+    /// 侧据此给旧消息补牌
+    func testReconcileBackfillsFilePathsForPairedLocalEntry() {
+        let expanded = """
+        这是个什么文件
+        @file:/opt/data/attachments/GestaltX_1.0.4.ipa
+
+        --- Attached Context ---
+
+        📎 @file:/opt/data/attachments/GestaltX_1.0.4.ipa (application/octet-stream, 2.7 MB) — binary file, not inlined as text.
+        """
+        let result = RunTranscriptSettle.reconcileUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: expanded, at: 5_000
+                ),
+                timedMessage(
+                    role: "assistant", content: "是个安装包。",
+                    at: 5_001
+                ),
+            ],
+            localUserEntries: [
+                (content: "这是个什么文件",
+                 createdAt: Date(timeIntervalSince1970: 5_000),
+                 filePaths: [], imagePaths: [])
+            ]
+        )
+        XCTAssertTrue(result.missing.isEmpty)
+        XCTAssertEqual(result.pathBackfills.count, 1)
+        let backfill = result.pathBackfills.first
+        XCTAssertEqual(backfill?.text, "这是个什么文件")
+        XCTAssertEqual(
+            backfill?.createdAt,
+            Date(timeIntervalSince1970: 5_000)
+        )
+        XCTAssertEqual(
+            backfill?.filePaths,
+            ["/opt/data/attachments/GestaltX_1.0.4.ipa"]
+        )
+        XCTAssertEqual(backfill?.imagePaths, [])
+    }
+
+    /// 发送回填已落盘（§121 正修一）：本地条目路径
+    /// 与服务端全等——配上对、不判缺、不重复回填
+    func testReconcileNoBackfillWhenLocalAlreadyHasPaths() {
+        let expanded = """
+        这是个什么文件
+        @file:/opt/data/attachments/GestaltX_1.0.4.ipa
+
+        --- Attached Context ---
+
+        📎 @file:/opt/data/attachments/GestaltX_1.0.4.ipa (application/octet-stream, 2.7 MB) — binary file, not inlined as text.
+        """
+        let result = RunTranscriptSettle.reconcileUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: expanded, at: 5_000
+                ),
+            ],
+            localUserEntries: [
+                (content: "这是个什么文件",
+                 createdAt: Date(timeIntervalSince1970: 5_000),
+                 filePaths: ["/opt/data/attachments/GestaltX_1.0.4.ipa"],
+                 imagePaths: [])
+            ]
+        )
+        XCTAssertTrue(result.missing.isEmpty)
+        XCTAssertTrue(result.pathBackfills.isEmpty)
+    }
+
+    /// 同文异附件、两侧路径都非空且不等：不错配——
+    /// 服务端条目判缺（另补一份），不给本地条目回
+    /// 填错路径（§116 防错配旧防线在带路径入参下
+    /// 不松）
+    func testReconcileSameTextDifferentAttachmentsDoNotPair() {
+        let expanded = """
+        看下这个
+        @file:/opt/data/attachments/B.zip
+
+        --- Attached Context ---
+
+        📎 @file:/opt/data/attachments/B.zip (application/zip, 1 KB) — binary file, not inlined as text.
+        """
+        let result = RunTranscriptSettle.reconcileUserMessages(
+            messages: [
+                timedMessage(
+                    role: "user", content: expanded, at: 6_000
+                ),
+            ],
+            localUserEntries: [
+                (content: "看下这个",
+                 createdAt: Date(timeIntervalSince1970: 6_000),
+                 filePaths: ["/opt/data/attachments/A.zip"],
+                 imagePaths: [])
+            ]
+        )
+        XCTAssertEqual(result.missing.count, 1)
+        XCTAssertTrue(result.pathBackfills.isEmpty)
+    }
 }

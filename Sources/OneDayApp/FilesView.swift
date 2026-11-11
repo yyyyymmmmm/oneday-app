@@ -1271,12 +1271,27 @@ struct FilePreviewView: View {
                 try await client.fileData(config: config, path: entry.path)
             }
             rawData = data
-            quickLookItem = try ChatFilePreviewItem.write(
+            let item = try ChatFilePreviewItem.write(
                 data: data, name: entry.name
             )
+            // §121 题二 b：QL 资格门——不可预览类型
+            // （.ipa 等）不写 QL 件硬呈死页，直接落
+            // 失败页＋五分文案，动作仍走 failure-
+            // Actions 按类出项（.other/.archive＝下
+            // 载＋知道了）；取数失败同样走五分，不再
+            // 一句状态码兜底
+            if item.canPreview {
+                quickLookItem = item
+            } else {
+                loadError = FileOpenFailure.unsupportedType
+                    .message()
+            }
+        } catch let error as HermesError {
+            loadError = FileOpenFailure.classify(
+                error: error
+            ).message()
         } catch {
-            loadError = (error as? HermesError)?.userMessage
-                ?? "读取文件失败。"
+            loadError = FileOpenFailure.other.message()
         }
     }
 }
