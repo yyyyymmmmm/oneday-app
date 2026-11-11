@@ -1726,7 +1726,11 @@ struct ChatView: View {
                                 )
                             }
                             .accessibilityHidden(true)
-                        Text("和你的 Hermes 聊聊")
+                        // §160 三层命名定案：空态这句称呼的
+                        // 是智能体本人，名字走全局解析链
+                        // （原写死「Hermes」是把服务端名当
+                        // 智能体名，审计点名的一处混用）
+                        Text("和 \(appState.agentDisplayName) 聊聊")
                             // 0.3.3 收编：手写 fontWeight 漂移
                             // 改走 sectionTitle 角色（阶梯账
                             // 见原字重账本，已废止）
