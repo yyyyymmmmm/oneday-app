@@ -8212,3 +8212,11 @@ Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手�
 - **页顶智能体状态胶囊**（观察记录，不施工）：Muse 点子/动态页顶有居中头像＋名字＋当下正在做事项的灰胶囊（截图样本「三狗 · Checking detector」「三狗 · 分析文件问题」）。我方对应数据面＝工作台账进行中任务（伴生 ledger 有真源），呈现需三页统一的页顶位与状态文案口径，成本约：App 三页页顶组件 1 个＋台账进行中读面复用＋文案口径一轮。本包只记录，排后续对标包再议。
 - **点子主题分组**：Muse 按主题分类分组（人际关系/购物）；我方桥无 category 数据（审计 117.1），若要补须生成面增字段＋存量不回填，另议。
 - 真机终验待用户：点子 sheet 形态与开始吧全链、动态全文内联＋大图＋讨论开聊、老帖（无 emoji/无图）呈现不回退、新一轮调研帖带图落库（桥 1.0.12 部署后明早 08:30 轮或手动触发轮验收）。
+
+### 117.8 合并与验包记账（2026-11-11，主线合并单）
+
+- **预制分支 CI 先行记账**：分支 run 42956872736 终局 failure（build-native）——`FeedView.swift:1115 error: expected '}' in struct`。确诊：FeedPostDetailView 抽共享组件（FeedSourceCardView/FeedSourcesSheet）时漏收 struct 自身的闭合括号，文件尾净大括号深度 +1、其后三个组件 struct 全被吞为嵌套（FeedView 在行首无限定引用两组件、嵌套亦不可见）。修法：详情 body 之后、FeedSourceCardView 文档注释之前补回 struct 闭合 `}`（大括号深度扫描归零复核），随合并提交一并入 main。
+- **合并**：feat/muse-align（顶端 bda4778，基线 ddde9c4）并入 main（0.46.1 顶端 a11c52f）。冲突仅 DESIGN-V4.md 一处（§116.5/116.6 与 §117 同锚追加），两段顺序拼接、全保留；Localizable.xcstrings 自动合并后键集校验＝两边并集 2422 键、零丢失零多余，validate_i18n 通过（2435 键×三语）。版本五处对账＝Project.swift 四处（MARKETING_VERSION 0.47.0／CURRENT_PROJECT_VERSION 114／CFBundleShortVersionString 0.47.0／CFBundleVersion 114）＋SettingsView 页脚「OneDay v0.47.0」，无 0.46 残留。合并提交 669e5bb。
+- **合并后 CI**：run 42959056483 一轮全绿（build-native success、head 669e5bb，合并后零修复轮）；单测 1238、0 failures（基线 1231＋MuseAlign117Tests 7，只增不减）。
+- **独立验包**：IPA 9,095,130 字节、md5 `f84cb4cfaa2bf797413a3e8c953f92a1`、Info.plist 实读 CFBundleShortVersionString 0.47.0／CFBundleVersion 114／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.47.0/OneDay-0.47.0.ipa`（落盘 md5 与取件一致）。
+- **S2-11 核查结论（顺带项）**：**未随 §117 落地**——分支 diff 对简报编辑器保存钮零触碰，合并后 FeedBriefEditorView 的「保存兴趣」「保存正式简报」仍为纯 Form 文本行式 Button、无主按钮层级（与 style-audit-2 的 S2-11 登记现状一致）；转后续样式包处理，本包不夹带。
