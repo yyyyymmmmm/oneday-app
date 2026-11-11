@@ -8299,3 +8299,11 @@ Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发�
 - 三语新增 15 键（Localizable 2437 键＋InfoPlist 13＝2450），validate_i18n.py 通过。
 - 红线守界：未碰 ChatView §116／回底钮段；§117 点子行／sheet 形态与动态行结构不动（只改本节三处）；简报胶囊与搜索不动。
 - 真机待验：采纳全链（任务后台建成＋旁聊打开＋预填在舱未代发）、存量已采纳点「打开对话」补建、长帖行内截断与展开全文、整页截图类图片在行内与详情均不再撑高、动态页静止位胶囊不遮首行正文。
+
+### 122.5 合并与验包记账（2026-11-11，主线合并单）
+
+- **分支终局**：feat/three-pages-fix（顶端 8c65e0e，基线 5a9e1a1）分支 CI run 42962710628 全绿；单测 1256（基线 1238＋ThreePages122Tests 18，MuseAlign117Tests 更正 1 处计数不减）。
+- **合并**：并入 main（顶端 d5ac49b，含 §121/0.47.1 与 §121.7）。冲突仅 DESIGN-V4.md 一处（§121 与 §122 同锚追加），顺序拼接（§121 在前、§122 在后）全保留；Localizable.xcstrings 自动合并后键集校验＝两边并集 2444 键、零丢失零多余，validate_i18n 通过（2457 键×三语，含版本串对账后）。版本五处＝Project.swift 四处 0.48.0/116＋SettingsView 页脚「OneDay v0.48.0」。合并提交 bc58930。
+- **合并后 CI**：run 42963437267 success（build-native success，head bc58930）。
+- **独立验包**：IPA 9,112,272 字节、md5 `a0df82ed32b5b25e61cd743676e586ff`、Info.plist 实读 0.48.0／116／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.48.0/OneDay-0.48.0.ipa`（落盘 md5 一致）。
+- **真机待验**：点子采纳全链（任务后台建成＋旁聊打开＋上下文预填在舱未代发）、存量已采纳点「打开对话」补建、长帖行内截断＋展开全文、整页截图类图片在行与详情均 16:9 不撑高、动态页静止位胶囊不遮首行、任务详情事件人话（heartbeat 不显、「执行：default」不显）。
