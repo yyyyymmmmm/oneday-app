@@ -344,7 +344,7 @@ struct SettingsView: View {
     /// 同改同验）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.50.6")
+            Text("OneDay v0.50.7")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
