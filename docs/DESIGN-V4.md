@@ -10223,7 +10223,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 **代码定因**：DrawerView.swift:445 导航组调用 `drawerNavCollapseToggle`（无标题折叠钮，只有 chevron），而频道/旁聊调用 `drawerCollapsibleHeader("标题", key)`（带标题公用件）。注释表明这是 §157 删除「选项卡」组头文字后的遗留状态（§158 合裁注释：「本区折叠头改无标题形态」），但用户口径已纠正——真问题是缺组标题、不是折叠逻辑故障（频道/旁聊折叠正常是用户自折）。
 
-**改法**：DrawerView.swift:445 将 `drawerNavCollapseToggle` 调用改为 `drawerCollapsibleHeader("选项卡", key: DrawerSectionKey.navigation)`，与频道/旁聊同口径；删除 drawerNavCollapseToggle 私有件（行1120-1149）。文案「选项卡」需查 Localizable.xcstrings 是否已有词条，无则新增三语。
+**改法**：DrawerView.swift:445 将 `drawerNavCollapseToggle` 调用改为 `drawerCollapsibleHeader("选项卡", key: DrawerSectionKey.navigation)`，与频道/旁聊同口径；删除 drawerNavCollapseToggle 私有件（行1120-1149）。文案「选项卡」词条既有、三语齐全（Localizable.xcstrings 已查实）。
 
 ### 179.2 题二定因：互补弧度缺失
 
