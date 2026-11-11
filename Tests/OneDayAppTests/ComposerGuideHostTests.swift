@@ -163,19 +163,23 @@ final class ComposerGuideHostTests: XCTestCase {
         box = FrameBox()
         let state = state!
         let box = box!
-        window = UIWindow(
-            frame: CGRect(x: 0, y: 0, width: 402, height: 874))
         container = DrawerContainerController()
-        window.rootViewController = container
-        window.makeKeyAndVisible()
-        container.view.layoutIfNeeded()
+        // 赋值序照探针与生产桥的可用形态：先把
+        // drawerBuilder/contentRoot 刷进控制器、再进
+        // 窗口——先进窗口再赋值时内容宿主不重排、整壳
+        // 不渲染（第二轮 CI 五法 frames 恒空实证）
+        container.drawerBuilder = { _ in AnyView(Text("drawer")) }
         // 环境与生产根同口径：ComposerGuideHost 桥读
         // AppState（未注入会 trap），在内容根处注入
-        container.drawerBuilder = { _ in AnyView(Text("drawer")) }
         container.contentRoot = AnyView(
             ShellTabs(state: state, box: box)
                 .environment(AppState())
         )
+        window = UIWindow(
+            frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+        window.rootViewController = container
+        window.makeKeyAndVisible()
+        container.view.layoutIfNeeded()
     }
 
     override func tearDown() async throws {
