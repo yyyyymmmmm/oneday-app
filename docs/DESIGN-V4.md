@@ -9107,4 +9107,3 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 分支 feat/delivery-registry（worktree ~/workspace/oneday-worktrees/pkg-delivery-registry，基线 main fa2bf24／0.50.12），未合并、版本号未改。基线取开工时 main 顶端；主线五合一版本若先行落地，合并时以主线合裁为准（ChatView 接线点与 §136 相邻、xcstrings 纯新增 2 键，预判冲突面小）。
 - 分支 CI：workflow_dispatch run 43001417390 **success**（jobs API 终判 build-native 及全部 steps success）；单测 Executed **1472、0 failures**，其中本包新增 DeliveryMarkerTests 18 法＋BridgeDeliveryDecodeTests 3 法两套全 passed；既有测试文件零删改（Tests/ diff 仅新增一文件）。
->>>>>>> feat/delivery-registry
