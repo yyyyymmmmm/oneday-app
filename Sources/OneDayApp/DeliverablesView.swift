@@ -74,7 +74,7 @@ struct DeliverablesView: View {
     /// 系统文件目的地（§127 泛化）：常规入口 dir/
     /// highlight 皆空；定位回指落空（文件不在聚合集
     /// 内）时带父目录＋文件名直达浏览器定位
-    private struct SystemFilesRoute: Identifiable {
+    private struct SystemFilesRoute: Identifiable, Hashable {
         let dir: String?
         let highlight: String?
         var id: String { "\(dir ?? "")|\(highlight ?? "")" }
