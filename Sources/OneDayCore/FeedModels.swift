@@ -635,8 +635,114 @@ public enum FeedBoard {
     /// 全文——用户口径「动态的内容不需要点开」，行内
     /// 截断自本包退役；本函数是该口径的唯一开关位，
     /// 将来若给长帖加「收起」只许在此收口
+    /// 0.48.0（§122，用户 12:41/12:45 对尺改判）：短帖
+    /// 仍全文内联不变；长帖（超 rowBodyCharacterLimit）
+    /// 改句界截断＋「展开全文」进详情——本函数口径随
+    /// 之改为「本帖在行内是否全文」，判定与截断点统
+    /// 一走 rowBodyPresentation，不许在视图侧另算
     public static func rowShowsFullBody(_ post: BridgeFeedPost) -> Bool {
-        true
+        !rowBodyPresentation(post.body).isTruncated
+    }
+
+    /// 行内正文上限（字符数，§122 定版）：对尺 Muse
+    /// 动态帖正文约 80–150 字全文铺——本阈值只作安全
+    /// 网（源头长度由桥侧生成面收紧），约当两倍余量；
+    /// 超限才截，阈值内一字不动
+    public static let rowBodyCharacterLimit = 300
+
+    /// 行内正文呈现：全文或截断稿（截断稿止于句界、
+    /// 视图在其后挂「展开全文」入口进详情看全文）
+    public struct RowBodyPresentation: Equatable, Sendable {
+        public let text: String
+        public let isTruncated: Bool
+
+        public init(text: String, isTruncated: Bool) {
+            self.text = text
+            self.isTruncated = isTruncated
+        }
+    }
+
+    /// 行内正文截断（§122）：全文 Character 计数（多
+    /// 字节/emoji 安全）≤上限即原样；超限时在上限内找
+    /// 最后一个完整句界（。！？及后随空白的 .!?；与
+    /// 段落换行）截断——句界须落在上限后半段才采用
+    /// （太靠前的句界截完近乎空行，不如硬截），无合
+    /// 格句界则硬截上限字数＋省略号。截点若落在未闭
+    /// 合的代码围栏（```）内，回退到围栏开始之前，
+    /// 防半截围栏把余下全文染成代码块
+    public static func rowBodyPresentation(
+        _ body: String
+    ) -> RowBodyPresentation {
+        guard body.count > rowBodyCharacterLimit else {
+            return RowBodyPresentation(text: body, isTruncated: false)
+        }
+        let limit = rowBodyCharacterLimit
+        let head = String(body.prefix(limit))
+        // 句界以字符偏移计（全文同一索引空间，不混用
+        // 前缀串的下标）：合格句界截断、无则硬截
+        var cutOffset: Int?
+        if let boundary = lastSentenceBoundary(in: body, limit: limit),
+           boundary >= limit / 2 {
+            cutOffset = boundary
+        }
+        var kept = cutOffset.map { String(body.prefix($0)) } ?? head
+        // 围栏守卫：保留段内 ``` 奇数个＝截在围栏里
+        let fenceCount = kept.components(separatedBy: "```").count - 1
+        if fenceCount % 2 == 1,
+           let fenceStart = kept.range(of: "```", options: .backwards) {
+            kept = String(kept[..<fenceStart.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if kept.isEmpty {
+                kept = head
+            }
+        }
+        if cutOffset != nil {
+            return RowBodyPresentation(text: kept, isTruncated: true)
+        }
+        return RowBodyPresentation(
+            text: kept + "…", isTruncated: true
+        )
+    }
+
+    /// 句界扫描：返回上限内最后一个句末的保留字符数
+    /// （句末标点及其后紧随的收尾引号/括号一并保留）；
+    /// ASCII 标点须后随空白/换行/收尾符才算句界（防
+    /// 0.47、域名里的小数点与点号误判，后随字符看到
+    /// 上限外一字）；换行本身作段落界（保留数止于其前）
+    private static func lastSentenceBoundary(
+        in body: String, limit: Int
+    ) -> Int? {
+        let closers: Set<Character> = [
+            "」", "』", "”", "’", "）", ")", "】", "]", "》",
+        ]
+        let chars = Array(body.prefix(limit + 1))
+        var boundary: Int?
+        var i = 0
+        while i < limit, i < chars.count {
+            let ch = chars[i]
+            if ch == "\n" {
+                boundary = i
+                i += 1
+                continue
+            }
+            let isCJKStop = "。！？；".contains(ch)
+            var isASCIIStop = false
+            if ".!?;".contains(ch), i + 1 < chars.count {
+                let nc = chars[i + 1]
+                isASCIIStop = nc == " " || nc == "\n"
+                    || nc == "\t" || closers.contains(nc)
+            }
+            if isCJKStop || isASCIIStop {
+                var end = i + 1
+                while end < limit, end < chars.count,
+                      closers.contains(chars[end]) {
+                    end += 1
+                }
+                boundary = end
+            }
+            i += 1
+        }
+        return boundary
     }
 
     /// 正文摘（0.47.0 起行内退役）：剥 Markdown 结构

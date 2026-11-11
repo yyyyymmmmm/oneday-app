@@ -174,11 +174,19 @@ final class MuseAlign117Tests: XCTestCase {
     }
 
     func testFeedRowShowsFullBodyRegardlessOfLength() {
+        // 0.48.0（§122）口径改判：§117 的「行内恒全文」
+        // 只对短帖成立，长帖改句界截断——本断言随之更
+        // 正（截断细则钉测在 ThreePages122Tests）
         let longBody = String(repeating: "正文一段。", count: 500)
         let post = BridgeFeedPost(
             id: "f_9", kind: .research, title: "t",
             body: longBody, createdAt: 100
         )
-        XCTAssertTrue(FeedBoard.rowShowsFullBody(post))
+        XCTAssertFalse(FeedBoard.rowShowsFullBody(post))
+        let shortPost = BridgeFeedPost(
+            id: "f_10", kind: .research, title: "t",
+            body: "两三句正文。", createdAt: 100
+        )
+        XCTAssertTrue(FeedBoard.rowShowsFullBody(shortPost))
     }
 }
