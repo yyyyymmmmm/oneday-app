@@ -9623,7 +9623,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - **合并散文段**：Core 新 `MarkdownMessageAssembler` 把块序列重组为呈现段——连续的段落／标题／普通列表合并为一段 prose，App 层装进**单个** SelectableInlineText（一个 UITextView、TextKit 2）。段级呈现：标题经 textStyleOverride 用既有 headingTextStyle 字阶、H6 dimmed 次级墨；列表标记进文本存储——右对齐制表位收标记（列宽 22 与旧标记列同值）、左对齐制表位起正文（其后 spacingS）、headIndent 悬挂对齐、level 逐级 spacingM——几何与旧「标记列＋正文」同值。段后距：块间 spacingSM、列表项间 spacingXS、末段归零由外层 VStack 接。
 - **分流记账**：引用块＝独立段（竖条跨不了文本存储；块内多行同住一视图、块内可选，与散文的跨界选择不提供）；任务清单＝整块旧呈现（SF Symbol 勾选框进不了文本存储；项内文本逐项可选）；代码块＝独立段维持现形态，**块内选择如实记档：仍为 SwiftUI .textSelection 次档**（整块菜单形态、iOS 27 起可格内选段），本包不动它——原因：横滑＋等宽高亮＋复制钮的表面与单文本存储的取舍 §149 已裁，本包不翻案，只把「次档」写明不冒充同档（后续若要升同档单独立包）；表格＝独立段维持（单元格次档同 §149）；分割线独立段。
-- **承载加固**：SelectableUITextView 显式 `usingTextLayoutManager: true`（TextKit 2）；sizeThatFits 改离屏量测视图——布局期永不改写承载文本，updateUIView 为唯一写入点且拼装缓存保证同内容同实例、isEqual 实际恒等短路。
+- **承载加固**：SelectableUITextView 显式 `usingTextLayoutManager: true` 钉 TextKit 2（注：UITextView 自 iOS 16 起默认即 TK2、本仓无人碰 .layoutManager 触发 TK1 兼容回退，已查实——文本栈代际不是病灶，此处只把默认钉成显式口径）；sizeThatFits 改离屏量测视图——布局期永不改写承载文本，updateUIView 为唯一写入点且拼装缓存保证同内容同实例、isEqual 实际恒等短路。
 - **手势优先级裁决**：行手势三层（栈 tap 收键盘／行 contextMenu／右滑 simultaneous）**全部保留零改动**——回复／接着问等入口不为选词牺牲；优先级按苹果原生文本习惯：文本内双击归系统选词（最深层文本交互），长按的气泡级菜单与文本编辑菜单按原生形态共存，本包不自设仲裁器。选区活动关本行右滑的 §149 通路不变。
 - **流式口径**：播中不可选（动画词元、无稳定文本存储），落定转 MarkdownText 即可选——大厂同此（ChatGPT 流式中不可选），§149 既有口径不变。
 - **缓存管线**：装配层坐在解析层之上，MarkdownParser／InlineRunBuilder 产出方式零改动；InlineTextRenderCache 键扩段级字段（字阶覆盖／dimmed／标记）与次级墨色。chat-polish 包的 MarkdownParseMemo 在其未合并分支上，合并后装配自动受益，本包不重复造缓存。

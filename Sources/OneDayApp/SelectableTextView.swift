@@ -427,13 +427,13 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> SelectableUITextView {
-        // §161：显式 TextKit 2 装配——苹果现行文本
-        // 栈（Messages／Notes 同代），选择交互（双
-        // 击选词／手柄扩选／编辑菜单）由文本布局管
-        // 理器原生驱动；默认初始化在旧系统路径上可
-        // 能落 TextKit 1，不作口径依赖
+        // §161：显式钉 TextKit 2——UITextView 自
+        // iOS 16 起默认即 TK2（本仓亦无人碰
+        // .layoutManager 触发 TK1 兼容回退，已查
+        // 实），此处用官方便利构造把口径钉死、不
+        // 依赖默认值（诊断报告外部核查节）
         let textView = SelectableUITextView(
-            frame: .zero, usingTextLayoutManager: true
+            usingTextLayoutManager: true
         )
         textView.isEditable = false
         textView.isSelectable = true
@@ -493,7 +493,7 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
     /// 布局期串行发生，共用一台安全
     private static let measuringView: SelectableUITextView = {
         let view = SelectableUITextView(
-            frame: .zero, usingTextLayoutManager: true
+            usingTextLayoutManager: true
         )
         view.isEditable = false
         view.isSelectable = false
