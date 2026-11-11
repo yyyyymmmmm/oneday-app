@@ -9836,3 +9836,30 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - CI：run **43032048317**（workflow_dispatch 于本分支）：jobs API 终判 build-native **success**；单测 Executed **1584、0 failures**（基线 c9a2392 的 1574＋新增 SettingsCatalogTests 10 法，逐法 passed，既有测零删改）。
 - 真机待验清单——①搜索点达逐项：22 条目逐个搜达（关键词中英各抽验：记忆/memory、连接器/mcp、服务器、外观）；②旧功能按对账表逐项点验（重点：模型页默认行/辅助模型、设备页一开关与删除副本、连接器凭据填写、档案切换、技能开关、网关重启弹窗、断开连接弹窗）；③身份卡点进详情、换头像/改名后聊天与抽屉同帧随动、服务器状态值位与实际一致；④关于页版本三值（hero 版本＋构建号、Hermes 现读版本、伴生副行）与页脚字面一致；⑤隐私/协议两页全文可读完、繁体与英文各切一帧不缺段；⑥AX 最大字号档：组头/搜索行/身份 hero 不叠字；深色模式一帧：四组卡片与协议页配色正常。
 
+
+## §165 抽屉打不开阻断热修：布局往返反解 center 吃掉 transform 位移（2026-11-11 夜，用户真机录屏点名；预制分支 feat/drawer-open-hotfix，基线 main edab9f0，只预制不合并；节号自选 §165，合并时主线合裁顺延）
+
+### 165.1 症状与实测口径
+0.50.18/140 真机：点汉堡钮与左缘拖两次尝试，前景主页面只右移约 30pt（≈travel 310 的 9.5%）即停住回落，抽屉内容从未成形露出（录屏逐帧＋左缘放大实读，详诊断报告 drawer-open-failure-diagnosis-20261111.md）。任务单转述的「半露错位」修正为此口径。
+
+### 165.2 定案机理（复现测试坐实，非推理）
+§156 容器 `viewDidLayoutSubviews` 对前景无条件 `foreground.frame = bounds`。前景是全容器唯一带 transform 的视图：setDrawer 的 animator 一启动，model transform 即被承诺到目标值（travel）；此后任何一次真实布局往返执行该 frame 重设时，frame setter 按**当前 transform** 反解 center（使「含变换的显示框」等于入参 bounds），视觉位置被补偿回约 0——动画只剩布局触发前约 30pt 的呈现残移，与录屏逐值对上。frame 在 transform 非 identity 时未定义是 Apple 文档明文，本仓写法属文档级违规，只是纯平移＋无尺寸变化时多被系统合并跳过、必须有真实 bounds 变化/布局往返才咬人，故预制期代码自查与裸控制器测试均未触发。
+复现（CI 模拟器，OneDayAppTests 新目标）：`testAnimatedOpenSurvivesMidFlightResize` 动画中途改窗口宽强制布局——修前显示原点 **-7.9**（应 310.47）且 model transform 断言照常通过（病灶对 transform 断言隐形）；修后同测通过。裸动画/桥级（真 DrawerContainer＋真 AppState）/根视图重赋值三组对照修前均通过——病灶只在「transform 已承诺＋真实布局往返」组合下成立。
+
+### 165.3 修法（单点，承载形态不变）
+`viewDidLayoutSubviews` 中前景几何改走 **bounds＋center** 写未变换几何（bounds=(0,0,容器尺寸)、center=容器中点），位移全部由 transform 承担；布局往返从此与位移正交、任意次触发结果不变。其余装配（两宿主 frame、clip/contentHost 本地坐标 frame、edgeView、手势、animator、跟手/吸附口径、圆角 28/不缩放/窄条）一字未动，§156 手感目标全保留，无回退取舍。
+
+### 165.4 测试基建（本包附带，合并时注意）
+新建 App 宿主测试目标 **OneDayAppTests**（Project.swift＋scheme testAction＋CI -only-testing 追加）：此前全仓只有 OneDayCoreTests，App 层控制器行为无处可验——本次定案全靠它。回归组：DrawerContainerControllerTests 8 法（travel/瞬时开/裸动画/布局往返/根视图重赋值/动画关/显示原点/中途改尺寸）＋DrawerBridgeHarnessTests 1 法（桥级语义翻转达位）。单测只增不减口径：Core 1591 不动，App 新增 9 法。
+
+### 165.5 真机待验清单（合并发版后逐项）
+1. 点汉堡钮开抽屉：前景完整右移、抽屉全形露出（身份行/导航/会话名单/底条）；
+2. 点右侧窄条关闭、左拖窄条跟手关闭；
+3. 左缘拖开：跟手 1:1、拖一半松手按速度/位置回弹或完成；
+4. 抽屉内点选会话后自动收起并落到聊天格；
+5. 开抽屉状态下旋转/改尺寸（分屏）位移不丢；
+6. 深色一帧：圆角＋柔影＋材质呈现正常；
+7. 流式输出中开合抽屉不打断生成、滚动位不丢。
+
+### 165.6 错题本
+新坑入正册 **P-24**：transform 视图在布局钩子里被 frame 重设——animator 承诺 model 值后 frame setter 按当前 transform 反解 center 吃位移；配套铁律＝带 transform 的视图布局只准 bounds＋center；动画验收断言必须验**显示原点**、只验 model transform 等于没验。
