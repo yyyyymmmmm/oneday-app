@@ -5177,6 +5177,29 @@
         }
       }
     },
+    "人设内容还没读到，请返回身份段重新打开。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The persona hasn't loaded yet. Go back to the Identity tab and open this again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人设内容还没读到，请返回身份段重新打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人設內容還沒讀到，請返回身份段重新開啟。"
+          }
+        }
+      }
+    },
     "人设没读出来，可能是网络或服务暂时没响应": {
       "extractionState": "manual",
       "localizations": {
@@ -10513,6 +10536,29 @@
         }
       }
     },
+    "写入审批的通道还没接通，暂时看不到待批记录。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The write-approval channel isn't connected yet, so pending records can't be shown for now."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写入审批的通道还没接通，暂时看不到待批记录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "寫入審批的通道還沒接通，暫時看不到待批記錄。"
+          }
+        }
+      }
+    },
     "写入文件": {
       "extractionState": "manual",
       "localizations": {
@@ -14396,6 +14442,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "只回未完成項，不回已完成歷史；你開啟「資料同步」後，未完成清單會存一份在你自己的伺服器上供智慧代理查詢，可隨時關掉並刪除。"
+          }
+        }
+      }
+    },
+    "只对当前对话生效，完整的模型设置在设置页。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applies to this conversation only. Full model settings are in Settings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只对当前对话生效，完整的模型设置在设置页。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只對目前對話生效，完整的模型設定在設定頁。"
           }
         }
       }
@@ -23715,6 +23784,29 @@
         }
       }
     },
+    "开启后，记忆与技能的写入会先在聊天里等你批准，这里留一份记录。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, memory and skill writes wait for your approval in the chat first; a record is kept here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启后，记忆与技能的写入会先在聊天里等你批准，这里留一份记录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟後，記憶與技能的寫入會先在聊天裡等你批准，這裡留一份記錄。"
+          }
+        }
+      }
+    },
     "开启后，记忆与技能的写入会在这里等你批准。": {
       "extractionState": "manual",
       "localizations": {
@@ -24359,6 +24451,29 @@
         }
       }
     },
+    "当前档案：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current profile: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前档案：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前檔案：%@"
+          }
+        }
+      }
+    },
     "当前模型 %@，切换模型": {
       "extractionState": "manual",
       "localizations": {
@@ -24792,6 +24907,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "待批清單沒讀出來，可能是網路或服務暫時沒回應"
+          }
+        }
+      }
+    },
+    "待批记录": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending Records"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待批记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待批記錄"
           }
         }
       }
@@ -30477,6 +30615,29 @@
         }
       }
     },
+    "改的是智能体的人设，会保存在服务器上。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're editing the agent's persona. It's saved on the server."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改的是智能体的人设，会保存在服务器上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改的是智能體的人設，會儲存在伺服器上。"
+          }
+        }
+      }
+    },
     "效率": {
       "extractionState": "manual",
       "localizations": {
@@ -34525,6 +34686,29 @@
         }
       }
     },
+    "暂无待批记录": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Pending Records"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无待批记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無待批記錄"
+          }
+        }
+      }
+    },
     "暂无日志。有新事件时，会记在这里。": {
       "extractionState": "manual",
       "localizations": {
@@ -34636,6 +34820,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "暫無規則。在待批卡上點「總是允許這一類」後，會在這裡留下一條，可隨時撤銷。"
+          }
+        }
+      }
+    },
+    "暂无规则。在聊天里的待批卡上点「总是允许这一类」后，会在这里留下一条，可随时撤销。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No rules yet. When you tap \"Always allow this kind\" on a pending card in the chat, a rule will appear here and can be revoked anytime."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无规则。在聊天里的待批卡上点「总是允许这一类」后，会在这里留下一条，可随时撤销。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無規則。在聊天裡的待批卡上點「總是允許這一類」後，會在這裡留下一條，可隨時撤銷。"
           }
         }
       }
@@ -39033,6 +39240,29 @@
         }
       }
     },
+    "档案已经切换了，这次没有保存。回到身份段确认是哪一份档案后再改。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The profile has been switched, so this wasn't saved. Check which profile is active in the Identity tab, then edit again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "档案已经切换了，这次没有保存。回到身份段确认是哪一份档案后再改。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案已經切換了，這次沒有儲存。回到身份段確認是哪一份檔案後再改。"
+          }
+        }
+      }
+    },
     "档案接口": {
       "extractionState": "manual",
       "localizations": {
@@ -39604,6 +39834,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在下載…"
+          }
+        }
+      }
+    },
+    "正在保存…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saving…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在保存…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在儲存…"
           }
         }
       }
@@ -41789,6 +42042,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "沒能開始產生，請稍後再試。"
+          }
+        }
+      }
+    },
+    "没能确认保存成功，你写的内容还在这里，请再试一次。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't confirm the save. Your text is still here — please try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能确认保存成功，你写的内容还在这里，请再试一次。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒能確認儲存成功，你寫的內容還在這裡，請再試一次。"
           }
         }
       }
@@ -48187,6 +48463,29 @@
         }
       }
     },
+    "编辑人设": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Persona"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑人设"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯人設"
+          }
+        }
+      }
+    },
     "编辑名称": {
       "extractionState": "manual",
       "localizations": {
@@ -50621,6 +50920,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "記憶與技能的寫入會先到這裡等你批准"
+          }
+        }
+      }
+    },
+    "记忆与技能的写入会先在聊天里等你批准，这里会留一份记录": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memory and skill writes wait for your approval in the chat first; a record is kept here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记忆与技能的写入会先在聊天里等你批准，这里会留一份记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記憶與技能的寫入會先在聊天裡等你批准，這裡會留一份記錄"
           }
         }
       }
@@ -56260,6 +56582,52 @@
         }
       }
     },
+    "这里只留记录，批准或驳回请在聊天里处理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Records only here — approve or reject in the chat."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里只留记录，批准或驳回请在聊天里处理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這裡只留記錄，批准或駁回請在聊天裡處理。"
+          }
+        }
+      }
+    },
+    "这里改的是智能体的人设，存在服务器上；页头的名称和头像只在这台手机上显示，两边互不影响。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This edits the agent's persona, stored on the server. The name and avatar at the top only show on this phone. The two don't affect each other."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里改的是智能体的人设，存在服务器上；页头的名称和头像只在这台手机上显示，两边互不影响。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這裡改的是智能體的人設，存在伺服器上；頁頭的名稱和頭像只在這台手機上顯示，兩邊互不影響。"
+          }
+        }
+      }
+    },
     "这里数的是手机上有多少项。同步上去的只是清单（时间、类型、大小这些），照片和视频本身不上传。": {
       "extractionState": "manual",
       "localizations": {
@@ -56279,6 +56647,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "這裡數的是手機上有多少項。同步上去的只是清單（時間、類型、大小這些），照片和影片本身不上傳。"
+          }
+        }
+      }
+    },
+    "这里管有哪些档案、现在用哪一份；每份档案的人设内容，在枢纽的身份段里编辑。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is where profiles are listed and selected. Each profile's persona is edited in the hub's Identity tab."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里管有哪些档案、现在用哪一份；每份档案的人设内容，在枢纽的身份段里编辑。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這裡管有哪些檔案、現在用哪一份；每份檔案的人設內容，在樞紐的身份段裡編輯。"
           }
         }
       }

@@ -337,6 +337,16 @@ final class AppState {
         identityName = AgentName.resolve(soulContent: document.content)
     }
 
+    /// soul 编辑保存后的身份名重解析（§154 HUB-1）：内
+    /// 容已由保存方重新取回并比对确认，直接以确认内容
+    /// 重算显示名，不再走一次性解析的网络链；本机改名
+    /// 覆盖仍优先于它（覆盖在呈现收敛口处理），这里只
+    /// 更新服务端名字这一份事实
+    func reresolveIdentityName(soulContent: String) {
+        identityName = AgentName.resolve(soulContent: soulContent)
+        identityNameResolved = true
+    }
+
     /// 智能体本地档案（0.36.22，枢纽页对齐包）：用户
     /// 在本机改的显示名覆盖与头像，全 App 露脸面经下
     /// 方收敛口读，不再各自拼 identityName 回落链、更

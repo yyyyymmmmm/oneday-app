@@ -248,3 +248,20 @@ public enum SoulSectionParser {
         return text.trimmingCharacters(in: .whitespaces).lowercased()
     }
 }
+
+// MARK: - soul 保存回读比对（§154 HUB-1，规格 §2.7 环 4）
+
+/// 保存后的确认口径：提交内容与保存后重新取回的内容，
+/// 去掉首尾空白后逐字相等，才算确认存好。规范化只动
+/// 首尾空白（含换行），正文内部一字不让——服务端若动
+/// 了正文内部（改字、重排），比对必不等、按未确认处
+/// 理，不许放宽成「差不多」就报成功。
+public enum SoulSaveVerification {
+    public static func isConfirmed(submitted: String, fetched: String) -> Bool {
+        normalized(submitted) == normalized(fetched)
+    }
+
+    static func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}

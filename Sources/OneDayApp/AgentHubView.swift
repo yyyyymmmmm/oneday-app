@@ -63,6 +63,11 @@ enum HubSegment: String, CaseIterable, Identifiable {
 /// 一常驻、左边缘右滑返回走系统边缘识别器桥、头像
 /// 徽章改本地档案菜单（更换虚拟形象/编辑名称）；分
 /// 段与段内容、数据面一律不动。
+/// §154（HUB-1 枢纽全量接通，用户 2026-11-11 拍板
+/// 「死面接入真实的」）：ChatView 呈现改 .sheet 全量
+/// 形态转正——七段全开＋模型常驻区，默认落活动段；
+/// .activity 四段形态自此无入口（Mode 定义与段集留
+/// 一版防回滚，下线归后续收口）。
 struct AgentHubView: View {
     enum Mode {
         case sheet
@@ -89,8 +94,9 @@ struct AgentHubView: View {
     /// 落纯文本名片
     @State private var shareItem: AgentShareItem?
 
-    /// 本模式可见段：活动格＝活动/任务/审核/监测四段
-    /// （任务段 0.10.0 P3 转正、监测段 0.12.0 P6 转正）
+    /// 本模式可见段：.sheet＝全量七段（§154 转正）；
+    /// .activity＝活动/任务/审核/监测四段（旧活动格形
+    /// 态，§154 起无入口、留定义一版防回滚）
     private var availableSegments: [HubSegment] {
         mode == .activity
             ? [.activity, .tasks, .approval, .monitors]
@@ -190,12 +196,11 @@ struct AgentHubView: View {
                 store = shared
             }
             await store?.loadInitial()
-            if mode == .activity {
-                // 共享 store 后 loadApproval 默认可复用
-                // 缓存（chat 刷新刚拉过会跳过），枢纽语
-                // 义是「每次打开必刷新」——强制重拉保住
-                await store?.loadApproval(force: true)
-            }
+            // 共享 store 后 loadApproval 默认可复用缓存
+            // （chat 刷新刚拉过会跳过），枢纽语义是「每
+            // 次打开必刷新」——强制重拉保住（§154 起全
+            // 量模式同口径，不再只限 .activity）
+            await store?.loadApproval(force: true)
             // §123（H2）：通知落点消费——按落点切到对
             // 应段（聚焦字段由各段自己消费），消费后清
             // 零，不许陈年请求在下次手动开枢纽时复活
@@ -332,9 +337,9 @@ struct AgentHubView: View {
     /// 0.6.0 换三狗搭档款定版图（蓝图 §3.10：吉祥物用
     /// 自有 IP，不借 OpenMuse 水豚；素材源
     /// ~/workspace/ip-design/STYLE-partner.webp 裁头入
-    /// SangouPartner 资产）；徽章点按跳本页身份段（规格
-    /// §2 推荐口径：本页内闭环），身份的实际编辑在身份
-    /// 段内跳 ProfilesView（用户定案⑤）。
+    /// SangouPartner 资产）；服务端人设的编辑在身份段
+    /// 内的人设编辑面（§154 前旧注「跳 ProfilesView」
+    /// 是空跳、已销账）。
     /// 0.36.22（枢纽页对齐包，用户新定案覆盖上段徽章
     /// 口径）：头像改读本地档案（AppState 单一出口：
     /// 预置/符号盘/相册自定义图）；徽章两模式统一改
@@ -431,8 +436,15 @@ struct AgentHubView: View {
 
     private func modelZone(_ store: AgentHubStore) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            SectionLabel("会话模型")
-                .padding(.horizontal, OneDayMetrics.pageGutter)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                SectionLabel("会话模型")
+                // §154（规格 §2.8）：本区只做当前对话的模
+                // 型快切，与设置页的模型管理分工在此点明
+                Text("只对当前对话生效，完整的模型设置在设置页。")
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .padding(.horizontal, OneDayMetrics.pageGutter)
             VStack(spacing: 0) {
                 ForEach(
                     Array(hubModelChoices.enumerated()),

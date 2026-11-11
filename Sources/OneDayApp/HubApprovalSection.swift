@@ -3,9 +3,14 @@ import OneDayDesign
 import SwiftUI
 
 /// 枢纽页审核段（规格 §3.2，用户定案⑥；0.16.0/P10
-/// 起补已决历史段）：待批一卡一条——人话摘要＋来源＋
-/// diff 入口＋批准/驳回；已决历史读桥 /decisions 账本
-/// （桥自上线起就有，本段只读呈现、不再造数据）。
+/// 起补已决历史段）。§154（HUB-1，用户 2026-11-11
+/// 定版「枢纽只有记录、不能审批，审批只在聊天界
+/// 面」）：本段改记录制——待批只呈现记录（详情走只
+/// 读的改动查看），批准/驳回只在聊天就地卡；已决历
+/// 史读桥 /decisions 账本（桥自上线起就有，本段只
+/// 读呈现、不再造数据）。审批规则区保留撤销：规则
+/// 是长期设置、不是单条裁决，且全 App 只此一处可撤
+/// 销（0.36.21 硬口径不回退）。
 /// gate 三态诚实呈现（未启用/通道未接通/已启用），
 /// 裸空列表冒充「无待批」是红线：只有桥可达＋闸门开
 /// ＋pending 为空才是真无待批（状态判定在
@@ -22,8 +27,6 @@ struct HubApprovalSection: View {
     @State private var focusDecisionID: String?
 
     @State private var diffTarget: WriteGateRecord?
-    @State private var rejectTarget: WriteGateRecord?
-    @State private var alwaysTarget: WriteGateRecord?
     @State private var revokeTarget: WriteGateRule?
 
     var body: some View {
@@ -36,7 +39,7 @@ struct HubApprovalSection: View {
                 ContentUnavailableView {
                     Label("审批通道未接通", systemImage: "shield.slash")
                 } description: {
-                    Text("写入审批的通道还没接通，暂时看不到待批写入。")
+                    Text("写入审批的通道还没接通，暂时看不到待批记录。")
                 } actions: {
                     Button("重试") {
                         Task { await store.loadApproval(force: true) }
@@ -47,7 +50,7 @@ struct HubApprovalSection: View {
                 ContentUnavailableView {
                     Label("写入审批未启用", systemImage: "checkmark.shield")
                 } description: {
-                    Text("开启后，记忆与技能的写入会在这里等你批准。")
+                    Text("开启后，记忆与技能的写入会先在聊天里等你批准，这里留一份记录。")
                 }
             case .failed(let message):
                 ContentUnavailableView {
@@ -64,18 +67,22 @@ struct HubApprovalSection: View {
                 if records.isEmpty && store.decisionHistory.isEmpty
                     && store.approvalRules.isEmpty {
                     ContentUnavailableView(
-                        "暂无待批写入",
+                        "暂无待批记录",
                         systemImage: "checkmark.circle",
-                        description: Text("记忆与技能的写入会先到这里等你批准")
+                        description: Text("记忆与技能的写入会先在聊天里等你批准，这里会留一份记录")
                     )
                 } else {
                     ScrollViewReader { proxy in
                         List {
                             if !records.isEmpty {
-                                Section("待审批") {
+                                Section {
                                     ForEach(records) { record in
-                                        card(record)
+                                        pendingRecordRow(record)
                                     }
+                                } header: {
+                                    Text("待批记录")
+                                } footer: {
+                                    Text("这里只留记录，批准或驳回请在聊天里处理。")
                                 }
                             }
                             rulesSection
@@ -126,44 +133,6 @@ struct HubApprovalSection: View {
             }
         }
         .confirmationDialog(
-            "驳回这条写入？",
-            isPresented: Binding(
-                get: { rejectTarget != nil },
-                set: { if !$0 { rejectTarget = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: rejectTarget
-        ) { record in
-            Button("驳回", role: .destructive) {
-                Task { await store.decide(record, approve: false) }
-                rejectTarget = nil
-            }
-            Button("取消", role: .cancel) {
-                rejectTarget = nil
-            }
-        } message: { _ in
-            Text("驳回后这条写入不会生效。")
-        }
-        .confirmationDialog(
-            "总是允许这一类？",
-            isPresented: Binding(
-                get: { alwaysTarget != nil },
-                set: { if !$0 { alwaysTarget = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: alwaysTarget
-        ) { record in
-            Button("总是允许") {
-                Task { await store.decideAlways(record) }
-                alwaysTarget = nil
-            }
-            Button("取消", role: .cancel) {
-                alwaysTarget = nil
-            }
-        } message: { record in
-            Text("这条会立即批准；以后「\(ApprovalCardCopy.alwaysAllowScope(for: record))」的写入将直接通过，不再逐条询问。规则可以在下方「审批规则」里随时撤销。")
-        }
-        .confirmationDialog(
             "撤销这条规则？",
             isPresented: Binding(
                 get: { revokeTarget != nil },
@@ -184,40 +153,43 @@ struct HubApprovalSection: View {
         }
     }
 
-    /// 待批卡片（实色面内容卡，非玻璃——规格 §0 材质
-    /// 总则）：卡面本体走共用组件 ApprovalCardFace
-    /// （样式二期 S2-03，与聊天就地卡同一实现、同一
-    /// 几何与句式）；与聊天面只差详情入口——本面走
-    /// 「查看改动」sheet（diffTarget），确认弹窗走段
-    /// 级 target（rejectTarget/alwaysTarget），裁决路
-    /// 径与 store 同源不变
-    private func card(_ record: WriteGateRecord) -> some View {
-        ApprovalCardFace(
-            record: record,
-            isDeciding: store.decidingIDs.contains(record.id),
-            note: store.cardNotes[record.id],
-            detailLinkTitle: "查看改动",
-            onDetail: { diffTarget = record },
-            onAction: { action in
-                switch action {
-                case .approve:
-                    Task { await store.decide(record, approve: true) }
-                case .alwaysAllow:
-                    alwaysTarget = record
-                case .reject:
-                    rejectTarget = record
+    /// 待批记录行（§154 记录制）：与已决历史行同一视
+    /// 觉语言——子系统徽章＋问句头条（Core
+    /// ApprovalCardCopy 人话口径，与聊天就地卡同源）
+    /// ＋一行说明＋时间；唯一的点按是只读的「查看改
+    /// 动」（diff sheet 只呈现、不裁决）。待批点达原
+    /// 对话的会话定位不在记录字段里（WriteGateRecord
+    /// 无会话字段），归审批锚点包以时序关联补齐，本段
+    /// 行级点按位即其落点，本包不越界自造定位
+    private func pendingRecordRow(_ record: WriteGateRecord) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Text(record.subsystem.badgeLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, OneDayMetrics.stackGap)
+                    .background(Palette.primaryTint, in: Capsule())
+                Spacer()
+                if let createdAt = record.createdAt {
+                    Text(ApprovalTimeText.relative(createdAt))
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
             }
-        ) {
-            EmptyView()
+            Text(ApprovalCardCopy.question(for: record))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Palette.ink)
+            Text(ApprovalCardCopy.summaryLine(for: record))
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(2)
+            Button("查看改动") {
+                diffTarget = record
+            }
+            .font(.caption)
         }
-        .padding(OneDayMetrics.spacingM)
-        .background(
-            Palette.surface,
-            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
-        )
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
+        .padding(.vertical, 4)
     }
 
     /// 已决历史行（P10）：只读呈现——类别徽章＋结论
@@ -302,7 +274,7 @@ struct HubApprovalSection: View {
             }
             if store.approvalRules.isEmpty {
                 Text(store.rulesLoaded
-                    ? "暂无规则。在待批卡上点「总是允许这一类」后，会在这里留下一条，可随时撤销。"
+                    ? "暂无规则。在聊天里的待批卡上点「总是允许这一类」后，会在这里留下一条，可随时撤销。"
                     : "规则还没有拉到，下拉刷新后再看。")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
