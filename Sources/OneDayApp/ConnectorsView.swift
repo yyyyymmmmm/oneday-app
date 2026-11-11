@@ -906,6 +906,11 @@ struct ConnectorsView: View {
         case .alarm: AlarmDetailView()
         case .notifications: NotificationsDetailView()
         case .opener: OpenTargetDetailView()
+        case .camera: CameraDetailView()
+        case .vision: VisionDetailView()
+        case .translate: TranslateDetailView()
+        case .ondevice: OnDeviceDetailView()
+        case .biometric: BiometricDetailView()
         case .health, .home: EmptyView()
         }
     }

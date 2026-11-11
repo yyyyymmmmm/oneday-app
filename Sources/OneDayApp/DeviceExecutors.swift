@@ -38,6 +38,18 @@ enum DevicePermissions {
             .alarm: AlarmEngine.systemState(),
             .notifications: NotificationEngine.cachedState,
             .opener: .notApplicable,
+            // 在场交互与端上智能（设备扩容批三）：相机
+            // 走 AVCaptureDevice 同步授权状态现读；识
+            // 别/翻译是纯端上计算、本人确认的同意在每
+            // 次调用时由系统当面给出、端上智能只有机
+            // 型可用性门（不进权限档，由注册载荷过滤
+            // ＋引擎执行时复查承接）——四件都没有可开
+            // 关的系统权限，如实报 notApplicable
+            .camera: CameraEngine.systemState(),
+            .vision: .notApplicable,
+            .translate: .notApplicable,
+            .ondevice: .notApplicable,
+            .biometric: .notApplicable,
             .health: .notDetermined,
             .home: .notDetermined,
         ]
@@ -1081,6 +1093,81 @@ final class SandboxFilesEngine: @unchecked Sendable {
             "bytes": .number(Double(data.count)),
         ]))
     }
+
+    // MARK: 批三·图片落盘与读数（相机产物/识别输入）
+
+    /// 拍照/扫描的图片落盘：统一进 captures/ 子目录，
+    /// 原子写、回读逐字节核对才回条目（回读验证纪
+    /// 律）；fileName 由引擎按「photo-/scan-＋印记」
+    /// 规则生成、不含路径成分
+    func saveCapture(
+        data: Data, fileName: String
+    ) throws -> DeviceFileItem {
+        let relativePath = "captures/" + fileName
+        let url = try resolvedURL(forNormalizedPath: relativePath)
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw DeviceToolError.failed(
+                "图片保存失败：\(error.localizedDescription)"
+            )
+        }
+        guard let back = try? Data(contentsOf: url),
+              back == data
+        else {
+            throw DeviceToolError.failed("图片保存后核对不一致，不报成功")
+        }
+        guard let item = item(relativePath: relativePath) else {
+            throw DeviceToolError.failed("图片保存后读不到，不报成功")
+        }
+        return item
+    }
+
+    /// 读二进制（识别输入用）：边界与 readText 同一
+    /// 套（根内解析＋符号链接前缀复核），上限由调用
+    /// 方给（图片口径 20 MB、与文本的 256 KB 分开）
+    func readData(
+        relativePath: String, maxBytes: Int
+    ) throws -> Data {
+        let url = try resolvedURL(forNormalizedPath: relativePath)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: url.path, isDirectory: &isDirectory
+        ) else {
+            throw DeviceToolError.failed("文件不存在：\(relativePath)")
+        }
+        guard !isDirectory.boolValue else {
+            throw DeviceToolError.failed(
+                "「\(relativePath)」是文件夹，读不出内容"
+            )
+        }
+        let attributes = try? FileManager.default
+            .attributesOfItem(atPath: url.path)
+        let size = (attributes?[.size] as? NSNumber)?.int64Value
+            ?? 0
+        guard size <= maxBytes else {
+            throw DeviceToolError.failed(
+                "文件超过 \(maxBytes / 1024 / 1024) MB 上限，不读取"
+            )
+        }
+        do {
+            return try Data(contentsOf: url)
+        } catch {
+            throw DeviceToolError.failed(
+                "读取文件失败：\(error.localizedDescription)"
+            )
+        }
+    }
+
+    /// captures/ 里的图片条目（相机详情页与扫描回放
+    /// 共用）：目录还不存在时回空表、不报错
+    func captureItems() -> [DeviceFileItem] {
+        (try? listItems(relativePath: "captures")) ?? []
+    }
 }
 
 // MARK: - 闹钟执行器（设备扩容批二，AlarmKit）
@@ -1744,6 +1831,20 @@ final class DeviceToolDispatcher: @unchecked Sendable {
     let alarms = AlarmEngine()
     let notifications = NotificationEngine()
     let opener = OpenTargetEngine()
+    // 批三引擎：相机/识别要共用同一个沙盒文件引擎
+    // （产物落盘与识别输入同一条边界），在 init 里
+    // 以已建好的 files 注入；翻译/端上模型/本人确
+    // 认无状态依赖、直接内联建
+    let camera: CameraEngine
+    let vision: VisionEngine
+    let translate = TranslateEngine()
+    let ondevice = OnDeviceModelEngine()
+    let biometric = BiometricEngine()
+
+    init() {
+        camera = CameraEngine(files: files)
+        vision = VisionEngine(files: files)
+    }
 
     private static let ledgerKey = "device.writeKeyLedger.v1"
 
@@ -1802,6 +1903,25 @@ final class DeviceToolDispatcher: @unchecked Sendable {
                 result["stillAbsent"] = .bool(
                     alarms.alarmObject(id: objectID) == nil
                 )
+            case "camera_capture":
+                // 回放只带已存图片的回读元数据（还在
+                // 不在、多大），不重拍第二张——取景框
+                // 绝不因重发再弹
+                if let item = files.item(relativePath: objectID) {
+                    result["file"] = .object(
+                        SandboxFilesEngine.fileObject(item)
+                    )
+                }
+            case "vision_document_scan":
+                // objectID 是这批页的共同前缀：回放按
+                // 前缀找回还在的页并带回元数据
+                let pages = camera.scanPages(prefix: objectID)
+                result["pageCount"] = .number(
+                    Double(pages.count)
+                )
+                result["pages"] = .array(pages.map {
+                    .object(SandboxFilesEngine.fileObject($0))
+                })
             default:
                 break
             }
@@ -1914,6 +2034,35 @@ final class DeviceToolDispatcher: @unchecked Sendable {
                 return try await writeWithLedgerAsync(
                     key: args.idempotencyKey, tool: call.tool
                 ) { try await opener.open(args) }
+            case "camera_capture":
+                let args = try CameraCaptureArgs.parse(call.arguments)
+                return try await writeWithLedgerAsync(
+                    key: args.idempotencyKey, tool: call.tool
+                ) { try await camera.capturePhoto(args) }
+            case "vision_ocr":
+                let args = try VisionOCRArgs.parse(call.arguments)
+                return (try await vision.ocrResult(args), nil)
+            case "vision_scan_code":
+                let args = try VisionScanCodeArgs.parse(call.arguments)
+                return (try await vision.scanCodeResult(args), nil)
+            case "vision_document_scan":
+                let args = try VisionDocumentScanArgs.parse(
+                    call.arguments
+                )
+                return try await writeWithLedgerAsync(
+                    key: args.idempotencyKey, tool: call.tool
+                ) { try await camera.scanDocument(args) }
+            case "translate_text":
+                let args = try TranslateTextArgs.parse(call.arguments)
+                return (try await translate.translate(args), nil)
+            case "ondevice_model_run":
+                let args = try OnDeviceModelArgs.parse(call.arguments)
+                return (try await ondevice.run(args), nil)
+            case "auth_biometric":
+                // 本人确认不走账本（每次必真问一次，
+                // 见 DeviceToolSpec 批三注记）
+                let args = try BiometricAuthArgs.parse(call.arguments)
+                return (try await biometric.confirm(args), nil)
             default:
                 return (nil, .toolUnavailable("工具 \(call.tool) 尚未接线"))
             }

@@ -13,15 +13,17 @@ final class DeviceSourcesTests: XCTestCase {
 
     func testRosterIntegrity() {
         let roster = DeviceSourceDirectory.roster(locale: Locale(identifier: "zh-Hans"))
-        XCTAssertEqual(roster.count, 12)
+        XCTAssertEqual(roster.count, 17)
         XCTAssertEqual(
             roster.map(\.sourceID),
             [
                 .calendar, .reminders, .contacts, .photos,
                 .motion, .clipboard, .files, .alarm,
-                .notifications, .opener, .health, .home,
+                .notifications, .opener, .camera, .vision,
+                .translate, .ondevice, .biometric,
+                .health, .home,
             ],
-            "名册序＝目录呈现序（0.36.14 加照片/步数，扩容批一加剪贴板/文件，扩容批二加闹钟/通知/打开目标）"
+            "名册序＝目录呈现序（0.36.14 加照片/步数，扩容批一加剪贴板/文件，扩容批二加闹钟/通知/打开目标，扩容批三加相机/识别/翻译/端上智能/本人确认）"
         )
         XCTAssertEqual(Set(roster.map(\.id)).count, roster.count)
         for entry in roster {
@@ -67,16 +69,22 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.alarm, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.notifications, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.opener, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.camera, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.vision, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.translate, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.ondevice, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.biometric, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.health, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.home, locale: Locale(identifier: "zh-Hans")).isWired)
     }
 
     // MARK: - 工具名册
 
-    /// 与 device-bridge TOOLS 表逐字对齐（二十件全
-    /// 集；扩容批一/批二的十件待桥侧 TOOLS 表补齐后
-    /// 才真正双向对齐——App 侧先行定义、桥未上线时
-    /// 调用在桥侧就不存在，App 侧门控见注册载荷钉测）
+    /// 与 device-bridge TOOLS 表逐字对齐（二十七件
+    /// 全集；扩容批一/批二/批三的十七件待桥侧 TOOLS
+    /// 表补齐后才真正双向对齐——App 侧先行定义、桥
+    /// 未上线时调用在桥侧就不存在，App 侧门控见注
+    /// 册载荷钉测）
     func testToolRegistryMatchesBridge() {
         XCTAssertEqual(
             DeviceToolRegistry.all.map(\.name),
@@ -89,6 +97,10 @@ final class DeviceSourcesTests: XCTestCase {
                 "files_list", "files_read", "files_write",
                 "alarm_set", "alarm_list", "alarm_cancel",
                 "notify_post", "open_target",
+                "camera_capture", "vision_ocr",
+                "vision_scan_code", "vision_document_scan",
+                "translate_text", "ondevice_model_run",
+                "auth_biometric",
                 "health_daily_summary", "home_status",
             ]
         )
@@ -100,15 +112,16 @@ final class DeviceSourcesTests: XCTestCase {
                 "clipboard_set", "files_write",
                 "alarm_set", "alarm_cancel",
                 "notify_post", "open_target",
+                "camera_capture", "vision_document_scan",
             ],
-            "写工具恰十件（无 delete；alarm_cancel 是取消自设闹钟的配对动作、不是删用户数据，见 §113.6）"
+            "写工具恰十二件（无 delete；alarm_cancel 是取消自设闹钟的配对动作、不是删用户数据，见 §113.6；auth_biometric 不入写集——它不改状态、回放旧确认会把在场门放掉，见 §114）"
         )
         XCTAssertFalse(
             DeviceToolRegistry.all.contains { $0.name.contains("delete") }
         )
     }
 
-    /// App 可执行集：已接线数据源的十七个；
+    /// App 可执行集：已接线数据源的二十四个；
     /// device_status 桥本地应答不经手机；健康/家庭
     /// 未接线不上报
     func testAppExecutableSet() {
@@ -123,6 +136,10 @@ final class DeviceSourcesTests: XCTestCase {
                 "files_list", "files_read", "files_write",
                 "alarm_set", "alarm_list", "alarm_cancel",
                 "notify_post", "open_target",
+                "camera_capture", "vision_ocr",
+                "vision_scan_code", "vision_document_scan",
+                "translate_text", "ondevice_model_run",
+                "auth_biometric",
             ]
         )
     }
@@ -156,11 +173,17 @@ final class DeviceSourcesTests: XCTestCase {
                 .clipboard: .notApplicable, .files: .notApplicable,
                 .alarm: .granted, .notifications: .granted,
                 .opener: .notApplicable,
+                .camera: .granted, .vision: .notApplicable,
+                .translate: .notApplicable,
+                .ondevice: .notApplicable,
+                .biometric: .notApplicable,
             ],
             agentCallEnabled: [
                 .calendar: true, .reminders: true, .contacts: true,
                 .clipboard: true, .files: true,
                 .alarm: true, .notifications: true, .opener: true,
+                .camera: true, .vision: true, .translate: true,
+                .ondevice: true, .biometric: true,
             ]
         )
         XCTAssertEqual(payload.permissions["calendar"], "granted")
@@ -182,6 +205,26 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertEqual(
             payload.permissions["opener"], "granted",
             "打开目标无系统权限，同 notApplicable 放行口径"
+        )
+        XCTAssertEqual(
+            payload.permissions["camera"], "granted",
+            "相机是真权限键：报系统原态，桥可据此先行拦权限错误"
+        )
+        XCTAssertEqual(
+            payload.permissions["vision"], "granted",
+            "识别无系统权限，同 notApplicable 放行口径"
+        )
+        XCTAssertEqual(
+            payload.permissions["translate"], "granted",
+            "翻译无系统权限，同 notApplicable 放行口径"
+        )
+        XCTAssertEqual(
+            payload.permissions["ondevice"], "granted",
+            "端上智能无系统权限，同 notApplicable 放行口径（机型可用性门在 App 层组装 tools 时另行摘除）"
+        )
+        XCTAssertEqual(
+            payload.permissions["biometric"], "granted",
+            "本人确认无系统权限开关，同 notApplicable 放行口径（同意在每次调用时由系统当面给出）"
         )
         XCTAssertEqual(
             payload.permissions["health"], "notDetermined",
@@ -347,7 +390,7 @@ final class DeviceSourcesTests: XCTestCase {
             .home: "待签名权益",
         ]
         XCTAssertEqual(
-            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 12
+            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 17
         )
         XCTAssertEqual(
             DeviceRowStatus.filtered(
@@ -450,6 +493,11 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertNil(DeviceSyncDataset.fromSource(.alarm))
         XCTAssertNil(DeviceSyncDataset.fromSource(.notifications))
         XCTAssertNil(DeviceSyncDataset.fromSource(.opener))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.camera))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.vision))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.translate))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.ondevice))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.biometric))
     }
 
     /// 文案诚实钉：剪贴板说明必须如实写明读取会触
@@ -520,5 +568,94 @@ final class DeviceSourcesTests: XCTestCase {
         let opener = DeviceSourceDirectory.descriptor(.opener, locale: Locale(identifier: "zh-Hans"))
         XCTAssertTrue(opener.agentNote.contains("白名单"))
         XCTAssertTrue(opener.footnote.contains("白名单"))
+    }
+
+    // MARK: - 在场交互五件（设备扩容批三）
+
+    /// 门控分档：相机是真权限键（被拒→两件工具都
+    /// 不列、权限报原态，桥可先行回 permission_
+    /// denied；文档扫描同归相机门下）；识别/翻译/
+    /// 端上智能/本人确认无系统权限、只认调用开关
+    /// （关→不列、开→全列）
+    func testRegistrationPresenceGating() {
+        let cameraDenied = DeviceRegistration.payload(
+            permissions: [.camera: .denied],
+            agentCallEnabled: [.camera: true]
+        )
+        XCTAssertEqual(
+            cameraDenied.permissions["camera"], "denied",
+            "相机真权限键报原态，不许学无权限件报 granted"
+        )
+        XCTAssertFalse(cameraDenied.tools.contains("camera_capture"))
+        XCTAssertFalse(
+            cameraDenied.tools.contains("vision_document_scan"),
+            "文档扫描归相机门：相机被拒它也不可用"
+        )
+        let cameraOK = DeviceRegistration.payload(
+            permissions: [.camera: .granted],
+            agentCallEnabled: [.camera: true]
+        )
+        XCTAssertTrue(cameraOK.tools.contains("camera_capture"))
+        XCTAssertTrue(cameraOK.tools.contains("vision_document_scan"))
+        let cameraOff = DeviceRegistration.payload(
+            permissions: [.camera: .granted],
+            agentCallEnabled: [.camera: false]
+        )
+        XCTAssertFalse(cameraOff.tools.contains("camera_capture"))
+        let presenceOff = DeviceRegistration.payload(
+            permissions: [
+                .vision: .notApplicable, .translate: .notApplicable,
+                .ondevice: .notApplicable, .biometric: .notApplicable,
+            ],
+            agentCallEnabled: [
+                .vision: false, .translate: false,
+                .ondevice: false, .biometric: false,
+            ]
+        )
+        for name in [
+            "vision_ocr", "vision_scan_code", "translate_text",
+            "ondevice_model_run", "auth_biometric",
+        ] {
+            XCTAssertFalse(presenceOff.tools.contains(name), name)
+        }
+        let presenceOn = DeviceRegistration.payload(
+            permissions: [
+                .vision: .notApplicable, .translate: .notApplicable,
+                .ondevice: .notApplicable, .biometric: .notApplicable,
+            ],
+            agentCallEnabled: [
+                .vision: true, .translate: true,
+                .ondevice: true, .biometric: true,
+            ]
+        )
+        XCTAssertEqual(
+            Set(presenceOn.tools),
+            [
+                "vision_ocr", "vision_scan_code", "translate_text",
+                "ondevice_model_run", "auth_biometric",
+            ]
+        )
+    }
+
+    /// 文案诚实钉（批三）：相机必须写明当面操作（智
+    /// 能体只能发起不能代拍）；端上智能必须写明机
+    /// 型门；本人确认必须写明读不到生物数据；翻
+    /// 译必须写明语言包边界——四件的承诺边界都写
+    /// 在明处
+    func testPresenceSourceCopyHonesty() {
+        let camera = DeviceSourceDirectory.descriptor(.camera, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(camera.agentNote.contains("当面"))
+        XCTAssertTrue(camera.footnote.contains("相册"))
+        let vision = DeviceSourceDirectory.descriptor(.vision, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(vision.agentNote.contains("没有系统权限"))
+        XCTAssertTrue(vision.footnote.contains("不上传"))
+        let translate = DeviceSourceDirectory.descriptor(.translate, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(translate.agentNote.contains("语言包"))
+        let ondevice = DeviceSourceDirectory.descriptor(.ondevice, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(ondevice.agentNote.contains("机型"))
+        XCTAssertTrue(ondevice.capabilityLine.contains("机型"))
+        let biometric = DeviceSourceDirectory.descriptor(.biometric, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(biometric.agentNote.contains("读不到"))
+        XCTAssertTrue(biometric.footnote.contains("不出系统"))
     }
 }

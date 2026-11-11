@@ -594,4 +594,165 @@ final class DeviceCallsTests: XCTestCase {
         XCTAssertEqual(deviceDurationText(5400), "1 小时 30 分后")
         XCTAssertEqual(deviceDurationText(7200), "2 小时后")
     }
+
+    // MARK: - 批三·在场交互参数
+
+    /// 拍照/扫描是落文件的写动作：幂等键必填，缺键
+    /// 在解析层就拒（不许把取景框弹出去才发现没法
+    /// 防重）
+    func testCameraAndScanArgsRequireKey() throws {
+        let capture = try CameraCaptureArgs.parse([
+            "idempotencyKey": .string("cap-1"),
+        ])
+        XCTAssertEqual(capture.idempotencyKey, "cap-1")
+        XCTAssertTrue(capture.humanSummary.contains("拍照"))
+        XCTAssertThrowsError(try CameraCaptureArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        let scan = try VisionDocumentScanArgs.parse([
+            "idempotencyKey": .string("scan-1"),
+        ])
+        XCTAssertEqual(scan.idempotencyKey, "scan-1")
+        XCTAssertThrowsError(
+            try VisionDocumentScanArgs.parse([:])
+        ) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
+
+    /// 识别两件的路径与 files_read 同一套规范化：
+    /// 相对路径收敛、越界在解析层拒
+    func testVisionArgsPaths() throws {
+        let ocr = try VisionOCRArgs.parse([
+            "path": .string("captures/photo-1.jpg"),
+        ])
+        XCTAssertEqual(ocr.path, "captures/photo-1.jpg")
+        let code = try VisionScanCodeArgs.parse([
+            "path": .string("./captures/../captures/a.png"),
+        ])
+        XCTAssertEqual(code.path, "captures/a.png")
+        XCTAssertThrowsError(try VisionOCRArgs.parse([
+            "path": .string("../secret.jpg"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "越出 OneDay 文件夹的路径在解析层就拒"
+            )
+        }
+        XCTAssertThrowsError(try VisionScanCodeArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
+
+    /// 翻译参数：原文/源语言必填、目标可缺省；超长
+    /// 与非法语言代码在解析层拒
+    func testTranslateArgsValidation() throws {
+        let args = try TranslateTextArgs.parse([
+            "text": .string("Hello"),
+            "source": .string("en"),
+        ])
+        XCTAssertNil(args.target)
+        let targeted = try TranslateTextArgs.parse([
+            "text": .string("你好"),
+            "source": .string("zh-Hans"),
+            "target": .string("ja"),
+        ])
+        XCTAssertEqual(targeted.target, "ja")
+        XCTAssertThrowsError(try TranslateTextArgs.parse([
+            "text": .string("Hello"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "无头会话必须先有源语言，不设缺省兜底"
+            )
+        }
+        XCTAssertThrowsError(try TranslateTextArgs.parse([
+            "text": .string("Hello"),
+            "source": .string("en/us"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        XCTAssertThrowsError(try TranslateTextArgs.parse([
+            "text": .string(
+                String(repeating: "a", count: 4001)
+            ),
+            "source": .string("en"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
+
+    /// 端上模型参数：问题必填且有字数收敛；指令可
+    /// 缺省、超长拒
+    func testOnDeviceModelArgsValidation() throws {
+        let args = try OnDeviceModelArgs.parse([
+            "prompt": .string("把这段话缩成一句"),
+        ])
+        XCTAssertNil(args.instructions)
+        let withInstructions = try OnDeviceModelArgs.parse([
+            "prompt": .string("总结一下"),
+            "instructions": .string("只用中文回答"),
+        ])
+        XCTAssertEqual(withInstructions.instructions, "只用中文回答")
+        XCTAssertThrowsError(try OnDeviceModelArgs.parse([
+            "prompt": .string(
+                String(repeating: "问", count: 3001)
+            ),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        XCTAssertThrowsError(try OnDeviceModelArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
+
+    /// 本人确认参数：理由必填（要原样显示在系统验
+    /// 证框里、不许空着验）、有字数收敛；且它按定
+    /// 义不带幂等键（每次必真问一次）
+    func testBiometricArgsValidation() throws {
+        let args = try BiometricAuthArgs.parse([
+            "reason": .string("批准这笔付款前确认是本人"),
+        ])
+        XCTAssertEqual(args.reason, "批准这笔付款前确认是本人")
+        XCTAssertTrue(args.humanSummary.contains("本人确认"))
+        XCTAssertThrowsError(try BiometricAuthArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        XCTAssertThrowsError(try BiometricAuthArgs.parse([
+            "reason": .string(
+                String(repeating: "验", count: 121)
+            ),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
 }

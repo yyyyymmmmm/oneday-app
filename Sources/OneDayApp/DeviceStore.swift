@@ -99,6 +99,14 @@ final class DeviceSessionController {
         .notifications: DevicePreferences
             .agentCallEnabled(.notifications),
         .opener: DevicePreferences.agentCallEnabled(.opener),
+        // 批三五件：相机有真系统权限（开关与权限分
+        // 开，与闹钟同）；识别/翻译/端上智能/本人确
+        // 认无系统权限、开关即唯一的门（与剪贴板同）
+        .camera: DevicePreferences.agentCallEnabled(.camera),
+        .vision: DevicePreferences.agentCallEnabled(.vision),
+        .translate: DevicePreferences.agentCallEnabled(.translate),
+        .ondevice: DevicePreferences.agentCallEnabled(.ondevice),
+        .biometric: DevicePreferences.agentCallEnabled(.biometric),
         .health: false,
         .home: false,
     ]
@@ -216,7 +224,10 @@ final class DeviceSessionController {
             _ = await dispatcher.alarms.requestAccess()
         case .notifications:
             _ = await dispatcher.notifications.requestAccess()
-        case .clipboard, .files, .opener:
+        case .camera:
+            _ = await dispatcher.camera.requestAccess()
+        case .clipboard, .files, .opener, .vision, .translate,
+             .ondevice, .biometric:
             break // 无系统权限可申请：开关即唯一的门
         case .health, .home:
             break // 未接线，不申请
@@ -245,13 +256,23 @@ final class DeviceSessionController {
                 permissions: self.permissions,
                 agentCallEnabled: self.agentCallEnabled
             )
+            // 端上智能的可用性门（批三，§114）：机型
+            // 不支持/未开启/模型未就绪时把
+            // ondevice_model_run 从注册清单摘掉——
+            // 可用性是机型事实、不进 Core 静态名册；
+            // 状态变化后下一次注册自动跟上，引擎执
+            // 行时另有复查兜底
+            var tools = payload.tools
+            if !OnDeviceModelEngine.isAvailable {
+                tools.removeAll { $0 == "ondevice_model_run" }
+            }
             do {
                 let grant = try await self.client.registerSession(
                     config: config,
                     deviceId: DevicePreferences.deviceID,
                     appVersion: self.appVersion,
                     permissions: payload.permissions,
-                    tools: payload.tools
+                    tools: tools
                 )
                 let action = self.machine.handle(
                     .registered(sessionID: grant.sessionId)
