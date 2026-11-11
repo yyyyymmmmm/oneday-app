@@ -139,4 +139,46 @@ public enum AttachmentPanel {
             .filter { $0.isLetter || $0.isNumber }
         return "视频.\(cleaned.isEmpty ? "mov" : cleaned)"
     }
+
+    // MARK: - 定高决策（§154 热修收口）
+
+    /// detent 钳顶占屏比：内容再高也不许把 sheet
+    /// 撑过宿主高度的四分之三
+    public static let detentMaxScreenFraction: CGFloat = 0.75
+
+    /// 量测可信下限（pt）：面板最矮形态（无资源库
+    /// 区、无确认行）的内容高是上下内边距 32＋动作
+    /// 行两行 104＝136，低于 120 的「内容高」不可能是
+    /// 真量测——只能是量测链坏掉时的伪值（见
+    /// detentHeight 的热修记账），一律按量测失败处
+    /// 理、回落默认档
+    public static let detentMinimumPlausibleHeight: CGFloat = 120
+
+    /// 量得内容高 → detent 高（§152 立、§154 热修）：
+    /// 零/负/低于可信下限的量测与无效屏高一律回
+    /// nil——宿主据此回落 .medium，面板照常打开，
+    /// 绝不许拿伪值当 detent 把 sheet 压没；有效
+    /// 量测按屏高比例钳顶后原样返回。
+    ///
+    /// §154 定因（0.50.16 真机「+」点开无反应）：
+    /// 本函数的 screenHeight 必须是**宿主真高**
+    /// （呈现方整页几何）——§152 施工时误把 sheet
+    /// 内容里的 GeometryReader 所量当作屏高，那量
+    /// 到的其实是 detent 驱动的 sheet 自身高度 s：
+    /// detent＝min(量测, 0.75·s) 每过一轮布局至多
+    /// 剩 0.75 倍，几何衰减塌到近零，sheet 等于没
+    /// 出现。入参口径自此钉死：screenHeight 只许
+    /// 来自 sheet 之外的呈现方几何；量测本身须取
+    /// 内容理想高（App 层 fixedSize 保真），与当
+    /// 前 detent 无关——本函数对同一 (measured,
+    /// screenHeight) 恒回同值，是不动点，宿主回路
+    /// 不再自激。
+    public static func detentHeight(
+        measured: CGFloat, screenHeight: CGFloat
+    ) -> CGFloat? {
+        guard screenHeight > 0,
+              measured >= detentMinimumPlausibleHeight
+        else { return nil }
+        return min(measured, screenHeight * detentMaxScreenFraction)
+    }
 }
