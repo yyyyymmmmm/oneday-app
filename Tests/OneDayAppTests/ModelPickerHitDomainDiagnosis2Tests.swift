@@ -1,22 +1,23 @@
 import SwiftUI
 import UIKit
 import XCTest
+@testable import OneDayApp
 
-/// 热修诊断（临时件，定因后随修法一并处置）：用户报
-/// 0.50.21 点状态栏区域打开模型选择页。本测试在宿主
-/// 窗口内复刻聊天页顶栏的真实结构（顶 safeAreaBar 注
-/// 册＋.scrollEdgeEffectStyle(.soft, for: .top)＋
-/// ViewThatFits 双档身份胶囊＋枢纽/模型双钮＋玻璃），
-/// 窗口安全区覆写为真机状态栏高（顶 59），量测：
-/// ①两钮标签的窗口坐标帧；②状态栏带内若干点（x 取
-/// 两钮标签中心）经 UIWindow.hitTest 的归属——命中
-/// 视图与「在标签中心处命中的同一视图」比对身份。
-/// 变体 A＝现行生产（sheet 挂聊天根）；变体 B＝补丁
-/// 前（sheet 挂模型钮本体）。两变体对照定位回归面。
+/// 热修诊断·第二轮（临时件）：第一轮已证——①sheet
+/// 宿主迁移对命中路由零影响（A/B 全等）；②胶囊行
+/// 的 .glassEffect 生成单一 UIPlatformGlassInter-
+/// actionView（整颗胶囊一个命中体、两钮无独立命中
+/// 视图）。本轮钉死三环：
+/// 甲：胶囊内「标签外」点（上缘玻璃带／分隔线／左
+///     角）的 hitTest 归属＋玻璃视图手势识别器转储；
+/// 乙：把复刻装进生产壳层 DrawerContainerControl-
+///     ler 后，胶囊帧是否上抬进状态栏带、带内点归
+///     属是否变；
+/// 丙：修复方向预验——D1 玻璃降为行背景层、D2 去
+///     玻璃换 ultraThinMaterial，命中是否收回各自
+///     标签、标签外点是否不再命中钮。
 @MainActor
-final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
-
-    // MARK: - 探针记录
+final class ModelPickerHitDomainDiagnosis2Tests: XCTestCase {
 
     private final class FrameLog {
         var hub: CGRect?
@@ -34,8 +35,6 @@ final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
         }
     }
 
-    // MARK: - 复刻视图（结构与 ChatView 顶栏逐项同构）
-
     private struct PressableReplica: ButtonStyle {
         func makeBody(configuration: Configuration) -> some View {
             configuration.label
@@ -44,24 +43,14 @@ final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
         }
     }
 
-    private struct SheetPlacement: ViewModifier {
-        var onButton: Bool
-        @Binding var shown: Bool
-
-        func body(content: Content) -> some View {
-            if onButton {
-                content.sheet(isPresented: $shown) {
-                    Text("模型选择面（复刻）")
-                }
-            } else {
-                content
-            }
-        }
+    private enum GlassMode {
+        case rowGlass       // 生产现状：玻璃加在整行上
+        case backgroundGlass // D1：玻璃降为行背景层
+        case material       // D2：去玻璃、材质背景
     }
 
     private struct CapsuleReplica: View {
-        var sheetOnButton: Bool
-        @Binding var pickerShown: Bool
+        var glassMode: GlassMode
         let frames: FrameLog
 
         var body: some View {
@@ -76,14 +65,9 @@ final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
                 .padding(.horizontal, 20)
             }
             .safeAreaBar(edge: .top) {
-                VStack(spacing: 6) {
-                    headerBar
-                }
+                VStack(spacing: 6) { headerBar }
             }
             .scrollEdgeEffectStyle(.soft, for: .top)
-            .modifier(
-                SheetPlacement(onButton: !sheetOnButton, shown: $pickerShown)
-            )
             .onPreferenceChange(FramesKey.self) { value in
                 frames.hub = value["hub"] ?? frames.hub
                 frames.model = value["model"] ?? frames.model
@@ -141,7 +125,7 @@ final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
         }
 
         private func capsuleRow(showName: Bool) -> some View {
-            HStack(spacing: 8) {
+            let row = HStack(spacing: 8) {
                 Button {} label: {
                     HStack(spacing: 8) {
                         Circle()
@@ -178,9 +162,7 @@ final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
                     .fill(Color.gray.opacity(0.4))
                     .frame(width: 0.5, height: 18)
 
-                Button {
-                    pickerShown = true
-                } label: {
+                Button {} label: {
                     HStack(spacing: 3) {
                         Text("deepseek-flash")
                             .font(.callout)
@@ -192,9 +174,6 @@ final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableReplica())
-                .modifier(
-                    SheetPlacement(onButton: sheetOnButton, shown: $pickerShown)
-                )
                 .background {
                     GeometryReader { proxy in
                         Color.clear.preference(
@@ -206,11 +185,25 @@ final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .glassEffect(.regular, in: Capsule())
+
+            switch glassMode {
+            case .rowGlass:
+                return AnyView(row.glassEffect(.regular, in: Capsule()))
+            case .backgroundGlass:
+                return AnyView(
+                    row.background {
+                        Capsule()
+                            .fill(Color.clear)
+                            .glassEffect(.regular, in: Capsule())
+                    }
+                )
+            case .material:
+                return AnyView(
+                    row.background(.ultraThinMaterial, in: Capsule())
+                )
+            }
         }
     }
-
-    // MARK: - 窗口（覆写安全区＝真机状态栏带）
 
     private final class StatusBarWindow: UIWindow {
         override var safeAreaInsets: UIEdgeInsets {
@@ -234,111 +227,136 @@ final class ModelPickerStatusBarTapDiagnosisTests: XCTestCase {
         wait(for: [exp], timeout: seconds + 5)
     }
 
-    // MARK: - 量测
-
-    private func measure(sheetOnButton: Bool) -> [String] {
-        let frames = FrameLog()
-        var shown = false
-        let binding = Binding<Bool>(
-            get: { shown },
-            set: { shown = $0 }
-        )
-        let root = CapsuleReplica(
-            sheetOnButton: sheetOnButton,
-            pickerShown: binding,
-            frames: frames
-        )
-        let host = UIHostingController(rootView: root)
-        window = StatusBarWindow(
-            frame: CGRect(x: 0, y: 0, width: 393, height: 852)
-        )
-        window.rootViewController = host
-        window.makeKeyAndVisible()
-        host.view.layoutIfNeeded()
-        spinRunLoop(seconds: 0.6)
-        host.view.layoutIfNeeded()
-
-        var lines: [String] = []
-        let variant = sheetOnButton ? "B(sheet@button)" : "A(sheet@root)"
-        lines.append("=== variant \(variant) ===")
-        lines.append("hostSafeArea=\(host.view.safeAreaInsets)")
-        lines.append("capsuleFrame=\(String(describing: frames.capsule))")
-        lines.append("hubLabelFrame=\(String(describing: frames.hub))")
-        lines.append("modelLabelFrame=\(String(describing: frames.model))")
-
-        guard let hub = frames.hub, let model = frames.model else {
-            lines.append("NO FRAMES CAPTURED")
-            return lines
-        }
-
-        // 标签中心命中视图＝该钮的命中承载视图（身份基准）
-        func hitIdentity(at point: CGPoint) -> UIView? {
-            window.hitTest(point, with: nil)
-        }
-        let modelHit = hitIdentity(
-            at: CGPoint(x: model.midX, y: model.midY)
-        )
-        let hubHit = hitIdentity(
-            at: CGPoint(x: hub.midX, y: hub.midY)
-        )
-        lines.append(
-            "modelCenterHit=\(describe(modelHit)) hubCenterHit=\(describe(hubHit))"
-        )
-
-        func attribute(_ view: UIView?) -> String {
-            guard let view else { return "nil" }
-            if let modelHit, view === modelHit || view.isDescendant(of: modelHit) {
-                return "MODEL"
-            }
-            if let hubHit, view === hubHit || view.isDescendant(of: hubHit) {
-                return "HUB"
-            }
-            return "OTHER(\(describe(view)))"
-        }
-
-        for y in [8.0, 18, 28, 38, 48, 56] {
-            let atModel = attribute(
-                window.hitTest(CGPoint(x: model.midX, y: y), with: nil)
-            )
-            let atHub = attribute(
-                window.hitTest(CGPoint(x: hub.midX, y: y), with: nil)
-            )
-            lines.append(
-                "strip y=\(Int(y)) x=model(\(Int(model.midX)))->\(atModel) x=hub(\(Int(hub.midX)))->\(atHub)"
-            )
-        }
-
-        // 状态栏带内全部 UIKit 视图帧转储（找溢出帧）
-        var dump: [String] = []
-        func walk(_ view: UIView, depth: Int) {
-            let frame = view.convert(view.bounds, to: window)
-            if frame.minY < 59, frame.height > 0, frame.width > 0, depth > 0 {
-                dump.append(
-                    "\(String(describing: type(of: view))) \(frame)"
-                )
-            }
-            for sub in view.subviews { walk(sub, depth: depth + 1) }
-        }
-        walk(window, depth: 0)
-        lines.append("stripViews(\(dump.count)):")
-        lines.append(contentsOf: dump.prefix(60).map { "  \($0)" })
-        return lines
-    }
-
     private func describe(_ view: UIView?) -> String {
         guard let view else { return "nil" }
         let frame = view.convert(view.bounds, to: window)
         return "\(type(of: view))\(frame)"
     }
 
-    func testDiagnoseStatusBarTapAttribution() {
+    /// 在给定窗口里装一个根控制器并完成布局
+    private func install(_ controller: UIViewController) {
+        window = StatusBarWindow(
+            frame: CGRect(x: 0, y: 0, width: 393, height: 852)
+        )
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.layoutIfNeeded()
+        spinRunLoop(seconds: 0.6)
+        controller.view.layoutIfNeeded()
+    }
+
+    private func probe(
+        frames: FrameLog, label: String
+    ) -> [String] {
+        var lines: [String] = ["--- probe \(label) ---"]
+        lines.append("capsule=\(String(describing: frames.capsule))")
+        lines.append("hub=\(String(describing: frames.hub))")
+        lines.append("model=\(String(describing: frames.model))")
+        guard let capsule = frames.capsule,
+              let hub = frames.hub,
+              let model = frames.model else {
+            lines.append("NO FRAMES")
+            return lines
+        }
+        let hubHit = window.hitTest(
+            CGPoint(x: hub.midX, y: hub.midY), with: nil
+        )
+        let modelHit = window.hitTest(
+            CGPoint(x: model.midX, y: model.midY), with: nil
+        )
+        lines.append("hubCenterHit=\(describe(hubHit))")
+        lines.append("modelCenterHit=\(describe(modelHit))")
+        lines.append(
+            "sameHitView=\(hubHit != nil && hubHit === modelHit)"
+        )
+
+        func attribute(_ view: UIView?) -> String {
+            guard let view else { return "nil" }
+            if let modelHit,
+               view === modelHit || view.isDescendant(of: modelHit) {
+                return "MODEL-VIEW"
+            }
+            if let hubHit,
+               view === hubHit || view.isDescendant(of: hubHit) {
+                return "HUB-VIEW"
+            }
+            return "OTHER(\(describe(view)))"
+        }
+
+        // 胶囊内标签外点：上缘带（模型侧/枢纽侧）、
+        // 下缘带、分隔线、左角、右角
+        let dividerX = hub.maxX + 4 + 0.25
+        let points: [(String, CGPoint)] = [
+            ("topBand@hubX", CGPoint(x: hub.midX, y: capsule.minY + 2)),
+            ("topBand@modelX", CGPoint(x: model.midX, y: capsule.minY + 2)),
+            ("bottomBand@modelX", CGPoint(x: model.midX, y: capsule.maxY - 2)),
+            ("divider", CGPoint(x: dividerX, y: capsule.midY)),
+            ("leftCorner", CGPoint(x: capsule.minX + 3, y: capsule.midY)),
+            ("rightCorner", CGPoint(x: capsule.maxX - 3, y: capsule.midY)),
+            ("strip30@modelX", CGPoint(x: model.midX, y: 30)),
+            ("strip30@hubX", CGPoint(x: hub.midX, y: 30)),
+        ]
+        for (name, point) in points {
+            lines.append(
+                "\(name) \(point)->\(attribute(window.hitTest(point, with: nil)))"
+            )
+        }
+
+        // 玻璃交互视图与手势识别器转储
+        var glassViews: [UIView] = []
+        func walk(_ view: UIView) {
+            if String(describing: type(of: view))
+                .contains("GlassInteraction") {
+                glassViews.append(view)
+            }
+            for sub in view.subviews { walk(sub) }
+        }
+        walk(window)
+        lines.append("glassViews=\(glassViews.count)")
+        for glass in glassViews {
+            let frame = glass.convert(glass.bounds, to: window)
+            let recognizers = (glass.gestureRecognizers ?? []).map {
+                String(describing: type(of: $0))
+            }
+            lines.append(
+                "glass \(frame) recognizers=\(recognizers)"
+            )
+        }
+        return lines
+    }
+
+    func testDiagnoseRound2() {
         var all: [String] = []
-        all.append(contentsOf: measure(sheetOnButton: false))
-        window.isHidden = true
-        window = nil
-        all.append(contentsOf: measure(sheetOnButton: true))
+
+        // 甲＋丙：平装三种玻璃形态
+        for (mode, name) in [
+            (GlassMode.rowGlass, "A-rowGlass(production)"),
+            (.backgroundGlass, "D1-backgroundGlass"),
+            (.material, "D2-material"),
+        ] {
+            let frames = FrameLog()
+            install(UIHostingController(
+                rootView: CapsuleReplica(glassMode: mode, frames: frames)
+            ))
+            all.append(contentsOf: probe(frames: frames, label: name))
+            window.isHidden = true
+            window = nil
+        }
+
+        // 乙：生产壳层 DrawerContainerController 承载
+        let frames = FrameLog()
+        let drawer = DrawerContainerController()
+        drawer.drawerBuilder = { _ in AnyView(Text("抽屉")) }
+        install(drawer)
+        drawer.contentRoot = AnyView(
+            CapsuleReplica(glassMode: .rowGlass, frames: frames)
+        )
+        spinRunLoop(seconds: 0.4)
+        drawer.view.layoutIfNeeded()
+        all.append(contentsOf: probe(frames: frames, label: "C-inDrawerShell"))
+
         let report = all.joined(separator: "\n")
-        print("DIAG-BEGIN\n\(report)\nDIAG-END")
-        XCTFail("DIAGNOSTIC DUMP:\n\(report)")
+        print("DIAG2-BEGIN\n\(report)\nDIAG2-END")
+        XCTFail("DIAGNOSTIC2 DUMP:\n\(report)")
     }
 }
