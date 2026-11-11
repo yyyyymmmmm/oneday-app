@@ -37,7 +37,11 @@ public struct SlotChoice: Codable, Equatable, Sendable {
     public func providerLabel(locale: Locale) -> String {
         switch provider {
         case "auto": return L10n.string("自动", locale: locale)
-        case "main": return L10n.string("主端点（经网关）", locale: locale)
+        // D3-13（随 §119 销）：「端点」是 §8 禁用词，
+        // 主通道改称默认服务商；custom 是生产写形、
+        // 与 main 同归一
+        case "main", "custom":
+            return L10n.string("默认服务商（经网关）", locale: locale)
         default: return L10n.format("直连 · %@", locale: locale, provider)
         }
     }
@@ -89,9 +93,12 @@ public struct ModelCombo: Codable, Equatable, Identifiable, Sendable {
         if let mainModel {
             parts.append(L10n.format("主模型 %@", locale: locale, mainModel))
         }
-        if !aux.isEmpty {
+        // D3-01（随 §119 销）：只数已单独指定的用途，
+        // 跟随项不算「设置过」
+        let specified = specifiedAuxCount
+        if specified > 0 {
             parts.append(L10n.format(
-                "%lld 个辅助槽位", locale: locale, aux.count
+                "已给 %lld 个用途指定模型", locale: locale, specified
             ))
         }
         if delegation != nil {
@@ -105,7 +112,7 @@ public struct ModelCombo: Codable, Equatable, Identifiable, Sendable {
                 ))
         }
         return parts.isEmpty
-            ? L10n.string("还没有设置任何槽位", locale: locale)
+            ? L10n.string("还没有给任何用途单独指定，都跟随主模型", locale: locale)
             : parts.joined(separator: " · ")
     }
 }
@@ -126,73 +133,12 @@ public struct ModelComboDocument: Codable, Equatable, Sendable {
     )
 }
 
-// MARK: - 槽位目录（编辑器呈现口径）
+// MARK: - 槽位目录
 
-public enum AuxSlotCatalog {
-    /// 常用槽位（当前界面语言版）
-    public static var primary: [(key: String, title: String, detail: String)] {
-        primary(locale: AppLocale.uiLocale)
-    }
-
-    /// 槽位目录的目录取词形（0.42.1 国际化长尾
-    /// 包）：源表存简体源串（目录键），按 locale
-    /// 解析名与说明；槽位键是协议口径、不译
-    public static func primary(
-        locale: Locale
-    ) -> [(key: String, title: String, detail: String)] {
-        primarySource.map { slot in
-            (
-                key: slot.key,
-                title: L10n.string(slot.title, locale: locale),
-                detail: L10n.string(slot.detail, locale: locale)
-            )
-        }
-    }
-
-    /// 常用槽位源表（用户能直接感知的场景在前，
-    /// §5.1(2)）：(键, 人话名, 一句说明)。说明只许
-    /// 说用途、不许编造服务端没有的行为；文本存简
-    /// 体源串、经 primary(locale:) 解析后上屏
-    private static let primarySource: [(key: String, title: String, detail: String)] = [
-        ("vision", "看图", "分析图片、看截图用哪个模型"),
-        ("title_generation", "会话标题", "给新会话起标题"),
-        ("compression", "长聊压缩", "对话太长时压缩上下文"),
-        ("web_extract", "网页摘要", "抓取网页后做摘要"),
-        ("background_review", "记忆自审", "每轮对话后整理记忆与技能"),
-        ("kanban_decomposer", "任务拆解", "看板任务自动拆分"),
-        ("goal_judge", "目标判定", "目标相关的判断"),
-        ("monitor", "监测判定", "监测任务的判断"),
-        ("profile_describer", "档案描述", "生成画像与档案描述"),
-        ("memory_query_rewrite", "记忆检索", "搜索记忆时改写问句"),
-        ("curator", "技能整理", "整理技能库"),
-        ("approval", "智能审批", "自动审批的判断"),
-    ]
-
-    /// 人话名（目录外键回落键名本身，不假装认识）
-    public static func title(forKey key: String) -> String {
-        title(forKey: key, locale: AppLocale.uiLocale)
-    }
-
-    /// 人话名的目录取词形（0.42.1 国际化长尾包）
-    public static func title(
-        forKey key: String, locale: Locale
-    ) -> String {
-        primary(locale: locale).first { $0.key == key }?.title ?? key
-    }
-
-    public static func isPrimary(_ key: String) -> Bool {
-        primary.contains { $0.key == key }
-    }
-
-    /// provider 候选（§5.7：只许本机实际可用的——自动／
-    /// 主端点／用户自加的具名提供商；官方全量 provider
-    /// 列表不原样端给用户）
-    public static func providerChoices(
-        namedProviders: [String]
-    ) -> [String] {
-        ["auto", "main"] + namedProviders
-    }
-}
+/// 槽位注册表已随 §119 迁往 AuxModelSettings.swift
+/// （19 活槽新注册表 AuxSlotCatalog，含死槽排除与
+/// 11＋8 分层；旧 12 槽目录含已死的 web_extract，
+/// 就此退役）。
 
 // MARK: - 现行值读取（编辑器回显与起始示例共用）
 
@@ -354,7 +300,7 @@ public enum ComboActivation {
         }
         if lines.isEmpty {
             lines.append(L10n.string(
-                "这套组合还没有设置任何槽位，激活不会改动现在的配置。",
+                "这套预设还没有给任何用途单独指定，启用不会改动现在的配置。",
                 locale: locale
             ))
         }

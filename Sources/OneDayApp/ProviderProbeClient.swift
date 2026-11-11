@@ -28,7 +28,7 @@ final class ProviderProbeClient: @unchecked Sendable {
             case .rejected(let status):
                 return L10n.format("对方拒绝了（%@），多半是密钥不对或没权限。", String(status))
             case .unreachable:
-                return L10n.string("连不上这家提供商，检查地址或稍后再试。")
+                return L10n.string("连不上这家服务商，检查地址或稍后再试。")
             case .emptyList:
                 return L10n.string("连上了，但对方没返回任何模型；可以手动填模型名。")
             }

@@ -168,16 +168,22 @@ final class ModelCombosTests: XCTestCase {
 
     func testComboSummaryLine() {
         XCTAssertEqual(
-            combo().summaryLine(locale: Locale(identifier: "zh-Hans")), "还没有设置任何槽位"
+            combo().summaryLine(locale: Locale(identifier: "zh-Hans")), "还没有给任何用途单独指定，都跟随主模型"
         )
         XCTAssertEqual(
             combo(
                 mainModel: "deepseek-flash",
-                aux: ["vision": .auto],
+                aux: ["vision": SlotChoice(provider: "main", model: "other")],
                 fallback: [SlotChoice(provider: "main", model: "x")],
                 includesFallback: true
             ).summaryLine(locale: Locale(identifier: "zh-Hans")),
-            "主模型 deepseek-flash · 1 个辅助槽位 · 备用链 1 级"
+            "主模型 deepseek-flash · 已给 1 个用途指定模型 · 备用链 1 级"
+        )
+        // 跟随项（.auto）不算「已指定」（D3-01 口径）
+        XCTAssertEqual(
+            combo(aux: ["vision": .auto])
+                .summaryLine(locale: Locale(identifier: "zh-Hans")),
+            "还没有给任何用途单独指定，都跟随主模型"
         )
     }
 
