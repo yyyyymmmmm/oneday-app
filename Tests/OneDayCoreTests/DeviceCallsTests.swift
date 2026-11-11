@@ -755,4 +755,261 @@ final class DeviceCallsTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - 批四·日常面参数
+
+    /// 定位参数：地点检索条数收敛；地址坐标换算恰
+    /// 给其一（同给/同缺/坐标半对/越界都在解析层拒）
+    func testLocationArgsValidation() throws {
+        let search = try LocationSearchPlacesArgs.parse([
+            "query": .string("药店"),
+            "limit": .number(99),
+        ])
+        XCTAssertEqual(search.limit, 20, "条数收敛到上限 20")
+        let defaults = try LocationSearchPlacesArgs.parse([
+            "query": .string("药店"),
+        ])
+        XCTAssertEqual(defaults.limit, 10)
+        XCTAssertThrowsError(try LocationSearchPlacesArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        let forward = try LocationGeocodeArgs.parse([
+            "address": .string("西安市高陵区"),
+        ])
+        XCTAssertEqual(forward.address, "西安市高陵区")
+        XCTAssertNil(forward.latitude)
+        let reverse = try LocationGeocodeArgs.parse([
+            "latitude": .number(34.5),
+            "longitude": .number(109.0),
+        ])
+        XCTAssertEqual(reverse.latitude, 34.5)
+        XCTAssertThrowsError(try LocationGeocodeArgs.parse([
+            "address": .string("西安"),
+            "latitude": .number(34.5),
+            "longitude": .number(109.0),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "地址与坐标同给必有歧义，解析层拒"
+            )
+        }
+        XCTAssertThrowsError(try LocationGeocodeArgs.parse([
+            "latitude": .number(34.5),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "坐标必须成对给"
+            )
+        }
+        XCTAssertThrowsError(try LocationGeocodeArgs.parse([
+            "latitude": .number(91),
+            "longitude": .number(109.0),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        XCTAssertThrowsError(try LocationGeocodeArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
+
+    /// 媒体参数：类别是封闭枚举、条数收敛；建歌单
+    /// 必带键；播放动作是封闭枚举且必带键（切歌重
+    /// 发会按两次，防重不是可选的）
+    func testMediaArgsValidation() throws {
+        let search = try MediaLibrarySearchArgs.parse([
+            "query": .string("周杰伦"),
+        ])
+        XCTAssertEqual(search.kind, .any)
+        XCTAssertEqual(search.limit, 20)
+        let songs = try MediaLibrarySearchArgs.parse([
+            "query": .string("晴天"),
+            "kind": .string("song"),
+            "limit": .number(500),
+        ])
+        XCTAssertEqual(songs.kind, .song)
+        XCTAssertEqual(songs.limit, 50, "条数收敛到上限 50")
+        XCTAssertThrowsError(try MediaLibrarySearchArgs.parse([
+            "query": .string("晴天"),
+            "kind": .string("video"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "类别表外值在解析层拒"
+            )
+        }
+        let create = try MediaPlaylistCreateArgs.parse([
+            "name": .string("跑步歌单"),
+            "idempotencyKey": .string("pl-1"),
+        ])
+        XCTAssertEqual(create.name, "跑步歌单")
+        XCTAssertThrowsError(try MediaPlaylistCreateArgs.parse([
+            "name": .string("跑步歌单"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "建歌单是写工具，缺幂等键在解析层拒"
+            )
+        }
+        let control = try MediaPlaybackControlArgs.parse([
+            "action": .string("next"),
+            "idempotencyKey": .string("pb-1"),
+        ])
+        XCTAssertEqual(control.action, .next)
+        XCTAssertNil(control.query)
+        let play = try MediaPlaybackControlArgs.parse([
+            "action": .string("play"),
+            "query": .string("晴天"),
+            "idempotencyKey": .string("pb-2"),
+        ])
+        XCTAssertEqual(play.query, "晴天")
+        XCTAssertThrowsError(try MediaPlaybackControlArgs.parse([
+            "action": .string("shuffle"),
+            "idempotencyKey": .string("pb-3"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "播放动作表外值在解析层拒"
+            )
+        }
+        XCTAssertThrowsError(try MediaPlaybackControlArgs.parse([
+            "action": .string("pause"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
+
+    /// 撰写参数：号码形态校验（字母拒）；收件人必
+    /// 须是字符串数组且至少一个；邮箱粗验含 @；分
+    /// 享文字与文件至少给一样、文件路径走沙盒规范
+    /// 化（越界在解析层拒）
+    func testComposeArgsValidation() throws {
+        let call = try CallStartArgs.parse([
+            "number": .string("+86 137-7289-5146"),
+        ])
+        XCTAssertEqual(call.number, "+86 137-7289-5146")
+        XCTAssertThrowsError(try CallStartArgs.parse([
+            "number": .string("call-me-now"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "号码里混字母在解析层拒"
+            )
+        }
+        let sms = try ComposeSMSArgs.parse([
+            "recipients": .array([.string("13772895146")]),
+            "body": .string("开会改到下午三点"),
+        ])
+        XCTAssertEqual(sms.recipients, ["13772895146"])
+        XCTAssertThrowsError(try ComposeSMSArgs.parse([
+            "recipients": .array([]),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        XCTAssertThrowsError(try ComposeSMSArgs.parse([
+            "recipients": .string("13772895146"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "收件人必须是数组，单个字符串不收"
+            )
+        }
+        let mail = try ComposeEmailArgs.parse([
+            "to": .array([.string("a@example.com")]),
+            "subject": .string("你好"),
+        ])
+        XCTAssertEqual(mail.recipients, ["a@example.com"])
+        XCTAssertThrowsError(try ComposeEmailArgs.parse([
+            "to": .array([.string("not-an-email")]),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        let shareText = try ShareSheetArgs.parse([
+            "text": .string("一段要分享的文字"),
+        ])
+        XCTAssertEqual(shareText.text, "一段要分享的文字")
+        XCTAssertNil(shareText.path)
+        let shareFile = try ShareSheetArgs.parse([
+            "path": .string("captures/photo-1.jpg"),
+        ])
+        XCTAssertEqual(shareFile.path, "captures/photo-1.jpg")
+        XCTAssertThrowsError(try ShareSheetArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "文字与文件同缺无从分享"
+            )
+        }
+        XCTAssertThrowsError(try ShareSheetArgs.parse([
+            "path": .string("../secret.txt"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "越出 OneDay 文件夹的路径在解析层就拒"
+            )
+        }
+    }
+
+    /// 快捷指令与文件呈现参数：指令名必填且有字数
+    /// 收敛、输入可缺省；预览/打印路径与 files_read
+    /// 同一套规范化
+    func testShortcutAndFilePresenceArgs() throws {
+        let run = try ShortcutRunArgs.parse([
+            "name": .string("睡前播客"),
+        ])
+        XCTAssertEqual(run.name, "睡前播客")
+        XCTAssertNil(run.input)
+        XCTAssertThrowsError(try ShortcutRunArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "只能按名运行，没名字在解析层拒"
+            )
+        }
+        XCTAssertThrowsError(try ShortcutRunArgs.parse([
+            "name": .string(
+                String(repeating: "令", count: 101)
+            ),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        let preview = try FilePreviewArgs.parse([
+            "path": .string("./docs/../report.md"),
+        ])
+        XCTAssertEqual(preview.path, "report.md")
+        XCTAssertThrowsError(try FilePrintArgs.parse([:])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
 }

@@ -156,5 +156,13 @@ struct RootView: View {
                 DemoSeeder.seedIfNeeded(context: modelContext)
             }
         }
+        // 快捷指令 x-callback 回执入口（设备扩容批
+        // 四）：oneday://shortcut-callback/<nonce>/
+        // <档> 由 ShortcutCallbackCenter 按 nonce 交
+        // 回等回执的一方；形态不对的一律在中心里安
+        // 静忽略，不作出错面
+        .onOpenURL { url in
+            ShortcutCallbackCenter.handle(url: url)
+        }
     }
 }

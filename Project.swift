@@ -94,10 +94,33 @@ let project = Project(
                 // 句与发起方给的理由一同显示；缺此键
                 // 面容验证直接失败
                 "NSFaceIDUsageDescription": "OneDay 需要用面容 ID 确认是你在操作：只在重要操作前当面验一次，系统只告诉 OneDay 过没过，你的面容数据不会离开系统。",
+                // 定位（设备扩容批四）：只有「使用
+                // 时」一档——文案钉死不做后台定位、
+                // 不存位置副本；缺此键定位请求直接
+                // 失败
+                "NSLocationWhenInUseUsageDescription": "OneDay 需要在你开着 App 时读取你的位置：只有智能体在对话里问你在哪、查附近地点时才现读一次，现读现回，不做后台定位，不保存你的位置记录。",
+                // 媒体库（设备扩容批四）：文案说清只
+                // 回书目、音频不出手机、播放控制只
+                // 作用于系统音乐播放器；缺此键媒体
+                // 库授权请求直接失败
+                "NSAppleMusicUsageDescription": "OneDay 需要读取你的媒体库书目：只有智能体在对话里请你查歌、建歌单或控制播放时才会用到；只回歌曲与歌单的书目信息，音频文件不会离开手机。",
+                // 快捷指令回执的 URL scheme（设备扩
+                // 容批四）：x-callback-url 运行完一条
+                // 快捷指令后，系统按 oneday://shortcut-
+                // callback/<随机码>/<档> 回到 OneDay
+                // 交回执；随机码一次性，外部链接打进
+                // 来对不上就安静忽略
+                "CFBundleURLTypes": [
+                    [
+                        "CFBundleURLName": "site.didichou.oneday.shortcut-callback",
+                        "CFBundleURLSchemes": ["oneday"],
+                    ],
+                ],
                 // 拉起白名单的「装没装」探测声明（设
-                // 置页根地址＋四个登记应用的 scheme；
-                // 系统上限 50 条，本表只用 5 条）
-                "LSApplicationQueriesSchemes": ["App-prefs", "weixin", "alipay", "iosamap", "maps"],
+                // 置页根地址＋四个登记应用的 scheme＋
+                // 快捷指令；系统上限 50 条，本表只用
+                // 6 条）
+                "LSApplicationQueriesSchemes": ["App-prefs", "weixin", "alipay", "iosamap", "maps", "shortcuts"],
             ]),
             sources: ["Sources/OneDayApp/**"],
             resources: ["App/Resources/**"],

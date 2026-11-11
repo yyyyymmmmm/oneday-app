@@ -162,7 +162,14 @@ public enum ToolCardClassifier {
             || short.hasPrefix("camera_") || short.hasPrefix("translate_")
             || short.hasPrefix("ondevice_") || short.hasPrefix("auth_")
             || short == "vision_ocr" || short == "vision_scan_code"
-            || short == "vision_document_scan" {
+            || short == "vision_document_scan"
+            // 批四日常面：前缀五组＋无前缀四件逐名
+            // （file_preview/file_print 须抢在下方
+            // contains("file") 的文件类之前落设备类）
+            || short.hasPrefix("location_") || short.hasPrefix("media_")
+            || short.hasPrefix("compose_") || short.hasPrefix("shortcut_")
+            || short == "call_start" || short == "share_sheet"
+            || short == "file_preview" || short == "file_print" {
             return .device
         }
         // 连接管理系（0.36.10，诊断 D3-3 盲区补齐）
@@ -241,6 +248,21 @@ public enum ToolCardClassifier {
         case "translate_text": return L10n.string("翻译文字", locale: locale)
         case "ondevice_model_run": return L10n.string("端上智能回答", locale: locale)
         case "auth_biometric": return L10n.string("本人确认", locale: locale)
+        case "location_current": return L10n.string("查看当前位置", locale: locale)
+        case "location_search_places": return L10n.string("搜索附近地点", locale: locale)
+        case "location_geocode": return L10n.string("地址坐标换算", locale: locale)
+        case "media_library_search": return L10n.string("搜索媒体库", locale: locale)
+        case "media_playlists": return L10n.string("查看歌单", locale: locale)
+        case "media_playlist_create": return L10n.string("新建歌单", locale: locale)
+        case "media_playback_control": return L10n.string("控制音乐播放", locale: locale)
+        case "call_start": return L10n.string("拨打电话", locale: locale)
+        case "compose_sms": return L10n.string("写短信", locale: locale)
+        case "compose_email": return L10n.string("写邮件", locale: locale)
+        case "share_sheet": return L10n.string("分享内容", locale: locale)
+        case "shortcut_run": return L10n.string("运行快捷指令", locale: locale)
+        case "device_info": return L10n.string("查看设备信息", locale: locale)
+        case "file_preview": return L10n.string("预览文件", locale: locale)
+        case "file_print": return L10n.string("打印文件", locale: locale)
         case "health_daily_summary": return L10n.string("查看健康摘要", locale: locale)
         case "home_status": return L10n.string("查看家庭状态", locale: locale)
         case "web_search": return L10n.string("联网搜索", locale: locale)

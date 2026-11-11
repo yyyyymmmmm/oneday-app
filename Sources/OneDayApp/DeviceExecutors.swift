@@ -50,6 +50,17 @@ enum DevicePermissions {
             .translate: .notApplicable,
             .ondevice: .notApplicable,
             .biometric: .notApplicable,
+            // 日常面五件（设备扩容批四）：定位走
+            // CoreLocation 同步 authorizationStatus
+            // 现读、媒体库走 MPMediaLibrary 同步授权
+            // 状态现读（两件都是真权限键）；拨号与
+            // 撰写/快捷指令/设备信息没有系统权限可
+            // 开关，如实报 notApplicable
+            .location: LocationEngine.systemState(),
+            .media: MediaEngine.systemState(),
+            .compose: .notApplicable,
+            .shortcuts: .notApplicable,
+            .deviceinfo: .notApplicable,
             .health: .notDetermined,
             .home: .notDetermined,
         ]
@@ -1168,6 +1179,31 @@ final class SandboxFilesEngine: @unchecked Sendable {
     func captureItems() -> [DeviceFileItem] {
         (try? listItems(relativePath: "captures")) ?? []
     }
+
+    /// 文件呈现（批四 file_preview/file_print/share_
+    /// sheet 共用）：规范相对路径 → 根内 URL（与读
+    /// 写同一条 resolvedURL 边界：符号链接双保险在
+    /// 里面）；文件不在如实报错、不许把不存在的路
+    /// 径递给系统呈现面
+    func urlForPreview(relativePath: String) throws -> URL {
+        let url = try resolvedURL(
+            forNormalizedPath: relativePath
+        )
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: url.path, isDirectory: &isDirectory
+        ) else {
+            throw DeviceToolError.failed(
+                "文件不存在：\(relativePath)"
+            )
+        }
+        guard !isDirectory.boolValue else {
+            throw DeviceToolError.failed(
+                "「\(relativePath)」是文件夹，没法预览或打印"
+            )
+        }
+        return url
+    }
 }
 
 // MARK: - 闹钟执行器（设备扩容批二，AlarmKit）
@@ -1840,10 +1876,20 @@ final class DeviceToolDispatcher: @unchecked Sendable {
     let translate = TranslateEngine()
     let ondevice = OnDeviceModelEngine()
     let biometric = BiometricEngine()
+    // 批四引擎：定位/媒体库/撰写/快捷指令/设备信息
+    // 无跨引擎状态依赖、直接内联建；文件呈现要共用
+    // 同一个沙盒文件引擎，在 init 里注入
+    let location = LocationEngine()
+    let media = MediaEngine()
+    let compose = ComposeEngine()
+    let shortcuts = ShortcutEngine()
+    let deviceInfo = DeviceInfoEngine()
+    let filePresence: FilePresenceEngine
 
     init() {
         camera = CameraEngine(files: files)
         vision = VisionEngine(files: files)
+        filePresence = FilePresenceEngine()
     }
 
     private static let ledgerKey = "device.writeKeyLedger.v1"
@@ -1922,6 +1968,14 @@ final class DeviceToolDispatcher: @unchecked Sendable {
                 result["pages"] = .array(pages.map {
                     .object(SandboxFilesEngine.fileObject($0))
                 })
+            case "media_playlist_create":
+                // 回放带歌单当前回读（还在才有），不
+                // 再建第二个同名歌单
+                if let playlist = media.playlistObjectByID(
+                    objectID
+                ) {
+                    result["playlist"] = .object(playlist)
+                }
             default:
                 break
             }
@@ -2063,6 +2117,96 @@ final class DeviceToolDispatcher: @unchecked Sendable {
                 // 见 DeviceToolSpec 批三注记）
                 let args = try BiometricAuthArgs.parse(call.arguments)
                 return (try await biometric.confirm(args), nil)
+            case "location_current":
+                let args = try LocationCurrentArgs.parse(
+                    call.arguments
+                )
+                return (try await location.currentResult(args), nil)
+            case "location_search_places":
+                let args = try LocationSearchPlacesArgs.parse(
+                    call.arguments
+                )
+                return (
+                    try await location.searchPlacesResult(args),
+                    nil
+                )
+            case "location_geocode":
+                let args = try LocationGeocodeArgs.parse(
+                    call.arguments
+                )
+                return (try await location.geocodeResult(args), nil)
+            case "media_library_search":
+                let args = try MediaLibrarySearchArgs.parse(
+                    call.arguments
+                )
+                return (try media.searchResult(args), nil)
+            case "media_playlists":
+                let args = try MediaPlaylistsArgs.parse(
+                    call.arguments
+                )
+                return (try media.playlistsResult(args), nil)
+            case "media_playlist_create":
+                let args = try MediaPlaylistCreateArgs.parse(
+                    call.arguments
+                )
+                return try await writeWithLedgerAsync(
+                    key: args.idempotencyKey, tool: call.tool
+                ) { try await media.createPlaylist(args) }
+            case "media_playback_control":
+                let args = try MediaPlaybackControlArgs.parse(
+                    call.arguments
+                )
+                return try await writeWithLedgerAsync(
+                    key: args.idempotencyKey, tool: call.tool
+                ) { try await media.playbackControl(args) }
+            case "call_start":
+                // 撰写四件不走账本（把面交到用户手上
+                // 不是状态写入，见 DeviceToolSpec 批
+                // 四注记）
+                let args = try CallStartArgs.parse(call.arguments)
+                return (try await compose.startCall(args), nil)
+            case "compose_sms":
+                let args = try ComposeSMSArgs.parse(call.arguments)
+                return (try await compose.composeSMS(args), nil)
+            case "compose_email":
+                let args = try ComposeEmailArgs.parse(
+                    call.arguments
+                )
+                return (try await compose.composeEmail(args), nil)
+            case "share_sheet":
+                let args = try ShareSheetArgs.parse(call.arguments)
+                return (
+                    try await compose.share(args, files: files),
+                    nil
+                )
+            case "shortcut_run":
+                // 快捷指令不走账本（每次都要真跑一
+                // 次，回放旧回执等于骗它跑过了）
+                let args = try ShortcutRunArgs.parse(
+                    call.arguments
+                )
+                return (try await shortcuts.run(args), nil)
+            case "device_info":
+                let args = try DeviceInfoArgs.parse(call.arguments)
+                return (await deviceInfo.infoResult(args), nil)
+            case "file_preview":
+                let args = try FilePreviewArgs.parse(
+                    call.arguments
+                )
+                return (
+                    try await filePresence.preview(
+                        args, files: files
+                    ),
+                    nil
+                )
+            case "file_print":
+                let args = try FilePrintArgs.parse(call.arguments)
+                return (
+                    try await filePresence.print(
+                        args, files: files
+                    ),
+                    nil
+                )
             default:
                 return (nil, .toolUnavailable("工具 \(call.tool) 尚未接线"))
             }

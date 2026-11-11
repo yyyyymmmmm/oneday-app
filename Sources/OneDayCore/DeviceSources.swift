@@ -10,7 +10,11 @@ import Foundation
 /// notApplicable、「允许智能体调用」开关即唯一的门。
 /// 设备扩容批二（§113）补闹钟/通知/打开目标三件动作
 /// 型；批三（§114）补在场交互与端上智能五件（相机/
-/// 识别/翻译/端上智能/本人确认）。
+/// 识别/翻译/端上智能/本人确认）。批四（§115）补日
+/// 常面五件：定位/媒体库（真系统权限）、拨号与撰
+/// 写/快捷指令/设备信息（无系统权限），外加文件预
+/// 览/打印挂既有文件源——表面图 A 档欠账至此清完
+/// （余项逐项登记不做，见 §115）。
 /// 机制＝大厂工具调用制：授权与数据都留在手机，智能
 /// 体需要时经 device-bridge 发工具调用、App 在线时现
 /// 读现回；服务器不存设备数据副本，桥只留会话状态与
@@ -61,6 +65,18 @@ public enum DeviceSourceID: String, CaseIterable, Identifiable, Sendable, Codabl
     case translate
     case ondevice
     case biometric
+    /// 日常面五件（设备扩容批四，§115）：定位/媒体
+    /// 库有真系统权限（定位只有「使用时」一档、媒体
+    /// 库走 MPMediaLibrary 授权），走权限开关终形态；
+    /// 拨号与撰写/快捷指令/设备信息没有系统权限可
+    /// 开关（撰写的发出权在系统撰写面、快捷指令靠
+    /// 按名运行、设备信息全是免权限现读），三件走
+    /// notApplicable 单开关
+    case location
+    case media
+    case compose
+    case shortcuts
+    case deviceinfo
     case health
     case home
 
@@ -208,7 +224,8 @@ public enum DeviceSourceDirectory {
 
     /// 名册源表（呈现序：日历→提醒→通讯录→照片→
     /// 步数→剪贴板→文件→闹钟→通知→打开目标→相机→
-    /// 识别→翻译→端上智能→本人确认→健康→家庭；蓝
+    /// 识别→翻译→端上智能→本人确认→定位→媒体库→
+    /// 拨号与撰写→快捷指令→设备信息→健康→家庭；蓝
     /// 牙已决不做、永不入册）；文本字段存简体源
     /// 串、经 roster(locale:) 解析后才上屏
     private static let rosterSource: [DeviceSourceDescriptor] = [
@@ -361,6 +378,56 @@ public enum DeviceSourceDirectory {
             footnote: "系统只告诉 OneDay 这次验证过没过，你的面容与指纹数据永远不出系统、App 碰不到。"
         ),
         DeviceSourceDescriptor(
+            sourceID: .location,
+            name: "定位",
+            blurb: "你现在在哪 · 现读当前位置，也可查附近地点与地址坐标",
+            tileSymbol: "location.fill", tileColorHex: 0x0A84FF,
+            batch: 1,
+            agentNote: "智能体可调用：现读你现在的位置（带精度读数），按关键词查附近的地点，或把地址与坐标互相换算。位置现读现回、不存副本，也没有后台定位——只有「使用时」这一档授权，App 不在前台时读不到",
+            capabilityLine: "现读位置 · 查附近地点",
+            footnote: "位置只在你开着 App 时现读，不做后台定位、不存位置副本；精度随定位信号变化，回执里如实标明。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .media,
+            name: "媒体库",
+            blurb: "音乐与播客书目 · 可检索计数、建歌单、控制系统音乐播放",
+            tileSymbol: "music.note", tileColorHex: 0xFA2D48,
+            batch: 1,
+            agentNote: "智能体可调用：检索你资料库里的歌曲、专辑、歌单与播客书目（只回书目信息），新建空歌单，以及控制系统音乐播放器的播放、暂停与切歌。读不到其他 App 正在放什么；播放控制只作用于系统音乐播放器",
+            capabilityLine: "查书目 · 建歌单 · 控制播放",
+            footnote: "只回书目信息，音频文件不出手机；订阅内容能不能播，取决于你的订阅状态。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .compose,
+            name: "拨号与撰写",
+            blurb: "电话/短信/邮件/分享 · 只把撰写面交到你手上，发出永远你亲手点",
+            tileSymbol: "square.and.pencil", tileColorHex: 0x64D2FF,
+            batch: 1,
+            agentNote: "智能体可调用：弹出拨号确认面，或预填好收件人与正文打开短信/邮件撰写面，或把一段文字、一个 OneDay 文件夹里的文件递到系统分享面。发出动作永远由你在系统面上亲手点，智能体不能代发。这一件没有系统权限可开可关，详情页里的开关就是唯一的门",
+            capabilityLine: "预填撰写面 · 发出由你亲手点",
+            footnote: "撰写面打开后，改不改、发不发都由你决定；你在撰写面里取消，这次调用就如实回「没有发出」。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .shortcuts,
+            name: "快捷指令",
+            blurb: "按名字运行你已有的快捷指令 · 只能运行，不能查看你的指令列表",
+            tileSymbol: "bolt.fill", tileColorHex: 0x3A3A8C,
+            batch: 1,
+            agentNote: "智能体可调用：按名字运行你已经建好的一条快捷指令，可带一段文字输入。系统没有列出全部快捷指令的办法，只能运行你告诉过名字的一条；运行会切到快捷指令去执行，结果以它的回执为准，没有回执时只报「已发起」、不报成功。这一件没有系统权限可开可关，详情页里的开关就是唯一的门",
+            capabilityLine: "按名运行一条快捷指令",
+            footnote: "只能按名运行、不能枚举你的快捷指令；运行中你会离开 OneDay 一阵，回来之后才有结果。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .deviceinfo,
+            name: "设备信息",
+            blurb: "机型/系统/电量/存储/网络 · 零权限现读，给智能体做先导判断",
+            tileSymbol: "iphone", tileColorHex: 0x8E8E93,
+            batch: 1,
+            agentNote: "智能体可调用：现读这台手机的机型标识、系统版本、电量与充电状态、存储余量与当前网络（Wi-Fi/蜂窝/离线），给它派活前先有个先导判断。全部现读现回、不存副本；手机的名字与当前 Wi-Fi 名称需要签名权益才读得到，不在此列。这一件没有系统权限可开可关，详情页里的开关就是唯一的门",
+            capabilityLine: "现读机型/电量/存储/网络",
+            footnote: "全部现读现回、不存副本；电量一时读不到时如实回未知，不编数。"
+        ),
+        DeviceSourceDescriptor(
             sourceID: .health,
             name: "健康",
             blurb: "步数/睡眠/心率等每日摘要 · 待签名权益到位后开通",
@@ -408,6 +475,17 @@ public enum DeviceSourceDirectory {
 /// 状态、本质是当面问一句「是不是本人」，24 小时
 /// 账本回放一枚旧「确认通过」会把在场门放掉，与
 /// 这件的用途正相反；每次调用必真问一次（§114）。
+/// 批四注记（§115）：call_start/compose_*/share_
+/// sheet/shortcut_run/file_preview/file_print 六件
+/// 同理不入写集、不带幂等键——它们不自己改变任何
+/// 状态，只是把系统界面交到用户手上（发出与否、
+/// 跑不跑完都由用户在系统面上当场决定）；回放一
+/// 枚旧「已打开撰写面」回执会让智能体以为这次也
+/// 交到了，恰好把在场前提放掉。真正改变状态的两
+/// 件（media_playlist_create/media_playback_
+/// control）照写集带键：建歌单可回读核对、重复建
+/// 同名歌单是真重复；播放控制重复下发会把切歌按
+/// 两次，都必须能安全回放。
 public struct DeviceToolSpec: Equatable, Sendable {
     public let name: String
     public let source: DeviceSourceID?
@@ -435,6 +513,8 @@ public enum DeviceToolRegistry {
         DeviceToolSpec(name: "files_list", source: .files, isWrite: false),
         DeviceToolSpec(name: "files_read", source: .files, isWrite: false),
         DeviceToolSpec(name: "files_write", source: .files, isWrite: true),
+        DeviceToolSpec(name: "file_preview", source: .files, isWrite: false),
+        DeviceToolSpec(name: "file_print", source: .files, isWrite: false),
         DeviceToolSpec(name: "alarm_set", source: .alarm, isWrite: true),
         DeviceToolSpec(name: "alarm_list", source: .alarm, isWrite: false),
         DeviceToolSpec(name: "alarm_cancel", source: .alarm, isWrite: true),
@@ -447,6 +527,19 @@ public enum DeviceToolRegistry {
         DeviceToolSpec(name: "translate_text", source: .translate, isWrite: false),
         DeviceToolSpec(name: "ondevice_model_run", source: .ondevice, isWrite: false),
         DeviceToolSpec(name: "auth_biometric", source: .biometric, isWrite: false),
+        DeviceToolSpec(name: "location_current", source: .location, isWrite: false),
+        DeviceToolSpec(name: "location_search_places", source: .location, isWrite: false),
+        DeviceToolSpec(name: "location_geocode", source: .location, isWrite: false),
+        DeviceToolSpec(name: "media_library_search", source: .media, isWrite: false),
+        DeviceToolSpec(name: "media_playlists", source: .media, isWrite: false),
+        DeviceToolSpec(name: "media_playlist_create", source: .media, isWrite: true),
+        DeviceToolSpec(name: "media_playback_control", source: .media, isWrite: true),
+        DeviceToolSpec(name: "call_start", source: .compose, isWrite: false),
+        DeviceToolSpec(name: "compose_sms", source: .compose, isWrite: false),
+        DeviceToolSpec(name: "compose_email", source: .compose, isWrite: false),
+        DeviceToolSpec(name: "share_sheet", source: .compose, isWrite: false),
+        DeviceToolSpec(name: "shortcut_run", source: .shortcuts, isWrite: false),
+        DeviceToolSpec(name: "device_info", source: .deviceinfo, isWrite: false),
         DeviceToolSpec(name: "health_daily_summary", source: .health, isWrite: false),
         DeviceToolSpec(name: "home_status", source: .home, isWrite: false),
     ]
@@ -455,8 +548,8 @@ public enum DeviceToolRegistry {
         all.first { $0.name == name }
     }
 
-    /// 本版 App 真能执行的工具（已接线数据源的二十
-    /// 四个；device_status 桥本地应答、不经手机，不
+    /// 本版 App 真能执行的工具（已接线数据源的三十
+    /// 九个；device_status 桥本地应答、不经手机，不
     /// 在此列；健康/家庭的工具定义先行、App 未接线，
     /// 不上报。注：ondevice_model_run 在机型不支持
     /// 端上智能时由 App 层组装注册载荷时再摘掉——

@@ -76,10 +76,20 @@ extension DevicePermissions {
             let engine = ContactsEngine()
             return await engine.requestAccess()
         case .clipboard, .files, .opener, .vision, .translate,
-             .ondevice, .biometric:
+             .ondevice, .biometric, .compose, .shortcuts,
+             .deviceinfo:
             // 无系统权限概念：没有可发的系统请求，
             // 现态即 notApplicable
             return .notApplicable
+        case .location:
+            // 定位授权走引擎的过门落法（同步读现
+            // 态、只有未决定才发那一次请求）
+            let engine = LocationEngine()
+            return await engine.requestAccess()
+        case .media:
+            // 媒体库授权走引擎的过门落法（同上）
+            let engine = MediaEngine()
+            return await engine.requestAccess()
         case .camera:
             // 相机授权走引擎的过门落法（同步读现
             // 态、只有未决定才发那一次请求）

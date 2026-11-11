@@ -54579,6 +54579,926 @@
           }
         }
       }
+    },
+    "定位": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定位"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定位"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location"
+          }
+        }
+      }
+    },
+    "你现在在哪 · 现读当前位置，也可查附近地点与地址坐标": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你现在在哪 · 现读当前位置，也可查附近地点与地址坐标"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你現在在哪 · 現讀目前位置，也可查附近地點與地址座標"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where you are now · reads your current location on demand; can also look up nearby places and convert addresses"
+          }
+        }
+      }
+    },
+    "智能体可调用：现读你现在的位置（带精度读数），按关键词查附近的地点，或把地址与坐标互相换算。位置现读现回、不存副本，也没有后台定位——只有「使用时」这一档授权，App 不在前台时读不到": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：现读你现在的位置（带精度读数），按关键词查附近的地点，或把地址与坐标互相换算。位置现读现回、不存副本，也没有后台定位——只有「使用时」这一档授权，App 不在前台时读不到"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：現讀你現在的位置（帶精度讀數），按關鍵字查附近的地點，或把地址與座標互相換算。位置現讀現回、不存副本，也沒有背景定位——只有「使用時」這一檔授權，App 不在前景時讀不到"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent can: read your current location on demand (with its accuracy), search for nearby places by keyword, or convert between addresses and coordinates. Location is read live and never stored, and there is no background tracking — only the “while in use” level of access, so nothing can be read while the app isn't in the foreground"
+          }
+        }
+      }
+    },
+    "现读位置 · 查附近地点": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现读位置 · 查附近地点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現讀位置 · 查附近地點"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current location · nearby places"
+          }
+        }
+      }
+    },
+    "位置只在你开着 App 时现读，不做后台定位、不存位置副本；精度随定位信号变化，回执里如实标明。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "位置只在你开着 App 时现读，不做后台定位、不存位置副本；精度随定位信号变化，回执里如实标明。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "位置只在你開著 App 時現讀，不做背景定位、不存位置副本；精度隨定位訊號變化，回執裡如實標明。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location is read only while the app is open — no background tracking and no stored copies. Accuracy varies with the signal and is reported honestly in the result."
+          }
+        }
+      }
+    },
+    "媒体库": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "媒体库"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "媒體庫"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Media Library"
+          }
+        }
+      }
+    },
+    "音乐与播客书目 · 可检索计数、建歌单、控制系统音乐播放": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音乐与播客书目 · 可检索计数、建歌单、控制系统音乐播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音樂與播客書目 · 可檢索計數、建歌單、控制系統音樂播放"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Music and podcast catalog · searchable, playlist creation, and system music playback control"
+          }
+        }
+      }
+    },
+    "智能体可调用：检索你资料库里的歌曲、专辑、歌单与播客书目（只回书目信息），新建空歌单，以及控制系统音乐播放器的播放、暂停与切歌。读不到其他 App 正在放什么；播放控制只作用于系统音乐播放器": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：检索你资料库里的歌曲、专辑、歌单与播客书目（只回书目信息），新建空歌单，以及控制系统音乐播放器的播放、暂停与切歌。读不到其他 App 正在放什么；播放控制只作用于系统音乐播放器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：檢索你資料庫裡的歌曲、專輯、歌單與播客書目（只回書目資訊），新建空歌單，以及控制系統音樂播放器的播放、暫停與切歌。讀不到其他 App 正在放什麼；播放控制只作用於系統音樂播放器"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent can: search the songs, albums, playlists and podcasts in your library (catalog details only), create a new empty playlist, and control play, pause and track skipping on the system music player. It cannot see what other apps are playing; playback control only affects the system music player"
+          }
+        }
+      }
+    },
+    "查书目 · 建歌单 · 控制播放": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查书目 · 建歌单 · 控制播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查書目 · 建歌單 · 控制播放"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search catalog · playlists · playback"
+          }
+        }
+      }
+    },
+    "只回书目信息，音频文件不出手机；订阅内容能不能播，取决于你的订阅状态。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只回书目信息，音频文件不出手机；订阅内容能不能播，取决于你的订阅状态。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只回書目資訊，音訊檔案不出手機；訂閱內容能不能播，取決於你的訂閱狀態。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only catalog details are returned — audio files never leave the phone. Whether subscription content can play depends on your subscription."
+          }
+        }
+      }
+    },
+    "拨号与撰写": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拨号与撰写"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撥號與撰寫"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Call & Compose"
+          }
+        }
+      }
+    },
+    "电话/短信/邮件/分享 · 只把撰写面交到你手上，发出永远你亲手点": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电话/短信/邮件/分享 · 只把撰写面交到你手上，发出永远你亲手点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電話/簡訊/郵件/分享 · 只把撰寫面交到你手上，發出永遠你親手點"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phone / messages / mail / share · the compose screen is handed to you; sending is always your own tap"
+          }
+        }
+      }
+    },
+    "智能体可调用：弹出拨号确认面，或预填好收件人与正文打开短信/邮件撰写面，或把一段文字、一个 OneDay 文件夹里的文件递到系统分享面。发出动作永远由你在系统面上亲手点，智能体不能代发。这一件没有系统权限可开可关，详情页里的开关就是唯一的门": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：弹出拨号确认面，或预填好收件人与正文打开短信/邮件撰写面，或把一段文字、一个 OneDay 文件夹里的文件递到系统分享面。发出动作永远由你在系统面上亲手点，智能体不能代发。这一件没有系统权限可开可关，详情页里的开关就是唯一的门"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：彈出撥號確認面，或預填好收件人與正文打開簡訊/郵件撰寫面，或把一段文字、一個 OneDay 資料夾裡的檔案遞到系統分享面。發出動作永遠由你在系統面上親手點，智慧代理不能代發。這一件沒有系統權限可開可關，詳情頁裡的開關就是唯一的門"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent can: bring up the call confirmation, open the message or mail compose screen prefilled with recipients and text, or hand a passage of text — or a file from OneDay's folder — to the system share sheet. Sending is always your own tap on the system screen; the agent cannot send for you. There is no system permission for this one; the switch on the detail page is the only gate"
+          }
+        }
+      }
+    },
+    "预填撰写面 · 发出由你亲手点": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预填撰写面 · 发出由你亲手点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預填撰寫面 · 發出由你親手點"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prefilled compose · you tap send"
+          }
+        }
+      }
+    },
+    "撰写面打开后，改不改、发不发都由你决定；你在撰写面里取消，这次调用就如实回「没有发出」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撰写面打开后，改不改、发不发都由你决定；你在撰写面里取消，这次调用就如实回「没有发出」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撰寫面打開後，改不改、發不發都由你決定；你在撰寫面裡取消，這次呼叫就如實回「沒有發出」。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once the compose screen is open, editing and sending are entirely up to you; if you cancel there, the call honestly reports “not sent”."
+          }
+        }
+      }
+    },
+    "快捷指令": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷指令"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷指令"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shortcuts"
+          }
+        }
+      }
+    },
+    "按名字运行你已有的快捷指令 · 只能运行，不能查看你的指令列表": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按名字运行你已有的快捷指令 · 只能运行，不能查看你的指令列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按名字運行你已有的快捷指令 · 只能運行，不能查看你的指令列表"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runs your existing shortcuts by name · can run them, but cannot list them"
+          }
+        }
+      }
+    },
+    "智能体可调用：按名字运行你已经建好的一条快捷指令，可带一段文字输入。系统没有列出全部快捷指令的办法，只能运行你告诉过名字的一条；运行会切到快捷指令去执行，结果以它的回执为准，没有回执时只报「已发起」、不报成功。这一件没有系统权限可开可关，详情页里的开关就是唯一的门": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：按名字运行你已经建好的一条快捷指令，可带一段文字输入。系统没有列出全部快捷指令的办法，只能运行你告诉过名字的一条；运行会切到快捷指令去执行，结果以它的回执为准，没有回执时只报「已发起」、不报成功。这一件没有系统权限可开可关，详情页里的开关就是唯一的门"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：按名字運行你已經建好的一條快捷指令，可帶一段文字輸入。系統沒有列出全部快捷指令的辦法，只能運行你告訴過名字的一條；運行會切到快捷指令去執行，結果以它的回執為準，沒有回執時只報「已發起」、不報成功。這一件沒有系統權限可開可關，詳情頁裡的開關就是唯一的門"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent can: run one of your existing shortcuts by name, optionally with a text input. There is no way to list all your shortcuts, so it can only run one whose name you have given. Running switches over to Shortcuts; the result follows its callback — with no callback, the call reports only “started”, never success. There is no system permission for this one; the switch on the detail page is the only gate"
+          }
+        }
+      }
+    },
+    "按名运行一条快捷指令": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按名运行一条快捷指令"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按名運行一條快捷指令"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run a shortcut by name"
+          }
+        }
+      }
+    },
+    "只能按名运行、不能枚举你的快捷指令；运行中你会离开 OneDay 一阵，回来之后才有结果。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能按名运行、不能枚举你的快捷指令；运行中你会离开 OneDay 一阵，回来之后才有结果。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能按名運行、不能列舉你的快捷指令；運行中你會離開 OneDay 一陣，回來之後才有結果。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shortcuts can only be run by name — your list cannot be enumerated. A run takes you out of OneDay for a while; the result arrives when you come back."
+          }
+        }
+      }
+    },
+    "设备信息": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裝置資訊"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device Info"
+          }
+        }
+      }
+    },
+    "机型/系统/电量/存储/网络 · 零权限现读，给智能体做先导判断": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "机型/系统/电量/存储/网络 · 零权限现读，给智能体做先导判断"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機型/系統/電量/儲存/網路 · 零權限現讀，給智慧代理做先導判斷"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model / system / battery / storage / network · read live with no permission, as a first check for your agent"
+          }
+        }
+      }
+    },
+    "智能体可调用：现读这台手机的机型标识、系统版本、电量与充电状态、存储余量与当前网络（Wi-Fi/蜂窝/离线），给它派活前先有个先导判断。全部现读现回、不存副本；手机的名字与当前 Wi-Fi 名称需要签名权益才读得到，不在此列。这一件没有系统权限可开可关，详情页里的开关就是唯一的门": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：现读这台手机的机型标识、系统版本、电量与充电状态、存储余量与当前网络（Wi-Fi/蜂窝/离线），给它派活前先有个先导判断。全部现读现回、不存副本；手机的名字与当前 Wi-Fi 名称需要签名权益才读得到，不在此列。这一件没有系统权限可开可关，详情页里的开关就是唯一的门"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：現讀這台手機的機型標識、系統版本、電量與充電狀態、儲存餘量與目前網路（Wi-Fi/蜂窩/離線），給它派活前先有個先導判斷。全部現讀現回、不存副本；手機的名字與目前 Wi-Fi 名稱需要簽名權益才讀得到，不在此列。這一件沒有系統權限可開可關，詳情頁裡的開關就是唯一的門"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent can: read this phone's model identifier, system version, battery level and charging state, free storage and current network (Wi-Fi / cellular / offline) as a first check before taking on work. Everything is read live and never stored. Your phone's name and the current Wi-Fi name need a signed entitlement and are not included. There is no system permission for this one; the switch on the detail page is the only gate"
+          }
+        }
+      }
+    },
+    "现读机型/电量/存储/网络": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现读机型/电量/存储/网络"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現讀機型/電量/儲存/網路"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model, battery, storage, network"
+          }
+        }
+      }
+    },
+    "全部现读现回、不存副本；电量一时读不到时如实回未知，不编数。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部现读现回、不存副本；电量一时读不到时如实回未知，不编数。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部現讀現回、不存副本；電量一時讀不到時如實回未知，不編數。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everything is read live and never stored. If the battery level can't be read at the moment, it honestly reports unknown — never a made-up number."
+          }
+        }
+      }
+    },
+    "查看当前位置": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看当前位置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看目前位置"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View current location"
+          }
+        }
+      }
+    },
+    "搜索附近地点": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索附近地点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋附近地點"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search nearby places"
+          }
+        }
+      }
+    },
+    "地址坐标换算": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址坐标换算"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址座標換算"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convert address and coordinates"
+          }
+        }
+      }
+    },
+    "搜索媒体库": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索媒体库"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋媒體庫"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search media library"
+          }
+        }
+      }
+    },
+    "查看歌单": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看歌单"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看歌單"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View playlists"
+          }
+        }
+      }
+    },
+    "新建歌单": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建歌单"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建歌單"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create playlist"
+          }
+        }
+      }
+    },
+    "控制音乐播放": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "控制音乐播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "控制音樂播放"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control music playback"
+          }
+        }
+      }
+    },
+    "拨打电话": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拨打电话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撥打電話"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make a call"
+          }
+        }
+      }
+    },
+    "写短信": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写短信"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "寫簡訊"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write a message"
+          }
+        }
+      }
+    },
+    "写邮件": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写邮件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "寫郵件"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write an email"
+          }
+        }
+      }
+    },
+    "分享内容": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享內容"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        }
+      }
+    },
+    "运行快捷指令": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行快捷指令"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "運行快捷指令"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run shortcut"
+          }
+        }
+      }
+    },
+    "查看设备信息": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看设备信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看裝置資訊"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View device info"
+          }
+        }
+      }
+    },
+    "预览文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預覽檔案"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview file"
+          }
+        }
+      }
+    },
+    "打印文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打印文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列印檔案"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Print file"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

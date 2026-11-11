@@ -13,7 +13,7 @@ final class DeviceSourcesTests: XCTestCase {
 
     func testRosterIntegrity() {
         let roster = DeviceSourceDirectory.roster(locale: Locale(identifier: "zh-Hans"))
-        XCTAssertEqual(roster.count, 17)
+        XCTAssertEqual(roster.count, 22)
         XCTAssertEqual(
             roster.map(\.sourceID),
             [
@@ -21,9 +21,10 @@ final class DeviceSourcesTests: XCTestCase {
                 .motion, .clipboard, .files, .alarm,
                 .notifications, .opener, .camera, .vision,
                 .translate, .ondevice, .biometric,
-                .health, .home,
+                .location, .media, .compose, .shortcuts,
+                .deviceinfo, .health, .home,
             ],
-            "名册序＝目录呈现序（0.36.14 加照片/步数，扩容批一加剪贴板/文件，扩容批二加闹钟/通知/打开目标，扩容批三加相机/识别/翻译/端上智能/本人确认）"
+            "名册序＝目录呈现序（0.36.14 加照片/步数，扩容批一加剪贴板/文件，扩容批二加闹钟/通知/打开目标，扩容批三加相机/识别/翻译/端上智能/本人确认，扩容批四加定位/媒体库/拨号与撰写/快捷指令/设备信息）"
         )
         XCTAssertEqual(Set(roster.map(\.id)).count, roster.count)
         for entry in roster {
@@ -74,17 +75,22 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.translate, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.ondevice, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertTrue(DeviceSourceDirectory.descriptor(.biometric, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.location, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.media, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.compose, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.shortcuts, locale: Locale(identifier: "zh-Hans")).isWired)
+        XCTAssertTrue(DeviceSourceDirectory.descriptor(.deviceinfo, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.health, locale: Locale(identifier: "zh-Hans")).isWired)
         XCTAssertFalse(DeviceSourceDirectory.descriptor(.home, locale: Locale(identifier: "zh-Hans")).isWired)
     }
 
     // MARK: - 工具名册
 
-    /// 与 device-bridge TOOLS 表逐字对齐（二十七件
-    /// 全集；扩容批一/批二/批三的十七件待桥侧 TOOLS
-    /// 表补齐后才真正双向对齐——App 侧先行定义、桥
-    /// 未上线时调用在桥侧就不存在，App 侧门控见注
-    /// 册载荷钉测）
+    /// 与 device-bridge TOOLS 表逐字对齐（四十二件
+    /// 全集；扩容批一/批二/批三/批四的三十二件待桥
+    /// 侧 TOOLS 表补齐后才真正双向对齐——App 侧先
+    /// 行定义、桥未上线时调用在桥侧就不存在，App
+    /// 侧门控见注册载荷钉测）
     func testToolRegistryMatchesBridge() {
         XCTAssertEqual(
             DeviceToolRegistry.all.map(\.name),
@@ -95,12 +101,19 @@ final class DeviceSourcesTests: XCTestCase {
                 "reminders_complete", "contacts_search",
                 "clipboard_get", "clipboard_set",
                 "files_list", "files_read", "files_write",
+                "file_preview", "file_print",
                 "alarm_set", "alarm_list", "alarm_cancel",
                 "notify_post", "open_target",
                 "camera_capture", "vision_ocr",
                 "vision_scan_code", "vision_document_scan",
                 "translate_text", "ondevice_model_run",
                 "auth_biometric",
+                "location_current", "location_search_places",
+                "location_geocode",
+                "media_library_search", "media_playlists",
+                "media_playlist_create", "media_playback_control",
+                "call_start", "compose_sms", "compose_email",
+                "share_sheet", "shortcut_run", "device_info",
                 "health_daily_summary", "home_status",
             ]
         )
@@ -113,15 +126,16 @@ final class DeviceSourcesTests: XCTestCase {
                 "alarm_set", "alarm_cancel",
                 "notify_post", "open_target",
                 "camera_capture", "vision_document_scan",
+                "media_playlist_create", "media_playback_control",
             ],
-            "写工具恰十二件（无 delete；alarm_cancel 是取消自设闹钟的配对动作、不是删用户数据，见 §113.6；auth_biometric 不入写集——它不改状态、回放旧确认会把在场门放掉，见 §114）"
+            "写工具恰十四件（无 delete；alarm_cancel 是取消自设闹钟的配对动作、不是删用户数据，见 §113.6；auth_biometric 不入写集——它不改状态、回放旧确认会把在场门放掉，见 §114；批四的撰写/分享/快捷指令/预览/打印六件同理不入写集——只把系统面交到用户手上、不自己改变状态，见 §115）"
         )
         XCTAssertFalse(
             DeviceToolRegistry.all.contains { $0.name.contains("delete") }
         )
     }
 
-    /// App 可执行集：已接线数据源的二十四个；
+    /// App 可执行集：已接线数据源的三十九个；
     /// device_status 桥本地应答不经手机；健康/家庭
     /// 未接线不上报
     func testAppExecutableSet() {
@@ -134,12 +148,19 @@ final class DeviceSourcesTests: XCTestCase {
                 "contacts_search",
                 "clipboard_get", "clipboard_set",
                 "files_list", "files_read", "files_write",
+                "file_preview", "file_print",
                 "alarm_set", "alarm_list", "alarm_cancel",
                 "notify_post", "open_target",
                 "camera_capture", "vision_ocr",
                 "vision_scan_code", "vision_document_scan",
                 "translate_text", "ondevice_model_run",
                 "auth_biometric",
+                "location_current", "location_search_places",
+                "location_geocode",
+                "media_library_search", "media_playlists",
+                "media_playlist_create", "media_playback_control",
+                "call_start", "compose_sms", "compose_email",
+                "share_sheet", "shortcut_run", "device_info",
             ]
         )
     }
@@ -177,6 +198,10 @@ final class DeviceSourcesTests: XCTestCase {
                 .translate: .notApplicable,
                 .ondevice: .notApplicable,
                 .biometric: .notApplicable,
+                .location: .granted, .media: .granted,
+                .compose: .notApplicable,
+                .shortcuts: .notApplicable,
+                .deviceinfo: .notApplicable,
             ],
             agentCallEnabled: [
                 .calendar: true, .reminders: true, .contacts: true,
@@ -184,6 +209,8 @@ final class DeviceSourcesTests: XCTestCase {
                 .alarm: true, .notifications: true, .opener: true,
                 .camera: true, .vision: true, .translate: true,
                 .ondevice: true, .biometric: true,
+                .location: true, .media: true, .compose: true,
+                .shortcuts: true, .deviceinfo: true,
             ]
         )
         XCTAssertEqual(payload.permissions["calendar"], "granted")
@@ -225,6 +252,26 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertEqual(
             payload.permissions["biometric"], "granted",
             "本人确认无系统权限开关，同 notApplicable 放行口径（同意在每次调用时由系统当面给出）"
+        )
+        XCTAssertEqual(
+            payload.permissions["location"], "granted",
+            "定位是真权限键：报系统原态，桥可据此先行拦权限错误"
+        )
+        XCTAssertEqual(
+            payload.permissions["media"], "granted",
+            "媒体库是真权限键：报系统原态，与定位同档"
+        )
+        XCTAssertEqual(
+            payload.permissions["compose"], "granted",
+            "拨号与撰写无系统权限，同 notApplicable 放行口径（发出权在系统撰写面当场把关）"
+        )
+        XCTAssertEqual(
+            payload.permissions["shortcuts"], "granted",
+            "快捷指令无系统权限，同 notApplicable 放行口径"
+        )
+        XCTAssertEqual(
+            payload.permissions["deviceinfo"], "granted",
+            "设备信息无系统权限，同 notApplicable 放行口径"
         )
         XCTAssertEqual(
             payload.permissions["health"], "notDetermined",
@@ -390,7 +437,7 @@ final class DeviceSourcesTests: XCTestCase {
             .home: "待签名权益",
         ]
         XCTAssertEqual(
-            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 17
+            DeviceRowStatus.filtered(statusLines: lines, query: "", locale: Locale(identifier: "zh-Hans")).count, 22
         )
         XCTAssertEqual(
             DeviceRowStatus.filtered(
@@ -498,6 +545,11 @@ final class DeviceSourcesTests: XCTestCase {
         XCTAssertNil(DeviceSyncDataset.fromSource(.translate))
         XCTAssertNil(DeviceSyncDataset.fromSource(.ondevice))
         XCTAssertNil(DeviceSyncDataset.fromSource(.biometric))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.location))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.media))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.compose))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.shortcuts))
+        XCTAssertNil(DeviceSyncDataset.fromSource(.deviceinfo))
     }
 
     /// 文案诚实钉：剪贴板说明必须如实写明读取会触
@@ -657,5 +709,107 @@ final class DeviceSourcesTests: XCTestCase {
         let biometric = DeviceSourceDirectory.descriptor(.biometric, locale: Locale(identifier: "zh-Hans"))
         XCTAssertTrue(biometric.agentNote.contains("读不到"))
         XCTAssertTrue(biometric.footnote.contains("不出系统"))
+    }
+
+    // MARK: - 日常面五件（设备扩容批四）
+
+    /// 门控分档：定位/媒体库是真权限键（被拒/未决
+    /// 定→工具不列、权限报原态，桥可先行回
+    /// permission_denied）；拨号与撰写/快捷指令/设
+    /// 备信息无系统权限、只认调用开关（关→不列、
+    /// 开→全列）；文件预览/打印随文件源的开关走
+    func testRegistrationEverydayGating() {
+        let locationDenied = DeviceRegistration.payload(
+            permissions: [.location: .denied],
+            agentCallEnabled: [.location: true]
+        )
+        XCTAssertEqual(
+            locationDenied.permissions["location"], "denied",
+            "定位真权限键报原态，不许学无权限件报 granted"
+        )
+        XCTAssertTrue(locationDenied.tools.allSatisfy {
+            !$0.hasPrefix("location_")
+        })
+        let mediaUndecided = DeviceRegistration.payload(
+            permissions: [.media: .notDetermined],
+            agentCallEnabled: [.media: true]
+        )
+        XCTAssertEqual(
+            mediaUndecided.permissions["media"], "notDetermined"
+        )
+        XCTAssertTrue(mediaUndecided.tools.allSatisfy {
+            !$0.hasPrefix("media_")
+        })
+        let everydayOff = DeviceRegistration.payload(
+            permissions: [
+                .compose: .notApplicable,
+                .shortcuts: .notApplicable,
+                .deviceinfo: .notApplicable,
+            ],
+            agentCallEnabled: [
+                .compose: false, .shortcuts: false,
+                .deviceinfo: false,
+            ]
+        )
+        for name in [
+            "call_start", "compose_sms", "compose_email",
+            "share_sheet", "shortcut_run", "device_info",
+        ] {
+            XCTAssertFalse(everydayOff.tools.contains(name), name)
+        }
+        let everydayOn = DeviceRegistration.payload(
+            permissions: [
+                .compose: .notApplicable,
+                .shortcuts: .notApplicable,
+                .deviceinfo: .notApplicable,
+            ],
+            agentCallEnabled: [
+                .compose: true, .shortcuts: true,
+                .deviceinfo: true,
+            ]
+        )
+        XCTAssertEqual(
+            Set(everydayOn.tools),
+            [
+                "call_start", "compose_sms", "compose_email",
+                "share_sheet", "shortcut_run", "device_info",
+            ]
+        )
+        let filesOff = DeviceRegistration.payload(
+            permissions: [.files: .notApplicable],
+            agentCallEnabled: [.files: false]
+        )
+        XCTAssertFalse(filesOff.tools.contains("file_preview"))
+        XCTAssertFalse(filesOff.tools.contains("file_print"))
+        let filesOn = DeviceRegistration.payload(
+            permissions: [.files: .notApplicable],
+            agentCallEnabled: [.files: true]
+        )
+        XCTAssertTrue(filesOn.tools.contains("file_preview"))
+        XCTAssertTrue(filesOn.tools.contains("file_print"))
+    }
+
+    /// 文案诚实钉（批四）：定位必须写明现读现回与
+    /// 没有后台定位；媒体库必须写明读不到其他 App
+    /// 在放什么；撰写必须写明不能代发；快捷指令必
+    /// 须写明只能按名运行、无回执只报已发起；设备
+    /// 信息必须写明不编数——五件的承诺边界都写在
+    /// 明处
+    func testEverydaySourceCopyHonesty() {
+        let location = DeviceSourceDirectory.descriptor(.location, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(location.agentNote.contains("现读现回"))
+        XCTAssertTrue(location.footnote.contains("后台"))
+        let media = DeviceSourceDirectory.descriptor(.media, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(media.agentNote.contains("读不到其他 App"))
+        XCTAssertTrue(media.footnote.contains("不出手机"))
+        let compose = DeviceSourceDirectory.descriptor(.compose, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(compose.agentNote.contains("不能代发"))
+        XCTAssertTrue(compose.footnote.contains("取消"))
+        let shortcuts = DeviceSourceDirectory.descriptor(.shortcuts, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(shortcuts.agentNote.contains("已发起"))
+        XCTAssertTrue(shortcuts.footnote.contains("不能枚举"))
+        let deviceinfo = DeviceSourceDirectory.descriptor(.deviceinfo, locale: Locale(identifier: "zh-Hans"))
+        XCTAssertTrue(deviceinfo.agentNote.contains("现读现回"))
+        XCTAssertTrue(deviceinfo.footnote.contains("不编数"))
     }
 }
