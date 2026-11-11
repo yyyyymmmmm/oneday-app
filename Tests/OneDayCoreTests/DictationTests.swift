@@ -235,6 +235,61 @@ final class DictationTests: XCTestCase {
         XCTAssertEqual(DictationLanguage.allCases.count, 3)
     }
 
+    // MARK: - 语言 locale 候选单表（复杂度清理合一，审计第 8 项）
+
+    func testLocaleCandidatesMandarin() {
+        XCTAssertEqual(
+            DictationLanguage.mandarin.localeIdentifiers, ["zh_CN"])
+    }
+
+    func testLocaleCandidatesCantonese() {
+        // 粤语唯一带回退：主选 yue_CN、次选 zh_HK，
+        // 顺序即尝试顺序，不许颠倒
+        XCTAssertEqual(
+            DictationLanguage.cantonese.localeIdentifiers,
+            ["yue_CN", "zh_HK"])
+    }
+
+    func testLocaleCandidatesEnglish() {
+        XCTAssertEqual(
+            DictationLanguage.english.localeIdentifiers, ["en_US"])
+    }
+
+    func testLocalePrimaryIsFirstCandidateForAllLanguages() {
+        for language in DictationLanguage.allCases {
+            XCTAssertEqual(
+                language.localeIdentifier,
+                language.localeIdentifiers.first,
+                "\(language)")
+        }
+    }
+
+    func testLocaleFallbackIsSecondCandidateForAllLanguages() {
+        for language in DictationLanguage.allCases {
+            XCTAssertEqual(
+                language.fallbackLocaleIdentifier,
+                language.localeIdentifiers.dropFirst().first,
+                "\(language)")
+        }
+    }
+
+    func testLocaleFallbackNilExceptCantonese() {
+        XCTAssertNil(DictationLanguage.mandarin.fallbackLocaleIdentifier)
+        XCTAssertNil(DictationLanguage.english.fallbackLocaleIdentifier)
+        XCTAssertNotNil(
+            DictationLanguage.cantonese.fallbackLocaleIdentifier)
+    }
+
+    func testLocaleCandidatesUniqueWithinEachLanguage() {
+        for language in DictationLanguage.allCases {
+            XCTAssertEqual(
+                Set(language.localeIdentifiers).count,
+                language.localeIdentifiers.count,
+                "\(language)")
+            XCTAssertFalse(language.localeIdentifiers.isEmpty)
+        }
+    }
+
     func testFailureCasesCovered() {
         // 六类失败全在（App 文案映射按此枚举，漏一类即漏一种呈现）
         XCTAssertEqual(DictationFailure.allCases.count, 6)

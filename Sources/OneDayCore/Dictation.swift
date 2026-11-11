@@ -81,19 +81,28 @@ public enum DictationLanguage: String, Sendable, Equatable, CaseIterable {
     case cantonese
     case english
 
-    public var localeIdentifier: String {
+    /// 识别 locale 候选（单表，主选在前、回退在
+    /// 后）：粤语首选 yue_CN、规范化失败回退 zh_HK，
+    /// 其余语言只有主选。原 localeIdentifier 与
+    /// fallbackLocaleIdentifier 两张 switch 表已合
+    /// 一（复杂度清理，审计第 8 项）——两个旧口径
+    /// 改为从本表派生，映射只许在此处写一份
+    public var localeIdentifiers: [String] {
         switch self {
-        case .mandarin: return "zh_CN"
-        case .cantonese: return "yue_CN"
-        case .english: return "en_US"
+        case .mandarin: return ["zh_CN"]
+        case .cantonese: return ["yue_CN", "zh_HK"]
+        case .english: return ["en_US"]
         }
     }
 
+    /// 主选 locale（候选表首项）
+    public var localeIdentifier: String {
+        localeIdentifiers[0]
+    }
+
+    /// 回退 locale（候选表次项，无回退为 nil）
     public var fallbackLocaleIdentifier: String? {
-        switch self {
-        case .cantonese: return "zh_HK"
-        default: return nil
-        }
+        localeIdentifiers.dropFirst().first
     }
 
     public var displayName: String {
@@ -657,39 +666,3 @@ public enum DictationBarPolicy {
     }
 }
 
-/// 停后落字钟（0.36.17，纯逻辑）：量「按下停/发
-/// 送→终稿应用到输入框」这一段——改判后用户唯一
-/// 还要等的就是它，fastResults 内部实验的提速效
-/// 果也只认这个读数。uptime 由 App 层喂单调时钟；
-/// 每轮 begin 覆盖上一轮读数（诊断位记的是最近一
-/// 次）；complete 只认 begin 之后的第一次，迟到/
-/// 重复 complete 作废；未成对不出读数
-public struct DictationSettleLatency: Sendable, Equatable {
-    public private(set) var lastMs: Int?
-    private var pendingOrigin: TimeInterval?
-
-    public init() {}
-
-    /// 按下停/发送：开新一轮（旧读数清空——新一轮
-    /// 未落定前诊断位不许挂着上一轮的数字冒充本轮）
-    public mutating func begin(atUptime uptime: TimeInterval) {
-        pendingOrigin = uptime
-        lastMs = nil
-    }
-
-    /// 终稿已应用：落读数（毫秒取最近值、钳 0，与
-    /// 起步时序钟同口径）；无 pending 或已落过读数
-    /// 则忽略
-    public mutating func complete(atUptime uptime: TimeInterval) {
-        guard let origin = pendingOrigin, lastMs == nil else { return }
-        lastMs = max(0, Int(((uptime - origin) * 1000).rounded()))
-        pendingOrigin = nil
-    }
-
-    /// 诊断串落字段：有读数拼 `落字+1234ms`，无则
-    /// 空串（不留半截占位，与起步时序段同规矩）
-    public var diagnosticSegment: String {
-        guard let lastMs else { return "" }
-        return "落字+\(lastMs)ms"
-    }
-}

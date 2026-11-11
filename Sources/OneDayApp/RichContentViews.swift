@@ -611,8 +611,8 @@ struct ZoomableImageView: UIViewRepresentable {
 /// 随气泡宽，用户/助手两侧同形）＝40pt 类型图标盒
 /// （FileIconBox 单源表）＋文件名（.body semibold、
 /// 至多 2 行）＋副行「类型 · 大小」。大小只来自
-/// FileMetadataStore 的实测回填（发送记账/下载回
-/// 填/父目录列表回读），拿不到只显类型、不编造。
+/// FileMetadataStore 的实测回填（发送记账/父目录
+/// 列表回读），拿不到只显类型、不编造。
 ///
 /// §127 翻案（用户 2026-11-11 15:13 拍板「对齐」，
 /// §125「不设卡级按钮」口径作废）：卡右加「···」
@@ -620,8 +620,8 @@ struct ZoomableImageView: UIViewRepresentable {
 /// 行/长按同源同序（FileActionPolicy.menuActions
 /// 单源，不另立第二套）；卡主体点击仍走 onOpen、
 /// 长按仍沿用消息菜单，两路并存。大小回读改走
-/// ensureSize（D1：可见即回读＋失败递增重试，不
-/// 再等打开页才补）。
+/// ensureSize（D1：可见即回读一趟，不再等打开页
+/// 才补；单试口径见 FileMetadataStore）。
 struct FileChip: View {
     @Environment(AppState.self) private var appState
 
@@ -790,17 +790,14 @@ struct FileChip: View {
         }
     }
 
-    /// 取字节（与打开页 fetchBytes 同通道）：到手即
-    /// 回填元数据缓存——卡面大小吃这份实测（回填路②）
+    /// 取字节（与打开页 fetchBytes 同通道）：只取数
+    /// 不回填——下载不兼任元数据源（复杂度清理第 6
+    /// 项砍下载回填，大小只走发送记账与父目录回读）
     private func fetchBytes() async throws -> Data {
-        let data = try await appState.performAdmin {
+        try await appState.performAdmin {
             client, config in
             try await client.fileData(config: config, path: path)
         }
-        FileMetadataStore.shared.recordDownload(
-            path: path, byteCount: data.count
-        )
-        return data
     }
 
     private func copyText() async {

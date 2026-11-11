@@ -4,8 +4,9 @@ import XCTest
 /// 听写改判落稿面（0.36.17，用户 2026-11-10 23:48
 /// 改判）：录音条照 Muse——录时零文字、停/发送两
 /// 钮、停后整段落字。落稿路径（意图×有无识别字）、
-/// 录音条三钮相位政策、停后落字钟全是纯逻辑，钉
-/// 在此处；引擎/呈现是真机面
+/// 录音条三钮相位政策是纯逻辑，钉在此处；引擎/呈
+/// 现是真机面。停后落字钟已随复杂度清理退役（审
+/// 计第 8 项），其测已整段删除、不在此列
 final class DictationSettlePolicyTests: XCTestCase {
 
     // MARK: - 落稿路径：意图×有字
@@ -74,54 +75,4 @@ final class DictationSettlePolicyTests: XCTestCase {
         }
     }
 
-    // MARK: - 停后落字钟
-
-    func testSettleLatencyMeasuresStopToApplied() {
-        var latency = DictationSettleLatency()
-        latency.begin(atUptime: 200.0)
-        latency.complete(atUptime: 201.25)
-        XCTAssertEqual(latency.lastMs, 1250)
-        XCTAssertEqual(latency.diagnosticSegment, "落字+1250ms")
-    }
-
-    func testSettleLatencyCompleteBeforeBeginIsIgnored() {
-        var latency = DictationSettleLatency()
-        latency.complete(atUptime: 10.0)
-        XCTAssertNil(latency.lastMs)
-        XCTAssertEqual(latency.diagnosticSegment, "")
-    }
-
-    func testSettleLatencyFirstCompleteWins() {
-        var latency = DictationSettleLatency()
-        latency.begin(atUptime: 100.0)
-        latency.complete(atUptime: 100.4)
-        latency.complete(atUptime: 100.9)
-        XCTAssertEqual(latency.lastMs, 400)
-    }
-
-    func testSettleLatencyBeginClearsPreviousReading() {
-        var latency = DictationSettleLatency()
-        latency.begin(atUptime: 100.0)
-        latency.complete(atUptime: 101.0)
-        XCTAssertEqual(latency.lastMs, 1000)
-        // 新一轮按下：旧读数立即清，未落定前不出段
-        latency.begin(atUptime: 200.0)
-        XCTAssertNil(latency.lastMs)
-        XCTAssertEqual(latency.diagnosticSegment, "")
-        latency.complete(atUptime: 200.3)
-        XCTAssertEqual(latency.lastMs, 300)
-    }
-
-    func testSettleLatencyRoundsAndClamps() {
-        var latency = DictationSettleLatency()
-        latency.begin(atUptime: 1000.0)
-        // 84.9999… 的浮点表示不许截成 84（0.36.15
-        // 时序钟 CI 首轮实测教训，同口径取最近值）
-        latency.complete(atUptime: 1000.085)
-        XCTAssertEqual(latency.lastMs, 85)
-        // 时钟异常回拨钳到 0，不许出负数
-        latency.begin(atUptime: 500.0)
-        latency.complete(atUptime: 499.5)
-        XCTAssertEqual(latency.lastMs, 0)
-    }
 }

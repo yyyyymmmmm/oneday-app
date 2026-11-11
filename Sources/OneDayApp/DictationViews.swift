@@ -287,8 +287,8 @@ struct DictationPrepSheet: View {
 /// 条上加实时版一行（录音成功时本行不在场、用户
 /// 看不见——22:26 录屏实证后补）。0.36.17 改判：
 /// 实时版整组撤下（录音条零文字），本行回归唯一
-/// 诊断面载体（预备页页脚＋失败行），串内另加
-/// 「落字+…ms」（停后落字，fastResults 记账位）
+/// 诊断面载体（预备页页脚＋失败行）。串内的停后
+/// 落字 ms 记账已随复杂度清理退役（审计第 8 项）
 struct DictationStageDiagnosticLine: View {
     var body: some View {
         Text("诊断信息 · 上次语音停在："

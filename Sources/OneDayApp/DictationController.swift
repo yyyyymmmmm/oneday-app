@@ -43,9 +43,10 @@ import UIKit
 /// 录音条改 Muse 形态：录时零文字（结果照常进会
 /// 话攒稿、只是不呈现、不回写输入框）、停/发送两
 /// 钮、停后整段落字。诊断行撤下录音条，移回预备页
-/// 与失败行的阶段诊断行（沿现行载体），另加「停后
-/// 落字 ms」记账；reportingOptions 开 .fastResults
-/// 作内部杠杆（唯一未开的官方延迟开关），不作承诺。
+/// 与失败行的阶段诊断行（沿现行载体）；
+/// reportingOptions 开 .fastResults 作内部杠杆
+/// （唯一未开的官方延迟开关），不作承诺。停后落
+/// 字计时记账已退役（复杂度清理，审计第 8 项）。
 @MainActor
 @Observable
 final class DictationController {
@@ -197,14 +198,6 @@ final class DictationController {
         if !timingSegment.isEmpty {
             text += " " + timingSegment
         }
-        // 落字段（0.36.17）：停后落字毫秒——改判后
-        // 用户唯一还要等的一段，fastResults 实验的
-        // 提速只认它；收尾 settle 后再调一次 markDiag
-        // 才落得进串（见 finishRecording）
-        let settleSegment = settleLatency.diagnosticSegment
-        if !settleSegment.isEmpty {
-            text += " " + settleSegment
-        }
         Self.log.info("diag=\(text, privacy: .public)")
         defaults.set(text, forKey: Self.diagKey)
     }
@@ -287,13 +280,6 @@ final class DictationController {
     /// markStartPoint 喂、markDiag 拼进诊断串
     @ObservationIgnored
     private var startTiming = DictationStartTiming()
-
-    /// 停后落字钟（0.36.17）：停/发送按下起、终稿
-    /// 应用到输入框止；到限自动停同记（起点＝到限
-    /// 触发收尾那一刻）。废弃/中断/引擎错路径不
-    /// complete，读数只对「用户等字」的一段负责
-    @ObservationIgnored
-    private var settleLatency = DictationSettleLatency()
 
     /// 预热产物（0.36.15）：模块/分析器/格式/语言与
     /// 仪表四格在点麦克风之前备齐，点按只剩开音频
@@ -437,11 +423,9 @@ final class DictationController {
     // MARK: - 录音面动作
 
     /// ■ 停／麦克风点按停止：停录并整段落稿进输
-    /// 入框（不自动发送）。按下这一刻起落字钟
+    /// 入框（不自动发送）
     func stopAndCommit() {
         guard phase == .recording else { return }
-        settleLatency.begin(
-            atUptime: ProcessInfo.processInfo.systemUptime)
         Task { await self.finishRecording(outcome: .commit) }
     }
 
@@ -450,8 +434,6 @@ final class DictationController {
     /// DictationSettlePolicy 判定、本类执行）
     func stopAndSend() {
         guard phase == .recording else { return }
-        settleLatency.begin(
-            atUptime: ProcessInfo.processInfo.systemUptime)
         Task { await self.finishRecording(outcome: .send) }
     }
 
@@ -630,8 +612,8 @@ final class DictationController {
             // fastResults（0.36.17）：DocC 语义＝小
             // 上下文窗降结果延迟，官方预设 progressive-
             // Transcription 与手动形态的唯一差量即此
-            // 项（论坛核查定案）——内部实验杠杆，只
-            // 认停后落字钟读数、不作 UI 承诺
+            // 项（论坛核查定案）——内部杠杆，不作 UI
+            // 承诺（其落字计时记账已退役，见类头注）
             reportingOptions: [.volatileResults, .fastResults],
             attributeOptions: [.audioTimeRange]
         )
@@ -1086,13 +1068,6 @@ final class DictationController {
         // 后的「整理中」态——录音条在此相位转「正
         // 在整理…」、三钮全禁（DictationBarPolicy）
         setPhase(.finishing)
-        // 到限自动停没有「按下」动作：落字钟以收尾
-        // 触发这一刻为起点（停/发送的起点在各自入
-        // 口按下时已记，见 stopAndCommit/stopAndSend）
-        if outcome == .limit {
-            settleLatency.begin(
-                atUptime: ProcessInfo.processInfo.systemUptime)
-        }
         // 收尾把最终计数落盘（0.36.12 仪表）：会话结
         // 束后诊断行读到的是全程总数，不是首条时刻的
         markDiag()
@@ -1133,8 +1108,6 @@ final class DictationController {
             } else {
                 settle(text: session.baseDraft)
             }
-            settleLatency.complete(
-                atUptime: ProcessInfo.processInfo.systemUptime)
             markStage("settleApplied")
             markDiag()
             setPhase(.idle)
@@ -1165,9 +1138,9 @@ final class DictationController {
     /// 停/发送的落稿执行（0.36.17）：路径由 Core 的
     /// DictationSettlePolicy 判定（有字落稿／落稿并
     /// 发／空稿静默回待机），本类只执行——落稿先
-    /// 行、落字钟随即停、最终计数与落字段一并落盘
-    /// （诊断面读到的才是完整账），发送触发垫在最
-    /// 后：ChatView 的 send() 读输入框时稿已落定
+    /// 行、最终计数一并落盘（诊断面读到的才是完整
+    /// 账），发送触发垫在最后：ChatView 的 send()
+    /// 读输入框时稿已落定
     private func applyStopSettle(intent: DictationStopIntent) {
         let route = DictationSettlePolicy.route(
             intent: intent,
@@ -1178,8 +1151,6 @@ final class DictationController {
         case .silentIdle:
             settle(text: session.baseDraft)
         }
-        settleLatency.complete(
-            atUptime: ProcessInfo.processInfo.systemUptime)
         markStage("settleApplied")
         markDiag()
         if route == .fillAndSend {
