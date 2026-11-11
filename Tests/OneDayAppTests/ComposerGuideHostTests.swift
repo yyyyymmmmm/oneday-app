@@ -26,9 +26,12 @@ final class ComposerGuideHostTests: XCTestCase {
 
     // MARK: - 替身与量具
 
-    /// 壳状态盒（测试与替身视图共享同一份事实）
+    /// 壳状态盒（测试与替身视图共享同一份事实）。不
+    /// 设 private：@Observable 宏展开在文件作用域生成
+    /// 代码，private 嵌套类会让宏够不着（CI 实证编译
+    /// 错 'ShellState' is inaccessible）
     @Observable
-    private final class ShellState {
+    final class ShellState {
         var selection = 0
         var bottomSpace: CGFloat = 168
         var tallBar = false
