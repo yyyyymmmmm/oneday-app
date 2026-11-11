@@ -9177,3 +9177,8 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 本包动：Core（ChatModelGroups 新、ModelDisplayNames、ChatModels 注释）、AppState 模型节、ChatView 顶栏＋发送点、ChatModelPickerView 新、AgentHubView/AgentHubStore 模型区、HermesClient/DemoHermesClient 取数口、xcstrings +4 键（只对这条对话生效/搜索模型/还没有可用的模型/空态说明句）。设置页本体（ModelSettingsView/ModelManagementStore/ProviderEditorView）零触碰。
 - 交叉点（合并合裁）：①AppState.refreshModelCatalog 是两面包共同入口——管理面包若动默认回读/noteDefaultModel 一带，与本包的同函数改动按段合裁；②xcstrings 走并集脚本（本包 +4 键、外科插入、分支 validate 2650 键含 InfoPlist 13）；③MainModelAssignment/ChatModels 两 Core 文件管理面包可能同动注释口径，冲突按「本包 B4 口径优先、文案归管理面包」合裁。
 - 真机待验（合并后）：顶栏点开见三组（默认服务商/Ailey 61 个/deepseek 行）、搜 gpt 能跨组命中；在旁聊选 Ailey 的模型发一条、回主线顶栏仍是主线自己的选择（作用域实证）；顶栏选 Flash 后杀 App 重进仍在；设置页改默认后新开会话以新默认播种、已开会话不动（与 B3 文案合验）；AX 大字号＋深色各一帧看选择面。
+
+### 149.6 CI 三轮实证补记（预制期）
+- 一轮 run 43014564400 failure：ChatModelPickerView 缺 OneDayDesign import（Palette/OneDayMetrics 在设计模块）；补 import 修复。
+- 二轮 run 43015098481 failure：loadSessionModelChoices 调用点在 init 前段、存储属性未全初始化即调 self 方法；移至 init 末段（signalBox 接线前）修复。
+- 三轮 run 43015719776：编译全过、单测 1534 执行仅 1 失败——ChatModelGroupsTests.testFallbackWithoutOptionsRoot 回落期望与实现层级不一致（实现：注册表 Gateway 清单与回执同级为真源、扁平候选只兜两源皆缺；测试：按无回执即整组回落写）。裁定实现口径为准（生产两源同批取数、注册表独有模型不许被候选覆盖），测试期望改钉两级回落并加两源皆缺断言，断言只增不减。

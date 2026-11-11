@@ -112,6 +112,9 @@ final class ChatModelGroupsTests: XCTestCase {
 
     /// 回执缺席时回落：网关组用扁平候选、具名组仍在
     func testFallbackWithoutOptionsRoot() {
+        // 回执缺席：注册表 Gateway 条目清单仍是网关组
+        // 真源（与回执同级、同源同批取数），扁平候选
+        // 只在两源皆缺时兜底
         let groups = ChatModelGroups.build(
             optionsRoot: nil,
             providers: providers(),
@@ -120,8 +123,23 @@ final class ChatModelGroupsTests: XCTestCase {
             gatewayAliases: ["hermes-agent"]
         )
         XCTAssertEqual(groups.map(\.title), ["默认服务商", "Ailey"])
+        XCTAssertEqual(groups[0].choices.map(\.model), ["reg-only-model"])
+
+        // 两源皆缺：网关组回落扁平候选清单
+        let bare = ChatModelGroups.build(
+            optionsRoot: nil,
+            providers: [ProviderRegistry.Entry(
+                name: "Ailey",
+                baseURL: "https://aikey.didichou.site/v1",
+                keyEnv: "ONEDAY_PROVIDER_AILEY_KEY",
+                models: ["gpt-5.6"]
+            )],
+            gatewayCandidates: ["deepseek-flash", "deepseek-v4-pro"],
+            defaultModel: nil,
+            gatewayAliases: ["hermes-agent"]
+        )
         XCTAssertEqual(
-            groups[0].choices.map(\.model),
+            bare[0].choices.map(\.model),
             ["deepseek-flash", "deepseek-v4-pro"]
         )
     }
