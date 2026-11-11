@@ -270,8 +270,11 @@ final class ComposerGuideHostTests: XCTestCase {
         return barHostView.convert(barHostView.bounds, to: window)
     }
 
-    /// 以 UIKit 偏移把替身列表压到底（两跳：首跳触
-    /// 发惰性行建列、次跳在真实内容高上落位）
+    /// 以 UIKit 把替身列表压到底：scrollRectToVisible
+    /// 用滚动视图自己的 inset 记账落位（手算 maxY 会
+    /// 与 SwiftUI 的容器记账差一截——实证差 221pt 停
+    /// 在次底）；两跳：首跳触发惰性行建列、次跳在真
+    /// 实内容高上落位
     private func scrollListToBottom() {
         func find(_ view: UIView) -> UIScrollView? {
             if let sv = view as? UIScrollView { return sv }
@@ -282,12 +285,10 @@ final class ComposerGuideHostTests: XCTestCase {
         }
         guard let window, let sv = find(window) else { return }
         for _ in 0..<2 {
-            let maxY = sv.contentSize.height
-                + sv.adjustedContentInset.bottom
-                - sv.bounds.height
-            if maxY > 0 {
-                sv.contentOffset = CGPoint(x: 0, y: maxY)
-            }
+            let bottomRect = CGRect(
+                x: 0, y: sv.contentSize.height - 1,
+                width: 1, height: 1)
+            sv.scrollRectToVisible(bottomRect, animated: false)
             spinRunLoop(seconds: 0.3)
         }
     }
@@ -359,7 +360,14 @@ final class ComposerGuideHostTests: XCTestCase {
             return
         }
         state.tallBar = true
-        // 等回报跟上长高（活根重估→布局→回报链）
+        // 戳一次外层已证可追踪的通道（回报绑定写）逼
+        // 替身重建—— stand-in 生产里 ChatView 的重渲
+        // 节奏（流式/@State 写恒定触发）；本法验的是
+        // 「重建→桥 init 重估→重赋值→宿主随高→回报
+        // 跟随」的整条传导链，状态归因的新鲜度本身由
+        // 真机清单承担（错误条/回底钮显隐逐项在内）
+        state.bottomSpace += 1
+        // 等回报跟上长高（重建→布局→回报链）
         let deadline = Date().addingTimeInterval(4)
         while abs(state.bottomSpace - spaceBefore) < 1,
               Date() < deadline {
