@@ -423,6 +423,49 @@ final class OneDayBridgeClient: @unchecked Sendable {
         }
     }
 
+    // MARK: - 文件交付登记（§142，规格 delivery-registry-spec-20261111 §5/§7）
+
+    /// GET /deliveries/{id}：登记元数据＋读时状态
+    /// （ok/stale/gone 由桥按指纹实时复核）；未知
+    /// id 走条目 404＝recordGone，调用方按规格
+    /// §7.3 降级为纯文本（查无此号不成卡）
+    func delivery(
+        config: ServerConfig, id: String
+    ) async throws -> BridgeDelivery {
+        try await get(
+            config: config, path: "/deliveries/\(id)",
+            endpoint: L10n.string("交付内容"), collection: false
+        )
+    }
+
+    /// GET /deliveries/{id}/thumb|cover：登记时快照
+    /// JPEG 字节。本口不走 checkStatus 的人话收敛
+    /// ——404（无此档快照）/410（文件已删）对调用
+    /// 方是分型信号（走回落链的判据），收敛成一句
+    /// 会丢分型（spreadsheet 口径同理），状态码原
+    /// 样包成 HermesError.unexpectedStatus；无钥
+    /// 匙仍走 OneDayBridgeError.noKey 口径
+    func deliveryImage(
+        config: ServerConfig, id: String,
+        variant: DeliveryImageVariant
+    ) async throws -> Data {
+        let request = try makeRequest(
+            config: config,
+            path: "/deliveries/\(id)/\(variant.rawValue)",
+            method: "GET"
+        )
+        let (data, http) = try await send(
+            request, endpoint: L10n.string("交付内容")
+        )
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.unexpectedStatus(
+                endpoint: L10n.string("交付内容"),
+                status: http.statusCode
+            )
+        }
+        return data
+    }
+
     // MARK: - 请求底座
 
     private func makeRequest(

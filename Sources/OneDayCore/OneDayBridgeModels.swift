@@ -1047,6 +1047,62 @@ public enum IdeaConversionMarks {
     }
 }
 
+// MARK: - 文件交付登记（§142，规格 delivery-registry-spec-20261111 §5）
+
+/// 登记元数据（GET /deliveries/{id} 回执）：全部
+/// 字段由登记端点回读实文件生成（名/大小/指纹/
+/// 图片宽高/封面有无），App 不采信正文自述——这
+/// 是登记制与「正文写路径」的根本区别。status 是
+/// 桥在每次 GET 时按指纹实时复核的读时状态：
+/// ok＝与登记时全符；stale＝登记后被改过（照常
+/// 渲染、不加警示）；gone＝文件已不在（降级一
+/// 行文本）。kind 与 App FileItemCategory 对齐。
+public struct BridgeDelivery: Decodable, Equatable, Sendable {
+    public struct Cover: Decodable, Equatable, Sendable {
+        /// 360 档缩略快照在不在（登记时生成）
+        public let thumb: Bool
+        /// 封面快照在不在（图片 1080/文档纸面渲染等）
+        public let cover: Bool
+    }
+
+    public enum Status: String, Decodable, Equatable, Sendable {
+        case ok
+        case stale
+        case gone
+    }
+
+    public let id: String
+    public let status: Status
+    public let name: String
+    public let path: String
+    public let size: Int64
+    public let mime: String?
+    public let kind: String
+    public let width: Int?
+    public let height: Int?
+    public let sha256: String?
+    public let registeredAt: String?
+    public let cover: Cover
+
+    /// 图片的实测像素尺寸（登记端点 Pillow 实测、
+    /// 已校正 EXIF 方向）；非图片或未测得为 nil。
+    /// §130 定高卡的卡宽由它先行算出，图未到版式
+    /// 已定、不跳动
+    public var imagePixelSize: CGSize? {
+        guard let width, let height, width > 0, height > 0
+        else { return nil }
+        return CGSize(width: width, height: height)
+    }
+}
+
+/// 登记快照图档位（GET /deliveries/{id}/<档位>）：
+/// thumb＝360 档、cover＝封面档，与 §33 变体阶
+/// 梯同名同义、不另起口径
+public enum DeliveryImageVariant: String, Sendable {
+    case thumb
+    case cover
+}
+
 // MARK: - 桥错误口径（§139 自 App 层 OneDayBridgeClient 下沉 Core）
 
 /// oneday-bridge 错误口径：与总览桥同分法——「没有钥匙」

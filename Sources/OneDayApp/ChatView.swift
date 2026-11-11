@@ -2235,12 +2235,21 @@ struct ChatView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                // §142：登记交付标记先拆（Core 纯函
+                // 数）——`[[deliver:dlv_…]]` 独立行
+                // 从正文摘除、走下方交付项呈现（按
+                // 号取登记 meta 渲染，见 Delivery-
+                // Views）；裸路径兜底（§129/§136）
+                // 只管拆剩的正文，两层不打架
+                let deliverySplit = DeliveryMarker.split(
+                    in: entry.content
+                )
                 // §136：MEDIA: 图片标记拆分（Core 纯
                 // 函数）——独立成行的图片标记从正文
                 // 摘除、走下方图片行出图，正文只喂摘
                 // 除后的文本（标记原文不再漏进气泡）
                 let mediaSplit = MediaMarker.split(
-                    in: entry.content
+                    in: deliverySplit.text
                 )
                 // 0.5.1（§32）：思考折叠单元挂在正文泡
                 // 上方同一列——有落盘思考才出现，默认折
@@ -2301,10 +2310,34 @@ struct ChatView: View {
                         )
                     }
                 }
+                // §142：登记交付项——呈现位与 §136
+                // 图片行同口径（正文摘除后在此成卡/
+                // 成图）；图片点开进查看器、文件点
+                // 开落 §125 打开页，都以登记 meta
+                // 的 path 走既有通道（Assistant-
+                // DeliveryItem 内部按 kind 分流）
+                ForEach(
+                    deliverySplit.deliveryIDs, id: \.self
+                ) { deliveryID in
+                    AssistantDeliveryItem(
+                        id: deliveryID,
+                        onOpenImage: { meta in
+                            openImageViewer(
+                                ChatImageViewerItem(
+                                    source: .remotePath(meta.path)
+                                )
+                            )
+                        },
+                        onOpenFile: { meta in
+                            openChatFile(meta.path)
+                        }
+                    )
+                }
                 // 正文只剩标记行被摘空时不渲染空气泡；
                 // 无标记的旧消息行为逐字不变
                 if !mediaSplit.text.isEmpty
-                    || mediaSplit.imagePaths.isEmpty {
+                    || (mediaSplit.imagePaths.isEmpty
+                        && deliverySplit.deliveryIDs.isEmpty) {
                     assistantBubble {
                         MarkdownText(mediaSplit.text)
                     }

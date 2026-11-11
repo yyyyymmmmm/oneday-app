@@ -8941,3 +8941,25 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 分支 feat/provider-default（worktree ~/workspace/oneday-worktrees/pkg-provider-default，基线 main 3af9674／0.50.1），顶端以推送为准：代码 49c5d95＋记账 2115fde＋修复 8646835（if let 条件禁尾随闭包，load 回读改先赋值再绑定）。未合并、版本号未改。
 - 分支 CI：首跑 run 42982847656 于 Build 步失败（上述语法错，jobs API 终判 failure）；修复后 run 42983168116 **success**（jobs API build-native success、steps 零失败）。单测 Executed **1346、0 failures**（基线 1336＋本包新增 MainModelAssignmentTests 10，只增不减）。
 - i18n：validate_i18n 与 --check-code 双过（2620 键含 InfoPlist 13，三语全覆盖）；目录删旧键 1（预设错误文案）、新增 5（新文案/端点名/提示/两条行值格式）。
+
+## §142 登记制 App 半边：交付标记消费（2026-11-11，预制分支 feat/delivery-registry，基线 main fa2bf24／0.50.12；用户 17:14 定调「不要位置，要的是真实的文件」；规格唯一依据 delivery-registry-spec-20261111.md §11 冻结接线清单，服务端已上线伴生 1.0.23；节号分支自选 §142，现行已用至 §141、无撞号，合并时主线复核）
+
+### 142.1 落法总览
+
+- Core 新增 `DeliveryMarker` 纯函数：按规格 §4.1 定版正则的等价判定逐行拆 `[[deliver:dlv_<20 位小写十六进制>]]` 独立行（围栏内不摘、行内嵌写不摘、坏号形态整行原文保留、同号去重取首现），产出正文＋登记号序；摘行收拾与 §136 MediaMarker 同法。钉测 17 法（DeliveryMarkerTests）＋元数据解码 3 法（BridgeDeliveryDecodeTests，形状照部署验收两样本实形）。
+- Core 新增 `BridgeDelivery`（OneDayBridgeModels）：meta 全形（status 三态 ok/stale/gone、kind、实测宽高、cover 两档有无），字段全由端点回读实文件生成、App 不采信正文自述；`DeliveryImageVariant`（thumb/cover，与 §33 阶梯同名）。
+- Client（OneDayBridgeClient）新增三口：`delivery(config:id:)`（条目 404＝recordGone）、`deliveryImage(config:id:variant:)`（二进制不走人话收敛，404/410 原样包 HermesError.unexpectedStatus 交调用方分型，spreadsheet 口径同理）。
+- App 新增 `DeliveryStore`：meta 按 id 进程内永久缓存（规格 §7.2；404 同落账、网络类失败不落账下次重查；status 刷新口径＝进程生命周期内首次取数、重启全量复核，规格允许 App 决定）；快照字节同店缓存（404/410 记 miss 不重试、其余失败可再试）。
+- 呈现 `AssistantDeliveryItem`（DeliveryViews.swift）：meta 未到不显（不露标记原文、不占位造假卡）；查无此号→标记纯文本原样一行；gone→「<文件名>（文件已删除）」安静一行不可点；stale 照常渲染不加警示；image→`DeliveryImageView`（§130 定高卡、卡宽先按 meta 实测宽高定版式，图源登记快照 thumb→cover 递进，无快照/全取不到回落 ServerRemoteImage 原图管线）；其余 kind→`DeliveryFileCard`（§125 白卡形态：登记 cover 通栏封面区＋名＋「类型·大小」，大小为登记实测真值不走回填链；cover 无/取不到→§32 FileThumbnailStore 客户端管线回落→再无落 C8 FileIconBox 行，不留白卡）。
+- 点开：图片进既有查看器（openImageViewer，meta.path 远端图单图集合回落既有口径）、文件落 openChatFile（§125 FileOpenView 中间页、既有 download 通道），与 §136/§129 两路同入口。
+- ChatView 接线：助手分支先 `DeliveryMarker.split` 再 `MediaMarker.split`（两层各摘各的、正文只喂双摘后文本）；交付项呈现位与 §136 图片行同列（正文气泡上方）；气泡空判据增交付项（正文摘空但有交付项时不渲染空气泡）；fileRefs 探测仍走原文＋既有 excluding（标记无路径、天然不入牌）。复制/引用沿用现行（原文口径，规格 §7.5）。
+
+### 142.2 与兜底层的分工（规格 §10 落实）
+
+- 有标记走登记、无标记的老消息走 §129（路径＋存在性）/§136（MEDIA）兜底，两层不互相干扰：登记拆分只摘标记行，兜底探测的 excluding 与判据未动；新纪律下智能体新消息只出标记（SOUL 已落），兜底自然退居存量。
+- 验收样本（服务端已登记在案）：图 dlv_93c016547852c522bbba、文档 dlv_db244d5043c8ed612ac8、试验 dlv_a6fc654739fd597ff861（会话 delivery-registry-trial-20261111，state.db 已坐实标记原文）。
+
+### 142.3 i18n 与真机待验
+
+- 新增键 2：「交付内容」（端点名）、「%@（文件已删除）」（gone 降级行）；validate_i18n 通过（2641 键含 InfoPlist 13，三语全覆盖）。
+- 真机待验：①试验会话打开——试验文件成白卡（纸面封面＋名＋大小）、点开进打开页可读；②让智能体新发一张图（新会话走登记）——图直接内联成 §130 卡、点开查看器递进清晰；③手写一个假号独立成行发给自己看——只显一行符号文本不成卡；④删掉已登记文件再进会话——该项落「（文件已删除）」一行不可点；⑤老消息（MEDIA/裸路径）呈现与本版前一致（兜底不回归）。
