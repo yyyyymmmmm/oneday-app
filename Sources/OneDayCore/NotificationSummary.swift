@@ -25,15 +25,32 @@ public struct NotificationPresentation: Equatable, Sendable {
 
 public enum NotificationSummary {
     /// 裁决语态（自桥的结论标题派生：标题是桥对每条
-    /// 记录的定性，摘要文法本身不带语态）
-    private enum Decision {
+    /// 记录的定性，摘要文法本身不带语态）。§166 起
+    /// internal：详情层（NotificationDetail）与本翻译
+    /// 层共用同一派生，不许两处各猜一套
+    enum Decision {
         case approved, rejected, unknown
     }
 
     /// 对象类（同自标题派生；只喂降级通用句——模板
     /// 本体认 body 文法自带的目标，不靠标题猜对象）
-    private enum Subsystem {
+    enum Subsystem {
         case memory, skill, unknown
+    }
+
+    /// 标题 → 裁决语态（presentation 与详情结果标签
+    /// 的共同入口，口径只此一份）
+    static func decision(forTitle title: String) -> Decision {
+        title.contains("已被驳回")
+            ? .rejected
+            : (title.contains("已批准") ? .approved : .unknown)
+    }
+
+    /// 标题 → 对象类（同上）
+    static func subsystem(forTitle title: String) -> Subsystem {
+        title.contains("记忆")
+            ? .memory
+            : (title.contains("技能") ? .skill : .unknown)
     }
 
     public static func presentation(
@@ -48,12 +65,8 @@ public enum NotificationSummary {
                 summary: foldWhitespace(body), rawDetail: nil
             )
         }
-        let decision: Decision = title.contains("已被驳回")
-            ? .rejected
-            : (title.contains("已批准") ? .approved : .unknown)
-        let subsystem: Subsystem = title.contains("记忆")
-            ? .memory
-            : (title.contains("技能") ? .skill : .unknown)
+        let decision = decision(forTitle: title)
+        let subsystem = subsystem(forTitle: title)
         // 语态不明（桥兜底标题「写入审批已处理」）时
         // 模板无从落语态——宁可降级通用句，不许拿批
         // 准式文案冒充已执行（§9 如实）
@@ -130,7 +143,7 @@ public enum NotificationSummary {
 
     /// 解 `{verb}{label}: {detail}`（M1/M2 共用），
     /// label 只认 memory／user profile 两值
-    private static func parseSimpleOp(
+    static func parseSimpleOp(
         _ body: String, verb: String, locale: Locale
     ) -> (target: String, detail: String)? {
         guard body.hasPrefix(verb) else { return nil }
@@ -150,6 +163,26 @@ public enum NotificationSummary {
     private static func translateReplace(
         _ body: String, decision: Decision, locale: Locale
     ) -> String? {
+        guard let parsed = parseReplace(body, locale: locale)
+        else { return nil }
+        return decision == .approved
+            ? L10n.format(
+                "%@里的「%@」已改为「%@」",
+                locale: locale, parsed.target, parsed.old, parsed.new
+            )
+            : L10n.format(
+                "%@里的「%@」未改为「%@」",
+                locale: locale, parsed.target, parsed.old, parsed.new
+            )
+    }
+
+    /// M3 的结构解析（§166：摘要翻译与详情变更行共
+    /// 用同一解析——详情行要 old/new 本体，句子模板
+    /// 拆不回来）。解析不出返回 nil，与旧行为一致
+    static func parseReplace(
+        _ body: String, locale: Locale
+    ) -> (target: String, old: String, new: String)? {
+        guard body.hasPrefix("replace in ") else { return nil }
         let rest = body.dropFirst("replace in ".count)
         for label in ["user profile", "memory"] {
             let head = label + ": entry matching: "
@@ -164,15 +197,7 @@ public enum NotificationSummary {
             let old = foldDetail(parts[0])
             let new = foldDetail(parts[1])
             guard !old.isEmpty, !new.isEmpty else { return nil }
-            return decision == .approved
-                ? L10n.format(
-                    "%@里的「%@」已改为「%@」",
-                    locale: locale, target, old, new
-                )
-                : L10n.format(
-                    "%@里的「%@」未改为「%@」",
-                    locale: locale, target, old, new
-                )
+            return (target, old, new)
         }
         return nil
     }
@@ -203,25 +228,8 @@ public enum NotificationSummary {
             }
         }
         guard let target, opsText.hasPrefix("- ") else { return nil }
-        let pieces = opsText.components(separatedBy: "\n- ")
-        var ops: [(verb: String, detail: String)] = []
-        for (index, rawPiece) in pieces.enumerated() {
-            var piece = rawPiece
-            if index == 0 { piece = String(piece.dropFirst(2)) }
-            guard let colon = piece.firstIndex(of: ":") else {
-                return nil
-            }
-            let verb = String(piece[..<colon])
-            guard ["add", "remove", "replace"].contains(verb) else {
-                return nil
-            }
-            var detail = String(piece[piece.index(after: colon)...])
-            if detail.hasPrefix(" ") { detail = String(detail.dropFirst()) }
-            ops.append((verb, detail))
-        }
-        // 声明条数与实解条数不符＝文法被细节里的伪行
-        // 污染，整条走兜底（不猜）
-        guard ops.count == count else { return nil }
+        guard let ops = parseApplyOps(opsText),
+              ops.count == count else { return nil }
         var shorts: [String] = []
         for op in ops.prefix(2) {
             switch op.verb {
@@ -253,6 +261,63 @@ public enum NotificationSummary {
         return result
     }
 
+    /// M4 的 ops 段解析（§166：与详情变更行共用）。
+    /// 入参为 `: ` 之后的 ops 文本（以 "- " 起头）；
+    /// 任一行文法外（无冒号/op 表外值）整段返回 nil
+    static func parseApplyOps(
+        _ opsText: String
+    ) -> [(verb: String, detail: String)]? {
+        let pieces = opsText.components(separatedBy: "\n- ")
+        var ops: [(verb: String, detail: String)] = []
+        for (index, rawPiece) in pieces.enumerated() {
+            var piece = rawPiece
+            if index == 0 { piece = String(piece.dropFirst(2)) }
+            guard let colon = piece.firstIndex(of: ":") else {
+                return nil
+            }
+            let verb = String(piece[..<colon])
+            guard ["add", "remove", "replace"].contains(verb) else {
+                return nil
+            }
+            var detail = String(piece[piece.index(after: colon)...])
+            if detail.hasPrefix(" ") { detail = String(detail.dropFirst()) }
+            ops.append((verb, detail))
+        }
+        return ops
+    }
+
+    /// M4 的头部解析（§166：详情变更行要逐 op 本体，
+    /// 与 translateApply 共用同一头部文法）：返回目标
+    /// 人话名、声明条数与逐 op 列表；声明与实解不符
+    /// （伪行污染）整条返回 nil、不猜
+    static func parseApply(
+        _ body: String, locale: Locale
+    ) -> (target: String, ops: [(verb: String, detail: String)])? {
+        var rest = body.dropFirst("apply ".count)
+        var digits = ""
+        while let first = rest.first, first.isNumber {
+            digits.append(first)
+            rest = rest.dropFirst()
+        }
+        guard let count = Int(digits), count > 0,
+              rest.hasPrefix(" op(s) to ")
+        else { return nil }
+        rest = rest.dropFirst(" op(s) to ".count)
+        for label in ["user profile", "memory"] {
+            let head = label + ": "
+            guard rest.hasPrefix(head),
+                  let target = targetName(forLabel: label, locale: locale)
+            else { continue }
+            let opsText = String(rest.dropFirst(head.count))
+            guard opsText.hasPrefix("- "),
+                  let ops = parseApplyOps(opsText),
+                  ops.count == count
+            else { return nil }
+            return (target, ops)
+        }
+        return nil
+    }
+
     // MARK: - 技能类（S1–S3）
 
     /// `batch({N} ops: {op, op, …}) on {name, name, …}`，
@@ -260,39 +325,11 @@ public enum NotificationSummary {
     private static func translateSkillBatch(
         _ body: String, decision: Decision, locale: Locale
     ) -> String? {
-        var rest = body.dropFirst("batch(".count)
-        var digits = ""
-        while let first = rest.first, first.isNumber {
-            digits.append(first)
-            rest = rest.dropFirst()
-        }
-        guard let total = Int(digits), total > 0,
-              rest.hasPrefix(" ops: ")
-        else { return nil }
-        rest = rest.dropFirst(" ops: ".count)
-        guard let close = rest.range(of: ") on ") else { return nil }
-        let opsText = String(rest[..<close.lowerBound])
-        let namesText = String(rest[close.upperBound...])
-        let ops = opsText.components(separatedBy: ", ")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-        guard ops.count == total,
-              ops.allSatisfy({
-                  ["patch", "write_file", "create"].contains($0)
-              })
-        else { return nil }
-        let names = namesText.components(separatedBy: ", ")
-            .map {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            .filter { !$0.isEmpty }
-        guard !names.isEmpty else { return nil }
-        // 聚合计数：丢弃逐项罗列，按首次出现序成句
-        var order: [String] = []
-        var counts: [String: Int] = [:]
-        for op in ops {
-            if counts[op] == nil { order.append(op) }
-            counts[op, default: 0] += 1
-        }
+        guard let batch = parseSkillBatch(body) else { return nil }
+        let total = batch.total
+        let order = batch.order
+        let counts = batch.counts
+        let names = batch.names
         let quotedNames = names.prefix(2).map { "「\($0)」" }.joined()
         let namesSuffix = names.count > 2
             ? L10n.format("等共 %lld 个技能", locale: locale, names.count)
@@ -333,6 +370,50 @@ public enum NotificationSummary {
         ) + phrases.joined(separator: L10n.string("、", locale: locale))
     }
 
+    /// 技能批的结构解析（§166：摘要翻译与详情变更
+    /// 行共用同一解析）。注意文法只给全批 op 清单与
+    /// 技能名清单，**不给逐技能的 op 归属**——详情行
+    /// 不许把全批计数摊到单个技能头上（见 Notification-
+    /// Detail.changeLines 的归属口径）
+    static func parseSkillBatch(
+        _ body: String
+    ) -> (total: Int, order: [String], counts: [String: Int], names: [String])? {
+        var rest = body.dropFirst("batch(".count)
+        var digits = ""
+        while let first = rest.first, first.isNumber {
+            digits.append(first)
+            rest = rest.dropFirst()
+        }
+        guard let total = Int(digits), total > 0,
+              rest.hasPrefix(" ops: ")
+        else { return nil }
+        rest = rest.dropFirst(" ops: ".count)
+        guard let close = rest.range(of: ") on ") else { return nil }
+        let opsText = String(rest[..<close.lowerBound])
+        let namesText = String(rest[close.upperBound...])
+        let ops = opsText.components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        guard ops.count == total,
+              ops.allSatisfy({
+                  ["patch", "write_file", "create"].contains($0)
+              })
+        else { return nil }
+        let names = namesText.components(separatedBy: ", ")
+            .map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+        guard !names.isEmpty else { return nil }
+        // 聚合计数：丢弃逐项罗列，按首次出现序成句
+        var order: [String] = []
+        var counts: [String: Int] = [:]
+        for op in ops {
+            if counts[op] == nil { order.append(op) }
+            counts[op, default: 0] += 1
+        }
+        return (total, order, counts, names)
+    }
+
     // MARK: - 兜底与文本处理
 
     /// 解析失败的通用句（与桥自带兜底同式）：只说对
@@ -367,7 +448,7 @@ public enum NotificationSummary {
 
     /// 对象文本处理（§3.2 通则）：折叠空白后取前
     /// 60 字，超出以「…」收尾（引号由模板在外层闭合）
-    private static func foldDetail(_ raw: String) -> String {
+    static func foldDetail(_ raw: String) -> String {
         let folded = foldWhitespace(raw)
         guard folded.count > 60 else { return folded }
         return String(folded.prefix(60)) + "…"

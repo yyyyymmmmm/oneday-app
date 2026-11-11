@@ -1957,6 +1957,30 @@
         }
       }
     },
+    "%lld 条未读 · 按时间排列": {
+      "comment": "通知面板副标题（未读>0 形）：条数实算；中点隔开",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld unread · Newest first"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条未读 · 按时间排列"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 則未讀 · 按時間排列"
+          }
+        }
+      }
+    },
     "%lld 条消息": {
       "extractionState": "manual",
       "localizations": {
@@ -6783,6 +6807,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "任務細化"
+          }
+        }
+      }
+    },
+    "任务结果": {
+      "comment": "通知类别词：task_completed",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task result"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务结果"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任務結果"
           }
         }
       }
@@ -19345,6 +19393,30 @@
         }
       }
     },
+    "审批已结束，不需要再次批准。已批准不等于已执行成功，请核对执行记录。": {
+      "comment": "通知详情审批类固定提示（用户原型亲定稿，逐字）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This approval has ended; no further approval is needed. Approval does not guarantee successful execution — please check the execution record."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审批已结束，不需要再次批准。已批准不等于已执行成功，请核对执行记录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核准已結束，不需要再次批准。已核准不等於已執行成功，請核對執行記錄。"
+          }
+        }
+      }
+    },
     "审批服务还没有在服务器上开通": {
       "extractionState": "manual",
       "localizations": {
@@ -19410,6 +19482,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "審批狀態沒讀出來，可能是網路或服務暫時沒回應"
+          }
+        }
+      }
+    },
+    "审批结果": {
+      "comment": "通知类别词：write_gate_decision 裁决回执",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approval result"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审批结果"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核准結果"
+          }
+        }
+      }
+    },
+    "审批结果、监测变化和任务结果会出现在这里": {
+      "comment": "通知面板真空态说明（ContentUnavailableView description）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approval results, monitoring changes, and task results will appear here"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审批结果、监测变化和任务结果会出现在这里"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核准結果、監測變化和任務結果會出現在這裡"
           }
         }
       }
@@ -21645,6 +21765,30 @@
         }
       }
     },
+    "已全部读过 · 按时间排列": {
+      "comment": "通知面板副标题（未读=0 形）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All read · Newest first"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已全部读过 · 按时间排列"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已全部讀過 · 按時間排列"
+          }
+        }
+      }
+    },
     "已写入": {
       "extractionState": "manual",
       "localizations": {
@@ -21779,6 +21923,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "已切換到檔案 %@。"
+          }
+        }
+      }
+    },
+    "已删除": {
+      "comment": "通知详情记忆变更行描述：remove 成功",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已刪除"
           }
         }
       }
@@ -22542,6 +22710,30 @@
         }
       }
     },
+    "已恢复": {
+      "comment": "通知详情结果标签：监测恢复",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recovered"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢复"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢復"
+          }
+        }
+      }
+    },
     "已批准": {
       "extractionState": "manual",
       "localizations": {
@@ -22910,6 +23102,30 @@
         }
       }
     },
+    "已改为「%@」": {
+      "comment": "通知详情记忆变更行描述：replace 成功，%@＝新条目",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changed to “%@”"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已改为「%@」"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已改為「%@」"
+          }
+        }
+      }
+    },
     "已改名为「%@」": {
       "extractionState": "manual",
       "localizations": {
@@ -23002,6 +23218,30 @@
         }
       }
     },
+    "已新增": {
+      "comment": "通知详情记忆变更行描述：add 成功",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已新增"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已新增"
+          }
+        }
+      }
+    },
     "已新建文件夹「%@」。": {
       "extractionState": "manual",
       "localizations": {
@@ -23067,6 +23307,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "已暫停"
+          }
+        }
+      }
+    },
+    "已替换": {
+      "comment": "通知详情变更行描述：替换成功（预留口径）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replaced"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已替换"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已替換"
           }
         }
       }
@@ -28909,6 +29173,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "技術資訊"
+          }
+        }
+      }
+    },
+    "技术记录": {
+      "comment": "通知详情页页底机器原文折叠标题（原型口径，取代行内「原始记录」展开的呈现位）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technical record"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "技术记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "技術記錄"
           }
         }
       }
@@ -38872,6 +39160,30 @@
         }
       }
     },
+    "未删除": {
+      "comment": "通知详情记忆变更行描述：remove 未获批",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not removed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未刪除"
+          }
+        }
+      }
+    },
     "未启用": {
       "extractionState": "manual",
       "localizations": {
@@ -39075,6 +39387,78 @@
           "stringUnit": {
             "state": "translated",
             "value": "未改為"
+          }
+        }
+      }
+    },
+    "未改为「%@」": {
+      "comment": "通知详情记忆变更行描述：replace 未获批，%@＝新条目",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not changed to “%@”"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未改为「%@」"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未改為「%@」"
+          }
+        }
+      }
+    },
+    "未新增": {
+      "comment": "通知详情记忆变更行描述：add 未获批",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not added"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未新增"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未新增"
+          }
+        }
+      }
+    },
+    "未替换": {
+      "comment": "通知详情变更行描述：替换未获批（预留口径）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not replaced"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未替换"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未替換"
           }
         }
       }
@@ -40229,6 +40613,30 @@
         }
       }
     },
+    "查看审批记录": {
+      "comment": "通知详情落点按钮：审批落点（§123）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View approval record"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看审批记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看核准記錄"
+          }
+        }
+      }
+    },
     "查看家庭状态": {
       "extractionState": "manual",
       "localizations": {
@@ -40501,6 +40909,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "查看電腦畫面"
+          }
+        }
+      }
+    },
+    "查看监测详情": {
+      "comment": "通知详情落点按钮：监测落点（§123）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View monitoring details"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看监测详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看監測詳情"
           }
         }
       }
@@ -41908,6 +42340,30 @@
         }
       }
     },
+    "正在加载": {
+      "comment": "通知面板骨架屏无障碍标签",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在載入"
+          }
+        }
+      }
+    },
     "正在取画面…": {
       "extractionState": "manual",
       "localizations": {
@@ -42226,6 +42682,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在產生"
+          }
+        }
+      }
+    },
+    "正在获取最新通知…": {
+      "comment": "通知面板加载态副标题",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fetching the latest notifications…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在获取最新通知…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在取得最新通知…"
           }
         }
       }
@@ -43932,6 +44412,30 @@
         }
       }
     },
+    "没有未读通知": {
+      "comment": "通知面板未读筛选空态标题",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No unread notifications"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有未读通知"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有未讀通知"
+          }
+        }
+      }
+    },
     "没有相册保存权限，请在系统设置里允许后再试。": {
       "extractionState": "manual",
       "localizations": {
@@ -44733,6 +45237,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "訊息記錄"
+          }
+        }
+      }
+    },
+    "涉及的变更": {
+      "comment": "通知详情页变更清单段标题（技能/记忆类）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes involved"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "涉及的变更"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "涉及的變更"
           }
         }
       }
@@ -47861,6 +48389,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "監測判定"
+          }
+        }
+      }
+    },
+    "监测变化": {
+      "comment": "通知类别词：monitor_change",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring change"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "监测变化"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "監測變化"
           }
         }
       }
@@ -57157,6 +57709,30 @@
         }
       }
     },
+    "返回关联会话": {
+      "comment": "通知详情落点按钮：锚点落点（合并锚点包合裁接线）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to related conversation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回关联会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回關聯對話"
+          }
+        }
+      }
+    },
     "还没听到声音，把手机拿近一点试试": {
       "extractionState": "manual",
       "localizations": {
@@ -61228,6 +61804,54 @@
         }
       }
     },
+    "通知暂时无法获取": {
+      "comment": "通知面板失败态副标题",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications unavailable right now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知暂时无法获取"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知暫時無法取得"
+          }
+        }
+      }
+    },
+    "通知暂时读不到。请检查服务器连接，或稍后重试。": {
+      "comment": "通知面板失败面说明",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications can't be loaded right now. Check the server connection, or try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知暂时读不到。请检查服务器连接，或稍后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知暫時讀不到。請檢查伺服器連線，或稍後再試。"
+          }
+        }
+      }
+    },
     "通知暂时读不到，请稍后再试。": {
       "extractionState": "manual",
       "localizations": {
@@ -61270,6 +61894,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "通知設定"
+          }
+        }
+      }
+    },
+    "通知详情": {
+      "comment": "通知详情页导航栏标题",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification details"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知詳情"
           }
         }
       }
@@ -62102,6 +62750,30 @@
         }
       }
     },
+    "重新加载": {
+      "comment": "通知面板失败面重试按钮（与旧「重试」并存，新原型口径）",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reload"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新加载"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新載入"
+          }
+        }
+      }
+    },
     "重新打开": {
       "extractionState": "manual",
       "localizations": {
@@ -62351,6 +63023,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "重要操作前當面驗本人"
+          }
+        }
+      }
+    },
+    "重要的变化，你都已经看过了。": {
+      "comment": "通知面板未读筛选空态说明",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You've already seen all the important changes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重要的变化，你都已经看过了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重要的變化，你都已經看過了。"
           }
         }
       }
@@ -62903,6 +63599,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "需伺服器端設定 MCP 並完成 Google 授權"
+          }
+        }
+      }
+    },
+    "需要你处理的事项会出现在这里": {
+      "comment": "通知面板真空态副标题",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Things that need your attention will appear here"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要你处理的事项会出现在这里"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要你處理的事項會出現在這裡"
           }
         }
       }
@@ -64398,6 +65118,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "查看全部"
+          }
+        }
+      }
+    },
+    "查看全部通知": {
+      "comment": "通知面板未读筛选空态：切回全部档按钮",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View all notifications"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看全部通知"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看全部通知"
           }
         }
       }

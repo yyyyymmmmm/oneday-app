@@ -964,6 +964,10 @@ struct ChatView: View {
         }) {
             if let overviewStore {
                 NotificationsView(store: overviewStore)
+                    // §166：底部大面板——.large detent＝上缘
+                    // 留距的大 sheet 口径（原型同），内容内
+                    // NavigationStack 承载列表→详情推入
+                    .presentationDetents([.large])
             }
         }
         // 0.17.0：枢纽 sheet（承载与 0.6.0–0.16.0 的活动

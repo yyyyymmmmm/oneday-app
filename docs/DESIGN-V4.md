@@ -9891,3 +9891,39 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 二轮 run **43032578083**（workflow_dispatch 于本分支顶端 7aae668）：jobs API 终判 build-native **success**；单测 Executed **1587、0 failures**（基线 c9a2392 的 1569＋本包 ApprovalAnchorTests 12 法＋同批在飞包带入的增量，只增不减、本包新增 12 法逐法 passed 在案）。基线 1569 为 HUB-1 合并后主线口径（§155.7），本包相对基线净增即 12 法。
 - 交付形态：只预制不合并、版本号未动（仍 0.50.17/139），合并与 §165 顺延归主线合裁；合并注意——与在飞包的文件交集：ChatView（抽屉容器/呈现包同动，本包动 bubble 分支/列表排除参/两处 onChange 邻位，冲突面小）、xcstrings（+2 键，文本插入、并集可解）、AppState/AgentHubStore（模型包系在飞包可能同动 store 邻域）。
 
+
+
+### §166 通知页按新原型重塑（2026-11-11 21:47 用户亲递 oneday-notifications.html 拍板；预制分支 feat/notifications-reshape，基线 main 6932d8d，节号分支自选 §157，合并时主线合裁顺延 §166 并同步代码注释）
+
+准入四问：①入口＝聊天顶栏铃铛（现行入口不新增、不改位）；②无重复（通知面全仓只有此一面，详情是其内推入页非新面）；③令牌与公用件＝间距/圆角全走 OneDayMetrics、行内边距走 ListRowSpec、筛选轨道复用 SegmentedControlSpec（与连接器页分段同源同值）、字阶走 Font 角色表（标题未读加粗的呈现口径登记见下）；④AX 与深色＝未读三信号（字重/蓝点/图标底）不依赖单一颜色通道、已读不降对比度（大字体下不靠浅色辨认），真机 AX/深色帧列入待验清单。
+
+落法（蓝本＝用户亲递原型，三原则：事件优先／已读不褪色／技术信息下沉）：
+
+1. **呈现形态**：ChatView 铃铛 sheet 加 `.presentationDetents([.large])`（上缘留距的大面板口径）＋`presentationDragIndicator(.visible)` grab 手柄；面板自带 NavigationStack（列表→详情推入），头部＝标题「通知」（screenName）＋全部已读（有未读才显、走 store 既有通道）＋关闭圆钮，副标题按面态分形（加载「正在获取最新通知…」／失败「通知暂时无法获取」／真空「需要你处理的事项会出现在这里」／列表态 Core 实算「N 条未读 · 按时间排列／已全部读过 · 按时间排列」）。
+2. **筛选条**：全部＋计数／未读＋计数两档（计数均实算），轨道画法与连接器页分段同源（surface＋发丝边全胶囊、selectionFill 选中药丸、matchedGeometry 滑移）；筛选为空（未读档）走独立空态＋「查看全部通知」出口。
+3. **列表行**：按日分组复用 NotificationGrouping（口径不动）；行＝36pt 图标砖（radiusTile，Core `NotificationDetail.iconKind` 按 kind 取 doc.text／waveform.path.ecg／checklist／bell；着色：裁决已批准绿砖/已驳回红砖、监测天蓝、任务紫、其余橙，未读一律升 primaryTint 强调砖）＋标题（未读 semibold、已读 regular，**颜色两态同为 ink——0.36.7「已读标题降 inkSecondary」口径就此作废**）＋人话摘要两行截断（NotificationSummary 复用不重写）＋元信息行（未读 5pt 蓝点＋相对时间＋「· 类别」，类别走 Core 单源 categoryName，全类带类别——旧版只给监测加类别的口径收编）；分隔整行贯通（宪法 §3 沿旧落法）；点行＝推入详情（恒可达），标已读由详情页进页触发；swipe 标已读保留；≥50 条页脚注保留。
+4. **详情页**（新文件内 `NotificationDetailView`，面板内推入）：48pt 大符号砖（radiusPreview）＋标题（detailTitle）＋「相对时间 · 类别」＋结果标签 chip（Core outcome 派生：裁决认标题语态、监测认恢复语义、task_completed→已完成，语态不明不给标签不冒充）＋人话正文＋「涉及的变更」清单（标题按类：监测＝变化详情、任务＝任务结果、余＝涉及的变更）＋审批固定提示（裁决类恒显，文案 Core 单源逐字：审批已结束，不需要再次批准。已批准不等于已执行成功，请核对执行记录。）＋落点按钮＋页底「技术记录」折叠。
+5. **变更清单派生（Core 新文件 NotificationDetail.swift）**：与摘要层同源解析——NotificationSummary 行为不变重构：Decision/Subsystem 枚举改 internal 共同派生入口 `decision(forTitle:)/subsystem(forTitle:)`，新增 `parseReplace/parseApply/parseApplyOps/parseSkillBatch` internal 解析件，presentation 与详情行消费同一解析。技能批：表内技能名走用户原型亲定的显示名映射（phone-bridge→设备连接、blocked-page-recovery→页面恢复、home-appliance-vetting→家电审查、weather-forecast→天气预报、claude-design→Claude Design、maps→地图），表外 id 原样作名、标识位空；**单技能才给全批聚合描述（改了 N 处内容／写了 N 个文件／新建了 N 个文件），多技能逐名只列名、描述留空——全批计数摊到单个技能头上即造假，不许**；记忆类 add/remove/replace/apply 逐 op 落行（已新增/未新增/已删除/未删除/已改为「新条目」/未改为「新条目」，语态随裁决）；文法不命中 → 空行集、详情只显摘要，绝不编造行。
+6. **落点按钮与合裁点**：文案走 Core `destinationLabel(destination:hasAnchorRoute:locale:)`（审批→查看审批记录、锚点→返回关联会话、监测→查看监测详情、none→不显按钮）；点按走既有唯一分发（NotificationDestinationFlow：字段先落 AppState.requestHubDestination、再关面板、ChatView onDismiss 接力开枢纽）。**本包基线（main）NotificationDestination 只有 §123 集**：详情出入点为本页 `destination(for:)`（纯 resolve）＋hasAnchorRoute 恒 false；锚点包（自记 §156、主线顺延 §165）已先行合入，本次合并合裁两处已接线——①`destination(for:)` 先查 ApprovalNotificationRouting 本机锚（本机锚定条目/会话绑定索引经 modelContext 与共享枢纽 store 装配，与 §165 枢纽侧同逻辑）、未命中回落 resolve；②详情页 hasAnchorRoute 由落点档位派生（approvalAnchor/approvalThread 为真），按钮走「返回关联会话」文案（Core 已备）；落点分发仍走 AppState.requestHubDestination 单一入口（§165 已使其对锚点两档改落 approvalAnchorRequest），不另建第二套跳转。
+7. **状态面**：加载＝骨架屏（4 行砖＋线条占位、selectionFill 静默面、无假文案，由 store.notificationsLoaded 驱动）；失败＝ContentUnavailableView「暂时联系不上」＋新副文案＋「重新加载」钮（loadNotifications 重走）；空态两形＝全空（暂无通知＋「审批结果、监测变化和任务结果会出现在这里」）／未读筛选空（没有未读通知＋「重要的变化，你都已经看过了。」＋回看全部钮）；全部走真数据状态、无假条目。
+8. **不回退钉**：伴生 1.0.27 已决回执已读出生与角标口径原样（本包零触碰）；已读通道走 store 既有 markRead/markAllRead（桥确认才改本地态、失败如实——全部已读部分失败 alert 沿旧）；人话翻译层与分组 Core 复用；旧行内「原始记录」展开退役、收编详情「技术记录」折叠（rawDetail 呈现位只此一处）；行面不再承载落点跳转（原型分工：行进详情、落点归详情按钮）。
+9. **字阶登记**：行标题未读加粗走 `.rowTitleL.weight(.semibold)` 运行时覆写（Font 角色表未新增角色）——依据＝已批准/未读三信号之一，与 §3.4 既有 `.rowTitle.weight(.semibold)` 同形态；若主线要求入表，合并时在 TypeScale 对账表补一行即可。
+
+单测：新增 `NotificationDetailTests`（15 例：iconKind 四类、categoryName 三类、outcome 裁决/恢复/语态不明 nil、技能批单名归属/多名零摊派/表外透传、记忆 add/apply/replace 行、文法不命中空行、approvalNote 仅裁决类、destinationLabel 三形＋锚点旗、filter、subtitle 两形）；既有 NotificationSummaryTests 钉重构行为不变。词条：新增 31 键（三语全覆盖，validate_i18n 通过；「写了 %@ 个文件/已被驳回/已完成」三键既存复用）。
+
+真机待验清单（合并发版后逐条）：
+- 铃铛点开＝底部大面板（上缘留距、grab 可见），下滑可关、关闭钮可关；
+- 头部：有未读时「全部已读」在位且生效（角标随之清）、无未读时不显；
+- 副标题三形与实际状态一致（加载/失败/列表）；
+- 筛选两档计数与列表实数一致；未读档为空时空态＋「查看全部通知」可回；
+- 行：已读条目标题不发灰（与未读同黑），未读＝加粗＋蓝点＋强调砖三信号齐；
+- 裁决回执（1.0.27 已决）打开即已读态、无未读点，角标不含回执数（不回退验点）；
+- 点行进详情：大符号/结果标签与事件一致（已批准绿勾/已驳回红叉/监测恢复）；
+- 技能批回执详情：单技能带聚合描述、多技能只列名无描述（不许出现摊派数字）；
+- 记忆回执详情：变更行与实际 op 一致（新增/删除/改名逐行）；
+- 审批详情固定提示在位；落点按钮点按＝面板关闭后枢纽打开对应面（审批记录/监测详情）；
+- 「技术记录」折叠展开见机器原文、行面与列表面不见原文；
+- 骨架屏只在冷开瞬间出现、失败面「重新加载」可恢复；
+- AX 最大档：行三段（标题两行/摘要两行/元信息）不截断重叠、详情变更行描述不挤出屏；
+- 深色模式：图标砖六色（绿/红/天蓝/紫/橙/强调）在暗底可辨、已读标题对比度与未读一致。
+
