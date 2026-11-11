@@ -8773,4 +8773,4 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 ### 133.6 预制验收记账（2026-11-11）
 
-- 待 CI 回填。
+- 分支 feat/cx-misc：代码提交 c5ee06a，基线 main 7265879（0.50.3）；分支 CI run 42986061035（head c5ee06a，workflow_dispatch 触发）completed success、build-native 单 job 全绿，单测 Executed 1361、0 failures（新增 StoreLoadStateTests 8 测全过；Tests/ 仅新增一文件、既有测零删改，只增不减）。validate_i18n.py 本地实跑通过（2620 键、零新增键）；merge_xcstrings.py --self-test 通过、全量回放结论见 133.3。未合并、版本号未动，待主线按序合并定版；合并后真机待验：md/xlsx/csv 三类各开一份真文件、表格切 sheet、两阅读器各造一次失败态（断网开文件）核对失败页与动作。
