@@ -52,6 +52,22 @@ public extension Font {
     /// 色由消费点给 secondary（苹果设置同款形态；旧
     /// subheadline 15 medium 让位）
     static let sectionLabel: Font = .footnote
+    /// 抽屉导航行题（§157 局部角色，用户 2026-11-11
+    /// 21:01 抽屉补充方案）：Body 17 medium——抽屉内
+    /// 主要导航（五导航行/频道行）比次要行重半档，
+    /// 与名字头 Title1 bold、次要行 regular 之间补出
+    /// 中间层级；只许抽屉消费（Core TypeRole.drawer-
+    /// NavTitle 对账），不许外溢其他页面
+    static let drawerNavTitle: Font = .body.weight(.medium)
+    /// 抽屉次要行题（§157 局部角色）：Body 17 regular
+    /// ——会话行题与「管理全部对话」行题，弱于主要导
+    /// 航一档（Core TypeRole.drawerRowTitle 对账）
+    static let drawerRowTitle: Font = .body
+    /// 抽屉当前行题（§157 局部角色）：Body 17 semi-
+    /// bold——导航/频道/会话同一套选中规则的加重档，
+    /// 恒与 selectionFill 浅灰底同出（Core TypeRole
+    /// .drawerRowTitleCurrent 对账）
+    static let drawerRowTitleCurrent: Font = .body.weight(.semibold)
     /// 说明小字（思考正文/引用条摘要/状态说明）：13 regular
     static let captionText: Font = .footnote
     /// 仅徽标：12，禁作正文

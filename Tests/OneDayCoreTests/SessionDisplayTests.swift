@@ -321,6 +321,54 @@ final class SessionDisplayTests: XCTestCase {
         )
     }
 
+    /// §157 抽屉行尾紧凑时间：今天只剩 HH:mm（与
+    /// timeText 的唯一差）；昨天/更早与 timeText 逐
+    /// 字一致——跨日日标不许跟着简化一起丢；旧
+    /// timeText 本体不动（其余面口径不变）
+    func testCompactTimeTextDropsOnlyTodayPrefix() {
+        let now = calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 9, hour: 12
+        ))!
+        let zh = Locale(identifier: "zh-Hans")
+        let today = calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 9, hour: 6, minute: 12
+        ))!
+        XCTAssertEqual(
+            LocalThreadSubtitle.compactTimeText(
+                updatedAt: today, now: now,
+                calendar: calendar, locale: zh
+            ),
+            "06:12"
+        )
+        XCTAssertEqual(
+            LocalThreadSubtitle.timeText(
+                updatedAt: today, now: now,
+                calendar: calendar, locale: zh
+            ),
+            "今天 06:12"
+        )
+        let yesterday = calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 8, hour: 21, minute: 30
+        ))!
+        XCTAssertEqual(
+            LocalThreadSubtitle.compactTimeText(
+                updatedAt: yesterday, now: now,
+                calendar: calendar, locale: zh
+            ),
+            "昨天 21:30"
+        )
+        let older = calendar.date(from: DateComponents(
+            year: 2026, month: 10, day: 30, hour: 9, minute: 5
+        ))!
+        XCTAssertEqual(
+            LocalThreadSubtitle.compactTimeText(
+                updatedAt: older, now: now,
+                calendar: calendar, locale: zh
+            ),
+            "10月30日 09:05"
+        )
+    }
+
     // 0.19.0 返工：抽屉旁聊区行显过滤（用户 22:45
     // 口径：只留本人在 App 里开的旁聊）——主线/归档
     // 先撤，关联会话来源非用户通道（kanban/平台）

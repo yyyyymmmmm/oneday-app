@@ -84,16 +84,20 @@ struct DrawerView: View {
     var onOpenChannel: (String) -> Void
 
     /// 顶部标题带高（0.36.5）：名单顶部空程
-    /// （contentMargins）与标题浮层共用一数——
-    /// drawerAgentName 的顶距 24＋Title1 行高约
-    /// 34＋底距 12＝70。Dynamic Type 极端档下行
-    /// 高变大、静止时首行可能被标题略压（已知边
-    /// 界，待真机）
-    private static let titleStripHeight: CGFloat = 70
+    /// （contentMargins）与标题浮层共用一数。
+    /// §157 身份行口径：顶距 24＋行高 36（小头像
+    /// 36 档＞Title1 行高约 34，取大者）＋底距 12
+    /// ＝72。Dynamic Type 极端档下名字行高变大、
+    /// 静止时首行可能被身份行略压（已知边界，待
+    /// 真机，与旧口径同界）
+    private static let titleStripHeight: CGFloat = 72
 
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    /// 字号档（§157）：会话行在大字体（AX）档改标题/
+    /// 时间上下排列，判定只读本环境，不另设开关
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 减透明（0.23.0）：面板底 drawerBackdrop 的实
     /// 色回退读它（经 Core TransparencyFallback 裁
     /// 决）；底条霜层的那路已于 0.36.27 随霜层删除
@@ -116,6 +120,10 @@ struct DrawerView: View {
     /// 本地旁聊行重命名（长按四件之一，0.18.0 沿革）
     @State private var renamingThread: ChatThread?
     @State private var renameText = ""
+    /// 身份行编辑入口（§157）：与枢纽头像菜单同两张
+    /// 编辑页的呈现开关，本面只置位、不复制编辑逻辑
+    @State private var showAvatarEditor = false
+    @State private var showNameEditor = false
 
     var body: some View {
         // 0.36.27（§97 件三，用户 03:54 拍板「抽屉朦
@@ -189,13 +197,15 @@ struct DrawerView: View {
                 drawerBottomBar
             }
             // 标题浮层：ZStack 顶＝安全区顶（状态栏
-            // 之下），只有文字、无底块无色带；不承
-            // 命中——标题区拖动归名单/壳层手势
+            // 之下），无底块无色带。§157 起浮层首行是
+            // 身份行（drawerIdentityRow）且承命中（整
+            // 行可点开编辑菜单）；浮层其余部分（Spacer）
+            // 仍不承命中——行外拖动归名单/壳层手势
             VStack {
-                drawerAgentName
+                drawerIdentityRow
                 Spacer()
+                    .allowsHitTesting(false)
             }
-            .allowsHitTesting(false)
         }
         .frame(width: width)
         .frame(maxHeight: .infinity)
@@ -223,6 +233,17 @@ struct DrawerView: View {
             TextField("会话标题", text: $renameText)
             Button("取消", role: .cancel) { renamingThread = nil }
             Button("保存") { commitRenameThread() }
+        }
+        // 身份行编辑页（§157）：复用枢纽同两张编辑页
+        // 本体（改的都是本机档案），呈现口径与枢纽一
+        // 致（sheet），不另做一套编辑面
+        .sheet(isPresented: $showAvatarEditor) {
+            AgentAvatarEditorView()
+        }
+        .sheet(isPresented: $showNameEditor) {
+            AgentNameEditorView(
+                initialOverride: appState.profileNameOverride
+            )
         }
         // 开抽屉时补拉服务端 source 映射（只喂来源过
         // 滤判定；信号源＝壳层维护的语义开合状态）
@@ -319,45 +340,84 @@ struct DrawerView: View {
         )
     }
 
-    /// 栏内顶部（0.3.6 立宪，§21.3）：只有智能体名字
-    /// （28 bold）——状态点＋状态词·模型小字全撤（定
-    /// 义卡删减清单：那是管理面信息，不占导航壳第一眼）
-    private var drawerAgentName: some View {
-        // 0.36.22：名字头收敛档案出口（改名此处同步）
-        Text(appState.agentDisplayName)
-            // 0.20.0（第二条，Muse 抽屉图推算）：名字头
-            // 升 34pt——图中状态栏高约 54pt 为锚、名字
-            // 字形 cap 高约 34pt（推算表见 §47）；0.17.0
-            // 的 28 bold 让位
-            // 0.22.0（用户 00:29 并排图点名「Hermes 粗黑
-            // 压人」）：字号 34 不动（推算锚只定字号）、
-            // 字重 bold→semibold 降一档——参考图「三狗」
-            // 同为大标题而笔画克制，SF bold 的拉丁字面
-            // 渲染近黑体级、正是压人来源；取舍记 §49
-            // 0.23.0：落字阶角色 screenName（largeTitle
-            // semibold，默认 34 与定版等值、随 Dynamic
-            // Type 缩放，审计 G2/D1）
-            // 0.24.0（用户当日指令，口径变更）：角色改
-            // Title1 28 bold——HIG 大标题档；34 semibold
-            // 的 Muse 量测口径让位（见 §51）
-            .font(.screenName)
-            .foregroundStyle(Palette.ink)
-            .lineLimit(1)
+    /// 身份行（§157 第一批①，用户 2026-11-11 21:01
+    /// 补充方案）：小头像＋名字＋轻量编辑入口，整行
+    /// 可点。旧形态只有名字文本（0.3.6 立宪 §21.3：
+    /// 状态点/状态词/模型小字全撤——那是管理面信
+    /// 息，不占导航壳第一眼；本行同样不带服务器/模
+    /// 型信息、不做账号卡），且标题浮层整体关命中，
+    /// 用户无从知道去哪里改名换头像。本行落法：整
+    /// 行是一个 Menu（与枢纽头像角标菜单同两项：更
+    /// 换虚拟形象/编辑名称），点开后呈现的编辑页复
+    /// 用枢纽同两张本体（AgentAvatarEditorView/
+    /// AgentNameEditorView，改的都是本机档案 Agent-
+    /// ProfileStore），不另做一套；头像与名字都读
+    /// AppState 单一出口（档案覆盖→soul 名），与全
+    /// App 露脸面同源。编辑提示只给一支铅笔字形
+    /// （inkSecondary 弱档），不加第二层按钮底
+    private var drawerIdentityRow: some View {
+        Menu {
+            Button {
+                showAvatarEditor = true
+            } label: {
+                Label("更换虚拟形象", systemImage: "person.crop.circle")
+            }
+            Button {
+                showNameEditor = true
+            } label: {
+                Label("编辑名称", systemImage: "pencil")
+            }
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                // 小头像 36 档（枢纽 110/编辑页 44 的同
+                // 源档案图，抽屉行内取小档；呈现三件与
+                // 枢纽同式：scaledToFill＋圆裁＋发丝环）
+                appState.agentAvatarImage
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
+                    .overlay {
+                        Circle().stroke(
+                            Palette.hairline, lineWidth: 0.5
+                        )
+                    }
+                    .accessibilityHidden(true)
+                // 名字沿革：0.20.0 升 34pt（Muse 图推
+                // 算）→0.22.0 字重降 semibold→0.23.0 落
+                // 角色→0.24.0 改 Title1 28 bold（HIG 大
+                // 标题档，用户当日指令、§51）——现行角
+                // 色 screenName 不动
+                Text(appState.agentDisplayName)
+                    .font(.screenName)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "pencil")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+            }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, OneDayMetrics.drawerInset)
-            .padding(.top, OneDayMetrics.spacingL)
-            .padding(.bottom, OneDayMetrics.spacingSM)
+            .contentShape(Rectangle())
+        }
+        .padding(.horizontal, OneDayMetrics.drawerInset)
+        .padding(.top, OneDayMetrics.spacingL)
+        .padding(.bottom, OneDayMetrics.spacingSM)
     }
 
     // MARK: - 导航主体（0.19.0）
 
     /// 导航组＋管理行＋旁聊区：对 Muse 样板的结构
-    /// ——「选项卡」组五行管导航，其下发丝线＋「管理
-    /// 全部对话」一行，再下发丝线＋「旁聊」区（本人
+    /// ——导航五行管导航，其下发丝线＋「管理全部
+    /// 对话」一行，再下发丝线＋「旁聊」区（本人
     /// 旁聊平铺，见旁聊区注）
+    /// §157②：「选项卡」组头删除——其下五行已明示是
+    /// 导航，再挂一层小标签只是多一道分隔与留白；
+    /// 「频道」「旁聊」两组头保留（它们标的是名单分
+    /// 区、不是导航自明区）
     private var drawerNavList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            drawerGroupHeader("选项卡")
             drawerNavRow(
                 symbol: TabBarSymbols.chat.normal,
                 title: "主线聊天",
@@ -488,6 +548,10 @@ struct DrawerView: View {
     /// 与导航行完全同构的平排——图标槽＋标题 Body
     /// 17＋drawerRowHeight，选中才带与导航行同式
     /// 的胶囊；无卡片底、无 chevron（Muse 频道行
+    /// §157③：行高与标题角色随导航行同批改导航簇档
+    /// 54＋抽屉局部角色（见 drawerNavRow 注），同构
+    /// 关系不变；本行展示名（Hermes）本批不动——改
+    /// 名涉三层命名口径，留待用户拍板（见 §157 记账）
     /// 与普通行同构，宪法 §7）；**不给计数徽标**
     /// （抽屉拉取口径与全量不一致，挂数即埋假新
     /// 鲜，S7 纪律）；图标用注册表资产（Hermes＝
@@ -529,13 +593,19 @@ struct DrawerView: View {
                 )
                 .accessibilityHidden(true)
                 Text(channel.name)
-                    .font(.bodyText)
+                    // §157③：与导航行同一套角色（常态
+                    // medium／选中 semibold＋浅灰底）
+                    .font(
+                        selected
+                            ? .drawerRowTitleCurrent
+                            : .drawerNavTitle
+                    )
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: OneDayMetrics.drawerRowHeight)
+            .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .background {
                 if selected {
@@ -688,6 +758,10 @@ struct DrawerView: View {
     /// 本地行同序（重命名/置顶/归档/删除）——置顶只
     /// 落数据（isPinned），抽屉呈现恒时间序（22:45
     /// 平铺口径），置顶的呈现归管理页等其他面
+    /// §157③④：置顶呈现口径变更——抽屉行内补图钉标
+    /// 记（排序仍恒时间序、不学管理页的置顶分段）；
+    /// 时间改紧凑口径、选中改字重＋浅灰底统一规则、
+    /// AX 档标题/时间上下排列，逐项见 label 内注
     private func drawerSideThreadRow(_ thread: ChatThread) -> some View {
         // 0.36.7：当前位只认单一政策（§10.2）——正在
         // 看这条旁聊时胶囊只归本行、主线聊天行无胶囊
@@ -705,22 +779,48 @@ struct DrawerView: View {
             appState.currentDrawerObject = .side(thread.id)
             onClose()
         } label: {
-            HStack(spacing: OneDayMetrics.rowInnerGap) {
-                Text(drawerDisplayTitle(for: thread))
-                    // 0.20.0 字阶：旁聊行题 20 常规（图
-                    // 中同为 20pt 级、重于导航行半粗一
-                    // 档之差）；标题走 drawerDisplayTitle
-                    // 解析（第三条 AI 标题回流）
-                    // 0.23.0：落字阶角色 rowTitleL（title3，
-                    // 默认 20 等值，审计 G2/D1）
-                    // 0.24.0：角色改 Body 17 regular（HIG
-                    // 落档，见 §51）——本行随角色变
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                    // 0.43.0（A11Y-D3）：AX 档放宽行数
-                    .a11yLineLimit(1, ax: 2)
-                Spacer(minLength: OneDayMetrics.spacingS)
-                Text(LocalThreadSubtitle.timeText(
+            // §157③④：标题与行尾两件先成件、再按字号
+            // 档排向——常态横排（标题抢宽、行尾靠右）；
+            // AX 大字体档上下排列（标题在上、行尾在其
+            // 下左对齐），不再横向互挤
+            let title = Text(drawerDisplayTitle(for: thread))
+                // 0.20.0 字阶：旁聊行题 20 常规（图
+                // 中同为 20pt 级、重于导航行半粗一
+                // 档之差）；标题走 drawerDisplayTitle
+                // 解析（第三条 AI 标题回流）
+                // 0.23.0：落字阶角色 rowTitleL（title3，
+                // 默认 20 等值，审计 G2/D1）
+                // 0.24.0：角色改 Body 17 regular（HIG
+                // 落档，见 §51）——本行随角色变
+                // §157③：改落抽屉局部角色——常态
+                // drawerRowTitle（Body regular、基值与
+                // rowTitleL 逐点相同）、当前行 drawer-
+                // RowTitleCurrent（semibold）＋浅灰底，
+                // 与导航/频道同一套选中规则
+                .font(
+                    isCurrent
+                        ? .drawerRowTitleCurrent
+                        : .drawerRowTitle
+                )
+                .foregroundStyle(Palette.ink)
+                // 0.43.0（A11Y-D3）：AX 档放宽行数
+                .a11yLineLimit(1, ax: 2)
+            let trailing = HStack(
+                spacing: OneDayMetrics.rowInnerGap
+            ) {
+                // §157④：置顶行给小图钉标——旧口径置
+                // 顶只落数据、抽屉呈现无任何标记，用
+                // 户在此面无从分辨；本批只补呈现（排
+                // 序恒时间序与长按四件本体不动）
+                if thread.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(
+                            size: 10, weight: .semibold
+                        ))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .accessibilityHidden(true)
+                }
+                Text(LocalThreadSubtitle.compactTimeText(
                     updatedAt: thread.updatedAt,
                     now: Date()
                 ))
@@ -728,6 +828,9 @@ struct DrawerView: View {
                 // 默认 15 等值，审计 G2/D1）
                 // 0.24.0：角色改 Footnote 13（HIG 时间
                 // 戳档）——本行随角色变
+                // §157④：时间源改紧凑口径——今天只给
+                // HH:mm（Core compactTimeText），跨日
+                // 仍带日标
                 .font(.meta)
                 // 0.22.0（审计 G1/D2）：时间戳是「要读的
                 // 字」，inkMuted 实算 2.75:1 不达标——换
@@ -737,22 +840,52 @@ struct DrawerView: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
             }
-            .padding(.horizontal, OneDayMetrics.spacingS)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingMicro
+                    ) {
+                        title
+                        trailing
+                    }
+                } else {
+                    HStack(spacing: OneDayMetrics.rowInnerGap) {
+                        title
+                        Spacer(minLength: OneDayMetrics.spacingS)
+                        trailing
+                    }
+                }
+            }
+            // §157③：内外边距与导航行对齐（内 spacingSM
+            // ／外 spacingS）——选中胶囊左右边界与导航/
+            // 频道行同为 8 线、形状同为 fieldCorner 连
+            // 续圆角；标题起点仍恒 20（8＋12）不变
+            .padding(.horizontal, OneDayMetrics.spacingSM)
             .frame(
                 maxWidth: .infinity,
                 minHeight: OneDayMetrics.drawerRowHeight,
                 alignment: .leading
             )
-            .background(
-                isCurrent ? Palette.selectionFill : Color.clear,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.fieldCorner
-                )
-            )
+            .background {
+                if isCurrent {
+                    Palette.selectionFill
+                        .clipShape(RoundedRectangle(
+                            cornerRadius: OneDayMetrics.fieldCorner,
+                            style: .continuous
+                        ))
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.horizontal, OneDayMetrics.spacingS)
+        // §157④：图钉是纯视觉标记——置顶状态经 acces-
+        // sibilityValue 补播报（标题/时间的内容自读不
+        // 受影响）；未置顶行值为空、不出声
+        .accessibilityValue(
+            thread.isPinned ? L10n.string("已置顶") : ""
+        )
         .contextMenu {
             Button {
                 beginRenameThread(thread)
@@ -898,6 +1031,14 @@ struct DrawerView: View {
     /// 立第二套符号表）＋标题，选中格浅灰垫（selec-
     /// tionFill 整行圆角垫、标题不变色不加粗），行高
     /// 与 0.17.0 单行会话行同档（47pt 导航行档）
+    /// §157②③（用户 21:01 补充方案）：行高改导航簇档
+    /// drawerNavRowHeight 54（设计起点、非实测参数，
+    /// 把空间让给会话区；仍是 minHeight、大字体随内
+    /// 容增长）；标题落抽屉局部角色——常态 drawer-
+    /// NavTitle（Body medium，主要导航层级），选中
+    /// drawerRowTitleCurrent（semibold 适度加重）＋
+    /// 浅灰底，与频道行/会话行同一套选中规则；旧口
+    /// 径「选中标题不加粗」随本令让位（仅抽屉内）
     private func drawerNavRow(
         symbol: String, title: String, selected: Bool,
         action: @escaping () -> Void
@@ -937,13 +1078,19 @@ struct DrawerView: View {
                     )
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.bodyText)
+                    // §157③：常态 medium／选中 semibold
+                    // （抽屉局部角色，见函数头注）
+                    .font(
+                        selected
+                            ? .drawerRowTitleCurrent
+                            : .drawerNavTitle
+                    )
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: OneDayMetrics.drawerRowHeight)
+            .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .background {
                 if selected {
@@ -991,7 +1138,11 @@ struct DrawerView: View {
                     )
                     .accessibilityHidden(true)
                 Text("管理全部对话")
-                    .font(.bodyText)
+                    // §157③：本行是次要入口——标题落次
+                    // 要档 drawerRowTitle（regular），弱
+                    // 于五导航行的 medium 一档；行高随
+                    // 导航簇 54
+                    .font(.drawerRowTitle)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -1001,7 +1152,7 @@ struct DrawerView: View {
                     .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: OneDayMetrics.drawerRowHeight)
+            .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .contentShape(Rectangle())
         }
