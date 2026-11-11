@@ -8342,7 +8342,8 @@ Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发�
 
 ### 125.6 单测与校验
 
-- 新增 FileOpenRouteTests 16 测：路由矩阵（图片/文本/QL 族/表格特判/csv 不走转码/无预览族/canPreview 降级/敏感锁定）、落点列映射、分类名称-条目对账、锚点解析与拆分、detectAnchored、段落行段与摘录、转码失败分型。基线 1256＋16＝1272，只增不减。
+- 新增 FileOpenRouteTests 16 测：路由矩阵（图片/文本/QL 族/表格特判/csv 不走转码/无预览族/canPreview 降级/敏感锁定）、落点列映射、分类名称-条目对账、锚点解析与拆分、detectAnchored、段落行段与摘录、转码失败分型。CI 实测 Executed 1280 tests、0 failures（本地 func test 计数同为 1280；只增不减）。施工中 CI 两轮红已修并记账于提交史：①plainParagraphLineRanges 的 if-let 遮蔽赋值冲突；②名称口径 category 在 mediaKind 为 nil 时影音类落 .other——改经合成条目推导（条目 mediaKind 扩展名表单源），对账测补影音三档。
 - 三语文案新增 19 键（Localizable 2444→2463），validate_i18n.py 通过。
 - 红线守界：未碰回底钮/输入舱（§124 在飞）、§122 三页面、§123 在飞面；FileActionPolicy/DeliverableIconStyle/FileOpenFailure 三单源零分叉（落点列与转码档均为原表内增列增档）。
 - 真机待验：xlsx 点开中间页→查看表格全链（多表切换/截断明示/公式无缓存注记）、.ipa 中间页说明行＋分享下载、聊天文件卡大小副行三路回填、带 #L 锚点的助手文件牌进阅读页定位、文件页三入口落中间页、敏感文件锁定分支。
+- **分支终局**：feat/file-open-flow 顶端见合并单；分支 CI run 42968384303 success（build-native 全绿，head 74fa0bb），单测 Executed 1280、0 failures。伴生 1.0.15 已上线（FILE-115-REPORT.md：端点自测 20 全过、生产冒烟真实 iCost 表 3893 行截断明示、Hermes StartedAt 未动、内存 51%）。App 版本号未改（合并时主线定号）。
