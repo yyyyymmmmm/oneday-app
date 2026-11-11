@@ -1024,6 +1024,12 @@ public enum AttachedContextRef {
 /// 全扫零命中），本探测按实查路径形态（/opt/data/cache/
 /// documents、/opt/data/… 的 agent 产出）施工：命中即
 /// 文件牌，点击走既有 /api/files/download 取回预览。
+/// §129 分层：detect/detectAnchored 是原始扫描口
+/// （什么像路径就报什么）；聊天成牌改走 detect-
+/// StandaloneAnchored（单独成行＋下载根内），渲染
+/// 前再经 App 层存在性校验——生产抽检曾有约 38%
+/// 助手侧牌点开必 404（拟议未落盘/截断假路径/设备
+/// 路径，诊断 file-ref-404-diagnosis-20261111）。
 public enum FileRefDetector {
     public static let imageExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "webp", "heic",
@@ -1039,8 +1045,17 @@ public enum FileRefDetector {
     // 件）、不得紧跟「.＋字母数字」（防 a.tar.gz 只
     // 截到 .tar）。其余护栏不变：冒号前置跳 URL 残
     // 段、// 开头跳过、至少一层目录、excluding 去重
+    // §129：匹配量词由懒惰 +? 改贪婪 +（截断 bug 终
+    // 修，诊断 file-ref-404-diagnosis-20261111 主因
+    // B）：懒惰匹配取最短「扩展名形结尾」，文件名中
+    // 段出现「.数字」且其后跟 - 时提前收尾——真文件
+    // /opt/data/kimi-k3.1-pro-….md 被截成假路径
+    // /opt/data/kimi-k3.1 成牌、点开必 404。贪婪先
+    // 吞到终止符为止、再回认最长合法结尾；尾界断言
+    // 另加「-＋字母数字」（候选结尾后紧跟 - 且其后
+    // 还有路径字符＝还没到真结尾，继续吞）
     private static let pattern =
-        #"/[A-Za-z0-9_\-./\u0080-\uFFFF]+?\.[A-Za-z0-9]{1,12}(?![A-Za-z0-9/]|\.[A-Za-z0-9])"#
+        #"/[A-Za-z0-9_\-./\u0080-\uFFFF]+\.[A-Za-z0-9]{1,12}(?![A-Za-z0-9/]|\.[A-Za-z0-9]|-[A-Za-z0-9])"#
 
     // §125 搭车：路径后可跟 ekko 式行号锚点 `#L12`
     // 或 `#L12-L20`（捕获组 1）；锚点不入路径本体，
@@ -1062,6 +1077,92 @@ public enum FileRefDetector {
         scan(in: text, excluding: excluded)
     }
 
+    /// 文件下载根（与服务端 files.py 的 locked_root
+    /// 同口径，生产实查 /opt/data）：根外路径天然不
+    /// 可下载（设备路径、系统路径一类），不成牌
+    public static let downloadRoot = "/opt/data"
+
+    /// 路径是否严格位于下载根内：前缀须为「根＋/」
+    /// （防 /opt/database 这类前缀陷阱），且不许带
+    /// .. 穿越段（字面在根内、解析后逃出去的不算）
+    public static func isInDownloadRoot(_ path: String) -> Bool {
+        guard path.hasPrefix(downloadRoot + "/") else { return false }
+        return !path.contains("/../") && !path.hasSuffix("/..")
+    }
+
+    /// 成牌口探测（§129，诊断主因 A/C 的收口）：助
+    /// 手正文里只有「单独成行」的路径才够格成牌——
+    /// 行内提及（拟议目标、举例、说明句中的路径）一
+    /// 律纯文本。单独成行的判据：整行修剪后恰好是一
+    /// 条路径（可带 #L 锚点），允许一层常见行首/包
+    /// 裹（列表符 -、*、•、引用符 >、反引号、**粗
+    /// 体**）；一行里有两条路径或路径之外还有别的
+    /// 字，都不算。候选另须过下载根（根外天然不可
+    /// 下载）。detect/detectAnchored 是原始扫描口
+    /// （其余消费方与钉测在用），成牌只许走本口；
+    /// 存在性校验在 App 层渲染前另核（见 §129.2）
+    public static func detectStandaloneAnchored(
+        in text: String, excluding excluded: [String] = []
+    ) -> [FileAnchoredRef] {
+        guard text.contains("/") else { return [] }
+        var seen: Set<String> = Set(excluded)
+        var found: [FileAnchoredRef] = []
+        for line in text.components(separatedBy: "\n") {
+            let candidate = standaloneLineCandidate(line)
+            guard !candidate.isEmpty else { continue }
+            let refs = scan(in: candidate)
+            guard refs.count == 1, let ref = refs.first
+            else { continue }
+            // 整行恰好是这一条路径：路径之后只许留
+            // 它自己的 #L 锚点原文，不许有别的字
+            guard candidate.hasPrefix(ref.path) else { continue }
+            let remainder = String(candidate.dropFirst(ref.path.count))
+            if !remainder.isEmpty {
+                guard remainder.hasPrefix("#"),
+                      FileLineAnchor.parse(remainder) == ref.anchor
+                else { continue }
+            }
+            guard isInDownloadRoot(ref.path) else { continue }
+            if seen.insert(ref.path).inserted {
+                found.append(ref)
+            }
+        }
+        return found
+    }
+
+    /// 单独成行候选的解包：修剪空白后，循环剥一层
+    /// 行首标记（-、*、•、>）与包裹（`、`**`），直
+    /// 到不再变化；剥完仍含别的字由调用方按「整行
+    /// 恰好一条路径」判据否决
+    private static func standaloneLineCandidate(
+        _ line: String
+    ) -> String {
+        var text = line.trimmingCharacters(in: .whitespaces)
+        var changed = true
+        while changed {
+            changed = false
+            for marker in ["- ", "* ", "• ", "> "] where
+                text.hasPrefix(marker) {
+                text = String(text.dropFirst(marker.count))
+                    .trimmingCharacters(in: .whitespaces)
+                changed = true
+            }
+            if text.count >= 2, text.hasPrefix("`"),
+               text.hasSuffix("`") {
+                text = String(text.dropFirst().dropLast())
+                    .trimmingCharacters(in: .whitespaces)
+                changed = true
+            }
+            if text.count >= 4, text.hasPrefix("**"),
+               text.hasSuffix("**") {
+                text = String(text.dropFirst(2).dropLast(2))
+                    .trimmingCharacters(in: .whitespaces)
+                changed = true
+            }
+        }
+        return text
+    }
+
     private static func scan(
         in text: String, excluding excluded: [String] = []
     ) -> [FileAnchoredRef] {
@@ -1075,13 +1176,22 @@ public enum FileRefDetector {
         for match in regex.matches(in: text, range: range) {
             guard let matchRange = Range(match.range, in: text)
             else { continue }
-            // URL 的路径段不是服务端文件：前一字符是冒号
-            // （:// 的一部分）时跳过
+            // URL/域名的路径段不是服务端文件：前一字
+            // 符是冒号（:// 的一部分）时跳过。§129 扩
+            // 围：前一字符是 ASCII 字母/数字或 . 时同
+            // 样跳过——那是更长词元的尾巴（域名片段
+            // huggingface.co/moonshotai/… 、IP:端口后
+            // 的段），不是独立路径的开头（诊断主因
+            // B 之二）。只认 ASCII：中文正文里「在
+            // /opt/…」这类汉字紧贴不许误伤（汉字
+            // isLetter 为真，故须先过 isASCII）
             if matchRange.lowerBound > text.startIndex {
                 let before = text[text.index(
                     before: matchRange.lowerBound
                 )]
-                if before == ":" { continue }
+                if before == ":" || before == "." { continue }
+                if before.isASCII,
+                   before.isLetter || before.isNumber { continue }
             }
             // 锚点组（组 1）位于匹配尾部：路径＝全匹配
             // 去掉锚点后缀

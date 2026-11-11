@@ -29,12 +29,18 @@ enum FileOpenOrigin {
 struct FileOpenView: View {
     let target: FileOpenTarget
     var origin: FileOpenOrigin = .serverFile
+    /// §129：404 时「让智能体重新发」的宿主落点
+    /// （聊天来源由 ChatView 注入：预填落当前线程
+    /// 输入舱）；不注入时 FileOpenContent 走新建
+    /// 对话同制（文件页/资料库来源）
+    var onRequestResend: ((String) -> Void)? = nil
 
     var body: some View {
         NavigationStack {
             FileOpenContent(
                 target: target, origin: origin,
-                showsCloseButton: true
+                showsCloseButton: true,
+                onRequestResend: onRequestResend
             )
         }
     }
@@ -43,10 +49,12 @@ struct FileOpenView: View {
 struct FileOpenContent: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     let target: FileOpenTarget
     var origin: FileOpenOrigin = .serverFile
     var showsCloseButton: Bool = false
+    var onRequestResend: ((String) -> Void)? = nil
 
     private enum Phase: Equatable {
         case ready
@@ -384,8 +392,7 @@ struct FileOpenContent: View {
             }
             HStack(spacing: OneDayMetrics.spacingSM) {
                 ForEach(
-                    FileActionPolicy.failureActions(for: entry),
-                    id: \.self
+                    failureActions(for: failure), id: \.self
                 ) { action in
                     Button(action.label) {
                         performFailure(action)
@@ -393,6 +400,23 @@ struct FileOpenContent: View {
                     .buttonStyle(.odSecondary)
                 }
                 Spacer(minLength: 0)
+            }
+            // §129：404 专属回路——文件根本不在服务
+            // 器上时，出路是让写它的人重新交付：预
+            // 填一条带原路径的草稿回对话（拼装在
+            // Core FileResendPrefill，落点见
+            // requestResend），不在本页硬撑
+            if failure == .notFound {
+                Button {
+                    requestResend()
+                } label: {
+                    Label(
+                        "让智能体重新发",
+                        systemImage: "paperplane"
+                    )
+                }
+                .buttonStyle(.odSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(OneDayMetrics.spacingSM)
@@ -402,6 +426,45 @@ struct FileOpenContent: View {
                 cornerRadius: OneDayMetrics.radiusCard
             )
         )
+    }
+
+    /// 失败动作集（§129 对账）：策略表原样打底，
+    /// 唯 404 一档收掉「下载到本地」——文件确证不
+    /// 在，再下载必然再 404，是死按钮；404 的出路
+    /// 是重试与「让智能体重新发」（诊断 §4.1.5）。
+    /// 其余失败档（超时/过大/不可预览等）策略表
+    /// 不动
+    private func failureActions(
+        for failure: FileOpenFailure
+    ) -> [FileFailureAction] {
+        var actions = FileActionPolicy.failureActions(for: entry)
+        if failure == .notFound {
+            actions.removeAll { $0 == .download }
+        }
+        return actions
+    }
+
+    /// 「让智能体重新发」落点（§129）：宿主注入了
+    /// 落点（聊天来源）就交给宿主（预填落当前线程
+    /// 输入舱）；没有注入（文件页/资料库来源）照
+    /// §123 讨论同制——新建一条对话、预填进草稿、
+    /// 切到聊天格。两路都只预填不代发；执行后关
+    /// 本页（push 形态下 dismiss 即返回上一层）
+    private func requestResend() {
+        let prefill = FileResendPrefill.make(
+            name: target.name, path: target.path
+        )
+        if let onRequestResend {
+            onRequestResend(prefill)
+        } else {
+            let thread = ChatThread()
+            modelContext.insert(thread)
+            try? modelContext.save()
+            appState.sideChats.setDraft(prefill, for: thread.id)
+            appState.drawerThreadSelection = thread.id
+            appState.mainTabSwitchRequest = .chat
+        }
+        dismiss()
     }
 
     private var lockedView: some View {
