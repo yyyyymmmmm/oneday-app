@@ -40,6 +40,7 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 帧采集盒：GuideFrameReporter 逐布局拍回写窗口帧
     private final class FrameBox: @unchecked Sendable {
         var frames: [String: CGRect] = [:]
+        var notes: [String: String] = [:]
     }
 
     /// 把宿主视图的窗口帧写进采集盒的量具
@@ -75,6 +76,30 @@ final class ComposerGuideHostTests: XCTestCase {
         }
     }
 
+    /// 舱本体替身：独立 View 结构体（与生产 inputBar
+    /// 同构——状态读数发生在自己的 body 里、由托管树
+    /// 追踪；若把条件写在构建闭包侧，则是「父级快照」
+    /// 语义、不代表生产形态）。tallBar 时多一段 40pt
+    /// 占位，验内容长高经活根传导
+    private struct GrowthBarView: View {
+        @Bindable var state: ShellState
+        let box: FrameBox
+        var body: some View {
+            VStack(spacing: 0) {
+                if state.tallBar {
+                    Color.clear.frame(height: 40)
+                }
+                Text("BAR")
+                    .frame(height: 76)
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(maxWidth: .infinity)
+            .background(
+                GuideFrameReporter(name: "bar", box: box)
+            )
+        }
+    }
+
     /// 聊天页替身：按 ChatView §178 接法复刻（同树
     /// proxy、实测留位、host 托管同位）
     private struct ChatReplica: View {
@@ -91,6 +116,16 @@ final class ComposerGuideHostTests: XCTestCase {
                                     .frame(maxWidth: .infinity)
                                     .id(row)
                                     .background {
+                                        if row == 0 {
+                                            GuideFrameReporter(
+                                                name: "firstRow",
+                                                box: box)
+                                        }
+                                        if row == 30 {
+                                            GuideFrameReporter(
+                                                name: "midRow",
+                                                box: box)
+                                        }
                                         if row == 59 {
                                             GuideFrameReporter(
                                                 name: "lastRow",
@@ -108,6 +143,16 @@ final class ComposerGuideHostTests: XCTestCase {
                         for: .scrollContent
                     )
                     .ignoresSafeArea(edges: .bottom)
+                    .onScrollGeometryChange(
+                        for: String.self
+                    ) { geo in
+                        "insetB=\(Int(geo.contentInsets.bottom)) "
+                            + "contH=\(Int(geo.containerSize.height)) "
+                            + "offY=\(Int(geo.contentOffset.y)) "
+                            + "sizeH=\(Int(geo.contentSize.height))"
+                    } action: { _, v in
+                        box.notes["geo"] = v
+                    }
                     .task {
                         try? await Task.sleep(
                             for: .milliseconds(400))
@@ -116,19 +161,7 @@ final class ComposerGuideHostTests: XCTestCase {
                     ComposerGuideHost(
                         bottomSpace: $state.bottomSpace
                     ) {
-                        VStack(spacing: 0) {
-                            if state.tallBar {
-                                Color.clear.frame(height: 40)
-                            }
-                            Text("BAR")
-                                .frame(height: 76)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            GuideFrameReporter(
-                                name: "bar", box: box)
-                        )
+                        GrowthBarView(state: state, box: box)
                     }
                 }
             }
@@ -282,7 +315,7 @@ final class ComposerGuideHostTests: XCTestCase {
               let bar = box.frames["bar"],
               let lastRow = box.frames["lastRow"]
         else {
-            XCTFail("量具未齐：tab=\(tabBar() != nil) frames=\(box.frames.keys.sorted()) bottomSpace=\(state.bottomSpace)")
+            XCTFail("量具未齐：tab=\(tabBar() != nil) frames=\(box.frames.keys.sorted()) bottomSpace=\(state.bottomSpace) geo=\(box.notes["geo"] ?? "-")")
             return
         }
         let tabTop = tab.convert(tab.bounds, to: window).minY
