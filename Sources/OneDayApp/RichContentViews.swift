@@ -378,28 +378,20 @@ extension ToolCardCategory {
 
 // MARK: - 服务端图片
 
-/// 服务端图片字节的进程内缓存（同一路径只取一次）
-@MainActor
-final class ServerImageCache {
-    static let shared = ServerImageCache()
-    private var storage: [String: Data] = [:]
+/// （§144：进程内字节缓存 ServerImageCache 已退役——
+/// 取图收编 RemoteImagePipeline 三级缓存：内存已解码
+/// 图／磁盘变体字节／变体端点，键带档位、全仓同源。）
 
-    func data(for path: String) -> Data? { storage[path] }
-    func store(_ data: Data, for path: String) {
-        storage[path] = data
-    }
-}
-
-/// 历史消息里的服务端图片缩略：经既有文件下载通道取回
+/// 历史消息里的服务端图片缩略：经统一管线取 360 档
 struct ServerRemoteImage: View {
     let path: String
     @Environment(AppState.self) private var appState
-    @State private var data: Data?
+    @State private var image: UIImage?
     @State private var failed = false
 
     var body: some View {
         Group {
-            if let data, let image = UIImage(data: data) {
+            if let image {
                 // §130：已发图固定高度卡（Core
                 // ChatImageSizing）——卡高恒定 190、
                 // 卡宽按比例钳制 [96, 260]，图居中完
@@ -488,18 +480,26 @@ struct ServerRemoteImage: View {
     }
 
     private func load() async {
-        if let hit = ServerImageCache.shared.data(for: path) {
-            data = hit
+        // §144：管线内存命中即出图（同一路径只取一次的
+        // 旧缓存语义由管线同键合并＋三级缓存接替）
+        if let hit = RemoteImagePipeline.shared.memoryImage(
+            path: path, mtime: 0, tier: .thumb) {
+            image = hit
             return
         }
-        do {
-            let fetched = try await appState.performAdmin {
-                client, config in
-                try await client.fileData(config: config, path: path)
+        guard image == nil, !failed else { return }
+        let loaded = await RemoteImagePipeline.shared.image(
+            path: path, mtime: 0, tier: .thumb,
+            config: appState.config
+        ) {
+            try? await appState.performAdmin { client, config in
+                try await client.fileData(
+                    config: config, path: path)
             }
-            ServerImageCache.shared.store(fetched, for: path)
-            data = fetched
-        } catch {
+        }
+        if let loaded {
+            image = loaded
+        } else {
             failed = true
         }
     }
@@ -518,6 +518,10 @@ struct ChatImageViewerItem: Identifiable, Hashable {
     }
 
     let source: Source
+    /// 远端文件的修改时间（§144 缓存键用）：文件面条目
+    /// 带真值、聊天图拿不到以 0 占位（一次性文件为主，
+    /// 写一次读多次，可接受）
+    var mtime: Double = 0
 
     var id: String {
         switch source {
@@ -545,6 +549,10 @@ struct ZoomableImageView: UIViewRepresentable {
     @Binding var isZoomed: Bool
     var resetToken: Int = 0
     var onSingleTap: (() -> Void)? = nil
+    /// §144：换图时交叉淡变（查看器 1080 档网络新到时
+    /// 用；时长对齐 MotionTokens.swap 的 0.2；2048 静
+    /// 默换图与原图补齐不走此位、直接替换）
+    var crossfadeOnSwap: Bool = false
 
     func makeUIView(context: Context) -> UIScrollView {
         let scrollView = UIScrollView()
@@ -585,6 +593,22 @@ struct ZoomableImageView: UIViewRepresentable {
         }
         guard let imageView = context.coordinator.imageView
         else { return }
+        // §144：图面换档必须在此落位——旧实现从不回写
+        // imageView.image，首显靠宿主分支切换时新建承
+        // 载、已在树上的查看器换图永不生效（递进链的
+        // 前置缺口，本包补上）
+        if imageView.image !== image {
+            if crossfadeOnSwap {
+                UIView.transition(
+                    with: imageView, duration: 0.2,
+                    options: [.transitionCrossDissolve]
+                ) {
+                    imageView.image = image
+                }
+            } else {
+                imageView.image = image
+            }
+        }
         if scrollView.zoomScale <= 1.01 {
             imageView.frame = CGRect(
                 origin: .zero, size: scrollView.bounds.size

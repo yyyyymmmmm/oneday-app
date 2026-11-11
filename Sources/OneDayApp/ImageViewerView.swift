@@ -51,6 +51,7 @@ struct ImageViewerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(AppState.self) private var appState
 
     @State private var state: ImageViewerState
     /// 卡态复位令牌：切回卡态时递增，各页的缩放承
@@ -124,6 +125,32 @@ struct ImageViewerView: View {
         .toolbar(.hidden, for: .tabBar)
         .sheet(item: $shareItem) { item in
             FileShareSheet(url: item.url)
+        }
+        // §144 翻页预取：当前页 ±1 预取 2048、±2 预
+        // 取 1080（规格 §5.3 查看器口径）——翻过去
+        // 时图已在缓存，不再逐页冷开
+        .task(id: state.index) { prefetchNeighbors() }
+    }
+
+    private func prefetchNeighbors() {
+        for offset in [-2, -1, 1, 2] {
+            let index = state.index + offset
+            guard items.indices.contains(index) else { continue }
+            let neighbor = items[index]
+            guard case .remotePath(let path) = neighbor.source
+            else { continue }
+            let tier: ImageRenditionTier =
+                abs(offset) == 1 ? .detail : .viewer
+            RemoteImagePipeline.shared.prefetch(
+                path: path, mtime: neighbor.mtime, tier: tier,
+                config: appState.config
+            ) {
+                try? await appState.performAdmin {
+                    client, config in
+                    try await client.fileData(
+                        config: config, path: path)
+                }
+            }
         }
     }
 
@@ -443,13 +470,23 @@ private final class ZoomHostingController<Content: View>:
 
 // MARK: - 单页（图面加载＋双态呈现）
 
-/// 查看器单页：图面经既有通道加载（本地字节直解、
-/// 远端走文件下载＋进程内缓存，与缩略同通道）；
-/// 卡态按图宽高比成卡（ fitted 尺寸走 Core 纯函
+/// 查看器单页（§144 递进链重做）：状态机在 Core
+/// ViewerImageProgression，宿主只按它呈现——
+/// - 首帧＝种子图（入口已到手的图经管线内存/磁盘
+///   播种带入），不许出现「白屏＋转圈」第一帧；
+/// - 递进 1080（到达换图、网络新到且有种子在显时
+///   淡变）→ 2048（静默换）→ 原图（只在首次放大
+///   越界时下）；档位只升不降由状态机钉死；
+/// - 三态：有图不许菊花；真冷开 300ms 后仍无图才
+///   许菊花；无图失败落失败态＋重试（旧实现无重
+///   试、失败只能退出重进——「再点一次才出图」的
+///   一半成因在此）。
+/// 卡态按图宽高比成卡（fitted 尺寸走 Core 纯函
 /// 数）、沉浸态全幅；缩放本体复用 ZoomableImage-
 /// View（UIScrollView 1–4×、双击 2.5×、单击回调
 /// 切双态——单击须等双击落空才触发，识别器在承
-/// 载层配好失败依赖）。
+/// 载层配好失败依赖）。本地字节图（刚发送的消
+/// 息）是原图本体、直解不降档。
 private struct ImageViewerPage: View {
     let item: ChatImageViewerItem
     let mode: ImageViewerMode
@@ -459,35 +496,85 @@ private struct ImageViewerPage: View {
     let onImageLoaded: (UIImage) -> Void
 
     @Environment(AppState.self) private var appState
-    @State private var image: UIImage?
-    @State private var loadFailed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var progression = ViewerImageProgression()
+    @State private var displayedImage: UIImage?
+    /// 换图淡变位：与 displayedImage 同一遍渲染写入，
+    /// 只对 1080 档网络新到置真（ZoomableImageView
+    /// 在 updateUIView 据此交叉淡变）
+    @State private var fadeSwap = false
+    @State private var showSpinner = false
     @State private var isZoomed = false
+    /// 失败重试令牌（递增重跑加载链后半段）
+    @State private var loadToken = 0
+    /// 原图每页只请求一次
+    @State private var originalRequested = false
 
     var body: some View {
         Group {
-            if let image {
-                zoomSurface(image)
-            } else if loadFailed {
-                VStack(spacing: OneDayMetrics.spacingS) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 26))
-                    Text("图片没加载出来")
-                        .font(.callout)
-                }
-                .foregroundStyle(
-                    mode == .card ? Palette.inkSecondary : Color.white
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let displayedImage {
+                zoomSurface(displayedImage)
+            } else if progression.phase == .failed {
+                failureView
             } else {
-                ProgressView()
-                    .tint(mode == .card ? Palette.inkSecondary : .white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // 真冷开：先只给底色（卡态页面底/沉
+                // 浸黑底由宿主底色承担），300ms 后仍
+                // 无图才出菊花
+                ZStack {
+                    Color.clear
+                    if showSpinner {
+                        ProgressView()
+                            .tint(
+                                mode == .card
+                                    ? Palette.inkSecondary : .white
+                            )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .task(id: item.id) { await load() }
+        .task(id: item.id) { await startFresh() }
+        .task(id: loadToken) {
+            guard loadToken > 0 else { return }
+            await loadChain()
+        }
+        // 菊花延时门：300ms 内出图就不许它出现（重
+        // 试同理，键含 loadToken）
+        .task(id: "\(item.id)#\(loadToken)") {
+            try? await Task.sleep(for: .milliseconds(300))
+            if progression.phase == .empty {
+                showSpinner = true
+            }
+        }
         .onChange(of: isZoomed) { _, zoomed in
             onZoomChange(zoomed)
+            if zoomed {
+                Task { await loadOriginalIfNeeded() }
+            }
         }
+    }
+
+    private var failureView: some View {
+        VStack(spacing: OneDayMetrics.spacingS) {
+            Image(systemName: "photo")
+                .font(.system(size: 26))
+            Text("图片没加载出来")
+                .font(.callout)
+            Button {
+                if progression.retry() {
+                    loadToken += 1
+                }
+            } label: {
+                Text("重试")
+                    .font(.callout.weight(.medium))
+            }
+            .buttonStyle(.odPressable)
+            .padding(.top, OneDayMetrics.spacingXS)
+        }
+        .foregroundStyle(
+            mode == .card ? Palette.inkSecondary : Color.white
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -505,7 +592,8 @@ private struct ImageViewerPage: View {
                     image: image,
                     isZoomed: $isZoomed,
                     resetToken: zoomResetToken,
-                    onSingleTap: onToggleMode
+                    onSingleTap: onToggleMode,
+                    crossfadeOnSwap: fadeSwap
                 )
                 .frame(width: fitted.width, height: fitted.height)
                 .background(
@@ -530,43 +618,101 @@ private struct ImageViewerPage: View {
                 image: image,
                 isZoomed: $isZoomed,
                 resetToken: zoomResetToken,
-                onSingleTap: onToggleMode
+                onSingleTap: onToggleMode,
+                crossfadeOnSwap: fadeSwap
             )
         }
     }
 
-    private func load() async {
+    // MARK: - 加载链
+
+    private func startFresh() async {
+        progression = ViewerImageProgression()
+        displayedImage = nil
+        fadeSwap = false
+        showSpinner = false
+        originalRequested = false
+        await loadChain()
+    }
+
+    private func loadChain() async {
         switch item.source {
         case .data(let data):
-            image = UIImage(data: data)
-            if let image {
-                onImageLoaded(image)
+            if let decoded = UIImage(data: data) {
+                apply(tier: .original, image: decoded, fade: false)
+                onImageLoaded(decoded)
             } else {
-                loadFailed = true
+                progression.tierFailed()
             }
         case .remotePath(let path):
-            if let hit = ServerImageCache.shared.data(for: path),
-               let cached = UIImage(data: hit) {
-                image = cached
-                onImageLoaded(cached)
+            // 种子先行：第一帧有图（管线内存/磁盘里
+            // 入口已到手的那张）
+            if displayedImage == nil,
+               let seed = RemoteImagePipeline.shared.seedImage(
+                   path: path, mtime: item.mtime) {
+                progression.seedArrived()
+                displayedImage = seed
+                fadeSwap = false
+            }
+            guard let viewer = await pipelineImage(
+                path: path, tier: .viewer) else {
+                progression.tierFailed()
                 return
             }
-            do {
-                let fetched = try await appState.performAdmin {
-                    client, config in
-                    try await client.fileData(
-                        config: config, path: path
-                    )
-                }
-                ServerImageCache.shared.store(fetched, for: path)
-                image = UIImage(data: fetched)
-                if let image {
-                    onImageLoaded(image)
-                } else {
-                    loadFailed = true
-                }
-            } catch {
-                loadFailed = true
+            apply(
+                tier: .viewer, image: viewer,
+                fade: displayedImage != nil && !reduceMotion)
+            onImageLoaded(viewer)
+            // 2048 静默补齐：换图无淡变、不打扰
+            if let detail = await pipelineImage(
+                path: path, tier: .detail) {
+                apply(tier: .detail, image: detail, fade: false)
+                onImageLoaded(detail)
+            } else {
+                progression.tierFailed()
+            }
+        }
+    }
+
+    /// 原图：只在首次放大时下（档位覆盖不足以支撑放
+    /// 大细看时才值得这笔流量）；触发点取「首次进入
+    /// 放大态」——缩放回写只有 Bool 口径，精确像素比
+    /// 判定不在本包（§144 记账）
+    private func loadOriginalIfNeeded() async {
+        guard case .remotePath(let path) = item.source,
+              !originalRequested,
+              (progression.displayedTier ?? .seed) < .original
+        else { return }
+        originalRequested = true
+        if let original = await pipelineImage(
+            path: path, tier: .original) {
+            apply(tier: .original, image: original, fade: false)
+            onImageLoaded(original)
+        }
+    }
+
+    /// 换图唯一口：状态机判升档（只升不降），升成才
+    /// 真换 displayedImage，淡变位同遍写入
+    private func apply(
+        tier: ImageRenditionTier, image: UIImage, fade: Bool
+    ) {
+        let before = progression.displayedTier
+        progression.tierArrived(tier)
+        guard progression.displayedTier != before else { return }
+        fadeSwap = fade
+        displayedImage = image
+    }
+
+    private func pipelineImage(
+        path: String, tier: ImageRenditionTier
+    ) async -> UIImage? {
+        await RemoteImagePipeline.shared.image(
+            path: path, mtime: item.mtime, tier: tier,
+            config: appState.config
+        ) {
+            try? await appState.performAdmin { client, config in
+                try await client.fileData(
+                    config: config, path: path)
             }
         }
     }

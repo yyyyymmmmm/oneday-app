@@ -1099,15 +1099,12 @@ struct MediaCell: View {
             // 发闸——旧形态 UIImage(data:) 全尺寸解码
             // 大图整段入内存，规格 §4.3 明令禁止
             image = await FileThumbnailStore.shared.thumbnail(
-                for: entry, targetPixelSize: 360
-            ) {
-                try? await appState.performAdmin {
-                    client, config in
-                    try await client.fileData(
-                        config: config, path: entry.path
-                    )
-                }
-            }
+                for: entry, targetPixelSize: 360,
+                loader: FileThumbnailStore.originalLoader(
+                    appState: appState, path: entry.path),
+                renditionLoader: FileThumbnailStore.renditionLoader(
+                    appState: appState, path: entry.path)
+            )
         }
     }
 }

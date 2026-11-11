@@ -60169,6 +60169,29 @@
         }
       }
     },
+    "图片预览": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image preview"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图片预览"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "圖片預覽"
+          }
+        }
+      }
+    },
     "预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。": {
       "extractionState": "manual",
       "localizations": {
