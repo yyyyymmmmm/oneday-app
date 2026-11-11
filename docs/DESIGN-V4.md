@@ -10134,3 +10134,4 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 节号：§173 自选即定号，无映射变更。
 - 合并 CI：run **43069618466**（push，head=8c83f5c）build-native **success**；单测 **Executed 1669（OneDayCoreTests）＋8（OneDayAppTests）、0 failures**（与 0.50.19 基线逐数一致，本包零新增/零退役，符合观感修饰符改动预期）。
 - 定版：五处字面同改 0.50.20/142（Project.swift 四处＋SettingsSupportViews 的 OneDayVersionLabel 一处两面），grep 验代码内无 0.50.19 残留。
+- 发版验包补记：定版提交 `b87f261`；发版 CI 以 workflow_dispatch run **43071330463**（head=b87f261）为准、只跑一次，jobs API 终判 build-native **success**；单测 **Executed 1669（OneDayCoreTests）＋8（OneDayAppTests）、0 failures**（日志实读，与合并 CI 逐数一致）。IPA：**10,877,129 字节，md5 `5357c8c0fbe707921dafd21f280421c4`**，主线独立解包实读 Info.plist＝0.50.20／**142**／site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.20/OneDay-v0.50.20-142.ipa。真机待验＝§173.5 五项（长消息溶化形态并排对参照／回底钮带高 106 观感裁决／四页同语言／深色各一帧／键盘态不断层）。
