@@ -37,6 +37,17 @@ public enum FeedPostKind: String, Sendable {
         case .unknown: return "动态"
         }
     }
+
+    /// 行首 emoji 缺省（0.47.0，§117）：桥帖带 emoji
+    /// 时用桥值；旧帖无值按 kind 回本表
+    public var fallbackEmoji: String {
+        switch self {
+        case .morning: return "🌅"
+        case .research: return "🔍"
+        case .digest: return "📰"
+        case .unknown: return "📰"
+        }
+    }
 }
 
 /// 引用对象类别（桥侧落库前逐个验存在，假引用整帖
@@ -251,6 +262,10 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
     public let sourceCard: BridgeFeedSourceCard?
     /// 所属简报方向名（调研帖才有）
     public let direction: String?
+    /// 行首内容 emoji（0.47.0，§117）：research 由桥
+    /// 按主题选定、digest 固定 📰；旧帖为 nil，呈现
+    /// 走 kind 缺省（displayEmoji）
+    public let emoji: String?
     /// epoch 秒（float）
     public let createdAt: Double
     public let expiresAt: Double?
@@ -258,6 +273,19 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
     public let readAt: Double?
 
     public var isRead: Bool { readAt != nil }
+
+    /// 行首 emoji 呈现值：桥值优先、kind 缺省兜底
+    public var displayEmoji: String {
+        if let emoji {
+            let trimmed = emoji.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return kind.fallbackEmoji
+    }
 
     public init(
         id: String, kind: FeedPostKind, title: String,
@@ -267,7 +295,7 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         sourceCard: BridgeFeedSourceCard? = nil,
         direction: String? = nil,
         createdAt: Double, expiresAt: Double? = nil,
-        readAt: Double? = nil
+        readAt: Double? = nil, emoji: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -282,6 +310,7 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         self.createdAt = createdAt
         self.expiresAt = expiresAt
         self.readAt = readAt
+        self.emoji = emoji
     }
 
     /// 本地已读副本（回执到达前的呈现不回退用；真源
@@ -293,14 +322,14 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
             images: images, sourceCard: sourceCard,
             direction: direction,
             createdAt: createdAt, expiresAt: expiresAt,
-            readAt: ts
+            readAt: ts, emoji: emoji
         )
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, title, body, refs, links, why
         case images, sourceCard, direction
-        case createdAt, expiresAt, readAt
+        case createdAt, expiresAt, readAt, emoji
     }
 
     public init(from decoder: Decoder) throws {
@@ -339,6 +368,9 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         )
         readAt = try container.decodeIfPresent(
             Double.self, forKey: .readAt
+        )
+        emoji = try container.decodeIfPresent(
+            String.self, forKey: .emoji
         )
     }
 }
@@ -599,9 +631,17 @@ public enum FeedBoard {
         return .quiet
     }
 
-    /// 列表行正文摘：剥 Markdown 结构符（标题/列表/
-    /// 引用/强调）后压平空白、截断——摘只供行内预览，
-    /// 详情页渲染原文
+    /// 列表行正文呈现判定（0.47.0，§117）：行内恒渲
+    /// 全文——用户口径「动态的内容不需要点开」，行内
+    /// 截断自本包退役；本函数是该口径的唯一开关位，
+    /// 将来若给长帖加「收起」只许在此收口
+    public static func rowShowsFullBody(_ post: BridgeFeedPost) -> Bool {
+        true
+    }
+
+    /// 正文摘（0.47.0 起行内退役）：剥 Markdown 结构
+    /// 符后压平空白、截断——只余胶囊/通知一类真摘要
+    /// 位可用，帖行不许再走它
     public static func excerpt(_ body: String, maxLength: Int = 120) -> String {
         var text = body
         text = text.replacingOccurrences(of: "\r\n", with: "\n")

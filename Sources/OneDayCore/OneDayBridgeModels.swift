@@ -191,11 +191,43 @@ public enum IdeaStatus: String, Sendable, Equatable {
     }
 }
 
+/// 点子交付物一条（0.47.0，§117）：详情 sheet「包含
+/// 哪些内容」清单的 {name, summary}；桥生成时按内容
+/// 给出，旧记录无此字段（空数组收，清单整段不出现）
+public struct BridgeIdeaDeliverable: Decodable, Equatable, Sendable {
+    public let name: String
+    public let summary: String
+
+    public init(name: String, summary: String = "") {
+        self.name = name
+        self.summary = summary
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, summary
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decodeIfPresent(
+            String.self, forKey: .name
+        ) ?? ""
+        summary = try container.decodeIfPresent(
+            String.self, forKey: .summary
+        ) ?? ""
+    }
+}
+
 public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
     public let title: String
     /// 契约全形带 detail；缺失/null 按空串收（同 note 口径）
     public let detail: String
+    /// 内容 emoji（0.47.0，§117）：桥按内容选定；旧记
+    /// 录为 nil，呈现走 IdeaEmoji 按锚点 kind 兜底
+    public let emoji: String?
+    /// 交付物清单（0.47.0，§117）：旧记录为空数组
+    public let deliverables: [BridgeIdeaDeliverable]
     /// 挂靠目标 id；未挂为 nil
     public let goalId: String?
     /// epoch 秒（float）
@@ -228,11 +260,15 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         evidenceRef: String? = nil, anchorId: String? = nil,
         dismissReason: String? = nil,
         status: IdeaStatus = .pending,
-        taskId: String? = nil, expiresAt: Double? = nil
+        taskId: String? = nil, expiresAt: Double? = nil,
+        emoji: String? = nil,
+        deliverables: [BridgeIdeaDeliverable] = []
     ) {
         self.id = id
         self.title = title
         self.detail = detail
+        self.emoji = emoji
+        self.deliverables = deliverables
         self.goalId = goalId
         self.createdAt = createdAt
         self.source = source
@@ -254,6 +290,7 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         case id, title, detail, goalId, createdAt
         case source, evidence, evidenceRef, anchorId, dismissReason
         case status, taskId, expiresAt
+        case emoji, deliverables
     }
 
     public init(from decoder: Decoder) throws {
@@ -263,6 +300,12 @@ public struct BridgeIdea: Decodable, Equatable, Identifiable, Sendable {
         detail = try container.decodeIfPresent(
             String.self, forKey: .detail
         ) ?? ""
+        emoji = try container.decodeIfPresent(
+            String.self, forKey: .emoji
+        )
+        deliverables = try container.decodeIfPresent(
+            [BridgeIdeaDeliverable].self, forKey: .deliverables
+        ) ?? []
         goalId = try container.decodeIfPresent(String.self, forKey: .goalId)
         createdAt = try container.decodeIfPresent(
             Double.self, forKey: .createdAt

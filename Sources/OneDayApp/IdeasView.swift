@@ -2,21 +2,24 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 点子格（0.11.0 P5 转正；0.32.0 P1 升级）：形态按设
-/// 计档 §1.4 向 Muse 点子页收——描边卡改扁平行（左
-/// 来源瓷砖＋标题＋说明＋依据行＋信息行）、动作收进
-/// 详情页、卡面只留左滑忽略；分区＝待阅（生成在前）
-/// 与已采纳（近 30 天、行尾任务状态派生文案）。数据
-/// 口径：生成卡由桥端管道每日晨间产出（source=
-/// generated、evidence 必填、14 天过期），手记保留；
-/// 已转任务以桥 taskId 为真源。桥未连接/未开通与目
-/// 标格同口径、零假数据。
+/// 点子格（0.11.0 P5 转正；0.47.0 §117 对标重做）：
+/// 形态照 Muse 点子页——行＝内容 emoji 大字（无底
+/// 砖）＋semibold 标题＋次色宽松正文，行面不摆元信
+/// 息；点行开底部 sheet 详情（「包含哪些内容」交付
+/// 物清单＋底部动作栏「开始吧」）。分区沿用状态两段
+/// （待阅/已采纳，桥无主题 category 通道，§117.1 审
+/// 计），组标题改大粗体。数据口径：生成卡由桥端管
+/// 道每日晨间产出（source=generated、evidence 必填、
+/// 14 天过期），手记保留；已转任务以桥 taskId 为真
+/// 源。桥未连接/未开通与目标格同口径、零假数据。
 struct IdeasView: View {
     @Environment(AppState.self) private var appState
     @State private var store = IdeasStore()
     @State private var kanban = KanbanStore()
     @State private var showCreate = false
     @State private var deleteCandidate: BridgeIdea?
+    /// 详情 sheet 的当前点子（0.47.0：点行不再推页）
+    @State private var selectedIdeaID: String?
 
     var body: some View {
         NavigationStack {
@@ -71,6 +74,19 @@ struct IdeasView: View {
             .sheet(isPresented: $showCreate) {
                 IdeaCreateView(store: store)
             }
+            .sheet(isPresented: Binding(
+                get: { selectedIdeaID != nil },
+                set: { if !$0 { selectedIdeaID = nil } }
+            )) {
+                if let selectedIdeaID {
+                    IdeaDetailView(
+                        store: store, kanban: kanban,
+                        ideaID: selectedIdeaID
+                    )
+                    .presentationDetents([.large])
+                    .presentationCornerRadius(28)
+                }
+            }
             .confirmationDialog(
                 "删除这个点子？",
                 isPresented: Binding(
@@ -114,9 +130,9 @@ struct IdeasView: View {
         } else {
             List {
                 if !store.pendingIdeas.isEmpty {
-                    Section("待阅") {
+                    Section {
                         ForEach(store.pendingIdeas) { idea in
-                            rowLink(for: idea)
+                            rowButton(for: idea)
                                 .swipeActions(
                                     edge: .trailing,
                                     allowsFullSwipe: true
@@ -132,13 +148,17 @@ struct IdeasView: View {
                                     .tint(Palette.inkSecondary)
                                 }
                         }
+                    } header: {
+                        groupHeader("待阅")
                     }
                 }
                 if !store.adoptedIdeas.isEmpty {
-                    Section("已采纳") {
+                    Section {
                         ForEach(store.adoptedIdeas) { idea in
-                            rowLink(for: idea)
+                            rowButton(for: idea)
                         }
+                    } header: {
+                        groupHeader("已采纳")
                     }
                 }
                 Section {
@@ -161,21 +181,26 @@ struct IdeasView: View {
         }
     }
 
-    private func rowLink(for idea: BridgeIdea) -> some View {
-        NavigationLink {
-            IdeaDetailView(
-                store: store, kanban: kanban, ideaID: idea.id
-            )
+    /// 组标题（0.47.0 §117）：照 Muse 分类组头的大
+    /// 粗体——原色、非大写，压掉 List 分区头的系统小字
+    private func groupHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.title3.weight(.bold))
+            .foregroundStyle(Palette.ink)
+            .textCase(nil)
+            .padding(.top, OneDayMetrics.spacingS)
+    }
+
+    private func rowButton(for idea: BridgeIdea) -> some View {
+        Button {
+            selectedIdeaID = idea.id
         } label: {
             IdeaRowView(
                 idea: idea,
-                goalTitle: store.goalTitle(for: idea),
-                taskStatusText: store.taskStatusText(
-                    for: idea, kanban: kanban
-                ),
                 note: store.notes[idea.id]
             )
         }
+        .buttonStyle(.plain)
         .listRowBackground(Palette.pageBG)
         .contextMenu {
             if idea.status == .pending {
@@ -223,101 +248,57 @@ struct IdeasView: View {
     }
 }
 
-/// 点子扁平行（设计档 §1.4 落点）：34pt 来源瓷砖＋
-/// 标题（Headline semibold、提案标题属语义位）＋说明
-/// ＋依据行（生成卡）＋信息行（目标 chip/相对时间/
-/// 过期倒数/任务状态）。行内不摆按钮：动作在详情页
-/// 与左滑/长按里
+/// 点子行（0.47.0 §117 对标形态）：左侧内容 emoji
+/// 大字（44pt 位、无底色瓷砖；桥值优先、缺失按锚点
+/// kind 兜底，口径在 Core IdeaEmoji）＋标题（semi-
+/// bold、至多两行）＋正文（次色、行距放宽、至多四
+/// 行）＋依据行（生成卡、一次色一行）。行面不摆元
+/// 信息：生成时间/到期/目标/任务状态全收进详情
+/// sheet。行内不摆按钮：动作在详情与左滑/长按里
 struct IdeaRowView: View {
     let idea: BridgeIdea
-    let goalTitle: String?
-    let taskStatusText: String?
     let note: String?
 
-    private var tileSymbol: String {
-        guard idea.source == .generated else { return "pencil" }
-        // 锚点模型（0.39.0）：S/G/M 映射与旧 switch 逐一
-        // 对齐，K（任务）/R（记忆）新增各自瓷砖
-        let kind = IdeaAnchor(evidenceRef: idea.evidenceRef)?.kind
-            ?? .unknown
-        return kind.tileSymbol
-    }
-
-    private var infoText: String {
-        var parts = [IdeasView.dayTimeText(idea.createdAt)]
-        if idea.source == .generated,
-           let days = IdeaBoard.expiryDaysLeft(
-               idea, now: Date().timeIntervalSince1970
-           ) {
-            parts.append(days == 0 ? "今天到期" : "\(days) 天后过期")
-        }
-        return parts.joined(separator: " · ")
+    private var displayEmoji: String {
+        IdeaEmoji.resolve(
+            emoji: idea.emoji,
+            evidenceRef: idea.evidenceRef,
+            anchorId: idea.anchorId,
+            source: idea.source
+        )
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
-            RoundedRectangle(
-                cornerRadius: OneDayMetrics.radiusTile,
-                style: .continuous
-            )
-            .fill(Palette.primaryPale)
-            .frame(width: 34, height: 34)
-            .overlay {
-                Image(systemName: tileSymbol)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Palette.primary)
-            }
+            Text(displayEmoji)
+                .font(.system(size: 38))
+                .frame(width: 44, height: 44)
+                // emoji 是内容不是界面图标（§117.5）；
+                // 类别语义另有依据行/详情承载，对 VO
+                // 隐藏免逐字念符号名
+                .accessibilityHidden(true)
             VStack(
                 alignment: .leading, spacing: OneDayMetrics.spacingXS
             ) {
                 Text(idea.title)
-                    // 0.41.0（收口批 C14）：行题回收角色
-                    // 表 .rowTitle（Body regular），与动态
-                    // 帖行同轨
-                    .font(.rowTitle)
+                    // 0.47.0（§117.5 记账）：两页行题经
+                    // 用户对标指令改回 semibold（系统
+                    // Headline 17），其余页面角色表不动
+                    .font(.headline)
                     .foregroundStyle(Palette.bodyInk)
                     .lineLimit(2)
                 if !idea.detail.isEmpty {
                     Text(idea.detail)
                         .font(.body)
                         .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(3)
+                        .lineSpacing(3)
+                        .lineLimit(4)
                 }
                 if idea.source == .generated, !idea.evidence.isEmpty {
                     Text("依据 · \(idea.evidence)")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(2)
-                }
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    if let goalTitle {
-                        Label(goalTitle, systemImage: "target")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.primary)
-                            .padding(
-                                .horizontal, OneDayMetrics.spacingS
-                            )
-                            .padding(
-                                .vertical, OneDayMetrics.spacingXS
-                            )
-                            .background(
-                                Palette.primaryPale, in: Capsule()
-                            )
-                            .lineLimit(1)
-                    }
-                    Text(infoText)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                    Spacer(minLength: 0)
-                    if let taskStatusText {
-                        Text(taskStatusText)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    } else if idea.isAdopted {
-                        Label("已转任务", systemImage: "checkmark.circle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
+                        .lineLimit(1)
                 }
                 if let note {
                     Text(note)
@@ -326,14 +307,18 @@ struct IdeaRowView: View {
                 }
             }
         }
-        .padding(.vertical, OneDayMetrics.spacingXS)
+        .padding(.vertical, OneDayMetrics.spacingS)
     }
 }
 
-/// 点子详情（设计档 §1.4 动作全集）：全文＋依据＋
-/// 信息＋任务关联；底部动作＝转成任务（主）/忽略
-/// （次）/删除。采纳后本页就地变已采纳态、给出打开
-/// 任务的入口；忽略/删除后自动返回列表
+/// 点子详情（0.47.0 §117 对标形态）：底部 sheet 呈
+/// 现——标题→正文全文→依据小节→「包含哪些内容」
+/// 交付物清单（蓝勾圆）→信息组小字；底部固定动作
+/// 栏＝左侧浅灰圆形「···」菜单（太泛了/忽略/删除，
+/// 沿用既有 store 动作）＋通栏蓝色胶囊主钮（待阅＝
+/// 「开始吧」采纳转任务；已采纳＝「打开任务」）。
+/// 深链落点（动态 refs 点达）以同一视图推页呈现，
+/// 形态与动作不变。
 struct IdeaDetailView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -362,58 +347,28 @@ struct IdeaDetailView: View {
                             spacing: OneDayMetrics.spacingS
                         ) {
                             Text(idea.title)
-                                .font(.title3.weight(.semibold))
+                                .font(.detailTitle)
                                 .foregroundStyle(Palette.bodyInk)
                             if !idea.detail.isEmpty {
                                 Text(idea.detail)
                                     .font(.body)
                                     .foregroundStyle(Palette.bodyInk)
+                                    .lineSpacing(3)
                             }
                         }
                         if idea.source == .generated,
                            !idea.evidence.isEmpty {
-                            VStack(
-                                alignment: .leading, spacing: 0
-                            ) {
-                                SectionLabel("依据")
-                                    .padding(
-                                        .bottom, OneDayMetrics.spacingS
-                                    )
-                                VStack(
-                                    alignment: .leading,
-                                    spacing: OneDayMetrics.spacingXS
-                                ) {
-                                    Text(idea.evidence)
-                                        .font(.body)
-                                        .foregroundStyle(Palette.bodyInk)
-                                    if let ref = idea.evidenceRef {
-                                        Text("素材编号 \(ref)")
-                                            .font(.footnote)
-                                            .foregroundStyle(
-                                                Palette.inkSecondary
-                                            )
-                                    }
-                                }
-                                .padding(OneDayMetrics.cardPadding)
-                                .frame(
-                                    maxWidth: .infinity,
-                                    alignment: .leading
-                                )
-                                .background(
-                                    Palette.surface,
-                                    in: RoundedRectangle(
-                                        cornerRadius:
-                                            OneDayMetrics.containerCorner,
-                                        style: .continuous
-                                    )
-                                )
-                            }
+                            GroupDivider()
+                            evidenceSection(idea)
                         }
+                        if IdeaDeliverablesSection.isVisible(
+                            idea.deliverables
+                        ) {
+                            GroupDivider()
+                            deliverablesSection(idea)
+                        }
+                        GroupDivider()
                         infoGroup(idea)
-                        if idea.isAdopted, idea.taskId != nil {
-                            taskGroup(idea)
-                        }
-                        actionsGroup(idea)
                         if let note = store.notes[idea.id] {
                             InlineError(note)
                         }
@@ -421,6 +376,9 @@ struct IdeaDetailView: View {
                     .padding(.horizontal, OneDayMetrics.pageGutter)
                     .padding(.top, OneDayMetrics.spacingM)
                     .padding(.bottom, OneDayMetrics.spacingXL)
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    actionBar(idea)
                 }
             } else {
                 ContentUnavailableView(
@@ -430,8 +388,6 @@ struct IdeaDetailView: View {
             }
         }
         .background(Palette.pageBG)
-        .navigationTitle("点子详情")
-        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showTask) {
             if let taskId = idea?.taskId {
                 KanbanTaskDetailView(store: kanban, taskID: taskId)
@@ -462,6 +418,68 @@ struct IdeaDetailView: View {
         } message: {
             Text("只删点子本身；已经转成的任务不会受影响。")
         }
+    }
+
+    private func evidenceSection(_ idea: BridgeIdea) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            Text("依据")
+                .font(.headline)
+                .foregroundStyle(Palette.bodyInk)
+            Text(idea.evidence)
+                .font(.body)
+                .foregroundStyle(Palette.bodyInk)
+            if let ref = idea.evidenceRef {
+                Text("素材编号 \(ref)")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 「包含哪些内容」（0.47.0 §117）：交付物行＝粗
+    /// 体名＋灰副文＋右侧蓝色实心对勾圆；小节标题右
+    /// 侧剪贴板图标与 Muse 同位
+    private func deliverablesSection(
+        _ idea: BridgeIdea
+    ) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
+            HStack {
+                Text("包含哪些内容")
+                    .font(.headline)
+                    .foregroundStyle(Palette.bodyInk)
+                Spacer()
+                Image(systemName: "list.clipboard")
+                    .font(.system(size: 17))
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            ForEach(
+                Array(idea.deliverables.enumerated()), id: \.offset
+            ) { _, item in
+                HStack(
+                    alignment: .top, spacing: OneDayMetrics.spacingM
+                ) {
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingXS
+                    ) {
+                        Text(item.name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Palette.bodyInk)
+                        if !item.summary.isEmpty {
+                            Text(item.summary)
+                                .font(.subheadline)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                    Spacer()
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Palette.primary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func infoGroup(_ idea: BridgeIdea) -> some View {
@@ -496,6 +514,16 @@ struct IdeaDetailView: View {
                         Text(goalTitle)
                     }
                 }
+                if idea.isAdopted, idea.taskId != nil {
+                    GroupDivider()
+                    FieldRow(label: "任务状态") {
+                        Text(
+                            store.taskStatusText(
+                                for: idea, kanban: kanban
+                            ) ?? "已转任务"
+                        )
+                    }
+                }
                 GroupDivider()
                 FieldRow(label: "状态") {
                     Text(statusText(idea))
@@ -514,30 +542,44 @@ struct IdeaDetailView: View {
         }
     }
 
-    private func taskGroup(_ idea: BridgeIdea) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("任务")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                FieldRow(label: "状态") {
-                    Text(
-                        store.taskStatusText(
-                            for: idea, kanban: kanban
-                        ) ?? "已转任务"
-                    )
-                }
-                GroupDivider()
-                FieldRow(label: "任务") {
-                    Button("打开任务详情") { showTask = true }
-                }
-            }
-            .odGroup()
-        }
-    }
-
-    private func actionsGroup(_ idea: BridgeIdea) -> some View {
+    /// 底部动作栏（0.47.0 §117）：「···」圆钮收次要
+    /// 动作、蓝色胶囊主钮只做当前主动作
+    private func actionBar(_ idea: BridgeIdea) -> some View {
         let acting = store.actingIDs.contains(idea.id)
-        return VStack(spacing: OneDayMetrics.spacingS) {
+        return HStack(spacing: OneDayMetrics.spacingM) {
+            Menu {
+                if idea.status == .pending {
+                    Button("忽略") {
+                        Task {
+                            await store.dismiss(
+                                appState: appState, idea: idea
+                            )
+                            dismiss()
+                        }
+                    }
+                    if idea.source == .generated {
+                        Button("太泛了，忽略") {
+                            Task {
+                                await store.dismiss(
+                                    appState: appState, idea: idea,
+                                    tooGeneric: true
+                                )
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+                Button("删除点子", role: .destructive) {
+                    confirmDelete = true
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .frame(width: 48, height: 48)
+                    .background(Palette.surface, in: Circle())
+            }
+            .disabled(acting)
             if idea.status == .pending {
                 Button {
                     Task {
@@ -547,56 +589,35 @@ struct IdeaDetailView: View {
                         )
                     }
                 } label: {
-                    Label(
-                        acting ? "处理中…" : "转成任务",
-                        systemImage: "arrow.right.circle"
-                    )
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Image(systemName: "sparkles")
+                        Text(acting ? "处理中…" : "开始吧")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(Palette.primary, in: Capsule())
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
                 .disabled(acting)
+            } else if idea.isAdopted, idea.taskId != nil {
                 Button {
-                    Task {
-                        await store.dismiss(
-                            appState: appState, idea: idea
-                        )
-                        dismiss()
-                    }
+                    showTask = true
                 } label: {
-                    Label("忽略", systemImage: "eye.slash")
+                    Text("打开任务")
+                        .font(.headline)
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Palette.primary, in: Capsule())
                 }
-                .buttonStyle(.bordered)
-                .disabled(acting)
-                if idea.source == .generated {
-                    Button {
-                        Task {
-                            await store.dismiss(
-                                appState: appState, idea: idea,
-                                tooGeneric: true
-                            )
-                            dismiss()
-                        }
-                    } label: {
-                        Label(
-                            "太泛了，忽略",
-                            systemImage: "hand.thumbsdown"
-                        )
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(acting)
-                }
+                .buttonStyle(.plain)
             }
-            Button(role: .destructive) {
-                confirmDelete = true
-            } label: {
-                Label("删除点子", systemImage: "trash")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(acting)
         }
+        .padding(.horizontal, OneDayMetrics.pageGutter)
+        .padding(.vertical, OneDayMetrics.spacingSM)
+        .background(Palette.pageBG)
     }
 }
 

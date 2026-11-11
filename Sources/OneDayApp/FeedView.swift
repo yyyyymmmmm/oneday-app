@@ -15,6 +15,7 @@ import SwiftUI
 /// 填充。refs 点达对象详情走本栈复用各详情页。
 struct FeedView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.modelContext) private var modelContext
     @State private var store = FeedStore()
     /// refs 点达与标题解析的数据源（与点子/目标格同
     /// 一套 Store，本格持有自己的实例、按需加载）
@@ -25,6 +26,12 @@ struct FeedView: View {
     @State private var path = NavigationPath()
     /// 简报编辑器（0.38.0 两层制）呈现
     @State private var briefEditorShown = false
+    /// 搜索（0.47.0 §117）：工具栏放大镜切换，按标
+    /// 题＋正文过滤当前已载帖
+    @State private var searchText = ""
+    @State private var isSearching = false
+    /// 来源小 sheet 的当前帖（动作行 ⓘ 点按）
+    @State private var sourcesPost: BridgeFeedPost?
 
     enum Route: Hashable {
         case post(String)
@@ -69,6 +76,14 @@ struct FeedView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        isSearching = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .accessibilityLabel("搜索动态")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         briefEditorShown = true
                     } label: {
                         Image(systemName: "slider.horizontal.3")
@@ -78,6 +93,12 @@ struct FeedView: View {
             }
             .sheet(isPresented: $briefEditorShown) {
                 FeedBriefEditorView(store: store)
+            }
+            .sheet(item: $sourcesPost) { post in
+                FeedSourcesSheet(post: post) { ref in
+                    sourcesPost = nil
+                    path.append(Route.ref(ref))
+                }
             }
             .task {
                 await reload()
@@ -130,16 +151,28 @@ struct FeedView: View {
             }
         } else {
             List {
-                Section {
-                    if let doc = store.briefDoc {
-                        briefRow(doc)
-                    } else {
-                        capsuleRow
+                if !isSearching {
+                    Section {
+                        if let doc = store.briefDoc {
+                            briefRow(doc)
+                        } else {
+                            capsuleRow
+                        }
+                    }
+                    .listRowSeparator(.hidden)
+                }
+
+                if isSearching, visiblePosts.isEmpty {
+                    Section {
+                        ContentUnavailableView(
+                            "没有找到相关动态",
+                            systemImage: "magnifyingglass"
+                        )
+                        .listRowBackground(Palette.pageBG)
                     }
                 }
-                .listRowSeparator(.hidden)
 
-                ForEach(store.dayGroups, id: \.title) { group in
+                ForEach(visibleDayGroups, id: \.title) { group in
                     Section(group.title) {
                         ForEach(group.posts) { post in
                             postRow(post)
@@ -148,10 +181,34 @@ struct FeedView: View {
                 }
             }
             .listStyle(.plain)
+            .searchable(
+                text: $searchText, isPresented: $isSearching,
+                prompt: "搜索动态"
+            )
             .refreshable {
                 await reload()
             }
         }
+    }
+
+    /// 搜索过滤（0.47.0）：标题或正文命中即留；分组
+    /// 与全量同走 FeedBoard 唯一口径（store.dayGroups
+    /// 同一函数），不另立分组逻辑
+    private var visiblePosts: [BridgeFeedPost] {
+        let query = searchText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard isSearching, !query.isEmpty else { return store.posts }
+        return store.posts.filter {
+            $0.title.localizedCaseInsensitiveContains(query)
+                || $0.body.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private var visibleDayGroups: [FeedBoard.DayGroup] {
+        FeedBoard.dayGroups(
+            FeedBoard.sorted(visiblePosts), now: Date()
+        )
     }
 
     /// 横幅行共用外壳（0.41.0 收口批 P4）：胶囊行与简
@@ -253,15 +310,15 @@ struct FeedView: View {
                 .foregroundStyle(Palette.inkSecondary)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 if let line = FeedBriefBoard.summaryLine(doc) {
+                    // 0.47.0（§117）：已设简报时胶囊收成
+                    // 单行——只剩兴趣一句话，未读徽标与
+                    // chevron 已把「可点/有新」说清，第
+                    // 二行说明文案退役
                     Text(line)
                         .font(.subheadline)
                         .foregroundStyle(Palette.ink)
                         // 0.43.0（A11Y-D3）：AX 档放宽
                         .a11yLineLimit(1, ax: 2)
-                    Text("我的简报 · 点按编辑")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
                 } else {
                     Text("写下你感兴趣什么，我每天替你去看")
                         .font(.subheadline)
@@ -308,129 +365,172 @@ struct FeedView: View {
         }
     }
 
-    /// 帖子扁平行：kind 瓷砖＋标题（未读点）＋正文摘
-    /// ＋refs 蓝字内链＋动作行（类别左、相对时间右）
+    /// 帖子行（0.47.0 §117 对标形态）：内容 emoji 大
+    /// 字（桥值优先、kind 缺省兜底）＋semibold 标题＋
+    /// 正文全文内联（Markdown、链接可点、不截断——
+    /// 判定在 Core FeedBoard.rowShowsFullBody）＋第一
+    /// 张图通栏大图＋来源卡＋refs 蓝字内链＋动作行
+    /// （讨论/类别/相对时间/ⓘ来源）。整行点按开详情
+    /// 的旧形态退役：标题点按仍可达详情（深链与 ⓘ
+    /// 的落点），正文区让给链接与文本选择。已读口径
+    /// 随全文内联改版：行露面即已读（onAppear 回写，
+    /// §117.3 定版），各交互点按同样回写。
     private func postRow(_ post: BridgeFeedPost) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            // 类别字形瓷砖是装饰（类别词在动作行有文
-            // 字）——0.43.0（A11Y-V4）对 VO 隐藏
-            kindTile(post.kind)
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
+            Text(post.displayEmoji)
+                .font(.system(size: 38))
+                .frame(width: 44, height: 44)
+                // 内容 emoji 是帖的类别信号、动作行另
+                // 有类别文字——对 VO 隐藏免逐字念名
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: OneDayMetrics.iconTextGap) {
-                // 0.43.0（A11Y-V4）：题＋摘拆成独立合并
-                // 元素——整行不再是一个含内链的巨型元
-                // 素：题摘合读、自成按钮开帖；refs 内
-                // 链与动作行留在元素外各自可达。内层
-                // 间距与外层同值，几何逐字不变
-                VStack(
-                    alignment: .leading,
-                    spacing: OneDayMetrics.iconTextGap
-                ) {
-                    HStack(alignment: .top, spacing: OneDayMetrics.rowInnerGap) {
-                        Text(post.title)
-                            // 0.41.0（收口批 C14）：行题回收
-                            // 角色表——.headline（17 semibold）
-                            // 与 Body regular 双轨并存是本条病
-                            // 灶，同点子行一并归 .rowTitle
-                            .font(.rowTitle)
-                            .foregroundStyle(Palette.ink)
-                            // 0.43.0（A11Y-D3）：AX 档放宽
-                            .a11yLineLimit(2, ax: 4)
-                        if !post.isRead {
-                            Circle()
-                                .fill(Palette.primary)
-                                .frame(width: 7, height: 7)
-                                .padding(.top, OneDayMetrics.rowInnerGap)
-                                // 未读状态字在下方动作行
-                                // （C5 已落）——蓝点对 VO
-                                // 隐藏、免同义双报
-                                .accessibilityHidden(true)
-                        }
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                HStack(alignment: .top, spacing: OneDayMetrics.rowInnerGap) {
+                    Text(post.title)
+                        // 0.47.0（§117.5 记账）：行题经
+                        // 用户对标指令改回 semibold——
+                        // C14 的 .rowTitle 归轨只限本页
+                        // 与点子页，其余页面角色表不动
+                        .font(.headline)
+                        .foregroundStyle(Palette.ink)
+                        // 0.43.0（A11Y-D3）：AX 档放宽
+                        .a11yLineLimit(2, ax: 4)
+                    if !post.isRead {
+                        Circle()
+                            .fill(Palette.primary)
+                            .frame(width: 7, height: 7)
+                            .padding(.top, OneDayMetrics.rowInnerGap)
+                            // 未读另有动作行文字通道
+                            .accessibilityHidden(true)
                     }
-                    if !post.body.isEmpty {
-                        Text(FeedBoard.excerpt(post.body))
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.inkSecondary)
-                            // 0.43.0（A11Y-D3）：AX 档放宽
-                            .a11yLineLimit(3, ax: 6)
-                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    openPost(post)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction {
-                    path.append(Route.post(post.id))
+                    openPost(post)
+                }
+                if !post.body.isEmpty {
+                    MarkdownText(post.body)
+                }
+                // 通栏大图（0.47.0）：只用第一张来源真
+                // 图，16:9 裁切；加载未成/失败整块不
+                // 显（宁无图不假图、不摆占位）
+                if let first = post.images.first,
+                   let url = URL(string: first.url) {
+                    AsyncImage(url: url) { phase in
+                        if case .success(let image) = phase {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        }
+                    }
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .clipped()
+                    .clipShape(RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    ))
+                    .accessibilityHidden(true)
+                }
+                if let card = post.sourceCard {
+                    FeedSourceCardView(card: card)
                 }
                 if !post.refs.isEmpty {
                     refsRow(post.refs)
                 }
-                HStack {
-                    Text(post.kind.label)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                    if let direction = post.direction,
-                       !direction.isEmpty {
-                        Text(direction)
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                    }
-                    // 0.36.0（无障碍 A11Y-C5）：未读除蓝
-                    // 点外补文字通道——不靠颜色单独传信
-                    // 息，VoiceOver/色弱下同样可辨
-                    if !post.isRead {
-                        Text("未读")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.primary)
-                    }
-                    Spacer()
-                    Text(FeedBoard.relativeText(
-                        for: post.createdAt, now: Date()
-                    ))
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                }
-                // 0.43.0（A11Y-V4）：动作行自成合并元素
-                // （类别→未读→时间一次读完）
-                .accessibilityElement(children: .combine)
-            }
-            // 配图缩略（0.38.0）：只显第一张来源真图；
-            // 无图不占位，行高不为图让路
-            if let first = post.images.first,
-               let url = URL(string: first.url) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        Palette.surface
-                    }
-                }
-                .frame(width: 54, height: 54)
-                .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusThumb))
-                // 0.43.0（A11Y-V4）：配图缩略是帖的装
-                // 饰预览（点开帖内有大图与来源）——
-                // 对 VO 隐藏，不冒充内容
-                .accessibilityHidden(true)
+                actionRow(post)
             }
         }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            path.append(Route.post(post.id))
+        .padding(.vertical, OneDayMetrics.spacingS)
+        .onAppear {
+            markRead(post)
         }
     }
 
-    private func kindTile(_ kind: FeedPostKind) -> some View {
-        RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile)
-            .fill(Palette.selectionFill)
-            .frame(width: 34, height: 34)
-            .overlay {
-                Image(systemName: kind.symbolName)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(Palette.ink)
+    /// 动作行（0.47.0）：讨论（以本帖开新会话）＋类
+    /// 别小字＋相对时间＋ⓘ（来源小 sheet）。行内含
+    /// 真按钮，0.43.0 的「动作行合并元素」自此退役
+    /// ——合并会吞掉按钮的可达性
+    private func actionRow(_ post: BridgeFeedPost) -> some View {
+        HStack(spacing: OneDayMetrics.spacingM) {
+            Button {
+                discuss(post)
+            } label: {
+                HStack(spacing: OneDayMetrics.stackGap) {
+                    Image(systemName: "text.bubble")
+                    Text("讨论")
+                }
+                .font(.subheadline)
+                .foregroundStyle(Palette.inkSecondary)
             }
+            .buttonStyle(.plain)
+            Text(post.kind.label)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            if let direction = post.direction, !direction.isEmpty {
+                Text(direction)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            // 未读除蓝点外补文字通道（A11Y-C5 口径）
+            if !post.isRead {
+                Text("未读")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.primary)
+            }
+            Spacer()
+            Text(FeedBoard.relativeText(
+                for: post.createdAt, now: Date()
+            ))
+            .font(.footnote)
+            .foregroundStyle(Palette.inkSecondary)
+            Button {
+                markRead(post)
+                sourcesPost = post
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("来源")
+        }
+    }
+
+    private func openPost(_ post: BridgeFeedPost) {
+        markRead(post)
+        path.append(Route.post(post.id))
+    }
+
+    /// 已读回写：未读才发（markRead 内部幂等、桥回
+    /// 执对账）；失败按下轮 load 的服务端真源纠正
+    private func markRead(_ post: BridgeFeedPost) {
+        guard !post.isRead else { return }
+        Task { await store.markRead(appState: appState, post: post) }
+    }
+
+    /// 讨论（0.47.0）：以本帖为上下文开一条新对话
+    /// ——本地建线程（DrawerView.createThread 同形）、
+    /// 预填开场（标题＋正文摘录）进输入框草稿、切到
+    /// 聊天格选中该线程；用户改完再发，本钮不代发
+    private func discuss(_ post: BridgeFeedPost) {
+        markRead(post)
+        let thread = ChatThread()
+        modelContext.insert(thread)
+        try? modelContext.save()
+        var prefill = String(
+            format: String(localized: "我们来聊聊这篇动态：《%@》"),
+            post.title
+        )
+        if !post.body.isEmpty {
+            prefill += "\n\n" + String(post.body.prefix(1200))
+        }
+        appState.sideChats.setDraft(prefill, for: thread.id)
+        appState.drawerThreadSelection = thread.id
+        appState.mainTabSwitchRequest = .chat
     }
 
     /// refs 蓝字内链：横滑小链，点达对象详情（标题
@@ -596,7 +696,7 @@ struct FeedPostDetailView: View {
                             )
                         }
                         if let card = post.sourceCard {
-                            sourceCardView(card)
+                            FeedSourceCardView(card: card)
                         }
                         if !post.links.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
@@ -682,10 +782,13 @@ struct FeedPostDetailView: View {
         // 撤栏题、内容领头；回退靠系统返回钮自明
     }
 
-    /// 来源嵌入卡（0.38.0）：头像＋名＋简介＋事实行，
-    /// 整卡点开来源原页；数据全是桥侧真抓，App 只摆
-    @ViewBuilder
-    private func sourceCardView(_ card: BridgeFeedSourceCard) -> some View {
+/// 来源嵌入卡（0.38.0；0.47.0 抽为共享组件，帖行
+/// 与详情页同用一份）：头像＋名＋简介＋事实行，整
+/// 卡点开来源原页；数据全是桥侧真抓，App 只摆
+struct FeedSourceCardView: View {
+    let card: BridgeFeedSourceCard
+
+    var body: some View {
         let content = HStack(alignment: .top, spacing: OneDayMetrics.cardInnerGap) {
             if let imageUrl = card.imageUrl,
                let url = URL(string: imageUrl) {
@@ -747,6 +850,97 @@ struct FeedPostDetailView: View {
     }
 }
 
+/// 来源小 sheet（0.47.0 §117）：动作行 ⓘ 的落点——
+/// 为什么选这篇＋外链清单＋站内引用；数据全是帖自
+/// 带字段（桥真抓），没有的段整段不出现。点引用先
+/// 关 sheet 再由父视图压栈（onOpenRef 回调）
+struct FeedSourcesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let post: BridgeFeedPost
+    let onOpenRef: (BridgeFeedRef) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let why = post.why, !why.isEmpty {
+                    Section {
+                        Text(why)
+                            .font(.subheadline)
+                            .foregroundStyle(Palette.bodyInk)
+                    } header: {
+                        Text("为什么选这篇")
+                    }
+                }
+                if !post.links.isEmpty {
+                    Section {
+                        ForEach(
+                            Array(post.links.enumerated()), id: \.offset
+                        ) { _, link in
+                            if let url = URL(string: link.url) {
+                                Link(destination: url) {
+                                    HStack(spacing: OneDayMetrics.rowInnerGap) {
+                                        Image(systemName: "link")
+                                            .font(.system(size: 12))
+                                        Text(link.title.isEmpty
+                                             ? link.url : link.title)
+                                            .lineLimit(2)
+                                    }
+                                    .font(.subheadline)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("链接")
+                    }
+                }
+                if !post.refs.isEmpty {
+                    Section {
+                        ForEach(
+                            Array(post.refs.enumerated()), id: \.offset
+                        ) { _, ref in
+                            if let type = ref.refType {
+                                Button {
+                                    dismiss()
+                                    onOpenRef(ref)
+                                } label: {
+                                    HStack(spacing: OneDayMetrics.rowInnerGap) {
+                                        Image(systemName: type.symbolName)
+                                            .font(.system(size: 12))
+                                        Text(type.label)
+                                            .foregroundStyle(Palette.bodyInk)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(Palette.inkSecondary)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    } header: {
+                        Text("引用")
+                    }
+                }
+                if post.why == nil || post.why?.isEmpty == true,
+                   post.links.isEmpty, post.refs.isEmpty {
+                    Section {
+                        Text("这篇没有附带来源信息")
+                            .font(.subheadline)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+            }
+            .navigationTitle("来源")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
 
 /// 简报编辑器（0.38.0 两层制）：上层只写自己的话，
 /// 保存后由 AI 整理成下层的正式简报；正式简报可见
