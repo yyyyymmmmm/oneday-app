@@ -88,7 +88,11 @@ final class ComposerGuideHostTests: XCTestCase {
             ScrollViewReader { proxy in
                 ZStack {
                     ScrollView {
-                        LazyVStack(spacing: 0) {
+                        // 急切栈（生产为 LazyVStack）：几
+                        // 何链（留位/托管）与懒急无关，急
+                        // 切栈保证行帧在宿主里可量（惰性
+                        // 建列在测试窗里不触发尾行）
+                        VStack(spacing: 0) {
                             ForEach(0..<60, id: \.self) { row in
                                 Text("row \(row)")
                                     .frame(height: 30)
@@ -150,6 +154,11 @@ final class ComposerGuideHostTests: XCTestCase {
                                 .frame(maxWidth: .infinity)
                         }
                         .frame(maxWidth: .infinity)
+                        // 与生产 bottomBar 同口径：高度只
+                        // 认内容（fixedSize 断外层提议）——
+                        // 缺这行时长高段会被宿主提议压扁
+                        // （实证：76 恒不变）
+                        .fixedSize(horizontal: false, vertical: true)
                         .background(
                             GuideFrameReporter(
                                 name: "bar", box: box)
