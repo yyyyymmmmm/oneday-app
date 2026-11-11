@@ -5188,7 +5188,7 @@ private struct ComposerBarLayout: Layout {
         // 在飞发送的落定轮有起点；恢复轮与后台轮无
         // 起点、不记）。入口先记先清：失败分支同样
         // 消费读数，不许残留起点污染下一轮
-        if entry.threadID == thread.id,
+        if entry.threadID == thread.id.uuidString,
            let started = sendFrameStartedAt {
             ChatDiagTrace.record(
                 "发送打点 发送→落定 "
