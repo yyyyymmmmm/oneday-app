@@ -8706,3 +8706,9 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 钉测 PresetMigrationTests 7 法：空文档/纯稀疏填跟随/纯稠密恒等/混合文档标量与次序保留/注册表外键逐字保留/幂等二次跑不变/verify 抓篡改与丢键。单测只增不减（基线 1346＋7）。
 - 合并后待办（不在本包）：伴生线删 /meta/model-combos 端点本体。
 - 真机待验：①旧版升新版首次进模型页，旧预设（含稀疏组合）完整迁入且启用行为按 A 案（未指定用途重置为跟随）；②迁移后断网进模型页，预设照常在；③新建/编辑/删除/启用预设全程不依赖桥 meta 可用性。
+
+### 134.4 预制坐标（分支侧记账，合并时主线补合并记账）
+
+- 分支 feat/cx-model-storage（基线 feat/provider-default 顶端 886437e），代码提交 e5d0a85；未合并、版本号未改。
+- 分支 CI：run 42988451547 **success**（jobs API 终判 build-native completed/success、steps 零失败）。单测 Executed **1353、0 failures**（基线 1346＋本包新增 PresetMigrationTests 7，只增不减）。
+- i18n：validate_i18n 通过（2615 键含 InfoPlist 13，三语全覆盖）；删键 5、无新增。
