@@ -9443,4 +9443,4 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 合并：merge `f83131e`（feat/hotfix-attach-panel-05017 `5f7ef55` → main，基线 866a5c8／0.50.16），零冲突；§154 节号就地保留（枢纽包分支同号 §154、其合并时顺延，不在本单处理）。
 - 定版：版本五处同改＝Project.swift MARKETING_VERSION/CURRENT_PROJECT_VERSION＋CFBundleShortVersionString/CFBundleVersion（直写一处重点盯防，即 0.50.16 首轮漏改、1e25cc4 补丁的那处）＋SettingsView 页脚；grep 验五处全 0.50.17/139、无 0.50.16/138 残留。
-- 发版：CI 与独立验包结果见本节后续补记（发版 CI run／单测总数／IPA 字节·md5·Info.plist 实读三值）。
+- 发版：CI run **43027685694**（push main `d3b8c99`），jobs API 逐项终判 build-native **success**；单测 Executed **1567、0 failures**（与预制口径一致）。主线独立解包验包：IPA **10,318,601 字节**、md5 `98f61c9c969aba5de5cac65404dcde17`、Info.plist 实读 **0.50.17／139／site.didichou.oneday** 三值一致；交付物落 `~/workspace/your_files/oneday-v0.50.17/OneDay-0.50.17.ipa`。真机待验按 §154.6 回收。
