@@ -199,6 +199,52 @@
           }
         }
       }
+    },
+    "NSCameraUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要使用相机：只有智能体在对话里请你拍照或扫描文档、或你在相机详情页亲手点拍照时才会打开取景框；拍到的图片只存进 OneDay 自己的文件夹，不进系统相册。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要使用相機：只有智慧代理在對話裡請你拍照或掃描文件、或你在相機詳情頁親手點拍照時才會打開取景框；拍到的圖片只存進 OneDay 自己的資料夾，不進系統相簿。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay needs the camera: the viewfinder opens only when your agent asks you in chat to take a photo or scan a document, or when you tap the shutter yourself on the camera page. Captured images are saved only into OneDay's own folder, never into the system photo library."
+          }
+        }
+      }
+    },
+    "NSFaceIDUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要用面容 ID 确认是你在操作：只在重要操作前当面验一次，系统只告诉 OneDay 过没过，你的面容数据不会离开系统。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要用面容 ID 確認是你在操作：只在重要操作前當面驗一次，系統只告訴 OneDay 過沒過，你的面容資料不會離開系統。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay uses Face ID to confirm it is you: checked in person only before important actions; the system only tells OneDay whether it passed, and your face data never leaves the system."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

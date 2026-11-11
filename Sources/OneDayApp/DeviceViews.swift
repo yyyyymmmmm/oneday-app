@@ -77,7 +77,8 @@ struct DeviceAppIconView: View {
             // 时钟应用官方图即黑底
             return .black
         case .calendar, .reminders, .photos, .motion, .health, .home,
-             .clipboard, .files, .notifications, .opener:
+             .clipboard, .files, .notifications, .opener,
+             .camera, .vision, .translate, .ondevice, .biometric:
             return .white
         }
     }
@@ -97,6 +98,11 @@ struct DeviceAppIconView: View {
         case .alarm: alarmArtwork
         case .notifications: notificationsArtwork
         case .opener: openerArtwork
+        case .camera: cameraArtwork
+        case .vision: visionArtwork
+        case .translate: translateArtwork
+        case .ondevice: ondeviceArtwork
+        case .biometric: biometricArtwork
         }
     }
 
@@ -158,6 +164,61 @@ struct DeviceAppIconView: View {
             .frame(width: size * 0.78, height: size * 0.78)
             Image(systemName: "bell.fill")
                 .font(.system(size: size * 0.42))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+    }
+
+    // 在场交互五件（设备扩容批三）：都无对应的系
+    // 统应用图标可复刻（相机/翻译虽有系统应用，但
+    // 这里的条目是「能力」不是那个应用本身），沿
+    // 批二自绘语汇——彩色圆角底＋白色 SF 字形，不
+    // 冒充任何 App 图标
+    private var cameraArtwork: some View {
+        glyphArtwork(
+            colorHex: 0x48484A, symbol: "camera.fill", scale: 0.40
+        )
+    }
+
+    private var visionArtwork: some View {
+        glyphArtwork(
+            colorHex: 0x00A79E, symbol: "text.viewfinder",
+            scale: 0.42
+        )
+    }
+
+    private var translateArtwork: some View {
+        glyphArtwork(
+            colorHex: 0x0A84FF, symbol: "translate", scale: 0.42
+        )
+    }
+
+    private var ondeviceArtwork: some View {
+        glyphArtwork(
+            colorHex: 0xBF5AF2, symbol: "apple.intelligence",
+            scale: 0.44
+        )
+    }
+
+    private var biometricArtwork: some View {
+        glyphArtwork(
+            colorHex: 0x1C1C1E, symbol: "faceid", scale: 0.44
+        )
+    }
+
+    /// 彩底白字形瓷砖（批二通知/打开目标同款构图，
+    /// 批三五件共用一个构造、不许各画一份走样）
+    private func glyphArtwork(
+        colorHex: UInt32, symbol: String, scale: CGFloat
+    ) -> some View {
+        ZStack {
+            RoundedRectangle(
+                cornerRadius: size * 0.22, style: .continuous
+            )
+            .fill(Color(hex: colorHex))
+            .frame(width: size * 0.78, height: size * 0.78)
+            Image(systemName: symbol)
+                .font(.system(size: size * scale))
                 .foregroundStyle(.white)
         }
         .frame(width: size, height: size)
@@ -805,6 +866,7 @@ struct DevicePermissionGate: View {
         switch source {
         case .alarm: return "设定"
         case .notifications: return "发送"
+        case .camera: return "使用"
         default: return "读取"
         }
     }
@@ -1491,7 +1553,7 @@ struct DevicePermissionsView: View {
             } header: {
                 headerText("你的设备")
             } footer: {
-                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。闹钟与通知有各自的系统权限，进详情页用开关开；打开目标同样没有系统权限。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
+                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。闹钟与通知有各自的系统权限，进详情页用开关开；打开目标同样没有系统权限。相机有系统权限，拍照与扫文档都要你当面操作；识别、翻译、端上智能与本人确认没有系统权限，开关就是唯一的门，其中端上智能只在支持的机型上出现。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1669,6 +1731,11 @@ struct DevicePermissionsView: View {
         case .alarm: AlarmDetailView()
         case .notifications: NotificationsDetailView()
         case .opener: OpenTargetDetailView()
+        case .camera: CameraDetailView()
+        case .vision: VisionDetailView()
+        case .translate: TranslateDetailView()
+        case .ondevice: OnDeviceDetailView()
+        case .biometric: BiometricDetailView()
         case .health, .home: EmptyView()
         }
     }
@@ -2162,5 +2229,379 @@ struct OpenTargetDetailView: View {
         .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
         .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
+    }
+}
+
+// MARK: - 相机详情（设备扩容批三）
+
+/// 相机详情：状态头（真系统权限双层）＋已拍列表＋
+/// 本地拍照按钮。列表只列 OneDay 文件夹 captures/
+/// 里的产物（智能体拍的与在这里亲手拍的同处一列，
+/// 以文件回读为准、不另记账）；本地按钮与工具走同
+/// 一条引擎路（取景→落盘回读核对）
+struct CameraDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var items: [DeviceFileItem] = []
+    @State private var note: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .camera)
+            Section {
+                Button("现在拍一张") { captureLocal() }
+                if let note {
+                    Text(note)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                if items.isEmpty {
+                    Text("还没有拍过。智能体请你拍照、或你在这里亲手拍的，都会存到这里。")
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                ForEach(items) { item in
+                    HStack(
+                        spacing: OneDayMetrics.spacingSM
+                    ) {
+                        Text(item.name)
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: OneDayMetrics.spacingS)
+                        Text(
+                            DisplayDate.dateTime(item.modifiedAt)
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .frame(
+                        minHeight: OneDayMetrics.settingsRowHeight
+                    )
+                }
+            } header: {
+                headerText("拍过的照片与扫描")
+            } footer: {
+                Text("都在 OneDay 文件夹的 captures 里，文件页也能看到；不进系统相册。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .task { reload() }
+    }
+
+    private func reload() {
+        items = controller.dispatcher.files.captureItems()
+            .sorted { $0.modifiedAt > $1.modifiedAt }
+    }
+
+    private func captureLocal() {
+        Task {
+            if controller.permissions[.camera] == .notDetermined {
+                await controller.requestAccess(for: .camera)
+            }
+            do {
+                let item = try await controller.dispatcher.camera
+                    .captureAndSave()
+                note = "已保存：\(item.name)"
+                reload()
+            } catch let error as DeviceToolError {
+                note = error.message
+            } catch {
+                note = error.localizedDescription
+            }
+        }
+    }
+}
+
+// MARK: - 识别详情（设备扩容批三）
+
+/// 识别详情：状态头（无系统权限、单开关）＋本地试
+/// 认区——列 captures/ 里的图片，点一张当场认文字
+/// 给用户看（与工具同一条引擎路）。识别只在本地
+/// 做，图不出手机，文案如实
+struct VisionDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var items: [DeviceFileItem] = []
+    @State private var recognized: String?
+    @State private var note: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .vision)
+            Section {
+                if items.isEmpty {
+                    Text("OneDay 文件夹里还没有图片。先用相机拍一张、或把图片放进文件夹，再回来认。")
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                ForEach(items) { item in
+                    Button {
+                        recognize(item)
+                    } label: {
+                        HStack(
+                            spacing: OneDayMetrics.spacingSM
+                        ) {
+                            Text(item.name)
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                            Spacer(
+                                minLength: OneDayMetrics.spacingS
+                            )
+                            Text("认文字")
+                                .font(.footnote)
+                                .foregroundStyle(
+                                    Palette.inkSecondary
+                                )
+                        }
+                        .frame(
+                            minHeight: OneDayMetrics
+                                .settingsRowHeight
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.odPressable)
+                }
+                if let recognized {
+                    Text(recognized)
+                        .font(.body)
+                        .foregroundStyle(Palette.ink)
+                        .textSelection(.enabled)
+                } else if let note {
+                    Text(note)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            } header: {
+                headerText("在这台手机上试认")
+            } footer: {
+                Text("识别在手机本地完成，图片不上传；智能体也是读同一批图片。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .task {
+            items = controller.dispatcher.files.captureItems()
+                .sorted { $0.modifiedAt > $1.modifiedAt }
+        }
+    }
+
+    private func recognize(_ item: DeviceFileItem) {
+        Task {
+            do {
+                let result = try await controller.dispatcher.vision
+                    .recognizeText(path: item.path)
+                recognized = result.text.isEmpty
+                    ? "（这张图里没认出文字）"
+                    : result.text
+                note = nil
+            } catch let error as DeviceToolError {
+                note = error.message
+                recognized = nil
+            } catch {
+                note = error.localizedDescription
+                recognized = nil
+            }
+        }
+    }
+}
+
+// MARK: - 翻译详情（设备扩容批三）
+
+/// 翻译详情：状态头（无系统权限、单开关）＋常用语
+/// 言对的下载状态（LanguageAvailability 现查）：
+/// 没下载的组合翻不了、如实列明，免得用户对着工
+/// 具报错才知道差语言包
+struct TranslateDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var rows: [(label: String, status: String)] = []
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    private static let pairs: [(String, String, String)] = [
+        ("en", "zh-Hans", "英语 → 简体中文"),
+        ("zh-Hans", "en", "简体中文 → 英语"),
+        ("ja", "zh-Hans", "日语 → 简体中文"),
+        ("ko", "zh-Hans", "韩语 → 简体中文"),
+        ("zh-Hant", "zh-Hans", "繁体中文 → 简体中文"),
+    ]
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .translate)
+            Section {
+                ForEach(
+                    Array(rows.enumerated()), id: \.offset
+                ) { _, row in
+                    HStack(
+                        spacing: OneDayMetrics.spacingSM
+                    ) {
+                        Text(row.label)
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                        Spacer(minLength: OneDayMetrics.spacingS)
+                        Text(row.status)
+                            .font(.body)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .frame(
+                        minHeight: OneDayMetrics.settingsRowHeight
+                    )
+                }
+            } header: {
+                headerText("常用语言对")
+            } footer: {
+                Text("语言包在系统「翻译」里管理：没下载的组合，先去那里把语言包下载好就能翻。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .task { await reload() }
+    }
+
+    private func reload() async {
+        var loaded: [(label: String, status: String)] = []
+        for (source, target, label) in Self.pairs {
+            let status = await controller.dispatcher.translate.status(
+                from: Locale.Language(identifier: source),
+                to: Locale.Language(identifier: target)
+            )
+            loaded.append(
+                (label, TranslateEngine.statusText(status))
+            )
+        }
+        rows = loaded
+    }
+}
+
+// MARK: - 端上智能详情（设备扩容批三）
+
+/// 端上智能详情：状态头（无系统权限、单开关）＋可
+/// 用性一行（机型事实现读：可用/不支持/未开启/
+/// 未就绪逐档如实）。不可用时机型上这一件不会进
+/// 智能体的可调用清单，详情页把原因写明
+struct OnDeviceDetailView: View {
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .ondevice)
+            Section {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Text("这台手机")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Text(OnDeviceModelEngine.availabilityLine())
+                        .font(.body)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .multilineTextAlignment(.trailing)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            } header: {
+                headerText("可用状态")
+            } footer: {
+                Text("每次调用都是一次单次问答，不记上文；回答在本机生成，不联网。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+    }
+}
+
+// MARK: - 本人确认详情（设备扩容批三）
+
+/// 本人确认详情：状态头（无系统权限开关——同意在
+/// 每次验证时由系统当面给出）＋识别方式一行＋本
+/// 地试一次按钮（与工具同一条引擎路，让用户先亲
+/// 手看看系统验证框长什么样、理由写在哪）
+struct BiometricDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var note: String?
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .biometric)
+            Section {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Text("验证方式")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Text(BiometricEngine.biometryKindText())
+                        .font(.body)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                Button("试一次本人确认") { tryLocal() }
+                if let note {
+                    Text(note)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            } header: {
+                headerText("在这台手机上试一次")
+            } footer: {
+                Text("系统只回「过没过」；你的面容或指纹数据永远不出系统，OneDay 碰不到。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+    }
+
+    private func tryLocal() {
+        Task {
+            do {
+                let result = try await controller.dispatcher.biometric
+                    .confirm(
+                        BiometricAuthArgs(
+                            reason: "在 OneDay 里试一次本人确认"
+                        )
+                    )
+                if case .object(let object) = result,
+                   case .bool(let confirmed)? =
+                    object["confirmed"] {
+                    note = confirmed
+                        ? "已确认：是你本人。"
+                        : "这次没有确认通过。"
+                }
+            } catch let error as DeviceToolError {
+                note = error.message
+            } catch {
+                note = error.localizedDescription
+            }
+        }
     }
 }

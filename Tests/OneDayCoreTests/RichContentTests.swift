@@ -341,6 +341,46 @@ final class RichContentTests: XCTestCase {
         }
     }
 
+    /// 设备扩容批三：在场交互七工具同归设备类（特
+    /// 别是 vision_ 三件——不许被「vision」通用类
+    /// 抢走，它们是手机本地能力、不是服务端看图），
+    /// 标题各有中文映射
+    func testClassifierDevicePresenceTools() {
+        for name in [
+            "camera_capture", "vision_ocr", "vision_scan_code",
+            "vision_document_scan", "translate_text",
+            "ondevice_model_run", "auth_biometric",
+        ] {
+            XCTAssertEqual(
+                ToolCardClassifier.category(forToolName: name),
+                .device, name
+            )
+        }
+        // 服务端看图工具仍归视觉类、不被设备分支误收
+        XCTAssertEqual(
+            ToolCardClassifier.category(forToolName: "vision_analyze"),
+            .vision
+        )
+        let titles: [(String, String)] = [
+            ("camera_capture", "拍照"),
+            ("vision_ocr", "识别图片文字"),
+            ("vision_scan_code", "扫描条码"),
+            ("vision_document_scan", "扫描文档"),
+            ("translate_text", "翻译文字"),
+            ("ondevice_model_run", "端上智能回答"),
+            ("auth_biometric", "本人确认"),
+        ]
+        for (name, expected) in titles {
+            XCTAssertEqual(
+                ToolCardClassifier.title(
+                    forToolName: name, arguments: "{}",
+                    locale: Locale(identifier: "zh-Hans")
+                ),
+                expected, name
+            )
+        }
+    }
+
     /// 0.36.10（诊断 D3-5）：复合命令摘要呈「N 条命
     /// 令 · 首条」，不整段直出；多行脚本仍取首行
     func testCompoundCommandSummary() {

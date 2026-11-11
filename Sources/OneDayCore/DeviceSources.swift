@@ -8,6 +8,9 @@ import Foundation
 /// 制）再加剪贴板/文件两件：现调工具、限 App 自有
 /// Documents 区；iOS 没有这两件的系统权限，状态恒
 /// notApplicable、「允许智能体调用」开关即唯一的门。
+/// 设备扩容批二（§113）补闹钟/通知/打开目标三件动作
+/// 型；批三（§114）补在场交互与端上智能五件（相机/
+/// 识别/翻译/端上智能/本人确认）。
 /// 机制＝大厂工具调用制：授权与数据都留在手机，智能
 /// 体需要时经 device-bridge 发工具调用、App 在线时现
 /// 读现回；服务器不存设备数据副本，桥只留会话状态与
@@ -47,6 +50,17 @@ public enum DeviceSourceID: String, CaseIterable, Identifiable, Sendable, Codabl
     case alarm
     case notifications
     case opener
+    /// 在场交互与端上智能（设备扩容批三）：相机有真
+    /// 系统权限（走权限开关终形态），文档扫描同归相
+    /// 机门下；识别/翻译/端上智能/本人确认没有可开关
+    /// 的系统权限（识别与翻译是纯端上计算、端上智能
+    /// 只有机型可用性门、本人确认的同意在每次调用时
+    /// 由系统当面给出），四件走 notApplicable 单开关
+    case camera
+    case vision
+    case translate
+    case ondevice
+    case biometric
     case health
     case home
 
@@ -193,9 +207,10 @@ public enum DeviceSourceDirectory {
     }
 
     /// 名册源表（呈现序：日历→提醒→通讯录→照片→
-    /// 步数→剪贴板→文件→健康→家庭；蓝牙已决不做、
-    /// 永不入册）；文本字段存简体源串、经 roster
-    /// (locale:) 解析后才上屏
+    /// 步数→剪贴板→文件→闹钟→通知→打开目标→相机→
+    /// 识别→翻译→端上智能→本人确认→健康→家庭；蓝
+    /// 牙已决不做、永不入册）；文本字段存简体源
+    /// 串、经 roster(locale:) 解析后才上屏
     private static let rosterSource: [DeviceSourceDescriptor] = [
         DeviceSourceDescriptor(
             sourceID: .calendar,
@@ -296,6 +311,56 @@ public enum DeviceSourceDirectory {
             footnote: "只能打开白名单目标；打开即离开 OneDay，设备会话会随之断开，回到 App 后自动恢复。"
         ),
         DeviceSourceDescriptor(
+            sourceID: .camera,
+            name: "相机",
+            blurb: "拍照与扫描文档 · 要你当面举起手机拍，拍完存进 OneDay 文件夹",
+            tileSymbol: "camera.fill", tileColorHex: 0x48484A,
+            batch: 1,
+            agentNote: "智能体可调用：请你当面拍一张照片，或用系统扫描把纸质文档扫成图片——取景和按下快门都由你当面完成，智能体只能发起、不能代拍。拍到的图片存进 OneDay 文件夹，之后可以接着让它识别图里的文字",
+            capabilityLine: "当面拍照/扫文档 · 存进 OneDay 文件夹",
+            footnote: "拍照与扫描都要你当面操作；图片只存进 OneDay 自己文件夹，不进系统相册。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .vision,
+            name: "识别",
+            blurb: "认出图片里的文字与条码 · 全程在这台手机上算，不上传",
+            tileSymbol: "text.viewfinder", tileColorHex: 0x00A79E,
+            batch: 1,
+            agentNote: "智能体可调用：识别 OneDay 文件夹里图片中的文字，或读出图片里的二维码与条形码内容。识别只读文件夹里的图片、在手机本地完成，图片不出手机。这一件没有系统权限可开可关，详情页里的开关就是唯一的门",
+            capabilityLine: "认图片里的文字与条码 · 本地识别",
+            footnote: "只识别 OneDay 文件夹里的图片；识别在手机本地完成，图片不上传。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .translate,
+            name: "翻译",
+            blurb: "把一段文字翻成另一种语言 · 用系统翻译，语言包在手机本地",
+            tileSymbol: "translate", tileColorHex: 0x0A84FF,
+            batch: 1,
+            agentNote: "智能体可调用：把一段文字从一种语言翻到另一种语言，走系统自带翻译、全程在手机本地。语言包没下载到手机上的语言组合翻不了，会如实报错。这一件没有系统权限可开可关，详情页里的开关就是唯一的门",
+            capabilityLine: "本地翻译一段文字",
+            footnote: "翻译在手机本地完成，文字不出手机；可翻的语言取决于手机上已下载的语言包。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .ondevice,
+            name: "端上智能",
+            blurb: "手机自带的小模型 · 只在支持的机型上可用，回答不出手机",
+            tileSymbol: "apple.intelligence", tileColorHex: 0xBF5AF2,
+            batch: 1,
+            agentNote: "智能体可调用：让手机自带的端上模型回答一个问题（单次问答、不记上下文），适合摘要、改写这类短活。只有支持 Apple 智能的机型能用：不支持的机型上这一件不会出现在可调用清单里。这一件没有系统权限可开可关，详情页里的开关就是唯一的门",
+            capabilityLine: "端上模型单次问答 · 仅支持的机型",
+            footnote: "回答在这台手机上生成，不联网、不出手机；一次能处理的文字量有限，太长会如实报错。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .biometric,
+            name: "本人确认",
+            blurb: "重要操作前当面验一次是不是你本人 · 只验在场，读不到你的面容数据",
+            tileSymbol: "faceid", tileColorHex: 0x32ADE6,
+            batch: 1,
+            agentNote: "智能体可调用：在做重要操作之前，请系统当面验证一次是不是你本人（面容或指纹），只回「确认通过/没通过」，读不到、也存不下你的面容或指纹数据。每次都要你当面配合，没法远程代验。这一件没有系统权限开关，同意与否在每次验证时由系统当面问你",
+            capabilityLine: "重要操作前当面验本人",
+            footnote: "系统只告诉 OneDay 这次验证过没过，你的面容与指纹数据永远不出系统、App 碰不到。"
+        ),
+        DeviceSourceDescriptor(
             sourceID: .health,
             name: "健康",
             blurb: "步数/睡眠/心率等每日摘要 · 待签名权益到位后开通",
@@ -339,6 +404,10 @@ public enum DeviceSourceDirectory {
 /// 无 source）。isWrite 的写动作全必带
 /// idempotencyKey（批二起含取消闹钟/发通知/打开
 /// 目标：改变系统状态的动作都要能安全重放回执）。
+/// 批三注记：auth_biometric 不入写集——它不改任何
+/// 状态、本质是当面问一句「是不是本人」，24 小时
+/// 账本回放一枚旧「确认通过」会把在场门放掉，与
+/// 这件的用途正相反；每次调用必真问一次（§114）。
 public struct DeviceToolSpec: Equatable, Sendable {
     public let name: String
     public let source: DeviceSourceID?
@@ -371,6 +440,13 @@ public enum DeviceToolRegistry {
         DeviceToolSpec(name: "alarm_cancel", source: .alarm, isWrite: true),
         DeviceToolSpec(name: "notify_post", source: .notifications, isWrite: true),
         DeviceToolSpec(name: "open_target", source: .opener, isWrite: true),
+        DeviceToolSpec(name: "camera_capture", source: .camera, isWrite: true),
+        DeviceToolSpec(name: "vision_ocr", source: .vision, isWrite: false),
+        DeviceToolSpec(name: "vision_scan_code", source: .vision, isWrite: false),
+        DeviceToolSpec(name: "vision_document_scan", source: .camera, isWrite: true),
+        DeviceToolSpec(name: "translate_text", source: .translate, isWrite: false),
+        DeviceToolSpec(name: "ondevice_model_run", source: .ondevice, isWrite: false),
+        DeviceToolSpec(name: "auth_biometric", source: .biometric, isWrite: false),
         DeviceToolSpec(name: "health_daily_summary", source: .health, isWrite: false),
         DeviceToolSpec(name: "home_status", source: .home, isWrite: false),
     ]
@@ -379,10 +455,13 @@ public enum DeviceToolRegistry {
         all.first { $0.name == name }
     }
 
-    /// 本版 App 真能执行的工具（已接线数据源的十七
-    /// 个；device_status 桥本地应答、不经手机，不在
-    /// 此列；健康/家庭的工具定义先行、App 未接线，
-    /// 不上报）
+    /// 本版 App 真能执行的工具（已接线数据源的二十
+    /// 四个；device_status 桥本地应答、不经手机，不
+    /// 在此列；健康/家庭的工具定义先行、App 未接线，
+    /// 不上报。注：ondevice_model_run 在机型不支持
+    /// 端上智能时由 App 层组装注册载荷时再摘掉——
+    /// 可用性是机型事实、不进 Core 的静态名册判定，
+    /// 见 DeviceStore 与 §114）
     public static let appExecutable: [DeviceToolSpec] = all.filter {
         guard let source = $0.source else { return false }
         return DeviceSourceDirectory.descriptor(source).isWired

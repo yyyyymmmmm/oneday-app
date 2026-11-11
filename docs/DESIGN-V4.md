@@ -7941,3 +7941,69 @@ def greet(name):
 - 新增 11 个测试函数（DeviceSourcesTests +2：批二载荷门控/文案诚实；DeviceCallsTests +8：授权门全档/闹钟参数两组/取消参数/通知参数/打开参数/白名单不变量/时长人话；RichContentTests +1：五工具分类与标题），全仓测试函数 1191→1202 只增不减。既有 6 处钉值更新（名册计数 9→12 与呈现序、批次接线 +3、工具全集 15→20 与写集 6→10、可执行集 12→17、全开载荷补三件断言、搜索空集计数、非同步数据集 +3 断言），口径随名册扩容顺延、非放宽。
 - L10n 补 32 键（目录 2311→2343、连 InfoPlist 8→9 共 2352 键，validate_i18n.py 实跑通过）：名册五字段×3（「通知」名键已存在复用）、工具卡标题 5、拉起目标名 13（「微信」已存在复用）、NSAlarmKitUsageDescription 三语；繁体守既有惯例（智能体→智慧代理、调用→呼叫、设置→設定、闹钟→鬧鐘、白名单→白名單、锁屏→鎖定畫面）。详情页与引擎回执文本按 §109.5/§111.4 先例不入目录（执行层回执不入目录；详情页硬编码文案随既有详情页惯例如实登记——批一详情页同形态）。
 - 本机无 Swift 工具链：静态自查已做（逐文件括号配平与 HEAD 基线同差、目录键与代码引用全量对账、DeviceSourceID 全部穷尽 switch 逐点排查并补臂——DevicePermissions.currentStates、DeviceStore 三处、DeviceSyncExecutors.requestAccess、DeviceSyncDataset.fromSource、DeviceViews 图标两开关＋详情分发、ConnectorsView.deviceDetail；AlarmKit/UN API 形态经苹果官方示例与生产项目外部核查定谳，见 113.3）；编译与全套单测终判等合并后 CI。
+
+## §114 设备扩容批三·在场交互与端上智能（预制分支 feat/device-x3，基线 main fd69dd0；节号自选 §114，合并时主线终审如撞号顺延）
+
+缘起：设备表面图（device-surface-map-20261110.md）第二章分批的第四批「在场交互与端上智能」欠账——A5 相机/A18 识别/A17 翻译/A19 端上模型/A24 本人确认五条一直只有表面图条目。本包落成 App 侧全量（新数据源五件＋工具七件），桥侧 TOOLS 表单列待办（114.5）。表面图条目原文逐条抄录于 114.1 表首列，处置与出入见 114.6。
+
+### 114.1 表面图条目与工具契约（App 侧已接线，DeviceToolRegistry 逐字名册）
+
+| 表面图条目（原文摘要） | 工具 | 入参 | 成功回执 | 备注 |
+|---|---|---|---|---|
+| A5 相机拍照/录像 `camera_capture`（AVFoundation，NSCameraUsageDescription，需用户在场交互；「取景框是当面动作、智能体只能发起不能代拍」；「可与 A18 组合：拍完即识别」） | camera_capture（写） | {idempotencyKey} | 文件回读对象 {name, path, isDirectory, modifiedAt, sizeBytes}＋saved＋verified＋capturedAt＋humanSummary | 拍什么/何时按快门全由用户当面决定、无其他入参；JPEG 落 OneDay 文件夹 captures/、回读逐字节核对才报成功；图片本体不进回执（见 114.6 之 2） |
+| A18 文字识别与扫码 `vision_ocr`/`vision_scan_code`/`vision_document_scan`（Vision＋VisionKit；「本身无权限、权限随输入来源；OCR 无需在场、文档扫描需在场」） | vision_ocr | {path（OneDay 文件夹内图片）} | {path, readAt, text, lines, truncated?} | 纯端上计算；路径与 files_read 同一套 SandboxPath 规范化；行数 300/字数 2 万收敛、超限截断标 truncated |
+| 同上 | vision_scan_code | {path} | {path, readAt, count, codes[{symbology, payload}]} | 读不出串的载荷跳过不编；码制名常见十种映射＋「其他码制」归类（见 114.6 之 9） |
+| 同上 | vision_document_scan（写，归相机源） | {idempotencyKey} | {saved, verified, pageCount, pages[文件回读对象], humanSummary} | 系统扫描界面当面扫多页、逐页落 captures/scan-<印记>-p<页>.jpg；账本 objectID＝共同前缀、回放按前缀找回（见 114.6 之 7） |
+| A17 翻译 `translate_text`（Translation iOS 18+，无权限无弹窗；「iOS 26 起有无头会话；语言包未下系统弹下载面」） | translate_text | {text（≤4000 字）, source, target?} | {text, sourceLanguage, targetLanguage, readAt, humanSummary} | iOS 26 无头会话（installedSource 构造式）；源语言必填（构造式要求明确，见 114.6 之 6）；target 缺省按源语言定（中文→英文、其余→简体中文）、回执回明实际值 |
+| A19 端上大模型 `ondevice_model_run`（Foundation Models iOS 26+，无权限需前台；「硬件门：Apple Intelligence 机型＋系统开启＋语言/地区支持；可用性门先行——不支持就整件不列」） | ondevice_model_run | {prompt（≤3000 字）, instructions?（≤1000 字）} | {text, model: "on-device", readAt} | 每次新会话单次问答、不带上文（契约明示）；可用性门三落点见 114.2；上下文口径纠正见 114.6 之 1 |
+| A24 生物识别确认 `auth_biometric`（LocalAuthentication，NSFaceIDUsageDescription，需在场；「只能验本人在场、读不到生物数据；定位＝高敏写操作前置门」） | auth_biometric（非写） | {reason（≤120 字，必填）} | {confirmed, outcome: confirmed/rejected/cancelled, biometry, verifiedAt, humanSummary} | 不带 idempotencyKey、不走账本（见 114.6 之 3）；验不过/取消是「这次确认的答案」以结果回，只有问不出口（未录入/不可用/没设密码）才走错误 |
+
+四纪律落点：写工具（camera_capture/vision_document_scan）必带 idempotencyKey＋双层去重（回放只带已存文件的回读元数据——绝不因重发再弹一次取景框）；回读验证才报成功（落盘逐字节核对＋条目回读，逐工具见上表）；离线即失败不排队（既有会话机制；在场等待被桥侧取消时呈现桥自关界面、以取消错误收尾，不挂死会话）；复述确认载荷＝动作回执含 humanSummary（Core 参数层同源生成）。
+
+### 114.2 授权分档与呈现分工（两档不许混的批三落法）
+
+- 相机（camera）是真系统权限：AVCaptureDevice.authorizationStatus 同步可读，CameraEngine.systemState 现读、requestAccess 先过 DevicePermissionGate（只有未决定才发那一次 requestAccess(for: .video)，completion 只 resume continuation）；详情页走权限开关终形态（系统权限开关＋允许调用开关双层）；注册载荷报系统原态、桥可先行拦 permission_denied。vision_document_scan 同归相机门（呈现要相机权限，见 114.6 之 7）。
+- 识别/翻译/端上智能/本人确认四件没有可开关的系统权限，恒 notApplicable、单开关即唯一的门（批一先例）：识别与翻译是纯端上计算；本人确认的「权限」只有用途说明串，同意在每次 evaluatePolicy 时由系统当面给出、LA 没有可预读的授权状态（见 114.6 之 4）；端上智能只有机型可用性门、不进权限档。
+- 端上智能可用性门三落点（表面图「不支持就整件不列」的等价落地）：①注册载荷组装时（DeviceStore.beginRegister）机型不可用就把 ondevice_model_run 从 tools 摘掉——Core 静态名册不判机型事实；②详情页可用性行逐档如实（可用/机型不支持/未开启/未就绪）；③引擎执行时复查 availability，不可用如实回错。名册行本身恒列（它是能力目录不是可用性清单），代价与登记见 114.6 之 5。
+- Project.swift：新增 NSCameraUsageDescription＋NSFaceIDUsageDescription（InfoPlist 键 9→11；文案说清发起方与落点：图片只存 OneDay 文件夹不进相册／面容数据不离开系统）。版本五处未动（合并时主线定号）。
+
+### 114.3 框架落法注记（外部核查出处，2026-11-11 本包施工前逐条核对）
+
+- 翻译无头会话定谳：苹果官方文档（TranslationSession 页，2026-11-01 版）明示 iOS 26 新增 `init(installedSource:target:)`——"for contexts where there's no UI, you can directly initialize"；源语言必须明确、目标可空；语言未装时 translate 抛错（拿下载许可须走 translationTask 的 UI 路，本包不走，见 114.6 之 6）。LanguageAvailability.status(from:to:) 同批核对存在（另有 status(for:to:) 按样本文本测语言，非本包所需）。表面图「iOS 26 起有无头会话」属实。
+- Foundation Models：SystemLanguageModel.default.availability（.available／.unavailable 三因 deviceNotEligible/appleIntelligenceNotEnabled/modelNotReady）＋LanguageModelSession(instructions:)＋respond(to:)→response.content，多篇开发者文档与官方口径互证；错误走 GenerationError（exceededContextWindowSize/guardrailViolation/unsupportedLanguageOrLocale 逐个映射人话、其余带 default 臂兜底）。
+- Vision 代际选择：OCR/扫码用 iOS 18+ Swift 原生请求 RecognizeTextRequest/DetectBarcodesRequest（perform(on:orientation:) 异步形、topCandidates/payloadString），不用 VN 前缀旧 API（全面原生令＋苹果现行推荐；多篇 2025–2026 实作互证）。EXIF 方向经 ImageIO 读出随图带入。文档扫描 VNDocumentCameraViewController iOS 26 仍可用（isSupported 先判）；外部对比文（Scanbot）报 iOS 26 上该系统界面有显示小毛病——属系统界面问题、不影响落盘契约，登记知悉、真机验收时留意。
+- 相机呈现桥 DeviceCaptureBridge：照 DocumentPickerBridge 已验形态（最顶层 VC 呈现＋coordinator 静态强持有＋先 dismiss 再交回），加等待取消收尾（withTaskCancellationHandler→关界面＋取消错误）。UIImagePickerController 取原图、JPEG 0.85（聊天 CameraPicker 同参）。
+- LocalAuthentication：evaluatePolicy 用 async 形（iOS 15+ 既有）；LAError 一律经 NSError 的 LAErrorDomain＋code 对照判定，不依赖错误类型的桥接形态（防签名/桥接差异，照本仓「核查证方向不证签名」的加码教训选最稳形态）。
+- iOS 26.0 目标口径：批二 AlarmKit 26.1 构造式教训在前——本包所用 API 全部是 26.0 SDK 既有形态，26.1+ 新增形态一律不用。
+
+### 114.4 名册与呈现
+
+- 名册五件插在 opener 之后、health 之前（呈现序钉测更新）；图标按批二自绘语汇（彩色圆角底＋白色 SF 字形共用 glyphArtwork 构造：相机深灰/camera.fill、识别青/text.viewfinder、翻译蓝/translate、端上智能紫/apple.intelligence、本人确认近黑/faceid），不冒充系统应用图标。详情页五页均只有状态头＋一节本地面：相机＝已拍列表＋本地拍照按钮（与工具同引擎路）；识别＝captures 图片点按试认；翻译＝常用语言对下载状态现查；端上智能＝可用性一行；本人确认＝验证方式＋本地试一次。门控未定文案动词补相机「使用」一档。总览页脚长文案补批三一句（文案字面量、按批二先例不新入目录键）。
+- 工具卡分类：ToolCards 设备分支补 camera_/translate_/ondevice_/auth_ 前缀＋vision 三件精确名（vision_ocr 等须排在 contains("vision") 的视觉类之前归设备；vision_analyze 仍归视觉类，钉测守）。
+
+### 114.5 桥侧待办清单（device-bridge／伴生 device 模块，后续接线包）
+
+1. TOOLS 表补七件（名与 App 侧 DeviceToolRegistry 逐字一致）：camera_capture/vision_ocr/vision_scan_code/vision_document_scan/translate_text/ondevice_model_run/auth_biometric；入参/回执契约按 114.1 表。本批草案名与定名一致，桥表不留别名双轨。
+2. permissions 字典新增键 camera/vision/translate/ondevice/biometric：camera 是真权限键（App 报系统原态，桥可先行回 permission_denied，与 alarm/notifications 同档）；其余四件 notApplicable 口径报 granted、门控只认注册 tools 清单——两档不许混。另注：ondevice_model_run 在 tools 里出现与否随机型可用性变（App 注册时摘除），桥不要把「某轮没列」判成异常。
+3. 写工具桥侧 write-keys 一层去重对 camera_capture/vision_document_scan 启用（App 账本为第二层）；auth_biometric 明确不许套 write-keys 回放——每次调用都要真问一次，桥侧重试也应原样下发由 App 现场再验（接线时点名，防顺手套模板把在场门放掉）。
+4. 在场类超时口径：camera_capture/vision_document_scan/auth_biometric 都要等用户当面操作，桥侧 tool_call 超时须给足（建议 ≥120 秒量级，按桥现行上限评估后落数）；App 侧等待被取消会自关界面回错误收尾，不挂死。
+5. 上线顺序同前两批：桥表未补前 App 开关默认关、不列工具，无影响；接线验收先补桥表再开开关实测。真机端到端（真拍＋OCR 组合、扫文档、翻译已装语言对、端上问答各一、本 人确认过/取消各一）随 App 版本发出后另验，不冒充已通。
+
+### 114.6 与设计档出入（逐条）
+
+1. A19 上下文数字纠正：表面图写「约 8k token」，外部核查口径为 4096 token 总上下文（含指令＋提示＋回答，多源一致）——参数上限按 4096 保守收敛（prompt 3000 字＋instructions 1000 字），框架超限另有兜底如实报错。表面图该数待回表修订。
+2. camera_capture 的回图通道：表面图写「图回调用方（与聊天图片链共用回图通道）」——本包落法是图片落盘 captures/＋回执只回文件回读元数据，不把图片字节塞进工具回执（与 files_read 的 256 KB 文本上限同理：回执是给智能体读的账面、不是图床）；「拍完即识别」的组合由 vision_ocr 读同一路径当场接上，信息不断链。图片字节直达智能体须经 /api/files/upload，而分发器现行签名不持有服务器配置——登记为后续小包议题，本包不扩分发器签名。
+3. auth_biometric 不带 idempotencyKey、不入写集：与四纪律「写/动作类必带」表面冲突，定性澄清——它不改变任何系统状态，本质是当面问答；24 小时账本回放一枚旧「确认通过」恰好把这件存在的前提（在场）放掉，与用途正相反。故按读类落（无键、每次必真问），DeviceToolSpec 注释与写集钉测（12 件）同步登记此口径，不作其他动作破例的先例。
+4. 本人确认的权限档：NSFaceIDUsageDescription 不是可开关的系统权限（无授权状态可预读、无「已拒绝」持久态），归 notApplicable 单开关档；「问不出口」的情形（未录入面容/指纹、设备不支持、没设锁屏密码）在引擎内以 canEvaluatePolicy 逐档判明并如实回错——与批二通知「无同步读 API」的出入同族（框架形态决定落法，铁律实质不让步）。
+5. 端上智能名册行与可用性：可用性门落在注册 tools 过滤＋详情页＋执行复查三处，名册行恒列——代价是不支持的机型上，该行在「开关开＋会话在线」时状态字仍会拼「可调用」（行状态由 Core 静态口径拼、无机型事实入口）；但注册清单里根本没有这件工具、智能体实际调不到，执行复查再兜一层。登记知悉；若后续要让行状态也认可用性，须给 DeviceRowStatus 加 App 层事实入口，另议。
+6. 翻译源语言必填与下载面：无头构造式要求源语言明确（不能靠自动识别兜底），故 source 在契约层必填，与表面图「无弹窗」并不冲突；语言包未下载时本包如实回错并指路（详情页语言对状态/系统翻译设置），不在工具调用里弹系统下载面——下载面需要 UI 在场、与分发器的非 UI 上下文不合，且「替用户决定下载」本就该由用户亲手做。
+7. vision_document_scan 归相机源：表面图把它列在 A18 名下（框架确属 VisionKit），但它的呈现与权限都是相机——名册 source 定 .camera、权限与开关随相机走，vision 源只辖对已存图片的纯计算两件。桥侧 permissions 键随此分工（见 114.5 之 2）。
+8. 本批范围界线：A21 拉起撰写（call_start/compose_sms/compose_email/share_sheet）与 A22 shortcut_run 同具「需在场」属性，但表面图归第三批「写与拉起」（批二只落了其中 A10/A11/A20），A14 媒体控制、A26 文件呈现/打印同属未覆盖欠账——均不在本包范围，登记待后续批；A6 麦克风录音未被表面图分入任何一批、且与已上线听写共用麦克风权限（A25），本包不碰。A8 后台定位（授权最重）与 A15 蓝牙（已决不做）继续排除。
+9. 码制名口径：BarcodeSymbology 是可扩展结构体、无可依赖的出串口径——常见十种逐个给人话名，其余归「其他码制」，宁可归类不编名（与闹钟标题「登记缺失不编」同纪律）。
+10. 详情页与引擎回执文本按 §109.5/§111.4 先例不入 L10n 目录（执行层回执不入目录；详情页硬编码文案随既有详情页惯例登记）；入目录的是名册五字段与工具卡标题（经 L10n.string 取词，两处合计 30 键）＋InfoPlist 两键。
+
+### 114.7 单测与终判口径
+
+- 新增 8 个测试函数（DeviceSourcesTests +2：批三载荷分档门控/文案诚实；DeviceCallsTests +5：拍照扫描必带键/识别路径规范化/翻译参数/端上参数/本人确认参数；RichContentTests +1：七工具分类标题＋vision_analyze 不误收），全仓测试函数口径以 CI 实跑为准、只增不减（合并前基线 1202，预期 1210）。既有 7 处钉值更新（名册计数 12→17 与呈现序、批次接线 +5、工具全集 20→27 与写集 10→12、可执行集 17→24、全开载荷补五件断言、搜索空集计数 12→17、非同步数据集 +5 断言），口径随名册扩容顺延、非放宽。
+- L10n 补 30 键（Localizable 2343→2373）＋InfoPlist 补 2 键（9→11），合计 2352→2384，validate_i18n.py 实跑通过；繁体守既有惯例（智能体→智慧代理、调用→呼叫、文件夹→資料夾、档案用檔案、端上智能→端上智慧）。
+- 静态自查已做：逐文件括号配平与基线同差；DeviceSourceID 全部穷尽点逐点排查并补臂（DevicePermissions.currentStates、DeviceStore 开关字典＋requestAccess＋注册过滤、DeviceSyncExecutors.requestAccess、DeviceSyncDataset.fromSource、DeviceViews 图标底色/字形两开关＋门控动词＋详情分发、ConnectorsView.deviceDetail）；目录键与代码引用全量对账；框架 API 形态经苹果官方文档与多篇实作外部核查定谳（114.3）。本机无 Swift 工具链：编译与全套单测终判等合并后 CI。

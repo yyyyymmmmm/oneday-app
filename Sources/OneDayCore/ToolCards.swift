@@ -158,7 +158,11 @@ public enum ToolCardClassifier {
             || short.hasPrefix("home_") || short.hasPrefix("device_")
             || short.hasPrefix("clipboard_") || short.hasPrefix("files_")
             || short.hasPrefix("alarm_") || short.hasPrefix("notify_")
-            || short.hasPrefix("open_") {
+            || short.hasPrefix("open_")
+            || short.hasPrefix("camera_") || short.hasPrefix("translate_")
+            || short.hasPrefix("ondevice_") || short.hasPrefix("auth_")
+            || short == "vision_ocr" || short == "vision_scan_code"
+            || short == "vision_document_scan" {
             return .device
         }
         // 连接管理系（0.36.10，诊断 D3-3 盲区补齐）
@@ -230,6 +234,13 @@ public enum ToolCardClassifier {
         case "alarm_cancel": return L10n.string("取消闹钟", locale: locale)
         case "notify_post": return L10n.string("发送本地通知", locale: locale)
         case "open_target": return L10n.string("打开指定页面", locale: locale)
+        case "camera_capture": return L10n.string("拍照", locale: locale)
+        case "vision_ocr": return L10n.string("识别图片文字", locale: locale)
+        case "vision_scan_code": return L10n.string("扫描条码", locale: locale)
+        case "vision_document_scan": return L10n.string("扫描文档", locale: locale)
+        case "translate_text": return L10n.string("翻译文字", locale: locale)
+        case "ondevice_model_run": return L10n.string("端上智能回答", locale: locale)
+        case "auth_biometric": return L10n.string("本人确认", locale: locale)
         case "health_daily_summary": return L10n.string("查看健康摘要", locale: locale)
         case "home_status": return L10n.string("查看家庭状态", locale: locale)
         case "web_search": return L10n.string("联网搜索", locale: locale)

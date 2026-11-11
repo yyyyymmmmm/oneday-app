@@ -939,3 +939,225 @@ public struct OpenTargetArgs: Equatable, Sendable {
         "打开\(target.name(locale: AppLocale.uiLocale))"
     }
 }
+
+// MARK: - 批三·在场交互与端上智能参数（相机/识别/翻译/端上模型/本人确认）
+
+/// 批三的量级收敛（粒度在 App 侧执行的既有口径）：
+/// 识别只吃 OneDay 文件夹里的图片（路径与 files_read
+/// 同一套 SandboxPath 规范化），图片字节上限与聊天
+/// 图片链的 20 MB 对齐；翻译/端上模型是短文本活，
+/// 输入上限在解析层就拒、不把超长文本递进框架；
+/// 本人确认的理由要直接显示在系统验证框里，短句为宜
+public enum PresenceLimits {
+    /// 识别输入图片上限（20 MB，与聊天图片链同）
+    public static let maxImageBytes = 20 * 1024 * 1024
+    /// 识别结果文字上限：超了截断并在回执标 truncated
+    public static let maxRecognizedTextChars = 20_000
+    /// 识别结果行数上限
+    public static let maxRecognizedLines = 300
+    /// 翻译单次文本上限（字）
+    public static let maxTranslateChars = 4_000
+    /// 端上模型单次提示上限（字）：端上上下文约
+    /// 4096 token（含指令与回答），字数先行收敛、
+    /// 框架仍有 exceededContextWindowSize 兜底
+    public static let maxPromptChars = 3_000
+    /// 端上模型指令（系统提示）上限（字）
+    public static let maxInstructionsChars = 1_000
+    /// 本人确认理由上限（字）
+    public static let maxReasonChars = 120
+}
+
+/// camera_capture 参数：拍照没有别的入参——拍什么、
+/// 什么时候按快门都由用户当面决定，智能体只负责
+/// 发起。它在文件夹里落一份新图片（状态变化），
+/// 照写工具带防重复键：桥重发同键时回放已存的那
+/// 张、不许把取景框再弹第二次
+public struct CameraCaptureArgs: Equatable, Sendable {
+    public let idempotencyKey: String
+
+    public init(idempotencyKey: String) {
+        self.idempotencyKey = idempotencyKey
+    }
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> CameraCaptureArgs {
+        CameraCaptureArgs(
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+
+    public var humanSummary: String { "拍照：请你当面拍一张照片" }
+}
+
+/// vision_document_scan 参数：与拍照同理——扫描几
+/// 页、怎么摆都由用户当面在系统扫描界面里完成；
+/// 落多页图片文件，照写工具带防重复键
+public struct VisionDocumentScanArgs: Equatable, Sendable {
+    public let idempotencyKey: String
+
+    public init(idempotencyKey: String) {
+        self.idempotencyKey = idempotencyKey
+    }
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> VisionDocumentScanArgs {
+        VisionDocumentScanArgs(
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+
+    public var humanSummary: String { "扫描文档：请你当面扫描这份文档" }
+}
+
+/// vision_ocr 参数：只认 OneDay 文件夹内的图片路径
+/// （与 files_read 同一套规范化，越界在解析层拒）
+public struct VisionOCRArgs: Equatable, Sendable {
+    public let path: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> VisionOCRArgs {
+        VisionOCRArgs(
+            path: try SandboxPath.normalizeFilePath(
+                requiredString(args, "path", "图片路径")
+            )
+        )
+    }
+}
+
+/// vision_scan_code 参数：同 vision_ocr 的路径口径
+public struct VisionScanCodeArgs: Equatable, Sendable {
+    public let path: String
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> VisionScanCodeArgs {
+        VisionScanCodeArgs(
+            path: try SandboxPath.normalizeFilePath(
+                requiredString(args, "path", "图片路径")
+            )
+        )
+    }
+}
+
+/// 语言代码校验（translate_text 的 source/target）：
+/// 只放行 BCP 47 骨架字符（字母/数字/连字符），形
+/// 不对在解析层拒，不把乱码递给系统翻译框架
+private func validatedLanguageCode(
+    _ raw: String, field: String
+) throws -> String {
+    let code = raw.trimmingCharacters(in: .whitespaces)
+    guard code.count >= 2, code.count <= 35,
+          code.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }),
+          code.first?.isLetter == true
+    else {
+        throw DeviceToolError.invalidArguments(
+            "\(field)不是合法的语言代码（如 zh-Hans、en、ja）"
+        )
+    }
+    return code
+}
+
+/// translate_text 参数：原文与源语言必填；目标语言
+/// 可缺省（执行层按源语言定缺省目标：源是中文→英
+/// 文，其余→简体中文，回执里如实回明实际目标语言，
+/// 不让调用方猜）。无头会话必须先知道源语言，没法
+/// 靠自动识别兜底（iOS 26 的 installedSource 构造式
+/// 要求源语言明确），所以源语言不设缺省
+public struct TranslateTextArgs: Equatable, Sendable {
+    public let text: String
+    public let source: String
+    public let target: String?
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> TranslateTextArgs {
+        let text = try requiredString(args, "text", "要翻译的文字")
+        guard text.count <= PresenceLimits.maxTranslateChars
+        else {
+            throw DeviceToolError.invalidArguments(
+                "要翻译的文字超过 \(PresenceLimits.maxTranslateChars) 字上限"
+            )
+        }
+        let source = try validatedLanguageCode(
+            requiredString(args, "source", "源语言"),
+            field: "源语言"
+        )
+        var target: String?
+        if let rawTarget = optionalString(args, "target") {
+            target = try validatedLanguageCode(rawTarget, field: "目标语言")
+        }
+        return TranslateTextArgs(
+            text: text, source: source, target: target
+        )
+    }
+
+    public var humanSummary: String {
+        "翻译一段文字（\(source)→\(target ?? "缺省目标")）"
+    }
+}
+
+/// ondevice_model_run 参数：单次问答——每次调用都
+/// 是新会话、不带上文（契约写明，免得调用方以为它
+/// 记得前文）；instructions 是可选的系统指令
+public struct OnDeviceModelArgs: Equatable, Sendable {
+    public let prompt: String
+    public let instructions: String?
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> OnDeviceModelArgs {
+        let prompt = try requiredString(args, "prompt", "问题")
+        guard prompt.count <= PresenceLimits.maxPromptChars
+        else {
+            throw DeviceToolError.invalidArguments(
+                "问题超过 \(PresenceLimits.maxPromptChars) 字上限"
+            )
+        }
+        let instructions = optionalString(args, "instructions")
+        if let instructions,
+           instructions.count > PresenceLimits.maxInstructionsChars {
+            throw DeviceToolError.invalidArguments(
+                "指令超过 \(PresenceLimits.maxInstructionsChars) 字上限"
+            )
+        }
+        return OnDeviceModelArgs(
+            prompt: prompt, instructions: instructions
+        )
+    }
+}
+
+/// auth_biometric 参数：reason 是给用户看的确认理
+/// 由、会原样显示在系统验证框里（「为什么要验你」
+/// 必须由发起方说清，不许空着让用户对着空白框验
+/// 身份）。不带 idempotencyKey（理由见
+/// DeviceToolSpec 的批三注记）
+public struct BiometricAuthArgs: Equatable, Sendable {
+    public let reason: String
+
+    /// 详情页本地试确认也要构造（理由由页面写明）
+    public init(reason: String) {
+        self.reason = reason
+    }
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> BiometricAuthArgs {
+        let reason = try requiredString(args, "reason", "确认理由")
+        guard reason.count <= PresenceLimits.maxReasonChars
+        else {
+            throw DeviceToolError.invalidArguments(
+                "确认理由超过 \(PresenceLimits.maxReasonChars) 字上限"
+            )
+        }
+        return BiometricAuthArgs(reason: reason)
+    }
+
+    public var humanSummary: String { "本人确认：\(reason)" }
+}
