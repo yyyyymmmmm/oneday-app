@@ -99,12 +99,13 @@ final class ModelManagementStore {
         await appState.refreshModelCatalog()
         if appState.config != nil {
             let names = providers.map(\.name)
-            if let fetched = try? await appState.performAdmin {
+            let fetched = try? await appState.performAdmin {
                 client, config in
                 try await client.mainModelAssignment(
                     config: config, providerNames: names
                 )
-            } {
+            }
+            if let fetched {
                 defaultAssignment = fetched
             }
         }
