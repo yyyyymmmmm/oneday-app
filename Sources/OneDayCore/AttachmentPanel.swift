@@ -6,7 +6,8 @@ import Foundation
 /// 拼装、相册授权政策、选图/选视频的接入判定全在此
 /// 处纯函数化（PHAsset 读取与呈现动作在 App 层），
 /// 选中后一律汇入现行附件管线（附件条筹码、上传链、
-/// 发送拼装不动）。
+/// 发送拼装不动）。§150 修订二在此续：照片条多选的
+/// 切换/排序/确认文案纯函数（选中态本体在 App 层）。
 public enum AttachmentPanel {
 
     // MARK: - 相册授权政策
@@ -89,6 +90,42 @@ public enum AttachmentPanel {
     public static func failedPhotosNotice(count: Int) -> String? {
         guard count > 0 else { return nil }
         return "有 \(count) 张图片读取失败，未加入待发列表。"
+    }
+
+    // MARK: - 照片条多选（§150 修订二）
+
+    /// 照片条点选切换：已选再点取消、未选点之加入；
+    /// 返回新选中集（相对入参的增删单点由调用方按集
+    /// 合差自明）。顺序由 orderedSelection 另行收口，
+    /// 本函数只管成员关系
+    public static func toggledSelection(
+        _ selected: Set<String>, id: String
+    ) -> Set<String> {
+        var next = selected
+        if next.contains(id) {
+            next.remove(id)
+        } else {
+            next.insert(id)
+        }
+        return next
+    }
+
+    /// 批量入条顺序：按照片条呈现序（新→旧，与条内
+    /// 位置一致）过滤出选中者——入附件条的顺序与用
+    /// 户在条里看到的从左到右一致，不按点选先后（点
+    /// 选序无处回看、呈现序是唯一可预期序）
+    public static func orderedSelection(
+        selected: Set<String>, stripOrder: [String]
+    ) -> [String] {
+        stripOrder.filter { selected.contains($0) }
+    }
+
+    /// 「添加 N 张」确认行文案：未选任何照片回 nil
+    /// （确认行不呈现、动作不可用同源）；有选时逐字
+    /// 点数
+    public static func addSelectedTitle(count: Int) -> String? {
+        guard count > 0 else { return nil }
+        return "添加 \(count) 张"
     }
 
     // MARK: - 视频接入命名

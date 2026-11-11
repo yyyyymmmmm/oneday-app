@@ -253,6 +253,9 @@ struct ChatView: View {
     // PhotosUI 选图器（视频过滤、与图片选图器分开
     // 两套绑定，互不串扰）
     @State private var showAttachPanel = false
+    // §150 修订二：附件面板内容实测高（面板经
+    // PreferenceKey 回报），sheet detent 贴内容用
+    @State private var attachPanelContentHeight: CGFloat = 0
     @State private var videoItems: [PhotosPickerItem] = []
     @State private var showVideoPicker = false
     // 文件选择自 0.36.31 起走 UIKit 桥 Document-
@@ -588,31 +591,42 @@ struct ChatView: View {
         // mentPanelView）；面板内各动作先收面板、隔一
         // 拍再呈现下一层（相机/选图器/文件桥），不与
         // sheet 收起同帧抢呈现（同 DocumentPicker-
-        // Bridge 延拍口径）
+        // Bridge 延拍口径）。§150 修订二：detent 自
+        // .medium 改内容实测高（面板经 Preferen-
+        // ceKey 回报、AttachmentPanelLayout 钳顶），
+        // 高度贴内容不留死空；未授权态与确认行增减
+        // 都经同一量测自适应。确认入条是终结动作不
+        // 呈现下一层，直接收面板后批量取数入条（多
+        // 选逐张走单张同一取数路，§150）
         .sheet(isPresented: $showAttachPanel) {
-            AttachmentPanelView(
-                onCamera: {
-                    afterAttachPanelDismiss { showCamera = true }
-                },
-                onPickPhoto: { assetID in
-                    showAttachPanel = false
-                    Task { await loadStripPhoto(assetID: assetID) }
-                },
-                onViewAll: {
-                    afterAttachPanelDismiss { showPhotoPicker = true }
-                },
-                onAddFile: {
-                    afterAttachPanelDismiss {
-                        DocumentPickerBridge.present { urls in
-                            loadPickedFiles(urls: urls)
+            GeometryReader { screen in
+                AttachmentPanelView(
+                    onCamera: {
+                        afterAttachPanelDismiss { showCamera = true }
+                    },
+                    onConfirmPhotos: { assetIDs in
+                        showAttachPanel = false
+                        Task { await loadStripPhotos(assetIDs: assetIDs) }
+                    },
+                    onViewAll: {
+                        afterAttachPanelDismiss { showPhotoPicker = true }
+                    },
+                    onAddFile: {
+                        afterAttachPanelDismiss {
+                            DocumentPickerBridge.present { urls in
+                                loadPickedFiles(urls: urls)
+                            }
                         }
+                    },
+                    onAddVideo: {
+                        afterAttachPanelDismiss { showVideoPicker = true }
                     }
-                },
-                onAddVideo: {
-                    afterAttachPanelDismiss { showVideoPicker = true }
+                )
+                .onPreferenceChange(AttachmentPanelHeightKey.self) { height in
+                    attachPanelContentHeight = height
                 }
-            )
-            .presentationDetents([.medium])
+                .presentationDetents(attachPanelDetents(screenHeight: screen.size.height))
+            }
             .presentationDragIndicator(.visible)
         }
         // 0.36.31（件二）：.fileImporter 已删——侧载
@@ -3583,7 +3597,8 @@ private struct ComposerBarLayout: Layout {
     private var attachButton: some View {
         // §147 改版：点「+」开底部附件面板 sheet（资
         // 源库照片条＋添加文件/视频动作行，见 Attach-
-        // mentPanelView）；旧浮窗小卡 Menu（三行：拍
+        // mentPanelView；§150 修订照片条多选＋定高贴
+        // 内容）；旧浮窗小卡 Menu（三行：拍
         // 照/相册选图/选文件）整套退役——三条路全部
         // 由面板承接（相机格/查看全部选图器/添加文件
         // 行走 DocumentPickerBridge，P-18 桥不回退）
@@ -3609,6 +3624,21 @@ private struct ComposerBarLayout: Layout {
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel("添加附件")
+    }
+
+    /// §150 修订二：附件面板 sheet 的 detent 集——
+    /// 内容高已量得时单档贴内容；尚未量得（首帧）回
+    /// 落 .medium 过渡，量到即换贴合高
+    private func attachPanelDetents(
+        screenHeight: CGFloat
+    ) -> Set<PresentationDetent> {
+        if let height = AttachmentPanelLayout.detentHeight(
+            measured: attachPanelContentHeight,
+            screenHeight: screenHeight
+        ) {
+            return [.height(height)]
+        }
+        return [.medium]
     }
 
     /// §147：附件面板内动作的统一收尾——先收面板、
@@ -3837,7 +3867,8 @@ private struct ComposerBarLayout: Layout {
     /// 图片入条共用口（§147 收编）：选图器与附件面
     /// 板照片条两条取图路在此合流——同一大小闸
     /// （Core AttachmentPanel.photoFits）、同一汇总
-    /// 口径（超限/失败各一条 notice、不静默吞，P-18）
+    /// 口径（超限/失败各一条 notice、不静默吞，P-18）；
+    /// §150 照片条改多选后整批一次汇入此处，口径不变
     private func ingestPhotoData(_ dataList: [Data?]) {
         var oversized = 0
         var failed = 0
@@ -3861,28 +3892,40 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 附件面板照片条点选（§147）：按资产 id 取原图
-    /// 数据（允许 iCloud 下载），入条走共用口——与
-    /// 选图器同闸同口径，不另开一套
-    private func loadStripPhoto(assetID: String) async {
+    /// 附件面板照片取数（§147 立、§150 改多选批
+    /// 量）：逐张按资产 id 取原图数据（允许 iCloud
+    /// 下载），整批数据一次汇入共用口 ingestPhoto-
+    /// Data——与选图器同闸同汇总口径（20MB 闸/超限
+    /// 与失败各一条汇总 notice、不静默吞，P-18），
+    /// 批量不另开一套
+    private func loadStripPhotos(assetIDs: [String]) async {
+        var dataList: [Data?] = []
+        for assetID in assetIDs {
+            dataList.append(await loadStripPhotoData(assetID: assetID))
+        }
+        ingestPhotoData(dataList)
+    }
+
+    /// 单张取数本体（§147 原 loadStripPhoto 的取数
+    /// 段）：资产已删/取不到回 nil，计数与出声归批
+    /// 量汇入口，不在此自报
+    private func loadStripPhotoData(assetID: String) async -> Data? {
         let result = PHAsset.fetchAssets(
             withLocalIdentifiers: [assetID], options: nil
         )
         guard let asset = result.firstObject else {
-            ingestPhotoData([nil])
-            return
+            return nil
         }
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.isNetworkAccessAllowed = true
-        let data = await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { continuation in
             PHImageManager.default().requestImageDataAndOrientation(
                 for: asset, options: options
             ) { data, _, _, _ in
                 continuation.resume(returning: data)
             }
         }
-        ingestPhotoData([data])
     }
 
     /// 选视频入条（§147）：视频是文件不是图片 part

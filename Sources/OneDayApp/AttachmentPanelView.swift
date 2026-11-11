@@ -4,12 +4,18 @@ import Photos
 import SwiftUI
 import UIKit
 
-/// 附件面板（§147，用户 2026-11-11 19:01 点题改版）：
-/// 「+」点开自底部升起的 sheet，照 Muse 形态——
-/// 顶部「资源库」区（左标题、右「查看全部」蓝链）＋
-/// 横滑缩略图条（首格相机、其后最近照片，点任意一
-/// 张直接进待发附件条）；下半动作行「添加文件／添
-/// 加视频」。取代旧浮窗小卡 Menu（三行）整套。
+/// 附件面板（§147 立、§150 修订二）：「+」点开自底部
+/// 升起的 sheet，照 Muse 形态——顶部「资源库」区
+/// （左标题、右「查看全部」蓝链）＋横滑缩略图条
+/// （首格相机、其后最近照片）；下半动作行「添加文
+/// 件／添加视频」。§150 修订（用户 19:47 对照截图点
+/// 名）：定高贴内容（宿主 detent 量本视图内容高、
+/// 见 AttachmentPanelLayout）、照片格放大近方形、
+/// 照片条改多选——点照片切换选中态（右上角勾选标
+/// 记），选了至少一张时动作行上方出「添加 N 张」
+/// 确认行，点之批量入待发附件条；未选时无确认行
+/// （与 Core addSelectedTitle 的 nil 同源）。单张快
+/// 选不回退：选 1 张点添加即走，与旧直达同效。
 ///
 /// 授权纪律：照片条只同步读 PHPhotoLibrary 现态
 /// （系统授权铁律：已决定绝不重走请求、未决定也不
@@ -21,8 +27,9 @@ import UIKit
 struct AttachmentPanelView: View {
     /// 相机格点选（宿主收面板后开相机）
     let onCamera: () -> Void
-    /// 照片条点选一张（入参资产 localIdentifier）
-    let onPickPhoto: (String) -> Void
+    /// 确认批量入条（入参资产 localIdentifier 数组，
+    /// 按照片条呈现序——Core orderedSelection 收口）
+    let onConfirmPhotos: ([String]) -> Void
     /// 「查看全部」（宿主收面板后开全量选图器）
     let onViewAll: () -> Void
     /// 「添加文件」（宿主走 DocumentPickerBridge）
@@ -32,10 +39,15 @@ struct AttachmentPanelView: View {
 
     @State private var photoIDs: [String] = []
     @State private var thumbnails: [String: UIImage] = [:]
+    /// 照片条多选选中集（§150）：面板本地态，关面
+    /// 板即弃——入条只认确认动作，不留半截选择
+    @State private var selectedIDs: Set<String> = []
 
-    /// 照片条格边长（形态值，照 Muse 截图方格口径；
-    /// 间距仍走 OneDayMetrics 梯队）
-    private static let cellSize: CGFloat = 76
+    /// 照片条格边长（形态值，§150 修订：照 Muse 截
+    /// 图近方形大格口径自 §147 的 76 放大；对屏宽约
+    /// 390 的实测占比约 30%，一屏约 3 格＋露边引导横
+    /// 滑；间距仍走 OneDayMetrics 梯队）
+    private static let cellSize: CGFloat = 118
 
     /// 同步读现态（不在此发任何授权请求）
     private var photoAccess: AttachmentPanel.PhotoAccess {
@@ -58,10 +70,21 @@ struct AttachmentPanelView: View {
             if showsLibrary {
                 librarySection
             }
+            if let confirmTitle = AttachmentPanel.addSelectedTitle(
+                count: selectedIDs.count
+            ) {
+                confirmRow(title: confirmTitle)
+            }
             actionRows
         }
         .padding(OneDayMetrics.spacingM)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(GeometryReader { proxy in
+            Color.clear.preference(
+                key: AttachmentPanelHeightKey.self,
+                value: proxy.size.height
+            )
+        })
         .task {
             loadStrip()
         }
@@ -103,7 +126,7 @@ struct AttachmentPanelView: View {
             onCamera()
         } label: {
             Image(systemName: "camera")
-                .font(.system(size: 26, weight: .regular))
+                .font(.system(size: 30, weight: .regular))
                 .foregroundStyle(Palette.ink)
                 .frame(width: Self.cellSize, height: Self.cellSize)
                 .background(
@@ -126,28 +149,73 @@ struct AttachmentPanelView: View {
     }
 
     private func photoCell(id: String) -> some View {
-        Button {
-            onPickPhoto(id)
+        let selected = selectedIDs.contains(id)
+        return Button {
+            selectedIDs = AttachmentPanel.toggledSelection(
+                selectedIDs, id: id
+            )
         } label: {
-            Group {
-                if let image = thumbnails[id] {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Palette.bubbleFill
+            ZStack(alignment: .topTrailing) {
+                Group {
+                    if let image = thumbnails[id] {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Palette.bubbleFill
+                    }
+                }
+                .frame(width: Self.cellSize, height: Self.cellSize)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusCard
+                    )
+                )
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, Palette.primary)
+                        .padding(OneDayMetrics.spacingXS)
+                        .shadow(radius: 2)
                 }
             }
-            .frame(width: Self.cellSize, height: Self.cellSize)
-            .clipShape(
-                RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
-            )
             .contentShape(
                 RoundedRectangle(cornerRadius: OneDayMetrics.radiusCard)
             )
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel("照片")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // MARK: - 确认行（§150 多选）
+
+    /// 「添加 N 张」确认行：照动作行形态（图标＋标
+    /// 题行、minHeight 同档），标题带实时已选计数；
+    /// 点之按条内呈现序批量入条（Core 收口）
+    private func confirmRow(title: String) -> some View {
+        Button {
+            onConfirmPhotos(
+                AttachmentPanel.orderedSelection(
+                    selected: selectedIDs, stripOrder: photoIDs
+                )
+            )
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Palette.primary)
+                    .frame(width: 28)
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(Palette.primary)
+                Spacer()
+            }
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
     }
 
     // MARK: - 动作行

@@ -42437,6 +42437,29 @@
         }
       }
     },
+    "添加 %lld 张": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add %lld Photos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 %lld 张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 %lld 張"
+          }
+        }
+      }
+    },
     "添加提供商": {
       "extractionState": "manual",
       "localizations": {
