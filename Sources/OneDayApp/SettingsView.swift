@@ -53,7 +53,7 @@ struct SettingsView: View {
     // 体在详情页内复用（AgentAvatarEditorView／
     // AgentNameEditorView 全仓一份不变）
 
-    private enum ManageSheet: String, Identifiable {
+    enum ManageSheet: String, Identifiable {
         case overview, computer, serverFiles
         var id: String { rawValue }
     }
@@ -223,7 +223,10 @@ struct SettingsView: View {
                         onClose: onClose
                     )
                 case .restartGateway:
-                    RestartGatewayView(showRestartConfirm: $showRestartConfirm)
+                    RestartGatewayView(
+                        status: status,
+                        showRestartConfirm: $showRestartConfirm
+                    )
                 }
             }
                         companionNote: companionFooterNote
@@ -242,7 +245,10 @@ struct SettingsView: View {
                 titleVisibility: .visible
             ) {
                 Button("重启", role: .destructive) {
-                    Task { await restartGateway() }
+                    Task {
+                        await restartGateway()
+                        path.removeAll()
+                    }
                 }
                 Button("取消", role: .cancel) {}
             } message: {
@@ -361,6 +367,16 @@ struct SettingsView: View {
         return gatewayStateWord == "异常"
             ? L10n.string("异常")
             : L10n.string("已连接")
+    }
+
+    /// 网关状态词派生（与 ServerManagementView.gatewayStateWord 同口径）
+    private var gatewayStateWord: String {
+        switch status?.gatewayState?.lowercased() {
+        case "running": return "运行中"
+        case "stopped": return "已停止"
+        case "error", "failed": return "异常"
+        default: return status == nil ? "—" : "未知"
+        }
     }
 
     // MARK: - 智能体组（prototype-2）
