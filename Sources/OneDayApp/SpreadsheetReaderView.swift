@@ -178,9 +178,6 @@ struct SpreadsheetReaderView: View {
                     config: config, path: target.path
                 )
             }
-            FileMetadataStore.shared.recordDownload(
-                path: target.path, byteCount: data.count
-            )
             shareItem = try FileShareItem.write(
                 data: data, name: target.name
             )

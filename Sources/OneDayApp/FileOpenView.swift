@@ -839,9 +839,10 @@ struct FileOpenContent: View {
         }
     }
 
-    /// 取字节（已下载复用）：下载完成即回填元数据缓
-    /// 存（大小回填路②——牌面副行与本页大小都吃这
-    /// 一份实测）
+    /// 取字节（已下载复用）：只取数不回填元数据缓
+    /// 存——下载不兼任大小数据源（复杂度清理第 6
+    /// 项砍下载回填；大小走发送记账与父目录回读两
+    /// 路，见 FileMetadataStore）
     private func fetchBytes() async throws -> Data {
         if let downloadedData { return downloadedData }
         let data = try await appState.performAdmin {
@@ -851,9 +852,6 @@ struct FileOpenContent: View {
             )
         }
         downloadedData = data
-        store.recordDownload(
-            path: target.path, byteCount: data.count
-        )
         return data
     }
 }
