@@ -378,4 +378,220 @@ final class DeviceCallsTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - 批二·授权状态机（系统授权铁律）
+
+    /// 授权门全档钉：可用三档直达、只有未决定才发那
+    /// 一次请求、已拒绝/受限/只写一律降级——引擎的
+    /// 请求函数只认这张表，不许各自发挥
+    func testPermissionGateDecisions() {
+        XCTAssertEqual(
+            DevicePermissionGate.decision(for: .granted), .proceed
+        )
+        XCTAssertEqual(
+            DevicePermissionGate.decision(for: .limited), .proceed
+        )
+        XCTAssertEqual(
+            DevicePermissionGate.decision(for: .notApplicable),
+            .proceed
+        )
+        XCTAssertEqual(
+            DevicePermissionGate.decision(for: .notDetermined),
+            .requestOnce
+        )
+        XCTAssertEqual(
+            DevicePermissionGate.decision(for: .denied), .degrade
+        )
+        XCTAssertEqual(
+            DevicePermissionGate.decision(for: .restricted),
+            .degrade
+        )
+        XCTAssertEqual(
+            DevicePermissionGate.decision(for: .writeOnly),
+            .degrade
+        )
+    }
+
+    // MARK: - 批二·闹钟参数
+
+    func testAlarmSetArgsForms() throws {
+        let fixed = try AlarmSetArgs.parse([
+            "title": .string("起床"),
+            "at": .string("2026-11-16T07:30:00+08:00"),
+            "idempotencyKey": .string("al-1"),
+        ])
+        XCTAssertNotNil(fixed.at)
+        XCTAssertNil(fixed.afterSeconds)
+        XCTAssertTrue(fixed.humanSummary.contains("起床"))
+        let countdown = try AlarmSetArgs.parse([
+            "title": .string("泡面"),
+            "afterSeconds": .number(600),
+            "idempotencyKey": .string("al-2"),
+        ])
+        XCTAssertNil(countdown.at)
+        XCTAssertEqual(countdown.afterSeconds, 600)
+        XCTAssertTrue(
+            countdown.humanSummary.contains("10 分钟后")
+        )
+    }
+
+    /// 时刻与倒计时同给/同缺必拒（口径歧义不许下
+    /// 发）；倒计时越界、缺标题、缺幂等键同拒
+    func testAlarmSetArgsRejectsConflicts() {
+        XCTAssertThrowsError(try AlarmSetArgs.parse([
+            "title": .string("x"),
+            "at": .string("2026-11-16T07:30:00+08:00"),
+            "afterSeconds": .number(600),
+            "idempotencyKey": .string("al-3"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+        XCTAssertThrowsError(try AlarmSetArgs.parse([
+            "title": .string("x"),
+            "idempotencyKey": .string("al-4"),
+        ]), "两者同缺必拒")
+        XCTAssertThrowsError(try AlarmSetArgs.parse([
+            "title": .string("x"),
+            "afterSeconds": .number(4),
+            "idempotencyKey": .string("al-5"),
+        ]), "倒计时低于下限必拒")
+        XCTAssertThrowsError(try AlarmSetArgs.parse([
+            "title": .string("x"),
+            "afterSeconds": .number(90_000),
+            "idempotencyKey": .string("al-6"),
+        ]), "倒计时高于上限必拒")
+        XCTAssertThrowsError(try AlarmSetArgs.parse([
+            "at": .string("2026-11-16T07:30:00+08:00"),
+            "idempotencyKey": .string("al-7"),
+        ]), "缺标题必拒")
+        XCTAssertThrowsError(try AlarmSetArgs.parse([
+            "title": .string("x"),
+            "at": .string("2026-11-16T07:30:00+08:00"),
+        ]), "缺幂等键必拒")
+    }
+
+    func testAlarmCancelArgsValidation() throws {
+        let id = UUID().uuidString
+        let args = try AlarmCancelArgs.parse([
+            "alarmId": .string(id),
+            "idempotencyKey": .string("ac-1"),
+        ])
+        XCTAssertEqual(args.alarmID, id)
+        XCTAssertTrue(
+            args.humanSummary(title: "起床").contains("起床")
+        )
+        XCTAssertTrue(
+            args.humanSummary(title: nil).contains("取消闹钟")
+        )
+        XCTAssertThrowsError(try AlarmCancelArgs.parse([
+            "alarmId": .string("not-a-uuid"),
+            "idempotencyKey": .string("ac-2"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments"
+            )
+        }
+    }
+
+    // MARK: - 批二·通知参数
+
+    func testNotifyPostArgsValidation() throws {
+        let now = try NotifyPostArgs.parse([
+            "title": .string("提醒"),
+            "body": .string("该喝水了"),
+            "idempotencyKey": .string("np-1"),
+        ])
+        XCTAssertEqual(now.delaySeconds, 0)
+        XCTAssertTrue(now.humanSummary.contains("立即送达"))
+        let later = try NotifyPostArgs.parse([
+            "title": .string("提醒"),
+            "body": .string("该出门了"),
+            "delaySeconds": .number(1800),
+            "idempotencyKey": .string("np-2"),
+        ])
+        XCTAssertEqual(later.delaySeconds, 1800)
+        XCTAssertTrue(later.humanSummary.contains("30 分钟后"))
+        XCTAssertThrowsError(try NotifyPostArgs.parse([
+            "title": .string("x"), "body": .string("y"),
+            "delaySeconds": .number(-5),
+            "idempotencyKey": .string("np-3"),
+        ]), "负延迟必拒")
+        XCTAssertThrowsError(try NotifyPostArgs.parse([
+            "title": .string("x"), "body": .string("y"),
+            "delaySeconds": .number(700_000),
+            "idempotencyKey": .string("np-4"),
+        ]), "延迟超 7 天必拒")
+        XCTAssertThrowsError(try NotifyPostArgs.parse([
+            "title": .string("x"),
+            "idempotencyKey": .string("np-5"),
+        ]), "缺正文必拒")
+    }
+
+    // MARK: - 批二·拉起白名单
+
+    func testOpenTargetArgsValidation() throws {
+        let args = try OpenTargetArgs.parse([
+            "target": .string("settings.wifi"),
+            "idempotencyKey": .string("ot-1"),
+        ])
+        XCTAssertEqual(args.target.id, "settings.wifi")
+        XCTAssertTrue(args.humanSummary.contains("Wi-Fi"))
+        XCTAssertThrowsError(try OpenTargetArgs.parse([
+            "target": .string("https://example.com"),
+            "idempotencyKey": .string("ot-2"),
+        ])) { error in
+            XCTAssertEqual(
+                (error as? DeviceToolError)?.code,
+                "invalid_arguments",
+                "任意 URL 在解析层就拒、不下发执行层"
+            )
+        }
+        XCTAssertNil(OpenTargetCatalog.target("settings.nope"))
+    }
+
+    /// 白名单目录不变量：id 唯一；地址只许四类已审
+    /// 计形态（系统设置根页/自家设置页哨兵/登记应
+    /// 用的公开 scheme），http(s) 任意地址永不入册；
+    /// 每条目标三语名可取
+    func testOpenTargetCatalogSafety() {
+        let ids = OpenTargetCatalog.all.map(\.id)
+        XCTAssertEqual(Set(ids).count, ids.count)
+        let allowedPrefixes = [
+            "App-prefs:", "weixin://", "alipay://",
+            "iosamap://", "maps://",
+        ]
+        for target in OpenTargetCatalog.all {
+            if target.urlString != OpenTarget.appSettingsSentinel {
+                XCTAssertTrue(
+                    allowedPrefixes.contains {
+                        target.urlString.hasPrefix($0)
+                    },
+                    target.id
+                )
+            }
+            XCTAssertFalse(
+                target.urlString.hasPrefix("http"), target.id
+            )
+            XCTAssertFalse(
+                target.name(
+                    locale: Locale(identifier: "zh-Hans")
+                ).isEmpty,
+                target.id
+            )
+        }
+    }
+
+    // MARK: - 批二·时长人话
+
+    func testDeviceDurationText() {
+        XCTAssertEqual(deviceDurationText(45), "45 秒后")
+        XCTAssertEqual(deviceDurationText(600), "10 分钟后")
+        XCTAssertEqual(deviceDurationText(90), "1 分 30 秒后")
+        XCTAssertEqual(deviceDurationText(5400), "1 小时 30 分后")
+        XCTAssertEqual(deviceDurationText(7200), "2 小时后")
+    }
 }

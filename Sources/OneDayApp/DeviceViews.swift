@@ -73,8 +73,11 @@ struct DeviceAppIconView: View {
         switch source {
         case .contacts:
             return Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
+        case .alarm:
+            // 时钟应用官方图即黑底
+            return .black
         case .calendar, .reminders, .photos, .motion, .health, .home,
-             .clipboard, .files:
+             .clipboard, .files, .notifications, .opener:
             return .white
         }
     }
@@ -91,7 +94,89 @@ struct DeviceAppIconView: View {
         case .home: homeArtwork
         case .clipboard: clipboardArtwork
         case .files: filesArtwork
+        case .alarm: alarmArtwork
+        case .notifications: notificationsArtwork
+        case .opener: openerArtwork
         }
+    }
+
+    // 时钟（闹钟的系统归属「时钟」应用）：按官方构
+    // 图复刻——黑底＋白表盘＋黑时分针＋橙秒针。系
+    // 统图标走的是实时走字，本复刻是静止表盘（钉在
+    // 十点零九分），不装实时
+    private var alarmArtwork: some View {
+        ZStack {
+            Circle()
+                .fill(.white)
+                .frame(width: size * 0.80, height: size * 0.80)
+            handLayer(
+                length: 0.23, width: 0.055, color: .black,
+                angle: -60
+            )
+            handLayer(
+                length: 0.32, width: 0.055, color: .black,
+                angle: 54
+            )
+            handLayer(
+                length: 0.35, width: 0.02,
+                color: Color(hex: 0xFF9500), angle: 160
+            )
+            Circle()
+                .fill(.black)
+                .frame(width: size * 0.07, height: size * 0.07)
+        }
+        .frame(width: size, height: size)
+    }
+
+    /// 表针层：整层旋转，针绕表盘中心转（针身自中
+    /// 心向上伸出 length 比例）
+    private func handLayer(
+        length: CGFloat, width: CGFloat, color: Color,
+        angle: Double
+    ) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.03)
+                .fill(color)
+                .frame(
+                    width: size * width, height: size * length
+                )
+                .offset(y: -size * length / 2)
+        }
+        .frame(width: size, height: size)
+        .rotationEffect(.degrees(angle))
+    }
+
+    // 通知（设备扩容批二）：没有对应的系统应用图
+    // 标可复刻，按设置里通知图标的视觉语汇自绘—
+    // —红圆角底＋白色铃铛，不冒充任何 App 图标
+    private var notificationsArtwork: some View {
+        ZStack {
+            RoundedRectangle(
+                cornerRadius: size * 0.22, style: .continuous
+            )
+            .fill(Color(hex: 0xFF3B30))
+            .frame(width: size * 0.78, height: size * 0.78)
+            Image(systemName: "bell.fill")
+                .font(.system(size: size * 0.42))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+    }
+
+    // 打开目标（设备扩容批二）：同样无系统应用可
+    // 复刻，靛蓝圆角底＋白色「跳出打开」字形自绘
+    private var openerArtwork: some View {
+        ZStack {
+            RoundedRectangle(
+                cornerRadius: size * 0.22, style: .continuous
+            )
+            .fill(Color(hex: 0x5E5CE6))
+            .frame(width: size * 0.78, height: size * 0.78)
+            Image(systemName: "arrow.up.forward.app.fill")
+                .font(.system(size: size * 0.40))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
     }
 
     // 照片：白底＋八片花瓣（系统照片应用的官方构
@@ -714,11 +799,21 @@ struct DevicePermissionGate: View {
     /// 降级说明（0.36.3 瘦身）：一句事实＋一个下
     /// 一步，不成段（续编 S11 空态句式同理）。
     /// 0.36.18：指路对象改成上方那一个权限开关
+    /// 批二两件是动作型（设闹钟/发通知），未定文案
+    /// 的动词随件走，不许拿「读取」糊弄动作权限
+    private var gateVerb: String {
+        switch source {
+        case .alarm: return "设定"
+        case .notifications: return "发送"
+        default: return "读取"
+        }
+    }
+
     private var gateMessage: String {
         let name = DeviceSourceDirectory.descriptor(source).name
         switch permission {
         case .notDetermined:
-            return "打开上方那一个开关，系统会问你是否允许读取\(name)。"
+            return "打开上方那一个开关，系统会问你是否允许\(gateVerb)\(name)。"
         case .denied, .restricted:
             return "打开上方那一个开关会跳到系统设置，在那里打开\(name)权限后即可。"
         case .writeOnly:
@@ -1396,7 +1491,7 @@ struct DevicePermissionsView: View {
             } header: {
                 headerText("你的设备")
             } footer: {
-                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
+                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。闹钟与通知有各自的系统权限，进详情页用开关开；打开目标同样没有系统权限。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1571,6 +1666,9 @@ struct DevicePermissionsView: View {
         case .motion: MotionDetailView()
         case .clipboard: ClipboardDetailView()
         case .files: FilesDetailView()
+        case .alarm: AlarmDetailView()
+        case .notifications: NotificationsDetailView()
+        case .opener: OpenTargetDetailView()
         case .health, .home: EmptyView()
         }
     }
@@ -1810,5 +1908,259 @@ extension Color {
             green: Double((hex >> 8) & 0xFF) / 255,
             blue: Double(hex & 0xFF) / 255
         )
+    }
+}
+
+// MARK: - 闹钟详情（设备扩容批二）
+
+/// 闹钟详情：状态头＋系统闹钟列表（存在性与状态以
+/// 系统列表为准，标题由本机登记表补）。行内「取
+/// 消」是用户亲手的本地动作、不经桥；智能体设的
+/// 闹钟与这里同表可见、对得上账
+struct AlarmDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var items: [DeviceAlarmItem] = []
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+    private var permission: DevicePermissionState {
+        controller.permissions[.alarm] ?? .notDetermined
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .alarm)
+            if permission.isUsable {
+                Section {
+                    if items.isEmpty {
+                        Text("现在没有待响的闹钟。在对话里让智能体按你的确认设定一个试试。")
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .padding(
+                                .vertical, OneDayMetrics.spacingS
+                            )
+                    }
+                    ForEach(items) { item in
+                        alarmRow(item)
+                    }
+                } header: {
+                    headerText("已设的闹钟")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
+            } else {
+                DevicePermissionGate(
+                    source: .alarm, permission: permission
+                )
+            }
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .task { reload() }
+    }
+
+    private func alarmRow(_ item: DeviceAlarmItem) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            VStack(
+                alignment: .leading,
+                spacing: OneDayMetrics.spacingMicro
+            ) {
+                Text(item.title ?? "闹钟")
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                Text(rowSubtitle(item))
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            Spacer(minLength: 0)
+            Button("取消") {
+                controller.dispatcher.alarms.cancelLocal(
+                    id: item.id
+                )
+                reload()
+            }
+            .font(.callout)
+            .foregroundStyle(Palette.danger)
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+    }
+
+    private func rowSubtitle(_ item: DeviceAlarmItem) -> String {
+        var parts: [String] = [
+            item.isCountdown ? "倒计时" : "定点",
+        ]
+        if let fireAt = item.fireAt {
+            parts.append(DisplayDate.dateTime(fireAt))
+        }
+        parts.append(item.stateText)
+        return parts.joined(separator: " · ")
+    }
+
+    private func reload() {
+        items = controller.dispatcher.alarms.currentItems()
+    }
+}
+
+// MARK: - 通知详情（设备扩容批二）
+
+/// 通知详情：状态头＋OneDay 自家待发通知列表（只
+/// 认自家调度前缀，别家 App 的通知不在此列）。进
+/// 页先异步刷新一次真权限状态再读列表——通知没
+/// 有同步读法，刷新点收在本页与进前台两处（§113）
+struct NotificationsDetailView: View {
+    @Environment(AppState.self) private var appState
+    @State private var items: [DeviceNotificationItem] = []
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+    private var permission: DevicePermissionState {
+        controller.permissions[.notifications] ?? .notDetermined
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .notifications)
+            if permission.isUsable {
+                Section {
+                    if items.isEmpty {
+                        Text("现在没有待发的通知。在对话里让智能体按你的确认发一条试试。")
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .padding(
+                                .vertical, OneDayMetrics.spacingS
+                            )
+                    }
+                    ForEach(items) { item in
+                        VStack(
+                            alignment: .leading,
+                            spacing: OneDayMetrics.spacingMicro
+                        ) {
+                            Text(item.title)
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            if !item.body.isEmpty {
+                                Text(item.body)
+                                    .font(.footnote)
+                                    .foregroundStyle(
+                                        Palette.inkSecondary
+                                    )
+                                    .lineLimit(2)
+                            }
+                            if let fireAt = item.fireAt {
+                                Text(
+                                    DisplayDate.dateTime(fireAt)
+                                )
+                                .font(.footnote)
+                                .foregroundStyle(
+                                    Palette.inkSecondary
+                                )
+                            }
+                        }
+                        .padding(
+                            .vertical, OneDayMetrics.spacingMicro
+                        )
+                    }
+                } header: {
+                    headerText("待发的通知")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
+            } else {
+                DevicePermissionGate(
+                    source: .notifications,
+                    permission: permission
+                )
+            }
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
+        .task { await reload() }
+    }
+
+    private func reload() async {
+        await NotificationEngine.readSystemState()
+        controller.refreshPermissions()
+        items = await controller.dispatcher.notifications
+            .pendingItems()
+    }
+}
+
+// MARK: - 打开目标详情（设备扩容批二）
+
+/// 打开目标详情：状态头＋白名单全单。名单就是上
+/// 限——智能体只能打开这些，名单之外没有任何入
+/// 口；点任意一行是用户亲手打开试看（同一个执行
+/// 引擎的本地路）
+struct OpenTargetDetailView: View {
+    @Environment(AppState.self) private var appState
+
+    private var controller: DeviceSessionController {
+        appState.deviceSession
+    }
+
+    var body: some View {
+        List {
+            DeviceStatusHeader(source: .opener)
+            Section {
+                ForEach(OpenTargetCatalog.all, id: \.id) { target in
+                    Button {
+                        controller.dispatcher.opener.openLocal(
+                            target
+                        )
+                    } label: {
+                        HStack(
+                            spacing: OneDayMetrics.spacingSM
+                        ) {
+                            Text(
+                                target.name(
+                                    locale: AppLocale.uiLocale
+                                )
+                            )
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                            Spacer(minLength: 0)
+                            Text(
+                                target.kind == .settings
+                                    ? "系统设置" : "应用"
+                            )
+                            .font(.footnote)
+                            .foregroundStyle(
+                                Palette.inkSecondary
+                            )
+                            Image(systemName: "chevron.right")
+                                .font(
+                                    .footnote.weight(.semibold)
+                                )
+                                .foregroundStyle(
+                                    Palette.inkSecondary
+                                )
+                                .accessibilityHidden(true)
+                        }
+                        .frame(
+                            minHeight: OneDayMetrics
+                                .settingsRowHeight
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.odPressable)
+                }
+            } header: {
+                headerText("可以打开的目标")
+            } footer: {
+                Text("智能体只能打开这一张名单里的目标，名单之外的链接一律打不开。")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(deviceRowInsets)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
     }
 }

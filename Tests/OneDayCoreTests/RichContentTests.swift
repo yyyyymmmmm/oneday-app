@@ -310,6 +310,37 @@ final class RichContentTests: XCTestCase {
         }
     }
 
+    /// 设备扩容批二：闹钟/通知/打开五工具同归设备
+    /// 类，标题各有中文映射（open_target 不许落到通
+    /// 用回落标题上去）
+    func testClassifierDeviceActionTools() {
+        for name in [
+            "alarm_set", "alarm_list", "alarm_cancel",
+            "notify_post", "open_target",
+        ] {
+            XCTAssertEqual(
+                ToolCardClassifier.category(forToolName: name),
+                .device, name
+            )
+        }
+        let titles: [(String, String)] = [
+            ("alarm_set", "设定闹钟"),
+            ("alarm_list", "查看闹钟"),
+            ("alarm_cancel", "取消闹钟"),
+            ("notify_post", "发送本地通知"),
+            ("open_target", "打开指定页面"),
+        ]
+        for (name, expected) in titles {
+            XCTAssertEqual(
+                ToolCardClassifier.title(
+                    forToolName: name, arguments: "{}",
+                    locale: Locale(identifier: "zh-Hans")
+                ),
+                expected, name
+            )
+        }
+    }
+
     /// 0.36.10（诊断 D3-5）：复合命令摘要呈「N 条命
     /// 令 · 首条」，不整段直出；多行脚本仍取首行
     func testCompoundCommandSummary() {

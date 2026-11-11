@@ -75,10 +75,18 @@ extension DevicePermissions {
         case .contacts:
             let engine = ContactsEngine()
             return await engine.requestAccess()
-        case .clipboard, .files:
+        case .clipboard, .files, .opener:
             // 无系统权限概念：没有可发的系统请求，
             // 现态即 notApplicable
             return .notApplicable
+        case .alarm:
+            // AlarmKit 授权走引擎的过门落法（同步读
+            // 现态、只有未决定才发那一次请求）
+            let engine = AlarmEngine()
+            return await engine.requestAccess()
+        case .notifications:
+            let engine = NotificationEngine()
+            return await engine.requestAccess()
         case .health, .home:
             return .notDetermined
         }

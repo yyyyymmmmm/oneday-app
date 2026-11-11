@@ -40,6 +40,13 @@ public enum DeviceSourceID: String, CaseIterable, Identifiable, Sendable, Codabl
     /// notApplicable，开关即唯一的门（名册文案说清）
     case clipboard
     case files
+    /// 闹钟与本地通知（设备扩容批二，动作型）：有真
+    /// 系统权限（AlarmKit / UserNotifications），走
+    /// 权限开关终形态、不套批一的 notApplicable 档；
+    /// 拉起目标靠白名单封闭，无系统权限（notApplicable）
+    case alarm
+    case notifications
+    case opener
     case health
     case home
 
@@ -259,6 +266,36 @@ public enum DeviceSourceDirectory {
             footnote: "只限 OneDay 自己文件夹内的文本文件；单次读取/写入上限 256 KB，路径越出这个文件夹一律拒绝。"
         ),
         DeviceSourceDescriptor(
+            sourceID: .alarm,
+            name: "闹钟",
+            blurb: "真闹钟 · 穿透静音与专注，到点全屏响铃",
+            tileSymbol: "alarm.fill", tileColorHex: 0xFF9F0A,
+            batch: 1,
+            agentNote: "智能体可调用：按你在对话里的确认设定真闹钟（定点或倒计时），响铃穿透静音与专注模式；也能查看闹钟列表、取消它设过的闹钟。系统闹钟不带标题，标题由 OneDay 记在这台手机上对账",
+            capabilityLine: "按确认设真闹钟 · 可查看/取消",
+            footnote: "闹钟由系统托管，App 不在前台也照常响；标题只记在这台手机上，不出手机。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .notifications,
+            name: "通知",
+            blurb: "本地通知 · 到点在锁屏与通知中心提醒你",
+            tileSymbol: "bell.fill", tileColorHex: 0xFF3B30,
+            batch: 1,
+            agentNote: "智能体可调用：按你在对话里的确认给你发一条本地通知（立即或延时）。待发通知最多 64 条，满了先报错、不硬塞",
+            capabilityLine: "按确认发本地通知",
+            footnote: "通知只发到你这台手机，不经服务器推送；系统通知权限关掉后就发不了。"
+        ),
+        DeviceSourceDescriptor(
+            sourceID: .opener,
+            name: "打开目标",
+            blurb: "白名单页面与应用 · 只能打开登记过的目标",
+            tileSymbol: "arrow.up.forward.app.fill", tileColorHex: 0x5E5CE6,
+            batch: 1,
+            agentNote: "智能体可调用：把你带到登记过的系统设置页或几个常用应用，只能打开白名单里的目标，任意链接一律不接。这一件没有系统权限可开可关，详情页里的开关就是唯一的门；打开后你会离开 OneDay，这是这个动作本身",
+            capabilityLine: "打开白名单里的页面/应用",
+            footnote: "只能打开白名单目标；打开即离开 OneDay，设备会话会随之断开，回到 App 后自动恢复。"
+        ),
+        DeviceSourceDescriptor(
             sourceID: .health,
             name: "健康",
             blurb: "步数/睡眠/心率等每日摘要 · 待签名权益到位后开通",
@@ -299,7 +336,9 @@ public enum DeviceSourceDirectory {
 
 /// 工具定义：name 与桥 TOOLS 表逐字一致；source 是
 /// 门控该工具的权限件（device_status 由桥本地应答、
-/// 无 source）。isWrite 的四件必带 idempotencyKey。
+/// 无 source）。isWrite 的写动作全必带
+/// idempotencyKey（批二起含取消闹钟/发通知/打开
+/// 目标：改变系统状态的动作都要能安全重放回执）。
 public struct DeviceToolSpec: Equatable, Sendable {
     public let name: String
     public let source: DeviceSourceID?
@@ -327,6 +366,11 @@ public enum DeviceToolRegistry {
         DeviceToolSpec(name: "files_list", source: .files, isWrite: false),
         DeviceToolSpec(name: "files_read", source: .files, isWrite: false),
         DeviceToolSpec(name: "files_write", source: .files, isWrite: true),
+        DeviceToolSpec(name: "alarm_set", source: .alarm, isWrite: true),
+        DeviceToolSpec(name: "alarm_list", source: .alarm, isWrite: false),
+        DeviceToolSpec(name: "alarm_cancel", source: .alarm, isWrite: true),
+        DeviceToolSpec(name: "notify_post", source: .notifications, isWrite: true),
+        DeviceToolSpec(name: "open_target", source: .opener, isWrite: true),
         DeviceToolSpec(name: "health_daily_summary", source: .health, isWrite: false),
         DeviceToolSpec(name: "home_status", source: .home, isWrite: false),
     ]
@@ -335,7 +379,7 @@ public enum DeviceToolRegistry {
         all.first { $0.name == name }
     }
 
-    /// 本版 App 真能执行的工具（已接线数据源的十二
+    /// 本版 App 真能执行的工具（已接线数据源的十七
     /// 个；device_status 桥本地应答、不经手机，不在
     /// 此列；健康/家庭的工具定义先行、App 未接线，
     /// 不上报）

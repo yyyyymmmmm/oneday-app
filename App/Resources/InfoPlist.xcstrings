@@ -176,6 +176,29 @@
           }
         }
       }
+    },
+    "NSAlarmKitUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay sets alarms and timers only when you confirm in chat or add one yourself on the alarm page; the system rings them at the set time, through Silent and Focus."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要设定闹钟与倒计时：只有你在对话里确认、或在闹钟详情页亲手添加时才会设定；到点由系统响铃，能穿透静音与专注模式。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 需要設定鬧鐘與倒數計時：只有你在對話裡確認、或在鬧鐘詳情頁親手新增時才會設定；到點由系統響鈴，能穿透靜音與專注模式。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

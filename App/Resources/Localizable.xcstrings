@@ -52992,8 +52992,7 @@
           }
         }
       }
-    }
-,
+    },
     "图片，%@": {
       "extractionState": "manual",
       "localizations": {
@@ -53151,6 +53150,742 @@
           "stringUnit": {
             "state": "translated",
             "value": "Delete combo"
+          }
+        }
+      }
+    },
+    "闹钟": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alarms"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "闹钟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鬧鐘"
+          }
+        }
+      }
+    },
+    "真闹钟 · 穿透静音与专注，到点全屏响铃": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A real alarm · Rings full-screen, through Silent and Focus"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "真闹钟 · 穿透静音与专注，到点全屏响铃"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "真鬧鐘 · 穿透靜音與專注，到點全屏響鈴"
+          }
+        }
+      }
+    },
+    "智能体可调用：按你在对话里的确认设定真闹钟（定点或倒计时），响铃穿透静音与专注模式；也能查看闹钟列表、取消它设过的闹钟。系统闹钟不带标题，标题由 OneDay 记在这台手机上对账": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent can: set a real alarm (fixed time or countdown) after you confirm in chat — it rings through Silent and Focus; list alarms, and cancel ones it set. System alarms carry no title, so OneDay keeps titles on this phone for reference"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：按你在对话里的确认设定真闹钟（定点或倒计时），响铃穿透静音与专注模式；也能查看闹钟列表、取消它设过的闹钟。系统闹钟不带标题，标题由 OneDay 记在这台手机上对账"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：按你在對話裡的確認設定真鬧鐘（定點或倒數計時），響鈴穿透靜音與專注模式；也能查看鬧鐘列表、取消它設過的鬧鐘。系統鬧鐘不帶標題，標題由 OneDay 記在這台手機上對帳"
+          }
+        }
+      }
+    },
+    "按确认设真闹钟 · 可查看/取消": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set real alarms on confirm · List/cancel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按确认设真闹钟 · 可查看/取消"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按確認設真鬧鐘 · 可查看/取消"
+          }
+        }
+      }
+    },
+    "闹钟由系统托管，App 不在前台也照常响；标题只记在这台手机上，不出手机。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alarms are kept by the system and ring even when the app isn't in front; titles stay on this phone only."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "闹钟由系统托管，App 不在前台也照常响；标题只记在这台手机上，不出手机。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鬧鐘由系統託管，App 不在前台也照常響；標題只記在這台手機上，不出手機。"
+          }
+        }
+      }
+    },
+    "本地通知 · 到点在锁屏与通知中心提醒你": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local notifications · Appear on the Lock Screen and in Notification Center"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地通知 · 到点在锁屏与通知中心提醒你"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地通知 · 到點在鎖定畫面與通知中心提醒你"
+          }
+        }
+      }
+    },
+    "智能体可调用：按你在对话里的确认给你发一条本地通知（立即或延时）。待发通知最多 64 条，满了先报错、不硬塞": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent can: post a local notification (now or delayed) after you confirm in chat. At most 64 can be pending; when full it reports an error instead of forcing more in"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：按你在对话里的确认给你发一条本地通知（立即或延时）。待发通知最多 64 条，满了先报错、不硬塞"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：按你在對話裡的確認給你發一條本地通知（立即或延時）。待發通知最多 64 條，滿了先報錯、不硬塞"
+          }
+        }
+      }
+    },
+    "按确认发本地通知": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Post local notifications on confirm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按确认发本地通知"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按確認發本地通知"
+          }
+        }
+      }
+    },
+    "通知只发到你这台手机，不经服务器推送；系统通知权限关掉后就发不了。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications are delivered only to this phone, never pushed through a server; turning the system permission off stops them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知只发到你这台手机，不经服务器推送；系统通知权限关掉后就发不了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知只發到你這台手機，不經伺服器推送；系統通知權限關掉後就發不了。"
+          }
+        }
+      }
+    },
+    "打开目标": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Target"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开目标"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟目標"
+          }
+        }
+      }
+    },
+    "白名单页面与应用 · 只能打开登记过的目标": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowlisted pages and apps · Only registered targets open"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "白名单页面与应用 · 只能打开登记过的目标"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "白名單頁面與應用 · 只能打開登記過的目標"
+          }
+        }
+      }
+    },
+    "智能体可调用：把你带到登记过的系统设置页或几个常用应用，只能打开白名单里的目标，任意链接一律不接。这一件没有系统权限可开可关，详情页里的开关就是唯一的门；打开后你会离开 OneDay，这是这个动作本身": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your agent can: take you to a registered Settings page or a few everyday apps — allowlisted targets only; arbitrary links are never opened. There is no system permission for this one; the switch on the detail page is the only gate. Opening a target takes you out of OneDay — that is the action itself"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体可调用：把你带到登记过的系统设置页或几个常用应用，只能打开白名单里的目标，任意链接一律不接。这一件没有系统权限可开可关，详情页里的开关就是唯一的门；打开后你会离开 OneDay，这是这个动作本身"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理可呼叫：把你帶到登記過的系統設定頁或幾個常用應用，只能打開白名單裡的目標，任意連結一律不接。這一件沒有系統權限可開可關，詳情頁裡的開關就是唯一的門；打開後你會離開 OneDay，這是這個動作本身"
+          }
+        }
+      }
+    },
+    "打开白名单里的页面/应用": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open allowlisted pages/apps"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开白名单里的页面/应用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開白名單裡的頁面/應用"
+          }
+        }
+      }
+    },
+    "只能打开白名单目标；打开即离开 OneDay，设备会话会随之断开，回到 App 后自动恢复。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only allowlisted targets open. Opening one leaves OneDay and the device session drops; it recovers when you return to the app."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能打开白名单目标；打开即离开 OneDay，设备会话会随之断开，回到 App 后自动恢复。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能打開白名單目標；打開即離開 OneDay，裝置工作階段會隨之中斷，回到 App 後自動恢復。"
+          }
+        }
+      }
+    },
+    "设定闹钟": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set Alarm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设定闹钟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定鬧鐘"
+          }
+        }
+      }
+    },
+    "查看闹钟": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "List Alarms"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看闹钟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看鬧鐘"
+          }
+        }
+      }
+    },
+    "取消闹钟": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel Alarm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消闹钟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消鬧鐘"
+          }
+        }
+      }
+    },
+    "发送本地通知": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Post Notification"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送本地通知"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傳送本地通知"
+          }
+        }
+      }
+    },
+    "打开指定页面": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Page"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开指定页面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開指定頁面"
+          }
+        }
+      }
+    },
+    "OneDay 设置页": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 设置页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 設定頁"
+          }
+        }
+      }
+    },
+    "Wi-Fi 设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi-Fi Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi-Fi 设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi-Fi 設定"
+          }
+        }
+      }
+    },
+    "蓝牙设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝牙设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "藍牙設定"
+          }
+        }
+      }
+    },
+    "蜂窝网络设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cellular Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蜂窝网络设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蜂窩網路設定"
+          }
+        }
+      }
+    },
+    "通用设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "General Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用設定"
+          }
+        }
+      }
+    },
+    "显示与亮度设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display & Brightness Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示与亮度设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示與亮度設定"
+          }
+        }
+      }
+    },
+    "声音与触感设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sounds & Haptics Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声音与触感设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聲音與觸感設定"
+          }
+        }
+      }
+    },
+    "通知设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知設定"
+          }
+        }
+      }
+    },
+    "电池设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电池设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電池設定"
+          }
+        }
+      }
+    },
+    "隐私与安全性设置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy & Security Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私与安全性设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱私與安全性設定"
+          }
+        }
+      }
+    },
+    "支付宝": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alipay"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支付宝"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支付寶"
+          }
+        }
+      }
+    },
+    "高德地图": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Amap"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高德地图"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高德地圖"
+          }
+        }
+      }
+    },
+    "苹果地图": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Maps"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "苹果地图"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蘋果地圖"
           }
         }
       }

@@ -156,7 +156,9 @@ public enum ToolCardClassifier {
         if short.hasPrefix("calendar_") || short.hasPrefix("reminders_")
             || short.hasPrefix("contacts_") || short.hasPrefix("health_")
             || short.hasPrefix("home_") || short.hasPrefix("device_")
-            || short.hasPrefix("clipboard_") || short.hasPrefix("files_") {
+            || short.hasPrefix("clipboard_") || short.hasPrefix("files_")
+            || short.hasPrefix("alarm_") || short.hasPrefix("notify_")
+            || short.hasPrefix("open_") {
             return .device
         }
         // 连接管理系（0.36.10，诊断 D3-3 盲区补齐）
@@ -223,6 +225,11 @@ public enum ToolCardClassifier {
         case "files_list": return L10n.string("查看文件列表", locale: locale)
         case "files_read": return L10n.string("读取文件", locale: locale)
         case "files_write": return L10n.string("写入文件", locale: locale)
+        case "alarm_set": return L10n.string("设定闹钟", locale: locale)
+        case "alarm_list": return L10n.string("查看闹钟", locale: locale)
+        case "alarm_cancel": return L10n.string("取消闹钟", locale: locale)
+        case "notify_post": return L10n.string("发送本地通知", locale: locale)
+        case "open_target": return L10n.string("打开指定页面", locale: locale)
         case "health_daily_summary": return L10n.string("查看健康摘要", locale: locale)
         case "home_status": return L10n.string("查看家庭状态", locale: locale)
         case "web_search": return L10n.string("联网搜索", locale: locale)

@@ -596,3 +596,346 @@ public struct DeviceCallLogEntry: Codable, Equatable, Sendable {
         return "最近调用：失败（\(errorCode ?? "device_error")）"
     }
 }
+
+// MARK: - 批二·授权状态机（系统授权铁律的纯函数落点）
+
+/// 授权决策（批二）：引擎的授权请求函数一律先过
+/// 本门再动作，把「系统授权铁律」落进代码而不是
+/// 靠调用方自觉——
+/// - proceed：现态可用（granted/limited/
+///   notApplicable），直达业务，永不重走异步请求；
+/// - requestOnce：只有未决定（notDetermined）才发
+///   那一次系统请求；
+/// - degrade：已拒绝/受限/只写——不请求、不重复弹
+///   窗，引擎如实回权限错误，由呈现层给「去设置里
+///   打开」的人话降级。
+/// 纯函数钉测（DeviceCallsTests 全档覆盖）。
+public enum DevicePermissionGate {
+    public enum Decision: Equatable, Sendable {
+        case proceed
+        case requestOnce
+        case degrade
+    }
+
+    public static func decision(
+        for state: DevicePermissionState
+    ) -> Decision {
+        switch state {
+        case .granted, .limited, .notApplicable:
+            return .proceed
+        case .notDetermined:
+            return .requestOnce
+        case .denied, .restricted, .writeOnly:
+            return .degrade
+        }
+    }
+}
+
+// MARK: - 批二·动作型工具参数（闹钟/通知/打开目标）
+
+/// 时长人话（秒数 → 「45 秒后」「10 分钟后」
+/// 「1 小时 30 分后」）：动作回执的人话摘要共用，
+/// 纯拼接、执行层回执不入 L10n 目录（§111.4 先例）
+public func deviceDurationText(_ seconds: TimeInterval) -> String {
+    let total = Int(seconds.rounded())
+    if total < 60 { return "\(total) 秒后" }
+    let minutes = total / 60
+    let restSeconds = total % 60
+    if minutes < 60 {
+        return restSeconds > 0
+            ? "\(minutes) 分 \(restSeconds) 秒后"
+            : "\(minutes) 分钟后"
+    }
+    let hours = minutes / 60
+    let restMinutes = minutes % 60
+    return restMinutes > 0
+        ? "\(hours) 小时 \(restMinutes) 分后"
+        : "\(hours) 小时后"
+}
+
+/// alarm_set 参数：时刻（at）与倒计时（afterSeconds）
+/// 恰给其一——两者都是「什么时候响」的唯一口径，
+/// 同给必有歧义、同缺无从设定，解析层直接拒。
+/// 倒计时收敛在 5 秒～24 小时（再远的用定点时刻）。
+public struct AlarmSetArgs: Equatable, Sendable {
+    public let title: String
+    public let at: Date?
+    public let afterSeconds: TimeInterval?
+    public let idempotencyKey: String
+
+    public static let minCountdownSeconds: TimeInterval = 5
+    public static let maxCountdownSeconds: TimeInterval = 86_400
+
+    public init(
+        title: String, at: Date?, afterSeconds: TimeInterval?,
+        idempotencyKey: String
+    ) {
+        self.title = title
+        self.at = at
+        self.afterSeconds = afterSeconds
+        self.idempotencyKey = idempotencyKey
+    }
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> AlarmSetArgs {
+        let title = try requiredString(args, "title", "闹钟标题")
+        let at = try optionalDate(args, "at", "定点时刻")
+        var afterSeconds: TimeInterval?
+        if let raw = args["afterSeconds"]?.numberValue {
+            guard raw >= Self.minCountdownSeconds,
+                  raw <= Self.maxCountdownSeconds
+            else {
+                throw DeviceToolError.invalidArguments(
+                    "倒计时秒数要在 5 秒到 24 小时之间"
+                )
+            }
+            afterSeconds = raw
+        }
+        guard (at == nil) != (afterSeconds == nil) else {
+            throw DeviceToolError.invalidArguments(
+                "定点时刻与倒计时秒数只能给一个"
+            )
+        }
+        return AlarmSetArgs(
+            title: title, at: at, afterSeconds: afterSeconds,
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+
+    /// 复述确认/回执摘要（四纪律之复述确认的载荷）
+    public var humanSummary: String {
+        if let at {
+            return "设定闹钟：\(title)，\(DisplayDate.dateTime(at))响"
+        }
+        return "设定倒计时：\(title)，"
+            + deviceDurationText(afterSeconds ?? 0) + "响"
+    }
+}
+
+/// alarm_cancel 参数：按系统闹钟 id 取消（id 必须是
+/// UUID 形——AlarmKit 闹钟 id 就是 UUID，形不对的
+/// 在解析层拒，不许拿着乱码去系统里找）。取消是
+/// 改变系统状态的动作，照写工具带防重复键。
+public struct AlarmCancelArgs: Equatable, Sendable {
+    public let alarmID: String
+    public let idempotencyKey: String
+
+    public init(alarmID: String, idempotencyKey: String) {
+        self.alarmID = alarmID
+        self.idempotencyKey = idempotencyKey
+    }
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> AlarmCancelArgs {
+        let raw = try requiredString(args, "alarmId", "闹钟编号")
+        guard UUID(uuidString: raw) != nil else {
+            throw DeviceToolError.invalidArguments(
+                "闹钟编号不是有效的编号"
+            )
+        }
+        return AlarmCancelArgs(
+            alarmID: raw,
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+
+    public func humanSummary(title: String?) -> String {
+        if let title, !title.isEmpty {
+            return "取消闹钟：\(title)"
+        }
+        return "取消闹钟（编号 \(alarmID)）"
+    }
+}
+
+/// notify_post 参数：标题＋正文必填，延迟秒可选
+/// （缺省/0＝立即发）；延迟上限 7 天（再远的提醒
+/// 该用闹钟或日历，不塞进待发通知队列）。
+public struct NotifyPostArgs: Equatable, Sendable {
+    public let title: String
+    public let body: String
+    public let delaySeconds: TimeInterval
+    public let idempotencyKey: String
+
+    public static let maxDelaySeconds: TimeInterval = 604_800
+
+    public init(
+        title: String, body: String, delaySeconds: TimeInterval,
+        idempotencyKey: String
+    ) {
+        self.title = title
+        self.body = body
+        self.delaySeconds = delaySeconds
+        self.idempotencyKey = idempotencyKey
+    }
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> NotifyPostArgs {
+        let title = try requiredString(args, "title", "通知标题")
+        let body = try requiredString(args, "body", "通知正文")
+        var delaySeconds: TimeInterval = 0
+        if let raw = args["delaySeconds"]?.numberValue {
+            guard raw >= 0, raw <= Self.maxDelaySeconds else {
+                throw DeviceToolError.invalidArguments(
+                    "延迟秒数要在 0 到 7 天之间"
+                )
+            }
+            delaySeconds = raw
+        }
+        return NotifyPostArgs(
+            title: title, body: body, delaySeconds: delaySeconds,
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+
+    public var humanSummary: String {
+        if delaySeconds > 0 {
+            return "发送通知：\(title)，"
+                + deviceDurationText(delaySeconds) + "送达"
+        }
+        return "发送通知：\(title)，立即送达"
+    }
+}
+
+// MARK: - 批二·拉起白名单（open_target 的封闭目标表）
+
+/// 拉起目标条目：id 是智能体能点的唯一名字，任意
+/// URL 直开在目录层就没有入口；urlString 只许四类
+/// 已审计形态（系统设置根页 App-prefs、OneDay 自家
+/// 设置页哨兵、本机常用应用的公开 scheme），钉测
+/// 逐条守。kind 决定执行层的校验路：设置页恒在、
+/// 直接开；应用先探装没装，没装如实报错。
+public struct OpenTarget: Equatable, Sendable {
+    public enum Kind: Equatable, Sendable {
+        case settings
+        case app
+    }
+
+    public let id: String
+    /// 名称简体源串（目录键，三语经 L10n 取词）
+    public let nameSource: String
+    public let urlString: String
+    public let kind: Kind
+
+    /// OneDay 自家系统设置页的哨兵值：App 层解析为
+    /// UIApplication.openSettingsURLString，不写死串
+    public static let appSettingsSentinel = "app-settings"
+
+    public func name(locale: Locale) -> String {
+        L10n.string(nameSource, locale: locale)
+    }
+}
+
+public enum OpenTargetCatalog {
+    public static let all: [OpenTarget] = [
+        OpenTarget(
+            id: "settings.app", nameSource: "OneDay 设置页",
+            urlString: OpenTarget.appSettingsSentinel,
+            kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.wifi", nameSource: "Wi-Fi 设置",
+            urlString: "App-prefs:root=WIFI", kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.bluetooth", nameSource: "蓝牙设置",
+            urlString: "App-prefs:root=Bluetooth",
+            kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.cellular", nameSource: "蜂窝网络设置",
+            urlString: "App-prefs:root=MOBILE_DATA_SETTINGS_ID",
+            kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.general", nameSource: "通用设置",
+            urlString: "App-prefs:root=General", kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.display", nameSource: "显示与亮度设置",
+            urlString: "App-prefs:root=DISPLAY", kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.sounds", nameSource: "声音与触感设置",
+            urlString: "App-prefs:root=Sounds", kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.notifications",
+            nameSource: "通知设置",
+            urlString: "App-prefs:root=NOTIFICATIONS_ID",
+            kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.battery", nameSource: "电池设置",
+            urlString: "App-prefs:root=BATTERY_USAGE",
+            kind: .settings
+        ),
+        OpenTarget(
+            id: "settings.privacy", nameSource: "隐私与安全性设置",
+            urlString: "App-prefs:root=Privacy", kind: .settings
+        ),
+        OpenTarget(
+            id: "app.weixin", nameSource: "微信",
+            urlString: "weixin://", kind: .app
+        ),
+        OpenTarget(
+            id: "app.alipay", nameSource: "支付宝",
+            urlString: "alipay://", kind: .app
+        ),
+        OpenTarget(
+            id: "app.amap", nameSource: "高德地图",
+            urlString: "iosamap://", kind: .app
+        ),
+        OpenTarget(
+            id: "app.maps", nameSource: "苹果地图",
+            urlString: "maps://", kind: .app
+        ),
+    ]
+
+    public static func target(_ id: String) -> OpenTarget? {
+        all.first { $0.id == id }
+    }
+}
+
+/// open_target 参数：target 必须命中白名单目录，
+/// 未命中在解析层就拒（不下发执行层、不给任何试
+/// 错空间）；带防重复键（打开即离开 App，回执要能
+/// 在重连后安全重放、不重复跳）。
+public struct OpenTargetArgs: Equatable, Sendable {
+    public let target: OpenTarget
+    public let idempotencyKey: String
+
+    public init(target: OpenTarget, idempotencyKey: String) {
+        self.target = target
+        self.idempotencyKey = idempotencyKey
+    }
+
+    public static func parse(
+        _ args: [String: JSONValue]
+    ) throws -> OpenTargetArgs {
+        let raw = try requiredString(args, "target", "打开目标")
+        guard let found = OpenTargetCatalog.target(raw) else {
+            throw DeviceToolError.invalidArguments(
+                "这个目标不在可打开的名单里"
+            )
+        }
+        return OpenTargetArgs(
+            target: found,
+            idempotencyKey: try requiredString(
+                args, "idempotencyKey", "幂等键"
+            )
+        )
+    }
+
+    public var humanSummary: String {
+        "打开\(target.name(locale: AppLocale.uiLocale))"
+    }
+}
