@@ -182,16 +182,8 @@ struct ChatModelPickerView: View {
     @ViewBuilder
     private func groupHeader(_ display: DisplayGroup) -> some View {
         let collapsed = isGroupCollapsed(display)
-        let isCurrent = display.rows.contains(where: { $0.choice == current })
         let header = HStack(spacing: 6) {
             Text(display.group.title)
-            // §179.3：当前模型所在组显示当前标记（•），
-            // 折叠时用户仍能知道当前在哪
-            if isCurrent {
-                Text("•")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Palette.accent)
-            }
             Text("\(display.rows.count)")
                 .foregroundStyle(Palette.inkSecondary)
             Spacer(minLength: 0)
