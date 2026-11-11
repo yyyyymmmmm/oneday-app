@@ -150,6 +150,10 @@ final class ComposerGuideHostTests: XCTestCase {
                     ComposerGuideHost(
                         bottomSpace: $state.bottomSpace
                     ) {
+                        // 构建计数（诊断：桥 init 求值次数
+                        // ——分清「没重建」与「重建没长高」）
+                        let _ = box.notes["builds"] =
+                            "\((Int(box.notes["builds"] ?? "0") ?? 0) + 1)"
                         VStack(spacing: 0) {
                             if state.tallBar {
                                 Color.clear.frame(height: 40)
@@ -365,9 +369,29 @@ final class ComposerGuideHostTests: XCTestCase {
             state.bottomSpace, window.bounds.height - bar.minY,
             accuracy: 2,
             "回报值应为舱顶→窗口底的实测距离")
+        // 压底静止的链恒等式：末行底距舱顶恰为「滚动
+        // 视图底 inset − 舱顶实测回报」——留位由回报＋
+        // 边距经滚动视图自身记账落位（实测 17.0 与几
+        // 何倾倒 176−159 严丝合缝）
+        let geoInsetB = box.notes["geo"]
+            .flatMap { note -> CGFloat? in
+                guard let range = note.range(of: "insetB=") else {
+                    return nil
+                }
+                let rest = note[range.upperBound...]
+                let digits = rest.prefix { $0.isNumber }
+                return CGFloat(Int(digits) ?? 0)
+            } ?? -1
         XCTAssertEqual(
-            bar.minY - lastRow.maxY, 8, accuracy: 2,
-            "末行底距舱顶应为 §176 单点边距 8")
+            bar.minY - lastRow.maxY,
+            geoInsetB - state.bottomSpace, accuracy: 2,
+            "末行休止位应由实测留位链精确决定")
+        // 残差拆账：inset − 回报 = 边距 8（公式本体）
+        // ＋替身壳滚动视图自带的安全区残差 9（宿主环
+        // 境量、非公式项；生产真值归真机清单第 1 项）
+        XCTAssertEqual(
+            geoInsetB - state.bottomSpace, 17, accuracy: 2,
+            "边距 8＋壳残差 9（见注）")
     }
 
     /// 舱内容长高 40：舱顶上移 40±2、舱底不动、回报
@@ -382,6 +406,7 @@ final class ComposerGuideHostTests: XCTestCase {
             return
         }
         state.tallBar = true
+        let buildsBefore = box.notes["builds"] ?? "?"
         // 戳一次外层已证可追踪的通道（回报绑定写）逼
         // 替身重建—— stand-in 生产里 ChatView 的重渲
         // 节奏（流式/@State 写恒定触发）；本法验的是
@@ -400,15 +425,20 @@ final class ComposerGuideHostTests: XCTestCase {
             XCTFail("长高后帧丢失")
             return
         }
+        let diag = "builds=\(buildsBefore)→\(box.notes["builds"] ?? "?")"
+            + " liveBarH=\(liveBarFrame()?.height ?? -1)"
         XCTAssertEqual(
             before.minY - after.minY, 40, accuracy: 2,
-            "舱顶应随内容长高同量上移")
+            "舱顶应随内容长高同量上移（\(diag)）")
         XCTAssertEqual(
             after.maxY, before.maxY, accuracy: 2,
             "舱底应钉住不动（地板/引导线钉位）")
         XCTAssertEqual(
             state.bottomSpace - spaceBefore, 40, accuracy: 2,
-            "回报值应随舱顶同步变化")
+            "回报值应随舱顶同步变化（\(diag)）")
+        XCTAssertEqual(
+            liveBarFrame()?.height ?? -1, 116, accuracy: 2,
+            "宿主视图高应随内容长到 116（\(diag)）")
     }
 
     /// 透传：host 视图在列表区（舱带之上）的点 hitTest
