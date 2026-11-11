@@ -40,13 +40,18 @@ enum DeviceCaptureBridge {
     // MARK: 拍照
 
     static func capturePhoto() async throws -> Data {
-        guard UIImagePickerController.isSourceTypeAvailable(.camera)
-        else {
-            throw DeviceToolError.failed("这台手机现在用不了相机")
-        }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 Task { @MainActor in
+                    // 可用性类方法是主 actor 隔离的，只能在
+                    // 主 actor 上问（同理见下方文档扫描）
+                    guard UIImagePickerController
+                        .isSourceTypeAvailable(.camera)
+                    else {
+                        continuation.resume(throwing: DeviceToolError
+                            .failed("这台手机现在用不了相机"))
+                        return
+                    }
                     guard !Task.isCancelled else {
                         continuation.resume(
                             throwing: CancellationError()
@@ -84,12 +89,15 @@ enum DeviceCaptureBridge {
     // MARK: 文档扫描
 
     static func scanDocument() async throws -> [Data] {
-        guard VNDocumentCameraViewController.isSupported else {
-            throw DeviceToolError.failed("这台手机不支持文档扫描")
-        }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 Task { @MainActor in
+                    guard VNDocumentCameraViewController.isSupported
+                    else {
+                        continuation.resume(throwing: DeviceToolError
+                            .failed("这台手机不支持文档扫描"))
+                        return
+                    }
                     guard !Task.isCancelled else {
                         continuation.resume(
                             throwing: CancellationError()
@@ -141,9 +149,12 @@ enum DeviceCaptureBridge {
 
     // MARK: 协调者（delegate 弱引用，靠上面的静态盒强持有到回调）
 
+    // 协调者的可变状态只在主 actor 的回调与锁盒存取里
+    // 触碰（delegate 回调恒主线程、取消路径也走主
+    // actor 任务），故显式 @unchecked Sendable 入锁盒
     private final class PhotoCoordinator: NSObject,
         UIImagePickerControllerDelegate,
-        UINavigationControllerDelegate {
+        UINavigationControllerDelegate, @unchecked Sendable {
         private var continuation:
             CheckedContinuation<Data, Error>?
         weak var picker: UIImagePickerController?
@@ -197,7 +208,8 @@ enum DeviceCaptureBridge {
     }
 
     private final class ScanCoordinator: NSObject,
-        VNDocumentCameraViewControllerDelegate {
+        VNDocumentCameraViewControllerDelegate,
+        @unchecked Sendable {
         private var continuation:
             CheckedContinuation<[Data], Error>?
         weak var controller: VNDocumentCameraViewController?
