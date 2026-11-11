@@ -41,6 +41,11 @@ struct SettingsView: View {
     /// sheet 呈现与 Muse 设置里连接器/设备行打开整
     /// 面页的形态一致
     @State private var manageSheet: ManageSheet?
+    /// 身份卡编辑菜单的两张编辑面（§154）：与枢纽头
+    /// 像角标菜单共用同一对呈现旗（本页一份、枢纽一
+    /// 份，编辑面与存储本体全仓一份）
+    @State private var showAvatarEditor = false
+    @State private var showNameEditor = false
 
     private enum ManageSheet: String, Identifiable {
         case overview, computer, serverFiles
@@ -118,6 +123,19 @@ struct SettingsView: View {
             }
             .sheet(item: $manageSheet) { item in
                 manageSheetContent(item)
+            }
+            // 身份卡编辑面（§154）：与枢纽头像角标菜
+            // 单同两张（AgentAvatarEditorView／Agent-
+            // NameEditorView 本体共用、只读 AppState 环
+            // 境，本页环境同源直达）
+            .sheet(isPresented: $showAvatarEditor) {
+                AgentAvatarEditorView()
+            }
+            .sheet(isPresented: $showNameEditor) {
+                AgentNameEditorView(
+                    initialOverride: appState.agentProfileStore
+                        .profile.displayNameOverride
+                )
             }
             .task {
                 await loadSummaries()
@@ -204,46 +222,110 @@ struct SettingsView: View {
 
     // MARK: - 顶部身份头（0.3.4，借 aheze/Setting 的
     // profile header 模式、只借模式不引库）：一行说清
-    // 连的是谁——Hermes 名称＋网关状态点，副行＝当前
-    // 服务器 host · 当前模型。静态信息行（不挂导航，
-    // 详情入口在下方服务器组，避免两个箭头指同一页）
+    // 连的是谁——名称＋网关状态点，副行＝当前服务器
+    // host。
+    // §154（全维度审计 P0/P1，用户 2026-11-11 递
+    // 交）：身份卡补头像＋整卡可点——点卡弹编辑菜单
+    // （更换虚拟形象／编辑名称），编辑面与存储复用
+    // 枢纽头像角标菜单那一套（AgentAvatarEditor-
+    // View／AgentNameEditorView／AgentProfileStore
+    // 全仓一份），设置页自此直达本机档案编辑、不必
+    // 绕枢纽；与枢纽入口双存不冲突。旧注「静态信息
+    // 行（不挂导航，详情入口在下方服务器组，避免两
+    // 个箭头指同一页）」销账：本卡入口形态是编辑菜
+    // 单、不是导航箭头（尾位指示走 pencil 字形、非
+    // chevron），与下方服务器组的详情导航不构成双
+    // 箭头指同一页
 
     private var identitySection: some View {
         Section {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    HStack(spacing: OneDayMetrics.spacingS) {
-                        // 0.36.22：身份头名收敛档案出口
-                        Text(appState.agentDisplayName)
-                            // 0.22.0（设置图实测规格）：行题
-                            // 统一 20 regular 单一字重——参考
-                            // 图账户卡题即 regular，强调只靠
-                            // 位置不靠加粗；0.20.0 的 semibold
-                            // 让位。0.24.0：随角色改 Body 17
-                            // regular（HIG 落档，见 §51）；身
-                            // 份名 bold 配额只给抽屉名字头，
-                            // 本卡是列表行、从行题口径
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        if let status {
-                            StatusDot(
-                                color: Palette.stateColor(status.gatewayState)
+            Menu {
+                Button {
+                    showAvatarEditor = true
+                } label: {
+                    Label(
+                        "更换虚拟形象",
+                        systemImage: "person.crop.circle"
+                    )
+                }
+                Button {
+                    showNameEditor = true
+                } label: {
+                    Label("编辑名称", systemImage: "pencil")
+                }
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    // §154：头像入卡——露脸面单一出口
+                    // （档案解析图，与枢纽/聊天/外观预
+                    // 览同源同物）；44 圆（编辑器预置行
+                    // 同值），行高 60 内留上下气口
+                    appState.agentAvatarImage
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 44, height: 44)
+                        .clipShape(Circle())
+                        .overlay {
+                            Circle().stroke(
+                                Palette.hairline,
+                                lineWidth: 0.5
                             )
                         }
+                        .accessibilityHidden(true)
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingMicro
+                    ) {
+                        HStack(spacing: OneDayMetrics.spacingS) {
+                            // 0.36.22：身份头名收敛档案出口
+                            Text(appState.agentDisplayName)
+                                // 0.22.0（设置图实测规
+                                // 格）：行题统一 regular
+                                // 单一字重——参考图账户卡
+                                // 题即 regular，强调只靠
+                                // 位置不靠加粗；0.24.0：
+                                // 随角色改 Body 17 regular
+                                // （HIG 落档，见 §51）；
+                                // 身份名 bold 配额只给抽
+                                // 屉名字头，本卡是列表行、
+                                // 从行题口径
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                                // §154：头像＋尾位字形入
+                                // 卡后横向收紧——长名截断
+                                // 不挤状态点（原无截断）
+                                .lineLimit(1)
+                            if let status {
+                                StatusDot(
+                                    color: Palette.stateColor(status.gatewayState)
+                                )
+                            }
+                        }
+                        // 0.20.0：副行给当前服务器 host（15
+                        // 灰，照图中账户卡双行形态：题＋副）；
+                        // 模型副行仍禁（0.4.0 A 案：模型露头
+                        // 只许聊天页胶囊一处，不变）
+                        Text(appState.config?.host ?? "未连接")
+                            .font(.rowSubtitle)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
                     }
-                    // 0.20.0：副行给当前服务器 host（15
-                    // 灰，照图中账户卡双行形态：题＋副）；
-                    // 模型副行仍禁（0.4.0 A 案：模型露头
-                    // 只许聊天页胶囊一处，不变）
-                    Text(appState.config?.host ?? "未连接")
-                        .font(.rowSubtitle)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    // §154：可点指示（设计宪法条 9：可
+                    // 点必有指示）——编辑菜单的尾位
+                    // pencil 字形（与枢纽头像徽章同字
+                    // 形），非导航 chevron；15 档与本页
+                    // 外链字形同值
+                    Image(systemName: "pencil")
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundStyle(Palette.inkMuted)
+                        .accessibilityHidden(true)
                 }
-                Spacer(minLength: OneDayMetrics.spacingS)
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
             }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            .contentShape(Rectangle())
+            // 与枢纽头像角标菜单同播报名（整卡即菜单，
+            // 名/host 不再逐字进无障碍序）
+            .accessibilityLabel("编辑头像与名称")
             .settingsSeparatorToIconEdge()
         }
         .listRowBackground(Palette.surface)
@@ -342,9 +424,17 @@ struct SettingsView: View {
     /// 「Muse vX.Y.Z」形态）：无卡底、居中、15 灰；
     /// 本行字面即版本源第五处（与 Project.swift 四处
     /// 同改同验）
+    /// §154（审计「版本号显示」项核查销账）：审计称
+    /// 设置页「无版本号、只有 git hash」——核查不
+    /// 成立：本行自 0.20.0 即显版本号（现读
+    /// 「OneDay v0.50.16」），全仓设置面无 git hash
+    /// 显示；真缺口只有构建号未并列——本包补齐为
+    /// 「vX.Y.Z (构建号)」，字面仍走第五处同改同验
+    /// 口径（构建号与 Project.swift 的 CURRENT_
+    /// PROJECT_VERSION／CFBundleVersion 同值）
     private var versionFooter: some View {
         Section {
-            Text("OneDay v0.50.16")
+            Text("OneDay v0.50.16 (138)")
                 .font(.meta)
                 // 0.22.0：版本行是要读的字——inkMuted
                 // （2.75:1）换 inkSecondary（审计 G1）
