@@ -8341,3 +8341,9 @@ Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发�
 - **新增补钉 5 法**（判定层口径续钉）：角标封顶边界（99 本值显「99」、100 起「99+」）、水位后条目部分删除计数回落、reset 只清计数不动水位、noteOwnSend 空表、LastScrollTarget 全表仅一条工具条目。全仓单测 1264 → 1265，只增不减。
 - 三语无新文案，`validate_i18n.py` 通过（2457 键）。
 - **真机待验**：键盘升起滑离底部——钮紧贴输入舱上沿右侧出现（对图二 Muse 形态）；点按回底、角标清零；键盘收起态同位；错误条出现时钮行在其下、输入舱之上，落位不变；显隐切换时输入舱滑动幅度与错误条增减同感、无跳动实报。
+
+### 124.6 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.48.1／117。分支 feat/back-bottom-fix（顶端 2599a4c，基线 bc58930）分支 CI run 42964921055 全绿；合并提交 0fc584c（冲突仅 DESIGN-V4.md 一处，顺序拼接 §122.5 在前、§124 在后，两节全保留）；定版提交 d828830（版本五处＝Project.swift 四处 0.48.1/117＋SettingsView 页脚「OneDay v0.48.1」，grep 验无 0.48.0 残留）即合并后 main 顶端。
+- **合并后 CI**：run 42965760654 success（build-native success，head d828830）。
+- **独立验包**：IPA 9,106,854 字节、md5 `ebcdf251c2051ff4b28d52b0052bb496`、Info.plist 实读 0.48.1／117／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.48.1/OneDay-0.48.1.ipa`（落盘 md5 一致）。
