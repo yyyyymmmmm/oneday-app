@@ -526,6 +526,8 @@ final class AgentHubStore {
             previous: previousPending, current: currentPendingRecords()
         )
         await loadRules()
+        await refreshAnchorDecisionsIfStale()
+        notifyAnchorDataRefreshed()
     }
 
     /// 已决历史刷新（P10）：桥 /decisions 现成面；失败
@@ -537,6 +539,83 @@ final class AgentHubStore {
         ) {
             decisionHistory = history
         }
+    }
+
+    // MARK: - 审批锚点（§165，规格 §4.2/§4.3）
+
+    /// 锚点物化回调：App 层（ChatView）注入——store 自
+    /// 身不碰 SwiftData（与 onApprovalChanged 同分工）；
+    /// 每次审批数据刷新成功后触发，物化方读本 store 的
+    /// pending/decisions 现态落锚定条目并回写下方两份
+    /// 派生状态。未注入（枢纽独立呈现等）时锚点机制整
+    /// 体静默，行为与 §165 之前逐字一致
+    var onAnchorDataRefreshed: (() -> Void)?
+
+    /// 全 App 已落锚的记录 id 集（物化方回写）：流末
+    /// 尾区据此排除已锚记录（单源呈现），锚定行据此
+    /// 不再依赖本地逐线程扫描
+    var anchoredRecordIDs: Set<String> = []
+    /// 已落锚记录的连续缺席轮数（物化方回写，键＝锚
+    /// 定键）：记录在 pending 与 decisions 两处皆无的
+    /// 刷新轮数——满两轮锚定行才转「已失效」（Core
+    /// ApprovalAnchor.isStale），一轮缺席不判死
+    var anchorMissCounts: [String: Int] = [:]
+    /// 锚点回溯专用已决集（大 limit 拉取、低频刷新）：
+    /// 日常 decisionHistory 只取最近 50 条，30 天回溯
+    /// 窗内的带锚记录可能在窗口外——物化优先消费本
+    /// 集，未就绪时以 decisionHistory 代用
+    private(set) var anchorDecisions: [WriteGateDecisionRecord]?
+    private var anchorDecisionsFetchedAt: Date?
+
+    /// 锚定行呈现态（单源判定，逻辑在 Core
+    /// ApprovalAnchor.rowState）：待批集/已决集（含回
+    /// 溯宽集）命中即现态；两处皆无才看缺席计数与数
+    /// 据就绪位
+    func anchorRowState(
+        recordID: String
+    ) -> ApprovalAnchor.RowState {
+        let pending: [WriteGateRecord]
+        let dataReady: Bool
+        if case .ready(let records) = approvalState {
+            pending = records
+            dataReady = true
+        } else {
+            pending = []
+            dataReady = false
+        }
+        let decisions = decisionHistory + (anchorDecisions ?? [])
+        let key = anchoredKey(forRecordID: recordID)
+        return ApprovalAnchor.rowState(
+            recordID: recordID, dataReady: dataReady,
+            pending: pending, decisions: decisions,
+            missCount: key.flatMap { anchorMissCounts[$0] } ?? 0
+        )
+    }
+
+    private func anchoredKey(forRecordID id: String) -> String? {
+        anchorMissCounts.keys.first { key in
+            ApprovalAnchor.recordID(fromKey: key) == id
+        }
+    }
+
+    /// 回溯已决集低频刷新：距上次成功拉取 <10 分钟跳
+    /// 过（回溯是补历史、低频即可）；失败保持旧值
+    private func refreshAnchorDecisionsIfStale() async {
+        if let at = anchorDecisionsFetchedAt,
+           Date().timeIntervalSince(at) < 600 {
+            return
+        }
+        guard let config = appState.config else { return }
+        if let wide = try? await gateClient.decisionsForAnchor(
+            config: config, limit: 500
+        ) {
+            anchorDecisions = wide
+            anchorDecisionsFetchedAt = Date()
+        }
+    }
+
+    private func notifyAnchorDataRefreshed() {
+        onAnchorDataRefreshed?()
     }
 
     /// 桥错误 → 段状态：桥不存在/无钥/钥匙不对统一落
@@ -747,6 +826,8 @@ final class AgentHubStore {
         approvalState = .ready(list.records)
         reconcileResolvedLines(previous: previous, current: list.records)
         await loadRules()
+        await refreshAnchorDecisionsIfStale()
+        notifyAnchorDataRefreshed()
     }
 
     private func currentPendingRecords() -> [WriteGateRecord] {

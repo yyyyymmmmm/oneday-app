@@ -121,10 +121,23 @@ final class ChatEntry {
     /// 落定整段替换当半截删（见 ChatView 三处守卫）
     /// （可选＋默认 nil、SwiftData 轻量迁移）
     var echoKey: String? = nil
+    /// §165（锚点包）：审批锚定标记——非 nil 即本条是
+    /// 按伴生时序关联（anchor）把一条 write-gate 记录
+    /// 物化回其发起对话的锚定条目，值＝去重键（Core
+    /// ApprovalAnchor.key，形态 wg:<子系统>:<记录id>）。
+    /// 与回响同族纪律：不是任何一方的发言——呈现走锚
+    /// 定审批行（卡/已决行/失效行）、不进发送上下文、
+    /// 不被落定整段替换当半截删、不进半截回填（见
+    /// ChatView 守卫谓词 isSystemAnchored 的四处引用）；
+    /// createdAt 落盘后由物化方改写为记录的 created_at
+    /// ——sortedEntries 按它排序，条目自然落进发起那一
+    /// 轮的位置、永不漂移（可选＋默认 nil、SwiftData
+    /// 轻量迁移）
+    var approvalKey: String? = nil
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil, approvalKey: String? = nil) {
         id = UUID()
         self.role = role
         self.content = content
@@ -150,8 +163,19 @@ final class ChatEntry {
             ? nil
             : try? JSONEncoder().encode(remoteFilePaths)
         self.echoKey = echoKey
+        self.approvalKey = approvalKey
         createdAt = Date()
         self.thread = thread
+    }
+
+    /// 系统锚定条目（§165 统一谓词，规格 §4.1）：回响
+    /// （echoKey）与审批锚定（approvalKey）同族——都
+    /// 是 App 按真源落进对话流的事实条目、不是发言。
+    /// 四处守卫（发送上下文排除／落定整段替换跳过／
+    /// 半截名单排除／半截回填排除）一律引本谓词，不
+    /// 另起平行判断
+    var isSystemAnchored: Bool {
+        echoKey != nil || approvalKey != nil
     }
 
     /// 工具卡解码缓存（§135 B 案，非持久化）：旧形

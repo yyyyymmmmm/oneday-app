@@ -18,15 +18,24 @@ import SwiftUI
 /// 失败态不在聊天里闹，用户在枢纽看得到真实状态。
 struct ChatApprovalZone: View {
     let store: AgentHubStore
+    /// 已落锚记录的排除集（§165，规格 §4.3 单源）：这
+    /// 些记录由其锚定行承载（含已决行形态），本区不
+    /// 再重复出卡/出行；默认空集＝现行行为（预制合并
+    /// 前的调用点零影响）
+    var anchoredRecordIDs: Set<String> = []
 
     var body: some View {
         if case .ready(let records) = store.approvalState {
             VStack(spacing: OneDayMetrics.spacingM) {
                 ForEach(records) { record in
-                    ChatApprovalCard(store: store, record: record)
+                    if !anchoredRecordIDs.contains(record.id) {
+                        ChatApprovalCard(store: store, record: record)
+                    }
                 }
                 ForEach(store.resolvedLines) { line in
-                    resolvedRow(line)
+                    if !anchoredRecordIDs.contains(line.id) {
+                        resolvedRow(line)
+                    }
                 }
             }
         }
@@ -65,8 +74,11 @@ struct ChatApprovalZone: View {
 /// 体外框、详情的就地展开（SmoothExpand）与两只确
 /// 认弹窗。卡面零原始 JSON、零英文运维串（宪法
 /// §8）；材质与枢纽卡同为实色面内容卡
-/// （Palette.surface），与玻璃消息面分工一致
-private struct ChatApprovalCard: View {
+/// （Palette.surface），与玻璃消息面分工一致。
+/// §165 起两个宿主共用：流末尾区（ChatApprovalZone）
+/// 与锚定行（ChatView.approvalAnchorRow）——同一张
+/// 卡、同一裁决路径，落位不同而已
+struct ChatApprovalCard: View {
     let store: AgentHubStore
     let record: WriteGateRecord
 
@@ -123,7 +135,11 @@ private struct ChatApprovalCard: View {
 
     /// 详情展开区：按需拉桥 detail，内容与枢纽 sheet
     /// 同一份（ApprovalReviewContent）；拉不到如实报
-    /// 错、不拿空内容冒充
+    /// 错、不拿空内容冒充。
+    /// §165（任务第 3 件，用户既定修订）：「收起」控
+    /// 件随展开内容落位——内容（或错误行）下方再给一
+    /// 只收起钮，长内容不必滚回卡顶才收得起；折叠态
+    /// 与加载态不出现本钮
     @ViewBuilder
     private var detailArea: some View {
         if detailLoading {
@@ -138,11 +154,29 @@ private struct ChatApprovalCard: View {
                 detail: detail, record: record, embedded: true
             )
             .padding(.top, OneDayMetrics.spacingS)
+            collapseButtonRow
         } else if let detailError {
             Text(detailError)
                 .font(.caption)
                 .foregroundStyle(Palette.danger)
+            collapseButtonRow
         }
+    }
+
+    /// 展开内容下方的收起钮（§165）：与卡面顶部详情链
+    /// 同一动作（toggleDetail 的收起路），形态沿卡面
+    /// 链句式（subheadline＋主题色），不新造视觉件
+    private var collapseButtonRow: some View {
+        HStack {
+            Spacer()
+            Button("收起") {
+                toggleDetail()
+            }
+            .buttonStyle(.plain)
+            .font(.subheadline)
+            .foregroundStyle(Palette.primary)
+        }
+        .padding(.top, OneDayMetrics.spacingS)
     }
 
     /// 三档裁决出口（钮面在共用卡面组件内）：批准直

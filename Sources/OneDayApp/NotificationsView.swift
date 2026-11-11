@@ -1,5 +1,6 @@
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 通知 sheet（0.6.0 一期，总览桥；0.36.7 按规格
@@ -37,6 +38,10 @@ struct NotificationsView: View {
 
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    /// 锚点解析的本地索引来源（§165）：审批回执先查本
+    /// 机锚定条目/会话绑定，命中走原对话落点、未命中
+    /// 回 §123 枢纽落点（解析在 Core，本页只备数据）
+    @Environment(\.modelContext) private var modelContext
 
     /// 已读条目展开的次级详情（原始记录）集合
     @State private var expandedIDs: Set<String> = []
@@ -168,7 +173,10 @@ struct NotificationsView: View {
 
     /// 落点导航（§123 H2）：落点字段先落 AppState，
     /// 再关通知页——枢纽由 ChatView 在 sheet 关闭后接
-    /// 力打开（见 ChatView 通知 sheet 的 onDismiss）
+    /// 力打开（见 ChatView 通知 sheet 的 onDismiss）。
+    /// §165：锚点落点同样经 requestHubDestination 落
+    /// 字段（approvalAnchorRequest），ChatView 在
+    /// onDismiss 里优先消费它切线程定位、不开枢纽
     private func openDestination(
         _ destination: NotificationDestination
     ) {
@@ -177,13 +185,66 @@ struct NotificationsView: View {
         dismiss()
     }
 
+    /// 条目落点（§165 扩展 §123）：审批回执先查本机锚
+    /// ——回执的 refId 是记录 id，但通知载荷不带子系
+    /// 统与 anchor，子系统经共享 store 的已决集反查
+    /// （回执对应的记录必在已决账本里）、anchor 同源
+    /// 取；任一环查不到 → Core 解析回落 §123 现行落
+    /// 点，绝不凭标题/时间猜锚
+    private func destination(
+        for item: OverviewNotification
+    ) -> NotificationDestination {
+        guard item.isDecisionReceipt,
+              let refId = item.refId, !refId.isEmpty
+        else {
+            return NotificationDestination.resolve(item)
+        }
+        let hubStore = appState.sharedHubStore()
+        let decided = hubStore.decisionHistory
+            + (hubStore.anchorDecisions ?? [])
+        guard let record = decided.first(where: { $0.id == refId })
+        else {
+            return NotificationDestination.resolve(item)
+        }
+        let threads = (try? modelContext.fetch(
+            FetchDescriptor<ChatThread>()
+        )) ?? []
+        var threadIDByKey: [String: UUID] = [:]
+        var entryIDByKey: [String: UUID] = [:]
+        var bySession: [String: UUID] = [:]
+        for thread in threads {
+            if let sessionID = thread.serverSessionID,
+               !sessionID.isEmpty {
+                bySession[sessionID] = thread.id
+            }
+            for entry in thread.entries {
+                if let key = entry.approvalKey {
+                    threadIDByKey[key] = thread.id
+                    entryIDByKey[key] = entry.id
+                }
+            }
+        }
+        let target = ApprovalAnchorNavigation.target(
+            subsystem: record.subsystem, recordID: refId,
+            anchorSessionID: record.anchor?.sessionId,
+            threadIDByServerSessionID: bySession,
+            materialized: ApprovalAnchorNavigation.MaterializedIndex(
+                threadIDByKey: threadIDByKey,
+                entryIDByKey: entryIDByKey
+            )
+        )
+        return ApprovalNotificationRouting.destination(
+            notification: item, anchorTarget: target
+        )
+    }
+
     private func notificationRow(
         _ item: OverviewNotification
     ) -> some View {
         let presentation = NotificationSummary.presentation(
             kind: item.kind, title: item.title, body: item.body
         )
-        let destination = NotificationDestination.resolve(item)
+        let destination = destination(for: item)
         let expanded = expandedIDs.contains(item.id)
         return VStack(alignment: .leading, spacing: 0) {
             Button {

@@ -21438,6 +21438,29 @@
         }
       }
     },
+    "已失效": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No longer available"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已失效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已失效"
+          }
+        }
+      }
+    },
     "已保存，下次重启 Hermes 后生效。": {
       "extractionState": "manual",
       "localizations": {
@@ -40317,6 +40340,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "查看改動"
+          }
+        }
+      }
+    },
+    "查看原对话": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View conversation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看原对话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看原對話"
           }
         }
       }

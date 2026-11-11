@@ -371,6 +371,15 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
     public let opKinds: [String]?
     public let memTarget: String?
     public let contentPreview: String?
+    /// 时序关联锚点（§165，伴生 1.0.19 起，decisions
+    /// 出口按记录 created_at 同算）：已决记录回溯物化
+    /// 与通知/枢纽点达原对话的依据；null＝未关联，旧
+    /// 桥无此字段解码为 nil（见 ApprovalAnchor）
+    public let anchor: WriteGateAnchor?
+    /// 记录暂存时刻（§165，桥 decisions 行与 pending
+    /// 同源的 created_at）：已决锚定条目的落位时刻；
+    /// 旧账本行缺失时为 nil，落位回落 decidedAt
+    public let createdAt: Date?
 
     public var isApproved: Bool { decision == "approved" }
     public var isRejected: Bool { decision == "rejected" }
@@ -406,7 +415,8 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
         viaRule: String? = nil, op: String? = nil,
         targetName: String? = nil, opCount: Int? = nil,
         opKinds: [String]? = nil, memTarget: String? = nil,
-        contentPreview: String? = nil
+        contentPreview: String? = nil,
+        anchor: WriteGateAnchor? = nil, createdAt: Date? = nil
     ) {
         self.id = id
         self.subsystem = subsystem
@@ -422,11 +432,14 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
         self.opKinds = opKinds
         self.memTarget = memTarget
         self.contentPreview = contentPreview
+        self.anchor = anchor
+        self.createdAt = createdAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, subsystem, action, summary, origin, decision
         case decidedAt = "decided_at"
+        case createdAt = "created_at"
         case viaRule = "via_rule"
         case op
         case targetName = "target_name"
@@ -434,6 +447,7 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
         case opKinds = "op_kinds"
         case memTarget = "mem_target"
         case contentPreview = "content_preview"
+        case anchor
     }
 
     public init(from decoder: Decoder) throws {
@@ -471,6 +485,9 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
         contentPreview = try container.decodeIfPresent(
             String.self, forKey: .contentPreview
         )
+        anchor = try container.decodeIfPresent(
+            WriteGateAnchor.self, forKey: .anchor
+        )
         if let text = (try? container.decodeIfPresent(
             String.self, forKey: .decidedAt
         )) ?? nil {
@@ -481,6 +498,17 @@ public struct WriteGateDecisionRecord: Decodable, Equatable, Identifiable, Senda
             decidedAt = ProfileSoulDocument.parseDate(.number(epoch))
         } else {
             decidedAt = nil
+        }
+        if let text = (try? container.decodeIfPresent(
+            String.self, forKey: .createdAt
+        )) ?? nil {
+            createdAt = ProfileSoulDocument.parseDate(.string(text))
+        } else if let epoch = (try? container.decodeIfPresent(
+            Double.self, forKey: .createdAt
+        )) ?? nil {
+            createdAt = ProfileSoulDocument.parseDate(.number(epoch))
+        } else {
+            createdAt = nil
         }
     }
 }

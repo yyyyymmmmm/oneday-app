@@ -38,6 +38,9 @@ struct ChatView: View {
     @State private var pendingHideGroup: ChatModelGroup?
 
     @Environment(AppState.self) private var appState
+    /// 锚点物化落盘口（§165）：store 刷新回调经它落盘
+    /// （物化方 ApprovalAnchorMaterialization 用环境
+    /// context，与 GoalEcho 物化同一落盘面）
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 字号档（0.43.0，A11Y-D1）：发送舱量测按档贯穿
@@ -283,6 +286,11 @@ struct ChatView: View {
     @State private var composerFocusHandle = ComposerFocusHandle()
     /// 0.6.0：通知 sheet（顶栏铃铛点开，总览桥驱动）
     @State private var showNotifications = false
+    /// 锚点点亮的条目 id（§165）：点达锚定行时置位，
+    /// 行底色以 Palette.primaryTint 点亮、2.5 秒后清
+    /// （沿 §123 枢纽聚焦同手法）；消费锚点请求的
+    /// Task 持有清零，不叠加多行点亮
+    @State private var anchorHighlightEntryID: UUID?
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
@@ -747,6 +755,31 @@ struct ChatView: View {
                 Task { await consumePendingChatSession(id) }
             }
         }
+        // §165（锚点包）：点达原对话的锚定行——枢纽记
+        // 录行/通知回执置位 approvalAnchorRequest，本
+        // 页消费：切线程（与抽屉切线同字段）→等条目
+        // 进渲染→滚动定位＋点亮→清零；目标线程/条目
+        // 找不到如实落空（不滚、不亮），不许假定位
+        .onChange(of: appState.approvalAnchorRequest?.threadID) {
+            _, _ in
+            consumeApprovalAnchorRequest()
+        }
+        .onAppear {
+            consumeApprovalAnchorRequest()
+            // §165（锚点包）：物化回调接线（幂等赋值；
+            // 全 App 只有聊天页持有 modelContext 落盘
+            // 面，与枢纽经 AgentHubView 注入审批终态回
+            // 调的分工同构）——store 每次审批刷新成功
+            // 后经它落锚定条目
+            let hubStore = appState.sharedHubStore()
+            if hubStore.onAnchorDataRefreshed == nil {
+                hubStore.onAnchorDataRefreshed = {
+                    ApprovalAnchorMaterialization.run(
+                        store: hubStore, context: modelContext
+                    )
+                }
+            }
+        }
         // 0.31.0 恢复链（取代 0.20.0）：生成与连接分
         // 家后切后台什么都不用记——events 流断了就是
         // 结果未知，run 在服务端照常跑完；要做的只有
@@ -918,8 +951,14 @@ struct ChatView: View {
         // §123（H2）：通知条目点达对象时先关本 sheet、
         // 再开枢纽——两个呈现不能同帧抢，枢纽开启在此
         // onDismiss 接力（落点字段已由通知行落 AppState）
+        // §165：锚点落点（approvalAnchorRequest 在位）不
+        // 开枢纽——落点在原对话里，本 sheet 关闭后由本
+        // 页消费请求切线程定位（onChange/onAppear 双触
+        // 发，此处补第三路防 sheet 关闭吞掉变更）
         .sheet(isPresented: $showNotifications, onDismiss: {
-            if appState.hubDestinationRequest != nil {
+            if appState.approvalAnchorRequest != nil {
+                consumeApprovalAnchorRequest()
+            } else if appState.hubDestinationRequest != nil {
                 appState.hubOpenRequested = true
             }
         }) {
@@ -1663,6 +1702,19 @@ struct ChatView: View {
                                 }
                                 bubble(entry)
                             }
+                            // §165：锚点点亮——点达请求命
+                            // 中的锚定行以 primaryTint 底
+                            // 色点亮（沿 §123 枢纽聚焦同
+                            // 手法），消费侧 2.5 秒后清
+                            .background(
+                                entry.id == anchorHighlightEntryID
+                                    ? Palette.primaryTint
+                                    : Color.clear,
+                                in: RoundedRectangle(
+                                    cornerRadius:
+                                        OneDayMetrics.containerCorner
+                                )
+                            )
                             .id(entry.id)
                         case .toolGroup(let groupEntries):
                             // 连续工具卡 ≥2 成组（0.36.10，
@@ -1704,7 +1756,15 @@ struct ChatView: View {
                 // 枢纽兜底）；与回告卡同纪律：只在呈现
                 // 层拼装、绝不写入会话；store 与枢纽共
                 // 享同一份（AppState.sharedHubStore）
-                ChatApprovalZone(store: appState.sharedHubStore())
+                // §165（锚点包）：已在本机落锚的记录由
+                // 其锚定行承载（单源，规格 §4.3），本区
+                // 只出未锚记录；锚集随 store 刷新回写
+                // （ApprovalAnchorMaterialization）
+                ChatApprovalZone(
+                    store: appState.sharedHubStore(),
+                    anchoredRecordIDs: appState
+                        .sharedHubStore().anchoredRecordIDs
+                )
                 if currentThread == nil && !isStreaming {
                     // 空状态（DESIGN-V4 §5 两行字口径保
                     // 留）：0.26.0 起形象位由 SF 符号换三
@@ -2242,6 +2302,112 @@ struct ChatView: View {
         }
     }
 
+    /// 审批锚定行（§165，规格 §4.3）：锚定条目按记录
+    /// 在桥两集的现态出三形态——待批＝与流末尾区同一
+    /// 张完整卡（共用 ChatApprovalCard、同一裁决路
+    /// 径）；已决＝结论行（与枢纽历史行同句式：结论
+    /// 图标＋标题＋结果措辞＋按规则后缀）；两处皆无
+    /// 且缺席满两轮＝「已失效」灰行（标题取物化时落
+    /// 盘的快照）。呈现判定全走 Core（rowState＋store
+    /// 的缺席计数），本视图只渲染
+    @ViewBuilder
+    private func approvalAnchorRow(_ entry: ChatEntry) -> some View {
+        let store = appState.sharedHubStore()
+        let recordID = ApprovalAnchor.recordID(
+            fromKey: entry.approvalKey ?? ""
+        ) ?? ""
+        switch store.anchorRowState(recordID: recordID) {
+        case .pending(let record):
+            ChatApprovalCard(store: store, record: record)
+        case .decided(let item):
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Image(systemName: item.isApproved
+                    ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundStyle(item.isApproved
+                        ? Palette.success : Palette.danger)
+                Text(item.headline)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Spacer()
+                Text(item.isRuleApproved
+                    ? L10n.string("已按规则放行")
+                    : item.decisionLabel)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingS)
+            .background(
+                Palette.surface,
+                in: RoundedRectangle(
+                    cornerRadius: OneDayMetrics.containerCorner
+                )
+            )
+        case .stale:
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Image(systemName: "questionmark.circle")
+                    .foregroundStyle(Palette.inkMuted)
+                Text(entry.content)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+                    .lineLimit(1)
+                Spacer()
+                Text("已失效")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingS)
+            .accessibilityElement(children: .combine)
+        case .loading:
+            // 审批数据还没拉到：行位占住、只给转圈，不
+            // 提前判待批/已决/失效中的任何一种
+            HStack(spacing: OneDayMetrics.spacingS) {
+                ProgressView()
+                Text(entry.content)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .padding(.vertical, OneDayMetrics.spacingS)
+        }
+    }
+
+    /// 锚点点达消费（§165）：请求在位时执行一次并清
+    /// 零——切到目标线程后等一拍让条目进渲染，再滚
+    /// 动定位＋点亮；目标条目不在该线程里（数据已变）
+    /// 如实落空：停在该线程顶部附近、不滚不亮。请求
+    /// 无键（threadOnly）只切线程
+    private func consumeApprovalAnchorRequest() {
+        guard let request = appState.approvalAnchorRequest
+        else { return }
+        appState.approvalAnchorRequest = nil
+        if appState.drawerThreadSelection != request.threadID {
+            appState.drawerThreadSelection = request.threadID
+        }
+        guard let key = request.approvalKey,
+              let thread = threads.first(
+                  where: { $0.id == request.threadID }
+              ),
+              let entry = thread.entries.first(
+                  where: { $0.approvalKey == key }
+              )
+        else { return }
+        let entryID = entry.id
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard currentThreadID == request.threadID else { return }
+            anchorHighlightEntryID = entryID
+            try? await Task.sleep(for: .seconds(2.5))
+            if anchorHighlightEntryID == entryID {
+                anchorHighlightEntryID = nil
+            }
+        }
+    }
+
     /// 目标委派回响行（§123 H1）：居中安静一行——小
     /// 图标＋事实正文＋时刻；不带气泡底、不挂长按菜单
     /// （它不是谁发的言）。入口四问备注：入口＝目标详
@@ -2268,7 +2434,14 @@ struct ChatView: View {
 
     @ViewBuilder
     private func bubble(_ entry: ChatEntry) -> some View {
-        if entry.echoKey != nil {
+        if entry.approvalKey != nil {
+            // §165（锚点包）：审批锚定条目——按记录在
+            // 桥两集里的现态渲染（待批＝完整卡、已决＝
+            // 已决行、两处皆无过两轮＝失效灰行），状态
+            // 判定走 Core ApprovalAnchor.rowState 单源；
+            // 不是气泡、不冒充任何一方发言
+            approvalAnchorRow(entry)
+        } else if entry.echoKey != nil {
             // §123（H1）：目标委派回响条目——居中通知
             // 行，不是气泡、不冒充任何一方发言（回响
             // 是 App 按真源落的事实记录，见 GoalEcho）
@@ -4721,10 +4894,12 @@ private struct ComposerBarLayout: Layout {
         // §123（H1）：回响条目（echoKey 非空，role 借
         // "assistant" 落盘）同样只呈现、永不进上下文——
         // 它是 App 的事实记录，不是智能体说过的话
+        // §165：守卫谓词统一为 isSystemAnchored（回响＋
+        // 审批锚定同族，见 ChatEntry 字段注）
         var context = thread.sortedEntries
             .filter {
                 ($0.role == "user" || $0.role == "assistant")
-                    && $0.echoKey == nil
+                    && !$0.isSystemAnchored
             }
             .suffix(20).map {
             ChatMessage(
@@ -5925,7 +6100,9 @@ private struct ComposerBarLayout: Layout {
             // 一轮进行中由目标详情侧落盘（跨面并发），
             // 「用户条目之后必属本轮」的发送互斥前提对
             // 它不成立，整段替换不许删它
-            guard candidate.echoKey == nil else { continue }
+            // §165：审批锚定条目同理（物化由 store 刷新
+            // 触发、可在一轮进行中落盘），谓词同上统一
+            guard !candidate.isSystemAnchored else { continue }
             modelContext.delete(candidate)
         }
         try? modelContext.save()
@@ -6083,10 +6260,11 @@ private struct ComposerBarLayout: Layout {
             // §123（H1）：回响条目（echoKey 非空）不是
             // 本轮半截——不进半截名单、正文回填也不许
             // 把它当作助手半截正文吞进流式区
+            // §165：审批锚定条目同族同守（谓词统一）
             let partials = thread.entries.filter {
                 $0.id != userEntry.id
                     && $0.createdAt > userEntry.createdAt
-                    && $0.echoKey == nil
+                    && !$0.isSystemAnchored
             }
             livePartialEntryIDs = partials.map(\.id)
             liveToolCards = partials
