@@ -7,15 +7,49 @@ import SwiftUI
 /// 现行全链（确认弹窗＋restartGateway()＋notice）
 struct RestartGatewayView: View {
     @Environment(\.dismiss) private var dismiss
+    let status: ServerStatus?
     @Binding var showRestartConfirm: Bool
 
     var body: some View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
-                    infoRow(label: "影响范围", value: "Hermes 网关服务")
-                    infoRow(label: "聊天记录", value: "不受影响，保留在服务器上")
-                    infoRow(label: "恢复时间", value: "通常 10–20 秒")
+                    LabeledContent {
+                        Text(gatewayStatusText)
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                    } label: {
+                        Text("状态")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    LabeledContent {
+                        Text("Hermes 网关服务")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                    } label: {
+                        Text("影响范围")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    LabeledContent {
+                        Text("不受影响，保留在服务器上")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                    } label: {
+                        Text("聊天记录")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    LabeledContent {
+                        Text("通常 10–20 秒")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.ink)
+                    } label: {
+                        Text("恢复时间")
+                            .font(.rowTitleL)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
                 }
                 .padding(.vertical, OneDayMetrics.spacingS)
                 .listRowBackground(Palette.surface)
@@ -68,17 +102,13 @@ struct RestartGatewayView: View {
         .navigationBarTitleDisplayMode(.large)
     }
 
-    private func infoRow(label: String, value: String) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            Text(label)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.inkSecondary)
-                .frame(width: 80, alignment: .leading)
-            Text(value)
-                .font(.rowTitleL)
-                .foregroundStyle(Palette.ink)
-                .multilineTextAlignment(.trailing)
-            Spacer(minLength: 0)
+    /// 网关状态文案（与 ServerManagementView.gatewayStateWord 同口径）
+    private var gatewayStatusText: String {
+        switch status?.gatewayState?.lowercased() {
+        case "running": return "运行中"
+        case "stopped": return "已停止"
+        case "error", "failed": return "异常"
+        default: return status == nil ? "—" : "未知"
         }
     }
 
