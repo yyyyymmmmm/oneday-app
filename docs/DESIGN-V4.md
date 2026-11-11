@@ -8807,3 +8807,11 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 守界：未动发送数据正确性链（落盘、runLedger 互斥、种子/链接计划、模型重锁、落定整段替换、落定对账全保留原位）；未动 BottomProximity 阈值与 BottomSettle 24pt 门；C 案（换容器）未动。
 - 真机待验（合并后随版）：①长线程发送不再空屏（重点，配合诊断面「发送打点」三段读数对读：首帧复核距底与距发送 ms）②回底钮迟滞带晚消失观察（几何单源改判的已知风险：滚回底部后钮是否随尾行量实及时消失）③离底未读角标（手动滚回底部后角标由下一次 ingest 以在底事实清零、离底计数不丢）④切线程滚动锚恢复与首帧落位（defaultScrollAnchor 退役后.task 链单点承担）⑤键盘升降锚底与流式跟随不回归。
+
+### 135.7 合并与验包记账（2026-11-11，主线合并单）
+
+- **交付定版**：0.50.6／128。merge b33cf33（feat/send-blank-fix 3b14c17 → main，基线 805978d／0.50.2；分支 CI run 42985878037 success、分支单测口径 1356＝其基线 1341＋15）。冲突一处：DESIGN-V4.md 尾部——HEAD 侧 §129/§130/§131 三节全保留在前、本节顺接其后；ChatView.swift 自动合并（接线复核：BottomStickCoordinator／renderPlan 单口与 §130 的 cardSize／fittedSize 双在位；`scrollTo("bottom")` 只剩 performScrollToBottom 原语双形态两处、defaultScrollAnchor 只余退役注释两行）。定版 949ee5a（版本五处＝Project.swift 四处 0.50.6/128＋SettingsView 页脚「OneDay v0.50.6」，grep 验无 0.50.5 残留）。
+- **节号改注（消歧）**：本节预制时自选 §132，与具名默认 B 分支 feat/provider-default 的自选 §132 撞号；§133 已被在飞 MEDIA 兼容包（feat/media-marker）与 cx-misc 预占、§134 已被 cx-model-storage 预占，故合并时主线顺延改注 **§135**、原自选号作废（节头已写明）；分支代码注释内的 §132 引用同步改注 §135（8 文件 37 处：ChatView 24／BottomFollow 5／BottomFollowTests 3／ChatStore、BottomStick、ChatRenderPlan、BottomStickTests、ChatRenderPlanKeyTests 各 1，改后代码内 §132 零残留）。§135.1–§135.6 小节号随迁，本节为 135.7。
+- **合并后 CI**：run 42989208941，jobs API 逐项终判 build-native 及全部 steps success（head 949ee5a）；单测 Executed **1396、0 failures**（合并前 main 口径 1381＋本包新增 15，只增不减，与预期分毫不差）。三语文案零新增，validate_i18n 本地实跑通过（2633 键含 InfoPlist 13，三语全覆盖，与 0.50.5 同口径）。
+- **独立验包**：IPA 落 ~/workspace/your_files/oneday-v0.50.6/OneDay-0.50.6.ipa，10,043,072 字节，md5 `07ec4b05d3f583ed56695a4c7f54dc50`（落盘与 CI 产物一致），Info.plist 实读 0.50.6／128／bundle id site.didichou.oneday。
+- **真机待验**：见 §135.6 五条（长线程发送不再空屏＋诊断面三段读数对读为重点；回底钮迟滞带晚消失观察；离底未读角标；切线程锚恢复与首帧落位；键盘锚底与流式跟随不回归）。
