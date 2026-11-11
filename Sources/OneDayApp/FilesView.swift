@@ -379,6 +379,18 @@ struct FileUploadPickerModifier: ViewModifier {
 struct FilesBrowserView: View {
     @Environment(AppState.self) private var appState
 
+    /// 定位直达（§127）：文件页「在文件页中打开」回
+    /// 指落空（文件不在聚合集）时带父目录＋目标文件
+    /// 名进来——初始目录直达该目录、目标行高亮＋滚
+    /// 动定位；常规入口两参皆空、行为逐字不变
+    private let highlightName: String?
+    @State private var highlightConsumed = false
+
+    init(initialPath: String? = nil, highlightName: String? = nil) {
+        _currentPath = State(initialValue: initialPath)
+        self.highlightName = highlightName
+    }
+
     /// nil = 尚未定位，首拉用服务端默认根，回来后落具体路径
     @State private var currentPath: String?
     @State private var listing: FilesListing?
@@ -696,6 +708,7 @@ struct FilesBrowserView: View {
             .padding(.top, OneDayMetrics.spacingXXL)
             Spacer()
         } else {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if shownEntries.isEmpty {
@@ -721,6 +734,7 @@ struct FilesBrowserView: View {
                                     )
                                 }
                                 row(entry)
+                                    .id(entry.path)
                             }
                         }
                         .odGroup()
@@ -737,7 +751,31 @@ struct FilesBrowserView: View {
                 .padding(.top, OneDayMetrics.spacingS)
                 .padding(.bottom, OneDayMetrics.spacingXL)
             }
+            // §127：定位直达——目录数据到位且目标行在
+            // 列时滚一次（只滚一次，之后用户自由浏览）
+            .onChange(of: shownEntries.map(\.path)) { _, paths in
+                guard !highlightConsumed,
+                      let highlightName,
+                      let target = shownEntries.first(where: {
+                          $0.name == highlightName && !$0.isDirectory
+                      })
+                else { return }
+                highlightConsumed = true
+                withAnimation {
+                    proxy.scrollTo(target.path, anchor: .center)
+                }
+            }
+            }
         }
+    }
+
+    /// 定位高亮底色（§127）：直达目标行给 selection-
+    /// Fill 底，其余透明——只认文件名＋非目录
+    private func highlightBackground(
+        for entry: WorkspaceFileEntry
+    ) -> Color {
+        highlightName == entry.name && !entry.isDirectory
+            ? Palette.selectionFill : .clear
     }
 
     private func breadcrumbBar(listing: FilesListing) -> some View {
@@ -786,6 +824,7 @@ struct FilesBrowserView: View {
                 FileBrowserRow(entry: entry)
             }
             .buttonStyle(.odPressable)
+            .background(highlightBackground(for: entry))
         } else if entry.isDirectory {
             Button {
                 currentPath = entry.path
@@ -793,6 +832,7 @@ struct FilesBrowserView: View {
                 FileBrowserRow(entry: entry)
             }
             .buttonStyle(.odPressable)
+            .background(highlightBackground(for: entry))
             .contextMenu {
                 // 敏感命名的目录同样不给删除（§4.6 名单
                 // 对目录只收删除一项，导航照常——目录里
@@ -817,6 +857,7 @@ struct FilesBrowserView: View {
                     )
             }
             .buttonStyle(.odPressable)
+            .background(highlightBackground(for: entry))
             .contextMenu {
                 Button {
                     Task { await download(entry) }

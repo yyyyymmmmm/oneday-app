@@ -71,12 +71,22 @@ public enum LibraryOrdering {
     /// 明示不冒充 Muse 判定）
     public static let recentWindow: TimeInterval = 7 * 24 * 3600
 
+    /// pinned（§127，D8 置顶集）：非空时置顶条目整
+    /// 段排在最前（段内仍按所选排序），与 Muse Pin
+    /// 的「客户端置顶整理」同语义；默认空集＝旧行为
+    /// 逐字不变
     public static func sorted(
         _ entries: [WorkspaceFileEntry],
         by sort: LibrarySort,
-        openedAt: [String: TimeInterval]
+        openedAt: [String: TimeInterval],
+        pinned: Set<String> = []
     ) -> [WorkspaceFileEntry] {
         entries.sorted { a, b in
+            if !pinned.isEmpty {
+                let ap = pinned.contains(a.path)
+                let bp = pinned.contains(b.path)
+                if ap != bp { return ap }
+            }
             switch sort {
             case .lastOpened:
                 let ao = openedAt[a.path] ?? 0
@@ -129,7 +139,37 @@ public enum LibraryOrdering {
         }
     }
 
+    /// 网格分组带置顶段（§127）：入参已由 sorted 按
+    /// pinned 排过（置顶在最前）——有置顶条目时先切
+    /// 出「置顶」段置于一切分组之前，余下条目再走
+    /// 最近/全部旧口径；无置顶时与旧 grouped 逐字
+    /// 同果
     public static func grouped(
+        _ sortedEntries: [WorkspaceFileEntry],
+        openedAt: [String: TimeInterval],
+        now: Date,
+        pinned: Set<String> = []
+    ) -> [Section] {
+        let pinnedEntries = sortedEntries.filter {
+            pinned.contains($0.path)
+        }
+        guard !pinnedEntries.isEmpty else {
+            return groupedPlain(
+                sortedEntries, openedAt: openedAt, now: now
+            )
+        }
+        let rest = sortedEntries.filter {
+            !pinned.contains($0.path)
+        }
+        // 全部置顶时只回置顶一段，不留空的无题尾段
+        guard !rest.isEmpty else {
+            return [Section(title: "置顶", entries: pinnedEntries)]
+        }
+        return [Section(title: "置顶", entries: pinnedEntries)]
+            + groupedPlain(rest, openedAt: openedAt, now: now)
+    }
+
+    private static func groupedPlain(
         _ sortedEntries: [WorkspaceFileEntry],
         openedAt: [String: TimeInterval],
         now: Date

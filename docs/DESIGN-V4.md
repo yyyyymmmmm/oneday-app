@@ -8596,3 +8596,14 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **编辑服务商名字锁定**：名字是 providers 字典的键，改名＝换键（牵动 env 钥名与引用），编辑态禁用改名并明示「要换名字请删掉重新添加」。
 - **真机待验**：卡面展开/测连接三态/清单差异弹窗/恢复上一份、辅助页 19 行选择器与两开关、预设快照启用、未配模型引导卡（须在真空配置下验，生产恒不出现）、AgentHub 入口进本页后辅助页 NavigationLink 的栈行为（设置 sheet 路径已确认有栈；枢纽路径待真机一验）。
 - **已知存量**：目录旧键（槽位 8＋提供商 16＋主端点 1）成孤儿保留，不在本包删键（删键口径随 §120 校验器扩版一并处置）。
+
+## §127 文件呈现对齐包（2026-11-11，预制分支 feat/file-present-align，基线 main a003384；用户 15:13 拍板「对齐」含翻案卡上「···」钮，唯一依据 file-present-muse-benchmark-20261111.md 对差表 D1/D8 与卡面动作项；节号自选 §127——§128–§130 在各自预制分支，合并时主线终审如撞号顺延）
+
+- **D1 大小前移（回读重试化）**：FileChip 与打开页原已在可见时走 backfillFromListing，但首试失败即静默放弃——冷启动/通道未就绪时首试必败、大小要等打开页再试才补，即「首见常缺」的成因。改：FileMetadataStore.backfillFromListing 回 Bool 并按父目录记失败时刻、同目录冷却 5s（Core FileBackfillPolicy 单源：最多 3 试、间隔 1.5s/4s、冷却 5s）；新入口 ensureSize 在卡可见周期内递增重试，FileChip 与 FileOpenContent 的 .task 均改走它。同目录仍只并发一轮、整目录兄弟一并入账，不逐卡单发；三试皆败保持只显类型、不编造（§125 诚实口径不变）。
+- **卡上「···」钮翻案落地（§125 取舍作废）**：①聊天 FileChip 卡右加 ⋮ 钮（文件页行同形：ellipsis 旋 90°、命中 44），动作集与文件页行/长按同源同序——FileActionPolicy.menuActions 单源，执行体在卡内（预览走原 onOpen、复制文字/导出 PDF/分享/下载/删除走既有通道，删除带确认＋删后回读核对）；敏感文件菜单空表、不出钮。卡主体点击与长按消息菜单两路保留。②文件页网格卡信息条尾加 ⋮（同源 actionItems；卡本体由 Button 改点按手势＋无障碍按钮语义，行同式，⋮ 才有独立命中）；列表行 ⋮ 系既有（0.36.31 已落）不重复造。③系统文件浏览器行未加 ⋮——其行菜单口径（§七）只有下载/删除且行本体是导航链，本包不动，记为已知差（要补另议）。
+- **D8 置顶（pin）**：语义按报告——纯客户端整理（Muse Pin 同义）：新 Core FilePinSet 纯值表＋App FilePinStore 单例落 UserDefaults（files.pinned.v1），不触服务器。落点＝文件页：LibraryOrdering.sorted 加 pinned 入参（置顶整段居前、段内仍走所选排序），grouped 切「置顶」段居一切分组之前；打开页菜单按当前态出置顶/取消置顶。改名跟随迁移、删除清理，均有 Core 钉测。
+- **D8 重命名（无服务端通道，如实说明＋组合链）**：Hermes 0.23.0 openapi 实查 /api/files 只有 GET/DELETE＋read/download/upload/mkdir，**无改名/移动端点**——本包不伪造通道，走既有原语组合链：父目录同名冲突预检→取原件字节→超上传同闸 25MB 整链放弃（原件不动）→以新名上传（overwrite=false）→回读校验新条目在且字节一致→才删旧；删旧独失败时新名已确认落好，呈现切新名＋双份并存明示。判定单源 Core FileRenamePlan（名规整与新建文件夹同纪律、扩展名变更先弹确认、目标路径同目录换末段）。改名成功后打开页呈现目标切新目标（currentTarget 种子化改造）、元数据/置顶迁移、AppState.fileLibraryRevision 递增令文件页重聚合。
+- **D8 在文件页中打开**：FileActionPolicy.openPageActions 新表（置顶态＋类型专属＋分享/下载＋重命名＋在文件页中打开；仍守阅读面克制、无删除——删除不进本包按派单口径）。回指走 AppState.fileRevealPath＋mainTabSwitchRequest=.files 既有切格通道（置位—消费—清零同式）：DeliverablesView 消费时收栈回根、清搜索，命中聚合集切段＋ScrollViewReader 滚动居中＋高亮（行 selectionFill 底/卡描边，2.5s 自清，文件/影音四面齐）；不在聚合集的文件落系统文件浏览器父目录＋文件名高亮滚动（FilesBrowserView 加 initialPath/highlightName 入参，常规入口行为逐字不变），不假装它在文件页收录里。
+- **动作表单源纪律**：FileItemAction 新增 pin/unpin/rename/openInFiles 四项（文案与符号在表内钉死）；menuActions/readingActions 不出这四项，各宿主 switch 落到即静默（DeliverablesView/DocumentReaderView/QuickLookHostView 三处已补分支注释）。新文案 13 键入 Localizable.xcstrings 三语齐，validate_i18n 通过。
+- **验收**：单测只增不减（新增 FilePinSetTests 8＋FileRenamePlanTests 6＋FileBackfillPolicyTests 3，FileActionPolicyTests +5、LibraryOrderingTests +4，共 +26）；分支 CI 全绿后回报坐标，不合并（主线串行另派）。
+- **真机待验**：聊天卡 ⋮ 钮命中与消息长按菜单并存、网格卡 ⋮ 与整卡点按分工、置顶段在网格/列表两态呈现、改名全链（尤其 overwrite=false 在生产 Hermes 的实际语义与回读校验）、定位高亮四面滚动落点、AX 大字档下卡内 ⋮ 钮与两行文件名的排布。
