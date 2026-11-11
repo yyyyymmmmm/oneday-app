@@ -9149,3 +9149,11 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **xcstrings 并集**：自动合并后逐键断言——HEAD 2626 键零丢失、新增精确 2 键（「交付内容」／「%@（文件已删除）」）→ 2628；validate_i18n 通过（2641 键含 InfoPlist 13，三语全覆盖）。
 - **单测总对账**：1496（0.50.13）＋21（DeliveryMarkerTests 18＋BridgeDeliveryDecodeTests 3）＝**1517**，中间 CI 与发版 CI（run 43012492950，jobs 逐项终判 build-native 及全部 steps **success**）双实测 Executed 1517、0 failures，只增不减。
 - **定版与验包**：定版 0b80e01（版本五处＝Project.swift 四处 0.50.14/136＋SettingsView 页脚，grep 验 0.50.13 零残留）。IPA 落 ~/workspace/your_files/oneday-v0.50.14/OneDay-0.50.14.ipa：**10,209,072 字节、md5 `7e46699465779f05f83b60c434b3ee12`**，主线独立解包复核 Info.plist 实读 0.50.14／136／site.didichou.oneday。真机待验沿 §146.3 五条（试验会话白卡／新图登记内联／假号纯文本／删文件 gone 行／老消息兜底不回归）。
+
+### 147.7 合并与发版记账（2026-11-11，0.50.15/137）
+
+- 前置清理：§146 合并遗留的冲突标记残行（`>>>>>>> feat/delivery-registry`，随 70cac12 误入 main）已单独记账清除，commit `7d2059a`（仅删该一行）。
+- 合并：merge commit `e46df60`（feat/attachment-panel `80a99d9`，基线 6042a77）。冲突两处合裁：①xcstrings 走并集脚本三方并集零冲突（base 2626→结果 2633＝main 2628＋本包新增 5 键，validate_i18n 通过 2646 键含 InfoPlist 13、三语全覆盖）；②DESIGN 本节自选 §146 已被登记制占用，整节顺延改注 **§147**（小节号 146.x→147.x 随迁），代码注释自引同步改注 11 处（新文件 3 处＋ChatView 本包引入行 8 处，按与基线 diff 精确圈定；ChatView 内 §146 登记制接线注释逐字未动）。ChatView 自动合并，接线复核：showAttachPanel sheet／afterAttachPanelDismiss／ingestPhotoData 三点在位、旧浮窗 Menu 退役口径与分支一致。
+- 定版：版本五处同改 0.50.15／137（Project.swift 四处＋SettingsView 页脚）commit `35e350c`，grep 验 0.50.14 零残留。CI run **43013170866** jobs 逐项终判 build-native **success**；单测 Executed **1527、0 failures**（0.50.14 的 1517＋AttachmentPanelTests 10，只增不减）。
+- 验包：IPA 落 ~/workspace/your_files/oneday-v0.50.15/OneDay-0.50.15.ipa：**10,249,115 字节、md5 `0a7816a4e29ab6276e9d454a56fa9b0e`**，主线独立解包复核 Info.plist 实读 0.50.15／137／site.didichou.oneday 一致。
+- 真机待验（随本版回收 §147.6 清单）：点「+」面板形态与点题截图对版；照片条点选直达附件条；相机格开相机；查看全部开多选；添加文件走文件桥；添加视频入条；未授权相册时资源库区不显、动作行照常；AX 最大档＋深色各一帧。
