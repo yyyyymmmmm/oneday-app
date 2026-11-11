@@ -184,84 +184,32 @@ struct HubApprovalSection: View {
         }
     }
 
-    /// 待批卡片（实色面内容卡，非玻璃——规格 §0 材质总则）
+    /// 待批卡片（实色面内容卡，非玻璃——规格 §0 材质
+    /// 总则）：卡面本体走共用组件 ApprovalCardFace
+    /// （样式二期 S2-03，与聊天就地卡同一实现、同一
+    /// 几何与句式）；与聊天面只差详情入口——本面走
+    /// 「查看改动」sheet（diffTarget），确认弹窗走段
+    /// 级 target（rejectTarget/alwaysTarget），裁决路
+    /// 径与 store 同源不变
     private func card(_ record: WriteGateRecord) -> some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Text(record.subsystem.badgeLabel)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Palette.primary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, OneDayMetrics.stackGap)
-                    .background(Palette.primaryTint, in: Capsule())
-                Spacer()
-                if let createdAt = record.createdAt {
-                    Text(ApprovalTimeText.relative(createdAt))
-                        .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
+        ApprovalCardFace(
+            record: record,
+            isDeciding: store.decidingIDs.contains(record.id),
+            note: store.cardNotes[record.id],
+            detailLinkTitle: "查看改动",
+            onDetail: { diffTarget = record },
+            onAction: { action in
+                switch action {
+                case .approve:
+                    Task { await store.decide(record, approve: true) }
+                case .alwaysAllow:
+                    alwaysTarget = record
+                case .reject:
+                    rejectTarget = record
                 }
             }
-
-            Text(record.headline)
-                .font(.headline)
-                .foregroundStyle(Palette.ink)
-            if let preview = record.previewLine, preview != record.headline {
-                Text(preview)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(2)
-            }
-
-            Text("来源：\(record.originLabel)")
-                .font(.caption)
-                .foregroundStyle(Palette.inkSecondary)
-
-            if let note = store.cardNotes[record.id] {
-                Text(note)
-                    .font(.caption)
-                    .foregroundStyle(Palette.danger)
-            }
-
-            if store.decidingIDs.contains(record.id) {
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    ProgressView()
-                    Text("正在提交裁决…")
-                        .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-            } else {
-                HStack(spacing: OneDayMetrics.spacingS) {
-                    Button("查看改动") {
-                        diffTarget = record
-                    }
-                    .buttonStyle(.bordered)
-                    Spacer()
-                    if record.canDecide {
-                        Button("驳回") {
-                            rejectTarget = record
-                        }
-                        .buttonStyle(.bordered)
-                        Button("批准") {
-                            Task { await store.decide(record, approve: true) }
-                        }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        Text("这类写入暂不支持在 App 内审批，请在 Hermes 中处理")
-                            .font(.caption)
-                            .foregroundStyle(Palette.inkSecondary)
-                    }
-                }
-                if record.canDecide {
-                    // 第三档（0.36.21）：全宽一行，与聊
-                    // 天就地卡同动作（store.decideAlways：
-                    // 先建规则后批准，失败不假装记住）
-                    Button("总是允许这一类") {
-                        alwaysTarget = record
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
-                }
-            }
+        ) {
+            EmptyView()
         }
         .padding(OneDayMetrics.spacingM)
         .background(
@@ -294,15 +242,13 @@ struct HubApprovalSection: View {
                     )
                 if item.isRuleApproved {
                     // 按规则放行必须标明（0.36.21）：与
-                    // 人工批准分开呈现，账本 via_rule 是据
+                    // 人工批准分开呈现，账本 via_rule 是
+                    // 据；样式二期 S2-03 收敛：不再叠第
+                    // 三颗胶囊，降为结论后的普通灰字后缀
+                    // （徽章至多两件：子系统＋结论）
                     Text("按规则放行")
-                        .font(.caption.weight(.semibold))
+                        .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, OneDayMetrics.stackGap)
-                        .background(
-                            Palette.primaryTint, in: Capsule()
-                        )
                 }
                 Spacer()
                 if let decidedAt = item.decidedAt {

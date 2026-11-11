@@ -13,11 +13,29 @@ public enum LibraryDisplayMode: String, CaseIterable, Sendable {
         case .grid: return "以网格显示"
         }
     }
+
+    /// 落盘原值解析（文件页菜单勾选口径，样式二期
+    /// S2-04）：菜单改系统 Picker 承载后勾由系统绘制，
+    /// 喂 Picker 的 selection 恒经此解析——命中枚举
+    /// 回它本身，未知/空/缺失回落默认档，保证任一时
+    /// 刻恰一勾、不错挂（同 ModelMenuSelection 口径，
+    /// 苹果反馈 FB16679936：菜单带勾正道只有
+    /// Toggle/Picker）
+    public static func resolved(
+        rawValue: String?
+    ) -> LibraryDisplayMode {
+        guard let rawValue,
+              let mode = Self(rawValue: rawValue)
+        else { return .list }
+        return mode
+    }
 }
 
 /// 文件页排序三义（规格 §4.2/§1.4，照 Muse iOS 实拍
-/// 菜单）：上次打开（默认）/上次修改/标题。对号规则在
-/// 宿主菜单层（每组单选、当前项占对号列）。
+/// 菜单）：上次打开（默认）/上次修改/标题。勾选由宿
+/// 主菜单的系统 Picker 承载（样式二期 S2-04：勾由系
+/// 统按 selection 绘制、占固定槽；旧手工对勾塞图标
+/// 位的形态已退役，见 resolved 解析口径）。
 public enum LibrarySort: String, CaseIterable, Sendable {
     case lastOpened
     case lastModified
@@ -29,6 +47,17 @@ public enum LibrarySort: String, CaseIterable, Sendable {
         case .lastModified: return "上次修改"
         case .title: return "标题"
         }
+    }
+
+    /// 落盘原值解析（同 LibraryDisplayMode.resolved
+    /// 口径）：未知/空/缺失回落默认档「上次打开」
+    public static func resolved(
+        rawValue: String?
+    ) -> LibrarySort {
+        guard let rawValue,
+              let option = Self(rawValue: rawValue)
+        else { return .lastOpened }
+        return option
     }
 }
 

@@ -59,13 +59,13 @@ struct ChatApprovalZone: View {
     }
 }
 
-/// 单张就地审批卡：人话标题问句（Core 模板）＋结构化
-/// 头条与来源行＋一句后果＋「查看详情」就地展开（复
-/// 用枢纽差异内容体 ApprovalReviewContent）＋三档全
-/// 宽裁决（批准一次/总是允许这一类/驳回）。卡面零原
-/// 始 JSON、零英文运维串（宪法 §8）；材质与枢纽卡同
-/// 为实色面内容卡（Palette.surface），与玻璃消息面分
-/// 工一致
+/// 单张就地审批卡：卡面本体走共用组件
+/// ApprovalCardFace（样式二期 S2-01/02/03，与枢纽待
+/// 批卡同一实现、同一几何与句式）；本宿主只持有卡
+/// 体外框、详情的就地展开（SmoothExpand）与两只确
+/// 认弹窗。卡面零原始 JSON、零英文运维串（宪法
+/// §8）；材质与枢纽卡同为实色面内容卡
+/// （Palette.surface），与玻璃消息面分工一致
 private struct ChatApprovalCard: View {
     let store: AgentHubStore
     let record: WriteGateRecord
@@ -78,64 +78,17 @@ private struct ChatApprovalCard: View {
     @State private var showAlwaysConfirm = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                Text(record.subsystem.badgeLabel)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Palette.primary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, OneDayMetrics.stackGap)
-                    .background(Palette.primaryTint, in: Capsule())
-                Text("待审批")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Palette.warning)
-                Spacer()
-                if let createdAt = record.createdAt {
-                    Text(ApprovalTimeText.relative(createdAt))
-                        .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-            }
-
-            Text(ApprovalCardCopy.question(for: record))
-                .font(.headline)
-                .foregroundStyle(Palette.ink)
-
-            // 说明行：结构化头条（子系统·动作·对象的人
-            // 话拼装）＋内容预览；原始英文摘要不上卡面
-            Text(record.headline)
-                .font(.subheadline)
-                .foregroundStyle(Palette.inkSecondary)
-            if let preview = record.previewLine, preview != record.headline {
-                Text(preview)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(2)
-            }
-            Text("来源：\(record.originLabel)")
-                .font(.caption)
-                .foregroundStyle(Palette.inkSecondary)
-            Text(ApprovalCardCopy.consequence(for: record))
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-
-            if record.canDecide {
-                Text("总是允许范围：\(ApprovalCardCopy.alwaysAllowScope(for: record))（可在枢纽撤销）")
-                    .font(.caption)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-
-            if let note = store.cardNotes[record.id] {
-                Text(note)
-                    .font(.caption)
-                    .foregroundStyle(Palette.danger)
-            }
-
-            if detailExpanded {
+        ApprovalCardFace(
+            record: record,
+            isDeciding: store.decidingIDs.contains(record.id),
+            note: store.cardNotes[record.id],
+            detailLinkTitle: detailExpanded ? "收起详情" : "查看详情",
+            onDetail: toggleDetail,
+            onAction: handleAction
+        ) {
+            SmoothExpand(isExpanded: detailExpanded) {
                 detailArea
             }
-
-            actions
         }
         .padding(OneDayMetrics.spacingM)
         .background(
@@ -192,52 +145,16 @@ private struct ChatApprovalCard: View {
         }
     }
 
-    /// 动作区：查看详情（左）＋裁决三档全宽堆叠——批
-    /// 准一次（主）／总是允许这一类／驳回（末位、确
-    /// 认后执行）。不支持在 App 内审批的类型只留说明
-    /// 与去向（规格 §5 枚举定案），不摆假按钮
-    @ViewBuilder
-    private var actions: some View {
-        if store.decidingIDs.contains(record.id) {
-            HStack(spacing: OneDayMetrics.spacingS) {
-                ProgressView()
-                Text("正在提交裁决…")
-                    .font(.caption)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-        } else if record.canDecide {
-            VStack(spacing: OneDayMetrics.spacingS) {
-                Button(detailExpanded ? "收起详情" : "查看详情") {
-                    toggleDetail()
-                }
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Button("批准") {
-                    Task { await store.decide(record, approve: true) }
-                }
-                .buttonStyle(.borderedProminent)
-                .frame(maxWidth: .infinity)
-                Button("总是允许这一类") {
-                    showAlwaysConfirm = true
-                }
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-                Button("驳回", role: .destructive) {
-                    showRejectConfirm = true
-                }
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                Button(detailExpanded ? "收起详情" : "查看详情") {
-                    toggleDetail()
-                }
-                .buttonStyle(.bordered)
-                Text("这类写入暂不支持在 App 内审批，请在 Hermes 中处理")
-                    .font(.caption)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
+    /// 三档裁决出口（钮面在共用卡面组件内）：批准直
+    /// 接提交；总是允许/驳回先过本宿主既有确认弹窗
+    private func handleAction(_ action: ApprovalCardAction) {
+        switch action {
+        case .approve:
+            Task { await store.decide(record, approve: true) }
+        case .alwaysAllow:
+            showAlwaysConfirm = true
+        case .reject:
+            showRejectConfirm = true
         }
     }
 

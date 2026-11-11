@@ -112,4 +112,26 @@ public enum ApprovalCardCopy {
     ) -> String {
         "\(record.subsystem.badgeLabel(locale: locale)) · \(record.originLabel(locale: locale))"
     }
+
+    /// 卡面说明行（一行口径，样式二期 S2-02）：头条为
+    /// 主体——它是记录特异信息；内容预览存在、与头
+    /// 条不同且未被头条包含时，以「：」衔接在后（视
+    /// 图层一行截断时先被挤掉的是预览尾巴，头条恒完
+    /// 整可见；记忆类头条已内嵌同一预览，包含判定防
+    /// 重复拼两遍）。后果句与来源不再上卡面：裁决钮
+    /// 与确认弹窗已表意、来源只进详情原始信息区
+    /// （审计 S2-02 收敛口径）
+    public static func summaryLine(
+        for record: WriteGateRecord,
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        let headline = record.headline(locale: locale)
+        guard let preview = record.previewLine,
+              preview != headline,
+              !headline.contains(preview)
+        else { return headline }
+        return L10n.format(
+            "%@：%@", locale: locale, headline, preview
+        )
+    }
 }
