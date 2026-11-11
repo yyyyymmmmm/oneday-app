@@ -62,10 +62,12 @@ import UIKit
 ///   ChatView 呈现，盖在本件之上（同窗呈现链不变，
 ///   §147/§152 时序零触碰）。
 /// - 环境注入照 DrawerContainer 先例：宿主不继承桥的
-///   环境——AppState、modelContext、locale、reduce-
-///   Motion、dynamicTypeSize 在本桥读出后逐项写进舱宿
-///   主根视图，粗体映射同挂；trait 类（深色／字号）走
-///   控制器层级自动派生。
+///   环境——对象类三项（AppState、modelContext、
+///   locale）在本桥读出后逐项写进舱宿主根视图，粗体
+///   映射同挂；trait 类（深色／字号／减动态）不快照
+///   注入（其环境键路无写入口、抽屉桥同例）——经控
+///   制器层级的 trait 自动派生进托管树且随系统变化
+///   持续同步
 /// - 贴底四路（§124/§135/§176）：bottomBar 整栈与回底
 ///   钮本体一字不动、ScrollViewReader 与列表同树不变，
 ///   scrollToBottom 仍经原 proxy 直达；变的只有留位来
@@ -75,8 +77,6 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.locale) private var locale
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// 舱顶→窗口底距离的实测回报（host 在布局拍回写；
     /// ChatView 以此＋spacingS 作列表底 contentMargins）
@@ -124,9 +124,6 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
                 .environment(appState)
                 .environment(\.modelContext, modelContext)
                 .environment(\.locale, locale)
-                .environment(
-                    \.accessibilityReduceMotion, reduceMotion)
-                .environment(\.dynamicTypeSize, dynamicTypeSize)
                 .boldTextMapping()
         )
     }
