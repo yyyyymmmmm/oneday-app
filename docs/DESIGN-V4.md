@@ -8145,3 +8145,10 @@ B 档 11 项全部卡付费开发者账号（B1 健康/B2 家庭两件已在名�
 - 真机终验待用户：发中文名 zip→气泡只剩正文＋文件牌、点牌能开；同一条不双份；助手回复里提中文名路径出牌。
 - 文本类文件的网关展开形态未取生产样本：契约口径是文本全文内联进尾部块，本包按同一分隔块口径剥尾（内联文本不进气泡，文件本体经文件牌下载打开）——登记知悉，若真机发现文本附件有别的存档形态回表再议。
 - 旧版本已补插进本地线程的展开块存量条目不迁移：其 content 是展开原文，呈现层未加二次规范化；判同规范化后不会再新增双份，存量靠用户删线程或后续导入新线程自然消解——登记知悉。
+
+### 116.5 扩围补记（用户拍板「所有文件、所有细节一次修完」；主线读 Hermes 网关源码 /opt/hermes/agent/context_references.py 定版，同日第二笔）
+
+- **A 解析全形态**：网关展开共五形态，首轮只接 📎。补：①📄 内联块（`📄 @file:<路径> (<N> tokens)`＋其后 ``` 围栏全文——头行收路径出牌、围栏全文不进显示；尾部切块改围栏感知状态机，围栏内形似 📎 的代码行/空行不误切误收）②`--- Context Warnings ---` 警告块整段剥离（头部/中段/尾部三位置都处理，块内不收路径）③📁/🌐/📌 块只剥不出牌（含头部独立 `@folder:` 行；剥不出路径也必须剥净——解析的返回门由「有路径」改「碰过脚手架」）④头部与块头路径的行段后缀 `:10-20` 出牌前剥离 ⑤📎 文本过大变体（descriptor＝`text file, approximately … tokens`，路径位置不变）钉测覆盖。口径注记：网关源码注释明言 @file 标记的设计意图即「clients render it as an inline chip」，剥标记＋出牌为等价实现。
+- **B 探测器泛化**：FileRefDetector 删扩展名白名单，改「绝对路径＋至少一层目录＋扩展名形态 [A-Za-z0-9]{1,12}」即命中，尾界负向断言防三截断（字母数字续接、/ 续接＝带点目录段、.＋字母数字＝双扩展名只截前半）；原护栏全保留（冒号跳 URL、`//` 跳过、excluding、去重、isImagePath 仍按图片集分流）。新增钉测：.mq5/.py/.rar 命中、v1.2 目录段不误截、.tar.gz 取全、版本号 1.2.3/域名/IP:端口不误报。
+- **C GBK 转码**：新发现的真断点——网关对文本类文件按 UTF-8 硬读（read_text(utf-8-sig)），GBK 族编码文本在服务端解码失败、只剩一条警告、智能体读不到。App 入口 FileIntake.transcodedForUpload 纯函数：扩展名属文本集（与网关 _TEXT_EXTENSIONS 对齐扩充：txt/md/csv/json/xml/html/htm/log/py/js/ts/tsx/jsx/swift/mq5/mqh/yaml/yml/toml/ini/cfg/conf/sh）且字节非合法 UTF-8 → GB18030 解码重编码 UTF-8（解出含 NUL 按失败论）；GB18030 也失败→原样＋undecodable 标记。ChatView.loadPickedFiles 接线：转码后字节为上传载荷、大小二次判按转码后计、转码账只记真入条者，经 FileIntake.transcodeNotice 在入条时提示一声（文案入三语目录＋2 键，validate_i18n 通过 2428 键）；手机原文件不动。范围注记：只兜从 App 发出的文件，网页端发的 GBK 文件仍中招（须改 Hermes 上游本体，另议）。
+- **D 顺手四核**：①DocumentPickerBridge 已是 `forOpeningContentTypes: [.item]` 全类型，免改；②HermesClient.fileData 经 URLComponents＋URLQueryItem 拼 query，中文路径自动百分号编码，免改；③待发附件条文件牌此前只有名＋可删、缺大小——本笔补大小副行（ByteCountFormatter .file，与文件页同制）；④用户侧文件牌与助手侧共用同一 FileChip＋openChatFile 链，首轮已同构，确认。

@@ -775,7 +775,13 @@ public enum AttachedImageRef {
 /// 都先过本解析还原成（干净正文，附件路径两分）。
 /// 解析保守：无分隔块且无独立成行 `@file:` 引用、或
 /// 剥不出任何路径时，原文逐字返回（正文里的行内
-/// `@file:` 提及不动）。
+/// `@file:` 提及不动）。0.46.1 扩围 A 补全形态（网关
+/// context_references.py 源码五形态）：📄 文本内联块
+/// （头行收路径、围栏全文不进显示、切块围栏感知）、
+/// `--- Context Warnings ---` 警告块整段剥离、📁/🌐/
+/// 📌 块只剥不出牌、块头与头部路径的行段后缀剥离、
+/// 📎 文本过大变体（描述段 `text file, approximately
+/// … tokens`）同 📎 收路径。
 public enum AttachedContextRef {
     public struct Parsed: Equatable, Sendable {
         public let text: String
@@ -794,45 +800,115 @@ public enum AttachedContextRef {
     /// 分隔行原文（网关展开块的头尾分界）
     public static let separatorLine = "--- Attached Context ---"
 
+    /// 警告块分隔行（网关在展开失败/超限时追加给模型
+    /// 的系统行，0.46.1 扩围 A：整段剥离不渲染）
+    public static let warningsLine = "--- Context Warnings ---"
+
+    /// 尾部块头标记：📎＝二进制/过大文本的在盘说明、
+    /// 📄＝文本全文内联；📁（文件夹）/🌐（网址）/
+    /// 📌（插件）为跨端可带入的形态——只剥不出牌
+    private static let pathBlockMarkers: Set<Character> = ["📎", "📄"]
+    private static let stripOnlyBlockMarkers: Set<Character> = [
+        "📁", "🌐", "📌",
+    ]
+
     public static func parse(_ content: String) -> Parsed {
-        guard content.contains("@file:") else {
+        guard content.contains("@file:")
+            || content.contains("@folder:")
+            || content.contains(separatorLine)
+            || content.contains(warningsLine)
+        else {
             return Parsed(text: content, imagePaths: [], fileRefs: [])
         }
         let lines = content.components(separatedBy: "\n")
         var headLines = lines
         var tailLines: [String] = []
+        // touched＝确实动过脚手架（分隔块/警告块/块头
+        // 任一出现）：📁 等无路径块也必须剥干净，不能
+        // 因剥不出路径就把整段列举原文回给气泡
+        var touched = false
         if let index = lines.firstIndex(where: {
             $0.trimmingCharacters(in: .whitespaces)
                 == separatorLine
         }) {
             headLines = Array(lines[..<index])
             tailLines = Array(lines[(index + 1)...])
+            touched = true
         }
         var paths: [String] = []
         var seen = Set<String>()
-        func collect(_ path: String) {
+        func collect(_ rawPath: String) {
+            // 行段后缀（@file:<路径>:10-20）不是路径的
+            // 一部分，出牌前剥掉（扩围 A-④）
+            let path = stripLineRange(rawPath)
+            guard !path.isEmpty else { return }
             if seen.insert(path).inserted { paths.append(path) }
         }
         // 头部：独立成行的 @file 引用行剥掉收路径，其
-        // 余行即用户正文（保原序原样）
+        // 余行即用户正文（保原序原样）；警告块整段丢
+        // 弃——标记行起其后头部行全是系统行（网关把
+        // 警告追加在正文与展开块之间，正文恒在前）
         var kept: [String] = []
+        var headInWarnings = false
         for line in headLines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed == warningsLine {
+                headInWarnings = true
+                touched = true
+                continue
+            }
+            if headInWarnings { continue }
+            if isStandaloneFolderRef(trimmed) {
+                // 文件夹引用行同为脚手架：剥掉不出牌
+                // （文件夹没有可下载的文件牌形态）
+                touched = true
+                continue
+            }
             if let path = standaloneFileRef(in: line) {
                 collect(path)
             } else {
                 kept.append(line)
             }
         }
-        // 尾部：只认 📎 @file: 行的路径，其余文字（给
-        // 模型的指令）一律丢弃不进正文
+        // 尾部：整段是脚手架、永不进正文；只按块头收
+        // 路径——📎（含文本过大变体，描述段不同、路径
+        // 位置不变）与 📄（其后 ``` 围栏是文件全文，
+        // 只取头行路径）。切块须围栏感知：围栏内的空
+        // 行/形似 📎 的代码行不许误切误收；📁/🌐/📌
+        // 块头只标记剥离、不出牌；警告块内不收路径
+        var inFence = false
+        var tailInWarnings = false
         for line in tailLines {
-            if let path = clipLinePath(in: line) {
-                collect(path)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") {
+                inFence.toggle()
+                continue
             }
+            if inFence { continue }
+            if trimmed == warningsLine {
+                tailInWarnings = true
+                touched = true
+                continue
+            }
+            guard let marker = trimmed.first else { continue }
+            if pathBlockMarkers.contains(marker)
+                || stripOnlyBlockMarkers.contains(marker) {
+                tailInWarnings = false
+                touched = true
+                if pathBlockMarkers.contains(marker),
+                   let path = blockLinePath(in: line) {
+                    collect(path)
+                }
+                continue
+            }
+            if tailInWarnings { continue }
+            // 其余尾行（指令句/列举行/内联正文的非围栏
+            // 部分）一律丢弃，不进正文
         }
-        // 一条路径都没剥出＝不是展开块形态（如正文里
-        // 行内提及 @file:），保守回原文逐字不变
-        guard !paths.isEmpty else {
+        // 什么脚手架都没碰到、也没剥出路径＝不是展开
+        // 块形态（如正文里行内提及 @file:），保守回
+        // 原文逐字不变
+        guard touched || !paths.isEmpty else {
             return Parsed(text: content, imagePaths: [], fileRefs: [])
         }
         // 引用行抽走后收拾空行（与 AttachedImageRef 同
@@ -859,16 +935,21 @@ public enum AttachedContextRef {
     /// 独立成行的 `@file:` 引用（头部形态）：整行只有
     /// 引用本身——直写形 `@file:<路径>`（路径不含空白）
     /// 或带引号形 `@file:"<路径>"`（FileSendAssembly 对
-    /// 含空格/括号路径的包裹形，引号后不许再有内容）
+    /// 含空格/括号路径的包裹形）；两种形态尾巴都只许
+    /// 带行段后缀 `:10-20`（collect 时剥掉）
     private static func standaloneFileRef(in line: String) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("@file:") else { return nil }
         let rest = String(trimmed.dropFirst("@file:".count))
         if rest.hasPrefix("\"") {
-            guard rest.count >= 2, rest.hasSuffix("\"") else {
+            let after = rest.dropFirst()
+            guard let close = after.firstIndex(of: "\"") else {
                 return nil
             }
-            let inner = String(rest.dropFirst().dropLast())
+            let tail = after[after.index(after: close)...]
+            guard tail.isEmpty || isLineRangeSuffix(String(tail))
+            else { return nil }
+            let inner = String(after[..<close])
             return inner.isEmpty ? nil : inner
         }
         guard !rest.isEmpty,
@@ -877,12 +958,14 @@ public enum AttachedContextRef {
         return rest
     }
 
-    /// 尾部 `📎 @file:` 说明行的路径：路径在 `@file:`
-    /// 后——带引号形取引号内、直写形取首个空白前一段
-    /// （其后是括号里的 MIME/大小与指令句，不入路径）
-    private static func clipLinePath(in line: String) -> String? {
+    /// 尾部块头行（`📎 @file:`/`📄 @file:`）的路径：
+    /// 路径在 `@file:` 后——带引号形取引号内、直写形
+    /// 取首个空白前一段（其后是括号里的 MIME/大小/
+    /// token 数与指令句，不入路径）
+    private static func blockLinePath(in line: String) -> String? {
         var trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("📎") else { return nil }
+        guard let marker = trimmed.first,
+              pathBlockMarkers.contains(marker) else { return nil }
         trimmed = String(trimmed.dropFirst())
             .trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("@file:") else { return nil }
@@ -898,12 +981,46 @@ public enum AttachedContextRef {
         let path = String(rest.prefix(while: { !$0.isWhitespace }))
         return path.isEmpty ? nil : path
     }
+
+    /// 独立成行的 `@folder:` 引用（头部形态）：整行
+    /// 只有引用本身（直写形或带引号形）
+    private static func isStandaloneFolderRef(_ trimmed: String) -> Bool {
+        guard trimmed.hasPrefix("@folder:") else { return false }
+        let rest = trimmed.dropFirst("@folder:".count)
+        guard !rest.isEmpty else { return false }
+        if rest.hasPrefix("\"") {
+            return rest.count >= 2 && rest.hasSuffix("\"")
+        }
+        return !rest.contains(where: { $0.isWhitespace })
+    }
+
+    /// 行段后缀形态 `:10` 或 `:10-20`（网关行范围引用
+    /// 的写法，附在路径尾、不是路径的一部分）
+    private static func isLineRangeSuffix(_ tail: String) -> Bool {
+        guard tail.hasPrefix(":") else { return false }
+        let body = tail.dropFirst()
+        guard !body.isEmpty else { return false }
+        let parts = body.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 1 || parts.count == 2 else { return false }
+        return parts.allSatisfy { part in
+            !part.isEmpty && part.allSatisfy(\.isNumber)
+        }
+    }
+
+    /// 剥路径尾的行段后缀；尾段不是行段形态（如文件
+    /// 名本身带冒号段）时原样返回
+    private static func stripLineRange(_ path: String) -> String {
+        guard let colon = path.lastIndex(of: ":") else { return path }
+        let tail = String(path[path.index(after: colon)...])
+        guard isLineRangeSuffix(":" + tail) else { return path }
+        return String(path[..<colon])
+    }
 }
 
 // MARK: - 文件引用探测
 
 /// 从消息文本里探测可预览的服务端文件路径（绝对路径＋
-/// 已知扩展名）。文件消息在现有历史里无样本（2026-11-09
+/// 扩展名形态）。文件消息在现有历史里无样本（2026-11-09
 /// 全扫零命中），本探测按实查路径形态（/opt/data/cache/
 /// documents、/opt/data/… 的 agent 产出）施工：命中即
 /// 文件牌，点击走既有 /api/files/download 取回预览。
@@ -914,10 +1031,16 @@ public enum FileRefDetector {
 
     // 0.46.1：路径段字符集扩 Unicode（\u0080–\uFFFF）——
     // 中文名文件（如 /opt/data/attachments/三藏.zip）
-    // 此前探不到、不出牌；护栏不变（冒号前置跳 URL 残
-    // 段、// 开头跳过、至少一层目录、扩展名白名单）
+    // 此前探不到、不出牌。扩围 B：扩展名白名单删除，
+    // 改「扩展名形态 [A-Za-z0-9]{1,12}」即命中——白
+    // 名单永远漏新类型（.mq5/.mqh/.py/.rar 上轮全漏）。
+    // 尾界负向断言：扩展名后不得紧跟字母数字（防截
+    // 断）、不得紧跟 /（防把 v1.2 这类带点目录段当文
+    // 件）、不得紧跟「.＋字母数字」（防 a.tar.gz 只
+    // 截到 .tar）。其余护栏不变：冒号前置跳 URL 残
+    // 段、// 开头跳过、至少一层目录、excluding 去重
     private static let pattern =
-        #"/[A-Za-z0-9_\-./\u0080-\uFFFF]+?\.(?:pdf|docx?|xlsx?|pptx?|md|txt|csv|json|zip|png|jpe?g|gif|webp|heic|mp3|wav|m4a|mp4|mov)\b"#
+        #"/[A-Za-z0-9_\-./\u0080-\uFFFF]+?\.[A-Za-z0-9]{1,12}(?![A-Za-z0-9/]|\.[A-Za-z0-9])"#
 
     public static func detect(
         in text: String, excluding excluded: [String] = []

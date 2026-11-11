@@ -215,6 +215,91 @@ final class RichContentTests: XCTestCase {
         XCTAssertTrue(inline.fileRefs.isEmpty)
     }
 
+    /// 扩围 A（0.46.1）：网关五形态补全——📄 内联块
+    /// （围栏感知）、警告块、📁 只剥不出牌、行段后缀
+    /// 剥离、📎 文本过大变体
+    func testAttachedContextRefFullForms() {
+        // 📄 内联块：头行收路径、围栏全文（含形似 📎
+        // 的代码行与空行）不进显示、不误收假路径
+        let doc = AttachedContextRef.parse(
+            "看看这份源码\n@file:/opt/data/docs/三藏.mq5\n\n"
+                + "--- Attached Context ---\n\n"
+                + "📄 @file:/opt/data/docs/三藏.mq5 (2048 tokens)\n"
+                + "```\n"
+                + "// 注释里写着 📎 @file:/opt/data/fake.zip 不要上当\n"
+                + "\n"
+                + "int main() { return 0; }\n"
+                + "```"
+        )
+        XCTAssertEqual(doc.text, "看看这份源码")
+        XCTAssertEqual(doc.fileRefs, ["/opt/data/docs/三藏.mq5"])
+        XCTAssertFalse(doc.text.contains("int main"))
+
+        // 警告块（解码失败、只有头部＋警告、无展开块）：
+        // 整段剥离、正文与路径照常还原
+        let warned = AttachedContextRef.parse(
+            "看看这个文件\n@file:/opt/data/attachments/笔记.txt\n\n"
+                + "--- Context Warnings ---\n\n"
+                + "- @file:/opt/data/attachments/笔记.txt: could not be "
+                + "decoded as UTF-8; skipped"
+        )
+        XCTAssertEqual(warned.text, "看看这个文件")
+        XCTAssertEqual(
+            warned.fileRefs, ["/opt/data/attachments/笔记.txt"]
+        )
+        XCTAssertFalse(warned.text.contains("Warnings"))
+
+        // 警告块夹在头部与展开块之间：同样整段不见
+        let warnedMid = AttachedContextRef.parse(
+            "发你了\n@file:/opt/data/a.zip\n\n"
+                + "--- Context Warnings ---\n\n"
+                + "- injection close to soft limit\n\n"
+                + "--- Attached Context ---\n\n"
+                + "📎 @file:/opt/data/a.zip (application/zip, 1 KB)"
+        )
+        XCTAssertEqual(warnedMid.text, "发你了")
+        XCTAssertEqual(warnedMid.fileRefs, ["/opt/data/a.zip"])
+        XCTAssertFalse(warnedMid.text.contains("soft limit"))
+
+        // 📁 文件夹块：整段剥离、不出牌（剥不出路径
+        // 也不许把列举原文回给气泡）
+        let folder = AttachedContextRef.parse(
+            "看看这个目录\n@folder:/opt/data/docs\n\n"
+                + "--- Attached Context ---\n\n"
+                + "📁 @folder:/opt/data/docs (128 tokens)\n"
+                + "a.txt\nb.pdf"
+        )
+        XCTAssertEqual(folder.text, "看看这个目录")
+        XCTAssertTrue(folder.fileRefs.isEmpty)
+        XCTAssertTrue(folder.imagePaths.isEmpty)
+
+        // 行段后缀：头部直写形与 📎 块头都剥 `:N-M`
+        let ranged = AttachedContextRef.parse(
+            "看这段\n@file:/opt/data/docs/a.txt:10-20"
+        )
+        XCTAssertEqual(ranged.text, "看这段")
+        XCTAssertEqual(ranged.fileRefs, ["/opt/data/docs/a.txt"])
+        let rangedTail = AttachedContextRef.parse(
+            "看这段\n@file:/opt/data/docs/a.txt:10-20\n\n"
+                + "--- Attached Context ---\n\n"
+                + "📄 @file:/opt/data/docs/a.txt:10-20 (88 tokens)\n"
+                + "```\n第十行\n```"
+        )
+        XCTAssertEqual(rangedTail.fileRefs, ["/opt/data/docs/a.txt"])
+
+        // 📎 文本过大变体：描述段是 tokens 口径、同
+        // 样出牌
+        let oversized = AttachedContextRef.parse(
+            "看看大文件\n@file:/opt/data/docs/big.txt\n\n"
+                + "--- Attached Context ---\n\n"
+                + "📎 @file:/opt/data/docs/big.txt (text file, "
+                + "approximately 123456 tokens) — too large to "
+                + "inline safely."
+        )
+        XCTAssertEqual(oversized.text, "看看大文件")
+        XCTAssertEqual(oversized.fileRefs, ["/opt/data/docs/big.txt"])
+    }
+
     // MARK: - 分类 / 标题 / 摘要
 
     func testClassifierCategories() {
@@ -632,6 +717,58 @@ final class RichContentTests: XCTestCase {
         XCTAssertTrue(
             FileRefDetector.detect(
                 in: "见 https://example.com/文件/a.pdf"
+            ).isEmpty
+        )
+    }
+
+    /// 扩围 B（0.46.1）：扩展名白名单删除、形态泛化
+    /// ——新类型命中、带点目录段不截断、双扩展名取
+    /// 全、版本串/域名/IP 不误报
+    func testFileRefDetectorGenericExtensions() {
+        // 白名单外类型照样命中（.mq5 是用户真实文件）
+        XCTAssertEqual(
+            FileRefDetector.detect(
+                in: "已生成 /opt/data/attachments/三藏.mq5，请查收"
+            ),
+            ["/opt/data/attachments/三藏.mq5"]
+        )
+        XCTAssertEqual(
+            FileRefDetector.detect(
+                in: "脚本在 /opt/data/tools/run.py，包在 /opt/data/a.rar"
+            ),
+            ["/opt/data/tools/run.py", "/opt/data/a.rar"]
+        )
+        // 带点目录段（v1.2）不是文件：命中后面的真文件
+        XCTAssertEqual(
+            FileRefDetector.detect(
+                in: "产物在 /opt/data/v1.2/report.pdf"
+            ),
+            ["/opt/data/v1.2/report.pdf"]
+        )
+        // 双扩展名取全、不截到 .tar
+        XCTAssertEqual(
+            FileRefDetector.detect(
+                in: "备份是 /opt/data/backup.tar.gz 已就绪"
+            ),
+            ["/opt/data/backup.tar.gz"]
+        )
+        // 版本串、域名、IP:端口不误报
+        XCTAssertTrue(
+            FileRefDetector.detect(in: "当前版本 1.2.3 已发布").isEmpty
+        )
+        XCTAssertTrue(
+            FileRefDetector.detect(
+                in: "域名 example.com 已迁移完成"
+            ).isEmpty
+        )
+        XCTAssertTrue(
+            FileRefDetector.detect(
+                in: "服务器 192.168.1.1:8080 已启动"
+            ).isEmpty
+        )
+        XCTAssertTrue(
+            FileRefDetector.detect(
+                in: "见 http://192.168.1.1:8080/a.txt 的说明"
             ).isEmpty
         )
     }

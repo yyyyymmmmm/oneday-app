@@ -323,6 +323,52 @@
         }
       }
     },
+    "%@不是 UTF-8 编码、转换失败，仍按原样加入待发列表，服务器可能读不了。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@不是 UTF-8 编码、转换失败，仍按原样加入待发列表，服务器可能读不了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@不是 UTF-8 編碼、轉換失敗，仍按原樣加入待傳送列表，伺服器可能讀不了。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ isn't UTF-8 and couldn't be converted. It was added to the send list as-is, and the server may not be able to read it."
+          }
+        }
+      }
+    },
+    "%@原本是 GBK 等旧编码，已转成 UTF-8 再发送。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@原本是 GBK 等旧编码，已转成 UTF-8 再发送。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@原本是 GBK 等舊編碼，已轉成 UTF-8 再傳送。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ was in a legacy encoding such as GBK and has been converted to UTF-8 for sending."
+          }
+        }
+      }
+    },
     "%@ · %@ · 当前模型 ": {
       "extractionState": "manual",
       "localizations": {

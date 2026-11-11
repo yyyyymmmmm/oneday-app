@@ -3173,15 +3173,32 @@ private struct ComposerBarLayout: Layout {
                             RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
                         )
                 }
-            case .file(let name, _):
+            case .file(let name, let data):
                 HStack(spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "doc")
                         .foregroundStyle(Palette.inkSecondary)
-                    Text(name)
-                        .font(.callout)
-                        .foregroundStyle(Palette.ink)
+                    // 0.46.1 扩围 D：待发牌补大小（此前
+                    // 只有名＋可删、大小缺位）——名主行、
+                    // 大小副行，与文件页 ByteCountFormatter
+                    // .file 同制
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(name)
+                            .font(.callout)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                            .frame(
+                                maxWidth: 140, alignment: .leading
+                            )
+                        Text(
+                            ByteCountFormatter.string(
+                                fromByteCount: Int64(data.count),
+                                countStyle: .file
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(1)
-                        .frame(maxWidth: 140)
+                    }
                 }
                 .padding(.horizontal, OneDayMetrics.spacingSM)
                 // 0.43.0（A11Y-D3）：定高改最小高——默认
@@ -3350,6 +3367,8 @@ private struct ComposerBarLayout: Layout {
         }
         var oversized: [String] = []
         var unreadable: [String] = []
+        var transcodedNames: [String] = []
+        var undecodableNames: [String] = []
         for url in urls {
             let name = url.lastPathComponent
             let declaredSize = (try? url.resourceValues(
@@ -3364,14 +3383,33 @@ private struct ComposerBarLayout: Layout {
                 unreadable.append(name)
                 continue
             }
+            // 编码归一（0.46.1 扩围 C）：文本类旧编码
+            // （GBK 族）先转 UTF-8 再入条——网关按
+            // UTF-8 硬读、原样上传会在服务端解码失败
+            // 智能体读不到；转码后的字节才是上传载荷，
+            // 手机上的原文件不动
+            let upload = FileIntake.transcodedForUpload(
+                fileName: name, data: data
+            )
             // 大小查不到（.unknownSize）时以实读字节
-            // 兜底二次判，同闸值
-            guard !FileIntake.isOversized(byteCount: data.count) else {
+            // 兜底二次判，同闸值；判的是转码后的最终
+            // 载荷（GBK→UTF-8 中文每字 2B 变 3B 会变大）
+            guard !FileIntake.isOversized(byteCount: upload.data.count)
+            else {
                 oversized.append(name)
                 continue
             }
+            // 转码账只记真入条的：被大小闸拒掉的文件
+            // 不进转码提示名单，免得两份名单对不上
+            switch upload.outcome {
+            case .transcoded: transcodedNames.append(name)
+            case .undecodable: undecodableNames.append(name)
+            case .unchanged: break
+            }
             attachments.append(
-                PendingAttachment(kind: .file(name: name, data: data))
+                PendingAttachment(
+                    kind: .file(name: name, data: upload.data)
+                )
             )
         }
         if !unreadable.isEmpty {
@@ -3380,10 +3418,17 @@ private struct ComposerBarLayout: Layout {
                     + unreadable.joined(separator: "、")
             )
         }
-        if let summary = FileIntake.rejectionNotice(
-            oversized: oversized, unreadable: unreadable
-        ) {
-            notice = summary
+        let summaries = [
+            FileIntake.rejectionNotice(
+                oversized: oversized, unreadable: unreadable
+            ),
+            FileIntake.transcodeNotice(
+                transcoded: transcodedNames,
+                undecodable: undecodableNames
+            ),
+        ].compactMap { $0 }
+        if !summaries.isEmpty {
+            notice = summaries.joined()
         }
     }
 
