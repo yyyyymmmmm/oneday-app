@@ -9444,3 +9444,39 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 合并：merge `f83131e`（feat/hotfix-attach-panel-05017 `5f7ef55` → main，基线 866a5c8／0.50.16），零冲突；§154 节号就地保留（枢纽包分支同号 §154、其合并时顺延，不在本单处理）。
 - 定版：版本五处同改＝Project.swift MARKETING_VERSION/CURRENT_PROJECT_VERSION＋CFBundleShortVersionString/CFBundleVersion（直写一处重点盯防，即 0.50.16 首轮漏改、1e25cc4 补丁的那处）＋SettingsView 页脚；grep 验五处全 0.50.17/139、无 0.50.16/138 残留。
 - 发版：CI run **43027685694**（push main `d3b8c99`），jobs API 逐项终判 build-native **success**；单测 Executed **1567、0 failures**（与预制口径一致）。主线独立解包验包：IPA **10,318,601 字节**、md5 `98f61c9c969aba5de5cac65404dcde17`、Info.plist 实读 **0.50.17／139／site.didichou.oneday** 三值一致；交付物落 `~/workspace/your_files/oneday-v0.50.17/OneDay-0.50.17.ipa`。真机待验按 §154.6 回收。
+
+## §157 引导线整线：欢迎／双方式登录一步制／四步真检查／成功／帮助（2026-11-11，用户 21:34 亲递原型 oneday-prototype.html 拍板「引导页做上、所有功能都实现」；预制分支 feat/onboarding-guide，基线 main 2ca568b／0.50.17，只预制不合并；节号分支自选 §157——§155 已被命名包、§156 已被折叠治理包自选，合并时主线顺延改注并同步代码注释）
+
+### 157.1 密码一步制的链路查证（本包地基，先查后建）
+- 原型两步（面板验证→再填 API 密钥）与定版冲突（2026-11-10 凭据体验纠正：用户永远只持一把凭据；服务端收口定版：默认密码登录、密钥作后门），按用户本单口径改一步制。
+- 伴生 front 8650 双方式登录查毕**不可复用**：POST /api/companion/login（password/key 两法）只发面板会话 cookie＋csrf，其文件头明示「Never returns any stored credential value through any API」——没有任何端点在验密后下发登录密钥；且其密码是单部署者密码、无账号概念，与本单「地址＋账号＋密码」形态不合。
+- 可复用链在 Hermes 本体、且全是现行生产在用端点：①GET /health（8642，可达判定＋版本＋延迟实测）②POST /auth/password-login（9119，HermesClient.login，2026-11-08 实测契约 provider=basic 四字段）验账号密码得面板会话 ③POST /api/env/reveal {key:"API_SERVER_KEY"}（EnvVars 面同端点）由服务端下发登录密钥 ④GET /v1/models 以该钥验真＋GET /api/status、/api/model/options 读服务信息。全过才落 Keychain 四件套（与 legacy connect 同口径，performAdmin 静默重登靠它）。reveal 取不到钥＝OnboardingFailure.keyUnavailable 诚实失败面，绝不假装连上。
+- 密钥登录（后门单步）：/health→/v1/models 验钥→/api/status 读版本；无面板会话，模型目录数取不到——成功面整项不显示（ConnectionServiceInfo 口径：取不到不编造）。
+
+### 157.2 四步真检查与失败分型（Core Onboarding.swift）
+- OnboardingStep 四步：地址格式（本地 ServerConfig 归一化，未过不发请求、留表单层报错）／服务器可达／凭据有效／读取服务信息（密码链该步含换钥动作，行尾注「换取登录密钥」）。每步状态只由真实请求结果驱动（onStep 回调逐点推进），无任何定时动画。
+- OnboardingFailure 五型（classify 只认步位＋HermesError 种类）：invalidAddress／unreachable（含 transientNetwork、healthCheckFailed）／credentialRejected（loginRejected、apiKeyRejected）／keyUnavailable（密码链自抛、classify 直通不被洗成 other）／other。失败面按型给标题＋说明，三出口恒在：重新连接／修改连接信息／查看连接帮助（返回落点按入口回原处）。
+
+### 157.3 五面落法（ConnectView 整页重写）
+- 欢迎：品牌区（沿现行三狗图＋欢迎语）＋三层分工句（与命名包连接页**同一词条逐字同文案**，合并时并集不冲突）＋演示对话预览卡（卡头明标「对话预览」、示例文案不冒充真实对话）＋开始连接＋「还没有服务器？」进帮助＋钥匙串信任行。
+- 登录：原生分段控件默认密码登录；密码面＝地址＋账号＋密码＋显隐切换＋一步制说明 notice；密钥面＝地址＋密钥（演示态圆点占位沿 0.1.3 旧口径）。
+- 连接中：四步列表（沿旧 probeGroup 行形态）＋失败分面（157.2）。
+- 成功：**不自动跳主界面**——connectWithPassword/connectWithKey 只落盘备 config、不置 phase；成功面数据全取本次实测（host、Hermes 版本、模型数仅密码链、延迟），「开始聊天」才 activatePreparedConnection 翻态；杀进程停在成功面时 restore() 凭 Keychain 照样成立。原型「先去设置看看」钮未落：设置在主界面内、标此名点进去落主界面是 mislabel，删。
+- 帮助：连接帮助三行（地址形态／密码登录真实口径／密钥来源）＋部署段（只给 Hermes 官方仓库真实链接，不编造部署步骤）＋GitHub Issues 反馈入口＋勿贴密钥提示。
+- 出现时机不变：根层 phase == .needsConnection 才呈现（首启/断开后），已连接直进主界面。
+
+### 157.4 首次聊天空态对账合并（ChatView）
+- 标题由写死「和你的 Hermes 聊聊」改走解析链 L10n.format("和 %@ 聊聊", agentDisplayName)——与命名包同改法同词条，合并时二选一即可（语义一致）；不另建第二套空态。
+- 补原型式建议条三条（Core EmptyChatSuggestions 单一出处：今天服务器状态怎么样？／把这周的会议整理成纪要／有哪些定时任务在跑？），点按＝input 落值走现行 send() 全链发送，不另建发送路。
+
+### 157.5 单测与词条
+- 新增 Tests/OneDayCoreTests/OnboardingTests.swift 12 法：四步顺序、classify 五型映射（含直通与未知归 other）、五型标题互不相同、summaryLine 全项/缺项/全缺/空版本四态、建议条三条同序。只增不减。
+- xcstrings +69 键（另 2 键与命名包逐字同文案同译，1 键「返回」存量已存），validate_i18n 通过：2727 键三语全覆盖。
+
+### 157.6 真机待验清单（合并后回收）
+1. **密码登录真连自家 Hermes 全程**：输错密码→凭据型失败面；输对→四步逐个真亮、成功面版本/模型数/延迟与实测对得上、开始聊天进主界面可正常对话。
+2. 断网（飞行模式）→找不到服务器型失败面；地址乱填→表单层地址报错不进连接中面。
+3. 密钥登录：错钥→凭据型失败面；对钥→成功面无模型数行（取不到不显示）。
+4. 断开连接后重进 App→回到欢迎面；杀进程停在成功面→重启直进主界面。
+5. 首次聊天空态：标题显当前智能体名、建议条点按真发送。
+6. AX 最大字号＋深色各一帧：欢迎/登录/成功三面不叠字；三语各切一帧看新句不溢出。

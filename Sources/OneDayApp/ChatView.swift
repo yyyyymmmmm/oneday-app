@@ -1672,7 +1672,9 @@ struct ChatView: View {
                                 )
                             }
                             .accessibilityHidden(true)
-                        Text("和你的 Hermes 聊聊")
+                        Text(L10n.format(
+                            "和 %@ 聊聊", appState.agentDisplayName
+                        ))
                             // 0.3.3 收编：手写 fontWeight 漂移
                             // 改走 sectionTitle 角色（阶梯账
                             // 见原字重账本，已废止）
@@ -1685,6 +1687,43 @@ struct ChatView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, OneDayMetrics.spacingXL)
+                    // 引导线（原型 chat 面）：空态建议条三
+                    // 条，点按即发送（走现行 send() 全链，
+                    // 不另建发送路）。文案与图标名单一出处
+                    // 在 Core EmptyChatSuggestions
+                    VStack(spacing: OneDayMetrics.spacingS) {
+                        ForEach(
+                            Array(EmptyChatSuggestions.texts.enumerated()),
+                            id: \.offset
+                        ) { index, suggestion in
+                            Button {
+                                input = suggestion
+                                send()
+                            } label: {
+                                HStack(spacing: OneDayMetrics.spacingSM) {
+                                    Image(systemName: EmptyChatSuggestions.symbols[index])
+                                        .font(.system(size: 15))
+                                        .foregroundStyle(Palette.inkSecondary)
+                                    Text(L10n.string(suggestion))
+                                        .font(.callout)
+                                        .foregroundStyle(Palette.ink)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, OneDayMetrics.spacingM)
+                                .frame(minHeight: 50)
+                                .background(
+                                    Palette.surface,
+                                    in: RoundedRectangle(
+                                        cornerRadius: OneDayMetrics.fieldCorner,
+                                        style: .continuous
+                                    )
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, OneDayMetrics.spacingL)
                     // §119：无任何可用模型时，空态下方出
                     // 引导卡（判定见 showsModelSetupCard；
                     // 有模型时永不出现）
