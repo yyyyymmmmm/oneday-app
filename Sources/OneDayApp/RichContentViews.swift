@@ -651,7 +651,8 @@ struct ChatFilePreviewItem: Identifiable {
     /// 白死页——呈现前先验资格，不过者由调用方改
     /// 落下载/分享档（通行做法，见 §121.5）
     var canPreview: Bool {
-        QLPreviewController.canPreviewItem(url as NSURL)
+        // iOS 26 SDK 改名：canPreviewItem → canPreview(_:)
+        QLPreviewController.canPreview(url as NSURL)
     }
 }
 
