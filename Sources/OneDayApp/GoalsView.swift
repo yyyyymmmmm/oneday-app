@@ -150,11 +150,11 @@ struct GoalsView: View {
             .refreshable {
                 await store.load(appState: appState)
             }
-            // §170 落点＋§173 档位改判：底部导航栏收边
-            // ——本页根 ScrollView 底缘挂 .soft 渐进溶化
-            // （.hard 作废），口径与映射见 FeedView 同
-            // 注与 DESIGN §170.2／§173.3
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            // §170（用户 2026-11-11 23:28 亲定）：底部导
+            // 航栏同档收边（与输入框下方收边同档）——本页根 Scroll-
+            // View 底缘挂 .hard，口径与映射见 FeedView
+            // 同注与 DESIGN §170.2
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
         }
     }
 
@@ -188,10 +188,10 @@ struct GoalsView: View {
         .refreshable {
             await store.load(appState: appState)
         }
-        // §170 落点＋§173 档位：无目标态（分类创建流）
-        // 与有目标态同为本格根滚动面，底缘同挂 .soft
-        // 渐进溶化（口径见 readyContent 同注）
-        .scrollEdgeEffectStyle(.soft, for: .bottom)
+        // §170：无目标态（分类创建流）与有目标态同为本
+        // 格根滚动面，底缘同挂 .hard（口径见 ready-
+        // Content 同注）
+        .scrollEdgeEffectStyle(.hard, for: .bottom)
     }
 
     /// 状态分组（照 Muse 行形态）：色点组头＋扁平行，
