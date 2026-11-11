@@ -262,7 +262,7 @@ struct MemoryView: View {
             }
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "记忆状态读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "记忆状态没读出来，可能是网络或服务暂时没响应"
         }
     }
 
@@ -449,7 +449,7 @@ struct MemoryProviderConfigView: View {
             config = loaded
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "配置读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "配置没读出来，可能是网络或服务暂时没响应"
         }
     }
 

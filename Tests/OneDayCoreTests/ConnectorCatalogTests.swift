@@ -110,7 +110,7 @@ final class ConnectorCatalogTests: XCTestCase {
         ])[0]
         XCTAssertEqual(on.statusLabel(locale: Locale(identifier: "zh-Hans")), "已连接 · 已启用")
         XCTAssertEqual(off.statusLabel(locale: Locale(identifier: "zh-Hans")), "已连接 · 已停用")
-        XCTAssertEqual(ConnectorEvidence.configuredOnly.label(locale: Locale(identifier: "zh-Hans")), "仅配置在册 · 未验活")
+        XCTAssertEqual(ConnectorEvidence.configuredOnly.label(locale: Locale(identifier: "zh-Hans")), "已保存，还没测过连接")
         XCTAssertEqual(ConnectorEvidence.none.label(locale: Locale(identifier: "zh-Hans")), "无连接证据")
     }
 

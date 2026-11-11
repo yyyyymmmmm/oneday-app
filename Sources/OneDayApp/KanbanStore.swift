@@ -107,7 +107,7 @@ final class KanbanStore {
             }
         } catch {
             if loadState == .ready, snapshot != nil { return }
-            loadState = .failed(L10n.string("任务读取失败，请稍后重试。"))
+            loadState = .failed(L10n.string("任务没读出来，可能是网络或服务暂时没响应"))
         }
     }
 
@@ -201,7 +201,7 @@ final class KanbanStore {
             createError = error.userMessage
             return (false, nil)
         } catch {
-            createError = L10n.string("任务创建失败，请稍后重试。")
+            createError = L10n.string("任务创建失败，请稍后再试。")
             return (false, nil)
         }
     }
@@ -245,7 +245,7 @@ final class KanbanStore {
             )
             return
         } catch {
-            notes[task.id] = L10n.string("动作发送失败，请稍后重试。")
+            notes[task.id] = L10n.string("动作发送失败，请稍后再试。")
             await fetchBoard(
                 appState: appState, missingMeansUnprovisioned: false
             )

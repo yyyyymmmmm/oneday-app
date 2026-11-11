@@ -1563,7 +1563,7 @@ struct ContactsDetailView: View {
             loadError = error.message
             items = []
         } catch {
-            loadError = "通讯录读取失败"
+            loadError = "通讯录没读出来，可能是网络或服务暂时没响应"
             items = []
         }
     }
@@ -1998,7 +1998,7 @@ struct FilesDetailView: View {
             loadError = error.message
             items = []
         } catch {
-            loadError = "读取文件夹失败"
+            loadError = "文件夹没读出来，可能是网络或服务暂时没响应"
             items = []
         }
     }
@@ -2011,7 +2011,7 @@ struct FilesDetailView: View {
         } catch let error as DeviceToolError {
             previewText = error.message
         } catch {
-            previewText = "读取文件失败"
+            previewText = "文件没读出来。"
         }
     }
 }

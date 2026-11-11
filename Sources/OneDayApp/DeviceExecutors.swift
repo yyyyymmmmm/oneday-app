@@ -691,7 +691,7 @@ final class ContactsEngine: @unchecked Sendable {
             }
         } catch {
             throw DeviceToolError.failed(
-                "通讯录读取失败：\(error.localizedDescription)"
+                "通讯录没读出来：\(error.localizedDescription)"
             )
         }
         return items
@@ -729,7 +729,7 @@ final class ContactsEngine: @unchecked Sendable {
             }
         } catch {
             throw DeviceToolError.failed(
-                "通讯录读取失败：\(error.localizedDescription)"
+                "通讯录没读出来：\(error.localizedDescription)"
             )
         }
         return (records.map(\.manifestEntry), records)
@@ -965,7 +965,7 @@ final class SandboxFilesEngine: @unchecked Sendable {
             )
         } catch {
             throw DeviceToolError.failed(
-                "读取文件夹失败：\(error.localizedDescription)"
+                "文件夹没读出来：\(error.localizedDescription)"
             )
         }
         let prefix = relativePath.isEmpty ? "" : relativePath + "/"
@@ -1042,7 +1042,7 @@ final class SandboxFilesEngine: @unchecked Sendable {
             data = try Data(contentsOf: url)
         } catch {
             throw DeviceToolError.failed(
-                "读取文件失败：\(error.localizedDescription)"
+                "文件没读出来：\(error.localizedDescription)"
             )
         }
         guard let text = String(data: data, encoding: .utf8)
@@ -1169,7 +1169,7 @@ final class SandboxFilesEngine: @unchecked Sendable {
             return try Data(contentsOf: url)
         } catch {
             throw DeviceToolError.failed(
-                "读取文件失败：\(error.localizedDescription)"
+                "文件没读出来：\(error.localizedDescription)"
             )
         }
     }

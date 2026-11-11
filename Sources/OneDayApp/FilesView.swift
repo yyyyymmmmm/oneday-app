@@ -353,7 +353,7 @@ struct FileUploadPickerModifier: ViewModifier {
             data = try Data(contentsOf: url)
         } catch {
             if scoped { url.stopAccessingSecurityScopedResource() }
-            onFinished("读取所选文件失败。", false)
+            onFinished("所选文件没读出来。", false)
             return
         }
         if scoped { url.stopAccessingSecurityScopedResource() }
@@ -661,7 +661,7 @@ struct FilesBrowserView: View {
         guard let data = try? await item.loadTransferable(
             type: Data.self
         ) else {
-            notice = "读取所选照片失败。"
+            notice = "所选照片没读出来。"
             return
         }
         let formatter = DateFormatter()
@@ -690,7 +690,7 @@ struct FilesBrowserView: View {
         } else if let loadError, listing == nil {
             EmptyState(
                 icon: "exclamationmark.triangle",
-                title: "读取失败",
+                title: "没读出来",
                 message: loadError
             )
             .padding(.top, OneDayMetrics.spacingXXL)
@@ -843,7 +843,7 @@ struct FilesBrowserView: View {
             loadError = nil
         } catch {
             let message = (error as? HermesError)?.userMessage
-                ?? "读取目录失败，请稍后再试。"
+                ?? "目录没读出来，可能是网络或服务暂时没响应"
             if listing == nil {
                 loadError = message
             } else {

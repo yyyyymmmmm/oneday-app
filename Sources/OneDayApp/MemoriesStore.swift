@@ -95,7 +95,7 @@ final class MemoriesStore {
             loadState = Self.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed(L10n.string("记忆条目读取失败，请稍后重试。"))
+            loadState = .failed(L10n.string("记忆条目没读出来，可能是网络或服务暂时没响应"))
         }
         if loadState == .ready {
             await refreshApprovals(appState: appState)
@@ -189,7 +189,7 @@ final class MemoriesStore {
             )
         case .bridgeMissing:
             return .sourceNotOpened(
-                L10n.string("服务器上的写入审批桥还没有开通记忆条目面。开通后，智能体的长期记忆会逐条出现在这里。")
+                L10n.string("服务器上的写入审批还没有开通记忆条目。开通后，智能体的长期记忆会逐条出现在这里。")
             )
         case .recordGone:
             return .failed(L10n.string("这条记忆已经不在了，请刷新后重试。"))
@@ -203,9 +203,9 @@ final class MemoriesStore {
     static func message(for error: WriteGateError) -> String {
         switch error {
         case .noKey:
-            return L10n.string("数据桥未连接：还没有可用的登录信息。")
+            return L10n.string("还没连上你的服务：还没有可用的登录信息。")
         case .unauthorized:
-            return L10n.string("数据桥未连接：服务器拒绝了这次登录。")
+            return L10n.string("还没连上你的服务：服务器拒绝了这次登录。")
         case .bridgeMissing:
             return L10n.string("记忆条目面还没有开通。")
         case .recordGone:
@@ -233,7 +233,7 @@ final class MemoriesStore {
         } catch let error as WriteGateError {
             detailErrors[id] = Self.message(for: error)
         } catch {
-            detailErrors[id] = L10n.string("详情读取失败，请稍后重试。")
+            detailErrors[id] = L10n.string("详情没读出来，可能是网络或服务暂时没响应")
         }
     }
 
@@ -289,7 +289,7 @@ final class MemoriesStore {
             proposeError = Self.message(for: error)
             return false
         } catch {
-            proposeError = L10n.string("提交失败，请稍后重试。")
+            proposeError = L10n.string("提交失败，请稍后再试。")
             return false
         }
     }
@@ -331,7 +331,7 @@ final class MemoriesStore {
             proposeError = Self.message(for: error)
             return false
         } catch {
-            proposeError = L10n.string("提交失败，请稍后重试。")
+            proposeError = L10n.string("提交失败，请稍后再试。")
             return false
         }
     }
@@ -367,7 +367,7 @@ final class MemoriesStore {
             notesOnDelete = Self.message(for: error)
             return false
         } catch {
-            notesOnDelete = L10n.string("提交失败，请稍后重试。")
+            notesOnDelete = L10n.string("提交失败，请稍后再试。")
             return false
         }
     }

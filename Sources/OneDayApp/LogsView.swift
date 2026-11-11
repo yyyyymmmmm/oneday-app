@@ -129,7 +129,7 @@ struct LogsView: View {
             lines = Array(response.lines.reversed())
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "日志读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "日志没读出来，可能是网络或服务暂时没响应"
         }
     }
 }

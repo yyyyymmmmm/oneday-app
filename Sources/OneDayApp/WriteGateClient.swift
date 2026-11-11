@@ -87,7 +87,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         config: ServerConfig, subsystem: WriteGateSubsystem, id: String
     ) async throws -> WriteGateDetail {
         guard let segment = subsystem.pathSegment else {
-            throw WriteGateError.failed(L10n.string("未知类型不支持查看"))
+            throw WriteGateError.failed(L10n.string("这类审批 App 里还处理不了，请在 Hermes 网页端处理。"))
         }
         return try await get(
             config: config, path: "/pending/\(segment)/\(id)",
@@ -129,7 +129,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         origin: String
     ) async throws -> WriteGateRule {
         guard let segment = subsystem.pathSegment else {
-            throw WriteGateError.failed(L10n.string("未知类型不支持建规则"))
+            throw WriteGateError.failed(L10n.string("这类审批 App 里还处理不了，请在 Hermes 网页端处理。"))
         }
         let body = try JSONSerialization.data(
             withJSONObject: ["subsystem": segment, "origin": origin]
@@ -229,7 +229,7 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         id: String, action: String
     ) async throws -> WriteGateDecisionResponse {
         guard let segment = subsystem.pathSegment else {
-            throw WriteGateError.failed(L10n.string("未知类型不支持裁决"))
+            throw WriteGateError.failed(L10n.string("这类审批 App 里还处理不了，请在 Hermes 网页端处理。"))
         }
         let request = try makeRequest(
             config: config,

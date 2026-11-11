@@ -471,7 +471,7 @@ private struct ImageViewerPage: View {
                 VStack(spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "photo")
                         .font(.system(size: 26))
-                    Text("图片加载失败")
+                    Text("图片没加载出来")
                         .font(.callout)
                 }
                 .foregroundStyle(

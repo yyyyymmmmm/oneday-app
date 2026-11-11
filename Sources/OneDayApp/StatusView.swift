@@ -152,7 +152,7 @@ struct StatusView: View {
                 .padding(.top, 28)
                 .padding(.bottom, OneDayMetrics.spacingS)
             if logLines.isEmpty {
-                Text("暂无日志")
+                Text("暂无日志。有新事件时，会记在这里。")
                     .font(.callout)
                     .foregroundStyle(Palette.inkSecondary)
             } else {

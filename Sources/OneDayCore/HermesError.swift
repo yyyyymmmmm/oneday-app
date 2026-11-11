@@ -89,7 +89,7 @@ public enum HermesError: Error, Sendable {
             return L10n.string("登录已过期，重新登录后再试。", locale: locale)
         case .modelNotUpstream(let model):
             return L10n.format(
-                "「%@」不在上游可用模型列表里（网关别名不能设为默认模型），已拦截，未写入配置。",
+                "「%@」是网关内部的别名，不能设为默认模型，这次没有写入。",
                 locale: locale, model
             )
         case .cancelled:

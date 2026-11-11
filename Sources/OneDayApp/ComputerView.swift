@@ -138,7 +138,7 @@ struct ComputerView: View {
             case .ready(let status):
                 readyDetails(status)
             case .bridgeUnavailable:
-                Text("云电脑走桥钥匙的云电脑分项（未配时回退旧共用钥），在「设置 · 桥钥匙」粘贴或导入后生效。")
+                Text("云电脑还没连上：先到「设置」里确认已经连接并登录，再回来刷新状态。")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
             case .failed:
@@ -179,7 +179,7 @@ struct ComputerView: View {
                 detailRow("名称", name)
             }
             if let imageLine = status.imageLine {
-                detailRow("镜像", imageLine)
+                detailRow("系统", imageLine)
             }
             if let saved = status.lastSavedAt {
                 detailRow("最后保存", BoxTimeText.dateTime(saved))

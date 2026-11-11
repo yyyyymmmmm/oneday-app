@@ -33,7 +33,7 @@ struct HubTaskSection: View {
                 }
             case .failed(let message):
                 ContentUnavailableView {
-                    Label("任务读取失败", systemImage: "exclamationmark.triangle")
+                    Label("任务没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(message)
                 } actions: {

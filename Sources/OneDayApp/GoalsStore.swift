@@ -70,7 +70,7 @@ final class GoalsStore {
             loadState = Self.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed(L10n.string("目标读取失败，请稍后重试。"))
+            loadState = .failed(L10n.string("目标没读出来，可能是网络或服务暂时没响应"))
         }
     }
 
@@ -93,7 +93,7 @@ final class GoalsStore {
                 L10n.string("服务器拒绝了这次登录。请到「设置」里检查登录是否还有效。")
             )
         case .bridgeMissing:
-            return .notConnected(L10n.string("服务器上的数据桥还没有开通。"))
+            return .notConnected(L10n.string("服务器上这项服务还没有开通。"))
         case .recordGone:
             return .failed(L10n.string("这条记录已经不在了，请刷新后重试。"))
         case .failed(let message):
@@ -104,11 +104,11 @@ final class GoalsStore {
     static func message(for error: OneDayBridgeError) -> String {
         switch error {
         case .noKey:
-            return L10n.string("数据桥未连接：还没有可用的登录信息。")
+            return L10n.string("还没连上你的服务：还没有可用的登录信息。")
         case .unauthorized:
-            return L10n.string("数据桥未连接：服务器拒绝了这次登录。")
+            return L10n.string("还没连上你的服务：服务器拒绝了这次登录。")
         case .bridgeMissing:
-            return L10n.string("服务器上的数据桥还没有开通。")
+            return L10n.string("服务器上这项服务还没有开通。")
         case .recordGone:
             return L10n.string("这条记录已经不在了。")
         case .failed(let message):
@@ -149,7 +149,7 @@ final class GoalsStore {
             createError = Self.message(for: error)
             return false
         } catch {
-            createError = L10n.string("目标创建失败，请稍后重试。")
+            createError = L10n.string("目标创建失败，请稍后再试。")
             return false
         }
     }
@@ -202,7 +202,7 @@ final class GoalsStore {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = L10n.string("保存失败，请稍后重试。")
+            notes[goalID] = L10n.string("保存失败，请稍后再试。")
             return false
         }
     }
@@ -235,7 +235,7 @@ final class GoalsStore {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = L10n.string("删除失败，请稍后重试。")
+            notes[goalID] = L10n.string("删除失败，请稍后再试。")
             return false
         }
     }
@@ -278,7 +278,7 @@ final class GoalsStore {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = L10n.string("状态更新失败，请稍后重试。")
+            notes[goalID] = L10n.string("状态更新失败，请稍后再试。")
             return false
         }
     }
@@ -319,7 +319,7 @@ final class GoalsStore {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = L10n.string("分类更新失败，请稍后重试。")
+            notes[goalID] = L10n.string("分类更新失败，请稍后再试。")
             return false
         }
     }
@@ -431,7 +431,7 @@ final class GoalsStore {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = L10n.string("记录进展失败，请稍后重试。")
+            notes[goalID] = L10n.string("记录进展失败，请稍后再试。")
             return false
         }
     }
@@ -550,7 +550,7 @@ final class GoalsStore {
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
-            notes[goalID] = L10n.string("删除进展失败，请稍后重试。")
+            notes[goalID] = L10n.string("删除进展失败，请稍后再试。")
             return false
         }
     }

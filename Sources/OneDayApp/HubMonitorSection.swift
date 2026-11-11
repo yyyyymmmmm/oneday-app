@@ -31,7 +31,7 @@ struct HubMonitorSection: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .notConnected(let message):
                 ContentUnavailableView {
-                    Label("数据桥未连接", systemImage: "link.badge.plus")
+                    Label("还没连上你的服务", systemImage: "link.badge.plus")
                 } description: {
                     Text(message)
                 } actions: {
@@ -53,7 +53,7 @@ struct HubMonitorSection: View {
                 }
             case .failed(let message):
                 ContentUnavailableView {
-                    Label("监测读取失败", systemImage: "exclamationmark.triangle")
+                    Label("监测没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(message)
                 } actions: {

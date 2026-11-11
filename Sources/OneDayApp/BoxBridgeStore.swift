@@ -123,7 +123,7 @@ final class BoxBridgeStore {
             switch error {
             case .noKey, .unauthorized:
                 apply(error: error, appState: appState, target: .status)
-                actNote = L10n.string("桥未连接，接管动作没有发出。")
+                actNote = L10n.string("还没连上，这次操作没有发出去。")
             case .failed(let message):
                 actNote = message
             }

@@ -550,7 +550,7 @@ public enum WriteGateLabels {
             return L10n.string("这条待批会删除技能内的文件。", locale: locale)
         default:
             return L10n.string(
-                "这条待批带有一条桥侧提示，批准前请打开改动核对。", locale: locale
+                "这条待批带有一条额外提示，批准前请打开改动核对。", locale: locale
             )
         }
     }

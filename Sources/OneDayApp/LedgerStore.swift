@@ -99,7 +99,7 @@ final class LedgerStore {
             await handleLoadError(error, config: config)
         } catch {
             if loadState != .ready {
-                loadState = .failed(L10n.string("台账读取失败，请稍后重试。"))
+                loadState = .failed(L10n.string("台账没读出来，可能是网络或服务暂时没响应"))
             }
         }
     }
@@ -208,7 +208,7 @@ final class LedgerStore {
             }
         case .recordGone:
             if loadState != .ready {
-                loadState = .failed(L10n.string("台账读取失败，请稍后重试。"))
+                loadState = .failed(L10n.string("台账没读出来，可能是网络或服务暂时没响应"))
             }
         case .failed(let message):
             if loadState != .ready {

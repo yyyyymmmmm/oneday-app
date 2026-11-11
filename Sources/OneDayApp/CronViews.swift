@@ -184,7 +184,7 @@ struct CronJobsView: View {
             }
             errorMessage = nil
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage ?? "定时任务读取失败。"
+            errorMessage = (error as? HermesError)?.userMessage ?? "定时任务没读出来，可能是网络或服务暂时没响应"
         }
     }
 }
@@ -548,7 +548,7 @@ struct CronJobDetailView: View {
                 try await client.cronRuns(config: config, id: current.id, limit: 20)
             }
         } catch {
-            runsError = "运行记录读取失败。"
+            runsError = "运行记录没读出来，可能是网络或服务暂时没响应"
         }
     }
 

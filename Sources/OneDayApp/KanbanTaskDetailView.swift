@@ -41,7 +41,7 @@ struct KanbanTaskDetailView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ContentUnavailableView(
-                    "任务读取失败",
+                    "任务没读出来，可能是网络或服务暂时没响应",
                     systemImage: "exclamationmark.triangle",
                     description: Text("请返回列表刷新后重试。")
                 )

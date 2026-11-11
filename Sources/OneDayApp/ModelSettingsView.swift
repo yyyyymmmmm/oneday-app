@@ -716,7 +716,7 @@ struct ModelSettingsView: View {
                         .padding(.vertical, OneDayMetrics.spacingSM)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if store.combosLoadFailed {
-                    Text("预设清单读取失败，请下拉重试。")
+                    Text("预设清单没读出来，可能是网络或服务暂时没响应")
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                         .padding(.horizontal, OneDayMetrics.spacingM)

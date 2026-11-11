@@ -426,7 +426,7 @@ final class AgentHubStore {
             approvalState = mapGateError(error)
             return
         } catch {
-            approvalState = .failed(L10n.string("审批状态读取失败"))
+            approvalState = .failed(L10n.string("审批状态没读出来，可能是网络或服务暂时没响应"))
             return
         }
         guard status.supported else {
@@ -445,7 +445,7 @@ final class AgentHubStore {
             approvalState = mapGateError(error)
             return
         } catch {
-            approvalState = .failed(L10n.string("待批列表读取失败"))
+            approvalState = .failed(L10n.string("待批列表没读出来，可能是网络或服务暂时没响应"))
             return
         }
         await refreshDecisionHistory()
@@ -499,7 +499,7 @@ final class AgentHubStore {
         } catch let error as WriteGateError {
             return .failure(error)
         } catch {
-            return .failure(.failed(L10n.string("改动读取失败")))
+            return .failure(.failed(L10n.string("改动没读出来，可能是网络或服务暂时没响应")))
         }
     }
 
@@ -647,11 +647,11 @@ final class AgentHubStore {
             if case .failed(let message) = error {
                 rulesNote = message
             } else {
-                rulesNote = L10n.string("撤销没能生效，请稍后重试。")
+                rulesNote = L10n.string("撤销没能生效，请稍后再试。")
             }
             await loadRules()
         } catch {
-            rulesNote = L10n.string("撤销没能生效，请稍后重试。")
+            rulesNote = L10n.string("撤销没能生效，请稍后再试。")
         }
         revokingRuleIDs.remove(rule.id)
     }

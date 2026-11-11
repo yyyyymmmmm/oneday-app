@@ -35,7 +35,7 @@ enum ServerSessionActions {
             }
             return row.cleanedServerTitle == title
                 ? .verified
-                : .failed(L10n.string("改名未落定：服务端标题还没有变过来。"))
+                : .failed(L10n.string("没改名成：服务器上的标题还是原来的，稍后再试一次。"))
         } catch {
             return .failed(humanReason(error))
         }
@@ -57,7 +57,7 @@ enum ServerSessionActions {
             }
             return row.isPinned == pinned
                 ? .verified
-                : .failed(L10n.string("置顶未落定：服务端状态还没有变过来。"))
+                : .failed(L10n.string("没置顶成：服务器上这条还是没置顶的样子，稍后再试一次。"))
         } catch {
             return .failed(humanReason(error))
         }
@@ -82,7 +82,7 @@ enum ServerSessionActions {
                 try await client.serverSession(config: config, id: id)
             }
             guard row.isArchived == archived else {
-                return .failed(L10n.string("归档未落定：服务端状态还没有变过来。"))
+                return .failed(L10n.string("没归档成：服务器上这条还是未归档的样子，稍后再试一次。"))
             }
             if !archived {
                 appState.sideChats.unarchive(serverSessionID: id)
@@ -110,7 +110,7 @@ enum ServerSessionActions {
             _ = try await appState.performAdmin { client, config in
                 try await client.serverSession(config: config, id: id)
             }
-            return .failed(L10n.string("删除未落定：这条会话在服务端还在。"))
+            return .failed(L10n.string("没删掉：这条会话在服务器上还在，稍后再试一次。"))
         } catch {
             return .verified
         }
@@ -281,7 +281,7 @@ struct ServerSessionRow<Content: View>: View {
             Text(SideChatLink.mergeBucketWarning)
         }
         .alert(
-            "操作未落定",
+            "没改成",
             isPresented: Binding(
                 get: { errorText != nil },
                 set: { if !$0 { errorText = nil } }

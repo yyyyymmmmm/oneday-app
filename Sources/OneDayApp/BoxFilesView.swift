@@ -41,8 +41,8 @@ struct BoxFilesView: View {
             case .notConnected:
                 EmptyState(
                     icon: "key.slash",
-                    title: "数据桥未连接",
-                    message: "先在设置里填好数据桥钥匙，才能读电脑里的文件。"
+                    title: "还没连上你的服务",
+                    message: "还没有可用的登录信息：电脑文件用的是你的 Hermes 登录。先到「设置」里确认已经连接并登录，就能用了。"
                 )
                 .padding(.top, OneDayMetrics.spacingXXL)
                 Spacer()
@@ -57,7 +57,7 @@ struct BoxFilesView: View {
             case .failed(let message):
                 EmptyState(
                     icon: "exclamationmark.triangle",
-                    title: "读取失败",
+                    title: "没读出来",
                     message: message
                 )
                 .padding(.top, OneDayMetrics.spacingXXL)
@@ -182,7 +182,7 @@ struct BoxFilesView: View {
                 phase = .failed(message)
             }
         } catch {
-            phase = .failed("读取电脑文件失败，请稍后再试。")
+            phase = .failed("电脑里的文件没读出来，可能是网络或服务暂时没响应")
         }
     }
 }
@@ -247,7 +247,7 @@ struct DataFilePreviewView: View {
                 }
             } catch {
                 failedMessage = (error as? BoxFilesError)
-                    .map(boxFilesMessage) ?? "读取文件失败，请稍后再试。"
+                    .map(boxFilesMessage) ?? "文件没读出来，可能是网络或服务暂时没响应"
             }
         }
     }
@@ -255,7 +255,7 @@ struct DataFilePreviewView: View {
     private func boxFilesMessage(_ error: BoxFilesError) -> String {
         switch error {
         case .noKey, .unauthorized:
-            return "数据桥未连接。"
+            return "还没连上你的服务。"
         case .notAvailable:
             return "电脑文件尚未开通。"
         case .failed(let message):

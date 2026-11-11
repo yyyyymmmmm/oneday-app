@@ -618,7 +618,7 @@ struct OverviewView: View {
             status = try await appState.client.status(config: config)
             statusError = nil
         } catch {
-            statusError = (error as? HermesError)?.userMessage ?? "状态读取失败。"
+            statusError = (error as? HermesError)?.userMessage ?? "状态没读出来，可能是网络或服务暂时没响应"
         }
         if let page = try? await appState.performAdmin({ client, config in
             try await client.serverSessions(config: config, limit: 100)

@@ -31,7 +31,7 @@ struct IdeasView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .notConnected(let message):
                     ContentUnavailableView {
-                        Label("数据桥未连接", systemImage: "link.badge.plus")
+                        Label("还没连上你的服务", systemImage: "link.badge.plus")
                     } description: {
                         Text(message)
                     } actions: {
@@ -42,7 +42,7 @@ struct IdeasView: View {
                     }
                 case .failed(let message):
                     ContentUnavailableView {
-                        Label("点子读取失败", systemImage: "exclamationmark.triangle")
+                        Label("点子没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
                     } description: {
                         Text(message)
                     } actions: {
@@ -441,11 +441,6 @@ struct IdeaDetailView: View {
             Text(idea.evidence)
                 .font(.body)
                 .foregroundStyle(Palette.bodyInk)
-            if let ref = idea.evidenceRef {
-                Text("素材编号 \(ref)")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

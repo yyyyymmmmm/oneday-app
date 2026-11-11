@@ -207,7 +207,7 @@ struct LedgerDetailView: View {
                     .foregroundStyle(Palette.inkMuted)
             }
             if entry.corrected {
-                tag("对账纠正")
+                tag("已纠正")
             } else if entry.conflict {
                 tag("证据有冲突 · 保持原判")
             }

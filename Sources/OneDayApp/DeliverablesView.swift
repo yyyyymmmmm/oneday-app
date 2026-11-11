@@ -508,7 +508,7 @@ struct DeliverablesView: View {
     /// 失败态带显式重试（下拉刷新退役后的补位，见页头注）
     private func failureState(message: String) -> some View {
         ContentUnavailableView {
-            Label("读取失败", systemImage: "exclamationmark.triangle")
+            Label("没读出来", systemImage: "exclamationmark.triangle")
         } description: {
             Text(message)
         } actions: {
@@ -1055,7 +1055,7 @@ struct DeliverablesView: View {
             Haptics.success()
         } catch {
             notice = (error as? HermesError)?.userMessage
-                ?? "读取文件失败，请稍后再试。"
+                ?? "文件没读出来，可能是网络或服务暂时没响应"
             Haptics.error()
         }
     }
@@ -1179,7 +1179,7 @@ struct DeliverablesView: View {
                 try await client.files(config: config, path: nil)
             }
             if probe == nil {
-                loadError = "产出目录读取失败，请稍后重试。"
+                loadError = "产出目录没读出来，可能是网络或服务暂时没响应"
             }
         }
         deliverables = found.sorted {

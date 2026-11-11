@@ -103,7 +103,7 @@ final class IdeasStore {
             loadState = GoalsStore.state(for: error)
         } catch {
             if loadState == .ready { return }
-            loadState = .failed(L10n.string("点子读取失败，请稍后重试。"))
+            loadState = .failed(L10n.string("点子没读出来，可能是网络或服务暂时没响应"))
         }
         // 附带面：目标列表与生成账面，失败只降级对应呈现
         if let fetched = try? await client.goals(config: config) {
@@ -163,7 +163,7 @@ final class IdeasStore {
             createError = GoalsStore.message(for: error)
             return false
         } catch {
-            createError = L10n.string("点子创建失败，请稍后重试。")
+            createError = L10n.string("点子创建失败，请稍后再试。")
             return false
         }
     }
@@ -194,7 +194,7 @@ final class IdeasStore {
             }
             notes[idea.id] = GoalsStore.message(for: error)
         } catch {
-            notes[idea.id] = L10n.string("删除失败，请稍后重试。")
+            notes[idea.id] = L10n.string("删除失败，请稍后再试。")
         }
     }
 
@@ -232,7 +232,7 @@ final class IdeasStore {
         } catch let error as OneDayBridgeError {
             notes[idea.id] = GoalsStore.message(for: error)
         } catch {
-            notes[idea.id] = L10n.string("忽略失败，请稍后重试。")
+            notes[idea.id] = L10n.string("忽略失败，请稍后再试。")
         }
     }
 

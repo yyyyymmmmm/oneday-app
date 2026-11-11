@@ -220,7 +220,7 @@ struct SkillHubView: View {
             }
             phase = .results(results)
         } catch {
-            phase = .failed("搜索失败：服务端连接外部技能库超时或出错，请稍后重试。")
+            phase = .failed("搜索失败：服务端连接外部技能库超时或出错，请稍后再试。")
         }
     }
 
@@ -420,7 +420,7 @@ struct HubSkillDetailView: View {
                 )
             }
         } catch {
-            actionNote = "安装提交失败，请稍后重试。"
+            actionNote = "安装提交失败，请稍后再试。"
             return
         }
         await refreshInstalled()
@@ -441,7 +441,7 @@ struct HubSkillDetailView: View {
                 )
             }
         } catch {
-            actionNote = "卸载提交失败，请稍后重试。"
+            actionNote = "卸载提交失败，请稍后再试。"
             return
         }
         await refreshInstalled()

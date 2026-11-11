@@ -94,7 +94,7 @@ final class BoxBridgeTests: XCTestCase {
         XCTAssertFalse(status.isRunning)
         XCTAssertEqual(status.statusLine, "云电脑休眠中")
         XCTAssertEqual(status.pagePresentation, .none)
-        XCTAssertEqual(status.pageTitleText, "暂无页面")
+        XCTAssertEqual(status.pageTitleText, "还没有打开的页面")
         XCTAssertEqual(status.pageMetaText(timeZone: tzPlus8), "")
     }
 
@@ -116,7 +116,7 @@ final class BoxBridgeTests: XCTestCase {
         let status = try decoder.decode(
             BoxBridgeStatus.self, from: Data(statusLiveJSON.utf8)
         )
-        XCTAssertEqual(status.imageLine, "镜像 sbxdesk:v13")
+        XCTAssertEqual(status.imageLine, "系统 sbxdesk:v13")
     }
 
     func testStatusImageLineUpgradeAvailable() throws {
@@ -128,7 +128,7 @@ final class BoxBridgeTests: XCTestCase {
             BoxBridgeStatus.self, from: Data(json.utf8)
         )
         XCTAssertEqual(
-            status.imageLine, "镜像 sbxdesk:v13 · 可更新到 sbxdesk:v14"
+            status.imageLine, "系统 sbxdesk:v13 · 可更新到 sbxdesk:v14"
         )
     }
 
@@ -141,7 +141,7 @@ final class BoxBridgeTests: XCTestCase {
         let status = try decoder.decode(
             BoxBridgeStatus.self, from: Data(json.utf8)
         )
-        XCTAssertEqual(status.imageLine, "镜像 sbxdesk:v13")
+        XCTAssertEqual(status.imageLine, "系统 sbxdesk:v13")
     }
 
     func testStatusImageLineAbsentWithoutImage() throws {
@@ -218,8 +218,8 @@ final class BoxBridgeTests: XCTestCase {
             BoxBridgeHubState.loading.statusLine, "正在读取云电脑状态…"
         )
         // 桥未连接独立一态：不许说成电脑离线/未运行
-        XCTAssertEqual(BoxBridgeHubState.bridgeUnavailable.statusLine, "桥未连接")
-        XCTAssertEqual(BoxBridgeHubState.failed.statusLine, "云电脑状态读取失败")
+        XCTAssertEqual(BoxBridgeHubState.bridgeUnavailable.statusLine, "还没连上")
+        XCTAssertEqual(BoxBridgeHubState.failed.statusLine, "云电脑状态没读出来，可能是网络或服务暂时没响应")
         let running = BoxBridgeStatus(state: "running")
         XCTAssertEqual(
             BoxBridgeHubState.ready(running).statusLine, "云电脑运行中"
