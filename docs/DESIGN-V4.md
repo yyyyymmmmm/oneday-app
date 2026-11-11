@@ -9604,3 +9604,32 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 本包动：Core 新 `SectionCollapse.swift`＋`CollapsibleSectionHeader.swift`、ChatModelGroups 网关标题单点化、DrawerView 分区头与折叠态、ChatModelPickerView 分段折叠＋隐藏长按、AppState 呈现组过滤接线（chatModelGroups 拼装后过 visibleGroups）、ModelSettingsView 服务商折叠行组＋隐藏恢复区、ModelManagementStore 隐藏名单转发、xcstrings +9 键、Core 单测新 `SectionCollapseTests`。
 - 真机待验：抽屉三区逐个折叠/展开动画顺滑＋杀 App 重进保持；选择面内置区默认收起、展开见 nous/deepseek 等行且可选；长按 nous 组隐藏后选择面与设置面均不见、设置页恢复区可恢复；隐藏当前默认组先弹确认、隐藏后已开对话照常发消息、新对话默认走网关；AX 大字号折叠头不裁字＋深色一帧；VoiceOver 读「已折叠/已展开」。
+## §159 设置页身份卡改造：头像＋整卡编辑菜单＋版本号构建号并列（2026-11-11，用户递交全维度审计 P0/P1；预制分支 feat/settings-identity-card，基线 main 866a5c8／0.50.16 定版后顶端，只预制不合并；节号分支自选 §154，合并时主线合裁顺延 §159 并同步代码注释）
+
+### 159.1 审计实证与断点
+- 审计实证复核成立：SettingsView.identitySection 只有文字（agentDisplayName＋状态点＋host 副行），无头像、无点击、无编辑入口；头像/名字编辑本体完整（AgentAvatarEditors.swift：AgentAvatarEditorView 147 行＋AgentNameEditorView 97 行＋AgentProfileStore 本地档案），唯一入口挂在 AgentHubView 头像角标 Menu，而枢纽仅 ChatView 可达——设置页身份卡是死面。
+- 编辑面环境需求只有 @Environment(AppState.self) 一项，设置页同环境同源，sheet 呈现可直接复用、无需任何桥接改造。
+
+### 159.2 落法（只动 SettingsView.swift 一文件）
+- 身份卡整行改系统 Menu（形态与枢纽头像角标菜单逐项同构）：菜单两项「更换虚拟形象」（person.crop.circle）／「编辑名称」（pencil），呈现旗本页一份（showAvatarEditor/showNameEditor），sheet 本体与枢纽同两张（AgentNameEditorView 的 initialOverride 同读 agentProfileStore.profile.displayNameOverride）。编辑面与存储全仓一份、不另做一套；与枢纽入口双存不冲突（改的都是同一本机档案、同一 Store 修订号驱动全 App 露脸面刷新）。
+- 卡内层级：头像（appState.agentAvatarImage 露脸面单一出口，44pt 圆＋hairline 描边，与编辑器预置行同值、行高 60 内留气口）＋名主行（rowTitleL＋状态点，名字新增 lineLimit(1)：头像与尾位字形入卡后横向收紧，长名截断不挤状态点）＋host 副行（rowSubtitle，原内容零丢失）。尾位可点指示走 pencil 字形 15pt inkMuted（设计宪法条 9「可点必有指示」；与枢纽头像徽章同字形），非导航 chevron。无障碍：整个 Menu 播报「编辑头像与名称」（与枢纽角标菜单同名），头像与 pencil 字形 accessibilityHidden。
+- 旧顾虑销账：identitySection 头注「静态信息行（不挂导航，详情入口在下方服务器组，避免两个箭头指同一页）」已在代码注释内改写销账——本卡入口形态是编辑菜单不是导航箭头，与服务器组详情导航不构成双箭头同页。
+
+### 159.3 版本号显示核查（审计另一项，证据销账＋小补）
+- 审计称设置页「无版本号显示、只有 git hash」——仓内查实**不成立**：versionFooter 自 0.20.0 即在页脚居中显版本号，现行字面「OneDay v0.50.16」（版本源第五处）；全仓设置面无任何 git hash 显示（grep CFBundleVersion/gitHash 零命中于设置面）。
+- 真缺口只有构建号未并列：本包补齐页脚为「OneDay v0.50.16 (138)」，字面仍走第五处同改同验口径（构建号与 Project.swift 的 CURRENT_PROJECT_VERSION／CFBundleVersion＝138 同值，下版五处同改时本行两个数字一并更新）。
+
+### 159.4 新面准入四问
+- ①入口：设置页首卡即入口（打开设置第一眼），枢纽入口保留双存；②重复：编辑面/存储与枢纽共用同一份，本包零新增编辑实现；频道命名与回落名均未动（三层命名定案归用户拍板，AgentName.fallback 本包不碰；协议/反馈/引导属上架线另行排）；③令牌与公用件：间距全走 OneDayMetrics（spacingSM/spacingS/spacingMicro）、字阶走 rowTitleL/rowSubtitle 角色、头像 44 与编辑器预置行同值、pencil 15 与本页外链字形同值，无页面直写新数值体系；④AX 与深色：名字 lineLimit(1)＋副行 lineLimit(1)，行高 settingsRowHeight 60 固定档内头像 44 不撑行，大字号下名/host 截断不重叠（真机帧验随验收单）；深色靠 Palette 语义色（ink/inkSecondary/inkMuted/hairline）与系统 Menu/sheet，无硬编码色。
+
+### 159.5 词条与单测
+- xcstrings **零新增键**：三键（更换虚拟形象／编辑名称／编辑头像与名称）目录已存（枢纽同文案在用），validate_i18n 通过（2658 键含 InfoPlist 13、三语全覆盖，与基线同值）。
+- 单测：本包纯 View 接线（Core 零改动），无新增测试法；只增不减口径下以发版 CI 的 Executed 总数对账（基线 1562，不许少）。
+
+### 159.6 真机待验（合并后随验收单回收）
+设置页身份卡见头像且与聊天/抽屉同图；点卡弹编辑菜单（非导航跳转）；换预置头像后设置卡/聊天/枢纽三处同帧换图；改名后全 App 显示名随动、留空保存恢复跟随服务器名；未连接态（host 显「未连接」）点卡菜单仍可用（本机档案编辑不依赖连接）；页脚实读「OneDay v0.50.16 (138)」；AX 最大字号档身份卡不叠字＋深色一帧。
+
+### 159.7 CI 实证（预制期）
+- run **43026340719**（workflow_dispatch，分支 feat/settings-identity-card）：jobs API 逐项终判 build-native **success**（步骤级全 success：Build／Unit tests／Package IPA／Upload IPA）。
+- 单测日志总账行实读：**Executed 1562 tests, with 0 failures**＋`** TEST SUCCEEDED **`——与基线 866a5c8（§153.7 发版总账 1562）逐字同值，本包净增 0 法、零删改（159.5 口径成立）。
+- 分支顶端：代码 `20a9602`＋记账两提交，工作区干净、已推送。合并注意：仅 SettingsView.swift 与 DESIGN 文末两处可预期冲突面（DESIGN 节号 §159 若被在飞包占用则顺延改注＋代码注释 §159 标记同步；SettingsView 与抽屉呈现包/HUB 包无同文件交叉）。
