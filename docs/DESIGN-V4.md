@@ -9418,3 +9418,8 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 ### 154.6 真机待验（合并后随验收单回收）
 设置页身份卡见头像且与聊天/抽屉同图；点卡弹编辑菜单（非导航跳转）；换预置头像后设置卡/聊天/枢纽三处同帧换图；改名后全 App 显示名随动、留空保存恢复跟随服务器名；未连接态（host 显「未连接」）点卡菜单仍可用（本机档案编辑不依赖连接）；页脚实读「OneDay v0.50.16 (138)」；AX 最大字号档身份卡不叠字＋深色一帧。
+
+### 154.7 CI 实证（预制期）
+- run **43026340719**（workflow_dispatch，分支 feat/settings-identity-card）：jobs API 逐项终判 build-native **success**（步骤级全 success：Build／Unit tests／Package IPA／Upload IPA）。
+- 单测日志总账行实读：**Executed 1562 tests, with 0 failures**＋`** TEST SUCCEEDED **`——与基线 866a5c8（§153.7 发版总账 1562）逐字同值，本包净增 0 法、零删改（154.5 口径成立）。
+- 分支顶端：代码 `20a9602`＋记账两提交，工作区干净、已推送。合并注意：仅 SettingsView.swift 与 DESIGN 文末两处可预期冲突面（DESIGN 节号 §154 若被在飞包占用则顺延改注＋代码注释 §154 标记同步；SettingsView 与抽屉呈现包/HUB 包无同文件交叉）。
