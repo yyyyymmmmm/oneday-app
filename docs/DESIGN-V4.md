@@ -8260,3 +8260,10 @@ Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手�
 ### 121.6 单测口径
 
 Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发布不给位」钉测随结构退役删除、换宿主本地量算术＋可达性钉）；reconcileUserMessages 族（带路径配对、同文异附件判缺、回填产出/不产出）；FileOpenFailure 分类表＋路径预检。单测只增不减（净增为正）。真机验收：离底时回底钮出现/落位/点按回底＋角标清零；发任意文件后自己气泡立即出牌且点开可预览；点 .ipa 牌落分享单而非 QL 死页；断网/改名文件点开见对应原因文案；旧会话里已发的 GestaltX 消息在同线程再发一轮落后牌补出。
+
+### 121.7 合并与验包记账（2026-11-11，主线合并单）
+
+- **合并**：feat/hotfix-file-back（顶端 013f70e，分支 CI run 42961158491 全绿、单测 1246）并入 main（基线 5a9e1a1）；DESIGN 冲突一处（§117.8 与 §121 同锚追加），顺序拼接全保留。合并提交 53f0e86，版本五处对账＝Project.swift 四处 0.47.1/115＋SettingsView 页脚「OneDay v0.47.1」。
+- **合并后 CI**：run 42962305282 success（build-native success，head 53f0e86）。
+- **独立验包**：IPA 9,098,746 字节、md5 `220c983db9cd480bf4f6ba2988f5493f`、Info.plist 实读 0.47.1／115／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.47.1/OneDay-0.47.1.ipa`（落盘 md5 一致）。
+- **真机验收点**：见 §121.6 五条（回底钮出现/落位/点按、自发文件立即出牌、.ipa 落分享单、失败五分文案、旧消息 GestaltX 补牌）。
