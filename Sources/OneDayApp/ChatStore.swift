@@ -75,8 +75,18 @@ final class ChatEntry {
     var role: String
     var content: String
     /// 0.2.1：随消息发送的首张图片（JPEG 数据），气泡回显用；
-    /// 多图发送时其余图片不落盘（只走当次请求）
+    /// 多图发送时其余图片不落盘（只走当次请求）——
+    /// §150 起此口径作废：全集落 imageDatasData，
+    /// 本字段保留作首图兼容读口（存量条目与旧消费
+    /// 者），呈现/查看器/重演改走 allImageDatas
     var imageData: Data?
+    /// §150：随消息发送的全部图片（JPEG 数据，
+    /// JSON 编码的 [Data]）——单槽 imageData 让多
+    /// 图消息本地只剩一张（用户 19:09/19:11 真机
+    /// 实证：服务端两张全收、本地气泡只显一张），
+    /// 本字段落全集（可选＋默认 nil、SwiftData
+    /// 轻量迁移，同 quoteRole 先例）
+    var imageDatasData: Data? = nil
     /// 0.4.1：本条消息引用了哪条消息（长按「回复」）——
     /// 只在发送时由用户消息携带，存被引消息的角色与正文
     /// 原文两字段；摘要与注入拼装读时经 MessageQuote
@@ -114,11 +124,18 @@ final class ChatEntry {
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil) {
         id = UUID()
         self.role = role
         self.content = content
-        self.imageData = imageData
+        // §150：全集在场时首图以全集首张为准（与
+        // imageData 兼容读口同值），全集另落
+        // imageDatasData；只有单图入参的旧调用点
+        // （imageData）行为不变
+        self.imageData = imageDatas.first ?? imageData
+        imageDatasData = imageDatas.isEmpty
+            ? nil
+            : try? JSONEncoder().encode(imageDatas)
         quoteRole = quote?.role
         quoteContent = quote?.content
         self.reasoning = reasoning
@@ -161,6 +178,21 @@ final class ChatEntry {
         toolCardCacheValue = decoded
         toolCardCacheSource = toolCardData
         return decoded
+    }
+
+    /// 本条全部本地图片（§150）：新落盘走
+    /// imageDatasData 全集；存量条目（旧口径只落
+    /// 首图）回落 imageData 单张——呈现、查看器
+    /// 集合、重演三处同走本口径，不再各取首图
+    var allImageDatas: [Data] {
+        if let imageDatasData,
+           let decoded = try? JSONDecoder().decode(
+               [Data].self, from: imageDatasData
+           ), !decoded.isEmpty {
+            return decoded
+        }
+        if let imageData { return [imageData] }
+        return []
     }
 
     /// 服务端图片路径（历史导入消息用）

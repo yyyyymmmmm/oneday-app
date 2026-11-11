@@ -9233,3 +9233,40 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 单测 Executed **1509、0 failures**（基线 1496＝0.50.13 四包合账 1451＋7＋23＋11＋4；本包新增 InlineRunBuilderTests 13 法逐法 passed、既有测零删改，只增不减）。
 - 未合并、版本号未动，待主线按序合并（合并时节号以主线为准，本包分支自记 §146 已被登记制占用、合并时主线顺延改注 §149）。
 
+
+# §147 多图消息只显一张：本地单槽落盘定因与多图成行（2026-11-11，用户 19:09/19:11 真机报障；预制分支 feat/multi-image-row，基线 main 9119674／0.50.13；只预制不合并，节号顺延现行末尾——§146 已被附件面板分支占用，合并时主线合裁）
+
+## 150.1 报障与定性反转
+
+- 用户 19:09：相册选了 2 张照片，发送过去只剩 1 张。初查方向为全链五段（选图入口/落盘/附件条/发送拼装/回读）。
+- 用户 19:11 两张截图＋原话定性反转：OneDay 里智能体回复明说「两张都是照我说的买的」——**服务端两张全收、模型两张全看**；App 里这条用户消息只显示 1 张图（沁园 P-A5510 那张），且孤张竖卡、不成行。断点在本地落盘/呈现侧，选图与发送段降为排除性验证。
+
+## 150.2 全链逐段账（每段源码证据，行号以基线 9119674 为准）
+
+1. **选图入口（排除）**：ChatView.swift:548 `.photosPicker(isPresented:selection:matching:)` 绑 `[PhotosPickerItem]` 数组（0.36.23 多选形态）；onChange（:552）整组递 loadPickedPhotos（:3692）——逐个 `loadTransferable` 并 append，顺序即点选序；单张超 20MB 只报不收、汇总 notice。唯一静默口：`try? … else { continue }` 的解码失败张无声跳过（登记为已知残留，本包不动——本案两张均已入条并发出，与此口无关）。
+2. **附件条（排除）**：PendingAttachment 每张独立 UUID（ChatView.swift:5894），attachmentsStrip 以 ForEach 全量渲染筹码（:3500），无内容去重、无单值假设——发送前两张都在条上。
+3. **发送拼装（排除）**：send() 的 imageDatas＝pending 全量 compactMap（:4224）；尾条改多模态 parts 时 urls＝imageDatas 全量映射（:4270）；SideChatLink.payload 只取尾条但整条透传（SideChatLink.swift:168）、FileSendAssembly.appendingFileRefs 对 parts 只搬运不增删（FileSendAssembly.swift:61）；ChatMessage.encode parts 在场时按数组编码（HermesModels.swift:190）。出门即两张，与智能体「两张都买的」回复互证。
+4. **本地落盘（断点一，主）**：ChatEntry 只有一个图片槽 `imageData: Data?`（ChatStore.swift:79），字段注释自认旧口径「多图发送时其余图片不落盘（只走当次请求）」（:77-78，0.2.1 遗留）；send() 落盘只传 `imageDatas.first`（ChatView.swift:4234）。第 2 张图在本地条目里**无任何表示**——不是丢在路上，是落盘时就没给它留位置。本地图片以 Data 直存 SwiftData、无文件路径/缓存键，同名互覆形态不存在（任务单 ④排除）。
+5. **回填/对账（排除且无救援通道）**：§121 的 remoteFilePathsData 写回只覆盖文件路（uploadPendingFiles 的回执集，ChatView.swift:4383 起）——写的是全集数组、非单值；Core reconcileUserMessages/PathBackfill 的 filePaths/imagePaths 同为全集集合口径（RunTurn.swift:627/672），无单值假设。但图片路**没有对应写回**：自发图片以 data: URL parts 出门、本地正文里不存在图片路径标记，normalizedUserContent 的 imagePaths 只从正文标记解析（SessionHistoryImport.swift:95），对自发图片恒为空集——回填永不触发，救不回第 2 张。
+6. **呈现（断点二）**：用户气泡本地图是单个 if-let 块（ChatView.swift:2073），只认 entry.imageData 一张；§130 固定高卡（ChatImageSizing）只接了这一张的入口——落盘即使有多张也无成行布局可渲染。截图里那张「竖长条」实测约 101×183pt，与 §130 对竖长截图的卡形（宽钳 96/高 190、图以高定尺）相符——§130 本体没坏，是多图形态缺位让孤张看起来不成卡。查看器集合（:2413）与同 key 重演输入 runReplayInput（:5147）同为首图口径，多图在查看器翻页与回执丢失重演时同样丢张（三处同根）。
+
+## 150.3 外部解法核查（用户点名）
+
+- 对标形态＝Muse 多图用户消息（用户 19:11 截图一实证）：两张截图在同一条消息里**并排、同高卡片**呈现，不是纵叠、不是只留一张。
+- 修法对齐它：本地全集落盘＋气泡内多图并排成行、每张一张 §130 固定高卡（同高由卡高恒定保证）；超宽时整行等比收窄保同高（Core rowCardSizes），不逐张压扁、不纵向堆叠。
+
+## 150.4 修法（只动落盘/呈现断点，发送链零改动）
+
+1. **落盘全集**（ChatStore.swift）：ChatEntry 新增 `imageDatasData: Data?`（JSON 编码 [Data]，可选＋默认 nil、SwiftData 轻量迁移同 quoteRole 先例）；init 加 `imageDatas: [Data] = []` 入参——在场时 imageData 以全集首张落值（兼容读口同值）、全集另落新字段；新增计算属性 `allImageDatas`：新条目读全集、存量条目回落 imageData 单张。send() 落盘改传全集（imageData 仍传首图同值）。
+2. **呈现成行**（ChatView.swift）：气泡本地图块改为 localImageRow——HStack 并排、每张 localImageCard（卡体自旧内联块抽出、形态逐字不变：§130 卡＋点开查看器＋A11y 同旧）；卡尺寸走 Core rowCardSizes（单张与 cardSize 逐字一致、零回归）。存量已发多图消息只有首图落盘、无从恢复（数据已不在本地），本包只保此后新发；存量单图条目呈现不变。
+3. **同根两处**：openImageViewer 集合改按 allImageDatas 逐张入集；runReplayInput 改按全集拼 imageDataURLs（同 key 重演不再把多图降单图）。
+4. **Core**（ChatImageSizing.swift）：新增 rowCardSizes——每张先 cardSize 定卡（高 190）；整行宽（卡宽和＋(n−1)×spacing，spacing 默认 multiRowSpacing=8）未超 multiRowMaxWidth=320（气泡列最窄设备保守可用宽）时原样；超宽全行乘同一收窄系数、卡高不变，单卡宽下限 multiRowMinCardWidth=48 保底（宁略超宽不缩细缝）。
+
+## 150.5 钉测与验收
+
+- ChatImageSizingTests 新增 5 法（既有 8 法零删改）：单张与 cardSize 逐字一致（零回归锚）；**两张竖长截图并排出 2 卡、同高 190、整行 200 不收窄**（主案）；两张横长图等比收窄到整行恰 320、两卡同宽同高；混合比例三卡同高且同系数收窄；空数组回空。
+- 真机待验（合并后）：①选 2 张同批发送——气泡并排 2 张同高卡、点开查看器可翻到 2 张、杀 App 重进仍 2 张；②选 3 张——三卡同高成行不溢出；③图片＋文件混合——图成行、文件牌照旧、发送全到；④单图消息与存量旧消息呈现与改前一致。
+
+### 150.6 预制验收记账（2026-11-11）
+
+- 分支 feat/multi-image-row：代码 771806f＋记账 1b450c6（本节），基线 main 9119674（0.50.13/135）。CI run 43010656294（workflow_dispatch）completed **success**，jobs API 终判 build-native 全部 steps success；单测 Executed **1501、0 failures**（基线口径 1496＋本包新增 ChatImageSizingTests 5 法＝1501，逐法 passed 日志在案；既有测零删改，只增不减）。xcstrings 零改动（无新文案）。未合并、版本号未动，待主线按序合并定版（合并冲突预判：ChatView 气泡段与 §146 附件面板/选字包不相邻、ChatStore 与他包无交集、ChatImageSizing 为 §130 本体文件他包未动）。
