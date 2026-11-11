@@ -645,6 +645,15 @@ struct ChatFilePreviewItem: Identifiable {
         try data.write(to: url)
         return ChatFilePreviewItem(url: url)
     }
+
+    /// QL 预览资格（§121 题二 b）：不可预览类型
+    /// （.ipa 等）硬呈 QLPreviewController 只剩空
+    /// 白死页——呈现前先验资格，不过者由调用方改
+    /// 落下载/分享档（通行做法，见 §121.5）
+    var canPreview: Bool {
+        // iOS 26 SDK 改名：canPreviewItem → canPreview(_:)
+        QLPreviewController.canPreview(url as NSURL)
+    }
 }
 
 /// 系统 QuickLook 单文件预览

@@ -8220,3 +8220,43 @@ Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手�
 - **合并后 CI**：run 42959056483 一轮全绿（build-native success、head 669e5bb，合并后零修复轮）；单测 1238、0 failures（基线 1231＋MuseAlign117Tests 7，只增不减）。
 - **独立验包**：IPA 9,095,130 字节、md5 `f84cb4cfaa2bf797413a3e8c953f92a1`、Info.plist 实读 CFBundleShortVersionString 0.47.0／CFBundleVersion 114／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.47.0/OneDay-0.47.0.ipa`（落盘 md5 与取件一致）。
 - **S2-11 核查结论（顺带项）**：**未随 §117 落地**——分支 diff 对简报编辑器保存钮零触碰，合并后 FeedBriefEditorView 的「保存兴趣」「保存正式简报」仍为纯 Form 文本行式 Button、无主按钮层级（与 style-audit-2 的 S2-11 登记现状一致）；转后续样式包处理，本包不夹带。
+
+## §121 热修：回底钮消失＋自己发的文件没牌/点开落点（0.46.1 真机报障，2026-11-11 12:27）
+
+用户真机四张截图报障：①回底钮在 0.46.1 直接不见了（0.41.0 是看得见点不动、§116.6 迁位后整钮消失）；②12:24 发 GestaltX_1.0.4.ipa 问「这是个什么文件」，自己气泡里没有文件牌（助手侧牌正常出）；点开文件牌的预览落点可疑；③（只查）Hermes 智能体 12:26 仍称「这个通道只能内联图片、IPA 没法回传」。基线 a11c52f（动工时 main 已并入 §117/0.47.0，实际基线取 main 顶端 669e5bb）。
+
+### 121.1 题一 · 回底钮消失（定案：新落位门把钮渲染 AND 上一条真机未交付的发布链）
+
+- **回归变量隔离**：显隐政策（BottomFollowPolicy：离底＋末条不可见）与可见集/距底信号链 0.46.1 未动、0.41.0 真机出钮（点不动）证明其工作；0.46.1 唯一新增门＝钮渲染须 `BackToBottomPlacement.center(...)` 非 nil，即 `ChatBottomBarFrameKey` 必须从 safeAreaBar 承载的 bottomBar 背景 GeometryReader 发布出 height>0 的 frame。用户真机整钮消失与此门恒假逐点吻合。
+- **发布链结构**：发布点在 `.safeAreaBar(edge:.bottom)` 内容的 `.background` 层里，frame 取 `.named("chatSurface")`（命名空间挂在列表结果上）；消费端 onPreferenceChange 在列表侧。同款「背景 GeometryReader＋命名空间发布」构造从**滚动内容**发布（右滑引用排除区）真机已验可用，唯一差异变量＝safeAreaBar 宿主。
+- **外部解法核查**：苹果无文档保证 PreferenceKey/命名坐标空间跨 safeAreaBar 宿主的交付；iOS 26 safeAreaBar 参与布局仍有公开问题记录（如 FB23732628 同族：挂错宿主时安全区参与失效）；成熟做法对跨层几何改用视图自身回调（onGeometryChange，iOS 18+）或直接读宿主自身 safeAreaInsets，不再经跨树发布。结论：发布链不可靠属实，**换结构、不再往此链打补丁**（本链已连补两轮：0.41.0 浮层化→点不动、0.46.1 发布链→整钮消失）。
+- **正修（换结构）**：删 ChatBottomBarFrameKey 发布链全体（发布点/命名空间/onPreferenceChange/@State）。钮仍挂消息列表 overlay，但落位只读 overlay 宿主 GeometryReader **自身**的 `safeAreaInsets.bottom`（safeAreaBar 是列表安全区的注册部分，§28/P-17 已验其参与列表安全区——顶栏同理）：钮底缘＝宿主底缘 − 安全区底 inset − gap。落位纯逻辑收 Core `BackToBottomPlacement.center(hostSize:bottomInset:trailingInset:gap:)`：输入全是宿主本地量、无「未发布」态；单测钉落位算术（键盘升降＝inset 变大钮上移）＋命中域完整在宿主内（isReachable 恒真构造）＋退化宿主（尺寸 0）不给位。
+
+### 121.2 题二(a) · 自己刚发的文件没牌（定案：发送链从不把回执路径写回本地条目，落定对账又只配对不回填）
+
+- **代码实证**：`ChatView.send()` 建本地 user 条目时不带 remoteFilePaths（ChatView.swift 建条目处）；sendTask 上传成功后的 `fileServerPaths` 只用于拼出站 @file 文本（拼装点一处），从未写回 `newEntry.remoteFilePathsData`。用户气泡文件牌的唯一数据源＝`entry.remoteFilePaths`（渲染门在 ChatView 用户气泡段），故刚发的消息在本地永远无牌；助手侧牌走正文 FileRefDetector、与此无关（截图中助手牌正常即此理）。服务端实证：state.db 消息 979 存有该条展开全文（@file 行＋📎 块俱在）、attachments/GestaltX_1.0.4.ipa 在盘 2,865,180 字节——收发链无恙，缺的只是本地落盘字段。
+- **对账为何不自愈**：落定 `healMissingUserEntries` 只补「判缺」的条目；`RunTranscriptSettle.missingUserMessages` 的配对键从本地条目**正文**规范化推导路径（本地正文无路径、集恒空），按「任一侧为空只比正文」规则与服务端条目配上对→不判缺→不补，自然也不回填路径字段。
+- **正修两件**：①发送回填——sendTask 上传全成后立即把 `fileServerPaths` 写回 newEntry.remoteFilePathsData 并 save（流式期间牌即在）。②对账回填——Core 新增 `reconcileUserMessages`（missingUserMessages 改为其薄包装、旧签名保留）：本地条目入参增带已落盘的 filePaths/imagePaths 参与配对（同文异附件双非空须全等的旧防线不松）；配上对且服务端路径未被本地持有时产出 PathBackfill，App 侧据（规范正文＋createdAt）定位条目回填两字段并记诊断读数——存量已发消息在该线程下一次落定时自动补牌。
+
+### 121.3 题二(b) · 预览落点与失败文案（定案：截图页非 OneDay 页面；OneDay 同类隐患两处属实）
+
+- **截图页归属排除**：全仓字符串核查——OneDay 无「文件加载失败」文案；自有失败页只有阅读页「打开失败」/文件页「预览失败」两种标题（均 ContentUnavailableView＋failureActions 按类出项），`.ipa` 属 `.other` 类、失败动作＝下载＋知道了，与截图「重试＋下载」对不上；且服务端实查 /opt/data/attachments 下只有 GestaltX_1.0.4.ipa、**不存在 OneDay-0.46.1.ipa**，该名文件不可能从 OneDay 任一文件面打开。判定：截图 3 是用户在主聊点交付 IPA 卡触发的 Muse 自家预览失败，非 OneDay 故障，不在本包修。
+- **服务端实证（下载链）**：GestaltX_1.0.4.ipa 在盘（2,865,180 B、12:24 落盘）；未鉴权 curl 两路径均 401（鉴权中间件先行、路由在）；Hermes 源码 files.py 下载语义定版：存在且合规→200 流式返回（上限 _MANAGED_FILE_MAX_BYTES＝100MiB，本件远在限内）、不存在→404、非文件→400、敏感路径→403、超限→413、stat 失败→500。故 OneDay 内点助手牌下载此文件应 200，链路无恙。
+- **OneDay 属实隐患**：①`openChatFile` 下载成功后无条件把临时文件交给 QLPreviewController——外部通行做法是呈现前先 `QLPreviewController.canPreviewItem` 验资格（不可预览类型硬呈 QL 只剩空白/死页）；.ipa 这类应落「下载/分享」档。②三处取文件失败（聊天 openChatFile、文件页预览 load、阅读页 load）都只给一句 HermesError.userMessage 兜底（「文件下载 返回了状态 404，请稍后再试」式），无原因分类——ekko 五分文案原排后续文件包，因本案提前。
+- **正修**：Core 新增 `FileOpenFailure` 分类器＋人话文案（输入 HermesError＋路径预检）：404→不存在「服务器上没有这个文件，可能已被移动或删除」；413→过大；400/空路径→路径无效；403→服务器拒绝（五分外加一档，如实分开）；5xx/登录态/连不上→服务不可用；transientNetwork→超时/网络不稳。三处失败落点统一消费。QL 资格门：ChatFilePreviewItem 加 `canPreview`（QLPreviewController.canPreviewItem）——聊天牌点开：可预览才进 QL sheet，不可预览改出分享单（保存到文件/分享，即下载档落点）；文件页预览 load()：不可预览不写 QL 件、直接落失败页＋unsupportedType 文案，动作仍走 failureActions 按类出项（.other/.archive＝下载＋知道了）。电脑文件面（BoxFilesView，自有错误族 BoxFilesError）不在本包。
+
+### 121.4 题三 · 智能体旧说法（只查结论：旧会话未加载新说明，无需改服务端）
+
+- 会话 oneday-side-c60d7bfd（即截图会话）state.db 实查：started_at＝2026-11-10 23:07:43 CST；SOUL.md 本次写入 mtime＝2026-11-11 11:40:23——会话比说明早生约 12.5 小时。
+- 该会话冻结的 system prompt（sessions.system_prompt_hash＝37d811…，system_prompts 表对应行 15,333 字）不含新说明的任何痕迹（特征词零命中）；且实查 11:40 之后无任何新会话创建——至今没有会话带过新说明。12:26 的旧说法出自此旧会话的冻结提示，属按会话冻结口径的预期行为；新开会话即带新说明。服务端不动。
+
+### 121.5 外部解法核查汇总
+
+- 回底钮：见 121.1（苹果无跨 safeAreaBar 发布保证、FB23732628 同族问题、通行替代＝宿主本地量/onGeometryChange）。
+- 用户消息附件牌挂载点：成熟聊天客户端（如 Stream Chat）一律把附件作为消息本体数据随本地消息模型落盘、渲染只读本地模型——与本包「发送即把回执路径写回本地条目」同向；咱们导入/补缺两路已是此形态，唯发送路漏写，属自家链缺口非平台限制。
+- QL 不支持类型：通行做法＝canPreviewItem 前置验资格、不过转下载/分享（QuickLook 指南与 React Native 文档查看器等同口径），与 121.3 正修一致。
+- 文件失败五分：与 ekko D2/B4 对账一致（不存在/过大/后端不可用/超时/路径无效），服务端状态码实证（121.3）逐项对得上。
+
+### 121.6 单测口径
+
+Core 新增/改：BackToBottomPlacement 新签名落位族（旧「frame 未发布不给位」钉测随结构退役删除、换宿主本地量算术＋可达性钉）；reconcileUserMessages 族（带路径配对、同文异附件判缺、回填产出/不产出）；FileOpenFailure 分类表＋路径预检。单测只增不减（净增为正）。真机验收：离底时回底钮出现/落位/点按回底＋角标清零；发任意文件后自己气泡立即出牌且点开可预览；点 .ipa 牌落分享单而非 QL 死页；断网/改名文件点开见对应原因文案；旧会话里已发的 GestaltX 消息在同线程再发一轮落后牌补出。

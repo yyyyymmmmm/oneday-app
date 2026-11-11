@@ -519,9 +519,15 @@ struct DocumentReaderView: View {
             }
             rawText = text
             blocks = DocumentReading.blocks(for: text, kind: kind)
+        } catch let error as HermesError {
+            // §121 题二 b：失败文案走五分（不存在时
+            // 如实说服务器上没有这个文件），不再一
+            // 句兜底
+            loadError = FileOpenFailure.classify(
+                error: error
+            ).message()
         } catch {
-            loadError = (error as? HermesError)?.userMessage
-                ?? "读取文件失败，请稍后再试。"
+            loadError = FileOpenFailure.other.message()
         }
     }
 }
