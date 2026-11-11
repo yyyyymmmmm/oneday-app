@@ -76,32 +76,11 @@ final class ComposerGuideHostTests: XCTestCase {
         }
     }
 
-    /// 舱本体替身：独立 View 结构体（与生产 inputBar
-    /// 同构——状态读数发生在自己的 body 里、由托管树
-    /// 追踪；若把条件写在构建闭包侧，则是「父级快照」
-    /// 语义、不代表生产形态）。tallBar 时多一段 40pt
-    /// 占位，验内容长高经活根传导
-    private struct GrowthBarView: View {
-        @Bindable var state: ShellState
-        let box: FrameBox
-        var body: some View {
-            VStack(spacing: 0) {
-                if state.tallBar {
-                    Color.clear.frame(height: 40)
-                }
-                Text("BAR")
-                    .frame(height: 76)
-                    .frame(maxWidth: .infinity)
-            }
-            .frame(maxWidth: .infinity)
-            .background(
-                GuideFrameReporter(name: "bar", box: box)
-            )
-        }
-    }
-
     /// 聊天页替身：按 ChatView §178 接法复刻（同树
-    /// proxy、实测留位、host 托管同位）
+    /// proxy、实测留位、host 托管同位）。舱替身写在构
+    /// 建闭包里（与生产 bottomBar 是 ChatView 函数、经
+    /// 桥 init 在外层 body 期求值的形态同构——状态读
+    /// 数归因到本替身、变化经重建＋重赋值传导）
     private struct ChatReplica: View {
         @Bindable var state: ShellState
         let box: FrameBox
@@ -153,15 +132,28 @@ final class ComposerGuideHostTests: XCTestCase {
                     } action: { _, v in
                         box.notes["geo"] = v
                     }
-                    .task {
-                        try? await Task.sleep(
-                            for: .milliseconds(400))
-                        proxy.scrollTo(59, anchor: .bottom)
-                    }
+                    // （滚底驱动不在替身内：宿主里 Scroll-
+                    // ViewReader 的程序化滚动不落位——实证
+                    // offY 恒停顶；由测试侧以 UIKit 偏移驱
+                    // 动，见 scrollListToBottom。本替身只验
+                    // 几何链——托管＋实测留位；滚动指令链
+                    // 由 Core 协调器测试与真机清单承担）
                     ComposerGuideHost(
                         bottomSpace: $state.bottomSpace
                     ) {
-                        GrowthBarView(state: state, box: box)
+                        VStack(spacing: 0) {
+                            if state.tallBar {
+                                Color.clear.frame(height: 40)
+                            }
+                            Text("BAR")
+                                .frame(height: 76)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            GuideFrameReporter(
+                                name: "bar", box: box)
+                        )
                     }
                 }
             }
@@ -278,6 +270,28 @@ final class ComposerGuideHostTests: XCTestCase {
         return barHostView.convert(barHostView.bounds, to: window)
     }
 
+    /// 以 UIKit 偏移把替身列表压到底（两跳：首跳触
+    /// 发惰性行建列、次跳在真实内容高上落位）
+    private func scrollListToBottom() {
+        func find(_ view: UIView) -> UIScrollView? {
+            if let sv = view as? UIScrollView { return sv }
+            for sub in view.subviews {
+                if let found = find(sub) { return found }
+            }
+            return nil
+        }
+        guard let window, let sv = find(window) else { return }
+        for _ in 0..<2 {
+            let maxY = sv.contentSize.height
+                + sv.adjustedContentInset.bottom
+                - sv.bounds.height
+            if maxY > 0 {
+                sv.contentOffset = CGPoint(x: 0, y: maxY)
+            }
+            spinRunLoop(seconds: 0.3)
+        }
+    }
+
     private func tabBar() -> UITabBar? {
         func find(_ view: UIView) -> UITabBar? {
             if let bar = view as? UITabBar { return bar }
@@ -308,9 +322,11 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 底停在舱顶上方恰一个单点边距（8）
     func testRestGeometry_barDockedListSpacingAndReport() {
         waitForBarFrame()
-        // 末行要等 .task 滚底把惰性行建出来才有帧
+        // UIKit 偏移压底（惰性行随偏移建列），末行帧
+        // 出现即几何链落定
+        scrollListToBottom()
         waitForFrame("lastRow")
-        settle(0.6)
+        settle(0.4)
         guard let tab = tabBar(),
               let bar = box.frames["bar"],
               let lastRow = box.frames["lastRow"]

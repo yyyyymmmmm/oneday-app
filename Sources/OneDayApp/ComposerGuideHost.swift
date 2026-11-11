@@ -81,9 +81,26 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 舱顶→窗口底距离的实测回报（host 在布局拍回写；
     /// ChatView 以此＋spacingS 作列表底 contentMargins）
     @Binding var bottomSpace: CGFloat
-    /// 舱本体（ChatView 的 bottomBar 整栈，构建闭包在
-    /// ChatView 上下文求值、状态盒与 ChatView 同源）
-    @ViewBuilder var content: () -> Content
+    /// 舱本体（ChatView 的 bottomBar 整栈）：在 init 里
+    /// 由构建闭包求值成视图值——求值发生在 ChatView 的
+    /// body 构建期，bottomBar 内部的全部状态读数由此归
+    /// 因到 ChatView（与换代前「bottomBar 在列表树内构
+    /// 建」的追踪语义一致）；新鲜度机制＝ChatView 重渲
+    /// →本桥重建→apply 把新值重赋值进舱宿主。两条替代
+    /// 路线经宿主测试证伪：闭包在 apply（update 期）求
+    /// 值——读数不归因、舱内独有状态陈旧；闭包托管内
+    /// 树活根求值——内树不自追踪 @Observable（子视图
+    /// body 读数同样不触发重渲），与本仓「托管靠外层
+    /// 重赋值刷新」的一贯机制不合
+    var content: Content
+
+    init(
+        bottomSpace: Binding<CGFloat>,
+        @ViewBuilder content: () -> Content
+    ) {
+        self._bottomSpace = bottomSpace
+        self.content = content()
+    }
 
     func makeUIViewController(
         context: Context
@@ -111,36 +128,24 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         apply(to: controller)
     }
 
-    /// 把当前 SwiftUI 侧状态（环境＋舱本体）刷进托管
-    /// 控制器：舱宿主根视图以同型新值更新（SwiftUI 按
-    /// 身份 diff、舱内 @State 不重建，与 DrawerContainer
-    /// 内容宿主同机制）。舱本体经 ComposerRootView 活
-    /// 根承载：构建闭包在活根的 body 里求值、其状态读
-    /// 数由托管树自身追踪——若在桥内直接求值成快照，
-    /// bottomBar 的结构条件（错误条/回底钮行/听写条
-    /// 的显隐）会被冻在赋值时刻、只随 ChatView 重渲才
-    /// 刷新，舱内独有状态存在陈旧窗口（宿主测试实证：
-    /// 快照形态下内容长高不生效）
+    /// 把当前 SwiftUI 侧状态（环境＋舱本体视图值）刷
+    /// 进托管控制器：舱宿主根视图以同型新值重赋值
+    /// （SwiftUI 按身份 diff、舱内 @State 不重建，与
+    /// DrawerContainer 内容宿主同机制）；舱本体的新
+    /// 鲜度由 init 求值的归因链保证（见 content 注），
+    /// 本函数只做注入与赋值、不求值任何闭包
     private func apply(to controller: ComposerGuideHostController) {
         let appState = appState
         let modelContext = modelContext
         let locale = locale
         controller.composerRoot = AnyView(
-            ComposerRootView { content() }
+            content
                 .environment(appState)
                 .environment(\.modelContext, modelContext)
                 .environment(\.locale, locale)
                 .boldTextMapping()
         )
     }
-}
-
-/// 托管活根：只做一件事——在自己的 body 里求值舱构
-/// 建闭包，使闭包捕获的状态读数进入托管树的依赖追
-/// 踪（见 ComposerGuideHost.apply 注）
-private struct ComposerRootView<Content: View>: View {
-    @ViewBuilder var content: () -> Content
-    var body: some View { content() }
 }
 
 /// 透传根视图：只有舱宿主子视图的实帧接命中，本体空
