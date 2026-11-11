@@ -8642,3 +8642,35 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **独立验包**：IPA 9,410,629 字节、md5 `a48f9c9bfc715be26e24c99c88c63983`、Info.plist 实读 0.50.0／122／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.50.0/OneDay-0.50.0.ipa`（落盘 md5 与 CI 产物一致）。
 - **两处如实约束的呈现位置**：①具名服务商不给「设为默认」——设默认只在默认服务商（网关）卡的模型行（点行弹「切换默认模型？」确认）；具名卡模型行无此动作，说明文案在预设编辑器 PresetEditorView（「只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。」），具名模型经辅助模型页行/预设行给具体用途选用。②默认服务商卡地址/密钥只看不改——ModelSettingsView 默认服务商卡内两行 infoRow：「接口地址：在服务器上配置，App 里只看不改」「密钥：在服务器上保管」。
 - **遗留口径**：§119.4 所记「§120 扩版校验器复跑」随 §120 合并单处置（本包 validate 以现行校验器通过）；辅助写回热生效实测仍并入收官窗口重启；真机待验见 §119.5。
+
+## §132 具名服务商设为默认（2026-11-11，预制分支 feat/provider-default，基线 main 3af9674；用户 15:30 点题，核实报告 named-provider-default-check-20261111.md 结论档位①）
+
+### 132.1 定案：机制本来就有，§119 是被拍平的 GET 形态误导
+
+- Hermes 全局默认是结构化字段 `model: {default, provider}`，provider 可指向 `providers:` 注册表具名条目；Dashboard 有专用写端点 `POST /api/model/set`（scope=main），落盘 `provider: custom:<名>` 并同步改写 base_url/凭据指针。§119.5 约束①的依据只是通用 config GET 把 model 拍平成名字字符串——那条通道确实改不了 provider，但不代表 config 本体没有。
+- 回读口径：`GET /api/model/options` 顶层带 provider/model、providers 行带 is_current（Dashboard 自己的模型页同源端点），是唯一能看到归属的结构化读面；拍平 config 继续只作模型名来源。
+
+### 132.2 服务端前置（已上线，纯加法）
+
+- 先把内联网关注册成注册表具名条目 `Gateway`（base_url=http://172.18.0.1:3000/v1、key_env=ONEDAY_PROVIDER_GATEWAY_KEY、models=网关实拉 61 个），钥值由现行 model.api_key 内联值在服务器内复制进 /opt/data/.env（不打印、不外传），使默认可在网关↔具名服务商间双向互切、可回滚。备份：/opt/data/config.yaml.bak-20261111-gateway-reg、/opt/data/.env.bak-20261111-gateway-reg。
+- 回读验证（2026-11-11 实测）：与备份做结构化 diff，结果只有 `/providers/Gateway ADDED` 一处；model.default/provider/base_url 逐字不变（deepseek-flash／custom／http://172.18.0.1:3000/v1）、内联 api_key 未动、Ailey 条目未动；解析器 resolve_requested_provider() 仍为 custom、具名 gateway 命中且钥在；options 清单里 Gateway 行取代裸 custom 行且 is_current=true（同址匹配）、顶层 provider/model 不变；Hermes 健康 ok、StartedAt 未变（未重启）、内存约 53%。
+- 已知形态变化一处：裸 custom 的解析来源标签变为 pool:custom:gateway（凭据池按同址匹配到 Gateway 条目，钥值与原内联钥同值、路由逐字等价）。
+
+### 132.3 App 落法（本包）
+
+- Core 新增 MainModelAssignment：解析 options 回执（is_current 行 slug 优先、顶层 provider 兜底；slug 归一化与服务端 runtime_provider_custom 逐字对齐）；Gateway 身份单点判定 isGatewayIdentity。钉测 10 例，形状全照生产实测回执（注册前/后两态＋设 Ailey 后形态）。
+- 客户端新增两口：POST /api/model/set（setMainModel）、GET /api/model/options 结构化回读（mainModelAssignment）；Demo 客户端同补存根。
+- Store：load 时回读归属存 defaultAssignment（读不到保持 nil、呈现回落 §119 旧形态）；具名设默认走 setDefaultModel(provider:model:) → 端点写入 → 整页重读，卡面标记以回读为准不靠本地记账；主卡切回走 setDefaultViaGateway（以 Gateway 条目为指派目标，同一写路）；gatewayEntry/userProviders 两派生——Gateway 条目并入主卡，不另立卡、不进来源标注与分配菜单（防同路双标）。
+- 卡面：具名卡模型行与主卡同形态（当前默认行绿标只呈、余行可点→同一确认弹窗「切换默认模型？」）；「默认」徽标主卡与具名卡互斥、只认回读归属；默认不在网关时主卡「默认模型」行如实指向所在服务商（「在服务商「X」」），不把别家模型记在主卡名下；回读未到时主卡持徽（旧形态）。
+
+### 132.4 §119.5 约束①销账
+
+- §119.5 原文：「**具名服务商「设为默认」不落**：Dashboard config 表示里 model 只有模型名字符串、没有 provider 指向，具名模型的选用语法未实测（§103.6 旧账④）；硬写名字会把默认指去网关路造成坏配置。故具名卡不给「设为默认」钮……待收官窗口实测具名 provider 会话锁/默认语法后再议。」——**本节销账**：前提（config 只有名字字符串）经源码＋生产实测证伪，正式机制与写端点俱在（132.1），App 已落地（132.3）；§119.6 记账里同条呈现位置说明（「设默认只在默认服务商卡」）随之失效。
+- 预设编辑器错误文案已改：旧「只有经网关的模型能设为全局默认；直连服务商的模型请在下面给具体用途指定。」→新「预设的默认模型从网关清单里选；要把某家服务商设为全局默认，在它的卡片里点模型即可。」（旧键已删、新键三语齐）。预设本身的主模型仍只存名字、仍从网关清单选——那是预设快照的既有语义，不在本包扩围。
+- 约束②（网关卡地址/密钥只看不改）与本案独立，维持不动。
+
+### 132.5 知悉与真机待验
+
+- /api/model/set 保存前会实探目标端点，端点不可达时服务端拒写（400）——是保护不是故障；App 侧失败走既有「切换失败」提示。
+- 服务商改名＝换身份（§119 既有口径）：已设为默认的具名服务商若在服务端被改名，默认指向需重设；App 内改名本就锁定（删后重加），重加后回本页重设默认即可。
+- 真机待验：①Ailey 模型行点设默认→确认→Ailey 卡亮「默认」徽、主卡徽灭、主卡默认模型行显示「在服务商「Ailey」」；②主卡点任一模型→切回网关（徽标互换、聊天新会话实走网关）；③杀 App 重进本页，徽标仍与回读一致；④Ailey 端点不可达时设默认被拒且有提示、默认不乱动。
