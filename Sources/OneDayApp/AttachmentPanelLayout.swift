@@ -10,7 +10,7 @@ import SwiftUI
 /// 层须同一层」同戒：detent 高就是内容高本身，不做
 /// 二次推算）。
 struct AttachmentPanelHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    static let defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
