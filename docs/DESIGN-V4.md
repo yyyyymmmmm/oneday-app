@@ -10595,7 +10595,7 @@ enum SettingsRoute: Hashable {
 - 行盒：`EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)`
 - Section 修饰符顺序：先 `.listRowBackground`，后 `.listRowInsets`
 
-**键数变化**：2897 → 2901（+4）
+**键数变化**：2897 → 2914（+17）
 
 #### 修复三：行盒令牌统一
 
@@ -10606,10 +10606,10 @@ enum SettingsRoute: Hashable {
 - **服务器卡片行盒保留**：ServerManagementView 服务器卡片的 `EdgeInsets(top: 0, leading: 19, bottom: 0, trailing: 17)` 保留——这是卡片自身的视觉边距，44pt 图标砖需要与内容的对齐空间（DESIGN §179.2 原型注明「约 19×17」）
 - **其他行盒**：全部使用各 View 内部的 `settingsRowInsets` 计算属性（`EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20)`）
 
-**i18n 最终总账**：2872（基线）→ 2901（+29，含 38 个 UI 补键 + 4 个 lead - 11 个已存在复用键）
+**i18n 最终总账**：2872（基线）→ 2914（+42＝38 UI 补键＋4 lead）
 
 **验证清单**：
-- [x] `Scripts/validate_i18n.py` 通过（2910 键 × 三语全覆盖）
+- [x] `Scripts/validate_i18n.py` 通过（2914 键 × 三语全覆盖）
 - [x] 改动文件 UI 字符串与目录键差集为零（113 个 UI 字符串全覆盖，67 个关键词豁免）
 - [x] 四页 lead 副标题形态一致（字阶/颜色/行盒/Section 修饰符顺序）
 - [x] 行盒收敛（除服务器卡片保留设计意图边距外，其余统一 `settingsRowInsets`）
