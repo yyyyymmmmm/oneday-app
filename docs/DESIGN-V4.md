@@ -10278,3 +10278,23 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 五页边缘口径不变：四页底缘 .hard／聊天底缘 hidden／顶缘 .soft（§173 朦胧整包已作废，不得复活）。
 - 定版：五处字面同改 0.50.22/144（Project.swift 四处＋SettingsSupportViews 的版本串 full/hero），grep 验无 0.50.21/143 残留（历史节与代码注释中的版本沿革引用除外）。
 - 单测与验包补记见本节末（发版构建实读后回填）。
+
+## §181 云电脑收口包：VPS 表单改三样口径（IP＋账户名＋密码）（2026-11-12，用户 2026-11-11 15:58 定版＋2026-11-12 05:25 确认排期；预制分支 feat/cloudpc-closeout，基线 main ead40cb／0.50.22 定版顶端，只预制不合并、不发版；规格真源＝oneday-design-review/cloudpc-closeout-spec-20261112.md）
+
+### 181.1 改了什么（App 半）
+
+- `CredentialFormView` 的 vps_agent 分支整段换三样：IP 地址／账户名／密码＋一句脚注（登录信息只落服务端、装代理是服务端的事）。配置串粘贴、电脑地址、令牌、公网明文风险提示四件内部形态全部退场；托管类（simular_box）分支零改动。
+- 载荷：新增 `ConnectionPayloads.windowsCredential(host:username:password:)`（字段与伴生收口契约 §4.1 逐字对齐）；旧 `vpsCredential/parseConfigString/isPlausibleEndpoint` 保留并注「内部形态、App 不用」（面板与存量契约还在，钉测不删）。
+- 校验：新增 Core `WindowsLoginInput`（host 只认 IPv4/主机名形态，带 ://、路径、端口、空白一律拦；纯数字点串只能按 IPv4 判；密码不 trim）。服务端同口径再验一遍。
+- 状态词：`ConnectionStatusWording` 的 effective 分支新增「待打通」→.pending（伴生 windows 记录 effective＝已保存 · 待打通）。
+- 顺手收口两处用户面文案：添加流 VPS 行副文案（「填 IP、账户名和密码就能连」）、详情页断开脚注（只说摘登记与登录信息，不再提代理卸载命令）。
+- xcstrings 新增 6 键（IP 地址／账户名／密码／脚注／类型行副文案／断开脚注），三语齐全（2865 键）；退场四键留目录待后续清账，不在本包删。
+
+### 181.2 钉测与红线
+
+- 新增 3 法（windowsCredential 载荷并入既有载荷法断言、WindowsLoginInput 主机校验、isReady 组合、待打通状态词——实为 3 新法＋1 法扩断言），退役 0。
+- 红线自查：托管型既有流零触碰；§124 回底钮承载零触碰；五页边缘行零触碰；版本号零改动。
+
+### 181.3 伴生半（不在本分支）
+
+front connections 契约增改（cred_vps 三样分流＋winrm_probe 降级探针＋verify 阶梯＋自测）在 hermes-deploy/companion 本地模板备码（基线与生产 1.0.36 逐字节一致已验），**本包不部署**，部署与镜像加 pywinrm 钉版归主线部署门（规格 §6）。Windows 代理安装件＋验活手册在 companion/windows-agent/，未实跑（无试点机，规格 §7 如实登记）。

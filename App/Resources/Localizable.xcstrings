@@ -2694,6 +2694,29 @@
         }
       }
     },
+    "IP 地址（如 1.2.3.4）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IP address (e.g. 1.2.3.4)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IP 地址（如 1.2.3.4）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IP 位址（如 1.2.3.4）"
+          }
+        }
+      }
+    },
     "JSON 字符串": {
       "extractionState": "manual",
       "localizations": {
@@ -19787,6 +19810,29 @@
         }
       }
     },
+    "密码": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Password"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密碼"
+          }
+        }
+      }
+    },
     "密码只用来验证你的身份。验证通过后，服务器会把登录密钥交给 App 保管，你不用再填第二遍。": {
       "extractionState": "manual",
       "localizations": {
@@ -24458,6 +24504,98 @@
           "stringUnit": {
             "state": "translated",
             "value": "幫助與反饋"
+          }
+        }
+      }
+    },
+    "断开只摘掉这边的登记与保存的登录信息。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnecting only removes the registration and the sign-in details saved on this side."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "断开只摘掉这边的登记与保存的登录信息。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "斷開只會移除這邊的登記與保存的登入資訊。"
+          }
+        }
+      }
+    },
+    "登录信息只发给你的服务端保存，App 不留存；连上之后，装代理、接进智能体的事都由服务端处理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in details are sent only to your own server for safekeeping — the app doesn't keep them. Once connected, the server takes care of installing the agent and wiring it up."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录信息只发给你的服务端保存，App 不留存；连上之后，装代理、接进智能体的事都由服务端处理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入資訊只會送到你自己的伺服器保存，App 不留存；連上之後，安裝代理、接進智慧代理的事都由伺服器處理。"
+          }
+        }
+      }
+    },
+    "自己的 Windows 电脑或服务器，填 IP、账户名和密码就能连": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your own Windows computer or server — just enter its IP, account name and password"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自己的 Windows 电脑或服务器，填 IP、账户名和密码就能连"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你自己的 Windows 電腦或伺服器，填 IP、帳戶名稱和密碼就能連"
+          }
+        }
+      }
+    },
+    "账户名（如 Administrator）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account name (e.g. Administrator)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账户名（如 Administrator）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帳戶名稱（如 Administrator）"
           }
         }
       }
