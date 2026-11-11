@@ -570,11 +570,6 @@ final class AppState {
     init(client: HermesClientProtocol = HermesClient(), demoMode: DemoMode = .off) {
         self.client = client
         isDemo = demoMode.isDemo
-        // §149：本会话选择账开账（演示模式不落盘、
-        // 内存空账起步）
-        if !demoMode.isDemo {
-            loadSessionModelChoices()
-        }
         sideChats = SideChatStore(persisted: !demoMode.isDemo)
         runLedger = RunLedgerStore(persisted: !demoMode.isDemo)
         deviceSession = DeviceSessionController()
@@ -610,6 +605,12 @@ final class AppState {
         // 经 Task 显式跳回主隔离写计数；@Sendable 闭包
         // 不直接捕获本类，经 @unchecked Sendable 弱盒
         // 转手（盒内只持 weak 引用）
+        if !demoMode.isDemo {
+            // §149：回读本会话模型账——init 内调 self
+            // 方法须在全部存储属性初始化之后（二轮 CI
+            // 实证：前置调用报 self 未完全初始化）
+            loadSessionModelChoices()
+        }
         let signalBox = WeakAppStateBox(self)
         if let hermesClient = client as? HermesClient {
             hermesClient.onTransportSuccess = {
