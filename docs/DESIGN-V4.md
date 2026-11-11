@@ -8158,3 +8158,57 @@ B 档 11 项全部卡付费开发者账号（B1 健康/B2 家庭两件已在名�
 - **确诊机理**：回底钮 0.41.0 浮层化后挂在发送区容器（safeAreaBar 承载的小 VStack）的 `.overlay(.topTrailing)` 上、再以 `.offset(y: -(44+spacingS))` 整体上移——44pt 命中域完整落在宿主 frame 之外、悬在消息列表上空。SwiftUI 命中测试按祖先 frame 逐层剪枝：触点不在宿主框内永不下探 overlay 子树，该位置触摸全被下方 ScrollView 吃掉；渲染不裁剪、命中裁剪，故看得见点不动。action 绑定（scrollToBottom，列表内多处共用）与目标锚经查无恙；钮在布局流内时可点、浮层化后才死，时间线吻合。角标同在死区、同病同修。
 - **修法**：钮迁挂消息列表本体 overlay（宿主＝整页、命中域恒在 bounds 内）；落位改实测驱动——bottomBar 经背景 GeometryReader 在命名空间 `chatSurface` 发布 frame（ChatBottomBarFrameKey，与右滑引用排除区同款构造），overlay 侧以 Core 纯逻辑 BackToBottomPlacement 按（宿主尺寸，发送区 frame，右距 spacingM，间距 spacingS）算中心点 .position 落位：键盘升降、错误/提示条增减都经 frame 自动跟随，视觉位置与旧口径逐点一致（右缘 spacingM、盘底距发送区顶 spacingS＋5）。钮外区域无命中形，列表滚动/点击照常穿透；显隐派生提为全页单一出处 showsBackToBottomButton，出入动画随钮迁到列表侧（swap 口径不变）。
 - **可测判定**：BackToBottomPlacement 三件钉进 BottomFollowTests——落位算术（中心/命中域数值）、病灶复现（旧形态命中域对发送区宿主 bounds 代入 isReachable＝false、对整页宿主＝true）、frame 未发布（.null/.zero）不给落位。真机点按（点钮回底＋角标清零）列交付后验收项。
+
+## §117 对标包 0.47.0·点子＋动态照 Muse 呈现重做（用户连发 8 张截图点题，2026-11-11；预制分支 feat/muse-align，基线 main ddde9c4）
+
+### 117.1 审计结论（先审计后施工，2026-11-11 实查）
+
+**伴生 feed 数据形态**：帖记录含 `images: [{url, sourceUrl}]` 与 `sourceCard`，`_feed_view` 原样透传——字段通道没断。生产实查（容器 data.json，2026-11-11）：现存 5 帖（digest 2／morning 1／research 2）**images 全部为空**，含 1.0.6 五步链产出的两篇 research 帖。
+
+**两帖无图的根因（抓图步落空，实证）**：`_tavily_extract` 调 Tavily /extract 时请求体只有 `{urls, format}`，**没带 `include_images`**——该参数缺省 false，Tavily 结果里根本没有 images 数组（主线同日以武装库 Tavily 钥对同一页面双跑实证：缺省形 images=0，带 `include_images:true` images=4 且首图即该页 og:image）。桥的另一路 Firecrawl 兜底带 og:image，但只在 Tavily 对某 URL 完全无结果时才触发，主链上永不触发；抽取正文 Markdown 里自带的图片（实测页 15 张）也从未被采集。于是候选图池恒空→著帖步无图可选→帖子无图落库，与「宁无图不假图」的纪律无关，是抓取参数缺失。
+
+**伴生 ideas 数据形态**：记录字段＝{id, title, detail, goalId, createdAt, source, evidence, evidenceRef, anchorId, dismissReason, status, taskId, expiresAt}（`_idea_view`／`_create_idea`／生成落卡三处一致），**无 emoji、无 deliverables、无 category**。生产 6 条现存点子同形（旧记录连 anchorId 都缺，视图以 .get 容缺）。
+
+**汇编帖格式病灶（生产样本逐字）**：今日 digest 正文＝`## 新点子\n- 07:30 新点子《…》\n- 07:30 新点子《…》`——分组头「新点子」与每行事件文案自带的「新点子」标签重复一次；App 列表行又把 Markdown 压平成一行摘，读感成标签串行。事件文案在 `_feed_local_events_locked`（点子/简报/监测）与 `_feed_poll_remote`（任务/审批）两处生成，汇编在 `_feed_assemble_locked`。
+
+**App 现状对账**：点子无 category 通道——桥记录与生成面都没有类别字段，App 现分组只有状态两段（待阅/已采纳）；Muse 截图里的「人际关系/购物」式主题分组在我方**没有数据来源**，本包不新造分类（生成面增 category 属另一量级变更，记 117.7 待议），分组沿用状态两段、组标题改新样式的大粗体。动态：行内只有 120 字摘＋54pt 缩略图，全文须点进详情页；简报行已有（summaryLine 取兴趣层首行，与本包胶囊口径一致，沿用）；搜索入口缺失；桥帖无 emoji 字段。
+
+### 117.2 伴生处置（1.0.12，纯增量）
+
+1. **ideas 增两字段**：生成提示词 IDEAS_GEN_PROMPT 增 `emoji`（按内容选一个）与 `deliverables`（[{name, summary}]，即详情页「包含哪些内容」）两字段说明；`_parse_generated_cards` 宽容收下（形状不对丢字段不丢卡）；落卡、`_create_idea`（可选入参）、`_idea_view` 三处透传。旧记录无字段→视图回 null/[]，App 容缺解码，不炸。
+2. **feed 抓图修复**：`_tavily_extract` 请求加 `include_images: true`；每个 kept 来源页的图片候选按序组装——①桥侧直抓该页 `<meta property="og:image">`／`twitter:image`（限读页面头部字节、失败静默）②Tavily images 数组③正文 Markdown 首图，去重保序。图池纪律不变：只收本轮来源页的图、落库前 HEAD 校验、坏图丢弃帖子照落（仍守宁无图不假图）。
+3. **feed 帖增 emoji 字段**：research 著帖提示词增 `emoji` 输出（按帖子主题选一个），`_verify_research_post` 宽容透传（限长、形状不对丢弃）；digest 汇编落帖固定 `📰`、旧 morning 只读不回填。`_feed_view` 透传，缺失回 null，App 按 kind 兜底。
+4. **汇编帖格式修干净**：事件文案去掉自带的类别标签词（点子行只留《标题》、监测行只留《名》：摘要、简报行收成《目标名》周简报：标题），分组头成为唯一的类别标注；一行一事件不变。存量已存事件文案不回改（7 天自然过期），新汇编起生效。
+
+### 117.3 App·点子处置
+
+- **行**：左侧改内容 emoji 大字（约 44pt、无底色瓷砖）；emoji 取桥字段，缺失时按锚点 kind 缺省映射兜底（Core `IdeaEmoji`：S💬/G🎯/M📡/K✅/R🧠/手记✏️/未知💡）；标题改 semibold（见 117.5 记账）、至多两行；正文次色、行距放宽、至多 4 行；撤行面元信息行（生成时间/到期移进详情信息组；目标 chip 与任务状态随元信息行一并撤，详情里仍在）；依据行保留（宪法证据硬门的脸面，次色一行截断）；行间发丝线沿 List 既有分隔。
+- **分组**：待阅/已采纳两段沿用，Section 头改大粗体样式（约 22pt bold、原色非大写）。
+- **详情改底部 sheet**：列表点行不再推页，改 `.sheet` 呈现（`presentationDetents([.large])`＋`presentationCornerRadius(28)`）：标题（约 24pt 粗体）→正文全文→（生成卡且有依据时）依据小节→（deliverables 非空时）「包含哪些内容」小节：粗体小节标题（右侧剪贴板图标）＋交付物行（粗体名＋灰副文＋右侧蓝色实心对勾圆）→底部固定动作栏：左侧浅灰圆形「···」钮（菜单：太泛了/忽略/删除，沿用既有 store 动作与确认口径）＋通栏蓝色胶囊主钮「开始吧」（sparkles 图标；待阅态＝采纳转任务，成功后就地变已采纳态并给「打开任务」；已采纳态主钮＝打开任务）。信息组（来源/时间/到期/目标/状态）收进 sheet 下半区小字呈现。深链落点（动态 refs 点达点子详情）同步改走同一 sheet 形态的承载（FeedView 内以 sheet 呈现 IdeaDetailView 的新形态，导航上下文不变）。
+
+### 117.4 App·动态处置
+
+- **行**：左侧 emoji 大字（桥 emoji 优先，缺省按 kind：research🔍/digest📰/morning🌅/unknown📰）；标题改 semibold、至多两行、未读蓝点保留；**正文全文内联**：行内直接 MarkdownText 全文渲染（链接可点、块级结构照排），不再截断、不再依赖详情页读帖（详情页保留——ⓘ/深链可达）；有图时正文下通栏大图（第一张来源真图，圆角 20、16:9 填充裁切，异步加载、失败静默无占位）；来源嵌入卡（sourceCard）行内照旧渲染在正文后（数据真抓口径不变）。
+- **动作行**：爱心位不做点赞（桥无持久化字段，记 117.7 待桥扩展）；「讨论」钮（气泡图标＋「讨论」）＝以该帖为上下文开新旁聊：新建本地线程、草稿预填「关于动态《标题》：…」上下文、经 drawerThreadSelection＋mainTabSwitchRequest 既有通道切过去（沿用抽屉新建会话的同一链，不新造发送路径）；右侧相对时间＋ⓘ钮（点开来源小 sheet：来源链接清单＋引用对象＋why，点链接出系统浏览器、点引用走既有 Route.ref）；类别/方向/未读字样并入动作行左段小字。
+- **简报胶囊**：标题下通栏胶囊＝简报行改圆角通栏形态：左侧滑杆图标＋一行兴趣摘要（FeedBriefBoard.summaryLine，兴趣层原文一行截断；未设显引导文案「写下你感兴趣什么，我每天替你去看」＋副文「点按写简报」），未读数徽标保留，点按进既有简报编辑器；右上工具栏滑杆钮保留同入口。无简报文档（旧桥）时落旧胶囊行（今日汇编落点）不回退。
+- **搜索**：导航栏右上放大镜钮切换 searchable 输入（标题＋正文子串过滤，分组随过滤结果重算；清空恢复全量）。
+- **行高与性能**：全文内联后单行可长——LazyList 既有 List 容器沿用；长帖默认全文展开（用户口径「不需要点开」），不加折叠。
+
+### 117.5 宪法记账（出入逐条，用户对标指令覆盖）
+
+用户 2026-11-11 11:40–11:44 连发 Muse 点子/动态截图并点名照其 UI 设计、排版与打开形态改——以下出入以该指令覆盖，**适用范围仅限点子页与动态页两页**，其余页面角色表与图标口径不动：
+
+1. 点子/动态行标题字重改回 **semibold**：与 0.41.0 收口批 C14「行题回收 .rowTitle（Body regular）单轨」冲突——本包两页行题改 `.headline`（17 semibold）等效位，角色表原文不改、两页以本节为准。
+2. 内容 emoji 作行首图标：与设计宪法 §4「图标三源制」（品牌官方原图/SF Symbols/苹果应用图标画法）冲突——emoji 是内容数据（桥按内容选定）不是界面图标语言，界面图标（钮、菜单、动作行）仍全走 SF Symbols；§4 原文不改、两页行首以本节为准。
+3. 点子行撤瓷砖底色与元信息行、动态行撤 kind 瓷砖：与宪法 §7「同构列表」不冲突（两页内部仍同构），与 0.32.0/0.35.0 两页既定行形态的出入以本节为准。
+
+### 117.6 单测与校验
+
+Core 新增/扩：IdeaEmoji 兜底映射（桥值优先、按 kind 兜底、手记/未知档）；BridgeIdea 容缺解码（无 emoji/deliverables 旧载荷不炸、有值原样收）；deliverables 小节呈现判定（空→整段不出现）收口为 Core 纯函数 `IdeaDeliverablesSection.isVisible`；动态全文呈现判定（行内呈现恒全文——`FeedBoard.rowShowsFullBody` 恒真口径＋excerpt 退役标注）；BridgeFeedPost emoji 容缺解码。伴生自测扩：汇编帖新格式（p3 自测加断言：正文无重复标签、一行一事件）、ideas 解析带 emoji/deliverables 落卡（p6 自测）、抓图候选组装顺序（og 优先/正文图兜底，p6 自测，网络以打桩替身）。三语：新文案（开始吧/包含哪些内容/讨论/搜索动态等）入 Localizable.xcstrings 三语齐，validate_i18n.py 跑通。单测只增不减（基线 1217＋本包新增）。
+
+### 117.7 未验与待议
+
+- **点赞持久化**：动态动作行爱心位本包不做——桥 feedPosts 无点赞字段、计数与状态都无处落；待桥扩展（字段＋端点）后另包补齐，App 侧不自立本地假账。
+- **页顶智能体状态胶囊**（观察记录，不施工）：Muse 点子/动态页顶有居中头像＋名字＋当下正在做事项的灰胶囊（截图样本「三狗 · Checking detector」「三狗 · 分析文件问题」）。我方对应数据面＝工作台账进行中任务（伴生 ledger 有真源），呈现需三页统一的页顶位与状态文案口径，成本约：App 三页页顶组件 1 个＋台账进行中读面复用＋文案口径一轮。本包只记录，排后续对标包再议。
+- **点子主题分组**：Muse 按主题分类分组（人际关系/购物）；我方桥无 category 数据（审计 117.1），若要补须生成面增字段＋存量不回填，另议。
+- 真机终验待用户：点子 sheet 形态与开始吧全链、动态全文内联＋大图＋讨论开聊、老帖（无 emoji/无图）呈现不回退、新一轮调研帖带图落库（桥 1.0.12 部署后明早 08:30 轮或手动触发轮验收）。
