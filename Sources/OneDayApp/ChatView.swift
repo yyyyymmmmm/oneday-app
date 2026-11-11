@@ -1897,7 +1897,6 @@ struct ChatView: View {
         }
     }
 
-    @ViewBuilder
     /// 目标委派回响行（§123 H1）：居中安静一行——小
     /// 图标＋事实正文＋时刻；不带气泡底、不挂长按菜单
     /// （它不是谁发的言）。入口四问备注：入口＝目标详
@@ -1922,6 +1921,7 @@ struct ChatView: View {
         .accessibilityElement(children: .combine)
     }
 
+    @ViewBuilder
     private func bubble(_ entry: ChatEntry) -> some View {
         if entry.echoKey != nil {
             // §123（H1）：目标委派回响条目——居中通知

@@ -1,5 +1,6 @@
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 目标格（0.11.0 P4 转正；0.33.0 P2 改呈现形态）：列表
