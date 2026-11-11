@@ -10186,3 +10186,65 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - §124 回底钮承载结构（bottomBar 布局流）与钮本体：本包 diff 对 `scrollToBottomButton`/`showsBackToBottomButton` 零命中，未触碰（外壳包刚在其分支把钮材质换玻璃，本包避开该段）。
 - 边缘样式行零改动：顶 .soft／底 hidden 与基线 fd2deec 逐字一致（本包 diff 不含 scrollEdgeEffect 任何一行）。
 - spacingL 零改动；bottomBar 本体零改动；改动文件仅 ChatView.swift、OneDayCore/BottomFollow.swift、Tests/OneDayCoreTests/BottomFollowTests.swift、本节。
+
+## §178 输入舱承载换代：层级内托管＋keyboardLayoutGuide 钉底（2026-11-12，用户 03:02 亲点定案；预制分支 feat/composer-kbguide，基线 main 3671662／0.50.21 定版顶端＋cherry-pick 间距包 §176 提交 d20bd4c，只预制不合并；节号取 §177 顺延——§177 由呈现包在其分支占用（feat/feed-ideas-parity），本节自选 §178，两边顺延与 §175/§176 的撞号一并归主线合裁；间距包先合时本分支该 cherry-pick 在 rebase 时丢弃）
+
+### 178.1 定案与证据链（改前先搜已由两份报告完成，按其证据落法）
+- 用户定案（2026-11-12 03:02，四选项点选）：输入舱整栈保留在聊天页前景视图层级内，底边由现行 safeAreaBar 栏位改钉 `UIView.keyboardLayoutGuide`。
+- 诊断（top-bottom-solid-block-diagnosis-20261112.md 第三题）：现行栈序＝DrawerContainer 内容宿主 → TabView（系统底栏本身是一条底部 safe-area bar）→ 列表 `.safeAreaBar(edge:.bottom)` 发送舱；键盘升起时其所占区域并入宿主底部安全区，三层按嵌套序重排为「键盘→坞→舱→内容」——没有任何一行代码顶坞，是两条 bar 同住一个安全区体系的涌现结果。UIKit 原生形态里键盘是独立窗口、呈现时盖住 tab bar；发送舱或为 inputAccessoryView、或以 keyboardLayoutGuide 钉住。
+- 配件托管硬停（composer-accessory-external-check-20261112.md）：inputAccessoryView 经核查同样不可行——MessageKit 4.0（PR #1704）与 Stream Chat 都已弃用配件托管、收敛到「层级内 composer＋键盘驱动」；配件在标签栏下只能盖坞不能停坞上方（与用户定版效果结构性冲突，MessageKit issue #399）；抽屉不随动；附件呈现链撞响应者辞任。本节即该报告的「选项一」。
+- 坞的键盘态处置（本节新增事实判断，合并前过 Codex 异源复核）：TabView 的安全区预留不因输入舱退出安全区栈而消失——键盘升起时坞仍会骑到键盘顶、与舱的下段带重叠，「坞被键盘窗自然覆盖」在 SwiftUI TabView 下不成立（机制为诊断 3.1 的同一条安全区记账；真机图 986D2887 是现行形态的实证）。配套动作＝聚焦态 `.toolbar(.hidden, for: .tabBar)`（诊断 K1）：打字时坞退出画面、失焦恢复。此件只管坞的显隐，舱的承载与跟随不依赖它；其与键盘动画的时序耦合列真机清单第 1/2 项。
+
+### 178.2 小样实证（探针两轮，CI 模拟器窗口 402×874；探针文件已删除、数据以本节为准）
+- 装法：DrawerContainerController 前景＋真 TabView 壳内并置两变体逐帧量测（FrameReporter 量真实渲染帧）。
+- 静止帧：真 UITabBar 帧 (0,791,402×83)；页帧 (0,54,402×737)——SwiftUI 已把页内容帧收在安全区内：顶 54、底边恰落坞顶 791；页的 SwiftUI safeAreaInsets.bottom 仍传播 83；**内嵌控制器 additionalSafeAreaInsets＝0、其视图 safeAreaInsets＝0**——嵌套下 SwiftUI 不给内嵌 VC 传 additionalSafeAreaInsets，一切量值必须自测，不得按 UIKit 顶层直觉推算。
+- 地板公式第一版（视图高−83）当场证伪：舱底边与坞顶留 ≈84pt 空档（坞高双计一次）；修正为**地板＝宿主视图底边本身**：引导线静止位 layoutFrame.minY＝737 恰为视图高（视图底边），舱托管（UIHostingController＋sizingOptions=.intrinsicContentSize）底边钉 guide.top＋布局回调地板钳制后，舱帧 (0,714,402×76)、底边 790≈坞顶 791（1pt 为理想高取整）。
+- A/B 基准（现行 safeAreaBar 形态复刻）：舱渲染 (0,731,402×60)、正贴坞顶，列表 containerH 677、contentInset.bottom 143＝83（坞传播）＋60（舱）——复刻与生产的留位记账一致，新承载的对账基准成立。
+- 新承载侧：列表 `.ignoresSafeArea(edges:.bottom)` 后列表帧延伸到屏底（containerH 820＝874−54）、传播的 83 归零（实测 scrollInsetB＝0），留位全由 contentMargins 一处驱动。
+- 留位公式验算：静止帧 `contentMargins.bottom ＝ (窗口高 874 − 舱顶 714) ＋ spacingS 8 ＝ 168`，内容底缘落点＝874−168＝706＝舱顶−8，与 §176 的单点边距严丝合缝；键盘态公式同构（引导线把舱底钉到键盘顶，舱顶随之，公式只认窗口坐标、对页帧伸缩免疫）。
+- CI 边界（未证实、如实标）：**真键盘在 CI 模拟器里升不起来**——becomeFirstResponder 成功（isFirstResponder＝true、UITextEffectsWindow 出现）但无键盘窗、guide 不动；合成 keyboardWillChangeFrameNotification SwiftUI 不认（四态帧全无变化）。故引导线的键盘跟随（其 API 本体契约）与坞的键盘态去向**只能真机验**，见 178.6 清单。
+
+### 178.3 施工（3 个生产文件）
+1. **新增 `Sources/OneDayApp/ComposerGuideHost.swift`**：`ComposerGuideHost`（UIViewControllerRepresentable）＋`ComposerGuideHostController`＋透传根视图。
+   - 桥在 ChatView 上下文读环境（AppState／modelContext／locale／reduceMotion／dynamicTypeSize），逐项注入舱宿主根视图＋`.boldTextMapping()`（DrawerContainer §156 先例：构建闭包在外层上下文求值、rootView 反复赋值不重建舱内状态）。
+   - 控制器：舱宿主 `UIHostingController` 设 `sizingOptions=[.intrinsicContentSize]`、`safeAreaRegions=[]`（托管树安全区归零，防双计——舱是自包含栈、内边距全在内容里）；舱视图 leading/trailing 贴宿主视图、底边一条约束钉 `view.keyboardLayoutGuide.topAnchor`；地板钳制在 `viewDidLayoutSubviews` 逐拍按 `constant = min(guideTop, 视图底边) − guideTop` 补偿（只在偏差 >0.25 时写、新常数次拍生效——地板交接只发生在近静止段）。
+   - 舱顶实测回报：舱帧换算窗口坐标，报「舱顶→窗口底距离」，变化 >0.5pt 才外发、经主队列下一拍写回 ChatView 状态（避布局拍内同步改状态）。
+   - 根视图透传：`hitTest` 命中本体（舱带之外）返回 nil——列表的点空白收键盘、滚动手势的作用域不被全帧层吞掉；舱带内正常命中舱子树。
+2. **ChatView.chatSurface**：`ScrollViewReader` 内改 `ZStack { messageList(proxy); ComposerGuideHost(bottomSpace: $composerBottomSpace) { bottomBar(proxy) } }`——列表与舱同树同 proxy，贴底四路的调用面一字不变；新增聚焦态 `.toolbar(composerFocused ? .hidden : .visible, for: .tabBar)`（见 178.1 坞处置，只挂聊天格内容根、逐格生效）。
+3. **ChatView.messageList**：删底部 `.safeAreaBar(edge:.bottom)` 注册整段；列表加 `.ignoresSafeArea(edges:.bottom)`；底 `.contentMargins` 改为 `composerBottomSpace + spacingS`（新 @State，首报前默认 168 兜底＝现行静止总量同档近似，首个布局拍即被实测覆盖）。顶 safeAreaBar、§170 底缘隐藏、`.scrollDismissesKeyboard(.interactively)`、键盘锚底两路（聚焦 onChange／WillChangeFrame onReceive→anchorToBottomAfterKeyboard→唯一所有者 scrollToBottom）全部原样。
+   - **bottomBar 整栈本体零改动**（错误条／提示条／引用块／回底钮行／inputBar）：§124 回底钮仍在栈内布局流，落位改由托管控制器约束构造保证（「在输入舱自己的坐标系里」的 §124 结论不变，不回浮层推算——P-20 前科纪律）。本分支基线里回底钮仍为 .odFloatPaper（换玻璃在外壳包分支 4e31e95、未合入），本包不碰钮本体、合并时无冲突面。
+
+### 178.4 §176 九环继承对账（稳态总量不许出 17–24 带）
+| # | 环节 | §176 定版 | §178 落点 | 变化 |
+|---|---|---|---|---|
+| 1 | LazyVStack 尾随 spacing | 0（锚移出栈） | 0 | 不变（承载 VStack 结构不动） |
+| 2 | 尾锚本体高 | 1 | 1 | 不变 |
+| 3 | 内容栈底 padding | 8 | 8 | 不变（§20.2 结构量；撑满 minHeight 的量测源变为延伸后的容器高，公式自洽） |
+| 4 | 列表底 contentMargins | 8（单点所有权） | **实测（坞＋舱高）＋8** | 承载形式变：留位本体（坞预留＋舱高）改由 host 实测驱动，可调边距仍只有 spacingS 8 一处、全链唯一记账点不变；静止帧与旧账等值（83＋舱高＋8） |
+| 5 | safeAreaBar spacing | 0 | **退役** | bar 注册随承载消失——本环连同其「0」一并注销，不再是链上环节 |
+| 6 | bottomBar 栈 spacing（稳态） | 0 | 0 | 不变（栈本体零触碰；栈高改经 host 理想高计量，内容不变则帧不变——宿主测试钉死） |
+| 7 | inputBar 顶 padding | 0 | 0 | 不变 |
+| 8 | 隐藏层 spacing | 0（条自带底边距） | 0 | 不变 |
+| | **写死合计** | **17** | **17** | 环 5 注销不改变合计（本为 0） |
+| 9 | 落定残差带 | 0–7（阈值 7） | 0–7 | 不变（BottomFollow 零改动） |
+| | **稳态总量** | **17–24** | **17–24** | 与 §176 定版一致、与 Muse 实测 24 齐平 |
+
+### 178.5 测试
+- 新增 `Tests/OneDayAppTests/ComposerGuideHostTests.swift`（5 法，生产件装进同构壳：DrawerContainerController 前景＋真 TabView＋按 ChatView §178 接法复刻的聊天页替身）：静止几何三连（舱底＝坞顶／回报值对账／末行底距舱顶恰 8）、舱长高 40 的顶移底钉、透传命中、切格往返复原、抽屉开合随前景。探针文件 `ComposerKbGuideProbeTests.swift` 删除（其 XCTFail 带数通道是探针专用、结论已转录 178.2）。
+- 贴底四路的 Core 判定（BottomStick/BottomFollow 协调器、近底迟滞、末条目标、离底计数、复贴阈值）零改动、全套随 CI 复验；四路的 App 侧触发面（proxy／scrollToBottom 所有者／回底钮显隐状态源）经 diff 审计一字未动，其真机复验列 178.6。
+- 单测基线：Core 1670＋App 11（本分支基线）→ App 16（+5 新法、−0 退役；探针 2 法为临时件、不计入基线对账——其使命是带数，定稿由本节 5 法接替）。
+- 分支 CI：（完工后补记 run 号与 Executed 实数）
+
+### 178.6 真机待验清单（照配件硬停报告 8 项，本包 CI 不可证的部分全数在此）
+1. 键盘升起：舱贴键盘顶、无坞残影（聚焦藏坞与键盘动画的时序：不得出现坞先闪退/后冒头的一帧错位）、无滞后帧；列表末行随舱上移、间距恒 8。
+2. 键盘落下：舱回坞上方停稳、坞恢复可见且五格可点；落下过程中舱与坞不穿插。
+3. 交互式下滑收键盘：舱逐帧跟随手指、无残留带、无落定跳帧；列表留位同步跟随（实测回报的逐拍性在此验——若出现一帧级滞后的气泡压舱，当场记录量级）。
+4. 多行生长 1→5 行：舱高生长平滑、舱顶上移而底钉不动、回底钮行显隐不跳高（钮在本包第四次换承载，§124/P-20 重点复验）；贴底四路逐路过：首屏落位／发送贴底／流式跟随／回底钮显隐与点击回底。
+5. 键盘升起态开附件面板：面板不塌升、舱位不乱；相机/选图/文件三路与 §147 时序一致（呈现链未动，仍须过目）。
+6. 键盘升/落两态开抽屉：舱随前景滑动（开抽屉先收键盘为容器既有纪律）、关抽屉后焦点与舱位不乱。
+7. 深色模式一帧：舱玻璃、坞（恢复后）、列表三者衔接无断层、无白带回潮（§165/0.6.1 病史）。
+8. AX 最大字号一帧：舱不溢出、列表留位随舱高实测自适应；VoiceOver 焦点序不变（舱在辅助树中的位置与旧 bar 等价）。
+
+### 178.7 红线自检
+- 改动文件仅 ComposerGuideHost.swift（新）、ChatView.swift、ComposerGuideHostTests.swift（新）、本节；bottomBar/inputBar/scrollToBottomButton 本体、BottomFollow/BottomStick、DrawerContainer、边缘样式行（顶 .soft／底 hidden）零命中。
+- 收入/服务端零触碰；不合并、不发版，只交分支。
