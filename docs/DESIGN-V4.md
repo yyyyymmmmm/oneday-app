@@ -10146,3 +10146,29 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 发版验包补记：定版提交 `40ce39f`；合并 CI run **43074196507**（push，head=40ce39f）build-native **success**，单测 **Executed 1669（OneDayCoreTests）＋11（OneDayAppTests）、0 failures**（基线 1669＋8，增量＝补丁新增 3 个 DrawerContainerControllerTests 宿主几何测试，逐个 passed 实读；无退役）。§173 回退后 CI run **43078801515**（push，head=fd2deec）build-native **success**、Core 1669 不变、TEST SUCCEEDED。发版 CI 以 workflow_dispatch run **43081154380**（head=fd2deec）为准、只跑一次，build-native **success**。IPA：**10,868,681 字节，md5 `3f6584f1acdc233119fbbe196d8612d0`**，解包实读 Info.plist＝0.50.21／**143**／site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.21/OneDay-v0.50.21-143.ipa。
 - 真机待验：①抽屉展开：导航与旁聊纵向排列、文字图标不再左溢出截断，折叠动画在、折叠后点不到；②顶栏胶囊打开模型选择页：标题/取消入口正常、列表不压状态栏；③§173.5 朦胧五项可一并验。
 - **§173 回退补记（2026-11-12 02:07 用户亲定）**：用户装 0.50.20 后否决朦胧对标（「越改越难看，这个不要，删除」），**§173 整包作废**、0.50.20 IPA 已由主线删除。本版在外部补丁之外一并 `git revert -m 1 8c83f5c` 回退 §173 全部改动：四页（动态/点子/目标/文件）底缘回 .hard、聊天底缘回 hidden、顶缘 .soft 不动、回底钮行密度回收一并退回。对账证据：FeedView/IdeasView/GoalsView/DeliverablesView 与 0.50.19 定版 e7d293c 的 `git diff` 为空（逐字一致）；ChatView 与 e7d293c 的 diff 只剩模型弹窗宿主迁移两块（@@ -480、@@ -1282），边缘行实读＝顶 .soft（:1959）／底 hidden（:1989），与 e7d293c 原行逐字相同。先前误触的发版 run 43078561755（head 40ce39f，不含本回退）产物作废不落盘；本版发版以回退后顶端重新触发的 run 为准。真机待验随之调整：原第③项（§173.5 朦胧五项）撤销，改验边缘观感与 0.50.19 一致。
+
+## §178 外壳结构包：配件通道迁移核查后硬停＋回底钮换玻璃（2026-11-12；分支 feat/shell-native 自选 §175，与主线 §175〔0.50.21 外部补丁发版〕撞号，合并时主线合裁顺延 §178，子节 175.1–175.4 随之改 178.1–178.4，代码注释同步）
+
+用户拍板原话（2026-11-12 02:05）：「气泡间距用大厂成熟做法／键盘顶坞用大厂成熟做法」——本包原定把输入舱栈从消息列表 `.safeAreaBar(edge:.bottom)`（ChatView.swift:2003）迁往 iOS 26 `.tabViewBottomAccessory` 系统配件通道，并在新承载下把气泡→舱距离收口到单点所有权（总量 20–24pt）。02:07 口径变更：§173 朦胧对标整版被否决、五页边缘回退 0.50.19 为基线——本包不以 .soft 为目标或验收项、diff 避开一切边缘样式行；回底钮换玻璃保留（材质、非溶化带）。
+
+### 178.1 外部解法核查（改前先搜，2026-11-12 实查）
+
+1. **官方语义（WWDC25-323《Build a SwiftUI app with the new design》＋苹果文档）**：`tabViewBottomAccessory` 是「把常驻控件放在底栏正上方由系统托管落位」的通道，官方唯一示例是 Music 迷你播放条；形态随底栏 minimize 在 `.expanded`／`.inline` 间变形（`tabViewBottomAccessoryPlacement` 环境值），玻璃胶囊与尺寸由系统管理（iOS 27 模拟器实测胶囊约 48pt 高、距坞约 7.67pt——二级来源）。全程未提聊天发送舱，更未提键盘场景。
+2. **它是 TabView 级单一件、五格共见**（Donny Wals 实测文、开发者论坛同口径）。按格门控只能靠内容条件渲染：iOS 26.0 可行，但 **iOS 26.1（23B5059e）出现回归——条件隐藏后空容器残留、在坞上方留一条空白玻璃带**（Apple Developer Forums，迷你播放器案例，与本包「仅聊天格显舱、其余四格须全隐」的用法正撞）；带 `isEnabled:` 的新签名是 **iOS 26.1+** 才有（SDK 接口核验的二级来源），本 App 部署目标 iOS 26.0 用不上。另有真实项目（Singapore Buses 作者）因 accessory 跨格隐藏引发安全区回弹损坏、最终弃用 TabView 的实录（FB18767040，iOS 26 beta 5 修复的是其一变体）。
+3. **键盘行为无任何正面实证（命门）**：HIG《Tab Bars》只说「键盘显示时 tab bar 可隐藏」；键盘是独立窗口、盖住底部 chrome 是 UIKit 窗口模型的既定事实。官方与社区均**无一处**记载 accessory 参与键盘回避或随键盘上浮；有据可查能「骑键盘」的面只有三个——安全区栈（现行 safeAreaBar，整栈上浮正是第三题病灶）、`.toolbar(placement:.keyboard)`（工具条级、放不下多行栈）、UIKit `inputAccessoryView`。本包验收条件是「坞被键盘盖住、只舱上浮」，在 accessory 通道上无法证成；若 accessory 与坞一同被盖，全 App 主输入在打字时不可见——此风险不许拿未验证行为去赌。
+4. **形态不合**：现行输入舱栈是多行可变高栈——bottomBar VStack（错误条＋提示条＋§124 回底钮行＋inputBar），inputBar 内再含失败/通知两层展开层、引用块、多行生长的舱本体与附件面板。与「系统定尺寸的玻璃胶囊（播放条量级）」不是同一种容器；Hacking with Swift 亦注记 accessory 的系统内边距尚不规整。
+5. **设计口径反向**：HIG 汇编与 Wals 均指出该通道的预期用途是「全 App 全局状态（global state），不是按格动作（not per-tab actions）」；聊天发送舱是典型的按格强输入件，与通道定位正相反。
+
+### 178.2 裁定：触发任务书硬停线，迁移不施工
+
+硬停条件「配件通道经实证承载不了现行输入舱栈」成立——证据为 178.1 第 2、3、4 条：门控机制在现行系统版本带上有已实证的残留缺陷、键盘上浮这一核心验收项无任何实证支撑、容器形态与多行生长栈不匹配。按任务书纪律：**停下带证据回报主线，不自创混合承载凑合**。本包未动 safeAreaBar 承载、未动间距九环任何一环、未动贴底逻辑。
+
+### 178.3 本包实际交付（唯一代码改动）
+
+回底钮本体材质 `.odFloatPaper(in: Circle())` → `.glassEffect(.regular, in: Circle())`（ChatView.swift scrollToBottomButton，与顶栏圆钮 1076/1122 同画法；诊断 §1.2 点名它是底部栈里唯一名副其实的实色件）。34 视觉盘／44 命中域／未读角标／§124 承载与显隐判定全不动。单测零增减（钮表面无既有测试覆盖）。
+
+### 178.4 退回主线待裁（本包不越界）
+
+- 间距三笔账（诊断 §2.4 的 O1 隐藏层 spacing −16／O2 尾随行距 −24／O3 复贴阈值收紧）与承载无关、在现行 safeAreaBar 上即可施工——是否按诊断选项另立包，请主线与用户裁（用户 02:05 定的是「用大厂成熟做法」，O 选项属诊断给出的收口路，与本包的结构迁移是两回事，不自动续作；主线裁定另立包，已由 §176 气泡间距收口落地，与本包同入 0.50.22 小批）。
+- 键盘沉坞的剩余候选：诊断 K1（焦点态驱动 `.toolbar(.hidden, for: .tabBar)`，现行承载上最低成本、与 HIG「键盘时坞可隐藏」口径合）或 UIKit inputAccessoryView 托管整栈（真·大厂通道，但逆 §10/§28 定版、须 UIHostingController 桥接整栈，工程量与回归面最大）——均待主线呈用户拍板。
+- 若日后系统版本演进（isEnabled 签名成为基线、键盘行为有官方实证），本节核查须先刷新再议重启配件通道。

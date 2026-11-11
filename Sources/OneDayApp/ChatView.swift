@@ -1426,7 +1426,11 @@ struct ChatView: View {
     }
 
     /// 回到底部圆钮（0.2.4 曾换原生玻璃；0.3.8 第 28 条
-    /// 浮件统一白浮纸——圆钮全体同画法）
+    /// 浮件统一白浮纸——圆钮全体同画法；外壳结构包
+    /// §178：本体材质由白浮纸改回系统玻璃
+    /// .glassEffect(.regular)——与顶栏圆钮（本文件
+    /// 1076/1122）同画法，属材质换代、与边缘溶化带
+    /// 样式无关；34 视觉盘/44 命中域/角标层全不动）
     /// 0.41.0（收口批）：离底未读角标——计数出自 Core
     /// AwayUnreadCounter（displayText 封顶 99+），挂视
     /// 觉盘右上；点钮即清零（回底的 ingest 随后以在底
@@ -1440,7 +1444,7 @@ struct ChatView: View {
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 34, height: 34)
-                .odFloatPaper(in: Circle())
+                .glassEffect(.regular, in: Circle())
                 .overlay(alignment: .topTrailing) {
                     if let badge = awayUnread.displayText {
                         Text(badge)
