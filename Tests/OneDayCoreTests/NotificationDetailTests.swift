@@ -141,7 +141,7 @@ final class NotificationDetailTests: XCTestCase {
     func testMemoryApplyLines() {
         let lines = NotificationDetail.changeLines(for: item(
             kind: "write_gate_decision", title: "记忆写入已被驳回",
-            body: "apply 2 op(s) to memory: \n- add: 条目甲\n- remove: 条目乙"
+            body: "apply 2 op(s) to memory: - add: 条目甲\n- remove: 条目乙"
         ), locale: zh)
         XCTAssertEqual(lines.map(\.name), ["条目甲", "条目乙"])
         XCTAssertEqual(lines.map(\.changeDescription), ["未新增", "未删除"])
