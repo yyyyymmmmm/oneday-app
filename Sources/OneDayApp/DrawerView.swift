@@ -224,6 +224,12 @@ struct DrawerView: View {
         // （chatSurface 同档；底条霜层的那路回退已于
         // 0.36.27 随霜层删除，此处只剩面板底本路）。
         // 私有 variableBlur 永不碰（E11 已注销）
+        // §162 材质减法盘点：面板底本体已是单层（双
+        // 层材质是 0.36.5 标题带时代的病、当时已删）；
+        // thinMaterial 档位是 0.36.3 用户点名定案，
+        // 降档（ultraThin）在仓内与外部均无对标实证、
+        // 不猜不动——本批减法落点在底条三件的叠加装
+        // 饰（见 drawerBottomBar 注）
         .background {
             drawerBackdrop
                 .ignoresSafeArea(edges: [.top, .bottom])
@@ -251,10 +257,19 @@ struct DrawerView: View {
             )
         }
         // 开抽屉时补拉服务端 source 映射（只喂来源过
-        // 滤判定；信号源＝壳层维护的语义开合状态）
-        .onChange(of: appState.drawerPresented) { _, presented in
+        // 滤判定；信号源＝壳层维护的语义开合状态）。
+        // §162 状态呈现收敛：关抽屉（开→关一沿，Core
+        // DrawerSearchPolicy 裁决）即复位搜索词——旧
+        // 行为词残留到下次打开、入口直接落在上次的
+        // 过滤态，与「重开呈默认态」不是一个状态；
+        // 收敛后入口状态只许一个（全量名单＋空框）
+        .onChange(of: appState.drawerPresented) { wasPresented, presented in
             if presented {
                 Task { await loadDrawerData() }
+            } else if DrawerSearchPolicy.shouldResetQuery(
+                wasPresented: wasPresented, isPresented: presented
+            ) {
+                drawerQuery = ""
             }
         }
         // 0.7.1（裁决 §3.5 S5 预挂载）：壳层在左缘触摸
@@ -718,8 +733,11 @@ struct DrawerView: View {
         .padding(.top, OneDayMetrics.spacingS)
     }
 
+    /// 搜索态判定（§162 下沉 Core DrawerSearchPolicy
+    /// 单一裁决，口径与 0.18.0 沿革一字不变：修剪后
+    /// 非空）
     private var isSearching: Bool {
-        !drawerQuery.trimmingCharacters(in: .whitespaces).isEmpty
+        DrawerSearchPolicy.isSearching(query: drawerQuery)
     }
 
     /// 抽屉单一选择（0.36.7，频道规格 §10）：全抽屉
@@ -742,7 +760,8 @@ struct DrawerView: View {
     /// 搜索过滤（0.18.0 口径原样）：标题或任一条目内
     /// 容包含搜索词（不区分大小写）；非搜索态恒全量
     private var filteredThreads: [ChatThread] {
-        let query = drawerQuery.trimmingCharacters(in: .whitespaces)
+        // §162：规范化与判定同出 Core 政策一处
+        let query = DrawerSearchPolicy.normalizedQuery(drawerQuery)
         guard !query.isEmpty else { return threads }
         return threads.filter { thread in
             // 0.20.0：搜索按显示名匹配（AI 标题回流后用
@@ -1407,17 +1426,17 @@ struct DrawerView: View {
             // 0.4.1 第 10 修：白浮纸（灰实填）换近白玻
             // 璃（与圆钮同改）——.glassEffect(.regular)
             // 系统玻璃（压在 #FCFCFC 面板上采样约
-            // #F9F9F9）＋发丝边＋轻柔影；与发送舱同式
-            // （玻璃施加于件本体、内容在其上）
+            // #F9F9F9），玻璃施加于件本体、内容在其上。
+            // §162 材质减法（抽屉呈现第二批）：0.4.1 注
+            // 里「与发送舱同式」当时并不成立——发送舱
+            // 玻璃卡与身份胶囊从来只有裸玻璃，本件却
+            // 在玻璃之上又叠了发丝描边 overlay 与柔影
+            // 两层（玻璃本体自带边缘高光、描边是第二
+            // 次画边；本条注册在 safeAreaBar 内、下方
+            // 有名单 soft 边缘效果承接分离，影是第三
+            // 重分离机制）。本批两层一并删除，三件回
+            // 到裸玻璃、与发送舱/身份胶囊真正同式
             .glassEffect(.regular, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(Palette.hairline, lineWidth: 0.5)
-            }
-            .shadow(
-                color: Palette.shadowBase.opacity(0.06),
-                radius: 8, y: 2
-            )
             drawerRoundButton(
                 systemName: "square.and.pencil",
                 label: "新建会话"
@@ -1450,16 +1469,10 @@ struct DrawerView: View {
                     height: OneDayMetrics.drawerBarButton
                 )
                 // 0.4.1 第 10 修：白浮纸换近白玻璃（与
-                // 搜索胶囊同改，口径见彼处注）
+                // 搜索胶囊同改，口径见彼处注）；§162 材
+                // 质减法：发丝描边 overlay 与柔影随搜索
+                // 胶囊同删，只剩裸玻璃（理由见胶囊处注）
                 .glassEffect(.regular, in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(Palette.hairline, lineWidth: 0.5)
-                }
-                .shadow(
-                    color: Palette.shadowBase.opacity(0.06),
-                    radius: 8, y: 2
-                )
                 .contentShape(Circle())
         }
         .buttonStyle(.odPressable)

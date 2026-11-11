@@ -9681,3 +9681,42 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **xcstrings**：六包中三包动词条文件，合并全程自动并集无冲突，合并后实读 JSON 合法（2675 键）。
 
 发版验包补记：定版提交 8f35981；发版 CI run **43041855822**，jobs API 逐项终判 build-native **success**；单测 **Executed 1591 tests, with 0 failures**＋TEST SUCCEEDED（基线 0.50.17 的 1567 净增 24、只增不减：HUB-1 +7／抽屉容器 +3／抽屉呈现 +1／折叠 +13／身份卡 +0／命名 +0，含热修基线口径差归并）；主线独立解包验 IPA：**10,446,790 字节、md5 `721e969984331915b88dc9d415f93735`**、Info.plist 实读 CFBundleShortVersionString＝0.50.18／CFBundleVersion＝**140**／CFBundleIdentifier＝site.didichou.oneday（0.50.16 漏过的直写位本次实读盯防通过）；落 `~/workspace/your_files/oneday-v0.50.18/OneDay-v0.50.18-140.ipa`。
+
+
+# §162 抽屉呈现优化·第二批「材质减法」（2026-11-11，用户 21:01 亲递抽屉补充方案之第二批；预制分支 feat/drawer-present-batch2，基线 feat/drawer-present-batch1 顶端 239e174／§157 之上叠加，只预制不合并，节号分支自选 §155，合并时主线合裁顺延 §162 并同步代码注释。已知节号占用：热修包/HUB-1/容器包各分支亦自选过 §154，顺延幅度以主线合并序为准）
+
+## 162.1 点题与边界
+- 三批分工（§157.1）：第一批＝身份/导航/选中态/时间；第二批＝本包（材质减法与底部玻璃）；第三批＝推开式 UIKit 容器（独立分支在飞）。本包领地照 §157.7 预判：drawerBackdrop 材质、底条三件玻璃控件、底条搜索状态呈现；与第一批零行交叉（实证：本包对 DrawerView 的改动行全部落在 §157 未触区域——底条三件装饰层、isSearching/filteredThreads、drawerPresented onChange、backdrop 注释；第一批的行呈现/字阶/胶囊/身份行一字未动）。
+- 材质方向：守浅色与减法（设计宪法总纲「高级感多来自做减法——更少的边框与效果」），不引深色、不引新色、不引新令牌。
+
+## 162.2 层数盘点（减法前的实账）
+- 面板底 drawerBackdrop：单层 thinMaterial（Reduce Transparency 时 Core TransparencyFallback 裁决落实色 chatSurface）。双层材质是 0.36.5 标题带时代的病、当时已删，本体无可再减。
+- 底条区域（自下而上）：面板底材质 → 名单 soft 边缘效果（0.36.27 注册）→ 三件控件，每件叠三层分离装饰：glassEffect 玻璃本体＋发丝描边 overlay（0.5pt Palette.hairline）＋柔影（shadowBase 0.06/r8/y2），三件共 6 处叠加装饰。
+- 对标实证：同仓发送舱玻璃卡与身份胶囊、聊天页圆玻璃钮均为裸 .glassEffect(.regular)——无描边 overlay、无影。0.4.1 给底条三件加描边＋影时注释自称「与发送舱同式」，与发送舱实码不符（当时就不成立），底条是全 App 唯一在玻璃上再叠两层的浮件。
+
+## 162.3 落法一：底条三件去描边去影，回裸玻璃
+- 搜索胶囊与左右两枚圆钮（设置/新建）：删除 hairline 描边 overlay 与柔影，三件只剩 .glassEffect(.regular, in: Capsule()/Circle())，与发送舱/身份胶囊真正同式。
+- 理由逐层：①玻璃本体自带边缘高光与折射边，描边是第二次画边；②本条注册在 safeAreaBar 内、下方名单由 soft 边缘效果承接内容分离，影是第三重分离机制；③减法后三件与面板底的明暗关系只由玻璃采样决定，深浅双档随系统玻璃自适应、无手设色值参与。
+- 几何零改动：件尺寸（drawerBarButton）、间距、落点（indicator 线上方 4pt）、命中域、odPressable 按压反馈全不动；本批只删装饰层，不动结构。
+
+## 162.4 落法二：面板底材质——档位不动，盘点入账
+- thinMaterial 降档（ultraThin）一案不采：该档位是 0.36.3 用户点名对照 Muse 参考图定案，仓内调研与外部资料均无「应降档」的对标实证，改档属凭审美猜测，违「修法带外部实证、不闭门造」纪律。此结论与理由已写进 drawerBackdrop 代码注释，防后人再猜。
+- Reduce Transparency 实色回退路保留不动（无障碍口径优先于减法）。
+
+## 162.5 落法三：底条搜索状态呈现收敛
+- 判定下沉：isSearching 与 filteredThreads 的搜索词规范化（修剪空白）自视图私有计算下沉 Core 新政策 DrawerSearchPolicy（normalizedQuery/isSearching），口径与 0.18.0 沿革一字不变，只换裁决地点——判定与过滤从此同出一处，不许再各修各的。
+- 入口状态收敛：旧行为搜索词跨开合残留——关抽屉再打开，入口直接落在上次的过滤态（名单被过滤＋框里留词），与默认态并存成两个入口状态。新口径：关抽屉（开→关一沿，DrawerSearchPolicy.shouldResetQuery 裁决）即复位搜索词，重开恒呈默认态（全量导航名单＋空搜索框）。触发点复用既有 drawerPresented onChange（开抽屉补拉数据的同一观察点，不新增观察者）。
+- 不动项：搜索名单本体（drawerSearchList）、无命中弱字行、清除钮（44 命中域）、搜索只过滤旁聊的口径，均沿革不变。
+
+## 162.6 新面准入四问
+- ①入口：无新面无新入口——抽屉既有面原位减法，搜索复位不新增任何用户可见控件。
+- ②重复：搜索判定收敛为 Core 单一政策（与 DrawerSelectionPolicy 同式），消除「判定在视图、过滤也在视图各写一份修剪」的双源；底条玻璃形态与发送舱收敛为同一式，不再是第二种玻璃语言。
+- ③令牌与公用件：零新令牌、零新色值、零新字面量；删除的描边/影原本走 Palette.hairline/shadowBase 既有令牌，删除不留孤儿令牌（两令牌全 App 仍有其他消费点）。
+- ④AX 与深色：AX——Reduce Transparency 回退路保留（§162.4）、清除钮 44 命中域未动、搜索复位后 VoiceOver 焦点落点不变（名单本体切换沿革）；深色——删除的两层均为中性装饰（发丝线/中性影），玻璃深色档由系统自适应，底条在深色下与发送舱同表现。两项真机各验一帧入待验清单（§162.7）。
+
+## 162.7 验收
+- CI：run 43030927305，jobs API 逐项终判 build-native success。
+- 单测：Executed 1567、0 failures（第一批基线 1563＋净增 4，只增不减）——新增 DrawerSearchPolicyTests 4 法逐法 passed（判定三态/规范化/复位沿四迁移/复位闭环）。
+- xcstrings：本包零新键（无任何文案增改），validate 随 CI 通过。
+- 真机待验清单：①底条三件裸玻璃观感——与聊天页发送舱并排比一眼是否同语言、边缘在名单滚动穿过时是否仍可辨；②浅色下三件与面板底的分离感够不够（影删除后若显贴死，回滚点＝本包提交 051ab86，恢复影一层即可、不恢复描边）；③深色一帧：三件玻璃与发送舱同亮度档、无描边后边缘不糊；④搜词后关抽屉重开——名单回全量、搜索框空、身份行与导航组齐全；⑤搜词后点命中行进会话再开抽屉——同④（点行关抽屉同走复位沿）；⑥AX 最大档＋Reduce Transparency 开：面板底落实色、三件玻璃转实色后无描边无影不残留怪边；⑦VoiceOver：底条三件标签与动作不变、搜索态切换播报沿革。
+
