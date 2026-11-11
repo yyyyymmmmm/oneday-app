@@ -242,53 +242,13 @@ final class ClosureLoopTests: XCTestCase {
         )
     }
 
-    // MARK: - M3 IdeasBadge
-
-    private func idea(
-        _ id: String, source: IdeaSource, status: IdeaStatus,
-        createdAt: Double
-    ) -> BridgeIdea {
-        BridgeIdea(
-            id: id, title: id, detail: "", goalId: nil,
-            createdAt: createdAt, source: source, status: status
-        )
-    }
-
-    func testBadgeCountsOnlyNewGeneratedPending() {
-        let ideas = [
-            idea("a", source: .generated, status: .pending, createdAt: 100),
-            idea("b", source: .generated, status: .pending, createdAt: 200),
-            idea("c", source: .manual, status: .pending, createdAt: 300),
-            idea("d", source: .generated, status: .adopted, createdAt: 400),
-            idea("e", source: .generated, status: .dismissed, createdAt: 500),
-        ]
-        // 水位 150：只有 b 是「新到的生成待阅卡」
-        XCTAssertEqual(
-            IdeasBadge.newCount(ideas: ideas, watermark: 150), 1
-        )
-        // 无水位（首次）：只立基线，不报数
-        XCTAssertEqual(
-            IdeasBadge.newCount(ideas: ideas, watermark: nil), 0
-        )
-    }
-
-    func testBadgeWatermarkAdvancesToNewestGenerated() {
-        let ideas = [
-            idea("a", source: .generated, status: .adopted, createdAt: 400),
-            idea("c", source: .manual, status: .pending, createdAt: 900),
-        ]
-        // 手记卡再新也不推进水位（水位只认生成卡）
-        XCTAssertEqual(
-            IdeasBadge.advancedWatermark(ideas: ideas, current: 100),
-            400
-        )
-        XCTAssertNil(
-            IdeasBadge.advancedWatermark(ideas: [], current: nil)
-        )
-        XCTAssertEqual(
-            IdeasBadge.advancedWatermark(ideas: [], current: 42), 42
-        )
-    }
+    // MARK: - M3 IdeasBadge 已退役（§177）
+    //
+    // testBadgeCountsOnlyNewGeneratedPending 与
+    // testBadgeWatermarkAdvancesToNewestGenerated 随
+    // 点子底栏角标整套下线删除（用户 2026-11-12 亲
+    // 定点子不出现「待阅」呈现——分区/状态字/角标）；
+    // Core IdeasBadge 与 AppState 水位制已同步删除
 
     // MARK: - N2 CronPresentation
 

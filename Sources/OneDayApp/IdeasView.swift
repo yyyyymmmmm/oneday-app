@@ -3,16 +3,19 @@ import OneDayDesign
 import SwiftData
 import SwiftUI
 
-/// 点子格（0.11.0 P5 转正；0.47.0 §117 对标重做）：
-/// 形态照 Muse 点子页——行＝内容 emoji 大字（无底
-/// 砖）＋semibold 标题＋次色宽松正文，行面不摆元信
-/// 息；点行开底部 sheet 详情（「包含哪些内容」交付
-/// 物清单＋底部动作栏「开始吧」）。分区沿用状态两段
-/// （待阅/已采纳，桥无主题 category 通道，§117.1 审
-/// 计），组标题改大粗体。数据口径：生成卡由桥端管
-/// 道每日晨间产出（source=generated、evidence 必填、
-/// 14 天过期），手记保留；已转任务以桥 taskId 为真
-/// 源。桥未连接/未开通与目标格同口径、零假数据。
+/// 点子格（0.11.0 P5 转正；0.47.0 §117 对标重做；
+/// §177 分类对标改判）：形态照 Muse 点子页——行＝
+/// 内容 emoji 大字（无底砖）＋semibold 标题＋次色宽
+/// 松正文，行面不摆元信息；点行开底部 sheet 详情
+/// （「包含哪些内容」交付物清单＋底部动作栏「开始
+/// 吧」）。列表结构只有分类小节（标题＋其下卡片，
+/// 分类由桥下发、App 不自判；无分类的卡不进列表，
+/// 不设无分类区），页面不出现「待阅/已采纳」分区、
+/// 状态字与角标（§123 M3 底栏角标随本包退役，用
+/// 户 2026-11-12 亲定）。数据口径：生成卡由桥端管
+/// 道每日晨间产出（source=generated、evidence 必
+/// 填、14 天过期），手记保留；已转任务以桥 taskId
+/// 为真源。桥未连接/未开通与目标格同口径、零假数据。
 struct IdeasView: View {
     @Environment(AppState.self) private var appState
     @State private var store = IdeasStore()
@@ -68,21 +71,11 @@ struct IdeasView: View {
             }
             .task {
                 await store.load(appState: appState)
-                // §123（M3）：进页即清角标——水位推进到
-                // 本次已知的最新生成卡（与动态角标进页
-                // 已读同口径）；加载失败时 store.ideas
-                // 还是旧值，推进只认本次列表、不误清
-                appState.markIdeasSeen(ideas: store.ideas)
+                // §177：底栏角标退役后进页不再推进
+                // 「已见」水位（水位制整套随角标下线）
                 if !store.adoptedIdeas.isEmpty {
                     await kanban.load(appState: appState)
                 }
-            }
-            // §123（M3）：页内刷新（下拉/动作回读）后
-            // 列表更新同样算「已看到」——本 store 只被
-            // 本页加载与操作驱动，列表变化必发生在用户
-            // 正看着这页时，水位随之推进、角标不残留
-            .onChange(of: store.ideas) { _, ideas in
-                appState.markIdeasSeen(ideas: ideas)
             }
             .sheet(isPresented: $showCreate) {
                 IdeaCreateView(store: store)
@@ -142,36 +135,17 @@ struct IdeasView: View {
             }
         } else {
             List {
-                if !store.pendingIdeas.isEmpty {
+                // §177：列表自上而下全程分类小节——
+                // 状态只决定卡进不进列表（口径在 Core
+                // IdeaBoard.categorySections），页面不
+                // 再有状态分区
+                ForEach(store.categorySections) { section in
                     Section {
-                        ForEach(store.pendingIdeas) { idea in
-                            rowButton(for: idea)
-                                .swipeActions(
-                                    edge: .trailing,
-                                    allowsFullSwipe: true
-                                ) {
-                                    Button("忽略") {
-                                        Task {
-                                            await store.dismiss(
-                                                appState: appState,
-                                                idea: idea
-                                            )
-                                        }
-                                    }
-                                    .tint(Palette.inkSecondary)
-                                }
+                        ForEach(section.ideas) { idea in
+                            ideaRow(idea)
                         }
                     } header: {
-                        groupHeader("待阅")
-                    }
-                }
-                if !store.adoptedIdeas.isEmpty {
-                    Section {
-                        ForEach(store.adoptedIdeas) { idea in
-                            rowButton(for: idea)
-                        }
-                    } header: {
-                        groupHeader("已采纳")
+                        groupHeader(section.category.title)
                     }
                 }
                 Section {
@@ -207,6 +181,33 @@ struct IdeasView: View {
             .foregroundStyle(Palette.ink)
             .textCase(nil)
             .padding(.top, OneDayMetrics.spacingS)
+    }
+
+    /// 列表行（§177）：卡面本体全卡一致；左滑「忽略」
+    /// （放下）只给未动手过的卡——已转任务的卡放下语
+    /// 义归桥侧状态机（终态不可再 dismiss），行上不给
+    /// 这个动作，长按菜单同口径（见 rowButton）
+    @ViewBuilder
+    private func ideaRow(_ idea: BridgeIdea) -> some View {
+        if idea.status == .pending {
+            rowButton(for: idea)
+                .swipeActions(
+                    edge: .trailing,
+                    allowsFullSwipe: true
+                ) {
+                    Button("忽略") {
+                        Task {
+                            await store.dismiss(
+                                appState: appState,
+                                idea: idea
+                            )
+                        }
+                    }
+                    .tint(Palette.inkSecondary)
+                }
+        } else {
+            rowButton(for: idea)
+        }
     }
 
     private func rowButton(for idea: BridgeIdea) -> some View {
@@ -267,23 +268,19 @@ struct IdeasView: View {
 }
 
 /// 点子行（0.47.0 §117 对标形态）：左侧内容 emoji
-/// 大字（44pt 位、无底色瓷砖；桥值优先、缺失按锚点
-/// kind 兜底，口径在 Core IdeaEmoji）＋标题（semi-
-/// bold、至多两行）＋正文（次色、行距放宽、至多四
-/// 行）＋依据行（生成卡、一次色一行）。行面不摆元
-/// 信息：生成时间/到期/目标/任务状态全收进详情
-/// sheet。行内不摆按钮：动作在详情与左滑/长按里
+/// 大字（44pt 位、无底色瓷砖；桥按内容选定优先、
+/// 缺失统一 💡 兜底——§177 改判，不再按锚点来源分，
+/// 口径在 Core IdeaEmoji）＋标题（semibold、至多两
+/// 行）＋正文（次色、行距放宽、至多四行）＋依据行
+/// （生成卡、一次色一行）。行面不摆元信息：生成时
+/// 间/到期/目标/任务状态全收进详情 sheet。行内不摆
+/// 按钮：动作在详情与左滑/长按里
 struct IdeaRowView: View {
     let idea: BridgeIdea
     let note: String?
 
     private var displayEmoji: String {
-        IdeaEmoji.resolve(
-            emoji: idea.emoji,
-            evidenceRef: idea.evidenceRef,
-            anchorId: idea.anchorId,
-            source: idea.source
-        )
+        IdeaEmoji.resolve(emoji: idea.emoji)
     }
 
     var body: some View {
@@ -335,13 +332,16 @@ struct IdeaRowView: View {
 /// 栏＝左侧浅灰圆形「···」菜单（太泛了/忽略/删除，
 /// 沿用既有 store 动作）＋通栏蓝色胶囊主钮。
 /// 0.48.0（§122，用户亲定）：主钮落点改开旁聊——
-/// 待阅「开始吧」＝后台照旧建 kanban 任务（台账记
-/// 账不动），成功后新建旁聊、点子上下文预填进输入
-/// 舱（不代发）、切聊天页打开；已采纳主钮改「打开
-/// 对话」回同一条旁聊（关联存 SideChatStore，存量
-/// 无关联/线程已删时点按补建）。不再把用户丢进任
-/// 务详情。深链落点（动态 refs 点达）以同一视图推
-/// 页呈现，形态与动作不变。
+/// 未动手卡的「开始吧」＝做这件事的唯一主动作：后
+/// 台照旧建 kanban 任务（台账记账不动），成功后新
+/// 建旁聊、点子上下文预填进输入舱（不代发）、切聊
+/// 天页打开；已转任务的主钮改「打开对话」回同一条
+/// 旁聊（关联存 SideChatStore，存量无关联/线程已删
+/// 时点按补建）。不再把用户丢进任务详情。深链落点
+/// （动态 refs 点达）以同一视图推页呈现，形态与动
+/// 作不变。§177：卡面与详情都不再出现「采纳」这一
+/// 动作名与状态字——主钮就是「做」，没有先批后做的
+/// 两段式
 struct IdeaDetailView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -537,21 +537,11 @@ struct IdeaDetailView: View {
                         )
                     }
                 }
-                GroupDivider()
-                FieldRow(label: "状态") {
-                    Text(statusText(idea))
-                }
+                // §177：详情不再摆点子自身的状态字
+                // （待阅/已采纳/已忽略/已过期）——状态
+                // 只决定卡进不进列表，不做呈现
             }
             .odGroup()
-        }
-    }
-
-    private func statusText(_ idea: BridgeIdea) -> String {
-        switch idea.status {
-        case .pending: return "待阅"
-        case .adopted: return "已采纳"
-        case .dismissed: return "已忽略"
-        case .expired: return "已过期"
         }
     }
 
@@ -694,9 +684,14 @@ struct IdeaCreateView: View {
     @State private var title = ""
     @State private var detail = ""
     @State private var goalId: String?
+    /// 分类（§177）：必选——无分类的卡不进列表，入
+    /// 口就不能产出无分类卡；选项与桥分类同表（Core
+    /// IdeaCategory.pickerOptions），存键不存名
+    @State private var categoryKey: String?
 
     private var isValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && categoryKey != nil
     }
 
     var body: some View {
@@ -714,6 +709,19 @@ struct IdeaCreateView: View {
                             FieldRow(label: "详情") {
                                 TextField("可选", text: $detail, axis: .vertical)
                                     .lineLimit(2...6)
+                            }
+                            GroupDivider()
+                            FieldRow(label: "分类") {
+                                Picker("分类", selection: $categoryKey) {
+                                    Text("请选择").tag(String?.none)
+                                    ForEach(
+                                        IdeaCategory.pickerOptions
+                                    ) { option in
+                                        Text(option.title)
+                                            .tag(String?.some(option.key))
+                                    }
+                                }
+                                .labelsHidden()
                             }
                             GroupDivider()
                             FieldRow(label: "关联目标") {
@@ -749,7 +757,8 @@ struct IdeaCreateView: View {
                         Task {
                             if await store.create(
                                 appState: appState, title: title,
-                                detail: detail, goalId: goalId
+                                detail: detail, goalId: goalId,
+                                category: categoryKey
                             ) {
                                 dismiss()
                             }

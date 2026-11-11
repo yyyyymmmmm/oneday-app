@@ -10212,3 +10212,37 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - §124 回底钮承载结构（bottomBar 布局流）与钮本体：本包 diff 对 `scrollToBottomButton`/`showsBackToBottomButton` 零命中，未触碰（外壳包刚在其分支把钮材质换玻璃，本包避开该段）。
 - 边缘样式行零改动：顶 .soft／底 hidden 与基线 fd2deec 逐字一致（本包 diff 不含 scrollEdgeEffect 任何一行）。
 - spacingL 零改动；bottomBar 本体零改动；改动文件仅 ChatView.swift、OneDayCore/BottomFollow.swift、Tests/OneDayCoreTests/BottomFollowTests.swift、本节。
+
+
+## §177 动态/点子呈现对标 Muse：去日期分组＋帖面同色＋撤待阅采纳＋主题 emoji 兜底＋分类小节硬验收（2026-11-12，用户 02:12/02:15 亲定「和 muse 一模一样」；预制分支 feat/feed-ideas-parity，基线 main 40ce39f／0.50.21 定版顶端；节号自选 §177——分支撰写时以为 §176 已由 §175 预留给 0.50.21 验包补记，实则验包补记已回填 §175 本节、§176 由气泡间距收口包占用，本号经主线合裁确认不变；只预制不合并、不发版）
+
+### 177.1 动态两项
+- **去日期分组**：FeedView 根 List 改单条时间流——一个无头 Section 盛全部帖（`FeedBoard.sorted` 纯发布时间序），`visibleDayGroups` 与 `dateGroupHeader` 删除，「今天/昨天」小节全撤。`FeedBoard.dayGroups` 与 `FeedStore.dayGroups` 保留为 Core 口径存档（零呈现调用方、其单测不动，是否彻底退役归主线裁，见 177.5）。
+- **帖面同色**：定因（代码实证）——FeedView 根 List 此前没有 `.scrollContentBackground(.hidden)`（同为 List 形态的点子页有），List 系统滚动底（浅色 systemBackground #FFFFFF）罩住外层 pageBG（#FCFCFC），列表区与页面两色，即用户所指「内容颜色单独设置」。改法与点子页对齐成套：List 加 `.scrollContentBackground(.hidden)`＋`.background(Palette.pageBG)`，postRow 加 `.listRowBackground(Palette.pageBG)`，靠分隔线与行距分段。帖内来源嵌入卡（FeedSourceCardView 的 surface 底）不在本项范围：那是引用卡组件、Muse 同位亦有嵌入卡，保留。底缘行在分支基线（40ce39f，含 §173）上为 `.scrollEdgeEffectStyle(.soft)`、本包未动该行；合并时主线 §173 回退已先行落地（fd2deec），三方合并取回退侧，合并后实读为 `.hard`（主线合裁核验，§173 未回潮）。
+
+### 177.2 点子四项
+- **撤「待阅/采纳」呈现与底栏角标**：列表的待阅/已采纳状态分区、详情信息组的「状态」行（statusText）删除；§123 M3 点子底栏角标整套退役——ContentView 的 `.badge`、pollIdeasBadge 30 秒轮询与 feedBadgeClient、AppState 的 ideasUnread/ideasSeenWatermark/refreshIdeasUnread/markIdeasSeen、IdeasView 两处 markIdeasSeen 调用、Core `IdeasBadge.swift` 一并删除（旧落盘键 ideas.seenWatermark 不再读写、残值无害不迁移）。主动作保持唯一且不变名义：未动手卡「开始吧」（§122 执行通道：建 kanban 任务＋开旁聊）、已转卡「打开对话」；页面与详情不再出现「采纳」这一动作名与状态字（内部机制名如 convertToTask 不动）。状态只决定卡进不进列表（可见面口径不变：pending 全量＋adopted 近 30 天，dismissed/expired 不呈现）。
+- **长按放下**：现行长按菜单即 dismiss 通道，保留并对齐新结构——pending 卡：忽略／太泛了，忽略；全卡：删除。左滑「忽略」只给 pending 卡（已转卡的 dismiss 归桥侧状态机终态口径，行上不给）。
+- **图标统一主题 emoji**：`IdeaEmoji` 改判——桥按内容选定的 emoji 优先原样（不变）；缺失兜底统一 💡，旧「按锚点来源分档」（会话💬/目标🎯/监测📡/任务✅/记忆🧠/手记✏️）整套作废（来源不是主题、且多数卡锚会话致满屏 💬，规格 I-4 有账）。管线核查：点子呈现层没有黏土图管线，行首只有 Text(emoji) 一路（用户截图里的黏土风图标是 Muse 端的定制物件图）；按用户本轮口径「图标用主题 emoji」，本包不引入图片图标。文件页 C8 图标未动。
+- **分类小节**：见 177.3（用户 02:15 追加为最高优先级硬验收）。
+
+### 177.3 分类硬验收与桥侧前置（合并顺序硬约束）
+- **硬口径**（Core `IdeaBoard.categorySections`，单测钉死）：列表自上而下全程「分类标题＋其下卡片」；**无分类（桥未下发/空串）的卡不进列表，App 不设无分类区、不代判归类**。小节标题沿 §117 大粗体组头形态（groupHeader 复用）。分类解析 `IdeaCategory.resolve`：已知七类与桥目标分类同表（GOAL_CATEGORIES：health/relationships/finance/career/interest/efficiency/other），桥下发英文键或中文名都收、标题一律中文名；表外值（如「购物」）原样成段、排已知七类之后按标题字典序；小节内 createdAt 倒序（待阅段旧「生成优先」排序随分区退役）。
+- **App 侧通路**：`BridgeIdea.category` 容缺解码（旧载荷 nil 不炸）；新建点子表单加分类必选（选项＝七类同表，存键），`BridgeIdeaCreateRequest` 带 category 键——入口不产出无分类卡。
+- **桥侧前置（实查证据）**：2026-11-12 实查伴生 1.0.31 工作区源码——`_idea_view` 字段集无 category、`IDEAS_GEN_PROMPT` 与 `_parse_generated_cards` 不产 category、`_create_idea` 不收 category。故桥侧包（生成产出＋存量回填＋create 收键）**必须先于本包合并上线**；桥未落前本包列表对全量存量卡为空、走现行空态二分——这是硬口径的预期过渡，不是故障；空态文案暂不改、桥落地自愈。手记旧卡同理（回填前不进列表）。合并排序请主线按此执行。
+
+### 177.4 测试账
+- 新增 `FeedIdeasParityTests` 12 法：分类键/名解析、空白无分类、表外原样、分组归属、定表序压输入序、未知排已知后、无分类排除（含全无分类零小节）、可见面窗口（dismissed/expired 排除、adopted 30 天线）、节内时间倒序、category 解码、建请求带键。
+- 退役（逐项列明）：`MuseAlign117Tests.testIdeaEmojiFallsBackByAnchorKind`、`testIdeaEmojiManualAndUnknown` 两法断言的按来源分档兜底随 §177 改判作废，由新 `testIdeaEmojiFallbackIsUnified` 一法替代（同文件 testIdeaEmojiBridgeValueWins 改新签名保留）；`ClosureLoopTests` 的 M3 角标两法（testBadgeCountsOnlyNewGeneratedPending、testBadgeWatermarkAdvancesToNewestGenerated）随角标整套退役删除。预期 Core 总数 1669＋12－3＝1678，以 CI 实读为准；App 测试不动（基线 11）。
+- CI 实读：run 43077221548 首跑 Core 1678/0 先行全绿，App 宿主既有 flake `testAnimatedCloseReturnsToZero` started 未 passed 致整步红（0.50.19 期同型先例、本包改动面未触抽屉）；重跑 run 43079737178 全绿——jobs API build-native: success，Core Executed 1678 tests 0 failures、App 11 法全过（含该 flake 2.07 秒 passed）。
+
+### 177.5 未定项（未核到、不自创）
+1. Muse 分类的**全集与小节全序**未核全：对标规格仅从用户截图实证人际关系/购物/财务/健康四类。App 定序暂用产品内七类表（与目标创建流同表、用户已拍板过的集合）；桥 category 枚举落地后以桥为单一真源再对齐本表。
+2. 「购物」不在七类表内：按未知分类原样成段（排已知之后）；桥若定为正式类目，需在桥枚举里定名定序。
+3. 桥存量卡 category 的回填策略（生成侧重判/按锚点推断）归桥侧包裁，App 不参与、不代判。
+4. `FeedBoard.dayGroups` 是否彻底退役（连同 FeedStore.dayGroups 与其单测）归主线裁；本包只撤呈现。
+5. 桥前置未落期间的空态文案口径：暂沿现行二分（从未产出/已清完），桥落地后自愈，不在本包改文案。
+
+### 177.6 真机待验（合并发版后逐项）
+1. 动态：无日期小节、帖流纯时间序；浅/深两帧帖面与页底同色、无白色板感；搜索空态段在位。
+2. 点子（桥 category 落地后验）：列表自上而下全程分类小节、无散卡；长按忽略/太泛在、左滑忽略在；详情无状态字；底栏点子格无角标；新建点子必选分类、建成后卡进对应小节。

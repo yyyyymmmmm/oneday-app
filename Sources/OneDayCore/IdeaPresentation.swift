@@ -1,19 +1,20 @@
 import Foundation
 
-/// 点子行首 emoji 的解析口径（0.47.0，§117）：桥按内
-/// 容选定的 emoji 是内容数据、优先原样呈现；旧记录没
-/// 有时按锚点 kind 给缺省——手记恒 ✏️，生成卡按素材
-/// 来源分（会话💬/目标🎯/监测📡/任务✅/记忆🧠），解
-/// 不出锚点时回 💡。本口径只管点子页（§117.5 宪法记
-/// 账：内容 emoji 不进界面图标语言）。
+/// 点子行首 emoji 的解析口径（§177 改判，覆盖
+/// §117）：图标按**内容主题**走——桥按内容选定的
+/// emoji 是内容数据、优先原样呈现；桥值缺失时的兜
+/// 底统一为 💡，不再按锚点来源分档。旧口径（会话
+/// 💬/目标🎯/监测📡/任务✅/记忆🧠/手记✏️）把「素材
+/// 从哪来」当「卡讲什么」呈现，绝大多数卡锚在会话
+/// →满屏 💬，与主题图标正相反，用户 2026-11-12
+/// 亲定作废。本口径只管点子页（§117.5 宪法记账：
+/// 内容 emoji 不进界面图标语言）。
 public enum IdeaEmoji {
-    /// 桥值优先：非空（去空白后）即原样用
-    public static func resolve(
-        emoji: String?,
-        evidenceRef: String?,
-        anchorId: String?,
-        source: IdeaSource
-    ) -> String {
+    /// 桥值缺失（nil/空/纯空白）时的统一兜底
+    public static let fallback = "💡"
+
+    /// 桥值优先：去空白后非空即原样用；否则回兜底
+    public static func resolve(emoji: String?) -> String {
         if let emoji {
             let trimmed = emoji.trimmingCharacters(
                 in: .whitespacesAndNewlines
@@ -22,40 +23,7 @@ public enum IdeaEmoji {
                 return trimmed
             }
         }
-        return fallback(
-            kind: kind(evidenceRef: evidenceRef, anchorId: anchorId),
-            source: source
-        )
-    }
-
-    /// 锚点 kind：anchorId（跨轮真锚）优先、evidenceRef
-    /// （轮内编号）兜底；都解不出为 nil
-    public static func kind(
-        evidenceRef: String?, anchorId: String?
-    ) -> IdeaMaterialKind? {
-        if let anchor = IdeaAnchor(anchorId: anchorId) {
-            return anchor.kind
-        }
-        if let anchor = IdeaAnchor(evidenceRef: evidenceRef) {
-            return anchor.kind
-        }
-        return nil
-    }
-
-    public static func fallback(
-        kind: IdeaMaterialKind?, source: IdeaSource
-    ) -> String {
-        if source == .manual {
-            return "✏️"
-        }
-        switch kind {
-        case .session: return "💬"
-        case .goal: return "🎯"
-        case .monitor: return "📡"
-        case .kanban: return "✅"
-        case .memory: return "🧠"
-        case .unknown, nil: return "💡"
-        }
+        return fallback
     }
 }
 

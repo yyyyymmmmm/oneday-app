@@ -486,56 +486,12 @@ final class AppState {
     var channelViewingOrigin: ChannelViewingOrigin?
     /// 总览快捷动作「新建定时任务」：定时页消费后自动拉起新建表单
     var cronCreateRequested = false
-    /// 点子底栏角标（§123 M3）：新到的生成待阅卡数。
-    /// 判定在 Core IdeasBadge（增量水位制），本类只持
-    /// 数与水位落盘：ContentView 既有 30 秒轮询拍顺带
-    /// 刷新（不新增轮询回路），进点子页即清零推进水位
-    /// ——与动态角标同清零口径
-    var ideasUnread = 0
-    /// 点子已见水位（UserDefaults 落盘；nil＝还没立过
-    /// 基线，首次刷新只立基线不报数，见 IdeasBadge）
-    var ideasSeenWatermark: Double? {
-        get {
-            UserDefaults.standard.object(
-                forKey: "ideas.seenWatermark"
-            ) as? Double
-        }
-        set {
-            if let newValue {
-                UserDefaults.standard.set(
-                    newValue, forKey: "ideas.seenWatermark"
-                )
-            } else {
-                UserDefaults.standard.removeObject(
-                    forKey: "ideas.seenWatermark"
-                )
-            }
-        }
-    }
-
-    /// 轮询拍刷新点子角标：无水位先立基线（存量不报
-    /// 数）；有水位按增量判定。拉取失败不调用本方法，
-    /// 角标保持旧值不清零（与动态角标同纪律）
-    func refreshIdeasUnread(ideas: [BridgeIdea]) {
-        guard let watermark = ideasSeenWatermark else {
-            ideasSeenWatermark = IdeasBadge.advancedWatermark(
-                ideas: ideas, current: nil
-            )
-            ideasUnread = 0
-            return
-        }
-        ideasUnread = IdeasBadge.newCount(
-            ideas: ideas, watermark: watermark
-        )
-    }
-
-    /// 进点子页：水位推进到当前最新生成卡、角标清零
-    func markIdeasSeen(ideas: [BridgeIdea]) {
-        ideasSeenWatermark = IdeasBadge.advancedWatermark(
-            ideas: ideas, current: ideasSeenWatermark
-        )
-        ideasUnread = 0
-    }
+    /// 点子底栏角标已整套退役（§177，用户 2026-11-12
+    /// 亲定点子不出现「待阅」呈现——分区/状态字/角标
+    /// 一并下线）：§123 M3 的 ideasUnread 计数、已见
+    /// 水位落盘与刷新/清零方法随角标删除，Core
+    /// IdeasBadge 同步退役；旧落盘键 ideas.seenWatermark
+    /// 不再读写（残值无害、不做迁移）
 
     /// 通知落点请求（§123 H2）：通知中心点条目时置位
     /// （落点解析在 Core NotificationDestination），

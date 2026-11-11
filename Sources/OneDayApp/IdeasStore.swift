@@ -39,20 +39,31 @@ final class IdeasStore {
     private let client = OneDayBridgeClient()
     private var loadInFlight = false
 
-    // MARK: - 呈现分区（口径收口在 Core IdeaBoard）
+    // MARK: - 呈现口径（收口在 Core IdeaBoard）
 
-    /// 待阅：生成卡在前、手记在后，各按时间倒序
+    /// 待阅：生成卡在前、手记在后，各按时间倒序。
+    /// §177 后只余内部用途（忽略回读确认判据），不
+    /// 再是页面分区——页面结构走 categorySections
     var pendingIdeas: [BridgeIdea] {
         IdeaBoard.pendingList(ideas)
     }
 
-    /// 已采纳：近 30 天
+    /// 已采纳：近 30 天。§177 后只余内部用途（任务
+    /// 板预拉判据），不再是页面分区
     var adoptedIdeas: [BridgeIdea] {
         IdeaBoard.adoptedList(ideas, now: Date().timeIntervalSince1970)
     }
 
+    /// 页面唯一结构（§177）：分类小节（标题＋卡片），
+    /// 无分类的卡不进列表，口径收口在 Core IdeaBoard
+    var categorySections: [IdeaCategorySection] {
+        IdeaBoard.categorySections(
+            ideas, now: Date().timeIntervalSince1970
+        )
+    }
+
     var hasVisibleIdeas: Bool {
-        !pendingIdeas.isEmpty || !adoptedIdeas.isEmpty
+        !categorySections.isEmpty
     }
 
     /// 空态分法：还没生产过 vs 这一轮已清完
@@ -136,7 +147,7 @@ final class IdeasStore {
 
     func create(
         appState: AppState, title: String, detail: String,
-        goalId: String?
+        goalId: String?, category: String?
     ) async -> Bool {
         guard !creating else { return false }
         guard let config = appState.config else {
@@ -147,7 +158,8 @@ final class IdeasStore {
         createError = nil
         defer { creating = false }
         let request = BridgeIdeaCreateRequest.make(
-            title: title, detail: detail, goalId: goalId
+            title: title, detail: detail, goalId: goalId,
+            category: category
         )
         do {
             let created = try await client.createIdea(
