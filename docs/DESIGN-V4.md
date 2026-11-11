@@ -10179,7 +10179,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 ### 176.5 测试与复验
 - Core：`testBottomSettleRestickThreshold` 改断言（阈值定版变更——旧断言钉的是 24 的边界，随定版改钉 7 的边界，断言数 5 → 7，**非退役**，逐项对账见本包回报）；新增 `testBottomSettleThresholdValue` 钉阈值本值 7（改值必先改本节对账）。BottomFollowTests 31 → 32 法。贴底四路的 Core 判定（协调器合并/复贴消费、近底迟滞、末条目标、离底计数）全套复验过。
-- 分支 CI：（完工后补记 run 号与 Executed 实数）
+- 分支 CI：run 43082192458（workflow_dispatch，ios-native.yml）success（jobs API 终判 build-native ⇒ success）；日志实数 OneDayCoreTests Executed 1670、0 failures（基线 1669＋新增 1），OneDayAppTests Executed 11、0 failures（本包零触碰），其中 BottomFollowTests 32 法全过。
 - 真机待验：①贴底四路逐路——首屏落位、发送贴底、流式跟随、回底钮显隐与点击回底（锚落点语义不变、App 侧无新判定，仍须真机过目）；②长线程滚动流畅度——尾锚外移后 LazyVStack 嵌套一层，其惰性量测/估高行为须真机确认与旧形态无异；③阈值 7 的晚跳观感——长线程跳底时 120ms 处小幅校正跳是否可感（诊断 O3 的 AB 项）；④语音失败/到限提示条展开各一帧：条→卡间距 8、展开动画平滑。
 
 ### 176.6 红线自检
