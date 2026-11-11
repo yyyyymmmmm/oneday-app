@@ -10166,6 +10166,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 ### 177.4 测试账
 - 新增 `FeedIdeasParityTests` 12 法：分类键/名解析、空白无分类、表外原样、分组归属、定表序压输入序、未知排已知后、无分类排除（含全无分类零小节）、可见面窗口（dismissed/expired 排除、adopted 30 天线）、节内时间倒序、category 解码、建请求带键。
 - 退役（逐项列明）：`MuseAlign117Tests.testIdeaEmojiFallsBackByAnchorKind`、`testIdeaEmojiManualAndUnknown` 两法断言的按来源分档兜底随 §177 改判作废，由新 `testIdeaEmojiFallbackIsUnified` 一法替代（同文件 testIdeaEmojiBridgeValueWins 改新签名保留）；`ClosureLoopTests` 的 M3 角标两法（testBadgeCountsOnlyNewGeneratedPending、testBadgeWatermarkAdvancesToNewestGenerated）随角标整套退役删除。预期 Core 总数 1669＋12－3＝1678，以 CI 实读为准；App 测试不动（基线 11）。
+- CI 实读：run 43077221548 首跑 Core 1678/0 先行全绿，App 宿主既有 flake `testAnimatedCloseReturnsToZero` started 未 passed 致整步红（0.50.19 期同型先例、本包改动面未触抽屉）；重跑 run 43079737178 全绿——jobs API build-native: success，Core Executed 1678 tests 0 failures、App 11 法全过（含该 flake 2.07 秒 passed）。
 
 ### 177.5 未定项（未核到、不自创）
 1. Muse 分类的**全集与小节全序**未核全：对标规格仅从用户截图实证人际关系/购物/财务/健康四类。App 定序暂用产品内七类表（与目标创建流同表、用户已拍板过的集合）；桥 category 枚举落地后以桥为单一真源再对齐本表。
