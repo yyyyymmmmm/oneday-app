@@ -313,7 +313,7 @@ final class ComposerKbGuideProbeTests: XCTestCase {
         postKeyboard(endY: 874, height: 336)
         spin(1.0)
         let restored = snapshot("RESTORED")
-        return "\(tag} | \(rest) | \(real) | \(synth) | \(restored)"
+        return "\(tag) | \(rest) | \(real) | \(synth) | \(restored)"
     }
 
     func testProbeGuideVariant() {
