@@ -77,9 +77,6 @@ struct ChatView: View {
     @State private var activeRunThreadID: UUID?
     /// events 重挂的续传位（Last-Event-ID）
     @State private var lastEventSeq = -1
-    /// 本轮是否经历过断线（落定时给「已重新连接」
-    /// 中性提示）
-    @State private var runWasDetached = false
     /// 驱动在途标记（防 resume 与 send 双驱同一轮）
     @State private var isDrivingRun = false
     /// 已落盘的半截条目 id（落定时整段替换的名单）
@@ -106,8 +103,12 @@ struct ChatView: View {
     }
 
     @State private var errorMessage: String?
-    /// 0.2.1：非错误提示（如文件附件未发送说明），可关闭
-    @State private var notice: String?
+    /// 0.2.1：非错误提示条。§131 提示纪律起分档自消：
+    /// 呈现状态与代号在 Core NoticePresentation，赋值
+    /// 一律走 showNotice（中性 5s／重要 8s 自清）；错
+    /// 误族走 errorMessage、常驻不动（动作位归二包）
+    @State private var noticePresentation = NoticePresentation()
+    @State private var noticeDismissTask: Task<Void, Never>?
     /// §119 未配模型引导卡：「先等等」点过后本次不再
     /// 显示（判定本体在 Core ModelSetupGuidance，有
     /// 任何可用模型时永不出现、生产恒不误报）
@@ -696,8 +697,8 @@ struct ChatView: View {
             // 被落回默认时的一次性如实提示——消费后落
             // 回值落盘、不再重现；已有提示在显时不抢占
             if let modelNotice = appState.modelFallbackNotice {
-                if notice == nil {
-                    notice = modelNotice
+                if !noticePresentation.isPresenting {
+                    showNotice(modelNotice)
                 }
                 appState.consumeModelFallbackNotice()
             }
@@ -1115,8 +1116,8 @@ struct ChatView: View {
                     // 部钮同口径）
                     .transition(.opacity)
             }
-            if let notice {
-                noticeBar(notice)
+            if let notice = noticePresentation.current {
+                noticeBar(notice.text)
                     .transition(.opacity)
             }
             // 回底钮行（§124 三代落位）：输入舱正上方
@@ -1148,7 +1149,9 @@ struct ChatView: View {
         .fixedSize(horizontal: false, vertical: true)
         // 条 9（§14）动画口径沿革：本容器高度动画服
         // 务错误/提示条——0.4.2 起两键（errorMessage／
-        // notice）。回底钮的高度动画键两度退役又回归，
+        // notice；§131 起提示条键改当前条代号 id，自清
+        // 消失同走本动画）。回底钮的高度动画键两度退
+        // 役又回归，
         // 如实记：0.41.0 钮浮层化时退役（当时的防摆
         // 手段是把钮逐出布局流）；§124 钮回到布局流，
         // 显隐键（showsBackToBottomButton）作第三键
@@ -1167,7 +1170,7 @@ struct ChatView: View {
             MotionTokens.resolved(
                 MotionTokens.swap, reduceMotion: reduceMotion
             ),
-            value: notice
+            value: noticePresentation.current?.id
         )
         .animation(
             MotionTokens.resolved(
@@ -2255,7 +2258,7 @@ struct ChatView: View {
             return
         }
         if FileOpenFailure.isInvalidPath(path) {
-            notice = FileOpenFailure.invalidPath.message()
+            showNotice(FileOpenFailure.invalidPath.message())
             return
         }
         fileOpenTarget = FileOpenTarget(path: path, anchor: anchor)
@@ -2535,6 +2538,35 @@ struct ChatView: View {
         .background(Palette.pageBG)
     }
 
+    /// 提示条赋值唯一口（§131 提示纪律第 3 条）：带档
+    /// 位赋值即起自清计时（中性 5s／重要 8s，档位秒
+    /// 数在 Core ChatNoticeTier）；换代先取消旧计时，
+    /// 自清只清自己那一代（Core expire 代号判定），
+    /// 手关后旧计时到期不复活。计时模式沿听写提示行
+    /// 先例（DictationController.showNotice）
+    private func showNotice(
+        _ text: String, tier: ChatNoticeTier = .brief
+    ) {
+        let item = ChatNotice(text: text, tier: tier)
+        noticePresentation.present(item)
+        noticeDismissTask?.cancel()
+        noticeDismissTask = Task { @MainActor in
+            try? await Task.sleep(
+                for: .seconds(item.tier.autoDismissSeconds)
+            )
+            guard !Task.isCancelled else { return }
+            noticePresentation.expire(id: item.id)
+        }
+    }
+
+    /// 提示条关闭唯一口（✕／发送起手）：即清并废掉
+    /// 在途计时，防自清把已关条的后续状态搅乱
+    private func dismissNotice() {
+        noticeDismissTask?.cancel()
+        noticeDismissTask = nil
+        noticePresentation.dismiss()
+    }
+
     private func noticeBar(_ message: String) -> some View {
         VStack(spacing: 0) {
             Rectangle()
@@ -2550,7 +2582,7 @@ struct ChatView: View {
                     .foregroundStyle(Palette.inkSecondary)
                 Spacer()
                 Button {
-                    notice = nil
+                    dismissNotice()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .regular))
@@ -3470,7 +3502,10 @@ private struct ComposerBarLayout: Layout {
             appendImage(data)
         }
         if oversized > 0 {
-            notice = "有 \(oversized) 张图片超过 20MB，未加入待发列表。"
+            showNotice(
+                "有 \(oversized) 张图片超过 20MB，未加入待发列表。",
+                tier: .extended
+            )
         }
     }
 
@@ -3489,7 +3524,9 @@ private struct ComposerBarLayout: Layout {
     /// 并落诊断面
     private func loadPickedFiles(urls: [URL]) {
         guard !urls.isEmpty else {
-            notice = "没有选到文件，未加入待发列表。"
+            showNotice(
+                "没有选到文件，未加入待发列表。", tier: .extended
+            )
             return
         }
         var oversized: [String] = []
@@ -3555,7 +3592,7 @@ private struct ComposerBarLayout: Layout {
             ),
         ].compactMap { $0 }
         if !summaries.isEmpty {
-            notice = summaries.joined()
+            showNotice(summaries.joined(), tier: .extended)
         }
     }
 
@@ -3849,7 +3886,7 @@ private struct ComposerBarLayout: Layout {
                 // 中的同步可能已派生过，此处收尾钉死）
                 appState.currentDrawerObject = .channel(channelID)
                 if outcome == .importedNew {
-                    notice = "已转入我的对话"
+                    showNotice("已转入我的对话")
                 }
             case .failed:
                 // 没打开成（仍停在原线程）：出处作废、
@@ -3963,7 +4000,7 @@ private struct ComposerBarLayout: Layout {
         pendingQuote = nil
         pendingQuoteIsFork = false
         errorMessage = nil
-        notice = nil
+        dismissNotice()
         guard let thread = ensureThread() else {
             // 0.27.0：定位失败整轮不发——输入与附件原
             // 样退回发送舱（错误文案已由 ensureThread
@@ -3982,7 +4019,7 @@ private struct ComposerBarLayout: Layout {
             input = text
             attachments = pending
             pendingQuote = quote
-            notice = "上一条还在生成中，正在确认结果，落定后可继续发送。"
+            showNotice("上一条还在生成中，正在确认结果，落定后可继续发送。")
             Task { await resumeRunIfNeeded() }
             return
         }
@@ -4501,7 +4538,6 @@ private struct ComposerBarLayout: Layout {
         activeRunThreadID = thread.id
         lastEventSeq = -1
         livePartialEntryIDs = []
-        runWasDetached = false
         terminalOutputHint = nil
         terminalStatusHint = nil
         contentPublishGate.reset()
@@ -4688,7 +4724,6 @@ private struct ComposerBarLayout: Layout {
         if !runMachine.isSettled,
            case .generating(_) = runMachine.phase {
             runMachine.apply(.streamLost)
-            runWasDetached = true
             persistRunPartials(thread: thread)
         }
     }
@@ -4883,7 +4918,10 @@ private struct ComposerBarLayout: Layout {
             // 体面出口：生成仍在服务端进行（或结果待
             // 查），账本保留、下次进本线程自动续对账
             persistRunPartials(thread: thread)
-            notice = "生成仍在服务器进行中，稍后回到本对话会自动补齐结果。"
+            showNotice(
+                "生成仍在服务器进行中，稍后回到本对话会自动补齐结果。",
+                tier: .extended
+            )
             finishRunPresentation(failed: false)
         }
     }
@@ -5142,14 +5180,14 @@ private struct ComposerBarLayout: Layout {
             appState.runLedger.remove(threadID: thread.id)
         }
         // 结果触感与收尾（旧 runStream 同口径）：完成
-        // 有正文给 .success；断线后补齐给中性提示；真
-        // 取消给「已停止生成」；失败已在上分支处理
+        // 有正文给 .success；真取消给「已停止生成」
+        // （5 秒自消）；失败已在上分支处理。断线/切后
+        // 台恢复后落定成功全程静默（§131 提示纪律第
+        // 1 条「成功不报」——旧「已重新连接，回复已
+        // 补齐。」播报与 runWasDetached 旗已整条摘除）
         if phase == .finished {
             if settled.finalText?.isEmpty == false {
                 Haptics.success()
-            }
-            if runWasDetached {
-                notice = "已重新连接，回复已补齐。"
             }
             // 标题回流触发（0.21.0 沿用）：已链接旁聊
             // 一轮完整落地后顶刷新令牌等服务端 AI 标题
@@ -5158,7 +5196,7 @@ private struct ComposerBarLayout: Layout {
                 appState.noteLinkedSideChatTurnFinished()
             }
         } else if phase == .cancelled {
-            notice = "已停止生成。"
+            showNotice("已停止生成。")
         }
         finishRunPresentation(failed: false)
     }
@@ -5318,7 +5356,6 @@ private struct ComposerBarLayout: Layout {
         if entry.stopRequested {
             runMachine.apply(.stopRequested)
         }
-        runWasDetached = true
         activeRunThreadID = thread.id
         lastEventSeq = -1
         terminalOutputHint = nil

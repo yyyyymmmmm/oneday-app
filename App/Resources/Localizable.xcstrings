@@ -5153,29 +5153,6 @@
         }
       }
     },
-    "已重新连接，回复已补齐。": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已重新连接，回复已补齐。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已重新連接，回覆已補齊。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconnected, and the reply has been filled in."
-          }
-        }
-      }
-    },
     "建会话失败": {
       "extractionState": "manual",
       "localizations": {
