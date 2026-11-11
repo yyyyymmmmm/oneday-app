@@ -253,6 +253,9 @@ struct ChatView: View {
     // PhotosUI 选图器（视频过滤、与图片选图器分开
     // 两套绑定，互不串扰）
     @State private var showAttachPanel = false
+    // §152 修订二：附件面板内容实测高（面板经
+    // PreferenceKey 回报），sheet detent 贴内容用
+    @State private var attachPanelContentHeight: CGFloat = 0
     @State private var videoItems: [PhotosPickerItem] = []
     @State private var showVideoPicker = false
     // 文件选择自 0.36.31 起走 UIKit 桥 Document-
@@ -287,7 +290,7 @@ struct ChatView: View {
     @State private var topVisibleEntryID: UUID?
     /// 0.4.1：长按「选择」的纯文本 sheet 载荷
     @State private var selectionPayload: SelectionPayload?
-    /// §149：正文选区在场的条目 id（选字期间关该行
+    /// §152：正文选区在场的条目 id（选字期间关该行
     /// 右滑引用防拖柄误触）；消选经延迟清账（块间
     /// 切换选区时旧块先报消、新块后报选，立即清账
     /// 会误关新选区的行保护）
@@ -571,7 +574,7 @@ struct ChatView: View {
             photoItems = []
             Task { await loadPickedPhotos(items) }
         }
-        // §150：视频选图器（面板「添加视频」开；视频
+        // §152：视频选图器（面板「添加视频」开；视频
         // 过滤、入条走文件路——视频是文件不是多模态
         // 图片 part，命名与大小闸走 Core/FileIntake）
         .photosPicker(
@@ -588,31 +591,42 @@ struct ChatView: View {
         // mentPanelView）；面板内各动作先收面板、隔一
         // 拍再呈现下一层（相机/选图器/文件桥），不与
         // sheet 收起同帧抢呈现（同 DocumentPicker-
-        // Bridge 延拍口径）
+        // Bridge 延拍口径）。§152 修订二：detent 自
+        // .medium 改内容实测高（面板经 Preferen-
+        // ceKey 回报、AttachmentPanelLayout 钳顶），
+        // 高度贴内容不留死空；未授权态与确认行增减
+        // 都经同一量测自适应。确认入条是终结动作不
+        // 呈现下一层，直接收面板后批量取数入条（多
+        // 选逐张走单张同一取数路，§152）
         .sheet(isPresented: $showAttachPanel) {
-            AttachmentPanelView(
-                onCamera: {
-                    afterAttachPanelDismiss { showCamera = true }
-                },
-                onPickPhoto: { assetID in
-                    showAttachPanel = false
-                    Task { await loadStripPhoto(assetID: assetID) }
-                },
-                onViewAll: {
-                    afterAttachPanelDismiss { showPhotoPicker = true }
-                },
-                onAddFile: {
-                    afterAttachPanelDismiss {
-                        DocumentPickerBridge.present { urls in
-                            loadPickedFiles(urls: urls)
+            GeometryReader { screen in
+                AttachmentPanelView(
+                    onCamera: {
+                        afterAttachPanelDismiss { showCamera = true }
+                    },
+                    onConfirmPhotos: { assetIDs in
+                        showAttachPanel = false
+                        Task { await loadStripPhotos(assetIDs: assetIDs) }
+                    },
+                    onViewAll: {
+                        afterAttachPanelDismiss { showPhotoPicker = true }
+                    },
+                    onAddFile: {
+                        afterAttachPanelDismiss {
+                            DocumentPickerBridge.present { urls in
+                                loadPickedFiles(urls: urls)
+                            }
                         }
+                    },
+                    onAddVideo: {
+                        afterAttachPanelDismiss { showVideoPicker = true }
                     }
-                },
-                onAddVideo: {
-                    afterAttachPanelDismiss { showVideoPicker = true }
+                )
+                .onPreferenceChange(AttachmentPanelHeightKey.self) { height in
+                    attachPanelContentHeight = height
                 }
-            )
-            .presentationDetents([.medium])
+                .presentationDetents(attachPanelDetents(screenHeight: screen.size.height))
+            }
             .presentationDragIndicator(.visible)
         }
         // 0.36.31（件二）：.fileImporter 已删——侧载
@@ -2128,7 +2142,7 @@ struct ChatView: View {
                     if let quote = entry.quote {
                         quoteBlock(quote)
                     }
-                    // §150：本地图走全集（allImage-
+                    // §152：本地图走全集（allImage-
                     // Datas）成行——多图并排同高、单
                     // 图与旧单图块同形（卡尺寸同出
                     // rowCardSizes、单张逐字等于
@@ -2179,7 +2193,7 @@ struct ChatView: View {
                     if !entry.content.isEmpty {
                         // 条 8（§14）：段落渲染前过断行整形
                         // （尾行孤字防护，TextShaping 纯函数）
-                        // §149：正文改走 SelectableInline-
+                        // §152：正文改走 SelectableInline-
                         // Text 原地可选（plainRuns 不解析
                         // markdown、原文逐字呈现，与旧裸
                         // Text 一致）；字阶角色与旧口径同
@@ -2254,7 +2268,7 @@ struct ChatView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-                // §149：登记交付标记先拆（Core 纯函
+                // §152：登记交付标记先拆（Core 纯函
                 // 数）——`[[deliver:dlv_…]]` 独立行
                 // 从正文摘除、走下方交付项呈现（按
                 // 号取登记 meta 渲染，见 Delivery-
@@ -2402,7 +2416,7 @@ struct ChatView: View {
                         && inlineImages.isEmpty
                         && deliverySplit.deliveryIDs.isEmpty) {
                     assistantBubble {
-                        // §149：选区回报接行级记账（选
+                        // §152：选区回报接行级记账（选
                         // 字期间关本行右滑引用）
                         MarkdownText(
                             displayText,
@@ -2462,7 +2476,7 @@ struct ChatView: View {
         }
     }
 
-    /// 本地图成行（§150）：一条消息的全部本地图并
+    /// 本地图成行（§152）：一条消息的全部本地图并
     /// 排成一行、每张一张 §130 固定高卡——对齐
     /// Muse 多图用户消息形态（并排、同高，用户
     /// 19:11 截图点题）。卡尺寸走 Core ChatImage-
@@ -2495,7 +2509,7 @@ struct ChatView: View {
         }
     }
 
-    /// 本地图单卡（§130 固定高卡体，§150 自气泡内
+    /// 本地图单卡（§130 固定高卡体，§152 自气泡内
     /// 联块抽出、单图与多图成行共用）：卡高恒定
     /// 190、卡宽由调用方经 rowCardSizes 给定（单
     /// 图时等于 cardSize），图居中完整显示不裁
@@ -2559,7 +2573,7 @@ struct ChatView: View {
         if let thread = currentThread {
             for entry in thread.sortedEntries
             where entry.toolCard == nil {
-                // §150：本地图按全集逐张入集合
+                // §152：本地图按全集逐张入集合
                 // （旧口径只取 imageData 首图，多
                 // 图消息在查看器里同样丢张）
                 for data in entry.allImageDatas {
@@ -2629,10 +2643,10 @@ struct ChatView: View {
         composerFocusHandle.focus()
     }
 
-    /// §149 选区在场记账：正文文本块（Selectable-
+    /// §152 选区在场记账：正文文本块（Selectable-
     /// InlineText）经 onSelectionChange 回报——选
     /// 区在场时该行右滑引用停用（拖选字手柄的横向
-    /// 位移不许误触引用，DESIGN §149.3 第 4 条）；
+    /// 位移不许误触引用，DESIGN §152.3 第 4 条）；
     /// 消选延迟 350ms 清账，防同一条内换块选字时
     /// 旧块消选先于新块报选到达、把保护误清
     private func noteTextSelection(entryID: UUID, active: Bool) {
@@ -2677,9 +2691,9 @@ struct ChatView: View {
     /// 重叠）
     private func swipeReply(for entry: ChatEntry) -> SwipeReplyModifier {
         SwipeReplyModifier(
-            // §149：本行正文有选区在场时停用——拖
+            // §152：本行正文有选区在场时停用——拖
             // 选字手柄与右滑引用同为横向拖动手势，
-            // 选字优先（仲裁见 DESIGN §149.3 第 4
+            // 选字优先（仲裁见 DESIGN §152.3 第 4
             // 条）；选区清空（延迟清账后）自动恢复
             isEnabled: !entry.content.isEmpty
                 && activeSelectionEntryID != entry.id,
@@ -3621,7 +3635,8 @@ private struct ComposerBarLayout: Layout {
     private var attachButton: some View {
         // §147 改版：点「+」开底部附件面板 sheet（资
         // 源库照片条＋添加文件/视频动作行，见 Attach-
-        // mentPanelView）；旧浮窗小卡 Menu（三行：拍
+        // mentPanelView；§152 修订照片条多选＋定高贴
+        // 内容）；旧浮窗小卡 Menu（三行：拍
         // 照/相册选图/选文件）整套退役——三条路全部
         // 由面板承接（相机格/查看全部选图器/添加文件
         // 行走 DocumentPickerBridge，P-18 桥不回退）
@@ -3647,6 +3662,21 @@ private struct ComposerBarLayout: Layout {
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel("添加附件")
+    }
+
+    /// §152 修订二：附件面板 sheet 的 detent 集——
+    /// 内容高已量得时单档贴内容；尚未量得（首帧）回
+    /// 落 .medium 过渡，量到即换贴合高
+    private func attachPanelDetents(
+        screenHeight: CGFloat
+    ) -> Set<PresentationDetent> {
+        if let height = AttachmentPanelLayout.detentHeight(
+            measured: attachPanelContentHeight,
+            screenHeight: screenHeight
+        ) {
+            return [.height(height)]
+        }
+        return [.medium]
     }
 
     /// §147：附件面板内动作的统一收尾——先收面板、
@@ -3872,10 +3902,11 @@ private struct ComposerBarLayout: Layout {
         ingestPhotoData(dataList)
     }
 
-    /// 图片入条共用口（§150 收编）：选图器与附件面
+    /// 图片入条共用口（§152 收编）：选图器与附件面
     /// 板照片条两条取图路在此合流——同一大小闸
     /// （Core AttachmentPanel.photoFits）、同一汇总
-    /// 口径（超限/失败各一条 notice、不静默吞，P-18）
+    /// 口径（超限/失败各一条 notice、不静默吞，P-18）；
+    /// §152 照片条改多选后整批一次汇入此处，口径不变
     private func ingestPhotoData(_ dataList: [Data?]) {
         var oversized = 0
         var failed = 0
@@ -3899,31 +3930,43 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 附件面板照片条点选（§147）：按资产 id 取原图
-    /// 数据（允许 iCloud 下载），入条走共用口——与
-    /// 选图器同闸同口径，不另开一套
-    private func loadStripPhoto(assetID: String) async {
+    /// 附件面板照片取数（§147 立、§152 改多选批
+    /// 量）：逐张按资产 id 取原图数据（允许 iCloud
+    /// 下载），整批数据一次汇入共用口 ingestPhoto-
+    /// Data——与选图器同闸同汇总口径（20MB 闸/超限
+    /// 与失败各一条汇总 notice、不静默吞，P-18），
+    /// 批量不另开一套
+    private func loadStripPhotos(assetIDs: [String]) async {
+        var dataList: [Data?] = []
+        for assetID in assetIDs {
+            dataList.append(await loadStripPhotoData(assetID: assetID))
+        }
+        ingestPhotoData(dataList)
+    }
+
+    /// 单张取数本体（§147 原 loadStripPhoto 的取数
+    /// 段）：资产已删/取不到回 nil，计数与出声归批
+    /// 量汇入口，不在此自报
+    private func loadStripPhotoData(assetID: String) async -> Data? {
         let result = PHAsset.fetchAssets(
             withLocalIdentifiers: [assetID], options: nil
         )
         guard let asset = result.firstObject else {
-            ingestPhotoData([nil])
-            return
+            return nil
         }
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.isNetworkAccessAllowed = true
-        let data = await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { continuation in
             PHImageManager.default().requestImageDataAndOrientation(
                 for: asset, options: options
             ) { data, _, _, _ in
                 continuation.resume(returning: data)
             }
         }
-        ingestPhotoData([data])
     }
 
-    /// 选视频入条（§150）：视频是文件不是图片 part
+    /// 选视频入条（§152）：视频是文件不是图片 part
     /// ——以文件形态入条（名由 Core 拼装、大小走
     /// FileIntake 同闸、被拒点名汇总），后续上传与
     /// 发送拼装与普通文件完全同路
@@ -5399,7 +5442,7 @@ private struct ComposerBarLayout: Layout {
         let text = MessageQuote.outgoingContent(
             userText: userEntry.content, quote: userEntry.quote
         )
-        // §150：重演源头是本地条目全集——旧口径只
+        // §152：重演源头是本地条目全集——旧口径只
         // 取 imageData 首图，同 key 重演（提交回执
         // 丢失时）会把多图消息在服务端降成单图
         let localImages = userEntry.allImageDatas
@@ -6119,12 +6162,12 @@ private struct SelectionPayload: Identifiable {
     let text: String
 }
 
-/// 「选择」承载页（0.4.1 立、§149 升级）：整条消息
+/// 「选择」承载页（0.4.1 立、§152 升级）：整条消息
 /// 的纯文本在系统 sheet 里跨段划选任意部分——气
-/// 泡内选字粒度是单个文本块（§149.3），跨块任意
+/// 泡内选字粒度是单个文本块（§152.3），跨块任意
 /// 选段的口子保留在本页。0.4.1 时本页用 SwiftUI
 /// Text＋.textSelection（iOS 26 下只有整段菜单），
-/// §149 起换 SelectableInlineText（UITextView 真
+/// §152 起换 SelectableInlineText（UITextView 真
 /// 选段：双击选词／拖柄扩选／系统编辑菜单），与气
 /// 泡内同源同口径
 private struct SelectableTextSheet: View {

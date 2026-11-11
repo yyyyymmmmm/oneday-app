@@ -4,6 +4,7 @@ import XCTest
 /// §147 附件面板钉测：授权政策矩阵（只读现态、不发
 /// 请求）、照片条拼装（相机恒首、去重、截断）、图片
 /// 接入闸与汇总文案（两条取图路共用）、视频入条命名。
+/// §152 修订二续：照片条多选（切换/呈现序/确认文案）。
 final class AttachmentPanelTests: XCTestCase {
 
     // MARK: 授权政策
@@ -82,6 +83,50 @@ final class AttachmentPanelTests: XCTestCase {
         XCTAssertEqual(
             AttachmentPanel.failedPhotosNotice(count: 1),
             "有 1 张图片读取失败，未加入待发列表。"
+        )
+    }
+
+    // MARK: 照片条多选（§152 修订二）
+
+    func testToggleSelectionAddsThenRemoves() {
+        var selected: Set<String> = []
+        selected = AttachmentPanel.toggledSelection(selected, id: "a")
+        XCTAssertEqual(selected, ["a"])
+        selected = AttachmentPanel.toggledSelection(selected, id: "b")
+        XCTAssertEqual(selected, ["a", "b"])
+        selected = AttachmentPanel.toggledSelection(selected, id: "a")
+        XCTAssertEqual(selected, ["b"])
+    }
+
+    func testOrderedSelectionFollowsStripOrderNotTapOrder() {
+        // 条内呈现序（新→旧）为 a,b,c：无论点选先后，
+        // 批量入条序恒按呈现序
+        let ordered = AttachmentPanel.orderedSelection(
+            selected: ["c", "a"], stripOrder: ["a", "b", "c"]
+        )
+        XCTAssertEqual(ordered, ["a", "c"])
+    }
+
+    func testOrderedSelectionDropsIDsNotInStrip() {
+        let ordered = AttachmentPanel.orderedSelection(
+            selected: ["a", "ghost"], stripOrder: ["a", "b"]
+        )
+        XCTAssertEqual(ordered, ["a"])
+        XCTAssertEqual(
+            AttachmentPanel.orderedSelection(
+                selected: [], stripOrder: ["a", "b"]
+            ),
+            []
+        )
+    }
+
+    func testAddSelectedTitle() {
+        XCTAssertNil(AttachmentPanel.addSelectedTitle(count: 0))
+        XCTAssertEqual(
+            AttachmentPanel.addSelectedTitle(count: 1), "添加 1 张"
+        )
+        XCTAssertEqual(
+            AttachmentPanel.addSelectedTitle(count: 3), "添加 3 张"
         )
     }
 

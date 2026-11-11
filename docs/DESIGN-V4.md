@@ -9313,3 +9313,41 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 - 分支 feat/model-admin-rework：代码提交 6ec9638，基线 main dccdc85（0.50.14 定版顶端；开工后 main 已前进至 0.50.15 定版，合并时冲突由主线合裁）。validate_i18n 本地实跑通过（2653 键）。分支 CI run 43014227710（workflow_dispatch 触发，head 6ec9638）jobs API 终判 build-native **success**，单测 Executed **1533、0 failures**＝基线 1527（0.50.15 总账）＋ModelListGovernanceTests 6 法；既有测零删改，只增不减。未合并、版本号未动。
 - 合并后真机待验：第一段默认行点入选择面、点行即换默认且回读一致；设置页换默认后新对话起点生效、进行中对话不受影响（与顶栏包 B2 合流验）；详情页 132 模型搜索/折叠顺手；深色一帧＋AX 最大档一帧（默认行右值与详情信息行不截断主信息）。
+# §150 附件面板修订二（2026-11-11，用户 19:47 对照 Muse 截图点名两处不一样；预制分支 feat/attachment-panel-v2，基线 main c72448b／文本可选合并顶端，只预制不合并，随当前攒包版并入；节号分支自选 §149 已被文本可选包占用，顺延 §150 并同步代码注释）
+
+### 150.1 用户点题与对照实证
+
+- 图一（OneDay 0.50.15 真机）：附件面板 sheet 占大半屏、下方动作行之后大片死空；照片格偏小（76pt）；点照片一张即入条关面板、无多选。
+- 图二（Muse 真机）：sheet 高度贴内容——标题行（资源库＋查看全部）＋一排照片＋两行动作即收尾、无大片死空；照片格更大近方形；照片可多选（点选出勾选标记、连选多张再确认）。
+- 定版修订三件：①sheet 定高贴内容；②照片格放大近方形；③照片条多选＋确认批量入条。
+
+### 150.2 落法
+
+- **定高贴内容**：`.medium` detent 退役。面板 body 经后台 GeometryReader 把内容实测高以 PreferenceKey（新文件 AttachmentPanelLayout.swift）回报宿主，宿主以 GeometryReader 供屏高，经 `AttachmentPanelLayout.detentHeight`（零/负回落 nil、屏高 75% 钳顶）作 `.height` 单档 detent；未量得的首帧回落 `.medium` 过渡、量到即换贴合高。未授权态（无资源库区）与确认行增减都经同一量测自适应。量测口径守 P-13 同戒：定尺直接取内容实测高本身、不做二次推算。键盘不涉（面板内无输入面），底部安全区由 sheet 系统处理沿现行口径。
+- **照片格放大**：边长 76→118（形态值、代码注明出处：对屏宽约 390 实测占比约 30%、一屏约 3 格＋露边引导横滑，较 Muse 图二估读的约 27% 略大、真机嫌大再回收）、近方形不变（cellSize 正方）；相机格同格、字形 26→30；缩略图请求边长随格走 `cellSize*2`（236），无独立数值。
+- **照片条多选**：点照片＝切换选中态——选中格右上角 `checkmark.circle.fill` 双色（白＋Palette.primary）勾选标记＋阴影保浅色图上可读，VoiceOver 补 `.isSelected` 特征。选中集为面板本地 @State、关面板即弃。选了 ≥1 张时动作行上方出确认行「添加 N 张」（图标＋主色标题、照动作行 minHeight 52 形态），点之批量入条；未选时确认行不呈现（与 Core `addSelectedTitle` 的 nil 同源，呈现与可用性一口）。入条序按照片条呈现序（新→旧）而非点选先后——点选序无处回看、呈现序是唯一可预期序（Core `orderedSelection` 收口）。
+- **Core（AttachmentPanel.swift 续）**：多选纯函数三件——`toggledSelection`（成员切换）、`orderedSelection`（呈现序过滤、条外 id 丢弃）、`addSelectedTitle`（0 回 nil、N 回「添加 N 张」）。
+- **宿主（ChatView）**：照片确认改批量 `loadStripPhotos`——逐张走单张同一取数路（`loadStripPhotoData`，原 loadStripPhoto 取数段、失败回 nil 不自报），整批数据一次汇入既有 `ingestPhotoData`：20MB 闸与超限/失败汇总 notice 口径与选图器逐字一致（P-18；批量超限按计数汇总，与旧选图器多选同形态，非逐张点名——逐张点名是视频/文件路的既有口径，本包不改）。§147 接线零回退：相机/查看全部/添加文件/添加视频四路与 `afterAttachPanelDismiss` 450ms 时序、DocumentPickerBridge、视频选图器全数未动；确认入条是终结动作不呈现下一层，直接收面板后取数（同 §147 照片直达路形态）。单张快选不回退：选 1 张点「添加 1 张」与旧直达同效，仅多一次点按确认。
+- **结构与 Muse 对齐**：标题行→照片条→（确认行）→动作行组，自上而下贴合收尾。
+
+### 150.3 新面准入四问（修订补记，承 §147.3）
+
+- ①入口：不变，「+」开同一面板，无新入口。
+- ②重复：多选只此照片条一处；「查看全部」的系统多选选图器保留不动，两路分工与 §147.3 一致（条内最近 30 张多选直达、全量走选图器）；确认行是选中态的唯一出口，不与动作行重复（未选不呈现）。
+- ③令牌与公用件：间距 OneDayMetrics 梯队、颜色 Palette 语义色、按压 .odPressable、动作行形态复用既有行构；多选判定下沉 Core 纯函数、定高量测收 AttachmentPanelLayout 专用件，不在页面散写。
+- ④AX 与深色：构造层自查——格子为图片形态固定值（同 §147.3 口径），勾选标记走 SF 双色＋阴影、双模式可读，选中态 VoiceOver 有 .isSelected 特征；确认行字阶 .body 随 AX 缩放、minHeight 只作下限；AX 大字号下内容高经实测 detent 自适应跟随（确认行/标题行变高即 sheet 跟高，不截断）。真机 AX 最大档＋深色各一帧终验归用户（随攒包版回收）。
+
+### 150.4 三语词条
+
+- 新增 1 键：「添加 %lld 张」（zh-Hant「添加 %lld 張」、en「Add %lld Photos」）；「照片」键目录已存（en 值 Photos），无障碍标签直接复用零新增。Localizable 2633→2634 键，validate_i18n 本地实跑通过（2647 键含 InfoPlist 13，三语全覆盖）。插入为纯新增 23 行（首版脚本重排全表产生千行伪 diff 已回滚改文本插入，终 diff 仅 +23）。
+
+### 150.5 单测
+
+- AttachmentPanelTests 10→14 法：新增 4 法——多选切换（加入/再点取消）、呈现序收口（点选序≠入条序、恒按条内序）、条外 id 丢弃＋空集、确认文案（0 回 nil、1/3 逐字断言）。既有测零删改，只增不减。
+
+### 150.6 预制验收记账（2026-11-11）
+
+- 分支 feat/attachment-panel-v2（worktree pkg-attach-panel-v2）：代码 `2ca1f96`＋并发修复 `72fae14`，基线 main c72448b（0.50.15 的 1527＋文本可选 13＝1540 口径）。
+- CI 两轮：首轮 run 43015329925 **failure**——唯一 error 为 AttachmentPanelLayout.swift 的 PreferenceKey `defaultValue` 用 static var 触 Swift 6 并发检查（非隔离全局可变状态），改 let 后二轮 run 43015852724 jobs 终判 build-native **success**，单测 Executed **1544、0 failures**（1540＋本包 4；AttachmentPanelTests 14 法逐法 passed 日志在案；既有测零删改）。
+- 未合并、版本号未动，待主线随当前攒包版合并（预告合裁面：ChatView 的 sheet 段与 §149 文本可选无同行冲突、xcstrings +1 键走并集脚本、DESIGN 本节随文末）。
+- 合并后真机待验：点「+」面板高度贴内容无死空（授权/未授权两态）；照片格大小与图二观感对版；点选出勾、连选计数、「添加 N 张」批量入条且顺序与条内从左到右一致；超 20MB 张混选时汇总出声、余张照入；单张选后点添加即入条；相机/查看全部/添加文件/添加视频四路不回归；AX 最大档＋深色各一帧。
