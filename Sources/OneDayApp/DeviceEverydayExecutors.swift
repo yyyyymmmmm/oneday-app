@@ -527,10 +527,10 @@ final class MediaEngine: @unchecked Sendable {
     private func songsMatching(
         property: String, query: String
     ) -> [MPMediaItem] {
-        let mediaQuery = MPMediaQuery.songsQuery()
+        let mediaQuery = MPMediaQuery.songs()
         mediaQuery.addFilterPredicate(
             MPMediaPropertyPredicate(
-                value: query, property: property,
+                value: query, forProperty: property,
                 comparisonType: .contains
             )
         )
@@ -579,11 +579,11 @@ final class MediaEngine: @unchecked Sendable {
             }
         }
         if args.kind == .album || args.kind == .any {
-            let albumQuery = MPMediaQuery.albumsQuery()
+            let albumQuery = MPMediaQuery.albums()
             albumQuery.addFilterPredicate(
                 MPMediaPropertyPredicate(
                     value: query,
-                    property: MPMediaItemPropertyAlbumTitle,
+                    forProperty: MPMediaItemPropertyAlbumTitle,
                     comparisonType: .contains
                 )
             )
@@ -610,11 +610,11 @@ final class MediaEngine: @unchecked Sendable {
             }
         }
         if args.kind == .artist || args.kind == .any {
-            let artistQuery = MPMediaQuery.artistsQuery()
+            let artistQuery = MPMediaQuery.artists()
             artistQuery.addFilterPredicate(
                 MPMediaPropertyPredicate(
                     value: query,
-                    property: MPMediaItemPropertyArtist,
+                    forProperty: MPMediaItemPropertyArtist,
                     comparisonType: .contains
                 )
             )
@@ -634,7 +634,7 @@ final class MediaEngine: @unchecked Sendable {
         }
         if args.kind == .playlist || args.kind == .any {
             for collection in
-                MPMediaQuery.playlistsQuery().collections ?? [] {
+                MPMediaQuery.playlists().collections ?? [] {
                 guard let playlist =
                     collection as? MPMediaPlaylist,
                       let name = playlist.name,
@@ -644,11 +644,11 @@ final class MediaEngine: @unchecked Sendable {
             }
         }
         if args.kind == .podcast || args.kind == .any {
-            let podcastQuery = MPMediaQuery.podcastsQuery()
+            let podcastQuery = MPMediaQuery.podcasts()
             podcastQuery.addFilterPredicate(
                 MPMediaPropertyPredicate(
                     value: query,
-                    property: MPMediaItemPropertyTitle,
+                    forProperty: MPMediaItemPropertyTitle,
                     comparisonType: .contains
                 )
             )
@@ -701,7 +701,7 @@ final class MediaEngine: @unchecked Sendable {
     ) throws -> JSONValue {
         try requireUsable()
         let collections =
-            MPMediaQuery.playlistsQuery().collections ?? []
+            MPMediaQuery.playlists().collections ?? []
         var list: [[String: JSONValue]] = []
         for collection in collections.prefix(
             EverydayLimits.maxPlaylists
@@ -725,7 +725,7 @@ final class MediaEngine: @unchecked Sendable {
     func localPlaylists() throws -> [[String: JSONValue]] {
         try requireUsable()
         let collections =
-            MPMediaQuery.playlistsQuery().collections ?? []
+            MPMediaQuery.playlists().collections ?? []
         return collections.compactMap { collection in
             (collection as? MPMediaPlaylist).map(
                 Self.playlistObject
@@ -739,7 +739,7 @@ final class MediaEngine: @unchecked Sendable {
         _ id: String
     ) -> [String: JSONValue]? {
         let collections =
-            MPMediaQuery.playlistsQuery().collections ?? []
+            MPMediaQuery.playlists().collections ?? []
         for collection in collections {
             if let playlist = collection as? MPMediaPlaylist,
                String(playlist.persistentID) == id {
@@ -763,11 +763,12 @@ final class MediaEngine: @unchecked Sendable {
             box = try await withCheckedThrowingContinuation {
                 (continuation:
                     CheckedContinuation<PlaylistBox, Error>) in
+                let metadata =
+                    MPMediaPlaylistCreationMetadata()
+                metadata.name = args.name
                 MPMediaLibrary.default().getPlaylist(
                     with: UUID(),
-                    creationMetadata: [
-                        MPMediaPlaylistPropertyName: args.name,
-                    ]
+                    creationMetadata: metadata
                 ) { created, error in
                     if let created {
                         continuation.resume(
@@ -993,9 +994,10 @@ enum DeviceComposeBridge {
     static func presentSMS(
         recipients: [String], body: String?
     ) async throws -> ComposeOutcome {
-        guard await MainActor.run({
+        let canSendText = await MainActor.run {
             MFMessageComposeViewController.canSendText()
-        }) else {
+        }
+        guard canSendText else {
             throw DeviceToolError.failed(
                 "这台手机现在发不了短信（没有可用的短信服务）"
             )
@@ -1058,9 +1060,10 @@ enum DeviceComposeBridge {
     static func presentMail(
         recipients: [String], subject: String?, body: String?
     ) async throws -> ComposeOutcome {
-        guard await MainActor.run({
+        let canSendMail = await MainActor.run {
             MFMailComposeViewController.canSendMail()
-        }) else {
+        }
+        guard canSendMail else {
             throw DeviceToolError.failed(
                 "这台手机还没有配置邮件账户，发不了邮件"
             )
@@ -1264,6 +1267,7 @@ enum DeviceComposeBridge {
             self.continuation = continuation
         }
 
+        @MainActor
         func mailComposeController(
             _ controller: MFMailComposeViewController,
             didFinishWith result: MFMailComposeResult,
@@ -2089,10 +2093,14 @@ enum DeviceFilePresenceBridge {
     }
 
     /// 预览协调者：数据源就是这一份文件；用户关掉
-    /// 预览面（DidDismiss）即完成
+    /// 预览面（DidDismiss）即完成。QuickLook 的数据
+    /// 源/委托协议在现行 SDK 是主 actor 隔离的，协调
+    /// 者整体挂 @MainActor（创建与存取本来就全在主
+    /// actor 任务与锁盒里发生）
+    @MainActor
     private final class PreviewCoordinator: NSObject,
         QLPreviewControllerDataSource,
-        QLPreviewControllerDelegate, @unchecked Sendable {
+        QLPreviewControllerDelegate {
         private var continuation:
             CheckedContinuation<Void, Error>?
         private let url: URL
@@ -2170,8 +2178,10 @@ final class FilePresenceEngine: @unchecked Sendable {
         let url = try files.urlForPreview(
             relativePath: args.path
         )
-        guard UIPrintInteractionController.canPrint(url)
-        else {
+        let printable = await MainActor.run {
+            UIPrintInteractionController.canPrint(url)
+        }
+        guard printable else {
             throw DeviceToolError.failed(
                 "这个文件系统打印不了：\(args.path)"
             )
