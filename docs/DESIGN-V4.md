@@ -8511,3 +8511,43 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - **合并后 CI**：run 42971891493 success（build-native success，head c8289a8）；单测 1301（CI 根套件 Executed 数与合并树 func test 计数一致；0.49.1 基线 1296＋FeedCompact126Tests 5，只增不减）。
 - **独立验包**：IPA 9,163,448 字节、md5 `d22d5e8b3f62cc20c6e7b016f8e6dd17`、Info.plist 实读 0.49.2／120／bundle id site.didichou.oneday；交付件 `~/workspace/your_files/oneday-v0.49.2/OneDay-0.49.2.ipa`（落盘 md5 与 CI 产物一致）。
 - **真机待验**：见 §126.9 四条；另加 §123 回归一条——点子新轮生成后底栏点子角标照常出数、进点子页清零（验 pollIdeasBadge 改名续接后链路不断）。
+
+## §125 文件呈现对标包（2026-11-11，分支 feat/file-open-flow，基线 main 62c0b3c；用户 13:15 拍板主包＋表格转码二期一起做，规格唯一依据 file-open-flow-benchmark-20261111.md）
+
+### 125.1 文件牌升卡（修订设计标准 §5.5 FileChip 原式）
+
+- **修订声明**：《设计标准》§5.5 的 FileChip 原式（sky 天蓝底胶囊＋通用 doc 图标＋文件名一行）就此退役——调研实证 Muse/微信文件牌均为白卡＋类型图标＋名＋「类型 · 大小」副行（benchmark §3.1/§3.2），胶囊形态无类型、无大小、与大厂差集成立。新式：Palette.surface 白卡、圆角 16（radiusPreview）、内边距横 12/纵 10、随气泡宽，用户/助手两侧同形；左＝40pt 类型图标盒（FileIconBox 加尺寸参数：列表 36/聊天卡 40/打开页 56，字形与圆角按边长比例推导，一处改三面齐变）；中＝文件名 .body semibold 至多 2 行＋副行 .caption 次色「类型 · 大小」（类型 DeliverableFileType.label、大小 ByteCountFormatter.file，与文件页 browserSubtitle 同制）；右无常驻按钮，卡整体可点、长按沿用消息菜单。
+- **C8 未裁定守界**：图标沿用现行字母块表（DeliverableIconStyle 单源，办公三件品牌色底＋白色粗体单字），本包不换方案；C8 裁定后改 Core 一表三面齐变。
+- **大小数据源（不许编造）**：FileMetadataStore（进程内缓存）三路实测回填——①发送回填点（§121 写回 remoteFilePaths 同点）按回执同序记本地字节数；②打开/下载完成记实际字节数（FileOpenContent.fetchBytes、表格页下载原文件）；③父目录 files() 列表回读整目录回填（失败静默）。三路皆无只显类型，打开页内再补全。待发附件筹码图标同源（attachmentChip 的通用 doc 字形换 FileIconBox 36，名＋大小副行不动）。
+
+### 125.2 FileOpenView 中间页（sheet 形态）与 FilePreviewView 收编
+
+- **单源共建**：新 FileOpenView（sheet＋自带 NavigationStack）/FileOpenContent（push 形态）一壳两用——聊天点牌（openChatFile 改道）、文件浏览器行、资料库条目三入口全落此页；旧 FilePreviewView 整支删除（FilesView 留墓碑注释），其 QL 宿主段收编为页内 QuickLookHostView、失败页与敏感锁定分支收编进本页状态机。资料库旧 readerEntry/previewEntry 双目的地分流合并为单一目的地先进中间页（文本类由页内主钮进阅读页）。
+- **页面构成**：顶栏＝左 ✕（仅 sheet 形态）/中文件名（inline）/右「···」菜单（readingActions 同源同序＋详情）；文件头＝56pt 图标盒＋文件名 .title3 semibold 至多 3 行全显＋「类型 · 大小」＋人话来源行（来自这条对话/服务器上的文件）＋有则「修改于 …」；原始路径/字节数只进低频详情页。主钮一颗走 FileActionPolicy 新增落点列 landingPrimary（阅读/预览/播放/查看表格/保存到文件，策略表第四列、既有三列语义不动）；次动作＝readingActions 安静列表行（与顶栏菜单同源，菜单供页内承载时够手、列表行供中间页本体）。
+- **五态状态机**：元信息加载中（副行小转轮＋主钮禁用，回读失败也算一轮已回不无限禁用）／就绪／下载中（不定量进度——/api/files/download 为整包数据任务、无字节级进度通道，如实不定量＋已知总量文案，可取消）／预览承载（页内 push，保留顶栏）／失败（页内警告块＋FileOpenFailure 五分文案＋failureActions，与 Muse 失败页同形）。敏感文件恒锁定分支（无法预览＋SensitiveFilePolicy.explanation＋知道了，不渲染不给下载）。
+
+### 125.3 路由表 Core FileOpenRoute（纯函数＋钉测）
+
+- 输入＝FileOpenTarget（名称/路径/可选大小/可选修改时间/mime/可选锚点，聊天由牌构造、文件页由条目构造，workspaceEntry 合成供既有 entry 策略表复用）＋canPreview 资格（§121 既有门）。矩阵：image→直达查看器（不经中间页，宿主拦截；中间页仅作防御落点）；text→中间页→阅读页；pdf/office/html/video/audio→中间页→页内 QL（canPreview 假降 infoOnly）；xls/xlsx→中间页→转码表格；archive→中间页 saveOnly（主钮保存到文件）；other→中间页 infoOnly（说明行＋分享/下载）；敏感→locked。
+- **§121 落点修订声明**：§121「不可预览点牌直落分享单」收编进中间页——QL 资格门与五分文案机制不变，落点由分享单升级为中间页失败态（unsupportedType＋failureActions）；§116 文件面口径（网关五形态出牌、GBK 转码）不动，牌面形态按 125.1 升卡。
+- FileActionPolicy.category 收名称口径为原语（category(forFileName:mediaKind:)），条目口径委托之、逐格同果（钉测对账）；WorkspaceFileEntry 补公开 memberwise init（解码路径不变）。
+
+### 125.4 表格转码二期（伴生 1.0.15；版本号顺延注：施工中发现并行线已先行部署 1.0.14，本地原拟 1.0.14 改 1.0.15；源码基线以生产 build-114 的 oneday_bridge.py 实测 diff 对账——本地补丁为纯增 330 行、零删改，恰为超集）
+
+- **端点**：oneday-bridge 新增 GET /files/spreadsheet?path=（Bearer 单钥鉴权走既有 _authed）。路径合规照 Hermes files 下载同规：根锁 /opt/data（SPREADSHEET_ROOT 可覆盖）、不存在 404、非文件 400、敏感 403（名单与 App SensitiveFilePolicy 逐项镜像：protectedNames/敏感扩展/词元＋子串兜底）、超 100MiB 413、旧版 .xls（OLE 魔数）与不可解析 422。
+- **转码口径**：零依赖 stdlib（zipfile＋XML，镜像内无表格库、不新引依赖）；值口径——公式取缓存值、无缓存值渲染空并计数进 notes 如实标注；合并单元格值只在左上格（格式本身如此存，CSV 即此读法，无格式还原）；日期经 styles.xml 数字格式识别渲 ISO（内置日期格式 id 集＋自定义格式码启发式；Excel 序列 60 的虚构 1900-02-29 折叠至 1900-03-01，只读呈现妥协、记账在此）；数字整数去尾 .0。单 sheet 500 数据行截断（total_rows 报实数、truncated 明示，App 侧已显示行数由回带 CSV 实算、上限不写死端上）；sheet 上限 50。
+- **App 侧**：SpreadsheetReaderView——OneDayBridgeClient.spreadsheet 状态码保真（不走 checkStatus 人话收敛，422/413/404 原样包 HermesError 交 FileOpenFailure.classifySpreadsheet 分型：422 转码专档新文案、余与下载同规；无钥匙/桥未通归 serviceUnavailable 档）；呈现走 DocumentReading csv 块＋DocumentBlocksView（由 DocumentReaderView 抽出共用，渲染单源），sheet 分段切换，桥 notes 原样带出。csv 文件不经转码、直接走阅读页（规格口径）。
+- **自测**：新增 oneday_bridge_spreadsheet_selftest 20 测全过（鉴权/类型值/公式缓存与无缓存/日期/CSV 转义/多表/截断/路径六分），已挂 run_bridge_selftests.sh；全套自测绿（基线只增不减）。
+
+### 125.5 行号锚点搭车（ekko #L 形态）
+
+- Core：FileLineAnchor（parse 接受 L12/L12-L20/L12-20/# 前缀，非法回 nil）＋split（路径＋锚点拆分）；FileRefDetector 内部收口为 scan，detect 旧口径不变（路径恒干净），新增 detectAnchored 带回锚点；用户侧 remoteFilePaths 亦走 split 拆锚。
+- 阅读页定位（仅 text 类消费，其余类型解析保留、呈现忽略）：plain 按 DocumentReading.plainParagraphLineRanges（与 plainBlocks 分段逐字同规、钉测对账段数）段落高亮＋ScrollViewReader 滚动定位；structured 整段代码块按行分组高亮（行号即原文行号）；markdown/csv 无行↔块映射，走锚点摘录卡（DocumentReading.excerpt 取行段原文置顶呈现，越界收敛、整段落在文本外不摆卡）。DocumentReaderView 新增 anchor 入参（默认 nil，旧调用点零改动）。
+
+### 125.6 单测与校验
+
+- 新增 FileOpenRouteTests 16 测：路由矩阵（图片/文本/QL 族/表格特判/csv 不走转码/无预览族/canPreview 降级/敏感锁定）、落点列映射、分类名称-条目对账、锚点解析与拆分、detectAnchored、段落行段与摘录、转码失败分型。CI 实测 Executed 1280 tests、0 failures（本地 func test 计数同为 1280；只增不减）。施工中 CI 两轮红已修并记账于提交史：①plainParagraphLineRanges 的 if-let 遮蔽赋值冲突；②名称口径 category 在 mediaKind 为 nil 时影音类落 .other——改经合成条目推导（条目 mediaKind 扩展名表单源），对账测补影音三档。
+- 三语文案新增 19 键（Localizable 2444→2463），validate_i18n.py 通过。
+- 红线守界：未碰回底钮/输入舱（§124 在飞）、§122 三页面、§123 在飞面；FileActionPolicy/DeliverableIconStyle/FileOpenFailure 三单源零分叉（落点列与转码档均为原表内增列增档）。
+- 真机待验：xlsx 点开中间页→查看表格全链（多表切换/截断明示/公式无缓存注记）、.ipa 中间页说明行＋分享下载、聊天文件卡大小副行三路回填、带 #L 锚点的助手文件牌进阅读页定位、文件页三入口落中间页、敏感文件锁定分支。
+- **分支终局**：feat/file-open-flow 顶端见合并单；分支 CI run 42968384303 success（build-native 全绿，head 74fa0bb），单测 Executed 1280、0 failures。伴生 1.0.15 已上线（FILE-115-REPORT.md：端点自测 20 全过、生产冒烟真实 iCost 表 3893 行截断明示、Hermes StartedAt 未动、内存 51%）。App 版本号未改（合并时主线定号）。

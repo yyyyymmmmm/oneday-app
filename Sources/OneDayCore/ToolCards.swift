@@ -1042,16 +1042,36 @@ public enum FileRefDetector {
     private static let pattern =
         #"/[A-Za-z0-9_\-./\u0080-\uFFFF]+?\.[A-Za-z0-9]{1,12}(?![A-Za-z0-9/]|\.[A-Za-z0-9])"#
 
+    // §125 搭车：路径后可跟 ekko 式行号锚点 `#L12`
+    // 或 `#L12-L20`（捕获组 1）；锚点不入路径本体，
+    // detect 丢弃、detectAnchored 单列返回
+    private static let anchoredPattern =
+        Self.pattern + #"(#L[0-9]+(?:-L?[0-9]+)?)?"#
+
     public static func detect(
         in text: String, excluding excluded: [String] = []
     ) -> [String] {
+        scan(in: text, excluding: excluded).map(\.path)
+    }
+
+    /// 锚点感知探测（§125）：与 detect 同护栏同去重，
+    /// 额外带回每条路径的行号锚点（无锚点为 nil）
+    public static func detectAnchored(
+        in text: String, excluding excluded: [String] = []
+    ) -> [FileAnchoredRef] {
+        scan(in: text, excluding: excluded)
+    }
+
+    private static func scan(
+        in text: String, excluding excluded: [String] = []
+    ) -> [FileAnchoredRef] {
         guard text.contains("/") else { return [] }
         guard let regex = try? NSRegularExpression(
-            pattern: Self.pattern, options: [.caseInsensitive]
+            pattern: Self.anchoredPattern, options: [.caseInsensitive]
         ) else { return [] }
         let range = NSRange(text.startIndex..., in: text)
         var seen: Set<String> = Set(excluded)
-        var found: [String] = []
+        var found: [FileAnchoredRef] = []
         for match in regex.matches(in: text, range: range) {
             guard let matchRange = Range(match.range, in: text)
             else { continue }
@@ -1063,13 +1083,29 @@ public enum FileRefDetector {
                 )]
                 if before == ":" { continue }
             }
-            let path = String(text[matchRange])
+            // 锚点组（组 1）位于匹配尾部：路径＝全匹配
+            // 去掉锚点后缀
+            var path = String(text[matchRange])
+            var anchor: FileLineAnchor?
+            let anchorRange = match.range(at: 1)
+            if anchorRange.location != NSNotFound,
+               anchorRange.length > 0,
+               let anchorSwiftRange = Range(anchorRange, in: text) {
+                // 锚点形态的后缀恒不属于路径本体：无论
+                // 行号语义合法与否都从路径剥离，非法只
+                // 是不带锚点（parse 回 nil）
+                let fragment = String(text[anchorSwiftRange])
+                anchor = FileLineAnchor.parse(fragment)
+                path = String(path.dropLast(fragment.count))
+            }
             // "//…" 是 URL 的残段不是路径；至少含一层目录
             // （裸 "/x.pdf" 不是服务端产出形态）
             guard !path.hasPrefix("//"),
                   path.dropFirst().contains("/") else { continue }
             if seen.insert(path).inserted {
-                found.append(path)
+                found.append(
+                    FileAnchoredRef(path: path, anchor: anchor)
+                )
             }
         }
         return found

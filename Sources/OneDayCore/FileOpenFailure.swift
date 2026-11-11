@@ -29,6 +29,7 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
     case invalidPath
     case forbidden
     case unsupportedType
+    case transcodeFailed
     case other
 
     /// 客户端预检：空路径（或纯空白）不必发请求、
@@ -68,6 +69,21 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
         }
     }
 
+    /// 表格转码失败分型（§125）：伴生转码端点 422
+    /// （文件损坏/格式读不出）专档 transcodeFailed，
+    /// 其余状态码与下载同规走 classify——转码失败不
+    /// 许混进「没法预览」，两者出路不同（转码可换下
+    /// 载原文件用别的 App 开）
+    public static func classifySpreadsheet(
+        error: HermesError
+    ) -> FileOpenFailure {
+        if case .unexpectedStatus(_, let status) = error,
+           status == 422 {
+            return .transcodeFailed
+        }
+        return classify(error: error)
+    }
+
     /// 人话文案（目录取词形，与 HermesError 同口径）
     public func message(
         locale: Locale = AppLocale.uiLocale
@@ -103,6 +119,11 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
         case .unsupportedType:
             return L10n.string(
                 "这个类型没法直接预览，可以下载到本地再打开。",
+                locale: locale
+            )
+        case .transcodeFailed:
+            return L10n.string(
+                "表格转换失败，没能读出内容；可以下载原文件再打开。",
                 locale: locale
             )
         case .other:

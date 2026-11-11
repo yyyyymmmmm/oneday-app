@@ -1,0 +1,720 @@
+import OneDayCore
+import OneDayDesign
+import SwiftUI
+import UIKit
+
+/// 文件来源行口径（§125 文件头）：人话来源只两档——
+/// 聊天点开是「来自这条对话」，文件页点开是「服务器
+/// 上的文件」；原始路径只进低频详情，不上文件头
+enum FileOpenOrigin {
+    case conversation
+    case serverFile
+
+    var line: String {
+        switch self {
+        case .conversation: return L10n.string("来自这条对话")
+        case .serverFile: return L10n.string("服务器上的文件")
+        }
+    }
+}
+
+/// 文件打开页（§125 中间页，sheet 形态）：微信/Muse
+/// 式两段式打开的第一段——先落一页看清这是什么文件、
+/// 再决定怎么打开，取代旧「点牌直达 QuickLook/分享
+/// 单」。单源共建：聊天文件牌与文件页条目都构造本页
+/// （FileOpenContent），旧 FilePreviewView 收编退役。
+/// 路由走 Core FileOpenRoute 纯函数表、动作走
+/// FileActionPolicy 落点列＋readingActions、失败走
+/// FileOpenFailure 五分——三单源不另立第二套。
+struct FileOpenView: View {
+    let target: FileOpenTarget
+    var origin: FileOpenOrigin = .serverFile
+
+    var body: some View {
+        NavigationStack {
+            FileOpenContent(
+                target: target, origin: origin,
+                showsCloseButton: true
+            )
+        }
+    }
+}
+
+struct FileOpenContent: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    let target: FileOpenTarget
+    var origin: FileOpenOrigin = .serverFile
+    var showsCloseButton: Bool = false
+
+    private enum Phase: Equatable {
+        case ready
+        case downloading
+        case failed(FileOpenFailure)
+    }
+
+    private enum Destination: Hashable {
+        case reader
+        case quickLook
+        case spreadsheet
+    }
+
+    @State private var phase: Phase = .ready
+    @State private var destination: Destination?
+    @State private var previewItem: ChatFilePreviewItem?
+    @State private var downloadedData: Data?
+    @State private var shareItem: FileShareItem?
+    @State private var notice: String?
+    @State private var showDetails = false
+    @State private var metaDone = false
+    @State private var downloadTask: Task<Void, Never>?
+
+    private var store: FileMetadataStore { .shared }
+    private var entry: WorkspaceFileEntry { target.workspaceEntry }
+    private var route: FileOpenRoute {
+        FileOpenRoute.resolve(target: target)
+    }
+
+    private var resolvedSize: Int64? {
+        target.size ?? store.metadata(for: target.path)?.size
+    }
+
+    private var resolvedModified: Date? {
+        target.modifiedAt
+            ?? store.metadata(for: target.path)?.modifiedAt
+    }
+
+    /// 元信息未回且目标自带无大小时主钮禁用（规格五
+    /// 态之一：加载中骨架＋主钮禁用）；回读失败也算
+    /// 一轮已回——不许无限禁用
+    private var metaPending: Bool {
+        target.size == nil
+            && store.metadata(for: target.path)?.size == nil
+            && !metaDone
+    }
+
+    private var subtitle: String {
+        let type = DeliverableFileType.label(forFileName: target.name)
+        let sizeText = resolvedSize.map {
+            ByteCountFormatter.string(
+                fromByteCount: $0, countStyle: .file
+            )
+        }
+        return [type, sizeText]
+            .compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private var landingPrimary: FileLandingAction? {
+        FileActionPolicy.landingPrimary(for: entry)
+    }
+
+    private var secondaryActions: [FileItemAction] {
+        FileActionPolicy.readingActions(for: entry)
+    }
+
+    var body: some View {
+        Group {
+            switch route {
+            case .locked:
+                lockedView
+            case .imageViewer:
+                // 防御落点：宿主（聊天/文件页）对图片恒
+                // 直达查看器，落到这里仍给真查看器、
+                // 不给空白页
+                ImageViewerView(
+                    items: [
+                        ChatImageViewerItem(
+                            source: .remotePath(target.path)
+                        ),
+                    ],
+                    initialIndex: 0
+                )
+            default:
+                mainBody
+            }
+        }
+        .background(Palette.pageBG)
+        .navigationTitle(target.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showsCloseButton {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("关闭")
+                }
+            }
+            if route != .locked {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(secondaryActions, id: \.self) { action in
+                            Button {
+                                performSecondary(action)
+                            } label: {
+                                Label(
+                                    action.label,
+                                    systemImage: action.systemImage
+                                )
+                            }
+                        }
+                        if !secondaryActions.isEmpty {
+                            Divider()
+                        }
+                        Button {
+                            showDetails = true
+                        } label: {
+                            Label(
+                                "详情", systemImage: "info.circle"
+                            )
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .accessibilityLabel("更多操作")
+                }
+            }
+        }
+        .navigationDestination(item: $destination) { dest in
+            switch dest {
+            case .reader:
+                DocumentReaderView(entry: entry, anchor: target.anchor)
+            case .quickLook:
+                if let previewItem {
+                    QuickLookHostView(
+                        entry: entry, url: previewItem.url,
+                        data: downloadedData
+                    )
+                }
+            case .spreadsheet:
+                SpreadsheetReaderView(target: target)
+            }
+        }
+        .sheet(item: $shareItem) { item in
+            FileShareSheet(url: item.url)
+        }
+        .sheet(isPresented: $showDetails) {
+            FileOpenDetailsView(
+                target: target, size: resolvedSize,
+                modifiedAt: resolvedModified
+            )
+        }
+        .task {
+            if target.size == nil {
+                await store.backfillFromListing(
+                    path: target.path, appState: appState
+                )
+            }
+            metaDone = true
+        }
+    }
+
+    // MARK: - 页面构成
+
+    private var mainBody: some View {
+        ScrollView {
+            VStack(
+                alignment: .leading, spacing: OneDayMetrics.spacingL
+            ) {
+                header
+                actionZone
+                if let notice {
+                    Text(notice)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(OneDayMetrics.pageGutter)
+        }
+    }
+
+    private var header: some View {
+        HStack(
+            alignment: .top, spacing: OneDayMetrics.spacingSM
+        ) {
+            FileIconBox(name: target.name, size: 56)
+            VStack(
+                alignment: .leading, spacing: OneDayMetrics.spacingXS
+            ) {
+                Text(target.name)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(3)
+                if metaPending {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                } else {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Text(origin.line)
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                if let resolvedModified {
+                    Text(
+                        L10n.format(
+                            "修改于 %@", AdminFormat.short(resolvedModified)
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionZone: some View {
+        switch phase {
+        case .downloading:
+            downloadingView
+        case .failed(let failure):
+            failureView(failure)
+        case .ready:
+            VStack(
+                alignment: .leading, spacing: OneDayMetrics.spacingM
+            ) {
+                if route == .infoOnly {
+                    Text("这类文件不能在 App 内预览，可以下载到本地或分享到其他 App 打开。")
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                } else if let landingPrimary {
+                    Button {
+                        runPrimary(landingPrimary)
+                    } label: {
+                        Label(
+                            landingPrimary.label,
+                            systemImage: landingPrimary.systemImage
+                        )
+                    }
+                    .buttonStyle(.odPrimary)
+                    .disabled(metaPending)
+                }
+                if !secondaryActions.isEmpty {
+                    secondaryList
+                }
+            }
+        }
+    }
+
+    private var secondaryList: some View {
+        VStack(spacing: 0) {
+            ForEach(
+                Array(secondaryActions.enumerated()), id: \.element
+            ) { index, action in
+                if index > 0 { GroupDivider() }
+                Button {
+                    performSecondary(action)
+                } label: {
+                    HStack {
+                        Label(
+                            action.label,
+                            systemImage: action.systemImage
+                        )
+                        .font(.callout)
+                        .foregroundStyle(Palette.ink)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(
+                        minHeight: OneDayMetrics.rowHeight,
+                        alignment: .leading
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
+            }
+        }
+    }
+
+    private var downloadingView: some View {
+        VStack(spacing: OneDayMetrics.spacingSM) {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                ProgressView()
+                VStack(
+                    alignment: .leading, spacing: OneDayMetrics.spacingXS
+                ) {
+                    Text("正在下载…")
+                        .font(.callout)
+                        .foregroundStyle(Palette.ink)
+                    if let resolvedSize {
+                        Text(
+                            L10n.format(
+                                "共 %@",
+                                ByteCountFormatter.string(
+                                    fromByteCount: resolvedSize,
+                                    countStyle: .file
+                                )
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            Button("取消") {
+                downloadTask?.cancel()
+                phase = .ready
+            }
+            .buttonStyle(.odSecondary)
+        }
+    }
+
+    private func failureView(_ failure: FileOpenFailure) -> some View {
+        VStack(spacing: OneDayMetrics.spacingSM) {
+            HStack(
+                alignment: .top, spacing: OneDayMetrics.spacingSM
+            ) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(Palette.warning)
+                Text(failure.message())
+                    .font(.callout)
+                    .foregroundStyle(Palette.ink)
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                ForEach(
+                    FileActionPolicy.failureActions(for: entry),
+                    id: \.self
+                ) { action in
+                    Button(action.label) {
+                        performFailure(action)
+                    }
+                    .buttonStyle(.odSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(OneDayMetrics.spacingSM)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.radiusCard
+            )
+        )
+    }
+
+    private var lockedView: some View {
+        ContentUnavailableView {
+            Label("无法预览", systemImage: "lock.fill")
+        } description: {
+            Text(SensitiveFilePolicy.explanation)
+        } actions: {
+            Button("知道了") { dismiss() }
+        }
+    }
+
+    // MARK: - 动作与取数
+
+    private func runPrimary(_ action: FileLandingAction) {
+        notice = nil
+        switch route {
+        case .reader:
+            destination = .reader
+        case .spreadsheet:
+            destination = .spreadsheet
+        case .quickLook:
+            startPreviewDownload()
+        case .saveOnly:
+            downloadAndShare()
+        case .imageViewer, .infoOnly, .locked:
+            break
+        }
+    }
+
+    /// QL 路：取字节→落临时目录→验资格——可预览进
+    /// 页内 QL 承载，不可预览落失败态 unsupportedType
+    /// （§121 资格门落点升级：旧形态直落分享单，中间
+    /// 页收编后落本页失败态＋failureActions，机制与
+    /// 五分文案不变）
+    private func startPreviewDownload() {
+        downloadTask = Task {
+            phase = .downloading
+            do {
+                let data = try await fetchBytes()
+                if Task.isCancelled {
+                    phase = .ready
+                    return
+                }
+                let item = try ChatFilePreviewItem.write(
+                    data: data, name: target.name
+                )
+                if item.canPreview {
+                    previewItem = item
+                    phase = .ready
+                    destination = .quickLook
+                } else {
+                    phase = .failed(.unsupportedType)
+                }
+            } catch let error as HermesError {
+                phase = Task.isCancelled
+                    ? .ready
+                    : .failed(FileOpenFailure.classify(error: error))
+            } catch {
+                phase = Task.isCancelled ? .ready : .failed(.other)
+            }
+        }
+    }
+
+    private func downloadAndShare() {
+        downloadTask = Task {
+            phase = .downloading
+            do {
+                let data = try await fetchBytes()
+                if Task.isCancelled {
+                    phase = .ready
+                    return
+                }
+                shareItem = try FileShareItem.write(
+                    data: data, name: target.name
+                )
+                phase = .ready
+            } catch let error as HermesError {
+                phase = Task.isCancelled
+                    ? .ready
+                    : .failed(FileOpenFailure.classify(error: error))
+            } catch {
+                phase = Task.isCancelled ? .ready : .failed(.other)
+            }
+        }
+    }
+
+    private func performSecondary(_ action: FileItemAction) {
+        switch action {
+        case .copyText:
+            Task { await copyText() }
+        case .exportPDF:
+            Task { await exportPDF() }
+        case .share, .download:
+            downloadAndShare()
+        case .preview, .delete:
+            // readingActions 不含这两项，落到即策略表
+            // 漂移——静默不执行（与阅读页同口径）
+            break
+        }
+    }
+
+    private func performFailure(_ action: FileFailureAction) {
+        switch action {
+        case .retry:
+            phase = .ready
+            if let landingPrimary {
+                runPrimary(landingPrimary)
+            }
+        case .download:
+            downloadAndShare()
+        case .dismiss:
+            dismiss()
+        }
+    }
+
+    private func copyText() async {
+        do {
+            let data = try await fetchBytes()
+            if let text = FileTextExtractor.plainText(
+                from: data, entry: entry
+            ) {
+                UIPasteboard.general.string = text
+                notice = "已复制全文。"
+                Haptics.success()
+            } else {
+                notice = "这个文件没能读出文字。"
+            }
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "下载失败，请稍后再试。"
+        }
+    }
+
+    private func exportPDF() async {
+        do {
+            let data = try await fetchBytes()
+            guard let kind = DocumentTextKind.kind(
+                      forFileName: target.name
+                  ),
+                  let text = FileTextExtractor.plainText(
+                      from: data, entry: entry
+                  ),
+                  let pdf = DocumentPDFExporter.pdfData(
+                      title: DeliverableFileType.displayTitle(
+                          forFileName: target.name
+                      ),
+                      blocks: DocumentReading.blocks(
+                          for: text, kind: kind
+                      )
+                  )
+            else {
+                notice = "导出 PDF 失败，请稍后再试。"
+                Haptics.error()
+                return
+            }
+            shareItem = try FileShareItem.write(
+                data: pdf,
+                name: "\(DeliverableFileType.displayTitle(forFileName: target.name)).pdf"
+            )
+        } catch {
+            notice = (error as? HermesError)?.userMessage
+                ?? "下载失败，请稍后再试。"
+        }
+    }
+
+    /// 取字节（已下载复用）：下载完成即回填元数据缓
+    /// 存（大小回填路②——牌面副行与本页大小都吃这
+    /// 一份实测）
+    private func fetchBytes() async throws -> Data {
+        if let downloadedData { return downloadedData }
+        let data = try await appState.performAdmin {
+            client, config in
+            try await client.fileData(
+                config: config, path: target.path
+            )
+        }
+        downloadedData = data
+        store.recordDownload(
+            path: target.path, byteCount: data.count
+        )
+        return data
+    }
+}
+
+/// 页内 QL 承载（§125）：字节已由打开页取回并验过
+/// 资格，本页只承载 QL 本体＋顶栏文件名与动作菜单
+/// （与 Muse 失败页/预览页同形：不另起独立 sheet）
+struct QuickLookHostView: View {
+    @Environment(AppState.self) private var appState
+
+    let entry: WorkspaceFileEntry
+    let url: URL
+    let data: Data?
+
+    @State private var shareItem: FileShareItem?
+    @State private var notice: String?
+
+    var body: some View {
+        QuickLookPreview(url: url)
+            .ignoresSafeArea(edges: .bottom)
+            .navigationTitle(entry.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(
+                            FileActionPolicy.readingActions(
+                                for: entry
+                            ),
+                            id: \.self
+                        ) { action in
+                            Button {
+                                perform(action)
+                            } label: {
+                                Label(
+                                    action.label,
+                                    systemImage: action.systemImage
+                                )
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .accessibilityLabel("文件操作")
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let notice {
+                    Text(notice)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, OneDayMetrics.pageGutter)
+                        .padding(.vertical, OneDayMetrics.spacingS)
+                        .background(Palette.pageBG)
+                }
+            }
+            .sheet(item: $shareItem) { item in
+                FileShareSheet(url: item.url)
+            }
+    }
+
+    private func perform(_ action: FileItemAction) {
+        switch action {
+        case .share, .download:
+            if let data {
+                shareItem = try? FileShareItem.write(
+                    data: data, name: entry.name
+                )
+            }
+        case .copyText:
+            if let data,
+               let text = FileTextExtractor.plainText(
+                   from: data, entry: entry
+               ) {
+                UIPasteboard.general.string = text
+                notice = "已复制全文。"
+                Haptics.success()
+            }
+        case .exportPDF, .preview, .delete:
+            break
+        }
+    }
+}
+
+/// 文件详情（低频，顶栏「···」进）：原始路径/字节
+/// 数/修改时间——文件头只给人话，机器口径收这里
+struct FileOpenDetailsView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let target: FileOpenTarget
+    let size: Int64?
+    let modifiedAt: Date?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                row("文件名", target.name)
+                row("路径", target.path)
+                row(
+                    "大小",
+                    size.map {
+                        ByteCountFormatter.string(
+                            fromByteCount: $0, countStyle: .file
+                        )
+                    } ?? "—"
+                )
+                row(
+                    "修改时间",
+                    modifiedAt.map { AdminFormat.short($0) } ?? "—"
+                )
+            }
+            .navigationTitle("详情")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func row(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(title)
+                .foregroundStyle(Palette.inkSecondary)
+            Spacer(minLength: OneDayMetrics.spacingM)
+            Text(value)
+                .foregroundStyle(Palette.ink)
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+        }
+        .font(.callout)
+    }
+}

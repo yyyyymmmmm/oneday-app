@@ -235,11 +235,11 @@ struct ChatView: View {
     /// 预览的呈现载荷；流式工具卡列（累积完成即入列、
     /// 本轮收尾落盘，见 driveRun）
     @State private var imageViewerSession: ImageViewerSession?
-    @State private var filePreviewItem: ChatFilePreviewItem?
-    /// §121：不可预览类型的文件牌落点——分享单（保
-    /// 存到文件＝下载档），载荷与文件页共用 File-
-    /// ShareItem
-    @State private var fileShareItem: FileShareItem?
+    /// §125：文件牌点开统一进中间页（FileOpenView
+    /// sheet），旧「点牌直达 QL（filePreviewItem）/
+    /// 不可预览直落分享单（fileShareItem）」两件套呈
+    /// 现状态退役——分享单改由中间页内的动作触发
+    @State private var fileOpenTarget: FileOpenTarget?
     @State private var liveToolCards: [ToolCard] = []
     /// 直播区事件序标记（0.36.10，诊断 D3-10）：思考/
     /// 工具/正文按首达顺序记位，渲染层（liveZone）据
@@ -348,11 +348,10 @@ struct ChatView: View {
                 )
             }
         }
-        .sheet(item: $filePreviewItem) { item in
-            QuickLookPreview(url: item.url)
-        }
-        .sheet(item: $fileShareItem) { item in
-            FileShareSheet(url: item.url)
+        // §125：文件打开页（中间页）——聊天侧点牌的
+        // 唯一落点（图片仍走上方全屏查看器、不经此页）
+        .sheet(item: $fileOpenTarget) { target in
+            FileOpenView(target: target, origin: .conversation)
         }
         // 0.4.1：引用是发送舱的临时态，切换线程即作废，
         // 不许跨线程带过去；0.7.0 两处增补——草稿轻保活
@@ -2044,9 +2043,9 @@ struct ChatView: View {
                     // 展开块剥出的非图片附件（导入/补缺
                     // 落盘 remoteFilePaths）挂正文泡下方
                     // 同列，与助手侧同构（同一 FileChip、
-                    // 同一 openChatFile 打开链：下载取回
-                    // →QuickLook）；图片已由上方图片行承
-                    // 接，不到这里
+                    // 同一 openChatFile 打开链；§125 起
+                    // 牌升卡、点开落文件打开页中间页）；
+                    // 图片已由上方图片行承接，不到这里
                     if !entry.remoteFilePaths.isEmpty {
                         VStack(
                             alignment: .trailing,
@@ -2054,9 +2053,18 @@ struct ChatView: View {
                         ) {
                             ForEach(
                                 entry.remoteFilePaths, id: \.self
-                            ) { path in
-                                FileChip(path: path) {
-                                    openChatFile(path)
+                            ) { rawPath in
+                                // 路径尾可能带 #L 锚点
+                                // （网关引用形态）：拆开再
+                                // 构造牌，锚点透传打开页
+                                let split = FileLineAnchor.split(
+                                    pathWithAnchor: rawPath
+                                )
+                                FileChip(path: split.path) {
+                                    openChatFile(
+                                        split.path,
+                                        anchor: split.anchor
+                                    )
                                 }
                             }
                         }
@@ -2118,9 +2126,12 @@ struct ChatView: View {
                 // 0.8.0（P1）：正文里的服务端文件路径出
                 // 文件牌（探测纯函数在 Core，标记图片路
                 // 径已由上面的图片行承接、此处排除）；
-                // 点开经下载通道落临时目录走 QuickLook，
-                // 图片扩展名直接进图片查看器
-                let fileRefs = FileRefDetector.detect(
+                // §125 起点开落文件打开页中间页，图片
+                // 扩展名仍直接进图片查看器
+                // §125：锚点感知探测——路径带 `#L12-
+                // L20` 时牌透传锚点，打开页进阅读页
+                // 定位高亮（仅 text 类消费）
+                let fileRefs = FileRefDetector.detectAnchored(
                     in: entry.content,
                     excluding: entry.remoteImagePaths
                 )
@@ -2129,9 +2140,11 @@ struct ChatView: View {
                         alignment: .leading,
                         spacing: OneDayMetrics.spacingXS
                     ) {
-                        ForEach(fileRefs, id: \.self) { path in
-                            FileChip(path: path) {
-                                openChatFile(path)
+                        ForEach(fileRefs, id: \.path) { ref in
+                            FileChip(path: ref.path) {
+                                openChatFile(
+                                    ref.path, anchor: ref.anchor
+                                )
                             }
                         }
                     }
@@ -2175,16 +2188,17 @@ struct ChatView: View {
         }
     }
 
-    /// 文件牌点开（0.8.0，P1）：图片扩展名进全屏图片查
-    /// 看器；其余经既有 /api/files/download 取回字节、
-    /// 落临时目录走系统 QuickLook 预览；失败走既有
-    /// notice 人话提示，不白屏
-    /// §121 题二 b 两修：失败文案走 Core FileOpen-
-    /// Failure 五分（不存在/过大/服务不可用/超时/路
-    /// 径无效），不再一句状态码兜底；QL 呈现前先验
-    /// 资格——不可预览类型（.ipa 等）改落分享单
-    /// （保存到文件＝下载档），不进 QL 死页
-    private func openChatFile(_ path: String) {
+    /// 文件牌点开（§125 改道）：图片仍直达全屏图片
+    /// 查看器（不经中间页，用户认可口径）；非法路径
+    /// 仍走 §121 五分 notice 即时拦；其余一律落文件
+    /// 打开页（FileOpenView 中间页）——文件头/主钮/
+    /// 下载进度/失败态都在页内，取代旧「点牌静默下
+    /// 载→直达 QL 或分享单」。§121 的 QL 资格门与五
+    /// 分文案机制不变、落点升级进中间页（见 DESIGN
+    /// §125 修订声明）
+    private func openChatFile(
+        _ path: String, anchor: FileLineAnchor? = nil
+    ) {
         if FileRefDetector.isImagePath(path) {
             openImageViewer(
                 ChatImageViewerItem(source: .remotePath(path))
@@ -2195,31 +2209,7 @@ struct ChatView: View {
             notice = FileOpenFailure.invalidPath.message()
             return
         }
-        Task {
-            do {
-                let data = try await appState.performAdmin {
-                    client, config in
-                    try await client.fileData(
-                        config: config, path: path
-                    )
-                }
-                let item = try ChatFilePreviewItem.write(
-                    data: data,
-                    name: (path as NSString).lastPathComponent
-                )
-                if item.canPreview {
-                    filePreviewItem = item
-                } else {
-                    fileShareItem = FileShareItem(url: item.url)
-                }
-            } catch let error as HermesError {
-                notice = FileOpenFailure.classify(
-                    error: error
-                ).message()
-            } catch {
-                notice = FileOpenFailure.other.message()
-            }
-        }
+        fileOpenTarget = FileOpenTarget(path: path, anchor: anchor)
     }
 
     /// 长按菜单的文本口径（0.4.1）：助手消息剥 Markdown
@@ -3261,8 +3251,10 @@ private struct ComposerBarLayout: Layout {
                 }
             case .file(let name, let data):
                 HStack(spacing: OneDayMetrics.spacingS) {
-                    Image(systemName: "doc")
-                        .foregroundStyle(Palette.inkSecondary)
+                    // §125：待发筹码图标与文件卡/打开页
+                    // 同源（FileIconBox 类型表）——不再
+                    // 一律通用 doc 字形
+                    FileIconBox(name: name, size: 36)
                     // 0.46.1 扩围 D：待发牌补大小（此前
                     // 只有名＋可删、大小缺位）——名主行、
                     // 大小副行，与文件页 ByteCountFormatter
@@ -4082,6 +4074,20 @@ private struct ComposerBarLayout: Layout {
                     newEntry.remoteFilePathsData =
                         try? JSONEncoder().encode(fileServerPaths)
                     try? modelContext.save()
+                    // §125（大小回填路①）：回执顺序与
+                    // filePayloads 同序（uploadPending-
+                    // Files 顺序上传），本地字节数按路
+                    // 径记入元数据缓存——自发文件卡副行
+                    // 的大小即时有数，不等列表回读
+                    for (path, payload) in zip(
+                        fileServerPaths, filePayloads
+                    ) {
+                        FileMetadataStore.shared.record(
+                            path: path,
+                            size: Int64(payload.data.count),
+                            modifiedAt: nil
+                        )
+                    }
                 }
             }
             // 0.21.0：出门前先定发送形态（判定与载荷取
