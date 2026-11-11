@@ -8599,3 +8599,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - GestaltX 会话旧消息：设备路径不成牌。
 - 断网/飞行模式下打开含文件牌的旧会话：牌降纯文本但不出现「文件已不在」类结论，恢复网络后重进会话牌回来。
 - 任一 404 失败页：无「下载到本地」、有「让智能体重新发」，点后回对话且输入舱已预填三行草稿。
+
+### 129.7 预制验收记账（2026-11-11）
+
+- 分支 feat/file-ref-404：代码提交 171efe6、记账提交 54ae413，基线 main 18c6b39；分支 CI run 42976295338（head 54ae413）completed success、build-native 单 job 全绿，单测 Executed 1329（基线 1317＋新增 12，只增不减）、0 failures。validate_i18n.py 与 --check-code 本地实跑通过（2506 键）。未合并、版本号未改，待主线按序合并定版。
