@@ -161,12 +161,14 @@ final class ComposerGuideHostTests: XCTestCase {
         try await super.setUp()
         state = ShellState()
         box = FrameBox()
-        window = UIWindow(
-            frame: CGRect(x: 0, y: 0, width: 402, height: 874))
         let state = state!
         let box = box!
+        window = UIWindow(
+            frame: CGRect(x: 0, y: 0, width: 402, height: 874))
         container = DrawerContainerController()
-        container.loadViewIfNeeded()
+        window.rootViewController = container
+        window.makeKeyAndVisible()
+        container.view.layoutIfNeeded()
         // 环境与生产根同口径：ComposerGuideHost 桥读
         // AppState（未注入会 trap），在内容根处注入
         container.drawerBuilder = { _ in AnyView(Text("drawer")) }
@@ -174,9 +176,6 @@ final class ComposerGuideHostTests: XCTestCase {
             ShellTabs(state: state, box: box)
                 .environment(AppState())
         )
-        window.rootViewController = container
-        window.makeKeyAndVisible()
-        spin(until: { box.frames["bar"] != nil }, seconds: 5)
     }
 
     override func tearDown() async throws {
@@ -189,19 +188,28 @@ final class ComposerGuideHostTests: XCTestCase {
         try await super.tearDown()
     }
 
-    private func spin(
-        until condition: () -> Bool, seconds: TimeInterval
-    ) {
-        let deadline = Date().addingTimeInterval(seconds)
-        while !condition(), Date() < deadline {
-            RunLoop.main.run(
-                mode: .default,
-                before: Date().addingTimeInterval(0.05))
+    /// 等待泵：照 DrawerBridgeHarnessTests 的可用配
+    /// 方（expectation＋wait）——RunLoop.run 紧循环泵
+    /// 不动 SwiftUI 的布局/显示链（首轮 CI 五法全灭
+    /// 的实证：frames 恒空、连 UITabBar 都不出现）
+    private func spinRunLoop(seconds: TimeInterval) {
+        let exp = expectation(description: "spin \(seconds)s")
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+            exp.fulfill()
         }
+        wait(for: [exp], timeout: seconds + 5)
     }
 
     private func settle(_ seconds: TimeInterval = 1.2) {
-        spin(until: { false }, seconds: seconds)
+        spinRunLoop(seconds: seconds)
+    }
+
+    /// 等舱帧首次落盒（渲染完成判据），上限约 6 秒
+    private func waitForBarFrame() {
+        let deadline = Date().addingTimeInterval(6)
+        while box.frames["bar"] == nil, Date() < deadline {
+            spinRunLoop(seconds: 0.25)
+        }
     }
 
     private func tabBar() -> UITabBar? {
@@ -233,7 +241,9 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 静止几何三连：舱底贴坞顶、回报值对账、末行贴
     /// 底停在舱顶上方恰一个单点边距（8）
     func testRestGeometry_barDockedListSpacingAndReport() {
-        settle(1.6)
+        waitForBarFrame()
+        // 再给 .task 的滚底与留位回报落定留一拍
+        settle(1.0)
         guard let tab = tabBar(),
               let bar = box.frames["bar"],
               let lastRow = box.frames["lastRow"]
@@ -257,7 +267,7 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 舱内容长高 40：舱顶上移 40±2、舱底不动、回报
     /// 同步增 40±2
     func testBarGrowth_topRisesBottomPinned() {
-        settle()
+        waitForBarFrame()
         guard let before = box.frames["bar"] else {
             XCTFail("首帧未到")
             return
@@ -283,7 +293,7 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 透传：host 视图在列表区（舱带之上）的点 hitTest
     /// 穿透为 nil、舱带内的点命中舱子树
     func testPassthrough_listAreaFallsThroughBarHits() {
-        settle()
+        waitForBarFrame()
         guard let host = guideHostController(),
               let bar = box.frames["bar"]
         else {
@@ -312,7 +322,7 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 切格往返：去别的格再回来，host 仍在层级内、静
     /// 止几何复原
     func testTabRoundTrip_restGeometryRestored() {
-        settle()
+        waitForBarFrame()
         guard let before = box.frames["bar"] else {
             XCTFail("首帧未到")
             return
@@ -335,7 +345,7 @@ final class ComposerGuideHostTests: XCTestCase {
     /// 宿主根视图用活量换算（convert 即时反映变换）、
     /// 舱帧经一次内容长高戳动强制重报后读取
     func testDrawerOpenClose_composerRidesForeground() {
-        settle()
+        waitForBarFrame()
         guard let host = guideHostController(),
               let hostView = host.view,
               let before = box.frames["bar"]
