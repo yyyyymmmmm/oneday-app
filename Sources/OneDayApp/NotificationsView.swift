@@ -854,6 +854,7 @@ private struct NotificationDetailView: View {
 /// 情页独立成型后以自由函数承接同一逻辑，不许另起
 /// 第二套跳转
 private enum NotificationDestinationFlow {
+    @MainActor
     static func open(
         _ destination: NotificationDestination,
         appState: AppState,
