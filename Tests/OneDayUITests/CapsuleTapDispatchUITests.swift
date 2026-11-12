@@ -92,22 +92,25 @@ final class CapsuleTapDispatchUITests: XCTestCase {
         }
 
         // 两钮帧：C 臂按标识、P 臂按生产无障碍标签
+        // 关键片段匹配（全串等值首跑未命中，宽松化并
+        // 在落空时倾印无障碍树定位实际标签）
         let hubEl = official
             ? app.buttons["harness.hubButton"]
             : app.buttons.matching(
-                NSPredicate(format: "label == %@", "Hermes，在线，打开枢纽")
+                NSPredicate(format: "label CONTAINS %@", "打开枢纽")
             ).firstMatch
         let modelEl = official
             ? app.buttons["harness.modelButton"]
             : app.buttons.matching(
-                NSPredicate(
-                    format: "label == %@", "当前模型 deepseek-flash，切换模型"
-                )
+                NSPredicate(format: "label CONTAINS %@", "切换模型")
             ).firstMatch
         guard hubEl.waitForExistence(timeout: 10),
               modelEl.waitForExistence(timeout: 10)
         else {
             lines.append("arm=\(armName) VERDICT=FRAMES-NOT-FOUND")
+            print("CAPSULE-TREE-BEGIN")
+            print(app.debugDescription)
+            print("CAPSULE-TREE-END")
             return (lines, ["两钮元素未找到"])
         }
         let capsule = capsuleEl.frame
