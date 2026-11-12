@@ -34,12 +34,12 @@ final class ShellBgStructureProbeTests: XCTestCase {
     }
 
     private func measure<Content: View>(
-        label: String, rootView: Content
+        label: String, @ViewBuilder content: () -> Content
     ) async throws {
         let window = UIWindow(
             frame: CGRect(x: 0, y: 0, width: 393, height: 852)
         )
-        let hosting = UIHostingController(rootView: rootView)
+        let hosting = UIHostingController(rootView: content())
         hosting.additionalSafeAreaInsets = UIEdgeInsets(
             top: 59, left: 0, bottom: 83, right: 0
         )
