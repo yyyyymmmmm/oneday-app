@@ -5,35 +5,30 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// 症二阶段一·胶囊命中扫描（2026-11-12 13:42 阶段门改判
-/// 的数据路径）：原定的真机触摸逐点扫描本环境产不出，
-/// 改判以**真实容器层级内的程序化 hitTest 逐点扫描**
-/// 为数据路径（§179 的 256×42 结论即此法所得）。
+/// 症二阶段一·胶囊命中扫描 v2（2026-11-12 13:42 阶段门
+/// 改判的数据路径；v2 订正归属仪表）
 ///
-/// 层级：DrawerContainerController（生产容器本体，裸
-/// 装、静止态＝抽屉关/无动画）→ TabView → 聊天面替身
-/// （ScrollView＋生产同构顶栏 .safeAreaBar(edge:.top)
-/// 注册、.soft 顶缘）。对胶囊行逐点（x 步进 2pt；三
-/// 个 y 行：上缘带 minY+2／中线 midY／下缘带 maxY−2）
-/// 调用 window.hitTest，记录命中视图与动作归属（命中
-/// 视图沿 superview 链的 accessibilityLabel 对照两钮
-/// 标签；玻璃命中按其帧与两钮帧的包含关系归属）。
+/// v1 教训（run 43164623681）：靠 accessibilityLabel
+/// 在视图树里找钮帧落空（单元测试宿主内 SwiftUI 无障
+/// 碍元素不物化为带标签的 UIView，三组 hub/model 帧
+/// 全 nil、归属与串扰判定落空）。v2 改纯几何归属：
+/// ②③组两钮以 .background GeometryReader 捕获钮帧；
+/// ①组（生产件不可内插）以命中视图帧聚类还原两钮
+/// 帧；每点记录命中视图类名＋帧，归属按命中帧相对
+/// 分隔线（两钮帧间隙中点）的位置判定。
 ///
-/// 三组同条件对照（内容度量恒同：Hermes／在线／
-/// deepseek-flash／头像 28）：
-/// ①现行形态＝生产 IdentityCapsuleView 本体（§179
-///   玻璃降背景层＋.odPressable）——只记录不作断言；
-/// ②行本体玻璃＝两钮＋.glassEffect 直接挂行本体
-///   （§179 缺陷构型，0.49.3 玻璃位置变量）——只记录；
-/// ③苹果官方定式＝GlassEffectContainer＋两钮各自
-///   .glassEffect(.regular.interactive())＋
-///   .glassEffectUnion 同一 id＋无 .odPressable
-///   ——**阶段门：零串扰＋树内无跨两域玻璃面**。
+/// 层级与口径同 v1：DrawerContainerController 裸装
+/// （静止态）→ TabView → 聊天面替身（ScrollView＋
+/// .safeAreaBar(edge:.top) 顶栏、.soft 顶缘）。扫描
+/// 行：状态栏带 y=30／顶栏衬垫带 minY−5（症状落点
+/// 带、只记录）＋胶囊三行 top+2／mid／bot−2（x 步进
+/// 2pt，串扰判定行）。
 ///
-/// 串扰定义：落点在身份钮帧内（x 内缩 1pt）却归模型
-/// 域/跨域玻璃，或镜像；跨域玻璃＝玻璃交互视图帧同
-/// 时覆盖两钮帧。扫描全表经 print 落 CI 日志
-/// （CAPSULE-SCAN-BEGIN/END 标记间）＋附件留存。
+/// 串扰（几何定义）：落点距分隔线 ≥2pt 且位于身份
+/// 侧，却命中帧中心在模型侧的视图、或命中跨两钮中
+/// 心的整幅玻璃面；镜像同理。代码：H 身份域／M 模
+/// 型域／G 跨域玻璃／U 整行命中（非玻璃）／· 无命中。
+/// ③组阶段门：钮帧可测＋三行零串扰＋无 G 点。
 @MainActor
 final class CapsuleHitScanTests: XCTestCase {
 
@@ -41,9 +36,25 @@ final class CapsuleHitScanTests: XCTestCase {
 
     private final class ScanBox {
         var capsuleFrame: CGRect?
+        var hubFrame: CGRect?
+        var modelFrame: CGRect?
     }
 
-    private struct FrameKey: PreferenceKey {
+    private struct CapsuleFrameKey: PreferenceKey {
+        static var defaultValue: CGRect? { nil }
+        static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
+            value = nextValue() ?? value
+        }
+    }
+
+    private struct HubFrameKey: PreferenceKey {
+        static var defaultValue: CGRect? { nil }
+        static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
+            value = nextValue() ?? value
+        }
+    }
+
+    private struct ModelFrameKey: PreferenceKey {
         static var defaultValue: CGRect? { nil }
         static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
             value = nextValue() ?? value
@@ -74,9 +85,8 @@ final class CapsuleHitScanTests: XCTestCase {
         wait(for: [exp], timeout: seconds + 5)
     }
 
-    /// 聊天面替身：消息列表＋顶栏 safeAreaBar 注册，
-    /// 顶栏装配照生产 headerBar（左右玻璃圆钮 44 命中
-    /// 域＋胶囊居中 layoutPriority 1＋同组 padding）
+    /// 聊天面替身：装配照生产 headerBar（左右玻璃圆
+    /// 钮 44 命中域＋胶囊居中＋同组 padding）
     private struct ChatSurfaceStandIn<Arm: View>: View {
         let box: ScanBox
         @ViewBuilder var arm: () -> Arm
@@ -102,7 +112,7 @@ final class CapsuleHitScanTests: XCTestCase {
                             .background {
                                 GeometryReader { proxy in
                                     Color.clear.preference(
-                                        key: FrameKey.self,
+                                        key: CapsuleFrameKey.self,
                                         value: proxy.frame(in: .global)
                                     )
                                 }
@@ -116,8 +126,14 @@ final class CapsuleHitScanTests: XCTestCase {
                 .padding(.bottom, OneDayMetrics.spacingS)
             }
             .scrollEdgeEffectStyle(.soft, for: .top)
-            .onPreferenceChange(FrameKey.self) { value in
+            .onPreferenceChange(CapsuleFrameKey.self) { value in
                 box.capsuleFrame = value ?? box.capsuleFrame
+            }
+            .onPreferenceChange(HubFrameKey.self) { value in
+                box.hubFrame = value ?? box.hubFrame
+            }
+            .onPreferenceChange(ModelFrameKey.self) { value in
+                box.modelFrame = value ?? box.modelFrame
             }
         }
 
@@ -193,8 +209,20 @@ final class CapsuleHitScanTests: XCTestCase {
             .frame(width: 0.5, height: 18)
     }
 
+    private static func frameCapture<Key: PreferenceKey>(
+        _ key: Key.Type
+    ) -> some View where Key.Value == CGRect? {
+        GeometryReader { proxy in
+            Color.clear.preference(
+                key: Key.self,
+                value: proxy.frame(in: .global)
+            )
+        }
+    }
+
     /// ②行本体玻璃（§179 缺陷构型）：两钮＋.glassEffect
-    /// 直接挂行本体、无背景层玻璃
+    /// 直接挂行本体、无背景层玻璃；钮帧以 background
+    /// 几何捕获（不拦截命中）
     private struct RowBodyGlassArm: View {
         var body: some View {
             HStack(spacing: OneDayMetrics.spacingS) {
@@ -203,7 +231,9 @@ final class CapsuleHitScanTests: XCTestCase {
                     CapsuleHitScanTests.hubLabelContent(showName: true)
                 }
                 .buttonStyle(.odPressable)
-                .accessibilityLabel("扫描-枢纽")
+                .background {
+                    CapsuleHitScanTests.frameCapture(HubFrameKey.self)
+                }
 
                 CapsuleHitScanTests.hairline
 
@@ -212,7 +242,9 @@ final class CapsuleHitScanTests: XCTestCase {
                     CapsuleHitScanTests.modelLabelContent
                 }
                 .buttonStyle(.odPressable)
-                .accessibilityLabel("扫描-模型")
+                .background {
+                    CapsuleHitScanTests.frameCapture(ModelFrameKey.self)
+                }
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .padding(.vertical, 7)
@@ -222,8 +254,7 @@ final class CapsuleHitScanTests: XCTestCase {
 
     /// ③苹果官方定式：GlassEffectContainer 包裹、两钮
     /// 各自交互玻璃＋glassEffectUnion 同一 id、无
-    /// .odPressable（写法与 CapsuleFormComparison 的
-    /// C 组实验件逐字同构，仅动作闭包换记录口）
+    /// .odPressable；钮帧捕获挂在 union 之后
     private struct OfficialPatternArm: View {
         @Namespace private var glassUnion
 
@@ -244,7 +275,9 @@ final class CapsuleHitScanTests: XCTestCase {
                 }
                 .glassEffect(.regular.interactive(), in: Capsule())
                 .glassEffectUnion(id: "identity-capsule", namespace: glassUnion)
-                .accessibilityLabel("扫描-枢纽")
+                .background {
+                    CapsuleHitScanTests.frameCapture(HubFrameKey.self)
+                }
 
                 CapsuleHitScanTests.hairline
 
@@ -254,7 +287,9 @@ final class CapsuleHitScanTests: XCTestCase {
                 }
                 .glassEffect(.regular.interactive(), in: Capsule())
                 .glassEffectUnion(id: "identity-capsule", namespace: glassUnion)
-                .accessibilityLabel("扫描-模型")
+                .background {
+                    CapsuleHitScanTests.frameCapture(ModelFrameKey.self)
+                }
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .padding(.vertical, 7)
@@ -263,9 +298,6 @@ final class CapsuleHitScanTests: XCTestCase {
 
     // MARK: - 装配（真实容器层级）
 
-    /// DrawerContainerController 裸装＋TabView＋聊天面
-    /// 替身；抽屉 builder 给空视图（静止态抽屉隐藏、
-    /// 不参与命中），容器 offset 恒 0
     private func mount<Arm: View>(arm: Arm, box: ScanBox) {
         controller = DrawerContainerController()
         controller.drawerBuilder = { _ in AnyView(EmptyView()) }
@@ -310,59 +342,12 @@ final class CapsuleHitScanTests: XCTestCase {
         return frames
     }
 
-    /// 按 accessibilityLabel 找钮帧（多候选取面积最大
-    /// 者＝按钮本体层而非内部元素层）
-    private func labeledFrame(_ label: String) -> CGRect? {
-        var best: CGRect?
-        walkViews { view in
-            if view.accessibilityLabel == label {
-                let frame = view.convert(view.bounds, to: window)
-                if frame.width > 10,
-                   frame.width * frame.height
-                    > (best?.width ?? 0) * (best?.height ?? 0) {
-                    best = frame
-                }
-            }
-        }
-        return best
-    }
-
-    private enum Domain {
-        case hub, model, spanningGlass, other, none
-    }
-
-    /// 命中归属：先沿 superview 链找两钮标签；玻璃命
-    /// 中无标签链时按其帧与两钮帧的覆盖关系定性
-    private func domain(
-        of hit: UIView?,
-        hubLabel: String, modelLabel: String,
-        hubFrame: CGRect?, modelFrame: CGRect?
-    ) -> Domain {
-        guard let hit else { return .none }
-        var cursor: UIView? = hit
-        while let view = cursor {
-            if view.accessibilityLabel == hubLabel { return .hub }
-            if view.accessibilityLabel == modelLabel { return .model }
-            cursor = view.superview
-        }
-        if isGlassInteraction(hit) {
-            let frame = hit.convert(hit.bounds, to: window)
-            if let hubFrame, let modelFrame,
-               frame.contains(CGPoint(x: hubFrame.midX, y: hubFrame.midY)),
-               frame.contains(CGPoint(x: modelFrame.midX, y: modelFrame.midY)) {
-                return .spanningGlass
-            }
-            if let hubFrame, frame.contains(CGPoint(x: hubFrame.midX, y: hubFrame.midY)) {
-                return .hub
-            }
-            if let modelFrame,
-               frame.contains(CGPoint(x: modelFrame.midX, y: modelFrame.midY)) {
-                return .model
-            }
-            return .spanningGlass
-        }
-        if hit === window { return .none }
-        return .other
+    private func fmt(_ rect: CGRect?) -> String {
+        guard let rect else { return "nil" }
+        return String(
+            format: "(%.0f,%.0f %.0f×%.0f)",
+            rect.minX, rect.minY, rect.width, rect.height
+        )
     }
 
     private func rle(_ codes: [Character]) -> String {
@@ -383,112 +368,172 @@ final class CapsuleHitScanTests: XCTestCase {
         return out.joined(separator: " ")
     }
 
-    private func fmt(_ rect: CGRect?) -> String {
-        guard let rect else { return "nil" }
-        return String(
-            format: "(%.0f,%.0f %.0f×%.0f)",
-            rect.minX, rect.minY, rect.width, rect.height
-        )
-    }
+    // MARK: - 扫描引擎（两遍：采样→定帧→几何归属）
 
-    // MARK: - 扫描引擎
+    private struct RawSample {
+        var x: CGFloat
+        var hitClass: String?
+        var hitFrame: CGRect?
+        var isGlass: Bool
+    }
 
     private struct ScanOutcome {
         var report: String
         var crosstalk: Int
-        var spanningInTree: Bool
+        var spanningPoints: Int
+        var framesResolved: Bool
     }
 
-    /// 对已装配的窗口执行一组的逐点扫描并生成报告行
-    /// （H＝身份域 M＝模型域 G＝跨域玻璃 o＝其他视图
-    /// ·＝窗口/滚动面）
-    private func runScan(
-        armName: String, hubLabel: String, modelLabel: String,
-        box: ScanBox
-    ) throws -> ScanOutcome {
+    private func runScan(armName: String, box: ScanBox) throws -> ScanOutcome {
         let capsule = try XCTUnwrap(box.capsuleFrame, "胶囊帧未量得")
         XCTAssertGreaterThan(capsule.width, 150, "胶囊应为全量档宽")
-        let hubFrame = labeledFrame(hubLabel)
-        let modelFrame = labeledFrame(modelLabel)
-        let glasses = glassFrames()
-        let spanningInTree = glasses.contains { frame in
-            guard let hubFrame, let modelFrame else { return false }
-            return frame.contains(CGPoint(x: hubFrame.midX, y: hubFrame.midY))
-                && frame.contains(CGPoint(x: modelFrame.midX, y: modelFrame.midY))
+
+        // 采样行：状态栏带/衬垫带只记录，胶囊三行判串扰
+        let recordRows: [(String, CGFloat)] = [
+            ("status", 30),
+            ("barpad", capsule.minY - 5),
+        ]
+        let judgedRows: [(String, CGFloat)] = [
+            ("top+2", capsule.minY + 2),
+            ("mid", capsule.midY),
+            ("bot-2", capsule.maxY - 2),
+        ]
+        var samples: [String: [RawSample]] = [:]
+        var inventory: [String: Int] = [:]
+        for (rowName, y) in recordRows + judgedRows {
+            var rowSamples: [RawSample] = []
+            var x = capsule.minX + 1
+            while x < capsule.maxX {
+                let hit = window.hitTest(CGPoint(x: x, y: y), with: nil)
+                var sample = RawSample(
+                    x: x, hitClass: nil, hitFrame: nil, isGlass: false
+                )
+                if let hit {
+                    sample.hitClass = String(describing: type(of: hit))
+                    sample.hitFrame = hit.convert(hit.bounds, to: window)
+                    sample.isGlass = isGlassInteraction(hit)
+                    let key = "\(sample.hitClass!) \(fmt(sample.hitFrame))"
+                    inventory[key, default: 0] += 1
+                }
+                rowSamples.append(sample)
+                x += 2
+            }
+            samples[rowName] = rowSamples
+        }
+
+        // 定帧：②③组用捕获帧；①组聚类（左/右三分区内
+        // 最高频的合格命中帧）
+        var hubFrame = box.hubFrame
+        var modelFrame = box.modelFrame
+        if hubFrame == nil || modelFrame == nil {
+            func dominantFrame(leftSide: Bool) -> CGRect? {
+                var counts: [String: (CGRect, Int)] = [:]
+                for (_, rowSamples) in samples {
+                    for sample in rowSamples {
+                        guard let frame = sample.hitFrame, !sample.isGlass,
+                              frame.width >= 30,
+                              frame.width < capsule.width - 10
+                        else { continue }
+                        let inSide = leftSide
+                            ? sample.x < capsule.minX + capsule.width / 3
+                            : sample.x > capsule.maxX - capsule.width / 3
+                        guard inSide else { continue }
+                        let key = fmt(frame)
+                        counts[key] = (frame, (counts[key]?.1 ?? 0) + 1)
+                    }
+                }
+                return counts.values.max(by: { $0.1 < $1.1 })?.0
+            }
+            hubFrame = hubFrame ?? dominantFrame(leftSide: true)
+            modelFrame = modelFrame ?? dominantFrame(leftSide: false)
+        }
+        let framesResolved = hubFrame != nil && modelFrame != nil
+        let divider: CGFloat? = if let hubFrame, let modelFrame {
+            (hubFrame.maxX + modelFrame.minX) / 2
+        } else {
+            nil
+        }
+
+        // 几何归属＋串扰（死区 ±6pt 不计）
+        func attribute(
+            _ sample: RawSample, judged: Bool
+        ) -> (code: Character, cross: Bool, spanning: Bool) {
+            guard let frame = sample.hitFrame, let divider else {
+                return ("·", false, false)
+            }
+            let pointSide = sample.x < divider
+            if sample.isGlass {
+                if let hubFrame, let modelFrame,
+                   frame.contains(CGPoint(x: hubFrame.midX, y: hubFrame.midY)),
+                   frame.contains(CGPoint(x: modelFrame.midX, y: modelFrame.midY)) {
+                    return ("G", judged, true)
+                }
+                let glassSide = frame.midX < divider
+                let cross = judged
+                    && abs(sample.x - divider) >= 6
+                    && glassSide != pointSide
+                return (glassSide ? "H" : "M", cross, false)
+            }
+            if frame.width >= capsule.width - 4 {
+                return ("U", judged, false)
+            }
+            let hitSide = frame.midX < divider
+            let cross = judged
+                && abs(sample.x - divider) >= 6
+                && hitSide != pointSide
+            return (hitSide ? "H" : "M", cross, false)
         }
 
         var lines: [String] = []
         lines.append(
-            "arm=\(armName) capsule=\(fmt(capsule)) "
-                + "hub=\(fmt(hubFrame)) model=\(fmt(modelFrame))"
+            "arm=\(armName) capsule=\(fmt(capsule)) hub=\(fmt(hubFrame)) "
+                + "model=\(fmt(modelFrame)) divider="
+                + (divider.map { String(format: "%.0f", $0) } ?? "nil")
         )
+        let glasses = glassFrames()
         lines.append(
             "arm=\(armName) glassTree="
                 + (glasses.isEmpty
                     ? "none"
                     : glasses.map { fmt($0) }.joined(separator: " "))
-                + " spanningInTree=\(spanningInTree)"
         )
-
-        var totalCrosstalk = 0
-        let rows: [(String, CGFloat)] = [
-            ("top+2", capsule.minY + 2),
-            ("mid", capsule.midY),
-            ("bot-2", capsule.maxY - 2),
-        ]
-        for (rowName, y) in rows {
+        var totalCross = 0
+        var totalSpanning = 0
+        for (rowName, _) in recordRows + judgedRows {
+            let judged = judgedRows.contains { $0.0 == rowName }
             var codes: [Character] = []
             var cross = 0
             var flipX: CGFloat?
             var seenHub = false
-            var x = capsule.minX + 1
-            while x < capsule.maxX {
-                let point = CGPoint(x: x, y: y)
-                let hit = window.hitTest(point, with: nil)
-                let hitDomain = domain(
-                    of: hit,
-                    hubLabel: hubLabel, modelLabel: modelLabel,
-                    hubFrame: hubFrame, modelFrame: modelFrame
-                )
-                let code: Character
-                switch hitDomain {
-                case .hub: code = "H"
-                case .model: code = "M"
-                case .spanningGlass: code = "G"
-                case .other: code = "o"
-                case .none: code = "·"
+            for sample in samples[rowName] ?? [] {
+                let result = attribute(sample, judged: judged)
+                codes.append(result.code)
+                if result.cross { cross += 1 }
+                if result.spanning { totalSpanning += 1 }
+                if result.code == "H" { seenHub = true }
+                if result.code == "M", seenHub, flipX == nil {
+                    flipX = sample.x
                 }
-                codes.append(code)
-                if code == "H" { seenHub = true }
-                if code == "M", seenHub, flipX == nil { flipX = x }
-                // 串扰：身份帧内（x 内缩 1pt）归模型/跨域
-                // 玻璃，或镜像
-                if let hubFrame,
-                   point.x >= hubFrame.minX + 1,
-                   point.x <= hubFrame.maxX - 1,
-                   hitDomain == .model || hitDomain == .spanningGlass {
-                    cross += 1
-                }
-                if let modelFrame,
-                   point.x >= modelFrame.minX + 1,
-                   point.x <= modelFrame.maxX - 1,
-                   hitDomain == .hub || hitDomain == .spanningGlass {
-                    cross += 1
-                }
-                x += 2
             }
-            totalCrosstalk += cross
+            if judged { totalCross += cross }
             lines.append(
-                "arm=\(armName) row=\(rowName) cross=\(cross) "
+                "arm=\(armName) row=\(rowName) judged=\(judged) cross=\(cross) "
                     + "flipX=\(flipX.map { String(format: "%.0f", $0) } ?? "-") "
                     + rle(codes)
             )
         }
-        lines.append("arm=\(armName) crosstalkTotal=\(totalCrosstalk)")
+        for (key, count) in inventory.sorted(by: { $0.value > $1.value }).prefix(8) {
+            lines.append("arm=\(armName) hit \(key) n=\(count)")
+        }
+        lines.append(
+            "arm=\(armName) crosstalkTotal=\(totalCross) "
+                + "spanningPoints=\(totalSpanning) framesResolved=\(framesResolved)"
+        )
         return ScanOutcome(
             report: lines.joined(separator: "\n"),
-            crosstalk: totalCrosstalk,
-            spanningInTree: spanningInTree
+            crosstalk: totalCross,
+            spanningPoints: totalSpanning,
+            framesResolved: framesResolved
         )
     }
 
@@ -521,46 +566,34 @@ final class CapsuleHitScanTests: XCTestCase {
             ),
             box: box
         )
-        let outcome = try runScan(
-            armName: "A-current",
-            hubLabel: "Hermes，在线，打开枢纽",
-            modelLabel: "当前模型 deepseek-flash，切换模型",
-            box: box
-        )
-        emit(outcome)
+        emit(try runScan(armName: "A-current", box: box))
     }
 
     /// ②行本体玻璃（§179 缺陷构型）——只记录
     func testScanArmB_RowBodyGlassForm() throws {
         let box = ScanBox()
         mount(arm: RowBodyGlassArm(), box: box)
-        let outcome = try runScan(
-            armName: "B-rowbody",
-            hubLabel: "扫描-枢纽",
-            modelLabel: "扫描-模型",
-            box: box
-        )
-        emit(outcome)
+        emit(try runScan(armName: "B-rowbody", box: box))
     }
 
-    /// ③苹果官方定式——阶段门：零串扰＋树内无跨域玻璃
+    /// ③苹果官方定式——阶段门：钮帧可测＋零串扰＋
+    /// 无跨域玻璃落点
     func testScanArmC_OfficialPattern_StageGate() throws {
         let box = ScanBox()
         mount(arm: OfficialPatternArm(), box: box)
-        let outcome = try runScan(
-            armName: "C-official",
-            hubLabel: "扫描-枢纽",
-            modelLabel: "扫描-模型",
-            box: box
-        )
+        let outcome = try runScan(armName: "C-official", box: box)
         emit(outcome)
+        XCTAssertTrue(
+            outcome.framesResolved,
+            "官方定式两钮帧未能测得——仪表落空，阶段门不成立"
+        )
         XCTAssertEqual(
             outcome.crosstalk, 0,
             "官方定式在真实容器层级内仍有串扰——按裁决停手回报，不许叠补丁"
         )
-        XCTAssertFalse(
-            outcome.spanningInTree,
-            "官方定式树内仍存在跨两域玻璃交互视图"
+        XCTAssertEqual(
+            outcome.spanningPoints, 0,
+            "官方定式仍有落点命中跨两域玻璃面"
         )
     }
 }
