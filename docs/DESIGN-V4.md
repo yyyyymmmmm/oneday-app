@@ -10312,4 +10312,4 @@ Codex 复核四条：两条 CI 可修（本节 A/B）、一条文档口径（本
   | B6 | （开向原无在途 hitTest） | 三合取 ② | 新增：关向 A5 的同构移植，探针点取位移后屏内窄条 |
   | B7–B8 | 落定 tx=travel／门关 | 同 | 原样保留 |
 - **账面**：测试法数不变（±0）；断言行 关向 8→7、开向 7→6，合计 15→13——删除探针断言 3 行（A3/B3/B4）、采样后门复断并入 2 行（A4/B5），新增直接见证 3 行（①×2＋开向 ②）。证据四维（提交／在途／门／命中）不减，每维改由确定性来源取证；落定断言零删除。
-- 分支 CI：【待回填】
+- 分支 CI：run 43172509099（1f1a949）全绿——job build-native 四步（Build／Unit tests／Package／Upload）success、** TEST SUCCEEDED **；Executed 实数：OneDayCore 1670 全绿（不变）、ComposerGuideHostTests 9/9、DrawerContainerControllerTests 13/13、DrawerBridgeHarnessTests 1/1；两条改形态用例均过（关向 2.128s／开向 2.056s，同步三合取首验通过）。**flake 记录：本轮 Drawer 套件首启停滞复现 1 次**——测试进程三度启动（All tests ×2＋Selected tests ×1），`testAnimatedCloseKeepsContentUntouchableUntilSettled` 首启 started 后无结果、经重启后 2.128s 通过，`testAnimatedCloseReturnsToZero` 重启后 2.089s 通过；与 §178.5／§178.10 先例同形态（首启负载停滞、无断言失败行），不阻断本轮结论。
