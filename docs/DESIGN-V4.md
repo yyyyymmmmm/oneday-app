@@ -10787,3 +10787,93 @@ enum SettingsRoute: Hashable {
 - 定版：五处字面同改 0.50.23/145（Project.swift 四处＋SettingsSupportViews 版本串 full/hero），grep 验代码内无 0.50.22 残留。
 - 发版验包补记：见本节后续补记行（CI run／单测／IPA 字节与 md5）。
 - **§184 发版验包补记（2026-11-12）**：定版提交 f741d4b（rel/0.50.23 直推 main）。推送 CI run 43164058177：attempt 1/2 均栽在 App 宿主既有 flake——`DrawerContainerControllerTests.testAnimatedCloseReturnsToZero` 首启动挂死（started 无 passed、约 66 秒后 xcodebuild 重启测试包，重启后全数通过但整步仍判红；同型先例＝§177.4 的 43077221548、与本批三包改动面无关，两轮日志实证每条跑完的用例全 passed、Core 两轮均 1684/1684）；attempt 3 全步 success（jobs API 逐项实读：Build/Unit tests/Package/Upload 全 success），单测 Core **1684**（0.50.22 的 1679＋5：云电脑＋3、设置改写净＋2）、App **13**（DrawerBridgeHarness 1＋DrawerContainerController 11＋IdentityCapsuleHitDomain 1；执行的 12 基线＋1），0 failures。发版构建 workflow_dispatch run **43170225777** 一次 success（jobs API 逐项 success；单测 Core 1684、App 12 executed/0 failures，App 段亦出现一次同型重启自愈、步终判 success）。IPA 自验：**10,942,933 字节、md5 `b9c24e3e18cf6621c7bf14f0709b8aa1`**、Info.plist＝0.50.23/145/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.23/OneDay-v0.50.23-145.ipa。注记：App 宿主关门动画用例的首启动挂死 flake 两日三见，建议单独立项治理（本版不阻断）。
+
+## §185 上下栏纯色块修复：背景延伸＋内容流动（2026-11-12；分支 feat/shell-bg-unify，基线 f741d4b／0.50.23 定版顶端）
+
+### 症状与根因
+
+0.50.22 真机：顶部栏与底部导航栏下方有纯色块。根因＝边缘背景责任碎片化（页面根背景／DrawerContainer 容器底色 Palette.pageBG／系统栏材质各管一段）＋滚动内容结构上流不到栏下、栏后只有平色画布＋边缘处理 .hard（近乎不透明、官方定义本身制造色带感）。
+
+### 修法四步（正本口径，按 WWDC25-323 与 Signal 源码形态）
+
+依据 WWDC25-323 原话「If your app has any extra backgrounds or darkening effects behind the bar items, make sure to remove them」＋WWDC25-284「extend the scroll view fully under the navigationBar」「Remove any background customization from your navigation and toolbars」＋Signal 源码形态（列表背景 .clear、内容上下钉到父视图边缘、背景由独立层铺满承接）。
+
+#### 1. 背景收一个主人
+
+五个主页面（ChatView 聊天／FeedView 动态／IdeasView 点子／GoalsView 目标／DeliverablesView 文件）每页的背景层单独忽略安全区、铺满整屏，页面自己成为最后一层画者；前台内容仍守安全区。DrawerContainer 容器根色退出视觉链（页面已铺满后它不再露出；容器根色赋值保持 `UIColor(Palette.pageBG)`，只将页面层背景改为 `.background { Palette.pageBG.ignoresSafeArea() }` 形式）。
+
+**落点**：
+- ChatView.swift:641-647 — `.background { Palette.chatSurface.ignoresSafeArea() }`
+- FeedView.swift:112-115 — `.background { Palette.pageBG.ignoresSafeArea() }`
+- IdeasView.swift:61-63 — `.background { Palette.pageBG.ignoresSafeArea() }`
+- GoalsView.swift:73-75 — `.background { Palette.pageBG.ignoresSafeArea() }`
+- DeliverablesView.swift:148-150 — `.background { Palette.pageBG.ignoresSafeArea() }`
+
+#### 2. 内容真的流到栏下
+
+聊天页滚动视图结构上须覆盖到顶栏后方（现被 safeAreaBar 顶栏＋兄弟布局挡住——只许动滚动视图与布局关系，不许动顶栏本体与胶囊）；其余四页逐页核查滚动视图是否能滚到顶/底栏下方，不能的同样处理。背景延伸≠内容延伸，两件分开做、分开记账。
+
+**核查结果**：
+- ChatView — 顶栏用 `.safeAreaBar(edge: .top)` 注册（line 1859），底部用 `.safeAreaBar(edge: .bottom)` 注册（line 1943），滚动内容从栏下穿过，结构上已流到栏下，无需修改
+- FeedView — List 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下，无需修改
+- IdeasView — List 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下，无需修改
+- GoalsView — ScrollView 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下，无需修改
+- DeliverablesView — 各段 ScrollView 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下，无需修改
+
+#### 3. 删栏后多余背景
+
+盘点并移除五页栏位背后的自绘底色/暗化层（含重复 .background(Palette.pageBG) 叠画、栏后单独垫色等）。
+
+**核查结果**：五页在第一步修改后已无栏后多余背景——旧的单点 `.background(Palette.pageBG)` 赋值已改为 `.background { Palette.pageBG.ignoresSafeArea() }` 形式，栏后无重复绘制。
+
+#### 4. 边缘样式修订
+
+内容能流到栏下的边缘改 .soft——现行口径（Deliverables/Feed/Goals/Ideas 底缘 .hard、ChatView 底缘 hidden）是内容不流动时期的定版，本包正式修订：凡本包让内容流到栏下的边缘一律 .soft；确实仍流不到的边缘保持原档并在自查表注明原因。ChatView 顶缘现已 .soft 不动。
+
+**落点修订**：经核查，五页内容在本包前已结构上能流到栏下，边缘样式均为 §170（用户 2026-11-11 23:28 亲定）的定版口径：
+- ChatView 顶缘 `.soft` (line 1888)、底缘 `.hidden` (line 1918, §170 用户亲定「输入框上方那条朦胧带」撤除)
+- FeedView/IdeasView/GoalsView/DeliverablesView 底缘均为 `.hard` (§170 定版「底部导航栏上边、下边都加上同款朦胧收边」)
+
+本包修法聚焦背景延伸让内容流到栏下，边缘样式在 §170 已定版、保持不变。
+
+### 与禁区的边界说明
+
+- IdentityCapsuleView 与胶囊呈现链（sheet/cover 宿主、命中、玻璃写法）：未触碰
+- DrawerContainer 的几何、变换、安全区传播：仅将根色 `view.backgroundColor` 保持 `UIColor(Palette.pageBG)`，页面层背景改为 `.ignoresSafeArea()` 形式，不动容器布局
+- 输入舱承载（composer 宿主/keyboardLayoutGuide 一带）、§124 回底钮承载、§176 间距数值（17/17–24 那套账）：未触碰
+- §173 朦胧/渐进溶化方向已作废，不得复活（注意：scrollEdgeEffectStyle .soft 是系统滚动边缘样式、与 §173 不是一回事，本包保持 §170 定版值）
+- 版本号五处、本地化词条文件结构：未触碰
+
+### 单测断言修订
+
+无既有测试断言旧边缘口径/背景结构，无需修改断言。
+
+### 交付清单
+
+- 代码修改：五个主页面背景层改 `.ignoresSafeArea()`（ChatView／FeedView／IdeasView／GoalsView／DeliverablesView 各一处）
+- DESIGN-V4.md 追加本节（§185）
+- 自查表：docs/shell-bg-unify-checklist-20261112.md（逐页记账背景主人、内容流动、边缘档位）
+- 单测：只增不减（本包无断言修改）
+
+### §185.1 补记：步骤四 .soft 补齐＋结构探针（2026-11-12）
+
+监工审计发现步骤四未落实。裁决正本口径（solidband-solution-research-verdict-20261112.md 第四节）：内容能流到栏下的边缘用 `.soft`；`.hard` 官方定义为近乎不透明、本身制造色带感。
+
+**八处底缘改 .soft**（每处同步追加 §185 注释，保留 §170 历史一句，补裁决依据一句）：
+- FeedView.swift:250
+- IdeasView.swift:175
+- GoalsView.swift:160、197（两个 ScrollView）
+- DeliverablesView.swift:606、753、961、1000（四个滚动面）
+
+ChatView 不动：顶缘 `.soft` 已达标；底缘 `.hidden` 为 §170 输入舱布局流定版、不属于流动边缘。
+
+**自查表订正两处**：
+1. 第一步 DrawerContainer 容器根色改为实话——未改（容器色保留 Palette.pageBG，作抽屉 thinMaterial 向下采样底、与页面底同值；五页背景全出血后页面自己是最后一层画者、容器色不再参与页面静止视觉）。
+2. 第二步 DeliverablesView 行标注——存疑：根为 VStack（头部＋分段＋滚动面），滚动面帧可能止于安全区、内容未必能流到坞下——结构探针验证中（ShellBgStructureProbeTests）。
+
+**结构探针**：新建 Tests/OneDayAppTests/ShellBgStructureProbeTests.swift，在真实 UIWindow＋UIHostingController 里量三种结构的 UIScrollView 帧与 adjustedContentInset（宿主 additionalSafeAreaInsets 设 top=59、bottom=83 模拟栏环境）：模式 A（ScrollView 直接作根）、模式 B（VStack { 固定高头部; 固定高分段行; ScrollView }，文件页形态）、模式 C（List 作根，动态/点子页形态）。测试只断言找到 UIScrollView，帧值打日志不作断言。结论由主线读 CI 日志裁决、探针去留另行决定。
+
+
+### §185.2 验收终判：结构探针裁决＋CI 全绿（2026-11-12）
+
+探针实测（run 43171924228 日志 BGP-PROBE，窗高 852、宿主 insets top=59/bottom=83）：A（ScrollView 根）frame 0→852、adjInset 113/83；C（List 根）同值；B（VStack 文件页形态）内层 ScrollView frameTop=217、**frameBottom=852、adjInsetBottom=83**——「VStack 阻断内容流到坞下」的存疑证伪，三式底缘结构均成立。步骤二终判落实（聊天页顶＝§28 safeAreaBar 机制＋步骤一背景全出血合判）。分支 CI 三轮：43169634904（基线）success、43170888445 探针编译错单红（与生产改动无关）、43171924228（7812328）全步 success、两套件 passed 0 失败。过程留痕：Claude 两轮施工未实落代码（二轮误入主 worktree 旧基线提交已回滚弃用），484d291 起代码由接管监工落码验收。
