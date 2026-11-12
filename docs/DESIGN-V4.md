@@ -10285,3 +10285,31 @@ Codex 复核四条：两条 CI 可修（本节 A/B）、一条文档口径（本
 - run 43168297403（bb5489b）：构建成功、Core 1670/1670、ComposerGuideHostTests 9/9、DrawerBridgeHarnessTests 1/1 通过；打开向 helper 报 `presentation layer did not appear during animation`，随后 nil 哨兵断言失败。关闭向首启停滞、重启后跳过，与 run 43137644303 原代码首启停滞及 §178.5 先例一致，作为已知负载 flake，超出本轮范围。
 - §178.9 启动前暂停时钟的方案已被此 CI 证据推翻并取代：冻结前景层时钟使 presentation layer 未能出现。移除所有时钟操作，改在同步首帧断言之后 flush 事务，以不超过 1/240 秒的小片泵主 run loop，最多等待 2 秒，首个非 nil presentation 即采样；超时仍明确报错。duration 为 0 的 UISpringTimingParameters 弹簧约需 0.5 秒，首个提交帧仍基本位于起点，因此无需冻结时间即可确定性采样，暴露窗口由固定 50ms 墙钟等待缩为一帧。
 - 两向途中位移和交互断言、关闭向命中断言及落定断言保留；生产门控不变，测试数不变。CI 待协调方重新验证。
+
+### 178.11 在途断言改同步三合取（2026-11-12，presentation 探针废弃）
+- **废弃理由与证据链**：两条动画在途用例的在途见证前后换了三种采样法、逐一被 CI 证伪——①墙钟/短泵采样（run 43135767515 起，run 43137644303 定性：50ms 墙钟非帧同步点）；②层时钟暂停取样（run 43168297403 证伪：冻结前景层时钟下 presentation layer 永不出现）；③首个提交帧采样（run 43170509806 证伪：flush＋≤1/240s 轮询泵满 2s 仍报 `presentation layer did not appear`，且泵窗已越过弹簧时长、同 run 后续「途中」断言实际落在落定态——门已按落定开回、命中已入内容，与落定状态一致、非生产回归）。结论：本测试宿主内 `layer.presentation()` 恒不可得，探针本身无量测力，整体删除（`foregroundPresentationTx`＋`waitForInFlightPresentationTx` 两个 helper，全仓仅此两测引用）。
+- **生产无回归旁证（三轮恒同）**：同步首拍交互断言恒过、OneDayCore 1670 恒全过、ComposerGuideHostTests 9/9 恒过（其关闭途中同步 hitTest 与本节 ②同源）；三轮红点全部落在探针采样及其后续断言，生产门控（`applyOffset` 的 animator 门＋`finishSettle` 落定复位）从未被证伪。本轮生产代码零改动。
+- **新形态**：两测在途段改在 `setDrawer` 返回的**同步瞬间**取三合取——①model 位移已落目标值（关 0／开 travel，accuracy 0.5；动画闭包在启动拍同步写 model，提交前读数与断言互斥，是「动画已提交」的直接见证）；②hitTest 在显示几何（动画前几何）下属于内容的探针点不得入内容宿主（关向＝原中心点 (196, 426) 原样前移；开向＝新增，探针点取前景 model 位移后的屏内窄条 (travel+40, 426)、与关向同构——门若在起始拍误开，此点必穿入宿主）；③内容交互门已关。
+- **确定性**：同步瞬间若走的是瞬时路径，`finishSettle` 已同拍跑完——关向必按终值 0 把门开回（与 ③ 矛盾），故关向 ③ 只在 animator 在途时成立；开向 ① 在调用前读数恒为 0、落 travel 只能来自动画闭包的同步提交。飞行全程门的写口只有 `applyOffset`（animator != nil 恒置关）与 `finishSettle`（完成回调清 animator 后才跑）——此不变性是生产代码事实（DrawerContainerView.applyOffset/finishSettle），不在测试内以采样重复取证，采样正是被证伪的路径。落定断言两测全数保留，从另一端封口。
+- **断言映射账（原断言→新断言，逐条）**：
+  关向 `testAnimatedCloseKeepsContentUntouchableUntilSettled`：
+  | # | 原断言 | 新断言 | 处置 |
+  |---|---|---|---|
+  | A1 | 开态（瞬时开）落定门关 | 同 | 原样保留 |
+  | A2 | 起始帧同步门关 | 三合取 ③ | 保留（位置/文案不变） |
+  | A3 | presentation midTx > 1（在途见证） | 三合取 ①②③ 合取 | 探针删除、合取替代 |
+  | A4 | 采样后途中门关 | 三合取 ③ | 并入：观察点由采样后前移至提交瞬间，依据＝飞行全程门写口唯一性 |
+  | A5 | 采样后 hitTest（中心点）不入内容宿主 | 三合取 ② | 同点同形、观察点前移至提交瞬间 |
+  | A6–A8 | 落定 tx=0／门开／命中回内容 | 同 | 原样保留 |
+  开向 `testAnimatedOpenDisablesContentFromFirstFrame`：
+  | # | 原断言 | 新断言 | 处置 |
+  |---|---|---|---|
+  | B1 | 关态落定门开 | 同 | 原样保留 |
+  | B2 | 起始帧同步门关 | 三合取 ③ | 保留（位置/文案不变） |
+  | B3 | presentation midTx > −0.5（提交见证） | 三合取 ① | model 同步落 travel（accuracy 0.5）直接见证提交 |
+  | B4 | presentation midTx < travel−1（在途见证） | 三合取 ①②③ 合取 | 探针删除、合取替代 |
+  | B5 | 采样后途中门关 | 三合取 ③ | 并入（同 A4） |
+  | B6 | （开向原无在途 hitTest） | 三合取 ② | 新增：关向 A5 的同构移植，探针点取位移后屏内窄条 |
+  | B7–B8 | 落定 tx=travel／门关 | 同 | 原样保留 |
+- **账面**：测试法数不变（±0）；断言行 关向 8→7、开向 7→6，合计 15→13——删除探针断言 3 行（A3/B3/B4）、采样后门复断并入 2 行（A4/B5），新增直接见证 3 行（①×2＋开向 ②）。证据四维（提交／在途／门／命中）不减，每维改由确定性来源取证；落定断言零删除。
+- 分支 CI：【待回填】
