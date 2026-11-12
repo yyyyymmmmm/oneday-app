@@ -34,7 +34,6 @@ final class ComposerGuideHostTests: XCTestCase {
     final class ShellState {
         var selection = 0
         var bottomSpace: CGFloat = 168
-        var contentHeight: CGFloat = 76
         var tallBar = false
     }
 
@@ -149,8 +148,7 @@ final class ComposerGuideHostTests: XCTestCase {
                     // 几何链——托管＋实测留位；滚动指令链
                     // 由 Core 协调器测试与真机清单承担）
                     ComposerGuideHost(
-                        bottomSpace: $state.bottomSpace,
-                        contentHeight: $state.contentHeight
+                        bottomSpace: $state.bottomSpace
                     ) {
                         // 构建计数（诊断：桥 init 求值次数
                         // ——分清「没重建」与「重建没长高」）
@@ -287,15 +285,12 @@ final class ComposerGuideHostTests: XCTestCase {
         return view.convert(view.bounds, to: window)
     }
 
-    /// 舱的活量帧：经控制器层级找舱宿主视图直接换算
-    /// （reporter 的帧在纯 transform 位移下不重报、会
-    /// 陈旧；活量对变换即时准确）
+    /// 舱的活量帧：量 reporter 登记的舱本体视图（滚动
+    /// /变换后即时准确，绕开落盒帧的陈旧窗口）。宿主
+    /// 自 §178 定版起全高填充、其帧不再是舱帧——舱帧
+    /// 只认舱本体（树内以理想高成帧）
     private func liveBarFrame() -> CGRect? {
-        guard let host = guideHostController(),
-              let barHostView = host.children.first?.view,
-              let window
-        else { return nil }
-        return barHostView.convert(barHostView.bounds, to: window)
+        liveFrame("bar")
     }
 
     /// 以 UIKit 把替身列表压到底：scrollRectToVisible
@@ -416,9 +411,11 @@ final class ComposerGuideHostTests: XCTestCase {
         // 跟随」的整条传导链，状态归因的新鲜度本身由
         // 真机清单承担（错误条/回底钮显隐逐项在内）
         state.bottomSpace += 1
-        // 等回报跟上长高（重建→布局→回报链）
+        // 等回报跟上长高（重建→树内布局→帧回报链）：
+        // 等变化量抵达 40 而非任一变化——戳写本身先
+        // 带来 +1、不能冒充长高已落地
         let deadline = Date().addingTimeInterval(4)
-        while abs(state.bottomSpace - spaceBefore) < 1,
+        while abs((state.bottomSpace - spaceBefore) - 40) > 2,
               Date() < deadline {
             spinRunLoop(seconds: 0.25)
         }
@@ -440,7 +437,7 @@ final class ComposerGuideHostTests: XCTestCase {
             "回报值应随舱顶同步变化（\(diag)）")
         XCTAssertEqual(
             liveBarFrame()?.height ?? -1, 116, accuracy: 2,
-            "宿主视图高应随内容长到 116（\(diag)）")
+            "舱本体高应随内容长到 116（\(diag)）")
     }
 
     /// 透传：host 视图在列表区（舱带之上）的点 hitTest

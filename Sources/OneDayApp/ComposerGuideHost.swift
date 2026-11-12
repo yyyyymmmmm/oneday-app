@@ -81,16 +81,6 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 舱顶→窗口底距离的实测回报（host 在布局拍回写；
     /// ChatView 以此＋spacingS 作列表底 contentMargins）
     @Binding var bottomSpace: CGFloat
-    /// 舱高实测通道（托管树内量、经 ChatView 状态喂回
-    /// 控制器写高度约束）：数值由 apply 在托管根上挂的
-    /// GeometryReader＋PreferenceKey 量得（§152 附件面
-    /// 板实测高同款机制、生产已验）——不用 UIHosting-
-    /// Controller 的 sizing 通道：嵌套托管下其理想高
-    /// 在换根/内容生长时不重算（宿主测试三证：重建、
-    /// 重赋值、invalidate 均发生而宿主高恒冻；size-
-    /// ThatFits 显式量测又扰动回报链），高必须由实
-    /// 测值显式驱动
-    @Binding var contentHeight: CGFloat
     /// 舱本体（ChatView 的 bottomBar 整栈）：在 init 里
     /// 由构建闭包求值成视图值——求值发生在 ChatView 的
     /// body 构建期，bottomBar 内部的全部状态读数由此归
@@ -106,11 +96,9 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
 
     init(
         bottomSpace: Binding<CGFloat>,
-        contentHeight: Binding<CGFloat>,
         @ViewBuilder content: () -> Content
     ) {
         self._bottomSpace = bottomSpace
-        self._contentHeight = contentHeight
         self.content = content()
     }
 
@@ -150,52 +138,55 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         let appState = appState
         let modelContext = modelContext
         let locale = locale
-        controller.composerHeight = contentHeight
-        let contentHeight = $contentHeight
         controller.composerRoot = AnyView(
-            content
-                // 舱高实测：背景 GeometryReader 量舱本
-                // 体帧高（fixedSize 内容在宿主给高不足
-                // 时仍按理想高成帧、量得真值）、经
-                // PreferenceKey 在托管树内回报——消费
-                // 者同在托管根上（PreferenceKey 不跨托
-                // 管边界，量与收必须同树，§152 同理）
-                .background {
-                    GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: ComposerHeightKey.self,
-                            value: proxy.size.height
-                        )
-                    }
-                }
-                .onPreferenceChange(ComposerHeightKey.self) { value in
-                    guard value > 0 else { return }
-                    // 与回报同纪律：下一拍写、等值守卫
-                    DispatchQueue.main.async {
-                        if abs(contentHeight.wrappedValue - value)
-                            > 0.5 {
-                            contentHeight.wrappedValue = value
+            VStack(spacing: 0) {
+                // 宿主全高填充（顶贴页顶、底钉引导线）：
+                // 舱在托管树内被 Spacer 顶到宿主底边，
+                // 以自身理想高成帧——舱高不经 UIHosting-
+                // Controller 的任何 sizing 通道（嵌套托
+                // 管下其理想高在换根/生长时不重算、量根
+                // 帧又是约束自引用，宿主测试三路证伪；
+                // 树内布局是唯一如实通道）。Spacer 与
+                // VStack 容器本身不接命中，舱带外命中
+                // 的穿透由控制器根视图按实测舱帧判定
+                Spacer(minLength: 0)
+                content
+                    // 舱帧实测：背景 GeometryReader 报
+                    // 舱的窗口系帧（CGRect），Preference-
+                    // Key 在托管树内上行（不跨托管边
+                    // 界，量与收同树）→控制器据此算舱
+                    // 顶回报并作透传判定帧
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: ComposerBarFrameKey.self,
+                                value: proxy.frame(in: .global)
+                            )
                         }
                     }
-                }
-                .environment(appState)
-                .environment(\.modelContext, modelContext)
-                .environment(\.locale, locale)
-                .boldTextMapping()
+            }
+            .onPreferenceChange(ComposerBarFrameKey.self) { frame in
+                controller.updateBarFrame(frame)
+            }
+            .environment(appState)
+            .environment(\.modelContext, modelContext)
+            .environment(\.locale, locale)
+            .boldTextMapping()
         )
     }
 }
 
-/// 舱高实测的 PreferenceKey（单舱单值、取后到值）
-private struct ComposerHeightKey: PreferenceKey {
+/// 舱帧实测的 PreferenceKey（单舱单值、取后到帧；
+/// 零帧＝未布局，不采）
+private struct ComposerBarFrameKey: PreferenceKey {
     // 计算属性形态：Swift 6 下存储型静态默认值会撞
     // 并发安全（nonisolated 全局可变状态）
-    static var defaultValue: CGFloat { 0 }
+    static var defaultValue: CGRect { .zero }
     static func reduce(
-        value: inout CGFloat, nextValue: () -> CGFloat
+        value: inout CGRect, nextValue: () -> CGRect
     ) {
         let next = nextValue()
-        if next > 0 { value = next }
+        if next.height > 0 { value = next }
     }
 }
 
@@ -203,16 +194,31 @@ private struct ComposerHeightKey: PreferenceKey {
 /// 白处一律穿透到下层（消息列表）——列表的点空白收键
 /// 盘、滚动手势的作用域不因本件盖了一层全帧视图而缩
 private final class ComposerPassthroughView: UIView {
+    /// 舱的窗口系实测帧（控制器逐次更新）：宿主全高
+    /// 填充后，舱带外的空白区同在宿主子树内——命中
+    /// 点落在实测舱帧外的一律放行穿透到下层（消息
+    /// 列表）；帧未到（.zero）时全放行（首拍前的亚
+    /// 拍级瞬态，舱随即实测就位）
+    var barFrameInWindow: CGRect = .zero
+
     override func hitTest(
         _ point: CGPoint, with event: UIEvent?
     ) -> UIView? {
         let hit = super.hitTest(point, with: event)
-        return hit === self ? nil : hit
+        guard let hit, hit !== self else { return nil }
+        guard barFrameInWindow.height > 0, let window
+        else { return hit }
+        let windowPoint = convert(point, to: window)
+        return barFrameInWindow.contains(windowPoint)
+            ? hit : nil
     }
 }
 
 /// 引导线托管控制器本体：只管舱宿主的钉位（引导线＋
-/// 地板钳制）与舱顶实测回报，不知业务页面
+/// 地板钳制）与舱顶实测回报，不知业务页面。宿主全高
+/// 填充本控制器视图（顶贴视图顶、底钉引导线），舱在
+/// 托管树内被 Spacer 顶到宿主底边以理想高成帧（桥侧
+/// apply 组合），本类不再经手舱高
 final class ComposerGuideHostController: UIViewController {
     /// 舱根视图（桥注入；赋值即刷进舱宿主）
     var composerRoot: AnyView? {
@@ -220,18 +226,6 @@ final class ComposerGuideHostController: UIViewController {
             if let composerRoot {
                 composerHost.rootView = composerRoot
             }
-        }
-    }
-    /// 舱高（桥喂入的实测值，源头见桥的 content-
-    /// Height 通道）：写入高度约束常数；约束未建
-    /// （视图未装配）时只存值、装配时以存值建约
-    var composerHeight: CGFloat = 0 {
-        didSet {
-            guard let heightConstraint,
-                  abs(heightConstraint.constant - composerHeight)
-                    > 0.5
-            else { return }
-            heightConstraint.constant = composerHeight
         }
     }
     /// 舱顶→窗口底距离变化回调（桥接回 SwiftUI 状态；
@@ -242,8 +236,22 @@ final class ComposerGuideHostController: UIViewController {
         rootView: AnyView(EmptyView())
     )
     private var bottomConstraint: NSLayoutConstraint!
-    private var heightConstraint: NSLayoutConstraint!
+    /// 舱的窗口系实测帧（桥的 Preference 通道喂入）：
+    /// 回报与透传判定共用这一份事实
+    private var barFrameInWindow: CGRect = .zero
     private var lastReportedSpace: CGFloat = -1
+
+    /// 舱帧喂入点（托管树每次布局后经 Preference 上
+    /// 行）：存帧、同步给透传判定、并立即尝试回报——
+    /// 舱在树内生长时本类未必有布局拍，回报不能只靠
+    /// viewDidLayoutSubviews 兜底
+    func updateBarFrame(_ frame: CGRect) {
+        guard frame.height > 0 else { return }
+        barFrameInWindow = frame
+        (viewIfLoaded as? ComposerPassthroughView)?
+            .barFrameInWindow = frame
+        reportBottomSpace()
+    }
 
     override func loadView() {
         view = ComposerPassthroughView()
@@ -257,10 +265,6 @@ final class ComposerGuideHostController: UIViewController {
         // 不许宿主再按窗口安全区给它派生一份（双计防线，
         // 配件核查报告第 6 条同坑）
         composerHost.safeAreaRegions = []
-        // 高度走显式约束（composerHeight 实测驱动），
-        // 不挂 sizingOptions—— sizing 通道与显式约束
-        // 双驱动会互相拉扯（且 sizing 在嵌套托管下本
-        // 就不重算，见桥的 contentHeight 通道注）
         addChild(composerHost)
         composerHost.view.backgroundColor = .clear
         composerHost.view.translatesAutoresizingMaskIntoConstraints =
@@ -270,16 +274,19 @@ final class ComposerGuideHostController: UIViewController {
         bottomConstraint = composerHost.view.bottomAnchor
             .constraint(
                 equalTo: view.keyboardLayoutGuide.topAnchor)
-        heightConstraint = composerHost.view.heightAnchor
-            .constraint(equalToConstant: composerHeight)
         NSLayoutConstraint.activate([
             composerHost.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor),
             composerHost.view.trailingAnchor.constraint(
                 equalTo: view.trailingAnchor),
+            composerHost.view.topAnchor.constraint(
+                equalTo: view.topAnchor),
             bottomConstraint,
-            heightConstraint,
         ])
+        if barFrameInWindow.height > 0 {
+            (view as? ComposerPassthroughView)?
+                .barFrameInWindow = barFrameInWindow
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -300,16 +307,16 @@ final class ComposerGuideHostController: UIViewController {
         reportBottomSpace()
     }
 
-    /// 舱顶实测回报：舱帧换算到窗口坐标，报「舱顶→窗
-    /// 口底」距离——页帧在键盘态如何伸缩都不进公式，
-    /// ChatView 侧只做＋spacingS 一步
+    /// 舱顶实测回报：以桥喂入的窗口系舱帧为准，报
+    /// 「舱顶→窗口底」距离——页帧在键盘态如何伸缩、
+    /// 宿主填充多高都不进公式，ChatView 侧只做
+    /// ＋spacingS 一步
     private func reportBottomSpace() {
-        guard let window = view.window,
-              composerHost.view.bounds.height > 0
+        guard let window = viewIfLoaded?.window,
+              barFrameInWindow.height > 0
         else { return }
-        let barFrame = composerHost.view.convert(
-            composerHost.view.bounds, to: window)
-        let space = window.bounds.height - barFrame.minY
+        let space = window.bounds.height
+            - barFrameInWindow.minY
         guard abs(space - lastReportedSpace) > 0.5 else { return }
         lastReportedSpace = space
         onBottomSpaceChange?(space)
