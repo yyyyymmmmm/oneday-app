@@ -156,13 +156,33 @@ let project = Project(
                 .target(name: "OneDayApp"),
             ]
         ),
+        // UI 测试（症二阶段二动作级验证起）：系统级
+        // 真实点按只能走 XCUITest（宿主内自造 UIEvent
+        // 投递两轮实证到不了 SwiftUI 按钮 machinery，
+        // 见 TAP-DISPATCH-DATA 的仪表记录）；实验装配
+        // 在 App 侧 DEBUG 启动参数门后（CapsuleTap-
+        // Harness），发布构建恒不触发
+        .target(
+            name: "OneDayUITests",
+            destinations: .iOS,
+            product: .uiTests,
+            bundleId: "site.didichou.oneday.app.uitests",
+            deploymentTargets: iOS26,
+            infoPlist: .default,
+            sources: ["Tests/OneDayUITests/**"],
+            dependencies: [
+                .target(name: "OneDayApp"),
+            ]
+        ),
     ],
     schemes: [
         .scheme(
             name: "OneDayApp",
             shared: true,
             buildAction: .buildAction(targets: ["OneDayApp"]),
-            testAction: .targets(["OneDayCoreTests", "OneDayAppTests"]),
+            testAction: .targets([
+                "OneDayCoreTests", "OneDayAppTests", "OneDayUITests",
+            ]),
             runAction: .runAction(executable: "OneDayApp")
         ),
     ]

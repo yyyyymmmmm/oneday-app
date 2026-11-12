@@ -47,7 +47,7 @@ jobs:
             -project OneDay.xcodeproj \
             -scheme OneDayApp \
             -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -only-testing:OneDayCoreTests -only-testing:OneDayAppTests \
+            -only-testing:OneDayCoreTests -only-testing:OneDayAppTests -only-testing:OneDayUITests \
             CODE_SIGNING_ALLOWED=NO \
             | tee test-full.log
           grep -E "error:|Test Case|Executed|TEST" test-full.log | head -60 || true
