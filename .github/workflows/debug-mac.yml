@@ -2,9 +2,9 @@ name: Debug Mac (tmate SSH)
 
 # Manual-only debug entry point: opens a tmate session on a free
 # GitHub-hosted macOS runner. Access is restricted to the SSH public
-# key below via tmate-authorized-keys — the connection string printed
-# in the log is useless without the matching private key.
-# The connection string is also uploaded as the "tmate-ssh" artifact,
+# key below via tmate-authorized-keys — the connection string is
+# useless without the matching private key.
+# The connection string is uploaded as the "tmate-ssh" artifact,
 # because job logs are not readable via API while a run is in progress.
 # Stop the session by cancelling the run.
 
@@ -23,29 +23,42 @@ jobs:
         env:
           DEBUG_SSH_PUBKEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE9w9oWkcFoFu/Qc/KxCgiLSSfzCCqBbEvMealEqtJBW hatch
         run: |
-          set -euxo pipefail
+          set -uxo pipefail
+          cd "$GITHUB_WORKSPACE"
+          # --- network probes toward tmate.io (diagnostics) ---
+          {
+            echo '== dig =='; dig +short ssh.tmate.io || nslookup ssh.tmate.io
+            echo '== tcp 22 =='; nc -vz -w 8 ssh.tmate.io 22
+            echo '== ssh banner =='; ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8 -o BatchMode=yes -T ssh.tmate.io true
+          } > diag-net.txt 2>&1 || true
+          # --- tmate with verbose server/client logs ---
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$DEBUG_SSH_PUBKEY" > "$HOME/.ssh/authorized_keys"
           chmod 600 "$HOME/.ssh/authorized_keys"
           printf 'set -g tmate-authorized-keys "%s/.ssh/authorized_keys"\n' "$HOME" > "$HOME/.tmate.conf"
-          tmate -S /tmp/tmate.sock new-session -d >/dev/null 2>&1 </dev/null || true
-          # `tmate wait tmate-ready` can block indefinitely; poll the
-          # session string instead, bounded to ~2 minutes.
+          tmate -S /tmp/tmate.sock -v new-session -d >/dev/null 2>&1 </dev/null || true
           SSH_STR=""
-          for i in $(seq 1 60); do
+          for i in $(seq 1 45); do
             SSH_STR="$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' 2>/dev/null || true)"
             [ -n "$SSH_STR" ] && break
             sleep 2
           done
           echo "TMATE_SSH=$SSH_STR"
-          [ -n "$SSH_STR" ]
           printf '%s\n' "$SSH_STR" > "$GITHUB_WORKSPACE/tmate-ssh.txt"
+          tmate -S /tmp/tmate.sock show-messages > diag-tmate-messages.txt 2>&1 || true
+          [ -n "$SSH_STR" ]
 
-      - name: Upload connection string
+      - name: Upload debug bundle
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tmate-ssh
-          path: tmate-ssh.txt
+          path: |
+            tmate-ssh.txt
+            diag-net.txt
+            diag-tmate-messages.txt
+            tmate-*.log
+          if-no-files-found: warn
           retention-days: 1
 
       - name: Hold runner for the debug session (job cap 360 min)
