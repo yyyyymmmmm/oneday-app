@@ -173,6 +173,19 @@ struct ContentView: View {
         ) {
             tabView
         }
+        // 症三定因修复（2026-11-12，探针实证 docs/
+        // shell-float-fix/FLOAT-FIX-REPORT.md）：桥默
+        // 认被 SwiftUI 摆进**安全区矩形**——容器视图
+        // 帧 (0,59 402×781)、自身安全区读数为零，底
+        // 部 34pt 被帧偏移吃掉，内容宿主里的 TabView
+        // 按「无 Home Indicator」档布局，底坞比标准
+        // 多浮整整一个底安全区（同台对照 55 vs 21，
+        // 与真机量测 57±2 对 34–36 同构）。改全屏安
+        // 放：容器帧回全屏、安全区改走系统传播回页
+        // 面与底栏（顶栏同理，帧偏移与 inset 传播对
+        // 页面落点等价）。回归由 TabBarFloatTests 钉
+        // 住（桥链浮空须与纯宿主对照同值）
+        .ignoresSafeArea()
         // 0.36.0（无障碍 A11Y-S3）：粗体文字映射全
         // App 只挂根视图这一处
         .boldTextMapping()
