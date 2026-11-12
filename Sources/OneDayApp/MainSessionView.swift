@@ -133,7 +133,7 @@ struct MainSessionView: View {
     private var statusText: String {
         let store = appState.sideChats
         if store.mainServerConfirmed, store.mainServerSeeded,
-           let id = store.mainServerSessionID {
+           store.mainServerSessionID != nil {
             return "已链接"
         }
         if let error = store.mainLinkLastError {

@@ -229,16 +229,6 @@ struct SettingsView: View {
                     )
                 }
             }
-                        companionNote: companionFooterNote
-                    )
-                case .privacy:
-                    LegalDocumentView(kind: .privacy)
-                case .terms:
-                    LegalDocumentView(kind: .terms)
-                case .agent(let agentRoute):
-                    agentDestination(agentRoute)
-                }
-            }
             .confirmationDialog(
                 "重启网关？",
                 isPresented: $showRestartConfirm,

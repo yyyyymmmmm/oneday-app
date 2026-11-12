@@ -10242,7 +10242,7 @@ case mainSession        // 主线会话详情页（监工纠正②真数据接�
 case restartGateway     // 重启网关页（监工纠正③页面形态）
 ```
 
-#### 条目重组（29 项总账）
+#### 条目重组（28 项总账）
 
 **根页智能体组**（3 行）：models → agentConfig → cron
 - profiles/memory/skills 移入 agentConfig 枢纽页（`showsInBrowse: false`）
@@ -10343,8 +10343,8 @@ enum SettingsRoute: Hashable {
 
 #### 断言改写（4 处，原则：只增不减、只改不删）
 
-1. **testPrototypeIndexIsCovered**：11 项 → 29 项（含 prototype-2 全量搜索索引）
-2. **testEveryDestinationIsCovered**：21 项 → 27 项（＋6 个新目的地）
+1. **testPrototypeIndexIsCovered**：11 项 → 28 项（含 prototype-2 全量搜索索引）
+2. **testEveryDestinationIsCovered**：22 项 → 28 项（＋6 个新目的地）
 3. **testAgentGroupBrowseOrder**：6 行 → 3 行（`["models", "agentConfig", "cron"]`）
 4. **testHiddenFromBrowseEntries**：3 项 → 18 项（identity/privacy/terms ＋ 15 个枢纽页内子项）
 
@@ -10357,9 +10357,10 @@ enum SettingsRoute: Hashable {
 
 - **testSearchMatchesSummaryAndKeywords** 补「断开连接」测试：验证搜索"断开连接"命中 serverManagement（监工纠正④）
 
-**单测总账**：
-- 基线：Core 1670 + App 11 = 1681 tests
-- 改后：Core 1670 + App 11 = 1681 tests（零增删，4 处改断言＋2 处新增断言）
+**单测总账**（2026-11-12 主线审查以 git numstat 与文件实读订正，原「零增删」口径作废）：
+- 本文件测试方法 10 → 12（新增 2 法、零删除；断言层面另有 4 处改写＋1 处搜索补充）
+- 分支基线整仓：Core 1670 + App 11；本包使 Core +2
+- 合并回主线（0.50.22 基线 Core 1679 + App 12）后预期：Core 1681 + App 12
 
 ### 179.4 监工纠正落实对照
 
@@ -10375,6 +10376,7 @@ enum SettingsRoute: Hashable {
 - **第一版误判**：对账表计划只加行＋弹窗
 - **监工纠正**：原型 viewRestartGateway 是独立页面（重启前状态组＋操作按钮），不是只弹个窗
 - **落实**：RestartGatewayView 页面形态（重启前组＋操作按钮），点「重启网关」按钮弹现行确认弹窗，确认后调 restartGateway() 全链，notice 回执复用
+- **行为增补（主线审查补记，2026-11-12）**：重启确认后新增 `path.removeAll()` 回设置根页（SettingsView 根级确认弹窗处）——基线无此行为（基线重启是根页动作、无页可回），属本包增补：重启页是二级页，确认后回根避免停留在已重启网关的旧页
 
 #### ④ 断开连接按原型移入服务器管理页 → 已移入
 - **第一版误判**：对账表建议"保持现行方案（根页独立组）"
@@ -10503,41 +10505,46 @@ enum SettingsRoute: Hashable {
 - [ ] AX 最大字号档：各二级页组头/行不截断
 - [ ] 深色模式：各二级页配色正常，服务器卡片可读
 
-### 179.8 diff 摘要
+### 179.8 diff 摘要（2026-11-12 主线审查以 git numstat 对基线 3cbcad4 实测订正，原摘要数字多处失实、作废）
 
 **Core 层**（1 文件）：
-- `Sources/OneDayCore/SettingsCatalog.swift`：+127/-87 lines
+- `Sources/OneDayCore/SettingsCatalog.swift`：+117/-59 lines
   - 分组枚举：2 新增 / 3 退役
   - 目的地枚举：6 新增
-  - entries 数组：29 项重排（6 新增 / 15 改 showsInBrowse / 15 改 group）
+  - entries 数组：28 项重排（22 → 28，6 新增 / 15 改 showsInBrowse / 15 改 group）
 
 **App 层**（8 文件）：
 - `Sources/OneDayApp/AppRoutes.swift`：+7/-0 lines（SettingsRoute 新增 6 case）
-- `Sources/OneDayApp/SettingsView.swift`：+150/-250 lines（根页分组改写 / 退役旧组件 / 新增导航目的地）
-- `Sources/OneDayApp/AgentConfigView.swift`：+105/-0 lines（新建）
-- `Sources/OneDayApp/ServerManagementView.swift`：+228/-0 lines（新建，含断开连接）
-- `Sources/OneDayApp/SessionManagementView.swift`：+87/-0 lines（新建）
-- `Sources/OneDayApp/WorkspaceHubView.swift`：+112/-0 lines（新建）
-- `Sources/OneDayApp/MainSessionView.swift`：+158/-0 lines（新建，真数据接线）
-- `Sources/OneDayApp/RestartGatewayView.swift`：+88/-0 lines（新建，页面形态）
+- `Sources/OneDayApp/SettingsView.swift`：+99/-251 lines（根页分组改写 / 退役旧组件 / 新增导航目的地；含 2026-11-12 主线审查修复删除 10 行编译残片后的实测，删前 +109/-251）
+- `Sources/OneDayApp/AgentConfigView.swift`：+103/-0 lines（新建）
+- `Sources/OneDayApp/ServerManagementView.swift`：+215/-0 lines（新建，含断开连接）
+- `Sources/OneDayApp/SessionManagementView.swift`：+93/-0 lines（新建）
+- `Sources/OneDayApp/WorkspaceHubView.swift`：+114/-0 lines（新建）
+- `Sources/OneDayApp/MainSessionView.swift`：+148/-0 lines（新建，真数据接线）
+- `Sources/OneDayApp/RestartGatewayView.swift`：+118/-0 lines（新建，页面形态）
 
 **测试层**（1 文件）：
-- `Tests/OneDayCoreTests/SettingsCatalogTests.swift`：+90/-30 lines
+- `Tests/OneDayCoreTests/SettingsCatalogTests.swift`：+53/-8 lines
+  - 测试方法 10 → 12（新增 2 法、零删除）
   - 4 处改断言（原型索引 / 目的地覆盖 / agent 组 / 隐藏项）
-  - 2 处新增断言（serverAndWorkspace 组 / preferences 组）
   - 1 处搜索测试补充（断开连接）
 
+**资源层**（1 文件）：
+- `App/Resources/Localizable.xcstrings`：+967/-1 lines（新增 42 键，详见 §179.10）
+
+**文档层**（1 文件）：`docs/DESIGN-V4.md` 本节
+
 **总账**：
-- 10 文件改动
+- 12 文件改动（代码 10 + xcstrings + DESIGN 本节）
 - 6 文件新建
-- Core +40 lines / App +828 lines / Tests +60 lines
-- 单测总数不变（1681 tests，零增删）
+- 净增：Core +58 lines / App +646 lines / Tests +45 lines / xcstrings +966 lines
+- 单测：本文件方法 +2（零删）；合并回主线后预期 Core 1681 + App 12
 
 ### 179.9 施工清单勾对
 
 - [x] Core SettingsCatalog 分组改动（serverAndWorkspace / preferences）
 - [x] Core SettingsCatalog 目的地新增（6 项）
-- [x] Core SettingsCatalog entries 重排（29 项）
+- [x] Core SettingsCatalog entries 重排（28 项）
 - [x] AppRoutes 扩展（6 个新 case）
 - [x] 新建 6 个枢纽页 View
 - [x] SettingsView 根页分组改写（5 组）
