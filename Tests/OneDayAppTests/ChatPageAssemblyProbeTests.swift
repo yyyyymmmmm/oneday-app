@@ -98,15 +98,18 @@ final class ChatPageAssemblyProbeTests: XCTestCase {
     func testDumpProductionChatPageAssembly() throws {
         try assembleProductionPage()
 
-        // 控制器链定位
+        // 控制器链定位（ComposerGuideHost 按类名字符串匹配，
+        // 使探针在 §186 回退变体里也能编译运行）
         var drawerContainer: DrawerContainerController?
-        var composerHosts: [ComposerGuideHostController] = []
+        var composerHosts: [UIViewController] = []
         func findVC(_ vc: UIViewController) {
             if let found = vc as? DrawerContainerController {
                 drawerContainer = found
             }
-            if let found = vc as? ComposerGuideHostController {
-                composerHosts.append(found)
+            if String(describing: type(of: vc))
+                .contains("ComposerGuideHost")
+            {
+                composerHosts.append(vc)
             }
             for child in vc.children { findVC(child) }
         }
@@ -157,5 +160,116 @@ final class ChatPageAssemblyProbeTests: XCTestCase {
         dumpView(window, depth: 0, lines: &lines)
         print("BARPROBE| dump lines=\(lines.count)")
         for line in lines { print("BARPROBE| \(line)") }
+    }
+
+    /// 真窗口变体：普通 UIWindow（不覆写安全区，读数
+    /// 全走模拟器设备几何的真实传播链），打印容器链
+    /// 各级 safeAreaInsets 与两栏关键帧（BARPLAIN 前
+    /// 缀）——验证覆写窗是否掩盖了设备上的传播断裂。
+    func testDumpProductionChatPageAssemblyPlainWindow() throws {
+        let appState = AppState(
+            client: DemoHermesClient(), demoMode: .connected
+        )
+        let schema = Schema([ChatThread.self, ChatEntry.self])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(
+                schema: schema, isStoredInMemoryOnly: true
+            )]
+        )
+        let host = UIHostingController(
+            rootView: RootView()
+                .environment(appState)
+                .environment(\.locale, AppLocale.uiLocale)
+                .modelContainer(container)
+        )
+        let plain = UIWindow(
+            frame: CGRect(x: 0, y: 0, width: 402, height: 874)
+        )
+        plain.rootViewController = host
+        plain.makeKeyAndVisible()
+        plain.layoutIfNeeded()
+        spinRunLoop(seconds: 2.0)
+        plain.layoutIfNeeded()
+        defer {
+            plain.rootViewController = nil
+            plain.isHidden = true
+        }
+
+        func wf(_ v: UIView) -> CGRect {
+            v.convert(v.bounds, to: plain)
+        }
+        func ins(_ insets: UIEdgeInsets) -> String {
+            "t=\(insets.top) b=\(insets.bottom)"
+        }
+        print(
+            "BARPLAIN| windowInsets "
+                + ins(plain.safeAreaInsets)
+        )
+
+        var drawerContainer: DrawerContainerController?
+        var composerHosts: [UIViewController] = []
+        func findVC(_ vc: UIViewController) {
+            if let found = vc as? DrawerContainerController {
+                drawerContainer = found
+            }
+            if String(describing: type(of: vc))
+                .contains("ComposerGuideHost")
+            {
+                composerHosts.append(vc)
+            }
+            for child in vc.children { findVC(child) }
+        }
+        findVC(host)
+        XCTAssertNotNil(drawerContainer)
+        if let dc = drawerContainer {
+            print(
+                "BARPLAIN| containerView f=\(fmt(wf(dc.view))) "
+                    + "insets \(ins(dc.view.safeAreaInsets))"
+            )
+            for child in dc.children {
+                print(
+                    "BARPLAIN| child "
+                        + "\(String(describing: type(of: child))) "
+                        + "f=\(fmt(wf(child.view))) "
+                        + "insets \(ins(child.view.safeAreaInsets))"
+                )
+            }
+        }
+        for hostVC in composerHosts {
+            print(
+                "BARPLAIN| composerHost f=\(fmt(wf(hostVC.view))) "
+                    + "insets \(ins(hostVC.view.safeAreaInsets))"
+            )
+        }
+
+        func walk(_ view: UIView) {
+            let name = String(describing: type(of: view))
+            if let bar = view as? UITabBar {
+                print("BARPLAIN| tabBar f=\(fmt(wf(bar)))")
+            }
+            if name.contains("ScrollPocketBarInteraction"),
+                wf(view).width > 400
+            {
+                print(
+                    "BARPLAIN| topPocketBar f=\(fmt(wf(view))) "
+                        + "hid=\(view.isHidden)"
+                )
+            }
+            if let tv = view as? UITextView, wf(tv).width > 200 {
+                print("BARPLAIN| composerText f=\(fmt(wf(tv)))")
+            }
+            if let sv = view as? UIScrollView,
+                wf(sv).width > 400
+            {
+                print(
+                    "BARPLAIN| scroll f=\(fmt(wf(sv))) "
+                        + "adjInset "
+                        + ins(sv.adjustedContentInset)
+                )
+            }
+            for sub in view.subviews { walk(sub) }
+        }
+        walk(plain)
     }
 }
