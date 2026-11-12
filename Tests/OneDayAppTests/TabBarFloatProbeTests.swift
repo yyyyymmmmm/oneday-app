@@ -37,6 +37,16 @@ private struct FloatInsetKey: PreferenceKey {
 /// 全区（系统给页面预留的底距，与 FLOAT 应同涨落）。
 /// 本文件纯探针：只打印、不断言定罪（定因后另立回
 /// 归测试）。
+/// 设备窗口：测试宿主的裸 UIWindow 底部安全区恒 0
+/// （无 Home Indicator 区），底栏落在无指示器档位、
+/// 四组无从分辨——照胶囊扫描线 StatusBarWindow 口
+/// 径覆写为真机值（iPhone 17：顶 59／底 34）
+private final class FloatDeviceWindow: UIWindow {
+    override var safeAreaInsets: UIEdgeInsets {
+        UIEdgeInsets(top: 59, left: 0, bottom: 34, right: 0)
+    }
+}
+
 @MainActor
 final class TabBarFloatProbeTests: XCTestCase {
 
@@ -103,20 +113,33 @@ final class TabBarFloatProbeTests: XCTestCase {
         @Environment(AppState.self) private var appState
         @State private var selection: ContentView.MainTab = .chat
         let box: ProbeBox
+        var ignoresSafeAreaFix = false
 
         var body: some View {
-            DrawerContainer(
-                selection: $selection,
-                presented: appState.drawerPresented,
-                onManageAll: {},
-                onOpenChannel: {}
-            ) {
-                TabStandIn(box: box)
+            if ignoresSafeAreaFix {
+                DrawerContainer(
+                    selection: $selection,
+                    presented: appState.drawerPresented,
+                    onManageAll: {},
+                    onOpenChannel: {}
+                ) {
+                    TabStandIn(box: box)
+                }
+                .ignoresSafeArea()
+            } else {
+                DrawerContainer(
+                    selection: $selection,
+                    presented: appState.drawerPresented,
+                    onManageAll: {},
+                    onOpenChannel: {}
+                ) {
+                    TabStandIn(box: box)
+                }
             }
         }
     }
 
-    private var window: UIWindow!
+    private var window: FloatDeviceWindow!
 
     override func tearDown() async throws {
         window?.isHidden = true
@@ -133,7 +156,7 @@ final class TabBarFloatProbeTests: XCTestCase {
     }
 
     private func makeWindow(root: UIViewController) {
-        window = UIWindow(
+        window = FloatDeviceWindow(
             frame: CGRect(x: 0, y: 0, width: 402, height: 874)
         )
         window.rootViewController = root
@@ -194,6 +217,27 @@ final class TabBarFloatProbeTests: XCTestCase {
         dump(arm: "D-full-bridge", box: box)
     }
 
+    func testProbeArmF_BridgeIgnoresSafeArea() throws {
+        let box = ProbeBox()
+        let appState = AppState()
+        let schema = Schema([ChatThread.self, ChatEntry.self])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(
+                schema: schema, isStoredInMemoryOnly: true
+            )]
+        )
+        let host = UIHostingController(
+            rootView: BridgeHarness(
+                box: box, ignoresSafeAreaFix: true
+            )
+            .environment(appState)
+            .modelContainer(container)
+        )
+        makeWindow(root: host)
+        dump(arm: "F-bridge-ignoresSafeArea", box: box)
+    }
+
     // MARK: - 打印
 
     private func p(_ line: String) {
@@ -249,7 +293,7 @@ final class TabBarFloatProbeTests: XCTestCase {
                     + "safe=\(fmtInsets(view.safeAreaInsets)) "
                     + "float=\(String(format: "%.1f", height - frame.maxY))")
             }
-            if cls.contains("TabBar")
+            if cls.contains("Platter")
                 || (frame.width >= 240 && frame.height >= 38
                     && frame.height <= 80 && frame.maxY > height - 190)
             {
@@ -259,7 +303,7 @@ final class TabBarFloatProbeTests: XCTestCase {
         }
         walk(window)
 
-        let tabNamed = candidates.filter { $0.0.contains("TabBar") }
+        let tabNamed = candidates.filter { $0.0.contains("Platter") }
         let pool = tabNamed.isEmpty ? candidates : tabNamed
         if let best = pool.max(by: { $0.1.maxY < $1.1.maxY }) {
             p("\(arm) RESULT capsule=\(best.0) \(fmt(best.1)) "
