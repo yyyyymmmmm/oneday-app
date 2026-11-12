@@ -145,10 +145,7 @@ struct DeliverablesView: View {
                     )
                 }
             }
-            .background {
-                Palette.pageBG
-                    .ignoresSafeArea()
-            }
+            .background(Palette.pageBG)
             .toolbar(.hidden, for: .navigationBar)
             // §125：打开分流收口——非图条目一律落文
             // 件打开页（中间页），文本类的阅读在其页
@@ -603,8 +600,7 @@ struct DeliverablesView: View {
             // （文件列表/网格、影音列表/网格）底缘一律
             // 挂 .hard，口径与映射见 FeedView 同注与
             // DESIGN §170.2
-            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y
             } action: { _, newValue in
@@ -751,8 +747,7 @@ struct DeliverablesView: View {
             }
             .background(Palette.pageBG)
             // §170：底缘 .hard（口径见 fileListView 同注）
-            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y
             } action: { _, newValue in
@@ -960,8 +955,7 @@ struct DeliverablesView: View {
             }
             .background(Palette.pageBG)
             // §170：底缘 .hard（口径见 fileListView 同注）
-            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y
             } action: { _, newValue in
@@ -1000,8 +994,7 @@ struct DeliverablesView: View {
             }
             .background(Palette.pageBG)
             // §170：底缘 .hard（口径见 fileListView 同注）
-            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 geometry.contentOffset.y
             } action: { _, newValue in

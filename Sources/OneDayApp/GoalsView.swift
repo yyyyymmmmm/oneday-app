@@ -70,10 +70,7 @@ struct GoalsView: View {
                     readyContent
                 }
             }
-            .background {
-                Palette.pageBG
-                    .ignoresSafeArea()
-            }
+            .background(Palette.pageBG)
             .navigationTitle("目标")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -157,8 +154,7 @@ struct GoalsView: View {
             // 航栏同档收边（与输入框下方收边同档）——本页根 Scroll-
             // View 底缘挂 .hard，口径与映射见 FeedView
             // 同注与 DESIGN §170.2
-            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
         }
     }
 
@@ -195,8 +191,7 @@ struct GoalsView: View {
         // §170：无目标态（分类创建流）与有目标态同为本
         // 格根滚动面，底缘同挂 .hard（口径见 ready-
         // Content 同注）
-        // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
-        .scrollEdgeEffectStyle(.soft, for: .bottom)
+        .scrollEdgeEffectStyle(.hard, for: .bottom)
     }
 
     /// 状态分组（照 Muse 行形态）：色点组头＋扁平行，

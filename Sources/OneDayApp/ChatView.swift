@@ -669,7 +669,7 @@ struct ChatView: View {
         // 容能流到位时边缘即由滚动效果化开
         .background {
             Palette.chatSurface
-                .ignoresSafeArea()
+                .ignoresSafeArea(edges: .bottom)
         }
         // §186 配套（诊断 K1）：聚焦打字时隐藏导航坞——
         // TabView 的安全区预留不因输入舱退出安全区栈而
