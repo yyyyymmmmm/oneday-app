@@ -18,6 +18,11 @@ import XCTest
 /// 5. 透传：舱带之外 host 视图 hitTest 穿透（列表手
 ///    势作用域不被全帧层吞掉）
 /// 6. 切格往返与抽屉开合后静止几何复原（前景协作）
+/// 7. §178.8 无戳归因三法：舱内结构状态（错误条行
+///    /回底钮行/多行生长）切换不写回报绑定，构建
+///    次数、舱高与留位回报经归因链自然更新
+/// 8. §178.8 抽屉 animated 关闭中途命中：动画途中
+///    舱不可达、落定后恢复可命中（补修 A 端到端）
 /// 键盘跟随本身 CI 模拟器升不起真键盘（探针两轮实
 /// 证：isFirstResponder 可达、无键盘窗、合成通知
 /// SwiftUI 不认），归真机清单（DESIGN §178）不在此断言
@@ -35,6 +40,10 @@ final class ComposerGuideHostTests: XCTestCase {
         var selection = 0
         var bottomSpace: CGFloat = 168
         var tallBar = false
+        /// §178.8 结构三态开关（舱内独有状态：只改这
+        /// 些、不写 bottomSpace，验刷新归因本身）
+        var errorRow = false
+        var jumpRow = false
     }
 
     /// 帧采集盒：GuideFrameReporter 逐布局拍回写窗口
@@ -155,6 +164,31 @@ final class ComposerGuideHostTests: XCTestCase {
                         let _ = box.notes["builds"] =
                             "\((Int(box.notes["builds"] ?? "0") ?? 0) + 1)"
                         VStack(spacing: 0) {
+                            // §178.8 结构三态段（生产 bot-
+                            // tomBar 条件段的同构复刻：栈
+                            // spacingS、每段高含其后一档
+                            // 栈距）：错误条行（条 36＋距
+                            // 8＝44）／回底钮行（命中域
+                            // 44＋距 8＝52）／多行生长（输
+                            // 入段本体 +40、无额外栈距）
+                            if state.errorRow {
+                                VStack(spacing: 0) {
+                                    Text("ERR")
+                                        .frame(height: 36)
+                                        .frame(maxWidth: .infinity)
+                                    Color.clear.frame(height: 8)
+                                }
+                            }
+                            if state.jumpRow {
+                                VStack(spacing: 0) {
+                                    HStack {
+                                        Spacer(minLength: 0)
+                                        Color.clear.frame(
+                                            width: 44, height: 44)
+                                    }
+                                    Color.clear.frame(height: 8)
+                                }
+                            }
                             if state.tallBar {
                                 Color.clear.frame(height: 40)
                             }
@@ -294,6 +328,32 @@ final class ComposerGuideHostTests: XCTestCase {
             previous = current
         }
         return state.bottomSpace
+    }
+
+    /// 等回报增量抵达期望（±2）的截止轮询：结构切
+    /// 换→归因重建→树内布局→Preference 帧回报链的
+    /// 落定判据（§178.8 无戳三态法共用）
+    private func waitForReportDelta(
+        from base: CGFloat, expected: CGFloat
+    ) {
+        let deadline = Date().addingTimeInterval(4)
+        while abs((state.bottomSpace - base) - expected) > 2,
+              Date() < deadline {
+            spinRunLoop(seconds: 0.25)
+        }
+    }
+
+    /// 命中视图是否落在指定祖先的子树内（§178.8 动
+    /// 画中途命中断言用）
+    private func isDescendant(
+        _ view: UIView?, of ancestor: UIView
+    ) -> Bool {
+        var node = view
+        while let current = node {
+            if current === ancestor { return true }
+            node = current.superview
+        }
+        return false
     }
 
     /// 登记视图的活量帧（滚动/变换后即时准确，绕开
@@ -447,18 +507,16 @@ final class ComposerGuideHostTests: XCTestCase {
             XCTFail("首帧未到")
             return
         }
-        state.tallBar = true
         let buildsBefore = box.notes["builds"] ?? "?"
-        // 戳一次外层已证可追踪的通道（回报绑定写）逼
-        // 替身重建—— stand-in 生产里 ChatView 的重渲
-        // 节奏（流式/@State 写恒定触发）；本法验的是
-        // 「重建→桥 init 重估→重赋值→宿主随高→回报
-        // 跟随」的整条传导链，状态归因的新鲜度本身由
-        // 真机清单承担（错误条/回底钮显隐逐项在内）
-        state.bottomSpace += 1
+        state.tallBar = true
+        // §178.8 补修（Codex 复核点名）：原法在此戳回
+        // 报绑定（bottomSpace += 1）逼替身重建，绕开
+        // 了刷新归因——戳已删。本法现与三态切换三法
+        // （错误条/回底钮行/多行无戳）同口径：只改舱
+        // 内状态，验「归因重建→桥 init 重估→重赋值
+        // →宿主随高→回报跟随」整链自发成立
         // 等回报跟上长高（重建→树内布局→帧回报链）：
-        // 等变化量抵达 40 而非任一变化——戳写本身先
-        // 带来 +1、不能冒充长高已落地
+        // 等变化量抵达 40 而非任一变化
         let deadline = Date().addingTimeInterval(4)
         while abs((state.bottomSpace - spaceBefore) - 40) > 2,
               Date() < deadline {
@@ -483,6 +541,165 @@ final class ComposerGuideHostTests: XCTestCase {
         XCTAssertEqual(
             after.height, 116, accuracy: 2,
             "舱本体高应随内容长到 116（\(diag)）")
+    }
+
+    /// §178.8 无戳归因（错误条行）：只改舱内结构状
+    /// 态、不写 bottomSpace——构建次数、舱高、留位
+    /// 回报必须全经归因链自然更新（原长高法靠戳回
+    /// 报绑定逼重建、绕开了归因，本组三法补上）
+    func testErrorRowToggle_growthFlowsWithoutReportPoke() {
+        waitForBarFrame()
+        waitForBarGeo()
+        let spaceBefore = stableBottomSpace()
+        guard let before = barGeo() else {
+            XCTFail("首帧未到")
+            return
+        }
+        let buildsBefore = Int(box.notes["builds"] ?? "0") ?? 0
+        state.errorRow = true
+        waitForReportDelta(from: spaceBefore, expected: 44)
+        settle(0.4)
+        guard let after = barGeo() else {
+            XCTFail("切换后帧丢失")
+            return
+        }
+        let buildsAfter = Int(box.notes["builds"] ?? "0") ?? 0
+        XCTAssertGreaterThan(
+            buildsAfter, buildsBefore,
+            "舱内状态变化应经归因链触发替身重建（无人戳绑定）")
+        XCTAssertEqual(
+            after.height - before.height, 44, accuracy: 2,
+            "错误条行出现应令舱高 +44（条 36＋栈距 8）")
+        XCTAssertEqual(
+            after.maxY, before.maxY, accuracy: 2,
+            "舱底应钉住不动")
+        XCTAssertEqual(
+            state.bottomSpace - spaceBefore, 44, accuracy: 2,
+            "留位回报应自然跟随 +44")
+    }
+
+    /// §178.8 无戳归因（回底钮行）：同上，钮行段高
+    /// 52（命中域 44＋栈距 8）
+    func testJumpRowToggle_growthFlowsWithoutReportPoke() {
+        waitForBarFrame()
+        waitForBarGeo()
+        let spaceBefore = stableBottomSpace()
+        guard let before = barGeo() else {
+            XCTFail("首帧未到")
+            return
+        }
+        let buildsBefore = Int(box.notes["builds"] ?? "0") ?? 0
+        state.jumpRow = true
+        waitForReportDelta(from: spaceBefore, expected: 52)
+        settle(0.4)
+        guard let after = barGeo() else {
+            XCTFail("切换后帧丢失")
+            return
+        }
+        let buildsAfter = Int(box.notes["builds"] ?? "0") ?? 0
+        XCTAssertGreaterThan(
+            buildsAfter, buildsBefore,
+            "舱内状态变化应经归因链触发替身重建（无人戳绑定）")
+        XCTAssertEqual(
+            after.height - before.height, 52, accuracy: 2,
+            "回底钮行出现应令舱高 +52（命中域 44＋栈距 8）")
+        XCTAssertEqual(
+            after.maxY, before.maxY, accuracy: 2,
+            "舱底应钉住不动")
+        XCTAssertEqual(
+            state.bottomSpace - spaceBefore, 52, accuracy: 2,
+            "留位回报应自然跟随 +52")
+    }
+
+    /// §178.8 无戳归因（多行生长）：与长高法同事实、
+    /// 独立成法钉归因——只改舱内状态，构建/舱高/回
+    /// 报三者自发更新（长高法本轮已同步删戳）
+    func testMultilineGrowth_reportFollowsWithoutPoke() {
+        waitForBarFrame()
+        waitForBarGeo()
+        let spaceBefore = stableBottomSpace()
+        guard let before = barGeo() else {
+            XCTFail("首帧未到")
+            return
+        }
+        let buildsBefore = Int(box.notes["builds"] ?? "0") ?? 0
+        state.tallBar = true
+        waitForReportDelta(from: spaceBefore, expected: 40)
+        settle(0.4)
+        guard let after = barGeo() else {
+            XCTFail("长高后帧丢失")
+            return
+        }
+        let buildsAfter = Int(box.notes["builds"] ?? "0") ?? 0
+        XCTAssertGreaterThan(
+            buildsAfter, buildsBefore,
+            "舱内状态变化应经归因链触发替身重建（无人戳绑定）")
+        XCTAssertEqual(
+            before.minY - after.minY, 40, accuracy: 2,
+            "舱顶应随多行生长同量上移")
+        XCTAssertEqual(
+            after.maxY, before.maxY, accuracy: 2,
+            "舱底应钉住不动")
+        XCTAssertEqual(
+            after.height, 116, accuracy: 2,
+            "舱本体高应长到 116")
+        XCTAssertEqual(
+            state.bottomSpace - spaceBefore, 40, accuracy: 2,
+            "留位回报应自然跟随 +40")
+    }
+
+    /// §178.8 抽屉 animated 关闭中途命中（补修 A 的
+    /// 同构壳端到端）：关闭动画起始帧起，容器命中不
+    /// 得落进输入舱（修复前内容在起始帧即恢复可点、
+    /// 透传判定帧又是位移前快照——点会落进正在移动
+    /// 的舱）；落定后舱带恢复可命中、几何复原
+    func testDrawerAnimatedClose_midFlightBarUnreachableThenRestored() {
+        waitForBarFrame()
+        guard let host = guideHostController(),
+              let hostView = host.view,
+              let before = liveBarFrame()
+        else {
+            XCTFail("host 或首帧未就位")
+            return
+        }
+        container.setDrawer(true, animated: false)
+        settle(0.8)
+        guard let openedBar = liveBarFrame() else {
+            XCTFail("抽屉开后舱活量帧丢失")
+            return
+        }
+        container.setDrawer(false, animated: true)
+        // 起始帧同步断言（不泵 runloop）：动画在途、
+        // 呈现层还带着位移——此刻命中舱带不得入舱。
+        // 采样点取开态舱的可见窄条内（舱随前景右移
+        // 后只有左段在屏面内、中点已出屏会让断言空过）
+        let midHit = container.view.hitTest(
+            container.view.convert(
+                CGPoint(x: openedBar.minX + 40, y: openedBar.midY),
+                from: window),
+            with: nil)
+        XCTAssertFalse(
+            isDescendant(midHit, of: hostView),
+            "关闭动画途中命中落进了正在移动的输入舱")
+        spinRunLoop(seconds: 2.0)
+        settle(0.4)
+        guard let closedBar = liveBarFrame() else {
+            XCTFail("抽屉关后舱活量帧丢失")
+            return
+        }
+        XCTAssertEqual(
+            closedBar.minX, before.minX, accuracy: 2,
+            "落定后舱几何应复原")
+        XCTAssertEqual(
+            closedBar.maxY, before.maxY, accuracy: 2)
+        let settledHit = container.view.hitTest(
+            container.view.convert(
+                CGPoint(x: closedBar.midX, y: closedBar.midY),
+                from: window),
+            with: nil)
+        XCTAssertTrue(
+            isDescendant(settledHit, of: hostView),
+            "落定后舱带应恢复可命中")
     }
 
     /// 透传：host 视图在列表区（舱带之上）的点 hitTest

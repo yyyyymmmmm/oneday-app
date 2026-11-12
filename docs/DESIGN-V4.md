@@ -10227,12 +10227,12 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 | 7 | inputBar 顶 padding | 0 | 0 | 不变 |
 | 8 | 隐藏层 spacing | 0（条自带底边距） | 0 | 不变 |
 | | **写死合计** | **17** | **17** | 环 5 注销不改变合计（本为 0） |
-| 9 | 落定残差带 | 0–7（阈值 7） | 0–7 | 不变（BottomFollow 零改动） |
+| 9 | 落定残差带 | 0–7（阈值 7） | 0–7 | 不变（§178 自有提交对 BottomFollow 零改动；阈值 7 是基线 cherry-pick 带入的 §176 改动、非本包，合并时丢弃——边界对账见 178.8-C） |
 | | **稳态总量** | **17–24** | **17–24** | 与 §176 定版一致、与 Muse 实测 24 齐平 |
 
 ### 178.5 测试
 - 新增 `Tests/OneDayAppTests/ComposerGuideHostTests.swift`（5 法，生产件装进同构壳：DrawerContainerController 前景＋真 TabView＋按 ChatView §178 接法复刻的聊天页替身）：静止几何三连（舱底＝坞顶／回报值对账／末行休止位由实测留位链恒等式钉死——边距 8 本体＋替身壳滚动视图自带安全区残差 9 拆账，生产真值归 178.6 第 1 项）、舱长高 40 的顶移底钉、透传命中、切格往返复原、抽屉开合随前景。探针文件 `ComposerKbGuideProbeTests.swift` 删除（其 XCTFail 带数通道是探针专用、结论已转录 178.2）。
-- 贴底四路的 Core 判定（BottomStick/BottomFollow 协调器、近底迟滞、末条目标、离底计数、复贴阈值）零改动、全套随 CI 复验；四路的 App 侧触发面（proxy／scrollToBottom 所有者／回底钮显隐状态源）经 diff 审计一字未动，其真机复验列 178.6。
+- 贴底四路的 Core 判定（BottomStick/BottomFollow 协调器、近底迟滞、末条目标、离底计数、复贴阈值）除基线 cherry-pick 的 §176 复贴阈值 24→7（归属 §176、非本包自有改动，见 178.8-C）外零改动、全套随 CI 复验；四路的 App 侧触发面（proxy／scrollToBottom 所有者／回底钮显隐状态源）经 diff 审计一字未动，其真机复验列 178.6。
 - 单测基线：Core 1670＋App 11（本分支基线）→ App 16（+5 新法、−0 退役；探针 2 法为临时件、不计入基线对账——其使命是带数，定稿由本节 5 法接替）。
 - 分支 CI：run 43130417114（代码提交 5e99f99）attempt 2 全绿——Build／Unit tests／IPA 打包／上传四步 success、** TEST SUCCEEDED **；Executed 实数：OneDayCore 1670 全绿、ComposerGuideHostTests 5/5 全绿、OneDayAppTests 全套通过（套件汇总含 Executed 16 全绿一行）。attempt 1 唯一红点为既有 `DrawerContainerControllerTests.testAnimatedCloseReturnsToZero` 在 CI 负载下挂死至会话超时（无断言失败行），同提交原样重跑即全绿、与本包改动面（ComposerGuideHost／ChatView／新测试文件）无关，留痕在此。
 
@@ -10245,7 +10245,33 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 6. 键盘升/落两态开抽屉：舱随前景滑动（开抽屉先收键盘为容器既有纪律）、关抽屉后焦点与舱位不乱。
 7. 深色模式一帧：舱玻璃、坞（恢复后）、列表三者衔接无断层、无白带回潮（§165/0.6.1 病史）。
 8. AX 最大字号一帧：舱不溢出、列表留位随舱高实测自适应；VoiceOver 焦点序不变（舱在辅助树中的位置与旧 bar 等价）。
+9. §178.8 缺口两件：①生产 bottomBar **真栈**三态（错误条出现/消失、回底钮行显隐、多行生长）下的舱高生长与留位回报跟随逐项过目——CI 只覆盖同构替身的结构与归因链，真栈装配卡点与替代覆盖见 178.8-B；②抽屉关闭动画途中点按列表/舱带一帧：不得点中正在移动的舱、不得误触列表（补修 A 的帧级手感，CI 只钉起始帧与命中归属）。
 
 ### 178.7 红线自检
-- 改动文件仅 ComposerGuideHost.swift（新）、ChatView.swift、ComposerGuideHostTests.swift（新）、本节；bottomBar/inputBar/scrollToBottomButton 本体、BottomFollow/BottomStick、DrawerContainer、边缘样式行（顶 .soft／底 hidden）零命中。
+- 本包自有改动文件仅 ComposerGuideHost.swift（新）、ChatView.swift、ComposerGuideHostTests.swift（新）、本节（178.8 补修轮另动 DrawerContainerView.swift 与 DrawerContainerControllerTests.swift，逐项见 178.8）；分支对基线的**全量 diff 另含 §176 cherry-pick 的 OneDayCore/BottomFollow.swift 与 BottomFollowTests.swift**（复贴阈值 24→7，归属 §176、合并/rebase 时丢弃，边界对账见 178.8-C）——此前本节与 178.4/178.5 称「BottomFollow 零改动、改动仅四文件」只对本包自有提交成立、对分支全量 diff 不成立，已按 178.8-C 改准。bottomBar/inputBar/scrollToBottomButton 本体、BottomFollow/BottomStick 判定逻辑、边缘样式行（顶 .soft／底 hidden）零命中。
 - 收入/服务端零触碰；不合并、不发版，只交分支。
+
+### 178.8 Codex 异源复核补修（2026-11-12，停在分支等合并）
+
+Codex 复核四条：两条 CI 可修（本节 A/B）、一条文档口径（本节 C）当轮落定；另两条（留位回报一拍 async 的帧级观感、藏坞与键盘转场时序）按设计验收归真机帧级量测（178.6 第 1/3 项），不在本轮动驱动通道。
+
+**A 抽屉关闭动画命中错位（DrawerContainerView.swift）**
+- 定因两层：①透传判定（ComposerPassthroughView）用窗口坐标快照帧（Preference 实测），抽屉前景是 CGAffineTransform 位移、不触发 preference 更新，快照在滑动全程陈旧；②更要命的是关闭动画起始帧：animator 的动画闭包在启动拍即以目标值调 `applyOffset(0)`，旧置位规则只看 offset，`contentHost.view.isUserInteractionEnabled` 当场同步置 true——呈现层还在移动、内容已可点，两层错位叠加，点会落进正在移动的舱/列表。
+- 修法（二选一取前者，更稳）：**关闭动画完成前保持内容交互关闭**——`applyOffset` 置位改 `newOffset <= 0 && animator == nil`，落定复位收进 `finishSettle`（动画完成回调先清 animator、瞬时路径本就无 animator，两路都在此按 offset 终值重断言）。取舍理由：移动中的舱本就不该接任何命中（即便按呈现坐标即时换算修好透传帧，点中一个滑动中的舱仍是错位交互）；且新规与既有「离开合位内容不接触摸」口径同构、只补「在途」一维。跟手拖动期 animator 恒为 nil（接管先停 animator），拖动态语义不变（offset 本身即呈现事实）。透传判定与快照帧本体不动：交互关闭期间命中根本到不了透传层，落定后快照即与呈现一致。
+- 新测（animated:true，原测试只有 animated:false）：DrawerContainerControllerTests +2——关闭向起始帧同步断言（presentation 位移 >1 时交互仍关＋途中 hitTest 不入内容宿主＋落定恢复可点/可命中）、打开向起始帧即关＋落定保持关；ComposerGuideHostTests +1 同构壳端到端（关闭动画途中容器命中不入舱、落定几何复原且舱带恢复可命中）。帧级手感归 178.6 第 9 项。
+
+**B 宿主测试替身假绿补修（ComposerGuideHostTests）**
+- 原病：替身 ChatReplica 的长高用例靠额外戳 `bottomSpace` 绑定强制重建，绕开了「舱内状态变化→归因重建→回报跟随」的刷新归因本身——归因若断裂，该测试照样绿。
+- B-1 无戳归因三法（+3）：替身舱按生产 bottomBar 结构同构补三态段（错误条行 36＋栈距 8＝44／回底钮行命中域 44＋栈距 8＝52／多行生长段 +40），三法各自**只改舱内结构状态、绝不写 bottomSpace**，断言构建计数增加、舱高按段高增、舱底钉住、留位回报自然跟随同量；原长高法同步删戳、同口径复验。
+- B-2 生产 bottomBar 真栈装同构壳：**装不进，如实记卡点**——①`bottomBar(_:)` 是 ChatView（约 6800 行、65 个 @State）的 private 方法、不是独立 View 类型，无从单独实例化；②三态由 ChatView 私有状态驱动（errorMessage @State、滚动几何派生的 showsBackToBottomButton、与 input 草稿/听写控制器/附件状态绑定的 inputBar），替身状态盒无对应事实源；③装真栈即装整个 ChatView：需 SwiftData 容器（@Query ChatThread）＋已配置 AppState＋OverviewBridgeStore，且 appear 即触发服务端会话同步链——CI 模拟器无服务端环境；④把 bottomBar 抽成独立 View 属生产重构，越本包边界（178.7 红线：bottomBar 本体零改动、§124 承载不动），不在补修轮做。
+- 最强替代覆盖：B-1 的同构替身三态（结构与栈距照生产栈复刻、归因链与生产同形态）＋输入舱量测数学的 Core 专测（ComposerGeometryTests／ComposerLayoutTests／ComposerTextMetricsTests 钉死行高与生长量）＋生产 Preference 回报通道本身已被 178.5 五法钉住（回报断言走的就是生产通道、非替身自报）。
+- 缺口归属：生产真栈三态的帧级实况归真机清单 178.6 第 9 项，不假装已覆盖。
+
+**C 变更边界对账（文档口径，178.4/178.5/178.7 已同步改准）**
+- 事实：分支基线＝main 3671662（0.50.21 顶端）＋cherry-pick §176 提交（7d275d0，源 d20bd4c）。分支对基线的**全量 diff 共 6 文件**：§178 自有 4（ComposerGuideHost.swift 新、ChatView.swift、ComposerGuideHostTests.swift 新、本节）＋§176 cherry-pick 2（OneDayCore/BottomFollow.swift、Tests/OneDayCoreTests/BottomFollowTests.swift），后者唯一实质改动＝`BottomSettle.restickThreshold` 24→7 及对应测试与注释。
+- 此前 §178 称「贴底 Core 判定零改动」「改动仅四文件」：对 §178 **自有提交**成立、对分支全量 diff 不成立，混读会把复贴阈值行为的回归误归因到 §178。定版口径：本分支上复贴阈值 7 的行为按 **§176** 记账；§178 自有提交对 BottomFollow/BottomStick 判定层零命中。合并/rebase 时该 cherry-pick 按 178 节头既定纪律丢弃（main 已有 §176 正本），丢弃后分支 diff 收敛为自有 4 文件＋本补修轮文件。
+
+**补修轮账**
+- 改动文件：DrawerContainerView.swift（A）、Tests/OneDayAppTests/DrawerContainerControllerTests.swift（+2 法）、Tests/OneDayAppTests/ComposerGuideHostTests.swift（替身三态段＋删戳＋4 法）、本节。§124 回底钮承载、BottomFollow/BottomStick 判定层、§176 九环账（写死 17／总量 17–24／spacingS 8）零触碰。
+- 单测：App 16 → 22（+6、−0）；Core 1670 不变。
+- 分支 CI：【待回填】

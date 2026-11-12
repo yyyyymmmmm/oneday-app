@@ -206,6 +206,92 @@ extension DrawerContainerControllerTests {
         )
     }
 
+    /// §178.8 补修 A（Codex 异源复核）：关闭动画起
+    /// 始帧起内容必须保持不可点、命中不得落进内容
+    /// 宿主，直到落定才恢复——修复前 animator 闭包
+    /// 在起始拍以目标值 applyOffset(0) 把交互同步置
+    /// true，呈现层还在移动（透传/命中按 model 值与
+    /// 布局快照帧走），点会落进正在移动的内容
+    func testAnimatedCloseKeepsContentUntouchableUntilSettled() {
+        controller.contentRoot = AnyView(Color.red)
+        controller.view.layoutIfNeeded()
+        controller.setDrawer(true, animated: false)
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, false,
+            "开态内容应不可点")
+        controller.setDrawer(false, animated: true)
+        // 起始帧同步断言（不泵 runloop）：呈现层仍带
+        // 位移、内容已先「被恢复」就是回归本体
+        XCTAssertGreaterThan(
+            foregroundPresentationTx, 1,
+            "呈现层应仍在位移途中（起始帧量测）")
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, false,
+            "关闭动画起始帧内容即恢复可点（呈现层还在移动）")
+        let center = CGPoint(x: 196, y: 426)
+        let midHit = controller.view.hitTest(center, with: nil)
+        XCTAssertFalse(
+            isInContentHost(midHit),
+            "关闭动画途中命中穿进了内容宿主")
+        spinRunLoop(seconds: 2.0)
+        XCTAssertEqual(foregroundTx, 0, accuracy: 1.0)
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, true,
+            "落定后内容应恢复可点")
+        let settledHit = controller.view.hitTest(center, with: nil)
+        XCTAssertTrue(
+            isInContentHost(settledHit),
+            "落定后命中应回到内容")
+    }
+
+    /// §178.8 补修 A（开向）：打开动画起始帧内容即
+    /// 不可点、落定后保持（窄条承接点按）
+    func testAnimatedOpenDisablesContentFromFirstFrame() {
+        controller.contentRoot = AnyView(Color.red)
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, true,
+            "关态落定内容应可点")
+        controller.setDrawer(true, animated: true)
+        XCTAssertLessThan(
+            foregroundPresentationTx, controller.travel - 1,
+            "呈现层应仍在位移途中（起始帧量测）")
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, false,
+            "打开动画起始帧内容应即刻不可点")
+        spinRunLoop(seconds: 2.0)
+        XCTAssertEqual(foregroundTx, controller.travel, accuracy: 1.0)
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, false,
+            "开态落定后内容仍不可点")
+    }
+
+    /// 内容宿主视图（viewDidLoad 装配序：前景为容器
+    /// 第二子、其内裁切层第一子、内容宿主在裁切层内）
+    private var contentHostView: UIView? {
+        let subviews = controller.view.subviews
+        guard subviews.count >= 2 else { return nil }
+        return subviews[1].subviews.first?.subviews.first
+    }
+
+    /// 前景呈现层当前位移（动画途中量测：model 值在
+    /// 起始拍已落目标、只有 presentation 是途中事实）
+    private var foregroundPresentationTx: CGFloat {
+        let subviews = controller.view.subviews
+        guard subviews.count >= 2 else { return -1 }
+        return subviews[1].layer.presentation()?.transform.m41 ?? -1
+    }
+
+    private func isInContentHost(_ view: UIView?) -> Bool {
+        guard let host = contentHostView else { return false }
+        var node = view
+        while let current = node {
+            if current === host { return true }
+            node = current.superview
+        }
+        return false
+    }
+
     /// 动画途中强制真实布局（改窗口宽→容器 bounds 变
     /// →viewDidLayoutSubviews 必触发）：布局往返不得
     /// 改写已承诺的开合显示位置
