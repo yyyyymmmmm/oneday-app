@@ -10776,3 +10776,13 @@ enum SettingsRoute: Hashable {
 - **失败定案**：删净编译残片后 CI run 43153301504 仅剩一处红——`SettingsCatalogTests.testSearchByChineseTitle`：搜「记忆」首命中为 `agentConfig` 而非 `memory`。归属＝本分支引入：proto2 新增枢纽条目 agentConfig（副行「配置档案、记忆与技能」＋关键词「记忆」）在清单序中排在 memory 之前，旧排序「命中按清单序」使其抢先于标题页。
 - **修法**：`SettingsCatalog.search` 排序分两层——标题命中优先、副行／关键词命中随后，同层内仍按清单序；命中集合不变（零丢失：搜「记忆」仍命中 agentConfig，只是排在 memory 之后）。未删 agentConfig 的「记忆」副行/关键词（枢纽页内容定版文案，删之即搜索丢失），未改条目清单序（清单序＝IA 序）。
 - **测试**：`testSearchByChineseTitle` 补一条断言锁零丢失（结果须含 agentConfig）；其余搜索断言（服务器／MEMORY／mcp／断开连接／外观）在新排序下逐项复核不变。单测只增不减。
+
+## §184 小批合并发版总账：0.50.23/145（2026-11-12；三包合一：云电脑收口 §181＋抽屉顶栏四题 §182＋设置 proto2 §183）
+
+- 本批口径：用户 2026-11-12 13:16 亲定「先发收尾的」——已完工/近完工三包先行发版，壳体版（胶囊重建等）随后。合并在 rel/0.50.23 串行完成，main 只构建一次发版。
+- 件一·云电脑收口（§181）：合并 616c448（分支 feat/cloudpc-closeout @ 31f2b97，分支 CI 全 success）。
+- 件二·抽屉/顶栏四题（§182）：合并 a794738。冲突合裁——ChatView：抽屉分支的 capsuleRow/modelMenu 旧函数体不回搬（主线 §179 已迁入 IdentityCapsuleView），headerBar 的 HStack spacing 0＋Spacer(minLength:)＋删 layoutPriority 照原 diff 落位；题 4 模型名语义等价移植 IdentityCapsuleView（模型名 Text 去 fixedSize＋lineLimit(1)＋truncationMode(.tail)、行内唯一可压缩元素，玻璃/命中/枢纽侧零触碰）；DESIGN 自选 §179 顺延 §182、代码注释 §179.x 同步改 §182.x。其余 5 文件自动合并。
+- 件三·设置 proto2（§183）：合并 833884a（分支 feat/settings-proto2 @ 287e1c1；合入门＝CI run 43160515177 attempt 2 全绿、Codex 复核通过）。冲突仅 DESIGN：自选 §179 顺延 §183；Localizable.xcstrings 与云电脑包同文件自动合并（实测 2907 键、JSON 校验通过）。
+- 输入舱承载换代包：本版跳过——分支补修未落盘/CI 红，合入条件不满足（主线裁决，归下一小批）。
+- 定版：五处字面同改 0.50.23/145（Project.swift 四处＋SettingsSupportViews 版本串 full/hero），grep 验代码内无 0.50.22 残留。
+- 发版验包补记：见本节后续补记行（CI run／单测／IPA 字节与 md5）。
