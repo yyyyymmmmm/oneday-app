@@ -10231,10 +10231,10 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 | | **稳态总量** | **17–24** | **17–24** | 与 §176 定版一致、与 Muse 实测 24 齐平 |
 
 ### 178.5 测试
-- 新增 `Tests/OneDayAppTests/ComposerGuideHostTests.swift`（5 法，生产件装进同构壳：DrawerContainerController 前景＋真 TabView＋按 ChatView §178 接法复刻的聊天页替身）：静止几何三连（舱底＝坞顶／回报值对账／末行底距舱顶恰 8）、舱长高 40 的顶移底钉、透传命中、切格往返复原、抽屉开合随前景。探针文件 `ComposerKbGuideProbeTests.swift` 删除（其 XCTFail 带数通道是探针专用、结论已转录 178.2）。
+- 新增 `Tests/OneDayAppTests/ComposerGuideHostTests.swift`（5 法，生产件装进同构壳：DrawerContainerController 前景＋真 TabView＋按 ChatView §178 接法复刻的聊天页替身）：静止几何三连（舱底＝坞顶／回报值对账／末行休止位由实测留位链恒等式钉死——边距 8 本体＋替身壳滚动视图自带安全区残差 9 拆账，生产真值归 178.6 第 1 项）、舱长高 40 的顶移底钉、透传命中、切格往返复原、抽屉开合随前景。探针文件 `ComposerKbGuideProbeTests.swift` 删除（其 XCTFail 带数通道是探针专用、结论已转录 178.2）。
 - 贴底四路的 Core 判定（BottomStick/BottomFollow 协调器、近底迟滞、末条目标、离底计数、复贴阈值）零改动、全套随 CI 复验；四路的 App 侧触发面（proxy／scrollToBottom 所有者／回底钮显隐状态源）经 diff 审计一字未动，其真机复验列 178.6。
 - 单测基线：Core 1670＋App 11（本分支基线）→ App 16（+5 新法、−0 退役；探针 2 法为临时件、不计入基线对账——其使命是带数，定稿由本节 5 法接替）。
-- 分支 CI：（完工后补记 run 号与 Executed 实数）
+- 分支 CI：run 43130417114（代码提交 5e99f99）attempt 2 全绿——Build／Unit tests／IPA 打包／上传四步 success、** TEST SUCCEEDED **；Executed 实数：OneDayCore 1670 全绿、ComposerGuideHostTests 5/5 全绿、OneDayAppTests 全套通过（套件汇总含 Executed 16 全绿一行）。attempt 1 唯一红点为既有 `DrawerContainerControllerTests.testAnimatedCloseReturnsToZero` 在 CI 负载下挂死至会话超时（无断言失败行），同提交原样重跑即全绿、与本包改动面（ComposerGuideHost／ChatView／新测试文件）无关，留痕在此。
 
 ### 178.6 真机待验清单（照配件硬停报告 8 项，本包 CI 不可证的部分全数在此）
 1. 键盘升起：舱贴键盘顶、无坞残影（聚焦藏坞与键盘动画的时序：不得出现坞先闪退/后冒头的一帧错位）、无滞后帧；列表末行随舱上移、间距恒 8。
