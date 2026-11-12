@@ -206,15 +206,15 @@ extension DrawerContainerControllerTests {
         )
     }
 
-    /// §178.8 补修 A（Codex 异源复核）：关闭动画起
+    /// §186.8 补修 A（Codex 异源复核）：关闭动画起
     /// 始帧起内容必须保持不可点、命中不得落进内容
     /// 宿主，直到落定才恢复——修复前 animator 闭包
     /// 在起始拍以目标值 applyOffset(0) 把交互同步置
     /// true，呈现层还在移动（透传/命中按 model 值与
     /// 布局快照帧走），点会落进正在移动的内容
-    /// §178.11：在途证据改 setDrawer 返回的同步瞬
+    /// §186.11：在途证据改 setDrawer 返回的同步瞬
     /// 间三合取（presentation 探针废弃，断言映射账
-    /// 见 DESIGN §178.11）
+    /// 见 DESIGN §186.11）
     func testAnimatedCloseKeepsContentUntouchableUntilSettled() {
         controller.contentRoot = AnyView(Color.red)
         controller.view.layoutIfNeeded()
@@ -243,7 +243,7 @@ extension DrawerContainerControllerTests {
         // finishSettle 并按终值 0 把门开回，故同步瞬
         // 间门关只在 animator 在途时成立；飞行全程
         // 门的写口只有 applyOffset（animator 在途恒
-        // 关）与落定 finishSettle（映射账见 §178.11）
+        // 关）与落定 finishSettle（映射账见 §186.11）
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "关闭动画起始帧内容即恢复可点（呈现层还在移动）")
@@ -258,10 +258,10 @@ extension DrawerContainerControllerTests {
             "落定后命中应回到内容")
     }
 
-    /// §178.8 补修 A（开向）：打开动画起始帧内容即
+    /// §186.8 补修 A（开向）：打开动画起始帧内容即
     /// 不可点、落定后保持（窄条承接点按）
-    /// §178.11：在途证据改同步三合取（同关向，断言
-    /// 映射账见 DESIGN §178.11）
+    /// §186.11：在途证据改同步三合取（同关向，断言
+    /// 映射账见 DESIGN §186.11）
     func testAnimatedOpenDisablesContentFromFirstFrame() {
         controller.contentRoot = AnyView(Color.red)
         controller.view.layoutIfNeeded()
@@ -285,7 +285,7 @@ extension DrawerContainerControllerTests {
             isInContentHost(midHit),
             "打开动画在途命中穿进了内容宿主")
         // ③内容交互门已关（飞行全程门写口唯一性同
-        // 关向，见 §178.11）
+        // 关向，见 §186.11）
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "打开动画起始帧内容应即刻不可点")

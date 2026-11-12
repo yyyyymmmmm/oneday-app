@@ -3,7 +3,7 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// §178 输入舱引导线托管的宿主级几何验收：把生产件
+/// §186 输入舱引导线托管的宿主级几何验收：把生产件
 /// ComposerGuideHost 装进与生产同构的壳（DrawerCon-
 /// tainerController 前景＋真 TabView＋真 UITabBar）里，
 /// 聊天页替身按 ChatView 的现行接法复刻（ScrollView-
@@ -18,14 +18,14 @@ import XCTest
 /// 5. 透传：舱带之外 host 视图 hitTest 穿透（列表手
 ///    势作用域不被全帧层吞掉）
 /// 6. 切格往返与抽屉开合后静止几何复原（前景协作）
-/// 7. §178.8 无戳归因三法：舱内结构状态（错误条行
+/// 7. §186.8 无戳归因三法：舱内结构状态（错误条行
 ///    /回底钮行/多行生长）切换不写回报绑定，构建
 ///    次数、舱高与留位回报经归因链自然更新
-/// 8. §178.8 抽屉 animated 关闭中途命中：动画途中
+/// 8. §186.8 抽屉 animated 关闭中途命中：动画途中
 ///    舱不可达、落定后恢复可命中（补修 A 端到端）
 /// 键盘跟随本身 CI 模拟器升不起真键盘（探针两轮实
 /// 证：isFirstResponder 可达、无键盘窗、合成通知
-/// SwiftUI 不认），归真机清单（DESIGN §178）不在此断言
+/// SwiftUI 不认），归真机清单（DESIGN §186）不在此断言
 @MainActor
 final class ComposerGuideHostTests: XCTestCase {
 
@@ -40,7 +40,7 @@ final class ComposerGuideHostTests: XCTestCase {
         var selection = 0
         var bottomSpace: CGFloat = 168
         var tallBar = false
-        /// §178.8 结构三态开关（舱内独有状态：只改这
+        /// §186.8 结构三态开关（舱内独有状态：只改这
         /// 些、不写 bottomSpace，验刷新归因本身）
         var errorRow = false
         var jumpRow = false
@@ -90,7 +90,7 @@ final class ComposerGuideHostTests: XCTestCase {
         }
     }
 
-    /// 聊天页替身：按 ChatView §178 接法复刻（同树
+    /// 聊天页替身：按 ChatView §186 接法复刻（同树
     /// proxy、实测留位、host 托管同位）。舱替身写在构
     /// 建闭包里（与生产 bottomBar 是 ChatView 函数、经
     /// 桥 init 在外层 body 期求值的形态同构——状态读
@@ -164,7 +164,7 @@ final class ComposerGuideHostTests: XCTestCase {
                         let _ = box.notes["builds"] =
                             "\((Int(box.notes["builds"] ?? "0") ?? 0) + 1)"
                         VStack(spacing: 0) {
-                            // §178.8 结构三态段（生产 bot-
+                            // §186.8 结构三态段（生产 bot-
                             // tomBar 条件段的同构复刻：栈
                             // spacingS、每段高含其后一档
                             // 栈距）：错误条行（条 36＋距
@@ -332,7 +332,7 @@ final class ComposerGuideHostTests: XCTestCase {
 
     /// 等回报增量抵达期望（±2）的截止轮询：结构切
     /// 换→归因重建→树内布局→Preference 帧回报链的
-    /// 落定判据（§178.8 无戳三态法共用）
+    /// 落定判据（§186.8 无戳三态法共用）
     private func waitForReportDelta(
         from base: CGFloat, expected: CGFloat
     ) {
@@ -343,7 +343,7 @@ final class ComposerGuideHostTests: XCTestCase {
         }
     }
 
-    /// 命中视图是否落在指定祖先的子树内（§178.8 动
+    /// 命中视图是否落在指定祖先的子树内（§186.8 动
     /// 画中途命中断言用）
     private func isDescendant(
         _ view: UIView?, of ancestor: UIView
@@ -366,7 +366,7 @@ final class ComposerGuideHostTests: XCTestCase {
 
     /// 舱的活量帧：量 reporter 登记的舱本体视图（滚动
     /// /变换后即时准确，绕开落盒帧的陈旧窗口）。宿主
-    /// 自 §178 定版起全高填充、其帧不再是舱帧——舱帧
+    /// 自 §186 定版起全高填充、其帧不再是舱帧——舱帧
     /// 只认舱本体（树内以理想高成帧）
     private func liveBarFrame() -> CGRect? {
         liveFrame("bar")
@@ -509,7 +509,7 @@ final class ComposerGuideHostTests: XCTestCase {
         }
         let buildsBefore = box.notes["builds"] ?? "?"
         state.tallBar = true
-        // §178.8 补修（Codex 复核点名）：原法在此戳回
+        // §186.8 补修（Codex 复核点名）：原法在此戳回
         // 报绑定（bottomSpace += 1）逼替身重建，绕开
         // 了刷新归因——戳已删。本法现与三态切换三法
         // （错误条/回底钮行/多行无戳）同口径：只改舱
@@ -543,7 +543,7 @@ final class ComposerGuideHostTests: XCTestCase {
             "舱本体高应随内容长到 116（\(diag)）")
     }
 
-    /// §178.8 无戳归因（错误条行）：只改舱内结构状
+    /// §186.8 无戳归因（错误条行）：只改舱内结构状
     /// 态、不写 bottomSpace——构建次数、舱高、留位
     /// 回报必须全经归因链自然更新（原长高法靠戳回
     /// 报绑定逼重建、绕开了归因，本组三法补上）
@@ -578,7 +578,7 @@ final class ComposerGuideHostTests: XCTestCase {
             "留位回报应自然跟随 +44")
     }
 
-    /// §178.8 无戳归因（回底钮行）：同上，钮行段高
+    /// §186.8 无戳归因（回底钮行）：同上，钮行段高
     /// 52（命中域 44＋栈距 8）
     func testJumpRowToggle_growthFlowsWithoutReportPoke() {
         waitForBarFrame()
@@ -611,7 +611,7 @@ final class ComposerGuideHostTests: XCTestCase {
             "留位回报应自然跟随 +52")
     }
 
-    /// §178.8 无戳归因（多行生长）：与长高法同事实、
+    /// §186.8 无戳归因（多行生长）：与长高法同事实、
     /// 独立成法钉归因——只改舱内状态，构建/舱高/回
     /// 报三者自发更新（长高法本轮已同步删戳）
     func testMultilineGrowth_reportFollowsWithoutPoke() {
@@ -648,7 +648,7 @@ final class ComposerGuideHostTests: XCTestCase {
             "留位回报应自然跟随 +40")
     }
 
-    /// §178.8 抽屉 animated 关闭中途命中（补修 A 的
+    /// §186.8 抽屉 animated 关闭中途命中（补修 A 的
     /// 同构壳端到端）：关闭动画起始帧起，容器命中不
     /// 得落进输入舱（修复前内容在起始帧即恢复可点、
     /// 透传判定帧又是位移前快照——点会落进正在移动

@@ -345,7 +345,7 @@ final class DrawerContainerController: UIViewController,
         )
         // 穿透防护：只要离开合位，内容本体不接触摸
         // （窄条的点/拖由前景手势承接）；全合位恢复。
-        // §178.8 补修（Codex 异源复核）：归位动画在途
+        // §186.8 补修（Codex 异源复核）：归位动画在途
         // 时同样保持关闭——animator 的动画闭包在启动
         // 拍即以目标值调本函数（model 值同步落位），
         // 若只看 offset，关闭动画起始帧内容就已可点，
@@ -420,7 +420,7 @@ final class DrawerContainerController: UIViewController,
         if !open {
             drawerHost.view.isHidden = true
         }
-        // §178.8：归位落定的交互复位——动画路径下
+        // §186.8：归位落定的交互复位——动画路径下
         // applyOffset 因 animator 在途恒置关闭，落定
         // （完成回调已先清 animator／瞬时路径本就无
         // animator）在此按 offset 终值放行；开态终值

@@ -4,7 +4,7 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-/// 输入舱引导线托管（§178，用户 2026-11-12 03:02 亲点
+/// 输入舱引导线托管（§186，用户 2026-11-12 03:02 亲点
 /// 「层级内承载＋系统键盘引导线钉底」）：取代消息列表
 /// `.safeAreaBar(edge: .bottom)` 承载（0.4.3–§177）。
 ///
@@ -37,7 +37,7 @@ import UIKit
 ///   方、内嵌控制器视图底＝坞顶；且 SwiftUI **不**给内
 ///   嵌控制器传 additionalSafeAreaInsets（实测 0），地
 ///   板不得再减安全区数——第一轮探针多减 83pt 当场证
-///   伪、双计教训记 §178）。
+///   伪、双计教训记 §186）。
 /// - 列表底留位改由本件实测回报驱动：舱顶在窗口坐标的
 ///   实测值换算成「舱顶→窗口底距离」回写 ChatView，
 ///   列表 `.contentMargins(.bottom)` ＝该值＋spacingS

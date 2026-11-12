@@ -272,7 +272,7 @@ struct ChatView: View {
     // 按 0.75 倍自噬塌陷、面板等于没出现，自此只
     // 认本值；未回写（0）时 detent 决策回落默认档
     @State private var hostViewHeight: CGFloat = 0
-    // §178（2026-11-12，承载换代）：输入舱顶→窗口底
+    // §186（2026-11-12，承载换代）：输入舱顶→窗口底
     // 距离的实测回报（ComposerGuideHost 在布局拍回
     // 写）——消息列表底 contentMargins ＝本值＋
     // spacingS（§176 单点边距的现行落点，见列表侧
@@ -620,23 +620,23 @@ struct ChatView: View {
     /// 任何 push 依赖（全仓核查），顶栏以悬浮覆盖层实现。
     /// （0.4.3 注：顶栏已改挂列表的 safeAreaBar 注册、不
     /// 再经本容器的 overlay 悬浮，见下）
-    /// （§178 注，2026-11-12：底部发送区的承载再换代——
+    /// （§186 注，2026-11-12：底部发送区的承载再换代——
     /// 退出列表 safeAreaBar 注册，改由 ComposerGuideHost
     /// 以 UIKit keyboardLayoutGuide 在同层 ZStack 托管，
     /// 列表底留位改实测 contentMargins；换代原因与证据
-    /// 见 ComposerGuideHost 文件头与 DESIGN §178。上文
+    /// 见 ComposerGuideHost 文件头与 DESIGN §186。上文
     /// 0.2.6/0.4.3 的「回布局流」结论就此更新为「留前景
     /// 层级内、钉位改走引导线」：不在安全区栈里、也不回
     /// 覆盖层推算，两条旧路都不走）
     private var chatSurface: some View {
         ScrollViewReader { proxy in
-            // §178（2026-11-12，承载换代）：输入舱退出
+            // §186（2026-11-12，承载换代）：输入舱退出
             // 列表的 safeAreaBar 注册，改由 Composer-
             // GuideHost 在同层 ZStack 里以 UIKit 引导线
             // 托管（整栈仍在前景层级内、随抽屉前景滑
             // 动；列表与舱同树同 proxy，贴底四路的调用
             // 面一字不变，见 ComposerGuideHost 文件头
-            // 与 messageList 的 §178 注）。回底钮不在
+            // 与 messageList 的 §186 注）。回底钮不在
             // 此浮层（§124 三代落位，见下条沿革注）
             ZStack {
                 messageList(proxy)
@@ -658,7 +658,7 @@ struct ChatView: View {
             // 在不属于输入舱的坐标系里推算；§124 正修＝
             // 钮搬进发送区布局流本体（bottomBar 内输入
             // 舱上方一行），落位由构造保证、零推算。
-            // §178 换代后此结论不变：钮仍在 bottomBar
+            // §186 换代后此结论不变：钮仍在 bottomBar
             // 本体内（本层 ZStack 的托管内容就是
             // bottomBar 整栈），落位改由托管控制器的
             // 约束构造保证——仍是「在输入舱自己的坐标
@@ -671,14 +671,14 @@ struct ChatView: View {
             Palette.chatSurface
                 .ignoresSafeArea()
         }
-        // §178 配套（诊断 K1）：聚焦打字时隐藏导航坞——
+        // §186 配套（诊断 K1）：聚焦打字时隐藏导航坞——
         // TabView 的安全区预留不因输入舱退出安全区栈而
         // 消失，键盘升起时坞仍会骑到键盘顶、与舱的下段
         // 带重叠（「坞被键盘窗自然覆盖」在 SwiftUI Tab-
         // View 下不成立，机制见诊断 3.1 与 Composer-
         // GuideHost 文件头）；聚焦态藏坞、失焦恢复，坞
         // 在键盘态彻底退出画面，舱直接坐在键盘上。显
-        // 隐与键盘动画的时序耦合列真机待验（§178 清单
+        // 隐与键盘动画的时序耦合列真机待验（§186 清单
         // 第 1/2 项）；本修饰只挂聊天格内容根、逐格生
         // 效，切到其他格时由该格自身口径接管（恒可见）
         .toolbar(
@@ -1287,7 +1287,7 @@ struct ChatView: View {
 
     /// 底部发送区（0.2.6 起由消息列表的安全区承载、不
     /// 再是覆盖层；0.2.6–0.4.2 为 .safeAreaInset，0.4.3
-    /// 改 .safeAreaBar 注册，§28；**§178 起改由 Comp-
+    /// 改 .safeAreaBar 注册，§28；**§186 起改由 Comp-
     /// oserGuideHost 以 keyboardLayoutGuide 托管**——
     /// 本函数产出的整栈视图改经 chatSurface 的托管桥
     /// 落位，栈本体、内部排布与高度口径一字不变，见
@@ -1979,13 +1979,13 @@ struct ChatView: View {
         // inputBar 顶 padding 同步归零（链上这一段的
         // 总量不变、记账只剩一处）；链写死总量 17、
         // 九环对账见 DESIGN §176
-        // §178（2026-11-12，承载换代）：留位来源换代——
+        // §186（2026-11-12，承载换代）：留位来源换代——
         // 输入舱退出安全区注册后，列表底留位＝舱顶→窗
         // 口底的实测距离（composerBottomSpace，Compo-
         // serGuideHost 布局拍回写）＋spacingS：本行仍是
         // 这条链的唯一记账点，spacingS 仍是唯一可调边
         // 距（8）；链的静止总量与 §176 定版一致（实测距
-        // 离在静止帧＝坞高＋舱高，公式见 §178 对账）。
+        // 离在静止帧＝坞高＋舱高，公式见 §186 对账）。
         // 键盘态距离随引导线实测走（升起＝键盘高＋舱
         // 高、交互收起逐拍跟随），不再经安全区扩张
         .contentMargins(
@@ -2005,7 +2005,7 @@ struct ChatView: View {
         // 满底缘 scroll edge effect。键盘跟随仍由安全区
         // 驱动（键盘即安全区扩张），0.2.6/0.4.1 的键盘
         // 行为经构造＋代码审计＋单测复验，证据链见 §28.4
-        // §178（2026-11-12，承载换代）：底部 safeAreaBar
+        // §186（2026-11-12，承载换代）：底部 safeAreaBar
         // 注册整段退役（0.2.6 进安全区、0.4.3 改注册的
         // 沿革到此为止）——输入舱改由 ComposerGuideHost
         // 以 keyboardLayoutGuide 托管（chatSurface 的
