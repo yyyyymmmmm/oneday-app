@@ -102,7 +102,7 @@ struct CloudComputerDetailView: View {
                     }
                 } footer: {
                     Text(connection.provider == "vps_agent"
-                        ? "断开只摘掉这边的登记与凭据；VPS 上的代理程序要用它自带的卸载命令才算全清。"
+                        ? "断开只摘掉这边的登记与保存的登录信息。"
                         : "断开只摘掉这边的凭据；厂商那边的密钥请到厂商处吊销。")
                 }
             } else {
@@ -141,9 +141,11 @@ struct CloudComputerDetailView: View {
 
 /// 凭据表单（添加流与详情更换共用）：按 provider 分
 /// 型——托管类只有密钥一格（端点是已知常量，不让用
-/// 户填，规格 §3.1）；VPS 类地址＋令牌，另支持整串
-/// 粘贴自动拆分（§3.2）。提交后验活结果由 store 的
-/// 状态机回显（成/败都带服务端人话，失败含回滚说明）。
+/// 户填，规格 §3.1）；VPS 类只收 IP＋账户名＋密码三
+/// 样（2026-11-11 15:58 定版，云电脑收口规格 §2）：
+/// 端点、令牌、装代理都是服务端内部的事，不进用户
+/// 面。提交后验活结果由 store 的状态机回显（成/败
+/// 都带服务端人话，失败含回滚说明）。
 struct CredentialFormView: View {
     var store: ConnectionsStore
     let connection: CompanionConnection
@@ -151,34 +153,24 @@ struct CredentialFormView: View {
 
     @Environment(AppState.self) private var appState
     @State private var apiKey = ""
-    @State private var endpointUrl = ""
-    @State private var token = ""
-    @State private var configString = ""
+    @State private var host = ""
+    @State private var username = ""
+    @State private var password = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
             if connection.provider == "vps_agent" {
-                TextField("配置串（可整串粘贴，自动拆分）", text: $configString)
+                TextField("IP 地址（如 1.2.3.4）", text: $host)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .onChange(of: configString) { _, newValue in
-                        if let parsed = ConnectionPayloads.parseConfigString(newValue) {
-                            endpointUrl = parsed.endpointUrl
-                            token = parsed.token
-                        }
-                    }
-                TextField("电脑地址（如 https://…/mcp）", text: $endpointUrl)
+                    .keyboardType(.numbersAndPunctuation)
+                TextField("账户名（如 Administrator）", text: $username)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                SecureField("令牌", text: $token)
-                if endpointUrl.hasPrefix("http://"),
-                   !endpointUrl.hasPrefix("http://127."),
-                   !endpointUrl.contains("100.") {
-                    Text("提醒：这是公网明文地址，令牌等于这台电脑的钥匙，明文传输有被截获的风险；建议用私网地址或带 https 的地址。")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.danger)
-                }
+                SecureField("密码", text: $password)
+                Text("登录信息只发给你的服务端保存，App 不留存；连上之后，装代理、接进智能体的事都由服务端处理。")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
             } else {
                 SecureField("API 密钥", text: $apiKey)
             }
@@ -214,17 +206,19 @@ struct CredentialFormView: View {
 
     private var inputReady: Bool {
         if connection.provider == "vps_agent" {
-            return ConnectionPayloads.isPlausibleEndpoint(endpointUrl)
-                && !token.isEmpty
+            return WindowsLoginInput.isReady(
+                host: host, username: username, password: password
+            )
         }
         return apiKey.count >= 10
     }
 
     private func submit() async {
         let body: [String: JSONValue] = connection.provider == "vps_agent"
-            ? ConnectionPayloads.vpsCredential(
-                endpointUrl: endpointUrl.trimmingCharacters(in: .whitespaces),
-                token: token
+            ? ConnectionPayloads.windowsCredential(
+                host: host.trimmingCharacters(in: .whitespaces),
+                username: username.trimmingCharacters(in: .whitespaces),
+                password: password
             )
             : ConnectionPayloads.simularCredential(apiKey: apiKey)
         await store.submitCredential(
@@ -263,7 +257,7 @@ struct AddComputerView: View {
                         )
                         providerRow(
                             value: "vps_agent", title: "我的 VPS",
-                            detail: "自己的服务器，装好电脑代理后填地址与令牌"
+                            detail: "自己的 Windows 电脑或服务器，填 IP、账户名和密码就能连"
                         )
                     } header: {
                         Text("类型")

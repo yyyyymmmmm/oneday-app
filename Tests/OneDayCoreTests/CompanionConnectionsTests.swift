@@ -110,6 +110,69 @@ final class CompanionConnectionsTests: XCTestCase {
             ConnectionPayloads.vpsCredential(endpointUrl: "https://x/mcp", token: "t"),
             ["endpointUrl": .string("https://x/mcp"), "token": .string("t")]
         )
+        XCTAssertEqual(
+            ConnectionPayloads.windowsCredential(
+                host: "1.2.3.4", username: "Administrator", password: "p w"
+            ),
+            [
+                "host": .string("1.2.3.4"),
+                "username": .string("Administrator"),
+                "password": .string("p w"),
+            ]
+        )
+    }
+
+    // MARK: - Windows 登录三样校验（收口规格 §2.1）
+
+    func testWindowsLoginHostValidation() {
+        // 合法：IPv4 与主机名形态
+        XCTAssertTrue(WindowsLoginInput.isValidHost("1.2.3.4"))
+        XCTAssertTrue(WindowsLoginInput.isValidHost("192.168.1.10"))
+        XCTAssertTrue(WindowsLoginInput.isValidHost(" 10.0.0.1 "))
+        XCTAssertTrue(WindowsLoginInput.isValidHost("vps.example.com"))
+        XCTAssertTrue(WindowsLoginInput.isValidHost("my-pc"))
+        // 非法：URL/端点形态不许漏回用户面
+        XCTAssertFalse(WindowsLoginInput.isValidHost("https://1.2.3.4"))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("1.2.3.4/mcp"))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("1.2.3.4:3389"))
+        // 非法：坏 IPv4 不许借主机名口径混过
+        XCTAssertFalse(WindowsLoginInput.isValidHost("999.1.1.1"))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("1.2.3"))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("1.2.3.4.5"))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("1.2.3."))
+        // 非法：空与怪形态
+        XCTAssertFalse(WindowsLoginInput.isValidHost(""))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("   "))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("-bad.com"))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("a b.com"))
+        XCTAssertFalse(WindowsLoginInput.isValidHost("a..com"))
+    }
+
+    func testWindowsLoginReady() {
+        XCTAssertTrue(WindowsLoginInput.isReady(
+            host: "1.2.3.4", username: "Administrator", password: "x"
+        ))
+        // 密码不 trim：纯空格密码也算填了（对错归服务端验）
+        XCTAssertTrue(WindowsLoginInput.isReady(
+            host: "1.2.3.4", username: "a", password: " "
+        ))
+        XCTAssertFalse(WindowsLoginInput.isReady(
+            host: "1.2.3.4", username: "  ", password: "x"
+        ))
+        XCTAssertFalse(WindowsLoginInput.isReady(
+            host: "1.2.3.4", username: "a", password: ""
+        ))
+        XCTAssertFalse(WindowsLoginInput.isReady(
+            host: "https://x", username: "a", password: "x"
+        ))
+    }
+
+    func testStatusWordingAwaitingLinkIsPending() {
+        let saved = ConnectionStatusWording.evaluate(
+            conn(configured: true, effective: "已保存 · 待打通")
+        )
+        XCTAssertEqual(saved.text, "已保存 · 待打通")
+        XCTAssertEqual(saved.tone, .pending)
     }
 
     // MARK: - 配置串拆分
