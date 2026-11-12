@@ -48,6 +48,21 @@ struct CapsuleFormComparison: View {
                     capsuleView: { currentCapsule_0_50_22 }
                 )
 
+                Divider()
+
+                // C 组：苹果官方定式
+                if #available(iOS 26.0, *) {
+                    formSection(
+                        title: "C 组：苹果官方定式",
+                        description: "GlassEffectContainer + 两钮各自交互玻璃 + glassEffectUnion 同 id + 无 .odPressable",
+                        capsuleView: { officialPattern }
+                    )
+                } else {
+                    Text("C 组需要 iOS 26.0+")
+                        .foregroundStyle(.secondary)
+                        .padding()
+                }
+
                 instructionsSection
             }
             .padding(.horizontal, 20)
@@ -265,6 +280,86 @@ struct CapsuleFormComparison: View {
                 .fill(.clear)
                 .glassEffect(.regular, in: Capsule())
         }
+    }
+
+    // MARK: - C 组：苹果官方定式
+
+    /// 苹果官方定式（2026-11-12 裁决构造）
+    /// - GlassEffectContainer 包裹
+    /// - 两钮各自带 .glassEffect(.regular.interactive())
+    /// - glassEffectUnion 同一 id 把两钮拼成一片
+    /// - 两钮不挂 .odPressable（系统玻璃按压行为接管）
+    /// - 发丝线分隔只作视觉、不承担命中隔离
+    /// - ViewThatFits 两档都覆盖
+    @available(iOS 26.0, *)
+    private var officialPattern: some View {
+        GlassEffectContainer {
+            ViewThatFits(in: .horizontal) {
+                officialCapsuleRow(showName: true)
+                officialCapsuleRow(showName: false)
+            }
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private func officialCapsuleRow(showName: Bool) -> some View {
+        HStack(spacing: OneDayMetrics.spacingS) {
+            // 身份域 Button：系统玻璃＋交互
+            Button {
+                recordTap(form: "C 组（官方定式）", action: "枢纽")
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    Circle()
+                        .fill(.blue.gradient)
+                        .frame(width: 28, height: 28)
+                    if showName {
+                        Text("Hermes")
+                            .font(.headline)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    HStack(spacing: OneDayMetrics.iconTextGap) {
+                        Circle()
+                            .fill(.green)
+                            .frame(width: 6, height: 6)
+                        Text("空闲")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .glassEffectUnion(id: "identity-capsule")
+
+            Rectangle()
+                .fill(Palette.hairline)
+                .frame(width: 0.5, height: 18)
+
+            // 模型域 Button：系统玻璃＋交互
+            Button {
+                recordTap(form: "C 组（官方定式）", action: "模型")
+            } label: {
+                HStack(spacing: OneDayMetrics.stackGap) {
+                    Text("4o")
+                        .font(.callout)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .glassEffectUnion(id: "identity-capsule")
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, 7)
     }
 
     // MARK: - 辅助
