@@ -1,3 +1,8 @@
+/// §184 取证埋点（定位阻塞调用用，定因后撤）
+func assemblyCrumb(_ message: String) {
+    NSLog("[flake-crumb] Assembly %@", message)
+}
+
 import OneDayCore
 import SwiftData
 import SwiftUI
@@ -66,8 +71,10 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         host.view.addSubview(field)
         scratch.rootViewController = host
         scratch.makeKeyAndVisible()
+        assemblyCrumb("warmup-keyVisible")
         scratch.layoutIfNeeded()
         _ = field.becomeFirstResponder()
+        assemblyCrumb("warmup-becameFirstResponder")
         // 等键盘窗真正出现（至多约 6 秒）：任意窗口
         // 中出现键盘窗且高度像样即算热好，与键盘
         // 用例本体的定位口径一致
@@ -84,6 +91,7 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
                 mode: .default,
                 before: Date(timeIntervalSinceNow: 0.05))
         }
+        assemblyCrumb("warmup-keyboardSeenOrTimeout")
         _ = field.resignFirstResponder()
         let settle = Date().addingTimeInterval(0.3)
         while Date() < settle {
@@ -347,10 +355,12 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         let baselinePlatter = frameInWindow(platter)
         let baselineTabBar = frameInWindow(tabBar)
 
+        assemblyCrumb("kb-beforeFirstResponder")
         XCTAssertTrue(
             textView.becomeFirstResponder(),
             "输入框未能成为第一响应者，键盘变体无从验起"
         )
+        assemblyCrumb("kb-becameFirstResponder")
         // 等键盘升起带动输入舱上移（轮询至多 10 秒）
         var moved = false
         for _ in 0..<20 {
@@ -361,6 +371,7 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
                 break
             }
         }
+        assemblyCrumb("kb-pollDone moved=\(moved)")
         XCTAssertTrue(
             moved, "键盘升起后输入舱未跟随上移（引导线未驱动）"
         )
