@@ -410,7 +410,7 @@ final class ComposerGuideHostController: UIViewController {
         // 拆段拼接：整串插值链会触发类型推断超时
         // （CI 实证 43331533247），逐段成行再 join
         let parts = [
-            "bounds=" + BarsTraceFormat.size(view.bounds),
+            "bounds=" + BarsTraceFormat.size(view.bounds.size),
             "hostView=" + BarsTraceFormat.size(
                 composerHost.view.frame.size
             ),
