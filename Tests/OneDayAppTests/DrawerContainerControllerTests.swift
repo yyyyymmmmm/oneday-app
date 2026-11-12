@@ -12,16 +12,76 @@ final class DrawerContainerControllerTests: XCTestCase {
     private var window: UIWindow!
     private var controller: DrawerContainerController!
 
+    /// §184 flake 治理·预热：多轮 CI 实证本类卡死恒
+    /// 发生在「某轮 launch 里第一个动画用例」started
+    /// 后无结果（热重启后全数通过、零断言失败）——
+    /// 一次性初始化成本（Core Animation 动画管线／
+    /// 无障碍投递／SwiftUI 图形首触）落在首个用例的
+    /// 计时窗内、被拥堵 runner 放大成超时重启。此处
+    /// 在 class setUp（任何用例计时窗之外）把整条链
+    /// 先完整跑一遍：建窗→装配→弹簧动画开→等完成
+    /// →关，让首个用例开跑时管线已热。
+    override class func setUp() {
+        super.setUp()
+        let window = makeTestWindow()
+        let controller = DrawerContainerController()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.layoutIfNeeded()
+        controller.setDrawer(true, animated: true)
+        // 泵 runloop 等动画落定：判据＝前景 presen-
+        // tation 层 tx 抵 travel（只作预热完成判据、
+        // 非断言）；8 秒上限兜底，最短泵 1.5 秒保证
+        // 管线被真实驱动过
+        let foreground = controller.view.subviews.dropFirst().first
+        let start = Date()
+        let deadline = start.addingTimeInterval(8)
+        while Date() < deadline {
+            RunLoop.main.run(
+                mode: .default,
+                before: Date(timeIntervalSinceNow: 0.05))
+            let settled = foreground?.layer.presentation()
+                .map { abs($0.transform.m41 - controller.travel) < 0.5 }
+                ?? false
+            if settled, Date() > start.addingTimeInterval(1.5) {
+                break
+            }
+        }
+        controller.setDrawer(false, animated: false)
+        window.rootViewController = nil
+        window.isHidden = true
+    }
+
+    /// 测试窗装配（与生产对齐：附着到宿主 App 的
+    /// UIWindowScene）。旧法 UIWindow(frame:) 无场
+    /// 景——iOS 26 已弃用（本仓编译警告实证）、与生
+    /// 产窗口恒有场景的形态不一致，场景外窗口的动
+    /// 画／显示管线行为不作数；ChatPageAssembly 的
+    /// 场景附着窗在同批 CI 中从未出现首启停滞。无
+    /// 可用场景时回落 frame 建窗（本地无头环境兜底）
+    private static func makeTestWindow() -> UIWindow {
+        let frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first
+        {
+            let window = UIWindow(windowScene: scene)
+            window.frame = frame
+            return window
+        }
+        return UIWindow(frame: frame)
+    }
+
     override func setUp() async throws {
         try await super.setUp()
         controller = DrawerContainerController()
-        window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+        window = Self.makeTestWindow()
         window.rootViewController = controller
         window.makeKeyAndVisible()
         controller.view.layoutIfNeeded()
     }
 
     override func tearDown() async throws {
+        window.rootViewController = nil
         window.isHidden = true
         window = nil
         controller = nil

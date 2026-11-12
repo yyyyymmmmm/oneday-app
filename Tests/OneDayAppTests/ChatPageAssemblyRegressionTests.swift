@@ -30,10 +30,32 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
 
     private var window: DeviceWindow!
 
+    /// §184 flake 治理·生命周期：内存 ModelContainer
+    /// 与 AppState 必须活得比挂着生产树的窗口久。旧
+    /// 法二者是装配方法内的局部量，方法返回即失强引
+    /// 用，容器可能先于树释放——context reset 把模
+    /// 型实例销毁后，树内残留访问在后续用例里以
+    /// SwiftData Fatal error 爆出（CI 实证：本类之后
+    /// 的 ComposerGuideHostTests 首个用例进程崩溃、
+    /// xcodebuild 重启测试包）。提升为类属性统一保
+    /// 管，tearDown 里卸树、排空后才释放。
+    private var assemblyContainer: ModelContainer!
+    private var assemblyAppState: AppState!
+
     override func tearDown() async throws {
         window?.rootViewController = nil
         window?.isHidden = true
         window = nil
+        // 卸树后先泵一拍：树的拆卸与残留任务收尾在
+        // 容器仍活着时完成，再放容器与状态
+        let drainDeadline = Date().addingTimeInterval(0.3)
+        while Date() < drainDeadline {
+            RunLoop.main.run(
+                mode: .default,
+                before: Date(timeIntervalSinceNow: 0.05))
+        }
+        assemblyContainer = nil
+        assemblyAppState = nil
         try await super.tearDown()
     }
 
@@ -56,6 +78,8 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
                 schema: schema, isStoredInMemoryOnly: true
             )]
         )
+        assemblyAppState = appState
+        assemblyContainer = container
         let host = UIHostingController(
             rootView: RootView()
                 .environment(appState)
@@ -241,6 +265,8 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
                 schema: schema, isStoredInMemoryOnly: true
             )]
         )
+        assemblyAppState = appState
+        assemblyContainer = container
         let rootHost = UIHostingController(
             rootView: RootView()
                 .environment(appState)
