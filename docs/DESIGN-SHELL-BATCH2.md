@@ -317,3 +317,26 @@
 - ChatView 与 DrawerContainerView 的改动保持最小，凡触及在回报里逐处单列
 - 推送后 `gh workflow run ios-native.yml --ref feat/ext-shell-batch2` 触发 CI
 - 不合并、不发版、不动版本号
+
+
+---
+
+## 阶段一执行结果（2026-11-12 续跑，阶段门改判后）
+
+- **数据路径**：真实容器层级（DrawerContainerController＋TabView＋
+  safeAreaBar）内程序化 hitTest 逐点扫描，CapsuleHitScanTests v2；
+  全表见 docs/shell-batch2-measurements/HIT-SCAN-DATA.md
+- **三组结构结论**：①现行形态胶囊上无玻璃交互面；②行本体玻璃出
+  现 325×42 整行单一玻璃面、486/486 落点全命中（§179 缺陷复现）；
+  ③官方定式的 union 拼合面 (81,75 230×28) 同时覆盖两钮中心，
+  中线行 115/127 落点命中该面，上/下缘带无覆盖
+- **阶段门判定：③组未过门**——hitTest 口径下③组中带仍是「一片
+  玻璃盖两域」的结构，与②同类；不足以按「零串扰」放行。**按裁
+  决停手：IdentityCapsuleView 生产代码零改动、不叠补丁**
+- **后续决策点（等主线令）**：动作级证据需 XCUITest 合成点按观
+  察实际升起的面；穿层（呈现提 App 根级）与症一（背景责任收口
+  五点）排在胶囊之后、本轮均未开工
+- **CI**：run 43166297983——Build ✅、Unit tests 唯一失败为③组
+  阶段门断言（有意保留红：门未过即红，不做绿色化妆）；Core
+  1679 测试 0 失败；分支红的唯一原因在此，合并前须由主线按
+  阶段门结论处置该断言（改记录制或随重建落地转绿）
