@@ -4,6 +4,15 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
+private struct FloatInsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = -1
+    static func reduce(
+        value: inout CGFloat, nextValue: () -> CGFloat
+    ) {
+        value = nextValue()
+    }
+}
+
 /// 症三·底坞浮空定因探针（2026-11-12 施工第一步）
 ///
 /// 背景：真机量测自家浮空 ≈57±2pt、原生标准带 34–36pt、
@@ -35,15 +44,6 @@ final class TabBarFloatProbeTests: XCTestCase {
         var pageBottomInset: CGFloat = -1
     }
 
-    private struct InsetKey: PreferenceKey {
-        static var defaultValue: CGFloat = -1
-        static func reduce(
-            value: inout CGFloat, nextValue: () -> CGFloat
-        ) {
-            value = nextValue()
-        }
-    }
-
     private struct ProbePage: View {
         let box: ProbeBox
         var body: some View {
@@ -51,12 +51,12 @@ final class TabBarFloatProbeTests: XCTestCase {
                 .background {
                     GeometryReader { proxy in
                         Color.clear.preference(
-                            key: InsetKey.self,
+                            key: FloatInsetKey.self,
                             value: proxy.safeAreaInsets.bottom
                         )
                     }
                 }
-                .onPreferenceChange(InsetKey.self) { value in
+                .onPreferenceChange(FloatInsetKey.self) { value in
                     box.pageBottomInset = value
                 }
         }
