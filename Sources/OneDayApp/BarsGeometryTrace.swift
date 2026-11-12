@@ -228,6 +228,13 @@ enum BarsGeometryTrace {
             lines.append("chatScroll=缺席")
         }
 
+        // §192 增补：尺寸协商量测（逐子点名）——fit
+        // 往来＋各层几何探针的最新值随每份自述一并落盘
+        let negot = BarsNegotiationStore.shared.dump()
+        if !negot.isEmpty {
+            lines.append("negot:\n" + negot)
+        }
+
         // 命中实测：左缘热区中点＋坞上方应属输入舱处
         let edgeHit = window.hitTest(
             CGPoint(x: 12, y: window.bounds.height / 2),
@@ -310,6 +317,96 @@ enum BarsGeometryTrace {
             out += findViews(sub, where: matches)
         }
         return out
+    }
+}
+
+/// 尺寸协商量测仓库（§192 第三轮·逐子点名）：布局
+/// 线程（representable 的 sizeThatFits）与主线程
+/// （几何探针/控制器布局拍）两路写入——fit 往来按
+/// 全文去重成集合（协商史全留）、探针值只留最新
+/// 一份（几何现状）。自述 capture 与 CI 探针倾印共
+/// 用同一出口（probeDump），模拟器与真机同口径对账
+final class BarsNegotiationStore: @unchecked Sendable {
+    static let shared = BarsNegotiationStore()
+    private let lock = NSLock()
+    private var fitLines: [String] = []
+    private var fitSeen: Set<String> = []
+    private var probes: [String: String] = [:]
+
+    func noteFit(_ line: String) {
+        lock.lock()
+        if fitSeen.insert(line).inserted {
+            fitLines.append(line)
+            if fitLines.count > 40 {
+                fitLines.removeFirst(fitLines.count - 40)
+            }
+        }
+        lock.unlock()
+    }
+
+    func noteProbe(_ key: String, _ value: String) {
+        lock.lock()
+        probes[key] = value
+        lock.unlock()
+    }
+
+    func dump() -> String {
+        lock.lock()
+        let fits = fitLines
+        let snapshot = probes
+        lock.unlock()
+        var out: [String] = fits.map { "fit " + $0 }
+        for key in snapshot.keys.sorted() {
+            out.append("probe \(key)=\(snapshot[key] ?? "")")
+        }
+        return out.joined(separator: "\n")
+    }
+}
+
+extension BarsGeometryTrace {
+    /// fit 往来记账（布局线程可调，非隔离）
+    nonisolated static func noteFit(_ line: String) {
+        BarsNegotiationStore.shared.noteFit(line)
+    }
+
+    /// 几何探针记账（同 key 覆盖最新值）
+    nonisolated static func noteProbe(
+        _ key: String, _ value: String
+    ) {
+        BarsNegotiationStore.shared.noteProbe(key, value)
+    }
+
+    /// 协商量测全文（探针倾印与自述共用）
+    nonisolated static var probeDump: String {
+        BarsNegotiationStore.shared.dump()
+    }
+}
+
+/// 自述/探针共用格式器（与 BarsGeometryTrace 内部
+/// 口径一致：帧取整、insets 取整元组）
+enum BarsTraceFormat {
+    static func frame(_ r: CGRect) -> String {
+        String(
+            format: "(%.0f,%.0f %.0fx%.0f)",
+            r.minX, r.minY, r.width, r.height
+        )
+    }
+
+    static func size(_ s: CGSize) -> String {
+        String(format: "%.0fx%.0f", s.width, s.height)
+    }
+
+    static func insets(_ i: EdgeInsets) -> String {
+        "(\(Int(i.top)),\(Int(i.leading)),"
+            + "\(Int(i.bottom)),\(Int(i.trailing)))"
+    }
+
+    /// 提议维度记账：nil＝未定（问理想尺寸）、inf＝
+    /// 无上限——协商史里这两种提议是点名的关键证据
+    static func dim(_ v: CGFloat?) -> String {
+        guard let v else { return "nil" }
+        if v.isInfinite { return "inf" }
+        return "\(Int(v))"
     }
 }
 

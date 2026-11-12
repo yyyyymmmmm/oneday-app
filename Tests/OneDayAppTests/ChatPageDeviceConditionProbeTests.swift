@@ -303,6 +303,14 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
             lines.append("chatScroll: 缺席")
         }
 
+        // §192：尺寸协商量测与真机自述同出口——模拟
+        // 器协商账与真机（149/150 自述 negot 段）逐行
+        // 对读，差在哪一步即点名到哪一步
+        let negot = BarsGeometryTrace.probeDump
+        if !negot.isEmpty {
+            lines.append("negot(sim):\n" + negot)
+        }
+
         let dump = lines.joined(separator: "\n")
         print(dump)
         add(XCTAttachment(string: dump))

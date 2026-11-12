@@ -148,10 +148,26 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         uiViewController: ComposerGuideHostController,
         context: Context
     ) -> CGSize? {
-        guard let width = proposal.width, width.isFinite,
-              let height = proposal.height, height.isFinite
-        else { return nil }
-        return CGSize(width: width, height: height)
+        let result: CGSize?
+        if let width = proposal.width, width.isFinite,
+           let height = proposal.height, height.isFinite {
+            result = CGSize(width: width, height: height)
+        } else {
+            result = nil
+        }
+        // §192 量测：fit 往来逐字记账（提议×回报）——
+        // 149 真机证伪「默认拟合回 1030」后，1030 到
+        // 底是谁在协商里提出的，只认这本账：若提议
+        // 本身即 1030，撑高者在上层（ZStack 提议来
+        // 源）；若提议 729 而落位仍 1030，协商之外
+        // 另有通道（控制器侧量测同轮对账）
+        BarsGeometryTrace.noteFit(
+            "hostFit proposal=(\(BarsTraceFormat.dim(proposal.width)),"
+                + "\(BarsTraceFormat.dim(proposal.height))) -> "
+                + (result.map { BarsTraceFormat.size($0) }
+                    ?? "nil(默认)")
+        )
+        return result
     }
 
     /// 把当前 SwiftUI 侧状态（环境＋舱本体视图值）刷
@@ -190,6 +206,27 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
                             )
                         }
                     }
+                    // §192 量测：舱本体（bottomBar 整
+                    // 栈）在托管树内的实尺寸——149 动态
+                    // 证据示盒高随舱内容固有高同涨，此
+                    // 数是那条链的第一环
+                    .onGeometryChange(
+                        for: CGSize.self
+                    ) { proxy in
+                        proxy.size
+                    } action: { _, size in
+                        controller.updateBarContentSize(size)
+                    }
+            }
+            // §192 量测：宿主 VStack（Spacer＋舱）整体
+            // 实尺寸——与控制器侧 hostFit@… 对账：内栈
+            // 若在 729 提议下自报更高，撑高者即在此树内
+            .onGeometryChange(
+                for: CGSize.self
+            ) { proxy in
+                proxy.size
+            } action: { _, size in
+                controller.updateHostStackSize(size)
             }
             .onPreferenceChange(ComposerBarFrameKey.self) { frame in
                 controller.updateBarFrame(frame)
@@ -267,6 +304,20 @@ final class ComposerGuideHostController: UIViewController {
     private var barFrameInWindow: CGRect = .zero
     private var lastReportedSpace: CGFloat = -1
 
+    /// §192 量测喂入：舱本体在托管树内的实尺寸
+    func updateBarContentSize(_ size: CGSize) {
+        BarsGeometryTrace.noteProbe(
+            "barContent", BarsTraceFormat.size(size)
+        )
+    }
+
+    /// §192 量测喂入：宿主 VStack 整体实尺寸
+    func updateHostStackSize(_ size: CGSize) {
+        BarsGeometryTrace.noteProbe(
+            "hostStack", BarsTraceFormat.size(size)
+        )
+    }
+
     /// 舱帧喂入点（托管树每次布局后经 Preference 上
     /// 行）：存帧、同步给透传判定、并立即尝试回报——
     /// 舱在树内生长时本类未必有布局拍，回报不能只靠
@@ -331,6 +382,39 @@ final class ComposerGuideHostController: UIViewController {
             bottomConstraint.constant = constant
         }
         reportBottomSpace()
+        logNegotiationIfChanged()
+    }
+
+    /// §192 量测（控制器侧对账，值变才记）：本视图
+    /// 界 × 宿主视图帧 × 宿主在两档目标高下的拟合
+    /// 回报 × 本视图 Auto Layout 拟合回报——若 Swift-
+    /// UI 协商之外另有通道把 1030 喂给落位（平台视
+    /// 图 fitting／宿主理想高传播），必在此露头：
+    /// hostFit@3000 给的是内栈在近未定提议下的理想
+    /// 高、sysFit@729 给的是约束系（引导线钉底）
+    /// 在区域高提议下的解
+    private var lastNegotLine = ""
+    private func logNegotiationIfChanged() {
+        let width = view.bounds.width
+        guard width > 0, composerHost.view.superview != nil
+        else { return }
+        let hostFit729 = composerHost.sizeThatFits(
+            in: CGSize(width: width, height: 729)
+        )
+        let hostFitTall = composerHost.sizeThatFits(
+            in: CGSize(width: width, height: 3000)
+        )
+        let sysFit729 = view.systemLayoutSizeFitting(
+            CGSize(width: width, height: 729)
+        )
+        let line = "bounds=\(BarsTraceFormat.size(view.bounds))"
+            + " hostView=\(BarsTraceFormat.size(composerHost.view.frame.size))"
+            + " hostFit@729=\(BarsTraceFormat.size(hostFit729))"
+            + " hostFit@3000=\(BarsTraceFormat.size(hostFitTall))"
+            + " sysFit@729=\(BarsTraceFormat.size(sysFit729))"
+        guard line != lastNegotLine else { return }
+        lastNegotLine = line
+        BarsGeometryTrace.noteProbe("vcLayout", line)
     }
 
     /// 舱顶实测回报：以桥喂入的窗口系舱帧为准，报

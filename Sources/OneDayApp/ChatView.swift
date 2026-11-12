@@ -640,11 +640,69 @@ struct ChatView: View {
             // 此浮层（§124 三代落位，见下条沿革注）
             ZStack {
                 messageList(proxy)
+                    // §192 量测：列表落位帧（窗口系）
+                    .onGeometryChange(
+                        for: String.self
+                    ) { proxy in
+                        BarsTraceFormat.frame(
+                            proxy.frame(in: .global)
+                        )
+                    } action: { _, frame in
+                        BarsGeometryTrace.noteProbe(
+                            "listPlaced", frame
+                        )
+                    }
+                    // §192（修复，定因见 DESIGN §192）：
+                    // ZStack 的定尺寸只认最高优先级子
+                    // 视图（OpenSwiftUI 实现与多方实验
+                    // 互证）——列表定尺寸、输入舱（下条
+                    // 优先级 0）只被提议已定尺寸，其尺
+                    // 寸协商自此没有撑高本层的通道。149
+                    // 前两子同级 0：舱侧协商报出的高
+                    // （真机冷启下被其内容固有高顶到约
+                    // 1030）与列表同权竞尺寸，ZStack
+                    // 取大→整层在安全区矩形内居中安放
+                    // 出屏（pocket/composer 帧 -89 的
+                    // 本体）。舱的实际落位仍全由其控
+                    // 制器内约束（引导线＋地板）决定，
+                    // 与 §186 构造不冲突
+                    .layoutPriority(1)
                 ComposerGuideHost(
                     bottomSpace: $composerBottomSpace
                 ) {
                     bottomBar(proxy)
                 }
+                // §192 量测：舱宿主落位帧（窗口系）——
+                // 与其 sizeThatFits 往来账对读：提议、
+                // 回报、落位三数齐了才算点名到人
+                .onGeometryChange(
+                    for: String.self
+                ) { proxy in
+                    BarsTraceFormat.frame(
+                        proxy.frame(in: .global)
+                    )
+                } action: { _, frame in
+                    BarsGeometryTrace.noteProbe(
+                        "hostPlaced", frame
+                    )
+                }
+                // §192：与上条成对——输入舱退出本层
+                // 定尺寸（见列表条注）
+                .layoutPriority(0)
+            }
+            // §192 量测：本层（ZStack）落位帧＋其所见
+            // 安全区——坏帧的「盒」本体与安放矩形在此
+            // 一并留证（修复后此帧应回安全区矩形）
+            .onGeometryChange(
+                for: String.self
+            ) { proxy in
+                BarsTraceFormat.frame(
+                    proxy.frame(in: .global)
+                ) + " safe=" + BarsTraceFormat.insets(
+                    proxy.safeAreaInsets
+                )
+            } action: { _, value in
+                BarsGeometryTrace.noteProbe("zstack", value)
             }
             // （§124 沿革注，本层与回底钮的关系）：回底
             // 钮三代浮层落位全败——0.41.0 挂发送区容器
@@ -1938,6 +1996,19 @@ struct ChatView: View {
                     onOpenSession: { sessionID in
                         appState.pendingChatSessionID = sessionID
                     }
+                )
+            }
+            // §192 量测：顶 bar 注册内容实高——与列表
+            // adjustedContentInset.top（自述 chatScroll
+            // adjTop）对账，safeAreaBar 的 inset 实值
+            // 以此为准
+            .onGeometryChange(
+                for: CGFloat.self
+            ) { proxy in
+                proxy.size.height
+            } action: { _, height in
+                BarsGeometryTrace.noteProbe(
+                    "topBarH", "\(Int(height))"
                 )
             }
         }
