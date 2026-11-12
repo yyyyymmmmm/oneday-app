@@ -210,7 +210,7 @@ struct PresentationLayerObservation: View {
 
             Text("观察要点：呈现面是否盖住背景网格与四角标记")
                 .font(.caption2)
-                .foregroundStyle(Palette.inkTertiary)
+                .foregroundStyle(Palette.inkMuted)
                 .padding(.top, 4)
         }
         .padding()
