@@ -34,6 +34,7 @@ final class ComposerGuideHostTests: XCTestCase {
     final class ShellState {
         var selection = 0
         var bottomSpace: CGFloat = 168
+        var contentHeight: CGFloat = 76
         var tallBar = false
     }
 
@@ -148,7 +149,8 @@ final class ComposerGuideHostTests: XCTestCase {
                     // 几何链——托管＋实测留位；滚动指令链
                     // 由 Core 协调器测试与真机清单承担）
                     ComposerGuideHost(
-                        bottomSpace: $state.bottomSpace
+                        bottomSpace: $state.bottomSpace,
+                        contentHeight: $state.contentHeight
                     ) {
                         // 构建计数（诊断：桥 init 求值次数
                         // ——分清「没重建」与「重建没长高」）
