@@ -212,6 +212,9 @@ extension DrawerContainerControllerTests {
     /// 在起始拍以目标值 applyOffset(0) 把交互同步置
     /// true，呈现层还在移动（透传/命中按 model 值与
     /// 布局快照帧走），点会落进正在移动的内容
+    /// §178.11：在途证据改 setDrawer 返回的同步瞬
+    /// 间三合取（presentation 探针废弃，断言映射账
+    /// 见 DESIGN §178.11）
     func testAnimatedCloseKeepsContentUntouchableUntilSettled() {
         controller.contentRoot = AnyView(Color.red)
         controller.view.layoutIfNeeded()
@@ -220,24 +223,30 @@ extension DrawerContainerControllerTests {
             contentHostView?.isUserInteractionEnabled, false,
             "开态内容应不可点")
         controller.setDrawer(false, animated: true)
-        // 起始帧同步断言（不泵 runloop）：交互置位在
-        // animator 闭包内同步发生——此处已被置 true
-        // 即回归本体
+        // 在途三合取（同步瞬间、不泵 runloop）：
+        // ①model 位移已落目标值——动画已提交（动画
+        // 闭包在启动拍同步写 model；提交前读到的应
+        // 是开态 travel、与本断言互斥）
         XCTAssertEqual(
-            contentHostView?.isUserInteractionEnabled, false,
-            "关闭动画起始帧内容即恢复可点（呈现层还在移动）")
-        let midTx = waitForInFlightPresentationTx()
-        XCTAssertGreaterThan(
-            midTx, 1,
-            "呈现层应仍在位移途中")
-        XCTAssertEqual(
-            contentHostView?.isUserInteractionEnabled, false,
-            "关闭动画途中内容应保持不可点")
+            foregroundTx, 0, accuracy: 0.5,
+            "关闭动画起始拍 model 位移应已落目标值（动画已提交）")
+        // ②hitTest 打在显示几何（开态）下属于内容的
+        // 中心点：呈现还停在旧几何、命中不得入内容
+        // 宿主（与 ComposerGuideHostTests 关闭途中
+        // 同步 hitTest 同源）
         let center = CGPoint(x: 196, y: 426)
         let midHit = controller.view.hitTest(center, with: nil)
         XCTAssertFalse(
             isInContentHost(midHit),
-            "关闭动画途中命中穿进了内容宿主")
+            "关闭动画在途命中穿进了内容宿主")
+        // ③内容交互门已关——瞬时路径会在同一拍跑完
+        // finishSettle 并按终值 0 把门开回，故同步瞬
+        // 间门关只在 animator 在途时成立；飞行全程
+        // 门的写口只有 applyOffset（animator 在途恒
+        // 关）与落定 finishSettle（映射账见 §178.11）
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, false,
+            "关闭动画起始帧内容即恢复可点（呈现层还在移动）")
         spinRunLoop(seconds: 2.0)
         XCTAssertEqual(foregroundTx, 0, accuracy: 1.0)
         XCTAssertEqual(
@@ -251,6 +260,8 @@ extension DrawerContainerControllerTests {
 
     /// §178.8 补修 A（开向）：打开动画起始帧内容即
     /// 不可点、落定后保持（窄条承接点按）
+    /// §178.11：在途证据改同步三合取（同关向，断言
+    /// 映射账见 DESIGN §178.11）
     func testAnimatedOpenDisablesContentFromFirstFrame() {
         controller.contentRoot = AnyView(Color.red)
         controller.view.layoutIfNeeded()
@@ -258,19 +269,26 @@ extension DrawerContainerControllerTests {
             contentHostView?.isUserInteractionEnabled, true,
             "关态落定内容应可点")
         controller.setDrawer(true, animated: true)
+        // 在途三合取（同步瞬间、不泵 runloop）：
+        // ①model 位移已落目标值——动画已提交（提交
+        // 前 model 停在 0、与本断言互斥；替代原
+        // presentation 非 nil 的提交见证）
+        XCTAssertEqual(
+            foregroundTx, controller.travel, accuracy: 0.5,
+            "打开动画起始拍 model 位移应已落目标值（动画已提交）")
+        // ②hitTest 打在前景 model 位移后的屏内窄条
+        // （显示几何下仍属内容的区域）：门若在起始
+        // 拍误开、此点必穿入内容宿主
+        let sliverPoint = CGPoint(x: controller.travel + 40, y: 426)
+        let midHit = controller.view.hitTest(sliverPoint, with: nil)
+        XCTAssertFalse(
+            isInContentHost(midHit),
+            "打开动画在途命中穿进了内容宿主")
+        // ③内容交互门已关（飞行全程门写口唯一性同
+        // 关向，见 §178.11）
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "打开动画起始帧内容应即刻不可点")
-        let midTx = waitForInFlightPresentationTx()
-        XCTAssertGreaterThan(
-            midTx, -0.5,
-            "呈现层应已有值（动画已提交；-1 为 nil 哨兵）")
-        XCTAssertLessThan(
-            midTx, controller.travel - 1,
-            "呈现层应仍在位移途中")
-        XCTAssertEqual(
-            contentHostView?.isUserInteractionEnabled, false,
-            "打开动画途中内容应保持不可点")
         spinRunLoop(seconds: 2.0)
         XCTAssertEqual(foregroundTx, controller.travel, accuracy: 1.0)
         XCTAssertEqual(
@@ -284,36 +302,6 @@ extension DrawerContainerControllerTests {
         let subviews = controller.view.subviews
         guard subviews.count >= 2 else { return nil }
         return subviews[1].subviews.first?.subviews.first
-    }
-
-    /// 前景呈现层当前位移（动画途中量测：model 值在
-    /// 起始拍已落目标、只有 presentation 是途中事实）
-    private var foregroundPresentationTx: CGFloat {
-        let subviews = controller.view.subviews
-        guard subviews.count >= 2 else { return -1 }
-        return subviews[1].layer.presentation()?.transform.m41 ?? -1
-    }
-
-    /// Sample the first committed frame while the spring is near its start.
-    private func waitForInFlightPresentationTx(
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) -> CGFloat {
-        let layer = controller.view.subviews[1].layer
-        CATransaction.flush()
-        let deadline = Date().addingTimeInterval(2)
-        while Date() < deadline {
-            if layer.presentation() != nil {
-                return foregroundPresentationTx
-            }
-            _ = RunLoop.main.run(
-                mode: .default,
-                before: min(deadline, Date().addingTimeInterval(1.0 / 240.0))
-            )
-        }
-        if layer.presentation() != nil { return foregroundPresentationTx }
-        XCTFail("presentation layer did not appear during animation", file: file, line: line)
-        return foregroundPresentationTx
     }
 
     private func isInContentHost(_ view: UIView?) -> Bool {
