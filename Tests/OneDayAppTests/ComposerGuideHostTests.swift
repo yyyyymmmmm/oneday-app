@@ -172,6 +172,24 @@ final class ComposerGuideHostTests: XCTestCase {
                             GuideFrameReporter(
                                 name: "bar", box: box)
                         )
+                        // 舱的 SwiftUI 真帧量具（托管树内
+                        // 专用）：UIViewRepresentable 的报
+                        // 帧在托管树内不随内容生长更新（实
+                        // 证：生产 Preference 通道已量到
+                        // +40、reporter 帧恒 76）——长高断
+                        // 言改读本量具（与生产量测同族：
+                        // GeometryReader 全局帧、onChange
+                        // 落盒）
+                        .background {
+                            GeometryReader { geo in
+                                Color.clear.onChange(
+                                    of: geo.frame(in: .global)
+                                ) { _, frame in
+                                    box.notes["barGeo"] =
+                                        "\(frame.minY)/\(frame.height)/\(frame.maxY)"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -293,6 +311,29 @@ final class ComposerGuideHostTests: XCTestCase {
         liveFrame("bar")
     }
 
+    /// 舱的 SwiftUI 真帧（替身的 GeometryReader 量具
+    /// 落盒值 minY/height/maxY）：托管树内的生长只有
+    /// SwiftUI 侧量具如实（见替身 barGeo 注）
+    private func barGeo() -> (
+        minY: CGFloat, height: CGFloat, maxY: CGFloat
+    )? {
+        guard let raw = box.notes["barGeo"] else { return nil }
+        let parts = raw.split(separator: "/")
+            .compactMap { Double($0) }
+        guard parts.count == 3 else { return nil }
+        return (
+            CGFloat(parts[0]), CGFloat(parts[1]),
+            CGFloat(parts[2])
+        )
+    }
+
+    private func waitForBarGeo() {
+        let deadline = Date().addingTimeInterval(4)
+        while box.notes["barGeo"] == nil, Date() < deadline {
+            spinRunLoop(seconds: 0.25)
+        }
+    }
+
     /// 以 UIKit 把替身列表压到底：scrollRectToVisible
     /// 用滚动视图自己的 inset 记账落位（手算 maxY 会
     /// 与 SwiftUI 的容器记账差一截——实证差 221pt 停
@@ -392,13 +433,16 @@ final class ComposerGuideHostTests: XCTestCase {
     }
 
     /// 舱内容长高 40：舱顶上移 40±2、舱底不动、回报
-    /// 同步增 40±2
+    /// 同步增 40±2（舱帧读替身的 SwiftUI 真帧量具
+    /// barGeo——托管树内的生长 reporter 量不到，见
+    /// 替身注；回报断言走生产通道本身）
     func testBarGrowth_topRisesBottomPinned() {
         waitForBarFrame()
+        waitForBarGeo()
         // 采样前等回报落稳（首帧瞬态差约 9pt，不落稳
         // 会把瞬态记成变化量）
         let spaceBefore = stableBottomSpace()
-        guard let before = box.frames["bar"] else {
+        guard let before = barGeo() else {
             XCTFail("首帧未到")
             return
         }
@@ -420,12 +464,12 @@ final class ComposerGuideHostTests: XCTestCase {
             spinRunLoop(seconds: 0.25)
         }
         settle(0.4)
-        guard let after = box.frames["bar"] else {
+        guard let after = barGeo() else {
             XCTFail("长高后帧丢失")
             return
         }
         let diag = "builds=\(buildsBefore)→\(box.notes["builds"] ?? "?")"
-            + " liveBarH=\(liveBarFrame()?.height ?? -1)"
+            + " barGeo=\(box.notes["barGeo"] ?? "-")"
         XCTAssertEqual(
             before.minY - after.minY, 40, accuracy: 2,
             "舱顶应随内容长高同量上移（\(diag)）")
@@ -436,7 +480,7 @@ final class ComposerGuideHostTests: XCTestCase {
             state.bottomSpace - spaceBefore, 40, accuracy: 2,
             "回报值应随舱顶同步变化（\(diag)）")
         XCTAssertEqual(
-            liveBarFrame()?.height ?? -1, 116, accuracy: 2,
+            after.height, 116, accuracy: 2,
             "舱本体高应随内容长到 116（\(diag)）")
     }
 
