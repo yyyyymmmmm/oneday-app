@@ -78,6 +78,13 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         view.convert(view.bounds, to: window)
     }
 
+    private func fmt(_ r: CGRect) -> String {
+        String(
+            format: "(%.0f,%.0f %.0fx%.0f)",
+            r.minX, r.minY, r.width, r.height
+        )
+    }
+
     private func findViews(
         _ root: UIView, where matches: (UIView) -> Bool
     ) -> [UIView] {
@@ -220,7 +227,43 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
     // MARK: - 关四：键盘变体
 
     func testKeyboardUpMovesComposerOnlyDockStays() throws {
-        try assembleProductionPage()
+        // 键盘引导线跟的是窗口场景的键盘：测试窗须附着
+        // 到 App 的 UIWindowScene（裸 UIWindow(frame:)
+        // 无场景时引导线永不驱动——前轮实测舱只落到
+        // 「坞隐藏」位 832 而键盘不起，即此故）。
+        let appState = AppState(
+            client: DemoHermesClient(), demoMode: .connected
+        )
+        let schema = Schema([ChatThread.self, ChatEntry.self])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(
+                schema: schema, isStoredInMemoryOnly: true
+            )]
+        )
+        let host = UIHostingController(
+            rootView: RootView()
+                .environment(appState)
+                .environment(\.locale, AppLocale.uiLocale)
+                .modelContainer(container)
+        )
+        let scene = try XCTUnwrap(
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }.first,
+            "测试宿主无 UIWindowScene，键盘变体无从验起"
+        )
+        window = DeviceWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        window.layoutIfNeeded()
+        spinRunLoop(seconds: 2.0)
+        window.layoutIfNeeded()
+        print(
+            "KBPROBE| sceneWindow insets "
+                + "t=\(window.safeAreaInsets.top) "
+                + "b=\(window.safeAreaInsets.bottom)"
+        )
         let host = try XCTUnwrap(findComposerHost())
         let bar = try XCTUnwrap(findComposerBar(in: host))
         let textView = try XCTUnwrap(
@@ -254,7 +297,18 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
                     }
                     if !hits.isEmpty { kbFound = true }
                 }
-                print("KBPROBE| tick=\(tick) barMaxY=\(frameInWindow(bar).maxY) kbViews=\(kbFound) windows=\(UIApplication.shared.windows.count)")
+                var kbFrames: [String] = []
+                for win in UIApplication.shared.windows {
+                    for v in findViews(win) { x in
+                        String(describing: type(of: x)).contains("Keyboard")
+                    } {
+                        let f = v.convert(v.bounds, to: window)
+                        if f.height > 50 {
+                            kbFrames.append("\(fmt(f))")
+                        }
+                    }
+                }
+                print("KBPROBE| tick=\(tick) barMaxY=\(frameInWindow(bar).maxY) kbViews=\(kbFound) kbFrames=\(kbFrames) windows=\(UIApplication.shared.windows.count)")
             }
             if frameInWindow(bar).maxY < baselineBar.maxY - 150 {
                 moved = true
