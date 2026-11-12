@@ -11034,3 +11034,12 @@ Codex 复核四条：两条 CI 可修（本节 A/B）、一条文档口径（本
 - 件二·图标补回（§188）：merge feat/settings-icon-restore（终头 aad3920，分支 CI run 43176504961 全绿）。代码三文件自动合并；DESIGN 一处内容冲突＝§187 验包补记与 §188 追加同址，合裁＝两边全保留、补记在前 §188 在后，冲突标记残行已清净。
 - 定版：五处字面同改 0.50.25/147（Project.swift 四处＋SettingsSupportViews 版本串 full/hero），grep 验代码内无 0.50.24 残留。
 - 发版验包补记：见本节后续补记行（CI run／单测／IPA 字节与 md5）。
+
+### §190 收官补记（2026-11-12 夜；0.50.25 首发含回归根修复＋整页回归测试，IPA 通道被 flake 堵，未出包）
+- **本版实际内容三件**：§189 容器全屏安放（即 0.50.24 回归的根修复）、§188 图标补回、外加整页组装回归测试 ChatPageAssemblyRegressionTests（四关：两栏组装／症一全出血／浮空落带／键盘变体坞不动）——merge 57f965d 合入 hotfix/05024-bars@524288d，相对 af7eb6e 仅 +1 个测试文件 323 行，**生产代码零改动**。
+- **回归定因（一句话）**：DrawerContainer 被 SwiftUI 摆进安全区矩形、安全区传播断链，§185/§186 是第一批把栏位承载押在此链上的包；二分实证 B≡V24（单回任一包读数不变、撤 §189 的 .ignoresSafeArea() 安放即逐项复现坏几何），故 §189 安放为分水岭、修复已在 af7eb6e 内。
+- **证据边界**：真机「栏位消失」那一步在 CI 装置内未能复现（装置内各变体两栏都在），定因靠二分＋症三真机量测＋外部实证（WWDC25-323、Signal 四步、furbo.org Representable 安全区实战帖）互证；**最终验收＝用户真机复测 0.50.25**，构建侧证据不替代真机。
+- **推送 CI 账**：run 43208181056（head 57f965d）attempt 1–3 均红，唯一红点＝§184 既有首启停滞 flake 家族（日志 Restarting ×2、全日志断言失败 0 条；受害者为当时在飞的 ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned、DrawerContainerControllerTests.testAnimatedCloseKeepsContentUntouchableUntilSettled、DrawerBridgeHarnessTests.testBridgeTapToOpenReachesFullTravel——started 无结果、测试包重启后全过）。两条整页新测试在每个 attempt 均真过（3.3–4.6 秒不等）。
+- **两次改判（如实记）**：①推送 CI 三 attempt 陪耗后主线改判「不再等全绿、立即 dispatch 发版」——依据：该 flake 已立项（§184）且与本版改动无关；全天证据链已足（16:21 main 推送 CI 对 af7eb6e 曾一次全绿 Core 1684＋App 33；hotfix 定版 run 43204911095 两测全过、零断言失败）。②发版 run 三 attempt 仍全红于 flake 后，主线再改判「attempt 上限取消」并授权第二轮 dispatch。
+- **发版构建账（IPA 未产出）**：run 43216428448 attempt 1–3＋run 43224361704 attempt 1–2，合计 5 个 attempt 判读全同型——两条整页测试全过、全日志断言失败 0 条、仅 flake 红。**结构性堵点**：workflow ios-native.yml 步序为 Build→Unit tests→Package IPA→Upload IPA，上传步无 if: always()，测试步红（xcodebuild exit 65）即整 job 止步，五轮 artifacts 均为 0，**0.50.25 IPA 至今未产出、未交付**。
+- **待决（交主线）**：版本内容本身不欠验证（单测口径 Core 1684＋App 35＝33＋整页新测 2，只增不减），欠的只是打包通道。二选一：(a) 择 flake 低发时段再 dispatch 碰绿窗；(b) 授权改 workflow（Package/Upload 加 if: always()，或测试步对该 flake 容忍）后重发。§190 验包行（IPA 字节/md5/Info.plist 读回）待真出包后补。
