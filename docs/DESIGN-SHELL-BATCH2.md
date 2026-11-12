@@ -108,10 +108,79 @@
 
 #### 实验交付物
 1. **CapsuleHitTestScenarios.swift**：测试场景框架，记录预期与实测命中行为
-2. **CapsuleFormComparison.swift**：对照视图，可在真机/模拟器上并排展示两种形态供手动扫描
+2. **CapsuleFormComparison.swift**：对照视图，可在真机/模拟器上并排展示三种形态供手动扫描
 3. **实测记录**（待真机扫描后填入）：
    - 每个落点（x 偏移）触发的动作（枢纽/模型/无响应）
    - 特别关注胶囊上缘（靠近状态栏）与 0.5pt 分隔线附近的行为
+
+---
+
+### 13:06 解法裁决版（覆盖BRIEF/BRIEF2未执行部分）
+
+#### C 组：苹果官方定式（新增）
+在 A/B 对照基础上，增加第三组按官方文档构造的形态：
+
+**C 组（官方定式）**：
+- **GlassEffectContainer** 包裹整体
+- 身份/模型两钮**各自**带 `.glassEffect(.regular.interactive(), in: Capsule())`
+- **glassEffectUnion** 同一 id 把两钮拼成一片
+- **不挂 .odPressable**：系统玻璃按压行为接管
+- 发丝线：保持纯视觉分隔（不承担命中隔离）
+- **ViewThatFits 两档**（全量/紧凑）都要构造并扫描
+
+#### 三组对照扫描（阶段一）
+同宿主（真实容器装配、容器静止态）、同扫描方法（全宽逐点），三组数据：
+- ①现行形态（B组）：背景玻璃＋两Button＋.odPressable
+- ②0.49.3形态（A组）：行本体玻璃＋Menu
+- ③官方定式（C组）：GlassEffectContainer＋逐元素交互玻璃＋union
+
+#### 阶段门（硬）
+- ③组全宽**零串扰** → 进阶段二（重建IdentityCapsuleView）
+- ③组仍有任一串扰落点 → **停手**：只交三组数据与结论，不落生产代码
+
+#### 阶段二：胶囊重建（仅阶段门通过后）
+按官方定式重建 `Sources/OneDayApp/IdentityCapsuleView.swift`：
+- GlassEffectContainer＋两钮各自交互玻璃＋glassEffectUnion同id
+- ViewThatFits两档都覆盖
+- 两钮的动作闭包、无障碍标签、文案与数据派生逐字不变
+- .odPressable自胶囊两钮摘除（系统玻璃行为接管）
+- 发丝线保持纯视觉
+- ChatView接线不动、模型面内容与选择逻辑不动
+
+#### 交付记录（2026-11-12 13:15）
+
+**阶段零：分支清账**
+- ✅ rebase剔除症一生产提交01c7680
+- ✅ 清账后分支：8ac6193（基线）← f7fb6f8（证据框架）← 8343578（修正编译）← 5010b0b（C组实验）
+- ✅ force-push完成
+- ✅ git log验证：无任何Sources/生产提交（只有Tests/与docs/，阶段二除外）
+
+**阶段一：三组命中扫描**
+- ✅ C组代码构造完成（CapsuleFormComparison.swift添加officialPattern）
+- ✅ 提交：5010b0b "test(shell-batch2): 添加C组苹果官方定式实验"
+- ⏳ CI编译验证：run 43159007720（构建中）
+- ⚠️ **执行路径阻塞**：命中扫描需真机/模拟器手动点按，XCTest无法模拟SwiftUI触摸事件
+- 📝 数据记录框架：HIT-SCAN-DATA.md已创建
+
+**CI能力范围**：
+- ✅ 可验证：C组代码是否编译通过
+- ✅ 可执行：既有单测（IdentityCapsuleHitDomainTests等）
+- ❌ **不可执行**：三组命中扫描（需真实触摸交互）
+
+**最小可执行路线**：
+1. CI验证C组编译通过（监控中）
+2. 在OneDayApp添加CapsuleFormComparison入口
+3. 真机/模拟器运行
+4. 手动对三组胶囊逐点扫描（每8pt一个采样点）
+5. 记录数据填入HIT-SCAN-DATA.md
+6. 根据③组数据判定阶段门
+7. 若通过→执行阶段二重建
+
+**当前状态**：
+- 编译验证待CI完成
+- 扫描数据待真机执行（本环境无法完成）
+- 阶段门待扫描结果判定
+- 阶段二暂停等待
 
 #### 逐笔二分（若 A 组干净）
 回归窗内三笔变更，逐笔构造中间形态同宿主重扫：
