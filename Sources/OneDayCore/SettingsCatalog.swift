@@ -10,18 +10,24 @@ import Foundation
 
 /// 设置分组（IA 顺序即声明序）：身份卡不在任何组内
 /// （.top，浏览态以卡片形态居首、搜索态可命中）
+/// prototype-2（DESIGN §164 升级）：连接组改服务与工作区
+/// serverAndWorkspace、app 组改偏好与权限 preferences、
+/// workspace 旧组退役（改为二级枢纽页）
 public enum SettingsGroupID: String, CaseIterable, Sendable {
     case top
     case agent
-    case connection
-    case workspace
-    case app
+    case serverAndWorkspace  // 原 connection 改组（服务与工作区）
+    case preferences         // 原 app 改组（偏好与权限）
     case support
 }
 
 /// 条目目的地：与 App 层 SettingsRoute／管理 sheet
 /// 一一对应（映射在 SettingsView.activate），Core 只
 /// 记语义、不依赖 App 层类型
+/// prototype-2（DESIGN §164 升级）：新增四个二级枢纽页
+/// （agentConfig/serverManagement/sessionManagement/
+/// workspaceHub）、主线会话（mainSession）、重启网关页
+/// （restartGateway）
 public enum SettingsDestination: Equatable, Sendable {
     case identity
     case profiles
@@ -45,6 +51,13 @@ public enum SettingsDestination: Equatable, Sendable {
     case about
     case privacy
     case terms
+    // prototype-2 新增
+    case agentConfig        // 智能体配置枢纽页
+    case serverManagement   // 服务器管理枢纽页
+    case sessionManagement  // 会话管理枢纽页
+    case workspaceHub       // 工作区枢纽页
+    case mainSession        // 主线会话详情页
+    case restartGateway     // 重启网关页
 }
 
 public struct SettingsCatalogEntry: Equatable, Sendable, Identifiable {
@@ -92,28 +105,7 @@ public enum SettingsCatalog {
             keywords: ["头像", "名称", "显示名", "avatar", "name"],
             destination: .identity, showsInBrowse: false
         ),
-        // 智能体
-        SettingsCatalogEntry(
-            id: "profiles", group: .agent,
-            title: "配置档案",
-            summary: "决定人设与系统提示，保存在服务器",
-            keywords: ["档案", "人设", "系统提示", "profile", "soul"],
-            destination: .profiles
-        ),
-        SettingsCatalogEntry(
-            id: "memory", group: .agent,
-            title: "记忆",
-            summary: "长期偏好与记忆条目",
-            keywords: ["长期记忆", "用户档案", "偏好", "memory"],
-            destination: .memory
-        ),
-        SettingsCatalogEntry(
-            id: "skills", group: .agent,
-            title: "技能",
-            summary: "智能体可用的能力，可启停",
-            keywords: ["技能商店", "能力", "skill", "skills"],
-            destination: .skills
-        ),
+        // 智能体（prototype-2：只剩 models/agentConfig/cron，profiles/memory/skills 移入 agentConfig 枢纽页）
         SettingsCatalogEntry(
             id: "models", group: .agent,
             title: "模型与服务商",
@@ -122,98 +114,164 @@ public enum SettingsCatalog {
             destination: .models
         ),
         SettingsCatalogEntry(
+            id: "agentConfig", group: .agent,
+            title: "智能体配置",
+            summary: "配置档案、记忆与技能",
+            keywords: ["配置", "档案", "记忆", "技能", "agent config"],
+            destination: .agentConfig
+        ),
+        SettingsCatalogEntry(
             id: "cron", group: .agent,
             title: "定时任务",
             summary: "按计划自动执行的任务",
             keywords: ["计划", "定时", "自动", "cron"],
             destination: .cron
         ),
+        // 智能体配置页内子项（不在根页显示）
         SettingsCatalogEntry(
-            id: "serverSessions", group: .agent,
-            title: "服务端会话",
-            summary: "在网页端等其他入口产生的会话",
-            keywords: ["会话", "网页端", "session", "sessions"],
-            destination: .serverSessions
+            id: "profiles", group: .agent,
+            title: "配置档案",
+            summary: "决定人设与系统提示，保存在服务器",
+            keywords: ["档案", "人设", "系统提示", "profile", "soul"],
+            destination: .profiles, showsInBrowse: false
         ),
-        // 连接
         SettingsCatalogEntry(
-            id: "server", group: .connection,
+            id: "memory", group: .agent,
+            title: "记忆",
+            summary: "长期偏好与记忆条目",
+            keywords: ["长期记忆", "用户档案", "偏好", "memory"],
+            destination: .memory, showsInBrowse: false
+        ),
+        SettingsCatalogEntry(
+            id: "skills", group: .agent,
+            title: "技能",
+            summary: "智能体可用的能力，可启停",
+            keywords: ["技能商店", "能力", "skill", "skills"],
+            destination: .skills, showsInBrowse: false
+        ),
+        // 服务与工作区（prototype-2 新组）
+        SettingsCatalogEntry(
+            id: "serverManagement", group: .serverAndWorkspace,
+            title: "服务器管理",
+            summary: "连接、诊断与维护",
+            keywords: ["服务器", "连接", "诊断", "维护", "server", "断开连接"],
+            destination: .serverManagement
+        ),
+        SettingsCatalogEntry(
+            id: "sessionManagement", group: .serverAndWorkspace,
+            title: "会话管理",
+            summary: "主线对话与服务端历史",
+            keywords: ["会话", "对话", "历史", "session"],
+            destination: .sessionManagement
+        ),
+        SettingsCatalogEntry(
+            id: "workspace", group: .serverAndWorkspace,
+            title: "工作区",
+            summary: "总览、电脑与文件",
+            keywords: ["工作区", "总览", "电脑", "文件", "workspace"],
+            destination: .workspaceHub
+        ),
+        // 服务器管理页内子项（不在根页显示）
+        SettingsCatalogEntry(
+            id: "server", group: .serverAndWorkspace,
             title: "当前服务器",
             summary: "地址、密钥与连接状态",
             keywords: ["服务器地址", "密钥", "连接", "server"],
-            destination: .serverDetail
+            destination: .serverDetail, showsInBrowse: false
         ),
         SettingsCatalogEntry(
-            id: "connectors", group: .connection,
+            id: "gateway", group: .serverAndWorkspace,
+            title: "网关状态",
+            summary: "网关运行状态与重启",
+            keywords: ["网关", "重启", "gateway"],
+            destination: .gateway, showsInBrowse: false
+        ),
+        SettingsCatalogEntry(
+            id: "logs", group: .serverAndWorkspace,
+            title: "日志",
+            summary: "服务端运行日志",
+            keywords: ["运行日志", "log", "logs"],
+            destination: .logs, showsInBrowse: false
+        ),
+        SettingsCatalogEntry(
+            id: "usage", group: .serverAndWorkspace,
+            title: "用量",
+            summary: "模型用量统计",
+            keywords: ["统计", "消耗", "token", "usage"],
+            destination: .usage, showsInBrowse: false
+        ),
+        SettingsCatalogEntry(
+            id: "envVars", group: .serverAndWorkspace,
+            title: "密钥",
+            summary: "保存在服务器上的密钥",
+            keywords: ["环境变量", "key", "env"],
+            destination: .envVars, showsInBrowse: false
+        ),
+        SettingsCatalogEntry(
+            id: "restartGateway", group: .serverAndWorkspace,
+            title: "重启网关",
+            summary: "服务器管理 · 维护",
+            keywords: ["重启", "维护", "restart gateway"],
+            destination: .restartGateway, showsInBrowse: false
+        ),
+        // 会话管理页内子项（不在根页显示）
+        SettingsCatalogEntry(
+            id: "mainSession", group: .serverAndWorkspace,
+            title: "主线会话",
+            summary: "主要对话、会话 ID",
+            keywords: ["主线", "当前会话", "main session"],
+            destination: .mainSession, showsInBrowse: false
+        ),
+        SettingsCatalogEntry(
+            id: "serverSessions", group: .serverAndWorkspace,
+            title: "服务端会话",
+            summary: "在网页端等其他入口产生的会话",
+            keywords: ["会话", "网页端", "session", "sessions"],
+            destination: .serverSessions, showsInBrowse: false
+        ),
+        // 工作区枢纽页内子项（不在根页显示）
+        SettingsCatalogEntry(
+            id: "overview", group: .serverAndWorkspace,
+            title: "总览",
+            summary: "状态与最近活动",
+            keywords: ["状态", "活动", "overview"],
+            destination: .overview, showsInBrowse: false
+        ),
+        SettingsCatalogEntry(
+            id: "computer", group: .serverAndWorkspace,
+            title: "电脑",
+            summary: "智能体使用的电脑",
+            keywords: ["云电脑", "桌面", "computer"],
+            destination: .computer, showsInBrowse: false
+        ),
+        SettingsCatalogEntry(
+            id: "serverFiles", group: .serverAndWorkspace,
+            title: "服务器文件",
+            summary: "服务器上的文件",
+            keywords: ["文件", "files"],
+            destination: .serverFiles, showsInBrowse: false
+        ),
+        // 偏好与权限（prototype-2 新组）
+        SettingsCatalogEntry(
+            id: "appearance", group: .preferences,
+            title: "外观",
+            summary: "聊天配色、形象大小、模式与语言",
+            keywords: ["主题", "配色", "形象大小", "语言", "深色", "浅色", "theme", "language"],
+            destination: .appearance
+        ),
+        SettingsCatalogEntry(
+            id: "connectors", group: .preferences,
             title: "连接器",
             summary: "外部服务与设备能力",
             keywords: ["外部服务", "设备", "mcp", "connector"],
             destination: .connectors
         ),
         SettingsCatalogEntry(
-            id: "devicePermissions", group: .connection,
+            id: "devicePermissions", group: .preferences,
             title: "设备与权限",
             summary: "本机数据授权与同步",
             keywords: ["权限", "授权", "同步", "设备", "隐私"],
             destination: .devicePermissions
-        ),
-        SettingsCatalogEntry(
-            id: "gateway", group: .connection,
-            title: "网关状态",
-            summary: "网关运行状态与重启",
-            keywords: ["网关", "重启", "gateway"],
-            destination: .gateway
-        ),
-        SettingsCatalogEntry(
-            id: "logs", group: .connection,
-            title: "日志",
-            summary: "服务端运行日志",
-            keywords: ["运行日志", "log", "logs"],
-            destination: .logs
-        ),
-        SettingsCatalogEntry(
-            id: "envVars", group: .connection,
-            title: "密钥",
-            summary: "保存在服务器上的密钥",
-            keywords: ["环境变量", "key", "env"],
-            destination: .envVars
-        ),
-        SettingsCatalogEntry(
-            id: "usage", group: .connection,
-            title: "用量",
-            summary: "模型用量统计",
-            keywords: ["统计", "消耗", "token", "usage"],
-            destination: .usage
-        ),
-        // 工作区（原「管理」组三件整面工作区）
-        SettingsCatalogEntry(
-            id: "overview", group: .workspace,
-            title: "总览",
-            summary: "状态与最近活动",
-            keywords: ["状态", "活动", "overview"],
-            destination: .overview
-        ),
-        SettingsCatalogEntry(
-            id: "computer", group: .workspace,
-            title: "电脑",
-            summary: "智能体使用的电脑",
-            keywords: ["云电脑", "桌面", "computer"],
-            destination: .computer
-        ),
-        SettingsCatalogEntry(
-            id: "serverFiles", group: .workspace,
-            title: "服务器文件",
-            summary: "服务器上的文件",
-            keywords: ["文件", "files"],
-            destination: .serverFiles
-        ),
-        // 应用
-        SettingsCatalogEntry(
-            id: "appearance", group: .app,
-            title: "外观",
-            summary: "聊天配色、形象大小、模式与语言",
-            keywords: ["主题", "配色", "形象大小", "语言", "深色", "浅色", "theme", "language"],
-            destination: .appearance
         ),
         // 支持
         SettingsCatalogEntry(
@@ -254,19 +312,26 @@ public enum SettingsCatalog {
     }
 
     /// 搜索：查询去空白并折叠大小写后，对标题／副行／
-    /// 关键词做包含匹配，命中按清单序返回（清单序即
-    /// IA 序，不另排序）；空查询返回全部条目
+    /// 关键词做包含匹配；标题命中排在副行／关键词命中
+    /// 之前（按标题搜先达标题页，如搜「记忆」先达记忆
+    /// 页、枢纽页「智能体配置」以副行含「记忆」随后），
+    /// 同层内按清单序（清单序即 IA 序）；空查询返回
+    /// 全部条目
     public static func search(_ query: String) -> [SettingsCatalogEntry] {
         let needle = query
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         guard !needle.isEmpty else { return entries }
-        return entries.filter { entry in
-            entry.title.lowercased().contains(needle)
-                || entry.summary.lowercased().contains(needle)
-                || entry.keywords.contains {
-                    $0.lowercased().contains(needle)
-                }
+        let titleHits = entries.filter {
+            $0.title.lowercased().contains(needle)
         }
+        let otherHits = entries.filter { entry in
+            !entry.title.lowercased().contains(needle)
+                && (entry.summary.lowercased().contains(needle)
+                    || entry.keywords.contains {
+                        $0.lowercased().contains(needle)
+                    })
+        }
+        return titleHits + otherHits
     }
 }
