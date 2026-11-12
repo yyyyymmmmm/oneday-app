@@ -10280,3 +10280,8 @@ Codex 复核四条：两条 CI 可修（本节 A/B）、一条文档口径（本
 - run 43137644303：新增关闭/打开两测的同步交互断言均未报告失败；失败集中在 50ms run-loop 泵后的 presentation 位移采样与关闭向 hitTest。Spring 使用 `UIViewPropertyAnimator(duration: 0, timingParameters:)`，该等待不是帧同步点：Core Animation presentation layer 可能尚未建立（`-1` nil 哨兵），也可能在 XCTest 等待/调度迟滞时已落定。第一轮该用例还触发测试进程退出/重启，故不能把显式断言失败归作一般 flake。
 - 生产门控保持原样：动画闭包写目标 model offset 时 `animator` 已设置，内容交互关闭；只有完成回调清 animator 后，关闭向 `finishSettle` 才恢复内容交互。关闭向 nil presentation＋交互恢复＋hitTest 入内容三者与已落定状态一致；现有证据支持测试取样点错误，未证明生产生命周期错误。退出/超时的具体原因仍未确定，不能仅凭该日志归因。
 - 修正：两测仍保留首拍/途中交互断言、关闭向途中 hitTest、落定状态断言；presentation 探针改为短间隔泵主 run loop，在启动 animator 前按 Core Animation 本地时间暂停前景层时钟，提交事务并等待 presentation layer 与 animationKeys 同时存在，在动画已安装但尚未落定的首帧完成位移/交互/hitTest 断言；随后按标准 beginTime 补偿恢复时钟，让原 animator 自然完成。若首帧始终未提交，helper 明确报错，nil sentinel 不会被当作有效样本。该测量不依赖 50ms 墙钟窗口。测试数不变；Linux 环境不运行 Xcode，CI 待协调方复核。
+
+### 178.10 抽屉动画首个提交帧采样（2026-11-12）
+- run 43168297403（bb5489b）：构建成功、Core 1670/1670、ComposerGuideHostTests 9/9、DrawerBridgeHarnessTests 1/1 通过；打开向 helper 报 `presentation layer did not appear during animation`，随后 nil 哨兵断言失败。关闭向首启停滞、重启后跳过，与 run 43137644303 原代码首启停滞及 §178.5 先例一致，作为已知负载 flake，超出本轮范围。
+- §178.9 启动前暂停时钟的方案已被此 CI 证据推翻并取代：冻结前景层时钟使 presentation layer 未能出现。移除所有时钟操作，改在同步首帧断言之后 flush 事务，以不超过 1/240 秒的小片泵主 run loop，最多等待 2 秒，首个非 nil presentation 即采样；超时仍明确报错。duration 为 0 的 UISpringTimingParameters 弹簧约需 0.5 秒，首个提交帧仍基本位于起点，因此无需冻结时间即可确定性采样，暴露窗口由固定 50ms 墙钟等待缩为一帧。
+- 两向途中位移和交互断言、关闭向命中断言及落定断言保留；生产门控不变，测试数不变。CI 待协调方重新验证。
