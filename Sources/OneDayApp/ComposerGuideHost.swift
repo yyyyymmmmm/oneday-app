@@ -188,7 +188,9 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
 
 /// 舱高实测的 PreferenceKey（单舱单值、取后到值）
 private struct ComposerHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    // 计算属性形态：Swift 6 下存储型静态默认值会撞
+    // 并发安全（nonisolated 全局可变状态）
+    static var defaultValue: CGFloat { 0 }
     static func reduce(
         value: inout CGFloat, nextValue: () -> CGFloat
     ) {
