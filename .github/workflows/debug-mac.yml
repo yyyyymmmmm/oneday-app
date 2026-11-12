@@ -1,0 +1,33 @@
+name: Debug Mac (tmate SSH)
+
+# Manual-only debug entry point: opens a tmate session on a free
+# GitHub-hosted macOS runner. Access is restricted to the SSH public
+# key below via tmate-authorized-keys — the connection string printed
+# in the log is useless without the matching private key.
+# Stop the session by cancelling the run.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-mac:
+    runs-on: macos-26
+    timeout-minutes: 360
+    steps:
+      - name: Install tmate
+        run: brew install tmate
+
+      - name: Start tmate session (authorized key only)
+        env:
+          DEBUG_SSH_PUBKEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE9w9oWkcFoFu/Qc/KxCgiLSSfzCCqBbEvMealEqtJBW hatch
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEBUG_SSH_PUBKEY" > "$HOME/.ssh/authorized_keys"
+          chmod 600 "$HOME/.ssh/authorized_keys"
+          printf 'set -g tmate-authorized-keys "%s/.ssh/authorized_keys"\n' "$HOME" > "$HOME/.tmate.conf"
+          tmate -S /tmp/tmate.sock new-session -d
+          tmate -S /tmp/tmate.sock wait tmate-ready
+          echo "TMATE_SSH=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')"
+          # Hold the runner for the debug session (job cap: 360 min).
+          sleep 19800
