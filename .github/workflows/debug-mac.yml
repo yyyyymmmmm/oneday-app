@@ -23,15 +23,22 @@ jobs:
         env:
           DEBUG_SSH_PUBKEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE9w9oWkcFoFu/Qc/KxCgiLSSfzCCqBbEvMealEqtJBW hatch
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$DEBUG_SSH_PUBKEY" > "$HOME/.ssh/authorized_keys"
           chmod 600 "$HOME/.ssh/authorized_keys"
           printf 'set -g tmate-authorized-keys "%s/.ssh/authorized_keys"\n' "$HOME" > "$HOME/.tmate.conf"
-          tmate -S /tmp/tmate.sock new-session -d
-          tmate -S /tmp/tmate.sock wait tmate-ready
-          SSH_STR="$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')"
+          tmate -S /tmp/tmate.sock new-session -d >/dev/null 2>&1 </dev/null || true
+          # `tmate wait tmate-ready` can block indefinitely; poll the
+          # session string instead, bounded to ~2 minutes.
+          SSH_STR=""
+          for i in $(seq 1 60); do
+            SSH_STR="$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' 2>/dev/null || true)"
+            [ -n "$SSH_STR" ] && break
+            sleep 2
+          done
           echo "TMATE_SSH=$SSH_STR"
+          [ -n "$SSH_STR" ]
           printf '%s\n' "$SSH_STR" > "$GITHUB_WORKSPACE/tmate-ssh.txt"
 
       - name: Upload connection string
