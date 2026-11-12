@@ -285,7 +285,7 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
                 && String(describing: type(of: view))
                     .contains("HostingScrollView")
                 && frameInWindow(view).width > 400
-        }.first
+        }.first as? UIScrollView
         if let scroll {
             let scrollFrame: CGRect = frameInWindow(scroll)
             let insetTop: Int = Int(scroll.adjustedContentInset.top)
