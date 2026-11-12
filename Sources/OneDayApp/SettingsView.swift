@@ -653,20 +653,25 @@ struct SettingsView: View {
             .textCase(nil)
     }
 
-    /// 版本居中小灰字行（0.20.0，照 Muse 设置图页脚
-    /// 「Muse vX.Y.Z」形态）：无卡底、居中、15 灰；
-    /// 字面走 OneDayVersionLabel 单源（与关于页 hero
-    /// 同值，版本源第五处收敛于该常量）
+    /// 页脚签名行（§188 补回原型形态：App 图标小图
+    /// 19pt/角 5＋「OneDay」＋版本小字，一行居中）：
+    /// 无卡底；字面仍走 OneDayVersionLabel 单源——名
+    /// 为字面、版本取 hero 面（full 整串保留为同文件
+    /// 字面锚）；墨色沿 0.22.0 审计口径 inkSecondary
     private var versionFooter: some View {
         Section {
-            Text(OneDayVersionLabel.full)
-
-                .font(.meta)
-                // 0.22.0：版本行是要读的字——inkMuted
-                // （2.75:1）换 inkSecondary（审计 G1）
+            HStack(spacing: OneDayMetrics.iconTextGap) {
+                AppIconView(size: 19, cornerRadius: 5)
+                (
+                    Text("OneDay ")
+                        .font(.meta)
+                    + Text(OneDayVersionLabel.hero)
+                        .font(.badgeOnly)
+                )
                 .foregroundStyle(Palette.inkSecondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .listRowBackground(Color.clear)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .listRowBackground(Color.clear)
         }
     }
 
