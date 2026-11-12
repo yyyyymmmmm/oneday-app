@@ -287,10 +287,18 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
                 && frameInWindow(view).width > 400
         }.first
         if let scroll {
-            lines.append("chatScroll: \(fmt(frameInWindow(scroll)))"
-                + " adjInset top=\(Int(scroll.adjustedContentInset.top))"
-                + " bottom=\(Int(scroll.adjustedContentInset.bottom))"
-                + " contentSize=\(Int(scroll.contentSize.height))")
+            let scrollFrame: CGRect = frameInWindow(scroll)
+            let insetTop: Int = Int(scroll.adjustedContentInset.top)
+            let insetBottom: Int = Int(
+                scroll.adjustedContentInset.bottom
+            )
+            let contentH: Int = Int(scroll.contentSize.height)
+            lines.append(
+                "chatScroll: \(fmt(scrollFrame))"
+                    + " adjInset top=\(insetTop)"
+                    + " bottom=\(insetBottom)"
+                    + " contentSize=\(contentH)"
+            )
         } else {
             lines.append("chatScroll: 缺席")
         }
@@ -449,16 +457,19 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
             drawer.semanticPresented,
             "[realDeviceCombo] 开抽屉后语义未置位"
         )
-        let shifted = drawer.view.subviews.contains { sub in
-            sub.transform.tx > 200
-                || frameInWindow(sub).minX > 200
+        let travelInt: Int = Int(drawer.travel)
+        var shifted = false
+        for sub in drawer.view.subviews {
+            if sub.transform.tx > 200
+                || frameInWindow(sub).minX > 200 {
+                shifted = true
+            }
         }
-        print("PROBE-DUMP combo drawer shifted=\(shifted) "
-            + "travel=\(Int(drawer.travel))")
+        print("PROBE-DUMP combo drawer shifted=\(shifted)"
+            + " travel=\(travelInt)")
         XCTAssertTrue(
             shifted,
-            "[realDeviceCombo] 开抽屉后前景未位移（travel="
-                + "\(Int(drawer.travel))）"
+            "[realDeviceCombo] 开抽屉后前景未位移 travel=\(travelInt)"
         )
     }
 }

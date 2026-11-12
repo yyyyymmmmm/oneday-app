@@ -302,13 +302,19 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
                 keyboardTop = kb.convert(kb.bounds, to: window).minY
             }
         }
-        if let keyboardTop {
-            let barBottom = frameInWindow(bar).maxY
-            XCTAssertEqual(
-                barBottom, keyboardTop, accuracy: 24,
-                "输入舱底边未贴键盘顶：舱 \(barBottom) 键盘 \(keyboardTop)"
-            )
-        }
+        // 硬失败口径（2026-11-12 Codex 审计 ext-20261112
+        // -022 点名）：旧写法 `if let keyboardTop` 取不到
+        // 键盘帧时静默跳过仍报过——假绿洞。取不到帧＝
+        // 键盘未真升起或定位失败，本关无从验起，必须红
+        let resolvedKeyboardTop = try XCTUnwrap(
+            keyboardTop,
+            "键盘已升起却定位不到键盘帧，贴键盘顶断言无从验起"
+        )
+        let barBottom = frameInWindow(bar).maxY
+        XCTAssertEqual(
+            barBottom, resolvedKeyboardTop, accuracy: 24,
+            "输入舱底边未贴键盘顶：舱 \(barBottom) 键盘 \(resolvedKeyboardTop)"
+        )
 
         // 导航坞帧与无键盘时一致：留在屏底、不跟键盘走
         XCTAssertEqual(
