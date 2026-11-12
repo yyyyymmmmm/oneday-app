@@ -4,6 +4,11 @@ import OneDayDesign
 import SwiftUI
 import XCTest
 
+// 2026-11-12 订正：本文件为穿层（2b）观察场景的设计
+// 记录，实测排在胶囊重建之后（等主线令）；原占位用
+// XCTExpectFailure 而无失败落账、CI 恒红，改以
+// XCTSkip 保留占位。
+
 /// 症二 2b·穿层观察：呈现层级测试（2026-11-12）
 ///
 /// **范围**：记录模型 sheet／枢纽 cover 的实际呈现层级，
@@ -49,7 +54,7 @@ final class PresentationLayerScenarios: XCTestCase {
         // 2. 状态栏是否可见/穿透
         // 3. 坞是否隐藏/穿透
         // 4. 输入栏是否被盖住
-        XCTExpectFailure("待真机观察后填入实测记录")
+        throw XCTSkip("待真机观察后填入实测记录")
 
         // 预期行为（系统标准 sheet）：
         // - 完整盖住下层内容
@@ -72,7 +77,7 @@ final class PresentationLayerScenarios: XCTestCase {
         // 1. cover 是否完整盖住聊天页及底部坞
         // 2. 状态栏是否可见/穿透
         // 3. 枢纽内容是否触及屏幕边缘
-        XCTExpectFailure("待真机观察后填入实测记录")
+        throw XCTSkip("待真机观察后填入实测记录")
 
         // 预期行为（系统标准 fullScreenCover）：
         // - 完整盖住所有下层内容（包括 TabView 坞）
@@ -95,7 +100,7 @@ final class PresentationLayerScenarios: XCTestCase {
         // - 模型 sheet/枢纽 cover 的 presentationHost 在哪一层？
         // - 是否受 DrawerContainer/TabView 的层级影响？
         // - UIHostingController 是否传播了多余的安全区？
-        XCTExpectFailure("待容器深度调试后填入实测记录")
+        throw XCTSkip("待容器深度调试后填入实测记录")
 
         // 当前口径（§175）：
         // - 模型 sheet 宿主：ChatView 根（已从 capsuleRow 迁移）
@@ -115,7 +120,7 @@ final class PresentationLayerScenarios: XCTestCase {
         // 1. 真机观察两种呈现面的实际层级
         // 2. 截图记录穿透现象（如存在）
         // 3. 与标准 sheet/cover 行为对比
-        XCTExpectFailure("待真机观察确认症状")
+        throw XCTSkip("待真机观察确认症状")
 
         // 注：2b 穿层与 2a 误开是独立症状
         // - 2a：点胶囊触发错误动作（命中域问题）
@@ -134,7 +139,7 @@ final class PresentationLayerScenarios: XCTestCase {
         // 对照意义：
         // - 若 0.49.3 的 Menu 呈现层级正常 → 怀疑与 §149/§153 的 sheet 改造相关
         // - 若 0.49.3 的枢纽 cover 正常 → 排除枢纽侧容器问题
-        XCTExpectFailure("待与现行形态对照后裁决")
+        throw XCTSkip("待与现行形态对照后裁决")
 
         // 注：原生 Menu 的呈现完全由系统管理，不受宿主深度影响
     }

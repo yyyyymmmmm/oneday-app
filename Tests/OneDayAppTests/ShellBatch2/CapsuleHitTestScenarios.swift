@@ -23,6 +23,12 @@ import XCTest
 ///
 /// **实验方法**：构造可切换的测试视图，对全宽逐点扫描命
 /// 中域，记录触发 onOpenHub 还是 onOpenModelPicker。
+///
+/// **2026-11-12 改判后状态**：本文件的手写场景已被
+/// CapsuleHitScanTests 的程序化 hitTest 扫描（真实容
+/// 器层级、13:42 阶段门新口径）取代，下列用例只作设
+/// 计记录、以 XCTSkip 保留（原 XCTExpectFailure 占
+/// 位写法因无失败落账在 CI 恒红，已订正）。
 final class CapsuleHitTestScenarios: XCTestCase {
     // MARK: - 测试数据
 
@@ -52,7 +58,7 @@ final class CapsuleHitTestScenarios: XCTestCase {
         // - 玻璃：.glassEffect(.regular, in: Capsule()) 直接挂行本体
         //
         // **此测试记录 0.49.3 形态的预期命中行为作为基线**
-        XCTExpectFailure("A 组历史形态需构造 0.49.3 capsuleRow 放进现行容器，真机扫描后填入实测记录")
+        throw XCTSkip("A 组历史形态需构造 0.49.3 capsuleRow 放进现行容器，真机扫描后填入实测记录")
 
         // 预期基线（待真机扫描验证）：
         // 左缘 0–170pt：身份域 Button → openHub
@@ -70,7 +76,7 @@ final class CapsuleHitTestScenarios: XCTestCase {
         // - 玻璃：.background { Capsule().fill(.clear).glassEffect(.regular) }（§179 降背景层）
         //
         // **此测试记录现行形态的实际命中行为**
-        XCTExpectFailure("B 组现行形态需真机扫描后填入实测记录")
+        throw XCTSkip("B 组现行形态需真机扫描后填入实测记录")
 
         // 症状描述：胶囊上缘玻璃带（在任何标签之外、紧贴状态栏带下沿 9pt）落点
         // 被吞下按位置派给模型钮，用户点状态栏求回顶却开模型面
@@ -87,7 +93,7 @@ final class CapsuleHitTestScenarios: XCTestCase {
         // 裁决方法：
         // 1. 若 A 组（0.49.3，玻璃挂行本体）也出现误开 → 候选成立
         // 2. 若 A 组命中干净、B 组（玻璃降背景层）仍误开 → 候选排除
-        XCTExpectFailure("待 A/B 对照扫描结果裁决")
+        throw XCTSkip("待 A/B 对照扫描结果裁决")
     }
 
     func testHypothesis_HairlineTouchTarget() throws {
@@ -98,7 +104,7 @@ final class CapsuleHitTestScenarios: XCTestCase {
         // 1. 对分隔线 ±4pt 范围做密集扫描（每 1pt 一个采样点）
         // 2. 若误开集中在分隔线附近 → 候选成立
         // 3. 若误开分布在身份域中部、远离分隔线 → 候选排除
-        XCTExpectFailure("待细粒度扫描后裁决")
+        throw XCTSkip("待细粒度扫描后裁决")
     }
 
     func testHypothesis_PresentationFallback() throws {
@@ -110,7 +116,7 @@ final class CapsuleHitTestScenarios: XCTestCase {
         // 1. 若 A 组（0.49.3，原生 Menu）命中干净 → 怀疑与 sheet 改造相关
         // 2. 逐笔二分回归窗内三笔变更（Menu→sheet / 宿主迁移 / 玻璃降背景）
         //    锁定哪一笔引入异常
-        XCTExpectFailure("待 A/B 对照 + 逐笔二分后裁决")
+        throw XCTSkip("待 A/B 对照 + 逐笔二分后裁决")
     }
 
     // MARK: - 回归窗逐笔二分（若 A 组干净）
@@ -124,7 +130,7 @@ final class CapsuleHitTestScenarios: XCTestCase {
         //
         // 构造方法：用 0.49.3 的 capsuleRow 身份域 + 0.50.16 的模型域
         // Button + sheet，放进现行容器扫描
-        XCTExpectFailure("待 A 组基线确认后构造")
+        throw XCTSkip("待 A 组基线确认后构造")
     }
 
     func testRegressionBisect_Step2_HostMigration() throws {
@@ -134,7 +140,7 @@ final class CapsuleHitTestScenarios: XCTestCase {
         //
         // 构造方法：用 0.50.21 定版代码（git show 对应 commit）提取
         // 胶囊与 sheet 装配，放进现行容器扫描
-        XCTExpectFailure("待中间态 1 确认后构造")
+        throw XCTSkip("待中间态 1 确认后构造")
     }
 
     func testRegressionBisect_Step3_GlassToBackground() throws {
@@ -144,6 +150,6 @@ final class CapsuleHitTestScenarios: XCTestCase {
         // + capsuleRow 独立为 IdentityCapsuleView
         //
         // 构造方法：即 B 组现行形态（已在 testCapsuleHitRegions_CurrentForm_0_50_22）
-        XCTExpectFailure("B 组已覆盖此态")
+        throw XCTSkip("B 组已覆盖此态")
     }
 }

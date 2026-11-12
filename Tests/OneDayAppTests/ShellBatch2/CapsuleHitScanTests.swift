@@ -348,15 +348,15 @@ final class CapsuleHitScanTests: XCTestCase {
         if isGlassInteraction(hit) {
             let frame = hit.convert(hit.bounds, to: window)
             if let hubFrame, let modelFrame,
-               frame.contains(hubFrame.midX, hubFrame.midY),
-               frame.contains(modelFrame.midX, modelFrame.midY) {
+               frame.contains(CGPoint(x: hubFrame.midX, y: hubFrame.midY)),
+               frame.contains(CGPoint(x: modelFrame.midX, y: modelFrame.midY)) {
                 return .spanningGlass
             }
-            if let hubFrame, frame.contains(hubFrame.midX, hubFrame.midY) {
+            if let hubFrame, frame.contains(CGPoint(x: hubFrame.midX, y: hubFrame.midY)) {
                 return .hub
             }
             if let modelFrame,
-               frame.contains(modelFrame.midX, modelFrame.midY) {
+               frame.contains(CGPoint(x: modelFrame.midX, y: modelFrame.midY)) {
                 return .model
             }
             return .spanningGlass
@@ -413,8 +413,8 @@ final class CapsuleHitScanTests: XCTestCase {
         let glasses = glassFrames()
         let spanningInTree = glasses.contains { frame in
             guard let hubFrame, let modelFrame else { return false }
-            return frame.contains(hubFrame.midX, hubFrame.midY)
-                && frame.contains(modelFrame.midX, modelFrame.midY)
+            return frame.contains(CGPoint(x: hubFrame.midX, y: hubFrame.midY))
+                && frame.contains(CGPoint(x: modelFrame.midX, y: modelFrame.midY))
         }
 
         var lines: [String] = []
