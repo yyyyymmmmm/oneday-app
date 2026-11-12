@@ -344,20 +344,8 @@ final class DrawerContainerController: UIViewController,
             DrawerMotion.shadowOpacity(progress: progress)
         )
         // 穿透防护：只要离开合位，内容本体不接触摸
-        // （窄条的点/拖由前景手势承接）；全合位恢复。
-        // §186.8 补修（Codex 异源复核）：归位动画在途
-        // 时同样保持关闭——animator 的动画闭包在启动
-        // 拍即以目标值调本函数（model 值同步落位），
-        // 若只看 offset，关闭动画起始帧内容就已可点，
-        // 而呈现层还在移动、舱的透传判定帧是布局快照
-        // （transform 位移不触发 preference 更新）——
-        // 点会落进正在移动的舱/列表。落定复位在
-        // finishSettle（animator 已清零后按 offset
-        // 终值重断言）；跟手拖动期 animator 恒为 nil
-        // （接管时先停 animator），本条不改变拖动态
-        // 语义（offset 本身即呈现事实）
-        contentHost.view.isUserInteractionEnabled =
-            newOffset <= 0 && animator == nil
+        // （窄条的点/拖由前景手势承接）；全合位恢复
+        contentHost.view.isUserInteractionEnabled = newOffset <= 0
         edgeView.isHidden = semanticPresented || newOffset > 0
     }
 
@@ -420,12 +408,6 @@ final class DrawerContainerController: UIViewController,
         if !open {
             drawerHost.view.isHidden = true
         }
-        // §186.8：归位落定的交互复位——动画路径下
-        // applyOffset 因 animator 在途恒置关闭，落定
-        // （完成回调已先清 animator／瞬时路径本就无
-        // animator）在此按 offset 终值放行；开态终值
-        // >0、恒保持关闭
-        contentHost.view.isUserInteractionEnabled = offset <= 0
         syncAccessibility(open: open)
     }
 
