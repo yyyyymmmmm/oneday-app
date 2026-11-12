@@ -220,14 +220,21 @@ extension DrawerContainerControllerTests {
             contentHostView?.isUserInteractionEnabled, false,
             "开态内容应不可点")
         controller.setDrawer(false, animated: true)
-        // 起始帧同步断言（不泵 runloop）：呈现层仍带
-        // 位移、内容已先「被恢复」就是回归本体
-        XCTAssertGreaterThan(
-            foregroundPresentationTx, 1,
-            "呈现层应仍在位移途中（起始帧量测）")
+        // 起始帧同步断言（不泵 runloop）：交互置位在
+        // animator 闭包内同步发生——此处已被置 true
+        // 即回归本体
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "关闭动画起始帧内容即恢复可点（呈现层还在移动）")
+        // presentation 层要等动画首帧提交才有值（同
+        // 步读为 nil，CI 实证）——短泵后再量途中位移
+        spinRunLoop(seconds: 0.05)
+        XCTAssertGreaterThan(
+            foregroundPresentationTx, 1,
+            "呈现层应仍在位移途中")
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, false,
+            "关闭动画途中内容应保持不可点")
         let center = CGPoint(x: 196, y: 426)
         let midHit = controller.view.hitTest(center, with: nil)
         XCTAssertFalse(
@@ -253,12 +260,18 @@ extension DrawerContainerControllerTests {
             contentHostView?.isUserInteractionEnabled, true,
             "关态落定内容应可点")
         controller.setDrawer(true, animated: true)
-        XCTAssertLessThan(
-            foregroundPresentationTx, controller.travel - 1,
-            "呈现层应仍在位移途中（起始帧量测）")
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "打开动画起始帧内容应即刻不可点")
+        // presentation 量测同关闭向：短泵等首帧提交
+        spinRunLoop(seconds: 0.05)
+        let midTx = foregroundPresentationTx
+        XCTAssertGreaterThan(
+            midTx, -0.5,
+            "呈现层应已有值（动画已提交；-1 为 nil 哨兵）")
+        XCTAssertLessThan(
+            midTx, controller.travel - 1,
+            "呈现层应仍在位移途中")
         spinRunLoop(seconds: 2.0)
         XCTAssertEqual(foregroundTx, controller.travel, accuracy: 1.0)
         XCTAssertEqual(
