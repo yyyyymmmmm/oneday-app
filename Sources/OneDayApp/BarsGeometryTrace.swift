@@ -10,6 +10,9 @@ import UIKit
 /// 案后整件随诊断分支退役，不入主线口径。
 @MainActor
 enum BarsGeometryTrace {
+    /// 抽屉左缘热区宽度（与 OneDayMetrics.drawerEdgeZone 同值 24；
+    /// 该符号在本目标不可见，此处用本地常量替代，语义不变）
+    private static let edgeZoneWidth: CGFloat = 24
     private static let key = "bars.geometry.traces"
     private static let cap = 6
     private static var didScheduleColdStart = false
@@ -83,17 +86,22 @@ enum BarsGeometryTrace {
         if let root = window.rootViewController { walk(root) }
 
         if let drawer {
-            let edge = drawer.view.subviews.first {
-                abs($0.frame.width
-                    - OneDayMetrics.drawerEdgeZone) < 1
-                    && $0.frame.minX == 0
+            func isEdgeZone(_ view: UIView) -> Bool {
+                let widthDelta = abs(view.frame.width - edgeZoneWidth)
+                let atLeftEdge = view.frame.minX == 0
+                return widthDelta < 1 && atLeftEdge
             }
+            let edge = drawer.view.subviews.first(where: isEdgeZone)
             let edgeInfo: String
             if let edge {
-                let recs = (edge.gestureRecognizers ?? [])
-                    .map {
-                        "\($0 is UIPanGestureRecognizer ? "pan" : "rec")"
-                            + ":\($0.isEnabled ? "on" : "off")"
+                let recognizers: [UIGestureRecognizer] =
+                    edge.gestureRecognizers ?? []
+                let recs = recognizers
+                    .map { (rec: UIGestureRecognizer) -> String in
+                        let kind = rec is UIPanGestureRecognizer
+                            ? "pan" : "rec"
+                        let state = rec.isEnabled ? "on" : "off"
+                        return "\(kind):\(state)"
                     }
                     .joined(separator: ",")
                 edgeInfo = "edge=\(fmt(edge.frame))"
