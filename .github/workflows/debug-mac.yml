@@ -4,6 +4,8 @@ name: Debug Mac (tmate SSH)
 # GitHub-hosted macOS runner. Access is restricted to the SSH public
 # key below via tmate-authorized-keys — the connection string printed
 # in the log is useless without the matching private key.
+# The connection string is also uploaded as the "tmate-ssh" artifact,
+# because job logs are not readable via API while a run is in progress.
 # Stop the session by cancelling the run.
 
 on:
@@ -28,6 +30,16 @@ jobs:
           printf 'set -g tmate-authorized-keys "%s/.ssh/authorized_keys"\n' "$HOME" > "$HOME/.tmate.conf"
           tmate -S /tmp/tmate.sock new-session -d
           tmate -S /tmp/tmate.sock wait tmate-ready
-          echo "TMATE_SSH=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')"
-          # Hold the runner for the debug session (job cap: 360 min).
-          sleep 19800
+          SSH_STR="$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')"
+          echo "TMATE_SSH=$SSH_STR"
+          printf '%s\n' "$SSH_STR" > "$GITHUB_WORKSPACE/tmate-ssh.txt"
+
+      - name: Upload connection string
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmate-ssh
+          path: tmate-ssh.txt
+          retention-days: 1
+
+      - name: Hold runner for the debug session (job cap 360 min)
+        run: sleep 19800
