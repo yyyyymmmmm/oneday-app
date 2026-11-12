@@ -219,7 +219,6 @@ extension DrawerContainerControllerTests {
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "开态内容应不可点")
-        pauseForegroundLayerClock()
         controller.setDrawer(false, animated: true)
         // 起始帧同步断言（不泵 runloop）：交互置位在
         // animator 闭包内同步发生——此处已被置 true
@@ -239,7 +238,6 @@ extension DrawerContainerControllerTests {
         XCTAssertFalse(
             isInContentHost(midHit),
             "关闭动画途中命中穿进了内容宿主")
-        resumeForegroundLayerClock()
         spinRunLoop(seconds: 2.0)
         XCTAssertEqual(foregroundTx, 0, accuracy: 1.0)
         XCTAssertEqual(
@@ -259,7 +257,6 @@ extension DrawerContainerControllerTests {
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, true,
             "关态落定内容应可点")
-        pauseForegroundLayerClock()
         controller.setDrawer(true, animated: true)
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
@@ -274,7 +271,6 @@ extension DrawerContainerControllerTests {
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "打开动画途中内容应保持不可点")
-        resumeForegroundLayerClock()
         spinRunLoop(seconds: 2.0)
         XCTAssertEqual(foregroundTx, controller.travel, accuracy: 1.0)
         XCTAssertEqual(
@@ -298,43 +294,26 @@ extension DrawerContainerControllerTests {
         return subviews[1].layer.presentation()?.transform.m41 ?? -1
     }
 
-    /// The clock is paused before starting the animator: rendering delays
-    /// cannot consume the spring before these first-frame assertions.
+    /// Sample the first committed frame while the spring is near its start.
     private func waitForInFlightPresentationTx(
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> CGFloat {
         let layer = controller.view.subviews[1].layer
         CATransaction.flush()
-        let deadline = Date().addingTimeInterval(1)
+        let deadline = Date().addingTimeInterval(2)
         while Date() < deadline {
-            _ = RunLoop.main.run(
-                mode: .default,
-                before: Date().addingTimeInterval(1.0 / 120.0)
-            )
-            if layer.presentation() != nil,
-               !(layer.animationKeys() ?? []).isEmpty {
+            if layer.presentation() != nil {
                 return foregroundPresentationTx
             }
+            _ = RunLoop.main.run(
+                mode: .default,
+                before: min(deadline, Date().addingTimeInterval(1.0 / 240.0))
+            )
         }
+        if layer.presentation() != nil { return foregroundPresentationTx }
         XCTFail("presentation layer did not appear during animation", file: file, line: line)
         return foregroundPresentationTx
-    }
-
-    private func pauseForegroundLayerClock() {
-        let layer = controller.view.subviews[1].layer
-        let localTime = layer.convertTime(CACurrentMediaTime(), from: nil)
-        layer.speed = 0
-        layer.timeOffset = localTime
-    }
-
-    private func resumeForegroundLayerClock() {
-        let layer = controller.view.subviews[1].layer
-        let pausedTime = layer.timeOffset
-        layer.speed = 1
-        layer.timeOffset = 0
-        layer.beginTime = 0
-        layer.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - pausedTime
     }
 
     private func isInContentHost(_ view: UIView?) -> Bool {
