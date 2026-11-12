@@ -20,6 +20,7 @@ struct CapsuleFormComparison: View {
     @State private var modelPickerTapCount = 0
     @State private var lastTappedForm: String = ""
     @State private var showModelPicker = false
+    @Namespace private var glassUnion
 
     var body: some View {
         ScrollView {
@@ -287,7 +288,7 @@ struct CapsuleFormComparison: View {
     /// 苹果官方定式（2026-11-12 裁决构造）
     /// - GlassEffectContainer 包裹
     /// - 两钮各自带 .glassEffect(.regular.interactive())
-    /// - glassEffectUnion 同一 id 把两钮拼成一片
+    /// - glassEffectUnion 同一 namespace 把两钮拼成一片
     /// - 两钮不挂 .odPressable（系统玻璃按压行为接管）
     /// - 发丝线分隔只作视觉、不承担命中隔离
     /// - ViewThatFits 两档都覆盖
@@ -333,7 +334,7 @@ struct CapsuleFormComparison: View {
                 .contentShape(Rectangle())
             }
             .glassEffect(.regular.interactive(), in: Capsule())
-            .glassEffectUnion(id: "identity-capsule")
+            .glassEffectUnion(id: "identity-capsule", namespace: glassUnion)
 
             Rectangle()
                 .fill(Palette.hairline)
@@ -356,7 +357,7 @@ struct CapsuleFormComparison: View {
                 .contentShape(Rectangle())
             }
             .glassEffect(.regular.interactive(), in: Capsule())
-            .glassEffectUnion(id: "identity-capsule")
+            .glassEffectUnion(id: "identity-capsule", namespace: glassUnion)
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         .padding(.vertical, 7)
