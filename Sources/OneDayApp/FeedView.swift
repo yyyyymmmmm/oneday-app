@@ -247,7 +247,8 @@ struct FeedView: View {
             // 同档的均匀收边（坞浮于带内、带的上沿即坞
             // 的上边、下沿即坞的下边；原生坞无独立的上/
             // 下缘 API，映射口径见 DESIGN §170.2）
-            .scrollEdgeEffectStyle(.hard, for: .bottom)
+            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
         }
     }
 

@@ -172,7 +172,8 @@ struct IdeasView: View {
             // 航栏同档收边（与输入框下方收边同档）——本页根 List 底
             // 缘挂 .hard，口径与映射见 FeedView 同注与
             // DESIGN §170.2
-            .scrollEdgeEffectStyle(.hard, for: .bottom)
+            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
         }
     }
 
