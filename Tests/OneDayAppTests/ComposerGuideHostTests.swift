@@ -183,7 +183,8 @@ final class ComposerGuideHostTests: XCTestCase {
                         .background {
                             GeometryReader { geo in
                                 Color.clear.onChange(
-                                    of: geo.frame(in: .global)
+                                    of: geo.frame(in: .global),
+                                    initial: true
                                 ) { _, frame in
                                     box.notes["barGeo"] =
                                         "\(frame.minY)/\(frame.height)/\(frame.maxY)"
