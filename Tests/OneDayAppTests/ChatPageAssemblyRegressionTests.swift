@@ -232,15 +232,30 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         let baselinePlatter = frameInWindow(platter)
         let baselineTabBar = frameInWindow(tabBar)
 
+        let frOK = textView.becomeFirstResponder()
+        print("KBPROBE| becomeFirstResponder=\(frOK) isFR=\(textView.isFirstResponder)")
+        for (i, win) in UIApplication.shared.windows.enumerated() {
+            print("KBPROBE| window[\(i)] \(String(describing: type(of: win))) f=\(win.frame) level=\(win.windowLevel.rawValue)")
+        }
         XCTAssertTrue(
-            textView.becomeFirstResponder(),
+            frOK,
             "输入框未能成为第一响应者，键盘变体无从验起"
         )
         // 等键盘升起带动输入舱上移（轮询至多 10 秒）
         var moved = false
-        for _ in 0..<20 {
+        for tick in 0..<20 {
             spinRunLoop(seconds: 0.5)
             window.layoutIfNeeded()
+            if tick % 4 == 0 {
+                var kbFound = false
+                for win in UIApplication.shared.windows {
+                    let hits = findViews(win) { v in
+                        String(describing: type(of: v)).contains("Keyboard")
+                    }
+                    if !hits.isEmpty { kbFound = true }
+                }
+                print("KBPROBE| tick=\(tick) barMaxY=\(frameInWindow(bar).maxY) kbViews=\(kbFound) windows=\(UIApplication.shared.windows.count)")
+            }
             if frameInWindow(bar).maxY < baselineBar.maxY - 150 {
                 moved = true
                 break
