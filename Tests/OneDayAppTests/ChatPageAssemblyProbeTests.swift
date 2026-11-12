@@ -98,15 +98,18 @@ final class ChatPageAssemblyProbeTests: XCTestCase {
     func testDumpProductionChatPageAssembly() throws {
         try assembleProductionPage()
 
-        // 控制器链定位
+        // 控制器链定位（ComposerGuideHost 按类名字符串匹配，
+        // 使探针在 §186 回退变体里也能编译运行）
         var drawerContainer: DrawerContainerController?
-        var composerHosts: [ComposerGuideHostController] = []
+        var composerHosts: [UIViewController] = []
         func findVC(_ vc: UIViewController) {
             if let found = vc as? DrawerContainerController {
                 drawerContainer = found
             }
-            if let found = vc as? ComposerGuideHostController {
-                composerHosts.append(found)
+            if String(describing: type(of: vc))
+                .contains("ComposerGuideHost")
+            {
+                composerHosts.append(vc)
             }
             for child in vc.children { findVC(child) }
         }
