@@ -42,6 +42,59 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
     private var assemblyContainer: ModelContainer!
     private var assemblyAppState: AppState!
 
+    /// §184 flake 治理·键盘预热（run 43226357127
+    /// 实证：键盘用例在首启进程里 started 后进程意
+    /// 外退出、用例被 xcodebuild 丢弃致整步
+    /// exit 65）：键盘/输入栈的首次激活（第一响应
+    /// 者→远端键盘窗→输入法服务）原落在被计时的
+    /// 用例体内。类级预热在任何用例之前、用一次性
+    /// 文本框把这条链先走通一遍，键盘用例进场时输
+    /// 入栈已热。全程尽力而为、无断言：预热不成不
+    /// 拦用例（用例自带轮询与断言）。
+    override class func setUp() {
+        super.setUp()
+        guard let scene = UIApplication.shared
+            .connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first
+        else { return }
+        let scratch = UIWindow(windowScene: scene)
+        scratch.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+        let host = UIViewController()
+        let field = UITextView(frame: CGRect(
+            x: 20, y: 100, width: 300, height: 44))
+        host.view.backgroundColor = .systemBackground
+        host.view.addSubview(field)
+        scratch.rootViewController = host
+        scratch.makeKeyAndVisible()
+        scratch.layoutIfNeeded()
+        _ = field.becomeFirstResponder()
+        // 等键盘窗真正出现（至多约 6 秒）：任意窗口
+        // 中出现键盘窗且高度像样即算热好，与键盘
+        // 用例本体的定位口径一致
+        let deadline = Date().addingTimeInterval(6)
+        while Date() < deadline {
+            let keyboardUp = UIApplication.shared.windows
+                .contains { win in
+                    String(describing: type(of: win))
+                        .contains("Keyboard")
+                        && win.bounds.height > 100
+                }
+            if keyboardUp { break }
+            RunLoop.main.run(
+                mode: .default,
+                before: Date(timeIntervalSinceNow: 0.05))
+        }
+        _ = field.resignFirstResponder()
+        let settle = Date().addingTimeInterval(0.3)
+        while Date() < settle {
+            RunLoop.main.run(
+                mode: .default,
+                before: Date(timeIntervalSinceNow: 0.05))
+        }
+        scratch.rootViewController = nil
+        scratch.isHidden = true
+    }
+
     override func tearDown() async throws {
         window?.rootViewController = nil
         window?.isHidden = true
