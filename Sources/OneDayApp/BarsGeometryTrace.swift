@@ -63,12 +63,14 @@ enum BarsGeometryTrace {
         }
         var lines: [String] = []
         let tc = window.traitCollection
+        let osv = ProcessInfo.processInfo.operatingSystemVersion
         lines.append(
             "[\(tag)] \(timestamp()) win=\(fmt(window.frame))"
                 + " safe=\(insets(window.safeAreaInsets))"
                 + " style=\(tc.userInterfaceStyle == .dark ? "dark" : "light")"
                 + " bold=\(tc.legibilityWeight == .bold)"
                 + " size=\(tc.preferredContentSizeCategory.rawValue)"
+                + " os=\(osv.majorVersion).\(osv.minorVersion).\(osv.patchVersion)"
         )
 
         // 抽屉容器（VC 树定位）
@@ -164,6 +166,34 @@ enum BarsGeometryTrace {
             }.count
             line += " textViews=\(texts)"
             lines.append(line)
+            // §191 增补：控制器附加安全区＋键盘引导线
+            // 帧（窗口系）——尺寸协商污染链的直接物证面
+            let guide = composer.view.keyboardLayoutGuide
+            let guideInWindow = composer.view.convert(
+                guide.layoutFrame, to: window
+            )
+            lines.append(
+                "composerAdd=\(insets(composer.additionalSafeAreaInsets))"
+                    + " guide=\(fmt(guideInWindow))"
+            )
+            // §191 增补：祖先链逐层（类名/窗口系帧/安
+            // 全区）——坏帧若修后仍在，一眼定位哪层引入
+            var chain: [String] = []
+            var ancestor = composer.view.superview
+            var depth = 0
+            while let view = ancestor, depth < 14 {
+                chain.append(
+                    "L\(depth) \(typeName(view))"
+                        + " \(fmt(frameIn(window, view)))"
+                        + " safe=\(insets(view.safeAreaInsets))"
+                )
+                if view === window { break }
+                ancestor = view.superview
+                depth += 1
+            }
+            lines.append(
+                "ancestors:\n" + chain.joined(separator: "\n")
+            )
         } else {
             lines.append("composerVC=缺席")
         }

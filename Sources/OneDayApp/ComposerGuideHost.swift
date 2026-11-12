@@ -128,6 +128,32 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         apply(to: controller)
     }
 
+    /// 尺寸协商收口（§191，真机量测定因，诊断全文
+    /// bars-fix-diagnosis-20261113）：恒回提议尺寸——
+    /// 本桥在 ZStack 里只做全帧提议的透传层，舱的实
+    /// 际落位 100% 由控制器内约束（引导线＋地板钳制）
+    /// 决定，SwiftUI 尺寸协商本就不该有发言权。默认
+    /// sizeThatFits 会把控制器视图的当前/拟合尺寸报
+    /// 回去：真机冷启布局时序下（真实窗口＋引导线约
+    /// 束系未定态）拟合高被污染为约 1030，ZStack 取
+    /// 子视图最大值撑高自身、超尺寸子视图在安全区矩
+    /// 形内居中安放（62−(1030−729)/2≈−89），列表与
+    /// 顶栏随坏帧一并出屏——0.50.24/0.50.25 真机三
+    /// 栏缺席的定因链；模拟器装配走已定态几何、拟合
+    /// 回提议值本身，故探针全绿而真机独坏。提议未定
+    /// 的维度回 nil 走系统默认（ZStack 全帧提议下两
+    /// 维恒定，此分支只兜底）
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiViewController: ComposerGuideHostController,
+        context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width, width.isFinite,
+              let height = proposal.height, height.isFinite
+        else { return nil }
+        return CGSize(width: width, height: height)
+    }
+
     /// 把当前 SwiftUI 侧状态（环境＋舱本体视图值）刷
     /// 进托管控制器：舱宿主根视图以同型新值重赋值
     /// （SwiftUI 按身份 diff、舱内 @State 不重建，与
