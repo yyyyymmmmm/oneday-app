@@ -73,3 +73,14 @@ DrawerContainer 容器根色未改（DrawerContainerView.swift:231 保留 Palett
 - [ ] DESIGN-V4.md 追加 §185.1 补记
 - [ ] git commit
 - [ ] 最终回报
+
+## 验收终判（接管监工，2026-11-12，CI 实证）
+
+- CI：run 43169634904（b8a362b 基线）success；run 43170888445（484d291）红——探针 measure 收参形态编译错、与生产改动无关；run 43171924228（7812328）**全步 success**（Build／Unit tests／Package／Upload 逐项），两套件 passed、0 失败。
+- 结构探针实测（窗高 852，宿主 additionalSafeAreaInsets top=59/bottom=83）：
+  - A（ScrollView 根）：frame 0→852、adjInset 113/83——全幅延伸、内容可流到两栏下。
+  - C（List 根）：frame 0→852、adjInset 113/83——同上。
+  - B（VStack＋ScrollView，文件页形态）：内层 ScrollView frameTop=217（头部 60＋分段 44＋顶 inset 113）、**frameBottom=852、adjInsetBottom=83**——帧直达窗底、坞 inset 以内容 inset 形式到达，内容可滚到坞下。原「VStack 阻断」存疑**证伪**。
+- 步骤二终判：五页底缘结构成立（动态/点子＝C 式、目标＝A 式、文件＝B 式）；聊天页顶走 §28 safeAreaBar 机制（滚动内容从条下穿过被边缘效果化开）＋步骤一背景全出血，合判落实。探针留仓作回归取证件。
+- 步骤四终判：四页底缘 8 处 .hard→.soft 已落码（484d291）并验计数 1/1/2/4、.hard 底缘全仓 0；ChatView 顶 .soft 原已达标、底 hidden 为 §170 输入舱布局流定版，不在流动边缘之列，不动。
+- 过程留痕：Claude 两轮施工未实落代码（二轮误入主 worktree 在旧基线提交 720606d，已回滚主 worktree 至 8ac6193 并弃用该提交），代码由接管监工落码（484d291）、探针由监工按 XCTest 宿主形态重写。

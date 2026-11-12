@@ -10872,3 +10872,7 @@ ChatView 不动：顶缘 `.soft` 已达标；底缘 `.hidden` 为 §170 输入�
 
 **结构探针**：新建 Tests/OneDayAppTests/ShellBgStructureProbeTests.swift，在真实 UIWindow＋UIHostingController 里量三种结构的 UIScrollView 帧与 adjustedContentInset（宿主 additionalSafeAreaInsets 设 top=59、bottom=83 模拟栏环境）：模式 A（ScrollView 直接作根）、模式 B（VStack { 固定高头部; 固定高分段行; ScrollView }，文件页形态）、模式 C（List 作根，动态/点子页形态）。测试只断言找到 UIScrollView，帧值打日志不作断言。结论由主线读 CI 日志裁决、探针去留另行决定。
 
+
+### §185.2 验收终判：结构探针裁决＋CI 全绿（2026-11-12）
+
+探针实测（run 43171924228 日志 BGP-PROBE，窗高 852、宿主 insets top=59/bottom=83）：A（ScrollView 根）frame 0→852、adjInset 113/83；C（List 根）同值；B（VStack 文件页形态）内层 ScrollView frameTop=217、**frameBottom=852、adjInsetBottom=83**——「VStack 阻断内容流到坞下」的存疑证伪，三式底缘结构均成立。步骤二终判落实（聊天页顶＝§28 safeAreaBar 机制＋步骤一背景全出血合判）。分支 CI 三轮：43169634904（基线）success、43170888445 探针编译错单红（与生产改动无关）、43171924228（7812328）全步 success、两套件 passed 0 失败。过程留痕：Claude 两轮施工未实落代码（二轮误入主 worktree 旧基线提交已回滚弃用），484d291 起代码由接管监工落码验收。
