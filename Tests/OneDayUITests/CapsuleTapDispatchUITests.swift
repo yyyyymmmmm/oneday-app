@@ -91,29 +91,41 @@ final class CapsuleTapDispatchUITests: XCTestCase {
             return (lines, ["仪表门未过"])
         }
 
-        // 两钮帧：C 臂按标识、P 臂按生产无障碍标签
-        // 关键片段匹配（全串等值首跑未命中，宽松化并
-        // 在落空时倾印无障碍树定位实际标签）
-        let hubEl = official
-            ? app.buttons["harness.hubButton"]
-            : app.buttons.matching(
-                NSPredicate(format: "label CONTAINS %@", "打开枢纽")
-            ).firstMatch
-        let modelEl = official
-            ? app.buttons["harness.modelButton"]
-            : app.buttons.matching(
-                NSPredicate(format: "label CONTAINS %@", "切换模型")
-            ).firstMatch
-        guard hubEl.waitForExistence(timeout: 10),
-              modelEl.waitForExistence(timeout: 10)
-        else {
-            lines.append("arm=\(armName) VERDICT=FRAMES-NOT-FOUND")
-            print("CAPSULE-TREE-BEGIN")
-            print(app.debugDescription)
-            print("CAPSULE-TREE-END")
-            return (lines, ["两钮元素未找到"])
-        }
+        // 两钮帧：C 臂按标识；P 臂按几何（生产枢纽钮
+        // 标签经 App 三语本地化在无障碍树里是英文
+        // "Hermes, 在线, open Hub"，文本匹配与语言绑
+        // 定不可靠——胶囊槽内中心落槽、按 minX 序取
+        // 两钮，语言无关）
         let capsule = capsuleEl.frame
+        let hubEl: XCUIElement
+        let modelEl: XCUIElement
+        if official {
+            hubEl = app.buttons["harness.hubButton"]
+            modelEl = app.buttons["harness.modelButton"]
+            guard hubEl.waitForExistence(timeout: 10),
+                  modelEl.waitForExistence(timeout: 10)
+            else {
+                lines.append("arm=\(armName) VERDICT=FRAMES-NOT-FOUND")
+                return (lines, ["两钮元素未找到"])
+            }
+        } else {
+            let inner = app.buttons.allElementsBoundByIndex
+                .filter { element in
+                    element.exists && capsule.contains(
+                        CGPoint(x: element.frame.midX, y: element.frame.midY)
+                    )
+                }
+                .sorted { $0.frame.minX < $1.frame.minX }
+            guard inner.count == 2 else {
+                lines.append("arm=\(armName) VERDICT=FRAMES-NOT-FOUND")
+                print("CAPSULE-TREE-BEGIN")
+                print(app.debugDescription)
+                print("CAPSULE-TREE-END")
+                return (lines, ["两钮元素未找到"])
+            }
+            hubEl = inner[0]
+            modelEl = inner[1]
+        }
         let hub = hubEl.frame
         let model = modelEl.frame
         lines.append(
