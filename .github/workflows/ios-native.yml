@@ -52,6 +52,25 @@ jobs:
             | tee test-full.log
           grep -E "error:|Test Case|Executed|TEST" test-full.log | head -60 || true
 
+      # §184 flake 取证：测试进程「意外退出」时 stdout
+      # 无死因原文，崩溃/看门狗报告落在模拟器设备的
+      # DiagnosticReports 里——无论成败都把近 40 分钟
+      # 内 OneDayApp 与 Jetsam 报告的头部倾印进日志
+      # （异常类型＋终止原因＋故障线程足够定性）
+      - name: Dump simulator crash diagnostics
+        if: always()
+        run: |
+          find ~/Library/Developer/CoreSimulator/Devices \
+            -path "*DiagnosticReports*" -mmin -40 \
+            \( -name "*OneDay*" -o -name "*Jetsam*" -o -name "*testmanagerd*" \) \
+            2>/dev/null | while read -r f; do
+              echo "===== $f"
+              head -c 6000 "$f" || true
+              echo
+            done
+          echo "--- host DiagnosticReports (recent) ---"
+          ls -t ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head -5 || true
+
       - name: Package unsigned IPA
         run: |
           set -euo pipefail
