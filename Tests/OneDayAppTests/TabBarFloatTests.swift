@@ -26,27 +26,30 @@ private final class FloatDeviceWindow: UIWindow {
 /// 症三·底坞浮空回归（2026-11-12 定因，报告见
 /// docs/shell-float-fix/FLOAT-FIX-REPORT.md）
 ///
-/// 真机量测：自家浮空 ≈57±2pt、同类标准带 34–36pt。
+/// 真机量测：自家浮空 ≈57±2pt；同机型、同玻璃视觉
+/// 口径的 Muse 锚点 ≈23±2pt（详见报告双判据）。
 /// 探针四组对照（同台 402×874、窗口安全区 59/34）：
 /// - A 纯宿主 TabView：Platter 浮空 21.0（本台标准）
 /// - B 容器裸装为根：21.0（容器本体无罪）
 /// - C 容器＋additionalSafeAreaInsets.bottom 34：
-///   55.0（双计的另一机制，同签名、非生产链）
+///   55.0（双计的另一机制，同签名；生产源码核账排除）
 /// - D 生产桥链（DrawerContainer 经 Representable
 ///   进宿主）：55.0 —— **定因**：桥被 SwiftUI 摆进
 ///   安全区矩形，容器帧 (0,59 402×781)、自身安全
-///   区读数为零，底部 34pt 被帧偏移吃掉，TabView
-///   按无指示器档布局，坞停在宿主底边上方 21pt，
-///   距物理屏底＝34＋21＝55（真机 57±2 同构）
+///   区读数为零；从几何上看，底部 34pt 被排除在帧
+///   外，内部坞盘相对宿主底边仍留 21pt，距物理屏
+///   底＝34＋21＝55（真机 57±2 同构）。内部为何仍
+///   留 21pt 是推断，不是布局档位的直接观测
 /// - F 桥链＋.ignoresSafeArea()（＝ContentView 现
 ///   行落法）：21.0、容器帧回全屏、安全区 B34 走
 ///   传播——修复成立
 ///
-/// 本套件钉三条：B 与 A 同值（容器无罪不回退）、
+/// 本套件原钉三条：B 与 A 同值（容器无罪不回退）、
 /// D 的缺陷签名（无 ignoresSafeArea 时恰高一个底
 /// 安全区＋帧被安全区矩形收编——系统若改 Representable
 /// 落位行为，此条先红、提示重裁）、生产落法与 A
-/// 同值且容器帧全屏（修复在位）。
+/// 同值且容器帧全屏（修复在位）；另有一条限定生产
+/// 装配点的源码守护，核实本体结果直挂该修饰符。
 @MainActor
 final class TabBarFloatTests: XCTestCase {
 
@@ -326,5 +329,190 @@ final class TabBarFloatTests: XCTestCase {
             accuracy: 0.5,
             "页面底预留（TabView 坞区 83）不应被本修复改变"
         )
+    }
+
+    // MARK: - 生产装配点源码守护
+
+    private enum SourceGuardError: Error {
+        case malformedDrawerContainerExpression
+    }
+
+    /// 限定在 ContentView.body 的生产装配点：截取有限
+    /// 片段、去注释后解析 DrawerContainer 的实参括号
+    /// 与尾随闭包，核实其结果紧接着直挂
+    /// `.ignoresSafeArea()`。删除、移位到其他修饰符
+    /// 之后，或只把该调用留在注释中，都会判红；本测
+    /// 不托管真实 ContentView，也不对全文件做无限定
+    /// 的目标字符串搜。
+    func testContentViewDrawerContainerResultDirectlyIgnoresSafeArea()
+        throws
+    {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repositoryRoot = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let contentViewURL = repositoryRoot.appendingPathComponent(
+            "Sources/OneDayApp/ContentView.swift"
+        )
+        let raw = try String(
+            contentsOf: contentViewURL, encoding: .utf8
+        )
+        let bodyRange = try XCTUnwrap(
+            raw.range(of: "var body: some View")
+        )
+        let segment = String(
+            raw[bodyRange.lowerBound...].prefix(6_000)
+        )
+        let code = Self.stripComments(segment)
+        let callRange = try XCTUnwrap(
+            code.range(of: "DrawerContainer")
+        )
+        let argumentsAndRest = code[callRange.upperBound...]
+        let expressionEnd = try Self
+            .endOfDrawerContainerExpression(argumentsAndRest)
+        let nextCode = argumentsAndRest[expressionEnd...]
+            .drop(while: { $0.isWhitespace })
+        XCTAssertTrue(
+            nextCode.hasPrefix(".ignoresSafeArea()"),
+            "ContentView 中 DrawerContainer 的结果必须直挂 "
+                + ".ignoresSafeArea()"
+        )
+    }
+
+    private static func endOfDrawerContainerExpression(
+        _ text: Substring
+    ) throws -> String.Index {
+        var index = text.startIndex
+        while index < text.endIndex, text[index].isWhitespace {
+            index = text.index(after: index)
+        }
+        guard index < text.endIndex, text[index] == "(" else {
+            throw SourceGuardError
+                .malformedDrawerContainerExpression
+        }
+        index = try scanBalanced(
+            text, from: index, opening: "(", closing: ")"
+        )
+        while index < text.endIndex, text[index].isWhitespace {
+            index = text.index(after: index)
+        }
+        if index < text.endIndex, text[index] == "{" {
+            return try scanBalanced(
+                text, from: index, opening: "{", closing: "}"
+            )
+        }
+        return index
+    }
+
+    private static func scanBalanced(
+        _ text: Substring,
+        from start: String.Index,
+        opening: Character,
+        closing: Character
+    ) throws -> String.Index {
+        var depth = 0
+        var index = start
+        var inString = false
+        var escaped = false
+        while index < text.endIndex {
+            let character = text[index]
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if character == "\\" {
+                    escaped = true
+                } else if character == "\"" {
+                    inString = false
+                }
+            } else if character == "\"" {
+                inString = true
+            } else if character == opening {
+                depth += 1
+            } else if character == closing {
+                depth -= 1
+                if depth == 0 {
+                    return text.index(after: index)
+                }
+            }
+            index = text.index(after: index)
+        }
+        throw SourceGuardError.malformedDrawerContainerExpression
+    }
+
+    private static func stripComments(_ source: String) -> String {
+        var result = ""
+        var index = source.startIndex
+        var inLineComment = false
+        var inString = false
+        var escaped = false
+        var blockDepth = 0
+
+        func nextCharacter() -> Character? {
+            let next = source.index(after: index)
+            guard next < source.endIndex else { return nil }
+            return source[next]
+        }
+
+        while index < source.endIndex {
+            let character = source[index]
+            let next = nextCharacter()
+            if inLineComment {
+                if character == "\n" {
+                    inLineComment = false
+                    result.append(character)
+                }
+                index = source.index(after: index)
+                continue
+            }
+            if blockDepth > 0 {
+                if character == "/", next == "*" {
+                    blockDepth += 1
+                    index = source.index(index, offsetBy: 2)
+                    continue
+                }
+                if character == "*", next == "/" {
+                    blockDepth -= 1
+                    index = source.index(index, offsetBy: 2)
+                    continue
+                }
+                if character == "\n" {
+                    result.append(character)
+                }
+                index = source.index(after: index)
+                continue
+            }
+            if inString {
+                result.append(character)
+                if escaped {
+                    escaped = false
+                } else if character == "\\" {
+                    escaped = true
+                } else if character == "\"" {
+                    inString = false
+                }
+                index = source.index(after: index)
+                continue
+            }
+            if character == "\"" {
+                inString = true
+                result.append(character)
+                index = source.index(after: index)
+                continue
+            }
+            if character == "/", next == "/" {
+                inLineComment = true
+                index = source.index(index, offsetBy: 2)
+                continue
+            }
+            if character == "/", next == "*" {
+                blockDepth = 1
+                index = source.index(index, offsetBy: 2)
+                continue
+            }
+            result.append(character)
+            index = source.index(after: index)
+        }
+        return result
     }
 }
