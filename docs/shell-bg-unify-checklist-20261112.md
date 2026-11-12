@@ -18,7 +18,7 @@
 | GoalsView | Palette.pageBG | GoalsView.swift:73-75 | `.background { Palette.pageBG.ignoresSafeArea() }` |
 | DeliverablesView | Palette.pageBG | DeliverablesView.swift:148-150 | `.background { Palette.pageBG.ignoresSafeArea() }` |
 
-DrawerContainer 容器根色保持 `Palette.pageBG`（line 231），不改变赋值本身。
+DrawerContainer 容器根色未改（DrawerContainerView.swift:231 保留 Palette.pageBG，作抽屉 thinMaterial 向下采样底、与页面底同值；五页背景全出血后页面自己是最后一层画者、容器色不再参与页面静止视觉）。
 
 ### 第二步：内容真的流到栏下
 
@@ -28,7 +28,7 @@ DrawerContainer 容器根色保持 `Palette.pageBG`（line 231），不改变赋
 | FeedView | ✓ 能 | ✓ 能 | List 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下 |
 | IdeasView | ✓ 能 | ✓ 能 | List 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下 |
 | GoalsView | ✓ 能 | ✓ 能 | ScrollView 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下 |
-| DeliverablesView | ✓ 能 | ✓ 能 | 各段 ScrollView 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下 |
+| DeliverablesView | ✓ 能 | ? 存疑 | 根为 VStack（头部＋分段＋滚动面），滚动面帧可能止于安全区、内容未必能流到坞下——结构探针验证中（ShellBgStructureProbeTests） |
 
 ### 第三步：删栏后多余背景
 
@@ -44,32 +44,32 @@ DrawerContainer 容器根色保持 `Palette.pageBG`（line 231），不改变赋
 
 ### 第四步：边缘样式修订
 
-| 页面 | 顶缘 | 底缘 | 修订说明 |
-|------|------|------|---------|
-| ChatView | `.soft` (已有) | `.hidden` (§170) | 顶缘已是 `.soft` (line 1888)，底缘已是 `.hidden` (line 1918, §170 定版)，本包不动 |
-| FeedView | (无单独设置) | `.hard` (line 247) | 底缘保持 `.hard` (§170 定版)，内容能流到栏下 |
-| IdeasView | (无单独设置) | `.hard` (line 172) | 底缘保持 `.hard` (§170 定版)，内容能流到栏下 |
-| GoalsView | (无单独设置) | `.hard` (line 157, 194) | 底缘保持 `.hard` (§170 定版，两个 ScrollView 都有)，内容能流到栏下 |
-| DeliverablesView | (无单独设置) | `.hard` (四处) | 底缘保持 `.hard` (§170 定版，四个滚动面都有)，内容能流到栏下 |
+| 页面 | 顶缘 | 底缘 | 落点行号 | 修订说明 |
+|------|------|------|---------|---------|
+| ChatView | `.soft` (已有) | `.hidden` (§170) | 1888, 1918 | 顶缘已是 `.soft`，底缘已是 `.hidden`（§170 输入舱布局流定版、不属于流动边缘），本包不动 |
+| FeedView | (无单独设置) | `.soft` (§185) | 250 | 底缘改 `.soft`（内容可流到坞下、.hard 本身制造色带，见裁决第四节） |
+| IdeasView | (无单独设置) | `.soft` (§185) | 175 | 底缘改 `.soft`（同上） |
+| GoalsView | (无单独设置) | `.soft` (§185) | 160, 197 | 两个 ScrollView 底缘均改 `.soft`（同上） |
+| DeliverablesView | (无单独设置) | `.soft` (§185) | 606, 753, 961, 1000 | 四个滚动面底缘均改 `.soft`（同上） |
 
 **边缘口径修订说明**：
 
 - ChatView 顶缘 `.soft` 与底缘 `.hidden` 均为 §170 用户亲定的定版口径，本包不修改
-- 其他四页底缘 `.hard` 为 §170 定版口径（用户 2026-11-11 23:28 亲定），本包不修改
-- 所有页面的边缘样式在本包前已是正确档位，本包修法聚焦背景延伸，边缘样式保持不变
+- 其他四页底缘按 solidband 裁决第四节改为 `.soft`：流动边缘用 `.soft`，`.hard` 官方定义为近乎不透明、本身制造色带感
+- 每处代码已同步追加 §185 注释：保留 §170 历史一句，补一句裁决依据
 
 ## 禁区遵守检查
 
 ✓ IdentityCapsuleView 与胶囊呈现链：未触碰  
-✓ DrawerContainer 几何、变换、安全区传播：仅改根色为 `.ignoresSafeArea()` 形式  
+✓ DrawerContainer 全部：未触碰  
 ✓ 输入舱承载、§124 回底钮承载、§176 间距数值：未触碰  
-✓ §173 朦胧/渐进溶化方向：未触碰（`.scrollEdgeEffectStyle` 仅保持既有值）  
 ✓ 版本号五处、本地化词条文件结构：未触碰
 
 ## 交付物状态
 
-- [ ] 代码修改并 git commit
-- [ ] DESIGN-V4.md 追加 §185
-- [ ] 本自查表已创建
-- [ ] 单测检查（如有变更）
+- [x] 代码修改：8 处底缘 .hard → .soft，同步注释
+- [x] 结构探针测试：ShellBgStructureProbeTests.swift 已建，待 CI 日志裁决
+- [ ] 自查表订正：已更新第一、二、四步实况
+- [ ] DESIGN-V4.md 追加 §185.1 补记
+- [ ] git commit
 - [ ] 最终回报

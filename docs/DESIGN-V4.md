@@ -10853,3 +10853,22 @@ enum SettingsRoute: Hashable {
 - DESIGN-V4.md 追加本节（§185）
 - 自查表：docs/shell-bg-unify-checklist-20261112.md（逐页记账背景主人、内容流动、边缘档位）
 - 单测：只增不减（本包无断言修改）
+
+### §185.1 补记：步骤四 .soft 补齐＋结构探针（2026-11-12）
+
+监工审计发现步骤四未落实。裁决正本口径（solidband-solution-research-verdict-20261112.md 第四节）：内容能流到栏下的边缘用 `.soft`；`.hard` 官方定义为近乎不透明、本身制造色带感。
+
+**八处底缘改 .soft**（每处同步追加 §185 注释，保留 §170 历史一句，补裁决依据一句）：
+- FeedView.swift:250
+- IdeasView.swift:175
+- GoalsView.swift:160、197（两个 ScrollView）
+- DeliverablesView.swift:606、753、961、1000（四个滚动面）
+
+ChatView 不动：顶缘 `.soft` 已达标；底缘 `.hidden` 为 §170 输入舱布局流定版、不属于流动边缘。
+
+**自查表订正两处**：
+1. 第一步 DrawerContainer 容器根色改为实话——未改（容器色保留 Palette.pageBG，作抽屉 thinMaterial 向下采样底、与页面底同值；五页背景全出血后页面自己是最后一层画者、容器色不再参与页面静止视觉）。
+2. 第二步 DeliverablesView 行标注——存疑：根为 VStack（头部＋分段＋滚动面），滚动面帧可能止于安全区、内容未必能流到坞下——结构探针验证中（ShellBgStructureProbeTests）。
+
+**结构探针**：新建 Tests/OneDayAppTests/ShellBgStructureProbeTests.swift，在真实 UIWindow＋UIHostingController 里量三种结构的 UIScrollView 帧与 adjustedContentInset（宿主 additionalSafeAreaInsets 设 top=59、bottom=83 模拟栏环境）：模式 A（ScrollView 直接作根）、模式 B（VStack { 固定高头部; 固定高分段行; ScrollView }，文件页形态）、模式 C（List 作根，动态/点子页形态）。测试只断言找到 UIScrollView，帧值打日志不作断言。结论由主线读 CI 日志裁决、探针去留另行决定。
+
