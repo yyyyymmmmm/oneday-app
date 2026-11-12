@@ -10299,3 +10299,67 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 ### 181.3 伴生半（不在本分支）
 
 front connections 契约增改（cred_vps 三样分流＋winrm_probe 降级探针＋verify 阶梯＋自测）在 hermes-deploy/companion 本地模板备码（基线与生产 1.0.36 逐字节一致已验），**本包不部署**，部署与镜像加 pywinrm 钉版归主线部署门（规格 §6）。Windows 代理安装件＋验活手册在 companion/windows-agent/，未实跑（无试点机，规格 §7 如实登记）。
+## §182 抽屉与顶栏四题修复包（2026-11-12；分支 feat/ext-drawer-topbar，基线 main 3cbcad4；节号自选 §179，合并时主线合裁顺延 §182、子节随之改 182.x）
+
+用户简报交付执行，四题：①抽屉导航组缺组标题「选项卡」②抽屉与聊天页互补弧度缺失③模型选择里当前模型所在服务商分组无法折叠④模型名过长时顶栏两侧按钮位移。
+
+**合并合裁注（0.50.23 收尾版）**：题 4 在分支基线时写于 ChatView 的 capsuleRow/modelMenu，主线其间已随 §179 将两件迁入 IdentityCapsuleView；合并时 ChatView 侧保留迁移形态（函数不搬回）、headerBar 的 Spacer(minLength)＋删 layoutPriority 照原 diff 落 ChatView，题 4 的模型名语义等价移植 IdentityCapsuleView（模型名 Text 去 fixedSize＋lineLimit(1)＋truncationMode(.tail)、为行内唯一可压缩元素）。
+
+### 182.1 题一定因：导航组缺组标题「选项卡」
+
+**对照实证**：Muse 参照图主导航组上方有小号灰字组标题「选项卡」，频道/旁聊各组也都有同形态小标题；OneDay 真机截图频道/旁聊组头在，唯独导航组直接从「主线聊天」行开始，组标题缺失。
+
+**代码定因**：DrawerView.swift:445 导航组调用 `drawerNavCollapseToggle`（无标题折叠钮，只有 chevron），而频道/旁聊调用 `drawerCollapsibleHeader("标题", key)`（带标题公用件）。注释表明这是 §157 删除「选项卡」组头文字后的遗留状态（§158 合裁注释：「本区折叠头改无标题形态」），但用户口径已纠正——真问题是缺组标题、不是折叠逻辑故障（频道/旁聊折叠正常是用户自折）。
+
+**改法**：DrawerView.swift:445 将 `drawerNavCollapseToggle` 调用改为 `drawerCollapsibleHeader("选项卡", key: DrawerSectionKey.navigation)`，与频道/旁聊同口径；删除 drawerNavCollapseToggle 私有件（行1120-1149）。文案「选项卡」词条既有、三语齐全（Localizable.xcstrings 已查实）。
+
+### 182.2 题二定因：互补弧度缺失
+
+**量测数据**（measure_corners_v2.py 像素级拟合）：
+- Muse 参照（127d193a8c4dc8249e9d92941d371c52.jpg）：1206×2622 px @3.07x，沿前景页左边界采样前景/底层亮度突变点，上角圆弧拟合半径 132 px → **43.0 pt**（折算口径：逻辑宽 393 pt）。边界外侧检测到颜色均匀的浅灰底层（RGB 204,205,206）。
+- OneDay 现状（2695ea6faf08352bb80c963fed51921b.png）：同尺寸，上角拟合半径 112 px → 36.5 pt。边界外侧检测到渐变（方差 74），为阴影特征。
+- **差距**：Muse 43 pt vs OneDay 现状 36.5 pt（差 6.5 pt），且用户真机报"无弧"——实缺陷，不能以"代码看着对"结案。
+
+**定因**（两处根因，按影响排序）：
+1. **主因**：DrawerContainerView.swift:284-286 阴影路径是直角矩形 `UIBezierPath(rect:)`，而圆角裁切只作用于 clipView。阴影挂在外层 foreground 上，shadowPath 的直角矩形在圆角区域外露、衬托下视觉上圆角"不显"（用户真机报无弧的定案主因）。
+2. **次因**：DrawerMotion.swift:35 cardCornerRadius = 28 pt，低于 Muse 参照的 43 pt。
+
+**改法**（已落码）：
+1. DrawerMotion.swift:33-38 更新圆角定值为 43 pt，注释记录量测出处与折算口径。
+2. DrawerContainerView.swift:284-299（viewDidLayoutSubviews）与 326-345（applyOffset）：shadowPath 改用 `UIBezierPath(roundedRect:cornerRadius:)`，radius 参数从当前 progress 实算（与 clipView.layer.cornerRadius 同步）。布局期与位移期两处统一口径。
+3. Tests/OneDayCoreTests/DrawerMotionTests.swift:154-171 更新断言：圆角定值从 28 改为 43，注释同步。
+
+**真机待验**：抽屉半开态，前景页左边缘圆角弧线应清晰可见、与 Muse 参照视觉一致；阴影在圆角区域不露直角边。
+
+**口径变更注**：§182.2 初稿写"结构自查通过、暂列待真机诊断"——用户真机明确报无弧后推翻此口径，补量测定因真施工（2026-11-11 补正 1）。
+
+### 182.3 题三定因：当前模型所在组无法折叠
+
+**代码定因**：ChatModelPickerView.swift:148-160 `isGroupCollapsed` 判定，行150-152 强制展开当前模型所在组：
+```swift
+if display.rows.contains(where: { $0.choice == current }) {
+    return false  // ← 当前组强制展开
+}
+```
+用户可以 toggle 写入折叠状态（toggleGroup 会持久化），但下次判定时被此逻辑覆盖，视觉上"折不动"。
+
+**改法**（已落码）：删除行150-152 强制展开逻辑，尊重用户 toggle 操作。折叠后当前模型的定位靠展开组看行内既有 checkmark 标记，不在组头造新标记。ChatModelPickerView.swift:183-244 groupHeader 恢复为本包改动前形态（删除 isCurrent 判定与 accent 色「•」标记）。
+
+### 182.4 题四定因：模型名过长时顶栏按钮位移
+
+**代码定因**：ChatView.swift:1056-1169 headerBar 布局使用 `Spacer() + identityCapsule.layoutPriority(1) + Spacer()` 结构（行1091-1105）。layoutPriority(1) 使胶囊优先保宽，两个 Spacer 被压缩，导致两侧按钮位置随胶囊宽度变化。**真正的撑宽源**：capsuleRow 内 modelMenu 的模型名 Text 是 `.fixedSize(horizontal: true)`（行1280），容器级 lineLimit 对它无效，长名仍会把胶囊撑爆。
+
+**改法**（已落码）：
+1. **删除撑宽源**：ChatView.swift:1269-1292 modelMenu 中模型名 Text（行1274-1280）去掉 `fixedSize(horizontal: true)`，保留 `lineLimit(1)` + 尾部截断，使其成为胶囊内唯一可压缩元素；chevron 与其余元素（头像/名字/状态段）维持现行 fixedSize 口径不动。
+2. **顺序口径**：空间不足时先由 ViewThatFits 落无名档（行1196-1199），再不够才截断模型名；短名时胶囊照常 hug 内容宽。
+3. **删除无效修饰**：identityCapsule 上 51ddb0e 加的 `.lineLimit(1)` 删除（行1105）——容器级 lineLimit 对内部 fixedSize 元素无效，保留无实效且误导。
+4. **修订注释**：capsuleRow 上方注释（行1213-1217）更新为「名字/状态段 fixedSize、§182.4：模型段除外（长名截断保钮位）」；identityCapsule 调用处注释（行1101-1104）更新为实际落法（ViewThatFits → 截断模型名）。
+
+**51ddb0e 与实际落法差异**：51ddb0e 的 §182.4 写了「固定钮宽」等未实作方案，实际只删了 layoutPriority、改了 Spacer(minLength:)、加了容器级 lineLimit(1)——但撑宽源 modelMenu 的 fixedSize 未动，容器级 lineLimit 对它无效，长名仍撑宽胶囊。本补正把截断真正落到模型段本人。
+
+### 182.5 施工注意
+
+- 题二（圆角）因本机无法构建验证，代码结构检查通过但真机表现待 CI 与真机验收，若仍无弧线需补充诊断。
+- 题三（折叠）改法需确认当前模型折叠后的可发现性，验收时列入真机待验。
+- 题四（顶栏）布局改动需确认 ViewThatFits 两档在新约束下均不变形。
+- 文案「选项卡」需查词条并补三语。

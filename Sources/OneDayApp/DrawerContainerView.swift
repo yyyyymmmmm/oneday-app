@@ -281,8 +281,20 @@ final class DrawerContainerController: UIViewController,
         // testAnimatedOpenSurvivesMidFlightResize）
         foreground.bounds = CGRect(origin: .zero, size: bounds.size)
         foreground.center = CGPoint(x: bounds.midX, y: bounds.midY)
+        // §182.2 阴影路径跟随圆角：shadowPath 必须与
+        // clipView 的圆角半径一致，否则直角矩形阴影会
+        // 在圆角区域外露、视觉上圆角「不显」（用户真机
+        // 报无弧的定案主因）。进度读当前 offset 实算，
+        // 不读语义 presented（布局期可能先于手势/动画）
+        let currentProgress = DrawerMotion.progress(
+            offset: offset, travel: travel
+        )
+        let currentRadius = DrawerMotion.cornerRadius(
+            progress: currentProgress
+        )
         foreground.layer.shadowPath = UIBezierPath(
-            rect: foreground.bounds
+            roundedRect: foreground.bounds,
+            cornerRadius: currentRadius
         ).cgPath
         clipView.frame = foreground.bounds
         contentHost.view.frame = clipView.bounds
@@ -321,9 +333,13 @@ final class DrawerContainerController: UIViewController,
         let progress = DrawerMotion.progress(
             offset: newOffset, travel: travel
         )
-        clipView.layer.cornerRadius = DrawerMotion.cornerRadius(
-            progress: progress
-        )
+        let radius = DrawerMotion.cornerRadius(progress: progress)
+        clipView.layer.cornerRadius = radius
+        // §182.2 阴影路径跟随圆角（与布局期同步口径）
+        foreground.layer.shadowPath = UIBezierPath(
+            roundedRect: foreground.bounds,
+            cornerRadius: radius
+        ).cgPath
         foreground.layer.shadowOpacity = Float(
             DrawerMotion.shadowOpacity(progress: progress)
         )

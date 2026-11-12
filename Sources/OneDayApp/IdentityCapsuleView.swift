@@ -20,6 +20,13 @@ import SwiftUI
 /// 扛全部收缩；状态词自此先改短词，见 Overview-
 /// StatusLine）。
 ///
+/// 例外（§182 移植抽屉题 4）：模型名是行内唯一可
+/// 压缩元素——去 fixedSize、lineLimit(1)＋尾部截
+/// 断，长模型名截断保两侧钮位（用户口径）；名字/
+/// 状态仍 fixedSize 不截断。空间不足时先由 View-
+/// ThatFits 落无名档、再不够才截断模型名；短名时
+/// 胶囊照常 hug 内容宽。
+///
 /// 玻璃承载（§179 硬纪律，改此行前先读该节）：玻
 /// 璃只许作行**背景层**（下方 background 里的
 /// Capsule 玻璃背板），不许再把 .glassEffect 直接
@@ -65,8 +72,9 @@ struct IdentityCapsuleView: View {
                         .scaledToFill()
                         // 0.26.0：边长走形象档（小 24/
                         // 中 28/大 34；中档＝旧值）——
-                        // 名字 fixedSize＋最高优先、胶囊
-                        // hug 宽随内容，±6 不挤断名字
+                        // 名字/状态段 fixedSize、胶囊 hug
+                        // 宽随内容，±6 不挤断。§182：
+                        // 模型段除外（长名截断保钮位）
                         .frame(
                             width: avatarPointSize,
                             height: avatarPointSize
@@ -104,7 +112,10 @@ struct IdentityCapsuleView: View {
             // （短名＋chevron），点开改分组选择面
             // （sheet，呈现宿主在 ChatView 根、§175
             // 迁移，本件只管触发）；勾的纪律与选择
-            // 落账在选择面与 ChatView 侧，本件不涉
+            // 落账在选择面与 ChatView 侧，本件不涉。
+            // §182（移植抽屉题 4）：模型名 Text 不
+            // fixedSize、允许尾部截断（长名截断保
+            // 钮位）；chevron 与其余元素不压缩
             Button {
                 onOpenModelPicker()
             } label: {
@@ -113,7 +124,10 @@ struct IdentityCapsuleView: View {
                         .font(.callout)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                        .truncationMode(.tail)
+                        // §182：去掉 fixedSize(horizontal:)，
+                        // 使模型名成为胶囊内唯一可压缩元素、
+                        // 长名时尾部截断不撑宽胶囊
                     Image(systemName: "chevron.down")
                         // 0.23.0（审计 G6）：9pt 字形升
                         // caption2 角色（默认 11 视觉当
