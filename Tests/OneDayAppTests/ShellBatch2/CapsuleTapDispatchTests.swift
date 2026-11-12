@@ -136,6 +136,11 @@ final class CapsuleTapDispatchTests: XCTestCase {
 
     private var window: StatusBarWindow!
     private var controller: DrawerContainerController!
+    /// 投递通道（校准段探明后固定）：window 直投／
+    /// UIApplication 转投
+    private var deliveryPath = "window"
+    /// 诊断：touch 上实际写成功的 ivar 名
+    private var touchKeysSet: [String] = []
 
     override func tearDown() async throws {
         window?.isHidden = true
@@ -371,6 +376,16 @@ final class CapsuleTapDispatchTests: XCTestCase {
         window = StatusBarWindow(
             frame: CGRect(x: 0, y: 0, width: 393, height: 852)
         )
+        // iOS 26 场景制：无 windowScene 的窗口不进事件
+        // 路由（阶段一纯 hitTest 几何不受影响、事件投
+        // 递则会被静默丢弃）——挂宿主 App 的活动场景
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })
+            ?? UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first {
+            window.windowScene = scene
+        }
         window.rootViewController = controller
         window.makeKeyAndVisible()
         controller.view.layoutIfNeeded()
@@ -394,6 +409,21 @@ final class CapsuleTapDispatchTests: XCTestCase {
             held = touches
             stamp = timestamp
             super.init()
+            // UIKit 内部多处直读事件的 _touches 集合而非
+            // 访问器——覆盖方法之外把内部集合也写上
+            // （ivar 存在才写，口径同 touch 侧）
+            if CapsuleTapDispatchTests.ivarExists("_touches", on: self) {
+                setValue(held, forKey: "_touches")
+            }
+            if CapsuleTapDispatchTests.ivarExists("_timestamp", on: self) {
+                setValue(stamp, forKey: "_timestamp")
+            }
+            if CapsuleTapDispatchTests.ivarExists("_type", on: self) {
+                setValue(UIEvent.EventType.touches.rawValue, forKey: "_type")
+            }
+            if CapsuleTapDispatchTests.ivarExists("_subtype", on: self) {
+                setValue(UIEvent.EventSubtype.none.rawValue, forKey: "_subtype")
+            }
         }
 
         override var type: UIEvent.EventType { .touches }
@@ -429,6 +459,15 @@ final class CapsuleTapDispatchTests: XCTestCase {
     private func setTouchValue(_ touch: UITouch, _ key: String, _ value: Any) {
         if Self.ivarExists(key, on: touch) {
             touch.setValue(value, forKey: key)
+            touchKeysSet.append(key)
+        }
+    }
+
+    private func send(_ event: UIEvent) {
+        if deliveryPath == "app" {
+            UIApplication.shared.sendEvent(event)
+        } else {
+            window.sendEvent(event)
         }
     }
 
@@ -454,19 +493,23 @@ final class CapsuleTapDispatchTests: XCTestCase {
     /// ended 投递→等动作与呈现落定
     private func deliverTap(at point: CGPoint) {
         let touch = makeTouch(at: point, phase: .began)
-        window.sendEvent(SyntheticTouchesEvent(
+        let beganEvent = SyntheticTouchesEvent(
             touches: [touch],
             timestamp: ProcessInfo.processInfo.systemUptime
-        ))
+        )
+        setTouchValue(touch, "_event", beganEvent)
+        send(beganEvent)
         spinRunLoop(seconds: 0.12)
         setTouchValue(touch, "_phase", UITouch.Phase.ended.rawValue)
         setTouchValue(
             touch, "_timestamp", ProcessInfo.processInfo.systemUptime
         )
-        window.sendEvent(SyntheticTouchesEvent(
+        let endedEvent = SyntheticTouchesEvent(
             touches: [touch],
             timestamp: ProcessInfo.processInfo.systemUptime
-        ))
+        )
+        setTouchValue(touch, "_event", endedEvent)
+        send(endedEvent)
         spinRunLoop(seconds: 0.7)
     }
 
@@ -600,11 +643,29 @@ final class CapsuleTapDispatchTests: XCTestCase {
         // 仪表门：校准钮先响，通道不通则整组作废
         store.reset()
         store.calibrationActions = 0
-        deliverTap(at: CGPoint(x: calibration.midX, y: calibration.midY))
+        let calibPoint = CGPoint(x: calibration.midX, y: calibration.midY)
+        // 诊断：场景/焦点/坐标回读/命中视图/已写 ivar
+        let probeTouch = makeTouch(at: calibPoint, phase: .began)
+        let diagLoc = probeTouch.location(in: window)
+        let diagHit = window.hitTest(calibPoint, with: nil)
+        lines.append(
+            "arm=\(armName) diag scene=\(window.windowScene != nil) "
+                + "key=\(window.isKeyWindow) "
+                + "touchLoc=(\(Int(diagLoc.x)),\(Int(diagLoc.y))) "
+                + "hit=\(diagHit.map { String(describing: type(of: $0)) } ?? "nil") "
+                + "touchKeys=\(touchKeysSet.joined(separator: ","))"
+        )
+        deliverTap(at: calibPoint)
+        if store.calibrationActions == 0 {
+            // 第二通道：UIApplication 转投（诊断用，
+            // 通道定下后其余点位只走该通道）
+            deliveryPath = "app"
+            deliverTap(at: calibPoint)
+        }
         let calibrated = store.calibrationActions > 0
         lines.append(
             "arm=\(armName) calibration fired=\(store.calibrationActions) "
-                + "ok=\(calibrated)"
+                + "ok=\(calibrated) path=\(deliveryPath)"
         )
         guard calibrated else {
             lines.append("arm=\(armName) VERDICT=INSTRUMENT-FAIL")
