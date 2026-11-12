@@ -5,7 +5,7 @@ import XCTest
 @testable import OneDayApp
 
 private struct FloatInsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = -1
+    static var defaultValue: CGFloat { -1 }
     static func reduce(
         value: inout CGFloat, nextValue: () -> CGFloat
     ) {
