@@ -280,12 +280,6 @@ struct ChatView: View {
     // 的同档近似：坞 83＋舱高约 77＋边距 8），host
     // 首个布局拍即以实测覆盖、不留陈值
     @State private var composerBottomSpace: CGFloat = 168
-    // §178 舱高实测通道的 ChatView 侧状态：托管树内
-    // GeometryReader 量得舱高、经本状态喂回承载控制
-    // 器写高度约束（见 ComposerGuideHost 的
-    // contentHeight 通道注）。初值 76 为单行舱兜底、
-    // 首个布局拍即被实测覆盖
-    @State private var composerContentHeight: CGFloat = 76
     @State private var videoItems: [PhotosPickerItem] = []
     @State private var showVideoPicker = false
     // 文件选择自 0.36.31 起走 UIKit 桥 Document-
@@ -647,8 +641,7 @@ struct ChatView: View {
             ZStack {
                 messageList(proxy)
                 ComposerGuideHost(
-                    bottomSpace: $composerBottomSpace,
-                    contentHeight: $composerContentHeight
+                    bottomSpace: $composerBottomSpace
                 ) {
                     bottomBar(proxy)
                 }
