@@ -46,14 +46,12 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         window?.rootViewController = nil
         window?.isHidden = true
         window = nil
-        // 卸树后先泵一拍：树的拆卸与残留任务收尾在
-        // 容器仍活着时完成，再放容器与状态
-        let drainDeadline = Date().addingTimeInterval(0.3)
-        while Date() < drainDeadline {
-            RunLoop.main.run(
-                mode: .default,
-                before: Date(timeIntervalSinceNow: 0.05))
-        }
+        // 卸树后先排空一拍：挂起本方法让主线程回去
+        // 处理树的拆卸与残留任务收尾（在容器仍活着
+        // 时完成），再放容器与状态。RunLoop.run 在
+        // async 上下文被 Swift 6 禁用，故走 Task.sleep
+        // 挂起主 actor 实现同效排空
+        try? await Task.sleep(nanoseconds: 300_000_000)
         assemblyContainer = nil
         assemblyAppState = nil
         try await super.tearDown()
