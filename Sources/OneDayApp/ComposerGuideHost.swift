@@ -81,6 +81,16 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 舱顶→窗口底距离的实测回报（host 在布局拍回写；
     /// ChatView 以此＋spacingS 作列表底 contentMargins）
     @Binding var bottomSpace: CGFloat
+    /// 舱高实测通道（托管树内量、经 ChatView 状态喂回
+    /// 控制器写高度约束）：数值由 apply 在托管根上挂的
+    /// GeometryReader＋PreferenceKey 量得（§152 附件面
+    /// 板实测高同款机制、生产已验）——不用 UIHosting-
+    /// Controller 的 sizing 通道：嵌套托管下其理想高
+    /// 在换根/内容生长时不重算（宿主测试三证：重建、
+    /// 重赋值、invalidate 均发生而宿主高恒冻；size-
+    /// ThatFits 显式量测又扰动回报链），高必须由实
+    /// 测值显式驱动
+    @Binding var contentHeight: CGFloat
     /// 舱本体（ChatView 的 bottomBar 整栈）：在 init 里
     /// 由构建闭包求值成视图值——求值发生在 ChatView 的
     /// body 构建期，bottomBar 内部的全部状态读数由此归
@@ -96,9 +106,11 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
 
     init(
         bottomSpace: Binding<CGFloat>,
+        contentHeight: Binding<CGFloat>,
         @ViewBuilder content: () -> Content
     ) {
         self._bottomSpace = bottomSpace
+        self._contentHeight = contentHeight
         self.content = content()
     }
 
@@ -138,13 +150,50 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         let appState = appState
         let modelContext = modelContext
         let locale = locale
+        controller.composerHeight = contentHeight
+        let contentHeight = $contentHeight
         controller.composerRoot = AnyView(
             content
+                // 舱高实测：背景 GeometryReader 量舱本
+                // 体帧高（fixedSize 内容在宿主给高不足
+                // 时仍按理想高成帧、量得真值）、经
+                // PreferenceKey 在托管树内回报——消费
+                // 者同在托管根上（PreferenceKey 不跨托
+                // 管边界，量与收必须同树，§152 同理）
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: ComposerHeightKey.self,
+                            value: proxy.size.height
+                        )
+                    }
+                }
+                .onPreferenceChange(ComposerHeightKey.self) { value in
+                    guard value > 0 else { return }
+                    // 与回报同纪律：下一拍写、等值守卫
+                    DispatchQueue.main.async {
+                        if abs(contentHeight.wrappedValue - value)
+                            > 0.5 {
+                            contentHeight.wrappedValue = value
+                        }
+                    }
+                }
                 .environment(appState)
                 .environment(\.modelContext, modelContext)
                 .environment(\.locale, locale)
                 .boldTextMapping()
         )
+    }
+}
+
+/// 舱高实测的 PreferenceKey（单舱单值、取后到值）
+private struct ComposerHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(
+        value: inout CGFloat, nextValue: () -> CGFloat
+    ) {
+        let next = nextValue()
+        if next > 0 { value = next }
     }
 }
 
@@ -163,20 +212,24 @@ private final class ComposerPassthroughView: UIView {
 /// 引导线托管控制器本体：只管舱宿主的钉位（引导线＋
 /// 地板钳制）与舱顶实测回报，不知业务页面
 final class ComposerGuideHostController: UIViewController {
-    /// 舱根视图（桥注入；赋值即刷进舱宿主）。赋值后
-    /// 立即按新内容重算宿主高（见 updateComposer-
-    /// Height）：嵌套托管下换 rootView 不自动重算
-    /// UIHostingController 的理想高（宿主测试实证：
-    /// 内容长高 40 时宿主高恒 76、舱顶不动——错误
-    /// 条/回底钮行等结构增高走同一路径，属生产缺
-    /// 陷、非测试伪影），故高度不走 intrinsic 通道、
-    /// 改由本控制器显式量测驱动
+    /// 舱根视图（桥注入；赋值即刷进舱宿主）
     var composerRoot: AnyView? {
         didSet {
             if let composerRoot {
                 composerHost.rootView = composerRoot
-                updateComposerHeight()
             }
+        }
+    }
+    /// 舱高（桥喂入的实测值，源头见桥的 content-
+    /// Height 通道）：写入高度约束常数；约束未建
+    /// （视图未装配）时只存值、装配时以存值建约
+    var composerHeight: CGFloat = 0 {
+        didSet {
+            guard let heightConstraint,
+                  abs(heightConstraint.constant - composerHeight)
+                    > 0.5
+            else { return }
+            heightConstraint.constant = composerHeight
         }
     }
     /// 舱顶→窗口底距离变化回调（桥接回 SwiftUI 状态；
@@ -202,9 +255,10 @@ final class ComposerGuideHostController: UIViewController {
         // 不许宿主再按窗口安全区给它派生一份（双计防线，
         // 配件核查报告第 6 条同坑）
         composerHost.safeAreaRegions = []
-        // 高度走托管内容的理想高（舱内 fixedSize 断环是
-        // 既有口径，理想高即内容高）
-        composerHost.sizingOptions = [.intrinsicContentSize]
+        // 高度走显式约束（composerHeight 实测驱动），
+        // 不挂 sizingOptions—— sizing 通道与显式约束
+        // 双驱动会互相拉扯（且 sizing 在嵌套托管下本
+        // 就不重算，见桥的 contentHeight 通道注）
         addChild(composerHost)
         composerHost.view.backgroundColor = .clear
         composerHost.view.translatesAutoresizingMaskIntoConstraints =
@@ -215,7 +269,7 @@ final class ComposerGuideHostController: UIViewController {
             .constraint(
                 equalTo: view.keyboardLayoutGuide.topAnchor)
         heightConstraint = composerHost.view.heightAnchor
-            .constraint(equalToConstant: 0)
+            .constraint(equalToConstant: composerHeight)
         NSLayoutConstraint.activate([
             composerHost.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor),
@@ -224,31 +278,10 @@ final class ComposerGuideHostController: UIViewController {
             bottomConstraint,
             heightConstraint,
         ])
-        updateComposerHeight()
-    }
-
-    /// 舱高显式量测：以宿主当前宽向托管内容问理想
-    /// 高、写入高度常数（与地板钳制同属「几何归本控
-    /// 制器」的口径）。宽为 0（未入窗）时跳过、待布
-    /// 局拍补量；常数只在偏差 >0.5 时写，防自激布局
-    /// 循环——内容在托管树内部生长（多行输入）时，
-    /// 理想高变化经宿主的布局拍在本函数补齐
-    private func updateComposerHeight() {
-        let width = view.bounds.width
-        guard width > 0 else { return }
-        let fitting = composerHost.sizeThatFits(
-            in: CGSize(
-                width: width,
-                height: CGFloat.greatestFiniteMagnitude))
-        if abs(heightConstraint.constant - fitting.height) > 0.5 {
-            heightConstraint.constant = fitting.height
-        }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // 舱高补量（宽变/托管内生长都经此拍收口）
-        updateComposerHeight()
         // 地板钳制：舱底目标＝min(引导线顶, 视图底边)——
         // 键盘升起跟引导线走、落下停在视图底边（＝坞
         // 顶）；常数逐拍按当前帧重算，交互式收键盘拖到
