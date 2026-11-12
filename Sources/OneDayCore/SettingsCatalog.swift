@@ -312,19 +312,26 @@ public enum SettingsCatalog {
     }
 
     /// 搜索：查询去空白并折叠大小写后，对标题／副行／
-    /// 关键词做包含匹配，命中按清单序返回（清单序即
-    /// IA 序，不另排序）；空查询返回全部条目
+    /// 关键词做包含匹配；标题命中排在副行／关键词命中
+    /// 之前（按标题搜先达标题页，如搜「记忆」先达记忆
+    /// 页、枢纽页「智能体配置」以副行含「记忆」随后），
+    /// 同层内按清单序（清单序即 IA 序）；空查询返回
+    /// 全部条目
     public static func search(_ query: String) -> [SettingsCatalogEntry] {
         let needle = query
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         guard !needle.isEmpty else { return entries }
-        return entries.filter { entry in
-            entry.title.lowercased().contains(needle)
-                || entry.summary.lowercased().contains(needle)
-                || entry.keywords.contains {
-                    $0.lowercased().contains(needle)
-                }
+        let titleHits = entries.filter {
+            $0.title.lowercased().contains(needle)
         }
+        let otherHits = entries.filter { entry in
+            !entry.title.lowercased().contains(needle)
+                && (entry.summary.lowercased().contains(needle)
+                    || entry.keywords.contains {
+                        $0.lowercased().contains(needle)
+                    })
+        }
+        return titleHits + otherHits
     }
 }

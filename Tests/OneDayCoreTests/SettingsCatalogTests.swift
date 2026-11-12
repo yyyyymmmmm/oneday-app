@@ -107,6 +107,9 @@ final class SettingsCatalogTests: XCTestCase {
     func testSearchByChineseTitle() {
         let hits = SettingsCatalog.search("记忆")
         XCTAssertEqual(hits.first?.id, "memory")
+        // 标题命中优先；枢纽页「智能体配置」副行含「记忆」
+        // 仍须命中（零丢失），只是排在标题页之后
+        XCTAssertTrue(hits.contains { $0.id == "agentConfig" })
     }
 
     func testSearchMatchesSummaryAndKeywords() {

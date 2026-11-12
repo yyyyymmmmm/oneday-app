@@ -10620,3 +10620,9 @@ enum SettingsRoute: Hashable {
 - [x] 改动文件 UI 字符串与目录键差集为零（113 个 UI 字符串全覆盖，67 个关键词豁免）
 - [x] 四页 lead 副标题形态一致（字阶/颜色/行盒/Section 修饰符顺序）
 - [x] 行盒收敛（除服务器卡片保留设计意图边距外，其余统一 `settingsRowInsets`）
+
+### 179.11 搜索排序收尾（2026-11-12，主线审查后修复轮）
+
+- **失败定案**：删净编译残片后 CI run 43153301504 仅剩一处红——`SettingsCatalogTests.testSearchByChineseTitle`：搜「记忆」首命中为 `agentConfig` 而非 `memory`。归属＝本分支引入：proto2 新增枢纽条目 agentConfig（副行「配置档案、记忆与技能」＋关键词「记忆」）在清单序中排在 memory 之前，旧排序「命中按清单序」使其抢先于标题页。
+- **修法**：`SettingsCatalog.search` 排序分两层——标题命中优先、副行／关键词命中随后，同层内仍按清单序；命中集合不变（零丢失：搜「记忆」仍命中 agentConfig，只是排在 memory 之后）。未删 agentConfig 的「记忆」副行/关键词（枢纽页内容定版文案，删之即搜索丢失），未改条目清单序（清单序＝IA 序）。
+- **测试**：`testSearchByChineseTitle` 补一条断言锁零丢失（结果须含 agentConfig）；其余搜索断言（服务器／MEMORY／mcp／断开连接／外观）在新排序下逐项复核不变。单测只增不减。
