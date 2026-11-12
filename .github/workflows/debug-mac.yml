@@ -1,10 +1,16 @@
 name: Debug Mac (tmate SSH)
 
-# Manual-only debug entry point: opens a tmate session on a free
-# GitHub-hosted macOS runner. Access is restricted to the SSH public
-# key below via tmate-authorized-keys — the connection string is
-# useless without the matching private key.
-# The connection string is uploaded as the "tmate-ssh" artifact,
+# Manual-only debug entry point: gives key-only SSH access to a free
+# GitHub-hosted macOS runner.
+#
+# Rendezvous history: tmate was tried first, but as of 2026-11-12
+# ssh.tmate.io is NXDOMAIN on public resolvers (verified via
+# Cloudflare/Google DoH and from a runner), so tmate can never
+# register. This version instead enables the runner's own sshd
+# (authorized_keys = the public key below, nothing else) and exposes
+# it through bore.pub, a free no-account TCP tunnel. bore only
+# forwards TCP: the SSH key pair remains the only way in.
+# The connection command is uploaded as the "debug-ssh" artifact,
 # because job logs are not readable via API while a run is in progress.
 # Stop the session by cancelling the run.
 
@@ -16,48 +22,53 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 360
     steps:
-      - name: Install tmate
-        run: brew install tmate
-
-      - name: Start tmate session (authorized key only)
+      - name: Enable sshd (debug key only) and open bore tunnel
         env:
           DEBUG_SSH_PUBKEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE9w9oWkcFoFu/Qc/KxCgiLSSfzCCqBbEvMealEqtJBW hatch
         run: |
           set -uxo pipefail
           cd "$GITHUB_WORKSPACE"
-          # --- network probes toward tmate.io (diagnostics) ---
-          {
-            echo '== dig =='; dig +short ssh.tmate.io || nslookup ssh.tmate.io
-            echo '== tcp 22 =='; nc -vz -w 8 ssh.tmate.io 22
-            echo '== ssh banner =='; ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8 -o BatchMode=yes -T ssh.tmate.io true
-          } > diag-net.txt 2>&1 || true
-          # --- tmate with verbose server/client logs ---
+          # --- sshd with only the debug key ---
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$DEBUG_SSH_PUBKEY" > "$HOME/.ssh/authorized_keys"
+          chmod 700 "$HOME/.ssh"
           chmod 600 "$HOME/.ssh/authorized_keys"
-          printf 'set -g tmate-authorized-keys "%s/.ssh/authorized_keys"\n' "$HOME" > "$HOME/.tmate.conf"
-          tmate -S /tmp/tmate.sock -v new-session -d >/dev/null 2>&1 </dev/null || true
-          SSH_STR=""
-          for i in $(seq 1 45); do
-            SSH_STR="$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' 2>/dev/null || true)"
-            [ -n "$SSH_STR" ] && break
+          sudo systemsetup -setremotelogin on || true
+          sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist || true
+          sleep 2
+          nc -vz -w 5 127.0.0.1 22 || true
+          # --- bore binary (asset picked from the releases API) ---
+          REL="$(curl -fsSL https://api.github.com/repos/ekzhang/bore/releases/latest)"
+          URL="$(printf '%s' "$REL" | grep -o '"browser_download_url": *"[^"]*apple-darwin[^"]*"' | grep -E 'aarch64|arm64' | head -1 | cut -d'"' -f4)"
+          [ -n "$URL" ] || URL="$(printf '%s' "$REL" | grep -o '"browser_download_url": *"[^"]*apple-darwin[^"]*"' | head -1 | cut -d'"' -f4)"
+          echo "bore asset: $URL"
+          curl -fsSL "$URL" -o bore.tgz
+          tar -xzf bore.tgz -C /tmp
+          BORE="$(find /tmp -maxdepth 2 -name bore -type f | head -1)"
+          chmod +x "$BORE"
+          # --- start tunnel, capture the assigned public port ---
+          nohup "$BORE" local 22 --to bore.pub > bore.log 2>&1 &
+          CONN=""
+          for i in $(seq 1 30); do
             sleep 2
+            PORT="$(grep -oE 'bore\.pub:[0-9]+' bore.log | head -1 | cut -d: -f2 || true)"
+            if [ -n "$PORT" ]; then
+              CONN="ssh -p $PORT runner@bore.pub"
+              break
+            fi
           done
-          echo "TMATE_SSH=$SSH_STR"
-          printf '%s\n' "$SSH_STR" > "$GITHUB_WORKSPACE/tmate-ssh.txt"
-          tmate -S /tmp/tmate.sock show-messages > diag-tmate-messages.txt 2>&1 || true
-          [ -n "$SSH_STR" ]
+          echo "DEBUG_SSH=$CONN"
+          printf '%s\n' "$CONN" > "$GITHUB_WORKSPACE/debug-ssh.txt"
+          [ -n "$CONN" ]
 
-      - name: Upload debug bundle
+      - name: Upload connection bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tmate-ssh
+          name: debug-ssh
           path: |
-            tmate-ssh.txt
-            diag-net.txt
-            diag-tmate-messages.txt
-            tmate-*.log
+            debug-ssh.txt
+            bore.log
           if-no-files-found: warn
           retention-days: 1
 
