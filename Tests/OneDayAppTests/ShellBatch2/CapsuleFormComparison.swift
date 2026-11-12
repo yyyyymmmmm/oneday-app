@@ -36,7 +36,7 @@ struct CapsuleFormComparison: View {
                 formSection(
                     title: "A 组：0.49.3 历史形态",
                     description: "原生 Menu + Picker，玻璃挂行本体",
-                    capsuleView: historicalCapsule_0_49_3
+                    capsuleView: { historicalCapsule_0_49_3 }
                 )
 
                 Divider()
@@ -45,7 +45,7 @@ struct CapsuleFormComparison: View {
                 formSection(
                     title: "B 组：0.50.22 现行形态",
                     description: "IdentityCapsuleView，两个独立 Button，玻璃在背景层",
-                    capsuleView: currentCapsule_0_50_22
+                    capsuleView: { currentCapsule_0_50_22 }
                 )
 
                 instructionsSection
@@ -319,7 +319,7 @@ struct CapsuleFormComparison: View {
 
             Text("4. 将实测结果填入 CapsuleHitTestScenarios.swift")
                 .font(.caption)
-                .foregroundStyle(Palette.inkTertiary)
+                .foregroundStyle(Palette.inkMuted)
         }
         .padding()
         .background(Color.yellow.opacity(0.1))
