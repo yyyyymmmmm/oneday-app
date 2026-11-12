@@ -426,6 +426,16 @@ struct SettingsView: View {
             ForEach(SettingsCatalog.browseEntries(in: .support)) { entry in
                 catalogNavRow(entry)
             }
+            // 诊断构建专用行（hotfix/05025-bars2）：栏位
+            // 几何自述读出面，定案后随诊断分支整件退役
+            NavigationLink {
+                BarsGeometryReportView()
+            } label: {
+                Text("栏位几何自述（诊断）")
+                    .font(.body)
+                    .foregroundStyle(Palette.ink)
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+            }
         } header: {
             sectionHeader("支持")
         }

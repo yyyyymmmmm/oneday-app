@@ -887,6 +887,10 @@ struct ChatView: View {
             await appState.sharedHubStore().refreshApprovalForChat()
         }
         .onAppear {
+            // 诊断构建采样（hotfix/05025-bars2）：冷启
+            // +1/+3/+6 秒栏位几何自述，进程内只排一次；
+            // 定案后随诊断分支退役
+            BarsGeometryTrace.scheduleColdStartCaptures()
             // 0.36.6：语音控制器回调接线——识别文本回
             // 写 input（落稿后即普通草稿、可改可发）；
             // 预备页选键盘听写时聚焦输入框
