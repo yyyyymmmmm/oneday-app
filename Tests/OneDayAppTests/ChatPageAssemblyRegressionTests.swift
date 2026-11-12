@@ -241,7 +241,7 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
                 schema: schema, isStoredInMemoryOnly: true
             )]
         )
-        let host = UIHostingController(
+        let rootHost = UIHostingController(
             rootView: RootView()
                 .environment(appState)
                 .environment(\.locale, AppLocale.uiLocale)
@@ -254,7 +254,7 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         )
         window = DeviceWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
-        window.rootViewController = host
+        window.rootViewController = rootHost
         window.makeKeyAndVisible()
         window.layoutIfNeeded()
         spinRunLoop(seconds: 2.0)
