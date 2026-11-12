@@ -11020,3 +11020,17 @@ Codex 复核四条：两条 CI 可修（本节 A/B）、一条文档口径（本
 - 落法：SettingsSupportViews.swift 新增 AppIconBitmap＋AppIconView——经 Info.plist 的 CFBundleIcons 取图标集文件名再 UIImage(named:)，与桌面图标同源（App/Resources/Assets.xcassets/AppIcon.appiconset）、换图标自动跟随、不复制位图；取不到（nil）时整件不渲染，不留空框、不占位。页脚（SettingsView.versionFooter）改签名行：图标 19pt/角 5＋「OneDay」（.meta）＋版本小字（.badgeOnly、取 OneDayVersionLabel.hero 字面），一行居中、墨色 inkSecondary 沿 0.22.0 审计口径；full 整串保留为同文件字面锚。关于 hero（AboutView.heroSection）：VStack 顶部加 68pt/角 17 图标，图标→名行距 16（spacingSM 12＋栈内 spacingXS 4 梯队合成）；其余排版（名 .screenName、版本 .rowSubtitle、纵向 padding）沿现行不动。图标自带底色，深浅色同图、不另加框；无障碍恒隐藏（相邻名称已达意）。
 - 守护：Tests/OneDayAppTests/AppIconBitmapTests 新增 2 条——位图必须取到且为 ≥120px 正方形（CFBundleIcons 通道失效先红、不许两处静默缺席）＋两消费尺寸（19/68）可构造。单测只增不减。
 - 附带定性·关于页「伴生服务」显 v1.0.36、生产已 1.0.37（同批截图）：**数据源在伴生侧回报旧值，App 无过、本包未动 App 取值代码、未动生产伴生**。证据链（2026-11-12 服务器只读实查，内存 56%）：①App 端 GET /api/companion/info → CompanionInfo.companionVersion 原文照显（versionText 仅补 v 前缀，不写死不换算）；②供数方 front/front.py 的 VERSION＝os.environ COMPANION_VERSION（进程启动时读一次），/api/companion/info 的 companionVersion 即此值；③运行中 front 进程（pid 18）env 实读 COMPANION_VERSION=**1.0.36**，容器 PID 1 env 却是 1.0.37——伴生 supervisor.py 按 /opt/companion/companion.env 分段为子进程建 env（不继承容器 env），该文件第 4 行仍是 COMPANION_VERSION=1.0.36（mtime 2026-11-12 04:48）；12:24 的 1.0.37 部署改的是镜像/Dockerfile 与 compose 层 env（PID 1 实读 1.0.37、部署验收查的正是这一层），env 文件未同步、front 进程未重读。端点如实回报 1.0.36、App 如实显示。修复归伴生线（companion.env 改 1.0.37 并重启 front 进程重读 env），不在本包范围。
+
+## §189 症三浮空修复：容器全屏安放、安全区单计（2026-11-12；分支 feat/shell-float-fix，基线 f741d4b／0.50.23 定版顶端；分支未自编节号，0.50.25 合入时顺延 §189）
+- 定因（探针五组实证，全表 docs/shell-float-fix/FLOAT-FIX-REPORT.md）：DrawerContainer 经 Representable 进宿主时被 SwiftUI 摆进**安全区矩形**——容器帧被收编为 (0,59,402×781)、自身 safeAreaInsets 读数为零，底部 34pt 被帧偏移排除在帧外；内层 TabView 相对宿主底边仍留 21pt（「按无 Home Indicator 档布局」为几何推断、非内部档位观测），合计浮空 55pt，与真机量测 57±2 同构。多出的距离不在任何显式常量里，是底安全区被双重消费。
+- 修复（最小）：ContentView.swift 给 DrawerContainer 落位加 `.ignoresSafeArea()` 一行（含定因注）。同台探针复测 55→21、容器帧回全屏、安全区改走系统传播。禁区未碰：页面背景/边缘、胶囊与呈现链、输入舱承载、§124/§176、抽屉动画与命中、DrawerContainerView 本体。
+- 回归守护：TabBarFloatTests 4 条（容器无罪对照／缺陷签名钉死／生产落法与对照同值／生产装配点源码守护——去注释后核实 ContentView 中 DrawerContainer 结果直挂 .ignoresSafeArea()，删除/移位/只留注释均判红）。
+- Codex 异源复核（ext-20261112-021）总评「修后可合并」，必修 3 条已补齐（分支头 27cfcd0，CI run 43176425503 全绿）：①订正 DrawerView 自述错误（.ignoresSafeArea 只挂背景磨砂底、名单本体尊重安全区）②C 机制排除补源码核账（全仓零 additionalSafeAreaInsets 写入＋容器按 bounds 安放子宿主）③验收口径改相对降幅（见下）。
+- 口径边界与真机判据：探针量 Platter 布局帧下缘、真机录屏量玻璃视觉下缘，两口径不可直接互换。**真机复测为最终验收**：同机同系统、聊天页键盘收起、沿原录屏定边法量浮空，**以相对降幅 34±4pt 为通过线**；≈23±2pt 只作修后预测值、不作绝对合格线；与标准带 34–36pt 的一致性另行记账（无同条件对照样本前不宣称达标）。抽屉开态顶/底内容落点与边缘热区扩展归真机验收存疑项。
+
+## §190 小批合并发版总账：0.50.25/147（2026-11-12；两包合一：症三浮空 §189＋图标补回 §188）
+- 本批口径：沿用户 2026-11-12 15:22「好了先发」规矩——已全绿两包不等胶囊（feat/ext-shell-batch2 仍在跑），先行发版。合并在 rel/0.50.25 串行完成，main 只构建一次发版。
+- 件一·症三浮空（§189）：merge feat/shell-float-fix（终头 27cfcd0，分支 CI run 43176425503 全绿）。对 ContentView.swift 仅一处修饰符＋注释订正；先行对账证 §185/§186 在 main 对该文件零改动（f741d4b..main 空 diff），无交叉、自动合并干净。
+- 件二·图标补回（§188）：merge feat/settings-icon-restore（终头 aad3920，分支 CI run 43176504961 全绿）。代码三文件自动合并；DESIGN 一处内容冲突＝§187 验包补记与 §188 追加同址，合裁＝两边全保留、补记在前 §188 在后，冲突标记残行已清净。
+- 定版：五处字面同改 0.50.25/147（Project.swift 四处＋SettingsSupportViews 版本串 full/hero），grep 验代码内无 0.50.24 残留。
+- 发版验包补记：见本节后续补记行（CI run／单测／IPA 字节与 md5）。
