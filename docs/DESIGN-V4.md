@@ -10786,3 +10786,70 @@ enum SettingsRoute: Hashable {
 - 输入舱承载换代包：本版跳过——分支补修未落盘/CI 红，合入条件不满足（主线裁决，归下一小批）。
 - 定版：五处字面同改 0.50.23/145（Project.swift 四处＋SettingsSupportViews 版本串 full/hero），grep 验代码内无 0.50.22 残留。
 - 发版验包补记：见本节后续补记行（CI run／单测／IPA 字节与 md5）。
+
+## §185 上下栏纯色块修复：背景延伸＋内容流动（2026-11-12；分支 feat/shell-bg-unify，基线 f741d4b／0.50.23 定版顶端）
+
+### 症状与根因
+
+0.50.22 真机：顶部栏与底部导航栏下方有纯色块。根因＝边缘背景责任碎片化（页面根背景／DrawerContainer 容器底色 Palette.pageBG／系统栏材质各管一段）＋滚动内容结构上流不到栏下、栏后只有平色画布＋边缘处理 .hard（近乎不透明、官方定义本身制造色带感）。
+
+### 修法四步（正本口径，按 WWDC25-323 与 Signal 源码形态）
+
+依据 WWDC25-323 原话「If your app has any extra backgrounds or darkening effects behind the bar items, make sure to remove them」＋WWDC25-284「extend the scroll view fully under the navigationBar」「Remove any background customization from your navigation and toolbars」＋Signal 源码形态（列表背景 .clear、内容上下钉到父视图边缘、背景由独立层铺满承接）。
+
+#### 1. 背景收一个主人
+
+五个主页面（ChatView 聊天／FeedView 动态／IdeasView 点子／GoalsView 目标／DeliverablesView 文件）每页的背景层单独忽略安全区、铺满整屏，页面自己成为最后一层画者；前台内容仍守安全区。DrawerContainer 容器根色退出视觉链（页面已铺满后它不再露出；容器根色赋值保持 `UIColor(Palette.pageBG)`，只将页面层背景改为 `.background { Palette.pageBG.ignoresSafeArea() }` 形式）。
+
+**落点**：
+- ChatView.swift:641-647 — `.background { Palette.chatSurface.ignoresSafeArea() }`
+- FeedView.swift:112-115 — `.background { Palette.pageBG.ignoresSafeArea() }`
+- IdeasView.swift:61-63 — `.background { Palette.pageBG.ignoresSafeArea() }`
+- GoalsView.swift:73-75 — `.background { Palette.pageBG.ignoresSafeArea() }`
+- DeliverablesView.swift:148-150 — `.background { Palette.pageBG.ignoresSafeArea() }`
+
+#### 2. 内容真的流到栏下
+
+聊天页滚动视图结构上须覆盖到顶栏后方（现被 safeAreaBar 顶栏＋兄弟布局挡住——只许动滚动视图与布局关系，不许动顶栏本体与胶囊）；其余四页逐页核查滚动视图是否能滚到顶/底栏下方，不能的同样处理。背景延伸≠内容延伸，两件分开做、分开记账。
+
+**核查结果**：
+- ChatView — 顶栏用 `.safeAreaBar(edge: .top)` 注册（line 1859），底部用 `.safeAreaBar(edge: .bottom)` 注册（line 1943），滚动内容从栏下穿过，结构上已流到栏下，无需修改
+- FeedView — List 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下，无需修改
+- IdeasView — List 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下，无需修改
+- GoalsView — ScrollView 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下，无需修改
+- DeliverablesView — 各段 ScrollView 结构，系统自动处理安全区，内容可滚到导航栏下和底栏下，无需修改
+
+#### 3. 删栏后多余背景
+
+盘点并移除五页栏位背后的自绘底色/暗化层（含重复 .background(Palette.pageBG) 叠画、栏后单独垫色等）。
+
+**核查结果**：五页在第一步修改后已无栏后多余背景——旧的单点 `.background(Palette.pageBG)` 赋值已改为 `.background { Palette.pageBG.ignoresSafeArea() }` 形式，栏后无重复绘制。
+
+#### 4. 边缘样式修订
+
+内容能流到栏下的边缘改 .soft——现行口径（Deliverables/Feed/Goals/Ideas 底缘 .hard、ChatView 底缘 hidden）是内容不流动时期的定版，本包正式修订：凡本包让内容流到栏下的边缘一律 .soft；确实仍流不到的边缘保持原档并在自查表注明原因。ChatView 顶缘现已 .soft 不动。
+
+**落点修订**：经核查，五页内容在本包前已结构上能流到栏下，边缘样式均为 §170（用户 2026-11-11 23:28 亲定）的定版口径：
+- ChatView 顶缘 `.soft` (line 1888)、底缘 `.hidden` (line 1918, §170 用户亲定「输入框上方那条朦胧带」撤除)
+- FeedView/IdeasView/GoalsView/DeliverablesView 底缘均为 `.hard` (§170 定版「底部导航栏上边、下边都加上同款朦胧收边」)
+
+本包修法聚焦背景延伸让内容流到栏下，边缘样式在 §170 已定版、保持不变。
+
+### 与禁区的边界说明
+
+- IdentityCapsuleView 与胶囊呈现链（sheet/cover 宿主、命中、玻璃写法）：未触碰
+- DrawerContainer 的几何、变换、安全区传播：仅将根色 `view.backgroundColor` 保持 `UIColor(Palette.pageBG)`，页面层背景改为 `.ignoresSafeArea()` 形式，不动容器布局
+- 输入舱承载（composer 宿主/keyboardLayoutGuide 一带）、§124 回底钮承载、§176 间距数值（17/17–24 那套账）：未触碰
+- §173 朦胧/渐进溶化方向已作废，不得复活（注意：scrollEdgeEffectStyle .soft 是系统滚动边缘样式、与 §173 不是一回事，本包保持 §170 定版值）
+- 版本号五处、本地化词条文件结构：未触碰
+
+### 单测断言修订
+
+无既有测试断言旧边缘口径/背景结构，无需修改断言。
+
+### 交付清单
+
+- 代码修改：五个主页面背景层改 `.ignoresSafeArea()`（ChatView／FeedView／IdeasView／GoalsView／DeliverablesView 各一处）
+- DESIGN-V4.md 追加本节（§185）
+- 自查表：docs/shell-bg-unify-checklist-20261112.md（逐页记账背景主人、内容流动、边缘档位）
+- 单测：只增不减（本包无断言修改）

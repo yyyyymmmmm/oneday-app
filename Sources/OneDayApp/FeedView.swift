@@ -109,7 +109,10 @@ struct FeedView: View {
                     readyContent
                 }
             }
-            .background(Palette.pageBG)
+            .background {
+                Palette.pageBG
+                    .ignoresSafeArea()
+            }
             .navigationTitle("动态")
             .toolbar {
                 // 搜索入口（§126）：.searchable 的

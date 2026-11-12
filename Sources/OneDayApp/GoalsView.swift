@@ -70,7 +70,10 @@ struct GoalsView: View {
                     readyContent
                 }
             }
-            .background(Palette.pageBG)
+            .background {
+                Palette.pageBG
+                    .ignoresSafeArea()
+            }
             .navigationTitle("目标")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {

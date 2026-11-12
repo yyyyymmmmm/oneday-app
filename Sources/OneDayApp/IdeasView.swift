@@ -58,7 +58,10 @@ struct IdeasView: View {
                     readyContent
                 }
             }
-            .background(Palette.pageBG)
+            .background {
+                Palette.pageBG
+                    .ignoresSafeArea()
+            }
             .navigationTitle("点子")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {

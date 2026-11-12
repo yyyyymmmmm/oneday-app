@@ -145,7 +145,10 @@ struct DeliverablesView: View {
                     )
                 }
             }
-            .background(Palette.pageBG)
+            .background {
+                Palette.pageBG
+                    .ignoresSafeArea()
+            }
             .toolbar(.hidden, for: .navigationBar)
             // §125：打开分流收口——非图条目一律落文
             // 件打开页（中间页），文本类的阅读在其页
