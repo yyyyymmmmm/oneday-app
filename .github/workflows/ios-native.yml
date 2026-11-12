@@ -40,19 +40,6 @@ jobs:
             | tee build-full.log
           grep -E "error:|BUILD" build-full.log | head -60 || true
 
-      # §184 flake 治理：多轮实证测试进程的意外退出
-      # 集中在前两轮 launch、第三轮恒活——像模拟器系
-      # 统服务（渲染/输入）尚未完全就绪时往返楔死。
-      # 开跑前等目标设备 bootstatus 完全启动就绪，
-      # 把「边开机边测」的窗口关掉
-      - name: Wait for simulator full boot
-        run: |
-          UDID=$(xcrun simctl list devices available -j \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(x['udid'] for v in d['devices'].values() for x in v if x['name']=='iPhone 17'))")
-          echo "simulator: $UDID"
-          xcrun simctl boot "$UDID" 2>/dev/null || true
-          xcrun simctl bootstatus "$UDID" -b
-
       - name: Unit tests (OneDayCore)
         run: |
           set -o pipefail

@@ -3,11 +3,6 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// §184 取证埋点（定位阻塞调用用，定因后撤）
-func flakeCrumb(_ message: String) {
-    NSLog("[flake-crumb] Drawer %@", message)
-}
-
 /// 抽屉容器（§156）真机打不开的复现/回归组（热修
 /// 诊断用）：控制器裸装进窗口，只验开合呈现位移；
 /// 干扰组分别复现「动画中布局往返」与「动画中宿主
@@ -28,17 +23,12 @@ final class DrawerContainerControllerTests: XCTestCase {
     /// →关，让首个用例开跑时管线已热。
     override class func setUp() {
         super.setUp()
-        flakeCrumb("classSetUp-enter")
         let window = makeTestWindow()
-        flakeCrumb("classSetUp-windowMade")
         let controller = DrawerContainerController()
         window.rootViewController = controller
         window.makeKeyAndVisible()
-        flakeCrumb("classSetUp-keyVisible")
         controller.view.layoutIfNeeded()
-        flakeCrumb("classSetUp-laidOut")
         controller.setDrawer(true, animated: true)
-        flakeCrumb("classSetUp-animatorStarted")
         // 泵 runloop 等动画落定：判据＝前景 presen-
         // tation 层 tx 抵 travel（只作预热完成判据、
         // 非断言）；8 秒上限兜底，最短泵 1.5 秒保证
@@ -57,11 +47,9 @@ final class DrawerContainerControllerTests: XCTestCase {
                 break
             }
         }
-        flakeCrumb("classSetUp-settled")
         controller.setDrawer(false, animated: false)
         window.rootViewController = nil
         window.isHidden = true
-        flakeCrumb("classSetUp-exit")
     }
 
     /// 测试窗装配（与生产对齐：附着到宿主 App 的
@@ -84,15 +72,12 @@ final class DrawerContainerControllerTests: XCTestCase {
     }
 
     override func setUp() async throws {
-        flakeCrumb("setUp-enter")
         try await super.setUp()
         controller = DrawerContainerController()
         window = Self.makeTestWindow()
         window.rootViewController = controller
         window.makeKeyAndVisible()
-        flakeCrumb("setUp-keyVisible")
         controller.view.layoutIfNeeded()
-        flakeCrumb("setUp-exit")
     }
 
     override func tearDown() async throws {
@@ -291,12 +276,9 @@ extension DrawerContainerControllerTests {
     /// 间三合取（presentation 探针废弃，断言映射账
     /// 见 DESIGN §186.11）
     func testAnimatedCloseKeepsContentUntouchableUntilSettled() {
-        flakeCrumb("firstCase-enter")
         controller.contentRoot = AnyView(Color.red)
         controller.view.layoutIfNeeded()
-        flakeCrumb("firstCase-laidOut")
         controller.setDrawer(true, animated: false)
-        flakeCrumb("firstCase-instantOpened")
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "开态内容应不可点")
