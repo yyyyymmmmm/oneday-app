@@ -69,16 +69,23 @@ f7fb6f8 docs(shell-batch2): 证据轮交付·症一二三全套实验与量测�
 
 ### CI编译验证
 
-**运行信息**：
-- Run ID: 43159007720
-- 触发方式：workflow_dispatch（5010b0b推送后）
-- 状态：⏳ **构建中**（Build步骤）
+**第一轮：run 43159007720**
+- 触发：5010b0b推送后手动触发
+- 状态：❌ **失败**（Unit tests步骤）
+- Build：✅ success（C组代码编译通过）
+- Unit tests：❌ failure
+- 错误定性：`PresentationLayerObservation.swift:213:42: error: type 'Palette' has no member 'inkTertiary'`
+- 根因：证据框架提交f7fb6f8使用了不存在的Palette.inkTertiary
 
-**监控命令**：
-```bash
-gh run watch 43159007720 --exit-status
-```
-（后台任务ID: byr18d32r，输出写入临时文件）
+**修正：e71177c**
+- 问题：Palette只有inkMuted，无inkTertiary
+- 修正：改用Palette.inkMuted（三级墨色）
+- 验证：`grep -r "inkTertiary" Tests/` 确认无其他引用
+
+**第二轮：run 43160539371**
+- 触发：e71177c推送后手动触发
+- 状态：⏳ **监控中**
+- 后台任务：bdf42ivij
 
 **待验证项**：
 - C组代码是否编译通过（GlassEffectContainer等iOS 26.0 API）
@@ -87,7 +94,7 @@ gh run watch 43159007720 --exit-status
 
 **CI终判方式**：
 ```bash
-gh api repos/yyyyymmmmm/oneday-app/actions/runs/43159007720/jobs \
+gh api repos/yyyyymmmmm/oneday-app/actions/runs/43160539371/jobs \
   --jq '.jobs[] | {name, conclusion, steps: [.steps[] | select(.conclusion != null) | {name, conclusion}]}'
 ```
 
@@ -196,12 +203,14 @@ gh api repos/yyyyymmmmm/oneday-app/actions/runs/43159007720/jobs \
 - ✅ 阶段零：分支清账、剔除症一生产提交、force-push
 - ✅ C组代码构造（GlassEffectContainer＋逐元素交互玻璃＋union）
 - ✅ 提交5010b0b推送
-- ✅ CI触发（run 43159007720）
+- ✅ CI第一轮（43159007720）：Build成功、Unit tests失败定性
+- ✅ 修正inkTertiary错误（e71177c）
+- ✅ CI第二轮触发（43160539371）
 - ✅ 数据记录框架（HIT-SCAN-DATA.md）
 - ✅ 执行路径分析与文档
 
 ### 进行中
-- ⏳ CI编译验证（Build步骤）
+- ⏳ CI第二轮编译验证（43160539371监控中）
 
 ### 阻塞
 - ⚠️ **命中扫描需真机手动操作**（本环境无法执行）
@@ -209,9 +218,9 @@ gh api repos/yyyyymmmmm/oneday-app/actions/runs/43159007720/jobs \
 - ⚠️ 阶段二重建待阶段门通过
 
 ### 待CI完成后补充
-- CI run 43159007720终判（success/failure）
+- CI run 43160539371终判（success/failure）
 - Build/Unit tests/Package各步conclusion
-- 测试增减数（若编译通过）
+- 测试增减数（若全绿）
 
 ---
 
@@ -219,8 +228,11 @@ gh api repos/yyyyymmmmm/oneday-app/actions/runs/43159007720/jobs \
 
 简报要求的回报项：
 
-- ✅ **清账后git log**：8ac6193→f7fb6f8→8343578→5010b0b→78e0fed
-- ⏳ **CI红最终定性**：run 43159007720构建中，待终判
+- ✅ **清账后git log**：8ac6193→f7fb6f8→8343578→5010b0b→78e0fed→e71177c
+- ✅ **CI红最终定性**：
+  - run 43159007720：Unit tests失败，`Palette.inkTertiary`不存在
+  - 修正：e71177c改用`Palette.inkMuted`
+  - run 43160539371：⏳ 监控中
 - ⏳ **三组逐点数据与串扰清单**：待真机扫描
 - ✅ **执行路径结论**：CI可验证编译、不可执行扫描，需真机手动操作
 - ⏳ **阶段门判定**：待③组数据
