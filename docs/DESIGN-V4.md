@@ -10275,3 +10275,8 @@ Codex 复核四条：两条 CI 可修（本节 A/B）、一条文档口径（本
 - 改动文件：DrawerContainerView.swift（A）、Tests/OneDayAppTests/DrawerContainerControllerTests.swift（+2 法）、Tests/OneDayAppTests/ComposerGuideHostTests.swift（替身三态段＋删戳＋4 法）、本节。§124 回底钮承载、BottomFollow/BottomStick 判定层、§176 九环账（写死 17／总量 17–24／spacingS 8）零触碰。
 - 单测：App 16 → 22（+6、−0）；Core 1670 不变。
 - 分支 CI：【待回填】
+
+### 178.9 抽屉动画在途断言量测修正（2026-11-12）
+- run 43137644303：新增关闭/打开两测的同步交互断言均未报告失败；失败集中在 50ms run-loop 泵后的 presentation 位移采样与关闭向 hitTest。Spring 使用 `UIViewPropertyAnimator(duration: 0, timingParameters:)`，该等待不是帧同步点：Core Animation presentation layer 可能尚未建立（`-1` nil 哨兵），也可能在 XCTest 等待/调度迟滞时已落定。第一轮该用例还触发测试进程退出/重启，故不能把显式断言失败归作一般 flake。
+- 生产门控保持原样：动画闭包写目标 model offset 时 `animator` 已设置，内容交互关闭；只有完成回调清 animator 后，关闭向 `finishSettle` 才恢复内容交互。关闭向 nil presentation＋交互恢复＋hitTest 入内容三者与已落定状态一致；现有证据支持测试取样点错误，未证明生产生命周期错误。退出/超时的具体原因仍未确定，不能仅凭该日志归因。
+- 修正：两测仍保留首拍/途中交互断言、关闭向途中 hitTest、落定状态断言；presentation 探针改为短间隔泵主 run loop，在启动 animator 前按 Core Animation 本地时间暂停前景层时钟，提交事务并等待 presentation layer 与 animationKeys 同时存在，在动画已安装但尚未落定的首帧完成位移/交互/hitTest 断言；随后按标准 beginTime 补偿恢复时钟，让原 animator 自然完成。若首帧始终未提交，helper 明确报错，nil sentinel 不会被当作有效样本。该测量不依赖 50ms 墙钟窗口。测试数不变；Linux 环境不运行 Xcode，CI 待协调方复核。

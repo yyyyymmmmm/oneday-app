@@ -219,6 +219,7 @@ extension DrawerContainerControllerTests {
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "开态内容应不可点")
+        pauseForegroundLayerClock()
         controller.setDrawer(false, animated: true)
         // 起始帧同步断言（不泵 runloop）：交互置位在
         // animator 闭包内同步发生——此处已被置 true
@@ -226,11 +227,9 @@ extension DrawerContainerControllerTests {
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "关闭动画起始帧内容即恢复可点（呈现层还在移动）")
-        // presentation 层要等动画首帧提交才有值（同
-        // 步读为 nil，CI 实证）——短泵后再量途中位移
-        spinRunLoop(seconds: 0.05)
+        let midTx = waitForInFlightPresentationTx()
         XCTAssertGreaterThan(
-            foregroundPresentationTx, 1,
+            midTx, 1,
             "呈现层应仍在位移途中")
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
@@ -240,6 +239,7 @@ extension DrawerContainerControllerTests {
         XCTAssertFalse(
             isInContentHost(midHit),
             "关闭动画途中命中穿进了内容宿主")
+        resumeForegroundLayerClock()
         spinRunLoop(seconds: 2.0)
         XCTAssertEqual(foregroundTx, 0, accuracy: 1.0)
         XCTAssertEqual(
@@ -259,19 +259,22 @@ extension DrawerContainerControllerTests {
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, true,
             "关态落定内容应可点")
+        pauseForegroundLayerClock()
         controller.setDrawer(true, animated: true)
         XCTAssertEqual(
             contentHostView?.isUserInteractionEnabled, false,
             "打开动画起始帧内容应即刻不可点")
-        // presentation 量测同关闭向：短泵等首帧提交
-        spinRunLoop(seconds: 0.05)
-        let midTx = foregroundPresentationTx
+        let midTx = waitForInFlightPresentationTx()
         XCTAssertGreaterThan(
             midTx, -0.5,
             "呈现层应已有值（动画已提交；-1 为 nil 哨兵）")
         XCTAssertLessThan(
             midTx, controller.travel - 1,
             "呈现层应仍在位移途中")
+        XCTAssertEqual(
+            contentHostView?.isUserInteractionEnabled, false,
+            "打开动画途中内容应保持不可点")
+        resumeForegroundLayerClock()
         spinRunLoop(seconds: 2.0)
         XCTAssertEqual(foregroundTx, controller.travel, accuracy: 1.0)
         XCTAssertEqual(
@@ -293,6 +296,45 @@ extension DrawerContainerControllerTests {
         let subviews = controller.view.subviews
         guard subviews.count >= 2 else { return -1 }
         return subviews[1].layer.presentation()?.transform.m41 ?? -1
+    }
+
+    /// The clock is paused before starting the animator: rendering delays
+    /// cannot consume the spring before these first-frame assertions.
+    private func waitForInFlightPresentationTx(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> CGFloat {
+        let layer = controller.view.subviews[1].layer
+        CATransaction.flush()
+        let deadline = Date().addingTimeInterval(1)
+        while Date() < deadline {
+            _ = RunLoop.main.run(
+                mode: .default,
+                before: Date().addingTimeInterval(1.0 / 120.0)
+            )
+            if layer.presentation() != nil,
+               !(layer.animationKeys() ?? []).isEmpty {
+                return foregroundPresentationTx
+            }
+        }
+        XCTFail("presentation layer did not appear during animation", file: file, line: line)
+        return foregroundPresentationTx
+    }
+
+    private func pauseForegroundLayerClock() {
+        let layer = controller.view.subviews[1].layer
+        let localTime = layer.convertTime(CACurrentMediaTime(), from: nil)
+        layer.speed = 0
+        layer.timeOffset = localTime
+    }
+
+    private func resumeForegroundLayerClock() {
+        let layer = controller.view.subviews[1].layer
+        let pausedTime = layer.timeOffset
+        layer.speed = 1
+        layer.timeOffset = 0
+        layer.beginTime = 0
+        layer.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - pausedTime
     }
 
     private func isInContentHost(_ view: UIView?) -> Bool {
