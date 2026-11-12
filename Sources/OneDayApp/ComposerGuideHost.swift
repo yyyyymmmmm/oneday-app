@@ -407,11 +407,18 @@ final class ComposerGuideHostController: UIViewController {
         let sysFit729 = view.systemLayoutSizeFitting(
             CGSize(width: width, height: 729)
         )
-        let line = "bounds=\(BarsTraceFormat.size(view.bounds))"
-            + " hostView=\(BarsTraceFormat.size(composerHost.view.frame.size))"
-            + " hostFit@729=\(BarsTraceFormat.size(hostFit729))"
-            + " hostFit@3000=\(BarsTraceFormat.size(hostFitTall))"
-            + " sysFit@729=\(BarsTraceFormat.size(sysFit729))"
+        // 拆段拼接：整串插值链会触发类型推断超时
+        // （CI 实证 43331533247），逐段成行再 join
+        let parts = [
+            "bounds=" + BarsTraceFormat.size(view.bounds),
+            "hostView=" + BarsTraceFormat.size(
+                composerHost.view.frame.size
+            ),
+            "hostFit@729=" + BarsTraceFormat.size(hostFit729),
+            "hostFit@3000=" + BarsTraceFormat.size(hostFitTall),
+            "sysFit@729=" + BarsTraceFormat.size(sysFit729),
+        ]
+        let line = parts.joined(separator: " ")
         guard line != lastNegotLine else { return }
         lastNegotLine = line
         BarsGeometryTrace.noteProbe("vcLayout", line)
