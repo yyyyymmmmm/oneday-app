@@ -40,11 +40,109 @@ final class SectionCollapseTests: XCTestCase {
             DrawerSectionKey.navigation,
             DrawerSectionKey.channels,
             DrawerSectionKey.sideChats,
+            DrawerSectionKey.manage,
         ]
-        XCTAssertEqual(Set(keys).count, 3)
+        XCTAssertEqual(Set(keys).count, 4)
         XCTAssertEqual(
             DrawerSectionKey.key(forSearching: true),
             DrawerSectionKey.sideChats)
+    }
+
+    // MARK: - 显隐账（§198）
+
+    func testVisibilityDefaultsToVisibleWhenKeyMissing() {
+        let keys = [
+            DrawerSectionKey.navigation,
+            DrawerSectionKey.channels,
+            DrawerSectionKey.sideChats,
+            DrawerSectionKey.manage,
+        ]
+        for key in keys {
+            XCTAssertTrue(
+                SectionVisibilityState.isVisible(key: key, in: [:]),
+                key)
+        }
+    }
+
+    func testVisibilityToggleAndSetting() {
+        var store = SectionVisibilityState.toggled(
+            key: DrawerSectionKey.channels, in: [:])
+        XCTAssertFalse(SectionVisibilityState.isVisible(
+            key: DrawerSectionKey.channels, in: store))
+        store = SectionVisibilityState.toggled(
+            key: DrawerSectionKey.channels, in: store)
+        XCTAssertTrue(SectionVisibilityState.isVisible(
+            key: DrawerSectionKey.channels, in: store))
+        // 直置同值不翻转（分区管理面选择器口径：选的
+        // 就是目标态，不经切换推导）
+        store = SectionVisibilityState.setting(
+            key: DrawerSectionKey.channels, visible: false, in: store)
+        store = SectionVisibilityState.setting(
+            key: DrawerSectionKey.channels, visible: false, in: store)
+        XCTAssertFalse(SectionVisibilityState.isVisible(
+            key: DrawerSectionKey.channels, in: store))
+    }
+
+    func testVisibilityEncodeDecodeRoundTripAndGarbage() {
+        let data = SectionVisibilityState.encode(
+            [DrawerSectionKey.manage: false])
+        XCTAssertEqual(
+            SectionVisibilityState.decode(data),
+            [DrawerSectionKey.manage: false])
+        XCTAssertEqual(
+            SectionVisibilityState.decode(Data("junk".utf8)), [:])
+        XCTAssertEqual(SectionVisibilityState.decode(nil), [:])
+    }
+
+    // MARK: - 四区渲染合成（§198：显隐账 ∧ 内容闸）
+
+    func testDrawerSectionGatesDefaultAllPresent() {
+        let gates = DrawerSectionGates.resolve(
+            visibility: [:], hermesChannelCount: 25)
+        XCTAssertEqual(
+            gates,
+            DrawerSectionGates(
+                navigation: true, channels: true,
+                manage: true, sideChats: true))
+    }
+
+    func testDrawerSectionGatesChannelNeedsMembers() {
+        // 内容闸：账里显示也须有成员（全量计数为 0 时
+        // 整区不显——题一旧窗口口径的恒 0 即此形态）
+        let gates = DrawerSectionGates.resolve(
+            visibility: [:], hermesChannelCount: 0)
+        XCTAssertFalse(gates.channels)
+        XCTAssertTrue(gates.navigation)
+        XCTAssertTrue(gates.manage)
+        XCTAssertTrue(gates.sideChats)
+    }
+
+    func testDrawerSectionGatesVisibilityBeatsContent() {
+        // 显隐账优先：账里隐藏频道，成员再多也不显
+        let gates = DrawerSectionGates.resolve(
+            visibility: [DrawerSectionKey.channels: false],
+            hermesChannelCount: 25)
+        XCTAssertFalse(gates.channels)
+    }
+
+    func testDrawerSectionGatesEachEntryIndependent() {
+        // 四条目各自独立：导航账隐藏不连带管理行（管
+        // 理行显隐只由自家账管，§198 规格 §2.2 第 6 条）
+        let gates = DrawerSectionGates.resolve(
+            visibility: [
+                DrawerSectionKey.navigation: false,
+                DrawerSectionKey.sideChats: false,
+            ],
+            hermesChannelCount: 3)
+        XCTAssertFalse(gates.navigation)
+        XCTAssertFalse(gates.sideChats)
+        XCTAssertTrue(gates.manage)
+        XCTAssertTrue(gates.channels)
+        let manageOff = DrawerSectionGates.resolve(
+            visibility: [DrawerSectionKey.manage: false],
+            hermesChannelCount: 3)
+        XCTAssertFalse(manageOff.manage)
+        XCTAssertTrue(manageOff.navigation)
     }
 
     // MARK: - 分组样本（生产定型：网关组＋具名组＋两家内置行）

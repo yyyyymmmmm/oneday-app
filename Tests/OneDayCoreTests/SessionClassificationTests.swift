@@ -437,6 +437,34 @@ final class SessionClassificationTests: XCTestCase {
         XCTAssertFalse(SessionLayer.main.isHermesChannelMember)
     }
 
+    /// §198 题一钉（全量口径）：显行闸与名单拉取共
+    /// 用 limit 100 窗口时的生产失效形态——按最近活
+    /// 动取的前 100 条全是 api_ 探针（R4b 判系统）、
+    /// 真频道成员全沉在窗口外，窗口分类恒 0；同一分
+    /// 类器吃全量集必须把成员数全数得出（抽屉闸已
+    /// 改读全量同源，本测钉「全量才有数」这一前提）
+    func testPartitionFullSetCountsChannelMembersBeyondWindow() {
+        let probes = (0..<100).map {
+            session(id: "api_probe\($0)", source: "api_server")
+        }
+        let members = (0..<25).map {
+            session(id: "web-\($0)", source: "dashboard")
+        }
+        let all = probes + members
+        let windowPartition = SessionClassifier.partition(
+            sessions: Array(all.prefix(100)),
+            mainServerSessionID: mainSession,
+            linkedThreadSessionIDs: []
+        )
+        XCTAssertEqual(windowPartition.hermesChannelCount, 0)
+        let fullPartition = SessionClassifier.partition(
+            sessions: all,
+            mainServerSessionID: mainSession,
+            linkedThreadSessionIDs: []
+        )
+        XCTAssertEqual(fullPartition.hermesChannelCount, 25)
+    }
+
     // 注册表：一期只有 Hermes；平台描述可派生、
     // 未知 id 无描述
     func testChannelRegistryPhaseOne() {

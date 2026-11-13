@@ -841,14 +841,18 @@ final class AllConversationsStore {
         isLoading = true
         loadError = nil
         do {
-            let visible = try await Self.fetchAll(
+            let visible = try await ServerSessionCatalog.fetchAll(
                 appState: appState, archived: "exclude"
             )
-            let archived = try await Self.fetchAll(
+            let archived = try await ServerSessionCatalog.fetchAll(
                 appState: appState, archived: "only"
             )
             sessions = visible
             archivedSessions = archived
+            // §198：全量可见集写回共享目录——抽屉频道
+            // 显行闸与本页频道段自此同源同数（本页已付
+            // 的分页代价全 App 只付一次）
+            appState.serverSessionCatalog.publish(visible: visible)
             if let mainID = appState.sideChats.mainServerSessionID,
                !visible.contains(where: { $0.id == mainID }),
                !archived.contains(where: { $0.id == mainID }) {
@@ -870,28 +874,6 @@ final class AllConversationsStore {
                 ?? "名单没拉下来，请稍后再试。"
         }
         isLoading = false
-    }
-
-    /// 分页拉全：limit 100 逐页至不足一页或达 total，
-    /// 上限 10 页（防服务端分页异常时无界拉取）
-    private static func fetchAll(
-        appState: AppState, archived: String
-    ) async throws -> [ServerSession] {
-        try await appState.performAdmin { client, config in
-            var all: [ServerSession] = []
-            var offset = 0
-            for _ in 0..<10 {
-                let page = try await client.serverSessionsPage(
-                    config: config, limit: 100,
-                    offset: offset, archived: archived
-                )
-                all.append(contentsOf: page.sessions)
-                if page.sessions.count < 100 { break }
-                if let total = page.total, all.count >= total { break }
-                offset += 100
-            }
-            return all
-        }
     }
 
     /// 存量迁移执行（管理页首开）：计划走 Core 纯函数
