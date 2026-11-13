@@ -225,6 +225,20 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 此值＋顶簇实高记账列表顶 contentMargins，
     /// 顶簇落位归 TopBarGuideHost，见文件头 §195）
     @Binding var topSafe: CGFloat
+    /// 键盘整包 R1（2026-11-13）：舱栈高实测回报
+    /// （整栈帧高）——喂 ChatView 的键盘几何快照
+    /// （KeyboardGeometrySnapshot.pocketHeight）。
+    /// 栈高是离散量（回底钮行/错误行/多行生长才
+    /// 变、键盘动画中恒定），与 bottomSpace 的逐
+    /// 帧舱顶回报分工：留位自此由快照派生（键盘
+    /// 事件同拍），bottomSpace 回报降级为诊断读数
+    @Binding var pocketHeight: CGFloat
+    /// 键盘整包 R1：坞顶实测回报（窗口坐标，坞本
+    /// 体布局空间实帧顶）——喂快照的静息锚
+    /// （dockTopInWindow）。只在键盘不在场时报
+    /// （在场时坞被藏、其帧不是静息落点）；坞未解
+    /// 析（回落态）不报、快照保留上次值/种子
+    @Binding var dockTop: CGFloat
     /// 舱本体（ChatView 的 bottomBar 整栈）：在 init 里
     /// 由构建闭包求值成视图值——求值发生在 ChatView 的
     /// body 构建期，bottomBar 内部的全部状态读数由此归
@@ -241,10 +255,14 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     init(
         bottomSpace: Binding<CGFloat>,
         topSafe: Binding<CGFloat>,
+        pocketHeight: Binding<CGFloat>,
+        dockTop: Binding<CGFloat>,
         @ViewBuilder content: () -> Content
     ) {
         self._bottomSpace = bottomSpace
         self._topSafe = topSafe
+        self._pocketHeight = pocketHeight
+        self._dockTop = dockTop
         self.content = content()
     }
 
@@ -270,6 +288,25 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
             DispatchQueue.main.async {
                 if abs(topSafe.wrappedValue - value) > 0.5 {
                     topSafe.wrappedValue = value
+                }
+            }
+        }
+        let pocketHeight = $pocketHeight
+        controller.onPocketHeightChange = { value in
+            // R1：与上同纪（下一拍写、>0.5 才发）——
+            // 栈高离散变化、无逐帧爬行面
+            DispatchQueue.main.async {
+                if abs(pocketHeight.wrappedValue - value)
+                    > 0.5 {
+                    pocketHeight.wrappedValue = value
+                }
+            }
+        }
+        let dockTop = $dockTop
+        controller.onDockTopChange = { value in
+            DispatchQueue.main.async {
+                if abs(dockTop.wrappedValue - value) > 0.5 {
+                    dockTop.wrappedValue = value
                 }
             }
         }
@@ -453,6 +490,12 @@ final class ComposerGuideHostController: UIViewController {
     var onBottomSpaceChange: ((CGFloat) -> Void)?
     /// §195：窗口顶安全区变化回调（同上守卫口径）
     var onTopSafeChange: ((CGFloat) -> Void)?
+    /// R1：舱栈高变化回调（同上守卫口径）——喂键
+    /// 盘几何快照的 pocketHeight
+    var onPocketHeightChange: ((CGFloat) -> Void)?
+    /// R1：坞顶变化回调（同上守卫口径）——喂快照
+    /// 的静息锚 dockTopInWindow
+    var onDockTopChange: ((CGFloat) -> Void)?
 
     private let composerHost = UIHostingController<AnyView>(
         rootView: AnyView(EmptyView())
@@ -493,6 +536,9 @@ final class ComposerGuideHostController: UIViewController {
     private var lastReportedSpace: CGFloat = -1
     /// §195：窗口顶安全区上次回报值（等值守卫）
     private var lastReportedTopSafe: CGFloat = -1
+    /// R1：栈高/坞顶上次回报值（等值守卫）
+    private var lastReportedPocketHeight: CGFloat = -1
+    private var lastReportedDockTop: CGFloat = -1
     /// §200 输入框周边底衬（系统材质）：舱宿主层级
     /// 内最底层；左右/底随舱宿主、高由 back-
     /// dropHeightConstraint 承实测帧算出（A2 起＝卡
@@ -526,6 +572,7 @@ final class ComposerGuideHostController: UIViewController {
         // 隐——只经卡帧/整栈帧两路输入进公式）
         syncBackdropHeight()
         reportBottomSpace()
+        reportPocketHeight()
     }
 
     /// A2：输入舱卡本体帧喂入点（托管树每次布局后
@@ -918,6 +965,8 @@ final class ComposerGuideHostController: UIViewController {
         syncBottomConstant()
         reportBottomSpace()
         reportTopSafe()
+        reportPocketHeight()
+        reportDockTop()
     }
 
     /// §195 窗口顶安全区实测回报：读本视图所在窗口
@@ -935,6 +984,35 @@ final class ComposerGuideHostController: UIViewController {
         else { return }
         lastReportedTopSafe = top
         onTopSafeChange?(top)
+    }
+
+    /// R1 栈高实测回报：整栈帧高即快照的 pocket-
+    /// Height——栈高只在栈内容离散变化时变（回底
+    /// 钮行/错误行/多行生长），键盘动画全程恒定，
+    /// 本回报无逐帧爬行面（与舱顶回报分工的根由）
+    private func reportPocketHeight() {
+        let height = barFrameInWindow.height
+        guard height > 0,
+              abs(height - lastReportedPocketHeight) > 0.5
+        else { return }
+        lastReportedPocketHeight = height
+        onPocketHeightChange?(height)
+    }
+
+    /// R1 坞顶实测回报：坞本体布局空间实帧顶（窗
+    /// 口坐标，与 syncBottomConstant 的静息锚同一
+    /// 读数）——只在键盘不在场时报：在场时坞被藏、
+    /// 帧非静息落点，报了反而污染快照的静息锚；
+    /// 坞未解析（回落态）不报、快照保留上次值
+    private func reportDockTop() {
+        guard !keyboardUp, let dock = dockBarView
+        else { return }
+        let top = layoutSpaceMinY(of: dock)
+        guard top > 0,
+              abs(top - lastReportedDockTop) > 0.5
+        else { return }
+        lastReportedDockTop = top
+        onDockTopChange?(top)
     }
 
     /// 舱顶实测回报：以桥喂入的窗口系舱帧为准，报

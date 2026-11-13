@@ -408,4 +408,151 @@ extension BottomFollowTests {
             only
         )
     }
+
+    // MARK: - 回底钮定版判定（BottomArrowVisibility，R2）
+
+    func testArrowHidesWhenContentEndVisible() {
+        // 症②钉测：末条已在屏——估算距底报多远都消
+        XCTAssertTrue(
+            BottomArrowVisibility.isNearBottom(
+                distance: 260, contentEndVisible: true,
+                wasNearBottom: false
+            )
+        )
+        XCTAssertTrue(
+            BottomArrowVisibility.isNearBottom(
+                distance: 900, contentEndVisible: true,
+                wasNearBottom: false
+            )
+        )
+    }
+
+    func testArrowHidesWithinSevenPoints() {
+        // §176 冻结阈值：距底 ≤7 消（边界含 7）
+        XCTAssertTrue(
+            BottomArrowVisibility.isNearBottom(
+                distance: 7, contentEndVisible: false,
+                wasNearBottom: false
+            )
+        )
+        XCTAssertTrue(
+            BottomArrowVisibility.isNearBottom(
+                distance: 0, contentEndVisible: false,
+                wasNearBottom: false
+            )
+        )
+    }
+
+    func testArrowShowsAtExitDistance() {
+        // 距底 ≥176 显（边界含 176；与事实同真时
+        // 事实优先、此测只验事实缺位）
+        XCTAssertFalse(
+            BottomArrowVisibility.isNearBottom(
+                distance: 176, contentEndVisible: false,
+                wasNearBottom: true
+            )
+        )
+        XCTAssertFalse(
+            BottomArrowVisibility.isNearBottom(
+                distance: 480, contentEndVisible: false,
+                wasNearBottom: true
+            )
+        )
+    }
+
+    func testArrowKeepsStateInMiddleBand() {
+        // 中段（7, 176）且尾条不在屏：保持上一判定，
+        // 两向都不许因估算抖动翻转
+        XCTAssertTrue(
+            BottomArrowVisibility.isNearBottom(
+                distance: 60, contentEndVisible: false,
+                wasNearBottom: true
+            )
+        )
+        XCTAssertFalse(
+            BottomArrowVisibility.isNearBottom(
+                distance: 60, contentEndVisible: false,
+                wasNearBottom: false
+            )
+        )
+        XCTAssertFalse(
+            BottomArrowVisibility.isNearBottom(
+                distance: 175.9, contentEndVisible: false,
+                wasNearBottom: false
+            )
+        )
+        XCTAssertTrue(
+            BottomArrowVisibility.isNearBottom(
+                distance: 7.5, contentEndVisible: false,
+                wasNearBottom: true
+            )
+        )
+    }
+
+    // MARK: - 键盘几何快照（KeyboardGeometrySnapshot，R1）
+
+    func testSnapshotBottomSpaceAtRest() {
+        // 静息：舱底贴坞顶——留位＝坞下段＋栈高
+        let snapshot = KeyboardGeometrySnapshot(
+            windowHeight: 874, dockTopInWindow: 791,
+            pocketHeight: 105
+        )
+        XCTAssertFalse(snapshot.isKeyboardUp)
+        XCTAssertEqual(snapshot.bottomSpace, 874 - 791 + 105)
+    }
+
+    func testSnapshotBottomSpaceWithKeyboard() {
+        // 键盘态：舱底贴键盘顶，同式换锚
+        let snapshot = KeyboardGeometrySnapshot(
+            keyboardTopInWindow: 518,
+            animationDuration: 0.25,
+            animationCurveRawValue: 7,
+            windowHeight: 874, dockTopInWindow: 791,
+            pocketHeight: 105
+        )
+        XCTAssertTrue(snapshot.isKeyboardUp)
+        XCTAssertEqual(snapshot.bottomSpace, 874 - 518 + 105)
+    }
+
+    func testSnapshotBottomSpaceFollowsKeyboardTopOneToOne() {
+        // 交互拖动收起：键盘顶逐帧变，留位逐帧同
+        // 步——刚性同拍的算术面（症③记账分量钉测）
+        var snapshot = KeyboardGeometrySnapshot(
+            keyboardTopInWindow: 518,
+            windowHeight: 874, dockTopInWindow: 791,
+            pocketHeight: 105
+        )
+        let before = snapshot.bottomSpace
+        snapshot.keyboardTopInWindow = 600
+        XCTAssertEqual(snapshot.bottomSpace - before, -82)
+        snapshot.keyboardTopInWindow = 874
+        XCTAssertEqual(snapshot.bottomSpace, 105)
+    }
+
+    func testSnapshotBottomSpaceClampsOffscreenAnchor() {
+        // 异常帧锚点出窗：下段高钳 0、留位只剩栈高，
+        // 不出负数
+        let snapshot = KeyboardGeometrySnapshot(
+            keyboardTopInWindow: 920,
+            windowHeight: 874, dockTopInWindow: 791,
+            pocketHeight: 105
+        )
+        XCTAssertEqual(snapshot.bottomSpace, 105)
+    }
+
+    func testSnapshotPocketHeightChangeShiftsOneToOne() {
+        // 栈高变化（回底钮行/错误行显隐）两态同式
+        // 传导
+        var snapshot = KeyboardGeometrySnapshot(
+            windowHeight: 874, dockTopInWindow: 791,
+            pocketHeight: 105
+        )
+        let restBefore = snapshot.bottomSpace
+        snapshot.pocketHeight = 129
+        XCTAssertEqual(snapshot.bottomSpace - restBefore, 24)
+        snapshot.keyboardTopInWindow = 518
+        let kbBefore = snapshot.bottomSpace
+        snapshot.pocketHeight = 105
+        XCTAssertEqual(kbBefore - snapshot.bottomSpace, 24)
+    }
 }

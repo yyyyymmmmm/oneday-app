@@ -98,6 +98,15 @@ final class KeyboardTapDismissMatrixTests: XCTestCase {
         }
 
         var violations: [String] = []
+        // 成格要求：GAP/BOTTOM 两格必须成形——全格
+        // N/A 是 rig 失效、不许以「零违规」假绿收场
+        for required in ["GAP", "BOTTOM"] {
+            if results[required]?.point == nil {
+                violations.append(
+                    "\(required) 未成格（rig 定位失效）"
+                )
+            }
+        }
         for name in ["GAP", "BOTTOM", "TOP", "STRIP"] {
             guard let r = results[name] else { continue }
             if r.focusFailed {
@@ -138,17 +147,17 @@ final class KeyboardTapDismissMatrixTests: XCTestCase {
 
     // MARK: - 装配发现
 
-    /// 输入舱文本视图：键盘收起态下位于窗口底部带
-    /// 的 UITextView（消息正文同为文本视图、位置在
-    /// 上方，以此分开）
+    /// 输入舱文本视图：全屏最靠下的一枚宽文本视
+    /// 图——消息正文同为文本视图但恒在它上方，键
+    /// 盘升/收两态都成立（首轮 rig 用「收起态底部
+    /// 带」定位、键盘升起后舱位上移即失配、全格
+    /// N/A——本口径为修复）
     private func findComposer(
         _ app: XCUIApplication
     ) -> XCUIElement? {
-        let win = app.windows.firstMatch.frame
         let texts = app.textViews.allElementsBoundByIndex
-        return texts.first {
-            $0.frame.minY > win.height - 320 && $0.frame.width > 150
-        }
+            .filter { $0.frame.width > 150 }
+        return texts.max(by: { $0.frame.minY < $1.frame.minY })
     }
 
     private func focusKeyboard(_ app: XCUIApplication) -> Bool {

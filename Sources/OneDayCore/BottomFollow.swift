@@ -242,6 +242,110 @@ public enum BottomFactCalibration {
     }
 }
 
+/// 回底钮显隐的定版判定（键盘整包 R2，2026-11-13）：
+/// 旧口径是几何迟滞带（≤96 进、≥176 出）再叠事实
+/// 覆盖——喂带宽的 contentSize 是 LazyVStack 估算
+/// 总高，两带全被估算误差点亮/熄灭（症②：末条全
+/// 文已在屏、估算距底仍报带外、箭头不消）。定版
+/// 改事实优先（证据分级注记：此为本包对自家估
+/// 算病的对症判定、非照搬某家原形——主报告 §1
+/// 的四家形态里，或无此钮、或靠列表反转使距底
+/// 恒为原点事实、或用距离阈值而其距离取自量实
+/// 几何；正向列表＋回底钮＋事实信号三件同备者
+/// 未见）：
+/// - 尾条在屏（事实）∨ 距底 ≤ 7pt（§176 冻结阈
+///   值）→ 在底、箭头消；
+/// - 距底 ≥ 176pt（§27 迟滞退出值）→ 离底、箭
+///   头显；
+/// - 两者之间且尾条不在屏 → 保持上一判定（防中
+///   段抖闪，迟滞只留这一段）。
+/// 边界口径（评审合成条目 6）：「尾条在屏」按有
+/// 效视口判——视口高扣除底留位遮挡带（尾锚落在
+/// 舱后方不算在屏，判定在 ChatView 尾锚回调按记
+/// 录的底 inset 收紧）；尾锚未被 Lazy 实例化时
+/// 事实恒缺位、判定回落几何距底（未实例化只发
+/// 生在内容未滚到尾部时，届时距底本就大、不误
+/// 判在底）；短内容（内容高 ≤ 视口）距底恒 ≤0、
+/// 恒在底；overscroll 橡皮筋段距底为负、同按
+/// ≤7 在底。初始态由 ChatView 持 isNearBottom
+/// 种子 true（新线程开在底部，与落点恢复同口径）
+public enum BottomArrowVisibility {
+    public static func isNearBottom(
+        distance: CGFloat,
+        contentEndVisible: Bool,
+        wasNearBottom: Bool
+    ) -> Bool {
+        if contentEndVisible { return true }
+        if BottomSettle.shouldRestick(distance: distance)
+            == false {
+            return true
+        }
+        if distance >= BottomProximity.exitDistance {
+            return false
+        }
+        return wasNearBottom
+    }
+}
+
+/// 键盘几何单一快照（键盘整包 R1，2026-11-13）：
+/// 主报告 R1 的「持有者」值形态——键盘几何、动画
+/// 参数与派生量同居一枚不可变快照、由持有者在键
+/// 盘事件的同一拍整体替换，输入舱/列表/顶簇/坞只
+/// 消费、不各自采样。旧形态是五个数五套机制五个
+/// 时钟（舱走通知常量、列表留位走托管帧跨拍回报
+/// 链、顶留位走另一条回报链、坞显隐走焦点状态、
+/// 落定走定时器）——症③的记账分量与症④的落定尾
+/// 巴皆出于此。派生 bottomSpace 与既有实测回报同
+/// 义（舱顶→窗口底的距离）：键盘态舱底贴键盘
+/// 顶、静息态舱底贴坞顶，两态同式。
+public struct KeyboardGeometrySnapshot: Equatable, Sendable {
+    /// 键盘顶（窗口坐标）；nil＝键盘不在场（静息）
+    public var keyboardTopInWindow: CGFloat?
+    /// 键盘动画时长（秒，取自通知 userInfo 原值）
+    public var animationDuration: TimeInterval
+    /// 键盘动画曲线原始值（UIView.AnimationCurve
+    /// 的 rawValue，取自通知 userInfo 原值）
+    public var animationCurveRawValue: Int
+    /// 窗口高（窗口坐标系基准）
+    public var windowHeight: CGFloat
+    /// 坞顶（窗口坐标）：静息态输入舱底的落点
+    public var dockTopInWindow: CGFloat
+    /// 输入舱栈高（卡＋钮行＋错误排的全栈高）
+    public var pocketHeight: CGFloat
+
+    public init(
+        keyboardTopInWindow: CGFloat? = nil,
+        animationDuration: TimeInterval = 0,
+        animationCurveRawValue: Int = 0,
+        windowHeight: CGFloat,
+        dockTopInWindow: CGFloat,
+        pocketHeight: CGFloat
+    ) {
+        self.keyboardTopInWindow = keyboardTopInWindow
+        self.animationDuration = animationDuration
+        self.animationCurveRawValue = animationCurveRawValue
+        self.windowHeight = windowHeight
+        self.dockTopInWindow = dockTopInWindow
+        self.pocketHeight = pocketHeight
+    }
+
+    /// 键盘是否在场（坞让位与留位分支的唯一读法）
+    public var isKeyboardUp: Bool {
+        keyboardTopInWindow != nil
+    }
+
+    /// 列表底部留位（不含行距）：舱顶→窗口底的距
+    /// 离。锚点在窗口内时为锚点下段高＋舱栈高；
+    /// 锚点报出窗外（异常帧）时下段高钳 0、不出
+    /// 负数
+    public var bottomSpace: CGFloat {
+        let anchorTop = keyboardTopInWindow
+            ?? dockTopInWindow
+        return max(0, windowHeight - anchorTop)
+            + pocketHeight
+    }
+}
+
 /// 离底未读计数（0.41.0，全局收口批·聊天细节余项正
 /// 修，台账 H 节）：用户上翻离开底部后，新到条目计在
 /// 回底钮的角标上；回到底部、自发发送、切换线程即清

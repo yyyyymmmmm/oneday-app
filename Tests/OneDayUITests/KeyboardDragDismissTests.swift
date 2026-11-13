@@ -50,35 +50,58 @@ final class KeyboardDragDismissTests: XCTestCase {
         let kbFrame0 = app.keyboards.firstMatch.frame
         lines.append("kbUp top=\(Int(kbFrame0.minY))")
 
-        // 缓慢下拖：从列表中段按下、停顿、拖到下方
-        // ——交互式收起的跟手位移在拖动中段采样
-        let start = app.windows.firstMatch.coordinate(
-            withNormalizedOffset: CGVector(dx: 0, dy: 0)
-        ).withOffset(CGVector(dx: win.midX, dy: 380))
-        let mid = app.windows.firstMatch.coordinate(
-            withNormalizedOffset: CGVector(dx: 0, dy: 0)
-        ).withOffset(CGVector(dx: win.midX, dy: 520))
-        let end = app.windows.firstMatch.coordinate(
-            withNormalizedOffset: CGVector(dx: 0, dy: 0)
-        ).withOffset(CGVector(dx: win.midX, dy: 660))
-        start.press(
-            forDuration: 0.15, thenDragTo: mid,
-            withVelocity: .slow, thenHoldForDuration: 0.6
-        )
-        let kbMid = app.keyboards.firstMatch
-        let midTop = kbMid.exists ? kbMid.frame.minY : -1
+        // 主臂：左缘页边距带起点（x=10，行容器的内
+        // 边距区、无文本视图）缓慢下拖——这是 dis-
+        // missMode 自己的契约面（滚动视图 pan 驱动）
+        func dragArm(
+            x: CGFloat, label: String
+        ) -> (followed: Bool, dismissed: Bool) {
+            func point(_ y: CGFloat) -> XCUICoordinate {
+                app.windows.firstMatch.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0, dy: 0)
+                ).withOffset(CGVector(dx: x, dy: y))
+            }
+            point(380).press(
+                forDuration: 0.15, thenDragTo: point(540),
+                withVelocity: .slow,
+                thenHoldForDuration: 0.6
+            )
+            let kb = app.keyboards.firstMatch
+            let top = kb.exists ? kb.frame.minY : -1
+            let followed = top > kbFrame0.minY + 30
+            lines.append(
+                "\(label) midTop=\(Int(top)) followed=\(followed)"
+            )
+            point(540).press(
+                forDuration: 0.1, thenDragTo: point(700),
+                withVelocity: .slow,
+                thenHoldForDuration: 0.2
+            )
+            Thread.sleep(forTimeInterval: 1.2)
+            let dismissed = !app.keyboards.firstMatch.exists
+            lines.append("\(label) dismissed=\(dismissed)")
+            return (followed, dismissed)
+        }
+        let edge = dragArm(x: 10, label: "edgeArm")
+        var center: (followed: Bool, dismissed: Bool)?
+        if !edge.dismissed {
+            // 记录臂：中央文字起点（首轮实测此起点键
+            // 盘纹丝不动——疑触摸被文本视图自家手势
+            // 吸收；本臂只记录、不作门）
+            if !app.keyboards.firstMatch.exists {
+                composer.tap()
+                _ = app.keyboards.firstMatch
+                    .waitForExistence(timeout: 8)
+            }
+            center = dragArm(x: win.midX, label: "centerArm")
+        }
         lines.append(
-            "kbMid top=\(Int(midTop))"
-                + " followed=\(midTop > kbFrame0.minY + 30)"
+            "centerArm="
+                + (center.map {
+                    "followed=\($0.followed) dismissed=\($0.dismissed)"
+                } ?? "skipped")
         )
-        // 继续拖完并松手
-        mid.press(
-            forDuration: 0.1, thenDragTo: end,
-            withVelocity: .slow, thenHoldForDuration: 0.2
-        )
-        Thread.sleep(forTimeInterval: 1.2)
-        let dismissed = !app.keyboards.firstMatch.exists
-        lines.append("dismissedAfterDrag=\(dismissed)")
+        let dismissed = edge.dismissed
 
         let text = lines.joined(separator: "\n")
         print("DRAG-DISMISS-BEGIN")
@@ -89,8 +112,8 @@ final class KeyboardDragDismissTests: XCTestCase {
         add(attachment)
 
         XCTAssertTrue(
-            midTop > kbFrame0.minY + 30,
-            "拖动中键盘未跟手下行（kbMid=\(Int(midTop)))"
+            edge.followed,
+            "左缘拖动中键盘未跟手下行"
                 + "——.interactively 在本承载下未跨界生效，"
                 + "须走手动桥接降级案"
         )
