@@ -229,7 +229,7 @@ final class EdgeEffectProbeTests: XCTestCase {
             var runStart: CGFloat = 2
             var previous = pixel(x: 2, y: y)
             var x: CGFloat = 3
-            let limit = 402 - 2
+            let limit: CGFloat = 402 - 2
             while x <= limit {
                 let current = pixel(x: x, y: y)
                 let flat = abs(current.r - previous.r) <= 3
