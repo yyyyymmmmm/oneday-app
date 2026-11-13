@@ -177,6 +177,61 @@ final class DeviceCallsTests: XCTestCase {
         XCTAssertEqual(machine.phase, .offline)
     }
 
+    func testSessionReregisterWhileActiveMigratesAndRepolls() {
+        var machine = DeviceSessionMachine()
+        machine.handle(.startRequested)
+        machine.handle(.registered(sessionID: "s1"))
+        XCTAssertEqual(machine.phase, .active(sessionID: "s1"))
+        // 在线中重注册（权限/开关变化刷新快照）：桥已
+        // 顶替会话，必须迁到新 id 并重启轮询——旧行为
+        // 落 default 丢弃、双环永不重启，45 秒后被桥
+        // 判离线（2026-11-13 实案定因）
+        XCTAssertEqual(
+            machine.handle(.registered(sessionID: "s2")), .poll
+        )
+        XCTAssertEqual(machine.phase, .active(sessionID: "s2"))
+        XCTAssertEqual(machine.sessionID, "s2")
+        XCTAssertTrue(machine.isOnline)
+        // 连发多次重注册同样跟随最新会话
+        XCTAssertEqual(
+            machine.handle(.registered(sessionID: "s3")), .poll
+        )
+        XCTAssertEqual(machine.phase, .active(sessionID: "s3"))
+        // 新会话的轮询语义不回退
+        XCTAssertEqual(machine.handle(.pollReturnedEmpty), .poll)
+        XCTAssertEqual(
+            machine.handle(.pollReturnedCall(callID: "c7")), .none
+        )
+        XCTAssertEqual(
+            machine.phase, .executing(sessionID: "s3", callID: "c7")
+        )
+    }
+
+    func testSessionReregisterWhileExecutingKeepsRespondPath() {
+        var machine = DeviceSessionMachine()
+        machine.handle(.startRequested)
+        machine.handle(.registered(sessionID: "s1"))
+        machine.handle(.pollReturnedCall(callID: "c1"))
+        XCTAssertEqual(
+            machine.phase, .executing(sessionID: "s1", callID: "c1")
+        )
+        // 执行期重注册：迁到新会话并按新 id 重启双环，
+        // 在途调用不被状态机吞掉
+        XCTAssertEqual(
+            machine.handle(.registered(sessionID: "s2")), .poll
+        )
+        XCTAssertEqual(
+            machine.phase, .executing(sessionID: "s2", callID: "c1"),
+            "回执仍在途：callID 保留、会话 id 跟随新注册"
+        )
+        // 回执完成落回新会话的 active 并继续轮询——回
+        // 执路径不断、机器不卡死在 executing
+        XCTAssertEqual(machine.handle(.respondFinished), .poll)
+        XCTAssertEqual(machine.phase, .active(sessionID: "s2"))
+        XCTAssertEqual(machine.sessionID, "s2")
+        XCTAssertTrue(machine.isOnline)
+    }
+
     func testSessionNoiseEventsIgnored() {
         var machine = DeviceSessionMachine()
         XCTAssertEqual(machine.handle(.pollReturnedEmpty), .none)
