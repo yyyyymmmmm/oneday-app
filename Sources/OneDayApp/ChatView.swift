@@ -1292,12 +1292,21 @@ struct ChatView: View {
                 avatarPointSize: avatarTier.capsulePointSize,
                 onOpenHub: { showHub = true }
             )
+            // 显式隔断（命中死区）：宽 16——动作门三
+            // 轮实测（run 43378398732 探针点定界）：
+            // 两钮的实际命中域都比无障碍帧外扩约
+            // 4pt（平台命中宽容、与玻璃无关——无玻
+            // 璃的头像钮同扩），8pt 间隔下两域在中
+            // 点相接、无真死区；16pt 才留出中央
+            // ≥7pt 死带。隔断自带空点按手势，在自
+            // 己帧内吃点不触发（§198.6 补记）
             Color.clear
                 .frame(
-                    width: OneDayMetrics.spacingS,
+                    width: OneDayMetrics.spacingM,
                     height: OneDayMetrics.minTapTarget
                 )
                 .contentShape(Rectangle())
+                .onTapGesture {}
             ModelCapsuleView(
                 modelTriggerLabel: ModelDisplayNames.triggerLabel(
                     for: currentChoice.model

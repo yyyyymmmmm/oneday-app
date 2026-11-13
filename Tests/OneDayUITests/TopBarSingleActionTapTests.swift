@@ -228,19 +228,17 @@ final class TopBarSingleActionTapTests: XCTestCase {
             TapPoint(name: "GAP", expect: .none) { c, a in
                 CGPoint(x: (a.maxX + c.minX) / 2, y: c.midY)
             },
-            // 边界探针（续工加，§198 补记）：间隙中
-            // 点连红三轮后加测——距头像缘 2pt／距胶
-            // 囊缘 2pt／胶囊上缘外 4pt，三点同为域
-            // 外点、两面都不许升；与 GAP 中点合起来
-            // 量命中外溢的实际边界落在哪侧、多宽
-            TapPoint(name: "GAP-L2", expect: .none) { c, a in
-                CGPoint(x: a.maxX + 2, y: c.midY)
+            // 死带探针（§198.6）：run 43378398732
+            // 边界点已定界——两钮命中域比无障碍帧
+            // 外扩约 4pt（平台宽容），属各钮自身的
+            // 宽容带、与相邻域无关，不作违规点；本
+            // 组只守 16pt 间隔中央死带（中点 ±2），
+            // 三点两面都不许升
+            TapPoint(name: "DEAD-L", expect: .none) { c, a in
+                CGPoint(x: (a.maxX + c.minX) / 2 - 2, y: c.midY)
             },
-            TapPoint(name: "GAP-R2", expect: .none) { c, a in
-                CGPoint(x: c.minX - 2, y: c.midY)
-            },
-            TapPoint(name: "ABOVE", expect: .none) { c, _ in
-                CGPoint(x: c.midX, y: c.minY - 4)
+            TapPoint(name: "DEAD-R", expect: .none) { c, a in
+                CGPoint(x: (a.maxX + c.minX) / 2 + 2, y: c.midY)
             },
         ]
     }

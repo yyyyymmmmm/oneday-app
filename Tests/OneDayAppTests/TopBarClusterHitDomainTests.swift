@@ -37,15 +37,20 @@ import XCTest
 ///   打真 App 演示装配）守，本组只守结构与命中
 ///   归属。
 ///
-/// 施工注记（2026-11-13 续工）：前四轮 CI 本组
+/// 施工注记（2026-11-13 续工）：前五轮 CI 本组
 /// 均在出判读前进程死亡（与键盘真崩／Drawer-
 /// Container 同为 §184 进程死亡族签名：无断言失
-/// 败、Restarting after unexpected exit）。本轮
-/// 硬化：无障碍快照全程只收集一次（旧版每查一
-/// 项重走全树四次，同步驱动量最重）、装配后加
-/// 一拍沉降再取数、结构与命中拆成两个用例（死
-/// 亡爆炸半径减半）、全程打诊断行（玻璃实帧＋
-/// 每点命中视图类名/帧）使任何一轮日志都留证。
+/// 败、Restarting after unexpected exit）。硬化
+/// 两轮：一轮＝无障碍快照只收集一次＋装配后沉
+/// 降一拍＋结构/命中拆双用例＋诊断行，仍双双死
+/// 亡（run 43378398732，快照全窗递归收集约 40s
+/// 后死）；二轮＝**收集作用域收进顶栏宿主子树**
+/// （TopBarGuideHostController.traceBarView，
+/// 与 ChatPageAssemblyRegressionTests 找宿主同
+/// 法）——全窗收集要为聊天列表数百条目逐个生
+/// 成无障碍元素，是本组独有、与死亡强相关的重
+/// 驱动，宿主子树只有顶栏一排元素，量级完全不
+/// 同。玻璃遍历同作用域。
 @MainActor
 final class TopBarClusterHitDomainTests: XCTestCase {
 
@@ -58,6 +63,8 @@ final class TopBarClusterHitDomainTests: XCTestCase {
     }
 
     private var window: DeviceWindow!
+    /// 顶栏宿主托管视图（快照/玻璃收集的作用域）
+    private var barView: UIView!
     /// 本用例内只收集一次的无障碍快照（见类注）
     private var snapshots: [AXSnapshot] = []
 
@@ -65,8 +72,23 @@ final class TopBarClusterHitDomainTests: XCTestCase {
         window?.rootViewController = nil
         window?.isHidden = true
         window = nil
+        barView = nil
         snapshots = []
         try await super.tearDown()
+    }
+
+    /// 顶栏宿主控制器（与 ChatPageAssemblyRegres-
+    /// sionTests findTopBarHost 同法：VC 树下钻）
+    private func findTopBarHost() -> TopBarGuideHostController? {
+        var found: TopBarGuideHostController?
+        func walk(_ vc: UIViewController) {
+            if let hit = vc as? TopBarGuideHostController {
+                found = hit
+            }
+            for child in vc.children { walk(child) }
+        }
+        if let root = window.rootViewController { walk(root) }
+        return found
     }
 
     private func spinRunLoop(seconds: TimeInterval) {
@@ -107,6 +129,9 @@ final class TopBarClusterHitDomainTests: XCTestCase {
         // 走完，见类注）
         spinRunLoop(seconds: 1.0)
         window.layoutIfNeeded()
+        barView = try XCTUnwrap(
+            findTopBarHost()?.traceBarView, "顶栏锚定宿主缺席"
+        )
         collectSnapshots()
     }
 
@@ -172,7 +197,7 @@ final class TopBarClusterHitDomainTests: XCTestCase {
             }
             for sub in view.subviews { walk(sub) }
         }
-        walk(window)
+        walk(barView)
         snapshots = out
     }
 
@@ -193,7 +218,7 @@ final class TopBarClusterHitDomainTests: XCTestCase {
             }
             for sub in view.subviews { walk(sub) }
         }
-        walk(window)
+        walk(barView)
         return found
     }
 
