@@ -128,6 +128,9 @@ struct RootView: View {
                     )
                     // 头像仓同步（P1）：与伴生探测同拍
                     await appState.syncAgentAvatarFromBridge()
+                    // 身份名刷新（身份反映修复）：同拍，
+                    // 服务器改名回前台即反映＋覆盖对账
+                    await appState.refreshIdentityName()
                 }
             } else if newPhase == .background {
                 appState.deviceSession.deactivate()
@@ -151,6 +154,8 @@ struct RootView: View {
                     )
                     // 头像仓同步（P1）：与伴生探测同拍
                     await appState.syncAgentAvatarFromBridge()
+                    // 身份名刷新（身份反映修复）：同拍
+                    await appState.refreshIdentityName()
                 }
             } else {
                 appState.deviceSession.deactivate()
@@ -175,6 +180,8 @@ struct RootView: View {
             )
             // 头像仓同步（P1）：冷启恢复同拍补一次
             await appState.syncAgentAvatarFromBridge()
+            // 身份名刷新（身份反映修复）：冷启同拍
+            await appState.refreshIdentityName()
             // 演示样本播种：内存库为空时种一轮拟真对话（仅演示模式）
             if DemoMode.current.isDemo {
                 DemoSeeder.seedIfNeeded(context: modelContext)

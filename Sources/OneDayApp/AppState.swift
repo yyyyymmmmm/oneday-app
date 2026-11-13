@@ -370,12 +370,10 @@ final class AppState {
     private(set) var identityName: String?
     private var identityNameResolved = false
 
-    /// 解析身份名（幂等：只真正拉取一次；失败也记已解
-    /// 析、回落显示，不逐次重试打服务端）。数据链：
-    /// 档案列表 → 默认档案 → 其 soul → AgentName
-    func resolveIdentityNameIfNeeded() async {
-        guard !identityNameResolved, config != nil else { return }
-        identityNameResolved = true
+    /// 身份名拉取（数据链：档案列表 → 默认档案 →
+    /// 其 soul → AgentName）；任一步失败回 nil，调用
+    /// 方保现状不回落假名
+    private func fetchResolvedIdentityName() async -> String? {
         guard let profiles = try? await performAdmin({ client, config in
             try await client.profiles(config: config)
         }),
@@ -384,18 +382,62 @@ final class AppState {
               let document = try? await performAdmin({ client, config in
                   try await client.profileSoul(config: config, name: profile.name)
               })
-        else { return }
-        identityName = AgentName.resolve(soulContent: document.content)
+        else { return nil }
+        return AgentName.resolve(soulContent: document.content)
+    }
+
+    /// 服务器名确认后的统一收尾：记对账基准＋跑覆盖
+    /// 对账（裁决在 Core AgentNameReconciliation）；
+    /// 身份反映修复前这里只有赋值一步——服务器改名
+    /// 与本机残留覆盖谁也不让谁，用户看到的是旧名
+    private func noteIdentityNameResolved(_ name: String) {
+        agentProfileStore.noteSoulName(name)
+        agentProfileStore.reconcileNameOverride(currentSoulName: name)
+    }
+
+    /// 解析身份名（幂等：只真正拉取一次；失败也记已解
+    /// 析、回落显示，不逐次重试打服务端）
+    func resolveIdentityNameIfNeeded() async {
+        guard !identityNameResolved, config != nil else { return }
+        identityNameResolved = true
+        guard let name = await fetchResolvedIdentityName() else { return }
+        identityName = name
+        noteIdentityNameResolved(name)
+    }
+
+    /// 上次刷新尝试时刻（身份反映修复）：回前台/连接
+    /// 成立/冷启与头像仓同步同拍刷新，30 秒内不重打
+    private var lastIdentityRefreshAt: Date?
+
+    /// 身份名生命周期刷新（身份反映修复）：旧口径解
+    /// 析一次闩死、进程内永不重拉——AI 在服务器改了
+    /// 名，App 要等冷重启才跟上（2026-11-13 改名事
+    /// 故的第二断点）。刷新失败保旧值不翻假名；演示
+    /// 模式不连真服务端、跳过
+    func refreshIdentityName() async {
+        guard config != nil, !isDemo else { return }
+        if let last = lastIdentityRefreshAt,
+           Date().timeIntervalSince(last) < 30 { return }
+        lastIdentityRefreshAt = Date()
+        guard let name = await fetchResolvedIdentityName() else { return }
+        identityNameResolved = true
+        identityName = name
+        noteIdentityNameResolved(name)
     }
 
     /// soul 编辑保存后的身份名重解析（§155 HUB-1）：内
     /// 容已由保存方重新取回并比对确认，直接以确认内容
     /// 重算显示名，不再走一次性解析的网络链；本机改名
     /// 覆盖仍优先于它（覆盖在呈现收敛口处理），这里只
-    /// 更新服务端名字这一份事实
+    /// 更新服务端名字这一份事实——更新后同样过覆盖对
+    /// 账：经 soul 编辑的改名也是服务器改名，旧覆盖按
+    /// 对账口径退场（身份反映修复）
     func reresolveIdentityName(soulContent: String) {
         identityName = AgentName.resolve(soulContent: soulContent)
         identityNameResolved = true
+        if let name = identityName {
+            noteIdentityNameResolved(name)
+        }
     }
 
     /// 智能体本地档案（0.36.22，枢纽页对齐包）：用户

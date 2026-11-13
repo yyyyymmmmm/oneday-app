@@ -164,6 +164,56 @@ public enum AgentDisplayName {
     }
 }
 
+/// 改名覆盖的来源记录（身份反映修复，2026-11-13）：
+/// 覆盖写入时同记「写入时刻」与「写入时服务器身份
+/// 名」。没有这份记录，覆盖只是一串裸文本——分不清
+/// 是用户深思熟虑的定名，还是随手打的测试字，更无
+/// 从判断它与服务器改名谁先谁后（2026-11-13 真机事
+/// 故：本机残留「测试」静默压住用户当面令 AI 改的
+/// 「三狗」，各面无任何披露）。
+public struct AgentNameOverrideProvenance: Codable, Equatable, Sendable {
+    /// 覆盖写入时刻
+    public var writtenAt: Date
+    /// 写入那一刻 App 已知的服务器身份名（soul 解
+    /// 析结果）；从未解析成功过时为 nil——无从对账，
+    /// 按无来源处理
+    public var soulNameAtWrite: String?
+
+    public init(writtenAt: Date, soulNameAtWrite: String?) {
+        self.writtenAt = writtenAt
+        self.soulNameAtWrite = soulNameAtWrite
+    }
+}
+
+/// 覆盖存续裁决（身份反映修复）：本机覆盖与服务器改
+/// 名冲突时，以**最后一次改名动作**为准——
+/// - 覆盖与服务器现行名相同：无冲突，不动。
+/// - 覆盖没有来源记录（存量裸文本），或来源里记的
+///   服务器名缺失：无从证明这是用户对着现行身份设
+///   的定名，不得压住服务器现行名 → 清除、跟随服务
+///   器（该清的清；用户随时可在编辑器里对现行名重
+///   设，届时有来源、受保护）。
+/// - 覆盖写入时所对的服务器名 ≠ 现行名：写入之后
+///   服务器被改过名（多半是用户在对话里令 AI 改
+///   的，即用户最新意图）→ 旧覆盖退场、跟随新名。
+/// - 覆盖写入时所对的服务器名 ＝ 现行名：用户在现
+///   行身份之下亲手设的定名，服务器未再改名 →
+///   继续压（手动定名优先的口径不变）。
+public enum AgentNameReconciliation {
+    public static func shouldClearOverride(
+        override: String?,
+        provenance: AgentNameOverrideProvenance?,
+        soulName: String
+    ) -> Bool {
+        guard let override, !override.isEmpty else { return false }
+        if override == soulName { return false }
+        guard let provenance,
+              let atWrite = provenance.soulNameAtWrite
+        else { return true }
+        return atWrite != soulName
+    }
+}
+
 /// 分享名片的服务器域名提取：只出 host——剥 scheme/
 /// userinfo/端口/路径/查询，名片红线（不带任何凭据
 /// 与完整连接串）的执行点。输入是本机存的服务器地
