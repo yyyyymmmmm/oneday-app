@@ -73,6 +73,40 @@ import UIKit
 ///   scrollToBottom 仍经原 proxy 直达；变的只有留位来
 ///   源（安全区→实测 contentMargins），距底读数出自滚
 ///   动几何、对留位来源无感——四路判定与协调器零改动。
+///
+/// ## §193 锚定式重构（2026-11-13，用户拍板，覆盖上
+/// 文 §186 接法中的钉位部分；诊断 bars-diagnosis-
+/// round3-20261113.md）
+/// 0.50.24 起真机三栏缺席两轮补丁未愈（§191 size-
+/// ThatFits 收口被 149 真机证伪、§192 优先级断链未
+/// 及真机验证即被用户叫停）：病根不在某个数，而在
+/// 「栏位位置由 SwiftUI 尺寸协商决定」本身——真机
+/// 冷启时序下本桥的控制器视图帧被协商污染为
+/// (0,-89,402×1030) 后，§186 的地板钳制信任的正是
+/// 污染帧内的 keyboardLayoutGuide（读数近视图顶），
+/// 舱被钉到屏外上方。本轮按大厂形态收口（苹果官方
+/// keyboardLayoutGuide 锚定形态＋Telegram/WhatsApp
+/// 手工锚位先例，主线外部核查在案）：
+/// - SwiftUI 侧：本桥退出根 ZStack 定尺寸，改挂列
+///   表 .overlay 次级层（次级视图不参加父级协商）；
+/// - UIKit 侧：宿主底边双锚——键盘落下钉**窗口层
+///   级里 UITabBar 的 topAnchor**（坞本体，帧由系
+///   统管、协商污染够不到）；键盘升起钉**窗口**
+///   keyboardLayoutGuide.topAnchor（窗口帧永不被
+///   污染；交互式下滑收键盘时引导线逐帧跟随、约束
+///   随之）；键盘通知切换两锚、动画参数与键盘同
+///   步。锚点在入窗与键盘收起时重解析（标签栏在
+///   聚焦藏坞期间可能换实例）；无坞环境（探针裸装
+///   配）回落窗口安全区底。§186 地板钳制就此退役
+///   ——它防的「落下漂移」由坞锚构造性消除。
+/// - 宿主顶/左右仍贴本视图：本视图帧即便再被污染，
+///   宿主内 VStack 的 Spacer 吸收多余高度，舱恒坐
+///   宿主底边＝锚点——「SwiftUI 内部固有尺寸变化不
+///   许改变栏位帧」由约束构造保证，不再靠量测。
+/// - 抽屉随动不变：宿主在抽屉前景的布局树内、坞锚
+///   在窗内同树，抽屉平移走 transform 不进布局帧，
+///   舱随前景同移；呈现链（sheet/选图器自 ChatView
+///   复合体呈现）零触碰。
 struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -131,7 +165,7 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 尺寸协商收口（§191，真机量测定因，诊断全文
     /// bars-fix-diagnosis-20261113）：恒回提议尺寸——
     /// 本桥在 ZStack 里只做全帧提议的透传层，舱的实
-    /// 际落位 100% 由控制器内约束（引导线＋地板钳制）
+    /// 际落位 100% 由控制器内约束（§193 双锚）
     /// 决定，SwiftUI 尺寸协商本就不该有发言权。默认
     /// sizeThatFits 会把控制器视图的当前/拟合尺寸报
     /// 回去：真机冷启布局时序下（真实窗口＋引导线约
@@ -277,8 +311,9 @@ private final class ComposerPassthroughView: UIView {
     }
 }
 
-/// 引导线托管控制器本体：只管舱宿主的钉位（引导线＋
-/// 地板钳制）与舱顶实测回报，不知业务页面。宿主全高
+/// 锚定托管控制器本体：只管舱宿主的钉位（§193 双
+/// 锚：坞顶／窗口键盘引导线）与舱顶实测回报，不知
+/// 业务页面。宿主全高
 /// 填充本控制器视图（顶贴视图顶、底钉引导线），舱在
 /// 托管树内被 Spacer 顶到宿主底边以理想高成帧（桥侧
 /// apply 组合），本类不再经手舱高
@@ -298,7 +333,18 @@ final class ComposerGuideHostController: UIViewController {
     private let composerHost = UIHostingController<AnyView>(
         rootView: AnyView(EmptyView())
     )
-    private var bottomConstraint: NSLayoutConstraint!
+    /// §193 双锚（见文件头）：坞锚（键盘落下）与键盘
+    /// 锚（键盘升起）恒只活一条；锚目标在窗口层级解
+    /// 析、本视图帧如何被协商污染都不进钉位公式
+    private var dockConstraint: NSLayoutConstraint?
+    private var keyboardConstraint: NSLayoutConstraint?
+    /// 坞锚当前目标（UITabBar 本体；回落态为 nil 且
+    /// dockIsFallback=true，目标＝窗口安全区底）
+    private weak var dockBarView: UIView?
+    private var dockIsFallback = false
+    private weak var anchorWindow: UIWindow?
+    private var keyboardUp = false
+    private var keyboardObservers: [NSObjectProtocol] = []
     /// 舱的窗口系实测帧（桥的 Preference 通道喂入）：
     /// 回报与透传判定共用这一份事实
     private var barFrameInWindow: CGRect = .zero
@@ -348,9 +394,9 @@ final class ComposerGuideHostController: UIViewController {
             false
         view.addSubview(composerHost.view)
         composerHost.didMove(toParent: self)
-        bottomConstraint = composerHost.view.bottomAnchor
-            .constraint(
-                equalTo: view.keyboardLayoutGuide.topAnchor)
+        // §193：宿主顶/左右贴本视图、底边走双锚（见
+        // resolveAnchors/applyAnchorState；锚在入窗
+        // 后解析，viewDidLoad 时窗口未定不预建）
         NSLayoutConstraint.activate([
             composerHost.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor),
@@ -358,70 +404,179 @@ final class ComposerGuideHostController: UIViewController {
                 equalTo: view.trailingAnchor),
             composerHost.view.topAnchor.constraint(
                 equalTo: view.topAnchor),
-            bottomConstraint,
         ])
         if barFrameInWindow.height > 0 {
             (view as? ComposerPassthroughView)?
                 .barFrameInWindow = barFrameInWindow
         }
+        // 键盘锚切换信号（§193）：willShow/willHide
+        // 是唯一状态源，动画参数（时长/曲线）随通知
+        // 取，与系统键盘动画同步
+        let center = NotificationCenter.default
+        keyboardObservers.append(center.addObserver(
+            forName: UIResponder.keyboardWillShowNotification,
+            object: nil, queue: .main
+        ) { [weak self] note in
+            self?.setKeyboardUp(true, note: note)
+        })
+        keyboardObservers.append(center.addObserver(
+            forName: UIResponder.keyboardWillHideNotification,
+            object: nil, queue: .main
+        ) { [weak self] note in
+            self?.setKeyboardUp(false, note: note)
+        })
+    }
+
+    deinit {
+        for observer in keyboardObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // 入窗（或换窗）即重解析锚并按当前键盘态生效
+        resolveAnchors()
+        applyAnchorState()
+    }
+
+    /// §193 锚解析：在本视图所在窗口的层级里找坞本
+    /// 体（UITabBar）与窗口键盘引导线，（重）建两条
+    /// 底边约束。触发点只在离散事件（入窗/键盘收
+    /// 起/回落态布局拍自愈），不在每拍布局里走层级
+    private func resolveAnchors() {
+        guard let window = view.window else { return }
+        let windowChanged = anchorWindow !== window
+        anchorWindow = window
+        if windowChanged || keyboardConstraint == nil {
+            keyboardConstraint?.isActive = false
+            keyboardConstraint = composerHost.view.bottomAnchor
+                .constraint(
+                    equalTo: window.keyboardLayoutGuide
+                        .topAnchor
+                )
+        }
+        let foundBar = Self.findDockAnchor(in: window)
+        if let foundBar {
+            if dockBarView !== foundBar.view || dockIsFallback
+                || windowChanged {
+                dockConstraint?.isActive = false
+                dockConstraint = composerHost.view.bottomAnchor
+                    .constraint(equalTo: foundBar.view.topAnchor)
+                dockBarView = foundBar.view
+                dockIsFallback = false
+                BarsGeometryTrace.noteProbe(
+                    "anchorMode", foundBar.mode
+                )
+            }
+        } else if dockConstraint == nil || !dockIsFallback
+            || windowChanged {
+            // 无坞环境回落（探针裸装配等非生产形态）：
+            // 窗口安全区底——生产装配恒有坞，不走此路
+            dockConstraint?.isActive = false
+            dockConstraint = composerHost.view.bottomAnchor
+                .constraint(
+                    equalTo: window.safeAreaLayoutGuide
+                        .bottomAnchor
+                )
+            dockBarView = nil
+            dockIsFallback = true
+            BarsGeometryTrace.noteProbe(
+                "anchorMode", "fallbackWindowSafe"
+            )
+        }
+        applyAnchorState()
+    }
+
+    /// §193 锚生效：键盘态决定唯一活锚（先灭后亮，
+    /// 防同边双约束瞬时冲突）
+    private func applyAnchorState() {
+        if keyboardUp {
+            dockConstraint?.isActive = false
+            keyboardConstraint?.isActive = true
+        } else {
+            keyboardConstraint?.isActive = false
+            dockConstraint?.isActive = true
+        }
+    }
+
+    /// §193 键盘态切换：收起时先重解析坞锚（聚焦藏
+    /// 坞期间标签栏可能换实例，旧约束不许指向已离场
+    /// 的视图）；约束切换与键盘动画同参推进
+    private func setKeyboardUp(
+        _ up: Bool, note: Notification
+    ) {
+        if !up { resolveAnchors() }
+        guard up != keyboardUp else { return }
+        keyboardUp = up
+        applyAnchorState()
+        let userInfo = note.userInfo
+        let duration = userInfo?[
+            UIResponder.keyboardAnimationDurationUserInfoKey
+        ] as? Double ?? 0.25
+        let curveRaw = userInfo?[
+            UIResponder.keyboardAnimationCurveUserInfoKey
+        ] as? UInt ?? 7
+        UIView.animate(
+            withDuration: duration, delay: 0,
+            options: UIView.AnimationOptions(
+                rawValue: curveRaw << 16
+            )
+        ) { [weak self] in
+            self?.view.layoutIfNeeded()
+        }
+    }
+
+    /// 窗口层级内找坞锚目标（深度优先两级）：先
+    /// UITabBar 本体；无本体时取类名含 TabBar 且宽
+    /// 度 >300 的视图（系统内部实现跨版本改名/换类
+    /// 的兜底——149 真机 iOS 27 上 platter 类缺席、
+    /// 坞本体类名未定，锚目标不许绑死单一类名）。
+    /// 命中模式随自述落盘（anchorMode），真机判读
+    /// 先看锚钉没钉对、再看帧
+    private static func findDockAnchor(
+        in window: UIWindow
+    ) -> (view: UIView, mode: String)? {
+        func walk(_ view: UIView) -> UIView? {
+            if let bar = view as? UITabBar { return bar }
+            for sub in view.subviews {
+                if let hit = walk(sub) { return hit }
+            }
+            return nil
+        }
+        if let bar = walk(window) {
+            return (bar, "uitabbar")
+        }
+        func walkByName(_ view: UIView) -> UIView? {
+            let name = String(describing: type(of: view))
+            if name.contains("TabBar"),
+               view.frame.width > 300 {
+                return view
+            }
+            for sub in view.subviews {
+                if let hit = walkByName(sub) { return hit }
+            }
+            return nil
+        }
+        if let named = walkByName(window) {
+            return (named, "tabbarByName")
+        }
+        return nil
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // 地板钳制：舱底目标＝min(引导线顶, 视图底边)——
-        // 键盘升起跟引导线走、落下停在视图底边（＝坞
-        // 顶）；常数逐拍按当前帧重算，交互式收键盘拖到
-        // 半程时引导线与地板的交接连续无跳。常数只在偏
-        // 差 >0.25 时写（布局拍内不重入 layoutIfNeeded，
-        // 新常数随下一拍生效——地板交接只发生在近静止
-        // 段，一拍延迟不可见）
-        let guideTop = view.keyboardLayoutGuide.layoutFrame.minY
-        let target = min(guideTop, view.bounds.height)
-        let constant = target - guideTop
-        if abs(bottomConstraint.constant - constant) > 0.25 {
-            bottomConstraint.constant = constant
+        // §193：钉位已由双锚约束全权决定，本拍只做
+        // 舱顶回报与回落态自愈（回落＝窗口内暂未找到
+        // 坞：标签栏随呈现时序迟到时在此补解析，找
+        // 到即退出回落、不再走层级）。§186 地板钳制
+        // 与 §192 控制器侧主动量测（布局拍内调 fit-
+        // ting 触发重入式布局、150 探针两场景超时与
+        // 此相关）均已随锚定重构退役
+        if dockIsFallback, !keyboardUp {
+            resolveAnchors()
         }
         reportBottomSpace()
-        logNegotiationIfChanged()
-    }
-
-    /// §192 量测（控制器侧对账，值变才记）：本视图
-    /// 界 × 宿主视图帧 × 宿主在两档目标高下的拟合
-    /// 回报 × 本视图 Auto Layout 拟合回报——若 Swift-
-    /// UI 协商之外另有通道把 1030 喂给落位（平台视
-    /// 图 fitting／宿主理想高传播），必在此露头：
-    /// hostFit@3000 给的是内栈在近未定提议下的理想
-    /// 高、sysFit@729 给的是约束系（引导线钉底）
-    /// 在区域高提议下的解
-    private var lastNegotLine = ""
-    private func logNegotiationIfChanged() {
-        let width = view.bounds.width
-        guard width > 0, composerHost.view.superview != nil
-        else { return }
-        let hostFit729 = composerHost.sizeThatFits(
-            in: CGSize(width: width, height: 729)
-        )
-        let hostFitTall = composerHost.sizeThatFits(
-            in: CGSize(width: width, height: 3000)
-        )
-        let sysFit729 = view.systemLayoutSizeFitting(
-            CGSize(width: width, height: 729)
-        )
-        // 拆段拼接：整串插值链会触发类型推断超时
-        // （CI 实证 43331533247），逐段成行再 join
-        let parts = [
-            "bounds=" + BarsTraceFormat.size(view.bounds.size),
-            "hostView=" + BarsTraceFormat.size(
-                composerHost.view.frame.size
-            ),
-            "hostFit@729=" + BarsTraceFormat.size(hostFit729),
-            "hostFit@3000=" + BarsTraceFormat.size(hostFitTall),
-            "sysFit@729=" + BarsTraceFormat.size(sysFit729),
-        ]
-        let line = parts.joined(separator: " ")
-        guard line != lastNegotLine else { return }
-        lastNegotLine = line
-        BarsGeometryTrace.noteProbe("vcLayout", line)
     }
 
     /// 舱顶实测回报：以桥喂入的窗口系舱帧为准，报

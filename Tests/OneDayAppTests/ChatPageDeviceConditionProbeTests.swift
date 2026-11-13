@@ -344,6 +344,26 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
         }
     }
 
+    /// §193 锚定不变量量测：pocket 帧＋输入舱玻璃条
+    /// 帧（与 dumpAndAssert 同找法，只取数不断言，
+    /// 供跨阶段对读）
+    private func measureBars() -> (
+        pocket: CGRect?, bar: CGRect?
+    ) {
+        let pocket = findViews(window) { view in
+            String(describing: type(of: view))
+                .contains("ScrollPocketBarInteraction")
+                && frameInWindow(view).width > 400
+                && frameInWindow(view).minY < 100
+        }.first.map { frameInWindow($0) }
+        let bar = findViews(window) { view in
+            String(describing: type(of: view))
+                .contains("UIPlatformGlassInteractionView")
+                && frameInWindow(view).width > 300
+        }.first.map { frameInWindow($0) }
+        return (pocket, bar)
+    }
+
     // MARK: - 场景
 
     /// 对照：与现行组装探针同条件（裸窗覆写＋内存空库）
@@ -479,5 +499,111 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
             shifted,
             "[realDeviceCombo] 开抽屉后前景未位移 travel=\(travelInt)"
         )
+    }
+
+    /// §193 锚定不变量（本轮修复成立的最低证据）：
+    /// 两相注入下舱底锚点与 pocket 位置不许漂移——
+    /// 一相以 trait 覆写把舱内容固有高撑大（本套件
+    /// 既有量级：玻璃条 46→75；真机动态证据同型：
+    /// 条高 +61 时旧构造盒高 +63 同涨出屏）；二相
+    /// 把舱宿主控制器视图帧强制写成真机坏帧
+    /// (0,-89,402×1030)（148/149 实测帧——旧构造
+    /// 下其地板钳制会把舱钉到屏外上方，真机实证）。
+    /// 新构造下舱底由窗口层级的坞锚决定、与宿主帧
+    /// 及内容固有高均无关。红侧证据＝148/149 真机
+    /// 自述（模拟器旧构造本就健康，本测试对旧构造
+    /// 不必然红——它 gate 的是新构造的不变量本身）
+    func testAnchoredBarsSurviveGrowthAndFramePollution() throws {
+        let appState = AppState(
+            client: DemoHermesClient(), demoMode: .connected
+        )
+        let container = try makeContainer(fileBacked: true)
+        let threadID = seedLongThread(
+            into: container, appState: appState
+        )
+        let assembly = try assemble(
+            sceneWindow: true, dark: false, boldAX: false,
+            seededThreadID: threadID,
+            container: container, appState: appState
+        )
+        dumpAndAssert(
+            scenario: "anchorBase", assembly: assembly,
+            strictBands: false
+        )
+        let base = measureBars()
+        let basePocket = try XCTUnwrap(
+            base.pocket, "基线 pocket 缺席"
+        )
+        let baseBar = try XCTUnwrap(
+            base.bar, "基线舱条缺席"
+        )
+
+        // 一相：固有高注入（trait 覆写，与 boldAX
+        // 场景同一杠杆的事后施加形态）
+        assembly.host.traitOverrides.legibilityWeight = .bold
+        assembly.host.traitOverrides
+            .preferredContentSizeCategory =
+            .accessibilityExtraExtraLarge
+        window.traitOverrides.legibilityWeight = .bold
+        window.traitOverrides.preferredContentSizeCategory =
+            .accessibilityExtraExtraLarge
+        spinRunLoop(seconds: 2.0)
+        window.layoutIfNeeded()
+        let grown = measureBars()
+        let grownPocket = try XCTUnwrap(
+            grown.pocket, "生长后 pocket 缺席"
+        )
+        let grownBar = try XCTUnwrap(
+            grown.bar, "生长后舱条缺席"
+        )
+        XCTAssertGreaterThanOrEqual(
+            grownBar.height - baseBar.height, 20,
+            "注入未生效：玻璃条高未明显生长 "
+                + "\(baseBar.height)→\(grownBar.height)"
+        )
+        XCTAssertEqual(
+            grownBar.maxY, baseBar.maxY, accuracy: 2,
+            "固有高生长下舱底锚点漂移："
+                + "\(baseBar.maxY)→\(grownBar.maxY)"
+        )
+        XCTAssertEqual(
+            grownPocket.minY, basePocket.minY, accuracy: 1,
+            "固有高生长下 pocket 漂移："
+                + "\(basePocket.minY)→\(grownPocket.minY)"
+        )
+
+        // 二相：宿主帧污染（真机坏帧复刻；同步一拍
+        // 布局后即测，不等运行循环里的重排覆盖）
+        let composer = try XCTUnwrap(
+            findVC(ComposerGuideHostController.self),
+            "ComposerGuideHostController 缺席"
+        )
+        composer.view.frame = CGRect(
+            x: 0, y: -89, width: 402, height: 1030
+        )
+        window.layoutIfNeeded()
+        let polluted = measureBars()
+        let pollutedBar = try XCTUnwrap(
+            polluted.bar, "污染帧下舱条缺席"
+        )
+        let pollutedPocket = try XCTUnwrap(
+            polluted.pocket, "污染帧下 pocket 缺席"
+        )
+        XCTAssertEqual(
+            pollutedBar.maxY, grownBar.maxY, accuracy: 2,
+            "宿主帧污染下舱底锚点漂移："
+                + "\(grownBar.maxY)→\(pollutedBar.maxY)"
+        )
+        XCTAssertEqual(
+            pollutedPocket.minY, grownPocket.minY, accuracy: 1,
+            "宿主帧污染下 pocket 漂移："
+                + "\(grownPocket.minY)→\(pollutedPocket.minY)"
+        )
+        print("PROBE-DUMP anchorInvariant"
+            + " base bar=\(fmt(baseBar))"
+            + " pocket=\(fmt(basePocket))"
+            + " | grown bar=\(fmt(grownBar))"
+            + " | polluted bar=\(fmt(pollutedBar))"
+            + " pocket=\(fmt(pollutedPocket))")
     }
 }

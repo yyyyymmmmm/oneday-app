@@ -632,14 +632,24 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             // §186（2026-11-12，承载换代）：输入舱退出
             // 列表的 safeAreaBar 注册，改由 Composer-
-            // GuideHost 在同层 ZStack 里以 UIKit 引导线
-            // 托管（整栈仍在前景层级内、随抽屉前景滑
+            // GuideHost 托管（整栈仍在前景层级内、随抽屉前景滑
             // 动；列表与舱同树同 proxy，贴底四路的调用
             // 面一字不变，见 ComposerGuideHost 文件头
             // 与 messageList 的 §186 注）。回底钮不在
             // 此浮层（§124 三代落位，见下条沿革注）
-            ZStack {
-                messageList(proxy)
+            // §193（2026-11-13，用户拍板锚定式重构）：
+            // 输入舱退出根层定尺寸——列表为根、舱改挂
+            // .overlay 次级层（次级视图被提议主视图已
+            // 定尺寸、不参加父级尺寸协商，OpenSwiftUI
+            // 次级视图语义），舱帧内落位由其控制器以
+            // UIKit 约束锚定（坞顶/窗口键盘引导线，
+            // 见 ComposerGuideHost 文件头 §193）。根
+            // ZStack 的「盒」自此不存在：列表与顶栏
+            // 的位置只由列表自身的安全区体系决定，
+            // 舱侧固有尺寸再飘也顶不动任何栏位。§192
+            // 的 layoutPriority 断链被本式取代（同为
+            // 退出协商，overlay 是结构性的）
+            messageList(proxy)
                     // §192 量测：列表落位帧（窗口系）
                     .onGeometryChange(
                         for: String.self
@@ -652,58 +662,43 @@ struct ChatView: View {
                             "listPlaced", frame
                         )
                     }
-                    // §192（修复，定因见 DESIGN §192）：
-                    // ZStack 的定尺寸只认最高优先级子
-                    // 视图（OpenSwiftUI 实现与多方实验
-                    // 互证）——列表定尺寸、输入舱（下条
-                    // 优先级 0）只被提议已定尺寸，其尺
-                    // 寸协商自此没有撑高本层的通道。149
-                    // 前两子同级 0：舱侧协商报出的高
-                    // （真机冷启下被其内容固有高顶到约
-                    // 1030）与列表同权竞尺寸，ZStack
-                    // 取大→整层在安全区矩形内居中安放
-                    // 出屏（pocket/composer 帧 -89 的
-                    // 本体）。舱的实际落位仍全由其控
-                    // 制器内约束（引导线＋地板）决定，
-                    // 与 §186 构造不冲突
-                    .layoutPriority(1)
-                ComposerGuideHost(
-                    bottomSpace: $composerBottomSpace
-                ) {
-                    bottomBar(proxy)
+                .overlay {
+                    ComposerGuideHost(
+                        bottomSpace: $composerBottomSpace
+                    ) {
+                        bottomBar(proxy)
+                    }
+                    // §192 量测（保留）：舱宿主落位帧
+                    // （窗口系）——§193 后此帧只应随区
+                    // 域走、舱内落位另由锚定决定（真机
+                    // 判读看 composerBar/pocket 本体）
+                    .onGeometryChange(
+                        for: String.self
+                    ) { proxy in
+                        BarsTraceFormat.frame(
+                            proxy.frame(in: .global)
+                        )
+                    } action: { _, frame in
+                        BarsGeometryTrace.noteProbe(
+                            "hostPlaced", frame
+                        )
+                    }
                 }
-                // §192 量测：舱宿主落位帧（窗口系）——
-                // 与其 sizeThatFits 往来账对读：提议、
-                // 回报、落位三数齐了才算点名到人
+                // §193 量测：复合面（列表＋overlay）落
+                // 位帧＋其所见安全区
                 .onGeometryChange(
                     for: String.self
                 ) { proxy in
                     BarsTraceFormat.frame(
                         proxy.frame(in: .global)
+                    ) + " safe=" + BarsTraceFormat.insets(
+                        proxy.safeAreaInsets
                     )
-                } action: { _, frame in
+                } action: { _, value in
                     BarsGeometryTrace.noteProbe(
-                        "hostPlaced", frame
+                        "surface", value
                     )
                 }
-                // §192：与上条成对——输入舱退出本层
-                // 定尺寸（见列表条注）
-                .layoutPriority(0)
-            }
-            // §192 量测：本层（ZStack）落位帧＋其所见
-            // 安全区——坏帧的「盒」本体与安放矩形在此
-            // 一并留证（修复后此帧应回安全区矩形）
-            .onGeometryChange(
-                for: String.self
-            ) { proxy in
-                BarsTraceFormat.frame(
-                    proxy.frame(in: .global)
-                ) + " safe=" + BarsTraceFormat.insets(
-                    proxy.safeAreaInsets
-                )
-            } action: { _, value in
-                BarsGeometryTrace.noteProbe("zstack", value)
-            }
             // （§124 沿革注，本层与回底钮的关系）：回底
             // 钮三代浮层落位全败——0.41.0 挂发送区容器
             // overlay＋负偏移→命中被宿主 frame 剪枝（点
@@ -717,8 +712,8 @@ struct ChatView: View {
             // 钮搬进发送区布局流本体（bottomBar 内输入
             // 舱上方一行），落位由构造保证、零推算。
             // §186 换代后此结论不变：钮仍在 bottomBar
-            // 本体内（本层 ZStack 的托管内容就是
-            // bottomBar 整栈），落位改由托管控制器的
+            // 本体内（overlay 托管内容就是 bottomBar
+            // 整栈），落位改由托管控制器的
             // 约束构造保证——仍是「在输入舱自己的坐标
             // 系里」，不回浮层推算
         }
