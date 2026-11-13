@@ -267,17 +267,29 @@ final class DrawerContainerController: UIViewController,
     /// 当前 progress 的前景裁切几何：圆角半径＋纵向内
     /// 嵌帧（§202 K1/K2）。layout 与 applyOffset 两写点
     /// 共用这一处派生——§182.2 的教训是阴影路径双写必
-    /// 须同拍同口径，几何再多一个事实源就会打架：帧＝
-    /// 前景 bounds 纵向内嵌 verticalInset(progress)
+    /// 须同拍同口径，几何再多一个事实源就会打架：clip
+    /// 帧＝前景 bounds 纵向内嵌 verticalInset(progress)
     /// （合态 0、开态满值、随 progress 线性行进）、半
-    /// 径＝cornerRadius(progress)（一步到位、K4 不插值）
+    /// 径＝cornerRadius(progress)（一步到位、K4 不插值）。
+    /// 内容宿主反向补偿：原点 −inset、高恒 bounds 高——
+    /// 宿主在前景空间内的几何与 §202 之前逐值一致，浮
+    /// 置只是裁切窗与阴影的事，内容布局/安全区/栏位冻
+    /// 结几何一概不惊动（初版令宿主随 clip 同缩，CI
+    /// run 43384697181 生产同构实测：抽屉关落定后输入
+    /// 舱底 maxY −4pt 不复原，定因即宿主高被改写引发
+    /// 托管树几何重排，故改补偿式）
     private func clipGeometry(progress: CGFloat)
-        -> (frame: CGRect, radius: CGFloat)
+        -> (clipFrame: CGRect, contentFrame: CGRect, radius: CGFloat)
     {
         let radius = DrawerMotion.cornerRadius(progress: progress)
         let inset = DrawerMotion.verticalInset(progress: progress)
-        let frame = foreground.bounds.insetBy(dx: 0, dy: inset)
-        return (frame, radius)
+        let bounds = foreground.bounds
+        let clipFrame = bounds.insetBy(dx: 0, dy: inset)
+        let contentFrame = CGRect(
+            x: 0, y: -inset,
+            width: bounds.width, height: bounds.height
+        )
+        return (clipFrame, contentFrame, radius)
     }
 
     override func viewDidLayoutSubviews() {
@@ -313,11 +325,11 @@ final class DrawerContainerController: UIViewController,
         )
         let geometry = clipGeometry(progress: currentProgress)
         foreground.layer.shadowPath = UIBezierPath(
-            roundedRect: geometry.frame,
+            roundedRect: geometry.clipFrame,
             cornerRadius: geometry.radius
         ).cgPath
-        clipView.frame = geometry.frame
-        contentHost.view.frame = clipView.bounds
+        clipView.frame = geometry.clipFrame
+        contentHost.view.frame = geometry.contentFrame
         edgeView.frame = CGRect(
             x: 0, y: 0,
             width: OneDayMetrics.drawerEdgeZone,
@@ -355,12 +367,12 @@ final class DrawerContainerController: UIViewController,
         )
         let geometry = clipGeometry(progress: progress)
         clipView.layer.cornerRadius = geometry.radius
-        clipView.frame = geometry.frame
-        contentHost.view.frame = clipView.bounds
+        clipView.frame = geometry.clipFrame
+        contentHost.view.frame = geometry.contentFrame
         // §182.2 阴影路径跟随圆角；§202 起路径矩形＝内
         // 缩后的 clip 帧（与布局期同走 clipGeometry 派生）
         foreground.layer.shadowPath = UIBezierPath(
-            roundedRect: geometry.frame,
+            roundedRect: geometry.clipFrame,
             cornerRadius: geometry.radius
         ).cgPath
         foreground.layer.shadowOpacity = Float(

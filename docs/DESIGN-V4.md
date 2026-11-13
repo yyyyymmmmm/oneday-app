@@ -11264,3 +11264,8 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 
 ### 202.5 CI 判读
 （待 CI 终判后回填。）
+
+### §202 补记（同日，CI 第一轮回修：K1 改补偿式）
+- 第一轮 CI（run 43384697181，头 3a8e39c）：本包三条新测全过；唯一真断言失败＝ComposerGuideHostTests.testDrawerAnimatedClose_midFlightBarUnreachableThenRestored——抽屉 animated 关闭落定后输入舱底 maxY 787 vs 基准 791（−4＝2×inset）。定因：初版 K1 令 contentHost 随 clip 同缩（高 −4），改写托管树几何、落定后舱位不复原（其余三红均为 §184 在案进程死亡：键盘真崩＋barGrowth 的 ModelContext.reset 同签名死亡＋容器关闭动画无断言死亡，逐项对账在案）。
+- 回修：clipGeometry 改补偿式——clip 帧与 shadowPath 照旧内缩，contentHost 反向补偿（原点 −inset、高恒 bounds 高），宿主在前景空间内的几何与 §202 之前逐值一致；浮置只是裁切窗与阴影的事，内容布局/安全区/栏位冻结几何（§193–§195）一概不惊动。此式亦与调研 G1 的开源实现口径（mask 而非改 bounds）合流。容器几何测同步加补偿断言。
+- 第二轮 CI 判读回填于 §202.5。
