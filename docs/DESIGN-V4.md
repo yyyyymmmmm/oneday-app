@@ -11177,3 +11177,43 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 - 新增单测：EntryScanMemoTests 4（与直算等值／同内容第二遍未命中不增长／摘行集敏感／plainText 备忘）、LocalImageDecodeCacheTests 2（同键零重解码／坏图不缓存）、SelectionDismantleProofTests 2（§199.1）——全绿。
 - Core 1690 条全绿（本包 +4；一轮实测基线 1686，§196 账面 1684 的差 +2 为基线既有漂移、非本包）；App 会话除在案两条外无新增红——ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays（键盘真崩独立线）与 DrawerContainerControllerTests.testAnimatedCloseKeepsContentUntouchableUntilSettled（基线自带、两轮同现、无断言输出、本包未触抽屉代码，治法在 fix/drawer-flake 未合 main）；UI 2/2 过。打包/上传步 success（§190 口径）。
 - 真机待验（随组版）：含图长会话滚动体感对照（解码缓存＋扫描备忘的帧成本下降幅度无模拟器代理数，只认真机体感）；千条线程滚动跟随行为与修复前一致（距底匣语义等值已有代码级论证，真机复核发送落定复贴一笔）。
+## §200 系统材质底衬：顶带＋底部坞＋输入框周边均匀磨砂（2026-11-13，用户 11:24 拍板；分支 feat/system-material-backdrop，基线新 main 0494f7d／0.50.26＋§197 入 main 顶端，只交分支不合并、不发版；节号自选 §198，装配时主线合裁顺延 §200）
+
+### 200.1 病象与范围
+用户 2026-11-13 11:18 真机点名：聊天内容上滚滑进状态栏带与时间/电量叠字、顶簇玻璃透字重影、汉堡钮压列表序号——三症同源于顶部/底部浮层**没有底衬**，内容以原锐度从玻璃与空隙间透出。11:24 拍板范围三处：顶带（顶簇区域）＋底部坞＋输入框周边，垫**均匀**系统磨砂。与 §173 的硬区分：§173 渐进溶化（边缘按距离渐变淡出）已被用户亲删、整包作废——本节只有均匀材质，任何渐变/淡出形态不许复活；列表顶缘 .soft／底缘 .hidden 的滚动边缘口径（§170/§185）是另一机制，本包一字不动。
+
+### 200.2 选型（iOS 26 现行口径，出处在案）
+- 材质档＝`UIBlurEffect(style: .systemChromeMaterial)`：系统材质族（UIBlurEffect 系统材质族）的 chrome 档，苹果文档原文「A blur matching the system chrome」；`UIBarAppearance`（导航栏/工具栏外观）的 `backgroundEffect` 通行取值即此档——本就是给栏位类 chrome 区的系统材质。三处共用同档、单点定义（`SystemBackdrop`），不许各处自选。
+- 明暗自适应变体（非 Light/Dark 定版款），深色随系统切档。
+- 与 Liquid Glass 的分工（HIG《Materials》2025-09 更新口径）：Liquid Glass 是系统自身功能层（系统标签栏等）的材质；标准材质（UIBlurEffect 族）用于内容层与结构区分。顶簇/输入舱是自托管浮层、非系统栏件，故以标准材质垫底；胶囊本体继续走 §179 玻璃定式、互不改形。
+
+### 200.3 挂载（三处，换代施工图挂载纪律）
+底衬只许挂进宿主控制器自己的视图层级与坞本体——原生列表换代（路线三，native-list-migration-blueprint-20261113.md）时宿主整体搬家、底衬随搬不丢；不许挂 ChatView overlay（会被收编推翻）。底衬一律不接命中（纯视觉层），透传判定仍由各宿主的实测帧闸门说了算。
+- **顶带**（`TopBarGuideHostController`）：`UIVisualEffectView` 插在本控制器视图层级内、顶簇宿主之下（子视图序最底）。覆盖带＝窗口顶→顶簇底：底边钉顶簇宿主底（进展胶囊生长随量测同跟），顶边由新增常量补偿——与顶簇落位同式：常量＝−本视图布局空间顶边、由 `syncTopConstant` 与顶簇常量同拍同源重算，宿主帧被 SwiftUI 再挪位时底衬上缘恒贴窗口顶（§195 病形下同免疫）。列表顶 contentMargins 记账与顶簇落位零改动。
+- **输入框周边**（`ComposerGuideHostController`）：底衬插在舱宿主层级内最底层，左右/底随舱宿主，高由舱帧实测驱动——`updateBarFrame`（舱帧 Preference 喂入点）同拍把高度约束同步为舱带实测高（>0.5 才写），多行生长/错误条/回底钮行显隐全经此通道跟随；键盘/静息两态同跟，§194 单常数机制一字不动。
+- **底部坞**（UITabBar 本体）：`SystemDockBackdrop.ensureInstalled` 幂等装配——把同档材质视图垫进 UITabBar 本体层级最底层、帧＝坞 bounds＋autoresizing 跟随；装配点在舱宿主既有的坞锚解析 `resolveAnchors`（入窗/显形/收键盘等离散事件同拍校正：已装只校正层级与帧，坞实例被换即补装）。类名兜底命中（非 UITabBar 本体）不装——不往系统内部视图里塞东西。坞「只被读帧、永不被约束引用」的既有纪律不变：底衬是坞自己的子视图、不进 §194 常量公式。
+
+### 200.4 冻结红线对账（全数未动）
+- 栏位几何数值 62/729/122/145/791：顶簇/舱落位公式与常量零改动（新增常量只管底衬自身顶边，取值由与顶簇同一实测输入导出、不回写任何栏位记账）。
+- §194 键盘单常数机制：未动（底衬高走 updateBarFrame 既有喂入链，不新增键盘信号）。
+- 胶囊玻璃本体（§179/992944a 定式）：一字未改，底衬只加在簇后/舱后。
+- ChatView：零改动（无 overlay 挂载、无边缘样式行触碰）。
+
+### 200.5 单测（只增不减）
+新增 `Tests/OneDayAppTests/SystemBackdropTests.swift` 六法，既有测试零改动：
+- `testSharedStyleIsSystemChromeMaterial`：单点定义档位钉死 .systemChromeMaterial＋底衬不接命中。
+- `testTopBackdropCoversWindowTopToBarBottom`：设备窗（安全区 62/34）内顶带覆盖＝窗口顶 0→顶簇底 134（62＋实高 72）、层级在顶簇宿主之下。
+- `testTopBackdropCompensatesShiftedHostFrame`：宿主帧下挪 25（§195 病形）时顶簇落点仍 62、底衬上缘仍贴窗口顶 0。
+- `testComposerBackdropAndDockBackdropInTabShell`：真 Tab 壳内舱底衬居宿主层级最底、高随喂入舱帧（128）、底边与舱宿主底同位（静息态即坞顶 791、其下由坞底衬接续覆盖，两段在坞顶边相接）；坞本体内恰一份底衬、最底层、帧＝坞 bounds。
+- `testDockBackdropEnsureIsIdempotent`：重复装配恰一份、外来子视图进场与前置扰动后校正回最底、坞 bounds 变化跟随。
+- `testBackdropCoverageUnderDarkAndLargestAX`：深色＋AX 最大字号（accessibilityExExExL）trait 下覆盖带与栏位落点不变（自查帧·结构口径，见 200.6）。
+
+### 200.6 深色与 AX 自查记录
+- 深色模式：底衬取系统自适应变体、深色下由系统切深档，定义点不换档（上列 trait 测试以 .dark override 实跑布局、覆盖带逐值不变）。观感帧（深色下糊化层次与胶囊玻璃的明暗关系）列真机待验。
+- AX 最大字号：底衬是无文字均匀材质、几何不随字号变；顶簇实高随字号生长时其底边钉顶簇宿主底、覆盖带自动同跟（上列 trait 测试以 accessibilityExExExL override 实跑、落点逐值不变）。大字号下顶簇本体排布观感列真机待验。
+
+### 200.7 CI 判读
+分支四轮 dispatch 终判（定版头 be9c9b2，run 43371733624）：构建成功、打包/上传成功；Core 1686 测 0 失败（与基线静态数一致）；App 侧断言失败 **0**；新增 SystemBackdropTests 六法全过；本包文件编译警告 0。**唯一红＝`testKeyboardUpMovesComposerOnlyDockStays`**——§184 在案键盘真崩（EXC_BREAKPOINT、.ips 已定性、独立线在修），按 §190 口径如实记：非本包引入、本包未追未动（含 ChatView.ensureMainThread 零触碰）。过程轮次备查：首轮（0d62a22，run 43366553258）红在本包两条新测试的断言写错（舱带底边断言错对象——实钉舱宿主底/坞顶 791 非控制器视图底 874；坞幂等断言数了 UITabBar 自带系统背景子视图）——均为测试侧、生产代码未动，断言改对后复跑即绿；第二轮（96a28cf）测试目标编译错（Composer 控制器无 traceBarView，补对称测试口 traceComposerHostView 后解）；第三轮（7fd3e0a，run 43369930922）起失败清单即只剩键盘在案一条。
+
+### 200.8 真机待验（随下版装机验，即施工图 G 组口径）
+①长列表上滚：内容滑入顶带先糊化、与时间/电量不叠字，胶囊下无透字重影，汉堡钮不压序号；②内容滚到输入框周边与坞区：均匀糊化、无原锐度透字，坞盘玻璃与底衬层次分明；③键盘升/落：舱带底衬随舱同跟、键盘顶无断层；④抽屉开合：三处底衬随前景同移、无错位残留；⑤深色模式一帧：三区糊化与玻璃明暗关系正常；⑥AX 最大字号一帧：顶带覆盖随顶簇生长、无露白。

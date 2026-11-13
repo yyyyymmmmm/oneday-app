@@ -54,6 +54,18 @@ import UIKit
 ///   继承桥的环境）：AppState、modelContext、
 ///   locale 在桥侧读出后逐项写进顶簇宿主根视图，
 ///   粗体映射同挂；trait 类经控制器层级自动派生。
+///
+/// ## §198 顶带底衬（2026-11-13，用户 11:24 拍板）
+/// 顶簇背后在本控制器视图层级内垫一层均匀系统磨
+/// 砂（SystemBackdrop，.systemChromeMaterial）：
+/// 覆盖窗口顶（状态栏带）→顶簇底，治内容上滚滑进
+/// 状态栏带与时间/电量叠字、胶囊玻璃透字重影、汉
+/// 堡钮压列表序号（用户 11:18 真机点名，同源于顶
+/// 部浮层无底衬）。底衬顶边落点与顶簇同式补偿（窗
+/// 口落点恒 0），底边随顶簇宿主底（进展胶囊生长同
+/// 跟）；均匀材质、非 §173 渐进溶化（已作废、不许
+/// 复活）；胶囊玻璃本体（§179 定式）一字不动、底
+/// 衬只在其后。栏位落位/记账口径零改动。
 struct TopBarGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -213,10 +225,19 @@ final class TopBarGuideHostController: UIViewController {
     private var barHeightConstraint: NSLayoutConstraint!
     private var barContentHeight: CGFloat = 60
     private var lastReportedHeight: CGFloat = -1
+    /// §198 顶带底衬（系统材质）：本视图层级内最底
+    /// 层；顶边常量由 syncTopConstant 与顶簇常量同
+    /// 拍补偿（窗口落点恒为窗口顶），底边钉顶簇宿
+    /// 主底——覆盖带＝窗口顶→顶簇底
+    private let backdropView = SystemBackdrop.makeView()
+    private var backdropTopConstraint: NSLayoutConstraint!
 
     /// 自述/测试定位口：顶簇宿主视图本体（pocket
     /// 的 UIKit 落点，§195 起 ScrollPocket 落点退役）
     var traceBarView: UIView { barHost.view }
+
+    /// §198 自述/测试定位口：顶带底衬本体
+    var traceBackdropView: UIView { backdropView }
 
     /// 顶簇实高喂入点（托管树每次布局后经 onGeo-
     /// metryChange 上行）：定高＋回报——顶簇在树内
@@ -256,6 +277,17 @@ final class TopBarGuideHostController: UIViewController {
             false
         view.addSubview(barHost.view)
         barHost.didMove(toParent: self)
+        // §198：顶带底衬入层——插在顶簇宿主之下（本
+        // 视图子视图序最底）；左右贴本视图、底随顶
+        // 簇宿主底、顶由 backdropTopConstraint 的常
+        // 量定位（syncTopConstant 补偿至窗口顶）
+        backdropView.translatesAutoresizingMaskIntoConstraints =
+            false
+        view.insertSubview(
+            backdropView, belowSubview: barHost.view
+        )
+        backdropTopConstraint = backdropView.topAnchor
+            .constraint(equalTo: view.topAnchor, constant: 0)
         // 顶簇钉位：顶边恒钉自有 topGuide（单约束、
         // 常量由 syncTopConstant 按窗口实测重算）、
         // 左右贴本视图、高由实测常量定——本视图帧
@@ -281,6 +313,13 @@ final class TopBarGuideHostController: UIViewController {
                 equalToConstant: 0),
             topGuideTopConstraint,
             barHeightConstraint,
+            backdropView.leadingAnchor.constraint(
+                equalTo: view.leadingAnchor),
+            backdropView.trailingAnchor.constraint(
+                equalTo: view.trailingAnchor),
+            backdropView.bottomAnchor.constraint(
+                equalTo: barHost.view.bottomAnchor),
+            backdropTopConstraint,
         ])
     }
 
@@ -323,6 +362,19 @@ final class TopBarGuideHostController: UIViewController {
         if abs(topGuideTopConstraint.constant - constant)
             > 0.5 {
             topGuideTopConstraint.constant = constant
+        }
+        // §198：底衬顶边同式补偿——常量＝−本视图布
+        // 局空间顶边，底衬的窗口落点恒为窗口顶（0）：
+        // 本视图帧被再挪到哪，底衬带的上缘恒贴屏顶、
+        // 与顶簇落点补偿同一实测输入、同拍重算
+        if let backdropTopConstraint {
+            let backdropConstant =
+                -Self.layoutSpaceMinY(of: view)
+            if abs(backdropTopConstraint.constant
+                    - backdropConstant) > 0.5 {
+                backdropTopConstraint.constant =
+                    backdropConstant
+            }
         }
     }
 
