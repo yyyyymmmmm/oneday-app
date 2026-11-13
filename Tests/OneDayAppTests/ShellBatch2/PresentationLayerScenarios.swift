@@ -94,7 +94,7 @@ final class PresentationLayerScenarios: XCTestCase {
         // 1. DrawerContainerView（最外层，管理 TabView + 抽屉）
         // 2. TabView（系统底栏容器）
         // 3. ChatView（页面根，safeAreaBar 宿主）
-        // 4. IdentityCapsuleView（胶囊，触发呈现）
+        // 4. HubAvatarButton／ModelCapsuleView（顶簇中央组，触发呈现；§198 前为 IdentityCapsuleView）
         //
         // 关键问题：
         // - 模型 sheet/枢纽 cover 的 presentationHost 在哪一层？
