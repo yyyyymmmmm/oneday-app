@@ -427,6 +427,12 @@ struct ChatView: View {
     /// composerFocusHandle 直达文本视图本体
     @State private var composerFocused = false
     @State private var composerFocusHandle = ComposerFocusHandle()
+    /// §213：聊天列表 UIScrollView 本体的交接句柄
+    /// （与 composerFocusHandle 同式被动登记匣）：
+    /// 列表内容栈的登记锚上行登记本体，两宿主据此
+    /// 把滚动边缘效果注册到各自覆盖容器（见
+    /// ScrollEdgeRegistration）
+    @State private var listScrollHandle = ChatListScrollViewHandle()
     /// 0.6.0：通知 sheet（顶栏铃铛点开，总览桥驱动）
     @State private var showNotifications = false
     /// 锚点点亮的条目 id（§165）：点达锚定行时置位，
@@ -860,7 +866,8 @@ struct ChatView: View {
             pocketHeight: $kbSnapshot.pocketHeight,
             dockTop: $kbSnapshot.dockTopInWindow,
             keyboardFrame: $kbFrameUpdate,
-            windowHeight: $kbSnapshot.windowHeight
+            windowHeight: $kbSnapshot.windowHeight,
+            scrollHandle: listScrollHandle
         ) {
             bottomBar(proxy)
         }
@@ -870,7 +877,8 @@ struct ChatView: View {
     @ViewBuilder
     private var topBarHostOverlay: some View {
         TopBarGuideHost(
-            barHeight: $topBarHeight
+            barHeight: $topBarHeight,
+            scrollHandle: listScrollHandle
         ) {
             topBarCluster
         }
@@ -2285,6 +2293,16 @@ struct ChatView: View {
             // 0.7.0（M1 轻保活）：滚动目标布局登记——条目
             // 可见性按 UUID id 回报，喂滚动锚的存/取
             .scrollTargetLayout()
+            // §213：列表本体登记锚——0 帧透明视图坐内
+            // 容栈左上角，入层级即沿祖先链把 UIScroll-
+            // View 本体登记进 listScrollHandle（两宿主
+            // 的边缘效果注册靠它拿本体）；纯登记、不接
+            // 命中、不占布局、不改命中域（contentShape
+            // 在下方另行声明、辖区不变）
+            .background(alignment: .topLeading) {
+                ChatListScrollAnchor(handle: listScrollHandle)
+                    .frame(width: 0, height: 0)
+            }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.top, OneDayMetrics.spacingM)
             .padding(.bottom, OneDayMetrics.spacingS)
@@ -2373,6 +2391,11 @@ struct ChatView: View {
         // background 的裁决（0.7.1）与顶缘 .soft
         // 留任均不变：.soft 作用区改由顶
         // contentMargins 区决定
+        // §213 追记（2026-11-13）：本样式同时是两宿
+        // 主注册容器（顶簇宿主视图/舱带容器）的效果
+        // 样式来源——样式挂滚动视图的 edge effect、
+        // 注册只塑造其在覆盖容器后的呈现（公开文档
+        // 口径）；§200 常驻材质底衬三件同日退役
         .scrollEdgeEffectStyle(.soft, for: .top)
         // 底缘沿革：0.4.2 同挂柔效、0.4.3 注册后按发送
         // 舱高度发放（§28.1）；§170（用户 2026-11-11

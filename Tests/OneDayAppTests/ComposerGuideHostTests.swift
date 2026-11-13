@@ -169,7 +169,8 @@ final class ComposerGuideHostTests: XCTestCase {
                         pocketHeight: .constant(105),
                         dockTop: .constant(791),
                         keyboardFrame: .constant(nil),
-                        windowHeight: .constant(874)
+                        windowHeight: .constant(874),
+                        scrollHandle: ChatListScrollViewHandle()
                     ) {
                         // 构建计数（诊断：桥 init 求值次数
                         // ——分清「没重建」与「重建没长高」）

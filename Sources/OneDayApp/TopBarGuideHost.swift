@@ -55,17 +55,19 @@ import UIKit
 ///   locale 在桥侧读出后逐项写进顶簇宿主根视图，
 ///   粗体映射同挂；trait 类经控制器层级自动派生。
 ///
-/// ## §200 顶带底衬（2026-11-13，用户 11:24 拍板）
-/// 顶簇背后在本控制器视图层级内垫一层均匀系统磨
-/// 砂（SystemBackdrop，.systemChromeMaterial）：
-/// 覆盖窗口顶（状态栏带）→顶簇底，治内容上滚滑进
-/// 状态栏带与时间/电量叠字、胶囊玻璃透字重影、汉
-/// 堡钮压列表序号（用户 11:18 真机点名，同源于顶
-/// 部浮层无底衬）。底衬顶边落点与顶簇同式补偿（窗
-/// 口落点恒 0），底边随顶簇宿主底（进展胶囊生长同
-/// 跟）；均匀材质、非 §173 渐进溶化（已作废、不许
-/// 复活）；胶囊玻璃本体（§179 定式）一字不动、底
-/// 衬只在其后。栏位落位/记账口径零改动。
+/// ## §213 顶缘改内容驱动注册（2026-11-13，用户
+/// 21:39 验收口径，取代 §200 顶带底衬）
+/// §200 曾在本层级内垫均匀系统磨砂（窗口顶→顶簇
+/// 底）治内容透字；用户 21:39 点名：条下无内容时
+/// 须与页面同色不可见、有内容滚过才朦胧——常驻材
+/// 质片与内容无关恒定渲染、静止自成色带（探针实
+/// 证静止色差深色 39），§200 机制就此退役。改走
+/// 系统边缘效果正道注册（ScrollEdgeRegistrat-
+/// ion）：interaction 直接挂顶簇宿主视图（紧凑容
+/// 器、后代玻璃即效果形状，WWDC25-284 原式）；
+/// 状态栏带由列表自身的顶缘 .soft 效果覆盖（消
+/// 融臂实证成立）。胶囊玻璃本体（§179 定式）一字
+/// 不动；栏位落位/记账口径零改动。
 struct TopBarGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -81,12 +83,18 @@ struct TopBarGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 此归因到 ChatView（与 ComposerGuideHost
     /// content 同一条归因链）
     var content: Content
+    /// §213：聊天列表滚动视图句柄（ChatView 同一份
+    /// 亦喂舱宿主与列表内锚点；控制器据此把顶缘
+    /// interaction 的 scrollView 对齐列表本体）
+    let scrollHandle: ChatListScrollViewHandle
 
     init(
         barHeight: Binding<CGFloat>,
+        scrollHandle: ChatListScrollViewHandle,
         @ViewBuilder content: () -> Content
     ) {
         self._barHeight = barHeight
+        self.scrollHandle = scrollHandle
         self.content = content()
     }
 
@@ -139,6 +147,7 @@ struct TopBarGuideHost<Content: View>: UIViewControllerRepresentable {
         let appState = appState
         let modelContext = modelContext
         let locale = locale
+        controller.edgeScrollHandle = scrollHandle
         controller.topBarRoot = AnyView(
             content
                 // 顶簇高只认内容自身：fixedSize 断外
@@ -225,19 +234,37 @@ final class TopBarGuideHostController: UIViewController {
     private var barHeightConstraint: NSLayoutConstraint!
     private var barContentHeight: CGFloat = 60
     private var lastReportedHeight: CGFloat = -1
-    /// §200 顶带底衬（系统材质）：本视图层级内最底
-    /// 层；顶边常量由 syncTopConstant 与顶簇常量同
-    /// 拍补偿（窗口落点恒为窗口顶），底边钉顶簇宿
-    /// 主底——覆盖带＝窗口顶→顶簇底
-    private let backdropView = SystemBackdrop.makeView()
-    private var backdropTopConstraint: NSLayoutConstraint!
+    /// §213 顶缘边缘效果注册：interaction 在 view-
+    /// DidLoad 挂上顶簇宿主视图（edge=.top）；其
+    /// scrollView 由 refreshEdgeBinding 按句柄现值
+    /// 对齐（指针比对、未变即无操作）
+    private let edgeInteraction =
+        UIScrollEdgeElementContainerInteraction()
+    private weak var boundEdgeScrollView: UIScrollView?
+    /// §213：列表滚动视图句柄（桥注入；赋值即尝试
+    /// 对齐绑定，列表本体未登记时留待离散事件/布局
+    /// 拍的 syncTopConstant 同路刷新补绑）
+    var edgeScrollHandle: ChatListScrollViewHandle? {
+        didSet { refreshEdgeBinding() }
+    }
+
+    private func refreshEdgeBinding() {
+        guard let scrollView = edgeScrollHandle?.scrollView,
+              boundEdgeScrollView !== scrollView
+        else { return }
+        boundEdgeScrollView = scrollView
+        edgeInteraction.scrollView = scrollView
+    }
 
     /// 自述/测试定位口：顶簇宿主视图本体（pocket
     /// 的 UIKit 落点，§195 起 ScrollPocket 落点退役）
     var traceBarView: UIView { barHost.view }
 
-    /// §200 自述/测试定位口：顶带底衬本体
-    var traceBackdropView: UIView { backdropView }
+    /// §213 自述/测试定位口：顶缘注册的 interaction
+    var traceEdgeInteraction:
+        UIScrollEdgeElementContainerInteraction {
+        edgeInteraction
+    }
 
     /// 顶簇实高喂入点（托管树每次布局后经 onGeo-
     /// metryChange 上行）：定高＋回报——顶簇在树内
@@ -277,17 +304,12 @@ final class TopBarGuideHostController: UIViewController {
             false
         view.addSubview(barHost.view)
         barHost.didMove(toParent: self)
-        // §200：顶带底衬入层——插在顶簇宿主之下（本
-        // 视图子视图序最底）；左右贴本视图、底随顶
-        // 簇宿主底、顶由 backdropTopConstraint 的常
-        // 量定位（syncTopConstant 补偿至窗口顶）
-        backdropView.translatesAutoresizingMaskIntoConstraints =
-            false
-        view.insertSubview(
-            backdropView, belowSubview: barHost.view
-        )
-        backdropTopConstraint = backdropView.topAnchor
-            .constraint(equalTo: view.topAnchor, constant: 0)
+        // §213：顶缘效果注册到顶簇宿主视图本体——效
+        // 果由系统插在容器之后、按内容滚过与否自适
+        // 应；本视图层级内不再垫任何常驻材质片
+        edgeInteraction.edge = .top
+        barHost.view.addInteraction(edgeInteraction)
+        refreshEdgeBinding()
         // 顶簇钉位：顶边恒钉自有 topGuide（单约束、
         // 常量由 syncTopConstant 按窗口实测重算）、
         // 左右贴本视图、高由实测常量定——本视图帧
@@ -313,13 +335,6 @@ final class TopBarGuideHostController: UIViewController {
                 equalToConstant: 0),
             topGuideTopConstraint,
             barHeightConstraint,
-            backdropView.leadingAnchor.constraint(
-                equalTo: view.leadingAnchor),
-            backdropView.trailingAnchor.constraint(
-                equalTo: view.trailingAnchor),
-            backdropView.bottomAnchor.constraint(
-                equalTo: barHost.view.bottomAnchor),
-            backdropTopConstraint,
         ])
     }
 
@@ -363,19 +378,10 @@ final class TopBarGuideHostController: UIViewController {
             > 0.5 {
             topGuideTopConstraint.constant = constant
         }
-        // §200：底衬顶边同式补偿——常量＝−本视图布
-        // 局空间顶边，底衬的窗口落点恒为窗口顶（0）：
-        // 本视图帧被再挪到哪，底衬带的上缘恒贴屏顶、
-        // 与顶簇落点补偿同一实测输入、同拍重算
-        if let backdropTopConstraint {
-            let backdropConstant =
-                -Self.layoutSpaceMinY(of: view)
-            if abs(backdropTopConstraint.constant
-                    - backdropConstant) > 0.5 {
-                backdropTopConstraint.constant =
-                    backdropConstant
-            }
-        }
+        // §213：顶缘绑定同路刷新——本函数是入窗/显
+        // 形/逐布局拍的公共点，列表本体登记晚于本控
+        // 制器装配时在此补绑（指针比对、恒廉价）
+        refreshEdgeBinding()
     }
 
     /// 顶簇实高回报（与舱顶回报同守卫口径）

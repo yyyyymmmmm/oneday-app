@@ -179,39 +179,26 @@ import UIKit
 /// 以「此值＋顶簇实高」记账列表顶 contentMar-
 /// gins（留位记账、非落位）。
 ///
-/// ## §200 底衬两件（2026-11-13，用户 11:24 拍板）
-/// ①输入框周边底衬：舱宿主层级内垫均匀系统磨砂
-/// （SystemBackdrop），覆盖舱带（舱顶→宿主底）——
-/// 内容滚到舱后先被糊化、不以原锐度从输入框周边
-/// 透出；高随舱帧实测（updateBarFrame 同拍同步），
-/// 键盘/静息两态同跟，§194 常量机制与舱落位零改
-/// 动。②底部坞底衬：坞锚解析（resolveAnchors）定
-/// 位到 UITabBar 本体时，顺手把同一材质垫进坞本
-/// 体层级最底层（SystemDockBackdrop 幂等装配）——
-/// 坞只被读帧的既有纪律不变，底衬是坞自己的子视
-/// 图、不被任何约束引用、不进常量公式。均匀材质、
-/// 非 §173 渐进溶化（已作废）；列表底缘 .hidden
-/// 口径（§170）不动。
-///
-/// ## 割裂感 A 止血档 A2 追记（2026-11-13，用户
-/// 17:02 拍板提队；调研 chat-surface-selection-
-/// research-20261113 §1.4 A2）
-/// ①的覆盖口径改判：§200 上线后真机点名——底衬按
-/// **整栈高**（含回底钮行/错误条/间距带）成一整块
-/// 矩形板，上缘是一条悬空直线，流式末行探进带内
-/// 时被齐腰切断（调研 J3）。改法只动几何、不动材
-/// 质：底衬高改由**输入舱卡本体帧**（新通道 Comp-
-/// oserCardFrameKey，与整栈帧同树同系上行）驱动——
-/// 衬顶＝卡帧顶、衬底＝宿主底（＝整栈帧底），衬的
-/// 上缘自此落在卡这块玻璃件自己的设计边缘上；回
-/// 底钮行与各条带恢复透明（钮本体是系统玻璃、自
-/// 带糊化，调研 A2 代价面在案）。卡帧未到（首拍/
-/// 裸装配）时回落整栈口径、与 §200 原行为一致。
-/// 材质纪律（用户 17:06 钉死）：衬层仍是 System-
-/// Backdrop 的 UIVisualEffectView 系统真材质（实
-/// 时模糊身后内容），不许自绘半透明平填顶替；内
-/// 容全强度活到被玻璃/材质盖住为止，不许渐变擦
-/// 淡内容本体（§173 红线）。
+/// ## §213 舱带/坞改内容驱动注册（2026-11-13，
+/// 用户 21:39 验收口径，取代 §200 两件与 A2 材质）
+/// §200 曾垫两件均匀系统磨砂（舱宿主层级内舱带＋
+/// UITabBar 本体内坞带）治内容透字；A2（17:02）
+/// 又把舱带几何收为卡段（衬顶＝卡帧顶、衬底＝宿
+/// 主底，整栈生长不牵衬）。用户 21:39 点名：条下
+/// 无内容时须与页面同色不可见、有内容滚过才朦
+/// 胧——常驻材质片与内容无关恒定渲染、静止自成
+/// 色带（探针实证：舱带静止色差浅 14／深 19、坞
+/// 带深 19），§200 材质机制就此退役。改走系统边
+/// 缘效果正道注册（ScrollEdgeRegistration）：
+/// ①舱带几何（A2 卡段）原样保留、载体换透明注册
+/// 容器（EdgeBandContainerView＋底缘 inter-
+/// action），效果由系统按内容滚过与否自适应；
+/// ②坞带整件删除——UITabBar 是系统条，其自身玻
+/// 璃与自动边缘效果即正道（resolveAnchors 不再
+/// 往坞里塞任何子视图，坞只读帧的纪律还原）。
+/// §194 常量机制与舱落位零改动；不自绘渐变擦淡
+/// （§173 红线）、内容全强度活到被系统效果化开
+/// 为止。
 struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -268,6 +255,10 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// body 读数同样不触发重渲），与本仓「托管靠外层
     /// 重赋值刷新」的一贯机制不合
     var content: Content
+    /// §213：聊天列表滚动视图句柄（ChatView 同一份
+    /// 亦喂顶簇宿主与列表内锚点；控制器据此把舱带
+    /// 容器的底缘 interaction 对齐列表本体）
+    let scrollHandle: ChatListScrollViewHandle
 
     init(
         bottomSpace: Binding<CGFloat>,
@@ -276,6 +267,7 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         dockTop: Binding<CGFloat>,
         keyboardFrame: Binding<KeyboardFrameUpdate?>,
         windowHeight: Binding<CGFloat>,
+        scrollHandle: ChatListScrollViewHandle,
         @ViewBuilder content: () -> Content
     ) {
         self._bottomSpace = bottomSpace
@@ -284,6 +276,7 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         self._dockTop = dockTop
         self._keyboardFrame = keyboardFrame
         self._windowHeight = windowHeight
+        self.scrollHandle = scrollHandle
         self.content = content()
     }
 
@@ -402,6 +395,7 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         let appState = appState
         let modelContext = modelContext
         let locale = locale
+        controller.edgeScrollHandle = scrollHandle
         controller.composerRoot = AnyView(
             VStack(spacing: 0) {
                 // 宿主全高填充（顶贴页顶、底钉引导线）：
@@ -434,8 +428,8 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
             }
             // A2：输入舱卡本体帧同树上行（写入点在
             // ChatView 的 inputBar，量点与收点同树、
-            // 与整栈帧同一窗口系）→控制器据此定底衬
-            // 高（衬顶改随卡顶、不再随整栈顶）
+            // 与整栈帧同一窗口系）→控制器据此定舱带
+            // 高（带顶改随卡顶、不再随整栈顶）
             .onPreferenceChange(ComposerCardFrameKey.self) { frame in
                 controller.updateCardFrame(frame)
             }
@@ -461,7 +455,7 @@ private struct ComposerBarFrameKey: PreferenceKey {
     }
 }
 
-/// 输入舱卡本体帧的 PreferenceKey（A2 底衬收边）：
+/// 输入舱卡本体帧的 PreferenceKey（A2 舱带收边）：
 /// 写入点在 ChatView 的 inputBar（composerCard 外
 /// 挂背景 GeometryReader），与整栈帧同一窗口系、同
 /// 一棵托管树上行；口径与 ComposerBarFrameKey 同
@@ -587,23 +581,37 @@ final class ComposerGuideHostController: UIViewController {
     /// R1：栈高/坞顶上次回报值（等值守卫）
     private var lastReportedPocketHeight: CGFloat = -1
     private var lastReportedDockTop: CGFloat = -1
-    /// §200 输入框周边底衬（系统材质）：舱宿主层级
-    /// 内最底层；左右/底随舱宿主、高由 back-
-    /// dropHeightConstraint 承实测帧算出（A2 起＝卡
-    /// 段高：整栈帧底−卡帧顶；卡帧未到回落整栈高；
-    /// syncBackdropHeight 唯一计算点，两路帧喂入同
-    /// 拍同步，种子 0＝帧未到时不显）
-    private let backdropView = SystemBackdrop.makeView()
-    private var backdropHeightConstraint: NSLayoutConstraint!
+    /// §213 舱带注册容器（透明，EdgeBandContainer-
+    /// View＋底缘 interaction）：舱宿主层级内最底
+    /// 层；左右/底随舱宿主、高由 bandHeightCon-
+    /// straint 承实测帧算出（A2 卡段高：整栈帧底−卡
+    /// 帧顶；卡帧未到回落整栈高；syncBandHeight 唯
+    /// 一计算点，两路帧喂入同拍同步，种子 0＝帧未
+    /// 到时零高）。容器本身无色——静止态条下无内容
+    /// 时此带与页面同色，内容滚过时系统边缘效果在
+    /// 容器后自适应化开
+    private let bandView = EdgeBandContainerView(edge: .bottom)
+    private var bandHeightConstraint: NSLayoutConstraint!
+    /// §213：列表滚动视图句柄（桥注入；赋值即尝试
+    /// 对齐绑定，本体未登记时由显形/布局拍补绑）
+    var edgeScrollHandle: ChatListScrollViewHandle? {
+        didSet { refreshEdgeBinding() }
+    }
+
+    private func refreshEdgeBinding() {
+        guard let scrollView = edgeScrollHandle?.scrollView
+        else { return }
+        bandView.bind(scrollView: scrollView)
+    }
     /// A2：输入舱卡本体的窗口系实测帧（桥的 Prefe-
-    /// rence 通道喂入）：只供底衬高计算（衬顶随卡
+    /// rence 通道喂入）：只供舱带高计算（带顶随卡
     /// 顶），不参与舱顶回报与透传判定（那两路仍只
     /// 认整栈帧，口径零改动）
     private var cardFrameInWindow: CGRect = .zero
 
-    /// §200 自述/测试定位口：输入框周边底衬本体
+    /// §213 自述/测试定位口：舱带注册容器本体
     var traceComposerHostView: UIView { composerHost.view }
-    var traceBackdropView: UIView { backdropView }
+    var traceBandView: UIView { bandView }
 
     /// 舱帧喂入点（托管树每次布局后经 Preference 上
     /// 行）：存帧、同步给透传判定、并立即尝试回报——
@@ -614,34 +622,33 @@ final class ComposerGuideHostController: UIViewController {
         barFrameInWindow = frame
         (viewIfLoaded as? ComposerPassthroughView)?
             .barFrameInWindow = frame
-        // §200/A2：底衬高随实测帧同拍同步（计算点收
-        // 口 syncBackdropHeight：A2 起衬顶随卡帧顶、
-        // 整栈生长——多行输入、错误条、回底钮行显
-        // 隐——只经卡帧/整栈帧两路输入进公式）
-        syncBackdropHeight()
+        // §213/A2：舱带高随实测帧同拍同步（计算点收
+        // 口 syncBandHeight：带顶随卡帧顶、整栈生长
+        // ——多行输入、错误条、回底钮行显隐——只经卡
+        // 帧/整栈帧两路输入进公式）
+        syncBandHeight()
         reportBottomSpace()
         reportPocketHeight()
     }
 
     /// A2：输入舱卡本体帧喂入点（托管树每次布局后
-    /// 经 Preference 上行）：只存帧并同拍重算底衬高
+    /// 经 Preference 上行）：只存帧并同拍重算舱带高
     /// ——卡在树内生长（引用块/附件条/多行输入）时本
     /// 类未必有布局拍，同步不能只靠整栈帧通道兜底
     /// （与 updateBarFrame 的即时回报同判）
     func updateCardFrame(_ frame: CGRect) {
         guard frame.height > 0 else { return }
         cardFrameInWindow = frame
-        syncBackdropHeight()
+        syncBandHeight()
     }
 
-    /// A2 底衬高唯一计算点：衬底恒＝整栈帧底（衬底
-    /// 边钉宿主底、整栈底贴宿主底，两值同位）；衬
-    /// 顶＝卡帧顶（卡帧未到回落整栈帧顶＝§200 原口
-    /// 径）。两帧同为窗口系、相减即衬高（高度是标
-    /// 量，与本地坐标系无关）。偏差 >0.5 才写，与
-    /// §200 原同步守卫同档
-    private func syncBackdropHeight() {
-        guard isViewLoaded, backdropHeightConstraint != nil,
+    /// A2 舱带高唯一计算点：带底恒＝整栈帧底（带底
+    /// 边钉宿主底、整栈底贴宿主底，两值同位）；带
+    /// 顶＝卡帧顶（卡帧未到回落整栈帧顶）。两帧同
+    /// 为窗口系、相减即带高（高度是标量，与本地坐
+    /// 标系无关）。偏差 >0.5 才写，与原同步守卫同档
+    private func syncBandHeight() {
+        guard isViewLoaded, bandHeightConstraint != nil,
               barFrameInWindow.height > 0
         else { return }
         let top = cardFrameInWindow.height > 0
@@ -649,10 +656,10 @@ final class ComposerGuideHostController: UIViewController {
             : barFrameInWindow.minY
         let height = barFrameInWindow.maxY - top
         guard height > 0,
-              abs(backdropHeightConstraint.constant - height)
+              abs(bandHeightConstraint.constant - height)
                 > 0.5
         else { return }
-        backdropHeightConstraint.constant = height
+        bandHeightConstraint.constant = height
         view.setNeedsLayout()
     }
 
@@ -681,18 +688,20 @@ final class ComposerGuideHostController: UIViewController {
             false
         view.addSubview(composerHost.view)
         composerHost.didMove(toParent: self)
-        // §200：输入框周边底衬入层——插在舱宿主之下
+        // §213：舱带注册容器入层——插在舱宿主之下
         // （本视图子视图序最底）；左右/底随舱宿主、
-        // 高由 backdropHeightConstraint 承实测帧算出
-        // 的衬高（A2 起为卡段高，syncBackdropHeight
-        // 同步，种子 0＝未到帧不显）
-        backdropView.translatesAutoresizingMaskIntoConstraints =
+        // 高由 bandHeightConstraint 承实测帧算出的带
+        // 高（A2 卡段高，syncBandHeight 同步，种子 0
+        // ＝未到帧零高）。容器透明无色、只承载底缘
+        // 效果注册（见文件头 §213）
+        bandView.translatesAutoresizingMaskIntoConstraints =
             false
         view.insertSubview(
-            backdropView, belowSubview: composerHost.view
+            bandView, belowSubview: composerHost.view
         )
-        backdropHeightConstraint = backdropView.heightAnchor
+        bandHeightConstraint = bandView.heightAnchor
             .constraint(equalToConstant: 0)
+        refreshEdgeBinding()
         // §194：宿主顶/左右贴本视图、底边恒钉位置引
         // 导线（单约束永不切换，见 syncBottomCon-
         // stant）：引导线先入本视图（top 常量待 sync-
@@ -719,13 +728,13 @@ final class ComposerGuideHostController: UIViewController {
                 equalToConstant: 0),
             bottomGuideTopConstraint,
             bottom,
-            backdropView.leadingAnchor.constraint(
+            bandView.leadingAnchor.constraint(
                 equalTo: composerHost.view.leadingAnchor),
-            backdropView.trailingAnchor.constraint(
+            bandView.trailingAnchor.constraint(
                 equalTo: composerHost.view.trailingAnchor),
-            backdropView.bottomAnchor.constraint(
+            bandView.bottomAnchor.constraint(
                 equalTo: composerHost.view.bottomAnchor),
-            backdropHeightConstraint,
+            bandHeightConstraint,
         ])
         if barFrameInWindow.height > 0 {
             (view as? ComposerPassthroughView)?
@@ -861,14 +870,9 @@ final class ComposerGuideHostController: UIViewController {
                 dockBarView = foundBar.view
                 dockIsFallback = false
             }
-            // §200：坞底衬随锚解析同拍校正——命中的是
-            // UITabBar 本体时把系统材质垫进坞层级最底
-            // 层（幂等：已装只校正层级与帧）；类名兜底
-            // 命中不是本体、不装（不许往系统内部视图
-            // 里塞东西）
-            if let tabBar = foundBar.view as? UITabBar {
-                SystemDockBackdrop.ensureInstalled(in: tabBar)
-            }
+            // §213：坞内不再装任何自家子视图——UITab-
+            // Bar 是系统条，其边缘呈现归系统自身（§200
+            // 坞底衬退役）；本函数对坞仍只读帧
         } else if !dockIsFallback || windowChanged {
             // 无坞环境回落（探针裸装配等非生产形态）：
             // 参照＝窗口安全区底——生产装配恒有坞，
@@ -1013,6 +1017,9 @@ final class ComposerGuideHostController: UIViewController {
         if dockIsFallback, !keyboardUp {
             resolveAnchors()
         }
+        // §213：舱带绑定同路刷新（列表本体登记晚于
+        // 本控制器装配时在此补绑；指针比对、恒廉价）
+        refreshEdgeBinding()
         syncBottomConstant()
         reportBottomSpace()
         reportTopSafe()
