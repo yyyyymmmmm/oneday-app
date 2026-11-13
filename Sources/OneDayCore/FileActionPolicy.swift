@@ -50,7 +50,7 @@ public enum FileItemAction: String, CaseIterable, Sendable {
         case .pin: return "置顶"
         case .unpin: return "取消置顶"
         case .rename: return "重命名"
-        case .openInFiles: return "在文件页中打开"
+        case .openInFiles: return "在资源库中打开"
         }
     }
 

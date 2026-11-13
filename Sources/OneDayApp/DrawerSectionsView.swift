@@ -3,9 +3,9 @@ import OneDayDesign
 import SwiftUI
 
 /// 分区管理面（§198，抽屉包题二新建，照 Muse 本体
-/// 侧边栏分区管理面形态）：抽屉四区——选项卡／频
-/// 道／管理全部对话／旁聊——逐行「显示⇄隐藏」，写
-/// 显隐账（Core SectionVisibilityState，落盘键
+/// 侧边栏分区管理面形态）：抽屉三区——选项卡／频
+/// 道／旁聊——逐行「显示⇄隐藏」，写显隐账（Core
+/// SectionVisibilityState，落盘键
 /// SectionVisibilityStorageKeys.drawerSections），
 /// 抽屉渲染＝显隐账 ∧ 内容闸（合成在 Core
 /// DrawerSectionGates：频道区无成员仍不显）。本面
@@ -14,10 +14,14 @@ import SwiftUI
 /// 置页「侧边栏」行（目录条目 sidebar），抽屉内不
 /// 另设编辑钮（避免双入口，四问①）。不设「空间」
 /// 行：OneDay 无此区（场景功能未立项，审计 §0）。
-/// 分隔走系统 List 口径（规格 R9）：四条目是同级
+/// 分隔走系统 List 口径（规格 R9）：三条目是同级
 /// 行、行间有线、末行无线，本面无组头——不存在
 /// 「标题与子项被线切开」的结构；抽屉的段内线几
 /// 何不搬进本面、本面的系统线也不搬进抽屉
+/// （§198 原第四条目「管理全部对话」已退役：管理
+/// 收口包补件，用户 2026-11-13 18:57 拍板入口挪
+/// 设置页「全部对话」行——被管的行已不在抽屉，本
+/// 面不再留它的显隐开关，免 phantom 开关悬空）
 struct DrawerSectionsView: View {
     @AppStorage(SectionVisibilityStorageKeys.drawerSections)
     private var visibilityData: Data = Data()
@@ -35,9 +39,6 @@ struct DrawerSectionsView: View {
                 )
                 visibilityRow(
                     "频道", key: DrawerSectionKey.channels
-                )
-                visibilityRow(
-                    "管理全部对话", key: DrawerSectionKey.manage
                 )
                 visibilityRow(
                     "旁聊", key: DrawerSectionKey.sideChats

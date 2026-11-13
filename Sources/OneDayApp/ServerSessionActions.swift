@@ -103,6 +103,16 @@ enum ServerSessionActions {
             try await appState.performAdmin { client, config in
                 try await client.deleteServerSession(config: config, id: id)
             }
+        } catch let error as HermesError {
+            // 404＝服务端本就没这条（他处已删/存量残影）：
+            // 不直接判败，落到下方回查定夺——回查读不到
+            // 即目标已达成（0.50.30）
+            if case .unexpectedStatus(_, let status) = error,
+               status == 404 {
+                // 落回查裁决
+            } else {
+                return .failed(humanReason(error))
+            }
         } catch {
             return .failed(humanReason(error))
         }

@@ -499,9 +499,10 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     /// （各写接口的回执形态不一，调用方需要新状态时自行重拉）。
     private func sendJSON(
         config: ServerConfig, path: String, method: String, endpoint: String,
-        body: [String: JSONValue]? = nil, timeout: TimeInterval? = nil
+        body: [String: JSONValue]? = nil, timeout: TimeInterval? = nil,
+        query: [URLQueryItem] = []
     ) async throws {
-        var request = URLRequest(url: config.endpoint(path))
+        var request = URLRequest(url: url(config: config, path: path, query: query))
         request.httpMethod = method
         if let timeout {
             request.timeoutInterval = timeout
@@ -1213,10 +1214,41 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     }
 
     func deleteServerSession(config: ServerConfig, id: String) async throws {
-        try await sendJSON(
-            config: config, path: "/api/sessions/\(id)", method: "DELETE",
-            endpoint: L10n.string("服务端会话删除")
-        )
+        // 0.50.30 围栏接线（DESIGN §204.6）：DELETE 与
+        // PATCH 同围栏制，但三参数必须走 query string
+        // （放 body 或缺失必被拒：全空 409 client_
+        // upgrade_required、缺代次 400 invalid_params；
+        // 0.27.0 前的裸 DELETE 正是这样屡删屡败、会话
+        // 从没真删掉过——2026-11-13 生产实证在管理收
+        // 口包报告件二）。每试先 GET 详情取 runtime_
+        // revision＋runtime_generation，三参数齐发；
+        // 409 重读重试一次，再失败如实上抛。修订读不
+        // 到（旧投影）时退无围栏直发、错误照样上抛
+        for attempt in 0..<2 {
+            var query: [URLQueryItem] = []
+            if let row = try? await serverSession(config: config, id: id),
+               let revision = row.runtimeRevision,
+               let generation = row.runtimeGeneration {
+                query = [
+                    URLQueryItem(name: "request_id", value: UUID().uuidString),
+                    URLQueryItem(name: "expected_revision", value: String(revision)),
+                    URLQueryItem(name: "expected_generation", value: String(generation)),
+                ]
+            }
+            do {
+                try await sendJSON(
+                    config: config, path: "/api/sessions/\(id)", method: "DELETE",
+                    endpoint: L10n.string("服务端会话删除"), query: query
+                )
+                return
+            } catch let error as HermesError {
+                if case .unexpectedStatus(_, let status) = error,
+                   status == 409, attempt == 0 {
+                    continue
+                }
+                throw error
+            }
+        }
     }
 
     func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws {

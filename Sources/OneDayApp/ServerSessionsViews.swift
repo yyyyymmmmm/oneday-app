@@ -424,18 +424,33 @@ struct ServerSessionsView: View {
     }
 
     private func bulkDelete() async {
+        // 0.50.30 对齐真删标准：bulk-delete 端点在网关
+        // 运行期被独占维护守卫拒绝（2026-11-13 生产实
+        // 证 409），删会话只走围栏 DELETE 一条路——逐
+        // 条走 ServerSessionActions.delete（围栏＋删后
+        // 回查），失败的留在选中集里可重试、原因显形
         let ids = Array(selectedIDs)
-        do {
-            try await appState.performAdmin { client, config in
-                try await client.bulkDeleteServerSessions(config: config, ids: ids)
+        var failedIDs: [String] = []
+        var firstReason: String?
+        for id in ids {
+            switch await ServerSessionActions.delete(
+                appState: appState, id: id
+            ) {
+            case .verified:
+                break
+            case .failed(let reason):
+                failedIDs.append(id)
+                if firstReason == nil { firstReason = reason }
             }
-            selectedIDs = []
+        }
+        selectedIDs = Set(failedIDs)
+        if failedIDs.isEmpty {
             selecting = false
             notice = "已删除 \(ids.count) 条会话。"
-            await load()
-        } catch {
-            notice = (error as? HermesError)?.userMessage ?? "删除失败，请稍后再试。"
+        } else if let firstReason {
+            notice = firstReason
         }
+        await load()
     }
 
     private func deleteEmpty() async {
@@ -657,13 +672,15 @@ struct ServerSessionDetailView: View {
     }
 
     private func deleteSession() async {
-        do {
-            try await appState.performAdmin { client, config in
-                try await client.deleteServerSession(config: config, id: sessionID)
-            }
+        // 0.50.30：同走 ServerSessionActions.delete
+        // （围栏 DELETE＋删后回查），未落定不关页
+        switch await ServerSessionActions.delete(
+            appState: appState, id: sessionID
+        ) {
+        case .verified:
             dismiss()
-        } catch {
-            notice = (error as? HermesError)?.userMessage ?? "删除失败，请稍后再试。"
+        case .failed(let reason):
+            notice = reason
         }
     }
 }

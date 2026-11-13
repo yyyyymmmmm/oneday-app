@@ -33186,19 +33186,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Files"
+            "value": "Library"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文件"
+            "value": "资源库"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檔案"
+            "value": "資源庫"
           }
         }
       }
@@ -33617,25 +33617,25 @@
         }
       }
     },
-    "文件页菜单": {
+    "资源库菜单": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Files page menu"
+            "value": "Library menu"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文件页菜单"
+            "value": "资源库菜单"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檔案頁選單"
+            "value": "資源庫選單"
           }
         }
       }
@@ -43998,6 +43998,29 @@
         }
       }
     },
+    "没删掉": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't delete it"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没删掉"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒刪掉"
+          }
+        }
+      }
+    },
     "没删掉：这条会话在服务器上还在，稍后再试一次。": {
       "extractionState": "manual",
       "localizations": {
@@ -50253,29 +50276,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "簡體中文"
-          }
-        }
-      }
-    },
-    "管理全部对话": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manage all conversations"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "管理全部对话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "管理全部對話"
           }
         }
       }
@@ -66906,6 +66906,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "側邊欄"
+          }
+        }
+      }
+    },
+    "全量会话名单、搜索、批量与清理": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full session list, search, batch actions and cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全量会话名单、搜索、批量与清理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全量會話名單、搜尋、批量與清理"
           }
         }
       }

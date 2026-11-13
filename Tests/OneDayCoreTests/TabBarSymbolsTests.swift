@@ -46,7 +46,7 @@ final class TabBarSymbolsTests: XCTestCase {
                 selected: "checklist"
             ),
             TabSymbolPair(
-                id: "files", title: "文件",
+                id: "files", title: "资源库",
                 normal: "tray",
                 selected: "tray"
             ),

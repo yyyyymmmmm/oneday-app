@@ -23,7 +23,8 @@ final class SessionClassificationTests: XCTestCase {
             isArchived: nil, isPinned: nil, model: nil, profile: nil,
             startedAt: nil, endedAt: nil, endReason: nil,
             messageCount: nil, toolCallCount: nil,
-            inputTokens: nil, outputTokens: nil
+            inputTokens: nil, outputTokens: nil,
+            runtimeRevision: nil, runtimeGeneration: nil
         )
     }
 

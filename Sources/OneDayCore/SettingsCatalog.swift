@@ -49,6 +49,12 @@ public enum SettingsDestination: Equatable, Sendable {
     case appearance
     /// 侧边栏分区管理面（§198，抽屉包题二新建）
     case sidebar
+    /// 全部对话页（管理收口包补件，用户 2026-11-13
+    /// 18:57 拍板）：入口自抽屉迁入设置页——它不是
+    /// 设置栈内页，点按走 ContentView 根级全屏呈现
+    /// （与原抽屉入口同一呈现路），故 route 映射为
+    /// nil、由 SettingsView 动作行分流
+    case allConversations
     case help
     case about
     case privacy
@@ -169,8 +175,8 @@ public enum SettingsCatalog {
         SettingsCatalogEntry(
             id: "workspace", group: .serverAndWorkspace,
             title: "工作区",
-            summary: "总览、电脑与文件",
-            keywords: ["工作区", "总览", "电脑", "文件", "workspace"],
+            summary: "总览、电脑与资源库",
+            keywords: ["工作区", "总览", "电脑", "文件", "资源库", "workspace"],
             destination: .workspaceHub
         ),
         // 服务器管理页内子项（不在根页显示）
@@ -267,6 +273,17 @@ public enum SettingsCatalog {
             summary: "抽屉各分区的显示与隐藏",
             keywords: ["抽屉", "分区", "显示", "隐藏", "sidebar", "drawer"],
             destination: .sidebar
+        ),
+        // 管理收口包补件（用户 2026-11-13 18:57 拍
+        // 板）：全部对话入口自抽屉迁入本组、紧邻侧边
+        // 栏行（同属对话/抽屉管理家族）；行名用页面
+        // 自身标题「全部对话」，不带「管理」二字
+        SettingsCatalogEntry(
+            id: "allConversations", group: .preferences,
+            title: "全部对话",
+            summary: "全量会话名单、搜索、批量与清理",
+            keywords: ["全部对话", "会话", "批量", "清理", "归档", "all conversations", "sessions"],
+            destination: .allConversations
         ),
         SettingsCatalogEntry(
             id: "connectors", group: .preferences,

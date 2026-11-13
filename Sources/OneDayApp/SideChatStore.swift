@@ -228,6 +228,16 @@ final class SideChatStore {
         persist(failedArchiveSessionIDs, Key.failedArchiveSessionIDs)
     }
 
+    /// 真删落定后的本地清账（0.50.30）：服务端会话已
+    /// 回查确认不存在，按其 id 挂在本地的账一并清掉
+    /// ——标题覆盖、服务端形态归档键、归档失败留痕，
+    /// 不留残影（id 若日后重现也不许被旧账染指）
+    func purgeServerSessionRecords(_ sessionID: String) {
+        setTitleOverride(nil, for: sessionID)
+        unarchive(serverSessionID: sessionID)
+        clearFailedSessionArchive(sessionID)
+    }
+
     // MARK: - 标题覆盖（M3 本地绕行，0.18.0 起存量遗
     // 留：改名已改走服务端 PATCH 直达，本表只剩迁移
     // 输入——管理页首开时逐条回写服务端、对账落定
