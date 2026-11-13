@@ -225,6 +225,37 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 此值＋顶簇实高记账列表顶 contentMargins，
     /// 顶簇落位归 TopBarGuideHost，见文件头 §195）
     @Binding var topSafe: CGFloat
+    /// 键盘整包 R1（2026-11-13）：舱栈高实测回报
+    /// （整栈帧高）——喂 ChatView 的键盘几何快照
+    /// （KeyboardGeometrySnapshot.pocketHeight）。
+    /// 栈高是离散量（回底钮行/错误行/多行生长才
+    /// 变、键盘动画中恒定），与 bottomSpace 的逐
+    /// 帧舱顶回报分工：留位自此由快照派生（键盘
+    /// 事件同拍），bottomSpace 回报降级为诊断读数
+    @Binding var pocketHeight: CGFloat
+    /// 键盘整包 R1：坞顶实测回报（窗口坐标，坞本
+    /// 体布局空间实帧顶）——喂快照的静息锚
+    /// （dockTopInWindow）。只在键盘不在场时报
+    /// （在场时坞被藏、其帧不是静息落点）；坞未解
+    /// 析（回落态）不报、快照保留上次值/种子
+    @Binding var dockTop: CGFloat
+    /// 键盘整包 R1（修正，2026-11-13 深夜）：键盘帧
+    /// 更新包（KeyboardFrameUpdate，帧顶已在控制
+    /// 器内转窗口坐标＋动画参数原值）——喂快照的键
+    /// 盘输入。首版由 ChatView 以 SwiftUI .onReceive
+    /// 自行解析通知帧：存的是屏幕坐标原值、与快照
+    /// 的窗口坐标系不重合（测试装配实测锚恒偏），
+    /// 且与控制器 §194 的解析重复——自此收口到控
+    /// 制器唯一解析点（同 updateKeyboardTop 的
+    /// window.convert 口径），ChatView 只消费
+    @Binding var keyboardFrame: KeyboardFrameUpdate?
+    /// 键盘整包 R1（修正）：窗口高实测回报——喂快
+    /// 照的 windowHeight，取源与 reportBottomSpace
+    /// 同一窗口真值（window.bounds.height）。首版
+    /// 误以 ChatView 页根几何高喂入（页在本装配内
+    /// 高 729≠窗口 874，留位公式的坐标基准整体偏
+    /// 移、验收轮实测坐实）
+    @Binding var windowHeight: CGFloat
     /// 舱本体（ChatView 的 bottomBar 整栈）：在 init 里
     /// 由构建闭包求值成视图值——求值发生在 ChatView 的
     /// body 构建期，bottomBar 内部的全部状态读数由此归
@@ -241,10 +272,18 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     init(
         bottomSpace: Binding<CGFloat>,
         topSafe: Binding<CGFloat>,
+        pocketHeight: Binding<CGFloat>,
+        dockTop: Binding<CGFloat>,
+        keyboardFrame: Binding<KeyboardFrameUpdate?>,
+        windowHeight: Binding<CGFloat>,
         @ViewBuilder content: () -> Content
     ) {
         self._bottomSpace = bottomSpace
         self._topSafe = topSafe
+        self._pocketHeight = pocketHeight
+        self._dockTop = dockTop
+        self._keyboardFrame = keyboardFrame
+        self._windowHeight = windowHeight
         self.content = content()
     }
 
@@ -270,6 +309,45 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
             DispatchQueue.main.async {
                 if abs(topSafe.wrappedValue - value) > 0.5 {
                     topSafe.wrappedValue = value
+                }
+            }
+        }
+        let pocketHeight = $pocketHeight
+        controller.onPocketHeightChange = { value in
+            // R1：与上同纪（下一拍写、>0.5 才发）——
+            // 栈高离散变化、无逐帧爬行面
+            DispatchQueue.main.async {
+                if abs(pocketHeight.wrappedValue - value)
+                    > 0.5 {
+                    pocketHeight.wrappedValue = value
+                }
+            }
+        }
+        let dockTop = $dockTop
+        controller.onDockTopChange = { value in
+            DispatchQueue.main.async {
+                if abs(dockTop.wrappedValue - value) > 0.5 {
+                    dockTop.wrappedValue = value
+                }
+            }
+        }
+        let keyboardFrame = $keyboardFrame
+        controller.onKeyboardFrameChange = { update in
+            // 键盘事件拍直写（同步）：本回调源自通
+            // 知处理、非布局拍，无「更新期改状态」
+            // 之虞——快照与 §194 舱常量同拍翻转是
+            // R1 的本意；布局源的回报（上四条）才
+            // 走下一拍纪律
+            if keyboardFrame.wrappedValue != update {
+                keyboardFrame.wrappedValue = update
+            }
+        }
+        let windowHeight = $windowHeight
+        controller.onWindowHeightChange = { value in
+            DispatchQueue.main.async {
+                if abs(windowHeight.wrappedValue - value)
+                    > 0.5 {
+                    windowHeight.wrappedValue = value
                 }
             }
         }
@@ -453,6 +531,19 @@ final class ComposerGuideHostController: UIViewController {
     var onBottomSpaceChange: ((CGFloat) -> Void)?
     /// §195：窗口顶安全区变化回调（同上守卫口径）
     var onTopSafeChange: ((CGFloat) -> Void)?
+    /// R1：舱栈高变化回调（同上守卫口径）——喂键
+    /// 盘几何快照的 pocketHeight
+    var onPocketHeightChange: ((CGFloat) -> Void)?
+    /// R1：坞顶变化回调（同上守卫口径）——喂快照
+    /// 的静息锚 dockTopInWindow
+    var onDockTopChange: ((CGFloat) -> Void)?
+    /// R1（修正）：键盘帧更新回调——键盘通知的解
+    /// 析收口点（reportKeyboardFrame），帧顶已转
+    /// 窗口坐标、动画参数原值
+    var onKeyboardFrameChange: ((KeyboardFrameUpdate) -> Void)?
+    /// R1（修正）：窗口高变化回调（同上守卫口径）
+    var onWindowHeightChange: ((CGFloat) -> Void)?
+    private var lastReportedWindowHeight: CGFloat = -1
 
     private let composerHost = UIHostingController<AnyView>(
         rootView: AnyView(EmptyView())
@@ -493,6 +584,9 @@ final class ComposerGuideHostController: UIViewController {
     private var lastReportedSpace: CGFloat = -1
     /// §195：窗口顶安全区上次回报值（等值守卫）
     private var lastReportedTopSafe: CGFloat = -1
+    /// R1：栈高/坞顶上次回报值（等值守卫）
+    private var lastReportedPocketHeight: CGFloat = -1
+    private var lastReportedDockTop: CGFloat = -1
     /// §200 输入框周边底衬（系统材质）：舱宿主层级
     /// 内最底层；左右/底随舱宿主、高由 back-
     /// dropHeightConstraint 承实测帧算出（A2 起＝卡
@@ -526,6 +620,7 @@ final class ComposerGuideHostController: UIViewController {
         // 隐——只经卡帧/整栈帧两路输入进公式）
         syncBackdropHeight()
         reportBottomSpace()
+        reportPocketHeight()
     }
 
     /// A2：输入舱卡本体帧喂入点（托管树每次布局后
@@ -690,6 +785,7 @@ final class ComposerGuideHostController: UIViewController {
         updateKeyboardTop(from: note)
         syncBottomConstant()
         animateLayout(with: note, immediateIfZero: true)
+        reportKeyboardFrame(from: note)
     }
 
     /// §194 键盘帧顶存账：通知的结束帧是屏幕坐标，
@@ -858,6 +954,7 @@ final class ComposerGuideHostController: UIViewController {
             if up {
                 syncBottomConstant()
                 view.layoutIfNeeded()
+                reportKeyboardFrame(from: note)
             }
             return
         }
@@ -865,6 +962,7 @@ final class ComposerGuideHostController: UIViewController {
         if !up { keyboardTopInWindow = nil }
         syncBottomConstant()
         animateLayout(with: note, immediateIfZero: false)
+        reportKeyboardFrame(from: note)
     }
 
     /// 窗口层级内找坞锚目标（深度优先两级）：先
@@ -918,6 +1016,8 @@ final class ComposerGuideHostController: UIViewController {
         syncBottomConstant()
         reportBottomSpace()
         reportTopSafe()
+        reportPocketHeight()
+        reportDockTop()
     }
 
     /// §195 窗口顶安全区实测回报：读本视图所在窗口
@@ -937,6 +1037,42 @@ final class ComposerGuideHostController: UIViewController {
         onTopSafeChange?(top)
     }
 
+    /// R1 栈高实测回报：整栈帧高即快照的 pocket-
+    /// Height——栈高只在栈内容离散变化时变（回底
+    /// 钮行/错误行/多行生长），键盘动画全程恒定，
+    /// 本回报无逐帧爬行面（与舱顶回报分工的根由）
+    private func reportPocketHeight() {
+        let height = barFrameInWindow.height
+        guard height > 0,
+              abs(height - lastReportedPocketHeight) > 0.5
+        else { return }
+        lastReportedPocketHeight = height
+        onPocketHeightChange?(height)
+    }
+
+    /// R1 坞顶实测回报：坞本体布局空间实帧顶（窗
+    /// 口坐标，与 syncBottomConstant 的静息锚同一
+    /// 读数）——只在键盘不在场时报：在场时坞被藏、
+    /// 帧非静息落点，报了反而污染快照的静息锚；
+    /// 坞未解析（回落态）不报、快照保留上次值
+    private func reportDockTop() {
+        guard !keyboardUp, let dock = dockBarView,
+              let window = dock.window
+        else { return }
+        // 测量法：convert 窗口真值（变换感知）——
+        // 坞的祖先链含 TabView 内部带变换的容器，
+        // layoutSpaceMinY 的原点累加在此失真（验
+        // 收轮实测偏 +83）；§194 舱锚自身的同名近
+        // 似不在本包动（冻结），本回报是新链、用
+        // 与诊断 rig 的 dockY 同一口径
+        let top = dock.convert(dock.bounds, to: window).minY
+        guard top > 0,
+              abs(top - lastReportedDockTop) > 0.5
+        else { return }
+        lastReportedDockTop = top
+        onDockTopChange?(top)
+    }
+
     /// 舱顶实测回报：以桥喂入的窗口系舱帧为准，报
     /// 「舱顶→窗口底」距离——页帧在键盘态如何伸缩、
     /// 宿主填充多高都不进公式，ChatView 侧只做
@@ -945,10 +1081,60 @@ final class ComposerGuideHostController: UIViewController {
         guard let window = viewIfLoaded?.window,
               barFrameInWindow.height > 0
         else { return }
-        let space = window.bounds.height
+        // R1（修正）：窗口高随本拍同报（快照坐标基
+        // 准；与 space 同源同窗、独立守卫）
+        let height = window.bounds.height
+        if abs(height - lastReportedWindowHeight) > 0.5 {
+            lastReportedWindowHeight = height
+            onWindowHeightChange?(height)
+        }
+        let space = height
             - barFrameInWindow.minY
         guard abs(space - lastReportedSpace) > 0.5 else { return }
         lastReportedSpace = space
         onBottomSpaceChange?(space)
+    }
+
+    /// R1（修正）：键盘帧更新包的组装点——与
+    /// updateKeyboardTop 同一解析（window.convert
+    /// 转窗口坐标）、同一通知；停靠判定在窗口坐标
+    /// 系内做（满宽＋底边贴窗口底＋帧顶在窗口内），
+    /// 浮动/分离键盘按不在场报（top＝nil）；键盘
+    /// 不在场（willHide 后）恒报 nil。动画参数取
+    /// userInfo 原值
+    private func reportKeyboardFrame(
+        from note: Notification
+    ) {
+        let info = note.userInfo
+        let duration = (info?[
+            UIResponder.keyboardAnimationDurationUserInfoKey
+        ] as? NSNumber)?.doubleValue ?? 0
+        let curve = (info?[
+            UIResponder.keyboardAnimationCurveUserInfoKey
+        ] as? NSNumber)?.intValue ?? 0
+        var top: CGFloat? = nil
+        if keyboardUp,
+           let window = view.window,
+           let value = info?[
+               UIResponder.keyboardFrameEndUserInfoKey
+           ] as? NSValue {
+            let rect = window.convert(
+                value.cgRectValue, from: nil
+            )
+            let docked = rect.width
+                    >= window.bounds.width - 1
+                && rect.maxY
+                    >= window.bounds.height - 1
+                && rect.minY
+                    < window.bounds.height - 1
+            top = docked ? rect.minY : nil
+        }
+        onKeyboardFrameChange?(
+            KeyboardFrameUpdate(
+                topInWindow: top,
+                duration: duration,
+                curveRawValue: curve
+            )
+        )
     }
 }

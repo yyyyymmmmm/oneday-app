@@ -21,12 +21,13 @@ import UIKit
 /// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
 
 /// 距底原始读数匣（§199）：滚动几何回调逐帧写、
-/// 贴底复核（120ms 后）读一次的原始距底——旧形态
+/// 落定评估（R4 事件化后为事件到场即读）的原始距
+/// 底——旧形态
 /// 存 @State，滚动中读数逐帧变、等值守卫挡不住，
 /// 等于每帧触发一次全页 body 重跑（审计 §2.1 的放
 /// 大器一半）。改存引用匣：写不触发任何视图失效，
-/// 读到的恒是读时点的最新值——唯一消费者（复核
-/// shouldRestick 与同点打点）在读时点上与旧 @State
+/// 读到的恒是读时点的最新值——消费者（落定评估
+/// 与同点打点）在读时点上与旧 @State
 /// 读数逐字相等，判定阈值与语义零变更，只降回写
 /// 频次（§199 包 1 第三件）。经 @State 持实例（初
 /// 值只用一次），跨 body 重建恒为同一匣
@@ -35,7 +36,7 @@ private final class BottomDistanceRecorder {
     /// 内容末端（栈尾锚）是否完整落在可视区内（手感
     /// A 档事实信号，见 Core BottomFactCalibration
     /// 注）：由尾锚自身的几何回调写本匣——与 latest
-    /// 同纪律，写不失效任何视图，只在派生点与复核
+    /// 同纪律，写不失效任何视图，只在派生点与评估
     /// 点被读；切线程时由线程切换路清零，防旧线程
     /// 的末端事实误校新线程首帧
     var contentEndVisible = false
@@ -44,6 +45,12 @@ private final class BottomDistanceRecorder {
     /// listViewportHeight 只供内容栈撑满，两处同源
     /// 不分叉，本匣是事实回调的读口
     var containerHeight: CGFloat = 0
+    /// 列表底 inset 实值（adjustedContentInset.
+    /// bottom 的同拍读数）：喂尾锚回调的有效视口
+    /// 判定——视口高须扣除本带（＝输入舱遮挡带，
+    /// 尾锚落在带内不算「在屏可读」）；与 latest
+    /// 同纪律、写不失效任何视图
+    var bottomInset: CGFloat = 0
 }
 
 struct ChatView: View {
@@ -217,8 +224,17 @@ struct ChatView: View {
     /// scrollToBottom 单口裁决（同帧合并＋全局唯一
     /// 复贴），判定在 Core BottomStickCoordinator
     @State private var stickCoordinator = BottomStickCoordinator()
-    /// 所有者在途的唯一复贴任务（新贴底顶替旧任务）
-    @State private var stickRestickTask: Task<Void, Never>?
+    /// 落定状态机（键盘整包 R4；Core BottomSettle-
+    /// Machine，五量事件源与转移在 Core 钉死）＋本
+    /// 笔观察的协调者代号＋有界单发兜底任务。旧形
+    /// 态 [120, 320, 640, 1100]ms 定时复核序列
+    /// （症④的落定尾巴本体）整件退役；兜底任务是
+    /// 评审口径留的口子——2 秒单发、只把当前读数
+    /// 喂回同一判定、不循环、不自成机制（见 eva-
+    /// luateSettleFallback）
+    @State private var settleMachine = BottomSettleMachine()
+    @State private var settleGeneration: Int?
+    @State private var settleFallbackTask: Task<Void, Never>?
     /// 键盘帧落定标记（手感 A 档，键盘锚底事件驱
     /// 动）：Will 路置假（帧在途）、Did 路置真（帧
     /// 已落定）；静息（无键盘动画）恒真。锚底请求
@@ -364,6 +380,30 @@ struct ChatView: View {
     // 的同档近似：坞 83＋舱高约 77＋边距 8），host
     // 首个布局拍即以实测覆盖、不留陈值
     @State private var composerBottomSpace: CGFloat = 168
+    /// 键盘几何单一快照（键盘整包 R1，2026-11-13；
+    /// 值类型在 Core KeyboardGeometrySnapshot）：
+    /// 列表底留位与坞显隐自此只读本快照——键盘顶
+    /// 与动画参数由键盘通知在事件拍直写（见 mes-
+    /// sageList 的 WillChangeFrame 订阅），栈高/坞
+    /// 顶由 ComposerGuideHost 的离散回报喂入，窗
+    /// 口高随本页根几何同步。种子（874/791/105）
+    /// 与 composerBottomSpace 的 168 同纪律：本机
+    /// 型同档近似、首个布局拍即被实测覆盖。
+    /// composerBottomSpace 自此降级：只余 A3 流式
+    /// 跟随的结算拍触发与诊断读数两职，不再进留
+    /// 位公式（D2：回报链退出控制环）
+    @State private var kbSnapshot = KeyboardGeometrySnapshot(
+        windowHeight: 874, dockTopInWindow: 791,
+        pocketHeight: 105
+    )
+    /// R1（修正）：键盘帧更新包的收件槽——由 Com-
+    /// poserGuideHost 控制器（唯一解析点）在键盘事
+    /// 件拍直写（帧顶已转窗口坐标），本页 onChange
+    /// 以其动画参数原值整包写进快照（见 body 根的
+    /// onChange(kbFrameUpdate)）。首版由本页 .onRe-
+    /// ceive 自行解析通知：屏幕坐标原值与快照窗口
+    /// 坐标不重合、锚恒偏——解析自此不归本页
+    @State private var kbFrameUpdate: KeyboardFrameUpdate?
     /// §195：窗口顶安全区实测（ComposerGuideHost 在
     /// 布局拍回写；种子 62＝本机型不变量、首个布局
     /// 拍即被实测覆盖，与 composerBottomSpace 的
@@ -592,6 +632,29 @@ struct ChatView: View {
         } action: { _, newHeight in
             hostViewHeight = newHeight
         }
+        // R1（修正）：键盘帧更新包到达即整包入快照
+        // ——动画以通知参数原值推进（曲线映射见
+        // keyboardSnapshotAnimation）；快照的窗口
+        // 高由宿主回报喂入（window.bounds 真值），
+        // 本页根几何高是页内可用高、不是窗口高，
+        // 不许再喂（首版误喂 729≠874、留位整体偏
+        // 移，验收轮实测坐实）
+        .onChange(of: kbFrameUpdate) { _, update in
+            guard let update else { return }
+            withAnimation(
+                keyboardSnapshotAnimation(
+                    duration: update.duration,
+                    curveRaw: update.curveRawValue
+                )
+            ) {
+                kbSnapshot.keyboardTopInWindow =
+                    update.topInWindow
+                kbSnapshot.animationDuration =
+                    update.duration
+                kbSnapshot.animationCurveRawValue =
+                    update.curveRawValue
+            }
+        }
         // 0.19.0：抽屉「枢纽」导航行的开枢纽请求通道
         //（AppState.hubOpenRequested 置位—消费—清零，
         // 与 cronCreateRequested 同式）：抽屉先切聊天格
@@ -784,6 +847,35 @@ struct ChatView: View {
     /// 0.2.6/0.4.3 的「回布局流」结论就此更新为「留前景
     /// 层级内、钉位改走引导线」：不在安全区栈里、也不回
     /// 覆盖层推算，两条旧路都不走）
+    /// 输入舱宿主 overlay（自 chatSurface 抽出单
+    /// 独成件：主链表达式过重、类型检查超时——拆
+    /// 表达式是编译器给的处方，语义零改动）
+    @ViewBuilder
+    private func composerHostOverlay(
+        _ proxy: ScrollViewProxy
+    ) -> some View {
+        ComposerGuideHost(
+            bottomSpace: $composerBottomSpace,
+            topSafe: $windowTopSafeInset,
+            pocketHeight: $kbSnapshot.pocketHeight,
+            dockTop: $kbSnapshot.dockTopInWindow,
+            keyboardFrame: $kbFrameUpdate,
+            windowHeight: $kbSnapshot.windowHeight
+        ) {
+            bottomBar(proxy)
+        }
+    }
+
+    /// 顶簇宿主 overlay（同上拆分）
+    @ViewBuilder
+    private var topBarHostOverlay: some View {
+        TopBarGuideHost(
+            barHeight: $topBarHeight
+        ) {
+            topBarCluster
+        }
+    }
+
     private var chatSurface: some View {
         ScrollViewReader { proxy in
             // §186（2026-11-12，承载换代）：输入舱退出
@@ -807,12 +899,7 @@ struct ChatView: View {
             // 退出协商，overlay 是结构性的）
             messageList(proxy)
                 .overlay {
-                    ComposerGuideHost(
-                        bottomSpace: $composerBottomSpace,
-                        topSafe: $windowTopSafeInset
-                    ) {
-                        bottomBar(proxy)
-                    }
+                    composerHostOverlay(proxy)
                 }
                 // §195：顶簇同挂本复合面的 overlay 次
                 // 级层、由 TopBarGuideHost 以 UIKit 约
@@ -820,11 +907,7 @@ struct ChatView: View {
                 // 与本面/坞/键盘脱钩，详见该文件头）；
                 // 与输入舱同层同式、互不承载
                 .overlay {
-                    TopBarGuideHost(
-                        barHeight: $topBarHeight
-                    ) {
-                        topBarCluster
-                    }
+                    topBarHostOverlay
                 }
             // （§124 沿革注，本层与回底钮的关系）：回底
             // 钮三代浮层落位全败——0.41.0 挂发送区容器
@@ -856,13 +939,19 @@ struct ChatView: View {
         // 消失，键盘升起时坞仍会骑到键盘顶、与舱的下段
         // 带重叠（「坞被键盘窗自然覆盖」在 SwiftUI Tab-
         // View 下不成立，机制见诊断 3.1 与 Composer-
-        // GuideHost 文件头）；聚焦态藏坞、失焦恢复，坞
-        // 在键盘态彻底退出画面，舱直接坐在键盘上。显
-        // 隐与键盘动画的时序耦合列真机待验（§186 清单
-        // 第 1/2 项）；本修饰只挂聊天格内容根、逐格生
-        // 效，切到其他格时由该格自身口径接管（恒可见）
+        // GuideHost 文件头）；键盘态藏坞、落下恢复，坞
+        // 在键盘态彻底退出画面，舱直接坐在键盘上。
+        // 键盘整包 R5（2026-11-13）：显隐输入由聚焦
+        // 状态改键盘几何快照的在场位——快照在 Will-
+        // ChangeFrame 事件拍翻转（与 §194 舱常量同
+        // 源同拍），旧路 composerFocused 是 delegate
+        // 回调的观察回写、与键盘事件不同拍，坞的退
+        // 场/归位因此总慢键盘半拍（症⑤坞鬼影的时序
+        // 分量）；聚焦态自此退出坞显隐派生。本修饰
+        // 只挂聊天格内容根、逐格生效，切到其他格时
+        // 由该格自身口径接管（恒可见）
         .toolbar(
-            composerFocused ? .hidden : .visible,
+            kbSnapshot.isKeyboardUp ? .hidden : .visible,
             for: .tabBar
         )
         // 0.4.3（§28）：顶栏 headerBar 已收编——不再走
@@ -2172,12 +2261,25 @@ struct ChatView: View {
                         )
                         let viewportHeight =
                             bottomDistanceRecorder.containerHeight
+                        // 有效视口（评审合成条目 6）：底
+                        // 边扣除底 inset 带——尾锚落进输
+                        // 入舱遮挡带（留位区）内不算「在
+                        // 屏可读」，事实信号只认扣除后的
+                        // 可视区（带宽取 adjusted 实值、
+                        // 经引用匣同拍读，见底 inset 订
+                        // 阅）
+                        let effectiveBottom = viewportHeight
+                            - bottomDistanceRecorder.bottomInset
                         return viewportHeight > 0
                             && frame.minY >= -1
-                            && frame.maxY <= viewportHeight + 1
+                            && frame.maxY <= effectiveBottom + 1
                     } action: { _, endVisible in
                         bottomDistanceRecorder
                             .contentEndVisible = endVisible
+                        // R4：尾锚事实翻转是落定评估的
+                        // 事件源之一（事实到场即评，不
+                        // 等任何定时器）
+                        evaluateSettleOnEvent(proxy)
                     }
             }
             // 0.7.0（M1 轻保活）：滚动目标布局登记——条目
@@ -2206,34 +2308,50 @@ struct ChatView: View {
                 ),
                 alignment: .topLeading
             )
-            // 0.19.0：命中形状补全——0.3.5 只把帧撑满，
-            // LazyVStack 的命中测试仍只认子视图实形：
-            // 消息行之间的纵向空隙、空状态之外的空白
-            // 都不在任何子视图里，帧再大也点不中（用户
-            // 22:26 真机再次点名「点空白收回键盘」的残
-            // 洞）。contentShape 令栈帧全域可命中，下方
-            // 既有 onTapGesture 的辖区才真正等于撑满帧；
-            // 子视图（气泡/按钮/链接/长按菜单）仍先命中
-            // 自己，既有仲裁关系不动
-            .contentShape(Rectangle())
-            // 点消息区空白收键盘（0.2.1 缺陷修复；滚动拖动
-            // 收起由 scrollDismissesKeyboard 承接）。0.2.7 起
-            // 本手势只挂内容栈、不再挂 ScrollView 本体：
-            // ScrollView 的命中域含底部 safeAreaInset（发送
-            // 舱所在），挂本体时点发送舱也被判成「点空白」，
-            // 且 SwiftUI 手势竞技场会先于 UIKit 触摸裁决——
-            // SwiftUI TextField 时代靠焦点系统自带手势过关，
-            // 换自量高 UITextView 后点按被本手势吞掉、聚焦
-            // 不能（CI 三轮实证）。发送舱不是消息区，本就不
-            // 该由它管辖
-            // 0.3.5：手势类型与挂点不变（与行内按钮/链接的
-            // 既有仲裁关系不动、不误收），只补命中域——
-            // 见上方撑满注（§20.2）
-            .onTapGesture {
-                // 0.2.8：收键盘经焦点句柄直达文本视图本体
-                //（resignFirstResponder），不写任何 SwiftUI
-                // 焦点状态；失焦事实由 delegate 回调回写
-                composerFocusHandle.dismiss()
+            // 点空白收键盘·第五症修复（键盘整包，
+            // 2026-11-13）：本栈上的祖先单击 tap（0.2.1
+            // 起、0.19.0 以 contentShape 撑满命中域）整
+            // 件退役，辖区迁到滚动视图本体的 UIKit 点
+            // 按识别器（ScrollViewTapDismiss，装配点在
+            // 下方 ScrollView 的 background）。旧式三
+            // 处结构性病灶：①辖区只及栈帧——顶/底
+            // contentMargins 带（122/197pt）在栈帧之
+            // 外，点那两带的空白无任何手势接（「有时
+            // 不灵」的位置相关性：恰是最常点的末条下
+            // 方大空白）；②contentShape 全域命中把文
+            // 字区也圈进祖先 tap 的辖区、无 failure-
+            // requirement 仲裁——与选字会诊第一嫌疑
+            // （祖先 tap 仲裁冲突）同体；③SwiftUI 手
+            // 势竞技场与 UIKit 触摸/滚动手势的仲裁顺
+            // 序不归本方管辖。新式：识别器只装在 UIS-
+            // crollView 本体、辖区＝整个滚动视口（两
+            // 带与行间全覆盖）；delegate 的 should-
+            // Receive 按苹果 UIGestureRecognizer-
+            // Delegate 官方口径过滤——触点落在任何
+            // UITextView 子树内根本不进识别器（文字
+            // 区归选字/链接/长按自家体系，顺带落实会
+            // 诊建议修法 2）；cancelsTouchesInView＝
+            // false 不吞任何触摸；拖动收起仍归系统
+            // .scrollDismissesKeyboard（即 UIScroll-
+            // View.keyboardDismissMode=.interactive
+            // 的 SwiftUI 面，苹果文档口径）。0.2.7 当
+            // 年不挂本体的两条顾虑已消失：发送舱早已
+            // 退出列表安全区注册（§186，其命中域不在
+            // 滚动视图子树内、识别器够不着）；聚焦吞
+            // 噬是 SwiftUI 竞技场的病、UIKit 识别器
+            // ＋不过滤文本视图的 Composer 本体不在
+            // 其辖区内。栈帧撑满（minHeight）是布局
+            // 不是手势、原样保留
+            .background {
+                // 装配点（修正）：桥视图挂本栈背景
+                // ——内容在滚动视图子树内，安装器
+                // ascend 一步直达 UIScrollView 本
+                // 体；首版挂 ScrollView 自身的
+                // background（兄弟位）靠窗口选面
+                // 两度被同帧候选骗走，已废
+                ScrollViewTapDismissInstaller(
+                    focusHandle: composerFocusHandle
+                )
             }
         }
         // §195（2026-11-13）：顶栏注册退役——顶簇迁
@@ -2281,7 +2399,6 @@ struct ChatView: View {
         // 调以本列表为原点读帧（见栈内尾锚注）——只命
         // 名、不改任何布局与滚动行为
         .coordinateSpace(name: "chatListViewport")
-
         // 0.36.27（§97 件二，用户 03:48 点题「输入框
         // 上面有点大，小点就行」）：列表底边距收一档
         // spacingS 8 → spacingXS 4，与 inputBar 顶
@@ -2312,9 +2429,21 @@ struct ChatView: View {
             windowTopSafeInset + topBarHeight,
             for: .scrollContent
         )
+        // 键盘整包 R1（2026-11-13）：底留位改读键
+        // 盘几何快照的派生值（kbSnapshot.bottom-
+        // Space，Core 纯函数：键盘态＝键盘高＋栈
+        // 高、静息态＝坞下段＋栈高，与 §186 实测回
+        // 报同值同义）——留位的生产者自此只有快照
+        // 一处：键盘事件拍整体替换、动画参数同载，
+        // 下方 withAnimation 桥以通知自带时长/曲线
+        // 推进本留位与舱的 UIKit 动画同拍（苹果文
+        // 档：键盘通知 userInfo 载 frame/duration/
+        // curve 供伴随动画——MessageKit/Stream 同
+        // 式）；composerBottomSpace 实测回报降级为
+        // 诊断读数、退出公式（D2）
         .contentMargins(
             .bottom,
-            composerBottomSpace + OneDayMetrics.spacingS,
+            kbSnapshot.bottomSpace + OneDayMetrics.spacingS,
             for: .scrollContent
         )
         // 0.2.6 承载换代核心：发送区进列表的底部安全区
@@ -2374,7 +2503,7 @@ struct ChatView: View {
             geometry.contentSize.height - geometry.contentOffset.y
                 - geometry.containerSize.height
         } action: { _, distance in
-            // 0.36.13：原始读数另存一份喂落定复贴复核
+            // 0.36.13：原始读数另存一份喂落定评估
             // （见 bottomDistanceRecorder 注）
             // §135：回写加等值守卫——几何回调在滚动
             // 中逐帧到达，值未变的回写不许再触发一轮
@@ -2385,6 +2514,9 @@ struct ChatView: View {
             // 的仍是读时点最新值，判定语义零变更
             bottomDistanceRecorder.latest = distance
             applyBottomProximity(distance: distance)
+            // R4：距底读数变化是落定评估的主事件源
+            // （滚动/量实/留位结算都经此读数到场）
+            evaluateSettleOnEvent(proxy)
         }
         // 列表可视高回写（0.3.5）：喂内容栈的撑满
         // minHeight（点空白收键盘命中域，见栈内撑满注）
@@ -2401,10 +2533,19 @@ struct ChatView: View {
             // 视图、与 @State 同源不分叉
             bottomDistanceRecorder.containerHeight = newHeight
         }
+        // 底 inset 实值回写（R2 有效视口）：adjusted-
+        // ContentInset.bottom 与距底读数同源（同一
+        // ScrollGeometry 的 contentInsets 面）——喂
+        // 引用匣供尾锚回调扣遮挡带，匣写不失效视图
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentInsets.bottom
+        } action: { _, newInset in
+            bottomDistanceRecorder.bottomInset = newInset
+        }
         // 「点空白收键盘」手势在内容栈上（见 messageList 内注），
         // 不挂 ScrollView 本体——其命中域含发送舱 inset
         .onChange(of: currentThread?.sortedEntries.count) { _, _ in
-            // 落定复核（手感 A 档）：条目落盘即流式落
+            // 落定评估（R4 事件化）：条目落盘即流式落
             // 定事件（流结束的最后一贴本就由本路承
             // 担）——先以最新读数＋尾锚事实重跑一遍派
             // 生：流式中途单次大块增长可把距底顶出迟
@@ -2484,13 +2625,16 @@ struct ChatView: View {
                 )
             }
             // §135：贴底在途状态与发送打点是上一线程
-            // 的家当——切入先作废协调者、取消挂账复贴
-            // 任务、清打点标记，防旧线程的复贴与读数
-            // 落到新线程头上（可见集状态已随信号链退
-            // 役，不再有旧集可清）
+            // 的家当——切入先作废协调者、清落定观察
+            // 挂账（R4 事件化后无任务可取消）、清打点
+            // 标记，防旧线程的复贴与读数落到新线程头
+            // 上（可见集状态已随信号链退役，不再有旧
+            // 集可清）
             stickCoordinator.invalidate()
-            stickRestickTask?.cancel()
-            stickRestickTask = nil
+            settleMachine.cancel()
+            settleGeneration = nil
+            settleFallbackTask?.cancel()
+            settleFallbackTask = nil
             sendFrameStartedAt = nil
             sendFrameRestickLogged = false
             // 手感 A 档同理清账：尾锚事实是上一线程的
@@ -2572,7 +2716,7 @@ struct ChatView: View {
                 // 兜底（与回报回写同为下一拍序）。代号
                 // ＋挂账双守卫防过期与叠贴（执行口
                 // settleStreamFollow）；贴底本体与 120ms
-                // 复核复贴机制零改动
+                // 落定观察机制零改动
                 streamFollowSettleGeneration += 1
                 streamFollowPending = true
                 let generation = streamFollowSettleGeneration
@@ -2615,7 +2759,14 @@ struct ChatView: View {
             NotificationCenter.default.publisher(
                 for: UIResponder.keyboardWillChangeFrameNotification
             )
-        ) { _ in
+        ) { notification in
+            // R1（修正）：快照的键盘输入已收口到
+            // ComposerGuideHost 控制器的解析点（帧
+            // 顶转窗口坐标后经 kbFrameUpdate 包到
+            // 达、body 根 onChange 整包入快照）——
+            // 本订阅只余帧变化的挂账职责，不再解析
+            // 帧值（首版在此存屏幕坐标原值、与快照
+            // 窗口坐标不重合，已废）
             // 帧开始变（升起/候选栏收展/交互收起逐
             // 帧）：落定标记先撤——此后的锚底请求只
             // 记挂账，等帧落定事件兑现（手感 A 档）
@@ -2636,26 +2787,46 @@ struct ChatView: View {
         }
     }
 
-    /// 在底判定单一派生点（§135 几何单源＋手感 A 档
-    /// 事实校准）：一切 isNearBottom 的重算只许经此
-    /// 一处——几何迟滞判定（Core BottomProximity）
-    /// 先行，事实信号（尾锚完整可见）与之冲突时以
-    /// 事实为准（Core BottomFactCalibration：长线
-    /// 程估算距离驻留迟滞带时几何报离底、屏幕上却
-    /// 已无未见内容，钮据此及时消失）。消费方三路
-    /// 同源：滚动几何回调逐帧、条目落盘的落定复核、
-    /// 复核序列的校准检。写加等值守卫，同值不重算
+    /// 在底判定单一派生点（§135 几何单源；键盘整
+    /// 包 R2 定版，2026-11-13）：一切 isNearBottom
+    /// 的重算只许经此一处，判定口径收进 Core
+    /// BottomArrowVisibility——尾条在屏（事实）∨
+    /// 距底 ≤7pt → 在底；距底 ≥176pt → 离底；中
+    /// 段保持上一判定。旧口径（几何迟滞带 ≤96 进
+    /// ＋事实覆盖）退役：96 进带喂的是估算总高、带
+    /// 内误判正是症②（末条全文在屏而箭头不消）的
+    /// 公式面。事实信号的单向性不变（只证在底、
+    /// 不反证离底，原理见 Core BottomFactCalibra-
+    /// tion 注）。消费方同源：滚动几何回调逐帧、
+    /// 落定评估的校准收官。写加等值守卫，同值不
+    /// 重算
     private func applyBottomProximity(distance: CGFloat) {
-        let geometric = BottomProximity.update(
-            distance: distance, wasNearBottom: isNearBottom
-        )
-        let calibrated = BottomFactCalibration.isNearBottom(
-            geometric: geometric,
+        let calibrated = BottomArrowVisibility.isNearBottom(
+            distance: distance,
             contentEndVisible: bottomDistanceRecorder
-                .contentEndVisible
+                .contentEndVisible,
+            wasNearBottom: isNearBottom
         )
         if calibrated != isNearBottom {
             isNearBottom = calibrated
+        }
+    }
+
+    /// 键盘动画参数的 SwiftUI 映射（R1）：时长取
+    /// 通知原值；曲线 raw 0/1/2/3 依次对应 ease-
+    /// InOut/easeIn/easeOut/linear，键盘自家曲线
+    /// （raw 7）无公开 SwiftUI 等价、以 easeInOut
+    /// 近似——视觉主导是舱本体的 UIView 动画（真
+    /// 曲线、§194），留位侧的曲线差只在动画中段
+    /// 产生亚帧级间距差、落定帧两路同值归零
+    private func keyboardSnapshotAnimation(
+        duration: TimeInterval, curveRaw: Int
+    ) -> Animation {
+        switch curveRaw {
+        case 1: return .easeIn(duration: duration)
+        case 2: return .easeOut(duration: duration)
+        case 3: return .linear(duration: duration)
+        default: return .easeInOut(duration: duration)
         }
     }
 
@@ -2727,24 +2898,28 @@ struct ChatView: View {
     /// §27，口径不变）。弹簧滚动途中用户手势可直
     /// 接接管（系统滚动语义）：本口只发一贴、无循
     /// 环重发，用户接管后位置与判定全归 §135 派生
-    /// 链，复核序列亦以「距底 ≥176 即放弃」防拽回
+    /// 链，落定观察亦以「距底 ≥176 即放弃」防拽回
     /// （见下）。
     /// 所有者职责（判定在 Core BottomStickCoordi-
     /// nator，钉测把守）：同帧重复请求合并为一贴；
     /// 复贴全局只挂一笔——新贴底顶替旧复贴、复贴至
     /// 多消费一次、切线程作废。复贴本体沿 0.36.13
-    /// 量实原理：贴底后复核实测距底，尾行已量实后
+    /// 量实原理：贴底后按实测距底评估，尾行已量实后
     /// 距底仍 >7pt（Core BottomSettle，§176 自 24
     /// 收紧）才以无动画再贴一次；§135 前发送令牌路
     /// 在这一层之外自带第二层复贴（一次发送连发
     /// 3–5 贴），已删，现全局只此一层。
-    /// 复核形态（手感 A 档）：旧为 120ms 单次复核
-    /// ——高度后变漏网（S2）、且弹簧滚动 120ms 尚在
-    /// 途中、单次读数必大、复贴一插即截断弹簧。改
-    /// 短窗复核序列（Core BottomSettleRecheck：
-    /// 120／320／640／1100ms 四检）：运动未落定只
-    /// 等、落定未达标才复贴、末端事实可见走校准收
-    /// 官、距底 ≥176 判用户已离底整序放弃
+    /// 落定形态（键盘整包 R4，2026-11-13）：复核
+    /// 不再是时钟——手感 A 档的 [120, 320, 640,
+    /// 1100]ms 定时复核序列（BottomSettleRecheck）
+    /// 整件退役：四个定时点与内容/键盘事件全无关
+    /// 系，落定尾巴（≥1.1s 起步＋四程串行）即症
+    /// ④。改事件化落定观察（Core BottomSettle-
+    /// Evaluation）：贴底后挂一笔观察，几何事件
+    /// （距底读数变化/尾锚事实翻转）到场即评——
+    /// 运动未停只等、停稳未达标才复贴、末端事实
+    /// 可见走校准收官、距底 ≥176 判用户已离底收
+    /// 官。事件停即静默，不留尾巴、不设超时
     private func scrollToBottom(
         _ proxy: ScrollViewProxy, animated: Bool = true
     ) {
@@ -2752,103 +2927,145 @@ struct ChatView: View {
             at: Date().timeIntervalSince1970
         ) {
         case .coalesced:
-            // 同帧已贴、复贴挂账中：落点由挂账的复核
-            // 序列校正，本路不再连发
+            // 同帧已贴、复贴挂账中：落点由挂账的落定
+            // 观察校正，本路不再连发
             return
         case .perform(let generation):
             performScrollToBottom(proxy, animated: animated)
-            stickRestickTask?.cancel()
+            // R4：状态机入观察——此后几何事件到场即
+            // 评估（evaluateSettleOnEvent）；新贴底
+            // 顶替本笔、切线程清账（见 currentThre-
+            // adID 的 onChange）。有界兜底同拍布防：
+            // 2 秒内无任何几何事件到场（贴底一步到
+            // 位、几何面纹丝不动）才单发一评，正常
+            // 路径下观察必先于它收官、它恒空转取消
+            settleMachine.begin(animated: animated)
+            settleGeneration = generation
+            settleFallbackTask?.cancel()
             let pinnedThreadID = currentThreadID
-            stickRestickTask = Task { @MainActor in
-                var previousDistance: CGFloat?
-                var elapsedMilliseconds = 0
-                let delays = BottomSettleRecheck
-                    .checkDelaysMilliseconds
-                for (index, target) in delays.enumerated() {
-                    try? await Task.sleep(
-                        for: .milliseconds(
-                            target - elapsedMilliseconds
-                        )
-                    )
-                    elapsedMilliseconds = target
-                    guard !Task.isCancelled,
-                          currentThreadID == pinnedThreadID
-                    else { return }
-                    let distance =
-                        bottomDistanceRecorder.latest
-                    let decision = BottomSettleRecheck
-                        .decision(
-                            distance: distance,
-                            motionSettled: BottomSettleRecheck
-                                .motionSettled(
-                                    wasAnimated: animated,
-                                    distance: distance,
-                                    previousDistance:
-                                        previousDistance
-                                ),
-                            contentEndVisible:
-                                bottomDistanceRecorder
-                                .contentEndVisible,
-                            isLastCheck: index
-                                == delays.count - 1
-                        )
-                    // §135 D 案打点：发送帧的首检复核读
-                    // 数（复核距底＋距发送耗时），每轮只
-                    // 记一笔——序列形态下首检即旧单次复
-                    // 核的对应位（发送路恒无动画贴底、首
-                    // 检即裁决检，口径与旧读数可比）
-                    if index == 0,
-                       let started = sendFrameStartedAt,
-                       !sendFrameRestickLogged {
-                        sendFrameRestickLogged = true
-                        ChatDiagTrace.record(
-                            "发送打点 首帧复核 距底"
-                                + " \(Int(distance))pt"
-                                + " 复贴 \(decision == .restick)"
-                                + " 距发送 "
-                                + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
-                        )
-                    }
-                    previousDistance = distance
-                    switch decision {
-                    case .settled:
-                        stickCoordinator.disarmRestick(
-                            generation: generation
-                        )
-                        return
-                    case .calibrated:
-                        // 末端事实可见：经单一派生点校准
-                        // 在底（钮随之消失），不复贴——屏
-                        // 幕上已无未见内容，复贴只会顶动
-                        applyBottomProximity(
-                            distance: distance
-                        )
-                        stickCoordinator.disarmRestick(
-                            generation: generation
-                        )
-                        return
-                    case .restick:
-                        guard stickCoordinator.consumeRestick(
-                            generation: generation
-                        ) else { return }
-                        performScrollToBottom(
-                            proxy, animated: false
-                        )
-                        return
-                    case .wait:
-                        continue
-                    case .exhausted:
-                        stickCoordinator.disarmRestick(
-                            generation: generation
-                        )
-                        return
-                    }
-                }
+            settleFallbackTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled,
+                      currentThreadID == pinnedThreadID
+                else { return }
+                evaluateSettleFallback(proxy)
             }
         }
     }
 
-    /// 贴底本体（不带复核）：scrollToBottom 的首贴与
+    /// 落定评估的事件消费口（键盘整包 R4）：几何
+    /// 事件（距底读数变化为主、尾锚事实翻转为辅）
+    /// 到场即喂状态机一步——状态推进与判定全在
+    /// Core BottomSettleMachine，本组函数只做协
+    /// 调者对账（窥视/消费/解挂）与执行
+    private func evaluateSettleOnEvent(
+        _ proxy: ScrollViewProxy
+    ) {
+        guard settleMachine.isWatching,
+              let generation = settleGeneration
+        else { return }
+        let distance = bottomDistanceRecorder.latest
+        let step = settleMachine.step(
+            distance: distance,
+            contentEndVisible: bottomDistanceRecorder
+                .contentEndVisible,
+            restickArmed: stickCoordinator.isRestickArmed(
+                generation: generation
+            )
+        )
+        handleSettleStep(
+            step, proxy: proxy, generation: generation,
+            distance: distance, viaFallback: false
+        )
+    }
+
+    /// 有界单发兜底（评审合成条目 4 的口子）：观察
+    /// 布防 2 秒仍无一几何事件到场——贴底已一步到
+    /// 位且几何面静止，事件路无从触发；此时以当前
+    /// 读数经 stepTimeout 喂回同一状态机（「无事
+    /// 件」即静止证据，不另设判定）。单发、随收官
+    /// /顶替/切线程取消，绝不循环、绝不自成落定
+    /// 机制——正常路径下观察恒先收官、本路只空转
+    private func evaluateSettleFallback(
+        _ proxy: ScrollViewProxy
+    ) {
+        guard settleMachine.isWatching,
+              let generation = settleGeneration
+        else { return }
+        let distance = bottomDistanceRecorder.latest
+        let step = settleMachine.stepTimeout(
+            distance: distance,
+            contentEndVisible: bottomDistanceRecorder
+                .contentEndVisible,
+            restickArmed: stickCoordinator.isRestickArmed(
+                generation: generation
+            )
+        )
+        handleSettleStep(
+            step, proxy: proxy, generation: generation,
+            distance: distance, viaFallback: true
+        )
+    }
+
+    /// 状态机一步结果的执行口：收官四值在此对账
+    /// 协调者并落地（校准经单一派生点、复贴先清
+    /// 账再执行防几何回调重入）；continue 无动作
+    private func handleSettleStep(
+        _ step: BottomSettleMachine.Step,
+        proxy: ScrollViewProxy, generation: Int,
+        distance: CGFloat, viaFallback: Bool
+    ) {
+        // §135 D 案打点：发送帧的首个落定评估读数
+        // （距底＋是否复贴＋距发送耗时），每轮只记
+        // 一笔——事件化后首评即旧首检的对应位（发
+        // 送路恒无动画贴底、首个几何事件即落定读
+        // 数，口径与旧读数可比）
+        if let started = sendFrameStartedAt,
+           !sendFrameRestickLogged {
+            sendFrameRestickLogged = true
+            ChatDiagTrace.record(
+                "发送打点 首评 距底 \(Int(distance))pt"
+                    + " 复贴 \(step == .restick)"
+                    + (viaFallback ? " 经兜底" : "")
+                    + " 距发送 "
+                    + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
+            )
+        }
+        switch step {
+        case .settled, .exhausted:
+            stickCoordinator.disarmRestick(
+                generation: generation
+            )
+            closeSettleWatch()
+        case .calibrated:
+            // 末端事实可见：经单一派生点校准在底
+            // （钮随之消失），不复贴——屏幕上已无
+            // 未见内容，复贴只会顶动
+            applyBottomProximity(distance: distance)
+            stickCoordinator.disarmRestick(
+                generation: generation
+            )
+            closeSettleWatch()
+        case .restick:
+            closeSettleWatch()
+            guard stickCoordinator.consumeRestick(
+                generation: generation
+            ) else { return }
+            performScrollToBottom(proxy, animated: false)
+        case .continue:
+            break
+        }
+    }
+
+    /// 观察收官清账：代号与兜底任务一并落空（状态
+    /// 机已在 step 内自回未观察态）
+    private func closeSettleWatch() {
+        settleGeneration = nil
+        settleFallbackTask?.cancel()
+        settleFallbackTask = nil
+    }
+
+    /// 贴底本体（不带落定观察）：scrollToBottom 的首贴与
     /// 复贴共用，复贴不经 scrollToBottom 以免自触发
     /// 再复核成环。animated 路的曲线＝回底弹簧（手
     /// 感 A 档）：响应按执行时点的实测距底缩放（引
