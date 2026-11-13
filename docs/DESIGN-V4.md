@@ -11428,3 +11428,7 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 ### §208.5 验收口径
 - CI 按 §190 判读；Core 只增不减（基线 1754＋LedgerMonitorSynthesisTests 8＝1762 预期）。新单测：Core 合成形态/上限/副题口径/三类同流夹具；App 分段集合与顺序、落点改道映射、呈现探针。UI 回归门 testHubLayoutWithFullCatalog 段名单同步改四段。
 - 真机待验：四段呈现与顺序、通知点审批/监测落点落活动且聚焦亮行、台账详情里任务详情直达/审批记录原文＋查看改动＋查看原对话点达、规则区在位可撤销、新建任务/监测菜单可达、枢纽打开/关闭与 Muse 录屏并排比（初态留边圆角、落定近全屏、关闭回缩淡出）、枢纽内模型选择面与分享面嵌套正常。
+
+### §208.6 分支 CI 判读（§190）
+- run 43426199136（头 e7dfb5b）：Build/Package/Upload success；Core 1762 全过（1754＋8）；断言失败仅新探针的 4 条几何断言（裸 UIWindow 环境退化，定因与校准见 §208.4）；HUB-LAYOUT-VERDICT=PASS；静默死亡仅 §184 在案 2 起。
+- run 43431357566（探针校准后）：Build/Package/Upload success；Core 1762 全过；**失败用例 0、断言失败 0**；探针 passed（机制面硬断言全过、几何面条件断言＋日志复现同值）；HUB-LAYOUT-VERDICT=PASS；名义 failure 唯一来源＝§184 在案静默死亡 2 起。**§190 终判绿**。报告：hub-segments-consolidation-report-20261113.md。
