@@ -33,8 +33,24 @@ jobs:
       - name: Forensics symbolicate (RuntimeRoot atos)
         if: inputs.forensics_only == 'true'
         run: |
-          ROOT=$(find /Library/Developer/CoreSimulator/Volumes/iOS_23F77 \
+          # 运行时框架位置随 runner 物化状态而变：先全域找，
+          # 找不到就先 boot 一台模拟器迫使其展开再找
+          ROOT=""
+          ROOT=$(find /Library/Developer/CoreSimulator \
             -type d -name RuntimeRoot 2>/dev/null | head -1)
+          if [ -z "$ROOT" ]; then
+            echo "RuntimeRoot 未物化，先 boot 模拟器…"
+            UDID=$(xcrun simctl list devices available -j \
+              | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print([x['udid'] for v in d.values() for x in v if 'iPhone' in x['name']][0])" \
+              2>/dev/null || true)
+            echo "boot udid: ${UDID:-<none>}"
+            if [ -n "$UDID" ]; then
+              xcrun simctl boot "$UDID" || true
+              xcrun simctl bootstatus "$UDID" -b || true
+            fi
+            ROOT=$(find /Library/Developer/CoreSimulator \
+              -type d -name RuntimeRoot 2>/dev/null | head -1)
+          fi
           echo "RuntimeRoot: $ROOT"
           if [ -z "$ROOT" ]; then echo "<RuntimeRoot not found>"; exit 0; fi
           sym() {
