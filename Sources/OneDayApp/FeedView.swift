@@ -487,9 +487,10 @@ struct FeedView: View {
 
     /// 讨论（0.47.0；§208 引用化）：以本帖为引用开
     /// 一条对话——帖以引用卡挂发送舱（FeedPostQuote
-    /// 值快照），输入框恒空、亲笔才是草稿；引用经
-    /// AppState 种子暂存道交接（ChatView 的
-    /// tryApplyFeedSeed 消费），永不进草稿账。
+    /// 值快照），输入框恒空、亲笔才是草稿；引用直
+    /// 写目标线程的待发状态（AppState.pendingFeed-
+    /// QuotesByThread，§210 改挂、ChatView 派生呈
+    /// 现），永不进草稿账。
     /// §208 前旧形（预填经 setDraft 直写草稿账）已
     /// 退役：预填文与亲笔在草稿账里同形、被防丢稿
     /// 保活永久保护，没发就赖着不走（用户
@@ -519,9 +520,10 @@ struct FeedView: View {
             )
             thread = fresh
         }
-        appState.pendingFeedDiscussSeed = FeedDiscussSeed(
-            threadID: thread.id, quote: FeedPostQuote(post: post)
-        )
+        // §210：引用直写目标线程的待发状态（落点决定
+        // 与引用写入同动作完成），不再经全局种子
+        appState.pendingFeedQuotesByThread[thread.id] =
+            FeedPostQuote(post: post)
         appState.drawerThreadSelection = thread.id
         appState.mainTabSwitchRequest = .chat
     }

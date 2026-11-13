@@ -463,11 +463,32 @@ struct ChatView: View {
     @State private var pendingQuoteIsFork = false
     /// §208：动态讨论的待发送引用（FeedPostQuote 值
     /// 快照）——与 pendingQuote 共用发送舱同一引用
-    /// 槽位：至多一个在场，后入覆盖先入（设一必清
-    /// 另一，落点在 beginReply/种子消费/send 快照三
-    /// 处）。同守引用生命周期：发送/点 ✕/切换线程
-    /// 即清，永不落盘、不进草稿账
-    @State private var pendingFeedQuote: FeedPostQuote?
+    /// 槽位：至多一个在场，后入覆盖先入。同守引用
+    /// 生命周期：发送/点 ✕/切换线程即清，永不落盘、
+    /// 不进草稿账。
+    /// §210 改挂：真身在 AppState.pendingFeedQuotes-
+    /// ByThread 按线程寻址，本处只是当前线程的派生
+    /// 读写视图（读写点全数沿用：槽位呈现/✕/begin-
+    /// Reply 挤掉/send 快照与失败回滚）——状态不再
+    /// 是视图本地 @State，视图重建/重现不丢、切线
+    /// 程由 onChange 按离开线程定点作废（见该处）
+    private var pendingFeedQuote: FeedPostQuote? {
+        get {
+            currentThreadID.flatMap {
+                appState.pendingFeedQuotesByThread[$0]
+            }
+        }
+        nonmutating set {
+            guard let currentThreadID else { return }
+            if let newValue {
+                appState.pendingFeedQuotesByThread[currentThreadID] =
+                    newValue
+            } else {
+                appState.pendingFeedQuotesByThread
+                    .removeValue(forKey: currentThreadID)
+            }
+        }
+    }
     /// 0.7.0（M1 轻保活）：列表首个可见条目 id（滚动锚
     /// 记录用，由 onScrollTargetVisibilityChange 回写）
     @State private var topVisibleEntryID: UUID?
@@ -752,22 +773,32 @@ struct ChatView: View {
                     for: newID ?? Self.landingAttachmentStashID
                 ) ?? []
             }
+            // §210：离开的线程名下若有待发动态引用，
+            // 在此定点作废（规格 §3.3：切换线程即清）
+            // ——只清离开者；新落点线程名下的待发引用
+            // 由派生呈现自动接上，不再被本次清理追毁
+            // （§208 种子制下清理是全局的、落位后任一
+            // 再变更即误杀，定因见 §210 报告）
+            if let oldID, oldID != newID {
+                appState.pendingFeedQuotesByThread
+                    .removeValue(forKey: oldID)
+            }
             // 0.7.0（M4）：分流种子经 pendingForkQuote 暂存
             // 穿过本次清理、转入新旁聊的待发送引用
             if let fork = pendingForkQuote {
                 pendingQuote = fork
                 pendingForkQuote = nil
                 pendingQuoteIsFork = true
-                pendingFeedQuote = nil
             } else {
                 pendingQuote = nil
                 pendingQuoteIsFork = false
-                pendingFeedQuote = nil
             }
-            // §208：动态讨论种子若正为本线程而来，在
-            // 清理落定后消费转入（目标不符则继续挂在
-            // AppState 等落点，见 tryApplyFeedSeed）
-            tryApplyFeedSeed()
+            // §210：落点线程名下有待发动态引用时，收
+            // 口呈现侧动作（挤掉消息引用＋聚焦）；引
+            // 用本体已在 AppState 表内、呈现是派生，
+            // 无「消费」一说（见 applyPendingFeedQuote-
+            // IfNeeded）
+            applyPendingFeedQuoteIfNeeded()
             // 0.4.2：流式节流闸不跨线程带账
             streamFollowGate.reset()
             // 0.36.7（频道规格 §10.3）：当前线程同步为
@@ -789,14 +820,13 @@ struct ChatView: View {
                 currentThreadID = id
             }
         }
-        // §208：动态讨论种子到达时试消费——目标线程
-        // 已是当前线程（同帖复用且人已在此）时不等切
-        // 换事件、在此落位；目标是别的线程时不在此
-        // 动，等 onChange(of: currentThreadID) 落到
-        // 目标后消费（两路都走 tryApplyFeedSeed 的
-        // 线程相符判定，先后无关）
-        .onChange(of: appState.pendingFeedDiscussSeed) { _, _ in
-            tryApplyFeedSeed()
+        // §210：待发引用表变化（讨论写入/发送消费/
+        // ✕ 摘除都经此表）时，若当前线程名下有引用
+        // 在场就收口呈现侧动作——人已在目标线程内
+        // 时写入即聚焦，不等切换事件（§208 种子制的
+        // 本处理已随种子退役）
+        .onChange(of: appState.pendingFeedQuotesByThread) { _, _ in
+            applyPendingFeedQuoteIfNeeded()
         }
         // 0.4.5：抽屉删掉的正是当前线程时置空（计算属
         // 性随之落到最近线程，与旧版 deleteThread 内
@@ -1098,11 +1128,12 @@ struct ChatView: View {
         }
         .onAppear {
             consumeApprovalAnchorRequest()
-            // §208：种子兜底消费——种子置位时本页未在
-            // 层级内（onChange 未达）而落点先行到达的
-            // 情形，在此按线程相符判定补消费（与两路
-            // onChange 同走 tryApplyFeedSeed）
-            tryApplyFeedSeed()
+            // §210：待发引用的呈现侧收口兜底——本页重
+            // 现时当前线程名下有引用在场就补收口（挤
+            // 掉消息引用＋聚焦）。§208 此处原为种子兜
+            // 底消费；改挂派生后引用本体不依赖消费、
+            // 视图重现自动呈现，此处只补呈现侧动作
+            applyPendingFeedQuoteIfNeeded()
             // §165（锚点包）：物化回调接线（幂等赋值；
             // 全 App 只有聊天页持有 modelContext 落盘
             // 面，与枢纽经 AgentHubView 注入审批终态回
@@ -3827,23 +3858,20 @@ struct ChatView: View {
         )
         pendingQuoteIsFork = false
         // §208：引用槽位单一在场——消息引用入槽即
-        // 挤掉动态引用（后入覆盖，与种子消费同律）
+        // 挤掉动态引用（后入覆盖，与讨论写入同律）
         pendingFeedQuote = nil
         composerFocusHandle.focus()
     }
 
-    /// §208：动态讨论种子消费——AppState 种子只在
-    /// 「当前线程正是种子目标」时落位：清种子、引用
-    /// 入槽（挤掉消息引用，后入覆盖）、聚焦输入舱
-    /// （讨论进来即可直接打字，输入框恒空）。目标
-    /// 不符不消费：种子留 AppState 等落点到达；种
-    /// 子只活在内存，进程死亡即亡——与引用本身「不
-    /// 落盘恢复」的生命周期一致
-    private func tryApplyFeedSeed() {
-        guard let seed = appState.pendingFeedDiscussSeed,
-              seed.threadID == currentThreadID else { return }
-        appState.pendingFeedDiscussSeed = nil
-        pendingFeedQuote = seed.quote
+    /// §210：待发动态引用的呈现侧收口——当前线程名
+    /// 下有引用在场（AppState 表派生）时：挤掉消息
+    /// 引用（槽位单一在场、后入覆盖，与 beginReply
+    /// 对动态引用的挤掉同律）、聚焦输入舱（讨论进
+    /// 来即可直接打字）。引用本体不在此搬动：它已
+    /// 按线程寻址存于 AppState，呈现是派生——§208
+    /// 的种子消费（tryApplyFeedSeed）至此退役
+    private func applyPendingFeedQuoteIfNeeded() {
+        guard pendingFeedQuote != nil else { return }
         pendingQuote = nil
         pendingQuoteIsFork = false
         composerFocusHandle.focus()
