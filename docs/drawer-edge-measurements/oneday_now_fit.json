@@ -1,0 +1,50 @@
+{
+ "image": "/home/hatch/workspace/user/files/F0F274C7-049C-4753-BAE5-898186F31F0F-photo-79AB1073-C834-4B32-B429-B8DE8B76DB94.jpg",
+ "size_px": [
+  1206,
+  2622
+ ],
+ "seam_x_px": 953.5,
+ "arc_fits": {
+  "top_left": {
+   "n_total": 18,
+   "n_kept": 14,
+   "cx": 1002.4748577006092,
+   "cy": 75.94309839429752,
+   "r_px": 33.772686061590214,
+   "resid_mean_px": 1.7985808634852662,
+   "resid_max_px": 4.547636037191353,
+   "implied_left_edge_px": 968.702171639019,
+   "implied_top_edge_px": 42.17041233270731
+  },
+  "bottom_left": {
+   "n_total": 33,
+   "n_kept": 32,
+   "cx": 1074.6598310659072,
+   "cy": 2502.6904982311426,
+   "r_px": 115.89126740446805,
+   "resid_mean_px": 0.49548919012791703,
+   "resid_max_px": 1.1183691285052362,
+   "implied_left_edge_px": 958.7685636614391,
+   "implied_bottom_edge_px": 2618.5817656356107
+  }
+ },
+ "pt@3.0_w402": {
+  "seam_x": 317.8333333333333,
+  "top_r": 11.257562020530072,
+  "top_inset": 14.056804110902435,
+  "top_r_plus_inset": 25.314366131432507,
+  "bottom_r": 38.63042246815602,
+  "bottom_inset": 1.1394114547964211,
+  "bottom_r_plus_inset": 39.76983392295244
+ },
+ "pt@3.07_w393": {
+  "seam_x": 310.7176616915423,
+  "top_r": 11.00552704992119,
+  "top_inset": 13.742099541255367,
+  "top_r_plus_inset": 24.747626591176555,
+  "bottom_r": 37.76556226364506,
+  "bottom_inset": 1.1139022431218746,
+  "bottom_r_plus_inset": 38.879464506766936
+ }
+}

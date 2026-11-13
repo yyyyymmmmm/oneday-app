@@ -1,0 +1,50 @@
+{
+ "image": "/home/hatch/workspace/user/files/5C33CA29-8AA6-48F2-8666-B64D250CD050-photo-85963906-B32A-4ADC-96C7-5943688A17EE.jpg",
+ "size_px": [
+  1206,
+  2622
+ ],
+ "seam_x_px": 954.5,
+ "arc_fits": {
+  "top_left": {
+   "n_total": 29,
+   "n_kept": 27,
+   "cx": 1118.2549236438924,
+   "cy": 166.63609543162147,
+   "r_px": 158.51699982758228,
+   "resid_mean_px": 1.4653389202351832,
+   "resid_max_px": 6.037033217328172,
+   "implied_left_edge_px": 959.7379238163102,
+   "implied_top_edge_px": 8.119095604039188
+  },
+  "bottom_left": {
+   "n_total": 34,
+   "n_kept": 31,
+   "cx": 1126.0947430549081,
+   "cy": 2448.5299910531708,
+   "r_px": 168.47847565250814,
+   "resid_mean_px": 0.7892297804700422,
+   "resid_max_px": 2.272399559426077,
+   "implied_left_edge_px": 957.6162674024,
+   "implied_bottom_edge_px": 2617.008466705679
+  }
+ },
+ "pt@3.0_w402": {
+  "seam_x": 318.1666666666667,
+  "top_r": 52.83899994252743,
+  "top_inset": 2.706365201346396,
+  "top_r_plus_inset": 55.54536514387382,
+  "bottom_r": 56.15949188416938,
+  "bottom_inset": 1.6638444314403387,
+  "bottom_r_plus_inset": 57.823336315609716
+ },
+ "pt@3.07_w393": {
+  "seam_x": 311.04353233830847,
+  "top_r": 51.656037257246965,
+  "top_inset": 2.645774935644611,
+  "top_r_plus_inset": 54.301812192891575,
+  "bottom_r": 54.90218982706111,
+  "bottom_inset": 1.6265941829752564,
+  "bottom_r_plus_inset": 56.52878401003637
+ }
+}

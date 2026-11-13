@@ -30,20 +30,36 @@ public enum DrawerMotion {
     /// 定值、拖动期不插值（逐帧改裁切半径＝整卡离屏
     /// 重合成，是 0.6.1 拖动卡顿主因之一，§1.5-2）
     public static let cornerStepProgress: CGFloat = 0.02
-    /// 页卡圆角定值（§182.2 量测 Muse 参照
-    /// 127d193a8c4dc8249e9d92941d371c52.jpg 左边界圆角
-    /// 拟合：1206px 图宽 @3.07x 倍率，上角 132px → 43.0pt；
-    /// 折算口径＝逻辑宽 393pt，量测脚本 measure_corners_
-    /// v2.py 沿前景/底层亮度突变点采样拟合）
-    public static let cardCornerRadius: CGFloat = 43
-    /// §3.4 页卡柔影定值（灰柱处方：0.6.1 的 radius 24
-    /// /x −10 在平色抽屉面上摊成约 48pt 灰柱；改窄而
-    /// 贴缘，总宽收至约 20pt）
-    public static let shadowRadius: CGFloat = 10
+    /// 前景卡圆角定值（§202 对 Muse 新参照图重新拟
+    /// 合定版：量测脚本 docs/drawer-edge-measurements/
+    /// fit_corners.py——沿前景/底层亮度突变点采样做圆
+    /// 拟合；参照图 5C33CA29…jpg 1206×2622、402 逻辑
+    /// 宽 @3.0，顶弧 r＝158.5px、底弧 168.5px，四组独
+    /// 立估计 156–174px，取池化中心 54.5pt；与纵向内
+    /// 嵌走同心口径：r＋inset＝56.5pt，落在社区设备角
+    /// 半径表 55–62pt 内。此前 43pt 是 §182.2 旧世代参
+    /// 照（127d193a…jpg、393 逻辑宽、上角 132px）的拟
+    /// 合值，随参照换代作废）
+    public static let cardCornerRadius: CGFloat = 54.5
+    /// 纵向内嵌定值（§202 K1）：开态前景卡上/下各内嵌
+    /// 此值、整卡浮置于抽屉面上，两弧连同顶/底短边完整
+    /// 露出。参照图拟合顶 2.7pt/底 1.7pt（同上脚本），
+    /// 对称取 2.0pt
+    public static let cardVerticalInset: CGFloat = 2
+    /// 柔影定值（§202 回宽）：§3.4 灰柱处方（radius 10
+    /// /x −4、总宽约 20pt）的前提是平色近色面＋单条直
+    /// 边、强阴影会摊成灰柱；K1/K2 后接缝主体是 54.5pt
+    /// 大弧、要浮置必须有阴影绕角包裹，前提消失故回
+    /// 宽——radius 18（定版区间 16–20，取中值偏上给大
+    /// 弧留包裹宽度）
+    public static let shadowRadius: CGFloat = 18
     public static let shadowX: CGFloat = -4
-    /// 柔影峰值 alpha（progress=1 时）；拖动期 radius
-    /// 与 x 冻结、只有 opacity 随 progress 变（S3）
-    public static let shadowMaxOpacity: Double = 0.12
+    /// 柔影峰值 alpha（progress=1 时）：§202 定 0.22
+    /// （区间 0.18–0.25；开源同形态实现 eos 的 0.35×
+    /// progress 是深底面参照，本 App 抽屉面浅色、取偏
+    /// 低档）。拖动期 radius 与 x 冻结、只有 opacity 随
+    /// progress 变（S3）
+    public static let shadowMaxOpacity: Double = 0.22
     /// 蒙层峰值 alpha（0.17.0 覆盖式抽屉）：页卡退役
     /// 后内容层静止不动，抽屉与内容的分离感改由滑入
     /// 抽屉下方的整屏蒙层承担（调研报告 Q4 结构 A）
@@ -124,6 +140,14 @@ public enum DrawerMotion {
     /// S3 圆角：progress 过阈一步到定值（拖动期冻结）
     public static func cornerRadius(progress: CGFloat) -> CGFloat {
         progress > cornerStepProgress ? cardCornerRadius : 0
+    }
+
+    /// 内嵌随 progress 线性行进（§202 K1）：合态 0、开
+    /// 态满值。帧写与 transform 同拍；与 K4「半径不逐
+    /// 帧插值」不冲突——防卡顿定案管的是裁切路径重建，
+    /// 内嵌只是帧位移、无路径重算
+    public static func verticalInset(progress: CGFloat) -> CGFloat {
+        cardVerticalInset * min(max(progress, 0), 1)
     }
 
     /// S3/§3.4 阴影不透明度：白名单内唯一随 progress
