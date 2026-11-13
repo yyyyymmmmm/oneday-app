@@ -49,6 +49,7 @@ enum SystemBackdrop {
     }
 
     /// 宿主层级内底衬的标准形态：材质视图＋不接命中
+    @MainActor
     static func makeView() -> UIVisualEffectView {
         let view = UIVisualEffectView(effect: effect)
         view.isUserInteractionEnabled = false
@@ -72,6 +73,7 @@ enum SystemDockBackdrop {
     /// 未装→新建插入坞层级底层，帧以 autoresizing
     /// 跟随坞 bounds 变化
     @discardableResult
+    @MainActor
     static func ensureInstalled(
         in tabBar: UITabBar
     ) -> SystemDockBackdropView {

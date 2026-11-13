@@ -11152,7 +11152,7 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 - `testSharedStyleIsSystemChromeMaterial`：单点定义档位钉死 .systemChromeMaterial＋底衬不接命中。
 - `testTopBackdropCoversWindowTopToBarBottom`：设备窗（安全区 62/34）内顶带覆盖＝窗口顶 0→顶簇底 134（62＋实高 72）、层级在顶簇宿主之下。
 - `testTopBackdropCompensatesShiftedHostFrame`：宿主帧下挪 25（§195 病形）时顶簇落点仍 62、底衬上缘仍贴窗口顶 0。
-- `testComposerBackdropAndDockBackdropInTabShell`：真 Tab 壳内舱底衬居宿主层级最底、高随喂入舱帧（128）且底边抵宿主底；坞本体内恰一份底衬、最底层、帧＝坞 bounds。
+- `testComposerBackdropAndDockBackdropInTabShell`：真 Tab 壳内舱底衬居宿主层级最底、高随喂入舱帧（128）、底边与舱宿主底同位（静息态即坞顶 791、其下由坞底衬接续覆盖，两段在坞顶边相接）；坞本体内恰一份底衬、最底层、帧＝坞 bounds。
 - `testDockBackdropEnsureIsIdempotent`：重复装配恰一份、外来子视图进场与前置扰动后校正回最底、坞 bounds 变化跟随。
 - `testBackdropCoverageUnderDarkAndLargestAX`：深色＋AX 最大字号（accessibilityExExExL）trait 下覆盖带与栏位落点不变（自查帧·结构口径，见 198.6）。
 

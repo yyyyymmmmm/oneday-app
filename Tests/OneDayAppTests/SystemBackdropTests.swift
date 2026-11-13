@@ -179,16 +179,20 @@ final class SystemBackdropTests: XCTestCase {
         XCTAssertFalse(backdrop.isUserInteractionEnabled)
 
         // 舱带高随舱帧实测：喂一帧 128 高的舱帧，底
-        // 衬布局后同高、且底边与宿主视图底同位（静
-        // 息态宿主底＝坞顶，舱带即覆盖至此）
+        // 衬布局后同高、底边与舱宿主底同位——静息
+        // 态舱底＝坞顶 791，舱带覆盖至此为止、其下
+        // 由坞底衬接续（两段在坞顶边相接）
         host.updateBarFrame(
             CGRect(x: 0, y: 600, width: 402, height: 128)
         )
         host.view.layoutIfNeeded()
         XCTAssertEqual(backdrop.frame.height, 128, accuracy: 0.6)
         XCTAssertEqual(
-            backdrop.frame.maxY, host.view.bounds.height,
+            backdrop.frame.maxY, host.traceBarView.frame.maxY,
             accuracy: 0.6
+        )
+        XCTAssertEqual(
+            host.traceBarView.frame.maxY, 791, accuracy: 0.6
         )
 
         // 坞底衬：resolveAnchors 已随显形跑过——坞本
@@ -216,7 +220,13 @@ final class SystemBackdropTests: XCTestCase {
         let first = SystemDockBackdrop.ensureInstalled(
             in: tabBar
         )
-        XCTAssertEqual(tabBar.subviews.count, 1)
+        // UITabBar 自带系统背景子视图，总数不作数；
+        // 只数底衬实例恰一份、且居层级最底
+        XCTAssertEqual(
+            tabBar.subviews.filter {
+                $0 is SystemDockBackdropView
+            }.count, 1
+        )
         XCTAssertTrue(tabBar.subviews.first === first)
         XCTAssertEqual(first.frame, tabBar.bounds)
         // 外来子视图进场后再 ensure：底衬仍恰一份、
