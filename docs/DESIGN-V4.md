@@ -11332,3 +11332,7 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
   - 胶囊（§202.5）：①点头像钮任意位置只开枢纽、点胶囊任意位置（含左右缘）只开模型面、点两者之间 16pt 间隙无反应；②胶囊玻璃面与外形一致、不再比 0.50.26 窄一圈；③顶栏总高不冲突冻结几何（pocket 恒 62、列表顶留位无跳变）；④深色模式一帧（头像钮状态点可辨）＋最大字号一帧（模型名截断不吞 chevron）。
   - 身份 P1（§203.5）：①AI 改名后 App 显示名跟随（本机无覆盖时）；②AI 换预置/图片头像后三露脸面（顶簇/枢纽/设置身份区）同步变化；③用户手动选过头像后 AI 切换不生效（锁压 AI）；④断网冷启头像不空白、不回退。
   - 会话 P2（§204.5）：主线对 AI 说「开个旁聊查 X」→旁聊出现在抽屉/全部对话页「我的对话」段（收养）、主线流尾有留痕回响卡、点卡进该旁聊续聊、旁聊内见自己的出生卡。
+
+### §205 补记（同日，装配 CI 判读）
+- **CI（run 43386214961，head 0bdf571，workflow_dispatch 于 rel-05028）**：Build／Package／Upload 三步 success；Unit tests 步 conclusion=failure，**全日志断言失败 0 条**。Failing tests 终表仅两条、均为 started 后无结果行的进程死亡且皆在案：①`ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays`——§184 键盘在案真崩（独立线 fix/keyboard-trap-decouple 在修，本版不等它）；②`DrawerContainerControllerTests.testAnimatedCloseKeepsContentUntouchableUntilSettled`——§184 Drawer 族（0.50.27 发版构建同签名在案）。无任何新红。
+- **单测对账**：Core **1721 全过**＝0.50.27 的 1698＋P1 新增 7（AgentAvatarChoiceTests）＋P2 新增 16（TraceEchoTests 11＋SessionClassificationTests R3b 5），逐包对得上、只增不减；三包新套件逐套 passed（AgentAvatarChoiceTests／TraceEchoTests／SessionClassificationTests／TopBarSingleActionTapTests），OneDayAppTests 与 OneDayUITests 两 target 终表 passed。
