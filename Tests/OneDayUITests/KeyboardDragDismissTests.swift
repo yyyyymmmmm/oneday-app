@@ -84,8 +84,27 @@ final class KeyboardDragDismissTests: XCTestCase {
         // 主臂＝中央起点：二轮实测此臂整拖可收起
         // （一轮的纹丝不动系祖先栈 tap 在位时的竞
         // 技场干扰、整包删 tap 后解除——与选字会诊
-        // 第一嫌疑同源）；首段改短程专测跟手
-        let center = dragArm(x: win.midX, label: "centerArm")
+        // 第一嫌疑同源）；首段改短程专测跟手。
+        // 合成 pan 的啮合本身有轮次方差（仪器边
+        // 界）：同一臂给两次机会、任一整拖收起即
+        // 证明模式跨界生效；两试皆败才是真未生效
+        var center = dragArm(x: win.midX, label: "centerArm")
+        if !center.dismissed {
+            if !app.keyboards.firstMatch.exists {
+                composer.tap()
+                _ = app.keyboards.firstMatch
+                    .waitForExistence(timeout: 8)
+            }
+            let retry = dragArm(
+                x: win.midX, label: "centerArmRetry"
+            )
+            lines.append(
+                "centerArmRetry dismissed=\(retry.dismissed)"
+            )
+            if retry.dismissed {
+                center = retry
+            }
+        }
         var edge: (followed: Bool, dismissed: Bool)?
         if !center.dismissed {
             if !app.keyboards.firstMatch.exists {

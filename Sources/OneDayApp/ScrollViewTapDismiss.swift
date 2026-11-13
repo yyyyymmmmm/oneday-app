@@ -181,18 +181,37 @@ final class TapDismissInstallerView: UIView,
         guard let maxArea = candidates.map({ $0.area }).max(),
               myArea > 0, maxArea >= myArea * 0.5
         else { return nil }
-        func depth(of view: UIView) -> Int {
-            var d = 0
-            var current = view.superview
-            while current != nil {
-                d += 1
-                current = current?.superview
+        // 选面终判＝亲缘：与本桥视图的最近共同祖先
+        // 越深（越靠近叶）越是本面——同页的滚动视
+        // 图与桥是近亲（同容器），他页候选只在页
+        // 根处汇合。验收轮实证「取最深者」会被他
+        // 页深容器骗走，深度不作数、只认亲缘
+        var myAncestors: [UIView] = []
+        var cursor = superview
+        while let view = cursor {
+            myAncestors.append(view)
+            cursor = view.superview
+        }
+        func kinship(_ view: UIView) -> Int {
+            // 共同祖先在候选人祖先链中的深度（自候
+            // 选人向上数）：越小＝共同祖先越贴近候
+            // 选人＝越亲
+            var hops = 0
+            var current: UIView? = view
+            while let node = current {
+                if myAncestors.contains(
+                    where: { $0 === node }
+                ) {
+                    return hops
+                }
+                hops += 1
+                current = node.superview
             }
-            return d
+            return Int.max
         }
         return candidates
             .filter { $0.area >= maxArea * 0.99 }
-            .max(by: { depth(of: $0.view) < depth(of: $1.view) })
+            .min(by: { kinship($0.view) < kinship($1.view) })
             .map { $0.view }
     }
 

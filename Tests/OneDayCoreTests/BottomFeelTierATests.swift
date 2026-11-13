@@ -423,16 +423,19 @@ final class BottomFeelTierATests: XCTestCase {
             .continue
         )
         // 顶替：begin 全量重置——新观察的首事件不
-        // 得吃上一笔的 previousDistance
+        // 得吃上一笔的 previousDistance：上一笔在
+        // 100 处留了前值，新观察首读 100.4——若前
+        // 值泄漏，相邻差 0.4 会被判「已稳」直接复
+        // 贴；重置干净则首读数无前值、只能等
         machine.begin(animated: false)
         _ = machine.step(
-            distance: 500, contentEndVisible: false,
+            distance: 100, contentEndVisible: false,
             restickArmed: true
         )
         machine.begin(animated: false)
         XCTAssertEqual(
             machine.step(
-                distance: 500, contentEndVisible: false,
+                distance: 100.4, contentEndVisible: false,
                 restickArmed: true
             ),
             .continue
