@@ -332,7 +332,7 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
         appState.sideChats.linkFeedDiscussThread(
             thread.id, postID: post.id
         )
-        appState.sideChats.setLastThreadID(thread.id.uuidString)
+        appState.sideChats.setLastThreadID(thread.id)
         spinRunLoop(seconds: 1.2)
         performDiscussWrites(post: post)
         assertQuoteArrives("reuseAlreadyThere")
