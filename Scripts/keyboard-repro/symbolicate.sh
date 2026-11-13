@@ -27,14 +27,20 @@ try_atos() {
   local bin="$1" uuid="$2"; shift 2
   echo "--- atos on: $bin"
   local got
-  got=$(dwarfdump --uuid "$bin" 2>/dev/null | awk '{print $2}')
-  echo "    binary UUID: ${got:-<none>}  target: $uuid"
-  if [ "$got" != "$uuid" ]; then echo "    UUID MISMATCH — skip"; return; fi
+  got=$(dwarfdump --uuid "$bin" 2>/dev/null)
+  echo "    binary UUIDs: ${got:-<none>}  target: $uuid"
+  if ! echo "$got" | grep -qi "$uuid"; then
+    echo "    UUID MISMATCH — skip"; return
+  fi
+  echo "    UUID MATCH"
   local off
   for off in "$@"; do
-    printf "    off %s (0x%x): " "$off" "$off"
+    printf "    off %s formA(-l 0x100000000): " "$off"
     xcrun atos -arch arm64 -o "$bin" -l 0x100000000 \
       "$(printf '0x%x' $((0x100000000 + off)))" 2>&1 | head -2
+    printf "    off %s formB(raw offset): " "$off"
+    xcrun atos -arch arm64 -o "$bin" \
+      "$(printf '0x%x' "$off")" 2>&1 | head -2
   done
 }
 
@@ -48,17 +54,17 @@ find /Library/Developer/CoreSimulator /Volumes \
 while IFS= read -r bin; do
   [ -n "$bin" ] && try_atos "$bin" "$SD_UUID" $SD_OFFS
 done <<EOF
-$(find /Library/Developer/CoreSimulator /Volumes -name "SwiftData" -path "*SwiftData.framework*" -type f 2>/dev/null | head -4)
+$(find /Library/Developer/CoreSimulator /Volumes -name "SwiftData" -path "*SwiftData.framework*" -type f 2>/dev/null | head -8)
 EOF
 while IFS= read -r bin; do
   [ -n "$bin" ] && try_atos "$bin" "$UI_UUID" $UI_OFFS
 done <<EOF
-$(find /Library/Developer/CoreSimulator /Volumes -name "_SwiftData_SwiftUI" -path "*_SwiftData_SwiftUI.framework*" -type f 2>/dev/null | head -4)
+$(find /Library/Developer/CoreSimulator /Volumes -name "_SwiftData_SwiftUI" -path "*_SwiftData_SwiftUI.framework*" -type f 2>/dev/null | head -8)
 EOF
 
 echo "=== search: dyld shared caches ==="
 CACHES=$(find /Library/Developer/CoreSimulator /Volumes \
-  -name "dyld_shared_cache_arm64*" -type f 2>/dev/null | head -4)
+  -name "dyld_shared_cache_arm64*" -type f 2>/dev/null | head -8)
 echo "$CACHES"
 for cache in $CACHES; do
   echo "--- cache: $cache"
