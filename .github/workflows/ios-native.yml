@@ -141,7 +141,8 @@ jobs:
             if [ -n "$CL" ]; then
               for ips in crash-artifacts/*.ips; do
                 echo "===== lldb crashlog: $ips (script: $CL)"
-                timeout 240 xcrun lldb -b \
+                perl -e 'alarm 240; exec @ARGV' -- \
+                  xcrun lldb -b \
                   -o "command script import $CL" \
                   -o "crashlog $ips" </dev/null 2>&1 \
                   | tee crash-artifacts/lldb-crashlog.txt || true
@@ -149,18 +150,33 @@ jobs:
             fi
             # 备援二：运行时缓存点名——运行时框架只在
             # dyld 共享缓存里（无独立文件），以缓存为
-            # lldb target 按镜像名＋偏移解析帧 0 等
+            # lldb target 按镜像名＋偏移解析帧 0 等。
+            # 先探卷布局（上轮 maxdepth 9 定名未命中），
+            # 再按探得的路径动态取缓存
             VOL=$(ls -d /Library/Developer/CoreSimulator/Volumes/iOS_* \
               2>/dev/null | sort -V | tail -1)
             echo "runtime volume: ${VOL:-<none>}"
+            if [ -n "$VOL" ]; then
+              echo "--- volume root ---"
+              ls "$VOL" || true
+              echo "--- volume System/Library (head) ---"
+              ls "$VOL/System/Library" 2>/dev/null | head -30 || true
+              echo "--- find dyld_shared_cache* ---"
+              find "$VOL" -name "dyld_shared_cache*" \
+                2>/dev/null | head -5 || true
+              echo "--- find SwiftData.framework ---"
+              find "$VOL" -name "SwiftData.framework" \
+                2>/dev/null | head -5 || true
+            fi
             CACHE=""
             if [ -n "$VOL" ]; then
-              CACHE=$(find "$VOL" -maxdepth 9 \
-                -name "dyld_shared_cache_arm64" 2>/dev/null | head -1)
+              CACHE=$(find "$VOL" -name "dyld_shared_cache_arm64*" \
+                2>/dev/null | grep -v symbols | head -1)
             fi
             echo "shared cache: ${CACHE:-<none>}"
             if [ -n "$CACHE" ]; then
-              timeout 420 xcrun lldb -b \
+              perl -e 'alarm 420; exec @ARGV' -- \
+                xcrun lldb -b \
                 -o "target create $CACHE" \
                 -o "command script import .github/scripts/cache_symbolicate.py" \
                 -o "cache-sym SwiftData 502888 569200 645616" \
