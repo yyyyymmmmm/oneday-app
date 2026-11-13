@@ -18,6 +18,21 @@ import UIKit
 /// DESIGN-V4 §9 追记），裸排口径自此作废。
 /// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
 /// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
+
+/// 距底原始读数匣（§198）：滚动几何回调逐帧写、
+/// 贴底复核（120ms 后）读一次的原始距底——旧形态
+/// 存 @State，滚动中读数逐帧变、等值守卫挡不住，
+/// 等于每帧触发一次全页 body 重跑（审计 §2.1 的放
+/// 大器一半）。改存引用匣：写不触发任何视图失效，
+/// 读到的恒是读时点的最新值——唯一消费者（复核
+/// shouldRestick 与同点打点）在读时点上与旧 @State
+/// 读数逐字相等，判定阈值与语义零变更，只降回写
+/// 频次（§198 包 1 第三件）。经 @State 持实例（初
+/// 值只用一次），跨 body 重建恒为同一匣
+private final class BottomDistanceRecorder {
+    var latest: CGFloat = 0
+}
+
 struct ChatView: View {
     // （0.4.5 删：onOpenServerSession／onSelectTab 两注
     // 入闭包——它们唯一的调用方是抽屉，抽屉已提到壳
@@ -199,7 +214,10 @@ struct ChatView: View {
     /// 一路——迟滞判定消费它之外，原始读数另存一份
     /// 喂贴底后的复核（仍 >7pt 才补贴，§176 阈值
     /// 24 → 7 收紧，Core BottomSettle 钉死）
-    @State private var lastBottomDistance: CGFloat = 0
+    /// §198：原始读数改存 BottomDistanceRecorder 引
+    /// 用匣（见文件头注），不再走 @State 逐帧回写
+    @State private var bottomDistanceRecorder =
+        BottomDistanceRecorder()
     /// 流式跟随滚动节流闸（0.4.2，§27）：OneDayCore
     /// 纯逻辑记账，每 ≥40 字放行一次无动画贴底；流结
     /// 束与切换线程时归零（见 messageList 的 onChange）
@@ -2101,13 +2119,15 @@ struct ChatView: View {
                 - geometry.containerSize.height
         } action: { _, distance in
             // 0.36.13：原始读数另存一份喂落定复贴复核
-            // （见 lastBottomDistance 注）
-            // §135：两处回写加等值守卫——几何回调在滚
-            // 动中逐帧到达，值未变的回写不许再触发一
-            // 轮 body 重算（距底读数在静止期恒同值）
-            if lastBottomDistance != distance {
-                lastBottomDistance = distance
-            }
+            // （见 bottomDistanceRecorder 注）
+            // §135：回写加等值守卫——几何回调在滚动
+            // 中逐帧到达，值未变的回写不许再触发一轮
+            // body 重算（距底读数在静止期恒同值）
+            // §198：原始读数改写引用匣——滚动中它逐帧
+            // 必变、等值守卫挡不住、@State 写每帧触发
+            // 全页重跑；匣写不失效任何视图，复核读到
+            // 的仍是读时点最新值，判定语义零变更
+            bottomDistanceRecorder.latest = distance
             let proximity = BottomProximity.update(
                 distance: distance, wasNearBottom: isNearBottom
             )
@@ -2351,7 +2371,7 @@ struct ChatView: View {
                       )
                 else { return }
                 let shouldRestick = BottomSettle.shouldRestick(
-                    distance: lastBottomDistance
+                    distance: bottomDistanceRecorder.latest
                 )
                 // §135 D 案打点：发送帧的首帧复核读数
                 // （复核距底＋距发送耗时），每轮只记一笔
@@ -2360,7 +2380,7 @@ struct ChatView: View {
                     sendFrameRestickLogged = true
                     ChatDiagTrace.record(
                         "发送打点 首帧复核 距底"
-                            + " \(Int(lastBottomDistance))pt"
+                            + " \(Int(bottomDistanceRecorder.latest))pt"
                             + " 复贴 \(shouldRestick)"
                             + " 距发送 "
                             + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
@@ -2678,16 +2698,22 @@ struct ChatView: View {
                 // 号取登记 meta 渲染，见 Delivery-
                 // Views）；裸路径兜底（§129/§136）
                 // 只管拆剩的正文，两层不打架
-                let deliverySplit = DeliveryMarker.split(
-                    in: entry.content
+                // §198：本组派生扫描改条目级备忘（Core
+                // EntryScanMemo，键＝条目 id×内容哈希）
+                // ——同内容第二遍起零重扫、产出与逐遍
+                // 现算逐字相等；各扫描的口径仍以其各
+                // 自来源注（§152/§136/§143/§154）为准
+                let scans = EntryScanMemo.scans(
+                    entryID: entry.id,
+                    content: entry.content,
+                    remoteImagePaths: entry.remoteImagePaths
                 )
+                let deliverySplit = scans.delivery
                 // §136：MEDIA: 图片标记拆分（Core 纯
                 // 函数）——独立成行的图片标记从正文
                 // 摘除、走下方图片行出图，正文只喂摘
                 // 除后的文本（标记原文不再漏进气泡）
-                let mediaSplit = MediaMarker.split(
-                    in: deliverySplit.text
-                )
+                let mediaSplit = scans.media
                 // §143：裸路径图片内联——独立成行/段内
                 // 单独成词的图片路径（形态判定在
                 // Core）不再降为文件牌：走下方图片行
@@ -2697,12 +2723,7 @@ struct ChatView: View {
                 // 气泡正文摘除（只剩图、不剩生路径一
                 // 行）；未确证/查无的正文维持原样纯文
                 // 本（§129 降级口径，内容不消失）
-                let inlineImages = FileRefDetector
-                    .inlineImageCandidates(
-                        in: mediaSplit.text,
-                        excluding: entry.remoteImagePaths
-                            + mediaSplit.imagePaths
-                    )
+                let inlineImages = scans.inlineCandidates
                 // §154 热修：摘行集补 §136 已承接的
                 // 图——同一路径既写了 MEDIA: 行、又在
                 // 正文裸写独立成行时，§143 候选被排除
@@ -2716,16 +2737,15 @@ struct ChatView: View {
                 // ＋存在性确证 .exists 才摘；查无/未
                 // 确证正文原样保留、内容不消失
                 let mediaStandalonePaths = Set(
-                    FileRefDetector
-                        .detectStandaloneAnchored(
-                            in: mediaSplit.text
-                        )
-                        .map(\.path)
+                    scans.standalonePaths
                 )
-                let displayText = FileRefDetector
-                    .strippingStandaloneLines(
-                        in: mediaSplit.text,
-                        paths: Set(
+                // §198：摘行扫描同走备忘——摘行集由存
+                // 在性派生、签名入键，存在性翻转即重
+                // 算，语义与逐遍现算恒等
+                let displayText = EntryScanMemo.displayText(
+                    entryID: entry.id,
+                    mediaText: mediaSplit.text,
+                    stripPaths: Set(
                             inlineImages.filter {
                                 $0.isStandaloneLine
                                     && FileMetadataStore.shared
@@ -2917,9 +2937,16 @@ struct ChatView: View {
     private func localImageRow(
         _ datas: [Data], entry: ChatEntry
     ) -> some View {
+        // §198：解码改走 LocalImageDecodeCache（同
+        // 条目同图序只解一次、命中直取）；解码失败
+        // 单张不出卡的旧口径不变（坏图不入缓存）
         let pairs: [(data: Data, image: UIImage)] =
-            datas.compactMap { data in
-                guard let image = UIImage(data: data)
+            datas.enumerated().compactMap { index, data in
+                guard let image = LocalImageDecodeCache.shared
+                    .image(
+                        entryID: entry.id, index: index,
+                        data: data
+                    )
                 else { return nil }
                 return (data: data, image: image)
             }
@@ -3058,8 +3085,12 @@ struct ChatView: View {
     /// 标记符号成可读文本（MessagePlainText 纯函数），
     /// 用户消息原文即纯文本
     private func plainText(for entry: ChatEntry) -> String {
+        // §198：助手侧走条目级备忘（同内容不重剥，
+        // Core EntryScanMemo）；用户侧原文直用不变
         entry.role == "assistant"
-            ? MessagePlainText.make(from: entry.content)
+            ? EntryScanMemo.plainText(
+                entryID: entry.id, content: entry.content
+            )
             : entry.content
     }
 
@@ -6523,7 +6554,10 @@ private struct MessageMenuModifier: ViewModifier {
 /// 箭头在内容左缘下层：随显形进度淡入/缩放，
 /// 越线转武装态，且触发与触觉在越线同一刻发
 /// 生（途中触发，不等松手）；松手只做回位
-private struct SwipeReplyModifier: ViewModifier {
+/// §198：internal（原 private）——选字计数证死/回归
+/// 测试须装配生产原物验证结构身份，不许在测试侧复
+/// 制一份同形修饰符充数
+struct SwipeReplyModifier: ViewModifier {
     let isEnabled: Bool
     let onReply: () -> Void
 
