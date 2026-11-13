@@ -11461,6 +11461,12 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 版本：0.50.30／build 158，五处同改＋grep 验净。i18n：validate_i18n 合并后 2964 键×三语通过（2923 收口包＋2 引用＋39 频道，逐包对账精确）。
 Core 单测对账预期：基线 1754＋止血 0＋引用 19＋收口 3＋频道 3＝**1779**（diff 实数 func 净增 +25 与逐包账吻合）；App 目标 +7（止血 1＋引用 6）。
 
-### §207.2 装配 CI 判读（待补记）
+### §207.2 装配 CI 判读（2026-11-13 回填）
 
-### §207.3 出包补记（待补记）
+首轮 run 43423643604（头 f732850）**真红**：测试目标编译断裂——DrawerUnadoptedSideChatsTests.swift:25 直构 ServerSession 缺 runtimeRevision/runtimeGeneration 两参（收口包 DTO 去默认值 a821a98 时其分支未见 0.50.29 收养包后加的本测试 helper），测试零执行、产品 Build 成功。跨包交互只装配 CI 照得出。装配订正 **7208e87**：仅测试一处、照收口包自家先例补显式 nil，产品码零改动。
+权威轮 run **43424946088 attempt 1**（头 7208e87）§190 **判绿**（名义 failure）：BUILD SUCCEEDED、Package／Upload 两步 success；**Core 1779 实跑、0 失败**（与 §207.1 逐包对账预期精确吻合）；断言失败仅 2 条、同属一例——栏位探针 `ChatPageDeviceConditionProbeTests.testAnchoredBarsSurviveGrowthAndFramePollution` 在合并基线**同签名复现**（:418 玻璃条生长 46.0→52.0、「注入未生效」＋:423 舱底锚 783.0→836.0，与频道包自家 CI 43409507919 逐值全等；且止血档自家 CI 中同一探针、同一产品码曾通过）——判在案注入／时序 flake、非合并回归，任务书要求的装配复验留痕毕；§184 宿主静默死亡 2 起、零断言（testKeyboardUpMovesComposerOnlyDockStays 本尊＋DrawerBridgeHarnessTests.testBridgeTapToOpenReachesFullTravel，两套件经宿主重启续跑后均 passed）；失败用例全集仅探针一例。四包新套件在合并基线在位全过：引用 FeedDiscussQuoteTests 19 法＋FeedDiscussQuoteAppTests 6 法、止血 testComposerBackdropShrinksToCardSegment、收口 SettingsCatalogTests（全部对话行新位）＋DrawerUnadoptedSideChatsTests（订正后）、频道 SessionClassificationTests／SectionCollapseTests；HUB-LAYOUT-VERDICT=PASS、模型派发门 VERDICT=PASS、testBarGrowth_topRisesBottomPinned 通过。
+§190 rerun --failed（attempt 2）于 13:00 UTC 触发后在 runner 池长排约半小时未开跑（多线并行争用），装配线取消收口（attempt 2 conclusion=cancelled、零步骤执行），判读以 attempt 1 为唯一依据；主线如需补跑：`gh run rerun 43424946088 --failed`。
+
+### §207.3 出包补记（2026-11-13 回填）
+
+IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径独立解包亲验：**11,530,811 字节、md5 `817ec44ab993fdb27035776ee4233019`**；Payload/OneDayApp.app/Info.plist 亲读＝0.50.30／158／site.didichou.oneday；主二进制 OneDayApp 39,323,896 字节（md5 `5cd04257a6c7b35d8bacd3e214a8a151`）。落位 `~/workspace/your_files/oneday-v0.50.30/OneDay-0.50.30.ipa`。装配头 7208e87（其后仅 §207.2／§207.3 文档回填提交）。**未打 tag、未合 main**——等用户点头；真机待验清单见发版报告 §6（release-05030-assembly-20261113.md）。
