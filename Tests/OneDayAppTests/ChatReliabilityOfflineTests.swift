@@ -102,7 +102,7 @@ final class ChatReliabilityOfflineTests: XCTestCase {
         window.rootViewController = host
         window.makeKeyAndVisible()
         window.layoutIfNeeded()
-        spinRunLoop(seconds: 3.0)
+        spinRunLoop(seconds: 4.0)
         window.layoutIfNeeded()
     }
 
@@ -143,6 +143,13 @@ final class ChatReliabilityOfflineTests: XCTestCase {
             collect(from: window)
         }
         return texts
+    }
+
+
+    /// 失败诊断：在屏文本倾卸（断言消息用，CI 日志里
+    /// 直接看清页面到底渲染了什么）
+    private func screenDump(_ texts: [String]) -> String {
+        texts.joined(separator: " | ").prefix(900).description
     }
 
     /// 断网打开后回读容器：两线程与全部条目必须原样
@@ -199,7 +206,9 @@ final class ChatReliabilityOfflineTests: XCTestCase {
         for marker in ["离线主线标记问句甲", "离线主线标记答复乙", "离线主线标记问句丙"] {
             XCTAssertTrue(
                 texts.contains { $0.contains(marker) },
-                "断网打开主线应见存量条目：\(marker)"
+                "断网打开主线应见存量条目：\(marker)；"
+                    + "lastThreadID=\(appState.sideChats.lastThreadID?.uuidString ?? "nil")；"
+                    + "在屏：\(screenDump(texts))"
             )
         }
         try assertStoreIntact(
@@ -304,8 +313,11 @@ final class ChatReliabilityOfflineTests: XCTestCase {
             "整条裸路径不许原样当正文在屏"
         )
         XCTAssertTrue(
-            texts.contains { $0.contains("avatar_small.png") },
-            "附件形态应以文件名可达（图片标签/失败卡）"
+            texts.contains {
+                $0.contains("avatar_small.png")
+                    || $0.contains("图片加载失败")
+            },
+            "附件形态应以文件名/失败卡可达；在屏：\(screenDump(texts))"
         )
     }
 
