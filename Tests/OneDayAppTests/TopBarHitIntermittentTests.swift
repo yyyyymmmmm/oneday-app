@@ -15,13 +15,22 @@ import XCTest
 /// 本体照 headerBar 原样、HubAvatarButton 与
 /// ModelCapsuleView 用生产件、16pt 命中死区同位）。
 ///
-/// 证据纪律＝动作级：点按一律经合成触摸走 UI-
-/// Application.sendEvent 的真实命中路径（应用级
-/// 漏斗做命中绑定→透传闸门→托管树→Button），
-/// 断言只认按钮动作计数真的 +1（＝生产里 drawe-
-/// rPresented/showModelPicker 状态翻转的同位事
-/// 实），不以 hitTest 返回值充数（hitTest 结果
-/// 仅作诊断日志）。
+/// 证据纪律＝动作级，两环相扣（合成触摸两轮实
+/// 测走不通的替代，见下）：①路由环——window.
+/// hitTest(钮的活量中心) 必须落进顶簇宿主子树：
+/// 这正是真触摸 began 相位的同一次命中裁决（触
+/// 摸终生绑定命中视图），且是本病灶所在层（透传
+/// 闸门）的直接判据，与 ComposerGuideHostTests
+/// 的路由取证同式；②动作环——对该钮的无障碍元
+/// 素 accessibilityActivate()，断言动作计数真
+/// 的 +1（SwiftUI Button 对无障碍激活的响应就
+/// 是执行其 action，与生产 drawerPresented/
+/// showModelPicker 翻转同位）。真触摸全程贯通
+/// 由真 App 的 XCUITest 动作门（TopBarSingle-
+/// ActionTapTests，§202）覆盖静息态；合成触摸
+/// （UITouch/UIEvent 子类经 Window/Applicati-
+/// on.sendEvent 两路）在本测试宿主连原生 UICon-
+/// trol 都点不响（两轮 CI 实证），故不采用。
 ///
 /// 状态空间：静息基线／宿主帧被重排但无布局拍
 /// （±49 与 −8 两档，模拟 §195 落定重算挪帧）／
@@ -89,63 +98,62 @@ final class TopBarHitIntermittentTests: XCTestCase {
         }
     }
 
-    // MARK: - 合成触摸（动作级点按的投递通道）
+    // MARK: - 动作级取证（路由环＋动作环）
 
-    /// 合成触摸：位置以窗口坐标存、location(in:)
-    /// 按目标视图现算（命中与手势识别拿到的是各
-    /// 自坐标系的真值）；相位可变——began/ended
-    /// 必须是同一个 touch 对象（UIKit 按身份关联
-    /// 一次点按的两相）
-    private final class FakeTouch: UITouch {
-        private let windowPoint: CGPoint
-        var fakePhase: UITouch.Phase = .began
-        init(windowPoint: CGPoint) {
-            self.windowPoint = windowPoint
-            super.init()
+    /// 视图是否落在顶簇宿主子树内（闸门放行的充
+    /// 分条件：命中下行穿过闸门后只能落进宿主子
+    /// 树或被驳回落到下层列表）
+    private func isInsideBarHost(_ view: UIView?) -> Bool {
+        guard let host = topHost(), let view else { return false }
+        let barRoot = host.traceBarView
+        var cursor: UIView? = view
+        while let current = cursor {
+            if current === barRoot { return true }
+            cursor = current.superview
         }
-        override var phase: UITouch.Phase { fakePhase }
-        override var tapCount: Int { 1 }
-        override func location(in view: UIView?) -> CGPoint {
-            guard let view, let window = view.window
-            else { return windowPoint }
-            return view.convert(windowPoint, from: window)
-        }
+        return false
     }
 
-    private final class FakeEvent: UIEvent {
-        private let fakeTouches: Set<UITouch>
-        init(touch: UITouch) {
-            self.fakeTouches = [touch]
-            super.init()
+    /// 在宿主的无障碍树里按标识/标签找元素（Swift-
+    /// UI 钮的语义元素挂在托管视图的 accessibili-
+    /// tyElements 树与子视图上，两路都走）
+    private func findA11yElement(
+        identifier: String?, label: String?
+    ) -> NSObject? {
+        guard let host = topHost() else { return nil }
+        func matches(_ obj: NSObject) -> Bool {
+            if let identifier,
+               obj.accessibilityIdentifier == identifier {
+                return true
+            }
+            if let label, obj.accessibilityLabel == label {
+                return true
+            }
+            return false
         }
-        override var allTouches: Set<UITouch>? { fakeTouches }
-        override func touches(for view: UIView) -> Set<UITouch>? {
-            fakeTouches
+        func searchElements(_ obj: NSObject) -> NSObject? {
+            if matches(obj) { return obj }
+            if let elements = obj.accessibilityElements {
+                for element in elements {
+                    guard let ns = element as? NSObject
+                    else { continue }
+                    if let found = searchElements(ns) {
+                        return found
+                    }
+                }
+            }
+            return nil
         }
-        override func touches(for window: UIWindow) -> Set<UITouch>? {
-            fakeTouches
+        func searchViews(_ view: UIView) -> NSObject? {
+            if let found = searchElements(view) { return found }
+            for subview in view.subviews {
+                if let found = searchViews(subview) {
+                    return found
+                }
+            }
+            return nil
         }
-        override func touches(
-            for gestureRecognizer: UIGestureRecognizer
-        ) -> Set<UITouch>? { fakeTouches }
-    }
-
-    /// 在窗口坐标点位打一次完整点按：投递必须走
-    /// UIApplication.sendEvent——命中绑定（hitTest
-    /// 定视图）发生在应用级事件漏斗里，直调 Win-
-    /// dow.sendEvent 的裸触摸没有绑定视图、投了个
-    /// 空（第一轮 rig 全红实证：连静息基线都不触
-    /// 发、活帧却全对）。命中裁决在 began 相位一次
-    /// 性落定（UIKit 语义，触摸终生绑定命中视图）；
-    /// 两相之间的小泵只为让托管树处理按下态，不影
-    /// 响已落定的命中绑定
-    private func fireTap(atWindowPoint point: CGPoint) {
-        let touch = FakeTouch(windowPoint: point)
-        touch.fakePhase = .began
-        UIApplication.shared.sendEvent(FakeEvent(touch: touch))
-        spinRunLoop(seconds: 0.05)
-        touch.fakePhase = .ended
-        UIApplication.shared.sendEvent(FakeEvent(touch: touch))
+        return searchViews(host.traceBarView)
     }
 
     // MARK: - 顶簇替身（按 ChatView 现行构成复刻）
@@ -431,27 +439,85 @@ final class TopBarHitIntermittentTests: XCTestCase {
         return "\(label)：活帧=\(live) 闸门帧=\(gate)"
     }
 
-    /// 点一个钮并断言动作计数恰 +1（动作级判据本
-    /// 体）：点位取钮的活量中心，点后短泵等状态落
-    /// 定再读计数
-    private func assertTapFires(
-        _ name: String,
-        count: KeyPath<RigState, Int>,
-        _ label: String,
+    /// 路由环：在钮的活量中心做窗口命中裁决，命
+    /// 中必须落进顶簇宿主子树（被闸门驳回＝落到下
+    /// 层列表或 nil，本病的直接判据）
+    private func assertRouting(
+        _ name: String, _ label: String,
         file: StaticString = #filePath, line: UInt = #line
     ) {
         guard let center = liveCenter(of: name) else {
             XCTFail("\(label)：量具未登记 \(name)", file: file, line: line)
             return
         }
+        let hit = window.hitTest(center, with: nil)
+        XCTAssertTrue(
+            isInsideBarHost(hit),
+            "\(label)：命中未落进顶簇宿主（命中=\(String(describing: hit))；\(diag(label))）",
+            file: file, line: line)
+    }
+
+    /// 动作环：无障碍激活该钮，断言动作计数恰 +1
+    ///（触发→状态的接线实证）
+    private func assertActivation(
+        identifier: String?, a11yLabel: String?,
+        count: KeyPath<RigState, Int>, _ label: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard let element = findA11yElement(
+            identifier: identifier, label: a11yLabel)
+        else {
+            XCTFail(
+                "\(label)：无障碍元素未找到（id=\(identifier ?? "-")）",
+                file: file, line: line)
+            return
+        }
         let rig = state!
         let before = rig[keyPath: count]
-        fireTap(atWindowPoint: center)
+        let activated = element.accessibilityActivate()
         spinRunLoop(seconds: 0.35)
+        XCTAssertTrue(
+            activated, "\(label)：无障碍激活未被接受",
+            file: file, line: line)
         XCTAssertEqual(
             rig[keyPath: count], before + 1,
-            "\(label)：点按未触发动作（\(diag(label))）",
+            "\(label)：激活后动作未触发（\(diag(label))）",
             file: file, line: line)
+    }
+
+    /// 两环合判：路由落进宿主＋激活触发动作
+    private func assertButtonFires(
+        _ name: String,
+        identifier: String?, a11yLabel: String?,
+        count: KeyPath<RigState, Int>,
+        _ label: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        assertRouting(name, label, file: file, line: line)
+        assertActivation(
+            identifier: identifier, a11yLabel: a11yLabel,
+            count: count, label, file: file, line: line)
+    }
+
+    /// 抽屉钮的两环合判（生产钮只有标签、无标识）
+    private func assertDrawerFires(
+        _ label: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        assertButtonFires(
+            "drawerBtn", identifier: nil, a11yLabel: "会话列表",
+            count: \.drawerTaps, label, file: file, line: line)
+    }
+
+    /// 模型胶囊的两环合判（生产件带稳定标识）
+    private func assertCapsuleFires(
+        _ label: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        assertButtonFires(
+            "capsule", identifier: "topbar.modelCapsule",
+            a11yLabel: nil,
+            count: \.modelTaps, label, file: file, line: line)
     }
 
     private func primeRig() {
@@ -462,32 +528,14 @@ final class TopBarHitIntermittentTests: XCTestCase {
 
     // MARK: - 状态空间
 
-    /// 通道对照（UIKit 原生钮）：合成触摸连 UICon-
-    /// trol 都点不响＝投递通道本身坏（与 SwiftUI/
-    /// 产品无关）；本法绿而 S0 红＝缺口在 SwiftUI
-    /// 托管层的事件处理，另寻投递法
-    func testSyntheticChannel_uiKitControlFires() {
-        primeRig()
-        let control = UIButton(
-            frame: CGRect(x: 151, y: 700, width: 100, height: 50))
-        var taps = 0
-        control.addAction(
-            UIAction { _ in taps += 1 }, for: .touchUpInside)
-        window.addSubview(control)
-        window.layoutIfNeeded()
-        fireTap(atWindowPoint: CGPoint(x: 201, y: 725))
-        spinRunLoop(seconds: 0.3)
-        XCTAssertEqual(taps, 1, "合成触摸通道对照：UIKit 钮未被点响")
-        control.removeFromSuperview()
-    }
-
-    /// S0 静息基线（兼合成触摸通道自检）：两钮在
-    /// 静息态必须可点——本法红＝投递通道或装配坏
-    /// 了，不是产品病，后续状态结论全部作废先修 rig
+    /// S0 静息基线（兼两环取证通道自检）：两钮在
+    /// 静息态必须两环全过——本法红＝取证通道或装
+    /// 配坏了，不是产品病，后续状态结论全部作废
+    /// 先修 rig
     func testRest_baseline_bothButtonsFire() {
         primeRig()
-        assertTapFires("drawerBtn", count: \.drawerTaps, "静息/抽屉钮")
-        assertTapFires("capsule", count: \.modelTaps, "静息/模型胶囊")
+        assertDrawerFires("静息/抽屉钮")
+        assertCapsuleFires("静息/模型胶囊")
     }
 
     /// S1a 宿主帧被重排上移 49、无布局拍（§195 落
@@ -505,19 +553,14 @@ final class TopBarHitIntermittentTests: XCTestCase {
             XCTFail("topHost 未就位")
             return
         }
-        let hostView = host.view!
-        let before = state.modelTaps
-        hostView.frame.origin.y -= 49
-        // 同步点按（不泵 runloop，布局拍不许先行治愈）
-        guard let center = liveCenter(of: "capsule") else {
-            XCTFail("胶囊活量中心缺失")
-            return
-        }
-        fireTap(atWindowPoint: center)
-        spinRunLoop(seconds: 0.35)
-        XCTAssertEqual(
-            state.modelTaps, before + 1,
-            "重排上移49无布局拍：点活量中心未触发（\(diag("S1a"))）")
+        host.view!.frame.origin.y -= 49
+        // 同步裁决（不泵 runloop，布局拍不许先行治
+        // 愈）：路由环是判据；动作环与位置无关、照
+        // 常应过（接线未断的旁证）
+        assertRouting("capsule", "重排上移49无布局拍/路由")
+        assertActivation(
+            identifier: "topbar.modelCapsule", a11yLabel: nil,
+            count: \.modelTaps, "重排上移49无布局拍/动作环")
     }
 
     /// S1b 同上、方向向下 +49（坞回显/落定反向的
@@ -528,18 +571,11 @@ final class TopBarHitIntermittentTests: XCTestCase {
             XCTFail("topHost 未就位")
             return
         }
-        let hostView = host.view!
-        let before = state.drawerTaps
-        hostView.frame.origin.y += 49
-        guard let center = liveCenter(of: "drawerBtn") else {
-            XCTFail("抽屉钮活量中心缺失")
-            return
-        }
-        fireTap(atWindowPoint: center)
-        spinRunLoop(seconds: 0.35)
-        XCTAssertEqual(
-            state.drawerTaps, before + 1,
-            "重排下移49无布局拍：点活量中心未触发（\(diag("S1b"))）")
+        host.view!.frame.origin.y += 49
+        assertRouting("drawerBtn", "重排下移49无布局拍/路由")
+        assertActivation(
+            identifier: nil, a11yLabel: "会话列表",
+            count: \.drawerTaps, "重排下移49无布局拍/动作环")
     }
 
     /// S1c 小位移 −8（特征化）：活量中心仍落在缓
@@ -553,7 +589,7 @@ final class TopBarHitIntermittentTests: XCTestCase {
             return
         }
         host.view!.frame.origin.y -= 8
-        assertTapFires("capsule", count: \.modelTaps, "重排上移8")
+        assertCapsuleFires("重排上移8")
     }
 
     /// S2 切格往返：去别的格再回来，落定后两钮可
@@ -565,8 +601,8 @@ final class TopBarHitIntermittentTests: XCTestCase {
         settle(0.8)
         state.selection = 0
         settle(1.2)
-        assertTapFires("drawerBtn", count: \.drawerTaps, "切格往返/抽屉钮")
-        assertTapFires("capsule", count: \.modelTaps, "切格往返/模型胶囊")
+        assertDrawerFires("切格往返/抽屉钮")
+        assertCapsuleFires("切格往返/模型胶囊")
     }
 
     /// S3 sheet 开关往返：模型面同型的呈现/消散一
@@ -577,8 +613,8 @@ final class TopBarHitIntermittentTests: XCTestCase {
         settle(1.0)
         state.showSheet = false
         settle(1.0)
-        assertTapFires("capsule", count: \.modelTaps, "sheet往返/模型胶囊")
-        assertTapFires("drawerBtn", count: \.drawerTaps, "sheet往返/抽屉钮")
+        assertCapsuleFires("sheet往返/模型胶囊")
+        assertDrawerFires("sheet往返/抽屉钮")
     }
 
     /// S4 抽屉开合：关闭动画途中点顶簇不得入钮
@@ -589,22 +625,22 @@ final class TopBarHitIntermittentTests: XCTestCase {
         container.setDrawer(true, animated: false)
         settle(0.8)
         container.setDrawer(false, animated: true)
-        // 动画途中（同步采样、不泵）：点抽屉钮的活
-        // 量中心，动作不得触发（前景在移动、容器拦
-        // 截命中——与底舱 §186.8 同口径）
+        // 动画途中（同步采样、不泵）：抽屉钮活量中
+        // 心的命中不得落进顶簇宿主（前景在移动、容
+        // 器层拦截命中——与底舱 §186.8 的 hitTest
+        // 同口径取证）
         if let center = liveCenter(of: "drawerBtn") {
-            let before = state.drawerTaps
-            fireTap(atWindowPoint: center)
-            XCTAssertEqual(
-                state.drawerTaps, before,
-                "抽屉关闭动画途中点按不应触发顶簇动作")
+            let hit = window.hitTest(center, with: nil)
+            XCTAssertFalse(
+                isInsideBarHost(hit),
+                "抽屉关闭动画途中命中不应落进顶簇宿主")
         } else {
             XCTFail("动画途中抽屉钮活量中心缺失")
         }
         spinRunLoop(seconds: 2.0)
         settle(0.4)
-        assertTapFires("drawerBtn", count: \.drawerTaps, "抽屉落定/抽屉钮")
-        assertTapFires("capsule", count: \.modelTaps, "抽屉落定/模型胶囊")
+        assertDrawerFires("抽屉落定/抽屉钮")
+        assertCapsuleFires("抽屉落定/模型胶囊")
     }
 
     /// S5 坞显隐落定（键盘聚焦态的结构同构件）：
@@ -615,11 +651,11 @@ final class TopBarHitIntermittentTests: XCTestCase {
         primeRig()
         state.focused = true
         settle(1.2)
-        assertTapFires("capsule", count: \.modelTaps, "坞隐藏落定/模型胶囊")
+        assertCapsuleFires("坞隐藏落定/模型胶囊")
         state.focused = false
         settle(1.2)
-        assertTapFires("capsule", count: \.modelTaps, "坞回显落定/模型胶囊")
-        assertTapFires("drawerBtn", count: \.drawerTaps, "坞回显落定/抽屉钮")
+        assertCapsuleFires("坞回显落定/模型胶囊")
+        assertDrawerFires("坞回显落定/抽屉钮")
     }
 
     /// S6 进展行生长：顶簇长高一轮（宿主定高约束
@@ -629,11 +665,11 @@ final class TopBarHitIntermittentTests: XCTestCase {
         primeRig()
         state.progressShown = true
         settle(1.2)
-        assertTapFires("drawerBtn", count: \.drawerTaps, "进展生长/抽屉钮")
-        assertTapFires("capsule", count: \.modelTaps, "进展生长/模型胶囊")
+        assertDrawerFires("进展生长/抽屉钮")
+        assertCapsuleFires("进展生长/模型胶囊")
         state.progressShown = false
         settle(1.2)
-        assertTapFires("capsule", count: \.modelTaps, "进展收起/模型胶囊")
+        assertCapsuleFires("进展收起/模型胶囊")
     }
 
     /// S7 外观切换：深色一轮后两钮可点（特征化状
@@ -642,10 +678,10 @@ final class TopBarHitIntermittentTests: XCTestCase {
         primeRig()
         window.overrideUserInterfaceStyle = .dark
         settle(0.8)
-        assertTapFires("drawerBtn", count: \.drawerTaps, "深色/抽屉钮")
-        assertTapFires("capsule", count: \.modelTaps, "深色/模型胶囊")
+        assertDrawerFires("深色/抽屉钮")
+        assertCapsuleFires("深色/模型胶囊")
         window.overrideUserInterfaceStyle = .light
         settle(0.8)
-        assertTapFires("capsule", count: \.modelTaps, "回浅色/模型胶囊")
+        assertCapsuleFires("回浅色/模型胶囊")
     }
 }
