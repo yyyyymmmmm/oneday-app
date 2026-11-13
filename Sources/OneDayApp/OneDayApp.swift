@@ -131,6 +131,8 @@ struct RootView: View {
                     await appState.companionProbe.probeIfNeeded(
                         appState: appState
                     )
+                    // 头像仓同步（P1）：与伴生探测同拍
+                    await appState.syncAgentAvatarFromBridge()
                 }
             } else if newPhase == .background {
                 appState.deviceSession.deactivate()
@@ -152,6 +154,8 @@ struct RootView: View {
                     await appState.companionProbe.probe(
                         appState: appState
                     )
+                    // 头像仓同步（P1）：与伴生探测同拍
+                    await appState.syncAgentAvatarFromBridge()
                 }
             } else {
                 appState.deviceSession.deactivate()
@@ -174,6 +178,8 @@ struct RootView: View {
             await appState.companionProbe.probeIfNeeded(
                 appState: appState
             )
+            // 头像仓同步（P1）：冷启恢复同拍补一次
+            await appState.syncAgentAvatarFromBridge()
             // 演示样本播种：内存库为空时种一轮拟真对话（仅演示模式）
             if DemoMode.current.isDemo {
                 DemoSeeder.seedIfNeeded(context: modelContext)

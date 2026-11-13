@@ -11125,3 +11125,30 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 
 ### 197.4 真机待验（随并轨版本装机验）
 ①App 内开/关任一权限或「允许智能体调用」开关后，设备页在线状态不假报、紧接着让智能体查位置/发短信能通（不再 device_offline／30 秒超时）；②执行一通长调用期间拨开关，回执成败在设备详情页「最近调用」有痕（respond_ 错误码可见）；③退后台再回前台，会话经 offline 正路恢复在线（原有行为不回退）。
+
+## §199 AI 内部权限 P1 身份包：改名窄工具＋头像仓＋头像应用通道（2026-11-13；分支 feat/ai-identity-pack，基线 main @0494f7d；节号说明：§198 已被抽屉包/止血包在各自分支占用，本包取 §199，组版时主线收口）
+
+### 199.1 依据与边界
+用户 2026-11-13 拍板：OneDay 里的 AI 按「住户不是客人」定位（对标 Muse 本体）、内部操作全自主不走审批、唯一硬要求主线留痕。盘点 ai-internal-powers-audit-20261113.md §2.2/§四 P1。本包只建桥侧工具与 App 数据通道，**不注册进 Hermes、不重启任何服务**——注册统一等收官窗口一次办（用户已授权主线在收官窗重启）。冻结红线遵守：§194/§195 几何、顶簇锚定、DrawerView、两 GuideHost 零触碰；顶簇头像钮正由胶囊 B 线施工，本包只接数据通道、不改顶簇视图结构——全 App 露脸面（顶簇/枢纽/设置身份区）只消费 AgentProfileStore 的 avatarImage 单一出口，改存储层即全点生效。
+
+### 199.2 改名窄工具（桥侧 identity 桥，伴生模块 #7，端口 8648）
+- 工具面：/mcp 门面（与 device 桥、oneday 目标门面同形）六工具 identity_get_name/identity_set_name/identity_get_avatar/identity_set_avatar_preset/identity_set_avatar_image/identity_select_avatar；REST 同能力供 App 与自验。状态＝门面就绪待注册。
+- 窄口径：set_name 只许动 soul 的身份标题行——前 3 个非空行内首个 `# ` 行（即 Core AgentName.resolve 实际读取的槽位）；无此行则在文件首行插入，soul 其余字节一字不动。写前整文备份进头像仓 soul-backups/，原子替换并保原文件 mode/owner；写后按 Python 镜像版 AgentName.resolve 回读验名一致才算成。
+- 校验与 App 解析同口径：≤20 字、无句读集、无结构词（soul/人设/身份等）、拒 # 与控制字符。支持 dryRun 只算不落盘。
+- App 侧零改动：AI 改名后 App 既有 soul 解析链（identityName）自动跟上，本机改名覆盖仍优先（既有口径不变）。
+- 留痕：每次动作（REST/MCP、成功/失败）按 P0 五要素契约经 oneday 桥 /traces 落一条（action=identity.*）；落痕通道不可达时同形状溢出落盘 traces-spill.jsonl 并在桥日志大声报错，不许静默丢痕。
+
+### 199.3 头像仓（桥侧新建）
+- 存储：伴生 identity-data 卷 index.json（currentId＋items 历史）＋图片文件；条目两类：preset（目录 id 引用：partner/paw/sparkles/atom）与 image（AI 生成图字节，JPEG/PNG 魔数校验、≤2MB、记 sha256）。
+- 端点：GET /identity/avatar（状态）、GET /identity/avatar/image?id=（字节）、POST /identity/avatar（入仓：预置引用/图片）、POST /identity/avatar/select（切当前）。生产自验：seed 预置 partner 为当前（与现行缺省视觉等价）＋小图入仓回读 sha 对齐＋切回 partner，全程经公网 nginx 路径验。
+
+### 199.4 头像应用通道（App 侧）
+- 新 IdentityBridgeClient（仿总览桥：BridgeCredential 单钥、/api/identity-bridge、错误分 noKey/unauthorized/failed）＋AgentAvatarSync：与伴生探测同拍触发（AppState.syncAgentAvatarFromBridge，挂 OneDayApp 连接成立/回前台/冷启恢复三点），把仓当前头像投影进 AgentProfileStore 的 AI 档槽位；失败静默保现状——仓不可达不动槽位、不清槽、不白屏；仓明确无当前头像才清槽。
+- 优先级（Core AgentAvatarChoice 纯函数裁决）：用户手动选过优先——selectPreset/setCustomAvatar 即上锁（agentProfile.userAvatarLocked），AI 切换只动 AI 档、永远压不过锁；未锁定时 AI 档赢过档案选择值；AI 档为空回落用户选择。存量迁移：锁键未写过时以「预置 id 键存在过或用过自定义图」判手动选过（缺省态从不写这两键，未碰过编辑器的用户不锁，AI 头像可直接生效）。
+- AI 图落本机 avatar-ai.jpg（与用户 avatar.jpg 分文件互不覆盖），制备口径同用户图（裁方/512/JPEG）；同条目已同步跳过重复下载。
+- 已知后续（不在本包）：身份编辑面补一颗「跟随 AI 头像」开关（清锁）——本包先落存储层口径，开关随后续 UI 包。
+
+### 199.5 测试与待验
+- Core 新增 AgentAvatarChoiceTests 7 法：锁压 AI（预置/图片两路）、未锁 AI 胜（预置/图片）、AI 图胜出标记、AI 空回落、脏预置 id 收敛缺省。单测只增不减。
+- CI 口径：分支 workflow_dispatch 全量，断言失败须 0（键盘全链 flake 在案一条按 §190/§196 口径记录）。
+- 真机待验（随组版装机）：①AI（经收官注册后）改名后 App 显示名跟随（本机无覆盖时）；②AI 换预置/图片头像后三露脸面同步变化；③用户手动选过头像后 AI 切换不生效（锁）；④断网冷启头像不空白、不回退。

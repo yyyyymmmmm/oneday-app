@@ -407,6 +407,18 @@ final class AppState {
     /// 与缓存口径在 Core CompanionProbe 一件
     let companionProbe = CompanionProbeStore()
 
+    /// 头像仓同步（P1 身份包）：触发点与伴生探测同拍
+    /// （OneDayApp 的连接成立/回前台/冷启恢复），把
+    /// identity 桥头像仓当前头像投影进档案 AI 档槽
+    /// 位；演示模式不连真仓；失败静默保现状，口径在
+    /// AgentAvatarSync
+    func syncAgentAvatarFromBridge() async {
+        guard let config, !isDemo else { return }
+        await AgentAvatarSync.run(
+            config: config, store: agentProfileStore
+        )
+    }
+
     /// 露脸面显示名单一出口：档案覆盖 → soul 解析名
     /// → Hermes 回落（OneDayCore.AgentDisplayName）
     var agentDisplayName: String {

@@ -25,6 +25,11 @@ final class AgentProfileStore {
         static let nameOverride = "agentProfile.displayNameOverride"
         static let avatarPresetID = "agentProfile.avatarPresetID"
         static let usesCustomAvatar = "agentProfile.usesCustomAvatar"
+        // P1 身份包：AI 档槽位（仓条目 id/预置 id）与
+        // 「用户手动选过」锁
+        static let aiAvatarItemID = "agentProfile.aiAvatarItemID"
+        static let aiAvatarPresetID = "agentProfile.aiAvatarPresetID"
+        static let userAvatarLocked = "agentProfile.userAvatarLocked"
     }
 
     private(set) var profile: AgentProfile
@@ -40,12 +45,45 @@ final class AgentProfileStore {
 
     private var customAvatar: UIImage?
 
+    /// AI 档槽位（P1）：头像仓当前头像在本机的投影；
+    /// 只由头像仓同步写入，用户手动选择永不改它
+    private(set) var aiAvatar: AgentAIAvatar?
+
+    private var aiCustomAvatar: UIImage?
+
+    /// 用户手动选过头像（P1 锁）：为真时 AI 档永远压
+    /// 不过用户选择。存量迁移：锁键从未写过时，以
+    /// 「预置 id 键存在过或用过自定义图」判手动选过
+    /// （缺省态从不写这两键，未碰过编辑器的用户不锁）
+    private(set) var userAvatarLocked: Bool
+
     init() {
         let defaults = UserDefaults.standard
         let name = defaults.string(forKey: Keys.nameOverride)
         let usesCustom = defaults.bool(forKey: Keys.usesCustomAvatar)
         let presetID = defaults.string(forKey: Keys.avatarPresetID)
             ?? AgentAvatarPreset.defaultID
+        let locked: Bool
+        if defaults.object(forKey: Keys.userAvatarLocked) != nil {
+            locked = defaults.bool(forKey: Keys.userAvatarLocked)
+        } else {
+            locked = defaults.object(forKey: Keys.avatarPresetID) != nil
+                || usesCustom
+        }
+        let loadedAI: AgentAIAvatar?
+        let loadedAICustom: UIImage?
+        if let itemID = defaults.string(forKey: Keys.aiAvatarItemID) {
+            if let aiPreset = defaults.string(forKey: Keys.aiAvatarPresetID) {
+                loadedAI = .preset(id: aiPreset)
+                loadedAICustom = nil
+            } else {
+                loadedAI = .image(itemID: itemID)
+                loadedAICustom = Self.loadAICustomAvatarFile()
+            }
+        } else {
+            loadedAI = nil
+            loadedAICustom = nil
+        }
         // 先算局部量再统一赋值：@Observable 类的
         // init 在全部存储属性就位前不许读 self（CI
         // run 42878183115 实证——条件赋值 customAva-
@@ -62,8 +100,13 @@ final class AgentProfileStore {
             : nil
         profile = loadedProfile
         customAvatar = loadedCustom
+        aiAvatar = loadedAI
+        aiCustomAvatar = loadedAICustom
+        userAvatarLocked = locked
         avatarUIImage = Self.resolveAvatar(
-            profile: loadedProfile, customAvatar: loadedCustom
+            profile: loadedProfile, customAvatar: loadedCustom,
+            aiAvatar: loadedAI, aiCustomAvatar: loadedAICustom,
+            userLocked: locked
         )
     }
 
@@ -93,12 +136,14 @@ final class AgentProfileStore {
         revision += 1
     }
 
-    /// 选预置形象：目录外 id 经 Core 收敛到缺省款
+    /// 选预置形象：目录外 id 经 Core 收敛到缺省款。
+    /// 手动选择即上锁（P1）：此后 AI 档不再压过它
     func selectPreset(id: String) {
         let preset = AgentAvatarPreset.resolve(id: id)
         profile.avatar = .preset(id: preset.id)
         UserDefaults.standard.set(preset.id, forKey: Keys.avatarPresetID)
         UserDefaults.standard.set(false, forKey: Keys.usesCustomAvatar)
+        lockUserAvatar()
         refreshAvatar()
         revision += 1
     }
@@ -118,23 +163,91 @@ final class AgentProfileStore {
         customAvatar = prepared
         profile.avatar = .custom
         UserDefaults.standard.set(true, forKey: Keys.usesCustomAvatar)
+        lockUserAvatar()
         refreshAvatar()
         revision += 1
         return true
     }
 
+    private func lockUserAvatar() {
+        userAvatarLocked = true
+        UserDefaults.standard.set(true, forKey: Keys.userAvatarLocked)
+    }
+
+    // MARK: - AI 档（头像仓同步，P1）
+
+    /// 仓当前条目是预置引用：只记 id，图由本机目录解析
+    func applyAIAvatarPreset(id: String, itemID: String) {
+        let resolved = AgentAvatarPreset.resolve(id: id)
+        aiAvatar = .preset(id: resolved.id)
+        UserDefaults.standard.set(itemID, forKey: Keys.aiAvatarItemID)
+        UserDefaults.standard.set(resolved.id, forKey: Keys.aiAvatarPresetID)
+        refreshAvatar()
+        revision += 1
+    }
+
+    /// 仓当前条目是图片：制备口径与用户自定义图一致
+    /// （裁方/512/JPEG），落 avatar-ai.jpg 与用户图分
+    /// 文件；失败回 false、AI 档保持原样
+    @discardableResult
+    func applyAIAvatarImage(data: Data, itemID: String) -> Bool {
+        guard let prepared = Self.preparedCustomAvatar(from: data),
+              let jpeg = prepared.jpegData(compressionQuality: 0.85)
+        else { return false }
+        do {
+            try jpeg.write(to: Self.aiAvatarFileURL, options: .atomic)
+        } catch {
+            return false
+        }
+        aiCustomAvatar = prepared
+        aiAvatar = .image(itemID: itemID)
+        UserDefaults.standard.set(itemID, forKey: Keys.aiAvatarItemID)
+        UserDefaults.standard.removeObject(forKey: Keys.aiAvatarPresetID)
+        refreshAvatar()
+        revision += 1
+        return true
+    }
+
+    /// 仓里没有当前头像（从未设过）：AI 档清槽，呈现
+    /// 回落用户选择。注意仓不可达不走这里——同步层失
+    /// 败时根本不调用，AI 档保持上次值
+    func clearAIAvatar() {
+        guard aiAvatar != nil else { return }
+        aiAvatar = nil
+        aiCustomAvatar = nil
+        UserDefaults.standard.removeObject(forKey: Keys.aiAvatarItemID)
+        UserDefaults.standard.removeObject(forKey: Keys.aiAvatarPresetID)
+        refreshAvatar()
+        revision += 1
+    }
+
     private func refreshAvatar() {
         avatarUIImage = Self.resolveAvatar(
-            profile: profile, customAvatar: customAvatar
+            profile: profile, customAvatar: customAvatar,
+            aiAvatar: aiAvatar, aiCustomAvatar: aiCustomAvatar,
+            userLocked: userAvatarLocked
         )
     }
 
     // MARK: - 头像解析
 
+    /// 解析顺序（P1 裁决在 Core AgentAvatarChoice）：
+    /// 用户锁 → 用户选择；未锁 → AI 档；AI 图胜出且本
+    /// 机图在 → AI 图；任一图缺失回落缺省预置，不空白
     private static func resolveAvatar(
-        profile: AgentProfile, customAvatar: UIImage?
+        profile: AgentProfile, customAvatar: UIImage?,
+        aiAvatar: AgentAIAvatar?, aiCustomAvatar: UIImage?,
+        userLocked: Bool
     ) -> UIImage {
-        switch profile.avatar {
+        if AgentAvatarChoice.aiImageWins(
+            userLocked: userLocked, ai: aiAvatar
+        ), let aiCustomAvatar {
+            return aiCustomAvatar
+        }
+        let choice = AgentAvatarChoice.resolve(
+            userLocked: userLocked, ai: aiAvatar, user: profile.avatar
+        )
+        switch choice {
         case .custom:
             if let customAvatar { return customAvatar }
             return presetImage(AgentAvatarPreset.resolve(id: AgentAvatarPreset.defaultID))
@@ -190,6 +303,20 @@ final class AgentProfileStore {
 
     private static func loadCustomAvatarFile() -> UIImage? {
         guard let data = try? Data(contentsOf: avatarFileURL) else {
+            return nil
+        }
+        return UIImage(data: data)
+    }
+
+    /// AI 档图文件：与用户图同目录、分文件（avatar-ai
+    /// .jpg），两边互不覆盖
+    private static var aiAvatarFileURL: URL {
+        avatarFileURL.deletingLastPathComponent()
+            .appendingPathComponent("avatar-ai.jpg")
+    }
+
+    private static func loadAICustomAvatarFile() -> UIImage? {
+        guard let data = try? Data(contentsOf: aiAvatarFileURL) else {
             return nil
         }
         return UIImage(data: data)
