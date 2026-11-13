@@ -529,6 +529,64 @@ final class TopBarHitIntermittentTests: XCTestCase {
 
     // MARK: - 状态空间
 
+    /// 层级诊断（临时取证法，不作判据）：把钮位、
+    /// 各级 hitTest 与无障碍树的实况整段打进日志，
+    /// 回答「窗口命中为何不进宿主、a11y 元素为何
+    /// 找不到」——两环取证的装配前提在此对账
+    func testHierarchyDiagnostics_dump() {
+        primeRig()
+        func fmt(_ rect: CGRect?) -> String {
+            guard let rect else { return "nil" }
+            return "(\(Int(rect.minX)),\(Int(rect.minY)))-"
+                + "(\(Int(rect.maxX)),\(Int(rect.maxY)))"
+        }
+        var lines: [String] = []
+        lines.append("drawerBtn帧=\(fmt(liveFrame(of: "drawerBtn")))")
+        lines.append("capsule帧=\(fmt(liveFrame(of: "capsule")))")
+        lines.append("bar活帧=\(fmt(liveBarFrame()))")
+        if let host = topHost() {
+            lines.append(
+                "透传根帧=\(fmt(host.view.convert(host.view.bounds, to: window)))")
+            if let center = liveCenter(of: "capsule") {
+                let local = host.view.convert(center, from: window)
+                let direct = host.view.hitTest(local, with: nil)
+                lines.append(
+                    "宿主直查hitTest(胶囊心)=\(String(describing: direct))")
+                lines.append(
+                    "窗口hitTest(胶囊心)=\(String(describing: window.hitTest(center, with: nil)))")
+                lines.append(
+                    "容器hitTest(胶囊心)=\(String(describing: container.view.hitTest(center, with: nil)))")
+            }
+            let barView = host.traceBarView
+            lines.append(
+                "barHost a11yElements=\(String(describing: barView.accessibilityElements?.count))")
+            func dumpTree(_ view: UIView, _ depth: Int) {
+                guard depth <= 6 else { return }
+                let indent = String(repeating: "  ", count: depth)
+                lines.append(
+                    "\(indent)\(type(of: view)) 帧=\(fmt(view.convert(view.bounds, to: window))) 交互=\(view.isUserInteractionEnabled) a11y数=\(view.accessibilityElements?.count ?? -1)")
+                for subview in view.subviews {
+                    dumpTree(subview, depth + 1)
+                }
+            }
+            lines.append("—— 宿主子树 ——")
+            dumpTree(barView, 0)
+            lines.append("—— 窗口子树（3 层） ——")
+            func dumpShallow(_ view: UIView, _ depth: Int) {
+                guard depth <= 3 else { return }
+                let indent = String(repeating: "  ", count: depth)
+                lines.append(
+                    "\(indent)\(type(of: view)) 帧=\(fmt(view.convert(view.bounds, to: window)))")
+                for subview in view.subviews {
+                    dumpShallow(subview, depth + 1)
+                }
+            }
+            dumpShallow(window, 0)
+        }
+        print("HITDIAG-BEGIN\n" + lines.joined(separator: "\n")
+            + "\nHITDIAG-END")
+    }
+
     /// S0 静息基线（兼两环取证通道自检）：两钮在
     /// 静息态必须两环全过——本法红＝取证通道或装
     /// 配坏了，不是产品病，后续状态结论全部作废
