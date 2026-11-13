@@ -120,6 +120,93 @@ final class AgentProfileTests: XCTestCase {
         }
     }
 
+    // MARK: - 覆盖对账（身份反映修复，2026-11-13）
+
+    /// 主案复刻：存量裸覆盖「测试」（无来源记录）压
+    /// 服务器现行名「三狗」→ 必清、跟随服务器
+    func testReconcileClearsLegacyOverrideAgainstRenamedSoul() {
+        XCTAssertTrue(
+            AgentNameReconciliation.shouldClearOverride(
+                override: "测试", provenance: nil, soulName: "三狗"
+            )
+        )
+    }
+
+    /// 覆盖恰与现行名相同：无冲突，不清（清了也白清）
+    func testReconcileKeepsOverrideEqualToSoul() {
+        XCTAssertFalse(
+            AgentNameReconciliation.shouldClearOverride(
+                override: "三狗", provenance: nil, soulName: "三狗"
+            )
+        )
+    }
+
+    /// 无覆盖：永不清
+    func testReconcileKeepsWhenNoOverride() {
+        XCTAssertFalse(
+            AgentNameReconciliation.shouldClearOverride(
+                override: nil, provenance: nil, soulName: "三狗"
+            )
+        )
+        XCTAssertFalse(
+            AgentNameReconciliation.shouldClearOverride(
+                override: "", provenance: nil, soulName: "三狗"
+            )
+        )
+    }
+
+    /// 用户在现行名之下亲手设的定名（来源里记的服务
+    /// 器名＝现行名）：手动定名优先，清不得
+    func testReconcileKeepsProvenancedOverrideWhenSoulUnchanged() {
+        let provenance = AgentNameOverrideProvenance(
+            writtenAt: Date(), soulNameAtWrite: "三狗"
+        )
+        XCTAssertFalse(
+            AgentNameReconciliation.shouldClearOverride(
+                override: "狗子", provenance: provenance, soulName: "三狗"
+            )
+        )
+    }
+
+    /// 覆盖写入后服务器被改名（写入时对的是旧名）：
+    /// 以最后一次改名为准，旧覆盖退场
+    func testReconcileClearsProvenancedOverrideAfterServerRename() {
+        let provenance = AgentNameOverrideProvenance(
+            writtenAt: Date(), soulNameAtWrite: "Hermes"
+        )
+        XCTAssertTrue(
+            AgentNameReconciliation.shouldClearOverride(
+                override: "测试", provenance: provenance, soulName: "三狗"
+            )
+        )
+    }
+
+    /// 来源在、但写入时服务器名未知（从未解析成
+    /// 功）：无从证明是对现行名设的，按无来源清
+    func testReconcileClearsOverrideWithUnknownSoulAtWrite() {
+        let provenance = AgentNameOverrideProvenance(
+            writtenAt: Date(), soulNameAtWrite: nil
+        )
+        XCTAssertTrue(
+            AgentNameReconciliation.shouldClearOverride(
+                override: "测试", provenance: provenance, soulName: "三狗"
+            )
+        )
+    }
+
+    /// 来源记录编解码往返不丢字段（落盘形态）
+    func testProvenanceCodableRoundTrip() throws {
+        let provenance = AgentNameOverrideProvenance(
+            writtenAt: Date(timeIntervalSince1970: 1_794_559_749),
+            soulNameAtWrite: "Hermes"
+        )
+        let data = try JSONEncoder().encode(provenance)
+        let decoded = try JSONDecoder().decode(
+            AgentNameOverrideProvenance.self, from: data
+        )
+        XCTAssertEqual(decoded, provenance)
+    }
+
     func testPresetResolveFallsBackToDefault() {
         XCTAssertEqual(
             AgentAvatarPreset.resolve(id: "paw").id, "paw"

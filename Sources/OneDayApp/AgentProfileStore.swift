@@ -23,6 +23,11 @@ import UIKit
 final class AgentProfileStore {
     private enum Keys {
         static let nameOverride = "agentProfile.displayNameOverride"
+        // 身份反映修复：覆盖来源记录与最近已知服务
+        // 器身份名（对账用，裁决在 Core）
+        static let nameOverrideProvenance =
+            "agentProfile.displayNameOverrideProvenance"
+        static let lastKnownSoulName = "agentProfile.lastKnownSoulName"
         static let avatarPresetID = "agentProfile.avatarPresetID"
         static let usesCustomAvatar = "agentProfile.usesCustomAvatar"
         // P1 身份包：AI 档槽位（仓条目 id/预置 id）与
@@ -33,6 +38,17 @@ final class AgentProfileStore {
     }
 
     private(set) var profile: AgentProfile
+
+    /// 改名覆盖的来源记录（身份反映修复）：新写入
+    /// 的覆盖必带；存量裸覆盖为 nil——对账时按无来
+    /// 源处理（不得压住服务器现行名）
+    private(set) var nameOverrideProvenance:
+        AgentNameOverrideProvenance?
+
+    /// 最近一次解析到的服务器身份名：编辑器写入覆
+    /// 盖时用作来源里的「当时服务器名」，落盘保住冷
+    /// 启后首解析前的写入也有对账基准
+    private(set) var lastKnownSoulName: String?
 
     /// 变更修订号：每次档案变更 +1——分享名片图等派
     /// 生渲染以此为重算键（自定义图同为 .custom 选择
@@ -60,6 +76,18 @@ final class AgentProfileStore {
     init() {
         let defaults = UserDefaults.standard
         let name = defaults.string(forKey: Keys.nameOverride)
+        let loadedProvenance: AgentNameOverrideProvenance?
+        if let data = defaults.data(forKey: Keys.nameOverrideProvenance) {
+            loadedProvenance = try? JSONDecoder().decode(
+                AgentNameOverrideProvenance.self, from: data
+            )
+        } else {
+            loadedProvenance = nil
+        }
+        nameOverrideProvenance = loadedProvenance
+        lastKnownSoulName = defaults.string(
+            forKey: Keys.lastKnownSoulName
+        )
         let usesCustom = defaults.bool(forKey: Keys.usesCustomAvatar)
         let presetID = defaults.string(forKey: Keys.avatarPresetID)
             ?? AgentAvatarPreset.defaultID
@@ -120,11 +148,18 @@ final class AgentProfileStore {
 
     /// 改名：传 nil＝清覆盖、恢复跟随自动解析链；非
     /// 空入参净化不过（纯空白/超长）拒收、档案不动
-    /// （空白清覆盖由编辑面先行分类后以 nil 调用）
+    /// （空白清覆盖由编辑面先行分类后以 nil 调用）。
+    /// 写入同时落来源记录（时刻＋当时服务器名），无
+    /// 来源的覆盖自此不再产生（身份反映修复）
     func setDisplayNameOverride(_ raw: String?) {
+        let defaults = UserDefaults.standard
         guard let raw else {
             profile.displayNameOverride = nil
-            UserDefaults.standard.removeObject(forKey: Keys.nameOverride)
+            nameOverrideProvenance = nil
+            defaults.removeObject(forKey: Keys.nameOverride)
+            defaults.removeObject(
+                forKey: Keys.nameOverrideProvenance
+            )
             revision += 1
             return
         }
@@ -132,8 +167,44 @@ final class AgentProfileStore {
             return
         }
         profile.displayNameOverride = clean
-        UserDefaults.standard.set(clean, forKey: Keys.nameOverride)
+        defaults.set(clean, forKey: Keys.nameOverride)
+        let provenance = AgentNameOverrideProvenance(
+            writtenAt: Date(), soulNameAtWrite: lastKnownSoulName
+        )
+        nameOverrideProvenance = provenance
+        if let data = try? JSONEncoder().encode(provenance) {
+            defaults.set(data, forKey: Keys.nameOverrideProvenance)
+        }
         revision += 1
+    }
+
+    /// 记下最新解析到的服务器身份名（AppState 每次
+    /// 解析/重解析/刷新成功后调用）：既是后续写入覆
+    /// 盖的对账基准，也供对账裁决取现行名
+    func noteSoulName(_ name: String) {
+        guard lastKnownSoulName != name else { return }
+        lastKnownSoulName = name
+        UserDefaults.standard.set(name, forKey: Keys.lastKnownSoulName)
+    }
+
+    /// 覆盖对账（身份反映修复）：服务器身份名每次确
+    /// 认后调用——裁决说清就真清（覆盖与来源一并
+    /// 删），各露脸面随档案修订号自然跟上现行名。
+    /// 回 true＝本次清掉了一个覆盖
+    @discardableResult
+    func reconcileNameOverride(currentSoulName: String) -> Bool {
+        guard AgentNameReconciliation.shouldClearOverride(
+            override: profile.displayNameOverride,
+            provenance: nameOverrideProvenance,
+            soulName: currentSoulName
+        ) else { return false }
+        profile.displayNameOverride = nil
+        nameOverrideProvenance = nil
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: Keys.nameOverride)
+        defaults.removeObject(forKey: Keys.nameOverrideProvenance)
+        revision += 1
+        return true
     }
 
     /// 选预置形象：目录外 id 经 Core 收敛到缺省款。
