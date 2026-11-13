@@ -178,6 +178,20 @@ import UIKit
 /// 化 >0.5 才外发），供 ChatView 在断顶缘传播后
 /// 以「此值＋顶簇实高」记账列表顶 contentMar-
 /// gins（留位记账、非落位）。
+///
+/// ## §198 底衬两件（2026-11-13，用户 11:24 拍板）
+/// ①输入框周边底衬：舱宿主层级内垫均匀系统磨砂
+/// （SystemBackdrop），覆盖舱带（舱顶→宿主底）——
+/// 内容滚到舱后先被糊化、不以原锐度从输入框周边
+/// 透出；高随舱帧实测（updateBarFrame 同拍同步），
+/// 键盘/静息两态同跟，§194 常量机制与舱落位零改
+/// 动。②底部坞底衬：坞锚解析（resolveAnchors）定
+/// 位到 UITabBar 本体时，顺手把同一材质垫进坞本
+/// 体层级最底层（SystemDockBackdrop 幂等装配）——
+/// 坞只被读帧的既有纪律不变，底衬是坞自己的子视
+/// 图、不被任何约束引用、不进常量公式。均匀材质、
+/// 非 §173 渐进溶化（已作废）；列表底缘 .hidden
+/// 口径（§170）不动。
 struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -436,6 +450,15 @@ final class ComposerGuideHostController: UIViewController {
     private var lastReportedSpace: CGFloat = -1
     /// §195：窗口顶安全区上次回报值（等值守卫）
     private var lastReportedTopSafe: CGFloat = -1
+    /// §198 输入框周边底衬（系统材质）：舱宿主层级
+    /// 内最底层；左右/底随舱宿主、高由 back-
+    /// dropHeightConstraint 承舱帧实测高（update-
+    /// BarFrame 同拍同步，种子 0＝舱帧未到时不显）
+    private let backdropView = SystemBackdrop.makeView()
+    private var backdropHeightConstraint: NSLayoutConstraint!
+
+    /// §198 自述/测试定位口：输入框周边底衬本体
+    var traceBackdropView: UIView { backdropView }
 
     /// 舱帧喂入点（托管树每次布局后经 Preference 上
     /// 行）：存帧、同步给透传判定、并立即尝试回报——
@@ -446,6 +469,15 @@ final class ComposerGuideHostController: UIViewController {
         barFrameInWindow = frame
         (viewIfLoaded as? ComposerPassthroughView)?
             .barFrameInWindow = frame
+        // §198：底衬高随舱带实测高同拍同步（舱带生
+        // 长/收缩——多行输入、错误条、回底钮行显隐
+        // ——都经本通道改高，底衬覆盖带随之）
+        if isViewLoaded, backdropHeightConstraint != nil,
+           abs(backdropHeightConstraint.constant
+                - frame.height) > 0.5 {
+            backdropHeightConstraint.constant = frame.height
+            view.setNeedsLayout()
+        }
         reportBottomSpace()
     }
 
@@ -474,6 +506,17 @@ final class ComposerGuideHostController: UIViewController {
             false
         view.addSubview(composerHost.view)
         composerHost.didMove(toParent: self)
+        // §198：输入框周边底衬入层——插在舱宿主之下
+        // （本视图子视图序最底）；左右/底随舱宿主、
+        // 高由 backdropHeightConstraint 承舱帧实测
+        // 高（updateBarFrame 同步，种子 0＝未到帧不显）
+        backdropView.translatesAutoresizingMaskIntoConstraints =
+            false
+        view.insertSubview(
+            backdropView, belowSubview: composerHost.view
+        )
+        backdropHeightConstraint = backdropView.heightAnchor
+            .constraint(equalToConstant: 0)
         // §194：宿主顶/左右贴本视图、底边恒钉位置引
         // 导线（单约束永不切换，见 syncBottomCon-
         // stant）：引导线先入本视图（top 常量待 sync-
@@ -500,6 +543,13 @@ final class ComposerGuideHostController: UIViewController {
                 equalToConstant: 0),
             bottomGuideTopConstraint,
             bottom,
+            backdropView.leadingAnchor.constraint(
+                equalTo: composerHost.view.leadingAnchor),
+            backdropView.trailingAnchor.constraint(
+                equalTo: composerHost.view.trailingAnchor),
+            backdropView.bottomAnchor.constraint(
+                equalTo: composerHost.view.bottomAnchor),
+            backdropHeightConstraint,
         ])
         if barFrameInWindow.height > 0 {
             (view as? ComposerPassthroughView)?
@@ -633,6 +683,14 @@ final class ComposerGuideHostController: UIViewController {
                 || windowChanged {
                 dockBarView = foundBar.view
                 dockIsFallback = false
+            }
+            // §198：坞底衬随锚解析同拍校正——命中的是
+            // UITabBar 本体时把系统材质垫进坞层级最底
+            // 层（幂等：已装只校正层级与帧）；类名兜底
+            // 命中不是本体、不装（不许往系统内部视图
+            // 里塞东西）
+            if let tabBar = foundBar.view as? UITabBar {
+                SystemDockBackdrop.ensureInstalled(in: tabBar)
             }
         } else if !dockIsFallback || windowChanged {
             // 无坞环境回落（探针裸装配等非生产形态）：
