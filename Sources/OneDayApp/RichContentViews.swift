@@ -433,10 +433,16 @@ struct ServerRemoteImage: View {
             } else if failed {
                 // §130：失败态同卡尺寸（占位卡口
                 // 径 190 高），不再随文案宽高变
+                // 基础止血包（P8）：失败卡可点重试——
+                // 高优先级手势抢在调用方的「点开查看
+                // 器」之前（失败图没东西可看，先重试）；
+                // 旧口径 failed 置真即锁死、本视图内永
+                // 不重试，只能滑出屏靠视图重建碰运气
                 ZStack {
                     HStack(spacing: OneDayMetrics.rowInnerGap) {
                         Image(systemName: "photo")
-                        Text("图片加载失败")
+                        Text(L10n.string("图片加载失败"))
+                        Image(systemName: "arrow.clockwise")
                     }
                     .font(.caption)
                     // 0.23.0（审计 C4）：本字落在
@@ -461,6 +467,14 @@ struct ServerRemoteImage: View {
                         cornerRadius: OneDayMetrics.radiusCard
                     )
                 )
+                .contentShape(Rectangle())
+                .highPriorityGesture(
+                    TapGesture().onEnded {
+                        Task { await retryLoad() }
+                    }
+                )
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(L10n.string("点按重新加载图片"))
             } else {
                 // §130：加载占位同卡高（190），消除
                 // 旧 220×150 占位 → 实际高度的跳变；
@@ -502,6 +516,14 @@ struct ServerRemoteImage: View {
         } else {
             failed = true
         }
+    }
+
+    /// 失败重试（基础止血包 P8）：清失败标记重走
+    /// load()——管线三级缓存原样复用（命中即出图、
+    /// 未命中重新取回），不在此处另开取图路
+    private func retryLoad() async {
+        failed = false
+        await load()
     }
 }
 

@@ -39,6 +39,21 @@ public enum HermesError: Error, Sendable {
     /// 逐个写假实现，统一抛此信号；界面呈现统一文案
     /// 一条（userMessage），不许各面自拼演示文案
     case demoLimitReached
+    /// run 生成失败·账户余额或额度不足（基础止血包
+    /// P5）：服务端终态原文只作分型输入（RunFailure-
+    /// Classifier），界面只许呈现本档人话——原文直通
+    /// 曾让用户对着英文报错、且有敏感回显先例，整路
+    /// 禁绝（原文只进诊断日志）
+    case runBillingExhausted
+    /// run 生成失败·服务端/网关侧错误（5xx 家族）
+    case runServiceUnavailable
+    /// run 生成失败·超时
+    case runTimedOut
+    /// run 生成失败·网络断开
+    case runNetworkInterrupted
+    /// run 生成失败·分型判不出（兜底档，与旧「生成
+    /// 失败，请稍后再试。」同义但走人话层单源）
+    case runFailedGeneric
 
     public var userMessage: String {
         userMessage(locale: AppLocale.uiLocale)
@@ -102,6 +117,31 @@ public enum HermesError: Error, Sendable {
         case .demoLimitReached:
             return L10n.string(
                 "演示模式到此为止，连接你的服务器后可用。",
+                locale: locale
+            )
+        case .runBillingExhausted:
+            return L10n.string(
+                "生成失败：账户余额或额度不足，处理好后再试。",
+                locale: locale
+            )
+        case .runServiceUnavailable:
+            return L10n.string(
+                "生成失败：服务器那边出了点问题，稍后再试。",
+                locale: locale
+            )
+        case .runTimedOut:
+            return L10n.string(
+                "生成超时了，稍后再试一次。",
+                locale: locale
+            )
+        case .runNetworkInterrupted:
+            return L10n.string(
+                "网络断开了，生成没能完成。等网络恢复后再试。",
+                locale: locale
+            )
+        case .runFailedGeneric:
+            return L10n.string(
+                "生成失败，请稍后再试。",
                 locale: locale
             )
         }
