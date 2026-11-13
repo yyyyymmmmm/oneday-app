@@ -24883,6 +24883,52 @@
         }
       }
     },
+    "正在生效": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taking effect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在生效"
+          }
+        }
+      }
+    },
+    "钥匙已保存，服务器正在让它生效，通常几秒钟就好。连上之后这里会自动变成已配对的样子，你不用再做什么。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your key is saved and the server is putting it into effect — this usually takes just a few seconds. Once it's connected, this page will show as paired on its own; there's nothing else you need to do."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙已保存，服务器正在让它生效，通常几秒钟就好。连上之后这里会自动变成已配对的样子，你不用再做什么。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙已儲存，伺服器正在讓它生效，通常幾秒鐘就好。連上之後這裡會自動變成已配對的樣子，你不用再做什麼。"
+          }
+        }
+      }
+    },
     "正在读取状态…": {
       "localizations": {
         "en": {
