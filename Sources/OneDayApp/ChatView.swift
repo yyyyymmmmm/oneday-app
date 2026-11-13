@@ -6523,7 +6523,10 @@ private struct MessageMenuModifier: ViewModifier {
 /// 箭头在内容左缘下层：随显形进度淡入/缩放，
 /// 越线转武装态，且触发与触觉在越线同一刻发
 /// 生（途中触发，不等松手）；松手只做回位
-private struct SwipeReplyModifier: ViewModifier {
+/// §198：internal（原 private）——选字计数证死/回归
+/// 测试须装配生产原物验证结构身份，不许在测试侧复
+/// 制一份同形修饰符充数
+struct SwipeReplyModifier: ViewModifier {
     let isEnabled: Bool
     let onReply: () -> Void
 
