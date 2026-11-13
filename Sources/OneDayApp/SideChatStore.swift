@@ -258,6 +258,14 @@ final class SideChatStore {
         drafts[threadID.uuidString]
     }
 
+    /// 草稿写入唯一口。**隔离铁律（§202）**：本账只
+    /// 许收用户亲笔——调用方只许是 ChatView 的切走
+    /// 回存与删线程清理（同出亲笔生命周期）。系统注
+    /// 入（动态讨论/文件重发之类要把上下文带进对话
+    /// 的）一律走引用/种子暂存道，不许经本口进账：
+    /// 本账无来源标记，注入文进账即与亲笔同形、被
+    /// 保活永久保护（动态讨论预填的病根，§202 已堵
+    /// 讨论一处；点子/文件重发两处同病列另包待办）
     func setDraft(_ text: String, for threadID: UUID) {
         if text.isEmpty {
             drafts[threadID.uuidString] = nil
@@ -291,6 +299,16 @@ final class SideChatStore {
 
     func feedDiscussPostID(forThreadID threadID: UUID) -> String? {
         feedDiscussPostIDs[threadID.uuidString]
+    }
+
+    /// 反查（§202 讨论去重）：这篇帖已有的讨论线程
+    /// ——discuss() 先查本口，有则复用、不再堆空会话
+    /// （与点子流「先查 link」同形）；关联在但线程
+    /// 已删时由调用方校验存在性后决定补建
+    func threadID(forFeedDiscussPostID postID: String) -> UUID? {
+        feedDiscussPostIDs.first(where: {
+            $0.value == postID
+        }).flatMap { UUID(uuidString: $0.key) }
     }
 
     /// 信号发出即销账：一线程只报一次，note 只认
