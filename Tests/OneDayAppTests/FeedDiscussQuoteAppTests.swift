@@ -6,6 +6,7 @@ import XCTest
 /// 关联反查（SideChatStore）、存量预填清扫（包 3）
 /// ——判定逻辑在 Core 纯函数层（FeedDiscussQuote-
 /// Tests 已钉），本组钉存储层的落点与零误伤
+@MainActor
 final class FeedDiscussQuoteAppTests: XCTestCase {
 
     // MARK: - 讨论去重反查（包 2）
