@@ -41,20 +41,29 @@ struct OneDayApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(appState)
-                // 0.42.0 国际化包：旧版「全 App 固定中文
-                // 区域」（沿礼记口径钉 zh_CN）退役——环
-                // 境语言改钉 AppLocale.uiLocale（App 随
-                // 系统语言解析出的界面语言），系统控件
-                // 与视图内格式化器随之与界面语言一致
-                // §145：uiLocale 已改覆盖优先（设置页
-                // 语言档），此处仍只读它一口；再以语言
-                // 档值作 .id 强制整树重建——字面量取词、
-                // Core 格式化与各页缓存的语言形态在切
-                // 换瞬间全体换档，不留半吊子混排
-                .environment(\.locale, AppLocale.uiLocale)
-                .id(appLanguageRaw)
+            // 症二阶段二实验台（DEBUG 启动参数
+            // -CapsuleTapHarness，CapsuleTapHarness）：
+            // 直达实验装配供 XCUITest 系统级点按取证；
+            // 发布构建 isEnabled 恒 false，正常启动路
+            // 径与环境注入零变化
+            if CapsuleTapHarness.isEnabled {
+                CapsuleTapHarnessRootView()
+            } else {
+                RootView()
+                    .environment(appState)
+                    // 0.42.0 国际化包：旧版「全 App 固定中文
+                    // 区域」（沿礼记口径钉 zh_CN）退役——环
+                    // 境语言改钉 AppLocale.uiLocale（App 随
+                    // 系统语言解析出的界面语言），系统控件
+                    // 与视图内格式化器随之与界面语言一致
+                    // §145：uiLocale 已改覆盖优先（设置页
+                    // 语言档），此处仍只读它一口；再以语言
+                    // 档值作 .id 强制整树重建——字面量取词、
+                    // Core 格式化与各页缓存的语言形态在切
+                    // 换瞬间全体换档，不留半吊子混排
+                    .environment(\.locale, AppLocale.uiLocale)
+                    .id(appLanguageRaw)
+            }
         }
         .modelContainer(container)
     }

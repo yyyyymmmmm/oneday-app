@@ -6,15 +6,24 @@ import XCTest
 /// §179 回归组：身份胶囊命中域。缺陷机理（宿主两轮
 /// 量测坐实，见 DESIGN §179）：.glassEffect 直接加
 /// 在装有两钮的胶囊行本体上时，iOS 26 生成单一
-/// UIPlatformGlassInteractionView 盖满整颗胶囊——
-/// 两钮无独立命中域，紧贴状态栏带下沿的胶囊上缘
-/// 玻璃带落点被整面吞下、按位置派给模型钮（点状
-/// 态栏求回顶却开模型面）。修法＝玻璃降为行背景
-/// 背板、胶囊独立成生产件 IdentityCapsuleView。
-/// 本组直接宿主该生产件，钉两条不变量：
-/// ①窗口内不存在盖满胶囊的宽幅玻璃交互视图；
-/// ②状态栏带内点与胶囊上缘带点的 hitTest 永不
-///   返回玻璃交互视图。
+/// UIPlatformGlassInteractionView 盖满整颗胶囊（整
+/// 行 42 高、连上/下缘带一并吞下）——两钮无独立命
+/// 中域，紧贴状态栏带下沿的胶囊上缘玻璃带落点被
+/// 整面吞下、按位置派给模型钮（点状态栏求回顶却
+/// 开模型面）。
+/// 形态沿革：§179 过渡修法＝玻璃降行背景背板（本
+/// 组初版不变量按此立）；外壳批二阶段二改判官方
+/// 定式（GlassEffectContainer＋两钮各自交互玻璃
+/// ＋glassEffectUnion 同 id，见 TAP-DISPATCH-
+/// DATA）——union 玻璃面按设计横跨两域（实测
+/// 230×28、居中于 42 高的行），派发正确性改由动
+/// 作门 CapsuleTapDispatchUITests 守；本组结构门
+/// 口径随改判重定为「缘带安全」两条不变量：
+/// ①任何玻璃交互视图不得覆盖胶囊上/下缘带（其
+///   帧须落在胶囊帧上下各让 2pt 的中带内）——
+///   §179 缺陷形态整行全覆盖、必破此条；
+/// ②状态栏带内点与胶囊上/下缘带点的 hitTest 永
+///   不返回玻璃交互视图。
 /// （两钮标签为组件内静态字符串、编译期即定，不
 /// 在本组重复断言；功能存活由真机验点覆盖。）
 @MainActor
@@ -142,26 +151,33 @@ final class IdentityCapsuleHitDomainTests: XCTestCase {
             "胶囊顶边不得进入状态栏带（带高 59）"
         )
 
-        // ①：不存在宽幅玻璃交互视图（缺陷态为 256 宽
-        // 盖满胶囊；修后胶囊玻璃只作背景、不生成交
-        // 互视图）
+        // ①：玻璃交互视图不得覆盖胶囊上/下缘带
+        // （缺陷态整行 42 高全覆盖；定式 union 面
+        // 28 高居中、上下各留 7pt 缘带）
         for glass in glassInteractionViews() {
             let frame = glass.convert(glass.bounds, to: window)
+            XCTAssertGreaterThanOrEqual(
+                frame.minY, capsule.minY + 2,
+                "玻璃交互视图 \(frame) 覆盖胶囊上缘带"
+            )
             XCTAssertLessThanOrEqual(
-                frame.width, 44,
-                "出现宽幅玻璃交互视图 \(frame)——玻璃疑被加回行本体"
+                frame.maxY, capsule.maxY - 2,
+                "玻璃交互视图 \(frame) 覆盖胶囊下缘带"
             )
         }
 
-        // ②：状态栏带内（y=30）与胶囊上缘带（顶边
-        // +2，缺陷态的误触落点）的 hitTest 永不返回
-        // 玻璃交互视图
+        // ②：状态栏带内（y=30）与胶囊上/下缘带
+        // （顶边+2／底边−2，缺陷态的误触落点）的
+        // hitTest 永不返回玻璃交互视图
         let probePoints: [CGPoint] = [
             CGPoint(x: capsule.midX, y: 30),
             CGPoint(x: capsule.maxX - 30, y: 30),
             CGPoint(x: capsule.midX, y: capsule.minY + 2),
             CGPoint(x: capsule.maxX - 30, y: capsule.minY + 2),
             CGPoint(x: capsule.minX + 30, y: capsule.minY + 2),
+            CGPoint(x: capsule.midX, y: capsule.maxY - 2),
+            CGPoint(x: capsule.maxX - 30, y: capsule.maxY - 2),
+            CGPoint(x: capsule.minX + 30, y: capsule.maxY - 2),
         ]
         for point in probePoints {
             let hit = window.hitTest(point, with: nil)
