@@ -16,7 +16,13 @@ import UIKit
 /// NSCache 自行淘汰（淘汰只伤性能不伤正确性）。
 /// 解码失败不入缓存（与旧口径同：坏图每遍重试、
 /// 不出卡，行为不变）。
-final class LocalImageDecodeCache {
+///
+/// 并发口径（@unchecked Sendable 的依据）：可变状
+/// 态只有 NSCache（系统件、自带线程安全）与解码计
+/// 数（NSLock 守卫）；decode 是 init 后不变的 let。
+/// 气泡 body 在主线程调用，滚动/流式下亦可能被预
+/// 取路径触碰——上述守卫使任意线程调用都安全
+final class LocalImageDecodeCache: @unchecked Sendable {
     static let shared = LocalImageDecodeCache()
 
     private let cache = NSCache<NSString, UIImage>()
