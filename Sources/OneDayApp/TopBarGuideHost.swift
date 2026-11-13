@@ -136,17 +136,12 @@ struct TopBarGuideHost<Content: View>: UIViewControllerRepresentable {
                 // Tests 的 fixedSize 注）
                 .fixedSize(horizontal: false, vertical: true)
                 // 顶簇实高实测：托管树内量、控制器据
-                // 此定高并回报 ChatView 记账；同值喂
-                // 自述 topBarH 探针（旧 safeAreaBar 时
-                // 代的量测点迁来、口径不变）
+                // 此定高并回报 ChatView 记账
                 .onGeometryChange(
                     for: CGFloat.self
                 ) { proxy in
                     proxy.size.height
                 } action: { _, height in
-                    BarsGeometryTrace.noteProbe(
-                        "topBarH", "\(Int(height))"
-                    )
                     controller.updateBarContentHeight(height)
                 }
                 .environment(appState)

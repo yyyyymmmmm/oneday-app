@@ -5,14 +5,13 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// 0.50.25 真机复测仍翻车·第二轮定因探针（hotfix/05025-bars2）：
-/// 第一轮组装探针（ChatPageAssemblyRegressionTests）在
-/// 「Demo 客户端＋内存空库＋默认 trait＋裸窗覆写安全区」
-/// 条件下全绿，但真机（深色＋系统粗体＋真实长会话＋
-/// 持久化冷启恢复落点）上胶囊/输入舱/抽屉三件集体缺
-/// 席。本探针把装配条件逐项推向真机，分场景二分：
-/// 每场景全量量测打印（PROBE-DUMP 前缀，CI 日志可捞），
-/// 栏位缺席即红——先复现、再定因，不许拿探针绿当结论。
+/// 0.50.25 真机复测仍翻车·第二轮定因探针（hotfix/05025-bars2）
+/// 出身，§196 栏位案结案后瘦身：六个分场景二分探针已
+/// 退役（见下方 MARK 注），本文件自此只承 §193 锚定不
+/// 变量关（testAnchoredBarsSurviveGrowthAndFramePollu-
+/// tion）与其装配脚手架——锚定构造的常驻回归守卫，不
+/// 再是定因工具。装配条件（设备窗覆写 59/34、长会话落
+/// 盘恢复等）沿探针时代实证形态保留。
 @MainActor
 final class ChatPageDeviceConditionProbeTests: XCTestCase {
 
@@ -302,14 +301,6 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
             lines.append("chatScroll: 缺席")
         }
 
-        // §192：尺寸协商量测与真机自述同出口——模拟
-        // 器协商账与真机（149/150 自述 negot 段）逐行
-        // 对读，差在哪一步即点名到哪一步
-        let negot = BarsGeometryTrace.probeDump
-        if !negot.isEmpty {
-            lines.append("negot(sim):\n" + negot)
-        }
-
         let dump = lines.joined(separator: "\n")
         print(dump)
         add(XCTAttachment(string: dump))
@@ -360,142 +351,14 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
         return (pocket, bar)
     }
 
-    // MARK: - 场景
-
-    /// 对照：与现行组装探针同条件（裸窗覆写＋内存空库）
-    func testScenarioBaselineControl() throws {
-        let appState = AppState(
-            client: DemoHermesClient(), demoMode: .connected
-        )
-        let container = try makeContainer(fileBacked: false)
-        let assembly = try assemble(
-            sceneWindow: false, dark: false, boldAX: false,
-            seededThreadID: nil,
-            container: container, appState: appState
-        )
-        dumpAndAssert(
-            scenario: "baseline", assembly: assembly,
-            strictBands: true
-        )
-    }
-
-    /// 深色单变量
-    func testScenarioDarkOnly() throws {
-        let appState = AppState(
-            client: DemoHermesClient(), demoMode: .connected
-        )
-        let container = try makeContainer(fileBacked: false)
-        let assembly = try assemble(
-            sceneWindow: false, dark: true, boldAX: false,
-            seededThreadID: nil,
-            container: container, appState: appState
-        )
-        dumpAndAssert(
-            scenario: "dark", assembly: assembly, strictBands: true
-        )
-    }
-
-    /// 粗体＋无障碍大字号单变量
-    func testScenarioBoldAXOnly() throws {
-        let appState = AppState(
-            client: DemoHermesClient(), demoMode: .connected
-        )
-        let container = try makeContainer(fileBacked: false)
-        let assembly = try assemble(
-            sceneWindow: false, dark: false, boldAX: true,
-            seededThreadID: nil,
-            container: container, appState: appState
-        )
-        dumpAndAssert(
-            scenario: "boldAX", assembly: assembly,
-            strictBands: false
-        )
-    }
-
-    /// 长会话＋落盘恢复落点单变量（裸窗覆写、浅色默认字）
-    func testScenarioLongThreadOnly() throws {
-        let appState = AppState(
-            client: DemoHermesClient(), demoMode: .connected
-        )
-        let container = try makeContainer(fileBacked: true)
-        let threadID = seedLongThread(
-            into: container, appState: appState
-        )
-        let assembly = try assemble(
-            sceneWindow: false, dark: false, boldAX: false,
-            seededThreadID: threadID,
-            container: container, appState: appState
-        )
-        dumpAndAssert(
-            scenario: "longThread", assembly: assembly,
-            strictBands: true
-        )
-    }
-
-    /// 场景窗单变量（真安全区、无覆写；空库浅色）
-    func testScenarioSceneWindowOnly() throws {
-        let appState = AppState(
-            client: DemoHermesClient(), demoMode: .connected
-        )
-        let container = try makeContainer(fileBacked: false)
-        let assembly = try assemble(
-            sceneWindow: true, dark: false, boldAX: false,
-            seededThreadID: nil,
-            container: container, appState: appState
-        )
-        dumpAndAssert(
-            scenario: "sceneWindow", assembly: assembly,
-            strictBands: true
-        )
-    }
-
-    /// 真机全组合：场景窗＋深色＋粗体/AX＋长会话落盘恢复，
-    /// 另验抽屉容器挂载（程序化开抽屉看位移与抽屉面显形）
-    func testScenarioRealDeviceCombo() throws {
-        let appState = AppState(
-            client: DemoHermesClient(), demoMode: .connected
-        )
-        let container = try makeContainer(fileBacked: true)
-        let threadID = seedLongThread(
-            into: container, appState: appState
-        )
-        let assembly = try assemble(
-            sceneWindow: true, dark: true, boldAX: true,
-            seededThreadID: threadID,
-            container: container, appState: appState
-        )
-        dumpAndAssert(
-            scenario: "realDeviceCombo", assembly: assembly,
-            strictBands: false
-        )
-
-        // 抽屉挂载：程序化开→前景应位移、抽屉面应显形
-        let drawer = try XCTUnwrap(
-            findVC(DrawerContainerController.self),
-            "[realDeviceCombo] DrawerContainerController 缺席"
-        )
-        drawer.setDrawer(true, animated: false)
-        spinRunLoop(seconds: 0.5)
-        window.layoutIfNeeded()
-        XCTAssertTrue(
-            drawer.semanticPresented,
-            "[realDeviceCombo] 开抽屉后语义未置位"
-        )
-        let travelInt: Int = Int(drawer.travel)
-        var shifted = false
-        for sub in drawer.view.subviews {
-            if sub.transform.tx > 200
-                || frameInWindow(sub).minX > 200 {
-                shifted = true
-            }
-        }
-        print("PROBE-DUMP combo drawer shifted=\(shifted)"
-            + " travel=\(travelInt)")
-        XCTAssertTrue(
-            shifted,
-            "[realDeviceCombo] 开抽屉后前景未位移 travel=\(travelInt)"
-        )
-    }
+    // MARK: - 场景（二分探针已退役）
+    //
+    // §196：六个分场景定因探针（Baseline/Dark/
+    // BoldAX/LongThread/SceneWindow/RealDevice-
+    // Combo）随栏位案结案退役——其职（真机条件二
+    // 分复现）已了，栏位在场与浮空带的常驻回归由
+    // ChatPageAssemblyRegressionTests 四关＋本文件
+    // 下方 §193 锚定不变量关承接。
 
     /// §193 锚定不变量（本轮修复成立的最低证据）：
     /// 两相注入下舱底锚点与 pocket 位置不许漂移——

@@ -217,14 +217,6 @@ struct ContentView: View {
                 onClose: { showHermesChannel = false }
             )
         }
-        // 诊断构建采样（hotfix/05025-bars2）：抽屉开合
-        // 事件各采一次几何自述（含左缘命中实测）；定
-        // 案后随诊断分支退役
-        .onChange(of: appState.drawerPresented) { _, presented in
-            BarsGeometryTrace.captureEvent(
-                tag: "drawer=\(presented)"
-            )
-        }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
         // （ChatView 侧消费切换；含从其他格开抽屉的情形）
         .onChange(of: appState.drawerThreadSelection) { _, id in

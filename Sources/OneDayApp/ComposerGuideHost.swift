@@ -277,18 +277,6 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         } else {
             result = nil
         }
-        // §192 量测：fit 往来逐字记账（提议×回报）——
-        // 149 真机证伪「默认拟合回 1030」后，1030 到
-        // 底是谁在协商里提出的，只认这本账：若提议
-        // 本身即 1030，撑高者在上层（ZStack 提议来
-        // 源）；若提议 729 而落位仍 1030，协商之外
-        // 另有通道（控制器侧量测同轮对账）
-        BarsGeometryTrace.noteFit(
-            "hostFit proposal=(\(BarsTraceFormat.dim(proposal.width)),"
-                + "\(BarsTraceFormat.dim(proposal.height))) -> "
-                + (result.map { BarsTraceFormat.size($0) }
-                    ?? "nil(默认)")
-        )
         return result
     }
 
@@ -328,27 +316,6 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
                             )
                         }
                     }
-                    // §192 量测：舱本体（bottomBar 整
-                    // 栈）在托管树内的实尺寸——149 动态
-                    // 证据示盒高随舱内容固有高同涨，此
-                    // 数是那条链的第一环
-                    .onGeometryChange(
-                        for: CGSize.self
-                    ) { proxy in
-                        proxy.size
-                    } action: { _, size in
-                        controller.updateBarContentSize(size)
-                    }
-            }
-            // §192 量测：宿主 VStack（Spacer＋舱）整体
-            // 实尺寸——与控制器侧 hostFit@… 对账：内栈
-            // 若在 729 提议下自报更高，撑高者即在此树内
-            .onGeometryChange(
-                for: CGSize.self
-            ) { proxy in
-                proxy.size
-            } action: { _, size in
-                controller.updateHostStackSize(size)
             }
             .onPreferenceChange(ComposerBarFrameKey.self) { frame in
                 controller.updateBarFrame(frame)
@@ -469,20 +436,6 @@ final class ComposerGuideHostController: UIViewController {
     private var lastReportedSpace: CGFloat = -1
     /// §195：窗口顶安全区上次回报值（等值守卫）
     private var lastReportedTopSafe: CGFloat = -1
-
-    /// §192 量测喂入：舱本体在托管树内的实尺寸
-    func updateBarContentSize(_ size: CGSize) {
-        BarsGeometryTrace.noteProbe(
-            "barContent", BarsTraceFormat.size(size)
-        )
-    }
-
-    /// §192 量测喂入：宿主 VStack 整体实尺寸
-    func updateHostStackSize(_ size: CGSize) {
-        BarsGeometryTrace.noteProbe(
-            "hostStack", BarsTraceFormat.size(size)
-        )
-    }
 
     /// 舱帧喂入点（托管树每次布局后经 Preference 上
     /// 行）：存帧、同步给透传判定、并立即尝试回报——
@@ -605,7 +558,6 @@ final class ComposerGuideHostController: UIViewController {
         guard keyboardUp else { return }
         updateKeyboardTop(from: note)
         syncBottomConstant()
-        noteKeyboardState(event: "frame")
         animateLayout(with: note, immediateIfZero: true)
     }
 
@@ -655,23 +607,6 @@ final class ComposerGuideHostController: UIViewController {
         }
     }
 
-    /// §194 自述记账：事件/键盘态/通知帧顶/生效常
-    /// 量四数同记——真机判读先看 kbTopWin 动没动
-    /// （通知到没到）、再看 const 跟没跟、最后对舱帧
-    private func noteKeyboardState(event: String) {
-        let kbTop = keyboardTopInWindow.map {
-            String(format: "%.1f", $0)
-        } ?? "nil"
-        let const = bottomGuideTopConstraint.map {
-            String(format: "%.1f", $0.constant)
-        } ?? "nil"
-        BarsGeometryTrace.noteProbe(
-            "kb",
-            "event=\(event) up=\(keyboardUp) "
-                + "kbTopWin=\(kbTop) const=\(const)"
-        )
-    }
-
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         // §193 锚解析触发点之二（入窗触发点在透传视
@@ -698,9 +633,6 @@ final class ComposerGuideHostController: UIViewController {
                 || windowChanged {
                 dockBarView = foundBar.view
                 dockIsFallback = false
-                BarsGeometryTrace.noteProbe(
-                    "anchorMode", foundBar.mode
-                )
             }
         } else if !dockIsFallback || windowChanged {
             // 无坞环境回落（探针裸装配等非生产形态）：
@@ -708,9 +640,6 @@ final class ComposerGuideHostController: UIViewController {
             // 不走此路
             dockBarView = nil
             dockIsFallback = true
-            BarsGeometryTrace.noteProbe(
-                "anchorMode", "fallbackWindowSafe"
-            )
         }
         syncBottomConstant()
     }
@@ -796,15 +725,6 @@ final class ComposerGuideHostController: UIViewController {
         keyboardUp = up
         if !up { keyboardTopInWindow = nil }
         syncBottomConstant()
-        noteKeyboardState(event: up ? "show" : "hide")
-        BarsGeometryTrace.captureEvent(
-            tag: up ? "kbShow" : "kbHide"
-        )
-        let settledTag = up ? "kbShowSettled" : "kbHideSettled"
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(900))
-            BarsGeometryTrace.captureEvent(tag: settledTag)
-        }
         animateLayout(with: note, immediateIfZero: false)
     }
 
@@ -812,9 +732,7 @@ final class ComposerGuideHostController: UIViewController {
     /// UITabBar 本体；无本体时取类名含 TabBar 且宽
     /// 度 >300 的视图（系统内部实现跨版本改名/换类
     /// 的兜底——149 真机 iOS 27 上 platter 类缺席、
-    /// 坞本体类名未定，锚目标不许绑死单一类名）。
-    /// 命中模式随自述落盘（anchorMode），真机判读
-    /// 先看锚钉没钉对、再看帧
+    /// 坞本体类名未定，锚目标不许绑死单一类名）
     private static func findDockAnchor(
         in window: UIWindow
     ) -> (view: UIView, mode: String)? {
