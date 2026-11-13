@@ -416,7 +416,9 @@ extension ServerSession: Decodable {
         }
         return nil
     }
+}
 
+extension ServerSession {
     /// 标题：display_name 优先，其次来源＋时间，最后 id 前缀
     public var title: String {
         if let displayName, !displayName.isEmpty { return displayName }
