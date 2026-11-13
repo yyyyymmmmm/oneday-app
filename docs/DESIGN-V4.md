@@ -11379,3 +11379,26 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 - 分歧：调研 D1 称「圆角落在屏幕物理角被吃」；Codex 调研线（ext-20261113-003）按源码几何纠正——travel＝min(宽×0.79,400)，开态前景**左**角在 x＝travel 屏内（本包实测接缝 954.5px＝318pt ✓ 公式 317.7pt），被推出屏的是右角。
 - 取证裁决（报告 §5 全节）：**站 Codex**——源码链：容器根底色＝Palette.pageBG（DrawerContainerView.swift:235）、drawerHost 帧宽恒＝travel（:302），接缝以右前景之下无抽屉材质，缺口承接根 pageBG；像素链：自家现状图缺口 (250,250,251) 与卡面 (252) Δlum 仅 2（同色、无色差边界），弧全靠旧阴影一条线独撑且 dip 浅（相对抽屉面 8 级、radius 10 窄带）；Muse 参照缺口被阴影染成独立的 239、dip 深 17 两侧等高。**主因改判＝缺口低对比＋阴影独撑**（Codex 自标「非定因」的替代线索经取证升为定因）；D1 原表述作废（inset＝0 的真实后果只是弧端点落在屏幕顶/底**边**上、非角）；D2 半径代际差、D3 阴影窄弱（升共同主因）存留。对数值影响：无——K2 大半径拉长弧界、K3 回宽对齐 dip 深度量级、K1 的 2pt inset 作用改记为「定形＋摘端点」。
 - 取证形态注：字面模拟器层级 dump 未取（Linux VM 无模拟器），以源码层级链亲查＋用户两张真机原图像素取证＋CI 几何断言三段替代（报告 §5 补注）；如需字面 dump 可在 tmate 调试 Mac 补取，其可证内容与源码链重合。
+
+## §206 发版总账：0.50.29/157——0.50.28 三判红修复（枢纽溢出＋旁聊收养＋改名呈现）＋抽屉边缘＋设置不收回＋手感 A 档两件（2026-11-13；rel-05029 独立 worktree 组版，基线 main a438fdd／0.50.28 定版顶端；本版只出包暂存——未打 tag、未合 main，等用户点头）
+
+### §206.1 装车七包与合并账
+- 七包按序合入 rel/05029：①抽屉边缘 fix/drawer-edge-geometry @f390420（§202 抽屉篇）②设置不收回 fix/drawer-settings-stay @12c2536 ③手感聊天线 feat/feel-tier-a-chat @bb0df06 ④手感页面线 feat/feel-tier-a-pages @d46ef58 ⑤改名呈现 fix/identity-reflection @c74cfec ⑥旁聊收养 fix/ai-sidechat-adoption @41e0a3c ⑦枢纽溢出 fix/hub-layout-overflow @275326c。三修复包的分支级终判见核查档 verification-05029-branches-20261113.md（identity/adoption 判绿、hub 存疑偏绿）。
+- 冲突仅 DESIGN 本档一处：节号撞车——main §202（胶囊路线 B）与抽屉线在 0.50.27 序号下自编的 §202（抽屉边缘）同号（§203 头注先例：跨分支节号占用、组版收口）。解法＝两份全保留：main §202–§205 原位、抽屉 §202 顺排 §205 之后（即本节之前那篇），引用时以标题区分（§202 胶囊／§202 抽屉）。代码零冲突。
+- 抽屉包自分支点 6a14792（0.50.27 头）真实增量仅 16 文件 +446/−42；对 main 的表面 diff 里 P1/P2 文件「被删」是旧基线假象，三路合并未动 0.50.28 任何文件（§206.3 的 Core 账含 P1/P2 增量、反证在位）。
+
+### §206.2 枢纽探针销账（装配内顺手，只动测试，提交 4173911）
+- 定因：分享钮文案在 Localizable.xcstrings 有正式译文（en "Share agent card"／zh-Hant「分享智慧代理名片」），产品侧 accessibilityLabel 走本地化查表，CI en 环境下 AX 标签只剩英文，旧探针按中文全等查为空（shareKin=[]）——与同文件「取消→Cancel」同型坑，非产品问题（核查档定性一致）。
+- 修法：探针改三语标签并查（label IN 三值），失败诊断扫描扩为「分享 OR Share」；产品码未动。
+- 复验：装配 CI attempt 2 emit 实值 shareButton=(327,70 50×50) 在屏命中、HUB-LAYOUT-VERDICT=PASS——实测转绿销账，非改判放行。
+
+### §206.3 装配 CI 判读（run 43404883538，workflow_dispatch 于 rel/05029）
+- attempt 1：Build／Package／Upload success；断言失败 0；Core 1754 全过；唯一 failed 裁决＝testHubLayoutWithFullCatalog，但失败原文为应用启动超时（Timed out while launching application via Xcode，零断言零 emit，基建，与 identity 首轮同签名在案形态）；静默死亡 2 起皆 §184 在案（键盘 testKeyboardUpMovesComposerOnlyDockStays＋Drawer 关合 testAnimatedCloseKeepsContentUntouchableUntilSettled）；PresentationLayerScenarios 5 条系在案 XCTSkip；testBarGrowth 本轮 passed；派发门 PASS。
+- attempt 2（rerun --failed 专验探针）：断言失败 0；Core 1754 全过；failed 裁决 0 条；死亡仍仅 §184 在案两条（名义 failure 的唯一来源）；枢纽回归 PASS（hubClose=(25,70 50×50)／shareButton=(327,70 50×50)／modelEntry=(20,320 362×56)「会话模型：DeepSeek Flash」）；Package／Upload success。按 §190 终判绿。
+- 单测对账：Core 1754＝基线 1721＋抽屉边缘 1＋手感聊天 16（BottomFeelTierATests 15＋主线合入 1）＋identity 7＋adoption 9（手感页面/设置不收回/hub 皆 +0），逐包对得上、只增不减。
+
+### §206.4 出包补记（暂存，未发版）
+- 版本号五处同改 0.50.29/157＋grep 验净（提交 300d1f9）。
+- 验包（attempt 2 artifact 14028623836）：**11,118,220 字节、md5 `585aeff123378364efa5a1bdbcba080f`**、Info.plist 0.50.29/157/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.29/OneDay-0.50.29.ipa。
+- **未打 tag、未合 main**：等用户点头后由主线合 main＋打 annotated tag v0.50.29 并触发发版构建（仅此一次）。发版报告：release-05029-assembly-20261113.md。
+- 真机待验：枢纽首开（页头在顶/✕ 可关/单行入口/滚到底段/双影残项/深色＋AX 各一帧）、旁聊存量「爱的定义」自动归位＋新开即时入区＋回响卡点达、改名四面变「三狗」＋头像 paw、抽屉四角并排对照、设置不收回、手感三验（回底弹簧/点子按压/批量删除落锤）。
