@@ -15,22 +15,28 @@ import XCTest
 /// 本体照 headerBar 原样、HubAvatarButton 与
 /// ModelCapsuleView 用生产件、16pt 命中死区同位）。
 ///
-/// 证据纪律＝动作级，两环相扣（合成触摸两轮实
-/// 测走不通的替代，见下）：①路由环——window.
-/// hitTest(钮的活量中心) 必须落进顶簇宿主子树：
-/// 这正是真触摸 began 相位的同一次命中裁决（触
-/// 摸终生绑定命中视图），且是本病灶所在层（透传
-/// 闸门）的直接判据，与 ComposerGuideHostTests
-/// 的路由取证同式；②动作环——对该钮的无障碍元
-/// 素 accessibilityActivate()，断言动作计数真
-/// 的 +1（SwiftUI Button 对无障碍激活的响应就
-/// 是执行其 action，与生产 drawerPresented/
-/// showModelPicker 翻转同位）。真触摸全程贯通
-/// 由真 App 的 XCUITest 动作门（TopBarSingle-
-/// ActionTapTests，§202）覆盖静息态；合成触摸
-/// （UITouch/UIEvent 子类经 Window/Applicati-
-/// on.sendEvent 两路）在本测试宿主连原生 UICon-
-/// trol 都点不响（两轮 CI 实证），故不采用。
+/// 证据纪律＝路由环为判据（本线三轮取证演进的
+/// 终点，逐项有 CI 实证）：断言＝在钮的活量中心
+/// 做 container.view.hitTest（生产壳的命中入
+/// 口、与 ComposerGuideHostTests 同式），命中
+/// 必须落进顶簇宿主子树。这是真触摸 began 相
+/// 位的同一次裁决（触摸终生绑定命中视图），也
+/// 是本病灶所在层（透传宿主的命中可达性）的直
+/// 接判据。触发→开面的接线不在本 rig 里重证：
+/// 钮是生产件＋生产闭包（§175 已验接线），真
+/// App 真点由 XCUITest 动作门（TopBarSingle-
+/// ActionTapTests，§202）覆盖；状态间唯一变量
+/// 就是命中路由，本 rig 只隔离它。弃用两路（均
+/// 有 CI 实证）：合成触摸两路在本宿主连原生
+/// UIControl 都点不响；无障碍激活——托管树在单
+/// 测宿主里不物化 a11y 元素（实测 count=0）。
+///
+/// 装配要点：测试窗的安全区顶以子类覆写对齐
+/// SwiftUI 页内边距（54）——设备上两者同源（窗
+/// 口安全区），宿主的落位补偿在静息态≈0（与设
+/// 备常态同构）；补偿≠0 的状态（坞显隐落定重
+/// 算、手动重排）才是本病的发作态，rig 逐个制
+/// 造并裁决。
 ///
 /// 状态空间：静息基线／宿主帧被重排但无布局拍
 /// （±49 与 −8 两档，模拟 §195 落定重算挪帧）／
@@ -98,7 +104,17 @@ final class TopBarHitIntermittentTests: XCTestCase {
         }
     }
 
-    // MARK: - 动作级取证（路由环＋动作环）
+    /// 测试窗：安全区顶覆写为 54，与本装配里
+    /// SwiftUI 页的顶内边距对齐（设备上同一来源；
+    /// 裸 UIWindow 的 safeAreaInsets.top=0 会让宿
+    /// 主补偿恒 −54、静息态就失真）
+    private final class RigWindow: UIWindow {
+        override var safeAreaInsets: UIEdgeInsets {
+            UIEdgeInsets(top: 54, left: 0, bottom: 0, right: 0)
+        }
+    }
+
+    // MARK: - 动作级取证（路由环）
 
     /// 视图是否落在顶簇宿主子树内（闸门放行的充
     /// 分条件：命中下行穿过闸门后只能落进宿主子
@@ -114,48 +130,7 @@ final class TopBarHitIntermittentTests: XCTestCase {
         return false
     }
 
-    /// 在宿主的无障碍树里按标识/标签找元素（Swift-
-    /// UI 钮的语义元素挂在托管视图的 accessibili-
-    /// tyElements 树与子视图上，两路都走）
-    private func findA11yElement(
-        identifier: String?, label: String?
-    ) -> NSObject? {
-        guard let host = topHost() else { return nil }
-        func matches(_ obj: NSObject) -> Bool {
-            if let identifier,
-               (obj as? UIAccessibilityIdentification)?
-                .accessibilityIdentifier == identifier {
-                return true
-            }
-            if let label, obj.accessibilityLabel == label {
-                return true
-            }
-            return false
-        }
-        func searchElements(_ obj: NSObject) -> NSObject? {
-            if matches(obj) { return obj }
-            if let elements = obj.accessibilityElements {
-                for element in elements {
-                    guard let ns = element as? NSObject
-                    else { continue }
-                    if let found = searchElements(ns) {
-                        return found
-                    }
-                }
-            }
-            return nil
-        }
-        func searchViews(_ view: UIView) -> NSObject? {
-            if let found = searchElements(view) { return found }
-            for subview in view.subviews {
-                if let found = searchViews(subview) {
-                    return found
-                }
-            }
-            return nil
-        }
-        return searchViews(host.traceBarView)
-    }
+
 
     // MARK: - 顶簇替身（按 ChatView 现行构成复刻）
 
@@ -339,7 +314,7 @@ final class TopBarHitIntermittentTests: XCTestCase {
                 .environment(AppState())
                 .modelContainer(modelContainer)
         )
-        window = UIWindow(
+        window = RigWindow(
             frame: CGRect(x: 0, y: 0, width: 402, height: 874))
         window.rootViewController = container
         window.makeKeyAndVisible()
@@ -440,9 +415,10 @@ final class TopBarHitIntermittentTests: XCTestCase {
         return "\(label)：活帧=\(live) 闸门帧=\(gate)"
     }
 
-    /// 路由环：在钮的活量中心做窗口命中裁决，命
-    /// 中必须落进顶簇宿主子树（被闸门驳回＝落到下
-    /// 层列表或 nil，本病的直接判据）
+    /// 路由环：在钮的活量中心经生产壳入口（con-
+    /// tainer.view）做命中裁决，命中必须落进顶簇
+    /// 宿主子树（被驳回/被越界挡下＝落到下层列表
+    /// 或 nil，本病的直接判据）
     private func assertRouting(
         _ name: String, _ label: String,
         file: StaticString = #filePath, line: UInt = #line
@@ -451,74 +427,25 @@ final class TopBarHitIntermittentTests: XCTestCase {
             XCTFail("\(label)：量具未登记 \(name)", file: file, line: line)
             return
         }
-        let hit = window.hitTest(center, with: nil)
+        let hit = container.view.hitTest(center, with: nil)
         XCTAssertTrue(
             isInsideBarHost(hit),
             "\(label)：命中未落进顶簇宿主（命中=\(String(describing: hit))；\(diag(label))）",
             file: file, line: line)
     }
 
-    /// 动作环：无障碍激活该钮，断言动作计数恰 +1
-    ///（触发→状态的接线实证）
-    private func assertActivation(
-        identifier: String?, a11yLabel: String?,
-        count: KeyPath<RigState, Int>, _ label: String,
-        file: StaticString = #filePath, line: UInt = #line
-    ) {
-        guard let element = findA11yElement(
-            identifier: identifier, label: a11yLabel)
-        else {
-            XCTFail(
-                "\(label)：无障碍元素未找到（id=\(identifier ?? "-")）",
-                file: file, line: line)
-            return
-        }
-        let rig = state!
-        let before = rig[keyPath: count]
-        let activated = element.accessibilityActivate()
-        spinRunLoop(seconds: 0.35)
-        XCTAssertTrue(
-            activated, "\(label)：无障碍激活未被接受",
-            file: file, line: line)
-        XCTAssertEqual(
-            rig[keyPath: count], before + 1,
-            "\(label)：激活后动作未触发（\(diag(label))）",
-            file: file, line: line)
-    }
-
-    /// 两环合判：路由落进宿主＋激活触发动作
-    private func assertButtonFires(
-        _ name: String,
-        identifier: String?, a11yLabel: String?,
-        count: KeyPath<RigState, Int>,
-        _ label: String,
-        file: StaticString = #filePath, line: UInt = #line
-    ) {
-        assertRouting(name, label, file: file, line: line)
-        assertActivation(
-            identifier: identifier, a11yLabel: a11yLabel,
-            count: count, label, file: file, line: line)
-    }
-
-    /// 抽屉钮的两环合判（生产钮只有标签、无标识）
     private func assertDrawerFires(
         _ label: String,
         file: StaticString = #filePath, line: UInt = #line
     ) {
-        assertButtonFires(
-            "drawerBtn", identifier: nil, a11yLabel: "会话列表",
-            count: \.drawerTaps, label, file: file, line: line)
+        assertRouting("drawerBtn", label, file: file, line: line)
     }
 
-    /// 模型胶囊的两环合判（生产件带稳定标识）
     private func assertCapsuleFires(
         _ label: String,
         file: StaticString = #filePath, line: UInt = #line
     ) {
-        assertButtonFires(
-            "capsule", identifier: "topbar.modelCapsule",
-            a11yLabel: nil,
-            count: \.modelTaps, label, file: file, line: line)
+        assertRouting("capsule", label, file: file, line: line)
     }
 
     private func primeRig() {
@@ -528,64 +455,6 @@ final class TopBarHitIntermittentTests: XCTestCase {
     }
 
     // MARK: - 状态空间
-
-    /// 层级诊断（临时取证法，不作判据）：把钮位、
-    /// 各级 hitTest 与无障碍树的实况整段打进日志，
-    /// 回答「窗口命中为何不进宿主、a11y 元素为何
-    /// 找不到」——两环取证的装配前提在此对账
-    func testHierarchyDiagnostics_dump() {
-        primeRig()
-        func fmt(_ rect: CGRect?) -> String {
-            guard let rect else { return "nil" }
-            return "(\(Int(rect.minX)),\(Int(rect.minY)))-"
-                + "(\(Int(rect.maxX)),\(Int(rect.maxY)))"
-        }
-        var lines: [String] = []
-        lines.append("drawerBtn帧=\(fmt(liveFrame(of: "drawerBtn")))")
-        lines.append("capsule帧=\(fmt(liveFrame(of: "capsule")))")
-        lines.append("bar活帧=\(fmt(liveBarFrame()))")
-        if let host = topHost() {
-            lines.append(
-                "透传根帧=\(fmt(host.view.convert(host.view.bounds, to: window)))")
-            if let center = liveCenter(of: "capsule") {
-                let local = host.view.convert(center, from: window)
-                let direct = host.view.hitTest(local, with: nil)
-                lines.append(
-                    "宿主直查hitTest(胶囊心)=\(String(describing: direct))")
-                lines.append(
-                    "窗口hitTest(胶囊心)=\(String(describing: window.hitTest(center, with: nil)))")
-                lines.append(
-                    "容器hitTest(胶囊心)=\(String(describing: container.view.hitTest(center, with: nil)))")
-            }
-            let barView = host.traceBarView
-            lines.append(
-                "barHost a11yElements=\(String(describing: barView.accessibilityElements?.count))")
-            func dumpTree(_ view: UIView, _ depth: Int) {
-                guard depth <= 6 else { return }
-                let indent = String(repeating: "  ", count: depth)
-                lines.append(
-                    "\(indent)\(type(of: view)) 帧=\(fmt(view.convert(view.bounds, to: window))) 交互=\(view.isUserInteractionEnabled) a11y数=\(view.accessibilityElements?.count ?? -1)")
-                for subview in view.subviews {
-                    dumpTree(subview, depth + 1)
-                }
-            }
-            lines.append("—— 宿主子树 ——")
-            dumpTree(barView, 0)
-            lines.append("—— 窗口子树（3 层） ——")
-            func dumpShallow(_ view: UIView, _ depth: Int) {
-                guard depth <= 3 else { return }
-                let indent = String(repeating: "  ", count: depth)
-                lines.append(
-                    "\(indent)\(type(of: view)) 帧=\(fmt(view.convert(view.bounds, to: window)))")
-                for subview in view.subviews {
-                    dumpShallow(subview, depth + 1)
-                }
-            }
-            dumpShallow(window, 0)
-        }
-        print("HITDIAG-BEGIN\n" + lines.joined(separator: "\n")
-            + "\nHITDIAG-END")
-    }
 
     /// S0 静息基线（兼两环取证通道自检）：两钮在
     /// 静息态必须两环全过——本法红＝取证通道或装
@@ -613,13 +482,8 @@ final class TopBarHitIntermittentTests: XCTestCase {
             return
         }
         host.view!.frame.origin.y -= 49
-        // 同步裁决（不泵 runloop，布局拍不许先行治
-        // 愈）：路由环是判据；动作环与位置无关、照
-        // 常应过（接线未断的旁证）
+        // 同步裁决（不泵 runloop，布局拍不许先行治愈）
         assertRouting("capsule", "重排上移49无布局拍/路由")
-        assertActivation(
-            identifier: "topbar.modelCapsule", a11yLabel: nil,
-            count: \.modelTaps, "重排上移49无布局拍/动作环")
     }
 
     /// S1b 同上、方向向下 +49（坞回显/落定反向的
@@ -632,9 +496,6 @@ final class TopBarHitIntermittentTests: XCTestCase {
         }
         host.view!.frame.origin.y += 49
         assertRouting("drawerBtn", "重排下移49无布局拍/路由")
-        assertActivation(
-            identifier: nil, a11yLabel: "会话列表",
-            count: \.drawerTaps, "重排下移49无布局拍/动作环")
     }
 
     /// S1c 小位移 −8（特征化）：活量中心仍落在缓
@@ -689,7 +550,7 @@ final class TopBarHitIntermittentTests: XCTestCase {
         // 器层拦截命中——与底舱 §186.8 的 hitTest
         // 同口径取证）
         if let center = liveCenter(of: "drawerBtn") {
-            let hit = window.hitTest(center, with: nil)
+            let hit = container.view.hitTest(center, with: nil)
             XCTAssertFalse(
                 isInsideBarHost(hit),
                 "抽屉关闭动画途中命中不应落进顶簇宿主")
