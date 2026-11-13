@@ -176,12 +176,13 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
 
     // MARK: - discuss 写组（与 FeedView.discuss 同序复刻）
 
-    private func makePost(id: String) -> FeedPost {
-        FeedPost(
-            id: id, title: "Rig 讨论帖", body: "帖子正文全文，用于引用快照。",
-            sourceLine: "来源 · Rig", mark: "🤖",
-            imageURL: nil, publishedAt: Date(),
-            directionID: "rig"
+    private func makePost(id: String) -> BridgeFeedPost {
+        BridgeFeedPost(
+            id: id, kind: .research, title: "Rig 讨论帖",
+            body: "帖子正文全文，用于引用快照。",
+            direction: "Rig",
+            createdAt: Date().timeIntervalSince1970,
+            emoji: "🤖"
         )
     }
 
@@ -189,7 +190,7 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
     /// 挂死定位用）。
     @discardableResult
     private func performDiscussWrites(
-        post: FeedPost, stepMark: Bool = false
+        post: BridgeFeedPost, stepMark: Bool = false
     ) -> UUID {
         if stepMark { mark("discuss-begin") }
         if let existing = appState.sideChats.threadID(
