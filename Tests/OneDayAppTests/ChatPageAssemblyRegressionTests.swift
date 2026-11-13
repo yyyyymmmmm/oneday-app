@@ -379,11 +379,13 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         // 名称状态域；模型域在行右段）
         let pocket = try XCTUnwrap(findTopPocketBar())
         let pocketFrame = frameInWindow(pocket)
+        // 胶囊行＝pocket 元素里最宽的一个（两端玻璃
+        // 钮皆约 40pt 圆钮）；定位口径与组装关一的
+        // pocket 元素找法同源（类名＋帧）
         let capsule = findViews(pocket) { view in
-            let f = frameInWindow(view)
-            return f.width >= 150 && f.width <= 340
-                && f.height >= 30 && f.height <= 56
-                && f.minX < 80
+            String(describing: type(of: view))
+                .contains("ScrollPocketElementInteraction")
+                && frameInWindow(view).width >= 100
         }.max { a, b in
             frameInWindow(a).width < frameInWindow(b).width
         }
