@@ -3,6 +3,7 @@ import OneDayCore
 #if canImport(UIKit)
 import UIKit
 #endif
+@testable import OneDayApp
 
 /// 聊天可靠性包测试桩：服务器完全不可达的客户端——
 /// HermesClientProtocol 全部方法一律即时抛
