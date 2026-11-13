@@ -106,6 +106,10 @@ struct IdeasView: View {
                 presenting: deleteCandidate
             ) { idea in
                 Button("删除点子", role: .destructive) {
+                    // 触感矩阵（规格 §2.3）：删除确认
+                    // 落锤＝impact heavy；删除成功后不
+                    // 再叠 success（同一因果链只震一次）
+                    Haptics.impact(.heavy)
                     Task { await store.delete(appState: appState, idea: idea) }
                 }
                 Button("取消", role: .cancel) {}
@@ -117,6 +121,28 @@ struct IdeasView: View {
 
     @ViewBuilder
     private var readyContent: some View {
+        Group {
+            readyContentBody
+        }
+        // 删除回响（同类面口径：文件页/交付物页删成
+        // 落小字明示）：回读确认删除后，页面底部明示
+        // 删了哪条；列表与空态两形态都够得着，留痕
+        // （失败原因）仍走卡面 notes 不走这里
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let notice = store.deleteNotice {
+                Text(notice)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, OneDayMetrics.pageGutter)
+                    .padding(.vertical, OneDayMetrics.spacingS)
+                    .background(Palette.pageBG)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var readyContentBody: some View {
         if !store.hasVisibleIdeas {
             switch store.emptyKind {
             case .neverProduced:
@@ -424,6 +450,10 @@ struct IdeaDetailView: View {
             titleVisibility: .visible
         ) {
             Button("删除点子", role: .destructive) {
+                // 触感矩阵（规格 §2.3）：删除确认落锤
+                // ＝impact heavy；删除成功后不再叠
+                // success（同一因果链只震一次）
+                Haptics.impact(.heavy)
                 if let idea {
                     Task {
                         await store.delete(
