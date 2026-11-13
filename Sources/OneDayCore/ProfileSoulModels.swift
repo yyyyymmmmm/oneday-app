@@ -170,7 +170,7 @@ public enum SoulSectionParser {
         var sawKnownTitle = false
 
         for line in lines {
-            if let title = headingTitle(line) {
+            if let title = headingTitle(of: line) {
                 let key = normalizeTitle(title)
                 if personaTitles.contains(key) {
                     current = .persona
@@ -222,8 +222,10 @@ public enum SoulSectionParser {
         return text.isEmpty ? nil : text
     }
 
-    /// ATX 标题行（# ～ ######）→ 标题文本；非标题行 nil
-    private static func headingTitle(_ line: String) -> String? {
+    /// ATX 标题行（# ～ ######）→ 标题文本；非标题行 nil。
+    /// §210 起呈现提炼器共用同一口径，故开放（internal
+    /// 以上）——标题认定全仓一处，不许各写一份。
+    public static func headingTitle(of line: String) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("#") else { return nil }
         var rest = trimmed
@@ -263,5 +265,94 @@ public enum SoulSaveVerification {
 
     static func normalized(_ text: String) -> String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+// MARK: - soul 屏上呈现提炼（§210 枢纽身份段视觉重做）
+
+/// 身份段屏上呈现：把解析后的分段清成可读散文段落。
+/// 提炼只动结构——按空行分段、剥 ATX 标题的 `#` 脚手
+/// 架、摘除与显示名同文的名标题段（名只在段头出现一
+/// 次）；正文一字不改写、不翻译、不增删。原始全文的
+/// 入口仍在 SOUL 卡详情与编辑面，本提炼只管段内呈现。
+public struct SoulPresentation: Equatable, Sendable {
+    /// 人设散文段落（简介区，灰字呈现）
+    public let introParagraphs: [String]
+    /// 风格段落（风格区，黑字呈现；无风格块时为空）
+    public let styleParagraphs: [String]
+
+    public init(introParagraphs: [String], styleParagraphs: [String]) {
+        self.introParagraphs = introParagraphs
+        self.styleParagraphs = styleParagraphs
+    }
+
+    public var isEmpty: Bool {
+        introParagraphs.isEmpty && styleParagraphs.isEmpty
+    }
+}
+
+public enum SoulPresentationBuilder {
+    public static func build(
+        from sections: SoulSections, displayName: String
+    ) -> SoulPresentation {
+        SoulPresentation(
+            introParagraphs: paragraphs(
+                from: sections.displayedPersona,
+                displayName: displayName, dropNameHeading: true
+            ),
+            styleParagraphs: paragraphs(
+                from: sections.style ?? "",
+                displayName: displayName, dropNameHeading: false
+            )
+        )
+    }
+
+    /// 一段文本 → 呈现段落：空行分段；段内 ATX 标题行
+    /// 剥 `#` 只留标题文本；首段若是纯标题且与显示名
+    /// 同文则整段摘除（仅人设区、dropNameHeading 时）
+    static func paragraphs(
+        from text: String, displayName: String, dropNameHeading: Bool
+    ) -> [String] {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        var blocks: [[String]] = []
+        var current: [String] = []
+        for line in normalized.components(separatedBy: "\n") {
+            if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                if !current.isEmpty {
+                    blocks.append(current)
+                    current = []
+                }
+            } else {
+                current.append(line)
+            }
+        }
+        if !current.isEmpty { blocks.append(current) }
+
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var result: [String] = []
+        for (index, rawBlock) in blocks.enumerated() {
+            var block = rawBlock
+            // 名标题摘除：首段首行若是与显示名同文的标题
+            // 行，整行摘掉（名已在段头大字呈现）；它若独
+            // 占一段，摘后整段为空、自然消失。与正文同
+            // 段时只摘这一行、正文一字不动
+            if dropNameHeading, index == 0, !name.isEmpty,
+               let first = block.first,
+               SoulSectionParser.headingTitle(of: first) == name {
+                block.removeFirst()
+                if block.isEmpty { continue }
+            }
+            // 段内逐行剥标题脚手架：标题行只留标题文本
+            let cleanedLines = block.map { line -> String in
+                SoulSectionParser.headingTitle(of: line) ?? line
+            }
+            let cleaned = cleanedLines.joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if cleaned.isEmpty { continue }
+            result.append(cleaned)
+        }
+        return result
     }
 }
