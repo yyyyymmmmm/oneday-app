@@ -347,3 +347,78 @@ public enum DrawerSideChatFilter {
         return userChannelSources.contains(linkedSource)
     }
 }
+
+/// 抽屉旁聊区「未收养」行（2026-11-13 P2 真机判红
+/// 修复）：出生证明在服务端、本地尚无线程的「我的
+/// 对话」会话——AI 经伴生门面自开的旁聊（R3b，
+/// oneday-ai- 前缀）与本地线程已删的 App 铸旁聊
+/// （R3，oneday-side- 前缀）。0.50.28 的断点：分类
+/// 器 R3b 已把它们现算进 .mine，但全仓只有全部对
+/// 话页消费 .mine 筐；抽屉旁聊区行源是纯本地线程
+/// （@Query ChatThread），这类会话没人点达就永不
+/// 物化本地线程、抽屉永不显（用户在主线让 AI 开了
+/// 「爱的定义」，回话说已建、抽屉里找不到）。
+///
+/// 本函数是呈现层现算（不落库、不物化）：入参两路
+/// 拉取并集——全量目录（catalog，与管理页同源）＋
+/// 抽屉开时刚拉的第一页（latestPage，新鲜度优先、
+/// 同 id 覆盖目录旧值：目录冷缓存只补拉一轮，刚建
+/// 的会话可能只在第一页里）；逐条过 SessionClassifier
+/// 只收 .mine，再剔已关联本地线程者（那些由本地行
+/// 承载，重复出即双行）。点行走既有续聊通道导入收
+/// 养（pendingChatSessionID，与回响卡/管理页同路），
+/// 收养后 linked 集变化、本行现算自动消失。
+public enum DrawerUnadoptedSideChats {
+    /// 活动时间：已结束取结束时间、否则开始时间；
+    /// 两者皆无为 nil（排序垫底、行尾不编造时间）
+    public static func activityDate(of session: ServerSession) -> Date? {
+        session.endedDate ?? session.startedDate
+    }
+
+    /// 未收养行集：并集去重（latestPage 覆盖）→ 分
+    /// 类 .mine → 剔已关联 → 活动时间倒序（无日期
+    /// 垫底；同刻保并集原序——目录序在前、第一页新
+    /// 增序在后）
+    public static func sessions(
+        catalog: [ServerSession],
+        latestPage: [ServerSession],
+        mainServerSessionID: String?,
+        linkedThreadSessionIDs: Set<String>
+    ) -> [ServerSession] {
+        var byID: [String: ServerSession] = [:]
+        var order: [String] = []
+        for session in catalog + latestPage {
+            if byID[session.id] == nil {
+                order.append(session.id)
+            }
+            byID[session.id] = session
+        }
+        var picked: [(index: Int, session: ServerSession)] = []
+        for (index, id) in order.enumerated() {
+            guard let session = byID[id],
+                  !linkedThreadSessionIDs.contains(id) else { continue }
+            let layer = SessionClassifier.classify(
+                session: session,
+                mainServerSessionID: mainServerSessionID,
+                linkedThreadSessionIDs: linkedThreadSessionIDs
+            )
+            if layer == .mine {
+                picked.append((index, session))
+            }
+        }
+        return picked
+            .sorted { lhs, rhs in
+                let lDate = activityDate(of: lhs.session)
+                let rDate = activityDate(of: rhs.session)
+                switch (lDate, rDate) {
+                case let (l?, r?):
+                    if l != r { return l > r }
+                    return lhs.index < rhs.index
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): return lhs.index < rhs.index
+                }
+            }
+            .map(\.session)
+    }
+}

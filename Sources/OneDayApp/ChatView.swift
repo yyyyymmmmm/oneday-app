@@ -81,10 +81,11 @@ struct ChatView: View {
     @Query(sort: \ChatThread.updatedAt, order: .reverse) private var threads: [ChatThread]
 
     @State private var currentThreadID: UUID?
-    /// 留痕回响数据源（P2 会话包）：进页/切线程时经
-    /// OneDayBridgeClient 拉桥侧留痕账（主线全量、旁
-    /// 聊按 targetId），呈现收窄在 Core TraceEchoPolicy；
-    /// 拉取失败保留旧值（见 refreshEchoTraces）
+    /// 留痕回响数据源（P2 会话包）：进页/切线程与每
+    /// 轮生成落定时经 OneDayBridgeClient 拉桥侧留痕
+    /// 账（主线全量、旁聊按 targetId），呈现收窄在
+    /// Core TraceEchoPolicy；拉取失败保留旧值（见
+    /// refreshEchoTraces）
     @State private var echoTraces: [BridgeTrace] = []
     @State private var input = ""
     /// 语音输入控制器（0.36.6，§71）：端上识别、录音
@@ -952,6 +953,13 @@ struct ChatView: View {
         // 0.36.21：生成结束（流式下降沿）刷新待批——
         // 写入恰在这轮生成里被暂存的概率最高，静默刷
         // 新把新卡顶到流末尾
+        // 2026-11-13（P2 真机判红修复）：同沿补刷留痕
+        // 回响——AI 自开旁聊恰发生在本轮生成里，旧口
+        // 径回响只在进页/切线程时拉取，用户守在主线
+        // 等回复时流尾不出卡（工具调用卡＋文字回复之
+        // 外无点达入口，与真机截图合）；与待批同点同
+        // 静默口径，拉取失败保留旧卡（见 refreshEcho-
+        // Traces 注）
         .onChange(of: isStreaming) { wasStreaming, nowStreaming in
             if wasStreaming && !nowStreaming {
                 // 0.43.0（A11Y-S6）：VO 运行时播报生成
@@ -961,6 +969,9 @@ struct ChatView: View {
                 Task {
                     await appState.sharedHubStore()
                         .refreshApprovalForChat()
+                }
+                Task {
+                    await refreshEchoTraces()
                 }
             }
         }
@@ -974,8 +985,9 @@ struct ChatView: View {
             // 与枢纽共享同一 store）
             await appState.sharedHubStore().refreshApprovalForChat()
             // P2 会话包：进/切对话刷新留痕回响（主线/
-            // 旁聊卡数据源，先行形态＝打开/切换时拉取，
-            // 不走推送——P0 审计口径）
+            // 旁聊卡数据源，不走推送——P0 审计口径；
+            // 生成落定沿另有一次补刷，见 isStreaming
+            // 下降沿注）
             await refreshEchoTraces()
         }
         .onAppear {
@@ -3522,8 +3534,11 @@ struct ChatView: View {
     /// 量（呈现收窄在 TraceEchoPolicy）、旁聊只拉指向
     /// 本会话的（桥侧 targetId 过滤）。拉取失败保留已
     /// 有卡、不清空不报错——回响是呈现层拼装，桥一时
-    /// 不通不该在对话里另摆错误面，下次进页/切线程自
-    /// 会再拉；但也不许拿空结果冒充「没有动作发生」
+    /// 不通不该在对话里另摆错误面，下次触发自会再拉；
+    /// 但也不许拿空结果冒充「没有动作发生」。触发点
+    /// 两处：进页/切线程（.task(id:)）、每轮生成落定
+    /// （流式下降沿，2026-11-13 补——AI 的内部动作恰
+    /// 在本轮内发生，只等切线程才刷等于当轮无卡）
     private func refreshEchoTraces() async {
         guard let config = appState.config else { return }
         let client = OneDayBridgeClient()

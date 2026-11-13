@@ -59,6 +59,18 @@ import SwiftUI
 ///   径 R1–R10（线属边界、挂下行组头、与折叠态无
 ///   关），结构见 drawerNavList 注、账本见 DESIGN
 ///   §198。
+/// - 2026-11-13（P2 真机判红修复）：旁聊区行源扩
+///   一路——AI 经伴生门面在 App 里替用户开的旁聊
+///   （R3b 出生证明 oneday-ai-，服务端建、无本地
+///   线程）在 0.50.28 只进了全部对话页「我的对话」
+///   段（分类 .mine 全仓只有管理页消费），抽屉纯本
+///   地线程行源永不显、用户找不到。本版起旁聊区并
+///   入 Core DrawerUnadoptedSideChats 现算的未收养
+///   行（分类 .mine 且未关联本地线程者，与本地行
+///   同区平铺、时间倒序），点行走既有续聊通道导入
+///   收养、收养后本地行接管。22:45 纠正口径不变：
+///   要撤的仍只是「其他的对话」（worker/kanban/
+///   平台源不进本区——它们分类上就不是 .mine）。
 /// - 承载沿 0.17.0：壳层（ContentView.DrawerShell）
 ///   以覆盖形态自左滑入盖在静止内容之上（§156 订
 ///   正：覆盖式壳层已退役，本面改由 UIKit 抽屉容
@@ -740,8 +752,9 @@ struct DrawerView: View {
 
     // MARK: - 旁聊区（0.19.0 返工，22:45 纠正口径）
 
-    /// 旁聊区：单个「旁聊」分区头＋平铺行（@Query 的
-    /// updatedAt 倒序即呈现序，不分组、不置顶分段）；
+    /// 旁聊区：单个「旁聊」分区头＋平铺行（合并行集
+    /// sideRows 活动时间倒序即呈现序——本地线程行与
+    /// 未收养服务端行同区平铺，不分组、不置顶分段）；
     /// 空时只留一行弱字提示（不整区消失——让用户知
     /// 道新建入口在哪）
     @ViewBuilder
@@ -750,7 +763,7 @@ struct DrawerView: View {
         drawerCollapsibleContent(
             collapsed: drawerSectionCollapsed(DrawerSectionKey.sideChats)
         ) {
-        if sideThreads.isEmpty {
+        if sideRows.isEmpty {
             Text("还没有旁聊")
                 .font(.footnote)
                 .foregroundStyle(Palette.inkSecondary)
@@ -758,8 +771,8 @@ struct DrawerView: View {
                 .padding(.horizontal, OneDayMetrics.drawerInset)
                 .padding(.bottom, OneDayMetrics.spacingS)
         } else {
-            ForEach(sideThreads) { thread in
-                drawerSideThreadRow(thread)
+            ForEach(sideRows) { row in
+                drawerSideRowView(row)
             }
         }
         }
@@ -784,7 +797,7 @@ struct DrawerView: View {
             )
             .foregroundStyle(Palette.inkSecondary)
             .padding(.horizontal, OneDayMetrics.drawerInset)
-            if sideThreads.isEmpty {
+            if sideRows.isEmpty {
                 Text("没有匹配的旁聊")
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
@@ -792,8 +805,8 @@ struct DrawerView: View {
                     .padding(.horizontal, OneDayMetrics.drawerInset)
                     .padding(.bottom, OneDayMetrics.spacingS)
             } else {
-                ForEach(sideThreads) { thread in
-                    drawerSideThreadRow(thread)
+                ForEach(sideRows) { row in
+                    drawerSideRowView(row)
                 }
             }
             Color.clear
@@ -881,6 +894,154 @@ struct DrawerView: View {
                 }
             )
         }
+    }
+
+    /// 未收养旁聊行源（2026-11-13 P2 修复）：分类
+    /// .mine 且无本地线程的服务端会话——AI 在 App
+    /// 里替用户开的旁聊（R3b）与本地线程已删的 App
+    /// 铸旁聊（R3）。现算口径在 Core DrawerUnadopted-
+    /// SideChats（入参两路并集：全量目录＋本面刚拉
+    /// 的第一页，新鲜度优先；已关联者剔除防与本地
+    /// 行双出）；本面只补搜索过滤（按服务端标题，
+    /// 与本地行按显示名搜同一手感）
+    private var visibleUnadoptedSideSessions: [ServerSession] {
+        let all = DrawerUnadoptedSideChats.sessions(
+            catalog: appState.serverSessionCatalog.visibleSessions,
+            latestPage: Array(drawerServerSessions.values),
+            mainServerSessionID: appState.sideChats.mainServerSessionID,
+            linkedThreadSessionIDs: ThreadLinkage
+                .nonMainLinkedSessionIDs(
+                    threads: threads, sideChats: appState.sideChats
+                )
+        )
+        let query = DrawerSearchPolicy.normalizedQuery(drawerQuery)
+        guard !query.isEmpty else { return all }
+        return all.filter {
+            $0.resolvedTitle(firstUserMessage: nil)
+                .localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    /// 旁聊区合并行集（本地行＋未收养行同区平铺、
+    /// 活动时间倒序）：本地行时间＝线程 updatedAt、
+    /// 未收养行＝服务端活动时间（无日期者垫底）；
+    /// 同刻保原序（本地行在前、各自保序——合并排
+    /// 序不许打乱本地行既有相对序，22:45 平铺口径）
+    private var sideRows: [DrawerSideRow] {
+        var merged: [(row: DrawerSideRow, date: Date, order: Int)] = []
+        for (index, thread) in sideThreads.enumerated() {
+            merged.append((.thread(thread), thread.updatedAt, index))
+        }
+        let unadopted = visibleUnadoptedSideSessions
+        for (index, session) in unadopted.enumerated() {
+            merged.append((
+                .unadopted(session),
+                DrawerUnadoptedSideChats.activityDate(of: session)
+                    ?? .distantPast,
+                sideThreads.count + index
+            ))
+        }
+        return merged
+            .sorted { lhs, rhs in
+                if lhs.date != rhs.date { return lhs.date > rhs.date }
+                return lhs.order < rhs.order
+            }
+            .map(\.row)
+    }
+
+    /// 旁聊区行型（本地线程行／未收养服务端行）：
+    /// 两路行源合并呈现的统一行标识（id 带来源前缀
+    /// 防撞），版式与点达各走自家分支（见 sideRows
+    /// 与 drawerUnadoptedSideRow）
+    private enum DrawerSideRow: Identifiable {
+        case thread(ChatThread)
+        case unadopted(ServerSession)
+
+        var id: String {
+            switch self {
+            case .thread(let thread):
+                return "local-\(thread.id.uuidString)"
+            case .unadopted(let session):
+                return "server-\(session.id)"
+            }
+        }
+    }
+
+    /// 合并行分发：本地行走既有整行（含长按四件），
+    /// 未收养行走服务端行（点达收养）
+    @ViewBuilder
+    private func drawerSideRowView(_ row: DrawerSideRow) -> some View {
+        switch row {
+        case .thread(let thread):
+            drawerSideThreadRow(thread)
+        case .unadopted(let session):
+            drawerUnadoptedSideRow(session)
+        }
+    }
+
+    /// 未收养旁聊行（2026-11-13 P2 修复）：与本地行
+    /// 同式（标题＋行尾紧凑时间、行高与内距同档）；
+    /// 标题走服务端标题管线（resolvedTitle——AI 给
+    /// 的名字如「爱的定义」直达），时间走服务端活
+    /// 动时间（无日期不编造、行尾留空）。无当前位胶
+    /// 囊（当前线程恒为本地线程）、无长按四件（那是
+    /// 本地线程的操作面）；点行＝走既有续聊通道点
+    /// 达（pendingChatSessionID 置位，与回响卡/管
+    /// 理页/频道页同一路）：ContentView 切聊天格、
+    /// ChatView 导入建本地线程即收养——收养后本行
+    /// 现算自动消失、由本地行接管（全功能）
+    private func drawerUnadoptedSideRow(
+        _ session: ServerSession
+    ) -> some View {
+        Button {
+            appState.pendingChatSessionID = session.id
+            onClose()
+        } label: {
+            let title = Text(
+                session.resolvedTitle(firstUserMessage: nil)
+            )
+            .font(.drawerRowTitle)
+            .foregroundStyle(Palette.ink)
+            .a11yLineLimit(1, ax: 2)
+            let trailing = Group {
+                if let date = DrawerUnadoptedSideChats
+                    .activityDate(of: session) {
+                    Text(LocalThreadSubtitle.compactTimeText(
+                        updatedAt: date, now: Date()
+                    ))
+                    .font(.meta)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingMicro
+                    ) {
+                        title
+                        trailing
+                    }
+                } else {
+                    HStack(spacing: OneDayMetrics.rowInnerGap) {
+                        title
+                        Spacer(minLength: OneDayMetrics.spacingS)
+                        trailing
+                    }
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.spacingSM)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: OneDayMetrics.drawerRowHeight,
+                alignment: .leading
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+        .padding(.horizontal, OneDayMetrics.spacingS)
     }
 
     /// 旁聊行（0.17.0 单行形态沿用、0.19.0 返工去角
