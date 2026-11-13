@@ -780,6 +780,35 @@ struct ChatView: View {
     /// 0.2.6/0.4.3 的「回布局流」结论就此更新为「留前景
     /// 层级内、钉位改走引导线」：不在安全区栈里、也不回
     /// 覆盖层推算，两条旧路都不走）
+    /// 输入舱宿主 overlay（自 chatSurface 抽出单
+    /// 独成件：主链表达式过重、类型检查超时——拆
+    /// 表达式是编译器给的处方，语义零改动）
+    @ViewBuilder
+    private func composerHostOverlay(
+        _ proxy: ScrollViewProxy
+    ) -> some View {
+        ComposerGuideHost(
+            bottomSpace: $composerBottomSpace,
+            topSafe: $windowTopSafeInset,
+            pocketHeight: $kbSnapshot.pocketHeight,
+            dockTop: $kbSnapshot.dockTopInWindow,
+            keyboardFrame: $kbFrameUpdate,
+            windowHeight: $kbSnapshot.windowHeight
+        ) {
+            bottomBar(proxy)
+        }
+    }
+
+    /// 顶簇宿主 overlay（同上拆分）
+    @ViewBuilder
+    private var topBarHostOverlay: some View {
+        TopBarGuideHost(
+            barHeight: $topBarHeight
+        ) {
+            topBarCluster
+        }
+    }
+
     private var chatSurface: some View {
         ScrollViewReader { proxy in
             // §186（2026-11-12，承载换代）：输入舱退出
@@ -803,16 +832,7 @@ struct ChatView: View {
             // 退出协商，overlay 是结构性的）
             messageList(proxy)
                 .overlay {
-                    ComposerGuideHost(
-                        bottomSpace: $composerBottomSpace,
-                        topSafe: $windowTopSafeInset,
-                        pocketHeight: $kbSnapshot.pocketHeight,
-                        dockTop: $kbSnapshot.dockTopInWindow,
-                        keyboardFrame: $kbFrameUpdate,
-                        windowHeight: $kbSnapshot.windowHeight
-                    ) {
-                        bottomBar(proxy)
-                    }
+                    composerHostOverlay(proxy)
                 }
                 // §195：顶簇同挂本复合面的 overlay 次
                 // 级层、由 TopBarGuideHost 以 UIKit 约
@@ -820,11 +840,7 @@ struct ChatView: View {
                 // 与本面/坞/键盘脱钩，详见该文件头）；
                 // 与输入舱同层同式、互不承载
                 .overlay {
-                    TopBarGuideHost(
-                        barHeight: $topBarHeight
-                    ) {
-                        topBarCluster
-                    }
+                    topBarHostOverlay
                 }
             // （§124 沿革注，本层与回底钮的关系）：回底
             // 钮三代浮层落位全败——0.41.0 挂发送区容器
