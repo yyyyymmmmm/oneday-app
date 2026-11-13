@@ -11470,3 +11470,8 @@ Core 单测对账预期：基线 1754＋止血 0＋引用 19＋收口 3＋频道
 ### §207.3 出包补记（2026-11-13 回填）
 
 IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径独立解包亲验：**11,530,811 字节、md5 `817ec44ab993fdb27035776ee4233019`**；Payload/OneDayApp.app/Info.plist 亲读＝0.50.30／158／site.didichou.oneday；主二进制 OneDayApp 39,323,896 字节（md5 `5cd04257a6c7b35d8bacd3e214a8a151`）。落位 `~/workspace/your_files/oneday-v0.50.30/OneDay-0.50.30.ipa`。装配头 7208e87（其后仅 §207.2／§207.3 文档回填提交）。**未打 tag、未合 main**——等用户点头；真机待验清单见发版报告 §6（release-05030-assembly-20261113.md）。
+
+
+## §211 顶簇透传去状态化：命中疆域与闸门按活帧现算（2026-11-14；分支 fix/topbar-hit-intermittent，基线 rel/05030 头 283808a）
+
+用户 2026-11-13 21:39 真机实报（0.50.30）：抽屉钮与模型胶囊「有时」打不开。定因（rig 三代取证，报告 topbar-hit-intermittent-report-20261113.md §3）：§195 的位置补偿（syncTopConstant＝窗口顶安全区−宿主布局空间顶边）在补偿≠0 的状态（坞显隐落定重算、呈现往返等）把顶簇像素钉出宿主视图 bounds——命中下行在宿主边界被 point(inside:) 挡下、整棵顶簇子树不被咨询（主病灶，rig 诊断实测：宿主帧顶 54、顶簇活帧顶 0、宿主直查 hitTest 返 nil）；且旧闸门帧 barFrameInWindow 只在控制器布局拍刷新、宿主帧纯原点位移时逐点陈旧（次病灶，Mirror 实测陈旧量＝位移量）。§195 当年只验位置陈旧可接受、未验命中可达性，本病藏此。修法（只动 TopBarGuideHost.swift 命中路由层）：TopBarPassthroughView 删缓存帧、改持 barHost.view 弱引用，point(inside:) 对 bounds 外点按顶簇活帧补认疆域、hitTest 闸门按同一活帧当场现算；syncTopConstant 位置数学与冻结几何（pocket 62 等）一字未动，§124 不碰。验收：生产同构 rig（TopBarHitIntermittentTests 十法，路由环＝container.view.hitTest 落进宿主子树）修复前 S1a/S1b 红（无布局拍位移 ±49）、余八法绿；修复后十法全绿连跑 3 次，Core 1779 不减；全场唯一红＝栏位探针 testAnchoredBarsSurviveGrowthAndFramePollution（在案 flake、主线已裁决、另有 fix/bar-probe-injection 修线，与本线无交集）。同族登记：底舱 ComposerPassthroughView 同为缓存帧闸门结构、疆域关系另案，本节不动。终局待用户真机验：刚进聊天／打字收键盘后／开过模型面与抽屉后连点抽屉钮与胶囊。
