@@ -1,0 +1,44 @@
+# §184 键盘崩溃取证专用（跑完即删，不进产品 CI）：
+# 运行时框架真身在 CoreSimulator 卷的 RuntimeRoot 下
+# （System/Library/Frameworks/<FW>.framework/<FW>），
+# 用 .ips 记录的镜像基址＋偏移直接 atos 点名。
+# 对账基数取自 run 43365948799 的 .ips（044422）：
+#   img36 SwiftData          base=7824244736 uuid=2449226e-2e13-3ad7-8ae3-5a808ecd2224
+#   img8  _SwiftData_SwiftUI base=4303650816 uuid=d38c54b9-7e0a-372b-84c7-2199f8b45417
+name: forensics-symbolicate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  symbolicate:
+    runs-on: macos-26
+    steps:
+      - name: Locate RuntimeRoot and atos the trap offsets
+        run: |
+          ROOT=$(find /Library/Developer/CoreSimulator/Volumes/iOS_23F77 \
+            -type d -name RuntimeRoot 2>/dev/null | head -1)
+          echo "RuntimeRoot: $ROOT"
+          if [ -z "$ROOT" ]; then
+            echo "<RuntimeRoot not found>"
+            exit 0
+          fi
+          sym() {
+            fw="$1"; base="$2"; wantuuid="$3"; shift 3
+            bin="$ROOT/System/Library/Frameworks/$fw.framework/$fw"
+            echo "===== $fw -> $bin"
+            ls -la "$bin" || return 0
+            echo "-- dwarfdump uuid (want $wantuuid):"
+            xcrun dwarfdump --uuid "$bin" || true
+            for off in "$@"; do
+              addr=$(python3 -c "print(hex($base + $off))")
+              echo "-- $fw +$off (addr $addr):"
+              xcrun atos -o "$bin" -arch arm64 -l "$base" "$addr" || true
+            done
+          }
+          sym SwiftData 7824244736 \
+            2449226e-2e13-3ad7-8ae3-5a808ecd2224 \
+            502888 569200 645616
+          sym _SwiftData_SwiftUI 4303650816 \
+            d38c54b9-7e0a-372b-84c7-2199f8b45417 \
+            23828 24356
