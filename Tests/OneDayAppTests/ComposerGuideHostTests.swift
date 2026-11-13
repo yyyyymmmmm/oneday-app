@@ -161,7 +161,8 @@ final class ComposerGuideHostTests: XCTestCase {
                     // 由 Core 协调器测试与真机清单承担）
                     ComposerGuideHost(
                         bottomSpace: $state.bottomSpace,
-                        topSafe: $state.topSafe
+                        topSafe: $state.topSafe,
+                        scrollHandle: ChatListScrollViewHandle()
                     ) {
                         // 构建计数（诊断：桥 init 求值次数
                         // ——分清「没重建」与「重建没长高」）

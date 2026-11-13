@@ -5,18 +5,22 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// 边缘「蒙版」内容驱动定因探针（fix/edge-effect-
-/// content-driven，2026-11-13）：用户 21:39 验收口
-/// 径——条下无内容时条区须与页面同色不可见、有内
-/// 容滚过才朦胧。本探针只取证、不断言像素：生产同
-/// 构装配（落盘长会话 160 条＋真 RootView 入场景
-/// 窗），双态（静止＝条下无内容／滚动＝有内容滚过
-/// 条下）×双臂（生产原样／§200 三处材质底衬全隐的
-/// 消融臂）×浅深两帧，对顶带、舱带、坞带与页面参
-/// 考点做窗口级像素采样并倾印 EDGE-PROBE 行，供
-/// 报告归因常驻可见来源（材质底衬／系统滚动边缘
-/// 效果本体／页面与条背景错位）。归因后的回归断言
-/// 由 EdgeEffectRegistrationTests 承接。
+/// 边缘「蒙版」内容驱动探针＋回归断言（fix/edge-
+/// effect-content-driven，2026-11-13）：用户 21:39
+/// 验收口径——条下无内容时条区须与页面同色不可
+/// 见、有内容滚过才朦胧。定因轮（run 43439787108，
+/// §200 时代）实证：静止态色差顶带浅 4／深 39、舱
+/// 带浅 14／深 19、坞带浅 4／深 19，来源＝§200 三
+/// 处常驻材质底衬（消融后顶→1、坞→0；系统 .soft
+/// 本体静止≈不可见、内容驱动成立）。本版为 §210
+/// 修复后的回归形态：生产同构装配（落盘长会话
+/// 160 条＋真 RootView 入场景窗），双态×双臂（生
+/// 产／摘两注册的消融臂）×浅深两帧采样倾印 EDGE-
+/// PROBE 行，并按口径数值断言——静止四点（状态栏
+/// 带/顶簇间隙/舱带边缘/坞下沿）浅 ≤3–4、深 ≤8；
+/// 滚动态顶簇间隙 ≤12、舱区须明显优于消融臂（基
+/// 线消融同点 Δ95＝裸内容）。结构与绑定断言由
+/// EdgeEffectRegistrationTests 承接。
 @MainActor
 final class EdgeEffectProbeTests: XCTestCase {
 
@@ -309,33 +313,41 @@ final class EdgeEffectProbeTests: XCTestCase {
             findViews(window) { $0 is UITabBar }.first,
             "UITabBar 缺席"
         )
-        let topBackdrop = topHost.traceBackdropView
-        let composerBackdrop = composerHost.traceBackdropView
-        let dockBackdrops = tabBar.subviews.filter {
-            $0 is SystemDockBackdropView
-        }
+        let topBar = topHost.traceBarView
+        let composerBand = composerHost.traceBandView
+        let topInteraction = topHost.traceEdgeInteraction
+        let bandInteraction = (composerBand
+            as? EdgeBandContainerView)?.traceInteraction
+        // §210 端到端绑定证据：整页生产装配里两注册
+        // 必须已对齐到本列表本体（锚点登记→宿主绑
+        // 定的全链在此一并验）
+        XCTAssertTrue(
+            topInteraction.scrollView === scroll,
+            "顶缘 interaction 未绑定到聊天列表"
+        )
+        XCTAssertTrue(
+            bandInteraction?.scrollView === scroll,
+            "舱带 interaction 未绑定到聊天列表"
+        )
         print("EDGE-PROBE frames scroll="
             + "\(frameInWindow(scroll))"
             + " adjTop=\(scroll.adjustedContentInset.top)"
             + " adjBottom=\(scroll.adjustedContentInset.bottom)"
             + " contentH=\(scroll.contentSize.height)")
-        print("EDGE-PROBE frames topBackdrop="
-            + "\(frameInWindow(topBackdrop))"
-            + " topBar=\(frameInWindow(topHost.traceBarView))")
-        print("EDGE-PROBE frames composerBackdrop="
-            + "\(frameInWindow(composerBackdrop))"
+        print("EDGE-PROBE frames topBar="
+            + "\(frameInWindow(topBar))")
+        print("EDGE-PROBE frames composerBand="
+            + "\(frameInWindow(composerBand))"
             + " composerHostView="
             + "\(frameInWindow(composerHost.traceComposerHostView))")
         print("EDGE-PROBE frames tabBar="
-            + "\(frameInWindow(tabBar))"
-            + " dockBackdrops=\(dockBackdrops.count)")
-        XCTAssertFalse(dockBackdrops.isEmpty, "坞底衬缺席")
+            + "\(frameInWindow(tabBar))")
 
         // 采样点（窗口坐标）：带内取「近平段中点」列，
         // 静止生产帧定列后全程复用（帧位在各臂/各态间
         // 不动，列可比）
-        let topFrame = frameInWindow(topBackdrop)
-        let composerFrame = frameInWindow(composerBackdrop)
+        let topFrame = frameInWindow(topBar)
+        let composerFrame = frameInWindow(composerBand)
         let tabFrame = frameInWindow(tabBar)
         let baseImage = try XCTUnwrap(
             snapshot(), "基线快照失败"
@@ -360,8 +372,10 @@ final class EdgeEffectProbeTests: XCTestCase {
         ) ?? 7
         let points: [(String, CGFloat, CGFloat)] = [
             ("pageRef", 4, 500),
+            ("statusStrip", topGapX, 30),
             ("topBand", topGapX, topFrame.midY),
             ("belowTopBand", topGapX, topFrame.maxY + 10),
+            ("composerMargin", 6, composerFrame.midY),
             ("composerBand", composerGapX, composerFrame.midY),
             ("dockBelowCapsule", 201, tabFrame.maxY - 5),
         ]
@@ -389,10 +403,13 @@ final class EdgeEffectProbeTests: XCTestCase {
             window.layoutIfNeeded()
         }
 
-        func sampleAll(arm: String, state: String) {
+        @discardableResult
+        func sampleAll(
+            arm: String, state: String
+        ) -> [String: Int] {
             guard let image = snapshot() else {
                 print("EDGE-PROBE \(arm) \(state) SNAPSHOT-FAIL")
-                return
+                return [:]
             }
             var line = "EDGE-PROBE arm=\(arm) state=\(state)"
                 + " offset=\(Int(scroll.contentOffset.y))"
@@ -402,60 +419,149 @@ final class EdgeEffectProbeTests: XCTestCase {
                 values[name] = p
                 line += " \(name)=\(fmt(p))"
             }
+            var deltas: [String: Int] = [:]
             if let ref = values["pageRef"] {
-                let dTop = values["topBand"].map {
-                    delta($0, ref)
-                } ?? -1
-                let dComp = values["composerBand"].map {
-                    delta($0, ref)
-                } ?? -1
-                let dDock = values["dockBelowCapsule"].map {
-                    delta($0, ref)
-                } ?? -1
-                line += " deltaVsPage top=\(dTop)"
-                    + " composer=\(dComp) dock=\(dDock)"
+                for name in [
+                    "statusStrip", "topBand", "composerMargin",
+                    "composerBand", "dockBelowCapsule",
+                ] {
+                    if let p = values[name] {
+                        deltas[name] = delta(p, ref)
+                    }
+                }
+                line += " deltaVsPage"
+                    + " status=\(deltas["statusStrip"] ?? -1)"
+                    + " top=\(deltas["topBand"] ?? -1)"
+                    + " composerMargin="
+                    + "\(deltas["composerMargin"] ?? -1)"
+                    + " composer=\(deltas["composerBand"] ?? -1)"
+                    + " dock=\(deltas["dockBelowCapsule"] ?? -1)"
             }
             print(line)
+            return deltas
+        }
+
+        func gotoBottom() {
+            // 落底落定：反复设偏移直到读数进 max 的
+            // 2pt 内（定因轮 prod 臂 bottomRest 曾在顶
+            // 位误采，本版显式落定再采）
+            for _ in 0..<6 {
+                setOffset(maxOffset)
+                if maxOffset - scroll.contentOffset.y <= 2 {
+                    break
+                }
+            }
+        }
+
+        var results: [String: [String: Int]] = [:]
+        func record(_ arm: String, _ state: String) {
+            results["\(arm)|\(state)"] = sampleAll(
+                arm: arm, state: state
+            )
         }
 
         // 浅色·生产臂：四态
-        sampleAll(arm: "prod", state: "bottomRest")
+        gotoBottom()
+        record("prod", "bottomRest")
         setOffset(minOffset)
-        sampleAll(arm: "prod", state: "topRest")
+        record("prod", "topRest")
         setOffset(minOffset + 140)
-        sampleAll(arm: "prod", state: "topUnder")
-        setOffset(maxOffset)
+        record("prod", "topUnder")
+        gotoBottom()
         setOffset(maxOffset - 140)
-        sampleAll(arm: "prod", state: "bottomUnder")
-        setOffset(maxOffset)
+        record("prod", "bottomUnder")
 
-        // 浅色·消融臂（§200 三处底衬全隐）：四态同序
-        topBackdrop.isHidden = true
-        composerBackdrop.isHidden = true
-        dockBackdrops.forEach { $0.isHidden = true }
+        // 浅色·消融臂（两注册摘除）：四态同序——顶簇
+        // 与舱带退回无注册形态，内容滚过时以原锐度
+        // 透出，与生产臂对照证注册在干活
+        topBar.removeInteraction(topInteraction)
+        if let bandInteraction {
+            composerBand.removeInteraction(bandInteraction)
+        }
         window.layoutIfNeeded()
         spinRunLoop(seconds: 0.5)
-        sampleAll(arm: "noBackdrop", state: "bottomRest")
+        gotoBottom()
+        record("noBand", "bottomRest")
         setOffset(minOffset)
-        sampleAll(arm: "noBackdrop", state: "topRest")
+        record("noBand", "topRest")
         setOffset(minOffset + 140)
-        sampleAll(arm: "noBackdrop", state: "topUnder")
-        setOffset(maxOffset)
+        record("noBand", "topUnder")
+        gotoBottom()
         setOffset(maxOffset - 140)
-        sampleAll(arm: "noBackdrop", state: "bottomUnder")
-        setOffset(maxOffset)
+        record("noBand", "bottomUnder")
 
-        // 深色·生产臂：两静止态
-        topBackdrop.isHidden = false
-        composerBackdrop.isHidden = false
-        dockBackdrops.forEach { $0.isHidden = false }
+        // 深色·生产臂：两静止态（注册先复位）
+        topBar.addInteraction(topInteraction)
+        if let bandInteraction {
+            composerBand.addInteraction(bandInteraction)
+        }
         window.overrideUserInterfaceStyle = .dark
         assembly.host.overrideUserInterfaceStyle = .dark
         window.layoutIfNeeded()
         spinRunLoop(seconds: 0.8)
         window.layoutIfNeeded()
-        sampleAll(arm: "prodDark", state: "bottomRest")
+        gotoBottom()
+        record("prodDark", "bottomRest")
         setOffset(minOffset)
-        sampleAll(arm: "prodDark", state: "topRest")
+        record("prodDark", "topRest")
+
+        // MARK: 回归断言（用户 21:39 口径的数值化）
+
+        func d(
+            _ arm: String, _ state: String, _ point: String
+        ) -> Int {
+            results["\(arm)|\(state)"]?[point] ?? -1
+        }
+        // 静止态不可见·浅色：四点与页面色差小到不可辨
+        for state in ["topRest", "bottomRest"] {
+            XCTAssertLessThanOrEqual(
+                d("prod", state, "statusStrip"), 3,
+                "浅色 \(state) 状态栏带应与页面同色")
+            XCTAssertLessThanOrEqual(
+                d("prod", state, "topBand"), 3,
+                "浅色 \(state) 顶簇间隙应与页面同色")
+            XCTAssertLessThanOrEqual(
+                d("prod", state, "composerMargin"), 4,
+                "浅色 \(state) 舱带边缘应与页面同色")
+            XCTAssertLessThanOrEqual(
+                d("prod", state, "dockBelowCapsule"), 4,
+                "浅色 \(state) 坞下沿应与页面同色")
+        }
+        // 静止态不可见·深色（§200 时代同点 39/19/19
+        // ——本组即那组病的回归门）
+        for state in ["topRest", "bottomRest"] {
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "statusStrip"), 8,
+                "深色 \(state) 状态栏带应近页面色")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "topBand"), 8,
+                "深色 \(state) 顶簇间隙应近页面色")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "composerMargin"), 8,
+                "深色 \(state) 舱带边缘应近页面色")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "dockBelowCapsule"), 8,
+                "深色 \(state) 坞下沿应近页面色")
+        }
+        // 滚动态朦胧在：顶簇间隙不呈原锐度内容（被
+        // 系统效果化开→近页面色）
+        XCTAssertLessThanOrEqual(
+            d("prod", "topUnder", "topBand"), 12,
+            "滚动时顶簇间隙应被边缘效果化开")
+        // 舱区：生产臂须被化开且明显优于消融臂（基
+        // 线消融同点 Δ95＝裸内容透出）
+        let prodCompUnder = d(
+            "prod", "bottomUnder", "composerBand"
+        )
+        let bareCompUnder = d(
+            "noBand", "bottomUnder", "composerBand"
+        )
+        XCTAssertLessThanOrEqual(
+            prodCompUnder, 45,
+            "滚动时舱后内容应被化开（生产 Δ=\(prodCompUnder)）")
+        XCTAssertLessThan(
+            prodCompUnder, bareCompUnder,
+            "注册应优于无注册（生产 \(prodCompUnder)"
+                + " vs 消融 \(bareCompUnder)）")
     }
 }

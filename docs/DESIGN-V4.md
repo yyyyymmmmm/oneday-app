@@ -11470,3 +11470,25 @@ Core 单测对账预期：基线 1754＋止血 0＋引用 19＋收口 3＋频道
 ### §207.3 出包补记（2026-11-13 回填）
 
 IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径独立解包亲验：**11,530,811 字节、md5 `817ec44ab993fdb27035776ee4233019`**；Payload/OneDayApp.app/Info.plist 亲读＝0.50.30／158／site.didichou.oneday；主二进制 OneDayApp 39,323,896 字节（md5 `5cd04257a6c7b35d8bacd3e214a8a151`）。落位 `~/workspace/your_files/oneday-v0.50.30/OneDay-0.50.30.ipa`。装配头 7208e87（其后仅 §207.2／§207.3 文档回填提交）。**未打 tag、未合 main**——等用户点头；真机待验清单见发版报告 §6（release-05030-assembly-20261113.md）。
+
+## §210 聊天页边缘改内容驱动：§200 常驻材质底衬退役、系统滚动边缘效果注册接管（2026-11-13；分支 fix/edge-effect-content-driven，基线 rel/05030 头 283808a）
+
+### 210.1 用户口径与定因（先调研、后采样、再动刀）
+
+用户 21:39 原话：「上下蒙版感觉还是不对，你看别人，内容没有在下面的时候和聊天页的色系是一样的，只有下面有文字的时候才朦胧」。验收口径定版：**条下无内容时条区与页面背景同色不可见；有内容滚过时才出现朦胧（内容驱动）**。
+
+市面成熟做法（分级）：①官方原文——WWDC25 Session 219《Meet Liquid Glass》："Scroll edge effects are inherently adaptive. As content begins to scroll underneath a glass element, the effect gently dissolves the content into the background"（边缘效果天生自适应、内容滚到之下才溶解）；Session 284《Build a UIKit app with the new design》：自定义覆盖容器经 `UIScrollEdgeElementContainerInteraction`（设 `scrollView` 与 `edge`、`addInteraction` 到容器）注册进同一机制，效果插在容器之后；样式挂滚动视图的 edge effect（`UIScrollView.topEdgeEffect/bottomEdgeEffect` 的 style/isHidden），注册只塑造效果、不布局不留位。②公开文档——HIG：prefer automatic、效果非装饰、只在滚动视图位于浮动元素之后时用；soft＝variable blur＋取自下方内容的 gradient scrim；开发者参考一致警告：在 bar 上自加 background 会成「内容本应透出处的一条不透明带」。③现象推断——论坛个案称效果范围与 container bounds 相关（WKWebView 回归个案，与本项目无关、仅登记）。
+
+自家定因（EdgeEffectProbeTests 定因轮，run 43439787108，生产同构装配双态×双臂×浅深采样）：静止态（条下无内容）色差 vs 页面参考点——顶带浅 4／**深 39**、舱带浅 14／深 19、坞带浅 4／深 19；§200 三处材质片全隐的消融臂：顶带→1、坞带→0（系统 .soft 本体静止≈不可见、内容驱动成立）；滚动态消融臂舱区 Δ95＝裸内容透出（只删片会回到 §200 要治的透字病）。**定因：常驻可见来源＝§200 三处 `UIBlurEffect(.systemChromeMaterial)` 材质片**（与内容无关恒定渲染、chrome 为材质族最不透明档、带边硬界）；边缘效果本体与页面背景均无罪。修法由此唯一化：撤片＋按 WWDC284 注册。
+
+### 210.2 修法（新文件 ScrollEdgeRegistration.swift＋两宿主＋ChatView 接线）
+
+- **顶缘**：interaction 直接挂顶簇宿主视图（TopBarGuideHostController 的 barHost.view，紧凑容器、后代玻璃即效果形状）；状态栏带由列表自身顶缘 .soft 覆盖（消融臂实证）。顶带材质片及其顶边补偿约束整件删除；顶簇落位/实高记账（§195）零改动。
+- **底缘**：舱带几何原样保留（A2 卡段：带顶＝卡帧顶、带底＝宿主底、整栈生长不牵带，syncBandHeight 唯一计算点），载体换透明注册容器 `EdgeBandContainerView`（全幅透明后代作形状质量＋底缘 interaction）；舱宿主视图本体是全帧透传层、不合紧凑容器形态，故不直接挂它。
+- **坞**：`SystemDockBackdrop` 整件删除，resolveAnchors 不再往 UITabBar 里塞任何子视图——系统条归其自身玻璃与自动边缘效果。
+- **本体交接链**：`ChatListScrollViewHandle`（与 ComposerFocusHandle 同式被动登记匣）——列表内容栈 background 挂 0 帧登记锚 `ChatListScrollAnchor`，入层级沿祖先链登记 UIScrollView 本体；两宿主经桥注入同一句柄，在赋值/显形/逐布局拍以指针比对对齐各自 interaction 的 scrollView。样式仍由列表 `.scrollEdgeEffectStyle(.soft, for: .top/.bottom)` 单点承（§210 追记已入 ChatView 两处样式注释）。
+- **红线守恒**：不自绘渐变擦淡（§173）、不用 variableBlur 私有 API、注册容器全透明不接命中、栏位几何（§193–§195 冻结值）与留位记账一字不动。`SystemBackdrop.swift` 与 `SystemBackdropTests.swift` 删除，验收改由 `EdgeEffectRegistrationTests`（8 法：注册绑定/迟登记补绑/顶簇几何两帧/舱带装配/A2 卡段链/坞零侵入/锚祖先链/深色＋AX）承接（旧 6 法覆盖面全数平移并扩围）。
+
+### 210.3 验收与回滚
+
+验收＝EdgeEffectProbeTests 回归形态（同装配、同采样点）：静止四点（状态栏带/顶簇间隙/舱带边缘/坞下沿）色差浅 ≤3–4、深 ≤8；滚动态顶簇间隙 ≤12、舱区 ≤45 且严格优于摘注册的消融臂；加 CI §190 判读与 Core 只增不减（本包不增删 Core 用例；App 目标净 +3 法：旧底衬 6 法→注册 8 法＋探针断言化）。回滚点：恢复 SystemBackdrop.swift/SystemBackdropTests.swift 两文件与两宿主底衬接线、ChatView 撤句柄与锚（单提交可整回）。注：侧线 fix/sidechat-delete-409 与 feat/channels-feishu 已各用 §209，本节编号 §210，装配时如再撞号顺延。
