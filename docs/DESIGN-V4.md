@@ -11500,4 +11500,8 @@ IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径�
 
 **装配**：基线 rel-05033（0.50.33 已判绿，见 §210 附记）重放合并令牌包（rel-05034-prep 非直系后代，按预制 §6）；唯一冲突 docs/DESIGN-V4.md 同号 §209 相撞——删除线先落留 §209，§210 为 0.50.33 组版总账，令牌节顺延 §211（标题改号＋一行顺延注，节内容一字未动）。同面四文件逐字同（除 blob 行）；i18n validate 3004 键三语过（预制 3002＋删除线 2）；Core 静态 1824、App 69。版本 0.50.34/162 五处同改＋grep 验。
 
-### §212.1 装配 CI 判读（待回填）
+### §212.1 装配 CI 判读（2026-11-14 回填）
+
+run 43519373972（头 4f7d2ee）**终判绿（§190＋任务书探针例外）**：名义 failure，全日志断言失败恰 2 条，均为同签名栏位探针 `testAnchoredBarsSurviveGrowthAndFramePollution`（ChatPageDeviceConditionProbeTests.swift:418 `6.0<20.0` 玻璃条高未生长 46.0→52.0；:423 `836 vs 783` 舱底锚点漂移），与 0.50.33 run 43513894243 同签名，记在案探针 flake；App 束共启动 4 次（中途重启 3 次，§184 族）；UI 通过；宿主死亡明文信号 0。**Core 实跑 1824/0 失败**（与静态计数同数）；App 静态 69。运行时长约 31.5 分钟（22:27:07Z→22:58:40Z）。
+
+**验包**：IPA `~/workspace/your_files/oneday-v0.50.34/OneDay-0.50.34.ipa`，**12,234,301 字节、md5 `9a27d8799c17ef82460448f0d55473af`**，Info.plist 实读 site.didichou.oneday／0.50.34／162。未打 tag 未合 main——等用户点头后同 0.50.29/30 先例执行。失败日志：`~/workspace/goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-retry-05032/run-43519373972-log-failed.txt`（11,748 行）。
