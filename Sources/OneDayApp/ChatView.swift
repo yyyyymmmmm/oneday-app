@@ -2091,12 +2091,25 @@ struct ChatView: View {
             // 0.3.5：手势类型与挂点不变（与行内按钮/链接的
             // 既有仲裁关系不动、不误收），只补命中域——
             // 见上方撑满注（§20.2）
-            .onTapGesture {
-                // 0.2.8：收键盘经焦点句柄直达文本视图本体
-                //（resignFirstResponder），不写任何 SwiftUI
-                // 焦点状态；失焦事实由 delegate 回调回写
-                composerFocusHandle.dismiss()
-            }
+            // F1（fix/text-selection-doubletap）：收键盘
+            // 改观察型 UIKit 识别器承接（安装器上溯装到
+            // 承载列表的 UIScrollView），SwiftUI 栈级
+            // tap 就此退出手势图——它与 UITextView 选
+            // 字识别器同图仲裁是双击选词真机失效的第一
+            // 嫌疑（BlankTapKeyboardObserver 注）。命
+            // 中域仍由上方 contentShape 与撑满帧决定观
+            // 察范围的等价面：识别器只收到命中落在本栈
+            // 子树内的触摸；辖区口径（发送舱/顶簇不在
+            // 内）由视图树保证
+            .background(
+                BlankTapKeyboardObserverInstaller {
+                    // 0.2.8：收键盘经焦点句柄直达文本视
+                    // 图本体（resignFirstResponder），不
+                    // 写任何 SwiftUI 焦点状态；失焦事实
+                    // 由 delegate 回调回写
+                    composerFocusHandle.dismiss()
+                }
+            )
         }
         // §195（2026-11-13）：顶栏注册退役——顶簇迁
         // TopBarGuideHost 锚定托管（chatSurface 的
@@ -6793,6 +6806,122 @@ private struct ComposerBarLayout: Layout {
 /// 走 ShareLink 系统分享单；选择打开纯文本 sheet。
 /// isEnabled=false（纯图片消息）时不挂菜单，见
 /// messageMenu(for:) 的口径注
+/// 点空白收键盘·观察型识别器（F1，fix/text-selection-
+/// doubletap）：栈级 SwiftUI `.onTapGesture` 会进
+/// SwiftUI 手势图、与 UITextView 自家选字识别器同图
+/// 仲裁——双击选词在真机失效的第一嫌疑（四方会诊
+/// selection-hunt-synthesis A 案；同型一手实证＝
+/// hermes-conduit PR #63：SwiftUI 祖先手势使文本视
+/// 图私有选字手势失活，改观察型识别器后恢复）。本
+/// 识别器永不识别（状态恒 .possible）、永不取消/
+/// 延迟触摸，只观察：触点构成真点击（位移 <10pt、
+/// 时长 <0.5s）且命中点不在可选文本／控件／按钮
+/// 语义视图内时才回调收键盘。§20.2「点空白收键
+/// 盘」行为口径不变，只换仲裁形态——触摸全程归
+/// 文本视图与列表自家识别器裁决
+final class BlankTapKeyboardObserver: UIGestureRecognizer {
+    var onBlankTap: (() -> Void)?
+    private var beganPoint: CGPoint = .zero
+    private var beganTime: TimeInterval = 0
+    private var beganHitBlocked = true
+
+    override func touchesBegan(
+        _ touches: Set<UITouch>, with event: UIEvent
+    ) {
+        guard let touch = touches.first, let view
+        else { return }
+        beganPoint = touch.location(in: view)
+        beganTime = touch.timestamp
+        beganHitBlocked = Self.isBlockedHit(touch, in: view)
+    }
+
+    override func touchesEnded(
+        _ touches: Set<UITouch>, with event: UIEvent
+    ) {
+        guard let touch = touches.first, let view
+        else { return }
+        let end = touch.location(in: view)
+        let moved = hypot(
+            end.x - beganPoint.x, end.y - beganPoint.y
+        )
+        guard !beganHitBlocked, moved < 10,
+              touch.timestamp - beganTime < 0.5
+        else { return }
+        onBlankTap?()
+    }
+
+    override func touchesCancelled(
+        _ touches: Set<UITouch>, with event: UIEvent
+    ) {}
+
+    override func reset() {}
+
+    /// 命中过滤：可选文本（选字辖区）、控件、按钮
+    /// 语义视图（SwiftUI Button 的平台视图带
+    /// .button trait）一律不触发——与旧 SwiftUI
+    /// tap 的仲裁结果对齐（子视图先命中自己）
+    private static func isBlockedHit(
+        _ touch: UITouch, in view: UIView
+    ) -> Bool {
+        guard let window = view.window else { return true }
+        var node = window.hitTest(
+            touch.location(in: window), with: nil
+        )
+        while let current = node {
+            if current is SelectableUITextView { return true }
+            if current is UIControl { return true }
+            if current.accessibilityTraits.contains(.button) {
+                return true
+            }
+            node = current.superview
+        }
+        return false
+    }
+}
+
+/// 观察器安装器：哨兵视图上溯到承载列表的
+/// UIScrollView 后装一枚（只装一次）——house 上
+/// 溯路数同 GlassScrollRibbon 的安装法。装在滚
+/// 动视图上：作曲舱/顶簇不在其子树内、天然不在
+/// 辖区（0.2.7 辖区口径由视图树保证，不再靠手
+/// 势挂点）
+struct BlankTapKeyboardObserverInstaller: UIViewRepresentable {
+    let onBlankTap: () -> Void
+
+    final class Coordinator {
+        weak var scrollView: UIScrollView?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIView {
+        let probe = UIView(frame: .zero)
+        probe.isUserInteractionEnabled = false
+        DispatchQueue.main.async { [weak probe] in
+            guard let probe else { return }
+            var node: UIView? = probe.superview
+            while let current = node {
+                if let scroll = current as? UIScrollView {
+                    if context.coordinator.scrollView !== scroll {
+                        context.coordinator.scrollView = scroll
+                        let observer = BlankTapKeyboardObserver()
+                        observer.onBlankTap = onBlankTap
+                        observer.cancelsTouchesInView = false
+                        observer.delaysTouchesBegan = false
+                        observer.delaysTouchesEnded = false
+                        scroll.addGestureRecognizer(observer)
+                    }
+                    return
+                }
+                node = current.superview
+            }
+        }
+        return probe
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
 private struct MessageMenuModifier: ViewModifier {
     let isEnabled: Bool
     let plainText: String

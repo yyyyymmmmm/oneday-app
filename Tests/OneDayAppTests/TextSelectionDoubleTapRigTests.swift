@@ -499,6 +499,7 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
                     + " delaysBegan=\(rec.delaysTouchesBegan)"
                     + " delaysEnded=\(rec.delaysTouchesEnded)"
                     + " delegate=\(rec.delegate != nil)"
+                    + " delClass=\(rec.delegate.map { String(describing: type(of: $0)) } ?? "-")"
                 if let tap = rec as? UITapGestureRecognizer {
                     desc += " taps=\(tap.numberOfTapsRequired)"
                 }
