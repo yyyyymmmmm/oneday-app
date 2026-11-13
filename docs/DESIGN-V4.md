@@ -11164,4 +11164,4 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 
 **结构门整合进动作门**：进程内结构门 TopBarClusterHitDomainTests（§198.3 新测之一）六轮 CI 全灭——生产同构装配页内同步查无障碍元素与 §184 进程死亡族同签名（无断言失败、进程死亡）。两轮硬化均未救活：快照单采＋沉降＋拆双用例仍死；收集作用域收进顶栏宿主子树后，run 43380616447 证实平台子视图遍历根本够不到宿主内的 SwiftUI 元素（命中归属用例以「模型胶囊无障碍元素未找到」出判、帧/玻璃用例仍进程死亡）。处置：该文件退役，其结构事实（间隔 ≥8、头像盘宽 44、无融合元素、命中归属）并入动作门、在 UI 进程以同一份实帧判读（开场违规项＋逐点归属）；玻璃不跨双域改由构造证明（玻璃只存在于 ModelCapsuleView 标签背景层、HubAvatarButton 无玻璃）＋动作门归属全对共同成立。§198.3「新测」列随之修正为只剩动作门一组，退役清单加列本文件与缘由。§198.4 中「结构门」读法以本节为准。
 
-**终判**：run 〈终轮回来后填实〉。
+**终判**：run 43383268063（head e1668ed）——动作门 VERDICT=PASS（13/13 点归属全对、开场结构三项零违规、实测 gap=16.0）；全量断言失败 0；Failing tests 清单仅 ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays 一条（在案键盘真崩，§190 口径单列不追、归 §184 线）；聚合执行 1686 测。本节与 §198.3 加列为终判后文档提交，不改代码。
