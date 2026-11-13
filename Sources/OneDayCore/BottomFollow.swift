@@ -346,6 +346,29 @@ public struct KeyboardGeometrySnapshot: Equatable, Sendable {
     }
 }
 
+/// 键盘帧更新（R1 快照的键盘输入包）：通知的结
+/// 束帧已经持有者（ComposerGuideHost 控制器，
+/// 唯一解析点）以 window.convert 转成窗口坐标，
+/// 动画参数取 userInfo 原值——三者一包同拍到达，
+/// 消费方（ChatView）以参数原值 withAnimation 写
+/// 进快照。topInWindow＝nil 表示键盘不在场或非
+/// 停靠形态（浮动/分离不驱动留位，评审条目 3）
+public struct KeyboardFrameUpdate: Equatable, Sendable {
+    public var topInWindow: CGFloat?
+    public var duration: TimeInterval
+    public var curveRawValue: Int
+
+    public init(
+        topInWindow: CGFloat?,
+        duration: TimeInterval,
+        curveRawValue: Int
+    ) {
+        self.topInWindow = topInWindow
+        self.duration = duration
+        self.curveRawValue = curveRawValue
+    }
+}
+
 /// 离底未读计数（0.41.0，全局收口批·聊天细节余项正
 /// 修，台账 H 节）：用户上翻离开底部后，新到条目计在
 /// 回底钮的角标上；回到底部、自发发送、切换线程即清

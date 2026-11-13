@@ -368,6 +368,14 @@ struct ChatView: View {
         windowHeight: 874, dockTopInWindow: 791,
         pocketHeight: 105
     )
+    /// R1（修正）：键盘帧更新包的收件槽——由 Com-
+    /// poserGuideHost 控制器（唯一解析点）在键盘事
+    /// 件拍直写（帧顶已转窗口坐标），本页 onChange
+    /// 以其动画参数原值整包写进快照（见 body 根的
+    /// onChange(kbFrameUpdate)）。首版由本页 .onRe-
+    /// ceive 自行解析通知：屏幕坐标原值与快照窗口
+    /// 坐标不重合、锚恒偏——解析自此不归本页
+    @State private var kbFrameUpdate: KeyboardFrameUpdate?
     /// §195：窗口顶安全区实测（ComposerGuideHost 在
     /// 布局拍回写；种子 62＝本机型不变量、首个布局
     /// 拍即被实测覆盖，与 composerBottomSpace 的
@@ -578,13 +586,28 @@ struct ChatView: View {
             proxy.size.height
         } action: { _, newHeight in
             hostViewHeight = newHeight
-            // R1：快照的窗口高随本页根几何同拍同步
-            // （窗口高是留位公式的坐标基准；根几何
-            // 即本页所在窗口的可用高，与宿主回报的
-            // 窗口真值同源同值）
-            if newHeight > 0,
-               kbSnapshot.windowHeight != newHeight {
-                kbSnapshot.windowHeight = newHeight
+        }
+        // R1（修正）：键盘帧更新包到达即整包入快照
+        // ——动画以通知参数原值推进（曲线映射见
+        // keyboardSnapshotAnimation）；快照的窗口
+        // 高由宿主回报喂入（window.bounds 真值），
+        // 本页根几何高是页内可用高、不是窗口高，
+        // 不许再喂（首版误喂 729≠874、留位整体偏
+        // 移，验收轮实测坐实）
+        .onChange(of: kbFrameUpdate) { _, update in
+            guard let update else { return }
+            withAnimation(
+                keyboardSnapshotAnimation(
+                    duration: update.duration,
+                    curveRaw: update.curveRawValue
+                )
+            ) {
+                kbSnapshot.keyboardTopInWindow =
+                    update.topInWindow
+                kbSnapshot.animationDuration =
+                    update.duration
+                kbSnapshot.animationCurveRawValue =
+                    update.curveRawValue
             }
         }
         // 0.19.0：抽屉「枢纽」导航行的开枢纽请求通道
@@ -784,7 +807,9 @@ struct ChatView: View {
                         bottomSpace: $composerBottomSpace,
                         topSafe: $windowTopSafeInset,
                         pocketHeight: $kbSnapshot.pocketHeight,
-                        dockTop: $kbSnapshot.dockTopInWindow
+                        dockTop: $kbSnapshot.dockTopInWindow,
+                        keyboardFrame: $kbFrameUpdate,
+                        windowHeight: $kbSnapshot.windowHeight
                     ) {
                         bottomBar(proxy)
                     }
@@ -2617,56 +2642,13 @@ struct ChatView: View {
                 for: UIResponder.keyboardWillChangeFrameNotification
             )
         ) { notification in
-            // R1：键盘几何快照在事件拍整体替换——结
-            // 束帧顶/时长/曲线全取通知 userInfo 原值
-            // （苹果文档的键盘通知契约，与 §194 舱常
-            // 量的输入同源同拍）；结束帧顶落到窗口底
-            // 之外＝键盘离场、快照记 nil。留位与坞显
-            // 隐都是快照的派生读数、随本拍同动；动画
-            // 以通知时长推进（曲线映射见 keyboard-
-            // SnapshotAnimation）
-            if let info = notification.userInfo,
-               let endFrame = (info[
-                   UIResponder.keyboardFrameEndUserInfoKey
-               ] as? NSValue)?.cgRectValue {
-                let duration = (info[
-                    UIResponder
-                        .keyboardAnimationDurationUserInfoKey
-                ] as? NSNumber)?.doubleValue ?? 0
-                let curveRaw = (info[
-                    UIResponder
-                        .keyboardAnimationCurveUserInfoKey
-                ] as? NSNumber)?.intValue ?? 0
-                // 适用域（评审合成条目 3）：留位模型
-                // 只对「停靠键盘」成立——结束帧须满
-                // 宽且底边贴屏底；浮动/分离键盘（帧
-                // 悬空）不驱动留位、按不在场记（舱留
-                // 坞上，与无配件应用的系统行为同向）；
-                // 帧顶出屏底＝离场同记 nil。外接键
-                // 盘无帧事件、自始不在场
-                let screen = UIScreen.main.bounds
-                let docked = endFrame.width >= screen.width - 1
-                    && endFrame.maxY >= screen.height - 1
-                    && endFrame.minY < screen.height - 1
-                let target: CGFloat? = docked
-                    ? endFrame.minY : nil
-                if kbSnapshot.keyboardTopInWindow != target
-                    || kbSnapshot.animationDuration != duration
-                    || kbSnapshot.animationCurveRawValue
-                        != curveRaw {
-                    withAnimation(
-                        keyboardSnapshotAnimation(
-                            duration: duration,
-                            curveRaw: curveRaw
-                        )
-                    ) {
-                        kbSnapshot.keyboardTopInWindow = target
-                        kbSnapshot.animationDuration = duration
-                        kbSnapshot.animationCurveRawValue =
-                            curveRaw
-                    }
-                }
-            }
+            // R1（修正）：快照的键盘输入已收口到
+            // ComposerGuideHost 控制器的解析点（帧
+            // 顶转窗口坐标后经 kbFrameUpdate 包到
+            // 达、body 根 onChange 整包入快照）——
+            // 本订阅只余帧变化的挂账职责，不再解析
+            // 帧值（首版在此存屏幕坐标原值、与快照
+            // 窗口坐标不重合，已废）
             // 帧开始变（升起/候选栏收展/交互收起逐
             // 帧）：落定标记先撤——此后的锚底请求只
             // 记挂账，等帧落定事件兑现（手感 A 档）

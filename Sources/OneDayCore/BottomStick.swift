@@ -275,10 +275,18 @@ public struct BottomSettleMachine: Equatable, Sendable {
         }
         let gateOpen = !animated || motionObserved
             || stableStreak >= 2
+        // 非动画贴底没有 transit：首读数即落定读
+        // 数——以自值作前值喂判定（离底收官/复贴
+        // 的稳定前提天然成立）；动画贴底的前值只
+        // 认真实上一事件（途中收敛不算离底，见判
+        // 定核的 transit 条款）
+        let effectivePrevious = animated
+            ? previousDistance
+            : (previousDistance ?? distance)
         let decision = BottomSettleEvaluation.decision(
             distance: distance,
             contentEndVisible: contentEndVisible,
-            previousDistance: previousDistance,
+            previousDistance: effectivePrevious,
             restickArmed: restickArmed && gateOpen
         )
         previousDistance = distance

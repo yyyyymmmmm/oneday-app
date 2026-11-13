@@ -155,8 +155,11 @@ final class TapDismissInstallerView: UIView,
         // ≥ 桥帧面积一半，防误装邻面
         guard let window else { return nil }
         let myFrame = convert(bounds, to: window)
-        var best: UIScrollView?
-        var bestArea: CGFloat = 0
+        // 候选可嵌套（同页两面全帧滚动视图同帧并
+        // 存，验收轮 census 实证）：先按重叠面积筛
+        // 近全幅者，再取层级最深者——内容本体恒在
+        // 内层，平局先到先得会装到外层壳上
+        var candidates: [(view: UIScrollView, area: CGFloat)] = []
         func walk(_ view: UIView) {
             if String(describing: type(of: view))
                 .contains("HostingScrollView"),
@@ -169,19 +172,28 @@ final class TapDismissInstallerView: UIView,
                 let area = overlap.isNull
                     ? 0
                     : overlap.width * overlap.height
-                if area > bestArea {
-                    bestArea = area
-                    best = scroll
-                }
+                candidates.append((scroll, area))
             }
             for sub in view.subviews { walk(sub) }
         }
         walk(window)
         let myArea = myFrame.width * myFrame.height
-        if myArea > 0, bestArea < myArea * 0.5 {
-            return nil
+        guard let maxArea = candidates.map({ $0.area }).max(),
+              myArea > 0, maxArea >= myArea * 0.5
+        else { return nil }
+        func depth(of view: UIView) -> Int {
+            var d = 0
+            var current = view.superview
+            while current != nil {
+                d += 1
+                current = current?.superview
+            }
+            return d
         }
-        return best
+        return candidates
+            .filter { $0.area >= maxArea * 0.99 }
+            .max(by: { depth(of: $0.view) < depth(of: $1.view) })
+            .map { $0.view }
     }
 
     @objc private func handleBlankTap() {

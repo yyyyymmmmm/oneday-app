@@ -70,7 +70,7 @@ final class KeyboardFlowAcceptanceTests: XCTestCase {
     /// 取面，在多页装配里取错了面（验收轮实测静
     /// 态 114 的异面 inset），改以内容标记定面
     private func chatScrollView() -> UIScrollView? {
-        findViews(window) { view in
+        let carriers = findViews(window) { view in
             guard view is UIScrollView,
                   String(describing: type(of: view))
                     .contains("HostingScrollView"),
@@ -81,7 +81,25 @@ final class KeyboardFlowAcceptanceTests: XCTestCase {
                 ($0 as? UITextView)?.text
                     .contains("键盘验收") == true
             }.isEmpty == false
-        }.first as? UIScrollView
+        }.compactMap { $0 as? UIScrollView }
+        // 标记承载面可嵌套（外层壳的子树同样含标
+        // 记）：取不为任一其他承载面祖先的最内层
+        func isAncestor(
+            _ a: UIView, of b: UIView
+        ) -> Bool {
+            var current = b.superview
+            while let view = current {
+                if view === a { return true }
+                current = view.superview
+            }
+            return false
+        }
+        return carriers.first { candidate in
+            !carriers.contains {
+                $0 !== candidate
+                    && isAncestor(candidate, of: $0)
+            }
+        }
     }
 
     /// 全 HostingScrollView 的 inset 清单（判读留痕）

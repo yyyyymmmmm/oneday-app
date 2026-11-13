@@ -167,7 +167,9 @@ final class ComposerGuideHostTests: XCTestCase {
                         // 以常量绑定占位（写入被忽略、
                         // 与生产装配的回报纪律无关）
                         pocketHeight: .constant(105),
-                        dockTop: .constant(791)
+                        dockTop: .constant(791),
+                        keyboardFrame: .constant(nil),
+                        windowHeight: .constant(874)
                     ) {
                         // 构建计数（诊断：桥 init 求值次数
                         // ——分清「没重建」与「重建没长高」）
