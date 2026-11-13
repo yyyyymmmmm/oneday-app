@@ -11,6 +11,11 @@ on:
       - "Tuist.swift"
       - ".github/workflows/ios-native.yml"
   workflow_dispatch:
+    inputs:
+      only_testing:
+        description: "可选：单个 -only-testing 标识（如 OneDayAppTests/Class/test）；空＝全量两目标"
+        required: false
+        default: ""
 
 jobs:
   build-native:
@@ -43,11 +48,16 @@ jobs:
       - name: Unit tests (OneDayCore)
         run: |
           set -o pipefail
+          ONLY=(-only-testing:OneDayCoreTests -only-testing:OneDayAppTests)
+          if [ -n "${{ inputs.only_testing }}" ]; then
+            ONLY=(-only-testing:"${{ inputs.only_testing }}")
+          fi
+          echo "only-testing filter: ${ONLY[*]}"
           xcodebuild test \
             -project OneDay.xcodeproj \
             -scheme OneDayApp \
             -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -only-testing:OneDayCoreTests -only-testing:OneDayAppTests \
+            "${ONLY[@]}" \
             CODE_SIGNING_ALLOWED=NO \
             | tee test-full.log
           grep -E "error:|Test Case|Executed|TEST" test-full.log | head -60 || true
@@ -92,7 +102,32 @@ jobs:
             -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -6 | while read -r f; do
               dump_ips "$f"
             done
+          # §184 取证补全（点名轮）：.ips 全文收集成
+          # artifact（头部摘录不够符号化——usedImages 与
+          # 全部线程都在文件后段），并当场对无符号帧跑
+          # atos 符号化（构建产物与运行时卷只在本机在场）
+          mkdir -p crash-artifacts
+          find ~/Library/Logs/DiagnosticReports -maxdepth 1 -type f -mmin -240 \
+            \( -name "*OneDay*" -o -name "*Jetsam*" -o -name "*testmanagerd*" -o -name "*xctest*" \) \
+            2>/dev/null | while read -r f; do cp "$f" crash-artifacts/ 2>/dev/null; done
+          find ~/Library/Developer/CoreSimulator/Devices \
+            -path "*DiagnosticReports*" -type f -mmin -240 \
+            \( -name "*OneDay*" -o -name "*Jetsam*" -o -name "*testmanagerd*" -o -name "*xctest*" \) \
+            2>/dev/null | while read -r f; do cp "$f" crash-artifacts/ 2>/dev/null; done
+          ls -la crash-artifacts/ || true
+          if ls crash-artifacts/*.ips >/dev/null 2>&1; then
+            python3 .github/scripts/symbolicate_ips.py crash-artifacts/*.ips \
+              | tee crash-artifacts/symbolication.txt || true
+          fi
           true
+
+      - name: Upload crash reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-reports
+          path: crash-artifacts/
+          if-no-files-found: ignore
 
       - name: Package unsigned IPA
         run: |
