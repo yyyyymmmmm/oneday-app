@@ -11237,3 +11237,40 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 - **合 main 与 tag**：rel-05027 快进合入本地 main 后，push 时发现 origin/main 已被 tmate 调试线推进（5 提交、仅 .github/workflows/debug-mac.yml、基 b19a155）——并轨合并 043ec0b（两线并存、无改写历史）后 push 成功，main 头回读 043ec0b；打 annotated tag **v0.50.27** 于 043ec0b 并 push。
 - **发版构建（run 43376388284，main push 触发，仅此一次）**：Package／Upload success、artifact 在架；断言失败 **0**、Core **1698 全过**；Failing 两条仍为 §184 在案无断言进程死亡（键盘真崩＋DrawerContainerController 关闭动画一条——止血包 §199.4 已同签名在案；本轮 barGrowth 存活、死亡席位在同族内轮换，方差与台账一致），无新红。
 - **验包**：**11,024,687 字节、md5 `a762ce9d411ded37c7306431a20584c9`**、Info.plist 0.50.27/155/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.27/OneDay-0.50.27.ipa。真机待验按 §201 总清单四组执行。
+## §202 动态讨论引用化（2026-11-13；分支 feat/feed-discuss-quote，基线 main 6a14792）
+
+- **立项**：用户 15:23 点名两题——①点「讨论」预填文被塞进输入框当草稿、没发再进入还在；②改 Muse 式引用样式。15:31 点选按规格施工。规格唯一依据＝oneday-design-review/feed-discuss-quote-spec-20261113.md（诊断：预填经 setDraft 直写草稿账、与亲笔同形被 0.7.0 防丢稿保活永久保护；大厂共识＝引用与草稿平行独立）。
+- **节号对账点（与在装 0.50.28）**：本节号取自主线基线尾号 §201 顺延的 §202；0.50.28 装配线（rel-05028）若已占用 §202 起节号（胶囊/P1/P2 三分支节顺延），组版时本节整体顺延、正文与代码注释中的 §202 引用同步改。
+
+### 202.1 包 1（Core，a2a44ae）
+- 新值类型 `FeedPostQuote`（FeedPostQuote.swift）：postID 必填＋标题/正文全文快照＋来源行＋首图＋行首标识；自 BridgeFeedPost 组装，来源行优先级＝来源卡名 → 简报方向 → links 首条域名（全缺空串）。
+- 注入：`FeedPostQuote.outgoingContent` feed 变体——`[引用动态：《标题》]`＋正文全文（不截断，P-12 同口径）＋`（来源：…）`，亲笔独立在后；`MessageQuote.outgoingContent` 三参变体作分发收口（feed 在场优先，两引用落盘互斥），不新增 API 字段、重放链不变。
+- `FeedDiscussPrefill` 退役标注：make() 保留**仅作包 3 存量清扫的逐字参照**（其 ClosureLoopTests M2 单测随之转为参照实现的守门测——参照漂移即清扫误判，故不删、逐项登记在此）；注入调用方清零。
+- `FeedDiscussDraftCleanup`：三语（zh-Hans/zh-Hant/en）逐字再生判定，改一字不中。
+- 单测 FeedDiscussQuoteTests 15 法（组装/来源优先级/全文注入/分发/摘要/逐字判定含节选形与改字拒判）。
+
+### 202.2 包 2（App，6f6d5aa）
+- 交接：FeedView.discuss 改走 AppState 种子暂存道（`pendingFeedDiscussSeed: FeedDiscussSeed{threadID, quote}`，照 pendingForkQuote 先例的跨页版）；ChatView `tryApplyFeedSeed` 三路消费（onChange 切线程／种子置位／onAppear 兜底，线程相符才落位），落位即聚焦、输入框恒空（亲笔草稿按原轻保活装载，与引用并存不悖）。
+- 槽位：`pendingFeedQuote` 与 `pendingQuote` 共用发送舱同一引用槽位、至多一个在场、后入覆盖（落点：beginReply／种子消费／分流转入／send 快照四处成对清理）。
+- 呈现：composerCard 引用段加 feed 变体 `feedQuoteBar`（左轨＋标识标题行＋来源·摘要行＋可选缩略图＋✕ 命中域 44，几何照 quoteBar）；发送后消息内 `feedQuoteBlock`（quoteBlock 同几何）可点回跳——置 `feedOpenPostRequest`＋切动态格，FeedView 消费：名单命中直达详情、名单就绪查无弹「这篇动态已不在了」、未就绪挂起等名单。
+- 落盘：ChatEntry 新增 feedPostID/Title/Body/Source 四字段（轻量迁移、与 quote 两字段互斥），读回组装 `entry.feedQuote` 一处收口；发送组装与同 key 重演组装改走三参分发。
+- 去重：discuss() 先经 `SideChatStore.threadID(forFeedDiscussPostID:)` 反查复用线程，关联在而线程已删则补建改写（点子流同形）；复用不写草稿账、不覆盖亲笔。
+- FA-1：note 提取入参钉死为 send 的亲笔正文快照（firstText），引用块只在 outgoingContent 拼装、永不回流扫描面——预填污染面随注入通道退役收净，注释钉死不许改传组装后文本。
+- 顺手项（规格 §3.3）：send() 条目落盘后显式清本线程草稿键，堵「发送后不切线程即杀进程、冷启旧草稿复装」的推演口子。
+- 隔离铁律（代码＋本节双落）：`setDraft` 只许亲笔路径（ChatView 切走回存／删线程清理／send 后销账）；系统注入一律走引用/种子道。现存另两处后门——点子（IdeasView.swift:657）、文件重发（FileOpenView.swift:520）——**不在本包范围**，列同族待办另包。
+- 新文案两键（「这篇动态已不在了」「回到动态原帖」）入三语目录，validate 2924 键全覆盖通过。App 测 2 法（反查/改写关联）。
+
+### 202.3 包 3（App，3be0c25）
+- `SideChatStore.purgeLegacyFeedDiscussDrafts(posts:)`：只扫 FA-1 关联线程、拿原帖逐字再生比对，相等才清草稿文本（线程本体不动）；幂等；os 日志计数留痕（category feed-discuss-purge），不上屏。
+- 调用点唯一：FeedStore.load 名单拉取成功后——逐字核验须拿原帖，此为最早可严格核验时点（纯启动时点无原帖数据，不凭结构猜测，防改字误清）。
+- App 测 4 法：逐字清＋复跑 0、改一字留、亲笔双路零误伤、原帖不在名单不清。
+- 已知边界：原帖已过期（不在任何一次拉取名单里）的旧预填无从核验、不清——新流不再产生此病，存量该个案用户可手删或删线程。
+
+### 202.4 生命周期口径（规格钉死，施工未走样）
+引用不是草稿、永不进 drafts；✕ 即清无落盘；切线程作废（随 pendingQuote 既有 onChange 清理同律）；杀进程不恢复（种子与引用都只活内存）；发送随消息行四字段落盘、每轮重放同口径拼回。
+
+### 202.5 CI 判读
+（待分支 CI 终判后补记）
+
+### 202.6 真机待验（组版随车，规格 §3.8 八点）
+①点讨论→引用卡在输入舱上方、输入框为空、聚焦可打字，有图帖带缩略图；②点 ✕→卡消失无残留，切走再回/杀进程重进引用不复活；③带引用打字发送→消息顶引用块在，问只有正文里有的细节 AI 答得出；④点引用块→跳回原帖详情，帖过期给诚实提示、块快照仍可读；⑤同帖再点讨论→回同一线程不新建；⑥亲笔草稿回归不坏（讨论线程亲笔打一半切走，回来亲笔在、引用已作废）；⑦升级存量：旧版未改动预填被清、改过的草稿一字不动；⑧FA-1：正文带「喜欢」字样的帖，引用发送不产生假 note、真偏好句照常达桥。
