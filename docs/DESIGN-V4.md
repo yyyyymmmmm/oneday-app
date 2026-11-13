@@ -11276,3 +11276,29 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 **结构门整合进动作门**：进程内结构门 TopBarClusterHitDomainTests（§202.3 新测之一）六轮 CI 全灭——生产同构装配页内同步查无障碍元素与 §184 进程死亡族同签名（无断言失败、进程死亡）。两轮硬化均未救活：快照单采＋沉降＋拆双用例仍死；收集作用域收进顶栏宿主子树后，run 43380616447 证实平台子视图遍历根本够不到宿主内的 SwiftUI 元素（命中归属用例以「模型胶囊无障碍元素未找到」出判、帧/玻璃用例仍进程死亡）。处置：该文件退役，其结构事实（间隔 ≥8、头像盘宽 44、无融合元素、命中归属）并入动作门、在 UI 进程以同一份实帧判读（开场违规项＋逐点归属）；玻璃不跨双域改由构造证明（玻璃只存在于 ModelCapsuleView 标签背景层、HubAvatarButton 无玻璃）＋动作门归属全对共同成立。§202.3「新测」列随之修正为只剩动作门一组，退役清单加列本文件与缘由。§202.4 中「结构门」读法以本节为准。
 
 **终判**：run 43383268063（head e1668ed）——动作门 VERDICT=PASS（13/13 点归属全对、开场结构三项零违规、实测 gap=16.0）；全量断言失败 0；Failing tests 清单仅 ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays 一条（在案键盘真崩，§190 口径单列不追、归 §184 线）；聚合执行 1686 测。本节与 §202.3 加列为终判后文档提交，不改代码。
+## §203 AI 内部权限 P1 身份包：改名窄工具＋头像仓＋头像应用通道（2026-11-13；分支 feat/ai-identity-pack，基线 main @0494f7d；节号说明：§198 已被抽屉包/止血包在各自分支占用，本包取 §199，组版时主线收口；0.50.28 装配顺延 §199→§203）
+
+### 203.1 依据与边界
+用户 2026-11-13 拍板：OneDay 里的 AI 按「住户不是客人」定位（对标 Muse 本体）、内部操作全自主不走审批、唯一硬要求主线留痕。盘点 ai-internal-powers-audit-20261113.md §2.2/§四 P1。本包只建桥侧工具与 App 数据通道，**不注册进 Hermes、不重启任何服务**——注册统一等收官窗口一次办（用户已授权主线在收官窗重启）。冻结红线遵守：§194/§195 几何、顶簇锚定、DrawerView、两 GuideHost 零触碰；顶簇头像钮正由胶囊 B 线施工，本包只接数据通道、不改顶簇视图结构——全 App 露脸面（顶簇/枢纽/设置身份区）只消费 AgentProfileStore 的 avatarImage 单一出口，改存储层即全点生效。
+
+### 203.2 改名窄工具（桥侧 identity 桥，伴生模块 #7，端口 8648）
+- 工具面：/mcp 门面（与 device 桥、oneday 目标门面同形）六工具 identity_get_name/identity_set_name/identity_get_avatar/identity_set_avatar_preset/identity_set_avatar_image/identity_select_avatar；REST 同能力供 App 与自验。状态＝门面就绪待注册。
+- 窄口径：set_name 只许动 soul 的身份标题行——前 3 个非空行内首个 `# ` 行（即 Core AgentName.resolve 实际读取的槽位）；无此行则在文件首行插入，soul 其余字节一字不动。写前整文备份进头像仓 soul-backups/，原子替换并保原文件 mode/owner；写后按 Python 镜像版 AgentName.resolve 回读验名一致才算成。
+- 校验与 App 解析同口径：≤20 字、无句读集、无结构词（soul/人设/身份等）、拒 # 与控制字符。支持 dryRun 只算不落盘。
+- App 侧零改动：AI 改名后 App 既有 soul 解析链（identityName）自动跟上，本机改名覆盖仍优先（既有口径不变）。
+- 留痕：每次动作（REST/MCP、成功/失败）按 P0 五要素契约经 oneday 桥 /traces 落一条（action=identity.*）；落痕通道不可达时同形状溢出落盘 traces-spill.jsonl 并在桥日志大声报错，不许静默丢痕。
+
+### 203.3 头像仓（桥侧新建）
+- 存储：伴生 identity-data 卷 index.json（currentId＋items 历史）＋图片文件；条目两类：preset（目录 id 引用：partner/paw/sparkles/atom）与 image（AI 生成图字节，JPEG/PNG 魔数校验、≤2MB、记 sha256）。
+- 端点：GET /identity/avatar（状态）、GET /identity/avatar/image?id=（字节）、POST /identity/avatar（入仓：预置引用/图片）、POST /identity/avatar/select（切当前）。生产自验：seed 预置 partner 为当前（与现行缺省视觉等价）＋小图入仓回读 sha 对齐＋切回 partner，全程经公网 nginx 路径验。
+
+### 203.4 头像应用通道（App 侧）
+- 新 IdentityBridgeClient（仿总览桥：BridgeCredential 单钥、/api/identity-bridge、错误分 noKey/unauthorized/failed）＋AgentAvatarSync：与伴生探测同拍触发（AppState.syncAgentAvatarFromBridge，挂 OneDayApp 连接成立/回前台/冷启恢复三点），把仓当前头像投影进 AgentProfileStore 的 AI 档槽位；失败静默保现状——仓不可达不动槽位、不清槽、不白屏；仓明确无当前头像才清槽。
+- 优先级（Core AgentAvatarChoice 纯函数裁决）：用户手动选过优先——selectPreset/setCustomAvatar 即上锁（agentProfile.userAvatarLocked），AI 切换只动 AI 档、永远压不过锁；未锁定时 AI 档赢过档案选择值；AI 档为空回落用户选择。存量迁移：锁键未写过时以「预置 id 键存在过或用过自定义图」判手动选过（缺省态从不写这两键，未碰过编辑器的用户不锁，AI 头像可直接生效）。
+- AI 图落本机 avatar-ai.jpg（与用户 avatar.jpg 分文件互不覆盖），制备口径同用户图（裁方/512/JPEG）；同条目已同步跳过重复下载。
+- 已知后续（不在本包）：身份编辑面补一颗「跟随 AI 头像」开关（清锁）——本包先落存储层口径，开关随后续 UI 包。
+
+### 203.5 测试与待验
+- Core 新增 AgentAvatarChoiceTests 7 法：锁压 AI（预置/图片两路）、未锁 AI 胜（预置/图片）、AI 图胜出标记、AI 空回落、脏预置 id 收敛缺省。单测只增不减。
+- CI 口径：分支 workflow_dispatch 全量，断言失败须 0（键盘全链 flake 在案一条按 §190/§196 口径记录）。
+- 真机待验（随组版装机）：①AI（经收官注册后）改名后 App 显示名跟随（本机无覆盖时）；②AI 换预置/图片头像后三露脸面同步变化；③用户手动选过头像后 AI 切换不生效（锁）；④断网冷启头像不空白、不回退。

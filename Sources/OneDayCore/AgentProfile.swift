@@ -95,6 +95,50 @@ public struct AgentAvatarPreset: Equatable, Sendable, Identifiable {
     }
 }
 
+/// AI 档头像（P1 身份包）：智能体经伴生头像仓给自己选的
+/// 头像，在本机只是一份投影——仓是真源、本机存上次同步
+/// 值。预置引用按目录 id；图片记仓内条目 id（字节本体在
+/// App 层 avatar-ai.jpg，与用户自定义图分文件不相扰）。
+public enum AgentAIAvatar: Equatable, Sendable {
+    case preset(id: String)
+    case image(itemID: String)
+}
+
+/// 头像呈现裁决（P1 口径，用户拍板「用户手动选过的优
+/// 先」）：用户在本机手动选过头像后，AI 换头像永远压不
+/// 过它；用户没手动选过时，AI 档赢过档案选择值（缺省/
+/// 存量）；AI 档为空（仓未同步、仓里没设当前头像）回落
+/// 用户选择。仓不可达不参与裁决——AI 档保持上次同步值，
+/// 呈现不因断网变化、更不空白。裁决只管选择值；.custom
+/// 胜出时图本体是用户图还是 AI 图由 aiImageWins 分。
+public enum AgentAvatarChoice {
+    public static func resolve(
+        userLocked: Bool,
+        ai: AgentAIAvatar?,
+        user: AgentAvatarSelection
+    ) -> AgentAvatarSelection {
+        guard !userLocked, let ai else { return user }
+        switch ai {
+        case .preset(let id):
+            return .preset(id: AgentAvatarPreset.resolve(id: id).id)
+        case .image:
+            return .custom
+        }
+    }
+
+    /// AI 图是否胜出：未锁且 AI 档是图片时，呈现的
+    /// 「自定义图」本体取 AI 图文件而非用户图文件
+    public static func aiImageWins(
+        userLocked: Bool, ai: AgentAIAvatar?
+    ) -> Bool {
+        guard !userLocked, let ai else { return false }
+        switch ai {
+        case .image: return true
+        case .preset: return false
+        }
+    }
+}
+
 /// 显示名解析：覆盖 → soul 解析名 → Hermes 回落。
 /// 与 AgentName.resolve（soul 提取）分工：那边管「从
 /// 服务端文档里读出名字」，这边管「多来源谁赢」。
