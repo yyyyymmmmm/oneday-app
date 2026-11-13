@@ -169,8 +169,14 @@ struct TopBarGuideHost<Content: View>: UIViewControllerRepresentable {
 /// ComposerPassthroughView 同式（帧未到时全放行，
 /// 首拍前的亚拍级瞬态，顶簇随即实测就位）
 private final class TopBarPassthroughView: UIView {
-    /// 顶簇的窗口系实测帧（控制器逐次更新）
-    var barFrameInWindow: CGRect = .zero
+    /// 顶簇宿主视图（控制器装配时注入）：命中疆
+    /// 域与闸门裁决一律按它的**活帧**当场现算
+    ///（§211：布局拍缓存的窗口坐标快照帧作废——
+    /// 位置补偿≠0 时顶簇被钉出本视图 bounds，point
+    /// (inside:) 与缓存帧双双按旧坐标裁决、钮在
+    /// 视觉位上点不响；活帧裁决使透传回到无状态
+    /// 的通行形态，rig 证据见本线报告 §3）
+    weak var barView: UIView?
 
     /// 入窗/换窗回调（锚重算的触发点之一；UIView-
     /// Controller 无 viewDidMoveToWindow，借根视
@@ -182,16 +188,40 @@ private final class TopBarPassthroughView: UIView {
         onMoveToWindow?()
     }
 
+    /// 顶簇的窗口系活帧：未装配/未入窗/零高回 nil
+    ///（闸门回退为放行，与旧口径一致）
+    private func liveBarFrameInWindow() -> CGRect? {
+        guard let barView, let window,
+              barView.bounds.height > 0
+        else { return nil }
+        return barView.convert(barView.bounds, to: window)
+    }
+
+    override func point(
+        inside point: CGPoint, with event: UIEvent?
+    ) -> Bool {
+        if super.point(inside: point, with: event) {
+            return true
+        }
+        // 补偿把顶簇钉出本视图 bounds 时，疆域按活
+        // 帧补认——否则命中下行在本视图边界即被挡
+        // 下、整棵顶簇子树不被咨询（§211 主病灶）
+        guard let frame = liveBarFrameInWindow(),
+              let window
+        else { return false }
+        return frame.contains(convert(point, to: window))
+    }
+
     override func hitTest(
         _ point: CGPoint, with event: UIEvent?
     ) -> UIView? {
         let hit = super.hitTest(point, with: event)
         guard let hit, hit !== self else { return nil }
-        guard barFrameInWindow.height > 0, let window
+        guard let frame = liveBarFrameInWindow(),
+              let window
         else { return hit }
         let windowPoint = convert(point, to: window)
-        return barFrameInWindow.contains(windowPoint)
-            ? hit : nil
+        return frame.contains(windowPoint) ? hit : nil
     }
 }
 
@@ -277,6 +307,10 @@ final class TopBarGuideHostController: UIViewController {
             false
         view.addSubview(barHost.view)
         barHost.didMove(toParent: self)
+        // §211：透传疆域/闸门的活帧来源（命中间当
+        // 场现算，不再经布局拍缓存）
+        (view as? TopBarPassthroughView)?.barView =
+            barHost.view
         // §200：顶带底衬入层——插在顶簇宿主之下（本
         // 视图子视图序最底）；左右贴本视图、底随顶
         // 簇宿主底、顶由 backdropTopConstraint 的常
@@ -334,14 +368,8 @@ final class TopBarGuideHostController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         syncTopConstant()
-        // 透传判定帧同步：顶簇宿主的窗口系实帧（本
-        // 拍约束已解、帧即落位结果）
-        if let window = view.window {
-            (view as? TopBarPassthroughView)?
-                .barFrameInWindow = barHost.view.convert(
-                    barHost.view.bounds, to: window
-                )
-        }
+        // §211：透传判定帧不再于此缓存——闸门按顶
+        // 簇活帧当场现算（TopBarPassthroughView）
         reportBarHeight()
     }
 

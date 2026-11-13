@@ -390,8 +390,9 @@ final class TopBarHitIntermittentTests: XCTestCase {
     }
 
     /// 闸门缓存帧（诊断专用：Mirror 读透传根视图
-    /// 的 barFrameInWindow，只入日志不入断言——断
-    /// 言只认动作计数）
+    /// 的 barFrameInWindow，只入日志不入断言；
+    /// §211 修复后该存储已删、本读恒 nil——闸门
+    /// 改按活帧现算，diag 里记作「现算」）
     private func gateFrame() -> CGRect? {
         guard let host = topHost(), let rootView = host.view
         else { return nil }
@@ -411,7 +412,7 @@ final class TopBarHitIntermittentTests: XCTestCase {
             ?? "nil"
         let gate = gateFrame()
             .map { "(\(Int($0.minX)),\(Int($0.minY)))-(\(Int($0.maxX)),\(Int($0.maxY)))" }
-            ?? "nil"
+            ?? "现算"
         return "\(label)：活帧=\(live) 闸门帧=\(gate)"
     }
 
