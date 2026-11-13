@@ -11445,3 +11445,22 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 
 ### 208.6 真机待验（组版随车，规格 §3.8 八点）
 ①点讨论→引用卡在输入舱上方、输入框为空、聚焦可打字，有图帖带缩略图；②点 ✕→卡消失无残留，切走再回/杀进程重进引用不复活；③带引用打字发送→消息顶引用块在，问只有正文里有的细节 AI 答得出；④点引用块→跳回原帖详情，帖过期给诚实提示、块快照仍可读；⑤同帖再点讨论→回同一线程不新建；⑥亲笔草稿回归不坏（讨论线程亲笔打一半切走，回来亲笔在、引用已作废）；⑦升级存量：旧版未改动预填被清、改过的草稿一字不动；⑧FA-1：正文带「喜欢」字样的帖，引用发送不产生假 note、真偏好句照常达桥。
+
+## §207 发版总账：0.50.30/158——割裂感止血档＋动态讨论引用三包＋管理收口包（含件一补件）＋频道扩展一期（2026-11-13；rel-05030 独立 worktree 组版，基线 main 7ff6819＝0.50.29 发版点 30b4fc4＋§206.5 发版补记一笔纯文档；本版只出包暂存——未打 tag、未合 main，等用户点头）
+
+### §207.1 装车四包与合并账
+
+| # | 分支 | 头 | 合并提交 |
+|---|---|---|---|
+| 1 | feat/chat-surface-stopgap（割裂感止血档） | fdd6964 | bbcdab8 |
+| 2 | feat/feed-discuss-quote（动态讨论引用三包） | 51b2e68 | 6e4f4ee |
+| 3 | feat/conversation-mgmt-consolidation（管理收口包＋件一补件） | 6c2370b | 892ff92 |
+| 4 | feat/channels-phase1（频道扩展一期） | 319de7c | 8802ee4 |
+
+冲突亲解（无整包丢弃）：①止血档×手感聊天线（ChatView 两处）——底缘取止血档 .soft 新拍板口径、手感 A 档 coordinateSpace 保留；settleKeyboardAnchor 与 settleStreamFollow 两函数同位并存。②引用包×止血档（ChatView 一处）——feedQuoteBlock 新函数保留＋A1 改判注释保留、旧泡注释弃。③引用包 DESIGN 节号撞车——其自编 §202 与 main 胶囊 §202 撞号，整节顺延 **§208**（置本节之前），Swift 代码注释 §202→§208 同步改（ChatView 内胶囊路线 B 的 4 处 §202 未动）。④收口包×设置不收回（ContentView）——onRequestChat 取收抽屉体＋补件新增 onRequestAllConversations 并存；DrawerView 文件头沿革两段并存。⑤频道包×收口包（七文件）——合成真相取两包交集：DrawerSectionGates 收三区（管理行随补件退役）＋只认显隐账（频道成员内容闸随一期退役、resolve 去计数参、drawerFullPartition 退场）；onManageAll 透传链整条退役（合并后全仓 grep 归零）；onOpenChannel 升 (String)->Void 按 id 路由（Hermes→HermesChannelView／平台→ChannelEntryView）；App 测试夹具同步新签名。
+版本：0.50.30／build 158，五处同改＋grep 验净。i18n：validate_i18n 合并后 2964 键×三语通过（2923 收口包＋2 引用＋39 频道，逐包对账精确）。
+Core 单测对账预期：基线 1754＋止血 0＋引用 19＋收口 3＋频道 3＝**1779**（diff 实数 func 净增 +25 与逐包账吻合）；App 目标 +7（止血 1＋引用 6）。
+
+### §207.2 装配 CI 判读（待补记）
+
+### §207.3 出包补记（待补记）
