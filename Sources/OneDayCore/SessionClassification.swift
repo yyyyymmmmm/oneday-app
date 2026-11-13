@@ -108,15 +108,18 @@ public enum SessionSources {
 
     /// 平台官方品牌图标资产名（宪法 §4：官方原图入
     /// 资产才登记；没有合格原图的平台回 nil，呈现层
-    /// 不许拿仿绘/字母块顶替）。一期登记两家：
-    /// Telegram／微信，均为官方 App 图标原图（来源
-    /// 见 channels-phase1-build-report-20261113）
+    /// 不许拿仿绘/字母块顶替）。登记：Telegram（一
+    /// 期）／飞书（二期），均为官方 App 图标原图
+    /// （来源见 channels-phase1-build-report-20261113
+    /// 与 channels-feishu-report-20261113）。微信图
+    /// 标随二期微信行下架一并退役（2026-11-13 用
+    /// 户拍板），故此处不再登记 weixin
     public static func platformIconAssetName(
         _ source: String
     ) -> String? {
         switch source {
         case "telegram": return "ChannelTelegram"
-        case "weixin", "wechat": return "ChannelWeixin"
+        case "feishu": return "ChannelFeishu"
         default: return nil
         }
     }
@@ -195,23 +198,25 @@ public struct ChannelDescriptor: Identifiable, Equatable, Sendable {
 }
 
 /// 频道配对形态（呈现层据此决定行尾与点开的目的
-/// 地，规格 §4/§6）
+/// 地，规格 §4/§6）。冻结形态（frozen）随二期微
+/// 信行下架退役（2026-11-13 用户拍板删行），枚举
+/// 一并摘除、留痕见 channels-feishu-report
 public enum ChannelPairingKind: Equatable, Sendable {
     /// 不是外部平台（Hermes 频道本体，无配对概念）
     case none
-    /// 填钥匙配对（Telegram 等）
+    /// 填钥匙配对（Telegram、飞书等）
     case token
-    /// 扫码配对（WhatsApp，二期开放）
+    /// 扫码配对（WhatsApp，后续批次开放）
     case qr
-    /// 冻结行（微信个人号：只说明、不可配对）
-    case frozen
 }
 
 /// 频道注册表（规格 §3.3/§7）：2026-11-13 频道扩
 /// 展一期——抽屉清单恒显 Hermes＋Telegram＋微信
-/// （冻结行）；其余平台随各自接入批次往 drawerList
-/// 里加（descriptor(for:) 已能为任意平台源派生描
-/// 述，频道段/频道页不挑批次）。
+/// （冻结行）；二期（同日用户改口径）——微信行下
+/// 架、飞书上行，清单＝Hermes＋Telegram＋飞书；
+/// 其余平台随各自接入批次往 drawerList 里加
+/// （descriptor(for:) 已能为任意平台源派生描述，
+/// 频道段/频道页不挑批次）。
 public enum ChannelRegistry {
     public static let hermesChannelID = "hermes"
 
@@ -235,14 +240,18 @@ public enum ChannelRegistry {
         iconAssetName: SessionSources.platformIconAssetName("telegram")
     )
 
-    /// 微信行（冻结）：与 ClawBot 同底座（腾讯 iLink
-    /// Bot），用户 2026-10 试接失败并叫停——只列行
-    /// 说明暂不可用，不给配对入口（规格 §3.2）
-    public static let weixin = ChannelDescriptor(
-        id: "weixin",
-        name: "微信",
-        pageSubtitle: "微信个人号",
-        iconAssetName: SessionSources.platformIconAssetName("weixin")
+    /// 飞书频道（二期）：配对走填应用凭证（App ID
+    /// ＋App Secret，飞书开放平台企业自建应用），图
+    /// 标为官方品牌原图资产 ChannelFeishu。微信行已
+    /// 于二期下架（2026-11-13 用户拍板）：与 ClawBot
+    /// 同底座的冻结行连同其说明页、图标资产一并退
+    /// 役；来源分类层对 weixin 的归一与识别保留（历
+    /// 史来源事实，不属配对面）
+    public static let feishu = ChannelDescriptor(
+        id: "feishu",
+        name: "飞书",
+        pageSubtitle: "在飞书里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("feishu")
     )
 
     /// 一期注册表（显行判定与频道段行源）
@@ -251,22 +260,20 @@ public enum ChannelRegistry {
     /// 抽屉频道区恒显清单（2026-11-13 新口径覆盖
     /// 0.36.29「通一个显一个」：支持的都列、配好的
     /// 能用、没配的给路）。排序：Hermes（恒在首位、
-    /// 本机频道）→ Telegram（已配对优先的动态排序
-    /// 在呈现层按状态微调）→ 微信冻结行置组末
+    /// 本机频道）→ Telegram → 飞书（二期换下微信行）
     public static let drawerList: [ChannelDescriptor] = [
-        hermes, telegram, weixin,
+        hermes, telegram, feishu,
     ]
 
     /// 平台的配对形态（呈现层据此决定行尾与目的地：
-    /// 已配对/token 未配对进引导页/qr 二期/frozen
-    /// 只说明）。Hermes 与未知平台为 none
+    /// 已配对/token 未配对进引导页/qr 待后续批次）。
+    /// Hermes 与未知平台为 none
     public static func pairingKind(
         for channelID: String
     ) -> ChannelPairingKind {
         switch channelID {
-        case "telegram": return .token
+        case "telegram", "feishu": return .token
         case "whatsapp": return .qr
-        case "weixin": return .frozen
         default: return .none
         }
     }
@@ -278,7 +285,7 @@ public enum ChannelRegistry {
         switch channelID {
         case hermesChannelID: return hermes
         case telegram.id: return telegram
-        case weixin.id: return weixin
+        case feishu.id: return feishu
         default: break
         }
         if SessionSources.platforms.contains(channelID) {
@@ -292,6 +299,42 @@ public enum ChannelRegistry {
             )
         }
         return nil
+    }
+}
+
+/// 凭据保存后的生效相位（频道文案口径，2026-11-13；
+/// 与 channel-apply-copy 包同形态同判定——伴生
+/// 1.0.46 起保存回执带 applyTriggered/applyError：
+/// 已触发网关重启时，网关记录翻 connected 之前有
+/// 一个「正在生效」的空窗，只看 status 会显成笼统
+/// 的等待态。呈现层据回执先行给相位、status 翻终
+/// 态（connected/error）后相位退场、呈现完全归
+/// status。回执字段缺失（旧版伴生）时回落 .none、
+/// 与旧行为同形）
+public enum ChannelApplyPhase: Equatable, Sendable {
+    /// 无保存流程态：呈现完全按 status 走
+    case none
+    /// 已触发即时生效、等网关记录翻 connected
+    case applying
+    /// 即时生效触发失败：如实显等待生效＋桥回的原因
+    case applyFailed(reason: String)
+    /// 已保存但未触发即时生效（桥没有即时通道）：
+    /// 等网关下次重启，呈现落回 status 的等待态
+    case awaitingRestart
+
+    public static func resolve(
+        applyTriggered: Bool?,
+        applyError: String?,
+        statusState: String?
+    ) -> ChannelApplyPhase {
+        if statusState == "connected" || statusState == "error" {
+            return .none
+        }
+        guard let applyTriggered else { return .none }
+        if let applyError, !applyError.isEmpty {
+            return .applyFailed(reason: applyError)
+        }
+        return applyTriggered ? .applying : .awaitingRestart
     }
 }
 

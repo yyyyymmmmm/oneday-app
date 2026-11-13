@@ -21,7 +21,7 @@ struct ChannelPlatformStatus: Decodable, Sendable, Equatable {
     let connected: Bool
     let needsIdentity: Bool
     /// not_configured / pending_restart / connected /
-    /// error / frozen
+    /// error
     let state: String
     let sessionCount: Int
     let message: String?
@@ -33,13 +33,20 @@ struct ChannelsStatusResponse: Decodable, Sendable {
     let platforms: [ChannelPlatformStatus]
 }
 
-/// 凭据保存回执：值永不回显，只回成败与下一步状态
+/// 凭据保存回执：值永不回显，只回成败与下一步状态。
+/// applyTriggered/applyError 是伴生 1.0.46 的加法扩
+/// 展（保存后有没有触发网关重启即时生效）：旧版伴
+/// 生没有这两字段，解码为 nil、呈现回落 status；
+/// botName 是飞书验钥后探到的机器人名（二期）
 struct ChannelCredentialsReceipt: Decodable, Sendable {
     let platform: String
     let configured: Bool
     let state: String
     let restartRequired: Bool?
+    let applyTriggered: Bool?
+    let applyError: String?
     let botUsername: String?
+    let botName: String?
     let message: String?
 }
 

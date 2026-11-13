@@ -11470,3 +11470,21 @@ Core 单测对账预期：基线 1754＋止血 0＋引用 19＋收口 3＋频道
 ### §207.3 出包补记（2026-11-13 回填）
 
 IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径独立解包亲验：**11,530,811 字节、md5 `817ec44ab993fdb27035776ee4233019`**；Payload/OneDayApp.app/Info.plist 亲读＝0.50.30／158／site.didichou.oneday；主二进制 OneDayApp 39,323,896 字节（md5 `5cd04257a6c7b35d8bacd3e214a8a151`）。落位 `~/workspace/your_files/oneday-v0.50.30/OneDay-0.50.30.ipa`。装配头 7208e87（其后仅 §207.2／§207.3 文档回填提交）。**未打 tag、未合 main**——等用户点头；真机待验清单见发版报告 §6（release-05030-assembly-20261113.md）。
+
+## §209 频道二期：飞书接入＋微信行下架（2026-11-13；分支 feat/channels-feishu，基线 rel/05030 头 283808a）
+
+用户 21:39 拍板：抽屉频道区删微信行、加飞书行（覆盖一期「微信只列冻结行」口径）；21:41 加令——功能实现先查市面成熟做法再落码（报告 channels-feishu-report-20261113 §1 为据）。
+
+### §209.1 飞书接入面（与一期 TG 同构、字段按飞书官方流程）
+
+- 注册表：drawerList＝[hermes, telegram, feishu]；飞书静态描述（名「飞书」、图标资产 ChannelFeishu＝飞书官方 App Store 原图 512²，iTunes lookup trackId 1401729613 验真）；pairingKind(feishu)＝.token；platformIconAssetName 登记 feishu。来源分类与频道页/全部对话页走既有通用机制零新代码（gateway platform＝feishu 已在适配器侧对齐）。
+- 引导页四步（飞书官方流程，不照 TG 平移）：①建应用拿凭证（开放平台建企业自建应用→加机器人能力/发消息权限→「凭证与基础信息」复制 App ID＋App Secret）②贴凭证 ③只认你一个人（可跳过，白名单填 open_id；不填＝Hermes 配对审批 fail-closed）④打开消息通道（连上之后做——事件与回调选「使用长连接接收事件」＋加「接收消息」事件＋发布版本；顺序写死，长连接订阅在网关未连时保存会报无在线连接）。
+- 连接模式定案：长连接 WebSocket（飞书官方推荐方式一；Hermes 适配器 FEISHU_CONNECTION_MODE 缺省即 websocket）——长连接下 Verification Token/Encrypt Key 不需要，引导页不收这两项；桥落盘显式写 FEISHU_CONNECTION_MODE=websocket＋FEISHU_ALLOW_ALL_USERS=false。
+- 伴生 channels_bridge 1.0.48：feishu 凭据面开放——先向飞书官方 POST /open-apis/auth/v3/tenant_access_token/internal 验钥（code=0 才落盘），凭据无效 422 零写入、网络/服务端错 502；验过后 best-effort 探 /bot/v3/info 取机器人名回执 botName；白名单校验按平台分型（TG 数字／飞书 ^(ou|on)_[A-Za-z0-9_-]+$）；保存后走既有即时生效通道。覆盖面只做飞书中国版（open.feishu.cn）；Lark 国际版有意收窄、登记后续项。
+- 生效相位与 channel-apply-copy 包同形态同判定：Core ChannelApplyPhase.resolve（回执 applyTriggered/applyError＋status 终态裁决）＋引导页「正在生效」带/触发失败带/等待生效回落＋applying 期间 3 秒轮询（≤40 次）；status connected 后相位退场、呈现归 status。装配时与该包的重叠实现以先判绿一方为准、另一方摘除（代码同文同判定，摘任一不改变行为）。
+
+### §209.2 微信行下架（退役留痕）
+
+- 摘除：ChannelRegistry.weixin 描述与 drawerList 中的行、pairingKind 的 .frozen 形态（枚举值一并删除）、ChannelPairingView 冻结变体与冻结说明页、DrawerView 冻结行尾、ChannelStatusStore 微信演示态、platformIconAssetName 的 weixin 登记、ChannelWeixin.imageset 资产、微信冻结专属三语词条（净删 3 键）。
+- 保留（事实层不动）：来源分类对 wechat→weixin 的归一与平台识别（历史会话来源是事实）、伴生 status 的 weixin frozen 数据面（旧版 App 兼容，新版 App 不再显行）。微信个人号无官方长期接入路的结论不变（见一期报告）；将来有官方办法时按新平台重新接入，不复活冻结形态。
+- i18n：新增飞书＋生效相位 15 键、删微信退役 3 键，Localizable 2951→2963 键，validate_i18n 三语通过。

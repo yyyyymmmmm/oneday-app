@@ -397,26 +397,27 @@ final class SessionClassificationTests: XCTestCase {
         }
     }
 
-    // 注册表：抽屉恒显清单与图标登记（一期三条；
-    // 平台图标只许官方原图登记过的两家有值）
+    // 注册表：抽屉恒显清单与图标登记（二期三条：
+    // 微信行下架、飞书上行；平台图标只许官方原图
+    // 登记过的有值，微信图标随行退役摘登记）
     func testChannelRegistryDrawerListAndIcons() {
         XCTAssertEqual(
             ChannelRegistry.drawerList.map(\.id),
-            ["hermes", "telegram", "weixin"])
+            ["hermes", "telegram", "feishu"])
         XCTAssertEqual(
             ChannelRegistry.descriptor(for: "telegram")?.iconAssetName,
             "ChannelTelegram")
         XCTAssertEqual(
-            ChannelRegistry.descriptor(for: "weixin")?.iconAssetName,
-            "ChannelWeixin")
+            ChannelRegistry.descriptor(for: "feishu")?.iconAssetName,
+            "ChannelFeishu")
         XCTAssertEqual(
-            ChannelRegistry.descriptor(for: "weixin")?.name, "微信")
+            ChannelRegistry.descriptor(for: "feishu")?.name, "飞书")
         XCTAssertNil(
-            ChannelRegistry.descriptor(for: "feishu")?.iconAssetName)
+            SessionSources.platformIconAssetName("weixin"))
         XCTAssertEqual(
             ChannelRegistry.pairingKind(for: "telegram"), .token)
         XCTAssertEqual(
-            ChannelRegistry.pairingKind(for: "weixin"), .frozen)
+            ChannelRegistry.pairingKind(for: "feishu"), .token)
         XCTAssertEqual(
             ChannelRegistry.pairingKind(for: "hermes"), .none)
     }

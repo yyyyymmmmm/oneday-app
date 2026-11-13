@@ -24618,72 +24618,6 @@
         }
       }
     },
-    "微信个人号": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personal WeChat"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "微信个人号"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "微信個人號"
-          }
-        }
-      }
-    },
-    "微信个人号现在还接不进来。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personal WeChat accounts can't be connected yet."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "微信个人号现在还接不进来。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "微信個人號現在還接不進來。"
-          }
-        }
-      }
-    },
-    "我们试过微信官方的机器人通道——就是之前试过的 ClawBot 同一套。它连进来的是一个机器人账号，不是你自己的微信号，连接也不稳定。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "We tried WeChat's official bot channel — the same one behind the ClawBot we tested before. It connects a bot account, not your own WeChat account, and the connection isn't stable."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我们试过微信官方的机器人通道——就是之前试过的 ClawBot 同一套。它连进来的是一个机器人账号，不是你自己的微信号，连接也不稳定。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我們試過微信官方的機器人通道——就是之前試過的 ClawBot 同一套。它連進來的是一個機器人帳號，不是你自己的微信號，連接也不穩定。"
-          }
-        }
-      }
-    },
     "所以这一行先停在这里。等微信那边有正式的个人号通道，我们再把它打开。": {
       "localizations": {
         "en": {
@@ -67856,6 +67790,351 @@
           "stringUnit": {
             "state": "translated",
             "value": "回到動態原帖"
+          }
+        }
+      }
+    },
+    "连上之后，你在飞书里给机器人发消息，就能和你的智能体聊天；对话会回到这里的频道里。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连上之后，你在飞书里给机器人发消息，就能和你的智能体聊天；对话会回到这里的频道里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連上之後，你在飛書裡給機器人發消息，就能和你的智能體聊天；對話會回到這裡的頻道裡。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once connected, message the bot in Feishu to chat with your agent; the conversation shows up here in this channel."
+          }
+        }
+      }
+    },
+    "飞书还差一步：按下面第四步把消息通道打开，机器人才会开始收消息。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "飞书还差一步：按下面第四步把消息通道打开，机器人才会开始收消息。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "飛書還差一步：按下面第四步把消息通道打開，機器人才會開始收消息。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One more step on the Feishu side: follow step 4 below to open the message channel, and the bot will start receiving messages."
+          }
+        }
+      }
+    },
+    "正在生效": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在生效"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taking effect"
+          }
+        }
+      }
+    },
+    "钥匙已保存，服务器正在让它生效，通常几秒钟就好。连上之后这里会自动变成已配对的样子，你不用再做什么。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙已保存，服务器正在让它生效，通常几秒钟就好。连上之后这里会自动变成已配对的样子，你不用再做什么。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙已保存，伺服器正在讓它生效，通常幾秒鐘就好。連上之後這裡會自動變成已配對的樣子，你不用再做什麼。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your key is saved and the server is putting it into effect — usually just a few seconds. This will switch to Paired on its own once connected; there's nothing else you need to do."
+          }
+        }
+      }
+    },
+    "生效之后，别忘了按下面第四步把飞书那边的消息通道打开。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生效之后，别忘了按下面第四步把飞书那边的消息通道打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生效之後，別忘了按下面第四步把飛書那邊的消息通道打開。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After it takes effect, don't forget step 4 below to open the message channel on the Feishu side."
+          }
+        }
+      }
+    },
+    "打开飞书开放平台，创建一个「企业自建应用」；在应用里添加「机器人」能力、开通发送消息的权限；再到「凭证与基础信息」页复制 App ID 和 App Secret——那是这个应用的凭证，不是你的账号密码。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开飞书开放平台，创建一个「企业自建应用」；在应用里添加「机器人」能力、开通发送消息的权限；再到「凭证与基础信息」页复制 App ID 和 App Secret——那是这个应用的凭证，不是你的账号密码。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開飛書開放平台，建立一個「企業自建應用」；在應用裡加入「機器人」能力、開通傳送消息的權限；再到「憑證與基礎資訊」頁複製 App ID 和 App Secret——那是這個應用的憑證，不是你的帳號密碼。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the Feishu Open Platform and create a custom app for your organization. In the app, add the Bot capability and enable the permission to send messages. Then open “Credentials & basic info” and copy the App ID and App Secret — those are the app's credentials, not your account password."
+          }
+        }
+      }
+    },
+    "打开飞书开放平台": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开飞书开放平台"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開飛書開放平台"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the Feishu Open Platform"
+          }
+        }
+      }
+    },
+    "第一步 · 建应用拿凭证": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一步 · 建应用拿凭证"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一步 · 建應用拿憑證"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 1 · Create the app and get its credentials"
+          }
+        }
+      }
+    },
+    "App ID（cli_ 开头）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App ID（cli_ 开头）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App ID（cli_ 開頭）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App ID (starts with cli_)"
+          }
+        }
+      }
+    },
+    "凭证会直接发到你自己的服务器保存，这个 App 不留存。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "凭证会直接发到你自己的服务器保存，这个 App 不留存。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "憑證會直接發到你自己的伺服器保存，這個 App 不留存。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your credentials go straight to your own server for safekeeping; this app doesn't keep them."
+          }
+        }
+      }
+    },
+    "第二步 · 贴凭证": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第二步 · 贴凭证"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第二步 · 貼憑證"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 2 · Paste the credentials"
+          }
+        }
+      }
+    },
+    "你的 open_id（ou_ 开头，可不填）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 open_id（ou_ 开头，可不填）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 open_id（ou_ 開頭，可不填）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your open_id (starts with ou_, optional)"
+          }
+        }
+      }
+    },
+    "填了，就只有名单里的人能跟机器人说话。不填也能先连上：陌生人私聊机器人时，要先经过你的批准才会放行。open_id 在你给机器人发过消息之后，能从服务器的会话里查到。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填了，就只有名单里的人能跟机器人说话。不填也能先连上：陌生人私聊机器人时，要先经过你的批准才会放行。open_id 在你给机器人发过消息之后，能从服务器的会话里查到。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填了，就只有名單裡的人能跟機器人說話。不填也能先連上：陌生人私訊機器人時，要先經過你的批准才會放行。open_id 在你給機器人發過消息之後，能從伺服器的對話裡查到。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you fill this in, only people on the list can talk to the bot. You can leave it empty and still connect: when a stranger messages the bot, they get in only after you approve them. You can find your open_id in the server's conversations after you've messaged the bot once."
+          }
+        }
+      }
+    },
+    "等这里显示连上之后，再回飞书开放平台：进这个应用的「事件与回调」，把订阅方式选成「使用长连接接收事件」，添加「接收消息」事件并保存；最后到「版本管理与发布」发布一个版本，配置才会生效。顺序别反——先在这里连上，那边才存得上。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等这里显示连上之后，再回飞书开放平台：进这个应用的「事件与回调」，把订阅方式选成「使用长连接接收事件」，添加「接收消息」事件并保存；最后到「版本管理与发布」发布一个版本，配置才会生效。顺序别反——先在这里连上，那边才存得上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等這裡顯示連上之後，再回飛書開放平台：進這個應用的「事件與回調」，把訂閱方式選成「使用長連接接收事件」，加入「接收消息」事件並保存；最後到「版本管理與發布」發布一個版本，設定才會生效。順序別反——先在這裡連上，那邊才存得上。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once this page shows you're connected, go back to the Feishu Open Platform: open this app's “Events and callbacks”, set the subscription mode to “Receive events over a persistent connection”, add the “Receive message” event and save. Finally, publish a version under “Version management & release” — settings only take effect after publishing. Order matters: connect here first, or the subscription won't save over there."
+          }
+        }
+      }
+    },
+    "第四步 · 打开消息通道（连上之后做）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第四步 · 打开消息通道（连上之后做）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第四步 · 打開消息通道（連上之後做）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 4 · Open the message channel (after you're connected)"
           }
         }
       }
