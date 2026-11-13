@@ -10279,3 +10279,20 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 定版：五处字面同改 0.50.22/144（Project.swift 四处＋SettingsSupportViews 的版本串 full/hero），grep 验无 0.50.21/143 残留（历史节与代码注释中的版本沿革引用除外）。
 - 发版验包补记：定版提交 `9c634b0`；其 push CI run **43103751219** build-native **success**（jobs API 逐项实读）。发版 CI 以 workflow_dispatch run **43106169047**（head=9c634b0）为准、只跑一次，build-native **success**。单测（发版构建日志实读）：**Executed 1679（OneDayCoreTests）＋12（OneDayAppTests）、0 failures**——Core 与合并基线 1679 持平；App 11→12，增量＝§179 新增 IdentityCapsuleHitDomainTests 1 法（两组断言同法承载，DrawerContainerControllerTests 11 法不变）；无退役。IPA：**10,864,446 字节，md5 `9eba885b25313dfea6ef8514cd9e71e2`**，解包实读 Info.plist＝0.50.22／**144**／site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.22/OneDay-v0.50.22-144.ipa。
 - 真机待验（四包汇总）：①状态栏点按回顶不开面、点胶囊上缘玻璃带不开枢纽/模型面、两钮点各自域不串、胶囊观感与 0.50.21 一致、紧凑档同验（§179.4）；②间距贴底四路（回底/新消息/自发/切会话）＋长线程惰性量测流畅度＋复贴阈值 7 晚跳观感＋两提示条展开间距恒 8（§176）；③回底钮玻璃观感与点按（§178）；④动态无日期分组、帖面同色、点子全程分类小节＋长按/左滑放下＋底栏无角标（§177.6）。
+
+## §181 设备会话状态机补全：在线重注册迁会话＋在线旗标派生＋回执失败落痕（2026-11-13；分支 fix/device-session-machine，基线 main 8ac6193／0.50.22 定版顶端，只交分支不合并——待 0.50.26 入 main 后由主线并轨入下版；节号自选 §181，合并时若主线末节有变则顺延）
+
+### 181.1 定因（诊断 device-bridge-realtime-diag-20261113.md，服务器日志实证）
+用户真机两通失败（发短信报「手机离线」、问位置 30 秒超时）与权限无关：`DeviceSessionController.beginRegister()` 在会话已在线时被要求重注册（权限变化 `refreshPermissions`、开关变化 `setAgentCallEnabled` 均为设计内高频触发）会先掐轮询/心跳双环，注册成功后把 `.registered` 喂给 `DeviceSessionMachine`，而状态机只在 `.registering` 相位处理该事件——`.active/.executing` 相位落 default 丢弃，新会话双环永不重启、桥侧 lastSeen 冻结，45 秒后判离线；窗口内调用排队却无人来领。本案扳机正是「位置权限由未授权变已授权」——把权限修好的动作顺手杀了设备会话。放大项：`sessionOnline` 在注册回调里无条件置真（状态机没给 .poll 也自报在线）；respond 用 `try?` 静默吞，执行期重注册后拿旧会话回执被桥回 404 永不显形。
+
+### 181.2 修法（四件，范围以诊断为准）
+- 件一·状态机补全（Core `DeviceCalls.swift`）：`.registered` 在 `.active` 相位迁到新 sessionId 并返回 `.poll`；在 `.executing` 相位保留在途 callID、迁 sessionId 并返回 `.poll`——respondFinished 仍落回新会话 active 继续轮询。验收语义：任何时点重注册成功后，轮询＋心跳双环必跟随新会话。
+- 件二·在线旗标单一事实源（`DeviceStore.swift`）：`sessionOnline` 改为由状态机相位派生（`machine.isOnline`），删除注册回调的无条件置真及各处手动赋值；轮询环钥匙被拒（noKey/unauthorized）时相位推回 offline 使派生旗标跟着落下（桥侧会话同钥不可用、不另发 disconnect）。
+- 件三·回执失败落痕（`DeviceStore.swift`）：respond 改 do/catch，失败落 `DeviceCallLogStore`（既有调用日志通道）并刷新详情页数据源，错误码 `respond_` 前缀点明坏在回执段（no_key／unauthorized／unknown_session／failed，与执行段错误码分开记账）。
+- 件四·降重注册频度——**缓办，理由钉死**：桥协议（device_bridge.py）只有 `POST /device/session` 一条注册路，每次注册必铸新 sessionId 并顶替旧会话（含快照），不存在同会话更新快照的端点；「同会话 PATCH 快照」须先改桥协议与注册语义，不在本包范围。件一落地后重注册本身已安全（双环必跟随），治标项可缓，待桥协议演进时再议。
+
+### 181.3 回归测试
+Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigratesAndRepolls`（已在线重注册→迁 id＋返 .poll、连发多次跟随最新会话、新会话轮询语义不回退）、`testSessionReregisterWhileExecutingKeepsRespondPath`（执行期重注册→保留 callID 迁 id、respondFinished 落回新会话 active 继续轮询）。单测只增不减。
+
+### 181.4 真机待验（随并轨版本装机验）
+①App 内开/关任一权限或「允许智能体调用」开关后，设备页在线状态不假报、紧接着让智能体查位置/发短信能通（不再 device_offline／30 秒超时）；②执行一通长调用期间拨开关，回执成败在设备详情页「最近调用」有痕（respond_ 错误码可见）；③退后台再回前台，会话经 offline 正路恢复在线（原有行为不回退）。
