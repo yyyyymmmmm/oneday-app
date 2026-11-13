@@ -123,7 +123,8 @@ final class TopBarHitIntermittentTests: XCTestCase {
         guard let host = topHost() else { return nil }
         func matches(_ obj: NSObject) -> Bool {
             if let identifier,
-               obj.accessibilityIdentifier == identifier {
+               (obj as? UIAccessibilityIdentification)?
+                .accessibilityIdentifier == identifier {
                 return true
             }
             if let label, obj.accessibilityLabel == label {
