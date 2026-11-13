@@ -12,6 +12,16 @@ import XCTest
 /// tion）与其装配脚手架——锚定构造的常驻回归守卫，不
 /// 再是定因工具。装配条件（设备窗覆写 59/34、长会话落
 /// 盘恢复等）沿探针时代实证形态保留。
+///
+/// 2026-11-14 注入失稳修线（fix/bar-probe-injection）：
+/// 本关在 2026-11-13/14 五轮 CI 里三度以逐字相同的值
+/// 失败（舱条 46→52、帧 (-40,784 398x52)，锚点 783→
+/// 836），两轮通过（46→75）。定因见 oneday-design-
+/// review/bar-probe-injection-fix-20261113.md：AX5 覆
+/// 写未稳定到达舱量测链（文本视图 trait＋Layout 注入
+/// 档），而顶簇同轮正常生长；量测改为舱宿主子树内取
+/// 数＋前置条件轮询＋落定后读数，断言口径（生长 ≥20、
+/// 锚点 ±2、pocket ±1）与守卫的 §193 不变量一字未动。
 @MainActor
 final class ChatPageDeviceConditionProbeTests: XCTestCase {
 
@@ -343,12 +353,35 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
         let pocket = findVC(
             TopBarGuideHostController.self
         ).map { frameInWindow($0.traceBarView) }
-        let bar = findViews(window) { view in
-            String(describing: type(of: view))
-                .contains("UIPlatformGlassInteractionView")
-                && frameInWindow(view).width > 300
-        }.first.map { frameInWindow($0) }
+        // 舱条只在舱宿主子树内找（组装回归测试
+        // findComposerBar 同口径；2026-11-14 修线：
+        // 全窗首匹配在注入失稳态下曾读到 (-40,784
+        // 398x52)——对 §194 坞锚几何不可能的帧，祖
+        // 先身份是唯一的量测口径；子树内无匹配即
+        // 精确失败，不静默回落全窗）
+        let bar = findVC(
+            ComposerGuideHostController.self
+        ).flatMap { composer in
+            findViews(composer.view) { view in
+                String(describing: type(of: view))
+                    .contains("UIPlatformGlassInteractionView")
+                    && frameInWindow(view).width > 300
+            }.first.map { frameInWindow($0) }
+        }
         return (pocket, bar)
+    }
+
+    /// 舱内输入框文本视图（量测链的直接输入：其 trait
+    /// 档决定 ComposerTextMetrics 的量测字体；修线
+    /// 前置条件的读数点）
+    private func composerTextView() -> UITextView? {
+        guard let composer = findVC(
+            ComposerGuideHostController.self
+        ) else {
+            return nil
+        }
+        return findViews(composer.view) { $0 is UITextView }
+            .first as? UITextView
     }
 
     // MARK: - 场景（二分探针已退役）
@@ -399,6 +432,31 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
 
         // 一相：固有高注入（trait 覆写，与 boldAX
         // 场景同一杠杆的事后施加形态）
+        //
+        // 2026-11-14 修线（bar-probe-injection-fix）：
+        // 旧注入只写外层 host＋window、固定等 2 秒
+        // 即测——五轮 CI 实证其在舱子树的效果是双
+        // 态的：两轮舱条 46→75（锚定成立）、三轮舱
+        // 条 46→52 且帧落在 (-40,784 398x52)（对
+        // §194 坞锚几何不可能）。按 ComposerLayout
+        // 算术，52.0 恰为文本按 XXXL 档量测（行高
+        // ≈26）＋布局档亦未达 AX5 之值——即 AX5
+        // 覆写在三轮里没有到达舱的量测链（UIText-
+        // View trait＋Layout 注入档），而顶簇同轮
+        // 60→83 证明覆写到达了 SwiftUI 环境（传播
+        // 在嵌套托管＋representable 处失稳，与产品
+        // 代码无关；分支相关性 n=5 未坐实，不作定
+        // 因）。修法三件：①覆写改在量测点直施（舱
+        // 控制器＋文本视图本体各一份，不再只靠窗口
+        // 向下的传播）；②先验前置条件（文本视图
+        // trait 档确为 AX5，有界轮询）再量测——断
+        // 言后果之前先证前提；③量测改舱宿主子树
+        // 内取数（组装回归测试同口径），玻璃帧落定
+        // 后再读。
+        let composerGuide = try XCTUnwrap(
+            findVC(ComposerGuideHostController.self),
+            "ComposerGuideHostController 缺席"
+        )
         assembly.host.traitOverrides.legibilityWeight = .bold
         assembly.host.traitOverrides
             .preferredContentSizeCategory =
@@ -406,7 +464,38 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
         window.traitOverrides.legibilityWeight = .bold
         window.traitOverrides.preferredContentSizeCategory =
             .accessibilityExtraExtraLarge
-        spinRunLoop(seconds: 2.0)
+        composerGuide.traitOverrides.legibilityWeight = .bold
+        composerGuide.traitOverrides.preferredContentSizeCategory =
+            .accessibilityExtraExtraLarge
+        if let textView = composerTextView() {
+            textView.traitOverrides.legibilityWeight = .bold
+            textView.traitOverrides.preferredContentSizeCategory =
+                .accessibilityExtraExtraLarge
+        }
+        // 前置条件轮询：文本视图 trait 档确为 AX5
+        // 才量测（有界 8 秒、每 0.25 秒一拍；超时即
+        // 以精确口径失败——「trait 未到达文本视图」，
+        // 不再把传播失败误报成「注入未生效」）
+        let traitDeadline = Date().addingTimeInterval(8)
+        var traitCategory: UIContentSizeCategory?
+        while Date() < traitDeadline {
+            traitCategory = composerTextView()?
+                .traitCollection.preferredContentSizeCategory
+            if traitCategory == .accessibilityExtraExtraLarge {
+                break
+            }
+            spinRunLoop(seconds: 0.25)
+        }
+        XCTAssertTrue(
+            traitCategory == .accessibilityExtraExtraLarge,
+            "前置条件未达成：trait 未到达文本视图，当前档＝"
+                + "\(traitCategory?.rawValue ?? "缺席")"
+                + "（8 秒轮询）；量测链未进入 AX5，锚定断言无意义"
+        )
+        window.layoutIfNeeded()
+        // 玻璃交互视图的帧随渲染提交落定，不与
+        // layoutIfNeeded 同拍——再转半拍才读数
+        spinRunLoop(seconds: 0.5)
         window.layoutIfNeeded()
         let grown = measureBars()
         let grownPocket = try XCTUnwrap(
@@ -419,6 +508,17 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
             grownBar.height - baseBar.height, 20,
             "注入未生效：玻璃条高未明显生长 "
                 + "\(baseBar.height)→\(grownBar.height)"
+        )
+        // 2026-11-14 修线：形态带——AX5 单行既有量
+        // 级为 46→75；文本 AX5 而布局档滞后时会进
+        // 多行支（≈109），生长断言与锚点断言都会
+        // 放过它（假绿）。带宽 ±5 容 iOS 字体系数
+        // 漂移，带外即布局档未到位的实证
+        XCTAssertTrue(
+            (70...80).contains(grownBar.height),
+            "生长形态异常：舱条高 \(grownBar.height)"
+                + " 不在 AX5 单行带 70...80 内（基线 "
+                + "\(baseBar.height)）；疑布局注入档滞后"
         )
         XCTAssertEqual(
             grownBar.maxY, baseBar.maxY, accuracy: 2,
@@ -462,6 +562,7 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
             + " base bar=\(fmt(baseBar))"
             + " pocket=\(fmt(basePocket))"
             + " | grown bar=\(fmt(grownBar))"
+            + " trait=\(traitCategory?.rawValue ?? "?")"
             + " | polluted bar=\(fmt(pollutedBar))"
             + " pocket=\(fmt(pollutedPocket))")
     }
