@@ -42,6 +42,17 @@ try_atos() {
     xcrun atos -arch arm64 -o "$bin" \
       "$(printf '0x%x' "$off")" 2>&1 | head -2
   done
+  echo "    [nm nearest-symbol probe]"
+  if nm -n "$bin" > /tmp/nm-out.txt 2>/dev/null; then
+    for off in "$@"; do
+      printf "    nm off %s: " "$off"
+      awk -v t="$(printf '%x' "$off")" '
+        { a=$1; if (a ~ /^[0-9a-fA-F]+$/) { la=tolower(a); if (la <= t) { $1=""; best=$0; ba=a } } }
+        END { print (best=="" ? "<none>" : best "  @" ba) }' /tmp/nm-out.txt | head -1
+    done
+  else
+    echo "    nm failed"
+  fi
 }
 
 echo "=== search: standalone framework binaries under CoreSimulator ==="
