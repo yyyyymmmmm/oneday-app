@@ -100,6 +100,27 @@ public struct MessageQuote: Equatable, Sendable {
         }
         return outgoingContent(userText: userText, quote: quote)
     }
+
+    /// 引用分发收口·来源引用变体（§209，推广
+    /// §208 的 feed 专用三参变体）：来源引用（动
+    /// 态／点子／文件，SourceQuote 统一载荷）在
+    /// 场时优先于消息引用——一条用户消息至多带
+    /// 一种引用、槽位单一在场（发送舱互斥纪律）。
+    /// 发送组装与杀进程重演组装共用本函数，两处
+    /// 拼装口径不许分叉；上之三参变体保留（Core
+    /// 既有钉测与回放兼容面），新调用点一律走本
+    /// 变体
+    public static func outgoingContent(
+        userText: String, quote: MessageQuote?,
+        sourceQuote: SourceQuote?
+    ) -> String {
+        if let sourceQuote {
+            return sourceQuote.outgoingContent(
+                userText: userText
+            )
+        }
+        return outgoingContent(userText: userText, quote: quote)
+    }
 }
 
 /// 长按菜单四项的 SF Symbol 名（0.4.1）：符号名收敛在

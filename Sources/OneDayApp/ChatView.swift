@@ -372,13 +372,14 @@ struct ChatView: View {
     @State private var pendingForkQuote: MessageQuote?
     /// 0.7.0：当前待发送引用是否为分流种子（引用条文案分流）
     @State private var pendingQuoteIsFork = false
-    /// §208：动态讨论的待发送引用（FeedPostQuote 值
-    /// 快照）——与 pendingQuote 共用发送舱同一引用
-    /// 槽位：至多一个在场，后入覆盖先入（设一必清
-    /// 另一，落点在 beginReply/种子消费/send 快照三
-    /// 处）。同守引用生命周期：发送/点 ✕/切换线程
-    /// 即清，永不落盘、不进草稿账
-    @State private var pendingFeedQuote: FeedPostQuote?
+    /// 来源引用的待发送态（§208 动态引用立形；
+    /// §209 推广为 SourceQuote 三族统一载荷：动
+    /// 态／点子／文件）——与 pendingQuote 共用发送
+    /// 舱同一引用槽位：至多一个在场，后入覆盖先入
+    /// （设一必清另一，落点在 beginReply/种子消
+    /// 费/send 快照三处）。同守引用生命周期：发送
+    /// /点 ✕/切换线程即清，永不落盘、不进草稿账
+    @State private var pendingSourceQuote: SourceQuote?
     /// 0.7.0（M1 轻保活）：列表首个可见条目 id（滚动锚
     /// 记录用，由 onScrollTargetVisibilityChange 回写）
     @State private var topVisibleEntryID: UUID?
@@ -575,17 +576,23 @@ struct ChatView: View {
         }
         // §125：文件打开页（中间页）——聊天侧点牌的
         // 唯一落点（图片仍走上方全屏查看器、不经此页）
-        // §129：失败页「让智能体重新发」的落点——预
-        // 填直接落当前线程输入舱并聚焦（同线程不走
-        // setDraft 的换线程加载路），发不发由用户点
-        // 发送为准
+        // §129 落点、§209 改通道：失败页「让智能体重
+        // 新发」改走引用槽位——文件引用挂进当前线程
+        // 发送舱（FileOpenView 回的是 FileQuote 值、
+        // 不再是整段机器文直写 input），发不发由用户
+        // 点发送为准；宿主不在的落点见 FileOpenView
         .sheet(item: $fileOpenTarget) { target in
             FileOpenView(
                 target: target, origin: .conversation,
-                onRequestResend: { prefill in
+                onRequestResend: { quote in
                     fileOpenTarget = nil
                     if currentThreadID != nil {
-                        input = prefill
+                        // 引用槽位单一在场：文件引用入
+                        // 槽即挤掉消息引用（与种子消费
+                        // 同律）；线程在场守卫沿 §129
+                        pendingSourceQuote = .file(quote)
+                        pendingQuote = nil
+                        pendingQuoteIsFork = false
                         composerFocusHandle.focus()
                     }
                 }
@@ -615,16 +622,17 @@ struct ChatView: View {
                 pendingQuote = fork
                 pendingForkQuote = nil
                 pendingQuoteIsFork = true
-                pendingFeedQuote = nil
+                pendingSourceQuote = nil
             } else {
                 pendingQuote = nil
                 pendingQuoteIsFork = false
-                pendingFeedQuote = nil
+                pendingSourceQuote = nil
             }
-            // §208：动态讨论种子若正为本线程而来，在
-            // 清理落定后消费转入（目标不符则继续挂在
-            // AppState 等落点，见 tryApplyFeedSeed）
-            tryApplyFeedSeed()
+            // §208/§209：来源引用种子若正为本线程而
+            // 来，在清理落定后消费转入（目标不符则继
+            // 续挂在 AppState 等落点，见
+            // tryApplySourceSeed）
+            tryApplySourceSeed()
             // 0.4.2：流式节流闸不跨线程带账
             streamFollowGate.reset()
             // 0.36.7（频道规格 §10.3）：当前线程同步为
@@ -646,14 +654,15 @@ struct ChatView: View {
                 currentThreadID = id
             }
         }
-        // §208：动态讨论种子到达时试消费——目标线程
-        // 已是当前线程（同帖复用且人已在此）时不等切
-        // 换事件、在此落位；目标是别的线程时不在此
-        // 动，等 onChange(of: currentThreadID) 落到
-        // 目标后消费（两路都走 tryApplyFeedSeed 的
-        // 线程相符判定，先后无关）
-        .onChange(of: appState.pendingFeedDiscussSeed) { _, _ in
-            tryApplyFeedSeed()
+        // §208/§209：来源引用种子到达时试消费——目
+        // 标线程已是当前线程（同源复用且人已在此）
+        // 时不等切换事件、在此落位；目标是别的线程
+        // 时不在此动，等 onChange(of:
+        // currentThreadID) 落到目标后消费（两路都
+        // 走 tryApplySourceSeed 的线程相符判定，
+        // 先后无关）
+        .onChange(of: appState.pendingSourceQuoteSeed) { _, _ in
+            tryApplySourceSeed()
         }
         // 0.4.5：抽屉删掉的正是当前线程时置空（计算属
         // 性随之落到最近线程，与旧版 deleteThread 内
@@ -925,11 +934,12 @@ struct ChatView: View {
         }
         .onAppear {
             consumeApprovalAnchorRequest()
-            // §208：种子兜底消费——种子置位时本页未在
-            // 层级内（onChange 未达）而落点先行到达的
-            // 情形，在此按线程相符判定补消费（与两路
-            // onChange 同走 tryApplyFeedSeed）
-            tryApplyFeedSeed()
+            // §208/§209：种子兜底消费——种子置位时
+            // 本页未在层级内（onChange 未达）而落点
+            // 先行到达的情形，在此按线程相符判定补
+            // 消费（与两路 onChange 同走
+            // tryApplySourceSeed）
+            tryApplySourceSeed()
             // §165（锚点包）：物化回调接线（幂等赋值；
             // 全 App 只有聊天页持有 modelContext 落盘
             // 面，与枢纽经 AgentHubView 注入审批终态回
@@ -2870,8 +2880,8 @@ struct ChatView: View {
                 VStack(alignment: .trailing, spacing: OneDayMetrics.spacingXS) {
                     if let quote = entry.quote {
                         quoteBlock(quote)
-                    } else if let feedQuote = entry.feedQuote {
-                        feedQuoteBlock(feedQuote)
+                    } else if let sourceQuote = entry.sourceQuote {
+                        sourceQuoteBlock(sourceQuote)
                     }
                     // §152：本地图走全集（allImage-
                     // Datas）成行——多图并排同高、单
@@ -3409,24 +3419,25 @@ struct ChatView: View {
             role: entry.role, content: entry.content
         )
         pendingQuoteIsFork = false
-        // §208：引用槽位单一在场——消息引用入槽即
-        // 挤掉动态引用（后入覆盖，与种子消费同律）
-        pendingFeedQuote = nil
+        // §208/§209：引用槽位单一在场——消息引用入
+        // 槽即挤掉来源引用（后入覆盖，与种子消费同律）
+        pendingSourceQuote = nil
         composerFocusHandle.focus()
     }
 
-    /// §208：动态讨论种子消费——AppState 种子只在
-    /// 「当前线程正是种子目标」时落位：清种子、引用
-    /// 入槽（挤掉消息引用，后入覆盖）、聚焦输入舱
-    /// （讨论进来即可直接打字，输入框恒空）。目标
-    /// 不符不消费：种子留 AppState 等落点到达；种
-    /// 子只活在内存，进程死亡即亡——与引用本身「不
-    /// 落盘恢复」的生命周期一致
-    private func tryApplyFeedSeed() {
-        guard let seed = appState.pendingFeedDiscussSeed,
+    /// 来源引用种子消费（§208 动态版立形、§209 推
+    /// 广三族）——AppState 种子只在「当前线程正是
+    /// 种子目标」时落位：清种子、引用入槽（挤掉消
+    /// 息引用，后入覆盖）、聚焦输入舱（带引用进来
+    /// 即可直接打字，输入框恒空）。目标不符不消费：
+    /// 种子留 AppState 等落点到达；种子只活在内
+    /// 存，进程死亡即亡——与引用本身「不落盘恢复」
+    /// 的生命周期一致
+    private func tryApplySourceSeed() {
+        guard let seed = appState.pendingSourceQuoteSeed,
               seed.threadID == currentThreadID else { return }
-        appState.pendingFeedDiscussSeed = nil
-        pendingFeedQuote = seed.quote
+        appState.pendingSourceQuoteSeed = nil
+        pendingSourceQuote = seed.quote
         pendingQuote = nil
         pendingQuoteIsFork = false
         composerFocusHandle.focus()
@@ -3586,6 +3597,99 @@ struct ChatView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("回到动态原帖")
+    }
+
+    /// 已发送消息顶部的来源引用块分发（§209）：
+    /// 三族共用消息行槽位，按族渲染各自块形态
+    /// （几何同源：左细线＋底垫＋小字两行）
+    @ViewBuilder
+    private func sourceQuoteBlock(
+        _ quote: SourceQuote
+    ) -> some View {
+        switch quote {
+        case .feed(let feedQuote):
+            feedQuoteBlock(feedQuote)
+        case .idea(let ideaQuote):
+            ideaQuoteBlock(ideaQuote)
+        case .file(let fileQuote):
+            fileQuoteBlock(fileQuote)
+        }
+    }
+
+    /// 已发送消息顶部的点子引用块（§209）：几何与
+    /// feedQuoteBlock 同，内容＝点子标题行＋载荷摘
+    /// 要一行；整块可点回跳点子详情（ideaOpen-
+    /// Request 置位＋切点子格，IdeasView 消费定位；
+    /// 点子已不在时 IdeasView 给诚实提示，本块快
+    /// 照内容不受影响仍可读）
+    private func ideaQuoteBlock(_ quote: IdeaQuote) -> some View {
+        Button {
+            appState.ideaOpenRequest = quote.ideaID
+            appState.mainTabSwitchRequest = .ideas
+        } label: {
+            HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+                Rectangle()
+                    .fill(Palette.inkMuted)
+                    .frame(width: 2)
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text(quote.mark.isEmpty
+                        ? quote.title
+                        : "\(quote.mark) \(quote.title)")
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                    Text(quote.summary(maxLength: 80))
+                        .font(.caption)
+                        .foregroundStyle(Palette.bodyInk)
+                        .lineLimit(2)
+                }
+            }
+            .padding(OneDayMetrics.spacingS)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Palette.fieldFill,
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("回到点子")
+    }
+
+    /// 已发送消息顶部的文件引用块（§209）：几何同
+    /// 族，内容＝文件名行＋原路径摘要一行；整块可
+    /// 点以快照路径直接重开文件页（fileOpenTarget
+    /// 既有通道，不切格）；文件已被移走时文件页本
+    /// 身如实呈现打不开，不在此假装
+    private func fileQuoteBlock(_ quote: FileQuote) -> some View {
+        Button {
+            fileOpenTarget = quote.target
+        } label: {
+            HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+                Rectangle()
+                    .fill(Palette.inkMuted)
+                    .frame(width: 2)
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text(quote.name)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                    Text(quote.summary(maxLength: 80))
+                        .font(.caption)
+                        .foregroundStyle(Palette.bodyInk)
+                        .lineLimit(2)
+                }
+            }
+            .padding(OneDayMetrics.spacingS)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Palette.fieldFill,
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("打开文件")
     }
 
     /// 助手消息泡（0.2.5，对照 Muse 的助手形态）：浅灰软
@@ -4107,7 +4211,7 @@ struct ChatView: View {
                 .accessibilityHidden(true)
             }
             Button {
-                pendingFeedQuote = nil
+                pendingSourceQuote = nil
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
@@ -4136,6 +4240,107 @@ struct ChatView: View {
         return "\(quote.sourceLine) · \(summary)"
     }
 
+    /// 发送舱的来源引用条分发（§209）：三族共用本
+    /// 槽位，按族渲染各自条形态（几何同源：左轨＋
+    /// 两行＋右上 ✕）
+    @ViewBuilder
+    private func sourceQuoteBar(
+        _ quote: SourceQuote
+    ) -> some View {
+        switch quote {
+        case .feed(let feedQuote):
+            feedQuoteBar(feedQuote)
+        case .idea(let ideaQuote):
+            ideaQuoteBar(ideaQuote)
+        case .file(let fileQuote):
+            fileQuoteBar(fileQuote)
+        }
+    }
+
+    /// 发送舱的点子引用条（§209）：与 feedQuoteBar
+    /// 同槽位同几何（左轨＋两行＋右上 ✕，视觉 28、
+    /// 命中域 44），内容换点子面：首行＝行首标识＋
+    /// 点子标题（一行截断）、次行＝载荷摘要一行
+    /// （载荷为空即空行、与 feed 条次行同口径，不
+    /// 编占位文）。点 ✕ 即清、无任何落盘
+    private func ideaQuoteBar(_ quote: IdeaQuote) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Rectangle()
+                .fill(Palette.inkMuted)
+                .frame(width: 2, height: 30)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                Text(quote.mark.isEmpty
+                    ? quote.title
+                    : "\(quote.mark) \(quote.title)")
+                    .font(.caption)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text(quote.summary())
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Button {
+                pendingSourceQuote = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: 28, height: 28)
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel("取消引用")
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+    }
+
+    /// 发送舱的文件引用条（§209）：同槽位同几何，
+    /// 内容换文件面：首行＝文件名（一行截断）、次
+    /// 行＝服务端原路径摘要一行。点 ✕ 即清、无任
+    /// 何落盘
+    private func fileQuoteBar(_ quote: FileQuote) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Rectangle()
+                .fill(Palette.inkMuted)
+                .frame(width: 2, height: 30)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                Text(quote.name)
+                    .font(.caption)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text(quote.summary())
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Button {
+                pendingSourceQuote = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: 28, height: 28)
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel("取消引用")
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+    }
+
     /// 输入舱卡（0.36.19 入舱，§84）：玻璃卡的承载层——
     /// 待发送引用块（有则显）、待发附件条（有则显）自
     /// 上而下各带一条发丝分隔线、输入行（composerRow，
@@ -4155,7 +4360,7 @@ struct ChatView: View {
             // （条 7）；分隔线随引用块同进同出；满宽
             // claim 落在本层（卡 VStack 的直接子层）——
             // P-13 续案口径与附件条同，见下方附件条注
-            SmoothExpand(isExpanded: pendingQuote != nil || pendingFeedQuote != nil) {
+            SmoothExpand(isExpanded: pendingQuote != nil || pendingSourceQuote != nil) {
                 if let pendingQuote {
                     VStack(spacing: 0) {
                         quoteBar(pendingQuote)
@@ -4166,11 +4371,12 @@ struct ChatView: View {
                                 .horizontal, OneDayMetrics.spacingSM
                             )
                     }
-                } else if let pendingFeedQuote {
-                    // §208：动态引用与消息引用共用本槽
-                    // 位（至多一个在场），feed 变体渲染
+                } else if let pendingSourceQuote {
+                    // §208/§209：来源引用与消息引用共用
+                    // 本槽位（至多一个在场），按族分发
+                    // 三种条形态
                     VStack(spacing: 0) {
-                        feedQuoteBar(pendingFeedQuote)
+                        sourceQuoteBar(pendingSourceQuote)
                         Rectangle()
                             .fill(Palette.hairline)
                             .frame(height: 1)
@@ -5478,9 +5684,10 @@ private struct ComposerBarLayout: Layout {
         // 0.4.1：引用随本条发送，起手先快照、随即清除
         // 引用条（发送即消费，不残留到下一条）
         let quote = pendingQuote
-        // §208：动态引用同槽同纪律——一并快照/清除，
-        // 失败退回路径一并恢复（各恢复点与 quote 同行）
-        let feedQuote = pendingFeedQuote
+        // §208/§209：来源引用同槽同纪律——一并快照/
+        // 清除，失败退回路径一并恢复（各恢复点与
+        // quote 同行）
+        let sourceQuote = pendingSourceQuote
         guard !isStreaming, !text.isEmpty || !pending.isEmpty else { return }
         // 0.3.2：发送起手不再挂触觉——触感挪到结果点
         // （run 完成 .success / 失败 .warning，见 driveRun）
@@ -5488,7 +5695,7 @@ private struct ComposerBarLayout: Layout {
         attachments = []
         pendingQuote = nil
         pendingQuoteIsFork = false
-        pendingFeedQuote = nil
+        pendingSourceQuote = nil
         errorMessage = nil
         dismissNotice()
         guard let thread = ensureThread() else {
@@ -5498,7 +5705,7 @@ private struct ComposerBarLayout: Layout {
             input = text
             attachments = pending
             pendingQuote = quote
-            pendingFeedQuote = feedQuote
+            pendingSourceQuote = sourceQuote
             return
         }
         // 0.31.0：本线程有未落定 run（切后台/杀进程遗
@@ -5510,7 +5717,7 @@ private struct ComposerBarLayout: Layout {
             input = text
             attachments = pending
             pendingQuote = quote
-            pendingFeedQuote = feedQuote
+            pendingSourceQuote = sourceQuote
             showNotice("上一条还在生成中，正在确认结果，确认完就能继续发送。")
             Task { await resumeRunIfNeeded() }
             return
@@ -5537,7 +5744,7 @@ private struct ComposerBarLayout: Layout {
         let newEntry = ChatEntry(
             role: "user", content: text, thread: thread,
             imageData: imageDatas.first, imageDatas: imageDatas,
-            quote: quote, feedQuote: feedQuote
+            quote: quote, sourceQuote: sourceQuote
         )
         modelContext.insert(newEntry)
         // 0.7.0（M3）：主线标题恒「主线」、不被首条消息
@@ -5585,7 +5792,7 @@ private struct ComposerBarLayout: Layout {
                 role: $0.role,
                 content: MessageQuote.outgoingContent(
                     userText: $0.content, quote: $0.quote,
-                    feedQuote: $0.feedQuote
+                    sourceQuote: $0.sourceQuote
                 )
             )
         }
@@ -5600,7 +5807,7 @@ private struct ComposerBarLayout: Layout {
                 role: "user",
                 text: MessageQuote.outgoingContent(
                     userText: text, quote: quote,
-                    feedQuote: feedQuote
+                    sourceQuote: sourceQuote
                 ),
                 imageDataURLs: urls
             )
@@ -5632,7 +5839,7 @@ private struct ComposerBarLayout: Layout {
                     input = text
                     attachments = pending
                     pendingQuote = quote
-                    pendingFeedQuote = feedQuote
+                    pendingSourceQuote = sourceQuote
                     errorMessage = "文件「\(failure.fileName)」没能上传，本条未发送："
                         + failure.reason
                         + "处理后重新发送即可。"
@@ -5657,7 +5864,7 @@ private struct ComposerBarLayout: Layout {
                     input = text
                     attachments = pending
                     pendingQuote = quote
-                    pendingFeedQuote = feedQuote
+                    pendingSourceQuote = sourceQuote
                     errorMessage = "文件上传失败，本条未发送，请稍后再试。"
                     Haptics.error()
                     streamingText = nil
@@ -5735,7 +5942,7 @@ private struct ComposerBarLayout: Layout {
                 input = text
                 attachments = pending
                 pendingQuote = quote
-                pendingFeedQuote = feedQuote
+                pendingSourceQuote = sourceQuote
                 errorMessage = "会话链接失败，本条未发送："
                     + ((error as? HermesError)?.userMessage
                         ?? "服务端会话建立失败")
@@ -6486,7 +6693,7 @@ private struct ComposerBarLayout: Layout {
         ) else { return nil }
         let text = MessageQuote.outgoingContent(
             userText: userEntry.content, quote: userEntry.quote,
-            feedQuote: userEntry.feedQuote
+            sourceQuote: userEntry.sourceQuote
         )
         // §152：重演源头是本地条目全集——旧口径只
         // 取 imageData 首图，同 key 重演（提交回执

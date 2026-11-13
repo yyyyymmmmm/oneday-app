@@ -104,6 +104,24 @@ final class ChatEntry {
     var feedPostTitle: String? = nil
     var feedPostBody: String? = nil
     var feedPostSource: String? = nil
+    /// §209：本条消息引用了哪个点子（点子「开始吧」
+    /// 引用化）——与 feedPost 四字段、quote 两字段
+    /// 同纪律：只在发送时由带来源引用的用户消息携
+    /// 带、三方互斥（发送舱单一槽位）；存点子 id＋
+    /// 标题＋载荷全文快照，点子被删/过期后引用块仍
+    /// 可读（值快照不悬挂），回放拼装经 IdeaQuote
+    /// 收口；行首标识不落盘（同 feedPost 缩略图口
+    /// 径）（可选＋默认 nil、SwiftData 轻量迁移）
+    var ideaQuoteID: String? = nil
+    var ideaQuoteTitle: String? = nil
+    var ideaQuoteBody: String? = nil
+    /// §209：本条消息引用了哪个文件（文件打开失败
+    /// 「让智能体重新发」引用化）——存文件名＋服务
+    /// 端原路径两字段快照，回跳凭原路径重开文件
+    /// 页、回放拼装经 FileQuote 收口（可选＋默认
+    /// nil、SwiftData 轻量迁移）
+    var fileQuoteName: String? = nil
+    var fileQuotePath: String? = nil
     /// 0.5.1：助手回复的思考原文（reasoning 通道落盘，
     /// §32）——只作折叠单元展示、不回灌请求上下文；
     /// reasoningSeconds 为流内实测思考耗时（首个思考增
@@ -148,7 +166,7 @@ final class ChatEntry {
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, feedQuote: FeedPostQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil, approvalKey: String? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, sourceQuote: SourceQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil, approvalKey: String? = nil) {
         id = UUID()
         self.role = role
         self.content = content
@@ -162,10 +180,25 @@ final class ChatEntry {
             : try? JSONEncoder().encode(imageDatas)
         quoteRole = quote?.role
         quoteContent = quote?.content
-        feedPostID = feedQuote?.postID
-        feedPostTitle = feedQuote?.title
-        feedPostBody = feedQuote?.body
-        feedPostSource = feedQuote?.sourceLine
+        // §209：来源引用三族拆字段落盘——init 只收
+        // 统一载荷 SourceQuote，按族填对应字段组、
+        // 其余两组恒 nil（三方互斥由构造口保证）
+        switch sourceQuote {
+        case .feed(let quote):
+            feedPostID = quote.postID
+            feedPostTitle = quote.title
+            feedPostBody = quote.body
+            feedPostSource = quote.sourceLine
+        case .idea(let quote):
+            ideaQuoteID = quote.ideaID
+            ideaQuoteTitle = quote.title
+            ideaQuoteBody = quote.body
+        case .file(let quote):
+            fileQuoteName = quote.name
+            fileQuotePath = quote.path
+        case nil:
+            break
+        }
         self.reasoning = reasoning
         self.reasoningSeconds = reasoningSeconds
         toolCardData = toolCard.flatMap {
@@ -268,5 +301,37 @@ final class ChatEntry {
             body: feedPostBody,
             sourceLine: feedPostSource ?? ""
         )
+    }
+
+    /// 点子引用值组装（§209）：三字段同缺同在；
+    /// 行首标识不落盘、组装为空串（呈现走本地兜
+    /// 底，不拿空标识当缺行理由）
+    var ideaQuote: IdeaQuote? {
+        guard let ideaQuoteID, let ideaQuoteTitle,
+              let ideaQuoteBody else { return nil }
+        return IdeaQuote(
+            ideaID: ideaQuoteID, title: ideaQuoteTitle,
+            body: ideaQuoteBody
+        )
+    }
+
+    /// 文件引用值组装（§209）：两字段同缺同在
+    var fileQuote: FileQuote? {
+        guard let fileQuoteName, let fileQuotePath
+        else { return nil }
+        return FileQuote(
+            name: fileQuoteName, path: fileQuotePath
+        )
+    }
+
+    /// 本条携带的来源引用（§209 统一读口）：三族
+    /// 字段组至多一组在场（构造口保证），呈现与
+    /// 回放拼装一律走本口，不再逐族探字段；
+    /// feedQuote 计算属性保留（§208 既有消费面）
+    var sourceQuote: SourceQuote? {
+        if let feedQuote { return .feed(feedQuote) }
+        if let ideaQuote { return .idea(ideaQuote) }
+        if let fileQuote { return .file(fileQuote) }
+        return nil
     }
 }

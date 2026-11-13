@@ -489,7 +489,7 @@ struct FeedView: View {
     /// 一条对话——帖以引用卡挂发送舱（FeedPostQuote
     /// 值快照），输入框恒空、亲笔才是草稿；引用经
     /// AppState 种子暂存道交接（ChatView 的
-    /// tryApplyFeedSeed 消费），永不进草稿账。
+    /// tryApplySourceSeed 消费），永不进草稿账。
     /// §208 前旧形（预填经 setDraft 直写草稿账）已
     /// 退役：预填文与亲笔在草稿账里同形、被防丢稿
     /// 保活永久保护，没发就赖着不走（用户
@@ -519,8 +519,10 @@ struct FeedView: View {
             )
             thread = fresh
         }
-        appState.pendingFeedDiscussSeed = FeedDiscussSeed(
-            threadID: thread.id, quote: FeedPostQuote(post: post)
+        // §209：种子走三族统一载荷（本处为 .feed 族）
+        appState.pendingSourceQuoteSeed = SourceQuoteSeed(
+            threadID: thread.id,
+            quote: .feed(FeedPostQuote(post: post))
         )
         appState.drawerThreadSelection = thread.id
         appState.mainTabSwitchRequest = .chat
