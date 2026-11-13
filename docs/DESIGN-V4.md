@@ -11125,3 +11125,20 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 
 ### 197.4 真机待验（随并轨版本装机验）
 ①App 内开/关任一权限或「允许智能体调用」开关后，设备页在线状态不假报、紧接着让智能体查位置/发短信能通（不再 device_offline／30 秒超时）；②执行一通长调用期间拨开关，回执成败在设备详情页「最近调用」有痕（respond_ 错误码可见）；③退后台再回前台，会话经 offline 正路恢复在线（原有行为不回退）。
+
+## §199 AI 自开旁聊＋留痕回响渲染（AI 内部权限 P2 会话包＋P0 App 侧，2026-11-13；分支 feat/ai-session-pack，基线 main 0494f7d，只交分支不合并；伴生侧同日 1.0.40）
+
+### 199.1 出生证明＝会话 id 前缀（存储口定案）
+AI 自开旁聊的出生证明不另设字段、不写正文：伴生开旁聊门面凭服务钥经网关 8642 的客户端指定 id 合同（App 自家 oneday-side- 旁聊同一条路）铸 `oneday-ai-<hex>` 会话 id——标记落在 sessions 侧、人人可查（列表回执即见），标题与正文一字不污染。父会话＝主线、铸造时刻、发起动作（留痕 id）记于伴生出生记录（oneday 桥 aiSessions 集合，GET /ai-sessions 可查）。网关若改派 id，出生证明即失效——门面当场拒绝采用并留失败痕，不许无标记会话混进旁聊名义。
+
+### 199.2 桥侧门面（伴生 1.0.40，oneday_bridge.py）
+两门一核：REST `POST /ai-sessions`（脚本/验链）＋ JSON-RPC `/mcp-sessions` 的 `sessions_create`（给 AI 的门面，与 goals 门面同形、独立端点——goals /mcp 的 tools/list 契约一字不动）。核 `_create_ai_session_traced`：校验 taskBrief（必填，首帖任务简报）→标题（AI 给的原样用；缺省兜底「AI 任务 · HH:MM」，Asia/Shanghai）→父会话解析（最新 oneday-main-*；找不到主线即拒绝创建，不铸孤儿）→建会话→出生记录落账→/v1/runs 绑 session_id 发简报。成败都恰一条 `sessions.create` 留痕、先痕后答（P0 纪律，REST 与 MCP 共用 traced 核、双门不双痕）：简报提交失败时会话已铸——出生记录保留并标 briefPosted=false，失败痕的 target 指向已铸会话 id，不许假装没发生。**注册状态：门面就绪待收官窗口**（与 P0/P3 同窗一次注册＋重启，本包不注册、不重启 Hermes）。
+
+### 199.3 App 收养（分类器只加一条）
+`SessionClassifier` 新增 R3b（置 R3 之后、R4 之前）：id 带 `oneday-ai-` 前缀 → `.mine`。判据只认此前缀一个形态——探针/run_ 同为 api_server 来源但无此标记，仍走 R4/R4b 旧规；oneday-ideas-gen 等桥铸系统会话仍归系统；分类器其余规则一字未动。呈现不新造 IA：收养会话经既有 partition 与用户手开旁聊同筐（全部对话页「我的对话」段同列），点开走既有收养导入（openServerSession 导入成本地线程后续聊，与频道收养同路），导入后即进抽屉旁聊区——父子呈现按现行形态（主线钦定行＋旁聊同列），本包不给抽屉加接线。
+
+### 199.4 回响渲染（P0 App 侧，公用件）
+留痕回响卡 `TraceEchoCard`（App 层公用件，其余动作包共用）：五要素＝🔧 图标＋「<智能体名> <动作短句>」卡头／目标标题行（会话类带 chevron、整卡可点达）／右上时间（今日只时刻、跨日带月日）／结果行（成功 result 原样）／失败行（error 原文整行＋danger 红边红字，与成功同级不折叠）。呈现范围纯函数 `TraceEchoPolicy`（Core）：主线全量（上限 10、时间正序新在流尾）、旁聊只出 target.id＝本会话服务端 id 者、无服务端关联的本地线程不出卡；失败记录不被任何过滤剔除。文案映射 `TraceEchoCopy`（Core 登记表，未登记动作回落「做了一件事」不静默）。数据形态按审计先行口径：打开/切换对话时经 OneDayBridgeClient 拉 GET /traces（主线全量近百、旁聊带 targetId 桥侧过滤），不走推送；拉取失败保留已有卡、不清空不摆错误面。点卡达对象：会话类置位 pendingChatSessionID 走既有消费口（导入/切换），在本会话点自己的出生卡不重复导入。卡只在呈现层拼装——绝不写入任何 Hermes 会话（回告卡 D4 同纪律）。
+
+### 199.5 测试账
+Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4/无标记不收养/压系统源/分筐同列；TraceEchoTests ＋11：DTO 原形解码＋宽容解码、Policy 主线全量/旁聊只认自己/无上下文不出/失败不过滤/上限取最近、Copy 登记短句/未登记回落/结果原文/点达判据）。桥侧新自检 oneday_bridge_ai_sessions_selftest 28/28（stub Hermes 全链：铸号/兜底标题/父解析/简报绑会话/改派拒绝/简报失败留出生/双门各一痕/重启回读），已登记进 run_bridge_selftests.sh；既有 traces_mcp 34/34、p9 28/28 回归不破。真机待验（随并轨版本）：主线对 AI 说「开个旁聊查 X」→（注册后）旁聊出现在抽屉/全部对话页我的对话段、主线流尾有回响卡、点卡进该旁聊续聊、旁聊内见自己的出生卡。

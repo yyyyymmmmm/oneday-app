@@ -54,6 +54,11 @@ struct ChatView: View {
     @Query(sort: \ChatThread.updatedAt, order: .reverse) private var threads: [ChatThread]
 
     @State private var currentThreadID: UUID?
+    /// 留痕回响数据源（P2 会话包）：进页/切线程时经
+    /// OneDayBridgeClient 拉桥侧留痕账（主线全量、旁
+    /// 聊按 targetId），呈现收窄在 Core TraceEchoPolicy；
+    /// 拉取失败保留旧值（见 refreshEchoTraces）
+    @State private var echoTraces: [BridgeTrace] = []
     @State private var input = ""
     /// 语音输入控制器（0.36.6，§71）：端上识别、录音
     /// 条占住发送舱；文本经 onTextChange 回写 input
@@ -927,6 +932,10 @@ struct ChatView: View {
             // 0.36.21：进/切对话刷新待批（就地卡数据源，
             // 与枢纽共享同一 store）
             await appState.sharedHubStore().refreshApprovalForChat()
+            // P2 会话包：进/切对话刷新留痕回响（主线/
+            // 旁聊卡数据源，先行形态＝打开/切换时拉取，
+            // 不走推送——P0 审计口径）
+            await refreshEchoTraces()
         }
         .onAppear {
             // 0.36.6：语音控制器回调接线——识别文本回
@@ -1799,6 +1808,39 @@ struct ChatView: View {
                         ) { item in
                             reportCard(item, store: overviewStore)
                         }
+                    }
+                    // 留痕回响卡（P0 App 侧，P2 首链「自开
+                    // 旁聊」）：AI 内部动作的留痕在呈现层拼
+                    // 装（与回告卡同纪律：绝不写入任何
+                    // Hermes 会话）；主线全量回响、旁聊只
+                    // 出指向本会话者、失败与成功同级——范
+                    // 围口径在 Core TraceEchoPolicy、卡面
+                    // 走公用件 TraceEchoCard（其余动作包
+                    // 的回响共用），点卡经既有续聊通道达
+                    // 目标旁聊
+                    ForEach(
+                        TraceEchoPolicy.cards(
+                            traces: echoTraces,
+                            isMainThread: isCurrentMainThread,
+                            currentServerSessionID: currentThread?
+                                .serverSessionID
+                        )
+                    ) { trace in
+                        TraceEchoCard(
+                            trace: trace,
+                            agentName: appState.agentDisplayName,
+                            onOpenSession: { sessionID in
+                                // 已在本会话里点自己的回响卡
+                                // 不重复导入；其余置位待续聊
+                                // id，由本页既有消费口导入/
+                                // 切换（与管理页/频道页同路）
+                                if sessionID != currentThread?
+                                    .serverSessionID {
+                                    appState.pendingChatSessionID =
+                                        sessionID
+                                }
+                            }
+                        )
                     }
                     // 就地审批（0.36.21，规格 §1/§3）：待批
                     // 写入在流末尾出卡——桥载荷无会话归属字
@@ -3221,6 +3263,30 @@ struct ChatView: View {
     /// 本地态，卡随未读过滤消失，与铃铛/通知 sheet 同一
     /// 已读口径）。卡是纯 View：不入 SwiftData、不参与
     /// 发送上下文组装
+    /// 回响卡数据源刷新（P2 会话包）：主线拉近百条全
+    /// 量（呈现收窄在 TraceEchoPolicy）、旁聊只拉指向
+    /// 本会话的（桥侧 targetId 过滤）。拉取失败保留已
+    /// 有卡、不清空不报错——回响是呈现层拼装，桥一时
+    /// 不通不该在对话里另摆错误面，下次进页/切线程自
+    /// 会再拉；但也不许拿空结果冒充「没有动作发生」
+    private func refreshEchoTraces() async {
+        guard let config = appState.config else { return }
+        let client = OneDayBridgeClient()
+        do {
+            if isCurrentMainThread {
+                echoTraces = try await client.traces(
+                    config: config, limit: 100
+                )
+            } else if let sessionID = currentThread?.serverSessionID {
+                echoTraces = try await client.traces(
+                    config: config, limit: 100, targetId: sessionID
+                )
+            }
+        } catch {
+            // 保留已有回响（见函数头注）
+        }
+    }
+
     private func reportCard(
         _ item: OverviewNotification, store: OverviewBridgeStore
     ) -> some View {

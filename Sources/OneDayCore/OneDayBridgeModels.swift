@@ -1277,3 +1277,107 @@ public enum OneDayBridgeError: Error, Sendable, Equatable {
     case recordGone
     case failed(String)
 }
+
+// MARK: - 留痕 DTO（P0 留痕底座，2026-11-13）
+
+/// 留痕指向的对象（桥 _trace_view 的 target 原形）：
+/// kind 决定点达路（session→进该会话续聊），id/label/
+/// ref 缺失按空串收（不因单字段漂移整表解码失败）
+public struct BridgeTraceTarget: Decodable, Equatable, Sendable {
+    public let kind: String
+    public let id: String
+    public let label: String
+    public let ref: String
+
+    public init(kind: String, id: String, label: String, ref: String) {
+        self.kind = kind
+        self.id = id
+        self.label = label
+        self.ref = ref
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, id, label, ref
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decodeIfPresent(
+            String.self, forKey: .kind) ?? ""
+        id = try container.decodeIfPresent(
+            String.self, forKey: .id) ?? ""
+        label = try container.decodeIfPresent(
+            String.self, forKey: .label) ?? ""
+        ref = try container.decodeIfPresent(
+            String.self, forKey: .ref) ?? ""
+    }
+}
+
+/// 一条留痕（P0 契约五要素：动作／对象／时间／结果或
+/// 失败原文／状态）：AI 的每个内部动作在伴生留痕账里
+/// 的一行，append-only。ok 必带 result、failed 必带
+/// error 原文（桥门口校验，App 侧原样呈现不改写）
+public struct BridgeTrace: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    /// 动作名（点分命名，如 sessions.create / goals.create）
+    public let action: String
+    /// 动作者（本期恒 agent；用户亲手动作将来同账记 user）
+    public let actor: String
+    public let target: BridgeTraceTarget
+    /// 发生时刻（epoch 秒，与全桥时间口径一致）
+    public let at: Double
+    /// "ok" 或 "failed"（未知值按失败收——留痕宁可显眼不许装没事）
+    public let status: String
+    public let result: String?
+    public let error: String?
+
+    public var isFailed: Bool { status != "ok" }
+    public var date: Date { Date(timeIntervalSince1970: at) }
+
+    public init(
+        id: String, action: String, actor: String,
+        target: BridgeTraceTarget, at: Double, status: String,
+        result: String?, error: String?
+    ) {
+        self.id = id
+        self.action = action
+        self.actor = actor
+        self.target = target
+        self.at = at
+        self.status = status
+        self.result = result
+        self.error = error
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, action, actor, target, at, status, result, error
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        action = try container.decodeIfPresent(
+            String.self, forKey: .action) ?? ""
+        actor = try container.decodeIfPresent(
+            String.self, forKey: .actor) ?? "agent"
+        target = try container.decodeIfPresent(
+            BridgeTraceTarget.self, forKey: .target)
+            ?? BridgeTraceTarget(kind: "", id: "", label: "", ref: "")
+        at = try container.decodeIfPresent(
+            Double.self, forKey: .at) ?? 0
+        status = try container.decodeIfPresent(
+            String.self, forKey: .status) ?? "failed"
+        result = try container.decodeIfPresent(
+            String.self, forKey: .result)
+        error = try container.decodeIfPresent(
+            String.self, forKey: .error)
+    }
+}
+
+public struct BridgeTracesResponse: Decodable, Sendable {
+    public let items: [BridgeTrace]
+
+    public init(items: [BridgeTrace]) {
+        self.items = items
+    }
+}

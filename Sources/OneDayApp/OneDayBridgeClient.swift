@@ -529,6 +529,30 @@ final class OneDayBridgeClient: @unchecked Sendable {
         return data
     }
 
+    // MARK: - 留痕回响（P0/P2，2026-11-13）
+
+    /// GET /traces：AI 内部动作留痕（最新在前）。主线
+    /// 拉全量近百条作总账面；旁聊传 targetId 只拉指向
+    /// 本会话的（桥侧过滤，省流量）。失败照桥错误口径
+    /// 抛（调用方决定呈现策略，回响拉取本身失败不许
+    /// 冒充「没有动作发生」——ChatView 拉取失败时保留
+    /// 已有卡、不清空）
+    func traces(
+        config: ServerConfig, limit: Int = 100, targetId: String? = nil
+    ) async throws -> [BridgeTrace] {
+        var path = "/traces?limit=\(limit)"
+        if let targetId, !targetId.isEmpty {
+            let encoded = targetId.addingPercentEncoding(
+                withAllowedCharacters: .urlQueryAllowed) ?? targetId
+            path += "&targetId=\(encoded)"
+        }
+        let response: BridgeTracesResponse = try await get(
+            config: config, path: path,
+            endpoint: L10n.string("留痕回响"), collection: true
+        )
+        return response.items
+    }
+
     // MARK: - 请求底座
 
     private func makeRequest(
