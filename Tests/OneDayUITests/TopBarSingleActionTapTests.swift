@@ -26,8 +26,13 @@ final class TopBarSingleActionTapTests: XCTestCase {
 
     private struct TapPoint {
         var name: String
-        var point: CGPoint
         var expect: Expect
+        /// 点位现算：每点开点前重读两元素实帧再落点
+        /// ——关面兜底若换过模型，胶囊标签宽度会变、
+        /// 左缘随之移位，按开场旧帧算的点位会过期
+        /// （run 43372118468 的 GAP 违规先按此嫌疑
+        /// 排除，再看是否真有命中外溢）
+        var makePoint: (_ capsule: CGRect, _ avatar: CGRect) -> CGPoint
     }
 
     override func setUpWithError() throws {
@@ -51,13 +56,11 @@ final class TopBarSingleActionTapTests: XCTestCase {
             XCTFail("顶簇两元素未在演示装配里出现")
             return
         }
-        let capsule = capsuleEl.frame
-        let avatar = avatarEl.frame
         lines.append(
-            "capsule=\(fmt(capsule)) avatar=\(fmt(avatar)) "
-                + "gap=\(capsule.minX - avatar.maxX)"
+            "capsule=\(fmt(capsuleEl.frame)) avatar=\(fmt(avatarEl.frame)) "
+                + "gap=\(capsuleEl.frame.minX - avatarEl.frame.maxX)"
         )
-        if capsule.minX - avatar.maxX < 7.5 {
+        if capsuleEl.frame.minX - avatarEl.frame.maxX < 7.5 {
             violations.append("两元素间隔 <8pt")
         }
 
@@ -65,9 +68,14 @@ final class TopBarSingleActionTapTests: XCTestCase {
             withNormalizedOffset: CGVector(dx: 0, dy: 0)
         )
 
-        for tap in planPoints(capsule: capsule, avatar: avatar) {
+        for tap in planPoints() {
+            // 每点现读实帧现算点位（帧过期排除，见
+            // TapPoint.makePoint 注）
+            let capsule = capsuleEl.frame
+            let avatar = avatarEl.frame
+            let point = tap.makePoint(capsule, avatar)
             origin.withOffset(
-                CGVector(dx: tap.point.x, dy: tap.point.y)
+                CGVector(dx: point.x, dy: point.y)
             ).tap()
             let fired = awaitSurface(app, expect: tap.expect)
             var wrong = false
@@ -78,12 +86,13 @@ final class TopBarSingleActionTapTests: XCTestCase {
             }
             if wrong {
                 violations.append(
-                    "\(tap.name)@(\(Int(tap.point.x)),\(Int(tap.point.y))) "
+                    "\(tap.name)@(\(Int(point.x)),\(Int(point.y))) "
                         + "fired=\(fired) expect=\(tap.expect)"
                 )
             }
             lines.append(
-                "tap=\(tap.name) at=(\(Int(tap.point.x)),\(Int(tap.point.y))) "
+                "tap=\(tap.name) at=(\(Int(point.x)),\(Int(point.y))) "
+                    + "frames=capsule:\(fmt(capsule))/avatar:\(fmt(avatar)) "
                     + "expect=\(tap.expect) fired=\(fired) wrong=\(wrong)"
             )
             dismissSurfaces(app)
@@ -153,15 +162,19 @@ final class TopBarSingleActionTapTests: XCTestCase {
                     Thread.sleep(forTimeInterval: 0.25)
                 }
             }
-            // 关闭二（兜底）：点一行可命中行（点行即
-            // 落账关面；按可命中过滤，防误认被盖住的
-            // 胶囊钮——其标签同含模型名）
+            // 关闭二（兜底）：点「当前已选行」关面
+            // （点行即落账关面；选当前行不换模型——
+            // 换模型会改胶囊标签宽度、令后续点位帧
+            // 过期；按可命中过滤，防误认被盖住的胶
+            // 囊钮——其标签同含模型名）
             if modelRow(app).exists {
                 let row = app.buttons.matching(
                     NSPredicate(
-                        format: "label CONTAINS[c] 'deepseek-chat'"
+                        format: "label CONTAINS[c] 'deepseek'"
                     )
-                ).allElementsBoundByIndex.first { $0.isHittable }
+                ).allElementsBoundByIndex.first {
+                    $0.isHittable && $0.isSelected
+                }
                 row?.tap()
                 let deadline = Date().addingTimeInterval(4)
                 while modelRow(app).exists, Date() < deadline {
@@ -180,70 +193,42 @@ final class TopBarSingleActionTapTests: XCTestCase {
 
     // MARK: - 点位计划（预注册）
 
-    private func planPoints(
-        capsule: CGRect, avatar: CGRect
-    ) -> [TapPoint] {
-        let points: [TapPoint] = [
-            TapPoint(
-                name: "CAP-C",
-                point: CGPoint(x: capsule.midX, y: capsule.midY),
-                expect: .model
-            ),
-            TapPoint(
-                name: "CAP-L",
-                point: CGPoint(x: capsule.minX + 6, y: capsule.midY),
-                expect: .model
-            ),
-            TapPoint(
-                name: "CAP-R",
-                point: CGPoint(x: capsule.maxX - 6, y: capsule.midY),
-                expect: .model
-            ),
-            TapPoint(
-                name: "CAP-T",
-                point: CGPoint(x: capsule.midX, y: capsule.minY + 3),
-                expect: .model
-            ),
-            TapPoint(
-                name: "CAP-B",
-                point: CGPoint(x: capsule.midX, y: capsule.maxY - 3),
-                expect: .model
-            ),
-            TapPoint(
-                name: "AVA-C",
-                point: CGPoint(x: avatar.midX, y: avatar.midY),
-                expect: .hub
-            ),
-            TapPoint(
-                name: "AVA-L",
-                point: CGPoint(x: avatar.minX + 5, y: avatar.midY),
-                expect: .hub
-            ),
-            TapPoint(
-                name: "AVA-R",
-                point: CGPoint(x: avatar.maxX - 5, y: avatar.midY),
-                expect: .hub
-            ),
-            TapPoint(
-                name: "AVA-T",
-                point: CGPoint(x: avatar.midX, y: avatar.minY + 5),
-                expect: .hub
-            ),
-            TapPoint(
-                name: "AVA-B",
-                point: CGPoint(x: avatar.midX, y: avatar.maxY - 5),
-                expect: .hub
-            ),
-            TapPoint(
-                name: "GAP",
-                point: CGPoint(
-                    x: (avatar.maxX + capsule.minX) / 2,
-                    y: capsule.midY
-                ),
-                expect: .none
-            ),
+    private func planPoints() -> [TapPoint] {
+        [
+            TapPoint(name: "CAP-C", expect: .model) { c, _ in
+                CGPoint(x: c.midX, y: c.midY)
+            },
+            TapPoint(name: "CAP-L", expect: .model) { c, _ in
+                CGPoint(x: c.minX + 6, y: c.midY)
+            },
+            TapPoint(name: "CAP-R", expect: .model) { c, _ in
+                CGPoint(x: c.maxX - 6, y: c.midY)
+            },
+            TapPoint(name: "CAP-T", expect: .model) { c, _ in
+                CGPoint(x: c.midX, y: c.minY + 3)
+            },
+            TapPoint(name: "CAP-B", expect: .model) { c, _ in
+                CGPoint(x: c.midX, y: c.maxY - 3)
+            },
+            TapPoint(name: "AVA-C", expect: .hub) { _, a in
+                CGPoint(x: a.midX, y: a.midY)
+            },
+            TapPoint(name: "AVA-L", expect: .hub) { _, a in
+                CGPoint(x: a.minX + 5, y: a.midY)
+            },
+            TapPoint(name: "AVA-R", expect: .hub) { _, a in
+                CGPoint(x: a.maxX - 5, y: a.midY)
+            },
+            TapPoint(name: "AVA-T", expect: .hub) { _, a in
+                CGPoint(x: a.midX, y: a.minY + 5)
+            },
+            TapPoint(name: "AVA-B", expect: .hub) { _, a in
+                CGPoint(x: a.midX, y: a.maxY - 5)
+            },
+            TapPoint(name: "GAP", expect: .none) { c, a in
+                CGPoint(x: (a.maxX + c.minX) / 2, y: c.midY)
+            },
         ]
-        return points
     }
 
     private func fmt(_ rect: CGRect) -> String {
