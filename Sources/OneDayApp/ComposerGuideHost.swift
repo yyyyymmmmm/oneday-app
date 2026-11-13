@@ -458,6 +458,7 @@ final class ComposerGuideHostController: UIViewController {
     private var backdropHeightConstraint: NSLayoutConstraint!
 
     /// §198 自述/测试定位口：输入框周边底衬本体
+    var traceComposerHostView: UIView { composerHost.view }
     var traceBackdropView: UIView { backdropView }
 
     /// 舱帧喂入点（托管树每次布局后经 Preference 上

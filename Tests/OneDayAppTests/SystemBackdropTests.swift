@@ -188,11 +188,13 @@ final class SystemBackdropTests: XCTestCase {
         host.view.layoutIfNeeded()
         XCTAssertEqual(backdrop.frame.height, 128, accuracy: 0.6)
         XCTAssertEqual(
-            backdrop.frame.maxY, host.traceBarView.frame.maxY,
+            backdrop.frame.maxY,
+            host.traceComposerHostView.frame.maxY,
             accuracy: 0.6
         )
         XCTAssertEqual(
-            host.traceBarView.frame.maxY, 791, accuracy: 0.6
+            host.traceComposerHostView.frame.maxY, 791,
+            accuracy: 0.6
         )
 
         // 坞底衬：resolveAnchors 已随显形跑过——坞本
