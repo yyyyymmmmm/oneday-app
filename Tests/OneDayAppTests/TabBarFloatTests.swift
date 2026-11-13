@@ -127,7 +127,7 @@ final class TabBarFloatTests: XCTestCase {
                     selection: $selection,
                     presented: appState.drawerPresented,
                     onManageAll: {},
-                    onOpenChannel: {}
+                    onOpenChannel: { _ in }
                 ) {
                     TabStandIn(box: box)
                 }
@@ -137,7 +137,7 @@ final class TabBarFloatTests: XCTestCase {
                     selection: $selection,
                     presented: appState.drawerPresented,
                     onManageAll: {},
-                    onOpenChannel: {}
+                    onOpenChannel: { _ in }
                 ) {
                     TabStandIn(box: box)
                 }
