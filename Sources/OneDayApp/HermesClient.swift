@@ -174,7 +174,14 @@ protocol HermesClientProtocol: Sendable {
     func searchSessions(
         config: ServerConfig, query: String, limit: Int
     ) async throws -> [SessionSearchHit]
-    /// DELETE /api/sessions/{id}
+    /// GET /api/sessions/{id}/mutation-snapshot：围栏
+    /// 身份的官方指定来源（删除 409 热修，报告 §1.2）
+    func sessionMutationSnapshot(
+        config: ServerConfig, id: String
+    ) async throws -> SessionMutationSnapshot
+    /// DELETE /api/sessions/{id}：围栏三参数走 query
+    /// （官方契约，身份读 mutation-snapshot）；收口按
+    /// 错误码分流，身份读不到不许裸发（报告 §1.4）
     func deleteServerSession(config: ServerConfig, id: String) async throws
     /// POST /api/sessions/bulk-delete {ids}
     func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws
@@ -195,7 +202,9 @@ protocol HermesClientProtocol: Sendable {
     /// 此作废）——实现内先 GET 取 runtime_revision、
     /// 带 request_id＋expected_revision 发，409 冲突
     /// 重读修订号重试一次；落定仍靠调用方 GET 回读
-    /// 对账（立项档 O-4），2xx 只算服务端受理
+    /// 对账（立项档 O-4），2xx 只算服务端受理。
+    /// 删除 409 热修后：修订号改读 mutation-snapshot
+    /// （官方身份源），读不到如实上抛、不再裸发回退
     func updateServerSession(
         config: ServerConfig, id: String,
         title: String?, pinned: Bool?, archived: Bool?
@@ -1139,6 +1148,30 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         )
     }
 
+    func sessionMutationSnapshot(
+        config: ServerConfig, id: String
+    ) async throws -> SessionMutationSnapshot {
+        try await getJSON(
+            config: config, path: "/api/sessions/\(id)/mutation-snapshot",
+            endpoint: L10n.string("服务端会话变更快照")
+        )
+    }
+
+    /// 写请求原始回执形：不抛状态错、把响应体带回来
+    /// ——围栏类接口的拒因在 body 的 detail 码里
+    /// （revision_conflict/session_busy/…），sendJSON
+    /// 把 body 丢掉的旧形到不了分流逻辑（报告 §2.3）。
+    /// 传输层失败仍走 dataRequest 的 HermesError 映射
+    private func sendRaw(
+        config: ServerConfig, path: String, method: String,
+        query: [URLQueryItem] = []
+    ) async throws -> (status: Int, body: Data) {
+        var request = URLRequest(url: url(config: config, path: path, query: query))
+        request.httpMethod = method
+        let (data, http) = try await dataRequest(request)
+        return (http.statusCode, data)
+    }
+
     func createServerSession(config: ServerConfig, apiKey: String, id: String?, title: String?) async throws -> ServerSession {
         // 0.27.0：网关面 Bearer 送达（见协议注）；请求
         // 体组装走 Core 纯函数（单测把守形态）
@@ -1215,39 +1248,67 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func deleteServerSession(config: ServerConfig, id: String) async throws {
         // 0.50.30 围栏接线（DESIGN §204.6）：DELETE 与
-        // PATCH 同围栏制，但三参数必须走 query string
-        // （放 body 或缺失必被拒：全空 409 client_
-        // upgrade_required、缺代次 400 invalid_params；
-        // 0.27.0 前的裸 DELETE 正是这样屡删屡败、会话
-        // 从没真删掉过——2026-11-13 生产实证在管理收
-        // 口包报告件二）。每试先 GET 详情取 runtime_
-        // revision＋runtime_generation，三参数齐发；
-        // 409 重读重试一次，再失败如实上抛。修订读不
-        // 到（旧投影）时退无围栏直发、错误照样上抛
-        for attempt in 0..<2 {
-            var query: [URLQueryItem] = []
-            if let row = try? await serverSession(config: config, id: id),
-               let revision = row.runtimeRevision,
-               let generation = row.runtimeGeneration {
-                query = [
+        // PATCH 同围栏制，三参数必须走 query string
+        // （放 body 或缺失必被拒）。
+        // 删除 409 热修（报告 §1.4/§2）：身份改读官方
+        // mutation-snapshot，不再经详情 GET——详情回
+        // 包的 int 形 archived/pinned 曾把 DTO 解码整
+        // 行打死、旧实现 try? 吞错后裸发 DELETE，必吃
+        // client_upgrade_required 409 且重试同死。每
+        // 试现读快照、request_id 每试新铸（已删后靠快
+        // 照 404/exists=false 与 DELETE 404 收口，不依
+        // 赖同 request_id 的收据重放）；收口按 Core 的
+        // SessionDeleteDirective 分流：冲突重读即时再
+        // 试、busy 短等再试（共 3 试）、耗尽按码如实
+        // 上抛（busy 报 sessionBusy 人话）。身份读不
+        // 到就报错、什么都不发——删掉裸发回退：服务
+        // 端契约是无围栏永不落改，裸发只是亲手制造一
+        // 个误导性 409
+        let endpoint = L10n.string("服务端会话删除")
+        for attempt in 0..<3 {
+            let snapshot: SessionMutationSnapshot
+            do {
+                snapshot = try await sessionMutationSnapshot(config: config, id: id)
+            } catch let error as HermesError {
+                if case .unexpectedStatus(_, let status) = error, status == 404 {
+                    return  // 快照都读不到这条＝已经不在了
+                }
+                throw error
+            }
+            if snapshot.exists == false {
+                return  // 服务端明示已不在，删除目的已达成
+            }
+            guard let revision = snapshot.runtimeRevision,
+                  let generation = snapshot.runtimeGeneration else {
+                throw HermesError.decodingFailed(endpoint: endpoint)
+            }
+            let (status, body) = try await sendRaw(
+                config: config, path: "/api/sessions/\(id)", method: "DELETE",
+                query: [
                     URLQueryItem(name: "request_id", value: UUID().uuidString),
                     URLQueryItem(name: "expected_revision", value: String(revision)),
                     URLQueryItem(name: "expected_generation", value: String(generation)),
                 ]
-            }
-            do {
-                try await sendJSON(
-                    config: config, path: "/api/sessions/\(id)", method: "DELETE",
-                    endpoint: L10n.string("服务端会话删除"), query: query
-                )
+            )
+            switch SessionDeleteDirective.directive(
+                status: status, serverCode: HermesServerErrorCode.parse(body)
+            ) {
+            case .done:
                 return
-            } catch let error as HermesError {
-                if case .unexpectedStatus(_, let status) = error,
-                   status == 409, attempt == 0 {
+            case .retryWithFreshIdentity:
+                if attempt < 2 { continue }
+            case .retryAfterBusy:
+                if attempt < 2 {
+                    try await Task.sleep(
+                        for: attempt == 0 ? .milliseconds(1500) : .seconds(3)
+                    )
                     continue
                 }
-                throw error
+                throw HermesError.sessionBusy
+            case .fail:
+                break
             }
+            throw HermesError.unexpectedStatus(endpoint: endpoint, status: status)
         }
     }
 
@@ -1295,22 +1356,32 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         config: ServerConfig, id: String,
         title: String?, pinned: Bool?, archived: Bool?
     ) async throws {
-        // 0.27.0 围栏接线（见协议注）：每试先 GET 取
-        // runtime_revision，PATCH 带 request_id＋
-        // expected_revision；409（修订冲突/无围栏拒）
-        // 重读修订号重试一次，再失败如实上抛。修订号
-        // 读不到（旧投影）时退回无围栏直发——服务端
-        // 若拒，错误照样上抛、不静默
+        // 0.27.0 围栏接线（见协议注）＋删除 409 热修
+        // 收口：修订号改读 mutation-snapshot（官方身
+        // 份源、与 DELETE 同源），PATCH 带 request_id
+        // ＋expected_revision；409 冲突重读重试一次，
+        // 再失败如实上抛。旧「修订号读不到退回无围栏
+        // 直发」的回退就此删除——详情解码曾被 int 形
+        // archived/pinned 恒打死、回退实际一直在裸发
+        // 必拒请求（报告 §2.2）；读不到改为如实上抛
         for attempt in 0..<2 {
+            let snapshot = try await sessionMutationSnapshot(config: config, id: id)
+            if snapshot.exists == false {
+                throw HermesError.unexpectedStatus(
+                    endpoint: L10n.string("服务端会话更新"), status: 404
+                )
+            }
+            guard let revision = snapshot.runtimeRevision else {
+                throw HermesError.decodingFailed(
+                    endpoint: L10n.string("服务端会话更新")
+                )
+            }
             var body: [String: JSONValue] = [:]
             if let title { body["title"] = .string(title) }
             if let pinned { body["pinned"] = .bool(pinned) }
             if let archived { body["archived"] = .bool(archived) }
-            if let row = try? await serverSession(config: config, id: id),
-               let revision = row.runtimeRevision {
-                body["request_id"] = .string(UUID().uuidString)
-                body["expected_revision"] = .number(Double(revision))
-            }
+            body["request_id"] = .string(UUID().uuidString)
+            body["expected_revision"] = .number(Double(revision))
             do {
                 try await sendJSON(
                     config: config, path: "/api/sessions/\(id)",

@@ -26,6 +26,11 @@ public enum HermesError: Error, Sendable {
     case apiKeyRejected
     /// 接口返回非预期状态（附接口名与状态码）
     case unexpectedStatus(endpoint: String, status: Int)
+    /// 会话删除被服务端以 session_busy 拒（有 turn 在
+    /// 跑或排队，围栏契约下不许删，见删除 409 热修
+    /// 报告 §1.3）：与裸状态码是两回事——文案必须让
+    /// 用户知道是「还在运行中」而不是「服务器出错」
+    case sessionBusy
     /// 响应解码失败（版本不匹配的典型信号）
     case decodingFailed(endpoint: String)
     /// 会话过期且自动重登失败
@@ -84,6 +89,10 @@ public enum HermesError: Error, Sendable {
             return L10n.format(
                 "%@ 返回了状态 %@，请稍后再试。",
                 locale: locale, endpoint, String(status)
+            )
+        case .sessionBusy:
+            return L10n.string(
+                "这条会话还在运行中，等它跑完再删。", locale: locale
             )
         case .decodingFailed(let endpoint):
             return L10n.format(

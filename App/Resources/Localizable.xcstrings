@@ -39627,6 +39627,29 @@
         }
       }
     },
+    "服务端会话变更快照": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server conversation change snapshot"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务端会话变更快照"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器端對話變更快照"
+          }
+        }
+      }
+    },
     "服务端会话建立失败": {
       "extractionState": "manual",
       "localizations": {
@@ -60933,6 +60956,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "這條會立即批准；以後「%@」的寫入將直接通過，不再逐條詢問。規則可以在樞紐「審批規則」裡隨時撤銷。"
+          }
+        }
+      }
+    },
+    "这条会话还在运行中，等它跑完再删。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This conversation is still running. Delete it after it finishes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条会话还在运行中，等它跑完再删。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這條對話還在運行中，等它跑完再刪。"
           }
         }
       }

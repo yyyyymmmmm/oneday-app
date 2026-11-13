@@ -509,6 +509,7 @@ struct DemoHermesClient: HermesClientProtocol {
         }
     }
 
+    func sessionMutationSnapshot(config: ServerConfig, id: String) async throws -> SessionMutationSnapshot { throw HermesError.demoLimitReached }
     func deleteServerSession(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
 
     func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws { throw HermesError.demoLimitReached }

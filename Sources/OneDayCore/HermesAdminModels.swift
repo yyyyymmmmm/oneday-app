@@ -295,7 +295,7 @@ public struct CronJob: Decodable, Sendable, Identifiable {
 /// 话标题升级失败者）——0.6.1 前客户端只解码 display_
 /// name（渠道身份列、API 会话恒 null）从未声明 title，
 /// 「接口无 title」系客户端口径误判、就此更正。
-public struct ServerSession: Decodable, Sendable, Identifiable {
+public struct ServerSession: Sendable, Identifiable {
     public let id: String
     public let source: String?
     public let sessionKey: String?
@@ -370,12 +370,134 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
 
     /// 是否活跃：没有结束时间即仍在进行
     public var isActive: Bool { endedAt == nil }
+}
+
+extension ServerSession: Decodable {
+    /// 自定义解码（删除 409 热修，报告 §2.2）：生产详
+    /// 情回包的 archived/pinned 是 sqlite 原样数字
+    /// （`"archived": 0`），合成解码对 Bool? 字段遇数
+    /// 字直接抛错、整行解不出——删除/PATCH 取围栏的
+    /// 详情 GET 因此恒失败并静默裸发。本解码只对这两
+    /// 个字段放宽：Bool 与 0/1 数字都收；其余字段与
+    /// 合成解码同口径。放在 extension 里保住成员初始
+    /// 化器（直构点不受影响）。
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        sessionKey = try container.decodeIfPresent(String.self, forKey: .sessionKey)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        serverTitle = try container.decodeIfPresent(String.self, forKey: .serverTitle)
+        titleSource = try container.decodeIfPresent(String.self, forKey: .titleSource)
+        isArchived = Self.flexibleBool(container, .isArchived)
+        isPinned = Self.flexibleBool(container, .isPinned)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        profile = try container.decodeIfPresent(String.self, forKey: .profile)
+        startedAt = try container.decodeIfPresent(Double.self, forKey: .startedAt)
+        endedAt = try container.decodeIfPresent(Double.self, forKey: .endedAt)
+        endReason = try container.decodeIfPresent(String.self, forKey: .endReason)
+        messageCount = try container.decodeIfPresent(Int.self, forKey: .messageCount)
+        toolCallCount = try container.decodeIfPresent(Int.self, forKey: .toolCallCount)
+        inputTokens = try container.decodeIfPresent(Double.self, forKey: .inputTokens)
+        outputTokens = try container.decodeIfPresent(Double.self, forKey: .outputTokens)
+        runtimeRevision = try container.decodeIfPresent(Int.self, forKey: .runtimeRevision)
+        runtimeGeneration = try container.decodeIfPresent(Int.self, forKey: .runtimeGeneration)
+    }
+
+    /// Bool 或 0/1 数字都解；键缺失/为 null/异形回 nil
+    private static func flexibleBool(
+        _ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys
+    ) -> Bool? {
+        if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
+            return value
+        }
+        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
+            return value != 0
+        }
+        return nil
+    }
 
     /// 标题：display_name 优先，其次来源＋时间，最后 id 前缀
     public var title: String {
         if let displayName, !displayName.isEmpty { return displayName }
         if let source, !source.isEmpty { return "\(source) 会话" }
         return "会话 \(id.prefix(8))"
+    }
+}
+
+/// GET /api/sessions/{id}/mutation-snapshot 回包
+/// （删除 409 热修，报告 §1.2/§2.4）：围栏身份的官
+/// 方指定来源——小回包只有身份四件，没有详情 GET
+/// 的 42KB 杂质（system_prompt 全文等）。exists 为
+/// false＝会话已不在（删除目的已达成）。
+/// request_id 不在此包内：由客户端每次尝试新铸。
+public struct SessionMutationSnapshot: Decodable, Sendable {
+    public let sessionID: String?
+    public let exists: Bool?
+    public let runtimeRevision: Int?
+    public let runtimeGeneration: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+        case exists
+        case runtimeRevision = "runtime_revision"
+        case runtimeGeneration = "runtime_generation"
+    }
+}
+
+/// 服务端错误码解析（删除 409 热修，报告 §2.3）：
+/// Hermes 的拒删/拒改回包形如 {"detail":"revision_
+/// conflict"} 或 {"detail":"client_upgrade_required:
+/// this app is out of sync…"}——取 detail 冒号前的码
+/// 本体。发送层此前把响应体整个丢弃，这类码到不了
+/// 客户端逻辑，用户只剩一句裸「状态 409」。
+public enum HermesServerErrorCode {
+    public static func parse(_ body: Data) -> String? {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: body),
+            let dict = object as? [String: Any],
+            let detail = dict["detail"] as? String
+        else { return nil }
+        let code = detail
+            .split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            .first
+            .map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        guard !code.isEmpty,
+              code.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" })
+        else { return nil }
+        return code
+    }
+}
+
+/// 删除一次尝试的收口分流（删除 409 热修，报告
+/// §1.3）：纯函数、单测把守，客户端只许照此执行。
+public enum SessionDeleteDirective: Sendable, Equatable {
+    /// 目标已达成：2xx，或 404（已删/本就不存在，
+    /// DELETE 幂等口径下视为成功）
+    case done
+    /// revision_conflict：身份已过期——重读 snapshot
+    /// 拿最新值立即再试
+    case retryWithFreshIdentity
+    /// session_busy：turn 在跑/排队——短等后重读再试，
+    /// 预算耗尽报 sessionBusy 人话，不许裸甩 409
+    case retryAfterBusy
+    /// 其余（身份类拒/服务器错/未知码）：如实上抛，
+    /// 不许盲目重试、更不许降级裸发
+    case fail
+
+    public static func directive(status: Int, serverCode: String?) -> SessionDeleteDirective {
+        if (200...299).contains(status) || status == 404 {
+            return .done
+        }
+        guard status == 409 else { return .fail }
+        switch serverCode {
+        case "revision_conflict":
+            return .retryWithFreshIdentity
+        case "session_busy":
+            return .retryAfterBusy
+        default:
+            return .fail
+        }
     }
 }
 

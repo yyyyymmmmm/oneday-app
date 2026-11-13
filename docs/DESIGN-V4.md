@@ -11470,3 +11470,9 @@ Core 单测对账预期：基线 1754＋止血 0＋引用 19＋收口 3＋频道
 ### §207.3 出包补记（2026-11-13 回填）
 
 IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径独立解包亲验：**11,530,811 字节、md5 `817ec44ab993fdb27035776ee4233019`**；Payload/OneDayApp.app/Info.plist 亲读＝0.50.30／158／site.didichou.oneday；主二进制 OneDayApp 39,323,896 字节（md5 `5cd04257a6c7b35d8bacd3e214a8a151`）。落位 `~/workspace/your_files/oneday-v0.50.30/OneDay-0.50.30.ipa`。装配头 7208e87（其后仅 §207.2／§207.3 文档回填提交）。**未打 tag、未合 main**——等用户点头；真机待验清单见发版报告 §6（release-05030-assembly-20261113.md）。
+
+## §209 旁聊删除真机 409 热修（2026-11-13；分支 fix/sidechat-delete-409，基线 rel/05030 头 283808a，只交分支不合并；立项＝用户 21:40 真机实报抽屉删旁聊弹「状态 409」；全档＝oneday-design-review/sidechat-delete-409-report-20261113.md）
+
+**定因（生产实证）**：目标会话 oneday-side-5e1beb12-…（21:35:51 建、首轮已完、rev/gen 恒 1/1、无 run 在飞）——nginx 日志坐实两试 DELETE 均**无任何 query 参数**（裸发）。根在 App 侧 DTO：生产详情回包 archived/pinned 为数字 0（sqlite 原样），ServerSession 的 Bool? 合成解码遇数字整行抛错；删除/PATCH 每试先 GET 详情取围栏，try? 吞错后静默走裸发回退，服务端按契约回 409 client_upgrade_required，重试同死。原三嫌疑全排除：自动标题（建后 6 秒即定、删除前 4 分钟无变动）、run 在飞（无）、列表缓存取值（删除路径本就现读详情——读死在解码不是取值）。同根：PATCH 改名/归档同路、SessionsPage 逐行 try? 同风险；发送层 sendJSON 丢响应体致 detail 码不可达、用户只见裸 409。
+
+**修法（先查市面成熟做法，报告 §1）**：围栏框架留（Hermes 官方 dashboard 文档钦定客户端义务，防并发误删/误改，无同行等价物可替换）；三处自创偏离收口——①身份改读官方 GET /api/sessions/{id}/mutation-snapshot（新 SessionMutationSnapshot DTO），不再经 42KB 详情回包；②删裸发回退：快照读不到如实上抛、什么都不发（ServerSession 自定义 Decodable：archived/pinned 兼容 Bool 与 0/1 数字，PATCH 同受益）；③收口按错误码分流（Core 纯函数 SessionDeleteDirective＋HermesServerErrorCode 解析 detail 码，单测把守）：2xx/404＝已达成、revision_conflict 重读即时再试、session_busy 短等（1.5s/3s）再试、共 3 试，耗尽按码上抛（busy 报新 HermesError.sessionBusy 人话）；request_id 每试新铸（已删靠快照 404/exists=false 与 DELETE 404 收口，生产实证墓碑同 id 重放亦 200）。i18n 新增 2 键（服务端会话变更快照／这条会话还在运行中，等它跑完再删。），validate_i18n 2966 键三语过。登记待办（不属本包）：bulk-delete/deleteEmptySessions 同受网关守卫、SessionsPage 丢行问题随列表换代处理。
