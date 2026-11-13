@@ -192,6 +192,26 @@ import UIKit
 /// 图、不被任何约束引用、不进常量公式。均匀材质、
 /// 非 §173 渐进溶化（已作废）；列表底缘 .hidden
 /// 口径（§170）不动。
+///
+/// ## 割裂感 A 止血档 A2 追记（2026-11-13，用户
+/// 17:02 拍板提队；调研 chat-surface-selection-
+/// research-20261113 §1.4 A2）
+/// ①的覆盖口径改判：§200 上线后真机点名——底衬按
+/// **整栈高**（含回底钮行/错误条/间距带）成一整块
+/// 矩形板，上缘是一条悬空直线，流式末行探进带内
+/// 时被齐腰切断（调研 J3）。改法只动几何、不动材
+/// 质：底衬高改由**输入舱卡本体帧**（新通道 Comp-
+/// oserCardFrameKey，与整栈帧同树同系上行）驱动——
+/// 衬顶＝卡帧顶、衬底＝宿主底（＝整栈帧底），衬的
+/// 上缘自此落在卡这块玻璃件自己的设计边缘上；回
+/// 底钮行与各条带恢复透明（钮本体是系统玻璃、自
+/// 带糊化，调研 A2 代价面在案）。卡帧未到（首拍/
+/// 裸装配）时回落整栈口径、与 §200 原行为一致。
+/// 材质纪律（用户 17:06 钉死）：衬层仍是 System-
+/// Backdrop 的 UIVisualEffectView 系统真材质（实
+/// 时模糊身后内容），不许自绘半透明平填顶替；内
+/// 容全强度活到被玻璃/材质盖住为止，不许渐变擦
+/// 淡内容本体（§173 红线）。
 struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -334,6 +354,13 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
             .onPreferenceChange(ComposerBarFrameKey.self) { frame in
                 controller.updateBarFrame(frame)
             }
+            // A2：输入舱卡本体帧同树上行（写入点在
+            // ChatView 的 inputBar，量点与收点同树、
+            // 与整栈帧同一窗口系）→控制器据此定底衬
+            // 高（衬顶改随卡顶、不再随整栈顶）
+            .onPreferenceChange(ComposerCardFrameKey.self) { frame in
+                controller.updateCardFrame(frame)
+            }
             .environment(appState)
             .environment(\.modelContext, modelContext)
             .environment(\.locale, locale)
@@ -347,6 +374,22 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
 private struct ComposerBarFrameKey: PreferenceKey {
     // 计算属性形态：Swift 6 下存储型静态默认值会撞
     // 并发安全（nonisolated 全局可变状态）
+    static var defaultValue: CGRect { .zero }
+    static func reduce(
+        value: inout CGRect, nextValue: () -> CGRect
+    ) {
+        let next = nextValue()
+        if next.height > 0 { value = next }
+    }
+}
+
+/// 输入舱卡本体帧的 PreferenceKey（A2 底衬收边）：
+/// 写入点在 ChatView 的 inputBar（composerCard 外
+/// 挂背景 GeometryReader），与整栈帧同一窗口系、同
+/// 一棵托管树上行；口径与 ComposerBarFrameKey 同
+/// 式（单值、取后到非零帧）。internal 而非 private
+/// ——写入点跨文件在 ChatView
+struct ComposerCardFrameKey: PreferenceKey {
     static var defaultValue: CGRect { .zero }
     static func reduce(
         value: inout CGRect, nextValue: () -> CGRect
@@ -452,10 +495,17 @@ final class ComposerGuideHostController: UIViewController {
     private var lastReportedTopSafe: CGFloat = -1
     /// §200 输入框周边底衬（系统材质）：舱宿主层级
     /// 内最底层；左右/底随舱宿主、高由 back-
-    /// dropHeightConstraint 承舱帧实测高（update-
-    /// BarFrame 同拍同步，种子 0＝舱帧未到时不显）
+    /// dropHeightConstraint 承实测帧算出（A2 起＝卡
+    /// 段高：整栈帧底−卡帧顶；卡帧未到回落整栈高；
+    /// syncBackdropHeight 唯一计算点，两路帧喂入同
+    /// 拍同步，种子 0＝帧未到时不显）
     private let backdropView = SystemBackdrop.makeView()
     private var backdropHeightConstraint: NSLayoutConstraint!
+    /// A2：输入舱卡本体的窗口系实测帧（桥的 Prefe-
+    /// rence 通道喂入）：只供底衬高计算（衬顶随卡
+    /// 顶），不参与舱顶回报与透传判定（那两路仍只
+    /// 认整栈帧，口径零改动）
+    private var cardFrameInWindow: CGRect = .zero
 
     /// §200 自述/测试定位口：输入框周边底衬本体
     var traceComposerHostView: UIView { composerHost.view }
@@ -470,16 +520,45 @@ final class ComposerGuideHostController: UIViewController {
         barFrameInWindow = frame
         (viewIfLoaded as? ComposerPassthroughView)?
             .barFrameInWindow = frame
-        // §200：底衬高随舱带实测高同拍同步（舱带生
-        // 长/收缩——多行输入、错误条、回底钮行显隐
-        // ——都经本通道改高，底衬覆盖带随之）
-        if isViewLoaded, backdropHeightConstraint != nil,
-           abs(backdropHeightConstraint.constant
-                - frame.height) > 0.5 {
-            backdropHeightConstraint.constant = frame.height
-            view.setNeedsLayout()
-        }
+        // §200/A2：底衬高随实测帧同拍同步（计算点收
+        // 口 syncBackdropHeight：A2 起衬顶随卡帧顶、
+        // 整栈生长——多行输入、错误条、回底钮行显
+        // 隐——只经卡帧/整栈帧两路输入进公式）
+        syncBackdropHeight()
         reportBottomSpace()
+    }
+
+    /// A2：输入舱卡本体帧喂入点（托管树每次布局后
+    /// 经 Preference 上行）：只存帧并同拍重算底衬高
+    /// ——卡在树内生长（引用块/附件条/多行输入）时本
+    /// 类未必有布局拍，同步不能只靠整栈帧通道兜底
+    /// （与 updateBarFrame 的即时回报同判）
+    func updateCardFrame(_ frame: CGRect) {
+        guard frame.height > 0 else { return }
+        cardFrameInWindow = frame
+        syncBackdropHeight()
+    }
+
+    /// A2 底衬高唯一计算点：衬底恒＝整栈帧底（衬底
+    /// 边钉宿主底、整栈底贴宿主底，两值同位）；衬
+    /// 顶＝卡帧顶（卡帧未到回落整栈帧顶＝§200 原口
+    /// 径）。两帧同为窗口系、相减即衬高（高度是标
+    /// 量，与本地坐标系无关）。偏差 >0.5 才写，与
+    /// §200 原同步守卫同档
+    private func syncBackdropHeight() {
+        guard isViewLoaded, backdropHeightConstraint != nil,
+              barFrameInWindow.height > 0
+        else { return }
+        let top = cardFrameInWindow.height > 0
+            ? cardFrameInWindow.minY
+            : barFrameInWindow.minY
+        let height = barFrameInWindow.maxY - top
+        guard height > 0,
+              abs(backdropHeightConstraint.constant - height)
+                > 0.5
+        else { return }
+        backdropHeightConstraint.constant = height
+        view.setNeedsLayout()
     }
 
     override func loadView() {
@@ -509,8 +588,9 @@ final class ComposerGuideHostController: UIViewController {
         composerHost.didMove(toParent: self)
         // §200：输入框周边底衬入层——插在舱宿主之下
         // （本视图子视图序最底）；左右/底随舱宿主、
-        // 高由 backdropHeightConstraint 承舱帧实测
-        // 高（updateBarFrame 同步，种子 0＝未到帧不显）
+        // 高由 backdropHeightConstraint 承实测帧算出
+        // 的衬高（A2 起为卡段高，syncBackdropHeight
+        // 同步，种子 0＝未到帧不显）
         backdropView.translatesAutoresizingMaskIntoConstraints =
             false
         view.insertSubview(
