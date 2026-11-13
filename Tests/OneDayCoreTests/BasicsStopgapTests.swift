@@ -6,99 +6,115 @@ import XCTest
 /// 原文、重发幂等闸的账本口径、草稿落盘点判定、待
 /// 发附件线程分格、零条目空状态判定。文案断言口径
 /// 同 DemoLimitTests：测试环境无字符串目录宿主，
-/// userMessage 回落 zh-Hans 源串、按源串断言
+/// userMessage 回落 zh-Hans 源串、按源串断言。
+/// HermesError 非 Equatable（带关联值），分型断言
+/// 走 tag(of:) 模式匹配标签，不用 XCTAssertEqual
+/// 直接比枚举值
 final class BasicsStopgapTests: XCTestCase {
+
+    /// 分型标签（只认本包五档，其余一律 other）
+    private func tag(of error: HermesError) -> String {
+        switch error {
+        case .runBillingExhausted: return "billing"
+        case .runServiceUnavailable: return "service"
+        case .runTimedOut: return "timeout"
+        case .runNetworkInterrupted: return "network"
+        case .runFailedGeneric: return "generic"
+        default: return "other"
+        }
+    }
+
+    private func classifyTag(
+        errorText: String?, outputText: String?
+    ) -> String {
+        tag(of: RunFailureClassifier.classify(
+            errorText: errorText, outputText: outputText
+        ))
+    }
 
     // MARK: - P5 · run 失败文案分型映射
 
     func testClassifierBillingByStatusCode() {
-        let failure = RunFailureClassifier.classify(
-            errorText: "HTTP 402 Payment Required", outputText: nil
+        XCTAssertEqual(
+            classifyTag(
+                errorText: "HTTP 402 Payment Required",
+                outputText: nil
+            ),
+            "billing"
         )
-        XCTAssertEqual(failure, .runBillingExhausted)
     }
 
     func testClassifierBillingByWording() {
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: "Insufficient balance for this account",
                 outputText: nil
             ),
-            .runBillingExhausted
+            "billing"
         )
         XCTAssertEqual(
-            RunFailureClassifier.classify(
-                errorText: nil, outputText: "账户余额不足"
-            ),
-            .runBillingExhausted
+            classifyTag(errorText: nil, outputText: "账户余额不足"),
+            "billing"
         )
     }
 
     func testClassifierTimedOut() {
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: "The request timed out.", outputText: nil
             ),
-            .runTimedOut
+            "timeout"
         )
         XCTAssertEqual(
-            RunFailureClassifier.classify(
-                errorText: "请求超时", outputText: nil
-            ),
-            .runTimedOut
+            classifyTag(errorText: "请求超时", outputText: nil),
+            "timeout"
         )
     }
 
     func testClassifierNetworkInterrupted() {
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: "The network connection was lost.",
                 outputText: nil
             ),
-            .runNetworkInterrupted
+            "network"
         )
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: nil, outputText: "生成中断：网络连接已断开"
             ),
-            .runNetworkInterrupted
+            "network"
         )
     }
 
     func testClassifierServiceUnavailable() {
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: "503 Service Unavailable", outputText: nil
             ),
-            .runServiceUnavailable
+            "service"
         )
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: "Internal Server Error", outputText: nil
             ),
-            .runServiceUnavailable
+            "service"
         )
     }
 
     func testClassifierUnknownFallsToGeneric() {
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: "something unexpected happened",
                 outputText: nil
             ),
-            .runFailedGeneric
+            "generic"
         )
         XCTAssertEqual(
-            RunFailureClassifier.classify(
-                errorText: nil, outputText: nil
-            ),
-            .runFailedGeneric
+            classifyTag(errorText: nil, outputText: nil), "generic"
         )
         XCTAssertEqual(
-            RunFailureClassifier.classify(
-                errorText: "", outputText: ""
-            ),
-            .runFailedGeneric
+            classifyTag(errorText: "", outputText: ""), "generic"
         )
     }
 
@@ -106,11 +122,11 @@ final class BasicsStopgapTests: XCTestCase {
     /// 数 15000）不得误判成服务端错误
     func testClassifierStatusCodeNeedsDigitBoundary() {
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: "usage 15000 tokens, aborted",
                 outputText: nil
             ),
-            .runFailedGeneric
+            "generic"
         )
     }
 
@@ -118,11 +134,11 @@ final class BasicsStopgapTests: XCTestCase {
     /// 时按最该用户处理的一档呈现）
     func testClassifierBillingWinsOverOthers() {
         XCTAssertEqual(
-            RunFailureClassifier.classify(
+            classifyTag(
                 errorText: "402 payment required after timeout, 500",
                 outputText: nil
             ),
-            .runBillingExhausted
+            "billing"
         )
     }
 
@@ -133,7 +149,7 @@ final class BasicsStopgapTests: XCTestCase {
         let failure = RunFailureClassifier.classify(
             errorText: "402 \(secret) rejected", outputText: nil
         )
-        XCTAssertEqual(failure, .runBillingExhausted)
+        XCTAssertEqual(tag(of: failure), "billing")
         XCTAssertFalse(failure.userMessage.contains(secret))
         XCTAssertEqual(
             HermesError.runBillingExhausted.userMessage,
