@@ -120,8 +120,12 @@ final class DeviceSessionController {
         .health: false,
         .home: false,
     ]
-    /// 设备会话是否在线（通道态，非「智能体可调用」）
-    private(set) var sessionOnline = false
+    /// 设备会话是否在线（通道态，非「智能体可调
+    /// 用」）：由状态机相位派生、单一事实源。历史
+    /// 上注册回调里无条件置真——状态机没给出 .poll
+    /// 时 App 也自报在线（2026-11-13 实案的假阳
+    /// 性），故不再单独存这个旗标
+    var sessionOnline: Bool { machine.isOnline }
     /// 会话层最近一次错误人话（注册失败等；调用级错
     /// 误走调用日志，不混进这里）
     private(set) var sessionError: String?
@@ -171,7 +175,6 @@ final class DeviceSessionController {
         heartbeatTask = nil
         let wasOnline = machine.sessionID
         _ = machine.handle(.disconnectRequested)
-        sessionOnline = false
         if let config, let wasOnline {
             Task { await client.disconnect(config: config, sessionId: wasOnline) }
         }
@@ -292,7 +295,6 @@ final class DeviceSessionController {
                 let action = self.machine.handle(
                     .registered(sessionID: grant.sessionId)
                 )
-                self.sessionOnline = true
                 self.sessionError = nil
                 if action == .poll {
                     self.beginPoll(sessionId: grant.sessionId)
@@ -300,11 +302,9 @@ final class DeviceSessionController {
                 }
             } catch let error as DeviceBridgeError {
                 _ = self.machine.handle(.registrationFailed)
-                self.sessionOnline = false
                 self.sessionError = Self.errorLine(error)
             } catch {
                 _ = self.machine.handle(.registrationFailed)
-                self.sessionOnline = false
                 self.sessionError = L10n.string("设备会话注册失败")
             }
         }
@@ -341,25 +341,51 @@ final class DeviceSessionController {
                         DeviceCallLogStore.record(entry)
                         self.lastCallEntries[source] = entry
                     }
-                    try? await self.client.respond(
-                        config: config, sessionId: sessionId,
-                        callId: call.callId, result: result, error: error
-                    )
+                    do {
+                        try await self.client.respond(
+                            config: config, sessionId: sessionId,
+                            callId: call.callId, result: result,
+                            error: error
+                        )
+                    } catch is CancellationError {
+                        // 轮询环被重注册/断开取消：不是回
+                        // 执失败，不留痕
+                    } catch {
+                        // 回执没送达＝桥侧永远等不到结果：
+                        // 不许 try? 静默吞——落调用日志让
+                        // 失败显形（如执行期重注册后拿旧会
+                        // 话回执、被桥回 404 的放大项）
+                        if let source = DeviceToolRegistry
+                            .spec(call.tool)?.source {
+                            let entry = DeviceCallLogEntry(
+                                tool: call.tool, source: source,
+                                at: Date().timeIntervalSince1970,
+                                succeeded: false,
+                                errorCode: Self.respondErrorCode(
+                                    error
+                                )
+                            )
+                            DeviceCallLogStore.record(entry)
+                            self.lastCallEntries[source] = entry
+                        }
+                    }
                     _ = self.machine.handle(.respondFinished)
                 } catch is CancellationError {
                     return
                 } catch DeviceBridgeError.unknownSession {
                     // 会话被顶替/过期：状态机回注册
                     _ = self.machine.handle(.pollUnknownSession)
-                    self.sessionOnline = false
                     self.beginRegister()
                     return
                 } catch let error as DeviceBridgeError {
                     switch error {
                     case .noKey, .unauthorized:
-                        // 钥匙问题不是抖动：停轮询、如实露
+                        // 钥匙问题不是抖动：停轮询、如实露。
+                        // 相位推回 offline 让派生的在线旗标
+                        // 跟着落下（桥侧会话不可用、同钥回
+                        // 执也会被拒，不另发 disconnect）
                         self.sessionError = Self.errorLine(error)
-                        self.sessionOnline = false
+                        _ = self.machine.handle(.disconnectRequested)
                         return
                     default:
                         try? await Task.sleep(for: .seconds(3))
@@ -387,11 +413,25 @@ final class DeviceSessionController {
                 )) ?? true
                 if !alive {
                     _ = self.machine.handle(.pollUnknownSession)
-                    self.sessionOnline = false
                     self.beginRegister()
                     return
                 }
             }
+        }
+    }
+
+    /// 回执失败落调用日志的错误码（与 DeviceToolError
+    /// .code 同为 snake_case 纪律，respond_ 前缀点明坏
+    /// 在回执段而非执行段）
+    private static func respondErrorCode(_ error: Error) -> String {
+        guard let bridgeError = error as? DeviceBridgeError else {
+            return "respond_failed"
+        }
+        switch bridgeError {
+        case .noKey: return "respond_no_key"
+        case .unauthorized: return "respond_unauthorized"
+        case .unknownSession: return "respond_unknown_session"
+        case .failed: return "respond_failed"
         }
     }
 

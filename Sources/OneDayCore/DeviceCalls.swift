@@ -471,6 +471,21 @@ public struct DeviceSessionMachine: Equatable, Sendable {
         case (.registering, .registered(let id)):
             phase = .active(sessionID: id)
             return .poll
+        case (.active, .registered(let id)):
+            // 在线中重注册（权限/开关变化刷新桥侧快照
+            // 的设计内高频路径）：桥已用新会话顶替旧会
+            // 话，必须迁到新 id 并重启轮询——本组合曾
+            // 落 default 被丢弃、新会话双环永不重启，
+            // 45 秒后被桥判离线（2026-11-13 实案定因）
+            phase = .active(sessionID: id)
+            return .poll
+        case (.executing(_, let callID), .registered(let id)):
+            // 执行期重注册同理迁 id：在途调用的回执由
+            // 轮询环自带会话 id 发出、成败落调用日志；
+            // 状态机保留 callID，respondFinished 仍落
+            // 回新会话的 active 继续轮询（回执路径不断）
+            phase = .executing(sessionID: id, callID: callID)
+            return .poll
         case (.registering, .registrationFailed):
             phase = .offline
             return .none
