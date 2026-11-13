@@ -30,13 +30,15 @@ import UIKit
 ///   识别器自身的移动容差决定（拖动超容差自动失
 ///   败、不会在滑动结束时误收键盘）。
 ///
-/// 装配：零尺寸桥视图挂在 ScrollView 的 .back-
-/// ground 位入树，自其层级 ascend 找 UIScrollView
-/// 本体安装；ascend 不中时以窗口子树内帧吻合者兜
-/// 底（两路都只认「包含桥视图且帧与其一致」的滚
-/// 动视图，防误装到抽屉等其他滚动面）。识别器以
-/// name 标记防重复安装（body 重建/桥视图重挂不
-/// 叠装）。
+/// 装配：零尺寸桥视图挂在消息栈（LazyVStack）
+/// 的 .background 位入树——内容在滚动视图子树
+/// 内，自其层级 ascend 一步直达 UIScrollView 本
+/// 体安装。首版挂 ScrollView 自身的 background
+/// （与滚动视图是同父兄弟）靠窗口内帧重叠＋亲
+/// 缘选面，两度被同帧候选骗走（装到他面），已
+/// 废；窗口选面只留作 ascend 万一不中时的兜底。
+/// 识别器以 name 标记防重复安装（body 重建/桥
+/// 视图重挂不叠装）。
 struct ScrollViewTapDismissInstaller: UIViewRepresentable {
     /// 收键盘动作的既有通道（与旧祖先 tap 同一出
     /// 口：句柄直达输入舱文本视图 resign）

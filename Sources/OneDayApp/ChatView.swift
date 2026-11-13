@@ -2240,6 +2240,17 @@ struct ChatView: View {
             // ＋不过滤文本视图的 Composer 本体不在
             // 其辖区内。栈帧撑满（minHeight）是布局
             // 不是手势、原样保留
+            .background {
+                // 装配点（修正）：桥视图挂本栈背景
+                // ——内容在滚动视图子树内，安装器
+                // ascend 一步直达 UIScrollView 本
+                // 体；首版挂 ScrollView 自身的
+                // background（兄弟位）靠窗口选面
+                // 两度被同帧候选骗走，已废
+                ScrollViewTapDismissInstaller(
+                    focusHandle: composerFocusHandle
+                )
+            }
         }
         // §195（2026-11-13）：顶栏注册退役——顶簇迁
         // TopBarGuideHost 锚定托管（chatSurface 的
@@ -2286,17 +2297,6 @@ struct ChatView: View {
         // 调以本列表为原点读帧（见栈内尾锚注）——只命
         // 名、不改任何布局与滚动行为
         .coordinateSpace(name: "chatListViewport")
-        // 第五症：点空白收键盘的 UIKit 点按识别器装
-        // 配点（ScrollViewTapDismiss）——零尺寸桥视
-        // 图自本列表的背景位入树、ascend 定位底层
-        // UIScrollView 本体安装识别器；辖区与过滤
-        // 口径见栈内退役注与该文件头
-        .background {
-            ScrollViewTapDismissInstaller(
-                focusHandle: composerFocusHandle
-            )
-        }
-
         // 0.36.27（§97 件二，用户 03:48 点题「输入框
         // 上面有点大，小点就行」）：列表底边距收一档
         // spacingS 8 → spacingXS 4，与 inputBar 顶
