@@ -136,14 +136,16 @@ public enum SectionVisibilityState {
     }
 }
 
-/// 抽屉四区的渲染合成（§198 规格 §2.2 第 6 条）：每
-/// 区呈现＝显隐账 ∧ 内容闸——只有频道区有内容闸
-/// （全量分类的频道成员 ≥1；计数改读与全部对话页频
-/// 道段同源的全量集，不再是开抽屉的 100 条名单窗
-/// 口，见题一）；管理行无内容闸、只由自家账管（它
-/// 随选项卡组折叠，但显隐不挂导航账——管理面四条
-/// 目各自独立）；导航与旁聊无内容闸。呈现层只消费
-/// 本结果排版，不许私算合成
+/// 抽屉四区的渲染合成（§198 规格 §2.2 第 6 条）：
+/// 每区呈现只认显隐账。频道区旧有内容闸（全量分
+/// 类的频道成员 ≥1 才显）于 2026-11-13 频道扩展
+/// 一期退役——新口径是清单恒显：支持的平台都列
+/// （含未配对行与冻结行），区里有没有会话不再决
+/// 定整区在不在（规格 §4.1 覆盖 0.36.29「通一个
+/// 显一个」）；用户仍可在分区管理里整区隐藏。管
+/// 理行只由自家账管（它随选项卡组折叠，但显隐不
+/// 挂导航账——管理面四条目各自独立）；导航与旁聊
+/// 同理。呈现层只消费本结果排版，不许私算合成
 public struct DrawerSectionGates: Equatable, Sendable {
     public let navigation: Bool
     public let channels: Bool
@@ -161,7 +163,7 @@ public struct DrawerSectionGates: Equatable, Sendable {
     }
 
     public static func resolve(
-        visibility: [String: Bool], hermesChannelCount: Int
+        visibility: [String: Bool]
     ) -> DrawerSectionGates {
         DrawerSectionGates(
             navigation: SectionVisibilityState.isVisible(
@@ -169,7 +171,7 @@ public struct DrawerSectionGates: Equatable, Sendable {
             ),
             channels: SectionVisibilityState.isVisible(
                 key: DrawerSectionKey.channels, in: visibility
-            ) && hermesChannelCount >= 1,
+            ),
             manage: SectionVisibilityState.isVisible(
                 key: DrawerSectionKey.manage, in: visibility
             ),

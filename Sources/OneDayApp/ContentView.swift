@@ -152,12 +152,20 @@ struct ContentView: View {
     /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
     /// 理全部对话」行置位，全屏页自带导航栈呈现
     @State private var showAllConversations = false
-    /// Hermes 频道页呈现（0.36.29，频道规格 §4.1）：
-    /// 抽屉频道行置位，全屏页承载与管理页同通道（本
-    /// 层 fullScreenCover）；管理页频道段的同名行走
+    /// 频道页呈现（0.36.29，频道规格 §4.1；2026-11
+    /// -13 频道一期扩为按频道 id 路由）：抽屉频道行
+    /// 置位，全屏页承载与管理页同通道（本层
+    /// fullScreenCover）；Hermes 走 HermesChannel-
+    /// View，平台频道走 ChannelEntryView（内部分发
+    /// 频道页/配对引导页）；管理页频道段的同名行走
     /// 管理页内部呈现，目的地是同一个 HermesChannel-
     /// View，不许两套频道页
-    @State private var showHermesChannel = false
+    @State private var channelRoute: ChannelRoute?
+
+    /// 频道路由值（fullScreenCover item 承载）
+    private struct ChannelRoute: Identifiable {
+        let id: String
+    }
     /// 设置 sheet 呈现（0.20.0 第六条）：抽屉齿轮经
     /// AppState.settingsSheetRequested 置位、本层消费
     /// 呈现；设置页本体内带大标题＋圆 X 头（照 Muse
@@ -169,7 +177,7 @@ struct ContentView: View {
             selection: $selection,
             presented: appState.drawerPresented,
             onManageAll: { showAllConversations = true },
-            onOpenChannel: { showHermesChannel = true }
+            onOpenChannel: { channelRoute = ChannelRoute(id: $0) }
         ) {
             tabView
         }
@@ -206,16 +214,33 @@ struct ContentView: View {
         }
         // 0.36.29：Hermes 频道页（抽屉频道行入口）；
         // 页内打开会话与管理页同走法（关页＋切聊天格
-        // ＋续聊通道，频道标记由频道页点行时已置位）
-        .fullScreenCover(isPresented: $showHermesChannel) {
-            HermesChannelView(
-                onOpenSession: { id in
-                    showHermesChannel = false
-                    selection = .chat
-                    appState.pendingChatSessionID = id
-                },
-                onClose: { showHermesChannel = false }
-            )
+        // ＋续聊通道，频道标记由频道页点行时已置位）。
+        // 2026-11-13 频道一期：同一封皮按 id 分发——
+        // Hermes 本体走原频道页，平台频道走入口分发
+        // 器（已配对直达频道页、未配对落引导页）
+        .fullScreenCover(item: $channelRoute) { route in
+            if route.id == ChannelRegistry.hermesChannelID {
+                HermesChannelView(
+                    onOpenSession: { id in
+                        channelRoute = nil
+                        selection = .chat
+                        appState.pendingChatSessionID = id
+                    },
+                    onClose: { channelRoute = nil }
+                )
+            } else if let descriptor = ChannelRegistry.descriptor(
+                for: route.id
+            ) {
+                ChannelEntryView(
+                    channel: descriptor,
+                    onOpenSession: { id in
+                        channelRoute = nil
+                        selection = .chat
+                        appState.pendingChatSessionID = id
+                    },
+                    onClose: { channelRoute = nil }
+                )
+            }
         }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
         // （ChatView 侧消费切换；含从其他格开抽屉的情形）

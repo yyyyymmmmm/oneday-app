@@ -50,6 +50,10 @@ struct AllConversationsView: View {
     /// 频道段 Hermes 行的频道页呈现（本页内 full-
     /// ScreenCover，与抽屉入口同目的地同组件）
     @State private var showHermesChannel = false
+    /// 平台频道页呈现（2026-11-13 频道一期）：频道
+    /// 段里有成员的平台行置位，目的地与抽屉入口同
+    /// 一 ChannelEntryView，不许两套平台频道页
+    @State private var presentedPlatformChannel: ChannelDescriptor?
     @State private var searchText = ""
     @State private var searchResults: [SessionSearchHit] = []
     @State private var searching = false
@@ -240,6 +244,18 @@ struct AllConversationsView: View {
                     onOpenSession(id)
                 },
                 onClose: { showHermesChannel = false }
+            )
+        }
+        // 2026-11-13 频道一期：平台频道行（频道段）
+        // 的入口分发器，与抽屉入口同一目的地
+        .fullScreenCover(item: $presentedPlatformChannel) { descriptor in
+            ChannelEntryView(
+                channel: descriptor,
+                onOpenSession: { id in
+                    presentedPlatformChannel = nil
+                    onOpenSession(id)
+                },
+                onClose: { presentedPlatformChannel = nil }
             )
         }
         .alert(
@@ -452,7 +468,23 @@ struct AllConversationsView: View {
     /// 频道段（0.36.29 替代旧外部空态段）：频道总览
     /// ——Hermes 行带会话数小字（本页是分页拉全口
     /// 径，数可信，与抽屉行不给数分工，规格 §5.1）；
-    /// 外部频道将来在此加行
+    /// 2026-11-13 频道一期：有成员的平台频道在此续
+    /// 行（同口径带数），点开与抽屉同一入口分发器
+    private var platformChannelRows: [ChannelDescriptor] {
+        let order = ChannelRegistry.drawerList.map(\.id)
+        return partition.channels
+            .filter { $0.key != ChannelRegistry.hermesChannelID
+                && !$0.value.isEmpty }
+            .keys
+            .sorted { a, b in
+                let ia = order.firstIndex(of: a) ?? Int.max
+                let ib = order.firstIndex(of: b) ?? Int.max
+                if ia != ib { return ia < ib }
+                return a < b
+            }
+            .compactMap { ChannelRegistry.descriptor(for: $0) }
+    }
+
     private var channelsContent: some View {
         List {
             migrationSection
@@ -489,6 +521,39 @@ struct AllConversationsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.odPressable)
+                ForEach(platformChannelRows) { descriptor in
+                    Button {
+                        presentedPlatformChannel = descriptor
+                    } label: {
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            if let asset = descriptor.iconAssetName {
+                                Image(asset)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 40, height: 40)
+                                    .accessibilityHidden(true)
+                            }
+                            VStack(alignment: .leading, spacing: OneDayMetrics.stackGap) {
+                                Text(descriptor.name)
+                                    .font(.rowTitle)
+                                    .foregroundStyle(Palette.ink)
+                                    .lineLimit(1)
+                                Text("\(partition.channels[descriptor.id]?.count ?? 0) 条会话")
+                                    .font(.captionText)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(Palette.inkMuted)
+                                .accessibilityHidden(true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.odPressable)
+                }
             }
         }
         .listStyle(.plain)

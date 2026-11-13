@@ -53,12 +53,19 @@ import SwiftUI
 /// - §198（抽屉包）三题：①频道显行闸改全量同源——
 ///   计数改读共享全量目录（ServerSessionCatalog，
 ///   与全部对话页频道段同份可见集），0.36.29 的窗
-///   口共用口径退役（见 drawerFullPartition 注）；
+///   口共用口径退役（该闸已于频道扩展一期整体退
+///   役，见 sectionGates 注）；
 ///   ②管理行并入选项卡组作第六行＋新建分区管理面
 ///   （设置→侧边栏，四区显隐账）；③分割线统一口
 ///   径 R1–R10（线属边界、挂下行组头、与折叠态无
 ///   关），结构见 drawerNavList 注、账本见 DESIGN
 ///   §198。
+/// - 频道扩展一期（2026-11-13）：频道区改恒显清
+///   单（Hermes＋Telegram＋微信冻结行，注册表
+///   drawerList）——成员内容闸退役、整区只认显隐
+///   账；未配对行带状态小字＋chevron（本区唯一带
+///   chevron 的行形态），状态来自伴生频道桥回读
+///   （ChannelStatusStore），读不到不猜、行尾留空。
 /// - 承载沿 0.17.0：壳层（ContentView.DrawerShell）
 ///   以覆盖形态自左滑入盖在静止内容之上（§156 订
 ///   正：覆盖式壳层已退役，本面改由 UIKit 抽屉容
@@ -606,42 +613,26 @@ struct DrawerView: View {
 
     // MARK: - 频道区（0.36.29，频道规格 §3）
 
-    /// 频道显行闸的全量分类（§198 题一修复）：改读
-    /// 共享全量目录（ServerSessionCatalog——全部对
-    /// 话页分页拉全的同份可见集）现算，不再共用开
-    /// 抽屉那一路 limit 100 名单窗口。旧口径的病已
-    /// 实证：窗口被机器会话占满时频道成员恒 0、整区
-    /// 永不显（生产实查最近 100 条里 98 条探针会话、
-    /// 真频道成员 25 条全在窗口外，审计 drawer-
-    /// sections-dividers-audit-20261113 §1）——0.36.29
-    /// 规格 §8-5 自注的「超 100 漏判」就此销账。分
-    /// 类入参与管理页 partition 逐字同源（同分类器
-    /// ＋同主线钦定＋同本地关联集），两面计数恒等
-    private var drawerFullPartition: SessionPartition {
-        SessionClassifier.partition(
-            sessions: appState.serverSessionCatalog.visibleSessions,
-            mainServerSessionID: appState.sideChats.mainServerSessionID,
-            linkedThreadSessionIDs: ThreadLinkage.nonMainLinkedSessionIDs(
-                threads: threads, sideChats: appState.sideChats
-            )
-        )
-    }
-
-    /// 四区渲染合成（§198）：显隐账（分区管理面）∧
-    /// 内容闸（只有频道区有：全量频道成员 ≥1，合并
-    /// 桶计入）走 Core DrawerSectionGates 唯一口径，
-    /// 本面只消费结论排版、不私算
+    /// 四区渲染合成（§198＋2026-11-13 频道一期）：
+    /// 只认显隐账（分区管理面）——频道区的成员内容
+    /// 闸已退役（恒显清单：未配对行与冻结行靠整区
+    /// 常在才有地方站），合成走 Core DrawerSection-
+    /// Gates 唯一口径，本面只消费结论排版、不私算
     private var sectionGates: DrawerSectionGates {
         DrawerSectionGates.resolve(
             visibility: SectionVisibilityState.decode(
                 drawerVisibilityData
-            ),
-            hermesChannelCount: drawerFullPartition.hermesChannelCount
+            )
         )
     }
 
-    /// 频道区：一期只有 Hermes 一行（注册表派生，
-    /// 外部频道未通不占位——通一个显一个）
+    /// 频道配对状态（频道扩展一期）：行尾状态小字
+    /// 的唯一来源——伴生频道桥回读，本面出现时拉
+    /// 一次；读不到时状态为空、行尾不编词
+    @State private var channelStatusStore = ChannelStatusStore()
+
+    /// 频道区：恒显清单（注册表 drawerList：Hermes
+    /// ＋Telegram＋微信冻结行）
     @ViewBuilder
     private var drawerChannelSection: some View {
         drawerCollapsibleHeader(
@@ -650,32 +641,42 @@ struct DrawerView: View {
         drawerCollapsibleContent(
             collapsed: drawerSectionCollapsed(DrawerSectionKey.channels)
         ) {
-            ForEach(ChannelRegistry.phaseOne) { channel in
+            ForEach(ChannelRegistry.drawerList) { channel in
                 drawerChannelRow(channel)
             }
+        }
+        .task {
+            await channelStatusStore.load(appState: appState)
         }
     }
 
     /// 频道行（规格 §3.2＋对 Muse 抽屉对图改平）：
     /// 与导航行完全同构的平排——图标槽＋标题 Body
     /// 17＋drawerRowHeight，选中才带与导航行同式
-    /// 的胶囊；无卡片底、无 chevron（Muse 频道行
-    /// §157③：行高与标题角色随导航行同批改导航簇档
-    /// 54＋抽屉局部角色（见 drawerNavRow 注），同构
-    /// 关系不变；本行展示名（Hermes）本批不动——改
-    /// 名涉三层命名口径，留待用户拍板（见 §157 记账）
-    /// 与普通行同构，宪法 §7）；**不给计数徽标**
-    /// （抽屉拉取口径与全量不一致，挂数即埋假新
-    /// 鲜，S7 纪律）；图标用注册表资产（Hermes＝
-    /// 0.36.3 登记的本机服务定制图面 LocalHermes），
-    /// 资产本体落字形档 21 居中于 30 槽内、与导航
-    /// 行 SF 字形同尺寸——旧落法资产填满 30 槽，
-    /// 实色方块比线形字形重一圈，是真机截图里本
-    /// 行「卡片感」的主源，本包改平（见 DESIGN
-    /// §101）；选中态问单一选择政策（.channel 命
-    /// 中才带胶囊）
+    /// 的胶囊；无卡片底（Muse 频道行 §157③：行高
+    /// 与标题角色随导航行同批改导航簇档 54＋抽屉局
+    /// 部角色（见 drawerNavRow 注），同构关系不变；
+    /// 本行展示名（Hermes）本批不动——改名涉三层命
+    /// 名口径，留待用户拍板（见 §157 记账），宪法
+    /// §7）；**不给计数徽标**（抽屉拉取口径与全量
+    /// 不一致，挂数即埋假新鲜，S7 纪律）；图标用注
+    /// 册表资产（品牌频道＝官方原图，宪法 §4；无资
+    /// 产的平台不许拿 SF 符号代用上行——注册表
+    /// drawerList 只收有资产的行），资产本体落字形
+    /// 档 21 居中于 30 槽内、与导航行 SF 字形同尺
+    /// 寸——旧落法资产填满 30 槽，实色方块比线形字
+    /// 形重一圈，是真机截图里本行「卡片感」的主源，
+    /// 本包改平（见 DESIGN §101）；选中态问单一选
+    /// 择政策（.channel 命中才带胶囊）。
+    /// 2026-11-13 频道一期行尾新形态：已配对行与
+    /// Hermes 行同尾（空）；未配对/连接中/连接失败
+    /// 行带状态小字＋chevron（本区唯一带 chevron 的
+    /// 行，进配对引导页）；冻结行（微信）只带「暂
+    /// 不可用」小字、无 chevron（点开是说明页）。
+    /// 状态读不到时小字留空，不编词
     private func drawerChannelRow(_ channel: ChannelDescriptor) -> some View {
         let selected = drawerSelection == .channel(channel.id)
+        let accessory = drawerChannelAccessory(channel)
         return Button {
             onClose()
             onOpenChannel(channel.id)
@@ -715,6 +716,17 @@ struct DrawerView: View {
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if let word = accessory.word {
+                    Text(word)
+                        .font(.captionText)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                if accessory.chevron {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Palette.inkMuted)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
@@ -732,10 +744,48 @@ struct DrawerView: View {
         }
         .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
-        .accessibilityLabel(channel.name)
+        .accessibilityLabel(
+            accessory.word.map { "\(channel.name)，\($0)" }
+                ?? channel.name
+        )
         // 0.43.0（A11Y-V5）：选中态只靠胶囊底色——
         // 补已选特征，VO 不靠颜色辨当前频道
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    /// 频道行尾件（频道扩展一期）：状态小字＋chevron
+    /// 的唯一裁决处。Hermes 行恒空尾；已配对平台同
+    /// 空尾（与 Hermes 行同形态）；冻结行只有小字；
+    /// 令牌型未配对/等待生效/失败带小字＋chevron；
+    /// 状态未回（未加载/读取失败）时只有 chevron
+    /// （目的地是入口页、会在页内把状态说清）
+    private func drawerChannelAccessory(
+        _ channel: ChannelDescriptor
+    ) -> (word: String?, chevron: Bool) {
+        switch ChannelRegistry.pairingKind(for: channel.id) {
+        case .none:
+            return (nil, false)
+        case .frozen:
+            return (L10n.string("暂不可用"), false)
+        case .qr:
+            return (L10n.string("未配对"), true)
+        case .token:
+            guard let status = channelStatusStore.status(
+                for: channel.id
+            ) else {
+                return (nil, true)
+            }
+            switch status.state {
+            case "connected":
+                return (nil, false)
+            case "pending_restart":
+                return (L10n.string("连接中"), true)
+            case "error":
+                return (L10n.string("连接失败"), true)
+            default:
+                return (L10n.string("未配对"), true)
+            }
+        }
     }
 
     // MARK: - 旁聊区（0.19.0 返工，22:45 纠正口径）

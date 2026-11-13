@@ -7709,6 +7709,28 @@
         }
       }
     },
+    "你的 Telegram 数字 ID（可不填）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Telegram numeric ID (optional)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 Telegram 数字 ID（可不填）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 Telegram 數字 ID（可不填）"
+          }
+        }
+      }
+    },
     "你的原话": {
       "extractionState": "manual",
       "localizations": {
@@ -14310,6 +14332,28 @@
         }
       }
     },
+    "去频道看看": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View channel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去频道看看"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去頻道看看"
+          }
+        }
+      }
+    },
     "参数": {
       "extractionState": "manual",
       "localizations": {
@@ -17139,6 +17183,28 @@
         }
       }
     },
+    "在 Telegram 里打开 @BotFather，按它的提示建一个机器人。建好后它会给你一串连接钥匙——那是这个机器人的钥匙，不是你的账号密码。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open @BotFather in Telegram and follow its prompts to create a bot. It will give you a connection key — that's the bot's key, not your account password."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Telegram 里打开 @BotFather，按它的提示建一个机器人。建好后它会给你一串连接钥匙——那是这个机器人的钥匙，不是你的账号密码。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Telegram 裡開啟 @BotFather，按它的提示建一個機器人。建好後它會給你一串連接鑰匙——那是這個機器人的鑰匙，不是你的帳號密碼。"
+          }
+        }
+      }
+    },
     "在云电脑运行命令": {
       "extractionState": "manual",
       "localizations": {
@@ -17480,6 +17546,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "地址看起來不對"
+          }
+        }
+      }
+    },
+    "填了 ID，就只有你能跟这个机器人说话。在 Telegram 里给 @userinfobot 发任意一句话，它就会回你的 ID。不填也能先连上，之后再补。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With your ID filled in, only you can talk to this bot. Send any message to @userinfobot in Telegram and it will reply with your ID. You can connect without it and add it later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填了 ID，就只有你能跟这个机器人说话。在 Telegram 里给 @userinfobot 发任意一句话，它就会回你的 ID。不填也能先连上，之后再补。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填了 ID，就只有你能跟這個機器人說話。在 Telegram 裡給 @userinfobot 發任意一句話，它就會回你的 ID。不填也能先連上，之後再補。"
           }
         }
       }
@@ -24301,6 +24389,28 @@
         }
       }
     },
+    "已配对": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paired"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已配对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已配對"
+          }
+        }
+      }
+    },
     "已配置": {
       "extractionState": "manual",
       "localizations": {
@@ -24508,6 +24618,160 @@
         }
       }
     },
+    "微信个人号": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personal WeChat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微信个人号"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微信個人號"
+          }
+        }
+      }
+    },
+    "微信个人号现在还接不进来。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personal WeChat accounts can't be connected yet."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微信个人号现在还接不进来。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微信個人號現在還接不進來。"
+          }
+        }
+      }
+    },
+    "我们试过微信官方的机器人通道——就是之前试过的 ClawBot 同一套。它连进来的是一个机器人账号，不是你自己的微信号，连接也不稳定。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We tried WeChat's official bot channel — the same one behind the ClawBot we tested before. It connects a bot account, not your own WeChat account, and the connection isn't stable."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我们试过微信官方的机器人通道——就是之前试过的 ClawBot 同一套。它连进来的是一个机器人账号，不是你自己的微信号，连接也不稳定。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我們試過微信官方的機器人通道——就是之前試過的 ClawBot 同一套。它連進來的是一個機器人帳號，不是你自己的微信號，連接也不穩定。"
+          }
+        }
+      }
+    },
+    "所以这一行先停在这里。等微信那边有正式的个人号通道，我们再把它打开。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "So this row stays parked for now. When WeChat offers a proper channel for personal accounts, we'll switch it on."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所以这一行先停在这里。等微信那边有正式的个人号通道，我们再把它打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所以這一列先停在這裡。等微信那邊有正式的個人號通道，我們再把它打開。"
+          }
+        }
+      }
+    },
+    "打开 @BotFather": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open @BotFather"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 @BotFather"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟 @BotFather"
+          }
+        }
+      }
+    },
+    "把连接钥匙贴在这里": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste the connection key here"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把连接钥匙贴在这里"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把連接鑰匙貼在這裡"
+          }
+        }
+      }
+    },
+    "按下面三步连上，几分钟就好。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow the three steps below — it takes just a few minutes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下面三步连上，几分钟就好。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下面三步連上，幾分鐘就好。"
+          }
+        }
+      }
+    },
     "断开只摘掉这边的登记与保存的登录信息。": {
       "extractionState": "manual",
       "localizations": {
@@ -24531,6 +24795,138 @@
         }
       }
     },
+    "暂时读不到状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't read the status right now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时读不到状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時讀不到狀態"
+          }
+        }
+      }
+    },
+    "服务器下一次重启后就会自动连上，这期间不用你再做什么。连上之后，抽屉里这一行会变成已配对的样子。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It will connect automatically the next time the server restarts — there's nothing you need to do. Once connected, this row in the drawer will show as paired."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器下一次重启后就会自动连上，这期间不用你再做什么。连上之后，抽屉里这一行会变成已配对的样子。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器下一次重啟後就會自動連上，這期間不用你再做什麼。連上之後，抽屜裡這一列會變成已配對的樣子。"
+          }
+        }
+      }
+    },
+    "未配对": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not paired"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未配对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未配對"
+          }
+        }
+      }
+    },
+    "检查一下钥匙，按下面三步重新连接。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the key, then reconnect using the three steps below."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查一下钥匙，按下面三步重新连接。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查一下鑰匙，按下面三步重新連接。"
+          }
+        }
+      }
+    },
+    "正在读取状态…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading status…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取状态…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取狀態…"
+          }
+        }
+      }
+    },
+    "正在连接…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在连接…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在連接…"
+          }
+        }
+      }
+    },
     "登录信息只发给你的服务端保存，App 不留存；连上之后，装代理、接进智能体的事都由服务端处理。": {
       "extractionState": "manual",
       "localizations": {
@@ -24550,6 +24946,72 @@
           "stringUnit": {
             "state": "translated",
             "value": "登入資訊只會送到你自己的伺服器保存，App 不留存；連上之後，安裝代理、接進智慧代理的事都由伺服器處理。"
+          }
+        }
+      }
+    },
+    "第一步 · 拿连接钥匙": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 1 · Get the connection key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一步 · 拿连接钥匙"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一步 · 拿連接鑰匙"
+          }
+        }
+      }
+    },
+    "第三步 · 只认你一个人（可跳过）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 3 · Only you (optional)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第三步 · 只认你一个人（可跳过）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第三步 · 只認你一個人（可跳過）"
+          }
+        }
+      }
+    },
+    "第二步 · 贴钥匙": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step 2 · Paste the key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第二步 · 贴钥匙"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第二步 · 貼鑰匙"
           }
         }
       }
@@ -24596,6 +25058,292 @@
           "stringUnit": {
             "state": "translated",
             "value": "帳戶名稱（如 Administrator）"
+          }
+        }
+      }
+    },
+    "还没有连上服务器": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected to the server yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有连上服务器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有連上伺服器"
+          }
+        }
+      }
+    },
+    "还没配对": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not paired yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没配对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒配對"
+          }
+        }
+      }
+    },
+    "这个频道已经连上了。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This channel is connected."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个频道已经连上了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個頻道已經連上了。"
+          }
+        }
+      }
+    },
+    "这个频道里还没有对话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No conversations in this channel yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个频道里还没有对话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個頻道裡還沒有對話"
+          }
+        }
+      }
+    },
+    "连上之后，你在 Telegram 里给机器人发消息，就能和你的智能体聊天；对话会回到这里的频道里。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once connected, message the bot in Telegram to chat with your agent — the conversations come back to this channel here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连上之后，你在 Telegram 里给机器人发消息，就能和你的智能体聊天；对话会回到这里的频道里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連上之後，你在 Telegram 裡給機器人發訊息，就能和你的智能體聊天；對話會回到這裡的頻道裡。"
+          }
+        }
+      }
+    },
+    "连上之后，在那边开始的对话会出现在这里，点开就能接着聊。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once connected, conversations you start there will appear here — tap one to keep chatting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连上之后，在那边开始的对话会出现在这里，点开就能接着聊。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連上之後，在那邊開始的對話會出現在這裡，點開就能接著聊。"
+          }
+        }
+      }
+    },
+    "连接中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接中"
+          }
+        }
+      }
+    },
+    "连接失败": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接失敗"
+          }
+        }
+      }
+    },
+    "连接失败，请稍后再试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection failed. Please try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接失败，请稍后再试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接失敗，請稍後再試"
+          }
+        }
+      }
+    },
+    "配对结果返回格式无法识别": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The pairing response couldn't be read"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对结果返回格式无法识别"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配對結果返回格式無法識別"
+          }
+        }
+      }
+    },
+    "钥匙会直接发到你自己的服务器保存，这个 App 不留存。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key goes straight to your own server for safekeeping — this app doesn't keep a copy."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙会直接发到你自己的服务器保存，这个 App 不留存。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙會直接發到你自己的伺服器儲存，這個 App 不留存。"
+          }
+        }
+      }
+    },
+    "钥匙只存在你自己的服务器上，这个 App 不保存。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key lives only on your own server — this app doesn't store it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙只存在你自己的服务器上，这个 App 不保存。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙只存在你自己的伺服器上，這個 App 不保存。"
+          }
+        }
+      }
+    },
+    "钥匙已保存，等待生效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key saved, waiting to take effect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙已保存，等待生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙已儲存，等待生效"
           }
         }
       }
@@ -24734,6 +25482,116 @@
           "stringUnit": {
             "state": "translated",
             "value": "智慧代理可用的能力，可啟停"
+          }
+        }
+      }
+    },
+    "频道服务还没连上，请稍后再试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The channel service isn't reachable yet. Please try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "频道服务还没连上，请稍后再试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頻道服務還沒連上，請稍後再試"
+          }
+        }
+      }
+    },
+    "频道状态": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel status"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "频道状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頻道狀態"
+          }
+        }
+      }
+    },
+    "频道状态没读下来，请稍后再试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't load the channel status. Please try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "频道状态没读下来，请稍后再试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頻道狀態沒讀下來，請稍後再試"
+          }
+        }
+      }
+    },
+    "频道状态返回格式无法识别": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The channel status response couldn't be read"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "频道状态返回格式无法识别"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頻道狀態返回格式無法識別"
+          }
+        }
+      }
+    },
+    "频道配对": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel pairing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "频道配对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頻道配對"
           }
         }
       }
