@@ -77,7 +77,7 @@ final class SourceQuoteTests: XCTestCase {
 
     func testIdeaQuoteEmptyBodyForBareIdea() {
         let quote = IdeaQuote(
-            idea: idea(source: .manual, detail: "", evidence: ""),
+            idea: idea(detail: "", source: .manual, evidence: ""),
             locale: zh
         )
         XCTAssertEqual(quote.body, "")
@@ -121,7 +121,7 @@ final class SourceQuoteTests: XCTestCase {
 
     func testIdeaOutgoingBareIdeaIsHeaderOnly() {
         let quote = IdeaQuote(
-            idea: idea(source: .manual, detail: "", evidence: ""),
+            idea: idea(detail: "", source: .manual, evidence: ""),
             locale: zh
         )
         let out = IdeaQuote.outgoingContent(
@@ -295,7 +295,7 @@ final class SourceQuoteTests: XCTestCase {
                 + "\n\n" + body
         )
         let bare = IdeaChatPrefill.make(
-            idea: idea(source: .manual, detail: "", evidence: ""),
+            idea: idea(detail: "", source: .manual, evidence: ""),
             locale: zh
         )
         XCTAssertEqual(bare, "我们来聊聊这个点子：《双11 AI 会员购买清单》")
