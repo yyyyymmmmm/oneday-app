@@ -274,12 +274,16 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
         topSafe: Binding<CGFloat>,
         pocketHeight: Binding<CGFloat>,
         dockTop: Binding<CGFloat>,
+        keyboardFrame: Binding<KeyboardFrameUpdate?>,
+        windowHeight: Binding<CGFloat>,
         @ViewBuilder content: () -> Content
     ) {
         self._bottomSpace = bottomSpace
         self._topSafe = topSafe
         self._pocketHeight = pocketHeight
         self._dockTop = dockTop
+        self._keyboardFrame = keyboardFrame
+        self._windowHeight = windowHeight
         self.content = content()
     }
 
