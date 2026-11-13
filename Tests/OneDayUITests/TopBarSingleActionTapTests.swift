@@ -20,6 +20,17 @@ import XCTest
 /// - 间隙点（两元素帧间中点）：两面都不许升。
 /// 关闭路径：模型面下拉拖拽消散、枢纽点其页头
 /// ✕ 钮——都走生产自带关闭口，不借探针。
+///
+/// 结构断言同在本门（§198.6 整合）：进程内结
+/// 构门 TopBarClusterHitDomainTests 六轮全灭
+/// （生产装配页进程内查无障碍元素与 §184 进程
+/// 死亡族同签名；作用域改顶栏宿主子树后又证实
+/// 平台子视图遍历根本够不到宿主内的 SwiftUI
+/// 元素），间隔/命中盘宽/无融合元素三项结构事
+/// 实改在本门以同一份实帧判（开场违规项）；玻
+/// 璃不跨双域由构造（玻璃只在胶囊标签背景层、
+/// 头像钮无玻璃）＋本门归属全对共同证明。间隙
+/// 判点＝死带三点（中点 ±2，§198.6 定界）。
 final class TopBarSingleActionTapTests: XCTestCase {
 
     private enum Expect { case model, hub, none }
@@ -62,6 +73,27 @@ final class TopBarSingleActionTapTests: XCTestCase {
         )
         if capsuleEl.frame.minX - avatarEl.frame.maxX < 7.5 {
             violations.append("两元素间隔 <8pt")
+        }
+        if abs(avatarEl.frame.width - 44) > 1 {
+            violations.append(
+                "头像钮命中盘宽非 44：\(avatarEl.frame.width)")
+        }
+        // 融合元素检查：任一按钮的帧同时盖住两元
+        // 素中心＝双域被单一元素横跨（旧融域形态
+        // 的残留特征），出现即违规
+        let fused = app.buttons.allElementsBoundByIndex
+            .filter {
+                $0.frame.contains(CGPoint(
+                    x: capsuleEl.frame.midX,
+                    y: capsuleEl.frame.midY))
+                    && $0.frame.contains(CGPoint(
+                        x: avatarEl.frame.midX,
+                        y: avatarEl.frame.midY))
+            }
+        if !fused.isEmpty {
+            violations.append(
+                "存在横跨双域的融合元素："
+                    + "\(fused.map { fmt($0.frame) })")
         }
 
         let origin = app.windows.firstMatch.coordinate(

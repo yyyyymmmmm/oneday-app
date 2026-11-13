@@ -11146,6 +11146,7 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 - `Tests/OneDayAppTests/ShellBatch2/CapsuleHitTestScenarios.swift`——命中点表绑融域几何，退役。
 - `Tests/OneDayUITests/CapsuleTapDispatchUITests.swift`——被测装配为实验台（-CapsuleTapHarness），实验台退役后无被测对象。
 - `Sources/OneDayApp/CapsuleTapHarness.swift`（DEBUG 实验台）＋`OneDayApp` 内启动分支——实验台本体退役；动作级验证改打真 App 演示装配（见 198.4），不再需要 App 内实验分支。
+- 【续工加列，见 198.6】`Tests/OneDayAppTests/TopBarClusterHitDomainTests.swift`（本包新测）——进程内在生产装配页查无障碍元素六轮 CI 全灭（§184 进程死亡族同签名）且宿主子树作用域证实够不到 SwiftUI 元素，退役；其结构事实并入动作门 `TopBarSingleActionTapTests` 在 UI 进程判读，覆盖不减。
 
 ### 198.4 验收（双门，缺一不发）
 - **结构门（新）`TopBarClusterHitDomainTests`**（OneDayAppTests）：生产整页装配（RootView＋演示已连接态，与 ChatPageAssemblyRegressionTests 同装配——真实 TopBarGuideHost＋真实 ChatView 装配点，旧 safeAreaBar 脚手架的绿不算数）。不变量：①两元素都在、按钮型、帧不重叠、横向间隔 ≥8pt、头像命中盘 44、胶囊行高含 padding 环；②胶囊恰一片玻璃且覆盖全帧（宽/高 ≥帧−2，变窄回归守）；③无玻璃面同时压住两元素帧；④hitTest 取点归属——胶囊域 5 点只许命中胶囊帧内视图、头像域 5 点只许命中头像帧内视图、间隙点不许命中任一域内视图。
@@ -11154,3 +11155,13 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 
 ### 198.5 真机待验（随组版装机验）
 ①点顶栏头像（任意位置）开枢纽、点胶囊（任意位置）开模型面、点两者之间空隙无反应；②胶囊玻璃面与胶囊外形一致、不再比 0.50.26 窄一圈；③顶栏总高与栏位冻结值不冲突（pocket 仍恒 62、列表顶留位无跳变）；④深色模式与最大字号档各看一帧（头像钮状态点可辨、模型名截断不吞 chevron）。
+
+### 198.6 续工补记（2026-11-13 接手线）
+
+前任中断后由接手线盘点续工（盘点结论见 capsule-b-build-report-20261113.md）；§198.1–198.5 的形态与决策不变，以下三件为续工实测修订：
+
+**间隔 8→16pt（命中外溢定界）**：动作门初版 13 点里间隙中点连红三轮（run 43369981760／43372118468／43374263945 逐字同点 fired=model）。诊断轮（run 43378398732）加边界探针定界：距头像右缘 2pt 点 fired=hub、距胶囊左缘 2pt 与中点 fired=model、胶囊上缘外 4pt fired=model——**两钮的实际命中域都比无障碍帧外扩约 4pt**（无玻璃的头像钮同扩，排除玻璃机制；系平台对小控件的命中宽容）。8pt 间隔下两域在中点相接、无真死区。故顶簇隔断 8→16pt（OneDayMetrics.spacingM），中央留出 ≥7pt 死带；隔断自带空 onTapGesture 在本帧内吃点。动作门判点随之定界：死带三点（间隔中点 ±2）＋双域内点共 13 点；钮缘外 4pt 以内的宽容带属各钮自身、与相邻域无关，不作违规点。修订后动作门全过（终判 run 见下）。
+
+**结构门整合进动作门**：进程内结构门 TopBarClusterHitDomainTests（§198.3 新测之一）六轮 CI 全灭——生产同构装配页内同步查无障碍元素与 §184 进程死亡族同签名（无断言失败、进程死亡）。两轮硬化均未救活：快照单采＋沉降＋拆双用例仍死；收集作用域收进顶栏宿主子树后，run 43380616447 证实平台子视图遍历根本够不到宿主内的 SwiftUI 元素（命中归属用例以「模型胶囊无障碍元素未找到」出判、帧/玻璃用例仍进程死亡）。处置：该文件退役，其结构事实（间隔 ≥8、头像盘宽 44、无融合元素、命中归属）并入动作门、在 UI 进程以同一份实帧判读（开场违规项＋逐点归属）；玻璃不跨双域改由构造证明（玻璃只存在于 ModelCapsuleView 标签背景层、HubAvatarButton 无玻璃）＋动作门归属全对共同成立。§198.3「新测」列随之修正为只剩动作门一组，退役清单加列本文件与缘由。§198.4 中「结构门」读法以本节为准。
+
+**终判**：run 〈终轮回来后填实〉。
