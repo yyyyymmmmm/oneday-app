@@ -246,7 +246,15 @@ struct AllConversationsView: View {
             "删除所选会话？",
             isPresented: $showBatchDeleteConfirm
         ) {
-            Button("删除", role: .destructive) { runBatch(.delete) }
+            Button("删除", role: .destructive) {
+                // 触感矩阵（表 D）：删除确认落锤＝
+                // impact heavy；删除后不再叠 success
+                // （同一因果链只震一次）。与文件/交
+                // 付物/图片/富内容四面同式——本面批
+                // 量删除此前独缺，本包补齐
+                Haptics.impact(.heavy)
+                runBatch(.delete)
+            }
             Button("取消", role: .cancel) {}
         } message: {
             if selectionHasMergeBucket {
@@ -269,6 +277,9 @@ struct AllConversationsView: View {
             isPresented: $showPruneConfirm
         ) {
             Button("清理", role: .destructive) {
+                // 清理即批量删除旧会话，同属删除确认
+                // 落锤口径（表 D），与上方批量删除同式
+                Haptics.impact(.heavy)
                 Task { await runPrune(dryRun: false) }
             }
             Button("取消", role: .cancel) {}

@@ -223,7 +223,10 @@ struct IdeasView: View {
                 note: store.notes[idea.id]
             )
         }
-        .buttonStyle(.plain)
+        // 手感 A 档（全 App 普查 B1a）：整行补按压
+        // 反馈——与目标页同式走公用按压件；行点击
+        // 按表 D 防腻清单不配触感
+        .buttonStyle(.odPressable)
         .listRowBackground(Palette.pageBG)
         .contextMenu {
             if idea.status == .pending {
@@ -615,7 +618,10 @@ struct IdeaDetailView: View {
                     .frame(height: 48)
                     .background(Palette.primary, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                // 手感 A 档：页面主动作补按下态（公用
+                // 按压件）；采纳结果触感已由 IdeasStore
+                // 按表 D 落 success，此处不叠震
+                .buttonStyle(.odPressable)
                 .disabled(acting)
             } else if idea.isAdopted, idea.taskId != nil {
                 Button {
@@ -628,7 +634,8 @@ struct IdeaDetailView: View {
                         .frame(height: 48)
                         .background(Palette.primary, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                // 手感 A 档：与「开始吧」同式补按下态
+                .buttonStyle(.odPressable)
             }
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
