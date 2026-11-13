@@ -131,19 +131,47 @@ jobs:
           if ls crash-artifacts/*.ips >/dev/null 2>&1; then
             python3 .github/scripts/symbolicate_ips.py crash-artifacts/*.ips \
               | tee crash-artifacts/symbolication.txt || true
-            # 备援：lldb crashlog 脚本符号化（带超时与
-            # 断 stdin 防交互挂死）
-            CL=$(find "$(xcode-select -p)" -name "crashlog.py" \
+            # 备援一：lldb crashlog（脚本在 .app 的
+            # SharedFrameworks、不在 Developer 目录内，
+            # 找根须取整个 .app）
+            APPDIR=$(xcode-select -p | sed 's|/Contents/Developer$||')
+            CL=$(find "$APPDIR" -name "crashlog.py" \
               2>/dev/null | head -1)
+            echo "crashlog.py: ${CL:-<not found>}"
             if [ -n "$CL" ]; then
               for ips in crash-artifacts/*.ips; do
                 echo "===== lldb crashlog: $ips (script: $CL)"
-                timeout 180 xcrun lldb -b \
+                timeout 240 xcrun lldb -b \
                   -o "command script import $CL" \
                   -o "crashlog $ips" </dev/null 2>&1 \
                   | tee crash-artifacts/lldb-crashlog.txt || true
               done
             fi
+            # 备援二：运行时缓存点名——运行时框架只在
+            # dyld 共享缓存里（无独立文件），以缓存为
+            # lldb target 按镜像名＋偏移解析帧 0 等
+            VOL=$(ls -d /Library/Developer/CoreSimulator/Volumes/iOS_* \
+              2>/dev/null | sort -V | tail -1)
+            echo "runtime volume: ${VOL:-<none>}"
+            CACHE=""
+            if [ -n "$VOL" ]; then
+              CACHE=$(find "$VOL" -maxdepth 9 \
+                -name "dyld_shared_cache_arm64" 2>/dev/null | head -1)
+            fi
+            echo "shared cache: ${CACHE:-<none>}"
+            if [ -n "$CACHE" ]; then
+              timeout 420 xcrun lldb -b \
+                -o "target create $CACHE" \
+                -o "command script import .github/scripts/cache_symbolicate.py" \
+                -o "cache-sym SwiftData 502888 569200 645616" \
+                -o "cache-sym _SwiftData_SwiftUI 23828 24356" \
+                </dev/null 2>&1 \
+                | tee crash-artifacts/lldb-cache.txt || true
+            fi
+            # 设备侧报告扫尾（模拟器自身 ReportCrash 若
+            # 产出，符号通常齐全）——任意名全列
+            find ~/Library/Developer/CoreSimulator/Devices \
+              -name "*.ips" -mmin -240 2>/dev/null | head -20 || true
           fi
           true
 
