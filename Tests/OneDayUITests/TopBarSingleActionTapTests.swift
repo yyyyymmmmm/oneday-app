@@ -197,18 +197,27 @@ final class TopBarSingleActionTapTests: XCTestCase {
 
         // 页头另一件：分享钮与 ✕ 同在页头行（ShareLink
         // 在 AX 树里的元素类型不稳定，探针不限类型按标
-        // 签查；首轮 CI 实证 app.buttons 查不到它）
+        // 签查；首轮 CI 实证 app.buttons 查不到它）。
+        // 标签须三语并查：该文案在 Localizable.xcstrings
+        // 里有正式译文（en "Share agent card"／zh-Hant
+        // 「分享智慧代理名片」），CI 为 en 环境时 AX 标
+        // 签只剩英文——run 43401214968 唯一违规即栽于
+        // 此（shareKin=[]，与「取消→Cancel」同型坑）。
+        // 装配 0.50.29 探针稳健化：只动测试、不动产品码
+        let shareLabels = ["分享智能体名片", "分享智慧代理名片",
+                           "Share agent card"]
         let share = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label == '分享智能体名片'")
+            NSPredicate(format: "label IN %@", shareLabels)
         ).firstMatch
         if share.waitForExistence(timeout: 5), share.isHittable,
            isFullyOnScreen(share.frame, in: win) {
             lines.append("shareButton=\(fmt(share.frame))")
         } else {
             violations.append("页头分享钮不在屏内")
-            // 失败路径诊断：树里带「分享」的标签都长什么样
+            // 失败路径诊断：树里带「分享/Share」的标签都长什么样
             let kin = app.descendants(matching: .any).matching(
-                NSPredicate(format: "label CONTAINS '分享'"))
+                NSPredicate(format:
+                    "label CONTAINS '分享' OR label CONTAINS[c] 'Share'"))
             var labels: [String] = []
             for i in 0..<min(kin.count, 5) {
                 labels.append(kin.element(boundBy: i).label)
