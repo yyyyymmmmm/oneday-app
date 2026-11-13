@@ -812,9 +812,10 @@ struct DrawerView: View {
             return (nil, false)
         case .frozen:
             return (L10n.string("暂不可用"), false)
-        case .qr:
-            return (L10n.string("未配对"), true)
-        case .token:
+        case .token, .qr, .form:
+            // 特殊批：扫码/表单两家与令牌型同口径——行
+            // 尾只认伴生回读状态（已配对空尾/生效中/
+            // 失败/未配对），不再写死「未配对」
             guard let status = channelStatusStore.status(
                 for: channel.id
             ) else {

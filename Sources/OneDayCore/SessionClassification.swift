@@ -110,13 +110,18 @@ public enum SessionSources {
     /// 资产才登记；没有合格原图的平台回 nil，呈现层
     /// 不许拿仿绘/字母块顶替）。一期登记两家：
     /// Telegram／微信，均为官方 App 图标原图（来源
-    /// 见 channels-phase1-build-report-20261113）
+    /// 见 channels-phase1-build-report-20261113）；
+    /// 特殊批加 WhatsApp（官方 App 图标原图，同法
+    /// 取自 Apple lookup）与邮箱（协议无品牌，苹
+    /// 果应用图标画法的信封图面）
     public static func platformIconAssetName(
         _ source: String
     ) -> String? {
         switch source {
         case "telegram": return "ChannelTelegram"
         case "weixin", "wechat": return "ChannelWeixin"
+        case "whatsapp": return "ChannelWhatsApp"
+        case "email": return "ChannelEmail"
         default: return nil
         }
     }
@@ -201,8 +206,11 @@ public enum ChannelPairingKind: Equatable, Sendable {
     case none
     /// 填钥匙配对（Telegram 等）
     case token
-    /// 扫码配对（WhatsApp，二期开放）
+    /// 扫码配对（WhatsApp，特殊批开放）
     case qr
+    /// 表单配对（邮箱：地址/授权码/服务器成套填，
+    /// 特殊批开放）
+    case form
     /// 冻结行（微信个人号：只说明、不可配对）
     case frozen
 }
@@ -235,6 +243,27 @@ public enum ChannelRegistry {
         iconAssetName: SessionSources.platformIconAssetName("telegram")
     )
 
+    /// WhatsApp 频道（特殊批）：扫码配对（Baileys
+    /// 非官方路，风险明示在引导页第一屏）；图标为
+    /// 官方品牌原图资产 ChannelWhatsApp
+    public static let whatsapp = ChannelDescriptor(
+        id: "whatsapp",
+        name: "WhatsApp",
+        pageSubtitle: "在 WhatsApp 里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("whatsapp")
+    )
+
+    /// 邮箱频道（特殊批）：表单配对（地址＋授权码
+    /// ＋收发服务器，常用服务商预置）；邮箱是协议
+    /// 无品牌，图标为苹果应用图标画法的信封图面
+    /// ChannelEmail
+    public static let email = ChannelDescriptor(
+        id: "email",
+        name: "邮箱",
+        pageSubtitle: "用邮件和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("email")
+    )
+
     /// 微信行（冻结）：与 ClawBot 同底座（腾讯 iLink
     /// Bot），用户 2026-10 试接失败并叫停——只列行
     /// 说明暂不可用，不给配对入口（规格 §3.2）
@@ -251,33 +280,38 @@ public enum ChannelRegistry {
     /// 抽屉频道区恒显清单（2026-11-13 新口径覆盖
     /// 0.36.29「通一个显一个」：支持的都列、配好的
     /// 能用、没配的给路）。排序：Hermes（恒在首位、
-    /// 本机频道）→ Telegram（已配对优先的动态排序
-    /// 在呈现层按状态微调）→ 微信冻结行置组末
+    /// 本机频道）→ Telegram → WhatsApp → 邮箱 →
+    /// 微信冻结行置组末（特殊批加两行，其余批次
+    /// 的行在装配时按序并入）
     public static let drawerList: [ChannelDescriptor] = [
-        hermes, telegram, weixin,
+        hermes, telegram, whatsapp, email, weixin,
     ]
 
     /// 平台的配对形态（呈现层据此决定行尾与目的地：
-    /// 已配对/token 未配对进引导页/qr 二期/frozen
-    /// 只说明）。Hermes 与未知平台为 none
+    /// 已配对/token 未配对进引导页/qr 扫码/form
+    /// 表单/frozen 只说明）。Hermes 与未知平台为
+    /// none
     public static func pairingKind(
         for channelID: String
     ) -> ChannelPairingKind {
         switch channelID {
         case "telegram": return .token
         case "whatsapp": return .qr
+        case "email": return .form
         case "weixin": return .frozen
         default: return .none
         }
     }
 
-    /// 按频道 id 取描述：注册表三条恒有；其余平台按
-    /// 平台名派生（图标走平台资产登记，无登记为
-    /// nil）；非平台 id 为 nil
+    /// 按频道 id 取描述：注册表恒有条目优先；其余
+    /// 平台按平台名派生（图标走平台资产登记，无
+    /// 登记为 nil）；非平台 id 为 nil
     public static func descriptor(for channelID: String) -> ChannelDescriptor? {
         switch channelID {
         case hermesChannelID: return hermes
         case telegram.id: return telegram
+        case whatsapp.id: return whatsapp
+        case email.id: return email
         case weixin.id: return weixin
         default: break
         }

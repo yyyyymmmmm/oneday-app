@@ -40,7 +40,36 @@ struct ChannelCredentialsReceipt: Decodable, Sendable {
     let state: String
     let restartRequired: Bool?
     let botUsername: String?
+    /// 邮箱频道回执带的账号地址（用户自己刚填的那个，
+    /// 非凭据值，可回显）
+    let account: String?
+    /// 保存后是否已触发即时生效（一期回执未消费此
+    /// 字段的残项，特殊批补上：引导页据此区分「正在
+    /// 生效」与「等待生效」）
+    let applyTriggered: Bool?
+    let applyError: String?
     let message: String?
+}
+
+/// 扫码配对会话（与伴生 /channels/qr/* 同形）：状态
+/// 只转述伴生的回读（配对层事实），平台是否连上仍
+/// 以 /channels/status 的运行时记录为准，两层不混
+struct ChannelQRSession: Decodable, Sendable, Equatable {
+    let platform: String
+    let pairingId: String?
+    /// installing / starting / waiting / connected /
+    /// error / expired / cancelled
+    let status: String
+    /// 当前二维码载荷（约 20 秒轮换一张，永远只渲染
+    /// 最新一张；无码时为 nil）
+    let qrPayload: String?
+    let mode: String?
+    let accountName: String?
+    let accountPhone: String?
+    /// 扫码成功后伴生是否已完成启用（apply 只调一次）
+    let applied: Bool?
+    let applyError: String?
+    let error: String?
 }
 
 /// 频道桥客户端（频道扩展一期）：路径挂当前服务器
@@ -80,13 +109,17 @@ final class ChannelsBridgeClient: @unchecked Sendable {
 
     func submitCredentials(
         config: ServerConfig, platform: String,
-        fields: [String: String], allowedUserIds: [String]?
+        fields: [String: String], allowedUserIds: [String]?,
+        preset: String? = nil
     ) async throws -> ChannelCredentialsReceipt {
         var payload: [String: Any] = [
             "platform": platform, "fields": fields,
         ]
         if let allowedUserIds {
             payload["allowedUserIds"] = allowedUserIds
+        }
+        if let preset {
+            payload["preset"] = preset
         }
         let data = try await send(
             config: config, path: "/channels/credentials",
@@ -100,6 +133,56 @@ final class ChannelsBridgeClient: @unchecked Sendable {
         } catch {
             throw ChannelsBridgeError.failed(
                 L10n.string("配对结果返回格式无法识别"))
+        }
+    }
+
+    /// 起一个扫码配对会话（WhatsApp）：伴生代理
+    /// Hermes 自带的 onboarding，返回当前码载荷
+    func qrStart(
+        config: ServerConfig
+    ) async throws -> ChannelQRSession {
+        let data = try await send(
+            config: config, path: "/channels/qr/start",
+            method: "POST", body: ["platform": "whatsapp"],
+            endpoint: L10n.string("扫码配对")
+        )
+        return try decodeQRSession(data)
+    }
+
+    /// 轮询配对会话：拿最新码载荷/扫码结果；扫码成
+    /// 功后伴生自动完成启用（applied 回报）
+    func qrStatus(
+        config: ServerConfig
+    ) async throws -> ChannelQRSession {
+        let data = try await send(
+            config: config, path: "/channels/qr/status",
+            method: "GET", body: nil,
+            endpoint: L10n.string("扫码配对")
+        )
+        return try decodeQRSession(data)
+    }
+
+    /// 取消当前配对会话（离开页面/重新开始前调用）
+    func qrCancel(
+        config: ServerConfig
+    ) async throws {
+        _ = try await send(
+            config: config, path: "/channels/qr/cancel",
+            method: "POST", body: ["platform": "whatsapp"],
+            endpoint: L10n.string("扫码配对")
+        )
+    }
+
+    private func decodeQRSession(
+        _ data: Data
+    ) throws -> ChannelQRSession {
+        do {
+            return try decoder.decode(
+                ChannelQRSession.self, from: data
+            )
+        } catch {
+            throw ChannelsBridgeError.failed(
+                L10n.string("配对状态返回格式无法识别"))
         }
     }
 

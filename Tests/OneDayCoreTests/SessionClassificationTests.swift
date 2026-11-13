@@ -397,12 +397,12 @@ final class SessionClassificationTests: XCTestCase {
         }
     }
 
-    // 注册表：抽屉恒显清单与图标登记（一期三条；
-    // 平台图标只许官方原图登记过的两家有值）
+    // 注册表：抽屉恒显清单与图标登记（一期三条＋
+    // 特殊批两条；平台图标只许登记过的有值）
     func testChannelRegistryDrawerListAndIcons() {
         XCTAssertEqual(
             ChannelRegistry.drawerList.map(\.id),
-            ["hermes", "telegram", "weixin"])
+            ["hermes", "telegram", "whatsapp", "email", "weixin"])
         XCTAssertEqual(
             ChannelRegistry.descriptor(for: "telegram")?.iconAssetName,
             "ChannelTelegram")
@@ -419,6 +419,35 @@ final class SessionClassificationTests: XCTestCase {
             ChannelRegistry.pairingKind(for: "weixin"), .frozen)
         XCTAssertEqual(
             ChannelRegistry.pairingKind(for: "hermes"), .none)
+    }
+
+    // 特殊批两家：WhatsApp 扫码形态＋官方图标登记、
+    // 邮箱表单形态＋信封图面登记，描述走注册表恒有
+    // 条目（不走派生回落）
+    func testChannelRegistrySpecialBatch() {
+        XCTAssertEqual(
+            ChannelRegistry.pairingKind(for: "whatsapp"), .qr)
+        XCTAssertEqual(
+            ChannelRegistry.pairingKind(for: "email"), .form)
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "whatsapp")?.name,
+            "WhatsApp")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "whatsapp")?.iconAssetName,
+            "ChannelWhatsApp")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "email")?.name, "邮箱")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "email")?.iconAssetName,
+            "ChannelEmail")
+        XCTAssertEqual(
+            SessionSources.platformIconAssetName("whatsapp"),
+            "ChannelWhatsApp")
+        XCTAssertEqual(
+            SessionSources.platformIconAssetName("email"),
+            "ChannelEmail")
+        XCTAssertEqual(
+            SessionSources.platformDisplayName("email"), "邮箱")
     }
 
     // session_key 回落：source 缺失时平台段同值判

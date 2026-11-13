@@ -78,6 +78,13 @@ struct ChannelPairingView: View {
                         stepThreeSection
                         connectSection
                     }
+                    if showsSpecialSections {
+                        if pairingKind == .qr {
+                            WhatsAppPairingSections(store: store)
+                        } else if pairingKind == .form {
+                            EmailPairingSections(store: store)
+                        }
+                    }
                 }
                 footerSection
             }
@@ -127,6 +134,12 @@ struct ChannelPairingView: View {
         case "telegram":
             return L10n.string("连上之后，你在 Telegram 里给机器人发消息，"
                 + "就能和你的智能体聊天；对话会回到这里的频道里。")
+        case "whatsapp":
+            return L10n.string("连上之后，你在 WhatsApp 里发消息，"
+                + "就能和你的智能体聊天；对话会回到这里的频道里。")
+        case "email":
+            return L10n.string("连上之后，你给这个邮箱写信，"
+                + "就能和你的智能体聊天；来往邮件会回到这里的频道里。")
         case "weixin":
             return L10n.string("微信个人号")
         default:
@@ -138,6 +151,17 @@ struct ChannelPairingView: View {
 
     private var showsSteps: Bool {
         guard pairingKind == .token else { return false }
+        guard let status else { return store.loadError == nil }
+        return status.state == "not_configured"
+            || status.state == "error"
+    }
+
+    /// 特殊批两家（扫码/表单）的段落显隐：与令牌型
+    /// 同口径——未配对与失败时给路，已保存/已连上
+    /// 时收起，只留状态带说话
+    private var showsSpecialSections: Bool {
+        guard pairingKind == .qr || pairingKind == .form
+        else { return false }
         guard let status else { return store.loadError == nil }
         return status.state == "not_configured"
             || status.state == "error"
@@ -194,12 +218,10 @@ struct ChannelPairingView: View {
         case "pending_restart":
             VStack(alignment: .leading,
                    spacing: OneDayMetrics.spacingS) {
-                Text("钥匙已保存，等待生效")
+                Text(pendingTitle)
                     .font(.rowTitle)
                     .foregroundStyle(Palette.ink)
-                Text(L10n.string("服务器下一次重启后就会自动连上，这期间"
-                    + "不用你再做什么。连上之后，抽屉里这一行"
-                    + "会变成已配对的样子。"))
+                Text(pendingCaption)
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
                 Button("刷新状态") {
@@ -217,7 +239,7 @@ struct ChannelPairingView: View {
                         .font(.captionText)
                         .foregroundStyle(Palette.inkSecondary)
                 }
-                Text("检查一下钥匙，按下面三步重新连接。")
+                Text(errorCaption)
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
             }
@@ -227,10 +249,56 @@ struct ChannelPairingView: View {
                 Text("还没配对")
                     .font(.rowTitle)
                     .foregroundStyle(Palette.ink)
-                Text("按下面三步连上，几分钟就好。")
+                Text(defaultCaption)
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
             }
+        }
+    }
+
+    // 状态带文案按配对形态分型（令牌型沿用一期原
+    // 文案；扫码/表单各说各的话，不借用「三步」）
+
+    private var pendingTitle: String {
+        switch pairingKind {
+        case .form: return L10n.string("信息已保存，等待生效")
+        case .qr: return L10n.string("已保存，等待生效")
+        default: return L10n.string("钥匙已保存，等待生效")
+        }
+    }
+
+    private var pendingCaption: String {
+        switch pairingKind {
+        case .form, .qr:
+            return L10n.string("服务器正在让它生效，稍等片刻就会自动"
+                + "连上，这期间不用你再做什么。连上之后，抽屉里"
+                + "这一行会变成已配对的样子。")
+        default:
+            return L10n.string("服务器下一次重启后就会自动连上，这期间"
+                + "不用你再做什么。连上之后，抽屉里这一行"
+                + "会变成已配对的样子。")
+        }
+    }
+
+    private var errorCaption: String {
+        switch pairingKind {
+        case .form:
+            return L10n.string("检查一下上面填的信息，再连接一次。")
+        case .qr:
+            return L10n.string("重新扫一次码试试。")
+        default:
+            return L10n.string("检查一下钥匙，按下面三步重新连接。")
+        }
+    }
+
+    private var defaultCaption: String {
+        switch pairingKind {
+        case .form:
+            return L10n.string("把下面的信息填好就能连上。")
+        case .qr:
+            return L10n.string("先看完风险说明，再扫码连接。")
+        default:
+            return L10n.string("按下面三步连上，几分钟就好。")
         }
     }
 
@@ -336,13 +404,27 @@ struct ChannelPairingView: View {
 
     private var footerSection: some View {
         Section {
-            Text("钥匙只存在你自己的服务器上，这个 App 不保存。")
+            Text(footerText)
                 .font(.captionText)
                 .foregroundStyle(Palette.inkMuted)
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+        }
+    }
+
+    private var footerText: String {
+        switch pairingKind {
+        case .qr:
+            return L10n.string("配对信息只存在你自己的服务器上，"
+                + "这个 App 不保存。")
+        case .form:
+            return L10n.string("授权码只存在你自己的服务器上，"
+                + "这个 App 不保存。")
+        default:
+            return L10n.string("钥匙只存在你自己的服务器上，"
+                + "这个 App 不保存。")
         }
     }
 
