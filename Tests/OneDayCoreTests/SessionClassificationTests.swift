@@ -241,8 +241,8 @@ final class SessionClassificationTests: XCTestCase {
             mainServerSessionID: mainSession,
             linkedThreadSessionIDs: []
         )
-        XCTAssertEqual(partition.mine.map(\\.id), [ai.id, own.id])
-        XCTAssertEqual(partition.system.map(\\.id), [probe.id])
+        XCTAssertEqual(partition.mine.map(\.id), [ai.id, own.id])
+        XCTAssertEqual(partition.system.map(\.id), [probe.id])
         XCTAssertEqual(partition.hermesChannelCount, 0)
     }
 

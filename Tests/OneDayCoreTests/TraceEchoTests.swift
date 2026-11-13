@@ -98,7 +98,7 @@ final class TraceEchoTests: XCTestCase {
         let cards = TraceEchoPolicy.cards(
             traces: [newer, older], isMainThread: true,
             currentServerSessionID: "oneday-main-x")
-        XCTAssertEqual(cards.map(\\.id), ["trc_old", "trc_new"])
+        XCTAssertEqual(cards.map(\.id), ["trc_old", "trc_new"])
     }
 
     /// 旁聊只出指向本会话的留痕（出生卡在此），别人
@@ -112,7 +112,7 @@ final class TraceEchoTests: XCTestCase {
         let cards = TraceEchoPolicy.cards(
             traces: [own, other, goal], isMainThread: false,
             currentServerSessionID: "oneday-ai-abc")
-        XCTAssertEqual(cards.map(\\.id), ["trc_birth"])
+        XCTAssertEqual(cards.map(\.id), ["trc_birth"])
     }
 
     /// 无会话上下文（本地线程未关联服务端）一律不出卡
@@ -132,11 +132,11 @@ final class TraceEchoTests: XCTestCase {
         let main = TraceEchoPolicy.cards(
             traces: [boom], isMainThread: true,
             currentServerSessionID: nil)
-        XCTAssertEqual(main.map(\\.id), ["trc_boom"])
+        XCTAssertEqual(main.map(\.id), ["trc_boom"])
         let side = TraceEchoPolicy.cards(
             traces: [boom], isMainThread: false,
             currentServerSessionID: "oneday-ai-abc")
-        XCTAssertEqual(side.map(\\.id), ["trc_boom"])
+        XCTAssertEqual(side.map(\.id), ["trc_boom"])
     }
 
     /// 上限钉：超出 limit 只留最近的（流尾最新）
