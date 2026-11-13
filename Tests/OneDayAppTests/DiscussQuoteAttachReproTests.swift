@@ -28,7 +28,7 @@ import UIKit
 /// ＋save → linkFeedDiscussThread → 置种子 → 置抽屉选择 →
 /// 置切格请求）。markRead 只动动态已读账、不入 rig。
 @MainActor
-final class DiscussQuoteAttachReproTests: XCTestCase {
+final class AADiscussQuoteAttachReproTests: XCTestCase {
 
     private var window: UIWindow!
     private var container: ModelContainer!
