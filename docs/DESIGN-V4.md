@@ -11270,7 +11270,7 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 引用不是草稿、永不进 drafts；✕ 即清无落盘；切线程作废（随 pendingQuote 既有 onChange 清理同律）；杀进程不恢复（种子与引用都只活内存）；发送随消息行四字段落盘、每轮重放同口径拼回。
 
 ### 202.5 CI 判读
-（待分支 CI 终判后补记）
+分支 workflow_dispatch 三轮：run 43387570006（head 6b63ad3）红于 App 测目标编译——`FeedDiscussQuoteAppTests` 漏标 `@MainActor`（SideChatStore 隔离），App 本体构建已过；补标后 run 43388686544（head 5197284）测出两红：①`testRelinkOverwritesStaleThread`——真生产缺陷：link 改挂只写新线程键、同帖旧线程关联残留，反查会捞回已删线程、discuss 去重失效（正是本包要治的堆空会话病根之一），已修（link 时摘同帖其他线程关联，一帖一线程钉死）；②`testDispatchFallsBackToMessageQuote`——测试期望漏了称呼空格，对齐真实拼装格式。终判 run 43391312273（head abeb4a2）：Build／Package／Upload 三步 success；全日志断言失败 0；具名失败仅 `ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays`（§184 在案键盘真崩族、started 后宿主静默死亡、与本分支无关、修复在 fix/keyboard-trap-decouple 线）；新套件全过——Core `FeedDiscussQuoteTests` 19 法＋App `FeedDiscussQuoteAppTests` 6 法。按 §190 口径判**绿、可组版**。
 
 ### 202.6 真机待验（组版随车，规格 §3.8 八点）
 ①点讨论→引用卡在输入舱上方、输入框为空、聚焦可打字，有图帖带缩略图；②点 ✕→卡消失无残留，切走再回/杀进程重进引用不复活；③带引用打字发送→消息顶引用块在，问只有正文里有的细节 AI 答得出；④点引用块→跳回原帖详情，帖过期给诚实提示、块快照仍可读；⑤同帖再点讨论→回同一线程不新建；⑥亲笔草稿回归不坏（讨论线程亲笔打一半切走，回来亲笔在、引用已作废）；⑦升级存量：旧版未改动预填被清、改过的草稿一字不动；⑧FA-1：正文带「喜欢」字样的帖，引用发送不产生假 note、真偏好句照常达桥。
