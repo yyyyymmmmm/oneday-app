@@ -333,4 +333,39 @@ extension DrawerContainerControllerTests {
             "动画途中布局往返后显示原点未达 travel：frame 重设在 transform 下反解 center 吃掉位移"
         )
     }
+
+    /// §202 K1/K2 边缘几何：开态 clip 帧纵向内嵌 2pt、
+    /// 半径 54.5、阴影路径包围盒与 clip 帧同矩形；内容
+    /// 宿主反向补偿（原点 −2、高不变——前景空间内几何
+    /// 与 §202 前逐值一致、落定零残差）；合态回全幅；
+    /// 开态改窗口尺寸后内嵌保持（resize 回归）
+    func testOpenStateClipGeometryInsetsRadiusAndShadowPath() {
+        let foreground = controller.view.subviews[1]
+        let clip = foreground.subviews[0]
+        let content = clip.subviews[0]
+        controller.setDrawer(true, animated: false)
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(clip.frame.origin.x, 0, accuracy: 0.5)
+        XCTAssertEqual(clip.frame.origin.y, 2, accuracy: 0.5)
+        XCTAssertEqual(clip.frame.width, 393, accuracy: 0.5)
+        XCTAssertEqual(clip.frame.height, 852 - 4, accuracy: 0.5)
+        XCTAssertEqual(content.frame.origin.y, -2, accuracy: 0.5)
+        XCTAssertEqual(content.frame.height, 852, accuracy: 0.5)
+        XCTAssertEqual(clip.layer.cornerRadius, 54.5, accuracy: 0.5)
+        let pathBox = foreground.layer.shadowPath?.boundingBox
+        XCTAssertEqual(pathBox?.origin.x ?? -1, 0, accuracy: 0.5)
+        XCTAssertEqual(pathBox?.origin.y ?? -1, 2, accuracy: 0.5)
+        XCTAssertEqual(pathBox?.width ?? -1, 393, accuracy: 0.5)
+        XCTAssertEqual(pathBox?.height ?? -1, 852 - 4, accuracy: 0.5)
+
+        window.frame = CGRect(x: 0, y: 0, width: 852, height: 393)
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(clip.frame.origin.y, 2, accuracy: 0.5)
+        XCTAssertEqual(clip.frame.height, 393 - 4, accuracy: 0.5)
+
+        controller.setDrawer(false, animated: false)
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(clip.frame, foreground.bounds)
+        XCTAssertEqual(content.frame, foreground.bounds)
+    }
 }

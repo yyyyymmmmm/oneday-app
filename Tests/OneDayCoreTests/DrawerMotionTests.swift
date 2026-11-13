@@ -149,26 +149,38 @@ final class DrawerMotionTests: XCTestCase {
         )
     }
 
-    // MARK: - S3/§3.4 白名单定值
+    // MARK: - S3/§3.4 白名单定值（§202 换代）
 
     func testCornerRadiusStepsOnceAndShadowValuesAreFixed() {
         XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0), 0)
         XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.02), 0)
-        // 过阈一步到 43（§182.2 量测 Muse 参照定值），
-        // 之后恒定（拖动期不插值）
-        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.021), 43)
-        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.5), 43)
-        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 1), 43)
-        // §3.4 柔影定值：radius 10／x −4／峰值 alpha 0.12
-        XCTAssertEqual(DrawerMotion.shadowRadius, 10)
+        // 过阈一步到 54.5（§202 量测 Muse 新参照拟合
+        // 定值），之后恒定（拖动期不插值，K4）
+        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.021), 54.5)
+        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 0.5), 54.5)
+        XCTAssertEqual(DrawerMotion.cornerRadius(progress: 1), 54.5)
+        // §202 柔影回宽定值：radius 18／x −4／峰值 0.22
+        XCTAssertEqual(DrawerMotion.shadowRadius, 18)
         XCTAssertEqual(DrawerMotion.shadowX, -4)
         XCTAssertEqual(DrawerMotion.shadowOpacity(progress: 0), 0)
-        XCTAssertEqual(DrawerMotion.shadowOpacity(progress: 1), 0.12)
+        XCTAssertEqual(DrawerMotion.shadowOpacity(progress: 1), 0.22)
         XCTAssertEqual(
-            DrawerMotion.shadowOpacity(progress: 0.5), 0.06, accuracy: 0.0001
+            DrawerMotion.shadowOpacity(progress: 0.5), 0.11, accuracy: 0.0001
         )
         // 越界进度钳制，不放大阴影
-        XCTAssertEqual(DrawerMotion.shadowOpacity(progress: 2), 0.12)
+        XCTAssertEqual(DrawerMotion.shadowOpacity(progress: 2), 0.22)
+    }
+
+    // MARK: - §202 K1 纵向内嵌
+
+    func testVerticalInsetIsLinearClamped() {
+        XCTAssertEqual(DrawerMotion.cardVerticalInset, 2)
+        XCTAssertEqual(DrawerMotion.verticalInset(progress: 0), 0)
+        XCTAssertEqual(DrawerMotion.verticalInset(progress: 0.5), 1)
+        XCTAssertEqual(DrawerMotion.verticalInset(progress: 1), 2)
+        // 越界钳制（橡皮筋段不放大内嵌）
+        XCTAssertEqual(DrawerMotion.verticalInset(progress: 2), 2)
+        XCTAssertEqual(DrawerMotion.verticalInset(progress: -1), 0)
     }
 
     // MARK: - 0.17.0 覆盖形态蒙层

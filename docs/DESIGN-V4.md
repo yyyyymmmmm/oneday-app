@@ -11341,3 +11341,41 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 - **合 main 与 tag**：rel-05028 快进合入 main（origin/main 未被其他线推进、无并轨），main 头 62ecb60；打 annotated tag **v0.50.28** 于 62ecb60 并 push。
 - **发版构建（run 43388360888，main push 触发，仅此一次）**：Package／Upload success、artifact 在架；断言失败 **0**、Core **1721 全过**；Failing 仅 `testKeyboardUpMovesComposerOnlyDockStays` 一条（§184 键盘在案真崩；装配轮的 Drawer 族那条本轮存活，同族席位轮换与台账一致），无新红。
 - **验包**：**11,073,402 字节、md5 `54c689d363ac11eaaf3d8f9064a69251`**、Info.plist 0.50.28/156/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.28/OneDay-0.50.28.ipa。真机待验按 §205 总清单三组执行。
+
+## §202 抽屉边缘互补几何修复（2026-11-13；分支 fix/drawer-edge-geometry，基线 main 6a14792／0.50.27 定版顶端，只交分支不合并、不发版；立项＝用户 14:56 真机截图点名「人家是互补的、咱们的是直的」，规格源＝聊天页三题调研 chat-surface-selection-research-20261113.md 题三定案 K1–K4）
+
+### 202.1 病根复述（调研实测、本包不重查）
+圆角一直在（clipView 按 DrawerMotion.cornerRadius 派生＋前景阴影），但四个因子叠加使接缝九成读作直边：D1 内容满幅平移、弧只剩紧贴屏顶/底的极小段（§182.2「有弧不显」同病第二次）；D2 半径 43pt 是旧世代参照拟合、现行设备角 55–62pt 级；D3 阴影被 §3.4 灰柱处方收成约 20pt 窄带、绕不过角；D4 半径一步到位 vs 随进度（次因、本包不做，K4）。
+
+### 202.2 K2 量测（新参照图重拟合）
+- 参照图：用户 14:56 递的 Muse 对照截图（1206×2622）。§182.2 的量测脚本 measure_corners_v2.py 在仓内与 git 历史均不存在（只剩本档方法记载），按记载方法复写为 docs/drawer-edge-measurements/fit_corners.py 并随本包入仓（防再次丢失）；拟合数据 ref_muse_fit.json 同目录。
+- 方法：沿前景左边界逐行采样亮度突变点（横向平滑后梯度峰值；平滑必须边缘填充——零填充卷积在窗口两端造假陡升边，首三轮拟合全灭于此，实证入脚本注），接缝 x0 取中段多行中位数＝954.5px（与调研剖面 953–958 一致）；角部弧段做 Kasa 最小二乘圆拟合＋残差剔离群。顶弧取 y∈[40,190]（避状态栏图标带）；底弧上段被抽屉底部浮丸件（composer/底栏）遮挡（假边界 dx 160–218 成串、全域拟合被其压倒），只取弧尾净段 y∈[H−68,H−1]。
+- 四组独立估计（@3.0／402pt 主口径）：顶弧主拟合 r＝158.5px（52.8pt）、隐含顶 inset 2.7pt、残差均值 1.47px；底弧合并拟合 r＝168.5px（56.2pt）、底 inset 1.7pt、残差 0.79px；另两组底弧变体 156.0px/2.1pt 与 173.7px/1.3pt。半径全距 156–174px（52.0–57.9pt）、inset 1.3–2.7pt、r＋inset 54–59pt——与社区设备角半径表（55–62pt）吻合，同心口径成立。对照口径 @3.07（§182.2 旧折算）：r 50.7–56.6pt，结论不变。
+- 定值（池化中心）：**cardCornerRadius 43 → 54.5pt**；**新增 cardVerticalInset ＝ 2.0pt**（拟合顶/底 2.7/1.7 对称取中）。注：拟合 inset 远小于调研凭裁切图的视觉估计——量测为准（简报纪律：不许目测凑数）；「互补」读感的主导因子是半径进入设备角量级＋阴影绕角，inset 只负责把顶/底短边与弧的交点从屏幕物理角上摘开。
+
+### 202.3 施工（只动边缘几何与阴影；容器/位移三件/弹簧/foreground 的 bounds/center/transform 纪律不动）
+- K1：DrawerContainerView 新增 clipGeometry(progress:) 单点派生——帧＝foreground.bounds 纵向内嵌 DrawerMotion.verticalInset(progress)（合 0、开满、线性随 progress、帧写与 transform 同拍）、半径＝cornerRadius(progress)；layout 与 applyOffset 两写点共用（治 §182.2 双写打架的根）；clipView.frame、contentHost 帧、foreground shadowPath 三者同走此派生（shadowPath 改内缩圆角矩形）。
+- K2：DrawerMotion.cardCornerRadius ＝ 54.5（出处注写入常量）、新增 cardVerticalInset ＝ 2 与 verticalInset(progress:) 线性派生。
+- K3：阴影回宽——shadowRadius 10 → 18（区间 16–20 取中值偏上）、shadowMaxOpacity 0.12 → 0.22（区间 0.18–0.25；eos 开源同形态口径 0.35×progress 为深底面参照、本 App 抽屉面浅色取偏低档）；shadowX −4 不动。
+- K4 不做：半径随 progress 插值保持现状（cornerStepProgress 0.02 一步到位、防卡顿定案优先）；内嵌的线性行进不是半径插值（无裁切路径重算），不触此定案。
+- 文档卫生（同批）：DrawerContainerView 头注释旧值「28pt」与同句旧阴影值一并更正为 §202 定值与口径出处（监工亲查发现项）；DrawerMotion 常量注同步换代（43 系 §182.2 旧参照拟合、随参照换代作废，明记）。
+- 单测：DrawerMotionTests 白名单定值更新（54.5/18/0.22）＋新增 verticalInset 线性钳制一法；DrawerContainerControllerTests 新增开态几何一法（clip 帧内嵌/半径/shadowPath 包围盒/resize 后内嵌保持/合态回全幅）。§184 flake 的 Drawer 支已治成果（fix/drawer-flake）零触碰。
+
+### 202.4 帧验收口径（本包交付口径，真机帧为终局）
+- 量测对照（参照拟合值 vs 本包定值）：半径 参照 52.0–57.9pt（主拟合 52.8/56.2）vs 定值 54.5（全距内、距两主拟合 ≤1.7pt）；顶 inset 参照 2.7 vs 定值 2.0；底 inset 参照 1.7 vs 定值 2.0；r＋inset 参照 54–59 vs 定值 56.5（设备角带 55–62 内）。
+- 几何断言（CI 内）：开态 clip 帧＝(0, 2, W, H−4)、cornerRadius 54.5、shadowPath 包围盒与 clip 帧逐值一致、resize 后内嵌保持、合态帧回全幅——见 202.3 新测。
+- 真机待验（随下版装机）：①四角逐角与 Muse 参照并排——两弧连同顶/底短边完整露在抽屉面上、接缝不再读作直边；②开合中途帧圆角不跳变（半径一步到位为既有口径、中途帧只许 inset/opacity 渐变）；③深色一帧（阴影在深色抽屉面上仍绕角可辨、不过曝成亮边）；④AX 最大字号一帧（几何与字号无关、只看不回归）。
+
+### 202.5 CI 判读（接手线回填，详账在报告 drawer-edge-geometry-fix-20261113.md §4）
+- 第一轮 run 43384697181（头 3a8e39c）：真断言失败 1 条（舱底 maxY −4，见补记定因）→ 逼出补偿式回修；本包新测全过、Core 1699 全过；其余红为 §184 在案进程死亡三条。
+- 第二轮 run 43387055526（头 ee4969c）：**断言失败 0**——第一轮唯一真失败转绿、本包测全绿（容器 14 法＋DrawerMotion 10 法）、Core 1699 全过；红仅在案进程死亡三条（与第一轮及同日他分支同签名），按 §190 口径判**通过**；Package/Upload 照常完成。
+
+### §202 补记（同日，CI 第一轮回修：K1 改补偿式）
+- 第一轮 CI（run 43384697181，头 3a8e39c）：本包三条新测全过；唯一真断言失败＝ComposerGuideHostTests.testDrawerAnimatedClose_midFlightBarUnreachableThenRestored——抽屉 animated 关闭落定后输入舱底 maxY 787 vs 基准 791（−4＝2×inset）。定因：初版 K1 令 contentHost 随 clip 同缩（高 −4），改写托管树几何、落定后舱位不复原（其余三红均为 §184 在案进程死亡：键盘真崩＋barGrowth 的 ModelContext.reset 同签名死亡＋容器关闭动画无断言死亡，逐项对账在案）。
+- 回修：clipGeometry 改补偿式——clip 帧与 shadowPath 照旧内缩，contentHost 反向补偿（原点 −inset、高恒 bounds 高），宿主在前景空间内的几何与 §202 之前逐值一致；浮置只是裁切窗与阴影的事，内容布局/安全区/栏位冻结几何（§193–§195）一概不惊动。此式亦与调研 G1 的开源实现口径（mask 而非改 bounds）合流。容器几何测同步加补偿断言。
+- 第二轮 CI 判读回填于 §202.5。
+
+### §202 补记二（同日，接手线回填：机制改判——202.1 的 D1 表述作废）
+- 分歧：调研 D1 称「圆角落在屏幕物理角被吃」；Codex 调研线（ext-20261113-003）按源码几何纠正——travel＝min(宽×0.79,400)，开态前景**左**角在 x＝travel 屏内（本包实测接缝 954.5px＝318pt ✓ 公式 317.7pt），被推出屏的是右角。
+- 取证裁决（报告 §5 全节）：**站 Codex**——源码链：容器根底色＝Palette.pageBG（DrawerContainerView.swift:235）、drawerHost 帧宽恒＝travel（:302），接缝以右前景之下无抽屉材质，缺口承接根 pageBG；像素链：自家现状图缺口 (250,250,251) 与卡面 (252) Δlum 仅 2（同色、无色差边界），弧全靠旧阴影一条线独撑且 dip 浅（相对抽屉面 8 级、radius 10 窄带）；Muse 参照缺口被阴影染成独立的 239、dip 深 17 两侧等高。**主因改判＝缺口低对比＋阴影独撑**（Codex 自标「非定因」的替代线索经取证升为定因）；D1 原表述作废（inset＝0 的真实后果只是弧端点落在屏幕顶/底**边**上、非角）；D2 半径代际差、D3 阴影窄弱（升共同主因）存留。对数值影响：无——K2 大半径拉长弧界、K3 回宽对齐 dip 深度量级、K1 的 2pt inset 作用改记为「定形＋摘端点」。
+- 取证形态注：字面模拟器层级 dump 未取（Linux VM 无模拟器），以源码层级链亲查＋用户两张真机原图像素取证＋CI 几何断言三段替代（报告 §5 补注）；如需字面 dump 可在 tmate 调试 Mac 补取，其可证内容与源码链重合。

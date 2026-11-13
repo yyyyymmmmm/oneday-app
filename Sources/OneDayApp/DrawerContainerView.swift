@@ -27,10 +27,14 @@ import UIKit
 ///   有的普通 UIView 上，TabView 在宿主内仍是零修
 ///   饰根级安放）。
 /// - 阴影与裁切分层：wrapper 只挂阴影（DrawerMotion
-///   §3.4 定值 radius 10/x −4、alpha 随 progress）、
-///   clip 只管圆角裁切（DrawerMotion.cornerRadius
-///   一步到位口径：progress>0.02 即 28pt），阴影不
-///   被裁、圆角不带影。
+///   §202 定值 radius 18/x −4、alpha 随 progress、峰
+///   值 0.22）、clip 只管圆角裁切（DrawerMotion.
+///   cornerRadius 一步到位口径：progress>0.02 即
+///   54.5pt——§202 对 Muse 新参照图量测拟合定值，
+///   出处见 DrawerMotion 常量注；本注释早年写的 28pt
+///   是更旧一版定值、早已作废），阴影不被裁、圆角不
+///   带影；开态 clip 帧另按 DrawerMotion.vertical-
+///   Inset 纵向内嵌（§202 K1）、整卡浮置。
 /// - 强黑蒙层整套退役（覆盖形态的分离手段）；分离
 ///   感由页卡圆角＋柔影＋窄条明亮承担。
 ///
@@ -260,6 +264,34 @@ final class DrawerContainerController: UIViewController,
         applyOffset(0)
     }
 
+    /// 当前 progress 的前景裁切几何：圆角半径＋纵向内
+    /// 嵌帧（§202 K1/K2）。layout 与 applyOffset 两写点
+    /// 共用这一处派生——§182.2 的教训是阴影路径双写必
+    /// 须同拍同口径，几何再多一个事实源就会打架：clip
+    /// 帧＝前景 bounds 纵向内嵌 verticalInset(progress)
+    /// （合态 0、开态满值、随 progress 线性行进）、半
+    /// 径＝cornerRadius(progress)（一步到位、K4 不插值）。
+    /// 内容宿主反向补偿：原点 −inset、高恒 bounds 高——
+    /// 宿主在前景空间内的几何与 §202 之前逐值一致，浮
+    /// 置只是裁切窗与阴影的事，内容布局/安全区/栏位冻
+    /// 结几何一概不惊动（初版令宿主随 clip 同缩，CI
+    /// run 43384697181 生产同构实测：抽屉关落定后输入
+    /// 舱底 maxY −4pt 不复原，定因即宿主高被改写引发
+    /// 托管树几何重排，故改补偿式）
+    private func clipGeometry(progress: CGFloat)
+        -> (clipFrame: CGRect, contentFrame: CGRect, radius: CGFloat)
+    {
+        let radius = DrawerMotion.cornerRadius(progress: progress)
+        let inset = DrawerMotion.verticalInset(progress: progress)
+        let bounds = foreground.bounds
+        let clipFrame = bounds.insetBy(dx: 0, dy: inset)
+        let contentFrame = CGRect(
+            x: 0, y: -inset,
+            width: bounds.width, height: bounds.height
+        )
+        return (clipFrame, contentFrame, radius)
+    }
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         let bounds = view.bounds
@@ -284,20 +316,20 @@ final class DrawerContainerController: UIViewController,
         // §182.2 阴影路径跟随圆角：shadowPath 必须与
         // clipView 的圆角半径一致，否则直角矩形阴影会
         // 在圆角区域外露、视觉上圆角「不显」（用户真机
-        // 报无弧的定案主因）。进度读当前 offset 实算，
-        // 不读语义 presented（布局期可能先于手势/动画）
+        // 报无弧的定案主因）。§202 起帧与路径同走
+        // clipGeometry 单点派生（帧含纵向内嵌）。进度读
+        // 当前 offset 实算，不读语义 presented（布局期
+        // 可能先于手势/动画）
         let currentProgress = DrawerMotion.progress(
             offset: offset, travel: travel
         )
-        let currentRadius = DrawerMotion.cornerRadius(
-            progress: currentProgress
-        )
+        let geometry = clipGeometry(progress: currentProgress)
         foreground.layer.shadowPath = UIBezierPath(
-            roundedRect: foreground.bounds,
-            cornerRadius: currentRadius
+            roundedRect: geometry.clipFrame,
+            cornerRadius: geometry.radius
         ).cgPath
-        clipView.frame = foreground.bounds
-        contentHost.view.frame = clipView.bounds
+        clipView.frame = geometry.clipFrame
+        contentHost.view.frame = geometry.contentFrame
         edgeView.frame = CGRect(
             x: 0, y: 0,
             width: OneDayMetrics.drawerEdgeZone,
@@ -333,12 +365,15 @@ final class DrawerContainerController: UIViewController,
         let progress = DrawerMotion.progress(
             offset: newOffset, travel: travel
         )
-        let radius = DrawerMotion.cornerRadius(progress: progress)
-        clipView.layer.cornerRadius = radius
-        // §182.2 阴影路径跟随圆角（与布局期同步口径）
+        let geometry = clipGeometry(progress: progress)
+        clipView.layer.cornerRadius = geometry.radius
+        clipView.frame = geometry.clipFrame
+        contentHost.view.frame = geometry.contentFrame
+        // §182.2 阴影路径跟随圆角；§202 起路径矩形＝内
+        // 缩后的 clip 帧（与布局期同走 clipGeometry 派生）
         foreground.layer.shadowPath = UIBezierPath(
-            roundedRect: foreground.bounds,
-            cornerRadius: radius
+            roundedRect: geometry.clipFrame,
+            cornerRadius: geometry.radius
         ).cgPath
         foreground.layer.shadowOpacity = Float(
             DrawerMotion.shadowOpacity(progress: progress)
