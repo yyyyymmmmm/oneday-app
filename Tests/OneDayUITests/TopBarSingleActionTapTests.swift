@@ -195,11 +195,25 @@ final class TopBarSingleActionTapTests: XCTestCase {
         }
         lines.append("hubClose=\(fmt(close.frame)) win=\(fmt(win))")
 
-        // 页头另一件：分享钮与 ✕ 同在页头行
-        let share = app.buttons["分享智能体名片"]
-        if !(share.exists && share.isHittable
-             && isFullyOnScreen(share.frame, in: win)) {
+        // 页头另一件：分享钮与 ✕ 同在页头行（ShareLink
+        // 在 AX 树里的元素类型不稳定，探针不限类型按标
+        // 签查；首轮 CI 实证 app.buttons 查不到它）
+        let share = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == '分享智能体名片'")
+        ).firstMatch
+        if share.waitForExistence(timeout: 5), share.isHittable,
+           isFullyOnScreen(share.frame, in: win) {
+            lines.append("shareButton=\(fmt(share.frame))")
+        } else {
             violations.append("页头分享钮不在屏内")
+            // 失败路径诊断：树里带「分享」的标签都长什么样
+            let kin = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label CONTAINS '分享'"))
+            var labels: [String] = []
+            for i in 0..<min(kin.count, 5) {
+                labels.append(kin.element(boundBy: i).label)
+            }
+            lines.append("shareKin=\(labels)")
         }
 
         // 模型单行入口在屏内
@@ -232,13 +246,42 @@ final class TopBarSingleActionTapTests: XCTestCase {
             entry.tap()
             if modelRow(app).waitForExistence(timeout: 6) {
                 lines.append("picker=open via hub entry")
-                let cancel = app.buttons["取消"]
-                if cancel.exists { cancel.tap() }
-                let deadline = Date().addingTimeInterval(5)
-                while modelRow(app).exists, Date() < deadline {
+                // 关面：取消钮（本环境本地化串解析为英
+                // 文 Cancel——首轮 CI 树扫描实证；双标
+                // 签都试）→ 兜底点当前模型行（选中即关
+                // 面、同模型重选无副作用）
+                var closed = false
+                for label in ["取消", "Cancel"] {
+                    let cancel = app.buttons[label]
+                    if cancel.exists, cancel.isHittable {
+                        cancel.tap()
+                        break
+                    }
+                }
+                var deadline = Date().addingTimeInterval(8)
+                while Date() < deadline {
+                    if !modelRow(app).exists { closed = true; break }
                     Thread.sleep(forTimeInterval: 0.25)
                 }
-                if modelRow(app).exists {
+                if !closed {
+                    let current = app.buttons.matching(
+                        NSPredicate(format:
+                            "label CONTAINS[c] 'deepseek-flash'"
+                            + " AND label CONTAINS 'Via gateway'")
+                    ).firstMatch
+                    if current.exists, current.isHittable {
+                        current.tap()
+                        deadline = Date().addingTimeInterval(8)
+                        while Date() < deadline {
+                            if !modelRow(app).exists {
+                                closed = true
+                                break
+                            }
+                            Thread.sleep(forTimeInterval: 0.25)
+                        }
+                    }
+                }
+                if !closed {
                     violations.append("选择面关不掉")
                 }
                 if hubCloseButton(app) == nil {
