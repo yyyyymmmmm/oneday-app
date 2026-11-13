@@ -81,6 +81,25 @@ public struct MessageQuote: Equatable, Sendable {
         guard !userText.isEmpty else { return block }
         return block + "\n\n" + userText
     }
+
+    /// 引用分发收口（§208）：一条用户消息至多带一
+    /// 种引用——消息引用与动态引用在发送舱共用同
+    /// 一槽位、落盘互斥（ChatEntry 的 quote 两字段
+    /// 与 feedPost 四字段不同时有值）。动态引用在
+    /// 场走 FeedPostQuote 变体，否则走消息引用原
+    /// 口径。发送组装与同 key 重演组装共用本函数，
+    /// 口径全仓一处
+    public static func outgoingContent(
+        userText: String, quote: MessageQuote?,
+        feedQuote: FeedPostQuote?
+    ) -> String {
+        if let feedQuote {
+            return FeedPostQuote.outgoingContent(
+                userText: userText, feedQuote: feedQuote
+            )
+        }
+        return outgoingContent(userText: userText, quote: quote)
+    }
 }
 
 /// 长按菜单四项的 SF Symbol 名（0.4.1）：符号名收敛在

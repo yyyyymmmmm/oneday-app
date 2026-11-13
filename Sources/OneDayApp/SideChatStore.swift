@@ -1,5 +1,6 @@
 import Foundation
 import OneDayCore
+import os
 
 /// 滚动锚（轻保活 M1）：切走一条线程时记下的可见位置——
 /// 在底部则记 atBottom，否则记首个可见条目 id，切回时恢复
@@ -258,6 +259,14 @@ final class SideChatStore {
         drafts[threadID.uuidString]
     }
 
+    /// 草稿写入唯一口。**隔离铁律（§208）**：本账只
+    /// 许收用户亲笔——调用方只许是 ChatView 的切走
+    /// 回存与删线程清理（同出亲笔生命周期）。系统注
+    /// 入（动态讨论/文件重发之类要把上下文带进对话
+    /// 的）一律走引用/种子暂存道，不许经本口进账：
+    /// 本账无来源标记，注入文进账即与亲笔同形、被
+    /// 保活永久保护（动态讨论预填的病根，§208 已堵
+    /// 讨论一处；点子/文件重发两处同病列另包待办）
     func setDraft(_ text: String, for threadID: UUID) {
         if text.isEmpty {
             drafts[threadID.uuidString] = nil
@@ -285,12 +294,31 @@ final class SideChatStore {
     /// 讨论建聊时登记：线程的第一条用户消息要替这
     /// 篇帖发一记 discuss 信号
     func linkFeedDiscussThread(_ threadID: UUID, postID: String) {
+        // 一帖一线程：同帖改挂新线程（旧线程已删后
+        // 补建）时先摘其他线程的同帖关联，否则反查
+        // 会捞回已删线程、discuss 每次都新建（去重
+        // 失效、空会话堆积复发）
+        for key in feedDiscussPostIDs
+            .filter({ $0.value == postID }).map(\.key)
+            where key != threadID.uuidString {
+            feedDiscussPostIDs.removeValue(forKey: key)
+        }
         feedDiscussPostIDs[threadID.uuidString] = postID
         persist(feedDiscussPostIDs, Key.feedDiscussPostIDs)
     }
 
     func feedDiscussPostID(forThreadID threadID: UUID) -> String? {
         feedDiscussPostIDs[threadID.uuidString]
+    }
+
+    /// 反查（§208 讨论去重）：这篇帖已有的讨论线程
+    /// ——discuss() 先查本口，有则复用、不再堆空会话
+    /// （与点子流「先查 link」同形）；关联在但线程
+    /// 已删时由调用方校验存在性后决定补建
+    func threadID(forFeedDiscussPostID postID: String) -> UUID? {
+        feedDiscussPostIDs.first(where: {
+            $0.value == postID
+        }).flatMap { UUID(uuidString: $0.key) }
     }
 
     /// 信号发出即销账：一线程只报一次，note 只认
@@ -301,6 +329,53 @@ final class SideChatStore {
         }
         feedDiscussPostIDs[threadID.uuidString] = nil
         persist(feedDiscussPostIDs, Key.feedDiscussPostIDs)
+    }
+
+    // MARK: - 存量预填清扫（§208 包 3）
+
+    private static let purgeLog = Logger(
+        subsystem: "site.didichou.oneday",
+        category: "feed-discuss-purge"
+    )
+
+    /// 一次性清扫 §208 前落盘的旧讨论预填草稿：只
+    /// 扫有 FA-1 关联的线程，拿原帖（标题＋正文）
+    /// 经 FeedDiscussDraftCleanup 逐字再生比对——
+    /// 与机器输出逐字相等才清，用户改过一字即不
+    /// 相等、不动；无关联线程的草稿、原帖已不在
+    /// 本批名单（无从再生核验）的草稿一律不碰。
+    /// 只清草稿文本，同帖线程本体保留（用户数据）。
+    /// 调用点唯一：动态名单每次拉取成功后（Feed-
+    /// Store.load）——逐字再生须拿原帖，这是最早
+    /// 能严格核验的时点；清扫幂等（清后账上无此
+    /// 草稿、复跑恒 0）。留痕走 os 日志计数，不上
+    /// 屏打扰
+    @discardableResult
+    func purgeLegacyFeedDiscussDrafts(
+        posts: [BridgeFeedPost]
+    ) -> Int {
+        guard !posts.isEmpty else { return 0 }
+        let byID = Dictionary(
+            uniqueKeysWithValues: posts.map { ($0.id, $0) }
+        )
+        var cleared = 0
+        for (threadKey, postID) in feedDiscussPostIDs {
+            guard let post = byID[postID],
+                  let draft = drafts[threadKey] else { continue }
+            if FeedDiscussDraftCleanup.isMachinePrefill(
+                draft, title: post.title, body: post.body
+            ) {
+                drafts[threadKey] = nil
+                cleared += 1
+            }
+        }
+        if cleared > 0 {
+            persist(drafts, Key.drafts)
+        }
+        Self.purgeLog.info(
+            "存量预填清扫：扫 \(self.feedDiscussPostIDs.count) 条关联、清 \(cleared) 条"
+        )
+        return cleared
     }
 
     func scrollAnchor(for threadID: UUID) -> SideChatScrollAnchor? {

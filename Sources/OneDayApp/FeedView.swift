@@ -1,5 +1,6 @@
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 动态格（P3，0.35.0；0.38.0 换代）：形态按设计档
@@ -48,6 +49,13 @@ struct FeedView: View {
     @State private var isSearching = false
     /// 来源小 sheet 的当前帖（动作行 ⓘ 点按）
     @State private var sourcesPost: BridgeFeedPost?
+    /// §208 原帖回跳挂起中的帖 id：回跳请求已消费、
+    /// 帖名单未就绪时先挂起，posts 到达后再判（见
+    /// resolveFeedOpen）
+    @State private var pendingFeedOpenPostID: String?
+    /// §208 回跳查无此帖的诚实提示（帖已过期/删除；
+    /// 引用块里的快照仍可读，提示只管原帖不在）
+    @State private var feedPostGoneNotice = false
 
     /// 页顶浮层的实测重叠高度（§126）：顶距改条件
     /// 化——§122 的无条件 64pt（spacingXXL＋spacingM）
@@ -136,6 +144,26 @@ struct FeedView: View {
                     sourcesPost = nil
                     path.append(Route.ref(ref))
                 }
+            }
+            // §208：聊天里点动态引用块的原帖回跳——请
+            // 求在此消费（清零先行防重入），落点判定走
+            // resolveFeedOpen（在名单直达详情、名单就
+            // 绪而查无给诚实提示、未就绪挂起等名单）
+            .onChange(of: appState.feedOpenPostRequest) { _, id in
+                if let id {
+                    appState.feedOpenPostRequest = nil
+                    pendingFeedOpenPostID = id
+                    resolveFeedOpen()
+                }
+            }
+            .onChange(of: store.posts) { _, _ in
+                resolveFeedOpen()
+            }
+            .alert(
+                "这篇动态已不在了",
+                isPresented: $feedPostGoneNotice
+            ) {
+                Button("好", role: .cancel) {}
             }
             .task {
                 await reload()
@@ -435,6 +463,21 @@ struct FeedView: View {
         path.append(Route.post(post.id))
     }
 
+    /// §208 回跳落点判定：挂起帖在已载名单里→直达
+    /// 详情并销挂起；名单已就绪（.ready）而查无→帖
+    /// 真不在了，诚实提示并销挂起；名单未就绪→继
+    /// 续挂起，等 posts 变更时由 onChange 再判
+    private func resolveFeedOpen() {
+        guard let id = pendingFeedOpenPostID else { return }
+        if store.post(id: id) != nil {
+            pendingFeedOpenPostID = nil
+            path.append(Route.post(id))
+        } else if case .ready = store.loadState {
+            pendingFeedOpenPostID = nil
+            feedPostGoneNotice = true
+        }
+    }
+
     /// 已读回写：未读才发（markRead 内部幂等、桥回
     /// 执对账）；失败按下轮 load 的服务端真源纠正
     private func markRead(_ post: BridgeFeedPost) {
@@ -442,28 +485,53 @@ struct FeedView: View {
         Task { await store.markRead(appState: appState, post: post) }
     }
 
-    /// 讨论（0.47.0）：以本帖为上下文开一条新对话
-    /// ——本地建线程（DrawerView.createThread 同形）、
-    /// 预填开场（标题＋正文摘录）进输入框草稿、切到
-    /// 聊天格选中该线程；用户改完再发，本钮不代发
-    /// §123（M2）：预填拼装收口 Core FeedDiscussPrefill
-    /// ——超长正文改句界节选＋明标「原帖节选」，尾行带
-    /// 原帖回指（旧实现 prefix(1200) 硬截无标记无回指）
-    /// FA-1：建聊同时登记待发信号关联——该旁聊第一
-    /// 条用户消息发出后，ChatView 据此发一记 discuss
-    /// 信号（契约 rev2 §1.9；本钮仍不代发消息）
+    /// 讨论（0.47.0；§208 引用化）：以本帖为引用开
+    /// 一条对话——帖以引用卡挂发送舱（FeedPostQuote
+    /// 值快照），输入框恒空、亲笔才是草稿；引用经
+    /// AppState 种子暂存道交接（ChatView 的
+    /// tryApplyFeedSeed 消费），永不进草稿账。
+    /// §208 前旧形（预填经 setDraft 直写草稿账）已
+    /// 退役：预填文与亲笔在草稿账里同形、被防丢稿
+    /// 保活永久保护，没发就赖着不走（用户
+    /// 2026-11-13 点名）；存量旧预填由包 3 清扫。
+    /// 去重：同帖已有讨论线程复用（FA-1 关联反
+    /// 查，threadID(forFeedDiscussPostID:)），不
+    /// 再堆空会话；复用不覆盖其草稿（本路根本不
+    /// 写草稿账），关联在但线程已删则补建并改写
+    /// 关联（与点子流 openIdeaChat 同形）
+    /// FA-1：建聊同时登记待发信号关联——该线程
+    /// 第一条用户消息发出后，ChatView 据此发一记
+    /// discuss 信号（契约 rev2 §1.9；本钮仍不代
+    /// 发消息）
     private func discuss(_ post: BridgeFeedPost) {
         markRead(post)
-        let thread = ChatThread()
-        modelContext.insert(thread)
-        try? modelContext.save()
-        appState.sideChats.linkFeedDiscussThread(thread.id, postID: post.id)
-        let prefill = FeedDiscussPrefill.make(
-            title: post.title, body: post.body
+        let thread: ChatThread
+        if let linkedID = appState.sideChats.threadID(
+            forFeedDiscussPostID: post.id
+        ), let existing = fetchThread(linkedID) {
+            thread = existing
+        } else {
+            let fresh = ChatThread()
+            modelContext.insert(fresh)
+            try? modelContext.save()
+            appState.sideChats.linkFeedDiscussThread(
+                fresh.id, postID: post.id
+            )
+            thread = fresh
+        }
+        appState.pendingFeedDiscussSeed = FeedDiscussSeed(
+            threadID: thread.id, quote: FeedPostQuote(post: post)
         )
-        appState.sideChats.setDraft(prefill, for: thread.id)
         appState.drawerThreadSelection = thread.id
         appState.mainTabSwitchRequest = .chat
+    }
+
+    /// 按 id 取本地线程（点子流 fetchThread 同形）
+    private func fetchThread(_ id: UUID) -> ChatThread? {
+        let descriptor = FetchDescriptor<ChatThread>(
+            predicate: #Predicate { $0.id == id }
+        )
+        return try? modelContext.fetch(descriptor).first
     }
 
     /// refs 蓝字内链：横滑小链，点达对象详情（标题
