@@ -53,23 +53,46 @@ jobs:
           grep -E "error:|Test Case|Executed|TEST" test-full.log | head -60 || true
 
       # §184 flake 取证：测试进程「意外退出」时 stdout
-      # 无死因原文，崩溃/看门狗报告落在模拟器设备的
-      # DiagnosticReports 里——无论成败都把近 40 分钟
-      # 内 OneDayApp 与 Jetsam 报告的头部倾印进日志
-      # （异常类型＋终止原因＋故障线程足够定性）
+      # 无死因原文，报告落在两处——模拟器应用是宿主
+      # 进程，其 .ips 进宿主机 ~/Library/Logs/
+      # DiagnosticReports（run 43243648978 实证：旧步只
+      # find 设备目录、宿主目录只列文件名，两份
+      # OneDayApp .ips 的内容从未被倾印）；设备内报告
+      # 进 CoreSimulator Devices 的 DiagnosticReports。
+      # 无论成败都把近 4 小时内相关 .ips 的头部（异常
+      # 类型＋终止原因＋崩溃线程）与关键行摘录（VM
+      # Region 等）倾印进日志，供死因定性。
       - name: Dump simulator crash diagnostics
         if: always()
         run: |
-          find ~/Library/Developer/CoreSimulator/Devices \
-            -path "*DiagnosticReports*" -mmin -40 \
-            \( -name "*OneDay*" -o -name "*Jetsam*" -o -name "*testmanagerd*" \) \
-            2>/dev/null | while read -r f; do
-              echo "===== $f"
-              head -c 6000 "$f" || true
-              echo
+          set +e
+          dump_ips() {
+            case "$1" in *.ips) ;; *) return 0 ;; esac
+            [ -f "$1" ] || return 0
+            echo "===== $1"
+            ls -l "$1"
+            head -n 160 "$1"
+            echo "----- key lines: $1"
+            grep -nE "Exception Type|Exception Subtype|Termination|Crashed Thread|Code Type" "$1" | head -30
+            grep -nA4 "VM Region Summary" "$1" | head -12
+            grep -nE "^VM Region" "$1" | head -5
+            echo
+          }
+          echo "--- host DiagnosticReports (all, newest first) ---"
+          ls -lt ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head -20
+          find ~/Library/Logs/DiagnosticReports -maxdepth 1 -type f -mmin -240 \
+            \( -name "*OneDay*" -o -name "*Jetsam*" -o -name "*testmanagerd*" -o -name "*xctest*" \) \
+            -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -6 | while read -r f; do
+              dump_ips "$f"
             done
-          echo "--- host DiagnosticReports (recent) ---"
-          ls -t ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head -5 || true
+          echo "--- simulator device DiagnosticReports ---"
+          find ~/Library/Developer/CoreSimulator/Devices \
+            -path "*DiagnosticReports*" -type f -mmin -240 \
+            \( -name "*OneDay*" -o -name "*Jetsam*" -o -name "*testmanagerd*" -o -name "*xctest*" \) \
+            -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -6 | while read -r f; do
+              dump_ips "$f"
+            done
+          true
 
       - name: Package unsigned IPA
         run: |
