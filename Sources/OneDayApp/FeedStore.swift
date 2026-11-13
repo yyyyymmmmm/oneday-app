@@ -77,6 +77,13 @@ final class FeedStore {
         do {
             posts = try await client.feedPosts(config: config)
             loadState = .ready
+            // §202 包 3：名单到手即扫存量旧预填草稿
+            // ——逐字再生核验须拿原帖，本点是最早能
+            // 严格核验的时点；清扫幂等、逐字不符一
+            // 字不动（判定与留痕在 SideChatStore）
+            appState.sideChats.purgeLegacyFeedDiscussDrafts(
+                posts: posts
+            )
         } catch let error as OneDayBridgeError {
             if loadState == .ready { return }
             loadState = GoalsStore.state(for: error)

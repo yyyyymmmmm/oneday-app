@@ -93,6 +93,17 @@ final class ChatEntry {
     /// 生成（可选＋默认 nil、SwiftData 轻量迁移）
     var quoteRole: String? = nil
     var quoteContent: String? = nil
+    /// §202：本条消息引用了哪篇动态帖（动态「讨论」
+    /// 引用化）——只在发送时由带动态引用的用户消息
+    /// 携带，与 quote 两字段互斥（发送舱共用同一引
+    /// 用槽位）；存帖 id＋标题＋正文全文＋来源行快照，
+    /// 帖删/过期后引用块仍可读（值快照不悬挂），回
+    /// 放拼装经 FeedPostQuote 收口（可选＋默认 nil、
+    /// SwiftData 轻量迁移，同 quoteRole 先例）
+    var feedPostID: String? = nil
+    var feedPostTitle: String? = nil
+    var feedPostBody: String? = nil
+    var feedPostSource: String? = nil
     /// 0.5.1：助手回复的思考原文（reasoning 通道落盘，
     /// §32）——只作折叠单元展示、不回灌请求上下文；
     /// reasoningSeconds 为流内实测思考耗时（首个思考增
@@ -137,7 +148,7 @@ final class ChatEntry {
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil, approvalKey: String? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, feedQuote: FeedPostQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil, approvalKey: String? = nil) {
         id = UUID()
         self.role = role
         self.content = content
@@ -151,6 +162,10 @@ final class ChatEntry {
             : try? JSONEncoder().encode(imageDatas)
         quoteRole = quote?.role
         quoteContent = quote?.content
+        feedPostID = feedQuote?.postID
+        feedPostTitle = feedQuote?.title
+        feedPostBody = feedQuote?.body
+        feedPostSource = feedQuote?.sourceLine
         self.reasoning = reasoning
         self.reasoningSeconds = reasoningSeconds
         toolCardData = toolCard.flatMap {
@@ -239,5 +254,19 @@ final class ChatEntry {
     var quote: MessageQuote? {
         guard let quoteRole, let quoteContent else { return nil }
         return MessageQuote(role: quoteRole, content: quoteContent)
+    }
+
+    /// 落盘四字段 → 动态引用值对象（§202）：id/标题
+    /// /正文任一缺失即无引用；来源行可空。缩略图与
+    /// 行首标识不落盘（呈现只需标题＋摘要、回放只
+    /// 需标题＋正文＋来源），重组时两项为空
+    var feedQuote: FeedPostQuote? {
+        guard let feedPostID, let feedPostTitle,
+              let feedPostBody else { return nil }
+        return FeedPostQuote(
+            postID: feedPostID, title: feedPostTitle,
+            body: feedPostBody,
+            sourceLine: feedPostSource ?? ""
+        )
     }
 }

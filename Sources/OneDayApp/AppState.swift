@@ -31,6 +31,16 @@ final class WeakAppStateBox: @unchecked Sendable {
     }
 }
 
+/// 动态讨论引用种子（§202）：FeedView「讨论」的跨
+/// 页交接载荷——目标线程 id＋帖引用快照。ChatView
+/// 只在当前线程与 threadID 相符时消费（切线程的
+/// onChange 与种子置位的 onChange 两路都试消费，
+/// 先后无关，见 ChatView.tryApplyFeedSeed）
+struct FeedDiscussSeed: Equatable {
+    let threadID: UUID
+    let quote: FeedPostQuote
+}
+
 /// 连接状态单点：持有当前服务器配置与客户端，负责
 /// 启动恢复、三步探活、凭据存取、会话过期自动重登、断开连接。
 /// 凭据只经 Keychain 进出，本类不落任何明文副本到磁盘。
@@ -630,6 +640,21 @@ final class AppState {
     /// （其消费面——胶囊判定与删当前线程判定——已全
     /// 部改读本引用经政策解析）
     var currentDrawerObject: DrawerCurrentObject?
+    /// 动态讨论引用种子（§202）：FeedView 点「讨论」
+    /// 时置位（目标线程＋引用快照），ChatView 在落到
+    /// 目标线程时消费转入待发送引用并清零——跨页交
+    /// 接走暂存道（照 ChatView 内 pendingForkQuote
+    /// 先例的跨页版），不经草稿账（setDraft 只许亲
+    /// 笔，见 SideChatStore 隔离铁律）。种子只活在
+    /// 内存：进程死亡即亡，与引用本身的生命周期一
+    /// 致（引用不落盘恢复）
+    var pendingFeedDiscussSeed: FeedDiscussSeed?
+    /// 动态原帖回跳请求（§202）：聊天里点消息的动态
+    /// 引用块时置位帖 id 并同行置 mainTabSwitch-
+    /// Request=.feed 切格，FeedView 消费后定位原帖
+    /// （查无此帖给诚实提示）并清零——置位—消费—
+    /// 清零与 fileRevealPath 同式
+    var feedOpenPostRequest: String?
     /// 抽屉点选/新建的线程 id（DrawerView 写，ChatView
     /// 消费后切 currentThreadID 并清零）
     var drawerThreadSelection: UUID?
