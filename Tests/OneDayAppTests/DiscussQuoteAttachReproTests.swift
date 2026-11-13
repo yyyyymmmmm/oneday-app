@@ -126,10 +126,20 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
     }
 
     private func composerHost() -> UIView? {
-        guard let window else { return nil }
-        return ComposerGuideHostController.traceComposerHostView(
-            in: window
-        )
+        findComposerVC()?.traceComposerHostView
+    }
+
+    /// 沿 VC 树找 ComposerGuideHostController（探针同款定位法）
+    private func findComposerVC() -> ComposerGuideHostController? {
+        var found: ComposerGuideHostController?
+        func walk(_ vc: UIViewController) {
+            if let hit = vc as? ComposerGuideHostController {
+                found = hit
+            }
+            for child in vc.children { walk(child) }
+        }
+        if let root = window?.rootViewController { walk(root) }
+        return found
     }
 
     private func spinUntilChatPresented() {
@@ -156,7 +166,8 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
             let count = ns.accessibilityElementCount()
             if count != NSNotFound, count > 0, count < 1000 {
                 for i in 0..<count {
-                    if let child = ns.accessibilityElement(at: i) {
+                    if let child = ns.accessibilityElement(at: i)
+                        as? NSObject {
                         walk(child, depth + 1)
                     }
                 }
@@ -186,37 +197,39 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
         )
     }
 
+    private func fetchThread(_ id: UUID) -> ChatThread? {
+        let descriptor = FetchDescriptor<ChatThread>(
+            predicate: #Predicate { $0.id == id }
+        )
+        return try? context.fetch(descriptor).first
+    }
+
     /// 返回讨论落点线程 id。stepMark=true 时逐步打点（主场景
-    /// 挂死定位用）。
+    /// 挂死定位用）。写组与 FeedView.discuss 本尊逐字同序。
     @discardableResult
     private func performDiscussWrites(
         post: BridgeFeedPost, stepMark: Bool = false
     ) -> UUID {
         if stepMark { mark("discuss-begin") }
-        if let existing = appState.sideChats.threadID(
+        let thread: ChatThread
+        if let linkedID = appState.sideChats.threadID(
             forFeedDiscussPostID: post.id
-        ) {
+        ), let existing = fetchThread(linkedID) {
             if stepMark { mark("discuss-reuse-path") }
-            appState.pendingFeedDiscussSeed = FeedDiscussSeed(
-                threadID: existing,
-                quote: FeedPostQuote(post: post)
+            thread = existing
+        } else {
+            let fresh = ChatThread()
+            if stepMark { mark("before-insert") }
+            context.insert(fresh)
+            if stepMark { mark("before-save") }
+            try? context.save()
+            if stepMark { mark("after-save") }
+            appState.sideChats.linkFeedDiscussThread(
+                fresh.id, postID: post.id
             )
-            appState.drawerThreadSelection = existing
-            appState.mainTabSwitchRequest = .chat
-            if stepMark { mark("discuss-writes-done") }
-            return existing
+            if stepMark { mark("after-link") }
+            thread = fresh
         }
-        let thread = ChatThread(kind: .side, origin: .user)
-        thread.title = String(post.title.prefix(24))
-        if stepMark { mark("before-insert") }
-        context.insert(thread)
-        if stepMark { mark("before-save") }
-        try? context.save()
-        if stepMark { mark("after-save") }
-        appState.sideChats.linkFeedDiscussThread(
-            threadID: thread.id, postID: post.id
-        )
-        if stepMark { mark("after-link") }
         appState.pendingFeedDiscussSeed = FeedDiscussSeed(
             threadID: thread.id,
             quote: FeedPostQuote(post: post)
@@ -313,12 +326,11 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
         mountShell()
         spinUntilChatPresented()
         let post = makePost(id: "rig-post-reuse")
-        let thread = ChatThread(kind: .side, origin: .user)
-        thread.title = "Rig 既有讨论线程"
+        let thread = ChatThread()
         context.insert(thread)
         try? context.save()
         appState.sideChats.linkFeedDiscussThread(
-            threadID: thread.id, postID: post.id
+            thread.id, postID: post.id
         )
         appState.sideChats.setLastThreadID(thread.id.uuidString)
         spinRunLoop(seconds: 1.2)
