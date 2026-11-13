@@ -5918,7 +5918,8 @@ private struct ComposerBarLayout: Layout {
         // 口径注在该函数；基础止血包起失败重发同走它，
         // 两路不许分叉）
         let context = outgoingContext(
-            of: thread, tailEntry: newEntry, text: text, quote: quote
+            of: thread, tailEntry: newEntry, text: text, quote: quote,
+            feedQuote: feedQuote
         )
         // 文件真发送（0.36.29，契约实测冻结后开放）：
         // 待发文件在轮次起手逐个上传到服务端
@@ -5948,7 +5949,8 @@ private struct ComposerBarLayout: Layout {
     /// 事实源，两路同值）
     private func outgoingContext(
         of thread: ChatThread, tailEntry: ChatEntry,
-        text: String, quote: MessageQuote?
+        text: String, quote: MessageQuote?,
+        feedQuote: FeedPostQuote?
     ) -> [ChatMessage] {
         var context = thread.sortedEntries
             .filter {
@@ -6272,7 +6274,8 @@ private struct ComposerBarLayout: Layout {
             seedSnapshot: seedSnapshot,
             context: outgoingContext(
                 of: thread, tailEntry: target,
-                text: target.content, quote: target.quote
+                text: target.content, quote: target.quote,
+                feedQuote: target.feedQuote
             )
         )
     }
