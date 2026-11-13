@@ -11476,3 +11476,9 @@ IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径�
 **定因（生产实证）**：目标会话 oneday-side-5e1beb12-…（21:35:51 建、首轮已完、rev/gen 恒 1/1、无 run 在飞）——nginx 日志坐实两试 DELETE 均**无任何 query 参数**（裸发）。根在 App 侧 DTO：生产详情回包 archived/pinned 为数字 0（sqlite 原样），ServerSession 的 Bool? 合成解码遇数字整行抛错；删除/PATCH 每试先 GET 详情取围栏，try? 吞错后静默走裸发回退，服务端按契约回 409 client_upgrade_required，重试同死。原三嫌疑全排除：自动标题（建后 6 秒即定、删除前 4 分钟无变动）、run 在飞（无）、列表缓存取值（删除路径本就现读详情——读死在解码不是取值）。同根：PATCH 改名/归档同路、SessionsPage 逐行 try? 同风险；发送层 sendJSON 丢响应体致 detail 码不可达、用户只见裸 409。
 
 **修法（先查市面成熟做法，报告 §1）**：围栏框架留（Hermes 官方 dashboard 文档钦定客户端义务，防并发误删/误改，无同行等价物可替换）；三处自创偏离收口——①身份改读官方 GET /api/sessions/{id}/mutation-snapshot（新 SessionMutationSnapshot DTO），不再经 42KB 详情回包；②删裸发回退：快照读不到如实上抛、什么都不发（ServerSession 自定义 Decodable：archived/pinned 兼容 Bool 与 0/1 数字，PATCH 同受益）；③收口按错误码分流（Core 纯函数 SessionDeleteDirective＋HermesServerErrorCode 解析 detail 码，单测把守）：2xx/404＝已达成、revision_conflict 重读即时再试、session_busy 短等（1.5s/3s）再试、共 3 试，耗尽按码上抛（busy 报新 HermesError.sessionBusy 人话）；request_id 每试新铸（已删靠快照 404/exists=false 与 DELETE 404 收口，生产实证墓碑同 id 重放亦 200）。i18n 新增 2 键（服务端会话变更快照／这条会话还在运行中，等它跑完再删。），validate_i18n 2966 键三语过。登记待办（不属本包）：bulk-delete/deleteEmptySessions 同受网关守卫、SessionsPage 丢行问题随列表换代处理。
+
+## §210 0.50.33 三包正式组版（2026-11-14；分支 rel-05033，基线 rel-05032 头 baf338c；三包预制 rel-05033-prep 头 6e91bf1；全档＝oneday-design-review/release-05033-prep-20261113.md）
+
+**装配**：基线 rel-05032（0.50.32 删除热修已判绿，见 §209 附记）直接合入预制 rel-05033-prep（频道文案 feat/channel-apply-copy @1a11d03＋身份末写胜 fix/identity-last-write-wins @6e686a2＋基础止血 feat/basics-stopgap @aa1038a）。唯一冲突 Sources/OneDayCore/FileOpenFailure.swift 同 switch：删除侧 `.sessionBusy`、三包侧 run 五档，均归 `.other`，取并集、两边注释原样保留，无语义冲突；其余自动合并，ChatView 合并结果与预制逐字同 blob（基础止血语义零丢失，三重验证法见预制报告 §3）。DESIGN §209 无撞号（删除线先落留 §209，本节顺延 §210）。版本 0.50.33/161 五处同改＋grep 验。i18n：validate_i18n 合并后 2976 键×三语通过（预制 2974＋删除线 2）。Core 静态 1823（rel-05032 实跑 1791＋三包 32）、App 65——预制报告的 1811 是对 rel/05030 基线的预期，本装配基线顺延一位后预期为 1823。
+
+### §210.1 装配 CI 判读（待回填）

@@ -191,6 +191,10 @@ struct AgentHubView: View {
             )
         }
         .task {
+            // 身份呈现跟随（末写胜包）：枢纽是看身份的
+            // 面——每次打开先重拉名字与头像，服务器刚
+            // 被 AI 改过当场跟上（节流在 AppState 内）
+            await appState.refreshIdentitySurfaces()
             if store == nil {
                 // 0.36.21：store 改走 AppState 共享单例
                 // （就地审批卡与枢纽共用同一份 /pending

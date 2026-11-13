@@ -65,7 +65,10 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
             return .serviceUnavailable
         case .invalidServerAddress, .decodingFailed,
              .modelNotUpstream, .cancelled,
-             .demoLimitReached, .sessionBusy:
+             .demoLimitReached, .sessionBusy,
+             .runBillingExhausted, .runServiceUnavailable,
+             .runTimedOut, .runNetworkInterrupted,
+             .runFailedGeneric:
             // demoLimitReached（第 4 项空态信号）：文件
             // 读面在演示里是保留面、本分型实际不会收到
             // 它；归 other 兜底，不冒充已分类
@@ -73,6 +76,9 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
             // 见 HermesError.swift）：文件打开面实际不会
             // 收到它；即便收到也不是「服务器连不上」，不
             // 许冒充 serviceUnavailable，归 other 兜底
+            // run 五档（基础止血包 P5）：是落定失败的
+            // 呈现值、由分型器合成，从不由文件取回路
+            // 抛出；同理归 other，不冒充文件侧已分类
             return .other
         }
     }

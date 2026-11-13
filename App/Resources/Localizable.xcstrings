@@ -24883,6 +24883,52 @@
         }
       }
     },
+    "正在生效": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taking effect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在生效"
+          }
+        }
+      }
+    },
+    "钥匙已保存，服务器正在让它生效，通常几秒钟就好。连上之后这里会自动变成已配对的样子，你不用再做什么。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your key is saved and the server is putting it into effect — this usually takes just a few seconds. Once it's connected, this page will show as paired on its own; there's nothing else you need to do."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙已保存，服务器正在让它生效，通常几秒钟就好。连上之后这里会自动变成已配对的样子，你不用再做什么。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙已儲存，伺服器正在讓它生效，通常幾秒鐘就好。連上之後這裡會自動變成已配對的樣子，你不用再做什麼。"
+          }
+        }
+      }
+    },
     "正在读取状态…": {
       "localizations": {
         "en": {
@@ -67902,6 +67948,191 @@
           "stringUnit": {
             "state": "translated",
             "value": "回到動態原帖"
+          }
+        }
+      }
+    }
+,
+    "生成失败：账户余额或额度不足，处理好后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generation failed: the account balance or quota is insufficient. Resolve that and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成失败：账户余额或额度不足，处理好后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成失敗：帳戶餘額或額度不足，處理好後再試。"
+          }
+        }
+      }
+    },
+    "生成失败：服务器那边出了点问题，稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generation failed: something went wrong on the server. Try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成失败：服务器那边出了点问题，稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成失敗：伺服器那邊出了點問題，稍後再試。"
+          }
+        }
+      }
+    },
+    "生成超时了，稍后再试一次。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generation timed out. Try again in a moment."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成超时了，稍后再试一次。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成超時了，稍後再試一次。"
+          }
+        }
+      }
+    },
+    "网络断开了，生成没能完成。等网络恢复后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The network connection was lost, so generation didn't finish. Try again once you're back online."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络断开了，生成没能完成。等网络恢复后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網路斷開了，生成沒能完成。等網路恢復後再試。"
+          }
+        }
+      }
+    },
+    "正在载入这段对话…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading this conversation…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在载入这段对话…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在載入這段對話…"
+          }
+        }
+      }
+    },
+    "正在载入这段对话": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading this conversation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在载入这段对话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在載入這段對話"
+          }
+        }
+      }
+    },
+    "图片加载失败": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't load image"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图片加载失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "圖片載入失敗"
+          }
+        }
+      }
+    },
+    "点按重新加载图片": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to reload the image"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按重新加载图片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點按重新載入圖片"
           }
         }
       }

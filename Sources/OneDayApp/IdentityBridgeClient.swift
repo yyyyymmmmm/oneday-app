@@ -21,16 +21,54 @@ struct IdentityAvatarState: Decodable, Sendable {
         let bytes: Int?
         let sha256: String?
         let current: Bool
+        /// 条目写入时刻（epoch 秒，桥侧账；末写胜用）
+        let createdAt: Double?
+        /// 写入来源（ai/app…）：只留痕、不参与裁决
+        let source: String?
+
+        var createdAtDate: Date? {
+            createdAt.map { Date(timeIntervalSince1970: $0) }
+        }
     }
 
     let currentId: String?
     let items: [Item]
+    /// 当前指针最后一次被设定的时刻（epoch 秒）：设
+    /// 当前的那次写入（新增设当前/重选）落账；旧桥
+    /// 无此字段时为 nil，调用方以当前条目 createdAt
+    /// 兜底
+    let currentUpdatedAt: Double?
+    /// 设定当前指针的来源：只留痕、不参与裁决
+    let currentSource: String?
 
     /// 当前条目：优先信条目自带的 current 标记，缺失
     /// 时按 currentId 兜底查
     var currentItem: Item? {
         items.first(where: { $0.current })
             ?? items.first(where: { $0.id == currentId })
+    }
+
+    /// AI 档的写入时刻（末写胜凭据）：指针时刻优先，
+    /// 缺失时回落当前条目的写入时刻，再缺失为 nil
+    var currentUpdatedAtDate: Date? {
+        if let currentUpdatedAt {
+            return Date(timeIntervalSince1970: currentUpdatedAt)
+        }
+        return currentItem?.createdAtDate
+    }
+}
+
+/// 桥侧名字状态（GET /identity/name）：soul 名＋它
+/// 的写入时刻与来源——名字末写胜裁决的服务器侧凭
+/// 据。旧桥只回 soulName 时 updatedAt 为 nil，裁决
+/// 退回来源对账近似。
+struct IdentityNameState: Decodable, Sendable {
+    let soulName: String
+    let updatedAt: Double?
+    let source: String?
+
+    var updatedAtDate: Date? {
+        updatedAt.map { Date(timeIntervalSince1970: $0) }
     }
 }
 
@@ -73,6 +111,18 @@ final class IdentityBridgeClient: @unchecked Sendable {
         )
     }
 
+    func nameState(config: ServerConfig) async throws -> IdentityNameState {
+        let data = try await get(
+            config: config, path: "/identity/name",
+            endpoint: L10n.string("身份名")
+        )
+        do {
+            return try decoder.decode(IdentityNameState.self, from: data)
+        } catch {
+            throw IdentityBridgeError.failed(L10n.string("身份名返回格式无法识别"))
+        }
+    }
+
     private func get(
         config: ServerConfig, path: String, endpoint: String
     ) async throws -> Data {
@@ -83,6 +133,10 @@ final class IdentityBridgeClient: @unchecked Sendable {
             url: config.endpoint("/api/identity-bridge" + path)
         )
         request.httpMethod = "GET"
+        // 身份面只认现拉：状态与头像图一律绕过本地缓
+        // 存——吃旧图/旧状态正是「服务器换了、App 还
+        // 显旧」的温床（末写胜呈现跟随口径）
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         let (data, http) = try await send(request, endpoint: endpoint)
         if http.statusCode == 401 {

@@ -150,7 +150,9 @@ struct ChatView: View {
     /// 0.2.1：非错误提示条。§140 提示纪律起分档自消：
     /// 呈现状态与代号在 Core NoticePresentation，赋值
     /// 一律走 showNotice（中性 5s／重要 8s 自清）；错
-    /// 误族走 errorMessage、常驻不动（动作位归二包）
+    /// 误族走 errorMessage、常驻不动（动作位原注记
+    /// 「归二包」，基础止血包 P2 已兑现：失败轮次的
+    /// 横幅带「重新发送」，见 failedResendTarget）
     @State private var noticePresentation = NoticePresentation()
     @State private var noticeDismissTask: Task<Void, Never>?
     /// §119 未配模型引导卡：「先等等」点过后本次不再
@@ -307,6 +309,32 @@ struct ChatView: View {
     @State private var demoStreamStarted = false
     /// 0.2.1 附件与键盘：待发附件、三种选择器开关、输入焦点
     @State private var attachments: [PendingAttachment] = []
+    /// 基础止血包（P4）：待发附件按线程分格暂存——
+    /// attachments 只持当前线程的工作集，切线程时整
+    /// 格存回/取出（Core ThreadBoundStash），附件不
+    /// 许再跟着人串到别的会话里呈现或被发送
+    @State private var attachmentStash =
+        ThreadBoundStash<[PendingAttachment]>()
+    /// 落地态（当前无线程）附件格的固定键：落地页选
+    /// 的附件不属任何会话，用本键单独收纳、回到落地
+    /// 态时原样恢复，不与任何真线程 id 相撞
+    private static let landingAttachmentStashID =
+        UUID(uuidString: "00000000-0000-0000-0000-0000000000A1")!
+    /// 基础止血包（P1）：上传失败轮次的文件载荷暂存
+    /// （条目 id → 载荷）——失败条目点重发时补传这批
+    /// 文件；纯内存、进程被杀即灭（条目已落盘的远端
+    /// 路径在场时优先走路径、不经本格）
+    @State private var failedFilePayloads:
+        [UUID: [(name: String, data: Data)]] = [:]
+    /// 基础止血包（P1/P2）：最近一轮失败的用户条目
+    /// id——错误横幅据此出「重新发送」动作位（仅当
+    /// 条目属当前线程且仍挂失败标记时呈现，呈现判定
+    /// 在 errorBanner 调用点）
+    @State private var failedResendEntryID: UUID?
+    /// 基础止血包（P7）：本轮正处文件上传段的事实位
+    /// ——等待呈现据此说上传中、不再冒充生成中；进
+    /// 度百分比归上传正解包，本位只管文案分型
+    @State private var isUploadingFiles = false
     // 0.36.23 起选图多选（用户 03:02 点题）：绑数
     // 组、一次可选多张；旧单 PhotosPickerItem 绑定
     // 天然单选，数据侧 attachments 本就支持多个
@@ -369,6 +397,12 @@ struct ChatView: View {
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
+    /// 基础止血包（P6）：导入失败的重试上下文（会话
+    /// id＋频道出处）——输入舱上方留一条重试行，点按
+    /// 以原出处重走导入；导入成功/发起新导入/用户关
+    /// 掉即清
+    @State private var importRetryContext:
+        (sessionID: String, channelID: String?)?
     /// （showSessionInfo 已于 0.20.0 第五条随会话名次
     /// 行一并拆除：聊天页不再有会话详情入口，管理页
     /// ServerSessionRow 承接）
@@ -538,6 +572,17 @@ struct ChatView: View {
         // 式下底栏坞是页卡的一部分、随卡同走，不需要
         // 也不应该再隐藏（口径变化见 §30）
         chatSurface
+        // 基础止血包（P6）：服务端会话导入的等待呈现
+        // ——旧口径 importingSessionID 只作防重入闸、
+        // 无任何视图消费，导入期间页面零反馈（停在
+        // 旧对话干等、弱网像点不动）；导入中挂一张安
+        // 静的载入卡（不挡操作、尺寸恒定）
+        .overlay {
+            if importingSessionID != nil {
+                importingOverlay
+                    .transition(.opacity)
+            }
+        }
         // §154 热修：宿主真高回写（附件面板 detent
         // 钳顶的唯一屏高来源，见 hostViewHeight 注；
         // 本页根几何独立于任何 sheet 呈现，不随
@@ -618,6 +663,26 @@ struct ChatView: View {
                 appState.sideChats.setDraft(input, for: oldID)
             }
             input = newID.flatMap { appState.sideChats.draft(for: $0) } ?? ""
+            // 基础止血包（P4）：待发附件随线程分格——
+            // 切走前把工作集存回旧线程格（旧线程已删
+            // 则整格丢弃，与草稿死键纪律一致；无线程
+            // 的落地态用落地格收纳），切入后取目标线
+            // 程格作新工作集；附件从此只在所属会话里
+            // 呈现与发送，不再串带
+            if oldID != newID {
+                if let oldID {
+                    if threads.contains(where: { $0.id == oldID }) {
+                        attachmentStash.store(attachments, for: oldID)
+                    }
+                } else {
+                    attachmentStash.store(
+                        attachments, for: Self.landingAttachmentStashID
+                    )
+                }
+                attachments = attachmentStash.take(
+                    for: newID ?? Self.landingAttachmentStashID
+                ) ?? []
+            }
             // 0.7.0（M4）：分流种子经 pendingForkQuote 暂存
             // 穿过本次清理、转入新旁聊的待发送引用
             if let fork = pendingForkQuote {
@@ -674,6 +739,8 @@ struct ChatView: View {
                 // 不在轻保活账上留死键
                 appState.sideChats.setDraft("", for: id)
                 appState.sideChats.setScrollAnchor(nil, for: id)
+                // 基础止血包（P4）：附件格同清死键
+                attachmentStash.remove(for: id)
                 if id == currentThreadID {
                     currentThreadID = nil
                 }
@@ -959,6 +1026,19 @@ struct ChatView: View {
         // 回前台/进线程时消费持久账本续对账（resume-
         // RunIfNeeded，无账本即空转返回）
         .onChange(of: scenePhase) { _, phase in
+            // 基础止血包（P3）：离开活动态先把当前输入
+            // 存回当前线程草稿——旧口径只有切线程一刻
+            // 落盘，切后台接电话、进程被系统杀掉（都
+            // 不触发切线程）时打了一半的字就此丢失；
+            // 落盘判定走 Core DraftSavePolicy（有当前
+            // 线程且线程仍在名单内才存，防死键）
+            if phase != .active, let id = currentThreadID,
+               DraftSavePolicy.shouldSaveOnLeavingActive(
+                   hasCurrentThread: true,
+                   threadStillExists: threads.contains { $0.id == id }
+               ) {
+                appState.sideChats.setDraft(input, for: id)
+            }
             if phase == .active {
                 // 0.36.15：回前台重备语音分析器（退后
                 // 台时已弃置产物，见下方 background 分支）
@@ -1492,8 +1572,17 @@ struct ChatView: View {
         // 钮的宿主与落位于 §124 改归本区布局流（输
         // 入舱上方一行，见栈内钮行注）
         return VStack(spacing: OneDayMetrics.spacingS) {
+            if let importRetryContext {
+                importRetryBar(importRetryContext)
+                    .transition(.opacity)
+            }
             if let errorMessage {
-                errorBanner(errorMessage)
+                errorBanner(
+                    errorMessage,
+                    onResend: failedResendTarget.map { target in
+                        { resendFailedEntry(target) }
+                    }
+                )
                     // 0.25.0（动效专包）：错误/提示条进出
                     // 原为无过渡硬入硬出（高度跳变）——补
                     // opacity 过渡，高度与淡入同走下方
@@ -1547,6 +1636,12 @@ struct ChatView: View {
         // 见 §124
         // 0.25.0（动效专包）：条本体淡入淡出、容器
         // 高度同步单调滑动，不再硬跳
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: importRetryContext?.sessionID
+        )
         .animation(
             MotionTokens.resolved(
                 MotionTokens.swap, reduceMotion: reduceMotion
@@ -1964,11 +2059,18 @@ struct ChatView: View {
                         anchoredRecordIDs: appState
                             .sharedHubStore().anchoredRecordIDs
                     )
-                    if currentThread == nil && !isStreaming {
+                    if ChatEmptyState.shows(
+                        threadIsNil: currentThread == nil,
+                        entryCount: currentThread?.sortedEntries.count ?? 0,
+                        isStreaming: isStreaming
+                    ) {
                         // 空状态（DESIGN-V4 §5 两行字口径保
                         // 留）：0.26.0 起形象位由 SF 符号换三
                         // 狗头像、边长走形象档空态值（48/56/
                         // 68）——用户外观令点名的作用面
+                        // 基础止血包（P9）：呈现判定并成一
+                        // 条（Core ChatEmptyState）——已建
+                        // 的零条目线程同出本面，不再白屏
                         VStack(spacing: OneDayMetrics.spacingS) {
                             // 0.36.22：空态形象同样读档案头像
                             appState.agentAvatarImage
@@ -1993,7 +2095,7 @@ struct ChatView: View {
                                 // 见原字重账本，已废止）
                                 .font(.callout)
                                 .foregroundStyle(Palette.ink)
-                            Text("消息经你自己的服务器发给 Agent，记录只存这台手机。")
+                            Text(L10n.string("消息经你自己的服务器发给 Agent，记录只存这台手机。"))
                                 .font(.caption)
                                 .foregroundStyle(Palette.inkSecondary)
                                 .multilineTextAlignment(.center)
@@ -2922,6 +3024,26 @@ struct ChatView: View {
         } else if entry.role == "user" {
             HStack {
                 Spacer(minLength: OneDayMetrics.bubbleSideInset)
+                // 基础止血包（P1/P2）：发送失败标记——
+                // 红叹号挂气泡左侧（微信口径），点它以
+                // 原条目重发；条目不删、不回退输入框，
+                // 标记随重发成功落定清除
+                if entry.sendFailed {
+                    Button {
+                        resendFailedEntry(entry)
+                    } label: {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Palette.danger)
+                            .frame(
+                                width: OneDayMetrics.minTapTarget,
+                                height: OneDayMetrics.minTapTarget
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.odPressable)
+                    .accessibilityLabel("发送失败，点按重新发送")
+                }
                 VStack(alignment: .trailing, spacing: OneDayMetrics.spacingXS) {
                     if let quote = entry.quote {
                         quoteBlock(quote)
@@ -3789,8 +3911,23 @@ struct ChatView: View {
                 // 0.32.1（F05 止血）：Qwen 冷启「模型唤醒中」
                 // 提示整路拆除——该模型已停用下线，不再有
                 // 唤醒态；等待一律只剩打字点
-                TypingDots()
+                // 基础止血包（P7 文案半步）：文件上传段
+                // 例外——如实说上传中，不许让等待点冒充
+                // 生成中（进度百分比归上传正解包）
+                if isUploadingFiles {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        TypingDots()
+                        Text("正在上传文件…")
+                            .font(.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
                     .padding(.vertical, OneDayMetrics.spacingXS)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("正在上传文件")
+                } else {
+                    TypingDots()
+                        .padding(.vertical, OneDayMetrics.spacingXS)
+                }
             }
         } else {
             assistantBubble {
@@ -3803,7 +3940,116 @@ struct ChatView: View {
 
     // MARK: - 输入与错误
 
-    private func errorBanner(_ message: String) -> some View {
+    /// 导入等待卡（基础止血包 P6）：菊花＋一行人话，
+    /// 居中偏上、卡面沿既有表面件（surface＋hairline
+    /// 描边，与引导卡同族）；不挡操作（allowsHit-
+    /// Testing false）——导入防重入由 importing-
+    /// SessionID 闸自理，呈现只管让人知道在动
+    private var importingOverlay: some View {
+        VStack(spacing: OneDayMetrics.spacingS) {
+            ProgressView()
+            Text(L10n.string("正在载入这段对话…"))
+                .font(.callout)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .padding(OneDayMetrics.spacingL)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.containerCorner
+            )
+        )
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: OneDayMetrics.containerCorner
+            )
+            .strokeBorder(Palette.hairline, lineWidth: 1)
+        }
+        .frame(
+            maxWidth: .infinity, maxHeight: .infinity,
+            alignment: .top
+        )
+        .padding(.top, 140)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L10n.string("正在载入这段对话"))
+    }
+
+    /// 导入失败重试行（基础止血包 P6）：与错误横幅
+    /// 同族形态（hairline 顶线＋pageBG），文案在横幅
+    /// 里（服务端原因已由 openServerSession 写进
+    /// errorMessage），本行只承动作：重试（以原出处
+    /// 重走 runImport）与关闭
+    private func importRetryBar(
+        _ context: (sessionID: String, channelID: String?)
+    ) -> some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Palette.hairline)
+                .frame(height: 1)
+            HStack(spacing: OneDayMetrics.spacingS) {
+                Image(systemName: "arrow.clockwise.circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .accessibilityHidden(true)
+                Text("这段对话没能载入")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+                Button {
+                    importRetryContext = nil
+                    Task {
+                        await runImport(
+                            sessionID: context.sessionID,
+                            channelID: context.channelID
+                        )
+                    }
+                } label: {
+                    Text("重试")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Palette.primary)
+                        .frame(minHeight: OneDayMetrics.minTapTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.odPressable)
+                Button {
+                    importRetryContext = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(Palette.inkSecondary)
+                        .frame(
+                            width: OneDayMetrics.minTapTarget,
+                            height: OneDayMetrics.minTapTarget
+                        )
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("关闭")
+                .buttonStyle(.odPressable)
+            }
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.vertical, OneDayMetrics.spacingS)
+        }
+        .background(Palette.pageBG)
+    }
+
+    /// 错误横幅的「重新发送」目标（基础止血包 P2 横
+    /// 幅动作位）：最近失败条目仍在当前线程且仍挂失
+    /// 败标记时才有——§140 注记里欠的「动作位归二
+    /// 包」在此兑现（气泡旁叹号是同一动作的另一入
+    /// 口，两处同走 resendFailedEntry）
+    private var failedResendTarget: ChatEntry? {
+        guard let id = failedResendEntryID,
+              let thread = currentThread,
+              let entry = thread.entries.first(
+                  where: { $0.id == id }
+              ), entry.sendFailed else { return nil }
+        return entry
+    }
+
+    private func errorBanner(
+        _ message: String, onResend: (() -> Void)? = nil
+    ) -> some View {
         VStack(spacing: 0) {
             Rectangle()
                 .fill(Palette.hairline)
@@ -3817,8 +4063,23 @@ struct ChatView: View {
                     .font(.subheadline)
                     .foregroundStyle(Palette.ink)
                 Spacer()
+                if let onResend {
+                    Button {
+                        onResend()
+                    } label: {
+                        Text("重新发送")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Palette.primary)
+                            .frame(
+                                minHeight: OneDayMetrics.minTapTarget
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.odPressable)
+                }
                 Button {
                     errorMessage = nil
+                    failedResendEntryID = nil
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .regular))
@@ -5396,6 +5657,17 @@ private struct ComposerBarLayout: Layout {
         appState.pendingChatSessionID = nil
         let channelID = appState.pendingChatChannelID
         appState.pendingChatChannelID = nil
+        await runImport(sessionID: id, channelID: channelID)
+    }
+
+    /// 导入执行体（消费口与失败重试行共用）：出处先
+    /// 行落位、按结果收尾；失败除横幅外另记重试上下
+    /// 文（基础止血包 P6——旧口径失败只剩一句横幅、
+    /// 想重试只能回列表再点一次）
+    private func runImport(
+        sessionID id: String, channelID: String?
+    ) async {
+        importRetryContext = nil
         // 出处先行落位：导入途中 currentThreadID 变
         // 更触发的同步据此把对象引用派生成 .channel
         appState.channelViewingOrigin = channelID.map {
@@ -5418,6 +5690,9 @@ private struct ComposerBarLayout: Layout {
                 appState.channelViewingOrigin = nil
                 syncDrawerObjectFromCurrentThread()
             }
+        }
+        if outcome == .failed {
+            importRetryContext = (sessionID: id, channelID: channelID)
         }
     }
 
@@ -5639,17 +5914,42 @@ private struct ComposerBarLayout: Layout {
                 firstText: text
             )
         }
-        // 0.4.1：上下文组装走 MessageQuote.outgoingContent
-        // ——带引用的消息（含本轮新消息与历史回放）把引
-        // 用块拼进 content，引用在每轮重放里持续在场；
-        // 无引用的消息原样（纯函数保证）
-        // 0.8.0：先滤角色再取尾 20——工具卡条目（role=
-        // "tool"）只呈现、永不进重放上下文
-        // §123（H1）：回响条目（echoKey 非空，role 借
-        // "assistant" 落盘）同样只呈现、永不进上下文——
-        // 它是 App 的事实记录，不是智能体说过的话
-        // §165：守卫谓词统一为 isSystemAnchored（回响＋
-        // 审批锚定同族，见 ChatEntry 字段注）
+        // 上下文组装走共用出口 outgoingContext（组装
+        // 口径注在该函数；基础止血包起失败重发同走它，
+        // 两路不许分叉）
+        let context = outgoingContext(
+            of: thread, tailEntry: newEntry, text: text, quote: quote
+        )
+        // 文件真发送（0.36.29，契约实测冻结后开放）：
+        // 待发文件在轮次起手逐个上传到服务端
+        // attachments/，回执路径拼进尾条 input 的
+        // @file 引用（见 launchTurn 内）；原「尚未开
+        // 放」notice 随本版退役
+        launchTurn(
+            thread: thread, userEntry: newEntry, text: text,
+            filePayloads: filePayloads, presetFilePaths: [],
+            seedSnapshot: seedSnapshot, context: context
+        )
+    }
+
+    /// 出站上下文组装（send 与失败重发共用出口）：
+    /// 0.4.1 起走 MessageQuote.outgoingContent——带引
+    /// 用的消息（含本轮新消息与历史回放）把引用块拼
+    /// 进 content，引用在每轮重放里持续在场；无引用
+    /// 的消息原样（纯函数保证）。0.8.0：先滤角色再取
+    /// 尾 20——工具卡条目（role="tool"）只呈现、永不
+    /// 进重放上下文；§123/§165：系统锚定条目（回响＋
+    /// 审批锚定，isSystemAnchored）同样只呈现、永不
+    /// 进上下文。尾条带图时最后一条用户消息改多模态
+    /// parts 编码（图片走 OpenAI image_url + data:
+    /// base64；服务端/模型不支持时错误经 errorBanner
+    /// 如实呈现，不假装发过）——图片全集取尾条条目
+    /// 本体（send 落盘时即全集入条目、重发时条目即
+    /// 事实源，两路同值）
+    private func outgoingContext(
+        of thread: ChatThread, tailEntry: ChatEntry,
+        text: String, quote: MessageQuote?
+    ) -> [ChatMessage] {
         var context = thread.sortedEntries
             .filter {
                 ($0.role == "user" || $0.role == "assistant")
@@ -5664,9 +5964,7 @@ private struct ComposerBarLayout: Layout {
                 )
             )
         }
-        // 本条若带图：最后一条用户消息改多模态 parts 编码
-        // （图片走 OpenAI image_url + data: base64；服务端/模型
-        // 不支持时错误经 errorBanner 如实呈现，不假装发过）
+        let imageDatas = tailEntry.allImageDatas
         if !imageDatas.isEmpty, let last = context.last, last.role == "user" {
             let urls = imageDatas.map {
                 "data:image/jpeg;base64,\($0.base64EncodedString())"
@@ -5680,11 +5978,23 @@ private struct ComposerBarLayout: Layout {
                 imageDataURLs: urls
             )
         }
-        // 文件真发送（0.36.29，契约实测冻结后开放）：
-        // 待发文件在 sendTask 起手逐个上传到服务端
-        // attachments/，回执路径拼进尾条 input 的
-        // @file 引用（见 sendTask 内）；原「尚未开
-        // 放」notice 随本版退役
+        return context
+    }
+
+    /// 一轮的网络半程（send 与失败重发共用）：上传待
+    /// 发文件（或沿用已落盘的远端路径）→ 定发送形态
+    /// （链接）→ driveRun。基础止血包（P1）改判失败
+    /// 语义：上传/链接失败不再删本轮条目、不再把文
+    /// 字退回输入框——条目留原地挂失败标记（mark-
+    /// TurnFailed），用户点标记以原条目重发；链接窗
+    /// 口内被用户停止仍按停止语义静默收尾（条目保
+    /// 留、不挂标记，与旧口径一致）
+    private func launchTurn(
+        thread: ChatThread, userEntry: ChatEntry, text: String,
+        filePayloads: [(name: String, data: Data)],
+        presetFilePaths: [String],
+        seedSnapshot: [SeedEntry], context: [ChatMessage]
+    ) {
         streamingText = ""
         // 0.8.0：上一轮的流式工具卡列清空，从本轮累积
         liveToolCards = []
@@ -5692,25 +6002,30 @@ private struct ComposerBarLayout: Layout {
         liveOrder = []
         sendTask = Task {
             // 0.36.29（件四）：带文件时先逐个上传——
-            // 任一失败整条拦下（与链接失败同舞步：删
-            // 本轮条目、输入与附件原样退回、报错点名
-            // 文件），不许丢下文件只发文本；全成才攒
-            // 下回执路径，尾条拼装时拼 @file 引用
-            var fileServerPaths: [String] = []
-            if !filePayloads.isEmpty {
+            // 任一失败整条拦下，不许丢下文件只发文本；
+            // 全成才攒下回执路径，尾条拼装时拼 @file
+            // 引用。基础止血包（P1）改判失败落点：旧
+            // 「删本轮条目＋输入附件退回发送舱」作废，
+            // 改 markTurnFailed（条目留原地挂标记、载
+            // 荷暂存供重发补传）。重发且条目已有远端路
+            // 径时整段跳过（文件已在服务端，路径即凭
+            // 证），不重复上传
+            var fileServerPaths: [String] = presetFilePaths
+            if fileServerPaths.isEmpty, !filePayloads.isEmpty {
+                // P7 文案分型：上传段全程挂真态位，等
+                // 待呈现说「上传中」、不冒充生成中
+                isUploadingFiles = true
                 do {
                     fileServerPaths = try await
                         uploadPendingFiles(filePayloads)
                 } catch let failure as FileUploadFailure {
-                    modelContext.delete(newEntry)
-                    try? modelContext.save()
-                    input = text
-                    attachments = pending
-                    pendingQuote = quote
-                    pendingFeedQuote = feedQuote
-                    errorMessage = "文件「\(failure.fileName)」没能上传，本条未发送："
+                    isUploadingFiles = false
+                    markTurnFailed(
+                        entry: userEntry, filePayloads: filePayloads
+                    )
+                    errorMessage = "文件「\(failure.fileName)」没能上传，这条还没发出去："
                         + failure.reason
-                        + "处理后重新发送即可。"
+                        + "处理后点这条消息旁的感叹号重新发送。"
                     Haptics.error()
                     streamingText = nil
                     streamingReasoning = nil
@@ -5718,6 +6033,7 @@ private struct ComposerBarLayout: Layout {
                     sendTask = nil
                     return
                 } catch is CancellationError {
+                    isUploadingFiles = false
                     streamingText = nil
                     streamingReasoning = nil
                     reasoningStartedAt = nil
@@ -5727,13 +6043,11 @@ private struct ComposerBarLayout: Layout {
                     // uploadPendingFiles 只抛 FileUpload-
                     // Failure/取消，此兜底防未知错误形态
                     // 被静默吞（有声口径）
-                    modelContext.delete(newEntry)
-                    try? modelContext.save()
-                    input = text
-                    attachments = pending
-                    pendingQuote = quote
-                    pendingFeedQuote = feedQuote
-                    errorMessage = "文件上传失败，本条未发送，请稍后再试。"
+                    isUploadingFiles = false
+                    markTurnFailed(
+                        entry: userEntry, filePayloads: filePayloads
+                    )
+                    errorMessage = "文件上传失败，这条还没发出去，请稍后再试。"
                     Haptics.error()
                     streamingText = nil
                     streamingReasoning = nil
@@ -5741,6 +6055,7 @@ private struct ComposerBarLayout: Layout {
                     sendTask = nil
                     return
                 }
+                isUploadingFiles = false
                 if Task.isCancelled {
                     streamingText = nil
                     streamingReasoning = nil
@@ -5748,6 +6063,9 @@ private struct ComposerBarLayout: Layout {
                     sendTask = nil
                     return
                 }
+                // 上传已成：暂存载荷使命完成，清格防重
+                // 发时误补传（此后凭条目远端路径为准）
+                failedFilePayloads[userEntry.id] = nil
                 // §121 题二 a（发送回填）：上传全成后
                 // 立即把回执路径写回本地条目落盘——用
                 // 户气泡文件牌的唯一数据源就是 entry.
@@ -5756,10 +6074,9 @@ private struct ComposerBarLayout: Layout {
                 // 本地永远没牌（真机实证：助手牌正常、
                 // 自己牌缺失）。落点在此（失败分支全
                 // 已 return、走到这里即全成），流式期
-                // 间牌就在；其后发送形态失败删条目的
-                // 既有路径不受影响
+                // 间牌就在
                 if !fileServerPaths.isEmpty {
-                    newEntry.remoteFilePathsData =
+                    userEntry.remoteFilePathsData =
                         try? JSONEncoder().encode(fileServerPaths)
                     try? modelContext.save()
                     // §125（大小回填路①）：回执顺序与
@@ -5781,10 +6098,12 @@ private struct ComposerBarLayout: Layout {
             // 0.21.0：出门前先定发送形态（判定与载荷取
             // 形是 Core 纯函数、网络动作在本页）。
             // 0.27.0：prepareSendShape 改为可抛——链接
-            // 失败整轮不发（无头回退已删）：删本轮条
-            // 目、输入原样退回发送舱、错误横幅明示原
-            // 因；链接窗口内被用户停止仍按停止语义静
-            // 默收尾（条目保留、与旧口径一致）
+            // 失败整轮不发（无头回退已删）、错误横幅明
+            // 示原因；基础止血包（P1）改判失败落点：
+            // 旧「删本轮条目＋输入退回发送舱」作废，改
+            // markTurnFailed（条目留原地挂标记、点标记
+            // 重发）；链接窗口内被用户停止仍按停止语
+            // 义静默收尾（条目保留、不挂标记）
             let shape: (messages: [ChatMessage], sessionID: String?)
             do {
                 shape = try await prepareSendShapeWithRetry(
@@ -5805,16 +6124,11 @@ private struct ComposerBarLayout: Layout {
                     sendTask = nil
                     return
                 }
-                modelContext.delete(newEntry)
-                try? modelContext.save()
-                input = text
-                attachments = pending
-                pendingQuote = quote
-                pendingFeedQuote = feedQuote
-                errorMessage = "会话链接失败，本条未发送："
+                markTurnFailed(entry: userEntry)
+                errorMessage = "会话链接失败，这条还没发出去："
                     + ((error as? HermesError)?.userMessage
                         ?? "服务端会话建立失败")
-                    + "。链接恢复后重新发送即可。"
+                    + "。链接恢复后，点这条消息旁的感叹号重新发送。"
                 // 失败改判 error（0.36.2，表 D 语义归位）
                 Haptics.error()
                 streamingText = nil
@@ -5860,9 +6174,107 @@ private struct ComposerBarLayout: Layout {
                 thread: thread,
                 tail: tail,
                 sessionID: shape.sessionID,
-                userEntry: newEntry
+                userEntry: userEntry
             )
         }
+    }
+
+    /// 本轮失败的统一落点（基础止血包 P1/P2）：条目
+    /// 留原地挂失败标记——不删条目、不回退输入框；
+    /// 文件载荷在场时暂存供重发补传；横幅「重新发
+    /// 送」动作位的目标 id 同步记账。成功落定清标记
+    /// 在 applySettledTurn，重发启动清标记在 resend-
+    /// FailedEntry
+    private func markTurnFailed(
+        entry: ChatEntry,
+        filePayloads: [(name: String, data: Data)] = []
+    ) {
+        entry.sendFailed = true
+        try? modelContext.save()
+        if !filePayloads.isEmpty {
+            failedFilePayloads[entry.id] = filePayloads
+        }
+        failedResendEntryID = entry.id
+    }
+
+    /// run 落定失败的标记落点（P2）：按账本里的用户
+    /// 条目 id 回找条目挂标记——条目已不在（线程被
+    /// 清）则静默跳过
+    private func markRunFailure(
+        entry: RunLedgerEntry, in thread: ChatThread
+    ) {
+        guard let userEntry = thread.entries.first(
+            where: { $0.id.uuidString == entry.userEntryID }
+        ) else { return }
+        markTurnFailed(entry: userEntry)
+    }
+
+    /// 失败条目重发（基础止血包 P1/P2，微信点感叹号
+    /// 口径）：条目是线程末条时原地重走一轮（它本身
+    /// 即尾条）；不是末条时把内容复制成新条目落到末
+    /// 尾再发、旧失败条目随即删除——落定整段替换按
+    /// 用户条目时刻清其后条目（deleteTurnPartial-
+    /// Entries），原地重发中段条目会误伤其后已落定
+    /// 的轮次，只能复制。两路都汇进 launchTurn 同一
+    /// 链：新 run＋新幂等键由 driveRun 现铸、账本在
+    /// 飞守卫防叠发（与 send() 同一道闸），成功落定
+    /// 自动清标记、再失败由各失败分支重新挂上
+    private func resendFailedEntry(_ entry: ChatEntry) {
+        guard entry.sendFailed, !isStreaming,
+              let thread = entry.thread else { return }
+        // 同 send() 的在飞闸：本线程有未落定 run 时
+        // 不许叠发，先触发旧轮对账
+        guard appState.runLedger.entry(forThreadID: thread.id)
+            == nil else {
+            showNotice("上一条还在生成中，正在确认结果，确认完就能继续发送。")
+            Task { await resumeRunIfNeeded() }
+            return
+        }
+        errorMessage = nil
+        if failedResendEntryID == entry.id {
+            failedResendEntryID = nil
+        }
+        sendFrameStartedAt = Date()
+        sendFrameRestickLogged = false
+        let target: ChatEntry
+        if thread.sortedEntries.last?.id == entry.id {
+            target = entry
+        } else {
+            let copy = ChatEntry(
+                role: "user", content: entry.content, thread: thread,
+                imageDatas: entry.allImageDatas, quote: entry.quote
+            )
+            copy.remoteFilePathsData = entry.remoteFilePathsData
+            modelContext.insert(copy)
+            // 上传未成的载荷随复制转移（键随条目走）
+            if let payloads = failedFilePayloads[entry.id] {
+                failedFilePayloads[copy.id] = payloads
+                failedFilePayloads[entry.id] = nil
+            }
+            modelContext.delete(entry)
+            target = copy
+        }
+        target.sendFailed = false
+        thread.updatedAt = Date()
+        try? modelContext.save()
+        // 种子快照剔除尾条本体（两路 target 恒为末
+        // 条、种子与条目 1:1 同序）：链接导入的历史
+        // 只含尾条之前，防尾条在服务端落两份——与
+        // send() 落盘前取快照同义
+        let seedSnapshot = Array(
+            Self.seedEntries(of: thread).dropLast()
+        )
+        launchTurn(
+            thread: thread, userEntry: target,
+            text: target.content,
+            filePayloads: failedFilePayloads[target.id] ?? [],
+            presetFilePaths: target.remoteFilePaths,
+            seedSnapshot: seedSnapshot,
+            context: outgoingContext(
+                of: thread, tailEntry: target,
+                text: target.content, quote: target.quote
+            )
+        )
     }
 
     /// 待发文件逐个上传（0.36.29，件四）：顺序即待
@@ -6149,6 +6561,13 @@ private struct ComposerBarLayout: Layout {
             streamingReasoning = nil
             reasoningStartedAt = nil
             errorMessage = HermesError.sessionExpired.userMessage
+            // 基础止血包（P1）：连接态缺失同样是本轮
+            // 失败——条目留痕挂标记，恢复连接后点标
+            // 记重发（演示态不挂，种子条目不是用户真
+            // 发送）
+            if !demoMode {
+                markTurnFailed(entry: userEntry)
+            }
             // 失败改判 error（0.36.2，表 D 语义归位）
             Haptics.error()
             sendTask = nil
@@ -6244,8 +6663,11 @@ private struct ComposerBarLayout: Layout {
         if let submitError, runMachine.phase == .failed {
             // 提交被明确拒绝（真失败）：本轮从未在服务
             // 端成立——消息留痕、横幅照实报、账本清除
+            // 基础止血包（P1/P2）：留痕之外补失败标记
+            // 与重发入口（旧口径只有横幅、再试只能重打）
             if !demoMode {
                 appState.runLedger.remove(threadID: thread.id)
+                markTurnFailed(entry: userEntry)
             }
             errorMessage = submitError.userMessage
             finishRunPresentation(failed: true)
@@ -6731,10 +7153,23 @@ private struct ComposerBarLayout: Layout {
             if !appState.isDemo {
                 appState.runLedger.remove(threadID: thread.id)
             }
-            errorMessage = terminalStatusHint?.output
-                ?? terminalStatusHint?.error
-                ?? terminalOutputHint
-                ?? "生成失败，请稍后再试。"
+            // 基础止血包（P5/P2）：服务端原文只作分型
+            // 输入与诊断留痕，界面只呈现 HermesError
+            // 人话档（RunFailureClassifier）；本轮用户
+            // 条目挂失败标记、点标记重发
+            let failure = RunFailureClassifier.classify(
+                errorText: terminalStatusHint?.error,
+                outputText: terminalStatusHint?.output
+                    ?? terminalOutputHint
+            )
+            ChatDiagTrace.record(
+                "run 失败分型（状态合成落定）kind=\(failure)"
+                    + " run=\(entry.runID ?? "-")"
+            )
+            if !appState.isDemo {
+                markRunFailure(entry: entry, in: thread)
+            }
+            errorMessage = failure.userMessage
             runMachine.apply(.transcriptSettled)
             finishRunPresentation(failed: true)
             return
@@ -6780,15 +7215,36 @@ private struct ComposerBarLayout: Layout {
         let phase = runMachine.phase
         deleteTurnPartialEntries(thread: thread, entry: entry)
         if settled.failed {
-            errorMessage = terminalStatusHint?.output
-                ?? terminalStatusHint?.error
-                ?? settled.failureText
-                ?? "生成失败，请稍后再试。"
+            // 基础止血包（P5/P2）：同状态合成落定——
+            // 原文（终态回执＋段失败文本）只作分型输
+            // 入，界面只呈现人话档；用户条目挂失败标
+            // 记、点标记重发
+            let failure = RunFailureClassifier.classify(
+                errorText: terminalStatusHint?.error,
+                outputText: terminalStatusHint?.output
+                    ?? settled.failureText
+            )
+            ChatDiagTrace.record(
+                "run 失败分型（落定）kind=\(failure)"
+                    + " run=\(entry.runID ?? "-")"
+            )
             if !appState.isDemo {
                 appState.runLedger.remove(threadID: thread.id)
+                markRunFailure(entry: entry, in: thread)
             }
+            errorMessage = failure.userMessage
             finishRunPresentation(failed: true)
             return
+        }
+        // 基础止血包（P1/P2）：成功落定清本轮用户条目
+        // 的失败标记——重发成功后旧标记不许残留（首
+        // 发成功轮条目恒无标记，本支为空转）
+        if !appState.isDemo,
+           let userEntry = thread.entries.first(
+               where: { $0.id.uuidString == entry.userEntryID }
+           ), userEntry.sendFailed {
+            userEntry.sendFailed = false
+            try? modelContext.save()
         }
         let endDate = Date()
         for (index, card) in settled.toolCards.enumerated() {

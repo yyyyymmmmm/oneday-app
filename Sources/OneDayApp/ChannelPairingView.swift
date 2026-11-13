@@ -55,9 +55,20 @@ struct ChannelPairingView: View {
     @State private var userID = ""
     @State private var submitting = false
     @State private var submitError: String?
+    /// 最近一次保存回执：生效相位只认它＋当前
+    /// status（判定在 Core ChannelApplyPhase）
+    @State private var lastReceipt: ChannelCredentialsReceipt?
 
     private var status: ChannelPlatformStatus? {
         store.status(for: channel.id)
+    }
+
+    private var applyPhase: ChannelApplyPhase {
+        ChannelApplyPhase.resolve(
+            applyTriggered: lastReceipt?.applyTriggered,
+            applyError: lastReceipt?.applyError,
+            statusState: status?.state
+        )
     }
 
     private var pairingKind: ChannelPairingKind {
@@ -93,6 +104,22 @@ struct ChannelPairingView: View {
                 }
             }
             .refreshable { await store.load(appState: appState) }
+            .task(id: applyPhase == .applying) {
+                await pollWhileApplying()
+            }
+        }
+    }
+
+    /// 正在生效期间自动刷新状态：每 3 秒回读一次、
+    /// 最多约两分钟；status 翻 connected/error 后
+    /// applyPhase 退场、循环收口，页面消失自动取消
+    private func pollWhileApplying() async {
+        guard applyPhase == .applying else { return }
+        for _ in 0..<40 {
+            try? await Task.sleep(for: .seconds(3))
+            if Task.isCancelled { return }
+            await store.load(appState: appState)
+            if applyPhase != .applying { return }
         }
     }
 
@@ -179,6 +206,22 @@ struct ChannelPairingView: View {
     private func statusBand(
         _ status: ChannelPlatformStatus
     ) -> some View {
+        switch applyPhase {
+        case .applying:
+            applyingBand
+        case .applyFailed(let reason):
+            applyFailedBand(reason)
+        case .none, .awaitingRestart:
+            // 未触发即时生效时 status 的等待态就是如
+            // 实口径；无流程态时呈现完全归 status
+            statusStateBand(status)
+        }
+    }
+
+    @ViewBuilder
+    private func statusStateBand(
+        _ status: ChannelPlatformStatus
+    ) -> some View {
         switch status.state {
         case "connected":
             VStack(alignment: .leading,
@@ -230,6 +273,50 @@ struct ChannelPairingView: View {
                 Text("按下面三步连上，几分钟就好。")
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
+            }
+        }
+    }
+
+    /// 正在生效带（回执 applyTriggered=true）：网关
+    /// 重启的空窗里给明确的进行时，不许显成笼统的
+    /// 连接中/等待；status 翻 connected 后由状态带
+    /// 正常收口（ChannelEntryView 会直接进频道页）
+    private var applyingBand: some View {
+        VStack(alignment: .leading,
+               spacing: OneDayMetrics.spacingS) {
+            HStack(spacing: OneDayMetrics.spacingS) {
+                ProgressView()
+                Text("正在生效")
+                    .font(.rowTitle)
+                    .foregroundStyle(Palette.ink)
+            }
+            Text(L10n.string("钥匙已保存，服务器正在让它生效，通常"
+                + "几秒钟就好。连上之后这里会自动变成已配对"
+                + "的样子，你不用再做什么。"))
+                .font(.captionText)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+    }
+
+    /// 即时生效没触发成功的回退带：口径仍是等待生
+    /// 效，原因用桥回的人话原样摆出来——不许包装
+    /// 成已经在生效
+    private func applyFailedBand(_ reason: String) -> some View {
+        VStack(alignment: .leading,
+               spacing: OneDayMetrics.spacingS) {
+            Text("钥匙已保存，等待生效")
+                .font(.rowTitle)
+                .foregroundStyle(Palette.ink)
+            Text(reason)
+                .font(.captionText)
+                .foregroundStyle(Palette.inkSecondary)
+            Text(L10n.string("服务器下一次重启后就会自动连上，这期间"
+                + "不用你再做什么。连上之后，抽屉里这一行"
+                + "会变成已配对的样子。"))
+                .font(.captionText)
+                .foregroundStyle(Palette.inkSecondary)
+            Button("刷新状态") {
+                Task { await store.load(appState: appState) }
             }
         }
     }
@@ -355,8 +442,9 @@ struct ChannelPairingView: View {
             in: .whitespacesAndNewlines)
         submitting = true
         submitError = nil
+        lastReceipt = nil
         do {
-            _ = try await store.submitTelegram(
+            lastReceipt = try await store.submitTelegram(
                 appState: appState, token: trimmedToken,
                 allowedUserIds: trimmedID.isEmpty ? nil : [trimmedID]
             )
