@@ -973,7 +973,17 @@ struct ChatView: View {
             // 线」已被用户 12:56 录屏纠正作废——落点改
             // 走下方 ChatLandingResolution 恢复上次线
             // 程，本步只保证钦定主线存在、供解析兜底）
-            let mainID = ensureMainThread()
+            // 键盘真崩解耦（本包）：钦定改「解析与写库
+            // 解耦」——本程序点只做纯解析（.needsCrea-
+            // tion 支预生成将建 id、以待定钦定持有），
+            // 落点输入同步得出且全程零 SwiftData 写；
+            // 真建线与元数据对齐写后置到下方与链接预
+            // 热同一条有序链。旧形态在 onAppear 同步
+            // save()，其变更通知同步投递进 _SwiftData_
+            // SwiftUI 观察者触发断言真崩（EXC_BREAK-
+            // POINT，定因见 keyboard-trap 三档）
+            let mainPlan = resolveMainThreadPlan()
+            let mainID = mainPlan.landingMainID
             // 0.4.5：同理补消费抽屉线程选择（从其他格开
             // 抽屉选线程切过来时，本页可能尚未挂载、
             // onChange 不重放）
@@ -990,7 +1000,9 @@ struct ChatView: View {
                 switch ChatLandingResolution.landing(
                     currentID: currentThreadID,
                     lastThreadID: appState.sideChats.lastThreadID,
-                    existingIDs: threads.map(\.id),
+                    existingIDs: mainPlan.landingExistingIDs(
+                        threads: threads
+                    ),
                     mainThreadID: mainID
                 ) {
                 case .keep(let id), .restore(let id), .main(let id):
@@ -1017,7 +1029,16 @@ struct ChatView: View {
             // 0.27.0：主线链接预热（未链才走；失败原因
             // 落 SideChatStore 设置页可见、发送前还会
             // 再试——旧「失败静默」口径已作废）
-            Task { await ensureMainLink() }
+            // 键盘真崩解耦（本包）：钦定写库与预热串成
+            // 同一条有序链——先 applyMainThreadPlan 落
+            // 写（建线/钦定/元数据对齐），后 ensureMain-
+            // Link 取线程组种子；不许拆成两个无序 Task
+            // 竞速（种子位时序差是 Codex 补丁被否的第
+            // 二处不等价）
+            Task { @MainActor in
+                applyMainThreadPlan(mainPlan)
+                await ensureMainLink()
+            }
             // 0.32.1（F05 止血）：原选模型已停用、选择
             // 被落回默认时的一次性如实提示——消费后落
             // 回值落盘、不再重现；已有提示在显时不抢占
@@ -4604,39 +4625,122 @@ private struct ComposerBarLayout: Layout {
 
     // MARK: - 主线钦定（0.7.0，D1/M2）
 
-    /// 主线钦定落位：解析走 Core MainThreadDesignation——
-    /// 存量钦定且线程还在则沿用（并把服务端绑定对齐到
-    /// 持久的钦定会话 id）；否则新建本地主线：标题恒
-    /// 「主线」、绑定本地生成并持久化的服务端会话 id、
-    /// 写入钦定。服务端承载的实际存在性由
-    /// ensureMainLink 异步链接，本函数纯本地
-    @discardableResult
-    private func ensureMainThread() -> UUID? {
+    /// 主线钦定计划（键盘真崩解耦包）：旧 ensureMain-
+    /// Thread 把「纯解析落点输入」与「写库（insert/
+    /// save/钦定落盘）」焊死在一个同步函数里——onAp-
+    /// pear 同步 save() 的变更通知同步投递进 _Swift-
+    /// Data_SwiftUI 观察者回调、在其内部断言（EXC_
+    /// BREAKPOINT/SIGTRAP brk 1，f0＝SwiftData
+    /// +0x7AC68；定因见 keyboard-trap 三档）。等价改
+    /// 法＝解耦：解析仍在 onAppear 原程序点同步完成、
+    /// 零 SwiftData 写；写库后置到与链接预热同一条有
+    /// 序链。两支落点输入与旧返回值逐值恒等（单测钉
+    /// 死，见 MainThreadDecoupleTests）
+    private enum MainThreadPlan: Equatable {
+        /// 存量钦定且线程还在：落点输入＝钦定 id 本人
+        /// （旧返回值恒等）；待写库的只有元数据对齐
+        /// （服务端绑定/标题）
+        case existing(UUID)
+        /// 无钦定或钦定已失效：将建 id 在解析点预生成
+        /// （待定钦定、进程内不落盘），落点输入就是将
+        /// 来真建的那条 id（旧形态 insert 后返回新线
+        /// 程 id，恒等）
+        case create(UUID)
+
+        /// 落点解析的主线输入
+        var landingMainID: UUID {
+            switch self {
+            case .existing(let id), .create(let id): return id
+            }
+        }
+
+        /// 落点解析的名单输入：.create 支在旧形态下解
+        /// 析前已 insert＋save、语义名单含新主线，待定
+        /// id 补入名单保 .main 支可达性不变——不补则
+        /// 落点退化 .none→名单第一条兜底，正是 Codex
+        /// 补丁被否的落点改写；.existing 支名单原样
+        func landingExistingIDs(threads: [ChatThread]) -> [UUID] {
+            let ids = threads.map(\.id)
+            guard case .create(let pendingID) = self,
+                  !ids.contains(pendingID)
+            else { return ids }
+            return ids + [pendingID]
+        }
+    }
+
+    /// 纯解析（同步、零 SwiftData 写）：读钦定与线程
+    /// 名单、按 Core MainThreadDesignation 两支定形；
+    /// .needsCreation 支预生成将建 id 存待定钦定（同
+    /// 轮多次解析复用同一 id）。服务端承载的实际存
+    /// 在性由 ensureMainLink 异步链接，本函数纯本地
+    private func resolveMainThreadPlan() -> MainThreadPlan {
         let store = appState.sideChats
         switch MainThreadDesignation.resolve(
             storedID: store.mainThreadID, existingIDs: threads.map(\.id)
         ) {
         case .existing(let id):
-            if let main = threads.first(where: { $0.id == id }) {
-                let sessionID = store.ensureMainServerSessionID()
-                if main.serverSessionID != sessionID {
-                    main.serverSessionID = sessionID
-                    try? modelContext.save()
-                }
-                if main.title != SideChatStore.mainTitle {
-                    main.title = SideChatStore.mainTitle
-                    try? modelContext.save()
-                }
-            }
-            return id
+            return .existing(id)
         case .needsCreation:
+            return .create(store.preparePendingMainThreadID())
+        }
+    }
+
+    /// 写库（onAppear 同步窗口之外、与链接预热同一
+    /// 条有序链的先行步）：.existing 对齐元数据到持久
+    /// 的钦定会话 id 与固定标题（旧形态两处逐项 save
+    /// 合并为一次——写结果不回流落点输入、语义不
+    /// 变）；.create 以预生成 id 建本地主线：标题恒
+    /// 「主线」、绑定本地生成并持久化的服务端会话
+    /// id，save 成功才写入钦定。建线步幂等：同 id 线
+    /// 程已在（重入/竞态下别处先建）只补钦定不重复
+    /// insert。save 失败回滚防待定钦定落成幻影、失
+    /// 败原文经 ChatDiagTrace 留痕，待定 id 保留供下
+    /// 轮出现以同 id 重试
+    private func applyMainThreadPlan(_ plan: MainThreadPlan) {
+        let store = appState.sideChats
+        switch plan {
+        case .existing(let id):
+            guard let main = threads.first(where: { $0.id == id })
+            else { return }
+            let sessionID = store.ensureMainServerSessionID()
+            if main.serverSessionID != sessionID {
+                main.serverSessionID = sessionID
+            }
+            if main.title != SideChatStore.mainTitle {
+                main.title = SideChatStore.mainTitle
+            }
+            if modelContext.hasChanges {
+                try? modelContext.save()
+            }
+        case .create(let id):
+            if threads.contains(where: { $0.id == id }) {
+                store.designateMainThread(id)
+                return
+            }
             let thread = ChatThread()
+            thread.id = id
             thread.title = SideChatStore.mainTitle
             thread.serverSessionID = store.ensureMainServerSessionID()
             modelContext.insert(thread)
-            try? modelContext.save()
-            store.designateMainThread(thread.id)
-            return thread.id
+            do {
+                try modelContext.save()
+            } catch {
+                modelContext.rollback()
+                ChatDiagTrace.record(
+                    "主线建线 save 失败（待定钦定未落盘、"
+                        + "下轮同 id 重试）："
+                        + error.localizedDescription
+                )
+                return
+            }
+            store.designateMainThread(id)
+            // 对象引用补派生：落点变更回调派生对象引用
+            // 时本线程尚未建、派生为空；建线落定后仍停
+            // 在本线程则在此补 .main（口径同 DrawerSel-
+            // ectionPolicy：当前线程＝钦定主线）
+            if currentThreadID == id {
+                appState.currentDrawerObject = .main
+            }
         }
     }
 

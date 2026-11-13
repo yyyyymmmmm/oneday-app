@@ -21,6 +21,14 @@ final class SideChatStore {
     static let mainTitle = L10n.string("主线")
 
     private(set) var mainThreadID: UUID?
+    /// 待定钦定（键盘真崩解耦包）：.needsCreation 支
+    /// 的落点输入须在写库前先定值——将建主线的 id 在
+    /// 解析点预生成、只存进程内（永不落盘），写库落
+    /// 定后由 designateMainThread 正式钦定并清零；写
+    /// 库失败保留待定 id 供下轮出现以同 id 重试（建
+    /// 线步幂等），不许把待定 id 写进任何持久键冒充
+    /// 已钦定（幻影钦定）
+    private(set) var pendingMainThreadID: UUID?
     private(set) var mainServerSessionID: String?
     private(set) var mainServerConfirmed = false
     /// 主线种子已落位（0.27.0）：主线本地历史已导入
@@ -123,6 +131,21 @@ final class SideChatStore {
     func designateMainThread(_ id: UUID) {
         mainThreadID = id
         defaults?.set(id.uuidString, forKey: Key.mainThreadID)
+        if pendingMainThreadID == id {
+            pendingMainThreadID = nil
+        }
+    }
+
+    /// 预生成待定主线 id（键盘真崩解耦包）：已有待
+    /// 定则复用同一 id——同一出现轮内多次解析（视图
+    /// 重建等）不许另铸第二个将建 id，落点输入与最
+    /// 终建线必须是同一条；本函数只写进程内状态、
+    /// 零落盘
+    func preparePendingMainThreadID() -> UUID {
+        if let pendingMainThreadID { return pendingMainThreadID }
+        let id = UUID()
+        pendingMainThreadID = id
+        return id
     }
 
     /// 主线的服务端会话 id：首次由 App 生成并持久化，
