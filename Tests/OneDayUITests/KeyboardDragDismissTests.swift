@@ -50,9 +50,8 @@ final class KeyboardDragDismissTests: XCTestCase {
         let kbFrame0 = app.keyboards.firstMatch.frame
         lines.append("kbUp top=\(Int(kbFrame0.minY))")
 
-        // 主臂：左缘页边距带起点（x=10，行容器的内
-        // 边距区、无文本视图）缓慢下拖——这是 dis-
-        // missMode 自己的契约面（滚动视图 pan 驱动）
+        // 拖臂：起点 x、首段短程（100pt）后停住采
+        // 「跟手」位、再续拖收尾采「收起」
         func dragArm(
             x: CGFloat, label: String
         ) -> (followed: Bool, dismissed: Bool) {
@@ -62,7 +61,7 @@ final class KeyboardDragDismissTests: XCTestCase {
                 ).withOffset(CGVector(dx: x, dy: y))
             }
             point(380).press(
-                forDuration: 0.15, thenDragTo: point(540),
+                forDuration: 0.15, thenDragTo: point(480),
                 withVelocity: .slow,
                 thenHoldForDuration: 0.6
             )
@@ -72,7 +71,7 @@ final class KeyboardDragDismissTests: XCTestCase {
             lines.append(
                 "\(label) midTop=\(Int(top)) followed=\(followed)"
             )
-            point(540).press(
+            point(480).press(
                 forDuration: 0.1, thenDragTo: point(700),
                 withVelocity: .slow,
                 thenHoldForDuration: 0.2
@@ -82,26 +81,30 @@ final class KeyboardDragDismissTests: XCTestCase {
             lines.append("\(label) dismissed=\(dismissed)")
             return (followed, dismissed)
         }
-        let edge = dragArm(x: 10, label: "edgeArm")
-        var center: (followed: Bool, dismissed: Bool)?
-        if !edge.dismissed {
-            // 记录臂：中央文字起点（首轮实测此起点键
-            // 盘纹丝不动——疑触摸被文本视图自家手势
-            // 吸收；本臂只记录、不作门）
+        // 主臂＝中央起点：二轮实测此臂整拖可收起
+        // （一轮的纹丝不动系祖先栈 tap 在位时的竞
+        // 技场干扰、整包删 tap 后解除——与选字会诊
+        // 第一嫌疑同源）；首段改短程专测跟手
+        let center = dragArm(x: win.midX, label: "centerArm")
+        var edge: (followed: Bool, dismissed: Bool)?
+        if !center.dismissed {
             if !app.keyboards.firstMatch.exists {
                 composer.tap()
                 _ = app.keyboards.firstMatch
                     .waitForExistence(timeout: 8)
             }
-            center = dragArm(x: win.midX, label: "centerArm")
+            // 记录臂＝左缘 x=10：二轮实测全程无反应
+            // ——该带是抽屉边缘开启手势的辖区、触摸
+            // 被其截获，与 dismissMode 无关，只记录
+            edge = dragArm(x: 10, label: "edgeArm")
         }
         lines.append(
-            "centerArm="
-                + (center.map {
+            "edgeArm="
+                + (edge.map {
                     "followed=\($0.followed) dismissed=\($0.dismissed)"
                 } ?? "skipped")
         )
-        let dismissed = edge.dismissed
+        let dismissed = center.dismissed
 
         let text = lines.joined(separator: "\n")
         print("DRAG-DISMISS-BEGIN")
@@ -112,8 +115,8 @@ final class KeyboardDragDismissTests: XCTestCase {
         add(attachment)
 
         XCTAssertTrue(
-            edge.followed,
-            "左缘拖动中键盘未跟手下行"
+            center.followed,
+            "中央拖动首段键盘未跟手下行"
                 + "——.interactively 在本承载下未跨界生效，"
                 + "须走手动桥接降级案"
         )

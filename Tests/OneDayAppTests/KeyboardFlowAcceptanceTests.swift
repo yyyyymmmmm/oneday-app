@@ -65,13 +65,40 @@ final class KeyboardFlowAcceptanceTests: XCTestCase {
         view.convert(view.bounds, to: window)
     }
 
+    /// 聊天滚动视图：子树内含播种段落文本的那个
+    /// HostingScrollView——首版按「首个宽滚动视图」
+    /// 取面，在多页装配里取错了面（验收轮实测静
+    /// 态 114 的异面 inset），改以内容标记定面
     private func chatScrollView() -> UIScrollView? {
         findViews(window) { view in
-            view is UIScrollView
-                && String(describing: type(of: view))
-                    .contains("HostingScrollView")
-                && self.frameInWindow(view).width > 400
+            guard view is UIScrollView,
+                  String(describing: type(of: view))
+                    .contains("HostingScrollView"),
+                  self.frameInWindow(view).width > 400,
+                  let scroll = view as? UIScrollView
+            else { return false }
+            return self.findViews(scroll) {
+                ($0 as? UITextView)?.text
+                    .contains("键盘验收") == true
+            }.isEmpty == false
         }.first as? UIScrollView
+    }
+
+    /// 全 HostingScrollView 的 inset 清单（判读留痕）
+    private func scrollViewCensus() -> String {
+        findViews(window) {
+            $0 is UIScrollView
+                && String(describing: type(of: $0))
+                    .contains("HostingScrollView")
+        }.compactMap { $0 as? UIScrollView }.map {
+            let f = self.frameInWindow($0)
+            let hasRecognizer = $0.gestureRecognizers?
+                .contains { $0.name == "OneDayBlankTapDismiss" }
+                ?? false
+            return "sv@\(Int(f.minY)),\(Int(f.height))"
+                + " rawB=\(Int($0.contentInset.bottom))"
+                + " recog=\(hasRecognizer)"
+        }.joined(separator: " | ")
     }
 
     private func composerCardFrame() -> CGRect? {
@@ -179,6 +206,7 @@ final class KeyboardFlowAcceptanceTests: XCTestCase {
             )
         }
 
+        print("KBACCEPT census " + scrollViewCensus())
         // ② 静息 margin（raw 口径）
         let restRawB = scroll.contentInset.bottom
         let restPocket = topPocketFrame()?.minY ?? -1

@@ -117,8 +117,10 @@ public struct BottomStickCoordinator: Equatable {
 ///   的 7pt）→ 已落定，收官；
 /// - 内容末端事实可见 → 校准在底，收官（不复
 ///   贴：末端已在屏内，复贴只会把内容无谓上顶）；
-/// - 距底 ≥ 退出阈值（176）→ 用户已离底，按
-///   §135「离底不打扰」收官，绝不把用户拽回；
+/// - 距底 ≥ 退出阈值（176）且读数已停或正在
+///   远离 → 用户已离底，按 §135「离底不打扰」
+///   收官，绝不把用户拽回（仍在快速收敛的途中
+///   读数不算离底——那是动画贴底的 transit）；
 /// - 相邻两事件读数差 ≤ 稳定 epsilon（运动已
 ///   停）且复贴仍挂账且调用方放行（动画贴底须先
 ///   观测到运动在途，防首事件误截弹簧）→ 执行
@@ -169,6 +171,15 @@ public enum BottomSettleEvaluation {
             return .calibrated
         }
         if distance >= BottomProximity.exitDistance {
+            // 离底收官只认「已停在远处／正在远离」：
+            // 读数仍在快速收敛（动画贴底途中路过远
+            // 区）是 transit、不是用户意图——等运动
+            // 自己表态；无前值同理（运动未声明；
+            // 真卡死由宿主兜底步进以对齐前值收官）
+            guard let previousDistance,
+                  distance
+                    >= previousDistance - stabilityEpsilon
+            else { return .wait }
             return .exhausted
         }
         if restickArmed,

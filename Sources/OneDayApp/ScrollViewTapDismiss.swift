@@ -87,12 +87,26 @@ final class TapDismissInstallerView: UIView,
         installIfNeeded()
     }
 
+    private var retryScheduled = false
+
     /// 定位底层滚动视图并安装（幂等：已装在同一滚
     /// 动视图上直接返回；滚动视图换人（装配重建）
-    /// 时旧识别器随旧视图走、本视图在新视图上补装）
+    /// 时旧识别器随旧视图走、本视图在新视图上补装）。
+    /// 首试在入窗/更新拍——彼时帧可能未定版，失败
+    /// 时排一次主队列延迟重试（安装时机兜底、非
+    /// 落定机制；装成即止、不循环）
     func installIfNeeded() {
         guard let scrollView = findHostingScrollView()
-        else { return }
+        else {
+            if window != nil, !retryScheduled {
+                retryScheduled = true
+                DispatchQueue.main.async { [weak self] in
+                    self?.retryScheduled = false
+                    self?.installIfNeeded()
+                }
+            }
+            return
+        }
         if installedScrollView === scrollView,
            recognizer != nil {
             return
@@ -132,31 +146,42 @@ final class TapDismissInstallerView: UIView,
             ancestor = current.superview
             hops += 1
         }
-        // 兜底：窗口子树内找帧与本视图吻合的滚动视
-        // 图（背景桥的帧＝滚动视图帧）
+        // 兜底：背景桥与滚动视图是同父兄弟（背景
+        // 在其后层）——ancend 链天然不中（验收轮
+        // 43463400274 实证未装上）；改按「窗口内帧
+        // 重叠面积最大」在 HostingScrollView 候选
+        // 里选面：桥帧＝滚动视图帧（背景填充被修
+        // 饰视图），重叠近全幅者即本体；要求重叠
+        // ≥ 桥帧面积一半，防误装邻面
         guard let window else { return nil }
         let myFrame = convert(bounds, to: window)
-        guard myFrame.width > 100, myFrame.height > 100
-        else { return nil }
-        var found: UIScrollView?
+        var best: UIScrollView?
+        var bestArea: CGFloat = 0
         func walk(_ view: UIView) {
-            guard found == nil else { return }
-            if let scroll = view as? UIScrollView {
+            if String(describing: type(of: view))
+                .contains("HostingScrollView"),
+               let scroll = view as? UIScrollView,
+               scroll.bounds.width > 300 {
                 let frame = scroll.convert(
                     scroll.bounds, to: window
                 )
-                if abs(frame.minX - myFrame.minX) < 2,
-                   abs(frame.minY - myFrame.minY) < 2,
-                   abs(frame.width - myFrame.width) < 2,
-                   abs(frame.height - myFrame.height) < 2 {
-                    found = scroll
-                    return
+                let overlap = frame.intersection(myFrame)
+                let area = overlap.isNull
+                    ? 0
+                    : overlap.width * overlap.height
+                if area > bestArea {
+                    bestArea = area
+                    best = scroll
                 }
             }
             for sub in view.subviews { walk(sub) }
         }
         walk(window)
-        return found
+        let myArea = myFrame.width * myFrame.height
+        if myArea > 0, bestArea < myArea * 0.5 {
+            return nil
+        }
+        return best
     }
 
     @objc private func handleBlankTap() {

@@ -1005,9 +1005,16 @@ final class ComposerGuideHostController: UIViewController {
     /// 帧非静息落点，报了反而污染快照的静息锚；
     /// 坞未解析（回落态）不报、快照保留上次值
     private func reportDockTop() {
-        guard !keyboardUp, let dock = dockBarView
+        guard !keyboardUp, let dock = dockBarView,
+              let window = dock.window
         else { return }
-        let top = Self.layoutSpaceMinY(of: dock)
+        // 测量法：convert 窗口真值（变换感知）——
+        // 坞的祖先链含 TabView 内部带变换的容器，
+        // layoutSpaceMinY 的原点累加在此失真（验
+        // 收轮实测偏 +83）；§194 舱锚自身的同名近
+        // 似不在本包动（冻结），本回报是新链、用
+        // 与诊断 rig 的 dockY 同一口径
+        let top = dock.convert(dock.bounds, to: window).minY
         guard top > 0,
               abs(top - lastReportedDockTop) > 0.5
         else { return }
