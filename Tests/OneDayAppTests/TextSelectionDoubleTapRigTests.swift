@@ -435,9 +435,8 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         let view = try XCTUnwrap(
             carrierTextViews().first, "自检台无承载视图"
         )
-        let range = NSRange(
-            (text as NSString).range(of: "SELFCHECKWORD")
-        )
+        let range = (text as NSString)
+            .range(of: "SELFCHECKWORD")
         let point = try XCTUnwrap(
             windowPoint(in: view, range: range), "自检词无矩形"
         )
