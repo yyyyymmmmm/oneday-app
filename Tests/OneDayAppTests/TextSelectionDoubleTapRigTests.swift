@@ -112,8 +112,8 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
             deliver(touch, phase: .ended)
         }
 
-        /// 双击：两拍间隔 0.16s（假时钟），投递间旋
-        /// 主循环放行识别器计时
+        /// 双击 A 型（round2/3 实测 INVALID）：假时钟
+        /// 预排、拍间旋主循环
         func doubleTap(
             at point: CGPoint, spin: (TimeInterval) -> Void
         ) {
@@ -121,6 +121,20 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
             spin(0.10)
             tick(0.06)
             tap(at: point, tapCount: 2)
+            spin(0.05)
+        }
+
+        /// 双击 B 型：每次投递前把时钟重对齐真实
+        /// uptime（识别器内部真实计时器与事件时间戳
+        /// 同源），拍间用真实等待 0.16s
+        func doubleTapLive(
+            at point: CGPoint, spin: (TimeInterval) -> Void
+        ) {
+            for count in 1...2 {
+                clock = ProcessInfo.processInfo.systemUptime
+                tap(at: point, tapCount: count)
+                if count == 1 { spin(0.16) }
+            }
             spin(0.05)
         }
 
@@ -380,10 +394,34 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
             }
             if let corridor { return corridor }
             if let fallback { return (fallback.0, fallback.1) }
+            scrollMainListToBottom()
             spinRunLoop(seconds: 0.5)
             window.layoutIfNeeded()
         }
         return nil
+    }
+
+    /// 主列表滚动视图压到底（rig 机械动作：LazyV-
+    /// Stack 只物化可见行，末条目标消息须滚动才在
+    /// 场；run3 普查实证装配停在线程顶部）
+    private func scrollMainListToBottom() {
+        guard let root = window.rootViewController?.view
+        else { return }
+        let scrolls = allViews(root)
+            .compactMap { $0 as? UIScrollView }
+            .filter { !($0 is UITextView) }
+        guard let main = scrolls.max(by: {
+            $0.bounds.height < $1.bounds.height
+        }) else { return }
+        let maxY = max(
+            0, main.contentSize.height - main.bounds.height
+                + main.contentInset.bottom
+        )
+        if abs(main.contentOffset.y - maxY) > 4 {
+            main.setContentOffset(
+                CGPoint(x: 0, y: maxY), animated: false
+            )
+        }
     }
 
     /// 目标词在窗口坐标中的点位（经 UITextInput 的
@@ -467,7 +505,6 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
     /// 应选中目标词。自检不过＝伪造触摸仪器无效，
     /// 后续产品判读全部不成立（本用例单独红、注明）
     func testInstrumentSelfCheckBareTextView() throws {
-        let word = "SELF CHECK".components(separatedBy: " ")[0]
         let text = "alpha SELFCHECKWORD bravo charlie delta"
         let host = UIHostingController(
             rootView: SelectableInlineText(
@@ -486,6 +523,8 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         window.rootViewController = host
         window.makeKeyAndVisible()
         window.layoutIfNeeded()
+        Self.retained.append(host)
+        Self.retained.append(win)
         spinRunLoop(seconds: 1.0)
         window.layoutIfNeeded()
 
@@ -497,21 +536,64 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         let point = try XCTUnwrap(
             windowPoint(in: view, range: range), "自检词无矩形"
         )
+        // 探针识别器（不取消触摸）：记录它收到的点位
+        // ——分辨「投递几何错」与「选字交互不认账」
+        var spyLog: [String] = []
+        let spy = UITapGestureRecognizer()
+        spy.cancelsTouchesInView = false
+        spy.addAction(UIAction { [weak spy] _ in
+            guard let spy, let w = spy.view?.window else { return }
+            let loc = spy.location(in: w)
+            spyLog.append(
+                "SPY tap at (\(Int(loc.x)),\(Int(loc.y))) state=\(spy.state.rawValue)"
+            )
+        })
+        host.view.addGestureRecognizer(spy)
+
         let driver = TouchDriver(window: window)
-        driver.doubleTap(at: point) { spinRunLoop(seconds: $0) }
-        spinRunLoop(seconds: 0.6)
+        var lines: [String] = []
         let viewFrame = view.convert(view.bounds, to: window)
-        emit([
-            "SELFCHECK word=\(word) target=\(fmt(range))",
-            "SELFCHECK viewFrame=(\(Int(viewFrame.minX)),\(Int(viewFrame.minY)) \(Int(viewFrame.width))x\(Int(viewFrame.height))) tapPoint=(\(Int(point.x)),\(Int(point.y))) inWindow=\(view.window === window)",
-            "SELFCHECK selected=\(fmt(view.selectedRange))",
-            "SELFCHECK verdict="
-                + (view.selectedRange == range ? "VALID" : "INVALID"),
-        ])
-        XCTAssertEqual(
-            view.selectedRange, range,
-            "仪器自检失败：裸文本双击未选中目标词"
-                + "（伪造触摸未穿过系统仲裁）——仪器无效"
+        lines.append(
+            "SELFCHECK target=\(fmt(range)) viewFrame=(\(Int(viewFrame.minX)),\(Int(viewFrame.minY)) \(Int(viewFrame.width))x\(Int(viewFrame.height))) tapPoint=(\(Int(point.x)),\(Int(point.y)))"
+        )
+        // 阶梯一：单击 → 读插入点（验投递几何）
+        driver.tap(at: point)
+        spinRunLoop(seconds: 0.4)
+        lines.append(
+            "LADDER singleTap selected=\(fmt(view.selectedRange))"
+        )
+        // 阶梯二：清零后长按 → 应成词选区（验交互活性）
+        view.selectedRange = NSRange(location: 0, length: 0)
+        driver.longPress(at: point) { spinRunLoop(seconds: $0) }
+        spinRunLoop(seconds: 0.4)
+        lines.append(
+            "LADDER longPress selected=\(fmt(view.selectedRange))"
+        )
+        // 阶梯三：清零后双击 A 型（假时钟预排）
+        view.selectedRange = NSRange(location: 0, length: 0)
+        driver.doubleTap(at: point) { spinRunLoop(seconds: $0) }
+        spinRunLoop(seconds: 0.5)
+        let aResult = view.selectedRange
+        lines.append("LADDER doubleTapA selected=\(fmt(aResult))")
+        // 阶梯四：清零后双击 B 型（真实时钟对齐）
+        view.selectedRange = NSRange(location: 0, length: 0)
+        driver.doubleTapLive(at: point) {
+            spinRunLoop(seconds: $0)
+        }
+        spinRunLoop(seconds: 0.5)
+        let bResult = view.selectedRange
+        lines.append("LADDER doubleTapB selected=\(fmt(bResult))")
+        lines += spyLog
+        let valid = aResult == range || bResult == range
+        lines.append(
+            "SELFCHECK verdict=\(valid ? "VALID" : "INVALID")"
+                + " via=\(aResult == range ? "A" : (bResult == range ? "B" : "none"))"
+        )
+        emit(lines)
+        XCTAssertTrue(
+            valid,
+            "仪器自检失败：两种双击形态均未选中目标词"
+                + "——仪器无效，先修仪器不判读产品"
         )
     }
 
@@ -538,6 +620,14 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
                 spinRunLoop(seconds: $0)
             }
             spinRunLoop(seconds: 0.5)
+            var via = "A"
+            if target.view.selectedRange != target.range {
+                driver.doubleTapLive(at: point) {
+                    spinRunLoop(seconds: $0)
+                }
+                spinRunLoop(seconds: 0.5)
+                via = "B"
+            }
             let now = target.view.selectedRange
             let alive: Bool
             if now == target.range {
@@ -550,7 +640,7 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
             lines.append(
                 "\(label) \(word) target=\(fmt(target.range)) "
                     + "selected=\(fmt(now)) formed=\(now == target.range) "
-                    + "alive1s=\(alive)"
+                    + "alive1s=\(alive) via=\(via)"
             )
         }
         lines.append("\(label) formed=\(formed)/\(targetWords.count)")
@@ -698,6 +788,12 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         let driver = TouchDriver(window: window)
         driver.doubleTap(at: point) { spinRunLoop(seconds: $0) }
         spinRunLoop(seconds: 0.5)
+        if target.view.selectedRange != target.range {
+            driver.doubleTapLive(at: point) {
+                spinRunLoop(seconds: $0)
+            }
+            spinRunLoop(seconds: 0.5)
+        }
         let formed = target.view.selectedRange
         guard formed == target.range else {
             emit(["HANDLE formed=\(fmt(formed)) — 未形成，拖柄无从测"])
