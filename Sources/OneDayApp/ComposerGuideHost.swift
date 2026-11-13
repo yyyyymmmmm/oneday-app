@@ -354,7 +354,6 @@ final class ComposerGuideHostController: UIViewController {
     private var dockIsFallback = false
     private weak var anchorWindow: UIWindow?
     private var keyboardUp = false
-    private var keyboardObservers: [NSObjectProtocol] = []
     /// 舱的窗口系实测帧（桥的 Preference 通道喂入）：
     /// 回报与透传判定共用这一份事实
     private var barFrameInWindow: CGRect = .zero
@@ -429,26 +428,37 @@ final class ComposerGuideHostController: UIViewController {
         }
         // 键盘锚切换信号（§193）：willShow/willHide
         // 是唯一状态源，动画参数（时长/曲线）随通知
-        // 取，与系统键盘动画同步
+        // 取，与系统键盘动画同步。selector 式观察者
+        // （不存 token）：块式 token 数组在 Swift 6
+        // 下 deinit 不可访问、Notification 跨闭包发
+        // 送亦被判竞态（CI 43337400356 实证）
         let center = NotificationCenter.default
-        keyboardObservers.append(center.addObserver(
-            forName: UIResponder.keyboardWillShowNotification,
-            object: nil, queue: .main
-        ) { [weak self] note in
-            self?.setKeyboardUp(true, note: note)
-        })
-        keyboardObservers.append(center.addObserver(
-            forName: UIResponder.keyboardWillHideNotification,
-            object: nil, queue: .main
-        ) { [weak self] note in
-            self?.setKeyboardUp(false, note: note)
-        })
+        center.addObserver(
+            self, selector: #selector(keyboardWillShow(_:)),
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        center.addObserver(
+            self, selector: #selector(keyboardWillHide(_:)),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
     }
 
     deinit {
-        for observer in keyboardObservers {
-            NotificationCenter.default.removeObserver(observer)
-        }
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func keyboardWillShow(
+        _ note: Notification
+    ) {
+        setKeyboardUp(true, note: note)
+    }
+
+    @objc private func keyboardWillHide(
+        _ note: Notification
+    ) {
+        setKeyboardUp(false, note: note)
     }
 
     override func viewDidAppear(_ animated: Bool) {
