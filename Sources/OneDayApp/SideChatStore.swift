@@ -294,6 +294,15 @@ final class SideChatStore {
     /// 讨论建聊时登记：线程的第一条用户消息要替这
     /// 篇帖发一记 discuss 信号
     func linkFeedDiscussThread(_ threadID: UUID, postID: String) {
+        // 一帖一线程：同帖改挂新线程（旧线程已删后
+        // 补建）时先摘其他线程的同帖关联，否则反查
+        // 会捞回已删线程、discuss 每次都新建（去重
+        // 失效、空会话堆积复发）
+        for key in feedDiscussPostIDs
+            .filter({ $0.value == postID }).map(\.key)
+            where key != threadID.uuidString {
+            feedDiscussPostIDs.removeValue(forKey: key)
+        }
         feedDiscussPostIDs[threadID.uuidString] = postID
         persist(feedDiscussPostIDs, Key.feedDiscussPostIDs)
     }

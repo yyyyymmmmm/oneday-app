@@ -154,7 +154,7 @@ final class FeedDiscussQuoteTests: XCTestCase {
         let out = MessageQuote.outgoingContent(
             userText: "正文问", quote: message, feedQuote: nil
         )
-        XCTAssertEqual(out, "[引用 我的消息]\n被引消息\n\n正文问")
+        XCTAssertEqual(out, "[引用 我 的消息]\n被引消息\n\n正文问")
     }
 
     func testDispatchNoQuoteReturnsUserText() {
