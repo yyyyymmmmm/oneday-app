@@ -325,15 +325,18 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
     /// board 面的会话写（PATCH 改名/归档等）走围栏
     /// 协议——请求须带 expected_revision 等于此值，
     /// 无围栏必 409 client_upgrade_required（本包生
-    /// 产实证）；网关面投影可能不带此字段，故可选；
-    /// 默认 nil 兼容既有直构点（解码时有键照常取值）
-    public let runtimeRevision: Int? = nil
+    /// 产实证）；网关面投影可能不带此字段，故可选。
+    /// **不许带默认值**：0.50.30 CI 实证——本条与下
+    /// 条代次原带 `= nil` 时，合成解码对带默认值的属
+    /// 性不取值（JSON 有键仍解出 nil，全仓首个断言
+    /// 解码值的单测才照出）；直构点须显式传 nil
+    public let runtimeRevision: Int?
     /// 会话行当前的 mutation 代次（0.50.30）：围栏
     /// DELETE 须三参数齐发（request_id＋expected_
     /// revision＋expected_generation，见 DESIGN
     /// §204.6）——详情 GET 回行带 runtime_generation、
-    /// 列表投影不带，故同为可选、默认 nil
-    public let runtimeGeneration: Int? = nil
+    /// 列表投影不带，故同为可选、不带默认值（同上）
+    public let runtimeGeneration: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, source, model, profile
