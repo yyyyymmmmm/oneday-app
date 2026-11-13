@@ -36,6 +36,7 @@ public enum LedgerText {
         case .job: return L10n.string("定时作业", locale: locale)
         case .approval: return L10n.string("审批", locale: locale)
         case .device: return L10n.string("设备调用", locale: locale)
+        case .monitor: return L10n.string("监测", locale: locale)
         case .other(let raw):
             return raw.isEmpty ? L10n.string("其他", locale: locale) : raw
         }
@@ -321,6 +322,15 @@ public enum LedgerBoard {
         calendar: Calendar = .current,
         locale: Locale = AppLocale.uiLocale
     ) -> String {
+        // §208：监测变化是「检出事件」不是一项工作，
+        // 状态词（已完成）会把语义说歪——副题直给事
+        // 件词＋检出时刻，与旧监测段的变化行同口径
+        if item.kind == .monitor {
+            return L10n.format(
+                "监测变化 · %@", locale: locale,
+                LedgerClock.time(item.startedAt, calendar: calendar)
+            )
+        }
         let word = LedgerText.statusWord(item.status, locale: locale)
         switch item.status {
         case .running:

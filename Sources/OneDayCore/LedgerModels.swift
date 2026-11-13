@@ -91,6 +91,11 @@ public enum LedgerKind: Equatable, Sendable {
     case job
     case approval
     case device
+    /// 监测变化（§208 枢纽收段新增）：服务端台账采集
+    /// 器暂无监测源，活动段由客户端把桥的监测变化记
+    /// 录合成同形条目（LedgerMonitorSynthesis）；服务
+    /// 端将来直供 kind=monitor 时解码同落此分类
+    case monitor
     case other(String)
 
     public init(rawValue: String?) {
@@ -100,6 +105,7 @@ public enum LedgerKind: Equatable, Sendable {
         case "job": self = .job
         case "approval": self = .approval
         case "device": self = .device
+        case "monitor": self = .monitor
         default: self = .other(rawValue ?? "")
         }
     }
@@ -111,6 +117,7 @@ public enum LedgerKind: Equatable, Sendable {
         case .job: return "job"
         case .approval: return "approval"
         case .device: return "device"
+        case .monitor: return "monitor"
         case .other(let raw): return raw
         }
     }
