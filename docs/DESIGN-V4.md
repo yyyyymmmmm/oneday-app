@@ -11228,3 +11228,7 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
   - 抽屉（§198.4）：①生产数据开抽屉频道区在场、点行进频道页名单非空且与全部对话页频道段同数；②全折叠第一帧恰两条边界线、展开任一组线数线位不变；③管理行在选项卡组第六行、随组折叠收起；④设置→侧边栏四条目切换抽屉即时从命；⑤AX 最大档一帧（管理行不截断、组头命中区不缩水、管理面可完整朗读）＋深色一帧（分隔线可辨）。
   - 止血（§199.4）：①含图长会话滚动体感对照（帧成本下降只认真机体感）；②千条线程发送落定复贴一笔、跟随行为与修复前一致。
   - 材质（§200.8）：①长列表上滚内容入顶带先糊化不叠字、胶囊下无透字、汉堡钮不压序号；②内容滚至输入框周边与坞区均匀糊化、坞盘玻璃与底衬层次分明；③键盘升/落舱带底衬同跟、键盘顶无断层；④抽屉开合三处底衬随前景同移无残留；⑤深色一帧糊化与玻璃明暗关系正常；⑥AX 最大字号一帧顶带覆盖随顶簇生长无露白。
+
+### §201 补记（同日，装配 CI 判读）
+- **CI（run 43374142963，head ad3dbb0，workflow_dispatch 于 rel-05027）**：Build／Package／Upload 三步 success；Unit tests 步 conclusion=failure，**全日志断言失败 0 条**。Failing tests 终表仅两条、均为无断言输出的进程死亡且皆在案：①`ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays`——§184 键盘在案真崩（独立线在修）；②`ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned`——05:58:51 started 后无结果行、05:59:27 进程重启，同 §184 家族签名、抽屉包 CI 已同签名在案（SwiftData ModelContext.reset 掐死族）。无任何新红。
+- **单测对账**：Core **1698 全过**＝止血包口径 1690（基线 1686＋EntryScanMemo 4）＋抽屉包新增 8，逐包对得上、只增不减；本版五组新测套件全 passed（EntryScanMemoTests／SectionCollapseTests／LocalImageDecodeCacheTests／SelectionDismantleProofTests／SystemBackdropTests）；UI **2/2 过**（CapsuleTapDispatchUITests）。App 目标经三轮进程重启后续跑完（死亡两条见上）。
