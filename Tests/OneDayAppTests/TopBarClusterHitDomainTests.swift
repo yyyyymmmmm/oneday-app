@@ -22,15 +22,30 @@ import XCTest
 ///   叠，横向间隔 ≥8pt（分域下限）；
 /// ②胶囊只有一片玻璃、且玻璃帧覆盖胶囊全帧（含
 ///   padding 环）——992944a「玻璃比行帧小一圈」
-///   的变窄回归守；
+///   的变窄回归守；玻璃帧亦不得外扩（宽/高 ≤帧
+///   +3）——外扩即命中域外溢（动作门实测间隙点
+///   被升模型面），同守；
 /// ③没有任何一片玻璃同时压住头像钮帧与胶囊帧
 ///   （融域面退役守）；
 /// ④hitTest 取点归属：胶囊域内点命中的视图只许
 ///   落在胶囊帧内、头像钮域内点只许落在头像钮帧
 ///   内、两元素间隙点不许命中任一元素帧内的视
-///   图。动作级派发（点→对的面升起）由 TopBar-
-///   SingleActionTapTests（XCUITest 打真 App 演
-///   示装配）守，本组只守结构与命中归属。
+///   图、亦不许命中覆盖该点的玻璃视图（玻璃外扩
+///   时其帧含间隙点且不被任一域包含，旧断言对此
+///   无感，本轮补上）。动作级派发（点→对的面升
+///   起）由 TopBarSingleActionTapTests（XCUITest
+///   打真 App 演示装配）守，本组只守结构与命中
+///   归属。
+///
+/// 施工注记（2026-11-13 续工）：前四轮 CI 本组
+/// 均在出判读前进程死亡（与键盘真崩／Drawer-
+/// Container 同为 §184 进程死亡族签名：无断言失
+/// 败、Restarting after unexpected exit）。本轮
+/// 硬化：无障碍快照全程只收集一次（旧版每查一
+/// 项重走全树四次，同步驱动量最重）、装配后加
+/// 一拍沉降再取数、结构与命中拆成两个用例（死
+/// 亡爆炸半径减半）、全程打诊断行（玻璃实帧＋
+/// 每点命中视图类名/帧）使任何一轮日志都留证。
 @MainActor
 final class TopBarClusterHitDomainTests: XCTestCase {
 
@@ -43,11 +58,14 @@ final class TopBarClusterHitDomainTests: XCTestCase {
     }
 
     private var window: DeviceWindow!
+    /// 本用例内只收集一次的无障碍快照（见类注）
+    private var snapshots: [AXSnapshot] = []
 
     override func tearDown() async throws {
         window?.rootViewController = nil
         window?.isHidden = true
         window = nil
+        snapshots = []
         try await super.tearDown()
     }
 
@@ -84,6 +102,12 @@ final class TopBarClusterHitDomainTests: XCTestCase {
         window.layoutIfNeeded()
         spinRunLoop(seconds: 2.0)
         window.layoutIfNeeded()
+        // 沉降一拍：外观/预热等异步链落定后再同步
+        // 取数（死亡族与重入布局路径相关，先让链
+        // 走完，见类注）
+        spinRunLoop(seconds: 1.0)
+        window.layoutIfNeeded()
+        collectSnapshots()
     }
 
     // MARK: - 定位助手
@@ -118,8 +142,9 @@ final class TopBarClusterHitDomainTests: XCTestCase {
     }
 
     /// 递归收集无障碍元素（容器 API 下钻，含 UIHos-
-    /// tingView 派发的 SwiftUI 元素），按标识去重
-    private func accessibilityElements() -> [AXSnapshot] {
+    /// tingView 派发的 SwiftUI 元素），按标识去重；
+    /// 每用例只走一次，结果存 snapshots 复用
+    private func collectSnapshots() {
         var out: [AXSnapshot] = []
         var seen = Set<String>()
         func consider(_ obj: Any) {
@@ -148,19 +173,15 @@ final class TopBarClusterHitDomainTests: XCTestCase {
             for sub in view.subviews { walk(sub) }
         }
         walk(window)
-        return out
+        snapshots = out
     }
 
     private func elementFrame(identifier: String) -> CGRect? {
-        accessibilityElements()
-            .first { $0.identifier == identifier }?
-            .frame
+        snapshots.first { $0.identifier == identifier }?.frame
     }
 
     private func elementTraits(identifier: String) -> UIAccessibilityTraits? {
-        accessibilityElements()
-            .first { $0.identifier == identifier }?
-            .traits
+        snapshots.first { $0.identifier == identifier }?.traits
     }
 
     private func glassInteractionViews() -> [UIView] {
@@ -187,11 +208,7 @@ final class TopBarClusterHitDomainTests: XCTestCase {
         )
     }
 
-    // MARK: - 主关
-
-    func testTopBarCenterClusterHitDomains() throws {
-        try assembleProductionPage()
-
+    private func clusterFrames() throws -> (capsule: CGRect, avatar: CGRect) {
         let capsule = try XCTUnwrap(
             elementFrame(identifier: "topbar.modelCapsule"),
             "模型胶囊无障碍元素未找到"
@@ -200,6 +217,22 @@ final class TopBarClusterHitDomainTests: XCTestCase {
             elementFrame(identifier: "topbar.hubAvatarButton"),
             "枢纽头像钮无障碍元素未找到"
         )
+        return (capsule, avatar)
+    }
+
+    // MARK: - 关一：帧与玻璃（不变量①②③）
+
+    func testTopBarClusterFramesAndGlass() throws {
+        try assembleProductionPage()
+        let (capsule, avatar) = try clusterFrames()
+        let glasses = glassInteractionViews().map(frameInWindow)
+        print("TOPBAR-STRUCT-BEGIN")
+        print("capsule=\(fmt(capsule)) avatar=\(fmt(avatar)) "
+            + "gap=\(capsule.minX - avatar.maxX)")
+        for glass in glasses {
+            print("glass=\(fmt(glass))")
+        }
+        print("TOPBAR-STRUCT-END")
 
         // ①都在、按钮型、帧不重叠、间隔 ≥8pt
         XCTAssertTrue(
@@ -229,8 +262,7 @@ final class TopBarClusterHitDomainTests: XCTestCase {
         XCTAssertEqual(avatar.width, 44, accuracy: 1.5, "头像钮命中盘应为 44")
         XCTAssertEqual(avatar.height, 44, accuracy: 1.5, "头像钮命中盘应为 44")
 
-        // ②③玻璃：胶囊玻璃覆盖全帧、无跨域玻璃面
-        let glasses = glassInteractionViews().map(frameInWindow)
+        // ②③玻璃：覆盖全帧、不外扩、无跨域玻璃面
         let capsuleGlass = glasses.filter {
             $0.intersection(capsule).width >= capsule.width * 0.9
                 && $0.intersection(capsule).height >= capsule.height * 0.9
@@ -253,7 +285,7 @@ final class TopBarClusterHitDomainTests: XCTestCase {
             XCTAssertLessThanOrEqual(
                 glass.width, capsule.width + 3,
                 "玻璃宽不得大于胶囊帧+3（命中外扩回归，"
-                    + "动作门 run 43369981760 实测间隙点被升面）："
+                    + "动作门实测间隙点被升面）："
                     + "玻璃 \(fmt(glass))／胶囊 \(fmt(capsule))"
             )
             XCTAssertLessThanOrEqual(
@@ -270,14 +302,37 @@ final class TopBarClusterHitDomainTests: XCTestCase {
                 "玻璃面 \(fmt(glass)) 同时压住头像钮与胶囊（融域回潮）"
             )
         }
+    }
 
-        // ④hitTest 取点归属
+    // MARK: - 关二：hitTest 取点归属（不变量④）
+
+    func testTopBarClusterHitAttribution() throws {
+        try assembleProductionPage()
+        let (capsule, avatar) = try clusterFrames()
+        let glasses = glassInteractionViews()
+
+        func describeHit(_ point: CGPoint) -> String {
+            guard let hit = window.hitTest(point, with: nil) else {
+                return "nil"
+            }
+            let kind = String(describing: type(of: hit))
+            return "\(kind) \(fmt(frameInWindow(hit)))"
+        }
+        func isGlass(_ view: UIView) -> Bool {
+            String(describing: type(of: view)).contains("GlassInteraction")
+        }
+
+        print("TOPBAR-HIT-BEGIN")
+        print("capsule=\(fmt(capsule)) avatar=\(fmt(avatar))")
+
         func assertHit(
             _ point: CGPoint,
             inside own: CGRect?,
             outside other: CGRect?,
             _ name: String
         ) {
+            print("hit \(name) at=(\(Int(point.x)),\(Int(point.y))) "
+                + "-> \(describeHit(point))")
             let hit = window.hitTest(point, with: nil)
             guard let hit else {
                 if own != nil {
@@ -331,11 +386,14 @@ final class TopBarClusterHitDomainTests: XCTestCase {
         for (index, point) in avatarPoints.enumerated() {
             assertHit(point, inside: avatar, outside: capsule, "头像点\(index)")
         }
-        // 间隙点：不许命中任一元素帧内的视图（穿透到
-        // 宿主/下层、或命中覆盖整簇的大帧均可）
+        // 间隙点：不许命中任一元素帧内的视图；亦不
+        // 许命中覆盖该点的玻璃视图——玻璃外扩时其
+        // 帧横跨间隙点且不被任一域包含，须单独守
         let gapPoint = CGPoint(
             x: (avatar.maxX + capsule.minX) / 2, y: capsule.midY
         )
+        print("hit GAP at=(\(Int(gapPoint.x)),\(Int(gapPoint.y))) "
+            + "-> \(describeHit(gapPoint))")
         if let hit = window.hitTest(gapPoint, with: nil) {
             let hitFrame = frameInWindow(hit)
             for (name, domain) in [("头像", avatar), ("胶囊", capsule)] {
@@ -344,7 +402,14 @@ final class TopBarClusterHitDomainTests: XCTestCase {
                     "间隙点命中\(name)域内视图帧 \(fmt(hitFrame))"
                 )
             }
+            XCTAssertFalse(
+                isGlass(hit) && hitFrame.contains(gapPoint),
+                "间隙点命中玻璃视图帧 \(fmt(hitFrame))"
+                    + "——玻璃命中域外扩到间隙"
+            )
+            _ = glasses
         }
+        print("TOPBAR-HIT-END")
     }
 }
 
