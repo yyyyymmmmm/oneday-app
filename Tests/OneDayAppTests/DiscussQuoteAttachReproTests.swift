@@ -5,36 +5,34 @@ import UIKit
 @testable import OneDayApp
 @testable import OneDayCore
 
-/// 动态「讨论」引用挂载复现 rig v2（2026-11-13，用户真机
-/// 实报 0.50.30：动态点「讨论」跳到聊天后引用卡没挂上）。
+/// 动态「讨论」引用挂载复现＋回归 rig（2026-11-13 立，
+/// §210 修复后形态）。用户真机实报 0.50.30：动态点「讨
+/// 论」跳到聊天后引用卡没挂上。
 ///
-/// v1 结果（run 43436579164）：四场景全红——三例断言超时、
-/// 主场景无裁决行无 dump（疑挂死/死亡）。但 v1 仪表有两处
-/// 不可靠：①标签信号走 subviews 属性遍历（SwiftUI 的无障
-/// 碍标签不在视图属性上，四例全空、信号已死）；②高度判据
-/// 只认「长高」，而引用落位会聚焦输入舱、键盘导引区预留
-/// 反而使宿主变矮，方向可能反了。
+/// 历史（定因全程见 discuss-quote-attach-report-
+/// 20261113）：v1/v2 在基线（种子制）上四场景全红坐实
+/// 复现；跨轮判读定案——可存活进程里种子消费本身成功，
+/// 败在形态脆弱面（全局一次性种子＋视图本地态）。§210
+/// 修法把待发引用改挂 AppState.pendingFeedQuotesBy-
+/// Thread 按线程寻址、ChatView 派生呈现，本 rig 随之
+/// 改为**状态级断言**：只读待发表，不再依赖高度/标签
+/// 等间接信号（v1/v2 的仪表教训：标签遍历四轮全空、
+/// 高度方向可反）。
 ///
-/// v2 仪表：①种子消费状态（appState.pendingFeedDiscussSeed
-/// 是否被清＝tryApplyFeedSeed 是否命中过目标线程，状态级
-/// 硬信号）；②无障碍元素树遍历（accessibilityElementCount/
-/// at: 递归）找硬编码标签「取消引用」，并打印标签样本作阳
-/// 性对照（遍历器到底看不看得见世界，样本即证据）；③宿主
-/// 高度轨迹（写组后 10×0.25s 采样序列）；④主场景分步
-/// MARK 标记，挂死也要留下死在哪一步。
-///
-/// 驱动法与 v1 同：performDiscussWrites 与 FeedView.discuss
-/// 的状态写组逐字同序复刻（ModelContext insert ChatThread
-/// ＋save → linkFeedDiscussThread → 置种子 → 置抽屉选择 →
-/// 置切格请求）。markRead 只动动态已读账、不入 rig。
+/// 形态：单装配多阶段——全程一个 RootView 壳层＋一个
+/// 落盘容器、顺序走完五段（同进程反复整页装配会触发
+/// §184 测试宿主配方，前序轮次已实证会把用例在挂载
+/// 期毒杀、与生产无关；单装配同时也更像真实用户会话）。
+/// 写组 performDiscussWrites 与 FeedView.discuss 本尊
+/// 逐字同序（fetchThread 复用判据→insert＋save→link→
+/// 待发引用直写→抽屉选择→切格请求）。
 @MainActor
-final class AADiscussQuoteAttachReproTests: XCTestCase {
+final class DiscussQuoteAttachReproTests: XCTestCase {
 
     private var window: UIWindow!
     private var container: ModelContainer!
     private var context: ModelContext!
     private var appState: AppState!
-    private var baselineHostHeight: CGFloat = -1
 
     override func setUp() async throws {
         try await super.setUp()
@@ -43,18 +41,9 @@ final class AADiscussQuoteAttachReproTests: XCTestCase {
             schema: schema, isStoredInMemoryOnly: false,
             cloudKitDatabase: .none
         )
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "discuss-rig-\(UUID().uuidString)", isDirectory: true
-            )
-        try FileManager.default.createDirectory(
-            at: dir, withIntermediateDirectories: true
-        )
         container = try ModelContainer(
-            for: schema,
-            configurations: [config]
+            for: schema, configurations: [config]
         )
-        _ = dir
         context = ModelContext(container)
         appState = AppState(
             client: DemoHermesClient(), demoMode: .connected
@@ -71,10 +60,10 @@ final class AADiscussQuoteAttachReproTests: XCTestCase {
         try await super.tearDown()
     }
 
-    // MARK: - 壳层装配（RootView 真壳层，探针同款）
+    // MARK: - 壳层与自旋
 
     private func mark(_ s: String) {
-        print("RIG-MARK \(s)")
+        print("RIG3-MARK \(s)")
         fflush(stdout)
     }
 
@@ -125,11 +114,6 @@ final class AADiscussQuoteAttachReproTests: XCTestCase {
         return condition()
     }
 
-    private func composerHost() -> UIView? {
-        findComposerVC()?.traceComposerHostView
-    }
-
-    /// 沿 VC 树找 ComposerGuideHostController（探针同款定位法）
     private func findComposerVC() -> ComposerGuideHostController? {
         var found: ComposerGuideHostController?
         func walk(_ vc: UIViewController) {
@@ -142,50 +126,7 @@ final class AADiscussQuoteAttachReproTests: XCTestCase {
         return found
     }
 
-    private func spinUntilChatPresented() {
-        _ = spinUntil(timeout: 8) { composerHost() != nil }
-    }
-
-    // MARK: - 无障碍元素树遍历（v2 新仪表，带阳性对照）
-
-    /// 从任意对象沿 UIAccessibility 容器协议递归收集标签。
-    /// SwiftUI 的无障碍元素不在 subviews 的属性上，必须走
-    /// accessibilityElementCount()/accessibilityElement(at:)。
-    private func collectA11yLabels(from root: AnyObject) -> [String] {
-        var out: [String] = []
-        var seen = Set<ObjectIdentifier>()
-        func walk(_ obj: AnyObject, _ depth: Int) {
-            guard depth <= 16, out.count < 600 else { return }
-            let oid = ObjectIdentifier(obj)
-            guard seen.insert(oid).inserted else { return }
-            guard let ns = obj as? NSObject else { return }
-            if ns.isAccessibilityElement,
-               let label = ns.accessibilityLabel, !label.isEmpty {
-                out.append(label)
-            }
-            let count = ns.accessibilityElementCount()
-            if count != NSNotFound, count > 0, count < 1000 {
-                for i in 0..<count {
-                    if let child = ns.accessibilityElement(at: i)
-                        as? NSObject {
-                        walk(child, depth + 1)
-                    }
-                }
-            }
-            if let view = obj as? UIView {
-                for sub in view.subviews { walk(sub, depth + 1) }
-            }
-        }
-        walk(root, 0)
-        return out
-    }
-
-    private func quoteSignalFromLabels() -> Bool {
-        guard let window else { return false }
-        return collectA11yLabels(from: window).contains("取消引用")
-    }
-
-    // MARK: - discuss 写组（与 FeedView.discuss 同序复刻）
+    // MARK: - discuss 写组（与 FeedView.discuss 本尊同序，§210 形）
 
     private func makePost(id: String) -> BridgeFeedPost {
         BridgeFeedPost(
@@ -204,167 +145,120 @@ final class AADiscussQuoteAttachReproTests: XCTestCase {
         return try? context.fetch(descriptor).first
     }
 
-    /// 返回讨论落点线程 id。stepMark=true 时逐步打点（主场景
-    /// 挂死定位用）。写组与 FeedView.discuss 本尊逐字同序。
     @discardableResult
-    private func performDiscussWrites(
-        post: BridgeFeedPost, stepMark: Bool = false
-    ) -> UUID {
-        if stepMark { mark("discuss-begin") }
+    private func performDiscussWrites(post: BridgeFeedPost) -> UUID {
         let thread: ChatThread
         if let linkedID = appState.sideChats.threadID(
             forFeedDiscussPostID: post.id
         ), let existing = fetchThread(linkedID) {
-            if stepMark { mark("discuss-reuse-path") }
             thread = existing
         } else {
             let fresh = ChatThread()
-            if stepMark { mark("before-insert") }
             context.insert(fresh)
-            if stepMark { mark("before-save") }
             try? context.save()
-            if stepMark { mark("after-save") }
             appState.sideChats.linkFeedDiscussThread(
                 fresh.id, postID: post.id
             )
-            if stepMark { mark("after-link") }
             thread = fresh
         }
-        appState.pendingFeedDiscussSeed = FeedDiscussSeed(
-            threadID: thread.id,
-            quote: FeedPostQuote(post: post)
-        )
+        appState.pendingFeedQuotesByThread[thread.id] =
+            FeedPostQuote(post: post)
         appState.drawerThreadSelection = thread.id
         appState.mainTabSwitchRequest = .chat
-        if stepMark { mark("discuss-writes-done") }
         return thread.id
     }
 
-    // MARK: - 观测与断言
-
-    private struct Snapshot {
-        var seedPresent: Bool
-        var labelHit: Bool
-        var hostHeight: CGFloat
-        var labelSample: [String]
+    private func pendingQuote(for threadID: UUID) -> FeedPostQuote? {
+        appState.pendingFeedQuotesByThread[threadID]
     }
 
-    private func snapshot() -> Snapshot {
-        let labels = window.map { collectA11yLabels(from: $0) } ?? []
-        return Snapshot(
-            seedPresent: appState.pendingFeedDiscussSeed != nil,
-            labelHit: labels.contains("取消引用"),
-            hostHeight: composerHost()?.frame.height ?? -1,
-            labelSample: Array(labels.prefix(24))
-        )
-    }
+    // MARK: - 五段全程（单装配）
 
-    /// 高度轨迹：2.5 秒内 10 次采样，序列即证据（落位聚焦会
-    /// 改变宿主几何，单点读数不可判读）。
-    private func heightTrace() -> [Int] {
-        var out: [Int] = []
-        for _ in 0..<10 {
-            spinRunLoop(seconds: 0.25)
-            out.append(Int(composerHost()?.frame.height ?? -1))
-        }
-        return out
-    }
-
-    private func dump(_ tag: String, _ snap: Snapshot, trace: [Int] = []) {
-        let line = """
-            RIG2-DUMP \(tag): 种子在=\(snap.seedPresent) \
-            标签命中=\(snap.labelHit) host高=\(snap.hostHeight) \
-            轨迹=\(trace) 标签样本=\(snap.labelSample)
-            """
-        print(line)
-        add(XCTAttachment(string: line))
-    }
-
-    /// 引用「到达」的复合判据（v2）：种子被消费（硬信号）
-    /// 或元素树出现「取消引用」。高度只留轨迹作旁证。
-    private func quoteArrived() -> Bool {
-        appState.pendingFeedDiscussSeed == nil || quoteSignalFromLabels()
-    }
-
-    private func assertQuoteArrives(_ tag: String) {
-        let ok = spinUntil(timeout: 12) { quoteArrived() }
-        let trace = heightTrace()
-        let snap = snapshot()
-        dump(tag, snap, trace: trace)
-        XCTAssertTrue(
-            ok || snap.labelHit,
-            "\(tag)：写组后 12s 内引用未到达（种子未消费且引用条标签未现）"
-        )
-    }
-
-    // MARK: - 场景一：新线程（用户主报路径，全程打点）
-
-    func testDiscussAttachesQuote_FreshThread_FromFeedTab() {
-        mark("s1-mount")
+    func testDiscussQuoteLifecycle_SingleAssembly() {
+        mark("mount")
         mountShell()
-        spinUntilChatPresented()
-        mark("s1-chat-presented")
+        XCTAssertTrue(
+            spinUntil(timeout: 8) { findComposerVC() != nil },
+            "聊天页未在壳层内呈现"
+        )
+        // 进场在动态格（复刻用户点讨论时的在场状态）
         appState.mainTabSwitchRequest = .feed
         spinRunLoop(seconds: 1.0)
-        mark("s1-on-feed-tab")
-        baselineHostHeight =
-            composerHost()?.frame.height ?? -1
-        mark("s1-baseline=\(baselineHostHeight)")
-        performDiscussWrites(post: makePost(id: "rig-post-fresh"), stepMark: true)
-        mark("s1-writes-returned")
-        assertQuoteArrives("freshNewThread")
-        mark("s1-done")
-        XCTAssertNil(
-            appState.pendingFeedDiscussSeed,
-            "种子落位后应被消费清零"
+        mark("on-feed-tab")
+
+        // P1：新帖讨论（新线程）——待发引用写入后，在落
+        // 点收敛的数秒内恒在（不许被后续事件追毁）
+        let post1 = makePost(id: "rig3-post-1")
+        let t1 = performDiscussWrites(post: post1)
+        mark("p1-writes-done t1=\(t1)")
+        XCTAssertTrue(
+            spinUntil(timeout: 8) { pendingQuote(for: t1) != nil },
+            "P1：讨论写入后目标线程待发引用不在场"
         )
-    }
-
-    // MARK: - 场景二：复用既有讨论线程（落点已在该线程）
-
-    func testDiscussAttachesQuote_ReusedThread_AlreadyThere() {
-        mountShell()
-        spinUntilChatPresented()
-        let post = makePost(id: "rig-post-reuse")
-        let thread = ChatThread()
-        context.insert(thread)
-        try? context.save()
-        appState.sideChats.linkFeedDiscussThread(
-            thread.id, postID: post.id
+        var p1Stable = true
+        for _ in 0..<10 {
+            spinRunLoop(seconds: 0.25)
+            if pendingQuote(for: t1) == nil { p1Stable = false }
+        }
+        XCTAssertTrue(p1Stable, "P1：待发引用落位后 2.5s 内被追毁")
+        XCTAssertEqual(
+            pendingQuote(for: t1)?.postID, post1.id,
+            "P1：待发引用快照与帖不一致"
         )
-        appState.sideChats.setLastThreadID(thread.id)
-        spinRunLoop(seconds: 1.2)
-        performDiscussWrites(post: post)
-        assertQuoteArrives("reuseAlreadyThere")
-    }
+        mark("p1-ok")
 
-    // MARK: - 场景三：挂上后壳层重现，引用须仍在
+        // P2：切去主线程——离开 T1，其待发引用按规格
+        // §3.3 作废（定点清离开者）
+        guard let mainID = appState.sideChats.mainThreadID else {
+            XCTFail("主线程 id 缺席，P2 无法执行")
+            return
+        }
+        appState.drawerThreadSelection = mainID
+        XCTAssertTrue(
+            spinUntil(timeout: 8) { pendingQuote(for: t1) == nil },
+            "P2：切离 T1 后其待发引用未作废（残留/串带）"
+        )
+        mark("p2-ok")
 
-    func testDiscussQuoteSurvivesShellReappearance() {
-        mountShell()
-        spinUntilChatPresented()
-        performDiscussWrites(post: makePost(id: "rig-post-reappear"))
-        assertQuoteArrives("reappearBefore")
+        // P3：同帖再讨论（复用线程）——待发引用重新在场
+        let t1Again = performDiscussWrites(post: post1)
+        XCTAssertEqual(t1Again, t1, "P3：同帖讨论未复用同一线程")
+        XCTAssertTrue(
+            spinUntil(timeout: 8) { pendingQuote(for: t1) != nil },
+            "P3：复用线程再讨论后待发引用不在场"
+        )
+        mark("p3-ok")
+
+        // P4：壳层重现（rootViewController 卸下再装回，
+        // 视图整树重建）——待发引用是 AppState 状态、
+        // 不随视图存亡
         let host = window.rootViewController
         window.rootViewController = nil
         spinRunLoop(seconds: 0.8)
         window.rootViewController = host
-        spinUntilChatPresented()
-        let snap = snapshot()
-        dump("reappearAfter", snap)
         XCTAssertTrue(
-            snap.labelHit,
-            "壳层重现（onAppear 重放）后引用条消失"
+            spinUntil(timeout: 8) { findComposerVC() != nil },
+            "P4：壳层重现后聊天页未再呈现"
         )
-    }
+        spinRunLoop(seconds: 1.0)
+        XCTAssertNotNil(
+            pendingQuote(for: t1),
+            "P4：壳层重现后待发引用丢失（状态仍系于视图）"
+        )
+        mark("p4-ok")
 
-    // MARK: - 场景四：种子先于 ChatView 挂载写入
-
-    func testDiscussSeedWrittenBeforeChatMounts() {
-        let post = makePost(id: "rig-post-seedfirst")
-        performDiscussWrites(post: post)
-        mountShell()
-        spinUntilChatPresented()
-        assertQuoteArrives("seedBeforeMount")
+        // P5：另一帖讨论（新线程 T2）——落点切到 T2：
+        // T2 待发引用在场、T1 的已随切离作废（不串带）
+        let post2 = makePost(id: "rig3-post-2")
+        let t2 = performDiscussWrites(post: post2)
+        XCTAssertNotEqual(t2, t1)
+        XCTAssertTrue(
+            spinUntil(timeout: 8) {
+                pendingQuote(for: t2) != nil
+                    && pendingQuote(for: t1) == nil
+            },
+            "P5：切到 T2 后待发引用归属错位（T2 缺失或 T1 残留）"
+        )
+        mark("p5-ok")
     }
 }
