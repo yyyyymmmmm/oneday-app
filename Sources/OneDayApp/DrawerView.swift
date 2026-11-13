@@ -1418,10 +1418,23 @@ struct DrawerView: View {
                 // （ContentView 消费 settingsSheetRequested
                 // 呈现新设置页）；0.6.0 的 pendingAppsPage
                 // 落位通道随应用格一并退役
+                // 2026-11-13（用户 15:52 亲令「侧边栏点
+                // 设置的时候，侧边栏不要收回，不然不好
+                // 看」）：本钮不再先 onClose()——旧动作
+                // 先收抽屉再升设置 sheet、收回动画与设
+                // 置升起叠着难看。改只置位请求：设置由
+                // ContentView 根级 sheet 盖住整屏升起，
+                // 抽屉语义开合一字不动（不收回、无动
+                // 画），搜索词/分区折叠/滚动位随之天然
+                // 保住，关设置原样回到仍开着的抽屉。抽
+                // 屉内其余行（导航/频道/管理/新建/选
+                // 会话）的 onClose 收回口径一字不变；
+                // 设置内「跳去某格/某会话」的出口在
+                // ContentView 消费点收抽屉（点达须看得
+                // 见，见彼处三处注）
                 systemName: "gearshape",
                 label: "设置"
             ) {
-                onClose()
                 appState.settingsSheetRequested = true
             }
             HStack(spacing: OneDayMetrics.spacingS) {

@@ -162,6 +162,13 @@ struct ContentView: View {
     /// AppState.settingsSheetRequested 置位、本层消费
     /// 呈现；设置页本体内带大标题＋圆 X 头（照 Muse
     /// 设置页图形态）
+    /// 2026-11-13（用户 15:52 亲令）：自抽屉点设置时
+    /// 抽屉不再连带收回（齿轮动作已删 onClose，见
+    /// DrawerView 底条注）——本 sheet 自根级盖住开着
+    /// 的抽屉升起、关闭后原样露出仍开着的抽屉；只有
+    /// 设置内「跳走」出口（onRequestChat／
+    /// mainTabSwitchRequest／pendingChatSessionID
+    /// 三处消费点）才在本层收抽屉，保点达看得见
     @State private var showSettings = false
 
     var body: some View {
@@ -226,7 +233,19 @@ struct ContentView: View {
         // （ChatView 侧消费导入；已在聊天格时 onChange 同样
         // 触发、由 ChatView 直接消费）
         .onChange(of: appState.pendingChatSessionID) { _, id in
-            if id != nil { selection = .chat }
+            if id != nil {
+                selection = .chat
+                // 2026-11-13：置位即「现在就去看这个
+                // 会话」——落点必须看得见。自抽屉进设
+                // 置后，设置内点达会话（总览
+                // onOpenChatSession 走 onClose＋本通
+                // 道）时抽屉还开着，在此一并收回；其
+                // 余置位方（管理页/频道页的
+                // onOpenSession、枢纽下钻）触发时抽屉
+                // 已由各自行 onClose 收过、或本就关
+                // 着，写 false 只是无副作用对账
+                appState.drawerPresented = false
+            }
         }
         // 0.20.0：抽屉齿轮置位设置请求 → 呈现根级设置
         // sheet（0.6.0 的 pendingAppsPage 切格落位通道
@@ -245,6 +264,11 @@ struct ContentView: View {
                 appState.mainTabSwitchRequest = nil
                 showSettings = false
                 selection = tab
+                // 2026-11-13：切格是「跳走」出口——自
+                // 抽屉进设置时抽屉还开着，一并收回，
+                // 落点格才看得见（口径见 showSettings
+                // 声明注）；抽屉本关着时为无副作用对账
+                appState.drawerPresented = false
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -253,6 +277,12 @@ struct ContentView: View {
                 onRequestChat: {
                     showSettings = false
                     selection = .chat
+                    // 2026-11-13：「回聊天」是「跳走」
+                    // 出口——自抽屉进设置时抽屉还开着，
+                    // 一并收回，聊天面才看得见（口径见
+                    // showSettings 声明注）；抽屉本关着
+                    // 时为无副作用对账
+                    appState.drawerPresented = false
                 }
             )
         }
