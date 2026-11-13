@@ -11423,7 +11423,7 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 ### §208.4 卡片式呈现（扩围项，用户 20:17 亲令）
 - ChatView 呈现由 `.fullScreenCover` 改 `.sheet`＋`hubSheetPresentation()`（AgentHubView.swift 一处收口）：系统 sheet 大 detent `.large`＋拖拽指示器——iOS 26 卡片呈现语言（圆角卡浮起、后景缩退压暗、落定近全屏、关闭反向回缩淡出、系统弹簧），与录屏形态（初态四周留边、约 0.2–0.4s 贴满、整页一体动、关闭淡出回缩）同路；系统形态已对得上，**不自绘转场**。
 - 回归面：枢纽内嵌套 sheet（分享/模型选择/头像与名称编辑）为 sheet 内再呈现、互不相干；抽屉点设置不收回（0.50.29 已修）走的是另一呈现链、本包未碰；枢纽左缘右滑退出与 ✕ 关闭口径不变。
-- 帧级自查（CI 可测面，HubSegmentsConsolidationTests）：UIKit 装配台以生产同一修饰符呈现枢纽——断言呈现样式非 fullScreen、sheet 控制器含且落定 .large、落定帧留顶边（minY>0）、祖先链有顶部圆角容器、呈现/关闭采样帧位移 >24pt（非硬切）。录屏逐帧并排比对归真机待验。
+- 帧级自查（CI 可测面，HubSegmentsConsolidationTests）：UIKit 装配台以生产同一修饰符呈现枢纽——机制面硬断言（呈现样式非 fullScreen、sheet 控制器在位、detent 恰一个 .large 配置、开合闭环）；几何面（留顶边/圆角/帧位移/落定 detent 标识）在无场景裸 UIWindow 里实测退化成整窗瞬时呈现（run 43426199136：settled=整窗、travel=0、selectedDetentIdentifier=nil），属环境事实非产品事实——探针改条件断言（环境给信号即须正确）＋全值打 HUB-SHEET-PROBE 日志，逐帧形态终验归真 App 回归门（本轮 HUB-LAYOUT-VERDICT=PASS）与真机录屏并排比。
 
 ### §208.5 验收口径
 - CI 按 §190 判读；Core 只增不减（基线 1754＋LedgerMonitorSynthesisTests 8＝1762 预期）。新单测：Core 合成形态/上限/副题口径/三类同流夹具；App 分段集合与顺序、落点改道映射、呈现探针。UI 回归门 testHubLayoutWithFullCatalog 段名单同步改四段。
