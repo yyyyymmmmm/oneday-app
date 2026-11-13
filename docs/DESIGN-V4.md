@@ -11437,3 +11437,21 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 ### §208.6 分支 CI 判读（§190）
 - run 43426199136（头 e7dfb5b）：Build/Package/Upload success；Core 1762 全过（1754＋8）；断言失败仅新探针的 4 条几何断言（裸 UIWindow 环境退化，定因与校准见 §208.4）；HUB-LAYOUT-VERDICT=PASS；静默死亡仅 §184 在案 2 起。
 - run 43431357566（探针校准后）：Build/Package/Upload success；Core 1762 全过；**失败用例 0、断言失败 0**；探针 passed（机制面硬断言全过、几何面条件断言＋日志复现同值）；HUB-LAYOUT-VERDICT=PASS；名义 failure 唯一来源＝§184 在案静默死亡 2 起。**§190 终判绿**。报告：hub-segments-consolidation-report-20261113.md。
+
+## §210 枢纽身份段视觉与呈现重做（2026-11-13；分支 feat/hub-identity-visual，基线 rel/05031 9a79dc0，只交分支不合并；§209 已被删除 409 线占用故跳号；立项＝用户 22:39 亲发 Muse 档案页与自家身份段对照截图批「人家好看、咱们不好看」）
+
+### §210.1 病灶（用户截图＋代码实查）
+- SOUL 原文 markdown 整段糊屏：解析后的 `displayedPersona` 原样上屏，生产 SOUL 首行 `# 三狗` 的 `#` 标记、整篇英文系统提示词连段呈现（HubIdentitySection 旧 personaBlock）。
+- 开发口吻文案：段头下「当前档案：default」＋「这里改的是智能体的人设，存在服务器上；页头的名称和头像只在这台手机上显示，两边互不影响。」整块（§155 旧口径，本节销账）。
+- 层级扁平：段内右端圆是 sparkles 装饰符号、编辑钮是描边 bordered、双卡副题与图标位置与基准层级相反且渐变为暖灰/紫调（与冷中性纪律冲突）。
+
+### §210.2 落法（只动呈现层，身份数据逻辑零动）
+- 呈现提炼：OneDayCore 新增 `SoulPresentationBuilder`（纯函数＋单测）——按空行分段、剥 ATX 标题 `#` 脚手架、首段首行与显示名同文的名标题行摘除；正文不改写不翻译不增删。段内呈散文：简介 inkSecondary 分段＋「风格」小标签＋ink 段落（与基准同权重对）。
+- 段头：右端圆改页头同源头像（AppState.agentAvatarImage 单一出口，52pt 圆裁＋发丝环）；identityMeta 整块删除（档案切换由 ProfilesView 专门面承接）。
+- 编辑钮：全宽填充胶囊（Palette.fillSecondary 系统填充深色自适应＋Capsule，高 50，.odPressable 公用按压），仍跳 SoulEditorView 编全文。
+- 双卡：标题＋「请谨慎访问」居左上、图标居右下 30pt 白 50%、SOUL 卡更新日期保留于小字下（无则省略不编造）；渐变换冷中性（SOUL 岩板蓝灰／记忆深钢蓝，暗色同系深值）；最小高 110→128，§155 的 AX 自适应长高不回退。
+- 不硬套登记：基准状态行（正在做的事）数据源属活动段、身份段无——不编造、不补；基准暖色只借形态不借色。
+
+### §210.3 验收口径
+- 分支 CI 按 §190：断言失败 0、Core 只增不减（预期 1762＋提炼器新单测 4 法）。
+- 真机待验：身份段首帧无 `#` 标记与开发文案、段落分明、编辑胶囊、双卡层级与深色帧、最大字号档卡片与段落不裁字。
