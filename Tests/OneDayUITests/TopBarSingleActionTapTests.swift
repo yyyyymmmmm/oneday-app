@@ -149,8 +149,10 @@ final class TopBarSingleActionTapTests: XCTestCase {
     /// - 模型单行入口（当前模型名＋chevron）在屏内
     ///   且可点，点开的是正牌模型选择面；
     /// - 枢纽内不存在目录行（抽查目录深处三 id）；
-    /// - 七段逐段可达、每次切段后页头仍在屏内；末
-    ///   段（身份）内容区可滚到底且页头不失。
+    /// - 四段逐段可达、每次切段后页头仍在屏内；末
+    ///   段（身份）内容区可滚到底且页头不失（§208
+    ///   收段后段集＝活动/定时/浏览器/身份，任务/
+    ///   审核/监测已并入活动）。
     func testHubLayoutWithFullCatalog() throws {
         var lines: [String] = []
         var violations: [String] = []
@@ -301,9 +303,8 @@ final class TopBarSingleActionTapTests: XCTestCase {
             }
         }
 
-        // 七段逐段可达＋切段后页头不失
-        for name in ["活动", "任务", "审核", "浏览器",
-                     "定时", "监测", "身份"] {
+        // 四段逐段可达＋切段后页头不失（§208 收段口径）
+        for name in ["活动", "定时", "浏览器", "身份"] {
             let seg = segmentButton(app, name)
             if seg.waitForExistence(timeout: 4), seg.isHittable {
                 seg.tap()

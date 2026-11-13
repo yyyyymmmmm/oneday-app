@@ -386,3 +386,83 @@ struct KanbanTaskDetailView: View {
         }
     }
 }
+
+/// 新建任务表单（标题＋说明 → 建卡＋dispatch＋回板
+/// 确认，未确认不关表单——KanbanStore.createTask）
+/// §208：原属枢纽任务段，收段后随段文件退役迁来本
+/// 文件——全 App 的任务新建入口只此一份，现由活动
+/// 段页首菜单唤起（口径与门控原样）
+struct KanbanCreateTaskView: View {
+    let store: KanbanStore
+
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var bodyText = ""
+
+    private var gate: KanbanActionPolicy.Gate {
+        KanbanActionPolicy.gate(
+            action: .create,
+            takeoverActive: appState.boxTakeoverActive,
+            readOnly: store.readOnly
+        )
+    }
+
+    private var trimmedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("标题", text: $title)
+                }
+                Section("说明") {
+                    TextEditor(text: $bodyText)
+                        .frame(minHeight: 120)
+                }
+                if !gate.enabled, let reason = gate.reason {
+                    Section {
+                        Text(reason)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.danger)
+                    }
+                }
+                if let error = store.createError {
+                    Section {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.danger)
+                    }
+                }
+            }
+            .navigationTitle("新建任务")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("委派") {
+                        Task {
+                            let ok = await store.createTask(
+                                appState: appState,
+                                title: trimmedTitle,
+                                body: bodyText.trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                )
+                            )
+                            if ok { dismiss() }
+                        }
+                    }
+                    .disabled(
+                        trimmedTitle.isEmpty || store.creating
+                            || !gate.enabled
+                    )
+                }
+            }
+        }
+        .presentationDragIndicator(.visible)
+    }
+}

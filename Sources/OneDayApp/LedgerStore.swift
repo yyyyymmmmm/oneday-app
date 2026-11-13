@@ -35,7 +35,16 @@ final class LedgerStore {
     private(set) var detailLoading = false
     private(set) var detailGone = false
 
+    /// 监测变化的客户端合成条目（§208）：服务端台
+    /// 账采集器暂无监测源，活动段把桥 /monitors 的
+    /// 变化记录合成同形条目并入同一条流（口径见
+    /// LedgerMonitorSynthesis）。与服务端条目分开持
+    /// 有：增量合并（LedgerMerge.merge）只管服务端
+    /// 账，合成账每次拉取整体重算、不互相污染
+    private(set) var monitorItems: [LedgerItem] = []
+
     private let client = LedgerBridgeClient()
+    private let bridgeClient = OneDayBridgeClient()
     private var loadInFlight = false
 
     // MARK: - 呈现派生（口径收口在 Core LedgerBoard）
@@ -63,9 +72,16 @@ final class LedgerStore {
         LedgerBoard.headerCounts(items: items, summary: summary)
     }
 
+    /// 全流（服务端条目＋监测合成条目，定序合并）：
+    /// 分组呈现走全流；页首计数只认服务端账（计数
+    /// 是「工作」的口径，监测事件不冒充工作件数）
+    var allItems: [LedgerItem] {
+        LedgerMerge.sorted(items + monitorItems)
+    }
+
     var dayGroups: [LedgerDayGroup] {
         LedgerBoard.dayGroups(
-            items, now: Date(timeIntervalSince1970: serverNow)
+            allItems, now: Date(timeIntervalSince1970: serverNow)
         )
     }
 
@@ -91,6 +107,7 @@ final class LedgerStore {
             let fetchedSummary = await summaryOrNil(config: config)
             apply(response, summaryOverride: fetchedSummary)
             loadState = .ready
+            await refreshMonitorItems(config: config)
         } catch let error as OneDayBridgeError {
             await handleLoadError(error, config: config)
         } catch {
@@ -147,10 +164,41 @@ final class LedgerStore {
                 clockOffset = now - Date().timeIntervalSince1970
             }
             connectionLost = false
+            await refreshMonitorItems(config: config)
         } catch {
             // 保旧快照、只标联系中断；新鲜度横幅另按心
             // 跳龄露面，两条线不许合并成一个「失败」
             connectionLost = true
+        }
+    }
+
+    /// 监测合成刷新（尽力而为、与台账主面分开成败）：
+    /// 逐监测拉变化记录后整体重算合成条目。失败纪
+    /// 律：监测源未开通（集合 404）＝如实清空，不留
+    /// 旧合成冒充现状；其余失败保上一轮合成（同台
+    /// 账「失败保旧快照」纪律）。没有变化过的监测不
+    /// 拉变化面（latestChangeAt 为空即无事件可并）
+    private func refreshMonitorItems(config: ServerConfig) async {
+        do {
+            let monitors = try await bridgeClient.monitors(
+                config: config
+            )
+            var changesByMonitor: [String: [BridgeMonitorChange]] = [:]
+            for monitor in monitors where monitor.latestChangeAt != nil {
+                if let changes = try? await bridgeClient
+                    .monitorChanges(config: config, monitorID: monitor.id) {
+                    changesByMonitor[monitor.id] = changes
+                }
+            }
+            monitorItems = LedgerMonitorSynthesis.items(
+                monitors: monitors, changesByMonitor: changesByMonitor
+            )
+        } catch let error as OneDayBridgeError {
+            if error == .bridgeMissing {
+                monitorItems = []
+            }
+        } catch {
+            // 保上一轮合成，不翻台账主面状态
         }
     }
 
