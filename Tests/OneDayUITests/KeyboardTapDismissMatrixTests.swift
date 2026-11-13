@@ -72,13 +72,15 @@ final class KeyboardTapDismissMatrixTests: XCTestCase {
                     continue
                 }
                 let cells = computeCells(app, win: win)
-                guard let cell = cells[name],
-                      let point = cell.point else {
-                    if results[name]?.note.isEmpty ?? true {
-                        results[name]?.note = cell?.note ?? "无此格"
+                let cell = cells[name]
+                guard let point = cell?.point else {
+                    if let cell,
+                       results[name]?.note.isEmpty ?? true {
+                        results[name]?.note = cell.note
                     }
                     lines.append(
-                        "trial\(trial) \(name) N/A \(cell?.note ?? "")"
+                        "trial\(trial) \(name) N/A"
+                            + " \(cell?.note ?? "无此格")"
                     )
                     continue
                 }
