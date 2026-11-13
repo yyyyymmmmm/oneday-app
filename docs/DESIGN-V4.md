@@ -11232,3 +11232,8 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 ### §201 补记（同日，装配 CI 判读）
 - **CI（run 43374142963，head ad3dbb0，workflow_dispatch 于 rel-05027）**：Build／Package／Upload 三步 success；Unit tests 步 conclusion=failure，**全日志断言失败 0 条**。Failing tests 终表仅两条、均为无断言输出的进程死亡且皆在案：①`ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays`——§184 键盘在案真崩（独立线在修）；②`ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned`——05:58:51 started 后无结果行、05:59:27 进程重启，同 §184 家族签名、抽屉包 CI 已同签名在案（SwiftData ModelContext.reset 掐死族）。无任何新红。
 - **单测对账**：Core **1698 全过**＝止血包口径 1690（基线 1686＋EntryScanMemo 4）＋抽屉包新增 8，逐包对得上、只增不减；本版五组新测套件全 passed（EntryScanMemoTests／SectionCollapseTests／LocalImageDecodeCacheTests／SelectionDismantleProofTests／SystemBackdropTests）；UI **2/2 过**（CapsuleTapDispatchUITests）。App 目标经三轮进程重启后续跑完（死亡两条见上）。
+
+### §201 发版补记（同日，出包）
+- **合 main 与 tag**：rel-05027 快进合入本地 main 后，push 时发现 origin/main 已被 tmate 调试线推进（5 提交、仅 .github/workflows/debug-mac.yml、基 b19a155）——并轨合并 043ec0b（两线并存、无改写历史）后 push 成功，main 头回读 043ec0b；打 annotated tag **v0.50.27** 于 043ec0b 并 push。
+- **发版构建（run 43376388284，main push 触发，仅此一次）**：Package／Upload success、artifact 在架；断言失败 **0**、Core **1698 全过**；Failing 两条仍为 §184 在案无断言进程死亡（键盘真崩＋DrawerContainerController 关闭动画一条——止血包 §199.4 已同签名在案；本轮 barGrowth 存活、死亡席位在同族内轮换，方差与台账一致），无新红。
+- **验包**：**11,024,687 字节、md5 `a762ce9d411ded37c7306431a20584c9`**、Info.plist 0.50.27/155/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.27/OneDay-0.50.27.ipa。真机待验按 §201 总清单四组执行。
