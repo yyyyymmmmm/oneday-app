@@ -11455,3 +11455,6 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 ### §210.3 验收口径
 - 分支 CI 按 §190：断言失败 0、Core 只增不减（预期 1762＋提炼器新单测 4 法）。
 - 真机待验：身份段首帧无 `#` 标记与开发文案、段落分明、编辑胶囊、双卡层级与深色帧、最大字号档卡片与段落不裁字。
+
+### §210.4 分支 CI 判读（§190）
+- run 43447750856（头 e6e49d7）：Build/Package/Upload success；**失败用例 0、断言失败 0**；Core **1766** 全过（1762＋4，新增 Presentation 单测 4 法逐个在位）；HUB-LAYOUT-VERDICT=PASS；名义 failure 唯一来源＝§184 在案静默死亡 3 起（基线各轮 2–3 起同族波动）。**§190 终判绿**。报告：hub-identity-visual-report-20261113.md。
