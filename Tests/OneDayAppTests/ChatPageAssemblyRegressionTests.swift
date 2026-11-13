@@ -326,4 +326,119 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
             "键盘升起时 TabBar 帧变化"
         )
     }
+
+    // MARK: - 关五：命中路由（§194 取证）
+
+    /// 点按路由取证（生产整页、window.hitTest 实测）：
+    /// ①文本区中心点必须落进文本视图本体——透传门按
+    /// Preference 舱帧放行舱带（该帧的原点此前从未被
+    /// 独立验过，本关即其验收）；②列表区一点必须落
+    /// 在舱宿主子树之外（透传门帧外放行、点空白收键
+    /// 盘的手势作用域不缩）；③顶栏胶囊身份域一点必
+    /// 须落在 pocket 承载带内、且不被舱宿主层截走
+    /// ——缺陷②（点胶囊开错面）的归属取证：路由若在
+    /// 此已错位，命中链当场打进失败信息；路由对而真
+    /// 机开错面，根子在胶囊域内派发（胶囊线 §179/
+    /// §153 在案），不在本分支
+    func testHitRouting_textListAndPocketIdentity() throws {
+        try assembleProductionPage()
+        let host = try XCTUnwrap(findComposerHost())
+        let hostView = try XCTUnwrap(host.view)
+        let textView = try XCTUnwrap(
+            findComposerTextView(in: host)
+        )
+        // ① 文本区
+        let textPoint = textView.convert(
+            CGPoint(
+                x: textView.bounds.midX,
+                y: textView.bounds.midY
+            ), to: window
+        )
+        let textHit = window.hitTest(textPoint, with: nil)
+        XCTAssertTrue(
+            textHit === textView
+                || isWithin(textHit, of: textView),
+            "文本区命中未落进文本视图："
+                + hitAncestry(of: textHit)
+        )
+        // ② 列表区（舱顶上方 120pt）
+        let bar = try XCTUnwrap(findComposerBar(in: host))
+        let barFrame = frameInWindow(bar)
+        let listPoint = CGPoint(
+            x: barFrame.midX, y: barFrame.minY - 120
+        )
+        let listHit = window.hitTest(listPoint, with: nil)
+        XCTAssertNotNil(
+            listHit, "列表区命中不应为空（滚动面应接点）")
+        XCTAssertFalse(
+            isWithin(listHit, of: hostView),
+            "列表区命中被舱宿主层吞掉："
+                + hitAncestry(of: listHit)
+        )
+        // ③ 胶囊身份域（胶囊行左起约 1/4 处＝头像＋
+        // 名称状态域；模型域在行右段）
+        let pocket = try XCTUnwrap(findTopPocketBar())
+        let pocketFrame = frameInWindow(pocket)
+        let capsule = findViews(pocket) { view in
+            let f = frameInWindow(view)
+            return f.width >= 150 && f.width <= 340
+                && f.height >= 30 && f.height <= 56
+                && f.minX < 80
+        }.max { a, b in
+            frameInWindow(a).width < frameInWindow(b).width
+        }
+        let capsuleView = try XCTUnwrap(
+            capsule, "pocket 内未定位到胶囊行"
+        )
+        let capsuleFrame = frameInWindow(capsuleView)
+        let identityPoint = CGPoint(
+            x: capsuleFrame.minX + capsuleFrame.width * 0.25,
+            y: capsuleFrame.midY
+        )
+        let identityHit = window.hitTest(
+            identityPoint, with: nil
+        )
+        XCTAssertNotNil(
+            identityHit, "胶囊身份域命中不应为空")
+        XCTAssertFalse(
+            isWithin(identityHit, of: hostView),
+            "胶囊身份域命中被舱宿主层截走："
+                + hitAncestry(of: identityHit)
+        )
+        if let identityHit {
+            let hitFrame = frameInWindow(identityHit)
+            XCTAssertTrue(
+                hitFrame.intersects(
+                    pocketFrame.insetBy(dx: -8, dy: -8)),
+                "胶囊身份域命中落在 pocket 带外："
+                    + "\(hitAncestry(of: identityHit)) "
+                    + "帧 \(hitFrame) pocket \(pocketFrame)"
+            )
+        }
+    }
+
+    /// 命中点是否落在指定视图的子树内（含本体）
+    private func isWithin(
+        _ view: UIView?, of ancestor: UIView
+    ) -> Bool {
+        var node = view
+        while let current = node {
+            if current === ancestor { return true }
+            node = current.superview
+        }
+        return false
+    }
+
+    /// 命中链取证串（类名自动中点上溯 6 层）
+    private func hitAncestry(of view: UIView?) -> String {
+        var parts: [String] = []
+        var node = view
+        while let current = node, parts.count < 6 {
+            parts.append(
+                String(describing: type(of: current)))
+            node = current.superview
+        }
+        return parts.isEmpty
+            ? "nil" : parts.joined(separator: " <- ")
+    }
 }

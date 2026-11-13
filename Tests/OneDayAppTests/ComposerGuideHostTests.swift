@@ -798,4 +798,76 @@ final class ComposerGuideHostTests: XCTestCase {
         XCTAssertEqual(closedBar.maxY, before.maxY, accuracy: 2)
     }
 
+    /// §194 键盘半边（单值驱动）：宿主壳升不起真键
+    /// 盘（文件头注），本关以合成通知验收——通知帧
+    /// 就是生产修法的输入通道本身（键盘本人的广播
+    /// 真值）：willShow 帧顶 538 → 舱底贴 538；
+    /// willChangeFrame 改帧顶 500 → 舱底跟到 500；
+    /// willHide → 舱底/舱顶回静息坞位分毫不差
+    func testKeyboardNotifications_barFollowsFrameThenRestores() {
+        waitForBarFrame()
+        guard let rest = liveBarFrame() else {
+            XCTFail("首帧未就位")
+            return
+        }
+        let center = NotificationCenter.default
+        func postKeyboard(
+            _ name: Notification.Name, top: CGFloat
+        ) {
+            center.post(
+                name: name, object: nil,
+                userInfo: [
+                    UIResponder.keyboardFrameEndUserInfoKey:
+                        NSValue(cgRect: CGRect(
+                            x: 0, y: top, width: 402,
+                            height: 874 - top)),
+                    UIResponder
+                        .keyboardAnimationDurationUserInfoKey:
+                        0.0,
+                    UIResponder
+                        .keyboardAnimationCurveUserInfoKey:
+                        7,
+                ]
+            )
+        }
+        postKeyboard(
+            UIResponder.keyboardWillShowNotification, top: 538)
+        settle(0.6)
+        guard let shown = liveBarFrame() else {
+            XCTFail("键盘升起后舱帧丢失")
+            return
+        }
+        XCTAssertEqual(
+            shown.maxY, 538, accuracy: 2,
+            "舱底应贴通知广播的键盘顶 538，实测 \(shown.maxY)")
+        XCTAssertEqual(
+            shown.minY, rest.minY + (538 - rest.maxY),
+            accuracy: 2,
+            "舱应整舱上移同量（高不变、底贴键盘顶）")
+        postKeyboard(
+            UIResponder.keyboardWillChangeFrameNotification,
+            top: 500)
+        settle(0.6)
+        guard let reframed = liveBarFrame() else {
+            XCTFail("键盘改帧后舱帧丢失")
+            return
+        }
+        XCTAssertEqual(
+            reframed.maxY, 500, accuracy: 2,
+            "舱底应随 willChangeFrame 跟到 500，实测 \(reframed.maxY)")
+        postKeyboard(
+            UIResponder.keyboardWillHideNotification, top: 874)
+        settle(0.6)
+        guard let restored = liveBarFrame() else {
+            XCTFail("键盘收起后舱帧丢失")
+            return
+        }
+        XCTAssertEqual(
+            restored.maxY, rest.maxY, accuracy: 1,
+            "收起后舱底应回静息坞顶分毫不差")
+        XCTAssertEqual(
+            restored.minY, rest.minY, accuracy: 1,
+            "收起后舱顶应回静息位")
+    }
+
 }

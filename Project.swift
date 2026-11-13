@@ -9,7 +9,7 @@ let project = Project(
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1",
         "MARKETING_VERSION": "0.50.25",
-        "CURRENT_PROJECT_VERSION": "151",
+        "CURRENT_PROJECT_VERSION": "152",
     ]),
     targets: [
         .target(
@@ -44,7 +44,7 @@ let project = Project(
                 // 模板不把工程设置的 MARKETING_VERSION 展开进 plist，
                 // 只写字面量才进包。
                 "CFBundleShortVersionString": "0.50.25",
-                "CFBundleVersion": "151",                "ITSAppUsesNonExemptEncryption": false,
+                "CFBundleVersion": "152",                "ITSAppUsesNonExemptEncryption": false,
                 "UILaunchScreen": ["UIColorName": "LaunchBackground"],
                 // 自托管场景：允许连接局域网内的自建服务器（http）。
                 // 公网服务器仍走 https；上架前如需收紧在此复核

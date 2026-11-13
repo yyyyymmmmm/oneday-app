@@ -114,6 +114,45 @@ import UIKit
 ///   在窗内同树，抽屉平移走 transform 不进布局帧，
 ///   舱随前景同移；呈现链（sheet/选图器自 ChatView
 ///   复合体呈现）零触碰。
+///
+/// ## §194 键盘半边改单值驱动（2026-11-13，覆盖
+/// §193 的键盘锚一半；证据：151 真机录屏＋自述）
+/// 151 真机判绿静息几何，但点输入框后键盘升起、舱
+/// 留在静息位被键盘盖住：§193 键盘态的约束（底边
+/// 钉本视图 keyboardLayoutGuide.topAnchor）在真机
+/// 上处于激活态而舱纹丝不动——引导线在本承载
+/// （SwiftUI 平台层级内嵌控制器＋双层托管）下不追
+/// 踪真键盘（模拟器组装全链绿、真机独红，与本系列
+/// 「协商污染」同型；引导线帧不更新另有 FB9733654
+/// 系前科，不可再作唯一依据）。通知不背锅：Notifi-
+/// cationCenter 投递与层级无关、控制器在屏存活、
+/// 键盘保持升起证明文本视图与宿主子树存活——
+/// willShow 必达、约束必已切换，坏的只是引导线本
+/// 体的追踪。改法按 Telegram/ContainerViewLayout
+/// 式收口（键盘的位置是一个自窗口广播的数、一次
+/// 算死；大厂三路殊途同归于「位置只有一个主人＝
+/// 键盘本身」，主线外部核查在案）：
+/// - 约束收成一条且永不切换：宿主底边恒钉自有
+///   bottomGuide.topAnchor；bottomGuide 的 top 常
+///   量是唯一的位置数，只由 syncBottomConstant
+///   一个函数算——§193「双锚＋通知切换激活态」退
+///   役，「模式」本身就是病灶的一半；
+/// - 常量取值二路、皆为实测真值：键盘升起态＝键
+///   盘通知广播的结束帧顶（存窗口坐标、逐布局拍
+///   按本视图当前布局空间换算）；静息态＝坞实测
+///   顶（§193 判绿路径原样保留）。静息数值与 151
+///   判绿几何同值（坞顶 791＝原引导线静息顶
+///   791），几何口径不动：pocket 62／宿主帧
+///   729／adjBottom 197；
+/// - willChangeFrame 同步跟进：交互式下滑收键盘
+///   与候选条高度变化逐帧改常量（时长 0 的通知直
+///   接布局、不包动画）；状态翻转沿用通知自带时
+///   长/曲线推进布局；
+/// - 自述留证：kb 探针逐次记事件/键盘顶窗口值/
+///   生效常量，kbShow/kbHide 事件采样＋0.9 秒落
+///   定采样各一帧——真机验收看数字：舱底应＝
+///   kbTopWin；系统 guide= 行同帧对账（预期仍停
+///   静息值，即根因本人）。
 struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -328,8 +367,8 @@ private final class ComposerPassthroughView: UIView {
     }
 }
 
-/// 锚定托管控制器本体：只管舱宿主的钉位（§193 双
-/// 锚：坞顶／窗口键盘引导线）与舱顶实测回报，不知
+/// 锚定托管控制器本体：只管舱宿主的钉位（§194 单
+/// 常量：键盘帧顶／坞实测顶）与舱顶实测回报，不知
 /// 业务页面。宿主全高
 /// 填充本控制器视图（顶贴视图顶、底钉引导线），舱在
 /// 托管树内被 Spacer 顶到宿主底边以理想高成帧（桥侧
@@ -350,21 +389,24 @@ final class ComposerGuideHostController: UIViewController {
     private let composerHost = UIHostingController<AnyView>(
         rootView: AnyView(EmptyView())
     )
-    /// §193 双锚（见文件头）：坞锚（键盘落下）与键盘
-    /// 锚（键盘升起）恒只活一条。两条都是**本视图内
-    /// 层级**的约束（坞锚经自有布局引导线翻译、键盘
-    /// 锚钉本视图 keyboardLayoutGuide）——跨层级直
-    /// 钉坞本体的约束在切格/藏坞的层级手术瞬间会成
-    /// 为悬空约束、求解即抛 no-common-ancestor（CI
-    /// 43337805344 两测试实证），故坞的位置只以「实
-    /// 帧换算出的常量」进本层级，锚本体永不被约束
-    /// 直接引用
-    private var dockBottomConstraint: NSLayoutConstraint?
-    private var keyboardBottomConstraint: NSLayoutConstraint?
-    /// 坞锚引导线：top 由 dockGuideTopConstraint 的
-    /// 常量定位（布局空间换算，见 syncDockConstant）
-    private let dockGuide = UILayoutGuide()
-    private var dockGuideTopConstraint: NSLayoutConstraint!
+    /// §194 单约束（见文件头）：宿主底边恒钉自有位
+    /// 置引导线 bottomGuide.topAnchor、永不切换激活
+    /// 态；位置只活在 bottomGuideTopConstraint 的常
+    /// 量里（键盘态＝通知帧顶、静息态＝坞实测顶，
+    /// syncBottomConstant 唯一计算点）。§193 双锚
+    /// （坞锚/键盘引导线锚＋通知切换）退役：151 真
+    /// 机证伪引导线在本承载下不追踪、「模式切换」
+    /// 本身即病灶。坞与键盘都只以「实测/广播的数」
+    /// 进本层级、永不被约束直接引用——跨层级直钉
+    /// 坞本体的约束在切格/藏坞的层级手术瞬间会成为
+    /// 悬空约束、求解即抛 no-common-ancestor（CI
+    /// 43337805344 两测试实证），整类不许回潮
+    private var bottomConstraint: NSLayoutConstraint?
+    /// 位置引导线：top 由 bottomGuideTopConstraint
+    /// 的常量定位（布局空间换算，见 syncBottom-
+    /// Constant）
+    private let bottomGuide = UILayoutGuide()
+    private var bottomGuideTopConstraint: NSLayoutConstraint!
     /// 坞锚当前参照（UITabBar 本体或类名兜底命中；
     /// 回落态为 nil 且 dockIsFallback=true，参照＝
     /// 窗口安全区底）。只读其实帧、不被约束引用，
@@ -373,6 +415,10 @@ final class ComposerGuideHostController: UIViewController {
     private var dockIsFallback = false
     private weak var anchorWindow: UIWindow?
     private var keyboardUp = false
+    /// §194 键盘顶存账（窗口坐标）：willShow/will-
+    /// ChangeFrame 通知的结束帧顶——键盘本人广播的
+    /// 真值，常量换算的唯一键盘输入；收起即清
+    private var keyboardTopInWindow: CGFloat?
     /// 舱的窗口系实测帧（桥的 Preference 通道喂入）：
     /// 回报与透传判定共用这一份事实
     private var barFrameInWindow: CGRect = .zero
@@ -411,7 +457,6 @@ final class ComposerGuideHostController: UIViewController {
         // 视图的 didMoveToWindow 驱动）
         passthrough.onMoveToWindow = { [weak self] in
             self?.resolveAnchors()
-            self?.applyAnchorState()
         }
         view = passthrough
     }
@@ -430,20 +475,17 @@ final class ComposerGuideHostController: UIViewController {
             false
         view.addSubview(composerHost.view)
         composerHost.didMove(toParent: self)
-        // §193：宿主顶/左右贴本视图、底边走双锚（全
-        // 部本层级约束，见 resolveAnchors/applyAnchor-
-        // State/syncDockConstant）：坞引导线先入本视
-        // 图（top 常量待 syncDockConstant 按坞实帧填，
-        // 初始 0＝未解析前宿主贴顶、无害瞬态）
-        view.addLayoutGuide(dockGuide)
-        dockGuideTopConstraint = dockGuide.topAnchor
+        // §194：宿主顶/左右贴本视图、底边恒钉位置引
+        // 导线（单约束永不切换，见 syncBottomCon-
+        // stant）：引导线先入本视图（top 常量待 sync-
+        // BottomConstant 按当前输入填，初始 0＝未解
+        // 析前宿主贴顶、无害瞬态）
+        view.addLayoutGuide(bottomGuide)
+        bottomGuideTopConstraint = bottomGuide.topAnchor
             .constraint(equalTo: view.topAnchor, constant: 0)
-        dockBottomConstraint = composerHost.view.bottomAnchor
-            .constraint(equalTo: dockGuide.topAnchor)
-        keyboardBottomConstraint = composerHost.view
-            .bottomAnchor.constraint(
-                equalTo: view.keyboardLayoutGuide.topAnchor
-            )
+        let bottom = composerHost.view.bottomAnchor
+            .constraint(equalTo: bottomGuide.topAnchor)
+        bottomConstraint = bottom
         NSLayoutConstraint.activate([
             composerHost.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor),
@@ -451,23 +493,27 @@ final class ComposerGuideHostController: UIViewController {
                 equalTo: view.trailingAnchor),
             composerHost.view.topAnchor.constraint(
                 equalTo: view.topAnchor),
-            dockGuide.leadingAnchor.constraint(
+            bottomGuide.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor),
-            dockGuide.trailingAnchor.constraint(
+            bottomGuide.trailingAnchor.constraint(
                 equalTo: view.trailingAnchor),
-            dockGuide.heightAnchor.constraint(equalToConstant: 0),
-            dockGuideTopConstraint,
+            bottomGuide.heightAnchor.constraint(
+                equalToConstant: 0),
+            bottomGuideTopConstraint,
+            bottom,
         ])
         if barFrameInWindow.height > 0 {
             (view as? ComposerPassthroughView)?
                 .barFrameInWindow = barFrameInWindow
         }
-        // 键盘锚切换信号（§193）：willShow/willHide
-        // 是唯一状态源，动画参数（时长/曲线）随通知
-        // 取，与系统键盘动画同步。selector 式观察者
-        // （不存 token）：块式 token 数组在 Swift 6
-        // 下 deinit 不可访问、Notification 跨闭包发
-        // 送亦被判竞态（CI 43337400356 实证）
+        // 键盘信号（§194）：willShow/willHide 定状态
+        // 翻转、willChangeFrame 供逐帧跟随，三者的结
+        // 束帧都是位置常量的键盘输入；动画参数（时
+        // 长/曲线）随通知取，与系统键盘动画同步。
+        // selector 式观察者（不存 token）：块式 token
+        // 数组在 Swift 6 下 deinit 不可访问、Notifi-
+        // cation 跨闭包发送亦被判竞态（CI 43337400356
+        // 实证）
         let center = NotificationCenter.default
         center.addObserver(
             self, selector: #selector(keyboardWillShow(_:)),
@@ -477,6 +523,12 @@ final class ComposerGuideHostController: UIViewController {
         center.addObserver(
             self, selector: #selector(keyboardWillHide(_:)),
             name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(keyboardWillChangeFrame(_:)),
+            name: UIResponder.keyboardWillChangeFrameNotification,
             object: nil
         )
     }
@@ -497,20 +549,97 @@ final class ComposerGuideHostController: UIViewController {
         setKeyboardUp(false, note: note)
     }
 
+    /// §194 帧变化跟进（交互式下滑收键盘/候选条高
+    /// 度变化）：键盘态内逐事件刷新存账帧顶并重算常
+    /// 量——通知帧是键盘本人的广播，不经任何引导线
+    /// 转译；时长 0 的逐帧事件直接布局、不包动画
+    @objc private func keyboardWillChangeFrame(
+        _ note: Notification
+    ) {
+        guard keyboardUp else { return }
+        updateKeyboardTop(from: note)
+        syncBottomConstant()
+        noteKeyboardState(event: "frame")
+        animateLayout(with: note, immediateIfZero: true)
+    }
+
+    /// §194 键盘帧顶存账：通知的结束帧是屏幕坐标，
+    /// 经本窗换算成窗口坐标存下（全屏单窗下与屏幕
+    /// 同值，换算保多窗口径）；常量换算在 syncBot-
+    /// tomConstant 里逐布局拍按本视图当前布局空间
+    /// 重算，本函数只存窗口真值
+    private func updateKeyboardTop(from note: Notification) {
+        guard let value = note.userInfo?[
+            UIResponder.keyboardFrameEndUserInfoKey
+        ] as? NSValue else { return }
+        let screenFrame = value.cgRectValue
+        if let window = view.window {
+            keyboardTopInWindow = window.convert(
+                screenFrame, from: nil
+            ).minY
+        } else {
+            keyboardTopInWindow = screenFrame.minY
+        }
+    }
+
+    /// 与键盘动画同参推进一次布局（时长/曲线取自
+    /// 通知）；immediateIfZero 时时长为 0 直接布局
+    /// ——交互式逐帧跟随不许包进动画系统再迟一拍
+    private func animateLayout(
+        with note: Notification, immediateIfZero: Bool
+    ) {
+        let userInfo = note.userInfo
+        let duration = userInfo?[
+            UIResponder.keyboardAnimationDurationUserInfoKey
+        ] as? Double ?? 0.25
+        let curveRaw = userInfo?[
+            UIResponder.keyboardAnimationCurveUserInfoKey
+        ] as? UInt ?? 7
+        if immediateIfZero, duration <= 0 {
+            view.layoutIfNeeded()
+            return
+        }
+        UIView.animate(
+            withDuration: duration, delay: 0,
+            options: UIView.AnimationOptions(
+                rawValue: curveRaw << 16
+            )
+        ) { [weak self] in
+            self?.view.layoutIfNeeded()
+        }
+    }
+
+    /// §194 自述记账：事件/键盘态/通知帧顶/生效常
+    /// 量四数同记——真机判读先看 kbTopWin 动没动
+    /// （通知到没到）、再看 const 跟没跟、最后对舱帧
+    private func noteKeyboardState(event: String) {
+        let kbTop = keyboardTopInWindow.map {
+            String(format: "%.1f", $0)
+        } ?? "nil"
+        let const = bottomGuideTopConstraint.map {
+            String(format: "%.1f", $0.constant)
+        } ?? "nil"
+        BarsGeometryTrace.noteProbe(
+            "kb",
+            "event=\(event) up=\(keyboardUp) "
+                + "kbTopWin=\(kbTop) const=\(const)"
+        )
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         // §193 锚解析触发点之二（入窗触发点在透传视
         // 图的 didMoveToWindow，见 loadView 接线）：
         // 每次显形重解析——切格往返期间标签栏实例
-        // 若被换过，旧锚在此换新
+        // 若被换过，旧参照在此换新（常量随之由
+        // syncBottomConstant 重算，resolveAnchors 尾）
         resolveAnchors()
-        applyAnchorState()
     }
 
     /// §193 锚解析：在本视图所在窗口的层级里找坞参
     /// 照（UITabBar 本体或类名兜底），只登记引用与
-    /// 命中模式——位置由 syncDockConstant 逐拍换算
-    /// 进引导线常量，参照本身不被任何约束引用。触
+    /// 命中模式——位置由 syncBottomConstant 逐拍换
+    /// 算进位置常量，参照本身不被任何约束引用。触
     /// 发点只在离散事件（入窗/显形/键盘收起/回落态
     /// 布局拍自愈），不在每拍布局里走层级
     private func resolveAnchors() {
@@ -537,23 +666,34 @@ final class ComposerGuideHostController: UIViewController {
                 "anchorMode", "fallbackWindowSafe"
             )
         }
-        syncDockConstant()
-        applyAnchorState()
+        syncBottomConstant()
     }
 
-    /// §193 坞锚换算：坞参照的布局空间顶边（沿
-    /// superview 链累加 frame 原点——布局真值、忽
-    /// 略 transform，抽屉平移不假补偿、舱随前景同
-    /// 移）换算成本视图坐标内的引导线 top 常量；
-    /// 逐布局拍调用（只读缓存参照的帧、无层级遍
-    /// 历），偏差 >0.5 才写。参照离场（window 对不
-    /// 上）时保留上次常量——位置短暂陈旧但绝不悬
-    /// 空，下个离散事件重解析刷新
-    private func syncDockConstant() {
+    /// §194 位置常量唯一计算点：bottomGuide 的 top
+    /// 常量＝目标顶边－本视图布局空间顶边。目标顶
+    /// 边按当前输入取实测真值：键盘升起态＝通知广
+    /// 播的键盘帧顶（窗口坐标——键盘升起时抽屉必
+    /// 闭、祖先链 transform 恒等，窗口坐标与布局空
+    /// 间累加坐标同值；无帧存账时保留上次常量、不
+    /// 许跌回坞值）；静息态＝坞参照的布局空间顶边
+    /// （沿 superview 链累加 frame 原点——布局真
+    /// 值、忽略 transform，抽屉平移不假补偿、舱随
+    /// 前景同移）。逐布局拍调用（只读缓存值、无层
+    /// 级遍历），偏差 >0.5 才写：键盘态下本视图布
+    /// 局空间顶边若因藏坞等层级手术变化，常量随之
+    /// 重算、舱的窗口落点恒钉键盘顶。参照离场
+    /// （window 对不上）时保留上次常量——位置短暂
+    /// 陈旧但绝不悬空，下个离散事件重解析刷新
+    private func syncBottomConstant() {
         guard let window = view.window,
-              let dockGuideTopConstraint else { return }
+              let bottomGuideTopConstraint else { return }
         let targetTop: CGFloat
-        if let bar = dockBarView, bar.window === window {
+        if keyboardUp {
+            guard let kbTop = keyboardTopInWindow
+            else { return }
+            targetTop = kbTop
+        } else if let bar = dockBarView,
+                  bar.window === window {
             targetTop = Self.layoutSpaceMinY(of: bar)
         } else if dockIsFallback {
             targetTop = window.bounds.height
@@ -561,10 +701,11 @@ final class ComposerGuideHostController: UIViewController {
         } else {
             return
         }
-        let constant = targetTop - Self.layoutSpaceMinY(of: view)
-        if abs(dockGuideTopConstraint.constant - constant)
+        let constant = targetTop
+            - Self.layoutSpaceMinY(of: view)
+        if abs(bottomGuideTopConstraint.constant - constant)
             > 0.5 {
-            dockGuideTopConstraint.constant = constant
+            bottomGuideTopConstraint.constant = constant
         }
     }
 
@@ -583,44 +724,42 @@ final class ComposerGuideHostController: UIViewController {
         return y
     }
 
-    /// §193 锚生效：键盘态决定唯一活锚（先灭后亮，
-    /// 防同边双约束瞬时冲突；两锚皆本层级约束，
-    /// 激活时机无跨层级前提）
-    private func applyAnchorState() {
-        if keyboardUp {
-            dockBottomConstraint?.isActive = false
-            keyboardBottomConstraint?.isActive = true
-        } else {
-            keyboardBottomConstraint?.isActive = false
-            dockBottomConstraint?.isActive = true
-        }
-    }
-
-    /// §193 键盘态切换：收起时先重解析坞锚（聚焦藏
-    /// 坞期间标签栏可能换实例，旧约束不许指向已离场
-    /// 的视图）；约束切换与键盘动画同参推进
+    /// §194 键盘态翻转：升起先把通知帧顶存账（常量
+    /// 的唯一键盘输入），收起先重解析坞参照（聚焦
+    /// 藏坞期间标签栏可能换实例）；常量重算后与键
+    /// 盘动画同参推进布局。翻转与记账随自述落盘＋
+    /// 事件采样（即时一帧＋0.9 秒落定一帧），真机
+    /// 验收看数字不看肉眼
     private func setKeyboardUp(
         _ up: Bool, note: Notification
     ) {
-        if !up { resolveAnchors() }
-        guard up != keyboardUp else { return }
-        keyboardUp = up
-        applyAnchorState()
-        let userInfo = note.userInfo
-        let duration = userInfo?[
-            UIResponder.keyboardAnimationDurationUserInfoKey
-        ] as? Double ?? 0.25
-        let curveRaw = userInfo?[
-            UIResponder.keyboardAnimationCurveUserInfoKey
-        ] as? UInt ?? 7
-        UIView.animate(
-            withDuration: duration, delay: 0,
-            options: UIView.AnimationOptions(
-                rawValue: curveRaw << 16
-            )
-        ) { [weak self] in
-            self?.view.layoutIfNeeded()
+        if up {
+            updateKeyboardTop(from: note)
+        } else {
+            resolveAnchors()
         }
+        guard up != keyboardUp else {
+            // 同态重播（willShow 重发等）：按已存帧顶
+            // 重同步常量即可，不重入采样与记账
+            if up {
+                syncBottomConstant()
+                view.layoutIfNeeded()
+            }
+            return
+        }
+        keyboardUp = up
+        if !up { keyboardTopInWindow = nil }
+        syncBottomConstant()
+        noteKeyboardState(event: up ? "show" : "hide")
+        BarsGeometryTrace.captureEvent(
+            tag: up ? "kbShow" : "kbHide"
+        )
+        let settledTag = up ? "kbShowSettled" : "kbHideSettled"
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+            BarsGeometryTrace.captureEvent(tag: settledTag)
+        }
+        animateLayout(with: note, immediateIfZero: false)
     }
 
     /// 窗口层级内找坞锚目标（深度优先两级）：先
@@ -662,17 +801,18 @@ final class ComposerGuideHostController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // §193：本拍做坞锚常量同步（只读缓存参照实
-        // 帧）、舱顶回报与回落态自愈（回落＝窗口内
-        // 暂未找到坞：标签栏随呈现时序迟到时在此补
-        // 解析，找到即退出回落、不再走层级）。§186
-        // 地板钳制与 §192 控制器侧主动量测（布局拍
-        // 内调 fitting 触发重入式布局、150 探针两场
-        // 景超时与此相关）均已随锚定重构退役
+        // §194：本拍做位置常量同步（只读缓存的坞参
+        // 照实帧/键盘存账帧顶）、舱顶回报与回落态自
+        // 愈（回落＝窗口内暂未找到坞：标签栏随呈现
+        // 时序迟到时在此补解析，找到即退出回落、不
+        // 再走层级）。§186 地板钳制与 §192 控制器侧
+        // 主动量测（布局拍内调 fitting 触发重入式布
+        // 局、150 探针两场景超时与此相关）均已随锚
+        // 定重构退役
         if dockIsFallback, !keyboardUp {
             resolveAnchors()
         }
-        syncDockConstant()
+        syncBottomConstant()
         reportBottomSpace()
     }
 
