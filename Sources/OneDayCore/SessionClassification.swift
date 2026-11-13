@@ -295,6 +295,41 @@ public enum ChannelRegistry {
     }
 }
 
+/// 凭据保存后的生效相位（频道文案小包，2026-11-13）：
+/// 伴生 1.0.46 起保存回执带 applyTriggered/
+/// applyError——已触发网关重启时，网关记录翻
+/// connected 之前有一个「正在生效」的空窗，只看
+/// status 会显成笼统的等待态。呈现层据回执先行给
+/// 相位、status 翻终态（connected/error）后相位退
+/// 场、呈现完全归 status。判定收成纯逻辑，回执字
+/// 段缺失（旧版伴生）时回落 .none、与旧行为同形。
+public enum ChannelApplyPhase: Equatable, Sendable {
+    /// 无保存流程态：呈现完全按 status 走
+    case none
+    /// 已触发即时生效、等网关记录翻 connected
+    case applying
+    /// 即时生效触发失败：如实显等待生效＋桥回的原因
+    case applyFailed(reason: String)
+    /// 已保存但未触发即时生效（桥没有即时通道）：
+    /// 等网关下次重启，呈现落回 status 的等待态
+    case awaitingRestart
+
+    public static func resolve(
+        applyTriggered: Bool?,
+        applyError: String?,
+        statusState: String?
+    ) -> ChannelApplyPhase {
+        if statusState == "connected" || statusState == "error" {
+            return .none
+        }
+        guard let applyTriggered else { return .none }
+        if let applyError, !applyError.isEmpty {
+            return .applyFailed(reason: applyError)
+        }
+        return applyTriggered ? .applying : .awaitingRestart
+    }
+}
+
 // MARK: - 分类判定（R0–R9）
 
 /// 会话归属层（规格 §2）：main 与 mergeBucket 是
