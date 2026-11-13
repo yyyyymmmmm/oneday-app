@@ -1,3 +1,4 @@
+import OneDayCore
 import OneDayDesign
 import SwiftData
 import SwiftUI
@@ -433,11 +434,12 @@ final class TopBarHitIntermittentTests: XCTestCase {
             XCTFail("\(label)：量具未登记 \(name)", file: file, line: line)
             return
         }
-        let before = state[keyPath: count]
+        let rig = state!
+        let before = rig[keyPath: count]
         fireTap(atWindowPoint: center)
         spinRunLoop(seconds: 0.35)
         XCTAssertEqual(
-            state[keyPath: count], before + 1,
+            rig[keyPath: count], before + 1,
             "\(label)：点按未触发动作（\(diag(label))）",
             file: file, line: line)
     }
