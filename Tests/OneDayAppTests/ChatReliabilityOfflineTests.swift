@@ -104,25 +104,44 @@ final class ChatReliabilityOfflineTests: XCTestCase {
         window.layoutIfNeeded()
         spinRunLoop(seconds: 4.0)
         window.layoutIfNeeded()
+        // SwiftUI 内容的无障碍元素树是懒生成的：先预
+        // 热走一遍采集（触发建树）、短等后再正式读，
+        // 免得首读扑空（文件牌名/图片标签两处实证）
+        _ = onScreenTexts()
+        spinRunLoop(seconds: 0.8)
+        window.layoutIfNeeded()
     }
 
     /// 在屏文本全集：无障碍标签/值＋真实 UILabel/
     /// UITextView 的文本（消息正文经 SelectableUI-
     /// TextView 落在真实 UITextView 上）
+    /// 排版整形会在段尾字前插 U+2060 防孤字连接符
+    /// （条 8 TextShaping，真机同行为）——采集比对
+    /// 前一律归一化剥除零宽/格式字符，比对的是「读
+    /// 者看到的字」，不是排版内部记号
+    private func normalizedForCompare(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{2060}", with: "")
+            .replacingOccurrences(of: "\u{200B}", with: "")
+            .replacingOccurrences(of: "\u{FEFF}", with: "")
+            .replacingOccurrences(of: "\u{00AD}", with: "")
+    }
+
     private func onScreenTexts() -> [String] {
         var texts: [String] = []
         func collect(from view: UIView) {
             if let label = view.accessibilityLabel {
-                texts.append(label)
+                texts.append(normalizedForCompare(label))
             }
             if let value = view.accessibilityValue {
-                texts.append(value)
+                texts.append(normalizedForCompare(value))
             }
             if let label = view as? UILabel, let text = label.text {
-                texts.append(text)
+                texts.append(normalizedForCompare(text))
             }
             if let textView = view as? UITextView {
-                texts.append(textView.text ?? "")
+                texts.append(
+                    normalizedForCompare(textView.text ?? "")
+                )
             }
             if let elements = view.accessibilityElements {
                 for element in elements {
@@ -131,7 +150,7 @@ final class ChatReliabilityOfflineTests: XCTestCase {
                     } else if let el = element
                         as? UIAccessibilityElement,
                         let label = el.accessibilityLabel {
-                        texts.append(label)
+                        texts.append(normalizedForCompare(label))
                     }
                 }
             }
