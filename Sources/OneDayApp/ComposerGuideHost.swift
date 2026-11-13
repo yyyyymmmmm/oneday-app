@@ -1007,7 +1007,7 @@ final class ComposerGuideHostController: UIViewController {
     private func reportDockTop() {
         guard !keyboardUp, let dock = dockBarView
         else { return }
-        let top = layoutSpaceMinY(of: dock)
+        let top = Self.layoutSpaceMinY(of: dock)
         guard top > 0,
               abs(top - lastReportedDockTop) > 0.5
         else { return }
