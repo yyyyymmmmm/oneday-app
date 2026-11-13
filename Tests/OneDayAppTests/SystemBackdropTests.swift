@@ -3,14 +3,14 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// §198 系统材质底衬的宿主级验收：三处底衬（顶带/
+/// §200 系统材质底衬的宿主级验收：三处底衬（顶带/
 /// 输入框周边/底部坞）的结构与几何——材质档单点定
 /// 义、挂载层级（宿主自有层级最底/坞本体最底）、覆
 /// 盖带落点（顶带＝窗口顶→顶簇底、补偿对宿主帧移
 /// 动免疫；舱带高随舱帧实测；坞带＝坞 bounds 全幅
 /// 且装配幂等）、深色＋AX 最大字号 trait 下覆盖不
 /// 变。观感本身（糊化是否够、与胶囊玻璃的层次）归
-/// 真机清单（DESIGN §198），不在此断言。
+/// 真机清单（DESIGN §200），不在此断言。
 @MainActor
 final class SystemBackdropTests: XCTestCase {
 

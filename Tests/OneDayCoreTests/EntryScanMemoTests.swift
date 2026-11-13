@@ -1,7 +1,7 @@
 import XCTest
 @testable import OneDayCore
 
-/// §198：条目级派生扫描备忘——等值性（与逐遍现算
+/// §199：条目级派生扫描备忘——等值性（与逐遍现算
 /// 逐字相等）＋零重扫（同内容第二遍起未命中不增
 /// 长）＋失效面（内容变/摘行集变即重算）
 final class EntryScanMemoTests: XCTestCase {

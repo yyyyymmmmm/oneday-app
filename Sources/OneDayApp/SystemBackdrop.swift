@@ -1,6 +1,6 @@
 import UIKit
 
-/// 系统材质底衬（§198，2026-11-13，用户 11:24 拍板）：
+/// 系统材质底衬（§200，2026-11-13，用户 11:24 拍板）：
 /// 聊天页三处浮层背后垫一层**均匀**系统磨砂——顶带
 /// （顶簇区，挂 TopBarGuideHostController 层级内）、输
 /// 入框周边（挂 ComposerGuideHostController 层级内）、
@@ -18,7 +18,7 @@ import UIKit
 ///   本就是给栏位类 chrome 区的系统材质。三处共用
 ///   同一档、同一定义点（本文件），不许各处自选。
 /// - 明暗自适应：取系统自适应变体（非 Light/Dark
-///   定版），深色模式随系统切档（§198 自查帧验）。
+///   定版），深色模式随系统切档（§200 自查帧验）。
 /// - 与 Liquid Glass 的分工：HIG《Materials》（2025
 ///   -09 更新口径）——Liquid Glass 是系统自身功能层
 ///   （标签栏等系统件）的材质，标准材质（UIBlur-
@@ -64,7 +64,7 @@ enum SystemBackdrop {
 /// tag/关联对象）
 final class SystemDockBackdropView: UIVisualEffectView {}
 
-/// 底部坞底衬装配（§198）：把系统材质垫进 UITabBar
+/// 底部坞底衬装配（§200）：把系统材质垫进 UITabBar
 /// 本体层级的最底层，覆盖坞 bounds 全幅——浮动玻璃
 /// 坞盘之外的坞区（左右与下方）自此同为均匀磨砂，
 /// 内容滑到坞后不以原锐度透出。装配点在 Composer-

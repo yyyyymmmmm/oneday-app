@@ -3,7 +3,7 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// §198 包 0 · 选字链末环计数证死装置（一层审计
+/// §199 包 0 · 选字链末环计数证死装置（一层审计
 /// chat-page-bigfactory-audit-20261113.md §1.2）
 ///
 /// 定因链前四环均有代码/框架语义出处，末环「选区

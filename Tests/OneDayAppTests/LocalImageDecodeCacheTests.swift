@@ -2,7 +2,7 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// §198：本地图解码缓存——同（条目，图序，数据）
+/// §199：本地图解码缓存——同（条目，图序，数据）
 /// 第二遍零重解码、异键各自解码、坏图不入缓存
 final class LocalImageDecodeCacheTests: XCTestCase {
 

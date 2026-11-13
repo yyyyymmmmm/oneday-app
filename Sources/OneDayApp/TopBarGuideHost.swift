@@ -55,7 +55,7 @@ import UIKit
 ///   locale 在桥侧读出后逐项写进顶簇宿主根视图，
 ///   粗体映射同挂；trait 类经控制器层级自动派生。
 ///
-/// ## §198 顶带底衬（2026-11-13，用户 11:24 拍板）
+/// ## §200 顶带底衬（2026-11-13，用户 11:24 拍板）
 /// 顶簇背后在本控制器视图层级内垫一层均匀系统磨
 /// 砂（SystemBackdrop，.systemChromeMaterial）：
 /// 覆盖窗口顶（状态栏带）→顶簇底，治内容上滚滑进
@@ -225,7 +225,7 @@ final class TopBarGuideHostController: UIViewController {
     private var barHeightConstraint: NSLayoutConstraint!
     private var barContentHeight: CGFloat = 60
     private var lastReportedHeight: CGFloat = -1
-    /// §198 顶带底衬（系统材质）：本视图层级内最底
+    /// §200 顶带底衬（系统材质）：本视图层级内最底
     /// 层；顶边常量由 syncTopConstant 与顶簇常量同
     /// 拍补偿（窗口落点恒为窗口顶），底边钉顶簇宿
     /// 主底——覆盖带＝窗口顶→顶簇底
@@ -236,7 +236,7 @@ final class TopBarGuideHostController: UIViewController {
     /// 的 UIKit 落点，§195 起 ScrollPocket 落点退役）
     var traceBarView: UIView { barHost.view }
 
-    /// §198 自述/测试定位口：顶带底衬本体
+    /// §200 自述/测试定位口：顶带底衬本体
     var traceBackdropView: UIView { backdropView }
 
     /// 顶簇实高喂入点（托管树每次布局后经 onGeo-
@@ -277,7 +277,7 @@ final class TopBarGuideHostController: UIViewController {
             false
         view.addSubview(barHost.view)
         barHost.didMove(toParent: self)
-        // §198：顶带底衬入层——插在顶簇宿主之下（本
+        // §200：顶带底衬入层——插在顶簇宿主之下（本
         // 视图子视图序最底）；左右贴本视图、底随顶
         // 簇宿主底、顶由 backdropTopConstraint 的常
         // 量定位（syncTopConstant 补偿至窗口顶）
@@ -363,7 +363,7 @@ final class TopBarGuideHostController: UIViewController {
             > 0.5 {
             topGuideTopConstraint.constant = constant
         }
-        // §198：底衬顶边同式补偿——常量＝−本视图布
+        // §200：底衬顶边同式补偿——常量＝−本视图布
         // 局空间顶边，底衬的窗口落点恒为窗口顶（0）：
         // 本视图帧被再挪到哪，底衬带的上缘恒贴屏顶、
         // 与顶簇落点补偿同一实测输入、同拍重算

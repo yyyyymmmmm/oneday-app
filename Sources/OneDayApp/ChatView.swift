@@ -19,7 +19,7 @@ import UIKit
 /// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
 /// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
 
-/// 距底原始读数匣（§198）：滚动几何回调逐帧写、
+/// 距底原始读数匣（§199）：滚动几何回调逐帧写、
 /// 贴底复核（120ms 后）读一次的原始距底——旧形态
 /// 存 @State，滚动中读数逐帧变、等值守卫挡不住，
 /// 等于每帧触发一次全页 body 重跑（审计 §2.1 的放
@@ -27,7 +27,7 @@ import UIKit
 /// 读到的恒是读时点的最新值——唯一消费者（复核
 /// shouldRestick 与同点打点）在读时点上与旧 @State
 /// 读数逐字相等，判定阈值与语义零变更，只降回写
-/// 频次（§198 包 1 第三件）。经 @State 持实例（初
+/// 频次（§199 包 1 第三件）。经 @State 持实例（初
 /// 值只用一次），跨 body 重建恒为同一匣
 private final class BottomDistanceRecorder {
     var latest: CGFloat = 0
@@ -214,7 +214,7 @@ struct ChatView: View {
     /// 一路——迟滞判定消费它之外，原始读数另存一份
     /// 喂贴底后的复核（仍 >7pt 才补贴，§176 阈值
     /// 24 → 7 收紧，Core BottomSettle 钉死）
-    /// §198：原始读数改存 BottomDistanceRecorder 引
+    /// §199：原始读数改存 BottomDistanceRecorder 引
     /// 用匣（见文件头注），不再走 @State 逐帧回写
     @State private var bottomDistanceRecorder =
         BottomDistanceRecorder()
@@ -2123,7 +2123,7 @@ struct ChatView: View {
             // §135：回写加等值守卫——几何回调在滚动
             // 中逐帧到达，值未变的回写不许再触发一轮
             // body 重算（距底读数在静止期恒同值）
-            // §198：原始读数改写引用匣——滚动中它逐帧
+            // §199：原始读数改写引用匣——滚动中它逐帧
             // 必变、等值守卫挡不住、@State 写每帧触发
             // 全页重跑；匣写不失效任何视图，复核读到
             // 的仍是读时点最新值，判定语义零变更
@@ -2698,7 +2698,7 @@ struct ChatView: View {
                 // 号取登记 meta 渲染，见 Delivery-
                 // Views）；裸路径兜底（§129/§136）
                 // 只管拆剩的正文，两层不打架
-                // §198：本组派生扫描改条目级备忘（Core
+                // §199：本组派生扫描改条目级备忘（Core
                 // EntryScanMemo，键＝条目 id×内容哈希）
                 // ——同内容第二遍起零重扫、产出与逐遍
                 // 现算逐字相等；各扫描的口径仍以其各
@@ -2739,7 +2739,7 @@ struct ChatView: View {
                 let mediaStandalonePaths = Set(
                     scans.standalonePaths
                 )
-                // §198：摘行扫描同走备忘——摘行集由存
+                // §199：摘行扫描同走备忘——摘行集由存
                 // 在性派生、签名入键，存在性翻转即重
                 // 算，语义与逐遍现算恒等
                 let displayText = EntryScanMemo.displayText(
@@ -2937,7 +2937,7 @@ struct ChatView: View {
     private func localImageRow(
         _ datas: [Data], entry: ChatEntry
     ) -> some View {
-        // §198：解码改走 LocalImageDecodeCache（同
+        // §199：解码改走 LocalImageDecodeCache（同
         // 条目同图序只解一次、命中直取）；解码失败
         // 单张不出卡的旧口径不变（坏图不入缓存）
         let pairs: [(data: Data, image: UIImage)] =
@@ -3085,7 +3085,7 @@ struct ChatView: View {
     /// 标记符号成可读文本（MessagePlainText 纯函数），
     /// 用户消息原文即纯文本
     private func plainText(for entry: ChatEntry) -> String {
-        // §198：助手侧走条目级备忘（同内容不重剥，
+        // §199：助手侧走条目级备忘（同内容不重剥，
         // Core EntryScanMemo）；用户侧原文直用不变
         entry.role == "assistant"
             ? EntryScanMemo.plainText(
@@ -6554,7 +6554,7 @@ private struct MessageMenuModifier: ViewModifier {
 /// 箭头在内容左缘下层：随显形进度淡入/缩放，
 /// 越线转武装态，且触发与触觉在越线同一刻发
 /// 生（途中触发，不等松手）；松手只做回位
-/// §198：internal（原 private）——选字计数证死/回归
+/// §199：internal（原 private）——选字计数证死/回归
 /// 测试须装配生产原物验证结构身份，不许在测试侧复
 /// 制一份同形修饰符充数
 struct SwipeReplyModifier: ViewModifier {
