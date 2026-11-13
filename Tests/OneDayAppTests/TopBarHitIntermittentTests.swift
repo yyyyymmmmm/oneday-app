@@ -15,12 +15,13 @@ import XCTest
 /// 本体照 headerBar 原样、HubAvatarButton 与
 /// ModelCapsuleView 用生产件、16pt 命中死区同位）。
 ///
-/// 证据纪律＝动作级：点按一律经合成触摸走 Win-
-/// dow.sendEvent 的真实命中路径（窗口 hitTest→
-/// 透传闸门→托管树→Button），断言只认按钮动作
-/// 计数真的 +1（＝生产里 drawerPresented/show-
-/// ModelPicker 状态翻转的同位事实），不以 hitTest
-/// 返回值充数（hitTest 结果仅作诊断日志）。
+/// 证据纪律＝动作级：点按一律经合成触摸走 UI-
+/// Application.sendEvent 的真实命中路径（应用级
+/// 漏斗做命中绑定→透传闸门→托管树→Button），
+/// 断言只认按钮动作计数真的 +1（＝生产里 drawe-
+/// rPresented/showModelPicker 状态翻转的同位事
+/// 实），不以 hitTest 返回值充数（hitTest 结果
+/// 仅作诊断日志）。
 ///
 /// 状态空间：静息基线／宿主帧被重排但无布局拍
 /// （±49 与 −8 两档，模拟 §195 落定重算挪帧）／
@@ -103,6 +104,7 @@ final class TopBarHitIntermittentTests: XCTestCase {
             super.init()
         }
         override var phase: UITouch.Phase { fakePhase }
+        override var tapCount: Int { 1 }
         override func location(in view: UIView?) -> CGPoint {
             guard let view, let window = view.window
             else { return windowPoint }
@@ -128,15 +130,22 @@ final class TopBarHitIntermittentTests: XCTestCase {
         ) -> Set<UITouch>? { fakeTouches }
     }
 
-    /// 在窗口坐标点位打一次完整点按：命中裁决在
-    /// began 相位一次性落定（UIKit 语义，触摸终生
-    /// 绑定命中视图），ended 同点交付
+    /// 在窗口坐标点位打一次完整点按：投递必须走
+    /// UIApplication.sendEvent——命中绑定（hitTest
+    /// 定视图）发生在应用级事件漏斗里，直调 Win-
+    /// dow.sendEvent 的裸触摸没有绑定视图、投了个
+    /// 空（第一轮 rig 全红实证：连静息基线都不触
+    /// 发、活帧却全对）。命中裁决在 began 相位一次
+    /// 性落定（UIKit 语义，触摸终生绑定命中视图）；
+    /// 两相之间的小泵只为让托管树处理按下态，不影
+    /// 响已落定的命中绑定
     private func fireTap(atWindowPoint point: CGPoint) {
         let touch = FakeTouch(windowPoint: point)
         touch.fakePhase = .began
-        window.sendEvent(FakeEvent(touch: touch))
+        UIApplication.shared.sendEvent(FakeEvent(touch: touch))
+        spinRunLoop(seconds: 0.05)
         touch.fakePhase = .ended
-        window.sendEvent(FakeEvent(touch: touch))
+        UIApplication.shared.sendEvent(FakeEvent(touch: touch))
     }
 
     // MARK: - 顶簇替身（按 ChatView 现行构成复刻）
@@ -400,8 +409,9 @@ final class TopBarHitIntermittentTests: XCTestCase {
     /// 的 barFrameInWindow，只入日志不入断言——断
     /// 言只认动作计数）
     private func gateFrame() -> CGRect? {
-        guard let host = topHost() else { return nil }
-        let mirror = Mirror(reflecting: host.view as Any)
+        guard let host = topHost(), let rootView = host.view
+        else { return nil }
+        let mirror = Mirror(reflecting: rootView)
         for child in mirror.children {
             if child.label == "barFrameInWindow",
                let rect = child.value as? CGRect {
@@ -451,6 +461,25 @@ final class TopBarHitIntermittentTests: XCTestCase {
     }
 
     // MARK: - 状态空间
+
+    /// 通道对照（UIKit 原生钮）：合成触摸连 UICon-
+    /// trol 都点不响＝投递通道本身坏（与 SwiftUI/
+    /// 产品无关）；本法绿而 S0 红＝缺口在 SwiftUI
+    /// 托管层的事件处理，另寻投递法
+    func testSyntheticChannel_uiKitControlFires() {
+        primeRig()
+        let control = UIButton(
+            frame: CGRect(x: 151, y: 700, width: 100, height: 50))
+        var taps = 0
+        control.addAction(
+            UIAction { _ in taps += 1 }, for: .touchUpInside)
+        window.addSubview(control)
+        window.layoutIfNeeded()
+        fireTap(atWindowPoint: CGPoint(x: 201, y: 725))
+        spinRunLoop(seconds: 0.3)
+        XCTAssertEqual(taps, 1, "合成触摸通道对照：UIKit 钮未被点响")
+        control.removeFromSuperview()
+    }
 
     /// S0 静息基线（兼合成触摸通道自检）：两钮在
     /// 静息态必须可点——本法红＝投递通道或装配坏
