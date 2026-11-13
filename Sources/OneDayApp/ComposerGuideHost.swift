@@ -89,16 +89,23 @@ import UIKit
 /// 手工锚位先例，主线外部核查在案）：
 /// - SwiftUI 侧：本桥退出根 ZStack 定尺寸，改挂列
 ///   表 .overlay 次级层（次级视图不参加父级协商）；
-/// - UIKit 侧：宿主底边双锚——键盘落下钉**窗口层
-///   级里 UITabBar 的 topAnchor**（坞本体，帧由系
-///   统管、协商污染够不到）；键盘升起钉**窗口**
-///   keyboardLayoutGuide.topAnchor（窗口帧永不被
-///   污染；交互式下滑收键盘时引导线逐帧跟随、约束
-///   随之）；键盘通知切换两锚、动画参数与键盘同
-///   步。锚点在入窗与键盘收起时重解析（标签栏在
-///   聚焦藏坞期间可能换实例）；无坞环境（探针裸装
-///   配）回落窗口安全区底。§186 地板钳制就此退役
-///   ——它防的「落下漂移」由坞锚构造性消除。
+/// - UIKit 侧：宿主底边双锚、且两锚都是**本视图
+///   内层级**的约束——键盘升起钉本视图 keyboard-
+///   LayoutGuide.topAnchor（升起态下引导线由 UIKit
+///   按真实键盘帧算、与本视图帧污染无关；交互式
+///   下滑收键盘逐帧跟随）；键盘落下钉自有布局引
+///   导线，其 top 常量逐拍由坞本体（窗口层级里找
+///   到的 UITabBar 或类名兜底命中）的布局空间实
+///   帧换算（忽略 transform、抽屉随动不假补偿）。
+///   坞只被读帧、永不被约束直接引用：跨层级直钉
+///   坞 topAnchor 的 v1 形态在切格/藏坞的层级手
+///   术瞬间会留下悬空约束、求解抛 no-common-
+///   ancestor（CI 43337805344 两测试实证），整类
+///   退役。键盘通知切换两锚、动画参数与键盘同
+///   步；坞参照在入窗/显形/键盘收起时重解析，无
+///   坞环境（探针裸装配）回落窗口安全区底。§186
+///   地板钳制就此退役——它防的「落下漂移」由坞
+///   锚构造性消除。
 /// - 宿主顶/左右仍贴本视图：本视图帧即便再被污染，
 ///   宿主内 VStack 的 Spacer 吸收多余高度，舱恒坐
 ///   宿主底边＝锚点——「SwiftUI 内部固有尺寸变化不
@@ -344,12 +351,24 @@ final class ComposerGuideHostController: UIViewController {
         rootView: AnyView(EmptyView())
     )
     /// §193 双锚（见文件头）：坞锚（键盘落下）与键盘
-    /// 锚（键盘升起）恒只活一条；锚目标在窗口层级解
-    /// 析、本视图帧如何被协商污染都不进钉位公式
-    private var dockConstraint: NSLayoutConstraint?
-    private var keyboardConstraint: NSLayoutConstraint?
-    /// 坞锚当前目标（UITabBar 本体；回落态为 nil 且
-    /// dockIsFallback=true，目标＝窗口安全区底）
+    /// 锚（键盘升起）恒只活一条。两条都是**本视图内
+    /// 层级**的约束（坞锚经自有布局引导线翻译、键盘
+    /// 锚钉本视图 keyboardLayoutGuide）——跨层级直
+    /// 钉坞本体的约束在切格/藏坞的层级手术瞬间会成
+    /// 为悬空约束、求解即抛 no-common-ancestor（CI
+    /// 43337805344 两测试实证），故坞的位置只以「实
+    /// 帧换算出的常量」进本层级，锚本体永不被约束
+    /// 直接引用
+    private var dockBottomConstraint: NSLayoutConstraint?
+    private var keyboardBottomConstraint: NSLayoutConstraint?
+    /// 坞锚引导线：top 由 dockGuideTopConstraint 的
+    /// 常量定位（布局空间换算，见 syncDockConstant）
+    private let dockGuide = UILayoutGuide()
+    private var dockGuideTopConstraint: NSLayoutConstraint!
+    /// 坞锚当前参照（UITabBar 本体或类名兜底命中；
+    /// 回落态为 nil 且 dockIsFallback=true，参照＝
+    /// 窗口安全区底）。只读其实帧、不被约束引用，
+    /// 离场最多让常量短暂陈旧、下个离散事件即刷新
     private weak var dockBarView: UIView?
     private var dockIsFallback = false
     private weak var anchorWindow: UIWindow?
@@ -411,9 +430,20 @@ final class ComposerGuideHostController: UIViewController {
             false
         view.addSubview(composerHost.view)
         composerHost.didMove(toParent: self)
-        // §193：宿主顶/左右贴本视图、底边走双锚（见
-        // resolveAnchors/applyAnchorState；锚在入窗
-        // 后解析，viewDidLoad 时窗口未定不预建）
+        // §193：宿主顶/左右贴本视图、底边走双锚（全
+        // 部本层级约束，见 resolveAnchors/applyAnchor-
+        // State/syncDockConstant）：坞引导线先入本视
+        // 图（top 常量待 syncDockConstant 按坞实帧填，
+        // 初始 0＝未解析前宿主贴顶、无害瞬态）
+        view.addLayoutGuide(dockGuide)
+        dockGuideTopConstraint = dockGuide.topAnchor
+            .constraint(equalTo: view.topAnchor, constant: 0)
+        dockBottomConstraint = composerHost.view.bottomAnchor
+            .constraint(equalTo: dockGuide.topAnchor)
+        keyboardBottomConstraint = composerHost.view
+            .bottomAnchor.constraint(
+                equalTo: view.keyboardLayoutGuide.topAnchor
+            )
         NSLayoutConstraint.activate([
             composerHost.view.leadingAnchor.constraint(
                 equalTo: view.leadingAnchor),
@@ -421,6 +451,12 @@ final class ComposerGuideHostController: UIViewController {
                 equalTo: view.trailingAnchor),
             composerHost.view.topAnchor.constraint(
                 equalTo: view.topAnchor),
+            dockGuide.leadingAnchor.constraint(
+                equalTo: view.leadingAnchor),
+            dockGuide.trailingAnchor.constraint(
+                equalTo: view.trailingAnchor),
+            dockGuide.heightAnchor.constraint(equalToConstant: 0),
+            dockGuideTopConstraint,
         ])
         if barFrameInWindow.height > 0 {
             (view as? ComposerPassthroughView)?
@@ -471,63 +507,92 @@ final class ComposerGuideHostController: UIViewController {
         applyAnchorState()
     }
 
-    /// §193 锚解析：在本视图所在窗口的层级里找坞本
-    /// 体（UITabBar）与窗口键盘引导线，（重）建两条
-    /// 底边约束。触发点只在离散事件（入窗/键盘收
-    /// 起/回落态布局拍自愈），不在每拍布局里走层级
+    /// §193 锚解析：在本视图所在窗口的层级里找坞参
+    /// 照（UITabBar 本体或类名兜底），只登记引用与
+    /// 命中模式——位置由 syncDockConstant 逐拍换算
+    /// 进引导线常量，参照本身不被任何约束引用。触
+    /// 发点只在离散事件（入窗/显形/键盘收起/回落态
+    /// 布局拍自愈），不在每拍布局里走层级
     private func resolveAnchors() {
         guard let window = view.window else { return }
         let windowChanged = anchorWindow !== window
         anchorWindow = window
-        if windowChanged || keyboardConstraint == nil {
-            keyboardConstraint?.isActive = false
-            keyboardConstraint = composerHost.view.bottomAnchor
-                .constraint(
-                    equalTo: window.keyboardLayoutGuide
-                        .topAnchor
-                )
-        }
         let foundBar = Self.findDockAnchor(in: window)
         if let foundBar {
             if dockBarView !== foundBar.view || dockIsFallback
                 || windowChanged {
-                dockConstraint?.isActive = false
-                dockConstraint = composerHost.view.bottomAnchor
-                    .constraint(equalTo: foundBar.view.topAnchor)
                 dockBarView = foundBar.view
                 dockIsFallback = false
                 BarsGeometryTrace.noteProbe(
                     "anchorMode", foundBar.mode
                 )
             }
-        } else if dockConstraint == nil || !dockIsFallback
-            || windowChanged {
+        } else if !dockIsFallback || windowChanged {
             // 无坞环境回落（探针裸装配等非生产形态）：
-            // 窗口安全区底——生产装配恒有坞，不走此路
-            dockConstraint?.isActive = false
-            dockConstraint = composerHost.view.bottomAnchor
-                .constraint(
-                    equalTo: window.safeAreaLayoutGuide
-                        .bottomAnchor
-                )
+            // 参照＝窗口安全区底——生产装配恒有坞，
+            // 不走此路
             dockBarView = nil
             dockIsFallback = true
             BarsGeometryTrace.noteProbe(
                 "anchorMode", "fallbackWindowSafe"
             )
         }
+        syncDockConstant()
         applyAnchorState()
     }
 
+    /// §193 坞锚换算：坞参照的布局空间顶边（沿
+    /// superview 链累加 frame 原点——布局真值、忽
+    /// 略 transform，抽屉平移不假补偿、舱随前景同
+    /// 移）换算成本视图坐标内的引导线 top 常量；
+    /// 逐布局拍调用（只读缓存参照的帧、无层级遍
+    /// 历），偏差 >0.5 才写。参照离场（window 对不
+    /// 上）时保留上次常量——位置短暂陈旧但绝不悬
+    /// 空，下个离散事件重解析刷新
+    private func syncDockConstant() {
+        guard let window = view.window,
+              let dockGuideTopConstraint else { return }
+        let targetTop: CGFloat
+        if let bar = dockBarView, bar.window === window {
+            targetTop = Self.layoutSpaceMinY(of: bar)
+        } else if dockIsFallback {
+            targetTop = window.bounds.height
+                - window.safeAreaInsets.bottom
+        } else {
+            return
+        }
+        let constant = targetTop - Self.layoutSpaceMinY(of: view)
+        if abs(dockGuideTopConstraint.constant - constant)
+            > 0.5 {
+            dockGuideTopConstraint.constant = constant
+        }
+    }
+
+    /// 视图在窗口布局空间的顶边（frame 原点沿父链
+    /// 累加；transform 不进布局帧、天然不计）
+    private static func layoutSpaceMinY(
+        of view: UIView
+    ) -> CGFloat {
+        var y = view.frame.minY
+        var ancestor = view.superview
+        while let current = ancestor,
+              !(current is UIWindow) {
+            y += current.frame.minY
+            ancestor = current.superview
+        }
+        return y
+    }
+
     /// §193 锚生效：键盘态决定唯一活锚（先灭后亮，
-    /// 防同边双约束瞬时冲突）
+    /// 防同边双约束瞬时冲突；两锚皆本层级约束，
+    /// 激活时机无跨层级前提）
     private func applyAnchorState() {
         if keyboardUp {
-            dockConstraint?.isActive = false
-            keyboardConstraint?.isActive = true
+            dockBottomConstraint?.isActive = false
+            keyboardBottomConstraint?.isActive = true
         } else {
-            keyboardConstraint?.isActive = false
-            dockConstraint?.isActive = true
+            keyboardBottomConstraint?.isActive = false
+            dockBottomConstraint?.isActive = true
         }
     }
 
@@ -597,16 +662,17 @@ final class ComposerGuideHostController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // §193：钉位已由双锚约束全权决定，本拍只做
-        // 舱顶回报与回落态自愈（回落＝窗口内暂未找到
-        // 坞：标签栏随呈现时序迟到时在此补解析，找
-        // 到即退出回落、不再走层级）。§186 地板钳制
-        // 与 §192 控制器侧主动量测（布局拍内调 fit-
-        // ting 触发重入式布局、150 探针两场景超时与
-        // 此相关）均已随锚定重构退役
+        // §193：本拍做坞锚常量同步（只读缓存参照实
+        // 帧）、舱顶回报与回落态自愈（回落＝窗口内
+        // 暂未找到坞：标签栏随呈现时序迟到时在此补
+        // 解析，找到即退出回落、不再走层级）。§186
+        // 地板钳制与 §192 控制器侧主动量测（布局拍
+        // 内调 fitting 触发重入式布局、150 探针两场
+        // 景超时与此相关）均已随锚定重构退役
         if dockIsFallback, !keyboardUp {
             resolveAnchors()
         }
+        syncDockConstant()
         reportBottomSpace()
     }
 
