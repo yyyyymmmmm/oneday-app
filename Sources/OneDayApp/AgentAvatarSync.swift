@@ -20,21 +20,33 @@ enum AgentAvatarSync {
             store.clearAIAvatar()
             return
         }
+        // 末写胜凭据：桥报的指针时刻（缺失回落条目写
+        // 入时刻，再缺失按最早——不许拿假时刻裁决）
+        let updatedAt = state.currentUpdatedAtDate ?? .distantPast
         switch current.kind {
         case "preset":
             guard let presetID = current.presetId else { return }
-            store.applyAIAvatarPreset(id: presetID, itemID: current.id)
+            store.applyAIAvatarPreset(
+                id: presetID, itemID: current.id, updatedAt: updatedAt
+            )
         case "image":
             // 同一条已同步且槽位在位：跳过重复下载
-            // （图文件丢失时存储层解析自动回落，不白屏）
-            if case .image(let syncedID) = store.aiAvatar,
+            // （图文件丢失时存储层解析自动回落，不白屏）；
+            // 但指针时刻变了（同一条被重设为当前）只刷
+            // 槽位时刻——末写胜比的是时刻，不刷就裁错
+            if case .image(let syncedID, _) = store.aiAvatar,
                syncedID == current.id {
+                store.refreshAIAvatarTimestamp(
+                    itemID: current.id, updatedAt: updatedAt
+                )
                 return
             }
             guard let data = try? await client.avatarImage(
                 config: config, id: current.id
             ) else { return }
-            store.applyAIAvatarImage(data: data, itemID: current.id)
+            store.applyAIAvatarImage(
+                data: data, itemID: current.id, updatedAt: updatedAt
+            )
         default:
             return
         }

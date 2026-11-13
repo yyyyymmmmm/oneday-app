@@ -120,14 +120,14 @@ final class AgentProfileTests: XCTestCase {
         }
     }
 
-    // MARK: - 覆盖对账（身份反映修复，2026-11-13）
+    // MARK: - 覆盖对账（末写胜，2026-11-13；时刻缺失时退回来源对账近似）
 
     /// 主案复刻：存量裸覆盖「测试」（无来源记录）压
     /// 服务器现行名「三狗」→ 必清、跟随服务器
     func testReconcileClearsLegacyOverrideAgainstRenamedSoul() {
         XCTAssertTrue(
-            AgentNameReconciliation.shouldClearOverride(
-                override: "测试", provenance: nil, soulName: "三狗"
+            AgentNameLWW.shouldClearOverride(
+                override: "测试", provenance: nil, soulName: "三狗", soulUpdatedAt: nil
             )
         )
     }
@@ -135,8 +135,8 @@ final class AgentProfileTests: XCTestCase {
     /// 覆盖恰与现行名相同：无冲突，不清（清了也白清）
     func testReconcileKeepsOverrideEqualToSoul() {
         XCTAssertFalse(
-            AgentNameReconciliation.shouldClearOverride(
-                override: "三狗", provenance: nil, soulName: "三狗"
+            AgentNameLWW.shouldClearOverride(
+                override: "三狗", provenance: nil, soulName: "三狗", soulUpdatedAt: nil
             )
         )
     }
@@ -144,26 +144,27 @@ final class AgentProfileTests: XCTestCase {
     /// 无覆盖：永不清
     func testReconcileKeepsWhenNoOverride() {
         XCTAssertFalse(
-            AgentNameReconciliation.shouldClearOverride(
-                override: nil, provenance: nil, soulName: "三狗"
+            AgentNameLWW.shouldClearOverride(
+                override: nil, provenance: nil, soulName: "三狗", soulUpdatedAt: nil
             )
         )
         XCTAssertFalse(
-            AgentNameReconciliation.shouldClearOverride(
-                override: "", provenance: nil, soulName: "三狗"
+            AgentNameLWW.shouldClearOverride(
+                override: "", provenance: nil, soulName: "三狗", soulUpdatedAt: nil
             )
         )
     }
 
-    /// 用户在现行名之下亲手设的定名（来源里记的服务
-    /// 器名＝现行名）：手动定名优先，清不得
+    /// 服务器时刻未知时的近似路：用户在现行名之下设
+    /// 的定名（来源里记的服务器名＝现行名）、其后无
+    /// 从证明服务器写过——不清（时刻齐备时不走此路）
     func testReconcileKeepsProvenancedOverrideWhenSoulUnchanged() {
         let provenance = AgentNameOverrideProvenance(
             writtenAt: Date(), soulNameAtWrite: "三狗"
         )
         XCTAssertFalse(
-            AgentNameReconciliation.shouldClearOverride(
-                override: "狗子", provenance: provenance, soulName: "三狗"
+            AgentNameLWW.shouldClearOverride(
+                override: "狗子", provenance: provenance, soulName: "三狗", soulUpdatedAt: nil
             )
         )
     }
@@ -175,8 +176,8 @@ final class AgentProfileTests: XCTestCase {
             writtenAt: Date(), soulNameAtWrite: "Hermes"
         )
         XCTAssertTrue(
-            AgentNameReconciliation.shouldClearOverride(
-                override: "测试", provenance: provenance, soulName: "三狗"
+            AgentNameLWW.shouldClearOverride(
+                override: "测试", provenance: provenance, soulName: "三狗", soulUpdatedAt: nil
             )
         )
     }
@@ -188,8 +189,67 @@ final class AgentProfileTests: XCTestCase {
             writtenAt: Date(), soulNameAtWrite: nil
         )
         XCTAssertTrue(
-            AgentNameReconciliation.shouldClearOverride(
-                override: "测试", provenance: provenance, soulName: "三狗"
+            AgentNameLWW.shouldClearOverride(
+                override: "测试", provenance: provenance, soulName: "三狗", soulUpdatedAt: nil
+            )
+        )
+    }
+
+    // MARK: - 末写胜：时刻齐备时纯比时间
+
+    private static let lwwT0 = Date(timeIntervalSince1970: 1_700_000_000)
+    private static let lwwT1 = Date(timeIntervalSince1970: 1_700_003_600)
+    private static let lwwT2 = Date(timeIntervalSince1970: 1_700_007_200)
+
+    /// 服务器写入时刻更晚 → 旧覆盖清。关键形态：服
+    /// 务器名绕一圈又回到覆盖写入时所对的名（来源对
+    /// 账近似会误判「没改过」），末写胜只认时刻、照清
+    func testLWWSoulNewerTimestampClearsDespiteNameRoundTrip() {
+        let provenance = AgentNameOverrideProvenance(
+            writtenAt: Self.lwwT0, soulNameAtWrite: "三狗"
+        )
+        XCTAssertTrue(
+            AgentNameLWW.shouldClearOverride(
+                override: "狗子", provenance: provenance,
+                soulName: "三狗", soulUpdatedAt: Self.lwwT2
+            )
+        )
+    }
+
+    /// 覆盖写入时刻更晚（用户在 AI 改名之后又亲手改
+    /// 的）→ 留：末写胜不问写者是谁，只看谁后写
+    func testLWWOverrideNewerThanSoulWriteSurvives() {
+        let provenance = AgentNameOverrideProvenance(
+            writtenAt: Self.lwwT2, soulNameAtWrite: "Hermes"
+        )
+        XCTAssertFalse(
+            AgentNameLWW.shouldClearOverride(
+                override: "狗子", provenance: provenance,
+                soulName: "三狗", soulUpdatedAt: Self.lwwT1
+            )
+        )
+    }
+
+    /// 同刻：取服务器（多端同源），覆盖清
+    func testLWWTieGoesToServer() {
+        let provenance = AgentNameOverrideProvenance(
+            writtenAt: Self.lwwT1, soulNameAtWrite: "Hermes"
+        )
+        XCTAssertTrue(
+            AgentNameLWW.shouldClearOverride(
+                override: "狗子", provenance: provenance,
+                soulName: "三狗", soulUpdatedAt: Self.lwwT1
+            )
+        )
+    }
+
+    /// 服务器时刻已知、覆盖却无来源（无任何时刻可
+    /// 凭）：不得压住服务器现行名，清
+    func testLWWSoulTimestampKnownBareOverrideClears() {
+        XCTAssertTrue(
+            AgentNameLWW.shouldClearOverride(
+                override: "测试", provenance: nil,
+                soulName: "三狗", soulUpdatedAt: Self.lwwT1
             )
         )
     }

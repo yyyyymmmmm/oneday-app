@@ -293,6 +293,11 @@ struct DrawerView: View {
         .onChange(of: appState.drawerPresented) { wasPresented, presented in
             if presented {
                 Task { await loadDrawerData() }
+                // 身份呈现跟随（末写胜包）：抽屉页头就
+                // 是名字与头像——每次打开重拉（节流在
+                // AppState 内），不许显服务器已改掉的旧
+                // 身份
+                Task { await appState.refreshIdentitySurfaces() }
             } else if DrawerSearchPolicy.shouldResetQuery(
                 wasPresented: wasPresented, isPresented: presented
             ) {

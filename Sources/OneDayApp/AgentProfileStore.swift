@@ -30,11 +30,20 @@ final class AgentProfileStore {
         static let lastKnownSoulName = "agentProfile.lastKnownSoulName"
         static let avatarPresetID = "agentProfile.avatarPresetID"
         static let usesCustomAvatar = "agentProfile.usesCustomAvatar"
-        // P1 身份包：AI 档槽位（仓条目 id/预置 id）与
-        // 「用户手动选过」锁
+        // P1 身份包：AI 档槽位（仓条目 id/预置 id）
         static let aiAvatarItemID = "agentProfile.aiAvatarItemID"
         static let aiAvatarPresetID = "agentProfile.aiAvatarPresetID"
-        static let userAvatarLocked = "agentProfile.userAvatarLocked"
+        // 末写胜（2026-11-13）：AI 档写入时刻（服务器
+        // 收到写入的时刻，epoch 秒）与用户选择时刻、
+        // 服务器名写入时刻——裁决只认这三份时刻，
+        // §203 的 userAvatarLocked 锁键自此退役（init
+        // 迁移时删除）
+        static let aiAvatarUpdatedAt = "agentProfile.aiAvatarUpdatedAt"
+        static let avatarSelectedAt = "agentProfile.avatarSelectedAt"
+        static let lastKnownSoulUpdatedAt =
+            "agentProfile.lastKnownSoulUpdatedAt"
+        static let legacyUserAvatarLocked =
+            "agentProfile.userAvatarLocked"
     }
 
     private(set) var profile: AgentProfile
@@ -49,6 +58,12 @@ final class AgentProfileStore {
     /// 盖时用作来源里的「当时服务器名」，落盘保住冷
     /// 启后首解析前的写入也有对账基准
     private(set) var lastKnownSoulName: String?
+
+    /// 服务器名的写入时刻（桥报 updatedAt，服务器收
+    /// 到写入的时刻）：名字末写胜裁决的服务器侧凭据；
+    /// 桥不可达/旧桥无账时为 nil，裁决退回来源对账
+    /// 近似（Core AgentNameLWW）
+    private(set) var lastKnownSoulUpdatedAt: Date?
 
     /// 变更修订号：每次档案变更 +1——分享名片图等派
     /// 生渲染以此为重算键（自定义图同为 .custom 选择
@@ -67,11 +82,14 @@ final class AgentProfileStore {
 
     private var aiCustomAvatar: UIImage?
 
-    /// 用户手动选过头像（P1 锁）：为真时 AI 档永远压
-    /// 不过用户选择。存量迁移：锁键从未写过时，以
-    /// 「预置 id 键存在过或用过自定义图」判手动选过
-    /// （缺省态从不写这两键，未碰过编辑器的用户不锁）
-    private(set) var userAvatarLocked: Bool
+    /// 用户最近一次在本机选择头像的时刻（末写胜凭
+    /// 据，与 AI 档 updatedAt 比时间定胜负）：从未在
+    /// 编辑器里选过为 nil——缺省档案无时刻、挡不住
+    /// AI 档。存量迁移：新键缺失而旧选择键在（预置
+    /// id 键存在过或用过自定义图）＝升级前手动选过，
+    /// 以首次运行新版的时刻落账——升级瞬间保持现状
+    /// 不突变，此后任一侧新写入按时间竞争
+    private(set) var avatarSelectedAt: Date?
 
     init() {
         let defaults = UserDefaults.standard
@@ -88,24 +106,50 @@ final class AgentProfileStore {
         lastKnownSoulName = defaults.string(
             forKey: Keys.lastKnownSoulName
         )
+        lastKnownSoulUpdatedAt = defaults.object(
+            forKey: Keys.lastKnownSoulUpdatedAt
+        ) != nil
+            ? Date(timeIntervalSince1970: defaults.double(
+                forKey: Keys.lastKnownSoulUpdatedAt))
+            : nil
         let usesCustom = defaults.bool(forKey: Keys.usesCustomAvatar)
         let presetID = defaults.string(forKey: Keys.avatarPresetID)
             ?? AgentAvatarPreset.defaultID
-        let locked: Bool
-        if defaults.object(forKey: Keys.userAvatarLocked) != nil {
-            locked = defaults.bool(forKey: Keys.userAvatarLocked)
+        // 末写胜迁移：§203 锁键自此退役（删除）；升级
+        // 前手动选过（选择键在）又没有时刻账的，以首
+        // 次运行新版的时刻落账——升级瞬间保持现状不
+        // 突变，此后任一侧新写入按时间竞争
+        defaults.removeObject(forKey: Keys.legacyUserAvatarLocked)
+        let selectedAt: Date?
+        if defaults.object(forKey: Keys.avatarSelectedAt) != nil {
+            selectedAt = Date(timeIntervalSince1970: defaults.double(
+                forKey: Keys.avatarSelectedAt))
+        } else if defaults.object(forKey: Keys.avatarPresetID) != nil
+                    || usesCustom {
+            let now = Date()
+            defaults.set(
+                now.timeIntervalSince1970, forKey: Keys.avatarSelectedAt
+            )
+            selectedAt = now
         } else {
-            locked = defaults.object(forKey: Keys.avatarPresetID) != nil
-                || usesCustom
+            selectedAt = nil
         }
+        // AI 档时刻缺失（升级前槽位）：按最早处理——
+        // 下一次头像仓同步就会以桥报的真时刻刷新
+        let aiAt: Date = defaults.object(
+            forKey: Keys.aiAvatarUpdatedAt
+        ) != nil
+            ? Date(timeIntervalSince1970: defaults.double(
+                forKey: Keys.aiAvatarUpdatedAt))
+            : .distantPast
         let loadedAI: AgentAIAvatar?
         let loadedAICustom: UIImage?
         if let itemID = defaults.string(forKey: Keys.aiAvatarItemID) {
             if let aiPreset = defaults.string(forKey: Keys.aiAvatarPresetID) {
-                loadedAI = .preset(id: aiPreset)
+                loadedAI = .preset(id: aiPreset, updatedAt: aiAt)
                 loadedAICustom = nil
             } else {
-                loadedAI = .image(itemID: itemID)
+                loadedAI = .image(itemID: itemID, updatedAt: aiAt)
                 loadedAICustom = Self.loadAICustomAvatarFile()
             }
         } else {
@@ -130,11 +174,11 @@ final class AgentProfileStore {
         customAvatar = loadedCustom
         aiAvatar = loadedAI
         aiCustomAvatar = loadedAICustom
-        userAvatarLocked = locked
+        avatarSelectedAt = selectedAt
         avatarUIImage = Self.resolveAvatar(
             profile: loadedProfile, customAvatar: loadedCustom,
             aiAvatar: loadedAI, aiCustomAvatar: loadedAICustom,
-            userLocked: locked
+            userSelectedAt: selectedAt
         )
     }
 
@@ -180,23 +224,33 @@ final class AgentProfileStore {
 
     /// 记下最新解析到的服务器身份名（AppState 每次
     /// 解析/重解析/刷新成功后调用）：既是后续写入覆
-    /// 盖的对账基准，也供对账裁决取现行名
-    func noteSoulName(_ name: String) {
+    /// 盖的对账基准，也供对账裁决取现行名。updatedAt
+    /// 是桥报的服务器写入时刻（取不到传 nil，本次不
+    /// 更新已存时刻——旧时刻总比编一个强）
+    func noteSoulName(_ name: String, updatedAt: Date? = nil) {
+        if let updatedAt, updatedAt != lastKnownSoulUpdatedAt {
+            lastKnownSoulUpdatedAt = updatedAt
+            UserDefaults.standard.set(
+                updatedAt.timeIntervalSince1970,
+                forKey: Keys.lastKnownSoulUpdatedAt
+            )
+        }
         guard lastKnownSoulName != name else { return }
         lastKnownSoulName = name
         UserDefaults.standard.set(name, forKey: Keys.lastKnownSoulName)
     }
 
-    /// 覆盖对账（身份反映修复）：服务器身份名每次确
-    /// 认后调用——裁决说清就真清（覆盖与来源一并
-    /// 删），各露脸面随档案修订号自然跟上现行名。
-    /// 回 true＝本次清掉了一个覆盖
+    /// 覆盖对账（末写胜）：服务器身份名每次确认后调
+    /// 用——裁决（Core AgentNameLWW）说清就真清（覆
+    /// 盖与来源一并删），各露脸面随档案修订号自然跟
+    /// 上现行名。回 true＝本次清掉了一个覆盖
     @discardableResult
     func reconcileNameOverride(currentSoulName: String) -> Bool {
-        guard AgentNameReconciliation.shouldClearOverride(
+        guard AgentNameLWW.shouldClearOverride(
             override: profile.displayNameOverride,
             provenance: nameOverrideProvenance,
-            soulName: currentSoulName
+            soulName: currentSoulName,
+            soulUpdatedAt: lastKnownSoulUpdatedAt
         ) else { return false }
         profile.displayNameOverride = nil
         nameOverrideProvenance = nil
@@ -208,13 +262,14 @@ final class AgentProfileStore {
     }
 
     /// 选预置形象：目录外 id 经 Core 收敛到缺省款。
-    /// 手动选择即上锁（P1）：此后 AI 档不再压过它
+    /// 选择即落时刻账（末写胜）：这次选择与 AI 档按
+    /// 写入时间竞争，不再有「手动即永久锁」一说
     func selectPreset(id: String) {
         let preset = AgentAvatarPreset.resolve(id: id)
         profile.avatar = .preset(id: preset.id)
         UserDefaults.standard.set(preset.id, forKey: Keys.avatarPresetID)
         UserDefaults.standard.set(false, forKey: Keys.usesCustomAvatar)
-        lockUserAvatar()
+        stampAvatarSelection()
         refreshAvatar()
         revision += 1
     }
@@ -234,25 +289,34 @@ final class AgentProfileStore {
         customAvatar = prepared
         profile.avatar = .custom
         UserDefaults.standard.set(true, forKey: Keys.usesCustomAvatar)
-        lockUserAvatar()
+        stampAvatarSelection()
         refreshAvatar()
         revision += 1
         return true
     }
 
-    private func lockUserAvatar() {
-        userAvatarLocked = true
-        UserDefaults.standard.set(true, forKey: Keys.userAvatarLocked)
+    /// 用户选择落时刻账：末写胜的用户侧凭据（取代
+    /// §203 的 lockUserAvatar 上锁——锁已退役）
+    private func stampAvatarSelection() {
+        let now = Date()
+        avatarSelectedAt = now
+        UserDefaults.standard.set(
+            now.timeIntervalSince1970, forKey: Keys.avatarSelectedAt
+        )
     }
 
     // MARK: - AI 档（头像仓同步，P1）
 
-    /// 仓当前条目是预置引用：只记 id，图由本机目录解析
-    func applyAIAvatarPreset(id: String, itemID: String) {
+    /// 仓当前条目是预置引用：只记 id 与写入时刻，图
+    /// 由本机目录解析
+    func applyAIAvatarPreset(id: String, itemID: String, updatedAt: Date) {
         let resolved = AgentAvatarPreset.resolve(id: id)
-        aiAvatar = .preset(id: resolved.id)
+        aiAvatar = .preset(id: resolved.id, updatedAt: updatedAt)
         UserDefaults.standard.set(itemID, forKey: Keys.aiAvatarItemID)
         UserDefaults.standard.set(resolved.id, forKey: Keys.aiAvatarPresetID)
+        UserDefaults.standard.set(
+            updatedAt.timeIntervalSince1970, forKey: Keys.aiAvatarUpdatedAt
+        )
         refreshAvatar()
         revision += 1
     }
@@ -261,7 +325,9 @@ final class AgentProfileStore {
     /// （裁方/512/JPEG），落 avatar-ai.jpg 与用户图分
     /// 文件；失败回 false、AI 档保持原样
     @discardableResult
-    func applyAIAvatarImage(data: Data, itemID: String) -> Bool {
+    func applyAIAvatarImage(
+        data: Data, itemID: String, updatedAt: Date
+    ) -> Bool {
         guard let prepared = Self.preparedCustomAvatar(from: data),
               let jpeg = prepared.jpegData(compressionQuality: 0.85)
         else { return false }
@@ -271,12 +337,31 @@ final class AgentProfileStore {
             return false
         }
         aiCustomAvatar = prepared
-        aiAvatar = .image(itemID: itemID)
+        aiAvatar = .image(itemID: itemID, updatedAt: updatedAt)
         UserDefaults.standard.set(itemID, forKey: Keys.aiAvatarItemID)
         UserDefaults.standard.removeObject(forKey: Keys.aiAvatarPresetID)
+        UserDefaults.standard.set(
+            updatedAt.timeIntervalSince1970, forKey: Keys.aiAvatarUpdatedAt
+        )
         refreshAvatar()
         revision += 1
         return true
+    }
+
+    /// 同一条目被再次设为当前（仓侧 select 重设指
+    /// 针）：字节与 id 都没变、只有写入时刻变——只刷
+    /// 槽位时刻，不重下载、不重制备。条目对不上直接
+    /// 忽略（同步层下一拍会走全量应用路）
+    func refreshAIAvatarTimestamp(itemID: String, updatedAt: Date) {
+        guard case .image(let id, let at) = aiAvatar,
+              id == itemID, at != updatedAt
+        else { return }
+        aiAvatar = .image(itemID: itemID, updatedAt: updatedAt)
+        UserDefaults.standard.set(
+            updatedAt.timeIntervalSince1970, forKey: Keys.aiAvatarUpdatedAt
+        )
+        refreshAvatar()
+        revision += 1
     }
 
     /// 仓里没有当前头像（从未设过）：AI 档清槽，呈现
@@ -288,6 +373,7 @@ final class AgentProfileStore {
         aiCustomAvatar = nil
         UserDefaults.standard.removeObject(forKey: Keys.aiAvatarItemID)
         UserDefaults.standard.removeObject(forKey: Keys.aiAvatarPresetID)
+        UserDefaults.standard.removeObject(forKey: Keys.aiAvatarUpdatedAt)
         refreshAvatar()
         revision += 1
     }
@@ -296,27 +382,29 @@ final class AgentProfileStore {
         avatarUIImage = Self.resolveAvatar(
             profile: profile, customAvatar: customAvatar,
             aiAvatar: aiAvatar, aiCustomAvatar: aiCustomAvatar,
-            userLocked: userAvatarLocked
+            userSelectedAt: avatarSelectedAt
         )
     }
 
     // MARK: - 头像解析
 
-    /// 解析顺序（P1 裁决在 Core AgentAvatarChoice）：
-    /// 用户锁 → 用户选择；未锁 → AI 档；AI 图胜出且本
-    /// 机图在 → AI 图；任一图缺失回落缺省预置，不空白
+    /// 解析顺序（末写胜裁决在 Core AgentAvatarChoice）：
+    /// AI 档与用户选择比写入时刻，后写者胜；AI 图胜
+    /// 出且本机图在 → AI 图；任一图缺失回落缺省预置，
+    /// 不空白
     private static func resolveAvatar(
         profile: AgentProfile, customAvatar: UIImage?,
         aiAvatar: AgentAIAvatar?, aiCustomAvatar: UIImage?,
-        userLocked: Bool
+        userSelectedAt: Date?
     ) -> UIImage {
         if AgentAvatarChoice.aiImageWins(
-            userLocked: userLocked, ai: aiAvatar
+            ai: aiAvatar, userSelectedAt: userSelectedAt
         ), let aiCustomAvatar {
             return aiCustomAvatar
         }
         let choice = AgentAvatarChoice.resolve(
-            userLocked: userLocked, ai: aiAvatar, user: profile.avatar
+            ai: aiAvatar, user: profile.avatar,
+            userSelectedAt: userSelectedAt
         )
         switch choice {
         case .custom:

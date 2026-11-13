@@ -7,11 +7,12 @@ import Foundation
 /// 「在这台手机上怎么称呼、用什么头像显示它」）。
 ///
 /// 口径：
-/// - 显示名是**覆盖值**：设了就赢过 soul 解析名，没
-///   设（nil）就跟随既有解析链（AppState.identity-
-///   Name → AgentName.fallback），不把服务端名抄一份
-///   存本地（服务端改名后本地没设过覆盖的用户应自动
-///   跟上）。
+/// - 显示名是**带时刻的候选值**：覆盖与 soul 解析名
+///   各带写入时刻，呈现取较晚写下的一方（末写胜，
+///   2026-11-13 用户拍板，§203「按修改者分权重」口
+///   径作废；裁决在 AgentNameLWW）；没设覆盖（nil）
+///   就跟随既有解析链（AppState.identityName →
+///   AgentName.fallback），不把服务端名抄一份存本地。
 /// - 头像是**选择值**：预置形象（资产图/符号盘）或
 ///   相册自定义图（二值只记「自定义」标记，图数据本
 ///   体在 App 层文件，不进本模型）。
@@ -99,43 +100,69 @@ public struct AgentAvatarPreset: Equatable, Sendable, Identifiable {
 /// 头像，在本机只是一份投影——仓是真源、本机存上次同步
 /// 值。预置引用按目录 id；图片记仓内条目 id（字节本体在
 /// App 层 avatar-ai.jpg，与用户自定义图分文件不相扰）。
+/// 每档同带 updatedAt：仓当前指针最后一次被设定的时刻
+/// （服务器收到写入的时刻），是末写胜裁决的唯一凭据。
 public enum AgentAIAvatar: Equatable, Sendable {
-    case preset(id: String)
-    case image(itemID: String)
+    case preset(id: String, updatedAt: Date)
+    case image(itemID: String, updatedAt: Date)
+
+    /// 本档写入时刻（服务器侧收到写入的时刻）
+    public var updatedAt: Date {
+        switch self {
+        case .preset(_, let at), .image(_, let at): return at
+        }
+    }
 }
 
-/// 头像呈现裁决（P1 口径，用户拍板「用户手动选过的优
-/// 先」）：用户在本机手动选过头像后，AI 换头像永远压不
-/// 过它；用户没手动选过时，AI 档赢过档案选择值（缺省/
-/// 存量）；AI 档为空（仓未同步、仓里没设当前头像）回落
-/// 用户选择。仓不可达不参与裁决——AI 档保持上次同步值，
-/// 呈现不因断网变化、更不空白。裁决只管选择值；.custom
-/// 胜出时图本体是用户图还是 AI 图由 aiImageWins 分。
+/// 头像呈现裁决（末写胜，2026-11-13 用户拍板，覆盖
+/// §203「用户手动选过则锁压 AI」旧口径）：AI 档与用
+/// 户选择各带写入时刻，**后写者胜**，不问写者是用户
+/// 还是 AI；来源只作留痕、不参与裁决。细则：
+/// - AI 档为空（仓未同步、仓里没设当前头像）→ 用户
+///   选择胜（仓不可达同理：AI 档保持上次同步值，呈
+///   现不因断网变化、更不空白）。
+/// - 用户从未留下带时刻的选择（userSelectedAt 为
+///   nil，即从未碰过编辑器、档案是缺省值）→ AI 档
+///   胜：缺省值没有「写入」可言，不许挡住真写入。
+/// - 两边时刻同刻 → 服务器（AI 档）胜：服务器是多
+///   端共享真源，同刻取它保各端一致。
+/// 裁决只管选择值；.custom 胜出时图本体是用户图还是
+/// AI 图由 aiImageWins 分。
 public enum AgentAvatarChoice {
+    /// AI 档是否胜出（末写胜总闸，resolve/aiImageWins
+    /// 同源，不许两处各判一套）
+    public static func aiWins(
+        ai: AgentAIAvatar?, userSelectedAt: Date?
+    ) -> Bool {
+        guard let ai else { return false }
+        guard let userSelectedAt else { return true }
+        return ai.updatedAt >= userSelectedAt
+    }
+
     public static func resolve(
-        userLocked: Bool,
         ai: AgentAIAvatar?,
-        user: AgentAvatarSelection
+        user: AgentAvatarSelection,
+        userSelectedAt: Date?
     ) -> AgentAvatarSelection {
-        guard !userLocked, let ai else { return user }
+        guard aiWins(ai: ai, userSelectedAt: userSelectedAt),
+              let ai
+        else { return user }
         switch ai {
-        case .preset(let id):
+        case .preset(let id, _):
             return .preset(id: AgentAvatarPreset.resolve(id: id).id)
         case .image:
             return .custom
         }
     }
 
-    /// AI 图是否胜出：未锁且 AI 档是图片时，呈现的
-    /// 「自定义图」本体取 AI 图文件而非用户图文件
+    /// AI 图是否胜出：AI 档是图片且末写胜总闸判 AI
+    /// 胜时，呈现的「自定义图」本体取 AI 图文件而非
+    /// 用户图文件
     public static func aiImageWins(
-        userLocked: Bool, ai: AgentAIAvatar?
+        ai: AgentAIAvatar?, userSelectedAt: Date?
     ) -> Bool {
-        guard !userLocked, let ai else { return false }
-        switch ai {
-        case .image: return true
-        case .preset: return false
-        }
+        guard let ai, case .image = ai else { return false }
+        return aiWins(ai: ai, userSelectedAt: userSelectedAt)
     }
 }
 
@@ -185,28 +212,35 @@ public struct AgentNameOverrideProvenance: Codable, Equatable, Sendable {
     }
 }
 
-/// 覆盖存续裁决（身份反映修复）：本机覆盖与服务器改
-/// 名冲突时，以**最后一次改名动作**为准——
-/// - 覆盖与服务器现行名相同：无冲突，不动。
-/// - 覆盖没有来源记录（存量裸文本），或来源里记的
-///   服务器名缺失：无从证明这是用户对着现行身份设
-///   的定名，不得压住服务器现行名 → 清除、跟随服务
-///   器（该清的清；用户随时可在编辑器里对现行名重
-///   设，届时有来源、受保护）。
-/// - 覆盖写入时所对的服务器名 ≠ 现行名：写入之后
-///   服务器被改过名（多半是用户在对话里令 AI 改
-///   的，即用户最新意图）→ 旧覆盖退场、跟随新名。
-/// - 覆盖写入时所对的服务器名 ＝ 现行名：用户在现
-///   行身份之下亲手设的定名，服务器未再改名 →
-///   继续压（手动定名优先的口径不变）。
-public enum AgentNameReconciliation {
+/// 覆盖存续裁决（末写胜，2026-11-13 用户拍板，覆
+/// 盖身份反映修复的旧裁决）：本机覆盖与服务器名各带
+/// 写入时刻，后写者胜，不按写者身份分权重——
+/// - 覆盖为空，或与服务器现行名相同：无冲突，不清。
+/// - 两边时刻都已知（覆盖看来源记录的 writtenAt，
+///   服务器看桥报的 updatedAt＝服务器收到写入的时
+///   刻）：纯比时间——覆盖更晚则留，服务器更晚或同
+///   刻则清（同刻取服务器，多端同源）。
+/// - 覆盖没有来源记录（存量裸文本）：没有任何时刻
+///   可凭，不得压住服务器现行名 → 清除、跟随服务
+///   器（用户随时可在编辑器里对现行名重设，届时有
+///   时刻、进末写胜）。
+/// - 服务器时刻未知（桥不可达/旧桥无时间账）：退回
+///   来源对账近似——写入时所对的服务器名 ≠ 现行名
+///   即证明写入之后服务器写过 → 清；来源里服务器名
+///   缺失同清。此路只是时刻缺失时的近似，时刻齐备
+///   时不许走。
+public enum AgentNameLWW {
     public static func shouldClearOverride(
         override: String?,
         provenance: AgentNameOverrideProvenance?,
-        soulName: String
+        soulName: String,
+        soulUpdatedAt: Date?
     ) -> Bool {
         guard let override, !override.isEmpty else { return false }
         if override == soulName { return false }
+        if let soulUpdatedAt, let provenance {
+            return provenance.writtenAt <= soulUpdatedAt
+        }
         guard let provenance,
               let atWrite = provenance.soulNameAtWrite
         else { return true }

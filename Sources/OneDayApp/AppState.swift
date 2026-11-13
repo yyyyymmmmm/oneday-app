@@ -386,13 +386,32 @@ final class AppState {
         return AgentName.resolve(soulContent: document.content)
     }
 
-    /// 服务器名确认后的统一收尾：记对账基准＋跑覆盖
-    /// 对账（裁决在 Core AgentNameReconciliation）；
-    /// 身份反映修复前这里只有赋值一步——服务器改名
-    /// 与本机残留覆盖谁也不让谁，用户看到的是旧名
-    private func noteIdentityNameResolved(_ name: String) {
-        agentProfileStore.noteSoulName(name)
+    /// 服务器名确认后的统一收尾：记对账基准（含桥报
+    /// 的服务器写入时刻）＋跑覆盖对账（末写胜裁决在
+    /// Core AgentNameLWW）；身份反映修复前这里只有赋
+    /// 值一步——服务器改名与本机残留覆盖谁也不让谁，
+    /// 用户看到的是旧名
+    private func noteIdentityNameResolved(
+        _ name: String, soulUpdatedAt: Date? = nil
+    ) {
+        agentProfileStore.noteSoulName(name, updatedAt: soulUpdatedAt)
         agentProfileStore.reconcileNameOverride(currentSoulName: name)
+    }
+
+    /// 桥侧名字写入时刻（末写胜的服务器侧凭据）：只
+    /// 在桥报的名与刚解析出的名一致时才采信——两边
+    /// 解析的不是同一个名时，时刻描述的不是这个值，
+    /// 宁可不用（裁决退回来源对账近似）。桥不可达/
+    /// 旧桥无账回 nil
+    private func fetchBridgeSoulUpdatedAt(
+        matching name: String
+    ) async -> Date? {
+        guard let config else { return nil }
+        let state = try? await IdentityBridgeClient().nameState(
+            config: config
+        )
+        guard let state, state.soulName == name else { return nil }
+        return state.updatedAtDate
     }
 
     /// 解析身份名（幂等：只真正拉取一次；失败也记已解
@@ -402,7 +421,8 @@ final class AppState {
         identityNameResolved = true
         guard let name = await fetchResolvedIdentityName() else { return }
         identityName = name
-        noteIdentityNameResolved(name)
+        let soulAt = await fetchBridgeSoulUpdatedAt(matching: name)
+        noteIdentityNameResolved(name, soulUpdatedAt: soulAt)
     }
 
     /// 上次刷新尝试时刻（身份反映修复）：回前台/连接
@@ -422,7 +442,8 @@ final class AppState {
         guard let name = await fetchResolvedIdentityName() else { return }
         identityNameResolved = true
         identityName = name
-        noteIdentityNameResolved(name)
+        let soulAt = await fetchBridgeSoulUpdatedAt(matching: name)
+        noteIdentityNameResolved(name, soulUpdatedAt: soulAt)
     }
 
     /// soul 编辑保存后的身份名重解析（§155 HUB-1）：内
@@ -436,7 +457,10 @@ final class AppState {
         identityName = AgentName.resolve(soulContent: soulContent)
         identityNameResolved = true
         if let name = identityName {
-            noteIdentityNameResolved(name)
+            // 本机刚经 soul 编辑器把名写上服务器：这
+            // 次写入的服务器收到时刻就是当下（末写胜
+            // 凭据按本地观察落账，与桥侧账同值域）
+            noteIdentityNameResolved(name, soulUpdatedAt: Date())
         }
     }
 
@@ -454,16 +478,36 @@ final class AppState {
     /// 与缓存口径在 Core CompanionProbe 一件
     let companionProbe = CompanionProbeStore()
 
+    /// 上次头像仓同步尝试时刻（呈现跟随节流）：开枢
+    /// 纽/开抽屉也成了触发点后防高频打仓，30 秒内不
+    /// 重打（与身份名刷新同口径）
+    private var lastAvatarSyncAt: Date?
+
     /// 头像仓同步（P1 身份包）：触发点与伴生探测同拍
-    /// （OneDayApp 的连接成立/回前台/冷启恢复），把
+    /// （OneDayApp 的连接成立/回前台/冷启恢复），另加
+    /// 开枢纽/开抽屉（经 refreshIdentitySurfaces）——
+    /// 2026-11-13 事故里 App 全程在前台聊天、三触发
+    /// 点一个都没响，AI 换完头像 8 分钟没人重拉。把
     /// identity 桥头像仓当前头像投影进档案 AI 档槽
     /// 位；演示模式不连真仓；失败静默保现状，口径在
     /// AgentAvatarSync
     func syncAgentAvatarFromBridge() async {
         guard let config, !isDemo else { return }
+        if let last = lastAvatarSyncAt,
+           Date().timeIntervalSince(last) < 30 { return }
+        lastAvatarSyncAt = Date()
         await AgentAvatarSync.run(
             config: config, store: agentProfileStore
         )
+    }
+
+    /// 露脸面呈现跟随总口：用户正要看身份的面打开时
+    /// （枢纽/抽屉）重拉名字与头像——服务器刚被改过
+    /// 就当场跟上，不等下一次回前台/冷启。两路各自
+    /// 带 30 秒节流，高频开合不打爆服务端
+    func refreshIdentitySurfaces() async {
+        await refreshIdentityName()
+        await syncAgentAvatarFromBridge()
     }
 
     /// 露脸面显示名单一出口：档案覆盖 → soul 解析名

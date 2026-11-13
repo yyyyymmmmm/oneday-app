@@ -1,73 +1,133 @@
 import XCTest
 @testable import OneDayCore
 
-/// 头像呈现裁决（P1 身份包）：用户手动选过的优先、
-/// AI 只动 AI 档、仓不可达不参与裁决（AI 档为空回
-/// 落）——纯逻辑全在此，存储层与同步层只许消费。
+/// 头像呈现裁决（末写胜，2026-11-13 用户拍板）：AI
+/// 档与用户选择各带写入时刻、后写者胜，不按写者身
+/// 分分权重（§203「用户手动选过则锁压 AI」已作废）
+/// ——纯逻辑全在此，存储层与同步层只许消费。
 final class AgentAvatarChoiceTests: XCTestCase {
 
-    // MARK: - 用户锁：AI 永远压不过手动选择
+    private let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    private var t1: Date { t0.addingTimeInterval(3600) }
+    private var t2: Date { t0.addingTimeInterval(7200) }
 
-    func testLockedUserPresetBeatsAIPreset() {
+    // MARK: - AI 后写：覆盖先写的用户选择（事故主案）
+
+    /// 2026-11-13 事故复刻：用户早先选过 paw，AI 其
+    /// 后在服务器换上自生成图——末写胜下必须显 AI 图
+    func testAILaterWriteBeatsEarlierUserSelection() {
         XCTAssertEqual(
             AgentAvatarChoice.resolve(
-                userLocked: true,
-                ai: .preset(id: "paw"),
-                user: .preset(id: "sparkles")
-            ),
-            .preset(id: "sparkles")
-        )
-    }
-
-    func testLockedUserCustomBeatsAIImage() {
-        XCTAssertEqual(
-            AgentAvatarChoice.resolve(
-                userLocked: true,
-                ai: .image(itemID: "av_1"),
-                user: .custom
-            ),
-            .custom
-        )
-        XCTAssertFalse(
-            AgentAvatarChoice.aiImageWins(
-                userLocked: true, ai: .image(itemID: "av_1")
-            )
-        )
-    }
-
-    // MARK: - 未锁：AI 档赢过档案选择值
-
-    func testUnlockedAIPresetWins() {
-        XCTAssertEqual(
-            AgentAvatarChoice.resolve(
-                userLocked: false,
-                ai: .preset(id: "paw"),
-                user: .default
-            ),
-            .preset(id: "paw")
-        )
-    }
-
-    func testUnlockedAIImageWinsAsCustom() {
-        XCTAssertEqual(
-            AgentAvatarChoice.resolve(
-                userLocked: false,
-                ai: .image(itemID: "av_9"),
-                user: .preset(id: "atom")
+                ai: .image(itemID: "av_new", updatedAt: t2),
+                user: .preset(id: "paw"),
+                userSelectedAt: t1
             ),
             .custom
         )
         XCTAssertTrue(
             AgentAvatarChoice.aiImageWins(
-                userLocked: false, ai: .image(itemID: "av_9")
+                ai: .image(itemID: "av_new", updatedAt: t2),
+                userSelectedAt: t1
             )
         )
     }
 
-    func testAIPresetWinsButImageDoesNot() {
+    func testAILaterPresetBeatsEarlierUserSelection() {
+        XCTAssertEqual(
+            AgentAvatarChoice.resolve(
+                ai: .preset(id: "sparkles", updatedAt: t2),
+                user: .preset(id: "paw"),
+                userSelectedAt: t1
+            ),
+            .preset(id: "sparkles")
+        )
+    }
+
+    // MARK: - 用户后写：覆盖先写的 AI 档
+
+    func testUserLaterSelectionBeatsEarlierAIImage() {
+        XCTAssertEqual(
+            AgentAvatarChoice.resolve(
+                ai: .image(itemID: "av_old", updatedAt: t0),
+                user: .preset(id: "atom"),
+                userSelectedAt: t1
+            ),
+            .preset(id: "atom")
+        )
         XCTAssertFalse(
             AgentAvatarChoice.aiImageWins(
-                userLocked: false, ai: .preset(id: "paw")
+                ai: .image(itemID: "av_old", updatedAt: t0),
+                userSelectedAt: t1
+            )
+        )
+    }
+
+    func testUserLaterCustomBeatsEarlierAIPreset() {
+        XCTAssertEqual(
+            AgentAvatarChoice.resolve(
+                ai: .preset(id: "paw", updatedAt: t0),
+                user: .custom,
+                userSelectedAt: t1
+            ),
+            .custom
+        )
+        XCTAssertFalse(
+            AgentAvatarChoice.aiImageWins(
+                ai: .preset(id: "paw", updatedAt: t0),
+                userSelectedAt: t1
+            )
+        )
+    }
+
+    // MARK: - 旧时间戳写入不得覆盖新值
+
+    /// AI 档是旧时刻的同步残值（例如重选前的投影）：
+    /// 哪怕内容更新，也不得压过时刻更晚的用户选择
+    func testStaleAITimestampNeverBeatsNewerUserSelection() {
+        XCTAssertEqual(
+            AgentAvatarChoice.resolve(
+                ai: .image(itemID: "av_stale", updatedAt: t0),
+                user: .preset(id: "sparkles"),
+                userSelectedAt: t2
+            ),
+            .preset(id: "sparkles")
+        )
+        XCTAssertFalse(
+            AgentAvatarChoice.aiWins(
+                ai: .preset(id: "paw", updatedAt: t0),
+                userSelectedAt: t2
+            )
+        )
+    }
+
+    // MARK: - 用户从未选择（无时刻）：AI 档胜
+
+    /// 缺省档案没有「写入时刻」可言，不许挡住 AI 的
+    /// 真实写入（未碰过编辑器的用户自动跟随仓）
+    func testAIWinsWhenUserNeverSelected() {
+        XCTAssertEqual(
+            AgentAvatarChoice.resolve(
+                ai: .preset(id: "paw", updatedAt: t0),
+                user: .default,
+                userSelectedAt: nil
+            ),
+            .preset(id: "paw")
+        )
+        XCTAssertTrue(
+            AgentAvatarChoice.aiImageWins(
+                ai: .image(itemID: "av_9", updatedAt: t0),
+                userSelectedAt: nil
+            )
+        )
+    }
+
+    // MARK: - 同刻：取服务器（多端同源）
+
+    func testTieGoesToServer() {
+        XCTAssertTrue(
+            AgentAvatarChoice.aiWins(
+                ai: .image(itemID: "av_tie", updatedAt: t1),
+                userSelectedAt: t1
             )
         )
     }
@@ -77,18 +137,18 @@ final class AgentAvatarChoiceTests: XCTestCase {
     func testNoAIFallsBackToUserSelection() {
         XCTAssertEqual(
             AgentAvatarChoice.resolve(
-                userLocked: false, ai: nil, user: .custom
+                ai: nil, user: .custom, userSelectedAt: t1
             ),
             .custom
         )
         XCTAssertEqual(
             AgentAvatarChoice.resolve(
-                userLocked: true, ai: nil, user: .default
+                ai: nil, user: .default, userSelectedAt: nil
             ),
             .preset(id: AgentAvatarPreset.defaultID)
         )
         XCTAssertFalse(
-            AgentAvatarChoice.aiImageWins(userLocked: false, ai: nil)
+            AgentAvatarChoice.aiImageWins(ai: nil, userSelectedAt: t1)
         )
     }
 
@@ -97,9 +157,9 @@ final class AgentAvatarChoiceTests: XCTestCase {
     func testUnknownAIPresetIDResolvesToDefault() {
         XCTAssertEqual(
             AgentAvatarChoice.resolve(
-                userLocked: false,
-                ai: .preset(id: "no-such-preset"),
-                user: .preset(id: "atom")
+                ai: .preset(id: "no-such-preset", updatedAt: t1),
+                user: .preset(id: "atom"),
+                userSelectedAt: t0
             ),
             .preset(id: AgentAvatarPreset.defaultID)
         )
