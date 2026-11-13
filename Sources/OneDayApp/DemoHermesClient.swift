@@ -63,7 +63,14 @@ struct DemoHermesClient: HermesClientProtocol {
 
     /// 演示回执（§153）：与生产定型同构——一行网关
     /// custom（含默认 flash 与别名 chat 供别名收一演
-    /// 示）、is_current 落网关行
+    /// 示）、is_current 落网关行。
+    /// 2026-11-13（枢纽溢出 rig 补盲）：目录灌到生产
+    /// 量级 61 条——原三条打头、顺序与语义不变（默
+    /// 认 flash／别名 chat／v4-pro 探针行都在原位），
+    /// 其后补 58 条常见网关 id 凑足生产规模；装配测
+    /// 试（TopBarSingleActionTapTests 枢纽回归）靠这
+    /// 个量级复现「目录撑爆枢纽」的生产条件，3 条的
+    /// 小目录永远测不出溢出
     func modelOptionsRaw(config: ServerConfig) async throws -> JSONValue {
         .object([
             "model": .string("deepseek-flash"),
@@ -76,6 +83,64 @@ struct DemoHermesClient: HermesClientProtocol {
                         .string("deepseek-flash"),
                         .string("deepseek-v4-pro"),
                         .string("deepseek-chat"),
+                        .string("claude-sonnet-4-6"),
+                        .string("claude-sonnet-4-5"),
+                        .string("claude-opus-4-5"),
+                        .string("claude-opus-5-5"),
+                        .string("claude-haiku-4-5-20251001"),
+                        .string("claude-haiku-3-5"),
+                        .string("claude-sonnet-3-7"),
+                        .string("claude-opus-4-1"),
+                        .string("claude-fable-5"),
+                        .string("claude-mythos-5"),
+                        .string("gpt-5.6"),
+                        .string("gpt-5.6-sol"),
+                        .string("gpt-5.6-terra"),
+                        .string("gpt-5.6-luna"),
+                        .string("gpt-5.5"),
+                        .string("gpt-5.4"),
+                        .string("gpt-5.4-mini"),
+                        .string("gpt-5.3"),
+                        .string("gpt-5.2"),
+                        .string("gpt-5.1"),
+                        .string("gpt-5"),
+                        .string("gpt-4.1"),
+                        .string("gemini-3.6-flash-high"),
+                        .string("gemini-3.6-flash"),
+                        .string("gemini-3.5-pro"),
+                        .string("gemini-3.5-flash"),
+                        .string("gemini-3.1-pro"),
+                        .string("gemini-3.0-flash"),
+                        .string("gemini-2.5-pro"),
+                        .string("gemini-2.5-flash"),
+                        .string("gemini-2.5-flash-lite"),
+                        .string("gemini-2.0-flash"),
+                        .string("llama-4-maverick"),
+                        .string("llama-4-scout"),
+                        .string("llama-3.3-70b"),
+                        .string("qwen-3-max"),
+                        .string("qwen-3-plus"),
+                        .string("qwen-3-turbo"),
+                        .string("qwen-2.5-72b"),
+                        .string("kimi-k2"),
+                        .string("glm-4.6"),
+                        .string("glm-4.5"),
+                        .string("mistral-large-3"),
+                        .string("mistral-medium-3"),
+                        .string("mistral-small-3"),
+                        .string("command-r-plus"),
+                        .string("command-r"),
+                        .string("sonar-pro"),
+                        .string("sonar"),
+                        .string("grok-4.5"),
+                        .string("grok-4.3"),
+                        .string("grok-4.2"),
+                        .string("grok-4.1"),
+                        .string("phi-4"),
+                        .string("nemotron-70b"),
+                        .string("wizardlm-2"),
+                        .string("mixtral-8x22b"),
+                        .string("dbrx-instruct"),
                     ]),
                 ]),
             ]),

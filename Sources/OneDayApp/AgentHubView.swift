@@ -89,6 +89,9 @@ struct AgentHubView: View {
     /// 头像/名称编辑面（0.36.22 档案菜单两项）
     @State private var showAvatarEditor = false
     @State private var showNameEditor = false
+    /// 枢纽模型选择面（2026-11-13 单行入口点开，与
+    /// 顶栏胶囊同面同落账）
+    @State private var showHubModelPicker = false
     /// 分享名片（0.36.22）：名片图离屏渲染产物，随档
     /// 案修订/页头名/域名变化重算；未就绪时分享钮回
     /// 落纯文本名片
@@ -176,6 +179,9 @@ struct AgentHubView: View {
                 initialOverride: appState.agentProfileStore
                     .profile.displayNameOverride
             )
+        }
+        .sheet(isPresented: $showHubModelPicker) {
+            hubModelPickerSheet
         }
         .task(id: shareRenderKey) {
             shareItem = AgentShareItem.make(
@@ -398,28 +404,6 @@ struct AgentHubView: View {
         }
     }
 
-    /// 模型行无障碍标签拼装（A11Y-V5）：选中行多
-    /// 念一截「已选」，与可见勾形同义
-    private static func modelRowA11yLabel(
-        _ choice: ChatModelChoice, isSelected: Bool
-    ) -> String {
-        let name = ModelDisplayNames.displayName(for: choice.model)
-            ?? choice.model
-        var parts = [name]
-        if let label = choice.sourceLabel {
-            parts.append(L10n.string(label))
-        }
-        if isSelected { parts.append(L10n.string("已选")) }
-        return parts.joined(separator: "，")
-    }
-
-    /// 枢纽模型区呈现集（§153）：全量分组清单拍平
-    /// （组序即行序），与顶栏同源同物；分组未就绪时
-    /// 为空（区内只剩默认行，不拿写死清单冒充）
-    private var hubModelChoices: [ChatModelChoice] {
-        appState.chatModelGroups.flatMap(\.choices)
-    }
-
     /// 枢纽的会话键（§153）：枢纽自聊天页打开、语境
     /// 是主线——用主线键读写，与顶栏在主线时同账
     private var hubCurrentChoice: ChatModelChoice {
@@ -429,16 +413,20 @@ struct AgentHubView: View {
         )
     }
 
-    /// 模型行无障碍特征（A11Y-V5）：选中行带
-    /// isSelected，未选行为空集
-    private static func modelRowA11yTraits(
-        _ isSelected: Bool
-    ) -> AccessibilityTraits {
-        isSelected ? .isSelected : AccessibilityTraits()
-    }
-
     // MARK: - 模型常驻区（规格 §2：不做第六段）
 
+    /// 模型区形态（2026-11-13 改口径，用户 Muse 枢纽
+    /// 页截图定调）：目录不再平铺进枢纽——旧形态以普
+    /// 通 VStack＋ForEach 摊全量目录（行下限 56pt、
+    /// 生产 61 条时模型区约 3,533pt），根列不滚动、
+    /// 页头与关闭钮在真机上不可达（真机判红定案，
+    /// 见 oneday-design-review/hub-tap-misfire-
+    /// hunt-self-20261113）。现形态＝单行入口：只显当前会话模
+    /// 型名＋chevron，点开走正牌 ChatModelPickerView
+    /// 快切（与胶囊同面、同一落账口径）；目录本体只
+    /// 活在胶囊选择面与设置页。原「服务端默认模型」
+    /// 行随平铺形态一并退场——分工小字已指设置页，
+    /// ModelSettingsView 自设置页照常可达。
     private func modelZone(_ store: AgentHubStore) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
@@ -451,83 +439,28 @@ struct AgentHubView: View {
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
             VStack(spacing: 0) {
-                ForEach(
-                    Array(hubModelChoices.enumerated()),
-                    id: \.element.id
-                ) { index, choice in
-                    if index > 0 {
-                        GroupDivider()
-                    }
-                    Button {
-                        appState.selectSessionModel(
-                            choice,
-                            serverSessionID: appState
-                                .sideChats.mainServerSessionID,
-                            threadID: nil
-                        )
-                    } label: {
-                        HStack(spacing: OneDayMetrics.spacingSM) {
-                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                                Text(ModelDisplayNames.displayName(
-                                    for: choice.model
-                                ) ?? choice.model)
-                                    .font(.body)
-                                    .foregroundStyle(Palette.ink)
-                                if let label = choice.sourceLabel {
-                                    Text(L10n.string(label))
-                                        .font(.caption)
-                                        .foregroundStyle(Palette.inkSecondary)
-                                }
-                            }
-                            Spacer()
-                            if hubCurrentChoice == choice {
-                                Image(systemName: "checkmark")
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(Palette.primary)
-                            }
-                        }
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .frame(minHeight: OneDayMetrics.rowHeight)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.odPressable)
-                    // 0.43.0（A11Y-V5）：当前模型只有勾
-                    // 形——补「已选」播报（名＋来源＋已选）
-                    // ＋特征，与房内先例同式。拼装走助
-                    // 手函数：内联三元＋连加曾把本区表
-                    // 达式压过类型检查时限（CI 实证）
-                    .accessibilityLabel(
-                        Self.modelRowA11yLabel(
-                            choice, isSelected: hubCurrentChoice == choice
-                        )
-                    )
-                    .accessibilityAddTraits(
-                        Self.modelRowA11yTraits(
-                            hubCurrentChoice == choice
-                        )
-                    )
-                }
-                GroupDivider()
-                NavigationLink {
-                    ModelSettingsView()
+                Button {
+                    showHubModelPicker = true
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
-                        Text("服务端默认模型")
+                        Text(currentModelDisplayName)
                             .font(.body)
                             .foregroundStyle(Palette.ink)
-                        Spacer()
-                        Text(serverDefaultText)
-                            .font(.body)
-                            .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(1)
+                        Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Palette.inkMuted)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
                     .frame(minHeight: OneDayMetrics.rowHeight)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.odPressable)
+                .accessibilityLabel(
+                    "会话模型：\(currentModelDisplayName)"
+                )
+                .accessibilityHint("打开模型选择")
             }
             .odGroup()
             .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -535,11 +468,34 @@ struct AgentHubView: View {
         .padding(.bottom, OneDayMetrics.spacingSM)
     }
 
-    /// 服务端默认模型参考值：未就绪时显「读取中」，不拿
-    /// 会话模型冒充服务端默认（数据设计 §1.3）
-    private var serverDefaultText: String {
-        guard let model = appState.defaultModel else { return "读取中" }
-        return ModelDisplayNames.displayName(for: model) ?? model
+    /// 入口行显名：与旧目录行同口径（展示名优先、
+    /// 回落原始 id）
+    private var currentModelDisplayName: String {
+        ModelDisplayNames.displayName(for: hubCurrentChoice.model)
+            ?? hubCurrentChoice.model
+    }
+
+    /// 枢纽模型选择面：与顶栏胶囊同面（ChatModel-
+    /// PickerView 本体一字不改）——分组走呈现口径
+    /// （pickerModelGroups，本机隐藏组不现身，与胶
+    /// 囊面一致）；选中落账与旧目录行同路（select-
+    /// SessionModel 写主线会话键、点行即落账关面）；
+    /// 隐藏组动作不给（onHideGroup=nil，该面注明的
+    /// 枢纽只读复用口径）
+    private var hubModelPickerSheet: some View {
+        ChatModelPickerView(
+            groups: appState.pickerModelGroups,
+            current: hubCurrentChoice,
+            onSelect: { choice in
+                appState.selectSessionModel(
+                    choice,
+                    serverSessionID: appState
+                        .sideChats.mainServerSessionID,
+                    threadID: nil
+                )
+                showHubModelPicker = false
+            }
+        )
     }
 
     // MARK: - 五段分段控件（用户定案①：原生 segmented 先行）
