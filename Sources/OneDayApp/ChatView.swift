@@ -1276,10 +1276,14 @@ struct ChatView: View {
     /// Button／ModelCapsuleView 两件）：本处只作适
     /// 配——值与动作仍由本页单源派生，呈现宿主
     /// （枢纽 cover／模型面 sheet）留在本页根
-    /// （§175），一件不多。两元素间距 spacingS
-    /// （8pt）为命中域间隔下限，不许压小
+    /// （§175），一件不多。两元素之间是一条 8pt
+    /// 显式隔断（透明命中盾：吃掉间隙点、不触发
+    /// 任何动作）——间隔由此按构造恒为死区，不靠
+    /// 两侧命中域自觉收边（胶囊玻璃命中外扩的实
+    /// 测教训见 ModelCapsuleView 文件头）；隔断宽
+    /// ＝spacingS，不许压小
     private var topBarCenterCluster: some View {
-        HStack(alignment: .center, spacing: OneDayMetrics.spacingS) {
+        HStack(alignment: .center, spacing: 0) {
             HubAvatarButton(
                 avatar: appState.agentAvatarImage,
                 displayName: appState.agentDisplayName,
@@ -1288,6 +1292,12 @@ struct ChatView: View {
                 avatarPointSize: avatarTier.capsulePointSize,
                 onOpenHub: { showHub = true }
             )
+            Color.clear
+                .frame(
+                    width: OneDayMetrics.spacingS,
+                    height: OneDayMetrics.minTapTarget
+                )
+                .contentShape(Rectangle())
             ModelCapsuleView(
                 modelTriggerLabel: ModelDisplayNames.triggerLabel(
                     for: currentChoice.model

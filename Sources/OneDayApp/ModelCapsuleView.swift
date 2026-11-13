@@ -20,13 +20,20 @@ import SwiftUI
 /// 线经用户 2026-11-13 拍板 B。
 ///
 /// 玻璃口径（单钮常规形态）：玻璃只作本钮自身
-/// 的视觉层——.glassEffect(.regular, in: Capsule())
-/// 非交互式挂标签本体，与同排汉堡/铃铛圆钮同式；
+/// 的视觉层，且**只挂背景层**——标签本体不带玻
+/// 璃，命中链里没有玻璃面：.glassEffect(.regular,
+/// in: Capsule()) 加在与标签同帧的背景形状上。
 /// 不用 union、不用 .interactive()、不叠第二层
 /// 玻璃。按压反馈走 .odPressable（同排圆钮同款）。
 /// contentShape 与可见玻璃同形（Capsule），命中
 /// 域即按钮帧本形——社区「画形＝交互形」永久实
-/// 践。
+/// 践。背景化缘由（动作门实测，run 43369981760）：
+/// 玻璃挂标签本体时其命中域比钮帧外扩约 4pt——
+/// 与头像钮间隔正中（距胶囊缘 4pt）的点也升了
+/// 模型面（10/11 点全对、独间隙点违规；无玻璃的
+/// 头像钮侧无外溢，对照成立）。玻璃退到背景层
+/// 后命中只剩按钮本体帧，间隙再由顶簇侧的显式
+/// 隔断兜底（见 ChatView topBarCenterCluster）。
 ///
 /// 尺寸口径：padding（水平 spacingSM 12／垂直
 /// 7）在标签内、玻璃覆盖整段标签含 padding 环
@@ -58,8 +65,11 @@ struct ModelCapsuleView: View {
             }
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .padding(.vertical, 7)
-            .glassEffect(.regular, in: Capsule())
             .contentShape(Capsule())
+            .background {
+                Color.clear
+                    .glassEffect(.regular, in: Capsule())
+            }
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel(modelAccessibilityLabel)

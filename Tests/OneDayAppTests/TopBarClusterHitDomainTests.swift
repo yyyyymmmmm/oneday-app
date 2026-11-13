@@ -250,6 +250,17 @@ final class TopBarClusterHitDomainTests: XCTestCase {
                 "玻璃高不得小于胶囊帧−2（变窄回归）："
                     + "玻璃 \(fmt(glass))／胶囊 \(fmt(capsule))"
             )
+            XCTAssertLessThanOrEqual(
+                glass.width, capsule.width + 3,
+                "玻璃宽不得大于胶囊帧+3（命中外扩回归，"
+                    + "动作门 run 43369981760 实测间隙点被升面）："
+                    + "玻璃 \(fmt(glass))／胶囊 \(fmt(capsule))"
+            )
+            XCTAssertLessThanOrEqual(
+                glass.height, capsule.height + 3,
+                "玻璃高不得大于胶囊帧+3（命中外扩回归）："
+                    + "玻璃 \(fmt(glass))／胶囊 \(fmt(capsule))"
+            )
         }
         for glass in glasses {
             let hitsAvatar = glass.intersection(avatar).area > 4

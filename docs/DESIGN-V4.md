@@ -11134,9 +11134,9 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 **退役整套**：`IdentityCapsuleView` 双动作形态（GlassEffectContainer＋两钮各自 `.glassEffect(.regular.interactive())`＋`.glassEffectUnion` 同 id 融域、ViewThatFits 双档）整文件删除；ChatView 接线 `identityCapsule` 换 `topBarCenterCluster`。两面呈现本体（枢纽 fullScreenCover／模型 sheet 与 `showHub`/`showModelPicker` 状态）一字未动，TopBarGuideHost 锚定逻辑（§195）与栏位冻结数值（pocket y=62 等）、§194 键盘机制均未动——宿主只因顶簇内容变化自动记账实高。
 
 ### 198.2 新形态
-- **模型胶囊 `ModelCapsuleView`**：整颗只有一个 Button、只开模型选择（onOpenModelPicker 现接线不动）。内容＝当前模型名（唯一可压缩元素、尾部截断，§182 纪律沿用）＋chevron.down。玻璃为单钮常规形态：非交互 `.glassEffect(.regular, in: Capsule())` 挂标签本体（与同排汉堡/铃铛圆钮同式），不用 union、不用 `.interactive()`；按压走 `.odPressable`；contentShape 与可见玻璃同形（Capsule）。尺寸按单动作自然宽度：padding（水平 spacingSM 12／垂直 7）在标签内、玻璃覆盖整段标签含 padding 环——153 整行背板口径，「玻璃面比行帧小一圈」不许再现。无障碍标签沿用「当前模型 X，切换模型」，标识 `topbar.modelCapsule`。
+- **模型胶囊 `ModelCapsuleView`**：整颗只有一个 Button、只开模型选择（onOpenModelPicker 现接线不动）。内容＝当前模型名（唯一可压缩元素、尾部截断，§182 纪律沿用）＋chevron.down。玻璃为单钮常规形态：非交互 `.glassEffect(.regular, in: Capsule())` 只挂标签的**背景层**（与标签同帧的 Color.clear 背景上），命中链里没有玻璃面；不用 union、不用 `.interactive()`；按压走 `.odPressable`；contentShape 与可见玻璃同形（Capsule）。（背景化缘由见 198.4 补记：玻璃挂标签本体时命中域外扩约 4pt。）尺寸按单动作自然宽度：padding（水平 spacingSM 12／垂直 7）在标签内、玻璃覆盖整段标签含 padding 环——153 整行背板口径，「玻璃面比行帧小一圈」不许再现。无障碍标签沿用「当前模型 X，切换模型」，标识 `topbar.modelCapsule`。
 - **枢纽头像钮 `HubAvatarButton`**：顶簇内独立圆形按钮——头像本体（边长走形象档 avatarPointSize、与旧胶囊同源）＋右下在线状态点（衬页面色环），命中域外扩 minTapTarget 44 圆盘（与同排圆钮「视觉盘居中、命中 44」同式）、contentShape(Circle())；点它开枢纽（onOpenHub 现接线不动）。无障碍标签自旧胶囊身份域逐字承接（「名，状态，打开枢纽」），标识 `topbar.hubAvatarButton`。名字/状态词自此退出顶栏视觉（状态只剩色点＋无障碍词），状态词派生口径（OverviewStatusLine）不变。
-- **排布**：顶簇中央组＝HStack〔头像钮，模型胶囊〕、spacing＝spacingS 8pt——两元素是分开的两个元素、命中域间隔 ≥8pt、不相邻融接。横向账：44（头像命中盘）＋8＋胶囊自然宽（短名约 130–160、长名截断封顶），加两侧圆钮 44×2 与页边距，402 宽下有余量，未挤冻结几何。
+- **排布**：顶簇中央组＝HStack〔头像钮，8pt 显式隔断，模型胶囊〕——两元素是分开的两个元素、命中域间隔 ≥8pt、不相邻融接；间隔不是留白而是一条透明命中盾（Color.clear＋contentShape，吃点不触发），间隙按构造恒为死区。横向账：44（头像命中盘）＋8＋胶囊自然宽（短名约 130–160、长名截断封顶），加两侧圆钮 44×2 与页边距，402 宽下有余量，未挤冻结几何。
 
 ### 198.3 删测账（被测形态退役，逐项登记）
 以下 6 个文件绑死已退役的双动作融域形态／实验台装配，随本包一并删除；新形态的命中与派发验证由 198.4 两组新测重建承接，覆盖面不低于旧组（旧组的结构门＋动作门两分工保留、装配改生产同构）：
