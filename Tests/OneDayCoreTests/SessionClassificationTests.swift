@@ -353,13 +353,72 @@ final class SessionClassificationTests: XCTestCase {
     // MARK: - R6 平台源
 
     func testR6PlatformSourcesGoToOwnChannel() {
-        for platform in ["whatsapp", "telegram", "feishu", "wechat"] {
+        for platform in ["whatsapp", "telegram", "feishu", "weixin"] {
             XCTAssertEqual(
                 classify(session(id: "ext-\(platform)", source: platform)),
                 .channel(platform),
                 "source=\(platform) 应归其外部频道"
             )
         }
+    }
+
+    // 2026-11-13 对账（规格 §2.3）：旧名 wechat/qq 是
+    // 别名，频道 id 恒归一为网关实值 weixin/qqbot——
+    // 不许再穿透落 Hermes 频道
+    func testR6LegacyAliasesCanonicalizeToGatewayNames() {
+        XCTAssertEqual(
+            classify(session(id: "ext-wx", source: "wechat")),
+            .channel("weixin"))
+        XCTAssertEqual(
+            classify(session(id: "ext-qq", source: "qq")),
+            .channel("qqbot"))
+        XCTAssertEqual(
+            classify(session(id: "ext-qqbot", source: "qqbot")),
+            .channel("qqbot"))
+        let keyForm = session(
+            id: "ext-wx-key", source: nil,
+            sessionKey: "agent:main:weixin:dm:888")
+        XCTAssertEqual(classify(keyForm), .channel("weixin"))
+    }
+
+    // 补齐的平台（规格 §2.3 缺项表）逐个钉住归频道
+    func testR6NewlyCoveredPlatformsGoToOwnChannel() {
+        for platform in [
+            "whatsapp_cloud", "email", "mattermost", "wecom_callback",
+            "bluebubbles", "yuanbao", "line", "teams", "google_chat",
+            "photon", "simplex", "dingtalk", "wecom", "discord",
+            "slack", "signal", "matrix", "sms",
+        ] {
+            XCTAssertEqual(
+                classify(session(id: "ext-\(platform)", source: platform)),
+                .channel(platform),
+                "source=\(platform) 应归其外部频道"
+            )
+        }
+    }
+
+    // 注册表：抽屉恒显清单与图标登记（一期三条；
+    // 平台图标只许官方原图登记过的两家有值）
+    func testChannelRegistryDrawerListAndIcons() {
+        XCTAssertEqual(
+            ChannelRegistry.drawerList.map(\.id),
+            ["hermes", "telegram", "weixin"])
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "telegram")?.iconAssetName,
+            "ChannelTelegram")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "weixin")?.iconAssetName,
+            "ChannelWeixin")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "weixin")?.name, "微信")
+        XCTAssertNil(
+            ChannelRegistry.descriptor(for: "feishu")?.iconAssetName)
+        XCTAssertEqual(
+            ChannelRegistry.pairingKind(for: "telegram"), .token)
+        XCTAssertEqual(
+            ChannelRegistry.pairingKind(for: "weixin"), .frozen)
+        XCTAssertEqual(
+            ChannelRegistry.pairingKind(for: "hermes"), .none)
     }
 
     // session_key 回落：source 缺失时平台段同值判

@@ -88,8 +88,10 @@ struct DrawerContainer<Content: View>: UIViewControllerRepresentable {
     /// 语义开合（ContentView 以 appState.drawer-
     /// Presented 喂入；本桥据此与容器对账）
     var presented: Bool
-    /// 抽屉频道行透传（0.36.29 沿用）
-    var onOpenChannel: () -> Void
+    /// 抽屉频道行透传（0.36.29 沿用；2026-11-13 频
+    /// 道一期起带频道 id——平台频道与 Hermes 频道
+    /// 目的地不同，宿主按 id 分发）
+    var onOpenChannel: (String) -> Void
     @ViewBuilder var content: () -> Content
 
     func makeUIViewController(
@@ -132,7 +134,7 @@ struct DrawerContainer<Content: View>: UIViewControllerRepresentable {
                     currentTab: selection,
                     onSelectTab: { selection = $0 },
                     onClose: { controller.setDrawer(false, animated: true) },
-                    onOpenChannel: { _ in onOpenChannel() }
+                    onOpenChannel: onOpenChannel
                 )
                 .environment(appState)
                 .environment(\.modelContext, modelContext)

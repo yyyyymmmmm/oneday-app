@@ -126,7 +126,7 @@ final class TabBarFloatTests: XCTestCase {
                 DrawerContainer(
                     selection: $selection,
                     presented: appState.drawerPresented,
-                    onOpenChannel: {}
+                    onOpenChannel: { _ in }
                 ) {
                     TabStandIn(box: box)
                 }
@@ -135,7 +135,7 @@ final class TabBarFloatTests: XCTestCase {
                 DrawerContainer(
                     selection: $selection,
                     presented: appState.drawerPresented,
-                    onOpenChannel: {}
+                    onOpenChannel: { _ in }
                 ) {
                     TabStandIn(box: box)
                 }

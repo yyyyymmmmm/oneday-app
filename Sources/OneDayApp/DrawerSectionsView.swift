@@ -8,7 +8,8 @@ import SwiftUI
 /// SectionVisibilityState，落盘键
 /// SectionVisibilityStorageKeys.drawerSections），
 /// 抽屉渲染＝显隐账 ∧ 内容闸（合成在 Core
-/// DrawerSectionGates：频道区无成员仍不显）。本面
+/// DrawerSectionGates：2026-11-13 频道一期起频道
+/// 区改恒显清单、无成员内容闸，只认本账）。本面
 /// 只管整区在不在，不管折叠——折叠是另一本账、另
 /// 一件事，两账不合并（规格新面四问②）；入口＝设
 /// 置页「侧边栏」行（目录条目 sidebar），抽屉内不

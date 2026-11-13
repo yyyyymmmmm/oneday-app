@@ -95,12 +95,12 @@ final class SectionCollapseTests: XCTestCase {
         XCTAssertEqual(SectionVisibilityState.decode(nil), [:])
     }
 
-    // MARK: - 三区渲染合成（§198：显隐账 ∧ 内容闸；
-    // 管理收口包补件起自四区收三区，管理行退役）
+    // MARK: - 三区渲染合成（§198 显隐账；频道内容闸
+    // 于 2026-11-13 频道扩展一期退役——清单恒显；
+    // 管理行随管理收口包补件退役、合成自四区收三区）
 
     func testDrawerSectionGatesDefaultAllPresent() {
-        let gates = DrawerSectionGates.resolve(
-            visibility: [:], hermesChannelCount: 25)
+        let gates = DrawerSectionGates.resolve(visibility: [:])
         XCTAssertEqual(
             gates,
             DrawerSectionGates(
@@ -108,21 +108,19 @@ final class SectionCollapseTests: XCTestCase {
                 sideChats: true))
     }
 
-    func testDrawerSectionGatesChannelNeedsMembers() {
-        // 内容闸：账里显示也须有成员（全量计数为 0 时
-        // 整区不显——题一旧窗口口径的恒 0 即此形态）
-        let gates = DrawerSectionGates.resolve(
-            visibility: [:], hermesChannelCount: 0)
-        XCTAssertFalse(gates.channels)
+    func testDrawerSectionGatesChannelsAlwaysListed() {
+        // 恒显口径：频道区不再有成员内容闸——账面显
+        // 示即在场（未配对行/冻结行靠它才有地方站）
+        let gates = DrawerSectionGates.resolve(visibility: [:])
+        XCTAssertTrue(gates.channels)
         XCTAssertTrue(gates.navigation)
         XCTAssertTrue(gates.sideChats)
     }
 
-    func testDrawerSectionGatesVisibilityBeatsContent() {
-        // 显隐账优先：账里隐藏频道，成员再多也不显
+    func testDrawerSectionGatesChannelsHiddenByLedgerOnly() {
+        // 整区退场只剩一条路：用户在分区管理里隐藏
         let gates = DrawerSectionGates.resolve(
-            visibility: [DrawerSectionKey.channels: false],
-            hermesChannelCount: 25)
+            visibility: [DrawerSectionKey.channels: false])
         XCTAssertFalse(gates.channels)
     }
 
@@ -134,14 +132,12 @@ final class SectionCollapseTests: XCTestCase {
             visibility: [
                 DrawerSectionKey.navigation: false,
                 DrawerSectionKey.sideChats: false,
-            ],
-            hermesChannelCount: 3)
+            ])
         XCTAssertFalse(gates.navigation)
         XCTAssertFalse(gates.sideChats)
         XCTAssertTrue(gates.channels)
         let channelsOff = DrawerSectionGates.resolve(
-            visibility: [DrawerSectionKey.channels: false],
-            hermesChannelCount: 3)
+            visibility: [DrawerSectionKey.channels: false])
         XCTAssertFalse(channelsOff.channels)
         XCTAssertTrue(channelsOff.navigation)
         XCTAssertTrue(channelsOff.sideChats)
