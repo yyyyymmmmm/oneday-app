@@ -43,7 +43,10 @@ enum SystemBackdrop {
     static let style: UIBlurEffect.Style =
         .systemChromeMaterial
 
-    /// 三处底衬共用的唯一材质定义
+    /// 三处底衬共用的唯一材质定义（UIBlurEffect 的
+    /// 初始化在 iOS 26 SDK 是主 actor 隔离的，故本
+    /// 属性同标 @MainActor、按访现取）
+    @MainActor
     static var effect: UIBlurEffect {
         UIBlurEffect(style: style)
     }
