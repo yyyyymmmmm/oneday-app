@@ -59,6 +59,16 @@ def find_binary(name):
         "/Library/Developer/CoreSimulator/Volumes/*/usr/lib/" + name,
         "/Library/Developer/CoreSimulator/Volumes/*/usr/lib/swift/" + name,
     ]
+    vol = "/Volumes"
+    pats += [
+        vol + "/*/System/Library/Frameworks/" + name + ".framework/"
+        + name,
+        vol + "/*/System/Library/PrivateFrameworks/" + name
+        + ".framework/" + name,
+        vol + "/*/*/" + name + ".framework/" + name,
+        vol + "/*/usr/lib/" + name,
+        vol + "/*/usr/lib/swift/" + name,
+    ]
     for sdk in sdk_roots():
         pats += [
             sdk + "/System/Library/Frameworks/" + name + ".framework/"
@@ -74,6 +84,20 @@ def find_binary(name):
             if os.path.isfile(cand) and cand not in seen:
                 seen.add(cand)
                 out.append(cand)
+    if not out:
+        try:
+            r = subprocess.run(
+                ["find", "/Library/Developer/CoreSimulator",
+                 "-maxdepth", "8", "-name", name + ".framework"],
+                capture_output=True, text=True, timeout=90,
+            )
+            for line in r.stdout.splitlines():
+                cand = os.path.join(line.strip(), name)
+                if os.path.isfile(cand) and cand not in seen:
+                    seen.add(cand)
+                    out.append(cand)
+        except Exception:
+            pass
     return out
 
 
@@ -105,6 +129,7 @@ def atos(binary, base, offsets):
 
 
 def main():
+    print("sdk_roots: %s" % sdk_roots())
     for path in sys.argv[1:]:
         print("##### IPS: %s" % path)
         try:

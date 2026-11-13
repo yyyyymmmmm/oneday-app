@@ -115,9 +115,35 @@ jobs:
             \( -name "*OneDay*" -o -name "*Jetsam*" -o -name "*testmanagerd*" -o -name "*xctest*" \) \
             2>/dev/null | while read -r f; do cp "$f" crash-artifacts/ 2>/dev/null; done
           ls -la crash-artifacts/ || true
+          # 运行时框架定位诊断（.ips 中 path 被脱敏，
+          # atos 找二进制屡空——把候选根全摊开记档）
+          {
+            echo "--- runtime locate diagnostics ---"
+            xcrun --sdk iphonesimulator --show-sdk-path || true
+            ls /Volumes 2>/dev/null || true
+            mount | grep -iE "cryptex|simulator" | head -10 || true
+            xcrun simctl list runtimes 2>/dev/null | head -20 || true
+            find /Volumes -maxdepth 5 -name "SwiftData.framework" \
+              2>/dev/null | head -5 || true
+            ls "$(xcrun --sdk iphonesimulator --show-sdk-path)/System/Library/Frameworks" \
+              2>/dev/null | grep -i swift | head -10 || true
+          } | tee crash-artifacts/runtime-diag.txt || true
           if ls crash-artifacts/*.ips >/dev/null 2>&1; then
             python3 .github/scripts/symbolicate_ips.py crash-artifacts/*.ips \
               | tee crash-artifacts/symbolication.txt || true
+            # 备援：lldb crashlog 脚本符号化（带超时与
+            # 断 stdin 防交互挂死）
+            CL=$(find "$(xcode-select -p)" -name "crashlog.py" \
+              2>/dev/null | head -1)
+            if [ -n "$CL" ]; then
+              for ips in crash-artifacts/*.ips; do
+                echo "===== lldb crashlog: $ips (script: $CL)"
+                timeout 180 xcrun lldb -b \
+                  -o "command script import $CL" \
+                  -o "crashlog $ips" </dev/null 2>&1 \
+                  | tee crash-artifacts/lldb-crashlog.txt || true
+              done
+            fi
           fi
           true
 
