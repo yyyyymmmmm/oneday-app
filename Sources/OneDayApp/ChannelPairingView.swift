@@ -27,6 +27,12 @@ struct ChannelEntryView: View {
                     onOpenSession: onOpenSession,
                     onClose: onClose
                 )
+            } else if Self.usesTokenBatchPairing(channel.id) {
+                TokenChannelPairingView(
+                    channel: channel, store: store,
+                    onShowList: { showList = true },
+                    onClose: onClose
+                )
             } else {
                 ChannelPairingView(
                     channel: channel, store: store,
@@ -36,6 +42,20 @@ struct ChannelEntryView: View {
             }
         }
         .task { await store.load(appState: appState) }
+    }
+
+    /// 二期令牌四家走通用引导页（字段逐家不同，不
+    /// 进 Telegram 打样页的硬编码面）；Telegram 与
+    /// 冻结行仍走一期页
+    private static func usesTokenBatchPairing(
+        _ channelID: String
+    ) -> Bool {
+        switch channelID {
+        case "dingtalk", "qqbot", "discord", "slack":
+            return true
+        default:
+            return false
+        }
     }
 }
 

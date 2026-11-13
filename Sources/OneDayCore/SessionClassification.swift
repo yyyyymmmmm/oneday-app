@@ -110,13 +110,21 @@ public enum SessionSources {
     /// 资产才登记；没有合格原图的平台回 nil，呈现层
     /// 不许拿仿绘/字母块顶替）。一期登记两家：
     /// Telegram／微信，均为官方 App 图标原图（来源
-    /// 见 channels-phase1-build-report-20261113）
+    /// 见 channels-phase1-build-report-20261113）；
+    /// 二期令牌四家续登：钉钉/QQ/Discord/Slack，
+    /// 同为 iTunes 官方 App 本体 artworkUrl512 原图
+    /// （512² PNG，来源与 md5 见 channels-token-
+    /// batch-report-20261113 §2）
     public static func platformIconAssetName(
         _ source: String
     ) -> String? {
         switch source {
         case "telegram": return "ChannelTelegram"
         case "weixin", "wechat": return "ChannelWeixin"
+        case "dingtalk": return "ChannelDingtalk"
+        case "qqbot", "qq": return "ChannelQQ"
+        case "discord": return "ChannelDiscord"
+        case "slack": return "ChannelSlack"
         default: return nil
         }
     }
@@ -245,6 +253,43 @@ public enum ChannelRegistry {
         iconAssetName: SessionSources.platformIconAssetName("weixin")
     )
 
+    /// 钉钉（二期令牌批）：企业内部应用机器人，
+    /// Stream 长连接接入，填 Client ID／Client
+    /// Secret 配对；图标为官方 App 原图
+    public static let dingtalk = ChannelDescriptor(
+        id: "dingtalk",
+        name: "钉钉",
+        pageSubtitle: "在钉钉里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("dingtalk")
+    )
+
+    /// QQ 机器人（二期令牌批）：QQ 机器人开放平
+    /// 台官方机器人，填 AppID／Client Secret 配对
+    public static let qqbot = ChannelDescriptor(
+        id: "qqbot",
+        name: "QQ",
+        pageSubtitle: "在 QQ 里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("qqbot")
+    )
+
+    /// Discord（二期令牌批）：开发者门户机器人，
+    /// 填 Bot 令牌配对
+    public static let discord = ChannelDescriptor(
+        id: "discord",
+        name: "Discord",
+        pageSubtitle: "在 Discord 里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("discord")
+    )
+
+    /// Slack（二期令牌批）：Socket Mode 双钥匙
+    /// （Bot Token＋App Token）配对
+    public static let slack = ChannelDescriptor(
+        id: "slack",
+        name: "Slack",
+        pageSubtitle: "在 Slack 里和你的智能体聊的对话",
+        iconAssetName: SessionSources.platformIconAssetName("slack")
+    )
+
     /// 一期注册表（显行判定与频道段行源）
     public static let phaseOne: [ChannelDescriptor] = [hermes]
 
@@ -252,9 +297,10 @@ public enum ChannelRegistry {
     /// 0.36.29「通一个显一个」：支持的都列、配好的
     /// 能用、没配的给路）。排序：Hermes（恒在首位、
     /// 本机频道）→ Telegram（已配对优先的动态排序
-    /// 在呈现层按状态微调）→ 微信冻结行置组末
+    /// 在呈现层按状态微调）→ 二期令牌四家（钉钉/
+    /// QQ/Discord/Slack）→ 微信冻结行置组末
     public static let drawerList: [ChannelDescriptor] = [
-        hermes, telegram, weixin,
+        hermes, telegram, dingtalk, qqbot, discord, slack, weixin,
     ]
 
     /// 平台的配对形态（呈现层据此决定行尾与目的地：
@@ -264,21 +310,26 @@ public enum ChannelRegistry {
         for channelID: String
     ) -> ChannelPairingKind {
         switch channelID {
-        case "telegram": return .token
+        case "telegram", "dingtalk", "qqbot", "discord", "slack":
+            return .token
         case "whatsapp": return .qr
         case "weixin": return .frozen
         default: return .none
         }
     }
 
-    /// 按频道 id 取描述：注册表三条恒有；其余平台按
-    /// 平台名派生（图标走平台资产登记，无登记为
-    /// nil）；非平台 id 为 nil
+    /// 按频道 id 取描述：注册表恒有条目优先；其余平
+    /// 台按平台名派生（图标走平台资产登记，无登记
+    /// 为 nil）；非平台 id 为 nil
     public static func descriptor(for channelID: String) -> ChannelDescriptor? {
         switch channelID {
         case hermesChannelID: return hermes
         case telegram.id: return telegram
         case weixin.id: return weixin
+        case dingtalk.id: return dingtalk
+        case qqbot.id: return qqbot
+        case discord.id: return discord
+        case slack.id: return slack
         default: break
         }
         if SessionSources.platforms.contains(channelID) {
