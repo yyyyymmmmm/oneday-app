@@ -226,18 +226,17 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
                     + " travel=\(Int($0.travel))"
             } ?? ""))
 
-        let pocket = findViews(window) { view in
-            String(describing: type(of: view))
-                .contains("ScrollPocketBarInteraction")
-                && frameInWindow(view).width > 400
-                && frameInWindow(view).minY < 100
-        }.first
+        // §195：pocket 落点换代（顶簇锚定宿主视图；
+        // elements 改数玻璃交互视图，口径同装配关一）
+        let pocket = findVC(
+            TopBarGuideHostController.self
+        )?.traceBarView
         var pocketElements = 0
         if let pocket {
             lines.append("pocket: \(fmt(frameInWindow(pocket)))")
             pocketElements = findViews(pocket) { view in
                 String(describing: type(of: view))
-                    .contains("ScrollPocketElementInteraction")
+                    .contains("UIPlatformGlassInteractionView")
                     && frameInWindow(view).width >= 20
                     && frameInWindow(view).height >= 20
             }.count
@@ -320,8 +319,8 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
             pocket, "[\(scenario)] 顶栏 pocket 缺席\n\(dump)"
         )
         XCTAssertGreaterThanOrEqual(
-            pocketElements, 3,
-            "[\(scenario)] 顶栏元素不足（胶囊/铃铛）\n\(dump)"
+            pocketElements, 2,
+            "[\(scenario)] 顶栏元素不足（两端玻璃钮）\n\(dump)"
         )
         XCTAssertNotNil(
             composer, "[\(scenario)] 输入舱宿主缺席\n\(dump)"
@@ -350,12 +349,9 @@ final class ChatPageDeviceConditionProbeTests: XCTestCase {
     private func measureBars() -> (
         pocket: CGRect?, bar: CGRect?
     ) {
-        let pocket = findViews(window) { view in
-            String(describing: type(of: view))
-                .contains("ScrollPocketBarInteraction")
-                && frameInWindow(view).width > 400
-                && frameInWindow(view).minY < 100
-        }.first.map { frameInWindow($0) }
+        let pocket = findVC(
+            TopBarGuideHostController.self
+        ).map { frameInWindow($0.traceBarView) }
         let bar = findViews(window) { view in
             String(describing: type(of: view))
                 .contains("UIPlatformGlassInteractionView")

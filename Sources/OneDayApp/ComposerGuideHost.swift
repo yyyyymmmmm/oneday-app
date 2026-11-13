@@ -153,6 +153,31 @@ import UIKit
 ///   定采样各一帧——真机验收看数字：舱底应＝
 ///   kbTopWin；系统 guide= 行同帧对账（预期仍停
 ///   静息值，即根因本人）。
+///
+/// ## §195 顶边同式收口（2026-11-13，153 急修；
+/// 证据：152 真机自述 bars-geometry-trace-device-
+/// 152-20261113）
+/// 152 的 [kbShow] 帧舱底＝kbTopWin 分毫不差、跟
+/// 随判绿；但 [kbShowSettled] 落定帧顶簇整体上移
+/// 49 撞状态栏：pocket 62→13、surface 同移、列表
+/// adjTop 122→73。常数链无错（kb 常量仍 483、舱
+/// 本人靠窗口坐标自纠、落点终值正确）——坏在顶边
+/// 没有这层保护：顶簇挂列表 .safeAreaBar(.top)、
+/// surface 顶边由 TabView 页面传播来的安全区决
+/// 定，而这份传播值在 `.toolbar(.hidden, for:
+/// .tabBar)` 藏坞落定后被重算偷走 49（top 与
+/// bottom 各 −49＝标签栏高，minimize 已写死
+/// .never、与之无关）。窗口本身的 UIKit 安全区
+/// 在自述每一帧恒 (62,0,34,0)——不变量在窗口、
+/// 不在传播链。修法（用户 10:42 口径：顶簇结构
+/// 性脱钩、不许只在 surface 顶边补常量）：顶簇
+/// 本体迁 TopBarGuideHost 锚定托管（落位只认窗
+/// 口、与本件无关）；本件只多担一条回报——窗口
+/// 顶安全区实测（onTopSafeChange，与 bottom-
+/// Space 同一条回报纪律：布局拍读窗口真值、变
+/// 化 >0.5 才外发），供 ChatView 在断顶缘传播后
+/// 以「此值＋顶簇实高」记账列表顶 contentMar-
+/// gins（留位记账、非落位）。
 struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
@@ -161,6 +186,11 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
     /// 舱顶→窗口底距离的实测回报（host 在布局拍回写；
     /// ChatView 以此＋spacingS 作列表底 contentMargins）
     @Binding var bottomSpace: CGFloat
+    /// §195：窗口顶安全区的实测回报（host 在布局拍
+    /// 回写 window.safeAreaInsets.top；ChatView 以
+    /// 此值＋顶簇实高记账列表顶 contentMargins，
+    /// 顶簇落位归 TopBarGuideHost，见文件头 §195）
+    @Binding var topSafe: CGFloat
     /// 舱本体（ChatView 的 bottomBar 整栈）：在 init 里
     /// 由构建闭包求值成视图值——求值发生在 ChatView 的
     /// body 构建期，bottomBar 内部的全部状态读数由此归
@@ -176,9 +206,11 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
 
     init(
         bottomSpace: Binding<CGFloat>,
+        topSafe: Binding<CGFloat>,
         @ViewBuilder content: () -> Content
     ) {
         self._bottomSpace = bottomSpace
+        self._topSafe = topSafe
         self.content = content()
     }
 
@@ -194,6 +226,16 @@ struct ComposerGuideHost<Content: View>: UIViewControllerRepresentable {
             DispatchQueue.main.async {
                 if abs(bottomSpace.wrappedValue - value) > 0.5 {
                     bottomSpace.wrappedValue = value
+                }
+            }
+        }
+        let topSafe = $topSafe
+        controller.onTopSafeChange = { value in
+            // §195：与 bottomSpace 同一条回报纪律（下
+            // 一拍写、>0.5 才发）
+            DispatchQueue.main.async {
+                if abs(topSafe.wrappedValue - value) > 0.5 {
+                    topSafe.wrappedValue = value
                 }
             }
         }
@@ -385,6 +427,8 @@ final class ComposerGuideHostController: UIViewController {
     /// 舱顶→窗口底距离变化回调（桥接回 SwiftUI 状态；
     /// 本类内先做等值守卫、变化 >0.5pt 才外发）
     var onBottomSpaceChange: ((CGFloat) -> Void)?
+    /// §195：窗口顶安全区变化回调（同上守卫口径）
+    var onTopSafeChange: ((CGFloat) -> Void)?
 
     private let composerHost = UIHostingController<AnyView>(
         rootView: AnyView(EmptyView())
@@ -423,6 +467,8 @@ final class ComposerGuideHostController: UIViewController {
     /// 回报与透传判定共用这一份事实
     private var barFrameInWindow: CGRect = .zero
     private var lastReportedSpace: CGFloat = -1
+    /// §195：窗口顶安全区上次回报值（等值守卫）
+    private var lastReportedTopSafe: CGFloat = -1
 
     /// §192 量测喂入：舱本体在托管树内的实尺寸
     func updateBarContentSize(_ size: CGSize) {
@@ -814,6 +860,24 @@ final class ComposerGuideHostController: UIViewController {
         }
         syncBottomConstant()
         reportBottomSpace()
+        reportTopSafe()
+    }
+
+    /// §195 窗口顶安全区实测回报：读本视图所在窗口
+    /// 的 safeAreaInsets.top（UIKit 窗口真值——152
+    /// 真机自述全帧恒 62，键盘/标签栏状态无关），变
+    /// 化 >0.5 才外发。ChatView 以此值记账列表顶
+    /// contentMargins（见文件头 §195）；窗口未就绪
+    /// （离窗瞬间）不发、保留上次值
+    private func reportTopSafe() {
+        guard let window = viewIfLoaded?.window
+        else { return }
+        let top = window.safeAreaInsets.top
+        guard top > 0,
+              abs(top - lastReportedTopSafe) > 0.5
+        else { return }
+        lastReportedTopSafe = top
+        onTopSafeChange?(top)
     }
 
     /// 舱顶实测回报：以桥喂入的窗口系舱帧为准，报

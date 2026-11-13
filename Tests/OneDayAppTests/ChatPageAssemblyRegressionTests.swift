@@ -110,14 +110,24 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         return found
     }
 
-    /// 顶栏 pocket 承载（safeAreaBar 的 UIKit 落点）
+    /// 顶簇锚定宿主控制器（§195 的 pocket 落点）
+    private func findTopBarHost() -> TopBarGuideHostController? {
+        var found: TopBarGuideHostController?
+        func walk(_ vc: UIViewController) {
+            if let hit = vc as? TopBarGuideHostController {
+                found = hit
+            }
+            for child in vc.children { walk(child) }
+        }
+        if let root = window.rootViewController { walk(root) }
+        return found
+    }
+
+    /// 顶栏 pocket 承载（§195 起为 TopBarGuideHost
+    /// 的顶簇宿主视图；此前是 safeAreaBar 的 UIKit
+    /// 落点 ScrollPocketBarInteraction，已退役）
     private func findTopPocketBar() -> UIView? {
-        findViews(window) { view in
-            String(describing: type(of: view))
-                .contains("ScrollPocketBarInteraction")
-                && frameInWindow(view).width > 400
-                && frameInWindow(view).minY < 100
-        }.first
+        findTopBarHost()?.traceBarView
     }
 
     /// 输入舱玻璃条（宿主子树内宽 >300 的玻璃交互视图）
@@ -164,21 +174,28 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         try assembleProductionPage()
 
         // ① 顶栏：pocket 承载在层级内、帧非零、内含
-        // 至少 3 个 pocket 元素（胶囊行＋两端玻璃钮）
+        // 两端玻璃钮的交互视图（胶囊背板玻璃按
+        // §179 不生成交互视图、不计数）；纵坐标恒
+        // 等于窗口顶安全区（§195 用户口径：任何帧
+        // 恒定、动 1pt 不算过——本测试窗覆写 59）
         let pocket = try XCTUnwrap(
-            findTopPocketBar(), "顶栏 safeAreaBar 承载缺席"
+            findTopPocketBar(), "顶栏锚定宿主缺席"
         )
         let pocketFrame = frameInWindow(pocket)
         XCTAssertGreaterThanOrEqual(pocketFrame.height, 40)
-        XCTAssertLessThanOrEqual(pocketFrame.minY, 62)
+        XCTAssertEqual(
+            pocketFrame.minY, window.safeAreaInsets.top,
+            accuracy: 1,
+            "顶簇纵坐标必须恒为窗口顶安全区：\(pocketFrame.minY)"
+        )
         let elements = findViews(pocket) { view in
             String(describing: type(of: view))
-                .contains("ScrollPocketElementInteraction")
+                .contains("UIPlatformGlassInteractionView")
                 && frameInWindow(view).width >= 20
                 && frameInWindow(view).height >= 20
         }
         XCTAssertGreaterThanOrEqual(
-            elements.count, 3, "顶栏元素不足：胶囊/铃铛未组装"
+            elements.count, 2, "顶栏元素不足：两端玻璃钮未组装"
         )
 
         // ① 输入舱：宿主在场、玻璃条帧非零、底边贴坞上方
@@ -379,23 +396,26 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         // 名称状态域；模型域在行右段）
         let pocket = try XCTUnwrap(findTopPocketBar())
         let pocketFrame = frameInWindow(pocket)
-        // 胶囊行＝pocket 元素里最宽的一个（两端玻璃
-        // 钮皆约 40pt 圆钮）；定位口径与组装关一的
-        // pocket 元素找法同源（类名＋帧）
-        let capsule = findViews(pocket) { view in
+        // §195：胶囊在 UIKit 层无独立落点视图（背板
+        // 玻璃按 §179 不生成交互视图）——身份域点
+        // 位改按几何推导：左玻璃钮（汉堡）右缘与顶
+        // 簇横中点的中点，必落在居中胶囊的左半
+        // （身份域）内
+        let discs = findViews(pocket) { view in
             String(describing: type(of: view))
-                .contains("ScrollPocketElementInteraction")
-                && frameInWindow(view).width >= 100
-        }.max { a, b in
-            frameInWindow(a).width < frameInWindow(b).width
+                .contains("UIPlatformGlassInteractionView")
+                && frameInWindow(view).width >= 20
+                && frameInWindow(view).height >= 20
+        }.sorted {
+            frameInWindow($0).minX < frameInWindow($1).minX
         }
-        let capsuleView = try XCTUnwrap(
-            capsule, "pocket 内未定位到胶囊行"
+        let leftDisc = try XCTUnwrap(
+            discs.first, "pocket 内未定位到左玻璃钮"
         )
-        let capsuleFrame = frameInWindow(capsuleView)
         let identityPoint = CGPoint(
-            x: capsuleFrame.minX + capsuleFrame.width * 0.25,
-            y: capsuleFrame.midY
+            x: (frameInWindow(leftDisc).maxX
+                + pocketFrame.midX) / 2,
+            y: pocketFrame.midY
         )
         let identityHit = window.hitTest(
             identityPoint, with: nil
@@ -417,6 +437,58 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
                     + "帧 \(hitFrame) pocket \(pocketFrame)"
             )
         }
+    }
+
+    // MARK: - 关六：传播安全区被偷位（§195）
+
+    /// §195 结构不变量（152 真机落定帧缺陷的同型模
+    /// 拟）：页面传播安全区被重算偷走 49（以根宿主
+    /// additionalSafeAreaInsets.top = −49 模拟藏坞
+    /// 落定那一拍）时，顶簇纵坐标与列表顶 inset 必
+    /// 须纹丝不动——顶簇只认窗口顶安全区、列表顶
+    /// 留位只认实测 contentMargins，两者都不经传
+    /// 播链。真机落定帧的最终判读仍以 153 自述
+    /// kbShowSettled 帧 pocket 恒 62 为准，本关锁
+    /// 的是「传播变化带不走顶簇」的结构事实
+    func testTopClusterImmuneToPropagatedSafeAreaTheft()
+        throws
+    {
+        try assembleProductionPage()
+        let pocket = try XCTUnwrap(
+            findTopPocketBar(), "顶栏锚定宿主缺席"
+        )
+        let scroll = try XCTUnwrap(
+            findChatScrollView(), "聊天消息列表缺席"
+        )
+        let baselinePocketY = frameInWindow(pocket).minY
+        let baselineAdjTop = scroll.adjustedContentInset.top
+        XCTAssertEqual(
+            baselinePocketY, window.safeAreaInsets.top,
+            accuracy: 1
+        )
+        // 模拟落定偷位：根宿主附加安全区顶 −49
+        let rootHost = try XCTUnwrap(
+            window.rootViewController, "根宿主缺席"
+        )
+        rootHost.additionalSafeAreaInsets.top = -49
+        window.layoutIfNeeded()
+        spinRunLoop(seconds: 1.0)
+        window.layoutIfNeeded()
+        XCTAssertEqual(
+            frameInWindow(pocket).minY, baselinePocketY,
+            accuracy: 1,
+            "传播安全区被偷 49 后顶簇纵坐标漂移："
+                + "\(frameInWindow(pocket).minY)"
+                + " vs \(baselinePocketY)"
+        )
+        XCTAssertEqual(
+            scroll.adjustedContentInset.top, baselineAdjTop,
+            accuracy: 1,
+            "传播安全区被偷 49 后列表顶 inset 漂移："
+                + "\(scroll.adjustedContentInset.top)"
+                + " vs \(baselineAdjTop)"
+        )
+        rootHost.additionalSafeAreaInsets.top = 0
     }
 
     /// 命中点是否落在指定视图的子树内（含本体）

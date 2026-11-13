@@ -280,6 +280,17 @@ struct ChatView: View {
     // 的同档近似：坞 83＋舱高约 77＋边距 8），host
     // 首个布局拍即以实测覆盖、不留陈值
     @State private var composerBottomSpace: CGFloat = 168
+    /// §195：窗口顶安全区实测（ComposerGuideHost 在
+    /// 布局拍回写；种子 62＝本机型不变量、首个布局
+    /// 拍即被实测覆盖，与 composerBottomSpace 的
+    /// 168 种子同纪律）——消息列表顶 contentMar-
+    /// gins 的唯一顶距来源（＋顶簇实高）。顶簇落位
+    /// 本身不读本值（由 TopBarGuideHost 在 UIKit
+    /// 侧直读窗口），本值只管列表留位记账
+    @State private var windowTopSafeInset: CGFloat = 62
+    /// §195：顶簇实高（TopBarGuideHost 回写；种子
+    /// 60＝顶栏单行高、进展胶囊出现/消失随实测跟进）
+    @State private var topBarHeight: CGFloat = 60
     @State private var videoItems: [PhotosPickerItem] = []
     @State private var showVideoPicker = false
     // 文件选择自 0.36.31 起走 UIKit 桥 Document-
@@ -664,7 +675,8 @@ struct ChatView: View {
                     }
                 .overlay {
                     ComposerGuideHost(
-                        bottomSpace: $composerBottomSpace
+                        bottomSpace: $composerBottomSpace,
+                        topSafe: $windowTopSafeInset
                     ) {
                         bottomBar(proxy)
                     }
@@ -682,6 +694,18 @@ struct ChatView: View {
                         BarsGeometryTrace.noteProbe(
                             "hostPlaced", frame
                         )
+                    }
+                }
+                // §195：顶簇同挂本复合面的 overlay 次
+                // 级层、由 TopBarGuideHost 以 UIKit 约
+                // 束锚定窗口顶（落位只认窗口顶安全区，
+                // 与本面/坞/键盘脱钩，详见该文件头）；
+                // 与输入舱同层同式、互不承载
+                .overlay {
+                    TopBarGuideHost(
+                        barHeight: $topBarHeight
+                    ) {
+                        topBarCluster
                     }
                 }
                 // §193 量测：复合面（列表＋overlay）落
@@ -745,6 +769,13 @@ struct ChatView: View {
         // .safeAreaBar(edge: .top) 注册为系统认可的自
         // 定义 bar（见 messageList）；overlay 层随之撤
         // 销。0.4.0 删 topFade 的前置至此才真正补完
+        // §195（2026-11-13）：顶栏注册再退役——顶簇
+        // 回到本容器的 overlay 层（见 chatSurface），
+        // 但不再是「未注册的覆盖层」：由 TopBar-
+        // GuideHost 以 UIKit 约束锚定托管，落位只认
+        // 窗口顶安全区；注册口径让位于落位不变量，
+        // 顶缘 .soft 改由列表顶 contentMargins 区
+        // 决定（见 messageList §195 注）
         .photosPicker(
             isPresented: $showPhotoPicker,
             selection: $photoItems,
@@ -1140,9 +1171,27 @@ struct ChatView: View {
         overviewStore?.badgeCount ?? 0
     }
 
+    /// 顶簇本体（§195 前为消息列表 .safeAreaBar
+    /// (edge: .top) 的注册内容，195 起迁 TopBar-
+    /// GuideHost 锚定托管、内容一字未动）：顶栏＋
+    /// 进展胶囊。顶簇实高由宿主量测回报（见
+    /// TopBarGuideHost），列表顶留位据此记账
+    private var topBarCluster: some View {
+        VStack(spacing: OneDayMetrics.rowInnerGap) {
+            headerBar
+            ProgressCapsuleView(
+                currentSessionID: currentThread?.serverSessionID,
+                onOpenSession: { sessionID in
+                    appState.pendingChatSessionID = sessionID
+                }
+            )
+        }
+    }
+
     /// 顶栏（0.3.8 第 30/31 条布局，0.4.0 A 案改；0.4.3
     /// 起注册为消息列表的 .safeAreaBar(edge: .top)、脱
-    /// 离悬浮覆盖，§28）：
+    /// 离悬浮覆盖，§28；§195 起注册退役、改由
+    /// TopBarGuideHost 锚定托管，见 topBarCluster）：
     /// 身份胶囊一颗装头像＋Hermes＋状态＋模型（§3.3，
     /// 小模型胶囊撤除），会话名退到胶囊下方次行居中呈
     /// 现；左右圆钮 0.23.0 起走系统玻璃（审计 T2，此前
@@ -1909,7 +1958,10 @@ struct ChatView: View {
             // Margins spacingS）。0.4.3 前顶栏是 overlay、
             // 容器高含其悬浮区、常数按 64 近似扣减；顶栏
             // 注册 safeAreaBar 后顶区由安全区自理、容器高
-            // 已不含它，64 常数退役。0.3.4 前栈帧只裹住
+            // 已不含它，64 常数退役。§195 后顶区改由顶
+            // contentMargins 让出、容器高口径不变
+            // （adjustedContentInset 通道同源、静止总量
+            // 122 不变）。0.3.4 前栈帧只裹住
             // 已有消息：消息不足一屏时下半屏空白、气泡两
             // 侧窄于栈宽的空白都落在栈外，点下去什么都不
             // 发生——「点空白不收键盘」的定因。内容超高
@@ -1951,62 +2003,25 @@ struct ChatView: View {
                 composerFocusHandle.dismiss()
             }
         }
-        // 滚动边距：顶部不再设 contentMargins——顶栏已
-        // 注册为本列表的 safeAreaBar、首屏位置由安全区
-        // 本体让出（0.4.2 前是 overlay 悬浮＋.content-
-        // Margins(.top, 88) 代偿，§28.1 原因一即出在此）；
-        // 底只留与发送舱的小间隙，发送区本体已由下方
-        // safeAreaBar 注册留位（0.4.3），不按悬浮层实测
-        // 高度给边距。
-        // 0.4.0（审计 §6.1／§1.1）：topFade 渐隐带已删
-        // （实色带干扰＋作用区错位），滚动边缘模糊走系
-        // 统 .scrollEdgeEffectStyle(.soft)；0.4.3 起两
-        // 缘的 bar 均已注册（顶 headerBar／底 bottom-
-        // Bar，同挂 safeAreaBar），效果作用区由 bar 高
-        // 度决定（WWDC25-219/323、Adopting Liquid
-        // Glass 的自定义 bar 注册口径）
-        .safeAreaBar(edge: .top) {
-            // 0.7.1（chrome 裁决全案）：顶缘 E11 渐进
-            // 模糊带整段拆除、例外 E11 注销——0.4.4 起
-            // 挂在此处的 background 溢出带（上探状态区
-            // 60pt、带长 176）经 0.6.1 真机量测坐实是
-            // 顶部两色接缝带的本体：对平色背景 backdrop
-            // 模糊输出恒等于材质 tint，静止时「朦胧」
-            // 不存在、只剩一块带硬边的灰片（245 vs 画
-            // 布 252，裁决档 §1.1）；且 WWDC25-323 明
-            // 文 bar 后自加背景层会干扰系统边缘效果。
-            // 顶栏自此不挂任何 background：静止态直接
-            // 坐在画布上同色无缝，滚动态由下方 .soft
-            // 在栏高内柔化（官方结构，§3.1）
-            // 0.37.0（模型包·进展胶囊）：身份胶囊下方
-            // 同 bar 内加进展胶囊一颗——他聊/后台有进
-            // 行中工作时才出现（派生在 Core
-            // ProgressCapsule，数据源与台账同源）；胶
-            // 囊本体自带玻璃，是内容不是背景层，不犯
-            // 上方「bar 后不挂 background」的裁决
-            VStack(spacing: OneDayMetrics.rowInnerGap) {
-                headerBar
-                ProgressCapsuleView(
-                    currentSessionID: currentThread?.serverSessionID,
-                    onOpenSession: { sessionID in
-                        appState.pendingChatSessionID = sessionID
-                    }
-                )
-            }
-            // §192 量测：顶 bar 注册内容实高——与列表
-            // adjustedContentInset.top（自述 chatScroll
-            // adjTop）对账，safeAreaBar 的 inset 实值
-            // 以此为准
-            .onGeometryChange(
-                for: CGFloat.self
-            ) { proxy in
-                proxy.size.height
-            } action: { _, height in
-                BarsGeometryTrace.noteProbe(
-                    "topBarH", "\(Int(height))"
-                )
-            }
-        }
+        // §195（2026-11-13）：顶栏注册退役——顶簇迁
+        // TopBarGuideHost 锚定托管（chatSurface 的
+        // overlay，落位只认窗口顶安全区、与传播链
+        // 脱钩），本列表顶缘自此与底缘同式：断顶安
+        // 全区传播（下方 .ignoresSafeArea(edges:
+        // .top)）＋实测 contentMargins 留位（下方
+        // .contentMargins(.top)＝窗口顶安全区实测
+        // ＋顶簇实高，两值均由宿主布局拍回写）。
+        // 沿革：0.4.2 前 overlay 悬浮＋.content-
+        // Margins(.top, 88) 代偿（§28.1 原因一）；
+        // 0.4.3–§194 注册为本列表的 .safeAreaBar
+        // (edge: .top)、首屏位置由安全区本体让出；
+        // §194 真机落定帧实证：传播安全区被藏坞重
+        // 算偷 49、顶簇随之撞状态栏（耦合路径与断
+        // 链证据见 TopBarGuideHost 文件头）——注
+        // 册形态与顶缘传播一并退出。顶栏不挂
+        // background 的裁决（0.7.1）与顶缘 .soft
+        // 留任均不变：.soft 作用区改由顶
+        // contentMargins 区决定
         .scrollEdgeEffectStyle(.soft, for: .top)
         // 0.4.2（用户 10:54 圈图点名，二期 M3 卡提前落
         // 地）：底缘同挂柔效；0.4.3 注册后系统才真正按
@@ -2058,6 +2073,17 @@ struct ChatView: View {
         // 离在静止帧＝坞高＋舱高，公式见 §186 对账）。
         // 键盘态距离随引导线实测走（升起＝键盘高＋舱
         // 高、交互收起逐拍跟随），不再经安全区扩张
+        // §195（2026-11-13）：顶留位同式入账——顶簇
+        // 迁锚定托管后，列表顶 contentMargins＝窗口
+        // 顶安全区实测（windowTopSafeInset）＋顶簇
+        // 实高（topBarHeight），两值均由宿主布局拍
+        // 回写；顶留位记账自此只剩本处一处（沿革见
+        // 列表顶缘 §195 注）
+        .contentMargins(
+            .top,
+            windowTopSafeInset + topBarHeight,
+            for: .scrollContent
+        )
         .contentMargins(
             .bottom,
             composerBottomSpace + OneDayMetrics.spacingS,
@@ -2090,7 +2116,14 @@ struct ChatView: View {
         // 除与背景同源主治（chatSurface 背景全出血）
         // 随承载换代继续成立（带本就已删、画布仍全出
         // 血），不因本项回潮
+        // §195 更正（2026-11-13）：上文「顶缘 safe-
+        // AreaBar（顶栏注册）原样不动」就此作废——
+        // 顶栏注册已退役（见列表顶缘 §195 注），顶
+        // 缘传播同步退掉（下一行）：列表两缘自此都
+        // 不吃传播安全区，顶/底留位全走实测
+        // contentMargins 一处记账
         .ignoresSafeArea(edges: .bottom)
+        .ignoresSafeArea(edges: .top)
         // （声明式锚 .defaultScrollAnchor 已于 §135
         // 退役：0.36.13 引入时注称「与 scrollTo 不冲
         // 突、只管首帧」——发送空屏诊断的外部实证与

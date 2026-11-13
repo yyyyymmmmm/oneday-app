@@ -76,12 +76,16 @@ enum BarsGeometryTrace {
         // 抽屉容器（VC 树定位）
         var drawer: DrawerContainerController?
         var composer: ComposerGuideHostController?
+        var topBar: TopBarGuideHostController?
         func walk(_ vc: UIViewController) {
             if let hit = vc as? DrawerContainerController {
                 drawer = hit
             }
             if let hit = vc as? ComposerGuideHostController {
                 composer = hit
+            }
+            if let hit = vc as? TopBarGuideHostController {
+                topBar = hit
             }
             for child in vc.children { walk(child) }
         }
@@ -121,17 +125,16 @@ enum BarsGeometryTrace {
             lines.append("drawerVC 缺席")
         }
 
-        // 顶栏 pocket
-        let pocket = findViews(window) { view in
-            String(describing: type(of: view))
-                .contains("ScrollPocketBarInteraction")
-                && frameIn(window, view).width > 400
-                && frameIn(window, view).minY < 100
-        }.first
-        if let pocket {
+        // 顶栏 pocket（§195 起落点换代：顶簇迁入
+        // TopBarGuideHost 锚定宿主，ScrollPocket 落
+        // 点退役；定位改走 VC 树里的顶簇控制器、报
+        // 其宿主视图帧，elements 改数簇内玻璃交互
+        // 视图（汉堡/铃铛两盘＋胶囊背板，≥2 为活）
+        if let topBar {
+            let pocket = topBar.traceBarView
             let elements = findViews(pocket) { view in
                 String(describing: type(of: view))
-                    .contains("ScrollPocketElementInteraction")
+                    .contains("UIPlatformGlassInteractionView")
                     && frameIn(window, view).width >= 20
                     && frameIn(window, view).height >= 20
             }.count
