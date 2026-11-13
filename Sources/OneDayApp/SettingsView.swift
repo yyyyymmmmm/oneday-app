@@ -42,6 +42,12 @@ struct SettingsView: View {
     /// 「去聊天」类动作（总览 sheet 内快捷动作）：关
     /// 设置并切聊天格（ContentView 注入）
     var onRequestChat: (() -> Void)? = nil
+    /// 「全部对话」行的跳出请求（管理收口包补件，用
+    /// 户 2026-11-13 18:57 拍板入口自抽屉迁入）：全
+    /// 部对话页是根级全屏页、不在本导航栈里——同
+    /// onRequestChat 口径，本面只发请求，关面与呈现
+    /// 由 ContentView 承接（走原抽屉入口同一呈现路）
+    var onRequestAllConversations: (() -> Void)? = nil
     /// 「工作区」组三页的 sheet 呈现（总览/电脑自带导
     /// 航栈、服务器文件由本页包一层栈）：不进本页导航
     /// 栈——三页都是整面工作区、且各自带栈，套栈必乱；
@@ -541,13 +547,14 @@ struct SettingsView: View {
         .settingsSeparatorToIconEdge()
     }
 
-    /// 搜索点达分发：管理三件开 sheet、余者压设置栈
-    /// （与深链消费同一落点口径）
+    /// 搜索点达分发：管理三件开 sheet、全部对话发跳
+    /// 出请求、余者压设置栈（与深链消费同一落点口径）
     private func activate(_ entry: SettingsCatalogEntry) {
         switch entry.destination {
         case .overview: manageSheet = .overview
         case .computer: manageSheet = .computer
         case .serverFiles: manageSheet = .serverFiles
+        case .allConversations: onRequestAllConversations?()
         default:
             if let route = route(for: entry.destination) {
                 path = [route]
@@ -587,7 +594,8 @@ struct SettingsView: View {
         case .about: return .about
         case .privacy: return .privacy
         case .terms: return .terms
-        case .overview, .computer, .serverFiles: return nil
+        case .overview, .computer, .serverFiles,
+             .allConversations: return nil
         // prototype-2 新增
         case .agentConfig: return .agentConfig
         case .serverManagement: return .serverManagement
@@ -621,6 +629,9 @@ struct SettingsView: View {
         case "serverFiles": return "folder"
         case "appearance": return "sun.max"
         case "sidebar": return "sidebar.left"
+        // 全部对话行沿原抽屉管理行的字形（rectangle.
+        // stack），入口换了、认页的记号不变
+        case "allConversations": return "rectangle.stack"
         case "help": return "questionmark.circle"
         case "about": return "info.circle"
         case "privacy": return "lock.shield"
@@ -638,9 +649,35 @@ struct SettingsView: View {
 
     /// 目录驱动导航行：图标/题自条目、去向自 route
     /// 映射（条目必有路由——sheet 三件不走本行）
+    /// 唯一例外＝全部对话行（管理收口包补件）：目的
+    /// 地是根级全屏页、不在本栈内（route 恒 nil），
+    /// 渲动作 Button 行——行貌与 navRow 同构（图标＋
+    /// 标题、行高与分隔口径同），chevron 显式补（普
+    /// 通 Button 在 List 里没有系统自带的揭示箭头，
+    /// 与 searchRow 同式），点按发跳出请求
     @ViewBuilder
     private func catalogNavRow(_ entry: SettingsCatalogEntry) -> some View {
-        if let route = route(for: entry.destination) {
+        if entry.destination == .allConversations {
+            Button {
+                onRequestAllConversations?()
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    rowIcon(iconName(for: entry))
+                    Text(L10n.string(entry.title))
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Spacer(minLength: OneDayMetrics.spacingS)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundStyle(Palette.inkMuted)
+                        .accessibilityHidden(true)
+                }
+                .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .settingsSeparatorToIconEdge()
+        } else if let route = route(for: entry.destination) {
             navRow(
                 icon: iconName(for: entry), title: L10n.string(entry.title),
                 route: route

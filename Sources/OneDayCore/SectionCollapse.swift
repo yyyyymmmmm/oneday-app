@@ -62,15 +62,16 @@ public enum SectionCollapseStorageKeys {
 }
 
 /// 抽屉分区键：分区头折叠键的唯一拼装口，不许呈现
-/// 层散写字面量（§198 起同册兼作显隐账四键）
+/// 层散写字面量（§198 起同册兼作显隐账三键；§198
+/// 曾有的 manage 键已随管理行迁出抽屉退役——管理
+/// 收口包补件，用户 2026-11-13 18:57 拍板「挪进设
+/// 置页、抽屉不再放」，旧落盘显隐账里残留的
+/// "drawer.manage" 键不再被任何判定消费、无害忽
+/// 略，不做迁移）
 public enum DrawerSectionKey {
     public static let navigation = "drawer.nav"
     public static let channels = "drawer.channels"
     public static let sideChats = "drawer.side"
-    /// 「管理全部对话」行（§198 并入选项卡组作第六
-    /// 行）：它不是分区头、无折叠义，本键只是显隐账
-    /// 与分区管理面的条目键，与三区键同册防散写
-    public static let manage = "drawer.manage"
 
     /// 搜索态名单不是第四个区——它与旁聊区同键（搜
     /// 索时强制展开由呈现层处理，账不另立）
@@ -85,14 +86,14 @@ public enum DrawerSectionKey {
 /// 显隐管在/不在，是两件事、两本账，键不共用不合
 /// 并（§198 规格新面四问②）
 public enum SectionVisibilityStorageKeys {
-    /// 抽屉分区的显隐账（键＝DrawerSectionKey 四键）
+    /// 抽屉分区的显隐账（键＝DrawerSectionKey 三键）
     public static let drawerSections = "drawerSectionVisibility"
 }
 
 /// 分区显隐状态账：分区键 → 是否显示。落盘形态与折
 /// 叠账同式（UserDefaults 一份 JSON [String: Bool]）；
 /// 与折叠账的差别只在默认：缺键恒**显示**——分区管
-/// 理面出现之前四区恒在场，新账不得让老用户升级后
+/// 理面出现之前各区恒在场，新账不得让老用户升级后
 /// 凭空少区。解码失败/脏数据回落空账＝全显示
 public enum SectionVisibilityState {
 
@@ -136,27 +137,25 @@ public enum SectionVisibilityState {
     }
 }
 
-/// 抽屉四区的渲染合成（§198 规格 §2.2 第 6 条）：每
+/// 抽屉三区的渲染合成（§198 规格 §2.2 第 6 条）：每
 /// 区呈现＝显隐账 ∧ 内容闸——只有频道区有内容闸
 /// （全量分类的频道成员 ≥1；计数改读与全部对话页频
 /// 道段同源的全量集，不再是开抽屉的 100 条名单窗
-/// 口，见题一）；管理行无内容闸、只由自家账管（它
-/// 随选项卡组折叠，但显隐不挂导航账——管理面四条
-/// 目各自独立）；导航与旁聊无内容闸。呈现层只消费
-/// 本结果排版，不许私算合成
+/// 口，见题一）；导航与旁聊无内容闸；管理面三条目
+/// 各自独立。呈现层只消费本结果排版，不许私算合成
+/// （§198 的第四区「管理行」已退役：管理收口包补
+/// 件，用户 2026-11-13 18:57 拍板入口挪设置页，抽
+/// 屉不再有进全部对话页的路径，合成随之收三区）
 public struct DrawerSectionGates: Equatable, Sendable {
     public let navigation: Bool
     public let channels: Bool
-    public let manage: Bool
     public let sideChats: Bool
 
     public init(
-        navigation: Bool, channels: Bool,
-        manage: Bool, sideChats: Bool
+        navigation: Bool, channels: Bool, sideChats: Bool
     ) {
         self.navigation = navigation
         self.channels = channels
-        self.manage = manage
         self.sideChats = sideChats
     }
 
@@ -170,9 +169,6 @@ public struct DrawerSectionGates: Equatable, Sendable {
             channels: SectionVisibilityState.isVisible(
                 key: DrawerSectionKey.channels, in: visibility
             ) && hermesChannelCount >= 1,
-            manage: SectionVisibilityState.isVisible(
-                key: DrawerSectionKey.manage, in: visibility
-            ),
             sideChats: SectionVisibilityState.isVisible(
                 key: DrawerSectionKey.sideChats, in: visibility
             )

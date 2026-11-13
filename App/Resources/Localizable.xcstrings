@@ -50280,29 +50280,6 @@
         }
       }
     },
-    "管理全部对话": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manage all conversations"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "管理全部对话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "管理全部對話"
-          }
-        }
-      }
-    },
     "管理连接": {
       "extractionState": "manual",
       "localizations": {
@@ -66929,6 +66906,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "側邊欄"
+          }
+        }
+      }
+    },
+    "全量会话名单、搜索、批量与清理": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full session list, search, batch actions and cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全量会话名单、搜索、批量与清理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全量會話名單、搜尋、批量與清理"
           }
         }
       }

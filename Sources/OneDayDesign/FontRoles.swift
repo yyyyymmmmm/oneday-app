@@ -60,8 +60,10 @@ public extension Font {
     /// NavTitle 对账），不许外溢其他页面
     static let drawerNavTitle: Font = .body.weight(.medium)
     /// 抽屉次要行题（§157 局部角色）：Body 17 regular
-    /// ——会话行题与「管理全部对话」行题，弱于主要导
-    /// 航一档（Core TypeRole.drawerRowTitle 对账）
+    /// ——会话行题，弱于主要导航一档（Core TypeRole
+    /// .drawerRowTitle 对账）；（§157 立时同档的「管
+    /// 理全部对话」行题已随该行迁出抽屉退役——管理
+    /// 收口包补件，用户 2026-11-13 18:57）
     static let drawerRowTitle: Font = .body
     /// 抽屉当前行题（§157 局部角色）：Body 17 semi-
     /// bold——导航/频道/会话同一套选中规则的加重档，

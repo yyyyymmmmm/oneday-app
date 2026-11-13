@@ -36,13 +36,15 @@ final class SectionCollapseTests: XCTestCase {
     }
 
     func testDrawerSectionKeysAreDistinct() {
+        // 三键互异（§198 的 manage 键已随管理行迁出抽
+        // 屉退役——管理收口包补件，用户 2026-11-13
+        // 18:57 拍板；旧落盘账残键无害忽略、不迁移）
         let keys = [
             DrawerSectionKey.navigation,
             DrawerSectionKey.channels,
             DrawerSectionKey.sideChats,
-            DrawerSectionKey.manage,
         ]
-        XCTAssertEqual(Set(keys).count, 4)
+        XCTAssertEqual(Set(keys).count, 3)
         XCTAssertEqual(
             DrawerSectionKey.key(forSearching: true),
             DrawerSectionKey.sideChats)
@@ -55,7 +57,6 @@ final class SectionCollapseTests: XCTestCase {
             DrawerSectionKey.navigation,
             DrawerSectionKey.channels,
             DrawerSectionKey.sideChats,
-            DrawerSectionKey.manage,
         ]
         for key in keys {
             XCTAssertTrue(
@@ -85,16 +86,17 @@ final class SectionCollapseTests: XCTestCase {
 
     func testVisibilityEncodeDecodeRoundTripAndGarbage() {
         let data = SectionVisibilityState.encode(
-            [DrawerSectionKey.manage: false])
+            [DrawerSectionKey.channels: false])
         XCTAssertEqual(
             SectionVisibilityState.decode(data),
-            [DrawerSectionKey.manage: false])
+            [DrawerSectionKey.channels: false])
         XCTAssertEqual(
             SectionVisibilityState.decode(Data("junk".utf8)), [:])
         XCTAssertEqual(SectionVisibilityState.decode(nil), [:])
     }
 
-    // MARK: - 四区渲染合成（§198：显隐账 ∧ 内容闸）
+    // MARK: - 三区渲染合成（§198：显隐账 ∧ 内容闸；
+    // 管理收口包补件起自四区收三区，管理行退役）
 
     func testDrawerSectionGatesDefaultAllPresent() {
         let gates = DrawerSectionGates.resolve(
@@ -103,7 +105,7 @@ final class SectionCollapseTests: XCTestCase {
             gates,
             DrawerSectionGates(
                 navigation: true, channels: true,
-                manage: true, sideChats: true))
+                sideChats: true))
     }
 
     func testDrawerSectionGatesChannelNeedsMembers() {
@@ -113,7 +115,6 @@ final class SectionCollapseTests: XCTestCase {
             visibility: [:], hermesChannelCount: 0)
         XCTAssertFalse(gates.channels)
         XCTAssertTrue(gates.navigation)
-        XCTAssertTrue(gates.manage)
         XCTAssertTrue(gates.sideChats)
     }
 
@@ -126,8 +127,9 @@ final class SectionCollapseTests: XCTestCase {
     }
 
     func testDrawerSectionGatesEachEntryIndependent() {
-        // 四条目各自独立：导航账隐藏不连带管理行（管
-        // 理行显隐只由自家账管，§198 规格 §2.2 第 6 条）
+        // 三条目各自独立：导航账隐藏不连带其余两区
+        // （各区显隐只由自家账管，§198 规格 §2.2 第
+        // 6 条；管理行退役后合成只剩三区）
         let gates = DrawerSectionGates.resolve(
             visibility: [
                 DrawerSectionKey.navigation: false,
@@ -136,13 +138,13 @@ final class SectionCollapseTests: XCTestCase {
             hermesChannelCount: 3)
         XCTAssertFalse(gates.navigation)
         XCTAssertFalse(gates.sideChats)
-        XCTAssertTrue(gates.manage)
         XCTAssertTrue(gates.channels)
-        let manageOff = DrawerSectionGates.resolve(
-            visibility: [DrawerSectionKey.manage: false],
+        let channelsOff = DrawerSectionGates.resolve(
+            visibility: [DrawerSectionKey.channels: false],
             hermesChannelCount: 3)
-        XCTAssertFalse(manageOff.manage)
-        XCTAssertTrue(manageOff.navigation)
+        XCTAssertFalse(channelsOff.channels)
+        XCTAssertTrue(channelsOff.navigation)
+        XCTAssertTrue(channelsOff.sideChats)
     }
 
     // MARK: - 分组样本（生产定型：网关组＋具名组＋两家内置行）

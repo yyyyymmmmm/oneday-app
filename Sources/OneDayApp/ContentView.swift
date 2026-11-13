@@ -149,9 +149,19 @@ struct ContentView: View {
     /// ——角标轮询、AppState 水位与 .badge 一并下线，
     /// 本客户端不再为任何角标取数（合并对账见
     /// DESIGN §126.10 与 §177）
-    /// 「全部对话」管理页呈现（0.18.0，A.3）：抽屉「管
-    /// 理全部对话」行置位，全屏页自带导航栈呈现
+    /// 「全部对话」页呈现（0.18.0，A.3）：全屏页自带
+    /// 导航栈呈现。入口沿革：0.18.0 起由抽屉「管理
+    /// 全部对话」行置位；管理收口包补件改由设置页
+    /// 「全部对话」行经 AfterSettings 链置位（用户
+    /// 2026-11-13 18:57 拍板「挪进设置页、抽屉不再
+    /// 放」），呈现路本体（本旗＋下方 cover 装配）
+    /// 自始至终未变
     @State private var showAllConversations = false
+    /// 设置页「全部对话」行点按后的待呈现旗：设置
+    /// sheet 先关、cover 后开——同 tick 关 sheet 又
+    /// 开 cover 会被系统吞掉呈现，故经 sheet 的
+    /// onDismiss 在关闭落定后转置 showAllConversations
+    @State private var showAllConversationsAfterSettings = false
     /// Hermes 频道页呈现（0.36.29，频道规格 §4.1）：
     /// 抽屉频道行置位，全屏页承载与管理页同通道（本
     /// 层 fullScreenCover）；管理页频道段的同名行走
@@ -168,7 +178,6 @@ struct ContentView: View {
         DrawerContainer(
             selection: $selection,
             presented: appState.drawerPresented,
-            onManageAll: { showAllConversations = true },
             onOpenChannel: { showHermesChannel = true }
         ) {
             tabView
@@ -247,12 +256,23 @@ struct ContentView: View {
                 selection = tab
             }
         }
-        .sheet(isPresented: $showSettings) {
+        .sheet(isPresented: $showSettings, onDismiss: {
+            // 设置页「全部对话」行的链式呈现：sheet 关
+            // 闭落定后才开全屏页（旗的来历见其声明注）
+            if showAllConversationsAfterSettings {
+                showAllConversationsAfterSettings = false
+                showAllConversations = true
+            }
+        }) {
             SettingsView(
                 onClose: { showSettings = false },
                 onRequestChat: {
                     showSettings = false
                     selection = .chat
+                },
+                onRequestAllConversations: {
+                    showAllConversationsAfterSettings = true
+                    showSettings = false
                 }
             )
         }

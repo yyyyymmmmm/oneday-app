@@ -16,7 +16,6 @@ private struct DrawerBridgeHarness: View {
         DrawerContainer(
             selection: $selection,
             presented: appState.drawerPresented,
-            onManageAll: {},
             onOpenChannel: {}
         ) {
             Text("content替身")

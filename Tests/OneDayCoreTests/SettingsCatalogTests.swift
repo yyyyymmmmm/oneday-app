@@ -51,7 +51,7 @@ final class SettingsCatalogTests: XCTestCase {
             .serverSessions, .models, .envVars, .usage,
             .serverDetail, .connectors, .devicePermissions,
             .gateway, .logs, .overview, .computer, .serverFiles,
-            .appearance, .sidebar, .help, .about, .privacy, .terms,
+            .appearance, .sidebar, .allConversations, .help, .about, .privacy, .terms,
             // prototype-2 新增
             .agentConfig, .serverManagement, .sessionManagement,
             .workspaceHub, .mainSession, .restartGateway,
@@ -76,11 +76,38 @@ final class SettingsCatalogTests: XCTestCase {
     }
 
     /// prototype-2：preferences 组四行（§198 侧边栏行
-    /// 插在 appearance 与 connectors 之间）
+    /// 插在 appearance 与 connectors 之间）；管理收
+    /// 口包补件起五行——全部对话行紧随侧边栏之后
+    /// （用户 2026-11-13 18:57 拍板挪进设置页）
     func testPreferencesGroupBrowseOrder() {
         XCTAssertEqual(
             SettingsCatalog.browseEntries(in: .preferences).map(\.id),
-            ["appearance", "sidebar", "connectors", "devicePermissions"]
+            ["appearance", "sidebar", "allConversations", "connectors", "devicePermissions"]
+        )
+    }
+
+    /// 全部对话行（管理收口包补件，用户 2026-11-13
+    /// 18:57 拍板）：行在偏好组内、与侧边栏行同组相
+    /// 邻（侧边栏在其上、连接器在其下），行名用页面
+    /// 自身标题「全部对话」不带「管理」二字，目的地
+    /// 是专设的 .allConversations（设置页据此渲动作
+    /// 行、走原抽屉入口同一根级呈现路）
+    func testAllConversationsEntrySitsNextToSidebar() {
+        let browse = SettingsCatalog.browseEntries(in: .preferences)
+        guard let idx = browse.firstIndex(where: { $0.id == "allConversations" })
+        else {
+            XCTFail("偏好组缺全部对话行")
+            return
+        }
+        XCTAssertEqual(browse[idx].title, "全部对话")
+        XCTAssertEqual(browse[idx].destination, .allConversations)
+        XCTAssertEqual(browse[idx - 1].id, "sidebar")
+        XCTAssertEqual(browse[idx + 1].id, "connectors")
+        // 搜索点达同源：标题直搜命中本行
+        XCTAssertTrue(
+            SettingsCatalog.search("全部对话").contains {
+                $0.id == "allConversations"
+            }
         )
     }
 

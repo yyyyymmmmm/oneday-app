@@ -14,7 +14,11 @@ import SwiftUI
 ///   点行即达并关抽屉）→发丝线→「管理全部对话」一
 ///   行→发丝线→**「旁聊」区：只列用户本人在 App 里
 ///   开的旁聊**（平铺、最近时间倒序、无分组字、无
-///   每行角标，点行进该会话续聊）。
+///   每行角标，点行进该会话续聊）。（订正：管理行
+///   已于管理收口包补件整行删除——入口挪设置页
+///   「全部对话」行，用户 2026-11-13 18:57 拍板；
+///   现行结构＝导航行组→发丝线→频道区→旁聊区，
+///   抽屉内无任何进全部对话页的路径）
 /// - 22:45 纠正的要害：要撤的只是「其他的对话」——
 ///   Hermes 内部 worker/kanban 会话、验收测试会
 ///   话、微信/TG 等外部平台通道进来的会话；本人开
@@ -58,7 +62,8 @@ import SwiftUI
 ///   （设置→侧边栏，四区显隐账）；③分割线统一口
 ///   径 R1–R10（线属边界、挂下行组头、与折叠态无
 ///   关），结构见 drawerNavList 注、账本见 DESIGN
-///   §198。
+///   §198。（②订正：管理行已于管理收口包补件整行
+///   迁出、显隐账收三区——见文件头结构条订正注）
 /// - 承载沿 0.17.0：壳层（ContentView.DrawerShell）
 ///   以覆盖形态自左滑入盖在静止内容之上（§156 订
 ///   正：覆盖式壳层已退役，本面改由 UIKit 抽屉容
@@ -84,9 +89,6 @@ struct DrawerView: View {
     var onSelectTab: (ContentView.MainTab) -> Void
     /// 关抽屉（壳层执行：弹簧归位＋状态回写）
     var onClose: () -> Void
-    /// 打开「全部对话」管理页（0.18.0；本面先经
-    /// onClose 关抽屉，ContentView 注入呈现）
-    var onManageAll: () -> Void
     /// 打开频道页（0.36.29，频道规格 §3）：频道行
     /// 点按先经 onClose 关抽屉，ContentView 注入呈
     /// 现；入参为频道 id（一期只有 Hermes）
@@ -145,7 +147,7 @@ struct DrawerView: View {
     private var drawerCollapseData: Data = Data()
     /// 分区显隐账（§198）：设置→侧边栏的分区管理面
     /// 写、本面读（Core SectionVisibilityState 唯一口
-    /// 径，键同 DrawerSectionKey 四键）；与折叠账分
+    /// 径，键同 DrawerSectionKey 三键）；与折叠账分
     /// 册——折叠管收起/展开、本账管整区在/不在
     @AppStorage(SectionVisibilityStorageKeys.drawerSections)
     private var drawerVisibilityData: Data = Data()
@@ -490,10 +492,14 @@ struct DrawerView: View {
 
     // MARK: - 导航主体（0.19.0）
 
-    /// 导航组＋管理行＋旁聊区：对 Muse 样板的结构
-    /// ——导航五行管导航，其下发丝线＋「管理全部
-    /// 对话」一行，再下发丝线＋「旁聊」区（本人
-    /// 旁聊平铺，见旁聊区注）
+    /// 导航组＋旁聊区：对 Muse 样板的结构——导航
+    /// 五行管导航，其下发丝线＋「旁聊」区（本人旁
+    /// 聊平铺，见旁聊区注）；（0.19.0 曾有「管理全
+    /// 部对话」一行夹在导航组与旁聊区之间，§198 并
+    /// 入选项卡组作第六行；已于管理收口包补件整行
+    /// 迁出——入口挪设置页「全部对话」行，用户
+    /// 2026-11-13 18:57 拍板，本面不再有进全部对
+    /// 话页的路径）
     /// §157②：「选项卡」组头删除——其下五行已明示是
     /// 导航，再挂一层小标签只是多一道分隔与留白；
     /// 「频道」「旁聊」两组头保留（它们标的是名单分
@@ -501,20 +507,20 @@ struct DrawerView: View {
     /// §182.1：用户纠正口径——真问题是缺组标题，恢复
     /// 「选项卡」组头（与频道/旁聊同口径），与 Muse
     /// 参照对齐
-    /// §198 重排：分区呈现走四区合成（sectionGates＝
-    /// 显隐账 ∧ 内容闸）——管理行移入选项卡组作第六
-    /// 行（组内分簇线 R5、随组折叠；组被管理面隐藏
-    /// 时它按自家账独立在场、无组头无簇线）；分割线
-    /// 按统一口径 R1–R10：线属于边界、恒挂下行分区
-    /// 的组头上方、与任何区的折叠态无关（R2/R6）；
-    /// 首区无顶线（R8）；组头与子项之间永不划线
-    /// （R3）；不渲染的区连线退场（R7）；线顶留白恒
-    /// spacingS 一处记账（R10）
+    /// §198 重排：分区呈现走三区合成（sectionGates＝
+    /// 显隐账 ∧ 内容闸）；分割线按统一口径 R1–R10：
+    /// 线属于边界、恒挂下行分区的组头上方、与任何
+    /// 区的折叠态无关（R2/R6）；首区无顶线（R8）；
+    /// 组头与子项之间永不划线（R3）；不渲染的区连
+    /// 线退场（R7）；线顶留白恒 spacingS 一处记账
+    /// （R10）。（§198 的组内分簇线 R5 是为管理行而
+    /// 设，管理行迁出后本组无簇可分，R5 随之退役；
+    /// 选项卡组被管理面隐藏时导航槽整体不在场，频
+    /// 道/旁聊的边界线按 R7/R8 自行退场/免顶线）
     private var drawerNavList: some View {
-        // 在场合成：选项卡槽＝组本体或独立管理行；
-        // 边界线只许出现在「上方已有在场区」的区头顶
+        // 在场合成：选项卡槽＝导航组本体；边界线只
+        // 许出现在「上方已有在场区」的区头顶
         let navSlotPresent = sectionGates.navigation
-            || sectionGates.manage
         let channelsPresent = sectionGates.channels
         return VStack(alignment: .leading, spacing: 0) {
             if sectionGates.navigation {
@@ -596,22 +602,7 @@ struct DrawerView: View {
                 onClose()
                 onSelectTab(.files)
             }
-                if sectionGates.manage {
-                    // §198（R5 组内分簇线）：上五行是导
-                    // 航簇、管理行是管理簇——同组不同
-                    // 簇，线在此分簇不分家（全抽屉唯一
-                    // 一条组内线）；管理行随组折叠/展开
-                    drawerDivider
-                        .padding(.top, OneDayMetrics.spacingS)
-                    drawerManageRow
-                }
             }
-            } else if sectionGates.manage {
-                // §198：选项卡组被分区管理面隐藏时，管
-                // 理行按自家账独立在场（显隐只由自家账
-                // 管，规格 §2.2 第 6 条）——无组头、无
-                // 分簇线（簇线是组内物，组不在不挂）
-                drawerManageRow
             }
             // 0.36.29（频道规格 §3.1）：频道区插在选项
             // 卡槽与旁聊区之间（面先于条，与 Muse 样
@@ -666,7 +657,8 @@ struct DrawerView: View {
         )
     }
 
-    /// 四区渲染合成（§198）：显隐账（分区管理面）∧
+    /// 三区渲染合成（§198 立四区、管理收口包补件收
+    /// 三区——管理行退役）：显隐账（分区管理面）∧
     /// 内容闸（只有频道区有：全量频道成员 ≥1，合并
     /// 桶计入）走 Core DrawerSectionGates 唯一口径，
     /// 本面只消费结论排版、不私算
@@ -1333,72 +1325,6 @@ struct DrawerView: View {
         // 0.43.0（A11Y-V5）：选中态只靠浅灰垫——补
         // 已选特征，与频道行同式
         .accessibilityAddTraits(selected ? [.isSelected] : [])
-    }
-
-    /// 「管理全部对话」行（0.18.0 立、0.19.0 随名单退
-    /// 役保留）：rectangle.stack＋标题＋chevron 单行，
-    /// 点按关抽屉进管理页（对话的找与管全在那里：
-    /// 四段分区、长按四件、批量、清理、服务端搜索）
-    /// §198：归属变更——自本包起本行是选项卡组内第
-    /// 六行（管理簇，分簇线在其上），呈现点在
-    /// drawerNavList；本定义只管行本体
-    private var drawerManageRow: some View {
-        Button {
-            onClose()
-            onManageAll()
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                Image(systemName: "rectangle.stack")
-                    // 0.20.0 字阶与导航行同档（27/20 半粗
-                    // /58，见 drawerNavRow 注）；0.22.0 字
-                    // 重随导航行同批降 light（.353→.294）
-                    // 0.24.0：随导航行同批改 21 regular＋
-                    // 行题 Body 17 regular（见彼处注）
-                    .font(.system(
-                        size: FrameworkIcon.drawerGlyphSize,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(Palette.ink)
-                    .frame(
-                        width: OneDayMetrics.iconSlot,
-                        alignment: .center
-                    )
-                    .accessibilityHidden(true)
-                Text("管理全部对话")
-                    // §157③旧口径：本行是次要入口——标
-                    // 题落次要档 drawerRowTitle（regular），
-                    // 弱于五导航行的 medium 一档；行高随
-                    // 导航簇 54
-                    // §198 升格：本行并入选项卡组作第六
-                    // 行后与导航行同簇同权——标题升为同
-                    // 一档 drawerNavTitle（medium）；chev-
-                    // ron 保留（全组唯一「进二级页」的
-                    // 行，箭头即区分标记，宪法 §9）
-                    .font(.drawerNavTitle)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: OneDayMetrics.drawerNavRowHeight)
-            .padding(.horizontal, OneDayMetrics.spacingSM)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.odPressable)
-        .padding(.horizontal, OneDayMetrics.spacingS)
-        // 0.22.0（并排图节奏复量，审计外用户 00:29 点
-        // 名）：旧形态本行自带顶距 12 叠加发丝线的顶距
-        // 8，管理行上方留白 20pt——是名单里唯一的双线
-        // 孤岛（像素实测：线前留白本行 20pt vs 名单其
-        // 余线前 8pt，参考图同位约 12pt 同档）。撤本行
-        // 额外顶距后线前留白归一为 8pt，管理行回连续
-        // 名单节奏；线→旁聊头留白（8＋头顶距 8）实测
-        // 已比参考图更紧（约 12pt vs 约 24pt），不动
-        .accessibilityLabel("管理全部对话")
     }
 
     /// 发丝线（左右留 drawerInset 20）：组间分隔的唯
