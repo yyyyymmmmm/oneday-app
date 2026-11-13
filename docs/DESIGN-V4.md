@@ -11402,3 +11402,8 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 - 验包（attempt 2 artifact 14028623836）：**11,118,220 字节、md5 `585aeff123378364efa5a1bdbcba080f`**、Info.plist 0.50.29/157/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.29/OneDay-0.50.29.ipa。
 - **未打 tag、未合 main**：等用户点头后由主线合 main＋打 annotated tag v0.50.29 并触发发版构建（仅此一次）。发版报告：release-05029-assembly-20261113.md。
 - 真机待验：枢纽首开（页头在顶/✕ 可关/单行入口/滚到底段/双影残项/深色＋AX 各一帧）、旁聊存量「爱的定义」自动归位＋新开即时入区＋回响卡点达、改名四面变「三狗」＋头像 paw、抽屉四角并排对照、设置不收回、手感三验（回底弹簧/点子按压/批量删除落锤）。
+
+### §206.5 发版补记（2026-11-13 晚，用户 18:59 批准正式发版）
+- 合 main：rel/05029 快进 a438fdd→**30b4fc4** 并 push（ls-remote 回读一致）；annotated tag **v0.50.29**（对象 350b06b）指向 30b4fc4、已 push 回读。
+- 发版构建仅触发一次：main push 自动起 run **43413635412**（event=push、head 30b4fc4、未另行 dispatch），终局名义 failure。§190 判读：全日志断言失败 **0 条**（`Test Case.*failed` 零命中、XCTAssert 命中皆源码回显、无 Suite failed）；Core **1754 tests, 0 failures** 对账精确；HUB-LAYOUT-VERDICT=PASS、派发门 VERDICT=PASS。exit 65 唯一来源＝§184 在案静默死亡 3 起、宿主重启 3 次逐一起点对位——`testKeyboardUpMovesComposerOnlyDockStays`（11:14:54 起／11:15:30 重启）、`testBarGrowth_topRisesBottomPinned`（11:15:42 起／11:16:27 重启；三指认在案、本轮游走命中，装配 attempt 1 中其为 passed）、`testAnimatedCloseKeepsContentUntouchableUntilSettled`（11:16:46 起／11:17:09 重启）；三者皆 started 无裁决。**按 §190 判绿、发版成立，不重触发构建。**
+- 正式验包（run 43413635412 artifact）：**11,118,217 字节、md5 `c94ea093eb82413c12f0873805c09446`**、Info.plist 0.50.29/157/site.didichou.oneday。与暂存包对账：IPA 容器差 3 字节（zip 元数据），**主二进制 38,425,328 字节、md5 `5c69d34e03ec7eb79d12b923115ed35d` 两包逐字相同**、Payload 文件清单 17 件全同——正式包与暂存包同码。正式包落 ~/workspace/your_files/oneday-v0.50.29/OneDay-0.50.29.ipa；暂存包改名 OneDay-0.50.29-assembly-staged.ipa 并存备查。真机待验同 §206.4 末行，随装机执行。
