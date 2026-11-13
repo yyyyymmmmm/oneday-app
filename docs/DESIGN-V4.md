@@ -11125,3 +11125,32 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 
 ### 197.4 真机待验（随并轨版本装机验）
 ①App 内开/关任一权限或「允许智能体调用」开关后，设备页在线状态不假报、紧接着让智能体查位置/发短信能通（不再 device_offline／30 秒超时）；②执行一通长调用期间拨开关，回执成败在设备详情页「最近调用」有痕（respond_ 错误码可见）；③退后台再回前台，会话经 offline 正路恢复在线（原有行为不回退）。
+
+## §198 换代包 0＋包 1（分支 feat/chat-p0-stopbleed，基线 main 0494f7d）：选字末环证伪＋卡顿止血三件（2026-11-13）
+
+### 198.1 包 0 · 末环运行时计数——证伪（施工图 native-list-migration-blueprint 包 0；一层审计 §1.2 定因链末环）
+
+装置（SelectionDismantleProofTests）：生产原物 SelectableInlineText＋SwipeReplyModifier 按 ChatView 真实接线托管一行（选区回报→@State 置位→swipeReply(for:) 的 isEnabled 翻假），程序化建选区 (0,5)，1.2s 内逐 50ms 普查承载 UITextView 实例集合；另设翻转渲染探针（Harness 逐 body 求值记录实际喂给修饰符的 isEnabled）。两轮 CI（一轮 run 43366577019 首断言口径误红：装配期先回报一笔 hasSelection=false；二轮 run 43368845126 定版）：
+
+- 主臂：selectionEvents=[false, true, false, false]，branchEvals=[true, false]——**翻转确已渲染**；census=1（承载实例全程未换）、liveLen=5（选区存活）。
+- 对照臂：events=[false, true]、evals=[true]、census=1、liveLen=5。
+
+**结论：末环不成立。** isEnabled 翻假后 SwipeReplyModifier 的 if/else 分支切换，没有 dismantle 承载 UITextView、选区未死——修饰符 body 的分支切换只换包装层，`content` 占位承载的代表物身份被 SwiftUI 保住，审计按「条件内容换身份」的框架语义推断的末环在 ViewModifier-content 形态下不适用。**包 1 选字部分（去分支化＋栈 tap 文本豁免）按包 0 门口径未施工**，生产选字代码零改动（仅 SwipeReplyModifier private→internal 供测试装配，行为中性）。
+
+证伪的边界（如实记账）：本装置只托管一行、翻转只重跑一行；生产里选区置位写的是 ChatView 全页状态、翻转伴随全页 body 重算，装置未复现全页尺度。真机选字故障的真因未定，不得以本证伪结案选字问题本身。留给后续线的实测线索：主臂翻转渲染后回报流出现两笔 hasSelection=false（承载未拆、选区终值未失，疑重渲染期选区回报瞬时扰动——生产 noteTextSelection 对 false 笔走 350ms 延迟清账，其与真机手势选区（双击选词/拖手柄，非程序化选区）的交互未测）；栈级 tap 的手势仲裁、手势竞争均不在本装置射程。
+
+### 198.2 卡顿止血三件（数据/内容层，带进原生列表新承载；审计 §2.1/§2.2/§2.3）
+
+- a 派生扫描备忘（Core `EntryScanMemo`）：DeliveryMarker.split、MediaMarker.split、FileRefDetector.inlineImageCandidates／detectStandaloneAnchored／strippingStandaloneLines 五组全文扫描改条目级缓存，键＝条目 id×内容哈希（FNV-1a 64 位＋字节数）；助手气泡 body 五处现算全改走备忘，plainText（长按菜单口径）同治。摘行一组入参含 App 层存在性派生量——摘行集签名入键、存在性翻转即重算，语义与逐遍现算恒等。命中/未命中计数为验收代理指标。
+- b 本地图解码缓存（App `LocalImageDecodeCache`）：localImageRow 的 body 内 UIImage(data:) 同步解码改走 NSCache 通道，键＝条目 id＋图序＋数据字节数（条目图数据落盘后不可变），成本按数据字节计、封顶 64MB；坏图不入缓存、逐遍重试（旧口径不变）。
+- c 距底回写降频：原始距底读数自 @State 改存引用匣 `BottomDistanceRecorder`（@State 持实例）——滚动中逐帧必变的读数不再逐帧触发全页 body 重跑；唯一消费者（贴底 120ms 复核 BottomSettle.shouldRestick 与同点 §135 打点）在读时点与旧 @State 读数逐字相等，**跟随判定阈值与语义零变更**；isNearBottom 迟滞双阈值回写本已跨阈值才写，不动。
+
+### 198.3 冻结与不在本包
+
+栏位几何 62/729/122/145/791、§194 键盘常数机制、ComposerGuideHost/TopBarGuideHost、DrawerView、§168 文本视图本体全未碰。流式全量重分词（审计 §2.6）归包 4；segments 装配/sortedEntries 每遍税（§2.5/§2.7）P2 不在本包；选字真因另线（见 §198.1 边界）。
+
+### 198.4 验收（CI run 43368845126）
+
+- 新增单测：EntryScanMemoTests 4（与直算等值／同内容第二遍未命中不增长／摘行集敏感／plainText 备忘）、LocalImageDecodeCacheTests 2（同键零重解码／坏图不缓存）、SelectionDismantleProofTests 2（§198.1）——全绿。
+- Core 1690 条全绿（本包 +4；一轮实测基线 1686，§196 账面 1684 的差 +2 为基线既有漂移、非本包）；App 会话除在案两条外无新增红——ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays（键盘真崩独立线）与 DrawerContainerControllerTests.testAnimatedCloseKeepsContentUntouchableUntilSettled（基线自带、两轮同现、无断言输出、本包未触抽屉代码，治法在 fix/drawer-flake 未合 main）；UI 2/2 过。打包/上传步 success（§190 口径）。
+- 真机待验（随组版）：含图长会话滚动体感对照（解码缓存＋扫描备忘的帧成本下降幅度无模拟器代理数，只认真机体感）；千条线程滚动跟随行为与修复前一致（距底匣语义等值已有代码级论证，真机复核发送落定复贴一笔）。
