@@ -10282,7 +10282,7 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 
 ## §181 云电脑收口包：VPS 表单改三样口径（IP＋账户名＋密码）（2026-11-12，用户 2026-11-11 15:58 定版＋2026-11-12 05:25 确认排期；预制分支 feat/cloudpc-closeout，基线 main ead40cb／0.50.22 定版顶端，只预制不合并、不发版；规格真源＝oneday-design-review/cloudpc-closeout-spec-20261112.md）
 
-### 181.1 改了什么（App 半）
+### 197.1 改了什么（App 半）
 
 - `CredentialFormView` 的 vps_agent 分支整段换三样：IP 地址／账户名／密码＋一句脚注（登录信息只落服务端、装代理是服务端的事）。配置串粘贴、电脑地址、令牌、公网明文风险提示四件内部形态全部退场；托管类（simular_box）分支零改动。
 - 载荷：新增 `ConnectionPayloads.windowsCredential(host:username:password:)`（字段与伴生收口契约 §4.1 逐字对齐）；旧 `vpsCredential/parseConfigString/isPlausibleEndpoint` 保留并注「内部形态、App 不用」（面板与存量契约还在，钉测不删）。
@@ -10291,12 +10291,12 @@ Core 新增 ClosureLoopTests 18 测：GoalEcho 规划五件（排队只落已安
 - 顺手收口两处用户面文案：添加流 VPS 行副文案（「填 IP、账户名和密码就能连」）、详情页断开脚注（只说摘登记与登录信息，不再提代理卸载命令）。
 - xcstrings 新增 6 键（IP 地址／账户名／密码／脚注／类型行副文案／断开脚注），三语齐全（2865 键）；退场四键留目录待后续清账，不在本包删。
 
-### 181.2 钉测与红线
+### 197.2 钉测与红线
 
 - 新增 3 法（windowsCredential 载荷并入既有载荷法断言、WindowsLoginInput 主机校验、isReady 组合、待打通状态词——实为 3 新法＋1 法扩断言），退役 0。
 - 红线自查：托管型既有流零触碰；§124 回底钮承载零触碰；五页边缘行零触碰；版本号零改动。
 
-### 181.3 伴生半（不在本分支）
+### 197.3 伴生半（不在本分支）
 
 front connections 契约增改（cred_vps 三样分流＋winrm_probe 降级探针＋verify 阶梯＋自测）在 hermes-deploy/companion 本地模板备码（基线与生产 1.0.36 逐字节一致已验），**本包不部署**，部署与镜像加 pywinrm 钉版归主线部署门（规格 §6）。Windows 代理安装件＋验活手册在 companion/windows-agent/，未实跑（无试点机，规格 §7 如实登记）。
 ## §182 抽屉与顶栏四题修复包（2026-11-12；分支 feat/ext-drawer-topbar，基线 main 3cbcad4；节号自选 §179，合并时主线合裁顺延 §182、子节随之改 182.x）
@@ -11109,3 +11109,19 @@ Codex 复核四条：两条 CI 可修（本节 A/B）、一条文档口径（本
 - **单测对账（日志逐项点名）**：Core **1684 全过**（与 bars2 线基线逐字相等、≥ main 的 1679，无减少）；App 静态 55＝**41 过＋13 skip＋1 flake 死亡**——13 skip 全为胶囊线证据轮预置 XCTSkip（CapsuleHitTestScenarios 8＋PresentationLayerScenarios 5，在案设计、分支 CI 同口径）；退役六场景后 ChatPageDeviceConditionProbeTests 仅剩锚定不变量关且整套 passed；UI **2 全过**（CapsuleTapDispatchUITests 双臂、日志 VERDICT=PASS）。§196 去诊断的减测仅此六场景一处，与本账吻合。
 - **§195 在案事项结案**：IdentityCapsuleHitDomainTests 合并后 **passed**——safeAreaBar 脚手架未与生产 TopBarGuideHost 托管冲突出红，本版无需最小收口；脚手架与生产托管不同构一节仍按 §195 口径归胶囊线后续收口，不阻本版。
 - **验包**：**10,986,878 字节、md5 `ce104c90a558058619cd13e6cfe175a7`**、Info.plist 0.50.26/154/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.26/OneDay-0.50.26.ipa。分支 rel/05026 留置：未打 tag、未合回 main，待主线独立验包与令。
+## §197 设备会话状态机补全：在线重注册迁会话＋在线旗标派生＋回执失败落痕（2026-11-13；分支 fix/device-session-machine，基线 main 8ac6193／0.50.22 定版顶端，只交分支不合并——待 0.50.26 入 main 后由主线并轨入下版；节号自选 §181，合并时顺延为 §197）
+
+### 197.1 定因（诊断 device-bridge-realtime-diag-20261113.md，服务器日志实证）
+用户真机两通失败（发短信报「手机离线」、问位置 30 秒超时）与权限无关：`DeviceSessionController.beginRegister()` 在会话已在线时被要求重注册（权限变化 `refreshPermissions`、开关变化 `setAgentCallEnabled` 均为设计内高频触发）会先掐轮询/心跳双环，注册成功后把 `.registered` 喂给 `DeviceSessionMachine`，而状态机只在 `.registering` 相位处理该事件——`.active/.executing` 相位落 default 丢弃，新会话双环永不重启、桥侧 lastSeen 冻结，45 秒后判离线；窗口内调用排队却无人来领。本案扳机正是「位置权限由未授权变已授权」——把权限修好的动作顺手杀了设备会话。放大项：`sessionOnline` 在注册回调里无条件置真（状态机没给 .poll 也自报在线）；respond 用 `try?` 静默吞，执行期重注册后拿旧会话回执被桥回 404 永不显形。
+
+### 197.2 修法（四件，范围以诊断为准）
+- 件一·状态机补全（Core `DeviceCalls.swift`）：`.registered` 在 `.active` 相位迁到新 sessionId 并返回 `.poll`；在 `.executing` 相位保留在途 callID、迁 sessionId 并返回 `.poll`——respondFinished 仍落回新会话 active 继续轮询。验收语义：任何时点重注册成功后，轮询＋心跳双环必跟随新会话。
+- 件二·在线旗标单一事实源（`DeviceStore.swift`）：`sessionOnline` 改为由状态机相位派生（`machine.isOnline`），删除注册回调的无条件置真及各处手动赋值；轮询环钥匙被拒（noKey/unauthorized）时相位推回 offline 使派生旗标跟着落下（桥侧会话同钥不可用、不另发 disconnect）。
+- 件三·回执失败落痕（`DeviceStore.swift`）：respond 改 do/catch，失败落 `DeviceCallLogStore`（既有调用日志通道）并刷新详情页数据源，错误码 `respond_` 前缀点明坏在回执段（no_key／unauthorized／unknown_session／failed，与执行段错误码分开记账）。
+- 件四·降重注册频度——**缓办，理由钉死**：桥协议（device_bridge.py）只有 `POST /device/session` 一条注册路，每次注册必铸新 sessionId 并顶替旧会话（含快照），不存在同会话更新快照的端点；「同会话 PATCH 快照」须先改桥协议与注册语义，不在本包范围。件一落地后重注册本身已安全（双环必跟随），治标项可缓，待桥协议演进时再议。
+
+### 197.3 回归测试
+Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigratesAndRepolls`（已在线重注册→迁 id＋返 .poll、连发多次跟随最新会话、新会话轮询语义不回退）、`testSessionReregisterWhileExecutingKeepsRespondPath`（执行期重注册→保留 callID 迁 id、respondFinished 落回新会话 active 继续轮询）。单测只增不减。
+
+### 197.4 真机待验（随并轨版本装机验）
+①App 内开/关任一权限或「允许智能体调用」开关后，设备页在线状态不假报、紧接着让智能体查位置/发短信能通（不再 device_offline／30 秒超时）；②执行一通长调用期间拨开关，回执成败在设备详情页「最近调用」有痕（respond_ 错误码可见）；③退后台再回前台，会话经 offline 正路恢复在线（原有行为不回退）。
