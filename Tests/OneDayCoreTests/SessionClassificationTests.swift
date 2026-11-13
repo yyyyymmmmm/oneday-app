@@ -397,12 +397,14 @@ final class SessionClassificationTests: XCTestCase {
         }
     }
 
-    // 注册表：抽屉恒显清单与图标登记（一期三条；
-    // 平台图标只许官方原图登记过的两家有值）
+    // 注册表：抽屉恒显清单与图标登记（一期三条＋
+    // 二期令牌四家；平台图标只许官方原图登记过的
+    // 有值，未登记的平台回 nil 不许仿绘顶替）
     func testChannelRegistryDrawerListAndIcons() {
         XCTAssertEqual(
             ChannelRegistry.drawerList.map(\.id),
-            ["hermes", "telegram", "weixin"])
+            ["hermes", "telegram", "dingtalk", "qqbot",
+             "discord", "slack", "weixin"])
         XCTAssertEqual(
             ChannelRegistry.descriptor(for: "telegram")?.iconAssetName,
             "ChannelTelegram")
@@ -419,6 +421,36 @@ final class SessionClassificationTests: XCTestCase {
             ChannelRegistry.pairingKind(for: "weixin"), .frozen)
         XCTAssertEqual(
             ChannelRegistry.pairingKind(for: "hermes"), .none)
+    }
+
+    // 二期令牌四家（钉钉/QQ/Discord/Slack）：注册表
+    // 描述、官方图标登记与配对形态逐家钉住
+    func testChannelRegistryTokenBatch() {
+        let expected: [(id: String, name: String, asset: String)] = [
+            ("dingtalk", "钉钉", "ChannelDingtalk"),
+            ("qqbot", "QQ", "ChannelQQ"),
+            ("discord", "Discord", "ChannelDiscord"),
+            ("slack", "Slack", "ChannelSlack"),
+        ]
+        for item in expected {
+            let descriptor = ChannelRegistry.descriptor(for: item.id)
+            XCTAssertEqual(descriptor?.name, item.name,
+                           "\(item.id) 频道名")
+            XCTAssertEqual(descriptor?.iconAssetName, item.asset,
+                           "\(item.id) 官方图标资产")
+            XCTAssertEqual(
+                SessionSources.platformIconAssetName(item.id),
+                item.asset, "\(item.id) 平台图标登记")
+            XCTAssertEqual(
+                ChannelRegistry.pairingKind(for: item.id), .token,
+                "\(item.id) 配对形态为令牌型")
+        }
+        // QQ 的历史别名 qq 同样指到官方图标与频道描述
+        XCTAssertEqual(
+            SessionSources.platformIconAssetName("qq"), "ChannelQQ")
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "qqbot")?.pageSubtitle,
+            "在 QQ 里和你的智能体聊的对话")
     }
 
     // session_key 回落：source 缺失时平台段同值判

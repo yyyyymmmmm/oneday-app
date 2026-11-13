@@ -69,6 +69,28 @@ final class ChannelStatusStore {
         return receipt
     }
 
+    /// 通用凭据提交（二期令牌四家）：字段逐家不同、
+    /// 白名单走 fields 内 allowedUsers（顶层
+    /// allowedUserIds 的纯数字口径是 Telegram 专用，
+    /// 钉钉员工 ID/QQ OpenID/Slack 成员 ID 均非纯数
+    /// 字，见令牌批报告 §1.5）。提交后同样立刻回读
+    /// 状态，事实只认 status
+    func submitCredentials(
+        appState: AppState, platform: String,
+        fields: [String: String]
+    ) async throws -> ChannelCredentialsReceipt {
+        guard let config = appState.config else {
+            throw ChannelsBridgeError.failed(
+                L10n.string("还没有连上服务器"))
+        }
+        let receipt = try await client.submitCredentials(
+            config: config, platform: platform,
+            fields: fields, allowedUserIds: nil
+        )
+        await load(appState: appState)
+        return receipt
+    }
+
     static func message(for error: ChannelsBridgeError) -> String {
         switch error {
         case .noKey, .unauthorized:
@@ -90,6 +112,30 @@ final class ChannelStatusStore {
             platform: "weixin", kind: "frozen", open: false,
             configured: false, connected: false,
             needsIdentity: false, state: "frozen",
+            sessionCount: 0, message: nil
+        ),
+        "dingtalk": ChannelPlatformStatus(
+            platform: "dingtalk", kind: "token", open: true,
+            configured: false, connected: false,
+            needsIdentity: false, state: "not_configured",
+            sessionCount: 0, message: nil
+        ),
+        "qqbot": ChannelPlatformStatus(
+            platform: "qqbot", kind: "token", open: true,
+            configured: false, connected: false,
+            needsIdentity: false, state: "not_configured",
+            sessionCount: 0, message: nil
+        ),
+        "discord": ChannelPlatformStatus(
+            platform: "discord", kind: "token", open: true,
+            configured: false, connected: false,
+            needsIdentity: false, state: "not_configured",
+            sessionCount: 0, message: nil
+        ),
+        "slack": ChannelPlatformStatus(
+            platform: "slack", kind: "token", open: true,
+            configured: false, connected: false,
+            needsIdentity: false, state: "not_configured",
             sessionCount: 0, message: nil
         ),
     ]

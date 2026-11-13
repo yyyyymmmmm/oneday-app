@@ -11470,3 +11470,12 @@ Core 单测对账预期：基线 1754＋止血 0＋引用 19＋收口 3＋频道
 ### §207.3 出包补记（2026-11-13 回填）
 
 IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径独立解包亲验：**11,530,811 字节、md5 `817ec44ab993fdb27035776ee4233019`**；Payload/OneDayApp.app/Info.plist 亲读＝0.50.30／158／site.didichou.oneday；主二进制 OneDayApp 39,323,896 字节（md5 `5cd04257a6c7b35d8bacd3e214a8a151`）。落位 `~/workspace/your_files/oneday-v0.50.30/OneDay-0.50.30.ipa`。装配头 7208e87（其后仅 §207.2／§207.3 文档回填提交）。**未打 tag、未合 main**——等用户点头；真机待验清单见发版报告 §6（release-05030-assembly-20261113.md）。
+
+## §209 频道二期·令牌四家（钉钉／QQ 机器人／Discord／Slack）（2026-11-13；分支 feat/channels-token-batch，基线 rel/05030 头 283808a）
+
+用户 2026-11-13 21:42 拍板「频道其余通道都加上」；本包只做四家令牌型（飞书/邮箱/WhatsApp 各有平行线，微信行删除归飞书线）。落法与一期 Telegram 同构、字段逐家按官方口径（报告 channels-token-batch-report-20261113.md §1「市面成熟做法」先行落盘、分级标注）：
+
+1. **Core**：ChannelRegistry 增钉钉/QQ/Discord/Slack 四描述，drawerList 追加于微信冻结行之前（hermes→telegram→四家→weixin 置组末）；pairingKind 四家 .token；platformIconAssetName 四登记（含 qq 别名→ChannelQQ）。图标四张均 iTunes 官方 App 本体 artworkUrl512 原图（512² PNG，亲眼验图，md5 登记于报告 §2），宪法 §4 零仿绘。
+2. **App 面**：新 TokenChannelPairingView 通用引导页（四家共用骨架：页头/状态带/三步一动作/连接/页脚，与打样页同语言）；字段逐家不同——钉钉 clientId+clientSecret、QQ appId+clientSecret、Discord 单 botToken、Slack botToken+appToken 双钥；白名单走 fields.allowedUsers（顶层 allowedUserIds 纯数字口径保持 Telegram 专用）；步一文案逐家带真坑（Discord 必须开 Message Content Intent、QQ 沙箱/审核口径如实写、Slack 双钥来源分开讲）。ChannelEntryView 加一处最小路由分支（四家→新页，其余不变）。状态带含「正在生效」语义：回执 applyTriggered/applyError 解码（与文案包同位同名加法字段）＋本地同语义相位判定＋3 秒×40 自动刷新；触发失败如实带原因。ChannelStatusStore 增通用 submitCredentials，demoStatuses 补四家 not_configured。
+3. **伴生 channels_bridge**：PLATFORMS 四家 open=True；逐家写前官方验钥（钉钉/QQ＝官方 access-token 换取接口，与其 Hermes 适配器自用同址；Discord＝GET /users/@me Bot 头；Slack＝auth.test＋apps.connections.open 双验、错误指名哪把钥）——验不过 422 零写入，保存后走既有即时生效通道；自测扩桩四家（69 断言全过）。部署版本号以部署时生产实查为准（施工时生产为 1.0.47），叠层构建、部署后 health＋status 公网验活，生产不写任何测试凭据。
+4. **钉测**：Core testChannelRegistryTokenBatch 新增＋既有注册表测试口径更新（drawerList 七行）；App ChannelTokenBatchTests（回执三态解码＋演示态四家）。Core 只增不减（基线 1779）。i18n +29 键三语 validate 通过。
