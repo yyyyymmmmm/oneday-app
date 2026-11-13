@@ -273,9 +273,7 @@ final class ChatPageAssemblyRegressionTests: XCTestCase {
         window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
         window.rootViewController = rootHost
         window.makeKeyAndVisible()
-        window.layoutIfNeeded()
         spinRunLoop(seconds: 2.0)
-        window.layoutIfNeeded()
         let host = try XCTUnwrap(findComposerHost())
         let bar = try XCTUnwrap(findComposerBar(in: host))
         let textView = try XCTUnwrap(
