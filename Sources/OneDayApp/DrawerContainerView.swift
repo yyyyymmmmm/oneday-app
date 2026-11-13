@@ -281,8 +281,20 @@ final class DrawerContainerController: UIViewController,
         // testAnimatedOpenSurvivesMidFlightResize）
         foreground.bounds = CGRect(origin: .zero, size: bounds.size)
         foreground.center = CGPoint(x: bounds.midX, y: bounds.midY)
+        // §182.2 阴影路径跟随圆角：shadowPath 必须与
+        // clipView 的圆角半径一致，否则直角矩形阴影会
+        // 在圆角区域外露、视觉上圆角「不显」（用户真机
+        // 报无弧的定案主因）。进度读当前 offset 实算，
+        // 不读语义 presented（布局期可能先于手势/动画）
+        let currentProgress = DrawerMotion.progress(
+            offset: offset, travel: travel
+        )
+        let currentRadius = DrawerMotion.cornerRadius(
+            progress: currentProgress
+        )
         foreground.layer.shadowPath = UIBezierPath(
-            rect: foreground.bounds
+            roundedRect: foreground.bounds,
+            cornerRadius: currentRadius
         ).cgPath
         clipView.frame = foreground.bounds
         contentHost.view.frame = clipView.bounds
@@ -321,15 +333,31 @@ final class DrawerContainerController: UIViewController,
         let progress = DrawerMotion.progress(
             offset: newOffset, travel: travel
         )
-        clipView.layer.cornerRadius = DrawerMotion.cornerRadius(
-            progress: progress
-        )
+        let radius = DrawerMotion.cornerRadius(progress: progress)
+        clipView.layer.cornerRadius = radius
+        // §182.2 阴影路径跟随圆角（与布局期同步口径）
+        foreground.layer.shadowPath = UIBezierPath(
+            roundedRect: foreground.bounds,
+            cornerRadius: radius
+        ).cgPath
         foreground.layer.shadowOpacity = Float(
             DrawerMotion.shadowOpacity(progress: progress)
         )
         // 穿透防护：只要离开合位，内容本体不接触摸
-        // （窄条的点/拖由前景手势承接）；全合位恢复
-        contentHost.view.isUserInteractionEnabled = newOffset <= 0
+        // （窄条的点/拖由前景手势承接）；全合位恢复。
+        // §186.8 补修（Codex 异源复核）：归位动画在途
+        // 时同样保持关闭——animator 的动画闭包在启动
+        // 拍即以目标值调本函数（model 值同步落位），
+        // 若只看 offset，关闭动画起始帧内容就已可点，
+        // 而呈现层还在移动、舱的透传判定帧是布局快照
+        // （transform 位移不触发 preference 更新）——
+        // 点会落进正在移动的舱/列表。落定复位在
+        // finishSettle（animator 已清零后按 offset
+        // 终值重断言）；跟手拖动期 animator 恒为 nil
+        // （接管时先停 animator），本条不改变拖动态
+        // 语义（offset 本身即呈现事实）
+        contentHost.view.isUserInteractionEnabled =
+            newOffset <= 0 && animator == nil
         edgeView.isHidden = semanticPresented || newOffset > 0
     }
 
@@ -392,6 +420,12 @@ final class DrawerContainerController: UIViewController,
         if !open {
             drawerHost.view.isHidden = true
         }
+        // §186.8：归位落定的交互复位——动画路径下
+        // applyOffset 因 animator 在途恒置关闭，落定
+        // （完成回调已先清 animator／瞬时路径本就无
+        // animator）在此按 offset 终值放行；开态终值
+        // >0、恒保持关闭
+        contentHost.view.isUserInteractionEnabled = offset <= 0
         syncAccessibility(open: open)
     }
 

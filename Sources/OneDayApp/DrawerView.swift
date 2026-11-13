@@ -436,13 +436,14 @@ struct DrawerView: View {
     /// 导航，再挂一层小标签只是多一道分隔与留白；
     /// 「频道」「旁聊」两组头保留（它们标的是名单分
     /// 区、不是导航自明区）
+    /// §182.1：用户纠正口径——真问题是缺组标题，恢复
+    /// 「选项卡」组头（与频道/旁聊同口径），与 Muse
+    /// 参照对齐
     private var drawerNavList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // §158 合裁：§157 已删「选项卡」组头文
-            // 字，本区折叠头改无标题形态（折叠钮本
-            // 体见 drawerNavCollapseToggle），折叠键
-            // 仍 drawer.nav、内容五行不变
-            drawerNavCollapseToggle
+            // §182.1：导航组头恢复标题「选项卡」，
+            // 与频道/旁聊组头同形态同口径
+            drawerCollapsibleHeader("选项卡", key: DrawerSectionKey.navigation)
             drawerCollapsibleContent(
                 collapsed: drawerSectionCollapsed(
                     DrawerSectionKey.navigation
@@ -1112,41 +1113,6 @@ struct DrawerView: View {
         }
     }
 
-    /// 导航区无标题折叠钮（§158 合裁）：§157 删「选
-    /// 项卡」组头文字后，导航区的折叠能力以无标题形
-    /// 态保留——整行可点（命中 ≥44pt）、右侧 chevron
-    /// 与公用件同语言（展开指下/折叠指右、.smooth
-    /// 0.25 旋转），折叠键仍 DrawerSectionKey
-    /// .navigation（drawer.nav），VoiceOver 以「导航」
-    /// 为名＋展开/折叠值播报
-    private var drawerNavCollapseToggle: some View {
-        let collapsed = drawerSectionCollapsed(
-            DrawerSectionKey.navigation
-        )
-        return Button {
-            toggleDrawerSection(DrawerSectionKey.navigation)
-        } label: {
-            HStack(spacing: 6) {
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .rotationEffect(
-                        .degrees(collapsed ? -90 : 0)
-                    )
-                    .animation(
-                        .smooth(duration: 0.25),
-                        value: collapsed
-                    )
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(Palette.inkSecondary)
-        .padding(.horizontal, OneDayMetrics.drawerInset)
-        .accessibilityLabel("导航")
-        .accessibilityValue(collapsed ? "已折叠" : "已展开")
-    }
 
     /// 可折叠分区头：公用件 CollapsibleSectionHeader
     /// 本体（标题角色与旧 drawerGroupHeader 同档

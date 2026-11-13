@@ -53,7 +53,7 @@ struct SettingsView: View {
     // 体在详情页内复用（AgentAvatarEditorView／
     // AgentNameEditorView 全仓一份不变）
 
-    private enum ManageSheet: String, Identifiable {
+    enum ManageSheet: String, Identifiable {
         case overview, computer, serverFiles
         var id: String { rawValue }
     }
@@ -83,13 +83,12 @@ struct SettingsView: View {
                 } else {
                     identitySection
                     agentSection
-                    connectionSection
-                    workspaceSection
-                    appSection
+                    serverAndWorkspaceSection
+                    preferencesSection
                     supportSection
-                    disconnectSection
                     versionFooter
                 }
+                // notice 提示行在根页续存（§164 监工纠正⑥遗漏①）：浏览/搜索两态都显
                 if let notice {
                     Section {
                         Text(notice)
@@ -206,6 +205,28 @@ struct SettingsView: View {
                     LegalDocumentView(kind: .terms)
                 case .agent(let agentRoute):
                     agentDestination(agentRoute)
+                // prototype-2 新增枢纽页
+                case .agentConfig:
+                    AgentConfigView()
+                case .serverManagement:
+                    ServerManagementView(
+                        status: status,
+                        showDisconnectConfirm: $showDisconnectConfirm
+                    )
+                case .sessionManagement:
+                    SessionManagementView()
+                case .workspaceHub:
+                    WorkspaceHubView(manageSheet: $manageSheet)
+                case .mainSession:
+                    MainSessionView(
+                        onRequestChat: onRequestChat,
+                        onClose: onClose
+                    )
+                case .restartGateway:
+                    RestartGatewayView(
+                        status: status,
+                        showRestartConfirm: $showRestartConfirm
+                    )
                 }
             }
             .confirmationDialog(
@@ -214,11 +235,26 @@ struct SettingsView: View {
                 titleVisibility: .visible
             ) {
                 Button("重启", role: .destructive) {
-                    Task { await restartGateway() }
+                    Task {
+                        await restartGateway()
+                        path.removeAll()
+                    }
                 }
                 Button("取消", role: .cancel) {}
             } message: {
                 Text("重启期间对话会短暂中断，进行中的任务会被打断。")
+            }
+            .confirmationDialog(
+                "断开连接？",
+                isPresented: $showDisconnectConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("断开连接", role: .destructive) {
+                    appState.disconnect()
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("将清除这台手机上保存的服务器凭据与登录会话。本地聊天记录保留。")
             }
         }
     }
@@ -323,13 +359,20 @@ struct SettingsView: View {
             : L10n.string("已连接")
     }
 
-    // MARK: - 智能体组（§164）
+    /// 网关状态词派生（与 ServerManagementView.gatewayStateWord 同口径）
+    private var gatewayStateWord: String {
+        switch status?.gatewayState?.lowercased() {
+        case "running": return "运行中"
+        case "stopped": return "已停止"
+        case "error", "failed": return "异常"
+        default: return status == nil ? "—" : "未知"
+        }
+    }
 
-    /// 智能体组：配置档案（原服务器组「档案」行迁入改
-    /// 名——档案决定人设与系统提示、属智能体侧，原型
-    /// 与三层命名口径一致）／记忆／技能／模型与服务商
-    /// （原「服务端默认模型」行改名随模型页现名）／定
-    /// 时任务／服务端会话——六行全由目录清单驱动
+    // MARK: - 智能体组（prototype-2）
+
+    /// 智能体组（prototype-2 收敛）：只剩模型与服务商／智能体配置／
+    /// 定时任务三行——profiles/memory/skills 移入 agentConfig 枢纽页
     private var agentSection: some View {
         Section {
             ForEach(SettingsCatalog.browseEntries(in: .agent)) { entry in
@@ -342,109 +385,67 @@ struct SettingsView: View {
         .listRowInsets(settingsRowInsets)
     }
 
-    // MARK: - 连接组（§164）
+    // MARK: - 服务与工作区组（prototype-2 新组）
 
-    /// 连接组：当前服务器（特型两行行）＋主线会话状态
-    /// （原服务器组状态行随迁）／连接器／设备与权限／
-    /// 网关状态（特型状态行）＋重启网关（原网关组动作
-    /// 行随迁）／日志／密钥／用量（原模型组两行按服务
-    /// 器侧语义归入本组）
-    private var connectionSection: some View {
+    /// 服务与工作区组（prototype-2）：三个二级枢纽页——服务器管理／
+    /// 会话管理／工作区
+    private var serverAndWorkspaceSection: some View {
         Section {
-            serverRow
-            // 0.27.0：主线会话链接状态如实展示——已链
-            // 接显会话 id、未链接显最近一次链接失败的
-            // 错误原文（链接失败不许再静默，见串话热
-            // 修）；非导航行（无详情页可去），形态与
-            // statusNavRow 同（题＋状态副行）
-            statusInfoRow(
-                icon: "link", title: "主线会话",
-                status: mainSessionStatusText
-            )
-            catalogNavRow(entry(id: "connectors"))
-            catalogNavRow(entry(id: "devicePermissions"))
-            // 网关状态行的内容就是状态本身（运行中/异
-            // 常）——状态副行形态（0.3.8 的撤点口径不
-            // 变：状态点仍只留身份卡一处）
-            statusNavRow(
-                icon: "network", title: "网关状态",
-                status: gatewayStateWord, route: .gateway
-            )
-            Button {
-                showRestartConfirm = true
+            ForEach(SettingsCatalog.browseEntries(in: .serverAndWorkspace)) { entry in
+                catalogNavRow(entry)
+            }
+        } header: {
+            sectionHeader("服务与工作区")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
+    }
+
+    // MARK: - 偏好与权限组（prototype-2 新组）
+
+    /// 偏好与权限组（prototype-2）：外观／连接器／设备与权限
+    private var preferencesSection: some View {
+        Section {
+            ForEach(SettingsCatalog.browseEntries(in: .preferences)) { entry in
+                catalogNavRow(entry)
+            }
+        } header: {
+            sectionHeader("偏好与权限")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
+    }
+
+    // MARK: - 支持组（§164）
+
+    /// 支持组：帮助与反馈／关于 OneDay（原关于组的版
+    /// 本对齐两行与外链、原页脚隐私说明全迁关于页，
+    /// 见 §164.2 对账）
+    private var supportSection: some View {
+        Section {
+            ForEach(SettingsCatalog.browseEntries(in: .support)) { entry in
+                catalogNavRow(entry)
+            }
+            // 诊断构建专用行（hotfix/05025-bars2）：栏位
+            // 几何自述读出面，定案后随诊断分支整件退役
+            NavigationLink {
+                BarsGeometryReportView()
             } label: {
-                HStack(spacing: OneDayMetrics.spacingSM) {
-                    rowIcon("arrow.clockwise")
-                    Text("重启网关")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Spacer()
-                }
-                .frame(minHeight: OneDayMetrics.settingsRowHeight)
-                .contentShape(Rectangle())
-            }
-            .settingsSeparatorToIconEdge()
-            catalogNavRow(entry(id: "logs"))
-            catalogNavRow(entry(id: "envVars"))
-            catalogNavRow(entry(id: "usage"))
-        } header: {
-            sectionHeader("连接")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
-    }
-
-    // MARK: - 工作区组（原管理组，§164 改名）
-
-    /// 工作区组：原底栏「应用」格的三件整面工作区
-    /// （总览/电脑/服务器文件，迁移表见 §47）；行形态
-    /// 与本页导航行同规格（21 图标＋17 题＋chevron），
-    /// 点按走 sheet 呈现（各页自带导航栈，不套本页栈）
-    private var workspaceSection: some View {
-        Section {
-            manageRow(icon: "chart.xyaxis.line", title: "总览") {
-                manageSheet = .overview
-            }
-            // 电脑图标 display（空屏线性同义符号，
-            // 0.24.0 定）
-            manageRow(icon: "display", title: "电脑") {
-                manageSheet = .computer
-            }
-            manageRow(icon: "folder", title: "服务器文件") {
-                manageSheet = .serverFiles
-            }
-        } header: {
-            sectionHeader("工作区")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
-    }
-
-    private func manageRow(
-        icon: String, title: String, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                rowIcon(icon)
-                Text(title)
-                    .font(.rowTitleL)
+                Text("栏位几何自述（诊断）")
+                    .font(.body)
                     .foregroundStyle(Palette.ink)
-                Spacer(minLength: OneDayMetrics.spacingS)
-                Image(systemName: "chevron.right")
-                    // 0.22.0 小字清查：本页字形下限随文
-                    // 字档对齐 15（chevron 是字形非文字，
-                    // 同步升档保同页一致）
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundStyle(Palette.inkMuted)
-                    .accessibilityHidden(true)
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
             }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            .contentShape(Rectangle())
+        } header: {
+            sectionHeader("支持")
         }
-        .buttonStyle(.odPressable)
-        .settingsSeparatorToIconEdge()
+        .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
     }
 
+    // MARK: - 工作区 sheet 呈现（prototype-2 保持）
+
+    /// 工作区 sheet 内容：总览／电脑／服务器文件保持现行 sheet 机制
     @ViewBuilder
     private func manageSheetContent(_ item: ManageSheet) -> some View {
         switch item {
@@ -474,45 +475,8 @@ struct SettingsView: View {
         case .serverFiles:
             NavigationStack {
                 FilesBrowserView()
-                // 0.36.0（宪法 §5／审计 C9 同族）：撤
-                // 居中标题与手写关闭——文件列表内容领
-                // 头、关闭走系统下拉手势
             }
         }
-    }
-
-    // MARK: - 应用组与支持组（§164）
-
-    /// 应用组：外观一行（页内含聊天主题/形象大小/模
-    /// 式/语言四件，原型外观页四项现行全有）；原型
-    /// 「通知」开关行不建——全仓无被控对象（伴生通知
-    /// 是 App 内记录、无总开关、推送未通），不许假开
-    /// 关，降级登记见 §164.4
-    private var appSection: some View {
-        Section {
-            ForEach(SettingsCatalog.browseEntries(in: .app)) { entry in
-                catalogNavRow(entry)
-            }
-        } header: {
-            sectionHeader("应用")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
-    }
-
-    /// 支持组：帮助与反馈／关于 OneDay（原关于组的版
-    /// 本对齐两行与外链、原页脚隐私说明全迁关于页，
-    /// 见 §164.2 对账）
-    private var supportSection: some View {
-        Section {
-            ForEach(SettingsCatalog.browseEntries(in: .support)) { entry in
-                catalogNavRow(entry)
-            }
-        } header: {
-            sectionHeader("支持")
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
     }
 
     // MARK: - 搜索（§164）
@@ -631,6 +595,13 @@ struct SettingsView: View {
         case .privacy: return .privacy
         case .terms: return .terms
         case .overview, .computer, .serverFiles: return nil
+        // prototype-2 新增
+        case .agentConfig: return .agentConfig
+        case .serverManagement: return .serverManagement
+        case .sessionManagement: return .sessionManagement
+        case .workspaceHub: return .workspaceHub
+        case .mainSession: return .mainSession
+        case .restartGateway: return .restartGateway
         }
     }
 
@@ -660,6 +631,13 @@ struct SettingsView: View {
         case "about": return "info.circle"
         case "privacy": return "lock.shield"
         case "terms": return "doc.text"
+        // prototype-2 新增
+        case "agentConfig": return "slider.horizontal.3"
+        case "serverManagement": return "server.rack"
+        case "sessionManagement": return "bubble.left.and.bubble.right"
+        case "workspace": return "square.grid.2x2"
+        case "mainSession": return "link"
+        case "restartGateway": return "arrow.clockwise"
         default: return "gearshape"
         }
     }
@@ -685,93 +663,29 @@ struct SettingsView: View {
             .textCase(nil)
     }
 
-    /// 版本居中小灰字行（0.20.0，照 Muse 设置图页脚
-    /// 「Muse vX.Y.Z」形态）：无卡底、居中、15 灰；
-    /// 字面走 OneDayVersionLabel 单源（与关于页 hero
-    /// 同值，版本源第五处收敛于该常量）
+    /// 页脚签名行（§188 补回原型形态：App 图标小图
+    /// 19pt/角 5＋「OneDay」＋版本小字，一行居中）：
+    /// 无卡底；字面仍走 OneDayVersionLabel 单源——名
+    /// 为字面、版本取 hero 面（full 整串保留为同文件
+    /// 字面锚）；墨色沿 0.22.0 审计口径 inkSecondary
     private var versionFooter: some View {
         Section {
-            Text(OneDayVersionLabel.full)
-
-                .font(.meta)
-                // 0.22.0：版本行是要读的字——inkMuted
-                // （2.75:1）换 inkSecondary（审计 G1）
+            HStack(spacing: OneDayMetrics.iconTextGap) {
+                AppIconView(size: 19, cornerRadius: 5)
+                (
+                    Text("OneDay ")
+                        .font(.meta)
+                    + Text(OneDayVersionLabel.hero)
+                        .font(.badgeOnly)
+                )
                 .foregroundStyle(Palette.inkSecondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .listRowBackground(Color.clear)
-        }
-    }
-
-    // MARK: - 服务器行与断开连接
-
-    /// 当前服务器行：两行式（标题＋主机名）——主机名是长标识，
-    /// 单行值位在图标＋标题＋状态点＋箭头的竞争下必截断
-    /// （0.2.0/0.2.1 两轮截图实证），改两行后完整可读。
-    /// 0.3.2：改 NavigationLink，披露箭头由系统提供
-    private var serverRow: some View {
-        NavigationLink(value: SettingsRoute.serverDetail) {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                rowIcon("server.rack")
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text("当前服务器")
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Text(appState.config?.host ?? "—")
-                        .font(.metaMonospaced)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: OneDayMetrics.spacingS)
-                // 0.3.8 第 9/12 条：状态点撤下——右侧只留系
-                // 统披露箭头一件（旧形态绿点＋箭头双元素、
-                // 且绿点与身份卡那颗同屏重复）；连接状态
-                // 只在身份卡留一处（点＋Hermes 名同行）
             }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .center)
+            .listRowBackground(Color.clear)
         }
-        .settingsSeparatorToIconEdge()
     }
 
-    /// 断开连接独立成组（0.3.8 第 8 条）：破坏性操作不
-    /// 混连接卡——单独一节（红字只在本组内，不与正常
-    /// 连接行同卡相邻）；§164 保留原位（页脚之前）
-    private var disconnectSection: some View {
-        Section {
-            disconnectRow
-        }
-        .listRowBackground(Palette.surface)
-        .listRowInsets(settingsRowInsets)
-    }
-
-    private var disconnectRow: some View {
-        Button(role: .destructive) {
-            showDisconnectConfirm = true
-        } label: {
-            HStack(spacing: OneDayMetrics.spacingSM) {
-                // 0.20.0（照 Muse 设置图「Log out」行）：
-                // 红字行不带图标——独立卡内只有一行红字
-                Text("断开连接")
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.danger)
-                Spacer()
-            }
-            .frame(minHeight: OneDayMetrics.settingsRowHeight)
-            .contentShape(Rectangle())
-        }
-        .confirmationDialog(
-            "断开连接？",
-            isPresented: $showDisconnectConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("断开连接", role: .destructive) {
-                appState.disconnect()
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("将清除这台手机上保存的服务器凭据与登录会话。本地聊天记录保留。")
-        }
-    }
+    // MARK: - 行盒与辅助
 
     /// 本页统一行盒（0.3.8 第 5 条）：纵向 insets 钉 0，
     /// 行高只由行内容 minHeight 56 决定（旧形态系统行
@@ -787,15 +701,6 @@ struct SettingsView: View {
     /// 下完整呈现（其余节维持统一行盒不动）
     private var identityRowInsets: EdgeInsets {
         EdgeInsets(top: 10, leading: 20, bottom: 0, trailing: 20)
-    }
-
-    private var gatewayStateWord: String {
-        switch status?.gatewayState?.lowercased() {
-        case "running": return "运行中"
-        case "stopped": return "已停止"
-        case "error", "failed": return "异常"
-        default: return status == nil ? "—" : "未知"
-        }
     }
 
     // MARK: - 版本派生（关于页注入，§164）
@@ -894,48 +799,6 @@ struct SettingsView: View {
             .contentShape(Rectangle())
         }
         .settingsSeparatorToIconEdge()
-    }
-
-    /// 状态信息行（0.27.0）：statusNavRow 的非导航
-    /// 版——状态本身就是全部内容、没有详情页可去的
-    /// 行用（主线会话链接状态）；形态逐字同状态导
-    /// 航行，只去掉 NavigationLink 与 chevron
-    private func statusInfoRow(
-        icon: String,
-        title: String,
-        status: String
-    ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
-            rowIcon(icon)
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                Text(title)
-                    .font(.rowTitleL)
-                    .foregroundStyle(Palette.ink)
-                Text(status)
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(2)
-            }
-            Spacer(minLength: OneDayMetrics.spacingS)
-        }
-        .frame(minHeight: OneDayMetrics.settingsRowHeight)
-        .contentShape(Rectangle())
-        .settingsSeparatorToIconEdge()
-    }
-
-    /// 主线会话状态文案（0.27.0）：已链接（确认＋
-    /// 种子双位）显 id；有失败留痕显「未链接＋错误
-    /// 原文」；其余显未链接与自动链接的去向
-    private var mainSessionStatusText: String {
-        let store = appState.sideChats
-        if store.mainServerConfirmed, store.mainServerSeeded,
-           let id = store.mainServerSessionID {
-            return "已链接 · \(id)"
-        }
-        if let error = store.mainLinkLastError {
-            return "未链接 · \(error)"
-        }
-        return "未链接（打开聊天页或发送时自动链接）"
     }
 
     // （infoRow 已于 0.4.0 删除，审计 §3.1：键值行统一 LabeledContent）

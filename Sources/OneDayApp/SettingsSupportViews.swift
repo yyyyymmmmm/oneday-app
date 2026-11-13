@@ -1,14 +1,61 @@
 import OneDayDesign
 import OneDayCore
 import SwiftUI
+import UIKit
 
 /// 版本字面单源（设置页重塑 §164）：设置页脚与关于
 /// 页 hero 共用——发版五处同改时本文件一处即两面
 /// （版本源第五处自此收敛为本常量，grep 校验照旧
 /// 命中版本号字面）
 enum OneDayVersionLabel {
-    static let full = "OneDay v0.50.22 (144)"
-    static let hero = "v0.50.22 (144)"
+    static let full = "OneDay v0.50.25 (147)"
+    static let hero = "v0.50.25 (147)"
+}
+
+/// App 图标位图（§188）：经 Info.plist 的 CFBundleIcons
+/// 取图标集文件名再 UIImage(named:)——与桌面图标同
+/// 源（Assets 的 AppIcon 图标集）、换图标自动跟随，
+/// 不复制位图、不占位。取不到返回 nil，消费方整件
+/// 降级（只少图标、不留空框）
+enum AppIconBitmap {
+    static let image: UIImage? = {
+        guard let icons = Bundle.main.infoDictionary?[
+            "CFBundleIcons"
+        ] as? [String: Any],
+        let primary = icons["CFBundlePrimaryIcon"]
+            as? [String: Any],
+        let files = primary["CFBundleIconFiles"]
+            as? [String],
+        let name = files.last else { return nil }
+        return UIImage(named: name)
+    }()
+}
+
+/// App 图标视图（§188）：真实位图＋连续圆角裁切。
+/// 消费点＝设置页脚签名行（19pt/角 5）与关于页 hero
+/// （68pt/角 17），尺寸由消费点按原型口径给。图标本
+/// 身自带底色，深浅色同图、不另加框；无障碍恒隐藏
+/// （相邻名称文字已达意）
+struct AppIconView: View {
+    let size: CGFloat
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        if let image = AppIconBitmap.image {
+            Image(uiImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: cornerRadius,
+                        style: .continuous
+                    )
+                )
+                .accessibilityHidden(true)
+        }
+    }
 }
 
 /// 支持组共用行盒（与设置首页/外观页同口径复刻）
@@ -175,6 +222,11 @@ struct AboutView: View {
     private var heroSection: some View {
         Section {
             VStack(spacing: OneDayMetrics.spacingXS) {
+                // §188：原型 hero 顶部 68×68 圆角图标
+                // 居中（角 17），图标与名行距 16＝
+                // SM(12)＋XS(4) 梯队合成
+                AppIconView(size: 68, cornerRadius: 17)
+                    .padding(.bottom, OneDayMetrics.spacingSM)
                 Text("OneDay")
                     .font(.screenName)
                     .foregroundStyle(Palette.ink)

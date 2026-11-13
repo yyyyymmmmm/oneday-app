@@ -79,7 +79,7 @@ public enum ConnectionStatusWording {
     ) -> (text: String, tone: Tone) {
         if let effective = connection.effective,
            !effective.isEmpty {
-            if effective.contains("待生效") {
+            if effective.contains("待生效") || effective.contains("待打通") {
                 return (effective, .pending)
             }
             if effective.contains("未安装") {
@@ -124,7 +124,22 @@ public enum ConnectionPayloads {
         ["apiKey": .string(apiKey)]
     }
 
-    /// VPS 类凭据：{endpointUrl, token}
+    /// VPS 类凭据（Windows 登录形态，2026-11-11 15:58
+    /// 定版＋云电脑收口规格 §2/§4.1）：{host, username,
+    /// password}——用户只给登录三样；端点、代理令牌与
+    /// 装代理都是服务端内部的事，不进用户面。
+    public static func windowsCredential(
+        host: String, username: String, password: String
+    ) -> [String: JSONValue] {
+        [
+            "host": .string(host),
+            "username": .string(username),
+            "password": .string(password),
+        ]
+    }
+
+    /// VPS 类凭据（内部形态，伴生面板与存量记录仍用此
+    /// 契约；App 表单自收口包起不再引用）：{endpointUrl, token}
     public static func vpsCredential(
         endpointUrl: String, token: String
     ) -> [String: JSONValue] {
@@ -134,7 +149,8 @@ public enum ConnectionPayloads {
         ]
     }
 
-    /// VPS 配置串拆分（规格 §3.2：安装器打印的地址＋
+    /// VPS 配置串拆分（内部形态保留，App 表单不用；
+    /// 原云电脑档 §3.2：安装器打印的地址＋
     /// 令牌打包成一串，粘贴自动拆）：容忍三种形态——
     /// JSON 对象、两行（地址行＋令牌行）、空格分隔。
     /// 拆不出返回 nil，表单回落逐字段手填。
@@ -162,12 +178,62 @@ public enum ConnectionPayloads {
         return (parts[0], parts[1])
     }
 
-    /// VPS 地址校验（front 同口径：必须 http(s) 开头；
-    /// 公网明文的风险提示在表单层按 §5.5 给）
+    /// VPS 地址校验（内部形态保留，App 表单不用；
+    /// front 同口径：必须 http(s) 开头）
     public static func isPlausibleEndpoint(_ raw: String) -> Bool {
         let url = raw.trimmingCharacters(in: .whitespaces)
         return (url.hasPrefix("http://") && url.count > 7)
             || (url.hasPrefix("https://") && url.count > 8)
+    }
+}
+
+// MARK: - Windows 登录三样校验（收口规格 §2.1）
+
+/// VPS 型表单只收 IP＋账户名＋密码（2026-11-11 15:58
+/// 定版）：host 只认「哪台电脑」的写法——合法 IPv4 或
+/// 主机名；带 ://、路径或空白的串一律拦下，不让内部
+/// 端点概念借校验口漏回用户面。服务端会再验一遍，这
+/// 里只管表单能不能提交（口径与伴生 front 同源）。
+public enum WindowsLoginInput {
+    public static func isValidHost(_ raw: String) -> Bool {
+        let host = raw.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty,
+              !host.contains("://"), !host.contains("/"),
+              !host.contains(where: \.isWhitespace)
+        else { return false }
+        // 纯数字与点组成的串只能按 IPv4 判（999.1.1.1
+        // 这类不许借主机名口径混过去）
+        if host.allSatisfy({ $0.isNumber || $0 == "." }) {
+            return isValidIPv4(host)
+        }
+        return isValidIPv4(host) || isValidHostname(host)
+    }
+
+    public static func isValidIPv4(_ host: String) -> Bool {
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return false }
+        return parts.allSatisfy { part in
+            !part.isEmpty && part.allSatisfy(\.isNumber)
+                && (Int(part).map { $0 <= 255 } ?? false)
+        }
+    }
+
+    public static func isValidHostname(_ host: String) -> Bool {
+        guard !host.hasPrefix("-"), !host.hasPrefix("."),
+              !host.hasSuffix("-"), !host.hasSuffix("."),
+              !host.contains("..")
+        else { return false }
+        return host.allSatisfy {
+            $0.isLetter || $0.isNumber || $0 == "-" || $0 == "."
+        }
+    }
+
+    public static func isReady(
+        host: String, username: String, password: String
+    ) -> Bool {
+        isValidHost(host)
+            && !username.trimmingCharacters(in: .whitespaces).isEmpty
+            && !password.isEmpty
     }
 }
 

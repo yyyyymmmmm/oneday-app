@@ -30,9 +30,12 @@ public enum DrawerMotion {
     /// 定值、拖动期不插值（逐帧改裁切半径＝整卡离屏
     /// 重合成，是 0.6.1 拖动卡顿主因之一，§1.5-2）
     public static let cornerStepProgress: CGFloat = 0.02
-    /// 页卡圆角定值（§30 录屏量测形态，0.7.1 起冻结
-    /// 不再随 progress 插值）
-    public static let cardCornerRadius: CGFloat = 28
+    /// 页卡圆角定值（§182.2 量测 Muse 参照
+    /// 127d193a8c4dc8249e9d92941d371c52.jpg 左边界圆角
+    /// 拟合：1206px 图宽 @3.07x 倍率，上角 132px → 43.0pt；
+    /// 折算口径＝逻辑宽 393pt，量测脚本 measure_corners_
+    /// v2.py 沿前景/底层亮度突变点采样拟合）
+    public static let cardCornerRadius: CGFloat = 43
     /// §3.4 页卡柔影定值（灰柱处方：0.6.1 的 radius 24
     /// /x −10 在平色抽屉面上摊成约 48pt 灰柱；改窄而
     /// 贴缘，总宽收至约 20pt）

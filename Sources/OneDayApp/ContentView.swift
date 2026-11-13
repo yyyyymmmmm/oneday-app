@@ -173,6 +173,22 @@ struct ContentView: View {
         ) {
             tabView
         }
+        // 症三定因修复（2026-11-12，探针实证 docs/
+        // shell-float-fix/FLOAT-FIX-REPORT.md）：桥默
+        // 认被 SwiftUI 摆进**安全区矩形**——容器视图
+        // 帧 (0,59 402×781)、自身安全区读数为零，底
+        // 部 34pt 被排除在容器帧外；从几何上看，内
+        // 部坞盘相对宿主底边仍留 21pt，底坞因此多
+        // 浮整整一个底安全区（同台对照 55 vs 21，
+        // 与真机量测 57±2 同构）。「内部
+        // 为何仍留 21pt」是基于几何结果的推断，不
+        // 是对 TabView 内部布局档位的直接观测。改
+        // 全屏安放后容器帧回全屏、安全区改走系统
+        // 传播；顶部与真实输入区的实际落点仍待生
+        // 产装配/真机验证，探针替身页的页底预留不
+        // 能替代该验证。回归由 TabBarFloatTests 与
+        // 生产装配点源码守护共同钉住
+        .ignoresSafeArea()
         // 0.36.0（无障碍 A11Y-S3）：粗体文字映射全
         // App 只挂根视图这一处
         .boldTextMapping()
@@ -199,6 +215,14 @@ struct ContentView: View {
                     appState.pendingChatSessionID = id
                 },
                 onClose: { showHermesChannel = false }
+            )
+        }
+        // 诊断构建采样（hotfix/05025-bars2）：抽屉开合
+        // 事件各采一次几何自述（含左缘命中实测）；定
+        // 案后随诊断分支退役
+        .onChange(of: appState.drawerPresented) { _, presented in
+            BarsGeometryTrace.captureEvent(
+                tag: "drawer=\(presented)"
             )
         }
         // 0.4.5：抽屉里点选/新建线程 → 落到聊天格
