@@ -88,19 +88,49 @@ final class TopBarClusterHitDomainTests: XCTestCase {
 
     // MARK: - 定位助手
 
+    /// 无障碍元素快照（UIView 与 UIAccessibilityEle-
+    /// ment 在 Swift 里的成员暴露不同，统一抽成值）
+    private struct AXSnapshot {
+        var identifier: String?
+        var label: String?
+        var frame: CGRect
+        var traits: UIAccessibilityTraits
+    }
+
+    private func snapshot(of obj: Any) -> AXSnapshot? {
+        if let view = obj as? UIView {
+            return AXSnapshot(
+                identifier: view.accessibilityIdentifier,
+                label: view.accessibilityLabel,
+                frame: view.accessibilityFrame,
+                traits: view.accessibilityTraits
+            )
+        }
+        if let element = obj as? UIAccessibilityElement {
+            return AXSnapshot(
+                identifier: element.accessibilityIdentifier,
+                label: element.accessibilityLabel,
+                frame: element.accessibilityFrame,
+                traits: element.accessibilityTraits
+            )
+        }
+        return nil
+    }
+
     /// 递归收集无障碍元素（容器 API 下钻，含 UIHos-
     /// tingView 派发的 SwiftUI 元素），按标识去重
-    private func accessibilityElements() -> [NSObject] {
-        var out: [NSObject] = []
+    private func accessibilityElements() -> [AXSnapshot] {
+        var out: [AXSnapshot] = []
         var seen = Set<String>()
-        func consider(_ element: NSObject) {
+        func consider(_ obj: Any) {
+            guard let snap = snapshot(of: obj) else { return }
             let key = [
-                element.accessibilityIdentifier ?? "",
-                element.accessibilityLabel ?? "",
-                "\(element.accessibilityFrame)",
+                snap.identifier ?? "",
+                snap.label ?? "",
+                "\(snap.frame)",
             ].joined(separator: "|")
             if seen.insert(key).inserted {
-                out.append(element)
+                out.append(snap)
             }
         }
         func walk(_ view: UIView) {
@@ -108,11 +138,9 @@ final class TopBarClusterHitDomainTests: XCTestCase {
                 consider(view)
             }
             let count = view.accessibilityElementCount()
-            if count != UIAccessibilityContainerCountNotFound {
+            if count > 0 {
                 for index in 0..<count {
-                    if let element =
-                        view.accessibilityElement(at: index)
-                        as? NSObject {
+                    if let element = view.accessibilityElement(at: index) {
                         consider(element)
                     }
                 }
@@ -125,14 +153,14 @@ final class TopBarClusterHitDomainTests: XCTestCase {
 
     private func elementFrame(identifier: String) -> CGRect? {
         accessibilityElements()
-            .first { $0.accessibilityIdentifier == identifier }?
-            .accessibilityFrame
+            .first { $0.identifier == identifier }?
+            .frame
     }
 
     private func elementTraits(identifier: String) -> UIAccessibilityTraits? {
         accessibilityElements()
-            .first { $0.accessibilityIdentifier == identifier }?
-            .accessibilityTraits
+            .first { $0.identifier == identifier }?
+            .traits
     }
 
     private func glassInteractionViews() -> [UIView] {
