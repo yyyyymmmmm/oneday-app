@@ -161,6 +161,62 @@ final class KeyboardFlowDiagnosticTests: XCTestCase {
         var pocketY: CGFloat?
         var dockY: CGFloat?
         var dockHidden: Bool?
+        // 诊断扩容（评审合成条目 10/8，2026-11-13）：
+        // 原始 contentInset、尾锚 CGRect、键盘帧顶、
+        // 键盘引导线顶（当前承载重验臂）、窗口安全
+        // 区实值与 reportTopSafe 对照臂（顶 inset
+        // 实值−顶簇高＝留位记账隐含的顶安全区，与
+        // 窗口真值之差＝回报链误差）
+        var rawInsetBottom: CGFloat
+        var anchorRect: CGRect?
+        var keyboardTop: CGFloat?
+        var guideTop: CGFloat?
+        var safeTop: CGFloat
+        var safeBottom: CGFloat
+        var impliedTopSafe: CGFloat?
+    }
+
+    /// 尾锚（栈尾 1pt 透明视图）的窗口系 CGRect：
+    /// 滚动内容子树里高度 ≤2.5 的视图中取窗口底边
+    /// 最大者（评审条目 10 加录项）
+    private func tailAnchorRect(
+        in scroll: UIScrollView
+    ) -> CGRect? {
+        let candidates = findViews(scroll) { view in
+            view.frame.height >= 0.4
+                && view.frame.height <= 2.5
+                && view.frame.width > 200
+        }
+        return candidates
+            .map { frameInWindow($0) }
+            .max(by: { $0.maxY < $1.maxY })
+    }
+
+    /// 真键盘窗口顶（键盘窗口系类名定位，与装配回
+    /// 归测试的找键盘帧同式）；无键盘窗口记 nil
+    private func keyboardWindowTop() -> CGFloat? {
+        for win in UIApplication.shared.windows {
+            let name = String(describing: type(of: win))
+            if name.contains("Keyboard") {
+                return win.frame.minY
+            }
+        }
+        return nil
+    }
+
+    /// 当前承载上 keyboardLayoutGuide 的可用性重
+    /// 验臂（评审条目 8）：舱宿主根视图的引导线帧
+    /// 顶（窗口坐标）——与真键盘顶逐拍对照，差值
+    /// 即引导线在本承载＋本运行环境下的跟踪误差
+    /// （§194 的退役证据出自真机旧承载；本臂只证
+    /// 模拟器当前承载，口径在报告里分开记）
+    private func composerGuideTop() -> CGFloat? {
+        guard let host = findVC(
+            ComposerGuideHostController.self
+        ) else { return nil }
+        let frame = host.view.keyboardLayoutGuide
+            .layoutFrame
+        return host.view.convert(frame, to: window).minY
     }
 
     private func takeSample(
@@ -169,21 +225,30 @@ final class KeyboardFlowDiagnosticTests: XCTestCase {
         let card = composerCardFrame()
         let lastBottom = lastTextBottomInWindow(in: scroll)
         let dock = dockState()
+        let pocket = topPocketFrame()
+        let adjTop = scroll.adjustedContentInset.top
         return Sample(
             tag: tag,
             contentSize: scroll.contentSize.height,
             offsetY: scroll.contentOffset.y,
             insetBottom: scroll.adjustedContentInset.bottom,
-            insetTop: scroll.adjustedContentInset.top,
+            insetTop: adjTop,
             distance: scroll.contentSize.height
                 - scroll.contentOffset.y - scroll.bounds.height,
             cardTop: card?.minY,
             gapToCard: card.flatMap { c in
                 lastBottom.map { c.minY - $0 }
             },
-            pocketY: topPocketFrame()?.minY,
+            pocketY: pocket?.minY,
             dockY: dock?.frame.minY,
-            dockHidden: dock?.hidden
+            dockHidden: dock?.hidden,
+            rawInsetBottom: scroll.contentInset.bottom,
+            anchorRect: tailAnchorRect(in: scroll),
+            keyboardTop: keyboardWindowTop(),
+            guideTop: composerGuideTop(),
+            safeTop: window.safeAreaInsets.top,
+            safeBottom: window.safeAreaInsets.bottom,
+            impliedTopSafe: pocket.map { adjTop - $0.height }
         )
     }
 
@@ -191,17 +256,28 @@ final class KeyboardFlowDiagnosticTests: XCTestCase {
         func n(_ v: CGFloat?) -> String {
             v.map { String(Int($0.rounded())) } ?? "-"
         }
+        let anchor = s.anchorRect.map {
+            "\(Int($0.minX)),\(Int($0.minY)),"
+                + "\(Int($0.width))x\(Int($0.height))"
+        } ?? "-"
         return "KBFLOW \(s.tag)"
             + " cs=\(Int(s.contentSize.rounded()))"
             + " off=\(Int(s.offsetY.rounded()))"
             + " dist=\(Int(s.distance.rounded()))"
             + " inB=\(Int(s.insetBottom.rounded()))"
             + " inT=\(Int(s.insetTop.rounded()))"
+            + " rawB=\(Int(s.rawInsetBottom.rounded()))"
             + " cardTop=\(n(s.cardTop))"
             + " gap=\(n(s.gapToCard))"
             + " pocketY=\(n(s.pocketY))"
             + " dockY=\(n(s.dockY))"
             + " dockHidden=\(s.dockHidden.map { $0 ? 1 : 0 } ?? -1)"
+            + " anchor=\(anchor)"
+            + " kbTop=\(n(s.keyboardTop))"
+            + " guideTop=\(n(s.guideTop))"
+            + " saT=\(Int(s.safeTop.rounded()))"
+            + " saB=\(Int(s.safeBottom.rounded()))"
+            + " impTS=\(n(s.impliedTopSafe))"
     }
 
     // MARK: - 诊断主程
