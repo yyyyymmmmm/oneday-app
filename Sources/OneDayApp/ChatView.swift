@@ -1164,9 +1164,9 @@ struct ChatView: View {
     /// 起注册为消息列表的 .safeAreaBar(edge: .top)、脱
     /// 离悬浮覆盖，§28；§195 起注册退役、改由
     /// TopBarGuideHost 锚定托管，见 topBarCluster）：
-    /// 身份胶囊一颗装头像＋Hermes＋状态＋模型（§3.3，
-    /// 小模型胶囊撤除），会话名退到胶囊下方次行居中呈
-    /// 现；左右圆钮 0.23.0 起走系统玻璃（审计 T2，此前
+    /// 中央组＝枢纽头像钮＋模型胶囊（§202 路线 B；
+    /// 0.6.0–0.50.26 的一颗装双域身份胶囊退役）；
+    /// 左右圆钮 0.23.0 起走系统玻璃（审计 T2，此前
     /// 为白浮纸、与胶囊玻璃并置两材质）。
     /// 左钮字形改汉堡线（第 31 条：与抽屉的隐喻对齐，
     /// 「分栏」图标 sidebar.left 退场）。顶栏总高约
@@ -1211,20 +1211,18 @@ struct ChatView: View {
 
                 Spacer(minLength: OneDayMetrics.spacingS)
 
-                // 0.6.0 顶栏三件套之中（蓝图 §4 一期＋追加
-                // 硬规格 2）：胶囊仍一颗装头像＋名＋状态＋
-                // 模型，但拆两个点按域——身份域（头像/名/
-                // 总览桥状态行）点按开枢纽 sheet（0.17.0
-                // 改道，0.6.0–0.16.0 是跳活动格）；模型域（分隔
-                // 线＋短名＋chevron）§153 起点开分组选择面
-                // （本会话作用域，见 modelMenu），不许埋掉
-                // 或降级。头像换三狗搭档款定版图。
-                // §182.4：删除 layoutPriority(1)，两侧 Spacer
-                // 改 minLength 确保最小间距；空间不足时先由
-                // ViewThatFits 落无名档、再不够才截断模型名
-                // （modelMenu 内 Text 去 fixedSize）；短名
-                // 时胶囊照常 hug 内容宽
-                identityCapsule
+                // 顶栏三件套之中（§202 路线 B）：中央组
+                // ＝枢纽头像钮＋模型胶囊两个独立元素——
+                // 0.6.0–0.50.26 的「一颗胶囊装双点按域」
+                // （身份域开枢纽／模型域开选择面）整套退
+                // 役：融域命中真机反复派错、0.50.26 终验
+                // 判红，用户拍板拆开。头像钮独立开枢纽
+                // （呈现仍在本页根 fullScreenCover）；模
+                // 型胶囊整颗只开分组选择面（§153 本会话
+                // 作用域，见 modelPickerSheet）。两元素
+                // 间距 spacingS、命中域互不融接；短名时
+                // 胶囊照常 hug 内容宽、长名尾部截断
+                topBarCenterCluster
 
                 Spacer(minLength: OneDayMetrics.spacingS)
 
@@ -1292,33 +1290,53 @@ struct ChatView: View {
         .padding(.bottom, OneDayMetrics.spacingS)
     }
 
-    /// 身份胶囊适配（本体 IdentityCapsuleView，设计
-    /// 沿革——0.6.0 一颗装双点按域、0.6.1 ViewThat-
-    /// Fits 两档根修、0.17.0 本体换玻璃、§179 玻璃
-    /// 降背景层与独立成件——全在该件文件头）
-    /// §179：胶囊本体独立成件（IdentityCapsuleView，
-    /// 供宿主命中域回归测试覆盖），本处只作适配——值
-    /// 与动作仍由本页单源派生，呈现宿主（模型面
-    /// sheet）留在本页根（§175），一件不多
-    private var identityCapsule: some View {
-        IdentityCapsuleView(
-            avatar: appState.agentAvatarImage,
-            displayName: appState.agentDisplayName,
-            statusWord: overviewStatusWord,
-            statusColor: overviewStatusColor,
-            avatarPointSize: avatarTier.capsulePointSize,
-            modelTriggerLabel: ModelDisplayNames.triggerLabel(
-                for: currentChoice.model
-            ),
-            modelAccessibilityLabel: "当前模型 \(displayModelName)，切换模型",
-            onOpenHub: { showHub = true },
-            onOpenModelPicker: { showModelPicker = true }
-        )
+    /// 顶簇中央组适配（§202 路线 B，本体 HubAvatar-
+    /// Button／ModelCapsuleView 两件）：本处只作适
+    /// 配——值与动作仍由本页单源派生，呈现宿主
+    /// （枢纽 cover／模型面 sheet）留在本页根
+    /// （§175），一件不多。两元素之间是一条 8pt
+    /// 显式隔断（透明命中盾：吃掉间隙点、不触发
+    /// 任何动作）——间隔由此按构造恒为死区，不靠
+    /// 两侧命中域自觉收边（胶囊玻璃命中外扩的实
+    /// 测教训见 ModelCapsuleView 文件头）；隔断宽
+    /// ＝spacingS，不许压小
+    private var topBarCenterCluster: some View {
+        HStack(alignment: .center, spacing: 0) {
+            HubAvatarButton(
+                avatar: appState.agentAvatarImage,
+                displayName: appState.agentDisplayName,
+                statusWord: overviewStatusWord,
+                statusColor: overviewStatusColor,
+                avatarPointSize: avatarTier.capsulePointSize,
+                onOpenHub: { showHub = true }
+            )
+            // 显式隔断（命中死区）：宽 16——动作门三
+            // 轮实测（run 43378398732 探针点定界）：
+            // 两钮的实际命中域都比无障碍帧外扩约
+            // 4pt（平台命中宽容、与玻璃无关——无玻
+            // 璃的头像钮同扩），8pt 间隔下两域在中
+            // 点相接、无真死区；16pt 才留出中央
+            // ≥7pt 死带。隔断自带空点按手势，在自
+            // 己帧内吃点不触发（§202.6 补记）
+            Color.clear
+                .frame(
+                    width: OneDayMetrics.spacingM,
+                    height: OneDayMetrics.minTapTarget
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {}
+            ModelCapsuleView(
+                modelTriggerLabel: ModelDisplayNames.triggerLabel(
+                    for: currentChoice.model
+                ),
+                modelAccessibilityLabel: "当前模型 \(displayModelName)，切换模型",
+                onOpenModelPicker: { showModelPicker = true }
+            )
+        }
     }
 
-    /// （胶囊行 capsuleRow 与模型触发钮 modelMenu 已
-    /// 随 §179 迁入 IdentityCapsuleView；§153 的选面
-    /// 纪律注记并入下方 modelPickerSheet 注）
+    /// （模型触发钮本体在 ModelCapsuleView；§153 的
+    /// 选面纪律注记并入下方 modelPickerSheet 注）
 
     /// 模型面只由稳定的聊天根呈现，不挂在 ViewThatFits
     /// 的两个候选按钮上；保留选择、隐藏确认和作用域逻辑。

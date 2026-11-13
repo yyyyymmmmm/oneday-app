@@ -11237,3 +11237,42 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 - **合 main 与 tag**：rel-05027 快进合入本地 main 后，push 时发现 origin/main 已被 tmate 调试线推进（5 提交、仅 .github/workflows/debug-mac.yml、基 b19a155）——并轨合并 043ec0b（两线并存、无改写历史）后 push 成功，main 头回读 043ec0b；打 annotated tag **v0.50.27** 于 043ec0b 并 push。
 - **发版构建（run 43376388284，main push 触发，仅此一次）**：Package／Upload success、artifact 在架；断言失败 **0**、Core **1698 全过**；Failing 两条仍为 §184 在案无断言进程死亡（键盘真崩＋DrawerContainerController 关闭动画一条——止血包 §199.4 已同签名在案；本轮 barGrowth 存活、死亡席位在同族内轮换，方差与台账一致），无新红。
 - **验包**：**11,024,687 字节、md5 `a762ce9d411ded37c7306431a20584c9`**、Info.plist 0.50.27/155/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.27/OneDay-0.50.27.ipa。真机待验按 §201 总清单四组执行。
+## §202 胶囊路线 B 定案：一胶囊一动作＋枢纽独立头像钮（2026-11-13；分支 feat/capsule-single-action，基线 main 0494f7d，只交分支不合并、不出包——完工回报主线组版；0.50.28 装配顺延 §198→§202）
+
+### 202.1 定案与退役
+0.50.26/154 真机终验判红：点胶囊枢纽侧仍升模型列表、胶囊可见玻璃变窄。用户 12:36 拍板改打法（停修现行形态、删除重做、先调研再拍），12:55 在 A（保双动作分域）／B（一胶囊一动作）两路线中**拍板 B**。规格依据＝调研档 capsule-teardown-research-20261113.md §5 路线 B：社区实证异语义双动作融进一片交互玻璃无生产先例（唯一广引先例 Maps 缩放钮为同族/纵向/纯图标等宽，条件全不占）；交互玻璃命中域是公认雷区（玻璃面≠命中面、真机吞触摸、画形≠交互形、小版本漂移、iOS 27 无修复条目）；大厂顶部中央均为单动作（ChatGPT 模型菜单式）。变窄定因（调研 §2.4）：992944a 未动任何布局尺寸，玻璃由整行背板改挂两钮本体、padding 环（左右 12/上下 7）不再被覆盖→可见玻璃 −24pt 宽、−14pt 高，行帧未变。
+
+**退役整套**：`IdentityCapsuleView` 双动作形态（GlassEffectContainer＋两钮各自 `.glassEffect(.regular.interactive())`＋`.glassEffectUnion` 同 id 融域、ViewThatFits 双档）整文件删除；ChatView 接线 `identityCapsule` 换 `topBarCenterCluster`。两面呈现本体（枢纽 fullScreenCover／模型 sheet 与 `showHub`/`showModelPicker` 状态）一字未动，TopBarGuideHost 锚定逻辑（§195）与栏位冻结数值（pocket y=62 等）、§194 键盘机制均未动——宿主只因顶簇内容变化自动记账实高。
+
+### 202.2 新形态
+- **模型胶囊 `ModelCapsuleView`**：整颗只有一个 Button、只开模型选择（onOpenModelPicker 现接线不动）。内容＝当前模型名（唯一可压缩元素、尾部截断，§182 纪律沿用）＋chevron.down。玻璃为单钮常规形态：非交互 `.glassEffect(.regular, in: Capsule())` 只挂标签的**背景层**（与标签同帧的 Color.clear 背景上），命中链里没有玻璃面；不用 union、不用 `.interactive()`；按压走 `.odPressable`；contentShape 与可见玻璃同形（Capsule）。（背景化缘由见 202.4 补记：玻璃挂标签本体时命中域外扩约 4pt。）尺寸按单动作自然宽度：padding（水平 spacingSM 12／垂直 7）在标签内、玻璃覆盖整段标签含 padding 环——153 整行背板口径，「玻璃面比行帧小一圈」不许再现。无障碍标签沿用「当前模型 X，切换模型」，标识 `topbar.modelCapsule`。
+- **枢纽头像钮 `HubAvatarButton`**：顶簇内独立圆形按钮——头像本体（边长走形象档 avatarPointSize、与旧胶囊同源）＋右下在线状态点（衬页面色环），命中域外扩 minTapTarget 44 圆盘（与同排圆钮「视觉盘居中、命中 44」同式）、contentShape(Circle())；点它开枢纽（onOpenHub 现接线不动）。无障碍标签自旧胶囊身份域逐字承接（「名，状态，打开枢纽」），标识 `topbar.hubAvatarButton`。名字/状态词自此退出顶栏视觉（状态只剩色点＋无障碍词），状态词派生口径（OverviewStatusLine）不变。
+- **排布**：顶簇中央组＝HStack〔头像钮，8pt 显式隔断，模型胶囊〕——两元素是分开的两个元素、命中域间隔 ≥8pt、不相邻融接；间隔不是留白而是一条透明命中盾（Color.clear＋contentShape，吃点不触发），间隙按构造恒为死区。横向账：44（头像命中盘）＋8＋胶囊自然宽（短名约 130–160、长名截断封顶），加两侧圆钮 44×2 与页边距，402 宽下有余量，未挤冻结几何。
+
+### 202.3 删测账（被测形态退役，逐项登记）
+以下 6 个文件绑死已退役的双动作融域形态／实验台装配，随本包一并删除；新形态的命中与派发验证由 202.4 两组新测重建承接，覆盖面不低于旧组（旧组的结构门＋动作门两分工保留、装配改生产同构）：
+- `Tests/OneDayAppTests/IdentityCapsuleHitDomainTests.swift`——被测件（融域胶囊）退役；且其脚手架为 safeAreaBar 复刻、与生产托管链不同构（§195 在案），结论本就不作数。
+- `Tests/OneDayAppTests/ShellBatch2/CapsuleHitScanTests.swift`——帧扫描对象为 union 玻璃面，形态退役。
+- `Tests/OneDayAppTests/ShellBatch2/CapsuleFormComparison.swift`——新旧两臂定义随两臂（§179 背板／union 定式）退役。
+- `Tests/OneDayAppTests/ShellBatch2/CapsuleHitTestScenarios.swift`——命中点表绑融域几何，退役。
+- `Tests/OneDayUITests/CapsuleTapDispatchUITests.swift`——被测装配为实验台（-CapsuleTapHarness），实验台退役后无被测对象。
+- `Sources/OneDayApp/CapsuleTapHarness.swift`（DEBUG 实验台）＋`OneDayApp` 内启动分支——实验台本体退役；动作级验证改打真 App 演示装配（见 202.4），不再需要 App 内实验分支。
+- 【续工加列，见 202.6】`Tests/OneDayAppTests/TopBarClusterHitDomainTests.swift`（本包新测）——进程内在生产装配页查无障碍元素六轮 CI 全灭（§184 进程死亡族同签名）且宿主子树作用域证实够不到 SwiftUI 元素，退役；其结构事实并入动作门 `TopBarSingleActionTapTests` 在 UI 进程判读，覆盖不减。
+
+### 202.4 验收（双门，缺一不发）
+- **结构门（新）`TopBarClusterHitDomainTests`**（OneDayAppTests）：生产整页装配（RootView＋演示已连接态，与 ChatPageAssemblyRegressionTests 同装配——真实 TopBarGuideHost＋真实 ChatView 装配点，旧 safeAreaBar 脚手架的绿不算数）。不变量：①两元素都在、按钮型、帧不重叠、横向间隔 ≥8pt、头像命中盘 44、胶囊行高含 padding 环；②胶囊恰一片玻璃且覆盖全帧（宽/高 ≥帧−2，变窄回归守）；③无玻璃面同时压住两元素帧；④hitTest 取点归属——胶囊域 5 点只许命中胶囊帧内视图、头像域 5 点只许命中头像帧内视图、间隙点不许命中任一域内视图。
+- **动作门（新）`TopBarSingleActionTapTests`**（OneDayUITests）：XCUITest 打真 App（-odDemoMode 已连接态，全生产链），按无障碍标识读实帧逐点系统点按：胶囊域 5 点必须只升模型面、头像域 5 点必须只升枢纽、间隙 1 点两面都不升；关闭走生产自带路径（sheet 下滑／枢纽页头 ✕）。
+- 全量单测只增不减（202.3 登记的退役删测除外）；CI 断言失败 0（在案键盘真崩一条只红它、按 §190 记录不追）。
+
+### 202.5 真机待验（随组版装机验）
+①点顶栏头像（任意位置）开枢纽、点胶囊（任意位置）开模型面、点两者之间空隙无反应；②胶囊玻璃面与胶囊外形一致、不再比 0.50.26 窄一圈；③顶栏总高与栏位冻结值不冲突（pocket 仍恒 62、列表顶留位无跳变）；④深色模式与最大字号档各看一帧（头像钮状态点可辨、模型名截断不吞 chevron）。
+
+### 202.6 续工补记（2026-11-13 接手线）
+
+前任中断后由接手线盘点续工（盘点结论见 capsule-b-build-report-20261113.md）；§202.1–202.5 的形态与决策不变，以下三件为续工实测修订：
+
+**间隔 8→16pt（命中外溢定界）**：动作门初版 13 点里间隙中点连红三轮（run 43369981760／43372118468／43374263945 逐字同点 fired=model）。诊断轮（run 43378398732）加边界探针定界：距头像右缘 2pt 点 fired=hub、距胶囊左缘 2pt 与中点 fired=model、胶囊上缘外 4pt fired=model——**两钮的实际命中域都比无障碍帧外扩约 4pt**（无玻璃的头像钮同扩，排除玻璃机制；系平台对小控件的命中宽容）。8pt 间隔下两域在中点相接、无真死区。故顶簇隔断 8→16pt（OneDayMetrics.spacingM），中央留出 ≥7pt 死带；隔断自带空 onTapGesture 在本帧内吃点。动作门判点随之定界：死带三点（间隔中点 ±2）＋双域内点共 13 点；钮缘外 4pt 以内的宽容带属各钮自身、与相邻域无关，不作违规点。修订后动作门全过（终判 run 见下）。
+
+**结构门整合进动作门**：进程内结构门 TopBarClusterHitDomainTests（§202.3 新测之一）六轮 CI 全灭——生产同构装配页内同步查无障碍元素与 §184 进程死亡族同签名（无断言失败、进程死亡）。两轮硬化均未救活：快照单采＋沉降＋拆双用例仍死；收集作用域收进顶栏宿主子树后，run 43380616447 证实平台子视图遍历根本够不到宿主内的 SwiftUI 元素（命中归属用例以「模型胶囊无障碍元素未找到」出判、帧/玻璃用例仍进程死亡）。处置：该文件退役，其结构事实（间隔 ≥8、头像盘宽 44、无融合元素、命中归属）并入动作门、在 UI 进程以同一份实帧判读（开场违规项＋逐点归属）；玻璃不跨双域改由构造证明（玻璃只存在于 ModelCapsuleView 标签背景层、HubAvatarButton 无玻璃）＋动作门归属全对共同成立。§202.3「新测」列随之修正为只剩动作门一组，退役清单加列本文件与缘由。§202.4 中「结构门」读法以本节为准。
+
+**终判**：run 43383268063（head e1668ed）——动作门 VERDICT=PASS（13/13 点归属全对、开场结构三项零违规、实测 gap=16.0）；全量断言失败 0；Failing tests 清单仅 ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays 一条（在案键盘真崩，§190 口径单列不追、归 §184 线）；聚合执行 1686 测。本节与 §202.3 加列为终判后文档提交，不改代码。
