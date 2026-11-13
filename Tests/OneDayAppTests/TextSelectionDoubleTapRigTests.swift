@@ -261,32 +261,29 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         let thread = ChatThread(title: "选字 rig")
         context.insert(thread)
         let base = Date().addingTimeInterval(-6 * 3600)
+        // 目标段：第 2 条（首条助手回复，线程顶部可
+        // 见、免滚动物化——run3/5 普查实证本 harness
+        // 冷启落点在顶部、末条永不物化）；目标词各
+        // 居一句、段首即达
+        let targetText = "先说结论。The ZEBRAWORD marks the first "
+            + "checkpoint clearly. Then the QUARKWORD sits "
+            + "in the middle of this passage. Finally the "
+            + "JUNIPERWORD closes the target paragraph "
+            + "with enough trailing words after it. "
+            + fillerParagraph
         for index in 0..<24 {
             let isUser = index % 2 == 0
             let entry = ChatEntry(
                 role: isUser ? "user" : "assistant",
                 content: isUser
                     ? "第 \(index / 2 + 1) 问：这个参数再确认一下。"
-                    : fillerParagraph,
+                    : (index == 1 ? targetText : fillerParagraph),
                 thread: thread
             )
             entry.createdAt = base
                 .addingTimeInterval(Double(index * 61))
             context.insert(entry)
         }
-        // 末条（助手）：目标段——目标词各居一句、段
-        // 首即达（防引用条/片段截断丢词）
-        let target = ChatEntry(
-            role: "assistant",
-            content: "先说结论。The ZEBRAWORD marks the first "
-                + "checkpoint clearly. Then the QUARKWORD sits "
-                + "in the middle of this passage. Finally the "
-                + "JUNIPERWORD closes the target paragraph "
-                + "with enough trailing words after it.",
-            thread: thread
-        )
-        target.createdAt = base.addingTimeInterval(24 * 61)
-        context.insert(target)
         thread.createdAt = base
         thread.updatedAt = base.addingTimeInterval(24 * 61)
         try? context.save()
@@ -678,6 +675,73 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
             lines.last?.contains("formed=3/3") == true,
             "生产双击形成率未满：\n" + lines.joined(separator: "\n")
         )
+    }
+
+    // MARK: - 普查＋仲裁矩阵臂（无触摸、配置级实证）
+
+    /// 运行时仲裁契约：祖先识别器 × 承载视图自家
+    /// 双击识别器——canPrevent／canBePreventedBy
+    /// （公开 API、读真实需求图）＋双方委托的
+    /// requireFailure／simultaneous 应答。伪造触摸
+    /// 不进识别器系统（自检台探针实证）后，这是本
+    /// harness 能拿到的最硬仲裁证据
+    func testRecognizerCensusAndArbitration() throws {
+        _ = try assemble()
+        guard let probe = targetTextView(word: targetWords[0])
+        else {
+            emit(carrierDump())
+            XCTFail("目标文本视图未在场")
+            return
+        }
+        var lines = census(from: probe.view)
+        let leaf = probe.view
+        let doubles = (leaf.gestureRecognizers ?? []).filter {
+            ($0 as? UITapGestureRecognizer)?
+                .numberOfTapsRequired == 2
+        }
+        lines.append(
+            "ARB leafDoubleTaps=\(doubles.count) leafRecs=\(leaf.gestureRecognizers?.count ?? 0)"
+        )
+        guard let dt = doubles.first else {
+            emit(lines)
+            XCTFail("承载视图无自家双击识别器（异常）")
+            return
+        }
+        func reqFail(
+            _ r: UIGestureRecognizer,
+            _ other: UIGestureRecognizer
+        ) -> String {
+            guard let d = r.delegate else { return "noDel" }
+            return "\(d.gestureRecognizer?(r, shouldRequireFailureOf: other) ?? false)"
+        }
+        func simul(
+            _ r: UIGestureRecognizer,
+            _ other: UIGestureRecognizer
+        ) -> String {
+            guard let d = r.delegate else { return "noDel" }
+            return "\(d.gestureRecognizer?(r, shouldRecognizeSimultaneouslyWith: other) ?? false)"
+        }
+        var view: UIView? = leaf.superview
+        var depth = 1
+        while let current = view, depth < 14 {
+            for rec in current.gestureRecognizers ?? [] {
+                let name = String(describing: type(of: rec))
+                let host = String(describing: type(of: current))
+                lines.append(
+                    "ARB L\(depth) \(host)/\(name)"
+                        + " canPreventDT=\(rec.canPrevent(dt))"
+                        + " dtCanBePrevented=\(dt.canBePrevented(by: rec))"
+                        + " recCanBePreventedByDT=\(rec.canBePrevented(by: dt))"
+                        + " reqFail(rec>dt)=\(reqFail(rec, dt))"
+                        + " reqFail(dt>rec)=\(reqFail(dt, rec))"
+                        + " simul(rec)=\(simul(rec, dt))"
+                        + " simul(dt)=\(simul(dt, rec))"
+                )
+            }
+            view = current.superview
+            depth += 1
+        }
+        emit(lines)
     }
 
     // MARK: - 消融臂（运行时关单层、单变量）
