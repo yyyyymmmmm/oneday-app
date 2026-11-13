@@ -134,6 +134,15 @@ final class ChatEntry {
     /// 轮的位置、永不漂移（可选＋默认 nil、SwiftData
     /// 轻量迁移）
     var approvalKey: String? = nil
+    /// 基础止血包（P1/P2）：发送失败标记——本条用户
+    /// 消息的一轮没能成立（上传/链接失败）或 run 落
+    /// 定失败时置真：条目留原地、气泡旁挂失败标记、
+    /// 点标记以原条目重发（新 run＋新幂等键，不新建
+    /// 重复条目）；重发启动即清、再失败再置。发送队
+    /// 列正解的状态机全套归专包，本字段只承「失败」
+    /// 一态（默认 false、SwiftData 轻量迁移，同
+    /// isPinned 先例）
+    var sendFailed: Bool = false
     var createdAt: Date
     var thread: ChatThread?
 
