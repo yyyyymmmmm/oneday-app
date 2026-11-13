@@ -31,6 +31,18 @@ import UIKit
 /// 值只用一次），跨 body 重建恒为同一匣
 private final class BottomDistanceRecorder {
     var latest: CGFloat = 0
+    /// 内容末端（栈尾锚）是否完整落在可视区内（手感
+    /// A 档事实信号，见 Core BottomFactCalibration
+    /// 注）：由尾锚自身的几何回调写本匣——与 latest
+    /// 同纪律，写不失效任何视图，只在派生点与复核
+    /// 点被读；切线程时由线程切换路清零，防旧线程
+    /// 的末端事实误校新线程首帧
+    var contentEndVisible = false
+    /// 列表容器高（与 latest 同源的几何读数）：喂尾
+    /// 锚事实回调判「完整可见」的视口高——@State 的
+    /// listViewportHeight 只供内容栈撑满，两处同源
+    /// 不分叉，本匣是事实回调的读口
+    var containerHeight: CGFloat = 0
 }
 
 struct ChatView: View {
@@ -203,6 +215,17 @@ struct ChatView: View {
     @State private var stickCoordinator = BottomStickCoordinator()
     /// 所有者在途的唯一复贴任务（新贴底顶替旧任务）
     @State private var stickRestickTask: Task<Void, Never>?
+    /// 键盘帧落定标记（手感 A 档，键盘锚底事件驱
+    /// 动）：Will 路置假（帧在途）、Did 路置真（帧
+    /// 已落定）；静息（无键盘动画）恒真。锚底请求
+    /// 据此分流：已落定当场滚、在途记挂账等落定兑
+    /// 现——代旧 300ms 定时猜测，见
+    /// anchorToBottomAfterKeyboard
+    @State private var keyboardFrameSettled = true
+    /// 键盘锚底挂账：帧在途时记一笔，DidChangeFrame
+    /// 落定刻兑现（settleKeyboardAnchor）；失焦／切
+    /// 线程即作废
+    @State private var keyboardAnchorPending = false
     /// 渲染计划缓存（§135 B 案）：按键（Core Chat-
     /// RenderPlanKey）命中即复用上轮的排序＋分隔＋
     /// 成组结果，无关状态写入不再全线程重算
@@ -1978,6 +2001,34 @@ struct ChatView: View {
                 Color.clear
                     .frame(height: 1)
                     .id("bottom")
+                    // 事实信号探针（手感 A 档，Core
+                    // BottomFactCalibration）：尾锚是内
+                    // 容的真末端（条目/直播/回告/审批全
+                    // 部区段都在它上方），它完整落在列
+                    // 表视口内＝屏幕上已无看不见的内容。
+                    // 帧取列表自有坐标空间（下方
+                    // coordinateSpace 命名）：锚的内容
+                    // 坐标与滚动偏移同含视口上方未物化
+                    // 行的估算高、屏幕帧里逐项抵消，故
+                    // 本信号对 LazyVStack 总高估算免疫
+                    // ——正是几何距底读数的病根所在。回
+                    // 调只在布尔翻转时触发、写引用匣不
+                    // 失效任何视图（§199 纪律），与
+                    // §135 退役的可见集逐帧回写链不同
+                    // 物：单锚、单布尔、无重算
+                    .onGeometryChange(for: Bool.self) { proxy in
+                        let frame = proxy.frame(
+                            in: .named("chatListViewport")
+                        )
+                        let viewportHeight =
+                            bottomDistanceRecorder.containerHeight
+                        return viewportHeight > 0
+                            && frame.minY >= -1
+                            && frame.maxY <= viewportHeight + 1
+                    } action: { _, endVisible in
+                        bottomDistanceRecorder
+                            .contentEndVisible = endVisible
+                    }
             }
             // 0.7.0（M1 轻保活）：滚动目标布局登记——条目
             // 可见性按 UUID id 回报，喂滚动锚的存/取
@@ -2085,6 +2136,10 @@ struct ChatView: View {
         // 裁以本包 hidden 为终局；其诊断表 D「底缘全
         // 宽模糊带是帧成本源」与撤带方向一致
         .scrollEdgeEffectHidden(true, for: .bottom)
+        // 事实信号坐标空间（手感 A 档）：尾锚的几何回
+        // 调以本列表为原点读帧（见栈内尾锚注）——只命
+        // 名、不改任何布局与滚动行为
+        .coordinateSpace(name: "chatListViewport")
 
         // 0.36.27（§97 件二，用户 03:48 点题「输入框
         // 上面有点大，小点就行」）：列表底边距收一档
@@ -2188,12 +2243,7 @@ struct ChatView: View {
             // 全页重跑；匣写不失效任何视图，复核读到
             // 的仍是读时点最新值，判定语义零变更
             bottomDistanceRecorder.latest = distance
-            let proximity = BottomProximity.update(
-                distance: distance, wasNearBottom: isNearBottom
-            )
-            if proximity != isNearBottom {
-                isNearBottom = proximity
-            }
+            applyBottomProximity(distance: distance)
         }
         // 列表可视高回写（0.3.5）：喂内容栈的撑满
         // minHeight（点空白收键盘命中域，见栈内撑满注）
@@ -2205,10 +2255,25 @@ struct ChatView: View {
             if listViewportHeight != newHeight {
                 listViewportHeight = newHeight
             }
+            // 手感 A 档：同值喂引用匣一份——尾锚事实回
+            // 调判「完整可见」要读视口高，匣写不失效
+            // 视图、与 @State 同源不分叉
+            bottomDistanceRecorder.containerHeight = newHeight
         }
         // 「点空白收键盘」手势在内容栈上（见 messageList 内注），
         // 不挂 ScrollView 本体——其命中域含发送舱 inset
         .onChange(of: currentThread?.sortedEntries.count) { _, _ in
+            // 落定复核（手感 A 档）：条目落盘即流式落
+            // 定事件（流结束的最后一贴本就由本路承
+            // 担）——先以最新读数＋尾锚事实重跑一遍派
+            // 生：流式中途单次大块增长可把距底顶出迟
+            // 滞带误翻离底（自家审计 S3），落定刻尾行
+            // 已量实、读数收敛或末端事实可见者在此校
+            // 回在底，下方跟随贴底随之接续；用户真离
+            // 底时读数与事实同向、派生不动
+            applyBottomProximity(
+                distance: bottomDistanceRecorder.latest
+            )
             // 用户已上翻看历史时不强拉回底（0.2.2 交互专项）
             // 0.4.2（§27）：跟随贴底改无动画一步贴合——
             // 带 0.25s 动画的 scrollTo 追逐随内容生长移
@@ -2287,6 +2352,11 @@ struct ChatView: View {
             stickRestickTask = nil
             sendFrameStartedAt = nil
             sendFrameRestickLogged = false
+            // 手感 A 档同理清账：尾锚事实是上一线程的
+            // 末端读数、新线程首帧未量前不许误校；键
+            // 盘锚底挂账亦属上一线程的家当
+            bottomDistanceRecorder.contentEndVisible = false
+            keyboardAnchorPending = false
             // 0.41.0：未读账同属上一线程家当——水位与
             // 计数一并清零，新线程从零起算
             awayUnread.resetAll()
@@ -2357,6 +2427,10 @@ struct ChatView: View {
         .onChange(of: composerFocused) { _, focused in
             if focused {
                 anchorToBottomAfterKeyboard(proxy)
+            } else {
+                // 失焦作废挂账：锚底只服务聚焦中的键
+                // 盘场景（手感 A 档事件驱动口径）
+                keyboardAnchorPending = false
             }
         }
         .onReceive(
@@ -2364,23 +2438,82 @@ struct ChatView: View {
                 for: UIResponder.keyboardWillChangeFrameNotification
             )
         ) { _ in
+            // 帧开始变（升起/候选栏收展/交互收起逐
+            // 帧）：落定标记先撤——此后的锚底请求只
+            // 记挂账，等帧落定事件兑现（手感 A 档）
+            keyboardFrameSettled = false
             if composerFocused {
                 anchorToBottomAfterKeyboard(proxy)
             }
         }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIResponder.keyboardDidChangeFrameNotification
+            )
+        ) { _ in
+            // 帧落定事件：兑现挂账（无挂账只更新标
+            // 记）；交互式收起的手势尾段同走本路（手
+            // 势结束、帧落定即 Did）
+            settleKeyboardAnchor(proxy)
+        }
     }
 
-    /// 键盘动画后锚底：等键盘帧落定（300ms 覆盖系统键盘
-    /// 动画时长）再滚；执行时复查 isNearBottom，用户在等
-    /// 待间隙里上滑了就不拉
+    /// 在底判定单一派生点（§135 几何单源＋手感 A 档
+    /// 事实校准）：一切 isNearBottom 的重算只许经此
+    /// 一处——几何迟滞判定（Core BottomProximity）
+    /// 先行，事实信号（尾锚完整可见）与之冲突时以
+    /// 事实为准（Core BottomFactCalibration：长线
+    /// 程估算距离驻留迟滞带时几何报离底、屏幕上却
+    /// 已无未见内容，钮据此及时消失）。消费方三路
+    /// 同源：滚动几何回调逐帧、条目落盘的落定复核、
+    /// 复核序列的校准检。写加等值守卫，同值不重算
+    private func applyBottomProximity(distance: CGFloat) {
+        let geometric = BottomProximity.update(
+            distance: distance, wasNearBottom: isNearBottom
+        )
+        let calibrated = BottomFactCalibration.isNearBottom(
+            geometric: geometric,
+            contentEndVisible: bottomDistanceRecorder
+                .contentEndVisible
+        )
+        if calibrated != isNearBottom {
+            isNearBottom = calibrated
+        }
+    }
+
+    /// 键盘锚底（事件驱动，手感 A 档——代 0.3.3 的
+    /// 300ms 定时补一刀）：旧路靠固定睡眠覆盖键盘动
+    /// 画时长，落定瞬间的一跳与键盘动画不连续、且等
+    /// 待间隙里任何变数都只能靠执行时复查兜底。新路
+    /// 只认键盘帧事件：帧已落定（无动画在途）即当场
+    /// 锚；帧在途（升起/候选栏收展/交互收起中）只记
+    /// 一笔挂账，DidChangeFrame 到达（＝帧落定事件
+    /// 本身）时兑现。落定事实由 Will/Did 两路通知维
+    /// 护（见 messageList 的键盘通知订阅），本函数不
+    /// 持有任何计时器——双时钟尾巴的定时猜测自此退
+    /// 役（§194 的键盘常数与宿主跟随曲线零改动，本
+    /// 处只换「何时补锚」的触发源）。执行时复查
+    /// isNearBottom 与聚焦态：在途期间用户上滑了、
+    /// 或已失焦，挂账作废不拉
     private func anchorToBottomAfterKeyboard(_ proxy: ScrollViewProxy) {
         guard isNearBottom else { return }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(300))
-            if isNearBottom {
-                scrollToBottom(proxy)
-            }
+        if keyboardFrameSettled {
+            scrollToBottom(proxy)
+        } else {
+            keyboardAnchorPending = true
         }
+    }
+
+    /// 键盘帧落定兑现：DidChangeFrame 的消费口——帧
+    /// 标记落定后，有挂账且仍合锚底条件才滚；挂账
+    /// 无论兑现与否都在此清结（下一轮帧变化自会再
+    /// 经 Will 路重记）
+    private func settleKeyboardAnchor(_ proxy: ScrollViewProxy) {
+        keyboardFrameSettled = true
+        guard keyboardAnchorPending else { return }
+        keyboardAnchorPending = false
+        guard composerFocused, isNearBottom else { return }
+        scrollToBottom(proxy)
     }
 
     /// 滚到底部锚点——全列表唯一的贴底所有者（§135
@@ -2388,21 +2521,34 @@ struct ChatView: View {
     /// 变化／发送令牌／流式跟随／键盘两路／首帧定
     /// 版／线程恢复）与回底钮一律经此一口，不许直
     /// 呼 performScrollToBottom。animated=true 只给
-    /// 人发起的滚动（回到底部钮、键盘锚底）：走页面
-    /// 过渡曲线滑过去；内容跟随必须 animated=false
-    /// 一步贴合当前底部——带动画的 scrollTo 追逐随
-    /// 内容生长不断移动的锚点，是划到底抖动的主因
-    /// （0.4.2 定因，§27，口径不变）。
+    /// 人发起的滚动（回到底部钮、键盘锚底）：手感
+    /// A 档起走回底弹簧（MotionTokens.scrollTo-
+    /// BottomSpring：ζ＝1.0、响应按距缩放——代旧
+    /// pageCrossfade 固定 0.25s 的距离无关甩动）；
+    /// 内容跟随必须 animated=false 一步贴合当前底
+    /// 部——带动画的 scrollTo 追逐随内容生长不断移
+    /// 动的锚点，是划到底抖动的主因（0.4.2 定因，
+    /// §27，口径不变）。弹簧滚动途中用户手势可直
+    /// 接接管（系统滚动语义）：本口只发一贴、无循
+    /// 环重发，用户接管后位置与判定全归 §135 派生
+    /// 链，复核序列亦以「距底 ≥176 即放弃」防拽回
+    /// （见下）。
     /// 所有者职责（判定在 Core BottomStickCoordi-
     /// nator，钉测把守）：同帧重复请求合并为一贴；
     /// 复贴全局只挂一笔——新贴底顶替旧复贴、复贴至
     /// 多消费一次、切线程作废。复贴本体沿 0.36.13
-    /// 量实原理：贴底后 120ms 复核实测距底，尾行已
-    /// 量实后距底仍 >7pt（Core BottomSettle，§176
-    /// 自 24 收紧）才以
-    /// 无动画再贴一次；§135 前发送令牌路在这一层之
-    /// 外自带第二层复贴（一次发送连发 3–5 贴），已
-    /// 删，现全局只此一层
+    /// 量实原理：贴底后复核实测距底，尾行已量实后
+    /// 距底仍 >7pt（Core BottomSettle，§176 自 24
+    /// 收紧）才以无动画再贴一次；§135 前发送令牌路
+    /// 在这一层之外自带第二层复贴（一次发送连发
+    /// 3–5 贴），已删，现全局只此一层。
+    /// 复核形态（手感 A 档）：旧为 120ms 单次复核
+    /// ——高度后变漏网（S2）、且弹簧滚动 120ms 尚在
+    /// 途中、单次读数必大、复贴一插即截断弹簧。改
+    /// 短窗复核序列（Core BottomSettleRecheck：
+    /// 120／320／640／1100ms 四检）：运动未落定只
+    /// 等、落定未达标才复贴、末端事实可见走校准收
+    /// 官、距底 ≥176 判用户已离底整序放弃
     private func scrollToBottom(
         _ proxy: ScrollViewProxy, animated: Bool = true
     ) {
@@ -2410,58 +2556,118 @@ struct ChatView: View {
             at: Date().timeIntervalSince1970
         ) {
         case .coalesced:
-            // 同帧已贴、复贴挂账中：落点由挂账复贴在
-            // 120ms 处校正，本路不再连发
+            // 同帧已贴、复贴挂账中：落点由挂账的复核
+            // 序列校正，本路不再连发
             return
         case .perform(let generation):
             performScrollToBottom(proxy, animated: animated)
             stickRestickTask?.cancel()
             let pinnedThreadID = currentThreadID
             stickRestickTask = Task { @MainActor in
-                try? await Task.sleep(
-                    for: .milliseconds(
-                        BottomStickCoordinator
-                            .restickDelayMilliseconds
+                var previousDistance: CGFloat?
+                var elapsedMilliseconds = 0
+                let delays = BottomSettleRecheck
+                    .checkDelaysMilliseconds
+                for (index, target) in delays.enumerated() {
+                    try? await Task.sleep(
+                        for: .milliseconds(
+                            target - elapsedMilliseconds
+                        )
                     )
-                )
-                guard !Task.isCancelled,
-                      currentThreadID == pinnedThreadID,
-                      stickCoordinator.consumeRestick(
-                          generation: generation
-                      )
-                else { return }
-                let shouldRestick = BottomSettle.shouldRestick(
-                    distance: bottomDistanceRecorder.latest
-                )
-                // §135 D 案打点：发送帧的首帧复核读数
-                // （复核距底＋距发送耗时），每轮只记一笔
-                if let started = sendFrameStartedAt,
-                   !sendFrameRestickLogged {
-                    sendFrameRestickLogged = true
-                    ChatDiagTrace.record(
-                        "发送打点 首帧复核 距底"
-                            + " \(Int(bottomDistanceRecorder.latest))pt"
-                            + " 复贴 \(shouldRestick)"
-                            + " 距发送 "
-                            + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
-                    )
+                    elapsedMilliseconds = target
+                    guard !Task.isCancelled,
+                          currentThreadID == pinnedThreadID
+                    else { return }
+                    let distance =
+                        bottomDistanceRecorder.latest
+                    let decision = BottomSettleRecheck
+                        .decision(
+                            distance: distance,
+                            motionSettled: BottomSettleRecheck
+                                .motionSettled(
+                                    wasAnimated: animated,
+                                    distance: distance,
+                                    previousDistance:
+                                        previousDistance
+                                ),
+                            contentEndVisible:
+                                bottomDistanceRecorder
+                                .contentEndVisible,
+                            isLastCheck: index
+                                == delays.count - 1
+                        )
+                    // §135 D 案打点：发送帧的首检复核读
+                    // 数（复核距底＋距发送耗时），每轮只
+                    // 记一笔——序列形态下首检即旧单次复
+                    // 核的对应位（发送路恒无动画贴底、首
+                    // 检即裁决检，口径与旧读数可比）
+                    if index == 0,
+                       let started = sendFrameStartedAt,
+                       !sendFrameRestickLogged {
+                        sendFrameRestickLogged = true
+                        ChatDiagTrace.record(
+                            "发送打点 首帧复核 距底"
+                                + " \(Int(distance))pt"
+                                + " 复贴 \(decision == .restick)"
+                                + " 距发送 "
+                                + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
+                        )
+                    }
+                    previousDistance = distance
+                    switch decision {
+                    case .settled:
+                        stickCoordinator.disarmRestick(
+                            generation: generation
+                        )
+                        return
+                    case .calibrated:
+                        // 末端事实可见：经单一派生点校准
+                        // 在底（钮随之消失），不复贴——屏
+                        // 幕上已无未见内容，复贴只会顶动
+                        applyBottomProximity(
+                            distance: distance
+                        )
+                        stickCoordinator.disarmRestick(
+                            generation: generation
+                        )
+                        return
+                    case .restick:
+                        guard stickCoordinator.consumeRestick(
+                            generation: generation
+                        ) else { return }
+                        performScrollToBottom(
+                            proxy, animated: false
+                        )
+                        return
+                    case .wait:
+                        continue
+                    case .exhausted:
+                        stickCoordinator.disarmRestick(
+                            generation: generation
+                        )
+                        return
+                    }
                 }
-                guard shouldRestick else { return }
-                performScrollToBottom(proxy, animated: false)
             }
         }
     }
 
     /// 贴底本体（不带复核）：scrollToBottom 的首贴与
     /// 复贴共用，复贴不经 scrollToBottom 以免自触发
-    /// 再复核成环
+    /// 再复核成环。animated 路的曲线＝回底弹簧（手
+    /// 感 A 档）：响应按执行时点的实测距底缩放（引
+    /// 用匣读数），落点与旧 pageCrossfade 路一致
+    /// （同一 scrollTo 目标锚）
     private func performScrollToBottom(
         _ proxy: ScrollViewProxy, animated: Bool
     ) {
         if animated {
             withAnimation(
                 MotionTokens.resolved(
-                    MotionTokens.pageCrossfade, reduceMotion: reduceMotion
+                    MotionTokens.scrollToBottomSpring(
+                        distance: bottomDistanceRecorder.latest
+                    ),
+                    reduceMotion: reduceMotion
                 )
             ) {
                 proxy.scrollTo("bottom", anchor: .bottom)

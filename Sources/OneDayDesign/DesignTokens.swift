@@ -113,6 +113,27 @@ public enum MotionTokens {
         response: 0.35, dampingFraction: 1.0
     )
 
+    /// 回底滚动弹簧（手感 A 档，2026-11-13）：人发起
+    /// 的回底滚动（回底钮／键盘锚底）专用档——参数
+    /// 不在本册写死，单出 Core BottomScrollSpring
+    /// （ζ＝1.0 无过冲、响应按滚动距离缩放封顶），
+    /// 本工厂是其唯一 Design 出口：旧路 pageCross-
+    /// fade（easeInOut 固定 0.25s、与距离无关的高速
+    /// 甩动）自此退出回底路径（pageCrossfade 本档留
+    /// 给页面交叉淡化原职）。调用方仍经 resolved()
+    /// 出口（Reduce Motion 即瞬时）
+    public static func scrollToBottomSpring(
+        distance: CGFloat
+    ) -> Animation {
+        Animation.spring(
+            response: BottomScrollSpring.response(
+                forDistance: distance
+            ),
+            dampingFraction: BottomScrollSpring
+                .dampingFraction
+        )
+    }
+
     /// Reduce Motion 降级口径：开启时返回 nil（调用方以
     /// withAnimation(resolved) 包裹，nil 即瞬时切换）；Reduce
     /// Transparency 的降级由系统玻璃自动回退实色，不在代码层处理。

@@ -171,6 +171,77 @@ public enum BottomSettle {
     }
 }
 
+/// 回底滚动弹簧参数（手感 A 档，2026-11-13）：人发
+/// 起的回底滚动（回底钮／键盘锚底）旧走 pageCross-
+/// fade（easeInOut 固定 0.25s、与距离无关）——长线
+/// 程数千 pt 也只给 0.25s，是一次高速甩动。本档按
+/// WWDC18-803《Designing Fluid Interfaces》口径换
+/// 弹簧：直接操纵类动画阻尼比 ζ＝1.0（无过冲、落
+/// 点即目标、无回跳），响应时长按滚动距离线性放
+/// 大封顶——短距保持利落、长距把峰值速度压下来，
+/// 曲线全程减速而非匀速甩动。落点与旧路一致（同一
+/// scrollTo 目标锚），变的只有运动曲线；距离取贴底
+/// 执行时点的实测距底（视图层引用匣读数）。弹簧本
+/// 体由 Design 层 MotionTokens 工厂按本档参数构造
+/// （令牌纪律：动画只许出令牌册）。
+public enum BottomScrollSpring {
+    /// 阻尼比：ζ＝1.0 临界阻尼、无过冲（WWDC18-803
+    /// 直接操纵档；与 selectionSpring 的 ζ＝1.0 同
+    /// 口径——点按触发、无手势来源的位移零回弹）
+    public static let dampingFraction: CGFloat = 1.0
+    /// 响应下限（秒）：贴底距离≈0 时的响应（回底钮
+    /// 在迟滞带内被点等短距场景保持利落）
+    public static let minimumResponse: CGFloat = 0.30
+    /// 响应上限（秒）：超长线程封顶，再长只靠弹簧本
+    /// 身的距离自适应速度，不无限放慢
+    public static let maximumResponse: CGFloat = 0.80
+    /// 每 pt 距离增加的响应（秒/pt）：1000pt → +0.12
+    public static let responsePerPoint: CGFloat = 0.00012
+
+    /// 距底距离 → 弹簧响应：线性放大、双向封顶；距
+    /// 离为负（橡皮筋越底）按零距取下限
+    public static func response(forDistance distance: CGFloat) -> CGFloat {
+        guard distance > 0 else { return minimumResponse }
+        return min(
+            maximumResponse,
+            minimumResponse + distance * responsePerPoint
+        )
+    }
+}
+
+/// 事实信号校准（手感 A 档，2026-11-13，Stream 对
+/// 照）：§135 把显隐收成几何单源时如实记下风险——
+/// 长线程估算距离驻留迟滞带、钮晚消失（用户 2026-
+/// 11-13 15:42 真机兑现：「到底了有时箭头还不消
+/// 失」）。Stream Chat 的显隐不用 pt 阈值、用「末
+/// 行是否完全可见」的事实信号，对估算误差天然免
+/// 疫。本校准把同型信号接回判定：内容末端（栈尾
+/// 锚）已完整落在可视区内时，几何读数无论报多少
+/// 都以「在底」为准——屏幕上已经没有看不见的内
+/// 容，距底读数只剩估算残差与边距记账。
+/// 与 §135 退役的旧事实链的区别（防重蹈覆辙）：
+/// 旧链是 scrollTargetLayout 可见集逐帧回写多枚
+/// @State＋全量重算，本信号只有一个布尔——栈尾锚
+/// 一枚视图的几何回调经 §199 引用匣运输（写不失
+/// 效任何视图），只在既有的单一派生点被读一次。
+/// 锚的屏幕帧对估算免疫的原理：锚在内容坐标里的
+/// 位置与滚动偏移同含视口上方未物化行的估算高，
+/// 两者在屏幕帧里逐项抵消；视口内外的行都已物化
+/// 量实，锚的在屏位置是渲染事实、不是总高推算。
+/// 方向单向：事实只许证明「在底」（末端可见 ⇒ 无
+/// 内容可再下翻），不许反证「离底」——末端不可见
+/// 的成因含长条目未完整入屏等，不能推翻几何迟滞
+/// 判定；几何报在底时事实缺位亦不改判。
+public enum BottomFactCalibration {
+    /// 几何判定与事实信号冲突时以事实为准：事实报
+    /// 末端可见即在底；其余情形原样返回几何判定
+    public static func isNearBottom(
+        geometric: Bool, contentEndVisible: Bool
+    ) -> Bool {
+        geometric || contentEndVisible
+    }
+}
+
 /// 离底未读计数（0.41.0，全局收口批·聊天细节余项正
 /// 修，台账 H 节）：用户上翻离开底部后，新到条目计在
 /// 回底钮的角标上；回到底部、自发发送、切换线程即清
