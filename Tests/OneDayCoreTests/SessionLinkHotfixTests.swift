@@ -74,6 +74,76 @@ final class SessionLinkHotfixTests: XCTestCase {
         XCTAssertFalse(SideChatLink.mayArchiveOnDelete(sessionID: ""))
     }
 
+    // MARK: - 真删闸（0.50.30，管理收口包件二）
+
+    func testHardDeleteOnlyForOwnSideSessions() {
+        let main = "oneday-main-abc"
+        XCTAssertTrue(
+            SideChatLink.mayHardDeleteOnThreadDelete(
+                sessionID: "oneday-side-x", mainSessionID: main
+            )
+        )
+        // 主线会话本体：钦定 id 相等拦、主线前缀形态拦
+        XCTAssertFalse(
+            SideChatLink.mayHardDeleteOnThreadDelete(
+                sessionID: main, mainSessionID: main
+            )
+        )
+        XCTAssertFalse(
+            SideChatLink.mayHardDeleteOnThreadDelete(
+                sessionID: "oneday-main-other", mainSessionID: main
+            )
+        )
+        // 合并桶与他方会话：只删本地、服务端零动作
+        XCTAssertFalse(
+            SideChatLink.mayHardDeleteOnThreadDelete(
+                sessionID: "api-592647b9ae21ec54", mainSessionID: main
+            )
+        )
+        XCTAssertFalse(
+            SideChatLink.mayHardDeleteOnThreadDelete(
+                sessionID: "sess-foreign-1", mainSessionID: main
+            )
+        )
+        XCTAssertFalse(
+            SideChatLink.mayHardDeleteOnThreadDelete(
+                sessionID: nil, mainSessionID: main
+            )
+        )
+        XCTAssertFalse(
+            SideChatLink.mayHardDeleteOnThreadDelete(
+                sessionID: "", mainSessionID: main
+            )
+        )
+        // 主线 id 未知（nil）时，前缀形态仍须拦下主线
+        XCTAssertFalse(
+            SideChatLink.mayHardDeleteOnThreadDelete(
+                sessionID: "oneday-main-abc", mainSessionID: nil
+            )
+        )
+    }
+
+    // MARK: - 围栏代次解码（0.50.30）
+
+    func testServerSessionDecodesRuntimeGeneration() throws {
+        let decoder = JSONDecoder()
+        let row = try decoder.decode(
+            ServerSession.self,
+            from: Data(
+                #"{"id": "oneday-side-x", "runtime_revision": 3, "runtime_generation": 7}"#.utf8
+            )
+        )
+        XCTAssertEqual(row.runtimeRevision, 3)
+        XCTAssertEqual(row.runtimeGeneration, 7)
+        // 列表投影不带代次：解码为 nil、不许报错
+        let projected = try decoder.decode(
+            ServerSession.self,
+            from: Data(#"{"id": "oneday-side-y"}"#.utf8)
+        )
+        XCTAssertNil(projected.runtimeRevision)
+        XCTAssertNil(projected.runtimeGeneration)
+    }
+
     // MARK: - 种子转录
 
     func testSeedTranscriptFiltersAndKeepsOrder() {

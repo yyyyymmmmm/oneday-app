@@ -328,6 +328,12 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
     /// 产实证）；网关面投影可能不带此字段，故可选；
     /// 默认 nil 兼容既有直构点（解码时有键照常取值）
     public let runtimeRevision: Int? = nil
+    /// 会话行当前的 mutation 代次（0.50.30）：围栏
+    /// DELETE 须三参数齐发（request_id＋expected_
+    /// revision＋expected_generation，见 DESIGN
+    /// §204.6）——详情 GET 回行带 runtime_generation、
+    /// 列表投影不带，故同为可选、默认 nil
+    public let runtimeGeneration: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, source, model, profile
@@ -345,6 +351,7 @@ public struct ServerSession: Decodable, Sendable, Identifiable {
         case inputTokens = "input_tokens"
         case outputTokens = "output_tokens"
         case runtimeRevision = "runtime_revision"
+        case runtimeGeneration = "runtime_generation"
     }
 
     /// 开始时间（epoch 量级归一：>1e11 视为毫秒）

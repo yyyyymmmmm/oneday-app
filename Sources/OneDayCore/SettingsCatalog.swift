@@ -169,8 +169,8 @@ public enum SettingsCatalog {
         SettingsCatalogEntry(
             id: "workspace", group: .serverAndWorkspace,
             title: "工作区",
-            summary: "总览、电脑与文件",
-            keywords: ["工作区", "总览", "电脑", "文件", "workspace"],
+            summary: "总览、电脑与资源库",
+            keywords: ["工作区", "总览", "电脑", "文件", "资源库", "workspace"],
             destination: .workspaceHub
         ),
         // 服务器管理页内子项（不在根页显示）

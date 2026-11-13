@@ -129,6 +129,11 @@ struct DrawerView: View {
     /// 本地旁聊行重命名（长按四件之一，0.18.0 沿革）
     @State private var renamingThread: ChatThread?
     @State private var renameText = ""
+    /// 删除二次确认的待删线程（0.50.30：真删不可恢
+    /// 复，确认门与管理面 ServerSessionRow 同口径）
+    @State private var pendingDeleteThread: ChatThread?
+    /// 真删未落定的人话原因（失败弹报、本地线程保留）
+    @State private var deleteFailureReason: String?
     /// 身份行编辑入口（§157）：与枢纽头像菜单同两张
     /// 编辑页的呈现开关，本面只置位、不复制编辑逻辑
     @State private var showAvatarEditor = false
@@ -259,6 +264,40 @@ struct DrawerView: View {
             TextField("会话标题", text: $renameText)
             Button("取消", role: .cancel) { renamingThread = nil }
             Button("保存") { commitRenameThread() }
+        }
+        // 删除二次确认（0.50.30）：文案与管理面共用行
+        // 组件同口径；确认后走真删流（服务端先行、回
+        // 查落定才删本地），失败走下方 alert 显形
+        .confirmationDialog(
+            "删除这条会话？",
+            isPresented: Binding(
+                get: { pendingDeleteThread != nil },
+                set: { if !$0 { pendingDeleteThread = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let thread = pendingDeleteThread {
+                    pendingDeleteThread = nil
+                    Task { await performDeleteThread(thread) }
+                }
+            }
+            Button("取消", role: .cancel) { pendingDeleteThread = nil }
+        } message: {
+            if let thread = pendingDeleteThread {
+                Text("「\(drawerDisplayTitle(for: thread))」删除后不可恢复。")
+            }
+        }
+        .alert(
+            "没删掉",
+            isPresented: Binding(
+                get: { deleteFailureReason != nil },
+                set: { if !$0 { deleteFailureReason = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) { deleteFailureReason = nil }
+        } message: {
+            Text(deleteFailureReason ?? "")
         }
         // 身份行编辑页（§157）：复用枢纽同两张编辑页
         // 本体（改的都是本机档案），呈现口径与枢纽一
@@ -551,7 +590,7 @@ struct DrawerView: View {
                 // 0.20.0 第七条：应用格改文件格，导航行
                 // 同步改「文件」（符号与底栏同源 files 对）
                 symbol: TabBarSymbols.files.normal,
-                title: "文件",
+                title: "资源库",
                 selected: drawerSelection == .surface(.files)
             ) {
                 onClose()
@@ -1038,7 +1077,7 @@ struct DrawerView: View {
                 Label("归档", systemImage: "archivebox")
             }
             Button(role: .destructive) {
-                deleteThread(thread)
+                pendingDeleteThread = thread
             } label: {
                 Label("删除会话", systemImage: "trash")
             }
@@ -1072,7 +1111,41 @@ struct DrawerView: View {
         renamingThread = nil
     }
 
-    private func deleteThread(_ thread: ChatThread) {
+    /// 真删流（0.50.30，管理收口包件二；取代 0.21.0
+    /// 「本地先删＋服务端归档（尽力而为）」旧语义——
+    /// 旧流服务端只归档不删、会话本体从没删掉过）：
+    /// 本线程自建的旁聊会话（Core 真删闸 mayHard-
+    /// DeleteOnThreadDelete）先走 ServerSession-
+    /// Actions.delete（围栏 DELETE＋删后回查、与全
+    /// 部对话页同一条路），回查落定才清本地账并删
+    /// 本地线程；未落定 → 本地线程原样保留、原因弹
+    /// 报，不许再出现「本地没了、服务端还在」。其余
+    /// 线程（未链接/导入会话/合并桶绑定）维持只删
+    /// 本地、服务端零动作；主线线程在本面无删除入
+    /// 口（既有保护不动），真删闸对主线会话本体另
+    /// 有双重拦截
+    private func performDeleteThread(_ thread: ChatThread) async {
+        if let linkedSessionID = thread.serverSessionID,
+           SideChatLink.mayHardDeleteOnThreadDelete(
+               sessionID: linkedSessionID,
+               mainSessionID: appState.sideChats.mainServerSessionID
+           ) {
+            let outcome = await ServerSessionActions.delete(
+                appState: appState, id: linkedSessionID
+            )
+            guard case .verified = outcome else {
+                if case .failed(let reason) = outcome {
+                    deleteFailureReason = reason
+                }
+                return
+            }
+            appState.sideChats
+                .purgeServerSessionRecords(linkedSessionID)
+        }
+        deleteLocalThread(thread)
+    }
+
+    private func deleteLocalThread(_ thread: ChatThread) {
         // 0.4.5 通道化：删的若是 ChatView 正在显示的线
         // 程，经 drawerDeletedThreadID 通知它置空当前
         // 线程（本面不持有 currentThreadID）
@@ -1098,43 +1171,8 @@ struct DrawerView: View {
         if isCurrent {
             appState.drawerDeletedThreadID = thread.id
         }
-        // 0.21.0 删除语义：本地线程删除是全仓唯一删
-        // 除点（管理面删的是服务端会话本体、口径不
-        // 变）；删前快照关联会话 id，本地删除照常先
-        // 行，关联服务端会话随后做归档（PATCH
-        // archived:true，尽力而为）——归档失败不阻
-        // 塞本地删除，会话 id 落 SideChatStore 留痕
-        // 账待对账（该会话在管理页未归档段仍可见）
-        // 0.27.0 加闸（Core mayArchiveOnDelete）：只
-        // 许归档本线程自建的 oneday- 会话；绑合并桶
-        // 或他方服务端会话的线程只删本地、服务端零
-        // 动作——合并桶里混着主线服务端历史，归档
-        // 它等于连带归档主线
-        let linkedSessionID = SideChatLink
-            .mayArchiveOnDelete(sessionID: thread.serverSessionID)
-            ? thread.serverSessionID
-            : nil
         modelContext.delete(thread)
         try? modelContext.save()
-        if let linkedSessionID {
-            Task {
-                do {
-                    try await appState
-                        .performAdmin { client, config in
-                            try await client.updateServerSession(
-                                config: config, id: linkedSessionID,
-                                title: nil, pinned: nil,
-                                archived: true
-                            )
-                        }
-                    appState.sideChats
-                        .clearFailedSessionArchive(linkedSessionID)
-                } catch {
-                    appState.sideChats
-                        .noteFailedSessionArchive(linkedSessionID)
-                }
-            }
-        }
     }
 
     /// 分组小标题（0.3.6 立宪）：13–14 号灰标签、左线

@@ -135,6 +135,26 @@ public enum SideChatLink {
         return isOwnSessionID(sessionID)
     }
 
+    /// 真删闸（0.50.30，管理收口包件二）：删本地线程
+    /// 时只许对「本线程自建的旁聊会话」发围栏 DELETE
+    /// 真删服务端本体。比归档闸严两档——删除不可恢
+    /// 复：①主线会话本体永不许删（钦定 id 相等、或
+    /// oneday-main- 前缀形态，一律拦下）；②合并桶零
+    /// 服务端写（桶 id 非 oneday- 前缀、本就被自有闸
+    /// 拦下，此处再明示一档）。其余绑定（导入的服务
+    /// 端会话、空绑定）只删本地、服务端零动作
+    public static func mayHardDeleteOnThreadDelete(
+        sessionID: String?, mainSessionID: String?
+    ) -> Bool {
+        guard let sessionID, !sessionID.isEmpty else { return false }
+        guard isOwnSessionID(sessionID) else { return false }
+        guard !isMergeBucket(sessionID) else { return false }
+        if let mainSessionID, sessionID == mainSessionID {
+            return false
+        }
+        return !sessionID.hasPrefix("oneday-main-")
+    }
+
     /// 发送计划（0.27.0 改判）：只看绑定与种子位，
     /// 主线/旁聊同口径（主线的绑定与种子位由
     /// SideChatStore 的钦定 id＋确认/种子位代入）：

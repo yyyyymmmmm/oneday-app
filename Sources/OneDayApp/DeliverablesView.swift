@@ -309,7 +309,7 @@ struct DeliverablesView: View {
                 } label: {
                     headerCircleButton("ellipsis")
                 }
-                .accessibilityLabel("文件页菜单")
+                .accessibilityLabel("资源库菜单")
             }
             IdentityAnchor(
                 // 0.36.22：名与头像收敛档案出口

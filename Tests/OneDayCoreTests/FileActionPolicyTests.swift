@@ -205,7 +205,7 @@ final class FileActionPolicyTests: XCTestCase {
         XCTAssertEqual(FileItemAction.pin.label, "置顶")
         XCTAssertEqual(FileItemAction.unpin.label, "取消置顶")
         XCTAssertEqual(FileItemAction.rename.label, "重命名")
-        XCTAssertEqual(FileItemAction.openInFiles.label, "在文件页中打开")
+        XCTAssertEqual(FileItemAction.openInFiles.label, "在资源库中打开")
         XCTAssertEqual(FileItemAction.pin.systemImage, "pin")
         XCTAssertEqual(FileItemAction.unpin.systemImage, "pin.slash")
         XCTAssertEqual(FileItemAction.rename.systemImage, "pencil")
