@@ -20,6 +20,27 @@ def load_ips(path):
     return json.loads(data[nl + 1:])
 
 
+def sdk_roots():
+    roots = []
+    for sdk in ("iphonesimulator", "macosx"):
+        try:
+            r = subprocess.run(
+                ["xcrun", "--sdk", sdk, "--show-sdk-path"],
+                capture_output=True, text=True, timeout=30,
+            )
+            path = r.stdout.strip()
+            if path:
+                roots.append(path)
+        except Exception:
+            pass
+    for pat in (
+        "/Applications/Xcode*.app/Contents/Developer/Platforms/"
+        "iPhoneSimulator.platform/Developer/SDKs/*.sdk",
+    ):
+        roots.extend(glob.glob(pat))
+    return roots
+
+
 def find_binary(name):
     if not name:
         return []
@@ -37,14 +58,16 @@ def find_binary(name):
         "PrivateFrameworks/" + name + ".framework/" + name,
         "/Library/Developer/CoreSimulator/Volumes/*/usr/lib/" + name,
         "/Library/Developer/CoreSimulator/Volumes/*/usr/lib/swift/" + name,
-        "/Applications/Xcode.app/Contents/Developer/Platforms/"
-        "iPhoneSimulator.platform/Developer/SDKs/*.sdk/System/Library/"
-        "Frameworks/" + name + ".framework/" + name,
-        "/Applications/Xcode.app/Contents/Developer/Platforms/"
-        "iPhoneSimulator.platform/Developer/SDKs/*.sdk/usr/lib/" + name,
-        "/Applications/Xcode.app/Contents/Developer/Platforms/"
-        "iPhoneSimulator.platform/Developer/SDKs/*.sdk/usr/lib/swift/" + name,
     ]
+    for sdk in sdk_roots():
+        pats += [
+            sdk + "/System/Library/Frameworks/" + name + ".framework/"
+            + name,
+            sdk + "/System/Library/PrivateFrameworks/" + name
+            + ".framework/" + name,
+            sdk + "/usr/lib/" + name,
+            sdk + "/usr/lib/swift/" + name,
+        ]
     seen, out = set(), []
     for pat in pats:
         for cand in glob.glob(pat, recursive=True):
