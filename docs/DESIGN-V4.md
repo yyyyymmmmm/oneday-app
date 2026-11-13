@@ -11481,4 +11481,8 @@ IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径�
 
 **装配**：基线 rel-05032（0.50.32 删除热修已判绿，见 §209 附记）直接合入预制 rel-05033-prep（频道文案 feat/channel-apply-copy @1a11d03＋身份末写胜 fix/identity-last-write-wins @6e686a2＋基础止血 feat/basics-stopgap @aa1038a）。唯一冲突 Sources/OneDayCore/FileOpenFailure.swift 同 switch：删除侧 `.sessionBusy`、三包侧 run 五档，均归 `.other`，取并集、两边注释原样保留，无语义冲突；其余自动合并，ChatView 合并结果与预制逐字同 blob（基础止血语义零丢失，三重验证法见预制报告 §3）。DESIGN §209 无撞号（删除线先落留 §209，本节顺延 §210）。版本 0.50.33/161 五处同改＋grep 验。i18n：validate_i18n 合并后 2976 键×三语通过（预制 2974＋删除线 2）。Core 静态 1823（rel-05032 实跑 1791＋三包 32）、App 65——预制报告的 1811 是对 rel/05030 基线的预期，本装配基线顺延一位后预期为 1823。
 
-### §210.1 装配 CI 判读（待回填）
+### §210.1 装配 CI 判读（2026-11-14 回填）
+
+首派 run 43502566218（头 44fb7f4）**未跑出判读**：dispatch 后排队约 12 分钟，20:47:59Z 落终态 failure；job `build-native` 结论 cancelled、steps 空、无任何步骤执行、日志接口两路均 `log not found`（job 132151865857）。非测红——测试一步未跑，Core/App 均未对账。原因未明（时间线接口 404 不可查；分支上仅此一 run、无他人重派）。处置：同头重派一次。
+
+重派 run 43509413643（同头 44fb7f4）**真红——编译断裂**：`Sources/OneDayApp/ChatView.swift:5976:32: error: cannot find 'feedQuote' in scope`，`** BUILD FAILED **`，测试零执行、无 artifact。定因：预制报告 §3 的 ChatView 三处冲突解法取 basics 侧时，把 rel/05030 的 `outgoingContext` 顶部的 `let feedQuote = pendingFeedQuote`（rel/05030:5558）一并丢了——basics 侧（基线 main）的同段代码活在 `send()` 内、定义在其顶部（本合并结果 5833 行），而 rel/05030 已把该段抽成独立 `outgoingContext` 函数；5976 行的 image-datas 分支（`feedQuote: feedQuote`）落进 `outgoingContext` 后定义不在作用域。预制「编译级验证留待正式组版 CI」（报告 §6），故预制未发现。修法候选（待定）：在 `outgoingContext` 顶部恢复 `let feedQuote = pendingFeedQuote` 一行（与 rel/05030 同形、语义零变），或 5976 行改直传 `pendingFeedQuote`。按任务书停步规则，**0.50.33 在此停、不擅自修**，待主线定修法后重派；0.50.34 未启动。另：本装配 Core 预期应为 **1823**（rel-05032 实跑 1791＋三包 32），非预制报告对 rel/05030 基线的 1811；0.50.34 预期相应为 1824/App 69。
