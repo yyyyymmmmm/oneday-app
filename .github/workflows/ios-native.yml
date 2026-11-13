@@ -16,6 +16,10 @@ on:
         description: "可选：单个 -only-testing 标识（如 OneDayAppTests/Class/test）；空＝全量两目标"
         required: false
         default: ""
+      forensics_only:
+        description: "§184 取证专用：true＝只跑 RuntimeRoot atos 点名步、跳过构建/测试/打包"
+        required: false
+        default: ""
 
 jobs:
   build-native:
@@ -23,16 +27,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # §184 取证点名（forensics_only=true 时唯一执行的步）：
+      # 运行时框架真身在 CoreSimulator 卷 RuntimeRoot 下，
+      # 以 run 43365948799 的 .ips 镜像基址＋偏移 atos 点名
+      - name: Forensics symbolicate (RuntimeRoot atos)
+        if: inputs.forensics_only == 'true'
+        run: |
+          ROOT=$(find /Library/Developer/CoreSimulator/Volumes/iOS_23F77 \
+            -type d -name RuntimeRoot 2>/dev/null | head -1)
+          echo "RuntimeRoot: $ROOT"
+          if [ -z "$ROOT" ]; then echo "<RuntimeRoot not found>"; exit 0; fi
+          sym() {
+            fw="$1"; base="$2"; wantuuid="$3"; shift 3
+            bin="$ROOT/System/Library/Frameworks/$fw.framework/$fw"
+            echo "===== $fw -> $bin"
+            ls -la "$bin" || return 0
+            echo "-- dwarfdump uuid (want $wantuuid):"
+            xcrun dwarfdump --uuid "$bin" || true
+            for off in "$@"; do
+              addr=$(python3 -c "print(hex($base + $off))")
+              echo "-- $fw +$off (addr $addr):"
+              xcrun atos -o "$bin" -arch arm64 -l "$base" "$addr" || true
+            done
+          }
+          sym SwiftData 7824244736 \
+            2449226e-2e13-3ad7-8ae3-5a808ecd2224 \
+            502888 569200 645616
+          sym _SwiftData_SwiftUI 4303650816 \
+            d38c54b9-7e0a-372b-84c7-2199f8b45417 \
+            23828 24356
+
       - name: Show Xcode
+        if: inputs.forensics_only != 'true'
         run: xcodebuild -version
 
       - name: Install Tuist
+        if: inputs.forensics_only != 'true'
         run: brew install tuist
 
       - name: Generate project
+        if: inputs.forensics_only != 'true'
         run: tuist generate --no-open
 
       - name: Build (no codesign)
+        if: inputs.forensics_only != 'true'
         run: |
           set -o pipefail
           xcodebuild build \
@@ -46,6 +84,7 @@ jobs:
           grep -E "error:|BUILD" build-full.log | head -60 || true
 
       - name: Unit tests (OneDayCore)
+        if: inputs.forensics_only != 'true'
         run: |
           set -o pipefail
           ONLY=(-only-testing:OneDayCoreTests -only-testing:OneDayAppTests)
@@ -73,7 +112,7 @@ jobs:
       # 类型＋终止原因＋崩溃线程）与关键行摘录（VM
       # Region 等）倾印进日志，供死因定性。
       - name: Dump simulator crash diagnostics
-        if: always()
+        if: ${{ always() && inputs.forensics_only != 'true' }}
         run: |
           set +e
           dump_ips() {
@@ -192,7 +231,7 @@ jobs:
           true
 
       - name: Upload crash reports
-        if: always()
+        if: ${{ always() && inputs.forensics_only != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: crash-reports
@@ -200,6 +239,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Package unsigned IPA
+        if: inputs.forensics_only != 'true'
         run: |
           set -euo pipefail
           APP=$(find build/dd/Build/Products -name "OneDay*.app" -type d | head -1)
@@ -212,6 +252,7 @@ jobs:
           zip -qry oneday-unsigned.ipa Payload
 
       - name: Upload IPA
+        if: inputs.forensics_only != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: oneday-unsigned-ipa
