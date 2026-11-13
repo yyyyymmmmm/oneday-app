@@ -172,10 +172,13 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
 
     private var window: UIWindow!
 
+    /// 装配留置（进程级）：拆窗口会触发 SwiftData
+    /// 容器 reset，已销毁模型被应用侧迟到任务触碰
+    /// 即 Fatal（run2 14:02:26 实证）——测试进程
+    /// 短命，装配留置到进程终了为止
+    private static var retained: [AnyObject] = []
+
     override func tearDown() async throws {
-        window?.rootViewController = nil
-        window?.isHidden = true
-        window = nil
         try await super.tearDown()
     }
 
@@ -289,6 +292,10 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         window.rootViewController = host
         window.makeKeyAndVisible()
         window.layoutIfNeeded()
+        Self.retained.append(host)
+        Self.retained.append(container)
+        Self.retained.append(appState)
+        Self.retained.append(win)
         spinRunLoop(seconds: 3.5)
         window.layoutIfNeeded()
         return Assembly(appState: appState, container: container)
@@ -302,29 +309,79 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         return out
     }
 
-    /// 在场可选文本视图（承载类）全集
+    /// 在场可选文本视图（承载类）全集——只认真挂
+    /// 在本窗口上的实例（SwiftUI 布局周转会留下离
+    /// 窗的旧实例，run2 自检台 {39,0} 即疑似命中
+    /// 离窗实例换算出的错点）
     private func carrierTextViews() -> [SelectableUITextView] {
         guard let root = window.rootViewController?.view
         else { return [] }
         return allViews(root).compactMap {
             $0 as? SelectableUITextView
-        }
+        }.filter { $0.window === window && $0.bounds.width > 0 }
     }
 
-    /// 含目标词且整帧落在窗口内的承载视图（取最后
-    /// 一条消息的散文视图）
+    /// 承载普查（目标缺席时留证）：每实例的挂窗态、
+    /// 窗口帧、文本头与命中目标词
+    private func carrierDump() -> [String] {
+        guard let root = window.rootViewController?.view
+        else { return ["DUMP no-root"] }
+        let all = allViews(root).compactMap {
+            $0 as? SelectableUITextView
+        }
+        var lines = ["DUMP carriers=\(all.count)"]
+        for (i, view) in all.enumerated() {
+            let text = view.attributedText?.string ?? ""
+            let hits = targetWords.filter {
+                text.contains($0)
+            }
+            let frame = view.window === window
+                ? view.convert(view.bounds, to: window) : nil
+            lines.append(
+                "DUMP [\(i)] inWindow=\(view.window === window) "
+                    + "frame=\(frame.map { "(\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height)))" } ?? "nil") "
+                    + "hits=\(hits) head=\(String(text.prefix(24)))"
+            )
+        }
+        return lines
+    }
+
+    /// 含目标词的承载视图：轮询等待行物化与滚底落
+    /// 定（固定 3.5s 在 run2 呈 launch 间不稳定——
+    /// 命中与否随机）。优先整帧落在阅读走廊内的，
+    /// 其次与窗口相交面积最大者
     private func targetTextView(
         word: String
     ) -> (view: SelectableUITextView, range: NSRange)? {
-        for view in carrierTextViews() {
-            guard let text = view.attributedText?.string,
-                  let hit = text.range(of: word)
-            else { continue }
-            let frame = view.convert(view.bounds, to: window)
-            guard frame.minY > 90, frame.maxY < 874 - 120,
-                  frame.width > 100
-            else { continue }
-            return (view, NSRange(hit, in: text))
+        for _ in 0..<40 {
+            var corridor: (SelectableUITextView, NSRange)?
+            var fallback: (SelectableUITextView, NSRange, CGFloat)?
+            for view in carrierTextViews() {
+                guard let text = view.attributedText?.string,
+                      let hit = text.range(of: word)
+                else { continue }
+                let range = NSRange(hit, in: text)
+                let frame = view.convert(view.bounds, to: window)
+                if frame.minY > 90, frame.maxY < 874 - 120,
+                   frame.width > 100 {
+                    corridor = (view, range)
+                    break
+                }
+                let visible = frame.intersection(
+                    CGRect(x: 0, y: 0, width: 402, height: 874)
+                )
+                if !visible.isNull, visible.width > 100,
+                   visible.height > 12 {
+                    if fallback == nil
+                        || visible.height > fallback!.2 {
+                        fallback = (view, range, visible.height)
+                    }
+                }
+            }
+            if let corridor { return corridor }
+            if let fallback { return (fallback.0, fallback.1) }
+            spinRunLoop(seconds: 0.5)
+            window.layoutIfNeeded()
         }
         return nil
     }
@@ -443,8 +500,10 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         let driver = TouchDriver(window: window)
         driver.doubleTap(at: point) { spinRunLoop(seconds: $0) }
         spinRunLoop(seconds: 0.6)
+        let viewFrame = view.convert(view.bounds, to: window)
         emit([
             "SELFCHECK word=\(word) target=\(fmt(range))",
+            "SELFCHECK viewFrame=(\(Int(viewFrame.minX)),\(Int(viewFrame.minY)) \(Int(viewFrame.width))x\(Int(viewFrame.height))) tapPoint=(\(Int(point.x)),\(Int(point.y))) inWindow=\(view.window === window)",
             "SELFCHECK selected=\(fmt(view.selectedRange))",
             "SELFCHECK verdict="
                 + (view.selectedRange == range ? "VALID" : "INVALID"),
@@ -502,10 +561,12 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
     /// 读数即定因证据；修复后本臂即验收臂）
     func testProductionDoubleTap() throws {
         _ = try assemble()
-        let probe = try XCTUnwrap(
-            targetTextView(word: targetWords[0]),
-            "目标文本视图未在场（装配或定位失败）"
-        )
+        guard let probe = targetTextView(word: targetWords[0])
+        else {
+            emit(carrierDump())
+            XCTFail("目标文本视图未在场（装配或定位失败）")
+            return
+        }
         var lines = census(from: probe.view)
         lines += runDoubleTapBattery(label: "PROD")
         emit(lines)
@@ -562,10 +623,12 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
 
     private func ablationTest(_ kind: Ablation) throws {
         _ = try assemble()
-        let probe = try XCTUnwrap(
-            targetTextView(word: targetWords[0]),
-            "目标文本视图未在场"
-        )
+        guard let probe = targetTextView(word: targetWords[0])
+        else {
+            emit(carrierDump())
+            XCTFail("目标文本视图未在场")
+            return
+        }
         var lines = ablate(kind, from: probe.view)
         lines += runDoubleTapBattery(label: "ABL-\(kind)")
         emit(lines)
@@ -594,10 +657,12 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
     /// 长按也被行菜单夺走，读数会是空选区）
     func testLongPressSelectsWord() throws {
         _ = try assemble()
-        let target = try XCTUnwrap(
-            targetTextView(word: targetWords[1]),
-            "目标文本视图未在场"
-        )
+        guard let target = targetTextView(word: targetWords[1])
+        else {
+            emit(carrierDump())
+            XCTFail("目标文本视图未在场")
+            return
+        }
         let point = try XCTUnwrap(
             windowPoint(in: target.view, range: target.range)
         )
@@ -621,10 +686,12 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
     /// 度变大（手柄由系统选区交互承接）
     func testHandleDragExpandsSelection() throws {
         _ = try assemble()
-        let target = try XCTUnwrap(
-            targetTextView(word: targetWords[0]),
-            "目标文本视图未在场"
-        )
+        guard let target = targetTextView(word: targetWords[0])
+        else {
+            emit(carrierDump())
+            XCTFail("目标文本视图未在场")
+            return
+        }
         let point = try XCTUnwrap(
             windowPoint(in: target.view, range: target.range)
         )
@@ -679,10 +746,12 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
     /// 左缘页边距、栈命中域内）应收键盘
     func testBlankTapDismissesKeyboard() throws {
         _ = try assemble()
-        let target = try XCTUnwrap(
-            targetTextView(word: targetWords[0]),
-            "目标文本视图未在场"
-        )
+        guard let target = targetTextView(word: targetWords[0])
+        else {
+            emit(carrierDump())
+            XCTFail("目标文本视图未在场")
+            return
+        }
         // 作曲舱文本视图：全窗 UITextView 中非承载、
         // 位于窗口下半者
         let composer = allViews(
@@ -722,10 +791,12 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
     /// （窗口内出现含目标词的引用文本）
     func testSwipeReplyStillTriggers() throws {
         _ = try assemble()
-        let target = try XCTUnwrap(
-            targetTextView(word: targetWords[0]),
-            "目标文本视图未在场"
-        )
+        guard let target = targetTextView(word: targetWords[0])
+        else {
+            emit(carrierDump())
+            XCTFail("目标文本视图未在场")
+            return
+        }
         let rowFrame = target.view.convert(
             target.view.bounds, to: window
         )
