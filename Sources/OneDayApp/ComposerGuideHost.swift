@@ -298,6 +298,16 @@ private final class ComposerPassthroughView: UIView {
     /// 拍级瞬态，舱随即实测就位）
     var barFrameInWindow: CGRect = .zero
 
+    /// §193：入窗/换窗回调（锚解析的触发点之一；
+    /// UIViewController 无 viewDidMoveToWindow，
+    /// 锚解析借本视图的 didMoveToWindow 驱动）
+    var onMoveToWindow: (() -> Void)?
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        onMoveToWindow?()
+    }
+
     override func hitTest(
         _ point: CGPoint, with event: UIEvent?
     ) -> UIView? {
@@ -377,7 +387,15 @@ final class ComposerGuideHostController: UIViewController {
     }
 
     override func loadView() {
-        view = ComposerPassthroughView()
+        let passthrough = ComposerPassthroughView()
+        // §193：入窗/换窗即重解析锚并按当前键盘态
+        // 生效（控制器无 viewDidMoveToWindow，借根
+        // 视图的 didMoveToWindow 驱动）
+        passthrough.onMoveToWindow = { [weak self] in
+            self?.resolveAnchors()
+            self?.applyAnchorState()
+        }
+        view = passthrough
     }
 
     override func viewDidLoad() {
@@ -433,9 +451,12 @@ final class ComposerGuideHostController: UIViewController {
         }
     }
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        // 入窗（或换窗）即重解析锚并按当前键盘态生效
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // §193 锚解析触发点之二（入窗触发点在透传视
+        // 图的 didMoveToWindow，见 loadView 接线）：
+        // 每次显形重解析——切格往返期间标签栏实例
+        // 若被换过，旧锚在此换新
         resolveAnchors()
         applyAnchorState()
     }
