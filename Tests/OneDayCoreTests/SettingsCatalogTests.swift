@@ -35,7 +35,7 @@ final class SettingsCatalogTests: XCTestCase {
             "server", "gateway", "restartGateway", "logs", "envVars", "usage",
             "connectors", "devicePermissions",
             "overview", "computer", "serverFiles",
-            "appearance", "help", "about",
+            "appearance", "sidebar", "help", "about",
         ] {
             XCTAssertTrue(ids.contains(id), "原型索引缺条目 \(id)")
         }
@@ -51,7 +51,7 @@ final class SettingsCatalogTests: XCTestCase {
             .serverSessions, .models, .envVars, .usage,
             .serverDetail, .connectors, .devicePermissions,
             .gateway, .logs, .overview, .computer, .serverFiles,
-            .appearance, .help, .about, .privacy, .terms,
+            .appearance, .sidebar, .help, .about, .privacy, .terms,
             // prototype-2 新增
             .agentConfig, .serverManagement, .sessionManagement,
             .workspaceHub, .mainSession, .restartGateway,
@@ -75,11 +75,12 @@ final class SettingsCatalogTests: XCTestCase {
         )
     }
 
-    /// prototype-2：preferences 组三行
+    /// prototype-2：preferences 组四行（§198 侧边栏行
+    /// 插在 appearance 与 connectors 之间）
     func testPreferencesGroupBrowseOrder() {
         XCTAssertEqual(
             SettingsCatalog.browseEntries(in: .preferences).map(\.id),
-            ["appearance", "connectors", "devicePermissions"]
+            ["appearance", "sidebar", "connectors", "devicePermissions"]
         )
     }
 

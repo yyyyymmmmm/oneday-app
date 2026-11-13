@@ -47,6 +47,8 @@ public enum SettingsDestination: Equatable, Sendable {
     case computer
     case serverFiles
     case appearance
+    /// 侧边栏分区管理面（§198，抽屉包题二新建）
+    case sidebar
     case help
     case about
     case privacy
@@ -258,6 +260,13 @@ public enum SettingsCatalog {
             summary: "聊天配色、形象大小、模式与语言",
             keywords: ["主题", "配色", "形象大小", "语言", "深色", "浅色", "theme", "language"],
             destination: .appearance
+        ),
+        SettingsCatalogEntry(
+            id: "sidebar", group: .preferences,
+            title: "侧边栏",
+            summary: "抽屉各分区的显示与隐藏",
+            keywords: ["抽屉", "分区", "显示", "隐藏", "sidebar", "drawer"],
+            destination: .sidebar
         ),
         SettingsCatalogEntry(
             id: "connectors", group: .preferences,

@@ -276,6 +276,11 @@ final class AppState {
     /// 会话派生标题解析器（0.6.1）：抽屉行/活动行共用
     /// 的首条消息缓存与预算拉取，全 App 只此一份
     let sessionTitles = SessionTitleResolver()
+    /// 服务端会话全量目录（§198）：全部对话页分页拉
+    /// 全的可见集共享缓存，全 App 只此一份——抽屉频
+    /// 道显行闸改读它判显隐（与管理页频道段同源），
+    /// 不再共用开抽屉的 100 条名单窗口
+    let serverSessionCatalog = ServerSessionCatalog()
 
     /// 旁聊语义状态（0.7.0）：主线钦定/归档/标题覆盖/轻保活，
     /// 演示模式纯内存不落盘（见 SideChatStore）

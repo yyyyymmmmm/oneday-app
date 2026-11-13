@@ -32,6 +32,9 @@ enum SettingsRoute: Hashable {
     case agent(AgentRoute)
     /// 0.2.1：外观（主题）
     case appearance
+    /// 侧边栏分区管理面（§198，抽屉包题二）：抽屉四
+    /// 区显隐账的唯一治理面（设置→偏好与权限→侧边栏）
+    case sidebar
     /// 设置页重塑（DESIGN §164）：身份卡详情页与支持
     /// 组三页（帮助/关于/协议草稿）——目的地与 Core
     /// SettingsCatalog 一一对应

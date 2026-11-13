@@ -183,6 +183,8 @@ struct SettingsView: View {
                     LogsView()
                 case .appearance:
                     AppearanceView()
+                case .sidebar:
+                    DrawerSectionsView()
                 case .identity:
                     IdentityDetailView(
                         serverStatusText: identityServerStatusText,
@@ -580,6 +582,7 @@ struct SettingsView: View {
         case .gateway: return .gateway
         case .logs: return .logs
         case .appearance: return .appearance
+        case .sidebar: return .sidebar
         case .help: return .help
         case .about: return .about
         case .privacy: return .privacy
@@ -617,6 +620,7 @@ struct SettingsView: View {
         case "computer": return "display"
         case "serverFiles": return "folder"
         case "appearance": return "sun.max"
+        case "sidebar": return "sidebar.left"
         case "help": return "questionmark.circle"
         case "about": return "info.circle"
         case "privacy": return "lock.shield"
