@@ -26,6 +26,12 @@ public enum HermesError: Error, Sendable {
     case apiKeyRejected
     /// 接口返回非预期状态（附接口名与状态码）
     case unexpectedStatus(endpoint: String, status: Int)
+    /// 服务端以结构化错误码拒（网关面 {"error":
+    /// {"code":…}}，DESIGN §210）：状态码＋码本体随
+    /// 错误上行，供 invalid_title 收养等按码分流判
+    /// 定；文案与 unexpectedStatus 同口径（用户面无
+    /// 变化）。旧形发送层丢响应体、码到不了逻辑层
+    case serverError(endpoint: String, status: Int, code: String)
     /// 响应解码失败（版本不匹配的典型信号）
     case decodingFailed(endpoint: String)
     /// 会话过期且自动重登失败
@@ -81,6 +87,11 @@ public enum HermesError: Error, Sendable {
                 "API 密钥被拒：检查密钥是否填对、是否已被撤销。", locale: locale
             )
         case .unexpectedStatus(let endpoint, let status):
+            return L10n.format(
+                "%@ 返回了状态 %@，请稍后再试。",
+                locale: locale, endpoint, String(status)
+            )
+        case .serverError(let endpoint, let status, _):
             return L10n.format(
                 "%@ 返回了状态 %@，请稍后再试。",
                 locale: locale, endpoint, String(status)
