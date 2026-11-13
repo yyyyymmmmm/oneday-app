@@ -93,7 +93,7 @@ final class ChatEntry {
     /// 生成（可选＋默认 nil、SwiftData 轻量迁移）
     var quoteRole: String? = nil
     var quoteContent: String? = nil
-    /// §202：本条消息引用了哪篇动态帖（动态「讨论」
+    /// §208：本条消息引用了哪篇动态帖（动态「讨论」
     /// 引用化）——只在发送时由带动态引用的用户消息
     /// 携带，与 quote 两字段互斥（发送舱共用同一引
     /// 用槽位）；存帖 id＋标题＋正文全文＋来源行快照，
@@ -256,7 +256,7 @@ final class ChatEntry {
         return MessageQuote(role: quoteRole, content: quoteContent)
     }
 
-    /// 落盘四字段 → 动态引用值对象（§202）：id/标题
+    /// 落盘四字段 → 动态引用值对象（§208）：id/标题
     /// /正文任一缺失即无引用；来源行可空。缩略图与
     /// 行首标识不落盘（呈现只需标题＋摘要、回放只
     /// 需标题＋正文＋来源），重组时两项为空

@@ -82,7 +82,7 @@ public struct MessageQuote: Equatable, Sendable {
         return block + "\n\n" + userText
     }
 
-    /// 引用分发收口（§202）：一条用户消息至多带一
+    /// 引用分发收口（§208）：一条用户消息至多带一
     /// 种引用——消息引用与动态引用在发送舱共用同
     /// 一槽位、落盘互斥（ChatEntry 的 quote 两字段
     /// 与 feedPost 四字段不同时有值）。动态引用在

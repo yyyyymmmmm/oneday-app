@@ -259,13 +259,13 @@ final class SideChatStore {
         drafts[threadID.uuidString]
     }
 
-    /// 草稿写入唯一口。**隔离铁律（§202）**：本账只
+    /// 草稿写入唯一口。**隔离铁律（§208）**：本账只
     /// 许收用户亲笔——调用方只许是 ChatView 的切走
     /// 回存与删线程清理（同出亲笔生命周期）。系统注
     /// 入（动态讨论/文件重发之类要把上下文带进对话
     /// 的）一律走引用/种子暂存道，不许经本口进账：
     /// 本账无来源标记，注入文进账即与亲笔同形、被
-    /// 保活永久保护（动态讨论预填的病根，§202 已堵
+    /// 保活永久保护（动态讨论预填的病根，§208 已堵
     /// 讨论一处；点子/文件重发两处同病列另包待办）
     func setDraft(_ text: String, for threadID: UUID) {
         if text.isEmpty {
@@ -311,7 +311,7 @@ final class SideChatStore {
         feedDiscussPostIDs[threadID.uuidString]
     }
 
-    /// 反查（§202 讨论去重）：这篇帖已有的讨论线程
+    /// 反查（§208 讨论去重）：这篇帖已有的讨论线程
     /// ——discuss() 先查本口，有则复用、不再堆空会话
     /// （与点子流「先查 link」同形）；关联在但线程
     /// 已删时由调用方校验存在性后决定补建
@@ -331,14 +331,14 @@ final class SideChatStore {
         persist(feedDiscussPostIDs, Key.feedDiscussPostIDs)
     }
 
-    // MARK: - 存量预填清扫（§202 包 3）
+    // MARK: - 存量预填清扫（§208 包 3）
 
     private static let purgeLog = Logger(
         subsystem: "site.didichou.oneday",
         category: "feed-discuss-purge"
     )
 
-    /// 一次性清扫 §202 前落盘的旧讨论预填草稿：只
+    /// 一次性清扫 §208 前落盘的旧讨论预填草稿：只
     /// 扫有 FA-1 关联的线程，拿原帖（标题＋正文）
     /// 经 FeedDiscussDraftCleanup 逐字再生比对——
     /// 与机器输出逐字相等才清，用户改过一字即不

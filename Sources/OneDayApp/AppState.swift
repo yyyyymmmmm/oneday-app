@@ -31,7 +31,7 @@ final class WeakAppStateBox: @unchecked Sendable {
     }
 }
 
-/// 动态讨论引用种子（§202）：FeedView「讨论」的跨
+/// 动态讨论引用种子（§208）：FeedView「讨论」的跨
 /// 页交接载荷——目标线程 id＋帖引用快照。ChatView
 /// 只在当前线程与 threadID 相符时消费（切线程的
 /// onChange 与种子置位的 onChange 两路都试消费，
@@ -640,7 +640,7 @@ final class AppState {
     /// （其消费面——胶囊判定与删当前线程判定——已全
     /// 部改读本引用经政策解析）
     var currentDrawerObject: DrawerCurrentObject?
-    /// 动态讨论引用种子（§202）：FeedView 点「讨论」
+    /// 动态讨论引用种子（§208）：FeedView 点「讨论」
     /// 时置位（目标线程＋引用快照），ChatView 在落到
     /// 目标线程时消费转入待发送引用并清零——跨页交
     /// 接走暂存道（照 ChatView 内 pendingForkQuote
@@ -649,7 +649,7 @@ final class AppState {
     /// 内存：进程死亡即亡，与引用本身的生命周期一
     /// 致（引用不落盘恢复）
     var pendingFeedDiscussSeed: FeedDiscussSeed?
-    /// 动态原帖回跳请求（§202）：聊天里点消息的动态
+    /// 动态原帖回跳请求（§208）：聊天里点消息的动态
     /// 引用块时置位帖 id 并同行置 mainTabSwitch-
     /// Request=.feed 切格，FeedView 消费后定位原帖
     /// （查无此帖给诚实提示）并清零——置位—消费—

@@ -49,11 +49,11 @@ struct FeedView: View {
     @State private var isSearching = false
     /// 来源小 sheet 的当前帖（动作行 ⓘ 点按）
     @State private var sourcesPost: BridgeFeedPost?
-    /// §202 原帖回跳挂起中的帖 id：回跳请求已消费、
+    /// §208 原帖回跳挂起中的帖 id：回跳请求已消费、
     /// 帖名单未就绪时先挂起，posts 到达后再判（见
     /// resolveFeedOpen）
     @State private var pendingFeedOpenPostID: String?
-    /// §202 回跳查无此帖的诚实提示（帖已过期/删除；
+    /// §208 回跳查无此帖的诚实提示（帖已过期/删除；
     /// 引用块里的快照仍可读，提示只管原帖不在）
     @State private var feedPostGoneNotice = false
 
@@ -145,7 +145,7 @@ struct FeedView: View {
                     path.append(Route.ref(ref))
                 }
             }
-            // §202：聊天里点动态引用块的原帖回跳——请
+            // §208：聊天里点动态引用块的原帖回跳——请
             // 求在此消费（清零先行防重入），落点判定走
             // resolveFeedOpen（在名单直达详情、名单就
             // 绪而查无给诚实提示、未就绪挂起等名单）
@@ -463,7 +463,7 @@ struct FeedView: View {
         path.append(Route.post(post.id))
     }
 
-    /// §202 回跳落点判定：挂起帖在已载名单里→直达
+    /// §208 回跳落点判定：挂起帖在已载名单里→直达
     /// 详情并销挂起；名单已就绪（.ready）而查无→帖
     /// 真不在了，诚实提示并销挂起；名单未就绪→继
     /// 续挂起，等 posts 变更时由 onChange 再判
@@ -485,12 +485,12 @@ struct FeedView: View {
         Task { await store.markRead(appState: appState, post: post) }
     }
 
-    /// 讨论（0.47.0；§202 引用化）：以本帖为引用开
+    /// 讨论（0.47.0；§208 引用化）：以本帖为引用开
     /// 一条对话——帖以引用卡挂发送舱（FeedPostQuote
     /// 值快照），输入框恒空、亲笔才是草稿；引用经
     /// AppState 种子暂存道交接（ChatView 的
     /// tryApplyFeedSeed 消费），永不进草稿账。
-    /// §202 前旧形（预填经 setDraft 直写草稿账）已
+    /// §208 前旧形（预填经 setDraft 直写草稿账）已
     /// 退役：预填文与亲笔在草稿账里同形、被防丢稿
     /// 保活永久保护，没发就赖着不走（用户
     /// 2026-11-13 点名）；存量旧预填由包 3 清扫。

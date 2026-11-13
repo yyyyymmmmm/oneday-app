@@ -1,7 +1,7 @@
 import XCTest
 @testable import OneDayCore
 
-/// §202 动态讨论引用化的 Core 钉测：FeedPostQuote
+/// §208 动态讨论引用化的 Core 钉测：FeedPostQuote
 /// 组装与来源行优先级、注入拼装（全文不截断、身份
 /// 分开）、分发收口、存量清扫的逐字判定（改一字不
 /// 算机器预填）。呈现与交接在 App 层，判定全钉在

@@ -372,7 +372,7 @@ struct ChatView: View {
     @State private var pendingForkQuote: MessageQuote?
     /// 0.7.0：当前待发送引用是否为分流种子（引用条文案分流）
     @State private var pendingQuoteIsFork = false
-    /// §202：动态讨论的待发送引用（FeedPostQuote 值
+    /// §208：动态讨论的待发送引用（FeedPostQuote 值
     /// 快照）——与 pendingQuote 共用发送舱同一引用
     /// 槽位：至多一个在场，后入覆盖先入（设一必清
     /// 另一，落点在 beginReply/种子消费/send 快照三
@@ -621,7 +621,7 @@ struct ChatView: View {
                 pendingQuoteIsFork = false
                 pendingFeedQuote = nil
             }
-            // §202：动态讨论种子若正为本线程而来，在
+            // §208：动态讨论种子若正为本线程而来，在
             // 清理落定后消费转入（目标不符则继续挂在
             // AppState 等落点，见 tryApplyFeedSeed）
             tryApplyFeedSeed()
@@ -646,7 +646,7 @@ struct ChatView: View {
                 currentThreadID = id
             }
         }
-        // §202：动态讨论种子到达时试消费——目标线程
+        // §208：动态讨论种子到达时试消费——目标线程
         // 已是当前线程（同帖复用且人已在此）时不等切
         // 换事件、在此落位；目标是别的线程时不在此
         // 动，等 onChange(of: currentThreadID) 落到
@@ -925,7 +925,7 @@ struct ChatView: View {
         }
         .onAppear {
             consumeApprovalAnchorRequest()
-            // §202：种子兜底消费——种子置位时本页未在
+            // §208：种子兜底消费——种子置位时本页未在
             // 层级内（onChange 未达）而落点先行到达的
             // 情形，在此按线程相符判定补消费（与两路
             // onChange 同走 tryApplyFeedSeed）
@@ -3409,13 +3409,13 @@ struct ChatView: View {
             role: entry.role, content: entry.content
         )
         pendingQuoteIsFork = false
-        // §202：引用槽位单一在场——消息引用入槽即
+        // §208：引用槽位单一在场——消息引用入槽即
         // 挤掉动态引用（后入覆盖，与种子消费同律）
         pendingFeedQuote = nil
         composerFocusHandle.focus()
     }
 
-    /// §202：动态讨论种子消费——AppState 种子只在
+    /// §208：动态讨论种子消费——AppState 种子只在
     /// 「当前线程正是种子目标」时落位：清种子、引用
     /// 入槽（挤掉消息引用，后入覆盖）、聚焦输入舱
     /// （讨论进来即可直接打字，输入框恒空）。目标
@@ -3548,7 +3548,7 @@ struct ChatView: View {
         )
     }
 
-    /// 已发送消息顶部的动态引用块（§202）：几何与
+    /// 已发送消息顶部的动态引用块（§208）：几何与
     /// quoteBlock 同（左细线＋底垫＋小字），内容＝帖
     /// 标题行＋正文摘要一行；整块可点回跳动态原帖
     /// （feedOpenPostRequest 置位＋切动态格，FeedView
@@ -4064,7 +4064,7 @@ struct ChatView: View {
         .padding(.vertical, OneDayMetrics.spacingS)
     }
 
-    /// 发送舱的动态引用条（§202）：与 quoteBar 同
+    /// 发送舱的动态引用条（§208）：与 quoteBar 同
     /// 槽位同几何（左轨＋两行＋右上 ✕，视觉 28、命
     /// 中域 44），内容换帖面：首行＝行首标识＋帖标
     /// 题（一行截断，不挂「正在回复」式标签行——帖
@@ -4126,7 +4126,7 @@ struct ChatView: View {
         .padding(.vertical, OneDayMetrics.spacingS)
     }
 
-    /// 动态引用条次行（§202）：来源行＋正文摘要以
+    /// 动态引用条次行（§208）：来源行＋正文摘要以
     /// 「·」相连，任一为空只显另一个（来源缺失不编
     /// 造、正文为空只报来源）
     private func feedQuoteSecondLine(_ quote: FeedPostQuote) -> String {
@@ -4167,7 +4167,7 @@ struct ChatView: View {
                             )
                     }
                 } else if let pendingFeedQuote {
-                    // §202：动态引用与消息引用共用本槽
+                    // §208：动态引用与消息引用共用本槽
                     // 位（至多一个在场），feed 变体渲染
                     VStack(spacing: 0) {
                         feedQuoteBar(pendingFeedQuote)
@@ -5453,9 +5453,9 @@ private struct ComposerBarLayout: Layout {
     /// 默（弱回执，不在聊天里摆错误面）。note 经
     /// Core FeedDiscussSignal 只取首句中的自述偏好
     /// 句，无自述则不带、桥按弱信号记账
-    /// §202：firstText 入参恒为用户亲笔正文（send
+    /// §208：firstText 入参恒为用户亲笔正文（send
     /// 的 text 快照）——引用块只活在 outgoingContent
-    /// 拼装里、永不回流本入参。§202 前预填整段进
+    /// 拼装里、永不回流本入参。§208 前预填整段进
     /// input 时，原帖正文随首句被标记词扫描误提偏
     /// 好（诊断 §1.4）；注入通道退役后此面自动收
     /// 净，本注钉死：不许改传组装后文本
@@ -5478,7 +5478,7 @@ private struct ComposerBarLayout: Layout {
         // 0.4.1：引用随本条发送，起手先快照、随即清除
         // 引用条（发送即消费，不残留到下一条）
         let quote = pendingQuote
-        // §202：动态引用同槽同纪律——一并快照/清除，
+        // §208：动态引用同槽同纪律——一并快照/清除，
         // 失败退回路径一并恢复（各恢复点与 quote 同行）
         let feedQuote = pendingFeedQuote
         guard !isStreaming, !text.isEmpty || !pending.isEmpty else { return }
@@ -5548,7 +5548,7 @@ private struct ComposerBarLayout: Layout {
         }
         thread.updatedAt = Date()
         try? modelContext.save()
-        // §202（规格 §3.3 顺手项）：发送即显式清本线
+        // §208（规格 §3.3 顺手项）：发送即显式清本线
         // 程草稿键——旧口径 send() 只清内存 input、
         // 账上删键靠之后切线程回存空串，「发送后不切
         // 线程即杀进程」时冷启会把已发出的旧草稿再

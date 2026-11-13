@@ -2,7 +2,7 @@ import OneDayCore
 import XCTest
 @testable import OneDayApp
 
-/// §202 动态讨论引用化的 App 层钉测：讨论去重的
+/// §208 动态讨论引用化的 App 层钉测：讨论去重的
 /// 关联反查（SideChatStore）、存量预填清扫（包 3）
 /// ——判定逻辑在 Core 纯函数层（FeedDiscussQuote-
 /// Tests 已钉），本组钉存储层的落点与零误伤
