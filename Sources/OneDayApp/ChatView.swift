@@ -298,6 +298,14 @@ struct ChatView: View {
     @State private var demoStreamStarted = false
     /// 0.2.1 附件与键盘：待发附件、三种选择器开关、输入焦点
     @State private var attachments: [PendingAttachment] = []
+    /// 聊天可靠性包：发送准备失败被保留的待发条目，
+    /// 其文件载荷只活在内存——按条目 id 暂存原待发
+    /// 附件，供同一次运行内点按重发时重新上传；进程
+    /// 重启后暂存不在，文件载荷无法复原（条目正文与
+    /// 本地图仍在，重发退化为纯文本＋图片，见报告
+    /// 边界节）
+    @State private var pendingResendAttachments:
+        [UUID: [PendingAttachment]] = [:]
     // 0.36.23 起选图多选（用户 03:02 点题）：绑数
     // 组、一次可选多张；旧单 PhotosPickerItem 绑定
     // 天然单选，数据侧 attachments 本就支持多个
@@ -2964,6 +2972,31 @@ struct ChatView: View {
                             }
                         }
                     }
+                    // 聊天可靠性包：待发条目的状态行——
+                    // 消息留在原位不消失，状态只在气泡
+                    // 下安静标明、点按即用同一条目重发
+                    // （大厂口径：失败留痕＋一键重发，
+                    // 不删不退回输入框）
+                    if entry.isPendingSend {
+                        Button {
+                            resendPending(entry)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(
+                                    systemName: "exclamationmark.circle"
+                                )
+                                Text(L10n.string("未发送 · 点按重发"))
+                            }
+                            .font(.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.odPressable)
+                        .disabled(isStreaming)
+                        .accessibilityLabel(
+                            L10n.string("未发送 · 点按重发")
+                        )
+                    }
                 }
                 .modifier(messageMenu(for: entry))
                 .modifier(swipeReply(for: entry))
@@ -2992,6 +3025,23 @@ struct ChatView: View {
                 // 摘除、走下方图片行出图，正文只喂摘
                 // 除后的文本（标记原文不再漏进气泡）
                 let mediaSplit = scans.media
+                // 聊天可靠性包（2026-11-13）：整条消息
+                // 就是一条裸路径（形态判定在 Core
+                // wholeMessagePath）——那是 AI 把文件
+                // 当整条回复交付（实案：只回 /opt/
+                // data/cache/scratch/avatar_small.
+                // png、两次）。此形态不走 §129/§143
+                // 的存在性门降级路（门一失败路径就原
+                // 样躺回正文、用户读作「还是目录」）：
+                // 路径行无条件从正文摘除、改走下方附
+                // 件区直取字节——图片走 ServerRemote-
+                // Image（自带加载/失败占位卡）、文件
+                // 走 BarePathFileCard（确证不在出失效
+                // 卡）；两处候选集里同步排除它、不重
+                // 复成牌。多行正文里的路径提及仍归
+                // §129/§143，本口只认整条消息
+                let wholePathRef = FileRefDetector
+                    .wholeMessagePath(in: mediaSplit.text)
                 // §143：裸路径图片内联——独立成行/段内
                 // 单独成词的图片路径（形态判定在
                 // Core）不再降为文件牌：走下方图片行
@@ -3002,6 +3052,7 @@ struct ChatView: View {
                 // 行）；未确证/查无的正文维持原样纯文
                 // 本（§129 降级口径，内容不消失）
                 let inlineImages = scans.inlineCandidates
+                    .filter { $0.path != wholePathRef?.path }
                 // §154 热修：摘行集补 §136 已承接的
                 // 图——同一路径既写了 MEDIA: 行、又在
                 // 正文裸写独立成行时，§143 候选被排除
@@ -3038,6 +3089,12 @@ struct ChatView: View {
                                         .existence(for: $0)
                                         == .exists
                             }
+                        ).union(
+                            // 可靠性包：整条裸路径无条件
+                            // 摘行——附件区直取字节接管
+                            // 呈现（含取不到时的失效
+                            // 态），正文永不退回生路径
+                            wholePathRef.map { [$0.path] } ?? []
                         )
                     )
                 // 0.5.1（§32）：思考折叠单元挂在正文泡
@@ -3135,15 +3192,66 @@ struct ChatView: View {
                         }
                     )
                 }
+                // 聊天可靠性包：整条裸路径的附件区——
+                // 呈现与 remoteImagePaths 行同口径（图
+                // 片 ServerRemoteImage 定高卡＋点开查
+                // 看器，加载失败自带诚实占位卡；文件
+                // BarePathFileCard，确证不在出失效
+                // 卡）；正文已在上方无条件摘行，这里
+                // 是这条消息唯一的呈现
+                if let wholePathRef {
+                    if FileRefDetector.isImagePath(
+                        wholePathRef.path
+                    ) {
+                        ServerRemoteImage(path: wholePathRef.path)
+                            .onTapGesture {
+                                openImageViewer(
+                                    ChatImageViewerItem(
+                                        source: .remotePath(
+                                            wholePathRef.path
+                                        )
+                                    )
+                                )
+                            }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(
+                                A11yText.imageLabel(
+                                    fileName: (wholePathRef.path
+                                        as NSString)
+                                        .lastPathComponent
+                                )
+                            )
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint(L10n.string("查看大图"))
+                            .accessibilityAction {
+                                openImageViewer(
+                                    ChatImageViewerItem(
+                                        source: .remotePath(
+                                            wholePathRef.path
+                                        )
+                                    )
+                                )
+                            }
+                    } else {
+                        BarePathFileCard(path: wholePathRef.path) {
+                            openChatFile(
+                                wholePathRef.path,
+                                anchor: wholePathRef.anchor
+                            )
+                        }
+                    }
+                }
                 // 正文只剩标记行被摘空时不渲染空气泡；
                 // 无标记的旧消息行为逐字不变。§143：
                 // 正文喂摘除已确证独立行图片后的
                 // displayText；整条只剩图片/交付项时
-                // 同理不渲染空气泡
+                // 同理不渲染空气泡（可靠性包：整条裸
+                // 路径已由附件区承接、同入此判据）
                 if !displayText.isEmpty
                     || (mediaSplit.imagePaths.isEmpty
                         && inlineImages.isEmpty
-                        && deliverySplit.deliveryIDs.isEmpty) {
+                        && deliverySplit.deliveryIDs.isEmpty
+                        && wholePathRef == nil) {
                     assistantBubble {
                         // §152：选区回报接行级记账（选
                         // 字期间关本行右滑引用）
@@ -3184,6 +3292,7 @@ struct ChatView: View {
                     excluding: entry.remoteImagePaths
                         + mediaSplit.imagePaths
                         + inlineImages.map(\.path)
+                        + (wholePathRef.map { [$0.path] } ?? [])
                 )
                 if !fileRefs.isEmpty {
                     VStack(
@@ -4950,7 +5059,12 @@ private struct ComposerBarLayout: Layout {
     /// 此处先把条目拍平成 Core 的 SeedEntry 形态，
     /// 时间戳带本地落盘时刻）
     private static func seedEntries(of thread: ChatThread) -> [SeedEntry] {
-        thread.sortedEntries.map {
+        // 聊天可靠性包：待发条目（服务端尚未受理）不
+        // 进种子——种子是「服务端应有的历史」，待发
+        // 消息只能由它自己的（重）发送轮作尾条投递，
+        // 混进种子会绕过投递状态、在服务端落一份本
+        // 地却仍标待发的双账
+        thread.sortedEntries.filter { !$0.isPendingSend }.map {
             SeedEntry(
                 role: $0.role, content: $0.content,
                 timestamp: $0.createdAt.timeIntervalSince1970
@@ -5255,8 +5369,20 @@ private struct ComposerBarLayout: Layout {
             currentThreadID = thread.id
             return .importedNew
         } catch {
-            errorMessage = (error as? HermesError)?.userMessage
-                ?? "会话导入失败，请稍后再试。"
+            // 聊天可靠性包：网络类失败与业务失败分开
+            // 说——这条会话本机还没有副本（导入从未
+            // 成功过），断网时不是「记录丢了」、是
+            // 「还没存到本机」，文案照实说、别让用户
+            // 以为记录被清
+            if let hermesError = error as? HermesError,
+               hermesError.isTransient {
+                errorMessage = "网络不可用，这条会话还没存到本机，联网后就能打开。"
+            } else if error is URLError {
+                errorMessage = "网络不可用，这条会话还没存到本机，联网后就能打开。"
+            } else {
+                errorMessage = (error as? HermesError)?.userMessage
+                    ?? "会话导入失败，请稍后重试。"
+            }
             return .failed
         }
     }
@@ -5423,24 +5549,32 @@ private struct ComposerBarLayout: Layout {
         liveOrder = []
         sendTask = Task {
             // 0.36.29（件四）：带文件时先逐个上传——
-            // 任一失败整条拦下（与链接失败同舞步：删
-            // 本轮条目、输入与附件原样退回、报错点名
-            // 文件），不许丢下文件只发文本；全成才攒
-            // 下回执路径，尾条拼装时拼 @file 引用
+            // 任一失败整条拦下（与链接失败同舞步、报
+            // 错点名文件），不许丢下文件只发文本；全
+            // 成才攒下回执路径，尾条拼装时拼 @file
+            // 引用。失败处置 2026-11-13 聊天可靠性包
+            // 改口：条目保留打待发标记（旧为删条目＋
+            // 输入附件退回，见各 catch）
             var fileServerPaths: [String] = []
             if !filePayloads.isEmpty {
                 do {
                     fileServerPaths = try await
                         uploadPendingFiles(filePayloads)
                 } catch let failure as FileUploadFailure {
-                    modelContext.delete(newEntry)
-                    try? modelContext.save()
-                    input = text
-                    attachments = pending
-                    pendingQuote = quote
-                    errorMessage = "文件「\(failure.fileName)」没能上传，本条未发送："
+                    // 聊天可靠性包（2026-11-13）：旧行为
+                    // 删本轮条目＋输入退回——断网时用户
+                    // 眼里即「刚发的消息没了」。新口径：
+                    // 条目保留打待发标记（正文/本地图都
+                    // 在条目上）、文件载荷按条目 id 暂存
+                    // 供重发、横幅如实说清状态与恢复路
+                    newEntry.markPendingSend(in: modelContext)
+                    if !pending.isEmpty {
+                        pendingResendAttachments[newEntry.id] =
+                            pending
+                    }
+                    errorMessage = "文件「\(failure.fileName)」没能上传，消息已保存在本机："
                         + failure.reason
-                        + "处理后重新发送即可。"
+                        + "恢复后点按这条消息即可重发。"
                     Haptics.error()
                     streamingText = nil
                     streamingReasoning = nil
@@ -5456,13 +5590,15 @@ private struct ComposerBarLayout: Layout {
                 } catch {
                     // uploadPendingFiles 只抛 FileUpload-
                     // Failure/取消，此兜底防未知错误形态
-                    // 被静默吞（有声口径）
-                    modelContext.delete(newEntry)
-                    try? modelContext.save()
-                    input = text
-                    attachments = pending
-                    pendingQuote = quote
-                    errorMessage = "文件上传失败，本条未发送，请稍后再试。"
+                    // 被静默吞（有声口径）。保留口径与上
+                    // 一分支同（聊天可靠性包）：条目不
+                    // 删、打待发标记、载荷暂存供重发
+                    newEntry.markPendingSend(in: modelContext)
+                    if !pending.isEmpty {
+                        pendingResendAttachments[newEntry.id] =
+                            pending
+                    }
+                    errorMessage = "文件上传失败，消息已保存在本机。恢复后点按这条消息即可重发。"
                     Haptics.error()
                     streamingText = nil
                     streamingReasoning = nil
@@ -5485,8 +5621,9 @@ private struct ComposerBarLayout: Layout {
                 // 本地永远没牌（真机实证：助手牌正常、
                 // 自己牌缺失）。落点在此（失败分支全
                 // 已 return、走到这里即全成），流式期
-                // 间牌就在；其后发送形态失败删条目的
-                // 既有路径不受影响
+                // 间牌就在；其后发送形态失败时条目转
+                // 待发保留（聊天可靠性包），本回填随
+                // 条目一并留存、重发直接复用不重传
                 if !fileServerPaths.isEmpty {
                     newEntry.remoteFilePathsData =
                         try? JSONEncoder().encode(fileServerPaths)
@@ -5510,10 +5647,12 @@ private struct ComposerBarLayout: Layout {
             // 0.21.0：出门前先定发送形态（判定与载荷取
             // 形是 Core 纯函数、网络动作在本页）。
             // 0.27.0：prepareSendShape 改为可抛——链接
-            // 失败整轮不发（无头回退已删）：删本轮条
-            // 目、输入原样退回发送舱、错误横幅明示原
-            // 因；链接窗口内被用户停止仍按停止语义静
-            // 默收尾（条目保留、与旧口径一致）
+            // 失败整轮不发（无头回退已删）、错误横幅明
+            // 示原因；链接窗口内被用户停止仍按停止语
+            // 义静默收尾（条目保留）。失败时的条目处
+            // 置 2026-11-13 聊天可靠性包改口：不再删
+            // 条目＋退回输入，改保留打待发标记（见下
+            // 方 catch）
             let shape: (messages: [ChatMessage], sessionID: String?)
             do {
                 shape = try await prepareSendShapeWithRetry(
@@ -5534,15 +5673,22 @@ private struct ComposerBarLayout: Layout {
                     sendTask = nil
                     return
                 }
-                modelContext.delete(newEntry)
-                try? modelContext.save()
-                input = text
-                attachments = pending
-                pendingQuote = quote
-                errorMessage = "会话链接失败，本条未发送："
+                // 聊天可靠性包（2026-11-13）：链接失败
+                // 同改保留口径——旧删条目正是用户实报
+                // 「网络断开之后记录消失」的实证路径
+                // （断网点发送、消息先上屏、链接三试耗
+                // 尽后被删）。条目保留打待发标记、附
+                // 件载荷暂存供重发、输入不再退回发送舱
+                // （正文已在条目上，退回只会双份）
+                newEntry.markPendingSend(in: modelContext)
+                if !pending.isEmpty {
+                    pendingResendAttachments[newEntry.id] =
+                        pending
+                }
+                errorMessage = "会话链接失败，消息已保存在本机："
                     + ((error as? HermesError)?.userMessage
                         ?? "服务端会话建立失败")
-                    + "。链接恢复后重新发送即可。"
+                    + "。恢复后点按这条消息即可重发。"
                 // 失败改判 error（0.36.2，表 D 语义归位）
                 Haptics.error()
                 streamingText = nil
@@ -5589,6 +5735,156 @@ private struct ComposerBarLayout: Layout {
                 tail: tail,
                 sessionID: shape.sessionID,
                 userEntry: newEntry
+            )
+        }
+    }
+
+    /// 待发条目重发（聊天可靠性包，2026-11-13）：
+    /// 用户点按气泡下「未发送 · 点按重发」触发——
+    /// 不新建条目，用同一条目再走一遍「上传（仅暂
+    /// 存载荷还在且未传成时）→定形→driveRun」；受
+    /// 理/转对账后待发标记由 driveRun 脱落，再失
+    /// 败则标记保留、横幅如实报，可再试。与 send()
+    /// 的互斥口径一致：本线程有未落定 run 时不叠
+    /// 轮、先触发旧轮对账
+    private func resendPending(_ entry: ChatEntry) {
+        guard entry.isPendingSend, !isStreaming,
+              let thread = entry.thread ?? currentThread
+        else { return }
+        if appState.runLedger.entry(forThreadID: thread.id)
+            != nil {
+            showNotice("上一条还在生成中，正在确认结果，确认完就能继续发送。")
+            Task { await resumeRunIfNeeded() }
+            return
+        }
+        errorMessage = nil
+        dismissNotice()
+        let stashed = pendingResendAttachments[entry.id] ?? []
+        let filePayloads = stashed.compactMap(\.filePayload)
+        let imageDatas = entry.allImageDatas
+        // 种子在本条投递前取、且已排除全部待发条目
+        // （含本条，见 seedEntries）——本条只以尾条
+        // 身份进服务端，不在种子里先落一份
+        let seedSnapshot = Self.seedEntries(of: thread)
+        streamingText = ""
+        liveToolCards = []
+        liveOrder = []
+        sendTask = Task {
+            var fileServerPaths = entry.remoteFilePaths
+            if !filePayloads.isEmpty, fileServerPaths.isEmpty {
+                do {
+                    fileServerPaths = try await
+                        uploadPendingFiles(filePayloads)
+                } catch let failure as FileUploadFailure {
+                    errorMessage = "文件「\(failure.fileName)」还是没能上传："
+                        + failure.reason
+                        + "这条消息仍保存在本机，可稍后再试。"
+                    Haptics.error()
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
+                } catch {
+                    errorMessage = "文件上传还是失败，这条消息仍保存在本机，可稍后再试。"
+                    Haptics.error()
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
+                }
+                if !fileServerPaths.isEmpty {
+                    entry.remoteFilePathsData =
+                        try? JSONEncoder().encode(fileServerPaths)
+                    try? modelContext.save()
+                    for (path, payload) in zip(
+                        fileServerPaths, filePayloads
+                    ) {
+                        FileMetadataStore.shared.record(
+                            path: path,
+                            size: Int64(payload.data.count),
+                            modifiedAt: nil
+                        )
+                    }
+                }
+            }
+            if Task.isCancelled {
+                streamingText = nil
+                streamingReasoning = nil
+                reasoningStartedAt = nil
+                sendTask = nil
+                return
+            }
+            // 出站形态与 send() 同口径：引用拼装走
+            // MessageQuote.outgoingContent、本地图走
+            // 多模态 parts；上下文只喂本条（会话模式
+            // 载荷恒取尾条，链接与否都只投这一条）
+            var outgoing = ChatMessage(
+                role: "user",
+                content: MessageQuote.outgoingContent(
+                    userText: entry.content, quote: entry.quote
+                )
+            )
+            if !imageDatas.isEmpty {
+                let urls = imageDatas.map {
+                    "data:image/jpeg;base64,\($0.base64EncodedString())"
+                }
+                outgoing = ChatMessage(
+                    role: "user",
+                    text: MessageQuote.outgoingContent(
+                        userText: entry.content, quote: entry.quote
+                    ),
+                    imageDataURLs: urls
+                )
+            }
+            let shape: (messages: [ChatMessage], sessionID: String?)
+            do {
+                shape = try await prepareSendShapeWithRetry(
+                    thread: thread, fullContext: [outgoing],
+                    seedEntries: seedSnapshot
+                )
+            } catch is CancellationError {
+                streamingText = nil
+                streamingReasoning = nil
+                reasoningStartedAt = nil
+                sendTask = nil
+                return
+            } catch {
+                if Task.isCancelled {
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
+                }
+                errorMessage = "还是没能连上，消息仍保存在本机："
+                    + ((error as? HermesError)?.userMessage
+                        ?? "服务端会话建立失败")
+                    + "。恢复后可再点按重发。"
+                Haptics.error()
+                streamingText = nil
+                streamingReasoning = nil
+                reasoningStartedAt = nil
+                sendTask = nil
+                return
+            }
+            if Task.isCancelled {
+                streamingText = nil
+                streamingReasoning = nil
+                reasoningStartedAt = nil
+                sendTask = nil
+                return
+            }
+            pendingResendAttachments[entry.id] = nil
+            sendPinToken += 1
+            let tail = FileSendAssembly.appendingFileRefs(
+                to: shape.messages.last ?? outgoing,
+                serverPaths: fileServerPaths
+            )
+            await driveRun(
+                thread: thread, tail: tail,
+                sessionID: shape.sessionID, userEntry: entry
             )
         }
     }
@@ -5968,6 +6264,16 @@ private struct ComposerBarLayout: Layout {
                 runMachine.apply(.submitAmbiguous)
                 break
             }
+        }
+        // 聊天可靠性包：重发轮的待发标记在此脱落——
+        // 提交被受理、或结果未知转对账（.unknown 系），
+        // 本轮自此归 run 账本/对账链负责，条目不再是
+        // 「未发送」；只有明确拒绝（.failed）保持待
+        // 发，让用户还能点按再试（拒绝横幅在下方分支
+        // 照旧如实报）
+        if userEntry.isPendingSend, runMachine.phase != .failed {
+            userEntry.deliveryState = nil
+            try? modelContext.save()
         }
         if let submitError, runMachine.phase == .failed {
             // 提交被明确拒绝（真失败）：本轮从未在服务
@@ -6590,6 +6896,12 @@ private struct ComposerBarLayout: Layout {
             // §165：审批锚定条目同理（物化由 store 刷新
             // 触发、可在一轮进行中落盘），谓词同上统一
             guard !candidate.isSystemAnchored else { continue }
+            // 聊天可靠性包：待发条目同理不删——它从未
+            // 被服务端受理、不属任何一轮的半截；极端
+            // 时序下（前一轮对账未落定时其 createdAt
+            // 落在本轮用户条目之后）整段替换扫到它也
+            // 必须跳过，用户消息不许陪葬
+            guard !candidate.isPendingSend else { continue }
             modelContext.delete(candidate)
         }
         try? modelContext.save()

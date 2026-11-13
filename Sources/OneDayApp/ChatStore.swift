@@ -134,6 +134,17 @@ final class ChatEntry {
     /// 轮的位置、永不漂移（可选＋默认 nil、SwiftData
     /// 轻量迁移）
     var approvalKey: String? = nil
+    /// 聊天可靠性包（2026-11-13）：发送投递状态——
+    /// nil＝已投递/不适用；"pending"＝本条已在本地
+    /// 落盘成形、但服务端尚未受理（发送准备阶段的
+    /// 上传/链接失败）。旧口径下这类失败直接删条目
+    /// （用户原话「网络断开之后就消失了」的一条实
+    /// 证路径：断网点发送、消息先上屏、链接失败后
+    /// 被删）；新口径条目保留、气泡下挂「未发送 ·
+    /// 点按重发」，重发受理后由 driveRun 清回 nil
+    /// （可选＋默认 nil、SwiftData 轻量迁移，同
+    /// imageDatasData 先例）
+    var deliveryState: String? = nil
     var createdAt: Date
     var thread: ChatThread?
 
@@ -176,6 +187,24 @@ final class ChatEntry {
     /// 另起平行判断
     var isSystemAnchored: Bool {
         echoKey != nil || approvalKey != nil
+    }
+
+    /// 待发条目（聊天可靠性包）：deliveryState 的
+    /// 读口收口在此——呈现（气泡下「未发送」行）、
+    /// 守卫（种子排除／整段替换跳过）与重发入口共
+    /// 用，不许散写字面量比对
+    var isPendingSend: Bool {
+        deliveryState == "pending"
+    }
+
+    /// 发送准备失败的保留落盘（聊天可靠性包）：条
+    /// 目不删、只打待发标记并存盘——ChatView.send
+    /// 的上传/链接失败分支统一走此口（旧行为是删
+    /// 本轮条目＋输入退回发送舱，断网时用户眼里即
+    /// 「刚发的消息没了」）
+    func markPendingSend(in context: ModelContext) {
+        deliveryState = "pending"
+        try? context.save()
     }
 
     /// 工具卡解码缓存（§135 B 案，非持久化）：旧形
