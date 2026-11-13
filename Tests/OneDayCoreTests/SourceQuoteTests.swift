@@ -161,7 +161,9 @@ final class SourceQuoteTests: XCTestCase {
             userText: "", fileQuote: quote
         )
         // 块头＋重发话术全文：三要点逐字承接（名／
-        // 原路径单行／确认存在后单独重发）
+        // 原路径以「它原来的路径是：<路径>」形态呈现／
+        // 要求对方确认存在后把正确路径单独写一行回复——
+        // 「单独成行」约束的是智能体的回复，不是预填呈现）
         XCTAssertEqual(
             out,
             "[引用文件：《报告.pdf》]\n"
@@ -171,7 +173,7 @@ final class SourceQuoteTests: XCTestCase {
                 )
         )
         XCTAssertTrue(
-            out.contains("\n/opt/data/files/报告.pdf\n")
+            out.contains("它原来的路径是：/opt/data/files/报告.pdf")
         )
     }
 
