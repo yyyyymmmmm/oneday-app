@@ -11440,3 +11440,46 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 
 ### 208.6 真机待验（组版随车，规格 §3.8 八点）
 ①点讨论→引用卡在输入舱上方、输入框为空、聚焦可打字，有图帖带缩略图；②点 ✕→卡消失无残留，切走再回/杀进程重进引用不复活；③带引用打字发送→消息顶引用块在，问只有正文里有的细节 AI 答得出；④点引用块→跳回原帖详情，帖过期给诚实提示、块快照仍可读；⑤同帖再点讨论→回同一线程不新建；⑥亲笔草稿回归不坏（讨论线程亲笔打一半切走，回来亲笔在、引用已作废）；⑦升级存量：旧版未改动预填被清、改过的草稿一字不动；⑧FA-1：正文带「喜欢」字样的帖，引用发送不产生假 note、真偏好句照常达桥。
+
+## §209 点子/文件「重发同型后门」收口：引用槽位三族统一（2026-11-13；分支 feat/quote-backdoor-close，基线 main 30b4fc4；施工底座＝先并入 feat/feed-discuss-quote@51b2e68 作同型底座——其引用基建在 0.50.30 装配线未合 main，本包自带合并提交 a3aa76d、DESIGN 顺延 §208 与代码注释节号对齐提交 30f58f2，与 rel-05030 口径逐字一致、为 0.50.30 发版后 main 推进预消冲突）
+
+背景与定性：§208 把动态「讨论」的预填直写草稿账定性为通道选错并堵死，当时同型后门另两处列另包——点子「开始吧」（IdeasView，setDraft 直写）与文件打开失败「让智能体重新发」（FileOpenView，setDraft 直写）。本包亲查补出第三个直写点：聊天宿主路的 FileOpenView 回调在 ChatView 宿主注入闭包里把整段预填文直写当前线程 input 本体——不经 setDraft、比草稿后门更直接（同线程切走回存时照样进草稿账）。三处同病一包收口。逐处原行为与改后行为、清扫可行性论证见报告 quote-backdoor-close-report-20261113.md。
+
+### 209.1 统一载荷：SourceQuote 三族（Core，SourceQuote.swift 新建）
+
+- 不平行再造第二套槽位：Core 新枚举 `SourceQuote { feed(FeedPostQuote) / idea(IdeaQuote) / file(FileQuote) }`，分发收口在 MessageQuote 新增的来源引用变体（来源引用在场优先于消息引用；§208 的 feed 专用三参变体保留作兼容面与既有钉测面，新调用点一律走新变体）。
+- IdeaQuote（值快照：ideaID/title/body/mark）：body 不带旧预填的代笔题头句（「我们来聊聊这个点子」是系统冒充用户口吻的第一人称——引用块头只作标识、不带口吻，原上下文内容零丢失）；载荷组装把 IdeaChatPrefill.make 的后段抽成共用 `IdeaChatContext.body`，make 输出逐字不变（存量清扫参照的命门，Core 钉测＋ThreePages122Tests 双守）。
+- FileQuote（值快照：name/path）：outgoing＝块头＋FileResendPrefill.make 全文——重发话术三要点（名／原路径单独成行／确认存在后单独重发）逐字承接、语义零丢失；FileResendPrefill 的生成口从此只剩引用组装一处调用。
+- IdeaChatPrefill.make 与 FeedDiscussPrefill 同命：注入调用清零后保留仅作存量清扫逐字参照，退役标注已写入其文档注，不删。
+
+### 209.2 槽位/种子/落盘三面推广（App）
+
+- ChatView：`pendingFeedQuote` → `pendingSourceQuote: SourceQuote?`（快照/清除/五处失败退回恢复成对替换）；种子 `FeedDiscussSeed/pendingFeedDiscussSeed` → `SourceQuoteSeed/pendingSourceQuoteSeed`（FeedView.discuss 改置 .feed 族）；`tryApplyFeedSeed` → `tryApplySourceSeed`；发送舱条与消息引用块各加按族分发器（ideaQuoteBar/fileQuoteBar、ideaQuoteBlock/fileQuoteBlock，几何与 feed 变体同源：左轨/细线＋两行＋✕ 命中 44）；beginReply、fork 转入、切线程清理的互斥清零同步覆盖新状态。上下文重放与同 key 重演改走 entry.sourceQuote＋新分发变体。
+- ChatEntry 落盘：新增 ideaQuote* 三字段、fileQuote* 两字段（可选＋默认 nil 轻量迁移，同 feedPost 先例）；init 的 feedQuote 参数收口为 sourceQuote 统一载荷、按族拆字段；组装读口 entry.sourceQuote（feedQuote 计算属性保留）。
+- 回跳两落点：点子引用块点击 → AppState.ideaOpenRequest＋切点子格，IdeasView 消费开详情 sheet（名单未就绪挂起等名单、就绪查无给「这个点子已不在了」诚实提示，与 resolveFeedOpen 同式）；文件引用块点击 → ChatView 内以 FileQuote.target 直接重开文件页（既有 fileOpenTarget 通道，不切格）。
+- 行为变化一处（有意）：点子回既有关联线程时旧口径不带任何上下文（「不覆盖草稿」），新口径两路都挂引用——引用与草稿分属两道，挂引用不动该线程已有的亲笔草稿，原顾虑消解。
+
+### 209.3 两处（实为三处）后门堵死
+
+- IdeasView.openIdeaChat：删 setDraft；新建与回既有两路都置 .idea 种子，linkThread 保留。
+- FileOpenView.requestResend：onRequestResend 载荷由整段 String 改 FileQuote 值；无宿主路删 setDraft、改建线程＋.file 种子＋drawerThreadSelection＋切聊天格。
+- ChatView 宿主注入闭包（§129 落点）：删 `input = prefill` 直写，改挂 .file 引用入槽（挤掉消息引用）＋聚焦，currentThreadID 在场守卫沿 §129。
+- setDraft 全仓对账：全仓调用点只剩 ChatView 三处亲笔生命周期（切线程回存亲笔／删线程清键／发送后清本线程键），SideChatStore 隔离铁律注已更新为 §209 收口口径。
+
+### 209.4 存量清扫（点子做、文件不做——不对称有据）
+
+- 点子：SideChatStore.purgeLegacyIdeaDrafts(ideas:)——凭 ideaThreadIDs 关联账＋IdeaChatPrefill.make 三语逐字再生比对（IdeaPrefillDraftCleanup），IdeasStore.load 名单成功后触发；改一字不动、原点子不在名单不碰、幂等。判据与动态包 3 完全同构。
+- 文件：重发从不登记任何线程↔文件关联账，存量预填混在亲笔草稿里无从严格核验——**不做启发式清扫**（凭结构猜测清用户草稿是红线），旧存量随用户编辑/发送自然代谢，报告明示。
+
+### 209.5 测试与口径
+
+- Core 新套件 SourceQuoteTests（24 法）：两族组装/拼装/分发四法/题头句退场/make 逐字稳定/清扫判定五法。App 新套件 SourceQuoteAppTests（5 法）：清扫逐字清＋幂等＋关联保留/改字留/亲笔零误伤/原点子不在不清/空名单不动作。feed 既有套件（Core 19 法＋App 6 法）随底座合并作回归网。Core 只增不减、三语词条 validate 通过（2927 键，新加「回到点子/打开文件/这个点子已不在了」三键）。
+- 视图层挂载（种子消费/条/块呈现/回跳落点）无现成视图测试基建，与 §208 同口径靠 CI 编译＋真机待验，不冒充单测覆盖。
+
+### 209.6 CI 判读（未决，2026-11-13 21:42 记）
+
+分支 CI run 43432366124（head 5c79f2e，workflow_dispatch 触发）：排队约 25 分钟后 job 已启动在跑；监看进程于 21:42 撞 GitHub API 速率上限（403 rate limit）断线，run 终局结论未取得。按硬停纪律本轮不再重试 GitHub 请求——§190 终判（jobs 结论＋全日志断言失败计数＋Core 计数对账＋§184 死亡名单比对）待主线/后续轮次在限流恢复后补做；补判前本包不自称判绿。
+
+### 209.7 真机待验（组版随车）
+
+①点子「开始吧」：新开与回既有两路引用卡挂舱、输入框空、✕ 可清、发送后服务端收到引用块形态、点引用块回跳点子详情；②文件重发两路（聊天内打开失败→重发挂当前线程引用；文件页打开失败→新建对话挂引用）；③引用发送后杀进程重开，消息引用块在、点块回跳通；④回既有点子线程时其原有亲笔草稿仍在输入框（双道不相扰）；⑤存量：旧版点子预填草稿在点子名单加载后被清、改过的草稿一字未动；⑥深色＋AX 大字号各扫一帧引用条/块。
