@@ -11495,3 +11495,9 @@ IPA 取权威轮 attempt 1 的 artifact（oneday-unsigned-ipa），主线口径�
 2. **App 面**：新 TokenChannelPairingView 通用引导页（四家共用骨架：页头/状态带/三步一动作/连接/页脚，与打样页同语言）；字段逐家不同——钉钉 clientId+clientSecret、QQ appId+clientSecret、Discord 单 botToken、Slack botToken+appToken 双钥；白名单走 fields.allowedUsers（顶层 allowedUserIds 纯数字口径保持 Telegram 专用）；步一文案逐家带真坑（Discord 必须开 Message Content Intent、QQ 沙箱/审核口径如实写、Slack 双钥来源分开讲）。ChannelEntryView 加一处最小路由分支（四家→新页，其余不变）。状态带含「正在生效」语义：回执 applyTriggered/applyError 解码（与文案包同位同名加法字段）＋本地同语义相位判定＋3 秒×40 自动刷新；触发失败如实带原因。ChannelStatusStore 增通用 submitCredentials，demoStatuses 补四家 not_configured。
 3. **伴生 channels_bridge**：PLATFORMS 四家 open=True；逐家写前官方验钥（钉钉/QQ＝官方 access-token 换取接口，与其 Hermes 适配器自用同址；Discord＝GET /users/@me Bot 头；Slack＝auth.test＋apps.connections.open 双验、错误指名哪把钥）——验不过 422 零写入，保存后走既有即时生效通道；自测扩桩四家（69 断言全过）。部署版本号以部署时生产实查为准（施工时生产为 1.0.47），叠层构建、部署后 health＋status 公网验活，生产不写任何测试凭据。
 4. **钉测**：Core testChannelRegistryTokenBatch 新增＋既有注册表测试口径更新（drawerList 七行）；App ChannelTokenBatchTests（回执三态解码＋演示态四家）。Core 只增不减（基线 1779）。i18n +29 键三语 validate 通过。
+
+## §212 0.50.34 令牌四家正式组版（2026-11-14；分支 rel-05034，基线 rel-05033 头 69f542b；令牌包 feat/channels-token-batch @b0724a6；全档＝oneday-design-review/release-05034-prep-20261113.md）
+
+**装配**：基线 rel-05033（0.50.33 已判绿，见 §210 附记）重放合并令牌包（rel-05034-prep 非直系后代，按预制 §6）；唯一冲突 docs/DESIGN-V4.md 同号 §209 相撞——删除线先落留 §209，§210 为 0.50.33 组版总账，令牌节顺延 §211（标题改号＋一行顺延注，节内容一字未动）。同面四文件逐字同（除 blob 行）；i18n validate 3004 键三语过（预制 3002＋删除线 2）；Core 静态 1824、App 69。版本 0.50.34/162 五处同改＋grep 验。
+
+### §212.1 装配 CI 判读（待回填）
