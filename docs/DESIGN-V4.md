@@ -11336,3 +11336,8 @@ Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4
 ### §205 补记（同日，装配 CI 判读）
 - **CI（run 43386214961，head 0bdf571，workflow_dispatch 于 rel-05028）**：Build／Package／Upload 三步 success；Unit tests 步 conclusion=failure，**全日志断言失败 0 条**。Failing tests 终表仅两条、均为 started 后无结果行的进程死亡且皆在案：①`ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays`——§184 键盘在案真崩（独立线 fix/keyboard-trap-decouple 在修，本版不等它）；②`DrawerContainerControllerTests.testAnimatedCloseKeepsContentUntouchableUntilSettled`——§184 Drawer 族（0.50.27 发版构建同签名在案）。无任何新红。
 - **单测对账**：Core **1721 全过**＝0.50.27 的 1698＋P1 新增 7（AgentAvatarChoiceTests）＋P2 新增 16（TraceEchoTests 11＋SessionClassificationTests R3b 5），逐包对得上、只增不减；三包新套件逐套 passed（AgentAvatarChoiceTests／TraceEchoTests／SessionClassificationTests／TopBarSingleActionTapTests），OneDayAppTests 与 OneDayUITests 两 target 终表 passed。
+
+### §205 发版补记（同日，出包）
+- **合 main 与 tag**：rel-05028 快进合入 main（origin/main 未被其他线推进、无并轨），main 头 62ecb60；打 annotated tag **v0.50.28** 于 62ecb60 并 push。
+- **发版构建（run 43388360888，main push 触发，仅此一次）**：Package／Upload success、artifact 在架；断言失败 **0**、Core **1721 全过**；Failing 仅 `testKeyboardUpMovesComposerOnlyDockStays` 一条（§184 键盘在案真崩；装配轮的 Drawer 族那条本轮存活，同族席位轮换与台账一致），无新红。
+- **验包**：**11,073,402 字节、md5 `54c689d363ac11eaaf3d8f9064a69251`**、Info.plist 0.50.28/156/site.didichou.oneday，落 ~/workspace/your_files/oneday-v0.50.28/OneDay-0.50.28.ipa。真机待验按 §205 总清单三组执行。
