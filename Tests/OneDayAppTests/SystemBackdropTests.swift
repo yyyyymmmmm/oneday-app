@@ -7,7 +7,8 @@ import XCTest
 /// 输入框周边/底部坞）的结构与几何——材质档单点定
 /// 义、挂载层级（宿主自有层级最底/坞本体最底）、覆
 /// 盖带落点（顶带＝窗口顶→顶簇底、补偿对宿主帧移
-/// 动免疫；舱带高随舱帧实测；坞带＝坞 bounds 全幅
+/// 动免疫；舱带高随实测帧——A2 起为卡段高、整栈生
+/// 长不牵衬；坞带＝坞 bounds 全幅
 /// 且装配幂等）、深色＋AX 最大字号 trait 下覆盖不
 /// 变。观感本身（糊化是否够、与胶囊玻璃的层次）归
 /// 真机清单（DESIGN §200），不在此断言。
@@ -211,6 +212,66 @@ final class SystemBackdropTests: XCTestCase {
         XCTAssertEqual(dockBackdrop.frame, tabBar.bounds)
         XCTAssertFalse(dockBackdrop.isUserInteractionEnabled)
         XCTAssertTrue(dockBackdrop is UIVisualEffectView)
+    }
+
+    // MARK: - A2 舱衬收边（卡段口径）
+
+    /// 割裂感 A 止血档 A2：舱衬高由「整栈高」改「卡
+    /// 段高」——衬顶随输入舱卡本体帧顶、衬底恒贴宿
+    /// 主底；整栈生长（回底钮行等）不再牵衬，卡生长
+    /// 衬随长；卡帧未到时回落整栈口径（§200 原行为）
+    func testComposerBackdropShrinksToCardSegment() {
+        let window = makeWindow()
+        let host = ComposerGuideHostController()
+        let tabs = UITabBarController()
+        tabs.viewControllers = [host]
+        window.rootViewController = tabs
+        window.makeKeyAndVisible()
+        window.layoutIfNeeded()
+        spinRunLoop(seconds: 1.2)
+        window.layoutIfNeeded()
+
+        let backdrop = host.traceBackdropView
+        // 卡帧未到：回落整栈口径——喂整栈帧（顶 560、
+        // 高 240），衬同高
+        host.updateBarFrame(
+            CGRect(x: 0, y: 560, width: 402, height: 240)
+        )
+        host.view.layoutIfNeeded()
+        XCTAssertEqual(
+            backdrop.frame.height, 240, accuracy: 0.6
+        )
+        // 卡帧到（卡顶 672＝整栈底 800−卡高 128）：衬
+        // 高收为卡段 128，衬底仍贴宿主底
+        host.updateCardFrame(
+            CGRect(x: 14, y: 672, width: 374, height: 128)
+        )
+        host.view.layoutIfNeeded()
+        XCTAssertEqual(
+            backdrop.frame.height, 128, accuracy: 0.6
+        )
+        XCTAssertEqual(
+            backdrop.frame.maxY,
+            host.traceComposerHostView.frame.maxY,
+            accuracy: 0.6
+        )
+        // 整栈再长高（回底钮行出现：栈顶上移 52、卡
+        // 顶不动）：衬高不变——整栈生长不再牵衬
+        host.updateBarFrame(
+            CGRect(x: 0, y: 508, width: 402, height: 292)
+        )
+        host.view.layoutIfNeeded()
+        XCTAssertEqual(
+            backdrop.frame.height, 128, accuracy: 0.6
+        )
+        // 卡生长（多行输入：卡顶上移 30）：衬随卡长高
+        host.updateCardFrame(
+            CGRect(x: 14, y: 642, width: 374, height: 158)
+        )
+        host.view.layoutIfNeeded()
+        XCTAssertEqual(
+            backdrop.frame.height, 158, accuracy: 0.6
+        )
     }
 
     // MARK: - 坞装配幂等

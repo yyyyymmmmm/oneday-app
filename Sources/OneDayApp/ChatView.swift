@@ -12,10 +12,11 @@ import UIKit
 /// 聊天页：本地会话（SwiftData）＋ /v1/chat/completions 流式。
 /// 上下文取当前会话最近 20 条；停止生成保留已生成的半截回复。
 /// v2 视觉（docs/DESIGN-V2.md §3.5）：用户是浅染气泡、输入区
-/// 是浮空胶囊，流式光标是本页的签名细节。助手消息形态两度
+/// 是浮空胶囊，流式光标是本页的签名细节。助手消息形态三度
 /// 易稿：v2 定为裸排（学 ChatGPT/Claude），0.2.5 按用户真机
-/// 对照 Muse 推翻——改浅灰软填充泡（见 assistantBubble 与
-/// DESIGN-V4 §9 追记），裸排口径自此作废。
+/// 对照 Muse 推翻改浅灰软填充泡（DESIGN-V4 §9 追记），
+/// 2026-11-13 割裂感 A 止血档再改判回落面（散文直落大面、
+/// 异构件才成卡，见 assistantBubble 注），填充泡口径作废。
 /// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
 /// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
 
@@ -251,6 +252,14 @@ struct ChatView: View {
     /// 纯逻辑记账，每 ≥40 字放行一次无动画贴底；流结
     /// 束与切换线程时归零（见 messageList 的 onChange）
     @State private var streamFollowGate = StreamFollowGate()
+    /// 流式跟随贴底的结算挂账（割裂感 A 止血档 A3）：
+    /// 代号每登记一次自增（新登记/流结束都令旧登记
+    /// 作废），pending＝有一贴待结算后执行；执行口
+    /// settleStreamFollow 双守卫消费（见 messageList
+    /// 的 streamingText 与 composerBottomSpace 两处
+    /// onChange）
+    @State private var streamFollowSettleGeneration = 0
+    @State private var streamFollowPending = false
     /// 离底未读计数（0.41.0 收口批，台账 H 节正修）：
     /// Core AwayUnreadCounter 记账——条目变化与可见
     /// 集变化两路喂 ingest（见 messageList 两处
@@ -2118,36 +2127,27 @@ struct ChatView: View {
         // 留任均不变：.soft 作用区改由顶
         // contentMargins 区决定
         .scrollEdgeEffectStyle(.soft, for: .top)
-        // 0.4.2（用户 10:54 圈图点名，二期 M3 卡提前落
-        // 地）：底缘同挂柔效；0.4.3 注册后系统才真正按
-        // 发送舱高度发放本效果——0.4.2 时发送舱还在
-        // safeAreaInset 里，按 Grow 出货应用的实测记录
-        // 该挂法等于关掉底部边缘效果（§28.1 原因二
-        // 实锤），全页无实色遮罩残留（topFade 已于
-        // 0.4.0 整层删除）
-        // §170（用户 2026-11-11 23:28 亲定、23:37 纠正
-        // 作用域——原话「不是聊天页上面撤，是输入框上
-        // 面」）：本行原为底缘 .soft，它发放的带正罩在
-        // 发送舱上方：常态带高 58pt（上距 4＋舱 46＋
-        // 下距 8），回底钮行显现时 110pt、其中钮行
-        // 52pt 基本透明，消息透过该区被糊（用户录屏
-        // 帧实证）——即点名撤掉的「输入框上方那条朦
-        // 胧带」。现整条隐藏：本列表底缘效果归无，带
-        // 撤干净、消息抵发送区上沿锐利终止，发送舱只
-        // 剩其自有玻璃胶囊（裸 .glassEffect(.regular)，
-        // 0.4.1 定案）。聊天页顶缘（顶栏下 .soft，上
-        // 方一行）不在本次口径内、原样未动。耦合如实
-        // 记：一个滚动面一条边只有一个效果对象，发
-        // 送舱下方（舱底至坞）与坞区同属本底缘，隐
-        // 藏后聊天页坞区只剩坞自有玻璃、无额外收边
-        // 带——用户口径②「输入框下方加同档收边」在
-        // 本页的落点只余坞玻璃本体，此耦合、真机验
-        // 点与回退裁决见 DESIGN §170.2／§170.5。合
-        // 并对账：chat-polish 同动本行（其口径 .hard
-        // 收敛）——23:37 新口径更进一步整条撤带，合
-        // 裁以本包 hidden 为终局；其诊断表 D「底缘全
-        // 宽模糊带是帧成本源」与撤带方向一致
-        .scrollEdgeEffectHidden(true, for: .bottom)
+        // 底缘沿革：0.4.2 同挂柔效、0.4.3 注册后按发送
+        // 舱高度发放（§28.1）；§170（用户 2026-11-11
+        // 亲定）整条隐藏——注册承载下效果带正罩发送舱
+        // 上方、回底钮行 52pt 基本透明而消息透过被糊，
+        // 即当时点名撤掉的「输入框上方那条朦胧带」。
+        // 割裂感 A 止血档接通（2026-11-13，用户 17:06
+        // 问清机制后 17:11 亲点「那你做吧」，§170 隐藏
+        // 口径就此被新拍板覆盖）：底缘改回系统 .soft。
+        // 与 §170 当年形态的载体差异如实记：栏位已退
+        // 注册改锚定托管（§186/§193/§195），效果作用
+        // 区改由底 contentMargins 区决定（与顶缘 §195
+        // 注同式）——即内容滚进输入舱/坞上方的留位带
+        // 时由系统糊化其隔着浮件的像，阅读区本体不被
+        // 擦淡；这与已作废的 §173 手搓渐变溶化是两回
+        // 事（17:06 口径钉死：只许系统滚动边缘效果、
+        // 禁自绘擦淡、禁私有 variableBlur）。同带内回
+        // 底钮行区的衬已由 A2 撤除，那段的过渡自此由
+        // 本效果承担；真机若证本带在新承载下重现 §170
+        // 形态的过糊，回退动作只此一行改回 hidden、
+        // 须用户复核后执行
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
         // 事实信号坐标空间（手感 A 档）：尾锚的几何回
         // 调以本列表为原点读帧（见栈内尾锚注）——只命
         // 名、不改任何布局与滚动行为
@@ -2420,14 +2420,51 @@ struct ChatView: View {
             // 最后一贴由上方条目数变化事件承担
             guard let newText else {
                 streamFollowGate.reset()
+                // A3：流结束作废未结算的挂账贴（最后一
+                // 贴归条目数变化路，不许挂账尾随补贴）
+                streamFollowSettleGeneration += 1
+                streamFollowPending = false
                 return
             }
             if isNearBottom,
                streamFollowGate.shouldFollow(
                    currentCount: newText.count
                ) {
-                scrollToBottom(proxy, animated: false)
+                // A3（割裂感止血档，调研 §1.4 A3）：贴
+                // 底改「登记—结算后执行」，不在文本变
+                // 化的同拍直贴——同拍时底留位可能还按
+                // 上一拍的舱高结算（舱帧回报走宿主布
+                // 局拍→Preference→下一拍回写的状态
+                // 链），按旧留位贴底会让流式末行在结算
+                // 拍差里探进舱带区（调研 J3 的时序分
+                // 量）。登记后两路任一到即消费：舱高变
+                // 了走 composerBottomSpace 的结算拍（硬
+                // 保证贴在其后）；舱高没变走让出一拍的
+                // 兜底（与回报回写同为下一拍序）。代号
+                // ＋挂账双守卫防过期与叠贴（执行口
+                // settleStreamFollow）；贴底本体与 120ms
+                // 复核复贴机制零改动
+                streamFollowSettleGeneration += 1
+                streamFollowPending = true
+                let generation = streamFollowSettleGeneration
+                Task { @MainActor in
+                    await Task.yield()
+                    settleStreamFollow(
+                        proxy, generation: generation
+                    )
+                }
             }
+        }
+        .onChange(of: composerBottomSpace) {
+            // A3 结算拍：底留位刚按最新舱高重算——挂
+            // 账中的流式跟随贴在此执行（贴底时留位已
+            // 结算，见 streamingText 登记处）；非流式期
+            // pending 恒假、本路无副作用（键盘升降/回
+            // 底钮显隐引起的留位变化不触发任何贴底）
+            settleStreamFollow(
+                proxy,
+                generation: streamFollowSettleGeneration
+            )
         }
         // 0.3.3 键盘锚底（真机第 3 条）：点输入框时页面本
         // 在底部，键盘弹起后列表被安全区顶起、最后一条与
@@ -2526,6 +2563,24 @@ struct ChatView: View {
         keyboardAnchorPending = false
         guard composerFocused, isNearBottom else { return }
         scrollToBottom(proxy)
+    }
+
+    /// A3 流式跟随贴的结算执行口：代号须仍是最新登
+    /// 记（等待间来了更新增量或流结束，旧登记在此作
+    /// 废）、挂账未被另一路消费过，才清账并执行一贴
+    /// ——两路触发（留位结算拍/让一拍兜底）任一先到
+    /// 者执行、后到者被双守卫挡下，不叠贴。执行时
+    /// 复查 isNearBottom（等待间用户上滑了就不拉，
+    /// 与键盘锚底同口径）
+    private func settleStreamFollow(
+        _ proxy: ScrollViewProxy, generation: Int
+    ) {
+        guard generation == streamFollowSettleGeneration,
+              streamFollowPending
+        else { return }
+        streamFollowPending = false
+        guard isNearBottom else { return }
+        scrollToBottom(proxy, animated: false)
     }
 
     /// 滚到底部锚点——全列表唯一的贴底所有者（§135
@@ -3499,12 +3554,24 @@ struct ChatView: View {
         )
     }
 
-    /// 助手消息泡（0.2.5，对照 Muse 的助手形态）：浅灰软
-    /// 填充（Palette.bubbleFill）＋18pt 圆角，左对齐、右侧留
-    /// 白上限与用户泡的 44pt 让位同逻辑；泡内代码块沿用
-    /// fieldFill 填充、比泡面深一阶，层级不打架。流式半截
-    /// 与等待点同样入泡，内容不溢出泡外。此形态推翻
-    /// DESIGN-V2 §3.5 的裸排决定，追记在 DESIGN-V4 §9。
+    /// 助手消息行（0.2.5 曾定浅灰软填充泡＋圆角卡，见下
+    /// 改判）：左对齐、右侧留白上限与用户泡的 44pt 让位
+    /// 同逻辑，内外边距沿旧泡口径。
+    /// 割裂感 A 止血档 A1 改判（2026-11-13，用户 17:02
+    /// 拍板提队）：撤 bubbleFill 背景——散文直落
+    /// chatSurface 大面，对齐 Muse／ChatGPT 的单一连
+    /// 续底面语法（助手散文不成卡；代码块/表格/工具
+    /// 卡/文件卡等异构件保留各自承载，本函数只包散文
+    /// 与流式半截/等待点，两者同路落面）。泡内子件对
+    /// 比账按调研 A1 逐项复核（WCAG 公式同式心算）：
+    /// 次级文字 inkSecondaryOnFill 落面后浅档 #5F666B
+    /// 对 #FCFCFC＝5.69:1（原泡面 #EEEEF0 上 5.04）、
+    /// 暗档 secondaryLabel 压 #000 合成 6.36:1（原泡
+    /// 面 5.29），两档均升；代码面 codeFill 与底面步
+    /// 幅浅档 1.24:1（原 1.10）、暗档同级，子件无一
+    /// 因落面跌破原账，令牌零改动。bubbleFill 令牌本
+    /// 体保留（用户图卡底等其他消费点不动）；函数名
+    /// 沿旧名以保调用点零改动与沿革可追。
     private func assistantBubble<Content: View>(
         @ViewBuilder _ content: () -> Content
     ) -> some View {
@@ -3512,12 +3579,6 @@ struct ChatView: View {
             content()
                 .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                 .padding(.vertical, OneDayMetrics.bubblePaddingV)
-                .background(
-                    Palette.bubbleFill,
-                    in: RoundedRectangle(
-                        cornerRadius: OneDayMetrics.assistantBubbleCorner
-                    )
-                )
             Spacer(minLength: OneDayMetrics.bubbleSideInset)
         }
     }
@@ -3835,6 +3896,20 @@ struct ChatView: View {
             // 影一并撤销（玻璃自带边缘折光与层级，§14 条
             // 2 的影口径随材质换代退役）
             composerCard
+                // A2（割裂感止血档）：卡本体帧回报——与
+                // 整栈帧（桥侧 ComposerBarFrameKey）同
+                // 法同系，经托管树 Preference 上行喂
+                // ComposerGuideHost 定底衬高：衬顶随卡
+                // 顶、整栈其余段（回底钮行/条带）不再
+                // 进衬。量点只读帧、不接命中、不改布局
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: ComposerCardFrameKey.self,
+                            value: proxy.frame(in: .global)
+                        )
+                    }
+                }
         }
         .padding(.horizontal, OneDayMetrics.spacingSM)
         // 0.36.27（§97 件二）：顶 padding 收一档
