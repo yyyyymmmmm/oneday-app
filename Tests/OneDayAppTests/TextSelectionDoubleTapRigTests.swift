@@ -77,6 +77,23 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         ) -> Set<UITouch>? { rigTouches }
     }
 
+    /// 探针识别器的 target-action 承接（iOS 26 SDK
+    /// 的 UIGestureRecognizer 无 addAction，round4
+    /// 编译实证）
+    private final class SpyTarget: NSObject {
+        var log: [String] = []
+        weak var spy: UITapGestureRecognizer?
+
+        @objc func fired() {
+            guard let spy, let w = spy.view?.window
+            else { return }
+            let loc = spy.location(in: w)
+            log.append(
+                "SPY tap at (\(Int(loc.x)),\(Int(loc.y))) state=\(spy.state.rawValue)"
+            )
+        }
+    }
+
     /// 触摸投递器：相位序列＋假时钟，拍间旋主循环让
     /// 识别器状态机与多击计时器真实推进
     private final class TouchDriver {
@@ -538,16 +555,13 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         )
         // 探针识别器（不取消触摸）：记录它收到的点位
         // ——分辨「投递几何错」与「选字交互不认账」
-        var spyLog: [String] = []
-        let spy = UITapGestureRecognizer()
+        let spyTarget = SpyTarget()
+        Self.retained.append(spyTarget)
+        let spy = UITapGestureRecognizer(
+            target: spyTarget, action: #selector(SpyTarget.fired)
+        )
         spy.cancelsTouchesInView = false
-        spy.addAction(UIAction { [weak spy] _ in
-            guard let spy, let w = spy.view?.window else { return }
-            let loc = spy.location(in: w)
-            spyLog.append(
-                "SPY tap at (\(Int(loc.x)),\(Int(loc.y))) state=\(spy.state.rawValue)"
-            )
-        })
+        spyTarget.spy = spy
         host.view.addGestureRecognizer(spy)
 
         let driver = TouchDriver(window: window)
@@ -583,7 +597,7 @@ final class TextSelectionDoubleTapRigTests: XCTestCase {
         spinRunLoop(seconds: 0.5)
         let bResult = view.selectedRange
         lines.append("LADDER doubleTapB selected=\(fmt(bResult))")
-        lines += spyLog
+        lines += spyTarget.log
         let valid = aResult == range || bResult == range
         lines.append(
             "SELFCHECK verdict=\(valid ? "VALID" : "INVALID")"
