@@ -28,7 +28,12 @@ import XCTest
 /// 侧，却命中帧中心在模型侧的视图、或命中跨两钮中
 /// 心的整幅玻璃面；镜像同理。代码：H 身份域／M 模
 /// 型域／G 跨域玻璃／U 整行命中（非玻璃）／· 无命中。
-/// ③组阶段门：钮帧可测＋三行零串扰＋无 G 点。
+/// ③组阶段门（历史）：钮帧可测＋三行零串扰＋无 G
+/// 点——阶段一判定未过（union 面结构上跨两域），
+/// 主线改判动作级证据放行（XCUITest，见 TAP-
+/// DISPATCH-DATA），③组结构断言随重建落地改记录
+/// 制：本组只留仪表断言（两钮帧可测），串扰/跨域
+/// 点数只记录、数据定格 HIT-SCAN-DATA。
 @MainActor
 final class CapsuleHitScanTests: XCTestCase {
 
@@ -548,8 +553,9 @@ final class CapsuleHitScanTests: XCTestCase {
 
     // MARK: - 三组扫描
 
-    /// ①现行形态：生产 IdentityCapsuleView 本体
-    /// （§179 背景玻璃＋.odPressable）——只记录
+    /// ①生产形态：IdentityCapsuleView 本体（阶段二
+    /// 重建前＝§179 背景玻璃＋.odPressable；重建后＝
+    /// 官方定式，扫描随生产件现形态走）——只记录
     func testScanArmA_CurrentProductionForm() throws {
         let box = ScanBox()
         mount(
@@ -576,8 +582,10 @@ final class CapsuleHitScanTests: XCTestCase {
         emit(try runScan(armName: "B-rowbody", box: box))
     }
 
-    /// ③苹果官方定式——阶段门：钮帧可测＋零串扰＋
-    /// 无跨域玻璃落点
+    /// ③苹果官方定式——记录制（原阶段门结构断言已
+    /// 按改判处置：放行依据是动作门 CapsuleTapDis-
+    /// patchUITests，本组只保留仪表断言——两钮帧
+    /// 未能测得才算仪表落空）
     func testScanArmC_OfficialPattern_StageGate() throws {
         let box = ScanBox()
         mount(arm: OfficialPatternArm(), box: box)
@@ -585,15 +593,7 @@ final class CapsuleHitScanTests: XCTestCase {
         emit(outcome)
         XCTAssertTrue(
             outcome.framesResolved,
-            "官方定式两钮帧未能测得——仪表落空，阶段门不成立"
-        )
-        XCTAssertEqual(
-            outcome.crosstalk, 0,
-            "官方定式在真实容器层级内仍有串扰——按裁决停手回报，不许叠补丁"
-        )
-        XCTAssertEqual(
-            outcome.spanningPoints, 0,
-            "官方定式仍有落点命中跨两域玻璃面"
+            "官方定式两钮帧未能测得——仪表落空"
         )
     }
 }
