@@ -231,6 +231,14 @@ public enum SessionClassifier {
     /// 生成式 oneday-side-<uuid>）
     public static let appSideSessionPrefix = "oneday-side-"
 
+    /// 伴生 AI 开旁聊前缀（P2 会话包，2026-11-13）：
+    /// 伴生 oneday 桥开旁聊门面（/ai-sessions 与
+    /// /mcp-sessions 的 sessions_create）凭服务钥经
+    /// 网关客户端指定 id 建会话时铸的 oneday-ai-<hex>；
+    /// 桥侧 AI_SESSION_PREFIX 是同一常量的另一出处，
+    /// 两边同值、改一处必须同步另一处
+    public static let aiCastSessionPrefix = "oneday-ai-"
+
     /// 网关 runs 铸造前缀（对账 A1：点子/晨报等桥
     /// 生成轮次的真实落形 run_<hex>，存量 5/5 全
     /// 机器、零反例）
@@ -275,9 +283,19 @@ public enum SessionClassifier {
         if id.hasPrefix(appSideSessionPrefix) {
             return .mine
         }
-        // R4 部署侧铸 id：oneday- 前缀但非 main-/side-
+        // R3b 伴生铸 AI 旁聊前缀（P2 会话包，2026-11-13）：
+        // 出生证明收养——AI 经伴生门面自开的旁聊，父
+        // 会话＝主线、发起动作 id 记于伴生出生记录，
+        // id 前缀即 sessions 侧可查的标记面（不污染正
+        // 文/标题）。判据只认此前缀一个形态：探针与
+        // runs 同为 api_server 来源但无此标记，仍按
+        // R4/R4b 旧规，不许借本条连带放宽任何其他闸
+        if id.hasPrefix(aiCastSessionPrefix) {
+            return .mine
+        }
+        // R4 部署侧铸 id：oneday- 前缀但非 main-/side-/ai-
         // （如桥铸 oneday-ideas-gen——oneday- 前缀不
-        // 等于 App 资产，主/旁已在 R0/R3 先行命中）
+        // 等于 App 资产，主/旁/AI 铸已在 R0/R3/R3b 先行命中）
         if id.hasPrefix(SideChatLink.ownSessionPrefix) {
             return .system
         }

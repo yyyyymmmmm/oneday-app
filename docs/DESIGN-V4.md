@@ -11302,3 +11302,22 @@ Core 新增两法（DeviceCallsTests）：`testSessionReregisterWhileActiveMigra
 - Core 新增 AgentAvatarChoiceTests 7 法：锁压 AI（预置/图片两路）、未锁 AI 胜（预置/图片）、AI 图胜出标记、AI 空回落、脏预置 id 收敛缺省。单测只增不减。
 - CI 口径：分支 workflow_dispatch 全量，断言失败须 0（键盘全链 flake 在案一条按 §190/§196 口径记录）。
 - 真机待验（随组版装机）：①AI（经收官注册后）改名后 App 显示名跟随（本机无覆盖时）；②AI 换预置/图片头像后三露脸面同步变化；③用户手动选过头像后 AI 切换不生效（锁）；④断网冷启头像不空白、不回退。
+## §204 AI 自开旁聊＋留痕回响渲染（AI 内部权限 P2 会话包＋P0 App 侧，2026-11-13；分支 feat/ai-session-pack，基线 main 0494f7d，只交分支不合并；伴生侧同日 1.0.40；0.50.28 装配顺延 §199→§204）
+
+### 204.1 出生证明＝会话 id 前缀（存储口定案）
+AI 自开旁聊的出生证明不另设字段、不写正文：伴生开旁聊门面凭服务钥经网关 8642 的客户端指定 id 合同（App 自家 oneday-side- 旁聊同一条路）铸 `oneday-ai-<hex>` 会话 id——标记落在 sessions 侧、人人可查（列表回执即见），标题与正文一字不污染。父会话＝主线、铸造时刻、发起动作（留痕 id）记于伴生出生记录（oneday 桥 aiSessions 集合，GET /ai-sessions 可查）。网关若改派 id，出生证明即失效——门面当场拒绝采用并留失败痕，不许无标记会话混进旁聊名义。
+
+### 204.2 桥侧门面（伴生 1.0.40，oneday_bridge.py）
+两门一核：REST `POST /ai-sessions`（脚本/验链）＋ JSON-RPC `/mcp-sessions` 的 `sessions_create`（给 AI 的门面，与 goals 门面同形、独立端点——goals /mcp 的 tools/list 契约一字不动）。核 `_create_ai_session_traced`：校验 taskBrief（必填，首帖任务简报）→标题（AI 给的原样用；缺省兜底「AI 任务 · HH:MM」，Asia/Shanghai）→父会话解析（最新 oneday-main-*；找不到主线即拒绝创建，不铸孤儿）→建会话→出生记录落账→/v1/runs 绑 session_id 发简报。成败都恰一条 `sessions.create` 留痕、先痕后答（P0 纪律，REST 与 MCP 共用 traced 核、双门不双痕）：简报提交失败时会话已铸——出生记录保留并标 briefPosted=false，失败痕的 target 指向已铸会话 id，不许假装没发生。**注册状态：门面就绪待收官窗口**（与 P0/P3 同窗一次注册＋重启，本包不注册、不重启 Hermes）。
+
+### 204.3 App 收养（分类器只加一条）
+`SessionClassifier` 新增 R3b（置 R3 之后、R4 之前）：id 带 `oneday-ai-` 前缀 → `.mine`。判据只认此前缀一个形态——探针/run_ 同为 api_server 来源但无此标记，仍走 R4/R4b 旧规；oneday-ideas-gen 等桥铸系统会话仍归系统；分类器其余规则一字未动。呈现不新造 IA：收养会话经既有 partition 与用户手开旁聊同筐（全部对话页「我的对话」段同列），点开走既有收养导入（openServerSession 导入成本地线程后续聊，与频道收养同路），导入后即进抽屉旁聊区——父子呈现按现行形态（主线钦定行＋旁聊同列），本包不给抽屉加接线。
+
+### 204.4 回响渲染（P0 App 侧，公用件）
+留痕回响卡 `TraceEchoCard`（App 层公用件，其余动作包共用）：五要素＝🔧 图标＋「<智能体名> <动作短句>」卡头／目标标题行（会话类带 chevron、整卡可点达）／右上时间（今日只时刻、跨日带月日）／结果行（成功 result 原样）／失败行（error 原文整行＋danger 红边红字，与成功同级不折叠）。呈现范围纯函数 `TraceEchoPolicy`（Core）：主线全量（上限 10、时间正序新在流尾）、旁聊只出 target.id＝本会话服务端 id 者、无服务端关联的本地线程不出卡；失败记录不被任何过滤剔除。文案映射 `TraceEchoCopy`（Core 登记表，未登记动作回落「做了一件事」不静默）。数据形态按审计先行口径：打开/切换对话时经 OneDayBridgeClient 拉 GET /traces（主线全量近百、旁聊带 targetId 桥侧过滤），不走推送；拉取失败保留已有卡、不清空不摆错误面。点卡达对象：会话类置位 pendingChatSessionID 走既有消费口（导入/切换），在本会话点自己的出生卡不重复导入。卡只在呈现层拼装——绝不写入任何 Hermes 会话（回告卡 D4 同纪律）。
+
+### 204.5 测试账
+Core 新增钉测 16（SessionClassificationTests ＋5：R3b 收养/序位压 R4/无标记不收养/压系统源/分筐同列；TraceEchoTests ＋11：DTO 原形解码＋宽容解码、Policy 主线全量/旁聊只认自己/无上下文不出/失败不过滤/上限取最近、Copy 登记短句/未登记回落/结果原文/点达判据）。桥侧新自检 oneday_bridge_ai_sessions_selftest 28/28（stub Hermes 全链：铸号/兜底标题/父解析/简报绑会话/改派拒绝/简报失败留出生/双门各一痕/重启回读），已登记进 run_bridge_selftests.sh；既有 traces_mcp 34/34、p9 28/28 回归不破。真机待验（随并轨版本）：主线对 AI 说「开个旁聊查 X」→（注册后）旁聊出现在抽屉/全部对话页我的对话段、主线流尾有回响卡、点卡进该旁聊续聊、旁聊内见自己的出生卡。
+
+### 204.6 接手收口补记（2026-11-13 续工，前任中断后由接手线盘点收尾）
+分支 CI 终判（run 43374246295，§190 口径）：构建/打包/上传三步全过、全日志断言失败 0 条；红仅两条在案进程死亡——键盘用例 testKeyboardUpMovesComposerOnlyDockStays（§184 真崩族，宿主死亡重启）与 DrawerContainerControllerTests.testAnimatedCloseKeepsContentUntouchableUntilSettled（§184 Drawer 族）；P2 新增 16 测全过（TraceEchoTests 11/11、SessionClassificationTests R3b 新 5 含收养/序位/无标记不收养）。桥侧自检以暂存副本复跑复核：ai_sessions 28/28、traces_mcp 34/34（对当前工作区 oneday_bridge.py，其 md5 与生产部署件逐字一致 4883cf6d…）。生产全链自验两轮（均 test=true、验后删净）：前任一轮 oneday-ai-29de…（主线解析两度失败留痕后第三度成功，会话已删、出生记录与三条 traces 留账）；接手一轮 oneday-ai-7084… 一次成功——POST /ai-sessions 201（父＝现行主线 oneday-main-bfb4…、briefPosted=true、runId 当场回）、GET /traces?targetId= 精确命中其 ok 痕、state.db 实查简报真跑（助手回「自验通过」）、围栏 DELETE（request_id＋expected_revision＋expected_generation，Dashboard 会话变更围栏）200 删净回读 0。留痕账现状：aiSessions 出生记录 2 条（皆 test）、sessions.create traces 4 条（2 失败＝主线解析、2 成功）——出生记录与 traces 无删除门、按台账设计留存。清理口径备忘：bulk-delete 在网关运行期被独占维护守卫拒绝，删会话只走围栏 DELETE 一条路。**装配更正（0.50.28）**：本节自验记录的围栏参数记法（JSON body 形态）作废——围栏三参数（request_id＋expected_revision＋expected_generation）须走 **query string**；放 JSON body 会被当作无围栏请求、回 409 client_upgrade_required（更正来源：收官窗口源码实证，Hermes web_server_sessions.py 的无围栏判定，见 closing-window-registration-20261113.md）。注册状态不变：门面就绪待收官窗口（见 ai-session-pack-report-20261113.md 注册清单）。

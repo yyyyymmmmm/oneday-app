@@ -167,6 +167,85 @@ final class SessionClassificationTests: XCTestCase {
         XCTAssertEqual(classify(s), .mine)
     }
 
+    // MARK: - R3b 伴生铸 AI 旁聊（P2 会话包收养）
+
+    // 出生证明收养：伴生门面铸的 oneday-ai- 会话、无
+    // 本地关联也归我的对话（与用户手开的旁聊同列）
+    func testR3bAICastPrefixIsMineWithoutLinkage() {
+        let s = session(
+            id: "oneday-ai-0123456789abcdef0123456789abcdef",
+            source: "api_server"
+        )
+        XCTAssertEqual(classify(s), .mine)
+    }
+
+    // 规则序钉：R3b 在 R4 之前——同为 oneday- 前缀，
+    // AI 铸归我的对话、桥铸系统会话仍归系统（R4 本体
+    // 不被本条连带放宽，见 testR4BridgeCastOneDayIDs）
+    func testR3bBeatsR4ButIdeasGenStaysSystem() {
+        XCTAssertEqual(
+            classify(session(
+                id: "oneday-ai-aaaa", source: "api_server")),
+            .mine
+        )
+        XCTAssertEqual(
+            classify(session(
+                id: "oneday-ideas-gen", source: "api_server")),
+            .system
+        )
+    }
+
+    // 判据只认出生证明：AI 旁聊与探针同为 api_server
+    // 来源——无 oneday-ai- 标记的同源会话一律旧规
+    // （探针 api_ 归系统、自由形态归频道），不许因
+    // 「也是机器开的」借道升层
+    func testR3bNoMarkNoAdoption() {
+        XCTAssertEqual(
+            classify(session(
+                id: "api_1730000000_deadbeef", source: "api_server")),
+            .system
+        )
+        XCTAssertEqual(
+            classify(session(
+                id: "ai-side-chat-1", source: "api_server")),
+            .channel(ChannelRegistry.hermesChannelID)
+        )
+    }
+
+    // 规则序钉：R3b 在 R5 之前——AI 铸旁聊即便回执
+    // source 异常也不被系统源吞掉（与 R3 同纪律）
+    func testR3bBeatsSystemSource() {
+        let s = session(
+            id: "oneday-ai-0123456789abcdef0123456789abcdef",
+            source: "kanban"
+        )
+        XCTAssertEqual(classify(s), .mine)
+    }
+
+    // 分筐钉：partition 把 AI 铸会话放进 mine 筐、
+    // 与用户手开旁聊同筐同列，频道/系统筐不掺
+    func testR3bPartitionPutsAICastInMineBucket() {
+        let ai = session(
+            id: "oneday-ai-0123456789abcdef0123456789abcdef",
+            source: "api_server"
+        )
+        let own = session(
+            id: "oneday-side-11111111-2222-3333-4444-555555555555",
+            source: "api_server"
+        )
+        let probe = session(
+            id: "api_1730000000_deadbeef", source: "api_server"
+        )
+        let partition = SessionClassifier.partition(
+            sessions: [ai, own, probe],
+            mainServerSessionID: mainSession,
+            linkedThreadSessionIDs: []
+        )
+        XCTAssertEqual(partition.mine.map(\.id), [ai.id, own.id])
+        XCTAssertEqual(partition.system.map(\.id), [probe.id])
+        XCTAssertEqual(partition.hermesChannelCount, 0)
+    }
+
     // MARK: - R4 部署侧铸 id
 
     func testR4BridgeCastOneDayIDsAreSystem() {
