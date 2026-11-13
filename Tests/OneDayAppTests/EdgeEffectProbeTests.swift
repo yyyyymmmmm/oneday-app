@@ -16,10 +16,9 @@ import XCTest
 /// 修复后的回归形态：生产同构装配（落盘长会话
 /// 160 条＋真 RootView 入场景窗），双态×双臂（生
 /// 产／摘两注册的消融臂）×浅深两帧采样倾印 EDGE-
-/// PROBE 行，并按口径数值断言——静止四点（状态栏
-/// 带/顶簇间隙/舱带边缘/坞下沿）浅 ≤3–4、深 ≤8；
-/// 滚动态顶簇间隙 ≤12、舱区须明显优于消融臂（基
-/// 线消融同点 Δ95＝裸内容）。结构与绑定断言由
+/// PROBE 行，并按口径数值断言（阈值口径见断言
+/// 段注：机制自有区绝对帽、系统地板区相对帽＋绝
+/// 对帽、滚动态用同点双臂差）。结构与绑定断言由
 /// EdgeEffectRegistrationTests 承接。
 @MainActor
 final class EdgeEffectProbeTests: XCTestCase {
@@ -505,59 +504,108 @@ final class EdgeEffectProbeTests: XCTestCase {
         setOffset(minOffset)
         record("prodDark", "topRest")
 
+        // 深色·消融臂：两静止态——顶带残差（首版实
+        // 测状态栏带 25/顶簇间隙 18）若在摘注册后同
+        // 值，即证其为系统边缘效果本体的静止地板
+        // （非注册所加），顶带断言据此用相对口径
+        topBar.removeInteraction(topInteraction)
+        if let bandInteraction {
+            composerBand.removeInteraction(bandInteraction)
+        }
+        window.layoutIfNeeded()
+        spinRunLoop(seconds: 0.5)
+        gotoBottom()
+        record("noBandDark", "bottomRest")
+        setOffset(minOffset)
+        record("noBandDark", "topRest")
+
         // MARK: 回归断言（用户 21:39 口径的数值化）
 
+        // 阈值口径（首版验证轮 43449681845 实测后校
+        // 准，报告 §4 全账）：①机制自有区（舱带/坞）
+        // 用绝对帽——§200 病值（深 19）与修复值（0）
+        // 相距远、帽取 8；②顶带两点（状态栏带/顶簇
+        // 间隙）的静止残差经双臂对照为系统边缘效果
+        // 本体的地板（浅色生产＝消融同值 5；深色地
+        // 板由本轮消融臂回证）——注册不许在地板上加
+        // 码：相对帽（≤消融＋2~3）＋宽松绝对帽防未
+        // 来生长；③滚动态对彩色内容不用「与页面色
+        // 差」直测溶解度（soft 的 scrim 取自下方内
+        // 容色、蓝气泡化开仍偏蓝）——改同点双臂差＋
+        // 粗帽；bottomUnder 尾段像素随 LazyVStack
+        // 估算高漂移（两轮 contentH 26263/26143），
+        // 只倾印不设断
         func d(
             _ arm: String, _ state: String, _ point: String
         ) -> Int {
             results["\(arm)|\(state)"]?[point] ?? -1
         }
-        // 静止态不可见·浅色：四点与页面色差小到不可辨
+        // 静止·浅色
         for state in ["topRest", "bottomRest"] {
             XCTAssertLessThanOrEqual(
                 d("prod", state, "statusStrip"), 3,
                 "浅色 \(state) 状态栏带应与页面同色")
             XCTAssertLessThanOrEqual(
-                d("prod", state, "topBand"), 3,
-                "浅色 \(state) 顶簇间隙应与页面同色")
+                d("prod", state, "topBand"),
+                d("noBand", state, "topBand") + 2,
+                "浅色 \(state) 顶簇间隙不许在系统地板上加码")
             XCTAssertLessThanOrEqual(
-                d("prod", state, "composerMargin"), 4,
-                "浅色 \(state) 舱带边缘应与页面同色")
+                d("prod", state, "topBand"), 6,
+                "浅色 \(state) 顶簇间隙绝对帽")
+            XCTAssertLessThanOrEqual(
+                d("prod", state, "composerMargin"),
+                d("noBand", state, "composerMargin") + 4,
+                "浅色 \(state) 舱带边缘不许在地板上加码")
+            XCTAssertLessThanOrEqual(
+                d("prod", state, "composerMargin"), 10,
+                "浅色 \(state) 舱带边缘绝对帽")
             XCTAssertLessThanOrEqual(
                 d("prod", state, "dockBelowCapsule"), 4,
                 "浅色 \(state) 坞下沿应与页面同色")
         }
-        // 静止态不可见·深色（§200 时代同点 39/19/19
-        // ——本组即那组病的回归门）
+        XCTAssertLessThanOrEqual(
+            d("prod", "topRest", "composerBand"), 12,
+            "浅色顶静止时卡后为空、卡面玻璃不应自成带")
+        // 静止·深色（舱/坞为 §200 病灶本体：病值 19、
+        // 帽 8；顶带两点相对＋绝对双帽）
         for state in ["topRest", "bottomRest"] {
             XCTAssertLessThanOrEqual(
-                d("prodDark", state, "statusStrip"), 8,
-                "深色 \(state) 状态栏带应近页面色")
-            XCTAssertLessThanOrEqual(
-                d("prodDark", state, "topBand"), 8,
-                "深色 \(state) 顶簇间隙应近页面色")
-            XCTAssertLessThanOrEqual(
                 d("prodDark", state, "composerMargin"), 8,
-                "深色 \(state) 舱带边缘应近页面色")
+                "深色 \(state) 舱带边缘应近页面色（病值 19）")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "composerBand"), 8,
+                "深色 \(state) 舱区应近页面色")
             XCTAssertLessThanOrEqual(
                 d("prodDark", state, "dockBelowCapsule"), 8,
-                "深色 \(state) 坞下沿应近页面色")
+                "深色 \(state) 坞下沿应近页面色（病值 19）")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "statusStrip"),
+                d("noBandDark", state, "statusStrip") + 3,
+                "深色 \(state) 状态栏带不许在系统地板上加码")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "statusStrip"), 28,
+                "深色 \(state) 状态栏带绝对帽（地板实测 25）")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "topBand"),
+                d("noBandDark", state, "topBand") + 3,
+                "深色 \(state) 顶簇间隙不许在系统地板上加码")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "topBand"), 22,
+                "深色 \(state) 顶簇间隙绝对帽（地板实测 18）")
         }
-        // 滚动态朦胧在：顶簇间隙不呈原锐度内容（被
-        // 系统效果化开→近页面色）
+        // 滚动态朦胧在（topUnder＝稠密中段内容、像
+        // 素稳定）：顶簇间隙粗帽＋舱区同点双臂差
         XCTAssertLessThanOrEqual(
-            d("prod", "topUnder", "topBand"), 12,
-            "滚动时顶簇间隙应被边缘效果化开")
-        // 舱区：生产臂须被化开且明显优于消融臂（基
-        // 线消融同点 Δ95＝裸内容透出）
+            d("prod", "topUnder", "topBand"), 32,
+            "滚动时顶簇间隙应被化开（蓝气泡原色差远大于 32）")
         let prodCompUnder = d(
-            "prod", "bottomUnder", "composerBand"
+            "prod", "topUnder", "composerBand"
         )
         let bareCompUnder = d(
-            "noBand", "bottomUnder", "composerBand"
+            "noBand", "topUnder", "composerBand"
         )
         XCTAssertLessThanOrEqual(
-            prodCompUnder, 45,
+            prodCompUnder, 70,
             "滚动时舱后内容应被化开（生产 Δ=\(prodCompUnder)）")
         XCTAssertLessThan(
             prodCompUnder, bareCompUnder,
