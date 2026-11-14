@@ -79,37 +79,48 @@ struct MarkdownText: View {
         _ paragraphs: [MarkdownProseParagraph]
     ) -> some View {
         SelectableInlineText(
-            paragraphs: paragraphs.enumerated().map { index, paragraph in
-                var result = InlineTextParagraph(runs: paragraph.runs)
-                result.spaceAfter = index == paragraphs.count - 1
-                    ? 0
-                    : (paragraph.tightAfter
-                        ? OneDayMetrics.spacingXS
-                        : OneDayMetrics.spacingSM)
-                switch paragraph.kind {
-                case .body:
-                    break
-                case .heading(let level):
-                    result.textStyleOverride =
-                        Self.headingTextStyle(level)
-                    result.dimmed = level >= 6
-                case .listItem(let level, let marker):
-                    result.listMarker = InlineListMarker(
-                        text: Self.markerText(
-                            marker: marker, level: level
-                        ),
-                        levelIndent: CGFloat(level)
-                            * OneDayMetrics.spacingM,
-                        columnWidth: 22,
-                        textGap: OneDayMetrics.spacingS
-                    )
-                }
-                return result
-            },
+            paragraphs: Self.proseParagraphs(paragraphs),
             textStyle: .callout,
             foreground: Palette.bodyInk,
             onSelectionChange: onSelectionChange
         )
+    }
+
+    /// §245：散文段落映射单源——呈现（proseView）
+    /// 与排版产物层（LayoutProductService）共用本
+    /// 函数拼装段落，两处永不分家（产物与呈现同源
+    /// 是影子对拍成立的前提）；口径改版时同步升
+    /// Core LayoutStyleKey.paragraphVersion
+    static func proseParagraphs(
+        _ paragraphs: [MarkdownProseParagraph]
+    ) -> [InlineTextParagraph] {
+        paragraphs.enumerated().map { index, paragraph in
+            var result = InlineTextParagraph(runs: paragraph.runs)
+            result.spaceAfter = index == paragraphs.count - 1
+                ? 0
+                : (paragraph.tightAfter
+                    ? OneDayMetrics.spacingXS
+                    : OneDayMetrics.spacingSM)
+            switch paragraph.kind {
+            case .body:
+                break
+            case .heading(let level):
+                result.textStyleOverride =
+                    Self.headingTextStyle(level)
+                result.dimmed = level >= 6
+            case .listItem(let level, let marker):
+                result.listMarker = InlineListMarker(
+                    text: Self.markerText(
+                        marker: marker, level: level
+                    ),
+                    levelIndent: CGFloat(level)
+                        * OneDayMetrics.spacingM,
+                    columnWidth: 22,
+                    textGap: OneDayMetrics.spacingS
+                )
+            }
+            return result
+        }
     }
 
     /// 列表标记文字（与旧 markerView 同字同档）：
@@ -214,6 +225,24 @@ struct MarkdownText: View {
         }
     }
 
+    /// §245：引用段落映射单源（同 proseParagraphs
+    /// 口径：呈现与产物层共用）；引用文本的可用宽
+    /// ＝气泡文本宽 −（竖条 3＋间距 spacingS），宽
+    /// 度折算在消费方（产物层 builder）
+    static func quoteParagraphs(
+        _ lines: [MarkdownQuoteLine]
+    ) -> [InlineTextParagraph] {
+        lines.enumerated().map { index, line in
+            InlineTextParagraph(
+                runs: InlineRunBuilder.runs(for: line.text),
+                headIndent: CGFloat(max(0, line.depth - 1))
+                    * OneDayMetrics.spacingM,
+                spaceAfter: index == lines.count - 1
+                    ? 0 : OneDayMetrics.spacingXS
+            )
+        }
+    }
+
     // MARK: - 引用块
 
     /// 引用块（对标 Muse：左竖条＋弱化文字）：竖条走
@@ -231,15 +260,7 @@ struct MarkdownText: View {
             // 距走段后距 spacingXS——与旧逐行
             // VStack 的几何同值），整块内任意选段
             SelectableInlineText(
-                paragraphs: lines.enumerated().map { index, line in
-                    InlineTextParagraph(
-                        runs: InlineRunBuilder.runs(for: line.text),
-                        headIndent: CGFloat(max(0, line.depth - 1))
-                            * OneDayMetrics.spacingM,
-                        spaceAfter: index == lines.count - 1
-                            ? 0 : OneDayMetrics.spacingXS
-                    )
-                },
+                paragraphs: Self.quoteParagraphs(lines),
                 textStyle: .callout,
                 foreground: Palette.inkSecondaryOnFill,
                 onSelectionChange: onSelectionChange

@@ -12341,3 +12341,18 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 **钉测**：新增 DemoFreezeGuardTests 2 法（App 套件），钉「冻结清单外恒抛统一空态」；第二提交为钉测一轮修复（ServerConfig(rawInput:) 可失败初始化器须 XCTUnwrap，run 43589253512 编译错 19 处同因）。
 
 **分支判读**：CI run 43590276992 §190 终判绿——断言失败 0、failed 用例 0、UI 8/8、VERDICT 三连 PASS，测试步名义 failure 仅由 §184 宿主重启 6 起构成。组版装车见 §249。
+## §245 会话页换代包 2·排版产物层（2026-11-14；分支 feat/chat-gen2，基线 rel-05041@7cb8e26；全档＝oneday-design-review/chat-gen2-report-20261114.md）
+
+**范围**（蓝图 §1.3＋§2 包 2）：不可变排版产物＋后台量测池＋影子对拍，无可见变化。冻结口径全程不失守：pocket y=62、composer (0,62,402×729)、adjTop=122、adjBottom=145、guide 791 与 §194 键盘机制本体、两 GuideHost、§168 文本体均未碰；现量测视图仍是行高唯一来源，本包只在其旁立产物层、只算不消费，消费切换归包 3。
+
+**落点**：
+- **Core `LayoutProduct.swift`**：四元组键 `LayoutProductKey`（条目 id×内容 FNV-1a 哈希＋字节数×量化宽×样式键；失效只有内容/宽度/样式三路、全在键内）；样式键 `LayoutStyleKey`（字阶＋字号档＋粗体开关＋字体映射版本＋段落映射版本，**深浅色按蓝图剔除**——颜色不影响行高、产物串为量测工件）；产物 `LayoutProduct`（分段属性串＋各段实测高＋文本段总高＋结构段计数）；渲染计划接线 `LayoutProductPlan`（包 1 解析/扫描层 → 产物层：呈现段分类为文本段 prose/quote 与结构段 code/table/taskList/divider）；产物缓存 `LayoutProductCache`（NSCache 条数＋成本双限、命中计数常开、内存警告全清口在 App 侧订阅）。
+- **范围分流（如实记账）**：产物只含文本段——结构段高由承载形态决定、现行路径无 TextKit 量测值可对拍，强造数字违反实测口径，只记计数、高归包 3 承载侧定；`textTotalHeight` 是文本段总高、不是整条行高，消费方禁直接当行高。
+- **App `LayoutMeasurePool.swift`**：后台量测池——worker＝串行队列＋独立 TextKit 2 栈（ContentStorage＋LayoutManager＋Container，lineFragmentPadding 0），栈只在自己队列上被碰（线程隔离、非加锁共用，与 Texture renderer 族同纪律）；高＝usageBoundsForTextContainer.height（与 UITextView.sizeThatFits 内部同源）。
+- **App `LayoutProductService.swift`**：拼装 builder（段落映射只用 MarkdownText 单源静态映射 proseParagraphs/quoteParagraphs＋SelectableInlineText.build 本体——MarkdownText 两处映射已抽为静态单源、呈现行为零改动；引用段宽＝文本宽−（竖条 3＋spacingS）与 blockquoteView 几何同值）＋store 门面（查缓存→未命中现产回存）＋预热入口＋`LayoutShadowLedger` 影子账本（同串同宽去重记首笔、|Δ|≤1.0pt 记一致、超差样本留 8 条、空串豁免单记）。
+- **影子钩子**：`SelectableTextRepresentable.sizeThatFits` 在算出现值后记一笔账（量测本体抽为 measuredSize/referenceHeight 与对拍基准同源一台）；返回值与呈现零改动。
+- **预热接线**：ChatView 进/切线程的 `.task(id: currentThreadID)` 末尾对已载条目预产（上限 200 条、后台 utility）；文本宽＝屏宽−（bubblePaddingH×2＋bubbleSideInset）＝W−76，与助手泡/用户泡几何同账；助手文本取 EntryScanMemo.media（与 displayText 在无确证摘行时逐字相等，有摘行时键按内容哈希分家、不产生错产物）。
+
+**验收**：单测只增不减（Core 2008 基线＋本包新增；App 同）——Core 键/失效/量化/计划分类/缓存计数；App 对拍语料（短/长/中英混排/标题列表/行内格式/emoji+CJK/引用，×三宽）池高 vs 现量测逐条 |Δ|≤1.0、并发确定性、影子记账同步段计时、worker 并发不串行、服务组装/缓存/逐段对拍、账本落账。CI 按 §190 判读（判读回填见 §245.1）。几何探针/顶簇 VERDICT 必看（本包未动几何、应全 PASS）。
+
+**真机待验（归主线）**：无可见变化、无真机点位（蓝图包 2 口径）——仅冒烟：装包后开一段长线程滚动一轮不卡顿不崩、影子账本 compared 计数在涨（诊断面可读）即可；Instruments 后台量测不阻塞主线程的抽查随包 3 真机窗口一并做（本包以结构＋计时单测代偿，报告 §四如实登记）。

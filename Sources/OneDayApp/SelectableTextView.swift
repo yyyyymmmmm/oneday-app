@@ -188,7 +188,10 @@ struct SelectableInlineText: View {
         return parts.joined(separator: "\u{1}") as NSString
     }
 
-    private static func build(
+    /// §245：放宽为 internal——排版产物层（Layout-
+    /// ProductService）按同一拼装产属性串作量测工
+    /// 件；拼装口径仍只此一份，产物层不另拼
+    static func build(
         paragraphs: [InlineTextParagraph],
         baseFont: UIFont,
         overrideFont: (UIFont.TextStyle) -> UIFont,
@@ -414,7 +417,10 @@ final class SelectableUITextView: UITextView {
     }
 }
 
-private struct SelectableTextRepresentable: UIViewRepresentable {
+/// §245：放宽为 internal——产物层对拍基准（measured-
+/// Size/referenceHeight）与单测要够得着现量测本体；
+/// 类型本身仍只在聊天文本面内使用
+struct SelectableTextRepresentable: UIViewRepresentable {
     let attributed: NSAttributedString
     let linkColor: UIColor
     let onSelectionChange: ((Bool) -> Void)?
@@ -512,27 +518,64 @@ private struct SelectableTextRepresentable: UIViewRepresentable {
         uiView: SelectableUITextView,
         context: Context
     ) -> CGSize? {
+        let size = Self.measuredSize(
+            attributed: attributed, proposal: proposal
+        )
+        // §245 影子对拍：同串同宽投后台量测池复量、
+        // 与本值在 LayoutShadowLedger 记账比对——只
+        // 记账不消费，返回值仍是现量测（行高来源不
+        // 变、呈现零改动）
+        LayoutShadowLedger.shared.record(
+            attributed: attributed,
+            width: Self.measuredWidth(proposal),
+            referenceHeight: size.height
+        )
+        return size
+    }
+
+    /// 现量测本体（§168 离屏量测视图）：sizeThatFits
+    /// 与产物层对拍基准共用——基准与现行路径同源
+    /// 一台，不许有第二台「测试用量测」
+    static func measuredSize(
+        attributed: NSAttributedString,
+        proposal: ProposedViewSize
+    ) -> CGSize {
         let measure = Self.measuringView
         if !measure.attributedText.isEqual(to: attributed) {
             measure.attributedText = attributed
         }
-        guard let proposedWidth = proposal.width,
-              proposedWidth > 0,
-              proposedWidth < .greatestFiniteMagnitude
-        else {
-            return measure.sizeThatFits(
-                CGSize(
-                    width: CGFloat(10_000),
-                    height: CGFloat.greatestFiniteMagnitude
-                )
-            )
-        }
         return measure.sizeThatFits(
             CGSize(
-                width: proposedWidth,
+                width: measuredWidth(proposal),
                 height: CGFloat.greatestFiniteMagnitude
             )
         )
+    }
+
+    /// 对拍基准高（产物层/单测入口）：按给定宽走现
+    /// 量测本体；宽为 nil 走自然宽口径（10_000）
+    static func referenceHeight(
+        attributed: NSAttributedString, width: CGFloat?
+    ) -> CGFloat {
+        measuredSize(
+            attributed: attributed,
+            proposal: ProposedViewSize(
+                width: width, height: nil
+            )
+        ).height
+    }
+
+    /// 本次量测的实际宽：提议宽合法用提议宽、无提
+    /// 议（或非法）按自然单行宽口径 10_000（与旧
+    /// sizeThatFits 逐字同口径）
+    static func measuredWidth(
+        _ proposal: ProposedViewSize
+    ) -> CGFloat {
+        guard let proposedWidth = proposal.width,
+              proposedWidth > 0,
+              proposedWidth < .greatestFiniteMagnitude
+        else { return 10_000 }
+        return proposedWidth
     }
 
     static func dismantleUIView(
