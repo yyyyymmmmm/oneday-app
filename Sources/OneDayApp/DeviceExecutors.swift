@@ -1985,7 +1985,7 @@ final class DeviceToolDispatcher: @unchecked Sendable {
 
     func execute(
         call: DeviceIncomingCall,
-        permissions: [DeviceSourceID: DevicePermissionState],
+        permissions permissionsSnapshotFallback: [DeviceSourceID: DevicePermissionState],
         agentCallEnabled: [DeviceSourceID: Bool]
     ) async -> (result: JSONValue?, error: DeviceToolError?) {
         guard let spec = DeviceToolRegistry.spec(call.tool) else {
@@ -1995,9 +1995,15 @@ final class DeviceToolDispatcher: @unchecked Sendable {
               DeviceSourceDirectory.descriptor(source).isWired else {
             return (nil, .toolUnavailable("工具 \(call.tool) 尚未接线"))
         }
-        // 通知无同步读状态 API：判门前先刷新真状态，
-        // 不许拿进页时的缓存快照放行或误拒（§113）
-        var permissions = permissions
+        // 判门逐调现读（§244 G9）：注册快照会旧（用户
+        // 在设置里改完权限、快照还没随重注册刷新时最
+        // 明显），判门一律以执行这一刻的真状态为准；
+        // 入参快照只在现读缺项时兜底。通知无同步读法，
+        // 保留既有异步现读覆写
+        var permissions = DevicePermissions.currentStates()
+        for (key, value) in permissionsSnapshotFallback {
+            if permissions[key] == nil { permissions[key] = value }
+        }
         if source == .notifications {
             permissions[.notifications] =
                 await NotificationEngine.readSystemState()

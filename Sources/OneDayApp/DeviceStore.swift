@@ -140,6 +140,9 @@ final class DeviceSessionController {
     private var registering = false
     private let client = DeviceBridgeClient()
     let dispatcher = DeviceToolDispatcher()
+    /// 对话内授权流协调器（§244）：授权卡的持有者，
+    /// ask/notice 两路伪调用与回前台续办都经它
+    let permissionFlow = DevicePermissionCoordinator()
 
     private var appVersion: String {
         Bundle.main.object(
@@ -165,6 +168,29 @@ final class DeviceSessionController {
             _ = machine.handle(.startRequested)
             beginRegister()
         }
+        // §244 P-3：回前台扫一遍留着的授权卡——去设
+        // 置改完权限/开关回来，卡点已清的自动续办
+        Task { [weak self] in
+            guard let self else { return }
+            await self.permissionFlow.checkResumes(host: self)
+        }
+    }
+
+    /// 当前连接配置（协调器续办/同步取用；未连接为 nil）
+    var activeConfig: ServerConfig? { config }
+
+    /// 凭 token 续办挂起调用（§244 P-4 客户端口）
+    func resumeParkedCall(
+        token: String
+    ) async throws -> PermissionResumeOutcome {
+        guard let config else {
+            throw DeviceBridgeError.failed(
+                L10n.string("还没连上服务器，续办不了")
+            )
+        }
+        return try await client.resumeCall(
+            config: config, resumeToken: token
+        )
     }
 
     /// 退后台/断开连接时调：停轮询＋尽力断开会话
@@ -222,6 +248,17 @@ final class DeviceSessionController {
             refreshPermissions()
             return
         }
+        await performAccessRequest(for: source)
+        refreshPermissions()
+    }
+
+    /// 只发那一次系统请求、不带刷新尾巴（§244）：授
+    /// 权卡流要先回桥决定、后才刷新权限重注册（刷新
+    /// 会取消轮询环，先后倒置桥就永远等不到答复）。
+    /// 铁律不变：只许在现态未决定时调用——已决定态
+    /// 的把关在调用方（requestAccess/协调器），本函
+    /// 数自身不判状态
+    func performAccessRequest(for source: DeviceSourceID) async {
         switch source {
         case .calendar:
             _ = await dispatcher.events.requestCalendarAccess()
@@ -250,7 +287,6 @@ final class DeviceSessionController {
         case .health, .home:
             break // 未接线，不申请
         }
-        refreshPermissions()
     }
 
     func setAgentCallEnabled(_ source: DeviceSourceID, _ on: Bool) {
@@ -290,7 +326,11 @@ final class DeviceSessionController {
                     deviceId: DevicePreferences.deviceID,
                     appVersion: self.appVersion,
                     permissions: payload.permissions,
-                    tools: tools
+                    tools: tools,
+                    agentCall: DeviceRegistrationExtras.agentCallMap(
+                        agentCallEnabled: self.agentCallEnabled
+                    ),
+                    capabilities: DeviceRegistrationExtras.capabilities
                 )
                 let action = self.machine.handle(
                     .registered(sessionID: grant.sessionId)
@@ -310,6 +350,41 @@ final class DeviceSessionController {
         }
     }
 
+    /// 轮询到一条调用的分发（§244）：权限流伪调用
+    /// （permission_ask/permission_notice）走协调器、
+    /// 不进工具分发器；普通工具照旧分发。三元组＝
+    /// 结果/错误/错误结构化字段
+    private func routePolledCall(
+        _ call: DeviceIncomingCall
+    ) async -> (JSONValue?, DeviceToolError?, [String: JSONValue]) {
+        if call.kind == "permission_ask" || call.tool == "permission_ask" {
+            let (result, error) = await permissionFlow.handleAsk(
+                call: call, host: self
+            )
+            return (result, error, [:])
+        }
+        if call.kind == "permission_notice"
+            || call.tool == "permission_notice" {
+            permissionFlow.ingestNotice(call: call)
+            return (.object([:]), nil, [:])
+        }
+        let (result, error) = await dispatcher.execute(
+            call: call,
+            permissions: permissions,
+            agentCallEnabled: agentCallEnabled
+        )
+        var fields: [String: JSONValue] = [:]
+        if let error, case .permissionDenied = error,
+           let source = DeviceToolRegistry.spec(call.tool)?.source {
+            // P-1：手机侧权限兜底错误带上现读状态（桥
+            // 词表 bridgeValue），桥据此补结构化字段
+            let state = DevicePermissions.currentStates()[source]
+                ?? .notDetermined
+            fields["state"] = .string(state.bridgeValue)
+        }
+        return (result, error, fields)
+    }
+
     private func beginPoll(sessionId: String) {
         guard let config else { return }
         pollTask = Task { [weak self] in
@@ -326,11 +401,8 @@ final class DeviceSessionController {
                     _ = self.machine.handle(
                         .pollReturnedCall(callID: call.callId)
                     )
-                    let (result, error) = await self.dispatcher.execute(
-                        call: call,
-                        permissions: self.permissions,
-                        agentCallEnabled: self.agentCallEnabled
-                    )
+                    let (result, error, errorFields) =
+                        await self.routePolledCall(call)
                     if let source = DeviceToolRegistry.spec(call.tool)?.source {
                         let entry = DeviceCallLogEntry(
                             tool: call.tool, source: source,
@@ -345,7 +417,7 @@ final class DeviceSessionController {
                         try await self.client.respond(
                             config: config, sessionId: sessionId,
                             callId: call.callId, result: result,
-                            error: error
+                            error: error, errorFields: errorFields
                         )
                     } catch is CancellationError {
                         // 轮询环被重注册/断开取消：不是回

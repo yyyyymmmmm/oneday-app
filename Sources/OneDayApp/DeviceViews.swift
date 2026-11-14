@@ -855,6 +855,23 @@ struct DeviceStatusHeader: View {
     }
 }
 
+/// 授权卡相位在总览镜像行上的状态字（§244）
+private func permissionCardPhaseLine(
+    _ phase: PermissionCardPhase
+) -> String {
+    switch phase {
+    case .primer, .asking: return "等你确认"
+    case .blocked: return "还没打开"
+    case .parked: return "先放着了"
+    case .switchOff: return "差开开关"
+    case .resuming: return "正在接着办"
+    case .done: return "已办完"
+    case .declined: return "已算了"
+    case .expired: return "已作废"
+    case .failed: return "没办成"
+    }
+}
+
 private func headerText(_ title: String) -> some View {
     Text(title)
         .font(.sectionLabel)
@@ -1582,6 +1599,36 @@ struct DevicePermissionsView: View {
 
     var body: some View {
         List {
+            // §244 P-6 镜像：有授权卡等着时总览页如实
+            // 显形（只读镜像，处理在对话里）——不让卡
+            // 只活在聊天流里就找不回来
+            if controller.permissionFlow.hasVisibleCards {
+                Section {
+                    ForEach(controller.permissionFlow.cards) { card in
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Image(
+                                systemName: DeviceSourceDirectory
+                                    .descriptor(card.source).tileSymbol
+                            )
+                            .foregroundStyle(Palette.primary)
+                            Text(DeviceSourceDirectory.descriptor(card.source).name)
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.ink)
+                            Spacer(minLength: OneDayMetrics.spacingS)
+                            Text(permissionCardPhaseLine(card.phase))
+                                .font(.body)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                    }
+                } header: {
+                    headerText("等你确认")
+                } footer: {
+                    Text("在任意对话里就能处理这些授权卡，处理完会自动接着办刚才的事。")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(deviceRowInsets)
+            }
             Section {
                 ForEach(DeviceSourceDirectory.roster) { descriptor in
                     if descriptor.isWired {
@@ -1597,7 +1644,13 @@ struct DevicePermissionsView: View {
             } header: {
                 headerText("你的设备")
             } footer: {
-                Text("通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。闹钟与通知有各自的系统权限，进详情页用开关开；打开目标同样没有系统权限。相机有系统权限，拍照与扫文档都要你当面操作；识别、翻译、端上智能与本人确认没有系统权限，开关就是唯一的门，其中端上智能只在支持的机型上出现。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
+                // §244 P-6：本页只做管理面（状态/开关/
+                // 删副本/日志），不再兼任使用教程——授
+                // 权改在对话里当场完成，这里只留一句定
+                // 位；健康与家庭差系统签名权益（用户
+                // 2026-11-14 拍板留行等上架），开通前
+                // 只列名、不显数据
+                Text("这里只管状态和开关：权限要改在系统设置里，副本和日志在各件详情页里。智能体要用哪件，都是在对话里当场问你。健康与家庭还差系统签名权益，开通前只列名、不显数据。")
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)

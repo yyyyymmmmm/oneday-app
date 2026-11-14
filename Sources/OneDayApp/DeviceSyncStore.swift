@@ -330,6 +330,9 @@ final class DeviceSyncController {
     enum SyncOrigin {
         case user
         case foreground
+        /// 聊天里授权卡续办前的补同步（§244 P-5）：用
+        /// 户在场触发，门前失败落日志待遇同 user
+        case chat
     }
 
     /// 一轮同步：权限门 → 组装 → 分批暂存 → 完成
@@ -345,7 +348,7 @@ final class DeviceSyncController {
     ) async -> Bool {
         guard let config else {
             lastErrors[dataset] = L10n.string("还没连上服务器，同步不了")
-            if origin == .user {
+            if origin != .foreground {
                 appendLog(
                     dataset, kind: .syncFailed,
                     reason: lastErrors[dataset]
@@ -371,7 +374,7 @@ final class DeviceSyncController {
             lastErrors[dataset] = permission == .restricted
                 ? L10n.string("这件被系统限制住了（家长控制等），同步不了")
                 : L10n.string("系统权限还没开：打开这一页上方那一个开关就能开启")
-            if origin == .user {
+            if origin != .foreground {
                 appendLog(
                     dataset, kind: .syncFailed,
                     reason: lastErrors[dataset]
@@ -381,7 +384,7 @@ final class DeviceSyncController {
         }
         guard let dispatcher else {
             lastErrors[dataset] = L10n.string("设备通道还没准备好，稍后再试")
-            if origin == .user {
+            if origin != .foreground {
                 appendLog(
                     dataset, kind: .syncFailed,
                     reason: lastErrors[dataset]

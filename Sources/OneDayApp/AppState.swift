@@ -803,6 +803,14 @@ final class AppState {
         deviceSession = DeviceSessionController()
         deviceSync = DeviceSyncController()
         deviceSync.dispatcher = deviceSession.dispatcher
+        // §244 P-5：授权卡续办前的补同步接线（同步副
+        // 本类卡 resume 前先补一次同步，来源标 chat）
+        deviceSession.permissionFlow.syncPerformer = {
+            [weak deviceSync] dataset, config in
+            _ = await deviceSync?.syncNow(
+                dataset, config: config, origin: .chat
+            )
+        }
         // 供给收敛（0.36.18）：五件记录型的「允许调
         // 用」不再有独立开关与镜像——会话每次重读权
         // 限时一律对齐真实权限（refreshPermissions

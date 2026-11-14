@@ -28,6 +28,10 @@ struct DeviceIncomingCall: Decodable, Sendable {
     let tool: String
     let arguments: [String: JSONValue]
     let createdAt: Double
+    /// 载荷种类（§244）：permission_ask/permission_
+    /// notice 为权限流伪调用；普通工具调用为 nil 或
+    /// "tool"（旧桥不带此字段，解码为 nil）
+    let kind: String?
 }
 
 /// device-bridge 设备会话通道客户端（0.34.0 批一）：
@@ -57,7 +61,9 @@ final class DeviceBridgeClient: @unchecked Sendable {
     /// 会话），201 回 sessionId 与三项时限
     func registerSession(
         config: ServerConfig, deviceId: String, appVersion: String,
-        permissions: [String: String], tools: [String]
+        permissions: [String: String], tools: [String],
+        agentCall: [String: Bool] = [:],
+        capabilities: [String] = []
     ) async throws -> DeviceSessionGrant {
         var request = try makeRequest(
             config: config, path: "/device/session", method: "POST"
@@ -69,6 +75,12 @@ final class DeviceBridgeClient: @unchecked Sendable {
             "tools": tools,
         ]
         body["permissions"] = permissions
+        // §244 P-2：调用开关映射（桥分层判门用）＋
+        // 权限流能力声明（旧桥忽略未知字段）
+        if !agentCall.isEmpty { body["agentCall"] = agentCall }
+        if !capabilities.isEmpty {
+            body["capabilities"] = capabilities
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.setValue(
             "application/json", forHTTPHeaderField: "Content-Type"
@@ -148,7 +160,8 @@ final class DeviceBridgeClient: @unchecked Sendable {
     /// 化错误。result 是动态 JSON（JSONValue 对象形）
     func respond(
         config: ServerConfig, sessionId: String, callId: String,
-        result: JSONValue?, error: DeviceToolError?
+        result: JSONValue?, error: DeviceToolError?,
+        errorFields: [String: JSONValue] = [:]
     ) async throws {
         var request = try makeRequest(
             config: config, path: "/device/respond", method: "POST"
@@ -164,7 +177,17 @@ final class DeviceBridgeClient: @unchecked Sendable {
             )
         }
         if let error {
-            body["error"] = ["code": error.code, "message": error.message]
+            var errorBody: [String: Any] = [
+                "code": error.code, "message": error.message,
+            ]
+            // §244 P-1：结构化字段随错误体透传（权限
+            // 类带 state，桥据此补 blockerLayer 等）
+            for (key, value) in errorFields {
+                errorBody[key] = try JSONSerialization.jsonObject(
+                    with: encoder.encode(value)
+                )
+            }
+            body["error"] = errorBody
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.setValue(
@@ -172,6 +195,35 @@ final class DeviceBridgeClient: @unchecked Sendable {
         )
         let (data, http) = try await send(request, endpoint: L10n.string("回执设备调用"))
         try checkStatus(http, data: data, endpoint: L10n.string("回执设备调用"))
+    }
+
+    /// POST /device/resume（§244 P-4）：凭 resumeToken
+    /// 让桥把挂起的原调用重发执行。404（token 过期/
+    /// 未知）与 409（会话不在线）是业务分型不抛错，
+    /// 交 PermissionResumeOutcome 分型给协调器；401
+    /// 仍按未授权抛
+    func resumeCall(
+        config: ServerConfig, resumeToken: String
+    ) async throws -> PermissionResumeOutcome {
+        var request = try makeRequest(
+            config: config, path: "/device/resume", method: "POST"
+        )
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: ["resumeToken": resumeToken]
+        )
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        let (data, http) = try await send(
+            request, endpoint: L10n.string("续办设备调用")
+        )
+        if http.statusCode == 401 || http.statusCode == 403 {
+            throw DeviceBridgeError.unauthorized
+        }
+        let body = try? decoder.decode(JSONValue.self, from: data)
+        return PermissionResumeOutcome.from(
+            httpStatus: http.statusCode, body: body
+        )
     }
 
     /// POST /device/disconnect：尽力断开（退后台时调，

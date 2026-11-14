@@ -2307,6 +2307,12 @@ struct ChatView: View {
                         anchoredRecordIDs: appState
                             .sharedHubStore().anchoredRecordIDs
                     )
+                    // §244 授权卡区：设备调用卡在权限上
+                    // 时的对话内授权卡（与审批卡同呈现纪
+                    // 律——只在呈现层拼装、绝不写入会话；
+                    // 设备通道无会话归属字段，卡汇当前
+                    // 对话流末尾，枢纽/设备页为兜底面）
+                    ChatPermissionZone()
                     if ChatEmptyState.shows(
                         threadIsNil: currentThread == nil,
                         entryCount: currentThread?.sortedEntries.count ?? 0,
