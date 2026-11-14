@@ -81,9 +81,21 @@ final class AvatarPresentationFitTests: XCTestCase {
             "字形占盘比 \(ratio) 未达到 0.75"
         )
 
-        // 盘面取样：圆内靠边、避开字形的一点（中心
-        // 45° 方向 r=100）须近白中性灰
-        let sample = pixel(22, 120)
+        // 在 r=105 的圆环上每 15° 取一点，选择最亮点作为
+        // 盘面样本，避开可能覆盖边缘取样点的放大字形。
+        let center = Double(width) / 2
+        let ringRadius = 105.0
+        let ringSamples = (0..<24).map { step -> (r: Int, g: Int, b: Int) in
+            let angle = Double(step) * 15 * .pi / 180
+            let x = Int((center + cos(angle) * ringRadius).rounded())
+            let y = Int((center + sin(angle) * ringRadius).rounded())
+            return pixel(x, y)
+        }
+        let sample = try XCTUnwrap(
+            ringSamples.max { lhs, rhs in
+                lhs.r + lhs.g + lhs.b < rhs.r + rhs.g + rhs.b
+            }
+        )
         XCTAssertTrue(
             (180...252).contains(sample.r),
             "盘面亮度异常：\(sample)"

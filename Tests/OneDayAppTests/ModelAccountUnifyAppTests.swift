@@ -94,7 +94,7 @@ final class ModelAccountUnifyAppTests: XCTestCase {
 
         XCTAssertEqual(
             state.sessionModelChoice(serverSessionID: mainID, threadID: nil).model,
-            "deepseek-flash"
+            "deepseek-v4-pro"
         )
     }
 
