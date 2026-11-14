@@ -345,6 +345,67 @@ final class RenderMeasureTests: XCTestCase {
         )
     }
 
+    /// 抽屉专用选中填充（§217，Muse 对齐三项包）：
+    /// selectionFill 本体不动（上一测已钉 #F0F1F2），
+    /// 抽屉三行改走 drawerSelectionFill——浅档解析钉
+    /// #E4E5E7、且压抽屉面板合成面（thinMaterial 压
+    /// pageBG，真机截图实测 #F2F2F2）逐通道 Δ≥10；
+    /// 暗档解析钉三级面 #2C2C2E、压面板暗档近似面
+    /// （材质压 systemBackground 的二级面级 #1C1C1E）
+    /// 逐通道 Δ≥10。Δ 以 0–255 通道值计
+    func testDrawerSelectionFillDeepenedForMaterialPanel() {
+        let light = UITraitCollection(userInterfaceStyle: .light)
+        let dark = UITraitCollection(userInterfaceStyle: .dark)
+        let pillLight = UIColor(Palette.drawerSelectionFill)
+            .resolvedColor(with: light)
+        XCTAssertEqual(
+            pillLight,
+            UIColor(
+                red: 0xE4 / 255.0, green: 0xE5 / 255.0,
+                blue: 0xE7 / 255.0, alpha: 1
+            )
+        )
+        let pillDark = UIColor(Palette.drawerSelectionFill)
+            .resolvedColor(with: dark)
+        XCTAssertEqual(
+            pillDark,
+            UIColor(
+                red: 0x2C / 255.0, green: 0x2C / 255.0,
+                blue: 0x2E / 255.0, alpha: 1
+            )
+        )
+        func channels(_ color: UIColor) -> [CGFloat] {
+            var r: CGFloat = 0, g: CGFloat = 0
+            var b: CGFloat = 0, a: CGFloat = 0
+            color.getRed(&r, green: &g, blue: &b, alpha: &a)
+            return [r * 255, g * 255, b * 255]
+        }
+        let panelLight = channels(UIColor(
+            red: 0xF2 / 255.0, green: 0xF2 / 255.0,
+            blue: 0xF2 / 255.0, alpha: 1
+        ))
+        let panelDark = channels(UIColor(
+            red: 0x1C / 255.0, green: 0x1C / 255.0,
+            blue: 0x1E / 255.0, alpha: 1
+        ))
+        for (index, pair) in zip(
+            channels(pillLight), panelLight
+        ).enumerated() {
+            XCTAssertGreaterThanOrEqual(
+                abs(pair.0 - pair.1), 10,
+                "浅档选中垫压面板合成面通道 \(index) Δ 须 ≥10"
+            )
+        }
+        for (index, pair) in zip(
+            channels(pillDark), panelDark
+        ).enumerated() {
+            XCTAssertGreaterThanOrEqual(
+                abs(pair.0 - pair.1), 10,
+                "暗档选中垫压面板近似面通道 \(index) Δ 须 ≥10"
+            )
+        }
+    }
+
     /// 分量级解析断言（0.36.1）：语义色含 α，逐分量带
     /// 容差比对（系统常量为精确值，容差只吸收浮点差）
     private func assertResolved(

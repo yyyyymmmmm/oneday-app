@@ -783,7 +783,7 @@ struct DrawerView: View {
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .background {
                 if selected {
-                    Palette.selectionFill
+                    Palette.drawerSelectionFill
                         .clipShape(RoundedRectangle(
                             cornerRadius: OneDayMetrics.fieldCorner,
                             style: .continuous
@@ -1250,7 +1250,7 @@ struct DrawerView: View {
             )
             .background {
                 if isCurrent {
-                    Palette.selectionFill
+                    Palette.drawerSelectionFill
                         .clipShape(RoundedRectangle(
                             cornerRadius: OneDayMetrics.fieldCorner,
                             style: .continuous
@@ -1528,7 +1528,7 @@ struct DrawerView: View {
             .padding(.horizontal, OneDayMetrics.spacingSM)
             .background {
                 if selected {
-                    Palette.selectionFill
+                    Palette.drawerSelectionFill
                         .clipShape(RoundedRectangle(
                             cornerRadius: OneDayMetrics.fieldCorner,
                             style: .continuous
