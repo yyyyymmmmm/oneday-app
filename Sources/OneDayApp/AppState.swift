@@ -48,7 +48,6 @@ final class AppState {
 
     private(set) var phase: Phase = .needsConnection
     private(set) var config: ServerConfig?
-    private(set) var username: String?
     /// 对话模型 id：探活第三步从 /v1/models 取第一个，缺失时回退实测值
     private(set) var modelID: String = "hermes-agent"
     // MARK: - §153 本会话模型（顶栏包 B1/B2/B4）
@@ -810,9 +809,8 @@ final class AppState {
         // 内落），本处不再接线
         switch demoMode {
         case .connected:
-            // 演示会话：地址与账号只是展示数据，密钥由假客户端消化
+            // 演示会话：地址只是展示数据，密钥由假客户端消化
             config = ServerConfig(rawInput: "https://hermes.didichou.site")
-            username = "admin"
             // 演示口径：模型名与总览「当前配置」同为 deepseek-chat，
             // 三处展示（顶栏副题/抽屉服务器行/设置）一致；假客户端
             // 不校验模型名，生产路径的 modelID 仍以 /v1/models 为准
@@ -870,7 +868,6 @@ final class AppState {
             return
         }
         self.config = config
-        username = KeychainStore.read(account: CredentialKey.username)
         phase = .connected
     }
 
@@ -892,7 +889,6 @@ final class AppState {
     /// HermesError，凭据不落盘（不存坏凭据）。
     func connect(
         config: ServerConfig,
-        username: String,
         password: String,
         apiKey: String,
         onStep: @escaping (ProbeStep) -> Void = { _ in }
@@ -903,7 +899,7 @@ final class AppState {
             throw HermesError.healthCheckFailed(status: 200)
         }
         onStep(.login)
-        try await client.login(config: config, username: username, password: password)
+        try await client.login(config: config, password: password)
         onStep(.apiKey)
         let ids = try await client.models(config: config, apiKey: apiKey)
         if let first = ids.first {
@@ -912,12 +908,12 @@ final class AppState {
         // 演示模式不落 Keychain：假凭据写进去会污染真实连接
         if !isDemo {
             KeychainStore.save(config.baseString, account: CredentialKey.baseURL)
-            KeychainStore.save(username, account: CredentialKey.username)
             KeychainStore.save(password, account: CredentialKey.password)
             KeychainStore.save(apiKey, account: CredentialKey.apiKey)
+            // §244：账号键退役（面板密码无账号概念），存量值清掉
+            KeychainStore.delete(account: CredentialKey.username)
         }
         self.config = config
-        self.username = username
         phase = .connected
     }
 
@@ -950,28 +946,25 @@ final class AppState {
             KeychainStore.delete(account: CredentialKey.password)
         }
         self.config = config
-        username = nil
         phase = .connected
     }
 
     // MARK: - 引导四步连接（欢迎/登录/连接中/成功面）
 
     /// 引导·密码登录一步制（用户 2026-11-11 定版，覆盖
-    /// 原型两步）：地址＋账号＋密码一步连上。链路全是现
-    /// 行生产端点——健康检查（兼量延迟）→ Hermes 本体
-    /// password-login 验密码 → /api/env/reveal 换取登录
-    /// 密钥 API_SERVER_KEY（服务端代管下发）→ 用该钥验
-    /// /v1/models 并读服务信息。伴生 front 8650 的双方式
-    /// 登录查毕不可复用：它只发面板会话 cookie、明文凭
-    /// 据从不出其 API、且其密码无账号概念（查证见
-    /// DESIGN 引导线记账）。全过才落 Keychain（四件套，
-    /// 与 connect 同口径，performAdmin 静默重登靠它）；
-    /// 本方法不置 phase——成功面先行展示，用户点「开
-    /// 始聊天」再由 activatePreparedConnection 进主界面
-    /// （杀进程在成功面时 restore 照样凭 Keychain 成立）。
+    /// 原型两步）：地址＋密码一步连上。链路全是现行生产
+    /// 端点——健康检查（兼量延迟）→ 伴生登录桥
+    /// web-login 验面板密码（§244 一把密码统一，桥在服
+    /// 务器内部换 dashboard 会话 cookie）→
+    /// /api/env/reveal 换取登录密钥 API_SERVER_KEY（服
+    /// 务端代管下发）→ 用该钥验 /v1/models 并读服务信
+    /// 息。全过才落 Keychain（三件套，与 connect 同口
+    /// 径，performAdmin 静默重登靠它）；本方法不置
+    /// phase——成功面先行展示，用户点「开始聊天」再由
+    /// activatePreparedConnection 进主界面（杀进程在成
+    /// 功面时 restore 照样凭 Keychain 成立）。
     func connectWithPassword(
         config: ServerConfig,
-        username: String,
         password: String,
         onStep: @escaping (OnboardingStep) -> Void = { _ in }
     ) async throws -> ConnectionServiceInfo {
@@ -989,7 +982,7 @@ final class AppState {
             step = .credentialValid
             onStep(step)
             try await client.login(
-                config: config, username: username, password: password
+                config: config, password: password
             )
             step = .serviceInfo
             onStep(step)
@@ -1021,12 +1014,12 @@ final class AppState {
                 KeychainStore.save(
                     config.baseString, account: CredentialKey.baseURL
                 )
-                KeychainStore.save(username, account: CredentialKey.username)
                 KeychainStore.save(password, account: CredentialKey.password)
                 KeychainStore.save(fetchedKey, account: CredentialKey.apiKey)
+                // §244：账号键退役（面板密码无账号概念）
+                KeychainStore.delete(account: CredentialKey.username)
             }
             self.config = config
-            self.username = username
             return ConnectionServiceInfo(
                 host: config.host,
                 hermesVersion: status?.version ?? health.version,
@@ -1078,7 +1071,6 @@ final class AppState {
                 KeychainStore.delete(account: CredentialKey.password)
             }
             self.config = config
-            username = nil
             return ConnectionServiceInfo(
                 host: config.host,
                 hermesVersion: status?.version ?? health.version,
@@ -1097,15 +1089,15 @@ final class AppState {
         phase = .connected
     }
 
-    /// 设置页「重新测试连接」：存量四件套走三步探活；
+    /// 设置页「重新测试连接」：存量三件套走三步探活；
     /// 直登连接（无面板密码）走两步（健康＋密钥），不改状态。
     func retestConnection(onStep: @escaping (ProbeStep) -> Void = { _ in }) async throws {
         guard let config, let apiKey else {
             throw HermesError.sessionExpired
         }
-        if let username, let password {
+        if let password {
             try await connect(
-                config: config, username: username, password: password,
+                config: config, password: password,
                 apiKey: apiKey, onStep: onStep
             )
         } else {
@@ -1133,10 +1125,10 @@ final class AppState {
         do {
             return try await operation(client, config)
         } catch HermesError.unexpectedStatus(_, let status) where status == 401 {
-            guard let username, let password else {
+            guard let password else {
                 throw HermesError.sessionExpired
             }
-            try await client.login(config: config, username: username, password: password)
+            try await client.login(config: config, password: password)
             do {
                 return try await operation(client, config)
             } catch HermesError.unexpectedStatus(_, let retryStatus) where retryStatus == 401 {
@@ -1281,7 +1273,6 @@ final class AppState {
         if isDemo {
             // 演示模式只复位状态：不动 Keychain、不清 cookie
             config = nil
-            username = nil
             phase = .needsConnection
             return
         }
@@ -1290,7 +1281,6 @@ final class AppState {
         }
         KeychainStore.clearAll()
         config = nil
-        username = nil
         phase = .needsConnection
     }
 }

@@ -18,8 +18,11 @@ public enum HermesError: Error, Sendable {
     case transientNetwork
     /// 第一步 /health 非 200
     case healthCheckFailed(status: Int)
-    /// 第二步登录被拒：账号或密码不对（401/403/422）
+    /// 第二步登录被拒：密码不对（401/403）
     case loginRejected
+    /// 第二步登录被限速（429）：伴生登录桥与面板登录
+    /// 同一限速池，试太多次要等几分钟（§244）
+    case loginRateLimited
     /// 第二步登录返回了非预期状态
     case loginFailed(status: Int)
     /// 第三步 API 密钥被拒（401/403）
@@ -96,7 +99,9 @@ public enum HermesError: Error, Sendable {
                 locale: locale, String(status)
             )
         case .loginRejected:
-            return L10n.string("登录被拒：面板账号或密码不对。", locale: locale)
+            return L10n.string("登录被拒：密码不对（和伴生面板、网页端同一把）。", locale: locale)
+        case .loginRateLimited:
+            return L10n.string("登录试太多次了，请几分钟后再试。", locale: locale)
         case .loginFailed(let status):
             return L10n.format(
                 "登录失败（状态 %@），请稍后再试。",

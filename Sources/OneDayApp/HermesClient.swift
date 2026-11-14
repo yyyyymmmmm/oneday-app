@@ -9,9 +9,11 @@ import OneDayCore
 protocol HermesClientProtocol: Sendable {
     /// 探活一：GET /health（免鉴权）
     func health(config: ServerConfig) async throws -> HealthResponse
-    /// 探活二：POST /auth/password-login 拿会话 cookie
-    /// （cookie 由 URLSession 共享存储持有，本方法只判成败）
-    func login(config: ServerConfig, username: String, password: String) async throws
+    /// 探活二：POST /api/companion/web-login 验面板密码
+    /// 拿会话 cookie（§244 一把密码统一：走伴生登录桥，
+    /// 与网页端/伴生面板同一把用户密码；cookie 由
+    /// URLSession 共享存储持有，本方法只判成败）
+    func login(config: ServerConfig, password: String) async throws
     /// GET /api/status（免登录）
     func status(config: ServerConfig) async throws -> ServerStatus
     /// GET /api/config（需会话；401 由调用方走重登重试）
@@ -592,24 +594,28 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
     }
 
-    func login(config: ServerConfig, username: String, password: String) async throws {
-        var request = URLRequest(url: config.endpoint("/auth/password-login"))
+    func login(config: ServerConfig, password: String) async throws {
+        // §244 一把密码统一（用户 2026-11-12 拍板）：不再直连
+        // Hermes 9119 的部署密码登录——改走伴生登录桥
+        // /api/companion/web-login，与网页端同一条链：桥以
+        // 面板密码的 scrypt 校验验人（与面板登录同一限速池），
+        // 验过后在服务器内部用部署凭据换 dashboard 会话
+        // cookie 原样透传回来；部署密码永不出服务器、用户
+        // 只需要记得面板这一把。cookie 落 URLSession 共享
+        // 存储，后半程 revealEnvVar 换钥与旧直连链完全一致。
+        var request = URLRequest(url: config.endpoint("/api/companion/web-login"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // 登录契约（2026-11-08 实测）：JSON 四字段，缺 provider 返回 422
-        let body: [String: String] = [
-            "provider": "basic",
-            "username": username,
-            "password": password,
-            "next": "/",
-        ]
+        let body: [String: String] = ["password": password]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (_, http) = try await dataRequest(request)
         switch http.statusCode {
         case 200...299:
             return
-        case 401, 403, 422:
+        case 401, 403:
             throw HermesError.loginRejected
+        case 429:
+            throw HermesError.loginRateLimited
         default:
             throw HermesError.loginFailed(status: http.statusCode)
         }

@@ -5,6 +5,9 @@ import Security
 /// 凭据键名：连接页写入、AppState 读取，键名集中在此一处。
 enum CredentialKey {
     static let baseURL = "server.baseURL"
+    /// §244 退役：面板密码无账号概念，登录链不再读写本
+    /// 键；键名留档＋留在 all 里（断开连接时随三件套一
+    /// 并清掉存量值），成功登录时也顺手删
     static let username = "auth.username"
     static let password = "auth.password"
     static let apiKey = "api.key"

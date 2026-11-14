@@ -32,7 +32,7 @@ struct ConnectView: View {
     }
 
     private enum Field: Hashable {
-        case server, username, password, apiKey
+        case server, password, apiKey
     }
 
     private enum StepState {
@@ -45,7 +45,6 @@ struct ConnectView: View {
     @State private var helpReturn: Page = .login
     @State private var mode: LoginMode = .password
     @State private var serverText = "https://hermes.didichou.site"
-    @State private var username = ""
     @State private var password = ""
     @State private var apiKey = ""
     @State private var revealSecret = false
@@ -62,7 +61,7 @@ struct ConnectView: View {
               !serverText.trimmingCharacters(in: .whitespaces).isEmpty
         else { return false }
         switch mode {
-        case .password: return !username.isEmpty && !password.isEmpty
+        case .password: return !password.isEmpty
         case .key: return !apiKey.isEmpty
         }
     }
@@ -88,7 +87,6 @@ struct ConnectView: View {
         .onAppear {
             if DemoMode.current == .connectPage {
                 // 演示态预填全是占位假串、不含真实凭据
-                username = "demo"
                 password = "demo-password"
                 apiKey = "demo-api-key"
             }
@@ -296,13 +294,6 @@ struct ConnectView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .focused($focusedField, equals: .server)
-            }
-            GroupDivider()
-            FieldRow(label: "账号", isActive: focusedField == .username) {
-                TextField("你的面板账号", text: $username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($focusedField, equals: .username)
             }
             GroupDivider()
             FieldRow(label: "密码", isActive: focusedField == .password) {
@@ -646,7 +637,7 @@ struct ConnectView: View {
                 GroupDivider()
                 helpRow(
                     systemImage: "person.crop.circle", title: "密码登录",
-                    detail: "用你部署 Hermes 时设的面板账号和密码。验证通过后，App 会向你的服务器换取登录密钥并保存在本机钥匙串，之后不用再填。"
+                    detail: "用伴生面板的那把密码（和网页端同一把，没有账号）。验证通过后，App 会向你的服务器换取登录密钥并保存在本机钥匙串，之后不用再填。"
                 )
                 GroupDivider()
                 helpRow(
@@ -767,7 +758,7 @@ struct ConnectView: View {
                 switch mode {
                 case .password:
                     info = try await appState.connectWithPassword(
-                        config: config, username: username,
+                        config: config,
                         password: password, onStep: onStep
                     )
                 case .key:

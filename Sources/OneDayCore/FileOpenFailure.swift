@@ -61,7 +61,7 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
         case .transientNetwork:
             return .timeout
         case .unreachable, .healthCheckFailed,
-             .sessionExpired, .loginRejected,
+             .sessionExpired, .loginRejected, .loginRateLimited,
              .loginFailed, .apiKeyRejected:
             return .serviceUnavailable
         case .invalidServerAddress, .decodingFailed,

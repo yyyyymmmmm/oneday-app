@@ -21,7 +21,7 @@ struct DemoHermesClient: HermesClientProtocol {
         decode(HealthResponse.self, #"{"status": "ok", "platform": "hermes-agent", "version": "0.23.0"}"#)
     }
 
-    func login(config: ServerConfig, username: String, password: String) async throws {
+    func login(config: ServerConfig, password: String) async throws {
         // 演示探活：恒成功，不发请求
     }
 
