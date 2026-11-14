@@ -129,7 +129,7 @@ struct ChatApprovalCard: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("这条会立即批准；以后「\(ApprovalCardCopy.alwaysAllowScope(for: record))」的写入将直接通过，不再逐条询问。规则可以在枢纽「审批规则」里随时撤销。")
+            Text("这条会立即批准；以后「\(ApprovalCardCopy.alwaysAllowScope(for: record))」的写入将直接通过，不再逐条询问。规则可以在设置「偏好与权限」的「审批规则」里随时撤销。")
         }
     }
 

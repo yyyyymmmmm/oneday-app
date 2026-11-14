@@ -41,6 +41,9 @@ public enum SettingsDestination: Equatable, Sendable {
     case serverDetail
     case connectors
     case devicePermissions
+    /// 审批规则（§244 归位，大厂九项⑦）：规则是长期
+    /// 设置、归设置页权限区；台账只留审批记录
+    case approvalRules
     case gateway
     case logs
     case overview
@@ -298,6 +301,13 @@ public enum SettingsCatalog {
             summary: "本机数据授权与同步",
             keywords: ["权限", "授权", "同步", "设备", "隐私"],
             destination: .devicePermissions
+        ),
+        SettingsCatalogEntry(
+            id: "approvalRules", group: .preferences,
+            title: "审批规则",
+            summary: "「总是允许」的规则与撤销",
+            keywords: ["审批", "规则", "总是允许", "撤销", "approval", "rules"],
+            destination: .approvalRules
         ),
         // 支持
         SettingsCatalogEntry(

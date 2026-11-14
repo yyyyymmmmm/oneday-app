@@ -50,6 +50,7 @@ final class SettingsCatalogTests: XCTestCase {
             .identity, .profiles, .memory, .skills, .cron,
             .serverSessions, .models, .envVars, .usage,
             .serverDetail, .connectors, .devicePermissions,
+            .approvalRules,
             .gateway, .logs, .overview, .computer, .serverFiles,
             .appearance, .sidebar, .allConversations, .help, .about, .privacy, .terms,
             // prototype-2 新增
@@ -82,7 +83,7 @@ final class SettingsCatalogTests: XCTestCase {
     func testPreferencesGroupBrowseOrder() {
         XCTAssertEqual(
             SettingsCatalog.browseEntries(in: .preferences).map(\.id),
-            ["appearance", "sidebar", "allConversations", "connectors", "devicePermissions"]
+            ["appearance", "sidebar", "allConversations", "connectors", "devicePermissions", "approvalRules"]
         )
     }
 

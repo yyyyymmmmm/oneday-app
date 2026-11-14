@@ -15,8 +15,9 @@ import SwiftUI
 /// 控制动作都在任务详情里），新建任务入口迁来页
 /// 首菜单；②审核：只并记录（审批仍只在聊天界面，
 /// §155 不变）——审批条目在台账详情里补记录原文、
-/// 只读「查看改动」与「查看原对话」锚点，审批规
-/// 则区迁来列表首节（撤销面全 App 只此一处）；
+/// 只读「查看改动」与「查看原对话」锚点；审批规
+/// 则曾随收段暂住列表首节，§244 已归位设置页权限
+/// 区（大厂九项⑦），本段只留记录、不再兼收设置面；
 /// ③监测：变化事件由 LedgerStore 合成同形条目并
 /// 入同流，点达监测详情（变化在详情内对号呈现、
 /// 控制动作也在详情里），新建监测同入页首菜单。
@@ -41,8 +42,6 @@ struct HubLedgerSection: View {
     @State private var monitorsStore = MonitorsStore()
     @State private var showCreateTask = false
     @State private var showCreateMonitor = false
-    /// 审批规则撤销待确认（确认框文案与旧审核段同）
-    @State private var revokeTarget: WriteGateRule?
     /// 通知落点聚焦的条目 id（审批＝appr:<记录 id>、
     /// 监测＝monitor-change:<变化 id>）：置位后滚
     /// 动定位＋行底色点亮，与原审核段聚焦同形态
@@ -92,25 +91,6 @@ struct HubLedgerSection: View {
         }
         .sheet(isPresented: $showCreateMonitor) {
             MonitorCreateView(store: monitorsStore)
-        }
-        .confirmationDialog(
-            "撤销这条规则？",
-            isPresented: Binding(
-                get: { revokeTarget != nil },
-                set: { if !$0 { revokeTarget = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: revokeTarget
-        ) { rule in
-            Button("撤销规则", role: .destructive) {
-                Task { await hubStore.revokeRule(rule) }
-                revokeTarget = nil
-            }
-            Button("取消", role: .cancel) {
-                revokeTarget = nil
-            }
-        } message: { rule in
-            Text("撤销后，「\(rule.scopeLabel)」的写入会重新逐条等你审批。")
         }
     }
 
@@ -239,13 +219,9 @@ struct HubLedgerSection: View {
     private var ledgerList: some View {
         ScrollViewReader { proxy in
             List {
-                // §217：审批规则区迁入列表首节（撤销
-                // 面全 App 只此一处，见 HubApproval-
-                // RulesView 头注）；规则数据不在台账
-                // 账里、走共享 hubStore
-                HubApprovalRulesView(store: hubStore) { rule in
-                    revokeTarget = rule
-                }
+                // §244：审批规则已归位设置页权限区，
+                // 本列表只剩台账记录本体（审批记录条
+                // 目即记录入口，点开有原文与锚点）
                 ForEach(store.dayGroups) { group in
                     Section(group.title) {
                         ForEach(group.items) { item in

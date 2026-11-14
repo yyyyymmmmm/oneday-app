@@ -287,6 +287,8 @@ struct SettingsView: View {
             ConnectorsView(onOpenOverview: { manageSheet = .overview })
         case .devicePermissions:
             DevicePermissionsView()
+        case .approvalRules:
+            ApprovalRulesSettingsView()
         }
     }
 
@@ -589,6 +591,7 @@ struct SettingsView: View {
         case .serverDetail: return .serverDetail
         case .connectors: return .agent(.mcp)
         case .devicePermissions: return .agent(.devicePermissions)
+        case .approvalRules: return .agent(.approvalRules)
         case .gateway: return .gateway
         case .logs: return .logs
         case .appearance: return .appearance
@@ -623,6 +626,7 @@ struct SettingsView: View {
         case "server": return "server.rack"
         case "connectors": return "cable.connector"
         case "devicePermissions": return "iphone"
+        case "approvalRules": return "checkmark.shield"
         case "gateway": return "network"
         case "logs": return "doc.text"
         case "envVars": return "key"

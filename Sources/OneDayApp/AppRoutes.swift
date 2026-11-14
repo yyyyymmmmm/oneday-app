@@ -11,6 +11,8 @@ enum AgentRoute: Hashable {
     /// 设备与权限总览（0.34.0，本机连接器批一）：五件
     /// 数据源的授权状态＋调用开关汇总（设计档 §6.3）
     case devicePermissions
+    /// 审批规则（§244 归位）：设置页权限区内的规则面
+    case approvalRules
 }
 
 /// （应用格内页面枚举 AppsPage 已于 0.20.0 随应用格

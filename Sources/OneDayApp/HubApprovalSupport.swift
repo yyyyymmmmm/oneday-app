@@ -8,13 +8,13 @@ import SwiftUI
 /// 审批只在聊天界面。§217（2026-11-13 枢纽收段）：
 /// 审核段撤出分段栏——审批事件本就在工作台账里有
 /// 同源条目（伴生采集器 write-gate 源：待批＝等待审
-/// 批态、已决＝完成/取消态），记录呈现归活动段；本
-/// 文件只留三件段外仍要用的东西：
-/// ①审批规则区（HubApprovalRulesView）——规则是长
-///   期设置不是记录，且撤销面全 App 只此一处（聊天
-///   卡文案明示「规则可以在枢纽『审批规则』里随时
-///   撤销」，0.36.21 硬口径不回退），随收段迁进活
-///   动段的台账列表顶部继续在枢纽里可达；
+/// 批态、已决＝完成/取消态），记录呈现归活动段。
+/// §244（2026-11-14，大厂九项⑦归位）：审批规则区
+/// 迁出枢纽、落设置页「偏好与权限」组（Approval-
+/// RulesSettingsView 承载，规则面全 App 只此一处不
+/// 变）；台账自此只留审批记录（条目与详情即记录入
+/// 口），不再兼收设置面。本文件留三件：
+/// ①审批规则区（ApprovalRulesView）与设置页承载；
 /// ②锚点点达支持（ApprovalAnchorSupport）——台账
 ///   详情的审批条目「查看原对话」复用原审核段的
 ///   §165 解析（本机线程表索引＋Core 解析），钮的
@@ -23,17 +23,18 @@ import SwiftUI
 ///   ——只读 diff 呈现，聊天就地卡与台账详情共用，
 ///   本来就不属于审核段本体、原样保留。
 
-// MARK: - 审批规则（§217 迁入活动段）
+// MARK: - 审批规则（§244 归设置页权限区）
 
 /// 审批规则区（0.36.21，规格 §4）：规则只存桥侧，
 /// 这里是只读镜像＋撤销入口——没有撤销面不许交付
-/// 是硬口径。§217 后本区是活动段台账列表里的一节
-/// （由 HubLedgerSection 承载、撤销确认框由承载方
-/// 挂），只在审批数据就绪（.ready）时出现：通道未
-/// 接通/未启用时规则无从谈起，不拿空区冒充。规则
-/// 为空与未拉到分开说（诚实呈现），撤销失败留人
-/// 话提示在区首
-struct HubApprovalRulesView: View {
+/// 是硬口径。§244 后本区由设置页「偏好与权限 →
+/// 审批规则」（ApprovalRulesSettingsView）承载、
+/// 撤销确认框由承载方挂，只在审批数据就绪
+/// （.ready）时出现：通道未接通/未启用时规则无从
+/// 谈起，不拿空区冒充（未就绪态由承载页如实呈现）。
+/// 规则为空与未拉到分开说（诚实呈现），撤销失败
+/// 留人话提示在区首
+struct ApprovalRulesView: View {
     let store: AgentHubStore
     /// 撤销点按（确认框与执行在承载方，与旧段同一
     /// 确认文案与 revokeRule 路径）
@@ -85,6 +86,97 @@ struct HubApprovalRulesView: View {
             }
         }
         .padding(.vertical, OneDayMetrics.spacingMicro)
+    }
+}
+
+/// 审批规则设置页（§244 归位，大厂九项⑦）：规则是
+/// 长期设置、归设置页「偏好与权限」组；台账只留审
+/// 批记录。数据与枢纽/聊天卡同源（AppState 共享
+/// AgentHubStore、同拉取同撤销路）；未就绪态在此
+/// 如实呈现（加载中/通道未接通/未启用/失败），不
+/// 拿空区冒充。撤销确认框与旧枢纽承载同一文案
+struct ApprovalRulesSettingsView: View {
+    @Environment(AppState.self) private var appState
+    @State private var revokeTarget: WriteGateRule?
+
+    private var store: AgentHubStore { appState.sharedHubStore() }
+
+    var body: some View {
+        List {
+            Section {
+                Text("在聊天里的待批卡上点「总是允许这一类」，会在这里留下一条规则：同类写入以后直接通过、不再逐条问。撤销一条，恢复逐条审批。")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            stateSection
+            ApprovalRulesView(store: store) { rule in
+                revokeTarget = rule
+            }
+        }
+        .navigationTitle("审批规则")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await store.loadApproval()
+        }
+        .refreshable {
+            await store.loadApproval(force: true)
+        }
+        .confirmationDialog(
+            "撤销这条规则？",
+            isPresented: Binding(
+                get: { revokeTarget != nil },
+                set: { if !$0 { revokeTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: revokeTarget
+        ) { rule in
+            Button("撤销规则", role: .destructive) {
+                Task { await store.revokeRule(rule) }
+                revokeTarget = nil
+            }
+            Button("取消", role: .cancel) {
+                revokeTarget = nil
+            }
+        } message: { rule in
+            Text("撤销后，「\(rule.scopeLabel)」的写入会重新逐条等你审批。")
+        }
+    }
+
+    /// 未就绪态的诚实呈现（规则区本体只在 .ready
+    /// 出现）：每种未就绪都给真状态，不留空白页
+    @ViewBuilder
+    private var stateSection: some View {
+        switch store.approvalState {
+        case .ready:
+            EmptyView()
+        case .loading:
+            Section {
+                HStack(spacing: OneDayMetrics.spacingS) {
+                    ProgressView()
+                    Text("正在读取规则…")
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+        case .bridgeUnavailable:
+            Section {
+                Text("审批通道还没接通，规则暂时看不到。接通后这里会显示已留下的规则。")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        case .gateDisabled:
+            Section {
+                Text("写入审批还没启用，现在没有规则可管。启用后，在聊天里点「总是允许这一类」就会在这里留下规则。")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        case .failed(let message):
+            Section {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+        }
     }
 }
 
