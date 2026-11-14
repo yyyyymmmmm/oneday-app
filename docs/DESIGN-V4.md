@@ -11861,3 +11861,9 @@ Core `SessionModelAccount.effectiveStored` 是纯函数：主线会话存值与�
 | 7. 无障碍／探针 | 段名、选中态、按标签可达 | 原生 Picker 保有系统选中语义；当前按钮设置 `.accessibilityLabel(item.title)` 与 `.isSelected` trait。UI 探针先查 segmentedControls，回落按标签查 `app.buttons` | 现有按钮语义及探针回落均成立；系统件也能表达，**可达** | `AgentHubView.segmentPicker` 明确设置标签/选中 trait；`TopBarSingleActionTapTests.segmentButton` 有按钮回落，§222 CI 已逐段通过 |
 
 **裁决：保留自绘。** 颜色反相和无障碍语义可由系统 API 覆盖，但条高、内嵌选中几何、描边/圆角和图标定点等关键目标不能只靠系统件公开 appearance API 达成。按本轮简化判据，若要像素对齐须堆叠透明边距自制可缩放背景图、UIViewRepresentable 与 layer 覆写；即使可烤到近似外观，也不比现有 SwiftUI 自绘条简单。故 C-9 的降维护成本目标不支持换回原生 Picker，现有 `hubSegBarHeight=48`、`hubSegCapsuleHeight=36`、`hubSegGlyphSize=22` 及相关测试保持不动。本轮仅追加本节，未改分段条代码、令牌或测试。
+
+### §231.5 CI 判读（2026-11-14 回填）
+
+首轮 run **43561526492**（头 0b40196）名义 failure：断言失败 **3 条、真红 2 法**，均在本包测试面——①`ModelAccountUnifyAppTests.testMainlineDifferentStoredChoiceIsNotFiltered` 期望误写化石值（实际返回存值 deepseek-v4-pro＝生产行为正确，断言错）；②`AvatarPresentationFitTests.testRenderedPresetDiscGlyphSpanAndNeutralFill` 盘面单点取样（22,120）被 0.92 字形墨盖住（取到 ink 墨色 (17,25,28)），填充本色未变。修复（3e48a6f）：①期望改回存值；②取样改 r=105 环带每 15° 取点取最亮（阈值 180...252／|b−r|≤8 不变）。
+
+二轮 run **43563448455**（头 3e48a6f）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例、无 XCTAssert error）。**Core 1916／1916 全过**——与静态预期精确对账（1920−迁移退役 8＋读时规则新测 4）。**App 115 启动**＝106 过＋5 跳（PresentationLayerScenarios 源码 XCTSkip 存量）＋4 条 §184 无终局行（testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView，皆 .36–.38 在案同名单、零断言）。**UI 4／4**。**边缘探针 passed（29.4s）、HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS**。本包两条曾红测试二轮均 passed（头像渲染 0.838s、异值保留 0.212s），化石回默认新测 passed。未合 main、未打 tag、版本号保持 0.50.38/166（组版另行）。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-hub-benchmark/。
