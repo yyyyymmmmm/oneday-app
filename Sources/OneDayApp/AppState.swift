@@ -378,6 +378,21 @@ final class AppState {
         modelFallbackNotice = nil
     }
 
+    /// 乐观删除协调器（§232）：本地先删/后台删/失
+    /// 败恢复的唯一执行件，全 App 只此一份（队列落
+    /// 盘在协调器内）
+    let sessionDeletions = SessionDeletionCoordinator()
+
+    /// 乐观删除最终失败的恢复提醒（§232）：协调器
+    /// 在恢复落定后置位，ChatView 提示条消费后清；
+    /// 文案人话、不露接口原文（消费口径与模型落回
+    /// 提示同式）
+    var sessionDeletionFailureNotice: String?
+
+    func consumeSessionDeletionFailureNotice() {
+        sessionDeletionFailureNotice = nil
+    }
+
     /// 抽屉数据刷新令牌（0.21.0）：已链接旁聊标题
     /// 回流的触发通道——服务端 llm 标题在首轮回复
     /// 后数秒才升级，抽屉须在一轮落地后主动重拉服

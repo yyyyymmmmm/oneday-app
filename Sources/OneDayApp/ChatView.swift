@@ -1420,6 +1420,16 @@ struct ChatView: View {
                 }
                 appState.consumeModelFallbackNotice()
             }
+            // §232：恢复提醒若在本页出现前已置位（续
+            // 跑失败等），onChange 不补发——在此与模型
+            // 落回提示同口消费一次
+            if let deletionNotice =
+                appState.sessionDeletionFailureNotice {
+                if !noticePresentation.isPresenting {
+                    showNotice(deletionNotice, tier: .extended)
+                }
+                appState.consumeSessionDeletionFailureNotice()
+            }
         }
         // 0.7.0（D2 回告）：总览快照随前台 30 秒轮询换新
         // 时顺带拉新通知——回告卡与铃铛/通知 sheet 读
@@ -1431,6 +1441,29 @@ struct ChatView: View {
         }
         .task {
             await startDemoStreamIfNeeded()
+        }
+        // §232：乐观删除启动续跑——盘上待删队列逐
+        // 条重演隐藏并重跑后台删除（进程被杀/重启
+        // 的兜底；已落定条经回查自然收口，续跑失败
+        // 同样恢复＋提醒）。协调器内在飞去重＋队列
+        // 排空后为空操作，重复触发无副作用
+        .task {
+            appState.sessionDeletions.resumePending(
+                appState: appState, modelContext: modelContext
+            )
+        }
+        // §232：乐观删除最终失败的恢复提醒——协调
+        // 器置位即经聊天页提示条呈现（重要档），消
+        // 费后清位防重报（冷启动已置位者亦在此消费）
+        .onChange(
+            of: appState.sessionDeletionFailureNotice
+        ) { _, notice in
+            if let notice {
+                if !noticePresentation.isPresenting {
+                    showNotice(notice, tier: .extended)
+                }
+                appState.consumeSessionDeletionFailureNotice()
+            }
         }
         .task {
             await appState.refreshModelCatalog()

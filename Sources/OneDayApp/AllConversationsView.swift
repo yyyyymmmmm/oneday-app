@@ -243,6 +243,12 @@ struct AllConversationsView: View {
                 segment = .mine
             }
         }
+        // §232：乐观删除最终失败的恢复信号——协调
+        // 器已解墓碑/恢复目录，本页名单重拉对齐服
+        // 务端现状（被恢复的行回到名单）
+        .onChange(of: appState.sessionDeletions.restoreRevision) {
+            Task { await reload() }
+        }
         // 0.36.29：频道段 Hermes 行的频道页（本页内呈
         // 现，与抽屉入口同一 HermesChannelView）；页
         // 内打开会话先关频道页、再走宿主既有续聊通道
@@ -657,13 +663,17 @@ struct AllConversationsView: View {
                 title: rowTitle(session),
                 onOpen: { onOpenSession(session.id) },
                 onChanged: { Task { await reload() } },
-                onDeleted: { id in
-                    // §223：单删落定即走共享收口清本地
-                    // 线程（旧路只删服务端，抽屉残留行
-                    // 点开撞 404 的出处）
-                    DeletedSessionCloseout.apply(
-                        sessionID: id, appState: appState,
-                        threads: threads, modelContext: modelContext
+                onDeleteRequested: { session in
+                    // §232 乐观删除：确认即同拍摘自家
+                    // 名单行＋协调器起手（墓碑/目录摘
+                    // 行/后台删）；最终失败由协调器恢
+                    // 复，恢复信号触发本页重拉对齐
+                    store.removeLocal(sessionID: session.id)
+                    appState.sessionDeletions.begin(
+                        sessionID: session.id,
+                        title: rowTitle(session),
+                        appState: appState,
+                        modelContext: modelContext
                     )
                 }
             ) {
@@ -826,11 +836,29 @@ struct AllConversationsView: View {
 
     private enum BatchKind { case archive, restore, delete }
 
-    /// 批量：逐条经动作层（PATCH/DELETE＋回读对账），
-    /// 未落定逐条计数、汇总人话呈现，不许整批乐观
+    /// 批量：归档/恢复逐条经动作层（PATCH＋回读对
+    /// 账），未落定逐条计数、汇总人话呈现。删除自
+    /// §232 起不走本路——乐观删除专路（下方 run-
+    /// Batch 入口分流）：逐条本地先删、后台逐条删，
+    /// 成败不汇总（最终失败由协调器逐条恢复＋提醒，
+    /// 恢复信号触发本页重拉）
     private func runBatch(_ kind: BatchKind) {
         let ids = Array(selection)
         guard !ids.isEmpty else { return }
+        if kind == .delete {
+            for id in ids {
+                let title = (store.sessions + store.archivedSessions)
+                    .first { $0.id == id }.map { rowTitle($0) } ?? ""
+                store.removeLocal(sessionID: id)
+                appState.sessionDeletions.begin(
+                    sessionID: id, title: title,
+                    appState: appState, modelContext: modelContext
+                )
+            }
+            selection.removeAll()
+            editMode = .inactive
+            return
+        }
         Task {
             var failedCount = 0
             for id in ids {
@@ -845,20 +873,10 @@ struct AllConversationsView: View {
                         appState: appState, id: id, archived: false
                     )
                 case .delete:
-                    outcome = await ServerSessionActions.delete(
-                        appState: appState, id: id
-                    )
+                    outcome = .verified // 删除已在上方专路分流，不达此
                 }
                 if outcome != .verified {
                     failedCount += 1
-                } else if kind == .delete {
-                    // §223：批删落定逐条走共享收口清本
-                    // 地线程（旧路只删服务端、抽屉留残
-                    // 留行的出处）；未落定本地不动
-                    DeletedSessionCloseout.apply(
-                        sessionID: id, appState: appState,
-                        threads: threads, modelContext: modelContext
-                    )
                 }
             }
             selection.removeAll()
@@ -953,6 +971,15 @@ final class AllConversationsStore {
     /// prune 预演回的将删条数（确认弹窗文案用）
     var pruneDryRunCount: Int?
 
+    /// 乐观删除摘行（§232）：确认删除后本页两段名
+    /// 单同拍摘除该行，不等服务端；最终失败靠恢复
+    /// 信号重拉回行
+    func removeLocal(sessionID: String) {
+        sessions.removeAll { $0.id == sessionID }
+        archivedSessions.removeAll { $0.id == sessionID }
+        if mainFallback?.id == sessionID { mainFallback = nil }
+    }
+
     /// 名单全量重拉（§223 扩展：带本地线程与写上下
     /// 文，供两段拉成后的对账回收）。可见集拉成即
     /// 落位＋写回共享目录（§223 硬化：不再被已归档
@@ -971,15 +998,28 @@ final class AllConversationsStore {
             let visible = try await ServerSessionCatalog.fetchAll(
                 appState: appState, archived: "exclude"
             )
-            sessions = visible
+            // §232：待删集（乐观删除后台未落定）不
+            // 进展示与目录写回——服务端此刻仍有其行，
+            // 不过滤会被重拉带回（乐观隐藏失效）；但
+            // 对账存活集仍用未过滤全集：待删会话在服
+            // 务端尚存活，其墓碑线程不许被对账误清
+            let pendingDeletions = appState.sessionDeletions
+                .queue.sessionIDs
+            sessions = visible.filter {
+                !pendingDeletions.contains($0.id)
+            }
             // §198：全量可见集写回共享目录——抽屉频道
             // 显行闸与本页频道段自此同源同数（本页已付
             // 的分页代价全 App 只付一次）
-            appState.serverSessionCatalog.publish(visible: visible)
+            appState.serverSessionCatalog.publish(
+                visible: sessions
+            )
             let archived = try await ServerSessionCatalog.fetchAll(
                 appState: appState, archived: "only"
             )
-            archivedSessions = archived
+            archivedSessions = archived.filter {
+                !pendingDeletions.contains($0.id)
+            }
             // §223 名单对账：存活集（可见＋已归档并
             // 集）之外的自有绑定线程即残留，走共享
             // 收口清除

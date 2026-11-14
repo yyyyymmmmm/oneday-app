@@ -153,8 +153,6 @@ struct DrawerView: View {
     /// 删除二次确认的待删线程（0.50.30：真删不可恢
     /// 复，确认门与管理面 ServerSessionRow 同口径）
     @State private var pendingDeleteThread: ChatThread?
-    /// 真删未落定的人话原因（失败弹报、本地线程保留）
-    @State private var deleteFailureReason: String?
     /// 身份行编辑入口（§157）：与枢纽头像菜单同两张
     /// 编辑页的呈现开关，本面只置位、不复制编辑逻辑
     @State private var showAvatarEditor = false
@@ -300,7 +298,7 @@ struct DrawerView: View {
             Button("删除", role: .destructive) {
                 if let thread = pendingDeleteThread {
                     pendingDeleteThread = nil
-                    Task { await performDeleteThread(thread) }
+                    performDeleteThread(thread)
                 }
             }
             Button("取消", role: .cancel) { pendingDeleteThread = nil }
@@ -308,17 +306,6 @@ struct DrawerView: View {
             if let thread = pendingDeleteThread {
                 Text("「\(drawerDisplayTitle(for: thread))」删除后不可恢复。")
             }
-        }
-        .alert(
-            "没删掉",
-            isPresented: Binding(
-                get: { deleteFailureReason != nil },
-                set: { if !$0 { deleteFailureReason = nil } }
-            )
-        ) {
-            Button("好", role: .cancel) { deleteFailureReason = nil }
-        } message: {
-            Text(deleteFailureReason ?? "")
         }
         // 身份行编辑页（§157）：复用枢纽同两张编辑页
         // 本体（改的都是本机档案），呈现口径与枢纽一
@@ -950,13 +937,17 @@ struct DrawerView: View {
 
     /// 可见本地线程（0.7.0 口径原样）：归档过滤恒生
     /// 效——本地归档旁聊从一切名单隐藏（搜索也不许
-    /// 捞出来），只在管理页已归档段可见
+    /// 捞出来），只在管理页已归档段可见。§232 补：
+    /// 乐观删除墓碑同在此单点过滤——待删线程从抽
+    /// 屉一切名单（常态/搜索同源）即时消失，恢复
+    /// 解标即回
     private var drawerItems: [ChatThread] {
         filteredThreads.filter {
-            !SideChatArchive.isArchived(
-                localThreadID: $0.id,
-                archivedKeys: appState.sideChats.archivedKeys
-            )
+            !$0.isPendingDeletion
+                && !SideChatArchive.isArchived(
+                    localThreadID: $0.id,
+                    archivedKeys: appState.sideChats.archivedKeys
+                )
         }
     }
 
@@ -1325,40 +1316,28 @@ struct DrawerView: View {
         renamingThread = nil
     }
 
-    /// 真删流（0.50.30，管理收口包件二；取代 0.21.0
-    /// 「本地先删＋服务端归档（尽力而为）」旧语义——
-    /// 旧流服务端只归档不删、会话本体从没删掉过）：
-    /// 本线程自建的旁聊会话（Core 真删闸 mayHard-
-    /// DeleteOnThreadDelete）先走 ServerSession-
-    /// Actions.delete（围栏 DELETE＋删后回查、与全
-    /// 部对话页同一条路），回查落定才清本地账并删
-    /// 本地线程；未落定 → 本地线程原样保留、原因弹
-    /// 报，不许再出现「本地没了、服务端还在」。其余
-    /// 线程（未链接/导入会话/合并桶绑定）维持只删
-    /// 本地、服务端零动作；主线线程在本面无删除入
-    /// 口（既有保护不动），真删闸对主线会话本体另
-    /// 有双重拦截
-    private func performDeleteThread(_ thread: ChatThread) async {
+    /// 删除流（§232 乐观删除，用户 2026-11-14 亲
+    /// 定口径，覆盖 0.50.30「服务端先行、回查落定
+    /// 才动本地」）：本线程自建的旁聊会话（Core 真
+    /// 删闸 mayHardDeleteOnThreadDelete）确认后即
+    /// 交 SessionDeletionCoordinator——本地先删
+    /// （墓碑＋目录摘行、同拍消失），服务端围栏删
+    /// 在后台跑，最终失败自动恢复＋提醒；本面不
+    /// 再等服务端、不再弹「没删掉」拦人。其余线
+    /// 程（未链接/导入会话/合并桶绑定）维持只删
+    /// 本地、服务端零动作；主线线程在本面无删除
+    /// 入口（既有保护不动），协调器与真删闸对主
+    /// 线会话本体另有双重拦截
+    private func performDeleteThread(_ thread: ChatThread) {
         if let linkedSessionID = thread.serverSessionID,
            SideChatLink.mayHardDeleteOnThreadDelete(
                sessionID: linkedSessionID,
                mainSessionID: appState.sideChats.mainServerSessionID
            ) {
-            let outcome = await ServerSessionActions.delete(
-                appState: appState, id: linkedSessionID
-            )
-            guard case .verified = outcome else {
-                if case .failed(let reason) = outcome {
-                    deleteFailureReason = reason
-                }
-                return
-            }
-            // §223：落定收尾走全 App 共享收口（清侧
-            // 账＋目录摘行＋删绑定线程），本面不再私
-            // 有一份——管理页/频道页同调同一件
-            DeletedSessionCloseout.apply(
-                sessionID: linkedSessionID, appState: appState,
-                threads: threads, modelContext: modelContext
+            appState.sessionDeletions.begin(
+                sessionID: linkedSessionID,
+                title: drawerDisplayTitle(for: thread),
+                appState: appState, modelContext: modelContext
             )
             return
         }

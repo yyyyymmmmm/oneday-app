@@ -49,7 +49,15 @@ final class ServerSessionCatalog {
         if let sessions = try? await Self.fetchAll(
             appState: appState, archived: "exclude"
         ) {
-            publish(visible: sessions)
+            // §232：待删集不被补拉带回（乐观删除后台
+            // 未落定期间服务端仍有其行）
+            let pending = appState.sessionDeletions
+                .queue.sessionIDs
+            publish(
+                visible: sessions.filter {
+                    !pending.contains($0.id)
+                }
+            )
         }
     }
 

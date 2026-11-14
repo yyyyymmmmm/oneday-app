@@ -120,14 +120,18 @@ struct HermesChannelView: View {
                                         await store.load(appState: appState)
                                     }
                                 },
-                                onDeleted: { id in
-                                    // §223：频道页删除同走共
-                                    // 享收口（旧路不回写共享
-                                    // 目录、本地线程残留）
-                                    DeletedSessionCloseout.apply(
-                                        sessionID: id,
+                                onDeleteRequested: { session in
+                                    // §232 乐观删除：同拍摘
+                                    // 自家名单行＋协调器起手
+                                    // （墓碑/目录/后台删）；最
+                                    // 终失败靠恢复信号重拉回行
+                                    store.removeLocal(
+                                        sessionID: session.id
+                                    )
+                                    appState.sessionDeletions.begin(
+                                        sessionID: session.id,
+                                        title: rowTitle(session),
                                         appState: appState,
-                                        threads: threads,
                                         modelContext: modelContext
                                     )
                                 }
@@ -153,6 +157,12 @@ struct HermesChannelView: View {
                 ServerSessionDetailView(sessionID: id, readOnly: true)
             }
             .refreshable { await store.load(appState: appState) }
+            // §232：乐观删除恢复信号→重拉回行
+            .onChange(
+                of: appState.sessionDeletions.restoreRevision
+            ) {
+                Task { await store.load(appState: appState) }
+            }
         }
         .task { await store.load(appState: appState) }
     }
@@ -227,6 +237,13 @@ final class HermesChannelStore {
     var isLoading = false
     var loadError: String?
 
+    /// 乐观删除摘行（§232）：确认删除后本页名单同
+    /// 拍摘除该行，不等服务端；最终失败靠恢复信号
+    /// 重拉回行
+    func removeLocal(sessionID: String) {
+        sessions.removeAll { $0.id == sessionID }
+    }
+
     func load(appState: AppState) async {
         isLoading = true
         loadError = nil
@@ -247,7 +264,12 @@ final class HermesChannelStore {
                 }
                 return all
             }
-            sessions = visible
+            sessions = visible.filter {
+                // §232：待删集不被重拉带回（乐观删除
+                // 后台未落定期间服务端仍有其行）
+                !appState.sessionDeletions.queue.sessionIDs
+                    .contains($0.id)
+            }
             await appState.sessionTitles.ensureTitles(
                 for: visible, appState: appState, budget: 12
             )
