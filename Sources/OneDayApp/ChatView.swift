@@ -4259,7 +4259,6 @@ struct ChatView: View {
         }
     }
 
-    @ViewBuilder
     /// 空态形象段（§246 起两承载共用同一构建：
     /// 旧承载挂 LazyVStack、新承载作不透明行托
     /// 管，内容只有本一处出处）
@@ -4371,6 +4370,7 @@ struct ChatView: View {
         )
     }
 
+    @ViewBuilder
     private func bubble(_ entry: ChatEntry) -> some View {
         if entry.traceKey != nil {
             // §229（回响物化归位）：留痕回响条目——流
