@@ -12208,3 +12208,15 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **两轮并集对账**：App 160 方法全有着落，唯 3 条两轮均 started 无终局——testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel（§184 长期在案）与 GoalQuoteEntryTests.testGoalQuoteRoundTripsThroughEntry（分支 run 43568667194 已通过、组版两轮均被宿主死亡截断，新登记在案）。
 - **出包亲验**：IPA 12,690,998 字节、md5 `3054a6bff9e8b101749bfa31c9ae05a8`；解包 Info.plist＝0.50.41／169／site.didichou.oneday。IPA 在 ~/workspace/your_files/oneday-v0.50.41/。未合 main、未打 tag。
 
+
+## §244 权限包（2026-11-14；分支 feat/permissions-pack，基线 rel-05041@7cb8e26；自编号，组版顺延收口）
+
+**范围三件**（规格 permission-system-redesign-20261113 §八 P-1–P-6＋用户 2026-11-12 一把密码拍板＋2026-11-14 大厂九项⑦）：
+
+**一、对话内授权流（P-1–P-6，桥＋App 双侧）**。桥侧（伴生 device_bridge.py，随 1.0.52 部署）：P-1 错误单一契约——MCP 错误体合并结构化字段 `{source, state, blockerLayer, nextAction, resumeToken?}`、权限类文案桥侧中文单源产出、initialize instructions 立话术纪律（只说事实＋指卡片、不写设置教程）、device_status 带 pendingPermission；P-2 分层判门（系统权限→调用开关→未接线）＋permission_ask 伪调用（注册带 agentCall 映射与 permission_ask_v1 能力才启用，旧 App 保持旧行为但结构化＋中文）；P-4 挂起账 permission-parks.json（0600、TTL 24h、token 单次消费）＋POST /device/resume（派发前等工具重新 offered 最多 5s、写调用保留原 idempotencyKey）；P-5 同步层升格——副本空/permission_revoked 的真卡点是权限时一律 park＋permission_required（kind=sync），纯未同步才回 sync_copy_empty＋blockerLayer:"sync"；停好车后经 permission_notice 捎信让 App 出卡（已拒绝/开关层没有 ask 机会的那半）。App 侧：Core DevicePermissionFlow（卡模型/状态机/ask·notice 解析/resume 分型/结果摘要，纯函数＋单测）；DevicePermissionCoordinator（卡持久化、24h 过期、primer→允许才发那一次系统请求（铁律：已决定态不重走请求回调）、答复先回桥后刷新（刷新会取消轮询环）、去设置回前台 checkResumes 自动续办、开关层「打开并继续」、同步类续办前先补同步 origin=.chat）；ChatPermissionZone 挂聊天流末尾（呈现拼装不写消息，与 §165 审批卡同先例——设备通道无 Hermes 会话归属字段，不做 state.db 时间相关锚定，避免装置化）；resume 结果落卡面摘要、不伪造消息注入原会话；P-6 设置面退管理定位（总览页删教程长文、加「等你确认」只读镜像区；健康/家庭死行按用户 2026-11-14 拍板留行等上架）；G9 分发器判门逐调现读（弃注册快照、通知件保留异步现读）。
+
+**二、一把密码统一**。实查三路：网页端/面板已于 1.0.33 同源（web-login 校面板密码、服务器内换 dashboard cookie）；只剩 App 直连 9119 部署密码。本包改：HermesClient.login 改打 POST /api/companion/web-login（401/403→loginRejected 文案改同一把口径、429→新分型 loginRateLimited）；登录链去账号（协议/AppState 改 password＋apiKey＋baseURL 三件套、成功顺手删退役键 auth.username、ConnectView 账号字段退役）。**迁移事实**：存量机上旧存的 9119 部署密码升级后首次静默重登会失败一次（sessionExpired），用户重输一次面板密码即恢复——属预期，不做双路兼容（不许装置化）。9119 /auth/password-login 服务端不动（面板自身登录仍用）。
+
+**三、审批规则归位（九项⑦）**。HubApprovalRulesView→ApprovalRulesView 迁入设置页「偏好与权限→审批规则」（SettingsCatalog 新条目＋AgentRoute.approvalRules＋设置页目的地，共享 sharedHubStore 同源同撤销路、未就绪四态如实呈现）；台账首节临时规则面撤下、只留审批记录（条目与详情即记录入口）；聊天卡撤销指路文案改设置页口径。
+
+**静态计数预期**：Core **2016**（2008＋DevicePermissionFlowTests 8）；App **147 通过＋5 skipped**（零新增、只改实现与接线）；UI **8**。i18n：3082 键（＋56 新键、－2 死键）×三语、validate 通过。伴生：device_bridge/device_sync 自测全绿后随 1.0.52 部署（只同步 device_bridge.py 一件）。
