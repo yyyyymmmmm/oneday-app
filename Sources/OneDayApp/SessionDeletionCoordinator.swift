@@ -1,3 +1,4 @@
+import Foundation
 import OneDayCore
 import SwiftData
 
