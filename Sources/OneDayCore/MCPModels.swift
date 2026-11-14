@@ -37,7 +37,7 @@ public struct MCPNotification: Encodable {
 }
 
 /// JSON-RPC 2.0 响应信封
-public struct MCPResponse: Decodable {
+public struct MCPResponse: Decodable, Sendable {
     public let jsonrpc: String
     public let id: String?
     public let result: MCPResult?
@@ -54,7 +54,7 @@ public struct MCPError: Decodable, Equatable, Sendable {
 }
 
 /// MCP 结果（tools/call 的返回）
-public struct MCPResult: Decodable {
+public struct MCPResult: Decodable, Sendable {
     public let content: [MCPContent]?
     public let isError: Bool?
     public let structuredContent: JSONValue?
