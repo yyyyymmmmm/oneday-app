@@ -11551,3 +11551,54 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 ### §216.1 CI 判读（2026-11-14）
 
 首轮 run 43536672323 真红：测试目标编译错恰一处——聊天可靠性包按 main 基线生成的离线桩 FailingHermesClient 缺 HermesClientProtocol 的 `sessionMutationSnapshot(config:id:)`（本链管理收口/删除线新增要求；生产实现与 DemoHermesClient 均已实现，全仓仅此一处缺项），断言 0 条但三套零执行。主线授权一行装配适配（与 §215 scrollHandle 先例同型）：提交 `99c0067` 在桩内按其通例补抛错桩方法（+4 行、仅该文件一处、不动任何断言）。二轮 run **43537855358**（头 99c0067）**§190 终判绿**：job build-native 名义 failure（Build／Package／Upload 均 success）；**断言失败 0 条**、Swift 编译错 0；**Core 1853 执行／0 失败**（预期 1853 精确对账）；**App 94 全数启动**：83 passed＋5 skipped（PresentationLayerScenarios 源码自带 XCTSkip，存量）＋6 条 §184 宿主死亡受害（在飞 started 后无终局行、与宿主重启逐一对应、零断言）——其中 5 条为 .35 在案同名单（testKeyboardUpMovesComposerOnlyDockStays／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／testSelectionSurvivesConstantBranch），新增 1 条为本版新装可靠性包自家 testMarkPendingSendRetainsEntryOnDisk、同签名（01:15:46 started、01:15:54 宿主重启），按 §184 在案例外；本轮宿主重启共 7 起。**UI 4／0**。**栏位探针直接 passed（5.585s）**，未走 flake 例外。IPA **12,298,913 字节、md5 `c0f13c83464da1f7d948bc7e87c15abe`**、0.50.36/164（解包 Info.plist 亲验），存 ~/workspace/your_files/oneday-v0.50.36/OneDay-0.50.36.ipa。未合 main、未打 tag。
+
+## §208 枢纽收段（七段收四段）＋卡片式呈现（2026-11-13；分支 feat/hub-segments-consolidation，基线 main 30b4fc4／0.50.29 发版点，只交分支不合并、排 0.50.31；立项＝用户 20:13 真机验收枢纽后问七段是否太多有重复、20:15 点选按推荐收成 4、20:17 发 Muse 录屏追加转场对齐）
+
+### §208.1 收段落法（分段集合与顺序为用户拍板原文）
+- 分段栏只留四段：**活动 activity／定时 cron／浏览器 browser／身份 identity**（顺序按此排）；任务 tasks、审核 approval、监测 monitors 三段撤出 HubSegment（枚举 case 一并删除，无兼容壳）。
+- .activity 模式（§155 起无入口）段集同步收为只剩 [.activity]。
+
+### §208.2 内容并入活动（零丢失对账口径）
+- **任务**：台账采集器（companion ledger.py）本有 kanban 源——每张看板卡＝一条 kind=kanban 台账条目（状态经 KANBAN_MAP 压成七态、列间流转记 detail history 注）。列级细节（needsInput 答题框、说明/结果/证据/评论/附件/控制动作）台账没有——补齐法：台账详情页（LedgerDetailView）对 kanban 条目新增「打开任务详情」直达 KanbanTaskDetailView（与原任务段行点达同落点）。新建任务入口（原全 App 只在任务段）迁活动段页首「＋」菜单。
+- **审核**：只并**记录**（§155 定版不变，审批只在聊天界面，活动段与台账详情均无裁决入口）。采集器本有 write-gate 源——待批＝kind=approval＋blocked_approval 态、已决＝completed/cancelled＋failReason 类别。原审核段的行级内容（问句/说明原文、只读「查看改动」diff、§165「查看原对话」锚点）补齐于台账详情的「审批记录」节（数据源＝共享 AgentHubStore 的 pending/decisions/anchorDecisions，与采集器同 id 空间 appr:）。**审批规则区**不是记录、是长期设置且撤销面全 App 只此一处（0.36.21 硬口径、聊天卡文案明示在枢纽可撤）——整节迁入活动段台账列表首节（HubApprovalRulesView，只在审批数据 .ready 时出现），撤销确认框文案与 revokeRule 路径原样。
+- **监测**：台账采集器**无监测源**（本包是 App 包、不动伴生）。客户端合成：Core 新增 LedgerMonitorSynthesis 纯函数，把桥 /monitors 变化记录合成 kind=monitor 的同形 LedgerItem（id 前缀 `monitor-change:`、link 指回监测本体、标题＝变化摘要人话一句、副题走 LedgerBoard 专门口径「监测变化 · 时刻」不冒充已完成、图标眼标不打勾），LedgerStore 在每次全量/增量拉取后 best-effort 重算并入 dayGroups 同流（页首计数只认服务端账、不拿事件冒充工作件数）。行点达监测详情本体（变化对号＋立即检查/暂停/恢复/删除都在详情里）；新建监测同入页首菜单。服务端将来加监测源后合成整体退役、呈现层不动（kind=monitor 解码已就位）。
+- 深链改道：NotificationDestination 的 approvalDecision/approvalHome/monitorChange/monitorsHome 四落点经 AgentHubView.segment(for:) 纯映射全落 .activity；审批聚焦（hubApprovalFocusID→条目 id `appr:<id>`）与监测深链（monitorDeepLink→合成条目 id）改由活动段消费（滚动＋行底色点亮，目标不在流内静默落空不假装定位；monitorDeepLink 本体留给监测详情页对号推变化详情，与旧监测段口径同）。§165 锚点落点（approvalAnchor/approvalThread）不经枢纽分发、原样。
+
+### §208.3 代码处置账
+- 退役：HubTaskSection（段视图本体删除；KanbanCreateTaskView 迁 KanbanTaskDetailView.swift 保全 App 唯一任务新建入口）、HubMonitorSection＋MonitorCardView（段视图与监测卡删除；MonitorCreateView/MonitorDetailView/MonitorChangeDetailView 独立成文、保留）、HubApprovalSection（段视图删除；其规则区、锚点解析、HubDiffView/ApprovalReviewContent 抽入新文件 HubApprovalSupport.swift 存续）。
+- 保留：KanbanStore/MonitorsStore/AgentHubStore/三类详情视图与全部数据管线（活动段持有 KanbanStore/MonitorsStore 实例、ProgressCapsuleView 的台账详情共用同一 LedgerDetailView 新签名）；ChatApprovalCards 的聊天就地裁决面零改动。
+- 词条：新增 2 键（「审批记录」「监测变化 · %@」）三语齐；三段标题词「任务」「监测」别处仍在用（各 6 处）、不删；「审核」作独立词条已无代码引用、词条保留不删（历史合并口径：键只增、删键另议）。validate_i18n 通过（本基线 2922＋2＝2924 键）。
+
+### §208.4 卡片式呈现（扩围项，用户 20:17 亲令）
+- ChatView 呈现由 `.fullScreenCover` 改 `.sheet`＋`hubSheetPresentation()`（AgentHubView.swift 一处收口）：系统 sheet 大 detent `.large`＋拖拽指示器——iOS 26 卡片呈现语言（圆角卡浮起、后景缩退压暗、落定近全屏、关闭反向回缩淡出、系统弹簧），与录屏形态（初态四周留边、约 0.2–0.4s 贴满、整页一体动、关闭淡出回缩）同路；系统形态已对得上，**不自绘转场**。
+- 回归面：枢纽内嵌套 sheet（分享/模型选择/头像与名称编辑）为 sheet 内再呈现、互不相干；抽屉点设置不收回（0.50.29 已修）走的是另一呈现链、本包未碰；枢纽左缘右滑退出与 ✕ 关闭口径不变。
+- 帧级自查（CI 可测面，HubSegmentsConsolidationTests）：UIKit 装配台以生产同一修饰符呈现枢纽——机制面硬断言（呈现样式非 fullScreen、sheet 控制器在位、detent 恰一个 .large 配置、开合闭环）；几何面（留顶边/圆角/帧位移/落定 detent 标识）在无场景裸 UIWindow 里实测退化成整窗瞬时呈现（run 43426199136：settled=整窗、travel=0、selectedDetentIdentifier=nil），属环境事实非产品事实——探针改条件断言（环境给信号即须正确）＋全值打 HUB-SHEET-PROBE 日志，逐帧形态终验归真 App 回归门（本轮 HUB-LAYOUT-VERDICT=PASS）与真机录屏并排比。
+
+### §208.5 验收口径
+- CI 按 §190 判读；Core 只增不减（基线 1754＋LedgerMonitorSynthesisTests 8＝1762 预期）。新单测：Core 合成形态/上限/副题口径/三类同流夹具；App 分段集合与顺序、落点改道映射、呈现探针。UI 回归门 testHubLayoutWithFullCatalog 段名单同步改四段。
+- 真机待验：四段呈现与顺序、通知点审批/监测落点落活动且聚焦亮行、台账详情里任务详情直达/审批记录原文＋查看改动＋查看原对话点达、规则区在位可撤销、新建任务/监测菜单可达、枢纽打开/关闭与 Muse 录屏并排比（初态留边圆角、落定近全屏、关闭回缩淡出）、枢纽内模型选择面与分享面嵌套正常。
+
+### §208.6 分支 CI 判读（§190）
+- run 43426199136（头 e7dfb5b）：Build/Package/Upload success；Core 1762 全过（1754＋8）；断言失败仅新探针的 4 条几何断言（裸 UIWindow 环境退化，定因与校准见 §208.4）；HUB-LAYOUT-VERDICT=PASS；静默死亡仅 §184 在案 2 起。
+- run 43431357566（探针校准后）：Build/Package/Upload success；Core 1762 全过；**失败用例 0、断言失败 0**；探针 passed（机制面硬断言全过、几何面条件断言＋日志复现同值）；HUB-LAYOUT-VERDICT=PASS；名义 failure 唯一来源＝§184 在案静默死亡 2 起。**§190 终判绿**。报告：hub-segments-consolidation-report-20261113.md。
+
+## §210 枢纽身份段视觉与呈现重做（2026-11-13；分支 feat/hub-identity-visual，基线 rel/05031 9a79dc0，只交分支不合并；§209 已被删除 409 线占用故跳号；立项＝用户 22:39 亲发 Muse 档案页与自家身份段对照截图批「人家好看、咱们不好看」）
+
+### §210.1 病灶（用户截图＋代码实查）
+- SOUL 原文 markdown 整段糊屏：解析后的 `displayedPersona` 原样上屏，生产 SOUL 首行 `# 三狗` 的 `#` 标记、整篇英文系统提示词连段呈现（HubIdentitySection 旧 personaBlock）。
+- 开发口吻文案：段头下「当前档案：default」＋「这里改的是智能体的人设，存在服务器上；页头的名称和头像只在这台手机上显示，两边互不影响。」整块（§155 旧口径，本节销账）。
+- 层级扁平：段内右端圆是 sparkles 装饰符号、编辑钮是描边 bordered、双卡副题与图标位置与基准层级相反且渐变为暖灰/紫调（与冷中性纪律冲突）。
+
+### §210.2 落法（只动呈现层，身份数据逻辑零动）
+- 呈现提炼：OneDayCore 新增 `SoulPresentationBuilder`（纯函数＋单测）——按空行分段、剥 ATX 标题 `#` 脚手架、首段首行与显示名同文的名标题行摘除；正文不改写不翻译不增删。段内呈散文：简介 inkSecondary 分段＋「风格」小标签＋ink 段落（与基准同权重对）。
+- 段头：右端圆改页头同源头像（AppState.agentAvatarImage 单一出口，52pt 圆裁＋发丝环）；identityMeta 整块删除（档案切换由 ProfilesView 专门面承接）。
+- 编辑钮：全宽填充胶囊（Palette.fillSecondary 系统填充深色自适应＋Capsule，高 50，.odPressable 公用按压），仍跳 SoulEditorView 编全文。
+- 双卡：标题＋「请谨慎访问」居左上、图标居右下 30pt 白 50%、SOUL 卡更新日期保留于小字下（无则省略不编造）；渐变换冷中性（SOUL 岩板蓝灰／记忆深钢蓝，暗色同系深值）；最小高 110→128，§155 的 AX 自适应长高不回退。
+- 不硬套登记：基准状态行（正在做的事）数据源属活动段、身份段无——不编造、不补；基准暖色只借形态不借色。
+
+### §210.3 验收口径
+- 分支 CI 按 §190：断言失败 0、Core 只增不减（预期 1762＋提炼器新单测 4 法）。
+- 真机待验：身份段首帧无 `#` 标记与开发文案、段落分明、编辑胶囊、双卡层级与深色帧、最大字号档卡片与段落不裁字。
+
+### §210.4 分支 CI 判读（§190）
+- run 43447750856（头 e6e49d7）：Build/Package/Upload success；**失败用例 0、断言失败 0**；Core **1766** 全过（1762＋4，新增 Presentation 单测 4 法逐个在位）；HUB-LAYOUT-VERDICT=PASS；名义 failure 唯一来源＝§184 在案静默死亡 3 起（基线各轮 2–3 起同族波动）。**§190 终判绿**。报告：hub-identity-visual-report-20261113.md。

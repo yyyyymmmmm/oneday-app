@@ -2,15 +2,22 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
-/// 枢纽页五段（规格 phase3-hub-spec §1 #9/#10）：图标
+/// 枢纽页分段（规格 phase3-hub-spec §1 #9/#10）：图标
 /// 纯符号、无文字；VoiceOver 读段名（Label 自带）。
+/// §208（2026-11-13 用户拍板收段）：七段收四段——
+/// 活动／定时／浏览器／身份（顺序即此）。任务、审
+/// 核、监测三段撤出分段栏，内容并入活动段：任务与
+/// 审批本就在工作台账里有同源条目（伴生采集器
+/// kanban／write-gate 两源），下钻在台账详情里补齐
+/// （任务详情、审批改动与原对话锚点、审批规则）；
+/// 监测变化由客户端合成同形条目（LedgerMonitor-
+/// Synthesis）。三段的 Section 视图与各自 store 的
+/// 段内呈现随之退役，数据面（KanbanStore/Monitors-
+/// Store/AgentHubStore）保留供活动段下钻与聊天卡用。
 enum HubSegment: String, CaseIterable, Identifiable {
     case activity
-    case tasks
-    case approval
-    case browser
     case cron
-    case monitors
+    case browser
     case identity
 
     var id: String { rawValue }
@@ -18,11 +25,8 @@ enum HubSegment: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .activity: return "活动"
-        case .tasks: return "任务"
-        case .approval: return "审核"
-        case .browser: return "浏览器"
         case .cron: return "定时"
-        case .monitors: return "监测"
+        case .browser: return "浏览器"
         case .identity: return "身份"
         }
     }
@@ -30,11 +34,8 @@ enum HubSegment: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .activity: return "list.bullet"
-        case .tasks: return "checklist"
-        case .approval: return "checkmark.shield"
-        case .browser: return "display"
         case .cron: return "clock"
-        case .monitors: return "eye"
+        case .browser: return "display"
         case .identity: return "touchid"
         }
     }
@@ -68,6 +69,16 @@ enum HubSegment: String, CaseIterable, Identifiable {
 /// 形态转正——七段全开＋模型常驻区，默认落活动段；
 /// .activity 四段形态自此无入口（Mode 定义与段集留
 /// 一版防回滚，下线归后续收口）。
+/// §208（2026-11-13 枢纽收段＋呈现对齐，用户拍板）：
+/// 分段七收四（活动/定时/浏览器/身份，任务/审核/
+/// 监测并入活动，见 HubSegment 头注）；呈现由
+/// fullScreenCover 改系统 sheet 大 detent 卡片式
+/// （ChatView 侧 .sheet＋hubSheetPresentation()，
+/// 对齐 Muse 枢纽的圆角卡浮起形态：初态留边圆
+/// 角、后景压暗、落定近全屏；关闭反向回缩淡出走
+/// 系统弹簧）。本视图的内容与导航栈不变，枢纽内
+/// 自带 sheet（分享/模型/档案编辑）为嵌套呈现、
+/// 与外层 sheet 互不相干。
 struct AgentHubView: View {
     enum Mode {
         case sheet
@@ -97,13 +108,34 @@ struct AgentHubView: View {
     /// 落纯文本名片
     @State private var shareItem: AgentShareItem?
 
-    /// 本模式可见段：.sheet＝全量七段（§155 转正）；
-    /// .activity＝活动/任务/审核/监测四段（旧活动格形
-    /// 态，§155 起无入口、留定义一版防回滚）
-    private var availableSegments: [HubSegment] {
+    /// 本模式可见段：.sheet＝四段全量（§208 收段后
+    /// 口径）；.activity＝只剩活动段（旧活动格形态，
+    /// §155 起无入口、三段内容已并入活动，留定义防
+    /// 回滚）
+    var availableSegments: [HubSegment] {
         mode == .activity
-            ? [.activity, .tasks, .approval, .monitors]
+            ? [.activity]
             : HubSegment.allCases
+    }
+
+    /// 通知落点的段位改道（§208）：原指向任务/审核/
+    /// 监测三撤段的落点全部改落活动段——三段内容已
+    /// 并入活动（审批聚焦与监测深链字段仍由 AppState
+    /// 携带、活动段内对号消费），落点语义一条不丢。
+    /// 纯函数收口于此供单测钉死（HubSegmentsConsoli-
+    /// dationTests）
+    static func segment(
+        for destination: NotificationDestination
+    ) -> HubSegment {
+        switch destination {
+        case .approvalDecision, .approvalHome,
+             .monitorChange, .monitorsHome:
+            return .activity
+        case .approvalAnchor, .approvalThread, .none:
+            // §165：锚点落点不在枢纽、本函数不被这类
+            // 落点调用；防御性回落活动段
+            return .activity
+        }
     }
 
     /// 分享名片重算键：档案修订（改名/换头像）＋页头
@@ -144,8 +176,8 @@ struct AgentHubView: View {
 
     var body: some View {
         ZStack {
-            // 整页 cover 的底色先行：cover 升起/退下与
-            // 内容切换的空位是页底色而不是系统黑
+            // 整页底色先行：sheet 升起/退下与内容切换
+            // 的空位是页底色而不是系统黑
             // （0.36.27 前此注的「边缘右滑跟手横移」已
             // 随整桥退役作废——新边缘拖不带页面跟手）
             Palette.pageBG.ignoresSafeArea()
@@ -212,14 +244,14 @@ struct AgentHubView: View {
             // 量模式同口径，不再只限 .activity）
             await store?.loadApproval(force: true)
             // §123（H2）：通知落点消费——按落点切到对
-            // 应段（聚焦字段由各段自己消费），消费后清
-            // 零，不许陈年请求在下次手动开枢纽时复活
+            // 应段（聚焦字段由对应段自己消费），消费后
+            // 清零，不许陈年请求在下次手动开枢纽时复
+            // 活。§208 收段后落点改道走 segment(for:)
+            // 单点映射：原任务/审核/监测落点全部落活
+            // 动段，聚焦字段（hubApprovalFocusID/
+            // monitorDeepLink）由活动段对号消费
             if let destination = appState.hubDestinationRequest {
                 switch destination {
-                case .approvalDecision, .approvalHome:
-                    segment = .approval
-                case .monitorChange, .monitorsHome:
-                    segment = .monitors
                 case .approvalAnchor, .approvalThread:
                     // §165：锚点落点不在枢纽（在原对话
                     // 里），本请求恒不经枢纽分发——防御
@@ -227,6 +259,8 @@ struct AgentHubView: View {
                     break
                 case .none:
                     break
+                default:
+                    segment = Self.segment(for: destination)
                 }
                 appState.hubDestinationRequest = nil
             }
@@ -251,17 +285,11 @@ struct AgentHubView: View {
     private func loadSegment(_ segment: HubSegment, store: AgentHubStore) async {
         switch segment {
         case .activity:
-            break // 台账段自持 LedgerStore（段内 .task 驱动）
-        case .tasks:
-            break // 0.10.0：任务段自持 KanbanStore（段内 .task 驱动）
-        case .approval:
-            await store.loadApproval()
-        case .browser:
-            break // 0.9.0：浏览器面自带盒桥轮询（面内 .task 驱动）
+            break // 台账段自持 LedgerStore（段内 .task 驱动）；审批数据由开枢纽时的强制重拉保鲜（见 body .task），§208 后不再有独立审核段的切段加载
         case .cron:
             await store.loadCronIfNeeded()
-        case .monitors:
-            break // 0.12.0：监测段自持 MonitorsStore（段内 .task 驱动）
+        case .browser:
+            break // 0.9.0：浏览器面自带盒桥轮询（面内 .task 驱动）
         case .identity:
             await store.loadIdentityIfNeeded()
         }
@@ -502,7 +530,7 @@ struct AgentHubView: View {
         )
     }
 
-    // MARK: - 五段分段控件（用户定案①：原生 segmented 先行）
+    // MARK: - 四段分段控件（用户定案①：原生 segmented 先行）
 
     private var segmentPicker: some View {
         Picker("枢纽页分段", selection: $segment) {
@@ -526,26 +554,40 @@ struct AgentHubView: View {
             // 工作台账（§95）：段自持 LedgerStore，行
             // 下钻打开会话走既有 pendingChatSessionID
             // 通道，与旧活动行同路（sheet 模式关页、
-            // 活动模式只置位）
-            HubLedgerSection(onOpenSession: { sessionID in
+            // 活动模式只置位）。§208：三段并入后本段
+            // 兼收审批规则区、任务/审批下钻补齐与监测
+            // 合成条目——共享 hubStore 一并注入（规则
+            // 与锚点数据在 store 里，与聊天就地卡同源）
+            HubLedgerSection(hubStore: store, onOpenSession: { sessionID in
                 appState.pendingChatSessionID = sessionID
                 if mode == .sheet {
                     dismiss()
                 }
             })
-        case .tasks:
-            HubTaskSection()
-        case .approval:
-            HubApprovalSection(store: store)
-        case .browser:
-            HubBrowserSection()
         case .cron:
             HubCronSection(store: store)
-        case .monitors:
-            HubMonitorSection()
+        case .browser:
+            HubBrowserSection()
         case .identity:
             HubIdentitySection(store: store)
         }
     }
 }
 
+
+/// 枢纽卡片式呈现口径（§208，用户 2026-11-13 拍板
+/// 对齐 Muse 枢纽录屏形态）：系统 sheet 的大
+/// detent——iOS 26 的卡片呈现语言（圆角卡浮起、后
+/// 景缩退压暗、落定近全屏、关闭反向回缩淡出，全
+/// 走系统弹簧），不自绘转场。呈现方（ChatView 的
+/// .sheet 与测试装配台）共用本修饰符一处收口，防
+/// 两处口径漂移；真机与录屏的帧级比对归真机验收
+/// （HubSegmentsConsolidationTests 只钉系统行为的
+/// 可测面：detent 在位、落定留边、圆角容器在场、
+/// 呈现/关闭全程有帧位移非硬切）。
+extension View {
+    func hubSheetPresentation() -> some View {
+        presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+    }
+}

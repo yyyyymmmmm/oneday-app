@@ -87,4 +87,62 @@ final class HubSoulTests: XCTestCase {
         XCTAssertNil(sections.style)
         XCTAssertEqual(sections.displayedPersona, "第一段。\n\n第二段。")
     }
+
+    // MARK: - 屏上呈现提炼（§210）
+
+    /// 生产形态复刻：首行名标题＋整篇正文（无已知分段
+    /// 标题）——名标题段须摘除、`#` 脚手架不许上屏、
+    /// 正文按空行分段且一字不改
+    func testPresentationDropsNameHeadingAndSplitsParagraphs() {
+        let sections = SoulSectionParser.parse("""
+        # 三狗
+        You are Hermes Agent, built by Nous Research.
+
+        Be direct: answer first.
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        XCTAssertEqual(presentation.introParagraphs, [
+            "You are Hermes Agent, built by Nous Research.",
+            "Be direct: answer first.",
+        ])
+        XCTAssertTrue(presentation.styleParagraphs.isEmpty)
+        XCTAssertFalse(presentation.isEmpty)
+    }
+
+    /// 已知分段标题：人设与风格分别清洗；段内小标题剥
+    /// `#` 留文本（不摘除，只有名标题摘除）
+    func testPresentationCleansStyleAndInnerHeadings() {
+        let sections = SoulSectionParser.parse("""
+        # 人设
+        ## 我是谁
+        住在用户设备里的合伙人。
+        # 风格
+        直接、克制。
+        """)
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        XCTAssertEqual(presentation.introParagraphs, ["我是谁\n住在用户设备里的合伙人。"])
+        XCTAssertEqual(presentation.styleParagraphs, ["直接、克制。"])
+    }
+
+    /// 名标题只在「首段＋纯标题＋与显示名同文」时摘除：
+    /// 正文里出现同名句子不动；显示名对不上也不摘
+    func testPresentationNameDropIsConservative() {
+        let sections = SoulSectionParser.parse("# 三狗\n三狗 是开头一句。")
+        let kept = SoulPresentationBuilder.build(
+            from: sections, displayName: "别的名"
+        )
+        XCTAssertEqual(kept.introParagraphs, ["三狗\n三狗 是开头一句。"])
+    }
+
+    func testPresentationEmptySoul() {
+        let sections = SoulSectionParser.parse("")
+        let presentation = SoulPresentationBuilder.build(
+            from: sections, displayName: "三狗"
+        )
+        XCTAssertTrue(presentation.isEmpty)
+    }
 }

@@ -1386,10 +1386,19 @@ struct ChatView: View {
         // 模型常驻区、默认活动段），.activity 四段形态
         // 退役无入口；审批终态回调保留（裁决自聊天就地
         // 卡发生、经共享 store 触发同一回调）
-        .fullScreenCover(isPresented: $showHub) {
+        // §208（2026-11-13，用户拍板对齐 Muse 枢纽
+        // 录屏）：呈现改系统 sheet 卡片式——大 detent
+        // 圆角卡浮起（初态四周留边、后景压暗、落定近
+        // 全屏），关闭反向回缩淡出，动画全走系统弹簧
+        // （hubSheetPresentation 一处收口）；fullScreen-
+        // Cover 的硬切感就此退场。枢纽内自带 sheet（分
+        // 享/模型/档案编辑）是嵌套呈现、照常工作；左
+        // 缘右滑与 ✕ 关闭口径不变
+        .sheet(isPresented: $showHub) {
             AgentHubView(mode: .sheet, onApprovalChanged: {
                 Task { await overviewStore?.refresh(appState: appState) }
             })
+            .hubSheetPresentation()
         }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）

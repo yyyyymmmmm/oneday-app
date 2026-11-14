@@ -9,13 +9,43 @@ import SwiftUI
 /// 「正在进行 N 件」、失败与取消留在原位不隐藏、失
 /// 联条目停转明示。段自持 LedgerStore（段内 .task
 /// 驱动，与任务/监测段同形态）。
+/// §208（2026-11-13 枢纽收段）：本段兼收三撤段的
+/// 内容与入口——①任务：台账本有看板同源条目，下
+/// 钻在台账详情里补「打开任务详情」（答题/证据/
+/// 控制动作都在任务详情里），新建任务入口迁来页
+/// 首菜单；②审核：只并记录（审批仍只在聊天界面，
+/// §155 不变）——审批条目在台账详情里补记录原文、
+/// 只读「查看改动」与「查看原对话」锚点，审批规
+/// 则区迁来列表首节（撤销面全 App 只此一处）；
+/// ③监测：变化事件由 LedgerStore 合成同形条目并
+/// 入同流，点达监测详情（变化在详情内对号呈现、
+/// 控制动作也在详情里），新建监测同入页首菜单。
+/// 通知落点（审批聚焦/监测深链）也改由本段消费。
 struct HubLedgerSection: View {
+    /// 枢纽共享审批 store（规则区与台账详情的审批
+    /// 补齐用，与聊天就地卡同源同数据）
+    let hubStore: AgentHubStore
     /// 运行类条目下钻打开会话（宿主负责置位通道＋
     /// 必要的关页，与旧活动行同路）
     var onOpenSession: (String) -> Void
 
     @Environment(AppState.self) private var appState
     @State private var store = LedgerStore()
+    /// 任务数据面（新建任务与任务详情下钻用；原任
+    /// 务段自持，收段后归本段持有，Goals/动态等其
+    /// 他面的 KanbanStore 实例互不相干）
+    @State private var kanbanStore = KanbanStore()
+    /// 监测数据面（监测详情下钻与新建监测用；合成
+    /// 条目在 LedgerStore 里另走桥读面，两边同源）
+    @State private var monitorsStore = MonitorsStore()
+    @State private var showCreateTask = false
+    @State private var showCreateMonitor = false
+    /// 审批规则撤销待确认（确认框文案与旧审核段同）
+    @State private var revokeTarget: WriteGateRule?
+    /// 通知落点聚焦的条目 id（审批＝appr:<记录 id>、
+    /// 监测＝monitor-change:<变化 id>）：置位后滚
+    /// 动定位＋行底色点亮，与原审核段聚焦同形态
+    @State private var focusItemID: String?
 
     var body: some View {
         Group {
@@ -51,7 +81,58 @@ struct HubLedgerSection: View {
         }
         .task {
             await store.load(appState: appState)
+            await kanbanStore.load(appState: appState)
+            await monitorsStore.load(appState: appState)
+            consumeFocusFields()
             await store.runVisibleLoop(appState: appState)
+        }
+        .sheet(isPresented: $showCreateTask) {
+            KanbanCreateTaskView(store: kanbanStore)
+        }
+        .sheet(isPresented: $showCreateMonitor) {
+            MonitorCreateView(store: monitorsStore)
+        }
+        .confirmationDialog(
+            "撤销这条规则？",
+            isPresented: Binding(
+                get: { revokeTarget != nil },
+                set: { if !$0 { revokeTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: revokeTarget
+        ) { rule in
+            Button("撤销规则", role: .destructive) {
+                Task { await hubStore.revokeRule(rule) }
+                revokeTarget = nil
+            }
+            Button("取消", role: .cancel) {
+                revokeTarget = nil
+            }
+        } message: { rule in
+            Text("撤销后，「\(rule.scopeLabel)」的写入会重新逐条等你审批。")
+        }
+    }
+
+    /// 通知落点聚焦消费（§123 置位—消费—清零同式）：
+    /// 审批聚焦字段换算成台账条目 id 后清零；监测深
+    /// 链带变化 id 时换算成合成条目 id——monitor-
+    /// DeepLink 本体不清零（监测详情页还要靠它对号
+    /// 推变化详情，与原监测段口径同），只在目标监
+    /// 测已不存在时按旧段口径清掉防陈年链复活
+    private func consumeFocusFields() {
+        if let id = appState.hubApprovalFocusID {
+            focusItemID = "appr:\(id)"
+            appState.hubApprovalFocusID = nil
+        }
+        if let deepLink = appState.monitorDeepLink {
+            if monitorsStore.monitor(id: deepLink.monitorID) == nil,
+               monitorsStore.loadState == .ready {
+                appState.monitorDeepLink = nil
+            } else if let changeID = deepLink.changeID {
+                focusItemID = LedgerMonitorSynthesis.itemID(
+                    changeID: changeID
+                )
+            }
         }
     }
 
@@ -83,7 +164,7 @@ struct HubLedgerSection: View {
                     detail: "负责对账的程序可能停了，新进度暂时不会出现。"
                 )
             }
-            if store.items.isEmpty {
+            if store.allItems.isEmpty {
                 ContentUnavailableView(
                     "暂无记录",
                     systemImage: "list.bullet",
@@ -115,6 +196,32 @@ struct HubLedgerSection: View {
                     .foregroundStyle(Palette.inkMuted)
             }
             Spacer()
+            // §208：新建入口收口——原任务段/监测段各
+            // 自的新建钮随段退役，迁来页首一处菜单
+            // （两件新建表单本体与门控口径原样，见
+            // KanbanCreateTaskView/MonitorCreateView）
+            Menu {
+                Button {
+                    showCreateTask = true
+                } label: {
+                    Label("新建任务", systemImage: "checklist")
+                }
+                Button {
+                    showCreateMonitor = true
+                } label: {
+                    Label("新建监测", systemImage: "eye")
+                }
+            } label: {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(Palette.primary)
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("新建")
         }
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.vertical, OneDayMetrics.spacingS)
@@ -129,31 +236,86 @@ struct HubLedgerSection: View {
     }
 
     private var ledgerList: some View {
-        List {
-            ForEach(store.dayGroups) { group in
-                Section(group.title) {
-                    ForEach(group.items) { item in
-                        NavigationLink {
-                            LedgerDetailView(
-                                store: store, item: item,
-                                onOpenSession: onOpenSession
+        ScrollViewReader { proxy in
+            List {
+                // §208：审批规则区迁入列表首节（撤销
+                // 面全 App 只此一处，见 HubApproval-
+                // RulesView 头注）；规则数据不在台账
+                // 账里、走共享 hubStore
+                HubApprovalRulesView(store: hubStore) { rule in
+                    revokeTarget = rule
+                }
+                ForEach(store.dayGroups) { group in
+                    Section(group.title) {
+                        ForEach(group.items) { item in
+                            NavigationLink {
+                                destination(for: item)
+                            } label: {
+                                ledgerRow(item)
+                            }
+                            .id(item.id)
+                            .listRowBackground(
+                                item.id == focusItemID
+                                    ? Palette.primaryTint
+                                    : Color.clear
                             )
-                        } label: {
-                            ledgerRow(item)
                         }
                     }
                 }
             }
+            .listStyle(.plain)
+            // 陈旧呈现（§2.5）：停更或断连时旧数据弱化，
+            // 不许同字重同位置冒充现值
+            .opacity(
+                store.connectionLost || store.freshness == .stalled
+                    ? 0.55 : 1
+            )
+            .refreshable {
+                await store.load(appState: appState)
+                await hubStore.loadApproval(force: true)
+            }
+            // 通知落点聚焦滚动（§123/§208）：焦点置位
+            // 时一次、条目落位（首拉/轮询合并）后再试
+            // ——目标不在流里（已滚出窗口）时静默落空，
+            // 不假装定位（与原审核段聚焦同口径）
+            .onChange(of: focusItemID) { _, id in
+                scrollToFocus(proxy, id: id)
+            }
+            .onChange(of: store.allItems) { _, _ in
+                scrollToFocus(proxy, id: focusItemID)
+            }
         }
-        .listStyle(.plain)
-        // 陈旧呈现（§2.5）：停更或断连时旧数据弱化，
-        // 不许同字重同位置冒充现值
-        .opacity(
-            store.connectionLost || store.freshness == .stalled
-                ? 0.55 : 1
-        )
-        .refreshable {
-            await store.load(appState: appState)
+    }
+
+    /// 行下钻分发（§208）：监测合成条目的「详情」就
+    /// 是监测详情本体（变化对号、控制动作都在那
+    /// 里），不走台账详情读面（服务端没有合成条目
+    /// 的详情可读）；其余条目一律台账详情（任务/
+    /// 审批的补齐在详情内续行）
+    @ViewBuilder
+    private func destination(for item: LedgerItem) -> some View {
+        if item.link?.kind == "monitor",
+           let monitorID = item.link?.targetId {
+            MonitorDetailView(
+                store: monitorsStore, monitorID: monitorID
+            )
+        } else {
+            LedgerDetailView(
+                store: store, item: item,
+                hubStore: hubStore, kanbanStore: kanbanStore,
+                onOpenSession: onOpenSession
+            )
+        }
+    }
+
+    private func scrollToFocus(
+        _ proxy: ScrollViewProxy, id: String?
+    ) {
+        guard let id,
+              store.allItems.contains(where: { $0.id == id })
+        else { return }
+        withAnimation {
+            proxy.scrollTo(id, anchor: .center)
         }
     }
 
@@ -245,6 +407,20 @@ struct HubLedgerSection: View {
 
     @ViewBuilder
     private func boxContent(_ item: LedgerItem) -> some View {
+        // §208：监测变化是事件不是工作——合成条目的
+        // 占位状态是 .completed，但图标不许打勾冒充
+        // 「做完了」，直给监测眼标（与段图标同形）
+        if item.kind == .monitor {
+            Image(systemName: "eye")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Palette.ink)
+        } else {
+            boxContentByStatus(item)
+        }
+    }
+
+    @ViewBuilder
+    private func boxContentByStatus(_ item: LedgerItem) -> some View {
         switch item.status {
         case .running:
             ProgressView()
@@ -279,6 +455,7 @@ struct HubLedgerSection: View {
         case .job: return "clock"
         case .approval: return "checkmark.shield"
         case .device: return "iphone"
+        case .monitor: return "eye"
         case .other: return "doc.text"
         }
     }
@@ -290,6 +467,7 @@ struct HubLedgerSection: View {
         case .job: return Palette.tintLavender
         case .approval: return Palette.tintOrange
         case .device: return Palette.tintSky
+        case .monitor: return Palette.tintLavender
         case .other: return Palette.tintSky
         }
     }

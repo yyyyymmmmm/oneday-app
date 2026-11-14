@@ -18,6 +18,9 @@ struct ProgressCapsuleView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var store = LedgerStore()
+    /// §208：台账详情的任务下钻要 KanbanStore——本面
+    /// 自持一份（与枢纽活动段同形态，进面时加载）
+    @State private var kanbanStore = KanbanStore()
     @State private var detailItem: LedgerItem?
 
     private var content: ProgressCapsule.Content? {
@@ -68,12 +71,15 @@ struct ProgressCapsuleView: View {
         )
         .task {
             await store.load(appState: appState)
+            await kanbanStore.load(appState: appState)
             await store.runVisibleLoop(appState: appState)
         }
         .sheet(item: $detailItem) { item in
             NavigationStack {
                 LedgerDetailView(
                     store: store, item: item,
+                    hubStore: appState.sharedHubStore(),
+                    kanbanStore: kanbanStore,
                     onOpenSession: { sessionID in
                         detailItem = nil
                         onOpenSession(sessionID)
