@@ -24,6 +24,18 @@ public struct MCPRequest: Encodable {
     }
 }
 
+/// JSON-RPC 2.0 通知信封（无 id 字段）
+public struct MCPNotification: Encodable {
+    public let jsonrpc = "2.0"
+    public let method: String
+    public let params: [String: JSONValue]?
+
+    public init(method: String, params: [String: JSONValue]? = nil) {
+        self.method = method
+        self.params = params
+    }
+}
+
 /// JSON-RPC 2.0 响应信封
 public struct MCPResponse: Decodable {
     public let jsonrpc: String

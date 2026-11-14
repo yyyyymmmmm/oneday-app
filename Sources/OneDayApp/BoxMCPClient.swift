@@ -99,13 +99,12 @@ actor BoxMCPClient {
         }
 
         // 发送 initialized 通知（F3：MCP 握手要求）
-        let notification = MCPRequest(
-            id: UUID().uuidString,
+        let notification = MCPNotification(
             method: "notifications/initialized",
             params: nil
         )
         // 通知无需响应体，容忍 202 或其他成功码
-        _ = try? await sendRequest(notification, captureSessionId: false)
+        _ = try? await sendNotification(notification)
     }
 
     /// 重置会话（对齐 box_bridge.py:96-105 _disconnect）
@@ -251,6 +250,24 @@ actor BoxMCPClient {
         urlRequest.timeoutInterval = timeout  // F5：每次请求独立设置超时
 
         // F4：添加 SSE 支持的 Accept 头
+        urlRequest.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
+
+        // 附加会话 ID（如果有）
+        if let sessionId = sessionId {
+            urlRequest.setValue(sessionId, forHTTPHeaderField: "Mcp-Session-Id")
+        }
+
+        return try await session.data(for: urlRequest)
+    }
+
+    private func sendNotification(_ notification: MCPNotification) async throws -> (Data, URLResponse) {
+        let bodyData = try encoder.encode(notification)
+
+        var urlRequest = URLRequest(url: mcpURL)
+        urlRequest.httpMethod = "POST"
+        urlRequest.httpBody = bodyData
+        urlRequest.timeoutInterval = 60
+
         urlRequest.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
 
         // 附加会话 ID（如果有）
