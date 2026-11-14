@@ -18,23 +18,15 @@ enum OverviewBridgeError: Error, Sendable, Equatable {
 /// BridgeCredential 统一读（0.33.1：聊天同一份
 /// Hermes 登录密钥，入口在服务器内部换桥钥）；
 /// 读不到钥匙一律 noKey、不发请求、不冒充已接通。
+/// C-10 收敛：连接/单钥/管线/文案走统一基座（短请求
+/// waitsForConnectivity 与 HermesClient 短请求同口径，
+/// 0.36.20 §86.4），本类只留路径与状态口径。
 final class OverviewBridgeClient: @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
-
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 15
-        // 短请求开 waitsForConnectivity（0.36.20，§86.4，
-        // 与 HermesClient 短请求会话同口径）：总览/通知
-        // 取数在无路径时先等连通再开始，不立刻失败
-        configuration.waitsForConnectivity = true
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    private let base = BridgeClientBase<OverviewBridgeError>(
+        pathPrefix: "/api/overview-bridge", timeout: 15,
+        waitsForConnectivity: true,
+        noKey: .noKey, failed: OverviewBridgeError.failed
+    )
 
     func overview(config: ServerConfig) async throws -> OverviewSnapshot {
         try await get(config: config, path: "/overview", endpoint: L10n.string("总览"))
@@ -49,66 +41,38 @@ final class OverviewBridgeClient: @unchecked Sendable {
 
     @discardableResult
     func markRead(config: ServerConfig, id: String) async throws -> Bool {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw OverviewBridgeError.noKey
-        }
-        var request = URLRequest(
-            url: config.endpoint("/api/overview-bridge/notifications/\(id)/read")
+        let endpoint = L10n.string("通知已读")
+        let (data, http) = try await base.perform(
+            config: config, path: "/notifications/\(id)/read",
+            method: "POST", bodyData: nil, endpoint: endpoint
         )
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let (data, http) = try await send(request, endpoint: L10n.string("通知已读"))
         if http.statusCode == 401 {
             throw OverviewBridgeError.unauthorized
         }
         guard (200...299).contains(http.statusCode) else {
             throw OverviewBridgeError.failed(L10n.format("通知已读返回 %@", String(http.statusCode)))
         }
-        do {
-            return try decoder.decode(OverviewReadResponse.self, from: data).ok
-        } catch {
-            throw OverviewBridgeError.failed(L10n.string("通知已读回执格式无法识别"))
-        }
+        let response: OverviewReadResponse = try base.decode(
+            data,
+            orThrow: OverviewBridgeError.failed(L10n.string("通知已读回执格式无法识别"))
+        )
+        return response.ok
     }
 
     private func get<T: Decodable>(
         config: ServerConfig, path: String, endpoint: String
     ) async throws -> T {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw OverviewBridgeError.noKey
-        }
-        var request = URLRequest(
-            url: config.endpoint("/api/overview-bridge" + path)
-        )
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let (data, http) = try await send(request, endpoint: endpoint)
-        if http.statusCode == 401 {
-            throw OverviewBridgeError.unauthorized
-        }
-        guard http.statusCode == 200 else {
-            throw OverviewBridgeError.failed(L10n.format("%@返回 %@", endpoint, String(http.statusCode)))
-        }
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw OverviewBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
-        }
-    }
-
-    private func send(
-        _ request: URLRequest, endpoint: String
-    ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw OverviewBridgeError.failed(L10n.format("%@无响应", endpoint))
+        try await base.get(
+            config: config, path: path, endpoint: endpoint
+        ) { http, _ in
+            if http.statusCode == 401 {
+                throw OverviewBridgeError.unauthorized
             }
-            return (data, http)
-        } catch let error as OverviewBridgeError {
-            throw error
-        } catch {
-            throw OverviewBridgeError.failed(L10n.format("%@网络不可达", endpoint))
+            guard http.statusCode == 200 else {
+                throw OverviewBridgeError.failed(
+                    L10n.format("%@返回 %@", endpoint, String(http.statusCode))
+                )
+            }
         }
     }
 }

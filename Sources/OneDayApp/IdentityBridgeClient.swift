@@ -77,31 +77,24 @@ struct IdentityNameState: Decodable, Sendable {
 /// App 侧开第二条写路。路径挂当前服务器根下
 /// /api/identity-bridge，Bearer 只从 BridgeCredential
 /// 统一读（与全 App 桥客户端同口径，0.33.1）。
+/// C-10 收敛：连接/单钥/管线/文案走统一基座，本类只
+/// 留路径、DTO 与状态口径。
 final class IdentityBridgeClient: @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
-
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 15
-        configuration.waitsForConnectivity = true
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    private let base = BridgeClientBase<IdentityBridgeError>(
+        pathPrefix: "/api/identity-bridge", timeout: 15,
+        waitsForConnectivity: true,
+        noKey: .noKey, failed: IdentityBridgeError.failed
+    )
 
     func avatarState(config: ServerConfig) async throws -> IdentityAvatarState {
         let data = try await get(
             config: config, path: "/identity/avatar",
             endpoint: L10n.string("头像仓")
         )
-        do {
-            return try decoder.decode(IdentityAvatarState.self, from: data)
-        } catch {
-            throw IdentityBridgeError.failed(L10n.string("头像仓返回格式无法识别"))
-        }
+        return try base.decode(
+            data,
+            orThrow: IdentityBridgeError.failed(L10n.string("头像仓返回格式无法识别"))
+        )
     }
 
     func avatarImage(config: ServerConfig, id: String) async throws -> Data {
@@ -116,29 +109,22 @@ final class IdentityBridgeClient: @unchecked Sendable {
             config: config, path: "/identity/name",
             endpoint: L10n.string("身份名")
         )
-        do {
-            return try decoder.decode(IdentityNameState.self, from: data)
-        } catch {
-            throw IdentityBridgeError.failed(L10n.string("身份名返回格式无法识别"))
-        }
+        return try base.decode(
+            data,
+            orThrow: IdentityBridgeError.failed(L10n.string("身份名返回格式无法识别"))
+        )
     }
 
     private func get(
         config: ServerConfig, path: String, endpoint: String
     ) async throws -> Data {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw IdentityBridgeError.noKey
-        }
-        var request = URLRequest(
-            url: config.endpoint("/api/identity-bridge" + path)
+        let request = try base.makeRequest(
+            config: config, path: path, method: "GET",
+            cachePolicy: .reloadIgnoringLocalCacheData
         )
-        request.httpMethod = "GET"
-        // 身份面只认现拉：状态与头像图一律绕过本地缓
-        // 存——吃旧图/旧状态正是「服务器换了、App 还
-        // 显旧」的温床（末写胜呈现跟随口径）
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let (data, http) = try await send(request, endpoint: endpoint)
+        let (data, http) = try await base.data(
+            for: request, endpoint: endpoint
+        )
         if http.statusCode == 401 {
             throw IdentityBridgeError.unauthorized
         }
@@ -148,21 +134,5 @@ final class IdentityBridgeClient: @unchecked Sendable {
             )
         }
         return data
-    }
-
-    private func send(
-        _ request: URLRequest, endpoint: String
-    ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw IdentityBridgeError.failed(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as IdentityBridgeError {
-            throw error
-        } catch {
-            throw IdentityBridgeError.failed(L10n.format("%@网络不可达", endpoint))
-        }
     }
 }
