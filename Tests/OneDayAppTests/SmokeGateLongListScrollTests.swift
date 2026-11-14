@@ -24,15 +24,15 @@ final class SmokeGateLongListScrollTests: XCTestCase {
         }
     }
 
-    private func spin(seconds: TimeInterval) async {
-        let deadline = Date().addingTimeInterval(seconds)
-        while Date() < deadline {
-            await Task.yield()
-            RunLoop.main.run(
-                mode: .default,
-                before: Date().addingTimeInterval(0.05)
-            )
-        }
+    /// 同步泵 RunLoop（同 ChatPageAssemblyRegressionTests
+    /// 的 spinRunLoop 口径：期望等待而非 RunLoop.run 直调，
+    /// 后者在 async 上下文被编译器禁）
+    private func spin(seconds: TimeInterval) {
+        let exp = expectation(description: "spin \(seconds)s")
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + seconds
+        ) { exp.fulfill() }
+        wait(for: [exp], timeout: seconds + 5)
     }
 
     private func allScrollViews(
@@ -83,7 +83,7 @@ final class SmokeGateLongListScrollTests: XCTestCase {
     }
 
     func testLongConversationScrollToBottomLandsWithTailVisible()
-        async throws
+        throws
     {
         let schema = Schema([ChatThread.self, ChatEntry.self])
         let container = try ModelContainer(
@@ -94,24 +94,21 @@ final class SmokeGateLongListScrollTests: XCTestCase {
         )
         let context = container.mainContext
         let base = Date().timeIntervalSince1970 - 7_200
-        let thread = ChatThread(
-            title: "冒烟长会话", createdAt: Date(
-                timeIntervalSince1970: base
-            )
-        )
+        let thread = ChatThread(title: "冒烟长会话")
+        thread.createdAt = Date(timeIntervalSince1970: base)
         context.insert(thread)
         for index in 1...120 {
-            context.insert(ChatEntry(
+            let entry = ChatEntry(
                 role: index.isMultiple(of: 2)
-                    ? EntryRole.assistant.rawValue
-                    : EntryRole.user.rawValue,
+                    ? "assistant" : "user",
                 content: String(
                     format: "冒烟长会话行 %03d", index
                 ),
-                createdAt: Date(timeIntervalSince1970:
-                    base + TimeInterval(index * 30)),
                 thread: thread
-            ))
+            )
+            entry.createdAt = Date(timeIntervalSince1970:
+                base + TimeInterval(index * 30))
+            context.insert(entry)
         }
         try context.save()
 
@@ -134,7 +131,7 @@ final class SmokeGateLongListScrollTests: XCTestCase {
         host.view.frame = window.bounds
         host.view.setNeedsLayout()
         host.view.layoutIfNeeded()
-        await spin(seconds: 3)
+        spin(seconds: 3)
 
         var scrolls: [UIScrollView] = []
         allScrollViews(window, into: &scrolls)
@@ -154,7 +151,7 @@ final class SmokeGateLongListScrollTests: XCTestCase {
             x: 0, y: -list.adjustedContentInset.top
         ), animated: false)
         list.layoutIfNeeded()
-        await spin(seconds: 1.2)
+        spin(seconds: 1.2)
 
         let arrow = try XCTUnwrap(
             axElement(in: window, label: "回到底部"),
@@ -164,7 +161,7 @@ final class SmokeGateLongListScrollTests: XCTestCase {
             arrow.accessibilityActivate(),
             "回底箭头无障碍激活应真触发滚动"
         )
-        await spin(seconds: 2.5)
+        spin(seconds: 2.5)
 
         let maxOffset = list.contentSize.height
             + list.adjustedContentInset.bottom
