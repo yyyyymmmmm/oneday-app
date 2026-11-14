@@ -313,7 +313,10 @@ struct SettingsView: View {
                     appState.agentAvatarImage
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 44, height: 44)
+                        .frame(
+                            width: OneDayMetrics.avatarListRow,
+                            height: OneDayMetrics.avatarListRow
+                        )
                         .clipShape(Circle())
                         .overlay {
                             Circle().stroke(Palette.hairline, lineWidth: 0.5)

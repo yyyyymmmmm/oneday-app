@@ -11691,3 +11691,17 @@ App 本地主线绑定的钦定服务端 id 在服务端不存在（本地主线
 ### §221.1 装配 CI 判读（2026-11-14 回填）
 
 run 43544784796（头 f88a78d）**§190 终判绿**：Build／Package／Upload success，Unit tests 步名义 failure（§184 驱动）；全日志 14,161 行亲验——**断言失败 0 条、失败用例 0 条**；**Core 1902／1902／0**（预期精确：预制 1865＋后门 24＋B 13；MainlineAdoptionTests 13/13、SourceQuoteTests 24/24、HubSoulTests 12/12、LedgerMonitorSynthesisTests 8/8）；**App 103 启动**＝92 过＋5 跳过（存量 XCTSkip）＋6 条 §184 受害（与 .35/.36 在案名单逐一重合、无新受害；宿主重启 7 起同前两轮）；HubSegmentsConsolidationTests 4/4、SourceQuoteAppTests 5/5、HUB-LAYOUT-VERDICT=PASS；**UI 4／4**；栏位探针直接 passed（5.514s）。**边缘探针单独对账**：预制轮单红的 testEdgeEffectAttributionProbe（bottomRest 8＞门限 7、帽 10 内）**本轮 passed（22.345s）**——如实记「预制轮单红、本轮绿」，与 .35/.36 两轮 passed 并列，是否结案待主线裁（并行线另有超时签名一红在案）。IPA **12,285,694 字节、md5 `4903041f7ec84a2e5c01f57aa5251eec`**、0.50.37/165（Info.plist 亲验、MainlineAdoption 符号在包），存 ~/workspace/your_files/oneday-v0.50.37/OneDay-0.50.37.ipa。未合 main、未打 tag。
+
+## §222 头像呈现 harmonize：尺寸三档令牌＋预置盘字形占盘比＋系统冷中性盘底（2026-11-14；分支 feat/avatar-presentation-fit，基线 rel-05037 头 a6e9560，只交分支不合并；立项＝用户 10:44 真机点名「头像没事，就是样式和大小……不好看，不舒服，不匹配」——头像数据不动、病在呈现；全档＝oneday-design-review/avatar-presentation-fit-report-20261114.md）
+
+**定因（全位点审计，报告 §1 全表）**：全 App 露脸面共用同一张离屏渲染图（`AgentProfileStore.avatarUIImage`，240pt@2x），呈现病灶在渲染源头烤死：①预置符号盘字形字号 100/盘 240≈**占盘 0.42**，小字形浮在大色盘中央；②盘底走 `presetTint` 自调 pastel 三色（paw＝tintSky #EDF7FD 淡蓝），与页面冷中性底不匹配；③页头盘 110pt 偏大（Muse 档案页实测约 90pt），且各位点尺寸散值（110/88/52/44/36/30 六种字面量并存）。图片头像（资产图/自定义图/AI 图）各位点本已 scaledToFill 裁满圆、无病。
+
+**统一呈现规则（本节定版，后续位点只许照此）**：
+1. 图片头像一律 aspectFill 裁满圆、edge-to-edge（现状达标、本节确认为口径，不许回退 fit/留白）。
+2. 预置字形/SF 符号头像：字形占盘直径比 **0.65**（`AgentAvatarPresetDisc.glyphRatio`，对齐 Muse 身份段 emoji 实测约 0.65 与苹果通讯录占位量级）；盘的直径由调用方显式传 `diameter`（离屏渲染 240、编辑器预览＝列表行档），字号＝diameter×0.65 推导，不许再写死字号。
+3. 色盘底色只许系统冷中性令牌：`presetTint` 全目录统一 `Palette.fillSecondary`（secondarySystemFill）；pastel 三色映射（tintSky/tintLavender/tintGreen）自此退役，盘色不再按预置分色。
+4. 尺寸收敛三档令牌（`OneDayMetrics`）：`avatarPageHead` 90（枢纽页头 110→90、身份详情 hero 88→90）、`avatarSectionHead` 52（枢纽身份段段头沿用 §218）、`avatarListRow` 44（抽屉身份行 36→44、设置身份卡/编辑器行 44 挂令牌）。同档位点同尺寸，新位点先归档再落码。
+
+**辖区外（审计在案、本包不动）**：用户自选形象档 AvatarSizeTier（顶簇头像钮/聊天空态/IdentityAnchor 三面 24/28/34）是用户偏好档、不归三档收敛；分享名片 132 为导出图自洽版式（其盘图经同一渲染源、字形比与盘色改进自动跟上）；外观页形象大小行的行首头像居图标槽（iconSlot 30，与全页行图标同线）；SangouPartner 直引三面（连接欢迎页/演示卡/默认主题色板）是品牌吉祥物面、不跟档案头像走。
+
+**守护**：`AvatarPresentationFitTests`（App，3 法）——三档令牌值、glyphRatio 值、离屏渲染实测（中心行字形跨度/盘跨度须落 0.55–0.75、盘面取样蓝偏 ≤8，旧口径两项均在此红）。只动呈现层：头像数据/身份桥/名字与状态行零改动。

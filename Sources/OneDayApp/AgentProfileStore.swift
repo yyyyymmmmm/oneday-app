@@ -422,7 +422,8 @@ final class AgentProfileStore {
         }
         if let symbolName = preset.symbolName {
             let disc = AgentAvatarPresetDisc(
-                symbolName: symbolName, tint: presetTint(id: preset.id)
+                symbolName: symbolName, tint: presetTint(id: preset.id),
+                diameter: 240
             )
             let renderer = ImageRenderer(
                 content: disc.frame(width: 240, height: 240)
@@ -435,14 +436,14 @@ final class AgentProfileStore {
     }
 
     /// 符号盘底色（App 层令牌映射，Core 目录只记 id）：
-    /// 与活动行图标盒的 pastel 同族；编辑器预览共用
+    /// §222 起统一系统冷中性填充（secondarySystem-
+    /// Fill）——旧 pastel 三色（tintSky/tintLavender/
+    /// tintGreen）是自调点缀色、与页面底色不匹配，
+    /// 用户 2026-11-14 点名「不舒服、不匹配」，自此
+    /// 退役；盘色不再按预置分色，全目录同盘。编辑器
+    /// 预览与离屏渲染共用此口。
     static func presetTint(id: String) -> Color {
-        switch id {
-        case "paw": return Palette.tintSky
-        case "sparkles": return Palette.tintLavender
-        case "atom": return Palette.tintGreen
-        default: return Palette.tintSky
-        }
+        Palette.fillSecondary
     }
 
     // MARK: - 自定义图文件与制备
@@ -483,7 +484,8 @@ final class AgentProfileStore {
 
     /// 相册图制备：按 UIImage 方向居中裁方（draw 居中
     /// 覆盖），边长超 512 再等比压到 512——头像最大
-    /// 呈现 110pt，512 足够 @3x 富余
+    /// 呈现是分享名片 132pt（§222 审计），512 足够
+    /// @3x 富余
     private static func preparedCustomAvatar(from data: Data) -> UIImage? {
         guard let image = UIImage(data: data) else { return nil }
         let size = image.size
@@ -507,17 +509,31 @@ final class AgentProfileStore {
     }
 }
 
-/// 符号预置盘：pastel 底＋墨色 glyph（与活动行图标
-/// 盒同语言）。供存储层离屏渲染与编辑器预览共用。
+/// 符号预置盘：系统冷中性填充底＋墨色 glyph（§222）。
+/// 供存储层离屏渲染与编辑器预览共用。字形占盘比
+/// glyphRatio＝字形字号/盘直径：旧值 100/240≈0.42
+/// 让小字形浮在大色盘中央（用户 2026-11-14 点名
+/// 「不对劲」），改 0.65 对齐大厂占位口径（Muse 身
+/// 份段 emoji 实测约 0.65、苹果通讯录占位同量级）。
 struct AgentAvatarPresetDisc: View {
     let symbolName: String
     let tint: Color
+    /// 盘直径（pt）：字形字号按此乘 glyphRatio 推导，
+    /// 调用方须与实际渲染帧边长同值（离屏渲染 240、
+    /// 编辑器预览走列表行档）
+    let diameter: CGFloat
+
+    /// 字形占盘直径比（§222 定版）
+    static let glyphRatio: CGFloat = 0.65
 
     var body: some View {
         ZStack {
             Circle().fill(tint)
             Image(systemName: symbolName)
-                .font(.system(size: 100, weight: .regular))
+                .font(.system(
+                    size: diameter * Self.glyphRatio,
+                    weight: .regular
+                ))
                 .foregroundStyle(Palette.ink)
         }
     }
