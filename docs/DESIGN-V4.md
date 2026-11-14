@@ -12523,3 +12523,22 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 ### §258.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
 
 run 43602076559：名义 failure 仅 §184。实数：断言失败 **0**（全程无 `Test Case ... failed` 行、无任一 `Executed ... with N>0 failures`）；Core **2081/2081 精确对账**（Executed 2081、0 failures，＝预期 2034＋13＋17＋17）；UI **8/8 全跑全过**（Executed 8、0 failures——目标尾巴包自身 CI 未跑成的 UI 步至此**补验完成**）；App passed 168＋skipped 5＋无终局 5＝178（＋helpers 伪名 1＝grep 口径 179）；VERDICT 三连 PASS（MATRIX／HUB-LAYOUT／主 VERDICT）。**§184 登记**：宿主重启 7 起（14:07–14:12 集中于 App 测试相位），波及无终局 5 条——ChatReliabilityOfflineTests.testMarkPendingSendRetainsEntryOnDisk 与 ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned（.44 轮已登记者，本轮再现、按组版轮登记口径处理、不判红）、ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays、DrawerBridgeHarnessTests.testBridgeTapToOpenReachesFullTravel、EdgeEffectRegistrationTests.testAnchorRegistersAncestorScrollView（本轮新登记者，同签名）；崩溃元数据 8 份照常采集。IPA 解包验：0.50.45／173／site.didichou.oneday，13,115,227 字节，md5 `4e78123345ac2b4bd3aa4fbd6e11994b`。
+
+## §259 文件预览双轨合一·QuickLook 单轨（2026-11-14；分支 feat/files-quicklook，基线 rel-05045@2f3ce5b；全档＝oneday-design-review/files-quicklook-report-20261114.md）
+
+**范围**（待办总表第 70 条；普查 app-wide-assembly-audit-20261114.md 文件页节收口序第 5 条）：文件预览双轨——自研轨（文档阅读页 DocumentReaderView 块渲染＋表格页 SpreadsheetReaderView 伴生转码呈现）与系统轨（QuickLook，盒文件 DataFilePreviewView 与 QL 路由已在用）——一律收成系统 QuickLook 单轨，自研预览轨整轨退役。系统有现成能力就用系统能力：QLPreviewController 原生支持文本/CSV/Office/PDF/HTML/音视频（苹果官方 Quick Look 通道），伴生文件既有「取字节→落临时文件→验资格→页内 QL 承载」链现成，文本与表格只需并入该链。
+
+**落点**：
+- **Core 路由表**（FileOpenRoute）：删 `.reader`/`.spreadsheet` 两档；文本类与 office（含 xls/xlsx 特判）并入 `.quickLook`，同受 §121 资格门（canPreview 为假降 `.infoOnly`）；图片直达查看器、压缩包 saveOnly、敏感 locked、其他 infoOnly 不变。行号锚点对所有类型统一「解析保留、呈现忽略」（原仅非 text 类如此）——定位高亮/摘录卡随阅读页退役，FileLineAnchor 解析与 FileRefDetector 检测不动。
+- **Core 落点列**（FileActionPolicy）：主钮「阅读」「查看表格」两档退役，文本与表格主钮并入「预览」；`opensInReader` 与 `isSpreadsheet` 特判删除。
+- **Core 失败分型**（FileOpenFailure）：转码专档 `transcodeFailed` 与 `classifySpreadsheet` 退役——表格失败自此走打开链通用分型（下载取字节失败 classify、QL 无资格 unsupportedType）。
+- **App**：FileOpenView 的 Destination 收成 `.quickLook` 单档、runPrimary 并入取字节 QL 链；QuickLookHostView 补齐导出 PDF 执行体（§259 前文本类从不到 QL 面、其工具栏 exportPDF 是未承接项——文本并入后 readingActions 会出此项，不补即死按钮；与打开页 exportPDF 同链：FileTextExtractor＋DocumentReading 块＋DocumentPDFExporter）。DocumentReaderView/SpreadsheetReaderView 两文件整删，其中 FileTextExtractor 与 DocumentPDFExporter（复制文字/导出 PDF 的共用工具，非预览轨）迁入新文件 FileTextExport.swift 保留。
+- **桥客户端**：OneDayBridgeClient/FilesProcClient 的 spreadsheet 转码方法退役、BridgeSpreadsheet 模型删除；**服务端转码端点保留作降级**（fileproc /files/spreadsheet 已随伴生 1.0.55 上线，本包不动服务端），App 侧不再消费。缩略图双路 loader（originalLoader/renditionLoader）与文件封面渲染属换代线交叠——只登记、不动。
+
+**保留不动**（非预览轨）：复制文字（FileTextExtractor）、导出 PDF（DocumentReading 块模型＋DocumentPDFExporter，消费面＝打开页/QL 承载面/文件牌/资料库四处动作）、敏感文件锁定、中间页五态与失败五分（转码档除外）、聊天图片 ImageViewerView＋zoom 转场试点（图片路由零触碰）、盒文件 QL 路（正面样本、本包范式来源）。
+
+**验收**：单测只增不减、退役逐项对账（见报告）；CI 按 §190 判读（判读回填见 §259.1）。
+
+**真机待验（归主线，单列）**：见报告真机清单（文本/表格点开 QL 呈现、复制文字/导出 PDF 在 QL 面可用、锚点链接点开落 QL、QL 无资格类型落说明行、图片 zoom 不回退冒烟）。
+
+### §259.1 CI 判读（待回填）

@@ -212,18 +212,14 @@ final class FileActionPolicyTests: XCTestCase {
         XCTAssertEqual(FileItemAction.openInFiles.systemImage, "folder")
     }
 
-    // MARK: 阅读页分流
+    // MARK: 预览单轨（§259）
 
-    func testOpensInReader() {
-        XCTAssertTrue(
-            FileActionPolicy.opensInReader(entry(name: "笔记.md"))
-        )
-        XCTAssertFalse(
-            FileActionPolicy.opensInReader(entry(name: "报告.pdf"))
-        )
-        // 敏感文本不进阅读页（凭据不经阅读面外带）
-        XCTAssertFalse(
-            FileActionPolicy.opensInReader(entry(name: "token.md"))
+    func testLandingActionCasesAfterQuickLookUnification() {
+        // §259 双轨合一：主钮只剩预览/播放/保存三档，
+        // 「阅读」「查看表格」随自研阅读轨退役、不许回潮
+        XCTAssertEqual(
+            Set(FileLandingAction.allCases),
+            [.preview, .play, .saveToFiles]
         )
     }
 }

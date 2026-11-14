@@ -81,9 +81,7 @@ struct FileOpenContent: View {
     }
 
     private enum Destination: Hashable {
-        case reader
         case quickLook
-        case spreadsheet
     }
 
     @State private var phase: Phase = .ready
@@ -222,8 +220,6 @@ struct FileOpenContent: View {
         }
         .navigationDestination(item: $destination) { dest in
             switch dest {
-            case .reader:
-                DocumentReaderView(entry: entry, anchor: target.anchor)
             case .quickLook:
                 if let previewItem {
                     QuickLookHostView(
@@ -231,8 +227,6 @@ struct FileOpenContent: View {
                         data: downloadedData
                     )
                 }
-            case .spreadsheet:
-                SpreadsheetReaderView(target: target)
             }
         }
         .sheet(item: $shareItem) { item in
@@ -547,10 +541,6 @@ struct FileOpenContent: View {
     private func runPrimary(_ action: FileLandingAction) {
         notice = nil
         switch route {
-        case .reader:
-            destination = .reader
-        case .spreadsheet:
-            destination = .spreadsheet
         case .quickLook:
             startPreviewDownload()
         case .saveOnly:
@@ -628,7 +618,7 @@ struct FileOpenContent: View {
         case .preview, .delete, .pin, .unpin, .rename, .openInFiles:
             // readingActions 不含这几项（后四项由顶栏菜
             // 单 performMenu 分发），落到即策略表漂移
-            // ——静默不执行（与阅读页同口径）
+            // ——静默不执行（与预览面同口径）
             break
         }
     }
@@ -939,12 +929,44 @@ struct QuickLookHostView: View {
                 notice = "已复制全文。"
                 Haptics.success()
             }
-        case .exportPDF, .preview, .delete,
+        case .exportPDF:
+            exportPDF()
+        case .preview, .delete,
              .pin, .unpin, .rename, .openInFiles:
             // readingActions 不出这几项（后四项是打开
             // 页专属），落到即策略表漂移——静默不执行
             break
         }
+    }
+
+    /// 导出 PDF（§259 补齐）：文本类 §259 起进本 QL
+    /// 承载面、readingActions 会出导出 PDF——与打开
+    /// 页 exportPDF 同链（块模型排版），不许留死按钮
+    private func exportPDF() {
+        guard let data,
+              let kind = DocumentTextKind.kind(
+                  forFileName: entry.name
+              ),
+              let text = FileTextExtractor.plainText(
+                  from: data, entry: entry
+              ),
+              let pdf = DocumentPDFExporter.pdfData(
+                  title: DeliverableFileType.displayTitle(
+                      forFileName: entry.name
+                  ),
+                  blocks: DocumentReading.blocks(
+                      for: text, kind: kind
+                  )
+              )
+        else {
+            notice = "导出 PDF 失败，请稍后再试。"
+            Haptics.error()
+            return
+        }
+        shareItem = try? FileShareItem.write(
+            data: pdf,
+            name: "\(DeliverableFileType.displayTitle(forFileName: entry.name)).pdf"
+        )
     }
 }
 

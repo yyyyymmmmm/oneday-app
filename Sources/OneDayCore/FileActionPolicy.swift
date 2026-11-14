@@ -94,34 +94,31 @@ public enum FileFailureAction: String, CaseIterable, Sendable {
     }
 }
 
-/// 中间页主钮（§125 落点列）：按类型一颗主钮——文
-/// 本类「阅读」、可预览类「预览」、音视频「播放」、
-/// 表格「查看表格」、压缩包「保存到文件」；其余不
-/// 可预览类与敏感文件无主钮（nil），中间页只给说明
-/// 行与次动作。文案在本表单源钉死
+/// 中间页主钮（§125 落点列；§259 修订）：按类型一
+/// 颗主钮——可预览类（文本/PDF/Office/HTML/图
+/// 片）「预览」、音视频「播放」、压缩包「保存到
+/// 文件」；其余不可预览类与敏感文件无主钮
+/// （nil），中间页只给说明行与次动作。§259 双轨
+/// 合一后文本与表格同走 QuickLook 预览，原「阅
+/// 读」「查看表格」两档随自研阅读轨退役。文案在
+/// 本表单源钉死
 public enum FileLandingAction: String, CaseIterable, Sendable {
-    case read
     case preview
     case play
-    case viewTable
     case saveToFiles
 
     public var label: String {
         switch self {
-        case .read: return "阅读"
         case .preview: return "预览"
         case .play: return "播放"
-        case .viewTable: return "查看表格"
         case .saveToFiles: return "保存到文件"
         }
     }
 
     public var systemImage: String {
         switch self {
-        case .read: return "doc.text"
         case .preview: return "eye"
         case .play: return "play.fill"
-        case .viewTable: return "tablecells"
         case .saveToFiles: return "square.and.arrow.down"
         }
     }
@@ -133,8 +130,9 @@ public enum FileLandingAction: String, CaseIterable, Sendable {
 ///   （阅读页原文）与 PDF（宿主 PDFKit 提取）。DOCX
 ///   等 Office 件 iOS 无系统文字提取通道，不摆灰项
 ///   充数（如实缺项，见 DESIGN §100 记账）；
-/// - 导出 PDF：只给走阅读页的文本类（由块模型排版
-///   生成），PDF 本体已是 PDF、不给；
+/// - 导出 PDF：只给文本类（由块模型排版生成，
+///   §259 起由 QuickLook 预览面工具栏承接），PDF
+///   本体已是 PDF、不给；
 /// - 敏感文件（SensitiveFilePolicy）：一切动作收回，
 ///   菜单空表、失败页只给「知道了」——凭据不出服务器
 ///   管理面。
@@ -185,24 +183,6 @@ public enum FileActionPolicy {
         default:
             return .other
         }
-    }
-
-    /// 表格文件（xls/xlsx）：office 档内的转码呈现
-    /// 特判（§125 路由表与中间页落点列共用本判据，
-    /// 不许各写一份扩展名判断）
-    public static func isSpreadsheet(_ name: String) -> Bool {
-        switch (name as NSString).pathExtension.lowercased() {
-        case "xls", "xlsx": return true
-        default: return false
-        }
-    }
-
-    /// 点开是否进文档阅读页（文本类且非敏感）
-    public static func opensInReader(
-        _ entry: WorkspaceFileEntry
-    ) -> Bool {
-        category(of: entry) == .text
-            && !SensitiveFilePolicy.isSensitive(fileName: entry.name)
     }
 
     /// 条目菜单（资料库面：行 ⋮/长按、网格卡长按三处
@@ -291,19 +271,16 @@ public enum FileActionPolicy {
         )
     }
 
-    /// 中间页主钮名称口径：与路由表同判（表格特判
-    /// 先于 office 一般预览）
+    /// 中间页主钮名称口径：与路由表同判（§259 起文
+    /// 本与表格并入预览档、无特判）
     public static func landingPrimary(
         forFileName name: String,
         mediaKind: WorkspaceFileEntry.MediaKind?
     ) -> FileLandingAction? {
         guard !SensitiveFilePolicy.isSensitive(fileName: name)
         else { return nil }
-        if isSpreadsheet(name) { return .viewTable }
         switch category(forFileName: name, mediaKind: mediaKind) {
-        case .text:
-            return .read
-        case .pdf, .office, .html, .image:
+        case .text, .pdf, .office, .html, .image:
             return .preview
         case .video, .audio:
             return .play

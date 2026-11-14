@@ -115,6 +115,20 @@ final class FileOpenFailureTests: XCTestCase {
         )
     }
 
+    /// §259：转码失败分型随表格转码呈现退役——分型
+    /// 集只剩打开链八档，QL 资格档（unsupported-
+    /// Type）保留（单轨后的没法预览落点）
+    func testFailureCasesAfterTranscodeRetirement() {
+        XCTAssertEqual(
+            Set(FileOpenFailure.allCases),
+            [
+                .notFound, .tooLarge, .serviceUnavailable,
+                .timeout, .invalidPath, .forbidden,
+                .unsupportedType, .other,
+            ]
+        )
+    }
+
     /// 五分文案互不相同、不许两档共用一句兜底（人
     /// 话口径：用户看文案能分出原因）
     func testFailureMessagesAreDistinct() {

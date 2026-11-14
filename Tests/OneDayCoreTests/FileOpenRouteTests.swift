@@ -4,7 +4,8 @@ import XCTest
 
 /// §125 路由表＋行号锚点＋中间页落点列钉测：路由
 /// 是 chat/文件页/中间页三面共用的纯函数分流——
-/// 图片直达、文本进阅读页、表格走转码、QL 资格为
+/// 图片直达、其余可预览类一律 QuickLook 单轨
+/// （§259 双轨合一：文本/表格并入）、QL 资格为
 /// 假一律降无预览、敏感恒锁定，逐格钉死防漂移。
 final class FileOpenRouteTests: XCTestCase {
     private func target(
@@ -28,13 +29,53 @@ final class FileOpenRouteTests: XCTestCase {
         )
     }
 
-    func testRouteTextToReader() {
+    func testRouteImageIgnoresPreviewGate() {
+        // 图片直达查看器、不走 QL——资格门与它无关
+        XCTAssertEqual(
+            FileOpenRoute.resolve(
+                target: target("图.png"), canPreview: false
+            ),
+            .imageViewer
+        )
+    }
+
+    func testRouteTextToQuickLook() {
         for name in ["笔记.md", "表.csv", "数据.json", "日志.txt"] {
             XCTAssertEqual(
                 FileOpenRoute.resolve(target: target(name)),
-                .reader, name
+                .quickLook, name
             )
         }
+    }
+
+    func testRouteTextExtensionsToQuickLook() {
+        // §259：文本类全扩展名一律 QL 单轨，不再按
+        // 种类分阅读页/转码两轨
+        for name in ["稿.markdown", "配置.yaml", "配置.yml",
+                     "页.xml", "记录.log", "纯文.text"] {
+            XCTAssertEqual(
+                FileOpenRoute.resolve(target: target(name)),
+                .quickLook, name
+            )
+        }
+    }
+
+    func testRouteAnchorDoesNotChangeRoute() {
+        // §259：锚点解析保留、呈现忽略——带锚点的文
+        // 本/表格与不带锚点同路由，不回自研阅读页
+        let anchor = FileLineAnchor(startLine: 3, endLine: 9)
+        XCTAssertEqual(
+            FileOpenRoute.resolve(
+                target: target("笔记.md", anchor: anchor)
+            ),
+            .quickLook
+        )
+        XCTAssertEqual(
+            FileOpenRoute.resolve(
+                target: target("表.xlsx", anchor: anchor)
+            ),
+            .quickLook
+        )
     }
 
     func testRouteQuickLookFamily() {
@@ -47,20 +88,21 @@ final class FileOpenRouteTests: XCTestCase {
         }
     }
 
-    func testRouteSpreadsheetSpecial() {
+    func testRouteSpreadsheetToQuickLook() {
+        // §259：表格不再走伴生转码呈现，原文件直接
+        // QL 预览（服务端转码端点保留作降级）
         XCTAssertEqual(
             FileOpenRoute.resolve(target: target("表.xlsx")),
-            .spreadsheet
+            .quickLook
         )
         XCTAssertEqual(
             FileOpenRoute.resolve(target: target("表.xls")),
-            .spreadsheet
+            .quickLook
         )
-        // csv 不走转码：文本档进阅读页（阅读页表格块
-        // 已有框线/横滚，规格 §5.4 口径）
+        // csv 同为文本档、一律 QL 单轨
         XCTAssertEqual(
             FileOpenRoute.resolve(target: target("表.csv")),
-            .reader
+            .quickLook
         )
     }
 
@@ -99,18 +141,26 @@ final class FileOpenRouteTests: XCTestCase {
             ),
             .infoOnly
         )
-        // 非 QL 路不受资格门影响
+        // §259 起文本/表格同入 QL 轨、同受资格门：
+        // 资格为假一律降无预览行
         XCTAssertEqual(
             FileOpenRoute.resolve(
                 target: target("笔记.md"), canPreview: false
             ),
-            .reader
+            .infoOnly
         )
         XCTAssertEqual(
             FileOpenRoute.resolve(
                 target: target("表.xlsx"), canPreview: false
             ),
-            .spreadsheet
+            .infoOnly
+        )
+        // 非 QL 路不受资格门影响
+        XCTAssertEqual(
+            FileOpenRoute.resolve(
+                target: target("包.zip"), canPreview: false
+            ),
+            .saveOnly
         )
     }
 
@@ -132,11 +182,12 @@ final class FileOpenRouteTests: XCTestCase {
     // MARK: 中间页落点列
 
     func testLandingPrimaryMapping() {
+        // §259：文本主钮并入「预览」（原「阅读」退役）
         XCTAssertEqual(
             FileActionPolicy.landingPrimary(
                 forFileName: "笔记.md", mediaKind: nil
             ),
-            .read
+            .preview
         )
         XCTAssertEqual(
             FileActionPolicy.landingPrimary(
@@ -150,11 +201,12 @@ final class FileOpenRouteTests: XCTestCase {
             ),
             .play
         )
+        // §259：表格主钮并入「预览」（原「查看表格」退役）
         XCTAssertEqual(
             FileActionPolicy.landingPrimary(
                 forFileName: "表.xlsx", mediaKind: nil
             ),
-            .viewTable
+            .preview
         )
         XCTAssertEqual(
             FileActionPolicy.landingPrimary(
@@ -260,7 +312,7 @@ final class FileOpenRouteTests: XCTestCase {
         )
     }
 
-    // MARK: 目标值与转码失败分型
+    // MARK: 目标值
 
     func testTargetFromEntryAndPath() {
         let fromPath = FileOpenTarget(path: "/opt/data/attachments/表.xlsx")
@@ -271,74 +323,5 @@ final class FileOpenRouteTests: XCTestCase {
         XCTAssertEqual(entry.path, fromPath.path)
         XCTAssertFalse(entry.isDirectory)
     }
-
-    func testPlainParagraphLineRanges() {
-        let text = "第一段一\n第一段二\n\n第二段\n\n\n第三段"
-        XCTAssertEqual(
-            DocumentReading.plainParagraphLineRanges(for: text),
-            [1...2, 4...4, 7...7]
-        )
-        // 与 plainBlocks 段数恒一致
-        XCTAssertEqual(
-            DocumentReading.plainParagraphLineRanges(for: text).count,
-            DocumentReading.plainBlocks(for: text).count
-        )
-        XCTAssertEqual(
-            DocumentReading.plainParagraphLineRanges(for: ""),
-            []
-        )
-    }
-
-    func testAnchorExcerpt() {
-        let text = "a\nb\nc\nd"
-        XCTAssertEqual(
-            DocumentReading.excerpt(
-                for: text,
-                anchor: FileLineAnchor(startLine: 2, endLine: 3)!
-            ),
-            "b\nc"
-        )
-        // 止行越界收敛到文本末行
-        XCTAssertEqual(
-            DocumentReading.excerpt(
-                for: text,
-                anchor: FileLineAnchor(startLine: 3, endLine: 99)!
-            ),
-            "c\nd"
-        )
-        // 整段落在文本外回 nil
-        XCTAssertNil(
-            DocumentReading.excerpt(
-                for: text,
-                anchor: FileLineAnchor(startLine: 9, endLine: 10)!
-            )
-        )
-    }
-
-    func testSpreadsheetFailureClassify() {
-        XCTAssertEqual(
-            FileOpenFailure.classifySpreadsheet(
-                error: .unexpectedStatus(
-                    endpoint: "表格转换", status: 422
-                )
-            ),
-            .transcodeFailed
-        )
-        XCTAssertEqual(
-            FileOpenFailure.classifySpreadsheet(
-                error: .unexpectedStatus(
-                    endpoint: "表格转换", status: 404
-                )
-            ),
-            .notFound
-        )
-        XCTAssertEqual(
-            FileOpenFailure.classifySpreadsheet(
-                error: .unexpectedStatus(
-                    endpoint: "表格转换", status: 413
-                )
-            ),
-            .tooLarge
-        )
-    }
 }
+

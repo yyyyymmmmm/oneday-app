@@ -439,20 +439,14 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
-    // MARK: - 表格转码（§125）与图片变体（§138）
+    // MARK: - 图片变体（§138）
 
-    /// 两端点已迁伴生独立 fileproc 模块（API 直连 B
+    /// 端点已迁伴生独立 fileproc 模块（API 直连 B
     /// 包，2026-11-14）：本类只留委托，签名与状态码
     /// 口径（unexpectedStatus 原样上抛分型、noKey 走
     /// OneDayBridgeError）逐字不变，实现见
-    /// FilesProcClient
+    /// FilesProcClient。表格转码委托已随 §259 退役
     private let fileproc = FilesProcClient()
-
-    func spreadsheet(
-        config: ServerConfig, path: String
-    ) async throws -> BridgeSpreadsheet {
-        try await fileproc.spreadsheet(config: config, path: path)
-    }
 
     func rendition(
         config: ServerConfig, path: String,
@@ -482,8 +476,8 @@ final class OneDayBridgeClient: @unchecked Sendable {
     /// JPEG 字节。本口不走 checkStatus 的人话收敛
     /// ——404（无此档快照）/410（文件已删）对调用
     /// 方是分型信号（走回落链的判据），收敛成一句
-    /// 会丢分型（spreadsheet 口径同理），状态码原
-    /// 样包成 HermesError.unexpectedStatus；无钥
+    /// 会丢分型，状态码原样包成
+    /// HermesError.unexpectedStatus；无钥
     /// 匙仍走 OneDayBridgeError.noKey 口径
     func deliveryImage(
         config: ServerConfig, id: String,
