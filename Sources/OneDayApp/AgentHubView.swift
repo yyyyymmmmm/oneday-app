@@ -79,6 +79,15 @@ enum HubSegment: String, CaseIterable, Identifiable {
 /// 系统弹簧）。本视图的内容与导航栈不变，枢纽内
 /// 自带 sheet（分享/模型/档案编辑）为嵌套呈现、
 /// 与外层 sheet 互不相干。
+/// §222（2026-11-14 枢纽页全页对 Muse 重建，用
+/// 户总评「和人家的 UI 设计差远了」）：分段控件改自
+/// 绘胶囊条对齐基准量测（系统 segmented 反相且尺寸
+/// 钉死，见 segmentPicker 注）、撤条下 Divider、页
+/// 头纵向节奏放开（头像→名字 16／名字→状态 8）；四
+/// 段口径、模型常驻区、呈现形态（sheet 大 detent）
+/// 一律不动，头像组件归头像呈现包、身份段正文提炼
+/// 归专包。全档＝hub-page-muse-parity-report-
+/// 20261114。
 struct AgentHubView: View {
     enum Mode {
         case sheet
@@ -274,7 +283,6 @@ struct AgentHubView: View {
                 modelZone(store)
             }
             segmentPicker
-            Divider()
             segmentContent(store)
         }
         .onChange(of: segment) { _, newSegment in
@@ -329,7 +337,12 @@ struct AgentHubView: View {
     }
 
     private func header(_ store: AgentHubStore) -> some View {
-        VStack(spacing: OneDayMetrics.spacingS) {
+        // §222（枢纽页对 Muse 重建）：纵向节奏对齐基准
+        // 量测——头像→名字 ≈16、名字→状态 ≈8（旧版统一
+        // spacingS 8 全程紧排，页头显挤）；名字字阶不动
+        // （.title 28 bold 是 HIG Title1 用户定版口径，
+        // 与基准量测同档，见 parity 报告 §1）
+        VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 avatarBlock
                 // 圆钮行（✕ 关闭＋分享名片）：0.36.22 起
@@ -361,6 +374,7 @@ struct AgentHubView: View {
                 .font(.title)
                 .fontWeight(.bold)
                 .lineLimit(1)
+                .padding(.top, OneDayMetrics.spacingM)
 
             HStack(spacing: OneDayMetrics.rowInnerGap) {
                 Circle()
@@ -371,6 +385,7 @@ struct AgentHubView: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
+            .padding(.top, OneDayMetrics.spacingS)
         }
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingSM)
@@ -530,19 +545,60 @@ struct AgentHubView: View {
         )
     }
 
-    // MARK: - 四段分段控件（用户定案①：原生 segmented 先行）
+    // MARK: - 四段分段控件（§222 胶囊条形态对齐）
 
+    /// 分段条形态（§222，用户 2026-11-14 总评「枢纽页
+    /// 和人家的 UI 设计差远了」后的全页对齐）：对 Muse
+    /// 智能体页量测——整条胶囊高 ≈48、白面＋发丝描边，
+    /// 选中段是浅灰填充胶囊（高 ≈36），图标 ≈22。系统
+    /// segmented 与基准恰好反相（灰轨 32 高＋白选胶囊）
+    /// 且高度/图标钉死不可调，形态对齐只能自绘；旧
+    /// 「原生 segmented 先行」定案（0.36.22）由本节覆
+    /// 盖。选中填充取 selectionFill——与 OpenMuse 底栏
+    /// 激活项同一填充角色（Palette 本源）。段集/顺序/
+    /// 图标仍走 HubSegment 单源（§217 四段口径不动）；
+    /// 无障碍与旧 Picker 等价：按钮＋段名标签＋选中
+    /// trait（UI 布局探针按标签回落查按钮、兼容）。
+    /// 条下 Divider 撤除——基准是留白节奏不是线（宪
+    /// 法③的分隔几何收口不在此面回潮）
     private var segmentPicker: some View {
-        Picker("枢纽页分段", selection: $segment) {
+        HStack(spacing: OneDayMetrics.spacingXS) {
             ForEach(availableSegments) { item in
-                Label(item.title, systemImage: item.systemImage)
-                    .labelStyle(.iconOnly)
-                    .tag(item)
+                Button {
+                    segment = item
+                } label: {
+                    Image(systemName: item.systemImage)
+                        .font(.system(
+                            size: OneDayMetrics.hubSegGlyphSize,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(Palette.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: OneDayMetrics.hubSegCapsuleHeight)
+                        .background(
+                            segment == item
+                                ? Palette.selectionFill : Color.clear,
+                            in: Capsule()
+                        )
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.odPressable)
+                .accessibilityLabel(item.title)
+                .accessibilityAddTraits(
+                    segment == item ? .isSelected : []
+                )
             }
         }
-        .pickerStyle(.segmented)
+        .padding(.horizontal, OneDayMetrics.spacingXS)
+        .frame(height: OneDayMetrics.hubSegBarHeight)
+        .background(Palette.surface, in: Capsule())
+        .overlay {
+            Capsule().stroke(Palette.hairline, lineWidth: 0.5)
+        }
         .padding(.horizontal, OneDayMetrics.pageGutter)
-        .padding(.vertical, OneDayMetrics.spacingS)
+        .padding(.top, OneDayMetrics.spacingS)
+        .padding(.bottom, OneDayMetrics.spacingSM)
+        .animation(.easeInOut(duration: 0.18), value: segment)
     }
 
     // MARK: - 段内容

@@ -13,6 +13,16 @@ import SwiftUI
 /// （开发口吻，宪法⑧）——档案切换自有专门面承接。
 /// 编辑钮仍跳 SoulEditorView 直编全文（§155 口径不
 /// 变）；身份数据逻辑（末写胜/留痕）不在本面。
+/// §222（2026-11-14 枢纽页全页对齐）：版式层级再对
+/// 基准量测一轮——全行显式 listRowInsets 把左缘收
+/// 到 pageGutter 一条线（旧版正文行吃 List 默认内边
+/// 距、与编辑/卡片行错开约 4pt）、段间纵距走令牌梯
+/// 队、正文行距放开（lineSpacing 6、行 pitch 对基
+/// 准 ≈28）、编辑胶囊 50→44（守 minTapTarget 下限；
+/// 基准量测 ≈36 更扁、差额如实记报告）、双卡高
+/// 128→150、标题升 title2、日期移左下与字形同行、
+/// 字形 30→40、卡间距 12→16。正文内容与提炼口径
+/// 一字不动（提炼归专包）；渐变仍守冷中性。
 struct HubIdentitySection: View {
     let store: AgentHubStore
 
@@ -78,6 +88,12 @@ struct HubIdentitySection: View {
                 }
         }
         .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(
+            top: OneDayMetrics.spacingSM,
+            leading: OneDayMetrics.pageGutter,
+            bottom: OneDayMetrics.spacingXS,
+            trailing: OneDayMetrics.pageGutter
+        ))
     }
 
     /// 人设为空时的安静占位（不编造内容）：只给出去处
@@ -86,6 +102,12 @@ struct HubIdentitySection: View {
             .font(.body)
             .foregroundStyle(Palette.inkSecondary)
             .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(
+                top: OneDayMetrics.spacingXS,
+                leading: OneDayMetrics.pageGutter,
+                bottom: OneDayMetrics.spacingXS,
+                trailing: OneDayMetrics.pageGutter
+            ))
     }
 
     /// 简介区：提炼后的散文段落，灰字、段间留节奏
@@ -97,9 +119,16 @@ struct HubIdentitySection: View {
                 Text(paragraph)
                     .font(.body)
                     .foregroundStyle(Palette.inkSecondary)
+                    .lineSpacing(6)
             }
         }
         .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(
+            top: OneDayMetrics.spacingXS,
+            leading: OneDayMetrics.pageGutter,
+            bottom: OneDayMetrics.spacingXS,
+            trailing: OneDayMetrics.pageGutter
+        ))
     }
 
     /// 风格区：「风格」小标签＋黑字段落（与基准同权重对）
@@ -114,9 +143,16 @@ struct HubIdentitySection: View {
                 Text(paragraph)
                     .font(.body)
                     .foregroundStyle(Palette.ink)
+                    .lineSpacing(6)
             }
         }
         .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(
+            top: OneDayMetrics.spacingSM,
+            leading: OneDayMetrics.pageGutter,
+            bottom: OneDayMetrics.spacingXS,
+            trailing: OneDayMetrics.pageGutter
+        ))
     }
 
     /// 全宽编辑钮（§218：填充胶囊，系统填充色深色自适
@@ -130,28 +166,31 @@ struct HubIdentitySection: View {
                 Image(systemName: "pencil")
                 Text("编辑")
             }
-            .font(.body.weight(.medium))
+            .font(.body.weight(.semibold))
             .foregroundStyle(Palette.ink)
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(height: OneDayMetrics.minTapTarget)
             .background(Palette.fillSecondary, in: Capsule())
         }
         .buttonStyle(.odPressable)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(
-            top: 8, leading: OneDayMetrics.pageGutter,
-            bottom: 8, trailing: OneDayMetrics.pageGutter
+            top: OneDayMetrics.spacingM,
+            leading: OneDayMetrics.pageGutter,
+            bottom: OneDayMetrics.spacingS,
+            trailing: OneDayMetrics.pageGutter
         ))
     }
 
-    /// 双卡并列等宽（§218 卡面重排）：标题＋「请谨慎访
-    /// 问」小字居左上、图标居右下大号低透明、卡面留
-    /// 白；SOUL 卡原有更新日期是真数据、保留在小字下
-    /// （取不到仍省略、不编造）。渐变守冷中性（SOUL＝
-    /// 岩板蓝灰、记忆＝深钢蓝向单强调蓝靠拢），不照抄
-    /// 基准的暖色；暗色给同系深值
+    /// 双卡并列等宽（§218 卡面重排；§222 再对基准量
+    /// 测）：标题＋「请谨慎访问」小字居左上、日期与字
+    /// 形同居底行（日期左下、字形右下），卡面留白；
+    /// SOUL 卡更新日期是真数据（取不到仍省略、不编
+    /// 造；记忆卡无日期数据源、恒不显）。渐变守冷中
+    /// 性（SOUL＝岩板蓝灰、记忆＝深钢蓝向单强调蓝靠
+    /// 拢），不照抄基准的暖色；暗色给同系深值
     private var cardsRow: some View {
-        HStack(spacing: OneDayMetrics.spacingSM) {
+        HStack(spacing: OneDayMetrics.spacingM) {
             NavigationLink {
                 HubSoulDetailView(store: store)
             } label: {
@@ -178,8 +217,10 @@ struct HubIdentitySection: View {
         }
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(
-            top: 8, leading: OneDayMetrics.pageGutter,
-            bottom: 8, trailing: OneDayMetrics.pageGutter
+            top: OneDayMetrics.spacingS,
+            leading: OneDayMetrics.pageGutter,
+            bottom: OneDayMetrics.spacingM,
+            trailing: OneDayMetrics.pageGutter
         ))
     }
 
@@ -189,31 +230,31 @@ struct HubIdentitySection: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             Text(title)
-                .font(.title3)
+                .font(.title2)
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
             Text("请谨慎访问")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.85))
-            if let date {
-                Text(AdminFormat.day(date))
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.7))
-            }
             Spacer()
-            HStack {
+            HStack(alignment: .bottom) {
+                if let date {
+                    Text(AdminFormat.day(date))
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.75))
+                }
                 Spacer()
                 Image(systemName: glyph)
-                    .font(.system(size: 30, weight: .regular))
+                    .font(.system(size: 40, weight: .regular))
                     .foregroundStyle(.white.opacity(0.5))
             }
         }
         .padding(OneDayMetrics.spacingM)
         .frame(maxWidth: .infinity)
-        // §155（准入四问④）：最小高自适应——常态观感
-        // 110→128 取基准卡的呼吸感，大字号时卡随内容
-        // 长高不裁字（定高在大字号档装不下三行文本）
-        .frame(minHeight: 128)
+        // §155（准入四问④）：最小高自适应——大字号时卡
+        // 随内容长高不裁字（定高在大字号档装不下三行
+        // 文本）；§222 常态高 128→150 对基准量测
+        .frame(minHeight: 150)
         .background(
             gradient,
             in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)

@@ -11691,3 +11691,18 @@ App 本地主线绑定的钦定服务端 id 在服务端不存在（本地主线
 ### §221.1 装配 CI 判读（2026-11-14 回填）
 
 run 43544784796（头 f88a78d）**§190 终判绿**：Build／Package／Upload success，Unit tests 步名义 failure（§184 驱动）；全日志 14,161 行亲验——**断言失败 0 条、失败用例 0 条**；**Core 1902／1902／0**（预期精确：预制 1865＋后门 24＋B 13；MainlineAdoptionTests 13/13、SourceQuoteTests 24/24、HubSoulTests 12/12、LedgerMonitorSynthesisTests 8/8）；**App 103 启动**＝92 过＋5 跳过（存量 XCTSkip）＋6 条 §184 受害（与 .35/.36 在案名单逐一重合、无新受害；宿主重启 7 起同前两轮）；HubSegmentsConsolidationTests 4/4、SourceQuoteAppTests 5/5、HUB-LAYOUT-VERDICT=PASS；**UI 4／4**；栏位探针直接 passed（5.514s）。**边缘探针单独对账**：预制轮单红的 testEdgeEffectAttributionProbe（bottomRest 8＞门限 7、帽 10 内）**本轮 passed（22.345s）**——如实记「预制轮单红、本轮绿」，与 .35/.36 两轮 passed 并列，是否结案待主线裁（并行线另有超时签名一红在案）。IPA **12,285,694 字节、md5 `4903041f7ec84a2e5c01f57aa5251eec`**、0.50.37/165（Info.plist 亲验、MainlineAdoption 符号在包），存 ~/workspace/your_files/oneday-v0.50.37/OneDay-0.50.37.ipa。未合 main、未打 tag。
+
+## §222 枢纽页全页对 Muse 重建（2026-11-14；分支 feat/hub-page-muse-parity，基线 rel-05037@a6e9560；全档＝oneday-design-review/hub-page-muse-parity-report-20261114.md）
+
+**定案来源**：用户装 0.50.37 后总评「简单的就是说咱们的枢纽页和人家的 UI 设计差远了」（非单点问题），并亲发 Muse 枢纽页真机图为参照。本节只做**形态层**全页对齐：拿参照图逐项像素量测（1206×2622 @3x）与 rel-05037 代码逐项对读，对照表分三类——形态可直接对齐（本节全做）／口径已定不动／须用户拍板。红线：四段口径（§217）不增减；会话模型区保留（基准该帧无此区、去留列须拍板、本节不删）；头像组件实现（尺寸档/字形填充比/裁满圆）归 feat/avatar-presentation-fit，本节不碰、只用其现有出口；身份段正文内容与提炼口径（§218）一字不动；名字/头像数据不动；双卡渐变守冷中性（§218）、不抄基准绿调。
+
+**落码（对照表「可直接对齐」类全量）**：
+1. **分段控件换形态**：系统 segmented（灰轨 32 高＋白选胶囊、尺寸钉死）与基准恰好反相（白面胶囊条高 ≈48＋发丝描边、选中段浅灰填充胶囊高 ≈36、图标 ≈22）——自绘胶囊条落码：条＝surface 白面 Capsule＋hairline 0.5 描边、高取新令牌 `hubSegBarHeight=48`；选中胶囊＝selectionFill（与 OpenMuse 底栏激活项同一填充角色）高 `hubSegCapsuleHeight=36`；图标 `hubSegGlyphSize=22`（三值收编 OneDayMetrics、单测钉）。段集/顺序/图标仍走 HubSegment 单源；无障碍＝按钮＋段名标签＋.isSelected trait，与旧 Picker 语义等价（UI 布局探针 segmentButton 按标签回落查按钮、兼容）。0.36.22「原生 segmented 先行」定案由本节覆盖。条下 Divider 撤除（基准是留白节奏；条下距改 spacingSM）。
+2. **页头纵向节奏**：旧版 VStack 统一 spacingS(8) 紧排——改头像→名字 16（spacingM）、名字→状态 8（spacingS）；名字字阶不动（.title 28 bold＝HIG Title1 用户定版口径、与基准量测同档）。
+3. **身份段版式层级**：全行显式 listRowInsets 收左缘到 pageGutter(20) 一条线（旧版段头/正文/风格行吃 List 默认内边距≈16、与编辑/卡片行 20 错开约 4pt）；段间纵距走令牌梯队（段头上 12、正文上下 4、风格上 12、编辑上 16、卡片下 16）；正文与风格段落加 lineSpacing(6)（行 pitch ≈28 对基准量测）。
+4. **编辑胶囊**：高 50→44（minTapTarget 令牌值；基准量测 ≈36 更扁，差额以无障碍命中下限优先、如实记报告）、字重 medium→semibold。
+5. **双卡形态**：最小高 128→150（基准量测 150）；标题 title3→title2 bold；日期由标题区下方移底行左下（字形同行右下、footnote/白 75%）；字形 30→40；卡间距 12→16（spacingM）。日期格式仍走全 App 单源 AdminFormat（基准的 MM.dd.yy 数字格式不另开格式体系）；记忆卡无日期数据源、恒不显（不编造）。
+
+**不动项（对照表另两类，摘要）**：呈现容器 sheet 大 detent＋抓手（§217 拍板对齐基准卡片浮起形态）；页头头像 110 与填充比（头像包在制）；状态行形态（咱家＝在线状态点＋次级文字、基准＝活动字形＋主色文字，属状态语义差异）列须拍板；会话模型区去留列须拍板（本节建议保留：设置分工有产品理由）；整页边距 20（全 App 标尺 pageGutter；基准 ≈16，4pt 差归全局标尺口径）；身份段头 52 头像与灰/黑层级（§218 已对齐）。
+
+### §222.1 CI 判读（回填）
