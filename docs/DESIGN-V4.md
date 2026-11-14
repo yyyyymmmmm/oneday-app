@@ -11824,4 +11824,6 @@ run 43543959202（头 5715391＝本包 163ad79＋桩适配 cherry-pick 自 rel-0
 
 **静态计数预期**：Core **1920**（1902 基线＋对齐 1＋合一 11＋化石 8−退役 2）、App **121**（103＋枢纽 1＋头像 3＋对齐 1＋合一 4＋化石 9）、UI **4**。版本 0.50.38/166 五处同改＋grep 验（代码面 0.50.37 残留 0）。
 
-### §228.1 装配 CI 判读（待回填）
+### §228.1 CI 判读（2026-11-14 回填）
+
+run **43556010036**（头＝版号提交）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例；3 处 XCTAssert 字样为编译回显源码行）。**Core 1920 执行／0 失败**——与静态预期精确对账（1902＋对齐 1＋合一 11＋化石 8−serverModelToAdopt 退役 2）。**App 121 启动**：111 passed＋5 skipped（PresentationLayerScenarios 源码 XCTSkip 存量）＋5 条 §184 受害（started 无终局行、零断言、与 5 起宿主重启逐一对应：testKeyboardUpMovesComposerOnlyDockStays／testBareFilePathMessageNotRenderedAsRawText／testOfflineOpenSideThreadShowsLocalRecords／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView——前三名中两名为 .36/.37 在案同名单、余皆同签名）；本轮宿主重启 **5 起**（近轮 6–8 起平台略降、续盯）。**UI 4／0**（All tests passed）。**边缘探针 passed（21.850s）**——重校准口径在组版轮成立。**整页探针复核**：ChatPageDeviceConditionProbeTests 本轮 passed（5.343s、套件绿——头像包二轮受害本轮脱列）；ChatPageAssemblyRegressionTests 4 法中 3 过、testKeyboardUpMovesComposerOnlyDockStays 再被 §184 吞（同在案签名、非本版四包面）。HUB-LAYOUT-VERDICT=PASS、顶簇 VERDICT=PASS。IPA **12,309,673 字节、md5 `b1c7542f69b8de59e3ef4e4a27c440e0`**、0.50.38/166（解包 Info.plist 亲验、bundle site.didichou.oneday），存 ~/workspace/your_files/oneday-v0.50.38/OneDay-0.50.38.ipa。未合 main、未打 tag。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-05038/。
