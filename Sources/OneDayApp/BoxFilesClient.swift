@@ -201,7 +201,7 @@ final class BoxFilesClient: @unchecked Sendable {
     }
 
     /// 解析目录列表文本（对齐 box_bridge.py:543-596）
-    private func parseDirectoryListing(text: String, requestedPath: String, resolvedPath: String) throws -> FilesListing {
+    internal func parseDirectoryListing(text: String, requestedPath: String, resolvedPath: String) throws -> FilesListing {
         // F9：列表头 resolved 路径校验（防符号链接逃逸）
         let normalizedResolved = resolvedPath == "/workspace/." ? "/workspace" : resolvedPath
         if normalizedResolved != "/workspace" && !normalizedResolved.hasPrefix("/workspace/") {
@@ -236,7 +236,7 @@ final class BoxFilesClient: @unchecked Sendable {
                 entries.append([
                     "name": name,
                     "path": entryPath,
-                    "isDirectory": true
+                    "is_directory": true
                 ])
             } else {
                 // 文件
@@ -256,13 +256,13 @@ final class BoxFilesClient: @unchecked Sendable {
                 var entry: [String: Any] = [
                     "name": name,
                     "path": entryPath,
-                    "isDirectory": false
+                    "is_directory": false
                 ]
                 if let size = size {
                     entry["size"] = size
                 }
                 if let mimeType = guessMimeType(name) {
-                    entry["mimeType"] = mimeType
+                    entry["mime_type"] = mimeType
                 }
                 entries.append(entry)
             }
