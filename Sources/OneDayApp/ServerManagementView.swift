@@ -119,7 +119,7 @@ struct ServerManagementView: View {
                 .foregroundStyle(Palette.ink)
                 .frame(width: 44, height: 44)
                 .background(Palette.settingsBG)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: OneDayMetrics.radiusTile))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
