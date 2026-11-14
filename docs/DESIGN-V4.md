@@ -12531,3 +12531,7 @@ run 43602076559：名义 failure 仅 §184。实数：断言失败 **0**（全�
 **在线状态**：结论合成收成 OverviewBridgeStore.channelUp 一处（主源＝直探 /health 探活结论 hermesChannelUp、ConnectionLiveness 迟滞只服务此一输入；探活未知回落桥快照 hermesUp，回落只此一次）。Core `OverviewStatusLine` 退役双入参 (snapshot, hermesChannelUp) 仲裁签名，改单结论入参 (channelUp, pendingApprovals)——判定矩阵逐例等价，旧测试 13 条全迁新签名＋新增 1 条（结论未知时计数不顶状态），退役列明于此。附带实查发现：AppState.overviewBridgeAuthFailed 旗（0.7.0 立）全仓无读者（设置页早已改走自有状态面），9 处写入散在 OverviewBridgeStore／BoxBridgeStore／BoxTerminalView 三件——旗与全部写入点一并退役，呈现零变化（无读者即无呈现）。
 
 **计数对账（预期）**：Core 2081＋5（DecisionRecordHistoryTests）＋1（OverviewStatusLine 新例）＝**2087**；状态行旧例 13 条签名迁移不增不减。App 计数不变（无新增 App 测试）。CI 判读回填于 §259.1。
+
+### §259.1 CI 判读（2026-11-14 回填）——**§190 终判实质绿（带 §184 在案登记）**
+
+run 43605735361（head af316a9）：构建 success；Core **2087/2087 精确对账**（Executed 2087、0 failures＝基线 2081＋DecisionRecordHistoryTests 5＋OverviewStatusLine 新例 1；本包新测全过——合成 5/5、状态行迁移 13＋新 1 全过）；UI **8/8**（0 failures）；VERDICT ×3 PASS。App passed 167＋skipped 5＋无终局 6＝178（＋helpers 伪名 1＝179，与基线口径同总数）。**断言失败 0**（全日志无 `Test Case … failed` 行）。名义 failure 仅 §184：宿主重启 8 起，波及无终局 6 条（均只有 started、无终局行）——5 条与 §258.1 登记名单逐字一致（testMarkPendingSendRetainsEntryOnDisk、testBarGrowth_topRisesBottomPinned、testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel、testAnchorRegistersAncestorScrollView），第 6 条 LayoutProductPoolTests.testPoolDeterministicAndConcurrentSafe 同签名**本轮新登记**（量测池面、与本包改动无交集）。全档＝oneday-design-review/notif-single-source-report-20261114.md。
