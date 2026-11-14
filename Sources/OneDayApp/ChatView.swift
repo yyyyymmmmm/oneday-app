@@ -460,7 +460,7 @@ struct ChatView: View {
     /// 把滚动边缘效果注册到各自覆盖容器（见
     /// ScrollEdgeRegistration）
     @State private var listScrollHandle = ChatListScrollViewHandle()
-    /// §246（换代包 3）：新承载特性开关（Core
+    /// §257（换代包 3）：新承载特性开关（Core
     /// ChatCarrierFeature，默认关＝旧承载；设置页
     /// 实验区与本键同源）与新承载句柄（命令口＋几
     /// 何读数匣，见 ChatListCarrier.swift）
@@ -1023,7 +1023,7 @@ struct ChatView: View {
         }
     }
 
-    /// §245 预热条目组装（§246 起自 .task 链抽为
+    /// §251 预热条目组装（§257 起自 .task 链抽为
     /// 独立函数：承载分叉后视图链更重，内联多语句
     /// 闭包在链上触发类型检查超时；组装口径与原内
     /// 联版逐字一致——用户条目直取原文、助手条目
@@ -1057,7 +1057,7 @@ struct ChatView: View {
         }
     }
 
-    /// 旧承载列表面（§246 前的定版复合面：Scroll-
+    /// 旧承载列表面（§257 前的定版复合面：Scroll-
     /// ViewReader＋消息列表＋两宿主 overlay），开
     /// 关关时恒走本面、内容一字未动
     private var legacyListSurface: some View {
@@ -1113,7 +1113,7 @@ struct ChatView: View {
         }
     }
 
-    /// 聊天主面（§246 承载分叉）：列表面按特性开关
+    /// 聊天主面（§257 承载分叉）：列表面按特性开关
     /// 二选一（开＝carrierListSurface 新承载／关＝
     /// legacyListSurface 旧承载），下方页面级修饰
     /// 链（背景/坞显隐/选图器/附件面板/生命周期/
@@ -1929,7 +1929,7 @@ struct ChatView: View {
     /// safeAreaInset 系统通道，发送舱在布局流内、安全区
     /// 自理，不再手算补高）
 
-    /// 发送区整栈（§246 起两承载共用本构建）：回底
+    /// 发送区整栈（§257 起两承载共用本构建）：回底
     /// 钮行的有无与点按动作由调用方注入——旧承载＝
     /// 行在栈内＋proxy 贴底（§124 定版）；新承载＝
     /// 栈内无钮行，钮归容器 overlay 浮层（见
@@ -2090,7 +2090,7 @@ struct ChatView: View {
         )
     }
 
-    // MARK: - 新承载（§246 换代包 3）
+    // MARK: - 新承载（§257 换代包 3）
 
     /// 新承载列表面：容器（ChatListCarrierView）＋
     /// 两宿主 overlay（与旧承载同式同层：输入舱托
@@ -4281,7 +4281,7 @@ struct ChatView: View {
         }
     }
 
-    /// 空态形象段（§246 起两承载共用同一构建：
+    /// 空态形象段（§257 起两承载共用同一构建：
     /// 旧承载挂 LazyVStack、新承载作不透明行托
     /// 管，内容只有本一处出处）
     @ViewBuilder
@@ -4361,7 +4361,7 @@ struct ChatView: View {
         .padding(.top, OneDayMetrics.spacingL)
     }
 
-    /// 条目行内容（§246 起两承载共用同一构建，防两
+    /// 条目行内容（§257 起两承载共用同一构建，防两
     /// 承载行内容分叉）：分隔条（有则）＋气泡本体，
     /// §165 锚点点亮底色同在此处——旧承载挂 Lazy-
     /// VStack、新承载托管进容器 cell，行内容只有

@@ -2,7 +2,7 @@ import OneDayCore
 import SwiftUI
 import UIKit
 
-/// 会话页换代包 3·新承载（DESIGN §246，蓝图 §1.1/
+/// 会话页换代包 3·新承载（DESIGN §257，蓝图 §1.1/
 /// §1.2/§2 包 3）：UIViewControllerRepresentable＋
 /// UIScrollView 语义的容器承载——行高消费包 2 的排
 /// 版产物（组合模型在 Core ChatRowHeightModel）、

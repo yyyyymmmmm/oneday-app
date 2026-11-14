@@ -1,6 +1,6 @@
 import Foundation
 
-/// 会话页换代包 3·承载层 Core（DESIGN §246，蓝图
+/// 会话页换代包 3·承载层 Core（DESIGN §257，蓝图
 /// native-list-migration-blueprint §1.1/§1.2/§2 包 3）：
 /// 新承载（UIKit 容器＋UIScrollView 语义）的全部判定
 /// 与记账收在本文件——锚点模型、几何供数适配、行高

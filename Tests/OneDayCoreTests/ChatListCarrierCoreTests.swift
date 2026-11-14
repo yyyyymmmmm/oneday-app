@@ -1,7 +1,7 @@
 import XCTest
 @testable import OneDayCore
 
-/// 换代包 3·承载层 Core 钉测（DESIGN §246）：锚点
+/// 换代包 3·承载层 Core 钉测（DESIGN §257）：锚点
 /// 捕获/恢复、供数新旧对拍（蓝图 B7 门）、行高组
 /// 合模型、承载开关缺省。全部纯函数、无 UIKit。
 final class ChatListCarrierCoreTests: XCTestCase {

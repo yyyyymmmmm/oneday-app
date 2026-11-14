@@ -430,7 +430,7 @@ struct SettingsView: View {
         .listRowInsets(settingsRowInsets)
     }
 
-    // MARK: - 实验组（§246 换代包 3）
+    // MARK: - 实验组（§257 换代包 3）
 
     /// 会话页新承载开关（Core ChatCarrierFeature，
     /// 与 ChatView 同键同源）：施工期机制、默认关；

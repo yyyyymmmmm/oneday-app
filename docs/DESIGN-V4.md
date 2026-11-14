@@ -12422,11 +12422,11 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 ### §254.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
 
 单轮 run **43596063872**（头 5163381）：符号动效登记核查（SM-3 转正后仍绿）／Build／Package／Upload IPA 全 success；**断言失败 0 条、failed 用例 0 条**。Core 启动 **2034** 与静态预期精确对账（2024＋换代包 2 新增 8＋UI 批新增 2＋身份包净 0），bundle 汇总 Executed 2034、0 failures；三包新测逐条亲验 passed 在位：LayoutProductTests 8/8、LayoutProductPoolTests 7/7、SectionOuterSpacingTests 2/2、HubSoulTests 17/17。App 启动 172（静态 173 含 testMCPServer 桩 helper 伪名 1 名，与 0.50.43 口径一致）＝passed 161＋skipped 5（存量 PresentationLayerScenarios）＋6 条 started 无终局；UI **8/8**；MATRIX／HUB-LAYOUT／顶簇 VERDICT 三连 PASS、violations＝0。测试步名义 failure 仅由 **7 起宿主重启**（§184 签名「Restarting after unexpected exit, crash, or test timeout」，近轮在案带宽内）构成。无终局 7 条与三包 diff 对账：App 6 条与 0.50.43 轮名单逐条相同、全数在案登记（testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel＝§184 老登记；testMarkPendingSendRetainsEntryOnDisk、testBarGrowth_topRisesBottomPinned＝§184 已登记；testGoalQuoteRoundTripsThroughEntry＝§243.1 已登记；testFailedTraceMaterializesWithErrorSnapshot＝§236.1 已登记）；Core 1 条 WholeMessagePathTests.testSurroundingWhitespaceTolerated 为 §184 同签名**新受害者**（与三包 diff 零交集、上一版 Core 全过名单在位），本节登记在案——不判红。IPA 亲验：12,870,954 字节、md5 `dd4ce824c739097847122765a70e859b`、Info.plist＝0.50.44／172／site.didichou.oneday。IPA 在 ~/workspace/your_files/oneday-v0.50.44/。未合 main、未打 tag。
-## §247 目标尾巴包（GD-3 简报细项＋GD-2 未归类任务归组读面，2026-11-14；分支 feat/goals-tail，基线 rel-05041@7cb8e26；本节原自编号 §245，2026-11-14 晚 rel-05042 组版收口已把 §244 归权限包、§245 归审批卡包、§246 归组版节，本节顺延改 §247）
+## §255 目标尾巴包（GD-3 简报细项＋GD-2 未归类任务归组读面，2026-11-14；分支 feat/goals-tail，基线 rel-05041@7cb8e26；本节原自编号 §245、分支内顺延 §247，0.50.45 组版顺延为 §255）
 
 **出处**：GD-3 细项＝goals-page-gap-audit-20261114.md 差距表#6＋three-pages-spec-rev2-20261111.md §3（简报＝信件形：列表行摘要化、信纸排版、短注口径）；GD-2＝three-pages-muse-parity-20261111.md §三调和读法＋§四 GD-2 行（审计 K-4）。伴生改动只落码＋自测、**部署留主线窗口**（App 新读面在伴生部署前如实落空/404 静默，不假造数据）。
 
-### §247.1 GD-3 简报细项
+### §255.1 GD-3 简报细项
 
 - **短注 note（桥）**：简报落盘新增 `note`——桥按本信实际装配的素材三类计数（近 7 天进展条数／关联采纳任务数／近 7 天监测变化数，与 `_assemble_brief_material` 同一切片）以固定模板拼装（「依据近 7 天X 条进展、Y 项任务变化、Z 条监测变化」，有才列、全零为 null），**代码计数、非模型发挥**；App 在信件页信尾安静呈现一行，列表行不呈现。
 - **打开记录 lastOpenedAt（桥）**：简报记录新增 `lastOpenedAt`（初始 null）；新端点 `POST /goals/{id}/briefings/{bid}/opened`（无体，404 口径随既有）在 App 打开信件页时盖当前时刻并落盘，回执简报全形。**仅台账层可见**（「写了没看」信号）——App 不呈现已读/未读标记、不进任何角标、不做催读（§14 产品红线）；App 侧调用失败静默（非用户写动作、不打扰）。旧记录两新字段宽容读 null、不回填。
@@ -12434,7 +12434,7 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **列表行摘要化（App）**：详情最新信卡与简报列表页行均只给标题＋**首句摘要≤40 字**（`BriefingPresentation.summary` 纯函数：首段首句、超限截断加省略号）＋日期，不再铺全文（原详情卡 body 前 3 行、原简报页全文平铺均废）。
 - **范围裁量注记**：详情页「还没有简报…」诚实说明文保留——审计 GD-3 细项未列删除，rev2「无简报零占位」指不放假占位而非删除真实说明，口径在报告中注明。
 
-### §247.2 GD-2 未归类任务归组读面【分类口径已追认】
+### §255.2 GD-2 未归类任务归组读面【分类口径已追认】
 
 - **K-4 查证结论**：parity 规格 §三有具体可执行提案（调和读法）：目标管「用户关心、由用户发起或与用户目标相关」的 AI 任务（委派、点子采纳、对话里立的活）；纯系统任务（定时探针、桥内调度）仍归台账。该读法在规格中标注「须主线裁决」、K-4 状态「定义调和未裁」——本包按提案落码；**2026-11-14 19:05 用户拍板「全改，需要决定的你推荐」并明示「GD-2 若按审计提案落码视同已追认」，分类口径就此定案**；后续若再改口径只动桥侧分类函数一处。
 - **分类实现（只认桥侧登记、不猜）**：任务板本体无来源字段，桥侧三本登记册即证据面——goalTaskLinks（有 link＝已归组）、ideas.taskId（点子采纳生成类；idea 自带 goalId 的经点子已归组、排除）、kanbanBindings（经自动化门面对话派发必落绑定；binding 带 goalId 的同时已建 link）。未归类面＝（采纳类 idea.goalId 为空 ∪ 对话类 binding.goalId 为空）− 已 link，且只收桥最近一次任务板快照中实存的任务；无任何登记的板任务（直建/定时/探针）永不进面。kanban 本体不动、不自动归组。
@@ -12442,54 +12442,54 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **读面二** `GET /goals/ungrouped-tasks`：`{items, polledAt}`，行含来源（adopted/chat）与证据 id（ideaId/ownerSessionId）。App 目标列表页新增「未归类任务」区（非空才现）：行＝标题＋状态＋来源，**一键归组**＝行上「归组」菜单选进行中目标→乐观先行摘行→POST 既有 task-links 写路→失败整行放回＋人话提示（总纲时序口径）；成功后静默回读两面收口。
 - **关联回响边界**：归组后任务变化经既有 GD-1 监测回响（materializeGoalEchoes）进目标条目流，本包不新建回响通道。
 
-### §247.3 测试与计数
+### §255.3 测试与计数
 
 - 桥自测新增 `tests/oneday_bridge_gd23_selftest.py`（24 项：Phase A 种子数据走 HTTP 全链——note 透传/旧记录 null/opened 落盘与 404/读面一 join 与诚实 null/读面二分类精确集/归组写路后行消失；Phase B 进程内——note 模板逐字、计数与素材逐项一致、opened 盖章）并登记 run_bridge_selftests.sh；顺手摘除该脚本中 ai-sessions 自测的失效登记（文件已随 API 直连包退役删除、登记残留使整套恒红）。既有存量注记：p9 自测在 runner 扁平暂存下因 sibling scripts 路径 FAILED、在仓内直跑 28/28——与本包无关、留主线处理。
 - App 测试：Core 新增 GoalsTailTests 13（简报新字段三种解码形、两读面解码、摘要五态、周次三态）；App 新增 GoalsTailAppTests 6（归组接缝：装载/乐观摘行/恢复归位/恢复幂等/无连接不假动）。
 - 词条：Localizable 新增 11 键（未归类任务/归组/第 %lld 周/OneDay 目标简报/这封信已经不在了。/来自点子采纳/来自对话安排/未归类区说明句/归组失败提示/简报打开记录/目标任务），validate_i18n 通过——**3052 键**×三语（基线 3041＋11）。
 - **静态计数预期**：Core **2021**（2008 基线＋13）、App passed **153**（147 基线＋6）、UI **8**（零增）。版本号不动（不组版、只交分支）。
-## §246 API 直连 B 包：频道直连＋文件加工拆桥（2026-11-14；分支 feat/api-direct-b，基线 rel-05041@7cb8e26；全档＝oneday-design-review/api-direct-b-report-20261114.md。§ 号自取、组版顺延校准：§244/§245 已被权限/身份线占用）
+## §256 API 直连 B 包：频道直连＋文件加工拆桥（2026-11-14；分支 feat/api-direct-b，基线 rel-05041@7cb8e26；全档＝oneday-design-review/api-direct-b-report-20261114.md。自编号 §246，0.50.45 组版顺延为 §256）
 
 **总纲执行**：对接优先级定版（API 直连优先→没 API 先给服务端补 API→桥只收敛不扩张）在待办总表 B 组六项的第二包落地；盘点底账 api-direct-inventory-20261114.md（26 端点组）。
 
-### §246.1 B1 频道状态直连（App 改直连、桥端点调用清零）
+### §256.1 B1 频道状态直连（App 改直连、桥端点调用清零）
 
 - 读口换 Hermes Dashboard 原生 `GET /api/messaging/platforms`（0.23.0 源码 hermes_cli/web_routers/messaging.py `_messaging_platform_payload` 实证字段面），经 AppState.performAdmin（登录失效静默重登口径与全 App /api/* 一致）；HermesClient 新增 messagingPlatforms。
 - 映射层 OneDayCore `MessagingStatusMapping`：DTO 只认产品目录（MessagingChannelCatalog 镜像桥 PLATFORMS 表）内平台、按目录序出行，载荷缺行合成未配对行；configured＝Dashboard configured ∧ enabled（桥口径含启用位）；connected＝gateway_running ∧ state=connected；error＝state∈{error,fatal,startup_failed} 或网关运行且带 error_message（截断 300 与桥同），message 仅 error 态附；needsIdentity＝已配对 ∧ 目录 identityEnv 对应 env_vars is_set=false；weixin 恒 frozen 行。sessionCount 无原生来源且全仓无消费方（grep 实证），恒 0。
 - DTO 名（ChannelPlatformStatus/ChannelsStatusResponse）与 ChannelStatusStore/视图零改；桥 `GET /channels/status` App 侧调用清零（grep 实证）。
 
-### §246.2 B2 频道凭据编排直连（编排在 App、凭据只过单钥通道不留存）
+### §256.2 B2 频道凭据编排直连（编排在 App、凭据只过单钥通道不留存）
 
 - 写口换 `PUT /api/messaging/platforms/{id}`（enabled=true＋env＋clear_env）＋`POST /api/gateway/restart` 触发即时生效（HermesClient 新增 updateMessagingPlatform；gatewayRestart 既有）；回执由 App 合成桥时代同形（configured=true、state=pending_restart、restartRequired=true、applyTriggered＝重启触发成败、失败带 applyError 人话），呈现层（ChannelApplyPhase 相位口径）零改。
 - 编排层 OneDayCore `MessagingCredentialsComposer`：字段→env 映射、飞书钉死（FEISHU_CONNECTION_MODE=websocket＋FEISHU_ALLOW_ALL_USERS=false）、邮箱 preset 推导（gmail 钉 EMAIL_AUTHSERV_ID=mx.google.com 并清 TRUST_FROM_HEADER；其余钉 TRUST_FROM_HEADER=true 并清 AUTHSERV_ID；恒清 EMAIL_ALLOW_ALL_USERS）、格式校验与人话文案逐句平移桥 `_set_credentials`/`_validate_value`（Telegram token 形状、白名单按平台分型：TG 纯数字/飞书 ou_/邮箱地址、邮箱必填白名单、端口范围等），新文案 23 键补 Localizable 三语。
 - **行为变化如实登记**：桥的写前各平台真实验活（getMe/换 token/IMAP+SMTP 真登）直连面无对应物退场——Dashboard 官方流程（Channels 页）同样是先 PUT 落盘、再由状态面与 POST /test 验连接，与官方同构；验活改由保存后状态回读（connected/error＋error_message）呈现。botUsername/botName 无原生来源恒 nil（呈现本为可选）。
 
-### §246.3 B3 身份写留痕落点（只对账登记、本包零施工）
+### §256.3 B3 身份写留痕落点（只对账登记、本包零施工）
 
 - 落点已具备：桥 `_set_name` 自带 `_traced`（POST /traces 五要素账＋name-state.json{updatedAt,source}）；身份线 feat/identity-pack 已落名字读直连＋多账收敛。唯一缺口＝App 人设编辑 PUT /api/profiles/{name}/soul 直写不补报 trace，施工面属身份包文件面（身份 UI），本包不撞面、登记待身份线后续补报（POST /traces 契约现成）。
 
-### §246.4 B4/B5 表格转码＋媒体 rendition（伴生补独立端点、oneday 桥退役）
+### §256.4 B4/B5 表格转码＋媒体 rendition（伴生补独立端点、oneday 桥退役）
 
 - 能力边界实证：Hermes 0.23.0 `/api/files*` 只收 path 回原文件、无转码；`/api/media` 只回整图 data URL、无缩放 rendition——无原生 API，按总纲在伴生补：新独立模块 `modules/fileproc_bridge.py`（supervisor 托管 id=fileproc、端口 8651、钥 FILEPROC_BRIDGE_KEY），两端点实现与错误契约（§125 转码值口径/500 行上限/敏感名 403/大小 413/422 分型；§138 三档尺寸/缓存键/单飞/内存护栏/ETag）与 oneday 桥逐字平移，路径与回执不变、只换前缀 /api/fileproc-bridge（nginx 新 location 与既有桥前缀同式：auth_request 验登录钥＋换桥钥）。
 - oneday 桥侧两端点退役（路由摘除回 404），实现段 oneday_seg_files.py 删除；敏感名判定随唯一剩余消费方（deliveries 路径校验）迁 oneday_seg_delivery。自测随迁改名 fileproc_bridge_*_selftest（转码 20/20 本地全过；rendition 路径/鉴权项全过、生成项本地进程内实证通过——HTTP 层在本机被内存护栏 503 拦截系宿主内存 86%>85% 的设计行为，与旧桥同码同判）。
 - deliveries thumb/cover 是登记时快照（oneday 自有生成、与 rendition 机器无关），登记保留不动。
 - App 侧：新增 FilesProcClient（同基座、换前缀），OneDayBridgeClient.spreadsheet/rendition 改委托（签名与状态码分型口径不变），调用方（FileOpenView/FileThumbnailStore/DeliverablesView）零改；oneday 前缀下两路径 App 调用清零（grep 实证）。
 
-### §246.5 B6 频道 QR（只登记）
+### §256.5 B6 频道 QR（只登记）
 
 - WhatsApp QR onboarding 契约已实证齐全（Dashboard start/status/delete/apply 四件，apply 自带写 env＋启用＋重启），但 WhatsApp 已被用户拍板暂缓、App 无 QR 界面、桥侧 QR 端点休眠中。本包不动；解冻时 App 直调 Dashboard onboarding、桥 QR 端点届时退役，channels 桥的 QR 部分与 B1/B2 一并列入「桥整桥退役」候选（channels_bridge.py 本体待主线另行处置，本包未动其代码）。
 
-### §246.6 CI 判读（2026-11-14 回填，四轮）——**§190 终判绿（带 §184 在案登记）**
+### §256.6 CI 判读（2026-11-14 回填，四轮）——**§190 终判绿（带 §184 在案登记）**
 
 - **一轮 run 43591025049**（head d25aeb4）：Build 步 failure——本包四处编译错（sendJSON 参序、escapedPathSegment 不存在、HermesError 无 server/serverMessage 两 case 的口径误判），逐项按真实签名修复（346f0ff）。
 - **二轮 run 43592528626**（head 346f0ff）：Build 过；测试步在 OneDayAppTests 编译期 failure——测试桩 FailingHermesClient 未同步协议新方法，补桩两方法（a3dfa0e，与 DemoHermesClient 签名对齐）。
 - **三轮 run 43593518682**（head a3dfa0e）：Build／Package／Upload IPA 全 success；**Core 2025／2025 断言失败 0**（基线 2008＋本包新 17，MessagingChannelsTests 17 条全过）；App 147 ended 中 1 条断言失败＝EdgeEffectProbeTests.testEdgeEffectAttributionProbe（像素探针阈值 6>4，本包改动面与其零交集）；UI 8／8；宿主重启签名在案。
 - **四轮 run 43595852269**（同 head 复跑）：**断言失败 0 条**——三轮失败的探针用例本轮 passed（24.8 秒，抖动定案关闭）；Core 2025／2025、App 147 ended 全 passed、UI 8／8；测试步名义 failure 仅宿主重启截断（started 无终局行，§184 签名）。
 - **两轮并集对账**：Core 2025 全绿两轮一致；App 全部用例至少一轮 passed、无一轮内容性失败留存；UI 8／8 两轮一致。终判绿。
-**节号顺延注记**：本节在本分支编号 §245；main 侧 0.50.42 已定 §245＝审批卡节、§246＝组版节——组版合入时本节顺延改号（预计 §247），文内 §245 引用一并改。
+**节号顺延注记**：本节在本分支编号 §245；main 侧 0.50.42 已定 §245＝审批卡节、§256＝组版节——组版合入时本节顺延改号（预计 §247），文内 §245 引用一并改。
 
 
-## §246 会话页换代包 3·承载层（2026-11-14；分支 feat/chat-gen3，基线 feat/chat-gen2@cf14508；全档＝oneday-design-review/chat-gen3-report-20261114.md）
+## §257 会话页换代包 3·承载层（2026-11-14；分支 feat/chat-gen3，基线 feat/chat-gen2@cf14508；全档＝oneday-design-review/chat-gen3-report-20261114.md）
 
 **范围**（蓝图 §1.1/§1.2＋§2 包 3，按包 3 施工简报收窄至三件）：①UIScrollView 语义容器新承载（UIViewControllerRepresentable），消费包 2 LayoutProduct；②回底箭头浮层化（头号用户面）；③条目 id＋条内偏移锚定＋贴底四路在新承载逐路复验。冻结口径全程不失守：pocket y=62、composer (0,62,402×729)、adjTop=122、静息 adjBottom=145、§194 键盘机制本体、两 GuideHost 承载、§168 文本体均未碰——本包只动列表承载与箭头承载。承载开关（Core `ChatCarrierFeature`，键 `chat.carrier.gen3`）默认关＝旧承载，设置页「实验」组开；包 4–5 期间两承载并存（蓝图口径）。
 
@@ -12500,12 +12500,14 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **跟随链双胞胎**：新承载贴底走与旧链同一协调者/落定机/流式闸的状态（共用 @State、切换不重置账），执行口换容器句柄；切线程存锚双写（扩展锚＋旧锚）、入线程扩展锚优先恢复。
 - **蓝图原案收窄登记**（如实）：未做 UICollectionView/diffable 与 GuideHost 子 VC 化（简报收窄至 UIScrollView 语义容器，差分/子 VC 随包 4 决策）；§195 补偿未退役（蓝图门＝B 组真机过后、归包 5/6）；承载内 .scrollEdgeEffect 注册缺位（§213 口径在新承载的对应物随 B 组真机裁决）。
 
-**验收**：Core 新测 17 条（锚捕获/恢复、双路供数对拍回放、行高模型六例、开关缺省）；组装回归（ChatPageAssemblyRegressionTests，开关默认关）保证旧承载行为不变；CI 按 §190 判读（判读回填见 §246.1）。几何探针/顶簇 VERDICT 必看（本包未动几何/坞、应全 PASS）。
+**行高口径定版（0.50.45 组版回填）**：行高以「产物估算起步＋量实回填覆盖同 key 估算、量实不落盘」为定版（WWDC19 estimated 同构策略），蓝图原案『产物唯一权威』就此修订。
+
+**验收**：Core 新测 17 条（锚捕获/恢复、双路供数对拍回放、行高模型六例、开关缺省）；组装回归（ChatPageAssemblyRegressionTests，开关默认关）保证旧承载行为不变；CI 按 §190 判读（判读回填见 §257.1）。几何探针/顶簇 VERDICT 必看（本包未动几何/坞、应全 PASS）。
 
 **真机待验（归主线，单列）**：开实验开关后——**回底箭头出现时末条消息纹丝不动**、箭头贴舱约 8pt、离底/贴底显隐与未读角标、流式跟随不掉队、进页落底、键盘升起复贴、锚恢复（离线程回看回原位）、蓝图 A 组四帧对 153 基准、B 组全项（滚动帧率/回弹/转场）、F 组舱功能冒烟、深色与 AX 最大字号各一帧、供数双路残差 B 组裁决。
 
-### §246.1 CI 判读（2026-11-14 回填；分支头 dbb0c97）
+### §257.1 CI 判读（2026-11-14 回填；分支头 dbb0c97）
 
-四轮：一/二轮构建失败（抽取吞 `bubble` 的 @ViewBuilder＋重复标注；§245 预热内联闭包在分叉后巨链上类型检查超时→抽独立函数断链、口径逐字不变），三/四轮同头判读——**Core 2033/2033**（基线 2016＋新增 17 精确对账、0 失败）；App 两轮并集 159 点名 passed＋5 skipped（PresentationLayerScenarios 整套 XCTSkip 占位、与基线一致）＋2 无终局（§184 长期在案 testKeyboardUpMovesComposerOnlyDockStays/testBridgeTapToOpenReachesFullTravel）＝166 精确对账；断言失败两条各只在一轮出现、另一轮同头 passed（EdgeEffectProbe 像素探针＝宿主颠簸采样抖动、AnchoredBars 探针＝异步等待超时无数值断言），并集站立断言失败 0；UI 8/8；VERDICT ×3 PASS 两轮全过；宿主重启三轮 7 起/四轮 6 起按 §184 登记。**§190 终判实质绿。**
+四轮：一/二轮构建失败（抽取吞 `bubble` 的 @ViewBuilder＋重复标注；§251 预热内联闭包在分叉后巨链上类型检查超时→抽独立函数断链、口径逐字不变），三/四轮同头判读——**Core 2033/2033**（基线 2016＋新增 17 精确对账、0 失败）；App 两轮并集 159 点名 passed＋5 skipped（PresentationLayerScenarios 整套 XCTSkip 占位、与基线一致）＋2 无终局（§184 长期在案 testKeyboardUpMovesComposerOnlyDockStays/testBridgeTapToOpenReachesFullTravel）＝166 精确对账；断言失败两条各只在一轮出现、另一轮同头 passed（EdgeEffectProbe 像素探针＝宿主颠簸采样抖动、AnchoredBars 探针＝异步等待超时无数值断言），并集站立断言失败 0；UI 8/8；VERDICT ×3 PASS 两轮全过；宿主重启三轮 7 起/四轮 6 起按 §184 登记。**§190 终判实质绿。**
 
-**节号顺延注记**：本节在本分支编号 §246；组版合入时与 main 侧既有节号统一对齐（main 侧 §245＝审批卡、§246＝0.50.42 组版；包 2 节预计顺延 §247，本节顺延其后），文内 §246 引用一并改。
+**节号顺延注记**：本节在本分支编号 §246；0.50.45 组版顺延为 **§257**（包 2 节已随 0.50.44 组版落 §251），文内与代码自指一并改讫。
