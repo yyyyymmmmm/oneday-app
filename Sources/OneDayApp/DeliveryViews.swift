@@ -247,7 +247,7 @@ struct DeliveryFileCard: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.leading, OneDayMetrics.spacingSM)
-                .padding(.vertical, 10)
+                .padding(.vertical, OneDayMetrics.cardInnerGap)
             }
             .background(
                 Palette.surface,

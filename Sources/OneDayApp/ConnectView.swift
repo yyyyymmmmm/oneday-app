@@ -397,7 +397,7 @@ struct ConnectView: View {
         -> some View
     {
         Button(action: action) {
-            HStack(spacing: 2) {
+            HStack(spacing: OneDayMetrics.spacingMicro) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 14, weight: .semibold))
                 Text(L10n.string(label))
@@ -612,7 +612,7 @@ struct ConnectView: View {
             Image(systemName: systemImage)
                 .font(.system(size: 17))
                 .foregroundStyle(Palette.primary)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(L10n.string(title))
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Palette.ink)
@@ -682,7 +682,7 @@ struct ConnectView: View {
                         Image(systemName: "text.bubble")
                             .font(.system(size: 17))
                             .foregroundStyle(Palette.inkSecondary)
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text("在 GitHub 提交问题")
                                 .font(.callout)
                                 .foregroundStyle(Palette.ink)
@@ -722,7 +722,7 @@ struct ConnectView: View {
             Image(systemName: systemImage)
                 .font(.system(size: 17))
                 .foregroundStyle(Palette.inkSecondary)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(L10n.string(title))
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Palette.ink)

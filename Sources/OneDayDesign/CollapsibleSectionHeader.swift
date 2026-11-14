@@ -31,7 +31,7 @@ public struct CollapsibleSectionHeader: View {
 
     public var body: some View {
         Button(action: onToggle) {
-            HStack(spacing: 6) {
+            HStack(spacing: OneDayMetrics.rowInnerGap) {
                 Text(title)
                     .font(titleFont)
                 Spacer(minLength: 0)
