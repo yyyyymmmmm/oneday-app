@@ -363,7 +363,8 @@ struct GoalsView: View {
     /// 下的集中在这里，点「归组」选一个目标即可；归
     /// 组后它的进展会记到那个目标里。纯系统/定时任
     /// 务不在此面（归台账）。此区只呈现＋用户点归，
-    /// 系统不自动归组【归类口径待用户追认】
+    /// 系统不自动归组【归类口径：2026-11-14 19:05
+    /// 用户拍板，按审计提案落码视同已追认】
     private var ungroupedSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("未归类任务")
@@ -373,50 +374,26 @@ struct GoalsView: View {
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                ForEach(store.ungroupedTasks) { row in
+                ForEach(store.ungroupedTasks, id: \.taskId) { row in
                     if row.taskId
                         != store.ungroupedTasks.first?.taskId {
                         GroupDivider()
                     }
-                    HStack(spacing: OneDayMetrics.spacingSM) {
-                        Image(systemName: "checklist")
-                            .font(.body)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .frame(width: 24)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(row.title)
-                                .font(.body)
-                                .foregroundStyle(Palette.bodyInk)
-                                .lineLimit(2)
-                            Text(ungroupedRowDetail(row))
-                                .font(.footnote)
-                                .foregroundStyle(Palette.inkMuted)
+                    UngroupedTaskRowView(
+                        row: row,
+                        detail: ungroupedRowDetail(row),
+                        targets: store.goals.filter {
+                            $0.status == .active
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        Menu {
-                            ForEach(
-                                store.goals.filter {
-                                    $0.status == .active
-                                }
-                            ) { goal in
-                                Button(goal.title) {
-                                    Task {
-                                        await store
-                                            .assignUngroupedTask(
-                                                appState: appState,
-                                                taskID: row.taskId,
-                                                toGoalID: goal.id
-                                            )
-                                    }
-                                }
-                            }
-                        } label: {
-                            Text("归组")
-                                .font(.body)
-                                .foregroundStyle(Palette.accent)
+                    ) { goalID in
+                        Task {
+                            await store.assignUngroupedTask(
+                                appState: appState,
+                                taskID: row.taskId,
+                                toGoalID: goalID
+                            )
                         }
                     }
-                    .padding(.vertical, OneDayMetrics.spacingSM)
                 }
             }
             if let note = store.ungroupedNote {
@@ -460,6 +437,48 @@ struct GoalsView: View {
                 .foregroundStyle(Palette.inkSecondary)
         }
         .padding(.top, OneDayMetrics.spacingS)
+    }
+}
+
+/// 未归类任务行（GD-2）：标题＋状态/来源小字＋右端
+/// 「归组」菜单（选进行中目标即归组，动作经 onAssign
+/// 回到列表页的 Store 调用）。独立成 View 与列表页
+/// 解耦（同 GoalRowView 的拆分先例）
+struct UngroupedTaskRowView: View {
+    let row: BridgeUngroupedTask
+    let detail: String
+    let targets: [BridgeGoal]
+    let onAssign: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Image(systemName: "checklist")
+                .font(.body)
+                .foregroundStyle(Palette.inkSecondary)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(row.title)
+                    .font(.body)
+                    .foregroundStyle(Palette.bodyInk)
+                    .lineLimit(2)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Menu {
+                ForEach(targets, id: \.id) { goal in
+                    Button(goal.title) {
+                        onAssign(goal.id)
+                    }
+                }
+            } label: {
+                Text("归组")
+                    .font(.body)
+                    .foregroundStyle(Palette.accent)
+            }
+        }
+        .padding(.vertical, OneDayMetrics.spacingSM)
     }
 }
 
