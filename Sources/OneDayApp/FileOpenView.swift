@@ -29,11 +29,13 @@ enum FileOpenOrigin {
 struct FileOpenView: View {
     let target: FileOpenTarget
     var origin: FileOpenOrigin = .serverFile
-    /// §129：404 时「让智能体重新发」的宿主落点
-    /// （聊天来源由 ChatView 注入：预填落当前线程
-    /// 输入舱）；不注入时 FileOpenContent 走新建
-    /// 对话同制（文件页/资料库来源）
-    var onRequestResend: ((String) -> Void)? = nil
+    /// §129 落点、§216 改通道：404 时「让智能体重
+    /// 新发」的宿主落点（聊天来源由 ChatView 注
+    /// 入：文件引用挂当前线程发送舱）；不注入时
+    /// FileOpenContent 走新建对话＋按线程寻址直写
+    /// 同制（文件页/资料库来源）。回调载荷自 §216
+    /// 起是 FileQuote 值快照，不再是整段预填文
+    var onRequestResend: ((FileQuote) -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -58,13 +60,13 @@ struct FileOpenContent: View {
     private var target: FileOpenTarget { currentTarget }
     var origin: FileOpenOrigin = .serverFile
     var showsCloseButton: Bool = false
-    var onRequestResend: ((String) -> Void)? = nil
+    var onRequestResend: ((FileQuote) -> Void)? = nil
 
     init(
         target: FileOpenTarget,
         origin: FileOpenOrigin = .serverFile,
         showsCloseButton: Bool = false,
-        onRequestResend: ((String) -> Void)? = nil
+        onRequestResend: ((FileQuote) -> Void)? = nil
     ) {
         _currentTarget = State(initialValue: target)
         self.origin = origin
@@ -501,23 +503,29 @@ struct FileOpenContent: View {
         return actions
     }
 
-    /// 「让智能体重新发」落点（§129）：宿主注入了
-    /// 落点（聊天来源）就交给宿主（预填落当前线程
-    /// 输入舱）；没有注入（文件页/资料库来源）照
-    /// §123 讨论同制——新建一条对话、预填进草稿、
-    /// 切到聊天格。两路都只预填不代发；执行后关
+    /// 「让智能体重新发」落点（§129 立形、§216 引
+    /// 用化）：宿主注入了落点（聊天来源）就把文件
+    /// 引用交给宿主挂当前线程发送舱；没有注入（文
+    /// 件页/资料库来源）照讨论同制——新建一条对
+    /// 话、引用直写新线程的待发状态（按线程寻址、
+    /// 落点决定与写入同动作）、切到聊天格。两路都
+    /// 只挂引用不代发。§216 前两路都是机器文直落
+    /// 亲笔面（宿主路直写 input、同线程回存时进草
+    /// 稿账；无宿主路经 setDraft 直写草稿账），与
+    /// 动态讨论同病（定性见 §208），本包一并堵死。
+    /// 重发话术三要点（名／原路径／确认后重发）由
+    /// FileQuote 的组装承接、语义零丢失。执行后关
     /// 本页（push 形态下 dismiss 即返回上一层）
     private func requestResend() {
-        let prefill = FileResendPrefill.make(
-            name: target.name, path: target.path
-        )
+        let quote = FileQuote(target: target)
         if let onRequestResend {
-            onRequestResend(prefill)
+            onRequestResend(quote)
         } else {
             let thread = ChatThread()
             modelContext.insert(thread)
             try? modelContext.save()
-            appState.sideChats.setDraft(prefill, for: thread.id)
+            appState.pendingSourceQuotesByThread[thread.id] =
+                .file(quote)
             appState.drawerThreadSelection = thread.id
             appState.mainTabSwitchRequest = .chat
         }

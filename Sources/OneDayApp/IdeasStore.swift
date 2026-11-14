@@ -114,6 +114,13 @@ final class IdeasStore {
         do {
             ideas = try await client.ideas(config: config)
             loadState = .ready
+            // §216：名单到手即扫 §216 前的旧点子预填
+            // 存量（逐字再生须拿原点子，这是最早能严
+            // 格核验的时点；判定从严、亲笔零误伤，
+            // 与 FeedStore 的动态清扫同式）
+            appState.sideChats.purgeLegacyIdeaDrafts(
+                ideas: ideas
+            )
         } catch let error as OneDayBridgeError {
             if loadState == .ready { return }
             loadState = GoalsStore.state(for: error)

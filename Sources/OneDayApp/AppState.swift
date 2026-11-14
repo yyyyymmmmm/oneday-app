@@ -691,12 +691,28 @@ final class AppState {
     /// 存：进程死亡即亡，与引用本身的生命周期一致
     /// （引用不落盘恢复，规格 §3.3）
     var pendingFeedQuotesByThread: [UUID: FeedPostQuote] = [:]
+    /// 点子／文件待发引用（§216）：与上表同型——按
+    /// 线程寻址存放，IdeasView.openIdeaChat 与 File-
+    /// OpenView.requestResend 在落点决定的同一动作内
+    /// 直写本表，ChatView 按 currentThreadID 派生呈
+    /// 现。载荷是 SourceQuote 统一枚举，本表只承载
+    /// .idea／.file 两族（.feed 族沿上表 §210 既有通
+    /// 道，不在此重复存放）；槽位单一在场、后入覆盖
+    /// 的互斥由 ChatView 呈现侧收口函数对两表交叉清
+    /// 理兑现。只活在内存、进程死亡即亡（同上表）
+    var pendingSourceQuotesByThread: [UUID: SourceQuote] = [:]
     /// 动态原帖回跳请求（§208）：聊天里点消息的动态
     /// 引用块时置位帖 id 并同行置 mainTabSwitch-
     /// Request=.feed 切格，FeedView 消费后定位原帖
     /// （查无此帖给诚实提示）并清零——置位—消费—
     /// 清零与 fileRevealPath 同式
     var feedOpenPostRequest: String?
+    /// 点子回跳请求（§216）：聊天里点消息的点子引
+    /// 用块时置位点子 id 并同行置 mainTabSwitch-
+    /// Request=.ideas 切格，IdeasView 消费后开该点
+    /// 子详情（查无此点子给诚实提示）并清零——与
+    /// feedOpenPostRequest 同式
+    var ideaOpenRequest: String?
     /// 抽屉点选/新建的线程 id（DrawerView 写，ChatView
     /// 消费后切 currentThreadID 并清零）
     var drawerThreadSelection: UUID?
