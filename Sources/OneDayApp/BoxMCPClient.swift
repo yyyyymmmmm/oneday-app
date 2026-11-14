@@ -78,8 +78,22 @@ actor BoxMCPClient {
             sessionId = newSessionId
         }
 
+        // M3：按 Content-Type 分流处理（对齐 callTool）
+        let responseData: Data
+        if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
+           contentType.contains("text/event-stream") {
+            // SSE 响应：按 requestId 匹配提取 JSON
+            guard let extracted = parseSSEResponse(data: data, requestId: request.id) else {
+                throw BoxMCPError.sessionFailed("SSE response parsing failed")
+            }
+            responseData = extracted
+        } else {
+            // 纯 JSON 响应
+            responseData = data
+        }
+
         // 解析响应确认初始化成功
-        let mcpResponse = try decoder.decode(MCPResponse.self, from: data)
+        let mcpResponse = try decoder.decode(MCPResponse.self, from: responseData)
         if mcpResponse.isError {
             throw BoxMCPError.sessionFailed(mcpResponse.error?.message ?? "initialize error")
         }
