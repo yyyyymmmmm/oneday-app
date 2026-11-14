@@ -12538,3 +12538,7 @@ run 43602076559：名义 failure 仅 §184。实数：断言失败 **0**（全�
 **不属本包（登记）**：①频道面 ChannelStatusStore 在 ChannelPairingView/DrawerView 各一实例——归频道面，且 §256 已改直连，本包不动、后续如收归另立小项；②CompanionProbeStore 为 AppState 单实例、归设置页版本组面，已单源，不并入；③设备权限/同步状态（deviceSession/deviceSync）为 AppState 单实例，门面只协调读数不记第二份；④**权限流协议栈**（DevicePermissionCoordinator 卡协议：桥 ask/notice 两通道＋桥侧 park＋本地卡 UserDefaults 持久化＋24h 过期）本包只登记不改协议——App 侧卡持有已单源（协调器单实例），三方对账（本地卡／桥 park／系统权限态）是跨线协议结构，「卡真相收为桥侧单源、本地只留展示缓存」属协议级大改，立项清单见施工报告 §四，不在本包自裁。
 
 **验收**：CI 按 §190 判读（回填 §259.1）；真机待验清单见施工报告 §五（连接器页全行状态、本机服务四行探活与详情、MCP 启停/测试、云电脑组与添加流、设备组读数与同步段、搜索过滤，逐项与 .45 对照无差）。
+
+### §259.1 CI 判读（2026-11-14 回填；run 43605604281，分支头 01c577d）
+
+名义 failure 仅 §184。实数：断言失败 **0**（全程无 `Test Case ... failed` 行、无任一 failed 结局）；**Core 2081/2081 精确对账**（bundle 汇总 Executed 2081、0 failures，与基线分毫不差）；**UI 8/8 全过**；App 点名 passed 167＋skipped 5（PresentationLayerScenarios 占位套、与基线一致）＋无终局 6＝178，与 .45 组版轮 App 起跑总数 178 **精确对上**（passed/无终局的此消彼长属宿主重启彩票：.45 无终局的 testBarGrowth_topRisesBottomPinned 本轮 passed）；VERDICT ×3 PASS（MATRIX／HUB-LAYOUT／主 VERDICT）；三 target 起跑总计 2267＝2081＋178＋8 全对账。**§184 登记**：测试相位 15:02 被宿主截断（多套件耗时 100–433 秒的近冻结签名），无终局 6 条——testKeyboardUpMovesComposerOnlyDockStays、testMarkPendingSendRetainsEntryOnDisk、testBridgeTapToOpenReachesFullTravel、testAnchorRegistersAncestorScrollView（均为在案登记者）＋DeleteCloseoutTests.testApplyLeavesUnboundThreadsAlone、TraceEchoMaterializationAppTests.testFailedTraceMaterializesWithErrorSnapshot（本轮同签名新登记，与本包改动面零交集）。构建与 IPA 打包步全过。**§190 终判实质绿。**
