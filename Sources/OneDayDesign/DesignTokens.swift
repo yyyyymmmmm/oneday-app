@@ -36,6 +36,28 @@ public enum CornerRadius {
     }
 }
 
+// MARK: - Elevation 阴影两档（§245.3 美化标尺细则）
+// 0.4.0 废止的是「内容层通用阴影表」——内容层零阴影
+// 的宪法不变。本节立的是全仓仅许的两档现行阴影，档
+// 外新增阴影须先修本节入账（§245.3）：
+// - 档 F 浮件档：浮动功能层小件（圆钮类）自浮纸面抬
+//   起的唯一参数组，色走 Palette.shadowBase 派生；
+// - 档 D 抽屉缘档：抽屉右缘的系统近似档，参数在
+//   DrawerMotion（App 层，DrawerContainerView 消费，
+//   原例外 E5）——本节只登记其存在与唯一落点，不迁值。
+// 另有例外 X1「字形影」：白色符号/文字的可读性背光
+// （shadow 半径 ≤2、默认色、无偏移），仅许符号本体、
+// 禁作卡面/容器 Elevation 使用，落点在 §245.3 登记。
+
+public enum ElevationTokens {
+    /// 档 F 浮件档·不透明度（配 Palette.shadowBase）
+    public static let floatingOpacity: Double = 0.12
+    /// 档 F 浮件档·模糊半径
+    public static let floatingRadius: CGFloat = 4
+    /// 档 F 浮件档·纵向偏移
+    public static let floatingY: CGFloat = 1
+}
+
 // MARK: - Motion 令牌册（0.3.2 按礼记四档纪律收编，DESIGN-V4 §17）
 // 礼记四档 ↔ OneDay 对应：press（点按反馈）/ liquidSpring
 // （跟手位移与指示器滑移）/ pageCrossfade（内容切换默认过
