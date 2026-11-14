@@ -138,21 +138,87 @@ public struct FileQuote: Equatable, Sendable {
     }
 }
 
+/// 目标创建引用（GA-1/GA-2，§233）：把「定一个新
+/// 目标」带进对话的载体——值快照只有分类一维：目标
+/// 本体尚不存在（在对话里聊定后由智能体经伴生
+/// goals_create 门面落桥、source=chat），引用不虚构
+/// 标题与内容。生命周期与同族一致：发送舱临时态、
+/// 永不进 drafts、点 ✕ 即清、切线程作废、杀进程不
+/// 恢复；发送后随消息行快照字段落盘（ChatEntry 的
+/// goalQuoteCategory 一字段——分类即可完全重组本
+/// 引用，无第二份快照）
+public struct GoalQuote: Equatable, Sendable {
+    public let category: GoalCategory
+
+    public init(category: GoalCategory) {
+        self.category = category
+    }
+
+    /// 条首行/块头题：新建目标＋类名
+    public var title: String {
+        title(locale: AppLocale.uiLocale)
+    }
+
+    public func title(locale: Locale) -> String {
+        L10n.format(
+            "新建目标：%@", locale: locale,
+            category.title(locale: locale)
+        )
+    }
+
+    /// 一行摘要（呈现用）：介绍卡首句，条次行与已发送
+    /// 块次行共用（与其他族同口径走 MessageQuote）
+    public func summary(maxLength: Int = 60) -> String {
+        MessageQuote(role: "", content: category.introLead)
+            .summary(maxLength: maxLength)
+    }
+
+    /// 发往智能体的上下文正文：分类事实＋访谈约定＋
+    /// 落桥约定（分类带 rawValue、经 goals_create 建、
+    /// 门面强制 source=chat）。这是给智能体的事实陈
+    /// 述、不是用户口吻的代笔（与 IdeaQuote 块头同纪
+    /// 律：只作标识、不带第一人称）
+    public func contextBody(
+        locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        L10n.format(
+            "我想定一个「%@」方面的目标（分类：%@）。请在对话里陪我把这个目标聊定：想达成什么、怎么衡量、拆成哪些里程碑。聊定之后，请用 goals_create 把它建起来：category 用 %@，标题和备注按我们聊定的内容填。",
+            locale: locale,
+            category.title(locale: locale), category.rawValue,
+            category.rawValue
+        )
+    }
+
+    /// 组装一条带目标引用的消息发往服务端的 content：
+    /// 引用块在前（块头＋上下文全文）、用户亲笔正文
+    /// 独立在后；不新增 API 字段、走既有无状态重放链
+    public static func outgoingContent(
+        userText: String, goalQuote: GoalQuote?
+    ) -> String {
+        guard let goalQuote else { return userText }
+        var block = "[\(goalQuote.title)]"
+        block += "\n" + goalQuote.contextBody()
+        guard !userText.isEmpty else { return block }
+        return block + "\n\n" + userText
+    }
+}
+
 /// 来源引用（§219）：发送舱引用槽位的统一载荷——
 /// 一条用户消息至多带一种来源引用（动态／点子／
-/// 文件），与消息引用（MessageQuote）同槽互斥。
-/// §208 的动态引用是第一族；本枚举把槽位从 feed
-/// 专用推广为三族共用。投递走按线程寻址直写（与
-/// §210 feed 族同型，§219 适配定形）：feed 族沿
-/// AppState.pendingFeedQuotesByThread、点子／文件
-/// 两族走 AppState.pendingSourceQuotesByThread，
-/// ChatView 一律按 currentThreadID 派生呈现——不
-/// 经任何种子消费；新增来源族时只扩本枚举与呈
-/// 现变体，不再新开平行状态
+/// 文件／目标创建），与消息引用（MessageQuote）同
+/// 槽互斥。§208 的动态引用是第一族；本枚举把槽位
+/// 从 feed 专用推广为共用（§233 增目标族）。投递走
+/// 按线程寻址直写（与 §210 feed 族同型，§219 适配
+/// 定形）：feed 族沿 AppState.pendingFeedQuotesBy-
+/// Thread、其余各族走 AppState.pendingSourceQuotes-
+/// ByThread，ChatView 一律按 currentThreadID 派生呈
+/// 现——不经任何种子消费；新增来源族时只扩本枚举
+/// 与呈现变体，不再新开平行状态
 public enum SourceQuote: Equatable, Sendable {
     case feed(FeedPostQuote)
     case idea(IdeaQuote)
     case file(FileQuote)
+    case goal(GoalQuote)
 
     /// 本族的服务端 content 拼装（引用块在前、
     /// 亲笔在后，各族收口在其值类型上）
@@ -169,6 +235,10 @@ public enum SourceQuote: Equatable, Sendable {
         case .file(let quote):
             return FileQuote.outgoingContent(
                 userText: userText, fileQuote: quote
+            )
+        case .goal(let quote):
+            return GoalQuote.outgoingContent(
+                userText: userText, goalQuote: quote
             )
         }
     }

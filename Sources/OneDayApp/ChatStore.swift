@@ -122,6 +122,12 @@ final class ChatEntry {
     /// nil、SwiftData 轻量迁移）
     var fileQuoteName: String? = nil
     var fileQuotePath: String? = nil
+    /// §233（GA-1/GA-2）：本条消息引用的是哪个目标
+    /// 分类（目标创建引用化）——只存分类 rawValue 一
+    /// 字段：GoalQuote 全部呈现与上下文都由分类重组，
+    /// 不存第二份快照（与 idea/file 两族同纪律：可选
+    /// ＋默认 nil、SwiftData 轻量迁移）
+    var goalQuoteCategory: String? = nil
     /// 0.5.1：助手回复的思考原文（reasoning 通道落盘，
     /// §32）——只作折叠单元展示、不回灌请求上下文；
     /// reasoningSeconds 为流内实测思考耗时（首个思考增
@@ -236,6 +242,8 @@ final class ChatEntry {
         case .file(let quote):
             fileQuoteName = quote.name
             fileQuotePath = quote.path
+        case .goal(let quote):
+            goalQuoteCategory = quote.category.rawValue
         case nil:
             break
         }
@@ -397,7 +405,18 @@ final class ChatEntry {
         )
     }
 
-    /// 本条携带的来源引用（§219 统一读口）：三族
+    /// 目标创建引用值组装（§233）：分类 rawValue 可
+    /// 解即在场；存量/未知串按不在场收（不硬组一个
+    /// 错分类的引用）
+    var goalQuote: GoalQuote? {
+        guard let goalQuoteCategory,
+              let category = GoalCategory(
+                rawValue: goalQuoteCategory
+              ) else { return nil }
+        return GoalQuote(category: category)
+    }
+
+    /// 本条携带的来源引用（§219 统一读口）：各族
     /// 字段组至多一组在场（构造口保证），呈现与
     /// 回放拼装一律走本口，不再逐族探字段；
     /// feedQuote 计算属性保留（§208 既有消费面）
@@ -405,6 +424,7 @@ final class ChatEntry {
         if let feedQuote { return .feed(feedQuote) }
         if let ideaQuote { return .idea(ideaQuote) }
         if let fileQuote { return .file(fileQuote) }
+        if let goalQuote { return .goal(goalQuote) }
         return nil
     }
 }

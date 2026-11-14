@@ -10,17 +10,23 @@ import SwiftUI
 /// 「呈现页」（简报/里程碑/进展时间线/子目标/状态动作），
 /// 编辑收进独立编辑 sheet。桥未连接/未开通如实露、零假
 /// 数据；写动作全部走 GoalsStore 的回读确认口径。
-/// 创建流的两步（0.40.0）：先选分类、再开预置好分类的
-/// 表单——空态整页与有目标时的底部创建区/工具栏共用
-/// 同一条流（分类组件 GoalCategoryRowsView 共用）
+/// 创建流（0.40.0 两步：选分类→表单；§233 改三步
+/// 终局：选分类→介绍卡→开目标旁聊在对话里聊定，
+/// GA-1/GA-2 定版）——空态整页与有目标时的底部创
+/// 建区/工具栏共用同一条流（分类组件
+/// GoalCategoryRowsView 共用）；表单降为介绍卡上
+/// 的次级入口「直接填写」，不删
 private enum GoalCreateSheet: Identifiable {
     case categories
+    case intro(GoalCategory)
     case form(GoalCategory?)
 
     var id: String {
         switch self {
         case .categories:
             return "categories"
+        case .intro(let category):
+            return "intro-\(category.rawValue)"
         case .form(let category):
             return "form-\(category?.rawValue ?? "none")"
         }
@@ -29,6 +35,7 @@ private enum GoalCreateSheet: Identifiable {
 
 struct GoalsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.modelContext) private var modelContext
     @State private var store = GoalsStore()
     @State private var createSheet: GoalCreateSheet?
     @State private var expandedActive = false
@@ -91,8 +98,14 @@ struct GoalsView: View {
                 switch sheet {
                 case .categories:
                     GoalCategorySheetView { category in
-                        createSheet = .form(category)
+                        createSheet = .intro(category)
                     }
+                case .intro(let category):
+                    GoalIntroView(
+                        category: category,
+                        onStart: { openGoalChat(category) },
+                        onForm: { createSheet = .form(category) }
+                    )
                 case .form(let category):
                     GoalCreateView(
                         store: store, presetCategory: category
@@ -123,6 +136,24 @@ struct GoalsView: View {
                 Text("子目标、进展记录与简报会一并删除。挂在这个目标上的点子会解除关联（点子本身保留）。")
             }
         }
+    }
+
+    /// 开目标旁聊（GA-1/GA-2 终局，§233）：新建一条旁
+    /// 聊线程（本地出生记录，与点子开旁聊同一条链），
+    /// 目标创建引用直写其待发状态（§219 引用道：不代
+    /// 发、不写草稿账），切聊天格。目标本体不在这里
+    /// 建——在对话里聊定后由智能体经 goals_create 落
+    /// 桥（source=chat），回目标页回读列表见它出现才
+    /// 算落定，不在此假报已创建
+    private func openGoalChat(_ category: GoalCategory) {
+        let fresh = ChatThread()
+        modelContext.insert(fresh)
+        try? modelContext.save()
+        appState.pendingSourceQuotesByThread[fresh.id] =
+            .goal(GoalQuote(category: category))
+        appState.drawerThreadSelection = fresh.id
+        appState.mainTabSwitchRequest = .chat
+        createSheet = nil
     }
 
     @ViewBuilder
@@ -162,11 +193,12 @@ struct GoalsView: View {
         }
     }
 
-    /// 无目标态整页＝分类创建流（0.40.0，规格第三章）：
-    /// 「＋创建目标」标题行＋一句实话说明＋七分类行；点
-    /// 一行即以该类别预置打开新建表单（A 案：分类只是
-    /// 预置、不是当场生成方案，文案按实话写）。普通空态
-    /// （「暂无目标」＋单个按钮）自此废弃
+    /// 无目标态整页＝分类创建流（0.40.0，规格第三章；
+    /// §233 改三步终局）：「＋创建目标」标题行＋一句实
+    /// 话说明＋七分类行；点一行先出该分类的介绍卡，
+    /// 「开始吧」开目标旁聊在对话里聊定（GA-1/GA-2），
+    /// 表单是介绍卡上的次级入口。普通空态（「暂无目
+    /// 标」＋单个按钮）自 0.40.0 废弃
     private var categoryCreateFlow: some View {
         ScrollView {
             VStack(
@@ -178,12 +210,12 @@ struct GoalsView: View {
                     Label("创建目标", systemImage: "plus")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(Palette.bodyInk)
-                    Text("选一个类别，先把目标记下来。记下之后，它的进展、任务和简报会慢慢长出来。")
+                    Text("选一个类别，接下来在对话里把目标聊定。定好之后，它的进展、任务和简报会慢慢长出来。")
                         .font(.body)
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 GoalCategoryRowsView { category in
-                    createSheet = .form(category)
+                    createSheet = .intro(category)
                 }
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -324,7 +356,7 @@ struct GoalsView: View {
 
     /// 列表底常驻创建区（照 Muse 目标页图位置）：分隔线
     /// 下「＋ 创建目标」＋一句说明；点入先出分类选择（与
-    /// 空态同一分类组件），选完再开预置分类的新建表单
+    /// 空态同一分类组件），选完出介绍卡（§233 三步流）
     private var createArea: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             Divider()
@@ -336,7 +368,7 @@ struct GoalsView: View {
                     .foregroundStyle(Palette.bodyInk)
             }
             .buttonStyle(.odPressable)
-            Text("先选一个类别，再起名字、写下备注和里程碑，目标就会出现在这里，进展和简报会慢慢长出来。")
+            Text("先选一个类别，再到对话里把目标聊定。定好之后它会出现在这里，进展和简报会慢慢长出来。")
                 .font(.body)
                 .foregroundStyle(Palette.inkSecondary)
         }
@@ -388,8 +420,8 @@ struct GoalCategoryRowsView: View {
 }
 
 /// 分类选择 sheet（有目标时从底部创建区/工具栏进入）：
-/// 选完把分类交给上层换成新建表单（同一个 sheet 内换
-/// 内容，不叠第二层 sheet）
+/// 选完把分类交给上层换成介绍卡（同一个 sheet 内换
+/// 内容，不叠第二层 sheet；§233 前是换新建表单）
 struct GoalCategorySheetView: View {
     @Environment(\.dismiss) private var dismiss
     var onPick: (GoalCategory) -> Void
@@ -400,10 +432,94 @@ struct GoalCategorySheetView: View {
                 VStack(
                     alignment: .leading, spacing: OneDayMetrics.spacingL
                 ) {
-                    Text("选一个类别，先把目标记下来。")
+                    Text("选一个类别，接下来在对话里把目标聊定。")
                         .font(.body)
                         .foregroundStyle(Palette.inkSecondary)
                     GoalCategoryRowsView(onPick: onPick)
+                }
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXL)
+            }
+            .background(Palette.pageBG)
+            .navigationTitle("创建目标")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+/// 分类介绍卡（GA-1，§233）：点分类后的第二步——
+/// 分类图标＋「创建X目标」题＋介绍文（Core introLead
+/// 首句＋流程说明两句），说清这一类会怎么聊定、定
+/// 好之后长在哪里。主钮「开始吧」＝开目标旁聊在对
+/// 话里聊定（GA-2 终局：目标由智能体在对话里经
+/// goals_create 落桥、source=chat）；次级入口
+/// 「直接填写」走现行表单（不会聊的用户有退路，
+/// 规格 GA-1 定版——表单不删、只降次级）
+struct GoalIntroView: View {
+    @Environment(\.dismiss) private var dismiss
+    let category: GoalCategory
+    var onStart: () -> Void
+    var onForm: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(
+                    alignment: .leading, spacing: OneDayMetrics.spacingL
+                ) {
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingS
+                    ) {
+                        Image(systemName: category.symbolName)
+                            .font(.title)
+                            .foregroundStyle(Palette.primary)
+                            .frame(width: 52, height: 52)
+                            .background(
+                                Palette.fieldFill,
+                                in: Circle()
+                            )
+                        Text("创建\(category.title)目标")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Palette.bodyInk)
+                        Text(category.introLead)
+                            .font(.body)
+                            .foregroundStyle(Palette.bodyInk)
+                        Text("点「开始吧」会打开一条新对话，在对话里把这个目标聊定——想达成什么、怎么衡量、拆成哪些里程碑。聊定之后，目标会出现在这里，它的进展、任务和简报会慢慢长出来。")
+                            .font(.body)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    VStack(spacing: OneDayMetrics.spacingS) {
+                        Button {
+                            onStart()
+                        } label: {
+                            Text("开始吧")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                                .background(
+                                    Palette.primary, in: Capsule()
+                                )
+                        }
+                        .buttonStyle(.odPressable)
+                        Button {
+                            onForm()
+                        } label: {
+                            Text("直接填写")
+                                .font(.body)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                        }
+                        .buttonStyle(.odPressable)
+                    }
                 }
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.top, OneDayMetrics.spacingM)
@@ -496,6 +612,19 @@ struct GoalCheckBox: View {
 
 /// 目标扁平行：勾选框（状态开关）＋标题/进展摘要（点进
 /// 详情）＋⋮ 菜单（编辑/状态/删除收进菜单，照设计档）
+/// 活动状态点色（GD-1 呈现）：正在办＝主色、卡住
+/// 了＝危险色、等着/闲置＝弱灰（与组头状态点同语
+/// 义：色只表状态、不作装饰）
+private func goalActivityDotColor(
+    _ state: GoalActivityState
+) -> Color {
+    switch state {
+    case .running: return Palette.primary
+    case .blocked: return Palette.danger
+    case .waiting, .idle: return Palette.inkMuted
+    }
+}
+
 struct GoalRowView: View {
     let store: GoalsStore
     let goal: BridgeGoal
@@ -530,6 +659,34 @@ struct GoalRowView: View {
                             .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
+                    }
+                    // 活动行（GD-1 呈现，§233）：桥派生
+                    // 的关联任务活动——状态点＋label 一
+                    // 行（照 Linear 名单行 health 信号
+                    // 的摆法：小状态信号＋最近进展）。
+                    // 只对进行中目标且真有关联任务时
+                    // 显；无关联/旧桥无 activity 时整行
+                    // 不出，不拿别的数据脑补
+                    if goal.status == .active,
+                       let activity = goal.activity,
+                       activity.linkedCount > 0 {
+                        HStack(
+                            spacing: OneDayMetrics.spacingMicro
+                        ) {
+                            Circle()
+                                .fill(
+                                    goalActivityDotColor(
+                                        activity.state
+                                    )
+                                )
+                                .frame(width: 7, height: 7)
+                            Text(activity.label)
+                                .font(.footnote)
+                                .foregroundStyle(
+                                    Palette.inkSecondary
+                                )
+                                .lineLimit(1)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -732,6 +889,7 @@ struct GoalDetailView: View {
                         spacing: OneDayMetrics.spacingL
                     ) {
                         headerSection(goal)
+                        activitySection(goal)
                         briefingSection(goal)
                         milestonesSection(goal)
                         delegationSection(goal)
@@ -871,6 +1029,57 @@ struct GoalDetailView: View {
                 )
                 .font(.footnote)
                 .foregroundStyle(Palette.success)
+            }
+        }
+    }
+
+    // MARK: 活动（GD-1 呈现：桥派生的关联任务活动）
+
+    /// 活动段：状态词＋label 一行（状态点同列表行口
+    /// 径），驱动当前状态的那件任务与派生缺口注记在
+    /// 下。无关联任务且无注记时整段不显（不摆空壳）；
+    /// 旧桥无 activity 时同样不显——活动态只认桥派
+    /// 生，不在本地按任务板另算第二份
+    @ViewBuilder
+    private func activitySection(_ goal: BridgeGoal) -> some View {
+        if let activity = goal.activity,
+           activity.linkedCount > 0 || activity.note != nil {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionLabel("活动")
+                    .padding(.bottom, OneDayMetrics.spacingS)
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.spacingS
+                ) {
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Circle()
+                            .fill(
+                                goalActivityDotColor(activity.state)
+                            )
+                            .frame(width: 8, height: 8)
+                        Text(activity.state.title)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Palette.bodyInk)
+                        if !activity.label.isEmpty {
+                            Text(activity.label)
+                                .font(.body)
+                                .foregroundStyle(
+                                    Palette.inkSecondary
+                                )
+                        }
+                    }
+                    if let focus = activity.focusTask,
+                       !focus.title.isEmpty {
+                        Text("眼下这件：《\(focus.title)》")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    if let note = activity.note {
+                        Text(note)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkMuted)
+                    }
+                }
             }
         }
     }

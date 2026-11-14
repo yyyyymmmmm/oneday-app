@@ -20,11 +20,16 @@ public struct BridgeGoalTaskLink: Decodable, Equatable, Identifiable,
     public let createdAt: Double
     /// 桥已为「任务完成」写过进展条目的时刻；未写为 nil
     public let completionEntryAt: Double?
+    /// 桥已为「任务被阻塞/失败」写过进展条目的时刻
+    /// （GD-1b 一路，每段停滞恰好一次）；未写/已恢复
+    /// 为 nil。旧桥载荷缺失时按 nil 收
+    public let stoppedEntryAt: Double?
 
     public init(
         id: String, goalId: String, taskId: String,
         milestoneId: String? = nil, createdAt: Double,
-        completionEntryAt: Double? = nil
+        completionEntryAt: Double? = nil,
+        stoppedEntryAt: Double? = nil
     ) {
         self.id = id
         self.goalId = goalId
@@ -32,11 +37,12 @@ public struct BridgeGoalTaskLink: Decodable, Equatable, Identifiable,
         self.milestoneId = milestoneId
         self.createdAt = createdAt
         self.completionEntryAt = completionEntryAt
+        self.stoppedEntryAt = stoppedEntryAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, goalId, taskId, milestoneId, createdAt
-        case completionEntryAt
+        case completionEntryAt, stoppedEntryAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -52,6 +58,9 @@ public struct BridgeGoalTaskLink: Decodable, Equatable, Identifiable,
         ) ?? 0
         completionEntryAt = try container.decodeIfPresent(
             Double.self, forKey: .completionEntryAt
+        )
+        stoppedEntryAt = try container.decodeIfPresent(
+            Double.self, forKey: .stoppedEntryAt
         )
     }
 }
