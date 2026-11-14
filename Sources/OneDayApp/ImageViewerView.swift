@@ -439,7 +439,9 @@ struct ImageViewerView: View {
 /// 的源提供者按 id 取回。弱引用持有：缩略图滚出屏/被
 /// 列表回收后登记自动失效，提供者返回 nil、转场按
 /// Core ZoomTransitionPolicy 回标准呈现，不假放大。
-final class ZoomSourceRegistry {
+/// 并发口径：可变状态只有 table 一处、全部读写经
+/// NSLock 串行，故 @unchecked Sendable 成立。
+final class ZoomSourceRegistry: @unchecked Sendable {
     static let shared = ZoomSourceRegistry()
 
     private final class WeakView {
