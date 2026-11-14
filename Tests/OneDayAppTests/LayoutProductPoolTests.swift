@@ -11,6 +11,18 @@ import XCTest
 /// 的组装/缓存、影子账本记账
 final class LayoutProductPoolTests: XCTestCase {
 
+    /// 现量测本体属 MainActor（UIView 量测的真
+    /// 实口径）：参考值统一经主线取、池值在后台
+    /// ——两侧线程归属与生产一致
+    @MainActor
+    private func referenceOnMain(
+        _ attributed: NSAttributedString, width: CGFloat
+    ) -> CGFloat {
+        SelectableTextRepresentable.referenceHeight(
+            attributed: attributed, width: width
+        )
+    }
+
     // MARK: - 拼装助手（与产物 builder 同源同参）
 
     private func assemble(
@@ -87,10 +99,9 @@ final class LayoutProductPoolTests: XCTestCase {
                 let pooled = await pool.measure(
                     attributed, width: width
                 )
-                let reference = SelectableTextRepresentable
-                    .referenceHeight(
-                        attributed: attributed, width: width
-                    )
+                let reference = await referenceOnMain(
+                    attributed, width: width
+                )
                 let delta = abs(pooled - reference)
                 XCTAssertLessThanOrEqual(
                     delta, LayoutShadowLedger.tolerance,
@@ -150,8 +161,7 @@ final class LayoutProductPoolTests: XCTestCase {
         let huge = assemble([.plain(
             String(repeating: "长文本量测样本，", count: 16_000)
         )])
-        let reference = SelectableTextRepresentable
-            .referenceHeight(attributed: huge, width: 326)
+        let reference = await referenceOnMain(huge, width: 326)
         let start = CFAbsoluteTimeGetCurrent()
         ledger.record(
             attributed: huge, width: 326,
@@ -216,10 +226,11 @@ final class LayoutProductPoolTests: XCTestCase {
             > 引用一行
             """
         let entryID = UUID()
-        let product = try XCTUnwrap(await service.product(
+        let productOrNil = await service.product(
             entryID: entryID, renderedText: text,
             isUser: false, width: 326, style: style
-        ))
+        )
+        let product = try XCTUnwrap(productOrNil)
         XCTAssertEqual(product.segments.count, 2)
         XCTAssertEqual(product.segments.first?.kind, .prose)
         XCTAssertEqual(product.segments.last?.kind, .quote)
@@ -230,11 +241,9 @@ final class LayoutProductPoolTests: XCTestCase {
         for segment in product.segments {
             let width: CGFloat = segment.kind == .quote
                 ? 326 - (3 + OneDayMetrics.spacingS) : 326
-            let reference = SelectableTextRepresentable
-                .referenceHeight(
-                    attributed: segment.attributed,
-                    width: width
-                )
+            let reference = await referenceOnMain(
+                segment.attributed, width: width
+            )
             XCTAssertEqual(
                 segment.height, Double(reference),
                 accuracy: LayoutShadowLedger.tolerance
@@ -287,10 +296,9 @@ final class LayoutProductPoolTests: XCTestCase {
         for attributed in samples {
             ledger.record(
                 attributed: attributed, width: 326,
-                referenceHeight: SelectableTextRepresentable
-                    .referenceHeight(
-                        attributed: attributed, width: 326
-                    )
+                referenceHeight: await referenceOnMain(
+                    attributed, width: 326
+                )
             )
         }
         // 等后台复量落账（上限 10 秒轮询）
