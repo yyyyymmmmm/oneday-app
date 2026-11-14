@@ -11688,4 +11688,6 @@ App 本地主线绑定的钦定服务端 id 在服务端不存在（本地主线
 
 **DESIGN 顺延收口（本版统一裁）**：枢纽线 §208（收段）→**§217**、§210（身份段）→**§218**；后门节 §216→**§219**（子节 216.1–216.8 同步为 219.1–219.8）；主线 B 节 §210→**§220**（子节同步）；四节各加顺延注，代码注释自指按归属同步（枢纽面 §208→§217 共 30 行、身份面 §210→§218 共 7 行、后门面 §216→§219 共 54 行、B 面 §210→§220 共 10 行）。rel 链 §208（动态讨论引用化）／§210（0.50.33 组版）／§216（0.50.36 组版）原号不动；feed 讨论线与 discuss-quote-attach 线自编 §210 的代码注释按 §215 先例不改、依报告文件名溯源。本节占 §221。
 
-### §221.1 装配 CI 判读（待回填）
+### §221.1 装配 CI 判读（2026-11-14 回填）
+
+run 43544784796（头 f88a78d）**§190 终判绿**：Build／Package／Upload success，Unit tests 步名义 failure（§184 驱动）；全日志 14,161 行亲验——**断言失败 0 条、失败用例 0 条**；**Core 1902／1902／0**（预期精确：预制 1865＋后门 24＋B 13；MainlineAdoptionTests 13/13、SourceQuoteTests 24/24、HubSoulTests 12/12、LedgerMonitorSynthesisTests 8/8）；**App 103 启动**＝92 过＋5 跳过（存量 XCTSkip）＋6 条 §184 受害（与 .35/.36 在案名单逐一重合、无新受害；宿主重启 7 起同前两轮）；HubSegmentsConsolidationTests 4/4、SourceQuoteAppTests 5/5、HUB-LAYOUT-VERDICT=PASS；**UI 4／4**；栏位探针直接 passed（5.514s）。**边缘探针单独对账**：预制轮单红的 testEdgeEffectAttributionProbe（bottomRest 8＞门限 7、帽 10 内）**本轮 passed（22.345s）**——如实记「预制轮单红、本轮绿」，与 .35/.36 两轮 passed 并列，是否结案待主线裁（并行线另有超时签名一红在案）。IPA **12,285,694 字节、md5 `4903041f7ec84a2e5c01f57aa5251eec`**、0.50.37/165（Info.plist 亲验、MainlineAdoption 符号在包），存 ~/workspace/your_files/oneday-v0.50.37/OneDay-0.50.37.ipa。未合 main、未打 tag。
