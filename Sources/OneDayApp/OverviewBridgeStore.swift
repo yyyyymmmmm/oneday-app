@@ -12,9 +12,11 @@ import OneDayCore
 /// 与 Hermes API 通道是两条独立链——每轮刷新除桥取数
 /// 外另直探 Hermes /health（hermesChannelUp），状态行
 /// 的「联系不上」只认通道探活（见 Core 的
-/// OverviewStatusLine 新口径）；桥鉴权失败（未粘钥匙/
-/// 401）只回写 AppState.overviewBridgeAuthFailed 供设
-/// 置页露「桥未连接」，不许污染胶囊状态。
+/// OverviewStatusLine 新口径）；桥鉴权失败不许污染
+/// 胶囊状态。§259（2026-11-14）续：当年回写
+/// AppState 的 overviewBridgeAuthFailed 旗经实查全
+/// 仓无读者（设置页早已改走自有状态面），旗与全部
+/// 写入点退役；在线结论收成本类 channelUp 单源。
 @MainActor
 @Observable
 final class OverviewBridgeStore {
@@ -105,9 +107,21 @@ final class OverviewBridgeStore {
         persistArchive()
     }
 
+    /// 在线结论单源（§259）：全 App 凡问「通道在不
+    /// 在」只认本值。主源＝直探 /health 的探活结论
+    /// （hermesChannelUp，迟滞记账只服务它一个输入）；
+    /// 探活尚无结论（冷启未探到）时回落桥快照的
+    /// hermesUp 字段——回落只在本处发生一次，派生层
+    /// （OverviewStatusLine）不再双源仲裁。桥快照的
+    /// 其余字段（待审批数等）是数据、不是结论来源
+    var channelUp: Bool? {
+        hermesChannelUp ?? snapshot?.hermesUp
+    }
+
     var statusLine: String {
         OverviewStatusLine.resolve(
-            snapshot: snapshot, hermesChannelUp: hermesChannelUp
+            channelUp: channelUp,
+            pendingApprovals: snapshot?.pendingApprovals ?? 0
         )
     }
 
@@ -117,7 +131,8 @@ final class OverviewBridgeStore {
     /// 「在线」点落灰，用户 22:26 真机点名）
     var statusTone: OverviewStatusLine.Tone {
         OverviewStatusLine.tone(
-            snapshot: snapshot, hermesChannelUp: hermesChannelUp
+            channelUp: channelUp,
+            pendingApprovals: snapshot?.pendingApprovals ?? 0
         )
     }
 
@@ -140,7 +155,6 @@ final class OverviewBridgeStore {
             snapshot = nil
             hermesChannelUp = nil
             liveness = ConnectionLiveness()
-            appState.overviewBridgeAuthFailed = false
             return
         }
         if appState.isDemo {
@@ -161,15 +175,10 @@ final class OverviewBridgeStore {
         await probeChannel(appState: appState, config: config)
         do {
             snapshot = try await client.overview(config: config)
-            appState.overviewBridgeAuthFailed = false
-        } catch let error as OverviewBridgeError {
-            snapshot = nil
-            // 只有钥匙类失败（未粘/被拒）才点「桥未连接」
-            // 旗；网络类失败不归因于钥匙、旗保持原值
-            if error == .noKey || error == .unauthorized {
-                appState.overviewBridgeAuthFailed = true
-            }
         } catch {
+            // §259：桥失败只落 snapshot 本面——旧
+            // overviewBridgeAuthFailed 旗全仓无读者、
+            // 已随单源化退役，不再回写 AppState
             snapshot = nil
         }
     }
@@ -253,7 +262,6 @@ final class OverviewBridgeStore {
                 try await client.notifications(config: config)
             )
             notificationsLoaded = true
-            appState.overviewBridgeAuthFailed = false
             // §241 留存：先吸收进存档再走自动消账——被
             // 消账的回执也已在历史里，不因已读而丢记录
             absorbIntoArchive(notifications)
@@ -270,13 +278,6 @@ final class OverviewBridgeStore {
                 selfDecidedIDs: appState.selfDecidedApprovalIDs
             ) {
                 await markRead(appState: appState, id: id)
-            }
-        } catch let error as OverviewBridgeError {
-            notifications = []
-            notificationsLoaded = true
-            notificationsFailed = true
-            if error == .noKey || error == .unauthorized {
-                appState.overviewBridgeAuthFailed = true
             }
         } catch {
             notifications = []

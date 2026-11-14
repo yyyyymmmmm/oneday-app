@@ -156,29 +156,32 @@ public enum OverviewStatusLine {
         case online
     }
 
+    /// §259 单源化（2026-11-14）：入参只剩一个在线结
+    /// 论＋一个待审批计数。此前 classify 双入参（桥快
+    /// 照 hermesUp 与通道探活）互为仲裁——探活未知时
+    /// 桥快照替判在线与否，同一事实两个主源。自此结
+    /// 论的合成归 App 层 OverviewBridgeStore 一处
+    /// （channelUp：探活为主源、未知回落桥 hermesUp），
+    /// 本函数只把结论＋计数翻成词与语气，不再仲裁。
+    /// 判定矩阵与旧双入参版逐例等价（旧测试全集已迁
+    /// 至本签名、对账见 §259）。
     private static func classify(
-        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+        channelUp: Bool?, pendingApprovals: Int
     ) -> Kind {
-        if let hermesChannelUp {
-            guard hermesChannelUp else { return .offline }
-            if let snapshot, snapshot.pendingApprovals > 0 {
-                return .pending(snapshot.pendingApprovals)
-            }
-            return .online
-        }
-        guard let snapshot, snapshot.hermesUp else {
-            return .offline
-        }
-        if snapshot.pendingApprovals > 0 {
-            return .pending(snapshot.pendingApprovals)
+        guard let channelUp else { return .offline }
+        guard channelUp else { return .offline }
+        if pendingApprovals > 0 {
+            return .pending(pendingApprovals)
         }
         return .online
     }
 
     public static func resolve(
-        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+        channelUp: Bool?, pendingApprovals: Int
     ) -> String {
-        switch classify(snapshot: snapshot, hermesChannelUp: hermesChannelUp) {
+        switch classify(
+            channelUp: channelUp, pendingApprovals: pendingApprovals
+        ) {
         case .offline: return "联系不上"
         case .pending(let count): return "待审批 \(count)"
         case .online: return "在线"
@@ -186,9 +189,11 @@ public enum OverviewStatusLine {
     }
 
     public static func tone(
-        snapshot: OverviewSnapshot?, hermesChannelUp: Bool?
+        channelUp: Bool?, pendingApprovals: Int
     ) -> Tone {
-        switch classify(snapshot: snapshot, hermesChannelUp: hermesChannelUp) {
+        switch classify(
+            channelUp: channelUp, pendingApprovals: pendingApprovals
+        ) {
         case .offline: return .offline
         case .pending: return .attention
         case .online: return .online

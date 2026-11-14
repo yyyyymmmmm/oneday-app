@@ -359,12 +359,6 @@ final class AppState {
     /// 台检查由 RootView 与设备会话同拍驱动
     let deviceSync: DeviceSyncController
 
-    /// 总览桥鉴权失败旗（0.7.0）：由 OverviewBridgeStore
-    /// 在每轮刷新时回写——桥钥匙未粘（noKey）或被拒
-    /// （401）为 true，桥取数成功清零，网络类失败不动
-    /// 本旗（不把抖动说成钥匙问题）。设置页据此露
-    /// 「桥未连接」提示，胶囊状态行不读本旗
-    var overviewBridgeAuthFailed = false
     /// 本人裁决集（0.36.5，审批联动 C 部）：本人在
     /// App 内批准/驳回过的 write-gate 记录 id——其裁
     /// 决回执通知一到即自动消账（Core ApprovalReso-

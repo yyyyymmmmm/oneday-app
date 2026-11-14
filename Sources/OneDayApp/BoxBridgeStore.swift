@@ -7,9 +7,10 @@ import OneDayCore
 /// 画面走 POST /screenshot（会唤醒——只在手动刷新、
 /// 接管动作回图、或运行中轮询时取，休眠不自动唤醒
 /// 烧额度）；接管走 POST /act 一动作一回图。
-/// 桥鉴权失败（未粘钥匙/401）回写 AppState 的
-/// overviewBridgeAuthFailed 旗（同一把钥匙、同一「桥
-/// 未连接」口径，设置页露面），不许说成电脑离线。
+/// 桥鉴权失败（未粘钥匙/401）只落本面状态
+/// （bridgeUnavailable），不许说成电脑离线；旧
+/// AppState.overviewBridgeAuthFailed 旗全仓无读者，
+/// 已随 §259 单源化退役，本面不再回写。
 @MainActor
 @Observable
 final class BoxBridgeStore {
@@ -51,7 +52,6 @@ final class BoxBridgeStore {
         do {
             let fetched = try await client.status(config: config)
             hubState = .ready(fetched)
-            appState.overviewBridgeAuthFailed = false
         } catch let error as BoxBridgeError {
             apply(error: error, appState: appState, target: .status)
         } catch {
@@ -80,7 +80,6 @@ final class BoxBridgeStore {
     ) async {
         do {
             screenshot = try await client.screenshot(config: config)
-            appState.overviewBridgeAuthFailed = false
         } catch let error as BoxBridgeError {
             screenshotFailed = true
             apply(error: error, appState: appState, target: .screenshot)
@@ -108,7 +107,6 @@ final class BoxBridgeStore {
             let response = try await client.act(
                 config: config, request: request
             )
-            appState.overviewBridgeAuthFailed = false
             if let shot = response.screenshot {
                 screenshot = shot
             } else if let config = appState.config {
@@ -160,7 +158,6 @@ final class BoxBridgeStore {
     ) {
         switch error {
         case .noKey, .unauthorized:
-            appState.overviewBridgeAuthFailed = true
             if target == .status {
                 hubState = .bridgeUnavailable
             }

@@ -566,9 +566,27 @@ final class AgentHubStore {
     var anchorMissCounts: [String: Int] = [:]
     /// 锚点回溯专用已决集（大 limit 拉取、低频刷新）：
     /// 日常 decisionHistory 只取最近 50 条，30 天回溯
-    /// 窗内的带锚记录可能在窗口外——物化优先消费本
-    /// 集，未就绪时以 decisionHistory 代用
+    /// 窗内的带锚记录可能在窗口外——本集只作已决全
+    /// 集的宽窗输入（见 decidedRecords），不再被消费
+    /// 方直接读取
     private(set) var anchorDecisions: [WriteGateDecisionRecord]?
+
+    /// 已决记录全集（§259 单源合成，全 App 唯一查账
+    /// 面）：近窗（decisionHistory）∪ 回溯宽窗
+    /// （anchorDecisions），合成规则在 Core
+    /// DecisionRecordHistory 一处。此前同一本账在三
+    /// 处消费点各自现拼（通知落点、台账详情两处
+    /// View 层＋本类 anchorRowState），自此凡查已决
+    /// 记录只许读本面——两扇窗口的拉取仍归本类
+    /// （refreshDecisionHistory /
+    /// refreshAnchorDecisionsIfStale），合成不许外溢。
+    /// 例外只一处：裁决回路内刚刷新近窗的回读确认
+    /// （decide 的 recordGone 落账与结果行对账）——那
+    /// 是写路径对新拉近窗的即时核对、非呈现查账
+    var decidedRecords: [WriteGateDecisionRecord] {
+        DecisionRecordHistory.merge(
+            recent: decisionHistory, wide: anchorDecisions)
+    }
     private var anchorDecisionsFetchedAt: Date?
 
     /// 锚定行呈现态（单源判定，逻辑在 Core
@@ -587,7 +605,7 @@ final class AgentHubStore {
             pending = []
             dataReady = false
         }
-        let decisions = decisionHistory + (anchorDecisions ?? [])
+        let decisions = decidedRecords
         let key = anchoredKey(forRecordID: recordID)
         return ApprovalAnchor.rowState(
             recordID: recordID, dataReady: dataReady,

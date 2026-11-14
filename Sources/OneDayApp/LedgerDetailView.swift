@@ -121,15 +121,14 @@ struct LedgerDetailView: View {
         return records.first { $0.id == recordID }
     }
 
-    /// 审批条目对应的已决记录（已载历史＋锚点宽账
-    /// 本，与 AgentHubStore 自家组账同式）
+    /// 审批条目对应的已决记录（§259：读
+    /// AgentHubStore.decidedRecords 单源合成面，
+    /// View 不自拼两窗）
     private var decidedRecord: WriteGateDecisionRecord? {
         guard let recordID = current.link?.targetId else {
             return nil
         }
-        let all = hubStore.decisionHistory
-            + (hubStore.anchorDecisions ?? [])
-        return all.first { $0.id == recordID }
+        return hubStore.decidedRecords.first { $0.id == recordID }
     }
 
     /// 审批记录节（§155 记录制）：待批给记录原文

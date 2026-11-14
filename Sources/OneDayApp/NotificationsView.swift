@@ -546,8 +546,8 @@ struct NotificationsView: View {
             return NotificationDestination.resolve(item)
         }
         let hubStore = appState.sharedHubStore()
-        let decided = hubStore.decisionHistory
-            + (hubStore.anchorDecisions ?? [])
+        // §259：已决账读 store 单源合成面，View 不自拼
+        let decided = hubStore.decidedRecords
         guard let record = decided.first(where: { $0.id == refId })
         else {
             return NotificationDestination.resolve(item)
