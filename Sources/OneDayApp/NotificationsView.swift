@@ -94,7 +94,7 @@ struct NotificationsView: View {
             .alert("没有全部标上已读", isPresented: $markAllFailed) {
                 Button("知道了", role: .cancel) {}
             } message: {
-                Text("有几条通知没能标为已读，它们仍保持未读状态。下拉刷新后再试一次。")
+                Text("有几条通知的已读状态还没同步成功，下拉刷新后再确认一次。")
             }
         }
         .presentationDragIndicator(.visible)

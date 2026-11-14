@@ -643,7 +643,22 @@ final class OneDayBridgeClient: @unchecked Sendable {
             if let body = try? decoder.decode(
                 BridgeErrorBody.self, from: data
             ), !body.error.isEmpty {
-                throw OneDayBridgeError.failed(body.error)
+                // §232 安全门（件八）：服务端文案过
+                // ServerErrorText 门才许进 .failed 上
+                // 屏；不过门落通用人话，原文只进诊断
+                // 留痕——不许服务端给什么显什么
+                if let safe = ServerErrorText.userSafe(body.error) {
+                    throw OneDayBridgeError.failed(safe)
+                }
+                ChatDiagTrace.record(
+                    "桥错误原文未过安全门 [\(endpoint) \(http.statusCode)] \(body.error)"
+                )
+                throw OneDayBridgeError.failed(
+                    L10n.format(
+                        "%@返回了无法识别的错误，请稍后再试。",
+                        endpoint
+                    )
+                )
             }
             throw OneDayBridgeError.failed(
                 L10n.format("%@返回 %@", endpoint, String(http.statusCode))

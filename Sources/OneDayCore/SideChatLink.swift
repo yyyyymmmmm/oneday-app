@@ -155,6 +155,27 @@ public enum SideChatLink {
         return !sessionID.hasPrefix("oneday-main-")
     }
 
+    /// 抽屉回写闸（§232，轻动作乐观化统一包件六/七）：
+    /// 本地线程行上的归档/置顶，只对「线程绑定的就是
+    /// 这条服务端会话本体、且不是主线本体、不是合并
+    /// 桶」才许回写服务端——与全部对话页同一账，不许
+    /// 抽屉一份本地账、服务端一份真账。无绑定/主线/
+    /// 合并桶维持本地呈现账（合并桶的服务端归档在管
+    /// 理页有带牵连说明的二次确认，抽屉菜单不许绕过；
+    /// 主线本体的置顶/归档不从旁聊行发起）
+    public static func mayWriteThroughToServer(
+        sessionID: String?, mainSessionID: String?
+    ) -> Bool {
+        guard let sessionID, !sessionID.isEmpty else {
+            return false
+        }
+        guard !isMergeBucket(sessionID) else { return false }
+        if let mainSessionID, sessionID == mainSessionID {
+            return false
+        }
+        return !sessionID.hasPrefix("oneday-main-")
+    }
+
     /// 发送计划（0.27.0 改判）：只看绑定与种子位，
     /// 主线/旁聊同口径（主线的绑定与种子位由
     /// SideChatStore 的钦定 id＋确认/种子位代入）：

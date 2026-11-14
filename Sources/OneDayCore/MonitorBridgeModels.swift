@@ -70,6 +70,23 @@ public struct BridgeMonitor: Decodable, Equatable, Identifiable, Sendable {
         self.goalId = goalId
     }
 
+    /// 启停开关的本地乐观副本（§232）：只翻 enabled，
+    /// 其余字段原样。服务端仍是真源——写后回读整表
+    /// 替换，失败以原副本恢复呈现
+    public func withEnabled(_ enabled: Bool) -> BridgeMonitor {
+        BridgeMonitor(
+            id: id, name: name, target: target,
+            scheduleText: scheduleText, cronJobId: cronJobId,
+            enabled: enabled, lastCheckedAt: lastCheckedAt,
+            lastResult: lastResult, lastError: lastError,
+            unreadChanges: unreadChanges,
+            latestChangeSummary: latestChangeSummary,
+            latestChangeAt: latestChangeAt,
+            createdAt: createdAt, updatedAt: updatedAt,
+            goalId: goalId
+        )
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id, name, target, scheduleText, cronJobId, enabled
         case lastCheckedAt, lastResult, lastError, unreadChanges

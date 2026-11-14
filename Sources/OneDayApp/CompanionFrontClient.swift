@@ -208,7 +208,22 @@ final class CompanionFrontClient: @unchecked Sendable {
             if let body = try? decoder.decode(
                 BridgeErrorBody.self, from: data
             ), let message = body.error, !message.isEmpty {
-                throw OneDayBridgeError.failed(message)
+                // §232 安全门（件八同族第四处）：与
+                // OneDayBridgeClient 同口径——服务端
+                // 文案过门才许进 .failed 上屏，不过门
+                // 落通用人话、原文只进诊断留痕
+                if let safe = ServerErrorText.userSafe(message) {
+                    throw OneDayBridgeError.failed(safe)
+                }
+                ChatDiagTrace.record(
+                    "伴生 front 错误原文未过安全门 [\(endpoint) \(http.statusCode)] \(message)"
+                )
+                throw OneDayBridgeError.failed(
+                    L10n.format(
+                        "%@返回了无法识别的错误，请稍后再试。",
+                        endpoint
+                    )
+                )
             }
             throw OneDayBridgeError.failed(
                 L10n.format("%@返回 %@", endpoint, String(http.statusCode))

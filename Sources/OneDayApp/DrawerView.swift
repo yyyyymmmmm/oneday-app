@@ -155,6 +155,10 @@ struct DrawerView: View {
     @State private var pendingDeleteThread: ChatThread?
     /// 真删未落定的人话原因（失败弹报、本地线程保留）
     @State private var deleteFailureReason: String?
+    /// 归档/置顶回写服务端未落定的人话原因（§232：
+    /// 本地呈现已恢复原状，原因弹报，与删除同式）
+    @State private var archiveFailureReason: String?
+    @State private var pinFailureReason: String?
     /// 身份行编辑入口（§157）：与枢纽头像菜单同两张
     /// 编辑页的呈现开关，本面只置位、不复制编辑逻辑
     @State private var showAvatarEditor = false
@@ -319,6 +323,28 @@ struct DrawerView: View {
             Button("好", role: .cancel) { deleteFailureReason = nil }
         } message: {
             Text(deleteFailureReason ?? "")
+        }
+        .alert(
+            "没改成",
+            isPresented: Binding(
+                get: { archiveFailureReason != nil },
+                set: { if !$0 { archiveFailureReason = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) { archiveFailureReason = nil }
+        } message: {
+            Text(archiveFailureReason ?? "")
+        }
+        .alert(
+            "没改成",
+            isPresented: Binding(
+                get: { pinFailureReason != nil },
+                set: { if !$0 { pinFailureReason = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) { pinFailureReason = nil }
+        } message: {
+            Text(pinFailureReason ?? "")
         }
         // 身份行编辑页（§157）：复用枢纽同两张编辑页
         // 本体（改的都是本机档案），呈现口径与枢纽一
@@ -950,7 +976,11 @@ struct DrawerView: View {
 
     /// 可见本地线程（0.7.0 口径原样）：归档过滤恒生
     /// 效——本地归档旁聊从一切名单隐藏（搜索也不许
-    /// 捞出来），只在管理页已归档段可见
+    /// 捞出来），只在管理页已归档段可见。§232：绑定
+    /// 服务端会话的线程，其归档键只是服务端归档态
+    /// 的呈现缓存（抽屉归档回写服务端、管理页名单
+    /// 对账收敛），真源在服务端；纯本地线程的键仍
+    /// 是其唯一归档账
     private var drawerItems: [ChatThread] {
         filteredThreads.filter {
             !SideChatArchive.isArchived(
@@ -1286,7 +1316,7 @@ struct DrawerView: View {
                 )
             }
             Button {
-                appState.sideChats.archive(localThreadID: thread.id)
+                performArchiveThread(thread)
             } label: {
                 Label("归档", systemImage: "archivebox")
             }
@@ -1298,9 +1328,65 @@ struct DrawerView: View {
         }
     }
 
+    /// 抽屉置顶（§232 件七）：本地呈现当拍先翻；绑定
+    /// 会话过回写闸（SideChatLink.mayWriteThroughTo-
+    /// Server）时同步回写服务端 pinned，与全部对话
+    /// 页同一账——不再抽屉一份、服务端一份。回写失
+    /// 败翻回呈现＋弹原因（在飞期间又被改动则不回滚，
+    /// 防覆盖用户的新选择）；无绑定/主线/合并桶维持
+    /// 本地账（闸口径）
     private func togglePinThread(_ thread: ChatThread) {
-        thread.isPinned.toggle()
+        let target = !thread.isPinned
+        thread.isPinned = target
         try? modelContext.save()
+        guard let sessionID = thread.serverSessionID,
+              SideChatLink.mayWriteThroughToServer(
+                  sessionID: sessionID,
+                  mainSessionID: appState.sideChats
+                      .mainServerSessionID
+              ) else { return }
+        Task {
+            let outcome = await ServerSessionActions.setPinned(
+                appState: appState, id: sessionID, pinned: target
+            )
+            if case .failed(let reason) = outcome {
+                if thread.isPinned == target {
+                    thread.isPinned = !target
+                    try? modelContext.save()
+                }
+                pinFailureReason = reason
+            }
+        }
+    }
+
+    /// 抽屉归档（§232 件六，归档单真相）：行当拍先隐
+    /// 藏（本地键自此只是服务端归档态的呈现缓存）；
+    /// 绑定会话过回写闸时走 ServerSessionActions.
+    /// setArchived 落服务端——与全部对话页同一账，
+    /// 服务端是归档真源。回写失败撤缓存键、行恢复＋
+    /// 弹原因；读面收敛在全部对话页名单对账（sync-
+    /// DrawerArchiveCache）。无绑定/主线/合并桶维持
+    /// 本地账（合并桶的服务端归档须走管理页带牵连
+    /// 说明的二次确认，抽屉菜单不许绕过）
+    private func performArchiveThread(_ thread: ChatThread) {
+        appState.sideChats.archive(localThreadID: thread.id)
+        guard let sessionID = thread.serverSessionID,
+              SideChatLink.mayWriteThroughToServer(
+                  sessionID: sessionID,
+                  mainSessionID: appState.sideChats
+                      .mainServerSessionID
+              ) else { return }
+        Task {
+            let outcome = await ServerSessionActions.setArchived(
+                appState: appState, id: sessionID, archived: true
+            )
+            if case .failed(let reason) = outcome {
+                appState.sideChats.unarchive(
+                    localThreadID: thread.id
+                )
+                archiveFailureReason = reason
+            }
+        }
     }
 
     private func beginRenameThread(_ thread: ChatThread) {
@@ -1319,6 +1405,19 @@ struct DrawerView: View {
             // 此后服务端 AI 标题再刷新也不许覆盖此名
             // （DrawerThreadTitle 口径）；此前本地存储
             // 无此标记、回流无从分辨，是标题断环之一
+            //
+            // §232 对账口径注记（件七，审计 §8 复核后
+            // 的明示切割）：此手改名是**本机显示名**，
+            // 按既定设计**不回写服务端标题**——它与服
+            // 务端标题不是双账：呈现真值由 Drawer-
+            // ThreadTitle 单一口径裁决（手改名＞服务端
+            // AI 标题＞本地快照），手改标记的职责只是
+            // 防 AI 标题回流覆盖用户手改。代价明示：
+            // 服务端本体与网页端仍显服务端标题；要改
+            // 服务端标题走全部对话页的服务端改名
+            // （ServerSessionActions.rename，PATCH＋
+            // 回读对账）。此切割与文件置顶的「仅本机」
+            // 明示同式，不许后人误当双账事故再「修」
             thread.titleIsManual = true
             try? modelContext.save()
         }

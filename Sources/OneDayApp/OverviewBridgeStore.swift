@@ -179,13 +179,16 @@ final class OverviewBridgeStore {
             return
         }
         do {
-            notifications = try await client.notifications(config: config)
+            installLoadedNotifications(
+                try await client.notifications(config: config)
+            )
             notificationsLoaded = true
             appState.overviewBridgeAuthFailed = false
             // 0.36.5（联动 C 部）：本人裁决的回执一到
             // 即自动消账——按 refId 命中本人裁决集的
-            // 未读回执逐条走既有 markRead 通道（桥确
-            // 认后才改本地态、角标同步减一）；角标/
+            // 未读回执逐条走既有 markRead 通道（§232
+            // 起本地先落已读、角标同步减一，再向桥确
+            // 认）；角标/
             // 通知列表/聊天回告卡读同一份状态、三处
             // 同消。桥未带 refId（未升级）时判定恒空、
             // 本段无动作
@@ -209,41 +212,60 @@ final class OverviewBridgeStore {
         }
     }
 
-    /// 全部已读（0.36.7，规格 §3.5）：桥只有单条接
-    /// 口，客户端对未读条目逐条顺序确认——只改确认
-    /// 成功的本地态，返回是否全部成功；任一条失败
-    /// 即 false、该条保持未读（不许假装全清），提
-    /// 示文案归视图层按 S10 呈现。
+    /// 全部已读（0.36.7，规格 §3.5；§232 改本地先行）：
+    /// 桥只有单条接口——**本地先把未读条目全标已读
+    /// （角标同步清）**，再逐条向桥确认；返回值＝桥
+    /// 确认是否全部成功，任一条没确认上即 false（本
+    /// 地已读态不回滚，下轮名单以服务端为准纠正），
+    /// 视图层据此给一句同步未成的提示
     func markAllRead(appState: AppState) async -> Bool {
         let pending = notifications.filter { !$0.read }.map(\.id)
+        for id in pending { applyLocalRead(id: id) }
+        guard let config = appState.config, !appState.isDemo
+        else { return true }
         var allSucceeded = true
         for id in pending {
-            await markRead(appState: appState, id: id)
-            let item = notifications.first(where: { $0.id == id })
-            if let item, !item.read {
-                allSucceeded = false
-            }
+            let ok = (try? await client.markRead(
+                config: config, id: id
+            )) ?? false
+            if !ok { allSucceeded = false }
         }
         return allSucceeded
     }
 
-    /// 点开一条通知：先向桥确认已读，成功才改本地态与
-    /// 角标（快照未读数同步减一）；失败保留未读，不假报。
-    func markRead(appState: AppState, id: String) async {
-        guard let config = appState.config,
-              let index = notifications.firstIndex(where: { $0.id == id }),
-              !notifications[index].read else { return }
-        if appState.isDemo { return }
-        do {
-            let ok = try await client.markRead(config: config, id: id)
-            guard ok else { return }
-            notifications[index].read = true
-            if var current = snapshot, current.unreadNotifications > 0 {
-                current.unreadNotifications -= 1
-                snapshot = current
-            }
-        } catch {
-            // 已读没发出去：保持未读，下次点开重试
+    /// 本地先落已读（§232 同步落点）：目标条换已读＋
+    /// 快照未读数即时减一（封底 0）；条不在名单/已读
+    /// 时返回 false 不动。通知已读是纯呈现态，先行不
+    /// 等桥确认
+    @discardableResult
+    func applyLocalRead(id: String) -> Bool {
+        guard let index = notifications.firstIndex(
+                  where: { $0.id == id }
+              ),
+              !notifications[index].read else { return false }
+        notifications[index].read = true
+        if var current = snapshot, current.unreadNotifications > 0 {
+            current.unreadNotifications -= 1
+            snapshot = current
         }
+        return true
+    }
+
+    /// 名单装载收口（load/测试共用一个落点）
+    func installLoadedNotifications(
+        _ loaded: [OverviewNotification]
+    ) {
+        notifications = loaded
+    }
+
+    /// 点开一条通知：**本地先落已读＋角标先减**，再向
+    /// 桥确认（§232）；确认失败静默保留本地已读（纯
+    /// 呈现态，下轮名单以服务端为准纠正，不打扰用
+    /// 户），桥回执不成功同理
+    func markRead(appState: AppState, id: String) async {
+        guard applyLocalRead(id: id) else { return }
+        guard let config = appState.config else { return }
+        if appState.isDemo { return }
+        _ = try? await client.markRead(config: config, id: id)
     }
 }
