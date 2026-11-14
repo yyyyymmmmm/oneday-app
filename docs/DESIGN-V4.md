@@ -12051,7 +12051,7 @@ run **43569057005**（workflow_dispatch，头 7b48459）**§190 终判绿（带 
 
 ### §238.5 CI 判读（2026-11-14 回填）
 
-run **43568667194**（feat/goals-rectify@6f3d34d）**§190 终判绿（带 §184 在案登记）**：**断言失败 0 条**；**Core 1947／0**——与静态预期精确对账（1937 基线＋本包 GoalRectifyTests 10）；**App 139 启动**：128 passed（125 基线＋GoalQuoteEntryTests 3，精确对账）＋5 skipped＋6 条 started 无终局行（几何五条＋回响 testFailedTraceMaterializesWithErrorSnapshot——均为 §231.1 在案的 §184 重复受害名单，日志 7 起宿主重启对应）；**UI 4／0**；HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS。测试步名义 failure 仅由 §184 宿主死亡构成。伴生侧（GD-1b 两路＋GD-4）已随 companion 1.0.51 与三页余项包 ID-2 一并部署验活（见三页余项包 DESIGN §234.3：/health ok、/ideas 快照已落——目标面 activity 字段同文件同批上线）。未合 main、未打 tag。
+run **43568667194**（feat/goals-rectify@6f3d34d）**§190 终判绿（带 §184 在案登记）**：**断言失败 0 条**；**Core 1947／0**——与静态预期精确对账（1937 基线＋本包 GoalRectifyTests 10）；**App 139 启动**：128 passed（125 基线＋GoalQuoteEntryTests 3，精确对账）＋5 skipped＋6 条 started 无终局行（几何五条＋回响 testFailedTraceMaterializesWithErrorSnapshot——均为 §231.1 在案的 §184 重复受害名单，日志 7 起宿主重启对应）；**UI 4／0**；HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS。测试步名义 failure 仅由 §184 宿主死亡构成。伴生侧（GD-1b 两路＋GD-4）已随 companion 1.0.51 与三页余项包 ID-2 一并部署验活（见三页余项包 DESIGN §239.3：/health ok、/ideas 快照已落——目标面 activity 字段同文件同批上线）。未合 main、未打 tag。
 ## §239 三页余项包（2026-11-14；分支 feat/three-pages-rest，基线 rel-05039@39532cc；自编号、组版顺延）
 
 **组版收口（0.50.41）**：本线自编 §234 与组版树抽屉长按 §234 撞号，整节顺延为 **§239**（§234.1–§234.4→§239.1–§239.4）；FeedStore 与轻动作 §233 同文件冲突已按「乐观版为骨＋种子短路移植」裁决（toggleLiked/markRead 均以 §233 乐观实现为准、种子 id 短路保留），余代码自指同步。
@@ -12184,3 +12184,21 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 **不许动**：消费方公开 API 签名（status/screenshot/act/list/fileData/run）保持不变。`SessionClassification.aiCastSessionPrefix`、伴生 `oneday_bridge.py`（A3 已验收通过，二轮不许再碰）。版本号。
 
 **静态计数预期**：Core **1950**（1937 基线＋MCP 协议测试 13）、App **136**（零增、只改实现）、UI **4**。版本号保持 0.50.39/167（不发版、只交分支）。
+
+## §243 0.50.41 六包正式组版（2026-11-14；分支 rel-05041，基线 rel-05040 头 554f487；六线基线均为 rel-05039@39532cc）
+
+**装车**：①基础正解批 feat/basics-fix-batch（§237）②目标整改包 feat/goals-rectify（§238；伴生已随 1.0.51 部署、本版零服务端动作）③三页余项包 feat/three-pages-rest（§239）④礼记借鉴包 feat/liqian-lessons（§240，OpenCode 施工）⑤九项执行包 feat/factory-nine-exec（§241）⑥API 直连第一包 feat/api-direct-a（§242，Claude Code 施工；伴生 ai-sessions 退役只合码未部署、随主线另行窗口）。
+
+**编号收口**：基础 §233→**§237**、目标 §233→**§238**（其 CI 判读原误标 §233.2 改 §238.5）、三页 §234→**§239**、礼记 §232→**§240**、九项 §234→**§241**、API 直连 §233→**§242**，子节与代码自指逐处按归属同步（OneDayBridgeModels 内轻动作 §233 两处、AllConversationsView 内删除 §232 各处未误伤）；组版本节 §243。
+
+**冲突裁决账**：
+- FeedStore（三页×轻动作 §233）：toggleLiked/markRead 以 §233 乐观实现为骨，三页的种子 id 桥回写短路移植保留（讨论信号短路在 ChatView 自动合入）。
+- ServerSessionActions（礼记×长按 §234＋删除 §232＋轻动作 §233）：统一挂载 drawerRowContextMenu 包共用动作组（managementActions/deleteAction）＋swipe 双向镜像；置顶保留 §233 乐观 pinOverride 逻辑（礼记原稿的朴素版被换下）；删除项保留 deleteMenuTitle 本地化与 §232 onDeleteRequested 收口。
+- OverviewBridgeStore（九项×轻动作 §233）：markRead 以 §233 本地先行为骨，九项存档同步嫁接（本地已读同拍翻存档、条目滑出桥窗口时直翻存档副本）。
+- Box 三客户端（API 直连×桥收敛 C-10）：整文件取 MCP 直连版、不再走桥管线；其余九客户端（Channels/CompanionFront/Device/Identity/Ledger/Memory/OneDayBridge/Overview/WriteGate）保留 BridgeClientBase 收敛。
+- HermesClient：基础批 sessionMessagesPage/带进度 upload 与九项裸删摘除（deleteEmptySessions/bulkDelete 全仓 0 引用）自动合入共存，亲验通过。
+- 词条：validate_i18n 通过——3041 键×三语全覆盖。
+
+**静态计数预期**：Core **2008**（.40 的 1959＋基础 7＋目标 10＋三页 5＋礼记 4＋九项 11＋API 直连 12）；App passed **147**（.40 的 137＋基础 5＋目标 3＋API 直连 2；另三页分支轮曾多 1 条通过、待本轮对账）＋skipped 5 存量＋§184 无终局行按在案名单；UI **8**。版本 0.50.41/169 五处同改＋grep 验（0.50.40 残留 0）。
+
+### §243.1 CI 判读（回填）
