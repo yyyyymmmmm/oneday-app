@@ -414,6 +414,11 @@ final class SessionClassificationTests: XCTestCase {
             "ChannelFeishu")
         XCTAssertEqual(
             ChannelRegistry.descriptor(for: "feishu")?.name, "飞书")
+        // §234 改名：Hermes 频道用户面展示名＝「服务
+        // 器会话」，内部 id 恒为 hermes 不动
+        XCTAssertEqual(
+            ChannelRegistry.descriptor(for: "hermes")?.name, "服务器会话")
+        XCTAssertEqual(ChannelRegistry.hermes.id, "hermes")
         XCTAssertNil(
             SessionSources.platformIconAssetName("weixin"))
         XCTAssertEqual(
