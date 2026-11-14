@@ -191,7 +191,7 @@ struct SelectableInlineText: View {
     /// §245：放宽为 internal——排版产物层（Layout-
     /// ProductService）按同一拼装产属性串作量测工
     /// 件；拼装口径仍只此一份，产物层不另拼
-    static func build(
+    nonisolated static func build(
         paragraphs: [InlineTextParagraph],
         baseFont: UIFont,
         overrideFont: (UIFont.TextStyle) -> UIFont,
@@ -273,7 +273,7 @@ struct SelectableInlineText: View {
         return result
     }
 
-    private static func attributedRun(
+    nonisolated private static func attributedRun(
         _ run: InlineRun, baseFont: UIFont, textColor: UIColor
     ) -> NSAttributedString {
         var attributes: [NSAttributedString.Key: Any] = [
@@ -298,7 +298,7 @@ struct SelectableInlineText: View {
     /// 的差异如实记：旧版 emphasis-only／code run
     /// 的字体由系统解析默认字号决定，本层起统一到
     /// 基字号（DESIGN §149.3 第 1 条注）
-    private static func font(
+    nonisolated private static func font(
         for run: InlineRun, baseFont: UIFont
     ) -> UIFont {
         if run.code {

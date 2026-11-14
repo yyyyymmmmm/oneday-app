@@ -2,6 +2,16 @@ import Foundation
 import OneDayCore
 import UIKit
 
+/// NSAttributedString 跨线装箱（@unchecked
+/// Sendable）：属性串组装后不可变、量测全程只
+/// 读——与 §149 拼装缓存 InlineTextRenderCache
+/// 的口径同源；Task.detached 等 sending 边界经
+/// 本箱过
+struct LayoutAttributedBox: @unchecked Sendable {
+    let value: NSAttributedString
+    init(_ value: NSAttributedString) { self.value = value }
+}
+
 /// §245（2026-11-14）后台量测池（换代包 2）
 ///
 /// 蓝图 §1.3：量测用 TextKit 在后台量测实例池（每
