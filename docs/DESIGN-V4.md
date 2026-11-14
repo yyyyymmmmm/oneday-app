@@ -11980,3 +11980,17 @@ Core `SessionModelAccount.effectiveStored` 是纯函数：主线会话存值与�
 首轮 run **43561526492**（头 0b40196）名义 failure：断言失败 **3 条、真红 2 法**，均在本包测试面——①`ModelAccountUnifyAppTests.testMainlineDifferentStoredChoiceIsNotFiltered` 期望误写化石值（实际返回存值 deepseek-v4-pro＝生产行为正确，断言错）；②`AvatarPresentationFitTests.testRenderedPresetDiscGlyphSpanAndNeutralFill` 盘面单点取样（22,120）被 0.92 字形墨盖住（取到 ink 墨色 (17,25,28)），填充本色未变。修复（3e48a6f）：①期望改回存值；②取样改 r=105 环带每 15° 取点取最亮（阈值 180...252／|b−r|≤8 不变）。
 
 二轮 run **43563448455**（头 3e48a6f）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例、无 XCTAssert error）。**Core 1916／1916 全过**——与静态预期精确对账（1920−迁移退役 8＋读时规则新测 4）。**App 115 启动**＝106 过＋5 跳（PresentationLayerScenarios 源码 XCTSkip 存量）＋4 条 §184 无终局行（testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView，皆 .36–.38 在案同名单、零断言）。**UI 4／4**。**边缘探针 passed（29.4s）、HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS**。本包两条曾红测试二轮均 passed（头像渲染 0.838s、异值保留 0.212s），化石回默认新测 passed。未合 main、未打 tag、版本号保持 0.50.38/166（组版另行）。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-hub-benchmark/。
+
+## §236 0.50.40 五包正式组版（2026-11-14；分支 rel-05040，基线 rel-05039 头 39532cc；用户亲令：五条线交一个整包）
+
+**装车**：①桥 Client 收敛 refactor/bridge-client-unify（C-10，12 桥接基座一份管线，行为保真、调用点零改）②删除乐观化 fix/delete-optimistic（§232）③轻动作乐观化 fix/mutation-optimistic（§233）④抽屉长按 fix/drawer-longpress（§234，Codex 施工）⑤枢纽对标＋模型单真值 feat/hub-muse-benchmark（§235，基线 rel-05038@c85d383，取相对基线净 diff 落本树）。
+
+**编号收口**：删除保留 §232；轻动作 §232→**§233**（§232.1→§233.1，代码自指逐处同步、与删除 §232 分开）；抽屉长按原包未自编节号→组版编入 **§234**；枢纽 §231→**§235**（§231.1–§231.5→§235.1–§235.5，与 0.50.39 组版节 §231 撞号顺延，代码面 §231 自指亲验 0 处）；组版本节 §236。
+
+**组版冲突亲解（按各包报告口径）**：
+- 轻动作×桥收敛（件八安全门落点）：OneDay 系 checkStatus 已被桥收敛沉入 `BridgeClientBase` 共用实现——安全门落基座一份（共用口径同门）；CompanionFront 本地 checkStatus 保留、错误体提取改走基座 `serverMessage`；Channels/ConnectionsStore 两处原样落。
+- 轻动作×删除（DrawerView）：删除已退役的 `deleteFailureReason` 与「没删掉」alert 不许复活（组版剔除），轻动作的归档/置顶失败原因两件保留；`drawerItems` 注释合并两口径（§232 墓碑单点过滤＋§233 归档呈现缓存）。
+- 长按×删除（ServerSessionRow）：删除钩统一 `onDeleteRequested`（§232 乐观时序），长按原 `onDeleted` 落定收口钩退役；未收养行宿主（抽屉）改经 `SessionDeletionCoordinator` 起手；`deleteMenuTitle` 本地化修复（LocalizedStringKey）保留。
+- 枢纽×0.50.39 差异件：净 diff 13 文件以 c85d383 为 merge-base 逐件落本树，回响物化/删除收口/飞书三包在 AppState/ChatView 的改动经三路合并保留、无回退（§236.1 判读时以测试全绿复核）。
+
+**静态计数预期**：Core **1959**（1937＋删除 3＋轻动作 23−枢纽退役 8＋枢纽新规 4）、App **150**（137＋删除 5＋轻动作 14−枢纽退役 9＋枢纽新规 3）、UI **8**（4＋长按 4）。版本 0.50.40/168 五处同改＋grep 验（版号位 0.50.39 残留 0）。
