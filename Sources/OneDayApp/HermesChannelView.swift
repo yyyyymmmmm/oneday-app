@@ -100,10 +100,10 @@ struct HermesChannelView: View {
                         .font(.captionText)
                         .foregroundStyle(Palette.inkSecondary)
                 } else if channelRows.isEmpty {
-                    EmptyState(
-                        icon: "tray",
-                        title: "还没有从其他地方来的对话",
-                        message: "在这台 Hermes 的网页端或通过接口开始的对话会出现在这里，点开就能接着聊。"
+                    ContentUnavailableView(
+                        "还没有从其他地方来的对话",
+                        systemImage: "tray",
+                        description: Text("在这台 Hermes 的网页端或通过接口开始的对话会出现在这里，点开就能接着聊。")
                     )
                     .listRowSeparator(.hidden)
                 } else {

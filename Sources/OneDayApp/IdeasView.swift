@@ -256,31 +256,16 @@ struct IdeasView: View {
             .padding(.top, OneDayMetrics.spacingS)
     }
 
-    /// 列表行（§177）：卡面本体全卡一致；左滑「忽略」
-    /// （放下）只给未动手过的卡——已转任务的卡放下语
-    /// 义归桥侧状态机（终态不可再 dismiss），行上不给
-    /// 这个动作，长按菜单同口径（见 rowButton）
-    @ViewBuilder
+    /// §177：左滑与长按共用动作；「忽略」（放下）只给未动手过的
+    /// pending 卡，已转任务的卡放下语义归桥侧状态机，行上不给此
+    /// 动作，长按菜单同口径。pending 全滑直达首个「忽略」，保留
+    /// 已定版的快捷放下手势；非 pending 仅有删除，禁全滑以免误触，
+    /// 删除仍须经 deleteCandidate 确认。
     private func ideaRow(_ idea: BridgeIdea) -> some View {
-        if idea.status == .pending {
-            rowButton(for: idea)
-                .swipeActions(
-                    edge: .trailing,
-                    allowsFullSwipe: true
-                ) {
-                    Button("忽略") {
-                        Task {
-                            await store.dismiss(
-                                appState: appState,
-                                idea: idea
-                            )
-                        }
-                    }
-                    .tint(Palette.inkSecondary)
-                }
-        } else {
-            rowButton(for: idea)
-        }
+        rowButton(for: idea)
+            .swipeActions(edge: .trailing, allowsFullSwipe: idea.status == .pending) {
+                rowActions(for: idea)
+            }
     }
 
     private func rowButton(for idea: BridgeIdea) -> some View {
@@ -298,28 +283,35 @@ struct IdeasView: View {
         .buttonStyle(.odPressable)
         .listRowBackground(Palette.pageBG)
         .contextMenu {
-            if idea.status == .pending {
-                Button("忽略") {
+            rowActions(for: idea)
+        }
+    }
+
+    @ViewBuilder
+    private func rowActions(for idea: BridgeIdea) -> some View {
+        if idea.status == .pending {
+            Button("忽略") {
+                Task {
+                    await store.dismiss(
+                        appState: appState, idea: idea
+                    )
+                }
+            }
+            .tint(Palette.inkSecondary)
+            if idea.source == .generated {
+                Button("太泛了，忽略") {
                     Task {
                         await store.dismiss(
-                            appState: appState, idea: idea
+                            appState: appState, idea: idea,
+                            tooGeneric: true
                         )
                     }
                 }
-                if idea.source == .generated {
-                    Button("太泛了，忽略") {
-                        Task {
-                            await store.dismiss(
-                                appState: appState, idea: idea,
-                                tooGeneric: true
-                            )
-                        }
-                    }
-                }
+                .tint(Palette.inkSecondary)
             }
-            Button("删除", role: .destructive) {
-                deleteCandidate = idea
-            }
+        }
+        Button("删除", role: .destructive) {
+            deleteCandidate = idea
         }
     }
 

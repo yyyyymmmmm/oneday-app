@@ -1019,10 +1019,9 @@ struct CalendarDetailView: View {
     private var agendaSections: some View {
         if days.isEmpty {
             Section {
-                Text("接下来 14 天没有安排。")
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                ContentUnavailableView {
+                    Label("接下来 14 天没有安排。", systemImage: "calendar")
+                }
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1232,10 +1231,9 @@ struct RemindersDetailView: View {
     private var reminderSections: some View {
         if incomplete.isEmpty {
             Section {
-                Text("没有未完成的提醒。")
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                ContentUnavailableView {
+                    Label("没有未完成的提醒。", systemImage: "checklist")
+                }
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1455,10 +1453,12 @@ struct ContactsDetailView: View {
             .listRowInsets(deviceRowInsets)
         } else if items.isEmpty {
             Section {
-                Text(query.isEmpty ? "没有联系人。" : "没有匹配「\(query)」的联系人。")
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                ContentUnavailableView {
+                    Label(
+                        query.isEmpty ? "没有联系人。" : "没有匹配「\(query)」的联系人。",
+                        systemImage: "person.crop.circle"
+                    )
+                }
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(deviceRowInsets)
@@ -1875,14 +1875,14 @@ struct FilesDetailView: View {
                         .font(.callout)
                         .foregroundStyle(Palette.inkSecondary)
                 } else if items.isEmpty {
-                    Text(
-                        currentPath.isEmpty
-                            ? "这个文件夹里还没有文件。智能体写入的文件会出现在这里。"
-                            : "这个文件夹是空的。"
-                    )
-                    .font(.callout)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.vertical, OneDayMetrics.spacingS)
+                    ContentUnavailableView {
+                        Label(
+                            currentPath.isEmpty
+                                ? "这个文件夹里还没有文件。智能体写入的文件会出现在这里。"
+                                : "这个文件夹是空的。",
+                            systemImage: "folder.fill"
+                        )
+                    }
                 }
                 ForEach(items) { item in
                     fileRow(item)
@@ -2050,12 +2050,12 @@ struct AlarmDetailView: View {
             if permission.isUsable {
                 Section {
                     if items.isEmpty {
-                        Text("现在没有待响的闹钟。在对话里让智能体按你的确认设定一个试试。")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .padding(
-                                .vertical, OneDayMetrics.spacingS
+                        ContentUnavailableView {
+                            Label(
+                                "现在没有待响的闹钟。在对话里让智能体按你的确认设定一个试试。",
+                                systemImage: "alarm"
                             )
+                        }
                     }
                     ForEach(items) { item in
                         alarmRow(item)
@@ -2093,15 +2093,24 @@ struct AlarmDetailView: View {
             }
             Spacer(minLength: 0)
             Button("取消") {
-                controller.dispatcher.alarms.cancelLocal(
-                    id: item.id
-                )
-                reload()
+                cancel(item)
             }
             .font(.callout)
             .foregroundStyle(Palette.danger)
         }
         .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                cancel(item)
+            } label: {
+                Label("取消", systemImage: "xmark")
+            }
+        }
+    }
+
+    private func cancel(_ item: DeviceAlarmItem) {
+        controller.dispatcher.alarms.cancelLocal(id: item.id)
+        reload()
     }
 
     private func rowSubtitle(_ item: DeviceAlarmItem) -> String {
@@ -2143,12 +2152,12 @@ struct NotificationsDetailView: View {
             if permission.isUsable {
                 Section {
                     if items.isEmpty {
-                        Text("现在没有待发的通知。在对话里让智能体按你的确认发一条试试。")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .padding(
-                                .vertical, OneDayMetrics.spacingS
+                        ContentUnavailableView {
+                            Label(
+                                "现在没有待发的通知。在对话里让智能体按你的确认发一条试试。",
+                                systemImage: "bell.fill"
                             )
+                        }
                     }
                     ForEach(items) { item in
                         VStack(
@@ -2308,9 +2317,12 @@ struct CameraDetailView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 if items.isEmpty {
-                    Text("还没有拍过。智能体请你拍照、或你在这里亲手拍的，都会存到这里。")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
+                    ContentUnavailableView {
+                        Label(
+                            "还没有拍过。智能体请你拍照、或你在这里亲手拍的，都会存到这里。",
+                            systemImage: "camera.fill"
+                        )
+                    }
                 }
                 ForEach(items) { item in
                     HStack(
@@ -2391,9 +2403,12 @@ struct VisionDetailView: View {
             DeviceStatusHeader(source: .vision)
             Section {
                 if items.isEmpty {
-                    Text("OneDay 文件夹里还没有图片。先用相机拍一张、或把图片放进文件夹，再回来认。")
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
+                    ContentUnavailableView {
+                        Label(
+                            "OneDay 文件夹里还没有图片。先用相机拍一张、或把图片放进文件夹，再回来认。",
+                            systemImage: "text.viewfinder"
+                        )
+                    }
                 }
                 ForEach(items) { item in
                     Button {
@@ -2780,9 +2795,9 @@ struct MediaDetailView: View {
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     if playlists.isEmpty && note == nil {
-                        Text("资料库里还没有歌单。")
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
+                        ContentUnavailableView {
+                            Label("资料库里还没有歌单。", systemImage: "music.note")
+                        }
                     }
                     ForEach(
                         Array(playlists.enumerated()),

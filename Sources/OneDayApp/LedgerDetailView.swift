@@ -336,9 +336,9 @@ struct LedgerDetailView: View {
                     .foregroundStyle(Palette.inkSecondary)
             } else if store.detail?.id == item.id {
                 if current.history.isEmpty {
-                    Text("暂无流转记录。")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.inkSecondary)
+                    ContentUnavailableView {
+                        Label("暂无流转记录。", systemImage: "clock")
+                    }
                 } else {
                     ForEach(
                         Array(current.history.enumerated()),

@@ -56,10 +56,10 @@ struct PlatformChannelView: View {
                         .font(.captionText)
                         .foregroundStyle(Palette.inkSecondary)
                 } else if channelRows.isEmpty {
-                    EmptyState(
-                        icon: "tray",
-                        title: "这个频道里还没有对话",
-                        message: "连上之后，在那边开始的对话会出现在这里，点开就能接着聊。"
+                    ContentUnavailableView(
+                        "这个频道里还没有对话",
+                        systemImage: "tray",
+                        description: Text("连上之后，在那边开始的对话会出现在这里，点开就能接着聊。")
                     )
                     .listRowSeparator(.hidden)
                 } else {

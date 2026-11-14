@@ -196,9 +196,9 @@ struct MonitorDetailView: View {
                 .foregroundStyle(Palette.danger)
         } else if let changes = store.changes[monitorID] {
             if changes.isEmpty {
-                Text("还没有检出过变化。")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
+                ContentUnavailableView {
+                    Label("还没有检出过变化。", systemImage: "eye")
+                }
             } else {
                 ForEach(changes) { change in
                     NavigationLink {
@@ -208,6 +208,20 @@ struct MonitorDetailView: View {
                         )
                     } label: {
                         changeRow(change)
+                    }
+                    .swipeActions(edge: .trailing) {
+                        if !change.read {
+                            Button("标已读") {
+                                Task {
+                                    await store.markRead(
+                                        appState: appState,
+                                        monitorID: monitorID,
+                                        changeID: change.id
+                                    )
+                                }
+                            }
+                            .tint(Palette.primary)
+                        }
                     }
                 }
             }

@@ -396,9 +396,10 @@ struct AllConversationsView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             } else if searchResults.isEmpty {
-                Text("服务端没有匹配的会话。")
-                    .font(.captionText)
-                    .foregroundStyle(Palette.inkSecondary)
+                ContentUnavailableView(
+                    "服务端没有匹配的会话。",
+                    systemImage: "magnifyingglass"
+                )
             } else {
                 ForEach(searchResults) { hit in
                     Button {
@@ -442,9 +443,10 @@ struct AllConversationsView: View {
                         .font(.captionText)
                         .foregroundStyle(Palette.inkSecondary)
                 } else {
-                    Text("主线还没有绑定服务端会话（在聊天页发一条消息后会出现）。")
-                        .font(.captionText)
-                        .foregroundStyle(Palette.inkSecondary)
+                    ContentUnavailableView(
+                        "主线还没有绑定服务端会话（在聊天页发一条消息后会出现）。",
+                        systemImage: "bubble.left.and.bubble.right"
+                    )
                 }
             } footer: {
                 Text("主线是你的唯一指挥席：受钦定保护，本页不提供改名、归档与删除。")
@@ -472,9 +474,10 @@ struct AllConversationsView: View {
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
             } else if mineRows.isEmpty {
-                Text("我的对话里还没有服务端会话。在 App 里开的旁聊连上服务端、或从频道收进来的对话会出现在这里。")
-                    .font(.captionText)
-                    .foregroundStyle(Palette.inkSecondary)
+                ContentUnavailableView(
+                    "我的对话里还没有服务端会话。在 App 里开的旁聊连上服务端、或从频道收进来的对话会出现在这里。",
+                    systemImage: "bubble.left.and.bubble.right"
+                )
             } else {
                 ForEach(mineRows) { session in
                     selectableRow(session)
@@ -599,9 +602,10 @@ struct AllConversationsView: View {
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
             } else if systemRows.isEmpty {
-                Text("没有系统运行记录。")
-                    .font(.captionText)
-                    .foregroundStyle(Palette.inkSecondary)
+                ContentUnavailableView(
+                    "没有系统运行记录。",
+                    systemImage: "clock"
+                )
             } else {
                 ForEach(systemRows) { session in
                     selectableRow(session)
@@ -623,9 +627,10 @@ struct AllConversationsView: View {
                     .font(.captionText)
                     .foregroundStyle(Palette.inkSecondary)
             } else if archivedRows.isEmpty {
-                Text("没有已归档的会话。")
-                    .font(.captionText)
-                    .foregroundStyle(Palette.inkSecondary)
+                ContentUnavailableView(
+                    "没有已归档的会话。",
+                    systemImage: "archivebox"
+                )
             } else {
                 ForEach(archivedRows) { session in
                     selectableRow(session)
