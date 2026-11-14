@@ -1,9 +1,10 @@
 import Foundation
 import OneDayCore
 
-/// 频道错误：登录失效与服务端原因分开报；原因须先
-/// 过 ServerErrorText 安全门才许上屏（§233），不过
-/// 门落通用人话、原文只进诊断留痕
+/// 频道错误：failed 带人话原因上抛（配对失败不许
+/// 在 App 侧被吞成泛化文案，规格 §6.3）；编排层的
+/// 格式类错误在本地以人话拦下，服务端错误按端点＋
+/// 状态码口径报（Dashboard 面不透错误原文）
 enum ChannelsBridgeError: Error, Sendable, Equatable {
     case noKey
     case unauthorized
@@ -133,44 +134,28 @@ final class ChannelsDirectClient: @unchecked Sendable {
         )
     }
 
-    /// HermesError -> 频道错误口径：服务端原因先过
-    /// §233 安全门（过门原样、不过门落通用人话＋原
-    /// 文进诊断留痕），与桥时代 {error} 上抛同规矩
+    /// HermesError -> 频道错误口径：Dashboard 面错误
+    /// 只回状态码（sendJSON 不透响应体），按桥时代
+    /// 「%@返回 %@」口径报端点＋状态码；登录失效与
+    /// 解码失败单列人话。编排层已在本地拦下格式类错
+    /// 误（MessagingCredentialsComposer 人话文案），
+    /// 走到这里的多为服务端状态问题
     static func bridgeError(
         for error: HermesError, endpoint: String
     ) -> ChannelsBridgeError {
         switch error {
         case .sessionExpired:
             return .failed(L10n.string("登录已失效，请重新连接服务器后再试"))
-        case .serverMessage(let raw):
-            return gated(raw, endpoint: endpoint)
-        case .server(let code, let raw):
-            if let raw, !raw.isEmpty {
-                return gated(raw, endpoint: endpoint)
-            }
+        case .unexpectedStatus(let name, let status):
             return .failed(
-                L10n.format("%@返回 %@", endpoint, String(code)))
-        case .unexpectedStatus(let name, let code):
+                L10n.format("%@返回 %@", name, String(status)))
+        case .serverError(let name, let status, _):
             return .failed(
-                L10n.format("%@返回 %@", name, String(code)))
+                L10n.format("%@返回 %@", name, String(status)))
         case .decodingFailed:
             return .failed(L10n.string("频道状态返回格式无法识别"))
         default:
             return .failed(L10n.string("频道服务连接失败，请稍后再试"))
         }
-    }
-
-    private static func gated(
-        _ raw: String, endpoint: String
-    ) -> ChannelsBridgeError {
-        if let safe = ServerErrorText.userSafe(raw) {
-            return .failed(safe)
-        }
-        ChatDiagTrace.record(
-            "频道直连错误原文未过安全门 [\(endpoint)] \(raw)"
-        )
-        return .failed(L10n.format(
-            "%@返回了无法识别的错误，请稍后再试。", endpoint
-        ))
     }
 }

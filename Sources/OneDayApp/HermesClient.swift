@@ -1773,11 +1773,17 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             "env": .object(envObject),
             "clear_env": .array(clearEnv.map { .string($0) }),
         ]
+        // 平台 id 是目录常量，仍按 soulPath 同法转义兜底
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        let encoded = platform.addingPercentEncoding(
+            withAllowedCharacters: allowed
+        ) ?? platform
         try await sendJSON(
             config: config,
-            path: "/api/messaging/platforms/\(escapedPathSegment(platform))",
-            method: "PUT", body: body,
-            endpoint: L10n.string("频道配对")
+            path: "/api/messaging/platforms/\(encoded)",
+            method: "PUT", endpoint: L10n.string("频道配对"),
+            body: body
         )
     }
 
