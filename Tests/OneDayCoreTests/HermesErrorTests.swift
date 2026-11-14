@@ -52,4 +52,29 @@ final class HermesErrorTests: XCTestCase {
         XCTAssertFalse(HermesError.sessionExpired.isTransient)
         XCTAssertFalse(HermesError.cancelled.isTransient)
     }
+
+    /// 「对象不存在」分型（§217）：只有 unexpected-
+    /// Status 404 认领——点开残留行导入会话撞它走
+    /// 清残留＋人话提示；其余状态码与失败族不许误
+    /// 认（500 是服务器出错、不是会话没了）
+    func testSessionNotFoundClassification() {
+        XCTAssertTrue(
+            HermesError.unexpectedStatus(
+                endpoint: "会话消息", status: 404
+            ).isSessionNotFound
+        )
+        XCTAssertFalse(
+            HermesError.unexpectedStatus(
+                endpoint: "会话消息", status: 500
+            ).isSessionNotFound
+        )
+        XCTAssertFalse(
+            HermesError.unexpectedStatus(
+                endpoint: "会话消息", status: 409
+            ).isSessionNotFound
+        )
+        XCTAssertFalse(HermesError.transientNetwork.isSessionNotFound)
+        XCTAssertFalse(HermesError.sessionBusy.isSessionNotFound)
+        XCTAssertFalse(HermesError.decodingFailed(endpoint: "会话消息").isSessionNotFound)
+    }
 }
