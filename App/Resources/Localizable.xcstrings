@@ -69614,6 +69614,512 @@
         }
       }
     },
+    "微信个人号暂不可用": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WeChat personal accounts are unavailable for now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微信个人号暂不可用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微信個人號暫不可用"
+          }
+        }
+      }
+    },
+    "不认识的平台": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown platform"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不认识的平台"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不認識的平台"
+          }
+        }
+      }
+    },
+    "微信个人号暂不可用，不能配对": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WeChat personal accounts are unavailable and can't be paired"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微信个人号暂不可用，不能配对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微信個人號暫不可用，不能配對"
+          }
+        }
+      }
+    },
+    "这个平台是扫码配对，不在这里填钥匙": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This platform pairs by scanning a code — there's no key to enter here"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个平台是扫码配对，不在这里填钥匙"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個平台是掃碼配對，不在這裡填鑰匙"
+          }
+        }
+      }
+    },
+    "这个平台还没开放配对，请等后续更新": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pairing isn't open for this platform yet — please wait for a future update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个平台还没开放配对，请等后续更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個平台還沒開放配對，請等後續更新"
+          }
+        }
+      }
+    },
+    "没有收到钥匙": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No key was received"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有收到钥匙"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有收到鑰匙"
+          }
+        }
+      }
+    },
+    "不认识的项：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown field: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不认识的项：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不認識的項：%@"
+          }
+        }
+      }
+    },
+    "还差必填的钥匙": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A required key is still missing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还差必填的钥匙"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還差必填的鑰匙"
+          }
+        }
+      }
+    },
+    "允许的使用者名单格式不对": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The allowed-users list isn't in the right format"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许的使用者名单格式不对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許的使用者名單格式不對"
+          }
+        }
+      }
+    },
+    "允许发信的名单里有格式不对的邮箱地址": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The allowed-senders list contains an invalid email address"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许发信的名单里有格式不对的邮箱地址"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許發信的名單裡有格式不對的郵箱地址"
+          }
+        }
+      }
+    },
+    "飞书的使用者 ID 形如 ou_ 开头的一串字符（open_id），请确认后重新填写": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Feishu user ID looks like a string starting with ou_ (an open_id) — please check and enter it again"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "飞书的使用者 ID 形如 ou_ 开头的一串字符（open_id），请确认后重新填写"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "飛書的使用者 ID 形如 ou_ 開頭的一串字符（open_id），請確認後重新填寫"
+          }
+        }
+      }
+    },
+    "Telegram 的使用者 ID 是纯数字": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Telegram user ID is digits only"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telegram 的使用者 ID 是纯数字"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telegram 的使用者 ID 是純數字"
+          }
+        }
+      }
+    },
+    "还差一项：请填允许给助手发信的邮箱地址，只有名单里的人发来的信会被处理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One more thing needed: enter the email addresses allowed to write to the assistant — only mail from people on the list is handled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还差一项：请填允许给助手发信的邮箱地址，只有名单里的人发来的信会被处理"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還差一項：請填允許給助手發信的郵箱地址，只有名單裡的人發來的信會被處理"
+          }
+        }
+      }
+    },
+    "钥匙格式不对": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key isn't in the right format"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙格式不对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙格式不對"
+          }
+        }
+      }
+    },
+    "这把钥匙的格式不对：Telegram 的连接钥匙形如一串数字、冒号、再一串字母数字，请从 @BotFather 处完整复制": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This key isn't in the right format: a Telegram bot key looks like a run of digits, a colon, then letters and digits — copy it in full from @BotFather"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这把钥匙的格式不对：Telegram 的连接钥匙形如一串数字、冒号、再一串字母数字，请从 @BotFather 处完整复制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這把鑰匙的格式不對：Telegram 的連接鑰匙形如一串數字、冒號、再一串字母數字，請從 @BotFather 處完整複製"
+          }
+        }
+      }
+    },
+    "邮箱地址的格式不对，请填完整的邮箱地址": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The email address isn't in the right format — enter the full address"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮箱地址的格式不对，请填完整的邮箱地址"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "郵箱地址的格式不對，請填完整的郵箱地址"
+          }
+        }
+      }
+    },
+    "服务器地址的格式不对": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server address isn't in the right format"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器地址的格式不对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器地址的格式不對"
+          }
+        }
+      }
+    },
+    "端口号不对，应是 1 到 65535 之间的数字": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The port is wrong — it should be a number between 1 and 65535"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端口号不对，应是 1 到 65535 之间的数字"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端口號不對，應是 1 到 65535 之間的數字"
+          }
+        }
+      }
+    },
+    "登录已失效，请重新连接服务器后再试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your sign-in has expired — reconnect to the server and try again"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录已失效，请重新连接服务器后再试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入已失效，請重新連接伺服器後再試"
+          }
+        }
+      }
+    },
+    "频道服务连接失败，请稍后再试": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't reach the channel service — please try again later"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "频道服务连接失败，请稍后再试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頻道服務連接失敗，請稍後再試"
+          }
+        }
+      }
+    },
+    "钥匙已保存，正在生效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key saved — taking effect now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙已保存，正在生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙已保存，正在生效"
+          }
+        }
+      }
+    },
+    "钥匙已保存，正在等待生效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key saved — waiting to take effect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙已保存，正在等待生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鑰匙已保存，正在等待生效"
+          }
+        }
+      }
+    },
+    "即时生效没触发成功，将在网关下次重启时生效": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instant activation didn't trigger — it will take effect the next time the gateway restarts"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即时生效没触发成功，将在网关下次重启时生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時生效沒觸發成功，將在網關下次重啟時生效"
+          }
+        }
+      }
+    },
     "未归类任务": {
       "extractionState": "manual",
       "localizations": {

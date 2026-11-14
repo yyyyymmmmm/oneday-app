@@ -330,6 +330,19 @@ protocol HermesClientProtocol: Sendable {
     /// GET /api/egress/status
     func egressStatus(config: ServerConfig) async throws -> EgressStatus
 
+    /// GET /api/messaging/platforms（频道直连，API 直连 B 包）：
+    /// Dashboard 原生频道状态全量载荷，映射口径在 OneDayCore
+    /// MessagingStatusMapping；走 performAdmin（登录失效自动续登）
+    func messagingPlatforms(config: ServerConfig) async throws -> MessagingPlatformsResponse
+    /// PUT /api/messaging/platforms/{id}（频道凭据编排直连）：
+    /// 只写 env 编排结果与启用位；服务端按平台目录校验 env 键，
+    /// 非法键 400（detail 原文经 HermesError 上抛）。写后生效
+    /// 由调用方再调 gatewayRestart 触发（桥时代同一时序）
+    func updateMessagingPlatform(
+        config: ServerConfig, platform: String, enabled: Bool,
+        env: [String: String], clearEnv: [String]
+    ) async throws
+
     /// POST /api/gateway/restart
     func gatewayRestart(config: ServerConfig) async throws
     /// POST /api/gateway/start
@@ -1737,6 +1750,35 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func egressStatus(config: ServerConfig) async throws -> EgressStatus {
         try await getJSON(config: config, path: "/api/egress/status", endpoint: L10n.string("出口状态"))
+    }
+
+    // MARK: - 频道直连（API 直连 B 包）
+
+    func messagingPlatforms(config: ServerConfig) async throws -> MessagingPlatformsResponse {
+        try await getJSON(
+            config: config, path: "/api/messaging/platforms",
+            endpoint: L10n.string("频道状态")
+        )
+    }
+
+    func updateMessagingPlatform(
+        config: ServerConfig, platform: String, enabled: Bool,
+        env: [String: String], clearEnv: [String]
+    ) async throws {
+        let envObject = Dictionary(
+            uniqueKeysWithValues: env.map { ($0.key, JSONValue.string($0.value)) }
+        )
+        let body: [String: JSONValue] = [
+            "enabled": .bool(enabled),
+            "env": .object(envObject),
+            "clear_env": .array(clearEnv.map { .string($0) }),
+        ]
+        try await sendJSON(
+            config: config,
+            path: "/api/messaging/platforms/\(escapedPathSegment(platform))",
+            method: "PUT", body: body,
+            endpoint: L10n.string("频道配对")
+        )
     }
 
     // MARK: - 网关动作

@@ -2,11 +2,12 @@ import Foundation
 import OneDayCore
 
 /// 频道配对状态店（频道扩展一期）：抽屉频道行与配
-/// 对引导页共用的状态读口——状态只来自伴生频道桥
-/// 的回读（网关自家记录），读不到就报读不到，绝不
-/// 在本地猜一个状态出来。演示模式给本地合成态
-/// （Telegram、飞书均未配对，与真机零接入基线同
-/// 形），不发网络请求。
+/// 对引导页共用的状态读口——状态只来自网关自家记
+/// 录的回读（API 直连 B 包起经 Dashboard 原生面
+/// /api/messaging/platforms），读不到就报读不到，
+/// 绝不在本地猜一个状态出来。演示模式给本地合成
+/// 态（Telegram、飞书均未配对，与真机零接入基线
+/// 同形），不发网络请求。
 @MainActor
 @Observable
 final class ChannelStatusStore {
@@ -15,7 +16,7 @@ final class ChannelStatusStore {
     private(set) var isLoading = false
     private(set) var loadError: String?
 
-    private let client = ChannelsBridgeClient()
+    private let client = ChannelsDirectClient()
 
     func status(for platform: String) -> ChannelPlatformStatus? {
         statuses[platform]
@@ -28,13 +29,13 @@ final class ChannelStatusStore {
             loadError = nil
             return
         }
-        guard let config = appState.config else {
+        guard appState.config != nil else {
             loadError = L10n.string("还没有连上服务器")
             return
         }
         isLoading = true
         do {
-            let response = try await client.status(config: config)
+            let response = try await client.status(appState: appState)
             statuses = Dictionary(
                 uniqueKeysWithValues: response.platforms.map {
                     ($0.platform, $0)
@@ -53,12 +54,12 @@ final class ChannelStatusStore {
     func submitTelegram(
         appState: AppState, token: String, allowedUserIds: [String]?
     ) async throws -> ChannelCredentialsReceipt {
-        guard let config = appState.config else {
+        guard appState.config != nil else {
             throw ChannelsBridgeError.failed(
                 L10n.string("还没有连上服务器"))
         }
         let receipt = try await client.submitCredentials(
-            config: config, platform: "telegram",
+            appState: appState, platform: "telegram",
             fields: ["botToken": token],
             allowedUserIds: allowedUserIds
         )
@@ -79,12 +80,12 @@ final class ChannelStatusStore {
         appState: AppState, platform: String,
         fields: [String: String]
     ) async throws -> ChannelCredentialsReceipt {
-        guard let config = appState.config else {
+        guard appState.config != nil else {
             throw ChannelsBridgeError.failed(
                 L10n.string("还没有连上服务器"))
         }
         let receipt = try await client.submitCredentials(
-            config: config, platform: platform,
+            appState: appState, platform: platform,
             fields: fields, allowedUserIds: nil
         )
         await load(appState: appState)
@@ -93,17 +94,18 @@ final class ChannelStatusStore {
 
     /// 飞书提交（二期）：字段是应用凭证两项（App ID
     /// ＋App Secret），白名单填的是 open_id——与 TG
-    /// 的数字 ID 不同，校验在伴生侧按平台分型
+    /// 的数字 ID 不同，校验在 App 侧编排层按平台分型
+    /// （OneDayCore MessagingCredentialsComposer）
     func submitFeishu(
         appState: AppState, appID: String, appSecret: String,
         allowedUserIds: [String]?
     ) async throws -> ChannelCredentialsReceipt {
-        guard let config = appState.config else {
+        guard appState.config != nil else {
             throw ChannelsBridgeError.failed(
                 L10n.string("还没有连上服务器"))
         }
         let receipt = try await client.submitCredentials(
-            config: config, platform: "feishu",
+            appState: appState, platform: "feishu",
             fields: ["appId": appID, "appSecret": appSecret],
             allowedUserIds: allowedUserIds
         )

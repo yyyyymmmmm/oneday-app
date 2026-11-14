@@ -638,6 +638,9 @@ struct DemoHermesClient: HermesClientProtocol {
 
     // MARK: - 网关动作
 
+    func messagingPlatforms(config: ServerConfig) async throws -> MessagingPlatformsResponse { throw HermesError.demoLimitReached }
+    func updateMessagingPlatform(config: ServerConfig, platform: String, enabled: Bool, env: [String: String], clearEnv: [String]) async throws { throw HermesError.demoLimitReached }
+
     func gatewayRestart(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
     func gatewayStart(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
     func gatewayStop(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
