@@ -56,33 +56,24 @@ struct ChannelCredentialsReceipt: Decodable, Sendable {
 /// 径，0.33.1）；钥匙（平台凭据）经本通道只写不读，
 /// App 不留存（输入框状态在页面层、提交即清空）
 final class ChannelsBridgeClient: @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
-
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 20
-        configuration.waitsForConnectivity = true
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    /// C-10 收敛：连接/单钥/管线/文案走统一基座，本类
+    /// 只留路径、DTO 与状态口径
+    private let base = BridgeClientBase<ChannelsBridgeError>(
+        pathPrefix: "/api/channels-bridge", timeout: 20,
+        waitsForConnectivity: true,
+        noKey: .noKey, failed: ChannelsBridgeError.failed
+    )
 
     func status(config: ServerConfig) async throws -> ChannelsStatusResponse {
         let data = try await send(
             config: config, path: "/channels/status", method: "GET",
             body: nil, endpoint: L10n.string("频道状态")
         )
-        do {
-            return try decoder.decode(
-                ChannelsStatusResponse.self, from: data
-            )
-        } catch {
-            throw ChannelsBridgeError.failed(
+        return try base.decode(
+            data,
+            orThrow: ChannelsBridgeError.failed(
                 L10n.string("频道状态返回格式无法识别"))
-        }
+        )
     }
 
     func submitCredentials(
@@ -100,14 +91,11 @@ final class ChannelsBridgeClient: @unchecked Sendable {
             method: "POST", body: payload,
             endpoint: L10n.string("频道配对")
         )
-        do {
-            return try decoder.decode(
-                ChannelCredentialsReceipt.self, from: data
-            )
-        } catch {
-            throw ChannelsBridgeError.failed(
+        return try base.decode(
+            data,
+            orThrow: ChannelsBridgeError.failed(
                 L10n.string("配对结果返回格式无法识别"))
-        }
+        )
     }
 
     /// 统一发信：非 200 时优先解伴生的 {error} 人话
@@ -117,26 +105,18 @@ final class ChannelsBridgeClient: @unchecked Sendable {
         config: ServerConfig, path: String, method: String,
         body: [String: Any]?, endpoint: String
     ) async throws -> Data {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw ChannelsBridgeError.noKey
+        let bodyData = try body.map {
+            try JSONSerialization.data(withJSONObject: $0)
         }
-        var request = URLRequest(
-            url: config.endpoint("/api/channels-bridge" + path)
+        let (data, http) = try await base.perform(
+            config: config, path: path, method: method,
+            bodyData: bodyData, endpoint: endpoint
         )
-        request.httpMethod = method
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        if let body {
-            request.setValue(
-                "application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(
-                withJSONObject: body)
-        }
-        let (data, http) = try await rawSend(request, endpoint: endpoint)
         if http.statusCode == 401 {
             throw ChannelsBridgeError.unauthorized
         }
         guard http.statusCode == 200 else {
-            if let view = try? decoder.decode(
+            if let view = try? base.decoder.decode(
                 [String: String].self, from: data
             ), let message = view["error"], !message.isEmpty {
                 throw ChannelsBridgeError.failed(message)
@@ -146,23 +126,5 @@ final class ChannelsBridgeClient: @unchecked Sendable {
             )
         }
         return data
-    }
-
-    private func rawSend(
-        _ request: URLRequest, endpoint: String
-    ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw ChannelsBridgeError.failed(
-                    L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as ChannelsBridgeError {
-            throw error
-        } catch {
-            throw ChannelsBridgeError.failed(
-                L10n.format("%@网络不可达", endpoint))
-        }
     }
 }

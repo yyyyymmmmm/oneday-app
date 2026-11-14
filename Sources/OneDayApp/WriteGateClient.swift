@@ -68,18 +68,12 @@ protocol WriteGateClientProtocol: Sendable {
 /// 读不到钥匙一律以 noKey 落「通道未接通」诚实态，
 /// 不发任何请求、不冒充已接通。
 final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
-
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    /// C-10 收敛：连接/单钥/管线/文案走统一基座，本类
+    /// 只留路径、DTO 与 write-gate 状态口径
+    private let base = BridgeClientBase<WriteGateError>(
+        pathPrefix: "/api/write-gate", timeout: 30,
+        noKey: .noKey, failed: WriteGateError.failed
+    )
 
     func gateStatus(config: ServerConfig) async throws -> WriteGateStatus {
         try await get(config: config, path: "/status", endpoint: L10n.string("审批状态"))
@@ -155,23 +149,17 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         let body = try JSONSerialization.data(
             withJSONObject: ["subsystem": segment, "origin": origin]
         )
-        var request = try makeRequest(
-            config: config, path: "/rules", method: "POST"
+        let (data, http) = try await base.perform(
+            config: config, path: "/rules", method: "POST",
+            bodyData: body, endpoint: L10n.string("建立规则")
         )
-        request.httpBody = body
-        request.setValue(
-            "application/json", forHTTPHeaderField: "Content-Type"
-        )
-        let (data, http) = try await send(request, endpoint: L10n.string("建立规则"))
         switch http.statusCode {
         case 200...299:
-            do {
-                return try decoder.decode(
-                    WriteGateRuleResponse.self, from: data
-                ).rule
-            } catch {
-                throw WriteGateError.failed(L10n.string("建立规则回执格式无法识别"))
-            }
+            let response: WriteGateRuleResponse = try base.decode(
+                data,
+                orThrow: WriteGateError.failed(L10n.string("建立规则回执格式无法识别"))
+            )
+            return response.rule
         case 401:
             throw WriteGateError.unauthorized
         case 404, 501:
@@ -184,10 +172,10 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
     }
 
     func deleteRule(config: ServerConfig, id: String) async throws {
-        let request = try makeRequest(
-            config: config, path: "/rules/\(id)", method: "DELETE"
+        let (_, http) = try await base.perform(
+            config: config, path: "/rules/\(id)", method: "DELETE",
+            bodyData: nil, endpoint: L10n.string("撤销规则")
         )
-        let (_, http) = try await send(request, endpoint: L10n.string("撤销规则"))
         switch http.statusCode {
         case 200...299:
             return
@@ -205,43 +193,31 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         }
     }
 
-    // MARK: - 请求底座
-
-    private func makeRequest(
-        config: ServerConfig, path: String, method: String
-    ) throws -> URLRequest {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw WriteGateError.noKey
-        }
-        var request = URLRequest(url: config.endpoint("/api/write-gate" + path))
-        request.httpMethod = method
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        return request
-    }
+    // MARK: - 请求底座（基座代行，本类只给状态口径）
 
     private func get<T: Decodable>(
         config: ServerConfig, path: String, endpoint: String,
         isDetail: Bool = false
     ) async throws -> T {
-        let request = try makeRequest(config: config, path: path, method: "GET")
-        let (data, http) = try await send(request, endpoint: endpoint)
-        switch http.statusCode {
-        case 200:
-            do {
-                return try decoder.decode(T.self, from: data)
-            } catch {
-                throw WriteGateError.failed(L10n.format("%@返回格式无法识别", endpoint))
+        try await base.get(
+            config: config, path: path, endpoint: endpoint
+        ) { http, _ in
+            switch http.statusCode {
+            case 200:
+                return
+            case 401:
+                throw WriteGateError.unauthorized
+            case 404, 501:
+                // status/pending 上的 404＝桥不存在；detail 上
+                // 的 404＝这条记录已不在了
+                throw isDetail ? WriteGateError.recordGone : WriteGateError.bridgeMissing
+            case 409:
+                throw WriteGateError.conflict
+            default:
+                throw WriteGateError.failed(
+                    L10n.format("%@返回 %@", endpoint, String(http.statusCode))
+                )
             }
-        case 401:
-            throw WriteGateError.unauthorized
-        case 404, 501:
-            // status/pending 上的 404＝桥不存在；detail 上
-            // 的 404＝这条记录已不在了
-            throw isDetail ? WriteGateError.recordGone : WriteGateError.bridgeMissing
-        case 409:
-            throw WriteGateError.conflict
-        default:
-            throw WriteGateError.failed(L10n.format("%@返回 %@", endpoint, String(http.statusCode)))
         }
     }
 
@@ -252,21 +228,18 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
         guard let segment = subsystem.pathSegment else {
             throw WriteGateError.failed(L10n.string("这类审批 App 里还处理不了，请在 Hermes 网页端处理。"))
         }
-        let request = try makeRequest(
+        let (data, http) = try await base.perform(
             config: config,
             path: "/pending/\(segment)/\(id)/\(action)",
-            method: "POST"
+            method: "POST", bodyData: nil,
+            endpoint: L10n.string("审批裁决")
         )
-        let (data, http) = try await send(request, endpoint: L10n.string("审批裁决"))
         switch http.statusCode {
         case 200...299:
-            do {
-                return try decoder.decode(
-                    WriteGateDecisionResponse.self, from: data
-                )
-            } catch {
-                throw WriteGateError.failed(L10n.string("裁决回执格式无法识别"))
-            }
+            return try base.decode(
+                data,
+                orThrow: WriteGateError.failed(L10n.string("裁决回执格式无法识别"))
+            )
         case 401:
             throw WriteGateError.unauthorized
         case 404:
@@ -275,22 +248,6 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
             throw WriteGateError.conflict
         default:
             throw WriteGateError.failed(L10n.format("裁决返回 %@", String(http.statusCode)))
-        }
-    }
-
-    private func send(
-        _ request: URLRequest, endpoint: String
-    ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw WriteGateError.failed(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as WriteGateError {
-            throw error
-        } catch {
-            throw WriteGateError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }
