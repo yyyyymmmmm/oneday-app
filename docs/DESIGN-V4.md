@@ -11813,3 +11813,15 @@ run 43543959202（头 5715391＝本包 163ad79＋桩适配 cherry-pick 自 rel-0
 ### §227.2 存量化石一次性迁移（2026-11-14 补记；同分支跟进）
 
 §227 验收第三条（收养主线枢纽不再显 deepseek-flash）在用户实机存量下不经处置不能成立（推演见施工报告 §8）：B 预览已把 deepseek-flash 存量写进钦定副本键 `s:<收养 id>`，实看主线线程绑另一 id（分叉）、其账无存量落配置默认 claude-sonnet-4-6；组版落地时 ensureMainThread 强制对齐绑定→钦定键，合一账即此化石账——胶囊将由 claude 被「修」成 DeepSeek Flash、发送逐请求提交化石值。故补一次性迁移，规则恒窄（Core `MainlineModelFossilMigration` 五条合取，任一不合不动账）：①两份 id 副本分叉（均非空、不等）；②钦定键有存量条目；③条目 model 归一值＝钦定会话服务端行 model 字段（化石本值，须回读在手才裁决）；④该值与线程绑定账现行解析值冲突；⑤一次性标记未置。处置：线程账有存量→覆盖钦定键（真选择迁入）；无存量→删钦定键条目（回落解析链＝线程账现值）。作用域只及钦定键/线程绑定键一对主线账，旁聊账零触碰；用户真选 deepseek 且两账同值（条④不合）或副本同值（条①不合）均不命中。触发：ChatView 落点以对齐前捕获的 id 对经 `AppState.runMainlineModelFossilMigrationIfNeeded` 异步跑，裁决完成（命中/核完未命中）置 UserDefaults 标记 `mainlineModelFossilMigrationHandled`；服务端值取不到不置标记、下次落地再试。验收：Core MainlineModelFossilMigrationTests 决策矩阵＋App ModelFossilMigrationAppTests（命中清条/命中迁入/不命中各形态/旁聊账不受殃及/服务端未知不置标记）。
+
+## §228 0.50.38 四包正式组版（2026-11-14；分支 rel-05038，基线 rel-05037 头 a6e9560；全档＝oneday-design-review/release-05038-assembly-20261114.md）
+
+**装车四件**：①枢纽全页重建 feat/hub-page-muse-parity @104e815；②头像呈现 feat/avatar-presentation-fit @beda470；③Muse 对齐三项＋边缘探针重校准 feat/edge-probe-bubble-recalibration @0d72a94（内含 feat/muse-align-batch 全链、未单独重复合入）；④模型账合一＋存量加固 feat/model-account-unify @0ed96c9。
+
+**编号收口**：枢纽 §222 保留（.37 树 §221 后正接）；头像 §222→**§224**（§223 留删除收口包）；对齐 §217→**§225**；重校准 §218→**§226**；模型账 §216→**§227**、§216.2→**§227.2**。代码注释自指逐处同步（枢纽旧指 §217/§218 不动）。
+
+**B 铁账执行（§227 §7②/§8.3 钉死口径）**：ensureMainLink 两边改动都留（unify 迁账调用在 linkedID≠wantedID 分支、B 收口调用在原位、化石迁移 fossilPair 在 ensureMainThread 前捕获）；**reconcileMainlineModelFromServer 写账退役**——改调 SessionModelTruth.reading 只读比对、不一致只 ChatDiagTrace 留痕，化石入账唯一写点关闭；MainlineModelReconcile.serverModelToAdopt 随之退役（Core 留墓志注，其专用测试 2 法随退、比对语义由 SessionModelTruth 读数测试覆盖——Core 计数 −2 系此 mandated 退役、非漏删）；MainlineModelFossilMigration 原样保留。跨包桩 FailingHermesClient.sessionMutationSnapshot 全树一份（unify 的 cherry-pick 与 rel 链同补丁自动同合）。
+
+**静态计数预期**：Core **1920**（1902 基线＋对齐 1＋合一 11＋化石 8−退役 2）、App **121**（103＋枢纽 1＋头像 3＋对齐 1＋合一 4＋化石 9）、UI **4**。版本 0.50.38/166 五处同改＋grep 验（代码面 0.50.37 残留 0）。
+
+### §228.1 装配 CI 判读（待回填）
