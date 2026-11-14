@@ -12145,3 +12145,42 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 
 - 既有实现定位：取证提交 7a95fe9（2026-11-13）全量 .ips 收集曾存在，已随其分支 revert；exp/keyboard-repro 分支常驻同形态——全量 .ips 含设备名/用户路径/线程栈，不合隐私门口径，不直接合入。
 - 合入口径（取代全量形态、落 CI 常驻）：Scripts/ci/crash_metadata.py 只提取白名单元数据（捕获时间/进程/bundle id/App 与系统版本/异常类型与信号/终止命名空间与码/故障线程前 8 符号名），字段白名单天然不取设备名/slice_uuid/二进制路径/寄存器/地址/线程名/源文件；全文再过两道正则抹用户名路径与 UUID 形串。workflow 两步：Unit tests 后收集（仓库变量 CRASH_METADATA_COLLECTION=off 可关；.ips 原文只在 runner 临时目录、提取后即删、不出 runner）＋artifact 上传 retention-days: 7 限期。--selftest 以含人名/设备名/UUID 的合成 .ips 实证零漏出。设置内可关一项的 App 侧对应物＝CI 侧仓库变量开关（崩溃报告无 App 运行时收集面，关口在收集侧）。
+## §242 Box API 直连第一包：甩桥＋ai-sessions 退役（2026-11-14；分支 feat/api-direct-a，基线 rel-05039 头 5b8fb68）
+
+**组版收口（0.50.41）**：本线自编 §233 与组版树轻动作 §233 撞号，整节顺延为 **§242**；与 .40 桥收敛在 Box 三客户端的真冲突已按「本线为准」裁决——三客户端整文件取 MCP 直连版（不再走桥管线），其余九客户端保留 BridgeClientBase；伴生 ai-sessions 退役只合码、未部署（随主线另行窗口）。本包代码无 §233 自指。
+
+**背景与目标**：Box 原经 Hermes `/api/box-bridge/*` 中继（box_bridge.py 桥实现），现改 App 直连 Simular Box MCP 服务（`https://mcp.box.simular.ai/mcp`）。本包完成 A1 甩桥（status/screenshot/act/files/shell 五面全改直连）+ A3 ai-sessions 桥退役（Session 分类器去桥判断、oneday_bridge.py 保留 A3 红线项）。
+
+**A1 映射表**（桥端点 → MCP 工具）：
+
+| 原桥端点 | MCP 工具 | 说明 |
+|---------|---------|------|
+| GET /api/box-bridge/status | `box_status` | 状态查询，增强：调 `billing` 取 credits、调 `browser_snapshot` 取 page、缓存 lastKnownPage |
+| POST /api/box-bridge/screenshot | `screenshot` | 截图（max_edge: 1024） |
+| POST /api/box-bridge/act | `computer_act` / `browser_navigate` | 桌面动作 / 浏览器导航 |
+| GET /api/box-bridge/files | `list_dir` | 目录列表（路径校验、500 条上限、resolved 逃逸检查） |
+| GET /api/box-bridge/files/read | `read_file` | 文件读取（行截断检测回退 shell base64、16MB 上限） |
+| POST /api/box-bridge/shell | `shell` | 终端命令（多文本块拼接、本地 32768 字截断、ok 语义修正） |
+
+**凭据接法**（F6）：`CloudComputerViews.swift` 凭据表单 `submit()` 中，当 `connection.provider == "simular_box"` 且验活成功（`credentialPhase` 到 `.verified`）后，写 Keychain `box.mcp.key`（值＝用户填的 apiKey）并调 `BoxMCPClientFactory.reset()` 让新凭据生效。服务端保管流（`submitCredential` 本体）一字不动。
+
+**协议修正**（F1-F5）：
+- F1：删除自造 `AnyCodable`，全层改用 `JSONValue`（Sendable 合规、已有正解）
+- F2：`tools/call` 参数形状修正——顶层 `params: {"name": <工具名>, "arguments": {...}}`，不包 `tool` 键
+- F3：握手补齐——`protocolVersion: "2025-03-26"`（streamable HTTP 世代）、`capabilities: {}`、initialize 成功后发 `notifications/initialized` 通知
+- F4：SSE 响应解析——请求头补 `Accept: application/json, text/event-stream`，响应按 `Content-Type` 分流（SSE 按 `data:` 行抽 JSON、按 id 匹配）
+- F5：timeout 生效——每次请求独立设 `URLRequest.timeoutInterval`（截图/状态 30–60、act/shell 90、shell base64 读 120），不再全局 60s 一刀切
+
+**保真逻辑**（F7-F10，对齐 box_bridge.py）：
+- F7 status 保真：credits（调 `billing` 按优先级取 credits_left/creditsLeft/credits/balance，isError 或异常 → creditsNote）、page（running 时调 `browser_snapshot` 解析 `Page: 标题 (url)` 行、失败重试 0.9s）、lastKnownPage（客户端缓存最近确认页面＋时间戳）
+- F8 act 保真：结果无图像块时补调 `screenshot`、summary 取第一段文本的第一行（上限 300 字）
+- F9 files 保真：路径校验（拒绝绝对路径/反斜杠/NUL/空段/`..`）、列表 500 条上限、resolved 路径逃逸检查（必须等于或在 `/workspace` 下）、read_file 行截断标记检测回退 shell base64、16MB 上限
+- F10 shell 保真：多文本块 `\n` 拼接、本地 32768 字截断＋注记行、ok 语义（exitCode 有值时 ok=(exitCode==0)，无值时 ok=true）
+
+**A3 ai-sessions 退役**：`SessionClassification.aiCastSessionPrefix` 红线保留（cast 分类器仍需此前缀），`oneday_bridge.py` 保留红线项（`/api/ai-sessions` 路由＋ `ai_cast` 转发＋ A3 测试），其余桥判断逻辑从分类器删除。
+
+**单测**（F11）：`Tests/OneDayCoreTests/MCPProtocolTests.swift`——请求信封编码（含 F2 params 形状断言）、JSON/SSE 响应解码、SSE data 行抽取与 id 匹配、MCPContent text/image 解码、mcpTexts/mcpStructured/mcpErrorText 三态。
+
+**不许动**：消费方公开 API 签名（status/screenshot/act/list/fileData/run）保持不变。`SessionClassification.aiCastSessionPrefix`、伴生 `oneday_bridge.py`（A3 已验收通过，二轮不许再碰）。版本号。
+
+**静态计数预期**：Core **1950**（1937 基线＋MCP 协议测试 13）、App **136**（零增、只改实现）、UI **4**。版本号保持 0.50.39/167（不发版、只交分支）。

@@ -11,50 +11,97 @@ enum BoxShellError: Error, Sendable, Equatable {
     case failed(String)
 }
 
-/// 盒终端客户端（P9，契约 box-shell-contract-20261109.md）：
-/// POST /api/box-bridge/shell，鉴权与盒桥同一把 Keychain
-/// 桥钥匙。桥侧 shell 面尚未部署（归独立服务端小包），
-/// 现网请求会 404——客户端据此如实报「尚未开通」，不拿
-/// 假回显冒充。命令只由用户逐条手输、本客户端不预置、
-/// 不自动重发任何命令。超时 100 秒（唤醒＋执行，与
-/// /act 同档，nginx 上限 120 秒之内）。
+/// Box 终端客户端（A1 甩桥，MCP 直连）：
+///
+/// 原桥端点（已退役）：
+/// - POST /api/box-bridge/shell → shell MCP 工具
+///
+/// 公开 API 不变（run 签名保持），内部改为直连 Box MCP。
+/// 命令由用户逐条手输、原样透传，超时 90 秒。
+///
+/// shell 工具返回文本，尾部带 `[exit status N]` 标记
+/// （对齐 box_bridge.py:416-455）。
 final class BoxShellClient: @unchecked Sendable {
-    /// C-10 收敛：连接/单钥/管线/文案走统一基座（传输
-    /// 文案以 endpoint＝「终端」代入，与旧口径逐字同），
-    /// 本类只留路径与状态口径
-    private let base = BridgeClientBase<BoxShellError>(
-        pathPrefix: "/api/box-bridge", timeout: 100,
-        noKey: .noKey, failed: BoxShellError.failed
-    )
+    init() {}
 
     func run(
         config: ServerConfig, command: String
     ) async throws -> BoxShellResponse {
-        _ = try base.requireKey()
-        let bodyData: Data
+        let client = try await getClient()
+
+        // 确保 Box 运行（shell 需要运行中的 Box）
+        try await client.ensureRunning()
+
+        let result = try await client.callTool(
+            name: "shell",
+            arguments: ["command": command],
+            timeout: 90
+        )
+
+        if result.isError == true {
+            // 厂商侧失败（无 exit status）：按契约 SS3 返回错误
+            throw BoxShellError.failed(mcpErrorText(result))
+        }
+
+        // F10：多文本块以 \n 拼接
+        let texts = mcpTexts(result)
+        let rawText = texts.joined(separator: "\n")
+        if rawText.isEmpty {
+            return BoxShellResponse(ok: false, output: "", exitCode: nil, truncated: nil)
+        }
+
+        // 提取 exit status 尾行（对齐 box_bridge.py:433-439）
+        let exitPattern = #"\[exit status (-?\d+)\]\s*$"#
+        var text = rawText
+        var exitCode: Int?
+
+        if let regex = try? NSRegularExpression(pattern: exitPattern),
+           let match = regex.firstMatch(in: rawText, range: NSRange(rawText.startIndex..., in: rawText)) {
+            if let codeRange = Range(match.range(at: 1), in: rawText) {
+                exitCode = Int(rawText[codeRange])
+            }
+            // 剥离尾行
+            text = String(rawText[..<rawText.index(rawText.startIndex, offsetBy: match.range.location)])
+            // 去除尾部分隔换行
+            if text.hasSuffix("\n") {
+                text = String(text.dropLast())
+            }
+        }
+
+        // F10：本地截断逻辑（32768 字上限）
+        let maxOutput = 32768
+        var truncated = false
+        if text.count > maxOutput {
+            text = String(text.prefix(maxOutput))
+            text += "\n[box-bridge: output truncated at 32768 characters]"
+            truncated = true
+        }
+
+        // F10：ok 语义（exitCode 有值时 ok=(exitCode==0)，无值时 ok=true）
+        let ok = exitCode.map { $0 == 0 } ?? true
+
+        return BoxShellResponse(
+            ok: ok,
+            output: text,
+            exitCode: exitCode,
+            truncated: truncated ? true : nil
+        )
+    }
+
+    // MARK: - 辅助方法
+
+    private func getClient() async throws -> BoxMCPClient {
         do {
-            bodyData = try base.encoder.encode(
-                BoxShellRequest(command: command)
-            )
-        } catch {
-            throw BoxShellError.failed(L10n.string("命令组装失败"))
+            return try await BoxMCPClientFactory.getClient()
+        } catch let error as BoxMCPError {
+            switch error {
+            case .noKey:
+                throw BoxShellError.noKey
+            case .sessionFailed, .toolCallFailed:
+                throw BoxShellError.failed(error.localizedDescription)
+            case .networkError:
+                throw BoxShellError.failed(L10n.string("终端网络不可达"))
+            }
         }
-        let (data, http) = try await base.perform(
-            config: config, path: "/shell", method: "POST",
-            bodyData: bodyData, endpoint: L10n.string("终端")
-        )
-        if http.statusCode == 404 {
-            throw BoxShellError.notAvailable
-        }
-        if http.statusCode == 401 {
-            throw BoxShellError.unauthorized
-        }
-        guard (200...299).contains(http.statusCode) else {
-            throw BoxShellError.failed(L10n.format("终端返回 %@", String(http.statusCode)))
-        }
-        return try base.decode(
-            data,
-            orThrow: BoxShellError.failed(L10n.string("终端返回格式无法识别"))
-        )
     }
 }
