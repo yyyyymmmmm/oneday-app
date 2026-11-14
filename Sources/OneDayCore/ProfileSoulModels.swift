@@ -239,8 +239,10 @@ public enum SoulSectionParser {
         return title.isEmpty ? nil : title
     }
 
-    /// 标题归一化：去首尾空格、去尾部标点、转小写
-    private static func normalizeTitle(_ title: String) -> String {
+    /// 标题归一化：去首尾空格、去尾部标点、转小写。
+    /// §245 起呈现提炼层（SoulDistillation）共用同一
+    /// 口径，故开放为 internal——标题归一全仓一处。
+    static func normalizeTitle(_ title: String) -> String {
         var text = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let trailingPunctuation = CharacterSet(charactersIn: "：:。、．.·—-")
         while let last = text.unicodeScalars.last,
@@ -271,19 +273,30 @@ public enum SoulSaveVerification {
 // MARK: - soul 屏上呈现提炼（§218 枢纽身份段视觉重做）
 
 /// 身份段屏上呈现：把解析后的分段清成可读散文段落。
-/// 提炼只动结构——按空行分段、剥 ATX 标题的 `#` 脚手
-/// 架、摘除与显示名同文的名标题段（名只在段头出现一
-/// 次）；正文一字不改写、不翻译、不增删。原始全文的
-/// 入口仍在 SOUL 卡详情与编辑面，本提炼只管段内呈现。
+/// 提炼分两层：结构层（§218）按空行分段、剥 ATX 标
+/// 题的 `#` 脚手架、摘除与显示名同文的名标题段；真
+/// 提炼层（§245）把系统提示词段整段收起——身份段只
+/// 呈人设本体（SoulDistillation 按标题结构分段裁
+/// 决，只认结构、不做语义猜写，与 SoulSectionParser
+/// 同纪律）。正文一字不改写、不翻译、不增删；原始
+/// 全文的入口仍在 SOUL 卡详情与编辑面，本提炼只管
+/// 身份段呈现。
 public struct SoulPresentation: Equatable, Sendable {
     /// 人设散文段落（简介区，灰字呈现）
     public let introParagraphs: [String]
     /// 风格段落（风格区，黑字呈现；无风格块时为空）
     public let styleParagraphs: [String]
+    /// 本次被真提炼层收起的系统提示词段数（呈现层可
+    /// 据此给出去处注记；全文在 SOUL 卡与编辑面）
+    public let withheldSegmentCount: Int
 
-    public init(introParagraphs: [String], styleParagraphs: [String]) {
+    public init(
+        introParagraphs: [String], styleParagraphs: [String],
+        withheldSegmentCount: Int = 0
+    ) {
         self.introParagraphs = introParagraphs
         self.styleParagraphs = styleParagraphs
+        self.withheldSegmentCount = withheldSegmentCount
     }
 
     public var isEmpty: Bool {
@@ -295,15 +308,22 @@ public enum SoulPresentationBuilder {
     public static func build(
         from sections: SoulSections, displayName: String
     ) -> SoulPresentation {
-        SoulPresentation(
+        // 真提炼层（§245）：人设正文先过系统段收起，
+        // 只把人设本体交给结构层分段呈现；风格块是
+        // 呈现本体、不在收起面
+        let distilled = SoulDistillation.visibleText(
+            from: sections.displayedPersona
+        )
+        return SoulPresentation(
             introParagraphs: paragraphs(
-                from: sections.displayedPersona,
+                from: distilled.text,
                 displayName: displayName, dropNameHeading: true
             ),
             styleParagraphs: paragraphs(
                 from: sections.style ?? "",
                 displayName: displayName, dropNameHeading: false
-            )
+            ),
+            withheldSegmentCount: distilled.withheldCount
         )
     }
 
@@ -354,5 +374,114 @@ public enum SoulPresentationBuilder {
             result.append(cleaned)
         }
         return result
+    }
+}
+
+// MARK: - soul 真提炼层（§245 身份段：系统提示词段收起）
+
+/// 真提炼层（2026-11-14 立项，.48 身份包）：SOUL 里
+/// 混着两类段——人设本体（它是谁、与用户是什么关
+/// 系、还不知道什么）与系统提示词段（怎么工作、守
+/// 则、伤疤教训、安全边界这类给智能体自己的操作规
+/// 程）。身份段是给人看的「它是谁」，只呈人设本体；
+/// 系统段整段收起，原文一字不动地留在 SOUL 卡详情
+/// 与编辑面（「原文进编辑」）。
+///
+/// 裁决只认结构（与 SoulSectionParser 同纪律，不做
+/// 语义猜写）：按 ATX 标题切段，标题归一后命中系统
+/// 段标题表即收起；无标题的前言段与未登记标题段一
+/// 律保留（宁可多呈、不可错藏人设本体）。兜底：收
+/// 起后正文为空（整篇都是系统段）时整篇回落原文呈
+/// 现——身份段不许被提炼成空白。
+public enum SoulDistillation {
+    public struct Result: Equatable, Sendable {
+        /// 可见正文（人设本体，段落原文）
+        public let text: String
+        /// 被收起的系统段数
+        public let withheldCount: Int
+
+        public init(text: String, withheldCount: Int) {
+            self.text = text
+            self.withheldCount = withheldCount
+        }
+    }
+
+    /// 系统提示词段标题表（归一形：小写、去尾标点，
+    /// 与 SoulSectionParser.normalizeTitle 同口径）。
+    /// 来源：现行 SOUL 的规程性章节（我怎么工作/学
+    /// 到的伤疤）、Hermes 缺省 SOUL 模板的指令性章
+    /// 节（Boundaries/Continuity）与通用规程词。只
+    /// 收「给智能体的操作规程」类；Core Truths/Vibe
+    /// 这类本体自述不在表内（风格另有风格块承接）。
+    static let systemTitles: Set<String> = [
+        // 中文：工作与规则
+        "我怎么工作", "怎么工作", "工作方式", "工作守则",
+        "行为准则", "行为规则", "工作原则", "判断步骤",
+        "操作规程", "运行规则", "学习循环", "房间规则",
+        "记忆规则", "安全守则", "安全", "红线", "边界",
+        "工具", "工具使用", "指令", "系统提示词",
+        "注意事项", "约束",
+        // 中文：教训类（以规则形态沉淀的操作经验）
+        "我学到的伤疤", "学到的伤疤", "教训", "经验教训",
+        // English: working rules & instructions
+        "how i work", "how you work", "working rules",
+        "guidelines", "rules", "instructions",
+        "operating principles", "safety", "safety rules",
+        "boundaries", "red lines", "tools", "tool usage",
+        "memory rules", "continuity", "workflow",
+        "operations", "system prompt", "lessons",
+        "lessons learned",
+    ]
+
+    public static func visibleText(from personaText: String) -> Result {
+        let normalized = personaText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        // 按标题切段：标题行起新段；首个标题前的行是
+        // 前言段（无标题、恒可见）
+        var segments: [(title: String?, lines: [String])] = []
+        var currentTitle: String? = nil
+        var currentLines: [String] = []
+        var started = false
+        for line in normalized.components(separatedBy: "\n") {
+            if let title = SoulSectionParser.headingTitle(of: line) {
+                if started || !currentLines.isEmpty {
+                    segments.append((currentTitle, currentLines))
+                }
+                started = true
+                currentTitle = title
+                currentLines = [line]
+            } else {
+                currentLines.append(line)
+            }
+        }
+        if started || !currentLines.isEmpty {
+            segments.append((currentTitle, currentLines))
+        }
+
+        var visible: [String] = []
+        var withheld = 0
+        for segment in segments {
+            if let title = segment.title,
+               systemTitles.contains(
+                   SoulSectionParser.normalizeTitle(title)
+               ) {
+                withheld += 1
+                continue
+            }
+            visible.append(contentsOf: segment.lines)
+        }
+        let text = visible.joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // 兜底：全篇皆系统段时回落原文，身份段不空白
+        if text.isEmpty {
+            return Result(
+                text: normalized.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ),
+                withheldCount: 0
+            )
+        }
+        return Result(text: text, withheldCount: withheld)
     }
 }

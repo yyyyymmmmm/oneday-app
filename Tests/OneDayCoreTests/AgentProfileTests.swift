@@ -1,61 +1,67 @@
 import XCTest
 @testable import OneDayCore
 
-/// 智能体本地档案（0.36.22）：显示名多来源仲裁、编
-/// 辑输入净化、分享域名提取（名片红线）、预置头像
-/// 目录完整性——全是纯逻辑，视图层只许消费不许另判。
+/// 智能体身份（§245 收敛后）：呈现名只剩「缓存→回
+/// 落」一级链；改名校验与服务端同口径；升级迁移的
+/// 最后一判（旧覆盖/双槽头像按退役前末写胜语义折
+/// 算成缓存＋待推标记）——全是纯逻辑，视图层与存储
+/// 层只许消费不许另判。
 final class AgentProfileTests: XCTestCase {
 
-    // MARK: - 显示名仲裁：覆盖 → soul → Hermes
+    // MARK: - 显示名：缓存 → Hermes（§245 一级链）
 
-    func testDisplayNameOverrideWins() {
+    func testDisplayNameFromCache() {
         XCTAssertEqual(
-            AgentDisplayName.resolve(override: "小助手", soulName: "三狗"),
-            "小助手"
+            AgentDisplayName.resolve(cachedName: "三狗"), "三狗"
         )
     }
 
-    func testDisplayNameFallsToSoulThenFallback() {
+    func testDisplayNameFallsBackWhenCacheEmpty() {
         XCTAssertEqual(
-            AgentDisplayName.resolve(override: nil, soulName: "三狗"),
-            "三狗"
+            AgentDisplayName.resolve(cachedName: nil), "Hermes"
         )
         XCTAssertEqual(
-            AgentDisplayName.resolve(override: nil, soulName: nil),
-            "Hermes"
-        )
-    }
-
-    func testDisplayNameEmptyStringsCountAsUnset() {
-        XCTAssertEqual(
-            AgentDisplayName.resolve(override: "", soulName: "三狗"),
-            "三狗"
+            AgentDisplayName.resolve(cachedName: ""), "Hermes"
         )
         XCTAssertEqual(
-            AgentDisplayName.resolve(override: nil, soulName: ""),
-            "Hermes"
+            AgentDisplayName.resolve(cachedName: "   "), "Hermes"
         )
     }
 
-    // MARK: - 编辑输入净化
+    // MARK: - 改名校验（与桥 _validate_new_name 同口径）
 
-    func testSanitizedOverrideCollapsesWhitespace() {
+    func testSanitizedRenameCollapsesWhitespace() {
         XCTAssertEqual(
-            AgentDisplayName.sanitizedOverride("  小  助手 \n"),
-            "小 助手"
+            AgentNameEdit.sanitizedRename("  小  助手 \n"), "小 助手"
         )
     }
 
-    func testSanitizedOverrideRejectsBlankAndOverlong() {
-        XCTAssertNil(AgentDisplayName.sanitizedOverride("   "))
-        XCTAssertNil(AgentDisplayName.sanitizedOverride(""))
+    func testSanitizedRenameRejectsBlankAndOverlong() {
+        XCTAssertNil(AgentNameEdit.sanitizedRename("   "))
+        XCTAssertNil(AgentNameEdit.sanitizedRename(""))
         XCTAssertNil(
-            AgentDisplayName.sanitizedOverride(String(repeating: "名", count: 21))
+            AgentNameEdit.sanitizedRename(
+                String(repeating: "名", count: 21)
+            )
         )
         XCTAssertEqual(
-            AgentDisplayName.sanitizedOverride(String(repeating: "名", count: 20)),
+            AgentNameEdit.sanitizedRename(
+                String(repeating: "名", count: 20)
+            ),
             String(repeating: "名", count: 20)
         )
+    }
+
+    /// 句读与结构词：服务端会拒的客户端先拒，不让用
+    /// 户白跑一趟写穿才知道
+    func testSanitizedRenameRejectsPunctuationAndStructuralWords() {
+        XCTAssertNil(AgentNameEdit.sanitizedRename("三狗。"))
+        XCTAssertNil(AgentNameEdit.sanitizedRename("三，狗"))
+        XCTAssertNil(AgentNameEdit.sanitizedRename("三狗!"))
+        XCTAssertNil(AgentNameEdit.sanitizedRename("# 三狗"))
+        XCTAssertNil(AgentNameEdit.sanitizedRename("SOUL"))
+        XCTAssertNil(AgentNameEdit.sanitizedRename("人设"))
+        XCTAssertEqual(AgentNameEdit.sanitizedRename("三狗"), "三狗")
     }
 
     // MARK: - 分享域名：只出 host（红线）
@@ -120,153 +126,6 @@ final class AgentProfileTests: XCTestCase {
         }
     }
 
-    // MARK: - 覆盖对账（末写胜，2026-11-13；时刻缺失时退回来源对账近似）
-
-    /// 主案复刻：存量裸覆盖「测试」（无来源记录）压
-    /// 服务器现行名「三狗」→ 必清、跟随服务器
-    func testReconcileClearsLegacyOverrideAgainstRenamedSoul() {
-        XCTAssertTrue(
-            AgentNameLWW.shouldClearOverride(
-                override: "测试", provenance: nil, soulName: "三狗", soulUpdatedAt: nil
-            )
-        )
-    }
-
-    /// 覆盖恰与现行名相同：无冲突，不清（清了也白清）
-    func testReconcileKeepsOverrideEqualToSoul() {
-        XCTAssertFalse(
-            AgentNameLWW.shouldClearOverride(
-                override: "三狗", provenance: nil, soulName: "三狗", soulUpdatedAt: nil
-            )
-        )
-    }
-
-    /// 无覆盖：永不清
-    func testReconcileKeepsWhenNoOverride() {
-        XCTAssertFalse(
-            AgentNameLWW.shouldClearOverride(
-                override: nil, provenance: nil, soulName: "三狗", soulUpdatedAt: nil
-            )
-        )
-        XCTAssertFalse(
-            AgentNameLWW.shouldClearOverride(
-                override: "", provenance: nil, soulName: "三狗", soulUpdatedAt: nil
-            )
-        )
-    }
-
-    /// 服务器时刻未知时的近似路：用户在现行名之下设
-    /// 的定名（来源里记的服务器名＝现行名）、其后无
-    /// 从证明服务器写过——不清（时刻齐备时不走此路）
-    func testReconcileKeepsProvenancedOverrideWhenSoulUnchanged() {
-        let provenance = AgentNameOverrideProvenance(
-            writtenAt: Date(), soulNameAtWrite: "三狗"
-        )
-        XCTAssertFalse(
-            AgentNameLWW.shouldClearOverride(
-                override: "狗子", provenance: provenance, soulName: "三狗", soulUpdatedAt: nil
-            )
-        )
-    }
-
-    /// 覆盖写入后服务器被改名（写入时对的是旧名）：
-    /// 以最后一次改名为准，旧覆盖退场
-    func testReconcileClearsProvenancedOverrideAfterServerRename() {
-        let provenance = AgentNameOverrideProvenance(
-            writtenAt: Date(), soulNameAtWrite: "Hermes"
-        )
-        XCTAssertTrue(
-            AgentNameLWW.shouldClearOverride(
-                override: "测试", provenance: provenance, soulName: "三狗", soulUpdatedAt: nil
-            )
-        )
-    }
-
-    /// 来源在、但写入时服务器名未知（从未解析成
-    /// 功）：无从证明是对现行名设的，按无来源清
-    func testReconcileClearsOverrideWithUnknownSoulAtWrite() {
-        let provenance = AgentNameOverrideProvenance(
-            writtenAt: Date(), soulNameAtWrite: nil
-        )
-        XCTAssertTrue(
-            AgentNameLWW.shouldClearOverride(
-                override: "测试", provenance: provenance, soulName: "三狗", soulUpdatedAt: nil
-            )
-        )
-    }
-
-    // MARK: - 末写胜：时刻齐备时纯比时间
-
-    private static let lwwT0 = Date(timeIntervalSince1970: 1_700_000_000)
-    private static let lwwT1 = Date(timeIntervalSince1970: 1_700_003_600)
-    private static let lwwT2 = Date(timeIntervalSince1970: 1_700_007_200)
-
-    /// 服务器写入时刻更晚 → 旧覆盖清。关键形态：服
-    /// 务器名绕一圈又回到覆盖写入时所对的名（来源对
-    /// 账近似会误判「没改过」），末写胜只认时刻、照清
-    func testLWWSoulNewerTimestampClearsDespiteNameRoundTrip() {
-        let provenance = AgentNameOverrideProvenance(
-            writtenAt: Self.lwwT0, soulNameAtWrite: "三狗"
-        )
-        XCTAssertTrue(
-            AgentNameLWW.shouldClearOverride(
-                override: "狗子", provenance: provenance,
-                soulName: "三狗", soulUpdatedAt: Self.lwwT2
-            )
-        )
-    }
-
-    /// 覆盖写入时刻更晚（用户在 AI 改名之后又亲手改
-    /// 的）→ 留：末写胜不问写者是谁，只看谁后写
-    func testLWWOverrideNewerThanSoulWriteSurvives() {
-        let provenance = AgentNameOverrideProvenance(
-            writtenAt: Self.lwwT2, soulNameAtWrite: "Hermes"
-        )
-        XCTAssertFalse(
-            AgentNameLWW.shouldClearOverride(
-                override: "狗子", provenance: provenance,
-                soulName: "三狗", soulUpdatedAt: Self.lwwT1
-            )
-        )
-    }
-
-    /// 同刻：取服务器（多端同源），覆盖清
-    func testLWWTieGoesToServer() {
-        let provenance = AgentNameOverrideProvenance(
-            writtenAt: Self.lwwT1, soulNameAtWrite: "Hermes"
-        )
-        XCTAssertTrue(
-            AgentNameLWW.shouldClearOverride(
-                override: "狗子", provenance: provenance,
-                soulName: "三狗", soulUpdatedAt: Self.lwwT1
-            )
-        )
-    }
-
-    /// 服务器时刻已知、覆盖却无来源（无任何时刻可
-    /// 凭）：不得压住服务器现行名，清
-    func testLWWSoulTimestampKnownBareOverrideClears() {
-        XCTAssertTrue(
-            AgentNameLWW.shouldClearOverride(
-                override: "测试", provenance: nil,
-                soulName: "三狗", soulUpdatedAt: Self.lwwT1
-            )
-        )
-    }
-
-    /// 来源记录编解码往返不丢字段（落盘形态）
-    func testProvenanceCodableRoundTrip() throws {
-        let provenance = AgentNameOverrideProvenance(
-            writtenAt: Date(timeIntervalSince1970: 1_794_559_749),
-            soulNameAtWrite: "Hermes"
-        )
-        let data = try JSONEncoder().encode(provenance)
-        let decoded = try JSONDecoder().decode(
-            AgentNameOverrideProvenance.self, from: data
-        )
-        XCTAssertEqual(decoded, provenance)
-    }
-
     func testPresetResolveFallsBackToDefault() {
         XCTAssertEqual(
             AgentAvatarPreset.resolve(id: "paw").id, "paw"
@@ -277,6 +136,202 @@ final class AgentProfileTests: XCTestCase {
         )
         XCTAssertEqual(
             AgentAvatarSelection.default,
+            .preset(id: AgentAvatarPreset.defaultID)
+        )
+    }
+
+    // MARK: - 缓存编解码往返（落盘形态不许丢字段）
+
+    func testNameCacheCodableRoundTrip() throws {
+        let cache = IdentityNameCache(
+            name: "三狗",
+            serverUpdatedAt: Date(timeIntervalSince1970: 1_794_559_749),
+            cachedAt: Date(timeIntervalSince1970: 1_794_559_800)
+        )
+        let data = try JSONEncoder().encode(cache)
+        let decoded = try JSONDecoder().decode(
+            IdentityNameCache.self, from: data
+        )
+        XCTAssertEqual(decoded, cache)
+    }
+
+    func testAvatarCacheCodableRoundTrip() throws {
+        let cache = IdentityAvatarCache(
+            selection: .image(itemID: "av_1"),
+            itemID: "av_1",
+            serverUpdatedAt: Date(timeIntervalSince1970: 1_794_559_749),
+            cachedAt: Date(timeIntervalSince1970: 1_794_559_800)
+        )
+        let data = try JSONEncoder().encode(cache)
+        let decoded = try JSONDecoder().decode(
+            IdentityAvatarCache.self, from: data
+        )
+        XCTAssertEqual(decoded, cache)
+    }
+
+    // MARK: - 迁移·名字（§245 一次性：退役前末写胜最后一判）
+
+    private static let migT0 = Date(timeIntervalSince1970: 1_700_000_000)
+    private static let migT1 = Date(timeIntervalSince1970: 1_700_003_600)
+    private static let migT2 = Date(timeIntervalSince1970: 1_700_007_200)
+
+    /// 主案复刻：存量裸覆盖「测试」（无来源记录）压
+    /// 服务器现行名「三狗」→ 迁移取服务器名、不待推
+    func testMigrationBareOverrideLosesToSoulName() {
+        let outcome = IdentityLegacyMigration.effectiveName(
+            override: "测试", provenance: nil,
+            soulName: "三狗", soulUpdatedAt: nil
+        )
+        XCTAssertEqual(outcome.name, "三狗")
+        XCTAssertFalse(outcome.needsPush)
+    }
+
+    /// 无覆盖：直接播种服务器名
+    func testMigrationNoOverrideSeedsSoulName() {
+        let outcome = IdentityLegacyMigration.effectiveName(
+            override: nil, provenance: nil,
+            soulName: "三狗", soulUpdatedAt: Self.migT1
+        )
+        XCTAssertEqual(outcome.name, "三狗")
+        XCTAssertFalse(outcome.needsPush)
+    }
+
+    /// 两边都无名：不播种（呈现继续回落 Hermes）
+    func testMigrationNoNameAnywhereSeedsNothing() {
+        let outcome = IdentityLegacyMigration.effectiveName(
+            override: nil, provenance: nil,
+            soulName: nil, soulUpdatedAt: nil
+        )
+        XCTAssertNil(outcome.name)
+        XCTAssertFalse(outcome.needsPush)
+    }
+
+    /// 用户在现行名之下亲手定的名（来源对账成立、
+    /// 时刻不齐）：本机胜出→播种该名并待推写穿
+    func testMigrationProvenancedOverrideWinsAndNeedsPush() {
+        let provenance = LegacyNameOverrideProvenance(
+            writtenAt: Date(), soulNameAtWrite: "三狗"
+        )
+        let outcome = IdentityLegacyMigration.effectiveName(
+            override: "狗子", provenance: provenance,
+            soulName: "三狗", soulUpdatedAt: nil
+        )
+        XCTAssertEqual(outcome.name, "狗子")
+        XCTAssertTrue(outcome.needsPush)
+    }
+
+    /// 时刻齐备、服务器更晚（含名绕一圈回到原点）：
+    /// 只认时刻，旧覆盖退场
+    func testMigrationNewerServerTimestampWins() {
+        let provenance = LegacyNameOverrideProvenance(
+            writtenAt: Self.migT0, soulNameAtWrite: "三狗"
+        )
+        let outcome = IdentityLegacyMigration.effectiveName(
+            override: "狗子", provenance: provenance,
+            soulName: "三狗", soulUpdatedAt: Self.migT2
+        )
+        XCTAssertEqual(outcome.name, "三狗")
+        XCTAssertFalse(outcome.needsPush)
+    }
+
+    /// 时刻齐备、本机更晚（AI 改名之后用户又亲手
+    /// 改）：末写胜不问写者，本机胜出并待推
+    func testMigrationNewerOverrideTimestampWinsAndNeedsPush() {
+        let provenance = LegacyNameOverrideProvenance(
+            writtenAt: Self.migT2, soulNameAtWrite: "Hermes"
+        )
+        let outcome = IdentityLegacyMigration.effectiveName(
+            override: "狗子", provenance: provenance,
+            soulName: "三狗", soulUpdatedAt: Self.migT1
+        )
+        XCTAssertEqual(outcome.name, "狗子")
+        XCTAssertTrue(outcome.needsPush)
+    }
+
+    // MARK: - 迁移·头像（§245 一次性：旧双槽最后一判）
+
+    /// 2026-11-13 事故复刻：用户早先选过 paw，AI 其
+    /// 后在服务器换上自生成图——迁移取 AI 图、不待推
+    func testMigrationAILaterImageWins() {
+        let outcome = IdentityLegacyMigration.effectiveAvatar(
+            aiPresetID: nil, aiItemID: "av_new",
+            aiUpdatedAt: Self.migT2,
+            user: .preset(id: "paw"), userSelectedAt: Self.migT1,
+            userEverSelected: true
+        )
+        XCTAssertEqual(outcome.selection, .custom)
+        XCTAssertEqual(outcome.aiItemID, "av_new")
+        XCTAssertFalse(outcome.userWon)
+    }
+
+    /// 用户后写：本机选择胜出→播种并待推上仓
+    func testMigrationUserLaterPresetWinsAndNeedsPush() {
+        let outcome = IdentityLegacyMigration.effectiveAvatar(
+            aiPresetID: nil, aiItemID: "av_old",
+            aiUpdatedAt: Self.migT0,
+            user: .preset(id: "atom"), userSelectedAt: Self.migT1,
+            userEverSelected: true
+        )
+        XCTAssertEqual(outcome.selection, .preset(id: "atom"))
+        XCTAssertTrue(outcome.userWon)
+    }
+
+    /// 同刻取服务器（多端同源的退役口径原样）
+    func testMigrationAvatarTieGoesToServer() {
+        let outcome = IdentityLegacyMigration.effectiveAvatar(
+            aiPresetID: "sparkles", aiItemID: "av_tie",
+            aiUpdatedAt: Self.migT1,
+            user: .preset(id: "paw"), userSelectedAt: Self.migT1,
+            userEverSelected: true
+        )
+        XCTAssertEqual(outcome.selection, .preset(id: "sparkles"))
+        XCTAssertFalse(outcome.userWon)
+    }
+
+    /// AI 档为空：用户选择胜出（仓从未有过当前时同理）
+    func testMigrationNoAIUserSelectionWins() {
+        let outcome = IdentityLegacyMigration.effectiveAvatar(
+            aiPresetID: nil, aiItemID: nil, aiUpdatedAt: nil,
+            user: .custom, userSelectedAt: Self.migT1,
+            userEverSelected: true
+        )
+        XCTAssertEqual(outcome.selection, .custom)
+        XCTAssertTrue(outcome.userWon)
+    }
+
+    /// 用户从未选过：AI 档胜（缺省档案不许挡住跟随）
+    func testMigrationUserNeverSelectedAIWins() {
+        let outcome = IdentityLegacyMigration.effectiveAvatar(
+            aiPresetID: "paw", aiItemID: "av_9",
+            aiUpdatedAt: Self.migT0,
+            user: .default, userSelectedAt: nil,
+            userEverSelected: false
+        )
+        XCTAssertEqual(outcome.selection, .preset(id: "paw"))
+        XCTAssertFalse(outcome.userWon)
+    }
+
+    /// 两边皆空：不播种（呈现回落缺省、不假装选过）
+    func testMigrationNeitherSideSeedsNothing() {
+        let outcome = IdentityLegacyMigration.effectiveAvatar(
+            aiPresetID: nil, aiItemID: nil, aiUpdatedAt: nil,
+            user: .default, userSelectedAt: nil,
+            userEverSelected: false
+        )
+        XCTAssertNil(outcome.selection)
+        XCTAssertFalse(outcome.userWon)
+    }
+
+    /// 脏 id 收敛：仓里来的预置 id 不在目录内回落缺省款
+    func testMigrationUnknownAIPresetResolvesToDefault() {
+        let outcome = IdentityLegacyMigration.effectiveAvatar(
+            aiPresetID: "no-such-preset", aiItemID: "av_x",
+            aiUpdatedAt: Self.migT1,
+            user: .preset(id: "atom"), userSelectedAt: Self.migT0,
+            userEverSelected: true
+        )
+        XCTAssertEqual(
+            outcome.selection,
             .preset(id: AgentAvatarPreset.defaultID)
         )
     }

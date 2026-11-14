@@ -12362,3 +12362,35 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 五轮收官：前四轮红在 Swift 6 并发隔离（View 静态映射的 MainActor 隔离→纯函数 nonisolated 化；NSLock 不许跨挂起点→锁收进同步函数；NSAttributedString 跨任务边界→`LayoutAttributedBox` 装箱过界）——全是新代码的隔离形态问题、无逻辑改动。终判读轮 run **43590926421**：Build 过；Core **2016/2016**（基线 2008＋新增 8，精确对账）；App 逐条点名 **passed 155＋skipped 5、断言失败 0**，本包新增 7 条全过（语料 6 组×三宽对拍 |Δ|≤1.0 全过、16 万字巨串对拍一致、并发确定性、三 worker 不串行、服务组装/缓存命中、账本落账 3/3 一致、记账同步段 <0.1s）；UI **8/8**，几何/顶簇 VERDICT=PASS×3。测试步名义 failure＝App 会话内 7 起宿主重启（§184 在案签名，与 0.50.42 交付轮同），6 条既有测试只有 started 无终局被列名（名单见报告 §四），按 §190 判读**实质绿**。App passed 较基线 147 的差额 +8：7 条本包新增，余 1 条为基线轮无终局口径差（登记、不硬凑）。
 
 **节号顺延注记**：本节在本分支编号 §245；main 侧 0.50.42 已定 §245＝审批卡节、§246＝组版节——组版合入时本节顺延改号（预计 §247），文内 §245 引用一并改。
+## §245 身份包：多账收敛＋名字读直连＋正文真提炼＋国际化收尾（2026-11-14；分支 feat/identity-pack，基线 rel-05041@7cb8e26；全档＝oneday-design-review/identity-pack-report-20261114.md）
+
+**编号说明**：§244 为权限包（feat/permissions-pack，同日并行）占号，本包自编号 §245，组版顺延合入时如需再顺延由组版统一改。
+
+### §245.1 C-2 身份多账收敛（名字/头像服务端单真值＋带时间戳缓存）
+
+- **真值口径**：名字＝服务端 SOUL、头像＝伴生头像仓，永远只有一份。App 退役全部本地真值：AgentProfileStore 的改名覆盖＋来源记录、头像用户槽/AI 槽双槽、Core 的 AgentNameLWW／AgentAvatarChoice 双账裁决、AgentProfile 值型、AgentAIAvatar——全量删除（复杂化审计 C-2 方案原案：呈现读副本、刷新替换副本、不存「覆盖」语义）。
+- **缓存模型**（Core IdentityCache.swift）：`IdentityNameCache{name, serverUpdatedAt, cachedAt}`、`IdentityAvatarCache{selection(preset/image), itemID, serverUpdatedAt, cachedAt}`，JSON 落 UserDefaults 键 `identity.nameCache`／`identity.avatarCache`；头像图单文件 `Application Support/AgentProfile/avatar-cache.jpg`。呈现链收敛为一级：`AgentDisplayName.resolve(cachedName:)`＝缓存→Hermes 回落；AppState.identityName 改为缓存只读镜像；枢纽 displayName 链摘掉覆盖层，枢纽拉到的同一份 soul 顺带喂共享缓存（applyName），不另起一份名账。
+- **写穿**：App 改名/换头像与智能体走同一组服务端窄口——改名 POST /identity/name（服务端复校＋备份＋回读验名＋name-state 落账＋留痕）、换头像 POST /identity/avatar（append-only＋设当前）。写成功后以服务端回读/仓指针整份替换缓存（read-after-write）；失败留在编辑器报错（错误文案过 §232 安全门）、不先改呈现。末写胜（2026-11-13 用户拍板）由服务端天然承接——谁的写入后到服务端谁生效，App 不再复刻裁决。
+- **校验同口径**：Core `AgentNameEdit.sanitizedRename` 与桥 `_validate_new_name` 逐项镜像（折叠空白、≤20 字、无句读、非结构词、无 `#`/控制字符），编辑器先行拦截、服务端最终裁决。
+- **升级迁移（一次性）**：`IdentityLegacyMigration` 自包含退役前裁决语义，升级瞬间按旧末写胜算出用户实际看到的名/头像播种新缓存，旧键组 11 个＋旧图文件 avatar.jpg/avatar-ai.jpg 全清；本机侧胜出且与服务端不同→置待推标记（`identity.namePushPending`／`identity.avatarPushPending`），首次连通刷新先写穿后回读（名字在 adoptFetchedIdentityName、头像在 AgentAvatarSync 头部），写穿失败保留缓存原样、不许服务端旧值覆盖用户胜出值。迁移只跑一次、不构成常驻裁决机制。
+- **编辑器改写**：名字编辑器＝改名字段（预填现行名、空/不合口径不许存、异步写穿带忙态与错误行），「恢复自动（跟随服务器身份名）」整段退役（没有第二层可恢复）；头像编辑器勾选态读缓存当前选择、选点走异步写穿，页脚改「头像保存在你的服务器上」口径，旧「只保存在这台手机上」退役。
+
+### §245.2 A2 名字读走 Dashboard 直连
+
+- 名字读链全程 Hermes Dashboard 管理口（档案列表→默认档案→GET /api/profiles/{name}/soul），本就直连在用；本包摘掉最后一处经桥读数——`AppState.fetchBridgeSoulUpdatedAt` 与桥客户端 `nameState`/`IdentityNameState` 删除，名字时刻改取 ProfileSoulDocument 自带的 updatedAt（文件 mtime 近似，api-direct-inventory A2 已定案代价：桥的 source 留痕在伴生 name-state.json，不随读链走）。桥在名字面只剩写口（setName），读零经桥——API 直连优先、桥只收敛不扩张的落点。
+- 身份写留痕落点（盘点 B3）不在本包：写穿已复用服务端既有账（name-state＋avatar source），是否另立统一留痕面留 B3 自行定案，不阻塞本包。
+
+### §245.3 身份正文真提炼（SoulDistillation）
+
+- 定义（.48 编排定案）：系统提示词段收起、身份段只呈人设本体、原文进编辑。落点 Core `SoulDistillation`（ProfileSoulModels.swift）：按 ATX 标题切段，标题归一（与 SoulSectionParser.normalizeTitle 同口径）命中系统段标题表（我怎么工作/学到的伤疤/工作方式/守则/红线/边界/安全/工具/指令/记忆规则＋How I Work/Boundaries/Continuity/Rules 等中英规程类）整段收起；无标题前言与未登记标题段一律保留（宁可多呈、不可错藏本体，与 SoulSectionParser「只认结构、不做语义猜写」同纪律）；收起后正文为空则整篇回落原文（身份段不许被提炼成空白）。
+- 接入 SoulPresentationBuilder：人设正文先过提炼再走 §218 结构层；SoulPresentation 增 `withheldSegmentCount` 记收起段数；风格块是呈现本体、不在收起面；原文入口（SOUL 卡详情/编辑面）不动、不新增 UI 元素。
+
+### §245.4 国际化收尾
+
+- 全仓对账法：L10n.string/format 字面量键（含字符串拼接整串还原）＋SwiftUI 用户面字面量（Text/Button/Section/Label/Toggle/TextField/navigationTitle/accessibilityLabel 等入口）对 Localizable＋InfoPlist 目录全量 diff。缺口 117 条：107 条真文案入目录（Localizable 3028→3135 键；含本包新文案 9 条、枢纽身份段 2 条、DeviceViews 连接器说明族、GoalCategory 简介族、频道配对端点名族等），zh-Hant 按 §108 术语表、en 按产品文案口径，占位符逐键对位；余 10 条为非文案（分隔符「 · 」、cron 表达式、Esc 键名、品牌名 OneDay、SF 符号名、示例 URL、破折号）定案不入目录。
+- `python3 Scripts/validate_i18n.py` 通过：3148 键×三语全覆盖、占位符一致、无行话引入（新键源串零 BANNED 词）。
+
+### §245.5 伴生与计数
+
+- **伴生零改动**：写穿所需端点（POST /identity/name、POST /identity/avatar 两形态、GET 状态/图片）全在产（桥 1.0.47+ 已上线），本包无 companion 改动、无部署配方。
+- **静态计数预期**：Core **2008**（基线 2008；AgentProfileTests 26→30、AgentAvatarChoiceTests 9 条退役删除、HubSoulTests 12→17，净 0）；App **147**（零增减，未动 App 测试）；UI **8**。版本号不动（不发版、只交分支）。

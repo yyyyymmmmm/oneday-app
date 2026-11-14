@@ -58,23 +58,12 @@ struct IdentityAvatarState: Decodable, Sendable {
     }
 }
 
-/// 桥侧名字状态（GET /identity/name）：soul 名＋它
-/// 的写入时刻与来源——名字末写胜裁决的服务器侧凭
-/// 据。旧桥只回 soulName 时 updatedAt 为 nil，裁决
-/// 退回来源对账近似。
-struct IdentityNameState: Decodable, Sendable {
-    let soulName: String
-    let updatedAt: Double?
-    let source: String?
 
-    var updatedAtDate: Date? {
-        updatedAt.map { Date(timeIntervalSince1970: $0) }
-    }
-}
-
-/// 身份桥客户端（P1 身份包）：App 侧只读头像仓——写
-/// 口（改名/换头像）是智能体经 MCP 工具走的，不在
-/// App 侧开第二条写路。路径挂当前服务器根下
+/// 身份桥客户端（P1 身份包）：头像仓读面＋§245 起
+/// 的写穿面——App 改名/换头像与智能体改名改头像走
+/// 同一组服务端窄口（服务端单真值：校验、备份、回
+/// 读验名、留痕全在桥侧收口，App 不开第二条写路、
+/// 不在本地裁决）。路径挂当前服务器根下
 /// /api/identity-bridge，Bearer 只从 BridgeCredential
 /// 统一读（与全 App 桥客户端同口径，0.33.1）。
 /// C-10 收敛：连接/单钥/管线/文案走统一基座，本类只
@@ -104,14 +93,87 @@ final class IdentityBridgeClient: @unchecked Sendable {
         )
     }
 
-    func nameState(config: ServerConfig) async throws -> IdentityNameState {
-        let data = try await get(
+    // MARK: - 写穿（§245：App 改名/换头像直达服务端真值）
+    //
+    // 判读口径（§232 安全门）：2xx 过；401 未授权；
+    // 其余取服务端 error 文案先过 ServerErrorText.
+    // userSafe 才许带出，不过门/解不出落本类通用人
+    // 话（只报是哪件失败、带状态码定位），绝不露服
+    // 务端原文。
+
+    /// 改名写穿：POST /identity/name（dryRun=false、
+    /// actor=user；服务端复校、写 SOUL 人设标题行、
+    /// 落 name-state 账并留痕）。成功后调用方以
+    /// Dashboard 回读刷新名字缓存
+    func setName(config: ServerConfig, name: String) async throws {
+        try await post(
             config: config, path: "/identity/name",
+            body: ["name": name, "dryRun": false, "actor": "user"],
             endpoint: L10n.string("身份名")
         )
-        return try base.decode(
-            data,
-            orThrow: IdentityBridgeError.failed(L10n.string("身份名返回格式无法识别"))
+    }
+
+    /// 预置头像写穿：POST /identity/avatar kind=preset
+    /// （append-only 新条目并设为当前；服务端回 201）
+    func addAvatarPreset(
+        config: ServerConfig, presetID: String
+    ) async throws {
+        try await post(
+            config: config, path: "/identity/avatar",
+            body: [
+                "kind": "preset",
+                "presetId": presetID,
+                "source": "app-user",
+                "makeCurrent": true,
+            ],
+            endpoint: L10n.string("头像仓")
+        )
+    }
+
+    /// 图片头像写穿：POST /identity/avatar imageBase64
+    /// （制备 JPEG 字节；服务端硬顶 2MB、魔数校验）
+    func addAvatarImage(
+        config: ServerConfig, imageData: Data
+    ) async throws {
+        try await post(
+            config: config, path: "/identity/avatar",
+            body: [
+                "imageBase64": imageData.base64EncodedString(),
+                "source": "app-user",
+                "makeCurrent": true,
+            ],
+            endpoint: L10n.string("头像仓")
+        )
+    }
+
+    private func post(
+        config: ServerConfig, path: String,
+        body: [String: Any], endpoint: String
+    ) async throws {
+        guard let bodyData = try? JSONSerialization.data(
+            withJSONObject: body
+        ) else {
+            throw IdentityBridgeError.failed(
+                L10n.format("%@保存失败。", endpoint)
+            )
+        }
+        let (data, http) = try await base.perform(
+            config: config, path: path, method: "POST",
+            bodyData: bodyData, endpoint: endpoint
+        )
+        if (200..<300).contains(http.statusCode) { return }
+        if http.statusCode == 401 {
+            throw IdentityBridgeError.unauthorized
+        }
+        if let raw = base.serverMessage(data),
+           let safe = ServerErrorText.userSafe(raw) {
+            throw IdentityBridgeError.failed(safe)
+        }
+        throw IdentityBridgeError.failed(
+            L10n.format(
+                "%@保存失败（错误 %@）。", endpoint,
+                String(http.statusCode)
+            )
         )
     }
 

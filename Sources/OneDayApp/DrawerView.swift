@@ -344,7 +344,7 @@ struct DrawerView: View {
         }
         .sheet(isPresented: $showNameEditor) {
             AgentNameEditorView(
-                initialOverride: appState.profileNameOverride
+                initialName: appState.identityName ?? ""
             )
         }
         // 开抽屉时补拉服务端 source 映射（只喂来源过

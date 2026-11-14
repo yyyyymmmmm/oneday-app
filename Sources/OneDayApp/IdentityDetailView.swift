@@ -45,7 +45,7 @@ struct IdentityDetailView: View {
                 AgentAvatarEditorView()
             case .name:
                 AgentNameEditorView(
-                    initialOverride: appState.profileNameOverride
+                    initialName: appState.identityName ?? ""
                 )
             }
         }

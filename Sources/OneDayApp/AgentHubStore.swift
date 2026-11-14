@@ -74,12 +74,12 @@ final class AgentHubStore {
     /// 实体、不是智能体身份，「默认档案」退出标题位
     private(set) var identityName: String?
 
-    /// 页头大名：本地档案覆盖（0.36.22）→ 全局身份名
-    /// （AppState，全局唯一解析点）→ 本店 soul 解析
-    /// → 回落 Hermes；与抽屉/胶囊同源同值
+    /// 页头大名：全局身份名（AppState 名字缓存，服
+    /// 务端单真值的本机副本，§245）→ 本店 soul 解析
+    /// → 回落 Hermes；与抽屉/胶囊同源同值。旧本机
+    /// 档案覆盖层（0.36.22）已随 C-2 收敛退役
     var displayName: String {
-        appState.profileNameOverride
-            ?? appState.identityName
+        appState.identityName
             ?? identityName
             ?? AgentName.fallback
     }
@@ -215,6 +215,15 @@ final class AgentHubStore {
         await loadIdentityIfNeeded()
         if let content = soulDocument?.content {
             identityName = AgentName.resolve(soulContent: content)
+            if let identityName {
+                // §245：枢纽拉到的同一份 soul 顺带刷新
+                // 全局名字缓存（时刻取文档回执）——全
+                // App 露脸面同值，枢纽不另起一份名账
+                appState.agentProfileStore.applyName(
+                    identityName,
+                    serverUpdatedAt: soulDocument?.updatedAt
+                )
+            }
         }
         await assembleActivity()
         activityLoading = false
