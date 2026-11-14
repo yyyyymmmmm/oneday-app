@@ -20,6 +20,12 @@ import XCTest
 /// 段注：机制自有区绝对帽、系统地板区相对帽＋绝
 /// 对帽、滚动态用同点双臂差）。结构与绑定断言由
 /// EdgeEffectRegistrationTests 承接。
+/// §218（2026-11-14）气泡时代重校准：断言改以
+/// 双臂相对帽为主（关系式：生产 Δ≤消融 Δ＋余
+/// 量、边缘效果只软化不加码），绝对帽降为
+/// sanity 上限；spinRunLoop 满足信号改全局队列
+/// 墙钟（治主队列饿死型超时）。全账见 DESIGN
+/// §218 与 edge-probe-recalibration 报告。
 @MainActor
 final class EdgeEffectProbeTests: XCTestCase {
 
@@ -34,7 +40,15 @@ final class EdgeEffectProbeTests: XCTestCase {
 
     private func spinRunLoop(seconds: TimeInterval) {
         let exp = expectation(description: "spin \(seconds)s")
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+        // §218：满足信号改走全局队列墙钟——模型账
+        // 包轮（run 43543959202）实证主队列被渲染
+        // 管线饿死时 main.asyncAfter 的 fulfill 迟
+        // 到 5.8s 超时（非断言失败、采样行在其后仍
+        // 续产）；期望满足与线程无关，wait 本身照
+        // 旧泵主 run loop、静置语义不变
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(
+            deadline: .now() + seconds
+        ) {
             exp.fulfill()
         }
         wait(for: [exp], timeout: seconds + 5)
@@ -521,20 +535,53 @@ final class EdgeEffectProbeTests: XCTestCase {
 
         // MARK: 回归断言（用户 21:39 口径的数值化）
 
-        // 阈值口径（首版验证轮 43449681845 实测后校
-        // 准，报告 §4 全账）：①机制自有区（舱带/坞）
-        // 用绝对帽——§200 病值（深 19）与修复值（0）
-        // 相距远、帽取 8；②顶带两点（状态栏带/顶簇
-        // 间隙）的静止残差经双臂对照为系统边缘效果
-        // 本体的地板（浅色生产＝消融同值 5；深色地
-        // 板由本轮消融臂回证）——注册不许在地板上加
-        // 码：相对帽（≤消融＋2~3）＋宽松绝对帽防未
-        // 来生长；③滚动态对彩色内容不用「与页面色
-        // 差」直测溶解度（soft 的 scrim 取自下方内
-        // 容色、蓝气泡化开仍偏蓝）——改同点双臂差＋
-        // 粗帽；bottomUnder 尾段像素随 LazyVStack
-        // 估算高漂移（两轮 contentH 26263/26143），
-        // 只倾印不设断
+        // 阈值口径沿革：首版（§213）按无泡时代单轮
+        // 实测校准——机制自有区绝对帽、顶带相对＋
+        // 绝对双帽、滚动态同点双臂差；bottomUnder
+        // 尾段像素随 LazyVStack 估算高漂移，只倾
+        // 印不设断（沿袭至今）。
+        // §218 气泡时代重校准（2026-11-14）：气泡
+        // 恢复后静止态舱带背后合法地压着末条气泡
+        // 尾——暗泡 #2C2C2E 对页 Δ44（消融臂实测
+        // 45）、浅泡 #EEEEF0 对页 Δ14（消融臂坞点
+        // 逐值命中），「舱区应近页面色」的绝对帽
+        // 前提失效（对齐包轮深色 bottomRest 消融
+        // 45→生产 30、机制贡献为负）。期望关系
+        // 式：设带后内容原色差 Δraw＝消融臂同点
+        // 值，系统边缘效果只软化不加码——Δprod
+        // ≤ Δraw＋余量；内容为页色时两臂同归地
+        // 板。据此分两类：内容可达区（顶簇间隙／
+        // 舱带边缘／舱区）＝双臂相对帽为主断＋绝
+        // 对 sanity 帽（取实测合法最大值＋余量、
+        // 只防灾变回长）；构造同色区（浅状态栏
+        // 带／坞下沿——生产形态下恒被系统件与底
+        // 栏材质覆盖、必须与页同色）＝保绝对帽
+        // （浅坞消融臂在气泡时代见泡尾 Δ14、生
+        // 产臂仍 3，相对式在此无义）。
+        // 逐点校准基（六轮 .35/.36/预制/模型/对
+        // 齐/.37 实测账，Δ＝对 pageRef 逐通道最
+        // 大差）：浅 topBand 差 max +1→余量 2、
+        // sanity 6（生产 max 6）；浅 composerMargin
+        // 生产六轮恒 8（效果本体带边静止签名、与
+        // 时代无关）、消融 3–6 抖、差 max +5→余
+        // 量 6、sanity 10；浅 composerBand topRest
+        // 两臂恒 10→相对 +2、sanity 12；bottomRest
+        // 本次新增同式：差 −3..+1→余量 4、原色
+        // era 间 22→35（泡尾入带）、sanity 48；
+        // 深 composerMargin 两臂恒 0→相对 +2、
+        // sanity 8（原绝对帽转 sanity）；深
+        // composerBand 无泡恒 0、气泡时代
+        // bottomRest 消融 45≈泡本色／生产 30（软
+        // 化比≈2/3）→相对 +3、sanity 48（原色
+        // max 45＋3）；深 status/topBand 沿首版
+        // （地板 25/18、相对 +3、sanity 28/22）；
+        // 浅 status（生产 max 2、帽 3）、浅坞
+        // （生产恒 3、帽 4）、深坞（恒 0、帽 8）
+        // 为构造同色区保绝对帽。滚动态 topUnder
+        // composerBand 生产无泡 65→气泡时代 70
+        // （原色 95→97、软化仍成立）——原绝对帽
+        // 70 已贴实测、改 80（实测＋10、仍远低
+        // 于原色），严于消融的相对断不动。
         func d(
             _ arm: String, _ state: String, _ point: String
         ) -> Int {
@@ -554,7 +601,7 @@ final class EdgeEffectProbeTests: XCTestCase {
                 "浅色 \(state) 顶簇间隙绝对帽")
             XCTAssertLessThanOrEqual(
                 d("prod", state, "composerMargin"),
-                d("noBand", state, "composerMargin") + 4,
+                d("noBand", state, "composerMargin") + 6,
                 "浅色 \(state) 舱带边缘不许在地板上加码")
             XCTAssertLessThanOrEqual(
                 d("prod", state, "composerMargin"), 10,
@@ -564,17 +611,46 @@ final class EdgeEffectProbeTests: XCTestCase {
                 "浅色 \(state) 坞下沿应与页面同色")
         }
         XCTAssertLessThanOrEqual(
+            d("prod", "topRest", "composerBand"),
+            d("noBand", "topRest", "composerBand") + 2,
+            "浅色顶静止时舱区不许在原色上加码")
+        XCTAssertLessThanOrEqual(
             d("prod", "topRest", "composerBand"), 12,
-            "浅色顶静止时卡后为空、卡面玻璃不应自成带")
-        // 静止·深色（舱/坞为 §200 病灶本体：病值 19、
-        // 帽 8；顶带两点相对＋绝对双帽）
+            "浅色顶静止时舱区 sanity 帽（两臂六轮恒 10）")
+        // 新增（§218）：浅色落底静止的舱区同式——
+        // 气泡时代带后是末条气泡尾与舱栈合成色，
+        // 只许相对原色不加码、绝对值随 era 浮动
+        XCTAssertLessThanOrEqual(
+            d("prod", "bottomRest", "composerBand"),
+            d("noBand", "bottomRest", "composerBand") + 4,
+            "浅色落底静止时舱区不许在原色上加码")
+        XCTAssertLessThanOrEqual(
+            d("prod", "bottomRest", "composerBand"), 48,
+            "浅色落底静止时舱区 sanity 帽"
+                + "（原色实测 max 35）")
+        // 静止·深色（§218 重校准：舱带边缘/舱区改
+        // 相对＋sanity——气泡时代舱区原色即泡本
+        // 色；坞为构造同色区保绝对帽 8、§200 病
+        // 值 19 仍在其外；顶带两点相对＋绝对双
+        // 帽沿首版）
         for state in ["topRest", "bottomRest"] {
             XCTAssertLessThanOrEqual(
-                d("prodDark", state, "composerMargin"), 8,
-                "深色 \(state) 舱带边缘应近页面色（病值 19）")
+                d("prodDark", state, "composerMargin"),
+                d("noBandDark", state, "composerMargin") + 2,
+                "深色 \(state) 舱带边缘不许在原色上加码")
             XCTAssertLessThanOrEqual(
-                d("prodDark", state, "composerBand"), 8,
-                "深色 \(state) 舱区应近页面色")
+                d("prodDark", state, "composerMargin"), 8,
+                "深色 \(state) 舱带边缘 sanity 帽"
+                    + "（§200 病值 19）")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "composerBand"),
+                d("noBandDark", state, "composerBand") + 3,
+                "深色 \(state) 舱区不许在原色上加码"
+                    + "（气泡时代带后合法为泡尾）")
+            XCTAssertLessThanOrEqual(
+                d("prodDark", state, "composerBand"), 48,
+                "深色 \(state) 舱区 sanity 帽"
+                    + "（原色＝泡本色实测 45）")
             XCTAssertLessThanOrEqual(
                 d("prodDark", state, "dockBelowCapsule"), 8,
                 "深色 \(state) 坞下沿应近页面色（病值 19）")
@@ -595,6 +671,8 @@ final class EdgeEffectProbeTests: XCTestCase {
         }
         // 滚动态朦胧在（topUnder＝稠密中段内容、像
         // 素稳定）：顶簇间隙粗帽＋舱区同点双臂差
+        // （§218：舱区绝对帽按气泡时代实测改 80、
+        // 相对严断不动）
         XCTAssertLessThanOrEqual(
             d("prod", "topUnder", "topBand"), 32,
             "滚动时顶簇间隙应被化开（蓝气泡原色差远大于 32）")
@@ -605,7 +683,7 @@ final class EdgeEffectProbeTests: XCTestCase {
             "noBand", "topUnder", "composerBand"
         )
         XCTAssertLessThanOrEqual(
-            prodCompUnder, 70,
+            prodCompUnder, 80,
             "滚动时舱后内容应被化开（生产 Δ=\(prodCompUnder)）")
         XCTAssertLessThan(
             prodCompUnder, bareCompUnder,
