@@ -533,10 +533,7 @@ struct DemoHermesClient: HermesClientProtocol {
     func sessionMutationSnapshot(config: ServerConfig, id: String) async throws -> SessionMutationSnapshot { throw HermesError.demoLimitReached }
     func deleteServerSession(config: ServerConfig, id: String) async throws { throw HermesError.demoLimitReached }
 
-    func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws { throw HermesError.demoLimitReached }
-
     func emptySessionCount(config: ServerConfig) async throws -> Int { throw HermesError.demoLimitReached }
-    func deleteEmptySessions(config: ServerConfig) async throws { throw HermesError.demoLimitReached }
 
     /// 演示更新（0.18.0）：写回存记覆盖值，读面合并
     /// 呈现——回读对账在演示里同样成立

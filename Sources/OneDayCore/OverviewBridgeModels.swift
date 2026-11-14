@@ -24,7 +24,7 @@ public struct OverviewSnapshot: Decodable, Equatable, Sendable {
     }
 }
 
-public struct OverviewNotification: Decodable, Equatable, Identifiable, Sendable {
+public struct OverviewNotification: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let kind: String
     public let title: String

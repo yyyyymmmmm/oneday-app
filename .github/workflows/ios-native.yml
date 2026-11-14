@@ -9,6 +9,7 @@ on:
       - "App/**"
       - "Project.swift"
       - "Tuist.swift"
+      - "Scripts/ci/**"
       - ".github/workflows/ios-native.yml"
   workflow_dispatch:
 
@@ -51,6 +52,31 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tee test-full.log
           grep -E "error:|Test Case|Executed|TEST" test-full.log | head -60 || true
+
+      # §241（大厂九项③拍板，DiagnosticReports 常驻化带隐私门）：
+      # 只收崩溃元数据——.ips 原文不出 runner，提取脚本走字段
+      # 白名单＋全文脱敏（Scripts/ci/crash_metadata.py --selftest
+      # 可验）；仓库变量 CRASH_METADATA_COLLECTION=off 即整段
+      # 关停（可关）；artifact retention-days 7（限期保存）。
+      # 取代 2026-11-13 取证临时步 7a95fe9 的「原文全量上传」形态。
+      - name: Collect crash metadata (DiagnosticReports, metadata only)
+        if: ${{ !cancelled() && vars.CRASH_METADATA_COLLECTION != 'off' }}
+        run: |
+          mkdir -p diag-in
+          cp -a ~/Library/Logs/DiagnosticReports/. diag-in/ 2>/dev/null || true
+          sudo cp -a /Library/Logs/DiagnosticReports/. diag-in/ 2>/dev/null || true
+          sudo chmod -R a+rX diag-in 2>/dev/null || true
+          python3 Scripts/ci/crash_metadata.py --out crash-metadata diag-in
+          rm -rf diag-in
+
+      - name: Upload crash metadata
+        if: ${{ !cancelled() && vars.CRASH_METADATA_COLLECTION != 'off' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-metadata
+          path: crash-metadata
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Package unsigned IPA
         if: ${{ !cancelled() }}

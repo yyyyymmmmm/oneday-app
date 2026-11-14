@@ -12120,3 +12120,28 @@ run **43568667194**（feat/goals-rectify@6f3d34d）**§190 终判绿（带 §184
 ### §240.5 CI 判读（2026-11-14 回填，判读对象＝代码头 bb22050）
 
 run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例、无 XCTAssert 失败行）。**Core 1941 执行／0 失败**——与静态预期精确对账（基线 1937＋本包 RollingNumberGateTests 4）。**App 套件 passed、UI 套件 passed**，MATRIX-VERDICT／HUB-LAYOUT-VERDICT／VERDICT 全 PASS。started 无终局 10 条＝PresentationLayerScenarios 5 条 XCTSkip 存量＋5 条宿主死亡签名（Restarting 紧随 started、无结果行）：testKeyboardUpMovesComposerOnlyDockStays／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView（与 .39 同名单在案）＋ChatReliabilityOfflineTests 两条（本轮同签名新入名单、本包未触聊天面、死因同为宿主异常退出，登记在案）。本包新测 RollingNumberGateTests 4/4 passed 亲验。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-liqian-lessons/run-43571630543.log。未合 main、未打 tag。
+## §241 大厂九项·执行余项（2026-11-14；分支 feat/factory-nine-exec，基线 rel-05039@39532cc；全档＝oneday-design-review/factory-nine-exec-report-20261114.md）
+
+**组版收口（0.50.41）**：本线自编 §234 与组版树抽屉长按 §234 撞号，整节顺延为 **§241**（§234.1–§234.4→§241.1–§241.4），代码自指已逐处同步改 §241；OverviewBridgeStore 与轻动作 §233 同区冲突已裁决——markRead 以 §233 本地先行为骨，九项的存档同步（成功翻存档＋滑出窗口直翻存档）嫁接保留。
+
+**来源口径**：2026-11-14 12:11 用户按大厂要求拍板九项定版中的执行余项四条（回告卡物化留存／deleteEmptySessions 安全处置／频道改名／崩溃报告合 main 带隐私门）。自编号 §241（§232 删除乐观化、§233 目标整改在各自分支在册），组版顺延。New API 密码轮换（安全变更单独走）、配色 U2、审批规则归位不在本包。
+
+### §241.1 回告卡物化留存（九项①）
+
+- 定版口径：回告卡已读只消未读标记、不清记录，进历史可回看点达；无会话归属不塞聊天流。服务端事实（伴生 overview_bridge 实查）：通知由 append-only JSONL 生成、状态落盘持久，GET 返回含已读、已读只翻 read 位——服务端从不清记录；缺口在 App：桥窗口仅最近 50 条且 App 无本地留存，滑出窗口即无处回看。故本项不动伴生。
+- App 落法：本机存档（Application Support/ReportCards/archive.json 原子写）为留存的单一记录面——OverviewBridgeStore 加载成功即吸收现行进存档（Core ReportCardHistory.merge：同 id 现行优先、存档补位、createdAt 倒序、上限 200 丢最旧）、标已读桥确认后同步回写存档、已滑出窗口的条目详情打开直接翻存档副本；演示态不读存档。
+- 呈现落点裁决：历史面＝通知面板（自有面：全部/未读筛选＋详情落点点达齐备），列表/未读计数/筛选计数/详情取数改读历史面；角标与聊天页回告卡仍读桥现行未读、两面不混。不塞枢纽台账（台账是伴生工作留痕账、数据源不同源，混入即双账，违 2026-11-14 单一数据源总纲）；无会话归属不塞聊天流（定版原令），有归属的事件回响走 §229 既有通道不重造。
+
+### §241.2 deleteEmptySessions 安全处置（九项④）
+
+- 禁用形态：DELETE /api/sessions/empty 无围栏裸删（App 侧 HermesClient.deleteEmptySessions＋协议/双桩共四处）已摘除；POST /api/sessions/bulk-delete 客户端方法（bulkDeleteServerSessions）同摘——零调用方残留且生产端网关维护守卫 409 已拒、批量删早走逐条围栏路。删会话从此只许一条路：围栏单删 ServerSessionActions.delete。
+- 新清理面 EmptyCleanupSheet（默认 dry-run）：全量分页扫描（limit 100、上限 10000、archived include）→候选清单（Core EmptySessionCleanup.candidates：仅 messageCount==0、nil 不算空）→与服务端 emptySessionCount 双口径对账（countsMatch 精确相等才放行，不一致整场不删）→用户确认后逐条围栏删→全量重扫核验分集（verify：gone/remaining）→审计记录 EmptyCleanupAuditRecord 落本机（计划段先落盘、留最近 20 次），管理页尾显上次清理一行摘要。伴生源码未改（端点面全用既有）。
+
+### §241.3 频道改名（九项⑨）
+
+- ChannelRegistry.hermes 用户面名「Hermes」→「**服务器会话**」（三处同源一改全到：抽屉行/全部对话页行/频道页标题，皆读注册表单源）；内部 id 恒 `hermes`、来源分类/图标资产/代码符号零改。三语词条新增「服务器会话」键。不动项（同字面异语义、定案保留）：AgentIdentity.fallback「Hermes」（2026-11-11 三层命名定案的服务端未命名回落名）、SettingsSupportViews/StatusView 的 LabeledContent("Hermes")（服务端层名陈列）、pageSubtitle 释义（提及服务端名）。
+
+### §241.4 崩溃报告合 main 带隐私门（九项③）
+
+- 既有实现定位：取证提交 7a95fe9（2026-11-13）全量 .ips 收集曾存在，已随其分支 revert；exp/keyboard-repro 分支常驻同形态——全量 .ips 含设备名/用户路径/线程栈，不合隐私门口径，不直接合入。
+- 合入口径（取代全量形态、落 CI 常驻）：Scripts/ci/crash_metadata.py 只提取白名单元数据（捕获时间/进程/bundle id/App 与系统版本/异常类型与信号/终止命名空间与码/故障线程前 8 符号名），字段白名单天然不取设备名/slice_uuid/二进制路径/寄存器/地址/线程名/源文件；全文再过两道正则抹用户名路径与 UUID 形串。workflow 两步：Unit tests 后收集（仓库变量 CRASH_METADATA_COLLECTION=off 可关；.ips 原文只在 runner 临时目录、提取后即删、不出 runner）＋artifact 上传 retention-days: 7 限期。--selftest 以含人名/设备名/UUID 的合成 .ips 实证零漏出。设置内可关一项的 App 侧对应物＝CI 侧仓库变量开关（崩溃报告无 App 运行时收集面，关口在收集侧）。

@@ -229,9 +229,12 @@ public enum ChannelRegistry {
     /// 他表面（网页/接口）的会话收纳处。图标复用
     /// 0.36.3 已登记的本机服务 Hermes 定制图面资产
     /// （LocalServices 同款 LocalHermes，台账 D 节）
+    /// 用户面展示名（§241，2026-11-14 大厂九项⑨拍
+    /// 板）：「服务器会话」——频道 id 与代码符号仍为
+    /// hermes 不动，用户面不再直呼服务端产品名
     public static let hermes = ChannelDescriptor(
         id: hermesChannelID,
-        name: "Hermes",
+        name: "服务器会话",
         pageSubtitle: "在这台 Hermes 的其他地方（网页、接口）发生的对话",
         iconAssetName: "LocalHermes"
     )

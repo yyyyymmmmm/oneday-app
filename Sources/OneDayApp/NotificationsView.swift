@@ -21,6 +21,12 @@ import SwiftUI
 /// 此作废；③技术信息下沉——同①。
 ///
 /// 不许回退的既有语义：
+/// - §241 回告留存（大厂九项①）：本页列表/计数改读
+///   历史面（桥现行∪本机存档，见 store.historyNoti-
+///   fications）——已读只消未读标记、记录不清，滑
+///   出桥 50 条窗口的旧回告仍在本页回看、点行进详
+///   情、落点可达；角标与聊天页回告卡仍读桥现行，
+///   不许拿历史面冒充未读口径；
 /// - 伴生 1.0.27「已决不提醒」：已决回执在桥侧已读
 ///   出生，本页不重算、不复活未读；角标口径原样由
 ///   桥快照出，本页零改动；
@@ -60,12 +66,16 @@ struct NotificationsView: View {
     /// 文案在 alert 内一次说清，沿旧版）
     @State private var markAllFailed = false
 
+    /// 未读数与列表面（§241 留存）：读历史面（现行∪
+    /// 存档）——已读记录留存可回看，未读仍是现行口径；
+    /// 角标不走本面（桥快照单源，见 store 头注）
     private var unreadCount: Int {
-        store.notifications.filter { !$0.read }.count
+        store.historyNotifications.filter { !$0.read }.count
     }
 
     private var visibleItems: [OverviewNotification] {
-        NotificationDetail.filtered(store.notifications, filter: filter)
+        NotificationDetail.filtered(
+            store.historyNotifications, filter: filter)
     }
 
     private var groups: [NotificationDayGroup] {
@@ -148,7 +158,7 @@ struct NotificationsView: View {
                 .foregroundStyle(Palette.inkMuted)
                 .padding(.top, OneDayMetrics.spacingXS)
             if store.notificationsLoaded, !store.notificationsFailed,
-               !store.notifications.isEmpty {
+               !store.historyNotifications.isEmpty {
                 filterBar
                     .padding(.top, OneDayMetrics.spacingSM)
             }
@@ -168,7 +178,7 @@ struct NotificationsView: View {
         if store.notificationsFailed {
             return String(localized: "通知暂时无法获取")
         }
-        if store.notifications.isEmpty {
+        if store.historyNotifications.isEmpty {
             return String(localized: "需要你处理的事项会出现在这里")
         }
         return NotificationDetail.subtitle(unreadCount: unreadCount)
@@ -181,7 +191,7 @@ struct NotificationsView: View {
     private var filterBar: some View {
         HStack(spacing: 0) {
             filterButton(.all, title: String(localized: "全部"),
-                         count: store.notifications.count)
+                         count: store.historyNotifications.count)
             filterButton(.unread, title: String(localized: "未读"),
                          count: unreadCount)
         }
@@ -252,7 +262,7 @@ struct NotificationsView: View {
                 .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if store.notifications.isEmpty {
+        } else if store.historyNotifications.isEmpty {
             ContentUnavailableView(
                 "暂无通知",
                 systemImage: "bell",
@@ -323,10 +333,13 @@ struct NotificationsView: View {
                     groupHeader(group, isFirst: index == 0)
                 }
             }
-            if store.notifications.count >= 50 {
-                // 桥上限 50 条：达上限如实标注，不装全量
+            if store.historyNotifications.count
+                >= ReportCardHistory.retentionLimit {
+                // §241 留存上限：存档只保留最近 200 条，
+                // 达上限如实标注（旧「桥 50 条」注记随历
+                // 史面落地退役——历史已不止桥窗口）
                 Section {
-                    Text("只显示最近 50 条")
+                    Text("只保留最近 200 条回告记录")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkMuted)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -593,9 +606,11 @@ private struct NotificationDetailView: View {
     private var reduceMotion
     @State private var technicalExpanded = false
 
-    /// 最新一份条目（store 优先、快照兜底）
+    /// 最新一份条目（历史面优先、快照兜底）：§241
+    /// 后已读记录可能只在存档里，详情取数须认历史面
     private var current: OverviewNotification {
-        store.notifications.first(where: { $0.id == item.id }) ?? item
+        store.historyNotifications.first(where: { $0.id == item.id })
+            ?? item
     }
 
     /// 锚点命中申报（§166 合裁）：落点为锚点两档

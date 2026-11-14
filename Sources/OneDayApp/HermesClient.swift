@@ -190,12 +190,13 @@ protocol HermesClientProtocol: Sendable {
     /// （官方契约，身份读 mutation-snapshot）；收口按
     /// 错误码分流，身份读不到不许裸发（报告 §1.4）
     func deleteServerSession(config: ServerConfig, id: String) async throws
-    /// POST /api/sessions/bulk-delete {ids}
-    func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws
     /// GET /api/sessions/empty/count
     func emptySessionCount(config: ServerConfig) async throws -> Int
-    /// DELETE /api/sessions/empty
-    func deleteEmptySessions(config: ServerConfig) async throws
+    // §241：DELETE /api/sessions/empty（无围栏裸删）与
+    // POST /api/sessions/bulk-delete（无调用方残留）的
+    // 客户端方法已摘除——删会话只许走围栏单删一条路，
+    // 空会话清理走 EmptyCleanupSheet 安全处置（dry-run
+    // ＋对账＋逐条围栏删＋审计＋核验）
     /// GET /api/sessions?limit=&offset=&archived=（0.18.0
     /// 「全部对话」管理面分页拉全；archived 取
     /// exclude/only/include，nil 不带参数走服务端默认）
@@ -1351,14 +1352,6 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
     }
 
-    func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws {
-        try await sendJSON(
-            config: config, path: "/api/sessions/bulk-delete", method: "POST",
-            endpoint: L10n.string("服务端会话批量删除"),
-            body: ["ids": .array(ids.map(JSONValue.string))]
-        )
-    }
-
     func emptySessionCount(config: ServerConfig) async throws -> Int {
         struct CountResponse: Decodable { let count: Int? }
         let response: CountResponse = try await getJSON(
@@ -1366,13 +1359,6 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             endpoint: L10n.string("空会话计数")
         )
         return response.count ?? 0
-    }
-
-    func deleteEmptySessions(config: ServerConfig) async throws {
-        try await sendJSON(
-            config: config, path: "/api/sessions/empty", method: "DELETE",
-            endpoint: L10n.string("空会话清理")
-        )
     }
 
     func serverSessionsPage(

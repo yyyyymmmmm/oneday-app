@@ -36,6 +36,75 @@ final class OverviewBridgeStore {
     private let client = OverviewBridgeClient()
     private var isRefreshing = false
 
+    /// 回告本机存档（§241 留存）：桥窗口只有最近 50
+    /// 条且随桥易失——凡本机见过的通知都落进本档，
+    /// 已读只翻标记、记录不清。通知面板的历史面读
+    /// 本档与现行合并（ReportCardHistory），聊天页回
+    /// 告卡仍只读现行未读，两面分工不混
+    @ObservationIgnored private var archive: [OverviewNotification] = []
+    @ObservationIgnored private var archiveLoaded = false
+    /// 演示态不读存档、不露真实历史（演示分支置位）
+    @ObservationIgnored private var demoMode = false
+
+    /// 历史面数据源：现行 ∪ 存档（现行优先），演示
+    /// 态退回现行（恒空）。通知面板列表/计数/详情取
+    /// 数走本面；角标与回告卡不走本面
+    var historyNotifications: [OverviewNotification] {
+        guard !demoMode else { return notifications }
+        loadArchiveIfNeeded()
+        return ReportCardHistory.merge(
+            live: notifications, archived: archive)
+    }
+
+    private static var archiveFileURL: URL {
+        let base = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        )[0]
+        let dir = base.appendingPathComponent(
+            "ReportCards", isDirectory: true)
+        try? FileManager.default.createDirectory(
+            at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("archive.json")
+    }
+
+    private func loadArchiveIfNeeded() {
+        guard !archiveLoaded else { return }
+        archiveLoaded = true
+        guard let data = try? Data(contentsOf: Self.archiveFileURL),
+              let items = try? JSONDecoder().decode(
+                [OverviewNotification].self, from: data)
+        else { return }
+        archive = items
+    }
+
+    private func persistArchive() {
+        guard let data = try? JSONEncoder().encode(archive)
+        else { return }
+        try? data.write(to: Self.archiveFileURL, options: .atomic)
+    }
+
+    /// 把一轮现行通知吸收进存档（加载成功即调用）：
+    /// 合并后存档即历史全集，已读态以现行为准
+    private func absorbIntoArchive(
+        _ items: [OverviewNotification]
+    ) {
+        loadArchiveIfNeeded()
+        archive = ReportCardHistory.merge(
+            live: items, archived: archive)
+        persistArchive()
+    }
+
+    /// 存档侧已读回写：现行标已读成功后同翻存档副本；
+    /// 条目已滑出桥窗口（现行查无）时，存档副本就是
+    /// 唯一记录面，直接翻本档
+    private func markArchiveRead(id: String) {
+        loadArchiveIfNeeded()
+        guard let index = archive.firstIndex(where: { $0.id == id }),
+              !archive[index].read else { return }
+        archive[index].read = true
+        persistArchive()
+    }
+
     var statusLine: String {
         OverviewStatusLine.resolve(
             snapshot: snapshot, hermesChannelUp: hermesChannelUp
@@ -167,6 +236,7 @@ final class OverviewBridgeStore {
 
     func loadNotifications(appState: AppState) async {
         notificationsFailed = false
+        demoMode = appState.isDemo
         guard let config = appState.config else {
             notifications = []
             notificationsLoaded = true
@@ -184,6 +254,9 @@ final class OverviewBridgeStore {
             )
             notificationsLoaded = true
             appState.overviewBridgeAuthFailed = false
+            // §241 留存：先吸收进存档再走自动消账——被
+            // 消账的回执也已在历史里，不因已读而丢记录
+            absorbIntoArchive(notifications)
             // 0.36.5（联动 C 部）：本人裁决的回执一到
             // 即自动消账——按 refId 命中本人裁决集的
             // 未读回执逐条走既有 markRead 通道（§233
@@ -263,9 +336,17 @@ final class OverviewBridgeStore {
     /// 呈现态，下轮名单以服务端为准纠正，不打扰用
     /// 户），桥回执不成功同理
     func markRead(appState: AppState, id: String) async {
-        guard applyLocalRead(id: id) else { return }
+        guard applyLocalRead(id: id) else {
+            // §241：条目已滑出桥窗口时存档是唯一记录
+            // 面——桥无可确认，直接翻本档副本
+            if !appState.isDemo { markArchiveRead(id: id) }
+            return
+        }
         guard let config = appState.config else { return }
         if appState.isDemo { return }
+        // §241：本地已读同拍翻存档副本（存档＝历史
+        // 面，与本地呈现态同源；桥确认仍走 §233 纪律）
+        markArchiveRead(id: id)
         _ = try? await client.markRead(config: config, id: id)
     }
 }

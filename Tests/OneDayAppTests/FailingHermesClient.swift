@@ -232,15 +232,7 @@ struct FailingHermesClient: HermesClientProtocol {
         throw HermesError.unreachable("离线桩")
     }
 
-    func bulkDeleteServerSessions(config: ServerConfig, ids: [String]) async throws {
-        throw HermesError.unreachable("离线桩")
-    }
-
     func emptySessionCount(config: ServerConfig) async throws -> Int {
-        throw HermesError.unreachable("离线桩")
-    }
-
-    func deleteEmptySessions(config: ServerConfig) async throws {
         throw HermesError.unreachable("离线桩")
     }
 

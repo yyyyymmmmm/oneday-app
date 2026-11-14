@@ -3,7 +3,8 @@ import OneDayCore
 import SwiftUI
 
 /// 服务端会话页（智能体格，IA v3 §5.2）：服务端保存的会话
-/// 列表、详情（元信息＋消息）、单删/多选批量删/清空空会话。
+/// 列表、详情（元信息＋消息）、单删/多选批量删/空会
+/// 话安全清理（§241：dry-run＋围栏＋审计＋核验）。
 /// 本机会话在聊天抽屉，两处分工不同、不合并（定版明记）。
 /// P10 补全文搜索：GET /api/sessions/search（生产实样
 /// 已验：蓝鲸暗号命中真会话）——搜索态整页切换、隐藏
@@ -22,7 +23,7 @@ struct ServerSessionsView: View {
     @State private var selecting = false
     @State private var selectedIDs: Set<String> = []
     @State private var showBulkDeleteConfirm = false
-    @State private var showEmptyDeleteConfirm = false
+    @State private var showEmptyCleanup = false
 
     @State private var searchText = ""
     @State private var searchHits: [SessionSearchHit] = []
@@ -144,17 +145,10 @@ struct ServerSessionsView: View {
         } message: {
             Text("删除后无法恢复；本机聊天记录不受影响。")
         }
-        .confirmationDialog(
-            "清空 \(emptyCount) 条空会话？",
-            isPresented: $showEmptyDeleteConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("清空", role: .destructive) {
-                Task { await deleteEmpty() }
+        .sheet(isPresented: $showEmptyCleanup) {
+            EmptyCleanupSheet {
+                Task { await load() }
             }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("空会话指没有任何消息的会话，删除后无法恢复。")
         }
     }
 
@@ -183,10 +177,10 @@ struct ServerSessionsView: View {
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 Button {
-                    showEmptyDeleteConfirm = true
+                    showEmptyCleanup = true
                 } label: {
                     HStack {
-                        Text("清空空会话")
+                        Text("清理空会话")
                             .font(.body)
                             .foregroundStyle(Palette.danger)
                         Spacer()
@@ -201,6 +195,14 @@ struct ServerSessionsView: View {
                 .buttonStyle(.odPressable)
             }
             .odGroup()
+            // §241：上次清理留痕一行（审计记录在本机，
+            // 清理面里有完整清单与核验结果）
+            if let last = EmptyCleanupAuditStore.latestFinished {
+                Text("上次清理：\(last.plannedAt.prefix(10)) · 删除 \(last.deletedIDs.count) 条 · 核验消失 \(last.verifiedGoneIDs?.count ?? 0) 条")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .padding(.top, OneDayMetrics.spacingS)
+            }
         }
     }
 
@@ -460,17 +462,6 @@ struct ServerSessionsView: View {
         // 恢复靠 restoreRevision 信号重拉（见 body）
     }
 
-    private func deleteEmpty() async {
-        do {
-            try await appState.performAdmin { client, config in
-                try await client.deleteEmptySessions(config: config)
-            }
-            notice = "空会话已清空。"
-            await load()
-        } catch {
-            notice = (error as? HermesError)?.userMessage ?? "清理失败，请稍后再试。"
-        }
-    }
 }
 
 /// 服务端会话详情（0.4.0 降级为「会话信息」，审计 §3.4）：
