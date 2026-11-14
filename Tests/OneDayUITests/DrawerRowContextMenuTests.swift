@@ -115,20 +115,45 @@ final class DrawerRowContextMenuTests: XCTestCase {
         XCTAssertTrue(element.isHittable, "目标行滚动后仍不可命中：\(element.identifier)")
     }
 
-    /// 预注册判点：1.2 秒系统长按后，要求菜单项存在且 hittable。
+    /// 预注册判点：标题区坐标 1.5 秒系统长按后，要求菜单
+    /// 项存在且 hittable。按压点取行宽 30% 处（标题区）而
+    /// 非行正中——正中是标题与行尾之间的 Spacer 死区。
+    /// 首项等不到时把当时全树按钮清单写进断言信息，下轮
+    /// 日志直接分清「菜单没弹」与「弹了但项不在按钮树」。
     private func assertMenu(
         on row: XCUIElement, items: [String], in app: XCUIApplication
     ) {
         reveal(row, in: app)
-        row.press(forDuration: 1.2)
-        for title in items {
+        let pressPoint = row.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)
+        )
+        pressPoint.press(forDuration: 1.5)
+        for (index, title) in items.enumerated() {
             let item = app.buttons[title]
-            XCTAssertTrue(item.waitForExistence(timeout: 5), "长按菜单缺少「\(title)」")
+            let timeout: TimeInterval = index == 0 ? 10 : 5
+            if !item.waitForExistence(timeout: timeout) {
+                XCTFail(
+                    "长按菜单缺少「\(title)」；当时按钮树："
+                        + treeSnapshot(in: app)
+                )
+            }
             XCTAssertTrue(item.isHittable, "长按菜单项不可达：「\(title)」")
         }
     }
 
-    /// 点抽屉外的生产前景窄条：关闭菜单，同时经容器原有点按关闭抽屉。
+    /// 失败取证：全树按钮的标识/标签紧凑清单
+    private func treeSnapshot(in app: XCUIApplication) -> String {
+        let buttons = app.buttons.allElementsBoundByIndex.map {
+            "\($0.identifier)|\($0.label)"
+        }
+        return buttons.joined(separator: ", ")
+    }
+
+    /// 点抽屉外的生产前景窄条关菜单、关抽屉。顺序不能反：
+    /// 抽屉打开时容器把内容宿主整树 accessibilityEle-
+    /// mentsHidden（DrawerContainerView），drawer.open 在
+    /// 树里根本不存在——必须先点窄条把抽屉关掉，才等得到
+    /// 它重新出现且可命中（首轮 CI 断 :147 即此序错）。
     private func dismissMenuAndDrawer(in app: XCUIApplication) {
         let outside = app.windows.firstMatch.coordinate(
             withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)
@@ -143,9 +168,10 @@ final class DrawerRowContextMenuTests: XCTestCase {
             "菜单外点击后上下文菜单仍在"
         )
 
+        // 菜单已散，再点一次窄条关抽屉（若第一击已连抽屉
+        // 一并关掉，这击落在聊天页空白处、无副作用）
+        outside.tap()
         let openButton = app.buttons["drawer.open"]
-        XCTAssertTrue(openButton.waitForExistence(timeout: 10))
-        if !openButton.isHittable { outside.tap() }
         let drawerClosed = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "isHittable == true"),
             object: openButton
