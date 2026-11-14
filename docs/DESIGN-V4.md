@@ -12241,6 +12241,6 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 
 **验证**：App 金测新增 4 个用例（Spec 防呆栈＋图标映射、模型解码两组含空白归一与旧回执兼容）；伴生新自测 `write_gate_anchor_ledger_selftest` 10 条（首算落盘→输入漂移→回放不变→decisions 同锚→oneday_app 空锚落账→无库不落账→库到挣锚），write-gate 四套合计 56 条全绿（rules 22/anchor 13/blocked 11/ledger 10 中 ledger 为新增）。CI 与伴生部署见交卷报告 approval-card-align-report-20261114.md。
 
-### §234.1 CI 判读（2026-11-14 回填）
+### §245.1 CI 判读（2026-11-14 回填）
 
 首轮 run **43572887421**：Core **1941/0**（1937 基线＋本包新测 4，精确对账）、App 125 passed＋5 skipped＋0 failed 之外，边缘探针 `testEdgeEffectAttributionProbe` 出 3 条像素量测断言失败（浅色坞下沿 6>4、深色舱区 35>3、深色坞下沿 18>8）——同代码在 0.50.39 组版轮该探针 passed、本包 diff 与被测渲染路径零交集，疑材质快照竞态。重跑 run **43575447612 §190 终判绿（带 §184 在案登记）**：Build／Package／Upload success；**断言失败 0、failed 用例 0**；Core **1941/0**；App **125 passed＋5 skipped**、测试步名义 failure 仅由 **8 起宿主重启**（§184 在案签名）构成；UI **4/0**；边缘探针 **passed（26.710s）**——首轮失败定性为渲染 flake、如实登记、不宣称已修（探针本体属 §226 维护面，本包不动）；MATRIX／HUB-LAYOUT／顶簇 VERDICT 全 PASS。本包 4 条新测两轮全数 passed 亲验。未合 main、未打 tag；伴生 1.0.52 已部署（账本生产实证见交卷报告 §五）。
