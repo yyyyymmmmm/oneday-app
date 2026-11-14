@@ -445,10 +445,12 @@ final class AppState {
                 ?? profiles.first,
               let document = try? await performAdmin({ client, config in
                   try await client.profileSoul(config: config, name: profile.name)
-              }),
-              let name = AgentName.resolve(soulContent: document.content)
+              })
         else { return nil }
-        return (name, document.updatedAt)
+        // AgentName.resolve 非可选：无名标题时其自身回
+        // 落 Hermes（与旧呈现口径逐字一致）
+        return (AgentName.resolve(soulContent: document.content),
+                document.updatedAt)
     }
 
     /// 服务器名回读后的统一收尾（§245）：先处置迁移
@@ -526,10 +528,11 @@ final class AppState {
     /// 此作废——末写胜按时间裁决，这次写最晚
     func reresolveIdentityName(soulContent: String) {
         identityNameResolved = true
-        if let name = AgentName.resolve(soulContent: soulContent) {
-            agentProfileStore.markNamePushed()
-            agentProfileStore.applyName(name, serverUpdatedAt: Date())
-        }
+        agentProfileStore.markNamePushed()
+        agentProfileStore.applyName(
+            AgentName.resolve(soulContent: soulContent),
+            serverUpdatedAt: Date()
+        )
     }
 
     /// 智能体身份缓存（§245）：名字/头像的服务端单真

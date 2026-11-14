@@ -42,44 +42,7 @@ struct AgentAvatarEditorView: View {
             List {
                 Section("预置形象") {
                     ForEach(AgentAvatarPreset.all) { preset in
-                        Button {
-                            selectPreset(preset)
-                        } label: {
-                            HStack(spacing: OneDayMetrics.spacingSM) {
-                                presetPreview(preset)
-                                    .frame(
-                                        width: OneDayMetrics.avatarListRow,
-                                        height: OneDayMetrics.avatarListRow
-                                    )
-                                    .clipShape(Circle())
-                                Text(preset.displayName)
-                                    .foregroundStyle(Palette.ink)
-                                Spacer()
-                                if store.currentAvatarSelection
-                                    == .preset(id: preset.id) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Palette.primary)
-                                }
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.odPressable)
-                        .disabled(isSaving)
-                        // 0.43.0（A11Y-V5）：选中态只有勾
-                        // 形——补「已选」播报＋特征（与外
-                        // 观页/连接器页房内先例同式）
-                        .accessibilityLabel(
-                            store.currentAvatarSelection
-                                == .preset(id: preset.id)
-                                ? preset.displayName + "，"
-                                    + L10n.string("已选")
-                                : preset.displayName
-                        )
-                        .accessibilityAddTraits(
-                            store.currentAvatarSelection
-                                == .preset(id: preset.id)
-                                ? [.isSelected] : []
-                        )
+                        presetRow(preset)
                     }
                 }
 
@@ -132,7 +95,7 @@ struct AgentAvatarEditorView: View {
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             ProgressView()
                             Text("正在保存…")
-                                .foregroundStyle(Palette.secondary)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                     }
                     if let errorText {
@@ -157,6 +120,45 @@ struct AgentAvatarEditorView: View {
                 Task { await loadPickedPhoto(item) }
             }
         }
+    }
+
+    /// 预置行（自含成件：整行表达式曾触发类型检查超
+    /// 时，拆子表达式后独立成函数）
+    @ViewBuilder
+    private func presetRow(_ preset: AgentAvatarPreset) -> some View {
+        let selected = store.currentAvatarSelection
+            == .preset(id: preset.id)
+        Button {
+            selectPreset(preset)
+        } label: {
+            HStack(spacing: OneDayMetrics.spacingSM) {
+                presetPreview(preset)
+                    .frame(
+                        width: OneDayMetrics.avatarListRow,
+                        height: OneDayMetrics.avatarListRow
+                    )
+                    .clipShape(Circle())
+                Text(preset.displayName)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Palette.primary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.odPressable)
+        .disabled(isSaving)
+        // 0.43.0（A11Y-V5）：选中态只有勾形——补「已
+        // 选」播报＋特征（与外观页/连接器页房内先例同式）
+        .accessibilityLabel(
+            selected
+                ? preset.displayName + "，"
+                    + L10n.string("已选")
+                : preset.displayName
+        )
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     @ViewBuilder
@@ -260,7 +262,7 @@ struct AgentNameEditorView: View {
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             ProgressView()
                             Text("正在保存…")
-                                .foregroundStyle(Palette.secondary)
+                                .foregroundStyle(Palette.inkSecondary)
                         }
                     }
                 }
