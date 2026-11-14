@@ -51,7 +51,10 @@ public enum HermesError: Error, Sendable {
     /// 演示模式空态信号（复杂化全清·第 4 项，演示面
     /// 冻结清单）：清单外接口在 DemoHermesClient 不再
     /// 逐个写假实现，统一抛此信号；界面呈现统一文案
-    /// 一条（userMessage），不许各面自拼演示文案
+    /// 一条（userMessage），不许各面自拼演示文案。
+    /// C-13 接口面冻结（2026-11-14）后，此信号同时是
+    /// HermesClientProtocol 新增方法在 Demo 侧的唯一
+    /// 合法桩形态（overcomplexity-audit-20261114 C-13）
     case demoLimitReached
     /// run 生成失败·账户余额或额度不足（基础止血包
     /// P5）：服务端终态原文只作分型输入（RunFailure-

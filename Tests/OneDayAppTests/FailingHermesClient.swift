@@ -14,6 +14,9 @@ import UIKit
 /// 本文件由脚本按 DemoHermesClient 的签名生成、
 /// 人工核对后入库；协议增删方法时须同步重跑对齐
 /// （编译器会以协议一致性报错兜底）。
+/// 【C-13 同冻】本桩与 DemoHermesClient 同属冻结接口面
+/// （overcomplexity-audit-20261114 C-13）：协议增删时只
+/// 同步签名、桩体恒抛 unreachable，不许长出行为。
 struct FailingHermesClient: HermesClientProtocol {
     func health(config: ServerConfig) async throws -> HealthResponse {
         throw HermesError.unreachable("离线桩")

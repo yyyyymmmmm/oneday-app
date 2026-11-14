@@ -6,6 +6,14 @@ import OneDayCore
 /// 会话 cookie 鉴权，401 由 AppState 自动重登兜底）。
 /// 接口路径与请求体口径全部对 docs/hermes-0.23.0-openapi.json
 /// 与 2026-11-08 GET 实测结构（见 docs/API-SURFACE.md）。
+///
+/// 【C-13 冻结·改本协议前必读】Demo 侧接口面已冻结
+/// （overcomplexity-audit-20261114 C-13＋demo-surface-
+/// freeze-20261111）：给本协议新增方法时，DemoHermes-
+/// Client 只许加一行 `throw HermesError.demoLimitReached`
+/// 桩（流式口许返回即时空流），不许再写种子实现——种子
+/// 面以 2026-11-11 冻结清单为限，扩大须施工单点名；
+/// 新增桥 Client 一律不建 Demo 对应物。
 protocol HermesClientProtocol: Sendable {
     /// 探活一：GET /health（免鉴权）
     func health(config: ServerConfig) async throws -> HealthResponse
