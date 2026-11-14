@@ -11541,3 +11541,15 @@ run 43519373972（头 4f7d2ee）**终判绿（§190＋任务书探针例外）**
 ### §215.1 装配 CI 判读（2026-11-14 回填）
 
 run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本体编译干净）、Package/Upload success；Unit tests 步 failure——全日志断言失败 0 条、测试执行 0，失败本体为测试目标编译错恰 1 条：`TopBarHitIntermittentTests.swift:258` 直构 `TopBarGuideHost(barHeight:)` 缺边缘包 §213 新增的必填参数 `scrollHandle`（装配层跨包接口漂移：两包各自判绿、合后才暴露；全仓直构点仅两处、另一处 ComposerGuideHostTests 已在装配时融合）。按任务书纪律不自行改码救版；修法候选＝该行补 `scrollHandle: ChatListScrollViewHandle()`（与 §213 对 ComposerGuideHostTests 的适配同式、语义核过不改 rig 断言面），待主线授权后重派。全档＝release-05035-assembly-20261114.md §4/§5。本版未出包、未合 main、未打 tag。
+
+## §216 模型账合一：取键单派生＋链接迁账＋服务端报告值不落账（2026-11-14；分支 feat/model-account-unify，基线 rel-05036@8234e5b；诊断 drawer-delete-longpress-diagnosis-20261114.md 题三）
+
+用户真机实报（2026-11-14 09:20，装主线 B 预览）：枢纽「会话模型」行显 DeepSeek Flash、聊天页胶囊显 claude-sonnet-4-6。定因（诊断题三，服务端实查＋双树读码）：枢纽与胶囊读两本账——胶囊按当前主线线程记录的 serverSessionID 取键、枢纽按 SideChatStore 持久化的 mainServerSessionID 取键，两份 id 副本分叉即两账分叉；被收养旧主线的服务端会话行 model 字段冻结在 deepseek-flash（2026-11-10 DeepSeek 时代存量），主线 B 的链接回读收口（§210 其树口径）以该字段为真值写账，把化石钉进枢纽账。连带隐患：两键分叉时枢纽点选写枢纽账、发送不认——「改了没变」。
+
+**合一口径（本节定版）**：
+1. **取键单派生**：模型账取键入参只许一条派生链，落 Core 纯函数 `SessionModelAccount`——线程实际绑定优先；钦定主线线程未绑定时回落 SideChatStore 副本（派生缓存）；非主线线程不回落。胶囊（ChatView.currentChoice/selectCurrentChoice）、枢纽（AgentHubView 读＋选择面写）共用此函数，枢纽改经 @Query 读钦定主线线程的实际绑定，不再独立持键。发送的会话身份仍归链接层（SideChatLink.sendPlan），模型账跟随链接落定后的同一 id——链接层的对齐与迁账（下条）保证落定后全场同 id。
+2. **链接迁账＋对齐**：ensureMainLink 在 linkedID≠wantedID（改派/收养）时先迁账（`AppState.migrateSessionModelChoice`：目标键无存量才迁、源账保留不删，防误伤仍活着的旧会话）再改存 store 副本；ensureMainThread 存量对齐改绑前同迁。线程绑定与 store 副本在链接落定时强制同值（既有动作，本节起与迁账成对出现）。
+3. **服务端报告值不落账（冻结字段裁决）**：服务端会话行 model 字段定性为回执/化石值——不是用户选择记录。执行值只由既有解析链决定（存量选择＞配置默认＞分组首项）；Core `SessionModelTruth.reading` 把报告值挡在解析外、只产出「与执行值不一致」的只读标记供留痕，**任何调用方不许据报告值改账**。主线 run 逐请求带出解析值（driveRun）、主线从不回写会话行字段（relock 回写仅旁聊），故该字段对主线是纯化石——B 收口以之为真值写账是其病版本身：键分叉时表现为枢纽一面错显，键合一后若保留该写账，化石将成存量选择并真实改变后续 run 的执行模型（可把已欠费下线的通道重新设为执行模型）。B 正式组版装配时其 reconcile 写账须按本节撤销/改走 SessionModelTruth 只读比对（装配注意见施工报告 §7）；B 的收养/链接/发送路径不在此列、不许动。
+4. **死代码清理**：AgentHubStore.shareText（旧分享文本、无调用方、第三个读枢纽账的点）随本包删除，防将来误接复活分叉。
+
+**验收**：Core SessionModelAccountTests（派生矩阵＋枢纽式≡胶囊式同键定理＋主线专用派生）与 SessionModelTruthTests（化石场景执行值不动、报告不一致只标记；存量/默认/报告同值各分支）；App ModelAccountUnifyAppTests（迁账语义：目标空才迁/目标占用不覆盖/源保留；枢纽派生入参落键≡胶囊键的账面同源断言）。真机终验（组版随车）：枢纽行与胶囊同值、枢纽改模型后主线发送随之变、收养主线（旧 deepseek 化石会话）枢纽不再显 deepseek-flash。回滚点：单分支整回（Core 两新件＋App 四处接线＋DESIGN 本节）。

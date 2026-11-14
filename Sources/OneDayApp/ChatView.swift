@@ -600,31 +600,43 @@ struct ChatView: View {
         appState.hideProviderGroup(key: key)
     }
 
+    /// 本会话模型账的取键入参（§216 账合一派生）：
+    /// 胶囊读/写与枢纽共用 Core SessionModelAccount
+    /// 一条派生链——线程实际绑定优先，钦定主线未绑
+    /// 定时回落 SideChatStore 的钦定 id（派生缓存、
+    /// 非独立事实源）；不许再在各面内联拼这条回落链
+    private var currentModelAccountIDs:
+        (serverSessionID: String?, threadID: UUID?)
+    {
+        let thread = currentThread
+        return SessionModelAccount.accountIDs(
+            threadServerSessionID: thread?.serverSessionID,
+            threadID: thread?.id,
+            isMainThread: thread != nil
+                && thread?.id == appState.sideChats.mainThreadID,
+            mainServerSessionID: appState.sideChats.mainServerSessionID
+        )
+    }
+
     /// 本会话的执行选择（§153 B2）：顶栏触发器、发送
     /// 链、枢纽模型区共用此一口——显示与执行同源。
     /// 会话键：线程的服务端会话 id 优先（主线读
     /// SideChatStore 的主线 id），未链接时线程 id，
     /// 无线程（空态）落主线缺省键
     private var currentChoice: ChatModelChoice {
-        let thread = currentThread
-        let serverID = thread?.serverSessionID
-            ?? (thread != nil
-                && thread?.id == appState.sideChats.mainThreadID
-                ? appState.sideChats.mainServerSessionID : nil)
+        let ids = currentModelAccountIDs
         return appState.sessionModelChoice(
-            serverSessionID: serverID, threadID: thread?.id
+            serverSessionID: ids.serverSessionID,
+            threadID: ids.threadID
         )
     }
 
     /// 本会话选择的写入（§153）：与 currentChoice 同键
     private func selectCurrentChoice(_ choice: ChatModelChoice) {
-        let thread = currentThread
-        let serverID = thread?.serverSessionID
-            ?? (thread != nil
-                && thread?.id == appState.sideChats.mainThreadID
-                ? appState.sideChats.mainServerSessionID : nil)
+        let ids = currentModelAccountIDs
         appState.selectSessionModel(
-            choice, serverSessionID: serverID, threadID: thread?.id
+            choice, serverSessionID: ids.serverSessionID,
+            threadID: ids.threadID
         )
     }
 
@@ -5811,6 +5823,12 @@ private struct ComposerBarLayout: Layout {
             if let main = threads.first(where: { $0.id == id }) {
                 let sessionID = store.ensureMainServerSessionID()
                 if main.serverSessionID != sessionID {
+                    // §216：改绑前先迁账——旧绑定键下的
+                    // 存量选择跟到钦定键下，不许留旧账发霉
+                    appState.migrateSessionModelChoice(
+                        fromServerSessionID: main.serverSessionID,
+                        toServerSessionID: sessionID
+                    )
                     main.serverSessionID = sessionID
                     try? modelContext.save()
                 }
@@ -5973,6 +5991,13 @@ private struct ComposerBarLayout: Layout {
                     ?? mainThread.map(Self.seedEntries(of:)) ?? []
             )
             if linkedID != wantedID {
+                // §216：改绑/收养落定先迁账（旧键存量选
+                // 择跟到新键），再改存钦定副本——副本与
+                // 下方线程绑定在本函数内一并对齐同值
+                appState.migrateSessionModelChoice(
+                    fromServerSessionID: wantedID,
+                    toServerSessionID: linkedID
+                )
                 store.setMainServerSessionID(linkedID)
             }
             if let mainThread {

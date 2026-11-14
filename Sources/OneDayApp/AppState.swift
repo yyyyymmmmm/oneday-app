@@ -194,6 +194,34 @@ final class AppState {
         persistSessionModelChoices()
     }
 
+    /// 会话账迁键（§216 模型账合一）：主线链接改绑
+    /// （服务端改派/收养回执）落定新 id 时，旧键下的
+    /// 存量选择迁到新键下——不迁则用户的既有选择被
+    /// 留在旧键发霉、新键回落默认，呈现为「换了会话
+    /// 模型就变了」。语义：目标键已有存量时不覆盖
+    /// （那是新会话自己的账）；源账保留不删（旧 id
+    /// 若仍是活会话，它的账不许被主线迁账误伤）。
+    /// 返回是否实际迁入
+    @discardableResult
+    func migrateSessionModelChoice(
+        fromServerSessionID: String?, toServerSessionID: String?
+    ) -> Bool {
+        guard let from = fromServerSessionID, !from.isEmpty,
+              let to = toServerSessionID, !to.isEmpty,
+              from != to else { return false }
+        let fromKey = Self.sessionModelKey(
+            serverSessionID: from, threadID: nil
+        )
+        let toKey = Self.sessionModelKey(
+            serverSessionID: to, threadID: nil
+        )
+        guard let choice = sessionModelChoices[fromKey],
+              sessionModelChoices[toKey] == nil else { return false }
+        sessionModelChoices[toKey] = choice
+        persistSessionModelChoices()
+        return true
+    }
+
     private func persistSessionModelChoices() {
         let dict: [String: [String: String]] = sessionModelChoices
             .mapValues { choice in

@@ -116,16 +116,11 @@ final class AgentHubStore {
         ) == L10n.string("运行中")
     }
 
-    /// 分享摘要（页头分享圆钮）：名＋状态＋当前模型
-    /// （§153：主线会话的执行值，与顶栏同源）
-    var shareText: String {
-        let model = appState.chatModel(
-            serverSessionID: appState.sideChats.mainServerSessionID,
-            threadID: nil
-        )
-        return L10n.format("%@ · %@ · 当前模型 ", displayName, statusText)
-            + (ModelDisplayNames.displayName(for: model) ?? model)
-    }
+    // 注：旧 shareText（分享摘要，含当前模型）已随
+    // §216 删除——分享面 0.36.22 起换名片图、该属性无
+    // 调用方，且它是第三个按 SideChatStore 副本独立
+    // 取键读模型账的点，留着有朝一日被误接即复活账
+    // 本分叉（见 DESIGN §216 第 4 条）
 
     // MARK: - 活动段
 

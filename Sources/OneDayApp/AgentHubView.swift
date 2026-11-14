@@ -1,5 +1,6 @@
 import OneDayCore
 import OneDayDesign
+import SwiftData
 import SwiftUI
 
 /// 枢纽页五段（规格 phase3-hub-spec §1 #9/#10）：图标
@@ -80,6 +81,10 @@ struct AgentHubView: View {
 
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    /// 钦定主线线程的实际绑定是模型账的事实源（§216），
+    /// 枢纽取键须读到线程记录本体，不许只认 SideChat-
+    /// Store 的 id 副本
+    @Query private var threads: [ChatThread]
 
     @State private var store: AgentHubStore?
     @State private var segment: HubSegment = .activity
@@ -408,12 +413,33 @@ struct AgentHubView: View {
         }
     }
 
-    /// 枢纽的会话键（§153）：枢纽自聊天页打开、语境
-    /// 是主线——用主线键读写，与顶栏在主线时同账
+    /// 枢纽的模型账取键入参（§216 账合一）：以钦定
+    /// 主线线程的实际绑定为准，经 Core SessionModel-
+    /// Account.mainlineAccountIDs 派生——与胶囊在主
+    /// 线时同键同账；SideChatStore 的钦定 id 只作线
+    /// 程未落位时的回落缓存，不再独立成账
+    private var hubModelAccountIDs:
+        (serverSessionID: String?, threadID: UUID?)
+    {
+        let store = appState.sideChats
+        let mainThread = store.mainThreadID.flatMap { id in
+            threads.first { $0.id == id }
+        }
+        return SessionModelAccount.mainlineAccountIDs(
+            mainThreadServerSessionID: mainThread?.serverSessionID,
+            mainThreadID: mainThread?.id,
+            mainServerSessionID: store.mainServerSessionID
+        )
+    }
+
+    /// 枢纽的会话选择（§153/§216）：枢纽自聊天页打开、
+    /// 语境是主线——与顶栏在主线时同账（§216 起名副
+    /// 其实：取键与胶囊共用一条派生链）
     private var hubCurrentChoice: ChatModelChoice {
-        appState.sessionModelChoice(
-            serverSessionID: appState.sideChats.mainServerSessionID,
-            threadID: nil
+        let ids = hubModelAccountIDs
+        return appState.sessionModelChoice(
+            serverSessionID: ids.serverSessionID,
+            threadID: ids.threadID
         )
     }
 
@@ -491,11 +517,11 @@ struct AgentHubView: View {
             groups: appState.pickerModelGroups,
             current: hubCurrentChoice,
             onSelect: { choice in
+                let ids = hubModelAccountIDs
                 appState.selectSessionModel(
                     choice,
-                    serverSessionID: appState
-                        .sideChats.mainServerSessionID,
-                    threadID: nil
+                    serverSessionID: ids.serverSessionID,
+                    threadID: ids.threadID
                 )
                 showHubModelPicker = false
             }
