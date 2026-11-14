@@ -1349,40 +1349,18 @@ struct DrawerView: View {
                 }
                 return
             }
-            appState.sideChats
-                .purgeServerSessionRecords(linkedSessionID)
+            // §217：落定收尾走全 App 共享收口（清侧
+            // 账＋目录摘行＋删绑定线程），本面不再私
+            // 有一份——管理页/频道页同调同一件
+            DeletedSessionCloseout.apply(
+                sessionID: linkedSessionID, appState: appState,
+                threads: threads, modelContext: modelContext
+            )
+            return
         }
-        deleteLocalThread(thread)
-    }
-
-    private func deleteLocalThread(_ thread: ChatThread) {
-        // 0.4.5 通道化：删的若是 ChatView 正在显示的线
-        // 程，经 drawerDeletedThreadID 通知它置空当前
-        // 线程（本面不持有 currentThreadID）
-        // 0.36.7：「是否当前线程」改经单一选择政策判
-        // 定（旁聊行命中 .side，或主线在看且本线程是
-        // 主线）——activeThreadID 退役后的唯一口径
-        let isCurrent = drawerSelection == .side(thread.id)
-            || (drawerSelection == .main
-                && SideChatClassifier.isMain(
-                    localThreadID: thread.id,
-                    linkedServerSessionID: thread.serverSessionID,
-                    mainThreadID: appState.sideChats.mainThreadID,
-                    mainServerSessionID: appState.sideChats
-                        .mainServerSessionID
-                ))
-            // 0.36.29：正从频道看着的正是本线程（收养
-            // 后的导入线程）时同属「当前线程」——删它
-            // 必须通知 ChatView 置空（.channel 态下选
-            // 择既非 .side 也非 .main，旧两条判不到）
-            || (thread.serverSessionID != nil
-                && thread.serverSessionID
-                    == appState.channelViewingOrigin?.sessionID)
-        if isCurrent {
-            appState.drawerDeletedThreadID = thread.id
-        }
-        modelContext.delete(thread)
-        try? modelContext.save()
+        DeletedSessionCloseout.deleteLocalThread(
+            thread, appState: appState, modelContext: modelContext
+        )
     }
 
     /// 分组小标题（0.3.6 立宪）：13–14 号灰标签、左线

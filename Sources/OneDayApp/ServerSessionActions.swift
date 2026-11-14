@@ -147,6 +147,11 @@ struct ServerSessionRow<Content: View>: View {
     var onOpenAsync: (() async -> ServerSessionActions.Outcome)? = nil
     /// 任一动作落定后的宿主刷新（重拉名单）
     var onChanged: () -> Void
+    /// 删除落定后的共享收口钩子（§217）：只有删除
+    /// 改变会话存亡——落定后宿主经此走 DeletedSes-
+    /// sionCloseout 清本地线程与目录行；改名/置顶/
+    /// 归档不走此钩
+    var onDeleted: ((String) -> Void)? = nil
     @ViewBuilder var content: () -> Content
 
     @Environment(AppState.self) private var appState
@@ -256,11 +261,7 @@ struct ServerSessionRow<Content: View>: View {
             titleVisibility: .visible
         ) {
             Button("删除", role: .destructive) {
-                perform {
-                    await ServerSessionActions.delete(
-                        appState: appState, id: session.id
-                    )
-                }
+                performDelete()
             }
             Button("取消", role: .cancel) {}
         } message: {
@@ -327,6 +328,28 @@ struct ServerSessionRow<Content: View>: View {
             busy = false
             switch outcome {
             case .verified:
+                onChanged()
+            case .failed(let reason):
+                errorText = reason
+            }
+        }
+    }
+
+    /// 删除专用走法（§217）：与 perform 同纪律（上
+    /// 锁/落定重拉/失败弹原因），落定后另经 onDel-
+    /// eted 走共享删除收口——服务端已删净，本地线
+    /// 程与目录行必须同拍消失，不许留残留行
+    private func performDelete() {
+        guard !busy else { return }
+        busy = true
+        Task {
+            let outcome = await ServerSessionActions.delete(
+                appState: appState, id: session.id
+            )
+            busy = false
+            switch outcome {
+            case .verified:
+                onDeleted?(session.id)
                 onChanged()
             case .failed(let reason):
                 errorText = reason

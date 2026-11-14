@@ -61029,6 +61029,29 @@
         }
       }
     },
+    "这条会话已不在服务器上，本地列表已同步清理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This conversation is no longer on the server. The local list has been cleaned up to match."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条会话已不在服务器上，本地列表已同步清理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這條會話已不在伺服器上，本地列表已同步清理。"
+          }
+        }
+      }
+    },
     "这条会话是旧发送方式留下的合并记录，里面混存着主线与旁聊的历史。归档或删除它，会连带主线在服务端的记录一并被归档或删除。": {
       "extractionState": "manual",
       "localizations": {

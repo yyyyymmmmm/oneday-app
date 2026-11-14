@@ -6065,7 +6065,7 @@ private struct ComposerBarLayout: Layout {
                 if outcome == .importedNew {
                     showNotice("已转入我的对话")
                 }
-            case .failed:
+            case .failed, .missing:
                 // 没打开成（仍停在原线程）：出处作废、
                 // 对象引用按当前线程回派，不许把胶囊
                 // 挂到没在看的频道行上
@@ -6080,11 +6080,14 @@ private struct ComposerBarLayout: Layout {
 
     /// 打开服务端会话的结果（0.36.29）：频道消费口
     /// 据此定出处与收养提示——切到既有线程与新建导
-    /// 入都算落点已定，只有新建导入算「首次收养」
+    /// 入都算落点已定，只有新建导入算「首次收养」；
+    /// .missing（§217）＝会话已不在服务器上、本地残
+    /// 留已就地清理，与 .failed 的别只在不挂重试条
     private enum OpenServerSessionOutcome: Equatable {
         case switchedExisting
         case importedNew
         case failed
+        case missing
     }
 
     /// 打开服务端会话续聊：已有 serverSessionID 关联线
@@ -6160,6 +6163,23 @@ private struct ComposerBarLayout: Layout {
             currentThreadID = thread.id
             return .importedNew
         } catch {
+            // §217：会话已不在服务器上（他处已删、本
+            // 地残留行被点开）——清侧账与目录行让残留
+            // 行就地消失，文案只给人话、不许状态码原
+            // 文上屏（旧路 HermesError.userMessage 把
+            // 「404」直甩用户即此病）；走 .missing、
+            // 不挂重试条（删都删了，重试无义）
+            if let hermesError = error as? HermesError,
+               hermesError.isSessionNotFound {
+                DeletedSessionCloseout
+                    .handleOpenedSessionMissing(
+                        sessionID: id, appState: appState
+                    )
+                errorMessage = L10n.string(
+                    "这条会话已不在服务器上，本地列表已同步清理。"
+                )
+                return .missing
+            }
             // 聊天可靠性包：网络类失败与业务失败分开
             // 说——这条会话本机还没有副本（导入从未
             // 成功过），断网时不是「记录丢了」、是
