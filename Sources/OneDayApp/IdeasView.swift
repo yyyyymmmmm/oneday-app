@@ -18,7 +18,9 @@ import SwiftUI
 /// 为真源。桥未连接/未开通与目标格同口径、零假数据。
 struct IdeasView: View {
     @Environment(AppState.self) private var appState
-    @State private var store = IdeasStore()
+    /// §260 两店合一：点子店走 AppState 共享单例，
+    /// 与动态 refs/目标详情关联段同一份，不再私建
+    private var store: IdeasStore { appState.sharedIdeasStore() }
     @State private var kanban = KanbanStore()
     @State private var showCreate = false
     @State private var deleteCandidate: BridgeIdea?

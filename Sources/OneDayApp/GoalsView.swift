@@ -36,7 +36,9 @@ private enum GoalCreateSheet: Identifiable {
 struct GoalsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
-    @State private var store = GoalsStore()
+    /// §260 两店合一：目标店走 AppState 共享单例，
+    /// 与动态 refs 同一份，不再私建
+    private var store: GoalsStore { appState.sharedGoalsStore() }
     @State private var createSheet: GoalCreateSheet?
     @State private var expandedActive = false
     @State private var showCompletedGroup = false
@@ -914,7 +916,11 @@ struct GoalDetailView: View {
     /// 任务板各有自己的 Store 真源，详情页只读拼装
     /// （GoalAssociations），不建本地副本账；委派建卡
     /// 走 kanban 这一个实例，与点子采纳同路
-    @State private var ideasStore = IdeasStore()
+    /// §260 两店合一：点子店走 AppState 共享单例，
+    /// 与点子页/动态 refs 同一份，不再随详情页私建
+    private var ideasStore: IdeasStore {
+        appState.sharedIdeasStore()
+    }
     @State private var monitorsStore = MonitorsStore()
     @State private var kanban = KanbanStore()
     @State private var showDelegate = false

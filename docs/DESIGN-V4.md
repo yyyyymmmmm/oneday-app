@@ -12523,3 +12523,13 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 ### §258.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
 
 run 43602076559：名义 failure 仅 §184。实数：断言失败 **0**（全程无 `Test Case ... failed` 行、无任一 `Executed ... with N>0 failures`）；Core **2081/2081 精确对账**（Executed 2081、0 failures，＝预期 2034＋13＋17＋17）；UI **8/8 全跑全过**（Executed 8、0 failures——目标尾巴包自身 CI 未跑成的 UI 步至此**补验完成**）；App passed 168＋skipped 5＋无终局 5＝178（＋helpers 伪名 1＝grep 口径 179）；VERDICT 三连 PASS（MATRIX／HUB-LAYOUT／主 VERDICT）。**§184 登记**：宿主重启 7 起（14:07–14:12 集中于 App 测试相位），波及无终局 5 条——ChatReliabilityOfflineTests.testMarkPendingSendRetainsEntryOnDisk 与 ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned（.44 轮已登记者，本轮再现、按组版轮登记口径处理、不判红）、ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays、DrawerBridgeHarnessTests.testBridgeTapToOpenReachesFullTravel、EdgeEffectRegistrationTests.testAnchorRegistersAncestorScrollView（本轮新登记者，同签名）；崩溃元数据 8 份照常采集。IPA 解包验：0.50.45／173／site.didichou.oneday，13,115,227 字节，md5 `4e78123345ac2b4bd3aa4fbd6e11994b`。
+
+## §260 点子/目标两店合一（2026-11-14；分支 feat/ideas-goals-single-store，基线 rel-05045@2f3ce5b；自编号 §260 承 §259，全档＝oneday-design-review/ideas-goals-single-store-report-20261114.md；组版时如撞号由组版线统一顺延）
+
+**病灶（§259 枢纽包顺藤实证＋本包动工盘点复核）**：点子/目标两店在各面各自 @State 私建——IdeasStore 三份（点子页 IdeasView／动态页 FeedView refs／目标详情 GoalDetailView 关联段）、GoalsStore 两份（目标页 GoalsView／动态页 FeedView refs），互不相通（同物多账的实例级变体，与 §259 三店同病）：在目标详情改的目标，动态 refs 的标题解析读的是另一份快照；点子页采纳/放下后的列表态，动态与目标详情各等各自重拉。
+
+**收口（照 sharedHubStore/§259 先例，不新造机制）**：AppState 新增 sharedIdeasStore()/sharedGoalsStore() 懒建单例；全部 5 处私建构造退役，各面改计算属性消费同一份。子视图经 `let store:` 形参收店的消费形态一字不动。
+
+**口径零改动**：两店 load/写动作/呈现派生（IdeaBoard、GoalsStore 口径）一字未动；加载调用点（各面 .task 的 load 序列、详情 loadAssociationStores）不变。行为差异仅收敛向：两店 load 均有在飞守卫、已就绪时刷新失败保持旧数据，多面同呼安全；点子/目标的列表与详情缓存态跨面同刻同见（与 sharedHubStore/§259 已接受口径同类）；IdeasStore.load 附带的 §219 旧点子预填清扫随 load 多面触发、清扫判定从严且幂等（删完即无存量），重复执行无副作用。
+
+**登记在案、不在本包**：KanbanStore/MonitorsStore 私建归 §259 包（同基线并行分支，组版时序由主线裁）；GoalsView 单文件 3 处 NavigationStack 嵌套与目标两套任务体系缝合（goalTaskLinks）是呈现/数据结构议题，非实例账，不在本包范围。
