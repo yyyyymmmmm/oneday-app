@@ -1,5 +1,6 @@
 import Combine
 import OneDayCore
+import OneDayDesign
 import SwiftData
 import SwiftUI
 import UIKit
@@ -47,6 +48,26 @@ final class HubSegmentsConsolidationTests: XCTestCase {
         XCTAssertEqual(
             AgentHubView(mode: .activity).availableSegments,
             [.activity]
+        )
+    }
+
+    // MARK: - §222 分段条量测钉
+
+    /// §222（枢纽页对 Muse 重建）：自绘胶囊条的三
+    /// 个量测值钉死（对基准真机图：条高 48／选中胶
+    /// 囊 36／图标 22），且条高不低于命中下限、胶囊
+    /// 恒纳于条内——防后续顺手改值把对齐量测改没
+    func testHubSegmentBarMetricsMatchParitySpec() {
+        XCTAssertEqual(OneDayMetrics.hubSegBarHeight, 48)
+        XCTAssertEqual(OneDayMetrics.hubSegCapsuleHeight, 36)
+        XCTAssertEqual(OneDayMetrics.hubSegGlyphSize, 22)
+        XCTAssertGreaterThanOrEqual(
+            OneDayMetrics.hubSegBarHeight,
+            OneDayMetrics.minTapTarget
+        )
+        XCTAssertLessThan(
+            OneDayMetrics.hubSegCapsuleHeight,
+            OneDayMetrics.hubSegBarHeight
         )
     }
 
