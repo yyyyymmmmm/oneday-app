@@ -158,7 +158,8 @@ struct BrowserFaceView: View {
         .padding(OneDayMetrics.cardPadding)
         .background(
             Palette.surface,
-            in: RoundedRectangle(cornerRadius: 23, style: .continuous)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner,
+                        style: .continuous)
         )
     }
 
@@ -196,7 +197,8 @@ struct BrowserFaceView: View {
         .padding(OneDayMetrics.cardPadding)
         .background(
             Palette.surface,
-            in: RoundedRectangle(cornerRadius: 23, style: .continuous)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner,
+                        style: .continuous)
         )
     }
 
@@ -372,7 +374,8 @@ struct BrowserFaceView: View {
         .padding(OneDayMetrics.cardPadding)
         .background(
             Palette.surface,
-            in: RoundedRectangle(cornerRadius: 23, style: .continuous)
+            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner,
+                        style: .continuous)
         )
     }
 

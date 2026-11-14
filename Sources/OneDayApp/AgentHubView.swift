@@ -444,9 +444,13 @@ struct AgentHubView: View {
                     .overlay {
                         Circle().stroke(Palette.hairline, lineWidth: 0.5)
                     }
+                    // §245.3 档 F 浮件档（阴影两档之一）
                     .shadow(
-                        color: Palette.shadowBase.opacity(0.12),
-                        radius: 4, y: 1
+                        color: Palette.shadowBase.opacity(
+                            ElevationTokens.floatingOpacity
+                        ),
+                        radius: ElevationTokens.floatingRadius,
+                        y: ElevationTokens.floatingY
                     )
                     // 0.23.0（命中域审计）：视觉盘 36 不变、
                     // 命中域外扩 44（盘居中）
