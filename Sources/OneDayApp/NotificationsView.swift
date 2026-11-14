@@ -794,8 +794,8 @@ private struct NotificationDetailView: View {
                     Image(systemName: "doc.text")
                         .font(.system(size: 15, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, 2)
-                    VStack(alignment: .leading, spacing: 2) {
+                        .padding(.top, OneDayMetrics.spacingMicro)
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text(line.name)
                             .font(.rowSubtitle.weight(.medium))
                             .foregroundStyle(Palette.ink)
