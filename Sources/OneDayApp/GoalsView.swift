@@ -475,7 +475,7 @@ struct UngroupedTaskRowView: View {
             } label: {
                 Text("归组")
                     .font(.body)
-                    .foregroundStyle(Palette.accent)
+                    .foregroundStyle(Palette.primary)
             }
         }
         .padding(.vertical, OneDayMetrics.spacingSM)
