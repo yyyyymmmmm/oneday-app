@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # §245.1（动效规矩包）：符号动效登记核查——未入
+      # §247.1（动效规矩包）：符号动效登记核查——未入
       # SymbolMotionRegistry 的 symbolEffect/Lottie 接
       # 入点在此判红，先于构建止步
       - name: Symbol motion registry check

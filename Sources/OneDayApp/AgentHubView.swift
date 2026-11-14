@@ -444,7 +444,7 @@ struct AgentHubView: View {
                     .overlay {
                         Circle().stroke(Palette.hairline, lineWidth: 0.5)
                     }
-                    // §245.3 档 F 浮件档（阴影两档之一）
+                    // §247.3 档 F 浮件档（阴影两档之一）
                     .shadow(
                         color: Palette.shadowBase.opacity(
                             ElevationTokens.floatingOpacity

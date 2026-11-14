@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""符号动效登记核查（DESIGN-V4 §245.1）。
+"""符号动效登记核查（DESIGN-V4 §247.1）。
 
 全仓符号动效接入点只许出现在登记册
 （Sources/OneDayDesign/SymbolMotionRegistry.swift）
@@ -11,7 +11,7 @@
 - 登记册有条目、源码接入点已消失（或条数过剩）
   → 过期条目，判红；
 - 白名单未落项（无代码接入点）不在本脚本范围，
-  账在 DESIGN-V4 §245.1。
+  账在 DESIGN-V4 §247.1。
 
 扫描原语（计数口径＝出现次数）：
 - ``symbolEffect(``——含 .symbolEffect 修饰符与
@@ -78,7 +78,7 @@ def compare(registered: Counter, found: Counter) -> list[str]:
         if got > reg:
             problems.append(
                 f"未登记接入点：{file} 源码 {got} 处、登记 {reg} 处"
-                "——先入 SymbolMotionRegistry 再落码（§245.1）"
+                "——先入 SymbolMotionRegistry 再落码（§247.1）"
             )
         elif reg > got:
             problems.append(

@@ -430,9 +430,9 @@ struct ImageViewerView: View {
     }
 }
 
-// MARK: - 聊天侧转场承载（UIKit zoom，§245.2 试点）
+// MARK: - 聊天侧转场承载（UIKit zoom，§247.2 试点）
 
-/// Zoom 源视图登记表（动效规矩包 §245.2 试点）：聊天
+/// Zoom 源视图登记表（动效规矩包 §247.2 试点）：聊天
 /// 缩略图是 SwiftUI 视图、无现成 UIView 句柄——入口以
 /// ZoomSourceAnchor 在缩略图同位挂一枚透明 UIView 并
 /// 按图片条目 id 登记于此，呈现时 ZoomHostingController
@@ -481,7 +481,7 @@ final class ZoomSourceRegistry: @unchecked Sendable {
 
 /// Zoom 源锚点：铺满宿主（缩略图）帧的透明 UIView，
 /// 不拦命中（调用方再叠 .allowsHitTesting(false) 双
-/// 保险），出现/更新即登记、拆解即注销。仅 §245.2 试
+/// 保险），出现/更新即登记、拆解即注销。仅 §247.2 试
 /// 点面（聊天消息流图片两主面）挂载，其余入口不挂、
 /// 提供者回 nil 走标准呈现。
 struct ZoomSourceAnchor: UIViewRepresentable {
@@ -503,7 +503,7 @@ struct ZoomSourceAnchor: UIViewRepresentable {
     // 离树释放后登记自动失效（提供者查死登记即清表）。
 }
 
-/// 聊天页呈现承载（0.36.4；§245.2 试点改造）：聊天页
+/// 聊天页呈现承载（0.36.4；§247.2 试点改造）：聊天页
 /// 当前无 NavigationStack，zoom 转场走 UIKit 系统机
 /// 制——宿主 VC 设 preferredTransition＝.zoom。试点前
 /// 源提供者恒返回 nil（无源降级形态未验）；试点后按
@@ -555,7 +555,7 @@ private final class ZoomHostingController<Content: View>:
         // Motion 时不设 zoom；源可用性由提供者在转场
         // 发生时实时查表（登记随滚动生灭，定型时快照
         // 会过期），查不到即 nil＝该次回标准呈现——与
-        // 策略「无源不 zoom」在效果上等价（见 §245.2）。
+        // 策略「无源不 zoom」在效果上等价（见 §247.2）。
         let decision = ZoomTransitionPolicy.decide(
             reduceMotion: UIAccessibility.isReduceMotionEnabled,
             sourceAvailable: sourceID != nil

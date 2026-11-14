@@ -781,7 +781,7 @@ struct ChatView: View {
         // UIKit zoom 转场（本页无导航栈，见 Zoom-
         // TransitionCover 注）
         .fullScreenCover(item: $imageViewerSession) { session in
-            // §245.2 试点：起始页条目 id 作 zoom 源键，
+            // §247.2 试点：起始页条目 id 作 zoom 源键，
             // 消息流图片两主面已挂 ZoomSourceAnchor
             ZoomTransitionCover(
                 sourceID: session.items.indices.contains(
@@ -3598,7 +3598,7 @@ struct ChatView: View {
                         // 本体承载（radiusCard），此处不再
                         // 外挂裁形（旧 spacingM 双重裁角）
                         ServerRemoteImage(path: path)
-                            // §245.2 试点：同位挂 zoom 源
+                            // §247.2 试点：同位挂 zoom 源
                             // 锚点（点开大图自此图长出）
                             .overlay {
                                 ZoomSourceAnchor(
@@ -4126,7 +4126,7 @@ struct ChatView: View {
                 cornerRadius: OneDayMetrics.radiusCard
             )
         )
-        // §245.2 试点：同位挂 zoom 源锚点（点开大图
+        // §247.2 试点：同位挂 zoom 源锚点（点开大图
         // 自此卡长出）
         .overlay {
             ZoomSourceAnchor(

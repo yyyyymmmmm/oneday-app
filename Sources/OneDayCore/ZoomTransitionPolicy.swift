@@ -1,6 +1,6 @@
 import Foundation
 
-/// Zoom 转场裁决（动效规矩包，DESIGN-V4 §245.2）：共享
+/// Zoom 转场裁决（动效规矩包，DESIGN-V4 §247.2）：共享
 /// 元素放大转场（系统 .zoom）只许在「有真源＋动态允许」
 /// 两条件齐备时启用，任一不成立即回标准呈现——裁决收
 /// 在 Core 纯函数，呈现层（UIKit preferredTransition /
