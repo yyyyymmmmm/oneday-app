@@ -11606,6 +11606,10 @@ run **43543573208**（头 4df97c0）§190 判读：job build-native 名义 failu
 
 `spinRunLoop` 的期望满足原走 `DispatchQueue.main.asyncAfter`——主队列被渲染管线饿死时 fulfill 本身迟到（签名②实证）。改走**全局队列墙钟**（`DispatchQueue.global(qos:.userInitiated).asyncAfter`）：满足信号与主队列负载解耦，`wait` 照旧泵主 run loop、静置时长与语义不变。属信号路径收紧而非放宽（超时上限仍为 seconds＋5）。若验证两轮仍见同签名超时，如实登记保留、不再以改等待掩盖。
 
-### §218.5 验证（回填）
+### §218.5 验证（2026-11-14 回填）
 
-（待两轮 CI 回填：run id、探针逐轮结果、全套计数对账。）
+本包树（头 9db5dfe）同树连跑两轮，**两轮全绿、校准成立**（间歇关账纪律：连续干净轮次＋run id 在案）：
+
+- **run 43547676991**：探针 `testEdgeEffectAttributionProbe` **passed（22.500s）**；断言失败 0 条、全日志无 failed 用例；`Exceeded timeout` 0 次（超时签名未现）；Core 1854/0（与对齐基线精确同数、本包零新增）；UI 4/4；栏位探针直过（5.339s）；§184 宿主重启 7 起（在案形态、步名义 failure 由此）。
+- **run 43549643362**：探针 **passed（27.445s）**；断言 0、failed 用例 0、超时 0 次；Core 1854/0；UI 4/4；栏位探针直过（6.016s）；宿主重启 7 起。
+- 两轮气泡时代采样逐值复现：深 bottomRest 舱区 生产 30｜消融 45（软化比≈2/3）、浅 bottomRest 舱区 32｜35、浅 composerMargin 8｜6、浅坞 3｜14（构造同色区绝对帽成立）、topUnder 舱区 生产 70＜消融 104（新帽 80 内、相对严断成立）。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-edge-recal/。
