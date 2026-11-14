@@ -12511,3 +12511,13 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 四轮：一/二轮构建失败（抽取吞 `bubble` 的 @ViewBuilder＋重复标注；§251 预热内联闭包在分叉后巨链上类型检查超时→抽独立函数断链、口径逐字不变），三/四轮同头判读——**Core 2033/2033**（基线 2016＋新增 17 精确对账、0 失败）；App 两轮并集 159 点名 passed＋5 skipped（PresentationLayerScenarios 整套 XCTSkip 占位、与基线一致）＋2 无终局（§184 长期在案 testKeyboardUpMovesComposerOnlyDockStays/testBridgeTapToOpenReachesFullTravel）＝166 精确对账；断言失败两条各只在一轮出现、另一轮同头 passed（EdgeEffectProbe 像素探针＝宿主颠簸采样抖动、AnchoredBars 探针＝异步等待超时无数值断言），并集站立断言失败 0；UI 8/8；VERDICT ×3 PASS 两轮全过；宿主重启三轮 7 起/四轮 6 起按 §184 登记。**§190 终判实质绿。**
 
 **节号顺延注记**：本节在本分支编号 §246；0.50.45 组版顺延为 **§257**（包 2 节已随 0.50.44 组版落 §251），文内与代码自指一并改讫。
+
+## §258 0.50.45 三包正式组版（2026-11-14；分支 rel-05045，基线 rel-05044@e6daf3a）
+
+**装车三件**：①目标尾巴包（feat/goals-tail@b4fa35b，基线 rel-05041@7cb8e26）——4 提交 cherry-pick 全数落入。冲突处置：DESIGN 节冲突两处亲解（节全段保全、与分支终版逐字一致）；xcstrings 冲突三处以键级三方合并解（基线 3191 键＋本包 11 新键全落、既有键零改）；其间一轮误把含冲突标记的 DESIGN 中间态提交进历史，已以 fixup＋autosquash 折回修复、标记零残留。组版编为 **§255**。②API 直连 B 包（feat/api-direct-b@d587d74）——4 提交 cherry-pick（主包＋CI 编译四错修复＋FailingHermesClient 协议桩＋判读回填；装车中途一度漏拾编译修复提交、经与分支逐文件比对检出后补拾并重排回分支序，终局与分支序一致）。冲突处置：xcstrings 一处键级合并（3202 键＋本包 23 新键全落）；DESIGN 一处亲解（节与分支逐字一致）；HermesClient／DemoHermesClient 与身份包／C-13 冻结标记同位自动合入。**逐行自查**：独占 5 文件与分支字节一致、共有文件直连特征行全在位。组版编为 **§256**。③会话页换代包 3（feat/chat-gen3@f44b47b，链式基线 feat/chat-gen2@cf14508——包 2 已随 0.50.44 落版，本次只取包 3 增量 4 提交）。冲突处置：ChatView／SettingsView 代码面零冲突自动合入；DESIGN 一处亲解（节与分支逐字一致）。**逐行自查**：包 3 增量新增行在位（ChatView 941／SettingsView 33，missing＝0）、新文件 3 件与分支字节一致、包 2 口径零回退（分支终版 ChatView 仅 4 行不在本树：§251 改号预热注 1 行、动效包 ZoomTransitionCover 带参形态 1 行、触感包发送注改判 2 行——均为 0.50.43／0.50.44 后续口径，非回退）。新承载默认关（`ChatCarrierFeature` 键 `chat.carrier.gen3`，设置页「实验」组开）。组版编为 **§257**；另按主线已裁口径在 §257 内回填行高定版（产物估算起步＋量实回填覆盖同 key 估算、量实不落盘；蓝图原案『产物唯一权威』就此修订），只改文字不动代码。
+
+**计数对账（预期，装车后实测同值）**：Core **2081**＝基线 2034＋目标尾巴 13＋API 直连 B 17＋换代包 3 增量 17；App **179**（基线 173＋目标尾巴 6，含 helpers 伪名 1、与 §254 口径同）；xcstrings **3225** 键＝3191＋11＋23。计数法同 §254（`grep func test`／json 键数）。
+
+**版号**：0.50.45／构建 173（Project.swift 四处与设置页版本串两行同改）。
+
+### §258.1 CI 判读（回填位）
