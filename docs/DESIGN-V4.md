@@ -11553,3 +11553,7 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 4. **点开 404 防御**：openServerSession 导入 catch 新增「会话不存在」分型（Core HermesError 新增 isSessionNotFound＝unexpectedStatus 404 判定）：清侧账＋目录摘行，文案改人话新词条「这条会话已不在服务器上，本地列表已同步清理。」（三语入 Localizable 目录）；新增 outcome .missing——不挂导入重试条（会话已删、重试无义），频道出处清理与 .failed 同路。
 
 **验收**：新增 App 测试 DeleteCloseoutTests（收口删绑定线程/目录摘行/侧账清/主线保护/当前线程通知；对账存活集外清除、集内与非自有绑定保留）＋Core HermesErrorTests 增 isSessionNotFound 分型断言；测试只增不减。真机待验：管理页删一条旁聊→抽屉无残留、批删同口径；网页端删一条→打开管理页后抽屉对应行消失；构造残留行点开不再见状态码原文、只见人话提示且行消失。
+
+### §217.1 CI 判读（2026-11-14 回填）
+
+三轮：首轮 run 43543994568 真红——FailingHermesClient 缺 sessionMutationSnapshot 桩（基线 8234e5b 在 rel-05036 补桩 99c0067 之前，跨包漂移同墙），cherry-pick 99c0067 收口（本分支 98e95e3）；二轮 run 43544938973 真红——本包测试 ServerSession 直构不可见（Core 内部构造器），改 JSON 解码构造（02f8982）；三轮 run **43545904183 终判绿（带保留）**：断言失败（产品值）0 条、Core **1854/0**（1853＋HermesError 404 分型 1）、App **102** 启动（94＋DeleteCloseoutTests 8/8 全过；90 过＋5 跳过＋6 起 §184 宿主死亡在案同签名、宿主重启 7 起）、UI 4/0、栏位探针直过（5.440s）。保留项＝EdgeEffectProbeTests 以 5.8s 异步等待超时单红（与模型账包轮同签名、非像素断言、本包未动边缘面；探针重校准已另立小包）。全档＝delete-closeout-report-20261114.md §6。**节号预告**：本节 §217 与 .37 装配树的枢纽 §217、回响物化包自编 §217 同号异指，组版时随回响包之后顺延（预计 §223 起、以组版实查为准），代码自指同步改。未组版、未合 main、未打 tag。
