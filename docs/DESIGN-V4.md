@@ -11705,4 +11705,6 @@ run 43544784796（头 f88a78d）**§190 终判绿**：Build／Package／Upload s
 
 **不动项（对照表另两类，摘要）**：呈现容器 sheet 大 detent＋抓手（§217 拍板对齐基准卡片浮起形态）；页头头像 110 与填充比（头像包在制）；状态行形态（咱家＝在线状态点＋次级文字、基准＝活动字形＋主色文字，属状态语义差异）列须拍板；会话模型区去留列须拍板（本节建议保留：设置分工有产品理由）；整页边距 20（全 App 标尺 pageGutter；基准 ≈16，4pt 差归全局标尺口径）；身份段头 52 头像与灰/黑层级（§218 已对齐）。
 
-### §222.1 CI 判读（回填）
+### §222.1 CI 判读（2026-11-14 回填）
+
+run 43548826736（头 af08cef）**§190 终判绿**：Build success、Package／Upload success（artifact oneday-unsigned-ipa 12,211,767 字节）；Unit tests 步名义 failure（§184 驱动、job conclusion 随之 failure，按 §190 不作判据）。全日志 15,640 行亲验——**断言失败 0 条、失败用例 0 条**；**Core 1902／1902／0**（与基线精确一致）；**App 104 唯一用例**＝93 过＋5 跳过（存量 XCTSkip）＋6 条 §184 受害（started 无终局行：ChatPageAssembly／ChatReliabilityOffline／ComposerGuideHost／DrawerBridgeHarness／EdgeEffectRegistration／SelectionDismantleProof 各 1、与在案同签名、**无枢纽面受害**；宿主重启约 7 起、与 .37 同量级）；**HubSegmentsConsolidationTests 5/5**（含本包新增 §222 量测钉 testHubSegmentBarMetricsMatchParitySpec）；**UI 4/4、HUB-LAYOUT-VERDICT=PASS**——自绘分段条经探针 segmentButton 的按钮标签回落路径逐段可达、四段切后页头在屏，探针兼容实证。未合 main、未打 tag；与 feat/avatar-presentation-fit 同动 AgentHubView／HubIdentitySection／Palette 三文件，装配时主线亲解（本包动：页头节奏/分段条/身份段行边距与卡面；头像包动：头像组件本体与尺寸档，面不重叠但同文件）。
