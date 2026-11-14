@@ -11553,3 +11553,7 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 4. **死代码清理**：AgentHubStore.shareText（旧分享文本、无调用方、第三个读枢纽账的点）随本包删除，防将来误接复活分叉。
 
 **验收**：Core SessionModelAccountTests（派生矩阵＋枢纽式≡胶囊式同键定理＋主线专用派生）与 SessionModelTruthTests（化石场景执行值不动、报告不一致只标记；存量/默认/报告同值各分支）；App ModelAccountUnifyAppTests（迁账语义：目标空才迁/目标占用不覆盖/源保留；枢纽派生入参落键≡胶囊键的账面同源断言）。真机终验（组版随车）：枢纽行与胶囊同值、枢纽改模型后主线发送随之变、收养主线（旧 deepseek 化石会话）枢纽不再显 deepseek-flash。回滚点：单分支整回（Core 两新件＋App 四处接线＋DESIGN 本节）。
+
+### §216.1 CI 判读回填（2026-11-14）
+
+run 43543959202（头 5715391＝本包 163ad79＋桩适配 cherry-pick 自 rel-05036 的 99c0067）：Build/Package/Upload success；**Core 1864/0**（1853＋11 精确、新 11 法逐条过）、**App 86 过＋5 跳过**（本包 4 法逐条过；§184 宿主重启 7 起在案）、**UI 4/0**；唯一红＝EdgeEffectProbeTests 归因探针**异步等待超时**（非断言；同探针在 rel-05037-prep 轮以像素断言签名单红、已登记保留项）——本包零触碰边缘面，判**终判绿（带保留）**，探针随 .37 装配轮统一对账。全档＝model-account-unify-report-20261114.md §6。
