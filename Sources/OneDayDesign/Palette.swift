@@ -133,6 +133,21 @@ public enum Palette {
     public static let selectionFill = appleColor(
         light: 0xF0F1F2, dark: .systemFill
     )
+    /// 抽屉专用选中填充（§225，Muse 对齐三项包）：
+    /// selectionFill 压抽屉面板（thinMaterial 压 pageBG
+    /// 的合成面、浅档实测 #F2F2F2）逐通道 Δ≈0–3、选中
+    /// 态被材质吃掉——本令牌只供抽屉三行（导航/频道/
+    /// 旁聊当前行）选中垫：浅档 #E4E5E7 压合成面 Δ≈13
+    /// （与 Muse「#EEEFF1 压 #FCFCFC」同级、亦即
+    /// selectionFill 在实色面上的原有效对比）；暗档挂
+    /// tertiarySystemBackground #2C2C2E——面板暗档近
+    /// 似面（二级面 #1C1C1E 级）之上 Δ≈16、与助手泡
+    /// 暗档同级语义。selectionFill 本体与其余消费面
+    /// 不动；面板材质本体（0.36.3 用户点名 thinMate-
+    /// rial 定案）不动
+    public static let drawerSelectionFill = appleColor(
+        light: 0xE4E5E7, dark: .tertiarySystemBackground
+    )
     /// 设置页底（0.20.0，用户给的 Muse 设置页真机图
     /// 口径：浅灰底托白色分组卡，图中约 #F2F2F4 级）：
     /// 取 iOS 系统分组底同族 #F2F2F7 落点；暗档 0.36.1

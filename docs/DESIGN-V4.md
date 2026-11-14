@@ -11725,3 +11725,69 @@ run 43548826736（头 af08cef）**§190 终判绿**：Build success、Package／
 ### §224.1 CI 判读（2026-11-14 回填）
 
 两轮（同头 0fa6da7）：首轮 run 43548414033——Build/Package/Upload success；**Core 1902/0**（与基线精确）；App 106 启动（103＋本包 3）＝95 过＋5 跳过＋5 条 §184 无终局行＋1 条整页装配探针 spin 超时红（ChatPageAssemblyRegressionTests，7s 等待被宿主停滞饿死）；UI 4/4；本包 AvatarPresentationFitTests 3/3（渲染实测 0.951s）。二轮 run 43551692182——Core 1902/0（耗时 82.6s vs 首轮 42.2s，runner 慢一倍实数）；App 94 过＋5 跳过＋6 条 §184＋1 条同族轮换红（ChatPageDeviceConditionProbeTests：spin 超时＋前置 trait 轮询 8 秒未达、其自报「锚定断言无意义」）；首轮红条本轮 passed；本包 3/3；UI 4/4。**终判绿（带保留）**：两红同属整页探针等待超时族、与本包改动面无交集，唯一共享路径（预置盘离屏渲染）由本包渲染实测两轮直证健康；判法与模型账/删除/回响三包同族先例一致。保留：组版轮再取两条探针终局行复核。**节号顺延登记**：本节在自家树自编 §222，与 feat/hub-page-muse-parity 的 §222 撞号；0.50.38 组版顺延为 §224（§223 留删除收口包），代码注释自指同步。
+
+## §225 Muse 对齐三项包（2026-11-14；分支 feat/muse-align-batch，基线 rel-05036 头 12200c9；用户 09:46 选项卡点选「三项全改」）
+
+（顺延注：本节在对齐线自编 §217；rel 链 §217 已为枢纽收段占用，0.50.38 组版顺延为 §225，节内容一字未动、代码注释自指同步改 §225。）
+
+依据＝真机截图实测对照审计 muse-color-drawer-diff-20261114.md（采样值与分档建议在该报告内）。本包三件：抽屉选中垫加深／AI 散文恢复气泡／频道行品牌真图标（核实＋钉死）。未组版、未合 main、未打 tag。
+
+### §225.1 抽屉选中垫加深（审计 A 档 (a) 小改）
+
+- **根因**：选中填充 `Palette.selectionFill` 浅档 #F0F1F2 与 Muse 实测选中值 #EEEFF1 同值，病不在填充——抽屉面板底是 thinMaterial 压 pageBG 的合成面（截图实测 #F2F2F2），#F0F1F2 压上去逐通道 Δ≈0–3，选中态被面板吃掉（用户点名「侧边栏选中颜色不对」的实况）。
+- **改法**：新设抽屉专用令牌 `Palette.drawerSelectionFill`，`selectionFill` 本体与其余消费面（连接器/交付/动态/文件/通知，均不在材质面板上）零改动。浅档 **#E4E5E7**——压面板合成面 #F2F2F2 逐通道 Δ≈（14,13,11）≥10，与 Muse 自家「#EEEFF1 压 #FCFCFC」Δ≈13 同级；暗档挂 `tertiarySystemBackground`（解析 #2C2C2E）——抽屉面板暗档为材质压 systemBackground 的近似面（secondarySystemBackground #1C1C1E 级），Δ≈16，且与助手泡暗档同级语义、不新造暗值。减透明回退面（chatSurface #FCFCFC／#000）上两档 Δ 分别 ≈23／≈44，同等可辨。
+- **消费点**：DrawerView 三行选中垫（导航行 drawerNavRow／频道行 drawerChannelRow／旁聊当前行，三者同在面板材质上）由 `Palette.selectionFill` 换 `Palette.drawerSelectionFill`；圆角 fieldCorner 19 与全部几何不动。
+- **不走 (b) 大改**：面板 thinMaterial 是 0.36.3 用户点名定案，本包不碰材质本体，只动垫。
+
+### §225.2 AI 散文恢复气泡（推翻 2026-11-13 A1 撤泡口径）
+
+- **拍板与形态钉死**：用户 2026-11-14 09:46 点选三项全改恢复气泡，并亲口澄清——「气泡的内容是纯文字，不是把气泡颜色改没」：气泡只是中性浅灰容器，正文保持现行纯文字呈现与排版；不做彩色卡、不加描边/阴影、不改字色字阶。**2026-11-13 割裂感 A 止血档 A1（feat/chat-surface-stopgap，随 §207 装车 0.50.30）的「撤 bubbleFill 背景、散文直落 chatSurface」口径自本节起作废**，assistantBubble 函数头注与 ChatView 文件头沿革同步登记推翻关系。
+- **落点**：`ChatView.assistantBubble` 恢复 A1 撤销的背景层——content 在原内边距（bubblePaddingH 16／bubblePaddingV 13，A1 未动）之外加回 `.background(Palette.bubbleFill, in: RoundedRectangle(cornerRadius: OneDayMetrics.assistantBubbleCorner))`，几何与 A1 前逐字一致（assistantBubbleCorner 22、右侧让位 bubbleSideInset 44 均未动）。填充用库存令牌 `bubbleFill` 浅档 #EEEEF0（OpenMuse 助手泡原值），与 Muse 实测 #E9EAEC 仅 Δ≈4–5，不新造色。
+- **波及面如实登记**：assistantBubble 只包两路——落盘散文（MarkdownText）与流式半截/等待点（streamingBubble）。代码块/表格在 MarkdownText 内部以其自身次档填充渲染、本包零改动，只是视觉上随正文一同被泡面包住（与 Muse 图四「整条回复一个灰泡」形态一致）；工具卡/文件卡/图片行/引用块等异构件在 assistantBubble 之外、不受影响。泡内子件对比回位 A1 前原账（inkSecondaryOnFill 对 #EEEEF0＝5.04:1，即 A1 注所载原泡面值）。
+- **深色与最大字号自查口径**：暗档 bubbleFill #2C2C2E 压 chatSurface #000 为背景三级梯第三级（既有定版）；气泡宽度由内容＋Spacer(minLength: 44) 决定、纵向随内容生长，最大字号档多行文本只增高不截断——两帧结论随本包报告登记，真机终验在组版随车清单。
+
+### §225.3 频道行品牌真图标（核实结论＋缺口钉死；飞书不重复落码）
+
+- **核实结论（与审计 §2 #5 口径有出入、按代码实况处置）**：本树抽屉 `ChannelRegistry.drawerList` 七行（Hermes／Telegram／钉钉／QQ／Discord／Slack／微信）的 `iconAssetName` 均已登记真实图面资产——Telegram/钉钉/QQ/Discord/Slack/微信为各家官方 App 原图（Channel*.imageset），Hermes 为 0.36.3 已登记的定制图面 LocalHermes；`drawerChannelRow` 已按资产渲染（字形档 21 落 30 槽），SF 符号（antenna.radiowaves）只在 `iconAssetName == nil` 时回落。审计报告 §2 #5 称「咱家全 SF 符号」——用户截图里频道区为折叠态、无行露出，该项无从采样，与本树代码不符；本包不做无的放矢的图标替换。
+- **缺口补强（本包唯一落码）**：既有 Core 测试只钉资产「名」，无一钉资产「实物在包」——imageset 缺失/改名时 `Image(asset)` 静默空白且不在 nil 回落内。新增 App 测试 `ChannelBrandAssetTests`：drawerList 全部行资产名须在生产包内解析出真实位图（UIImage(named:) 非 nil 且近正方），缺失先红。
+- **飞书不重复落码**：飞书官方资产 ChannelFeishu＋注册表描述＋drawerList 成员＋配对形态已由 feat/channels-feishu @ac5b823 全量落码并 CI 判绿（其 DESIGN §209，随该包组版装车）；本包若重复登记，装配必撞车。本树 `SessionClassificationTests` 对 feishu 图标的 nil 守卫断言（「未登记平台回 nil、不许仿绘顶替」）保持不动，待飞书包装车时由其自家改钉翻转。
+
+### §225.4 测试账
+
+- Core `RenderMeasureTests.testDrawerSelectionFillDeepenedForMaterialPanel`（新增）：drawerSelectionFill 浅档解析钉 #E4E5E7＋压面板合成面 #F2F2F2 逐通道 Δ≥10；暗档解析钉 #2C2C2E＋压面板暗档近似面 #1C1C1E 逐通道 Δ≥10；selectionFill 浅档原值 #F0F1F2 不变（既有断言同测复核）。
+- App `ChannelBrandAssetTests`（新增 1 法）：drawerList 七行资产位图逐一解析。
+- 计数预期：Core 1853＋1＝1854、App 94＋1＝95、UI 4 不变（基线＝§216.1 的 .36 判读账）。
+
+### §225.5 CI 判读（2026-11-14 回填）
+
+run **43543573208**（头 4df97c0）§190 判读：job build-native 名义 failure，逐步结论唯一 failure 步＝Unit tests；Build／Package／Upload 均 success（日志尾 Uploaded bytes 12,221,078）。**Core 1854 执行／0 失败**（1853＋本包新测 1 精确；`testDrawerSelectionFillDeepenedForMaterialPanel` passed）。**UI 4／0**。**栏位探针直接 passed（6.352s）**。**App 95 全数启动**：83 passed＋5 skipped（存量 XCTSkip）＋6 条 §184 宿主死亡受害（宿主重启 7 起；受害名单与 .36 轮全同——testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／testSelectionSurvivesConstantBranch）＋**断言失败 1 条**（下行）。本包新测 `ChannelBrandAssetTests.testDrawerChannelBrandAssetsResolveToBitmaps` passed。
+
+**唯一断言失败的定因与保留**：`EdgeEffectProbeTests.testEdgeEffectAttributionProbe`——深色 bottomRest 的 composerBand Δ＝30＞帽 8（「深色 bottomRest 舱区应近页面色」）。双证定因＝**本包件二恢复气泡使该断言前提失效、非边缘机制回归**：①.36 判绿轮（run 43537855358）同探针同点实测 composer＝0（无泡时代舱带背后为页色散文面）；②本轮探针自家消融臂 noBandDark 同点 Δ＝45≈暗档泡本色 #2C2C2E（舱带采样区正压在末条助手泡上），生产臂经系统滚动边缘效果软化为 30——机制贡献为负、其余深色点（composerMargin 0／dockBelowCapsule 0／topRest composer 0）全净。该断言的「舱区应近页面色」是 A1 无泡时代的内容前提，用户 2026-11-14 拍板恢复气泡后舱带背后即泡面本色。**本包不擅改探针帽值**（帽为边缘线首版验证轮实测校准、归其口径）：判读结论＝**本包判绿带保留**，探针口径更新（建议改与浅色 composerMargin 同式的双臂相对帽、或按泡时代重校准）待主线裁决，随装配轮或边缘线处理。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-muse-align/job.log。
+
+## §226 边缘探针气泡时代重校准（2026-11-14；分支 feat/edge-probe-bubble-recalibration，基线 feat/muse-align-batch 头 a98df86；只动测试侧探针、产品码零改动）
+
+（顺延注：本节在重校准线自编 §218；rel 链 §218 已为枢纽身份段占用，0.50.38 组版顺延为 §226，节内容一字未动、代码注释自指同步改 §226。）
+
+### §226.1 病史：三轮三签名
+
+`EdgeEffectProbeTests.testEdgeEffectAttributionProbe` 近三轮以三种不同签名连红，均非产品回归、在案逐轮登记：①**浅色像素微超**——rel-05037-prep 轮 run 43541500993：浅色 bottomRest composerMargin 生产 8＞相对门限 7（消融 3＋余量 4），绝对帽 10 内（无泡树）；②**异步超时**——模型账包轮 run 43543959202：探针 line 40 `spin 0.8s` 期望 5.8s 未满足、非断言失败、采样行在超时后仍续产（无泡树；同轮 runner 有渲染管线迟滞旁证）；③**深色舱带前提失效**——对齐包轮 run 43543573208：深色 bottomRest composerBand 生产 Δ30＞绝对帽 8（气泡树；消融臂 45≈暗泡本色、双证定因为断言前提随气泡恢复失效，见 §225.5）。另 .37 装配轮 run 43544784796（无泡树）该探针 passed，为第四数据点。本节按主线裁决对探针口径做气泡时代重定标。
+
+### §226.2 期望关系式（可核）
+
+采样 Δ＝对 pageRef 的逐通道最大差。设采样点带后内容原色为 C：消融臂（摘两注册）Δraw≈Δ(C，页色)（内容原锐度透出）；生产臂经系统 .soft 滚动边缘效果把 C 朝页/条面软化。故期望式：**Δprod ≤ Δraw＋ε，且 C＝页色时两臂同归系统地板**——边缘效果只软化不加码。实测锚点（对齐包轮原始色值）：深色 bottomRest 舱区消融 (43,43,45)≈暗泡 #2C2C2E 本色（Δ44）、生产 (29,29,30)（Δ30、软化比≈2/3）；浅色 bottomRest 坞点消融 (238,238,240)＝浅泡 #EEEEF0 逐值命中（Δ14）、生产 Δ3（底栏材质覆住）；无泡轮同点深色两臂同为 (0,0,0)（带后为页色散文面）。六轮（.35 43531814374／.36 43537855358／预制 43541500993／模型 43543959202／对齐 43543573208／.37 43544784796）全点账见重校准报告 §2：全部分布内无生产臂违反关系式之点（最大正差＝浅 composerMargin bottomRest +5，其生产值六轮恒 8、为效果本体带边静止签名、消融值 3–6 抖动所致，非产品异常）。
+
+### §226.3 新断言形态
+
+分两类：**内容可达区**（顶簇间隙／舱带边缘／舱区）＝双臂相对帽为主断（Δprod ≤ Δraw＋余量）＋绝对 sanity 帽（取实测合法最大值＋余量、只防灾变回长）；**构造同色区**（浅状态栏带／双坞——生产形态下恒被系统件与底栏材质覆盖、必须与页同色）＝保绝对帽。逐点：浅 topBand 相对 +2／sanity 6（沿首版）；浅 composerMargin 相对余量 4→**6**（六轮差 max +5）、sanity 10 不变；浅 composerBand topRest 由绝对 12 改相对 +2／sanity 12（两臂六轮恒 10）；浅 composerBand bottomRest **新增**相对 +4／sanity 48（原色 era 间 22→35）；深 composerMargin 由绝对 8 改相对 +2／sanity 8（两臂恒 0）；深 composerBand 由绝对 8 改相对 +3／sanity 48（原色 max 45）；深 status/topBand 沿首版（地板 25/18、相对 +3、sanity 28/22）；浅 status 帽 3、浅坞帽 4、深坞帽 8 保绝对（构造同色区）。滚动态 topUnder composerBand 绝对帽 70→**80**（气泡时代生产实测 70、原色 97、软化仍成立；「严于消融」相对断不动）；topUnder topBand 帽 32、bottomUnder 只倾印，均不动。
+
+### §226.4 超时项处置
+
+`spinRunLoop` 的期望满足原走 `DispatchQueue.main.asyncAfter`——主队列被渲染管线饿死时 fulfill 本身迟到（签名②实证）。改走**全局队列墙钟**（`DispatchQueue.global(qos:.userInitiated).asyncAfter`）：满足信号与主队列负载解耦，`wait` 照旧泵主 run loop、静置时长与语义不变。属信号路径收紧而非放宽（超时上限仍为 seconds＋5）。若验证两轮仍见同签名超时，如实登记保留、不再以改等待掩盖。
+
+### §226.5 验证（2026-11-14 回填）
+
+本包树（头 9db5dfe）同树连跑两轮，**两轮全绿、校准成立**（间歇关账纪律：连续干净轮次＋run id 在案）：
+
+- **run 43547676991**：探针 `testEdgeEffectAttributionProbe` **passed（22.500s）**；断言失败 0 条、全日志无 failed 用例；`Exceeded timeout` 0 次（超时签名未现）；Core 1854/0（与对齐基线精确同数、本包零新增）；UI 4/4；栏位探针直过（5.339s）；§184 宿主重启 7 起（在案形态、步名义 failure 由此）。
+- **run 43549643362**：探针 **passed（27.445s）**；断言 0、failed 用例 0、超时 0 次；Core 1854/0；UI 4/4；栏位探针直过（6.016s）；宿主重启 7 起。
+- 两轮气泡时代采样逐值复现：深 bottomRest 舱区 生产 30｜消融 45（软化比≈2/3）、浅 bottomRest 舱区 32｜35、浅 composerMargin 8｜6、浅坞 3｜14（构造同色区绝对帽成立）、topUnder 舱区 生产 70＜消融 104（新帽 80 内、相对严断成立）。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-edge-recal/。
