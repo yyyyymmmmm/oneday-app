@@ -11,6 +11,10 @@ public enum FeedPostKind: String, Sendable {
     case digest
     case morning
     case research
+    /// FA-2 首次种子帖（App 内置、不进桥数据）：kind 只在
+    /// 本地构造时出现，桥永不下发；label 即规格要求的
+    /// kicker 明示——不冒充生成帖
+    case seed
     case unknown
 
     public static func from(_ raw: String?) -> FeedPostKind {
@@ -25,6 +29,7 @@ public enum FeedPostKind: String, Sendable {
         case .morning: return "sunrise"
         case .research: return "magnifyingglass"
         case .digest: return "doc.text"
+        case .seed: return "sparkles"
         case .unknown: return "doc.text"
         }
     }
@@ -34,6 +39,7 @@ public enum FeedPostKind: String, Sendable {
         case .morning: return "晨报"
         case .research: return "调研"
         case .digest: return "今日动态"
+        case .seed: return "上手指南"
         case .unknown: return "动态"
         }
     }
@@ -45,6 +51,7 @@ public enum FeedPostKind: String, Sendable {
         case .morning: return "🌅"
         case .research: return "🔍"
         case .digest: return "📰"
+        case .seed: return "🧭"
         case .unknown: return "📰"
         }
     }

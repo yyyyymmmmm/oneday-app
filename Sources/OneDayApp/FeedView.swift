@@ -195,7 +195,26 @@ struct FeedView: View {
 
     @ViewBuilder
     private var readyContent: some View {
-        if store.posts.isEmpty {
+        if store.posts.isEmpty, !store.seedPosts.isEmpty {
+            // FA-2：从未产出且无真帖时，种子帖垫底——
+            // 与真帖同列表形态呈现（行本体共用 postRow，
+            // 动作行走种子分支：讨论/删除＋「上手指南」）
+            List {
+                Section {
+                    ForEach(store.seedPosts) { post in
+                        postRow(post)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Palette.pageBG)
+            .listSectionSpacing(OneDayMetrics.spacingM)
+            .contentMargins(.top, topMargin, for: .scrollContent)
+            .refreshable {
+                await reload()
+            }
+        } else if store.posts.isEmpty {
             switch store.emptyKind {
             case .neverProduced:
                 ContentUnavailableView(
@@ -400,6 +419,45 @@ struct FeedView: View {
     /// 真按钮，0.43.0 的「动作行合并元素」自此退役
     /// ——合并会吞掉按钮的可达性
     private func actionRow(_ post: BridgeFeedPost) -> some View {
+        if FeedSeedPosts.isSeed(post.id) {
+            // FA-2 种子动作行：讨论（同真帖，带原文开
+            // 旁聊）＋删除（本地标记、删了不复活）＋
+            // 「上手指南」kicker 明示；无点赞/来源/时间
+            // （不在桥上，没有这些账）
+            HStack(spacing: OneDayMetrics.spacingM) {
+                Button {
+                    discuss(post)
+                } label: {
+                    HStack(spacing: OneDayMetrics.stackGap) {
+                        Image(systemName: "text.bubble")
+                        Text("讨论")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    store.deleteSeed(post)
+                } label: {
+                    HStack(spacing: OneDayMetrics.stackGap) {
+                        Image(systemName: "trash")
+                        Text("删除")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+                }
+                .buttonStyle(.plain)
+                Text(post.kind.label)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                Spacer()
+            }
+        } else {
+            seedlessActionRow(post)
+        }
+    }
+
+    private func seedlessActionRow(_ post: BridgeFeedPost) -> some View {
         HStack(spacing: OneDayMetrics.spacingM) {
             // 爱心（FA-1）：填充态读桥 likedAt（桥为
             // 真源）、点按走 FeedStore.toggleLiked 幂
@@ -645,11 +703,15 @@ struct FeedPostDetailView: View {
                                 .font(.footnote.weight(.medium))
                                 .foregroundStyle(Palette.inkSecondary)
                             Spacer()
-                            Text(FeedBoard.relativeText(
-                                for: post.createdAt, now: Date()
-                            ))
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
+                            // FA-2：种子帖无产出时刻，
+                            // 详情头不显相对时间
+                            if !FeedSeedPosts.isSeed(post.id) {
+                                Text(FeedBoard.relativeText(
+                                    for: post.createdAt, now: Date()
+                                ))
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkSecondary)
+                            }
                         }
                         Text(post.title)
                             // 0.41.0（C14/P5）：字面量收编

@@ -6824,7 +6824,10 @@ private struct ComposerBarLayout: Layout {
         postID: String, threadID: UUID, firstText: String
     ) {
         appState.sideChats.clearFeedDiscuss(forThreadID: threadID)
-        guard let config = appState.config else { return }
+        // FA-2：种子帖不在桥上，讨论信号短路（不拿本地
+        // id 打桥的 /feed/{id}/signal）
+        guard !FeedSeedPosts.isSeed(postID),
+              let config = appState.config else { return }
         let note = FeedDiscussSignal.preferenceNote(in: firstText)
         Task {
             _ = try? await OneDayBridgeClient().sendFeedDiscussSignal(
