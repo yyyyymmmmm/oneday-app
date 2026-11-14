@@ -8,17 +8,14 @@ import OneDayCore
 /// 通道免 CSRF、写口与面板同权）。连接凭据只出不进：
 /// 本客户端只有提交口、没有任何读回凭据值的接口。
 final class CompanionFrontClient: @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
+    /// C-10 收敛：连接/单钥/管线/文案全走统一基座，
+    /// 本类只留路径、DTO 与 front 状态口径
+    private let base = BridgeClientBase<OneDayBridgeError>(
+        pathPrefix: "/api/companion", timeout: 20,
+        noKey: .noKey, failed: OneDayBridgeError.failed
+    )
 
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 20
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? { BridgeCredential.read() }
+    private var decoder: JSONDecoder { base.decoder }
 
     // MARK: - 连接记录（云电脑配置面）
 
@@ -100,22 +97,23 @@ final class CompanionFrontClient: @unchecked Sendable {
     func gatewayChannels(
         config: ServerConfig
     ) async -> GatewayChannelsFace {
-        guard let key = bridgeKey, !key.isEmpty else {
+        guard let stored = base.bridgeKey, !stored.isEmpty else {
             return .failed(L10n.string("还没有登录凭据，读不到网关渠道。"))
         }
-        var request = URLRequest(
-            url: config.endpoint("/api/companion/gateway-channels")
-        )
-        request.httpMethod = "GET"
-        request.setValue(
-            "Bearer \(key)", forHTTPHeaderField: "Authorization"
-        )
+        _ = stored
+        var request: URLRequest
+        do {
+            request = try base.makeRequest(
+                config: config,
+                fullPath: "/api/companion/gateway-channels",
+                method: "GET"
+            )
+        } catch {
+            return .failed(L10n.string("网关渠道读取失败，请稍后再试。"))
+        }
         request.timeoutInterval = 10
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                return .failed(L10n.string("网关渠道读取失败，请稍后再试。"))
-            }
+            let (data, http) = try await base.performRaw(request)
             switch http.statusCode {
             case 200:
                 if let decoded = try? decoder.decode(
@@ -136,34 +134,15 @@ final class CompanionFrontClient: @unchecked Sendable {
         }
     }
 
-    // MARK: - 请求底座（与 LedgerBridgeClient 同口径）
-
-    private func makeRequest(
-        config: ServerConfig, path: String, method: String
-    ) throws -> URLRequest {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw OneDayBridgeError.noKey
-        }
-        var request = URLRequest(
-            url: config.endpoint("/api/companion" + path)
-        )
-        request.httpMethod = method
-        request.setValue(
-            "Bearer \(key)", forHTTPHeaderField: "Authorization"
-        )
-        return request
-    }
+    // MARK: - 请求底座（基座代行，本类只给状态口径）
 
     private func get<T: Decodable>(
         config: ServerConfig, path: String, endpoint: String
     ) async throws -> T {
-        let request = try makeRequest(config: config, path: path, method: "GET")
-        let (data, http) = try await send(request, endpoint: endpoint)
-        try checkStatus(http, data: data, endpoint: endpoint)
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
+        try await base.get(
+            config: config, path: path, endpoint: endpoint
+        ) { http, data in
+            try self.checkStatus(http, data: data, endpoint: endpoint)
         }
     }
 
@@ -171,29 +150,16 @@ final class CompanionFrontClient: @unchecked Sendable {
         config: ServerConfig, path: String,
         body: [String: JSONValue], endpoint: String
     ) async throws -> T {
-        var request = try makeRequest(config: config, path: path, method: "POST")
-        do {
-            request.httpBody = try encoder.encode(body)
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@请求组装失败", endpoint))
-        }
-        request.setValue(
-            "application/json", forHTTPHeaderField: "Content-Type"
-        )
-        let (data, http) = try await send(request, endpoint: endpoint)
-        try checkStatus(http, data: data, endpoint: endpoint)
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@回执格式无法识别", endpoint))
+        try await base.send(
+            config: config, path: path, method: "POST",
+            body: body, endpoint: endpoint
+        ) { http, data in
+            try self.checkStatus(http, data: data, endpoint: endpoint)
         }
     }
 
-    private struct BridgeErrorBody: Decodable {
-        let ok: Bool?
-        let error: String?
-    }
-
+    /// front 状态口径：2xx 通过；401 钥匙被拒；404＝记
+    /// 录已不在；其余优先透服务端人话（error 字段）
     private func checkStatus(
         _ http: HTTPURLResponse, data: Data, endpoint: String
     ) throws {
@@ -205,30 +171,12 @@ final class CompanionFrontClient: @unchecked Sendable {
         case 404:
             throw OneDayBridgeError.recordGone
         default:
-            if let body = try? decoder.decode(
-                BridgeErrorBody.self, from: data
-            ), let message = body.error, !message.isEmpty {
+            if let message = base.serverMessage(data) {
                 throw OneDayBridgeError.failed(message)
             }
             throw OneDayBridgeError.failed(
                 L10n.format("%@返回 %@", endpoint, String(http.statusCode))
             )
-        }
-    }
-
-    private func send(
-        _ request: URLRequest, endpoint: String
-    ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw OneDayBridgeError.failed(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as OneDayBridgeError {
-            throw error
-        } catch {
-            throw OneDayBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }
