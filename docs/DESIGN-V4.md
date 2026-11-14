@@ -12254,3 +12254,57 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 ### §246.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
 
 单轮 run **43586509331**（头 350f515）：Build／Package／Upload IPA 全 success；**断言失败 0 条、failed 用例 0 条**；Core **2020/2020** 与静态预期精确对账（2008＋权限 8＋审批 4）；全集唯一启动数 2187＝Core 2020＋App 159＋UI 8 精确对账，其中 passed 2178＋skipped 5（存量 PresentationLayerScenarios）＋**4 条 started 无终局**；HUB-LAYOUT-VERDICT=PASS、MATRIX／顶簇 VERDICT PASS、边缘探针 violations=0。测试步名义 failure 仅由 **7 起宿主重启**（§184 签名，近轮 4–8 在案带宽内）构成。无终局 4 条全数在案登记、与两包 diff 零交集：testKeyboardUpMovesComposerOnlyDockStays（§184 长期在案）、testBridgeTapToOpenReachesFullTravel（§184 长期在案）、testMarkPendingSendRetainsEntryOnDisk（§244.1 已登记）、testFailedTraceMaterializesWithErrorSnapshot（§236.1 已登记）——无新名字，不判红。IPA 亲验：12,765,391 字节、md5 `382c46d315bcc44099bd8081aac2e903`、Info.plist＝0.50.42／170／site.didichou.oneday。
+
+## §247 动效规矩包：符号动效登记制＋zoom 转场试点＋美化标尺细则（2026-11-14；分支 feat/motion-rules，基线 rel-05041@7cb8e26；自编号 §245，0.50.43 组版顺延为 §247（§245 审批卡对齐、§246 0.50.42 组版节在先），代码自指同步；立项＝礼记借鉴审计 A 类余项三件，liqian-motion-visual-audit-20261114.md A4/A5/A6；全档＝oneday-design-review/motion-rules-report-20261114.md）
+
+### §247.1 符号动效登记制（规矩成文＋登记表＋CI 静态核查）
+
+**规矩原文（用户 2026-11-08 定，animated-icons 技能为执行面，本节与之合并成文）**：①两种状态来回切→用变形图标（Morph 类； iOS 落地首选原生符号形变等价实现，禁止为它内嵌 WebView/JS 运行时）；②一次性操作反馈→用动态图标（LORD 类位置）；③会动的图标只给最常点的位置——位置白名单外一律静态 SF Symbols，新增动效位置须先过用户。与动效宪法 M1（频率门）/M5/M8 并行：登记制是三条规矩的执行账，宪法是验收是非题，两者不互相替代。
+
+**位置白名单（2026-11-09 定版）**：变形类＝发送↑↔停止■、侧栏开↔关、消息语音播放↔暂停；一次性动效类＝点赞、复制成功（与 §14 条 10「对勾 2.5s 自隐」合并实现）、收藏成功、连接成功反馈。
+
+**登记形态（本包落）**：①代码登记册 `Sources/OneDayDesign/SymbolMotionRegistry.swift`——一条登记＝一个真实代码接入点（id／文件／组件／类别／状态／Reduce Motion 形态），是全仓符号动效的唯一账本；②CI 静态核查 `Scripts/ci/check_symbol_motion.py`（含 --selftest）——扫描全仓 `symbolEffect(` 与 Lottie 接入原语、与登记册按「文件×条数」比对，未登记接入点或过期条目判红，接入点在 ios-native.yml 构建前一步（本包已接）；③纪律：**先入册、后落码**，新接入点 PR 内无登记条目即 CI 红，不许先上车后补账。
+
+**全量盘点（2026-11-14 实查，symbolEffect 原语全仓仅 3 处）**：
+
+| id | 接入点 | 类别 | 规矩归属 | 状态 |
+|---|---|---|---|---|
+| SM-1 | ChatView 发送舱圆盘键 发送↑↔停止■ `.contentTransition(.symbolEffect(.replace))` | 变形 | 白名单变形类第 1 项 | 已登记·有效 |
+| SM-2 | Design CopyButton 复制 doc.on.doc↔对勾 `.contentTransition(.symbolEffect(.replace))` | 一次性反馈 | 白名单「复制成功」位（LORD 类位置、原生形变占位实现，与 §14 条 10 同体） | 已登记·有效 |
+| SM-3 | ReasoningBlock 思考块 chevron 上下翻转 `.contentTransition(.symbolEffect(.replace))` | 状态指示 | **不在 2026-11-09 白名单内**（展开/收起状态语义形变） | 已登记·**白名单外存量待裁**——不许扩散，去留待 UI 台账批/用户裁决，本包不擅动 |
+
+**白名单未落账（无代码接入点、不入登记册，账在本节）**：侧栏开↔关变形（未落）、消息语音播放↔暂停变形（未落，粗查无 play/pause 字形切换面）、LORD 本体三点——点赞/收藏成功/连接成功（lottie-ios 依赖与 JSON 资产均未引进；署名行「Icons by Lordicon」已在设置页 SettingsSupportViews:323 先行在位）。未落项的施工另行立项，不在本包范围。
+
+**邻接面（不入本册、各自有账）**：指示器滑移 matchedGeometryEffect 3 处（ConnectorsView/DeliverablesView 分段药丸、NotificationsView 一处）归 MotionTokens.selectionSpring 令牌治理（§240 已收敛）；数字翻牌 contentTransition(.numericText) 唯一出口 RollingNumberText（§240）；触感不在本册（触感语义表等用户定版点选）。
+
+### §247.2 zoom 转场试点：聊天图片点开看大图（只此一处落码）
+
+**现状盘点（zoom 在本仓不是零）**：文件侧两处已是正式形态——DeliverablesView 查看器路由（网格卡/文件行 matchedTransitionSource＋.navigationTransition(.zoom)，0.36.4）与 FilesView 浏览器行目的地（同构）；聊天侧 0.36.4 起有 ZoomTransitionCover（fullScreenCover＋preferredTransition=.zoom），但**源提供者恒返回 nil**——无源时系统降级形态从未验过，等于挂名 zoom、实走默认降级。本包试点即把聊天这一处做实，不新增第四个接入面。
+
+**试点落法**：①裁决进 Core——`ZoomTransitionPolicy.decide(reduceMotion:sourceAvailable:)`（ZoomTransitionPolicy.swift＋单测 4 法）：两条件齐备才 zoom，Reduce Motion 恒标准呈现（动效宪法 M8）；②源视图登记——`ZoomSourceRegistry`（弱引用表、死登记自清）＋`ZoomSourceAnchor`（透明 UIView、同位铺满、不拦命中），仅挂消息流图片两主面：远端图 ServerRemoteImage 行、本地图 localImageCard；③呈现侧——ZoomTransitionCover 增 sourceID（会话起始页条目 id），ZoomHostingController 在 viewDidLoad 按策略定型：Reduce Motion 不设 zoom；提供者在转场发生时实时查表，查到真源长出、查不到回 nil 标准降级（登记随滚动生灭，定型快照会过期，故可用性不在定型时锁死——与策略「无源不 zoom」效果等价，口径如实记于此）。
+
+**评估结论（代码面；手感终判待真机）**：
+- 手感预期：点图自缩略图原位长成查看器卡面、关闭原路返回——与文件侧已上线形态同语言，进出同路径（宪法表 E 空间一致性）；查看器本体双态/翻页/下拉关闭零改动。
+- 风险与边界：①同图重复发送时条目 id（Data 计数＋hashValue）相同，两锚点同键、后登记者覆盖——转场起点可能落到同图另一张上，仅影响起点位置、不影响功能，且同图视觉等价；②缩略图滚出屏后点开（深链/无障碍动作等无可见源场景）提供者回 nil、标准呈现，与试点前等价不回退；③聊天其余图片入口（工具卡/附件牌等约 8 处 openImageViewer 调用点）本试点**不挂锚**，维持标准呈现——推广面清单在此，逐面挂锚须等试点真机结论；④Box 图片预览（fullScreenCover）同病（无源），本包不动、列推广候选。
+- 是否推广：**结论＝先试点、后推广**。聊天两主面真机验（源图衔接实感、无源降级、滚动中点开、Reduce Motion 直切）通过后，再议其余入口与 Box 面；文件侧两处维持现状不回改。全仓不许出现第四种转场机制，自研转场框架禁令不变。
+
+### §247.3 美化标尺细则（阴影两档＋圆角同心＋间距梯队）
+
+**细则成文（与设计宪法②「数值只出自标尺」对表补细，数值取 OneDay 自家现行值、不搬礼记数）**：
+1. **阴影只两档**：内容层零阴影（0.4.0 宪法不变）。档 F 浮件档＝`ElevationTokens`（DesignTokens：shadowBase 派生 opacity 0.12／radius 4／y 1），唯一许用面＝浮动功能层小件；档 D 抽屉缘档＝DrawerMotion 参数（DrawerContainerView 消费，原例外 E5），唯一落点＝抽屉右缘。例外 X1 字形影：白色符号/文字可读性背光（半径 ≤2、默认色、无偏移），仅许符号本体、禁作卡面 Elevation。档外新增阴影先修本节入账。
+2. **圆角走梯队＋同心推导**：容器/卡面圆角只许取 OneDayMetrics 圆角梯队与角色令牌（containerCorner 23／fieldCorner 19／buttonCorner 24／bubbleCorner 22／codeCorner 10／radiusTile 9／radiusThumb 10／radiusCard 12／radiusPreview 16／radiusCheckbox 6 等）；嵌套面内层圆角一律 `CornerRadius.concentric(容器, 内边距)` 推导、禁止手算。豁免两类：微元素本体圆角（≤4pt：图表条/行内代码底/流式块/台账小块——图形本体非容器面）、比例画法（App 图标圆角＝边长×约 0.25，AppIconView/AppSymbolTile 同源）。
+3. **间距走梯队**：栈距与内边距只许 OneDayMetrics 间距梯队（micro 2／XS 4／S 8／SM 12／M 16／L 24／XL 32／XXL 48）与具名度量（cardPadding/pageGutter 等），梯队外字面量入违规清单逐面裁。
+
+**本包直改（零风险同值收编，仅此三组）**：①枢纽头像编辑圆钮阴影字面量（0.12/4/1）→ElevationTokens 档 F 引用（AgentHubView）；②浏览器/云电脑信息卡圆角字面量 23×4（BrowserView 3＋ComputerView 1）→OneDayMetrics.containerCorner（同值同语义）；③DesignTokens 增 ElevationTokens 节并成文两档＋X1 例外。
+
+**违规清单（只盘点、留 UI 台账批逐面裁，本包不改值）**：
+
+| # | 位置 | 现值 | 问题 | 建议口径 |
+|---|---|---|---|---|
+| V1 | ConnectView orb（70pt 状态球） | 圆角 21 | 梯队外手算值（非胶囊 35、非梯队 19/23） | 或登记比例画法（×0.3）或收编梯队值，二选一待裁 |
+| V2 | ServerManagementView 服务器卡图标砖 44pt | clipShape 圆角 8 | 砖面角色令牌 radiusTile＝9，差 1pt 散值 | 收编 9 或登记砖面专用值，待裁 |
+| V3 | AttachmentPanelView 选中勾 | .shadow(radius: 2) 默认色 | 属例外 X1 字形影——本包已成文登记，不算违规，此行仅备查 | 维持 |
+| V4 | 间距梯队外字面量 5 处 | AgentShareCard spacing 28／ChatModelPickerView spacing 6／Design CollapsibleSectionHeader spacing 6／GoalsView spacing 3／HubLedgerSection spacing 1 | 28 不在梯队（组距曾有 28 旧值、0.41.0 已收 24）；6/3/1 为微间距散值 | 28 收 spacingL 或登记组距名值；微值或入 micro 档登记或归并 2/4 |
+| V5 | padding 字面量 28 共 38 处 | 多文件 .padding(方向, 28) | 与 V4 同源：28 系旧组距口径残留面，与梯队 24/32 不合 | 随 UI 台账批逐面核（页距/组距具名值优先），不机械全改 |
+
+### §247.4 CI 判读（回填位）
