@@ -19,42 +19,30 @@ enum BoxShellError: Error, Sendable, Equatable {
 /// 不自动重发任何命令。超时 100 秒（唤醒＋执行，与
 /// /act 同档，nginx 上限 120 秒之内）。
 final class BoxShellClient: @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
-
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 100
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    /// C-10 收敛：连接/单钥/管线/文案走统一基座（传输
+    /// 文案以 endpoint＝「终端」代入，与旧口径逐字同），
+    /// 本类只留路径与状态口径
+    private let base = BridgeClientBase<BoxShellError>(
+        pathPrefix: "/api/box-bridge", timeout: 100,
+        noKey: .noKey, failed: BoxShellError.failed
+    )
 
     func run(
         config: ServerConfig, command: String
     ) async throws -> BoxShellResponse {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw BoxShellError.noKey
-        }
+        _ = try base.requireKey()
         let bodyData: Data
         do {
-            bodyData = try encoder.encode(BoxShellRequest(command: command))
+            bodyData = try base.encoder.encode(
+                BoxShellRequest(command: command)
+            )
         } catch {
             throw BoxShellError.failed(L10n.string("命令组装失败"))
         }
-        var request = URLRequest(
-            url: config.endpoint("/api/box-bridge/shell")
+        let (data, http) = try await base.perform(
+            config: config, path: "/shell", method: "POST",
+            bodyData: bodyData, endpoint: L10n.string("终端")
         )
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        request.setValue(
-            "application/json", forHTTPHeaderField: "Content-Type"
-        )
-        request.httpBody = bodyData
-        let (data, http) = try await send(request)
         if http.statusCode == 404 {
             throw BoxShellError.notAvailable
         }
@@ -64,26 +52,9 @@ final class BoxShellClient: @unchecked Sendable {
         guard (200...299).contains(http.statusCode) else {
             throw BoxShellError.failed(L10n.format("终端返回 %@", String(http.statusCode)))
         }
-        do {
-            return try decoder.decode(BoxShellResponse.self, from: data)
-        } catch {
-            throw BoxShellError.failed(L10n.string("终端返回格式无法识别"))
-        }
-    }
-
-    private func send(
-        _ request: URLRequest
-    ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw BoxShellError.failed(L10n.string("终端无响应"))
-            }
-            return (data, http)
-        } catch let error as BoxShellError {
-            throw error
-        } catch {
-            throw BoxShellError.failed(L10n.string("终端网络不可达"))
-        }
+        return try base.decode(
+            data,
+            orThrow: BoxShellError.failed(L10n.string("终端返回格式无法识别"))
+        )
     }
 }

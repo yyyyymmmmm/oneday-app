@@ -20,23 +20,17 @@ enum BoxBridgeError: Error, Sendable, Equatable {
 /// 超时分档：状态读 20 秒；截图/接管要唤醒 Box 并等
 /// 厂商回图，给 100 秒（nginx 上限 120 秒之内）。
 final class BoxBridgeClient: @unchecked Sendable {
-    private let readSession: URLSession
-    private let actSession: URLSession
-    private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
+    /// C-10 收敛：连接/单钥/管线/文案走统一基座（主会
+    /// 话＝读档 20 秒），动作会话 100 秒经基座工厂自
+    /// 建、调用时以 using: 传入；本类只留路径与口径
+    private let base = BridgeClientBase<BoxBridgeError>(
+        pathPrefix: "/api/box-bridge", timeout: 20,
+        noKey: .noKey, failed: BoxBridgeError.failed
+    )
+    private let actSession = BridgeClientBase<BoxBridgeError>
+        .makeSession(timeout: 100)
 
-    init() {
-        let readConfiguration = URLSessionConfiguration.default
-        readConfiguration.timeoutIntervalForRequest = 20
-        readSession = URLSession(configuration: readConfiguration)
-        let actConfiguration = URLSessionConfiguration.default
-        actConfiguration.timeoutIntervalForRequest = 100
-        actSession = URLSession(configuration: actConfiguration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    private var decoder: JSONDecoder { base.decoder }
 
     func status(config: ServerConfig) async throws -> BoxBridgeStatus {
         try await get(config: config, path: "/status", endpoint: L10n.string("云电脑状态"))
@@ -61,11 +55,9 @@ final class BoxBridgeClient: @unchecked Sendable {
     private func get<T: Decodable>(
         config: ServerConfig, path: String, endpoint: String
     ) async throws -> T {
-        let request = try makeRequest(
-            config: config, path: path, method: "GET", body: nil
-        )
-        let (data, http) = try await send(
-            request, session: readSession, endpoint: endpoint
+        let (data, http) = try await base.perform(
+            config: config, path: path, method: "GET",
+            bodyData: nil, endpoint: endpoint
         )
         try check(http, endpoint: endpoint)
         return try decode(data, endpoint: endpoint)
@@ -76,38 +68,17 @@ final class BoxBridgeClient: @unchecked Sendable {
     ) async throws -> T {
         let bodyData: Data
         do {
-            bodyData = try encoder.encode(body)
+            bodyData = try base.encoder.encode(body)
         } catch {
             throw BoxBridgeError.failed(L10n.format("%@请求组装失败", endpoint))
         }
-        let request = try makeRequest(
-            config: config, path: path, method: "POST", body: bodyData
-        )
-        let (data, http) = try await send(
-            request, session: actSession, endpoint: endpoint
+        let (data, http) = try await base.perform(
+            config: config, path: path, method: "POST",
+            bodyData: bodyData, endpoint: endpoint,
+            using: actSession
         )
         try check(http, endpoint: endpoint)
         return try decode(data, endpoint: endpoint)
-    }
-
-    private func makeRequest(
-        config: ServerConfig, path: String, method: String, body: Data?
-    ) throws -> URLRequest {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw BoxBridgeError.noKey
-        }
-        var request = URLRequest(
-            url: config.endpoint("/api/box-bridge" + path)
-        )
-        request.httpMethod = method
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        if let body {
-            request.httpBody = body
-            request.setValue(
-                "application/json", forHTTPHeaderField: "Content-Type"
-            )
-        }
-        return request
     }
 
     private func check(
@@ -128,22 +99,6 @@ final class BoxBridgeClient: @unchecked Sendable {
             return try decoder.decode(T.self, from: data)
         } catch {
             throw BoxBridgeError.failed(L10n.format("%@返回格式无法识别", endpoint))
-        }
-    }
-
-    private func send(
-        _ request: URLRequest, session: URLSession, endpoint: String
-    ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw BoxBridgeError.failed(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as BoxBridgeError {
-            throw error
-        } catch {
-            throw BoxBridgeError.failed(L10n.format("%@网络不可达", endpoint))
         }
     }
 }
