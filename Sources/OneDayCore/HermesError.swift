@@ -32,7 +32,7 @@ public enum HermesError: Error, Sendable {
     /// 用户知道是「还在运行中」而不是「服务器出错」
     case sessionBusy
     /// 服务端以结构化错误码拒（网关面 {"error":
-    /// {"code":…}}，DESIGN §210）：状态码＋码本体随
+    /// {"code":…}}，DESIGN §220）：状态码＋码本体随
     /// 错误上行，供 invalid_title 收养等按码分流判
     /// 定；文案与 unexpectedStatus 同口径（用户面无
     /// 变化）。旧形发送层丢响应体、码到不了逻辑层

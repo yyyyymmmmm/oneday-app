@@ -91,7 +91,7 @@ public enum LedgerKind: Equatable, Sendable {
     case job
     case approval
     case device
-    /// 监测变化（§208 枢纽收段新增）：服务端台账采集
+    /// 监测变化（§217 枢纽收段新增）：服务端台账采集
     /// 器暂无监测源，活动段由客户端把桥的监测变化记
     /// 录合成同形条目（LedgerMonitorSynthesis）；服务
     /// 端将来直供 kind=monitor 时解码同落此分类

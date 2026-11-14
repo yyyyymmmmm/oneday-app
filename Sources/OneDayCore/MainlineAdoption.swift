@@ -1,6 +1,6 @@
 import Foundation
 
-/// 网关面结构化错误码解析（主线收养包，DESIGN §210）：
+/// 网关面结构化错误码解析（主线收养包，DESIGN §220）：
 /// 网关面拒请求的回包形如 {"error": {"code": "invalid_
 /// title", "message": "…", "type": "invalid_request_
 /// error"}}——取 error.code 本体。发送层旧形把响应体
@@ -41,7 +41,7 @@ public struct MainlineAdoptionCandidate: Sendable, Equatable {
 }
 
 /// 主线建会话撞 invalid_title 时的收养分流（DESIGN
-/// §210）：纯函数、单测把守，链接层只许照此执行。
+/// §220）：纯函数、单测把守，链接层只许照此执行。
 /// 触发面严格限定：状态 400 且错误码恰为 invalid_
 /// title——其余失败一律 .notApplicable（原错误照抛，
 /// 不许拿收养掩盖真故障）；标题精确匹配（全等，不
@@ -90,7 +90,7 @@ public enum MainlineAdoptionDirective: Sendable, Equatable {
     }
 }
 
-/// 主线模型回读收口判定（DESIGN §210）：链接确立后
+/// 主线模型回读收口判定（DESIGN §220）：链接确立后
 /// 服务端会话的 model 字段是真值——非空且与本地自
 /// 存选择不同（入参两侧均为归一后的模型 id）时返
 /// 回应写入本地账的服务端模型；服务端无值或两者

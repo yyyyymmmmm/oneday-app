@@ -6,7 +6,7 @@ import UIKit
 import XCTest
 @testable import OneDayApp
 
-/// §208 枢纽收段＋卡片式呈现的装配门：
+/// §217 枢纽收段＋卡片式呈现的装配门：
 /// ①分段集合恰为四段且顺序对（活动/定时/浏览器/
 ///   身份）——七段时代的 UI 回归门在 UITests 侧同
 ///   步改口径，本门在单元层钉死集合本体；

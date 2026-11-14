@@ -101,7 +101,7 @@ public struct MessageQuote: Equatable, Sendable {
         return outgoingContent(userText: userText, quote: quote)
     }
 
-    /// 引用分发收口·来源引用变体（§216，推广
+    /// 引用分发收口·来源引用变体（§219，推广
     /// §208 的 feed 专用三参变体）：来源引用（动
     /// 态／点子／文件，SourceQuote 统一载荷）在
     /// 场时优先于消息引用——一条用户消息至多带

@@ -497,7 +497,7 @@ struct ChatView: View {
             }
         }
     }
-    /// §216：点子／文件待发引用（SourceQuote 统一载
+    /// §219：点子／文件待发引用（SourceQuote 统一载
     /// 荷的 .idea／.file 两族）——与 pendingFeedQuote
     /// 同型：真身在 AppState.pendingSourceQuotesBy-
     /// Thread 按线程寻址，本处是当前线程的派生读写
@@ -754,7 +754,7 @@ struct ChatView: View {
         }
         // §125：文件打开页（中间页）——聊天侧点牌的
         // 唯一落点（图片仍走上方全屏查看器、不经此页）
-        // §129 落点、§216 改通道：失败页「让智能体重
+        // §129 落点、§219 改通道：失败页「让智能体重
         // 新发」改走引用槽位——文件引用挂进当前线程
         // 发送舱（FileOpenView 回的是 FileQuote 值、
         // 不再是整段机器文直写 input），发不发由用户
@@ -825,7 +825,7 @@ struct ChatView: View {
             if let oldID, oldID != newID {
                 appState.pendingFeedQuotesByThread
                     .removeValue(forKey: oldID)
-                // §216：点子／文件待发引用同律定点作废
+                // §219：点子／文件待发引用同律定点作废
                 appState.pendingSourceQuotesByThread
                     .removeValue(forKey: oldID)
             }
@@ -845,7 +845,7 @@ struct ChatView: View {
             // 无「消费」一说（见 applyPendingFeedQuote-
             // IfNeeded）
             applyPendingFeedQuoteIfNeeded()
-            // §216：点子／文件待发引用同式收口（落点线
+            // §219：点子／文件待发引用同式收口（落点线
             // 程名下有引用在场时挤掉消息引用＋聚焦）
             applyPendingSourceQuoteIfNeeded()
             // 0.4.2：流式节流闸不跨线程带账
@@ -877,7 +877,7 @@ struct ChatView: View {
         .onChange(of: appState.pendingFeedQuotesByThread) { _, _ in
             applyPendingFeedQuoteIfNeeded()
         }
-        // §216：点子／文件待发引用表变化时同式收口
+        // §219：点子／文件待发引用表变化时同式收口
         // （点子/文件写入都经此表）——人已在目标线程
         // 内时写入即聚焦，不等切换事件
         .onChange(of: appState.pendingSourceQuotesByThread) { _, _ in
@@ -1433,7 +1433,7 @@ struct ChatView: View {
         // 模型常驻区、默认活动段），.activity 四段形态
         // 退役无入口；审批终态回调保留（裁决自聊天就地
         // 卡发生、经共享 store 触发同一回调）
-        // §208（2026-11-13，用户拍板对齐 Muse 枢纽
+        // §217（2026-11-13，用户拍板对齐 Muse 枢纽
         // 录屏）：呈现改系统 sheet 卡片式——大 detent
         // 圆角卡浮起（初态四周留边、后景压暗、落定近
         // 全屏），关闭反向回缩淡出，动画全走系统弹簧
@@ -4025,7 +4025,7 @@ struct ChatView: View {
         // §208：引用槽位单一在场——消息引用入槽即
         // 挤掉动态引用（后入覆盖，与讨论写入同律）
         pendingFeedQuote = nil
-        // §216：点子／文件引用同槽同律、一并挤掉
+        // §219：点子／文件引用同槽同律、一并挤掉
         pendingSourceQuote = nil
         composerFocusHandle.focus()
     }
@@ -4041,7 +4041,7 @@ struct ChatView: View {
         guard pendingFeedQuote != nil else { return }
         pendingQuote = nil
         pendingQuoteIsFork = false
-        // §216：槽位单一在场、后入覆盖跨族同律——动
+        // §219：槽位单一在场、后入覆盖跨族同律——动
         // 态引用在场收口时，同线程的点子／文件待发引
         // 用一并让位（两表分存、互斥靠收口交叉清理）
         if let currentThreadID {
@@ -4051,7 +4051,7 @@ struct ChatView: View {
         composerFocusHandle.focus()
     }
 
-    /// §216：待发点子／文件引用的呈现侧收口——与
+    /// §219：待发点子／文件引用的呈现侧收口——与
     /// applyPendingFeedQuoteIfNeeded 同式：当前线程
     /// 名下有引用在场时挤掉消息引用、让位同线程的
     /// 动态待发引用（后入覆盖）、聚焦输入舱。引用
@@ -4220,7 +4220,7 @@ struct ChatView: View {
         .accessibilityLabel("回到动态原帖")
     }
 
-    /// 已发送消息顶部的来源引用块分发（§216）：
+    /// 已发送消息顶部的来源引用块分发（§219）：
     /// 三族共用消息行槽位，按族渲染各自块形态
     /// （几何同源：左细线＋底垫＋小字两行）
     @ViewBuilder
@@ -4237,7 +4237,7 @@ struct ChatView: View {
         }
     }
 
-    /// 已发送消息顶部的点子引用块（§216）：几何与
+    /// 已发送消息顶部的点子引用块（§219）：几何与
     /// feedQuoteBlock 同，内容＝点子标题行＋载荷摘
     /// 要一行；整块可点回跳点子详情（ideaOpen-
     /// Request 置位＋切点子格，IdeasView 消费定位；
@@ -4277,7 +4277,7 @@ struct ChatView: View {
         .accessibilityLabel("回到点子")
     }
 
-    /// 已发送消息顶部的文件引用块（§216）：几何同
+    /// 已发送消息顶部的文件引用块（§219）：几何同
     /// 族，内容＝文件名行＋原路径摘要一行；整块可
     /// 点以快照路径直接重开文件页（fileOpenTarget
     /// 既有通道，不切格）；文件已被移走时文件页本
@@ -5020,7 +5020,7 @@ struct ChatView: View {
         return "\(quote.sourceLine) · \(summary)"
     }
 
-    /// 发送舱的来源引用条分发（§216）：点子／文件
+    /// 发送舱的来源引用条分发（§219）：点子／文件
     /// 两族共用本槽位，按族渲染各自条形态（几何同
     /// 源：左轨＋两行＋右上 ✕）。feed 族沿既有
     /// feedQuoteBar 在上一分支渲染，本分发只在点
@@ -5040,7 +5040,7 @@ struct ChatView: View {
         }
     }
 
-    /// 发送舱的点子引用条（§216）：与 feedQuoteBar
+    /// 发送舱的点子引用条（§219）：与 feedQuoteBar
     /// 同槽位同几何（左轨＋两行＋右上 ✕，视觉 28、
     /// 命中域 44），内容换点子面：首行＝行首标识＋
     /// 点子标题（一行截断）、次行＝载荷摘要一行
@@ -5084,7 +5084,7 @@ struct ChatView: View {
         .padding(.vertical, OneDayMetrics.spacingS)
     }
 
-    /// 发送舱的文件引用条（§216）：同槽位同几何，
+    /// 发送舱的文件引用条（§219）：同槽位同几何，
     /// 内容换文件面：首行＝文件名（一行截断）、次
     /// 行＝服务端原路径摘要一行。点 ✕ 即清、无任
     /// 何落盘
@@ -5167,7 +5167,7 @@ struct ChatView: View {
                             )
                     }
                 } else if let pendingSourceQuote {
-                    // §216：点子／文件引用同槽（至多一
+                    // §219：点子／文件引用同槽（至多一
                     // 个在场），按族分发条形态
                     VStack(spacing: 0) {
                         sourceQuoteBar(pendingSourceQuote)
@@ -6147,7 +6147,7 @@ private struct ComposerBarLayout: Layout {
     /// ③存在且已有消息：服务端已持历史，直接认链。
     /// 任一步失败抛错（不许静默、不许回退无头发送）；
     /// 返回最终会话 id（建会话回执为准）
-    /// adoptsOnTitleConflict（§210，主线专用）：建会话
+    /// adoptsOnTitleConflict（§220，主线专用）：建会话
     /// 撞 400 invalid_title 时按标题反查既有会话走收
     /// 养（判定走 Core MainlineAdoptionDirective）——
     /// 本地绑定脱钩（钦定 id 不存在＋标题被休眠旧会
@@ -6204,7 +6204,7 @@ private struct ComposerBarLayout: Layout {
             )
             return desiredID
         } catch {
-            // §210 收养兜底：仅主线流程、仅 400 invalid_
+            // §220 收养兜底：仅主线流程、仅 400 invalid_
             // title 触发；判定不成立（口径外错误/零匹配/
             // 名单拉不到）一律把原错误照抛，不许收养掩
             // 盖真故障、更不许静默
@@ -6217,7 +6217,7 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 标题冲突收养（§210）：拉服务端全量名单（归档包
+    /// 标题冲突收养（§220）：拉服务端全量名单（归档包
     /// 含——占名者可能已归档，漏了就只剩原样抛错一
     /// 途），投影交 Core 纯函数判定；判到收养则改认
     /// 既有会话为链接目标：它已有消息直接认链（与既
@@ -6354,7 +6354,7 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 主线模型回读收口（§210）：链接确立后以服务端
+    /// 主线模型回读收口（§220）：链接确立后以服务端
     /// 会话的 model 字段为准刷新本会话选择——本地自
     /// 存选择（如脱钩重建期落下的残留）与服务端不一
     /// 致时服务端压本地：经既有 selectSessionModel
@@ -6630,12 +6630,12 @@ private struct ComposerBarLayout: Layout {
         // §208：动态引用同槽同纪律——一并快照/清除，
         // 失败退回路径一并恢复（各恢复点与 quote 同行）
         let feedQuote = pendingFeedQuote
-        // §216：点子／文件引用同槽同纪律——一并快照/
+        // §219：点子／文件引用同槽同纪律——一并快照/
         // 清除，失败退回路径一并恢复（与 feedQuote 同
         // 行）；两快照至多一个非空（槽位互斥由写入侧
         // 收口保证），拼装口合并见 outgoingContext
         let sourceQuote = pendingSourceQuote
-        // §216：拼装口统一载荷——点子／文件快照优先，
+        // §219：拼装口统一载荷——点子／文件快照优先，
         // 动态快照包成 .feed 族（两快照互斥、合并无
         // 损）；落盘构造与上下文拼装共用本值
         let combinedSourceQuote = sourceQuote

@@ -1,7 +1,7 @@
 import XCTest
 @testable import OneDayCore
 
-/// §216 点子/文件「重发同型后门」收口的 Core 钉测：
+/// §219 点子/文件「重发同型后门」收口的 Core 钉测：
 /// IdeaQuote/FileQuote 组装与注入拼装（块在前、亲
 /// 笔在后、全文不截断）、SourceQuote 分发收口（来
 /// 源引用优先于消息引用）、IdeaChatPrefill 重构后

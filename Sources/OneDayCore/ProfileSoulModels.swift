@@ -223,7 +223,7 @@ public enum SoulSectionParser {
     }
 
     /// ATX 标题行（# ～ ######）→ 标题文本；非标题行 nil。
-    /// §210 起呈现提炼器共用同一口径，故开放（internal
+    /// §218 起呈现提炼器共用同一口径，故开放（internal
     /// 以上）——标题认定全仓一处，不许各写一份。
     public static func headingTitle(of line: String) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -268,7 +268,7 @@ public enum SoulSaveVerification {
     }
 }
 
-// MARK: - soul 屏上呈现提炼（§210 枢纽身份段视觉重做）
+// MARK: - soul 屏上呈现提炼（§218 枢纽身份段视觉重做）
 
 /// 身份段屏上呈现：把解析后的分段清成可读散文段落。
 /// 提炼只动结构——按空行分段、剥 ATX 标题的 `#` 脚手

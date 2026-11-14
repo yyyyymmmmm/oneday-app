@@ -1,7 +1,7 @@
 import XCTest
 @testable import OneDayCore
 
-/// 主线收养分流（DESIGN §210）四分支钉死：①非 400/
+/// 主线收养分流（DESIGN §220）四分支钉死：①非 400/
 /// 非 invalid_title 不触发②触发面成立但零匹配无从
 /// 收养③恰一条直接收养④多条按 oneday-main- 前缀＋
 /// 最近活动选定；外加标题全等口径（包含不算）、错

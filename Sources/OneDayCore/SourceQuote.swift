@@ -1,13 +1,13 @@
 import Foundation
 
-/// 点子引用（§216，点子「开始吧/打开对话」引用化）：
+/// 点子引用（§219，点子「开始吧/打开对话」引用化）：
 /// 把点子带进对话的载体——值快照，与 FeedPostQuote
 /// 同哲学：不持原点子对象引用，点子被删/过期引用
 /// 不悬挂。引用是发送舱的临时态、不是草稿：永不
 /// 进 drafts 落盘，点 ✕ 即清、切线程作废、杀进程
 /// 不恢复；发送后随消息行快照字段落盘（ChatEntry
 /// 的 ideaQuote* 三字段），回放拼装经本文件收口。
-/// §216 前旧形是 IdeaChatPrefill 预填经 setDraft 直
+/// §219 前旧形是 IdeaChatPrefill 预填经 setDraft 直
 /// 写草稿账（与亲笔同形、被防丢稿保活永久保护），
 /// 与动态讨论同病，本包同型收口
 public struct IdeaQuote: Equatable, Sendable {
@@ -78,13 +78,13 @@ public struct IdeaQuote: Equatable, Sendable {
     }
 }
 
-/// 文件引用（§216，文件打开失败「让智能体重新发」
+/// 文件引用（§219，文件打开失败「让智能体重新发」
 /// 引用化）：把打不开的文件带回对话的载体——值
 /// 快照（文件名＋服务端原路径），与 FeedPostQuote
 /// 同哲学。引用生命周期同族：发送舱临时态、永不
 /// 进 drafts、✕ 即清、切线程作废、杀进程不恢复；
 /// 发送后随消息行快照字段落盘（ChatEntry 的
-/// fileQuote* 两字段）。§216 前旧形两路都是机器
+/// fileQuote* 两字段）。§219 前旧形两路都是机器
 /// 文直落亲笔面：无宿主路经 setDraft 直写草稿账、
 /// 聊天宿主路直写输入舱 input（切线程时又被回存
 /// 进草稿账）——同病两口，本包一并收口
@@ -138,12 +138,12 @@ public struct FileQuote: Equatable, Sendable {
     }
 }
 
-/// 来源引用（§216）：发送舱引用槽位的统一载荷——
+/// 来源引用（§219）：发送舱引用槽位的统一载荷——
 /// 一条用户消息至多带一种来源引用（动态／点子／
 /// 文件），与消息引用（MessageQuote）同槽互斥。
 /// §208 的动态引用是第一族；本枚举把槽位从 feed
 /// 专用推广为三族共用。投递走按线程寻址直写（与
-/// §210 feed 族同型，§216 适配定形）：feed 族沿
+/// §210 feed 族同型，§219 适配定形）：feed 族沿
 /// AppState.pendingFeedQuotesByThread、点子／文件
 /// 两族走 AppState.pendingSourceQuotesByThread，
 /// ChatView 一律按 currentThreadID 派生呈现——不

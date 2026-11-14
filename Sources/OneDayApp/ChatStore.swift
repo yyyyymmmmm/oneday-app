@@ -104,7 +104,7 @@ final class ChatEntry {
     var feedPostTitle: String? = nil
     var feedPostBody: String? = nil
     var feedPostSource: String? = nil
-    /// §216：本条消息引用了哪个点子（点子「开始吧」
+    /// §219：本条消息引用了哪个点子（点子「开始吧」
     /// 引用化）——与 feedPost 四字段、quote 两字段
     /// 同纪律：只在发送时由带来源引用的用户消息携
     /// 带、三方互斥（发送舱单一槽位）；存点子 id＋
@@ -115,7 +115,7 @@ final class ChatEntry {
     var ideaQuoteID: String? = nil
     var ideaQuoteTitle: String? = nil
     var ideaQuoteBody: String? = nil
-    /// §216：本条消息引用了哪个文件（文件打开失败
+    /// §219：本条消息引用了哪个文件（文件打开失败
     /// 「让智能体重新发」引用化）——存文件名＋服务
     /// 端原路径两字段快照，回跳凭原路径重开文件
     /// 页、回放拼装经 FileQuote 收口（可选＋默认
@@ -200,7 +200,7 @@ final class ChatEntry {
             : try? JSONEncoder().encode(imageDatas)
         quoteRole = quote?.role
         quoteContent = quote?.content
-        // §216：来源引用三族拆字段落盘——init 只收
+        // §219：来源引用三族拆字段落盘——init 只收
         // 统一载荷 SourceQuote，按族填对应字段组、
         // 其余两组恒 nil（三方互斥由构造口保证）
         switch sourceQuote {
@@ -341,7 +341,7 @@ final class ChatEntry {
         )
     }
 
-    /// 点子引用值组装（§216）：三字段同缺同在；
+    /// 点子引用值组装（§219）：三字段同缺同在；
     /// 行首标识不落盘、组装为空串（呈现走本地兜
     /// 底，不拿空标识当缺行理由）
     var ideaQuote: IdeaQuote? {
@@ -353,7 +353,7 @@ final class ChatEntry {
         )
     }
 
-    /// 文件引用值组装（§216）：两字段同缺同在
+    /// 文件引用值组装（§219）：两字段同缺同在
     var fileQuote: FileQuote? {
         guard let fileQuoteName, let fileQuotePath
         else { return nil }
@@ -362,7 +362,7 @@ final class ChatEntry {
         )
     }
 
-    /// 本条携带的来源引用（§216 统一读口）：三族
+    /// 本条携带的来源引用（§219 统一读口）：三族
     /// 字段组至多一组在场（构造口保证），呈现与
     /// 回放拼装一律走本口，不再逐族探字段；
     /// feedQuote 计算属性保留（§208 既有消费面）

@@ -44,7 +44,7 @@ public enum IdeaDeliverablesSection {
 /// 只进输入舱、用户点发送为准（不代发红线，与动态
 /// 「讨论」的预填口径同形）。空段整段不出现，不编
 /// 内容；依据只对生成卡带（与详情页依据小节同口径）
-/// §216 退役标注：make() 的注入调用方已清零（开旁
+/// §219 退役标注：make() 的注入调用方已清零（开旁
 /// 聊改走 IdeaQuote 引用道，见 SourceQuote.swift）；
 /// 本函数保留仅作存量清扫的逐字参照（判定见
 /// IdeaPrefillDraftCleanup），与 FeedDiscussPrefill
@@ -63,7 +63,7 @@ public enum IdeaChatPrefill {
     }
 }
 
-/// 点子上下文载荷组装（§216）：题头之外的全部内容
+/// 点子上下文载荷组装（§219）：题头之外的全部内容
 /// 段——说明／依据／包含的内容，空段整段不出现、
 /// 不编内容（与 IdeaChatPrefill.make 的 parts 后段
 /// 逐字同口径）。IdeaChatPrefill.make（存量清扫参
@@ -103,7 +103,7 @@ public enum IdeaChatContext {
     }
 }
 
-/// 旧预填草稿的存量判定（§216）：一段草稿是否为
+/// 旧预填草稿的存量判定（§219）：一段草稿是否为
 /// IdeaChatPrefill.make 对某点子的机器输出——三
 /// 语逐一再生、任一逐字相等才算；用户改过一字即
 /// 不相等、清扫不动（判定从严，与 FeedDiscuss-

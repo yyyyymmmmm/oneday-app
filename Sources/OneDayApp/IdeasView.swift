@@ -24,11 +24,11 @@ struct IdeasView: View {
     @State private var deleteCandidate: BridgeIdea?
     /// 详情 sheet 的当前点子（0.47.0：点行不再推页）
     @State private var selectedIdeaID: String?
-    /// §216：聊天里点点子引用块回跳的待决请求——名
+    /// §219：聊天里点点子引用块回跳的待决请求——名
     /// 单未就绪时挂起、就绪后由 resolveIdeaOpen 落
     /// 定（FeedView resolveFeedOpen 同式）
     @State private var pendingIdeaOpenID: String?
-    /// §216：回跳的点子已不在名单（删除/过期）时的
+    /// §219：回跳的点子已不在名单（删除/过期）时的
     /// 诚实提示——引用块快照仍可读，不假定位
     @State private var ideaGoneNotice = false
 
@@ -123,7 +123,7 @@ struct IdeasView: View {
             } message: { _ in
                 Text("只删点子本身；已经转成的任务不会受影响。")
             }
-            // §216：聊天里点点子引用块的回跳——请求在
+            // §219：聊天里点点子引用块的回跳——请求在
             // 此消费（清零先行防重入），落点判定走
             // resolveIdeaOpen（在名单开详情、名单就绪
             // 而查无给诚实提示、未就绪挂起等名单）
@@ -146,7 +146,7 @@ struct IdeasView: View {
         }
     }
 
-    /// 点子回跳落点判定（§216，FeedView 的
+    /// 点子回跳落点判定（§219，FeedView 的
     /// resolveFeedOpen 同式）：名单里有即开详情
     /// sheet；名单已就绪仍查无（点子已删/已过期）
     /// 给诚实提示；名单未就绪不判死、挂起等下一次
@@ -716,19 +716,19 @@ struct IdeaDetailView: View {
         .background(Palette.pageBG)
     }
 
-    /// 开旁聊（§122 立形；§216 引用化）：关联线程还
+    /// 开旁聊（§122 立形；§219 引用化）：关联线程还
     /// 在就回那条；没有关联（存量已采纳点子）或线程
     /// 已被删，则现在补建一条并记关联——建线程走既
     /// 有旁聊创建链（DrawerView.createThread／动态
     /// 「讨论」同形：本地插入 ChatThread 即出生记
     /// 录，服务端会话由该线程首发时经 SideChatLink
     /// 铸 oneday-side- 会话）。点子上下文改走引用道
-    /// （§216，与动态「讨论」§210 同型）：新建与回
+    /// （§219，与动态「讨论」§210 同型）：新建与回
     /// 既有两路都把引用直写目标线程的待发状态
     /// （AppState.pendingSourceQuotesByThread 按线程
     /// 寻址，落点决定与写入同动作），点子以引用卡
     /// 挂目标线程发送舱（IdeaQuote 值快照），输入框
-    /// 恒空、亲笔才是草稿、不代发；§216 前只在新建
+    /// 恒空、亲笔才是草稿、不代发；§219 前只在新建
     /// 时经 setDraft 把 IdeaChatPrefill 预填直写草稿
     /// 账——与亲笔同形且被防丢稿保活，是通道选错
     /// （定性见 §208），本包堵死；回既有线程的旧
@@ -749,7 +749,7 @@ struct IdeaDetailView: View {
             )
             thread = fresh
         }
-        // §216：引用直写目标线程的待发状态（落点决定
+        // §219：引用直写目标线程的待发状态（落点决定
         // 与引用写入同动作完成），不再经种子消费
         appState.pendingSourceQuotesByThread[thread.id] =
             .idea(IdeaQuote(idea: idea))

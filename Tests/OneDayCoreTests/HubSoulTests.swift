@@ -88,7 +88,7 @@ final class HubSoulTests: XCTestCase {
         XCTAssertEqual(sections.displayedPersona, "第一段。\n\n第二段。")
     }
 
-    // MARK: - 屏上呈现提炼（§210）
+    // MARK: - 屏上呈现提炼（§218）
 
     /// 生产形态复刻：首行名标题＋整篇正文（无已知分段
     /// 标题）——名标题段须摘除、`#` 脚手架不许上屏、

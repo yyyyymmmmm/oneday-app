@@ -9,7 +9,7 @@ import SwiftUI
 /// 「正在进行 N 件」、失败与取消留在原位不隐藏、失
 /// 联条目停转明示。段自持 LedgerStore（段内 .task
 /// 驱动，与任务/监测段同形态）。
-/// §208（2026-11-13 枢纽收段）：本段兼收三撤段的
+/// §217（2026-11-13 枢纽收段）：本段兼收三撤段的
 /// 内容与入口——①任务：台账本有看板同源条目，下
 /// 钻在台账详情里补「打开任务详情」（答题/证据/
 /// 控制动作都在任务详情里），新建任务入口迁来页
@@ -196,7 +196,7 @@ struct HubLedgerSection: View {
                     .foregroundStyle(Palette.inkMuted)
             }
             Spacer()
-            // §208：新建入口收口——原任务段/监测段各
+            // §217：新建入口收口——原任务段/监测段各
             // 自的新建钮随段退役，迁来页首一处菜单
             // （两件新建表单本体与门控口径原样，见
             // KanbanCreateTaskView/MonitorCreateView）
@@ -238,7 +238,7 @@ struct HubLedgerSection: View {
     private var ledgerList: some View {
         ScrollViewReader { proxy in
             List {
-                // §208：审批规则区迁入列表首节（撤销
+                // §217：审批规则区迁入列表首节（撤销
                 // 面全 App 只此一处，见 HubApproval-
                 // RulesView 头注）；规则数据不在台账
                 // 账里、走共享 hubStore
@@ -274,7 +274,7 @@ struct HubLedgerSection: View {
                 await store.load(appState: appState)
                 await hubStore.loadApproval(force: true)
             }
-            // 通知落点聚焦滚动（§123/§208）：焦点置位
+            // 通知落点聚焦滚动（§123/§217）：焦点置位
             // 时一次、条目落位（首拉/轮询合并）后再试
             // ——目标不在流里（已滚出窗口）时静默落空，
             // 不假装定位（与原审核段聚焦同口径）
@@ -287,7 +287,7 @@ struct HubLedgerSection: View {
         }
     }
 
-    /// 行下钻分发（§208）：监测合成条目的「详情」就
+    /// 行下钻分发（§217）：监测合成条目的「详情」就
     /// 是监测详情本体（变化对号、控制动作都在那
     /// 里），不走台账详情读面（服务端没有合成条目
     /// 的详情可读）；其余条目一律台账详情（任务/
@@ -407,7 +407,7 @@ struct HubLedgerSection: View {
 
     @ViewBuilder
     private func boxContent(_ item: LedgerItem) -> some View {
-        // §208：监测变化是事件不是工作——合成条目的
+        // §217：监测变化是事件不是工作——合成条目的
         // 占位状态是 .completed，但图标不许打勾冒充
         // 「做完了」，直给监测眼标（与段图标同形）
         if item.kind == .monitor {

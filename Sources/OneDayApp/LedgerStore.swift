@@ -35,7 +35,7 @@ final class LedgerStore {
     private(set) var detailLoading = false
     private(set) var detailGone = false
 
-    /// 监测变化的客户端合成条目（§208）：服务端台
+    /// 监测变化的客户端合成条目（§217）：服务端台
     /// 账采集器暂无监测源，活动段把桥 /monitors 的
     /// 变化记录合成同形条目并入同一条流（口径见
     /// LedgerMonitorSynthesis）。与服务端条目分开持

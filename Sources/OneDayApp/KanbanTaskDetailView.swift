@@ -389,7 +389,7 @@ struct KanbanTaskDetailView: View {
 
 /// 新建任务表单（标题＋说明 → 建卡＋dispatch＋回板
 /// 确认，未确认不关表单——KanbanStore.createTask）
-/// §208：原属枢纽任务段，收段后随段文件退役迁来本
+/// §217：原属枢纽任务段，收段后随段文件退役迁来本
 /// 文件——全 App 的任务新建入口只此一份，现由活动
 /// 段页首菜单唤起（口径与门控原样）
 struct KanbanCreateTaskView: View {

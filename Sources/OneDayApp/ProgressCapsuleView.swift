@@ -18,7 +18,7 @@ struct ProgressCapsuleView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var store = LedgerStore()
-    /// §208：台账详情的任务下钻要 KanbanStore——本面
+    /// §217：台账详情的任务下钻要 KanbanStore——本面
     /// 自持一份（与枢纽活动段同形态，进面时加载）
     @State private var kanbanStore = KanbanStore()
     @State private var detailItem: LedgerItem?

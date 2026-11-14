@@ -691,7 +691,7 @@ final class AppState {
     /// 存：进程死亡即亡，与引用本身的生命周期一致
     /// （引用不落盘恢复，规格 §3.3）
     var pendingFeedQuotesByThread: [UUID: FeedPostQuote] = [:]
-    /// 点子／文件待发引用（§216）：与上表同型——按
+    /// 点子／文件待发引用（§219）：与上表同型——按
     /// 线程寻址存放，IdeasView.openIdeaChat 与 File-
     /// OpenView.requestResend 在落点决定的同一动作内
     /// 直写本表，ChatView 按 currentThreadID 派生呈
@@ -707,7 +707,7 @@ final class AppState {
     /// （查无此帖给诚实提示）并清零——置位—消费—
     /// 清零与 fileRevealPath 同式
     var feedOpenPostRequest: String?
-    /// 点子回跳请求（§216）：聊天里点消息的点子引
+    /// 点子回跳请求（§219）：聊天里点消息的点子引
     /// 用块时置位点子 id 并同行置 mainTabSwitch-
     /// Request=.ideas 切格，IdeasView 消费后开该点
     /// 子详情（查无此点子给诚实提示）并清零——与

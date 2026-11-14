@@ -2,7 +2,7 @@ import OneDayCore
 import XCTest
 @testable import OneDayApp
 
-/// §216 点子/文件「重发同型后门」收口的 App 层钉
+/// §219 点子/文件「重发同型后门」收口的 App 层钉
 /// 测：点子存量预填清扫（SideChatStore）——判定逻
 /// 辑在 Core 纯函数层（SourceQuoteTests 已钉），
 /// 本组钉存储层的落点与亲笔零误伤，与动态清扫

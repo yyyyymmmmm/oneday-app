@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 枢纽页分段（规格 phase3-hub-spec §1 #9/#10）：图标
 /// 纯符号、无文字；VoiceOver 读段名（Label 自带）。
-/// §208（2026-11-13 用户拍板收段）：七段收四段——
+/// §217（2026-11-13 用户拍板收段）：七段收四段——
 /// 活动／定时／浏览器／身份（顺序即此）。任务、审
 /// 核、监测三段撤出分段栏，内容并入活动段：任务与
 /// 审批本就在工作台账里有同源条目（伴生采集器
@@ -69,7 +69,7 @@ enum HubSegment: String, CaseIterable, Identifiable {
 /// 形态转正——七段全开＋模型常驻区，默认落活动段；
 /// .activity 四段形态自此无入口（Mode 定义与段集留
 /// 一版防回滚，下线归后续收口）。
-/// §208（2026-11-13 枢纽收段＋呈现对齐，用户拍板）：
+/// §217（2026-11-13 枢纽收段＋呈现对齐，用户拍板）：
 /// 分段七收四（活动/定时/浏览器/身份，任务/审核/
 /// 监测并入活动，见 HubSegment 头注）；呈现由
 /// fullScreenCover 改系统 sheet 大 detent 卡片式
@@ -108,7 +108,7 @@ struct AgentHubView: View {
     /// 落纯文本名片
     @State private var shareItem: AgentShareItem?
 
-    /// 本模式可见段：.sheet＝四段全量（§208 收段后
+    /// 本模式可见段：.sheet＝四段全量（§217 收段后
     /// 口径）；.activity＝只剩活动段（旧活动格形态，
     /// §155 起无入口、三段内容已并入活动，留定义防
     /// 回滚）
@@ -118,7 +118,7 @@ struct AgentHubView: View {
             : HubSegment.allCases
     }
 
-    /// 通知落点的段位改道（§208）：原指向任务/审核/
+    /// 通知落点的段位改道（§217）：原指向任务/审核/
     /// 监测三撤段的落点全部改落活动段——三段内容已
     /// 并入活动（审批聚焦与监测深链字段仍由 AppState
     /// 携带、活动段内对号消费），落点语义一条不丢。
@@ -246,7 +246,7 @@ struct AgentHubView: View {
             // §123（H2）：通知落点消费——按落点切到对
             // 应段（聚焦字段由对应段自己消费），消费后
             // 清零，不许陈年请求在下次手动开枢纽时复
-            // 活。§208 收段后落点改道走 segment(for:)
+            // 活。§217 收段后落点改道走 segment(for:)
             // 单点映射：原任务/审核/监测落点全部落活
             // 动段，聚焦字段（hubApprovalFocusID/
             // monitorDeepLink）由活动段对号消费
@@ -285,7 +285,7 @@ struct AgentHubView: View {
     private func loadSegment(_ segment: HubSegment, store: AgentHubStore) async {
         switch segment {
         case .activity:
-            break // 台账段自持 LedgerStore（段内 .task 驱动）；审批数据由开枢纽时的强制重拉保鲜（见 body .task），§208 后不再有独立审核段的切段加载
+            break // 台账段自持 LedgerStore（段内 .task 驱动）；审批数据由开枢纽时的强制重拉保鲜（见 body .task），§217 后不再有独立审核段的切段加载
         case .cron:
             await store.loadCronIfNeeded()
         case .browser:
@@ -554,7 +554,7 @@ struct AgentHubView: View {
             // 工作台账（§95）：段自持 LedgerStore，行
             // 下钻打开会话走既有 pendingChatSessionID
             // 通道，与旧活动行同路（sheet 模式关页、
-            // 活动模式只置位）。§208：三段并入后本段
+            // 活动模式只置位）。§217：三段并入后本段
             // 兼收审批规则区、任务/审批下钻补齐与监测
             // 合成条目——共享 hubStore 一并注入（规则
             // 与锚点数据在 store 里，与聊天就地卡同源）
@@ -575,7 +575,7 @@ struct AgentHubView: View {
 }
 
 
-/// 枢纽卡片式呈现口径（§208，用户 2026-11-13 拍板
+/// 枢纽卡片式呈现口径（§217，用户 2026-11-13 拍板
 /// 对齐 Muse 枢纽录屏形态）：系统 sheet 的大
 /// detent——iOS 26 的卡片呈现语言（圆角卡浮起、后
 /// 景缩退压暗、落定近全屏、关闭反向回缩淡出，全

@@ -269,7 +269,7 @@ final class SideChatStore {
         drafts[threadID.uuidString]
     }
 
-    /// 草稿写入唯一口。**隔离铁律（§208 立、§216
+    /// 草稿写入唯一口。**隔离铁律（§208 立、§219
     /// 全仓收口）**：本账只许收用户亲笔——调用方只
     /// 许是 ChatView 的切走回存、删线程清理与发送
     /// 后清键（三处同出亲笔生命周期，全仓 grep 对
@@ -278,7 +278,7 @@ final class SideChatStore {
     /// 走引用（按线程寻址待发状态）通道，不许经本
     /// 口进账：本账无来源标记，注入文进账即与亲笔
     /// 同形、被保活永久保护（动态讨论预填的病根，
-    /// §208 堵讨论、§216 堵点子与文件两处后门）
+    /// §208 堵讨论、§219 堵点子与文件两处后门）
     func setDraft(_ text: String, for threadID: UUID) {
         if text.isEmpty {
             drafts[threadID.uuidString] = nil
@@ -395,7 +395,7 @@ final class SideChatStore {
         category: "idea-prefill-purge"
     )
 
-    /// 一次性清扫 §216 前落盘的旧点子预填草稿：只
+    /// 一次性清扫 §219 前落盘的旧点子预填草稿：只
     /// 扫有点子关联（ideaThreadIDs）的线程，拿原
     /// 点子经 IdeaPrefillDraftCleanup 逐字再生比
     /// 对——与机器输出逐字相等才清，用户改过一字
@@ -406,7 +406,7 @@ final class SideChatStore {
     /// （IdeasStore.load）——与动态清扫同式；清扫
     /// 幂等。文件重发的旧预填无任何关联账（重发
     /// 从不登记线程↔文件对应），无从严格核验、
-    /// 不在本清扫内（§216 报告明示）
+    /// 不在本清扫内（§219 报告明示）
     @discardableResult
     func purgeLegacyIdeaDrafts(
         ideas: [BridgeIdea]

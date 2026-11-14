@@ -322,7 +322,7 @@ public enum LedgerBoard {
         calendar: Calendar = .current,
         locale: Locale = AppLocale.uiLocale
     ) -> String {
-        // §208：监测变化是「检出事件」不是一项工作，
+        // §217：监测变化是「检出事件」不是一项工作，
         // 状态词（已完成）会把语义说歪——副题直给事
         // 件词＋检出时刻，与旧监测段的变化行同口径
         if item.kind == .monitor {
