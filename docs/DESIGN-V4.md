@@ -11541,3 +11541,15 @@ run 43519373972（头 4f7d2ee）**终判绿（§190＋任务书探针例外）**
 ### §215.1 装配 CI 判读（2026-11-14 回填）
 
 run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本体编译干净）、Package/Upload success；Unit tests 步 failure——全日志断言失败 0 条、测试执行 0，失败本体为测试目标编译错恰 1 条：`TopBarHitIntermittentTests.swift:258` 直构 `TopBarGuideHost(barHeight:)` 缺边缘包 §213 新增的必填参数 `scrollHandle`（装配层跨包接口漂移：两包各自判绿、合后才暴露；全仓直构点仅两处、另一处 ComposerGuideHostTests 已在装配时融合）。按任务书纪律不自行改码救版；修法候选＝该行补 `scrollHandle: ChatListScrollViewHandle()`（与 §213 对 ComposerGuideHostTests 的适配同式、语义核过不改 rig 断言面），待主线授权后重派。全档＝release-05035-assembly-20261114.md §4/§5。本版未出包、未合 main、未打 tag。
+
+## §217 删除全域收口：共享删除后置动作＋名单对账回收＋点开 404 防御（2026-11-14；分支 feat/delete-closeout-everywhere，基线 rel-05036 头 8234e5b，只交分支不合并；立项＝用户 09:25–09:29 真机实报「旁聊删了、抽屉列表还在、点开显示 404」，定因全档＝oneday-design-review/drawer-delete-longpress-diagnosis-20261114.md 题一）
+
+**定因（服务端＋代码双实查）**：删除在服务端真成功——今晨两笔围栏 DELETE 均 200、state.db 已物理删净；残留在 App 本地：删除的本地收口只存在于抽屉自家删除流一条路（performDeleteThread：.verified 才 purgeServerSessionRecords＋deleteLocalThread），管理页（全部对话页）单删（ServerSessionRow）与批删只调 ServerSessionActions.delete＋重拉名单、从不清本地 ChatThread 与共享目录对应行，频道页行删除更不回写共享目录；全仓无「本地线程绑定的服务端会话已消失→清线程」的对账兜底。残留行点开走 ChatView.openServerSession 导入路，GET 撞 404 后 HermesError.userMessage 把状态码原文上屏。
+
+**修法（与抽屉既有正解同构，全 App 收敛一条收尾）**：
+1. **共享收口 DeletedSessionCloseout（新文件）**：服务端删除回查落定（.verified）后的唯一本地收尾——清侧账（复用 purgeServerSessionRecords）＋共享目录摘行（ServerSessionCatalog 新增 remove）＋按 serverSessionID 删绑定本地线程。未落定本地一律不动（各调用点守既有 .verified 闸）。线程删除带双重保护：sessionID 与钦定主线会话相同不动、主线线程本体（SideChatClassifier.isMain）不删；删的若是当前正在看的线程（按 currentDrawerObject＋channelViewingOrigin 判，与抽屉旧 deleteLocalThread 同语义），经 drawerDeletedThreadID 通知 ChatView 置空。抽屉 performDeleteThread 改调本收口，其私有 deleteLocalThread 退役。
+2. **接入面**：ServerSessionRow 新增 onDeleted 钩子（仅删除落定后回调）——管理页、Hermes 频道页、平台频道页三宿主接线本收口；管理页批量删除逐条落定即收口。频道页删除自此同样清本地线程与目录行。
+3. **名单对账回收**：管理页 load 两段全量（可见＋已归档）都拉成后，以并集为存活集对账：本地绑定线程的会话已不在存活集、且过真删闸（SideChatLink.mayHardDeleteOnThreadDelete，只认 oneday- 自有旁聊、拦主线/合并桶/导入会话）者，走同一收口清除——覆盖 prune 清理与他端（网页/其他客户端）删除的本地残留；任一段拉取失败不执行对账（名单不全不清）。附带硬化：可见集拉成即落位本页名单＋publish 共享目录，不再被已归档段失败连坐。
+4. **点开 404 防御**：openServerSession 导入 catch 新增「会话不存在」分型（Core HermesError 新增 isSessionNotFound＝unexpectedStatus 404 判定）：清侧账＋目录摘行，文案改人话新词条「这条会话已不在服务器上，本地列表已同步清理。」（三语入 Localizable 目录）；新增 outcome .missing——不挂导入重试条（会话已删、重试无义），频道出处清理与 .failed 同路。
+
+**验收**：新增 App 测试 DeleteCloseoutTests（收口删绑定线程/目录摘行/侧账清/主线保护/当前线程通知；对账存活集外清除、集内与非自有绑定保留）＋Core HermesErrorTests 增 isSessionNotFound 分型断言；测试只增不减。真机待验：管理页删一条旁聊→抽屉无残留、批删同口径；网页端删一条→打开管理页后抽屉对应行消失；构造残留行点开不再见状态码原文、只见人话提示且行消失。
