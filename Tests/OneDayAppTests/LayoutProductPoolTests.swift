@@ -13,13 +13,16 @@ final class LayoutProductPoolTests: XCTestCase {
 
     /// 现量测本体属 MainActor（UIView 量测的真
     /// 实口径）：参考值统一经主线取、池值在后台
-    /// ——两侧线程归属与生产一致
+    /// ——两侧线程归属与生产一致。跨边界一律经
+    /// LayoutAttributedBox 装箱（静态函数不捕获
+    /// self——Swift 6 sending 口径，测试与生产同
+    /// 一条过界路）
     @MainActor
-    private func referenceOnMain(
-        _ attributed: NSAttributedString, width: CGFloat
+    private static func referenceOnMain(
+        _ box: LayoutAttributedBox, width: CGFloat
     ) -> CGFloat {
         SelectableTextRepresentable.referenceHeight(
-            attributed: attributed, width: width
+            attributed: box.value, width: width
         )
     }
 
@@ -95,12 +98,13 @@ final class LayoutProductPoolTests: XCTestCase {
     func testPoolMatchesReferenceAcrossCorpus() async {
         let pool = LayoutMeasurePool(workerCount: 2)
         for (index, attributed) in corpus.enumerated() {
+            let box = LayoutAttributedBox(attributed)
             for width in [CGFloat(326), CGFloat(200), CGFloat(500)] {
                 let pooled = await pool.measure(
-                    attributed, width: width
+                    box.value, width: width
                 )
-                let reference = await referenceOnMain(
-                    attributed, width: width
+                let reference = await Self.referenceOnMain(
+                    box, width: width
                 )
                 let delta = abs(pooled - reference)
                 XCTAssertLessThanOrEqual(
@@ -113,12 +117,12 @@ final class LayoutProductPoolTests: XCTestCase {
 
     func testPoolDeterministicAndConcurrentSafe() async {
         let pool = LayoutMeasurePool()
-        let samples = corpus
+        let samples = corpus.map(LayoutAttributedBox.init)
         // 顺序基准
         var baseline: [CGFloat] = []
-        for attributed in samples {
+        for box in samples {
             baseline.append(
-                await pool.measure(attributed, width: 326)
+                await pool.measure(box.value, width: 326)
             )
         }
         // 并发 4 轮全语料：同串同宽结果须与顺序值
@@ -127,10 +131,10 @@ final class LayoutProductPoolTests: XCTestCase {
             of: (Int, CGFloat).self
         ) { group in
             for round in 0..<4 {
-                for (index, attributed) in samples.enumerated() {
+                for (index, box) in samples.enumerated() {
                     group.addTask {
                         (round * samples.count + index,
-                         await pool.measure(attributed, width: 326))
+                         await pool.measure(box.value, width: 326))
                     }
                 }
             }
@@ -161,7 +165,9 @@ final class LayoutProductPoolTests: XCTestCase {
         let huge = assemble([.plain(
             String(repeating: "长文本量测样本，", count: 16_000)
         )])
-        let reference = await referenceOnMain(huge, width: 326)
+        let reference = await Self.referenceOnMain(
+            LayoutAttributedBox(huge), width: 326
+        )
         let start = CFAbsoluteTimeGetCurrent()
         ledger.record(
             attributed: huge, width: 326,
@@ -189,15 +195,16 @@ final class LayoutProductPoolTests: XCTestCase {
         let huge = assemble([.plain(
             String(repeating: "并发量测样本。", count: 12_000)
         )])
+        let box = LayoutAttributedBox(huge)
         let singleStart = CFAbsoluteTimeGetCurrent()
-        _ = await pool.measure(huge, width: 326)
+        _ = await pool.measure(box.value, width: 326)
         let single = CFAbsoluteTimeGetCurrent() - singleStart
 
         let tripleStart = CFAbsoluteTimeGetCurrent()
         await withTaskGroup(of: CGFloat.self) { group in
             for _ in 0..<3 {
                 group.addTask {
-                    await pool.measure(huge, width: 326)
+                    await pool.measure(box.value, width: 326)
                 }
             }
         }
@@ -241,8 +248,9 @@ final class LayoutProductPoolTests: XCTestCase {
         for segment in product.segments {
             let width: CGFloat = segment.kind == .quote
                 ? 326 - (3 + OneDayMetrics.spacingS) : 326
-            let reference = await referenceOnMain(
-                segment.attributed, width: width
+            let reference = await Self.referenceOnMain(
+                LayoutAttributedBox(segment.attributed),
+                width: width
             )
             XCTAssertEqual(
                 segment.height, Double(reference),
@@ -296,8 +304,8 @@ final class LayoutProductPoolTests: XCTestCase {
         for attributed in samples {
             ledger.record(
                 attributed: attributed, width: 326,
-                referenceHeight: await referenceOnMain(
-                    attributed, width: 326
+                referenceHeight: await Self.referenceOnMain(
+                    LayoutAttributedBox(attributed), width: 326
                 )
             )
         }
