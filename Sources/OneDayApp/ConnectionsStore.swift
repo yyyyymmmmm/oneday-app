@@ -6,7 +6,7 @@ import OneDayCore
 /// 状态词表与面板同源（Core ConnectionStatusWording）。
 /// 凭据提交的成败与回滚都在服务端：front 验活不过会
 /// 自己撤回改动并在 detail 里说明，App 回显前先过
-/// §232 安全门（ServerErrorText）——过门原样、不过
+/// §233 安全门（ServerErrorText）——过门原样、不过
 /// 门落通用人话、原文只进诊断留痕，不许给什么显什
 /// 么；验活状态转移走 Core CredentialFlowPhase 状态机。
 @MainActor
@@ -152,7 +152,7 @@ final class ConnectionsStore {
         }
     }
 
-    /// 服务端 detail 安全出口（§232 件八）：过
+    /// 服务端 detail 安全出口（§233 件八）：过
     /// ServerErrorText 门返回修剪后的原文；不过门原
     /// 文只进诊断留痕、呈现落 fallback 通用人话
     private func safeDetail(

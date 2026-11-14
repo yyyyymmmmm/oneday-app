@@ -165,7 +165,7 @@ struct FeedView: View {
             ) {
                 Button("好", role: .cancel) {}
             }
-            // §232：点赞乐观翻心被后台否掉的轻提醒
+            // §233：点赞乐观翻心被后台否掉的轻提醒
             // （心已恢复原状，这里只告知一声）
             .alert(
                 "点赞没成功，请稍后再试。",
@@ -414,7 +414,7 @@ struct FeedView: View {
     /// ——合并会吞掉按钮的可达性
     private func actionRow(_ post: BridgeFeedPost) -> some View {
         HStack(spacing: OneDayMetrics.spacingM) {
-            // 爱心（FA-1；§232 改乐观时序）：填充态读
+            // 爱心（FA-1；§233 改乐观时序）：填充态读
             // likedAt、点按当拍先翻本地呈现，后台走
             // FeedStore.toggleLiked 幂等写＋回执对账，
             // 失败恢复原状＋轻提醒；行面只加一钮，
@@ -492,7 +492,7 @@ struct FeedView: View {
         }
     }
 
-    /// 已读回写：未读才发（§232 本地先行——markRead
+    /// 已读回写：未读才发（§233 本地先行——markRead
     /// 先落本地已读再向桥确认，失败静默留下轮名单纠正）
     private func markRead(_ post: BridgeFeedPost) {
         guard !post.isRead else { return }

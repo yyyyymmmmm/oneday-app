@@ -154,7 +154,7 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         )
     }
 
-    /// 里程碑勾选的本地乐观副本（§232）：只翻一项
+    /// 里程碑勾选的本地乐观副本（§233）：只翻一项
     /// done，其余字段原样。服务端仍是真源——写后回
     /// 读整表替换，失败以原副本恢复呈现
     public func withMilestoneDone(
@@ -176,7 +176,7 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         )
     }
 
-    /// 状态流转的本地乐观副本（§232）：completedAt
+    /// 状态流转的本地乐观副本（§233）：completedAt
     /// 由桥在流转时落字，乐观期由调用方以本地时刻占
     /// 位（重开传 nil），回读后以桥值为准
     public func withStatus(

@@ -1,7 +1,7 @@
 import XCTest
 @testable import OneDayCore
 
-/// 服务端文案安全门（§232 件八）：过门才许上屏、
+/// 服务端文案安全门（§233 件八）：过门才许上屏、
 /// 不过门落通用人话＋原文进诊断留痕——本组钉住门
 /// 的判定矩阵：人话放行、技术原文一律拦下
 final class ServerErrorTextTests: XCTestCase {

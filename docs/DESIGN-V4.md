@@ -11927,6 +11927,6 @@ run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案�
 - **件八·服务端文案安全门**（Core 新件 ServerErrorText）：服务端回带文案上屏前过门——修剪后非空、≤80 字符、单行无控制字符、至少含一个汉字、不含技术标记（URL/堆栈/花括号/0x 等）、无超 24 字符纯 ASCII token；过门才呈现、不过门落通用人话＋原文只进 ChatDiagTrace 诊断留痕。落点四处：OneDay 系 checkStatus（组版收口：桥收敛已将其沉入 BridgeClientBase 共用实现，安全门随之落基座一份）、ChannelsBridgeClient.send、ConnectionsStore（detail/验活回执/lastVerify 入店收口）、CompanionFrontClient.checkStatus（施工中发现的同族第四处，ConnectionsStore 实际客户端的错误体出口，一并收口）。残留面明示：CompanionConnection 的 note/effective 等服务端落字未过门，不在本包审计三处范围，留后续。
 - **测试**：Core ServerErrorTextTests（过门/拒门矩阵）＋乐观副本助手与回写闸矩阵；App MutationOptimisticTests（各 Store 接缝播种后验乐观即时翻面/恢复/无配置不假动）。
 
-### §232.1 CI 判读（2026-11-14 回填）
+### §233.1 CI 判读（2026-11-14 回填）
 
 run **43562099605**（workflow_dispatch，头 e228260）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成（App 阶段 Restarting ×7、exit 65）。**断言失败 0 条**（全日志无 failed 用例、无 failed 套件）。**Core 1960 执行／0 失败**——与静态预期精确对账（0.50.39 基线 1937＋本包新测 23＝ServerErrorTextTests 14＋MutationOptimisticCoreTests 9）。**App 套件 passed**：139 passed（基线 125＋MutationOptimisticTests 14）＋5 skipped（PresentationLayerScenarios 源码 XCTSkip 存量）；started 无终局行 8 条均为 §184 在案受害家族（testKeyboardUpMovesComposerOnlyDockStays／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testMarkPendingSendRetainsEntryOnDisk／testFailedTraceMaterializesWithErrorSnapshot 等，套件终局 passed）。**UI 4／0**。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-mutation-optimistic/。本包不组版（修复包，随下一版装车由主线定），未合 main、未打 tag。

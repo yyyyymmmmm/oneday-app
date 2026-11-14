@@ -1029,7 +1029,7 @@ final class AllConversationsStore {
                     .union(archived.map(\.id)),
                 appState: appState, modelContext: modelContext
             )
-            // §232 归档单真相·读面对账：抽屉的本地归
+            // §233 归档单真相·读面对账：抽屉的本地归
             // 档键自此只是服务端归档态的呈现缓存——两
             // 段名单齐全时逐条对齐（服务端已归档→补
             // 键同隐、服务端可见→清键同显，含本页恢
@@ -1063,7 +1063,7 @@ final class AllConversationsStore {
         isLoading = false
     }
 
-    /// 抽屉归档缓存对账（§232）：以服务端两段名单为
+    /// 抽屉归档缓存对账（§233）：以服务端两段名单为
     /// 准，把过回写闸的绑定线程的本地归档键对齐到服
     /// 务端归档态——同物同账，本地键只是缓存、不再
     /// 是第二真相。主线/合并桶绑定不在闸内（其本地

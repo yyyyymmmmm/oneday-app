@@ -2,7 +2,7 @@ import OneDayCore
 import XCTest
 @testable import OneDayApp
 
-/// 轻动作乐观化时序（§232）：各 Store 的乐观落点
+/// 轻动作乐观化时序（§233）：各 Store 的乐观落点
 /// 同步生效、失败恢复原状、无连接时不假动只留提
 /// 示——网络往返段由接缝两侧的同步原语钉住（翻面
 /// ＝接缝调用后立即读呈现；恢复＝以原值整行放回）

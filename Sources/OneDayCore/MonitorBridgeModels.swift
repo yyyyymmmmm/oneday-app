@@ -70,7 +70,7 @@ public struct BridgeMonitor: Decodable, Equatable, Identifiable, Sendable {
         self.goalId = goalId
     }
 
-    /// 启停开关的本地乐观副本（§232）：只翻 enabled，
+    /// 启停开关的本地乐观副本（§233）：只翻 enabled，
     /// 其余字段原样。服务端仍是真源——写后回读整表
     /// 替换，失败以原副本恢复呈现
     public func withEnabled(_ enabled: Bool) -> BridgeMonitor {

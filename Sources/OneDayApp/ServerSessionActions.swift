@@ -5,7 +5,7 @@ import SwiftUI
 /// 服务端会话四件的执行层（0.18.0，旁聊立项档 A.3 /
 /// 验收项 A3-V）：改名/置顶/归档/删除全走服务端本
 /// 体（PATCH / DELETE），2xx 只算受理——每件都 GET
-/// 回读对账才算落定，未落定返回人话原因。§232 分
+/// 回读对账才算落定，未落定返回人话原因。§233 分
 /// 档：置顶的**呈现层**改乐观（行组件先翻、失败清
 /// 覆盖＋弹原因），本执行层口径不变；其余三件维持
 /// 确认先行。抽屉名单与「全部对话」管理页共用本层与下
@@ -169,7 +169,7 @@ struct ServerSessionRow<Content: View>: View {
     @State private var showBucketArchiveConfirm = false
     @State private var busy = false
     @State private var errorText: String?
-    /// 置顶乐观覆盖（§232）：点按当拍先以此值呈现，
+    /// 置顶乐观覆盖（§233）：点按当拍先以此值呈现，
     /// 后台落定后宿主重拉的服务端值与之一致即自然接
     /// 管；失败清覆盖（回到服务端现值）＋弹原因，与
     /// 技能/MCP 开关同构。其余动作不走覆盖
@@ -219,7 +219,7 @@ struct ServerSessionRow<Content: View>: View {
             }
             .disabled(busy)
             Button {
-                // §232：置顶是纯排序态——点按当拍先
+                // §233：置顶是纯排序态——点按当拍先
                 // 翻呈现（pinOverride），后台落定走既
                 // 有 perform 纪律，失败清覆盖＋弹原因
                 let target = !isPinned
@@ -338,7 +338,7 @@ struct ServerSessionRow<Content: View>: View {
 
     /// 动作统一走法：进行中上锁；落定→宿主重拉；未
     /// 落定→弹原因（行数据不动，等重拉对齐服务端）。
-    /// onFailed（§232）：乐观覆盖类动作失败时先清覆
+    /// onFailed（§233）：乐观覆盖类动作失败时先清覆
     /// 盖恢复呈现，再弹原因
     private func perform(
         onFailed: (() -> Void)? = nil,
