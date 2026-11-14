@@ -24,6 +24,13 @@ struct IdeasView: View {
     @State private var deleteCandidate: BridgeIdea?
     /// 详情 sheet 的当前点子（0.47.0：点行不再推页）
     @State private var selectedIdeaID: String?
+    /// §216：聊天里点点子引用块回跳的待决请求——名
+    /// 单未就绪时挂起、就绪后由 resolveIdeaOpen 落
+    /// 定（FeedView resolveFeedOpen 同式）
+    @State private var pendingIdeaOpenID: String?
+    /// §216：回跳的点子已不在名单（删除/过期）时的
+    /// 诚实提示——引用块快照仍可读，不假定位
+    @State private var ideaGoneNotice = false
 
     var body: some View {
         NavigationStack {
@@ -116,6 +123,42 @@ struct IdeasView: View {
             } message: { _ in
                 Text("只删点子本身；已经转成的任务不会受影响。")
             }
+            // §216：聊天里点点子引用块的回跳——请求在
+            // 此消费（清零先行防重入），落点判定走
+            // resolveIdeaOpen（在名单开详情、名单就绪
+            // 而查无给诚实提示、未就绪挂起等名单）
+            .onChange(of: appState.ideaOpenRequest) { _, id in
+                if let id {
+                    appState.ideaOpenRequest = nil
+                    pendingIdeaOpenID = id
+                    resolveIdeaOpen()
+                }
+            }
+            .onChange(of: store.ideas) { _, _ in
+                resolveIdeaOpen()
+            }
+            .alert(
+                "这个点子已不在了",
+                isPresented: $ideaGoneNotice
+            ) {
+                Button("好", role: .cancel) {}
+            }
+        }
+    }
+
+    /// 点子回跳落点判定（§216，FeedView 的
+    /// resolveFeedOpen 同式）：名单里有即开详情
+    /// sheet；名单已就绪仍查无（点子已删/已过期）
+    /// 给诚实提示；名单未就绪不判死、挂起等下一次
+    /// 名单变化再试
+    private func resolveIdeaOpen() {
+        guard let id = pendingIdeaOpenID else { return }
+        if store.ideas.contains(where: { $0.id == id }) {
+            pendingIdeaOpenID = nil
+            selectedIdeaID = id
+        } else if case .ready = store.loadState {
+            pendingIdeaOpenID = nil
+            ideaGoneNotice = true
         }
     }
 
@@ -673,14 +716,24 @@ struct IdeaDetailView: View {
         .background(Palette.pageBG)
     }
 
-    /// 开旁聊（§122）：关联线程还在就回那条；没有关
-    /// 联（存量已采纳点子）或线程已被删，则现在补建
-    /// 一条并记关联——建线程走既有旁聊创建链（Drawer-
-    /// View.createThread／动态「讨论」同形：本地插入
-    /// ChatThread 即出生记录，服务端会话由该线程首
-    /// 发时经 SideChatLink 铸 oneday-side- 会话），
-    /// 点子上下文只在新建时预填进输入舱草稿（不代
-    /// 发，用户点发送为准）；回既有线程不覆盖草稿
+    /// 开旁聊（§122 立形；§216 引用化）：关联线程还
+    /// 在就回那条；没有关联（存量已采纳点子）或线程
+    /// 已被删，则现在补建一条并记关联——建线程走既
+    /// 有旁聊创建链（DrawerView.createThread／动态
+    /// 「讨论」同形：本地插入 ChatThread 即出生记
+    /// 录，服务端会话由该线程首发时经 SideChatLink
+    /// 铸 oneday-side- 会话）。点子上下文改走引用道
+    /// （§216，与动态「讨论」§210 同型）：新建与回
+    /// 既有两路都把引用直写目标线程的待发状态
+    /// （AppState.pendingSourceQuotesByThread 按线程
+    /// 寻址，落点决定与写入同动作），点子以引用卡
+    /// 挂目标线程发送舱（IdeaQuote 值快照），输入框
+    /// 恒空、亲笔才是草稿、不代发；§216 前只在新建
+    /// 时经 setDraft 把 IdeaChatPrefill 预填直写草稿
+    /// 账——与亲笔同形且被防丢稿保活，是通道选错
+    /// （定性见 §208），本包堵死；回既有线程的旧
+    /// 「不覆盖草稿」顾虑随之消解：引用与草稿分属
+    /// 两道，挂引用不动该线程已有的亲笔草稿
     private func openIdeaChat(_ idea: BridgeIdea) {
         let thread: ChatThread
         if let linkedID = appState.sideChats.threadID(
@@ -691,14 +744,15 @@ struct IdeaDetailView: View {
             let fresh = ChatThread()
             modelContext.insert(fresh)
             try? modelContext.save()
-            appState.sideChats.setDraft(
-                IdeaChatPrefill.make(idea: idea), for: fresh.id
-            )
             appState.sideChats.linkThread(
                 fresh.id, forIdeaID: idea.id
             )
             thread = fresh
         }
+        // §216：引用直写目标线程的待发状态（落点决定
+        // 与引用写入同动作完成），不再经种子消费
+        appState.pendingSourceQuotesByThread[thread.id] =
+            .idea(IdeaQuote(idea: idea))
         appState.drawerThreadSelection = thread.id
         appState.mainTabSwitchRequest = .chat
         dismiss()

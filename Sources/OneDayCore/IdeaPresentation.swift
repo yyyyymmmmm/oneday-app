@@ -44,16 +44,36 @@ public enum IdeaDeliverablesSection {
 /// 只进输入舱、用户点发送为准（不代发红线，与动态
 /// 「讨论」的预填口径同形）。空段整段不出现，不编
 /// 内容；依据只对生成卡带（与详情页依据小节同口径）
+/// §216 退役标注：make() 的注入调用方已清零（开旁
+/// 聊改走 IdeaQuote 引用道，见 SourceQuote.swift）；
+/// 本函数保留仅作存量清扫的逐字参照（判定见
+/// IdeaPrefillDraftCleanup），与 FeedDiscussPrefill
+/// 同命——参照漂移即清扫误判，故不删、逐项登记于此
 public enum IdeaChatPrefill {
     public static func make(
         idea: BridgeIdea, locale: Locale = AppLocale.uiLocale
     ) -> String {
-        var parts: [String] = [
-            L10n.format(
-                "我们来聊聊这个点子：《%@》",
-                locale: locale, idea.title
-            ),
-        ]
+        let headline = L10n.format(
+            "我们来聊聊这个点子：《%@》",
+            locale: locale, idea.title
+        )
+        let body = IdeaChatContext.body(idea: idea, locale: locale)
+        guard !body.isEmpty else { return headline }
+        return headline + "\n\n" + body
+    }
+}
+
+/// 点子上下文载荷组装（§216）：题头之外的全部内容
+/// 段——说明／依据／包含的内容，空段整段不出现、
+/// 不编内容（与 IdeaChatPrefill.make 的 parts 后段
+/// 逐字同口径）。IdeaChatPrefill.make（存量清扫参
+/// 照）与 IdeaQuote.body（引用载荷）共用本口，两
+/// 处拼装不许漂移，故收口一处
+public enum IdeaChatContext {
+    public static func body(
+        idea: BridgeIdea, locale: Locale = AppLocale.uiLocale
+    ) -> String {
+        var parts: [String] = []
         if !idea.detail.isEmpty {
             parts.append(idea.detail)
         }
@@ -80,5 +100,32 @@ public enum IdeaChatPrefill {
             parts.append(block)
         }
         return parts.joined(separator: "\n\n")
+    }
+}
+
+/// 旧预填草稿的存量判定（§216）：一段草稿是否为
+/// IdeaChatPrefill.make 对某点子的机器输出——三
+/// 语逐一再生、任一逐字相等才算；用户改过一字即
+/// 不相等、清扫不动（判定从严，与 FeedDiscuss-
+/// DraftCleanup 同式）。消费点只有 SideChatStore
+/// 的点子存量清扫一处
+public enum IdeaPrefillDraftCleanup {
+    /// 预填的历史生成语言候选（三档显式语言；
+    /// 「跟随系统」生成的实际语言同样落在这三档
+    /// 的某一种里）
+    public static let candidateLocales: [Locale] = [
+        Locale(identifier: "zh-Hans"),
+        Locale(identifier: "zh-Hant"),
+        Locale(identifier: "en"),
+    ]
+
+    public static func isMachinePrefill(
+        _ text: String, idea: BridgeIdea
+    ) -> Bool {
+        candidateLocales.contains { locale in
+            IdeaChatPrefill.make(
+                idea: idea, locale: locale
+            ) == text
+        }
     }
 }

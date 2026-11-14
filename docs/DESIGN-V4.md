@@ -11602,3 +11602,59 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 
 ### §210.4 分支 CI 判读（§190）
 - run 43447750856（头 e6e49d7）：Build/Package/Upload success；**失败用例 0、断言失败 0**；Core **1766** 全过（1762＋4，新增 Presentation 单测 4 法逐个在位）；HUB-LAYOUT-VERDICT=PASS；名义 failure 唯一来源＝§184 在案静默死亡 3 起（基线各轮 2–3 起同族波动）。**§190 终判绿**。报告：hub-identity-visual-report-20261113.md。
+## §216 点子/文件「重发同型后门」收口：引用槽位三族统一（2026-11-13；分支 feat/quote-backdoor-close，基线 main 30b4fc4；施工底座＝先并入 feat/feed-discuss-quote@51b2e68 作同型底座——其引用基建在 0.50.30 装配线未合 main，本包自带合并提交 a3aa76d、DESIGN 顺延 §208 与代码注释节号对齐提交 30f58f2，与 rel-05030 口径逐字一致、为 0.50.30 发版后 main 推进预消冲突）
+
+（顺延注：本节原号 §209，系 feat/quote-backdoor-close 在 main 基线自编；rel 链 §209 已为旁聊删除 409 热修线先落、§210–§215 已满，本节顺延 §216，节内容一字未动。其投递通道经 §216.8 适配补记改为按线程寻址直写，§216.2 中种子形态表述以补记为准。）
+
+背景与定性：§208 把动态「讨论」的预填直写草稿账定性为通道选错并堵死，当时同型后门另两处列另包——点子「开始吧」（IdeasView，setDraft 直写）与文件打开失败「让智能体重新发」（FileOpenView，setDraft 直写）。本包亲查补出第三个直写点：聊天宿主路的 FileOpenView 回调在 ChatView 宿主注入闭包里把整段预填文直写当前线程 input 本体——不经 setDraft、比草稿后门更直接（同线程切走回存时照样进草稿账）。三处同病一包收口。逐处原行为与改后行为、清扫可行性论证见报告 quote-backdoor-close-report-20261113.md。
+
+### 216.1 统一载荷：SourceQuote 三族（Core，SourceQuote.swift 新建）
+
+- 不平行再造第二套槽位：Core 新枚举 `SourceQuote { feed(FeedPostQuote) / idea(IdeaQuote) / file(FileQuote) }`，分发收口在 MessageQuote 新增的来源引用变体（来源引用在场优先于消息引用；§208 的 feed 专用三参变体保留作兼容面与既有钉测面，新调用点一律走新变体）。
+- IdeaQuote（值快照：ideaID/title/body/mark）：body 不带旧预填的代笔题头句（「我们来聊聊这个点子」是系统冒充用户口吻的第一人称——引用块头只作标识、不带口吻，原上下文内容零丢失）；载荷组装把 IdeaChatPrefill.make 的后段抽成共用 `IdeaChatContext.body`，make 输出逐字不变（存量清扫参照的命门，Core 钉测＋ThreePages122Tests 双守）。
+- FileQuote（值快照：name/path）：outgoing＝块头＋FileResendPrefill.make 全文——重发话术三要点（名／原路径单独成行／确认存在后单独重发）逐字承接、语义零丢失；FileResendPrefill 的生成口从此只剩引用组装一处调用。
+- IdeaChatPrefill.make 与 FeedDiscussPrefill 同命：注入调用清零后保留仅作存量清扫逐字参照，退役标注已写入其文档注，不删。
+
+### 216.2 槽位/种子/落盘三面推广（App）
+
+- ChatView：`pendingFeedQuote` → `pendingSourceQuote: SourceQuote?`（快照/清除/五处失败退回恢复成对替换）；种子 `FeedDiscussSeed/pendingFeedDiscussSeed` → `SourceQuoteSeed/pendingSourceQuoteSeed`（FeedView.discuss 改置 .feed 族）；`tryApplyFeedSeed` → `tryApplySourceSeed`；发送舱条与消息引用块各加按族分发器（ideaQuoteBar/fileQuoteBar、ideaQuoteBlock/fileQuoteBlock，几何与 feed 变体同源：左轨/细线＋两行＋✕ 命中 44）；beginReply、fork 转入、切线程清理的互斥清零同步覆盖新状态。上下文重放与同 key 重演改走 entry.sourceQuote＋新分发变体。
+- ChatEntry 落盘：新增 ideaQuote* 三字段、fileQuote* 两字段（可选＋默认 nil 轻量迁移，同 feedPost 先例）；init 的 feedQuote 参数收口为 sourceQuote 统一载荷、按族拆字段；组装读口 entry.sourceQuote（feedQuote 计算属性保留）。
+- 回跳两落点：点子引用块点击 → AppState.ideaOpenRequest＋切点子格，IdeasView 消费开详情 sheet（名单未就绪挂起等名单、就绪查无给「这个点子已不在了」诚实提示，与 resolveFeedOpen 同式）；文件引用块点击 → ChatView 内以 FileQuote.target 直接重开文件页（既有 fileOpenTarget 通道，不切格）。
+- 行为变化一处（有意）：点子回既有关联线程时旧口径不带任何上下文（「不覆盖草稿」），新口径两路都挂引用——引用与草稿分属两道，挂引用不动该线程已有的亲笔草稿，原顾虑消解。
+
+### 216.3 两处（实为三处）后门堵死
+
+- IdeasView.openIdeaChat：删 setDraft；新建与回既有两路都置 .idea 种子，linkThread 保留。
+- FileOpenView.requestResend：onRequestResend 载荷由整段 String 改 FileQuote 值；无宿主路删 setDraft、改建线程＋.file 种子＋drawerThreadSelection＋切聊天格。
+- ChatView 宿主注入闭包（§129 落点）：删 `input = prefill` 直写，改挂 .file 引用入槽（挤掉消息引用）＋聚焦，currentThreadID 在场守卫沿 §129。
+- setDraft 全仓对账：全仓调用点只剩 ChatView 三处亲笔生命周期（切线程回存亲笔／删线程清键／发送后清本线程键），SideChatStore 隔离铁律注已更新为 §209 收口口径。
+
+### 216.4 存量清扫（点子做、文件不做——不对称有据）
+
+- 点子：SideChatStore.purgeLegacyIdeaDrafts(ideas:)——凭 ideaThreadIDs 关联账＋IdeaChatPrefill.make 三语逐字再生比对（IdeaPrefillDraftCleanup），IdeasStore.load 名单成功后触发；改一字不动、原点子不在名单不碰、幂等。判据与动态包 3 完全同构。
+- 文件：重发从不登记任何线程↔文件关联账，存量预填混在亲笔草稿里无从严格核验——**不做启发式清扫**（凭结构猜测清用户草稿是红线），旧存量随用户编辑/发送自然代谢，报告明示。
+
+### 216.5 测试与口径
+
+- Core 新套件 SourceQuoteTests（24 法）：两族组装/拼装/分发四法/题头句退场/make 逐字稳定/清扫判定五法。App 新套件 SourceQuoteAppTests（5 法）：清扫逐字清＋幂等＋关联保留/改字留/亲笔零误伤/原点子不在不清/空名单不动作。feed 既有套件（Core 19 法＋App 6 法）随底座合并作回归网。Core 只增不减、三语词条 validate 通过（2927 键，新加「回到点子/打开文件/这个点子已不在了」三键）。
+- 视图层挂载（种子消费/条/块呈现/回跳落点）无现成视图测试基建，与 §208 同口径靠 CI 编译＋真机待验，不冒充单测覆盖。
+
+### 216.6 CI 判读（未决，2026-11-13 21:42 记）
+
+分支 CI run 43432366124（head 5c79f2e，workflow_dispatch 触发）：排队约 25 分钟后 job 已启动在跑；监看进程于 21:42 撞 GitHub API 速率上限（403 rate limit）断线，run 终局结论未取得。按硬停纪律本轮不再重试 GitHub 请求——§190 终判（jobs 结论＋全日志断言失败计数＋Core 计数对账＋§184 死亡名单比对）待主线/后续轮次在限流恢复后补做；补判前本包不自称判绿。
+
+### 216.7 真机待验（组版随车）
+
+①点子「开始吧」：新开与回既有两路引用卡挂舱、输入框空、✕ 可清、发送后服务端收到引用块形态、点引用块回跳点子详情；②文件重发两路（聊天内打开失败→重发挂当前线程引用；文件页打开失败→新建对话挂引用）；③引用发送后杀进程重开，消息引用块在、点块回跳通；④回既有点子线程时其原有亲笔草稿仍在输入框（双道不相扰）；⑤存量：旧版点子预填草稿在点子名单加载后被清、改过的草稿一字未动；⑥深色＋AX 大字号各扫一帧引用条/块。
+
+### 216.8 适配补记：投递改按线程寻址直写（2026-11-14；分支 feat/quote-backdoor-threadaddr，基线 rel-05036@8234e5b）
+
+本包原形态（§216.2）三族统一走 SourceQuoteSeed＋AppState.pendingSourceQuoteSeed＋ChatView tryApplySourceSeed 种子消费——而 feed 族的种子通道已在 §210 被定因退役（五报 1「讨论引用没挂上」的病根：全局一次性种子＋视图本地态＋事件顺序消费），0.50.36 装配时结构性冲突停步（release-05036-assembly-20261114.md §3）。本适配包只换投递通道、其余全部原样：
+
+- **写入点三处改直写**：IdeasView.openIdeaChat 直写 AppState.pendingSourceQuotesByThread[thread.id] = .idea(...)；FileOpenView.requestResend 无宿主路直写同表 .file(...)；ChatView 宿主闭包在当前线程直接置派生槽位（.file）。FeedView.discuss 零改动（基线本就是 §210 直写形态）。
+- **状态形**：新增 AppState.pendingSourceQuotesByThread（[UUID: SourceQuote]，只承载 .idea/.file；.feed 沿 §210 既有 pendingFeedQuotesByThread 不重复存放）；ChatView 新增同型派生读写视图 pendingSourceQuote；种子三件（SourceQuoteSeed/pendingSourceQuoteSeed/tryApplySourceSeed）在本包范围内退役干净（全仓 grep 仅剩 §210 自家退役注记两处历史提及）。
+- **槽位互斥跨表兑现**：呈现收口成对——applyPendingFeedQuoteIfNeeded 在场收口时清同线程来源表条目，新增 applyPendingSourceQuoteIfNeeded 同式清消息引用并让位同线程 feed 条目（后入覆盖）；beginReply、宿主闭包同律清三面；切线程 onChange 对两表同点作废离开线程条目；两表各挂 onChange 收口（写入即聚焦、不等切换事件）。
+- **发送链**：send() 双快照（feedQuote/sourceQuote）＋合并拼装口 combinedSourceQuote（sourceQuote ?? feedQuote.map(.feed)），落盘构造与 outgoingContext 统一走 MessageQuote 来源引用变体；outgoingContext 形参 feedQuote→sourceQuote、历史回放改读 entry.sourceQuote；失败重发两路（resendFailedEntry 的条目复制补带 sourceQuote——基线复制口径只带消息引用、来源引用随复制丢失，本包按「条目即事实源」补齐，feed 族同受益；resendPending 拼装补 entry.sourceQuote）与同 key 重演（runReplayInput）同步改走统一读口。§129 FileResendPrefill 冻结件与「它原来的路径是：<路径>」同行形态未动（2026-11-14 主线裁决）。
+- **原样保留**：Core 类型与三族字段语义、ChatEntry 五新字段与 init 拆字段、条/块按族分发、回跳两落点、存量清扫、全部新测试（Core 24＋App 5，零改写——无一钉种子消费形态）、三新词条（validate_i18n 通过、2996 键）。静态计数：Core 1853→1877（+24）、App 94→99（真测试口径 +5；正则口径 95→100）、UI 4 不变。
+- **CI 判读（2026-11-14 终判绿）**：run 43538992235（头 5019df1）——断言 0、Core 1877/0（1853＋24 精确）、App 唯一用例 99 个 0 failed（结果行 88 过＋5 跳过、差额与 §184 宿主死 7 起同签名）、UI 4/0、SourceQuoteTests 24/24、SourceQuoteAppTests 5/5、栏位探针直接通过（6.328s）；名义红仅 §184 宿主死亡（在案例外）。首轮 run 43537546112 暴露基线既有合并漂移（FailingHermesClient 缺 sessionMutationSnapshot 桩、App 测试目标编译失败零执行），已以提交 5019df1 补桩适配——.36 组版线须同步此适配。详见施工报告 quote-backdoor-threadaddr-report-20261114.md §6。
+
