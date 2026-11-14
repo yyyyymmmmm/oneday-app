@@ -35,7 +35,7 @@ actor BoxMCPClient {
     private var lastStateAt: Date?
 
     /// F7.3：最后确认的页面缓存
-    private var lastKnownPage: [String: Any]?
+    private var lastKnownPage: MCPPageRef?
 
     init(mcpURL: URL, apiKey: String) {
         self.mcpURL = mcpURL
@@ -118,12 +118,20 @@ actor BoxMCPClient {
     // MARK: - F7.3 lastKnownPage 缓存
 
     func updateLastKnownPage(_ page: [String: Any]) {
-        lastKnownPage = page
+        let title = page["title"] as? String ?? ""
+        let url = page["url"] as? String ?? ""
+        let checkedAt = page["checkedAt"] as? String ?? ISO8601DateFormatter().string(from: Date())
+        lastKnownPage = MCPPageRef(title: title, url: url, checkedAt: checkedAt)
     }
 
     func getLastKnownPage() -> (page: [String: Any]?, checkedAt: String?) {
         guard let page = lastKnownPage else { return (nil, nil) }
-        return (page, page["checkedAt"] as? String)
+        let dict: [String: Any] = [
+            "title": page.title,
+            "url": page.url,
+            "checkedAt": page.checkedAt
+        ]
+        return (dict, page.checkedAt)
     }
 
     // MARK: - 工具调用

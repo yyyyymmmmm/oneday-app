@@ -151,6 +151,21 @@ private func jsonValueToAny(_ value: JSONValue) -> Any {
     }
 }
 
+// MARK: - MCP 页面引用（F7.3）
+
+/// MCP 页面引用（Sendable 形态，用于跨 actor 边界传递）
+public struct MCPPageRef: Sendable, Codable, Equatable {
+    public let title: String
+    public let url: String
+    public let checkedAt: String
+
+    public init(title: String, url: String, checkedAt: String) {
+        self.title = title
+        self.url = url
+        self.checkedAt = checkedAt
+    }
+}
+
 // MARK: - SSE 响应解析（F4）
 
 /// 从 SSE 格式的响应数据中提取 JSON-RPC 响应
