@@ -12220,3 +12220,9 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 **三、审批规则归位（九项⑦）**。HubApprovalRulesView→ApprovalRulesView 迁入设置页「偏好与权限→审批规则」（SettingsCatalog 新条目＋AgentRoute.approvalRules＋设置页目的地，共享 sharedHubStore 同源同撤销路、未就绪四态如实呈现）；台账首节临时规则面撤下、只留审批记录（条目与详情即记录入口）；聊天卡撤销指路文案改设置页口径。
 
 **静态计数预期**：Core **2016**（2008＋DevicePermissionFlowTests 8）；App **147 通过＋5 skipped**（零新增、只改实现与接线）；UI **8**。i18n：3082 键（＋56 新键、－2 死键）×三语、validate 通过。伴生：device_bridge/device_sync 自测全绿后随 1.0.52 部署（只同步 device_bridge.py 一件）。
+
+### §244.1 CI 判读与部署状态回填（2026-11-14）
+
+- **一轮 run 43583034587**：Build 步失败——本包两个新文件（DevicePermissionCoordinator/DevicePermissionCards）漏模块导入（OneDayCore/OneDayDesign），属施工疏漏、已随下一提交修复；无其他错误。
+- **二轮 run 43583348160 §190 终判绿（带 §184 在案登记）**：Build/Package/Upload IPA 全 success；**断言失败 0 条、failed 用例 0 条**；Core **2016/2016** 与 §244 预期精确对账（2008＋新测 8）；App **149 通过＋5 skipped（PresentationLayerScenarios 五条存量）＋5 条 started 无终局**，方法全集 159 与 .41 轮一致（其 7 条无终局里 GoalQuote 等本轮已通过）；UI **8/8**；MATRIX/HUB-LAYOUT/顶簇 VERDICT 三连 PASS。无终局 5 条＝§184 长期在案 2 条（testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel）＋本轮新截断 3 条登记在案（testMarkPendingSendRetainsEntryOnDisk、testBarGrowth_topRisesBottomPinned、testAnchorRegistersAncestorScrollView，均与本包 diff 零交集、属宿主重启截断签名）。
+- **伴生部署未执行**：生产现行 1.0.52（审批卡对齐线同日已叠层部署）；本包 device_bridge.py 目标版本顺延 **1.0.53**。分身侧三路通道皆断（bt-ssh 助手不在本 VM、保险库取钥走浏览器路线分身不可用；宝塔 API 的 IP 白名单拒本 VM 出口；腾讯云凭据下无此机实例），部署配方与回滚基线已整册留交卷报告 §七，主线持钥后照 1.0.52 叠层法执行。桥未到前新版 App 的 ask/notice/resume 渐进兼容、不破链。
