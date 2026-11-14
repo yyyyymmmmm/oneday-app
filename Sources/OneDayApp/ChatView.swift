@@ -629,31 +629,43 @@ struct ChatView: View {
         appState.hideProviderGroup(key: key)
     }
 
+    /// 本会话模型账的取键入参（§227 账合一派生）：
+    /// 胶囊读/写与枢纽共用 Core SessionModelAccount
+    /// 一条派生链——线程实际绑定优先，钦定主线未绑
+    /// 定时回落 SideChatStore 的钦定 id（派生缓存、
+    /// 非独立事实源）；不许再在各面内联拼这条回落链
+    private var currentModelAccountIDs:
+        (serverSessionID: String?, threadID: UUID?)
+    {
+        let thread = currentThread
+        return SessionModelAccount.accountIDs(
+            threadServerSessionID: thread?.serverSessionID,
+            threadID: thread?.id,
+            isMainThread: thread != nil
+                && thread?.id == appState.sideChats.mainThreadID,
+            mainServerSessionID: appState.sideChats.mainServerSessionID
+        )
+    }
+
     /// 本会话的执行选择（§153 B2）：顶栏触发器、发送
     /// 链、枢纽模型区共用此一口——显示与执行同源。
     /// 会话键：线程的服务端会话 id 优先（主线读
     /// SideChatStore 的主线 id），未链接时线程 id，
     /// 无线程（空态）落主线缺省键
     private var currentChoice: ChatModelChoice {
-        let thread = currentThread
-        let serverID = thread?.serverSessionID
-            ?? (thread != nil
-                && thread?.id == appState.sideChats.mainThreadID
-                ? appState.sideChats.mainServerSessionID : nil)
+        let ids = currentModelAccountIDs
         return appState.sessionModelChoice(
-            serverSessionID: serverID, threadID: thread?.id
+            serverSessionID: ids.serverSessionID,
+            threadID: ids.threadID
         )
     }
 
     /// 本会话选择的写入（§153）：与 currentChoice 同键
     private func selectCurrentChoice(_ choice: ChatModelChoice) {
-        let thread = currentThread
-        let serverID = thread?.serverSessionID
-            ?? (thread != nil
-                && thread?.id == appState.sideChats.mainThreadID
-                ? appState.sideChats.mainServerSessionID : nil)
+        let ids = currentModelAccountIDs
         appState.selectSessionModel(
-            choice, serverSessionID: serverID, threadID: thread?.id
+            choice, serverSessionID: ids.serverSessionID,
+            threadID: ids.threadID
         )
     }
 
@@ -1318,6 +1330,19 @@ struct ChatView: View {
             // 线」已被用户 12:56 录屏纠正作废——落点改
             // 走下方 ChatLandingResolution 恢复上次线
             // 程，本步只保证钦定主线存在、供解析兜底）
+            // §227.2：化石迁移的入参必须取对齐前的一
+            // 对 id 副本——ensureMainThread 会把钦定线
+            // 程绑定强制对齐到 store 副本，事后无从分
+            // 辨分叉；裁决在落点后异步跑（须回读服务
+            // 端会话行），与下方链接预热同批发
+            let fossilPair = (
+                threadBinding: appState.sideChats.mainThreadID
+                    .flatMap { id in
+                        threads.first { $0.id == id }?
+                            .serverSessionID
+                    },
+                storeID: appState.sideChats.mainServerSessionID
+            )
             let mainID = ensureMainThread()
             // 0.4.5：同理补消费抽屉线程选择（从其他格开
             // 抽屉选线程切过来时，本页可能尚未挂载、
@@ -1363,6 +1388,27 @@ struct ChatView: View {
             // 落 SideChatStore 设置页可见、发送前还会
             // 再试——旧「失败静默」口径已作废）
             Task { await ensureMainLink() }
+            // §227.2：主线模型化石一次性迁移（钦定键
+            // 下若有 B 收口写进的化石存量且与线程账冲
+            // 突，落地对齐后会成合一账唯一存量、三面
+            // 全落化石——按线程账现值归一，规则见
+            // Core MainlineModelFossilMigration）
+            if let mainID {
+                Task {
+                    let action = await appState
+                        .runMainlineModelFossilMigrationIfNeeded(
+                            threadServerSessionID:
+                                fossilPair.threadBinding,
+                            threadID: mainID,
+                            storeServerSessionID: fossilPair.storeID
+                        )
+                    if action != .keep {
+                        ChatDiagTrace.record(
+                            "主线模型化石迁移：钦定键存量与服务端会话行 model 一致且与线程账冲突，已按线程账现值归一（\(action)）"
+                        )
+                    }
+                }
+            }
             // 0.32.1（F05 止血）：原选模型已停用、选择
             // 被落回默认时的一次性如实提示——消费后落
             // 回值落盘、不再重现；已有提示在显时不抢占
@@ -6115,6 +6161,12 @@ private struct ComposerBarLayout: Layout {
             if let main = threads.first(where: { $0.id == id }) {
                 let sessionID = store.ensureMainServerSessionID()
                 if main.serverSessionID != sessionID {
+                    // §227：改绑前先迁账——旧绑定键下的
+                    // 存量选择跟到钦定键下，不许留旧账发霉
+                    appState.migrateSessionModelChoice(
+                        fromServerSessionID: main.serverSessionID,
+                        toServerSessionID: sessionID
+                    )
                     main.serverSessionID = sessionID
                     try? modelContext.save()
                 }
@@ -6349,6 +6401,13 @@ private struct ComposerBarLayout: Layout {
                 adoptsOnTitleConflict: true
             )
             if linkedID != wantedID {
+                // §227：改绑/收养落定先迁账（旧键存量选
+                // 择跟到新键），再改存钦定副本——副本与
+                // 下方线程绑定在本函数内一并对齐同值
+                appState.migrateSessionModelChoice(
+                    fromServerSessionID: wantedID,
+                    toServerSessionID: linkedID
+                )
                 store.setMainServerSessionID(linkedID)
             }
             if let mainThread {
@@ -6371,46 +6430,40 @@ private struct ComposerBarLayout: Layout {
         }
     }
 
-    /// 主线模型回读收口（§220）：链接确立后以服务端
-    /// 会话的 model 字段为准刷新本会话选择——本地自
-    /// 存选择（如脱钩重建期落下的残留）与服务端不一
-    /// 致时服务端压本地：经既有 selectSessionModel
-    /// 通道写账落盘（呈现仍走 SessionModelResolution
-    /// 既有口径），并留痕。服务端无 model/回读失败/
-    /// 两者一致时不动账。用户在模型面主动切换的路
-    /// 径不经此处（切换仍走 selectCurrentChoice＋发
-    /// 送时推服务端，语义不变）
+    /// 主线模型回读比对（§220 立项、§227 组版改只读）：
+    /// 链接确立后回读服务端会话的 model 字段，只与本
+    /// 地解析执行值做只读比对——服务端字段是创建时代
+    /// 化石、对主线无执行效力，**永不据此写账**（§227
+    /// 冻结字段裁决：服务端 model 字段永不写入本地选
+    /// 择账；B 原「服务端压本地、经 selectSessionModel
+    /// 写账」的收口形态于 0.50.38 组版退役，化石入账
+    /// 的唯一写点就此关闭）。不一致时只经 ChatDiag-
+    /// Trace 留痕，执行值保持 SessionModelResolution
+    /// 解析链原样；服务端无 model/回读失败/两者一致
+    /// 时无痕不动。已写入的存量化石由 §227.2 一次性
+    /// 迁移处置，与本比对是两件事、不可互替
     private func reconcileMainlineModelFromServer(
         linkedID: String, mainThread: ChatThread?
     ) async {
         guard let session = try? await appState.performAdmin({ client, config in
             try await client.serverSession(config: config, id: linkedID)
         }) else { return }
-        let local = appState.sessionModelChoice(
+        let key = AppState.sessionModelKey(
             serverSessionID: linkedID, threadID: mainThread?.id
         )
-        let adopted = MainlineModelReconcile.serverModelToAdopt(
-            serverModel: session.model.map {
-                ModelDisplayNames.canonicalID(for: $0)
-            },
-            localModel: ModelDisplayNames.canonicalID(for: local.model)
-        )
-        guard let adopted else { return }
-        let groupChoice = appState.chatModelGroups
-            .flatMap(\.choices)
-            .first {
-                ModelDisplayNames.canonicalID(for: $0.model) == adopted
-            }
-        appState.selectSessionModel(
-            ChatModelChoice(
-                model: adopted,
-                providerField: groupChoice?.providerField,
-                isDefault: groupChoice?.isDefault ?? false
+        let reading = SessionModelTruth.reading(
+            stored: appState.sessionModelChoices[key],
+            groups: appState.chatModelGroups,
+            serverDefault: SessionModelResolution.serverDefaultChoice(
+                in: appState.chatModelGroups,
+                defaultModel: appState.defaultModel
             ),
-            serverSessionID: linkedID, threadID: mainThread?.id
+            serverReportedModel: session.model
         )
+        guard reading.serverReportDisagrees,
+              let execution = reading.execution else { return }
         ChatDiagTrace.record(
-            "主线模型回读收口：本地自存 \(local.model) 与服务端会话不一致，已按服务端 \(adopted) 改账（会话 \(linkedID)）"
+            "主线模型回读比对：服务端会话报告 \(session.model ?? "") 与本地执行值 \(execution.model) 不一致——服务端字段为化石值、只留痕不写账（会话 \(linkedID)）"
         )
     }
 

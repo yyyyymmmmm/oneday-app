@@ -161,34 +161,11 @@ final class MainlineAdoptionTests: XCTestCase {
         )
     }
 
-    // MARK: - 模型回读收口判定
+    // MARK: - 模型回读判定（已退役）
 
-    func testModelReconcileAdoptsServerWhenDiffers() {
-        XCTAssertEqual(
-            MainlineModelReconcile.serverModelToAdopt(
-                serverModel: "claude-sonnet-4-6",
-                localModel: "claude-haiku-4-5-20251001"
-            ),
-            "claude-sonnet-4-6"
-        )
-    }
-
-    func testModelReconcileKeepsLocalWhenSameOrServerMissing() {
-        XCTAssertNil(
-            MainlineModelReconcile.serverModelToAdopt(
-                serverModel: "claude-sonnet-4-6",
-                localModel: "claude-sonnet-4-6"
-            )
-        )
-        XCTAssertNil(
-            MainlineModelReconcile.serverModelToAdopt(
-                serverModel: nil, localModel: "claude-haiku-4-5-20251001"
-            )
-        )
-        XCTAssertNil(
-            MainlineModelReconcile.serverModelToAdopt(
-                serverModel: "", localModel: "claude-haiku-4-5-20251001"
-            )
-        )
-    }
+    // 原 testModelReconcile* 两法随 MainlineModelReconcile
+    // .serverModelToAdopt 于 0.50.38 组版退役（§227 冻结
+    // 字段裁决：服务端 model 永不写账）；回读比对语义由
+    // SessionModelAccountTests 的 SessionModelTruth 读数
+    // 测试覆盖，本处留记防计数对账误判为漏删。
 }

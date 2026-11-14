@@ -194,6 +194,145 @@ final class AppState {
         persistSessionModelChoices()
     }
 
+    /// 会话账迁键（§227 模型账合一）：主线链接改绑
+    /// （服务端改派/收养回执）落定新 id 时，旧键下的
+    /// 存量选择迁到新键下——不迁则用户的既有选择被
+    /// 留在旧键发霉、新键回落默认，呈现为「换了会话
+    /// 模型就变了」。语义：目标键已有存量时不覆盖
+    /// （那是新会话自己的账）；源账保留不删（旧 id
+    /// 若仍是活会话，它的账不许被主线迁账误伤）。
+    /// 返回是否实际迁入
+    @discardableResult
+    func migrateSessionModelChoice(
+        fromServerSessionID: String?, toServerSessionID: String?
+    ) -> Bool {
+        guard let from = fromServerSessionID, !from.isEmpty,
+              let to = toServerSessionID, !to.isEmpty,
+              from != to else { return false }
+        let fromKey = Self.sessionModelKey(
+            serverSessionID: from, threadID: nil
+        )
+        let toKey = Self.sessionModelKey(
+            serverSessionID: to, threadID: nil
+        )
+        guard let choice = sessionModelChoices[fromKey],
+              sessionModelChoices[toKey] == nil else { return false }
+        sessionModelChoices[toKey] = choice
+        persistSessionModelChoices()
+        return true
+    }
+
+    /// 化石迁移一次性标记键（§227.2）：裁决完成（服
+    /// 务端值在手、五条核完，命中与未命中同）才置；
+    /// 服务端值取不到不置、下次落地再试
+    private static let fossilMigrationHandledKey =
+        "mainlineModelFossilMigrationHandled"
+
+    var mainlineFossilMigrationHandled: Bool {
+        UserDefaults.standard.bool(
+            forKey: Self.fossilMigrationHandledKey
+        )
+    }
+
+    /// 化石迁移裁决执行（§227.2，同步、供单测直调）：
+    /// 入参为对齐前捕获的一对 id（线程绑定＋钦定副
+    /// 本）与钦定会话服务端行 model；决策走 Core
+    /// MainlineModelFossilMigration 五条合取，本函数
+    /// 只负责取两键存量/线程账解析值、按裁决动账落
+    /// 盘。不碰一次性标记（标记归 runner，须以「服
+    /// 务端值在手」为准置位）
+    @discardableResult
+    func adjudicateMainlineModelFossilMigration(
+        threadServerSessionID: String?, threadID: UUID?,
+        storeServerSessionID: String?,
+        serverReportedModel: String?
+    ) -> MainlineModelFossilMigration.Action {
+        let diverged: Bool = {
+            guard let binding = threadServerSessionID, !binding.isEmpty,
+                  let store = storeServerSessionID, !store.isEmpty
+            else { return false }
+            return binding != store
+        }()
+        let storeKey = Self.sessionModelKey(
+            serverSessionID: storeServerSessionID, threadID: nil
+        )
+        let threadKey = Self.sessionModelKey(
+            serverSessionID: threadServerSessionID, threadID: threadID
+        )
+        let action = MainlineModelFossilMigration.action(
+            copiesDiverged: diverged,
+            storeStored: sessionModelChoices[storeKey],
+            threadStored: sessionModelChoices[threadKey],
+            threadResolvedModel: sessionModelChoice(
+                serverSessionID: threadServerSessionID,
+                threadID: threadID
+            ).model,
+            serverReportedModel: serverReportedModel
+        )
+        switch action {
+        case .keep:
+            break
+        case .clearStoreEntry:
+            sessionModelChoices.removeValue(forKey: storeKey)
+            persistSessionModelChoices()
+        case .adoptThreadStored:
+            if let threadStored = sessionModelChoices[threadKey] {
+                sessionModelChoices[storeKey] = threadStored
+                persistSessionModelChoices()
+            }
+        }
+        return action
+    }
+
+    /// 化石迁移一次性 runner（§227.2）：落地时以对
+    /// 齐前捕获的 id 对调用。闸序：已处置→返；未分
+    /// 叉→返（单账常态、无须裁决亦不置标记，将来真
+    /// 分叉时仍有机会）；分叉但钦定键无存量→无化石
+    /// 可清、置标记返；分叉且有存量→回读钦定会话服
+    /// 务端行 model（取不到不置标记、下次再试），在
+    /// 手才裁决并置标记（命中处置与核完未命中同）
+    @discardableResult
+    func runMainlineModelFossilMigrationIfNeeded(
+        threadServerSessionID: String?, threadID: UUID?,
+        storeServerSessionID: String?
+    ) async -> MainlineModelFossilMigration.Action {
+        guard !mainlineFossilMigrationHandled else { return .keep }
+        guard let binding = threadServerSessionID, !binding.isEmpty,
+              let storeID = storeServerSessionID, !storeID.isEmpty,
+              binding != storeID else { return .keep }
+        let storeKey = Self.sessionModelKey(
+            serverSessionID: storeID, threadID: nil
+        )
+        guard sessionModelChoices[storeKey] != nil else {
+            UserDefaults.standard.set(
+                true, forKey: Self.fossilMigrationHandledKey
+            )
+            return .keep
+        }
+        let serverModel: String?
+        do {
+            serverModel = try await performAdmin { client, config in
+                try await client.serverSession(
+                    config: config, id: storeID
+                ).model
+            }
+        } catch {
+            return .keep
+        }
+        guard let serverModel, !serverModel.isEmpty else {
+            return .keep
+        }
+        let action = adjudicateMainlineModelFossilMigration(
+            threadServerSessionID: binding, threadID: threadID,
+            storeServerSessionID: storeID,
+            serverReportedModel: serverModel
+        )
+        UserDefaults.standard.set(
+            true, forKey: Self.fossilMigrationHandledKey
+        )
+        return action
+    }
+
     private func persistSessionModelChoices() {
         let dict: [String: [String: String]] = sessionModelChoices
             .mapValues { choice in

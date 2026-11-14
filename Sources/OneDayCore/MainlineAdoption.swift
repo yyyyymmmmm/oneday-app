@@ -90,18 +90,10 @@ public enum MainlineAdoptionDirective: Sendable, Equatable {
     }
 }
 
-/// 主线模型回读收口判定（DESIGN §220）：链接确立后
-/// 服务端会话的 model 字段是真值——非空且与本地自
-/// 存选择不同（入参两侧均为归一后的模型 id）时返
-/// 回应写入本地账的服务端模型；服务端无值或两者
-/// 一致时返回 nil（保持本地、不动账）。
-public enum MainlineModelReconcile {
-    public static func serverModelToAdopt(
-        serverModel: String?, localModel: String
-    ) -> String? {
-        guard let serverModel, !serverModel.isEmpty,
-              serverModel != localModel
-        else { return nil }
-        return serverModel
-    }
-}
+/// 主线模型回读判定（DESIGN §220 立项）：原
+/// MainlineModelReconcile.serverModelToAdopt（以服务
+/// 端会话 model 字段压本地写账）于 0.50.38 组版随
+/// §227 冻结字段裁决退役——服务端字段是化石值、永
+/// 不入本地选择账；回读比对改走 SessionModelTruth
+/// 只读读数（SessionModelAccount.swift），不一致只
+/// 留痕不写账。本注为退役墓志，防后人复活写账路。

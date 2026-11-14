@@ -11791,3 +11791,25 @@ run **43543573208**（头 4df97c0）§190 判读：job build-native 名义 failu
 - **run 43547676991**：探针 `testEdgeEffectAttributionProbe` **passed（22.500s）**；断言失败 0 条、全日志无 failed 用例；`Exceeded timeout` 0 次（超时签名未现）；Core 1854/0（与对齐基线精确同数、本包零新增）；UI 4/4；栏位探针直过（5.339s）；§184 宿主重启 7 起（在案形态、步名义 failure 由此）。
 - **run 43549643362**：探针 **passed（27.445s）**；断言 0、failed 用例 0、超时 0 次；Core 1854/0；UI 4/4；栏位探针直过（6.016s）；宿主重启 7 起。
 - 两轮气泡时代采样逐值复现：深 bottomRest 舱区 生产 30｜消融 45（软化比≈2/3）、浅 bottomRest 舱区 32｜35、浅 composerMargin 8｜6、浅坞 3｜14（构造同色区绝对帽成立）、topUnder 舱区 生产 70＜消融 104（新帽 80 内、相对严断成立）。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-edge-recal/。
+
+## §227 模型账合一：取键单派生＋链接迁账＋服务端报告值不落账（2026-11-14；分支 feat/model-account-unify，基线 rel-05036@8234e5b；诊断 drawer-delete-longpress-diagnosis-20261114.md 题三）
+
+（顺延注：本节在合一线自编 §216；rel 链 §216 已为 0.50.36 组版节占用，0.50.38 组版顺延为 §227，节内容一字未动、代码注释自指同步改 §227；§227.2 即原 §216.2 存量化石迁移。）
+
+用户真机实报（2026-11-14 09:20，装主线 B 预览）：枢纽「会话模型」行显 DeepSeek Flash、聊天页胶囊显 claude-sonnet-4-6。定因（诊断题三，服务端实查＋双树读码）：枢纽与胶囊读两本账——胶囊按当前主线线程记录的 serverSessionID 取键、枢纽按 SideChatStore 持久化的 mainServerSessionID 取键，两份 id 副本分叉即两账分叉；被收养旧主线的服务端会话行 model 字段冻结在 deepseek-flash（2026-11-10 DeepSeek 时代存量），主线 B 的链接回读收口（§210 其树口径）以该字段为真值写账，把化石钉进枢纽账。连带隐患：两键分叉时枢纽点选写枢纽账、发送不认——「改了没变」。
+
+**合一口径（本节定版）**：
+1. **取键单派生**：模型账取键入参只许一条派生链，落 Core 纯函数 `SessionModelAccount`——线程实际绑定优先；钦定主线线程未绑定时回落 SideChatStore 副本（派生缓存）；非主线线程不回落。胶囊（ChatView.currentChoice/selectCurrentChoice）、枢纽（AgentHubView 读＋选择面写）共用此函数，枢纽改经 @Query 读钦定主线线程的实际绑定，不再独立持键。发送的会话身份仍归链接层（SideChatLink.sendPlan），模型账跟随链接落定后的同一 id——链接层的对齐与迁账（下条）保证落定后全场同 id。
+2. **链接迁账＋对齐**：ensureMainLink 在 linkedID≠wantedID（改派/收养）时先迁账（`AppState.migrateSessionModelChoice`：目标键无存量才迁、源账保留不删，防误伤仍活着的旧会话）再改存 store 副本；ensureMainThread 存量对齐改绑前同迁。线程绑定与 store 副本在链接落定时强制同值（既有动作，本节起与迁账成对出现）。
+3. **服务端报告值不落账（冻结字段裁决）**：服务端会话行 model 字段定性为回执/化石值——不是用户选择记录。执行值只由既有解析链决定（存量选择＞配置默认＞分组首项）；Core `SessionModelTruth.reading` 把报告值挡在解析外、只产出「与执行值不一致」的只读标记供留痕，**任何调用方不许据报告值改账**。主线 run 逐请求带出解析值（driveRun）、主线从不回写会话行字段（relock 回写仅旁聊），故该字段对主线是纯化石——B 收口以之为真值写账是其病版本身：键分叉时表现为枢纽一面错显，键合一后若保留该写账，化石将成存量选择并真实改变后续 run 的执行模型（可把已欠费下线的通道重新设为执行模型）。B 正式组版装配时其 reconcile 写账须按本节撤销/改走 SessionModelTruth 只读比对（装配注意见施工报告 §7）；B 的收养/链接/发送路径不在此列、不许动。
+4. **死代码清理**：AgentHubStore.shareText（旧分享文本、无调用方、第三个读枢纽账的点）随本包删除，防将来误接复活分叉。
+
+**验收**：Core SessionModelAccountTests（派生矩阵＋枢纽式≡胶囊式同键定理＋主线专用派生）与 SessionModelTruthTests（化石场景执行值不动、报告不一致只标记；存量/默认/报告同值各分支）；App ModelAccountUnifyAppTests（迁账语义：目标空才迁/目标占用不覆盖/源保留；枢纽派生入参落键≡胶囊键的账面同源断言）。真机终验（组版随车）：枢纽行与胶囊同值、枢纽改模型后主线发送随之变、收养主线（旧 deepseek 化石会话）枢纽不再显 deepseek-flash。回滚点：单分支整回（Core 两新件＋App 四处接线＋DESIGN 本节）。
+
+### §227.1 CI 判读回填（2026-11-14）
+
+run 43543959202（头 5715391＝本包 163ad79＋桩适配 cherry-pick 自 rel-05036 的 99c0067）：Build/Package/Upload success；**Core 1864/0**（1853＋11 精确、新 11 法逐条过）、**App 86 过＋5 跳过**（本包 4 法逐条过；§184 宿主重启 7 起在案）、**UI 4/0**；唯一红＝EdgeEffectProbeTests 归因探针**异步等待超时**（非断言；同探针在 rel-05037-prep 轮以像素断言签名单红、已登记保留项）——本包零触碰边缘面，判**终判绿（带保留）**，探针随 .37 装配轮统一对账。全档＝model-account-unify-report-20261114.md §6。
+
+### §227.2 存量化石一次性迁移（2026-11-14 补记；同分支跟进）
+
+§227 验收第三条（收养主线枢纽不再显 deepseek-flash）在用户实机存量下不经处置不能成立（推演见施工报告 §8）：B 预览已把 deepseek-flash 存量写进钦定副本键 `s:<收养 id>`，实看主线线程绑另一 id（分叉）、其账无存量落配置默认 claude-sonnet-4-6；组版落地时 ensureMainThread 强制对齐绑定→钦定键，合一账即此化石账——胶囊将由 claude 被「修」成 DeepSeek Flash、发送逐请求提交化石值。故补一次性迁移，规则恒窄（Core `MainlineModelFossilMigration` 五条合取，任一不合不动账）：①两份 id 副本分叉（均非空、不等）；②钦定键有存量条目；③条目 model 归一值＝钦定会话服务端行 model 字段（化石本值，须回读在手才裁决）；④该值与线程绑定账现行解析值冲突；⑤一次性标记未置。处置：线程账有存量→覆盖钦定键（真选择迁入）；无存量→删钦定键条目（回落解析链＝线程账现值）。作用域只及钦定键/线程绑定键一对主线账，旁聊账零触碰；用户真选 deepseek 且两账同值（条④不合）或副本同值（条①不合）均不命中。触发：ChatView 落点以对齐前捕获的 id 对经 `AppState.runMainlineModelFossilMigrationIfNeeded` 异步跑，裁决完成（命中/核完未命中）置 UserDefaults 标记 `mainlineModelFossilMigrationHandled`；服务端值取不到不置标记、下次落地再试。验收：Core MainlineModelFossilMigrationTests 决策矩阵＋App ModelFossilMigrationAppTests（命中清条/命中迁入/不命中各形态/旁聊账不受殃及/服务端未知不置标记）。
