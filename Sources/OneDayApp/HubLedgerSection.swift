@@ -7,8 +7,8 @@ import SwiftUI
 /// 名保留）：按天分组的工作时间线——标题是「干了
 /// 什么」、进行中条目带真转指示与秒级已耗时、页首
 /// 「正在进行 N 件」、失败与取消留在原位不隐藏、失
-/// 联条目停转明示。段自持 LedgerStore（段内 .task
-/// 驱动，与任务/监测段同形态）。
+/// 联条目停转明示。段消费 AppState 共享 LedgerStore
+/// （§259，段内 .task 驱动加载与轮询）。
 /// §217（2026-11-13 枢纽收段）：本段兼收三撤段的
 /// 内容与入口——①任务：台账本有看板同源条目，下
 /// 钻在台账详情里补「打开任务详情」（答题/证据/
@@ -32,14 +32,20 @@ struct HubLedgerSection: View {
 
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var store = LedgerStore()
-    /// 任务数据面（新建任务与任务详情下钻用；原任
-    /// 务段自持，收段后归本段持有，Goals/动态等其
-    /// 他面的 KanbanStore 实例互不相干）
-    @State private var kanbanStore = KanbanStore()
-    /// 监测数据面（监测详情下钻与新建监测用；合成
-    /// 条目在 LedgerStore 里另走桥读面，两边同源）
-    @State private var monitorsStore = MonitorsStore()
+    /// §259 三店合一：台账/任务/监测三店由 AppState
+    /// 持有单例，本段只消费——条目只从共享 Ledger-
+    /// Store 一口出；任务/监测数据面与全 App 各面同
+    /// 一份（本段新建/动作在他面即时同见），不再私
+    /// 建互不相通的副本（段内 .task 加载序列不变）
+    private var store: LedgerStore {
+        appState.sharedLedgerStore()
+    }
+    private var kanbanStore: KanbanStore {
+        appState.sharedKanbanStore()
+    }
+    private var monitorsStore: MonitorsStore {
+        appState.sharedMonitorsStore()
+    }
     @State private var showCreateTask = false
     @State private var showCreateMonitor = false
     /// 通知落点聚焦的条目 id（审批＝appr:<记录 id>、

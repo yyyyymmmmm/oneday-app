@@ -915,8 +915,15 @@ struct GoalDetailView: View {
     /// （GoalAssociations），不建本地副本账；委派建卡
     /// 走 kanban 这一个实例，与点子采纳同路
     @State private var ideasStore = IdeasStore()
-    @State private var monitorsStore = MonitorsStore()
-    @State private var kanban = KanbanStore()
+    /// §259 三店合一：监测/任务两店走 AppState 共享
+    /// 单例，与枢纽/动态/点子各面同一份，不再随详情
+    /// 页私建（委派建卡与点子采纳同路同实例）
+    private var monitorsStore: MonitorsStore {
+        appState.sharedMonitorsStore()
+    }
+    private var kanban: KanbanStore {
+        appState.sharedKanbanStore()
+    }
     @State private var showDelegate = false
 
     private var goal: BridgeGoal? { store.goal(id: goalID) }

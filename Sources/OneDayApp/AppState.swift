@@ -396,6 +396,42 @@ final class AppState {
         return store
     }
 
+    /// 全局共享的台账/任务/监测三店（§259 枢纽台账
+    /// 三店合一）：三店此前在各面各自 @State 私建——
+    /// KanbanStore 全 App 五份、MonitorsStore 三份、
+    /// LedgerStore 两份，互不相通（同物多账的实例级
+    /// 变体，普查 app-wide-assembly-audit 枢纽节）。
+    /// 自此由 AppState 持有单例、懒建（与 sharedHub-
+    /// Store 同形态），各面只消费同一份；三店 load
+    /// 均有在飞守卫，多面同呼安全。枢纽台账段的条
+    /// 目只从 sharedLedgerStore 一口出。
+    private var ledgerStoreInstance: LedgerStore?
+    private var kanbanStoreInstance: KanbanStore?
+    private var monitorsStoreInstance: MonitorsStore?
+
+    func sharedLedgerStore() -> LedgerStore {
+        if let ledgerStoreInstance { return ledgerStoreInstance }
+        let store = LedgerStore()
+        ledgerStoreInstance = store
+        return store
+    }
+
+    func sharedKanbanStore() -> KanbanStore {
+        if let kanbanStoreInstance { return kanbanStoreInstance }
+        let store = KanbanStore()
+        kanbanStoreInstance = store
+        return store
+    }
+
+    func sharedMonitorsStore() -> MonitorsStore {
+        if let monitorsStoreInstance {
+            return monitorsStoreInstance
+        }
+        let store = MonitorsStore()
+        monitorsStoreInstance = store
+        return store
+    }
+
     /// 记一笔本人裁决（AgentHubStore.decide 成功落
     /// 账后调用；recordGone 等他人先裁的路径不记——
     /// 那类回执是「未读重要事件」、不归本人消账）

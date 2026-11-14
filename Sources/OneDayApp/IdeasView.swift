@@ -19,7 +19,11 @@ import SwiftUI
 struct IdeasView: View {
     @Environment(AppState.self) private var appState
     @State private var store = IdeasStore()
-    @State private var kanban = KanbanStore()
+    /// §259 三店合一：任务店走 AppState 共享单例，
+    /// 与枢纽/目标/动态各面同一份，不再私建
+    private var kanban: KanbanStore {
+        appState.sharedKanbanStore()
+    }
     @State private var showCreate = false
     @State private var deleteCandidate: BridgeIdea?
     /// 详情 sheet 的当前点子（0.47.0：点行不再推页）

@@ -17,10 +17,14 @@ struct ProgressCapsuleView: View {
 
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var store = LedgerStore()
-    /// §217：台账详情的任务下钻要 KanbanStore——本面
-    /// 自持一份（与枢纽活动段同形态，进面时加载）
-    @State private var kanbanStore = KanbanStore()
+    /// §259 三店合一：台账/任务两店走 AppState 共享
+    /// 单例，与枢纽活动段同一份（不再自持私建副本）
+    private var store: LedgerStore {
+        appState.sharedLedgerStore()
+    }
+    private var kanbanStore: KanbanStore {
+        appState.sharedKanbanStore()
+    }
     @State private var detailItem: LedgerItem?
 
     private var content: ProgressCapsule.Content? {
