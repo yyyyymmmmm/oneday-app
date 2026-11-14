@@ -169,6 +169,13 @@ protocol HermesClientProtocol: Sendable {
     func updateServerSessionModel(config: ServerConfig, id: String, model: String) async throws
     /// GET /api/sessions/{id}/messages
     func sessionMessages(config: ServerConfig, id: String) async throws -> [SessionMessage]
+    /// §237（P6）：GET /api/sessions/{id}/messages
+    /// ?limit=&offset=&order=desc——官方 OpenAPI 已
+    /// 冻结三参数；desc 页按消息 id 倒序返回，调用
+    /// 方逐页反转落盘，先最新首屏、再向前补全。
+    func sessionMessagesPage(
+        config: ServerConfig, id: String, limit: Int, offset: Int
+    ) async throws -> [SessionMessage]
     /// GET /api/sessions/search?q=&limit=（P10；生产实样
     /// {"results":[…]}，2026-11-09 只读联调验过）
     func searchSessions(
@@ -342,6 +349,15 @@ protocol HermesClientProtocol: Sendable {
     /// 20261111（attachments/ 落点＋回执形态实测冻结）
     func uploadAttachment(
         config: ServerConfig, path: String, dataURL: String
+    ) async throws -> ManagedFileUploadReceipt
+    /// §237（P7）：同端点带真实字节进度版——进度
+    /// 回调收到的是本次请求体的已发送比例（0...1，
+    /// 由 URLSession 的 didSendBodyData 实报，不许
+    /// 定时器估算）；取消经 Swift Task 取消传导，
+    /// 取消错误以 CancellationError 形态上抛。
+    func uploadAttachment(
+        config: ServerConfig, path: String, dataURL: String,
+        onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> ManagedFileUploadReceipt
     /// POST /api/files/mkdir {path}（openapi
     /// ManagedDirectoryCreate，同上口径，回读确认）
@@ -1240,6 +1256,21 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         return response.messages
     }
 
+    func sessionMessagesPage(
+        config: ServerConfig, id: String, limit: Int, offset: Int
+    ) async throws -> [SessionMessage] {
+        let response: SessionMessagesResponse = try await getJSON(
+            config: config, path: "/api/sessions/\(id)/messages",
+            endpoint: L10n.string("服务端会话消息"),
+            query: [
+                URLQueryItem(name: "limit", value: String(limit)),
+                URLQueryItem(name: "offset", value: String(offset)),
+                URLQueryItem(name: "order", value: "desc"),
+            ]
+        )
+        return response.messages
+    }
+
     func searchSessions(
         config: ServerConfig, query: String, limit: Int
     ) async throws -> [SessionSearchHit] {
@@ -1818,6 +1849,87 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         }
     }
 
+    /// §237 P7 实现：同一请求改走带 delegate 的
+    /// upload task——didSendBodyData 的已发送字节是
+    /// 唯一进度源（此前 data(for:) 无字节回调、界面
+    /// 只能假菊花）；每请求新建会话以挂本请求的
+    /// delegate，cookie 仍走 .shared 同一存储，鉴权
+    /// 口径与 dataRequest 一致；用完即 invalidate。
+    /// Swift Task 取消会传导取消底层 upload task，
+    /// URLError.cancelled 在此归一为 Cancellation-
+    /// Error，调用方按「用户停止」语义收尾、不挂
+    /// 失败标记。
+    func uploadAttachment(
+        config: ServerConfig, path: String, dataURL: String,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws -> ManagedFileUploadReceipt {
+        var request = URLRequest(
+            url: config.endpoint("/api/files/upload")
+        )
+        request.httpMethod = "POST"
+        request.timeoutInterval = 180
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        let body: Data
+        do {
+            body = try encoder.encode([
+                "path": JSONValue.string(path),
+                "data_url": JSONValue.string(dataURL),
+                "overwrite": JSONValue.bool(true),
+            ])
+        } catch {
+            throw HermesError.decodingFailed(
+                endpoint: L10n.string("文件上传")
+            )
+        }
+        let delegate = UploadProgressDelegate(onProgress: onProgress)
+        let configuration = URLSessionConfiguration.default
+        configuration.httpCookieStorage = .shared
+        configuration.httpShouldSetCookies = true
+        configuration.httpCookieAcceptPolicy = .always
+        configuration.timeoutIntervalForRequest = 180
+        configuration.waitsForConnectivity = true
+        let uploadSession = URLSession(
+            configuration: configuration,
+            delegate: delegate, delegateQueue: nil
+        )
+        defer { uploadSession.finishTasksAndInvalidate() }
+        let data: Data
+        let http: HTTPURLResponse
+        do {
+            let (rawData, response) = try await uploadSession.upload(
+                for: request, from: body
+            )
+            guard let httpResponse = response as? HTTPURLResponse
+            else {
+                throw HermesError.unreachable(L10n.string("无响应"))
+            }
+            data = rawData
+            http = httpResponse
+        } catch let error as HermesError {
+            throw error
+        } catch let urlError as URLError
+            where urlError.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            throw mapNetworkError(error)
+        }
+        onTransportSuccess?()
+        guard (200...299).contains(http.statusCode) else {
+            throw HermesError.unexpectedStatus(
+                endpoint: L10n.string("文件上传"), status: http.statusCode
+            )
+        }
+        do {
+            return try decoder.decode(
+                ManagedFileUploadReceipt.self, from: data
+            )
+        } catch {
+            throw HermesError.decodingFailed(endpoint: L10n.string("文件上传"))
+        }
+    }
+
     func makeDirectory(config: ServerConfig, path: String) async throws {
         try await sendJSON(
             config: config, path: "/api/files/mkdir", method: "POST",
@@ -1828,6 +1940,41 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     func systemStats(config: ServerConfig) async throws -> SystemStats {
         try await getJSON(config: config, path: "/api/system/stats", endpoint: L10n.string("系统状态"))
+    }
+}
+
+/// §237 P7：upload task 的字节进度转发——只把
+/// URLSession 实报的已发送/预计总字节折成比例向
+/// 外送，不缓存、不估算；预计总量未知（≤0）时报
+/// 0，由聚合层峰值口径兜住不后退。
+private final class UploadProgressDelegate: NSObject,
+    URLSessionTaskDelegate, @unchecked Sendable {
+    private let onProgress: @Sendable (Double) -> Void
+
+    init(onProgress: @escaping @Sendable (Double) -> Void) {
+        self.onProgress = onProgress
+    }
+
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        guard totalBytesExpectedToSend > 0 else {
+            onProgress(0)
+            return
+        }
+        onProgress(
+            min(
+                1,
+                max(
+                    0,
+                    Double(totalBytesSent)
+                        / Double(totalBytesExpectedToSend)
+                )
+            )
+        )
     }
 }
 

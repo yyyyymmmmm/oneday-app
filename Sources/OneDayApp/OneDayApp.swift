@@ -3,10 +3,80 @@ import OneDayDesign
 import SwiftData
 import SwiftUI
 
+/// §237（基础正解批 P10）：本地库启动结果——原库
+/// 建不成时不许再 `try!` 把 App 砖死：先降级到临
+/// 时内存库把界面打开，并把「原记录未删、本次内
+/// 容不落盘」明示给用户；连内存库也建不成时只剩
+/// 专门的不可用页，不伪造一个能用的主界面。
+struct ChatModelContainerBootstrap {
+    let container: ModelContainer?
+    let usesFallback: Bool
+    let failureMessage: String?
+}
+
+enum ChatModelContainerBootstrapFactory {
+    static func make(
+        isStoredInMemoryOnly: Bool
+    ) -> ChatModelContainerBootstrap {
+        let schema = Schema([ChatThread.self, ChatEntry.self])
+        return make(
+            primary: {
+                try ModelContainer(
+                    for: schema,
+                    configurations: [ModelConfiguration(
+                        schema: schema,
+                        isStoredInMemoryOnly: isStoredInMemoryOnly
+                    )]
+                )
+            },
+            fallback: {
+                try ModelContainer(
+                    for: schema,
+                    configurations: [ModelConfiguration(
+                        schema: schema,
+                        isStoredInMemoryOnly: true
+                    )]
+                )
+            }
+        )
+    }
+
+    /// 可测缝：primary 失败才走 fallback；fallback
+    /// 也失败则 container 为 nil，由根层显示不可用
+    /// 页。任何一路都不删原库文件、不做迁移兜底。
+    static func make(
+        primary: () throws -> ModelContainer,
+        fallback: () throws -> ModelContainer
+    ) -> ChatModelContainerBootstrap {
+        do {
+            return ChatModelContainerBootstrap(
+                container: try primary(),
+                usesFallback: false,
+                failureMessage: nil
+            )
+        } catch {
+            do {
+                return ChatModelContainerBootstrap(
+                    container: try fallback(),
+                    usesFallback: true,
+                    failureMessage: "本地记录暂时不可用：原来的记录没有删除，重启 App 会再试；这次打开期间的新内容不会保存到本机。"
+                )
+            } catch {
+                return ChatModelContainerBootstrap(
+                    container: nil,
+                    usesFallback: true,
+                    failureMessage: "本地记录暂时打不开：原来的记录没有删除。请先关闭 App 后重新打开；如果一直这样，请联系支持并说明聊天记录打不开。"
+                )
+            }
+        }
+    }
+}
+
 @main
 struct OneDayApp: App {
     @State private var appState: AppState
-    private let container: ModelContainer
+    @State private var storeFallbackNoticeDismissed = false
+    private let modelBootstrap: ChatModelContainerBootstrap
     /// 语言覆盖档（§145）：设置页外观·语言 Picker
     /// 写同一 AppStorage 键（LanguageStorageKeys.
     /// appLanguage，单一事实源）；根层在此消费——
@@ -29,38 +99,119 @@ struct OneDayApp: App {
             client: demo.isDemo ? DemoHermesClient() : HermesClient(),
             demoMode: demo
         ))
-        let schema = Schema([ChatThread.self, ChatEntry.self])
-        let configuration = ModelConfiguration(
-            schema: schema,
+        // §237 P10：建库走可降级工厂——原库失败降
+        // 级内存库＋明示，原库文件保留不删；不再用
+        // try! 让一次库故障把整个 App 砖死。
+        modelBootstrap = ChatModelContainerBootstrapFactory.make(
             isStoredInMemoryOnly: demo.isDemo
         )
-        // 与 .modelContainer(for:) 修饰符同口径：建库失败即致命错误
-        // swiftlint:disable:next force_try
-        container = try! ModelContainer(for: schema, configurations: [configuration])
     }
 
     var body: some Scene {
         WindowGroup {
-            // （症二实验台 CapsuleTapHarness 已随
-            // §202 路线 B 退役：动作级点按验证改打真
-            // App 演示模式装配，见 TopBarSingleAction-
-            // TapTests；正常启动路径自此无实验分支）
-            RootView()
-                .environment(appState)
-                // 0.42.0 国际化包：旧版「全 App 固定中文
-                // 区域」（沿礼记口径钉 zh_CN）退役——环
-                // 境语言改钉 AppLocale.uiLocale（App 随
-                // 系统语言解析出的界面语言），系统控件
-                // 与视图内格式化器随之与界面语言一致
-                // §145：uiLocale 已改覆盖优先（设置页
-                // 语言档），此处仍只读它一口；再以语言
-                // 档值作 .id 强制整树重建——字面量取词、
-                // Core 格式化与各页缓存的语言形态在切
-                // 换瞬间全体换档，不留半吊子混排
+            if let container = modelBootstrap.container {
+                // （症二实验台 CapsuleTapHarness 已随
+                // §202 路线 B 退役：动作级点按验证改打真
+                // App 演示模式装配，见 TopBarSingleAction-
+                // TapTests；正常启动路径自此无实验分支）
+                RootView()
+                    .environment(appState)
+                    // 0.42.0 国际化包：旧版「全 App 固定中文
+                    // 区域」（沿礼记口径钉 zh_CN）退役——环
+                    // 境语言改钉 AppLocale.uiLocale（App 随
+                    // 系统语言解析出的界面语言），系统控件
+                    // 与视图内格式化器随之与界面语言一致
+                    // §145：uiLocale 已改覆盖优先（设置页
+                    // 语言档），此处仍只读它一口；再以语言
+                    // 档值作 .id 强制整树重建——字面量取词、
+                    // Core 格式化与各页缓存的语言形态在切
+                    // 换瞬间全体换档，不留半吊子混排
+                    .environment(\.locale, AppLocale.uiLocale)
+                    .id(appLanguageRaw)
+                    .modelContainer(container)
+                    .overlay(alignment: .top) {
+                        if modelBootstrap.usesFallback,
+                           !storeFallbackNoticeDismissed,
+                           let message = modelBootstrap.failureMessage {
+                            LocalStoreFallbackBanner(
+                                message: message
+                            ) {
+                                storeFallbackNoticeDismissed = true
+                            }
+                            .padding(.horizontal, OneDayMetrics.pageGutter)
+                            .padding(.top, OneDayMetrics.spacingS)
+                        }
+                    }
+            } else {
+                LocalStoreUnavailableView(
+                    message: modelBootstrap.failureMessage
+                        ?? "本地记录暂时打不开：原来的记录没有删除。请先关闭 App 后重新打开。"
+                )
                 .environment(\.locale, AppLocale.uiLocale)
-                .id(appLanguageRaw)
+            }
         }
-        .modelContainer(container)
+    }
+}
+
+/// §237 P10 降级明示条：只说用户能理解和行动的
+/// 话——记录没删、重启再试、本次内容不落盘；不
+/// 把 SwiftData/迁移错误原文甩给用户。
+private struct LocalStoreFallbackBanner: View {
+    let message: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Palette.danger)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Palette.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("关闭提示")
+        }
+        .padding(OneDayMetrics.spacingM)
+        .background(
+            Palette.surface,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.containerCorner
+            )
+        )
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: OneDayMetrics.containerCorner
+            )
+            .strokeBorder(Palette.hairline, lineWidth: 1)
+        }
+    }
+}
+
+/// §237 P10 最末降级页：原库与内存库都建不成时
+/// 的唯一诚实出口，不进主界面、不假装记录可用。
+private struct LocalStoreUnavailableView: View {
+    let message: String
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(
+                "本地记录暂时打不开",
+                systemImage: "exclamationmark.triangle"
+            )
+        } description: {
+            Text(message)
+        }
+        .background(Palette.pageBG)
     }
 }
 

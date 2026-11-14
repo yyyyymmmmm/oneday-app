@@ -342,25 +342,40 @@ struct ChatView: View {
         UUID(uuidString: "00000000-0000-0000-0000-0000000000A1")!
     /// 基础止血包（P1）：上传失败轮次的文件载荷暂存
     /// （条目 id → 载荷）——失败条目点重发时补传这批
-    /// 文件；纯内存、进程被杀即灭（条目已落盘的远端
-    /// 路径在场时优先走路径、不经本格）
+    /// 文件；同一次运行内的快速通道，进程级持久真
+    /// 源是 §237 的磁盘暂存（stagedSendStore）——本
+    /// 格未命中时按条目 id 回磁盘重建，进程被杀后
+    /// 重发不许退化成纯文本（条目已落盘的远端路径
+    /// 在场时优先走路径、两格都不经）
     @State private var failedFilePayloads:
         [UUID: [(name: String, data: Data)]] = [:]
+    /// §237（基础正解批 P1）：待发文件载荷的持久暂
+    /// 存口——发送起手即按条目 id 落盘（文件名＋字节
+    /// ＋清单原子换入），失败/待发重发时凭条目 id 重
+    /// 建；上传全成并写回远端路径后删除
+    private var stagedSendStore: StagedSendAttachmentStore {
+        StagedSendAttachmentStore.defaultStore()
+    }
     /// 基础止血包（P1/P2）：最近一轮失败的用户条目
     /// id——错误横幅据此出「重新发送」动作位（仅当
     /// 条目属当前线程且仍挂失败标记时呈现，呈现判定
     /// 在 errorBanner 调用点）
     @State private var failedResendEntryID: UUID?
     /// 基础止血包（P7）：本轮正处文件上传段的事实位
-    /// ——等待呈现据此说上传中、不再冒充生成中；进
-    /// 度百分比归上传正解包，本位只管文案分型
+    /// ——等待呈现据此说上传中、不再冒充生成中
     @State private var isUploadingFiles = false
+    /// §237（基础正解批 P7）：本轮上传的真实聚合进
+    /// 度（0...1）——源头是 URLSession 实报的已发送
+    /// 字节（HermesClient 带进度版上传＋Core 聚合
+    /// 器），非上传段为 nil；呈现只读它显示百分比，
+    /// 不许任何地方再拿菊花冒充进度
+    @State private var uploadProgressFraction: Double?
     /// 聊天可靠性包：发送准备失败被保留的待发条目，
-    /// 其文件载荷只活在内存——按条目 id 暂存原待发
-    /// 附件，供同一次运行内点按重发时重新上传；进程
-    /// 重启后暂存不在，文件载荷无法复原（条目正文与
-    /// 本地图仍在，重发退化为纯文本＋图片，见报告
-    /// 边界节）
+    /// 其附件在同一次运行内按条目 id 暂存供点按重
+    /// 发；§237 起发送起手已同步落磁盘暂存，进程重
+    /// 启后本格为空时由 resendPending 回磁盘重建文
+    /// 件载荷（图片仍走条目本体落盘数据），不再退
+    /// 化为纯文本
     @State private var pendingResendAttachments:
         [UUID: [PendingAttachment]] = [:]
     // 0.36.23 起选图多选（用户 03:02 点题）：绑数
@@ -455,6 +470,11 @@ struct ChatView: View {
     /// 0.4.0（§3.4）：服务端会话导入进行中的 id（防重复
     /// 触发并发导入同一条会话）
     @State private var importingSessionID: String?
+    /// §237（基础正解批 P6）：分页导入已落盘条数——
+    /// 等待卡据实显示（第一页落盘后即从首屏切换走、
+    /// 本数只在首屏前短暂在场），不许整表载入后才
+    /// 有第一个数字
+    @State private var importingLoadedCount: Int?
     /// 基础止血包（P6）：导入失败的重试上下文（会话
     /// id＋频道出处）——输入舱上方留一条重试行，点按
     /// 以原出处重走导入；导入成功/发起新导入/用户关
@@ -1433,6 +1453,15 @@ struct ChatView: View {
         }
         .task {
             await appState.refreshModelCatalog()
+        }
+        // §237 P1：待发暂存清扫——条目已删除的暂存目
+        // 录随聊天页首启清掉，防只进不出积压；仍在
+        // 的条目（含失败/待发待重发）一律保留
+        .task {
+            let validIDs = Set(
+                threads.flatMap { $0.entries }.map(\.id)
+            )
+            try? stagedSendStore.prune(keeping: validIDs)
         }
         // 身份名全局解析（0.6.1）：聊天页是默认格、首
         // 先出现，在此触发一次（AppState 内幂等）；胶
@@ -4646,17 +4675,32 @@ struct ChatView: View {
                 // 唤醒态；等待一律只剩打字点
                 // 基础止血包（P7 文案半步）：文件上传段
                 // 例外——如实说上传中，不许让等待点冒充
-                // 生成中（进度百分比归上传正解包）
+                // 生成中；§237 正解：有真实聚合进度时把
+                // 百分比一并说清（数字源头是 URLSession
+                // 实报字节，不许估算）
                 if isUploadingFiles {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         TypingDots()
-                        Text("正在上传文件…")
+                        if let fraction = uploadProgressFraction {
+                            Text(
+                                "正在上传文件 \(Int((fraction * 100).rounded()))%…"
+                            )
                             .font(.callout)
                             .foregroundStyle(Palette.inkSecondary)
+                            .monospacedDigit()
+                        } else {
+                            Text("正在上传文件…")
+                                .font(.callout)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
                     }
                     .padding(.vertical, OneDayMetrics.spacingXS)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("正在上传文件")
+                    .accessibilityLabel(
+                        uploadProgressFraction.map {
+                            "正在上传文件，已完成 \(Int(($0 * 100).rounded()))%"
+                        } ?? "正在上传文件"
+                    )
                 } else {
                     TypingDots()
                         .padding(.vertical, OneDayMetrics.spacingXS)
@@ -4684,6 +4728,14 @@ struct ChatView: View {
             Text(L10n.string("正在载入这段对话…"))
                 .font(.callout)
                 .foregroundStyle(Palette.inkSecondary)
+            // §237 P6：分页导入的已落盘计数——首批
+            // 到手即有数字，不等全量
+            if let loaded = importingLoadedCount, loaded > 0 {
+                Text("已载入 \(loaded) 条")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .monospacedDigit()
+            }
         }
         .padding(OneDayMetrics.spacingL)
         .background(
@@ -6700,6 +6752,29 @@ private struct ComposerBarLayout: Layout {
     /// Session-Id 头＋仅本轮新消息）——续聊回合按研
     /// 究档实测链回写同一条服务端会话，不再另起记
     /// 录；旧「无状态重放续聊」口径就此作废。
+    /// §237 P6：一页消息落盘（分页导入共用）——
+    /// 0.8.0（P1）富内容口径不变：工具调用成卡、图
+    /// 片标记剥成路径，呈现层有卡有图；工具卡
+    /// role="tool" 不进发送上下文（send 组装只取
+    /// user/assistant）
+    private func insertImportedEntries(
+        _ messages: [SessionMessage], into thread: ChatThread
+    ) {
+        let items = SessionHistoryImport.richItems(from: messages)
+        for entry in items {
+            let chatEntry = ChatEntry(
+                role: entry.role, content: entry.content,
+                thread: thread, toolCard: entry.toolCard,
+                remoteImagePaths: entry.imagePaths,
+                remoteFilePaths: entry.fileRefs
+            )
+            if let date = entry.date {
+                chatEntry.createdAt = date
+            }
+            modelContext.insert(chatEntry)
+        }
+    }
+
     private func openServerSession(
         _ id: String
     ) async -> OpenServerSessionOutcome {
@@ -6709,24 +6784,36 @@ private struct ComposerBarLayout: Layout {
         }
         guard importingSessionID == nil else { return .failed }
         importingSessionID = id
-        defer { importingSessionID = nil }
+        defer {
+            importingSessionID = nil
+            importingLoadedCount = nil
+        }
         do {
             let session = try? await appState.performAdmin { client, config in
                 try await client.serverSession(config: config, id: id)
             }
-            let messages = try await appState.performAdmin { client, config in
-                try await client.sessionMessages(config: config, id: id)
+            // §237（基础正解批 P6）：导入改分页——官方
+            // OpenAPI 的 limit/offset/order 参数直连，
+            // desc 取最新一页（100 条）先落盘、先建线
+            // 程、先切换，首屏不等全量；其后逐页向前
+            // 补全（offset 只前进、按消息 id 去重），
+            // 不许再整表一次性载入（旧 sessionMessages
+            // 全量口径退役于此路）
+            let pageSize = SessionHistoryPagePlanner.pageSize
+            let firstPage = try await appState.performAdmin {
+                client, config in
+                try await client.sessionMessagesPage(
+                    config: config, id: id,
+                    limit: pageSize, offset: 0
+                )
             }
-            // 标题仍走旧口径（首条用户消息摘要同源）
+            let firstChronological =
+                SessionHistoryPagePlanner.chronological(firstPage)
+            // 标题仍走旧口径（首条用户消息摘要同源；
+            // 取数范围改为第一页——有服务端标题时恒
+            // 以服务端为准，不受影响）
             let titleEntries = SessionHistoryImport.importableEntries(
-                from: messages
-            )
-            // 0.8.0（P1）：落盘改富内容导入——工具调用
-            // 成卡、图片标记剥成路径，呈现层有卡有图；
-            // 工具卡 role="tool" 不进发送上下文（send
-            // 组装只取 user/assistant）
-            let entries = SessionHistoryImport.richItems(
-                from: messages
+                from: firstChronological
             )
             let thread = ChatThread(
                 title: SessionHistoryImport.threadTitle(
@@ -6745,20 +6832,42 @@ private struct ComposerBarLayout: Layout {
             thread.updatedAt = session?.endedDate
                 ?? session?.startedDate ?? Date()
             modelContext.insert(thread)
-            for entry in entries {
-                let chatEntry = ChatEntry(
-                    role: entry.role, content: entry.content,
-                    thread: thread, toolCard: entry.toolCard,
-                    remoteImagePaths: entry.imagePaths,
-                    remoteFilePaths: entry.fileRefs
-                )
-                if let date = entry.date {
-                    chatEntry.createdAt = date
-                }
-                modelContext.insert(chatEntry)
-            }
+            insertImportedEntries(firstChronological, into: thread)
             try? modelContext.save()
+            importingLoadedCount = firstPage.count
             currentThreadID = thread.id
+            // 后续页逐页补全：条目自带服务端时刻、
+            // 呈现按时刻排序，后到的旧页落位不乱序；
+            // 中途失败保留已落盘部分（catch 的文案口
+            // 径照旧：首屏已在、缺的是更早的历史）
+            var seenIDs = Set(firstPage.map(\.id))
+            var nextOffset = SessionHistoryPagePlanner.nextOffset(
+                currentOffset: 0, receivedCount: firstPage.count
+            )
+            while let offset = nextOffset {
+                let page = try await appState.performAdmin {
+                    client, config in
+                    try await client.sessionMessagesPage(
+                        config: config, id: id,
+                        limit: pageSize, offset: offset
+                    )
+                }
+                let fresh = SessionHistoryPagePlanner.unseen(
+                    page, seenIDs: seenIDs
+                )
+                seenIDs.formUnion(page.map(\.id))
+                if !fresh.isEmpty {
+                    insertImportedEntries(
+                        SessionHistoryPagePlanner.chronological(fresh),
+                        into: thread
+                    )
+                    try? modelContext.save()
+                    importingLoadedCount = seenIDs.count
+                }
+                nextOffset = SessionHistoryPagePlanner.nextOffset(
+                    currentOffset: offset, receivedCount: page.count
+                )
+            }
             return .importedNew
         } catch {
             // §223：会话已不在服务器上（他处已删、本
@@ -6923,6 +7032,20 @@ private struct ComposerBarLayout: Layout {
         }
         thread.updatedAt = Date()
         try? modelContext.save()
+        // §237（P1）：发送状态入队＋文件载荷起手落盘
+        // 暂存——进程在此后任何时点被杀，重启后凭条
+        // 目 id 能把文件名与字节原样重建，重发不许退
+        // 化成纯文本；暂存写失败不拦发送（同次运行仍
+        // 有内存格兜底），上传全成后在 launchTurn 清
+        newEntry.markSendState(.queued, in: modelContext)
+        if !filePayloads.isEmpty {
+            try? stagedSendStore.stage(
+                entryID: newEntry.id,
+                payloads: filePayloads.map {
+                    StagedSendPayload(name: $0.name, data: $0.data)
+                }
+            )
+        }
         // §208（规格 §3.3 顺手项）：发送即显式清本线
         // 程草稿键——旧口径 send() 只清内存 input、
         // 账上删键靠之后切线程回存空串，「发送后不切
@@ -7042,6 +7165,10 @@ private struct ComposerBarLayout: Layout {
                 // P7 文案分型：上传段全程挂真态位，等
                 // 待呈现说「上传中」、不冒充生成中
                 isUploadingFiles = true
+                // §237：状态进上传段、真实进度从 0 起
+                // （字节回报一到即被聚合值顶上）
+                userEntry.markSendState(.uploading, in: modelContext)
+                uploadProgressFraction = 0
                 do {
                     fileServerPaths = try await
                         uploadPendingFiles(filePayloads)
@@ -7083,6 +7210,7 @@ private struct ComposerBarLayout: Layout {
                     return
                 }
                 isUploadingFiles = false
+                uploadProgressFraction = nil
                 if Task.isCancelled {
                     streamingText = nil
                     streamingReasoning = nil
@@ -7091,8 +7219,11 @@ private struct ComposerBarLayout: Layout {
                     return
                 }
                 // 上传已成：暂存载荷使命完成，清格防重
-                // 发时误补传（此后凭条目远端路径为准）
+                // 发时误补传（此后凭条目远端路径为准）；
+                // §237：磁盘暂存同点删除、状态进链接段
                 failedFilePayloads[userEntry.id] = nil
+                try? stagedSendStore.remove(entryID: userEntry.id)
+                userEntry.markSendState(.linking, in: modelContext)
                 // §121 题二 a（发送回填）：上传全成后
                 // 立即把回执路径写回本地条目落盘——用
                 // 户气泡文件牌的唯一数据源就是 entry.
@@ -7197,6 +7328,8 @@ private struct ComposerBarLayout: Layout {
                     ?? ChatMessage(role: "user", content: text),
                 serverPaths: fileServerPaths
             )
+            // §237：链接已成、进提交/生成段
+            userEntry.markSendState(.sending, in: modelContext)
             await driveRun(
                 thread: thread,
                 tail: tail,
@@ -7216,12 +7349,37 @@ private struct ComposerBarLayout: Layout {
         entry: ChatEntry,
         filePayloads: [(name: String, data: Data)] = []
     ) {
-        entry.sendFailed = true
-        try? modelContext.save()
+        // §237：失败标记走统一状态写口（sendStateRaw
+        // 与 sendFailed 同步落盘，不许再散写）
+        entry.markSendState(.failed, in: modelContext)
         if !filePayloads.isEmpty {
             failedFilePayloads[entry.id] = filePayloads
+            // §237 P1：载荷同步落盘暂存——进程重启后
+            // 内存格不在，凭条目 id 仍能重建补传
+            try? stagedSendStore.stage(
+                entryID: entry.id,
+                payloads: filePayloads.map {
+                    StagedSendPayload(name: $0.name, data: $0.data)
+                }
+            )
         }
         failedResendEntryID = entry.id
+    }
+
+    /// §237 P1：重发载荷的统一取数——同次运行先查
+    /// 内存格，未命中回磁盘暂存按条目 id 重建（进程
+    /// 重启后的唯一出处）；磁盘也无（从未带文件/已
+    /// 上传清格）返回空，调用方按远端路径口径走
+    private func resendFilePayloads(
+        entryID: UUID
+    ) -> [(name: String, data: Data)] {
+        if let inMemory = failedFilePayloads[entryID] {
+            return inMemory
+        }
+        guard let staged = try? stagedSendStore.loadPayloads(
+            entryID: entryID
+        ) else { return [] }
+        return staged.map { (name: $0.name, data: $0.data) }
     }
 
     /// run 落定失败的标记落点（P2）：按账本里的用户
@@ -7279,10 +7437,18 @@ private struct ComposerBarLayout: Layout {
                 failedFilePayloads[copy.id] = payloads
                 failedFilePayloads[entry.id] = nil
             }
+            // §237 P1：磁盘暂存同理随复制转移——重启
+            // 后只剩磁盘这份时不许在复制处丢掉
+            try? stagedSendStore.transfer(
+                from: entry.id, to: copy.id
+            )
             modelContext.delete(entry)
             target = copy
         }
         target.sendFailed = false
+        // §237：重发启动即回待发队列态（与清失败标
+        // 记同点，状态原值不许残留 failed）
+        target.markSendState(.queued, in: modelContext)
         thread.updatedAt = Date()
         try? modelContext.save()
         // 种子快照剔除尾条本体（两路 target 恒为末
@@ -7295,7 +7461,9 @@ private struct ComposerBarLayout: Layout {
         launchTurn(
             thread: thread, userEntry: target,
             text: target.content,
-            filePayloads: failedFilePayloads[target.id] ?? [],
+            // §237 P1：载荷取数走统一口——内存未命中
+            // 回磁盘暂存重建，重启后不退化纯文本
+            filePayloads: resendFilePayloads(entryID: target.id),
             presetFilePaths: target.remoteFilePaths,
             seedSnapshot: seedSnapshot,
             context: outgoingContext(
@@ -7326,7 +7494,20 @@ private struct ComposerBarLayout: Layout {
         }
         errorMessage = nil
         dismissNotice()
-        let stashed = pendingResendAttachments[entry.id] ?? []
+        var stashed = pendingResendAttachments[entry.id] ?? []
+        // §237 P1：内存暂存不在（进程重启后）时回磁
+        // 盘暂存重建文件附件——图片本就在条目落盘数
+        // 据里、不经此路；重建不出才真是纯文本重发
+        if stashed.isEmpty {
+            let staged = (try? stagedSendStore.loadPayloads(
+                entryID: entry.id
+            )) ?? []
+            stashed = staged.map {
+                PendingAttachment(
+                    kind: .file(name: $0.name, data: $0.data)
+                )
+            }
+        }
         let filePayloads = stashed.compactMap(\.filePayload)
         let imageDatas = entry.allImageDatas
         // 种子在本条投递前取、且已排除全部待发条目
@@ -7339,10 +7520,27 @@ private struct ComposerBarLayout: Layout {
         sendTask = Task {
             var fileServerPaths = entry.remoteFilePaths
             if !filePayloads.isEmpty, fileServerPaths.isEmpty {
+                // §237 P7：重发上传段同样挂真态位＋真
+                // 实进度，不许只在首发路上成立
+                isUploadingFiles = true
+                uploadProgressFraction = 0
+                entry.markSendState(.uploading, in: modelContext)
                 do {
                     fileServerPaths = try await
                         uploadPendingFiles(filePayloads)
+                } catch is CancellationError {
+                    // §237 P7：用户停止＝静默收尾，条目
+                    // 与暂存原样保留，不挂错误横幅
+                    isUploadingFiles = false
+                    uploadProgressFraction = nil
+                    streamingText = nil
+                    streamingReasoning = nil
+                    reasoningStartedAt = nil
+                    sendTask = nil
+                    return
                 } catch let failure as FileUploadFailure {
+                    isUploadingFiles = false
+                    uploadProgressFraction = nil
                     errorMessage = "文件「\(failure.fileName)」还是没能上传："
                         + failure.reason
                         + "这条消息仍保存在本机，可稍后再试。"
@@ -7353,6 +7551,8 @@ private struct ComposerBarLayout: Layout {
                     sendTask = nil
                     return
                 } catch {
+                    isUploadingFiles = false
+                    uploadProgressFraction = nil
                     errorMessage = "文件上传还是失败，这条消息仍保存在本机，可稍后再试。"
                     Haptics.error()
                     streamingText = nil
@@ -7361,10 +7561,15 @@ private struct ComposerBarLayout: Layout {
                     sendTask = nil
                     return
                 }
+                isUploadingFiles = false
+                uploadProgressFraction = nil
                 if !fileServerPaths.isEmpty {
                     entry.remoteFilePathsData =
                         try? JSONEncoder().encode(fileServerPaths)
                     try? modelContext.save()
+                    // §237 P1：路径已写回条目，磁盘暂存
+                    // 使命完成、同点删除
+                    try? stagedSendStore.remove(entryID: entry.id)
                     for (path, payload) in zip(
                         fileServerPaths, filePayloads
                     ) {
@@ -7469,8 +7674,18 @@ private struct ComposerBarLayout: Layout {
     private func uploadPendingFiles(
         _ payloads: [(name: String, data: Data)]
     ) async throws -> [String] {
+        // §237 P7：进度聚合按原始字节计（data_url 在
+        // 客户端内的比例与原始字节同比例放大、比值
+        // 不变）；tracker 线程安全，URLSession 回调
+        // 队列直接写、呈现读聚合值。401 重登整传重试
+        // 时单文件比例会从 0 重报，聚合峰值口径保证
+        // 界面百分比不倒退
+        let tracker = UploadProgressTracker(
+            fileSizes: payloads.map(\.data.count)
+        )
         var paths: [String] = []
         for payload in payloads {
+            tracker.beginFile(size: payload.data.count)
             let receipt: ManagedFileUploadReceipt
             do {
                 receipt = try await appState.performAdmin {
@@ -7483,7 +7698,16 @@ private struct ComposerBarLayout: Layout {
                         dataURL: FileSendAssembly.dataURL(
                             fileName: payload.name,
                             data: payload.data
-                        )
+                        ),
+                        onProgress: { fileFraction in
+                            let aggregate = tracker
+                                .updateCurrentFile(
+                                    fraction: fileFraction
+                                )
+                            Task { @MainActor in
+                                uploadProgressFraction = aggregate
+                            }
+                        }
                     )
                 }
             } catch let error as HermesError {
@@ -7492,6 +7716,8 @@ private struct ComposerBarLayout: Layout {
                     reason: error.userMessage
                 )
             }
+            tracker.finishCurrentFile()
+            uploadProgressFraction = tracker.fractionCompleted
             guard let serverPath = receipt.serverPath else {
                 throw FileUploadFailure(
                     fileName: payload.name,
@@ -8429,13 +8655,15 @@ private struct ComposerBarLayout: Layout {
         }
         // 基础止血包（P1/P2）：成功落定清本轮用户条目
         // 的失败标记——重发成功后旧标记不许残留（首
-        // 发成功轮条目恒无标记，本支为空转）
+        // 发成功轮条目恒无标记，本支为空转）；§237：
+        // 同点把发送状态落到 delivered（统一写口同
+        // 步清 sendFailed 与 deliveryState），队列态
+        // 至此出列、不许残留 sending/failed 旧值
         if !appState.isDemo,
            let userEntry = thread.entries.first(
                where: { $0.id.uuidString == entry.userEntryID }
-           ), userEntry.sendFailed {
-            userEntry.sendFailed = false
-            try? modelContext.save()
+           ) {
+            userEntry.markSendState(.delivered, in: modelContext)
         }
         let endDate = Date()
         for (index, card) in settled.toolCards.enumerated() {

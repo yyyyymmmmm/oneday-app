@@ -202,6 +202,13 @@ final class ChatEntry {
     /// 一态（默认 false、SwiftData 轻量迁移，同
     /// isPinned 先例）
     var sendFailed: Bool = false
+    /// §237（基础正解批 P1）：发送队列状态原值
+    /// （Core ChatSendState）——待发/上传中/链接中/
+    /// 发送中/失败/已投递的唯一新口径。sendFailed
+    /// 与 deliveryState 只作存量兼容读口，新写入走
+    /// markSendState 同步维护，不许再散写状态字面量
+    /// （可选＋默认 nil、SwiftData 轻量迁移）
+    var sendStateRaw: String? = nil
     /// 聊天可靠性包（2026-11-13）：发送投递状态——
     /// nil＝已投递/不适用；"pending"＝本条已在本地
     /// 落盘成形、但服务端尚未受理（发送准备阶段的
@@ -306,6 +313,38 @@ final class ChatEntry {
     /// 「刚发的消息没了」）
     func markPendingSend(in context: ModelContext) {
         deliveryState = "pending"
+        sendStateRaw = ChatSendState.queued.rawValue
+        try? context.save()
+    }
+
+    /// §237 发送状态读口：新字段优先，存量条目按
+    /// sendFailed/deliveryState 兼容还原（Core
+    /// ChatSendState.restored 单点裁决）。
+    var sendState: ChatSendState? {
+        ChatSendState.restored(
+            rawValue: sendStateRaw,
+            sendFailed: sendFailed,
+            deliveryState: deliveryState
+        )
+    }
+
+    /// §237 发送状态统一写口：状态原值落盘，并同步
+    /// 旧失败标记，避免新旧呈现读到两本账。queued
+    /// 不改 deliveryState——它另有种子/半截守卫的
+    /// 既有语义，不许状态字段顺手改变它们。
+    func markSendState(
+        _ state: ChatSendState, in context: ModelContext
+    ) {
+        sendStateRaw = state.rawValue
+        switch state {
+        case .failed:
+            sendFailed = true
+        case .delivered:
+            sendFailed = false
+            deliveryState = nil
+        case .queued, .uploading, .linking, .sending:
+            break
+        }
         try? context.save()
     }
 
