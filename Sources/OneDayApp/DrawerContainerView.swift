@@ -562,6 +562,14 @@ final class DrawerContainerController: UIViewController,
                 opens = semanticPresented
             }
             dragLockTranslation = nil
+            // 触感矩阵条件项（体验三件规格 §2.3／表 D
+            // 物理吸附）：手势拖拽吸附落位且状态真翻
+            // 转才补 impact .light 一次；回弹原态不响、
+            // 按钮开合不走本路（防腻清单：抽屉开合无
+            // 触感，只给手势吸附这一处例外）
+            if opens != semanticPresented {
+                Haptics.impact(.light)
+            }
             setDrawer(opens, animated: true, velocityX: velocity.x)
         case .cancelled, .failed:
             dragLockTranslation = nil

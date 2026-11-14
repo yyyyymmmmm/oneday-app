@@ -15,6 +15,16 @@ import UIKit
 ///   .sensoryFeedback 落点，不走本枚举）
 /// - 删除确认落锤＝ impact .heavy；删除成功后不再
 ///   叠 success——同一因果链只震一次
+/// - 发送动作（消息落盘上屏同帧）＝ impact .light
+///   （2026-11-14 用户拍板定版：补最轻档、完成保留
+///   success、不设 App 内开关——跟随系统总闸；本
+///   行同时订正旧头注把 .success 语义清单里的「发
+///   送」误挂生成完成点的口径差：发送＝impact
+///   .light 在动作点、success 在生成完成点，两点
+///   各归其位）
+/// - 抽屉手势吸附落位（状态真翻转）＝ impact
+///   .light（矩阵条件项，2026-11-14 随定版包落；
+///   按钮开合仍无触感）
 /// 防腻清单（明示防回潮）：普通点按、行点击、tab
 /// 切换、页面进出、滚动、键盘、抽屉开合、翻页、
 /// 下拉刷新、系统开关/Picker 一律无触感。
@@ -24,7 +34,8 @@ import UIKit
 /// 落锤 heavy 一处；0.36.6 语音包按表 D 新增行落
 /// light 两处（开始录音/取消录音），停止落稿无触感；
 /// 0.36.19 右滑引用过阈触发落 light 一处（与引用落
-/// 定同一因果链，只震这一次，见 §84.3）。
+/// 定同一因果链，只震这一次，见 §84.3）；2026-11-14
+/// 定版包再落 light 两处（发送动作、抽屉手势吸附）。
 /// 复制点的触感在 CopyButton 内以 SwiftUI
 /// .sensoryFeedback(.success) 施加（设计层组件够
 /// 不着本文件），语义同属本表。
@@ -61,8 +72,10 @@ enum Haptics {
         #endif
     }
 
-    /// 物理落锤（影响型反馈，0.36.2 新增）：当前
-    /// 唯一落点＝删除确认 .heavy
+    /// 物理落锤（影响型反馈，0.36.2 新增）：.heavy
+    /// 只给删除确认；.light 落点＝开始/取消录音、右
+    /// 滑引用过阈、发送动作、抽屉手势吸附（逐处见
+    /// 文件头语义表）
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: style).impactOccurred()
