@@ -1,3 +1,5 @@
+import OneDayCore
+import OneDayDesign
 import SwiftUI
 
 /// 对话内授权卡（DESIGN §244，规格 permission-system-
