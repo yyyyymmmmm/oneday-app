@@ -11893,3 +11893,22 @@ run **43556010036**（头＝版号提交）**§190 终判绿（带 §184 在案�
 ### §231.1 CI 判读（2026-11-14 回填）
 
 run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例；3 处 XCTAssert 字样为编译回显源码行）。**Core 1937 执行／0 失败**——与静态预期精确对账（1920＋回响 16＋删除分型 1）。**App 137 启动**：125 passed＋5 skipped（PresentationLayerScenarios 源码 XCTSkip 存量）＋7 条 started 无终局行（与 **7 起宿主重启** 对应的 §184 在案签名：testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／回响 testFailedTraceMaterializesWithErrorSnapshot——与回响包自家绿轮同一受害、其语义由 Core testPlanFailedTraceKeepsErrorVerbatim 覆盖在案＋1 条重启重跑重复计启）；本版三包新测除该条外全数 passed 亲验（DeleteCloseoutTests 8／TraceEchoMaterialization Core 16＋App 其余 5／回执 4／SessionClassification 改断言全过）。**UI 4／0**。**边缘探针 passed（23.991s）**——重校准口径组版轮再成立。HUB-LAYOUT-VERDICT=PASS、顶簇 VERDICT=PASS、MATRIX-VERDICT=PASS。IPA **12,316,159 字节、md5 `852106a174a1256f46b42da63e4d6d7a`**、0.50.39/167（解包 Info.plist 亲验、bundle site.didichou.oneday），存 ~/workspace/your_files/oneday-v0.50.39/OneDay-0.50.39.ipa。未合 main、未打 tag。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-05039/。
+
+
+## §232 乐观删除：会话删除时序改「本地先删、后台删、失败恢复＋提醒」（2026-11-14；分支 fix/delete-optimistic，基线 rel-05039 头 39532cc；全档＝oneday-design-review/delete-optimistic-report-20261114.md）
+
+**口径来源**：用户 2026-11-14 亲定——「先是本地删，服务器后台删，成功了没事，失败了再恢复然后提醒」。覆盖 0.50.30/§223 的「服务端先行、回查落定才动本地」：围栏（DELETE 三参数＋409 重读重试）是接口细节，只活在客户端层（HermesClient.deleteServerSession），不许再决定用户侧时序。
+
+**落法（四段）**：
+1. **本地先删**：二次确认通过即由新件 `SessionDeletionCoordinator`（AppState 唯一持有）同步起手——待删入队落盘→共享目录摘行→绑定本地线程打墓碑 `ChatThread.isPendingDeletion`（新字段，SwiftData 轻量迁移）；抽屉名单在 `drawerItems` 单点过滤墓碑（常态/搜索同源），管理页/频道页/设置会话页各自名单同拍摘行（宿主 `onDeleteRequested` 钩子，取代行组件旧 `onDeleted` 落定钩）。UI 不等待、无转圈。侧账 purge 不在本地段（不可逆，留落定段），失败恢复才无损。
+2. **后台删**：协调器起 Task 跑 `ServerSessionActions.delete` 原样（围栏＋删后回查落定判定不变）——成功静默收口，UI 零打扰。
+3. **落定收口**：verified → `DeletedSessionCloseout.apply` 物理收尾（删墓碑线程本体＋清侧账＋目录摘行幂等），出队销账。对账回收（reconcile）与点开 404 防御不经协调器、口径不变（面对的是服务端已消失的既成事实）。
+4. **最终失败恢复＋提醒**：解墓碑（线程本体从未物理删，解标即原样回到删除前状态）→出队→`restoreRevision` 信号（名单自持宿主监听重拉）＋目录全量重拉恢复（仍在待删集者不被带回）→人话提醒 `AppState.sessionDeletionFailureNotice`（「『标题』删除没成功，已恢复。」不露接口原文），ChatView 提示条重要档消费（在场 onChange＋出现时补消费各一口）。
+
+**重启兜底**：待删队列＝Core 纯值 `PendingSessionDeletionQueue`（记录只含 id/标题/入队时刻），协调器 JSON 落 UserDefaults（键 `sessionDeletions.pendingQueue`，与 SideChatStore/FilePinSet 同模式）；入队落盘先于打墓碑（崩溃窗口只留「在队未打标」、续跑重演补上）。ChatView 启动任务调 `resumePending`：扫墓碑线程补队→逐条重演隐藏＋重跑后台删；服务端已无此条者经 delete 回查自然 verified 收口，续跑失败同样恢复＋提醒。
+
+**防回流纪律**：一切名单重拉口（AllConversationsStore.load／HermesChannelStore.load／ServerSessionsView.load／ServerSessionCatalog.refreshIfCold）在展示与目录写回处过滤待删集——后台未落定期间服务端仍有其行，不过滤即被重拉带回、乐观隐藏失效；唯管理页对账存活集用未过滤全集（待删会话服务端尚存活，墓碑线程不许被对账误清）。
+
+**保护面不变**：主线钦定 id 在协调器 begin 与收口 apply 双处整件不动；真删闸 mayHardDeleteOnThreadDelete 不变；本地-only 线程（未链接/导入/合并桶）仍只删本地、服务端零动作。覆盖面：抽屉删线程、管理页单删＋批删、Hermes/平台频道页行删、设置会话页批删＋详情页删——全 App 会话删除入口统一此时序（deleteEmptySessions 服务端批量清理不在此列，其处置另有定版）。
+
+**测试**：Core PendingSessionDeletionQueueTests（入队去重/出队/集视图）；App DeleteOptimisticTests（即时消失＝墓碑＋目录摘行＋在队／后台成功＝物理收口＋销账＋无提醒／后台失败＝解标恢复＋目录回行＋提醒置位／重启续跑＝新协调器读盘队列＋墓碑补队、成功收口与失败恢复各一／主线整件不动）。执行口以协调器注入口定落定/失败（deleteAction/catalogRefresher 默认即生产实现），不为测试另造网络桩。
