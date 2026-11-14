@@ -12523,3 +12523,18 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 ### §258.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
 
 run 43602076559：名义 failure 仅 §184。实数：断言失败 **0**（全程无 `Test Case ... failed` 行、无任一 `Executed ... with N>0 failures`）；Core **2081/2081 精确对账**（Executed 2081、0 failures，＝预期 2034＋13＋17＋17）；UI **8/8 全跑全过**（Executed 8、0 failures——目标尾巴包自身 CI 未跑成的 UI 步至此**补验完成**）；App passed 168＋skipped 5＋无终局 5＝178（＋helpers 伪名 1＝grep 口径 179）；VERDICT 三连 PASS（MATRIX／HUB-LAYOUT／主 VERDICT）。**§184 登记**：宿主重启 7 起（14:07–14:12 集中于 App 测试相位），波及无终局 5 条——ChatReliabilityOfflineTests.testMarkPendingSendRetainsEntryOnDisk 与 ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned（.44 轮已登记者，本轮再现、按组版轮登记口径处理、不判红）、ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays、DrawerBridgeHarnessTests.testBridgeTapToOpenReachesFullTravel、EdgeEffectRegistrationTests.testAnchorRegistersAncestorScrollView（本轮新登记者，同签名）；崩溃元数据 8 份照常采集。IPA 解包验：0.50.45／173／site.didichou.oneday，13,115,227 字节，md5 `4e78123345ac2b4bd3aa4fbd6e11994b`。
+
+## §259 连接器面门面化（2026-11-14；分支 feat/connectors-facade，基线 rel-05045@2f3ce5b；待办总表第 69 条／拼装普查收口序第 4）
+
+**定性**：全 App 拼装普查（app-wide-assembly-audit-20261114）连接器/权限页判【拼装】——ConnectorsView 一 View 直持 WriteGate/OneDayBridge/OverviewBridge/MemoryBridge 四个桥客户端，探活状态、MCP 名单、设备读数、云电脑子店各存一处，「连没连上」散在 ≥5 个持有者。本节把连接器面收成**单门面＋单一连接状态源**：View 只认门面一个入口、连接状态只在门面一处记账。用户面行为（连接/断开/状态呈现/权限流走法）与现行逐项一致、不许回退；频道凭据 §256 直连口径不在本面、不许回退。
+
+**市面成熟做法对账**（详见施工报告 §一）：【官方原文级】Apple SwiftUI 数据流定版口径＝单一事实源（single source of truth）＋视图只读派生、状态归模型层持有（WWDC20 Data Essentials in SwiftUI／官方文档 Managing model data in your app）；设置型页面在系统设置与成熟 App 中的通行形态＝一面一状态持有者、行与详情只消费。【同构先例级】仓内正面样本：身份 §253（服务端单真值＋本地只剩带时间戳缓存）、模型 §245 期单真值收敛、枢纽桥 Client 收敛——同一收法已三度落地。【结论】本包不新造任何对账/补偿组件，只做持有权搬家：把散在 View 的客户端与状态整体移进门面，判定与口径全用既有 Core 件（ConnectorDirectory／LocalServiceProbeMapping／ConnectionStatusWording 零改）。
+
+**落点**：
+- **新增 `ConnectorsFacade`**（App 层，@MainActor @Observable）：私有持有四桥客户端（WriteGate/OneDayBridge/OverviewBridge/MemoryBridge）；持有 MCP 名单与操作态（servers/serversError/isLoadingServers/toggling/testing/testResults/notice）、本机服务探活账（localStates/lastProbeAt/gateSnapshot/overviewGeneratedAt）、设备读数（deviceMetrics）；单实例持有 ConnectionsStore 子店（云电脑 connections 契约）；整批刷新 refresh 与各单项动作（loadServers/setEnabled/test/probeLocals/probeDevices）签名收 appState 入参（沿 ConnectionsStore 既有接线式）。目录派生 connectedConnectors/availableConnectors 由 Core ConnectorDirectory 自门面名单单源派生（含 §6.1 Simular Box 滤行口径原文）。
+- **`ConnectorsView` 瘦身**（1543→1249 行）：删四客户端与全部面内 @State，只留 `@State facade`＋呈现态（query/segment/detailTarget/showAddComputer）；全部状态读改走 facade.*，.task/.refreshable 收成 facade.refresh 一条；AddComputerView/CloudComputerDetailView 的 store 改由 facade.connectionsStore 供给。
+- **搬运纪律**：探活四路（Hermes health/write-gate 状态＋记忆/技能计数/目标＋点子计数/总览快照）的错误映射文案、并行 async let 序、探活不缓存口径、MCP 启停乐观更新＋失败回滚、测试回执口径，逐字搬运、零语义改动；Core 与 Design 两 target 零改动；计数对账预期 Core 2081／App 测试／xcstrings 3225 键全不变。
+
+**不属本包（登记）**：①频道面 ChannelStatusStore 在 ChannelPairingView/DrawerView 各一实例——归频道面，且 §256 已改直连，本包不动、后续如收归另立小项；②CompanionProbeStore 为 AppState 单实例、归设置页版本组面，已单源，不并入；③设备权限/同步状态（deviceSession/deviceSync）为 AppState 单实例，门面只协调读数不记第二份；④**权限流协议栈**（DevicePermissionCoordinator 卡协议：桥 ask/notice 两通道＋桥侧 park＋本地卡 UserDefaults 持久化＋24h 过期）本包只登记不改协议——App 侧卡持有已单源（协调器单实例），三方对账（本地卡／桥 park／系统权限态）是跨线协议结构，「卡真相收为桥侧单源、本地只留展示缓存」属协议级大改，立项清单见施工报告 §四，不在本包自裁。
+
+**验收**：CI 按 §190 判读（回填 §259.1）；真机待验清单见施工报告 §五（连接器页全行状态、本机服务四行探活与详情、MCP 启停/测试、云电脑组与添加流、设备组读数与同步段、搜索过滤，逐项与 .45 对照无差）。
