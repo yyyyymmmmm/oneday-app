@@ -11930,3 +11930,13 @@ run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案�
 ### §233.1 CI 判读（2026-11-14 回填）
 
 run **43562099605**（workflow_dispatch，头 e228260）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成（App 阶段 Restarting ×7、exit 65）。**断言失败 0 条**（全日志无 failed 用例、无 failed 套件）。**Core 1960 执行／0 失败**——与静态预期精确对账（0.50.39 基线 1937＋本包新测 23＝ServerErrorTextTests 14＋MutationOptimisticCoreTests 9）。**App 套件 passed**：139 passed（基线 125＋MutationOptimisticTests 14）＋5 skipped（PresentationLayerScenarios 源码 XCTSkip 存量）；started 无终局行 8 条均为 §184 在案受害家族（testKeyboardUpMovesComposerOnlyDockStays／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testMarkPendingSendRetainsEntryOnDisk／testFailedTraceMaterializesWithErrorSnapshot 等，套件终局 passed）。**UI 4／0**。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-mutation-optimistic/。本包不组版（修复包，随下一版装车由主线定），未合 main、未打 tag。
+
+## §234 抽屉长按菜单统一挂载（2026-11-14；分支 fix/drawer-longpress，基线 rel-05039@39532cc；Codex 施工、全档＝oneday-design-review/drawer-longpress-report-20261114.md；本节由 0.50.40 组版编入——原包未自编节号）
+
+**病灶**：抽屉旁聊区是合并行集，本地线程行与未收养服务端行同区平铺；未收养行整类根本没挂 contextMenu（旧注「无长按四件」）——用户 2026-11-14 录屏里「有的行怎么按都不弹」即此类；其余行挂法层级不一、间歇不弹。
+
+**落法**：统一修饰 `drawerRowContextMenu`（整行命中面 `contentShape(Rectangle())`＋系统 `contextMenu`）一处定义、每行生效；未收养行改接既有 `ServerSessionRow` 四件（重命名/置顶/归档/删除，复用其服务端动作机、合并桶二次确认、busy 禁用）；频道行经统一修饰补「打开」菜单（与点击同路）；三类行与开抽屉钮加无障碍标识（`drawer.open`／`drawer.row.channel.<id>`／`drawer.row.side.server.<id>`／`drawer.row.side.local.<uuid>`）。Demo 门内供数（+2 本地旁聊种子、+1 未收养罐装会话），生产零影响。删除实现与时序本包未动（菜单只调现行入口）。
+
+**组版收口（0.50.40）**：本包施工时删除钩按 §223 落定口径接 `onDeleted` 收口钩；组版树删除时序已由 §232 改乐观——`ServerSessionRow` 删除钩统一为 `onDeleteRequested`（二次确认通过即触发），未收养行宿主（抽屉）改经 `SessionDeletionCoordinator` 起手（目录摘行同拍消失、后台删、落定物理收口与失败恢复由协调器统一经 DeletedSessionCloseout），原 `onDeleted` 钩退役。顺修的真本地化 bug 保留：`deleteMenuTitle` 由 String 改 `LocalizedStringKey`（英文环境删除项不再停在中文）。
+
+**验收**：XCUITest 真装配（`-odDemoMode`，经生产汉堡钮开抽屉、坐标长按 1.5s）逐行型证明菜单可唤起——本地行＋当前选中行四件、未收养行四件、Hermes 频道行「打开」、旁聊首末行（DrawerRowContextMenuTests 四法），断言按 SF Symbol 标识（pencil/pin/archivebox/trash/arrow.up.right）校验动作语义、与区域无关。CI run 43570443082 判绿（断言 0、失败用例 0、UI 8/8；§184 无终局行 8 条在案登记）。真机手势仲裁以用户真机为准（归真机待验）。
