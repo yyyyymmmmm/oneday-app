@@ -163,6 +163,26 @@ final class ChatEntry {
     /// 轮的位置、永不漂移（可选＋默认 nil、SwiftData
     /// 轻量迁移）
     var approvalKey: String? = nil
+    /// §229（回响物化归位）：留痕回响标记——非 nil
+    /// 即本条是按桥侧留痕物化进对话流的回响条目，
+    /// 值＝去重键（Core TraceEchoMaterialization.
+    /// key，形态 trace:<留痕id>，同一线程内唯一、
+    /// 已落盘永不再物化）。与 echoKey/approvalKey
+    /// 同族纪律：不是任何一方的发言——呈现走流内
+    /// 紧凑回响行、不进发送上下文、不被落定整段替
+    /// 换当半截删、不进半截名单/回填（见守卫谓词
+    /// isSystemAnchored）；createdAt 落盘后由物化
+    /// 方改写为留痕的事件时间 trace.at——sorted-
+    /// Entries 按它排序，条目自然落进事件发生的
+    /// 那一轮（§165 审批锚定的同款定位法），不再
+    /// 恒挂流尾（可选＋默认 nil、SwiftData 轻量迁移）
+    var traceKey: String? = nil
+    /// §229：回响呈现快照（Core TraceEchoSnapshot
+    /// 的 JSON 编码）——物化时成句定格，条目自包
+    /// 含、日后留痕滚出拉取窗口也不漂移（可选＋
+    /// 默认 nil、SwiftData 轻量迁移，同 toolCard-
+    /// Data 先例）
+    var traceEchoData: Data? = nil
     /// 基础止血包（P1/P2）：发送失败标记——本条用户
     /// 消息的一轮没能成立（上传/链接失败）或 run 落
     /// 定失败时置真：条目留原地、气泡旁挂失败标记、
@@ -186,7 +206,7 @@ final class ChatEntry {
     var createdAt: Date
     var thread: ChatThread?
 
-    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, sourceQuote: SourceQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil, approvalKey: String? = nil) {
+    init(role: String, content: String, thread: ChatThread? = nil, imageData: Data? = nil, imageDatas: [Data] = [], quote: MessageQuote? = nil, sourceQuote: SourceQuote? = nil, reasoning: String? = nil, reasoningSeconds: Double? = nil, toolCard: ToolCard? = nil, remoteImagePaths: [String] = [], remoteFilePaths: [String] = [], echoKey: String? = nil, approvalKey: String? = nil, traceKey: String? = nil, traceSnapshot: TraceEchoSnapshot? = nil) {
         id = UUID()
         self.role = role
         self.content = content
@@ -232,18 +252,33 @@ final class ChatEntry {
             : try? JSONEncoder().encode(remoteFilePaths)
         self.echoKey = echoKey
         self.approvalKey = approvalKey
+        self.traceKey = traceKey
+        traceEchoData = traceSnapshot.flatMap {
+            try? JSONEncoder().encode($0)
+        }
         createdAt = Date()
         self.thread = thread
     }
 
     /// 系统锚定条目（§165 统一谓词，规格 §4.1）：回响
-    /// （echoKey）与审批锚定（approvalKey）同族——都
-    /// 是 App 按真源落进对话流的事实条目、不是发言。
+    /// （echoKey）、审批锚定（approvalKey）与留痕回
+    /// 响（traceKey，§229）同族——都是 App 按真源落
+    /// 进对话流的事实条目、不是发言。
     /// 四处守卫（发送上下文排除／落定整段替换跳过／
     /// 半截名单排除／半截回填排除）一律引本谓词，不
     /// 另起平行判断
     var isSystemAnchored: Bool {
-        echoKey != nil || approvalKey != nil
+        echoKey != nil || approvalKey != nil || traceKey != nil
+    }
+
+    /// 回响呈现快照解码（§229；无或损坏为 nil——
+    /// 渲染侧按缺快照降级为 content 主句一行，不许
+    /// 因单条快照损坏整面消失）
+    var traceEcho: TraceEchoSnapshot? {
+        guard let traceEchoData else { return nil }
+        return try? JSONDecoder().decode(
+            TraceEchoSnapshot.self, from: traceEchoData
+        )
     }
 
     /// 待发条目（聊天可靠性包）：deliveryState 的
