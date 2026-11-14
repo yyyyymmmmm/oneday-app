@@ -11587,3 +11587,25 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 run **43543573208**（头 4df97c0）§190 判读：job build-native 名义 failure，逐步结论唯一 failure 步＝Unit tests；Build／Package／Upload 均 success（日志尾 Uploaded bytes 12,221,078）。**Core 1854 执行／0 失败**（1853＋本包新测 1 精确；`testDrawerSelectionFillDeepenedForMaterialPanel` passed）。**UI 4／0**。**栏位探针直接 passed（6.352s）**。**App 95 全数启动**：83 passed＋5 skipped（存量 XCTSkip）＋6 条 §184 宿主死亡受害（宿主重启 7 起；受害名单与 .36 轮全同——testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／testSelectionSurvivesConstantBranch）＋**断言失败 1 条**（下行）。本包新测 `ChannelBrandAssetTests.testDrawerChannelBrandAssetsResolveToBitmaps` passed。
 
 **唯一断言失败的定因与保留**：`EdgeEffectProbeTests.testEdgeEffectAttributionProbe`——深色 bottomRest 的 composerBand Δ＝30＞帽 8（「深色 bottomRest 舱区应近页面色」）。双证定因＝**本包件二恢复气泡使该断言前提失效、非边缘机制回归**：①.36 判绿轮（run 43537855358）同探针同点实测 composer＝0（无泡时代舱带背后为页色散文面）；②本轮探针自家消融臂 noBandDark 同点 Δ＝45≈暗档泡本色 #2C2C2E（舱带采样区正压在末条助手泡上），生产臂经系统滚动边缘效果软化为 30——机制贡献为负、其余深色点（composerMargin 0／dockBelowCapsule 0／topRest composer 0）全净。该断言的「舱区应近页面色」是 A1 无泡时代的内容前提，用户 2026-11-14 拍板恢复气泡后舱带背后即泡面本色。**本包不擅改探针帽值**（帽为边缘线首版验证轮实测校准、归其口径）：判读结论＝**本包判绿带保留**，探针口径更新（建议改与浅色 composerMargin 同式的双臂相对帽、或按泡时代重校准）待主线裁决，随装配轮或边缘线处理。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-muse-align/job.log。
+
+## §218 边缘探针气泡时代重校准（2026-11-14；分支 feat/edge-probe-bubble-recalibration，基线 feat/muse-align-batch 头 a98df86；只动测试侧探针、产品码零改动）
+
+### §218.1 病史：三轮三签名
+
+`EdgeEffectProbeTests.testEdgeEffectAttributionProbe` 近三轮以三种不同签名连红，均非产品回归、在案逐轮登记：①**浅色像素微超**——rel-05037-prep 轮 run 43541500993：浅色 bottomRest composerMargin 生产 8＞相对门限 7（消融 3＋余量 4），绝对帽 10 内（无泡树）；②**异步超时**——模型账包轮 run 43543959202：探针 line 40 `spin 0.8s` 期望 5.8s 未满足、非断言失败、采样行在超时后仍续产（无泡树；同轮 runner 有渲染管线迟滞旁证）；③**深色舱带前提失效**——对齐包轮 run 43543573208：深色 bottomRest composerBand 生产 Δ30＞绝对帽 8（气泡树；消融臂 45≈暗泡本色、双证定因为断言前提随气泡恢复失效，见 §217.5）。另 .37 装配轮 run 43544784796（无泡树）该探针 passed，为第四数据点。本节按主线裁决对探针口径做气泡时代重定标。
+
+### §218.2 期望关系式（可核）
+
+采样 Δ＝对 pageRef 的逐通道最大差。设采样点带后内容原色为 C：消融臂（摘两注册）Δraw≈Δ(C，页色)（内容原锐度透出）；生产臂经系统 .soft 滚动边缘效果把 C 朝页/条面软化。故期望式：**Δprod ≤ Δraw＋ε，且 C＝页色时两臂同归系统地板**——边缘效果只软化不加码。实测锚点（对齐包轮原始色值）：深色 bottomRest 舱区消融 (43,43,45)≈暗泡 #2C2C2E 本色（Δ44）、生产 (29,29,30)（Δ30、软化比≈2/3）；浅色 bottomRest 坞点消融 (238,238,240)＝浅泡 #EEEEF0 逐值命中（Δ14）、生产 Δ3（底栏材质覆住）；无泡轮同点深色两臂同为 (0,0,0)（带后为页色散文面）。六轮（.35 43531814374／.36 43537855358／预制 43541500993／模型 43543959202／对齐 43543573208／.37 43544784796）全点账见重校准报告 §2：全部分布内无生产臂违反关系式之点（最大正差＝浅 composerMargin bottomRest +5，其生产值六轮恒 8、为效果本体带边静止签名、消融值 3–6 抖动所致，非产品异常）。
+
+### §218.3 新断言形态
+
+分两类：**内容可达区**（顶簇间隙／舱带边缘／舱区）＝双臂相对帽为主断（Δprod ≤ Δraw＋余量）＋绝对 sanity 帽（取实测合法最大值＋余量、只防灾变回长）；**构造同色区**（浅状态栏带／双坞——生产形态下恒被系统件与底栏材质覆盖、必须与页同色）＝保绝对帽。逐点：浅 topBand 相对 +2／sanity 6（沿首版）；浅 composerMargin 相对余量 4→**6**（六轮差 max +5）、sanity 10 不变；浅 composerBand topRest 由绝对 12 改相对 +2／sanity 12（两臂六轮恒 10）；浅 composerBand bottomRest **新增**相对 +4／sanity 48（原色 era 间 22→35）；深 composerMargin 由绝对 8 改相对 +2／sanity 8（两臂恒 0）；深 composerBand 由绝对 8 改相对 +3／sanity 48（原色 max 45）；深 status/topBand 沿首版（地板 25/18、相对 +3、sanity 28/22）；浅 status 帽 3、浅坞帽 4、深坞帽 8 保绝对（构造同色区）。滚动态 topUnder composerBand 绝对帽 70→**80**（气泡时代生产实测 70、原色 97、软化仍成立；「严于消融」相对断不动）；topUnder topBand 帽 32、bottomUnder 只倾印，均不动。
+
+### §218.4 超时项处置
+
+`spinRunLoop` 的期望满足原走 `DispatchQueue.main.asyncAfter`——主队列被渲染管线饿死时 fulfill 本身迟到（签名②实证）。改走**全局队列墙钟**（`DispatchQueue.global(qos:.userInitiated).asyncAfter`）：满足信号与主队列负载解耦，`wait` 照旧泵主 run loop、静置时长与语义不变。属信号路径收紧而非放宽（超时上限仍为 seconds＋5）。若验证两轮仍见同签名超时，如实登记保留、不再以改等待掩盖。
+
+### §218.5 验证（回填）
+
+（待两轮 CI 回填：run id、探针逐轮结果、全套计数对账。）
