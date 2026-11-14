@@ -460,6 +460,13 @@ struct ChatView: View {
     /// 把滚动边缘效果注册到各自覆盖容器（见
     /// ScrollEdgeRegistration）
     @State private var listScrollHandle = ChatListScrollViewHandle()
+    /// §246（换代包 3）：新承载特性开关（Core
+    /// ChatCarrierFeature，默认关＝旧承载；设置页
+    /// 实验区与本键同源）与新承载句柄（命令口＋几
+    /// 何读数匣，见 ChatListCarrier.swift）
+    @AppStorage(ChatCarrierFeature.defaultsKey)
+    private var gen3CarrierEnabled = false
+    @State private var carrierHandle = ChatListCarrierHandle()
     /// 0.6.0：通知 sheet（顶栏铃铛点开，总览桥驱动）
     @State private var showNotifications = false
     /// 锚点点亮的条目 id（§165）：点达锚定行时置位，
@@ -998,7 +1005,10 @@ struct ChatView: View {
             windowHeight: $kbSnapshot.windowHeight,
             scrollHandle: listScrollHandle
         ) {
-            bottomBar(proxy)
+            bottomBar(
+                showsArrowRow: true,
+                onScrollToBottom: { scrollToBottom(proxy) }
+            )
         }
     }
 
@@ -1013,7 +1023,10 @@ struct ChatView: View {
         }
     }
 
-    private var chatSurface: some View {
+    /// 旧承载列表面（§246 前的定版复合面：Scroll-
+    /// ViewReader＋消息列表＋两宿主 overlay），开
+    /// 关关时恒走本面、内容一字未动
+    private var legacyListSurface: some View {
         ScrollViewReader { proxy in
             // §186（2026-11-12，承载换代）：输入舱退出
             // 列表的 safeAreaBar 注册，改由 Composer-
@@ -1063,6 +1076,23 @@ struct ChatView: View {
             // 整栈），落位改由托管控制器的
             // 约束构造保证——仍是「在输入舱自己的坐标
             // 系里」，不回浮层推算
+        }
+    }
+
+    /// 聊天主面（§246 承载分叉）：列表面按特性开关
+    /// 二选一（开＝carrierListSurface 新承载／关＝
+    /// legacyListSurface 旧承载），下方页面级修饰
+    /// 链（背景/坞显隐/选图器/附件面板/生命周期/
+    /// 数据刷新）两承载共享、不因分叉而异——两承
+    /// 载的页面行为差只许出在列表与回底钮两处承载
+    /// 本身
+    private var chatSurface: some View {
+        Group {
+            if gen3CarrierEnabled {
+                carrierListSurface
+            } else {
+                legacyListSurface
+            }
         }
         // §185：背景层穿到屏幕四边——上下栏纯色块修
         // 复，页面背景单独忽略安全区铺满整屏，栏下内
@@ -1891,7 +1921,15 @@ struct ChatView: View {
     /// safeAreaInset 系统通道，发送舱在布局流内、安全区
     /// 自理，不再手算补高）
 
-    private func bottomBar(_ proxy: ScrollViewProxy) -> some View {
+    /// 发送区整栈（§246 起两承载共用本构建）：回底
+    /// 钮行的有无与点按动作由调用方注入——旧承载＝
+    /// 行在栈内＋proxy 贴底（§124 定版）；新承载＝
+    /// 栈内无钮行，钮归容器 overlay 浮层（见
+    /// ChatListCarrier.swift），动作走句柄贴底
+    private func bottomBar(
+        showsArrowRow: Bool,
+        onScrollToBottom: @escaping () -> Void
+    ) -> some View {
         // 0.36.5（审计 bug 2 短修）：钮显隐走 Core 政
         // 策——当时是几何判定离底之外并入事实信号；
         // §135 改判几何单源（事实信号链退役，见
@@ -1937,10 +1975,10 @@ struct ChatView: View {
             // 钉死；末条事实信号已于 §135 退役、显隐
             // 改几何单源），不靠把钮逐出布局流——三
             // 轮浮层落位病史见 DESIGN §124
-            if showsBackToBottomButton {
+            if showsArrowRow && showsBackToBottomButton {
                 HStack {
                     Spacer(minLength: 0)
-                    scrollToBottomButton(proxy)
+                    scrollToBottomButton(action: onScrollToBottom)
                         .transition(
                             .opacity.combined(
                                 with: .scale(scale: 0.9)
@@ -2002,9 +2040,11 @@ struct ChatView: View {
     /// AwayUnreadCounter（displayText 封顶 99+），挂视
     /// 觉盘右上；点钮即清零（回底的 ingest 随后以在底
     /// 事实复核、水位推进，不双计）
-    private func scrollToBottomButton(_ proxy: ScrollViewProxy) -> some View {
+    private func scrollToBottomButton(
+        action: @escaping () -> Void
+    ) -> some View {
         Button {
-            scrollToBottom(proxy)
+            action()
             awayUnread.reset()
         } label: {
             Image(systemName: "chevron.down")
@@ -2040,6 +2080,506 @@ struct ChatView: View {
                 ? "回到底部，\(awayUnread.count) 条新消息"
                 : "回到底部"
         )
+    }
+
+    // MARK: - 新承载（§246 换代包 3）
+
+    /// 新承载列表面：容器（ChatListCarrierView）＋
+    /// 两宿主 overlay（与旧承载同式同层：输入舱托
+    /// 管与顶簇托管不换）＋跟随处理链的新承载版
+    /// （链尾）。页面级修饰在 chatSurface 链上共享，
+    /// 本面只管列表本体与回底钮浮层
+    private var carrierListSurface: some View {
+        ChatListCarrierView(
+            rows: carrierRows(),
+            layout: ChatCarrierLayout(
+                horizontalPadding: OneDayMetrics.pageGutter,
+                topPadding: OneDayMetrics.spacingM,
+                bottomPadding: OneDayMetrics.spacingS,
+                rowSpacing: OneDayMetrics.spacingL,
+                arrowTrailing: OneDayMetrics.spacingM,
+                arrowGapAboveComposer: 8,
+                arrowSize: OneDayMetrics.minTapTarget
+            ),
+            // 顶/底留位与旧承载 contentMargins 同源
+            // 同值（顶＝窗口顶安全区实测＋顶簇实高；
+            // 底＝键盘快照 bottomSpace＋spacingS 单
+            // 点边距）——冻结数值的来源不因承载变
+            topInset: windowTopSafeInset + topBarHeight,
+            bottomInset: kbSnapshot.bottomSpace
+                + OneDayMetrics.spacingS,
+            bottomSpace: kbSnapshot.bottomSpace,
+            keyboardAnimationDuration:
+                kbSnapshot.animationDuration,
+            keyboardAnimationCurveRaw:
+                kbSnapshot.animationCurveRawValue,
+            arrowView: carrierArrowView,
+            handle: carrierHandle,
+            callbacks: carrierCallbacks
+        )
+        .ignoresSafeArea(edges: [.top, .bottom])
+        .overlay { composerHostOverlayCarrier }
+        .overlay { topBarHostOverlay }
+        // 条目数变化（与旧承载同路同口径）：先以最新
+        // 读数＋尾锚事实重跑在底派生，再按在底事实
+        // 跟随贴底，未读同路喂入
+        .onChange(of: currentThread?.sortedEntries.count) { _, _ in
+            applyBottomProximity(
+                distance: bottomDistanceRecorder.latest
+            )
+            if isNearBottom {
+                scrollToBottomCarrier(animated: false)
+            }
+            feedAwayUnread()
+        }
+        // 流式跟随（旧承载 A3 登记—结算制的执行口
+        // 换承载版）：节流闸与挂账双守卫零改，只换
+        // 执行口
+        .onChange(of: streamingText) { _, newText in
+            guard let newText else {
+                streamFollowGate.reset()
+                streamFollowSettleGeneration += 1
+                streamFollowPending = false
+                return
+            }
+            if isNearBottom,
+               streamFollowGate.shouldFollow(
+                   currentCount: newText.count
+               ) {
+                streamFollowSettleGeneration += 1
+                streamFollowPending = true
+                let generation = streamFollowSettleGeneration
+                Task { @MainActor in
+                    await Task.yield()
+                    settleStreamFollowCarrier(
+                        generation: generation
+                    )
+                }
+            }
+        }
+        .onChange(of: composerBottomSpace) {
+            settleStreamFollowCarrier(
+                generation: streamFollowSettleGeneration
+            )
+        }
+        // 发送贴底（旧承载同路）：置真跟随态＋即时
+        // 无动画贴底＋自发清未读账
+        .onChange(of: sendPinToken) { _, _ in
+            awayUnread.noteOwnSend(
+                entryIDs: currentThread?.sortedEntries.map(\.id) ?? []
+            )
+            isNearBottom = BottomFollowPolicy.nearBottomAfterOwnSend()
+            scrollToBottomCarrier(animated: false)
+        }
+        .onChange(of: currentThreadID) { oldID, newID in
+            handleCarrierThreadSwitch(oldID: oldID, newID: newID)
+        }
+        .onChange(of: composerFocused) { _, focused in
+            if focused {
+                anchorToBottomAfterKeyboardCarrier()
+            } else {
+                keyboardAnchorPending = false
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIResponder.keyboardWillChangeFrameNotification
+            )
+        ) { _ in
+            keyboardFrameSettled = false
+            if composerFocused {
+                anchorToBottomAfterKeyboardCarrier()
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIResponder.keyboardDidChangeFrameNotification
+            )
+        ) { _ in
+            settleKeyboardAnchorCarrier()
+        }
+        .task(id: currentThreadID) {
+            guard let id = currentThreadID else { return }
+            if ChatListAnchorStore.anchor(for: id) != nil
+                || appState.sideChats.scrollAnchor(for: id) != nil {
+                restoreCarrierPosition(for: id)
+            } else {
+                carrierFirstFrameSettle(for: id)
+            }
+        }
+        .task(id: gen3CarrierEnabled) {
+            // 开关在本页在场时被打开：按当前线程锚恢
+            // 复一次（与切线程恢复同路），不让新承载
+            // 停在线程顶部
+            if let id = currentThreadID {
+                restoreCarrierPosition(for: id)
+                carrierFirstFrameSettle(for: id)
+            }
+        }
+    }
+
+    /// 新承载的输入舱宿主 overlay：托管本体与旧承
+    /// 载同一 ComposerGuideHost、同一批实测回报绑
+    /// 定（§194 机制与冻结记账零改）；只有舱内容
+    /// 的回底钮行退场（钮归容器 overlay）
+    @ViewBuilder
+    private var composerHostOverlayCarrier: some View {
+        ComposerGuideHost(
+            bottomSpace: $composerBottomSpace,
+            topSafe: $windowTopSafeInset,
+            pocketHeight: $kbSnapshot.pocketHeight,
+            dockTop: $kbSnapshot.dockTopInWindow,
+            keyboardFrame: $kbFrameUpdate,
+            windowHeight: $kbSnapshot.windowHeight,
+            scrollHandle: listScrollHandle
+        ) {
+            bottomBar(
+                showsArrowRow: false,
+                onScrollToBottom: {
+                    scrollToBottomCarrier(animated: true)
+                }
+            )
+        }
+    }
+
+    /// 容器 overlay 回底钮的视图供给：显隐与角标与
+    /// 旧承载同一派生（showsBackToBottomButton＋
+    /// AwayUnreadCounter），钮本体与旧承载共用同一
+    /// 构建（scrollToBottomButton），只有承载与动
+    /// 作口换
+    private var carrierArrowView: AnyView? {
+        guard showsBackToBottomButton else { return nil }
+        return AnyView(
+            scrollToBottomButton(action: {
+                scrollToBottomCarrier(animated: true)
+            })
+        )
+    }
+
+    /// 承载回调：几何读数先同步进引用匣（非状态、
+    /// 写不失效视图，与 BottomDistanceRecorder 的
+    /// §199 纪律同式），判定与落定评估推下一拍执
+    /// 行——承载 apply 拍内不许写 @State（防更新中
+    /// 改状态）
+    private var carrierCallbacks: ChatListCarrierCallbacks {
+        ChatListCarrierCallbacks(
+            onScrollGeometry: {
+                bottomDistanceRecorder.latest =
+                    carrierHandle.latestDistance
+                bottomDistanceRecorder.contentEndVisible =
+                    carrierHandle.contentEndVisible
+                bottomDistanceRecorder.containerHeight =
+                    carrierHandle.containerHeight
+                bottomDistanceRecorder.bottomInset =
+                    carrierHandle.bottomInset
+                DispatchQueue.main.async {
+                    applyBottomProximity(
+                        distance: bottomDistanceRecorder.latest
+                    )
+                    evaluateSettleOnEventCarrier()
+                }
+            },
+            onTopVisibleEntry: { entryID in
+                DispatchQueue.main.async {
+                    if topVisibleEntryID != entryID {
+                        topVisibleEntryID = entryID
+                    }
+                }
+            },
+            onBlankTap: {
+                composerFocusHandle.dismiss()
+            }
+        )
+    }
+
+    // MARK: 新承载行构建
+
+    /// 行集组装：与旧承载 messageList 的行集同源同
+    /// 序（渲染计划条目/工具组→直播区→回告卡→审
+    /// 批区→空状态）——同一批数据、同一批行内容
+    /// 构建，只换承载。直播区/回告/审批/空态在新
+    /// 承载里是不透明行（整段托管、量实定高）
+    private func carrierRows() -> [ChatCarrierRow] {
+        var rows: [ChatCarrierRow] = []
+        if let thread = currentThread {
+            let plan = renderPlan(for: thread)
+            for item in plan.items {
+                switch item {
+                case .entry(let entry):
+                    rows.append(
+                        carrierEntryRow(
+                            entry,
+                            dividerText: plan.dividers[entry.id]
+                        )
+                    )
+                case .toolGroup(let groupEntries):
+                    let cards = groupEntries.compactMap(\.toolCard)
+                    rows.append(
+                        ChatCarrierRow(
+                            key: "toolgroup-\(groupEntries[0].id.uuidString)",
+                            entryID: groupEntries[0].id,
+                            version: groupEntries.count,
+                            estimatedHeight: 96,
+                            makeView: {
+                                AnyView(
+                                    ToolCardGroupView(cards: cards)
+                                )
+                            }
+                        )
+                    )
+                }
+            }
+        }
+        let liveItems = liveRenderItems()
+        if !liveItems.isEmpty {
+            rows.append(
+                ChatCarrierRow(
+                    key: "live-zone",
+                    entryID: nil,
+                    version: liveZoneVersion(items: liveItems),
+                    estimatedHeight: 120,
+                    makeView: { AnyView(liveZone) }
+                )
+            )
+        }
+        if let overviewStore {
+            for item in ReportCardPolicy.cards(
+                notifications: overviewStore.notifications,
+                isMainThread: isCurrentMainThread
+            ) {
+                rows.append(
+                    ChatCarrierRow(
+                        key: "report-\(item.id)",
+                        entryID: nil,
+                        version: 0,
+                        estimatedHeight: 110,
+                        makeView: {
+                            AnyView(
+                                reportCard(
+                                    item, store: overviewStore
+                                )
+                            )
+                        }
+                    )
+                )
+            }
+        }
+        rows.append(
+            ChatCarrierRow(
+                key: "approval-zone",
+                entryID: nil,
+                version: appState.sharedHubStore()
+                    .anchoredRecordIDs.count,
+                estimatedHeight: 0,
+                makeView: {
+                    AnyView(
+                        ChatApprovalZone(
+                            store: appState.sharedHubStore(),
+                            anchoredRecordIDs: appState
+                                .sharedHubStore().anchoredRecordIDs
+                        )
+                    )
+                }
+            )
+        )
+        if ChatEmptyState.shows(
+            threadIsNil: currentThread == nil,
+            entryCount: currentThread?.sortedEntries.count ?? 0,
+            isStreaming: isStreaming
+        ) {
+            rows.append(
+                ChatCarrierRow(
+                    key: "empty-hero",
+                    entryID: nil,
+                    version: 0,
+                    estimatedHeight: 190,
+                    makeView: { AnyView(emptyStateHero) }
+                )
+            )
+            rows.append(
+                ChatCarrierRow(
+                    key: "empty-suggestions",
+                    entryID: nil,
+                    version: 0,
+                    estimatedHeight: 190,
+                    makeView: { AnyView(emptyStateSuggestions) }
+                )
+            )
+            if showsModelSetupCard {
+                rows.append(
+                    ChatCarrierRow(
+                        key: "empty-modelsetup",
+                        entryID: nil,
+                        version: 0,
+                        estimatedHeight: 120,
+                        makeView: {
+                            AnyView(
+                                modelSetupCard.padding(
+                                    .top, OneDayMetrics.spacingL
+                                )
+                            )
+                        }
+                    )
+                )
+            }
+        }
+        return rows
+    }
+
+    private func carrierEntryRow(
+        _ entry: ChatEntry, dividerText: String?
+    ) -> ChatCarrierRow {
+        ChatCarrierRow(
+            key: "entry-\(entry.id.uuidString)",
+            entryID: entry.id,
+            version: carrierEntryVersion(entry),
+            estimatedHeight: carrierRowEstimate(
+                for: entry, hasDivider: dividerText != nil
+            ),
+            makeView: {
+                AnyView(
+                    entryRowContent(
+                        entry, dividerText: dividerText
+                    )
+                )
+            }
+        )
+    }
+
+    /// 条目内容版本：内容长/工具卡数据/图数任一变
+    /// 即重托管＋重量实（半截条目流内生长靠本版
+    /// 本跟上）；锚点点亮翻转只重托管被点亮的那行
+    private func carrierEntryVersion(
+        _ entry: ChatEntry
+    ) -> Int {
+        var version = entry.content.count
+        version = version &* 31
+            &+ (entry.toolCardData?.count ?? 0)
+        version = version &* 31 &+ entry.remoteImagePaths.count
+        if entry.id == anchorHighlightEntryID {
+            version &+= 0x9e37
+        }
+        return version
+    }
+
+    /// 直播区版本：发布拍（80ms 闸）内文本/思考长
+    /// 度与条目构成任一变即新版——承载侧据此重托
+    /// 管＋重量实直播行，跟随贴底由处理链驱动
+    private func liveZoneVersion(
+        items: [LiveRenderItem]
+    ) -> Int {
+        var version = (streamingText?.count ?? -1) &* 31
+        version &+= (streamingReasoning?.count ?? -1)
+        for item in items {
+            version = version &* 31 &+ item.id.hashValue
+        }
+        return version
+    }
+
+    /// 行高估算（承载侧定高，Core ChatRowHeight-
+    /// Model 组合）：产物覆盖面与预热资格同界（用
+    /// 户原文/助手摘标记后文本，工具卡/回响/锚定
+    /// 行不入产物）——缓存同步直读（预热已在进线
+    /// 程时预产），未命中走暂定估算、量实到达后由
+    /// 承载侧覆盖。文本宽与预热同账（W−76）
+    private func carrierRowEstimate(
+        for entry: ChatEntry, hasDivider: Bool
+    ) -> CGFloat {
+        let style = LayoutStyleContext(
+            sizeCategory: dynamicTypeSize.contentSizeCategory,
+            boldText: UIAccessibility.isBoldTextEnabled
+        )
+        let textWidth = UIScreen.main.bounds.width
+            - OneDayMetrics.bubblePaddingH * 2
+            - OneDayMetrics.bubbleSideInset
+        var product: LayoutProduct?
+        if entry.role == "user" {
+            product = cachedLayoutProduct(
+                entryID: entry.id,
+                renderedText: entry.content,
+                width: textWidth, style: style
+            )
+        } else if entry.role == "assistant",
+                  entry.toolCard == nil, entry.traceKey == nil,
+                  entry.echoKey == nil, entry.approvalKey == nil {
+            let text = EntryScanMemo.scans(
+                entryID: entry.id,
+                content: entry.content,
+                remoteImagePaths: entry.remoteImagePaths
+            ).media.text
+            product = cachedLayoutProduct(
+                entryID: entry.id,
+                renderedText: text,
+                width: textWidth, style: style
+            )
+        }
+        let traits = UITraitCollection(
+            preferredContentSizeCategory:
+                dynamicTypeSize.contentSizeCategory
+        )
+        let lineFloor = UIFont.preferredFont(
+            forTextStyle: .callout, compatibleWith: traits
+        ).lineHeight
+        let dividerHeight = UIFont.preferredFont(
+            forTextStyle: .footnote, compatibleWith: traits
+        ).lineHeight
+        let input = ChatRowHeightModel.Input(
+            textTotalHeight: product.map {
+                Double($0.textTotalHeight)
+            },
+            textSegmentCount: product?.segments.count ?? 0,
+            structuralSegmentCount:
+                product?.structuralSegmentCount ?? 0,
+            measuredContentHeight: nil,
+            hasDivider: hasDivider,
+            bubblePaddingV: Double(OneDayMetrics.bubblePaddingV),
+            segmentSpacing: Double(OneDayMetrics.spacingS),
+            dividerHeight: Double(dividerHeight),
+            dividerSpacing: Double(OneDayMetrics.spacingS),
+            lineHeightFloor: Double(lineFloor),
+            provisionalHeight: Double(
+                provisionalRowHeight(
+                    for: entry, lineFloor: lineFloor
+                )
+            )
+        )
+        return CGFloat(ChatRowHeightModel.rowHeight(input))
+    }
+
+    /// 产物缓存同步直读（键与服务/预热同构：条目
+    /// id×内容哈希×宽×样式键）——只读不产，产归
+    /// 预热与服务异步路
+    private func cachedLayoutProduct(
+        entryID: UUID,
+        renderedText: String,
+        width: CGFloat,
+        style: LayoutStyleContext
+    ) -> LayoutProduct? {
+        guard !renderedText.isEmpty, width > 0 else {
+            return nil
+        }
+        let key = LayoutProductKey(
+            entryID: entryID,
+            content: renderedText,
+            width: Double(width),
+            style: style.coreKey
+        )
+        return LayoutProductStore.cache.product(for: key)
+    }
+
+    /// 暂定整行高（产物未就绪时）：按文本长度粗估
+    /// 行数（每行约 18 字、CJK/英文混排中位口
+    /// 径）——只决定未量实行在滚动几何中的占位，
+    /// 产物/量实到达即被覆盖，不冒充量实
+    private func provisionalRowHeight(
+        for entry: ChatEntry, lineFloor: CGFloat
+    ) -> CGFloat {
+        let chars = max(entry.content.count, 1)
+        let lines = min(
+            40, max(1, Int(ceil(Double(chars) / 18.0)))
+        )
+        return CGFloat(lines) * lineFloor
+            + OneDayMetrics.bubblePaddingV * 2
     }
 
     // MARK: - 消息列表
@@ -2283,28 +2823,10 @@ struct ChatView: View {
                         ForEach(plan.items) { item in
                             switch item {
                             case .entry(let entry):
-                                VStack(
-                                    alignment: .leading,
-                                    spacing: OneDayMetrics.spacingS
-                                ) {
-                                    if let dividerText
-                                        = plan.dividers[entry.id] {
-                                        timelineDivider(dividerText)
-                                    }
-                                    bubble(entry)
-                                }
-                                // §165：锚点点亮——点达请求命
-                                // 中的锚定行以 primaryTint 底
-                                // 色点亮（沿 §123 枢纽聚焦同
-                                // 手法），消费侧 2.5 秒后清
-                                .background(
-                                    entry.id == anchorHighlightEntryID
-                                        ? Palette.primaryTint
-                                        : Color.clear,
-                                    in: RoundedRectangle(
-                                        cornerRadius:
-                                            OneDayMetrics.containerCorner
-                                    )
+                                entryRowContent(
+                                    entry,
+                                    dividerText:
+                                        plan.dividers[entry.id]
                                 )
                                 .id(entry.id)
                             case .toolGroup(let groupEntries):
@@ -2384,74 +2906,8 @@ struct ChatView: View {
                         // 基础止血包（P9）：呈现判定并成一
                         // 条（Core ChatEmptyState）——已建
                         // 的零条目线程同出本面，不再白屏
-                        VStack(spacing: OneDayMetrics.spacingS) {
-                            // 0.36.22：空态形象同样读档案头像
-                            appState.agentAvatarImage
-                                .resizable()
-                                .scaledToFill()
-                                .frame(
-                                    width: avatarTier.emptyStatePointSize,
-                                    height: avatarTier.emptyStatePointSize
-                                )
-                                .clipShape(Circle())
-                                .overlay {
-                                    Circle().stroke(
-                                        Palette.hairline, lineWidth: 0.5
-                                    )
-                                }
-                                .accessibilityHidden(true)
-                            Text(L10n.format(
-                                "和 %@ 聊聊", appState.agentDisplayName
-                            ))
-                                // 0.3.3 收编：手写 fontWeight 漂移
-                                // 改走 sectionTitle 角色（阶梯账
-                                // 见原字重账本，已废止）
-                                .font(.callout)
-                                .foregroundStyle(Palette.ink)
-                            Text(L10n.string("消息经你自己的服务器发给 Agent，记录只存这台手机。"))
-                                .font(.caption)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, OneDayMetrics.spacingXL)
-                        // 引导线（原型 chat 面）：空态建议条三
-                        // 条，点按即发送（走现行 send() 全链，
-                        // 不另建发送路）。文案与图标名单一出处
-                        // 在 Core EmptyChatSuggestions
-                        VStack(spacing: OneDayMetrics.spacingS) {
-                            ForEach(
-                                Array(EmptyChatSuggestions.texts.enumerated()),
-                                id: \.offset
-                            ) { index, suggestion in
-                                Button {
-                                    input = suggestion
-                                    send()
-                                } label: {
-                                    HStack(spacing: OneDayMetrics.spacingSM) {
-                                        Image(systemName: EmptyChatSuggestions.symbols[index])
-                                            .font(.system(size: 15))
-                                            .foregroundStyle(Palette.inkSecondary)
-                                        Text(L10n.string(suggestion))
-                                            .font(.callout)
-                                            .foregroundStyle(Palette.ink)
-                                        Spacer()
-                                    }
-                                    .padding(.horizontal, OneDayMetrics.spacingM)
-                                    .frame(minHeight: 50)
-                                    .background(
-                                        Palette.surface,
-                                        in: RoundedRectangle(
-                                            cornerRadius: OneDayMetrics.fieldCorner,
-                                            style: .continuous
-                                        )
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, OneDayMetrics.spacingL)
+                        emptyStateHero
+                        emptyStateSuggestions
                         // §119：无任何可用模型时，空态下方出
                         // 引导卡（判定见 showsModelSetupCard；
                         // 有模型时永不出现）
@@ -3122,6 +3578,248 @@ struct ChatView: View {
         scrollToBottom(proxy, animated: false)
     }
 
+    // MARK: 新承载跟随链（旧链的执行双胞胎）
+
+    /// 新承载贴底所有者：与 scrollToBottom 同一协调
+    /// 者（BottomStickCoordinator 合并/复贴单
+    /// 点）、同一落定观察（BottomSettleMachine＋
+    /// 事件化评估＋2 秒有界兜底），只换执行口（句
+    /// 柄→容器）。判定与状态机零改——两承载共用
+    /// 同一份 stickCoordinator/settleMachine 状态，
+    /// 切换承载不重置跟随账
+    private func scrollToBottomCarrier(
+        animated: Bool = true
+    ) {
+        switch stickCoordinator.requestStick(
+            at: Date().timeIntervalSince1970
+        ) {
+        case .coalesced:
+            return
+        case .perform(let generation):
+            performScrollToBottomCarrier(animated: animated)
+            settleMachine.begin(animated: animated)
+            settleGeneration = generation
+            settleFallbackTask?.cancel()
+            let pinnedThreadID = currentThreadID
+            settleFallbackTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled,
+                      currentThreadID == pinnedThreadID
+                else { return }
+                evaluateSettleFallbackCarrier()
+            }
+        }
+    }
+
+    /// 新承载贴底本体（不带落定观察，与旧承载
+    /// performScrollToBottom 对位）
+    private func performScrollToBottomCarrier(
+        animated: Bool
+    ) {
+        carrierHandle.scrollToBottom(animated: animated)
+    }
+
+    /// 落定评估的新承载事件口：读数出自句柄引用匣
+    /// （已由 carrierCallbacks 同步进 bottomDis-
+    /// tanceRecorder），状态机与旧链同一台
+    private func evaluateSettleOnEventCarrier() {
+        guard settleMachine.isWatching,
+              let generation = settleGeneration
+        else { return }
+        let distance = bottomDistanceRecorder.latest
+        let step = settleMachine.step(
+            distance: distance,
+            contentEndVisible: bottomDistanceRecorder
+                .contentEndVisible,
+            restickArmed: stickCoordinator.isRestickArmed(
+                generation: generation
+            )
+        )
+        handleSettleStepCarrier(
+            step, generation: generation,
+            distance: distance, viaFallback: false
+        )
+    }
+
+    private func evaluateSettleFallbackCarrier() {
+        guard settleMachine.isWatching,
+              let generation = settleGeneration
+        else { return }
+        let distance = bottomDistanceRecorder.latest
+        let step = settleMachine.stepTimeout(
+            distance: distance,
+            contentEndVisible: bottomDistanceRecorder
+                .contentEndVisible,
+            restickArmed: stickCoordinator.isRestickArmed(
+                generation: generation
+            )
+        )
+        handleSettleStepCarrier(
+            step, generation: generation,
+            distance: distance, viaFallback: true
+        )
+    }
+
+    /// 落定一步的执行（新承载版）：与 handleSettle-
+    /// Step 逐值同义（打点/收官/校准/复贴），只换
+    /// 复贴执行口
+    private func handleSettleStepCarrier(
+        _ step: BottomSettleMachine.Step,
+        generation: Int,
+        distance: CGFloat, viaFallback: Bool
+    ) {
+        if let started = sendFrameStartedAt,
+           !sendFrameRestickLogged {
+            sendFrameRestickLogged = true
+            ChatDiagTrace.record(
+                "发送打点 首评 距底 \(Int(distance))pt"
+                    + " 复贴 \(step == .restick)"
+                    + (viaFallback ? " 经兜底" : "")
+                    + " 距发送 "
+                    + "\(Int(Date().timeIntervalSince(started) * 1000))ms"
+            )
+        }
+        switch step {
+        case .settled, .exhausted:
+            stickCoordinator.disarmRestick(
+                generation: generation
+            )
+            closeSettleWatch()
+        case .calibrated:
+            applyBottomProximity(distance: distance)
+            stickCoordinator.disarmRestick(
+                generation: generation
+            )
+            closeSettleWatch()
+        case .restick:
+            closeSettleWatch()
+            guard stickCoordinator.consumeRestick(
+                generation: generation
+            ) else { return }
+            performScrollToBottomCarrier(animated: false)
+        case .continue:
+            break
+        }
+    }
+
+    /// A3 流式跟随贴的新承载结算口（与 settle-
+    /// StreamFollow 逐值同义，只换执行口）
+    private func settleStreamFollowCarrier(generation: Int) {
+        guard generation == streamFollowSettleGeneration,
+              streamFollowPending
+        else { return }
+        streamFollowPending = false
+        guard isNearBottom else { return }
+        scrollToBottomCarrier(animated: false)
+    }
+
+    /// 键盘锚底的新承载版（与 anchorToBottom-
+    /// AfterKeyboard 同口径：帧落定直锚、在途记挂
+    /// 账、执行时复查）
+    private func anchorToBottomAfterKeyboardCarrier() {
+        guard isNearBottom else { return }
+        if keyboardFrameSettled {
+            scrollToBottomCarrier()
+        } else {
+            keyboardAnchorPending = true
+        }
+    }
+
+    private func settleKeyboardAnchorCarrier() {
+        keyboardFrameSettled = true
+        guard keyboardAnchorPending else { return }
+        keyboardAnchorPending = false
+        guard composerFocused, isNearBottom else { return }
+        scrollToBottomCarrier()
+    }
+
+    /// 切线程的新承载版（与旧承载 currentThreadID
+    /// 的 onChange 逐项对位）：存锚双写（扩展锚＋
+    /// 旧锚，回落一致）、贴底在途状态全清、未读清
+    /// 零、入线程按锚恢复
+    private func handleCarrierThreadSwitch(
+        oldID: UUID?, newID: UUID?
+    ) {
+        if let oldID, oldID != newID,
+           threads.contains(where: { $0.id == oldID }) {
+            if let anchor = carrierHandle.captureAnchor() {
+                ChatListAnchorStore.setAnchor(
+                    anchor, for: oldID
+                )
+            }
+            appState.sideChats.setScrollAnchor(
+                SideChatScrollAnchor(
+                    entryID: isNearBottom
+                        ? nil : topVisibleEntryID,
+                    atBottom: isNearBottom
+                ),
+                for: oldID
+            )
+        }
+        stickCoordinator.invalidate()
+        settleMachine.cancel()
+        settleGeneration = nil
+        settleFallbackTask?.cancel()
+        settleFallbackTask = nil
+        sendFrameStartedAt = nil
+        sendFrameRestickLogged = false
+        bottomDistanceRecorder.contentEndVisible = false
+        keyboardAnchorPending = false
+        awayUnread.resetAll()
+        guard let newID else { return }
+        restoreCarrierPosition(for: newID)
+    }
+
+    /// 入线程恢复（新承载）：扩展锚（条目 id＋条内
+    /// 偏移）优先、旧锚回落；等一拍布局落定再滚
+    /// （与旧承载恢复同拍口径）
+    private func restoreCarrierPosition(for threadID: UUID) {
+        if let anchor = ChatListAnchorStore.anchor(
+            for: threadID
+        ) {
+            isNearBottom = anchor.atBottom
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(120))
+                guard currentThreadID == threadID else {
+                    return
+                }
+                carrierHandle.restore(anchor)
+            }
+            return
+        }
+        guard let legacy = appState.sideChats.scrollAnchor(
+            for: threadID
+        ) else { return }
+        isNearBottom = legacy.atBottom
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard currentThreadID == threadID else { return }
+            if legacy.atBottom {
+                carrierHandle.scrollToBottom(animated: false)
+            } else if let entryID = legacy.entryID {
+                carrierHandle.scrollToEntry(
+                    entryID, animated: false
+                )
+            }
+        }
+    }
+
+    /// 冷开首屏定版的新承载版（与旧承载 .task 定
+    /// 版链同口径）：无任何存量锚的线程出现一拍后
+    /// 无动画贴底，以已落定 inset 重新钳制 offset
+    private func carrierFirstFrameSettle(for threadID: UUID) {
+        guard ChatListAnchorStore.anchor(for: threadID) == nil,
+              appState.sideChats.scrollAnchor(for: threadID) == nil
+        else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard currentThreadID == threadID,
+                  isNearBottom
+            else { return }
+            carrierHandle.scrollToBottom(animated: false)
+        }
+    }
+
     /// 滚到底部锚点——全列表唯一的贴底所有者（§135
     /// 收口，发送空屏诊断 A 案）：六路触发（条目数
     /// 变化／发送令牌／流式跟随／键盘两路／首帧定
@@ -3576,6 +4274,117 @@ struct ChatView: View {
     }
 
     @ViewBuilder
+    /// 空态形象段（§246 起两承载共用同一构建：
+    /// 旧承载挂 LazyVStack、新承载作不透明行托
+    /// 管，内容只有本一处出处）
+    @ViewBuilder
+    private var emptyStateHero: some View {
+        VStack(spacing: OneDayMetrics.spacingS) {
+            // 0.36.22：空态形象同样读档案头像
+            appState.agentAvatarImage
+                .resizable()
+                .scaledToFill()
+                .frame(
+                    width: avatarTier.emptyStatePointSize,
+                    height: avatarTier.emptyStatePointSize
+                )
+                .clipShape(Circle())
+                .overlay {
+                    Circle().stroke(
+                        Palette.hairline, lineWidth: 0.5
+                    )
+                }
+                .accessibilityHidden(true)
+            Text(L10n.format(
+                "和 %@ 聊聊", appState.agentDisplayName
+            ))
+                // 0.3.3 收编：手写 fontWeight 漂移
+                // 改走 sectionTitle 角色（阶梯账
+                // 见原字重账本，已废止）
+                .font(.callout)
+                .foregroundStyle(Palette.ink)
+            Text(L10n.string("消息经你自己的服务器发给 Agent，记录只存这台手机。"))
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, OneDayMetrics.spacingXL)
+    }
+
+    /// 空态建议条段（同上，两承载共用）
+    @ViewBuilder
+    private var emptyStateSuggestions: some View {
+        // 引导线（原型 chat 面）：空态建议条三
+        // 条，点按即发送（走现行 send() 全链，
+        // 不另建发送路）。文案与图标名单一出处
+        // 在 Core EmptyChatSuggestions
+        VStack(spacing: OneDayMetrics.spacingS) {
+            ForEach(
+                Array(EmptyChatSuggestions.texts.enumerated()),
+                id: \.offset
+            ) { index, suggestion in
+                Button {
+                    input = suggestion
+                    send()
+                } label: {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Image(systemName: EmptyChatSuggestions.symbols[index])
+                            .font(.system(size: 15))
+                            .foregroundStyle(Palette.inkSecondary)
+                        Text(L10n.string(suggestion))
+                            .font(.callout)
+                            .foregroundStyle(Palette.ink)
+                        Spacer()
+                    }
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .frame(minHeight: 50)
+                    .background(
+                        Palette.surface,
+                        in: RoundedRectangle(
+                            cornerRadius: OneDayMetrics.fieldCorner,
+                            style: .continuous
+                        )
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, OneDayMetrics.spacingL)
+    }
+
+    /// 条目行内容（§246 起两承载共用同一构建，防两
+    /// 承载行内容分叉）：分隔条（有则）＋气泡本体，
+    /// §165 锚点点亮底色同在此处——旧承载挂 Lazy-
+    /// VStack、新承载托管进容器 cell，行内容只有
+    /// 本一处出处
+    @ViewBuilder
+    private func entryRowContent(
+        _ entry: ChatEntry, dividerText: String?
+    ) -> some View {
+        VStack(
+            alignment: .leading,
+            spacing: OneDayMetrics.spacingS
+        ) {
+            if let dividerText {
+                timelineDivider(dividerText)
+            }
+            bubble(entry)
+        }
+        // §165：锚点点亮——点达请求命中的锚定行以
+        // primaryTint 底色点亮（沿 §123 枢纽聚焦同
+        // 手法），消费侧 2.5 秒后清
+        .background(
+            entry.id == anchorHighlightEntryID
+                ? Palette.primaryTint
+                : Color.clear,
+            in: RoundedRectangle(
+                cornerRadius: OneDayMetrics.containerCorner
+            )
+        )
+    }
+
     private func bubble(_ entry: ChatEntry) -> some View {
         if entry.traceKey != nil {
             // §229（回响物化归位）：留痕回响条目——流

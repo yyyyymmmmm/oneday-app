@@ -12486,3 +12486,24 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **三轮 run 43593518682**（head a3dfa0e）：Build／Package／Upload IPA 全 success；**Core 2025／2025 断言失败 0**（基线 2008＋本包新 17，MessagingChannelsTests 17 条全过）；App 147 ended 中 1 条断言失败＝EdgeEffectProbeTests.testEdgeEffectAttributionProbe（像素探针阈值 6>4，本包改动面与其零交集）；UI 8／8；宿主重启签名在案。
 - **四轮 run 43595852269**（同 head 复跑）：**断言失败 0 条**——三轮失败的探针用例本轮 passed（24.8 秒，抖动定案关闭）；Core 2025／2025、App 147 ended 全 passed、UI 8／8；测试步名义 failure 仅宿主重启截断（started 无终局行，§184 签名）。
 - **两轮并集对账**：Core 2025 全绿两轮一致；App 全部用例至少一轮 passed、无一轮内容性失败留存；UI 8／8 两轮一致。终判绿。
+**节号顺延注记**：本节在本分支编号 §245；main 侧 0.50.42 已定 §245＝审批卡节、§246＝组版节——组版合入时本节顺延改号（预计 §247），文内 §245 引用一并改。
+
+
+## §246 会话页换代包 3·承载层（2026-11-14；分支 feat/chat-gen3，基线 feat/chat-gen2@cf14508；全档＝oneday-design-review/chat-gen3-report-20261114.md）
+
+**范围**（蓝图 §1.1/§1.2＋§2 包 3，按包 3 施工简报收窄至三件）：①UIScrollView 语义容器新承载（UIViewControllerRepresentable），消费包 2 LayoutProduct；②回底箭头浮层化（头号用户面）；③条目 id＋条内偏移锚定＋贴底四路在新承载逐路复验。冻结口径全程不失守：pocket y=62、composer (0,62,402×729)、adjTop=122、静息 adjBottom=145、§194 键盘机制本体、两 GuideHost 承载、§168 文本体均未碰——本包只动列表承载与箭头承载。承载开关（Core `ChatCarrierFeature`，键 `chat.carrier.gen3`）默认关＝旧承载，设置页「实验」组开；包 4–5 期间两承载并存（蓝图口径）。
+
+**落点**：
+- **Core `ChatListCarrierCore.swift`**：承载开关；扩展锚 `ChatListAnchor`（条目 id＋条内偏移＋在底标记，捕获/恢复纯函数——恢复按条目当前帧重算 offset、条目已删返 nil 回落）；距底双路供数对拍垫 `ChatScrollSupply`（旧式/容器式同轨迹回放过 BottomProximity 单源、迟滞 96/176 不变，B7 门的 CI 半边）；`ChatRowHeightModel`（产物消费模型：文本总高＋结构段暂定高 48/段＋段间距；空文本以字体行高下限兜底——包 2 口径差三条照办：textTotalHeight 非整行高、结构段高承载侧定、空文本行高下限）。
+- **App `ChatListCarrier.swift`**：承载本体（UIScrollView＋手动帧布局：水平 gutter/顶 padding/行距全走 OneDayMetrics；行高＝产物估算起步、托管量实回填修正、重排按锚保位；托管窗口＝可见区±一屏；条目行复用 ChatView `entryRowContent` 与旧路同源同构）；距底读数按 UIScrollView 语义（(contentHeight＋底 inset−视口高)−offsetY）单源产出喂回既有 BottomProximity/落定机/流式闸（判定与状态机零改、只换读数来源）；点空白收键盘规则与 ScrollViewTapDismiss 定版逐字同义（只复用规则、不复用其寻面装配）；锚存储 `ChatListAnchorStore`（扩展锚落盘、旧 SideChatScrollAnchor 回落）。
+- **回底箭头浮层化**（§124 冻结的唯一例外、蓝图名正言顺）：钮退出布局流、改容器 overlay 浮层（本体与旧承载共用 scrollToBottomButton 构建、未读角标同源）；帧＝右缘 −spacingM、底缘＝容器底 −bottomSpace（输入舱顶在容器坐标系内位置、由记账保证非推算）−8pt 间距；显隐只动 alpha/scale 动画、不改任何 inset/行帧/内容——根除现行「占一行、出现即末条消息上移 52pt」（证据 interaction-feel-audit-20261113 题一）。旧承载钮行保留（开关关时行为不变）。
+- **跟随链双胞胎**：新承载贴底走与旧链同一协调者/落定机/流式闸的状态（共用 @State、切换不重置账），执行口换容器句柄；切线程存锚双写（扩展锚＋旧锚）、入线程扩展锚优先恢复。
+- **蓝图原案收窄登记**（如实）：未做 UICollectionView/diffable 与 GuideHost 子 VC 化（简报收窄至 UIScrollView 语义容器，差分/子 VC 随包 4 决策）；§195 补偿未退役（蓝图门＝B 组真机过后、归包 5/6）；承载内 .scrollEdgeEffect 注册缺位（§213 口径在新承载的对应物随 B 组真机裁决）。
+
+**验收**：Core 新测 17 条（锚捕获/恢复、双路供数对拍回放、行高模型六例、开关缺省）；组装回归（ChatPageAssemblyRegressionTests，开关默认关）保证旧承载行为不变；CI 按 §190 判读（判读回填见 §246.1）。几何探针/顶簇 VERDICT 必看（本包未动几何/坞、应全 PASS）。
+
+**真机待验（归主线，单列）**：开实验开关后——**回底箭头出现时末条消息纹丝不动**、箭头贴舱约 8pt、离底/贴底显隐与未读角标、流式跟随不掉队、进页落底、键盘升起复贴、锚恢复（离线程回看回原位）、蓝图 A 组四帧对 153 基准、B 组全项（滚动帧率/回弹/转场）、F 组舱功能冒烟、深色与 AX 最大字号各一帧、供数双路残差 B 组裁决。
+
+### §246.1 CI 判读（待回填）
+
+**节号顺延注记**：本节在本分支编号 §246；组版合入时与 main 侧既有节号统一对齐（main 侧 §245＝审批卡、§246＝0.50.42 组版；包 2 节预计顺延 §247，本节顺延其后），文内 §246 引用一并改。

@@ -91,6 +91,7 @@ struct SettingsView: View {
                     agentSection
                     serverAndWorkspaceSection
                     preferencesSection
+                    labSection
                     supportSection
                     versionFooter
                 }
@@ -424,6 +425,38 @@ struct SettingsView: View {
             }
         } header: {
             sectionHeader("偏好与权限")
+        }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(settingsRowInsets)
+    }
+
+    // MARK: - 实验组（§246 换代包 3）
+
+    /// 会话页新承载开关（Core ChatCarrierFeature，
+    /// 与 ChatView 同键同源）：施工期机制、默认关；
+    /// 开后消息列表与回底钮换新承载（几何/跟随口
+    /// 径不变），关掉即回旧承载、无数据迁移。蓝图
+    /// A/B/F 组真机验收后由换代包 6 处置去留
+    @AppStorage(ChatCarrierFeature.defaultsKey)
+    private var gen3CarrierEnabled = false
+
+    private var labSection: some View {
+        Section {
+            Toggle(isOn: $gen3CarrierEnabled) {
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.spacingMicro
+                ) {
+                    Text(L10n.string("会话页新承载"))
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Text(L10n.string("实验开关：开启后消息列表与回到底部按钮换用新承载，出问题关掉即回旧承载。"))
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+        } header: {
+            sectionHeader("实验")
         }
         .listRowBackground(Palette.surface)
         .listRowInsets(settingsRowInsets)
