@@ -11881,3 +11881,13 @@ run **43556010036**（头＝版号提交）**§190 终判绿（带 §184 在案�
 
 **组版收口（0.50.39）**：本节自编 §209 与组版树 §209（旁聊删除 409 热修）撞号，顺延为 **§230**，代码自指同步改；装配并集口径——drawerList 组版实形＝[hermes, telegram, feishu, dingtalk, qqbot, discord, slack]（飞书上行、微信下架，令牌四家为组版树既有在册、不退场）；ChannelApplyPhase 与回执测试按「先判绿一方」取组版树文案小包版、飞书 botName 解码法并入回执测试。
 
+
+## §231 0.50.39 三包正式组版（2026-11-14；分支 rel-05039，基线 rel-05038 头 c85d383；全档＝oneday-design-review/release-05039-assembly-20261114.md）
+
+**装车**：①回响物化归位 feat/trace-echo-materialize（合并 29f3939；ChatStore init 冲突亲解——.37 来源引用 SourceQuote 签名保留、回响 traceKey/traceSnapshot 入参并入；桩 99c0067 重复自动收口一份）；②删除全域收口 feat/delete-closeout-everywhere（合并 c25ea09；代码全自动合并、桩同上；i18n 2998＋新键 1＝2999）；③飞书频道 feat/channels-feishu @ac5b823（合并 4438700；任务书分支名 feat/feishu-bots-channel 远端不存在、实为本分支，基线 rel-05030——九处冲突亲解：注册表取并集 drawerList＝[hermes, telegram, feishu, dingtalk, qqbot, discord, slack]、微信行与 ChannelWeixin 图标资产退役、ChannelPairingKind.frozen 摘除；配对页取飞书四步形态＋组版树令牌四家分发不退；ChannelStatusStore 两提交函数并存；ChannelApplyPhase 与回执测试按飞书报告 §6「先判绿一方」取组版树文案小包版，飞书 botName 解码法并入回执测试（App +1）；Localizable 按键级三方并集 2999＋13−3＝3009 键、validate_i18n 通过）。
+
+**编号收口**：回响 §217→**§229**；删除 §217→**§223**（0.50.38 预留位）；飞书 §209→**§230**；组版本节 §231。代码注释自指逐处同步（ChatView 枢纽 §217 旧指保留未误伤）。
+
+**静态计数预期**：Core **1937**（1920＋回响 16＋删除 HermesError 分型 1；飞书相位测试组版树已有、摘重 0 净增）、App **136**（121＋回响 6＋删除 8＋飞书回执 1）、UI **4**。版本 0.50.39/167 五处同改＋grep 验（版号位 0.50.38 残留 0）。
+
+### §231.1 CI 判读（待回填）
