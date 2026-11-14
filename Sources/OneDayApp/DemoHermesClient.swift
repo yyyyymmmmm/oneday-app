@@ -480,6 +480,15 @@ struct DemoHermesClient: HermesClientProtocol {
         """).messages
     }
 
+    func sessionMessagesPage(
+        config: ServerConfig, id: String, limit: Int, offset: Int
+    ) async throws -> [SessionMessage] {
+        let all = try await sessionMessages(config: config, id: id)
+        let descending = all.sorted { $0.id > $1.id }
+        guard offset < descending.count else { return [] }
+        return Array(descending.dropFirst(offset).prefix(limit))
+    }
+
     /// 演示搜索（P10）：在演示会话标题/预览里按词过滤，
     /// 命中形态对齐生产实样（results 元素字段）
     func searchSessions(
@@ -771,6 +780,11 @@ struct DemoHermesClient: HermesClientProtocol {
 
     func uploadAttachment(
         config: ServerConfig, path: String, dataURL: String
+    ) async throws -> ManagedFileUploadReceipt { throw HermesError.demoLimitReached }
+
+    func uploadAttachment(
+        config: ServerConfig, path: String, dataURL: String,
+        onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> ManagedFileUploadReceipt { throw HermesError.demoLimitReached }
 
     func makeDirectory(config: ServerConfig, path: String) async throws { throw HermesError.demoLimitReached }

@@ -212,6 +212,12 @@ struct FailingHermesClient: HermesClientProtocol {
         throw HermesError.unreachable("离线桩")
     }
 
+    func sessionMessagesPage(
+        config: ServerConfig, id: String, limit: Int, offset: Int
+    ) async throws -> [SessionMessage] {
+        throw HermesError.unreachable("离线桩")
+    }
+
     func searchSessions(
         config: ServerConfig, query: String, limit: Int
     ) async throws -> [SessionSearchHit] {
@@ -419,6 +425,13 @@ struct FailingHermesClient: HermesClientProtocol {
 
     func uploadAttachment(
         config: ServerConfig, path: String, dataURL: String
+    ) async throws -> ManagedFileUploadReceipt {
+        throw HermesError.unreachable("离线桩")
+    }
+
+    func uploadAttachment(
+        config: ServerConfig, path: String, dataURL: String,
+        onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> ManagedFileUploadReceipt {
         throw HermesError.unreachable("离线桩")
     }
