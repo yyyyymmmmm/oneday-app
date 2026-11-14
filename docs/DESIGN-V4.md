@@ -12271,7 +12271,7 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 |---|---|---|---|---|
 | SM-1 | ChatView 发送舱圆盘键 发送↑↔停止■ `.contentTransition(.symbolEffect(.replace))` | 变形 | 白名单变形类第 1 项 | 已登记·有效 |
 | SM-2 | Design CopyButton 复制 doc.on.doc↔对勾 `.contentTransition(.symbolEffect(.replace))` | 一次性反馈 | 白名单「复制成功」位（LORD 类位置、原生形变占位实现，与 §14 条 10 同体） | 已登记·有效 |
-| SM-3 | ReasoningBlock 思考块 chevron 上下翻转 `.contentTransition(.symbolEffect(.replace))` | 状态指示 | **不在 2026-11-09 白名单内**（展开/收起状态语义形变） | 已登记·**白名单外存量待裁**——不许扩散，去留待 UI 台账批/用户裁决，本包不擅动 |
+| SM-3 | ReasoningBlock 思考块 chevron 上下翻转 `.contentTransition(.symbolEffect(.replace))` | 状态指示 | **不在 2026-11-09 白名单内**（展开/收起状态语义形变；形态合 2026-11-08 规矩①两态形变、当年未入册属登记遗漏） | 已登记·**转正**（2026-11-14 UI 台账批复核同意主线推荐「保留并转正登记」，ui-ledger-dark-report-20261114.md 第八节；0.50.44 组版落登记转正，见 §254） |
 
 **白名单未落账（无代码接入点、不入登记册，账在本节）**：侧栏开↔关变形（未落）、消息语音播放↔暂停变形（未落，粗查无 play/pause 字形切换面）、LORD 本体三点——点赞/收藏成功/连接成功（lottie-ios 依赖与 JSON 资产均未引进；署名行「Icons by Lordicon」已在设置页 SettingsSupportViews:323 先行在位）。未落项的施工另行立项，不在本包范围。
 

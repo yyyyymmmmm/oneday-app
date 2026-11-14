@@ -77,7 +77,7 @@ public enum SymbolMotionRegistry {
             file: "Sources/OneDayApp/ReasoningBlock.swift",
             component: "思考块展开/收起 chevron 上下翻转",
             kind: .stateIndicator,
-            status: .legacyPendingRuling,
+            status: .registered,
             reduceMotion: "Reduce Motion 时瞬时切换（组件头注在案）"
         ),
     ]
