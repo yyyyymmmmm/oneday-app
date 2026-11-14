@@ -653,6 +653,16 @@ final class AgentHubStore {
     func decide(_ record: WriteGateRecord, approve: Bool) async {
         guard record.canDecide, let config = appState.config else { return }
         guard !decidingIDs.contains(record.id) else { return }
+        // 防呆守卫（§234）：桥侧已判定确定性批不了的
+        // 记录，批准路径在 store 层同样不开口——卡面
+        // 已不给批准钮，这里防其他调用方绕过卡面；
+        // 驳回不受影响（死单的唯一出路）
+        if approve, let blockedReason = record.blockedReason {
+            cardNotes[record.id] = L10n.format(
+                "这条无法批准：%@", blockedReason
+            )
+            return
+        }
         decidingIDs.insert(record.id)
         cardNotes.removeValue(forKey: record.id)
         do {
@@ -691,7 +701,18 @@ final class AgentHubStore {
                 )
                 alwaysApproveMarks.remove(record.id)
             } else {
-                cardNotes[record.id] = L10n.string("裁决未生效，请重新打开改动核对后再试。")
+                // §234：桥回了结构化失败原因就直出它
+                // （与 blockedReason 同一「原因上卡面」
+                // 通道），替代泛化红字——旧文案让用户
+                // 以为重开详情再批就能过，实为确定性
+                // 失败时纯属误导（生产个案 62927061）
+                if let reason = response.failureReason {
+                    cardNotes[record.id] = L10n.format(
+                        "裁决未生效：%@", reason
+                    )
+                } else {
+                    cardNotes[record.id] = L10n.string("裁决未生效，请重新打开改动核对后再试。")
+                }
             }
         } catch let error as WriteGateError {
             switch error {
@@ -745,6 +766,15 @@ final class AgentHubStore {
     func decideAlways(_ record: WriteGateRecord) async {
         guard record.canDecide, let config = appState.config else { return }
         guard !decidingIDs.contains(record.id) else { return }
+        // 防呆守卫（§234）：「总是允许」＝立即批准＋
+        // 立规则，批不了的死单两步都无意义——不建规
+        // 则、不批准，只留原因（与 decide 同口径）
+        if let blockedReason = record.blockedReason {
+            cardNotes[record.id] = L10n.format(
+                "这条无法批准：%@", blockedReason
+            )
+            return
+        }
         decidingIDs.insert(record.id)
         cardNotes.removeValue(forKey: record.id)
         do {

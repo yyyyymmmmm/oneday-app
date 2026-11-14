@@ -56,6 +56,58 @@ final class HubGateAndBrowserTests: XCTestCase {
         XCTAssertEqual(record.originLabel(locale: Locale(identifier: "zh-Hans")), "智能体工具调用")
     }
 
+    /// §234：blocked_reason 解码——带原因即防呆态
+    /// （isBlocked），可裁决性本身不变（驳回仍开）；
+    /// 无字段/空白串都按无结论
+    func testRecordBlockedReasonDecode() throws {
+        let blocked = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "62927061", "subsystem": "skills", "action": "batch",
+         "summary": "s", "origin": "background_review",
+         "created_at": "2026-11-11T14:58:53Z",
+         "blocked_reason": "Description is 82 chars; over the 60-char budget."}
+        """.utf8))
+        XCTAssertEqual(
+            blocked.blockedReason,
+            "Description is 82 chars; over the 60-char budget."
+        )
+        XCTAssertTrue(blocked.isBlocked)
+        XCTAssertTrue(blocked.canDecide)
+
+        let plain = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "z", "subsystem": "skills", "action": "create",
+         "summary": "s", "origin": "foreground", "created_at": null}
+        """.utf8))
+        XCTAssertNil(plain.blockedReason)
+        XCTAssertFalse(plain.isBlocked)
+
+        let blank = try decoder.decode(WriteGateRecord.self, from: Data("""
+        {"id": "w", "subsystem": "skills", "action": "create",
+         "summary": "s", "origin": "foreground", "created_at": null,
+         "blocked_reason": "  "}
+        """.utf8))
+        XCTAssertNil(blank.blockedReason)
+        XCTAssertFalse(blank.isBlocked)
+    }
+
+    /// §234：failure_reason 解码——失败回执带结构化
+    /// 原因；成功回执与旧桥回执（无字段）恒 nil
+    func testDecisionResponseFailureReasonDecode() throws {
+        let failed = try decoder.decode(
+            WriteGateDecisionResponse.self, from: Data("""
+            {"success": false, "output": "Failed:\\n  abc: boom",
+             "decision": "approved", "failure_reason": "boom"}
+            """.utf8))
+        XCTAssertFalse(failed.success)
+        XCTAssertEqual(failed.failureReason, "boom")
+
+        let ok = try decoder.decode(
+            WriteGateDecisionResponse.self, from: Data("""
+            {"success": true, "output": "", "decision": "approved"}
+            """.utf8))
+        XCTAssertTrue(ok.success)
+        XCTAssertNil(ok.failureReason)
+    }
+
     func testSectionStateResolve() {
         let off = WriteGateStatus(
             supported: true, memoryGateEnabled: false,

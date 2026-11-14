@@ -19,6 +19,12 @@ import SwiftUI
 /// ＋徽章行与标题重复表意（S2-02）。新形态逐项对照
 /// Muse 审批卡参照：白卡、粗体问句、一行说明＋行
 /// 内蓝链、通栏等宽三钮（主钮蓝实心白字）。
+///
+/// §234 补齐两件：①工具图标（行首，Core 单源映
+/// 射，对标参照卡的工具图标位）；②防呆呈现合成一
+/// 套——blockedReason（裁决前预检）上卡面＋只给驳
+/// 回，failureReason（裁决后回执）经宿主 cardNotes
+/// 同槽呈现，原因都走「上卡面」一条通道。
 struct ApprovalCardFace<DetailArea: View>: View {
     let record: WriteGateRecord
     /// 裁决提交中（宿主 store.decidingIDs 命中）：钮
@@ -41,10 +47,19 @@ struct ApprovalCardFace<DetailArea: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             // 徽章行已删（S2-02）：子系统胶囊与「待审
-            // 批」橙字都与问句/头条重复表意，只留时间
-            if let createdAt = record.createdAt {
-                HStack {
-                    Spacer()
+            // 批」橙字都与问句/头条重复表意，只留时间。
+            // §234：行首补工具图标（对标 Muse 审
+            // 批卡的工具图标位，符号走 Core 单源映射）
+            HStack(spacing: OneDayMetrics.spacingXS) {
+                Image(
+                    systemName: ApprovalCardSpec.toolIconName(
+                        for: record.subsystem
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+                Spacer()
+                if let createdAt = record.createdAt {
                     Text(ApprovalTimeText.relative(createdAt))
                         .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
@@ -56,6 +71,22 @@ struct ApprovalCardFace<DetailArea: View>: View {
                 .foregroundStyle(Palette.ink)
 
             summaryRow
+
+            // 防呆呈现（§234，一套口径）：桥侧预检判
+            // 定这条确定性批不了时，原因原文上卡面
+            // （措辞与伴生查案报告定案一致），动作区
+            // 只给驳回（见 actionArea）——与裁决失败
+            // 的 failureReason 共用「原因上卡面」这一
+            // 条通道，不许两套并存
+            if let blockedReason = record.blockedReason {
+                Label {
+                    Text("这条无法批准：\(blockedReason)")
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                }
+                .font(.footnote)
+                .foregroundStyle(Palette.warning)
+            }
 
             if let note {
                 Text(note)
@@ -89,9 +120,10 @@ struct ApprovalCardFace<DetailArea: View>: View {
         }
     }
 
-    /// 动作区：提交中换进度行；可裁决出三档通栏钮
-    /// 栈（构成与次序＝Core ApprovalCardSpec 单源）；
-    /// 不可裁决只留去向说明，不摆假按钮
+    /// 动作区：提交中换进度行；可裁决出通栏钮栈（构
+    /// 成与次序＝Core ApprovalCardSpec 单源，§234 起
+    /// 防呆记录只出驳回一档）；不可裁决只留去向说
+    /// 明，不摆假按钮
     @ViewBuilder
     private var actionArea: some View {
         if isDeciding {
@@ -104,7 +136,9 @@ struct ApprovalCardFace<DetailArea: View>: View {
         } else if record.canDecide {
             VStack(spacing: ApprovalCardSpec.buttonSpacing) {
                 ForEach(
-                    ApprovalCardSpec.actionStack(canDecide: true),
+                    ApprovalCardSpec.actionStack(
+                        canDecide: true, blocked: record.isBlocked
+                    ),
                     id: \.self
                 ) { action in
                     ApprovalCardButton(action: action) {

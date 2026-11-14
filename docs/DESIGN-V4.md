@@ -11893,3 +11893,18 @@ run **43556010036**（头＝版号提交）**§190 终判绿（带 §184 在案�
 ### §231.1 CI 判读（2026-11-14 回填）
 
 run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例；3 处 XCTAssert 字样为编译回显源码行）。**Core 1937 执行／0 失败**——与静态预期精确对账（1920＋回响 16＋删除分型 1）。**App 137 启动**：125 passed＋5 skipped（PresentationLayerScenarios 源码 XCTSkip 存量）＋7 条 started 无终局行（与 **7 起宿主重启** 对应的 §184 在案签名：testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／回响 testFailedTraceMaterializesWithErrorSnapshot——与回响包自家绿轮同一受害、其语义由 Core testPlanFailedTraceKeepsErrorVerbatim 覆盖在案＋1 条重启重跑重复计启）；本版三包新测除该条外全数 passed 亲验（DeleteCloseoutTests 8／TraceEchoMaterialization Core 16＋App 其余 5／回执 4／SessionClassification 改断言全过）。**UI 4／0**。**边缘探针 passed（23.991s）**——重校准口径组版轮再成立。HUB-LAYOUT-VERDICT=PASS、顶簇 VERDICT=PASS、MATRIX-VERDICT=PASS。IPA **12,316,159 字节、md5 `852106a174a1256f46b42da63e4d6d7a`**、0.50.39/167（解包 Info.plist 亲验、bundle site.didichou.oneday），存 ~/workspace/your_files/oneday-v0.50.39/OneDay-0.50.39.ipa。未合 main、未打 tag。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-05039/。
+
+
+## §234 审批卡对齐包：防呆合成＋工具图标＋C-5 锚点写死（2026-11-14；分支 feat/approval-card-align，基线 rel-05039@39532cc；自编号 §234——并行线已占 §232/§233，组版顺延、报告注明）
+
+**定版口径（用户拍板，不可偏离）**：①审批卡长在聊天消息流里（§165 物化＋§128/§155 已落地，本节只补齐形态与防呆，不新建第二套卡）；②枢纽只记录、不能审批（§155/§217 已落地，本节亲验复核无裁决入口残留）；③C-5 锚点收敛——服务端一次写死、App 只读；④红线五类（对外发送/删数据/凭据支付/生产配置/二清）审批范围不动（write-gate 只管 memory/skills 写入，本桥不承载红线类，本节零触碰）。
+
+**卡面形态（三档与图标）**：三档口径＝0.36.21 用户亲批文案（批准／总是允许这一类／驳回，即定版「允许一次／总是允许此类／拒绝」的本产品形态——「此站点」不合本产品规则键＝子系统＋来源，保留在案口径）。本节补上参照卡唯一缺项：**工具图标**——Core `ApprovalCardSpec.toolIconName` 单源映射（memory→brain、skills→puzzlepiece.extension，与全 App 既有同名符号同源；unknown→questionmark.circle），卡面行首呈现；金测钉三值。
+
+**防呆合成一套（本节主活）**：伴生 1.0.29 已出两路结构化原因，此前 App 两路都不消费、呈现分裂（批不了的死单照给必败批准钮；裁决失败只给泛化红字「请重新打开改动核对后再试」——确定性失败时纯属误导，生产个案 id 62927061 技能简介 82 字超 60 预算）。定版＝「原因上卡面」一条通道、两个时点：①**裁决前** `blocked_reason`（记录字段）：卡面出警告行「这条无法批准：<原因>」，动作栈收为只剩驳回一档（Core `actionStack(canDecide:blocked:)` 单源）；store 层 decide/decideAlways 同加防呆守卫（批准路径不开口、不建规则）。②**裁决后** `failure_reason`（decide 回执字段）：success=false 时 cardNotes 直出「裁决未生效：<原因>」替代泛化文案，无原因时保留泛化文案。模型两侧（`WriteGateRecord.blockedReason`／`WriteGateDecisionResponse.failureReason`）解码空白归一化为 nil，与上游 `_clean_reason` 同口径。i18n 新增 2 键（Localizable 3022→3024，validate_i18n 三语通过）。
+
+**C-5 锚点写死（伴生侧）**：旧形态＝桥 `_AnchorResolver` 每次出口请求重扫 state.db 重算锚（相关性输入随会话活动漂移，同一记录两次轮询可得不同锚/丢锚），App 物化冻结与导航现读两处消费可不一致——双侧双实现（复杂化审计 C-5）。收敛＝桥加**写死账本** `write-gate/anchors.json`（键 `<subsystem>:<id>`）：记录首次出口时算定并落盘，此后 pending 列表/详情、decisions 三出口只读回放同一值、终身不变；结论只在有据时落账（origin=oneday_app 的 T0 无锚为确定性结论；其余结论要求本次计算时 state.db 可达——库不可达得的空锚不落账，记录待库恢复后仍可挣得锚）；账本读写故障不阻断出口（最坏退化为旧行为）。App 侧零算法改动：契约注释改注单源语义（`WriteGateAnchor`/`ApprovalAnchor` 头注），plan/rowState/导航只消费记录自带锚、不做时序推导——与旧桥天然兼容（旧桥无账本时行为不变）。
+
+**枢纽只记录复核（无代码差距）**：枢纽审批面＝工作台账记录制（待批：问句/说明＋查看改动只读＋查看原对话；已决：记录＋查看原对话），全仓裁决调用只在聊天卡链（`ChatApprovalCards` → `store.decide/decideAlways`）；枢纽规则管理（建/撤「总是允许」规则）是设置面既有功能、本节不动。
+
+**验证**：App 金测新增 4 个用例（Spec 防呆栈＋图标映射、模型解码两组含空白归一与旧回执兼容）；伴生新自测 `write_gate_anchor_ledger_selftest` 10 条（首算落盘→输入漂移→回放不变→decisions 同锚→oneday_app 空锚落账→无库不落账→库到挣锚），write-gate 四套合计 56 条全绿（rules 22/anchor 13/blocked 11/ledger 10 中 ledger 为新增）。CI 与伴生部署见交卷报告 approval-card-align-report-20261114.md。
