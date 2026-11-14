@@ -117,21 +117,12 @@ actor BoxMCPClient {
 
     // MARK: - F7.3 lastKnownPage 缓存
 
-    func updateLastKnownPage(_ page: [String: Any]) {
-        let title = page["title"] as? String ?? ""
-        let url = page["url"] as? String ?? ""
-        let checkedAt = page["checkedAt"] as? String ?? ISO8601DateFormatter().string(from: Date())
-        lastKnownPage = MCPPageRef(title: title, url: url, checkedAt: checkedAt)
+    func updateLastKnownPage(_ page: MCPPageRef) {
+        lastKnownPage = page
     }
 
-    func getLastKnownPage() -> (page: [String: Any]?, checkedAt: String?) {
-        guard let page = lastKnownPage else { return (nil, nil) }
-        let dict: [String: Any] = [
-            "title": page.title,
-            "url": page.url,
-            "checkedAt": page.checkedAt
-        ]
-        return (dict, page.checkedAt)
+    func getLastKnownPage() -> MCPPageRef? {
+        return lastKnownPage
     }
 
     // MARK: - 工具调用

@@ -54,19 +54,24 @@ final class BoxBridgeClient: @unchecked Sendable {
 
         // F7.2：page 查询（running 时才查）
         if let state = structured["state"] as? String, state == "running" {
-            let pageResult = await fetchPage(client: client)
-            if let page = pageResult {
-                enhanced["page"] = page
+            if let pageRef = await fetchPage(client: client) {
+                // 转换为字典放入 enhanced
+                enhanced["page"] = [
+                    "title": pageRef.title,
+                    "url": pageRef.url
+                ]
                 // F7.3：缓存 lastKnownPage
-                await client.updateLastKnownPage(page)
+                await client.updateLastKnownPage(pageRef)
             }
         }
 
         // F7.3：读取缓存的 lastKnownPage
-        let lastKnownPageData = await client.getLastKnownPage()
-        if let lkp = lastKnownPageData.page {
-            enhanced["lastKnownPage"] = lkp
-            enhanced["lastKnownPageAt"] = lkp["checkedAt"]
+        if let lkp = await client.getLastKnownPage() {
+            enhanced["lastKnownPage"] = [
+                "title": lkp.title,
+                "url": lkp.url
+            ]
+            enhanced["lastKnownPageAt"] = lkp.checkedAt
         }
         enhanced["checkedAt"] = ISO8601DateFormatter().string(from: Date())
 
@@ -106,7 +111,7 @@ final class BoxBridgeClient: @unchecked Sendable {
     }
 
     /// F7.2：查询 page（调用 browser_snapshot，失败重试一次）
-    private func fetchPage(client: BoxMCPClient) async -> [String: Any]? {
+    private func fetchPage(client: BoxMCPClient) async -> MCPPageRef? {
         for attempt in 1...2 {
             do {
                 let result = try await client.callTool(name: "browser_snapshot", arguments: [:], timeout: 30)
@@ -119,11 +124,8 @@ final class BoxBridgeClient: @unchecked Sendable {
 
                 // 解析 "Page: 标题 (url)" 行
                 if let page = parsePage(result) {
-                    return [
-                        "title": page.title,
-                        "url": page.url,
-                        "checkedAt": ISO8601DateFormatter().string(from: Date())
-                    ]
+                    let checkedAt = ISO8601DateFormatter().string(from: Date())
+                    return MCPPageRef(title: page.title, url: page.url, checkedAt: checkedAt)
                 }
 
                 if attempt == 2 { return nil }
