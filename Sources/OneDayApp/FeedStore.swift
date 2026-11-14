@@ -39,6 +39,41 @@ final class FeedStore {
     /// 间再点直接忽略，等回执落定后才接受下一次
     private var likeInFlight: Set<String> = []
 
+    // MARK: - FA-2 种子帖（本地账，不进桥）
+
+    /// 删过的种子帖 id（本地标记，删了不复活——规格
+    /// FA-2 写死）；UserDefaults 落盘，键只存 id 集合
+    private(set) var deletedSeedIDs: Set<String> = []
+    private static let seedDeletedKey = "feed.seed.deletedIDs.v1"
+
+    /// 当前可见的种子帖：从未产出且无真帖时才非空
+    /// （判定收口在 Core FeedSeedPosts.visible）
+    var seedPosts: [BridgeFeedPost] {
+        FeedSeedPosts.visible(
+            realPostCount: posts.count,
+            neverProduced: emptyKind == .neverProduced,
+            deletedIDs: deletedSeedIDs
+        )
+    }
+
+    /// 删一张种子帖：只落本地标记（种子帖不在桥上，
+    /// 没有服务端删除这回事），删后本机不再呈现
+    func deleteSeed(_ post: BridgeFeedPost) {
+        guard FeedSeedPosts.isSeed(post.id) else { return }
+        deletedSeedIDs.insert(post.id)
+        UserDefaults.standard.set(
+            Array(deletedSeedIDs), forKey: Self.seedDeletedKey
+        )
+    }
+
+    init() {
+        if let saved = UserDefaults.standard.stringArray(
+            forKey: Self.seedDeletedKey
+        ) {
+            deletedSeedIDs = Set(saved)
+        }
+    }
+
     // MARK: - 呈现口径（收口在 Core FeedBoard）
 
     var sortedPosts: [BridgeFeedPost] {
@@ -67,7 +102,9 @@ final class FeedStore {
     }
 
     func post(id: String) -> BridgeFeedPost? {
+        // FA-2：详情解析同样认种子帖（它们只在本地）
         posts.first { $0.id == id }
+            ?? seedPosts.first { $0.id == id }
     }
 
     // MARK: - 加载
@@ -223,7 +260,10 @@ final class FeedStore {
     /// 落轻提醒（likeNotice），不许再 try? 静默吞。
     /// 在飞期同帖连点忽略（防两次相反写竞态）
     func toggleLiked(appState: AppState, post: BridgeFeedPost) async {
-        guard let config = appState.config,
+        // FA-2（§239）：种子帖没有桥行，点赞回写短路
+        // ——不许拿本地 id 去打桥（行面本地态由视图层管）
+        guard !FeedSeedPosts.isSeed(post.id),
+              let config = appState.config,
               !likeInFlight.contains(post.id),
               let current = self.post(id: post.id) else { return }
         likeInFlight.insert(post.id)
@@ -267,7 +307,10 @@ final class FeedStore {
     /// 对账；确认失败静默保留本地已读（低危纯呈现
     /// 态，下轮 load 以服务端名单纠正，不打扰用户）
     func markRead(appState: AppState, post: BridgeFeedPost) async {
-        guard !post.isRead else { return }
+        // FA-2（§239）：种子帖没有桥行，已读回写短路
+        guard !FeedSeedPosts.isSeed(post.id), !post.isRead else {
+            return
+        }
         applyLocalRead(
             postID: post.id, at: Date().timeIntervalSince1970
         )

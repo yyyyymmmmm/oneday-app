@@ -12052,3 +12052,37 @@ run **43569057005**（workflow_dispatch，头 7b48459）**§190 终判绿（带 
 ### §238.5 CI 判读（2026-11-14 回填）
 
 run **43568667194**（feat/goals-rectify@6f3d34d）**§190 终判绿（带 §184 在案登记）**：**断言失败 0 条**；**Core 1947／0**——与静态预期精确对账（1937 基线＋本包 GoalRectifyTests 10）；**App 139 启动**：128 passed（125 基线＋GoalQuoteEntryTests 3，精确对账）＋5 skipped＋6 条 started 无终局行（几何五条＋回响 testFailedTraceMaterializesWithErrorSnapshot——均为 §231.1 在案的 §184 重复受害名单，日志 7 起宿主重启对应）；**UI 4／0**；HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS。测试步名义 failure 仅由 §184 宿主死亡构成。伴生侧（GD-1b 两路＋GD-4）已随 companion 1.0.51 与三页余项包 ID-2 一并部署验活（见三页余项包 DESIGN §234.3：/health ok、/ideas 快照已落——目标面 activity 字段同文件同批上线）。未合 main、未打 tag。
+## §239 三页余项包（2026-11-14；分支 feat/three-pages-rest，基线 rel-05039@39532cc；自编号、组版顺延）
+
+**组版收口（0.50.41）**：本线自编 §234 与组版树抽屉长按 §234 撞号，整节顺延为 **§239**（§234.1–§234.4→§239.1–§239.4）；FeedStore 与轻动作 §233 同文件冲突已按「乐观版为骨＋种子短路移植」裁决（toggleLiked/markRead 均以 §233 乐观实现为准、种子 id 短路保留），余代码自指同步。
+
+**装车**：FA-2 动态首次种子帖（App）＋ID-2 点子池子制全量（伴生 oneday_bridge）。M3 点子底栏角标与动态存量长帖清理两件经实查不在本包落点，结论见 §239.3。
+
+### §239.1 FA-2 种子帖（App）
+
+- Core `FeedSeedPosts`：五帖固定文案（简报/点子/目标/文件/旁聊），kind 新增 `.seed`（label「上手指南」＝kicker 明示、symbol sparkles、兜底 emoji 🧭；桥永不下发此 kind）；id 前缀 `oneday-seed-` 与桥 id 空间隔离。
+- 可见性纯函数 `FeedSeedPosts.visible`：真帖数 0 且 emptyKind=.neverProduced（无晨报记录＋今日零事件，沿 FeedBoard 既有口径）才垫底；删过的 id 剔除、全删即空。FeedStore 持本地删除账（UserDefaults `feed.seed.deletedIDs.v1`），`seedPosts` 据 posts/emptyKind 现算。
+- 呈现：FeedView 在 posts 空且 seedPosts 非空时以同 List 形态呈现（行本体共用 postRow）；动作行种子分支＝讨论（同真帖带原文开旁聊）＋删除（本地标记）＋「上手指南」，无点赞/来源/相对时间；详情头对种子帖不显相对时间（createdAt 恒 0、无产出时刻）。
+- 桥回写短路三处：FeedStore.markRead/toggleLiked 对种子 id 直接返回、ChatView.fireFeedDiscussSignal 对种子 id 不发——不许拿本地 id 打桥 /feed/{id}/*。详情解析 store.post(id:) 兼认种子帖。
+- 钉测：Core FeedSeedPostsTests 5 法（目录五件/kicker 口径/可见性三态/删后不复活/id 隔离）。
+
+### §239.2 ID-2 池子制（伴生 oneday_bridge，随包部署）
+
+- 快照制：每主轮结算后 `_build_ideas_snapshot_locked` 产一份快照 {snapshotId, sections 按 GOAL_CATEGORIES 序分组、positions 扁平序}，保留最近 7 份、active 一份；GET /ideas 信封新增 `snapshot` 字段、列表序跟随快照 positions，merged 卡退出列表。存量池由调度 tick 的 bootstrap 建首份快照（rev2 §2.11 迁移）。
+- 补货：主轮目标产量＝min(15−当前待阅， 5)，terminal 事件（采纳/建成）后次轮上限 +2（eventBonusPending 旗，消费即清）；池满轮跳过模型调用记 status=full；轮账新增 target/shortfall/merged/embedding/snapshotId。
+- 去重双路＋映射：contentFingerprint（标题去句式前缀＋正文锚点头＋anchorKind＋锚点对象 id 的 MD5）；命中不删——新卡落 status=merged＋mergedInto＋mergeReason，PATCH  merged id 自动解析到规范卡。向量路（余弦 ≥0.92，阈值落 meta 配置可调）已接线但 **K-3 实测降级**：2026-11-14 对生产网关 api.laogou8.com 实测 6 个 embedding 模型名（text-embedding-3-small/ada-002/bge-m3/text-embedding-v3/embedding-3/bge-large-zh-v1.5）全部 model_not_found——按 rev2 §2.3 降级口径指纹单路运行，轮账明记 embedding="off"；ONEDAY_EMBED_* 配置到位即可开双路、不改代码。
+- quality 三维：生成/改写提示词同轮产出 quality{relevance, novelty, feasibility}（桥校验折算 composite，权重 0.4/0.3/0.3，策略名 ideas_quality_oneday_v1 落卡），零新增模型调用。
+- 反馈双通道：fast（open 0.25/discuss 0.5/tooGeneric −1，新端点 POST /ideas/{id}/signal 收 open/discuss）与 terminal（adopt/built 各 +1）按 anchorKind×category×pair 三维各存双账（卡无独立 topic 字段，pair 即最细粒度，不另造）；poolScore＝composite×0.5＋terminal×0.35＋fast×0.15＋新鲜度 ≤+5，缺信号按中性 50；scoreWhy 一句人话分得清「采纳过同类」（terminal）与「新方向试探」（explore）。
+- 探索保底：每轮新卡 ≥ max(1, ceil(新卡/3)) 标 explore（从历史覆盖最少的 pair 里选、仍须过三门与评分）；快照含全部 pending，分组天然保底每非空 category ≥1。
+- 退场补强：锚点存活——目标完成/删除、监测删除/停用 → pending 卡 expired(anchorGone)（tick 扫除）；采纳卡的 kanban 任务完成 → status=built＋terminal 记账（feed 轮询挂点）。状态机新增 built/merged 终态（客户端不可写）。category 端到端桥侧 1.0.34 已落（生成产出＋校验＋_idea_view 下发俱在），本包核实无缺、不重复施工；App 分组呈现属 IA-1、不在本包。
+- 自检：新 tests/oneday_bridge_id2_selftest.py 23 项全过（指纹/quality/双路合并/feedback 双账/poolScore/scoreWhy/快照/列表序/merged 解析/anchorGone/built/bootstrap），已登记 run_bridge_selftests.sh；回归 p2 34/34、gd1b 17/17 不变。
+
+### §239.3 两件实查结论（不在本包落点）
+
+- **M3 点子底栏角标**：审计在案的「必补」口径（2026-11-11 闭环拍板 C2）已被用户 2026-11-12 §177 亲令推翻——「点子不要待阅呈现」，角标轮询/AppState 水位/.badge 整套退役（ContentView 文件头注在案）。本包**不复活**，待主线裁。
+- **动态存量长帖清理**：2026-11-14 经服务器通道实查生产 data.json——清理**已于 2026-11-11 执行过**（清前备份 `data.json.bak-20261111-clearlong` 在案：清前 7 帖含 815–1187 字长帖 5 篇）；现存 16 帖正文最长 307 字（research 166–252、digest 92–307、event 40），无长帖残留，本包无需再动。
+- **伴生部署**：本包 ID-2 与目标整改包 GD-1b/GD-4 的伴生改动（同在 oneday_bridge.py）已一并随 **companion 1.0.51** 部署上线（2026-11-14）：生产旧版文件与本地新版 diff 对账 37 hunk 全在两包范围内；镜像以生产容器现行树为上下文构建，compose 镜像与 COMPANION_VERSION、companion.env 版本戳三处对齐 1.0.51（env 旧戳 1.0.47 一并纠正，原地改写保 inode，备份 *.bak-1.0.50-pre1051）；验活回读——容器 Up、模块 md5 与本地一致、/health ok 且 degraded=false、GET /ideas 回 12 条＋active bootstrap 快照（sections career 1/interest 1/efficiency 4）＋poolScore/scoreWhy 已落。回滚基线＝镜像 oneday/companion:1.0.50 与两份 .bak 俱在。
+
+### §239.4 CI 判读（2026-11-14 回填）
+
+首轮 run 43569621572 **真红**：FeedView.actionRow 种子分支与真帖分支类型不一致（编译错误 1 条，本包改动），@ViewBuilder 收口后二轮 run **43570182310 §190 终判绿（带 §184 在案登记）**：**断言失败 0 条**；**Core 1942 执行／0 失败**——与静态预期精确对账（1937 基线＋本包 FeedSeedPostsTests 5）；**App 136 启动**：126 passed＋5 skipped（存量 XCTSkip）＋5 条 started 无终局行（testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView——与 0.50.39 同一份 §184 受害名单，日志 7 起宿主重启对应）；**UI 4／0**；HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS。测试步名义 failure 仅由 §184 宿主死亡构成。未合 main、未打 tag。
