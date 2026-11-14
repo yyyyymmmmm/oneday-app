@@ -1015,6 +1015,40 @@ struct ChatView: View {
         }
     }
 
+    /// §245 预热条目组装（§246 起自 .task 链抽为
+    /// 独立函数：承载分叉后视图链更重，内联多语句
+    /// 闭包在链上触发类型检查超时；组装口径与原内
+    /// 联版逐字一致——用户条目直取原文、助手条目
+    /// 过工具/留痕/回响/审批四闸后取摘记文本）
+    private func preheatEntries(
+        for thread: ChatThread
+    ) -> [LayoutProductService.PreheatEntry] {
+        thread.sortedEntries.compactMap { entry in
+            if entry.role == "user" {
+                return LayoutProductService.PreheatEntry(
+                    entryID: entry.id,
+                    renderedText: entry.content,
+                    isUser: true
+                )
+            }
+            guard entry.role == "assistant",
+                  entry.toolCard == nil,
+                  entry.traceKey == nil,
+                  entry.echoKey == nil,
+                  entry.approvalKey == nil
+            else { return nil }
+            return LayoutProductService.PreheatEntry(
+                entryID: entry.id,
+                renderedText: EntryScanMemo.scans(
+                    entryID: entry.id,
+                    content: entry.content,
+                    remoteImagePaths: entry.remoteImagePaths
+                ).media.text,
+                isUser: false
+            )
+        }
+    }
+
     /// 旧承载列表面（§246 前的定版复合面：Scroll-
     /// ViewReader＋消息列表＋两宿主 overlay），开
     /// 关关时恒走本面、内容一字未动
@@ -1369,33 +1403,7 @@ struct ChatView: View {
                     - OneDayMetrics.bubblePaddingH * 2
                     - OneDayMetrics.bubbleSideInset
                 LayoutProductService.shared.preheat(
-                    entries: thread.sortedEntries.compactMap {
-                        entry in
-                        if entry.role == "user" {
-                            return LayoutProductService
-                                .PreheatEntry(
-                                    entryID: entry.id,
-                                    renderedText: entry.content,
-                                    isUser: true
-                                )
-                        }
-                        guard entry.role == "assistant",
-                              entry.toolCard == nil,
-                              entry.traceKey == nil,
-                              entry.echoKey == nil,
-                              entry.approvalKey == nil
-                        else { return nil }
-                        return LayoutProductService.PreheatEntry(
-                            entryID: entry.id,
-                            renderedText: EntryScanMemo.scans(
-                                entryID: entry.id,
-                                content: entry.content,
-                                remoteImagePaths:
-                                    entry.remoteImagePaths
-                            ).media.text,
-                            isUser: false
-                        )
-                    },
+                    entries: preheatEntries(for: thread),
                     width: textWidth,
                     style: LayoutStyleContext(
                         sizeCategory:
