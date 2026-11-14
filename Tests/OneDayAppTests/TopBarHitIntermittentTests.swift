@@ -255,7 +255,7 @@ final class TopBarHitIntermittentTests: XCTestCase {
                 }
             }
             .overlay {
-                TopBarGuideHost(barHeight: $state.topBarHeight) {
+                TopBarGuideHost(barHeight: $state.topBarHeight, scrollHandle: ChatListScrollViewHandle()) {
                     ClusterReplica(state: state, box: box)
                 }
             }
