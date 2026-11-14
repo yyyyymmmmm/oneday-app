@@ -1,11 +1,26 @@
 import Foundation
 import OneDayCore
 
+/// 伴生探测结果（/api/companion/info）：伴生在不在、
+/// 什么版本的事实口——只报事实、读不到不臆断版本；
+/// 消费方（如设置页版本组、台账未上线时的旁证）据
+/// 此组织说明，探测是补充不是判据
+enum CompanionProbe: Sendable {
+    /// 读到信息面：带版本与模块状态
+    case detected(CompanionInfo)
+    /// 404：信息面不存在（旧伴生或 front 未部署此面）
+    case missing
+    /// 面在但 App 的钥读不到（面板口要面板会话）：
+    /// 只知「有伴生面」，版本不确认
+    case unreadable(Int)
+    /// 网络不可达／无钥匙：什么都确认不了
+    case unreachable
+}
+
 /// 伴生 front 客户端（0.37.0）：连接记录与网关渠道两
 /// 面都挂在服务器根 /api/companion/*（front 8650），
-/// 鉴权走 App 既有单钥 Bearer（BridgeCredential，与
-/// LedgerBridgeClient 的伴生探测同通道；front 对 App
-/// 通道免 CSRF、写口与面板同权）。连接凭据只出不进：
+/// 鉴权走 App 既有单钥 Bearer（BridgeCredential；
+/// front 对 App 通道免 CSRF、写口与面板同权）。连接凭据只出不进：
 /// 本客户端只有提交口、没有任何读回凭据值的接口。
 final class CompanionFrontClient: @unchecked Sendable {
     /// C-10 收敛：连接/单钥/管线/文案全走统一基座，
@@ -16,6 +31,46 @@ final class CompanionFrontClient: @unchecked Sendable {
     )
 
     private var decoder: JSONDecoder { base.decoder }
+
+    // MARK: - 伴生探测（桥-1 归位：探针本属 front 面，
+    // 自 LedgerBridgeClient 迁回，行为逐项保真）
+
+    /// GET /api/companion/info（服务器根下、front 面）：
+    /// 不抛错——任何失败都是一种探测结果，调用方据此
+    /// 组织说明文案
+    func probeCompanion(
+        config: ServerConfig
+    ) async -> CompanionProbe {
+        let request: URLRequest
+        do {
+            var made = try base.makeRequest(
+                config: config, fullPath: "/api/companion/info",
+                method: "GET"
+            )
+            made.timeoutInterval = 10
+            request = made
+        } catch {
+            return .unreachable
+        }
+        do {
+            let (data, http) = try await base.performRaw(request)
+            switch http.statusCode {
+            case 200:
+                if let info = try? base.decoder.decode(
+                    CompanionInfo.self, from: data
+                ) {
+                    return .detected(info)
+                }
+                return .unreadable(200)
+            case 404:
+                return .missing
+            default:
+                return .unreadable(http.statusCode)
+            }
+        } catch {
+            return .unreachable
+        }
+    }
 
     // MARK: - 连接记录（云电脑配置面）
 

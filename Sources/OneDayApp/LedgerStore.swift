@@ -45,6 +45,9 @@ final class LedgerStore {
 
     private let client = LedgerBridgeClient()
     private let bridgeClient = OneDayBridgeClient()
+    /// 伴生探测走 front 客户端（桥-1 归位：探针本属
+    /// front 面，本店只在台账未上线时借它作旁证）
+    private let frontClient = CompanionFrontClient()
     private var loadInFlight = false
 
     // MARK: - 呈现派生（口径收口在 Core LedgerBoard）
@@ -237,7 +240,7 @@ final class LedgerStore {
     ) async {
         if case .bridgeMissing = error {
             loadState = .unavailable(Self.notLiveMessage(probe: nil))
-            let result = await client.probeCompanion(config: config)
+            let result = await frontClient.probeCompanion(config: config)
             probe = result
             if loadState != .ready {
                 loadState = .unavailable(

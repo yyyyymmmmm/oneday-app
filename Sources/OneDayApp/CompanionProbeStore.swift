@@ -5,10 +5,10 @@ import OneDayCore
 /// 成功后探一次、回前台节流再探；结果经 Core 的
 /// CompanionProbeResolver 解析成设置页版本组的派生
 /// 态，最近一次成功值落 UserDefaults 供离线时以
-/// 「上次读到」形态露面。网络动作复用 LedgerBridge-
-/// Client.probeCompanion（/api/companion/info 既有
-/// 实现，不另起第二套请求）；本类只管时机、节流与
-/// 缓存动作执行，派生口径全在 Core、不在这里重算。
+/// 「上次读到」形态露面。网络动作复用 Companion-
+/// FrontClient.probeCompanion（/api/companion/info
+/// 既有实现，不另起第二套请求）；本类只管时机、节
+/// 流与缓存动作执行，派生口径全在 Core、不在这里重算。
 @MainActor
 @Observable
 final class CompanionProbeStore {
@@ -17,7 +17,7 @@ final class CompanionProbeStore {
     private(set) var status: CompanionStatus?
     private var lastAttemptAt: Date?
     private var inFlight = false
-    private let client = LedgerBridgeClient()
+    private let client = CompanionFrontClient()
 
     private static let cacheKey = "companionProbeRecord.v1"
     /// 回前台再探的节流间隔：距上次尝试不足此时长
@@ -98,9 +98,10 @@ final class CompanionProbeStore {
     }
 }
 
-/// App 层探测枚举（LedgerBridgeClient.Companion-
-/// Probe）→ Core 解析口的 1:1 映射：两边同构，映射
-/// 在此一处，Core 不反向依赖 App 层类型
+/// App 层探测枚举（CompanionProbe，CompanionFront-
+/// Client.probeCompanion 的结果）→ Core 解析口的
+/// 1:1 映射：两边同构，映射在此一处，Core 不反向
+/// 依赖 App 层类型
 private extension CompanionProbeOutcome {
     init(_ probe: CompanionProbe) {
         switch probe {

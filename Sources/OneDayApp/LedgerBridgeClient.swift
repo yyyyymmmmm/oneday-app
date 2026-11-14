@@ -1,23 +1,6 @@
 import Foundation
 import OneDayCore
 
-/// 伴生探测结果（/api/companion/info）：台账未上线
-/// 时的旁证——探测只用来把「还没上线」说得更准，
-/// 读不到不臆断版本。台账是否上线以 /ledger 读面
-/// 本身为准（旧伴生无此面、集合 404），探测是补充
-/// 不是判据
-enum CompanionProbe: Sendable {
-    /// 读到信息面：带版本与模块状态
-    case detected(CompanionInfo)
-    /// 404：信息面不存在（旧伴生或 front 未部署此面）
-    case missing
-    /// 面在但 App 的钥读不到（面板口要面板会话）：
-    /// 只知「有伴生面」，版本不确认
-    case unreadable(Int)
-    /// 网络不可达／无钥匙：什么都确认不了
-    case unreachable
-}
-
 /// 工作台账客户端：读面挂 oneday 模块（/api/oneday-
 /// bridge/ledger*），与 OneDayBridgeClient 同构（同
 /// 底座、同错误口径 OneDayBridgeError、同单钥来源
@@ -88,45 +71,6 @@ final class LedgerBridgeClient: @unchecked Sendable {
 
     private struct LedgerReportResponse: Decodable {
         let seq: Int
-    }
-
-    // MARK: - 伴生探测
-
-    /// GET /api/companion/info（服务器根下、front 面）：
-    /// 不抛错——任何失败都是一种探测结果，调用方据此
-    /// 组织「还没上线」的说明文案
-    func probeCompanion(
-        config: ServerConfig
-    ) async -> CompanionProbe {
-        let request: URLRequest
-        do {
-            var made = try base.makeRequest(
-                config: config, fullPath: "/api/companion/info",
-                method: "GET"
-            )
-            made.timeoutInterval = 10
-            request = made
-        } catch {
-            return .unreachable
-        }
-        do {
-            let (data, http) = try await base.performRaw(request)
-            switch http.statusCode {
-            case 200:
-                if let info = try? base.decoder.decode(
-                    CompanionInfo.self, from: data
-                ) {
-                    return .detected(info)
-                }
-                return .unreadable(200)
-            case 404:
-                return .missing
-            default:
-                return .unreadable(http.statusCode)
-            }
-        } catch {
-            return .unreachable
-        }
     }
 
     // MARK: - 请求底座（基座代行，本类只给状态口径）
