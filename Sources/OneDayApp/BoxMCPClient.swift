@@ -248,12 +248,12 @@ actor BoxMCPClient {
     }
 
     /// 将 [String: Any] 转换为 JSONValue
-    private func anyToJSONValue(_ value: Any) -> JSONValue {
+    internal func anyToJSONValue(_ value: Any) -> JSONValue {
         switch value {
+        case let b as Bool: return .bool(b)
         case let s as String: return .string(s)
         case let n as Int: return .number(Double(n))
         case let n as Double: return .number(n)
-        case let b as Bool: return .bool(b)
         case let dict as [String: Any]:
             return .object(dict.mapValues(anyToJSONValue))
         case let arr as [Any]:
