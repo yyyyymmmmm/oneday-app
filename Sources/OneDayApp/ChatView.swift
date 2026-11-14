@@ -7085,8 +7085,12 @@ private struct ComposerBarLayout: Layout {
         let combinedSourceQuote = sourceQuote
             ?? feedQuote.map(SourceQuote.feed)
         guard !isStreaming, !text.isEmpty || !pending.isEmpty else { return }
-        // 0.3.2：发送起手不再挂触觉——触感挪到结果点
-        // （run 完成 .success / 失败 .warning，见 driveRun）
+        // 触感口径（2026-11-14 定版，覆盖 0.3.2「发送
+        // 起手不挂触感」）：发送动作补最轻档 impact
+        // .light，落点在条目落盘上屏处（见下方 insert
+        // 后）——前置校验退回路径（定位失败/旧轮未落
+        // 定）不许响，响必须与「消息真发出了」同因果；
+        // 结果点不变：完成 .success / 失败 .error
         input = ""
         attachments = []
         pendingQuote = nil
@@ -7146,6 +7150,10 @@ private struct ComposerBarLayout: Layout {
             quote: quote, sourceQuote: combinedSourceQuote
         )
         modelContext.insert(newEntry)
+        // 发送触感（2026-11-14 定版）：消息落盘上屏
+        // 同帧补最轻档 impact——「把球交出去」一下轻
+        // 震；自动重发/队列补发不经本函数、不许响
+        Haptics.impact(.light)
         // 0.7.0（M3）：主线标题恒「主线」、不被首条消息
         // 派生覆盖——主线线程标题在钦定落位时即为「主线」
         // 本就不进本分支，此守卫是双保险
