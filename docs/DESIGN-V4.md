@@ -11541,3 +11541,16 @@ run 43519373972（头 4f7d2ee）**终判绿（§190＋任务书探针例外）**
 ### §215.1 装配 CI 判读（2026-11-14 回填）
 
 run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本体编译干净）、Package/Upload success；Unit tests 步 failure——全日志断言失败 0 条、测试执行 0，失败本体为测试目标编译错恰 1 条：`TopBarHitIntermittentTests.swift:258` 直构 `TopBarGuideHost(barHeight:)` 缺边缘包 §213 新增的必填参数 `scrollHandle`（装配层跨包接口漂移：两包各自判绿、合后才暴露；全仓直构点仅两处、另一处 ComposerGuideHostTests 已在装配时融合）。按任务书纪律不自行改码救版；修法候选＝该行补 `scrollHandle: ChatListScrollViewHandle()`（与 §213 对 ComposerGuideHostTests 的适配同式、语义核过不改 rig 断言面），待主线授权后重派。全档＝release-05035-assembly-20261114.md §4/§5。本版未出包、未合 main、未打 tag。
+
+## §217 回响物化归位：留痕回响改真条目、按事件时间落进消息流（2026-11-14；分支 feat/trace-echo-materialize，基线 rel-05036 头 8234e5b，只交分支不合并、不发版；立项＝用户 2026-11-14 真机图二点名＋追问「大厂怎么解决的」，定因全档＝oneday-design-review/drawer-delete-longpress-diagnosis-20261114.md 题四；本节号取 §217——本树 DESIGN 末节为 §215，但 §216 已被 rel-05036 组版账与点子后门包在各自树占用，先行避撞）
+
+**病灶**：主线回响卡（TraceEcho）根本不是消息条目——TraceEchoPolicy 在呈现层拼装、恒挂消息流末尾（旧注释明文「流尾呈现」），卡面事件时间（trace.at）只管卡间排序、从不进入条目时间轴（sortedEntries 按 createdAt）。昨天的卡永远排在今天消息下面、新消息推不走，与 §165 审批锚定条目的正解只差一步：从未物化、没有 createdAt 可改写。
+
+**修法（与 §165 同构）**：
+1. **物化为真条目**：留痕刷新成功后（ChatView.refreshEchoTraces 拉成路径），经 App 层 TraceEchoMaterialization 幂等落盘为 ChatEntry——新字段 `traceKey`（去重键 `trace:<留痕id>`）＋`traceEchoData`（呈现快照 JSON，Core TraceEchoSnapshot：主句／对象名／可点达会话 id／结果行／失败标记，落盘时经 TraceEchoCopy 单源成句、自包含不依赖当轮拉取在场）。条目 `createdAt` 改写为事件时间 `trace.at`，经 sortedEntries 自然落进对应轮次、新消息自然顶上去；`thread.updatedAt` 不动（物化不是用户活动，同 §165 纪律）。
+2. **去重口径＝按线程**：existingKeys 只取目标线程既有 traceKey——同一留痕在主线（总账面）与它指向的旁聊（出生卡面）各落一条、与旧呈现的双面可见语义一致；同线程内永不重复（与 §165 的全 App 冻结不同：审批记录只锚一个发起线程、留痕的作用域政策本就是多面）。无时刻（at≤0）的留痕不规划——无时刻不许猜位置（同 §165 已决缺时刻不规划）。
+3. **上限语义**：旧 `defaultLimit = 10` 由「呈现上限」改义为「单次刷新的物化窗口」——每轮只规划作用域内最近 10 条未落盘留痕；已落盘条目是永久历史行、不再受 10 条约束（条目总数随时间自然超过 10，与消息同理）。窗口外从未在窗内过轮的旧留痕不再追补（与旧呈现「只见最近 10 条」等价、不扩大可见面）。
+4. **呈现收成紧凑行**：条目在流内走紧凑回响行（主句一行＋对象行可点达＋结果行；失败行 danger 原文照上、P0「失败与成功同级、原文不折叠」契约不丢），流尾大卡区（TraceEchoPolicy.cards 的 ForEach 拼装）退役、TraceEchoCard 公用件随之退役。点达能力保留：会话类对象整行可点、经既有续聊通道（pendingChatSessionID）进入。条目并入 `isSystemAnchored` 系统锚定族（与 echoKey/approvalKey 同纪律：不进发送上下文、不被落定整段替换当半截删、不进半截名单/回填）。
+5. **回告卡不在本包**：回告卡（ReportCard）与回响只是同处流尾，机制不同源——数据源是总览桥未读通知（非留痕账）、生命周期是未读收件箱（markRead 即消失、有现成消失路）、上限 3 且恒主线。本包不动物化，理由与后续处置见施工报告 §5。
+
+**验收**：Core 规划单测（去重/窗口/作用域/事件时间落位/失败原文入快照/无时刻跳过/快照编解码）＋App 物化单测（落盘后 sortedEntries 落位在事件时间处、新消息排其后、二次刷新不重复、updatedAt 不动、isSystemAnchored 在场、失败条目在场）；真机终判＝11-13 的旧回响落到那天的位置、新发消息排在其后、点回响行达对应旁聊。
