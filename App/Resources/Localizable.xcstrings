@@ -16262,29 +16262,6 @@
         }
       }
     },
-    "只显示最近 50 条": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Showing only the latest 50"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "只显示最近 50 条"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "只顯示最近 50 條"
-          }
-        }
-      }
-    },
     "只有主模型彻底用不了时才按顺序换，不做负载均衡。长按拖动可排序。": {
       "extractionState": "manual",
       "localizations": {
@@ -40940,29 +40917,6 @@
         }
       }
     },
-    "服务端会话批量删除": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Server conversation bulk deletion"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "服务端会话批量删除"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "伺服器端對話批次刪除"
-          }
-        }
-      }
-    },
     "服务端会话更新": {
       "extractionState": "manual",
       "localizations": {
@@ -48628,29 +48582,6 @@
         }
       }
     },
-    "清空 %lld 条空会话？": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear %lld empty conversations?"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清空 %lld 条空会话？"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清空 %lld 條空對話？"
-          }
-        }
-      }
-    },
     "清空搜索": {
       "extractionState": "manual",
       "localizations": {
@@ -48670,29 +48601,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "清空搜尋"
-          }
-        }
-      }
-    },
-    "清空空会话": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear empty conversations"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清空空会话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清空空對話"
           }
         }
       }
@@ -52995,75 +52903,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "稍後可在設定裡修改，只影響這台手機"
-          }
-        }
-      }
-    },
-    "空会话已清空。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Empty conversations cleared."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空会话已清空。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空對話已清空。"
-          }
-        }
-      }
-    },
-    "空会话指没有任何消息的会话，删除后无法恢复。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Empty conversations are conversations with no messages. Deletion can't be undone."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空会话指没有任何消息的会话，删除后无法恢复。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空對話指沒有任何訊息的對話，刪除後無法恢復。"
-          }
-        }
-      }
-    },
-    "空会话清理": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Empty conversation cleanup"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空会话清理"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空對話清理"
           }
         }
       }
@@ -69216,6 +69055,446 @@
           "stringUnit": {
             "state": "translated",
             "value": "伺服器會話"
+          }
+        }
+      }
+    },
+    "清理空会话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up Empty Sessions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理空会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理空會話"
+          }
+        }
+      }
+    },
+    "正在扫描全部会话…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scanning all sessions…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在扫描全部会话…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在掃描全部會話…"
+          }
+        }
+      }
+    },
+    "扫描没完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan Didn’t Finish"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扫描没完成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "掃描未完成"
+          }
+        }
+      }
+    },
+    "重新扫描": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan Again"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新扫描"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新掃描"
+          }
+        }
+      }
+    },
+    "这是预演结果，还没有删除任何会话。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is a preview — nothing has been deleted yet."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这是预演结果，还没有删除任何会话。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這是預演結果，尚未刪除任何會話。"
+          }
+        }
+      }
+    },
+    "已扫描全部会话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions scanned"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已扫描全部会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已掃描全部會話"
+          }
+        }
+      }
+    },
+    "服务器自报空会话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty sessions reported by server"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器自报空会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器自報空會話"
+          }
+        }
+      }
+    },
+    "按消息数数出的空会话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty sessions counted by messages"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按消息数数出的空会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依訊息數數出的空會話"
+          }
+        }
+      }
+    },
+    "两边数目对不上，说明扫描口径和服务端口径不一致，这次不删。先把名单读全、口径对齐再来。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The counts don’t match, so the scan and the server disagree. Nothing will be deleted this time — come back once the list is complete and the counts line up."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "两边数目对不上，说明扫描口径和服务端口径不一致，这次不删。先把名单读全、口径对齐再来。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "兩邊數目對不上，表示掃描口徑和伺服器口徑不一致，這次不刪。先把名單讀全、口徑對齊再來。"
+          }
+        }
+      }
+    },
+    "没有空会话需要清理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No empty sessions to clean up."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有空会话需要清理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有空會話需要清理。"
+          }
+        }
+      }
+    },
+    "将要删除的空会话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty sessions to delete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将要删除的空会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將要刪除的空會話"
+          }
+        }
+      }
+    },
+    "删除走逐条围栏校验，删完会再全量核对一遍；候选清单和结果会存进本机清理记录。空会话没有任何消息，删掉的是会话本身。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each deletion is fenced and verified one by one, then the whole list is checked again. The candidate list and results are kept in this device’s cleanup records. Empty sessions contain no messages — only the session itself is removed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除走逐条围栏校验，删完会再全量核对一遍；候选清单和结果会存进本机清理记录。空会话没有任何消息，删掉的是会话本身。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除走逐條圍欄校驗，刪完會再全量核對一遍；候選清單和結果會存進本機清理記錄。空會話沒有任何訊息，刪掉的是會話本身。"
+          }
+        }
+      }
+    },
+    "删除这 %lld 条空会话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete These %lld Empty Sessions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除这 %lld 条空会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除這 %lld 條空會話"
+          }
+        }
+      }
+    },
+    "正在删除 %lld/%lld 条…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleting %lld of %lld…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在删除 %lld/%lld 条…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在刪除 %lld/%lld 條…"
+          }
+        }
+      }
+    },
+    "核验已消失": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verified gone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核验已消失"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核驗已消失"
+          }
+        }
+      }
+    },
+    "删后仍在": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still present"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删后仍在"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪後仍在"
+          }
+        }
+      }
+    },
+    "没删掉的": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t delete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没删掉的"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒刪掉的"
+          }
+        }
+      }
+    },
+    "这次清理的候选清单和结果已存进本机清理记录。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cleanup’s candidate list and results were saved to this device’s cleanup records."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这次清理的候选清单和结果已存进本机清理记录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這次清理的候選清單和結果已存進本機清理記錄。"
+          }
+        }
+      }
+    },
+    "上次清理：%@ · 删除 %lld 条 · 核验消失 %lld 条": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last cleanup: %@ · %lld deleted · %lld verified gone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次清理：%@ · 删除 %lld 条 · 核验消失 %lld 条"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次清理：%@ · 刪除 %lld 條 · 核驗消失 %lld 條"
+          }
+        }
+      }
+    },
+    "只保留最近 200 条回告记录": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the most recent 200 report records are kept"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只保留最近 200 条回告记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只保留最近 200 條回報記錄"
           }
         }
       }
