@@ -220,8 +220,9 @@ final class StreamingBlockProductTests: XCTestCase {
                 key: LayoutProductKey(
                     entryID: UUID(), content: text, width: 300,
                     style: LayoutStyleKey(
-                        fontSize: 16.5, lineSpacing: 0,
-                        fontWeight: 400, theme: "light")),
+                        textStyle: "callout",
+                        sizeCategory: "large",
+                        boldText: false)),
                 segments: [LayoutSegmentProduct(
                     segmentIndex: 0, kind: .prose,
                     attributed: NSAttributedString(string: text),
