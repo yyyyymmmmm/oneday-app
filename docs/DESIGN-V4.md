@@ -11551,3 +11551,33 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 ### §216.1 CI 判读（2026-11-14）
 
 首轮 run 43536672323 真红：测试目标编译错恰一处——聊天可靠性包按 main 基线生成的离线桩 FailingHermesClient 缺 HermesClientProtocol 的 `sessionMutationSnapshot(config:id:)`（本链管理收口/删除线新增要求；生产实现与 DemoHermesClient 均已实现，全仓仅此一处缺项），断言 0 条但三套零执行。主线授权一行装配适配（与 §215 scrollHandle 先例同型）：提交 `99c0067` 在桩内按其通例补抛错桩方法（+4 行、仅该文件一处、不动任何断言）。二轮 run **43537855358**（头 99c0067）**§190 终判绿**：job build-native 名义 failure（Build／Package／Upload 均 success）；**断言失败 0 条**、Swift 编译错 0；**Core 1853 执行／0 失败**（预期 1853 精确对账）；**App 94 全数启动**：83 passed＋5 skipped（PresentationLayerScenarios 源码自带 XCTSkip，存量）＋6 条 §184 宿主死亡受害（在飞 started 后无终局行、与宿主重启逐一对应、零断言）——其中 5 条为 .35 在案同名单（testKeyboardUpMovesComposerOnlyDockStays／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／testSelectionSurvivesConstantBranch），新增 1 条为本版新装可靠性包自家 testMarkPendingSendRetainsEntryOnDisk、同签名（01:15:46 started、01:15:54 宿主重启），按 §184 在案例外；本轮宿主重启共 7 起。**UI 4／0**。**栏位探针直接 passed（5.585s）**，未走 flake 例外。IPA **12,298,913 字节、md5 `c0f13c83464da1f7d948bc7e87c15abe`**、0.50.36/164（解包 Info.plist 亲验），存 ~/workspace/your_files/oneday-v0.50.36/OneDay-0.50.36.ipa。未合 main、未打 tag。
+
+## §217 Muse 对齐三项包（2026-11-14；分支 feat/muse-align-batch，基线 rel-05036 头 12200c9；用户 09:46 选项卡点选「三项全改」）
+
+依据＝真机截图实测对照审计 muse-color-drawer-diff-20261114.md（采样值与分档建议在该报告内）。本包三件：抽屉选中垫加深／AI 散文恢复气泡／频道行品牌真图标（核实＋钉死）。未组版、未合 main、未打 tag。
+
+### §217.1 抽屉选中垫加深（审计 A 档 (a) 小改）
+
+- **根因**：选中填充 `Palette.selectionFill` 浅档 #F0F1F2 与 Muse 实测选中值 #EEEFF1 同值，病不在填充——抽屉面板底是 thinMaterial 压 pageBG 的合成面（截图实测 #F2F2F2），#F0F1F2 压上去逐通道 Δ≈0–3，选中态被面板吃掉（用户点名「侧边栏选中颜色不对」的实况）。
+- **改法**：新设抽屉专用令牌 `Palette.drawerSelectionFill`，`selectionFill` 本体与其余消费面（连接器/交付/动态/文件/通知，均不在材质面板上）零改动。浅档 **#E4E5E7**——压面板合成面 #F2F2F2 逐通道 Δ≈（14,13,11）≥10，与 Muse 自家「#EEEFF1 压 #FCFCFC」Δ≈13 同级；暗档挂 `tertiarySystemBackground`（解析 #2C2C2E）——抽屉面板暗档为材质压 systemBackground 的近似面（secondarySystemBackground #1C1C1E 级），Δ≈16，且与助手泡暗档同级语义、不新造暗值。减透明回退面（chatSurface #FCFCFC／#000）上两档 Δ 分别 ≈23／≈44，同等可辨。
+- **消费点**：DrawerView 三行选中垫（导航行 drawerNavRow／频道行 drawerChannelRow／旁聊当前行，三者同在面板材质上）由 `Palette.selectionFill` 换 `Palette.drawerSelectionFill`；圆角 fieldCorner 19 与全部几何不动。
+- **不走 (b) 大改**：面板 thinMaterial 是 0.36.3 用户点名定案，本包不碰材质本体，只动垫。
+
+### §217.2 AI 散文恢复气泡（推翻 2026-11-13 A1 撤泡口径）
+
+- **拍板与形态钉死**：用户 2026-11-14 09:46 点选三项全改恢复气泡，并亲口澄清——「气泡的内容是纯文字，不是把气泡颜色改没」：气泡只是中性浅灰容器，正文保持现行纯文字呈现与排版；不做彩色卡、不加描边/阴影、不改字色字阶。**2026-11-13 割裂感 A 止血档 A1（feat/chat-surface-stopgap，随 §207 装车 0.50.30）的「撤 bubbleFill 背景、散文直落 chatSurface」口径自本节起作废**，assistantBubble 函数头注与 ChatView 文件头沿革同步登记推翻关系。
+- **落点**：`ChatView.assistantBubble` 恢复 A1 撤销的背景层——content 在原内边距（bubblePaddingH 16／bubblePaddingV 13，A1 未动）之外加回 `.background(Palette.bubbleFill, in: RoundedRectangle(cornerRadius: OneDayMetrics.assistantBubbleCorner))`，几何与 A1 前逐字一致（assistantBubbleCorner 22、右侧让位 bubbleSideInset 44 均未动）。填充用库存令牌 `bubbleFill` 浅档 #EEEEF0（OpenMuse 助手泡原值），与 Muse 实测 #E9EAEC 仅 Δ≈4–5，不新造色。
+- **波及面如实登记**：assistantBubble 只包两路——落盘散文（MarkdownText）与流式半截/等待点（streamingBubble）。代码块/表格在 MarkdownText 内部以其自身次档填充渲染、本包零改动，只是视觉上随正文一同被泡面包住（与 Muse 图四「整条回复一个灰泡」形态一致）；工具卡/文件卡/图片行/引用块等异构件在 assistantBubble 之外、不受影响。泡内子件对比回位 A1 前原账（inkSecondaryOnFill 对 #EEEEF0＝5.04:1，即 A1 注所载原泡面值）。
+- **深色与最大字号自查口径**：暗档 bubbleFill #2C2C2E 压 chatSurface #000 为背景三级梯第三级（既有定版）；气泡宽度由内容＋Spacer(minLength: 44) 决定、纵向随内容生长，最大字号档多行文本只增高不截断——两帧结论随本包报告登记，真机终验在组版随车清单。
+
+### §217.3 频道行品牌真图标（核实结论＋缺口钉死；飞书不重复落码）
+
+- **核实结论（与审计 §2 #5 口径有出入、按代码实况处置）**：本树抽屉 `ChannelRegistry.drawerList` 七行（Hermes／Telegram／钉钉／QQ／Discord／Slack／微信）的 `iconAssetName` 均已登记真实图面资产——Telegram/钉钉/QQ/Discord/Slack/微信为各家官方 App 原图（Channel*.imageset），Hermes 为 0.36.3 已登记的定制图面 LocalHermes；`drawerChannelRow` 已按资产渲染（字形档 21 落 30 槽），SF 符号（antenna.radiowaves）只在 `iconAssetName == nil` 时回落。审计报告 §2 #5 称「咱家全 SF 符号」——用户截图里频道区为折叠态、无行露出，该项无从采样，与本树代码不符；本包不做无的放矢的图标替换。
+- **缺口补强（本包唯一落码）**：既有 Core 测试只钉资产「名」，无一钉资产「实物在包」——imageset 缺失/改名时 `Image(asset)` 静默空白且不在 nil 回落内。新增 App 测试 `ChannelBrandAssetTests`：drawerList 全部行资产名须在生产包内解析出真实位图（UIImage(named:) 非 nil 且近正方），缺失先红。
+- **飞书不重复落码**：飞书官方资产 ChannelFeishu＋注册表描述＋drawerList 成员＋配对形态已由 feat/channels-feishu @ac5b823 全量落码并 CI 判绿（其 DESIGN §209，随该包组版装车）；本包若重复登记，装配必撞车。本树 `SessionClassificationTests` 对 feishu 图标的 nil 守卫断言（「未登记平台回 nil、不许仿绘顶替」）保持不动，待飞书包装车时由其自家改钉翻转。
+
+### §217.4 测试账
+
+- Core `RenderMeasureTests.testDrawerSelectionFillDeepenedForMaterialPanel`（新增）：drawerSelectionFill 浅档解析钉 #E4E5E7＋压面板合成面 #F2F2F2 逐通道 Δ≥10；暗档解析钉 #2C2C2E＋压面板暗档近似面 #1C1C1E 逐通道 Δ≥10；selectionFill 浅档原值 #F0F1F2 不变（既有断言同测复核）。
+- App `ChannelBrandAssetTests`（新增 1 法）：drawerList 七行资产位图逐一解析。
+- 计数预期：Core 1853＋1＝1854、App 94＋1＝95、UI 4 不变（基线＝§216.1 的 .36 判读账）。
