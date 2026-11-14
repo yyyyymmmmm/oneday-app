@@ -63,6 +63,208 @@ public enum GoalEntrySource: String, Sendable, Equatable, Codable {
     }
 }
 
+/// 目标活动状态词（GD-1，桥 _goal_activity 派生）：目标
+/// 关联的任务眼下在干什么——running 正在办 / waiting
+/// 等着 / blocked 卡住了（含失败折入）/ idle 闲置。未知
+/// 串按 idle 收（宽容解码，与本文件各枚举同口径）
+public enum GoalActivityState: String, Sendable, Equatable {
+    case running
+    case waiting
+    case blocked
+    case idle
+
+    public static func from(_ raw: String?) -> GoalActivityState {
+        GoalActivityState(rawValue: raw ?? "") ?? .idle
+    }
+
+    /// 用户面状态词（规格三页对标第四章 4.3 的四词）
+    public var title: String {
+        switch self {
+        case .running: return L10n.string("正在办")
+        case .waiting: return L10n.string("等着")
+        case .blocked: return L10n.string("卡住了")
+        case .idle: return L10n.string("闲置")
+        }
+    }
+}
+
+/// 目标活动派生（GD-1；桥 _goal_view.activity，读时派生
+/// 不落存储）：关联任务的状态聚合＋一句人话 label＋驱动
+/// 当前状态的那件任务（focusTask）。桥 0.50.39 前不带此
+/// 字段——缺失整段按 nil 收，呈现层据此整段不显，不拿
+/// 别的字段脑补活动态
+public struct BridgeGoalActivity: Decodable, Equatable, Sendable {
+    public struct FocusTask: Decodable, Equatable, Sendable {
+        public let id: String
+        public let title: String
+        /// 任务板原生状态串（原样透传，呈现层不再加工）
+        public let status: String
+
+        public init(id: String, title: String, status: String) {
+            self.id = id
+            self.title = title
+            self.status = status
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case id, title, status
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(
+                keyedBy: CodingKeys.self
+            )
+            id = try container.decodeIfPresent(
+                String.self, forKey: .id
+            ) ?? ""
+            title = try container.decodeIfPresent(
+                String.self, forKey: .title
+            ) ?? ""
+            status = try container.decodeIfPresent(
+                String.self, forKey: .status
+            ) ?? ""
+        }
+    }
+
+    public struct LatestProgress: Decodable, Equatable, Sendable {
+        public let text: String
+        /// epoch 秒（float）
+        public let at: Double
+
+        public init(text: String, at: Double) {
+            self.text = text
+            self.at = at
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case text, at
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(
+                keyedBy: CodingKeys.self
+            )
+            text = try container.decodeIfPresent(
+                String.self, forKey: .text
+            ) ?? ""
+            at = try container.decodeIfPresent(
+                Double.self, forKey: .at
+            ) ?? 0
+        }
+    }
+
+    public let state: GoalActivityState
+    /// 桥组装的人话一句（如「2 件任务进行中，1 件待开始」）
+    public let label: String
+    /// 当前状态的起始时刻（尽力值，桥事件环无记录时 nil）
+    public let since: Double?
+    public let focusTask: FocusTask?
+    public let runningCount: Int
+    public let blockedCount: Int
+    public let failedCount: Int
+    public let waitingCount: Int
+    public let doneCount: Int
+    public let cancelledCount: Int
+    public let linkedCount: Int
+    public let missingCount: Int
+    public let latestProgress: LatestProgress?
+    /// epoch 秒（float）
+    public let lastActivityAt: Double
+    /// 任务板最近一次轮询时刻；0＝尚未同步
+    public let polledAt: Double
+    /// 派生缺口的人话注记（如「1 件关联任务不在当前任务板上」）
+    public let note: String?
+
+    public init(
+        state: GoalActivityState, label: String,
+        since: Double? = nil, focusTask: FocusTask? = nil,
+        runningCount: Int = 0, blockedCount: Int = 0,
+        failedCount: Int = 0, waitingCount: Int = 0,
+        doneCount: Int = 0, cancelledCount: Int = 0,
+        linkedCount: Int = 0, missingCount: Int = 0,
+        latestProgress: LatestProgress? = nil,
+        lastActivityAt: Double = 0, polledAt: Double = 0,
+        note: String? = nil
+    ) {
+        self.state = state
+        self.label = label
+        self.since = since
+        self.focusTask = focusTask
+        self.runningCount = runningCount
+        self.blockedCount = blockedCount
+        self.failedCount = failedCount
+        self.waitingCount = waitingCount
+        self.doneCount = doneCount
+        self.cancelledCount = cancelledCount
+        self.linkedCount = linkedCount
+        self.missingCount = missingCount
+        self.latestProgress = latestProgress
+        self.lastActivityAt = lastActivityAt
+        self.polledAt = polledAt
+        self.note = note
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case state, label, since, focusTask
+        case runningCount, blockedCount, failedCount
+        case waitingCount, doneCount, cancelledCount
+        case linkedCount, missingCount, latestProgress
+        case lastActivityAt, polledAt, note
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        state = GoalActivityState.from(
+            try container.decodeIfPresent(String.self, forKey: .state)
+        )
+        label = try container.decodeIfPresent(
+            String.self, forKey: .label
+        ) ?? ""
+        since = try container.decodeIfPresent(
+            Double.self, forKey: .since
+        )
+        focusTask = try container.decodeIfPresent(
+            FocusTask.self, forKey: .focusTask
+        )
+        runningCount = try container.decodeIfPresent(
+            Int.self, forKey: .runningCount
+        ) ?? 0
+        blockedCount = try container.decodeIfPresent(
+            Int.self, forKey: .blockedCount
+        ) ?? 0
+        failedCount = try container.decodeIfPresent(
+            Int.self, forKey: .failedCount
+        ) ?? 0
+        waitingCount = try container.decodeIfPresent(
+            Int.self, forKey: .waitingCount
+        ) ?? 0
+        doneCount = try container.decodeIfPresent(
+            Int.self, forKey: .doneCount
+        ) ?? 0
+        cancelledCount = try container.decodeIfPresent(
+            Int.self, forKey: .cancelledCount
+        ) ?? 0
+        linkedCount = try container.decodeIfPresent(
+            Int.self, forKey: .linkedCount
+        ) ?? 0
+        missingCount = try container.decodeIfPresent(
+            Int.self, forKey: .missingCount
+        ) ?? 0
+        latestProgress = try container.decodeIfPresent(
+            LatestProgress.self, forKey: .latestProgress
+        )
+        lastActivityAt = try container.decodeIfPresent(
+            Double.self, forKey: .lastActivityAt
+        ) ?? 0
+        polledAt = try container.decodeIfPresent(
+            Double.self, forKey: .polledAt
+        ) ?? 0
+        note = try container.decodeIfPresent(
+            String.self, forKey: .note
+        )
+    }
+}
+
 public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
     public let title: String
@@ -90,6 +292,10 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
     /// 列表行摘要免 N+1 拉取）；无条目为 nil。它是条目
     /// 流的读穿呈现、不是第二份存储
     public let latestEntry: BridgeGoalEntry?
+    /// 活动派生（GD-1）：关联任务的状态聚合（正在办/
+    /// 等着/卡住了/闲置＋人话 label）；桥读时派生、
+    /// 不落存储。旧桥载荷缺失时为 nil，呈现整段不显
+    public let activity: BridgeGoalActivity?
 
     public init(
         id: String, title: String, note: String,
@@ -98,7 +304,8 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         status: GoalStatus = .active, completedAt: Double? = nil,
         parentId: String? = nil, source: GoalSource = .manual,
         category: GoalCategory? = nil,
-        latestEntry: BridgeGoalEntry? = nil
+        latestEntry: BridgeGoalEntry? = nil,
+        activity: BridgeGoalActivity? = nil
     ) {
         self.id = id
         self.title = title
@@ -112,12 +319,13 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         self.source = source
         self.category = category
         self.latestEntry = latestEntry
+        self.activity = activity
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, note, milestones, createdAt, updatedAt
         case status, completedAt, parentId, source, latestEntry
-        case category
+        case category, activity
     }
 
     public init(from decoder: Decoder) throws {
@@ -151,6 +359,9 @@ public struct BridgeGoal: Decodable, Equatable, Identifiable, Sendable {
         )
         latestEntry = try container.decodeIfPresent(
             BridgeGoalEntry.self, forKey: .latestEntry
+        )
+        activity = try container.decodeIfPresent(
+            BridgeGoalActivity.self, forKey: .activity
         )
     }
 

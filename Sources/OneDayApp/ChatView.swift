@@ -4412,6 +4412,8 @@ struct ChatView: View {
             ideaQuoteBlock(ideaQuote)
         case .file(let fileQuote):
             fileQuoteBlock(fileQuote)
+        case .goal(let goalQuote):
+            goalQuoteBlock(goalQuote)
         }
     }
 
@@ -4489,6 +4491,42 @@ struct ChatView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("打开文件")
+    }
+
+    /// 已发送消息顶部的目标创建引用块（§238）：几何
+    /// 同族，内容＝「新建目标：类名」行＋介绍首句摘
+    /// 要一行；整块可点回目标格（目标在对话里聊定后
+    /// 由智能体落桥、出现在目标页；还没聊定时目标页
+    /// 自然还没有它，本块快照内容不受影响仍可读）
+    private func goalQuoteBlock(_ quote: GoalQuote) -> some View {
+        Button {
+            appState.mainTabSwitchRequest = .goals
+        } label: {
+            HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+                Rectangle()
+                    .fill(Palette.inkMuted)
+                    .frame(width: 2)
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text(quote.title)
+                        .font(.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                    Text(quote.summary(maxLength: 80))
+                        .font(.caption)
+                        .foregroundStyle(Palette.bodyInk)
+                        .lineLimit(2)
+                }
+            }
+            .padding(OneDayMetrics.spacingS)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Palette.fieldFill,
+                in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("回到目标")
     }
 
     /// 助手消息行（0.2.5 曾定浅灰软填充泡＋圆角卡，见下
@@ -5257,12 +5295,12 @@ struct ChatView: View {
         return "\(quote.sourceLine) · \(summary)"
     }
 
-    /// 发送舱的来源引用条分发（§219）：点子／文件
-    /// 两族共用本槽位，按族渲染各自条形态（几何同
-    /// 源：左轨＋两行＋右上 ✕）。feed 族沿既有
-    /// feedQuoteBar 在上一分支渲染，本分发只在点
-    /// 子／文件在场时被走到（.feed 分支为枚举完备
-    /// 性保留、同渲染）
+    /// 发送舱的来源引用条分发（§219；§238 增目标
+    /// 族）：点子／文件／目标三族共用本槽位，按族渲
+    /// 染各自条形态（几何同源：左轨＋两行＋右上
+    /// ✕）。feed 族沿既有 feedQuoteBar 在上一分支
+    /// 渲染，本分发只在其余三族在场时被走到（.feed
+    /// 分支为枚举完备性保留、同渲染）
     @ViewBuilder
     private func sourceQuoteBar(
         _ quote: SourceQuote
@@ -5274,6 +5312,8 @@ struct ChatView: View {
             ideaQuoteBar(ideaQuote)
         case .file(let fileQuote):
             fileQuoteBar(fileQuote)
+        case .goal(let goalQuote):
+            goalQuoteBar(goalQuote)
         }
     }
 
@@ -5332,6 +5372,46 @@ struct ChatView: View {
                 .frame(width: 2, height: 30)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(quote.name)
+                    .font(.caption)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text(quote.summary())
+                    .font(.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Button {
+                pendingSourceQuote = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.inkSecondary)
+                    .frame(width: 28, height: 28)
+                    .frame(
+                        width: OneDayMetrics.minTapTarget,
+                        height: OneDayMetrics.minTapTarget
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.odPressable)
+            .accessibilityLabel("取消引用")
+        }
+        .padding(.horizontal, OneDayMetrics.spacingSM)
+        .padding(.vertical, OneDayMetrics.spacingS)
+    }
+
+    /// 发送舱的目标创建引用条（§238）：同槽位同几
+    /// 何，内容换目标面：首行＝「新建目标：类名」、
+    /// 次行＝介绍首句摘要一行。点 ✕ 即清、无任何
+    /// 落盘
+    private func goalQuoteBar(_ quote: GoalQuote) -> some View {
+        HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
+            Rectangle()
+                .fill(Palette.inkMuted)
+                .frame(width: 2, height: 30)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                Text(quote.title)
                     .font(.caption)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)

@@ -12020,3 +12020,35 @@ Core `SessionModelAccount.effectiveStored` 是纯函数：主线会话存值与�
 ### §237.1 CI 判读（2026-11-14 回填）
 
 run **43569057005**（workflow_dispatch，头 7b48459）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成（Restarting 7 起）。**断言失败 0 条**（全日志无 failed 用例、无「with N failures」行）。**Core 1944 执行／0 失败**——与静态预期精确对账（1937＋本包新测 7）。**App 141 启动（唯一计）**：130 passed（基线 125＋BasicsFixBatchAppTests 5 全过亲验）＋5 skipped（PresentationLayerScenarios 源码 XCTSkip 存量）＋6 条 started 无终局行——全数是 §231.1 已登记的 §184 在案受害签名（testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／testFailedTraceMaterializesWithErrorSnapshot），套件终局 passed。**UI 4／0**。本包不组版（修复包，随整包由主线装车），未合 main、未打 tag；无 IPA 亲验（分支包不单独交付，组版轮按主线口径验）。
+## §238 目标整改包（2026-11-14；分支 feat/goals-rectify，基线 rel-05039 头 39532cc；自编号 §238——§232 已由并行删除乐观化线占用，组版时如再撞号顺延、本节代码自指同步）
+
+**组版收口（0.50.41）**：本线自编 §233 与组版树轻动作 §233 撞号，整节顺延为 **§238**（§233.1–§233.4→§238.1–§238.4，CI 判读原误标 §233.2 改 §238.5），代码自指已逐处同步改 §238（OneDayBridgeModels 内两处 §233 为轻动作线自指、未动）。
+
+来源：goals-page-gap-audit-20261114（差距 #1/#2/#3/#4/#7）＋用户 2026-11-12 GD-1b 拍板。本包五件：GA-1 介绍卡、GA-2 终局切换记账、GD-1b 自动进展两路（伴生）、GD-1 活动 App 呈现、GD-4 删除级联核查。
+
+### §238.1 GA-1 介绍卡＋GA-2 终局切换（记账）
+
+- 创建流改三步终局：分类行→**介绍卡**（分类图标＋「创建X目标」题＋Core `GoalCategory.introLead` 首句＋流程说明）→主钮「开始吧」开目标旁聊。介绍卡次级入口「直接填写」走现行表单（规格 GA-1 定版：表单不删、降次级）。
+- **GA-2 记账（终局切换成立）**：GA-1 原案的先行形态是「App 以既有 API 预建目标（source=manual）＋开旁聊预填」。本包**不经先行形态、直接落终局**，依据＝审计 2026-11-14 实查：GA-2 前置卡点 K-1（goals_create 门面未注册）已随 2026-11-13 AI 权限线 P3 解锁——门面已注册、对话建目标已真机验过（source=chat）、详情已有「对话创建」来源标。故「开始吧」的落点＝新建旁聊＋目标创建引用（见下），目标本体由智能体在对话里聊定后经 goals_create 落桥（source=chat、category 由引用上下文带入，门面 schema 已备 category）；App 不预建、不假报已创建，目标页回读列表见其出现才算落定（假绿禁令沿 GA-2 原文）。先行形态跳过的原因与依据即本记账，不另立废弃流程。
+- 上下文通道按现行房规走 **§219 引用道**（GA-1 规格成文于 §219 之前，其「预填进输入舱」按 §122 旧形；§219 已定性机器文直写草稿账为通道错误并退役该形）：新增来源引用第四族 `GoalQuote`（Core SourceQuote.goal）——值快照只有分类一维（目标尚不存在、不虚构标题/内容）；发送拼装＝块头「[新建目标：类名]」＋上下文正文（分类事实＋访谈约定＋goals_create 落桥约定，含 category rawValue）；落盘快照＝ChatEntry.goalQuoteCategory 一字段（分类可完全重组引用，无第二份快照；SwiftData 轻量迁移同族先例）。呈现：发送舱条与已发送块与点子/文件族同几何，块可点回目标格。
+
+### §238.2 GD-1b 自动进展两路（伴生 oneday_bridge）
+
+- **一路（任务转阻塞/失败）**：feed 轮询在完成记录器之后调 `_record_stopped_task_entries_locked`——关联任务处于 blocked/failed 时给目标落一条事实条目（只记任务标题＋任务号＋状态词，source=agent），每段停滞恰好一次：link 新增 `stoppedEntryAt`/`stoppedEntryBucket` 戳，停留不重发、blocked→failed 是新事实再发一条、离开停滞态清戳（再停再发）。link 视图新增 stoppedEntryAt，App Core 同步解码。
+- **二路（里程碑全勾）**：`_patch_goal` 里程碑全勾转移分支（既有 feed 台账事件同点）在原事件之外给目标自身进展流落一条事实条目（「里程碑已全部完成（共 N 项）」，source=agent），转移语义与既有事件逐字同口径（取消再勾再发、保持全勾不重发）。所有里程碑写路都经 _patch_goal（App 全量 PATCH 与门面 goals_update 同口），一处钩子全覆盖。
+- 自检：新增 tests/oneday_bridge_gd1b_selftest.py（17 项：二路 HTTP 全程＋一路在进程语义＋GD-4 简报孤儿），已登记 run_bridge_selftests.sh；既有 p2 自检 34 项回归全过。
+
+### §238.3 GD-1 活动 App 呈现
+
+- Core 新增 `BridgeGoalActivity`（状态四词 running/waiting/blocked/idle＋label＋focusTask＋计数＋latestProgress＋note，全字段宽容解码；未知状态词按 idle 收），`BridgeGoal.activity` 缺失按 nil 收（旧桥载荷零影响）。
+- 呈现（照 Linear/Plane 名单行 health 信号的摆法：小状态信号＋一句进展）：列表行在进展摘要下加**活动行**（状态点＋桥 label 一行），只对进行中且 linkedCount＞0 的目标显；详情头部后加**活动段**（状态词＋label＋驱动任务「眼下这件」＋缺口注记），无关联且无注记整段不显。活动态只认桥派生，本地不按任务板另算第二份。
+
+### §238.4 GD-4 删除级联核查（结论）
+
+- **数据面级联已完整**（_delete_goal 实查）：目标本体＋子目标、goalEntries、briefings、goalTaskLinks 随删；ideas/monitors 只解链（goalId 置 null、本体保留）；关联的 kanban 任务不是目标的财产、不动。与 App 删除弹窗文案逐项对得上。
+- **cron 归属结论：不存在 goal-owned cron**——Hermes cron 绑定（cronBindings）是会话归属（ownerSessionId）、无 goalId 字段；目标周简报不是 per-goal cron，是桥内周轮（_run_briefing_round 每轮现读 goals 快照），目标删后下一轮自然不在名单，无孤儿 cron 要清。
+- **核查中发现并已修一处真缺口**：简报轮在途时目标被删——落笔前的复核原本只查同周去重、不查目标存活，会给已删目标落一条孤儿简报行（数据面残留、UI 不可见但 done_pairs 计数受污染）。已补存活复核：目标不在则 outcome=skipped-goal-gone、不落笔，轮次记录加 skippedGoalGone 计数；自检 Phase C 钉死（轮询回调中删目标→简报零落盘）。
+
+### §238.5 CI 判读（2026-11-14 回填）
+
+run **43568667194**（feat/goals-rectify@6f3d34d）**§190 终判绿（带 §184 在案登记）**：**断言失败 0 条**；**Core 1947／0**——与静态预期精确对账（1937 基线＋本包 GoalRectifyTests 10）；**App 139 启动**：128 passed（125 基线＋GoalQuoteEntryTests 3，精确对账）＋5 skipped＋6 条 started 无终局行（几何五条＋回响 testFailedTraceMaterializesWithErrorSnapshot——均为 §231.1 在案的 §184 重复受害名单，日志 7 起宿主重启对应）；**UI 4／0**；HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS。测试步名义 failure 仅由 §184 宿主死亡构成。伴生侧（GD-1b 两路＋GD-4）已随 companion 1.0.51 与三页余项包 ID-2 一并部署验活（见三页余项包 DESIGN §234.3：/health ok、/ideas 快照已落——目标面 activity 字段同文件同批上线）。未合 main、未打 tag。

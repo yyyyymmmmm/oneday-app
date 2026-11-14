@@ -59,4 +59,51 @@ public enum GoalCategory: String, Sendable, Equatable, Codable,
     public static var creationOrder: [GoalCategory] {
         allCases
     }
+
+    /// 介绍卡首句（GA-1）：点分类后先出介绍卡，这句说清
+    /// 这一类聊的是什么；只陈述类别本身、不编造用户的
+    /// 具体目标内容（目标本体在旁聊里由用户聊定）
+    public var introLead: String {
+        introLead(locale: AppLocale.uiLocale)
+    }
+
+    public func introLead(locale: Locale) -> String {
+        switch self {
+        case .health:
+            return L10n.string(
+                "想改善的身体状态、想养成的习惯，都从这里开始。",
+                locale: locale
+            )
+        case .relationships:
+            return L10n.string(
+                "想多陪伴的人、想走近的关系，都从这里开始。",
+                locale: locale
+            )
+        case .finance:
+            return L10n.string(
+                "想存下的钱、想理顺的收支，都从这里开始。",
+                locale: locale
+            )
+        case .career:
+            return L10n.string(
+                "想推进的工作、想拿下的机会，都从这里开始。",
+                locale: locale
+            )
+        case .interest:
+            return L10n.string(
+                "想学的东西、想捡起来的爱好，都从这里开始。",
+                locale: locale
+            )
+        case .efficiency:
+            return L10n.string(
+                "想省下的时间、想理顺的流程，都从这里开始。",
+                locale: locale
+            )
+        case .other:
+            return L10n.string(
+                "暂时归不进上面几类的目标，从这里开始。",
+                locale: locale
+            )
+        }
+    }
 }
