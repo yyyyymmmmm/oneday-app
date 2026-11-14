@@ -60,6 +60,15 @@ public enum MotionTokens {
     public static let press = Animation.easeOut(duration: 0.15)
     /// swap：内容替换、错误出现、步骤状态变化、折叠展开
     public static let swap = Animation.easeInOut(duration: 0.2)
+    /// sectionCollapse：分区折叠及箭头旋转，smooth
+    /// 0.25/0.3s 按相差 ≤0.05s 收为同档。既有 swap/
+    /// pageCrossfade 为 easeInOut，其余弹簧参数也非
+    /// smooth 默认形状，故独立保留折叠面的 0.3s 观感。
+    public static let sectionCollapse = Animation.smooth(duration: 0.3)
+    /// systemDefault：原无参 withAnimation 的定位滚动与
+    /// 提示退出，保留平台默认弹簧。它无显式时长可与
+    /// 既有档比较，也非本册定制弹簧，不猜参数强行并档。
+    public static let systemDefault = Animation.default
     /// liquidSpring：跟手位移、选择指示器滑移（礼记定版
     /// 值 interactiveSpring 0.34/0.72；0.3.2 起取代旧
     /// indicator 档，旧值 spring(0.35, 0.85) 退役）

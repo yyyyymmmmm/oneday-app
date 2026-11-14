@@ -7,6 +7,7 @@ import SwiftUI
 /// displayName、会话 ID 可复制、继续对话复用现行关设置＋切聊天格
 struct MainSessionView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 关闭设置并切聊天格（ContentView 注入）
     var onRequestChat: (() -> Void)?
     var onClose: (() -> Void)?
@@ -120,7 +121,11 @@ struct MainSessionView: View {
                     .onAppear {
                         Task {
                             try? await Task.sleep(for: .seconds(1.5))
-                            withAnimation {
+                            withAnimation(
+                                MotionTokens.resolved(
+                                    MotionTokens.systemDefault, reduceMotion: reduceMotion
+                                )
+                            ) {
                                 showCopyToast = false
                             }
                         }

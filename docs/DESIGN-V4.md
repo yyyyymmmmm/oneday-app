@@ -12086,3 +12086,37 @@ run **43568667194**（feat/goals-rectify@6f3d34d）**§190 终判绿（带 §184
 ### §239.4 CI 判读（2026-11-14 回填）
 
 首轮 run 43569621572 **真红**：FeedView.actionRow 种子分支与真帖分支类型不一致（编译错误 1 条，本包改动），@ViewBuilder 收口后二轮 run **43570182310 §190 终判绿（带 §184 在案登记）**：**断言失败 0 条**；**Core 1942 执行／0 失败**——与静态预期精确对账（1937 基线＋本包 FeedSeedPostsTests 5）；**App 136 启动**：126 passed＋5 skipped（存量 XCTSkip）＋5 条 started 无终局行（testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView——与 0.50.39 同一份 §184 受害名单，日志 7 起宿主重启对应）；**UI 4／0**；HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS。测试步名义 failure 仅由 §184 宿主死亡构成。未合 main、未打 tag。
+## §240 礼记借鉴包：数字真变才滚＋数字字体组件＋动效令牌收敛＋空状态/滑动覆盖（2026-11-14；分支 feat/liqian-lessons，基线 rel-05039 头 39532cc，只交分支不合并、不发版；本节号在原树自 §240 起编，组版与他线撞号顺延、代码自指同步）
+
+**组版收口（0.50.41）**：本线自编 §232 与组版树删除乐观化 §232 撞号，整节顺延为 **§240**（§232.1–§232.5→§240.1–§240.5）；ServerSessionActions 与长按 §234 同文件冲突已人工核对裁决——统一挂载 drawerRowContextMenu 包共用动作组＋swipe 镜像、置顶保留 §233 乐观覆盖逻辑、删除项保留 deleteMenuTitle 本地化口径。本包代码无 §232 自指。
+
+立项：礼记动效/美化审计（oneday-design-review/liqian-motion-visual-audit-20261114.md）A 类清单，用户 2026-11-14 点名研发部 OpenCode 上工、协调人验收（只认 diff＋CI）。本包做四件，明确不做：触感语义表（等用户触感定版点选）、分段控件（与 C-9 回系统件方向冲突）、zoom 转场试点（后置）。
+
+### §240.1 数字「真变才滚」（借鉴礼记 RollingMoney 纪律）
+
+- Core 策略件 `RollingNumberGate`（Sources/OneDayCore）：按 key 存档「已落定显示值」（内存＋UserDefaults 可注入后端、内部 NSLock 同步）；决策三态——与存档相等＝静态直出、不同＝从存档值滚、首见＝从 0 滚；决策本身不写账，落定才回写，未完成插值不冒充终值。
+- Design 组件 `RollingNumberText`（Sources/OneDayDesign）：TimelineView(.animation)＋easeOutCubic 0.9s 插值，滚中再变从当前显示值续滚；Reduce Motion 直接落终值；离面未到终点不预写目标值。字体只消费 NumberText，不叠 numericText 二次过渡。
+- 落点只许总览/总计位：Overview 今日 Token 大数字、会话总数、定时任务数（新增 cronJobsLoaded 守卫，未加载显「—」不按 0 入账）、UsageDetail Token 总计（key 含已加载天数 loadedDays，标签与数据同源）。未知值一律显「—」，不按 0 滚。台账已耗时秒级跳动属实时计数、非入场滚动，不在本件。
+- 单测 RollingNumberGateTests 4 法：首见从 0、同值静态/异值从旧值、key 互不干扰、注入后端只存落定值跨实例恢复。
+
+### §240.2 数字字体组件 NumberText
+
+- 组件在 Sources/OneDayDesign/Components.swift：恒 monospacedDigit 等宽防抖；字阶由消费方给 Font；**字重为可选显式入参（默认 nil＝不干预、渲染与迁移前一致）**，显式给字重时深色模式自动降一档（bold→semibold→medium→regular，下限 regular），降档在组件内读 colorScheme，调用方不传参决定。
+- 存量迁移：DeviceSyncViews 同步日志时间、DictationViews 听写计时、LedgerDetailView 历史时间、ProgressCapsuleView 已耗时四处独立数字读数改经本组件。登记例外：NotificationsView 元信息行是「相对时间＋类别」复合文本、非独立数字读数，不迁移；Components 内 tabularDigits 扩展是设计系统自身助手，不在迁移面。
+
+### §240.3 动效曲线令牌收敛（只收敛、不改观感）
+
+- 全仓散落字面量 Animation 清零入册：AgentHubView 0.18 easeInOut 归 swap；分区折叠家族（ChatModelPicker/DrawerView/ModelSettings/CollapsibleSectionHeader 的 smooth 0.25/0.3）新增一档 **sectionCollapse＝smooth(0.3)**（同家族相差 ≤0.05s 收同档，注释记明不并 easeInOut/弹簧档的理由）；三处无参 withAnimation 新增 **systemDefault＝Animation.default** 原样收编。MotionTokens 既有档取值一律未动；收敛落点统一经 resolved() 出口（Reduce Motion 即瞬时）。
+- CollapsibleSectionHeader 自 OneDayCore 平移 OneDayDesign：Core 不依赖 Design（Project.swift 分层），其折叠动画要走 MotionTokens 出口只能上移；调用方（DrawerView/ModelSettingsView）本就依赖 Design，内容除动画落点外逐字不变。
+- 登记例外：ChatView 键盘布局同步桥与 ComposerGuideHost 的 UIView 动画（曲线/时长来自系统键盘通知）、DictationViews 波形 linear(0.12)（真实电平采样间线性插值）、DrawerContainerView/UIKit 抽屉桥（Core 既有换算弹簧＋Reduce Motion 分支）——均按令牌册头注「系统行为」纪律保留原样。
+
+### §240.4 空状态与滑动操作覆盖
+
+- 覆盖矩阵全档在施工笔记（组版全档随报告存 oneday-design-review/liqian-lessons-report-20261114.md）。处置口径：纯说明空占位可平替者换 ContentUnavailableView、文案照原样（共 25 处空态＋FilesView 1 处失败占位）；版式特异者（目标分类创建流、分日内嵌空组、审批内嵌说明、仪表盘内嵌摘要等）登记保留。
+- swipe 只镜像既定动作、不发明新动作：①共享会话行 ServerSessionRow（AllConversations/PlatformChannel/HermesChannel 三面）——长按菜单四件抽为 managementActions/deleteAction 单一出处，长按与滑动共用：改名/置顶/归档 leading、删除 destructive trailing、两侧禁全滑；确认/alert/回查收口原样。②设备闹钟取消镜像行内既有取消（共用同一 cancel）。③监测变化未读行 trailing 标已读，复用详情既有 markRead。④点子行滑动补全为长按同组 rowActions（忽略仅 pending、太泛了仅 pending+generated、删除经 deleteCandidate 确认）；**pending 全滑直达「忽略」保 §177 既定契约、非 pending 禁全滑**。
+- 登记不强改：抽屉名单（自绘/UIKit 容器，长按菜单另线负责）、聊天消息列表、看板（仓内无独立拖拽 UI、现存为任务详情/新建表单）、目标与交付物（非 List 容器）、模型相关面（红线只登记）。
+- **组版注意**：ServerSessionActions.swift 与 Codex 抽屉长按线（fix/drawer-longpress）同文件异处改动（彼改未收养行接法、本包抽动作组＋加 swipe），组版合并时人工核对该文件；本包与基线其余在跑线无文件重叠。
+
+### §240.5 CI 判读（2026-11-14 回填，判读对象＝代码头 bb22050）
+
+run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例、无 XCTAssert 失败行）。**Core 1941 执行／0 失败**——与静态预期精确对账（基线 1937＋本包 RollingNumberGateTests 4）。**App 套件 passed、UI 套件 passed**，MATRIX-VERDICT／HUB-LAYOUT-VERDICT／VERDICT 全 PASS。started 无终局 10 条＝PresentationLayerScenarios 5 条 XCTSkip 存量＋5 条宿主死亡签名（Restarting 紧随 started、无结果行）：testKeyboardUpMovesComposerOnlyDockStays／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView（与 .39 同名单在案）＋ChatReliabilityOfflineTests 两条（本轮同签名新入名单、本包未触聊天面、死因同为宿主异常退出，登记在案）。本包新测 RollingNumberGateTests 4/4 passed 亲验。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-liqian-lessons/run-43571630543.log。未合 main、未打 tag。

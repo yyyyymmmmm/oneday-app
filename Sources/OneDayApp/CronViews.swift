@@ -38,10 +38,10 @@ struct CronJobsView: View {
                     }
                     .padding(.top, OneDayMetrics.spacingL)
                 } else {
-                    EmptyState(
-                        icon: "clock.arrow.2.circlepath",
-                        title: "还没有定时任务",
-                        message: "点右上角新建，让 Hermes 按计划自动干活。"
+                    ContentUnavailableView(
+                        "还没有定时任务",
+                        systemImage: "clock.arrow.2.circlepath",
+                        description: Text("点右上角新建，让 Hermes 按计划自动干活。")
                     )
                     .padding(.top, OneDayMetrics.spacingXXL)
                 }

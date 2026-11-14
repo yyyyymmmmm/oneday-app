@@ -27,6 +27,7 @@ struct ChatModelPickerView: View {
     var onHideGroup: ((ChatModelGroup) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var query = ""
     /// 分组折叠账（§158）：与设置面共账同键（键＝组
     /// 标题），Core SectionCollapseState 唯一口径
@@ -158,7 +159,11 @@ struct ChatModelPickerView: View {
     }
 
     private func toggleGroup(_ display: DisplayGroup) {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.sectionCollapse, reduceMotion: reduceMotion
+            )
+        ) {
             collapseData = SectionCollapseState.encode(
                 SectionCollapseState.toggled(
                     key: display.group.title,
@@ -188,7 +193,12 @@ struct ChatModelPickerView: View {
             Image(systemName: "chevron.down")
                 .font(.caption2.weight(.semibold))
                 .rotationEffect(.degrees(collapsed ? -90 : 0))
-                .animation(.smooth(duration: 0.25), value: collapsed)
+                .animation(
+                    MotionTokens.resolved(
+                        MotionTokens.sectionCollapse, reduceMotion: reduceMotion
+                    ),
+                    value: collapsed
+                )
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .contentShape(Rectangle())

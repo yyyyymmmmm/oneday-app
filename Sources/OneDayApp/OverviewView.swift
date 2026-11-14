@@ -34,6 +34,7 @@ struct OverviewView: View {
     @State private var serverSessions: [ServerSession] = []
     @State private var sessionsLoaded = false
     @State private var cronJobs: [CronJob] = []
+    @State private var cronJobsLoaded = false
     @State private var todayTokens: Double?
     @State private var errorLogCount = 0
     @State private var egressAbnormal = false
@@ -160,15 +161,22 @@ struct OverviewView: View {
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.top, OneDayMetrics.spacingM)
 
-            // 大数字＝今日 Token（已裁 2）；等宽＋numericText
+            // 总览大数只在真值变化时滚；未知不按 0 入账。
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(todayTokens.map { AdminFormat.count($0) } ?? "—")
-                    .font(.title)
+                Group {
+                    if let todayTokens {
+                        RollingNumberText(
+                            key: "overview.\(appState.config?.baseString ?? "").todayTokens",
+                            value: todayTokens, font: .title,
+                            format: { AdminFormat.count($0) }
+                        )
+                    } else {
+                        NumberText("—", font: .title)
+                    }
+                }
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .tabularDigits()
-                    .contentTransition(.numericText())
                 Text("今日 Token")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
@@ -201,14 +209,16 @@ struct OverviewView: View {
             // 卡内次级指标（原指标行收编，深链保留）
             HStack(spacing: 0) {
                 metricCell(
-                    value: sessionsLoaded ? "\(totalSessionCount)" : "—",
+                    key: "sessions",
+                    value: sessionsLoaded ? Double(totalSessionCount) : nil,
                     label: "会话总数"
                 ) {
                     onOpenAgent(.serverSessions)
                 }
                 metricDivider
                 metricCell(
-                    value: "\(enabledCronCount)",
+                    key: "cron",
+                    value: cronJobsLoaded ? Double(enabledCronCount) : nil,
                     label: nextCronRun.map { "定时 · 下次 \(AdminFormat.timeOnly($0))" } ?? "定时任务"
                 ) {
                     onOpenAgent(.cron)
@@ -226,18 +236,24 @@ struct OverviewView: View {
     }
 
     private func metricCell(
-        value: String, label: String, action: @escaping () -> Void
+        key: String, value: Double?, label: String, action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(value)
-                    // 卡 17：24 semibold → title 位 bold 口径
-                    .font(.title2)
+                Group {
+                    if let value {
+                        RollingNumberText(
+                            key: "overview.\(appState.config?.baseString ?? "").\(key)",
+                            value: value, font: .title2,
+                            format: { String(format: "%.0f", $0) }
+                        )
+                    } else {
+                        NumberText("—", font: .title2)
+                    }
+                }
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .tabularDigits()
-                    .contentTransition(.numericText())
                 Text(label)
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
@@ -637,6 +653,7 @@ struct OverviewView: View {
             try await client.cronJobs(config: config)
         }) {
             cronJobs = jobs
+            cronJobsLoaded = true
         }
         if let usage = try? await appState.performAdmin({ client, config in
             try await client.usageAnalytics(config: config, days: 1)

@@ -16,6 +16,8 @@ final class MotionGateTests: XCTestCase {
         let tokens: [Animation] = [
             MotionTokens.press,
             MotionTokens.swap,
+            MotionTokens.sectionCollapse,
+            MotionTokens.systemDefault,
             MotionTokens.liquidSpring,
             MotionTokens.entrance,
             MotionTokens.pageCrossfade,

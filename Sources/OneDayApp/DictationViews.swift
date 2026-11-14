@@ -135,10 +135,8 @@ struct DictationBar: View {
                 } else {
                     waveform
                 }
-                Text(DictationTiming.format(
-                    elapsedSeconds: controller.elapsedSeconds))
-                    .font(.subheadline)
-                    .monospacedDigit()
+                NumberText(DictationTiming.format(
+                    elapsedSeconds: controller.elapsedSeconds), font: .subheadline)
                     .foregroundStyle(controller.isTimingWarning
                         ? Palette.warning : Palette.inkSecondary)
             }

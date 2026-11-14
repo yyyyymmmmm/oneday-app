@@ -1050,9 +1050,10 @@ struct FeedSourcesSheet: View {
                 if post.why == nil || post.why?.isEmpty == true,
                    post.links.isEmpty, post.refs.isEmpty {
                     Section {
-                        Text("这篇没有附带来源信息")
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.inkSecondary)
+                        ContentUnavailableView(
+                            "这篇没有附带来源信息",
+                            systemImage: "info.circle"
+                        )
                     }
                 }
             }

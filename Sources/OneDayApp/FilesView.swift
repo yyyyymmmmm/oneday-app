@@ -372,6 +372,7 @@ struct FileUploadPickerModifier: ViewModifier {
 /// 互不干扰），返回靠面包屑回到任意层。
 struct FilesBrowserView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 定位直达（§131）：文件页「在文件页中打开」回
     /// 指落空（文件不在聚合集）时带父目录＋目标文件
@@ -694,10 +695,10 @@ struct FilesBrowserView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let loadError, listing == nil {
-            EmptyState(
-                icon: "exclamationmark.triangle",
-                title: "没读出来",
-                message: loadError
+            ContentUnavailableView(
+                "没读出来",
+                systemImage: "exclamationmark.triangle",
+                description: Text(loadError)
             )
             .padding(.top, OneDayMetrics.spacingXXL)
             Spacer()
@@ -706,14 +707,14 @@ struct FilesBrowserView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if shownEntries.isEmpty {
-                        EmptyState(
-                            icon: query.isEmpty
-                                ? "folder" : "magnifyingglass",
-                            title: query.isEmpty
+                        ContentUnavailableView(
+                            query.isEmpty
                                 ? "这个文件夹是空的" : "没有匹配的文件",
-                            message: query.isEmpty
+                            systemImage: query.isEmpty
+                                ? "folder" : "magnifyingglass",
+                            description: Text(query.isEmpty
                                 ? "可以上传文件或新建文件夹。"
-                                : "换个关键词试试。"
+                                : "换个关键词试试。")
                         )
                         .padding(.top, OneDayMetrics.spacingXXL)
                     } else {
@@ -755,7 +756,11 @@ struct FilesBrowserView: View {
                       })
                 else { return }
                 highlightConsumed = true
-                withAnimation {
+                withAnimation(
+                    MotionTokens.resolved(
+                        MotionTokens.systemDefault, reduceMotion: reduceMotion
+                    )
+                ) {
                     proxy.scrollTo(target.path, anchor: .center)
                 }
             }

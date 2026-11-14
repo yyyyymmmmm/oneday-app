@@ -232,59 +232,14 @@ struct ServerSessionRow<Content: View>: View {
         // 态；值随态拼（两键已在目录），无态不挂空值
         .accessibilityValue(stateValue)
         .drawerRowContextMenu {
-            Button {
-                renameText = title
-                showRename = true
-            } label: {
-                Label("重命名", systemImage: "pencil")
-            }
-            .disabled(busy)
-            Button {
-                // §233：置顶是纯排序态——点按当拍先
-                // 翻呈现（pinOverride），后台落定走既
-                // 有 perform 纪律，失败清覆盖＋弹原因
-                let target = !isPinned
-                pinOverride = target
-                perform(onFailed: { pinOverride = nil }) {
-                    await ServerSessionActions.setPinned(
-                        appState: appState, id: session.id,
-                        pinned: target
-                    )
-                }
-            } label: {
-                Label(
-                    isPinned ? "取消置顶" : "置顶",
-                    systemImage: isPinned ? "pin.slash" : "pin"
-                )
-            }
-            .disabled(busy)
-            Button {
-                // 0.27.0：合并桶的「归档」先过二次确认
-                // （恢复方向不拦——它不伤记录）
-                if isMergeBucket, !isArchived {
-                    showBucketArchiveConfirm = true
-                } else {
-                    perform {
-                        await ServerSessionActions.setArchived(
-                            appState: appState, id: session.id,
-                            archived: !isArchived
-                        )
-                    }
-                }
-            } label: {
-                Label(
-                    isArchived ? "恢复" : "归档",
-                    systemImage: isArchived
-                        ? "arrow.uturn.backward" : "archivebox"
-                )
-            }
-            .disabled(busy)
-            Button(role: .destructive) {
-                showDeleteConfirm = true
-            } label: {
-                Label(deleteMenuTitle, systemImage: "trash")
-            }
-            .disabled(busy)
+            managementActions
+            deleteAction
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            deleteAction
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            managementActions
         }
         .alert(
             "重命名会话",
@@ -343,6 +298,67 @@ struct ServerSessionRow<Content: View>: View {
         } message: {
             Text(errorText ?? "")
         }
+    }
+
+    // 长按与滑动共用入口，确认、上锁和服务端回查口径不分叉。
+    @ViewBuilder
+    private var managementActions: some View {
+        Button {
+            renameText = title
+            showRename = true
+        } label: {
+            Label("重命名", systemImage: "pencil")
+        }
+        .disabled(busy)
+        Button {
+            // §233：置顶是纯排序态——点按当拍先
+            // 翻呈现（pinOverride），后台落定走既
+            // 有 perform 纪律，失败清覆盖＋弹原因
+            let target = !isPinned
+            pinOverride = target
+            perform(onFailed: { pinOverride = nil }) {
+                await ServerSessionActions.setPinned(
+                    appState: appState, id: session.id,
+                    pinned: target
+                )
+            }
+        } label: {
+            Label(
+                isPinned ? "取消置顶" : "置顶",
+                systemImage: isPinned ? "pin.slash" : "pin"
+            )
+        }
+        .disabled(busy)
+        Button {
+            // 0.27.0：合并桶的「归档」先过二次确认
+            // （恢复方向不拦——它不伤记录）
+            if isMergeBucket, !isArchived {
+                showBucketArchiveConfirm = true
+            } else {
+                perform {
+                    await ServerSessionActions.setArchived(
+                        appState: appState, id: session.id,
+                        archived: !isArchived
+                    )
+                }
+            }
+        } label: {
+            Label(
+                isArchived ? "恢复" : "归档",
+                systemImage: isArchived
+                    ? "arrow.uturn.backward" : "archivebox"
+            )
+        }
+        .disabled(busy)
+    }
+
+    private var deleteAction: some View {
+        Button(role: .destructive) {
+            showDeleteConfirm = true
+        } label: {
+            Label(deleteMenuTitle, systemImage: "trash")
+        }
+        .disabled(busy)
     }
 
     private func commitRename() {

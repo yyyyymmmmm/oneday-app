@@ -627,10 +627,10 @@ struct ConnectorsView: View {
             .listRowInsets(rowInsets)
         } else if connected.isEmpty {
             Section {
-                EmptyState(
-                    icon: "cable.connector",
-                    title: "还没有已连接的服务",
-                    message: "服务端尚未配置任何 MCP 连接。在电脑上给 Hermes 配置后会显示在这里。"
+                ContentUnavailableView(
+                    "还没有已连接的服务",
+                    systemImage: "cable.connector",
+                    description: Text("服务端尚未配置任何 MCP 连接。在电脑上给 Hermes 配置后会显示在这里。")
                 )
                 .padding(.vertical, OneDayMetrics.spacingM)
             }
@@ -771,10 +771,10 @@ struct ConnectorsView: View {
         if hitLocal.isEmpty && hitDevices.isEmpty
             && hitConnected.isEmpty && hitCatalog.isEmpty {
             Section {
-                EmptyState(
-                    icon: "magnifyingglass",
-                    title: "没有匹配的连接器",
-                    message: "换个关键词试试，可按名称、分类或说明搜索。"
+                ContentUnavailableView(
+                    "没有匹配的连接器",
+                    systemImage: "magnifyingglass",
+                    description: Text("换个关键词试试，可按名称、分类或说明搜索。")
                 )
                 .padding(.vertical, OneDayMetrics.spacingM)
             }

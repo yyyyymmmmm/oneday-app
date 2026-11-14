@@ -336,9 +336,9 @@ struct LedgerDetailView: View {
                     .foregroundStyle(Palette.inkSecondary)
             } else if store.detail?.id == item.id {
                 if current.history.isEmpty {
-                    Text("暂无流转记录。")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.inkSecondary)
+                    ContentUnavailableView {
+                        Label("暂无流转记录。", systemImage: "clock")
+                    }
                 } else {
                     ForEach(
                         Array(current.history.enumerated()),
@@ -365,10 +365,9 @@ struct LedgerDetailView: View {
     private func historyRow(_ entry: LedgerHistoryEntry) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             HStack(spacing: OneDayMetrics.spacingS) {
-                Text(
-                    LedgerClock.timeWithSeconds(entry.at)
+                NumberText(
+                    LedgerClock.timeWithSeconds(entry.at), font: .footnote
                 )
-                .font(.footnote.monospacedDigit())
                 .foregroundStyle(Palette.inkMuted)
                 Text(transitionText(entry))
                     .font(.subheadline)
