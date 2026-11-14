@@ -176,6 +176,10 @@ struct GoalsView: View {
                     if !groups.completed.isEmpty {
                         completedGroup(goals: groups.completed)
                     }
+                    if !store.ungroupedTasks.isEmpty
+                        || store.ungroupedNote != nil {
+                        ungroupedSection
+                    }
                     createArea
                 }
                 .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -352,6 +356,91 @@ struct GoalsView: View {
                 }
             }
         }
+    }
+
+    /// 未归类任务区（GD-2，调和读法）：你在对话里安
+    /// 排的、采纳点子时生成的任务，还没归到任何目标
+    /// 下的集中在这里，点「归组」选一个目标即可；归
+    /// 组后它的进展会记到那个目标里。纯系统/定时任
+    /// 务不在此面（归台账）。此区只呈现＋用户点归，
+    /// 系统不自动归组【归类口径待用户追认】
+    private var ungroupedSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("未归类任务")
+                .padding(.bottom, OneDayMetrics.spacingXS)
+            Text("在对话里安排的、采纳点子时生成的任务，还没归到目标下。归组后，它的进展会记到那个目标里。")
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+                .padding(.bottom, OneDayMetrics.spacingS)
+            VStack(spacing: 0) {
+                ForEach(
+                    Array(store.ungroupedTasks.enumerated()),
+                    id: \.element.id
+                ) { index, row in
+                    if index > 0 {
+                        GroupDivider()
+                    }
+                    HStack(spacing: OneDayMetrics.spacingSM) {
+                        Image(systemName: "checklist")
+                            .font(.body)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(row.title)
+                                .font(.body)
+                                .foregroundStyle(Palette.bodyInk)
+                                .lineLimit(2)
+                            Text(ungroupedRowDetail(row))
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkMuted)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Menu {
+                            ForEach(
+                                store.goals.filter {
+                                    $0.status == .active
+                                }
+                            ) { goal in
+                                Button(goal.title) {
+                                    Task {
+                                        await store
+                                            .assignUngroupedTask(
+                                                appState: appState,
+                                                taskID: row.taskId,
+                                                toGoalID: goal.id
+                                            )
+                                    }
+                                }
+                            }
+                        } label: {
+                            Text("归组")
+                                .font(.body)
+                                .foregroundStyle(Palette.accent)
+                        }
+                    }
+                    .padding(.vertical, OneDayMetrics.spacingSM)
+                }
+            }
+            if let note = store.ungroupedNote {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.danger)
+                    .padding(.top, OneDayMetrics.spacingS)
+            }
+        }
+    }
+
+    /// 未归类行小字：状态（桥给的原生状态经既有状态
+    /// 呈现解析）＋来源；状态缺失时只给来源，不编
+    private func ungroupedRowDetail(
+        _ row: BridgeUngroupedTask
+    ) -> String {
+        let origin = UngroupedTaskPresentation.originLabel(row.origin)
+        guard let status = row.status else { return origin }
+        let label = KanbanStatusPresentation.resolve(
+            status: status, blockKind: nil, lastFailureError: nil
+        ).label
+        return "\(label) · \(origin)"
     }
 
     /// 列表底常驻创建区（照 Muse 目标页图位置）：分隔线
@@ -1111,10 +1200,13 @@ struct GoalDetailView: View {
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(Palette.inkMuted)
                         }
-                        Text(latest.body)
+                        // GD-3：列表行只给首句摘要
+                        // （≤40 字，纯函数口径），全文
+                        // 进信件页读，卡面不铺全文
+                        Text(BriefingPresentation.summary(of: latest.body))
                             .font(.body)
                             .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(3)
+                            .lineLimit(2)
                             .multilineTextAlignment(.leading)
                         Text(briefingDateLine(latest))
                             .font(.footnote)
@@ -1144,6 +1236,29 @@ struct GoalDetailView: View {
     private func briefingDateLine(_ briefing: BridgeBriefing) -> String {
         let date = Date(timeIntervalSince1970: briefing.createdAt)
         return "\(ChatTimeline.dividerText(for: date, now: Date())) · \(briefing.period)"
+    }
+
+    /// 关联任务行小字（GD-2）：状态（任务板现值）＋
+    /// 最近变化时刻（读面一的 updatedAt）；桥没观察
+    /// 到过这条任务的变化时只给状态，时刻不编
+    private func associationTaskDetail(
+        _ linked: GoalAssociations.LinkedTask,
+        goalTaskRows: [BridgeGoalTask]
+    ) -> String {
+        let status = linked.task.map { task in
+            KanbanStatusPresentation.resolve(
+                status: task.status,
+                blockKind: task.blockKind,
+                lastFailureError: task.lastFailureError
+            ).label
+        } ?? "任务"
+        guard let updatedAt = goalTaskRows.first(where: {
+            $0.taskId == linked.link.taskId
+        })?.updatedAt else { return status }
+        let when = ChatTimeline.dividerText(
+            for: Date(timeIntervalSince1970: updatedAt), now: Date()
+        )
+        return "\(status) · \(when)"
     }
 
     // MARK: 里程碑（就地勾选即存）
@@ -1267,6 +1382,9 @@ struct GoalDetailView: View {
             links: store.taskLinksByGoal[goalID] ?? [],
             tasks: kanban.snapshot?.tasks ?? []
         )
+        // GD-2 读面一：关联任务的最近变化时刻（状态
+        // 仍读任务板现值，时刻只作行小字补充）
+        let goalTaskRows = store.goalTasksByGoal[goalID] ?? []
         if !GoalAssociations.isEmpty(
             ideas: ideas, tasks: tasks, monitors: monitors
         ) {
@@ -1310,14 +1428,9 @@ struct GoalDetailView: View {
                             associationRow(
                                 symbol: "checklist",
                                 title: linked.title ?? "任务",
-                                detail: linked.task.map { task in
-                                    KanbanStatusPresentation.resolve(
-                                        status: task.status,
-                                        blockKind: task.blockKind,
-                                        lastFailureError:
-                                            task.lastFailureError
-                                    ).label
-                                } ?? "任务"
+                                detail: associationTaskDetail(
+                                    linked, goalTaskRows: goalTaskRows
+                                )
                             )
                         }
                         .buttonStyle(.odPressable)
@@ -1651,9 +1764,10 @@ struct GoalStatusChip: View {
     }
 }
 
-/// 简报全文页：一封一封的信（标题＋日期行＋正文段落），
-/// 只读——简报正文不许在客户端改（设计档状态机口径，
-/// 纠错靠新条目）
+/// 简报列表页（GD-3）：一行一封信——标题＋首句摘要
+/// （≤40 字）＋日期，不在列表铺全文；点行进信件页
+/// 读全文。只读——简报正文不许在客户端改（设计档
+/// 状态机口径，纠错靠新条目）
 struct GoalBriefingsView: View {
     let store: GoalsStore
     let goalID: String
@@ -1664,27 +1778,124 @@ struct GoalBriefingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
+            VStack(alignment: .leading, spacing: 0) {
                 if briefings.isEmpty {
                     Text("还没有简报。")
                         .font(.body)
                         .foregroundStyle(Palette.inkSecondary)
+                        .padding(.top, OneDayMetrics.spacingM)
                 }
-                ForEach(briefings) { briefing in
+                ForEach(
+                    Array(briefings.enumerated()), id: \.element.id
+                ) { index, briefing in
+                    if index > 0 {
+                        GroupDivider()
+                    }
+                    NavigationLink {
+                        GoalBriefingLetterView(
+                            store: store, goalID: goalID,
+                            briefingID: briefing.id
+                        )
+                    } label: {
+                        HStack(
+                            spacing: OneDayMetrics.spacingSM
+                        ) {
+                            VStack(
+                                alignment: .leading, spacing: 3
+                            ) {
+                                Text(briefing.title)
+                                    .font(.rowTitle)
+                                    .foregroundStyle(Palette.bodyInk)
+                                    .multilineTextAlignment(.leading)
+                                Text(
+                                    BriefingPresentation.summary(
+                                        of: briefing.body
+                                    )
+                                )
+                                .font(.body)
+                                .foregroundStyle(Palette.inkSecondary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                Text(
+                                    "\(ChatTimeline.dividerText(for: Date(timeIntervalSince1970: briefing.createdAt), now: Date())) · \(briefing.period)"
+                                )
+                                .font(.footnote)
+                                .foregroundStyle(Palette.inkMuted)
+                            }
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Palette.inkMuted)
+                        }
+                        .padding(.vertical, OneDayMetrics.spacingSM)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.odPressable)
+                }
+            }
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.bottom, OneDayMetrics.spacingXL)
+        }
+        .background(Palette.pageBG)
+        .navigationTitle("简报")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 简报信件页（GD-3 信纸排版）：一封信一页——信纸
+/// 面（与页面底色区分的纸面）＋称呼行（目标名＋第
+/// N 周）＋信体分段（纯文本段落，不进表格/列表渲
+/// 染）＋信尾短注＋落款行（日期＋「OneDay 目标简
+/// 报」）。打开即把打开时刻记到桥上——只供台账看
+/// 「写了没看」，本页不呈现任何已读/未读标记
+struct GoalBriefingLetterView: View {
+    @Environment(AppState.self) private var appState
+
+    let store: GoalsStore
+    let goalID: String
+    let briefingID: String
+
+    private var briefing: BridgeBriefing? {
+        store.briefingsByGoal[goalID]?.first { $0.id == briefingID }
+    }
+
+    private var week: Int? {
+        BriefingPresentation.weekIndex(
+            of: briefingID, in: store.briefingsByGoal[goalID] ?? []
+        )
+    }
+
+    var body: some View {
+        ScrollView {
+            if let briefing {
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.spacingM
+                ) {
+                    // 称呼行：写给哪个目标的第几封信
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        if let goal = store.goal(id: goalID) {
+                            Text("《\(goal.title)》")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(Palette.bodyInk)
+                        }
+                        if let week {
+                            Text(L10n.format("第 %lld 周", week))
+                                .font(.body)
+                                .foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                    Text(briefing.title)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Palette.bodyInk)
+                    // 信体：按段落分段的纯文本
                     VStack(
                         alignment: .leading,
-                        spacing: OneDayMetrics.spacingS
+                        spacing: OneDayMetrics.spacingSM
                     ) {
-                        Text(briefing.title)
-                            // 0.41.0（C14/P6）：列表行题归
-                            // .rowTitle
-                            .font(.rowTitle)
-                            .foregroundStyle(Palette.bodyInk)
-                        Text(
-                            "\(ChatTimeline.dividerText(for: Date(timeIntervalSince1970: briefing.createdAt), now: Date())) · \(briefing.period)"
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkMuted)
                         ForEach(
                             Array(
                                 briefing.body
@@ -1698,19 +1909,56 @@ struct GoalBriefingsView: View {
                                 .foregroundStyle(Palette.bodyInk)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    if briefing.id != briefings.last?.id {
-                        Divider()
+                    // 信尾短注：这封信依据了哪些真实
+                    // 变化（桥按计数拼装，安静一行）
+                    if let note = briefing.note {
+                        Text(note)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkMuted)
                     }
+                    // 落款行
+                    HStack(spacing: OneDayMetrics.spacingS) {
+                        Text(
+                            ChatTimeline.dividerText(
+                                for: Date(
+                                    timeIntervalSince1970:
+                                        briefing.createdAt
+                                ),
+                                now: Date()
+                            )
+                        )
+                        Text("OneDay 目标简报")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
                 }
+                .padding(OneDayMetrics.cardPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    Palette.surface,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.containerCorner,
+                        style: .continuous
+                    )
+                )
+                .padding(.horizontal, OneDayMetrics.pageGutter)
+                .padding(.vertical, OneDayMetrics.spacingM)
+            } else {
+                Text("这封信已经不在了。")
+                    .font(.body)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .padding(OneDayMetrics.pageGutter)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
         .background(Palette.pageBG)
         .navigationTitle("简报")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await store.markBriefingOpened(
+                appState: appState, goalID: goalID,
+                briefingID: briefingID
+            )
+        }
     }
 }
 

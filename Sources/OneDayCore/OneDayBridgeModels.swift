@@ -1114,10 +1114,19 @@ public struct BridgeBriefing: Decodable, Equatable, Identifiable, Sendable {
     public let body: String
     /// epoch 秒（float）
     public let createdAt: Double
+    /// GD-3 短注：桥按本信素材三类计数拼装的一行
+    /// （如「依据近 7 天2 条进展、1 项任务变化」），
+    /// 信尾安静呈现；GD-3 前的旧信与三类全零时为 nil
+    public let note: String?
+    /// GD-3 打开时刻（epoch 秒）：用户打开这封信时
+    /// 桥落下的记录，只供台账看「写了没看」，App 不
+    /// 拿它做任何催读呈现；未打开过为 nil
+    public let lastOpenedAt: Double?
 
     public init(
         id: String, goalId: String, period: String,
-        title: String, body: String, createdAt: Double
+        title: String, body: String, createdAt: Double,
+        note: String? = nil, lastOpenedAt: Double? = nil
     ) {
         self.id = id
         self.goalId = goalId
@@ -1125,6 +1134,103 @@ public struct BridgeBriefing: Decodable, Equatable, Identifiable, Sendable {
         self.title = title
         self.body = body
         self.createdAt = createdAt
+        self.note = note
+        self.lastOpenedAt = lastOpenedAt
+    }
+}
+
+/// GD-2 读面一：一个目标的关联任务实时行（桥把关联
+/// 记录与任务板现况拼好下发：题/原生状态/状态分桶/
+/// 最近变化时刻）。status 为 nil＝任务不在当前任务板
+/// 上；updatedAt 为 nil＝桥没有观察到过它的状态变化，
+/// 两者都如实留空、不猜
+public struct BridgeGoalTask: Decodable, Equatable, Identifiable, Sendable {
+    public let taskId: String
+    public let linkId: String
+    public let title: String
+    public let status: String?
+    public let bucket: String?
+    public let updatedAt: Double?
+    public let linkedAt: Double
+    public let milestoneId: String?
+
+    public var id: String { linkId }
+
+    public init(
+        taskId: String, linkId: String, title: String,
+        status: String?, bucket: String?, updatedAt: Double?,
+        linkedAt: Double, milestoneId: String?
+    ) {
+        self.taskId = taskId
+        self.linkId = linkId
+        self.title = title
+        self.status = status
+        self.bucket = bucket
+        self.updatedAt = updatedAt
+        self.linkedAt = linkedAt
+        self.milestoneId = milestoneId
+    }
+}
+
+public struct BridgeGoalTasksResponse: Decodable, Equatable, Sendable {
+    public let items: [BridgeGoalTask]
+
+    public init(items: [BridgeGoalTask]) {
+        self.items = items
+    }
+}
+
+/// GD-2 读面二：未归类任务（用户发起类——点子采纳 /
+/// 对话派发——且还没有归到任何目标的任务板任务）。
+/// 纯系统/定时/探针任务不在此面（调和读法定版）
+public struct BridgeUngroupedTask: Decodable, Equatable, Identifiable, Sendable {
+    /// 发起来源：adopted＝点子采纳生成、chat＝对话里派发
+    public enum Origin: String, Decodable, Equatable, Sendable {
+        case adopted
+        case chat
+    }
+
+    public let taskId: String
+    public let title: String
+    public let status: String?
+    public let bucket: String?
+    public let origin: Origin
+    /// origin == adopted 时的点子 id
+    public let ideaId: String?
+    /// origin == chat 时的归属会话 id
+    public let ownerSessionId: String?
+    public let createdAt: Double
+    public let updatedAt: Double?
+
+    public var id: String { taskId }
+
+    public init(
+        taskId: String, title: String, status: String?,
+        bucket: String?, origin: Origin, ideaId: String?,
+        ownerSessionId: String?, createdAt: Double,
+        updatedAt: Double?
+    ) {
+        self.taskId = taskId
+        self.title = title
+        self.status = status
+        self.bucket = bucket
+        self.origin = origin
+        self.ideaId = ideaId
+        self.ownerSessionId = ownerSessionId
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+public struct BridgeUngroupedTasksResponse: Decodable, Equatable, Sendable {
+    public let items: [BridgeUngroupedTask]
+    /// 桥最近一次读到任务板的时刻（epoch 秒）：此面
+    /// 的新鲜度出处，0＝还没读到过
+    public let polledAt: Double
+
+    public init(items: [BridgeUngroupedTask], polledAt: Double) {
+        self.items = items
+        self.polledAt = polledAt
     }
 }
 
