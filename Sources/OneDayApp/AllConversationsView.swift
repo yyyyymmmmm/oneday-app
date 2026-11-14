@@ -45,6 +45,9 @@ struct AllConversationsView: View {
     /// 本地线程全集（分类 R2 的关联集派生用，与抽屉
     /// /频道页同一 ThreadLinkage 派生）
     @Query private var threads: [ChatThread]
+    /// 本地写上下文（§223 删除收口与名单对账清线
+    /// 程用）
+    @Environment(\.modelContext) private var modelContext
     @State private var store = AllConversationsStore()
     @State private var segment: Segment = .mine
     /// 「显示系统运行」筛选（0.36.29，规格 §5.2）：
@@ -218,13 +221,16 @@ struct AllConversationsView: View {
             }
         }
         .task {
-            await store.load(appState: appState)
+            await reload()
             // 存量迁移：首开执行一次（计划为空即无事）；
             // 失败留痕留在 store、页顶呈现，重开本页会
             // 再试（本地值未退役者仍在计划内）
             if !migrationStarted {
                 migrationStarted = true
-                await store.runMigration(appState: appState)
+                await store.runMigration(
+                    appState: appState, localThreads: threads,
+                    modelContext: modelContext
+                )
             }
         }
         .task(id: searchText) {
@@ -447,7 +453,7 @@ struct AllConversationsView: View {
             noticeSection
         }
         .listStyle(.plain)
-        .refreshable { await store.load(appState: appState) }
+        .refreshable { await reload() }
     }
 
     /// 我的对话段（0.36.29 替代旧站内段）：只有出
@@ -477,7 +483,7 @@ struct AllConversationsView: View {
         }
         .listStyle(.plain)
         .environment(\.editMode, $editMode)
-        .refreshable { await store.load(appState: appState) }
+        .refreshable { await reload() }
     }
 
     /// 频道段（0.36.29 替代旧外部空态段）：频道总览
@@ -572,7 +578,7 @@ struct AllConversationsView: View {
             }
         }
         .listStyle(.plain)
-        .refreshable { await store.load(appState: appState) }
+        .refreshable { await reload() }
     }
 
     /// 系统段（0.36.29，规格 §5.2）：分类为系统运行
@@ -605,7 +611,7 @@ struct AllConversationsView: View {
         }
         .listStyle(.plain)
         .environment(\.editMode, $editMode)
-        .refreshable { await store.load(appState: appState) }
+        .refreshable { await reload() }
     }
 
     private var archivedContent: some View {
@@ -628,7 +634,7 @@ struct AllConversationsView: View {
         }
         .listStyle(.plain)
         .environment(\.editMode, $editMode)
-        .refreshable { await store.load(appState: appState) }
+        .refreshable { await reload() }
     }
 
     // MARK: - 行与小区
@@ -650,7 +656,16 @@ struct AllConversationsView: View {
                 session: session,
                 title: rowTitle(session),
                 onOpen: { onOpenSession(session.id) },
-                onChanged: { Task { await store.load(appState: appState) } }
+                onChanged: { Task { await reload() } },
+                onDeleted: { id in
+                    // §223：单删落定即走共享收口清本地
+                    // 线程（旧路只删服务端，抽屉残留行
+                    // 点开撞 404 的出处）
+                    DeletedSessionCloseout.apply(
+                        sessionID: id, appState: appState,
+                        threads: threads, modelContext: modelContext
+                    )
+                }
             ) {
                 rowLabel(session)
             }
@@ -798,6 +813,17 @@ struct AllConversationsView: View {
 
     // MARK: - 动作
 
+    /// 名单重拉唯一口（§223）：全量拉成后 store 内
+    /// 顺带对账回收本地残留线程——本页所有重拉点
+    /// （首开/下拉/行变更/批量/清理）统一走此口，
+    /// 不许直调 store.load 漏掉对账
+    private func reload() async {
+        await store.load(
+            appState: appState, localThreads: threads,
+            modelContext: modelContext
+        )
+    }
+
     private enum BatchKind { case archive, restore, delete }
 
     /// 批量：逐条经动作层（PATCH/DELETE＋回读对账），
@@ -823,14 +849,24 @@ struct AllConversationsView: View {
                         appState: appState, id: id
                     )
                 }
-                if outcome != .verified { failedCount += 1 }
+                if outcome != .verified {
+                    failedCount += 1
+                } else if kind == .delete {
+                    // §223：批删落定逐条走共享收口清本
+                    // 地线程（旧路只删服务端、抽屉留残
+                    // 留行的出处）；未落定本地不动
+                    DeletedSessionCloseout.apply(
+                        sessionID: id, appState: appState,
+                        threads: threads, modelContext: modelContext
+                    )
+                }
             }
             selection.removeAll()
             editMode = .inactive
             store.notice = failedCount == 0
                 ? "已处理 \(ids.count) 条，全部确认完成。"
                 : "\(ids.count - failedCount) 条已改好，\(failedCount) 条没改成——列表已按服务器现状刷新，你核对一下。"
-            await store.load(appState: appState)
+            await reload()
         }
     }
 
@@ -863,7 +899,7 @@ struct AllConversationsView: View {
                 store.notice = count.map {
                     "已清理 \($0) 条旧会话。"
                 } ?? "清理已执行（服务端未回条数，以刷新后的名单为准）。"
-                await store.load(appState: appState)
+                await reload()
             }
         } catch {
             store.notice = (error as? HermesError)?.userMessage
@@ -917,22 +953,42 @@ final class AllConversationsStore {
     /// prune 预演回的将删条数（确认弹窗文案用）
     var pruneDryRunCount: Int?
 
-    func load(appState: AppState) async {
+    /// 名单全量重拉（§223 扩展：带本地线程与写上下
+    /// 文，供两段拉成后的对账回收）。可见集拉成即
+    /// 落位＋写回共享目录（§223 硬化：不再被已归档
+    /// 段失败连坐——旧形态两段任一失败 publish 不
+    /// 执行、目录静默变旧）；两段都拉成后以并集为
+    /// 存活集对账清本地残留（prune 与他端删除在本
+    /// 机的残留靠它回收）；任一段失败走 catch、不
+    /// 对账（名单不全不清）
+    func load(
+        appState: AppState, localThreads: [ChatThread],
+        modelContext: ModelContext
+    ) async {
         isLoading = true
         loadError = nil
         do {
             let visible = try await ServerSessionCatalog.fetchAll(
                 appState: appState, archived: "exclude"
             )
-            let archived = try await ServerSessionCatalog.fetchAll(
-                appState: appState, archived: "only"
-            )
             sessions = visible
-            archivedSessions = archived
             // §198：全量可见集写回共享目录——抽屉频道
             // 显行闸与本页频道段自此同源同数（本页已付
             // 的分页代价全 App 只付一次）
             appState.serverSessionCatalog.publish(visible: visible)
+            let archived = try await ServerSessionCatalog.fetchAll(
+                appState: appState, archived: "only"
+            )
+            archivedSessions = archived
+            // §223 名单对账：存活集（可见＋已归档并
+            // 集）之外的自有绑定线程即残留，走共享
+            // 收口清除
+            DeletedSessionCloseout.reconcileLocalThreads(
+                threads: localThreads,
+                liveSessionIDs: Set(visible.map(\.id))
+                    .union(archived.map(\.id)),
+                appState: appState, modelContext: modelContext
+            )
             if let mainID = appState.sideChats.mainServerSessionID,
                !visible.contains(where: { $0.id == mainID }),
                !archived.contains(where: { $0.id == mainID }) {
@@ -961,7 +1017,10 @@ final class AllConversationsStore {
     /// 回读对账；折叠后成功项清本地（覆盖表删项、归
     /// 档键删项），失败项逐项留痕＋本地值保留。迁移
     /// 后名单重拉（归档项的服务端状态已变）
-    func runMigration(appState: AppState) async {
+    func runMigration(
+        appState: AppState, localThreads: [ChatThread],
+        modelContext: ModelContext
+    ) async {
         let sideChats = appState.sideChats
         let overrides = sideChats.titleOverrides
         let keys = sideChats.archivedKeys
@@ -1005,6 +1064,9 @@ final class AllConversationsStore {
         migrationFailures = outcome.failures.map { failure in
             "「\(failure.item.sessionID)」\(failure.item.actionLabel)没改成：\(failure.reason)"
         }
-        await load(appState: appState)
+        await load(
+            appState: appState, localThreads: localThreads,
+            modelContext: modelContext
+        )
     }
 }

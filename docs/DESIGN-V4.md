@@ -11846,3 +11846,18 @@ run **43556010036**（头＝版号提交）**§190 终判绿（带 §184 在案�
 - 二轮 run 43544452749（头 798f8c9）**真红停步**：App 测试目标编译错恰 1 条——`FailingHermesClient` 不满足 `HermesClientProtocol`（缺 `sessionMutationSnapshot`）。定因＝基线 8234e5b 自带漂移（该提交在 .36 补桩 99c0067 之前），与后门适配包首轮撞的是同一堵墙；按在案一行适配先例直接 cherry-pick 99c0067（本分支落 11c3540，+4 行抛错桩，不动断言与产品码）。
 - 三轮 run 43545146644（头 11c3540）**终判绿（§184 在案例外）**：Build／Package／Upload 三步 success；Unit tests 步名义 failure（** TEST FAILED **），全日志 15,501 行亲验——**断言失败 0 条**；Core **1869/0**（基线 1853＋本包 16 精确，本包 16 法全过）；UI **4/4** 全过；**栏位探针直接通过**（ChatPageDeviceConditionProbeTests passed，未走 flake 例外）；App 静态 100（94＋本包 6）＝83 过＋5 跳过＋**12 条 started 无终局行**——8 起 §184 宿主重启的受害者（PresentationLayerScenarios 5、KeyboardFlowAcceptance、ChatPageAssemblyRegression、ComposerGuideHost、DrawerBridgeHarness、SelectionDismantleProof、ChatReliabilityOffline 各 1，及本包新测 testFailedTraceMaterializesWithErrorSnapshot 1 条，同签名在案）。本包 App 其余 5 法均有 passed 实据；受害的失败留痕落盘一条由 Core 同义断言（testPlanFailedTraceKeepsErrorVerbatim）覆盖、组版装配轮全量 CI 时再取终局行。宿主重启数 5（.35）→7（.36）→8（本轮）的上升趋势如实在案，与 MEMORY 既有盯办一致。
 - **组版收口（0.50.39）**：本节自编 §217 与组版树枢纽 §217 撞号，组版顺延为 §229，代码注释自指同步改。
+## §223 删除全域收口：共享删除后置动作＋名单对账回收＋点开 404 防御（2026-11-14；分支 feat/delete-closeout-everywhere，基线 rel-05036 头 8234e5b，只交分支不合并；立项＝用户 09:25–09:29 真机实报「旁聊删了、抽屉列表还在、点开显示 404」，定因全档＝oneday-design-review/drawer-delete-longpress-diagnosis-20261114.md 题一）
+
+**定因（服务端＋代码双实查）**：删除在服务端真成功——今晨两笔围栏 DELETE 均 200、state.db 已物理删净；残留在 App 本地：删除的本地收口只存在于抽屉自家删除流一条路（performDeleteThread：.verified 才 purgeServerSessionRecords＋deleteLocalThread），管理页（全部对话页）单删（ServerSessionRow）与批删只调 ServerSessionActions.delete＋重拉名单、从不清本地 ChatThread 与共享目录对应行，频道页行删除更不回写共享目录；全仓无「本地线程绑定的服务端会话已消失→清线程」的对账兜底。残留行点开走 ChatView.openServerSession 导入路，GET 撞 404 后 HermesError.userMessage 把状态码原文上屏。
+
+**修法（与抽屉既有正解同构，全 App 收敛一条收尾）**：
+1. **共享收口 DeletedSessionCloseout（新文件）**：服务端删除回查落定（.verified）后的唯一本地收尾——清侧账（复用 purgeServerSessionRecords）＋共享目录摘行（ServerSessionCatalog 新增 remove）＋按 serverSessionID 删绑定本地线程。未落定本地一律不动（各调用点守既有 .verified 闸）。线程删除带双重保护：sessionID 与钦定主线会话相同不动、主线线程本体（SideChatClassifier.isMain）不删；删的若是当前正在看的线程（按 currentDrawerObject＋channelViewingOrigin 判，与抽屉旧 deleteLocalThread 同语义），经 drawerDeletedThreadID 通知 ChatView 置空。抽屉 performDeleteThread 改调本收口，其私有 deleteLocalThread 退役。
+2. **接入面**：ServerSessionRow 新增 onDeleted 钩子（仅删除落定后回调）——管理页、Hermes 频道页、平台频道页三宿主接线本收口；管理页批量删除逐条落定即收口。频道页删除自此同样清本地线程与目录行。
+3. **名单对账回收**：管理页 load 两段全量（可见＋已归档）都拉成后，以并集为存活集对账：本地绑定线程的会话已不在存活集、且过真删闸（SideChatLink.mayHardDeleteOnThreadDelete，只认 oneday- 自有旁聊、拦主线/合并桶/导入会话）者，走同一收口清除——覆盖 prune 清理与他端（网页/其他客户端）删除的本地残留；任一段拉取失败不执行对账（名单不全不清）。附带硬化：可见集拉成即落位本页名单＋publish 共享目录，不再被已归档段失败连坐。
+4. **点开 404 防御**：openServerSession 导入 catch 新增「会话不存在」分型（Core HermesError 新增 isSessionNotFound＝unexpectedStatus 404 判定）：清侧账＋目录摘行，文案改人话新词条「这条会话已不在服务器上，本地列表已同步清理。」（三语入 Localizable 目录）；新增 outcome .missing——不挂导入重试条（会话已删、重试无义），频道出处清理与 .failed 同路。
+
+**验收**：新增 App 测试 DeleteCloseoutTests（收口删绑定线程/目录摘行/侧账清/主线保护/当前线程通知；对账存活集外清除、集内与非自有绑定保留）＋Core HermesErrorTests 增 isSessionNotFound 分型断言；测试只增不减。真机待验：管理页删一条旁聊→抽屉无残留、批删同口径；网页端删一条→打开管理页后抽屉对应行消失；构造残留行点开不再见状态码原文、只见人话提示且行消失。
+
+### §223.1 CI 判读（2026-11-14 回填）
+
+三轮：首轮 run 43543994568 真红——FailingHermesClient 缺 sessionMutationSnapshot 桩（基线 8234e5b 在 rel-05036 补桩 99c0067 之前，跨包漂移同墙），cherry-pick 99c0067 收口（本分支 98e95e3）；二轮 run 43544938973 真红——本包测试 ServerSession 直构不可见（Core 内部构造器），改 JSON 解码构造（02f8982）；三轮 run **43545904183 终判绿（带保留）**：断言失败（产品值）0 条、Core **1854/0**（1853＋HermesError 404 分型 1）、App **102** 启动（94＋DeleteCloseoutTests 8/8 全过；90 过＋5 跳过＋6 起 §184 宿主死亡在案同签名、宿主重启 7 起）、UI 4/0、栏位探针直过（5.440s）。保留项＝EdgeEffectProbeTests 以 5.8s 异步等待超时单红（与模型账包轮同签名、非像素断言、本包未动边缘面；探针重校准已另立小包）。全档＝delete-closeout-report-20261114.md §6。**组版收口（0.50.39）**：本节自编 §217 与组版树枢纽 §217 撞号，按 0.50.38 组版预留取 §223，代码自指同步改。未组版、未合 main、未打 tag。

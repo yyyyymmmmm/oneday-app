@@ -30,6 +30,14 @@ final class ServerSessionCatalog {
         hasLoaded = true
     }
 
+    /// 摘行（§223 删除全域收口）：服务端会话已回查
+    /// 确认删除/不存在，目录里的对应行立即摘掉——
+    /// 删除面（管理页/频道页）与点开 404 防御共用，
+    /// 不等下一轮全量拉取才消失
+    func remove(sessionID: String) {
+        visibleSessions.removeAll { $0.id == sessionID }
+    }
+
     /// 冷缓存补拉：已热或在飞直接返回；失败不置
     /// hasLoaded（下次开抽屉重试）、不抛错——闸的呈
     /// 现回落＝频道区暂不显，与旧窗口口径的失败形态

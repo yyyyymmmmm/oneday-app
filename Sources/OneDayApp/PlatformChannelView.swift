@@ -16,6 +16,8 @@ struct PlatformChannelView: View {
     var onClose: () -> Void
 
     @Environment(AppState.self) private var appState
+    /// 本地写上下文（§223 删除收口清线程用）
+    @Environment(\.modelContext) private var modelContext
     @Query private var threads: [ChatThread]
     @State private var store = HermesChannelStore()
 
@@ -70,6 +72,15 @@ struct PlatformChannelView: View {
                                 Task {
                                     await store.load(appState: appState)
                                 }
+                            },
+                            onDeleted: { id in
+                                // §223：频道页删除同走共享
+                                // 收口（清本地线程与目录行）
+                                DeletedSessionCloseout.apply(
+                                    sessionID: id, appState: appState,
+                                    threads: threads,
+                                    modelContext: modelContext
+                                )
                             }
                         ) {
                             rowLabel(session)

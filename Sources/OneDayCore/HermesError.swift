@@ -174,6 +174,18 @@ public enum HermesError: Error, Sendable {
         return false
     }
 
+    /// 是否「对象不存在」（§223 删除全域收口）：接
+    /// 口回 404——点开本地残留行导入会话时撞上它，
+    /// 含义是会话已在服务端消失（他处已删），不是
+    /// 服务器出错；呈现层据此走清本地残留＋人话提
+    /// 示，不许把状态码原文甩给用户
+    public var isSessionNotFound: Bool {
+        if case .unexpectedStatus(_, let status) = self {
+            return status == 404
+        }
+        return false
+    }
+
     /// URLError → 失败分型（0.20.0）：分型表收进 Core
     /// 纯函数单测把守，客户端 transport 层只许调它、
     /// 不许再自拼映射（旧映射把 .networkConnectionLost
