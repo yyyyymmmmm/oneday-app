@@ -11541,3 +11541,21 @@ run 43519373972（头 4f7d2ee）**终判绿（§190＋任务书探针例外）**
 ### §215.1 装配 CI 判读（2026-11-14 回填）
 
 run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本体编译干净）、Package/Upload success；Unit tests 步 failure——全日志断言失败 0 条、测试执行 0，失败本体为测试目标编译错恰 1 条：`TopBarHitIntermittentTests.swift:258` 直构 `TopBarGuideHost(barHeight:)` 缺边缘包 §213 新增的必填参数 `scrollHandle`（装配层跨包接口漂移：两包各自判绿、合后才暴露；全仓直构点仅两处、另一处 ComposerGuideHostTests 已在装配时融合）。按任务书纪律不自行改码救版；修法候选＝该行补 `scrollHandle: ChatListScrollViewHandle()`（与 §213 对 ComposerGuideHostTests 的适配同式、语义核过不改 rig 断言面），待主线授权后重派。全档＝release-05035-assembly-20261114.md §4/§5。本版未出包、未合 main、未打 tag。
+## §216 主线收养根治：invalid_title 冲突即认链＋模型回读收口（2026-11-13；分支 fix/mainline-adopt-on-invalid-title，基线 rel/05030@283808a，只交分支不合并、不出包；节号说明：§209 已由删除 409 热修线占用且其先落 0.50.32，本包顺延取 §210）
+（顺延注：本节原号 §210；合并后树中 §210 已为 0.50.33 组版总账、§211–§215 依次为令牌四家／0.50.34 组版／边缘内容驱动／顶簇命中／0.50.35 组版总账，cm/mainline-b 预览分支装配顺延为 §216，节内容一字未动。）
+
+### §216.1 病根（急诊报告 mainline-session-400-incident-20261113）
+App 本地主线绑定的钦定服务端 id 在服务端不存在（本地主线线程 2026-11-11 15:53～11-12 12:32 间被本地重建、与服务端脱钩），发送前 performLink 走新建：标题「主线」被休眠旧主线（159 条、最后活动 11-11 15:53）占名，Hermes 标题唯一性回 400 invalid_title，主线自 11-12 12:32 起每次发送必撞（62 笔实录）。服务端改名解封案经用户否决（23:30 拍板只做 App 侧根治 B 案），生产与服务端零改动。
+
+### §216.2 修法（冲突即认链，市面通行形）
+1. **错误码上行**：sendJSONDecoding 非 2xx 时解析网关面结构化错误码（Core 纯函数 GatewayErrorCode，只认 {"error":{"code":…}} 形），带码抛新错误 case HermesError.serverError（文案与 unexpectedStatus 同口径、用户面无变化）；无码照旧只报状态。发送层丢响应体致错误码到不了逻辑层，是删除 409 线已点名的同根缺陷，本包在解码发送路上补齐（Dashboard 面 detail 形解析 HermesServerErrorCode 两形并存，组版时可收编一处）。
+2. **收养分流（Core 纯函数 MainlineAdoptionDirective，单测四分支把守）**：仅主线流程（performLink 新参 adoptsOnTitleConflict，ensureMainLink 传 true、旁聊恒 false）、仅状态 400 且码恰 invalid_title 触发；拉服务端全量名单（ServerSessionCatalog.fetchAll，archived=include）按标题全等精确匹配：零条原样抛原错误、恰一条收养、多条优先 oneday-main- 前缀池内最近活动一条（活动代理口径＝endedAt ?? startedAt）并留痕。收养＝performLink 改返既有会话 id，ensureMainLink 既有改绑链（setMainServerSessionID＋线程绑定＋落盘）接管，本轮待发消息随发送链照常发出、不丢不重发；被收养会话已有消息直接认链，空行且本地有种子按其围栏修订补种（与既存②③路同义）。
+3. **模型回读收口**：ensureMainLink 链接确立后回读服务端会话 model（Core 纯判定 MainlineModelReconcile），与本地自存选择不一致时以服务端为准、经既有 selectSessionModel 通道写账落盘并 ChatDiagTrace 留痕——消掉脱钩残留的 haiku 显示（服务端全库无 haiku 会话、默认 sonnet）。用户在模型面主动切换的路径不经此处，语义不变；呈现仍受 SessionModelResolution 既有清单口径约束。
+
+### §216.3 守卫与不做项
+- 触发面外（非 400/非 invalid_title/名单拉取失败）一律原样抛原错误——不许收养掩盖真故障、不许静默、不许回退无头发送（旧纪律沿用）。
+- import 路径（种子非空走 Dashboard 面导入）错误码不在该通道上行（detail 形），本包不触发其收养：生产实录的脱钩态恒走建会话路（62 笔全为 POST /api/sessions），已由本修法覆盖；import 是否校验标题唯一仍未实测，留档不猜。
+- 不动服务端、不改生产数据；不合 main、不打 tag（等组版）。
+
+### §216.4 CI 判读（回填）
+（待回填）

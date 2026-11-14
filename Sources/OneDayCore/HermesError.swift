@@ -31,6 +31,12 @@ public enum HermesError: Error, Sendable {
     /// 报告 §1.3）：与裸状态码是两回事——文案必须让
     /// 用户知道是「还在运行中」而不是「服务器出错」
     case sessionBusy
+    /// 服务端以结构化错误码拒（网关面 {"error":
+    /// {"code":…}}，DESIGN §216）：状态码＋码本体随
+    /// 错误上行，供 invalid_title 收养等按码分流判
+    /// 定；文案与 unexpectedStatus 同口径（用户面无
+    /// 变化）。旧形发送层丢响应体、码到不了逻辑层
+    case serverError(endpoint: String, status: Int, code: String)
     /// 响应解码失败（版本不匹配的典型信号）
     case decodingFailed(endpoint: String)
     /// 会话过期且自动重登失败
@@ -108,6 +114,11 @@ public enum HermesError: Error, Sendable {
         case .sessionBusy:
             return L10n.string(
                 "这条会话还在运行中，等它跑完再删。", locale: locale
+            )
+        case .serverError(let endpoint, let status, _):
+            return L10n.format(
+                "%@ 返回了状态 %@，请稍后再试。",
+                locale: locale, endpoint, String(status)
             )
         case .decodingFailed(let endpoint):
             return L10n.format(

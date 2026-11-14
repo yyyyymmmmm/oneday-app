@@ -5746,9 +5746,14 @@ private struct ComposerBarLayout: Layout {
     /// ③存在且已有消息：服务端已持历史，直接认链。
     /// 任一步失败抛错（不许静默、不许回退无头发送）；
     /// 返回最终会话 id（建会话回执为准）
+    /// adoptsOnTitleConflict（§216，主线专用）：建会话
+    /// 撞 400 invalid_title 时按标题反查既有会话走收
+    /// 养（判定走 Core MainlineAdoptionDirective）——
+    /// 本地绑定脱钩（钦定 id 不存在＋标题被休眠旧会
+    /// 话占着）不再是死路；旁聊调用恒 false，口径不变
     private func performLink(
         desiredID: String, title: String?, model: String?,
-        seedEntries: [SeedEntry]
+        seedEntries: [SeedEntry], adoptsOnTitleConflict: Bool = false
     ) async throws -> String {
         guard let apiKey = appState.apiKey else {
             throw HermesError.sessionExpired
@@ -5776,26 +5781,92 @@ private struct ComposerBarLayout: Layout {
             }
             return desiredID
         }
-        if seed.isEmpty {
-            if let model {
-                let created = try await appState.client
-                    .createLinkedServerSession(
-                        config: requireConfig(), apiKey: apiKey,
-                        id: desiredID, model: model
-                    )
+        do {
+            if seed.isEmpty {
+                if let model {
+                    let created = try await appState.client
+                        .createLinkedServerSession(
+                            config: requireConfig(), apiKey: apiKey,
+                            id: desiredID, model: model
+                        )
+                    return created.id
+                }
+                let created = try await appState.client.createServerSession(
+                    config: requireConfig(), apiKey: apiKey,
+                    id: desiredID, title: title
+                )
                 return created.id
             }
-            let created = try await appState.client.createServerSession(
-                config: requireConfig(), apiKey: apiKey,
-                id: desiredID, title: title
+            try await importSeed(
+                id: desiredID, title: title, model: model,
+                seed: seed, expectedRevision: 0
             )
-            return created.id
+            return desiredID
+        } catch {
+            // §216 收养兜底：仅主线流程、仅 400 invalid_
+            // title 触发；判定不成立（口径外错误/零匹配/
+            // 名单拉不到）一律把原错误照抛，不许收养掩
+            // 盖真故障、更不许静默
+            guard adoptsOnTitleConflict, let title,
+                  let adoptedID = try await adoptOnTitleConflict(
+                      failed: error, title: title, model: model, seed: seed
+                  )
+            else { throw error }
+            return adoptedID
         }
-        try await importSeed(
-            id: desiredID, title: title, model: model,
-            seed: seed, expectedRevision: 0
-        )
-        return desiredID
+    }
+
+    /// 标题冲突收养（§216）：拉服务端全量名单（归档包
+    /// 含——占名者可能已归档，漏了就只剩原样抛错一
+    /// 途），投影交 Core 纯函数判定；判到收养则改认
+    /// 既有会话为链接目标：它已有消息直接认链（与既
+    /// 存③路同义），空行且本地有种子则按其围栏修订
+    /// 补种（与既存②路同义）。收养事件留痕（含多条
+    /// 匹配的候选数），多条的取舍口径在纯函数内。
+    /// 返回 nil＝不收养（调用方照抛原错误）
+    private func adoptOnTitleConflict(
+        failed error: Error, title: String, model: String?,
+        seed: [SeedEntry]
+    ) async throws -> String? {
+        guard let hermesError = error as? HermesError,
+              case .serverError(_, let status, let code) = hermesError
+        else { return nil }
+        guard let sessions = try? await ServerSessionCatalog.fetchAll(
+            appState: appState, archived: "include"
+        ) else { return nil }
+        let candidates = sessions.map {
+            MainlineAdoptionCandidate(
+                id: $0.id, title: $0.serverTitle,
+                lastActivityAt: $0.endedAt ?? $0.startedAt
+            )
+        }
+        let adoptedID: String
+        switch MainlineAdoptionDirective.directive(
+            status: status, serverCode: code, title: title,
+            candidates: candidates
+        ) {
+        case .notApplicable, .noCandidate:
+            return nil
+        case .adopt(let id):
+            adoptedID = id
+            ChatDiagTrace.record(
+                "主线收养：建会话撞 invalid_title，标题「\(title)」既有会话 \(id) 认链"
+            )
+        case .adoptAmongMultiple(let id, let matchCount):
+            adoptedID = id
+            ChatDiagTrace.record(
+                "主线收养：标题「\(title)」多条匹配 \(matchCount) 条，按 oneday-main- 前缀＋最近活动选定 \(id) 认链"
+            )
+        }
+        if let holder = sessions.first(where: { $0.id == adoptedID }),
+           (holder.messageCount ?? 0) == 0, !seed.isEmpty {
+            try await importSeed(
+                id: adoptedID, title: title, model: model,
+                seed: seed,
+                expectedRevision: holder.runtimeRevision ?? 0
+            )
+        }
+        return adoptedID
     }
 
     /// import 种子一步（Dashboard cookie 通道）：
@@ -5856,7 +5927,8 @@ private struct ComposerBarLayout: Layout {
                 desiredID: wantedID, title: SideChatStore.mainTitle,
                 model: nil,
                 seedEntries: seedSnapshot
-                    ?? mainThread.map(Self.seedEntries(of:)) ?? []
+                    ?? mainThread.map(Self.seedEntries(of:)) ?? [],
+                adoptsOnTitleConflict: true
             )
             if linkedID != wantedID {
                 store.setMainServerSessionID(linkedID)
@@ -5869,6 +5941,9 @@ private struct ComposerBarLayout: Layout {
                 try? modelContext.save()
             }
             store.markMainLinked()
+            await reconcileMainlineModelFromServer(
+                linkedID: linkedID, mainThread: mainThread
+            )
             return true
         } catch {
             store.noteMainLinkError(
@@ -5876,6 +5951,49 @@ private struct ComposerBarLayout: Layout {
             )
             return false
         }
+    }
+
+    /// 主线模型回读收口（§216）：链接确立后以服务端
+    /// 会话的 model 字段为准刷新本会话选择——本地自
+    /// 存选择（如脱钩重建期落下的残留）与服务端不一
+    /// 致时服务端压本地：经既有 selectSessionModel
+    /// 通道写账落盘（呈现仍走 SessionModelResolution
+    /// 既有口径），并留痕。服务端无 model/回读失败/
+    /// 两者一致时不动账。用户在模型面主动切换的路
+    /// 径不经此处（切换仍走 selectCurrentChoice＋发
+    /// 送时推服务端，语义不变）
+    private func reconcileMainlineModelFromServer(
+        linkedID: String, mainThread: ChatThread?
+    ) async {
+        guard let session = try? await appState.performAdmin({ client, config in
+            try await client.serverSession(config: config, id: linkedID)
+        }) else { return }
+        let local = appState.sessionModelChoice(
+            serverSessionID: linkedID, threadID: mainThread?.id
+        )
+        let adopted = MainlineModelReconcile.serverModelToAdopt(
+            serverModel: session.model.map {
+                ModelDisplayNames.canonicalID(for: $0)
+            },
+            localModel: ModelDisplayNames.canonicalID(for: local.model)
+        )
+        guard let adopted else { return }
+        let groupChoice = appState.chatModelGroups
+            .flatMap(\.choices)
+            .first {
+                ModelDisplayNames.canonicalID(for: $0.model) == adopted
+            }
+        appState.selectSessionModel(
+            ChatModelChoice(
+                model: adopted,
+                providerField: groupChoice?.providerField,
+                isDefault: groupChoice?.isDefault ?? false
+            ),
+            serverSessionID: linkedID, threadID: mainThread?.id
+        )
+        ChatDiagTrace.record(
+            "主线模型回读收口：本地自存 \(local.model) 与服务端会话不一致，已按服务端 \(adopted) 改账（会话 \(linkedID)）"
+        )
     }
 
     // MARK: - 服务端会话续聊（0.4.0，审计 §3.4）
