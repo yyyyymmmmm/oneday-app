@@ -12394,3 +12394,12 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 
 - **伴生零改动**：写穿所需端点（POST /identity/name、POST /identity/avatar 两形态、GET 状态/图片）全在产（桥 1.0.47+ 已上线），本包无 companion 改动、无部署配方。
 - **静态计数预期**：Core **2008**（基线 2008；AgentProfileTests 26→30、AgentAvatarChoiceTests 9 条退役删除、HubSoulTests 12→17，净 0）；App **147**（零增减，未动 App 测试）；UI **8**。版本号不动（不发版、只交分支）。
+
+### §245.6 CI 判读（2026-11-14 回填，四轮）——**§190 终判绿（带 §184 在案登记）**
+
+- **编号撞车登记**：rel-05042 组版已把 §245 给审批卡对齐包、§246 为其组版节——本节号与之撞车，组版合入本包时顺延改号（预计 §247），代码注释内 §245 自指随改。
+- **一轮 run 43587918059**（head 0cca5fc）：构建失败——4 个编译错（AgentName.resolve 非可选误作可选绑定 ×2、Palette.secondary 令牌名误写、预置行表达式类型检查超时），修复提交 fb9f4cd（resolve 直用＋行拆独立函数＋Palette.inkSecondary）。
+- **二轮 run 43588364388 attempt 1**（head fb9f4cd）：构建过；Core **2008/2008、断言 0**（与源码方法数精确对账：基线 2008＋Profile +4−AvatarChoice 9＋HubSoul 5＝净 0）；UI **8/8**、VERDICT 三连 PASS；App 148 通过＋5 skipped，6 条无终局（宿主重启 7 起、零断言行、零终局行）——含 §184 老登记 2 条（testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel）。
+- **三轮 attempt 2**：Core 2008/2008 断言 0；App 148 通过、无终局名单与二轮不重叠（轮换）；UI 7/8——DrawerRowContextMenuTests.testSideListFirstAndLastRowsExposeContextMenu 一条 waiter 超时断言（XCTWaiterResult 2≠1「菜单外点击后上下文菜单仍在」，长按包 UI 测试、本包未触其代码路径，二轮已通过）。
+- **四轮 attempt 3**：Core 2008/2008 断言 0；UI 8/8（上条通过）；App 无终局 7 条。
+- **三 attempt 并集对账**：App 151 通过＋5 skipped（存量演示层跳过）；无通过记录仅 4 条——§184 老登记 2 条、GoalQuoteEntryTests.testGoalQuoteRoundTripsThroughEntry（§243.1 已登记、分支 run 43568667194 通过）、TraceEchoMaterializationAppTests.testFailedTraceMaterializesWithErrorSnapshot（.41 并集已通过、本包未触其代码路径，本轮三 attempt 均被宿主截断未及终局，登记在案）。全程内容断言失败仅三轮 attempt 2 的 UI waiter 一条且已在另两轮通过——**判绿**。
