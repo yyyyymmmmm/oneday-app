@@ -12201,4 +12201,10 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 
 **静态计数预期**：Core **2008**（.40 的 1959＋基础 7＋目标 10＋三页 5＋礼记 4＋九项 11＋API 直连 12）；App passed **147**（.40 的 137＋基础 5＋目标 3＋API 直连 2；另三页分支轮曾多 1 条通过、待本轮对账）＋skipped 5 存量＋§184 无终局行按在案名单；UI **8**。版本 0.50.41/169 五处同改＋grep 验（0.50.40 残留 0）。
 
-### §243.1 CI 判读（回填）
+### §243.1 CI 判读（2026-11-14 回填，两轮）——**§190 终判绿（带 §184 在案登记）**
+
+- **一轮 run 43576630288**（head f4b88aa，workflow_dispatch）：Build／Collect crash metadata／Upload crash metadata／Package／Upload IPA 全 success；测试步名义 failure。**断言失败 1 条**：ChatReliabilityOfflineTests.testBareImagePathMessageNotRenderedAsRawText 异步等待 9 秒超时（非内容断言；其套件被宿主重启打断 3 次、同套兄弟用例以 6.5 秒慢速通过）。Core 启动 2007／通过 2007（1 条未及启动）；App 148 通过＋1 失败（即上条）＋5 skipped＋5 无终局；UI 8／8；MATRIX／HUB-LAYOUT／顶簇 VERDICT 三连 PASS；宿主重启 7 起。
+- **二轮 run 43579108732**（同 head 复跑）：**断言失败 0 条、failed 用例 0 条**；一轮失败用例本轮 **passed（6.084 秒）**——超时系宿主颠簸、抖动定案关闭。Core **2008／2008** 与源码方法数精确对账；App 147 通过＋5 skipped＋7 无终局；UI 8／8；VERDICT 三连 PASS；宿主重启 7 起。
+- **两轮并集对账**：App 160 方法全有着落，唯 3 条两轮均 started 无终局——testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel（§184 长期在案）与 GoalQuoteEntryTests.testGoalQuoteRoundTripsThroughEntry（分支 run 43568667194 已通过、组版两轮均被宿主死亡截断，新登记在案）。
+- **出包亲验**：IPA 12,690,998 字节、md5 `3054a6bff9e8b101749bfa31c9ae05a8`；解包 Info.plist＝0.50.41／169／site.didichou.oneday。IPA 在 ~/workspace/your_files/oneday-v0.50.41/。未合 main、未打 tag。
+
