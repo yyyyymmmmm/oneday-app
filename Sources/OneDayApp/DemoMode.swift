@@ -12,6 +12,8 @@ import SwiftData
 /// 脚手架已按用户令根除（DESIGN-V4 §13），本枚举与种子数据
 /// 保留——它们只在显式启动参数下激活、生产路径恒为 .off，
 /// 留作本地人工演示/调试入口，不属于交付验收路径。
+/// 【C-13 冻结】演示入口面到此为止：不新增启动参数与
+/// 演示触发路径（overcomplexity-audit-20261114 C-13）。
 enum DemoMode: Equatable {
     case off
     case connected

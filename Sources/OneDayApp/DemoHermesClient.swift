@@ -6,7 +6,9 @@ import UIKit
 
 /// 演示模式的假客户端：实现 HermesClientProtocol，不发出任何
 /// 网络请求。演示面自复杂化全清·第 4 项起冻结（口径见
-/// demo-surface-freeze-20261111.md）：只保冻结清单内的种子面
+/// demo-surface-freeze-20261111.md；C-13 接口面冻结收口见
+/// overcomplexity-audit-20261114.md 三之 C-13 与
+/// c13-demo-freeze-report-20261114.md）：只保冻结清单内的种子面
 /// 有本地静态样本——连接页探活（health/login/models）、对话
 /// 主面只读浏览（会话列表/详情/消息/搜索＋种子会话的 run 流
 /// 补完）、文件列表与数据、以及点子「开始吧」背后的任务板
@@ -16,6 +18,17 @@ import UIKit
 /// 演示，进演示须在施工单里点名。保留样本的读数口径对齐
 /// 2026-11-08 线上实测：版本 0.23.0、网关 running、模型
 /// deepseek-chat，时间相对当前时刻生成。
+///
+/// 【C-13 接口面冻结（2026-11-14 收口）】本类自此只跟
+/// HermesClientProtocol 的签名（编译器一致性兜底），不跟
+/// 真 Client 的接口演进做平行适配：①种子面以 2026-11-11
+/// 冻结清单为限，不再扩大；②协议新增方法在本类只许加
+/// 一行 `throw HermesError.demoLimitReached` 桩（流式口
+/// 许返回即时空流），写种子实现须施工单点名并说明理由；
+/// ③冻结面由 DemoFreezeGuardTests 钉测，清单外方法被改
+/// 成返种子会在 CI 红。新增桥 Client 不建 Demo 对应物
+/// （WriteGateClient 内 DemoWriteGateClient 为 C-13 前
+/// 存量、同冻）。
 struct DemoHermesClient: HermesClientProtocol {
     func health(config: ServerConfig) async throws -> HealthResponse {
         decode(HealthResponse.self, #"{"status": "ok", "platform": "hermes-agent", "version": "0.23.0"}"#)

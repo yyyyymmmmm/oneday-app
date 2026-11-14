@@ -255,6 +255,11 @@ final class WriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
 /// 演示模式的桥桩：闸门开启＋两条合成待批（内存里可批
 /// 可驳，批完即消失）。只用合成文案，不放真实记忆/技能
 /// 内容（数据设计 §5.7：pending 正文不进 Demo 真数据）。
+/// 【C-13 存量冻结（2026-11-14）】本类是 C-13 冻结前已
+/// 存在的桥 Demo 待遇，到此为止：WriteGateClientProtocol
+/// 新增方法在本类只许抛 WriteGateError.failed 空态，不许
+/// 扩合成种子；此后新增的桥 Client 一律不建 Demo 对应物
+/// （overcomplexity-audit-20261114 C-13）。
 final class DemoWriteGateClient: WriteGateClientProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var demoRules: [WriteGateRule] = []
