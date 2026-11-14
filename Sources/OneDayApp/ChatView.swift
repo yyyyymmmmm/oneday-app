@@ -1324,6 +1324,57 @@ struct ChatView: View {
             // 为真条目；生成落定沿另有一次补刷，见
             // isStreaming 下降沿注）
             await refreshEchoTraces()
+            // §245（换代包 2）：排版产物预热——进/切
+            // 线程时对已载条目在后台预产产物（影子
+            // 层、只算不消费，呈现零作用）。文本宽＝
+            // 屏宽−（气泡内边距×2＋侧留白），与助手
+            // 泡/用户泡的几何同账（两泡同为 W−76）；
+            // 助手文本取摘标记后文本（EntryScanMemo
+            // .media）——与气泡 displayText 在无确证
+            // 摘行时逐字相等，有摘行时键按内容哈希
+            // 自会分家、不产生错产物（包 3 消费时以
+            // displayText 现查现产）
+            if let thread = currentThread {
+                let textWidth = UIScreen.main.bounds.width
+                    - OneDayMetrics.bubblePaddingH * 2
+                    - OneDayMetrics.bubbleSideInset
+                LayoutProductService.shared.preheat(
+                    entries: thread.sortedEntries.compactMap {
+                        entry in
+                        if entry.role == "user" {
+                            return LayoutProductService
+                                .PreheatEntry(
+                                    entryID: entry.id,
+                                    renderedText: entry.content,
+                                    isUser: true
+                                )
+                        }
+                        guard entry.role == "assistant",
+                              entry.toolCard == nil,
+                              entry.traceKey == nil,
+                              entry.echoKey == nil,
+                              entry.approvalKey == nil
+                        else { return nil }
+                        return LayoutProductService.PreheatEntry(
+                            entryID: entry.id,
+                            renderedText: EntryScanMemo.scans(
+                                entryID: entry.id,
+                                content: entry.content,
+                                remoteImagePaths:
+                                    entry.remoteImagePaths
+                            ).media.text,
+                            isUser: false
+                        )
+                    },
+                    width: textWidth,
+                    style: LayoutStyleContext(
+                        sizeCategory:
+                            dynamicTypeSize.contentSizeCategory,
+                        boldText: UIAccessibility
+                            .isBoldTextEnabled
+                    )
+                )
+            }
         }
         .onAppear {
             // 0.36.6：语音控制器回调接线——识别文本回
