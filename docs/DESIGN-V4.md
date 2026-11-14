@@ -11890,4 +11890,6 @@ run **43556010036**（头＝版号提交）**§190 终判绿（带 §184 在案�
 
 **静态计数预期**：Core **1937**（1920＋回响 16＋删除 HermesError 分型 1；飞书相位测试组版树已有、摘重 0 净增）、App **136**（121＋回响 6＋删除 8＋飞书回执 1）、UI **4**。版本 0.50.39/167 五处同改＋grep 验（版号位 0.50.38 残留 0）。
 
-### §231.1 CI 判读（待回填）
+### §231.1 CI 判读（2026-11-14 回填）
+
+run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例；3 处 XCTAssert 字样为编译回显源码行）。**Core 1937 执行／0 失败**——与静态预期精确对账（1920＋回响 16＋删除分型 1）。**App 137 启动**：125 passed＋5 skipped（PresentationLayerScenarios 源码 XCTSkip 存量）＋7 条 started 无终局行（与 **7 起宿主重启** 对应的 §184 在案签名：testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／回响 testFailedTraceMaterializesWithErrorSnapshot——与回响包自家绿轮同一受害、其语义由 Core testPlanFailedTraceKeepsErrorVerbatim 覆盖在案＋1 条重启重跑重复计启）；本版三包新测除该条外全数 passed 亲验（DeleteCloseoutTests 8／TraceEchoMaterialization Core 16＋App 其余 5／回执 4／SessionClassification 改断言全过）。**UI 4／0**。**边缘探针 passed（23.991s）**——重校准口径组版轮再成立。HUB-LAYOUT-VERDICT=PASS、顶簇 VERDICT=PASS、MATRIX-VERDICT=PASS。IPA **12,316,159 字节、md5 `852106a174a1256f46b42da63e4d6d7a`**、0.50.39/167（解包 Info.plist 亲验、bundle site.didichou.oneday），存 ~/workspace/your_files/oneday-v0.50.39/OneDay-0.50.39.ipa。未合 main、未打 tag。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-05039/。
