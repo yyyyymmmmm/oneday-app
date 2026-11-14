@@ -11581,3 +11581,9 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 - Core `RenderMeasureTests.testDrawerSelectionFillDeepenedForMaterialPanel`（新增）：drawerSelectionFill 浅档解析钉 #E4E5E7＋压面板合成面 #F2F2F2 逐通道 Δ≥10；暗档解析钉 #2C2C2E＋压面板暗档近似面 #1C1C1E 逐通道 Δ≥10；selectionFill 浅档原值 #F0F1F2 不变（既有断言同测复核）。
 - App `ChannelBrandAssetTests`（新增 1 法）：drawerList 七行资产位图逐一解析。
 - 计数预期：Core 1853＋1＝1854、App 94＋1＝95、UI 4 不变（基线＝§216.1 的 .36 判读账）。
+
+### §217.5 CI 判读（2026-11-14 回填）
+
+run **43543573208**（头 4df97c0）§190 判读：job build-native 名义 failure，逐步结论唯一 failure 步＝Unit tests；Build／Package／Upload 均 success（日志尾 Uploaded bytes 12,221,078）。**Core 1854 执行／0 失败**（1853＋本包新测 1 精确；`testDrawerSelectionFillDeepenedForMaterialPanel` passed）。**UI 4／0**。**栏位探针直接 passed（6.352s）**。**App 95 全数启动**：83 passed＋5 skipped（存量 XCTSkip）＋6 条 §184 宿主死亡受害（宿主重启 7 起；受害名单与 .36 轮全同——testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／testSelectionSurvivesConstantBranch）＋**断言失败 1 条**（下行）。本包新测 `ChannelBrandAssetTests.testDrawerChannelBrandAssetsResolveToBitmaps` passed。
+
+**唯一断言失败的定因与保留**：`EdgeEffectProbeTests.testEdgeEffectAttributionProbe`——深色 bottomRest 的 composerBand Δ＝30＞帽 8（「深色 bottomRest 舱区应近页面色」）。双证定因＝**本包件二恢复气泡使该断言前提失效、非边缘机制回归**：①.36 判绿轮（run 43537855358）同探针同点实测 composer＝0（无泡时代舱带背后为页色散文面）；②本轮探针自家消融臂 noBandDark 同点 Δ＝45≈暗档泡本色 #2C2C2E（舱带采样区正压在末条助手泡上），生产臂经系统滚动边缘效果软化为 30——机制贡献为负、其余深色点（composerMargin 0／dockBelowCapsule 0／topRest composer 0）全净。该断言的「舱区应近页面色」是 A1 无泡时代的内容前提，用户 2026-11-14 拍板恢复气泡后舱带背后即泡面本色。**本包不擅改探针帽值**（帽为边缘线首版验证轮实测校准、归其口径）：判读结论＝**本包判绿带保留**，探针口径更新（建议改与浅色 composerMargin 同式的双臂相对帽、或按泡时代重校准）待主线裁决，随装配轮或边缘线处理。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-muse-align/job.log。
