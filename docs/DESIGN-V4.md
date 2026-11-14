@@ -11994,3 +11994,13 @@ Core `SessionModelAccount.effectiveStored` 是纯函数：主线会话存值与�
 - 枢纽×0.50.39 差异件：净 diff 13 文件以 c85d383 为 merge-base 逐件落本树，回响物化/删除收口/飞书三包在 AppState/ChatView 的改动经三路合并保留、无回退（§236.1 判读时以测试全绿复核）。
 
 **静态计数预期**：Core **1959**（1937＋删除 3＋轻动作 23−枢纽退役 8＋枢纽新规 4）、App **150**（137＋删除 5＋轻动作 14−枢纽退役 9＋枢纽新规 3）、UI **8**（4＋长按 4）。版本 0.50.40/168 五处同改＋grep 验（版号位 0.50.39 残留 0）。
+
+### §236.1 CI 终判（run 43573290099，head b35e362，workflow_dispatch；2026-11-14 组版线判读）——**判绿**
+
+- 步序结论：Build (no codesign)＝success／Unit tests＝failure（红源见下，§184 在案）／Package unsigned IPA＝success／Upload IPA＝success（§190 步序口径：打包两步 `!cancelled()` 不被测试步扣押）。
+- **断言失败 0 条**：全日志 `Test Case … failed` 行 0、`Assertion failed` 0、XCTest error 行 0（46 处 `error:` 命中逐类核为 CoreData 运行时日志与编译回显，非断言）。
+- **Core 1959/0 failures**——与静态预期 1959 精确一致（套件终表 Executed 1959 tests, with 0 failures）。
+- **App 149 发现＝137 过＋5 跳＋7 §184 无终局**：静态 grep 150 中 1 条为桩件辅助方法（`FailingHermesClient.testMCPServer`，mock 协议方法、非 XCTest 用例，XCTest 不发现），真实用例 149 与日志唯一发现数精确一致；五包新测逐件核：DeleteOptimisticTests 5、MutationOptimisticTests 14 全过，枢纽 ModelAccountUnifyAppTests 7 中 6 过＋1 无终局（见下）。
+- **UI 8/8 全过**——与静态预期 8 精确一致（含长按新测 DrawerRowContextMenuTests 4 法）；**HUB-LAYOUT-VERDICT=PASS**、边缘探针 violations=0。
+- **§184 登记（不判红）**：App 段宿主重启 8 次（`Restarting after unexpected exit` ×8），7 条 started=1、无 passed/failed 终局行、零断言输出——§184 首启停滞 flake 家族签名（§190 判读先例同型）：ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays、ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned、DrawerBridgeHarnessTests.testBridgeTapToOpenReachesFullTravel（三条 §190 已点名同型受害）、ChatReliabilityOfflineTests.testMarkPendingSendRetainsEntryOnDisk、EdgeEffectRegistrationTests.testAnchorRegistersAncestorScrollView、ModelAccountUnifyAppTests.testMainlineDifferentStoredChoiceIsNotFiltered、TraceEchoMaterializationAppTests.testFailedTraceMaterializesWithErrorSnapshot。治本仍归 flake 线，本版不阻断；枢纽该条真机终判并入枢纽三面同值验收。
+- 枢纽×.39 差异件复核：回响物化/删除收口/飞书三包相关测试（TraceEchoMaterializationAppTests 除在案 1 条外 5 过、DeleteCloseoutTests 8 全过、ChannelCredentialsReceiptTests/ChannelTokenBatchTests 全过）随全量绿复核无回退。
