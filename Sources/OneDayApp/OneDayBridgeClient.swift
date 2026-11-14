@@ -402,83 +402,28 @@ final class OneDayBridgeClient: @unchecked Sendable {
         )
     }
 
-    // MARK: - 表格转码（§125，桥 /files/spreadsheet）
+    // MARK: - 表格转码（§125）与图片变体（§138）
 
-    /// GET /files/spreadsheet?path=：xlsx 按 sheet 转
-    /// CSV（值口径）。本端点不走 checkStatus 的人话
-    /// 收敛——状态码原样包成 HermesError.unexpected-
-    /// Status 交调用方走 FileOpenFailure.classify-
-    /// Spreadsheet 分型（422 转码专档/413 过大/404
-    /// 不存在各有出路，收敛成一句会丢分型）；无钥匙
-    /// 仍走 OneDayBridgeError.noKey 口径
+    /// 两端点已迁伴生独立 fileproc 模块（API 直连 B
+    /// 包，2026-11-14）：本类只留委托，签名与状态码
+    /// 口径（unexpectedStatus 原样上抛分型、noKey 走
+    /// OneDayBridgeError）逐字不变，实现见
+    /// FilesProcClient
+    private let fileproc = FilesProcClient()
+
     func spreadsheet(
         config: ServerConfig, path: String
     ) async throws -> BridgeSpreadsheet {
-        let allowed = CharacterSet.alphanumerics.union(
-            CharacterSet(charactersIn: "-._~/")
-        )
-        let encoded = path.addingPercentEncoding(
-            withAllowedCharacters: allowed
-        ) ?? path
-        let request = try makeRequest(
-            config: config,
-            path: "/files/spreadsheet?path=\(encoded)",
-            method: "GET"
-        )
-        let (data, http) = try await send(
-            request, endpoint: L10n.string("表格转换")
-        )
-        guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(
-                endpoint: L10n.string("表格转换"),
-                status: http.statusCode
-            )
-        }
-        do {
-            return try decoder.decode(
-                BridgeSpreadsheet.self, from: data
-            )
-        } catch {
-            throw OneDayBridgeError.failed(
-                L10n.string("表格转换返回格式无法识别")
-            )
-        }
+        try await fileproc.spreadsheet(config: config, path: path)
     }
 
-    // MARK: - 图片变体（§144，桥 /media/rendition）
-
-    /// GET /media/rendition?path=&w=&kind=：回变体 JPEG
-    /// 字节（kind=image 取图变体、kind=poster 取视频首
-    /// 帧海报）。与 spreadsheet 同口径：状态码原样包成
-    /// HermesError.unexpectedStatus 交调用方分型（415
-    /// 格式不支持/404 不存在时回落原图通道），不收敛
-    /// 成一句人话丢分型；无钥匙仍走 noKey 口径
     func rendition(
         config: ServerConfig, path: String,
         width: Int, kind: String = "image"
     ) async throws -> Data {
-        let allowed = CharacterSet.alphanumerics.union(
-            CharacterSet(charactersIn: "-._~/")
+        try await fileproc.rendition(
+            config: config, path: path, width: width, kind: kind
         )
-        let encoded = path.addingPercentEncoding(
-            withAllowedCharacters: allowed
-        ) ?? path
-        let request = try makeRequest(
-            config: config,
-            path: "/media/rendition?path=\(encoded)"
-                + "&w=\(width)&kind=\(kind)",
-            method: "GET"
-        )
-        let (data, http) = try await send(
-            request, endpoint: L10n.string("图片预览")
-        )
-        guard (200...299).contains(http.statusCode) else {
-            throw HermesError.unexpectedStatus(
-                endpoint: L10n.string("图片预览"),
-                status: http.statusCode
-            )
-        }
-        return data
     }
 
     // MARK: - 文件交付登记（§146，规格 delivery-registry-spec-20261111 §5/§7）

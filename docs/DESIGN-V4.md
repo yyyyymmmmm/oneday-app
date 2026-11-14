@@ -12208,3 +12208,34 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **两轮并集对账**：App 160 方法全有着落，唯 3 条两轮均 started 无终局——testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel（§184 长期在案）与 GoalQuoteEntryTests.testGoalQuoteRoundTripsThroughEntry（分支 run 43568667194 已通过、组版两轮均被宿主死亡截断，新登记在案）。
 - **出包亲验**：IPA 12,690,998 字节、md5 `3054a6bff9e8b101749bfa31c9ae05a8`；解包 Info.plist＝0.50.41／169／site.didichou.oneday。IPA 在 ~/workspace/your_files/oneday-v0.50.41/。未合 main、未打 tag。
 
+
+## §246 API 直连 B 包：频道直连＋文件加工拆桥（2026-11-14；分支 feat/api-direct-b，基线 rel-05041@7cb8e26；全档＝oneday-design-review/api-direct-b-report-20261114.md。§ 号自取、组版顺延校准：§244/§245 已被权限/身份线占用）
+
+**总纲执行**：对接优先级定版（API 直连优先→没 API 先给服务端补 API→桥只收敛不扩张）在待办总表 B 组六项的第二包落地；盘点底账 api-direct-inventory-20261114.md（26 端点组）。
+
+### §246.1 B1 频道状态直连（App 改直连、桥端点调用清零）
+
+- 读口换 Hermes Dashboard 原生 `GET /api/messaging/platforms`（0.23.0 源码 hermes_cli/web_routers/messaging.py `_messaging_platform_payload` 实证字段面），经 AppState.performAdmin（登录失效静默重登口径与全 App /api/* 一致）；HermesClient 新增 messagingPlatforms。
+- 映射层 OneDayCore `MessagingStatusMapping`：DTO 只认产品目录（MessagingChannelCatalog 镜像桥 PLATFORMS 表）内平台、按目录序出行，载荷缺行合成未配对行；configured＝Dashboard configured ∧ enabled（桥口径含启用位）；connected＝gateway_running ∧ state=connected；error＝state∈{error,fatal,startup_failed} 或网关运行且带 error_message（截断 300 与桥同），message 仅 error 态附；needsIdentity＝已配对 ∧ 目录 identityEnv 对应 env_vars is_set=false；weixin 恒 frozen 行。sessionCount 无原生来源且全仓无消费方（grep 实证），恒 0。
+- DTO 名（ChannelPlatformStatus/ChannelsStatusResponse）与 ChannelStatusStore/视图零改；桥 `GET /channels/status` App 侧调用清零（grep 实证）。
+
+### §246.2 B2 频道凭据编排直连（编排在 App、凭据只过单钥通道不留存）
+
+- 写口换 `PUT /api/messaging/platforms/{id}`（enabled=true＋env＋clear_env）＋`POST /api/gateway/restart` 触发即时生效（HermesClient 新增 updateMessagingPlatform；gatewayRestart 既有）；回执由 App 合成桥时代同形（configured=true、state=pending_restart、restartRequired=true、applyTriggered＝重启触发成败、失败带 applyError 人话），呈现层（ChannelApplyPhase 相位口径）零改。
+- 编排层 OneDayCore `MessagingCredentialsComposer`：字段→env 映射、飞书钉死（FEISHU_CONNECTION_MODE=websocket＋FEISHU_ALLOW_ALL_USERS=false）、邮箱 preset 推导（gmail 钉 EMAIL_AUTHSERV_ID=mx.google.com 并清 TRUST_FROM_HEADER；其余钉 TRUST_FROM_HEADER=true 并清 AUTHSERV_ID；恒清 EMAIL_ALLOW_ALL_USERS）、格式校验与人话文案逐句平移桥 `_set_credentials`/`_validate_value`（Telegram token 形状、白名单按平台分型：TG 纯数字/飞书 ou_/邮箱地址、邮箱必填白名单、端口范围等），新文案 23 键补 Localizable 三语。
+- **行为变化如实登记**：桥的写前各平台真实验活（getMe/换 token/IMAP+SMTP 真登）直连面无对应物退场——Dashboard 官方流程（Channels 页）同样是先 PUT 落盘、再由状态面与 POST /test 验连接，与官方同构；验活改由保存后状态回读（connected/error＋error_message）呈现。botUsername/botName 无原生来源恒 nil（呈现本为可选）。
+
+### §246.3 B3 身份写留痕落点（只对账登记、本包零施工）
+
+- 落点已具备：桥 `_set_name` 自带 `_traced`（POST /traces 五要素账＋name-state.json{updatedAt,source}）；身份线 feat/identity-pack 已落名字读直连＋多账收敛。唯一缺口＝App 人设编辑 PUT /api/profiles/{name}/soul 直写不补报 trace，施工面属身份包文件面（身份 UI），本包不撞面、登记待身份线后续补报（POST /traces 契约现成）。
+
+### §246.4 B4/B5 表格转码＋媒体 rendition（伴生补独立端点、oneday 桥退役）
+
+- 能力边界实证：Hermes 0.23.0 `/api/files*` 只收 path 回原文件、无转码；`/api/media` 只回整图 data URL、无缩放 rendition——无原生 API，按总纲在伴生补：新独立模块 `modules/fileproc_bridge.py`（supervisor 托管 id=fileproc、端口 8651、钥 FILEPROC_BRIDGE_KEY），两端点实现与错误契约（§125 转码值口径/500 行上限/敏感名 403/大小 413/422 分型；§138 三档尺寸/缓存键/单飞/内存护栏/ETag）与 oneday 桥逐字平移，路径与回执不变、只换前缀 /api/fileproc-bridge（nginx 新 location 与既有桥前缀同式：auth_request 验登录钥＋换桥钥）。
+- oneday 桥侧两端点退役（路由摘除回 404），实现段 oneday_seg_files.py 删除；敏感名判定随唯一剩余消费方（deliveries 路径校验）迁 oneday_seg_delivery。自测随迁改名 fileproc_bridge_*_selftest（转码 20/20 本地全过；rendition 路径/鉴权项全过、生成项本地进程内实证通过——HTTP 层在本机被内存护栏 503 拦截系宿主内存 86%>85% 的设计行为，与旧桥同码同判）。
+- deliveries thumb/cover 是登记时快照（oneday 自有生成、与 rendition 机器无关），登记保留不动。
+- App 侧：新增 FilesProcClient（同基座、换前缀），OneDayBridgeClient.spreadsheet/rendition 改委托（签名与状态码分型口径不变），调用方（FileOpenView/FileThumbnailStore/DeliverablesView）零改；oneday 前缀下两路径 App 调用清零（grep 实证）。
+
+### §246.5 B6 频道 QR（只登记）
+
+- WhatsApp QR onboarding 契约已实证齐全（Dashboard start/status/delete/apply 四件，apply 自带写 env＋启用＋重启），但 WhatsApp 已被用户拍板暂缓、App 无 QR 界面、桥侧 QR 端点休眠中。本包不动；解冻时 App 直调 Dashboard onboarding、桥 QR 端点届时退役，channels 桥的 QR 部分与 B1/B2 一并列入「桥整桥退役」候选（channels_bridge.py 本体待主线另行处置，本包未动其代码）。
