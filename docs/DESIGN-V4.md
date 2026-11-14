@@ -12520,4 +12520,6 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 
 **版号**：0.50.45／构建 173（Project.swift 四处与设置页版本串两行同改）。
 
-### §258.1 CI 判读（回填位）
+### §258.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
+
+run 43602076559：名义 failure 仅 §184。实数：断言失败 **0**（全程无 `Test Case ... failed` 行、无任一 `Executed ... with N>0 failures`）；Core **2081/2081 精确对账**（Executed 2081、0 failures，＝预期 2034＋13＋17＋17）；UI **8/8 全跑全过**（Executed 8、0 failures——目标尾巴包自身 CI 未跑成的 UI 步至此**补验完成**）；App passed 168＋skipped 5＋无终局 5＝178（＋helpers 伪名 1＝grep 口径 179）；VERDICT 三连 PASS（MATRIX／HUB-LAYOUT／主 VERDICT）。**§184 登记**：宿主重启 7 起（14:07–14:12 集中于 App 测试相位），波及无终局 5 条——ChatReliabilityOfflineTests.testMarkPendingSendRetainsEntryOnDisk 与 ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned（.44 轮已登记者，本轮再现、按组版轮登记口径处理、不判红）、ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays、DrawerBridgeHarnessTests.testBridgeTapToOpenReachesFullTravel、EdgeEffectRegistrationTests.testAnchorRegistersAncestorScrollView（本轮新登记者，同签名）；崩溃元数据 8 份照常采集。IPA 解包验：0.50.45／173／site.didichou.oneday，13,115,227 字节，md5 `4e78123345ac2b4bd3aa4fbd6e11994b`。
