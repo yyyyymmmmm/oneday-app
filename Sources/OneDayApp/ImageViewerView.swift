@@ -430,23 +430,99 @@ struct ImageViewerView: View {
     }
 }
 
-// MARK: - 聊天侧转场承载（UIKit zoom）
+// MARK: - 聊天侧转场承载（UIKit zoom，§245.2 试点）
 
-/// 聊天页呈现承载（0.36.4）：聊天页当前无 Naviga-
-/// tionStack，zoom 转场走 UIKit 系统机制——宿主
-/// VC 设 preferredTransition＝.zoom（规格 §3.4 过
-/// 渡方案）。源视图提供者暂缺（聊天缩略是 SwiftUI
-/// 视图、无现成 UIView 句柄可交），系统在无源时
-/// 的确切降级形态真机待验、不在此断言；聊天栈化
-/// 时并轨 matchedTransitionSource（文件侧已用）。
+/// Zoom 源视图登记表（动效规矩包 §245.2 试点）：聊天
+/// 缩略图是 SwiftUI 视图、无现成 UIView 句柄——入口以
+/// ZoomSourceAnchor 在缩略图同位挂一枚透明 UIView 并
+/// 按图片条目 id 登记于此，呈现时 ZoomHostingController
+/// 的源提供者按 id 取回。弱引用持有：缩略图滚出屏/被
+/// 列表回收后登记自动失效，提供者返回 nil、转场按
+/// Core ZoomTransitionPolicy 回标准呈现，不假放大。
+final class ZoomSourceRegistry {
+    static let shared = ZoomSourceRegistry()
+
+    private final class WeakView {
+        weak var view: UIView?
+        init(_ view: UIView) { self.view = view }
+    }
+
+    private var table: [String: WeakView] = [:]
+    private let lock = NSLock()
+
+    func register(id: String, view: UIView) {
+        lock.lock()
+        defer { lock.unlock() }
+        table[id] = WeakView(view)
+    }
+
+    /// 只注销同一实例的登记（同 id 后登记者不被前者误撤）
+    func unregister(id: String, view: UIView) {
+        lock.lock()
+        defer { lock.unlock() }
+        if table[id]?.view === view {
+            table.removeValue(forKey: id)
+        }
+    }
+
+    func view(for id: String) -> UIView? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = table[id] else { return nil }
+        if entry.view == nil {
+            table.removeValue(forKey: id)
+            return nil
+        }
+        return entry.view
+    }
+}
+
+/// Zoom 源锚点：铺满宿主（缩略图）帧的透明 UIView，
+/// 不拦命中（调用方再叠 .allowsHitTesting(false) 双
+/// 保险），出现/更新即登记、拆解即注销。仅 §245.2 试
+/// 点面（聊天消息流图片两主面）挂载，其余入口不挂、
+/// 提供者回 nil 走标准呈现。
+struct ZoomSourceAnchor: UIViewRepresentable {
+    let sourceID: String
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        ZoomSourceRegistry.shared.register(id: sourceID, view: view)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        ZoomSourceRegistry.shared.register(id: sourceID, view: view)
+    }
+
+    // 无 dismantle 注销：登记为弱引用，视图随缩略图
+    // 离树释放后登记自动失效（提供者查死登记即清表）。
+}
+
+/// 聊天页呈现承载（0.36.4；§245.2 试点改造）：聊天页
+/// 当前无 NavigationStack，zoom 转场走 UIKit 系统机
+/// 制——宿主 VC 设 preferredTransition＝.zoom。试点前
+/// 源提供者恒返回 nil（无源降级形态未验）；试点后按
+/// Core ZoomTransitionPolicy 裁决：Reduce Motion 开
+/// 启不设 zoom（标准呈现）；否则提供者按 sourceID 查
+/// ZoomSourceRegistry，查到真源才长出、查不到回 nil
+/// 由系统标准降级。聊天栈化时并轨 matchedTransition-
+/// Source（文件侧已用），本承载随之退役。
 struct ZoomTransitionCover<Content: View>:
     UIViewControllerRepresentable {
+    /// 本次呈现的起始图片条目 id（会话集合的初始页）；
+    /// nil＝调用方未声明源，转场恒标准呈现
+    var sourceID: String? = nil
     @ViewBuilder var content: () -> Content
 
     func makeUIViewController(
         context: Context
     ) -> UIHostingController<Content> {
-        ZoomHostingController(rootView: content())
+        ZoomHostingController(
+            rootView: content(), sourceID: sourceID
+        )
     }
 
     func updateUIViewController(
@@ -459,11 +535,35 @@ struct ZoomTransitionCover<Content: View>:
 
 private final class ZoomHostingController<Content: View>:
     UIHostingController<Content> {
+    private let sourceID: String?
+
+    init(rootView: Content, sourceID: String?) {
+        self.sourceID = sourceID
+        super.init(rootView: rootView)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        self.sourceID = nil
+        super.init(coder: aDecoder)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        // 裁决在呈现定型时问一次 Core 策略：Reduce
+        // Motion 时不设 zoom；源可用性由提供者在转场
+        // 发生时实时查表（登记随滚动生灭，定型时快照
+        // 会过期），查不到即 nil＝该次回标准呈现——与
+        // 策略「无源不 zoom」在效果上等价（见 §245.2）。
+        let decision = ZoomTransitionPolicy.decide(
+            reduceMotion: UIAccessibility.isReduceMotionEnabled,
+            sourceAvailable: sourceID != nil
+        )
+        guard decision == .zoom, let sourceID else { return }
         preferredTransition = .zoom(
             options: UIViewController.Transition.ZoomOptions(),
-            sourceViewProvider: { _ in nil }
+            sourceViewProvider: { _ in
+                ZoomSourceRegistry.shared.view(for: sourceID)
+            }
         )
     }
 }
