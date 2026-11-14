@@ -325,9 +325,13 @@ final class LayoutShadowLedger: @unchecked Sendable {
         lock.unlock()
 
         let prefix = String(attributed.string.prefix(80))
-        Task.detached(priority: .utility) { [self] in
+        // NSAttributedString 非 Sendable：装箱过
+        // detached 边界——串组装后不可变、跨线只
+        // 读，与 §149 拼装缓存的 @unchecked 口径同
+        let boxed = LayoutAttributedBox(attributed)
+        Task.detached(priority: .utility) { [self, boxed] in
             let pooled = await LayoutMeasurePool.shared.measure(
-                attributed, width: width
+                boxed.value, width: width
             )
             applyResult(
                 pooled: Double(pooled),
