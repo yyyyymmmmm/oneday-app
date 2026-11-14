@@ -73,12 +73,16 @@ struct PlatformChannelView: View {
                                     await store.load(appState: appState)
                                 }
                             },
-                            onDeleted: { id in
-                                // §223：频道页删除同走共享
-                                // 收口（清本地线程与目录行）
-                                DeletedSessionCloseout.apply(
-                                    sessionID: id, appState: appState,
-                                    threads: threads,
+                            onDeleteRequested: { session in
+                                // §232 乐观删除：同拍摘自
+                                // 家名单行＋协调器起手（墓
+                                // 碑/目录/后台删）；最终失
+                                // 败靠恢复信号重拉回行
+                                store.removeLocal(sessionID: session.id)
+                                appState.sessionDeletions.begin(
+                                    sessionID: session.id,
+                                    title: rowTitle(session),
+                                    appState: appState,
                                     modelContext: modelContext
                                 )
                             }
@@ -98,6 +102,12 @@ struct PlatformChannelView: View {
                 }
             }
             .refreshable { await store.load(appState: appState) }
+            // §232：乐观删除恢复信号→重拉回行
+            .onChange(
+                of: appState.sessionDeletions.restoreRevision
+            ) {
+                Task { await store.load(appState: appState) }
+            }
         }
         .task { await store.load(appState: appState) }
     }

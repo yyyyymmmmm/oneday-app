@@ -95,7 +95,11 @@ enum ServerSessionActions {
 
     /// 删除：DELETE → GET 应取不到（报错才算删净）；
     /// 还能读到即未落定。真删不可恢复，二次确认在
-    /// 调用方（行组件/管理页批量栏）。
+    /// 调用方（行组件/管理页批量栏）。§232 起本函
+    /// 数是乐观删除的后台执行口（SessionDeletion-
+    /// Coordinator 默认执行口）：用户侧时序由协调
+    /// 器管（本地先删/失败恢复），本函数的落定判
+    /// 定口径不变
     static func delete(
         appState: AppState, id: String
     ) async -> Outcome {
@@ -147,11 +151,13 @@ struct ServerSessionRow<Content: View>: View {
     var onOpenAsync: (() async -> ServerSessionActions.Outcome)? = nil
     /// 任一动作落定后的宿主刷新（重拉名单）
     var onChanged: () -> Void
-    /// 删除落定后的共享收口钩子（§223）：只有删除
-    /// 改变会话存亡——落定后宿主经此走 DeletedSes-
-    /// sionCloseout 清本地线程与目录行；改名/置顶/
-    /// 归档不走此钩
-    var onDeleted: ((String) -> Void)? = nil
+    /// 删除请求钩子（§232 乐观删除）：二次确认通
+    /// 过后即触发——宿主在此同拍摘自家名单行并经
+    /// SessionDeletionCoordinator 起手（本地先删、
+    /// 服务端后台删、最终失败自动恢复＋提醒）；本
+    /// 组件不再等服务端落定，改名/置顶/归档仍走落
+    /// 定口径不经此钩
+    var onDeleteRequested: ((ServerSession) -> Void)? = nil
     @ViewBuilder var content: () -> Content
 
     @Environment(AppState.self) private var appState
@@ -261,7 +267,9 @@ struct ServerSessionRow<Content: View>: View {
             titleVisibility: .visible
         ) {
             Button("删除", role: .destructive) {
-                performDelete()
+                // §232：确认即乐观起手，不上 busy 锁、
+                // 不等服务端（协调器后台收口/恢复）
+                onDeleteRequested?(session)
             }
             Button("取消", role: .cancel) {}
         } message: {
@@ -335,25 +343,4 @@ struct ServerSessionRow<Content: View>: View {
         }
     }
 
-    /// 删除专用走法（§223）：与 perform 同纪律（上
-    /// 锁/落定重拉/失败弹原因），落定后另经 onDel-
-    /// eted 走共享删除收口——服务端已删净，本地线
-    /// 程与目录行必须同拍消失，不许留残留行
-    private func performDelete() {
-        guard !busy else { return }
-        busy = true
-        Task {
-            let outcome = await ServerSessionActions.delete(
-                appState: appState, id: session.id
-            )
-            busy = false
-            switch outcome {
-            case .verified:
-                onDeleted?(session.id)
-                onChanged()
-            case .failed(let reason):
-                errorText = reason
-            }
-        }
-    }
 }

@@ -10,6 +10,7 @@ import SwiftUI
 /// 管理工具，点命中行同正表走续聊。
 struct ServerSessionsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.modelContext) private var modelContext
 
     @State private var sessions: [ServerSession] = []
     @State private var total: Int = 0
@@ -124,6 +125,12 @@ struct ServerSessionsView: View {
         )
         .refreshable { await load() }
         .task { await load() }
+        // §232：乐观删除恢复信号→重拉回行
+        .onChange(
+            of: appState.sessionDeletions.restoreRevision
+        ) {
+            Task { await load() }
+        }
         .task(id: searchText) { await runSearch() }
         .confirmationDialog(
             "删除所选 \(selectedIDs.count) 条会话？",
@@ -406,7 +413,12 @@ struct ServerSessionsView: View {
             let page = try await appState.performAdmin { client, config in
                 try await client.serverSessions(config: config, limit: 100)
             }
-            sessions = page.sessions
+            sessions = page.sessions.filter {
+                // §232：待删集不被重拉带回（乐观删除
+                // 后台未落定期间服务端仍有其行）
+                !appState.sessionDeletions.queue.sessionIDs
+                    .contains($0.id)
+            }
             // 派生标题补齐（0.6.1，全局解析器、预算封顶）
             await appState.sessionTitles.ensureTitles(
                 for: page.sessions, appState: appState
@@ -424,33 +436,28 @@ struct ServerSessionsView: View {
     }
 
     private func bulkDelete() async {
-        // 0.50.30 对齐真删标准：bulk-delete 端点在网关
-        // 运行期被独占维护守卫拒绝（2026-11-13 生产实
-        // 证 409），删会话只走围栏 DELETE 一条路——逐
-        // 条走 ServerSessionActions.delete（围栏＋删后
-        // 回查），失败的留在选中集里可重试、原因显形
+        // §232 乐观删除（覆盖 0.50.30 逐条等落定）：
+        // 逐条交协调器——本地先删（本页名单同拍摘
+        // 行＋绑定线程墓碑＋目录摘行），围栏 DELETE
+        // 在后台逐条跑；最终失败的由协调器逐条恢复
+        // ＋提醒，本页经恢复信号重拉回行。bulk-
+        // delete 端点仍不用（网关守卫拒绝，在案）
         let ids = Array(selectedIDs)
-        var failedIDs: [String] = []
-        var firstReason: String?
         for id in ids {
-            switch await ServerSessionActions.delete(
-                appState: appState, id: id
-            ) {
-            case .verified:
-                break
-            case .failed(let reason):
-                failedIDs.append(id)
-                if firstReason == nil { firstReason = reason }
-            }
+            let title = sessions.first { $0.id == id }?
+                .cleanedServerTitle ?? ""
+            appState.sessionDeletions.begin(
+                sessionID: id, title: title,
+                appState: appState, modelContext: modelContext
+            )
         }
-        selectedIDs = Set(failedIDs)
-        if failedIDs.isEmpty {
-            selecting = false
-            notice = "已删除 \(ids.count) 条会话。"
-        } else if let firstReason {
-            notice = firstReason
-        }
-        await load()
+        sessions.removeAll { ids.contains($0.id) }
+        selectedIDs = []
+        selecting = false
+        notice = "已删除 \(ids.count) 条会话。"
+        // 不在此重拉：删除尚在后台，重拉会把服务端
+        // 未删净的行带回本页（乐观隐藏即刻失效）；
+        // 恢复靠 restoreRevision 信号重拉（见 body）
     }
 
     private func deleteEmpty() async {
@@ -476,6 +483,7 @@ struct ServerSessionsView: View {
 struct ServerSessionDetailView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     let sessionID: String
     /// 只读形态（0.36.29，频道规格 §4.3）：合并桶在
@@ -672,15 +680,15 @@ struct ServerSessionDetailView: View {
     }
 
     private func deleteSession() async {
-        // 0.50.30：同走 ServerSessionActions.delete
-        // （围栏 DELETE＋删后回查），未落定不关页
-        switch await ServerSessionActions.delete(
-            appState: appState, id: sessionID
-        ) {
-        case .verified:
-            dismiss()
-        case .failed(let reason):
-            notice = reason
-        }
+        // §232 乐观删除：确认即交协调器（本地先删）
+        // 并关页，不等服务端落定；后台最终失败由协
+        // 调器恢复＋提醒（提醒走聊天页提示条，本页
+        // 已关不拦）
+        appState.sessionDeletions.begin(
+            sessionID: sessionID,
+            title: session?.cleanedServerTitle ?? "",
+            appState: appState, modelContext: modelContext
+        )
+        dismiss()
     }
 }

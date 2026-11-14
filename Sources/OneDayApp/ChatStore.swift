@@ -52,6 +52,16 @@ final class ChatThread {
     /// SwiftData 轻量迁移）
     var serverSeeded: Bool = false
 
+    /// 乐观删除墓碑（§232）：用户已确认删除、服务
+    /// 端后台删除未落定期间置 true——本地一切名单
+    /// 即时隐藏（抽屉 drawerItems 单点过滤），线程
+    /// 本体与条目原样保留不物理删；落定后由删除收
+    /// 口物理删除，最终失败则清此标记原样恢复。默
+    /// 认 false、SwiftData 轻量迁移。App 被杀时本标
+    /// 记与待删队列同在盘上，启动续跑靠它找回未落
+    /// 定的删除
+    var isPendingDeletion: Bool = false
+
     @Relationship(deleteRule: .cascade, inverse: \ChatEntry.thread)
     var entries: [ChatEntry] = []
 
