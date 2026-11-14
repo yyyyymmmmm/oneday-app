@@ -992,7 +992,9 @@ final class AllConversationsStore {
     /// 执行、目录静默变旧）；两段都拉成后以并集为
     /// 存活集对账清本地残留（prune 与他端删除在本
     /// 机的残留靠它回收）；任一段失败走 catch、不
-    /// 对账（名单不全不清）
+    /// 对账（名单不全不清）；任一段名单不完整（拉
+    /// 成但完整性判定未过，B-1 防护）同样不对账、
+    /// 只留痕——展示与写回照常
     func load(
         appState: AppState, localThreads: [ChatThread],
         modelContext: ModelContext
@@ -1000,9 +1002,11 @@ final class AllConversationsStore {
         isLoading = true
         loadError = nil
         do {
-            let visible = try await ServerSessionCatalog.fetchAll(
-                appState: appState, archived: "exclude"
-            )
+            let visibleFetch = try await ServerSessionCatalog
+                .fetchAll(
+                    appState: appState, archived: "exclude"
+                )
+            let visible = visibleFetch.sessions
             // §232：待删集（乐观删除后台未落定）不
             // 进展示与目录写回——服务端此刻仍有其行，
             // 不过滤会被重拉带回（乐观隐藏失效）；但
@@ -1019,21 +1023,41 @@ final class AllConversationsStore {
             appState.serverSessionCatalog.publish(
                 visible: sessions
             )
-            let archived = try await ServerSessionCatalog.fetchAll(
-                appState: appState, archived: "only"
-            )
+            let archivedFetch = try await ServerSessionCatalog
+                .fetchAll(
+                    appState: appState, archived: "only"
+                )
+            let archived = archivedFetch.sessions
             archivedSessions = archived.filter {
                 !pendingDeletions.contains($0.id)
             }
             // §223 名单对账：存活集（可见＋已归档并
             // 集）之外的自有绑定线程即残留，走共享
-            // 收口清除
-            DeletedSessionCloseout.reconcileLocalThreads(
-                threads: localThreads,
-                liveSessionIDs: Set(visible.map(\.id))
-                    .union(archived.map(\.id)),
-                appState: appState, modelContext: modelContext
-            )
+            // 收口清除。B-1 防护闸（2026-11-14）：任
+            // 一段名单不完整（截断/总数对不上/重行）
+            // 即跳过对账并留痕——不完整名单里缺席的
+            // 线程可能只是没拉到，误判「服务端已删」
+            // 就是数据丢失；宁可不清、不可误清（名
+            // 单展示与目录写回不受闸影响、照常更新）
+            if visibleFetch.isComplete && archivedFetch.isComplete {
+                DeletedSessionCloseout.reconcileLocalThreads(
+                    threads: localThreads,
+                    liveSessionIDs: Set(visible.map(\.id))
+                        .union(archived.map(\.id)),
+                    appState: appState, modelContext: modelContext
+                )
+            } else {
+                ChatDiagTrace.record(
+                    "全部对话名单对账跳过：名单不完整"
+                        + "（可见段："
+                        + (visibleFetch.incompleteReason?
+                            .traceLabel ?? "完整")
+                        + "；归档段："
+                        + (archivedFetch.incompleteReason?
+                            .traceLabel ?? "完整")
+                        + "），本地线程本轮不动"
+                )
+            }
             // §233 归档单真相·读面对账：抽屉的本地归
             // 档键自此只是服务端归档态的呈现缓存——两
             // 段名单齐全时逐条对齐（服务端已归档→补

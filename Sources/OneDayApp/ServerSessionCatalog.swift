@@ -41,12 +41,15 @@ final class ServerSessionCatalog {
     /// 冷缓存补拉：已热或在飞直接返回；失败不置
     /// hasLoaded（下次开抽屉重试）、不抛错——闸的呈
     /// 现回落＝频道区暂不显，与旧窗口口径的失败形态
-    /// 一致（拉不到不误显、不误报）
+    /// 一致（拉不到不误显、不误报）。本目录只喂显
+    /// 示、不驱动任何删除，名单不完整也照常 publish
+    /// （防护闸只拦以名单为存活集的删除/回收，见
+    /// fetchAll 注）
     func refreshIfCold(appState: AppState) async {
         guard !hasLoaded, !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
-        if let sessions = try? await Self.fetchAll(
+        if let result = try? await Self.fetchAll(
             appState: appState, archived: "exclude"
         ) {
             // §232：待删集不被补拉带回（乐观删除后台
@@ -54,34 +57,139 @@ final class ServerSessionCatalog {
             let pending = appState.sessionDeletions
                 .queue.sessionIDs
             publish(
-                visible: sessions.filter {
+                visible: result.sessions.filter {
                     !pending.contains($0.id)
                 }
             )
         }
     }
 
+    /// 名单不完整的判定原因（B-1 防护，2026-11-14
+    /// 同类横扫定案）：三类信号任一出现即判不完整
+    enum IncompleteReason: Equatable {
+        /// 10 页上限走满仍未见名单尽头——旧形态在
+        /// 此静默截断，尾部整段无声消失
+        case pageCapReached
+        /// 服务端报的总数与实拉唯一行数对不上（含
+        /// 拉取途中总数漂移：多页报数互不一致）
+        case totalMismatch(reported: Int, fetched: Int)
+        /// 页内/跨页出现重复行——offset 位移的指纹
+        /// （拉取途中名单增删）：有重必有漏
+        case duplicateRows(count: Int)
+
+        /// 留痕用人话短句（不带状态码原文）
+        var traceLabel: String {
+            switch self {
+            case .pageCapReached:
+                return "分页上限走满、名单未见尽头"
+            case .totalMismatch(let reported, let fetched):
+                return "总数对不上（服务端报 \(reported)、实拉 \(fetched)）"
+            case .duplicateRows(let count):
+                return "分页出现重复行 \(count) 条"
+            }
+        }
+    }
+
+    /// 拉全结果：名单本体＋完整性判定。完整性是防
+    /// 护闸的唯一凭据——以名单为存活集做删除/回收
+    /// 的消费点必须先查 isComplete，不完整即跳过动
+    /// 作并留痕（宁可不清、不可误清）；只喂显示的
+    /// 消费点可直接取 sessions
+    struct FetchResult {
+        var sessions: [ServerSession]
+        var incompleteReason: IncompleteReason?
+        var isComplete: Bool { incompleteReason == nil }
+    }
+
     /// 分页拉全：limit 100 逐页至不足一页或达 total，
     /// 上限 10 页（防服务端分页异常时无界拉取）——
     /// 本函数是管理页 fetchAll 收编后的唯一出处（管
-    /// 理页同调本函数，两处不许再各抄一份）
+    /// 理页同调本函数，两处不许再各抄一份）。
+    /// B-1 防护（2026-11-14）：旧形态 append 累加、
+    /// 无去重、无对账、上限处静默截断，下游对账以
+    /// 此名单为存活集清本地线程——截断/漏行会被误
+    /// 判「服务端已删」造成数据丢失。本形态：装配
+    /// 时去重（保首现序）、全程对账，任一不完整信
+    /// 号（上限走满/总数对不上或漂移/出现重行）即
+    /// 在结果上打标并留痕，删除向消费点据标跳过
     static func fetchAll(
         appState: AppState, archived: String
-    ) async throws -> [ServerSession] {
-        try await appState.performAdmin { client, config in
-            var all: [ServerSession] = []
-            var offset = 0
-            for _ in 0..<10 {
-                let page = try await client.serverSessionsPage(
+    ) async throws -> FetchResult {
+        let result = try await appState.performAdmin {
+            client, config in
+            try await Self.fetchAllPages { offset in
+                try await client.serverSessionsPage(
                     config: config, limit: 100,
                     offset: offset, archived: archived
                 )
-                all.append(contentsOf: page.sessions)
-                if page.sessions.count < 100 { break }
-                if let total = page.total, all.count >= total { break }
-                offset += 100
             }
-            return all
         }
+        if let reason = result.incompleteReason {
+            ChatDiagTrace.record(
+                "会话名单不完整（archived=\(archived)）："
+                    + reason.traceLabel
+                    + "——以名单为存活集的删除/回收本轮跳过"
+            )
+        }
+        return result
+    }
+
+    /// 分页装配核（页取口注入，单测以脚本页直驱）：
+    /// 与 fetchAll 同一实现，不许另抄一份。offset 按
+    /// 原始页行数推进（与服务端分页口径一致）；唯
+    /// 一行集保首现序去重
+    static func fetchAllPages(
+        fetchPage: (Int) async throws -> SessionsPage
+    ) async throws -> FetchResult {
+        var all: [ServerSession] = []
+        var seen = Set<String>()
+        var duplicateCount = 0
+        var reportedTotals = Set<Int>()
+        var lastReportedTotal: Int?
+        var offset = 0
+        var ranOutOfPages = true
+        for _ in 0..<10 {
+            let page = try await fetchPage(offset)
+            if let total = page.total {
+                reportedTotals.insert(total)
+                lastReportedTotal = total
+            }
+            for session in page.sessions {
+                if seen.insert(session.id).inserted {
+                    all.append(session)
+                } else {
+                    duplicateCount += 1
+                }
+            }
+            if page.sessions.count < 100 {
+                ranOutOfPages = false
+                break
+            }
+            if let total = page.total, all.count >= total {
+                ranOutOfPages = false
+                break
+            }
+            offset += 100
+        }
+        let reason: IncompleteReason?
+        if duplicateCount > 0 {
+            reason = .duplicateRows(count: duplicateCount)
+        } else if reportedTotals.count > 1 {
+            reason = .totalMismatch(
+                reported: lastReportedTotal ?? all.count,
+                fetched: all.count
+            )
+        } else if let total = lastReportedTotal, total != all.count {
+            reason = .totalMismatch(
+                reported: total, fetched: all.count
+            )
+        } else if ranOutOfPages {
+            reason = .pageCapReached
+        } else {
+            reason = nil
+        }
+        return FetchResult(
+            sessions: all, incompleteReason: reason
+        )
     }
 }

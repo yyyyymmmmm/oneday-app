@@ -7462,9 +7462,13 @@ private struct ComposerBarLayout: Layout {
         guard let hermesError = error as? HermesError,
               case .serverError(_, let status, let code) = hermesError
         else { return nil }
-        guard let sessions = try? await ServerSessionCatalog.fetchAll(
+        // 名单只用于候选检索（判定不成立照抛原错
+        // 误）：不完整至多漏掉候选、回落不收养，方
+        // 向保守，不需完整性闸（B-1 防护盘点在案）
+        guard let fetch = try? await ServerSessionCatalog.fetchAll(
             appState: appState, archived: "include"
         ) else { return nil }
+        let sessions = fetch.sessions
         let candidates = sessions.map {
             MainlineAdoptionCandidate(
                 id: $0.id, title: $0.serverTitle,

@@ -46,12 +46,15 @@ final class SessionDeletionCoordinator {
                 appState: appState, id: id
             )
         }
-    /// 目录恢复重拉口（默认＝目录全量拉取；测试替身）
+    /// 目录恢复重拉口（默认＝目录全量拉取；测试替
+    /// 身）。目录只喂显示与回行、不驱动删除，名单
+    /// 不完整也照常取 sessions（B-1 防护闸只拦存
+    /// 活集删除/回收，见 ServerSessionCatalog）
     var catalogRefresher: (AppState) async -> [ServerSession]? = {
         appState in
-        try? await ServerSessionCatalog.fetchAll(
+        (try? await ServerSessionCatalog.fetchAll(
             appState: appState, archived: "exclude"
-        )
+        ))?.sessions
     }
 
     init(defaults: UserDefaults = .standard) {
