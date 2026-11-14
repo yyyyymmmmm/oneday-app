@@ -1,14 +1,14 @@
 import XCTest
 @testable import OneDayCore
 
-/// 智能体身份（§245 收敛后）：呈现名只剩「缓存→回
+/// 智能体身份（§253 收敛后）：呈现名只剩「缓存→回
 /// 落」一级链；改名校验与服务端同口径；升级迁移的
 /// 最后一判（旧覆盖/双槽头像按退役前末写胜语义折
 /// 算成缓存＋待推标记）——全是纯逻辑，视图层与存储
 /// 层只许消费不许另判。
 final class AgentProfileTests: XCTestCase {
 
-    // MARK: - 显示名：缓存 → Hermes（§245 一级链）
+    // MARK: - 显示名：缓存 → Hermes（§253 一级链）
 
     func testDisplayNameFromCache() {
         XCTAssertEqual(
@@ -169,7 +169,7 @@ final class AgentProfileTests: XCTestCase {
         XCTAssertEqual(decoded, cache)
     }
 
-    // MARK: - 迁移·名字（§245 一次性：退役前末写胜最后一判）
+    // MARK: - 迁移·名字（§253 一次性：退役前末写胜最后一判）
 
     private static let migT0 = Date(timeIntervalSince1970: 1_700_000_000)
     private static let migT1 = Date(timeIntervalSince1970: 1_700_003_600)
@@ -248,7 +248,7 @@ final class AgentProfileTests: XCTestCase {
         XCTAssertTrue(outcome.needsPush)
     }
 
-    // MARK: - 迁移·头像（§245 一次性：旧双槽最后一判）
+    // MARK: - 迁移·头像（§253 一次性：旧双槽最后一判）
 
     /// 2026-11-13 事故复刻：用户早先选过 paw，AI 其
     /// 后在服务器换上自生成图——迁移取 AI 图、不待推

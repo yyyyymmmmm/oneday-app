@@ -531,7 +531,7 @@ struct ConnectView: View {
             .background(
                 isDanger ? Palette.errorSurface : Palette.primaryPale,
                 in: RoundedRectangle(
-                    // 美化标尺 V1（§245.3）：手算散值
+                    // 美化标尺 V1（§247.3）：手算散值
                     // 21 收编容器圆角令牌——本球是独立
                     // 容器面（非嵌套面、无从同心推导；
                     // 比例 ×0.3 亦非在册图标比例 0.25），

@@ -3,7 +3,7 @@ import OneDayDesign
 import PhotosUI
 import SwiftUI
 
-/// 身份写穿失败的人话出口（§245 编辑器共用）：
+/// 身份写穿失败的人话出口（§253 编辑器共用）：
 /// IdentityBridgeError 的 failed 文案已过 §232 安全
 /// 门、原样呈现；无钥/未授权/未知错误落编辑器侧通
 /// 用人话，不露任何内部细节
@@ -20,10 +20,10 @@ private func identityWriteErrorText(_ error: Error) -> String {
     }
 }
 
-/// 更换虚拟形象（0.36.22 立、§245 改写穿）：预置目
+/// 更换虚拟形象（0.36.22 立、§253 改写穿）：预置目
 /// 录（OneDayCore.AgentAvatarPreset）逐款预览选点即
 /// 换＋相册选图（PhotosPicker，与聊天附件同一
-/// loadTransferable 口径）。§245 起头像是服务端单
+/// loadTransferable 口径）。§253 起头像是服务端单
 /// 真值：选点＝写穿头像仓，成功后缓存以仓指针整份
 /// 替换、全端同值；写穿失败留在本页报错、不先斩后
 /// 奏地改呈现。页内注明头像存服务器。
@@ -211,7 +211,7 @@ struct AgentAvatarEditorView: View {
     }
 }
 
-/// 编辑名称（0.36.22 立、§245 改写穿）：改的就是服
+/// 编辑名称（0.36.22 立、§253 改写穿）：改的就是服
 /// 务器上的身份名本身——经桥写口写穿（服务端复校、
 /// 带备份与留痕），成功后全 App 以回读刷新。旧「本
 /// 机显示名覆盖＋恢复自动」整套退役：名字只有一份、

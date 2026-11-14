@@ -12,7 +12,7 @@ struct LayoutAttributedBox: @unchecked Sendable {
     init(_ value: NSAttributedString) { self.value = value }
 }
 
-/// §245（2026-11-14）后台量测池（换代包 2）
+/// §251（2026-11-14）后台量测池（换代包 2）
 ///
 /// 蓝图 §1.3：量测用 TextKit 在后台量测实例池（每
 /// 并发一台、实例不跨线程共享），替代「单台全进程

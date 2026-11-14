@@ -240,7 +240,7 @@ public enum SoulSectionParser {
     }
 
     /// 标题归一化：去首尾空格、去尾部标点、转小写。
-    /// §245 起呈现提炼层（SoulDistillation）共用同一
+    /// §253 起呈现提炼层（SoulDistillation）共用同一
     /// 口径，故开放为 internal——标题归一全仓一处。
     static func normalizeTitle(_ title: String) -> String {
         var text = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -275,7 +275,7 @@ public enum SoulSaveVerification {
 /// 身份段屏上呈现：把解析后的分段清成可读散文段落。
 /// 提炼分两层：结构层（§218）按空行分段、剥 ATX 标
 /// 题的 `#` 脚手架、摘除与显示名同文的名标题段；真
-/// 提炼层（§245）把系统提示词段整段收起——身份段只
+/// 提炼层（§253）把系统提示词段整段收起——身份段只
 /// 呈人设本体（SoulDistillation 按标题结构分段裁
 /// 决，只认结构、不做语义猜写，与 SoulSectionParser
 /// 同纪律）。正文一字不改写、不翻译、不增删；原始
@@ -308,7 +308,7 @@ public enum SoulPresentationBuilder {
     public static func build(
         from sections: SoulSections, displayName: String
     ) -> SoulPresentation {
-        // 真提炼层（§245）：人设正文先过系统段收起，
+        // 真提炼层（§253）：人设正文先过系统段收起，
         // 只把人设本体交给结构层分段呈现；风格块是
         // 呈现本体、不在收起面
         let distilled = SoulDistillation.visibleText(
@@ -377,7 +377,7 @@ public enum SoulPresentationBuilder {
     }
 }
 
-// MARK: - soul 真提炼层（§245 身份段：系统提示词段收起）
+// MARK: - soul 真提炼层（§253 身份段：系统提示词段收起）
 
 /// 真提炼层（2026-11-14 立项，.48 身份包）：SOUL 里
 /// 混着两类段——人设本体（它是谁、与用户是什么关

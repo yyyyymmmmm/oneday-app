@@ -146,7 +146,7 @@ final class HubSoulTests: XCTestCase {
         XCTAssertTrue(presentation.isEmpty)
     }
 
-    // MARK: - 真提炼层（§245：系统提示词段收起）
+    // MARK: - 真提炼层（§253：系统提示词段收起）
 
     /// 生产形态复刻：规程段（我怎么工作/学到的伤疤）
     /// 整段收起，人设本体段（我是什么/关系/还不知

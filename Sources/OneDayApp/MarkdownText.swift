@@ -86,7 +86,7 @@ struct MarkdownText: View {
         )
     }
 
-    /// §245：散文段落映射单源——呈现（proseView）
+    /// §251：散文段落映射单源——呈现（proseView）
     /// 与排版产物层（LayoutProductService）共用本
     /// 函数拼装段落，两处永不分家（产物与呈现同源
     /// 是影子对拍成立的前提）；口径改版时同步升
@@ -225,7 +225,7 @@ struct MarkdownText: View {
         }
     }
 
-    /// §245：引用段落映射单源（同 proseParagraphs
+    /// §251：引用段落映射单源（同 proseParagraphs
     /// 口径：呈现与产物层共用）；引用文本的可用宽
     /// ＝气泡文本宽 −（竖条 3＋间距 spacingS），宽
     /// 度折算在消费方（产物层 builder）

@@ -1,14 +1,14 @@
 import Foundation
 import OneDayCore
 
-/// 头像仓镜像同步（§245 身份包收敛）：头像仓是服务
+/// 头像仓镜像同步（§253 身份包收敛）：头像仓是服务
 /// 端单真值，本同步只做一件事——把仓的当前指针整份
 /// 替换进本机缓存（IdentityAvatarCache），呈现只读
 /// 缓存。旧双槽对账（AI 槽投影＋本地裁决）退役：
 /// 谁最后写仓、仓的当前就是谁，末写胜在服务端天然
 /// 成立、App 不再复刻裁决。
 ///
-/// - 待推先行：§245 迁移留下的本机胜出值（avatar-
+/// - 待推先行：§253 迁移留下的本机胜出值（avatar-
 ///   PushPending）先写穿上仓再谈同步；写穿失败直接
 ///   返回、缓存原样保留，不许让服务端旧指针把用户
 ///   胜出值冲掉。
@@ -22,7 +22,7 @@ enum AgentAvatarSync {
     static func run(config: ServerConfig, store: AgentProfileStore) async {
         let client = IdentityBridgeClient()
 
-        // 待推先行（§245 迁移一次性）：本机胜出值写穿
+        // 待推先行（§253 迁移一次性）：本机胜出值写穿
         if store.avatarPushPending, let pending = store.avatarCache {
             do {
                 switch pending.selection {

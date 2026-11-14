@@ -59,7 +59,7 @@ struct IdentityAvatarState: Decodable, Sendable {
 }
 
 
-/// 身份桥客户端（P1 身份包）：头像仓读面＋§245 起
+/// 身份桥客户端（P1 身份包）：头像仓读面＋§253 起
 /// 的写穿面——App 改名/换头像与智能体改名改头像走
 /// 同一组服务端窄口（服务端单真值：校验、备份、回
 /// 读验名、留痕全在桥侧收口，App 不开第二条写路、
@@ -93,7 +93,7 @@ final class IdentityBridgeClient: @unchecked Sendable {
         )
     }
 
-    // MARK: - 写穿（§245：App 改名/换头像直达服务端真值）
+    // MARK: - 写穿（§253：App 改名/换头像直达服务端真值）
     //
     // 判读口径（§232 安全门）：2xx 过；401 未授权；
     // 其余取服务端 error 文案先过 ServerErrorText.

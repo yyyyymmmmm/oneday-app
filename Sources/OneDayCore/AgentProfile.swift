@@ -1,6 +1,6 @@
 import Foundation
 
-/// 智能体身份呈现基件（§245 身份包收敛后）：名字与
+/// 智能体身份呈现基件（§253 身份包收敛后）：名字与
 /// 头像的真值只有服务端一份（名字＝SOUL、头像＝伴
 /// 生头像仓），App 只存带时间戳的缓存副本（值型在
 /// IdentityCache.swift）。本文件只留呈现基件：头像
@@ -10,7 +10,7 @@ import Foundation
 /// （改名覆盖＋用户/AI 双槽头像）靠末写胜裁决
 /// （AgentNameLWW/AgentAvatarChoice）维持多账一致，
 /// 是复杂化审计 C-2 点名的多账病灶——裁决与覆盖语
-/// 义已随 §245 全量退役，仅升级迁移裁决
+/// 义已随 §253 全量退役，仅升级迁移裁决
 /// （IdentityLegacyMigration）保留最后一判的逻辑。
 public enum AgentDisplayName {
     /// 显示名解析：身份名缓存 → Hermes 回落。缓存是

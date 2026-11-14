@@ -1,7 +1,7 @@
 import XCTest
 @testable import OneDayCore
 
-/// §245（换代包 2）排版产物层·Core 验收：
+/// §251（换代包 2）排版产物层·Core 验收：
 /// 四元组键的稳定性与三路失效、渲染计划分类、
 /// 产物缓存的计数与清理
 final class LayoutProductTests: XCTestCase {

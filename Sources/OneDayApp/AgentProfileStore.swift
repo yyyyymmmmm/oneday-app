@@ -4,7 +4,7 @@ import OneDayDesign
 import SwiftUI
 import UIKit
 
-/// 智能体身份缓存存储（§245 身份包，复杂化审计 C-2
+/// 智能体身份缓存存储（§253 身份包，复杂化审计 C-2
 /// 收敛）：名字与头像的真值只有服务端一份（名字＝
 /// SOUL、头像＝伴生头像仓），本店只存带时间戳的缓
 /// 存副本——呈现读副本、刷新整份替换副本，不存
@@ -30,7 +30,7 @@ final class AgentProfileStore {
         static let avatarCache = "identity.avatarCache"
         static let namePushPending = "identity.namePushPending"
         static let avatarPushPending = "identity.avatarPushPending"
-        // 旧账键组（§245 迁移读后即删，勿再写）
+        // 旧账键组（§253 迁移读后即删，勿再写）
         static let legacyNameOverride =
             "agentProfile.displayNameOverride"
         static let legacyNameOverrideProvenance =
@@ -111,7 +111,7 @@ final class AgentProfileStore {
                 loadedImage = Self.loadCachedAvatarFile()
             }
         } else if Self.hasLegacyLedger(defaults) {
-            // 旧账迁移（§245 一次性）：最后一判在 Core
+            // 旧账迁移（§253 一次性）：最后一判在 Core
             let migration = Self.migrateLegacy(defaults)
             loadedName = migration.nameCache
             loadedAvatar = migration.avatarCache
@@ -328,7 +328,7 @@ final class AgentProfileStore {
         Palette.fillSecondary
     }
 
-    // MARK: - 迁移（§245 一次性）
+    // MARK: - 迁移（§253 一次性）
 
     private struct MigrationResult {
         var nameCache: IdentityNameCache?
@@ -508,7 +508,7 @@ final class AgentProfileStore {
         return dir
     }
 
-    /// 缓存图文件（§245 单图）：头像仓当前图片在本机
+    /// 缓存图文件（§253 单图）：头像仓当前图片在本机
     /// 的唯一副本
     private static var cachedAvatarFileURL: URL {
         profileDirURL.appendingPathComponent("avatar-cache.jpg")

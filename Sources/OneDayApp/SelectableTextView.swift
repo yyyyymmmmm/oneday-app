@@ -188,7 +188,7 @@ struct SelectableInlineText: View {
         return parts.joined(separator: "\u{1}") as NSString
     }
 
-    /// §245：放宽为 internal——排版产物层（Layout-
+    /// §251：放宽为 internal——排版产物层（Layout-
     /// ProductService）按同一拼装产属性串作量测工
     /// 件；拼装口径仍只此一份，产物层不另拼
     nonisolated static func build(
@@ -417,7 +417,7 @@ final class SelectableUITextView: UITextView {
     }
 }
 
-/// §245：放宽为 internal——产物层对拍基准（measured-
+/// §251：放宽为 internal——产物层对拍基准（measured-
 /// Size/referenceHeight）与单测要够得着现量测本体；
 /// 类型本身仍只在聊天文本面内使用
 struct SelectableTextRepresentable: UIViewRepresentable {
@@ -521,7 +521,7 @@ struct SelectableTextRepresentable: UIViewRepresentable {
         let size = Self.measuredSize(
             attributed: attributed, proposal: proposal
         )
-        // §245 影子对拍：同串同宽投后台量测池复量、
+        // §251 影子对拍：同串同宽投后台量测池复量、
         // 与本值在 LayoutShadowLedger 记账比对——只
         // 记账不消费，返回值仍是现量测（行高来源不
         // 变、呈现零改动）

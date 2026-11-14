@@ -420,7 +420,7 @@ final class AppState {
     /// 暂停任务派发）。任务段据此禁用派发类动作并明示
     /// 原因；服务端真联动（派发层真暂停）待生产验收轮
     var boxTakeoverActive = false
-    /// 智能体身份名（0.6.1 立、§245 改缓存镜像）：全
+    /// 智能体身份名（0.6.1 立、§253 改缓存镜像）：全
     /// 局唯一呈现出口——胶囊/抽屉/活动页三处显示名都
     /// 读这里。真值在服务端 SOUL、本机只存带时间戳
     /// 的缓存副本（AgentProfileStore.nameCache），本
@@ -431,7 +431,7 @@ final class AppState {
     var identityName: String? { agentProfileStore.cachedName }
     private var identityNameResolved = false
 
-    /// 身份名拉取（A2 直连，§245：档案列表 → 默认档
+    /// 身份名拉取（A2 直连，§253：档案列表 → 默认档
     /// 案 → 其 soul，全程 Hermes Dashboard 管理口、
     /// 不经桥）→ 解析名＋文档时刻（缓存的时间戳凭
     /// 据）；任一步失败回 nil，调用方保现状不回落
@@ -453,8 +453,8 @@ final class AppState {
                 document.updatedAt)
     }
 
-    /// 服务器名回读后的统一收尾（§245）：先处置迁移
-    /// 待推——§245 迁移时本机旧改名胜出且与回读名不
+    /// 服务器名回读后的统一收尾（§253）：先处置迁移
+    /// 待推——§253 迁移时本机旧改名胜出且与回读名不
     /// 同时，先经桥写口写穿服务端，成功后重读一次以
     /// 服务端回读为准落缓存；写穿失败保留缓存里的待
     /// 推值呈现、本次回读不覆盖（下个触发点再试）。
@@ -523,7 +523,7 @@ final class AppState {
     /// soul 编辑保存后的身份名重解析（§155 HUB-1）：
     /// 内容已由保存方重新取回并比对确认，直接以确认
     /// 内容重算显示名并整份替换名字缓存，不再走一次
-    /// 性解析的网络链。§245：这次编辑本身就是一次服
+    /// 性解析的网络链。§253：这次编辑本身就是一次服
     /// 务端写入（服务器收到时刻＝当下），迁移待推就
     /// 此作废——末写胜按时间裁决，这次写最晚
     func reresolveIdentityName(soulContent: String) {
@@ -535,7 +535,7 @@ final class AppState {
         )
     }
 
-    /// 智能体身份缓存（§245）：名字/头像的服务端单真
+    /// 智能体身份缓存（§253）：名字/头像的服务端单真
     /// 值在本机只剩带时间戳的缓存副本，全 App 露脸面
     /// 经下方收敛口读缓存，不再各自拼回落链、更不许
     /// 写死字面名
@@ -553,7 +553,7 @@ final class AppState {
     /// 重打（与身份名刷新同口径）
     private var lastAvatarSyncAt: Date?
 
-    /// 头像仓同步（P1 身份包、§245 改镜像口径）：触
+    /// 头像仓同步（P1 身份包、§253 改镜像口径）：触
     /// 发点与伴生探测同拍（OneDayApp 的连接成立/回前
     /// 台/冷启恢复），另加开枢纽/开抽屉（经 refresh-
     /// IdentitySurfaces）——2026-11-13 事故里 App 全
@@ -582,7 +582,7 @@ final class AppState {
     }
 
     /// 露脸面显示名单一出口：名字缓存 → Hermes 回落
-    /// （OneDayCore.AgentDisplayName，§245 收敛后只剩
+    /// （OneDayCore.AgentDisplayName，§253 收敛后只剩
     /// 这一级链）
     var agentDisplayName: String {
         AgentDisplayName.resolve(
@@ -590,7 +590,7 @@ final class AppState {
         )
     }
 
-    // MARK: - 身份写穿（§245：App 改名/换头像直达服务端单真值）
+    // MARK: - 身份写穿（§253：App 改名/换头像直达服务端单真值）
     //
     // 三个写口共用口径：走服务端既有窄口写穿（校验/
     // 备份/留痕在服务端），成功后以服务端回读/仓指

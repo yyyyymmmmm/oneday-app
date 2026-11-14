@@ -75,7 +75,7 @@ final class AgentHubStore {
     private(set) var identityName: String?
 
     /// 页头大名：全局身份名（AppState 名字缓存，服
-    /// 务端单真值的本机副本，§245）→ 本店 soul 解析
+    /// 务端单真值的本机副本，§253）→ 本店 soul 解析
     /// → 回落 Hermes；与抽屉/胶囊同源同值。旧本机
     /// 档案覆盖层（0.36.22）已随 C-2 收敛退役
     var displayName: String {
@@ -216,7 +216,7 @@ final class AgentHubStore {
         if let content = soulDocument?.content {
             identityName = AgentName.resolve(soulContent: content)
             if let identityName {
-                // §245：枢纽拉到的同一份 soul 顺带刷新
+                // §253：枢纽拉到的同一份 soul 顺带刷新
                 // 全局名字缓存（时刻取文档回执）——全
                 // App 露脸面同值，枢纽不另起一份名账
                 appState.agentProfileStore.applyName(
