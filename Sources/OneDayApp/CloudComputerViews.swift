@@ -227,7 +227,7 @@ struct CredentialFormView: View {
         if case .verified = store.credentialPhase {
             // F6：simular_box 验活成功后写入 MCP 凭据
             if connection.provider == "simular_box" {
-                KeychainStore.write(account: "box.mcp.key", secret: apiKey)
+                KeychainStore.save(apiKey, account: "box.mcp.key")
                 BoxMCPClientFactory.reset()
             }
             onVerified()
