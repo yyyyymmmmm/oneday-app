@@ -30,6 +30,7 @@ struct HubLedgerSection: View {
     var onOpenSession: (String) -> Void
 
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var store = LedgerStore()
     /// 任务数据面（新建任务与任务详情下钻用；原任
     /// 务段自持，收段后归本段持有，Goals/动态等其
@@ -314,7 +315,11 @@ struct HubLedgerSection: View {
         guard let id,
               store.allItems.contains(where: { $0.id == id })
         else { return }
-        withAnimation {
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.systemDefault, reduceMotion: reduceMotion
+            )
+        ) {
             proxy.scrollTo(id, anchor: .center)
         }
     }

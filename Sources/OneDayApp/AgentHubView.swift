@@ -101,6 +101,7 @@ struct AgentHubView: View {
 
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 钦定主线线程的实际绑定是模型账的事实源（§227），
     /// 枢纽取键须读到线程记录本体，不许只认 SideChat-
     /// Store 的 id 副本
@@ -627,7 +628,12 @@ struct AgentHubView: View {
         .padding(.horizontal, OneDayMetrics.pageGutter)
         .padding(.top, OneDayMetrics.spacingS)
         .padding(.bottom, OneDayMetrics.spacingSM)
-        .animation(.easeInOut(duration: 0.18), value: segment)
+        .animation(
+            MotionTokens.resolved(
+                MotionTokens.swap, reduceMotion: reduceMotion
+            ),
+            value: segment
+        )
     }
 
     // MARK: - 段内容

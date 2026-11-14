@@ -21,6 +21,7 @@ import SwiftUI
 /// 取数层不碰（交叉点见 DESIGN §151 记账）。
 struct ModelSettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var store = ModelManagementStore()
     @State private var showProviderEditor = false
@@ -298,7 +299,11 @@ struct ModelSettingsView: View {
                 isCollapsed: providersFolded,
                 titleFont: .body,
                 onToggle: {
-                    withAnimation(.smooth(duration: 0.3)) {
+                    withAnimation(
+                        MotionTokens.resolved(
+                            MotionTokens.sectionCollapse, reduceMotion: reduceMotion
+                        )
+                    ) {
                         modelCollapseData = SectionCollapseState.encode(
                             SectionCollapseState.toggled(
                                 key: Self.providersFoldKey,

@@ -10,6 +10,8 @@ import SwiftUI
 /// 以动画事务承接（Grid 0fr→1fr 等价平滑，本件只
 /// 管头不管身）。
 public struct CollapsibleSectionHeader: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public let title: String
     public let isCollapsed: Bool
     public let titleFont: Font
@@ -36,7 +38,13 @@ public struct CollapsibleSectionHeader: View {
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.semibold))
                     .rotationEffect(.degrees(isCollapsed ? -90 : 0))
-                    .animation(.smooth(duration: 0.25), value: isCollapsed)
+                    .animation(
+                        MotionTokens.resolved(
+                            MotionTokens.sectionCollapse,
+                            reduceMotion: reduceMotion
+                        ),
+                        value: isCollapsed
+                    )
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())

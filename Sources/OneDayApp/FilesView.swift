@@ -372,6 +372,7 @@ struct FileUploadPickerModifier: ViewModifier {
 /// 互不干扰），返回靠面包屑回到任意层。
 struct FilesBrowserView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 定位直达（§131）：文件页「在文件页中打开」回
     /// 指落空（文件不在聚合集）时带父目录＋目标文件
@@ -755,7 +756,11 @@ struct FilesBrowserView: View {
                       })
                 else { return }
                 highlightConsumed = true
-                withAnimation {
+                withAnimation(
+                    MotionTokens.resolved(
+                        MotionTokens.systemDefault, reduceMotion: reduceMotion
+                    )
+                ) {
                     proxy.scrollTo(target.path, anchor: .center)
                 }
             }

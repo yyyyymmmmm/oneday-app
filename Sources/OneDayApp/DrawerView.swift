@@ -125,6 +125,7 @@ struct DrawerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 字号档（§157）：会话行在大字体（AX）档改标题/
     /// 时间上下排列，判定只读本环境，不另设开关
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -1400,7 +1401,11 @@ struct DrawerView: View {
     }
 
     private func toggleDrawerSection(_ key: String) {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(
+            MotionTokens.resolved(
+                MotionTokens.sectionCollapse, reduceMotion: reduceMotion
+            )
+        ) {
             drawerCollapseData = SectionCollapseState.encode(
                 SectionCollapseState.toggled(
                     key: key,
