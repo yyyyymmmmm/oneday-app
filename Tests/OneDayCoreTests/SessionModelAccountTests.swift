@@ -6,6 +6,41 @@ import XCTest
 /// Truth）的纯口径验收。
 final class SessionModelAccountTests: XCTestCase {
 
+    // MARK: - Read-time mainline fossil filtering
+
+    func testEffectiveStoredTreatsCanonicalFossilAsUnset() {
+        XCTAssertNil(SessionModelAccount.effectiveStored(
+            stored: ChatModelChoice(model: "deepseek-flash", providerField: nil),
+            serverReportedModel: "deepseek-flash"
+        ))
+    }
+
+    func testEffectiveStoredNormalizesDisplayNameAlias() {
+        XCTAssertNil(SessionModelAccount.effectiveStored(
+            stored: ChatModelChoice(model: "deepseek-chat", providerField: nil),
+            serverReportedModel: "DeepSeek Flash"
+        ))
+    }
+
+    func testEffectiveStoredPreservesDifferentOrUnknownServerValue() {
+        let choice = ChatModelChoice(model: "claude-sonnet-4-6", providerField: "custom")
+        XCTAssertEqual(SessionModelAccount.effectiveStored(
+            stored: choice, serverReportedModel: "deepseek-flash"
+        ), choice)
+        XCTAssertEqual(SessionModelAccount.effectiveStored(
+            stored: choice, serverReportedModel: nil
+        ), choice)
+        XCTAssertEqual(SessionModelAccount.effectiveStored(
+            stored: choice, serverReportedModel: ""
+        ), choice)
+    }
+
+    func testEffectiveStoredNilRemainsNil() {
+        XCTAssertNil(SessionModelAccount.effectiveStored(
+            stored: nil, serverReportedModel: "deepseek-flash"
+        ))
+    }
+
     private let threadID = UUID(
         uuidString: "11111111-1111-1111-1111-111111111111"
     )!

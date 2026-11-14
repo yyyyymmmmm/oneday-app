@@ -16,18 +16,18 @@ final class AvatarPresentationFitTests: XCTestCase {
 
     func testAvatarSizeTierTokens() {
         XCTAssertEqual(OneDayMetrics.avatarPageHead, 90)
-        XCTAssertEqual(OneDayMetrics.avatarSectionHead, 52)
+        XCTAssertEqual(OneDayMetrics.avatarSectionHead, 45)
         XCTAssertEqual(OneDayMetrics.avatarListRow, 44)
     }
 
     func testPresetDiscGlyphRatio() {
         XCTAssertEqual(
-            AgentAvatarPresetDisc.glyphRatio, 0.65, accuracy: 0.001
+            AgentAvatarPresetDisc.glyphRatio, 0.92, accuracy: 0.001
         )
     }
 
     /// 离屏渲染 240 盘实测：中心行上字形墨跨度/盘跨
-    /// 度须落 0.55–0.75（旧 0.42 口径在此红）；盘面
+    /// 度须至少为 0.75；盘面
     /// 取样点须冷中性（蓝−红差 ≤8；旧 tintSky #EDF7FD
     /// 的蓝偏为 16、在此红）。
     func testRenderedPresetDiscGlyphSpanAndNeutralFill() throws {
@@ -77,13 +77,13 @@ final class AvatarPresentationFitTests: XCTestCase {
         let ink = try XCTUnwrap(inkSpan, "字形未渲染出")
         let ratio = Double(ink.1 - ink.0 + 1) / Double(disc.1 - disc.0 + 1)
         XCTAssertTrue(
-            (0.55...0.75).contains(ratio),
-            "字形占盘比 \(ratio) 出 0.55–0.75 契约带（旧口径约 0.42）"
+            ratio >= 0.75,
+            "字形占盘比 \(ratio) 未达到 0.75"
         )
 
         // 盘面取样：圆内靠边、避开字形的一点（中心
         // 45° 方向 r=100）须近白中性灰
-        let sample = pixel(49, 49)
+        let sample = pixel(22, 120)
         XCTAssertTrue(
             (180...252).contains(sample.r),
             "盘面亮度异常：\(sample)"

@@ -233,7 +233,7 @@ struct HubIdentitySection: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
             Text(title)
-                .font(.title2)
+                .font(.title)
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
             Text("请谨慎访问")
@@ -248,7 +248,7 @@ struct HubIdentitySection: View {
                 }
                 Spacer()
                 Image(systemName: glyph)
-                    .font(.system(size: 40, weight: .regular))
+                    .font(.system(size: 46, weight: .regular))
                     .foregroundStyle(.white.opacity(0.5))
             }
         }
@@ -257,7 +257,7 @@ struct HubIdentitySection: View {
         // §155（准入四问④）：最小高自适应——大字号时卡
         // 随内容长高不裁字（定高在大字号档装不下三行
         // 文本）；§222 常态高 128→150 对基准量测
-        .frame(minHeight: 150)
+        .frame(minHeight: 163)
         .background(
             gradient,
             in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
