@@ -95,7 +95,13 @@ final class HapticsMatrixTests: XCTestCase {
         let all = try callSiteText()
         XCTAssertEqual(count(of: "Haptics.error()", in: all), 49)
         XCTAssertEqual(count(of: "Haptics.warning()", in: all), 6)
-        XCTAssertEqual(count(of: "Haptics.success()", in: all), 18)
+        // §259（文件预览双轨合一）：自研文档阅读页退
+        // 役，其「复制全文」success 落点 −1（18→17）；
+        // 复制动作由打开页与 QL 承载面承接、两面各自
+        // 的 success 落点原在位，行为不丢。error 净不
+        // 变：阅读页导出 PDF 的 error −1 与 QL 承载面
+        // 新补 exportPDF 的 error ＋1 相抵（仍 49）
+        XCTAssertEqual(count(of: "Haptics.success()", in: all), 17)
         XCTAssertEqual(count(of: "Haptics.impact(.heavy)", in: all), 8)
         XCTAssertEqual(count(of: "Haptics.impact(.light)", in: all), 5)
         XCTAssertEqual(
