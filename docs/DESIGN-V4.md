@@ -12244,3 +12244,11 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 ### §245.1 CI 判读（2026-11-14 回填）
 
 首轮 run **43572887421**：Core **1941/0**（1937 基线＋本包新测 4，精确对账）、App 125 passed＋5 skipped＋0 failed 之外，边缘探针 `testEdgeEffectAttributionProbe` 出 3 条像素量测断言失败（浅色坞下沿 6>4、深色舱区 35>3、深色坞下沿 18>8）——同代码在 0.50.39 组版轮该探针 passed、本包 diff 与被测渲染路径零交集，疑材质快照竞态。重跑 run **43575447612 §190 终判绿（带 §184 在案登记）**：Build／Package／Upload success；**断言失败 0、failed 用例 0**；Core **1941/0**；App **125 passed＋5 skipped**、测试步名义 failure 仅由 **8 起宿主重启**（§184 在案签名）构成；UI **4/0**；边缘探针 **passed（26.710s）**——首轮失败定性为渲染 flake、如实登记、不宣称已修（探针本体属 §226 维护面，本包不动）；MATRIX／HUB-LAYOUT／顶簇 VERDICT 全 PASS。本包 4 条新测两轮全数 passed 亲验。未合 main、未打 tag；伴生 1.0.52 已部署（账本生产实证见交卷报告 §五）。
+
+## §246 0.50.42 两包正式组版（2026-11-14；分支 rel-05042，基线 rel-05041@7cb8e26）
+
+**装车两件**：①权限包（feat/permissions-pack，基线 rel-05041@7cb8e26）——直系后代整支快进落入，§244 保持原号（节内已自注组版顺延收口）；②审批卡对齐（feat/approval-card-align，基线 rel-05039@39532cc）——2 提交 cherry-pick（701bb7b/76ed6ae），代码文件 8 件零冲突自动合入，DESIGN 尾部追加撞车一处亲解：本线自编 §234 顺延为 **§245**（节题＋§234.1 小节＋代码自指 18 处逐处同步，收口提交 2e8c994）；i18n 合并后 3084 键＝权限包终态 3082＋审批包新增 2，精确对账。
+
+**静态计数对账**：Core 测试方法 2020＝.41 基线 2008＋权限包 8（DevicePermissionFlowTests）＋审批包 4（ApprovalCardSpec 金测）；App 160 与 .41 树持平（审批包无 App 层新测，与其分支判读一致）；UI 8 持平。版号 0.50.42／170 五处同改（Project.swift 四处＋SettingsSupportViews full/hero），0.50.41 代码面残留 0。两包伴生均已在产（1.0.52/1.0.53 主线已部署验活），本版零服务端动作。未合 main、未打 tag。
+
+### §246.1 CI 判读（待回填）
