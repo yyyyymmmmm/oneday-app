@@ -12,13 +12,16 @@ import XCTest
 final class ModelAccountUnifyAppTests: XCTestCase {
 
     private var savedChoicesData: Data?
+    private var savedLegacyModelID: String?
 
     override func setUp() {
         super.setUp()
         savedChoicesData = UserDefaults.standard.data(
             forKey: "chatModelBySession"
         )
+        savedLegacyModelID = UserDefaults.standard.string(forKey: "chatModelID")
         UserDefaults.standard.removeObject(forKey: "chatModelBySession")
+        UserDefaults.standard.removeObject(forKey: "chatModelID")
     }
 
     override func tearDown() {
@@ -29,11 +32,16 @@ final class ModelAccountUnifyAppTests: XCTestCase {
         } else {
             UserDefaults.standard.removeObject(forKey: "chatModelBySession")
         }
+        if let savedLegacyModelID {
+            UserDefaults.standard.set(savedLegacyModelID, forKey: "chatModelID")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "chatModelID")
+        }
         super.tearDown()
     }
 
     private func makeState() -> AppState {
-        AppState(client: FailingHermesClient(), demoMode: .connected)
+        AppState(client: DemoHermesClient(), demoMode: .connected)
     }
 
     private func key(
@@ -41,6 +49,70 @@ final class ModelAccountUnifyAppTests: XCTestCase {
     ) -> String {
         AppState.sessionModelKey(
             serverSessionID: ids.serverSessionID, threadID: ids.threadID
+        )
+    }
+
+    private func publishSession(
+        _ state: AppState, id: String, model: String
+    ) throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "id": id, "model": model
+        ])
+        let session = try JSONDecoder().decode(ServerSession.self, from: data)
+        state.serverSessionCatalog.publish(visible: [session])
+    }
+
+    // MARK: - Read-time fossil rule
+
+    func testMainlineFossilFallsBackToDemoDefault() async throws {
+        let state = makeState()
+        await state.refreshModelCatalog()
+        let mainID = "oneday-main-fossil"
+        state.sideChats.setMainServerSessionID(mainID)
+        state.selectSessionModel(
+            ChatModelChoice(model: "deepseek-flash", providerField: nil),
+            serverSessionID: mainID, threadID: nil
+        )
+        try publishSession(state, id: mainID, model: "deepseek-flash")
+
+        XCTAssertEqual(
+            state.sessionModelChoice(serverSessionID: mainID, threadID: nil).model,
+            ModelDisplayNames.canonicalID(for: "deepseek-chat")
+        )
+    }
+
+    func testMainlineDifferentStoredChoiceIsNotFiltered() async throws {
+        let state = makeState()
+        await state.refreshModelCatalog()
+        let mainID = "oneday-main-fossil"
+        state.sideChats.setMainServerSessionID(mainID)
+        state.selectSessionModel(
+            ChatModelChoice(model: "deepseek-v4-pro", providerField: "custom"),
+            serverSessionID: mainID, threadID: nil
+        )
+        try publishSession(state, id: mainID, model: "deepseek-flash")
+
+        XCTAssertEqual(
+            state.sessionModelChoice(serverSessionID: mainID, threadID: nil).model,
+            "deepseek-flash"
+        )
+    }
+
+    func testSideChatMatchingServerModelIsNotFiltered() async throws {
+        let state = makeState()
+        await state.refreshModelCatalog()
+        let mainID = "oneday-main-fossil"
+        let sideID = "oneday-side-fossil"
+        state.sideChats.setMainServerSessionID(mainID)
+        state.selectSessionModel(
+            ChatModelChoice(model: "deepseek-v4-pro", providerField: "custom"),
+            serverSessionID: sideID, threadID: nil
+        )
+        try publishSession(state, id: sideID, model: "deepseek-v4-pro")
+
+        XCTAssertEqual(
+            state.sessionModelChoice(serverSessionID: sideID, threadID: nil).model,
+            "deepseek-v4-pro"
         )
     }
 

@@ -19,6 +19,27 @@ import Foundation
 ///   一处的表达式收成一个口）。
 public enum SessionModelAccount {
 
+    /// 存值与服务端行化石 canonical 相同则按未设置处理；
+    /// 主线作用域由调用方限定。
+    public static func effectiveStored(
+        stored: ChatModelChoice?, serverReportedModel: String?
+    ) -> ChatModelChoice? {
+        func canonical(_ model: String) -> String {
+            if let item = ChatModels.items.first(where: {
+                $0.displayName.caseInsensitiveCompare(model) == .orderedSame
+            }) {
+                return ModelDisplayNames.canonicalID(for: item.id)
+            }
+            return ModelDisplayNames.canonicalID(for: model)
+        }
+        guard let stored,
+              let reported = serverReportedModel,
+              !reported.isEmpty,
+              canonical(stored.model) == canonical(reported)
+        else { return stored }
+        return nil
+    }
+
     /// 通用派生（胶囊面）：入参为当前线程的绑定与钦
     /// 定判定；返回 AppState.sessionModelKey 的入参对。
     public static func accountIDs(
@@ -55,7 +76,6 @@ public enum SessionModelAccount {
         )
     }
 }
-
 /// 服务端会话行 model 字段的定性与读数（§227 裁决）：
 /// 该字段是服务端回执/化石值（会话创建时落下、或服
 /// 务端侧最近一次改模的残留），**不是用户选择记
@@ -110,64 +130,5 @@ public enum SessionModelTruth {
         return Reading(
             execution: execution, serverReportDisagrees: disagrees
         )
-    }
-}
-
-/// 主线模型账化石的一次性迁移裁决（§227.2）：B 预览
-/// 的链接回读收口（§210 其树口径）曾以被收养会话的
-/// 服务端行 model（冻结在 deepseek-flash）写账——写
-/// 在钦定副本键（store 键）下，而其实看主线线程的绑
-/// 定键是另一本账（改绑落空、两副本分叉）。键合一
-/// 后，两副本在落地对齐时收敛到钦定键，化石条目即
-/// 成合一账的存量选择、三面（胶囊/枢纽/发送）全落
-/// 化石值。本裁决只认一种可识别形态，五条全合才动
-/// 账（任一不合即 .keep）：
-/// ①两份 id 副本分叉（线程绑定≠钦定副本、均非空）
-///   ——收养改绑落空的指纹；同值即单账常态，存量条
-///   目与用户真选择在存储层不可区分，绝不许动；
-/// ②钦定键下有存量条目（无条目无可清）；
-/// ③该条目的 model 归一值恰等于钦定会话服务端行
-///   的 model 字段（化石本值——服务端值取不到时不
-///   裁决、留待下次，见 App 侧 runner 口径）；
-/// ④该值与线程绑定账的现行解析值冲突（线程账解析
-///   亦为此值时——如用户真选该模型且两账同值——
-///   两面本已一致，不动）；
-/// ⑤（App 侧）一次性标记未置（裁决完成才置，见
-///   AppState.runMainlineModelFossilMigrationIfNeeded）。
-/// 处置：线程账有存量条目→以其覆盖钦定键条目（用
-/// 户真选择迁入合一账）；线程账无存量→删除钦定键
-/// 条目（合一账回落既有解析链，落值恰为线程账现行
-/// 解析值）。作用域恒为钦定键/线程绑定键这一对主
-/// 线账——旁聊账（其余任何 s:/t: 键）不在入参、不
-/// 在射程。
-public enum MainlineModelFossilMigration {
-
-    public enum Action: Equatable, Sendable {
-        /// 不动账（未命中任一形态/条件不足）
-        case keep
-        /// 删钦定键存量条目，回落解析链
-        case clearStoreEntry
-        /// 以线程账存量条目覆盖钦定键条目
-        case adoptThreadStored
-    }
-
-    public static func action(
-        copiesDiverged: Bool,
-        storeStored: ChatModelChoice?,
-        threadStored: ChatModelChoice?,
-        threadResolvedModel: String,
-        serverReportedModel: String?
-    ) -> Action {
-        guard copiesDiverged, let storeStored else { return .keep }
-        guard let serverReportedModel, !serverReportedModel.isEmpty
-        else { return .keep }
-        let fossil = ModelDisplayNames.canonicalID(
-            for: serverReportedModel
-        )
-        guard ModelDisplayNames.canonicalID(for: storeStored.model)
-                == fossil else { return .keep }
-        guard ModelDisplayNames.canonicalID(for: threadResolvedModel)
-                != fossil else { return .keep }
-        return threadStored != nil ? .adoptThreadStored : .clearStoreEntry
     }
 }

@@ -595,7 +595,7 @@ public enum OneDayMetrics {
     /// 的形象档（Core AvatarSizeTier，顶簇/空态/锚点
     /// 三面）是用户偏好、不在此列。
     public static let avatarPageHead: CGFloat = 90
-    public static let avatarSectionHead: CGFloat = 52
+    public static let avatarSectionHead: CGFloat = 45
     public static let avatarListRow: CGFloat = 44
     /// 分隔线起点（0.36.0，宪法 §3／审计 C1 定版）：
     /// 整行贯通——起点＝容器左缘、全 App 一个 x

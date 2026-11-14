@@ -511,10 +511,8 @@ final class AgentProfileStore {
 
 /// 符号预置盘：系统冷中性填充底＋墨色 glyph（§224）。
 /// 供存储层离屏渲染与编辑器预览共用。字形占盘比
-/// glyphRatio＝字形字号/盘直径：旧值 100/240≈0.42
-/// 让小字形浮在大色盘中央（用户 2026-11-14 点名
-/// 「不对劲」），改 0.65 对齐大厂占位口径（Muse 身
-/// 份段 emoji 实测约 0.65、苹果通讯录占位同量级）。
+/// glyphRatio＝字形字号/盘直径；提高符号视觉占比，
+/// 编辑预览与离屏渲染通过同一组件保持一致。
 struct AgentAvatarPresetDisc: View {
     let symbolName: String
     let tint: Color
@@ -523,18 +521,26 @@ struct AgentAvatarPresetDisc: View {
     /// 编辑器预览走列表行档）
     let diameter: CGFloat
 
-    /// 字形占盘直径比（§224 定版）
-    static let glyphRatio: CGFloat = 0.65
+    /// 字形字号比；SF Symbol 字框留白使视觉墨迹小于字号。
+    static let glyphRatio: CGFloat = 0.92
+
+    private var effectiveGlyphRatio: CGFloat {
+        if diameter <= OneDayMetrics.avatarListRow { return 0.72 }
+        if diameter <= OneDayMetrics.avatarSectionHead { return 0.80 }
+        return Self.glyphRatio
+    }
 
     var body: some View {
         ZStack {
             Circle().fill(tint)
             Image(systemName: symbolName)
                 .font(.system(
-                    size: diameter * Self.glyphRatio,
+                    size: diameter * effectiveGlyphRatio,
                     weight: .regular
                 ))
                 .foregroundStyle(Palette.ink)
         }
+        .frame(width: diameter, height: diameter)
+        .clipShape(Circle())
     }
 }

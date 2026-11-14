@@ -285,7 +285,7 @@ struct AgentHubView: View {
         VStack(spacing: 0) {
             header(store)
             if mode == .sheet {
-                modelZone(store)
+                modelZone
             }
             segmentPicker
             segmentContent(store)
@@ -491,39 +491,24 @@ struct AgentHubView: View {
 
     // MARK: - 模型常驻区（规格 §2：不做第六段）
 
-    /// 模型区形态（2026-11-13 改口径，用户 Muse 枢纽
-    /// 页截图定调）：目录不再平铺进枢纽——旧形态以普
-    /// 通 VStack＋ForEach 摊全量目录（行下限 56pt、
-    /// 生产 61 条时模型区约 3,533pt），根列不滚动、
-    /// 页头与关闭钮在真机上不可达（真机判红定案，
-    /// 见 oneday-design-review/hub-tap-misfire-
-    /// hunt-self-20261113）。现形态＝单行入口：只显当前会话模
-    /// 型名＋chevron，点开走正牌 ChatModelPickerView
-    /// 快切（与胶囊同面、同一落账口径）；目录本体只
-    /// 活在胶囊选择面与设置页。原「服务端默认模型」
-    /// 行随平铺形态一并退场——分工小字已指设置页，
-    /// ModelSettingsView 自设置页照常可达。
-    private func modelZone(_ store: AgentHubStore) -> some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                SectionLabel("会话模型")
-                // §155（规格 §2.8）：本区只做当前对话的模
-                // 型快切，与设置页的模型管理分工在此点明
-                Text("只对当前对话生效，完整的模型设置在设置页。")
-                    .font(.caption)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
+    /// 单行快切入口与聊天胶囊共用同一选择面及账本；
+    /// 模型管理仍由设置页承接。
+    private var modelZone: some View {
+        VStack(spacing: 0) {
             VStack(spacing: 0) {
                 Button {
                     showHubModelPicker = true
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
+                        Text("会话模型")
+                            .font(.body)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                        Spacer(minLength: OneDayMetrics.spacingS)
                         Text(currentModelDisplayName)
                             .font(.body)
                             .foregroundStyle(Palette.ink)
                             .lineLimit(1)
-                        Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Palette.inkMuted)

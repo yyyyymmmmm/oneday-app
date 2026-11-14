@@ -11940,3 +11940,37 @@ run **43562099605**（workflow_dispatch，头 e228260）**§190 终判绿（带 
 **组版收口（0.50.40）**：本包施工时删除钩按 §223 落定口径接 `onDeleted` 收口钩；组版树删除时序已由 §232 改乐观——`ServerSessionRow` 删除钩统一为 `onDeleteRequested`（二次确认通过即触发），未收养行宿主（抽屉）改经 `SessionDeletionCoordinator` 起手（目录摘行同拍消失、后台删、落定物理收口与失败恢复由协调器统一经 DeletedSessionCloseout），原 `onDeleted` 钩退役。顺修的真本地化 bug 保留：`deleteMenuTitle` 由 String 改 `LocalizedStringKey`（英文环境删除项不再停在中文）。
 
 **验收**：XCUITest 真装配（`-odDemoMode`，经生产汉堡钮开抽屉、坐标长按 1.5s）逐行型证明菜单可唤起——本地行＋当前选中行四件、未收养行四件、Hermes 频道行「打开」、旁聊首末行（DrawerRowContextMenuTests 四法），断言按 SF Symbol 标识（pencil/pin/archivebox/trash/arrow.up.right）校验动作语义、与区域无关。CI run 43570443082 判绿（断言 0、失败用例 0、UI 8/8；§184 无终局行 8 条在案登记）。真机手势仲裁以用户真机为准（归真机待验）。
+
+## §235 枢纽页 Muse 对标收口与模型化石读时作废（2026-11-14；feat/hub-muse-benchmark，基线 rel-05038@c85d383；0.50.40 组版顺延：原自编 §231 与 0.50.39 组版节撞号，整节顺延为 §235、子节与代码自指同步）
+
+### §235.1 视觉口径
+
+基准与现状截图均为 **1206×2622px**，按 3x 折算屏宽约 **402pt**。Muse 图 1 头像盘约 95pt、身份徽约 45pt、卡高约 163pt；现状图 2 页头盘约 90pt、身份徽令牌 52pt、卡高 150pt。改后页头盘保持 **90pt**（与基准差约 5pt，实物主体为照片头像，裁满圆的路径不变），身份徽 **45pt**，预置 pawprint 字号比 **0.92**（离屏墨迹目标 ≥75%；编辑器 44/52pt 小盘用 0.72/0.80 分档并裁在圆内，离屏头像为 240pt 同组件），身份卡最小高 **163pt**、标题升至 `.title`、底部字形 **46pt**。头部头像/名字和名字/状态维持 **16/8pt**；编辑行守可及性 **44pt**（基准约 37pt，优先守下限）。分段胶囊结构不变。双卡 `soulGradient` / `memoryGradient` 冷中性色值不变；正文仍来自 SoulPresentationBuilder、未改字。
+
+模型区从标题、说明、白卡三层压为保留 `.odGroup()` 与侧 gutter 的单行入口：左「会话模型」，右当前显示名与 chevron，行高 `OneDayMetrics.rowHeight`；说明行退场，选择器行为及无障碍入口保留。
+
+### §235.2 主线模型读时规则与退役账
+
+Core `SessionModelAccount.effectiveStored` 是纯函数：主线会话存值与同步目录缓存中同 id 服务端行的 `model` canonical 相同，则存值按未设置处理，交回 `SessionModelResolution`（服务端默认播种优先、继而分组首项）；模型显示名别名先归一。唯一应用点为 `AppState.sessionModelChoice`，作用域严格要求非空 `serverSessionID == sideChats.mainServerSessionID` 且缓存行存在；旁聊、`main`/`t:` 键、目录未热或行 model 空均保留原存值。仅读 `serverSessionCatalog.visibleSessions`，不增加网络请求；Observable 目录发布后由视图读口自然重算。胶囊、枢纽、发送仍共享该读口。服务端报告值只用于识别化石，不写账。
+
+一次性 `MainlineModelFossilMigration` 五条件裁决、AppState runner/标记状态及 ChatView 捕获与调用全部退役；reconcile 只读比对保持不动。旧 UserDefaults 键 `mainlineModelFossilMigrationHandled` 留存但不再读取，残值无害。
+
+### §235.3 测试账
+
+删除 Core `MainlineModelFossilMigrationTests` **8 法**、App `ModelFossilMigrationAppTests` **9 法**；新增 Core `SessionModelAccountTests` **4 法**（canonical 命中、显示名别名命中、异值/服务端 nil 或空保留、stored nil）与 App `ModelAccountUnifyAppTests` **3 法**（主线化石回默认、异值保留、旁聊同值不触发）。总删 **17**、总增 **7**：Core 净 **−4**，App 净 **−6**。头像既有离屏测试的比率阈值改为 ≥75%，不增减测试法数。其他测试不变。
+
+### §235.4 枢纽分段条 C-9：系统件替代评估（2026-11-14）
+
+复核底据：Muse 量测见 `hub-page-muse-parity-report-20261114.md` §1 第 10 行、§2-①；目标为白面胶囊轨道 **48pt**＋发丝描边，内嵌浅灰选中胶囊 **36pt**，图标约 **22pt**。原生 Picker(.segmented) 实测为灰轨 **32pt**＋白选胶囊、图标约 **20pt**，尺寸钉死。下表按 UISegmentedControl/UIKit 公开 API 文档化职责评估，不把未承诺的图片拉伸或私有子视图行为当作能力：
+
+| 项 | 目标值 | 系统件公开能力／上限 | 差额与结论 | 依据 |
+|---|---|---|---|---|
+| 1. 反相修正 | 白轨＋浅灰选中 | `setBackgroundImage(_:forState:barMetrics:)` 可按 normal/selected 状态供背景图，颜色角色可表达 | 色相差可归零；**可达**（仅此项） | 状态背景图 API 明确支持按控件状态设置图像；原生默认实测为灰轨＋白选 |
+| 2. 条高 | 48pt | UIAppearance 没有高度属性；状态背景图 API 只约定背景图，不约定改 intrinsic/content height。SwiftUI 外层 frame 可分配空间，但不等于文档保证 UISegmentedControl 本体由 32 变 48 | 本体仍按实测 32pt，差 **16pt**；**不可达（以系统件方式）** | 公开 API 无高度控制；不采信自制背景图碰巧撑高或未文档化拉伸副作用 |
+| 3. 选中内嵌几何 | 高 36pt、段内四周留白 | 状态背景图为当前段的背景，没有公开的 selected 子矩形/inset 几何参数；`setDividerImage` 只供段间分隔图 | 不能公开设定段内 6pt 留白；透明边距烤进可缩放图属于背景图自制/拉伸 hack；**不可达（以系统件方式）** | 背景图与分隔图 API 不暴露选中胶囊 frame/insets；任务书简化判据明确不将烤图计作系统件能力 |
+| 4. 全圆端＋发丝描边 | 轨道半径 24pt、0.5pt 描边 | 状态图可绘制圆角/边线，但 UISegmentedControl appearance 没有圆角半径或 layer border 参数；`layer.cornerRadius`/`borderWidth` 是实例 layer 属性 | 需把边线烤进图，或取出实例覆写 layer；后者需托管实例；**不可达（以系统件方式）** | UISegmentedControl 的背景/分隔图 API 不等于 UIView layer 几何代理；没有公开 UIAppearance layer 覆写能力 |
+| 5. 图标 | 22pt | `UIImage.SymbolConfiguration(pointSize:)` 可配置自行构造的 SF Symbol UIImage；Picker 的 SwiftUI symbol label 没有 UISegmentedControl 外观代理字号属性。原生实测约 20pt | 差约 **2pt**；改图标需逐实例提供/更新 UIImage，非 Picker 外观设置；**不可达（以系统件方式）** | SymbolConfiguration 是 UIImage 符号配置 API，不是 Picker/UISegmentedControl appearance 字号 API |
+| 6. 全局副作用／托管成本 | 只改枢纽并降低维护 | `UISegmentedControl.appearance()` 是全局代理；仓库另有 9 处 `.pickerStyle(.segmented)`：`UsageDetailView`、`StatusView`、`SpreadsheetReaderView`、`AllConversationsView`、`LogsView`、`MemoryEntriesViews`、`ConnectView`、`ComputerView`、`MonitorCreateView`。同一 appearance 设置会波及这些系统 Picker。逐实例隔离需 UIViewRepresentable 承接创建/更新、SwiftUI selection 与 UIKit 值同步；若还要圆角边线需直改 layer，图标/状态图也要逐实例同步 | 全局方式有 **9 处**非目标消费者风险；隔离方式要新增桥接生命周期和 UIKit 状态同步，较当前 SwiftUI 四按钮 HStack 更重；**不可达（以系统件方式）** | `rg -n -C 2 '\.pickerStyle\(\.segmented\)' Sources/OneDayApp` 实查以上 9 处；当前 segmentPicker 直接以 ForEach/按钮绑定 `segment`，无需 Representable/Coordinator |
+| 7. 无障碍／探针 | 段名、选中态、按标签可达 | 原生 Picker 保有系统选中语义；当前按钮设置 `.accessibilityLabel(item.title)` 与 `.isSelected` trait。UI 探针先查 segmentedControls，回落按标签查 `app.buttons` | 现有按钮语义及探针回落均成立；系统件也能表达，**可达** | `AgentHubView.segmentPicker` 明确设置标签/选中 trait；`TopBarSingleActionTapTests.segmentButton` 有按钮回落，§222 CI 已逐段通过 |
+
+**裁决：保留自绘。** 颜色反相和无障碍语义可由系统 API 覆盖，但条高、内嵌选中几何、描边/圆角和图标定点等关键目标不能只靠系统件公开 appearance API 达成。按本轮简化判据，若要像素对齐须堆叠透明边距自制可缩放背景图、UIViewRepresentable 与 layer 覆写；即使可烤到近似外观，也不比现有 SwiftUI 自绘条简单。故 C-9 的降维护成本目标不支持换回原生 Picker，现有 `hubSegBarHeight=48`、`hubSegCapsuleHeight=36`、`hubSegGlyphSize=22` 及相关测试保持不动。本轮仅追加本节，未改分段条代码、令牌或测试。>>>>>>> 0b40196 (枢纽对标 Muse 再收口＋模型化石读时作废（§231）：页头预置字形占比 0.92 分档、身份徽 45、双卡 163/.title/46、模型区压单行；SessionModelAccount.effectiveStored 读时规则（主线存值==服务端行化石即未设置、数据源只读目录缓存），MainlineModelFossilMigration 五条件装置全退役（Core/App/ChatView＋测试 17 法删、新规测试 7 法增）；§231.4 C-9 分段条评估裁决保留自绘（系统件公开 API 七项仅两项可达）)

@@ -1332,19 +1332,6 @@ struct ChatView: View {
             // 线」已被用户 12:56 录屏纠正作废——落点改
             // 走下方 ChatLandingResolution 恢复上次线
             // 程，本步只保证钦定主线存在、供解析兜底）
-            // §227.2：化石迁移的入参必须取对齐前的一
-            // 对 id 副本——ensureMainThread 会把钦定线
-            // 程绑定强制对齐到 store 副本，事后无从分
-            // 辨分叉；裁决在落点后异步跑（须回读服务
-            // 端会话行），与下方链接预热同批发
-            let fossilPair = (
-                threadBinding: appState.sideChats.mainThreadID
-                    .flatMap { id in
-                        threads.first { $0.id == id }?
-                            .serverSessionID
-                    },
-                storeID: appState.sideChats.mainServerSessionID
-            )
             let mainID = ensureMainThread()
             // 0.4.5：同理补消费抽屉线程选择（从其他格开
             // 抽屉选线程切过来时，本页可能尚未挂载、
@@ -1390,27 +1377,6 @@ struct ChatView: View {
             // 落 SideChatStore 设置页可见、发送前还会
             // 再试——旧「失败静默」口径已作废）
             Task { await ensureMainLink() }
-            // §227.2：主线模型化石一次性迁移（钦定键
-            // 下若有 B 收口写进的化石存量且与线程账冲
-            // 突，落地对齐后会成合一账唯一存量、三面
-            // 全落化石——按线程账现值归一，规则见
-            // Core MainlineModelFossilMigration）
-            if let mainID {
-                Task {
-                    let action = await appState
-                        .runMainlineModelFossilMigrationIfNeeded(
-                            threadServerSessionID:
-                                fossilPair.threadBinding,
-                            threadID: mainID,
-                            storeServerSessionID: fossilPair.storeID
-                        )
-                    if action != .keep {
-                        ChatDiagTrace.record(
-                            "主线模型化石迁移：钦定键存量与服务端会话行 model 一致且与线程账冲突，已按线程账现值归一（\(action)）"
-                        )
-                    }
-                }
-            }
             // 0.32.1（F05 止血）：原选模型已停用、选择
             // 被落回默认时的一次性如实提示——消费后落
             // 回值落盘、不再重现；已有提示在显时不抢占
@@ -6596,8 +6562,9 @@ private struct ComposerBarLayout: Layout {
     /// 的唯一写点就此关闭）。不一致时只经 ChatDiag-
     /// Trace 留痕，执行值保持 SessionModelResolution
     /// 解析链原样；服务端无 model/回读失败/两者一致
-    /// 时无痕不动。已写入的存量化石由 §227.2 一次性
-    /// 迁移处置，与本比对是两件事、不可互替
+    /// 时无痕不动。存量主线账由 sessionModelChoice
+    /// 在读时与同步目录行比较；匹配的创建时代化石只
+    /// 在该次解析中视作未设置，不改写持久化账本。
     private func reconcileMainlineModelFromServer(
         linkedID: String, mainThread: ChatThread?
     ) async {
