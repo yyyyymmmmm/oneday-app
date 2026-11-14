@@ -806,6 +806,15 @@ struct DrawerView: View {
         // 0.43.0（A11Y-V5）：选中态只靠胶囊底色——
         // 补已选特征，VO 不靠颜色辨当前频道
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .drawerRowContextMenu {
+            Button {
+                onClose()
+                onOpenChannel(channel.id)
+            } label: {
+                Label("打开", systemImage: "arrow.up.right")
+            }
+        }
+        .accessibilityIdentifier("drawer.row.channel.\(channel.id)")
     }
 
     /// 频道行尾件（频道扩展一期，冻结行尾随二期微
@@ -1076,8 +1085,7 @@ struct DrawerView: View {
     /// 标题走服务端标题管线（resolvedTitle——AI 给
     /// 的名字如「爱的定义」直达），时间走服务端活
     /// 动时间（无日期不编造、行尾留空）。无当前位胶
-    /// 囊（当前线程恒为本地线程）、无长按四件（那是
-    /// 本地线程的操作面）；点行＝走既有续聊通道点
+    /// 囊（当前线程恒为本地线程）；点行＝走既有续聊通道点
     /// 达（pendingChatSessionID 置位，与回响卡/管
     /// 理页/频道页同一路）：ContentView 切聊天格、
     /// ChatView 导入建本地线程即收养——收养后本行
@@ -1085,10 +1093,22 @@ struct DrawerView: View {
     private func drawerUnadoptedSideRow(
         _ session: ServerSession
     ) -> some View {
-        Button {
-            appState.pendingChatSessionID = session.id
-            onClose()
-        } label: {
+        ServerSessionRow(
+            session: session,
+            title: session.resolvedTitle(firstUserMessage: nil),
+            onOpen: {
+                appState.pendingChatSessionID = session.id
+                onClose()
+            },
+            onChanged: { Task { await loadDrawerData() } },
+            onDeleted: { id in
+                DeletedSessionCloseout.apply(
+                    sessionID: id, appState: appState,
+                    threads: threads, modelContext: modelContext
+                )
+            },
+            deleteMenuTitle: "删除会话"
+        ) {
             let title = Text(
                 session.resolvedTitle(firstUserMessage: nil)
             )
@@ -1132,8 +1152,8 @@ struct DrawerView: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.odPressable)
         .padding(.horizontal, OneDayMetrics.spacingS)
+        .accessibilityIdentifier("drawer.row.side.server.\(session.id)")
     }
 
     /// 旁聊行（0.17.0 单行形态沿用、0.19.0 返工去角
@@ -1271,7 +1291,7 @@ struct DrawerView: View {
         .accessibilityValue(
             thread.isPinned ? L10n.string("已置顶") : ""
         )
-        .contextMenu {
+        .drawerRowContextMenu {
             Button {
                 beginRenameThread(thread)
             } label: {
@@ -1296,6 +1316,9 @@ struct DrawerView: View {
                 Label("删除会话", systemImage: "trash")
             }
         }
+        .accessibilityIdentifier(
+            "drawer.row.side.local.\(thread.id.uuidString)"
+        )
     }
 
     private func togglePinThread(_ thread: ChatThread) {

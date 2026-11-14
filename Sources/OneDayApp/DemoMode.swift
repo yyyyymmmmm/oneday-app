@@ -118,6 +118,22 @@ enum DemoSeeder {
         earlier.createdAt = earlierBase
         earlier.updatedAt = earlierBase.addingTimeInterval(47)
 
+        // 抽屉长按 XCUITest 需要可分别命中列表中段与末段；
+        // 这两条只进入显式演示模式的内存库。
+        for (title, offset) in [
+            ("演示旁聊中段", -2 * 3600.0),
+            ("演示旁聊末段", -3 * 3600.0),
+        ] {
+            let side = ChatThread(title: title)
+            context.insert(side)
+            let createdAt = base.addingTimeInterval(offset)
+            side.createdAt = createdAt
+            side.updatedAt = createdAt
+            context.insert(ChatEntry(
+                role: "user", content: title, thread: side
+            ))
+        }
+
         try? context.save()
     }
 }
