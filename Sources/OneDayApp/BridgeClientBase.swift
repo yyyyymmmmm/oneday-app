@@ -192,6 +192,11 @@ final class BridgeClientBase<Failure: Error>: @unchecked Sendable {
         )
     }
 
+    /// serverMessage 的实例转发（各桥本地 check 拼装用）
+    func serverMessage(_ data: Data) -> String? {
+        Self.serverMessage(data)
+    }
+
     // MARK: - 解码
 
     /// 解码或抛调用方给定的格式失败（各桥文案自带，
