@@ -38,26 +38,20 @@ struct DeviceIncomingCall: Decodable, Sendable {
 /// 与其余桥客户端同口径）。桥只转发调用、手机现读
 /// 现回，服务器不存设备数据（设计档工具调用制）。
 final class DeviceBridgeClient: @unchecked Sendable {
-    private let session: URLSession
-    private let pollSession: URLSession
-    private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
+    /// C-10 收敛：连接/单钥/管线/文案走统一基座，本类
+    /// 只留路径、DTO 与设备桥状态口径
+    private let base = BridgeClientBase<DeviceBridgeError>(
+        pathPrefix: "/api/device-bridge", timeout: 15,
+        noKey: .noKey, failed: DeviceBridgeError.failed
+    )
+    /// 长轮询单次挂起 ≤25 秒（桥上限），请求超时给
+    /// 到 45 秒留足网络余量；不用默认 60 秒免得退
+    /// 后台后迟迟不断
+    private let pollSession = BridgeClientBase<DeviceBridgeError>
+        .makeSession(timeout: 45)
 
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 15
-        session = URLSession(configuration: configuration)
-        // 长轮询单次挂起 ≤25 秒（桥上限），请求超时给
-        // 到 45 秒留足网络余量；不用默认 60 秒免得退
-        // 后台后迟迟不断
-        let pollConfiguration = URLSessionConfiguration.default
-        pollConfiguration.timeoutIntervalForRequest = 45
-        pollSession = URLSession(configuration: pollConfiguration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    private var decoder: JSONDecoder { base.decoder }
+    private var encoder: JSONEncoder { base.encoder }
 
     /// POST /device/session：注册会话（新注册顶替旧
     /// 会话），201 回 sessionId 与三项时限
@@ -124,9 +118,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
             URLQueryItem(name: "sessionId", value: sessionId),
             URLQueryItem(name: "wait", value: String(wait)),
         ]
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw DeviceBridgeError.noKey
-        }
+        let key = try base.requireKey()
         guard let url = components?.url else {
             throw DeviceBridgeError.failed(L10n.string("这一步的结果没确认回来，请再试一次；如果反复这样，把这条记录发我看。"))
         }
@@ -229,9 +221,7 @@ final class DeviceBridgeClient: @unchecked Sendable {
     /// GET /device/sync/status：逐数据集状态（只出
     /// 状态、无记录内容），回 Data 交 Core 解码
     func syncStatusData(config: ServerConfig) async throws -> Data {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw DeviceBridgeError.noKey
-        }
+        let key = try base.requireKey()
         var request = URLRequest(
             url: config.endpoint("/api/device-bridge/device/sync/status")
         )
@@ -381,62 +371,27 @@ final class DeviceBridgeClient: @unchecked Sendable {
     private func makeRequest(
         config: ServerConfig, path: String, method: String
     ) throws -> URLRequest {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw DeviceBridgeError.noKey
-        }
-        var request = URLRequest(
-            url: config.endpoint("/api/device-bridge" + path)
-        )
-        request.httpMethod = method
-        request.setValue(
-            "Bearer \(key)", forHTTPHeaderField: "Authorization"
-        )
-        return request
-    }
-
-    private struct BridgeErrorBody: Decodable {
-        let error: String
+        try base.makeRequest(config: config, path: path, method: method)
     }
 
     private func checkStatus(
         _ http: HTTPURLResponse, data: Data, endpoint: String
     ) throws {
-        switch http.statusCode {
-        case 200...299:
-            return
-        case 401:
-            throw DeviceBridgeError.unauthorized
-        default:
-            if let body = try? decoder.decode(
-                BridgeErrorBody.self, from: data
-            ), !body.error.isEmpty {
-                throw DeviceBridgeError.failed(body.error)
-            }
-            throw DeviceBridgeError.failed(
-                L10n.format("%@返回 %@", endpoint, String(http.statusCode))
-            )
-        }
+        try base.checkPassthroughStatus(
+            http, data: data, endpoint: endpoint,
+            unauthorized: .unauthorized
+        )
     }
 
     private func send(
         _ request: URLRequest, endpoint: String,
         using session: URLSession? = nil
     ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await (session ?? self.session)
-                .data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw DeviceBridgeError.failed(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as DeviceBridgeError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw CancellationError()
-        } catch {
-            throw DeviceBridgeError.failed(L10n.format("%@网络不可达", endpoint))
-        }
+        // 设备通道取消即停轮询信号：取消必须原样上抛
+        // （基座 propagateCancellation 口径）
+        try await base.data(
+            for: request, endpoint: endpoint, using: session,
+            propagateCancellation: true
+        )
     }
 }

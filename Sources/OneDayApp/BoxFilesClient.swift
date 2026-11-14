@@ -20,18 +20,14 @@ enum BoxFilesError: Error, Sendable, Equatable {
 /// 与 Hermes /api/files 列表同构（契约钉死），路径为相对
 /// Box 工作区根的相对路径（"" 为根）。
 final class BoxFilesClient: @unchecked Sendable {
-    private let session: URLSession
-    private let decoder = JSONDecoder()
+    /// C-10 收敛：连接/单钥/管线/文案走统一基座，本类
+    /// 只留路径、查询拼装与状态口径
+    private let base = BridgeClientBase<BoxFilesError>(
+        pathPrefix: "/api/box-bridge", timeout: 30,
+        noKey: .noKey, failed: BoxFilesError.failed
+    )
 
-    init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
-        session = URLSession(configuration: configuration)
-    }
-
-    private var bridgeKey: String? {
-        BridgeCredential.read()
-    }
+    private var decoder: JSONDecoder { base.decoder }
 
     /// GET /files?path= → 与 FilesListing 同构的列表
     func list(
@@ -77,20 +73,18 @@ final class BoxFilesClient: @unchecked Sendable {
         config: ServerConfig, path: String,
         query: [URLQueryItem], timeout: TimeInterval? = nil
     ) throws -> URLRequest {
-        guard let key = bridgeKey, !key.isEmpty else {
-            throw BoxFilesError.noKey
-        }
-        let base = config.endpoint("/api/box-bridge" + path)
-        var components = URLComponents(
-            url: base, resolvingAgainstBaseURL: false
+        var request = try base.makeRequest(
+            config: config, path: path, method: "GET"
         )
-        if !query.isEmpty {
+        if !query.isEmpty, let url = request.url {
+            var components = URLComponents(
+                url: url, resolvingAgainstBaseURL: false
+            )
             components?.queryItems = query
+            if let composed = components?.url {
+                request.url = composed
+            }
         }
-        var request = URLRequest(url: components?.url ?? base)
-        request.setValue(
-            "Bearer \(key)", forHTTPHeaderField: "Authorization"
-        )
         if let timeout {
             request.timeoutInterval = timeout
         }
@@ -111,16 +105,6 @@ final class BoxFilesClient: @unchecked Sendable {
     private func send(
         _ request: URLRequest, endpoint: String
     ) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw BoxFilesError.failed(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
-        } catch let error as BoxFilesError {
-            throw error
-        } catch {
-            throw BoxFilesError.failed(L10n.format("%@网络不可达", endpoint))
-        }
+        try await base.data(for: request, endpoint: endpoint)
     }
 }
