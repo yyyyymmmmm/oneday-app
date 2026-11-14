@@ -31,6 +31,13 @@ import UIKit
 /// 栈与末条顶上 52pt，见 interaction-feel-audit
 /// 题一）。
 
+/// §259 热修（0.50.45 首帧闪退，.ips 定案）：滚
+/// 动回调只记账不施工——materialize 与几何读数
+/// 产出统一由合并调度「落定拍」在帧表与行集同
+/// 源同长时执行；apply 只记账、inset 施工归
+/// layoutContent 帧表重建后同拍。详见 DESIGN
+/// §259 与 gen3-reentrancy-fix 报告。
+
 // MARK: - 行描述（ChatView 喂入）
 
 /// 承载行：身份键＋条目 id（锚/顶可见用，非条目行
@@ -186,7 +193,21 @@ final class ChatListCarrierViewController: UIViewController,
     private var hostedVersions: [String: Int] = [:]
     private var lastTopVisibleEntryID: UUID?
     private var lastReportedTopVisible: UUID??
-    private var relayoutScheduled = false
+    /// apply 记账的待应用 inset（§259：apply 只记
+    /// 账，layoutContent 在帧表重建后同拍施工）
+    private struct PendingInset {
+        let inset: UIEdgeInsets
+        let animationDuration: TimeInterval
+        let animationCurveRaw: Int
+    }
+
+    private var pendingInset: PendingInset?
+    /// 落定拍调度账（§259）：排定标记／是否需先重
+    /// 建帧表／materialize 重入门与合并待办标记
+    private var settleScheduled = false
+    private var settleNeedsRelayout = false
+    private var isMaterializing = false
+    private var materializePending = false
     private var appliedTopInset: CGFloat = -1
     private var appliedBottomInset: CGFloat = -1
     private var bottomSpace: CGFloat = 0
@@ -261,45 +282,31 @@ final class ChatListCarrierViewController: UIViewController,
             || bottomSpace != newBottomSpace
         bottomSpace = newBottomSpace
         if insetChanged {
+            // §259：apply 只记账——inset 的实际应用
+            // （含键盘动画与贴底校正）归 layoutContent
+            // 在帧表重建后同拍施工。此处同步应用会在
+            // 帧表未建时 set offset、经 didScroll 同步
+            // 重入 materialize 撞未建帧表（0.50.45 首
+            // 帧闪退同根③）
             appliedTopInset = topInset
             appliedBottomInset = bottomInset
             handle?.bottomInset = bottomInset
-            let wasAtBottom = currentDistance() <= 0.5
-            let applyBlock = { [self] in
-                scrollView.contentInset = UIEdgeInsets(
+            pendingInset = PendingInset(
+                inset: UIEdgeInsets(
                     top: topInset, left: 0,
                     bottom: bottomInset, right: 0
-                )
-                scrollView.verticalScrollIndicatorInsets =
-                    scrollView.contentInset
-                if wasAtBottom {
-                    scrollView.contentOffset = CGPoint(
-                        x: 0, y: maxBottomOffsetY()
-                    )
-                }
-                layoutArrow()
-            }
-            if keyboardAnimationDuration > 0,
-               scrollView.window != nil {
-                UIView.animate(
-                    withDuration: keyboardAnimationDuration,
-                    delay: 0,
-                    options: UIView.AnimationOptions(
-                        rawValue: UInt(
-                            keyboardAnimationCurveRaw
-                        ) << 16
-                    ).union([.beginFromCurrentState]),
-                    animations: applyBlock
-                )
-            } else {
-                applyBlock()
-            }
+                ),
+                animationDuration: keyboardAnimationDuration,
+                animationCurveRaw: keyboardAnimationCurveRaw
+            )
         }
         if rowsChanged || insetChanged {
             layoutContent(preservePosition: true)
         }
         applyArrow(view: arrowView)
-        reportScrollGeometry()
+        // 读数产出移入落定拍（§259）：apply 尾不再同
+        // 步报几何，排一拍由 settle 统一产出
+        scheduleSettle()
     }
 
     private func rowsEqual(
@@ -327,6 +334,19 @@ final class ChatListCarrierViewController: UIViewController,
     }
 
     private func layoutContent(preservePosition: Bool) {
+        layoutContent(
+            preservePosition: preservePosition, inSettleBeat: false
+        )
+    }
+
+    /// 帧表重建＋inset 施工＋位置校正（§259）：本
+    /// 函数只做数据帧表与 inset/offset 施工，绝不
+    /// 同步 materialize——托管与读数产出统一排到
+    /// 落定拍；仅当本函数自身由落定拍调用时
+    /// （inSettleBeat）才在尾部同拍落定
+    private func layoutContent(
+        preservePosition: Bool, inSettleBeat: Bool
+    ) {
         guard scrollView.bounds.width > 0 else { return }
         // 重排前先记位置（在底钉底/不在底锚恢复）：
         // 行高修正（产物落盘/量实到达）只许动锚上
@@ -337,6 +357,77 @@ final class ChatListCarrierViewController: UIViewController,
         let anchor = preservePosition && !wasAtBottom
             ? captureAnchor() : nil
 
+        rebuildFrames()
+
+        // inset 施工＋位置校正：帧表落定后同拍执行
+        // （原 apply 同步块迁入，§259 同根③）；本段
+        // 内的 offset 写入只会触发记账型 didScroll、
+        // 不再重入施工
+        let construct = { [self] in
+            if let pending = pendingInset {
+                pendingInset = nil
+                scrollView.contentInset = pending.inset
+                scrollView.verticalScrollIndicatorInsets =
+                    pending.inset
+                layoutArrow()
+            }
+            if preservePosition {
+                if wasAtBottom {
+                    scrollView.contentOffset = CGPoint(
+                        x: 0, y: maxBottomOffsetY()
+                    )
+                } else if let anchor,
+                          let offset = ChatListAnchor.restoredOffsetY(
+                              frames: pureFrames(),
+                              anchor: anchor,
+                              contentOriginY: Double(
+                                  layoutParams.topPadding
+                              ),
+                              topInset: Double(appliedTopInset),
+                              bottomInset: Double(
+                                  appliedBottomInset
+                              ),
+                              contentHeight: Double(
+                                  scrollView.contentSize.height
+                              ),
+                              viewportHeight: Double(
+                                  scrollView.bounds.height
+                              )
+                          ) {
+                    scrollView.contentOffset = CGPoint(
+                        x: 0, y: CGFloat(offset)
+                    )
+                }
+            }
+        }
+        if let pending = pendingInset,
+           pending.animationDuration > 0,
+           scrollView.window != nil {
+            UIView.animate(
+                withDuration: pending.animationDuration,
+                delay: 0,
+                options: UIView.AnimationOptions(
+                    rawValue: UInt(pending.animationCurveRaw)
+                        << 16
+                ).union([.beginFromCurrentState]),
+                animations: construct
+            )
+        } else {
+            construct()
+        }
+
+        if inSettleBeat {
+            performSettleBeat()
+        } else {
+            scheduleSettle()
+        }
+    }
+
+    /// 帧表重建（纯数据施工）：按当前 rows 与记账
+    /// 高（量实优先、否则估算）算帧表与内容高；不
+    /// 触 offset、不托管——rows 与 rowFrames 自此
+    /// 同源同长，是 materialize 的入口前提（§259）
+    private func rebuildFrames() {
         let rowWidth = scrollView.bounds.width
             - layoutParams.horizontalPadding * 2
         var frames: [CGRect] = []
@@ -367,33 +458,17 @@ final class ChatListCarrierViewController: UIViewController,
             height: contentHeight
         )
         scrollView.contentSize = contentView.frame.size
+    }
 
-        if preservePosition {
-            if wasAtBottom {
-                scrollView.contentOffset = CGPoint(
-                    x: 0, y: maxBottomOffsetY()
-                )
-            } else if let anchor,
-                      let offset = ChatListAnchor.restoredOffsetY(
-                          frames: pureFrames(),
-                          anchor: anchor,
-                          contentOriginY: Double(
-                              layoutParams.topPadding
-                          ),
-                          topInset: Double(appliedTopInset),
-                          bottomInset: Double(appliedBottomInset),
-                          contentHeight: Double(contentHeight),
-                          viewportHeight: Double(
-                              scrollView.bounds.height
-                          )
-                      ) {
-                scrollView.contentOffset = CGPoint(
-                    x: 0, y: CGFloat(offset)
-                )
-            }
-        }
-        materialize()
-        reportScrollGeometry()
+    /// 同拍一致性对齐：帧表与行集不同长时先纯数据
+    /// 重建对齐再消费——不是下标守卫，是 materialize
+    /// 入口前提（同源同长）的同拍恢复，消费方（落
+    /// 定拍/命令口/读数产出）统一经此
+    private func ensureFramesCoherent() {
+        guard rowFrames.count != rows.count,
+              scrollView.bounds.width > 0
+        else { return }
+        rebuildFrames()
     }
 
     /// 纯内容系帧表（首行顶边 y＝0，Core 锚模型口径）
@@ -419,10 +494,33 @@ final class ChatListCarrierViewController: UIViewController,
 
     /// 托管窗口：可见区上下各扩一屏（与包 2 预热
     /// 「可见区±一屏」同口径）；窗口外行卸托管、
-    /// 只留帧与量实高
-    private func materialize() {
+    /// 只留帧与量实高。
+    /// §259：本函数只许由落定拍（performSettleBeat）
+    /// 调用，入口两道门——重入门（重入即合并待办、
+    /// 立即返回）与同源门（rows 与 rowFrames 不同
+    /// 长即本拍不施工）；函数内下标不另设守卫，前
+    /// 提由调度单源＋两道门保证（0.50.45 首帧闪退
+    /// 的陷阱正是旧形态在布局期经 didScroll 同步进
+    /// 入本函数、撞 rows 已换新而 rowFrames 未建）
+    private func materializeNow() {
+        guard !isMaterializing else {
+            materializePending = true
+            ChatDiagTrace.record(
+                "§259 materialize 重入被合并待办（双保险命中）"
+            )
+            return
+        }
+        guard rowFrames.count == rows.count else { return }
         let bounds = scrollView.bounds
         guard bounds.height > 0 else { return }
+        isMaterializing = true
+        defer {
+            isMaterializing = false
+            if materializePending {
+                materializePending = false
+                scheduleSettle()
+            }
+        }
         let offsetY = scrollView.contentOffset.y
         let windowMin = offsetY - bounds.height
         let windowMax = offsetY + bounds.height * 2
@@ -483,14 +581,45 @@ final class ChatListCarrierViewController: UIViewController,
         }
     }
 
-    private func scheduleRelayout() {
-        guard !relayoutScheduled else { return }
-        relayoutScheduled = true
+    // MARK: 落定拍（§259 合并调度）
+
+    /// 落定拍排定：materialize 与几何读数产出的唯
+    /// 一调度口（原 scheduleRelayout 的合并调度件
+    /// 升格）——已排定则只合并待办、不重复入队，
+    /// 与 UICollectionView 失效合并同构。排定来源：
+    /// didScroll 记账、apply、layoutContent、量实
+    /// 回填（经 scheduleRelayout 标记重建）
+    private func scheduleSettle() {
+        guard !settleScheduled else { return }
+        settleScheduled = true
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            relayoutScheduled = false
-            layoutContent(preservePosition: true)
+            settleScheduled = false
+            if settleNeedsRelayout {
+                settleNeedsRelayout = false
+                layoutContent(
+                    preservePosition: true, inSettleBeat: true
+                )
+            } else {
+                performSettleBeat()
+            }
         }
+    }
+
+    /// 落定拍本体：帧表先同拍对齐（materialize 的
+    /// 入口前提），再托管、再产读数——三者只许在
+    /// 此执行；布局期与一切滚动回调内一律不进
+    private func performSettleBeat() {
+        ensureFramesCoherent()
+        materializeNow()
+        reportScrollGeometry()
+    }
+
+    /// 量实回填的重排请求：标记落定拍需先重建帧
+    /// 表，再走统一调度口（不另立调度器）
+    private func scheduleRelayout() {
+        settleNeedsRelayout = true
+        scheduleSettle()
     }
 
     // MARK: 几何读数与回调
@@ -520,6 +649,10 @@ final class ChatListCarrierViewController: UIViewController,
         // 定版帧到达后自然开报
         guard let handle, scrollView.bounds.height > 0
         else { return }
+        // §259：读数产出已移入落定拍，此处同拍再对
+        // 齐帧表一次（下方行循环下标与 materialize
+        // 同前提：rows 与 rowFrames 同源同长）
+        ensureFramesCoherent()
         handle.latestDistance = currentDistance()
         handle.containerHeight = scrollView.bounds.height
         // 末端事实：末行帧完整落在有效视口（扣除底
@@ -555,13 +688,21 @@ final class ChatListCarrierViewController: UIViewController,
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        materialize()
-        reportScrollGeometry()
+        // §259：滚动回调＝系统回调，只许记账不许施
+        // 工——记账即排一拍落定，托管与读数产出全
+        // 在落定拍执行。旧形态在此同步 materialize：
+        // 布局期 setFrame 引发的系统 offset 校正会
+        // 同步重入本回调，当时 rows 已换新、rowFrames
+        // 未建，materialize 行循环下标必越界（0.50.45
+        // 真机 .ips 定案：本文件原 L431 下标陷阱）
+        scheduleSettle()
     }
 
     // MARK: 命令口
 
     func scrollToBottom(animated: Bool) {
+        // §259：命令口同拍校验——消费内容高前先对齐帧表
+        ensureFramesCoherent()
         let target = maxBottomOffsetY()
         if animated {
             // 人发起的回底走 Core 回底弹簧参数（ζ＝
@@ -594,6 +735,11 @@ final class ChatListCarrierViewController: UIViewController,
         guard let index = rows.firstIndex(
             where: { $0.entryID == id }
         ) else { return }
+        // §259：命令口同拍校验——帧表与行集对齐后
+        // 再取帧；宽为零帧表建不起时本命令无从落点、
+        // 直接返回（非下标守卫，是落点不存在）
+        ensureFramesCoherent()
+        guard index < rowFrames.count else { return }
         let target = min(
             max(rowFrames[index].minY - appliedTopInset,
                 -appliedTopInset),
