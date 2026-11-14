@@ -42,7 +42,30 @@ struct ChatCarrierRow {
     let entryID: UUID?
     let version: Int
     let estimatedHeight: CGFloat
+    /// §247（包 4）：版本变化时保留本行既有量实
+    /// 高（不回落估算）——只给「流式行→落定条
+    /// 目行」的同键换代行用：落定帧先按流式期量
+    /// 实连续呈现，托管重测后由量实回填自行纠偏
+    /// （主线裁定口径：量实回填覆盖同 key 估
+    /// 算）。缺省 false，其余行版本变即弃量实
+    /// （包 3 既有口径不变）
+    let keepsMeasuredHeightOnVersionChange: Bool
     let makeView: () -> AnyView
+
+    init(
+        key: String, entryID: UUID?, version: Int,
+        estimatedHeight: CGFloat,
+        keepsMeasuredHeightOnVersionChange: Bool = false,
+        makeView: @escaping () -> AnyView
+    ) {
+        self.key = key
+        self.entryID = entryID
+        self.version = version
+        self.estimatedHeight = estimatedHeight
+        self.keepsMeasuredHeightOnVersionChange =
+            keepsMeasuredHeightOnVersionChange
+        self.makeView = makeView
+    }
 }
 
 /// 承载布局参数（值源＝OneDayMetrics，ChatView 喂
@@ -246,15 +269,26 @@ final class ChatListCarrierViewController: UIViewController,
         let rowsChanged = !rowsEqual(rows, newRows)
         if rowsChanged {
             rows = newRows
-            // 版本变的行弃旧量实
-            let versions = Dictionary(
-                uniqueKeysWithValues: newRows.map {
-                    ($0.key, $0.version)
-                }
+            // 版本变的行弃旧量实；§247（包 4）唯一
+            // 例外：带留高旗的行（流式行落定换代）
+            // 把量实移交到新版本——落定帧行高与流
+            // 式期量实连续，托管重测后量实回填再纠
+            // 偏；移交后记录版本即新版本，后续变化
+            // 非再次带旗则按常规弃用
+            let newRowsByKey = Dictionary(
+                uniqueKeysWithValues: newRows.map { ($0.key, $0) }
             )
-            measuredHeights = measuredHeights.filter {
-                versions[$0.key] == $0.value.version
+            var kept: [String: (version: Int, height: CGFloat)] =
+                [:]
+            for (key, record) in measuredHeights {
+                guard let row = newRowsByKey[key] else { continue }
+                if record.version == row.version {
+                    kept[key] = record
+                } else if row.keepsMeasuredHeightOnVersionChange {
+                    kept[key] = (row.version, record.height)
+                }
             }
+            measuredHeights = kept
         }
         let insetChanged = appliedTopInset != topInset
             || appliedBottomInset != bottomInset

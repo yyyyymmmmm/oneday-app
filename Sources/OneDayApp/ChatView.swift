@@ -467,6 +467,14 @@ struct ChatView: View {
     @AppStorage(ChatCarrierFeature.defaultsKey)
     private var gen3CarrierEnabled = false
     @State private var carrierHandle = ChatListCarrierHandle()
+    /// §247（换代包 4）：流式呈现开关（Core Chat-
+    /// StreamingFeature，缺省 true＝块级增量新
+    /// 路；关＝流式行回 TokenFlow 逐词渐显旧路，
+    /// 回滚口、包 6 清理）与落定行键映射（流式行
+    /// 键→落定条目的同键沿用记账，会话内不落盘）
+    @AppStorage(ChatStreamingFeature.defaultsKey)
+    private var gen4StreamingEnabled = true
+    @State private var streamSettleMap = StreamingSettleMap()
     /// 0.6.0：通知 sheet（顶栏铃铛点开，总览桥驱动）
     @State private var showNotifications = false
     /// 锚点点亮的条目 id（§165）：点达锚定行时置位，
@@ -2136,6 +2144,13 @@ struct ChatView: View {
         // 换承载版）：节流闸与挂账双守卫零改，只换
         // 执行口
         .onChange(of: streamingText) { _, newText in
+            // §247（包 4）：发布拍消费端切到新承载
+            // ——每拍为缺产物的文本块催产（闭合块恒
+            // 命中、每拍只剩尾块，见 kickStreaming-
+            // BlockProducts）；跟随判定链（下方）零改
+            if let newText {
+                kickStreamingBlockProducts(for: newText)
+            }
             guard let newText else {
                 streamFollowGate.reset()
                 streamFollowSettleGeneration += 1
@@ -2330,17 +2345,12 @@ struct ChatView: View {
                 }
             }
         }
-        let liveItems = liveRenderItems()
-        if !liveItems.isEmpty {
-            rows.append(
-                ChatCarrierRow(
-                    key: "live-zone",
-                    entryID: nil,
-                    version: liveZoneVersion(items: liveItems),
-                    estimatedHeight: 120,
-                    makeView: { AnyView(liveZone) }
-                )
-            )
+        // §247（包 4）：直播区收编——不再整段一行
+        // 不透明托管，逐项成行（思考/工具原位更新、
+        // 正文走流式行），行集与旧承载 liveZone 的
+        // ForEach 同源同序（liveRenderItems 单口）
+        for item in liveRenderItems() {
+            rows.append(carrierLiveRow(item))
         }
         if let overviewStore {
             for item in ReportCardPolicy.cards(
@@ -2426,16 +2436,245 @@ struct ChatView: View {
         return rows
     }
 
+    /// §247（包 4）直播区逐项行：思考/单工具/工
+    /// 具组各自成行、内容变只重托管本行（原位
+    /// reconfigure 的本承载等价）；正文走流式行
+    /// （见 carrierStreamRow）。行内容与旧承载
+    /// liveZone 的对应分支逐一同构
+    private func carrierLiveRow(
+        _ item: LiveRenderItem
+    ) -> ChatCarrierRow {
+        switch item {
+        case .reasoning:
+            return ChatCarrierRow(
+                key: "live-reasoning",
+                entryID: nil,
+                version: (streamingReasoning?.count ?? -1) &* 31
+                    &+ (((streamingText ?? "").isEmpty
+                         && liveToolCards.isEmpty) ? 0 : 1),
+                estimatedHeight: 120,
+                makeView: { AnyView(liveReasoningBlock) }
+            )
+        case .text:
+            return carrierStreamRow()
+        case .tool(let card):
+            return ChatCarrierRow(
+                key: "live-\(item.id)",
+                entryID: nil,
+                version: liveToolCardVersion(card),
+                estimatedHeight: 96,
+                makeView: { AnyView(ToolCardView(card: card)) }
+            )
+        case .toolGroup(let cards):
+            return ChatCarrierRow(
+                key: "live-\(item.id)",
+                entryID: nil,
+                version: cards.reduce(cards.count) {
+                    $0 &* 31 &+ liveToolCardVersion($1)
+                },
+                estimatedHeight: 96,
+                makeView: {
+                    AnyView(ToolCardGroupView(cards: cards))
+                }
+            )
+        }
+    }
+
+    /// 直播工具卡版本指纹：标题/摘要/结果任一变
+    /// 即重托管本行（卡在直播期的生长面）
+    private func liveToolCardVersion(_ card: ToolCard) -> Int {
+        var version = card.title.count
+        version = version &* 31 &+ card.summary.count
+        version = version &* 31 &+ (card.result?.count ?? -1)
+        version = version &* 31 &+ (card.resultFailed ? 1 : 0)
+        return version
+    }
+
+    /// §247（包 4）流式行：流式条目以本轮用户条
+    /// 目 id 为行键入承载（蓝图 §1.4「流式条目
+    /// 入快照」的本承载落法）——落定条目沿用同
+    /// 键（streamSettleMap），承载据同键＋版本变
+    /// 原位换内容、行不消失重建，即落定不换装。
+    /// 内容分叉：新路（开关开）非空文本走块级呈
+    /// 现＋块产物组合估算；旧路（开关关）与空文
+    /// 本（等待点/上传提示）回 streamingBubble
+    /// 既有形态＋120 占位估算
+    private func carrierStreamRow() -> ChatCarrierRow {
+        let text = streamingText ?? ""
+        return ChatCarrierRow(
+            key: currentStreamRowKey(),
+            entryID: nil,
+            version: streamRowVersion(text: text),
+            estimatedHeight: gen4StreamingEnabled
+                ? carrierStreamRowEstimate(text: text)
+                : 120,
+            makeView: {
+                AnyView(streamingBubbleIncremental(text))
+            }
+        )
+    }
+
+    /// 流式行键：账本在飞轮的用户条目 id 为主形
+    /// 态；账本缺位（恢复接管前一瞬等）回线程回
+    /// 落键；无线程回常量键（直播态必有线程、本
+    /// 支仅为完备）
+    private func currentStreamRowKey() -> String {
+        guard let thread = currentThread else {
+            return "stream-detached"
+        }
+        if let ledger = appState.runLedger.entry(
+            forThreadID: thread.id
+        ) {
+            return StreamingRowIdentity.streamRowKey(
+                userEntryID: ledger.userEntryID
+            )
+        }
+        return StreamingRowIdentity.fallbackStreamRowKey(
+            threadID: thread.id
+        )
+    }
+
+    /// 流式行版本：新路＝全文长×31＋块数（块界
+    /// 跨越与尾块生长都翻版）；旧路＝全文长（与
+    /// 包 3 直播区版本的文本因子同口径）
+    private func streamRowVersion(text: String) -> Int {
+        guard gen4StreamingEnabled else { return text.count }
+        let blocks = StreamingBlockSegmenter.blocks(for: text)
+        return text.count &* 31 &+ blocks.count
+    }
+
+    /// 流式行高估算（新路）：逐块同步直读产物缓
+    /// 存（键＝块派生 id，与预热/条目产物同通
+    /// 道）、StreamingComposition 组合后走与条
+    /// 目行同一高度模型（ChatRowHeightModel，
+    /// hasDivider 恒假）——流式行与落定行同口径
+    /// 估算，落定前后估算不跳变；文本块产物未齐
+    /// 时组合总高为 nil、整行回暂定估算（字符粗
+    /// 估，与 provisionalRowHeight 同式）
+    private func carrierStreamRowEstimate(
+        text: String
+    ) -> CGFloat {
+        let style = LayoutStyleContext(
+            sizeCategory: dynamicTypeSize.contentSizeCategory,
+            boldText: UIAccessibility.isBoldTextEnabled
+        )
+        let textWidth = UIScreen.main.bounds.width
+            - OneDayMetrics.bubblePaddingH * 2
+            - OneDayMetrics.bubbleSideInset
+        let blocks = StreamingBlockSegmenter.blocks(for: text)
+        let products: [LayoutProduct?] = blocks.map { block in
+            guard block.isTextual else { return nil }
+            let key = StreamingBlockIdentity.productKey(
+                for: block, width: Double(textWidth),
+                style: style.coreKey
+            )
+            return LayoutProductStore.cache.product(for: key)
+        }
+        let totals = StreamingComposition.totals(
+            blocks: blocks, products: products
+        )
+        let traits = UITraitCollection(
+            preferredContentSizeCategory:
+                dynamicTypeSize.contentSizeCategory
+        )
+        let lineFloor = UIFont.preferredFont(
+            forTextStyle: .callout, compatibleWith: traits
+        ).lineHeight
+        let chars = max(text.count, 1)
+        let lines = min(
+            40, max(1, Int(ceil(Double(chars) / 18.0)))
+        )
+        let input = ChatRowHeightModel.Input(
+            textTotalHeight: totals.textTotalHeight,
+            textSegmentCount: totals.textSegmentCount,
+            structuralSegmentCount:
+                totals.structuralSegmentCount,
+            measuredContentHeight: nil,
+            hasDivider: false,
+            bubblePaddingV: Double(OneDayMetrics.bubblePaddingV),
+            segmentSpacing: Double(OneDayMetrics.spacingS),
+            dividerHeight: 0,
+            dividerSpacing: Double(OneDayMetrics.spacingS),
+            lineHeightFloor: Double(lineFloor),
+            provisionalHeight: Double(lines) * Double(lineFloor)
+                + Double(OneDayMetrics.bubblePaddingV) * 2
+        )
+        return CGFloat(ChatRowHeightModel.rowHeight(input))
+    }
+
+    /// 块产物催产（StreamPublishGate 消费端切换
+    /// 的落点）：发布文本每变一拍，缺产物的文本
+    /// 块经产物服务异步补产（派生 id 入同一缓
+    /// 存）——闭合块内容冻结、补产一次后恒命中，
+    /// 每拍新增催产只剩尾块（单拍成本有界的执
+    /// 行侧）；只在新承载＋新路时工作，旧路不产
+    private func kickStreamingBlockProducts(for text: String) {
+        guard gen3CarrierEnabled, gen4StreamingEnabled
+        else { return }
+        let style = LayoutStyleContext(
+            sizeCategory: dynamicTypeSize.contentSizeCategory,
+            boldText: UIAccessibility.isBoldTextEnabled
+        )
+        let textWidth = UIScreen.main.bounds.width
+            - OneDayMetrics.bubblePaddingH * 2
+            - OneDayMetrics.bubbleSideInset
+        for block in StreamingBlockSegmenter.blocks(for: text)
+        where block.isTextual {
+            let key = StreamingBlockIdentity.productKey(
+                for: block, width: Double(textWidth),
+                style: style.coreKey
+            )
+            guard LayoutProductStore.cache.product(for: key)
+                == nil
+            else { continue }
+            let entryID = StreamingBlockIdentity.entryID(
+                for: block
+            )
+            let source = block.sourceText
+            Task {
+                _ = await LayoutProductService.shared.product(
+                    entryID: entryID, renderedText: source,
+                    isUser: false, width: textWidth, style: style
+                )
+            }
+        }
+    }
+
+    /// 流式气泡（新承载行内容分叉）：新路非空文
+    /// 本走块级呈现（StreamingBlockText）；其余
+    /// （旧路/空文本等待态）回既有 streaming-
+    /// Bubble 全形态（等待点/上传进度/逐词渐显）
+    @ViewBuilder
+    private func streamingBubbleIncremental(
+        _ text: String
+    ) -> some View {
+        if gen4StreamingEnabled, !text.isEmpty {
+            assistantBubble {
+                StreamingBlockText(text: text)
+            }
+        } else {
+            streamingBubble(text)
+        }
+    }
+
     private func carrierEntryRow(
         _ entry: ChatEntry, dividerText: String?
     ) -> ChatCarrierRow {
-        ChatCarrierRow(
-            key: "entry-\(entry.id.uuidString)",
+        // §247（包 4）：落定映射命中时条目行沿用
+        // 流式行键＋带留高旗——与流式行同键换代、
+        // 落定帧行高按流式期量实连续（落定不换
+        // 装的键面）；未命中（非流式落定/映射被
+        // 首占拒）回本名键、常规口径
+        let settledKey = streamSettleMap.rowKey(for: entry.id)
+        return ChatCarrierRow(
+            key: settledKey ?? "entry-\(entry.id.uuidString)",
             entryID: entry.id,
             version: carrierEntryVersion(entry),
             estimatedHeight: carrierRowEstimate(
                 for: entry, hasDivider: dividerText != nil
             ),
+            keepsMeasuredHeightOnVersionChange:
+                settledKey != nil,
             makeView: {
                 AnyView(
                     entryRowContent(
@@ -2458,20 +2697,6 @@ struct ChatView: View {
         version = version &* 31 &+ entry.remoteImagePaths.count
         if entry.id == anchorHighlightEntryID {
             version &+= 0x9e37
-        }
-        return version
-    }
-
-    /// 直播区版本：发布拍（80ms 闸）内文本/思考长
-    /// 度与条目构成任一变即新版——承载侧据此重托
-    /// 管＋重量实直播行，跟随贴底由处理链驱动
-    private func liveZoneVersion(
-        items: [LiveRenderItem]
-    ) -> Int {
-        var version = (streamingText?.count ?? -1) &* 31
-        version &+= (streamingReasoning?.count ?? -1)
-        for item in items {
-            version = version &* 31 &+ item.id.hashValue
         }
         return version
     }
@@ -9639,6 +9864,15 @@ private struct ComposerBarLayout: Layout {
                         + 0.001
                 )
             modelContext.insert(assistantEntry)
+            // §247（包 4）：落定映射登记——本条目在
+            // 新承载里沿用本轮流式行键建行（同键换
+            // 代＝落定不换装）；映射只记账不判事，
+            // 旧承载与未开新路时均无消费方、无副作用
+            streamSettleMap.record(
+                entryID: assistantEntry.id,
+                streamRowKey: StreamingRowIdentity
+                    .streamRowKey(userEntryID: entry.userEntryID)
+            )
             thread.updatedAt = Date()
         }
         if !settled.toolCards.isEmpty

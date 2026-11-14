@@ -438,6 +438,14 @@ struct SettingsView: View {
     @AppStorage(ChatCarrierFeature.defaultsKey)
     private var gen3CarrierEnabled = false
 
+    /// §247（换代包 4）流式呈现开关（Core Chat-
+    /// StreamingFeature，与 ChatView 同键同源）：
+    /// 默认开＝块级增量新路；关＝流式正文回逐词
+    /// 渐显旧路（TokenFlow），只影响新承载下的流
+    /// 式行呈现、不动承载与落定形态。包 6 清理
+    @AppStorage(ChatStreamingFeature.defaultsKey)
+    private var gen4StreamingEnabled = true
+
     private var labSection: some View {
         Section {
             Toggle(isOn: $gen3CarrierEnabled) {
@@ -449,6 +457,19 @@ struct SettingsView: View {
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
                     Text(L10n.string("实验开关：开启后消息列表与回到底部按钮换用新承载，出问题关掉即回旧承载。"))
+                        .font(.rowSubtitle)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            Toggle(isOn: $gen4StreamingEnabled) {
+                VStack(
+                    alignment: .leading,
+                    spacing: OneDayMetrics.spacingMicro
+                ) {
+                    Text(L10n.string("流式增量呈现"))
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                    Text(L10n.string("默认开启：回复逐块成形、已成形的部分先按正式排版显示；关掉回逐词渐显的旧呈现。仅在会话页新承载开启时生效。"))
                         .font(.rowSubtitle)
                         .foregroundStyle(Palette.inkSecondary)
                 }

@@ -12252,3 +12252,25 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 四轮：一/二轮构建失败（抽取吞 `bubble` 的 @ViewBuilder＋重复标注；§245 预热内联闭包在分叉后巨链上类型检查超时→抽独立函数断链、口径逐字不变），三/四轮同头判读——**Core 2033/2033**（基线 2016＋新增 17 精确对账、0 失败）；App 两轮并集 159 点名 passed＋5 skipped（PresentationLayerScenarios 整套 XCTSkip 占位、与基线一致）＋2 无终局（§184 长期在案 testKeyboardUpMovesComposerOnlyDockStays/testBridgeTapToOpenReachesFullTravel）＝166 精确对账；断言失败两条各只在一轮出现、另一轮同头 passed（EdgeEffectProbe 像素探针＝宿主颠簸采样抖动、AnchoredBars 探针＝异步等待超时无数值断言），并集站立断言失败 0；UI 8/8；VERDICT ×3 PASS 两轮全过；宿主重启三轮 7 起/四轮 6 起按 §184 登记。**§190 终判实质绿。**
 
 **节号顺延注记**：本节在本分支编号 §246；组版合入时与 main 侧既有节号统一对齐（main 侧 §245＝审批卡、§246＝0.50.42 组版；包 2 节预计顺延 §247，本节顺延其后），文内 §246 引用一并改。
+
+
+## §247 会话页换代包 4·流式增量＋直播区收编（2026-11-14；分支 feat/chat-gen4，基线 feat/chat-gen3@f44b47b；全档＝oneday-design-review/chat-gen4-report-20261114.md）
+
+**范围**（蓝图 §1.4＋§2 包 4）：流式条目入承载行集、块级增量产物、TokenFlow 全文 arrange 退役、落定不换装；直播区条目（思考/工具）逐项成行原位更新；StreamPublishGate 消费端切到新承载。不动：跟随门控判定、发布闸节拍、落定后条目形态（与包 3 助手消息同一行内容构建）、几何冻结数、§194 键盘机制、两 GuideHost 承载。行高口径按主线裁定（包 3 登记待裁已裁）：产物估算起步＋量实回填覆盖同 key 估算、量实不落盘（WWDC19 estimated 同构）；蓝图 §1.3「产物唯一权威、量测不许回流」红线就此作废、不回退。
+
+**落点**：
+- **Core `StreamingBlockProduct.swift`**：块切分 `StreamingBlockSegmenter`（以 MarkdownParser 块序列为唯一结构源；每块产规范源文本——渲染等价重构、只作内容身份与闭合前缀拼装两用；代码块规范源不带闭合围栏、拼前缀时补齐，围栏闭合的那一拍块身份不变）；块产物身份 `StreamingBlockIdentity`（块内容派生确定性条目 id→复用包 2 产物通道，不另立缓存/量测池；闭合块跨拍跨条目同键命中，单拍新增量测只剩尾块）；组合账 `StreamingComposition`（与落定行同一 ChatRowHeightModel 输入口径，文本块产物未齐整行回暂定、不拿半截总高冒充）；行身份 `StreamingRowIdentity`（流式行以本轮用户条目 id 为键）＋落定映射 `StreamingSettleMap`（首占规则）；呈现开关 `ChatStreamingFeature`（键 `chat.streaming.gen4`，**缺省 true**＝新路、显式 false 回旧路；设置页实验组同键开关，回滚口、包 6 清理）。
+- **App `StreamingBlockText.swift`**：闭合块前缀走 MarkdownText（落定同路渲染）＋尾块走 StreamingText（TokenFlow 仅剩尾块尺度；段间 spacingSM 与 MarkdownText 内部段距同值，衔接不跳距）。
+- **App `ChatListCarrier.swift`**：行加留高旗 `keepsMeasuredHeightOnVersionChange`（缺省 false）；apply() 量实过滤改重建式——版本变但新行带旗时量实移交新版本（落定帧行高按流式期量实连续、托管重测后回填纠偏），其余行包 3 口径不变。
+- **App `ChatView.swift`**：carrierRows() 直播区由单行不透明 "live-zone" 改逐项成行（思考/单工具/工具组各自成行、版本指纹各自跟随、内容构建与 liveZone 对应分支同构；liveZone 本体保留给旧承载）；流式行＝行键取账本在飞轮用户条目 id、新路估算走块产物组合、发布拍 onChange 内催产缺产物块（StreamPublishGate 消费端切换落点；闸与跟随判定零改）；落定在 applySettledTurn 建助手条目处登记映射，条目行命中映射时沿用流式行键＋带留高旗（落定不换装）；gen4 开关关时流式行回 streamingBubble 旧形态＋120 估算。
+- **App `SettingsView.swift`**：实验组加「流式增量呈现」开关（同键、缺省开）。
+
+**范围登记**（如实）：落定不换装只覆盖正文流式条目（D2 高度突变主体）；工具卡直播期已逐卡成行原位更新、落定按既有条目物化（键面不做映射，维持登记）；包 3 报告 §七登记的 diffable 化/GuideHost 子 VC 化/§195 退役不在本包范围（简报已定死只做 §1.4）。
+
+**验收**：Core 新测（切块分类/规范源/尾块与闭合前缀/**冻结性**——追加生长下闭合块 kind/源/派生 id 恒不变、**单拍成本可验设计**——约 40 拍生长模拟中每拍新身份 ≤2 且闭合身份只增不灭、表格尾部重分类只动尾块、闭合前缀重解析往返、组合账、开关缺省、映射首占）；App 新测（承载留高旗：带旗落定帧高连续＋重测纠偏、无旗版本变回估算）。真机 D 组全项归主线窗口（清单在报告 §五）；Instruments 以成本单测代偿并登记（报告 §二/§五）。
+
+### §247.1 CI 判读（待回填）
+
+（CI 判读后回填本节：轮次、Core/App/UI 计数对账、§184 签名登记、§190 终判。）
+
+**节号顺延注记**：本节在本分支编号 §247；组版合入时与 main 侧既有节号统一对齐（main 侧已用至 §254），文内 §247 引用一并改。
