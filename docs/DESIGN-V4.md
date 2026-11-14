@@ -12330,7 +12330,9 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 
 **静态计数对账**：Core 测试方法 2024＝.42 基线 2020＋动效 ZoomTransitionPolicyTests 4；App 166＝160＋触感 HapticsMatrixTests 4＋C-13 DemoFreezeGuardTests 2；UI 8 持平；i18n 3084 键与 .42 精确一致（三包零新键）。版号 0.50.43／171 五处同改（Project.swift 四处＋SettingsSupportViews full/hero），0.50.42 代码面残留 0。本版零服务端动作。未合 main、未打 tag。
 
-### §249.1 CI 判读（回填位）
+### §249.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
+
+单轮 run **43592969855**（头 3829e2b；先行一轮 43591095003 在装配头 78790c1 起跑后因 C-13 加车换头取消、结果作废不采）：登记核查／Build／Package／Upload IPA 全 success；**断言失败 0 条、failed 用例 0 条**；Core **2024/2024** 与静态预期精确对账（2020＋动效 Zoom 4，三包新测逐条亲验 passed：ZoomTransitionPolicyTests 4/4、HapticsMatrixTests 4/4、DemoFreezeGuardTests 2/2）；全集唯一启动 2197＝Core 2024＋App 165＋UI 8，其中 App passed 154＋skipped 5（存量 PresentationLayerScenarios）＋**6 条 started 无终局**，静态 166 中另 1 名 `testMCPServer` 系 FailingHermesClient 桩 helper（非用例、基线计数同含此伪名，口径一致）；UI **8/8**；HUB-LAYOUT-VERDICT=PASS、MATRIX／顶簇 VERDICT PASS、边缘探针 violations=0。测试步名义 failure 仅由 **7 起宿主重启**（§184 签名，近轮 4–8 在案带宽内）构成。无终局 6 条全数在案登记、与三包 diff 零交集：testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel（§184 长期在案）、testMarkPendingSendRetainsEntryOnDisk、testBarGrowth_topRisesBottomPinned、testAnchorRegistersAncestorScrollView（§244.1 等已登记）、testFailedTraceMaterializesWithErrorSnapshot（§236.1 已登记）——无新名字，不判红。IPA 亲验：12,785,797 字节、md5 `b34b440aec8229122403dc7832741b8a`、Info.plist＝0.50.43／171／site.didichou.oneday。IPA 在 ~/workspace/your_files/oneday-v0.50.43/。未合 main、未打 tag。
 
 ## §250 C-13 Demo 客户端接口面冻结（2026-11-14；分支 chore/demo-freeze，基线 rel-05041@7cb8e26；本包未自占节号，0.50.43 组版编为 §250；全档＝oneday-design-review/c13-demo-freeze-report-20261114.md）
 
