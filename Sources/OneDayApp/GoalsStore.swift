@@ -39,6 +39,19 @@ final class GoalsStore {
     /// 本地不另立账
     private(set) var taskLinksByGoal:
         [String: [BridgeGoalTaskLink]] = [:]
+    /// 详情面关联任务实时行（GD-2 读面一）：桥把关联
+    /// 记录与任务板现况拼好的行，与 taskLinksByGoal
+    /// 同纪律进详情时拉；关联判定仍读 taskLinksByGoal
+    /// （回响物化口径不动），此面只供状态/更新时间呈现
+    private(set) var goalTasksByGoal:
+        [String: [BridgeGoalTask]] = [:]
+    /// 未归类任务（GD-2 读面二）：用户发起类（点子
+    /// 采纳/对话派发）且未归任何目标的任务，随列表
+    /// load 一并拉；失败保持旧值、不翻主 loadState
+    private(set) var ungroupedTasks: [BridgeUngroupedTask] = []
+    /// 未归类区的人话提示（归组失败时任务原样留在
+    /// 面上，这行说明发生了什么）
+    private(set) var ungroupedNote: String?
     /// 详情面已拉过至少一次的目标（区分「还没拉」与
     /// 「拉过、确实为空」——空态不许靠猜）
     private(set) var detailLoadedIDs: Set<String> = []
@@ -69,6 +82,7 @@ final class GoalsStore {
                 try await client.goals(config: config)
             )
             loadState = .ready
+            await refreshUngrouped(appState: appState)
         } catch let error as OneDayBridgeError {
             if loadState == .ready { return }
             loadState = Self.state(for: error)
@@ -436,9 +450,13 @@ final class GoalsStore {
         async let linksFetch = client.goalTaskLinks(
             config: config, goalID: goalID
         )
+        async let tasksFetch = client.goalTasks(
+            config: config, goalID: goalID
+        )
         let entries = try? await entriesFetch
         let briefings = try? await briefingsFetch
         let links = try? await linksFetch
+        let tasks = try? await tasksFetch
         if let entries {
             entriesByGoal[goalID] = entries
         }
@@ -447,6 +465,9 @@ final class GoalsStore {
         }
         if let links {
             taskLinksByGoal[goalID] = links
+        }
+        if let tasks {
+            goalTasksByGoal[goalID] = tasks
         }
         if entries != nil || briefings != nil {
             detailLoadedIDs.insert(goalID)
@@ -473,6 +494,97 @@ final class GoalsStore {
         ) {
             entriesByGoal[goalID] = fetched
             detailLoadedIDs.insert(goalID)
+        }
+    }
+
+    // MARK: - GD-3 打开记录 / GD-2 归组
+
+    /// 打开一封简报时记下打开时刻（GD-3）：只供台账
+    /// 看「写了没看」，不是用户写动作——失败静默、
+    /// 不打扰；成功后以桥的回执整行替换本地这封信
+    /// （lastOpenedAt 就此在本地可见）
+    func markBriefingOpened(
+        appState: AppState, goalID: String, briefingID: String
+    ) async {
+        guard let config = appState.config else { return }
+        guard let updated = try? await client.markBriefingOpened(
+            config: config, goalID: goalID, briefingID: briefingID
+        ) else { return }
+        if var list = briefingsByGoal[goalID],
+           let idx = list.firstIndex(where: { $0.id == briefingID }) {
+            list[idx] = updated
+            briefingsByGoal[goalID] = list
+        }
+    }
+
+    /// 未归类面静默刷新：失败保持旧值（与 load 同纪律，
+    /// 附属读面不翻主状态）
+    private func refreshUngrouped(appState: AppState) async {
+        guard let config = appState.config else { return }
+        if let response = try? await client.ungroupedTasks(
+            config: config
+        ) {
+            installUngroupedTasks(response.items)
+        }
+    }
+
+    /// 未归类面装载收口（刷新/测试共用一个落点）
+    func installUngroupedTasks(_ items: [BridgeUngroupedTask]) {
+        ungroupedTasks = items
+    }
+
+    /// 归组乐观落点：行同步先从未归类面摘下（接缝，
+    /// 单测钉死）；面上没有该行时返回 nil 不动
+    @discardableResult
+    func applyOptimisticUngroup(taskID: String) -> BridgeUngroupedTask? {
+        guard let row = ungroupedTasks.first(where: {
+            $0.taskId == taskID
+        }) else { return nil }
+        ungroupedTasks.removeAll { $0.taskId == taskID }
+        return row
+    }
+
+    /// 归组失败恢复落点：原行整行放回（按 createdAt
+    /// 降序归位，与桥下发序一致）；已在面上不重复放
+    func restoreUngrouped(_ row: BridgeUngroupedTask) {
+        guard !ungroupedTasks.contains(where: {
+            $0.taskId == row.taskId
+        }) else { return }
+        ungroupedTasks.append(row)
+        ungroupedTasks.sort { $0.createdAt > $1.createdAt }
+    }
+
+    /// 一键归组（GD-2）：乐观先行——行先从未归类面
+    /// 摘下，后台写关联；失败把行原样放回＋人话提示
+    /// （总纲时序口径）。成功后静默回读两面收口真值
+    func assignUngroupedTask(
+        appState: AppState, taskID: String, toGoalID goalID: String
+    ) async {
+        guard ungroupedTasks.contains(where: {
+            $0.taskId == taskID
+        }) else { return }
+        guard let config = appState.config else {
+            ungroupedNote = L10n.string("尚未连接服务器。")
+            return
+        }
+        ungroupedNote = nil
+        guard let row = applyOptimisticUngroup(taskID: taskID)
+        else { return }
+        do {
+            _ = try await client.createGoalTaskLink(
+                config: config, goalID: goalID,
+                request: BridgeGoalTaskLinkCreateRequest(
+                    taskId: taskID, milestoneId: nil
+                )
+            )
+            await refreshUngrouped(appState: appState)
+            await refetchTaskLinks(appState: appState, goalID: goalID)
+        } catch let error as OneDayBridgeError {
+            restoreUngrouped(row)
+            ungroupedNote = Self.message(for: error)
+        } catch {
+            restoreUngrouped(row)
+            ungroupedNote = L10n.string("没归上组，任务还在未归类里，请稍后再试。")
         }
     }
 

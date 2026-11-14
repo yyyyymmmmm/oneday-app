@@ -12208,3 +12208,30 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **两轮并集对账**：App 160 方法全有着落，唯 3 条两轮均 started 无终局——testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel（§184 长期在案）与 GoalQuoteEntryTests.testGoalQuoteRoundTripsThroughEntry（分支 run 43568667194 已通过、组版两轮均被宿主死亡截断，新登记在案）。
 - **出包亲验**：IPA 12,690,998 字节、md5 `3054a6bff9e8b101749bfa31c9ae05a8`；解包 Info.plist＝0.50.41／169／site.didichou.oneday。IPA 在 ~/workspace/your_files/oneday-v0.50.41/。未合 main、未打 tag。
 
+
+## §245 目标尾巴包（GD-3 简报细项＋GD-2 未归类任务归组读面，2026-11-14；分支 feat/goals-tail，基线 rel-05041@7cb8e26；本节为本包自编号，组版顺延收口——§244 已由权限包占用）
+
+**出处**：GD-3 细项＝goals-page-gap-audit-20261114.md 差距表#6＋three-pages-spec-rev2-20261111.md §3（简报＝信件形：列表行摘要化、信纸排版、短注口径）；GD-2＝three-pages-muse-parity-20261111.md §三调和读法＋§四 GD-2 行（审计 K-4）。伴生改动只落码＋自测、**部署留主线窗口**（App 新读面在伴生部署前如实落空/404 静默，不假造数据）。
+
+### §245.1 GD-3 简报细项
+
+- **短注 note（桥）**：简报落盘新增 `note`——桥按本信实际装配的素材三类计数（近 7 天进展条数／关联采纳任务数／近 7 天监测变化数，与 `_assemble_brief_material` 同一切片）以固定模板拼装（「依据近 7 天X 条进展、Y 项任务变化、Z 条监测变化」，有才列、全零为 null），**代码计数、非模型发挥**；App 在信件页信尾安静呈现一行，列表行不呈现。
+- **打开记录 lastOpenedAt（桥）**：简报记录新增 `lastOpenedAt`（初始 null）；新端点 `POST /goals/{id}/briefings/{bid}/opened`（无体，404 口径随既有）在 App 打开信件页时盖当前时刻并落盘，回执简报全形。**仅台账层可见**（「写了没看」信号）——App 不呈现已读/未读标记、不进任何角标、不做催读（§14 产品红线）；App 侧调用失败静默（非用户写动作、不打扰）。旧记录两新字段宽容读 null、不回填。
+- **信纸排版（App）**：新信件页 `GoalBriefingLetterView`——纸面（Palette.surface 圆角面，与 pageBG 区分）＋称呼行（《目标名》＋「第 N 周」，N＝该目标第几封简报、首封为第 1 周，`BriefingPresentation.weekIndex` 纯函数）＋信体分段（body 按空行分段纯文本，不进 Markdown 表格/列表渲染）＋note 信尾行＋落款行（生成日期＋「OneDay 目标简报」）。
+- **列表行摘要化（App）**：详情最新信卡与简报列表页行均只给标题＋**首句摘要≤40 字**（`BriefingPresentation.summary` 纯函数：首段首句、超限截断加省略号）＋日期，不再铺全文（原详情卡 body 前 3 行、原简报页全文平铺均废）。
+- **范围裁量注记**：详情页「还没有简报…」诚实说明文保留——审计 GD-3 细项未列删除，rev2「无简报零占位」指不放假占位而非删除真实说明，口径在报告中注明。
+
+### §245.2 GD-2 未归类任务归组读面【分类口径待用户追认】
+
+- **K-4 查证结论**：parity 规格 §三有具体可执行提案（调和读法）：目标管「用户关心、由用户发起或与用户目标相关」的 AI 任务（委派、点子采纳、对话里立的活）；纯系统任务（定时探针、桥内调度）仍归台账。该读法在规格中标注「须主线裁决」、K-4 状态「定义调和未裁」——**本包按提案落码，分类口径待用户追认**，追认若改口径只动桥侧分类函数一处。
+- **分类实现（只认桥侧登记、不猜）**：任务板本体无来源字段，桥侧三本登记册即证据面——goalTaskLinks（有 link＝已归组）、ideas.taskId（点子采纳生成类；idea 自带 goalId 的经点子已归组、排除）、kanbanBindings（经自动化门面对话派发必落绑定；binding 带 goalId 的同时已建 link）。未归类面＝（采纳类 idea.goalId 为空 ∪ 对话类 binding.goalId 为空）− 已 link，且只收桥最近一次任务板快照中实存的任务；无任何登记的板任务（直建/定时/探针）永不进面。kanban 本体不动、不自动归组。
+- **读面一** `GET /goals/{id}/tasks`：该目标关联任务实时行（link×任务板快照×事件环——状态/分桶读快照、题读快照题（无则「任务」）、最近变化时刻读事件环最新 at；不在快照/无事件如实 null）。App 详情关联段任务行小字补「状态 · 最近变化时刻」（关联判定与回响物化客户端 join 口径不动、§123 守界；此面只供呈现补充）。
+- **读面二** `GET /goals/ungrouped-tasks`：`{items, polledAt}`，行含来源（adopted/chat）与证据 id（ideaId/ownerSessionId）。App 目标列表页新增「未归类任务」区（非空才现）：行＝标题＋状态＋来源，**一键归组**＝行上「归组」菜单选进行中目标→乐观先行摘行→POST 既有 task-links 写路→失败整行放回＋人话提示（总纲时序口径）；成功后静默回读两面收口。
+- **关联回响边界**：归组后任务变化经既有 GD-1 监测回响（materializeGoalEchoes）进目标条目流，本包不新建回响通道。
+
+### §245.3 测试与计数
+
+- 桥自测新增 `tests/oneday_bridge_gd23_selftest.py`（24 项：Phase A 种子数据走 HTTP 全链——note 透传/旧记录 null/opened 落盘与 404/读面一 join 与诚实 null/读面二分类精确集/归组写路后行消失；Phase B 进程内——note 模板逐字、计数与素材逐项一致、opened 盖章）并登记 run_bridge_selftests.sh；顺手摘除该脚本中 ai-sessions 自测的失效登记（文件已随 API 直连包退役删除、登记残留使整套恒红）。既有存量注记：p9 自测在 runner 扁平暂存下因 sibling scripts 路径 FAILED、在仓内直跑 28/28——与本包无关、留主线处理。
+- App 测试：Core 新增 GoalsTailTests 13（简报新字段三种解码形、两读面解码、摘要五态、周次三态）；App 新增 GoalsTailAppTests 6（归组接缝：装载/乐观摘行/恢复归位/恢复幂等/无连接不假动）。
+- 词条：Localizable 新增 11 键（未归类任务/归组/第 %lld 周/OneDay 目标简报/这封信已经不在了。/来自点子采纳/来自对话安排/未归类区说明句/归组失败提示/简报打开记录/目标任务），validate_i18n 通过——**3052 键**×三语（基线 3041＋11）。
+- **静态计数预期**：Core **2021**（2008 基线＋13）、App passed **153**（147 基线＋6）、UI **8**（零增）。版本号不动（不组版、只交分支）。

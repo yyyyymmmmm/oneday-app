@@ -115,6 +115,43 @@ final class OneDayBridgeClient: @unchecked Sendable {
         return response.items
     }
 
+    /// POST /goals/{id}/briefings/{bid}/opened（GD-3）：
+    /// 打开信件时记下打开时刻，回执为盖过记录的简报
+    /// 全形。只供台账看「写了没看」，调用方失败静默
+    func markBriefingOpened(
+        config: ServerConfig, goalID: String, briefingID: String
+    ) async throws -> BridgeBriefing {
+        try await sendEmpty(
+            config: config,
+            path: "/goals/\(goalID)/briefings/\(briefingID)/opened",
+            method: "POST", endpoint: L10n.string("简报打开记录")
+        )
+    }
+
+    /// GET /goals/{id}/tasks（GD-2 读面一）：关联任务
+    /// 实时行（关联记录×任务板现况，桥侧拼好下发）
+    func goalTasks(
+        config: ServerConfig, goalID: String
+    ) async throws -> [BridgeGoalTask] {
+        let response: BridgeGoalTasksResponse = try await get(
+            config: config, path: "/goals/\(goalID)/tasks",
+            endpoint: L10n.string("目标任务"), collection: false
+        )
+        return response.items
+    }
+
+    /// GET /goals/ungrouped-tasks（GD-2 读面二）：用户
+    /// 发起类（点子采纳/对话派发）且未归任何目标的
+    /// 任务；系统/定时/探针任务不在此面
+    func ungroupedTasks(
+        config: ServerConfig
+    ) async throws -> BridgeUngroupedTasksResponse {
+        try await get(
+            config: config, path: "/goals/ungrouped-tasks",
+            endpoint: L10n.string("未归类任务"), collection: false
+        )
+    }
+
     /// PATCH /goals/{id} 分类变更（0.40.0）：只送
     /// {category}（nil 显式送 null＝清除分类）；回执全形
     /// 供调用方对账
