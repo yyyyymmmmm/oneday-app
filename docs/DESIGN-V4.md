@@ -11861,3 +11861,23 @@ run **43556010036**（头＝版号提交）**§190 终判绿（带 §184 在案�
 ### §223.1 CI 判读（2026-11-14 回填）
 
 三轮：首轮 run 43543994568 真红——FailingHermesClient 缺 sessionMutationSnapshot 桩（基线 8234e5b 在 rel-05036 补桩 99c0067 之前，跨包漂移同墙），cherry-pick 99c0067 收口（本分支 98e95e3）；二轮 run 43544938973 真红——本包测试 ServerSession 直构不可见（Core 内部构造器），改 JSON 解码构造（02f8982）；三轮 run **43545904183 终判绿（带保留）**：断言失败（产品值）0 条、Core **1854/0**（1853＋HermesError 404 分型 1）、App **102** 启动（94＋DeleteCloseoutTests 8/8 全过；90 过＋5 跳过＋6 起 §184 宿主死亡在案同签名、宿主重启 7 起）、UI 4/0、栏位探针直过（5.440s）。保留项＝EdgeEffectProbeTests 以 5.8s 异步等待超时单红（与模型账包轮同签名、非像素断言、本包未动边缘面；探针重校准已另立小包）。全档＝delete-closeout-report-20261114.md §6。**组版收口（0.50.39）**：本节自编 §217 与组版树枢纽 §217 撞号，按 0.50.38 组版预留取 §223，代码自指同步改。未组版、未合 main、未打 tag。
+## §230 频道二期：飞书接入＋微信行下架（2026-11-13；分支 feat/channels-feishu，基线 rel/05030 头 283808a）
+
+用户 21:39 拍板：抽屉频道区删微信行、加飞书行（覆盖一期「微信只列冻结行」口径）；21:41 加令——功能实现先查市面成熟做法再落码（报告 channels-feishu-report-20261113 §1 为据）。
+
+### §230.1 飞书接入面（与一期 TG 同构、字段按飞书官方流程）
+
+- 注册表：drawerList＝[hermes, telegram, feishu]；飞书静态描述（名「飞书」、图标资产 ChannelFeishu＝飞书官方 App Store 原图 512²，iTunes lookup trackId 1401729613 验真）；pairingKind(feishu)＝.token；platformIconAssetName 登记 feishu。来源分类与频道页/全部对话页走既有通用机制零新代码（gateway platform＝feishu 已在适配器侧对齐）。
+- 引导页四步（飞书官方流程，不照 TG 平移）：①建应用拿凭证（开放平台建企业自建应用→加机器人能力/发消息权限→「凭证与基础信息」复制 App ID＋App Secret）②贴凭证 ③只认你一个人（可跳过，白名单填 open_id；不填＝Hermes 配对审批 fail-closed）④打开消息通道（连上之后做——事件与回调选「使用长连接接收事件」＋加「接收消息」事件＋发布版本；顺序写死，长连接订阅在网关未连时保存会报无在线连接）。
+- 连接模式定案：长连接 WebSocket（飞书官方推荐方式一；Hermes 适配器 FEISHU_CONNECTION_MODE 缺省即 websocket）——长连接下 Verification Token/Encrypt Key 不需要，引导页不收这两项；桥落盘显式写 FEISHU_CONNECTION_MODE=websocket＋FEISHU_ALLOW_ALL_USERS=false。
+- 伴生 channels_bridge 1.0.48：feishu 凭据面开放——先向飞书官方 POST /open-apis/auth/v3/tenant_access_token/internal 验钥（code=0 才落盘），凭据无效 422 零写入、网络/服务端错 502；验过后 best-effort 探 /bot/v3/info 取机器人名回执 botName；白名单校验按平台分型（TG 数字／飞书 ^(ou|on)_[A-Za-z0-9_-]+$）；保存后走既有即时生效通道。覆盖面只做飞书中国版（open.feishu.cn）；Lark 国际版有意收窄、登记后续项。
+- 生效相位与 channel-apply-copy 包同形态同判定：Core ChannelApplyPhase.resolve（回执 applyTriggered/applyError＋status 终态裁决）＋引导页「正在生效」带/触发失败带/等待生效回落＋applying 期间 3 秒轮询（≤40 次）；status connected 后相位退场、呈现归 status。装配时与该包的重叠实现以先判绿一方为准、另一方摘除（代码同文同判定，摘任一不改变行为）。
+
+### §230.2 微信行下架（退役留痕）
+
+- 摘除：ChannelRegistry.weixin 描述与 drawerList 中的行、pairingKind 的 .frozen 形态（枚举值一并删除）、ChannelPairingView 冻结变体与冻结说明页、DrawerView 冻结行尾、ChannelStatusStore 微信演示态、platformIconAssetName 的 weixin 登记、ChannelWeixin.imageset 资产、微信冻结专属三语词条（净删 3 键）。
+- 保留（事实层不动）：来源分类对 wechat→weixin 的归一与平台识别（历史会话来源是事实）、伴生 status 的 weixin frozen 数据面（旧版 App 兼容，新版 App 不再显行）。微信个人号无官方长期接入路的结论不变（见一期报告）；将来有官方办法时按新平台重新接入，不复活冻结形态。
+- i18n：新增飞书＋生效相位 15 键、删微信退役 3 键，Localizable 2951→2963 键，validate_i18n 三语通过。
+
+**组版收口（0.50.39）**：本节自编 §209 与组版树 §209（旁聊删除 409 热修）撞号，顺延为 **§230**，代码自指同步改；装配并集口径——drawerList 组版实形＝[hermes, telegram, feishu, dingtalk, qqbot, discord, slack]（飞书上行、微信下架，令牌四家为组版树既有在册、不退场）；ChannelApplyPhase 与回执测试按「先判绿一方」取组版树文案小包版、飞书 botName 解码法并入回执测试。
+

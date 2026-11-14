@@ -5,8 +5,8 @@ import OneDayCore
 /// 对引导页共用的状态读口——状态只来自伴生频道桥
 /// 的回读（网关自家记录），读不到就报读不到，绝不
 /// 在本地猜一个状态出来。演示模式给本地合成态
-/// （Telegram 未配对、微信冻结，与真机零接入基线
-/// 同形），不发网络请求。
+/// （Telegram、飞书均未配对，与真机零接入基线同
+/// 形），不发网络请求。
 @MainActor
 @Observable
 final class ChannelStatusStore {
@@ -91,6 +91,26 @@ final class ChannelStatusStore {
         return receipt
     }
 
+    /// 飞书提交（二期）：字段是应用凭证两项（App ID
+    /// ＋App Secret），白名单填的是 open_id——与 TG
+    /// 的数字 ID 不同，校验在伴生侧按平台分型
+    func submitFeishu(
+        appState: AppState, appID: String, appSecret: String,
+        allowedUserIds: [String]?
+    ) async throws -> ChannelCredentialsReceipt {
+        guard let config = appState.config else {
+            throw ChannelsBridgeError.failed(
+                L10n.string("还没有连上服务器"))
+        }
+        let receipt = try await client.submitCredentials(
+            config: config, platform: "feishu",
+            fields: ["appId": appID, "appSecret": appSecret],
+            allowedUserIds: allowedUserIds
+        )
+        await load(appState: appState)
+        return receipt
+    }
+
     static func message(for error: ChannelsBridgeError) -> String {
         switch error {
         case .noKey, .unauthorized:
@@ -108,10 +128,10 @@ final class ChannelStatusStore {
             needsIdentity: false, state: "not_configured",
             sessionCount: 0, message: nil
         ),
-        "weixin": ChannelPlatformStatus(
-            platform: "weixin", kind: "frozen", open: false,
+        "feishu": ChannelPlatformStatus(
+            platform: "feishu", kind: "token", open: true,
             configured: false, connected: false,
-            needsIdentity: false, state: "frozen",
+            needsIdentity: false, state: "not_configured",
             sessionCount: 0, message: nil
         ),
         "dingtalk": ChannelPlatformStatus(

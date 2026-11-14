@@ -54,4 +54,20 @@ final class ChannelCredentialsReceiptTests: XCTestCase {
         XCTAssertNil(receipt.applyTriggered)
         XCTAssertNil(receipt.applyError)
     }
+
+    /// 飞书回执（二期）：botName 是飞书验钥后探到的
+    /// 机器人名，新桥带、旧桥缺失回落 nil
+    func testFeishuReceiptWithApplyAndBotName() throws {
+        let receipt = try decode("""
+            {"platform": "feishu", "configured": true,
+             "state": "pending_restart", "restartRequired": true,
+             "applyTriggered": true, "applyError": null,
+             "botName": "三狗助手", "message": null}
+            """)
+        XCTAssertEqual(receipt.platform, "feishu")
+        XCTAssertTrue(receipt.configured)
+        XCTAssertEqual(receipt.applyTriggered, true)
+        XCTAssertNil(receipt.applyError)
+        XCTAssertEqual(receipt.botName, "三狗助手")
+    }
 }

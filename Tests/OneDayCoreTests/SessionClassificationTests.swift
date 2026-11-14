@@ -397,28 +397,29 @@ final class SessionClassificationTests: XCTestCase {
         }
     }
 
-    // 注册表：抽屉恒显清单与图标登记（一期三条＋
-    // 二期令牌四家；平台图标只许官方原图登记过的
-    // 有值，未登记的平台回 nil 不许仿绘顶替）
+    // 注册表：抽屉恒显清单与图标登记（组版并集：
+    // 飞书二期上行、微信行下架＋令牌四家续登；平台
+    // 图标只许官方原图登记过的有值，未登记的平台
+    // 回 nil 不许仿绘顶替）
     func testChannelRegistryDrawerListAndIcons() {
         XCTAssertEqual(
             ChannelRegistry.drawerList.map(\.id),
-            ["hermes", "telegram", "dingtalk", "qqbot",
-             "discord", "slack", "weixin"])
+            ["hermes", "telegram", "feishu", "dingtalk",
+             "qqbot", "discord", "slack"])
         XCTAssertEqual(
             ChannelRegistry.descriptor(for: "telegram")?.iconAssetName,
             "ChannelTelegram")
         XCTAssertEqual(
-            ChannelRegistry.descriptor(for: "weixin")?.iconAssetName,
-            "ChannelWeixin")
+            ChannelRegistry.descriptor(for: "feishu")?.iconAssetName,
+            "ChannelFeishu")
         XCTAssertEqual(
-            ChannelRegistry.descriptor(for: "weixin")?.name, "微信")
+            ChannelRegistry.descriptor(for: "feishu")?.name, "飞书")
         XCTAssertNil(
-            ChannelRegistry.descriptor(for: "feishu")?.iconAssetName)
+            SessionSources.platformIconAssetName("weixin"))
         XCTAssertEqual(
             ChannelRegistry.pairingKind(for: "telegram"), .token)
         XCTAssertEqual(
-            ChannelRegistry.pairingKind(for: "weixin"), .frozen)
+            ChannelRegistry.pairingKind(for: "feishu"), .token)
         XCTAssertEqual(
             ChannelRegistry.pairingKind(for: "hermes"), .none)
     }

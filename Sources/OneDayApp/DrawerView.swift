@@ -808,20 +808,19 @@ struct DrawerView: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    /// 频道行尾件（频道扩展一期）：状态小字＋chevron
-    /// 的唯一裁决处。Hermes 行恒空尾；已配对平台同
-    /// 空尾（与 Hermes 行同形态）；冻结行只有小字；
-    /// 令牌型未配对/等待生效/失败带小字＋chevron；
-    /// 状态未回（未加载/读取失败）时只有 chevron
-    /// （目的地是入口页、会在页内把状态说清）
+    /// 频道行尾件（频道扩展一期，冻结行尾随二期微
+    /// 信行下架退役）：状态小字＋chevron 的唯一裁决
+    /// 处。Hermes 行恒空尾；已配对平台同空尾（与
+    /// Hermes 行同形态）；令牌型未配对/等待生效/
+    /// 失败带小字＋chevron；状态未回（未加载/读取
+    /// 失败）时只有 chevron（目的地是入口页、会在
+    /// 页内把状态说清）
     private func drawerChannelAccessory(
         _ channel: ChannelDescriptor
     ) -> (word: String?, chevron: Bool) {
         switch ChannelRegistry.pairingKind(for: channel.id) {
         case .none:
             return (nil, false)
-        case .frozen:
-            return (L10n.string("暂不可用"), false)
         case .qr:
             return (L10n.string("未配对"), true)
         case .token:
