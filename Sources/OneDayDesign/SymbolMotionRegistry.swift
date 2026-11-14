@@ -25,7 +25,7 @@ import Foundation
 // Lordicon）。
 
 /// 符号动效接入点类别
-public enum SymbolMotionKind {
+public enum SymbolMotionKind: Sendable {
     /// 两状态形变（规矩 1：发送↔停止类）
     case morphReplace
     /// 一次性反馈位置的原生形变占位（规矩 2 位置）
@@ -35,7 +35,7 @@ public enum SymbolMotionKind {
 }
 
 /// 登记状态
-public enum SymbolMotionStatus {
+public enum SymbolMotionStatus: Sendable {
     /// 白名单内、现行有效
     case registered
     /// 白名单外存量：已入账待裁，不许扩散、待 UI 批
@@ -44,7 +44,7 @@ public enum SymbolMotionStatus {
 }
 
 /// 一条登记＝一个真实代码接入点
-public struct SymbolMotionSite {
+public struct SymbolMotionSite: Sendable {
     public let id: String
     public let file: String
     public let component: String
