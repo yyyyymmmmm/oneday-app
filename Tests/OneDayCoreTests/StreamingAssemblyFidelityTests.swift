@@ -116,4 +116,21 @@ final class StreamingAssemblyFidelityTests: XCTestCase {
         let control = assembledRuns(for: "这是**重点**部分")
         XCTAssertTrue(control.contains { $0.strong && $0.text == "重点" })
     }
+
+    // MARK: - 3) 整形守卫本体
+
+    func testPrettyWrapNeverSplitsTrailingDelimiterPair() {
+        // 段尾闭合对：连接符不许落在 ** 之间
+        let shaped = TextShaping.prettyWrap("**标题在此**")
+        XCTAssertFalse(
+            shaped.contains("*\u{2060}*"),
+            "整形劈开了段尾闭合 ** 对：\(shaped)")
+        XCTAssertTrue(shaped.hasSuffix("**"))
+        // 删除线同面
+        let strike = TextShaping.prettyWrap("这段~~删除~~")
+        XCTAssertFalse(strike.contains("~\u{2060}~"))
+        // 常规段整形不误伤：尾部绑定照常发生
+        let plain = TextShaping.prettyWrap("普通段落文字")
+        XCTAssertTrue(plain.contains(TextShaping.wordJoiner))
+    }
 }

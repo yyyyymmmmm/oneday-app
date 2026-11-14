@@ -58,14 +58,42 @@ public enum TextShaping {
         // 不可断单元——要防的是最后一字被断行孤立，绑
         // 定点必须落在尾部内部而非尾部之前（0.3.0 首轮
         // 单测以此定案：插在尾前时末字仍可被断开）
+        //
+        // §247（2026-11-14，包 4 追加验收）守卫：插点
+        // 若正落在同字定界符对（**／~~／``）的中间，
+        // 跳过该处插入——整形在行内解析之前施加，连接
+        // 符劈开闭合定界符对会使系统解析器把两半当空
+        // 斜体对吞掉、开标记随之失配字面化（用户真机
+        // 截图定案：`**标题**` 段尾闭合对被劈后呈现
+        // 为字面开标记＋无闭合＋无粗体；证据与回归在
+        // StreamingAssemblyFidelityTests）。跳过后该
+        // 段的孤字绑定在该点缺位（仅防孤字、纯排版
+        // 损），定界符完整性优先
         var result = ""
         for (index, character) in chars.enumerated() {
-            if index >= chars.count - bindCount + 1 {
+            if index >= chars.count - bindCount + 1,
+               !splitsDelimiterPair(chars, at: index) {
                 result += wordJoiner
             }
             result.append(character)
         }
         return result
+    }
+
+    /// 插点是否正落在同字定界符对中间（§247 守卫
+    /// 的判定面）：index 处字符与前一字符相同且同
+    /// 属定界符字（*／~／`）时，连接符插在此处即
+    /// 把定界符对劈成两半
+    private static func splitsDelimiterPair(
+        _ chars: [Character], at index: Int
+    ) -> Bool {
+        guard index > 0 else { return false }
+        let character = chars[index]
+        guard character == chars[index - 1] else {
+            return false
+        }
+        return character == "*" || character == "~"
+            || character == "`"
     }
 
     /// 全文版：按空行分段，逐段整形后拼回（段内换行不动）
