@@ -162,6 +162,11 @@ private struct PermissionCardView: View {
         case .blocked:
             return "之前在系统里没允许「\(descriptor.name)」。去设置里打开它，回来会自动接着办刚才的事，不用重新说一遍。"
         case .parked:
+            // §261 ③：桥记了「未答」的与用户主动「先
+            // 不」分开说——不是他拒绝了，是当时没顾上
+            if card.askUnanswered {
+                return "刚才问的时候没等到你答复，那件事先放着了。点「继续」接着来，不用重新跟智能体说。"
+            }
             return "用到「\(descriptor.name)」的那件事还没办。点「继续」接着来，不用重新跟智能体说。"
         case .switchOff:
             return "「\(descriptor.name)」的系统权限已经有了，只是「允许智能体调用」还关着。打开后马上接着办刚才的事。"

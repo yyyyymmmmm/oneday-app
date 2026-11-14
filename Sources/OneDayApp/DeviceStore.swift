@@ -193,6 +193,17 @@ final class DeviceSessionController {
         )
     }
 
+    /// 桥侧 park 状态读面（§261 ①）：卡对账取用。
+    /// 读面不可达/回执不可信一律回 nil（协调器据此
+    /// 跳过该卡对账、本地缓存兜底），不把不确定当
+    /// 「桥说没了」
+    func parkState(token: String) async -> PermissionParkState? {
+        guard let config else { return nil }
+        return try? await client.parkState(
+            config: config, resumeToken: token
+        ) ?? nil
+    }
+
     /// 退后台/断开连接时调：停轮询＋尽力断开会话
     func deactivate() {
         pollTask?.cancel()

@@ -226,6 +226,35 @@ final class DeviceBridgeClient: @unchecked Sendable {
         )
     }
 
+    /// POST /device/park-state（§261 ①）：只读查桥侧
+    /// park 还在不在、何时过期、ask 结局——卡对账的
+    /// 真相源，不消费 token。旧桥无此端点（404）或
+    /// 回执不可信回 nil，调用方走本地兜底；桥明确回
+    /// exists=false 是有效答复、照常返回
+    func parkState(
+        config: ServerConfig, resumeToken: String
+    ) async throws -> PermissionParkState? {
+        var request = try makeRequest(
+            config: config, path: "/device/park-state",
+            method: "POST"
+        )
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: ["resumeToken": resumeToken]
+        )
+        request.setValue(
+            "application/json", forHTTPHeaderField: "Content-Type"
+        )
+        let (data, http) = try await send(
+            request, endpoint: L10n.string("查询挂起状态")
+        )
+        if http.statusCode == 401 || http.statusCode == 403 {
+            throw DeviceBridgeError.unauthorized
+        }
+        guard http.statusCode == 200 else { return nil }
+        let body = try? decoder.decode(JSONValue.self, from: data)
+        return PermissionParkState.parse(body: body)
+    }
+
     /// POST /device/disconnect：尽力断开（退后台时调，
     /// 失败无妨——桥有 45 秒无心跳自动判离线兜底）
     func disconnect(config: ServerConfig, sessionId: String) async {

@@ -117,7 +117,14 @@ extension DevicePreferences {
 /// 调只在观察者内转手，不进本类
 @MainActor
 @Observable
-final class DeviceSyncController {
+final class DeviceSyncController: PermissionSyncPerforming {
+    /// §261 ④：授权卡续办前的补课同步走这一口（来源
+    /// 恒 .chat——是对话里的事在续办，不是前台自刷）
+    func performPermissionSync(
+        dataset: DeviceSyncDataset, config: ServerConfig
+    ) async {
+        _ = await syncNow(dataset, config: config, origin: .chat)
+    }
     /// 桥 status 读到的逐件状态（真状态源）
     private(set) var statuses:
         [DeviceSyncDataset: DeviceSyncDatasetStatus] = [:]

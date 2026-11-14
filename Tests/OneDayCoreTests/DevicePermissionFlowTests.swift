@@ -106,6 +106,159 @@ final class DevicePermissionFlowTests: XCTestCase {
         )
     }
 
+    // MARK: - §261 ② 过期口径单源（桥 park 时刻起算）
+
+    func testCardDatesPreferBridgeParkTimes() {
+        let ask = PermissionAskRequest.parse(arguments: [
+            "source": .string("contacts"),
+            "tool": .string("contacts_search"),
+            "resumeToken": .string("park-0123abcd"),
+            "parkedAt": .number(2_000),
+            "expiresAt": .number(2_000 + 24 * 3600),
+        ])
+        let dates = ask?.cardDates(now: 9_999)
+        XCTAssertEqual(dates?.createdAt, 2_000, "起算点＝桥 park 时刻，不用本地收信时刻")
+        XCTAssertEqual(dates?.expiresAt, 2_000 + 24 * 3600)
+
+        let legacy = PermissionAskRequest.parse(arguments: [
+            "source": .string("contacts"),
+            "tool": .string("contacts_search"),
+            "resumeToken": .string("park-0123abcd"),
+        ])
+        let fallback = legacy?.cardDates(now: 9_999)
+        XCTAssertEqual(fallback?.createdAt, 9_999, "旧桥无时间字段才本地兜底")
+        XCTAssertEqual(fallback?.expiresAt, 9_999 + 24 * 3600)
+    }
+
+    func testNoticeDatesPreferBridgeParkTimes() {
+        let notice = PermissionNotice.parse(arguments: [
+            "source": .string("calendar"),
+            "tool": .string("calendar_list_events"),
+            "resumeToken": .string("park-aaaa"),
+            "blockerLayer": .string("permission"),
+            "parkedAt": .number(3_000),
+            "expiresAt": .number(3_600),
+        ])
+        let dates = notice?.cardDates(now: 8_888)
+        XCTAssertEqual(dates?.createdAt, 3_000)
+        XCTAssertEqual(dates?.expiresAt, 3_600)
+    }
+
+    func testCardExplicitExpiresAtAndLegacyDecode() throws {
+        let card = PermissionCard(
+            id: "park-2", source: .calendar,
+            tool: "calendar_list_events", layer: .permission,
+            isSyncQuery: false, phase: .blocked,
+            createdAt: 1_000, expiresAt: 5_000
+        )
+        XCTAssertEqual(card.expiresAt, 5_000, "桥给的过期时刻直接落卡")
+        XCTAssertFalse(card.askUnanswered)
+
+        // 旧持久化（无 askUnanswered 键）必须解得回来，
+        // 不许把在途卡整表丢掉
+        let legacyJSON = """
+        [{"id":"park-3","source":"contacts","tool":"contacts_count",\
+        "layer":"permission","isSyncQuery":true,"phase":"blocked",\
+        "createdAt":1000,"expiresAt":87400,"resultSummary":null,\
+        "failureNote":null}]
+        """
+        let decoded = try JSONDecoder().decode(
+            [PermissionCard].self, from: Data(legacyJSON.utf8)
+        )
+        XCTAssertEqual(decoded.first?.id, "park-3")
+        XCTAssertEqual(decoded.first?.askUnanswered, false)
+        XCTAssertEqual(decoded.first?.expiresAt, 87_400)
+    }
+
+    // MARK: - §261 ①③ 桥侧读面解析与对账裁定
+
+    func testParkStateParse() {
+        let gone = PermissionParkState.parse(body: .object([
+            "ok": .bool(true), "exists": .bool(false),
+        ]))
+        XCTAssertEqual(gone?.exists, false, "桥明确说没了是有效答复")
+
+        let alive = PermissionParkState.parse(body: .object([
+            "ok": .bool(true), "exists": .bool(true),
+            "park": .object([
+                "source": .string("contacts"),
+                "tool": .string("contacts_search"),
+                "blockerLayer": .string("permission"),
+                "kind": .string("sync"),
+                "createdAt": .number(2_000),
+                "expiresAt": .number(88_400),
+                "askOutcome": .string("unanswered"),
+            ]),
+        ]))
+        XCTAssertEqual(alive?.exists, true)
+        XCTAssertEqual(alive?.source, .contacts)
+        XCTAssertEqual(alive?.isSyncQuery, true)
+        XCTAssertEqual(alive?.expiresAt, 88_400)
+        XCTAssertEqual(alive?.askOutcome, .unanswered)
+
+        XCTAssertNil(
+            PermissionParkState.parse(body: .object(["ok": .bool(true)])),
+            "缺 exists 的回执不可信，回 nil 走本地兜底"
+        )
+        XCTAssertNil(PermissionParkState.parse(body: nil))
+    }
+
+    func testParkReconcileDecisions() {
+        let now: TimeInterval = 10_000
+        func card(_ phase: PermissionCardPhase) -> PermissionCard {
+            PermissionCard(
+                id: "park-9", source: .contacts,
+                tool: "contacts_search", layer: .permission,
+                isSyncQuery: false, phase: phase, createdAt: 1_000
+            )
+        }
+        let gone = PermissionParkState(
+            exists: false, source: nil, tool: nil, layer: nil,
+            isSyncQuery: false, createdAt: nil, expiresAt: nil,
+            askOutcome: nil
+        )
+        let alive = PermissionParkState(
+            exists: true, source: .contacts, tool: "contacts_search",
+            layer: .permission, isSyncQuery: false,
+            createdAt: 2_000, expiresAt: 88_400, askOutcome: nil
+        )
+        let stale = PermissionParkState(
+            exists: true, source: .contacts, tool: "contacts_search",
+            layer: .permission, isSyncQuery: false,
+            createdAt: 100, expiresAt: 9_999, askOutcome: nil
+        )
+        XCTAssertEqual(
+            PermissionParkReconciler.decision(
+                card: card(.blocked), park: gone, now: now
+            ), .expire, "桥说 park 没了 → 本地卡翻过期"
+        )
+        XCTAssertEqual(
+            PermissionParkReconciler.decision(
+                card: card(.blocked), park: stale, now: now
+            ), .expire, "桥的过期时刻已过 → 翻过期"
+        )
+        XCTAssertEqual(
+            PermissionParkReconciler.decision(
+                card: card(.blocked), park: alive, now: now
+            ), .adopt(park: alive), "park 还在 → 采纳桥口径"
+        )
+        XCTAssertEqual(
+            PermissionParkReconciler.decision(
+                card: card(.done), park: gone, now: now
+            ), .keep, "终态卡是本地既成事实，不对账翻案"
+        )
+        XCTAssertEqual(
+            PermissionParkReconciler.decision(
+                card: card(.resuming), park: gone, now: now
+            ), .keep, "续办在途消费 park 是时序、不是真相"
+        )
+        XCTAssertEqual(
+            PermissionParkReconciler.decision(
+                card: card(.asking), park: gone, now: now
+            ), .keep, "ask 在途同理"
+        )
+    }
+
     // MARK: - 注册附加面
 
     func testRegistrationExtras() {
