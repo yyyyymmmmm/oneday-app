@@ -329,27 +329,40 @@ final class LayoutShadowLedger: @unchecked Sendable {
             let pooled = await LayoutMeasurePool.shared.measure(
                 attributed, width: width
             )
-            let delta = abs(
-                Double(pooled) - Double(referenceHeight)
+            applyResult(
+                pooled: Double(pooled),
+                reference: Double(referenceHeight),
+                width: Double(width),
+                textPrefix: prefix
             )
-            lock.lock()
-            state.compared += 1
-            state.maxDelta = max(state.maxDelta, delta)
-            if delta <= Self.tolerance {
-                state.consistent += 1
-            } else {
-                state.inconsistent += 1
-                if state.samples.count < 8 {
-                    state.samples.append(Mismatch(
-                        textPrefix: prefix,
-                        width: Double(width),
-                        referenceHeight: Double(referenceHeight),
-                        pooledHeight: Double(pooled)
-                    ))
-                }
-            }
-            lock.unlock()
         }
+    }
+
+    /// 对拍结果落账（同步函数内持锁——锁不跨挂起
+    /// 点，async 上下文不直接碰 NSLock 的 Swift 6
+    /// 口径）
+    private func applyResult(
+        pooled: Double, reference: Double,
+        width: Double, textPrefix: String
+    ) {
+        let delta = abs(pooled - reference)
+        lock.lock()
+        state.compared += 1
+        state.maxDelta = max(state.maxDelta, delta)
+        if delta <= Self.tolerance {
+            state.consistent += 1
+        } else {
+            state.inconsistent += 1
+            if state.samples.count < 8 {
+                state.samples.append(Mismatch(
+                    textPrefix: textPrefix,
+                    width: width,
+                    referenceHeight: reference,
+                    pooledHeight: pooled
+                ))
+            }
+        }
+        lock.unlock()
     }
 
     func snapshot() -> Snapshot {

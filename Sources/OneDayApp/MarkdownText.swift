@@ -91,7 +91,7 @@ struct MarkdownText: View {
     /// 函数拼装段落，两处永不分家（产物与呈现同源
     /// 是影子对拍成立的前提）；口径改版时同步升
     /// Core LayoutStyleKey.paragraphVersion
-    static func proseParagraphs(
+    nonisolated static func proseParagraphs(
         _ paragraphs: [MarkdownProseParagraph]
     ) -> [InlineTextParagraph] {
         paragraphs.enumerated().map { index, paragraph in
@@ -127,7 +127,7 @@ struct MarkdownText: View {
     /// 无序按 level 换字形、有序用序号。task 不会到
     /// 达这里（Core 装配已把含任务项的列表整块分
     /// 流），兜底字形只为不丢标记
-    private static func markerText(
+    nonisolated private static func markerText(
         marker: MarkdownListItem.Marker, level: Int
     ) -> String {
         switch marker {
@@ -151,7 +151,7 @@ struct MarkdownText: View {
     /// 标题字阶的 UIKit 档（§149）：与 headingFont
     /// 的 SwiftUI 梯逐级同档（title2／title3／
     /// body／subheadline／footnote）
-    private static func headingTextStyle(
+    nonisolated private static func headingTextStyle(
         _ level: Int
     ) -> UIFont.TextStyle {
         switch level {
@@ -229,7 +229,7 @@ struct MarkdownText: View {
     /// 口径：呈现与产物层共用）；引用文本的可用宽
     /// ＝气泡文本宽 −（竖条 3＋间距 spacingS），宽
     /// 度折算在消费方（产物层 builder）
-    static func quoteParagraphs(
+    nonisolated static func quoteParagraphs(
         _ lines: [MarkdownQuoteLine]
     ) -> [InlineTextParagraph] {
         lines.enumerated().map { index, line in

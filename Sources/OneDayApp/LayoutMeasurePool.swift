@@ -74,6 +74,16 @@ final class LayoutMeasurePool: @unchecked Sendable {
     private let routingLock = NSLock()
     private var routingCounter = 0
 
+    /// 路由取 worker（同步函数内持锁——锁不跨挂起
+    /// 点，async 上下文不直接碰 NSLock 的 Swift 6
+    /// 口径）
+    private func nextWorker() -> Worker {
+        routingLock.lock()
+        defer { routingLock.unlock() }
+        routingCounter += 1
+        return workers[routingCounter % workers.count]
+    }
+
     init(workerCount: Int = 3) {
         workers = (0..<max(1, workerCount)).map { Worker(index: $0) }
     }
@@ -91,10 +101,7 @@ final class LayoutMeasurePool: @unchecked Sendable {
             // 非空但宽非法同理
             return 0
         }
-        routingLock.lock()
-        routingCounter += 1
-        let worker = workers[routingCounter % workers.count]
-        routingLock.unlock()
+        let worker = nextWorker()
         return await withCheckedContinuation { continuation in
             worker.queue.async {
                 continuation.resume(
