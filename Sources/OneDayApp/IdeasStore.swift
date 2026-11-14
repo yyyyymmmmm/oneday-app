@@ -35,6 +35,11 @@ final class IdeasStore {
     private(set) var createError: String?
     /// 卡内行内提示（转任务/忽略/删除的人话，不弹模态）
     private(set) var notes: [String: String] = [:]
+    /// 最近一次删除的成功回响（同类面口径：文件页/
+    /// 交付物页删成落「已删除「名」。」小字明示）；
+    /// 只在回读确认消失时落字，新一次删除开始即清、
+    /// 不叠旧回响；删除未落定不落此字（只走 notes）
+    private(set) var deleteNotice: String?
 
     private let client = OneDayBridgeClient()
     private var loadInFlight = false
@@ -183,6 +188,9 @@ final class IdeasStore {
     // MARK: - 删除（DELETE→回读确认消失才算完成）
 
     func delete(appState: AppState, idea: BridgeIdea) async {
+        // 新一次删除动作开始：旧回响先清，落点由本次
+        // 回读定（未连接等早退分支同口径，不留陈字）
+        deleteNotice = nil
         guard !actingIDs.contains(idea.id) else { return }
         guard let config = appState.config else {
             notes[idea.id] = L10n.string("尚未连接服务器。")
@@ -194,19 +202,36 @@ final class IdeasStore {
         do {
             try await client.deleteIdea(config: config, id: idea.id)
             await refetch(appState: appState)
-            if ideas.contains(where: { $0.id == idea.id }) {
-                notes[idea.id] = L10n.string("删除已发出，但列表里还在，请刷新核对。")
-            }
+            applyDeleteOutcome(
+                idea: idea,
+                stillPresent: ideas.contains(
+                    where: { $0.id == idea.id }
+                )
+            )
         } catch let error as OneDayBridgeError {
             if case .recordGone = error {
                 await refetch(appState: appState)
                 if !ideas.contains(where: { $0.id == idea.id }) {
+                    // 服务端已无此条＝删成（以回读为准）
+                    applyDeleteOutcome(idea: idea, stillPresent: false)
                     return
                 }
             }
             notes[idea.id] = GoalsStore.message(for: error)
         } catch {
             notes[idea.id] = L10n.string("删除失败，请稍后再试。")
+        }
+    }
+
+    /// 删除回读落点收口（列表长按菜单与详情 sheet
+    /// 两处确认路径共用一个漏斗）：回读确认消失才算
+    /// 删成——落删除回响明示删了哪条；还在列表＝未
+    /// 落定，只留痕不报已删
+    func applyDeleteOutcome(idea: BridgeIdea, stillPresent: Bool) {
+        if stillPresent {
+            notes[idea.id] = L10n.string("删除已发出，但列表里还在，请刷新核对。")
+        } else {
+            deleteNotice = L10n.format("已删除「%@」。", idea.title)
         }
     }
 
