@@ -12313,3 +12313,23 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **二轮 run 43587405611**：Build 真红 1 条——同族问题上一层：ZoomSourceRegistry.shared 静态单例要求类 Sendable；修二（状态全经 NSLock 串行、标 @unchecked Sendable 并注明依据）。
 - **三轮 run 43588172166（定版头）终判绿（带 §184 登记）**：步序——登记核查 success／Build success／Unit tests 名义 failure（红源 §184）／Package success／Upload success。**断言失败 0、failed 用例 0**；**Core 2012/2012**（rel-05041 基线 2008＋本包 ZoomTransitionPolicyTests 4 法，逐条 passed、精确对账）；App 159 启动唯一值＝148 过＋5 skipped＋6 无终局（另 1 法未及启动、全集 160 与 .41 口径一致）——6 条无终局全为 §184 在案名单（testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel、testBarGrowth_topRisesBottomPinned、ChatReliabilityOfflineTests.testMarkPendingSendRetainsEntryOnDisk、EdgeEffectRegistrationTests.testAnchorRegistersAncestorScrollView、TraceEchoMaterializationAppTests.testFailedTraceMaterializesWithErrorSnapshot），与本包 diff 零交集；**UI 8/8**；HUB-LAYOUT-VERDICT＝PASS、MATRIX-VERDICT＝PASS、边缘探针 violations＝0；宿主重启 7 起按 §184 登记不判红。
 - **节号撞车注（0.50.43 组版收口）**：本包施工期间 rel-05042 组版已将审批卡对齐编为 §245、组版节 §246（0.50.42 已交付）——本包原 §245 与之撞号，本组版合入时整节顺延为 **§247**，代码自指（§247.1/§247.2/§247.3）同步改讫。
+
+## §248 触感定版包：发送 impact＋抽屉手势吸附两缺口补齐（2026-11-14；分支 feat/haptics-final@9beec83，基线 rel-05041@7cb8e26；本包未自占节号，0.50.43 组版编为 §248；全档＝oneday-design-review/haptics-final-report-20261114.md）
+
+**定版口径**：用户 2026-11-14 19:05 拍板「全改，需要决定的你推荐」，按主线推荐落定——发送动作补最轻档 impact.light、完成类保留 success 震、不加任何设置开关，按 2026-11-10 已定 24 事件触感矩阵＋防腻清单全量对表落码。
+
+**审计纠正（简报旧口径作废）**：施工简报所据「只有 success/warning 约 25 落点、selection/impact 零落点、失败普遍 warning 冒充」系 0.36.2 前旧口径——实查 24 事件矩阵已于 0.36.2 全量落地，rel-05041 树存量 90 落点（error 49 无冒充／success 18 命令式＋3 声明式／warning 6 全本义／selection 3／impact.heavy 8／impact.light 3），逐项对表后真缺口仅两处。
+
+**落码两处**：①ChatView `send()` 落盘同帧补 impact.light——落点在 `modelContext.insert` 之后，前置退回路径（定位失败整轮不发、旧轮未落定叠发拦截）都在 insert 前 return、不发不震；自动重发/队列补发不经 send() 不响。②DrawerContainerView 平移手势 `.ended` 的 settle 判定：状态真翻转（吸附落位）时补 impact.light 一次，回弹原态/`.cancelled`/按钮开合均不响。Haptics.swift 头注同步补两行语义（发送＝动作点 light、success＝完成点，各归其位）。改后总落点 92（light 3→5），防腻清单零越界。
+
+**钉测与分支判读**：新增 HapticsMatrixTests 4 法（源码扫描钉落点存在性与计数：ChatView impact.light 恰 2、抽屉恰 1 且带翻转闸、全仓分类计数、无触感开关键）。分支 CI run 43588698455 判绿：Core 2008/2008（其基线口径）、UI 8/8、新测 4/4、断言失败 0，名义 failure 仅 §184 宿主重启 7 起同族登记。
+
+## §249 0.50.43 组版（2026-11-14；分支 rel-05043，基线 rel-05042@7fc5cb3）
+
+**装车两件**：①动效规矩包（feat/motion-rules@61376b6，基线 rel-05041@7cb8e26）——7 提交 cherry-pick 全数落入。冲突处置：DESIGN 节号一处亲解——本包自编 §245 与审批卡 §245 撞号，整节顺延为 **§247**（节题＋§247.1–§247.4 小节＋代码自指 20 处逐处同步，收口提交另立）；ChatView 呈现点＋两锚小块、ImageViewerView 转场承载段均自动合入，**逐行自查**：动效分支全部新增行逐行在位（ChatView 33／ImageViewerView 83／DesignTokens 20／workflow 7 等，missing＝0）。②触感定版包（feat/haptics-final@9beec83）——1 提交 cherry-pick，ChatView 与动效改动不同位自动合入，新增行逐行在位核（ChatView 10／DrawerContainerView 8／Haptics 16，missing＝0），组版编为 §248。
+
+**C-13 未装车**：chore/demo-freeze@c848209 最新 run 43590276992 于本组版开工时仍 in_progress、未终判绿，按组版口径不等，留待后续版本装车。
+
+**静态计数对账**：Core 测试方法 2024＝.42 基线 2020＋动效 ZoomTransitionPolicyTests 4；App 164＝160＋触感 HapticsMatrixTests 4；UI 8 持平；i18n 3084 键与 .42 精确一致（两包零新键）。版号 0.50.43／171 五处同改（Project.swift 四处＋SettingsSupportViews full/hero），0.50.42 代码面残留 0。本版零服务端动作。未合 main、未打 tag。
+
+### §249.1 CI 判读（回填位）
