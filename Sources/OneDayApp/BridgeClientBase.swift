@@ -213,9 +213,8 @@ final class BridgeClientBase<Failure: Error>: @unchecked Sendable {
 
     /// 桥错误体提取（冻结口径）：失败响应 {"error": 人话}
     static func serverMessage(_ data: Data) -> String? {
-        struct Body: Decodable { let error: String? }
         guard let body = try? JSONDecoder().decode(
-            Body.self, from: data
+            BridgeServerErrorBody.self, from: data
         ), let message = body.error, !message.isEmpty else {
             return nil
         }
@@ -341,4 +340,11 @@ extension BridgeClientBase where Failure == OneDayBridgeError {
             )
         }
     }
+}
+
+
+/// 桥错误体（文件级：泛型类的 static 方法内不许嵌套
+/// 类型，故收敛到此处一份，各桥共用）
+private struct BridgeServerErrorBody: Decodable {
+    let error: String?
 }
