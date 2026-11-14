@@ -534,6 +534,17 @@ public enum OneDayMetrics {
     /// App 设置型页面的组距随之统一小收 4pt，真机若
     /// 觉挤可单独回 28 并入宪法修订，本批先入梯队）
     public static let settingsSectionSpacing: CGFloat = 24
+    /// 分区外距（组节奏定版，DESIGN-V2 §3.2「分区标题
+    /// 上 28 下 8」）：手搓页 SectionLabel 之上的留白
+    /// 与页末最后一组之下的收尾留白同值同族——下 8
+    /// 即 spacingS、本值管 28 一侧。此前 38 处以字
+    /// 面量散写于 14 个管理面文件（PM/UI 复盘点名的
+    /// 「组顶距 28 复发」即此），本批（UI 台账余项＋
+    /// 深色批，2026-11-14）收编入令牌：数值不变、版
+    /// 式零变化，变的只是出处归一。28 不在间距梯队
+    /// 内的处置同 pageGutter/cardPadding 的 20——
+    /// 有定版出处（组节奏）的具名值，记账保留
+    public static let sectionOuterSpacing: CGFloat = 28
     /// 名单行图标字形（0.23.0 单源化：改引用 Core
     /// FrameworkIcon，本处只留别名、不再自带数值）
     public static let navGlyph: CGFloat = FrameworkIcon.navGlyphSize
