@@ -570,6 +570,18 @@ public enum OneDayMetrics {
     /// 设置/抽屉统一取 30，ListRowSpec.iconSlotWidth
     /// 同值，见 §51）
     public static let iconSlot: CGFloat = 30
+    /// 智能体头像尺寸三档（§224，头像呈现 harmonize）：
+    /// 全 App 渲染智能体头像的位点只许取这三档，不许
+    /// 再散写字面量——页头档＝枢纽页头与身份详情页
+    /// hero（110/88 两处旧值收敛至 90，对齐 Muse 档
+    /// 案页页头盘实测）；段头档＝枢纽身份段段头（52
+    /// 沿用 §218 定版）；列表行档＝抽屉身份行/设置身
+    /// 份卡/编辑器行（36/44 两值收敛至 44）。用户自选
+    /// 的形象档（Core AvatarSizeTier，顶簇/空态/锚点
+    /// 三面）是用户偏好、不在此列。
+    public static let avatarPageHead: CGFloat = 90
+    public static let avatarSectionHead: CGFloat = 52
+    public static let avatarListRow: CGFloat = 44
     /// 分隔线起点（0.36.0，宪法 §3／审计 C1 定版）：
     /// 整行贯通——起点＝容器左缘、全 App 一个 x
     /// 值，恒 0。旧值 62（边距 20＋槽 30＋间距 12、

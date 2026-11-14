@@ -409,7 +409,10 @@ struct AgentHubView: View {
             appState.agentAvatarImage
                 .resizable()
                 .scaledToFill()
-                .frame(width: 110, height: 110)
+                .frame(
+                    width: OneDayMetrics.avatarPageHead,
+                    height: OneDayMetrics.avatarPageHead
+                )
                 .clipShape(Circle())
                 .overlay {
                     Circle().stroke(Palette.hairline, lineWidth: 0.5)

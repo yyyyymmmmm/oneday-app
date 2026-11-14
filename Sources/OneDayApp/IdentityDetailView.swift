@@ -62,7 +62,10 @@ struct IdentityDetailView: View {
                 appState.agentAvatarImage
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 88, height: 88)
+                    .frame(
+                        width: OneDayMetrics.avatarPageHead,
+                        height: OneDayMetrics.avatarPageHead
+                    )
                     .clipShape(Circle())
                     .overlay {
                         Circle().stroke(Palette.hairline, lineWidth: 0.5)

@@ -477,13 +477,18 @@ struct DrawerView: View {
             }
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
-                // 小头像 36 档（枢纽 110/编辑页 44 的同
-                // 源档案图，抽屉行内取小档；呈现三件与
-                // 枢纽同式：scaledToFill＋圆裁＋发丝环）
+                // 头像走列表行档（§224：与设置身份卡/
+                // 编辑器行同为 44；旧 36 小档让抽屉与
+                // 其他列表面头像大小不一，收敛退役）；
+                // 呈现三件与枢纽同式：scaledToFill＋圆
+                // 裁＋发丝环
                 appState.agentAvatarImage
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 36, height: 36)
+                    .frame(
+                        width: OneDayMetrics.avatarListRow,
+                        height: OneDayMetrics.avatarListRow
+                    )
                     .clipShape(Circle())
                     .overlay {
                         Circle().stroke(

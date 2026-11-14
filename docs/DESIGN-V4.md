@@ -11708,3 +11708,20 @@ run 43544784796（头 f88a78d）**§190 终判绿**：Build／Package／Upload s
 ### §222.1 CI 判读（2026-11-14 回填）
 
 run 43548826736（头 af08cef）**§190 终判绿**：Build success、Package／Upload success（artifact oneday-unsigned-ipa 12,211,767 字节）；Unit tests 步名义 failure（§184 驱动、job conclusion 随之 failure，按 §190 不作判据）。全日志 15,640 行亲验——**断言失败 0 条、失败用例 0 条**；**Core 1902／1902／0**（与基线精确一致）；**App 104 唯一用例**＝93 过＋5 跳过（存量 XCTSkip）＋6 条 §184 受害（started 无终局行：ChatPageAssembly／ChatReliabilityOffline／ComposerGuideHost／DrawerBridgeHarness／EdgeEffectRegistration／SelectionDismantleProof 各 1、与在案同签名、**无枢纽面受害**；宿主重启约 7 起、与 .37 同量级）；**HubSegmentsConsolidationTests 5/5**（含本包新增 §222 量测钉 testHubSegmentBarMetricsMatchParitySpec）；**UI 4/4、HUB-LAYOUT-VERDICT=PASS**——自绘分段条经探针 segmentButton 的按钮标签回落路径逐段可达、四段切后页头在屏，探针兼容实证。未合 main、未打 tag；与 feat/avatar-presentation-fit 同动 AgentHubView／HubIdentitySection／Palette 三文件，装配时主线亲解（本包动：页头节奏/分段条/身份段行边距与卡面；头像包动：头像组件本体与尺寸档，面不重叠但同文件）。
+## §224 头像呈现 harmonize：尺寸三档令牌＋预置盘字形占盘比＋系统冷中性盘底（2026-11-14；分支 feat/avatar-presentation-fit，基线 rel-05037 头 a6e9560，只交分支不合并；立项＝用户 10:44 真机点名「头像没事，就是样式和大小……不好看，不舒服，不匹配」——头像数据不动、病在呈现；全档＝oneday-design-review/avatar-presentation-fit-report-20261114.md）
+
+**定因（全位点审计，报告 §1 全表）**：全 App 露脸面共用同一张离屏渲染图（`AgentProfileStore.avatarUIImage`，240pt@2x），呈现病灶在渲染源头烤死：①预置符号盘字形字号 100/盘 240≈**占盘 0.42**，小字形浮在大色盘中央；②盘底走 `presetTint` 自调 pastel 三色（paw＝tintSky #EDF7FD 淡蓝），与页面冷中性底不匹配；③页头盘 110pt 偏大（Muse 档案页实测约 90pt），且各位点尺寸散值（110/88/52/44/36/30 六种字面量并存）。图片头像（资产图/自定义图/AI 图）各位点本已 scaledToFill 裁满圆、无病。
+
+**统一呈现规则（本节定版，后续位点只许照此）**：
+1. 图片头像一律 aspectFill 裁满圆、edge-to-edge（现状达标、本节确认为口径，不许回退 fit/留白）。
+2. 预置字形/SF 符号头像：字形占盘直径比 **0.65**（`AgentAvatarPresetDisc.glyphRatio`，对齐 Muse 身份段 emoji 实测约 0.65 与苹果通讯录占位量级）；盘的直径由调用方显式传 `diameter`（离屏渲染 240、编辑器预览＝列表行档），字号＝diameter×0.65 推导，不许再写死字号。
+3. 色盘底色只许系统冷中性令牌：`presetTint` 全目录统一 `Palette.fillSecondary`（secondarySystemFill）；pastel 三色映射（tintSky/tintLavender/tintGreen）自此退役，盘色不再按预置分色。
+4. 尺寸收敛三档令牌（`OneDayMetrics`）：`avatarPageHead` 90（枢纽页头 110→90、身份详情 hero 88→90）、`avatarSectionHead` 52（枢纽身份段段头沿用 §218）、`avatarListRow` 44（抽屉身份行 36→44、设置身份卡/编辑器行 44 挂令牌）。同档位点同尺寸，新位点先归档再落码。
+
+**辖区外（审计在案、本包不动）**：用户自选形象档 AvatarSizeTier（顶簇头像钮/聊天空态/IdentityAnchor 三面 24/28/34）是用户偏好档、不归三档收敛；分享名片 132 为导出图自洽版式（其盘图经同一渲染源、字形比与盘色改进自动跟上）；外观页形象大小行的行首头像居图标槽（iconSlot 30，与全页行图标同线）；SangouPartner 直引三面（连接欢迎页/演示卡/默认主题色板）是品牌吉祥物面、不跟档案头像走。
+
+**守护**：`AvatarPresentationFitTests`（App，3 法）——三档令牌值、glyphRatio 值、离屏渲染实测（中心行字形跨度/盘跨度须落 0.55–0.75、盘面取样蓝偏 ≤8，旧口径两项均在此红）。只动呈现层：头像数据/身份桥/名字与状态行零改动。
+
+### §224.1 CI 判读（2026-11-14 回填）
+
+两轮（同头 0fa6da7）：首轮 run 43548414033——Build/Package/Upload success；**Core 1902/0**（与基线精确）；App 106 启动（103＋本包 3）＝95 过＋5 跳过＋5 条 §184 无终局行＋1 条整页装配探针 spin 超时红（ChatPageAssemblyRegressionTests，7s 等待被宿主停滞饿死）；UI 4/4；本包 AvatarPresentationFitTests 3/3（渲染实测 0.951s）。二轮 run 43551692182——Core 1902/0（耗时 82.6s vs 首轮 42.2s，runner 慢一倍实数）；App 94 过＋5 跳过＋6 条 §184＋1 条同族轮换红（ChatPageDeviceConditionProbeTests：spin 超时＋前置 trait 轮询 8 秒未达、其自报「锚定断言无意义」）；首轮红条本轮 passed；本包 3/3；UI 4/4。**终判绿（带保留）**：两红同属整页探针等待超时族、与本包改动面无交集，唯一共享路径（预置盘离屏渲染）由本包渲染实测两轮直证健康；判法与模型账/删除/回响三包同族先例一致。保留：组版轮再取两条探针终局行复核。**节号顺延登记**：本节在自家树自编 §222，与 feat/hub-page-muse-parity 的 §222 撞号；0.50.38 组版顺延为 §224（§223 留删除收口包），代码注释自指同步。

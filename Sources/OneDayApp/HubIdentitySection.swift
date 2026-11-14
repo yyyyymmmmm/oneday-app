@@ -81,7 +81,10 @@ struct HubIdentitySection: View {
             appState.agentAvatarImage
                 .resizable()
                 .scaledToFill()
-                .frame(width: 52, height: 52)
+                .frame(
+                    width: OneDayMetrics.avatarSectionHead,
+                    height: OneDayMetrics.avatarSectionHead
+                )
                 .clipShape(Circle())
                 .overlay {
                     Circle().stroke(Palette.hairline, lineWidth: 0.5)

@@ -27,7 +27,10 @@ struct AgentAvatarEditorView: View {
                         } label: {
                             HStack(spacing: OneDayMetrics.spacingSM) {
                                 presetPreview(preset)
-                                    .frame(width: 44, height: 44)
+                                    .frame(
+                                        width: OneDayMetrics.avatarListRow,
+                                        height: OneDayMetrics.avatarListRow
+                                    )
                                     .clipShape(Circle())
                                 Text(preset.displayName)
                                     .foregroundStyle(Palette.ink)
@@ -70,11 +73,17 @@ struct AgentAvatarEditorView: View {
                                 appState.agentAvatarImage
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(width: 44, height: 44)
+                                    .frame(
+                                        width: OneDayMetrics.avatarListRow,
+                                        height: OneDayMetrics.avatarListRow
+                                    )
                                     .clipShape(Circle())
                             } else {
                                 Image(systemName: "photo")
-                                    .frame(width: 44, height: 44)
+                                    .frame(
+                                        width: OneDayMetrics.avatarListRow,
+                                        height: OneDayMetrics.avatarListRow
+                                    )
                             }
                             Text("从相册选择")
                                 .foregroundStyle(Palette.ink)
@@ -129,7 +138,8 @@ struct AgentAvatarEditorView: View {
         } else if let symbolName = preset.symbolName {
             AgentAvatarPresetDisc(
                 symbolName: symbolName,
-                tint: AgentProfileStore.presetTint(id: preset.id)
+                tint: AgentProfileStore.presetTint(id: preset.id),
+                diameter: OneDayMetrics.avatarListRow
             )
         }
     }
