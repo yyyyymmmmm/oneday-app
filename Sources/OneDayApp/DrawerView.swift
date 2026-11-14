@@ -1715,7 +1715,7 @@ struct DrawerView: View {
                 systemName: "gearshape",
                 label: "设置"
             ) {
-                appState.settingsSheetRequested = true
+                appState.routes.settingsSheetRequested = true
             }
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "magnifyingglass")

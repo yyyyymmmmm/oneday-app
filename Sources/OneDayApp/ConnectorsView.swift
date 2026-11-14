@@ -1232,17 +1232,17 @@ struct ConnectorsView: View {
 
     private func jumpAgent(_ route: AgentRoute) {
         detailTarget = nil
-        appState.pendingAgentRoute = route
+        appState.routes.pendingAgentRoute = route
     }
 
     private func jumpSettings(_ route: SettingsRoute) {
         detailTarget = nil
-        appState.pendingSettingsRoute = route
+        appState.routes.pendingSettingsRoute = route
     }
 
     private func jumpTab(_ tab: ContentView.MainTab) {
         detailTarget = nil
-        appState.mainTabSwitchRequest = tab
+        appState.routes.mainTabSwitchRequest = tab
     }
 
     // MARK: - 数据链（与既有 MCP 页同源，语义不变）

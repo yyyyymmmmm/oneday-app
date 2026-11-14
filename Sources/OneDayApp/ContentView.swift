@@ -284,18 +284,18 @@ struct ContentView: View {
         // 0.20.0：抽屉齿轮置位设置请求 → 呈现根级设置
         // sheet（0.6.0 的 pendingAppsPage 切格落位通道
         // 随应用格退役删除）
-        .onChange(of: appState.settingsSheetRequested) { _, requested in
+        .onChange(of: appState.routes.settingsSheetRequested) { _, requested in
             if requested {
-                appState.settingsSheetRequested = false
+                appState.routes.settingsSheetRequested = false
                 showSettings = true
             }
         }
         // 0.29.0：设置内页面置位的切格请求（连接器目
         // 录本机服务详情的「目标/点子」入口）→关设置
         // 并切到目标格，消费后清零
-        .onChange(of: appState.mainTabSwitchRequest) { _, tab in
+        .onChange(of: appState.routes.mainTabSwitchRequest) { _, tab in
             if let tab {
-                appState.mainTabSwitchRequest = nil
+                appState.routes.mainTabSwitchRequest = nil
                 showSettings = false
                 selection = tab
                 // 2026-11-13：切格是「跳走」出口——自

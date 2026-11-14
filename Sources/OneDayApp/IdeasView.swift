@@ -746,7 +746,7 @@ struct IdeaDetailView: View {
         appState.pendingSourceQuotesByThread[thread.id] =
             .idea(IdeaQuote(idea: idea))
         appState.drawerThreadSelection = thread.id
-        appState.mainTabSwitchRequest = .chat
+        appState.routes.mainTabSwitchRequest = .chat
         dismiss()
     }
 

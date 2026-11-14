@@ -197,8 +197,8 @@ struct ChatView: View {
                 .font(.callout)
                 .foregroundStyle(Palette.inkSecondary)
                 Button("去设置") {
-                    appState.pendingSettingsRoute = .models
-                    appState.settingsSheetRequested = true
+                    appState.routes.pendingSettingsRoute = .models
+                    appState.routes.settingsSheetRequested = true
                 }
                 .font(.callout)
                 .foregroundStyle(Palette.primary)
@@ -5274,7 +5274,7 @@ struct ChatView: View {
     private func feedQuoteBlock(_ quote: FeedPostQuote) -> some View {
         Button {
             appState.feedOpenPostRequest = quote.postID
-            appState.mainTabSwitchRequest = .feed
+            appState.routes.mainTabSwitchRequest = .feed
         } label: {
             HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
                 Rectangle()
@@ -5333,7 +5333,7 @@ struct ChatView: View {
     private func ideaQuoteBlock(_ quote: IdeaQuote) -> some View {
         Button {
             appState.ideaOpenRequest = quote.ideaID
-            appState.mainTabSwitchRequest = .ideas
+            appState.routes.mainTabSwitchRequest = .ideas
         } label: {
             HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
                 Rectangle()
@@ -5407,7 +5407,7 @@ struct ChatView: View {
     /// 自然还没有它，本块快照内容不受影响仍可读）
     private func goalQuoteBlock(_ quote: GoalQuote) -> some View {
         Button {
-            appState.mainTabSwitchRequest = .goals
+            appState.routes.mainTabSwitchRequest = .goals
         } label: {
             HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
                 Rectangle()

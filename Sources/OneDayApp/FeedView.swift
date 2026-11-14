@@ -598,7 +598,7 @@ struct FeedView: View {
         appState.pendingFeedQuotesByThread[thread.id] =
             FeedPostQuote(post: post)
         appState.drawerThreadSelection = thread.id
-        appState.mainTabSwitchRequest = .chat
+        appState.routes.mainTabSwitchRequest = .chat
     }
 
     /// 按 id 取本地线程（点子流 fetchThread 同形）

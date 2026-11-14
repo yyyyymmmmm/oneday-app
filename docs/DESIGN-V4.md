@@ -12523,3 +12523,10 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 ### §258.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
 
 run 43602076559：名义 failure 仅 §184。实数：断言失败 **0**（全程无 `Test Case ... failed` 行、无任一 `Executed ... with N>0 failures`）；Core **2081/2081 精确对账**（Executed 2081、0 failures，＝预期 2034＋13＋17＋17）；UI **8/8 全跑全过**（Executed 8、0 failures——目标尾巴包自身 CI 未跑成的 UI 步至此**补验完成**）；App passed 168＋skipped 5＋无终局 5＝178（＋helpers 伪名 1＝grep 口径 179）；VERDICT 三连 PASS（MATRIX／HUB-LAYOUT／主 VERDICT）。**§184 登记**：宿主重启 7 起（14:07–14:12 集中于 App 测试相位），波及无终局 5 条——ChatReliabilityOfflineTests.testMarkPendingSendRetainsEntryOnDisk 与 ComposerGuideHostTests.testBarGrowth_topRisesBottomPinned（.44 轮已登记者，本轮再现、按组版轮登记口径处理、不判红）、ChatPageAssemblyRegressionTests.testKeyboardUpMovesComposerOnlyDockStays、DrawerBridgeHarnessTests.testBridgeTapToOpenReachesFullTravel、EdgeEffectRegistrationTests.testAnchorRegistersAncestorScrollView（本轮新登记者，同签名）；崩溃元数据 8 份照常采集。IPA 解包验：0.50.45／173／site.didichou.oneday，13,115,227 字节，md5 `4e78123345ac2b4bd3aa4fbd6e11994b`。
+
+## §260 设置路由信箱归并（2026-11-14；分支 feat/settings-route-mailbox-merge，基线 rel-05045@2f3ce5b；自编号 §260——本树最高 §258.1、在飞通知线已占 §259，撞号组版顺延；立项＝全 App 拼装普查收口序 8／待办总表第 73 条；全档＝oneday-design-review/settings-route-mailbox-report-20261114.md）
+
+- **路由信箱单一出处**：跨页「置位—消费—清零」信箱五件（pendingAgentRoute／pendingSettingsRoute／settingsSheetRequested／mainTabSwitchRequest／fileRevealPath）原散作 AppState 五个字段，收进 `AppRoutes` 结构体（AppRoutes.swift），AppState 只持 `routes` 一处。投递点 13 处、消费点 6 处全量改走 `appState.routes.*`，语义与时序逐项沿旧口径、零行为变。
+- **ManageSheet 上移**：`SettingsView.ManageSheet` 嵌套枚举上移 AppRoutes.swift 公共层为顶层 `ManageSheet`，WorkspaceHubView 的反向借用（`SettingsView.ManageSheet?`）改平级引用；成员与 rawValue 不变、呈现零变（AppRoutesMailboxTests 钉死 id/rawValue）。
+- **呈现变更**：零。归并边界外同族未并两组登记在报告：pendingChatSessionID 频道组（聊天域会话开启通道、归会话线）、cronCreateRequested（定时页单用途请求旗）；fileLibraryRevision 为修订计数器非信箱。
+- **验证**：新增 AppRoutesMailboxTests 3 例（默认全空／五件独立往返／ManageSheet 身份稳定）；CI 判读守 §190（Core 预期 2081＋3＝2084、UI 8/8、App 层新增本组）。

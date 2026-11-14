@@ -152,7 +152,7 @@ struct GoalsView: View {
         appState.pendingSourceQuotesByThread[fresh.id] =
             .goal(GoalQuote(category: category))
         appState.drawerThreadSelection = fresh.id
-        appState.mainTabSwitchRequest = .chat
+        appState.routes.mainTabSwitchRequest = .chat
         createSheet = nil
     }
 
@@ -983,7 +983,7 @@ struct GoalDetailView: View {
         guard let threadID = appState.sideChats
             .threadID(forGoalID: goalID) else { return }
         appState.drawerThreadSelection = threadID
-        appState.mainTabSwitchRequest = .chat
+        appState.routes.mainTabSwitchRequest = .chat
     }
 
     var body: some View {

@@ -58,11 +58,9 @@ struct SettingsView: View {
     // ——身份卡改导航进 IdentityDetailView，编辑面本
     // 体在详情页内复用（AgentAvatarEditorView／
     // AgentNameEditorView 全仓一份不变）
-
-    enum ManageSheet: String, Identifiable {
-        case overview, computer, serverFiles
-        var id: String { rawValue }
-    }
+    // §260：ManageSheet 枚举已上移 AppRoutes.swift 公
+    // 共层（原嵌套于此、被 WorkspaceHubView 反向借
+    // 用），本页与枢纽页平级引用同一类型
 
     @Environment(AppState.self) private var appState
     @State private var path: [SettingsRoute] = []
@@ -166,10 +164,10 @@ struct SettingsView: View {
             .onAppear {
                 consumePendingRoutes()
             }
-            .onChange(of: appState.pendingSettingsRoute) { _, _ in
+            .onChange(of: appState.routes.pendingSettingsRoute) { _, _ in
                 consumePendingRoutes()
             }
-            .onChange(of: appState.pendingAgentRoute) { _, _ in
+            .onChange(of: appState.routes.pendingAgentRoute) { _, _ in
                 consumePendingRoutes()
             }
             .navigationDestination(for: SettingsRoute.self) { route in
@@ -879,13 +877,13 @@ struct SettingsView: View {
     /// 深链消费：设置内路由直接落位；智能体详情类路由垫一层
     /// 列表页，返回键才有落点（沿 0.2.0 智能体格口径）
     private func consumePendingRoutes() {
-        if let route = appState.pendingSettingsRoute {
-            appState.pendingSettingsRoute = nil
+        if let route = appState.routes.pendingSettingsRoute {
+            appState.routes.pendingSettingsRoute = nil
             path = [route]
             return
         }
-        guard let route = appState.pendingAgentRoute else { return }
-        appState.pendingAgentRoute = nil
+        guard let route = appState.routes.pendingAgentRoute else { return }
+        appState.routes.pendingAgentRoute = nil
         switch route {
         case .serverSessionDetail:
             path = [.agent(.serverSessions), .agent(route)]

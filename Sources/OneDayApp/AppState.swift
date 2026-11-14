@@ -681,29 +681,12 @@ final class AppState {
         )
     }
 
-    /// 跨页深链（总览 → 智能体格/设置格二级页）：目标页消费后置 nil
-    var pendingAgentRoute: AgentRoute?
-    var pendingSettingsRoute: SettingsRoute?
-    /// 设置 sheet 打开请求（0.20.0）：抽屉齿轮置位，
-    /// ContentView 消费呈现根级设置 sheet 后置 false。
-    /// 0.6.0 的 pendingAppsPage 通道随应用格退役一并
-    /// 删除——应用格页面已各有新家（总览/电脑/服务器
-    /// 文件进设置「管理」组、文件格升底栏），不再有
-    /// 「切格落位」这回事
-    var settingsSheetRequested = false
-    /// 底栏切格请求（0.29.0）：设置内页面（如连接器目
-    /// 录的本机服务详情）要把用户送到目标/点子底栏格
-    /// 时置位，ContentView 消费后关设置 sheet 并切格
-    /// 并清零——置位—消费—清零与 settingsSheet-
-    /// Requested 同式；目标格枚举与底栏本体同源
-    /// （ContentView.MainTab），不另立第二套格名
-    var mainTabSwitchRequest: ContentView.MainTab?
-    /// 文件页定位请求（§131，D8「在文件页中打开」）：
-    /// 打开页动作置位目标路径并同行置 mainTabSwitch-
-    /// Request=.files 切格，DeliverablesView 消费后
-    /// 滚动定位＋高亮该行并清零——置位—消费—清零与
-    /// pendingChatSessionID 同式
-    var fileRevealPath: String?
+    /// 跨页信箱单一出处（§260，设置路由信箱归并）：
+    /// 深链两路／设置 sheet 请求／切格请求／文件定位
+    /// 请求原散作本类五个字段、投递与消费各记各处，
+    /// 收进 AppRoutes 一份持有——置位—消费—清零式
+    /// 不变，逐项口径见 AppRoutes.swift 的 AppRoutes
+    var routes = AppRoutes()
     /// 文件库内容修订号（§131）：打开页改名成功后递
     /// 增，文件页以此为 .task(id:) 键重聚合——改名
     /// 结果不在文件页留旧名残影

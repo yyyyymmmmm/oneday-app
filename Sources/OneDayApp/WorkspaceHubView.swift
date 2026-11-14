@@ -5,7 +5,7 @@ import SwiftUI
 /// 工作区枢纽页（prototype-2，DESIGN §164 升级）：
 /// 总览／电脑／服务器文件三件——保持现行 sheet 机制
 struct WorkspaceHubView: View {
-    @Binding var manageSheet: SettingsView.ManageSheet?
+    @Binding var manageSheet: ManageSheet?
 
     var body: some View {
         List {

@@ -527,7 +527,7 @@ struct FileOpenContent: View {
             appState.pendingSourceQuotesByThread[thread.id] =
                 .file(quote)
             appState.drawerThreadSelection = thread.id
-            appState.mainTabSwitchRequest = .chat
+            appState.routes.mainTabSwitchRequest = .chat
         }
         dismiss()
     }
@@ -650,8 +650,8 @@ struct FileOpenContent: View {
             // 回指文件页：先置定位请求、再切格、本页
             // 退场——DeliverablesView 消费后滚动高亮
             // （跨面通道口径见 AppState.fileRevealPath）
-            appState.fileRevealPath = target.path
-            appState.mainTabSwitchRequest = .files
+            appState.routes.fileRevealPath = target.path
+            appState.routes.mainTabSwitchRequest = .files
             dismiss()
         case .copyText, .exportPDF, .share, .download:
             performSecondary(action)

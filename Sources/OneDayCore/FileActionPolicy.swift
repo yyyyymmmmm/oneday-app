@@ -36,7 +36,7 @@ public enum FileItemAction: String, CaseIterable, Sendable {
     /// 旧），判定与新名规整在 FileRenamePlan 单源
     case rename
     /// 在文件页中打开（§131，D8）：回指文件页并定
-    /// 位高亮该行（AppState.fileRevealPath 通道）
+    /// 位高亮该行（AppState.routes.fileRevealPath 通道）
     case openInFiles
 
     public var label: String {

@@ -200,7 +200,7 @@ struct DeliverablesView: View {
             .task(id: appState.fileLibraryRevision) {
                 await collect()
             }
-            .onChange(of: appState.fileRevealPath) { _, _ in
+            .onChange(of: appState.routes.fileRevealPath) { _, _ in
                 consumeRevealIfReady()
             }
             .modifier(
@@ -1307,9 +1307,9 @@ struct DeliverablesView: View {
     /// 的文件（任意服务器路径）落系统文件浏览器父
     /// 目录＋文件名高亮，不假装它在文件页收录里
     private func consumeRevealIfReady() {
-        guard let path = appState.fileRevealPath else { return }
+        guard let path = appState.routes.fileRevealPath else { return }
         guard deliverables != nil else { return }
-        appState.fileRevealPath = nil
+        appState.routes.fileRevealPath = nil
         systemFilesRoute = nil
         previewEntry = nil
         viewerRoute = nil

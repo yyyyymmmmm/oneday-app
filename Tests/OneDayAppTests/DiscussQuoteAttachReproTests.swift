@@ -164,7 +164,7 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
         appState.pendingFeedQuotesByThread[thread.id] =
             FeedPostQuote(post: post)
         appState.drawerThreadSelection = thread.id
-        appState.mainTabSwitchRequest = .chat
+        appState.routes.mainTabSwitchRequest = .chat
         return thread.id
     }
 
@@ -182,7 +182,7 @@ final class DiscussQuoteAttachReproTests: XCTestCase {
             "聊天页未在壳层内呈现"
         )
         // 进场在动态格（复刻用户点讨论时的在场状态）
-        appState.mainTabSwitchRequest = .feed
+        appState.routes.mainTabSwitchRequest = .feed
         spinRunLoop(seconds: 1.0)
         mark("on-feed-tab")
 
