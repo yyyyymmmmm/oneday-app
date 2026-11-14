@@ -11921,3 +11921,7 @@ run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案�
 - **数据面级联已完整**（_delete_goal 实查）：目标本体＋子目标、goalEntries、briefings、goalTaskLinks 随删；ideas/monitors 只解链（goalId 置 null、本体保留）；关联的 kanban 任务不是目标的财产、不动。与 App 删除弹窗文案逐项对得上。
 - **cron 归属结论：不存在 goal-owned cron**——Hermes cron 绑定（cronBindings）是会话归属（ownerSessionId）、无 goalId 字段；目标周简报不是 per-goal cron，是桥内周轮（_run_briefing_round 每轮现读 goals 快照），目标删后下一轮自然不在名单，无孤儿 cron 要清。
 - **核查中发现并已修一处真缺口**：简报轮在途时目标被删——落笔前的复核原本只查同周去重、不查目标存活，会给已删目标落一条孤儿简报行（数据面残留、UI 不可见但 done_pairs 计数受污染）。已补存活复核：目标不在则 outcome=skipped-goal-gone、不落笔，轮次记录加 skippedGoalGone 计数；自检 Phase C 钉死（轮询回调中删目标→简报零落盘）。
+
+### §233.2 CI 判读（2026-11-14 回填）
+
+run **43568667194**（feat/goals-rectify@6f3d34d）**§190 终判绿（带 §184 在案登记）**：**断言失败 0 条**；**Core 1947／0**——与静态预期精确对账（1937 基线＋本包 GoalRectifyTests 10）；**App 139 启动**：128 passed（125 基线＋GoalQuoteEntryTests 3，精确对账）＋5 skipped＋6 条 started 无终局行（几何五条＋回响 testFailedTraceMaterializesWithErrorSnapshot——均为 §231.1 在案的 §184 重复受害名单，日志 7 起宿主重启对应）；**UI 4／0**；HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS。测试步名义 failure 仅由 §184 宿主死亡构成。伴生侧（GD-1b 两路＋GD-4）已随 companion 1.0.51 与三页余项包 ID-2 一并部署验活（见三页余项包 DESIGN §234.3：/health ok、/ideas 快照已落——目标面 activity 字段同文件同批上线）。未合 main、未打 tag。
