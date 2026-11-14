@@ -124,7 +124,7 @@ struct MemoryView: View {
             .frame(minHeight: OneDayMetrics.rowHeight)
             .odGroup()
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     // MARK: - 提供方
@@ -192,7 +192,7 @@ struct MemoryView: View {
     private func builtinGroup(_ status: MemoryStatus) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("内置记忆文件")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 fileRow(label: "MEMORY（长期记忆）", value: status.builtinFiles["memory"])
@@ -220,7 +220,7 @@ struct MemoryView: View {
     private var resetGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("重置")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 resetRow(title: "重置全部记忆", target: "all")
@@ -390,7 +390,7 @@ struct MemoryProviderConfigView: View {
     private func fieldsGroup(_ config: MemoryProviderConfig) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("配置")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 ForEach(Array(config.fields.enumerated()), id: \.element.id) { index, field in

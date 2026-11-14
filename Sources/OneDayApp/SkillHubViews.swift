@@ -360,7 +360,7 @@ struct HubSkillDetailView: View {
     @ViewBuilder
     private var previewArea: some View {
         SectionLabel("技能说明")
-            .padding(.top, 28)
+            .padding(.top, OneDayMetrics.sectionOuterSpacing)
             .padding(.bottom, OneDayMetrics.spacingS)
         if let preview {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {

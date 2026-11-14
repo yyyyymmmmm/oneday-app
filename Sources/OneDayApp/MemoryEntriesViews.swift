@@ -62,7 +62,7 @@ struct MemoryEntriesSection: View {
                 readyContent
             }
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
         .sheet(isPresented: $showingCreate) {
             MemoryEntryEditorView(store: store, mode: .create)
         }
@@ -412,7 +412,7 @@ struct MemoryEntryDetailView: View {
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.top, OneDayMetrics.spacingS)
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     @ViewBuilder
@@ -451,7 +451,7 @@ struct MemoryEntryDetailView: View {
             .padding(OneDayMetrics.spacingM)
             .odGroup()
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     private func actionsGroup(
@@ -593,7 +593,7 @@ struct MemoryEntryEditorView: View {
                 .pickerStyle(.segmented)
             }
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     private var contentGroup: some View {
@@ -611,7 +611,7 @@ struct MemoryEntryEditorView: View {
                     .padding(.top, OneDayMetrics.spacingS)
             }
         }
-        .padding(.bottom, 28)
+        .padding(.bottom, OneDayMetrics.sectionOuterSpacing)
     }
 
     private func submit() async {

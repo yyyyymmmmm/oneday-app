@@ -93,7 +93,7 @@ struct ServerDetailView: View {
                 .padding(.top, OneDayMetrics.spacingL)
 
                 SectionLabel("连接测试")
-                    .padding(.top, 28)
+                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
                     Button {

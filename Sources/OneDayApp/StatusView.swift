@@ -104,7 +104,7 @@ struct StatusView: View {
     private var activitySection: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("最近会话")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             if sessions.isEmpty {
                 Text("暂无服务端会话")
@@ -149,7 +149,7 @@ struct StatusView: View {
                 .odGroup()
             }
             SectionLabel("近期事件")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             if logLines.isEmpty {
                 Text("暂无日志。有新事件时，会记在这里。")
@@ -191,7 +191,7 @@ struct StatusView: View {
     private var cronSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("接下来运行")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             if cronJobs.isEmpty {
                 Text("暂无定时任务")
@@ -252,7 +252,7 @@ struct StatusView: View {
     private var systemSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("资源")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             if let stats {
                 VStack(spacing: 0) {
@@ -276,7 +276,7 @@ struct StatusView: View {
                 }
                 .odGroup()
                 SectionLabel("版本与运行时")
-                    .padding(.top, 28)
+                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
                     LabeledContent("Hermes") {
