@@ -11922,3 +11922,7 @@ run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案�
 - swipe 只镜像既定动作、不发明新动作：①共享会话行 ServerSessionRow（AllConversations/PlatformChannel/HermesChannel 三面）——长按菜单四件抽为 managementActions/deleteAction 单一出处，长按与滑动共用：改名/置顶/归档 leading、删除 destructive trailing、两侧禁全滑；确认/alert/回查收口原样。②设备闹钟取消镜像行内既有取消（共用同一 cancel）。③监测变化未读行 trailing 标已读，复用详情既有 markRead。④点子行滑动补全为长按同组 rowActions（忽略仅 pending、太泛了仅 pending+generated、删除经 deleteCandidate 确认）；**pending 全滑直达「忽略」保 §177 既定契约、非 pending 禁全滑**。
 - 登记不强改：抽屉名单（自绘/UIKit 容器，长按菜单另线负责）、聊天消息列表、看板（仓内无独立拖拽 UI、现存为任务详情/新建表单）、目标与交付物（非 List 容器）、模型相关面（红线只登记）。
 - **组版注意**：ServerSessionActions.swift 与 Codex 抽屉长按线（fix/drawer-longpress）同文件异处改动（彼改未收养行接法、本包抽动作组＋加 swipe），组版合并时人工核对该文件；本包与基线其余在跑线无文件重叠。
+
+### §232.5 CI 判读（2026-11-14 回填，判读对象＝代码头 bb22050）
+
+run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例、无 XCTAssert 失败行）。**Core 1941 执行／0 失败**——与静态预期精确对账（基线 1937＋本包 RollingNumberGateTests 4）。**App 套件 passed、UI 套件 passed**，MATRIX-VERDICT／HUB-LAYOUT-VERDICT／VERDICT 全 PASS。started 无终局 10 条＝PresentationLayerScenarios 5 条 XCTSkip 存量＋5 条宿主死亡签名（Restarting 紧随 started、无结果行）：testKeyboardUpMovesComposerOnlyDockStays／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView（与 .39 同名单在案）＋ChatReliabilityOfflineTests 两条（本轮同签名新入名单、本包未触聊天面、死因同为宿主异常退出，登记在案）。本包新测 RollingNumberGateTests 4/4 passed 亲验。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-liqian-lessons/run-43571630543.log。未合 main、未打 tag。
