@@ -12251,4 +12251,6 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 
 **静态计数对账**：Core 测试方法 2020＝.41 基线 2008＋权限包 8（DevicePermissionFlowTests）＋审批包 4（ApprovalCardSpec 金测）；App 160 与 .41 树持平（审批包无 App 层新测，与其分支判读一致）；UI 8 持平。版号 0.50.42／170 五处同改（Project.swift 四处＋SettingsSupportViews full/hero），0.50.41 代码面残留 0。两包伴生均已在产（1.0.52/1.0.53 主线已部署验活），本版零服务端动作。未合 main、未打 tag。
 
-### §246.1 CI 判读（待回填）
+### §246.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
+
+单轮 run **43586509331**（头 350f515）：Build／Package／Upload IPA 全 success；**断言失败 0 条、failed 用例 0 条**；Core **2020/2020** 与静态预期精确对账（2008＋权限 8＋审批 4）；全集唯一启动数 2187＝Core 2020＋App 159＋UI 8 精确对账，其中 passed 2178＋skipped 5（存量 PresentationLayerScenarios）＋**4 条 started 无终局**；HUB-LAYOUT-VERDICT=PASS、MATRIX／顶簇 VERDICT PASS、边缘探针 violations=0。测试步名义 failure 仅由 **7 起宿主重启**（§184 签名，近轮 4–8 在案带宽内）构成。无终局 4 条全数在案登记、与两包 diff 零交集：testKeyboardUpMovesComposerOnlyDockStays（§184 长期在案）、testBridgeTapToOpenReachesFullTravel（§184 长期在案）、testMarkPendingSendRetainsEntryOnDisk（§244.1 已登记）、testFailedTraceMaterializesWithErrorSnapshot（§236.1 已登记）——无新名字，不判红。IPA 亲验：12,765,391 字节、md5 `382c46d315bcc44099bd8081aac2e903`、Info.plist＝0.50.42／170／site.didichou.oneday。
