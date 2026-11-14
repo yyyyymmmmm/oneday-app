@@ -48,11 +48,10 @@ struct ProgressCapsuleView: View {
                                 .font(.footnote)
                                 .foregroundStyle(Palette.inkSecondary)
                                 .lineLimit(1)
-                            Text(LedgerElapsed.format(seconds: LedgerElapsed.elapsed(
+                            NumberText(LedgerElapsed.format(seconds: LedgerElapsed.elapsed(
                                 startedAt: content.headlineStartedAt,
                                 serverNow: store.displayServerNow(at: timeline.date)
-                            )))
-                            .font(.footnote.monospacedDigit())
+                            )), font: .footnote)
                             .foregroundStyle(Palette.inkSecondary)
                         }
                         .padding(.horizontal, OneDayMetrics.spacingSM)

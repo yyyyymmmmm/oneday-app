@@ -298,14 +298,12 @@ struct DeviceSyncSection: View {
             alignment: .firstTextBaseline,
             spacing: OneDayMetrics.spacingSM
         ) {
-            Text(
+            NumberText(
                 DeviceSyncLogPresentation.timeText(
                     for: entry, now: Date()
-                )
+                ), font: .caption
             )
-            .font(.caption)
             .foregroundStyle(Palette.inkSecondary)
-            .monospacedDigit()
             if failed {
                 Circle()
                     .fill(Palette.danger)

@@ -11,6 +11,7 @@ struct UsageDetailView: View {
 
     @State private var days: Int = 7
     @State private var usage: UsageAnalytics?
+    @State private var loadedDays: Int = 7
     @State private var models: ModelAnalytics?
     @State private var errorMessage: String?
     @State private var isLoading = false
@@ -63,14 +64,15 @@ struct UsageDetailView: View {
         // 请求/会话/费用作卡内次级读数
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                Text(AdminFormat.count(usage.totals.tokens))
-                    .font(.title)
+                RollingNumberText(
+                    key: "usage.\(appState.config?.baseString ?? "").\(loadedDays).tokens",
+                    value: usage.totals.tokens, font: .title,
+                    format: { AdminFormat.count($0) }
+                )
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .tabularDigits()
-                    .contentTransition(.numericText())
-                Text("Token 总数（近 \(days) 天）")
+                Text("Token 总数（近 \(loadedDays) 天）")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
             }
@@ -195,10 +197,12 @@ struct UsageDetailView: View {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
+        let requestedDays = days
         do {
             usage = try await appState.performAdmin { client, config in
-                try await client.usageAnalytics(config: config, days: days)
+                try await client.usageAnalytics(config: config, days: requestedDays)
             }
+            loadedDays = requestedDays
             errorMessage = nil
         } catch {
             errorMessage = (error as? HermesError)?.userMessage ?? "用量没读出来，可能是网络或服务暂时没响应"

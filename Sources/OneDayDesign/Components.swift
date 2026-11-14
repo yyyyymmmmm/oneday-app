@@ -448,6 +448,38 @@ public struct DataBar: View {
 
 // MARK: - 视觉纪律组件（0.3.0，DESIGN-V4 §14）
 
+/// 独立数字读数：字阶由消费方给，默认保留原字体字重；
+/// 显式指定字重时深色降一档，避免数字比邻近文字过重。
+public struct NumberText: View {
+    private let value: String
+    private let font: Font
+    private let weight: Font.Weight?
+    @Environment(\.colorScheme) private var colorScheme
+
+    public init(_ value: String, font: Font = .body, weight: Font.Weight? = nil) {
+        self.value = value
+        self.font = font
+        self.weight = weight
+    }
+
+    public var body: some View {
+        Text(value)
+            .font(weight.map { font.weight(effectiveWeight($0)) } ?? font)
+            .monospacedDigit()
+    }
+
+    // 降档只对显式给字重的消费方生效；regular 及其他档保持原样。
+    private func effectiveWeight(_ weight: Font.Weight) -> Font.Weight {
+        guard colorScheme == .dark else { return weight }
+        switch weight {
+        case .bold: return .semibold
+        case .semibold: return .medium
+        case .medium: return .regular
+        default: return weight
+        }
+    }
+}
+
 public extension View {
     /// （条 5 光学对齐 iconOpticalOffset 已于 0.4.0 删除，
     /// 审计 §1.2 #4：图标下移 0.125em 的 hack——SF Symbols

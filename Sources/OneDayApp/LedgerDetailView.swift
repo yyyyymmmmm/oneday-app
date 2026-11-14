@@ -365,10 +365,9 @@ struct LedgerDetailView: View {
     private func historyRow(_ entry: LedgerHistoryEntry) -> some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
             HStack(spacing: OneDayMetrics.spacingS) {
-                Text(
-                    LedgerClock.timeWithSeconds(entry.at)
+                NumberText(
+                    LedgerClock.timeWithSeconds(entry.at), font: .footnote
                 )
-                .font(.footnote.monospacedDigit())
                 .foregroundStyle(Palette.inkMuted)
                 Text(transitionText(entry))
                     .font(.subheadline)
