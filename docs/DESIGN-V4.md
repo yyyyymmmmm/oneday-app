@@ -12326,10 +12326,16 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 
 ## §249 0.50.43 组版（2026-11-14；分支 rel-05043，基线 rel-05042@7fc5cb3）
 
-**装车两件**：①动效规矩包（feat/motion-rules@61376b6，基线 rel-05041@7cb8e26）——7 提交 cherry-pick 全数落入。冲突处置：DESIGN 节号一处亲解——本包自编 §245 与审批卡 §245 撞号，整节顺延为 **§247**（节题＋§247.1–§247.4 小节＋代码自指 20 处逐处同步，收口提交另立）；ChatView 呈现点＋两锚小块、ImageViewerView 转场承载段均自动合入，**逐行自查**：动效分支全部新增行逐行在位（ChatView 33／ImageViewerView 83／DesignTokens 20／workflow 7 等，missing＝0）。②触感定版包（feat/haptics-final@9beec83）——1 提交 cherry-pick，ChatView 与动效改动不同位自动合入，新增行逐行在位核（ChatView 10／DrawerContainerView 8／Haptics 16，missing＝0），组版编为 §248。
+**装车三件**：①动效规矩包（feat/motion-rules@61376b6，基线 rel-05041@7cb8e26）——7 提交 cherry-pick 全数落入。冲突处置：DESIGN 节号一处亲解——本包自编 §245 与审批卡 §245 撞号，整节顺延为 **§247**（节题＋§247.1–§247.4 小节＋代码自指 20 处逐处同步，收口提交另立）；ChatView 呈现点＋两锚小块、ImageViewerView 转场承载段均自动合入，**逐行自查**：动效分支全部新增行逐行在位（ChatView 33／ImageViewerView 83／DesignTokens 20／workflow 7 等，missing＝0）。②触感定版包（feat/haptics-final@9beec83）——1 提交 cherry-pick，ChatView 与动效改动不同位自动合入，新增行逐行在位核（ChatView 10／DrawerContainerView 8／Haptics 16，missing＝0），组版编为 §248。③C-13 Demo 冻结（chore/demo-freeze@c848209）——开工时其 CI 尚在跑、先按备选条款候车；组版中途 run 43590276992 终判绿（断言失败 0、failed 0、UI 8/8、VERDICT 三连 PASS、名义 failure 仅 §184 宿主重启 6 起），遂按备选条款加车：2 提交 cherry-pick，改动为注释层冻结标记＋DemoFreezeGuardTests 2 测，与两包无冲突面自动合入，新增行逐行在位核（6 文件全核，missing＝0），组版编为 §250；加车时本版 CI 尚未起跑，换头重派、无已判读结果受影响。
 
-**C-13 未装车**：chore/demo-freeze@c848209 最新 run 43590276992 于本组版开工时仍 in_progress、未终判绿，按组版口径不等，留待后续版本装车。
-
-**静态计数对账**：Core 测试方法 2024＝.42 基线 2020＋动效 ZoomTransitionPolicyTests 4；App 164＝160＋触感 HapticsMatrixTests 4；UI 8 持平；i18n 3084 键与 .42 精确一致（两包零新键）。版号 0.50.43／171 五处同改（Project.swift 四处＋SettingsSupportViews full/hero），0.50.42 代码面残留 0。本版零服务端动作。未合 main、未打 tag。
+**静态计数对账**：Core 测试方法 2024＝.42 基线 2020＋动效 ZoomTransitionPolicyTests 4；App 166＝160＋触感 HapticsMatrixTests 4＋C-13 DemoFreezeGuardTests 2；UI 8 持平；i18n 3084 键与 .42 精确一致（三包零新键）。版号 0.50.43／171 五处同改（Project.swift 四处＋SettingsSupportViews full/hero），0.50.42 代码面残留 0。本版零服务端动作。未合 main、未打 tag。
 
 ### §249.1 CI 判读（回填位）
+
+## §250 C-13 Demo 客户端接口面冻结（2026-11-14；分支 chore/demo-freeze，基线 rel-05041@7cb8e26；本包未自占节号，0.50.43 组版编为 §250；全档＝oneday-design-review/c13-demo-freeze-report-20261114.md）
+
+**范围**：复杂化审计 C-13 收口——Demo 客户端接口面冻结。协议／Demo／桥桩／测试桩四处加注释层冻结标记、指向审计条目（DemoHermesClient／DemoMode／HermesClient／WriteGateClient／HermesError 五文件标记与口径订正），**零行为改动**：冻结面外不新增 Demo 能力，存量 Demo 路径行为一字不变。
+
+**钉测**：新增 DemoFreezeGuardTests 2 法（App 套件），钉「冻结清单外恒抛统一空态」；第二提交为钉测一轮修复（ServerConfig(rawInput:) 可失败初始化器须 XCTUnwrap，run 43589253512 编译错 19 处同因）。
+
+**分支判读**：CI run 43590276992 §190 终判绿——断言失败 0、failed 用例 0、UI 8/8、VERDICT 三连 PASS，测试步名义 failure 仅由 §184 宿主重启 6 起构成。组版装车见 §249。
