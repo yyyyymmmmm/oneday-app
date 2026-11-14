@@ -542,6 +542,14 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         request.httpBody = try encoder.encode(body)
         let (data, http) = try await dataRequest(request)
         guard (200...299).contains(http.statusCode) else {
+            // §210：回包带结构化错误码时连码上行（分流
+            // 判定要用，如建会话 invalid_title 收养）；
+            // 无码照旧只报状态——不许为拿码改变其余口径
+            if let code = GatewayErrorCode.parse(data) {
+                throw HermesError.serverError(
+                    endpoint: endpoint, status: http.statusCode, code: code
+                )
+            }
             throw HermesError.unexpectedStatus(endpoint: endpoint, status: http.statusCode)
         }
         do {

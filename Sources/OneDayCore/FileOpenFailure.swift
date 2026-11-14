@@ -47,7 +47,8 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
         error: HermesError
     ) -> FileOpenFailure {
         switch error {
-        case .unexpectedStatus(_, let status):
+        case .unexpectedStatus(_, let status),
+             .serverError(_, let status, _):
             switch status {
             case 404: return .notFound
             case 413: return .tooLarge
