@@ -51572,29 +51572,6 @@
         }
       }
     },
-    "登录被拒：面板账号或密码不对。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign-in rejected: the panel account or password is wrong."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登录被拒：面板账号或密码不对。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登入被拒：面板帳號或密碼不對。"
-          }
-        }
-      }
-    },
     "登录面板": {
       "extractionState": "manual",
       "localizations": {
@@ -63111,29 +63088,6 @@
         }
       }
     },
-    "这条会立即批准；以后「%@」的写入将直接通过，不再逐条询问。规则可以在枢纽「审批规则」里随时撤销。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This one will be approved immediately. From now on, writes to “%@” will pass directly without asking each time. You can revoke the rule anytime in the Hub under Approval Rules."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这条会立即批准；以后「%@」的写入将直接通过，不再逐条询问。规则可以在枢纽「审批规则」里随时撤销。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這條會立即批准；以後「%@」的寫入將直接通過，不再逐條詢問。規則可以在樞紐「審批規則」裡隨時撤銷。"
-          }
-        }
-      }
-    },
     "这条会话已不在服务器上，本地列表已同步清理。": {
       "extractionState": "manual",
       "localizations": {
@@ -69610,6 +69564,1294 @@
           "stringUnit": {
             "state": "translated",
             "value": "只保留最近 200 條回報記錄"
+          }
+        }
+      }
+    },
+    "「%@」的系统权限已经有了，只是「允许智能体调用」还关着。打开后马上接着办刚才的事。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ already has system permission — only the “Allow agent calls” switch is off. Turn it on and the task continues right away."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」的系统权限已经有了，只是「允许智能体调用」还关着。打开后马上接着办刚才的事。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」的系統權限已經有了，只是「允許智慧代理呼叫」還關著。打開後馬上接著辦剛才的事。"
+          }
+        }
+      }
+    },
+    "「%@」还没打开": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ isn't turned on yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」还没打开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」還沒打開"
+          }
+        }
+      }
+    },
+    "「总是允许」的规则与撤销": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rules for “Always allow” and how to revoke them"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「总是允许」的规则与撤销"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「總是允許」的規則與撤銷"
+          }
+        }
+      }
+    },
+    "之前在系统里没允许「%@」。去设置里打开它，回来会自动接着办刚才的事，不用重新说一遍。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wasn't allowed in system settings before. Turn it on in Settings, and the task will pick up right where it left off when you come back — no need to ask again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之前在系统里没允许「%@」。去设置里打开它，回来会自动接着办刚才的事，不用重新说一遍。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之前在系統裡沒允許「%@」。去設定裡打開它，回來會自動接著辦剛才的事，不用重新說一遍。"
+          }
+        }
+      }
+    },
+    "允许": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許"
+          }
+        }
+      }
+    },
+    "允许后会先把「%@」同步过去再查。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once allowed, %@ will be synced to your server first, then looked up."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许后会先把「%@」同步过去再查。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許後會先把「%@」同步過去再查。"
+          }
+        }
+      }
+    },
+    "允许的同时系统会顺带查一次今天的步数，这是系统定的，问完就好。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowing this also looks up today's step count once — that's how the system works; it's a one-time check."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许的同时系统会顺带查一次今天的步数，这是系统定的，问完就好。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許的同時系統會順帶查一次今天的步數，這是系統定的，問完就好。"
+          }
+        }
+      }
+    },
+    "先不": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先不"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先不要"
+          }
+        }
+      }
+    },
+    "先放着了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set aside for now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先放着了"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先放著了"
+          }
+        }
+      }
+    },
+    "再试一次": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再试一次"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再試一次"
+          }
+        }
+      }
+    },
+    "写入审批还没启用，现在没有规则可管。启用后，在聊天里点「总是允许这一类」就会在这里留下规则。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write approval isn't enabled yet, so there are no rules to manage. Once it's on, tapping “Always allow this kind” in a chat will leave a rule here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写入审批还没启用，现在没有规则可管。启用后，在聊天里点「总是允许这一类」就会在这里留下规则。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "寫入審批還沒啟用，現在沒有規則可管。啟用後，在聊天裡點「總是允許這一類」就會在這裡留下規則。"
+          }
+        }
+      }
+    },
+    "刚才没办成": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That didn't go through"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刚才没办成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剛才沒辦成"
+          }
+        }
+      }
+    },
+    "办一件事": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "do something"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "办一件事"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辦一件事"
+          }
+        }
+      }
+    },
+    "去设置打开": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去设置打开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去設定打開"
+          }
+        }
+      }
+    },
+    "在任意对话里就能处理这些授权卡，处理完会自动接着办刚才的事。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can handle these permission cards in any chat; once handled, the task continues automatically."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在任意对话里就能处理这些授权卡，处理完会自动接着办刚才的事。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在任意對話裡就能處理這些授權卡，處理完會自動接著辦剛才的事。"
+          }
+        }
+      }
+    },
+    "在系统弹窗里点「允许」就行；不想给就点「不允许」，不会反复弹。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Just tap “Allow” in the system prompt — or “Don't Allow” if you'd rather not. It won't keep asking."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在系统弹窗里点「允许」就行；不想给就点「不允许」，不会反复弹。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在系統彈窗裡點「允許」就行；不想給就點「不允許」，不會反覆彈。"
+          }
+        }
+      }
+    },
+    "在聊天里的待批卡上点「总是允许这一类」，会在这里留下一条规则：同类写入以后直接通过、不再逐条问。撤销一条，恢复逐条审批。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tapping “Always allow this kind” on an approval card in a chat leaves a rule here: similar writes then go through directly instead of asking each time. Revoke a rule to go back to approving one by one."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在聊天里的待批卡上点「总是允许这一类」，会在这里留下一条规则：同类写入以后直接通过、不再逐条问。撤销一条，恢复逐条审批。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在聊天裡的待批卡上點「總是允許這一類」，會在這裡留下一條規則：同類寫入以後直接通過、不再逐條問。撤銷一條，恢復逐條審批。"
+          }
+        }
+      }
+    },
+    "审批通道还没接通，规则暂时看不到。接通后这里会显示已留下的规则。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The approval channel isn't connected yet, so rules can't be shown. Once it is, the rules you've saved will appear here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审批通道还没接通，规则暂时看不到。接通后这里会显示已留下的规则。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "審批通道還沒接通，規則暫時看不到。接通後這裡會顯示已留下的規則。"
+          }
+        }
+      }
+    },
+    "差一步：调用开关没开": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One step left: the call switch is off"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差一步：调用开关没开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差一步：呼叫開關沒開"
+          }
+        }
+      }
+    },
+    "差开开关": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch is off"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差开开关"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差開開關"
+          }
+        }
+      }
+    },
+    "已作废": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expired"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已作废"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已作廢"
+          }
+        }
+      }
+    },
+    "已办完": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已办完"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已辦完"
+          }
+        }
+      }
+    },
+    "已办完。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已办完。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已辦完。"
+          }
+        }
+      }
+    },
+    "已授权，正在继续刚才的事。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed — picking up where it left off."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已授权，正在继续刚才的事。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已授權，正在繼續剛才的事。"
+          }
+        }
+      }
+    },
+    "已算了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropped"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已算了"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已算了"
+          }
+        }
+      }
+    },
+    "手机和服务器刚没接上，等一会儿点「再试一次」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The phone and server just lost touch. Wait a moment, then tap “Try again”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手机和服务器刚没接上，等一会儿点「再试一次」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手機和伺服器剛沒接上，等一會兒點「再試一次」。"
+          }
+        }
+      }
+    },
+    "打开并继续": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on and continue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开并继续"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開並繼續"
+          }
+        }
+      }
+    },
+    "数据还没同步好，等一会儿点「再试一次」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The data hasn't finished syncing yet. Wait a moment, then tap “Try again”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据还没同步好，等一会儿点「再试一次」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資料還沒同步好，等一會兒點「再試一次」。"
+          }
+        }
+      }
+    },
+    "智能体刚才想用「%@」%@，需要你先允许。数据只发到你自己的服务器，不给第三方。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent just tried to use %@ to %@, and needs your permission first. Data only goes to your own server, never to third parties."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体刚才想用「%@」%@，需要你先允许。数据只发到你自己的服务器，不给第三方。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理剛才想用「%@」%@，需要你先允許。資料只發到你自己的伺服器，不給第三方。"
+          }
+        }
+      }
+    },
+    "查一下": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "look something up"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查一下"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查一下"
+          }
+        }
+      }
+    },
+    "正在办…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Working on it…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在办…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在辦…"
+          }
+        }
+      }
+    },
+    "正在把刚才那件事接着办完。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Picking up the earlier task and finishing it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在把刚才那件事接着办完。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在把剛才那件事接著辦完。"
+          }
+        }
+      }
+    },
+    "正在接着办": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuing the task"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在接着办"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在接著辦"
+          }
+        }
+      }
+    },
+    "正在读取规则…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading rules…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取规则…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在讀取規則…"
+          }
+        }
+      }
+    },
+    "没办成": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Didn't go through"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没办成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒辦成"
+          }
+        }
+      }
+    },
+    "点「再试一次」再试试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap “Try again” to give it another go."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点「再试一次」再试试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點「再試一次」再試試。"
+          }
+        }
+      }
+    },
+    "用伴生面板的那把密码（和网页端同一把，没有账号）。验证通过后，App 会向你的服务器换取登录密钥并保存在本机钥匙串，之后不用再填。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use the same password as the companion panel (the web sign-in uses the same one — there's no username). Once it checks out, the app exchanges it with your server for a sign-in key and keeps it in this device's keychain, so you won't have to type it again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用伴生面板的那把密码（和网页端同一把，没有账号）。验证通过后，App 会向你的服务器换取登录密钥并保存在本机钥匙串，之后不用再填。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用伴生面板的那把密碼（和網頁端同一把，沒有帳號）。驗證通過後，App 會向你的伺服器換取登入金鑰並保存在本機鑰匙圈，之後不用再填。"
+          }
+        }
+      }
+    },
+    "用到「%@」的那件事先算了。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The task that needed %@ has been set aside."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用到「%@」的那件事先算了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用到「%@」的那件事先算了。"
+          }
+        }
+      }
+    },
+    "用到「%@」的那件事还没办。点「继续」接着来，不用重新跟智能体说。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The task that needs %@ isn't done yet. Tap “Continue” to pick it up — no need to ask the agent again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用到「%@」的那件事还没办。点「继续」接着来，不用重新跟智能体说。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用到「%@」的那件事還沒辦。點「繼續」接著來，不用重新跟智慧代理說。"
+          }
+        }
+      }
+    },
+    "登录被拒：密码不对（和伴生面板、网页端同一把）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in refused: wrong password (it's the same one as the companion panel and web sign-in)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录被拒：密码不对（和伴生面板、网页端同一把）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入被拒：密碼不對（和伴生面板、網頁端同一把）。"
+          }
+        }
+      }
+    },
+    "登录试太多次了，请几分钟后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many sign-in attempts. Please wait a few minutes and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录试太多次了，请几分钟后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入試太多次了，請幾分鐘後再試。"
+          }
+        }
+      }
+    },
+    "等你确认": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for you"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等你确认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等你確認"
+          }
+        }
+      }
+    },
+    "等你确认…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for your confirmation…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等你确认…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等你確認…"
+          }
+        }
+      }
+    },
+    "算了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Never mind"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "算了"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "算了"
+          }
+        }
+      }
+    },
+    "续办没送出去，检查连接后点「再试一次」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The follow-up request didn't get out. Check the connection, then tap “Try again”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "续办没送出去，检查连接后点「再试一次」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "續辦沒送出去，檢查連線後點「再試一次」。"
+          }
+        }
+      }
+    },
+    "续办设备调用": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume device call"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "续办设备调用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "續辦裝置呼叫"
+          }
+        }
+      }
+    },
+    "要用到你的「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs your %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要用到你的「%@」"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要用到你的「%@」"
+          }
+        }
+      }
+    },
+    "规则": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rules"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "規則"
+          }
+        }
+      }
+    },
+    "还没打开": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not turned on yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没打开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒打開"
+          }
+        }
+      }
+    },
+    "还没连上服务器，续办不了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected to the server yet, so this can't continue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没连上服务器，续办不了"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒連上伺服器，續辦不了"
+          }
+        }
+      }
+    },
+    "这件先放着了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This one is set aside for now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这件先放着了"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這件先放著了"
+          }
+        }
+      }
+    },
+    "这条会立即批准；以后「%@」的写入将直接通过，不再逐条询问。规则可以在设置「偏好与权限」的「审批规则」里随时撤销。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This one will be approved right away; from now on, writes to “%@” go through directly without asking each time. You can revoke the rule anytime in Settings → Preferences & Permissions → Approval Rules."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条会立即批准；以后「%@」的写入将直接通过，不再逐条询问。规则可以在设置「偏好与权限」的「审批规则」里随时撤销。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這條會立即批准；以後「%@」的寫入將直接通過，不再逐條詢問。規則可以在設定「偏好與權限」的「審批規則」裡隨時撤銷。"
+          }
+        }
+      }
+    },
+    "这条授权请求看不懂，先放一放。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This permission request couldn't be read, so it's been set aside."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条授权请求看不懂，先放一放。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這條授權請求看不懂，先放一放。"
+          }
+        }
+      }
+    },
+    "这次没办成，点「再试一次」再试试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It didn't go through this time. Tap “Try again” to retry."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这次没办成，点「再试一次」再试试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這次沒辦成，點「再試一次」再試試。"
+          }
+        }
+      }
+    },
+    "这里只管状态和开关：权限要改在系统设置里，副本和日志在各件详情页里。智能体要用哪件，都是在对话里当场问你。健康与家庭还差系统签名权益，开通前只列名、不显数据。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This page only manages status and switches: permissions change in system Settings, and copies and logs live in each item's detail page. Whenever the agent needs one of these, it asks you right in the chat. Health and Home still need system signing entitlements — until then they're listed by name only, with no data."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里只管状态和开关：权限要改在系统设置里，副本和日志在各件详情页里。智能体要用哪件，都是在对话里当场问你。健康与家庭还差系统签名权益，开通前只列名、不显数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這裡只管狀態和開關：權限要改在系統設定裡，副本和日誌在各件詳情頁裡。智慧代理要用哪件，都是在對話裡當場問你。健康與家庭還差系統簽名權益，開通前只列名、不顯資料。"
+          }
+        }
+      }
+    },
+    "那次「%@」的授权等太久，已经作废了。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That %@ permission request waited too long and has expired."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "那次「%@」的授权等太久，已经作废了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "那次「%@」的授權等太久，已經作廢了。"
           }
         }
       }
