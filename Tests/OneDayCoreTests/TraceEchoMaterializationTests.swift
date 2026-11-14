@@ -205,7 +205,7 @@ final class TraceEchoMaterializationTests: XCTestCase {
         XCTAssertEqual(
             session[0].snapshot.openableSessionID, "oneday-ai-abc"
         )
-        let goal = plan([trace(targetKind: "goal", targetID: "g-1")])
+        let goal = plan([trace(targetID: "g-1", targetKind: "goal")])
         XCTAssertNil(goal[0].snapshot.openableSessionID)
         let empty = plan([trace(targetID: "")])
         XCTAssertNil(empty[0].snapshot.openableSessionID)
