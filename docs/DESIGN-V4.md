@@ -12362,6 +12362,14 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 五轮收官：前四轮红在 Swift 6 并发隔离（View 静态映射的 MainActor 隔离→纯函数 nonisolated 化；NSLock 不许跨挂起点→锁收进同步函数；NSAttributedString 跨任务边界→`LayoutAttributedBox` 装箱过界）——全是新代码的隔离形态问题、无逻辑改动。终判读轮 run **43590926421**：Build 过；Core **2016/2016**（基线 2008＋新增 8，精确对账）；App 逐条点名 **passed 155＋skipped 5、断言失败 0**，本包新增 7 条全过（语料 6 组×三宽对拍 |Δ|≤1.0 全过、16 万字巨串对拍一致、并发确定性、三 worker 不串行、服务组装/缓存命中、账本落账 3/3 一致、记账同步段 <0.1s）；UI **8/8**，几何/顶簇 VERDICT=PASS×3。测试步名义 failure＝App 会话内 7 起宿主重启（§184 在案签名，与 0.50.42 交付轮同），6 条既有测试只有 started 无终局被列名（名单见报告 §四），按 §190 判读**实质绿**。App passed 较基线 147 的差额 +8：7 条本包新增，余 1 条为基线轮无终局口径差（登记、不硬凑）。
 
 **节号顺延注记**：本节在本分支编号 §245；0.50.44 组版顺延为 **§251**（§245＝审批卡节、§246–§250 已被 0.50.42/0.50.43 各节占用），文内与代码自指已同步改。
+## §252 UI 整改台账余项＋深色专项 D1–D9（2026-11-14；分支 feat/ui-ledger-dark@7ecc90b，基线 rel-05041@7cb8e26；本包未自占节号，0.50.44 组版编为 §252；全档＝oneday-design-review/ui-ledger-dark-report-20261114.md）
+
+**范围**：UI 整改台账余项收编＋深色专项 D1–D9 代码层销账。落码：新增分区外距令牌 `sectionOuterSpacing`（Palette，组节奏上 28 定版值收编）；组顶距/页末外距 28 字面量 38 处/14 文件收编令牌（值不变）；C5 微距字面量复发 8 处收编（值不变）；C15 服务器连接卡图标砖圆角 8→radiusTile 9；美化标尺 V1——ConnectView 状态球圆角 21→containerCorner 23（§247.3 梯队口径）；钉测 SectionOuterSpacingTests +2 法。除两处圆角归族（+1pt/+2pt，独立提交可摘）外全部值不变。
+
+**对账**：台账 A 节 25 条逐项实查——已修属实 20 条（0.36.0–0.41.0 已销、台账止于 0.36.5 未回填）；C14 经用户 0.47.0 拍板改判 semibold 定版；P4 病灶对象已随整行删除退役；C13 仍开放——按 §107.3 定版逐面处置（导航行 chevron 为主约定），本批不强改；**D1–D9 代码层 9/9 销账属实**（余 D4 全表面暗档真机对照、D9 弱面暗底肉眼验两项非代码，入真机清单）。押后 5 组全在避让面、已分归目标尾巴/身份包/换代线/无障碍专项各线。追加输入 V1–V5 全数裁落：V1 落改、V2 与本批同判互证、V5 与本批自修同面收编、V4 逐处裁（3 处避让面押后）、V3 备查属实（合例外 X1）不改。SM-3 复核结论＝同意主线推荐保留并转正登记（报告第八节），登记转正由本版组版落（见 §254）。
+
+**分支判读**：CI run 43591007171 §190 终判绿——Build/Package/Upload 全 success，断言失败 0、failed 用例 0，Core 2010（基线 2008＋新法 2）、App 159 启动/148 过/0 failed、UI 8/8、MATRIX/HUB-LAYOUT VERDICT 双 PASS、violations＝0；测试步名义 failure 仅 §184 宿主重启 7 起。组版装车见 §254。
+
 ## §253 身份包：多账收敛＋名字读直连＋正文真提炼＋国际化收尾（2026-11-14；分支 feat/identity-pack，基线 rel-05041@7cb8e26；自编号 §245，0.50.44 组版顺延为 §253，代码自指同步；全档＝oneday-design-review/identity-pack-report-20261114.md）
 
 **编号说明**：本包分支自编号 §245（分支内 §244 为权限包 feat/permissions-pack 占号）；0.50.44 组版顺延为 **§253**，代码自指与 current-spec 变更日志行已同步改。
@@ -12403,3 +12411,11 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 - **三轮 attempt 2**：Core 2008/2008 断言 0；App 148 通过、无终局名单与二轮不重叠（轮换）；UI 7/8——DrawerRowContextMenuTests.testSideListFirstAndLastRowsExposeContextMenu 一条 waiter 超时断言（XCTWaiterResult 2≠1「菜单外点击后上下文菜单仍在」，长按包 UI 测试、本包未触其代码路径，二轮已通过）。
 - **四轮 attempt 3**：Core 2008/2008 断言 0；UI 8/8（上条通过）；App 无终局 7 条。
 - **三 attempt 并集对账**：App 151 通过＋5 skipped（存量演示层跳过）；无通过记录仅 4 条——§184 老登记 2 条、GoalQuoteEntryTests.testGoalQuoteRoundTripsThroughEntry（§243.1 已登记、分支 run 43568667194 通过）、TraceEchoMaterializationAppTests.testFailedTraceMaterializesWithErrorSnapshot（.41 并集已通过、本包未触其代码路径，本轮三 attempt 均被宿主截断未及终局，登记在案）。全程内容断言失败仅三轮 attempt 2 的 UI waiter 一条且已在另两轮通过——**判绿**。
+
+## §254 0.50.44 组版（2026-11-14；分支 rel-05044，基线 rel-05043@7e592ca）
+
+**装车三件**：①会话页换代包 2·排版产物层（feat/chat-gen2@cf14508，基线 rel-05041@7cb8e26）——6 提交 cherry-pick。冲突处置：DESIGN 追加点一处亲解（来节整节移至 §250 后），整节顺延改号 **§251**（节题＋§251.1＋代码自指逐处同步，收口提交另立）；代码面自动合入，包内新增行逐行在位核（missing＝0）。②UI 整改台账余项＋深色 D1–D9（feat/ui-ledger-dark@7ecc90b）——6 提交 cherry-pick 零冲突全入，组版编为 **§252**；其 ConnectView 美化标尺引「§245.3」随收口改 §247.3（本树美化标尺在 §247.3）。③身份包（feat/identity-pack@21e306b）——3 提交 cherry-pick。冲突处置：DESIGN 追加点一处亲解（整节移至 §251 后），整节顺延改号 **§253**（节题＋§253.1–§253.6＋代码自指逐处同步；current-spec 变更日志行 §245→§253 随改）；Localizable.xcstrings 一处亲解——三方键级合并（基线 3028＋0.50.43 线 +58/−2＋身份包 +107＝**3191 键**，零同键双改、我方原文逐字保留、身份包 107 条目原块插入，键集与值逐条验零差）。
+
+**指定收口小改**：SM-3 思考块 chevron 登记转正（组版层落，收口提交另立）：登记册 SymbolMotionRegistry SM-3 状态 legacyPendingRuling→registered＋§247.1 表行注记同步；依据＝UI 台账批复核同意主线推荐（ui-ledger-dark-report-20261114.md 第八节）；只动登记文字、零行为代码改动，check_symbol_motion.py 自检＋全仓核查仍绿。
+
+**静态计数对账**：Core 测试方法 **2034**＝0.50.43 基线 2024＋换代包 2 新增 8（LayoutProductTests）＋UI 批新增 2（SectionOuterSpacingTests）＋身份包净 0（AgentProfileTests 26→30、AgentAvatarChoiceTests −9 退役删除、HubSoulTests 12→17）；App **173**＝166＋换代包 2 新增 7（LayoutProductPoolTests），身份包/UI 批 App 测试零增减；UI 8 持平；i18n **3191 键**（3084＋107，与 xcstrings 合并实数逐项一致）。版号 0.50.44／172 五处同改（Project.swift 四处＋SettingsSupportViews full/hero），0.50.43 代码面残留 0。本版零服务端动作（身份包写穿端点全在产、伴生零改动）。未合 main、未打 tag。
