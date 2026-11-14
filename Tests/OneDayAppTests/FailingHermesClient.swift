@@ -388,6 +388,14 @@ struct FailingHermesClient: HermesClientProtocol {
         throw HermesError.unreachable("离线桩")
     }
 
+    func messagingPlatforms(config: ServerConfig) async throws -> MessagingPlatformsResponse {
+        throw HermesError.unreachable("离线桩")
+    }
+
+    func updateMessagingPlatform(config: ServerConfig, platform: String, enabled: Bool, env: [String: String], clearEnv: [String]) async throws {
+        throw HermesError.unreachable("离线桩")
+    }
+
     func gatewayRestart(config: ServerConfig) async throws {
         throw HermesError.unreachable("离线桩")
     }
