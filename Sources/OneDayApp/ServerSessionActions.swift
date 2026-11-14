@@ -2,6 +2,18 @@ import OneDayCore
 import OneDayDesign
 import SwiftUI
 
+/// 抽屉行统一的系统长按菜单挂点。修饰整个行的命中
+/// 面，而不是只修饰文字或按钮内部某个子视图。
+extension View {
+    func drawerRowContextMenu<MenuItems: View>(
+        @ViewBuilder menuItems: () -> MenuItems
+    ) -> some View {
+        self
+            .contentShape(Rectangle())
+            .contextMenu(menuItems: menuItems)
+    }
+}
+
 /// 服务端会话四件的执行层（0.18.0，旁聊立项档 A.3 /
 /// 验收项 A3-V）：改名/置顶/归档/删除全走服务端本
 /// 体（PATCH / DELETE），2xx 只算受理——每件都 GET
@@ -158,8 +170,12 @@ struct ServerSessionRow<Content: View>: View {
     /// SessionDeletionCoordinator 起手（本地先删、
     /// 服务端后台删、最终失败自动恢复＋提醒）；本
     /// 组件不再等服务端落定，改名/置顶/归档仍走落
-    /// 定口径不经此钩
+    /// 定口径不经此钩（组版收口：抽屉长按包原接
+    /// §223 的 onDeleted 落定收口钩，本树删除时序
+    /// 已改乐观——未收养行删除同走本钩，物理收口
+    /// 由协调器落定后统一经 DeletedSessionCloseout）
     var onDeleteRequested: ((ServerSession) -> Void)? = nil
+    var deleteMenuTitle = "删除"
     @ViewBuilder var content: () -> Content
 
     @Environment(AppState.self) private var appState
@@ -210,7 +226,7 @@ struct ServerSessionRow<Content: View>: View {
         // 行面只有 pin 字形与段位区分、VO 读不到状
         // 态；值随态拼（两键已在目录），无态不挂空值
         .accessibilityValue(stateValue)
-        .contextMenu {
+        .drawerRowContextMenu {
             Button {
                 renameText = title
                 showRename = true
@@ -261,7 +277,7 @@ struct ServerSessionRow<Content: View>: View {
             Button(role: .destructive) {
                 showDeleteConfirm = true
             } label: {
-                Label("删除", systemImage: "trash")
+                Label(deleteMenuTitle, systemImage: "trash")
             }
             .disabled(busy)
         }

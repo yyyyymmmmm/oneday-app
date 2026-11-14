@@ -387,6 +387,18 @@ struct DemoHermesClient: HermesClientProtocol {
              "end_reason": "completed", "message_count": 4, "tool_call_count": 0,
              "input_tokens": 2100, "output_tokens": 480}
             """),
+            // 抽屉长按 XCUITest 的未收养行样本：oneday-ai-
+            // 前缀按出生证明分类为 mine，且不关联本地线程。
+            ("oneday-ai-drawer-longpress", """
+            {"id": "oneday-ai-drawer-longpress", "source": "api_server",
+             "display_name": "演示未收养旁聊",
+             \(demoTitleFields(id: "oneday-ai-drawer-longpress", baseTitle: "演示未收养旁聊", baseSource: "llm")),
+             \(demoFlagFields(id: "oneday-ai-drawer-longpress")),
+             "model": "deepseek-chat", "profile": "default",
+             "started_at": \(now - 60 * 60), "ended_at": \(now - 60 * 60 + 30),
+             "end_reason": "completed", "message_count": 2, "tool_call_count": 0,
+             "input_tokens": 120, "output_tokens": 80}
+            """),
         ]
         let visible = all.filter { item in
             if Self.sessionWrites.isDeleted(item.id) { return false }

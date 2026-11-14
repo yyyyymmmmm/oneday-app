@@ -1643,6 +1643,7 @@ struct ChatView: View {
                 }
                 .buttonStyle(.odPressable)
                 .accessibilityLabel("会话列表")
+                .accessibilityIdentifier("drawer.open")
 
                 Spacer(minLength: OneDayMetrics.spacingS)
 
