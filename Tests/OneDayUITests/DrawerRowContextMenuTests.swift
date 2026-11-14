@@ -80,7 +80,16 @@ final class DrawerRowContextMenuTests: XCTestCase {
 
     private func launchDemoApp() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-odDemoMode"]
+        // CI 模拟器是英文区域：不钉语言时全 App 走 en 本地
+        // 化，菜单项是 Rename/Pin/Archive（首两轮 CI 快照实
+        // 证：菜单明明开着、项也在树里，只是查中文标签查不
+        // 到）。产品主语言是简体中文（真机菜单即中文四
+        // 项），测试钉回 zh-Hans 与真机口径一致再断言。
+        app.launchArguments = [
+            "-odDemoMode",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_Hans_CN",
+        ]
         app.launch()
         return app
     }
