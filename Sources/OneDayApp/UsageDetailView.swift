@@ -105,7 +105,7 @@ struct UsageDetailView: View {
         let maxTokens = max(usage.daily.map(\.tokens).max() ?? 0, 1)
         return VStack(alignment: .leading, spacing: 0) {
             SectionLabel("按日趋势")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 ForEach(Array(usage.daily.enumerated()), id: \.element.id) { index, day in
@@ -154,7 +154,7 @@ struct UsageDetailView: View {
         let total = max(models.models.map(\.tokens).reduce(0, +), 1)
         return VStack(alignment: .leading, spacing: 0) {
             SectionLabel("按模型分布")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 ForEach(Array(models.models.enumerated()), id: \.element.id) { index, model in

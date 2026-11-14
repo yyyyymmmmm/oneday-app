@@ -142,7 +142,7 @@ struct EmptyCleanupSheet: View {
                         .padding(.top, OneDayMetrics.spacingM)
                 } else {
                     SectionLabel("将要删除的空会话")
-                        .padding(.top, 28)
+                        .padding(.top, OneDayMetrics.sectionOuterSpacing)
                         .padding(.bottom, OneDayMetrics.spacingS)
                     VStack(spacing: 0) {
                         ForEach(
@@ -221,7 +221,7 @@ struct EmptyCleanupSheet: View {
                 }
                 if !record.failures.isEmpty {
                     SectionLabel("没删掉的")
-                        .padding(.top, 28)
+                        .padding(.top, OneDayMetrics.sectionOuterSpacing)
                         .padding(.bottom, OneDayMetrics.spacingS)
                     VStack(spacing: 0) {
                         ForEach(

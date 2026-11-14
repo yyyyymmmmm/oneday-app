@@ -45,7 +45,7 @@ struct EnvVarDetailView: View {
                 .odGroup()
 
                 SectionLabel("操作")
-                    .padding(.top, 28)
+                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
                     actionRow(title: entry.isSet ? "修改值" : "设置值", icon: "pencil.circle") {

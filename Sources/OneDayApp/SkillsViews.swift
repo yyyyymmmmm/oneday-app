@@ -69,7 +69,7 @@ struct SkillsView: View {
                         Array(skillGroups.enumerated()), id: \.element.label
                     ) { _, group in
                         SectionLabel(group.label)
-                            .padding(.top, 28)
+                            .padding(.top, OneDayMetrics.sectionOuterSpacing)
                             .padding(.bottom, OneDayMetrics.spacingS)
                         VStack(spacing: 0) {
                             ForEach(Array(group.items.enumerated()), id: \.element.id) { index, skill in
@@ -342,7 +342,7 @@ struct SkillDetailView: View {
                     .disabled(isLocked)
                 }
             }
-            .padding(.top, 28)
+            .padding(.top, OneDayMetrics.sectionOuterSpacing)
             .padding(.bottom, OneDayMetrics.spacingS)
             Group {
                 if isEditing {

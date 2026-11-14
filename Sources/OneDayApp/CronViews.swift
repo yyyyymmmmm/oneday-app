@@ -113,7 +113,7 @@ struct CronJobsView: View {
         if !groupJobs.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 SectionLabel(title)
-                    .padding(.top, 28)
+                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
                     ForEach(Array(groupJobs.enumerated()), id: \.element.id) { index, job in
@@ -291,7 +291,7 @@ struct CronJobDetailView: View {
     private var infoGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("详情")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if let last = AdminFormat.iso(current.lastRunAt) {
@@ -390,7 +390,7 @@ struct CronJobDetailView: View {
     private var actionsGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("动作")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 actionRow(
@@ -419,7 +419,7 @@ struct CronJobDetailView: View {
     private var runsGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("运行记录")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if runs.isEmpty {
@@ -494,7 +494,7 @@ struct CronJobDetailView: View {
     private var dangerGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("危险操作")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 Button(role: .destructive) {

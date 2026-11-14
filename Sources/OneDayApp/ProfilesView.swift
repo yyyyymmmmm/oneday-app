@@ -52,7 +52,7 @@ struct ProfilesView: View {
                         .odGroup()
                     }
                     SectionLabel("全部档案")
-                        .padding(.top, 28)
+                        .padding(.top, OneDayMetrics.sectionOuterSpacing)
                         .padding(.bottom, OneDayMetrics.spacingS)
                     VStack(spacing: 0) {
                         ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
@@ -93,7 +93,7 @@ struct ProfilesView: View {
                     .buttonStyle(.odSecondary)
                     Spacer()
                 }
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 if let notice {
                     Text(notice)
                         .font(.footnote)

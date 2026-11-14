@@ -55,7 +55,7 @@ struct ServerSessionsView: View {
                     .frame(minHeight: OneDayMetrics.rowHeight)
                     .odGroup()
                     SectionLabel("全部会话")
-                        .padding(.top, 28)
+                        .padding(.top, OneDayMetrics.sectionOuterSpacing)
                         .padding(.bottom, OneDayMetrics.spacingS)
                     VStack(spacing: 0) {
                         ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
@@ -173,7 +173,7 @@ struct ServerSessionsView: View {
     private var cleanupGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("清理")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 Button {

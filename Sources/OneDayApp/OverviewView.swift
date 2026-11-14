@@ -286,7 +286,7 @@ struct OverviewView: View {
     private func platformsGroup(_ status: ServerStatus) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("平台连接")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if status.platforms.isEmpty {
@@ -358,7 +358,7 @@ struct OverviewView: View {
         if status != nil {
             VStack(alignment: .leading, spacing: 0) {
                 SectionLabel("待处理")
-                    .padding(.top, 28)
+                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
                     .padding(.bottom, OneDayMetrics.spacingS)
                 VStack(spacing: 0) {
                     if !hasTodo {
@@ -460,7 +460,7 @@ struct OverviewView: View {
     private var recentGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("最近会话")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if sessionsLoaded && !serverSessions.isEmpty {
@@ -567,7 +567,7 @@ struct OverviewView: View {
     private var actionsGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("快捷动作")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 actionRow(title: "重启网关", icon: "arrow.clockwise.circle") {

@@ -136,7 +136,7 @@ struct GatewayView: View {
     private func platformsGroup(_ status: ServerStatus) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("平台连接")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 if status.platforms.isEmpty {
@@ -179,7 +179,7 @@ struct GatewayView: View {
             || status.gatewayState?.lowercased() == "running"
         return VStack(alignment: .leading, spacing: 0) {
             SectionLabel("控制")
-                .padding(.top, 28)
+                .padding(.top, OneDayMetrics.sectionOuterSpacing)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 actionRow(title: "重启网关", danger: false) {
