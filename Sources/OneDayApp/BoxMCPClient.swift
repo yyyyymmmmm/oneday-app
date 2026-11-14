@@ -281,6 +281,7 @@ actor BoxMCPClient {
 @MainActor
 final class BoxMCPClientFactory {
     private static var client: BoxMCPClient?
+    private static let mcpURL = URL(string: "https://mcp.box.simular.ai/mcp")!
 
     /// 获取或创建客户端（凭据变更时会创建新实例）
     static func getClient() throws -> BoxMCPClient {
@@ -290,19 +291,12 @@ final class BoxMCPClientFactory {
             throw BoxMCPError.noKey
         }
 
-        // 读取 MCP URL（默认 Simular Box）
-        let urlString = UserDefaults.standard.string(forKey: "box.mcp.url")
-            ?? "https://mcp.box.simular.ai/mcp"
-        guard let url = URL(string: urlString) else {
-            throw BoxMCPError.sessionFailed("invalid MCP URL")
-        }
-
         // 复用或创建客户端
         if let existing = client {
             return existing
         }
 
-        let newClient = BoxMCPClient(mcpURL: url, apiKey: apiKey)
+        let newClient = BoxMCPClient(mcpURL: mcpURL, apiKey: apiKey)
         client = newClient
         return newClient
     }
