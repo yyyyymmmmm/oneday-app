@@ -218,6 +218,12 @@ struct FailingHermesClient: HermesClientProtocol {
         throw HermesError.unreachable("离线桩")
     }
 
+    func sessionMutationSnapshot(
+        config: ServerConfig, id: String
+    ) async throws -> SessionMutationSnapshot {
+        throw HermesError.unreachable("离线桩")
+    }
+
     func deleteServerSession(config: ServerConfig, id: String) async throws {
         throw HermesError.unreachable("离线桩")
     }
