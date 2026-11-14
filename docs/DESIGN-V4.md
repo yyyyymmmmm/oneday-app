@@ -12308,3 +12308,8 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 | V5 | padding 字面量 28 共 38 处 | 多文件 .padding(方向, 28) | 与 V4 同源：28 系旧组距口径残留面，与梯队 24/32 不合 | 随 UI 台账批逐面核（页距/组距具名值优先），不机械全改 |
 
 ### §247.4 CI 判读（回填位）
+
+- **一轮 run 43587014848**：Build 真红 1 条——SymbolMotionRegistry 静态表 Swift 6 并发安全（SymbolMotionSite 未 Sendable），登记核查步已先行通过；修一（fdcf611 后续提交：三类型补 Sendable）。
+- **二轮 run 43587405611**：Build 真红 1 条——同族问题上一层：ZoomSourceRegistry.shared 静态单例要求类 Sendable；修二（状态全经 NSLock 串行、标 @unchecked Sendable 并注明依据）。
+- **三轮 run 43588172166（定版头）终判绿（带 §184 登记）**：步序——登记核查 success／Build success／Unit tests 名义 failure（红源 §184）／Package success／Upload success。**断言失败 0、failed 用例 0**；**Core 2012/2012**（rel-05041 基线 2008＋本包 ZoomTransitionPolicyTests 4 法，逐条 passed、精确对账）；App 159 启动唯一值＝148 过＋5 skipped＋6 无终局（另 1 法未及启动、全集 160 与 .41 口径一致）——6 条无终局全为 §184 在案名单（testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel、testBarGrowth_topRisesBottomPinned、ChatReliabilityOfflineTests.testMarkPendingSendRetainsEntryOnDisk、EdgeEffectRegistrationTests.testAnchorRegistersAncestorScrollView、TraceEchoMaterializationAppTests.testFailedTraceMaterializesWithErrorSnapshot），与本包 diff 零交集；**UI 8/8**；HUB-LAYOUT-VERDICT＝PASS、MATRIX-VERDICT＝PASS、边缘探针 violations＝0；宿主重启 7 起按 §184 登记不判红。
+- **节号撞车注（0.50.43 组版收口）**：本包施工期间 rel-05042 组版已将审批卡对齐编为 §245、组版节 §246（0.50.42 已交付）——本包原 §245 与之撞号，本组版合入时整节顺延为 **§247**，代码自指（§247.1/§247.2/§247.3）同步改讫。
