@@ -1016,6 +1016,75 @@ struct AssistantFileChip: View {
     }
 }
 
+/// 整条裸路径消息的文件形态（聊天可靠性包，
+/// 2026-11-13）：消息本身就是交付物、不是正文提
+/// 及，故不走 §129 的「查无降纯文本」——确证存
+/// 在/未确证走既有 FileChip（点开经下载通道取字
+/// 节、失败在打开页如实呈现）；确证不在出失效附
+/// 件卡（文件名＋「文件已不存在」），永不把整条
+/// 路径原样当正文。存在性校验与 §129 同源（父目
+/// 录列表），口径见 FileMetadataStore
+struct BarePathFileCard: View {
+    @Environment(AppState.self) private var appState
+
+    let path: String
+    let onOpen: () -> Void
+
+    private var name: String {
+        (path as NSString).lastPathComponent
+    }
+
+    var body: some View {
+        Group {
+            if FileMetadataStore.shared.existence(for: path)
+                == .missing {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    FileIconBox(name: name, size: 40)
+                    VStack(
+                        alignment: .leading,
+                        spacing: OneDayMetrics.spacingXS
+                    ) {
+                        Text(name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Text(L10n.string("文件已不存在"))
+                            .font(.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, OneDayMetrics.spacingSM)
+                .padding(.vertical, 10)
+                .background(
+                    Palette.surface,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    )
+                )
+                .contentShape(
+                    RoundedRectangle(
+                        cornerRadius: OneDayMetrics.radiusPreview
+                    )
+                )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    "\(name)，\(L10n.string("文件已不存在"))"
+                )
+            } else {
+                FileChip(path: path, onOpen: onOpen)
+            }
+        }
+        .task(id: path) {
+            await FileMetadataStore.shared.verifyExistence(
+                path: path, appState: appState
+            )
+        }
+    }
+}
+
 /// 助手侧 MEDIA: 图片的存在性门（§136）：标记行
 /// 已在 Core 拆分时从正文摘除，这里只管出不出图
 /// ——判定与文件牌同源（§129 三分）：确证存在才
