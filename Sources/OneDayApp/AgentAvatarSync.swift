@@ -1,52 +1,87 @@
 import Foundation
 import OneDayCore
 
-/// 头像仓同步（P1 身份包）：把伴生 identity 桥头像仓
-/// 的当前头像投影进 AgentProfileStore 的 AI 档槽位。
-/// 触发与伴生探测同拍（连接成立/回前台/冷启恢复，
-/// 见 OneDayApp 与 AppState.syncAgentAvatarFromBridge）。
+/// 头像仓镜像同步（§245 身份包收敛）：头像仓是服务
+/// 端单真值，本同步只做一件事——把仓的当前指针整份
+/// 替换进本机缓存（IdentityAvatarCache），呈现只读
+/// 缓存。旧双槽对账（AI 槽投影＋本地裁决）退役：
+/// 谁最后写仓、仓的当前就是谁，末写胜在服务端天然
+/// 成立、App 不再复刻裁决。
 ///
-/// 失败口径：一律静默保现状——仓不可达/回执异常时根
-/// 本不动 AI 档（保持上次同步值），呈现由存储层裁决
-/// 回落本机现行头像，绝不清空、绝不白屏。只有仓明
-/// 确回「没有当前头像」才清槽。
+/// - 待推先行：§245 迁移留下的本机胜出值（avatar-
+///   PushPending）先写穿上仓再谈同步；写穿失败直接
+///   返回、缓存原样保留，不许让服务端旧指针把用户
+///   胜出值冲掉。
+/// - 失败口径：任何一步失败静默保留上次缓存——头
+///   像是装饰面、不打扰用户；下个触发点再试（连
+///   接成立/回前台/开抽屉等既有刷新触发）。
+/// - 触发节流在 AppState.refreshAgentAvatarFromBridge
+///   （30 秒，写穿链走 force 绕过）。
 @MainActor
 enum AgentAvatarSync {
     static func run(config: ServerConfig, store: AgentProfileStore) async {
         let client = IdentityBridgeClient()
+
+        // 待推先行（§245 迁移一次性）：本机胜出值写穿
+        if store.avatarPushPending, let pending = store.avatarCache {
+            do {
+                switch pending.selection {
+                case .preset(let id):
+                    try await client.addAvatarPreset(
+                        config: config, presetID: id
+                    )
+                case .image(_):
+                    guard let data = store.cachedAvatarImageData()
+                    else { return }
+                    try await client.addAvatarImage(
+                        config: config, imageData: data
+                    )
+                }
+                store.markAvatarPushed()
+            } catch {
+                return
+            }
+        }
+
         guard let state = try? await client.avatarState(config: config)
         else { return }
         guard let current = state.currentItem else {
-            store.clearAIAvatar()
+            // 仓明确为空：清缓存，呈现回落缺省预置
+            store.applyAvatarFromSync(cache: nil, imageData: nil)
             return
         }
-        // 末写胜凭据：桥报的指针时刻（缺失回落条目写
-        // 入时刻，再缺失按最早——不许拿假时刻裁决）
-        let updatedAt = state.currentUpdatedAtDate ?? .distantPast
+        let updatedAt = state.currentUpdatedAtDate
         switch current.kind {
         case "preset":
             guard let presetID = current.presetId else { return }
-            store.applyAIAvatarPreset(
-                id: presetID, itemID: current.id, updatedAt: updatedAt
+            store.applyAvatarFromSync(
+                cache: IdentityAvatarCache(
+                    selection: .preset(
+                        id: AgentAvatarPreset.resolve(id: presetID).id
+                    ),
+                    itemID: current.id,
+                    serverUpdatedAt: updatedAt,
+                    cachedAt: Date()
+                ),
+                imageData: nil
             )
         case "image":
-            // 同一条已同步且槽位在位：跳过重复下载
-            // （图文件丢失时存储层解析自动回落，不白屏）；
-            // 但指针时刻变了（同一条被重设为当前）只刷
-            // 槽位时刻——末写胜比的是时刻，不刷就裁错
-            if case .image(let syncedID, _) = store.aiAvatar,
-               syncedID == current.id {
-                store.refreshAIAvatarTimestamp(
-                    itemID: current.id, updatedAt: updatedAt
-                )
+            let cache = IdentityAvatarCache(
+                selection: .image(itemID: current.id),
+                itemID: current.id,
+                serverUpdatedAt: updatedAt,
+                cachedAt: Date()
+            )
+            if store.avatarCache?.itemID == current.id,
+               store.hasCachedAvatarImage {
+                // 同一条目：只刷时刻、不重下载图字节
+                store.applyAvatarFromSync(cache: cache, imageData: nil)
                 return
             }
             guard let data = try? await client.avatarImage(
                 config: config, id: current.id
             ) else { return }
-            store.applyAIAvatarImage(
-                data: data, itemID: current.id, updatedAt: updatedAt
-            )
+            store.applyAvatarFromSync(cache: cache, imageData: data)
         default:
             return
         }

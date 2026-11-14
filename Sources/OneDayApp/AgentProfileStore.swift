@@ -4,181 +4,129 @@ import OneDayDesign
 import SwiftUI
 import UIKit
 
-/// 智能体本地档案存储（0.36.22，枢纽页对齐包）：本
-/// 地档案（OneDayCore.AgentProfile）的落盘与头像解
-/// 析——AppState 持有、全 App 露脸面经 AppState 读。
+/// 智能体身份缓存存储（§245 身份包，复杂化审计 C-2
+/// 收敛）：名字与头像的真值只有服务端一份（名字＝
+/// SOUL、头像＝伴生头像仓），本店只存带时间戳的缓
+/// 存副本——呈现读副本、刷新整份替换副本，不存
+/// 「覆盖」语义、不做双账裁决。用户在 App 里改名/
+/// 换头像＝写穿服务端（AppState 编排），成功后以服
+/// 务端回读刷新副本。
 ///
 /// 落盘口径：
-/// - 选择值进 UserDefaults（改名覆盖/预置 id/是否自
-///   定义头像），与 chatModelID 等既有偏好同层。
-/// - 自定义头像图本体进 Application Support/Agent-
-///   Profile/avatar.jpg（512 边长 JPEG）——图数据不
-///   进 UserDefaults、不进 Keychain（不是凭据）。
-/// - 头像解析结果（UIImage）内存缓存，变更即刷新；
-///   符号预置盘以 ImageRenderer 离屏渲染成图，与资
-///   产图/自定义图统一成一条「当前头像图」出口，各
-///   露脸面只消费这张图、不各自判档案。
+/// - 缓存值（Core IdentityNameCache/IdentityAvatar-
+///   Cache）JSON 进 UserDefaults，与既有偏好同层。
+/// - 头像图本体进 Application Support/AgentProfile/
+///   avatar-cache.jpg（512 边长 JPEG）——图数据不进
+///   UserDefaults、不进 Keychain（不是凭据）。
+/// - 升级迁移：旧账键组（改名覆盖/来源/双槽头像/
+///   时刻账）在 init 里经 Core IdentityLegacyMigra-
+///   tion 最后一判播种新缓存后全量删除；本机侧胜出
+///   的值置待推标记，首次连通刷新时写穿服务端。
 @MainActor
 @Observable
 final class AgentProfileStore {
     private enum Keys {
-        static let nameOverride = "agentProfile.displayNameOverride"
-        // 身份反映修复：覆盖来源记录与最近已知服务
-        // 器身份名（对账用，裁决在 Core）
-        static let nameOverrideProvenance =
+        static let nameCache = "identity.nameCache"
+        static let avatarCache = "identity.avatarCache"
+        static let namePushPending = "identity.namePushPending"
+        static let avatarPushPending = "identity.avatarPushPending"
+        // 旧账键组（§245 迁移读后即删，勿再写）
+        static let legacyNameOverride =
+            "agentProfile.displayNameOverride"
+        static let legacyNameOverrideProvenance =
             "agentProfile.displayNameOverrideProvenance"
-        static let lastKnownSoulName = "agentProfile.lastKnownSoulName"
-        static let avatarPresetID = "agentProfile.avatarPresetID"
-        static let usesCustomAvatar = "agentProfile.usesCustomAvatar"
-        // P1 身份包：AI 档槽位（仓条目 id/预置 id）
-        static let aiAvatarItemID = "agentProfile.aiAvatarItemID"
-        static let aiAvatarPresetID = "agentProfile.aiAvatarPresetID"
-        // 末写胜（2026-11-13）：AI 档写入时刻（服务器
-        // 收到写入的时刻，epoch 秒）与用户选择时刻、
-        // 服务器名写入时刻——裁决只认这三份时刻，
-        // §203 的 userAvatarLocked 锁键自此退役（init
-        // 迁移时删除）
-        static let aiAvatarUpdatedAt = "agentProfile.aiAvatarUpdatedAt"
-        static let avatarSelectedAt = "agentProfile.avatarSelectedAt"
-        static let lastKnownSoulUpdatedAt =
+        static let legacyLastKnownSoulName =
+            "agentProfile.lastKnownSoulName"
+        static let legacyLastKnownSoulUpdatedAt =
             "agentProfile.lastKnownSoulUpdatedAt"
+        static let legacyAvatarPresetID =
+            "agentProfile.avatarPresetID"
+        static let legacyUsesCustomAvatar =
+            "agentProfile.usesCustomAvatar"
+        static let legacyAIItemID = "agentProfile.aiAvatarItemID"
+        static let legacyAIPresetID =
+            "agentProfile.aiAvatarPresetID"
+        static let legacyAIUpdatedAt =
+            "agentProfile.aiAvatarUpdatedAt"
+        static let legacyAvatarSelectedAt =
+            "agentProfile.avatarSelectedAt"
         static let legacyUserAvatarLocked =
             "agentProfile.userAvatarLocked"
     }
 
-    private(set) var profile: AgentProfile
+    /// 名字缓存（服务端现行身份名的副本）；从未刷新
+    /// 到为 nil，呈现回落 Hermes
+    private(set) var nameCache: IdentityNameCache?
 
-    /// 改名覆盖的来源记录（身份反映修复）：新写入
-    /// 的覆盖必带；存量裸覆盖为 nil——对账时按无来
-    /// 源处理（不得压住服务器现行名）
-    private(set) var nameOverrideProvenance:
-        AgentNameOverrideProvenance?
+    /// 头像缓存（头像仓当前指针的副本）；仓从未设过
+    /// 当前头像/从未同步到为 nil，呈现回落缺省预置
+    private(set) var avatarCache: IdentityAvatarCache?
 
-    /// 最近一次解析到的服务器身份名：编辑器写入覆
-    /// 盖时用作来源里的「当时服务器名」，落盘保住冷
-    /// 启后首解析前的写入也有对账基准
-    private(set) var lastKnownSoulName: String?
+    /// 迁移待推：本机旧选择胜出但尚未写穿服务端。
+    /// true 时刷新链先推后读（AgentAvatarSync/名字刷
+    /// 新），推成功即清；推失败保留缓存原样、不许以
+    /// 服务端读数覆盖掉用户胜出值
+    private(set) var namePushPending = false
+    private(set) var avatarPushPending = false
 
-    /// 服务器名的写入时刻（桥报 updatedAt，服务器收
-    /// 到写入的时刻）：名字末写胜裁决的服务器侧凭据；
-    /// 桥不可达/旧桥无账时为 nil，裁决退回来源对账
-    /// 近似（Core AgentNameLWW）
-    private(set) var lastKnownSoulUpdatedAt: Date?
-
-    /// 变更修订号：每次档案变更 +1——分享名片图等派
-    /// 生渲染以此为重算键（自定义图同为 .custom 选择
-    /// 时，光看选择值看不出图已换）
+    /// 变更修订号：每次缓存变更 +1——分享名片图等派
+    /// 生渲染以此为重算键
     private(set) var revision = 0
 
-    /// 当前头像图（解析缓存）：自定义图缺失/损坏时回
+    /// 当前头像图（解析缓存）：缓存图缺失/损坏时回
     /// 落缺省预置，不让任何露脸面开天窗
     private(set) var avatarUIImage: UIImage
 
-    private var customAvatar: UIImage?
-
-    /// AI 档槽位（P1）：头像仓当前头像在本机的投影；
-    /// 只由头像仓同步写入，用户手动选择永不改它
-    private(set) var aiAvatar: AgentAIAvatar?
-
-    private var aiCustomAvatar: UIImage?
-
-    /// 用户最近一次在本机选择头像的时刻（末写胜凭
-    /// 据，与 AI 档 updatedAt 比时间定胜负）：从未在
-    /// 编辑器里选过为 nil——缺省档案无时刻、挡不住
-    /// AI 档。存量迁移：新键缺失而旧选择键在（预置
-    /// id 键存在过或用过自定义图）＝升级前手动选过，
-    /// 以首次运行新版的时刻落账——升级瞬间保持现状
-    /// 不突变，此后任一侧新写入按时间竞争
-    private(set) var avatarSelectedAt: Date?
+    private var cachedAvatarImage: UIImage?
 
     init() {
         let defaults = UserDefaults.standard
-        let name = defaults.string(forKey: Keys.nameOverride)
-        let loadedProvenance: AgentNameOverrideProvenance?
-        if let data = defaults.data(forKey: Keys.nameOverrideProvenance) {
-            loadedProvenance = try? JSONDecoder().decode(
-                AgentNameOverrideProvenance.self, from: data
+        let decoder = JSONDecoder()
+        var loadedName: IdentityNameCache?
+        var loadedAvatar: IdentityAvatarCache?
+        var loadedImage: UIImage?
+        var namePush = false
+        var avatarPush = false
+
+        if let data = defaults.data(forKey: Keys.nameCache) {
+            loadedName = try? decoder.decode(
+                IdentityNameCache.self, from: data
             )
-        } else {
-            loadedProvenance = nil
         }
-        nameOverrideProvenance = loadedProvenance
-        lastKnownSoulName = defaults.string(
-            forKey: Keys.lastKnownSoulName
-        )
-        lastKnownSoulUpdatedAt = defaults.object(
-            forKey: Keys.lastKnownSoulUpdatedAt
-        ) != nil
-            ? Date(timeIntervalSince1970: defaults.double(
-                forKey: Keys.lastKnownSoulUpdatedAt))
-            : nil
-        let usesCustom = defaults.bool(forKey: Keys.usesCustomAvatar)
-        let presetID = defaults.string(forKey: Keys.avatarPresetID)
-            ?? AgentAvatarPreset.defaultID
-        // 末写胜迁移：§203 锁键自此退役（删除）；升级
-        // 前手动选过（选择键在）又没有时刻账的，以首
-        // 次运行新版的时刻落账——升级瞬间保持现状不
-        // 突变，此后任一侧新写入按时间竞争
-        defaults.removeObject(forKey: Keys.legacyUserAvatarLocked)
-        let selectedAt: Date?
-        if defaults.object(forKey: Keys.avatarSelectedAt) != nil {
-            selectedAt = Date(timeIntervalSince1970: defaults.double(
-                forKey: Keys.avatarSelectedAt))
-        } else if defaults.object(forKey: Keys.avatarPresetID) != nil
-                    || usesCustom {
-            let now = Date()
-            defaults.set(
-                now.timeIntervalSince1970, forKey: Keys.avatarSelectedAt
+        if let data = defaults.data(forKey: Keys.avatarCache) {
+            loadedAvatar = try? decoder.decode(
+                IdentityAvatarCache.self, from: data
             )
-            selectedAt = now
-        } else {
-            selectedAt = nil
         }
-        // AI 档时刻缺失（升级前槽位）：按最早处理——
-        // 下一次头像仓同步就会以桥报的真时刻刷新
-        let aiAt: Date = defaults.object(
-            forKey: Keys.aiAvatarUpdatedAt
-        ) != nil
-            ? Date(timeIntervalSince1970: defaults.double(
-                forKey: Keys.aiAvatarUpdatedAt))
-            : .distantPast
-        let loadedAI: AgentAIAvatar?
-        let loadedAICustom: UIImage?
-        if let itemID = defaults.string(forKey: Keys.aiAvatarItemID) {
-            if let aiPreset = defaults.string(forKey: Keys.aiAvatarPresetID) {
-                loadedAI = .preset(id: aiPreset, updatedAt: aiAt)
-                loadedAICustom = nil
-            } else {
-                loadedAI = .image(itemID: itemID, updatedAt: aiAt)
-                loadedAICustom = Self.loadAICustomAvatarFile()
+        if loadedName != nil || loadedAvatar != nil
+            || defaults.object(forKey: Keys.nameCache) != nil
+            || defaults.object(forKey: Keys.avatarCache) != nil {
+            // 新账已立：直接读缓存（迁移只跑一次，旧
+            // 账键在迁移时已清；此处残留一律不再理会）
+            namePush = defaults.bool(forKey: Keys.namePushPending)
+            avatarPush = defaults.bool(
+                forKey: Keys.avatarPushPending
+            )
+            if case .image(_) = loadedAvatar?.selection {
+                loadedImage = Self.loadCachedAvatarFile()
             }
-        } else {
-            loadedAI = nil
-            loadedAICustom = nil
+        } else if Self.hasLegacyLedger(defaults) {
+            // 旧账迁移（§245 一次性）：最后一判在 Core
+            let migration = Self.migrateLegacy(defaults)
+            loadedName = migration.nameCache
+            loadedAvatar = migration.avatarCache
+            loadedImage = migration.image
+            namePush = migration.namePushPending
+            avatarPush = migration.avatarPushPending
         }
-        // 先算局部量再统一赋值：@Observable 类的
-        // init 在全部存储属性就位前不许读 self（CI
-        // run 42878183115 实证——条件赋值 customAva-
-        // tar 后读 self.profile 会被 definite-init
-        // 检查拦下）
-        let loadedProfile = AgentProfile(
-            displayNameOverride: name,
-            avatar: usesCustom
-                ? .custom
-                : .preset(id: presetID)
-        )
-        let loadedCustom = usesCustom
-            ? Self.loadCustomAvatarFile()
-            : nil
-        profile = loadedProfile
-        customAvatar = loadedCustom
-        aiAvatar = loadedAI
-        aiCustomAvatar = loadedAICustom
-        avatarSelectedAt = selectedAt
+
+        nameCache = loadedName
+        avatarCache = loadedAvatar
+        cachedAvatarImage = loadedImage
+        namePushPending = namePush
+        avatarPushPending = avatarPush
         avatarUIImage = Self.resolveAvatar(
-            profile: loadedProfile, customAvatar: loadedCustom,
-            aiAvatar: loadedAI, aiCustomAvatar: loadedAICustom,
-            userSelectedAt: selectedAt
+            cache: loadedAvatar, cachedImage: loadedImage
         )
     }
 
@@ -188,230 +136,167 @@ final class AgentProfileStore {
         Image(uiImage: avatarUIImage)
     }
 
-    // MARK: - 变更
+    /// 缓存里的现行名（呈现单一出口的上游）
+    var cachedName: String? { nameCache?.name }
 
-    /// 改名：传 nil＝清覆盖、恢复跟随自动解析链；非
-    /// 空入参净化不过（纯空白/超长）拒收、档案不动
-    /// （空白清覆盖由编辑面先行分类后以 nil 调用）。
-    /// 写入同时落来源记录（时刻＋当时服务器名），无
-    /// 来源的覆盖自此不再产生（身份反映修复）
-    func setDisplayNameOverride(_ raw: String?) {
-        let defaults = UserDefaults.standard
-        guard let raw else {
-            profile.displayNameOverride = nil
-            nameOverrideProvenance = nil
-            defaults.removeObject(forKey: Keys.nameOverride)
-            defaults.removeObject(
-                forKey: Keys.nameOverrideProvenance
-            )
-            revision += 1
+    /// 编辑器选中态：当前头像选择（缓存口径）——预
+    /// 置看 id、图片看形态；无缓存回 nil（编辑器无
+    /// 勾，呈现回落缺省但那不是「已选」）
+    var currentAvatarSelection: AgentAvatarSelection? {
+        switch avatarCache?.selection {
+        case .preset(let id): return .preset(id: id)
+        case .image(_): return .custom
+        case nil: return nil
+        }
+    }
+
+    // MARK: - 名字缓存
+
+    /// 刷新替换名字缓存（服务端回读确认后调用）：整
+    /// 份替换、cachedAt 记当下。值没变不惊动修订号
+    func applyName(_ name: String, serverUpdatedAt: Date?) {
+        let cache = IdentityNameCache(
+            name: name, serverUpdatedAt: serverUpdatedAt,
+            cachedAt: Date()
+        )
+        guard cache.name != nameCache?.name
+                || cache.serverUpdatedAt != nameCache?.serverUpdatedAt
+        else {
+            nameCache = cache
+            persistName()
             return
         }
-        guard let clean = AgentDisplayName.sanitizedOverride(raw) else {
-            return
-        }
-        profile.displayNameOverride = clean
-        defaults.set(clean, forKey: Keys.nameOverride)
-        let provenance = AgentNameOverrideProvenance(
-            writtenAt: Date(), soulNameAtWrite: lastKnownSoulName
-        )
-        nameOverrideProvenance = provenance
-        if let data = try? JSONEncoder().encode(provenance) {
-            defaults.set(data, forKey: Keys.nameOverrideProvenance)
-        }
+        nameCache = cache
+        persistName()
         revision += 1
     }
 
-    /// 记下最新解析到的服务器身份名（AppState 每次
-    /// 解析/重解析/刷新成功后调用）：既是后续写入覆
-    /// 盖的对账基准，也供对账裁决取现行名。updatedAt
-    /// 是桥报的服务器写入时刻（取不到传 nil，本次不
-    /// 更新已存时刻——旧时刻总比编一个强）
-    func noteSoulName(_ name: String, updatedAt: Date? = nil) {
-        if let updatedAt, updatedAt != lastKnownSoulUpdatedAt {
-            lastKnownSoulUpdatedAt = updatedAt
-            UserDefaults.standard.set(
-                updatedAt.timeIntervalSince1970,
-                forKey: Keys.lastKnownSoulUpdatedAt
-            )
-        }
-        guard lastKnownSoulName != name else { return }
-        lastKnownSoulName = name
-        UserDefaults.standard.set(name, forKey: Keys.lastKnownSoulName)
+    /// 待推写穿成功后清标记（AppState 名字刷新链在推
+    /// 成功后调用，随后以服务端回读整份替换缓存）
+    func markNamePushed() {
+        guard namePushPending else { return }
+        namePushPending = false
+        UserDefaults.standard.set(
+            false, forKey: Keys.namePushPending
+        )
     }
 
-    /// 覆盖对账（末写胜）：服务器身份名每次确认后调
-    /// 用——裁决（Core AgentNameLWW）说清就真清（覆
-    /// 盖与来源一并删），各露脸面随档案修订号自然跟
-    /// 上现行名。回 true＝本次清掉了一个覆盖
-    @discardableResult
-    func reconcileNameOverride(currentSoulName: String) -> Bool {
-        guard AgentNameLWW.shouldClearOverride(
-            override: profile.displayNameOverride,
-            provenance: nameOverrideProvenance,
-            soulName: currentSoulName,
-            soulUpdatedAt: lastKnownSoulUpdatedAt
-        ) else { return false }
-        profile.displayNameOverride = nil
-        nameOverrideProvenance = nil
+    private func persistName() {
         let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: Keys.nameOverride)
-        defaults.removeObject(forKey: Keys.nameOverrideProvenance)
-        revision += 1
-        return true
-    }
-
-    /// 选预置形象：目录外 id 经 Core 收敛到缺省款。
-    /// 选择即落时刻账（末写胜）：这次选择与 AI 档按
-    /// 写入时间竞争，不再有「手动即永久锁」一说
-    func selectPreset(id: String) {
-        let preset = AgentAvatarPreset.resolve(id: id)
-        profile.avatar = .preset(id: preset.id)
-        UserDefaults.standard.set(preset.id, forKey: Keys.avatarPresetID)
-        UserDefaults.standard.set(false, forKey: Keys.usesCustomAvatar)
-        stampAvatarSelection()
-        refreshAvatar()
-        revision += 1
-    }
-
-    /// 设相册自定义头像：解码→居中裁方→压到 512→落
-    /// 文件；任一步失败回 false、档案保持原样（调用
-    /// 方据此如实报错，不假装换成）
-    func setCustomAvatar(data: Data) -> Bool {
-        guard let prepared = Self.preparedCustomAvatar(from: data),
-              let jpeg = prepared.jpegData(compressionQuality: 0.85)
-        else { return false }
-        do {
-            try jpeg.write(to: Self.avatarFileURL, options: .atomic)
-        } catch {
-            return false
+        if let nameCache,
+           let data = try? JSONEncoder().encode(nameCache) {
+            defaults.set(data, forKey: Keys.nameCache)
         }
-        customAvatar = prepared
-        profile.avatar = .custom
-        UserDefaults.standard.set(true, forKey: Keys.usesCustomAvatar)
-        stampAvatarSelection()
-        refreshAvatar()
-        revision += 1
-        return true
     }
 
-    /// 用户选择落时刻账：末写胜的用户侧凭据（取代
-    /// §203 的 lockUserAvatar 上锁——锁已退役）
-    private func stampAvatarSelection() {
-        let now = Date()
-        avatarSelectedAt = now
-        UserDefaults.standard.set(
-            now.timeIntervalSince1970, forKey: Keys.avatarSelectedAt
-        )
-    }
+    // MARK: - 头像缓存
 
-    // MARK: - AI 档（头像仓同步，P1）
-
-    /// 仓当前条目是预置引用：只记 id 与写入时刻，图
-    /// 由本机目录解析
-    func applyAIAvatarPreset(id: String, itemID: String, updatedAt: Date) {
-        let resolved = AgentAvatarPreset.resolve(id: id)
-        aiAvatar = .preset(id: resolved.id, updatedAt: updatedAt)
-        UserDefaults.standard.set(itemID, forKey: Keys.aiAvatarItemID)
-        UserDefaults.standard.set(resolved.id, forKey: Keys.aiAvatarPresetID)
-        UserDefaults.standard.set(
-            updatedAt.timeIntervalSince1970, forKey: Keys.aiAvatarUpdatedAt
-        )
-        refreshAvatar()
-        revision += 1
-    }
-
-    /// 仓当前条目是图片：制备口径与用户自定义图一致
-    /// （裁方/512/JPEG），落 avatar-ai.jpg 与用户图分
-    /// 文件；失败回 false、AI 档保持原样
-    @discardableResult
-    func applyAIAvatarImage(
-        data: Data, itemID: String, updatedAt: Date
-    ) -> Bool {
-        guard let prepared = Self.preparedCustomAvatar(from: data),
-              let jpeg = prepared.jpegData(compressionQuality: 0.85)
-        else { return false }
-        do {
-            try jpeg.write(to: Self.aiAvatarFileURL, options: .atomic)
-        } catch {
-            return false
+    /// 同步/写穿后的头像缓存整份替换（AgentAvatar-
+    /// Sync 与写穿链共用唯一入口）：imageData 非 nil
+    /// 时制备落盘为缓存图；为 nil 且新缓存仍是图片
+    /// 形态时保留既有缓存图（同条目只刷时刻不重下
+    /// 载）。cache 为 nil＝仓明确没有当前头像，清缓
+    /// 存、呈现回落缺省预置
+    func applyAvatarFromSync(
+        cache: IdentityAvatarCache?, imageData: Data?
+    ) {
+        let defaults = UserDefaults.standard
+        var newImage = cachedAvatarImage
+        if let imageData {
+            guard let prepared = Self.preparedCustomAvatar(
+                from: imageData
+            ),
+                  let jpeg = prepared.jpegData(
+                      compressionQuality: 0.85
+                  )
+            else {
+                // 图制备失败：整份不动（保上次缓存），
+                // 不许拿坏图把呈现打空
+                return
+            }
+            do {
+                try jpeg.write(
+                    to: Self.cachedAvatarFileURL, options: .atomic
+                )
+            } catch {
+                return
+            }
+            newImage = prepared
         }
-        aiCustomAvatar = prepared
-        aiAvatar = .image(itemID: itemID, updatedAt: updatedAt)
-        UserDefaults.standard.set(itemID, forKey: Keys.aiAvatarItemID)
-        UserDefaults.standard.removeObject(forKey: Keys.aiAvatarPresetID)
+        let changed = cache != avatarCache
+        avatarCache = cache
+        if case .image(_) = cache?.selection {
+            cachedAvatarImage = newImage
+        } else {
+            cachedAvatarImage = nil
+            if cache?.selection != nil || imageData == nil {
+                try? FileManager.default.removeItem(
+                    at: Self.cachedAvatarFileURL
+                )
+            }
+        }
+        if let cache,
+           let data = try? JSONEncoder().encode(cache) {
+            defaults.set(data, forKey: Keys.avatarCache)
+        } else if cache == nil {
+            defaults.removeObject(forKey: Keys.avatarCache)
+        }
+        refreshAvatarImage()
+        if changed { revision += 1 }
+    }
+
+    /// 待推写穿成功后清标记（AgentAvatarSync 在推成
+    /// 功、整份替换缓存前调用）
+    func markAvatarPushed() {
+        guard avatarPushPending else { return }
+        avatarPushPending = false
         UserDefaults.standard.set(
-            updatedAt.timeIntervalSince1970, forKey: Keys.aiAvatarUpdatedAt
+            false, forKey: Keys.avatarPushPending
         )
-        refreshAvatar()
-        revision += 1
-        return true
     }
 
-    /// 同一条目被再次设为当前（仓侧 select 重设指
-    /// 针）：字节与 id 都没变、只有写入时刻变——只刷
-    /// 槽位时刻，不重下载、不重制备。条目对不上直接
-    /// 忽略（同步层下一拍会走全量应用路）
-    func refreshAIAvatarTimestamp(itemID: String, updatedAt: Date) {
-        guard case .image(let id, let at) = aiAvatar,
-              id == itemID, at != updatedAt
-        else { return }
-        aiAvatar = .image(itemID: itemID, updatedAt: updatedAt)
-        UserDefaults.standard.set(
-            updatedAt.timeIntervalSince1970, forKey: Keys.aiAvatarUpdatedAt
-        )
-        refreshAvatar()
-        revision += 1
+    /// 待推写穿用的缓存图原始字节（已是制备过的
+    /// JPEG，直接上仓）；无图回 nil
+    func cachedAvatarImageData() -> Data? {
+        try? Data(contentsOf: Self.cachedAvatarFileURL)
     }
 
-    /// 仓里没有当前头像（从未设过）：AI 档清槽，呈现
-    /// 回落用户选择。注意仓不可达不走这里——同步层失
-    /// 败时根本不调用，AI 档保持上次值
-    func clearAIAvatar() {
-        guard aiAvatar != nil else { return }
-        aiAvatar = nil
-        aiCustomAvatar = nil
-        UserDefaults.standard.removeObject(forKey: Keys.aiAvatarItemID)
-        UserDefaults.standard.removeObject(forKey: Keys.aiAvatarPresetID)
-        UserDefaults.standard.removeObject(forKey: Keys.aiAvatarUpdatedAt)
-        refreshAvatar()
-        revision += 1
+    /// 缓存图在盘（同条目免重下载的判据）
+    var hasCachedAvatarImage: Bool {
+        cachedAvatarImage != nil
     }
 
-    private func refreshAvatar() {
+    private func refreshAvatarImage() {
         avatarUIImage = Self.resolveAvatar(
-            profile: profile, customAvatar: customAvatar,
-            aiAvatar: aiAvatar, aiCustomAvatar: aiCustomAvatar,
-            userSelectedAt: avatarSelectedAt
+            cache: avatarCache, cachedImage: cachedAvatarImage
         )
     }
 
     // MARK: - 头像解析
 
-    /// 解析顺序（末写胜裁决在 Core AgentAvatarChoice）：
-    /// AI 档与用户选择比写入时刻，后写者胜；AI 图胜
-    /// 出且本机图在 → AI 图；任一图缺失回落缺省预置，
-    /// 不空白
+    /// 解析顺序：缓存预置→目录图；缓存图片→缓存图
+    /// （缺失回落缺省预置）；无缓存→缺省预置。不空
+    /// 白、不猜别的来源——服务端单真值、缓存是唯一
+    /// 本地副本
     private static func resolveAvatar(
-        profile: AgentProfile, customAvatar: UIImage?,
-        aiAvatar: AgentAIAvatar?, aiCustomAvatar: UIImage?,
-        userSelectedAt: Date?
+        cache: IdentityAvatarCache?, cachedImage: UIImage?
     ) -> UIImage {
-        if AgentAvatarChoice.aiImageWins(
-            ai: aiAvatar, userSelectedAt: userSelectedAt
-        ), let aiCustomAvatar {
-            return aiCustomAvatar
-        }
-        let choice = AgentAvatarChoice.resolve(
-            ai: aiAvatar, user: profile.avatar,
-            userSelectedAt: userSelectedAt
-        )
-        switch choice {
-        case .custom:
-            if let customAvatar { return customAvatar }
-            return presetImage(AgentAvatarPreset.resolve(id: AgentAvatarPreset.defaultID))
+        switch cache?.selection {
         case .preset(let id):
             return presetImage(AgentAvatarPreset.resolve(id: id))
+        case .image(_):
+            if let cachedImage { return cachedImage }
+            return presetImage(
+                AgentAvatarPreset.resolve(
+                    id: AgentAvatarPreset.defaultID
+                )
+            )
+        case nil:
+            return presetImage(
+                AgentAvatarPreset.resolve(
+                    id: AgentAvatarPreset.defaultID
+                )
+            )
         }
     }
 
@@ -437,18 +322,180 @@ final class AgentProfileStore {
 
     /// 符号盘底色（App 层令牌映射，Core 目录只记 id）：
     /// §224 起统一系统冷中性填充（secondarySystem-
-    /// Fill）——旧 pastel 三色（tintSky/tintLavender/
-    /// tintGreen）是自调点缀色、与页面底色不匹配，
-    /// 用户 2026-11-14 点名「不舒服、不匹配」，自此
-    /// 退役；盘色不再按预置分色，全目录同盘。编辑器
+    /// Fill）；盘色不按预置分色，全目录同盘。编辑器
     /// 预览与离屏渲染共用此口。
     static func presetTint(id: String) -> Color {
         Palette.fillSecondary
     }
 
-    // MARK: - 自定义图文件与制备
+    // MARK: - 迁移（§245 一次性）
 
-    private static var avatarFileURL: URL {
+    private struct MigrationResult {
+        var nameCache: IdentityNameCache?
+        var avatarCache: IdentityAvatarCache?
+        var image: UIImage?
+        var namePushPending: Bool
+        var avatarPushPending: Bool
+    }
+
+    private static func hasLegacyLedger(
+        _ defaults: UserDefaults
+    ) -> Bool {
+        defaults.object(forKey: Keys.legacyNameOverride) != nil
+            || defaults.object(forKey: Keys.legacyAvatarPresetID) != nil
+            || defaults.object(forKey: Keys.legacyAIItemID) != nil
+            || defaults.bool(forKey: Keys.legacyUsesCustomAvatar)
+            || defaults.object(forKey: Keys.legacyLastKnownSoulName) != nil
+    }
+
+    /// 旧账最后一判→播种新缓存→旧账键与旧图文件全
+    /// 清。裁决语义在 Core IdentityLegacyMigration，
+    /// 这里只做键/文件的搬运。
+    private static func migrateLegacy(
+        _ defaults: UserDefaults
+    ) -> MigrationResult {
+        let now = Date()
+        var result = MigrationResult(
+            nameCache: nil, avatarCache: nil, image: nil,
+            namePushPending: false, avatarPushPending: false
+        )
+
+        // —— 名字 ——
+        let override = defaults.string(forKey: Keys.legacyNameOverride)
+        let provenance: LegacyNameOverrideProvenance?
+        if let data = defaults.data(
+            forKey: Keys.legacyNameOverrideProvenance
+        ) {
+            provenance = try? JSONDecoder().decode(
+                LegacyNameOverrideProvenance.self, from: data
+            )
+        } else {
+            provenance = nil
+        }
+        let soulName = defaults.string(
+            forKey: Keys.legacyLastKnownSoulName
+        )
+        let soulAt: Date? = defaults.object(
+            forKey: Keys.legacyLastKnownSoulUpdatedAt
+        ) != nil
+            ? Date(timeIntervalSince1970: defaults.double(
+                forKey: Keys.legacyLastKnownSoulUpdatedAt))
+            : nil
+        let nameOutcome = IdentityLegacyMigration.effectiveName(
+            override: override, provenance: provenance,
+            soulName: soulName, soulUpdatedAt: soulAt
+        )
+        if let name = nameOutcome.name {
+            result.nameCache = IdentityNameCache(
+                name: name, serverUpdatedAt: soulAt, cachedAt: now
+            )
+            result.namePushPending = nameOutcome.needsPush
+        }
+
+        // —— 头像 ——
+        let usesCustom = defaults.bool(
+            forKey: Keys.legacyUsesCustomAvatar
+        )
+        let presetID = defaults.string(
+            forKey: Keys.legacyAvatarPresetID
+        ) ?? AgentAvatarPreset.defaultID
+        let userSelection: AgentAvatarSelection = usesCustom
+            ? .custom : .preset(id: presetID)
+        let selectedAt: Date? = defaults.object(
+            forKey: Keys.legacyAvatarSelectedAt
+        ) != nil
+            ? Date(timeIntervalSince1970: defaults.double(
+                forKey: Keys.legacyAvatarSelectedAt))
+            : nil
+        let userEverSelected = selectedAt != nil
+            || defaults.object(forKey: Keys.legacyAvatarPresetID) != nil
+            || usesCustom
+        let aiItemID = defaults.string(forKey: Keys.legacyAIItemID)
+        let aiPresetID = defaults.string(forKey: Keys.legacyAIPresetID)
+        let aiAt: Date? = defaults.object(
+            forKey: Keys.legacyAIUpdatedAt
+        ) != nil
+            ? Date(timeIntervalSince1970: defaults.double(
+                forKey: Keys.legacyAIUpdatedAt))
+            : nil
+        let avatarOutcome = IdentityLegacyMigration.effectiveAvatar(
+            aiPresetID: aiPresetID, aiItemID: aiItemID,
+            aiUpdatedAt: aiAt, user: userSelection,
+            userSelectedAt: selectedAt,
+            userEverSelected: userEverSelected
+        )
+        if let selection = avatarOutcome.selection {
+            // 胜出方的图源文件：AI 胜→avatar-ai.jpg；
+            // 用户胜→avatar.jpg。图片形态才搬图
+            let winnerIsAI = !avatarOutcome.userWon
+            let sourceURL = winnerIsAI
+                ? legacyAIFileURL : legacyUserFileURL
+            var image: UIImage?
+            if selection == .custom,
+               let data = try? Data(contentsOf: sourceURL),
+               let loaded = UIImage(data: data) {
+                try? FileManager.default.createDirectory(
+                    at: cachedAvatarFileURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try? data.write(to: cachedAvatarFileURL, options: .atomic)
+                image = loaded
+            }
+            let cacheSelection: IdentityAvatarSelection
+            switch selection {
+            case .preset(let id):
+                cacheSelection = .preset(id: id)
+            case .custom:
+                cacheSelection = .image(
+                    itemID: avatarOutcome.aiItemID ?? ""
+                )
+            }
+            result.avatarCache = IdentityAvatarCache(
+                selection: cacheSelection,
+                itemID: avatarOutcome.userWon
+                    ? nil : avatarOutcome.aiItemID,
+                serverUpdatedAt: avatarOutcome.userWon
+                    ? nil : avatarOutcome.aiUpdatedAt,
+                cachedAt: now
+            )
+            result.image = image
+            result.avatarPushPending = avatarOutcome.userWon
+        }
+
+        // —— 落盘新账、清旧账 ——
+        if let nameCache = result.nameCache,
+           let data = try? JSONEncoder().encode(nameCache) {
+            defaults.set(data, forKey: Keys.nameCache)
+        }
+        if let avatarCache = result.avatarCache,
+           let data = try? JSONEncoder().encode(avatarCache) {
+            defaults.set(data, forKey: Keys.avatarCache)
+        }
+        defaults.set(
+            result.namePushPending, forKey: Keys.namePushPending
+        )
+        defaults.set(
+            result.avatarPushPending, forKey: Keys.avatarPushPending
+        )
+        for key in [
+            Keys.legacyNameOverride, Keys.legacyNameOverrideProvenance,
+            Keys.legacyLastKnownSoulName,
+            Keys.legacyLastKnownSoulUpdatedAt,
+            Keys.legacyAvatarPresetID, Keys.legacyUsesCustomAvatar,
+            Keys.legacyAIItemID, Keys.legacyAIPresetID,
+            Keys.legacyAIUpdatedAt, Keys.legacyAvatarSelectedAt,
+            Keys.legacyUserAvatarLocked,
+        ] {
+            defaults.removeObject(forKey: key)
+        }
+        try? FileManager.default.removeItem(at: legacyUserFileURL)
+        try? FileManager.default.removeItem(at: legacyAIFileURL)
+        return result
+    }
+
+    // MARK: - 图文件与制备
+
+    private static var profileDirURL: URL {
         let base = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         )[0]
@@ -458,35 +505,35 @@ final class AgentProfileStore {
         try? FileManager.default.createDirectory(
             at: dir, withIntermediateDirectories: true
         )
-        return dir.appendingPathComponent("avatar.jpg")
+        return dir
     }
 
-    private static func loadCustomAvatarFile() -> UIImage? {
-        guard let data = try? Data(contentsOf: avatarFileURL) else {
-            return nil
-        }
-        return UIImage(data: data)
+    /// 缓存图文件（§245 单图）：头像仓当前图片在本机
+    /// 的唯一副本
+    private static var cachedAvatarFileURL: URL {
+        profileDirURL.appendingPathComponent("avatar-cache.jpg")
     }
 
-    /// AI 档图文件：与用户图同目录、分文件（avatar-ai
-    /// .jpg），两边互不覆盖
-    private static var aiAvatarFileURL: URL {
-        avatarFileURL.deletingLastPathComponent()
-            .appendingPathComponent("avatar-ai.jpg")
+    /// 旧图文件（迁移读后即删）
+    private static var legacyUserFileURL: URL {
+        profileDirURL.appendingPathComponent("avatar.jpg")
     }
 
-    private static func loadAICustomAvatarFile() -> UIImage? {
-        guard let data = try? Data(contentsOf: aiAvatarFileURL) else {
-            return nil
-        }
+    private static var legacyAIFileURL: URL {
+        profileDirURL.appendingPathComponent("avatar-ai.jpg")
+    }
+
+    private static func loadCachedAvatarFile() -> UIImage? {
+        guard let data = try? Data(contentsOf: cachedAvatarFileURL)
+        else { return nil }
         return UIImage(data: data)
     }
 
     /// 相册图制备：按 UIImage 方向居中裁方（draw 居中
     /// 覆盖），边长超 512 再等比压到 512——头像最大
     /// 呈现是分享名片 132pt（§224 审计），512 足够
-    /// @3x 富余
-    private static func preparedCustomAvatar(from data: Data) -> UIImage? {
+    /// @3x 富余。写穿上传与缓存落盘共用同一制备。
+    static func preparedCustomAvatar(from data: Data) -> UIImage? {
         guard let image = UIImage(data: data) else { return nil }
         let size = image.size
         guard size.width > 0, size.height > 0 else { return nil }
@@ -506,6 +553,13 @@ final class AgentProfileStore {
         ).image { _ in
             square.draw(in: CGRect(x: 0, y: 0, width: 512, height: 512))
         }
+    }
+
+    /// 写穿上传用的制备 JPEG（编辑器选图→AppState 写
+    /// 穿链取字节）：制备失败回 nil、调用方如实报错
+    static func preparedAvatarJPEG(from data: Data) -> Data? {
+        preparedCustomAvatar(from: data)?
+            .jpegData(compressionQuality: 0.85)
     }
 }
 

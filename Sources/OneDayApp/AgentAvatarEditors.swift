@@ -3,17 +3,37 @@ import OneDayDesign
 import PhotosUI
 import SwiftUI
 
-/// 更换虚拟形象（0.36.22，枢纽头像角标菜单第一项）：
-/// 预置目录（OneDayCore.AgentAvatarPreset）逐款预览
-/// 选点即换＋相册选图（PhotosPicker，与聊天附件同一
-/// loadTransferable 口径）。头像只存本机档案，页内
-/// 注明、不上传服务器。
+/// 身份写穿失败的人话出口（§245 编辑器共用）：
+/// IdentityBridgeError 的 failed 文案已过 §232 安全
+/// 门、原样呈现；无钥/未授权/未知错误落编辑器侧通
+/// 用人话，不露任何内部细节
+private func identityWriteErrorText(_ error: Error) -> String {
+    switch error as? IdentityBridgeError {
+    case .noKey:
+        return L10n.string("还没连上服务器，先完成连接再试。")
+    case .unauthorized:
+        return L10n.string("登录已失效，重新登录后再试。")
+    case .failed(let message):
+        return message
+    case nil:
+        return L10n.string("保存失败，再试一次。")
+    }
+}
+
+/// 更换虚拟形象（0.36.22 立、§245 改写穿）：预置目
+/// 录（OneDayCore.AgentAvatarPreset）逐款预览选点即
+/// 换＋相册选图（PhotosPicker，与聊天附件同一
+/// loadTransferable 口径）。§245 起头像是服务端单
+/// 真值：选点＝写穿头像仓，成功后缓存以仓指针整份
+/// 替换、全端同值；写穿失败留在本页报错、不先斩后
+/// 奏地改呈现。页内注明头像存服务器。
 struct AgentAvatarEditorView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
     @State private var photoItem: PhotosPickerItem?
-    @State private var loadFailed = false
+    @State private var isSaving = false
+    @State private var errorText: String?
 
     private var store: AgentProfileStore { appState.agentProfileStore }
 
@@ -23,7 +43,7 @@ struct AgentAvatarEditorView: View {
                 Section("预置形象") {
                     ForEach(AgentAvatarPreset.all) { preset in
                         Button {
-                            store.selectPreset(id: preset.id)
+                            selectPreset(preset)
                         } label: {
                             HStack(spacing: OneDayMetrics.spacingSM) {
                                 presetPreview(preset)
@@ -35,7 +55,7 @@ struct AgentAvatarEditorView: View {
                                 Text(preset.displayName)
                                     .foregroundStyle(Palette.ink)
                                 Spacer()
-                                if store.profile.avatar
+                                if store.currentAvatarSelection
                                     == .preset(id: preset.id) {
                                     Image(systemName: "checkmark")
                                         .foregroundStyle(Palette.primary)
@@ -44,18 +64,19 @@ struct AgentAvatarEditorView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.odPressable)
+                        .disabled(isSaving)
                         // 0.43.0（A11Y-V5）：选中态只有勾
                         // 形——补「已选」播报＋特征（与外
                         // 观页/连接器页房内先例同式）
                         .accessibilityLabel(
-                            store.profile.avatar
+                            store.currentAvatarSelection
                                 == .preset(id: preset.id)
                                 ? preset.displayName + "，"
                                     + L10n.string("已选")
                                 : preset.displayName
                         )
                         .accessibilityAddTraits(
-                            store.profile.avatar
+                            store.currentAvatarSelection
                                 == .preset(id: preset.id)
                                 ? [.isSelected] : []
                         )
@@ -69,7 +90,7 @@ struct AgentAvatarEditorView: View {
                         photoLibrary: .shared()
                     ) {
                         HStack(spacing: OneDayMetrics.spacingSM) {
-                            if store.profile.avatar == .custom {
+                            if store.currentAvatarSelection == .custom {
                                 appState.agentAvatarImage
                                     .resizable()
                                     .scaledToFill()
@@ -88,31 +109,39 @@ struct AgentAvatarEditorView: View {
                             Text("从相册选择")
                                 .foregroundStyle(Palette.ink)
                             Spacer()
-                            if store.profile.avatar == .custom {
+                            if store.currentAvatarSelection == .custom {
                                 Image(systemName: "checkmark")
                                     .foregroundStyle(Palette.primary)
                             }
                         }
                     }
+                    .disabled(isSaving)
                     // 0.43.0（A11Y-V5）：同预置行——自定
                     // 义头像在用时补「已选」播报＋特征
                     .accessibilityLabel(
-                        store.profile.avatar == .custom
+                        store.currentAvatarSelection == .custom
                             ? L10n.string("从相册选择") + "，"
                                 + L10n.string("已选")
                             : L10n.string("从相册选择")
                     )
                     .accessibilityAddTraits(
-                        store.profile.avatar == .custom
+                        store.currentAvatarSelection == .custom
                             ? [.isSelected] : []
                     )
-                    if loadFailed {
-                        Text("这张图读不出来，换一张试试。")
+                    if isSaving {
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            ProgressView()
+                            Text("正在保存…")
+                                .foregroundStyle(Palette.secondary)
+                        }
+                    }
+                    if let errorText {
+                        Text(errorText)
                             .font(.caption)
                             .foregroundStyle(Palette.danger)
                     }
                 } footer: {
-                    Text("头像只保存在这台手机上，换头像不会改动服务器上的智能体身份。")
+                    Text("头像保存在你的服务器上，改一次，所有地方看到的都是新头像。")
                 }
             }
             .navigationTitle("更换虚拟形象")
@@ -120,6 +149,7 @@ struct AgentAvatarEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
+                        .disabled(isSaving)
                 }
             }
             .onChange(of: photoItem) { _, item in
@@ -144,73 +174,101 @@ struct AgentAvatarEditorView: View {
         }
     }
 
+    private func selectPreset(_ preset: AgentAvatarPreset) {
+        guard store.currentAvatarSelection
+                != .preset(id: preset.id) else { return }
+        isSaving = true
+        errorText = nil
+        Task {
+            do {
+                try await appState.selectAvatarPreset(id: preset.id)
+            } catch {
+                errorText = identityWriteErrorText(error)
+            }
+            isSaving = false
+        }
+    }
+
     private func loadPickedPhoto(_ item: PhotosPickerItem) async {
-        loadFailed = false
+        errorText = nil
         guard let data = try? await item.loadTransferable(
             type: Data.self
-        ), store.setCustomAvatar(data: data) else {
-            loadFailed = true
+        ) else {
+            errorText = L10n.string("这张图读不出来，换一张试试。")
+            photoItem = nil
             return
         }
+        isSaving = true
+        do {
+            try await appState.setCustomAvatar(imageData: data)
+        } catch {
+            errorText = identityWriteErrorText(error)
+        }
+        isSaving = false
         photoItem = nil
     }
 }
 
-/// 编辑名称（0.36.22，枢纽头像角标菜单第二项）：改
-/// 的是本地档案显示名覆盖——留空保存＝清覆盖、恢复
-/// 跟随服务器身份名；超 20 字（Core 净化口径）不许
+/// 编辑名称（0.36.22 立、§245 改写穿）：改的就是服
+/// 务器上的身份名本身——经桥写口写穿（服务端复校、
+/// 带备份与留痕），成功后全 App 以回读刷新。旧「本
+/// 机显示名覆盖＋恢复自动」整套退役：名字只有一份、
+/// 没有第二层。校验与服务端同口径（Core AgentName-
+/// Edit：≤20 字、无句读、非结构词），不合口径不许
 /// 保存并明示原因，不静默截断用户输入。
 struct AgentNameEditorView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft: String
+    @State private var isSaving = false
+    @State private var errorText: String?
 
-    init(initialOverride: String?) {
-        _draft = State(initialValue: initialOverride ?? "")
+    init(initialName: String) {
+        _draft = State(initialValue: initialName)
     }
 
-    private var store: AgentProfileStore { appState.agentProfileStore }
-
-    /// 草稿三态：留空（清覆盖）／合法（可存）／超长（拒存）
-    private enum DraftState {
-        case blank
-        case valid
-        case overlong
+    /// 净化后的可存名（与服务端校验同口径）；nil＝
+    /// 不合口径（空/超长/带句读/结构词），不许保存
+    private var sanitizedName: String? {
+        AgentNameEdit.sanitizedRename(draft)
     }
 
-    private var draftState: DraftState {
-        let trimmed = draft.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-        if trimmed.isEmpty { return .blank }
-        return AgentDisplayName.sanitizedOverride(draft) == nil
-            ? .overlong : .valid
+    /// 与现行名相同：保存即关闭、不发无谓写穿
+    private var isUnchanged: Bool {
+        sanitizedName != nil
+            && sanitizedName == appState.identityName
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("显示名", text: $draft)
+                    TextField("名称", text: $draft)
                         .autocorrectionDisabled()
+                        .disabled(isSaving)
                 } footer: {
-                    switch draftState {
-                    case .blank:
-                        Text("留空保存将恢复自动：跟随服务器上的身份名。")
-                    case .valid:
-                        Text("只改这台手机上的称呼，不改动服务器上的智能体身份。")
-                    case .overlong:
-                        Text("名字最多 20 个字。")
+                    if sanitizedName == nil {
+                        Text("名字不能为空，最多 20 个字，且不能带标点。")
                             .foregroundStyle(Palette.danger)
+                    } else {
+                        Text("改名会直接改服务器上的身份名，所有地方看到的都会跟着变。")
                     }
                 }
-                if store.profile.displayNameOverride != nil {
+                if isSaving {
                     Section {
-                        Button("恢复自动（跟随服务器身份名）", role: .destructive) {
-                            store.setDisplayNameOverride(nil)
-                            dismiss()
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            ProgressView()
+                            Text("正在保存…")
+                                .foregroundStyle(Palette.secondary)
                         }
+                    }
+                }
+                if let errorText {
+                    Section {
+                        Text(errorText)
+                            .font(.caption)
+                            .foregroundStyle(Palette.danger)
                     }
                 }
             }
@@ -219,22 +277,34 @@ struct AgentNameEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
+                        .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        switch draftState {
-                        case .blank:
-                            store.setDisplayNameOverride(nil)
-                        case .valid:
-                            store.setDisplayNameOverride(draft)
-                        case .overlong:
-                            break
-                        }
-                        dismiss()
-                    }
-                    .disabled(draftState == .overlong)
+                    Button("保存") { save() }
+                        .disabled(
+                            sanitizedName == nil || isSaving
+                        )
                 }
             }
+        }
+    }
+
+    private func save() {
+        guard let name = sanitizedName else { return }
+        if isUnchanged {
+            dismiss()
+            return
+        }
+        isSaving = true
+        errorText = nil
+        Task {
+            do {
+                try await appState.renameAgent(to: name)
+                dismiss()
+            } catch {
+                errorText = identityWriteErrorText(error)
+            }
+            isSaving = false
         }
     }
 }

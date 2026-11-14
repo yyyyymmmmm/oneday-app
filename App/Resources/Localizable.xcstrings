@@ -69613,6 +69613,2467 @@
           }
         }
       }
+    },
+    "%@保存失败。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to save %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@保存失败。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@儲存失敗。"
+          }
+        }
+      }
+    },
+    "%@保存失败（错误 %@）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to save %@ (error %@)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@保存失败（错误 %@）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@儲存失敗（錯誤 %@）。"
+          }
+        }
+      }
+    },
+    "%@（%lld）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (%lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（%lld）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（%lld）"
+          }
+        }
+      }
+    },
+    "云电脑状态返回格式无法识别": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The cloud computer status response could not be read."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "云电脑状态返回格式无法识别"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雲電腦狀態返回格式無法識別"
+          }
+        }
+      }
+    },
+    "保存失败，再试一次。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save failed. Please try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存失败，再试一次。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存失敗，再試一次。"
+          }
+        }
+      }
+    },
+    "卡住了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stuck"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卡住了"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卡住了"
+          }
+        }
+      }
+    },
+    "头像仓": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avatar library"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "头像仓"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頭像倉"
+          }
+        }
+      }
+    },
+    "头像仓返回格式无法识别": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The avatar library response could not be read."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "头像仓返回格式无法识别"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頭像倉返回格式無法識別"
+          }
+        }
+      }
+    },
+    "头像图": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avatar image"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "头像图"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頭像圖"
+          }
+        }
+      }
+    },
+    "导航需要 http(s) 网址": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigation requires an http(s) URL."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导航需要 http(s) 网址"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "導航需要 http(s) 網址"
+          }
+        }
+      }
+    },
+    "想多陪伴的人、想走近的关系，都从这里开始。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People you want to spend more time with, relationships you want to grow closer — it all starts here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想多陪伴的人、想走近的关系，都从这里开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想多陪伴的人、想走近的關係，都從這裡開始。"
+          }
+        }
+      }
+    },
+    "想存下的钱、想理顺的收支，都从这里开始。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Money you want to save, income and spending you want to sort out — it all starts here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想存下的钱、想理顺的收支，都从这里开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想存下的錢、想理順的收支，都從這裡開始。"
+          }
+        }
+      }
+    },
+    "想学的东西、想捡起来的爱好，都从这里开始。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Things you want to learn, hobbies you want to pick back up — it all starts here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想学的东西、想捡起来的爱好，都从这里开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想學的東西、想撿起來的愛好，都從這裡開始。"
+          }
+        }
+      }
+    },
+    "想推进的工作、想拿下的机会，都从这里开始。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Work you want to move forward, opportunities you want to win — it all starts here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想推进的工作、想拿下的机会，都从这里开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想推進的工作、想拿下的機會，都從這裡開始。"
+          }
+        }
+      }
+    },
+    "想改善的身体状态、想养成的习惯，都从这里开始。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your health you want to improve, habits you want to build — it all starts here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想改善的身体状态、想养成的习惯，都从这里开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想改善的身體狀態、想養成的習慣，都從這裡開始。"
+          }
+        }
+      }
+    },
+    "想省下的时间、想理顺的流程，都从这里开始。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time you want to save, routines you want to streamline — it all starts here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想省下的时间、想理顺的流程，都从这里开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想省下的時間、想理順的流程，都從這裡開始。"
+          }
+        }
+      }
+    },
+    "我想定一个「%@」方面的目标（分类：%@）。请在对话里陪我把这个目标聊定：想达成什么、怎么衡量、拆成哪些里程碑。聊定之后，请用 goals_create 把它建起来：category 用 %@，标题和备注按我们聊定的内容填。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I want to set a goal about \"%@\" (category: %@). Please talk it through with me in this conversation: what I want to achieve, how to measure it, and which milestones to break it into. Once we have settled it, create it with goals_create: use %@ for category, and fill in the title and notes from what we agreed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我想定一个「%@」方面的目标（分类：%@）。请在对话里陪我把这个目标聊定：想达成什么、怎么衡量、拆成哪些里程碑。聊定之后，请用 goals_create 把它建起来：category 用 %@，标题和备注按我们聊定的内容填。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我想定一個「%@」方面的目標（分類：%@）。請在對話裡陪我把這個目標聊定：想達成什麼、怎麼衡量、拆成哪些里程碑。聊定之後，請用 goals_create 把它建起來：category 用 %@，標題和備註按我們聊定的內容填。"
+          }
+        }
+      }
+    },
+    "截图中没有图像数据": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The screenshot contains no image data."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图中没有图像数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截圖中沒有圖像資料"
+          }
+        }
+      }
+    },
+    "文件内容解码失败": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file contents could not be decoded."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件内容解码失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案內容解碼失敗"
+          }
+        }
+      }
+    },
+    "文件大小超过 16MB 上限": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file exceeds the 16MB size limit."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件大小超过 16MB 上限"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案大小超過 16MB 上限"
+          }
+        }
+      }
+    },
+    "文件读取失败": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file could not be read."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件读取失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案讀取失敗"
+          }
+        }
+      }
+    },
+    "文件过大，无法读取": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file is too large to read."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件过大，无法读取"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案過大，無法讀取"
+          }
+        }
+      }
+    },
+    "新建目标：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New goal: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建目标：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建立目標：%@"
+          }
+        }
+      }
+    },
+    "暂时归不进上面几类的目标，从这里开始。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goals that do not fit the categories above for now — start here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时归不进上面几类的目标，从这里开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時歸不進上面幾類的目標，從這裡開始。"
+          }
+        }
+      }
+    },
+    "正在办": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在办"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在辦"
+          }
+        }
+      }
+    },
+    "电脑文件网络不可达": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Computer files are unreachable over the network."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电脑文件网络不可达"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電腦檔案網路不可達"
+          }
+        }
+      }
+    },
+    "留痕回响": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trace log"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留痕回响"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留痕回響"
+          }
+        }
+      }
+    },
+    "登录已失效，重新登录后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your sign-in has expired. Sign in again and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录已失效，重新登录后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登入已失效，重新登入後再試。"
+          }
+        }
+      }
+    },
+    "等着": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等着"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等著"
+          }
+        }
+      }
+    },
+    "网络不可达": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network unreachable."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络不可达"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網路不可達"
+          }
+        }
+      }
+    },
+    "身份名": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identity name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份名"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份名"
+          }
+        }
+      }
+    },
+    "还没连上服务器，先完成连接再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected to the server yet. Connect first, then try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没连上服务器，先完成连接再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒連上伺服器，先完成連線再試。"
+          }
+        }
+      }
+    },
+    "这张图片读不了，换一张试试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This image can't be read. Try another one."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这张图片读不了，换一张试试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這張圖片讀不了，換一張試試。"
+          }
+        }
+      }
+    },
+    "这是一个目录，不能作为文件读取。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is a folder and can't be read as a file."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这是一个目录，不能作为文件读取。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這是一個目錄，不能作為檔案讀取。"
+          }
+        }
+      }
+    },
+    "闲置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idle"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "闲置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閒置"
+          }
+        }
+      }
+    },
+    "默认服务商 · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default provider · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认服务商 · %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設服務商 · %@"
+          }
+        }
+      }
+    },
+    "默认服务商（%lld）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default provider (%lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认服务商（%lld）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設服務商（%lld）"
+          }
+        }
+      }
+    },
+    "App Secret": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Secret"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Secret"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Secret"
+          }
+        }
+      }
+    },
+    "OneDay 文件夹里还没有图片。先用相机拍一张、或把图片放进文件夹，再回来认。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There are no images in the OneDay folder yet. Take a photo with the camera, or put images into the folder, then come back to recognize them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 文件夹里还没有图片。先用相机拍一张、或把图片放进文件夹，再回来认。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDay 資料夾裡還沒有圖片。先用相機拍一張、或把圖片放進資料夾，再回來認。"
+          }
+        }
+      }
+    },
+    "保存后先整理简报；整理出新版就立刻按新简报去看一轮。平时每天早上 8:30 例行一轮，有新发现就多一篇，没有就不凑数。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After saving, the brief is tidied up first; when a new version is ready, a round runs right away with it. Normally there is one round every morning at 8:30 — a new find means one more post, and nothing is padded when there is nothing new."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存后先整理简报；整理出新版就立刻按新简报去看一轮。平时每天早上 8:30 例行一轮，有新发现就多一篇，没有就不凑数。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存後先整理簡報；整理出新版就立刻按新簡報去看一輪。平時每天早上 8:30 例行一輪，有新發現就多一篇，沒有就不湊數。"
+          }
+        }
+      }
+    },
+    "先选一个类别，再到对话里把目标聊定。定好之后它会出现在这里，进展和简报会慢慢长出来。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick a category first, then settle the goal in a conversation. Once it is set, it will appear here, and its progress and briefings will grow over time."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先选一个类别，再到对话里把目标聊定。定好之后它会出现在这里，进展和简报会慢慢长出来。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先選一個類別，再到對話裡把目標聊定。定好之後它會出現在這裡，進展和簡報會慢慢長出來。"
+          }
+        }
+      }
+    },
+    "全部现读现回、不存副本；手机的名字与当前 Wi-Fi 名称需要签名权益才读得到，不在此列。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everything is read live and returned on the spot, with no copies stored. The phone name and current Wi-Fi name require a signing entitlement and are not included."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部现读现回、不存副本；手机的名字与当前 Wi-Fi 名称需要签名权益才读得到，不在此列。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部現讀現回、不存副本；手機的名字與目前 Wi-Fi 名稱需要簽名權益才讀得到，不在此列。"
+          }
+        }
+      }
+    },
+    "删除服务商": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Provider"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除服务商"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除服務商"
+          }
+        }
+      }
+    },
+    "发送失败，点按重新发送": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to send. Tap to resend."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送失败，点按重新发送"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傳送失敗，點按重新傳送"
+          }
+        }
+      }
+    },
+    "只现读这一次，不做后台定位、不存位置副本。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read live just this once — no background location, no stored copy of your location."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只现读这一次，不做后台定位、不存位置副本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只現讀這一次，不做背景定位、不存位置副本。"
+          }
+        }
+      }
+    },
+    "可以打开的目标": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Targets That Can Be Opened"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以打开的目标"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以開啟的目標"
+          }
+        }
+      }
+    },
+    "可用状态": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Availability"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可用状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可用狀態"
+          }
+        }
+      }
+    },
+    "名字不能为空，最多 20 个字，且不能带标点。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The name can't be empty, can be at most 20 characters, and can't contain punctuation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名字不能为空，最多 20 个字，且不能带标点。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名字不能為空，最多 20 個字，且不能帶標點。"
+          }
+        }
+      }
+    },
+    "回到目标": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to Goal"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到目标"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到目標"
+          }
+        }
+      }
+    },
+    "在这台手机上试一次": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try It on This Phone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这台手机上试一次"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在這台手機上試一次"
+          }
+        }
+      }
+    },
+    "在这台手机上试认": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Recognition on This Phone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这台手机上试认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在這台手機上試認"
+          }
+        }
+      }
+    },
+    "头像保存在你的服务器上，改一次，所有地方看到的都是新头像。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your avatar is stored on your server — change it once and every place shows the new one."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "头像保存在你的服务器上，改一次，所有地方看到的都是新头像。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頭像儲存在你的伺服器上，改一次，所有地方看到的都是新頭像。"
+          }
+        }
+      }
+    },
+    "已设的闹钟": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alarms Set"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已设的闹钟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已設的鬧鐘"
+          }
+        }
+      }
+    },
+    "常用语言对": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Common Language Pairs"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常用语言对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常用語言對"
+          }
+        }
+      }
+    },
+    "开始连接": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Connecting"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始连接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始連線"
+          }
+        }
+      }
+    },
+    "待发的通知": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending Notifications"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待发的通知"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待發的通知"
+          }
+        }
+      }
+    },
+    "快捷指令的名字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name of the Shortcut"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷指令的名字"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷指令的名字"
+          }
+        }
+      }
+    },
+    "我的歌单": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My Playlists"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的歌单"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的歌單"
+          }
+        }
+      }
+    },
+    "打开": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟"
+          }
+        }
+      }
+    },
+    "打开的是空撰写面，收件人和内容都由你亲手填；智能体也只能做到把预填好的面递到你手上，发不发由你在面上点。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What opens is a blank compose screen — you fill in the recipient and content yourself. The assistant can only hand you a pre-filled screen; whether to send is your tap on that screen."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开的是空撰写面，收件人和内容都由你亲手填；智能体也只能做到把预填好的面递到你手上，发不发由你在面上点。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟的是空白撰寫面，收件人和內容都由你親手填；智慧代理也只能做到把預填好的面遞到你手上，發不發由你在面上點。"
+          }
+        }
+      }
+    },
+    "拍过的照片与扫描": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos Taken and Scans"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拍过的照片与扫描"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拍過的照片與掃描"
+          }
+        }
+      }
+    },
+    "按名运行": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run by Name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按名运行"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按名運行"
+          }
+        }
+      }
+    },
+    "播放状态": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback Status"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放狀態"
+          }
+        }
+      }
+    },
+    "改名会直接改服务器上的身份名，所有地方看到的都会跟着变。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renaming changes the identity name on your server directly — every place that shows it will change too."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改名会直接改服务器上的身份名，所有地方看到的都会跟着变。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改名會直接改伺服器上的身份名，所有地方看到的都會跟著變。"
+          }
+        }
+      }
+    },
+    "智能体只能打开这一张名单里的目标，名单之外的链接一律打不开。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The assistant can only open targets on this list; links outside the list cannot be opened at all."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体只能打开这一张名单里的目标，名单之外的链接一律打不开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智慧代理只能開啟這一張名單裡的目標，名單之外的連結一律打不開。"
+          }
+        }
+      }
+    },
+    "暂无人设内容，点下方编辑添加。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No persona content yet. Tap Edit below to add some."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无人设内容，点下方编辑添加。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫無人設內容，點下方編輯新增。"
+          }
+        }
+      }
+    },
+    "服务器的主通道，新对话默认从这里开始。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server's main channel — new conversations start here by default."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器的主通道，新对话默认从这里开始。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器的主通道，新對話預設從這裡開始。"
+          }
+        }
+      }
+    },
+    "本地记录暂时打不开": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local records can't be opened right now."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地记录暂时打不开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地記錄暫時打不開"
+          }
+        }
+      }
+    },
+    "正在上传文件…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uploading file…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在上传文件…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在上傳檔案…"
+          }
+        }
+      }
+    },
+    "每次调用都是一次单次问答，不记上文；回答在本机生成，不联网。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each call is a one-off question and answer with no memory of the context; answers are generated on this phone and never go online."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次调用都是一次单次问答，不记上文；回答在本机生成，不联网。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次呼叫都是一次單次問答，不記上文；回答在本機生成，不連網。"
+          }
+        }
+      }
+    },
+    "点「开始吧」会打开一条新对话，在对话里把这个目标聊定——想达成什么、怎么衡量、拆成哪些里程碑。聊定之后，目标会出现在这里，它的进展、任务和简报会慢慢长出来。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tapping \"Let's Go\" opens a new conversation to settle this goal — what you want to achieve, how to measure it, and which milestones to break it into. Once settled, the goal appears here, and its progress, tasks, and briefings will grow over time."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点「开始吧」会打开一条新对话，在对话里把这个目标聊定——想达成什么、怎么衡量、拆成哪些里程碑。聊定之后，目标会出现在这里，它的进展、任务和简报会慢慢长出来。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點「開始吧」會開啟一條新對話，在對話裡把這個目標聊定——想達成什麼、怎麼衡量、拆成哪些里程碑。聊定之後，目標會出現在這裡，它的進展、任務和簡報會慢慢長出來。"
+          }
+        }
+      }
+    },
+    "点一下麦克风，说完点「停」，文字会填进输入框，改完再发；点「发送」则停录后直接发出去。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the microphone, tap \"Stop\" when you finish speaking, and the text will fill the input box for you to edit before sending. Tap \"Send\" to stop recording and send it right away."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一下麦克风，说完点「停」，文字会填进输入框，改完再发；点「发送」则停录后直接发出去。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一下麥克風，說完點「停」，文字會填進輸入框，改完再發；點「傳送」則停錄後直接發出去。"
+          }
+        }
+      }
+    },
+    "点一行设为默认，立即生效。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap a row to set it as the default, effective immediately."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一行设为默认，立即生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點一行設為預設，立即生效。"
+          }
+        }
+      }
+    },
+    "现在拍一张": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take a Photo Now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在拍一张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在拍一張"
+          }
+        }
+      }
+    },
+    "现在没有待发的通知。在对话里让智能体按你的确认发一条试试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There are no pending notifications. Ask the assistant in a conversation to send one with your confirmation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在没有待发的通知。在对话里让智能体按你的确认发一条试试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在沒有待發的通知。在對話裡讓智慧代理按你的確認發一條試試。"
+          }
+        }
+      }
+    },
+    "现在没有待响的闹钟。在对话里让智能体按你的确认设定一个试试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There are no alarms set to ring. Ask the assistant in a conversation to set one with your confirmation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在没有待响的闹钟。在对话里让智能体按你的确认设定一个试试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在沒有待響的鬧鐘。在對話裡讓智慧代理按你的確認設定一個試試。"
+          }
+        }
+      }
+    },
+    "用自己的话写就行：关心哪几个方向、什么样的内容不要。保存后我来整理成下面的正式简报。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Just write in your own words: which directions you care about and what kind of content you don't want. After saving, I'll tidy it into the formal brief below."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用自己的话写就行：关心哪几个方向、什么样的内容不要。保存后我来整理成下面的正式简报。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用自己的話寫就行：關心哪幾個方向、什麼樣的內容不要。儲存後我來整理成下面的正式簡報。"
+          }
+        }
+      }
+    },
+    "直接填写": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fill In Directly"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接填写"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接填寫"
+          }
+        }
+      }
+    },
+    "看看我现在在哪": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See Where I Am"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "看看我现在在哪"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "看看我現在在哪"
+          }
+        }
+      }
+    },
+    "系统只回「过没过」；你的面容或指纹数据永远不出系统，OneDay 碰不到。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The system only reports pass or fail; your face or fingerprint data never leaves the system, and OneDay can't touch it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统只回「过没过」；你的面容或指纹数据永远不出系统，OneDay 碰不到。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統只回「過沒過」；你的面容或指紋資料永遠不出系統，OneDay 碰不到。"
+          }
+        }
+      }
+    },
+    "系统没有列出全部快捷指令的办法，只能按名字运行你已经建好的一条；运行会切到快捷指令去执行。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There's no way to list all shortcuts, so only one you've already created can be run by name; running it switches to Shortcuts to execute."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统没有列出全部快捷指令的办法，只能按名字运行你已经建好的一条；运行会切到快捷指令去执行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統沒有列出全部快捷指令的辦法，只能按名字運行你已經建好的一條；運行會切到快捷指令去執行。"
+          }
+        }
+      }
+    },
+    "系统音乐播放器": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System Music Player"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统音乐播放器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統音樂播放器"
+          }
+        }
+      }
+    },
+    "认文字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recognize Text"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "认文字"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認文字"
+          }
+        }
+      }
+    },
+    "识别在手机本地完成，图片不上传；智能体也是读同一批图片。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recognition happens on this phone and images are never uploaded; the assistant reads the same batch of images."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "识别在手机本地完成，图片不上传；智能体也是读同一批图片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "識別在手機本地完成，圖片不上傳；智慧代理也是讀同一批圖片。"
+          }
+        }
+      }
+    },
+    "试一次本人确认": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try a Verification"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "试一次本人确认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試一次本人確認"
+          }
+        }
+      }
+    },
+    "试着写一封邮件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Writing an Email"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "试着写一封邮件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試著寫一封郵件"
+          }
+        }
+      }
+    },
+    "试着写一条短信": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Writing a Text Message"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "试着写一条短信"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "試著寫一條簡訊"
+          }
+        }
+      }
+    },
+    "语言包在系统「翻译」里管理：没下载的组合，先去那里把语言包下载好就能翻。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language packs are managed in the system's Translate app: for a pair you haven't downloaded, download the pack there first and then you can translate."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语言包在系统「翻译」里管理：没下载的组合，先去那里把语言包下载好就能翻。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語言包在系統「翻譯」裡管理：沒下載的組合，先去那裡把語言包下載好就能翻。"
+          }
+        }
+      }
+    },
+    "请谨慎访问": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visit with caution"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请谨慎访问"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請謹慎造訪"
+          }
+        }
+      }
+    },
+    "请选择": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Please Select"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請選擇"
+          }
+        }
+      }
+    },
+    "资料库里还没有歌单。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There are no playlists in the library yet."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资料库里还没有歌单。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資料庫裡還沒有歌單。"
+          }
+        }
+      }
+    },
+    "运行这一条": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run This One"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行这一条"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "運行這一條"
+          }
+        }
+      }
+    },
+    "还没有拍过。智能体请你拍照、或你在这里亲手拍的，都会存到这里。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing has been captured yet. Photos the assistant asks you to take, or ones you take here yourself, will be stored here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有拍过。智能体请你拍照、或你在这里亲手拍的，都会存到这里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有拍過。智慧代理請你拍照、或你在這裡親手拍的，都會存到這裡。"
+          }
+        }
+      }
+    },
+    "这台手机": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Phone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台手机"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台手機"
+          }
+        }
+      }
+    },
+    "这台手机现在": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Phone Right Now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台手机现在"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台手機現在"
+          }
+        }
+      }
+    },
+    "这是每天真正照着去看的那份，由上面的兴趣自动整理。你也可以直接改它：保存后立刻按新简报去看一轮。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is the brief actually followed each day, tidied automatically from your interests above. You can also edit it directly: after saving, a round runs right away with the new brief."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这是每天真正照着去看的那份，由上面的兴趣自动整理。你也可以直接改它：保存后立刻按新简报去看一轮。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這是每天真正照著去看的那份，由上面的興趣自動整理。你也可以直接改它：儲存後立刻按新簡報去看一輪。"
+          }
+        }
+      }
+    },
+    "这段对话没能载入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This conversation couldn't be loaded."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这段对话没能载入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這段對話沒能載入"
+          }
+        }
+      }
+    },
+    "这里只看系统音乐播放器的状态；其他 App 在放什么，系统不给读。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the system music player's status is shown here; what other apps are playing isn't available from the system."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里只看系统音乐播放器的状态；其他 App 在放什么，系统不给读。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這裡只看系統音樂播放器的狀態；其他 App 在放什麼，系統不給讀。"
+          }
+        }
+      }
+    },
+    "这里的状态是刚刚向服务器确认过的，读不到会如实显示。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The status here was just confirmed with the server; if it can't be read, that is shown as-is."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里的状态是刚刚向服务器确认过的，读不到会如实显示。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這裡的狀態是剛剛向伺服器確認過的，讀不到會如實顯示。"
+          }
+        }
+      }
+    },
+    "选一个类别，接下来在对话里把目标聊定。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick a category, then settle the goal in the conversation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选一个类别，接下来在对话里把目标聊定。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選一個類別，接下來在對話裡把目標聊定。"
+          }
+        }
+      }
+    },
+    "选一个类别，接下来在对话里把目标聊定。定好之后，它的进展、任务和简报会慢慢长出来。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick a category, then settle the goal in the conversation. Once set, its progress, tasks, and briefings will grow over time."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选一个类别，接下来在对话里把目标聊定。定好之后，它的进展、任务和简报会慢慢长出来。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選一個類別，接下來在對話裡把目標聊定。定好之後，它的進展、任務和簡報會慢慢長出來。"
+          }
+        }
+      }
+    },
+    "通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。闹钟与通知有各自的系统权限，进详情页用开关开；打开目标同样没有系统权限。相机有系统权限，拍照与扫文档都要你当面操作；识别、翻译、端上智能与本人确认没有系统权限，开关就是唯一的门，其中端上智能只在支持的机型上出现。健康与家庭还差系统签名权益，开通前只列名、不显数据。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For contacts, calendar, reminders, photos, and steps, the detail page has a single permission switch: on means automatic sync and the assistant can use them; turning it off is done in system Settings. Clipboard and files have no system permission, so the switch on the detail page is the only gate. Alarms and notifications have their own system permissions, switched on from the detail page; open-target has no system permission either. The camera has a system permission, and taking photos or scanning documents must be done by you in person. Recognition, translation, on-device intelligence, and identity confirmation have no system permission — the switch is the only gate — and on-device intelligence appears only on supported models. Health and Home still need a system signing entitlement; until it is enabled they are listed by name only, with no data shown."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通讯录、日历、提醒、照片、步数这五件，进详情页只有一个权限开关：开着就自动同步、智能体能用，关要去系统设置里关。剪贴板与文件没有系统权限，详情页里的开关就是唯一的门。闹钟与通知有各自的系统权限，进详情页用开关开；打开目标同样没有系统权限。相机有系统权限，拍照与扫文档都要你当面操作；识别、翻译、端上智能与本人确认没有系统权限，开关就是唯一的门，其中端上智能只在支持的机型上出现。健康与家庭还差系统签名权益，开通前只列名、不显数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通訊錄、日曆、提醒、照片、步數這五件，進詳情頁只有一個權限開關：開著就自動同步、智慧代理能用，關要去系統設定裡關。剪貼簿與檔案沒有系統權限，詳情頁裡的開關就是唯一的門。鬧鐘與通知有各自的系統權限，進詳情頁用開關開；開啟目標同樣沒有系統權限。相機有系統權限，拍照與掃描文件都要你當面操作；識別、翻譯、端上智慧與本人確認沒有系統權限，開關就是唯一的門，其中端上智慧只在支持的機型上出現。健康與家庭還差系統簽名權益，開通前只列名、不顯資料。"
+          }
+        }
+      }
+    },
+    "都在 OneDay 文件夹的 captures 里，文件页也能看到；不进系统相册。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "They are all in the captures folder of OneDay, visible on the Files page too; they never go into the system photo library."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "都在 OneDay 文件夹的 captures 里，文件页也能看到；不进系统相册。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "都在 OneDay 資料夾的 captures 裡，檔案頁也能看到；不進系統相簿。"
+          }
+        }
+      }
+    },
+    "重新发送": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resend"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新发送"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新傳送"
+          }
+        }
+      }
+    },
+    "重新读一次": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read Again"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新读一次"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新讀一次"
+          }
+        }
+      }
+    },
+    "预设是整套设置的快照：默认模型加全部辅助分配，一次切换。不是几个模型一起答一道题。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A preset is a snapshot of the whole setup: the default model plus all auxiliary assignments, switched in one go. It is not several models answering one question together."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预设是整套设置的快照：默认模型加全部辅助分配，一次切换。不是几个模型一起答一道题。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設是整套設定的快照：預設模型加全部輔助分配，一次切換。不是幾個模型一起答一道題。"
+          }
+        }
+      }
+    },
+    "验证方式": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verification Method"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证方式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證方式"
+          }
+        }
+      }
     }
   }
 }

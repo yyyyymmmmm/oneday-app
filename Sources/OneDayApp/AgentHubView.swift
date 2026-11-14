@@ -223,8 +223,7 @@ struct AgentHubView: View {
         }
         .sheet(isPresented: $showNameEditor) {
             AgentNameEditorView(
-                initialOverride: appState.agentProfileStore
-                    .profile.displayNameOverride
+                initialName: appState.identityName ?? ""
             )
         }
         .sheet(isPresented: $showHubModelPicker) {

@@ -421,19 +421,24 @@ final class AppState {
     /// 暂停任务派发）。任务段据此禁用派发类动作并明示
     /// 原因；服务端真联动（派发层真暂停）待生产验收轮
     var boxTakeoverActive = false
-    /// 智能体身份名（0.6.1，用户真机点名）：全局唯一解
-    /// 析点——胶囊/抽屉/活动页三处显示名都读这里；值由
-    /// soul 一级标题经 OneDayCore.AgentName.resolve 得
-    /// 出，取不到为 nil、显示层回落 AgentName.fallback；
-    /// 旧「档案名翻译当标题」（default→默认档案）口径
-    /// 退役
-    private(set) var identityName: String?
+    /// 智能体身份名（0.6.1 立、§245 改缓存镜像）：全
+    /// 局唯一呈现出口——胶囊/抽屉/活动页三处显示名都
+    /// 读这里。真值在服务端 SOUL、本机只存带时间戳
+    /// 的缓存副本（AgentProfileStore.nameCache），本
+    /// 属性是缓存的只读镜像；刷新链以 Dashboard 回
+    /// 读整份替换缓存，App 改名走写穿（renameAgent）。
+    /// 旧「档案名翻译当标题」（default→默认档案）与
+    /// 本机改名覆盖两套口径均已退役
+    var identityName: String? { agentProfileStore.cachedName }
     private var identityNameResolved = false
 
-    /// 身份名拉取（数据链：档案列表 → 默认档案 →
-    /// 其 soul → AgentName）；任一步失败回 nil，调用
-    /// 方保现状不回落假名
-    private func fetchResolvedIdentityName() async -> String? {
+    /// 身份名拉取（A2 直连，§245：档案列表 → 默认档
+    /// 案 → 其 soul，全程 Hermes Dashboard 管理口、
+    /// 不经桥）→ 解析名＋文档时刻（缓存的时间戳凭
+    /// 据）；任一步失败回 nil，调用方保现状不回落
+    /// 假名
+    private func fetchResolvedIdentityName() async
+        -> (name: String, updatedAt: Date?)? {
         guard let profiles = try? await performAdmin({ client, config in
             try await client.profiles(config: config)
         }),
@@ -441,37 +446,47 @@ final class AppState {
                 ?? profiles.first,
               let document = try? await performAdmin({ client, config in
                   try await client.profileSoul(config: config, name: profile.name)
-              })
+              }),
+              let name = AgentName.resolve(soulContent: document.content)
         else { return nil }
-        return AgentName.resolve(soulContent: document.content)
+        return (name, document.updatedAt)
     }
 
-    /// 服务器名确认后的统一收尾：记对账基准（含桥报
-    /// 的服务器写入时刻）＋跑覆盖对账（末写胜裁决在
-    /// Core AgentNameLWW）；身份反映修复前这里只有赋
-    /// 值一步——服务器改名与本机残留覆盖谁也不让谁，
-    /// 用户看到的是旧名
-    private func noteIdentityNameResolved(
-        _ name: String, soulUpdatedAt: Date? = nil
-    ) {
-        agentProfileStore.noteSoulName(name, updatedAt: soulUpdatedAt)
-        agentProfileStore.reconcileNameOverride(currentSoulName: name)
-    }
-
-    /// 桥侧名字写入时刻（末写胜的服务器侧凭据）：只
-    /// 在桥报的名与刚解析出的名一致时才采信——两边
-    /// 解析的不是同一个名时，时刻描述的不是这个值，
-    /// 宁可不用（裁决退回来源对账近似）。桥不可达/
-    /// 旧桥无账回 nil
-    private func fetchBridgeSoulUpdatedAt(
-        matching name: String
-    ) async -> Date? {
-        guard let config else { return nil }
-        let state = try? await IdentityBridgeClient().nameState(
-            config: config
+    /// 服务器名回读后的统一收尾（§245）：先处置迁移
+    /// 待推——§245 迁移时本机旧改名胜出且与回读名不
+    /// 同时，先经桥写口写穿服务端，成功后重读一次以
+    /// 服务端回读为准落缓存；写穿失败保留缓存里的待
+    /// 推值呈现、本次回读不覆盖（下个触发点再试）。
+    /// 无待推时整份替换名字缓存
+    private func adoptFetchedIdentityName(
+        _ fetched: (name: String, updatedAt: Date?)
+    ) async {
+        if agentProfileStore.namePushPending,
+           let pending = agentProfileStore.cachedName {
+            if pending == fetched.name {
+                agentProfileStore.markNamePushed()
+            } else if let config {
+                let pushed = (try? await IdentityBridgeClient()
+                    .setName(config: config, name: pending)) != nil
+                if pushed {
+                    agentProfileStore.markNamePushed()
+                    if let again = await fetchResolvedIdentityName() {
+                        agentProfileStore.applyName(
+                            again.name, serverUpdatedAt: again.updatedAt
+                        )
+                    } else {
+                        agentProfileStore.applyName(
+                            pending, serverUpdatedAt: nil
+                        )
+                    }
+                    return
+                }
+                return
+            }
+        }
+        agentProfileStore.applyName(
+            fetched.name, serverUpdatedAt: fetched.updatedAt
         )
-        guard let state, state.soulName == name else { return nil }
-        return state.updatedAtDate
     }
 
     /// 解析身份名（幂等：只真正拉取一次；失败也记已解
@@ -479,10 +494,9 @@ final class AppState {
     func resolveIdentityNameIfNeeded() async {
         guard !identityNameResolved, config != nil else { return }
         identityNameResolved = true
-        guard let name = await fetchResolvedIdentityName() else { return }
-        identityName = name
-        let soulAt = await fetchBridgeSoulUpdatedAt(matching: name)
-        noteIdentityNameResolved(name, soulUpdatedAt: soulAt)
+        guard let fetched = await fetchResolvedIdentityName()
+        else { return }
+        await adoptFetchedIdentityName(fetched)
     }
 
     /// 上次刷新尝试时刻（身份反映修复）：回前台/连接
@@ -499,36 +513,30 @@ final class AppState {
         if let last = lastIdentityRefreshAt,
            Date().timeIntervalSince(last) < 30 { return }
         lastIdentityRefreshAt = Date()
-        guard let name = await fetchResolvedIdentityName() else { return }
+        guard let fetched = await fetchResolvedIdentityName()
+        else { return }
         identityNameResolved = true
-        identityName = name
-        let soulAt = await fetchBridgeSoulUpdatedAt(matching: name)
-        noteIdentityNameResolved(name, soulUpdatedAt: soulAt)
+        await adoptFetchedIdentityName(fetched)
     }
 
-    /// soul 编辑保存后的身份名重解析（§155 HUB-1）：内
-    /// 容已由保存方重新取回并比对确认，直接以确认内容
-    /// 重算显示名，不再走一次性解析的网络链；本机改名
-    /// 覆盖仍优先于它（覆盖在呈现收敛口处理），这里只
-    /// 更新服务端名字这一份事实——更新后同样过覆盖对
-    /// 账：经 soul 编辑的改名也是服务器改名，旧覆盖按
-    /// 对账口径退场（身份反映修复）
+    /// soul 编辑保存后的身份名重解析（§155 HUB-1）：
+    /// 内容已由保存方重新取回并比对确认，直接以确认
+    /// 内容重算显示名并整份替换名字缓存，不再走一次
+    /// 性解析的网络链。§245：这次编辑本身就是一次服
+    /// 务端写入（服务器收到时刻＝当下），迁移待推就
+    /// 此作废——末写胜按时间裁决，这次写最晚
     func reresolveIdentityName(soulContent: String) {
-        identityName = AgentName.resolve(soulContent: soulContent)
         identityNameResolved = true
-        if let name = identityName {
-            // 本机刚经 soul 编辑器把名写上服务器：这
-            // 次写入的服务器收到时刻就是当下（末写胜
-            // 凭据按本地观察落账，与桥侧账同值域）
-            noteIdentityNameResolved(name, soulUpdatedAt: Date())
+        if let name = AgentName.resolve(soulContent: soulContent) {
+            agentProfileStore.markNamePushed()
+            agentProfileStore.applyName(name, serverUpdatedAt: Date())
         }
     }
 
-    /// 智能体本地档案（0.36.22，枢纽页对齐包）：用户
-    /// 在本机改的显示名覆盖与头像，全 App 露脸面经下
-    /// 方收敛口读，不再各自拼 identityName 回落链、更
-    /// 不许写死字面名。档案只管呈现：identityName 仍
-    /// 是 soul 解析的服务端真源，覆盖没设时自动跟随
+    /// 智能体身份缓存（§245）：名字/头像的服务端单真
+    /// 值在本机只剩带时间戳的缓存副本，全 App 露脸面
+    /// 经下方收敛口读缓存，不再各自拼回落链、更不许
+    /// 写死字面名
     let agentProfileStore = AgentProfileStore()
 
     /// 伴生探测（本包，DESIGN §110）：登录后自动探
@@ -543,17 +551,18 @@ final class AppState {
     /// 重打（与身份名刷新同口径）
     private var lastAvatarSyncAt: Date?
 
-    /// 头像仓同步（P1 身份包）：触发点与伴生探测同拍
-    /// （OneDayApp 的连接成立/回前台/冷启恢复），另加
-    /// 开枢纽/开抽屉（经 refreshIdentitySurfaces）——
-    /// 2026-11-13 事故里 App 全程在前台聊天、三触发
-    /// 点一个都没响，AI 换完头像 8 分钟没人重拉。把
-    /// identity 桥头像仓当前头像投影进档案 AI 档槽
-    /// 位；演示模式不连真仓；失败静默保现状，口径在
-    /// AgentAvatarSync
-    func syncAgentAvatarFromBridge() async {
+    /// 头像仓同步（P1 身份包、§245 改镜像口径）：触
+    /// 发点与伴生探测同拍（OneDayApp 的连接成立/回前
+    /// 台/冷启恢复），另加开枢纽/开抽屉（经 refresh-
+    /// IdentitySurfaces）——2026-11-13 事故里 App 全
+    /// 程在前台聊天、三触发点一个都没响，AI 换完头像
+    /// 8 分钟没人重拉。把头像仓当前指针整份替换进缓
+    /// 存；演示模式不连真仓；失败静默保现状，口径在
+    /// AgentAvatarSync。force＝写穿链回读（刚写完必
+    /// 须立刻以仓指针为准刷新缓存，绕过节流）
+    func syncAgentAvatarFromBridge(force: Bool = false) async {
         guard let config, !isDemo else { return }
-        if let last = lastAvatarSyncAt,
+        if !force, let last = lastAvatarSyncAt,
            Date().timeIntervalSince(last) < 30 { return }
         lastAvatarSyncAt = Date()
         await AgentAvatarSync.run(
@@ -570,19 +579,89 @@ final class AppState {
         await syncAgentAvatarFromBridge()
     }
 
-    /// 露脸面显示名单一出口：档案覆盖 → soul 解析名
-    /// → Hermes 回落（OneDayCore.AgentDisplayName）
+    /// 露脸面显示名单一出口：名字缓存 → Hermes 回落
+    /// （OneDayCore.AgentDisplayName，§245 收敛后只剩
+    /// 这一级链）
     var agentDisplayName: String {
         AgentDisplayName.resolve(
-            override: agentProfileStore.profile.displayNameOverride,
-            soulName: identityName
+            cachedName: agentProfileStore.cachedName
         )
     }
 
-    /// 档案改名覆盖原值（枢纽店头的多源链还要再叠一
-    /// 层本店 soul 解析，故单独出口）
-    var profileNameOverride: String? {
-        agentProfileStore.profile.displayNameOverride
+    // MARK: - 身份写穿（§245：App 改名/换头像直达服务端单真值）
+    //
+    // 三个写口共用口径：走服务端既有窄口写穿（校验/
+    // 备份/留痕在服务端），成功后以服务端回读/仓指
+    // 针整份替换缓存——App 不留第二真值。失败原样抛
+    // 回编辑器呈现（IdentityBridgeError 文案已过
+    // §232 安全门）。演示模式无真服务端：只动缓存演
+    // 示、不发网络（与演示数据同性子）。
+
+    /// App 改名写穿
+    func renameAgent(to newName: String) async throws {
+        if isDemo {
+            agentProfileStore.applyName(newName, serverUpdatedAt: nil)
+            return
+        }
+        guard let config else { throw IdentityBridgeError.noKey }
+        try await IdentityBridgeClient().setName(
+            config: config, name: newName
+        )
+        if let fetched = await fetchResolvedIdentityName() {
+            agentProfileStore.applyName(
+                fetched.name, serverUpdatedAt: fetched.updatedAt
+            )
+        } else {
+            agentProfileStore.applyName(newName, serverUpdatedAt: nil)
+        }
+    }
+
+    /// App 换预置头像写穿（成功后强制同步刷新缓存）
+    func selectAvatarPreset(id: String) async throws {
+        if isDemo {
+            agentProfileStore.applyAvatarFromSync(
+                cache: IdentityAvatarCache(
+                    selection: .preset(
+                        id: AgentAvatarPreset.resolve(id: id).id
+                    ),
+                    itemID: nil, serverUpdatedAt: nil, cachedAt: Date()
+                ),
+                imageData: nil
+            )
+            return
+        }
+        guard let config else { throw IdentityBridgeError.noKey }
+        try await IdentityBridgeClient().addAvatarPreset(
+            config: config, presetID: id
+        )
+        await syncAgentAvatarFromBridge(force: true)
+    }
+
+    /// App 换图片头像写穿：制备 JPEG → 上仓 → 强制
+    /// 同步（同步按新条目整份替换缓存并落盘缓存图）
+    func setCustomAvatar(imageData: Data) async throws {
+        guard let jpeg = AgentProfileStore.preparedAvatarJPEG(
+            from: imageData
+        ) else {
+            throw IdentityBridgeError.failed(
+                L10n.string("这张图片读不了，换一张试试。")
+            )
+        }
+        if isDemo {
+            agentProfileStore.applyAvatarFromSync(
+                cache: IdentityAvatarCache(
+                    selection: .image(itemID: ""),
+                    itemID: nil, serverUpdatedAt: nil, cachedAt: Date()
+                ),
+                imageData: jpeg
+            )
+            return
+        }
+        guard let config else { throw IdentityBridgeError.noKey }
+        try await IdentityBridgeClient().addAvatarImage(
+            config: config, imageData: jpeg
+        )
+        await syncAgentAvatarFromBridge(force: true)
     }
 
     /// 露脸面头像单一出口：档案解析图（预置/符号盘/
