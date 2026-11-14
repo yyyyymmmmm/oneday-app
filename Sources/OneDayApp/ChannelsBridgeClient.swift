@@ -2,8 +2,10 @@ import Foundation
 import OneDayCore
 
 /// 频道桥错误：没有钥匙/钥匙被拒是「桥未连接」，其
-/// 余失败带伴生回的人话原因如实上抛（配对失败不许
-/// 在 App 侧被吞成泛化文案，规格 §6.3）
+/// 余失败带伴生回的人话原因上抛（配对失败不许在
+/// App 侧被吞成泛化文案，规格 §6.3）；§232 起原因
+/// 须先过 ServerErrorText 安全门才许上屏，不过门
+/// 落通用人话、原文只进诊断留痕
 enum ChannelsBridgeError: Error, Sendable, Equatable {
     case noKey
     case unauthorized
@@ -98,9 +100,11 @@ final class ChannelsBridgeClient: @unchecked Sendable {
         )
     }
 
-    /// 统一发信：非 200 时优先解伴生的 {error} 人话
-    /// 原因原样上抛（配对失败态要显示真原因，规格
-    /// §6.3），解不出才回落状态码文案
+    /// 统一发信：非 200 时优先解伴生的 {error} 原因
+    /// 上抛（配对失败态要显示真原因，规格 §6.3）——
+    /// §232 起原因先过 ServerErrorText 安全门：过门
+    /// 原样、不过门落通用人话＋原文进诊断留痕；解
+    /// 不出错误体才回落状态码文案
     private func send(
         config: ServerConfig, path: String, method: String,
         body: [String: Any]?, endpoint: String
@@ -119,7 +123,18 @@ final class ChannelsBridgeClient: @unchecked Sendable {
             if let view = try? base.decoder.decode(
                 [String: String].self, from: data
             ), let message = view["error"], !message.isEmpty {
-                throw ChannelsBridgeError.failed(message)
+                if let safe = ServerErrorText.userSafe(message) {
+                    throw ChannelsBridgeError.failed(safe)
+                }
+                ChatDiagTrace.record(
+                    "频道桥错误原文未过安全门 [\(endpoint) \(http.statusCode)] \(message)"
+                )
+                throw ChannelsBridgeError.failed(
+                    L10n.format(
+                        "%@返回了无法识别的错误，请稍后再试。",
+                        endpoint
+                    )
+                )
             }
             throw ChannelsBridgeError.failed(
                 L10n.format("%@返回 %@", endpoint, String(http.statusCode))

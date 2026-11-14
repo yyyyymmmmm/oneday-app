@@ -1029,6 +1029,17 @@ final class AllConversationsStore {
                     .union(archived.map(\.id)),
                 appState: appState, modelContext: modelContext
             )
+            // §232 归档单真相·读面对账：抽屉的本地归
+            // 档键自此只是服务端归档态的呈现缓存——两
+            // 段名单齐全时逐条对齐（服务端已归档→补
+            // 键同隐、服务端可见→清键同显，含本页恢
+            // 复后的回显与存量本地独账的收敛）
+            syncDrawerArchiveCache(
+                localThreads: localThreads,
+                archivedIDs: Set(archived.map(\.id)),
+                visibleIDs: Set(visible.map(\.id)),
+                appState: appState
+            )
             if let mainID = appState.sideChats.mainServerSessionID,
                !visible.contains(where: { $0.id == mainID }),
                !archived.contains(where: { $0.id == mainID }) {
@@ -1050,6 +1061,30 @@ final class AllConversationsStore {
                 ?? "名单没拉下来，请稍后再试。"
         }
         isLoading = false
+    }
+
+    /// 抽屉归档缓存对账（§232）：以服务端两段名单为
+    /// 准，把过回写闸的绑定线程的本地归档键对齐到服
+    /// 务端归档态——同物同账，本地键只是缓存、不再
+    /// 是第二真相。主线/合并桶绑定不在闸内（其本地
+    /// 键是呈现口径，不被服务端名单反向改写）
+    private func syncDrawerArchiveCache(
+        localThreads: [ChatThread], archivedIDs: Set<String>,
+        visibleIDs: Set<String>, appState: AppState
+    ) {
+        let sideChats = appState.sideChats
+        for thread in localThreads {
+            guard let sessionID = thread.serverSessionID,
+                  SideChatLink.mayWriteThroughToServer(
+                      sessionID: sessionID,
+                      mainSessionID: sideChats.mainServerSessionID
+                  ) else { continue }
+            if archivedIDs.contains(sessionID) {
+                sideChats.archive(localThreadID: thread.id)
+            } else if visibleIDs.contains(sessionID) {
+                sideChats.unarchive(localThreadID: thread.id)
+            }
+        }
     }
 
     /// 存量迁移执行（管理页首开）：计划走 Core 纯函数

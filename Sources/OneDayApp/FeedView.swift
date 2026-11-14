@@ -165,6 +165,19 @@ struct FeedView: View {
             ) {
                 Button("好", role: .cancel) {}
             }
+            // §232：点赞乐观翻心被后台否掉的轻提醒
+            // （心已恢复原状，这里只告知一声）
+            .alert(
+                "点赞没成功，请稍后再试。",
+                isPresented: Binding(
+                    get: { store.likeNotice != nil },
+                    set: { if !$0 { store.clearLikeNotice() } }
+                )
+            ) {
+                Button("好", role: .cancel) {
+                    store.clearLikeNotice()
+                }
+            }
             .task {
                 await reload()
             }
@@ -401,9 +414,10 @@ struct FeedView: View {
     /// ——合并会吞掉按钮的可达性
     private func actionRow(_ post: BridgeFeedPost) -> some View {
         HStack(spacing: OneDayMetrics.spacingM) {
-            // 爱心（FA-1）：填充态读桥 likedAt（桥为
-            // 真源）、点按走 FeedStore.toggleLiked 幂
-            // 等写、失败不本地假装；行面只加一钮，
+            // 爱心（FA-1；§232 改乐观时序）：填充态读
+            // likedAt、点按当拍先翻本地呈现，后台走
+            // FeedStore.toggleLiked 幂等写＋回执对账，
+            // 失败恢复原状＋轻提醒；行面只加一钮，
             // 不新增 why/edition 字样（守 §126 行面栈
             // 与 rev2 §1.9 冻结契约）
             Button {
@@ -478,8 +492,8 @@ struct FeedView: View {
         }
     }
 
-    /// 已读回写：未读才发（markRead 内部幂等、桥回
-    /// 执对账）；失败按下轮 load 的服务端真源纠正
+    /// 已读回写：未读才发（§232 本地先行——markRead
+    /// 先落本地已读再向桥确认，失败静默留下轮名单纠正）
     private func markRead(_ post: BridgeFeedPost) {
         guard !post.isRead else { return }
         Task { await store.markRead(appState: appState, post: post) }

@@ -5,8 +5,10 @@ import OneDayCore
 /// 走伴生 connections 契约（CompanionFrontClient），
 /// 状态词表与面板同源（Core ConnectionStatusWording）。
 /// 凭据提交的成败与回滚都在服务端：front 验活不过会
-/// 自己撤回改动并在 detail 里说明，App 只如实回显，
-/// 验活状态转移走 Core CredentialFlowPhase 状态机。
+/// 自己撤回改动并在 detail 里说明，App 回显前先过
+/// §232 安全门（ServerErrorText）——过门原样、不过
+/// 门落通用人话、原文只进诊断留痕，不许给什么显什
+/// 么；验活状态转移走 Core CredentialFlowPhase 状态机。
 @MainActor
 @Observable
 final class ConnectionsStore {
@@ -28,7 +30,9 @@ final class ConnectionsStore {
         isLoading = true
         defer { isLoading = false }
         do {
-            connections = try await client.connections(config: config)
+            connections = try await client.connections(
+                config: config
+            ).map { sanitized($0) }
             loadError = nil
         } catch let error as OneDayBridgeError {
             loadError = error == .noKey
@@ -50,15 +54,18 @@ final class ConnectionsStore {
                 config: config, provider: provider, name: name
             )
             await load(appState: appState)
-            return connections.first { $0.id == created.id } ?? created
+            return connections.first { $0.id == created.id }
+                ?? sanitized(created)
         } catch {
             notice = L10n.string("这台电脑没能加上，请稍后再试。")
             return nil
         }
     }
 
-    /// 提交凭据（状态机驱动）：回执 ok/detail 原样进
-    /// 状态——detail 是服务端人话（含回滚说明），不加工。
+    /// 提交凭据（状态机驱动）：回执 detail 先过安全
+    /// 门再进状态——过门原样、不过门落通用人话（原
+    /// 文进诊断留痕）；服务端回滚说明属过门人话、照
+    /// 常呈现
     func submitCredential(
         id: String, body: [String: JSONValue], appState: AppState
     ) async {
@@ -72,7 +79,15 @@ final class ConnectionsStore {
             )
             credentialPhase = CredentialFlowPhase.next(
                 from: credentialPhase,
-                receipt: (ok: result.ok, detail: result.detail)
+                receipt: (
+                    ok: result.ok,
+                    detail: safeDetail(
+                        result.detail,
+                        fallback: result.ok
+                            ? L10n.string("凭据已提交。")
+                            : L10n.string("提交没能完成，请稍后再试。")
+                    )
+                )
             )
             if let updated = result.connection {
                 replace(updated)
@@ -93,15 +108,25 @@ final class ConnectionsStore {
     }
 
     /// 重新验活（详情页按钮）：结果直接刷新该行记录，
-    /// 成败一句回显
+    /// 成败一句回显（detail 先过安全门，不过门落通用
+    /// 句、原文进诊断留痕）
     func verify(id: String, appState: AppState) async {
         guard let config = appState.config else { return }
         do {
             let result = try await client.verify(config: config, id: id)
             if let updated = result.connection { replace(updated) }
-            notice = result.ok
-                ? L10n.format("连接正常：%@", result.detail)
-                : L10n.format("没连上：%@", result.detail)
+            if let detail = ServerErrorText.userSafe(result.detail) {
+                notice = result.ok
+                    ? L10n.format("连接正常：%@", detail)
+                    : L10n.format("没连上：%@", detail)
+            } else {
+                ChatDiagTrace.record(
+                    "连接验活 detail 未过安全门：\(result.detail)"
+                )
+                notice = result.ok
+                    ? L10n.string("连接正常。")
+                    : L10n.string("没连上，请稍后再试。")
+            }
         } catch {
             notice = L10n.string("测试连接没能完成，请稍后再试。")
         }
@@ -119,11 +144,49 @@ final class ConnectionsStore {
     }
 
     private func replace(_ connection: CompanionConnection) {
+        let connection = sanitized(connection)
         if let index = connections.firstIndex(where: { $0.id == connection.id }) {
             connections[index] = connection
         } else {
             connections.append(connection)
         }
+    }
+
+    /// 服务端 detail 安全出口（§232 件八）：过
+    /// ServerErrorText 门返回修剪后的原文；不过门原
+    /// 文只进诊断留痕、呈现落 fallback 通用人话
+    private func safeDetail(
+        _ raw: String, fallback: String
+    ) -> String {
+        if let safe = ServerErrorText.userSafe(raw) {
+            return safe
+        }
+        ChatDiagTrace.record("连接回执 detail 未过安全门：\(raw)")
+        return fallback
+    }
+
+    /// 连接记录入店收口：lastVerify.detail 是服务端
+    /// 落字、详情页原文呈现——入店前过安全门，过门
+    /// 用修剪值，不过门以通用句替换（原文进诊断留痕）
+    private func sanitized(
+        _ connection: CompanionConnection
+    ) -> CompanionConnection {
+        var connection = connection
+        guard var verify = connection.lastVerify else {
+            return connection
+        }
+        if let safe = ServerErrorText.userSafe(verify.detail) {
+            verify.detail = safe
+        } else {
+            ChatDiagTrace.record(
+                "连接验活记录 detail 未过安全门：\(verify.detail)"
+            )
+            verify.detail = verify.ok
+                ? L10n.string("连接正常。")
+                : L10n.string("没连上，请稍后再试。")
+        }
+        connection.lastVerify = verify
+        return connection
     }
 }
 

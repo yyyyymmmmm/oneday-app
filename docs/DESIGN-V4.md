@@ -11912,3 +11912,17 @@ run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案�
 **保护面不变**：主线钦定 id 在协调器 begin 与收口 apply 双处整件不动；真删闸 mayHardDeleteOnThreadDelete 不变；本地-only 线程（未链接/导入/合并桶）仍只删本地、服务端零动作。覆盖面：抽屉删线程、管理页单删＋批删、Hermes/平台频道页行删、设置会话页批删＋详情页删——全 App 会话删除入口统一此时序（deleteEmptySessions 服务端批量清理不在此列，其处置另有定版）。
 
 **测试**：Core PendingSessionDeletionQueueTests（入队去重/出队/集视图）；App DeleteOptimisticTests（即时消失＝墓碑＋目录摘行＋在队／后台成功＝物理收口＋销账＋无提醒／后台失败＝解标恢复＋目录回行＋提醒置位／重启续跑＝新协调器读盘队列＋墓碑补队、成功收口与失败恢复各一／主线整件不动）。执行口以协调器注入口定落定/失败（deleteAction/catalogRefresher 默认即生产实现），不为测试另造网络桩。
+
+## §233 轻动作乐观化统一包（2026-11-14；分支 fix/mutation-optimistic，基线 rel-05039@39532cc；审计全文＝oneday-design-review/mutation-ordering-audit-20261114.md）
+
+**分档口径定版（全 App 写操作时序）**：轻动作（点赞/勾选/放下/开关/已读/归档/置顶）一律**乐观立即生效＋后台同步＋失败恢复原状＋人话提醒**；表单配置保存与裁决/凭据/不可逆类保持服务端确认先行（审计 §10「合理②」清单不动）；已读类失败静默（低危、呈现已落本地、下次名单回读自然收敛）。会话删除不在本包（fix/delete-optimistic 另线，口径同档：本地先删＋后台删＋失败恢复提醒）。
+
+- **件一·动态点赞**（FeedStore/FeedView）：点即 withLikedAt 翻面呈现；后台 setFeedPostLiked（throws 契约本有）成功以桥整帖回执对账、失败恢复翻前帖＋`likeNotice` 弹「点赞没成功，请稍后再试。」；摘掉旧 try? 静默吞（审计 ②＋④ 双犯收口）。Core BridgeFeedPost.withLikedAt 呈现口径注释同步改（旧「不许本地先翻」退役，桥仍是最终真源）。
+- **件二·里程碑勾选**（GoalsStore）：勾选当拍 withMilestoneDone 本地翻面（Core 新纯函数）；后台保存机制不变（全量 GoalPatchPlan.update＋PATCH＋回读逐项对账），网络失败恢复翻前整目标＋既有 notes 提醒；对账不上维持既有提示文案。目标完成态 setStatus 同式乐观（Core withStatus 占位本地 completedAt、回读验 status 与 completedAt 空/非空形态）。
+- **件三·点子放下**（IdeasStore）：卡当拍摘除离场，后台 patchIdea(dismissed)＋回读验不在待处理名单；失败原卡插回＋notes 提醒。无连接配置时只留提示不摘卡（不许假离场）。
+- **件四·开关统一手感**（与技能/MCP 开关同构）：监测启停 MonitorsStore.setEnabled 乐观翻面（Core withEnabled）＋resume/pause＋回读验 enabled，失败恢复；服务端会话置顶 ServerSessionRow 加行级 pinOverride 乐观覆盖，perform 失败清覆盖回滚（行内归档/改名维持确认先行，不在本件清单）；目标完成态见件二。
+- **件五·已读本地先行**：FeedStore.markRead 先本地 markedRead 落呈现与未读数、桥确认失败静默保留本地已读；OverviewBridgeStore.markRead 本地先翻 read＋未读数减一、桥失败静默；markAllRead 先全标本地再逐条确认（批量主动动作保留结果反馈，失败文案改「已读状态还没同步成功」口径——呈现已落本地、不许再称「仍保持未读」）。
+- **件六·抽屉归档单真相**：真源＝服务端归档态。写面：抽屉归档（DrawerView.performArchiveThread）行当拍隐藏＋绑定会话过回写闸时 ServerSessionActions.setArchived 落服务端，失败撤缓存键恢复＋弹原因；读面：全部对话页名单对账新增 syncDrawerArchiveCache——服务端归档集/可见集与本地线程绑定交集双向收敛本地归档键。本地键自此只是呈现缓存；抽屉自身名单拉取不加对账往返（守名单拉取不加码纪律＋避归档在飞竞态）。
+- **件七·抽屉置顶/改名**：置顶 togglePinThread 本地先翻＋过闸回写服务端 pinned（与管理页同账），失败仅当呈现仍为本次目标值才翻回＋弹原因（防覆盖在飞期新选择）。回写闸＝Core SideChatLink.mayWriteThroughToServer（linked 会话放行；nil/空/主线本体/合并桶不放行——主线归档置顶由服务端以标题锚定、合并桶服务端动作须走管理页带牵连二次确认，抽屉不许绕过；闸与 mayHardDeleteOnThreadDelete 同族分立：删除闸更严、连 linked 都不放行）。改名：手改标记既定设计保留，commitRenameThread 补对账口径注记——手改名是本机显示名、呈现真值由 DrawerThreadTitle 单一口径裁决、不回写服务端标题，改服务端名走管理页 rename，此切割明示不许误当双账。
+- **件八·服务端文案安全门**（Core 新件 ServerErrorText）：服务端回带文案上屏前过门——修剪后非空、≤80 字符、单行无控制字符、至少含一个汉字、不含技术标记（URL/堆栈/花括号/0x 等）、无超 24 字符纯 ASCII token；过门才呈现、不过门落通用人话＋原文只进 ChatDiagTrace 诊断留痕。落点四处：OneDay 系 checkStatus（组版收口：桥收敛已将其沉入 BridgeClientBase 共用实现，安全门随之落基座一份）、ChannelsBridgeClient.send、ConnectionsStore（detail/验活回执/lastVerify 入店收口）、CompanionFrontClient.checkStatus（施工中发现的同族第四处，ConnectionsStore 实际客户端的错误体出口，一并收口）。残留面明示：CompanionConnection 的 note/effective 等服务端落字未过门，不在本包审计三处范围，留后续。
+- **测试**：Core ServerErrorTextTests（过门/拒门矩阵）＋乐观副本助手与回写闸矩阵；App MutationOptimisticTests（各 Store 接缝播种后验乐观即时翻面/恢复/无配置不假动）。

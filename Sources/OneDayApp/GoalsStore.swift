@@ -4,10 +4,12 @@ import OneDayCore
 /// 目标数据中枢（P4，0.11.0）：oneday-bridge 目标仓的
 /// 唯一状态面。口径（与 KanbanStore 同纪律）：
 /// ①桥未连接/未开通如实露（noKey/401＝钥匙问题、
-/// 集合 404＝桥未开通），绝不拿假数据顶；②写动作不
-/// 许乐观假成功——PATCH/POST/DELETE 后一律回读列表，
-/// 呈现态达到预期才算完成，未确认把人话留在行内
-/// 提示；③已就绪时刷新失败保持旧数据不翻态。
+/// 集合 404＝桥未开通），绝不拿假数据顶；②写动作分
+/// 档（§232）：表单保存/创建/删除等确认类仍回读对
+/// 账才算完成；**轻动作（里程碑勾选、完成态流转）
+/// 改乐观**——先翻本地呈现、后台保存（机制仍是全
+/// 量 PATCH），失败恢复原状＋行内提示；③已就绪时
+/// 刷新失败保持旧数据不翻态。
 @MainActor
 @Observable
 final class GoalsStore {
@@ -63,7 +65,9 @@ final class GoalsStore {
         loadInFlight = true
         defer { loadInFlight = false }
         do {
-            goals = try await client.goals(config: config)
+            installLoadedGoals(
+                try await client.goals(config: config)
+            )
             loadState = .ready
         } catch let error as OneDayBridgeError {
             if loadState == .ready { return }
@@ -78,8 +82,20 @@ final class GoalsStore {
     private func refetch(appState: AppState) async {
         guard let config = appState.config else { return }
         if let fetched = try? await client.goals(config: config) {
-            goals = fetched
+            installLoadedGoals(fetched)
         }
+    }
+
+    /// 名单装载收口（load/回读/测试共用一个落点）
+    func installLoadedGoals(_ loaded: [BridgeGoal]) {
+        goals = loaded
+    }
+
+    /// 乐观呈现落点（§232）：以同 id 副本整行替换本
+    /// 地呈现（勾选/状态流转的即时翻面与失败恢复共
+    /// 用）；名单里没有该 id 时不动
+    func applyGoal(_ goal: BridgeGoal) {
+        goals = goals.map { $0.id == goal.id ? goal : $0 }
     }
 
     static func state(for error: OneDayBridgeError) -> LoadState {
@@ -240,15 +256,19 @@ final class GoalsStore {
         }
     }
 
-    // MARK: - 状态流转（P2：PATCH {status}→回读确认）
+    // MARK: - 状态流转（§232 乐观：先翻呈现，后台 PATCH＋回读对账）
 
-    /// 标完成/重新打开：桥在流转时落 completedAt；回读
-    /// 后状态与请求一致（完成时 completedAt 非空、重开
-    /// 时为空）才算数，不一致把人话留在 notes
+    /// 标完成/重新打开：**调用当拍先翻本地状态**（完
+    /// 成态与 completedAt 本地占位），后台 PATCH 后
+    /// 回读对账（状态一致、完成时 completedAt 非空、
+    /// 重开时为空）才算落定；网络失败恢复原状＋行内
+    /// 提示，回读对不上时呈现已随回读回到服务端现值、
+    /// 只留提示
     func setStatus(
         appState: AppState, goalID: String, status: GoalStatus
     ) async -> Bool {
         guard !actingIDs.contains(goalID) else { return false }
+        guard let original = goal(id: goalID) else { return false }
         guard let config = appState.config else {
             notes[goalID] = L10n.string("尚未连接服务器。")
             return false
@@ -256,6 +276,11 @@ final class GoalsStore {
         actingIDs.insert(goalID)
         notes.removeValue(forKey: goalID)
         defer { actingIDs.remove(goalID) }
+        applyGoal(original.withStatus(
+            status,
+            completedAt: status == .completed
+                ? Date().timeIntervalSince1970 : nil
+        ))
         do {
             _ = try await client.patchGoalStatus(
                 config: config, id: goalID, status: status
@@ -275,9 +300,11 @@ final class GoalsStore {
             notes[goalID] = L10n.string("状态已提交，但再确认时对不上，请刷新核对。")
             return false
         } catch let error as OneDayBridgeError {
+            applyGoal(original)
             notes[goalID] = Self.message(for: error)
             return false
         } catch {
+            applyGoal(original)
             notes[goalID] = L10n.string("状态更新失败，请稍后再试。")
             return false
         }
@@ -324,24 +351,74 @@ final class GoalsStore {
         }
     }
 
-    /// 里程碑就地勾选（P2 呈现页）：走既有全量 PATCH＋
-    /// 逐项对账的 saveEdits 口径，只是草稿取服务端现值
-    /// 翻一项——不新开第二条写路
+    /// 里程碑就地勾选（§232 乐观时序）：**勾选当拍先
+    /// 翻本地呈现**，后台仍走既有全量 PATCH 保存（草
+    /// 稿取翻后全量、不新开第二条写路），回读逐项对
+    /// 账才算落定；网络失败恢复勾选前原状＋行内提
+    /// 示，回读对不上时呈现已随回读回到服务端现值、
+    /// 只留提示。编辑表单的保存仍走 saveEdits 确认
+    /// 路（表单类不在乐观档）
     func toggleMilestone(
         appState: AppState, goalID: String, milestoneID: String
     ) async -> Bool {
-        guard let goal = goal(id: goalID) else { return false }
-        let drafts = goal.milestones.map { milestone in
+        guard !actingIDs.contains(goalID) else { return false }
+        guard let original = goal(id: goalID),
+              let milestone = original.milestones.first(
+                  where: { $0.id == milestoneID }
+              ) else { return false }
+        guard let config = appState.config else {
+            notes[goalID] = L10n.string("尚未连接服务器。")
+            return false
+        }
+        actingIDs.insert(goalID)
+        notes.removeValue(forKey: goalID)
+        defer { actingIDs.remove(goalID) }
+        let target = !milestone.done
+        let flipped = original.withMilestoneDone(
+            id: milestoneID, done: target
+        )
+        applyGoal(flipped)
+        let drafts = flipped.milestones.map { item in
             MilestoneDraftState(
-                id: milestone.id, title: milestone.title,
-                done: milestone.id == milestoneID
-                    ? !milestone.done : milestone.done
+                id: item.id, title: item.title, done: item.done
             )
         }
-        return await saveEdits(
-            appState: appState, goalID: goalID, title: goal.title,
-            note: goal.note, milestones: drafts
+        let request = GoalPatchPlan.update(
+            title: flipped.title, note: flipped.note,
+            milestones: drafts
         )
+        do {
+            _ = try await client.patchGoal(
+                config: config, id: goalID, request: request
+            )
+            await refetch(appState: appState)
+            guard let current = goal(id: goalID) else {
+                notes[goalID] = L10n.string("保存已发出，但再确认时目标不见了，请刷新核对。")
+                return false
+            }
+            let confirmed = current.title == request.title
+                && current.note == request.note
+                && current.milestones.count == request.milestones.count
+                && zip(current.milestones, request.milestones)
+                    .allSatisfy { server, sent in
+                        server.title == sent.title
+                            && server.done == sent.done
+                            && (sent.id == nil || server.id == sent.id)
+                    }
+            if confirmed {
+                return true
+            }
+            notes[goalID] = L10n.string("保存已发出，但再确认时内容对不上，请刷新核对。")
+            return false
+        } catch let error as OneDayBridgeError {
+            applyGoal(original)
+            notes[goalID] = Self.message(for: error)
+            return false
+        } catch {
+            applyGoal(original)
+            notes[goalID] = L10n.string("保存失败，请稍后再试。")
+            return false
+        }
     }
 
     // MARK: - 详情面（P2：条目流＋简报）

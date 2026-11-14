@@ -272,8 +272,9 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
     /// 已读时刻；nil＝未读
     public let readAt: Double?
     /// 点赞时刻（epoch 秒）；nil＝未赞（FA-1，契约
-    /// rev2 §1.9 冻结：桥 `_feed_view` 下发、桥为真
-    /// 源，App 只读呈现、绝不本地自立点赞账）
+    /// rev2 §1.9 冻结：桥 `_feed_view` 下发、桥为最
+    /// 终真源；§232 起呈现走乐观翻面＋回执对账，见
+    /// withLikedAt）
     public let likedAt: Double?
 
     public var isRead: Bool { readAt != nil }
@@ -335,9 +336,11 @@ public struct BridgeFeedPost: Decodable, Equatable, Identifiable, Sendable {
         )
     }
 
-    /// 点赞态副本（桥回执到达前的衔接不用本地造——
-    /// 本函数只供解码后同形重组与测试构造；呈现真源
-    /// 恒为桥回执整帖替换，见 FeedStore.setLiked）
+    /// 点赞态副本（§232 起改口径）：轻动作乐观化——
+    /// 点按即以本副本翻呈现，后台回执到达再整帖替换
+    /// 对账，失败以原帖副本恢复＋轻提醒；桥仍是最终
+    /// 真源，只是呈现不再等回执（旧口径「不许本地
+    /// 先翻」就此退役）
     public func withLikedAt(_ ts: Double?) -> BridgeFeedPost {
         BridgeFeedPost(
             id: id, kind: kind, title: title, body: body,

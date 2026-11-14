@@ -4,8 +4,10 @@ import OneDayCore
 /// 点子数据中枢（P5，0.11.0；0.32.0 P1 升级）：oneday-
 /// bridge 点子仓的状态面＋「转任务」的执行面。口径：
 /// ①桥未连接/未开通与 GoalsStore 同分法（共用其静态
-/// 映射，不另立一套说法）；②写动作回读确认才算完成；
-/// ③转任务经 P3 KanbanStore 适配层落板——板未开通
+/// 映射，不另立一套说法）；②写动作分档（§232）：转
+/// 任务/新建/删除等确认类仍回读确认才算完成；**放
+/// 下/忽略改乐观**——卡当拍离场、后台 PATCH，失败
+/// 卡回来＋行内提示；③转任务经 P3 KanbanStore 适配层落板——板未开通
 /// 如实提示、不假成功，确认建卡后把任务 id 经 PATCH
 /// 回写桥端 idea（taskId＋status=adopted，服务端为
 /// 「已转」唯一真源；0.32.0 退役旧本地 convertedIdeaIDs
@@ -112,7 +114,9 @@ final class IdeasStore {
         loadInFlight = true
         defer { loadInFlight = false }
         do {
-            ideas = try await client.ideas(config: config)
+            installLoadedIdeas(
+                try await client.ideas(config: config)
+            )
             loadState = .ready
             // §219：名单到手即扫 §219 前的旧点子预填
             // 存量（逐字再生须拿原点子，这是最早能严
@@ -143,7 +147,7 @@ final class IdeasStore {
     private func refetch(appState: AppState) async {
         guard let config = appState.config else { return }
         if let fetched = try? await client.ideas(config: config) {
-            ideas = fetched
+            installLoadedIdeas(fetched)
         }
         if let fetched = try? await client.goals(config: config) {
             goals = fetched
@@ -242,11 +246,36 @@ final class IdeasStore {
         }
     }
 
-    // MARK: - 忽略（PATCH dismissed→回读确认离场）
+    // MARK: - 忽略（§232 乐观：卡先离场，后台 PATCH）
 
-    /// 低风险动作：不弹确认；回读后点子不在待阅列才
-    /// 算数。已忽略是终态（设计档 §1.4），页内不给恢复
-    /// 入口——想留的点子请用删除前的详情页细看。
+    /// 名单装载收口（load/回读/测试共用一个落点）
+    func installLoadedIdeas(_ loaded: [BridgeIdea]) {
+        ideas = loaded
+    }
+
+    /// 乐观离场落点：把点子从本地名单摘掉并返回摘下
+    /// 的原条（失败恢复用）；不在名单里返回 nil
+    func applyOptimisticDismiss(ideaID: String) -> BridgeIdea? {
+        guard let index = ideas.firstIndex(
+            where: { $0.id == ideaID }
+        ) else { return nil }
+        return ideas.remove(at: index)
+    }
+
+    /// 失败恢复落点：原条放回名单（呈现序由 IdeaBoard
+    /// 派生排序，不靠数组位置）；已在名单里不重复插
+    func restoreDismissed(_ idea: BridgeIdea) {
+        guard !ideas.contains(where: { $0.id == idea.id })
+        else { return }
+        ideas.append(idea)
+    }
+
+    /// 低风险动作：不弹确认；**卡当拍先离场**，后台
+    /// PATCH dismissed＋回读对账——回读后仍在待阅列
+    /// 说明服务端没落定，呈现已随回读把卡带回＋留
+    /// 提示；网络失败把卡放回＋行内提示。已忽略是终
+    /// 态（设计档 §1.4），页内不给恢复入口——想留的
+    /// 点子请用删除前的详情页细看。
     /// tooGeneric＝用户标「太泛了」（0.39.0）：随 PATCH 带
     /// dismissReason，桥计入下一轮生成的避让与具体性校准
     func dismiss(
@@ -261,6 +290,7 @@ final class IdeasStore {
         actingIDs.insert(idea.id)
         notes.removeValue(forKey: idea.id)
         defer { actingIDs.remove(idea.id) }
+        let removed = applyOptimisticDismiss(ideaID: idea.id)
         do {
             _ = try await client.patchIdea(
                 config: config, id: idea.id,
@@ -274,8 +304,10 @@ final class IdeasStore {
                 notes[idea.id] = L10n.string("忽略已发出，但列表里还在，请刷新核对。")
             }
         } catch let error as OneDayBridgeError {
+            if let removed { restoreDismissed(removed) }
             notes[idea.id] = GoalsStore.message(for: error)
         } catch {
+            if let removed { restoreDismissed(removed) }
             notes[idea.id] = L10n.string("忽略失败，请稍后再试。")
         }
     }

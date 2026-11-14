@@ -1635,6 +1635,29 @@
         }
       }
     },
+    "%@返回了无法识别的错误，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ returned an error that couldn't be read. Please try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@返回了无法识别的错误，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@返回了無法識別的錯誤，請稍後再試。"
+          }
+        }
+      }
+    },
     "%@返回格式无法识别": {
       "extractionState": "manual",
       "localizations": {
@@ -12280,6 +12303,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "憑證只發給你的伺服器端儲存，App 不留存；這裡也讀不出已儲存的值。"
+          }
+        }
+      }
+    },
+    "凭据已提交。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Credentials submitted."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "凭据已提交。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "憑據已提交。"
           }
         }
       }
@@ -39860,25 +39906,25 @@
         }
       }
     },
-    "有几条通知没能标为已读，它们仍保持未读状态。下拉刷新后再试一次。": {
+    "有几条通知的已读状态还没同步成功，下拉刷新后再确认一次。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A few notifications couldn't be marked as read and remain unread. Pull to refresh and try again."
+            "value": "A few notifications couldn't be synced as read yet. Pull to refresh and check again."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "有几条通知没能标为已读，它们仍保持未读状态。下拉刷新后再试一次。"
+            "value": "有几条通知的已读状态还没同步成功，下拉刷新后再确认一次。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "有幾條通知沒能標為已讀，它們仍保持未讀狀態。下拉重新整理後再試一次。"
+            "value": "有幾條通知的已讀狀態還沒同步成功，下拉刷新後再確認一次。"
           }
         }
       }
@@ -47684,6 +47730,29 @@
         }
       }
     },
+    "没连上，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't connect. Please try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没连上，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒連上，請稍後再試。"
+          }
+        }
+      }
+    },
     "没连上：%@": {
       "extractionState": "manual",
       "localizations": {
@@ -49199,6 +49268,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "點讚"
+          }
+        }
+      }
+    },
+    "点赞没成功，请稍后再试。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your like didn't go through. Please try again later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点赞没成功，请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點讚沒成功，請稍後再試。"
           }
         }
       }
@@ -64896,6 +64988,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "連接正常"
+          }
+        }
+      }
+    },
+    "连接正常。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection is working."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接正常。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接正常。"
           }
         }
       }
