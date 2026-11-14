@@ -16,7 +16,9 @@ import UIKit
 /// 易稿：v2 定为裸排（学 ChatGPT/Claude），0.2.5 按用户真机
 /// 对照 Muse 推翻改浅灰软填充泡（DESIGN-V4 §9 追记），
 /// 2026-11-13 割裂感 A 止血档再改判回落面（散文直落大面、
-/// 异构件才成卡，见 assistantBubble 注），填充泡口径作废。
+/// 异构件才成卡，见 assistantBubble 注），填充泡口径一度
+/// 作废；2026-11-14 §217 用户点选三项全改恢复气泡（中性
+/// 浅灰容器＋纯文字内容，A1 撤泡口径作废，见 §217.2）。
 /// 0.1.3 导航（§7）：会话历史改左侧抽屉（顶栏左键＋左缘手势
 /// 唤出），顶栏中 = 会话名＋模型名副题，右 = 新建会话。
 
@@ -4143,23 +4145,32 @@ struct ChatView: View {
     }
 
     /// 助手消息行（0.2.5 曾定浅灰软填充泡＋圆角卡，见下
-    /// 改判）：左对齐、右侧留白上限与用户泡的 44pt 让位
-    /// 同逻辑，内外边距沿旧泡口径。
+    /// 改判沿革）：左对齐、右侧留白上限与用户泡的 44pt
+    /// 让位同逻辑，内外边距沿旧泡口径。
     /// 割裂感 A 止血档 A1 改判（2026-11-13，用户 17:02
     /// 拍板提队）：撤 bubbleFill 背景——散文直落
-    /// chatSurface 大面，对齐 Muse／ChatGPT 的单一连
-    /// 续底面语法（助手散文不成卡；代码块/表格/工具
-    /// 卡/文件卡等异构件保留各自承载，本函数只包散文
-    /// 与流式半截/等待点，两者同路落面）。泡内子件对
-    /// 比账按调研 A1 逐项复核（WCAG 公式同式心算）：
-    /// 次级文字 inkSecondaryOnFill 落面后浅档 #5F666B
-    /// 对 #FCFCFC＝5.69:1（原泡面 #EEEEF0 上 5.04）、
-    /// 暗档 secondaryLabel 压 #000 合成 6.36:1（原泡
-    /// 面 5.29），两档均升；代码面 codeFill 与底面步
-    /// 幅浅档 1.24:1（原 1.10）、暗档同级，子件无一
-    /// 因落面跌破原账，令牌零改动。bubbleFill 令牌本
-    /// 体保留（用户图卡底等其他消费点不动）；函数名
-    /// 沿旧名以保调用点零改动与沿革可追。
+    /// chatSurface 大面（助手散文不成卡；代码块/表格/
+    /// 工具卡/文件卡等异构件保留各自承载，本函数只包
+    /// 散文与流式半截/等待点，两者同路落面）。泡内子件
+    /// 对比账当时按调研 A1 逐项复核：次级文字落面后两
+    /// 档均升（原泡面 #EEEEF0 上 5.04／5.29），子件无
+    /// 一因落面跌破原账，令牌零改动。
+    /// §217 再改判（2026-11-14，用户 09:46 点选三项
+    /// 全改＋亲口澄清形态）：**恢复气泡**——A1 撤泡口
+    /// 径作废。用户原话钉死形态：「气泡的内容是纯文
+    /// 字，不是把气泡颜色改没」：泡只是中性浅灰容
+    /// 器，正文维持现行纯文字呈现与排版，不做彩色
+    /// 卡、不加描边/阴影、不改字色字阶。落法＝恢复
+    /// A1 撤销的背景层（bubbleFill＋assistantBubble-
+    /// Corner 22），几何与 A1 前逐字一致；填充
+    /// #EEEEF0 与 Muse 真机实测 #E9EAEC 仅 Δ≈4–5
+    /// （muse-color-drawer-diff-20261114.md），用库
+    /// 存令牌不新造色。泡内子件对比回位 A1 前原账
+    /// （inkSecondaryOnFill 对 #EEEEF0＝5.04:1）。波
+    /// 及面：代码块/表格在 MarkdownText 内部以自身次
+    /// 档填充渲染、零改动，只随正文一同被泡面包住；
+    /// 异构件在本函数之外、不受影响。函数名沿旧名
+    /// 以保调用点零改动与沿革可追。
     private func assistantBubble<Content: View>(
         @ViewBuilder _ content: () -> Content
     ) -> some View {
@@ -4167,6 +4178,12 @@ struct ChatView: View {
             content()
                 .padding(.horizontal, OneDayMetrics.bubblePaddingH)
                 .padding(.vertical, OneDayMetrics.bubblePaddingV)
+                .background(
+                    Palette.bubbleFill,
+                    in: RoundedRectangle(
+                        cornerRadius: OneDayMetrics.assistantBubbleCorner
+                    )
+                )
             Spacer(minLength: OneDayMetrics.bubbleSideInset)
         }
     }
