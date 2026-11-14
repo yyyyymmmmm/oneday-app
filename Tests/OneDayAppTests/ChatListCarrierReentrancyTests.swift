@@ -10,6 +10,7 @@ import XCTest
 /// ＋apply 先行换行＋首帧布局 setFrame＋didScroll
 /// 同步重入；断言口径＝不崩（跑到断言即证）＋施
 /// 工被延迟到落定拍＋多次记账合并为一拍
+@MainActor
 final class ChatListCarrierReentrancyTests: XCTestCase {
 
     private final class Counter {
