@@ -175,7 +175,12 @@ struct ServerSessionRow<Content: View>: View {
     /// 已改乐观——未收养行删除同走本钩，物理收口
     /// 由协调器落定后统一经 DeletedSessionCloseout）
     var onDeleteRequested: ((ServerSession) -> Void)? = nil
-    var deleteMenuTitle = "删除"
+    /// 删除菜单项标题：必须走 LocalizedStringKey——普通
+    /// String 变量进 Label 是原文直出、永不本地化（CI 英
+    /// 文区域快照实证：同菜单其余三项字面量都译成英文、
+    /// 唯删除项停在中文）。默认「删除」，抽屉宿主传「删
+    /// 除会话」与本地行同名
+    var deleteMenuTitle: LocalizedStringKey = "删除"
     @ViewBuilder var content: () -> Content
 
     @Environment(AppState.self) private var appState

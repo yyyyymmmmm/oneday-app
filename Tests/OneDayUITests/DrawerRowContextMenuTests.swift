@@ -8,6 +8,12 @@ final class DrawerRowContextMenuTests: XCTestCase {
     private let serverRowID =
         "drawer.row.side.server.oneday-ai-drawer-longpress"
     private let channelRowID = "drawer.row.channel.hermes"
+    /// 会话行四件的 SF Symbol 标识（改名/置顶/归档/删
+    /// 除——与区域无关的动作语义口径；置顶态切换时 pin
+    /// 变 pin.slash，演示行恒未置顶、取 pin）
+    private let sessionMenuSymbols = [
+        "pencil", "pin", "archivebox", "trash",
+    ]
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -17,7 +23,7 @@ final class DrawerRowContextMenuTests: XCTestCase {
         let app = launchDemoApp()
         openDrawer(app)
         let localRow = try firstLocalRow(in: app)
-        assertMenu(on: localRow, items: ["重命名", "置顶", "归档", "删除会话"], in: app)
+        assertMenu(on: localRow, items: sessionMenuSymbols, in: app)
         dismissMenuAndDrawer(in: app)
 
         // 点击旁聊行走生产选择路径；抽屉关闭后再由生产钮重开。
@@ -28,7 +34,7 @@ final class DrawerRowContextMenuTests: XCTestCase {
         openDrawer(app)
         let selected = app.buttons[selectedRowID]
         reveal(selected, in: app)
-        assertMenu(on: selected, items: ["重命名", "置顶", "归档", "删除会话"], in: app)
+        assertMenu(on: selected, items: sessionMenuSymbols, in: app)
         dismissMenuAndDrawer(in: app)
     }
 
@@ -37,7 +43,7 @@ final class DrawerRowContextMenuTests: XCTestCase {
         openDrawer(app)
         let row = app.buttons[serverRowID]
         XCTAssertTrue(row.waitForExistence(timeout: 10), "演示未收养行未出现")
-        assertMenu(on: row, items: ["重命名", "置顶", "归档", "删除会话"], in: app)
+        assertMenu(on: row, items: sessionMenuSymbols, in: app)
         dismissMenuAndDrawer(in: app)
     }
 
@@ -46,7 +52,7 @@ final class DrawerRowContextMenuTests: XCTestCase {
         openDrawer(app)
         let row = app.buttons[channelRowID]
         XCTAssertTrue(row.waitForExistence(timeout: 10), "Hermes 频道行未出现")
-        assertMenu(on: row, items: ["打开"], in: app)
+        assertMenu(on: row, items: ["arrow.up.right"], in: app)
         dismissMenuAndDrawer(in: app)
     }
 
@@ -62,7 +68,7 @@ final class DrawerRowContextMenuTests: XCTestCase {
             $0.frame.minY < $1.frame.minY
         }
         let first = try XCTUnwrap(orderedRows.first)
-        assertMenu(on: first, items: ["重命名"], in: app)
+        assertMenu(on: first, items: ["pencil"], in: app)
         dismissMenuAndDrawer(in: app)
 
         openDrawer(app)
@@ -74,22 +80,13 @@ final class DrawerRowContextMenuTests: XCTestCase {
             $0.frame.minY < $1.frame.minY
         }
         let last = try XCTUnwrap(orderedRefreshedRows.last)
-        assertMenu(on: last, items: ["重命名"], in: app)
+        assertMenu(on: last, items: ["pencil"], in: app)
         dismissMenuAndDrawer(in: app)
     }
 
     private func launchDemoApp() -> XCUIApplication {
         let app = XCUIApplication()
-        // CI 模拟器是英文区域：不钉语言时全 App 走 en 本地
-        // 化，菜单项是 Rename/Pin/Archive（首两轮 CI 快照实
-        // 证：菜单明明开着、项也在树里，只是查中文标签查不
-        // 到）。产品主语言是简体中文（真机菜单即中文四
-        // 项），测试钉回 zh-Hans 与真机口径一致再断言。
-        app.launchArguments = [
-            "-odDemoMode",
-            "-AppleLanguages", "(zh-Hans)",
-            "-AppleLocale", "zh_Hans_CN",
-        ]
+        app.launchArguments = ["-odDemoMode"]
         app.launch()
         return app
     }
@@ -125,10 +122,16 @@ final class DrawerRowContextMenuTests: XCTestCase {
     }
 
     /// 预注册判点：标题区坐标 1.5 秒系统长按后，要求菜单
-    /// 项存在且 hittable。按压点取行宽 30% 处（标题区）而
-    /// 非行正中——正中是标题与行尾之间的 Spacer 死区。
-    /// 首项等不到时把当时全树按钮清单写进断言信息，下轮
-    /// 日志直接分清「菜单没弹」与「弹了但项不在按钮树」。
+    /// 项存在且 hittable。菜单项按 **SF Symbol 标识**查
+    /// （pencil/pin/archivebox/trash），不按标题文字——
+    /// 标题随系统语言本地化（CI 英文区域快照实证菜单项
+    /// 是 Rename/Pin/Archive/Delete conversation，菜单本
+    /// 身真弹出了、按中文名断言必然查无此项）；标题文案
+    /// 本身由 Localizable 目录校验覆盖，不在本门职责。
+    /// 按压点取行宽 30% 处（标题区）而非行正中——正中是
+    /// 标题与行尾之间的 Spacer 死区。首项等不到时把当时
+    /// 全树按钮清单写进断言信息，分清「没弹」与「弹了没
+    /// 找到」。
     private func assertMenu(
         on row: XCUIElement, items: [String], in app: XCUIApplication
     ) {
@@ -137,16 +140,18 @@ final class DrawerRowContextMenuTests: XCTestCase {
             withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)
         )
         pressPoint.press(forDuration: 1.5)
-        for (index, title) in items.enumerated() {
-            let item = app.buttons[title]
+        for (index, symbol) in items.enumerated() {
+            let item = app.buttons.matching(
+                NSPredicate(format: "identifier == %@", symbol)
+            ).firstMatch
             let timeout: TimeInterval = index == 0 ? 10 : 5
             if !item.waitForExistence(timeout: timeout) {
                 XCTFail(
-                    "长按菜单缺少「\(title)」；当时按钮树："
+                    "长按菜单缺少动作「\(symbol)」；当时按钮树："
                         + treeSnapshot(in: app)
                 )
             }
-            XCTAssertTrue(item.isHittable, "长按菜单项不可达：「\(title)」")
+            XCTAssertTrue(item.isHittable, "长按菜单项不可达：「\(symbol)」")
         }
     }
 
@@ -170,7 +175,9 @@ final class DrawerRowContextMenuTests: XCTestCase {
         outside.tap()
         let menuDismissed = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"),
-            object: app.buttons["重命名"]
+            object: app.buttons.matching(
+                NSPredicate(format: "identifier == %@", "pencil")
+            ).firstMatch
         )
         XCTAssertEqual(
             XCTWaiter.wait(for: [menuDismissed], timeout: 5), .completed,
