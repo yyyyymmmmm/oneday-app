@@ -12,7 +12,12 @@ import XCTest
 final class DemoFreezeGuardTests: XCTestCase {
 
     private let client = DemoHermesClient()
-    private let config = ServerConfig(rawInput: "hermes.didichou.site")
+    private var config: ServerConfig!
+
+    override func setUpWithError() throws {
+        // ServerConfig(rawInput:) 是可失败初始化器
+        config = try XCTUnwrap(ServerConfig(rawInput: "hermes.didichou.site"))
+    }
 
     /// 清单外方法恒抛统一空态信号（抽样钉测：管理面、
     /// 技能、定时、档案、MCP、配置、环境变量、用量、
