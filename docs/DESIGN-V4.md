@@ -11554,3 +11554,10 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 5. **回告卡不在本包**：回告卡（ReportCard）与回响只是同处流尾，机制不同源——数据源是总览桥未读通知（非留痕账）、生命周期是未读收件箱（markRead 即消失、有现成消失路）、上限 3 且恒主线。本包不动物化，理由与后续处置见施工报告 §5。
 
 **验收**：Core 规划单测（去重/窗口/作用域/事件时间落位/失败原文入快照/无时刻跳过/快照编解码）＋App 物化单测（落盘后 sortedEntries 落位在事件时间处、新消息排其后、二次刷新不重复、updatedAt 不动、isSystemAnchored 在场、失败条目在场）；真机终判＝11-13 的旧回响落到那天的位置、新发消息排在其后、点回响行达对应旁聊。
+
+### §217.1 CI 判读（2026-11-14 回填，三轮）
+
+- 首轮 run 43543751878（头 cce73e6）**真红停步**：Unit tests 步 failure、测试执行 0——本包 Core 测试一处实参顺序写反（`targetKind` 写在 `targetID` 前，Swift 实参序编译错恰 1 条）。一行回修 798f8c9。
+- 二轮 run 43544452749（头 798f8c9）**真红停步**：App 测试目标编译错恰 1 条——`FailingHermesClient` 不满足 `HermesClientProtocol`（缺 `sessionMutationSnapshot`）。定因＝基线 8234e5b 自带漂移（该提交在 .36 补桩 99c0067 之前），与后门适配包首轮撞的是同一堵墙；按在案一行适配先例直接 cherry-pick 99c0067（本分支落 11c3540，+4 行抛错桩，不动断言与产品码）。
+- 三轮 run 43545146644（头 11c3540）**终判绿（§184 在案例外）**：Build／Package／Upload 三步 success；Unit tests 步名义 failure（** TEST FAILED **），全日志 15,501 行亲验——**断言失败 0 条**；Core **1869/0**（基线 1853＋本包 16 精确，本包 16 法全过）；UI **4/4** 全过；**栏位探针直接通过**（ChatPageDeviceConditionProbeTests passed，未走 flake 例外）；App 静态 100（94＋本包 6）＝83 过＋5 跳过＋**12 条 started 无终局行**——8 起 §184 宿主重启的受害者（PresentationLayerScenarios 5、KeyboardFlowAcceptance、ChatPageAssemblyRegression、ComposerGuideHost、DrawerBridgeHarness、SelectionDismantleProof、ChatReliabilityOffline 各 1，及本包新测 testFailedTraceMaterializesWithErrorSnapshot 1 条，同签名在案）。本包 App 其余 5 法均有 passed 实据；受害的失败留痕落盘一条由 Core 同义断言（testPlanFailedTraceKeepsErrorVerbatim）覆盖、组版装配轮全量 CI 时再取终局行。宿主重启数 5（.35）→7（.36）→8（本轮）的上升趋势如实在案，与 MEMORY 既有盯办一致。
+- **组版注意**：本节号 §217 已被 rel-05037 装配树用于枢纽节（.37 收口时枢纽 §208→§217），本包正式组版时本节须再顺延（以组版树 grep 第一个空号为准，候选 §222 起），代码注释自指号同步改。
