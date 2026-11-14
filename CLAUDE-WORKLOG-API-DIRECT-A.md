@@ -1,5 +1,34 @@
 # 工作日志：API 直连第一包（A1+A3）
 
+## 施工总结
+
+**分支**：`feat/api-direct-a`  
+**基线**：`39532cc` (rel-05039)  
+**提交**：`5b8fb68`  
+**状态**：✅ 已完成并推送
+
+### 交付物
+
+**A1 任务（Box 全组甩桥）：**
+1. MCP 客户端基础设施（`MCPModels.swift`、`BoxMCPClient.swift`）
+2. 三个客户端改造为 MCP 直连（BoxBridge/BoxFiles/BoxShell）
+3. 公开 API 签名保持不变，消费方零改
+4. grep 自证通过：无桥端点调用残留
+
+**A3 任务（ai-sessions 退役）：**
+1. App 侧验证通过：无调用
+2. 伴生 REST 门退役（注释方法与路由）
+3. 删除自测文件
+4. 红线项完整保留
+
+### 下一步
+
+1. **用户配置凭据**：在云电脑连接面填写盒子钥匙（Keychain `box.mcp.key`）
+2. **测试验证**：真实 Box MCP 服务连接测试
+3. **单测补充**：MCPModels 编解码与工具结果解析
+
+---
+
 ## 查证：MCP 协议与现行参考实现
 
 ### MCP streamable HTTP 传输协议（已查证）
@@ -129,4 +158,91 @@ grep -r "ai-sessions\|ai_sessions" --include="*.swift" Sources/
 - `_create_ai_session_core` 等核心逻辑（`/mcp-sessions` 门仍在用）
 - `_list_ai_sessions`（内部验证用，无外部路由）
 - `SESSION_TOOLS`、`_session_tool_call`（`/mcp-sessions` 的 tools/call 实现）
+
+**已执行：**
+1. 删除 `tests/oneday_bridge_ai_sessions_selftest.py`
+2. 注释 `_dispatch_ai_sessions` 方法（行 10120-10141）
+3. 注释路由入口（行 10662-10663）
+
+---
+
+## 验证与自证
+
+### App 侧 grep 自证
+
+```bash
+# 验证不再调用桥端点
+grep -r 'endpoint("/api/box-bridge' --include="*.swift" Sources/
+# 结果：无输出（所有 /api/box-bridge 引用仅存在于注释中）
+```
+
+### 伴生侧验证
+
+```bash
+# ai-sessions REST 门已退役
+grep -n "ai-sessions" /home/hatch/workspace/hermes-deploy/companion/modules/oneday_bridge.py
+# 1254: 注释（历史说明）
+# 1420/1429/1435: detail 字段（_create_ai_session_traced 内部，保留）
+# 1441: _list_ai_sessions 函数定义（保留）
+# 10120-10141: _dispatch_ai_sessions 已注释
+# 10662-10663: 路由已注释
+```
+
+### 文件清单
+
+**新增（App）：**
+- `Sources/OneDayCore/MCPModels.swift`（MCP 协议模型）
+- `Sources/OneDayApp/BoxMCPClient.swift`（MCP 客户端）
+
+**修改（App）：**
+- `Sources/OneDayApp/BoxBridgeClient.swift`（甩桥，MCP 直连）
+- `Sources/OneDayApp/BoxFilesClient.swift`（甩桥，MCP 直连）
+- `Sources/OneDayApp/BoxShellClient.swift`（甩桥，MCP 直连）
+
+**修改（伴生）：**
+- `modules/oneday_bridge.py`（注释 `/ai-sessions` REST 门）
+
+**删除（伴生）：**
+- `tests/oneday_bridge_ai_sessions_selftest.py`
+
+---
+
+## 待办与注意事项
+
+### 必要的后续工作
+
+1. **凭据配置**：用户需在云电脑连接面填写盒子钥匙（Keychain `box.mcp.key`）
+2. **单测补充**：MCPModels 的编解码、content 数组解析、工具结果提取
+3. **集成测试**：真实 Box MCP 服务连接测试
+4. **UI 引导**：连接面需增加 Box 凭据填写入口
+
+### 红线确认
+
+- ✅ `SessionClassification.aiCastSessionPrefix` 保留（会话分类 R3b 依赖）
+- ✅ 伴生侧 `AI_SESSION_PREFIX` 保留（与 App 同步）
+- ✅ `/mcp-sessions` 门保留（仍在使用）
+- ✅ 三个 Box 客户端公开 API 签名不变（消费方无需改动）
+
+### 已知限制
+
+1. **会话 ID 管理**：MCP 客户端当前未持久化 `Mcp-Session-Id`，每次重启 App 会创建新会话
+2. **错误映射**：MCP 错误码到用户友好消息的映射待完善
+3. **超时配置**：当前所有工具调用使用固定超时，未针对不同操作分档
+4. **文件读取**：超大文件（>200k 行）会被拒绝，无分块下载机制
+
+---
+
+## 交付检查清单
+
+- [x] A1.1：MCP 客户端实现（会话管理、工具调用、重试）
+- [x] A1.2：工具映射（7 个桥端点 → MCP 工具）
+- [x] A1.3：三个客户端改造（BoxBridge/BoxFiles/BoxShell）
+- [x] A1.4：公开 API 保持不变（消费方零改）
+- [x] A1.5：grep 自证（桥端点调用已清除）
+- [x] A3.1：App 侧验证（无 ai-sessions 调用）
+- [x] A3.2：伴生 REST 门退役（注释方法与路由）
+- [x] A3.3：删除自测文件
+- [x] A3.4：保留核心逻辑（mcp-sessions 依赖）
+- [ ] 单测（MCPModels、工具结果解析）
+- [ ] 集成测试（真实 MCP 服务）
 

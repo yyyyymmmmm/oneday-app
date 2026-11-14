@@ -41,8 +41,99 @@ final class BoxBridgeClient: @unchecked Sendable {
             throw BoxBridgeError.failed(L10n.string("云电脑状态返回格式无法识别"))
         }
 
-        // 转换为 BoxBridgeStatus（复用现有 DTO）
-        return try parseStatus(structured)
+        // F7：增强 status 保真
+        var enhanced = structured
+
+        // F7.1：credits 查询
+        let creditsResult = await fetchCredits(client: client)
+        if let credits = creditsResult.credits {
+            enhanced["credits_left"] = credits
+        } else if let note = creditsResult.note {
+            enhanced["credits_note"] = note
+        }
+
+        // F7.2：page 查询（running 时才查）
+        if let state = structured["state"] as? String, state == "running" {
+            let pageResult = await fetchPage(client: client)
+            if let page = pageResult {
+                enhanced["page"] = page
+                // F7.3：缓存 lastKnownPage
+                await client.updateLastKnownPage(page)
+            }
+        }
+
+        // F7.3：读取缓存的 lastKnownPage
+        let lastKnownPageData = await client.getLastKnownPage()
+        if let lkp = lastKnownPageData.page {
+            enhanced["lastKnownPage"] = lkp
+            enhanced["lastKnownPageAt"] = lkp["checkedAt"]
+        }
+        enhanced["checkedAt"] = ISO8601DateFormatter().string(from: Date())
+
+        // 转换为 BoxBridgeStatus
+        return try parseStatus(enhanced)
+    }
+
+    /// F7.1：查询 credits（调用 billing 工具）
+    private func fetchCredits(client: BoxMCPClient) async -> (credits: Double?, note: String?) {
+        do {
+            let result = try await client.callTool(name: "billing", arguments: [:], timeout: 30)
+
+            if result.isError == true {
+                let errorText = mcpErrorText(result)
+                return (nil, String(errorText.prefix(200)))
+            }
+
+            guard let structured = mcpStructured(result) else {
+                return (nil, "无余额数据")
+            }
+
+            // 按优先级顺序取数：credits_left > creditsLeft > credits > balance
+            if let credits = structured["credits_left"] as? Double {
+                return (credits, nil)
+            } else if let credits = structured["creditsLeft"] as? Double {
+                return (credits, nil)
+            } else if let credits = structured["credits"] as? Double {
+                return (credits, nil)
+            } else if let balance = structured["balance"] as? Double {
+                return (balance, nil)
+            } else {
+                return (nil, "余额字段缺失")
+            }
+        } catch {
+            return (nil, "查询失败")
+        }
+    }
+
+    /// F7.2：查询 page（调用 browser_snapshot，失败重试一次）
+    private func fetchPage(client: BoxMCPClient) async -> [String: Any]? {
+        for attempt in 1...2 {
+            do {
+                let result = try await client.callTool(name: "browser_snapshot", arguments: [:], timeout: 30)
+
+                if result.isError == true {
+                    if attempt == 2 { return nil }
+                    try? await Task.sleep(nanoseconds: 900_000_000)  // 0.9s
+                    continue
+                }
+
+                // 解析 "Page: 标题 (url)" 行
+                if let page = parsePage(result) {
+                    return [
+                        "title": page.title,
+                        "url": page.url,
+                        "checkedAt": ISO8601DateFormatter().string(from: Date())
+                    ]
+                }
+
+                if attempt == 2 { return nil }
+                try? await Task.sleep(nanoseconds: 900_000_000)
+            } catch {
+                if attempt == 2 { return nil }
+                try? await Task.sleep(nanoseconds: 900_000_000)
+            }
+        }
+        return nil
     }
 
     func screenshot(config: ServerConfig) async throws -> BoxScreenshot {
@@ -108,10 +199,29 @@ final class BoxBridgeClient: @unchecked Sendable {
             throw BoxBridgeError.failed(mcpErrorText(result))
         }
 
-        // 提取截图和页面信息
-        let screenshot = extractScreenshot(result)
+        // F8：act 保真
+        // F8.1：结果无图像块时补调 screenshot
+        var screenshot = extractScreenshot(result)
+        if screenshot == nil {
+            let screenshotResult = try? await client.callTool(
+                name: "screenshot",
+                arguments: ["max_edge": 1024],
+                timeout: 60
+            )
+            if let screenshotResult = screenshotResult {
+                screenshot = extractScreenshot(screenshotResult)
+            }
+        }
+
+        // F8.2：summary 取第一段文本的第一行（上限 300 字）
+        let summary: String? = {
+            let texts = mcpTexts(result)
+            guard let firstText = texts.first else { return nil }
+            let firstLine = firstText.components(separatedBy: .newlines).first ?? firstText
+            return String(firstLine.prefix(300))
+        }()
+
         let page = parsePage(result)
-        let summary = mcpTexts(result).first
 
         return BoxActResponse(
             ok: true,

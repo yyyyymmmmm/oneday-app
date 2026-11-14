@@ -43,9 +43,10 @@ final class BoxShellClient: @unchecked Sendable {
             throw BoxShellError.failed(mcpErrorText(result))
         }
 
-        // 解析输出文本
+        // F10：多文本块以 \n 拼接
         let texts = mcpTexts(result)
-        guard let rawText = texts.first else {
+        let rawText = texts.joined(separator: "\n")
+        if rawText.isEmpty {
             return BoxShellResponse(ok: false, output: "", exitCode: nil, truncated: nil)
         }
 
@@ -67,11 +68,20 @@ final class BoxShellClient: @unchecked Sendable {
             }
         }
 
-        // 检查截断（box_bridge.py:445-448）
-        let truncated = text.contains("[box-bridge: output truncated at")
+        // F10：本地截断逻辑（32768 字上限）
+        let maxOutput = 32768
+        var truncated = false
+        if text.count > maxOutput {
+            text = String(text.prefix(maxOutput))
+            text += "\n[box-bridge: output truncated at 32768 characters]"
+            truncated = true
+        }
+
+        // F10：ok 语义（exitCode 有值时 ok=(exitCode==0)，无值时 ok=true）
+        let ok = exitCode.map { $0 == 0 } ?? true
 
         return BoxShellResponse(
-            ok: exitCode == 0,
+            ok: ok,
             output: text,
             exitCode: exitCode,
             truncated: truncated ? true : nil

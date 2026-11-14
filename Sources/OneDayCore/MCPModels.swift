@@ -15,9 +15,9 @@ public struct MCPRequest: Encodable {
     public let jsonrpc = "2.0"
     public let id: String
     public let method: String
-    public let params: [String: AnyCodable]?
+    public let params: [String: JSONValue]?
 
-    public init(id: String, method: String, params: [String: AnyCodable]? = nil) {
+    public init(id: String, method: String, params: [String: JSONValue]? = nil) {
         self.id = id
         self.method = method
         self.params = params
@@ -38,14 +38,14 @@ public struct MCPResponse: Decodable {
 public struct MCPError: Decodable, Equatable, Sendable {
     public let code: Int
     public let message: String
-    public let data: AnyCodable?
+    public let data: JSONValue?
 }
 
 /// MCP 结果（tools/call 的返回）
 public struct MCPResult: Decodable {
     public let content: [MCPContent]?
     public let isError: Bool?
-    public let structuredContent: AnyCodable?
+    public let structuredContent: JSONValue?
 
     private enum CodingKeys: String, CodingKey {
         case content, isError, structuredContent
@@ -55,7 +55,7 @@ public struct MCPResult: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         content = try container.decodeIfPresent([MCPContent].self, forKey: .content)
         isError = try container.decodeIfPresent(Bool.self, forKey: .isError)
-        structuredContent = try container.decodeIfPresent(AnyCodable.self, forKey: .structuredContent)
+        structuredContent = try container.decodeIfPresent(JSONValue.self, forKey: .structuredContent)
     }
 }
 
@@ -90,70 +90,6 @@ public enum MCPContent: Decodable, Equatable, Sendable {
     }
 }
 
-/// AnyCodable：支持任意 JSON 值的编解码
-public struct AnyCodable: Codable, Equatable, Sendable {
-    public let value: Any
-
-    public init(_ value: Any) {
-        self.value = value
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if container.decodeNil() {
-            value = NSNull()
-        } else if let bool = try? container.decode(Bool.self) {
-            value = bool
-        } else if let int = try? container.decode(Int.self) {
-            value = int
-        } else if let double = try? container.decode(Double.self) {
-            value = double
-        } else if let string = try? container.decode(String.self) {
-            value = string
-        } else if let array = try? container.decode([AnyCodable].self) {
-            value = array.map(\.value)
-        } else if let dict = try? container.decode([String: AnyCodable].self) {
-            value = dict.mapValues(\.value)
-        } else {
-            value = NSNull()
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch value {
-        case is NSNull:
-            try container.encodeNil()
-        case let bool as Bool:
-            try container.encode(bool)
-        case let int as Int:
-            try container.encode(int)
-        case let double as Double:
-            try container.encode(double)
-        case let string as String:
-            try container.encode(string)
-        case let array as [Any]:
-            try container.encode(array.map(AnyCodable.init))
-        case let dict as [String: Any]:
-            try container.encode(dict.mapValues(AnyCodable.init))
-        default:
-            try container.encodeNil()
-        }
-    }
-
-    public static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
-        // 简化相等性判断：只支持基础类型
-        switch (lhs.value, rhs.value) {
-        case (is NSNull, is NSNull): return true
-        case (let l as Bool, let r as Bool): return l == r
-        case (let l as Int, let r as Int): return l == r
-        case (let l as Double, let r as Double): return l == r
-        case (let l as String, let r as String): return l == r
-        default: return false
-        }
-    }
-}
-
 // MARK: - MCP 工具调用结果解析
 
 /// 提取文本块（对齐 box_bridge.py:150-155 tool_texts）
@@ -168,8 +104,8 @@ public func mcpTexts(_ result: MCPResult) -> [String] {
 /// 提取结构化数据（对齐 box_bridge.py:158-171 tool_structured）
 public func mcpStructured(_ result: MCPResult) -> [String: Any]? {
     // 优先读 structuredContent
-    if let sc = result.structuredContent?.value as? [String: Any] {
-        return sc
+    if let sc = result.structuredContent {
+        return jsonValueToAny(sc) as? [String: Any]
     }
     // 回退：尝试解析第一个文本块为 JSON
     for text in mcpTexts(result) {
@@ -188,3 +124,48 @@ public func mcpErrorText(_ result: MCPResult) -> String {
     guard let first = texts.first else { return "tool error" }
     return String(first.prefix(400))
 }
+
+// MARK: - JSONValue 辅助
+
+/// 将 JSONValue 转换为 Any（用于与旧代码的互操作）
+private func jsonValueToAny(_ value: JSONValue) -> Any {
+    switch value {
+    case .string(let s): return s
+    case .number(let n): return n
+    case .bool(let b): return b
+    case .object(let dict): return dict.mapValues(jsonValueToAny)
+    case .array(let arr): return arr.map(jsonValueToAny)
+    case .null: return NSNull()
+    }
+}
+
+// MARK: - SSE 响应解析（F4）
+
+/// 从 SSE 格式的响应数据中提取 JSON-RPC 响应
+/// - Parameters:
+///   - data: SSE 格式的响应数据
+///   - requestId: 请求 ID，用于匹配对应的响应
+/// - Returns: 匹配 requestId 的 JSON-RPC 响应数据，如果没有找到则返回 nil
+public func parseSSEResponse(data: Data, requestId: String) -> Data? {
+    guard let text = String(data: data, encoding: .utf8) else { return nil }
+
+    let lines = text.components(separatedBy: .newlines)
+    for line in lines {
+        // SSE 数据行格式：data: <json>
+        guard line.hasPrefix("data: ") else { continue }
+        let jsonText = line.dropFirst(6)  // 移除 "data: " 前缀
+        guard let jsonData = jsonText.data(using: .utf8) else { continue }
+
+        // 尝试解析为 JSON-RPC 响应并检查 id
+        guard let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let id = json["id"] as? String,
+              id == requestId else {
+            continue
+        }
+
+        return jsonData
+    }
+
+    return nil
+}
+

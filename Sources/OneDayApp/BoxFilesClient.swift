@@ -31,8 +31,10 @@ final class BoxFilesClient: @unchecked Sendable {
     ) async throws -> FilesListing {
         let client = try await getClient()
 
-        // 构建绝对路径
-        let relPath = path?.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
+        // F9：路径校验
+        let relPath = try validateRelativePath(
+            path?.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
+        )
         let absPath = relPath.isEmpty ? "/workspace" : "/workspace/\(relPath)"
 
         let result = try await client.callTool(
@@ -55,7 +57,7 @@ final class BoxFilesClient: @unchecked Sendable {
             throw BoxFilesError.failed(L10n.string("电脑文件列表返回格式无法识别"))
         }
 
-        return try parseDirectoryListing(text: text, requestedPath: relPath)
+        return try parseDirectoryListing(text: text, requestedPath: relPath, resolvedPath: absPath)
     }
 
     /// 读取文件（对齐 box_bridge.py:606-653，分页读取并剥离行号前缀）
@@ -64,7 +66,10 @@ final class BoxFilesClient: @unchecked Sendable {
     ) async throws -> Data {
         let client = try await getClient()
 
-        let relPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        // F9：路径校验
+        let relPath = try validateRelativePath(
+            path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        )
         let absPath = "/workspace/\(relPath)"
 
         // 分页读取（每页 2000 行）
@@ -101,10 +106,20 @@ final class BoxFilesClient: @unchecked Sendable {
                 break
             }
 
-            // 检查是否是二进制文件
+            // F9：检查二进制文件或行截断标记
             if offset == 1 && body.contains("is a binary file of") {
                 // 二进制文件：回退用 shell base64 读取
                 return try await readFileBytesShell(client: client, absPath: absPath)
+            }
+
+            // F9：行被截断标记，回退 shell base64
+            if body.contains(" [line cut: ") && body.contains(" of ") && body.contains(" characters shown]") {
+                return try await readFileBytesShell(client: client, absPath: absPath)
+            }
+
+            // F9：总大小上限 16MB
+            if lines.count * 200 > 16 * 1024 * 1024 {  // 粗略估算
+                throw BoxFilesError.failed(L10n.string("文件大小超过 16MB 上限"))
             }
 
             // 解析行（剥离行号前缀 `  \d+\t`）
@@ -161,8 +176,38 @@ final class BoxFilesClient: @unchecked Sendable {
         }
     }
 
+    /// F9：路径校验（对齐 box_bridge.py clean_rel_path）
+    private func validateRelativePath(_ path: String) throws -> String {
+        // 拒绝绝对路径
+        if path.hasPrefix("/") {
+            throw BoxFilesError.failed("路径不能是绝对路径")
+        }
+
+        // 拒绝反斜杠和 NUL
+        if path.contains("\\") || path.contains("\0") {
+            throw BoxFilesError.failed("路径包含非法字符")
+        }
+
+        let segments = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+
+        // 拒绝空段、. 和 .. 段
+        for segment in segments {
+            if segment.isEmpty || segment == "." || segment == ".." {
+                throw BoxFilesError.failed("路径包含非法段（., .., 或空段）")
+            }
+        }
+
+        return path
+    }
+
     /// 解析目录列表文本（对齐 box_bridge.py:543-596）
-    private func parseDirectoryListing(text: String, requestedPath: String) throws -> FilesListing {
+    private func parseDirectoryListing(text: String, requestedPath: String, resolvedPath: String) throws -> FilesListing {
+        // F9：列表头 resolved 路径校验（防符号链接逃逸）
+        let normalizedResolved = resolvedPath == "/workspace/." ? "/workspace" : resolvedPath
+        if normalizedResolved != "/workspace" && !normalizedResolved.hasPrefix("/workspace/") {
+            throw BoxFilesError.failed("目录路径逃逸 /workspace")
+        }
+
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
         guard let headerLine = lines.first, headerLine.hasSuffix(":") else {
@@ -171,8 +216,14 @@ final class BoxFilesClient: @unchecked Sendable {
 
         var entries: [[String: Any]] = []
         let sizePattern = #"^(.*)  \((\d+) bytes\)$"#
+        let maxEntries = 500  // F9：列表 500 条上限
 
         for line in lines.dropFirst() {
+            // F9：超出上限截断
+            if entries.count >= maxEntries {
+                break
+            }
+
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty || trimmed == "." || trimmed == ".." {
                 continue

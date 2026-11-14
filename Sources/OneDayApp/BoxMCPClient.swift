@@ -34,6 +34,9 @@ actor BoxMCPClient {
     private var lastState: String?
     private var lastStateAt: Date?
 
+    /// F7.3：最后确认的页面缓存
+    private var lastKnownPage: [String: Any]?
+
     init(mcpURL: URL, apiKey: String) {
         self.mcpURL = mcpURL
         self.apiKey = apiKey
@@ -55,10 +58,11 @@ actor BoxMCPClient {
             id: UUID().uuidString,
             method: "initialize",
             params: [
-                "protocolVersion": AnyCodable("2024-11-05"),
-                "clientInfo": AnyCodable([
-                    "name": "OneDay",
-                    "version": "1.0"
+                "protocolVersion": .string("2025-03-26"),
+                "capabilities": .object([:]),
+                "clientInfo": .object([
+                    "name": .string("OneDay"),
+                    "version": .string("1.0")
                 ])
             ]
         )
@@ -79,6 +83,15 @@ actor BoxMCPClient {
         if mcpResponse.isError {
             throw BoxMCPError.sessionFailed(mcpResponse.error?.message ?? "initialize error")
         }
+
+        // 发送 initialized 通知（F3：MCP 握手要求）
+        let notification = MCPRequest(
+            id: UUID().uuidString,
+            method: "notifications/initialized",
+            params: nil
+        )
+        // 通知无需响应体，容忍 202 或其他成功码
+        _ = try? await sendRequest(notification, captureSessionId: false)
     }
 
     /// 重置会话（对齐 box_bridge.py:96-105 _disconnect）
@@ -86,6 +99,18 @@ actor BoxMCPClient {
         sessionId = nil
         lastState = nil
         lastStateAt = nil
+        lastKnownPage = nil
+    }
+
+    // MARK: - F7.3 lastKnownPage 缓存
+
+    func updateLastKnownPage(_ page: [String: Any]) {
+        lastKnownPage = page
+    }
+
+    func getLastKnownPage() -> (page: [String: Any]?, checkedAt: String?) {
+        guard let page = lastKnownPage else { return (nil, nil) }
+        return (page, page["checkedAt"] as? String)
     }
 
     // MARK: - 工具调用
@@ -102,19 +127,19 @@ actor BoxMCPClient {
                     try await initialize()
                 }
 
-                // 构建 tools/call 请求
-                let params = AnyCodable([
-                    "name": name,
-                    "arguments": arguments
-                ])
+                // 构建 tools/call 请求（F2：顶层 params 包含 name 和 arguments）
+                let argumentsJSON = anyToJSONValue(arguments)
                 let request = MCPRequest(
                     id: UUID().uuidString,
                     method: "tools/call",
-                    params: ["tool": params]
+                    params: [
+                        "name": .string(name),
+                        "arguments": argumentsJSON
+                    ]
                 )
 
-                // 发送请求
-                let (data, response) = try await sendRequest(request, captureSessionId: false)
+                // 发送请求（F5：使用请求的 timeout 参数）
+                let (data, response) = try await sendRequest(request, captureSessionId: false, timeout: timeout)
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw BoxMCPError.networkError
                 }
@@ -132,8 +157,22 @@ actor BoxMCPClient {
                     throw BoxMCPError.toolCallFailed("HTTP \(httpResponse.statusCode)")
                 }
 
+                // F4：解析响应（支持 SSE 和纯 JSON）
+                let responseData: Data
+                if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
+                   contentType.contains("text/event-stream") {
+                    // SSE 响应：按 requestId 匹配提取 JSON
+                    guard let extracted = parseSSEResponse(data: data, requestId: request.id) else {
+                        throw BoxMCPError.toolCallFailed("SSE response parsing failed")
+                    }
+                    responseData = extracted
+                } else {
+                    // 纯 JSON 响应
+                    responseData = data
+                }
+
                 // 解析响应
-                let mcpResponse = try decoder.decode(MCPResponse.self, from: data)
+                let mcpResponse = try decoder.decode(MCPResponse.self, from: responseData)
                 if let error = mcpResponse.error {
                     throw BoxMCPError.toolCallFailed(error.message)
                 }
@@ -189,12 +228,16 @@ actor BoxMCPClient {
 
     // MARK: - HTTP 传输
 
-    private func sendRequest(_ request: MCPRequest, captureSessionId: Bool) async throws -> (Data, URLResponse) {
+    private func sendRequest(_ request: MCPRequest, captureSessionId: Bool, timeout: TimeInterval = 60) async throws -> (Data, URLResponse) {
         let bodyData = try encoder.encode(request)
 
         var urlRequest = URLRequest(url: mcpURL)
         urlRequest.httpMethod = "POST"
         urlRequest.httpBody = bodyData
+        urlRequest.timeoutInterval = timeout  // F5：每次请求独立设置超时
+
+        // F4：添加 SSE 支持的 Accept 头
+        urlRequest.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
 
         // 附加会话 ID（如果有）
         if let sessionId = sessionId {
@@ -202,6 +245,21 @@ actor BoxMCPClient {
         }
 
         return try await session.data(for: urlRequest)
+    }
+
+    /// 将 [String: Any] 转换为 JSONValue
+    private func anyToJSONValue(_ value: Any) -> JSONValue {
+        switch value {
+        case let s as String: return .string(s)
+        case let n as Int: return .number(Double(n))
+        case let n as Double: return .number(n)
+        case let b as Bool: return .bool(b)
+        case let dict as [String: Any]:
+            return .object(dict.mapValues(anyToJSONValue))
+        case let arr as [Any]:
+            return .array(arr.map(anyToJSONValue))
+        default: return .null
+        }
     }
 }
 
