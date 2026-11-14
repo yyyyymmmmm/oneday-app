@@ -11923,3 +11923,7 @@ run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案�
 - **M3 点子底栏角标**：审计在案的「必补」口径（2026-11-11 闭环拍板 C2）已被用户 2026-11-12 §177 亲令推翻——「点子不要待阅呈现」，角标轮询/AppState 水位/.badge 整套退役（ContentView 文件头注在案）。本包**不复活**，待主线裁。
 - **动态存量长帖清理**：2026-11-14 经服务器通道实查生产 data.json——清理**已于 2026-11-11 执行过**（清前备份 `data.json.bak-20261111-clearlong` 在案：清前 7 帖含 815–1187 字长帖 5 篇）；现存 16 帖正文最长 307 字（research 166–252、digest 92–307、event 40），无长帖残留，本包无需再动。
 - **伴生部署**：本包 ID-2 与目标整改包 GD-1b/GD-4 的伴生改动（同在 oneday_bridge.py）已一并随 **companion 1.0.51** 部署上线（2026-11-14）：生产旧版文件与本地新版 diff 对账 37 hunk 全在两包范围内；镜像以生产容器现行树为上下文构建，compose 镜像与 COMPANION_VERSION、companion.env 版本戳三处对齐 1.0.51（env 旧戳 1.0.47 一并纠正，原地改写保 inode，备份 *.bak-1.0.50-pre1051）；验活回读——容器 Up、模块 md5 与本地一致、/health ok 且 degraded=false、GET /ideas 回 12 条＋active bootstrap 快照（sections career 1/interest 1/efficiency 4）＋poolScore/scoreWhy 已落。回滚基线＝镜像 oneday/companion:1.0.50 与两份 .bak 俱在。
+
+### §234.4 CI 判读（2026-11-14 回填）
+
+首轮 run 43569621572 **真红**：FeedView.actionRow 种子分支与真帖分支类型不一致（编译错误 1 条，本包改动），@ViewBuilder 收口后二轮 run **43570182310 §190 终判绿（带 §184 在案登记）**：**断言失败 0 条**；**Core 1942 执行／0 失败**——与静态预期精确对账（1937 基线＋本包 FeedSeedPostsTests 5）；**App 136 启动**：126 passed＋5 skipped（存量 XCTSkip）＋5 条 started 无终局行（testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView——与 0.50.39 同一份 §184 受害名单，日志 7 起宿主重启对应）；**UI 4／0**；HUB-LAYOUT-VERDICT=PASS、MATRIX-VERDICT=PASS、顶簇 VERDICT=PASS。测试步名义 failure 仅由 §184 宿主死亡构成。未合 main、未打 tag。
