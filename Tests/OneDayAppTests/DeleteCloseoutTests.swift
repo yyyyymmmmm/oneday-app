@@ -60,15 +60,13 @@ final class DeleteCloseoutTests: XCTestCase {
 
     // MARK: - 装配
 
+    /// ServerSession 无公开成员构造器（Core 内部
+    /// 可见）——App 侧构造走解码，与 DemoHermes-
+    /// Client 同式
     private func makeSession(id: String) -> ServerSession {
-        ServerSession(
-            id: id, source: nil, sessionKey: nil,
-            displayName: nil, serverTitle: nil, titleSource: nil,
-            isArchived: nil, isPinned: nil, model: nil, profile: nil,
-            startedAt: nil, endedAt: nil, endReason: nil,
-            messageCount: nil, toolCallCount: nil,
-            inputTokens: nil, outputTokens: nil,
-            runtimeRevision: nil, runtimeGeneration: nil
+        try! JSONDecoder().decode(
+            ServerSession.self,
+            from: Data("{\"id\":\"\(id)\"}".utf8)
         )
     }
 
