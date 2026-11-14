@@ -29,6 +29,35 @@ final class ApprovalCardSpecTests: XCTestCase {
         XCTAssertEqual(
             ApprovalCardSpec.actionStack(canDecide: false), []
         )
+        XCTAssertEqual(
+            ApprovalCardSpec.actionStack(canDecide: false, blocked: true),
+            []
+        )
+    }
+
+    /// §245 防呆栈：批不了的记录只留驳回一档——批准
+    /// 与总是允许都必败，不许摆出来让用户白点
+    func testActionStackWhenBlocked() {
+        XCTAssertEqual(
+            ApprovalCardSpec.actionStack(canDecide: true, blocked: true),
+            [.reject]
+        )
+    }
+
+    /// §245 工具图标单源：与全 App 既有同名符号一致
+    /// （记忆 brain／技能 puzzlepiece.extension）
+    func testToolIconNames() {
+        XCTAssertEqual(
+            ApprovalCardSpec.toolIconName(for: .memory), "brain"
+        )
+        XCTAssertEqual(
+            ApprovalCardSpec.toolIconName(for: .skills),
+            "puzzlepiece.extension"
+        )
+        XCTAssertEqual(
+            ApprovalCardSpec.toolIconName(for: .unknown),
+            "questionmark.circle"
+        )
     }
 
     /// 钮面文案与既有确认弹窗口径一致（三语目录键）

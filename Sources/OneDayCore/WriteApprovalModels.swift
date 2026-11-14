@@ -141,8 +141,19 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     /// 按暂存时刻对表 state.db 算出的发起会话；null＝
     /// 未关联（并列/无候选/oneday_app 直判），旧桥无
     /// 此字段解码为 nil——App 据此点达原对话，缺失时
-    /// 如实降级、不许假定位（见 ApprovalAnchor）
+    /// 如实降级、不许假定位（见 ApprovalAnchor）。
+    /// §245（C-5 收敛）：锚由桥侧一次算定落账（写死
+    /// 账本），出口只读回放、终身不变——本字段是全
+    /// App 唯一的锚真值，App 不许再推导/修正它
     public let anchor: WriteGateAnchor?
+    /// 确定性批不了原因（§245，伴生 1.0.29 起）：桥以
+    /// 与上游落盘同口径的纯校验复算出「这条批准必
+    /// 败」时随记录带出（上游原文，如技能简介超字数
+    /// 预算）；nil＝无此结论（建议性字段，裁决路径
+    /// 仍是唯一权威）。卡面据此走防呆呈现：一套口径
+    /// ——「这条无法批准：<原因>」＋只给驳回出路，不
+    /// 再摆点了必败的批准钮（见 ApprovalCardFace）
+    public let blockedReason: String?
 
     enum CodingKeys: String, CodingKey {
         case id, subsystem, action, summary, origin, payload
@@ -155,6 +166,7 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         case memTarget = "mem_target"
         case contentPreview = "content_preview"
         case anchor
+        case blockedReason = "blocked_reason"
     }
 
     public init(from decoder: Decoder) throws {
@@ -187,6 +199,12 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         anchor = try container.decodeIfPresent(
             WriteGateAnchor.self, forKey: .anchor
         )
+        // blocked_reason：空白串按无结论处理（与桥侧
+        // 「命中才带字段」同口径，防空串误触防呆态）
+        let rawBlocked = try container.decodeIfPresent(
+            String.self, forKey: .blockedReason
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        blockedReason = (rawBlocked?.isEmpty == false) ? rawBlocked : nil
         // created_at：桥转 ISO8601 字符串；也宽容 epoch 数值
         if let text = (try? container.decodeIfPresent(
             String.self, forKey: .createdAt
@@ -208,7 +226,7 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         op: String? = nil, targetName: String? = nil,
         opCount: Int? = nil, opKinds: [String]? = nil,
         memTarget: String? = nil, contentPreview: String? = nil,
-        anchor: WriteGateAnchor? = nil
+        anchor: WriteGateAnchor? = nil, blockedReason: String? = nil
     ) {
         self.id = id
         self.subsystem = subsystem
@@ -225,6 +243,10 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
         self.memTarget = memTarget
         self.contentPreview = contentPreview
         self.anchor = anchor
+        let trimmedBlocked = blockedReason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.blockedReason = (trimmedBlocked?.isEmpty == false)
+            ? trimmedBlocked : nil
     }
 
     /// 有效动作：桥结构化 op 优先，缺失回落顶层 action
@@ -260,6 +282,12 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
 
     /// 是否可裁决：未知子系统不开批准/驳回口（契约红线）
     public var canDecide: Bool { subsystem != .unknown }
+
+    /// 是否被桥侧预检判定为确定性批不了（§245）：为
+    /// 真时卡面不给批准/总是允许两档（点了必败），只
+    /// 留驳回出路，原因原文上卡面（防呆呈现单源，见
+    /// ApprovalCardSpec.actionStack 与 ApprovalCardFace）
+    public var isBlocked: Bool { blockedReason != nil }
 
     /// 卡标题：上游 summary 优先；为空时按 action＋类型
     /// 拼兜底人话，不许拿正文截段当摘要（敏感内容不在
@@ -439,9 +467,16 @@ public struct WriteGateDecisionResponse: Decodable, Sendable, Equatable {
     public let output: String?
     /// "approved" / "rejected"
     public let decision: String?
+    /// 裁决失败的结构化原因（§245，伴生 1.0.29 起）：
+    /// 桥从上游回放输出的 Failed 段解析出的本条原因；
+    /// success=false 且本字段非空时，卡面提示直接呈
+    /// 现它，替代泛化红字（与 blockedReason 同一呈
+    /// 现通道：原因上卡面，一套口径）
+    public let failureReason: String?
 
     enum CodingKeys: String, CodingKey {
         case success, output, decision
+        case failureReason = "failure_reason"
     }
 
     public init(from decoder: Decoder) throws {
@@ -449,12 +484,23 @@ public struct WriteGateDecisionResponse: Decodable, Sendable, Equatable {
         success = try container.decodeIfPresent(Bool.self, forKey: .success) ?? false
         output = try container.decodeIfPresent(String.self, forKey: .output)
         decision = try container.decodeIfPresent(String.self, forKey: .decision)
+        let rawReason = try container.decodeIfPresent(
+            String.self, forKey: .failureReason
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        failureReason = (rawReason?.isEmpty == false) ? rawReason : nil
     }
 
-    public init(success: Bool, output: String?, decision: String?) {
+    public init(
+        success: Bool, output: String?, decision: String?,
+        failureReason: String? = nil
+    ) {
         self.success = success
         self.output = output
         self.decision = decision
+        let trimmedReason = failureReason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.failureReason = (trimmedReason?.isEmpty == false)
+            ? trimmedReason : nil
     }
 }
 

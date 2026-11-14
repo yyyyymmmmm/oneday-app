@@ -46,7 +46,34 @@ public enum ApprovalCardSpec {
     public static func actionStack(
         canDecide: Bool
     ) -> [ApprovalCardAction] {
+        actionStack(canDecide: canDecide, blocked: false)
+    }
+
+    /// 动作栈（§245 防呆）：记录被桥侧预检判定确定
+    /// 性批不了（blocked）时只留驳回一档——批准与总
+    /// 是允许（＝立即批准＋立规则）都必败，不许摆出
+    /// 来让用户白点；驳回是这类死单唯一的出路（伴
+    /// 生 APPROVAL-DECIDE-FAIL-REPORT 待修项口径）
+    public static func actionStack(
+        canDecide: Bool, blocked: Bool
+    ) -> [ApprovalCardAction] {
         guard canDecide else { return [] }
+        if blocked { return [.reject] }
         return ApprovalCardAction.allCases
+    }
+
+    /// 卡面工具图标（§245，对标 Muse 审批卡的
+    /// 工具图标位）：按子系统取既有全 App 同名符号
+    /// （记忆＝brain、技能＝puzzlepiece.extension，
+    /// 与记忆面/配置面同源，不新造图）；未知类型走
+    /// 通用问号圈
+    public static func toolIconName(
+        for subsystem: WriteGateSubsystem
+    ) -> String {
+        switch subsystem {
+        case .memory: return "brain"
+        case .skills: return "puzzlepiece.extension"
+        case .unknown: return "questionmark.circle"
+        }
     }
 }
