@@ -418,6 +418,7 @@ struct FeedView: View {
     /// 别小字＋相对时间＋ⓘ（来源小 sheet）。行内含
     /// 真按钮，0.43.0 的「动作行合并元素」自此退役
     /// ——合并会吞掉按钮的可达性
+    @ViewBuilder
     private func actionRow(_ post: BridgeFeedPost) -> some View {
         if FeedSeedPosts.isSeed(post.id) {
             // FA-2 种子动作行：讨论（同真帖，带原文开
