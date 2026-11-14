@@ -12478,3 +12478,11 @@ run **43571630543**（workflow_dispatch @ feat/liqian-lessons）**§190 终判�
 ### §246.5 B6 频道 QR（只登记）
 
 - WhatsApp QR onboarding 契约已实证齐全（Dashboard start/status/delete/apply 四件，apply 自带写 env＋启用＋重启），但 WhatsApp 已被用户拍板暂缓、App 无 QR 界面、桥侧 QR 端点休眠中。本包不动；解冻时 App 直调 Dashboard onboarding、桥 QR 端点届时退役，channels 桥的 QR 部分与 B1/B2 一并列入「桥整桥退役」候选（channels_bridge.py 本体待主线另行处置，本包未动其代码）。
+
+### §246.6 CI 判读（2026-11-14 回填，四轮）——**§190 终判绿（带 §184 在案登记）**
+
+- **一轮 run 43591025049**（head d25aeb4）：Build 步 failure——本包四处编译错（sendJSON 参序、escapedPathSegment 不存在、HermesError 无 server/serverMessage 两 case 的口径误判），逐项按真实签名修复（346f0ff）。
+- **二轮 run 43592528626**（head 346f0ff）：Build 过；测试步在 OneDayAppTests 编译期 failure——测试桩 FailingHermesClient 未同步协议新方法，补桩两方法（a3dfa0e，与 DemoHermesClient 签名对齐）。
+- **三轮 run 43593518682**（head a3dfa0e）：Build／Package／Upload IPA 全 success；**Core 2025／2025 断言失败 0**（基线 2008＋本包新 17，MessagingChannelsTests 17 条全过）；App 147 ended 中 1 条断言失败＝EdgeEffectProbeTests.testEdgeEffectAttributionProbe（像素探针阈值 6>4，本包改动面与其零交集）；UI 8／8；宿主重启签名在案。
+- **四轮 run 43595852269**（同 head 复跑）：**断言失败 0 条**——三轮失败的探针用例本轮 passed（24.8 秒，抖动定案关闭）；Core 2025／2025、App 147 ended 全 passed、UI 8／8；测试步名义 failure 仅宿主重启截断（started 无终局行，§184 签名）。
+- **两轮并集对账**：Core 2025 全绿两轮一致；App 全部用例至少一轮 passed、无一轮内容性失败留存；UI 8／8 两轮一致。终判绿。
