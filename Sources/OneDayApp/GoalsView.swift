@@ -373,11 +373,9 @@ struct GoalsView: View {
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
-                ForEach(
-                    Array(store.ungroupedTasks.enumerated()),
-                    id: \.element.id
-                ) { index, row in
-                    if index > 0 {
+                ForEach(store.ungroupedTasks) { row in
+                    if row.taskId
+                        != store.ungroupedTasks.first?.taskId {
                         GroupDivider()
                     }
                     HStack(spacing: OneDayMetrics.spacingSM) {
