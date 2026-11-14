@@ -11557,3 +11557,7 @@ run 43530428211（头 b60a831）**真红停步**：Build 步 success（App 本�
 ### §216.1 CI 判读回填（2026-11-14）
 
 run 43543959202（头 5715391＝本包 163ad79＋桩适配 cherry-pick 自 rel-05036 的 99c0067）：Build/Package/Upload success；**Core 1864/0**（1853＋11 精确、新 11 法逐条过）、**App 86 过＋5 跳过**（本包 4 法逐条过；§184 宿主重启 7 起在案）、**UI 4/0**；唯一红＝EdgeEffectProbeTests 归因探针**异步等待超时**（非断言；同探针在 rel-05037-prep 轮以像素断言签名单红、已登记保留项）——本包零触碰边缘面，判**终判绿（带保留）**，探针随 .37 装配轮统一对账。全档＝model-account-unify-report-20261114.md §6。
+
+### §216.2 存量化石一次性迁移（2026-11-14 补记；同分支跟进）
+
+§216 验收第三条（收养主线枢纽不再显 deepseek-flash）在用户实机存量下不经处置不能成立（推演见施工报告 §8）：B 预览已把 deepseek-flash 存量写进钦定副本键 `s:<收养 id>`，实看主线线程绑另一 id（分叉）、其账无存量落配置默认 claude-sonnet-4-6；组版落地时 ensureMainThread 强制对齐绑定→钦定键，合一账即此化石账——胶囊将由 claude 被「修」成 DeepSeek Flash、发送逐请求提交化石值。故补一次性迁移，规则恒窄（Core `MainlineModelFossilMigration` 五条合取，任一不合不动账）：①两份 id 副本分叉（均非空、不等）；②钦定键有存量条目；③条目 model 归一值＝钦定会话服务端行 model 字段（化石本值，须回读在手才裁决）；④该值与线程绑定账现行解析值冲突；⑤一次性标记未置。处置：线程账有存量→覆盖钦定键（真选择迁入）；无存量→删钦定键条目（回落解析链＝线程账现值）。作用域只及钦定键/线程绑定键一对主线账，旁聊账零触碰；用户真选 deepseek 且两账同值（条④不合）或副本同值（条①不合）均不命中。触发：ChatView 落点以对齐前捕获的 id 对经 `AppState.runMainlineModelFossilMigrationIfNeeded` 异步跑，裁决完成（命中/核完未命中）置 UserDefaults 标记 `mainlineModelFossilMigrationHandled`；服务端值取不到不置标记、下次落地再试。验收：Core MainlineModelFossilMigrationTests 决策矩阵＋App ModelFossilMigrationAppTests（命中清条/命中迁入/不命中各形态/旁聊账不受殃及/服务端未知不置标记）。
