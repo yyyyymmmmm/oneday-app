@@ -11893,3 +11893,41 @@ run **43556010036**（头＝版号提交）**§190 终判绿（带 §184 在案�
 ### §231.1 CI 判读（2026-11-14 回填）
 
 run **43558260665**（头＝版号提交）**§190 终判绿（带 §184 在案登记）**：Build／Package／Upload success，测试步名义 failure 仅由 §184 宿主死亡构成。**断言失败 0 条**（全日志无 failed 用例；3 处 XCTAssert 字样为编译回显源码行）。**Core 1937 执行／0 失败**——与静态预期精确对账（1920＋回响 16＋删除分型 1）。**App 137 启动**：125 passed＋5 skipped（PresentationLayerScenarios 源码 XCTSkip 存量）＋7 条 started 无终局行（与 **7 起宿主重启** 对应的 §184 在案签名：testKeyboardUpMovesComposerOnlyDockStays／testMarkPendingSendRetainsEntryOnDisk／testBarGrowth_topRisesBottomPinned／testBridgeTapToOpenReachesFullTravel／testAnchorRegistersAncestorScrollView／回响 testFailedTraceMaterializesWithErrorSnapshot——与回响包自家绿轮同一受害、其语义由 Core testPlanFailedTraceKeepsErrorVerbatim 覆盖在案＋1 条重启重跑重复计启）；本版三包新测除该条外全数 passed 亲验（DeleteCloseoutTests 8／TraceEchoMaterialization Core 16＋App 其余 5／回执 4／SessionClassification 改断言全过）。**UI 4／0**。**边缘探针 passed（23.991s）**——重校准口径组版轮再成立。HUB-LAYOUT-VERDICT=PASS、顶簇 VERDICT=PASS、MATRIX-VERDICT=PASS。IPA **12,316,159 字节、md5 `852106a174a1256f46b42da63e4d6d7a`**、0.50.39/167（解包 Info.plist 亲验、bundle site.didichou.oneday），存 ~/workspace/your_files/oneday-v0.50.39/OneDay-0.50.39.ipa。未合 main、未打 tag。全日志存 goals/oneday-ios-client-professional-redesign/hidden_files/gh-verdict-05039/。
+
+## §233 Box API 直连第一包：甩桥＋ai-sessions 退役（2026-11-14；分支 feat/api-direct-a，基线 rel-05039 头 5b8fb68）
+
+**背景与目标**：Box 原经 Hermes `/api/box-bridge/*` 中继（box_bridge.py 桥实现），现改 App 直连 Simular Box MCP 服务（`https://mcp.box.simular.ai/mcp`）。本包完成 A1 甩桥（status/screenshot/act/files/shell 五面全改直连）+ A3 ai-sessions 桥退役（Session 分类器去桥判断、oneday_bridge.py 保留 A3 红线项）。
+
+**A1 映射表**（桥端点 → MCP 工具）：
+
+| 原桥端点 | MCP 工具 | 说明 |
+|---------|---------|------|
+| GET /api/box-bridge/status | `box_status` | 状态查询，增强：调 `billing` 取 credits、调 `browser_snapshot` 取 page、缓存 lastKnownPage |
+| POST /api/box-bridge/screenshot | `screenshot` | 截图（max_edge: 1024） |
+| POST /api/box-bridge/act | `computer_act` / `browser_navigate` | 桌面动作 / 浏览器导航 |
+| GET /api/box-bridge/files | `list_dir` | 目录列表（路径校验、500 条上限、resolved 逃逸检查） |
+| GET /api/box-bridge/files/read | `read_file` | 文件读取（行截断检测回退 shell base64、16MB 上限） |
+| POST /api/box-bridge/shell | `shell` | 终端命令（多文本块拼接、本地 32768 字截断、ok 语义修正） |
+
+**凭据接法**（F6）：`CloudComputerViews.swift` 凭据表单 `submit()` 中，当 `connection.provider == "simular_box"` 且验活成功（`credentialPhase` 到 `.verified`）后，写 Keychain `box.mcp.key`（值＝用户填的 apiKey）并调 `BoxMCPClientFactory.reset()` 让新凭据生效。服务端保管流（`submitCredential` 本体）一字不动。
+
+**协议修正**（F1-F5）：
+- F1：删除自造 `AnyCodable`，全层改用 `JSONValue`（Sendable 合规、已有正解）
+- F2：`tools/call` 参数形状修正——顶层 `params: {"name": <工具名>, "arguments": {...}}`，不包 `tool` 键
+- F3：握手补齐——`protocolVersion: "2025-03-26"`（streamable HTTP 世代）、`capabilities: {}`、initialize 成功后发 `notifications/initialized` 通知
+- F4：SSE 响应解析——请求头补 `Accept: application/json, text/event-stream`，响应按 `Content-Type` 分流（SSE 按 `data:` 行抽 JSON、按 id 匹配）
+- F5：timeout 生效——每次请求独立设 `URLRequest.timeoutInterval`（截图/状态 30–60、act/shell 90、shell base64 读 120），不再全局 60s 一刀切
+
+**保真逻辑**（F7-F10，对齐 box_bridge.py）：
+- F7 status 保真：credits（调 `billing` 按优先级取 credits_left/creditsLeft/credits/balance，isError 或异常 → creditsNote）、page（running 时调 `browser_snapshot` 解析 `Page: 标题 (url)` 行、失败重试 0.9s）、lastKnownPage（客户端缓存最近确认页面＋时间戳）
+- F8 act 保真：结果无图像块时补调 `screenshot`、summary 取第一段文本的第一行（上限 300 字）
+- F9 files 保真：路径校验（拒绝绝对路径/反斜杠/NUL/空段/`..`）、列表 500 条上限、resolved 路径逃逸检查（必须等于或在 `/workspace` 下）、read_file 行截断标记检测回退 shell base64、16MB 上限
+- F10 shell 保真：多文本块 `\n` 拼接、本地 32768 字截断＋注记行、ok 语义（exitCode 有值时 ok=(exitCode==0)，无值时 ok=true）
+
+**A3 ai-sessions 退役**：`SessionClassification.aiCastSessionPrefix` 红线保留（cast 分类器仍需此前缀），`oneday_bridge.py` 保留红线项（`/api/ai-sessions` 路由＋ `ai_cast` 转发＋ A3 测试），其余桥判断逻辑从分类器删除。
+
+**单测**（F11）：`Tests/OneDayCoreTests/MCPProtocolTests.swift`——请求信封编码（含 F2 params 形状断言）、JSON/SSE 响应解码、SSE data 行抽取与 id 匹配、MCPContent text/image 解码、mcpTexts/mcpStructured/mcpErrorText 三态。
+
+**不许动**：消费方公开 API 签名（status/screenshot/act/list/fileData/run）保持不变。`SessionClassification.aiCastSessionPrefix`、伴生 `oneday_bridge.py`（A3 已验收通过，二轮不许再碰）。版本号。
+
+**静态计数预期**：Core **1950**（1937 基线＋MCP 协议测试 13）、App **136**（零增、只改实现）、UI **4**。版本号保持 0.50.39/167（不发版、只交分支）。
