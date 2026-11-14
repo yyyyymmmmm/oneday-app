@@ -12534,4 +12534,6 @@ run 43602076559：名义 failure 仅 §184。实数：断言失败 **0**（全�
 
 **登记在案、不在本包**：监测条目仍由 App 在 LedgerStore 内合成（伴生采集器暂无监测源，真单源属伴生侧后续）；通知已决 View 层双源相加归待办第 71 条；IdeasStore/GoalsStore 多面私建待后续收口包。
 
-### §259.1 CI 判读（待回填）
+### §259.1 CI 判读（2026-11-14 回填）——**§190 终判绿（带 §184 在案登记）**
+
+run 43605556552（头 2ad3e09）：名义 failure 仅 §184。实数：断言失败 **0**（全日志无 `Test Case ... failed` 行、每条 Executed 均 0 failures）；Core **2081/2081 精确对账**（started 2081、passed-unique 2081，与基线 §258 预期同值——本包不增删测试）；UI **8/8** 全过；App passed 168＋skipped 5＋无终局 5＝178（＋helpers 伪名 1＝grep 口径 179，与 .45 基线逐项同值）；VERDICT＝PASS ×3；xcstrings **3225** 键未触。**§184 登记**：宿主重启 7 起（14:45–14:51Z，集中于 App 测试相位），波及无终局 5 条与 §258.1 登记名单**逐名相同**（testMarkPendingSendRetainsEntryOnDisk、testBarGrowth_topRisesBottomPinned、testKeyboardUpMovesComposerOnlyDockStays、testBridgeTapToOpenReachesFullTravel、testAnchorRegistersAncestorScrollView），无新登记者、按签名不判红。
