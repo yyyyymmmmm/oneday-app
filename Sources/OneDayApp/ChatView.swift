@@ -11209,15 +11209,21 @@ private struct ComposerBarLayout: Layout {
                         thread: thread, entry: entry
                     )
                 submitJobs[entryID] = nil
+                // 派发前状态快照：记账只认「已失败条目
+                // 的再投」——首投（待发条目进程重启后
+                // 被泵重建工单派发）不是重试、不记账
+                // （ChatFailKeepPinTests 存储面钉）
+                let wasFailed = entry.sendState == .failed
                 let outcome = await performSubmission(job: job)
-                // 自动重投记账（语义 2）：无登记工单的
-                // 提交＝策略批准的自动重投，执行完毕才
-                // 记一笔（与成因同落——成因已在失败落
-                // 点写入）；登记工单（本会话主动发送/
-                // 手点重发/编辑重投）不计。离线停泊（没
-                // 出门）与停止不计。旧口径执行前记账＋
-                // 受理清账，两头夹击把账扫没
-                if registeredJob == nil {
+                // 自动重投记账（语义 2）：无登记工单＋
+                // 派发前已失败＝策略批准的自动重投，
+                // 执行完毕才记一笔（与成因同落——成因
+                // 已在失败落点写入）；登记工单（本会话
+                // 主动发送/手点重发/编辑重投）不计。
+                // 离线停泊（没出门）与停止不计。旧口径
+                // 执行前记账＋受理清账，两头夹击把账
+                // 扫没
+                if registeredJob == nil, wasFailed {
                     switch outcome {
                     case .accepted, .rejected, .prepareFailed:
                         appState.outboxRetry.noteAutoAttempt(
