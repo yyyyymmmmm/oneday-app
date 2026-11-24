@@ -166,8 +166,8 @@ final class BriefEditorTopPanel482Tests: XCTestCase {
         XCTAssertEqual(count(of: "Haptics.success()", in: scope), 1)
         XCTAssertEqual(count(of: "Haptics.error()", in: scope), 1)
         XCTAssertEqual(
-            count(of: "Haptics.impact", in: scope), 0,
-            "落位 impact .light 属待裁项，本版不落"
+            count(of: "Haptics.impact", in: scope), 1,
+            "落位 impact .light（用户 2026-11-25 裁定）只许这一处"
         )
     }
 

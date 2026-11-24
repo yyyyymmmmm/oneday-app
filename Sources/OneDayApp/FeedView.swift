@@ -1593,6 +1593,12 @@ struct FeedBriefEditorView: View {
                 await store.loadBrief(appState: appState)
             }
         }
+        .onAppear {
+            // 面板落位触感（用户 2026-11-25 裁定）：
+            // 顶部锚定面板入位（内容挂载＝状态真翻转）
+            // 即震 impact .light，表 D 既有语义，只接线
+            Haptics.impact(.light)
+        }
         .onChange(of: store.briefDoc) { _, newDoc in
             // 轮询换新（§473 件一）：编辑框仍等于旧
             // 基线（用户未改字）时跟随新全文；已改

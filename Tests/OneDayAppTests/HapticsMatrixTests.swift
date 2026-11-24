@@ -160,7 +160,10 @@ final class HapticsMatrixTests: XCTestCase {
         // §352（D3 编辑重发）：发送事件第二落点 +1
         // （5→6），与 testSendActionHasLightImpact 的
         // ChatView 内计数同源（2→3）
-        XCTAssertEqual(count(of: "Haptics.impact(.light)", in: all), 6)
+        // 简报编辑器面板落位 impact .light（用户
+        // 2026-11-25 裁定）：FeedBriefEditorView.onAppear
+        // 一落点，全仓 6→7
+        XCTAssertEqual(count(of: "Haptics.impact(.light)", in: all), 7)
         // §431（2026-11-24）：外观页四组选择行新增
         // 声明式 selection（主题／模式／语言／形象
         // 大小），3→7；同包声明式 impact 首落点＝1
