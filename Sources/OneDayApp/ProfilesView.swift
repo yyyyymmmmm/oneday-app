@@ -49,13 +49,11 @@ struct ProfilesView: View {
     @State private var exportingProfile: ProfileItem?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if !profiles.isEmpty {
-                    // 0.3.7 卡 7：摘要卡——当前档案名＋「使用中」
-                    if let activeName {
-                        SectionLabel("现在用的")
-                            .padding(.bottom, OneDayMetrics.spacingS)
+        List {
+            if !profiles.isEmpty {
+                // 0.3.7 卡 7：摘要卡——当前档案名＋「使用中」
+                if let activeName {
+                    Section {
                         HStack(spacing: OneDayMetrics.spacingSM) {
                             Text(activeName)
                                 .font(.rowTitleL)
@@ -67,44 +65,57 @@ struct ProfilesView: View {
                         }
                         .padding(.horizontal, OneDayMetrics.spacingM)
                         .frame(minHeight: OneDayMetrics.rowHeight)
-                        .odGroup()
+                    } header: {
+                        SettingsSectionHeader("现在用的")
                     }
-                    SectionLabel("全部档案")
-                        .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                        .padding(.bottom, OneDayMetrics.spacingS)
-                    VStack(spacing: 0) {
-                        ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                            if index > 0 {
-                                GroupDivider()
-                            }
-                            profileRow(profile)
-                        }
+                    .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
+                }
+                Section {
+                    ForEach(profiles) { profile in
+                        profileRow(profile)
                     }
-                    .odGroup()
-                    // 人设组（台账 198 收敛 S12）：当前档
-                    // 案的人设在设置内的正式入口——行本
-                    // 体是就绪闸门（PersonaEntryRow），
-                    // 点达既有 SoulEditorView、不新建编辑器
-                    SectionLabel("人设")
-                        .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                        .padding(.bottom, OneDayMetrics.spacingS)
+                } header: {
+                    SettingsSectionHeader("全部档案")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+                // 人设组（台账 198 收敛 S12）：当前档
+                // 案的人设在设置内的正式入口——行本
+                // 体是就绪闸门（PersonaEntryRow），
+                // 点达既有 SoulEditorView、不新建编辑器
+                Section {
                     PersonaEntryRow()
-                        .odGroup()
-                } else if let errorMessage {
-                    InlineError(errorMessage)
-                    Button("重试") { Task { await load() } }
-                        .buttonStyle(.odSecondary)
-                        .padding(.top, OneDayMetrics.spacingSM)
-                } else {
+                } header: {
+                    SettingsSectionHeader("人设")
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+            } else if let errorMessage {
+                Section {
+                    VStack(alignment: .leading, spacing: 0) {
+                        InlineError(errorMessage)
+                        Button("重试") { Task { await load() } }
+                            .buttonStyle(.odSecondary)
+                            .padding(.top, OneDayMetrics.spacingSM)
+                    }
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+            } else {
+                Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取档案…")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    .padding(.top, OneDayMetrics.spacingL)
                 }
-                // 新建/导入动作行（P10）
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+            }
+            // 新建/导入动作行（P10）
+            Section {
                 HStack(spacing: OneDayMetrics.spacingSM) {
                     Button {
                         showCreateSheet = true
@@ -120,19 +131,23 @@ struct ProfilesView: View {
                     .buttonStyle(.odSecondary)
                     Spacer()
                 }
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                if let notice {
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+            if let notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle("配置档案")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }

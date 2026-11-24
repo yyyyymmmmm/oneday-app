@@ -82,55 +82,58 @@ struct CronBlueprintPickerView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if isLoading {
+            List {
+                if isLoading {
+                    Section {
                         HStack(spacing: OneDayMetrics.spacingS) {
                             ProgressView()
                             Text("正在读取模板…")
                                 .font(.footnote)
                                 .foregroundStyle(Palette.inkSecondary)
                         }
-                        .padding(.top, OneDayMetrics.spacingL)
-                    } else if let errorMessage, blueprints.isEmpty {
+                    }
+                    .listRowBackground(Color.clear)
+                } else if let errorMessage, blueprints.isEmpty {
+                    Section {
                         InlineError(errorMessage)
                         Button("重试") { Task { await load() } }
                             .buttonStyle(.odSecondary)
-                            .padding(.top, OneDayMetrics.spacingSM)
-                    } else if blueprints.isEmpty {
+                    }
+                    .listRowBackground(Color.clear)
+                } else if blueprints.isEmpty {
+                    Section {
                         ContentUnavailableView(
                             "暂无模板",
                             systemImage: "square.stack.3d.up.slash",
                             description: Text("服务器没有返回可用模板，可以用「＋」空白新建。")
                         )
-                        .padding(.top, OneDayMetrics.spacingXXL)
-                    } else {
-                        ForEach(groups, id: \.category) { group in
-                            SectionLabel(blueprintCategoryTitle(group.category))
-                                .padding(.bottom, OneDayMetrics.spacingS)
-                                .padding(.top, OneDayMetrics.spacingM)
-                            VStack(spacing: 0) {
-                                ForEach(Array(group.items.enumerated()), id: \.element.id) { index, blueprint in
-                                    if index > 0 { GroupDivider() }
-                                    NavigationLink {
-                                        CronBlueprintFormView(
-                                            blueprint: blueprint,
-                                            onCreated: onCreated
-                                        )
-                                    } label: {
-                                        blueprintRow(blueprint)
-                                    }
+                    }
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(groups, id: \.category) { group in
+                        Section {
+                            ForEach(Array(group.items.enumerated()), id: \.element.id) { _, blueprint in
+                                NavigationLink {
+                                    CronBlueprintFormView(
+                                        blueprint: blueprint,
+                                        onCreated: onCreated
+                                    )
+                                } label: {
+                                    blueprintRow(blueprint)
                                 }
                             }
-                            .odGroup()
+                        } header: {
+                            SettingsSectionHeader(blueprintCategoryTitle(group.category))
                         }
+                        .listRowBackground(Palette.surface)
+                        .listRowInsets(OneDayMetrics.settingsRowInsets)
                     }
                 }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingXL)
             }
-            .background(Palette.pageBG)
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+            .scrollContentBackground(.hidden)
+            .background(Palette.settingsBG)
             .navigationTitle("从模板新建")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -162,9 +165,8 @@ struct CronBlueprintPickerView: View {
                 }
             }
             Spacer(minLength: OneDayMetrics.spacingS)
-            DisclosureChevron(font: .footnote.weight(.semibold))
         }
-        .frame(minHeight: OneDayMetrics.rowHeight)
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
         .contentShape(Rectangle())
     }
 
@@ -213,39 +215,43 @@ struct CronBlueprintFormView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if !blueprint.description.isEmpty {
+        List {
+            if !blueprint.description.isEmpty {
+                Section {
                     Text(blueprint.description)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.bottom, OneDayMetrics.spacingM)
                 }
-                SectionLabel("填空")
-                    .padding(.bottom, OneDayMetrics.spacingS)
-                VStack(spacing: 0) {
-                    ForEach(Array(blueprint.fields.enumerated()), id: \.element.id) { index, field in
-                        if index > 0 { GroupDivider() }
-                        fieldBlock(field)
-                    }
+                .listRowBackground(Color.clear)
+            }
+            Section {
+                ForEach(Array(blueprint.fields.enumerated()), id: \.element.id) { _, field in
+                    fieldBlock(field)
                 }
-                .odGroup()
-                if let scheduleHuman = blueprint.scheduleHuman, !scheduleHuman.isEmpty {
+            } header: {
+                SettingsSectionHeader("填空")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+            if let scheduleHuman = blueprint.scheduleHuman, !scheduleHuman.isEmpty {
+                Section {
                     Text("默认节奏：\(scheduleHuman)（按所填内容生成实际计划）")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
-                if let errorMessage {
-                    InlineError(errorMessage)
-                        .padding(.top, OneDayMetrics.spacingM)
-                }
+                .listRowBackground(Color.clear)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+            if let errorMessage {
+                Section {
+                    InlineError(errorMessage)
+                }
+                .listRowBackground(Color.clear)
+            }
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle(blueprint.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -260,7 +266,7 @@ struct CronBlueprintFormView: View {
 
     @ViewBuilder
     private func fieldBlock(_ field: CronBlueprintField) -> some View {
-        FieldRow(label: blueprintSlotLabel(field)) {
+        fieldRow(blueprintSlotLabel(field)) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 fieldControl(field)
                 if !field.help.isEmpty {
@@ -275,6 +281,26 @@ struct CronBlueprintFormView: View {
                 }
             }
         }
+    }
+
+    /// 表单字段行（List 行内联形）：标签在上、本体在下，
+    /// 横向内缩由 Section 的 listRowInsets 统一管，不再自带
+    /// 横向 padding；垂直留白沿原 FieldRow 口径 spacingSM。
+    private func fieldRow<Content: View>(
+        _ label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.rowInnerGap) {
+            Text(label)
+                .font(.footnote)
+                .foregroundStyle(Palette.inkSecondary)
+            content()
+                .font(.body)
+                .foregroundStyle(Palette.ink)
+        }
+        .padding(.vertical, OneDayMetrics.spacingSM)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder

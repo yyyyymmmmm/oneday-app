@@ -24,32 +24,33 @@ struct EnvVarEditorView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    VStack(spacing: 0) {
-                        FieldRow(label: "键") {
-                            TextField("如 DEEPSEEK_API_KEY", text: $key)
-                                .font(.system(.body, design: .monospaced))
-                                .textInputAutocapitalization(.characters)
-                                .autocorrectionDisabled()
-                                .disabled(existingKey != nil)
-                        }
-                        GroupDivider()
-                        FieldRow(label: "值") {
-                            SecureField("输入新值", text: $value)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                        }
+            Form {
+                Section {
+                    FieldRow(label: "键") {
+                        TextField("如 DEEPSEEK_API_KEY", text: $key)
+                            .font(.system(.body, design: .monospaced))
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .disabled(existingKey != nil)
                     }
-                    .odGroup()
-                    if let errorMessage {
-                        InlineError(errorMessage)
-                            .padding(.top, OneDayMetrics.spacingM)
+                    FieldRow(label: "值") {
+                        SecureField("输入新值", text: $value)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
                     }
                 }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+                if let errorMessage {
+                    Section {
+                        InlineError(errorMessage)
+                    }
+                    .listRowBackground(Palette.surface)
+                }
             }
+            .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+            .scrollContentBackground(.hidden)
             .background(Palette.settingsBG)
             .navigationTitle(existingKey == nil ? "新增环境变量" : "修改值")
             .navigationBarTitleDisplayMode(.inline)

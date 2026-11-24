@@ -238,108 +238,80 @@ struct SkillDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                metaGroup
-                contentGroup
-                if let notice {
+        List {
+            metaGroup
+            contentGroup
+            if let notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle(skill.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }
 
     private var metaGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("技能")
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                if let description = skill.description, !description.isEmpty {
-                    Text(description)
-                        .font(.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .padding(.horizontal, OneDayMetrics.spacingM)
-                        .padding(.vertical, OneDayMetrics.spacingSM)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    GroupDivider()
-                }
-                HStack {
-                    Text("启用")
+        Section {
+            if let description = skill.description, !description.isEmpty {
+                Text(description)
+                    .font(.callout)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .padding(.horizontal, OneDayMetrics.spacingM)
+                    .padding(.vertical, OneDayMetrics.spacingSM)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                Text("启用")
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
+                Spacer()
+                Toggle("", isOn: $isEnabled)
+                    .labelsHidden()
+                    .disabled(isLocked)
+                    .onChange(of: isEnabled) { _, newValue in
+                        Task { await setEnabled(newValue) }
+                    }
+            }
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+            HStack {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
+                    Text("锁定")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
-                    Spacer()
-                    Toggle("", isOn: $isEnabled)
-                        .labelsHidden()
-                        .disabled(isLocked)
-                        .onChange(of: isEnabled) { _, newValue in
-                            Task { await setEnabled(newValue) }
-                        }
+                    Text("锁定后不能改内容、不能停用")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
                 }
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .frame(minHeight: OneDayMetrics.rowHeight)
-                GroupDivider()
-                HStack {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                        Text("锁定")
-                            .font(.rowTitleL)
-                            .foregroundStyle(Palette.ink)
-                        Text("锁定后不能改内容、不能停用")
-                            .font(.footnote)
-                            .foregroundStyle(Palette.inkSecondary)
+                Spacer()
+                Toggle("", isOn: $isLocked)
+                    .labelsHidden()
+                    .onChange(of: isLocked) { _, newValue in
+                        Task { await setLocked(newValue) }
                     }
-                    Spacer()
-                    Toggle("", isOn: $isLocked)
-                        .labelsHidden()
-                        .onChange(of: isLocked) { _, newValue in
-                            Task { await setLocked(newValue) }
-                        }
-                }
-                .padding(.horizontal, OneDayMetrics.spacingM)
-                .frame(minHeight: OneDayMetrics.rowHeight)
             }
-            .odGroup()
+            .padding(.horizontal, OneDayMetrics.spacingM)
+            .frame(minHeight: OneDayMetrics.rowHeight)
+        } header: {
+            SettingsSectionHeader("技能")
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private var contentGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionLabel("内容（SKILL.md）")
-                Spacer()
-                if isEditing {
-                    Button("取消") {
-                        draft = content ?? ""
-                        isEditing = false
-                    }
-                    .font(.callout)
-                    Button(isSaving ? "保存中…" : "保存") {
-                        Task { await saveContent() }
-                    }
-                    // 卡 17：medium 退出，保存钮 regular
-                    .font(.callout)
-                    .disabled(isSaving)
-                } else if content != nil {
-                    Button("编辑") {
-                        draft = content ?? ""
-                        isEditing = true
-                    }
-                    .font(.callout)
-                    .disabled(isLocked)
-                }
-            }
-            .padding(.top, OneDayMetrics.sectionOuterSpacing)
-            .padding(.bottom, OneDayMetrics.spacingS)
-            Group {
+        Section {
+            VStack(alignment: .leading, spacing: 0) {
                 if isEditing {
                     TextEditor(text: $draft)
                         .font(.metaMonospaced)
@@ -370,7 +342,34 @@ struct SkillDetailView: View {
                 Palette.fieldFill,
                 in: RoundedRectangle(cornerRadius: OneDayMetrics.codeCorner)
             )
+        } header: {
+            HStack(alignment: .firstTextBaseline) {
+                SettingsSectionHeader("内容（SKILL.md）")
+                Spacer()
+                if isEditing {
+                    Button("取消") {
+                        draft = content ?? ""
+                        isEditing = false
+                    }
+                    .font(.callout)
+                    Button(isSaving ? "保存中…" : "保存") {
+                        Task { await saveContent() }
+                    }
+                    // 卡 17：medium 退出，保存钮 regular
+                    .font(.callout)
+                    .disabled(isSaving)
+                } else if content != nil {
+                    Button("编辑") {
+                        draft = content ?? ""
+                        isEditing = true
+                    }
+                    .font(.callout)
+                    .disabled(isLocked)
+                }
+            }
         }
+        .listRowBackground(Color.clear)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     private func load() async {

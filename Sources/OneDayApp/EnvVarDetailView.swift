@@ -17,81 +17,76 @@ struct EnvVarDetailView: View {
     @State private var notice: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                SectionLabel("变量")
-                    .padding(.bottom, OneDayMetrics.spacingS)
-                VStack(spacing: 0) {
-                    // 键值行走 KeyValueRow（台账 198 收敛
-                    // S5 嫌疑页查实：键/类别两行同构造）
-                    KeyValueRow("键", value: entry.key)
-                    if let description = entry.description, !description.isEmpty {
-                        GroupDivider()
-                        Text(description)
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .padding(.horizontal, OneDayMetrics.spacingM)
-                            .padding(.vertical, OneDayMetrics.spacingSM)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    if let category = entry.category, !category.isEmpty {
-                        GroupDivider()
-                        KeyValueRow("类别", value: ServerLabels.categoryLabel(category))
-                    }
-                    GroupDivider()
-                    valueRow
+        List {
+            Section {
+                // 键值行走 List 行盒（台账 198 收敛
+                // S5 嫌疑页查实：键/类别两行同构造）
+                listKeyValueRow("键", value: entry.key)
+                if let description = entry.description, !description.isEmpty {
+                    Text(description)
+                        .font(.callout)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .padding(.vertical, OneDayMetrics.spacingSM)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .odGroup()
+                if let category = entry.category, !category.isEmpty {
+                    listKeyValueRow("类别", value: ServerLabels.categoryLabel(category))
+                }
+                valueRow
+            } header: {
+                SettingsSectionHeader("变量")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
 
-                SectionLabel("操作")
-                    .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                    .padding(.bottom, OneDayMetrics.spacingS)
-                VStack(spacing: 0) {
-                    actionRow(title: entry.isSet ? "修改值" : "设置值", icon: "pencil.circle") {
-                        showEditor = true
-                    }
-                    if entry.isSet {
-                        GroupDivider()
-                        actionRow(
-                            title: isRevealing ? "拉取中…" : "查看明文",
-                            icon: "eye.circle"
-                        ) {
-                            Task { await reveal() }
-                        }
-                        GroupDivider()
-                        Button(role: .destructive) {
-                            showDeleteConfirm = true
-                        } label: {
-                            HStack(spacing: OneDayMetrics.spacingSM) {
-                                Image(systemName: "trash.circle")
-                                    .font(.body)
-                                    .foregroundStyle(Palette.danger)
-                                    .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
-                                    .accessibilityHidden(true)
-                                Text("删除")
-                                    .font(.rowTitleL)
-                                    .foregroundStyle(Palette.danger)
-                                Spacer()
-                            }
-                            .padding(.horizontal, OneDayMetrics.spacingM)
-                            .frame(minHeight: OneDayMetrics.rowHeight)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.odPressable)
-                    }
+            Section {
+                actionRow(title: entry.isSet ? "修改值" : "设置值", icon: "pencil.circle") {
+                    showEditor = true
                 }
-                .odGroup()
-                if let notice {
+                if entry.isSet {
+                    actionRow(
+                        title: isRevealing ? "拉取中…" : "查看明文",
+                        icon: "eye.circle"
+                    ) {
+                        Task { await reveal() }
+                    }
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        HStack(spacing: OneDayMetrics.spacingSM) {
+                            Image(systemName: "trash.circle")
+                                .font(.body)
+                                .foregroundStyle(Palette.danger)
+                                .frame(width: OneDayMetrics.iconSlot, alignment: .leading)
+                                .accessibilityHidden(true)
+                            Text("删除")
+                                .font(.rowTitleL)
+                                .foregroundStyle(Palette.danger)
+                            Spacer()
+                        }
+                        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.odPressable)
+                }
+            } header: {
+                SettingsSectionHeader("操作")
+            }
+            .listRowBackground(Palette.surface)
+            .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+            if let notice {
+                Section {
                     Text(notice)
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingM)
                 }
+                .listRowBackground(Palette.surface)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle(entry.key)
         .navigationBarTitleDisplayMode(.inline)
@@ -133,10 +128,32 @@ struct EnvVarDetailView: View {
                     .foregroundStyle(Palette.inkSecondary)
             }
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .frame(minHeight: OneDayMetrics.rowHeight)
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
     }
 
+
+    /// List 行盒下的键值行（台账 198 收敛 S5）：共享
+    /// KeyValueRow 是 odGroup 卡内件、自带 spacingM 横
+    /// 距；List 行盒横距由 listRowInsets 统一给，故本页
+    /// 以同构行件就地呈现，只去卡内横距、行高改
+    /// settingsRowHeight
+    private func listKeyValueRow(_ label: String, value: String) -> some View {
+        HStack(spacing: OneDayMetrics.spacingSM) {
+            Text(label)
+                .font(.body)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+            Spacer(minLength: OneDayMetrics.spacingS)
+            Text(value)
+                .font(.metaMonospaced)
+                .tabularDigits()
+                .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
+        .contentShape(Rectangle())
+    }
 
     private func actionRow(
         title: String, icon: String, action: @escaping () -> Void
@@ -153,8 +170,7 @@ struct EnvVarDetailView: View {
                     .foregroundStyle(Palette.ink)
                 Spacer()
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .frame(minHeight: OneDayMetrics.rowHeight)
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.odPressable)

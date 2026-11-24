@@ -16,34 +16,34 @@ struct AuxModelsView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                let sections = AuxSlotCatalog.sections(
-                    assignments: store.auxAssignments,
-                    activePresetUsesMoA: store.activePresetUsesMoA
-                )
-                slotGroup(title: "常用", slots: sections.common)
-                slotGroup(title: "更多", slots: sections.more)
-                Text("改动保存后，下次重启 Hermes 才生效。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.top, OneDayMetrics.spacingM)
-                if let notice = store.notice {
-                    Text(notice)
+        List {
+            let sections = AuxSlotCatalog.sections(
+                assignments: store.auxAssignments,
+                activePresetUsesMoA: store.activePresetUsesMoA
+            )
+            slotGroup(title: "常用", slots: sections.common)
+            slotGroup(title: "更多", slots: sections.more)
+            Section {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
+                    Text("改动保存后，下次重启 Hermes 才生效。")
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
-                        .padding(.top, OneDayMetrics.spacingS)
-                }
-                if let errorMessage = store.errorMessage {
-                    InlineError(errorMessage)
-                        .padding(.top, OneDayMetrics.spacingM)
+                    if let notice = store.notice {
+                        Text(notice)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    if let errorMessage = store.errorMessage {
+                        InlineError(errorMessage)
+                    }
                 }
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
+            .listRowBackground(Color.clear)
         }
-        .background(Palette.pageBG)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
+        .background(Palette.settingsBG)
         .navigationTitle("辅助模型")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -56,20 +56,15 @@ struct AuxModelsView: View {
     private func slotGroup(
         title: String, slots: [AuxSlotCatalog.Slot]
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionLabel(title)
-                .padding(.top, OneDayMetrics.spacingL)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                ForEach(Array(slots.enumerated()), id: \.element.id) { index, slot in
-                    if index > 0 {
-                        GroupDivider()
-                    }
-                    slotRow(slot)
-                }
+        Section {
+            ForEach(Array(slots.enumerated()), id: \.element.id) { _, slot in
+                slotRow(slot)
             }
-            .odGroup()
+        } header: {
+            SettingsSectionHeader(title)
         }
+        .listRowBackground(Palette.surface)
+        .listRowInsets(OneDayMetrics.settingsRowInsets)
     }
 
     @ViewBuilder
@@ -97,9 +92,8 @@ struct AuxModelsView: View {
                 .padding(.top, OneDayMetrics.spacingMicro)
             }
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(minHeight: OneDayMetrics.rowHeight)
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
     }
 
     /// 行内选择器：值域＝跟随主模型＋全部已登记服务

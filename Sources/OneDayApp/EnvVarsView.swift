@@ -12,64 +12,65 @@ struct EnvVarsView: View {
     @State private var showAdd = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if !entries.isEmpty {
-                    // 0.3.7 卡 9：摘要卡「已设置 X / 共 Y」＋
-                    // 按服务端类别分组（已裁 4：类别名走
-                    // ServerLabels 翻译，未知回落「其他」；
-                    // 组内已设定在前）
+        List {
+            if !entries.isEmpty {
+                // 0.3.7 卡 9：摘要卡「已设置 X / 共 Y」＋
+                // 按服务端类别分组（已裁 4：类别名走
+                // ServerLabels 翻译，未知回落「其他」；
+                // 组内已设定在前）
+                Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         Text("已设置 \(entries.filter(\.isSet).count) / 共 \(entries.count)")
                             .font(.callout)
                             .foregroundStyle(Palette.ink)
                         Spacer()
                     }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
-                    .odGroup()
-                    ForEach(
-                        Array(entryGroups.enumerated()), id: \.element.label
-                    ) { groupIndex, group in
-                        SectionLabel(group.label)
-                            .padding(.top, groupIndex == 0 ? 28 : 28)
-                            .padding(.bottom, OneDayMetrics.spacingS)
-                        VStack(spacing: 0) {
-                            ForEach(Array(group.items.enumerated()), id: \.element.id) { index, entry in
-                                if index > 0 {
-                                    GroupDivider()
+                    .frame(minHeight: OneDayMetrics.settingsRowHeight)
+                }
+                .listRowBackground(Palette.surface)
+                .listRowInsets(OneDayMetrics.settingsRowInsets)
+
+                ForEach(
+                    Array(entryGroups.enumerated()), id: \.element.label
+                ) { _, group in
+                    Section {
+                        ForEach(group.items) { entry in
+                            NavigationLink {
+                                EnvVarDetailView(entry: entry) {
+                                    Task { await load() }
                                 }
-                                NavigationLink {
-                                    EnvVarDetailView(entry: entry) {
-                                        Task { await load() }
-                                    }
-                                } label: {
-                                    entryRow(entry)
-                                }
-                                .buttonStyle(.odPressable)
+                            } label: {
+                                entryRow(entry)
                             }
                         }
-                        .odGroup()
+                    } header: {
+                        SettingsSectionHeader(group.label)
                     }
-                } else if let errorMessage {
+                    .listRowBackground(Palette.surface)
+                    .listRowInsets(OneDayMetrics.settingsRowInsets)
+                }
+            } else if let errorMessage {
+                Section {
                     InlineError(errorMessage)
                     Button("重试") { Task { await load() } }
                         .buttonStyle(.odSecondary)
-                        .padding(.top, OneDayMetrics.spacingSM)
-                } else {
+                }
+                .listRowBackground(Palette.surface)
+            } else {
+                Section {
                     HStack(spacing: OneDayMetrics.spacingS) {
                         ProgressView()
                         Text("正在读取密钥…")
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    .padding(.top, OneDayMetrics.spacingL)
                 }
+                .listRowBackground(Palette.surface)
             }
-            .padding(.horizontal, OneDayMetrics.pageGutter)
-            .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingXL)
         }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(OneDayMetrics.settingsSectionSpacing)
+        .scrollContentBackground(.hidden)
         .background(Palette.settingsBG)
         .navigationTitle("服务器密钥")
         .navigationBarTitleDisplayMode(.inline)
@@ -123,11 +124,8 @@ struct EnvVarsView: View {
                 // inkSecondary
                 .foregroundStyle(Palette.inkSecondary)
                 .lineLimit(1)
-            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .frame(minHeight: OneDayMetrics.rowHeight)
+        .frame(minHeight: OneDayMetrics.settingsRowHeight)
         .contentShape(Rectangle())
     }
 
