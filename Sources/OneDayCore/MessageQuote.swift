@@ -82,6 +82,83 @@ public struct MessageQuote: Equatable, Sendable {
         return block + "\n\n" + userText
     }
 
+    /// outgoingContent 的逆运算（收敛包，2026-11-24）：
+    /// 把线格式「[引用 {称呼} 的消息]\n{引用正文}\n\n
+    /// {正文}」拆回（引用，正文）；纯引用块形（正文为
+    /// 空的发送）拆得正文为空串。历史导入/回补靠本函
+    /// 数把落进服务端历史的引用块还原成槽位（见
+    /// SessionHistoryImport.normalizedUserContent），
+    /// 不再让线格式原文直进气泡。
+    ///
+    /// 角色由称呼反推：「我」→ user，其余一律
+    /// assistant——引用只许指向 user/assistant 两类
+    /// 消息，助手称呼是档案显示名、无从反查角色，归
+    /// assistant 是唯一自洽解。同族块头（[引用动态：
+    /// 《…》] 等）不以「 的消息]」收尾，天然不命中。
+    ///
+    /// 切分歧义：引用正文与正文都可含空行，单凭分隔
+    /// 形无唯一解。knownQuoteTexts 给出候选全集（同
+    /// 批消息的呈现正文集）时，优先取「引用正文恰等
+    /// 于某条已知消息」的切法；无命中时取最后一个空
+    /// 行界——引用助手长文（Markdown 段落空行是常
+    /// 态）保全优先，正文多为短句。指纹不依赖切分精
+    /// 度：两侧都经 outgoingContent 从（正文，引用）
+    /// 重组线格式，任何切法拼回去都是同一线格式
+    /// （SessionHistorySync 指纹口径），切错只伤呈
+    /// 现不伤判同。
+    ///
+    /// 已知边界：用户亲笔正文若恰以同形块头起笔会被
+    /// 误拆——线格式无转义层，此为格式固有歧义（与
+    /// AttachedContext 标记同性质）；且本地亲笔条目
+    /// 恒带槽位、回补判同走重组不走本函数，误拆只可
+    /// 能发生在导入外来历史时。
+    public static func parse(
+        wireContent: String, knownQuoteTexts: Set<String> = []
+    ) -> (quote: MessageQuote, body: String)? {
+        guard let firstNewline = wireContent.firstIndex(of: "\n")
+        else { return nil }
+        let header = wireContent[..<firstNewline]
+        let headerPrefix = "[引用 "
+        let headerSuffix = " 的消息]"
+        guard header.hasPrefix(headerPrefix),
+              header.hasSuffix(headerSuffix)
+        else { return nil }
+        let name = header.dropFirst(headerPrefix.count)
+            .dropLast(headerSuffix.count)
+        guard !name.isEmpty else { return nil }
+        let role = name == "我" ? "user" : "assistant"
+        let rest = String(
+            wireContent[wireContent.index(after: firstNewline)...]
+        )
+        var splits: [(quote: String, body: String)] = []
+        var searchStart = rest.startIndex
+        while let range = rest.range(
+            of: "\n\n", range: searchStart..<rest.endIndex
+        ) {
+            splits.append((
+                quote: String(rest[..<range.lowerBound]),
+                body: String(rest[range.upperBound...])
+            ))
+            searchStart = range.upperBound
+        }
+        guard let fallback = splits.last else {
+            return (MessageQuote(role: role, content: rest), "")
+        }
+        if !knownQuoteTexts.isEmpty,
+           let hit = splits.first(where: {
+               knownQuoteTexts.contains($0.quote)
+           }) {
+            return (
+                MessageQuote(role: role, content: hit.quote),
+                hit.body
+            )
+        }
+        return (
+            MessageQuote(role: role, content: fallback.quote),
+            fallback.body
+        )
+    }
+
     /// 引用分发收口（§208）：一条用户消息至多带一
     /// 种引用——消息引用与动态引用在发送舱共用同
     /// 一槽位、落盘互斥（ChatEntry 的 quote 两字段
