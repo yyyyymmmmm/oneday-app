@@ -17929,3 +17929,15 @@ TG 出处（ChatMessageInteractiveFileNode.updateStatus/progressPressed）：未
 - **环境插曲（与本包代码无关）**：本线新建模拟器 ChatFindPhone 上装配套（含既有 ChatSearchFocusAssemblyTests）恒红（shownPosition 恒 nil），同构建在既有 iPhone 17 Pro Max（FA408EE9）上 3/3 绿、整跑亦在此机完成——判新模拟器状态问题（当日 Mac 载荷 30＋、多线并行），ChatFindPhone 已 shutdown；FA408EE9 非任何在役线专属机（W6 用 ProbePhone、中枢卡片用 HubCardPhone）。
 - **真机门（归用户 verdict）**：①点放大镜查找栏展开即键盘升起、可直接打字；②打字停手即出计数、列表自动滚到就近命中且整条点亮约 2.5 秒、正文命中词带黄底；③上/下钮逐条翻页、每条都滚到位＋点亮、首尾环绕；④搜一个只在未加载历史里的词：稍等能补窗搜到并定位（服务端会话线程）；⑤关查找（完成）后着色与点亮全消、列表停在原处不乱跳；⑥长回答（含代码块/引用）里命中词着色位置与原文逐处对得上。
 - **节号注记**：本节自占 **§503**——§502 已被中枢卡片线（feat/hub-card-presentation，§502 中枢卡片转场数学单源）在其分支占用，本线顺延一号，组版时按并集连排若再冲突以组版节对照表为准。
+
+## §504 组版 0.50.123（2026-11-24，分支 rel-05123，基线 rel-05122 @503dbead）
+
+内容：合入 feat/chat-find-fix @8b018d05（§503 对话内查找全件修复八件，合并提交 68c9a215、零冲突）；版本号 0.50.123／build 251（版本戳提交 1f73b1af＋tuist generate 产物 7a56ef38，Derived 戳亲验 0.50.123/251、未还原 Derived）。
+
+- **发布集对账**：122 发布集 1538 项（chatfind-release-tests.txt 全限定名）＋本版新钉 23 项（ChatFindTests 19＋ChatFindWiringTests 4）＝1561 项；以 chatfind-full.xcresult 提取全集归一化比对，恰多 23 新钉、122 名单零缺失。UI 集 13 项（自 chatfind-ui.xcresult 提取）。
+- **整跑实数（正式门，FA408EE9）**：单元 1561 项＝**1560 过／1 红／0 跳**，唯一红 MarkdownEngineDifferentialTests/testPerformanceGate（#13 性能门，整树老红、已裁）；UI 13 项＝**11 过／0 红／2 跳**。与落码线 §503 验收实数逐项一致。
+- **环境归因（如实记账）**：本线首跑用克隆模拟器 Rel123Phone（克隆自 Rel122Phone），单元 1558 过／3 红——多出 ChatFindWiringTests 两项（testSessionStartTargetIsConsumedByFocus／testSessionNextTargetIsConsumedByFocus，shownPosition XCTUnwrap nil）；同机构隔离复跑仍红、同构建产物在 FA408EE9 上该套 4/4 全绿且整跑达上行实数。与 §503 环境插曲同形（新/克隆模拟器上宿主集合视图落点量测拿不到行位置），判模拟器环境敏感、非代码问题；正式门以 FA408EE9 整跑为准。Rel123Phone 已 shutdown，FA408EE9 已恢复关机态。
+- **通道纪律**：共享测试通道末位 RUN 有 EXIT 配对（闲），但当晚 hub-card/theme/hub-rows 三线各自整跑、机器满载，本线按 122 先例走独立模拟器直跑，未碰共享通道、未抢道。
+- **打包**：Release BUILD SUCCEEDED；IPA OneDay-0.50.123-251.ipa，28,061,220 字节，md5 f8b30177b74ddf72f90af5daeb4ec652（Mac/VM 双边一致）；unzip 直验主 App 本体 plist 三值 0.50.123／251／site.didichou.oneday；已回传 VM ~/workspace/。
+- **节号对照**：现行最大节号 §503（查找落码节，随本版合入）；本组版节取 §504；中枢卡片线 §502 在其分支、待其组版时按并集连排。
+- **真机门**：沿用 §503 六项，归用户 verdict。
