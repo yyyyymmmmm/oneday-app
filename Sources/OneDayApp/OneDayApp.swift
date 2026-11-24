@@ -363,10 +363,28 @@ struct RootView: View {
     private var chatThemeRaw = ChatThemes.defaultID
     @AppStorage(AppearanceStorageKeys.avatarSize)
     private var avatarSizeRaw = AvatarSizeTier.medium.rawValue
+    // 强调色/背景/圆角/文字大小（§503）：根层同样只
+    // 观察（body 读一次挂依赖）。此前只观察主题与形象
+    // 大小，漏了这四个键——改强调色等只重渲设置页本
+    // 身，主页/聊天要等下一次导航才迟到读到新值（用
+    // 户 2026-11-25 报「切换主页半天反应不过来」）。
+    // 补齐后任一外观键变更即重渲整棵树，即时全 App 生效。
+    @AppStorage(AppearanceStorageKeys.chatAccentOverride)
+    private var accentOverrideRaw = -1
+    @AppStorage(AppearanceStorageKeys.chatBackground)
+    private var chatBackgroundRaw = ChatBackgroundStyle.standard.rawValue
+    @AppStorage(AppearanceStorageKeys.chatBubbleStyle)
+    private var bubbleStyleRaw = ChatBubbleStyle.standard.rawValue
+    @AppStorage(AppearanceStorageKeys.chatTextSize)
+    private var chatTextSizeRaw = ChatTextSizeTier.system.rawValue
 
     var body: some View {
         _ = chatThemeRaw
         _ = avatarSizeRaw
+        _ = accentOverrideRaw
+        _ = chatBackgroundRaw
+        _ = bubbleStyleRaw
+        _ = chatTextSizeRaw
         return Group {
             switch appState.phase {
             case .needsConnection:

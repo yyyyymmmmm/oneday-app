@@ -285,10 +285,14 @@ public enum Palette {
     /// 0.26.0 起主题化：值自当前主题表——默认「三狗」
     /// 行与上述旧值逐字相同，切回默认即回原貌。
     public static var userBubbleFill: Color {
-        // 台账 197 定版（§335）：处理经 Core 解析
-        // 出口（浅档浅填＋深字／暗档深饱维持）——
-        // 本层只取解析结果，不自算混色、不硬编码
-        // 色值
+        // 强调色联动（用户 2026-11-25 裁定，TG 口径）：
+        // 外观页选了预设强调色时，用户泡＝该强调色（明暗
+        // 同值），与链接/勾选/选中同源同色；未设/复位＝
+        // 当前主题气泡行（台账 197 定版，处理经 Core 解
+        // 析出口，本层不硬编码色值）
+        if let override = AppearancePreferences.accentOverride() {
+            return themedColor(light: override, dark: override)
+        }
         let theme = currentChatTheme
         return themedColor(
             light: theme.bubbleFill(dark: false),
@@ -302,13 +306,29 @@ public enum Palette {
     /// #EDF1F3、对暗泡实算对比仅 4.28 压线，本版随主
     /// 题表修正为 4.87（§53 登记）
     public static var userBubbleText: Color {
-        // 台账 197 定版（§335）：与 userBubbleFill
-        // 同一解析出口成对取值（浅深字/暗现泡字）
+        // 强调色联动（用户 2026-11-25 裁定）：覆盖态下
+        // 泡字按该强调色明度自动取黑/白，保证可读；未
+        // 设/复位＝当前主题泡字行（台账 197 定版成对取
+        // 值，浅深字/暗现泡字）
+        if let override = AppearancePreferences.accentOverride() {
+            return contrastText(forHex: override)
+        }
         let theme = currentChatTheme
         return themedColor(
             light: theme.bubbleText(dark: false),
             dark: theme.bubbleText(dark: true)
         )
+    }
+
+    /// 强调色上的可读文字色（ITU-R BT.601 luma，与
+    /// AppearanceView.accentDot 同口径）：亮度 >0.6 取
+    /// 黑、否则取白，保证浅/深强调色上字都够对比
+    private static func contrastText(forHex hex: UInt32) -> Color {
+        let r = Double((hex >> 16) & 0xFF)
+        let g = Double((hex >> 8) & 0xFF)
+        let b = Double(hex & 0xFF)
+        let luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+        return luminance > 0.6 ? Color.black : Color.white
     }
 
     // 抽屉纱（0.4.1 第 10 修量测对齐，例外 E5 自有形态）：
