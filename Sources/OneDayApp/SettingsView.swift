@@ -595,11 +595,11 @@ struct SettingsView: View {
                 set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
             )) {
                 HStack(spacing: OneDayMetrics.spacingSM) {
-                    Image(systemName: "iphone.radiowaves.left.and.right")
-                        .font(.system(size: FrameworkIcon.rowGlyphSize, weight: .regular))
-                        .foregroundStyle(Palette.ink)
-                        .frame(width: OneDayMetrics.iconSlot)
-                        .accessibilityHidden(true)
+                    IconTile(
+                        symbol: "iphone.radiowaves.left.and.right",
+                        color: Palette.primary,
+                        size: OneDayMetrics.iconSlot
+                    )
                     Text("触感反馈")
                         .font(.rowTitleL)
                         .foregroundStyle(Palette.ink)
@@ -868,22 +868,16 @@ struct SettingsView: View {
 
     // MARK: - 共用行组件
 
-    private func rowIcon(_ name: String, color: Color = Palette.ink) -> some View {
-        Image(systemName: name)
-            // 0.24.0（用户当日指令，口径变更）：字形
-            // 28→21 regular（令牌 settingsGlyphSize 同
-            // 改）落 HIG 符号带 20–22、与抽屉名单字形
-            // 同值；槽宽 iconSlot 28→30 且字形改槽内居
-            // 中——与抽屉同几何（槽 30＋间距 12＋居中），
-            // 两面图→字视觉间距自此一致；符号一律线性
-            // 非 fill 变体（换符号清单见 §51）
-            .font(.system(
-                size: FrameworkIcon.settingsGlyphSize,
-                weight: .regular
-            ))
-            .foregroundStyle(color)
-            .frame(width: OneDayMetrics.iconSlot, alignment: .center)
-            .accessibilityHidden(true)
+    private func rowIcon(_ name: String, color: Color = Palette.primary) -> some View {
+        // 设置行图标统一走 IconTile（§344 入口图标底
+        // 色块：饱和底圆角块＋白字形），取代旧裸线性
+        // 灰符号——Apple/Telegram 式设置入口画法。色
+        // 缺省主题强调单色统一（不逐行新造分类色）
+        IconTile(
+            symbol: name,
+            color: color,
+            size: OneDayMetrics.iconSlot
+        )
     }
 
     /// 导航行（共用行组件）：图标＋题（0.24.0 起

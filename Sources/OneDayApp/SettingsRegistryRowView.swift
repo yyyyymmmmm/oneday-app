@@ -81,16 +81,12 @@ struct SettingsRegistryRowView: View {
         }
     }
 
-    /// 行图标（与根页 rowIcon 同几何：字形 settings-
-    /// GlyphSize、槽宽 iconSlot 居中、线性非 fill）
+    /// 行图标（与根页同走 IconTile 色块图标）
     private func rowIcon(_ name: String) -> some View {
-        Image(systemName: name)
-            .font(.system(
-                size: FrameworkIcon.settingsGlyphSize,
-                weight: .regular
-            ))
-            .foregroundStyle(Palette.ink)
-            .frame(width: OneDayMetrics.iconSlot, alignment: .center)
-            .accessibilityHidden(true)
+        IconTile(
+            symbol: name,
+            color: Palette.primary,
+            size: OneDayMetrics.iconSlot
+        )
     }
 }
