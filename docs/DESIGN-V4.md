@@ -17975,3 +17975,16 @@ TG 出处（ChatMessageInteractiveFileNode.updateStatus/progressPressed）：未
 - 真机门（等值抽查）：反应浮排形态、动态页卡内距、台账副题秒跳行宽不抖、工作详情值列、用量百分比列、主题行尾留白——预期全零变化。
 - 节号注记：本树 DESIGN 最大节为 §484（组版 116）；§485 预留 117 组版线，本批取 §486，组版合并时如撞号按并集连排顺延。
 - **组版顺延（0.50.125 亲解）**：本节原自占 §486 与主线既有 §486（动态＋点子两页全抄修复）撞号，按并集连排顺延为 §507；代码自指（ChatView 140 落位注记）同步改 §507。合并亲解三处：①FeedView 分类 chip 内距取主线后续升档值（horizontal spacingSM／vertical spacingXS），不采分拣对旧值的令牌化；②IdeasView「依据」行与 categoryLabel chip 已被主线 §486.6 撤出卡面，分拣对已删代码的令牌化作废——两处合计收编 52 中 2 处未入合并树，实收 50；③HubLedgerSection 副题活跃支合并双方：字体取 §500 rowSubtitle、等宽补 .monospacedDigit() 保留（静态支自动合并同）。
+
+## §508 组版 0.50.125（2026-11-24，分支 rel-05125，基线 rel-05124 @6a5f17a0）
+
+内容：合入 feat/hig-sort-batch @a54848f1（§507 规范小分拣批：本体 d6f00277＋入档 a54848f1，合并提交 19d9356c）；版本号 0.50.125／build 253（版本戳提交 6da84df7：Project.swift→tuist generate 带 DEVELOPER_DIR 27.2→Derived plist 亲验 0.50.125/253、未还原 Derived）。
+
+- **合并图**：rel-05124→rel-05125 共 4 笔、24 文件（小分拣 22 面令牌收编＋Project.swift＋Derived plist＋DESIGN）；冲突 4 处亲解（FeedView／IdeasView 取主线、HubLedgerSection 双合、DESIGN 节号顺延），细节见 §507 组版顺延注（收编 52 中 2 处未入合并树、实收 50）。
+- **发布集对账**：自 124 正式门 bundle（rel124-unit.xcresult／rel124-ui.xcresult）以 xcresulttool 提取全限定名——单元 1579、UI 18。124 更名项（HubSegmentsConsolidationTests／testHubCardPresentationIsFullScreenNotSheet）124 整跑以旧名请求被静默跳过、靠补跑整套对账；本版按新名入单补正，单元集 1580 项、UI 集 18 项。整跑实跑数与请求数逐项相等（1580／18），零静默跳过。
+- **整跑实数（正式门，FA408EE9）**：单元 1580 项＝**1579 过／1 红／0 跳**，唯一红 MarkdownEngineDifferentialTests/testPerformanceGate（#13 性能门，整树老红、逐版同红已裁）；更名项在集内实跑通过。UI 18 项＝**16 过／0 红／2 跳**（跳为 ChatGestureNativeSurfaceTests 两项：testLongPressOnPhoneShowsLinkMenuNotRowMenu、testStreamingDoubleTapSelectsAndLongPressShowsMenu，与历版同形）。
+- **通道纪律**：原组版线 21:28 以独立 DerivedData（dd-05125-test）直跑开跑后无声结束、xcodebuild 进程存活，续跑线接管监跑至 21:43 单元＋UI 全程毕——未 kick、未覆写共享 test-cmd.sh、未抢道；打包同走独立 DerivedData（dd-05125-release）直跑。
+- **打包**：Release BUILD SUCCEEDED（dd-05125-release、CODE_SIGNING_ALLOWED=NO）；IPA OneDay-0.50.125-253.ipa，28,071,442 字节，md5 c2a5fffd014ba05961c6bb4efa3d0c4d（Mac／VM 双边一致）；unzip 直验 IPA 本体 plist 三值 0.50.125／253／site.didichou.oneday；已回传 VM ~/workspace/。
+- **节号对照**：§507 小分拣（本版合入、保留其顺延号）；§505 中枢行型（feat/hub-rows-consume 自占）待 128 组版并入；本组版节取 §508。
+- **需求总表**：本批源自 HIG 合规审计（§507），需求总表无对应用户条目、无划账项。
+- **真机门**：沿用 §507 等值抽查六项（反应浮排形态、动态页卡内距、台账副题秒跳行宽不抖、工作详情值列、用量百分比列、主题行尾留白——预期全零变化），归用户 verdict。
