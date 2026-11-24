@@ -38,6 +38,7 @@ Commercial personal AI assistants run your agent — and keep your data — on s
 - **Voice dictation** and on-device connectors (calendar, contacts, reminders, health summaries) with a strict one-switch-per-dataset privacy model
 - **iOS 26 native design** — Liquid Glass surfaces, a token-driven design system, full Dark Mode and Dynamic Type support
 - **Self-hosted first** — in-app setup wizard: paste your server address and key, the app verifies the connection, done
+- **Four languages built in** — English, Simplified Chinese, Traditional Chinese and French; the French localization is fully covered (100% of strings) and ships with 0.51.0
 
 ## Requirements
 
