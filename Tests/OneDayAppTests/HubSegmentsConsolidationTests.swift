@@ -119,6 +119,7 @@ final class HubSegmentsConsolidationTests: XCTestCase {
             Color.clear
                 .fullScreenCover(isPresented: $box.presented) {
                     HubCardHost(
+                        progress: HubCardProgress(),
                         onDismissed: { box.presented = false }
                     ) { _ in
                         AgentHubView()
