@@ -12824,13 +12824,14 @@ private struct ComposerBarLayout: Layout {
     /// 包·语义 6）：记一次「查无此 run」的访问——计
     /// 数＋首查时刻回写账本（跨访问累计，旧口径每
     /// 次访问从零磨 600s、账本永不终局）；累计达
-    /// 标（≥3 次访问且首查距今 ≥24h，RunLedger.
+    /// 标（访问 ≥3 次或首查距今 ≥24h，双闸取或，RunLedger.
     /// missingRunIsLost）→ 摘账本＋条目判失败可重
     /// 发（成因 .runResultLost 落账钉死、不自动重
     /// 发）＋终局呈现，返回 true；未达标返回 false
     /// （账本保留、下次访问续查）。极少数同访双记
-    /// （观察窗与耗尽段同访各记一次）由 24h 年龄
-    /// 闸兜底，不影响终局正确性
+    /// （观察窗与耗尽段同访各记一次）至多让次数闸
+    /// 提前一次访问触发——run 持续查不到本身已是
+    /// 强证据，口径可接受
     private func recordMissingRunVisit(
         thread: ChatThread, entry: inout RunLedgerEntry,
         demoMode: Bool
@@ -12843,7 +12844,7 @@ private struct ComposerBarLayout: Layout {
             appState.runLedger.upsert(entry)
         }
         guard RunLedger.missingRunIsLost(
-            count: entry.missingReconcileCount,
+            missingCount: entry.missingReconcileCount,
             firstMissingAt: entry.firstMissingAt,
             now: Date()
         ) else { return false }
@@ -12980,7 +12981,7 @@ private struct ComposerBarLayout: Layout {
             // 鉴权失败/5xx 全被记成「run 不见了」，
             // 600s 磨完给假终局；现只有客户端明确
             // 404（runStatus 返 nil）才是真 missing
-            let status: RunStatusOutput?
+            let status: RunStatusResponse?
             do {
                 status = try await appState.client.runStatus(
                     config: config, apiKey: apiKey, runID: runID

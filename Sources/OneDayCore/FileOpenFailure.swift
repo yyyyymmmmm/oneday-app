@@ -64,7 +64,10 @@ public enum FileOpenFailure: String, CaseIterable, Sendable {
             return .timeout
         case .unreachable, .healthCheckFailed,
              .sessionExpired, .loginRejected, .loginRateLimited,
-             .loginFailed, .apiKeyRejected:
+             .loginFailed, .apiKeyRejected, .rateLimited:
+            // rateLimited（发送失败机制包新增档）：
+            // 文件取回被限流同属服务端暂时不可用，
+            // 归本档「稍后再试」口径
             return .serviceUnavailable
         case .invalidServerAddress, .decodingFailed,
              .modelNotUpstream, .cancelled,
