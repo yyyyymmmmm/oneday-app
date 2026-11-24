@@ -1,3 +1,4 @@
+import OneDayCore
 import OneDayDesign
 import SwiftUI
 
@@ -21,6 +22,9 @@ import SwiftUI
 struct HubIdentityCapsule: View {
     var displayName: String
     var statusWord: String?
+    /// 有待批审批时为 true：第二行亮蓝字「需要批准」，
+    /// 与卡面待批状态同源
+    var needsApproval: Bool = false
     var onOpenHub: () -> Void
     /// 「在对话中查找」是聊天页专属下沉动作（§449.1）：
     /// §486 起本件被内容页页头簇（ContentPageHeader）
@@ -28,6 +32,16 @@ struct HubIdentityCapsule: View {
     /// 长按菜单只留「打开枢纽」、不挂 VO 自定义动作；
     /// 聊天页传闭包、行为一字不变
     var onFindInConversation: (() -> Void)? = nil
+
+    private var effectiveStatusWord: String? {
+        if needsApproval {
+            return L10n.string("需要批准")
+        }
+        guard let statusWord, !statusWord.isEmpty else {
+            return nil
+        }
+        return statusWord
+    }
 
     var body: some View {
         // VO 自定义动作只在宿主真有此动作时才挂（nil
@@ -52,10 +66,14 @@ struct HubIdentityCapsule: View {
                     .font(.headline)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                if let statusWord, !statusWord.isEmpty {
-                    Text(statusWord)
+                if let text = effectiveStatusWord {
+                    Text(text)
                         .font(.caption)
-                        .foregroundStyle(Palette.inkSecondary)
+                        .foregroundStyle(
+                            needsApproval
+                                ? Palette.primary
+                                : Palette.inkSecondary
+                        )
                         .lineLimit(1)
                 }
             }
@@ -65,7 +83,7 @@ struct HubIdentityCapsule: View {
         }
         .buttonStyle(.odPressable)
         .accessibilityLabel(
-            statusWord.map { "\(displayName)，\($0)，打开枢纽" }
+            effectiveStatusWord.map { "\(displayName)，\($0)，打开枢纽" }
                 ?? "\(displayName)，打开枢纽"
         )
         .accessibilityIdentifier("topbar.identityCapsule")

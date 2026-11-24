@@ -83,8 +83,19 @@ public enum ApprovalCardSpec {
     public static func actionStack(
         canDecide: Bool, blocked: Bool
     ) -> [ApprovalCardAction] {
+        actionStack(
+            canDecide: canDecide, blocked: blocked, highRisk: false
+        )
+    }
+
+    /// 动作栈（高风险写操作降两钮）：高风险写操作只给
+    /// 「允许／拒绝」，不提供「总是允许」
+    public static func actionStack(
+        canDecide: Bool, blocked: Bool, highRisk: Bool
+    ) -> [ApprovalCardAction] {
         guard canDecide else { return [] }
         if blocked { return [.reject] }
+        if highRisk { return [.approve, .reject] }
         return ApprovalCardAction.allCases
     }
 

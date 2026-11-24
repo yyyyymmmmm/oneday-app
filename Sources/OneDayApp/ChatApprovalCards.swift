@@ -49,24 +49,18 @@ struct ChatApprovalZone: View {
                    let record = records.first(
                        where: { $0.id == activeID }
                    ) {
-                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                        if queue.queuedCount > 0 {
-                            Text(L10n.format(
-                                "待审批 1 / %lld",
-                                Int64(queue.queuedCount + 1)
-                            ))
-                            .font(.caption.weight(.medium))
-                            .monospacedDigit()
-                            .foregroundStyle(Palette.inkSecondary)
-                            .padding(.horizontal, OneDayMetrics.spacingXS)
-                        }
-                        ChatApprovalCard(
-                            store: store, record: record,
-                            ledger: ledger
+                    let progressText: String? = queue.queuedCount > 0
+                        ? L10n.format(
+                            "待批 1/%lld",
+                            Int64(queue.queuedCount + 1)
                         )
-                        .id(record.id)
-                        .transition(.opacity)
-                    }
+                        : nil
+                    ChatApprovalCard(
+                        store: store,
+                        record: record,
+                        queueProgress: progressText,
+                        ledger: ledger
+                    )
                 } else if !unanchoredResolved.isEmpty {
                     resolvedSummaryRow(unanchoredResolved)
                 }
@@ -81,7 +75,7 @@ struct ChatApprovalZone: View {
         HStack(spacing: OneDayMetrics.spacingS) {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(Palette.success)
-            Text("已允许并记住这一类")
+            Text(L10n.format("已允许并记住（%@）", toast.scopeLabel))
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
@@ -101,61 +95,63 @@ struct ChatApprovalZone: View {
         )
     }
 
-    /// 全部批完后的单行轻汇总（不再批一条堆一行、消除页面跳动）
+    /// 全部批完后的静态普通回执行（非卡，不堆叠已决行）
     private func resolvedSummaryRow(
         _ lines: [ApprovalResolvedLine]
     ) -> some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
+        HStack(spacing: OneDayMetrics.spacingXS) {
             if lines.count == 1, let only = lines.first {
                 Image(systemName: only.outcome.isPositive
                     ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.footnote)
                     .foregroundStyle(only.outcome.isPositive
                         ? Palette.success : Palette.danger)
                 Text(only.summary)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Palette.ink)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
-                Spacer()
+                Text("·")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
                 Text(only.outcome.label)
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
             } else {
                 Image(systemName: "checkmark.circle.fill")
+                    .font(.footnote)
                     .foregroundStyle(Palette.success)
-                Text(L10n.format("已处理 %lld 项审批", Int64(lines.count)))
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Palette.ink)
+                Text(L10n.format("已处理 %lld 项", Int64(lines.count)))
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
-                Spacer()
             }
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .background(
-            Palette.surface,
-            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
-        )
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, OneDayMetrics.spacingXS)
     }
 }
 
 /// 单张就地审批卡：卡面本体走共用组件
 /// ApprovalCardFace（样式二期 S2-01/02/03，与枢纽待
 /// 批卡同一实现、同一几何与句式）；本宿主只持有卡
-/// 体外框、详情的就地展开（SmoothExpand）与两只确
-/// 认弹窗。卡面零原始 JSON、零英文运维串（宪法
-/// §8）；材质与枢纽卡同为实色面内容卡
-/// （Palette.surface），与玻璃消息面分工一致。
+/// 体外框与详情的就地展开（SmoothExpand）。卡面零原
+/// 始 JSON、零英文运维串（宪法 §8）；材质与枢纽卡
+/// 同为实色面内容卡（Palette.surface），与玻璃消息
+/// 面分工一致。
 /// §165 起两个宿主共用：流末尾区（ChatApprovalZone）
 /// 与锚定行（ChatView.approvalAnchorRow）——同一张
 /// 卡、同一裁决路径，落位不同而已
 struct ChatApprovalCard: View {
     let store: AgentHubStore
     let record: WriteGateRecord
+    /// 多条排队时的进度文案（如「待批 1/3」），单条为 nil
+    var queueProgress: String? = nil
     /// §329 行状态账本（聊天列表面传入）：详情四
     /// 态（展开/详情/错误/加载中）改存账本——详情
     /// 区高度对行高合成器可见（.absolute 回喂）；
     /// 无账本环境回落本地 @State、四态语义逐字不
-    /// 变（确认弹窗两件与详情无关、恒本地）
+    /// 变
     var ledger: ChatRowStateLedger? = nil
 
     @State private var localDetail: WriteGateDetail?
@@ -244,6 +240,7 @@ struct ChatApprovalCard: View {
             record: record,
             isDeciding: store.decidingIDs.contains(record.id),
             note: store.cardNotes[record.id],
+            queueProgress: queueProgress,
             detailLinkTitle: detailExpanded ? "收起详情" : "查看详情",
             onDetail: toggleDetail,
             onAction: handleAction

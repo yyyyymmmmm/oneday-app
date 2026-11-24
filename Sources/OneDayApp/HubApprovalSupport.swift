@@ -414,8 +414,151 @@ struct ApprovalReviewContent: View {
     /// 再叠页面级边距（默认 false＝sheet 独立呈现）
     var embedded: Bool = false
 
+    private struct KeyValueRow: Identifiable {
+        let id: String
+        let label: String
+        let value: String
+    }
+
+    private var structuredRows: [KeyValueRow] {
+        var rows: [KeyValueRow] = []
+        let verb = WriteGateLabels.actionVerb(record.effectiveOp)
+        rows.append(KeyValueRow(
+            id: "action",
+            label: "操作",
+            value: "\(verb)\(record.subsystem.badgeLabel)"
+        ))
+        let target = readableTargetLabel
+        if !target.isEmpty {
+            rows.append(KeyValueRow(
+                id: "target",
+                label: "对象",
+                value: target
+            ))
+        }
+        rows.append(KeyValueRow(
+            id: "origin",
+            label: "来源",
+            value: record.originLabel
+        ))
+        if let parsed = parsedPayloadRows, !parsed.isEmpty {
+            rows.append(contentsOf: parsed)
+        } else {
+            let preview = readableContentSummary
+            if !preview.isEmpty {
+                rows.append(KeyValueRow(
+                    id: "content",
+                    label: "内容",
+                    value: preview
+                ))
+            }
+        }
+        return rows
+    }
+
+    private var readableTargetLabel: String {
+        if let name = record.targetName, !name.isEmpty {
+            return name
+        }
+        if let memTarget = record.memTarget, !memTarget.isEmpty {
+            return memTarget == "user" ? "个人资料" : "长期记忆"
+        }
+        let label = detail.review.targetLabel
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if label.lowercased() == "memory" { return "长期记忆" }
+        return label
+    }
+
+    private var readableContentSummary: String {
+        if let preview = record.contentPreview, !preview.isEmpty {
+            return preview
+        }
+        let raw = detail.review.displayDiff
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return "" }
+        let lines = raw.split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+            .filter { line in
+                !line.hasPrefix("@@")
+                    && !line.hasPrefix("---")
+                    && !line.hasPrefix("+++")
+            }
+        return lines.prefix(12).joined(separator: "\n")
+    }
+
+    /// 若 proposed/diff 是 JSON 对象，将其转为可读中文键值对，
+    /// 避免在详情主区直接裸露原始 JSON 或英文 key
+    private var parsedPayloadRows: [KeyValueRow]? {
+        let candidate = detail.review.proposed.isEmpty
+            ? detail.review.displayDiff
+            : detail.review.proposed
+        guard let data = candidate.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data)
+                as? [String: Any],
+              !dict.isEmpty
+        else { return nil }
+
+        let keyMap: [String: String] = [
+            "target": "写入位置",
+            "mem_target": "写入位置",
+            "action": "动作",
+            "op": "动作",
+            "name": "名称",
+            "skill_name": "技能名",
+            "path": "路径",
+            "file_path": "文件路径",
+            "content": "写入内容",
+            "new_string": "改为",
+            "old_string": "原内容",
+            "description": "说明",
+            "entry": "记忆内容",
+        ]
+        let preferredOrder = [
+            "target", "mem_target", "name", "skill_name",
+            "path", "file_path", "old_string", "new_string",
+            "content", "entry", "description",
+        ]
+        var orderedKeys: [String] = []
+        for key in preferredOrder where dict[key] != nil {
+            orderedKeys.append(key)
+        }
+        for key in dict.keys.sorted()
+        where !orderedKeys.contains(key) && keyMap[key] != nil {
+            orderedKeys.append(key)
+        }
+        var rows: [KeyValueRow] = []
+        for key in orderedKeys {
+            guard let label = keyMap[key],
+                  let rawValue = dict[key]
+            else { continue }
+            let valueText = formatJSONScalar(rawValue)
+            guard !valueText.isEmpty else { continue }
+            rows.append(KeyValueRow(
+                id: "kv_\(key)",
+                label: label,
+                value: valueText
+            ))
+        }
+        return rows.isEmpty ? nil : rows
+    }
+
+    private func formatJSONScalar(_ value: Any) -> String {
+        if let str = value as? String {
+            if str == "user" { return "个人资料" }
+            if str == "memory" { return "长期记忆" }
+            return str.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let num = value as? NSNumber {
+            return num.stringValue
+        }
+        if let arr = value as? [String] {
+            return arr.joined(separator: "、")
+        }
+        return ""
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             ForEach(detail.review.noteLabels, id: \.self) { label in
                 Label(label, systemImage: "exclamationmark.triangle")
                     .font(.footnote)
@@ -429,16 +572,42 @@ struct ApprovalReviewContent: View {
                 .font(.footnote)
                 .foregroundStyle(Palette.warningText)
             }
-            Text(detail.review.displayDiff)
-                .font(.system(.footnote, design: .monospaced))
-                .foregroundStyle(Palette.ink)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+                ForEach(structuredRows) { row in
+                    HStack(
+                        alignment: .top,
+                        spacing: OneDayMetrics.spacingS
+                    ) {
+                        Text(row.label)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .frame(width: 64, alignment: .leading)
+                        Text(row.value)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.ink)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            .padding(OneDayMetrics.spacingSM)
+            .background(
+                Palette.fieldFill,
+                in: RoundedRectangle(
+                    cornerRadius: OneDayMetrics.fieldCorner,
+                    style: .continuous
+                )
+            )
             DisclosureGroup("原始信息（排障用）") {
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                     Text("服务端摘要：\(record.summary)")
                     Text("来源原值：\(record.origin)")
                     Text("记录编号：\(record.id)")
+                    if !detail.review.displayDiff.isEmpty {
+                        Text(detail.review.displayDiff)
+                            .font(.system(.caption, design: .monospaced))
+                            .padding(.top, OneDayMetrics.spacingXS)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(Palette.inkSecondary)

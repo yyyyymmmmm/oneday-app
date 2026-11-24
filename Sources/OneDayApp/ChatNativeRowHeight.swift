@@ -2028,7 +2028,7 @@ struct ChatNativeRowHeightComposer {
         items.append(spec(.caption1))
         items.append(weightedHeight(
             ApprovalCardCopy.question(for: record),
-            .body, .semibold, width: innerWidth
+            .body, .semibold, width: innerWidth, lineLimit: 2
         ))
         items.append(spec(.subheadline))
         if let reason = ApprovalCardCopy.reasonLine(
@@ -2085,7 +2085,9 @@ struct ChatNativeRowHeightComposer {
             items.append(max(20, spec(.caption1)))
         } else if record.canDecide {
             let actions = ApprovalCardSpec.actionStack(
-                canDecide: true, blocked: record.isBlocked
+                canDecide: true,
+                blocked: record.isBlocked,
+                highRisk: record.isHighRisk
             )
             items.append(
                 ApprovalCardSpec.actionStackHeight(actions)
@@ -2241,23 +2243,20 @@ struct ChatNativeRowHeightComposer {
             items.append(approvalCardHeight(
                 record: record, width: contentWidth
             ))
-        }
-        if queue.queuedCount > 0 {
-            items.append(
-                OneDayMetrics.spacingS * 2
-                    + spec(.footnote)
-            )
-        }
-        for lineID in inputs.resolvedLineIDs
-        where !inputs.anchored.contains(lineID) {
-            items.append(
-                OneDayMetrics.spacingS * 2
-                    + spec(.footnote)
-            )
+        } else {
+            let hasUnanchoredResolved = inputs.resolvedLineIDs.contains {
+                !inputs.anchored.contains($0)
+            }
+            if hasUnanchoredResolved {
+                items.append(
+                    OneDayMetrics.spacingXS * 2
+                        + spec(.footnote)
+                )
+            }
         }
         guard !items.isEmpty else { return 0 }
         return items.reduce(0, +)
-            + OneDayMetrics.spacingM
+            + OneDayMetrics.spacingS
                 * CGFloat(items.count - 1)
     }
 

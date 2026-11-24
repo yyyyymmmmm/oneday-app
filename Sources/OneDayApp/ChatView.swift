@@ -2348,10 +2348,9 @@ struct ChatView: View {
                 // §449.9 立源、§474 收口：第二行＝当前
                 // 工具活动短语（与中枢状态行同读
                 // AppState.liveActivityPhrase、同源同
-                // 口径）；§474 起无活动不回落连接状态
-                // 词——第二行留空（用户亲令删「在线」、
-                // 小字只许工作状态）
+                // 口径）；有待批时亮蓝字「需要批准」
                 statusWord: appState.liveActivityPhrase,
+                needsApproval: appState.sharedHubStore().hasPendingApprovals,
                 onOpenHub: { presentHub() },
                 onFindInConversation: { showFind = true }
             )
@@ -5201,30 +5200,28 @@ struct ChatView: View {
                 ledger: rowStateLedger
             )
         case .decided(let item):
-            HStack(spacing: OneDayMetrics.spacingS) {
+            HStack(spacing: OneDayMetrics.spacingXS) {
                 Image(systemName: item.isApproved
                     ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.footnote)
                     .foregroundStyle(item.isApproved
                         ? Palette.success : Palette.danger)
                 Text(item.headline)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Palette.ink)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
-                Spacer()
+                Text("·")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
                 Text(item.isRuleApproved
                     ? L10n.string("已按规则放行")
                     : item.decisionLabel)
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .padding(.vertical, OneDayMetrics.spacingS)
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.containerCorner
-                )
-            )
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, OneDayMetrics.spacingXS)
         case .stale:
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "questionmark.circle")
@@ -10404,10 +10401,25 @@ private struct ComposerBarLayout: Layout {
         // 至多一轮在飞」改由出口 drain 守卫把守，
         // 入口不再禁止
         guard !text.isEmpty || !pending.isEmpty else { return }
-        // 有待批审批卡时拦截发送并给轻量提示（对齐 Muse 审批框：
-        // 避免用户打「允许」走文本消息而非结构化授权落账）
+        // 有待批审批卡时拦截发送，给轻量浮条提示并自动滚回审批卡位置
         if appState.sharedHubStore().hasPendingApprovals {
-            notice = L10n.string("审核聊天中的批准请求以继续")
+            showNotice(
+                L10n.string("先处理上面的批准请求"),
+                tier: .brief
+            )
+            if let pendingAnchor = currentThread?.sortedEntries.last(where: { entry in
+                guard let key = entry.approvalKey,
+                      let recordID = ApprovalAnchor.recordID(fromKey: key)
+                else { return false }
+                if case .pending = appState.sharedHubStore().anchorRowState(recordID: recordID) {
+                    return true
+                }
+                return false
+            }) {
+                surfaceScrollToEntry(pendingAnchor.id, animated: true)
+            } else {
+                scrollToBottom(animated: true)
+            }
             return
         }
         // D3（DESIGN §352）：编辑态在武装时发送分
