@@ -51,6 +51,7 @@ struct ChatNativeRowHeightComposer {
     /// 活读源（适配器形态在席；量测台形态为 nil）
     let ledger: ChatRowStateLedger?
     let hubStore: AgentHubStore?
+    let outboxRetry: OutboxRetryStore?
     let agentDisplayName: String
     let emptyStateAvatarSize: CGFloat
     /// 环境原值（量测工单按此重建核心）
@@ -79,18 +80,20 @@ struct ChatNativeRowHeightComposer {
         displayScale: CGFloat,
         ledger: ChatRowStateLedger,
         hubStore: AgentHubStore,
+        outboxRetry: OutboxRetryStore? = nil,
         agentDisplayName: String,
         emptyStateAvatarSize: CGFloat
     ) {
         self.contentWidth = screenWidth
             - horizontalPadding * 2
-        self.assistantTextWidth = screenWidth
-            * OneDayMetrics.assistantTextWidthFraction
+        self.assistantTextWidth = OneDayMetrics
+            .assistantTextWidth(screenWidth: screenWidth)
         self.sizeCategory = sizeCategory
         self.boldText = boldText
         self.displayScale = displayScale
         self.ledger = ledger
         self.hubStore = hubStore
+        self.outboxRetry = outboxRetry
         self.agentDisplayName = agentDisplayName
         self.emptyStateAvatarSize = emptyStateAvatarSize
         self.screenWidth = screenWidth
@@ -111,13 +114,14 @@ struct ChatNativeRowHeightComposer {
     ) {
         self.contentWidth = screenWidth
             - horizontalPadding * 2
-        self.assistantTextWidth = screenWidth
-            * OneDayMetrics.assistantTextWidthFraction
+        self.assistantTextWidth = OneDayMetrics
+            .assistantTextWidth(screenWidth: screenWidth)
         self.sizeCategory = sizeCategory
         self.boldText = boldText
         self.displayScale = displayScale
         self.ledger = nil
         self.hubStore = nil
+        self.outboxRetry = nil
         self.agentDisplayName = agentDisplayName
         self.emptyStateAvatarSize = emptyStateAvatarSize
         self.screenWidth = screenWidth
@@ -563,6 +567,7 @@ struct ChatNativeRowHeightComposer {
                 .entryFacets(
                     for: entry, ledger: ledger,
                     hubStore: hubStore,
+                    outboxRetry: outboxRetry,
                     optionsCard: optionsCard
                 )
         } else {
@@ -985,6 +990,18 @@ struct ChatNativeRowHeightComposer {
             && facets.localImageDecoded[index]
     }
 
+    private func facetFailureKind(
+        for entryID: UUID
+    ) -> SendFailureKind {
+        if let outboxRetry {
+            return MainActor.assumeIsolated {
+                outboxRetry.record(for: entryID)?
+                    .lastFailureKind ?? .unknown
+            }
+        }
+        return facets.failureKinds[entryID] ?? .unknown
+    }
+
     /// 审批区遍历集（ready 记录/锚定集/已决行
     /// id）：活读形态读宿主、快照形态读快照
     private func facetZoneInputs()
@@ -1151,6 +1168,11 @@ struct ChatNativeRowHeightComposer {
             }
         }
         if entry.role == "user" {
+            if entry.sendFailed {
+                parts.append(
+                    "sf\(facetFailureKind(for: entry.id).rawValue)"
+                )
+            }
             if !entry.allImageDatas.isEmpty {
                 // 本地图行：任一解出即出卡（与合成
                 // 同判）
@@ -2006,7 +2028,7 @@ struct ChatNativeRowHeightComposer {
         items.append(spec(.caption1))
         items.append(weightedHeight(
             ApprovalCardCopy.question(for: record),
-            .body, .semibold, width: innerWidth
+            .body, .semibold, width: innerWidth, lineLimit: 2
         ))
         items.append(spec(.subheadline))
         if let reason = ApprovalCardCopy.reasonLine(
@@ -2063,7 +2085,9 @@ struct ChatNativeRowHeightComposer {
             items.append(max(20, spec(.caption1)))
         } else if record.canDecide {
             let actions = ApprovalCardSpec.actionStack(
-                canDecide: true, blocked: record.isBlocked
+                canDecide: true,
+                blocked: record.isBlocked,
+                highRisk: record.isHighRisk
             )
             items.append(
                 ApprovalCardSpec.actionStackHeight(actions)
@@ -2219,23 +2243,20 @@ struct ChatNativeRowHeightComposer {
             items.append(approvalCardHeight(
                 record: record, width: contentWidth
             ))
-        }
-        if queue.queuedCount > 0 {
-            items.append(
-                OneDayMetrics.spacingS * 2
-                    + spec(.footnote)
-            )
-        }
-        for lineID in inputs.resolvedLineIDs
-        where !inputs.anchored.contains(lineID) {
-            items.append(
-                OneDayMetrics.spacingS * 2
-                    + spec(.footnote)
-            )
+        } else {
+            let hasUnanchoredResolved = inputs.resolvedLineIDs.contains {
+                !inputs.anchored.contains($0)
+            }
+            if hasUnanchoredResolved {
+                items.append(
+                    OneDayMetrics.spacingXS * 2
+                        + spec(.footnote)
+                )
+            }
         }
         guard !items.isEmpty else { return 0 }
         return items.reduce(0, +)
-            + OneDayMetrics.spacingM
+            + OneDayMetrics.spacingS
                 * CGFloat(items.count - 1)
     }
 
@@ -2541,6 +2562,7 @@ struct ChatNativeRowHeightComposer {
                 .entryFacets(
                     for: entry, ledger: ledger,
                     hubStore: hubStore,
+                    outboxRetry: outboxRetry,
                     optionsCard: optionsCard
                 )
         } else if let optionsCard {
@@ -2597,6 +2619,7 @@ struct ChatNativeRowHeightComposer {
                 .entryFacets(
                     for: entry, ledger: ledger,
                     hubStore: hubStore,
+                    outboxRetry: outboxRetry,
                     optionsCard: optionsCard
                 )
         } else if let optionsCard {
@@ -2880,6 +2903,31 @@ struct ChatNativeRowHeightComposer {
                     entry.remoteFilePaths.count - 1
                 )
             slots.append(chips)
+        }
+        if entry.sendFailed {
+            let kind = facetFailureKind(for: entry.id)
+            let copy = SendFailureCopy.message(kind: kind)
+            let resendWidth = weightedNaturalWidth(
+                "重新发送", .caption1, .medium
+            )
+            let statusTextWidth = max(
+                1,
+                columnWidth - OneDayMetrics.spacingS - resendWidth
+            )
+            let textHeight = swiftTextHeight(
+                measured: plainHeight(
+                    copy, .caption1, width: statusTextWidth
+                ),
+                stepStyle: .caption1,
+                firstLineFont: plainFont(.caption1)
+            )
+            let resendHeight = swiftLineHeight(
+                weightedFont(.caption1, .medium)
+            )
+            slots.append(
+                OneDayMetrics.spacingMicro
+                    + max(textHeight, resendHeight)
+            )
         }
         var total: CGFloat = 0
         if !slots.isEmpty {

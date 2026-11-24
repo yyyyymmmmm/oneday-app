@@ -30,6 +30,8 @@ enum IdeaDetailSheet {
 
 struct IdeasView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
     /// 台账 199：点子店走 AppState 共享单例（§259
     /// 先例补齐），与动态格／目标详情同一份，不再
     /// 私建
@@ -62,39 +64,40 @@ struct IdeasView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ideasPageHead
+            ZStack(alignment: .top) {
                 Group {
-                switch store.loadState {
-                case .loading:
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .notConnected(let message):
-                    ContentUnavailableView {
-                        Label("还没连上你的服务", systemImage: "link.badge.plus")
-                    } description: {
-                        Text(message)
-                    } actions: {
-                        Button("重新检查") {
-                            Task { await store.load(appState: appState) }
+                    switch store.loadState {
+                    case .loading:
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .notConnected(let message):
+                        ContentUnavailableView {
+                            Label("还没连上你的服务", systemImage: "link.badge.plus")
+                        } description: {
+                            Text(message)
+                        } actions: {
+                            Button("重新检查") {
+                                Task { await store.load(appState: appState) }
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
-                    }
-                case .failed(let message):
-                    ContentUnavailableView {
-                        Label("点子没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
-                    } description: {
-                        Text(message)
-                    } actions: {
-                        Button("重试") {
-                            Task { await store.load(appState: appState) }
+                    case .failed(let message):
+                        ContentUnavailableView {
+                            Label("点子没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
+                        } description: {
+                            Text(message)
+                        } actions: {
+                            Button("重试") {
+                                Task { await store.load(appState: appState) }
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
+                    case .ready:
+                        readyContent
                     }
-                case .ready:
-                    readyContent
                 }
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ideasTopHeader
             }
             .background {
                 Palette.pageBG
@@ -105,9 +108,9 @@ struct IdeasView: View {
             // 页此前整簇缺失（状态栏下 87.7pt 空白直
             // 达标题，审计 §2.2），系统导航栏在根隐藏
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $showHub) {
-                AgentHubView()
-            }
+            // H2 收编：中枢改 cover 呈现（与聊天页
+            // 同一宿主），原 push 入中枢退役
+            .hubCover(isPresented: $showHub)
             .task {
                 await store.loadIfNeeded(appState: appState)
                 // §177：底栏角标退役后进页不再推进
@@ -184,6 +187,7 @@ struct IdeasView: View {
                 Button("好", role: .cancel) {}
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 点子回跳落点判定（§219，FeedView 的
@@ -202,22 +206,28 @@ struct IdeasView: View {
         }
     }
 
-    /// 页头整簇（§486.5）：与动态页同一 ContentPage-
-    /// Header（身份簇；本页无专属右钮、无滚动收起）
-    /// ＋大标题（pageTitle 34，与全 App 内容页统一
-    /// 口径）。87.7pt 顶部空白就此消除
-    private var ideasPageHead: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ContentPageHeader(onOpenHub: { showHub = true }) {
-                EmptyView()
+    /// 顶部固定身份簇：只固定圆钮、头像与身份胶囊
+    private var ideasTopHeader: some View {
+        ContentPageHeader(
+            onOpenHub: {
+                HubCoverPresenter.present(
+                    $showHub, reduceMotion: reduceMotion
+                )
             }
-            Text("点子")
-                .font(.pageTitle)
-                .foregroundStyle(Palette.ink)
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingS)
-                .padding(.bottom, OneDayMetrics.spacingS)
+        ) {
+            EmptyView()
         }
+    }
+
+    /// 随列表滑动的大标题
+    private var ideasTitleBlock: some View {
+        Text("点子")
+            .font(.pageTitle)
+            .foregroundStyle(Palette.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, OneDayMetrics.pageGutter)
+            .padding(.top, OneDayMetrics.spacingS)
+            .padding(.bottom, OneDayMetrics.spacingS)
     }
 
     @ViewBuilder
@@ -245,58 +255,59 @@ struct IdeasView: View {
     @ViewBuilder
     private var readyContentBody: some View {
         if !store.hasVisibleIdeas {
-            switch store.emptyKind {
-            case .neverProduced:
-                ODEmptyState(
-                    "还没有点子",
-                    systemImage: "lightbulb",
-                    description: "点子都由我来想——每天早上我会想一轮，想到新的就会出现在这里"
-                )
-            case .cleared:
-                ODEmptyState(
-                    "这一轮的点子都处理完了",
-                    systemImage: "checkmark.circle",
-                    description: "明早会再想一轮，想到新的就会出现在这里"
-                )
-            }
-        } else {
-            List {
-                // §177 立形、§459 换键：列表自上而下
-                // 全程领域小节——状态只决定卡进不进列
-                // 表（口径在 Core IdeaBoard.domainSec-
-                // tions，分节键＝domain、旧 category 只
-                // 作折算兜底），页面不再有状态分区
-                ForEach(store.domainSections) { section in
-                    Section {
-                        ForEach(section.ideas) { idea in
-                            ideaRow(idea)
-                        }
-                    } header: {
-                        groupHeader(section.domain.title)
+            VStack(spacing: 0) {
+                ideasTitleBlock
+                Group {
+                    switch store.emptyKind {
+                    case .neverProduced:
+                        ODEmptyState(
+                            "还没有点子",
+                            systemImage: "lightbulb",
+                            description: "点子都由我来想——每天早上我会想一轮，想到新的就会出现在这里"
+                        )
+                    case .cleared:
+                        ODEmptyState(
+                            "这一轮的点子都处理完了",
+                            systemImage: "checkmark.circle",
+                            description: "明早会再想一轮，想到新的就会出现在这里"
+                        )
                     }
                 }
-                Section {
-                    Text(generationFootnote)
-                        .font(.footnote)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .listRowBackground(Palette.pageBG)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding(.top, 112)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                ideasTitleBlock
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                ForEach(store.domainSections) { section in
+                    groupHeader(section.domain.title)
+                        .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
+                    ForEach(section.ideas) { idea in
+                        ideaRow(idea)
+                    }
                 }
+                Text(generationFootnote)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Palette.pageBG)
+            .background(Color.clear)
+            .contentMargins(.top, 112, for: .scrollContent)
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .refreshable {
                 await store.load(appState: appState)
                 if !store.adoptedIdeas.isEmpty {
                     await kanban.load(appState: appState)
                 }
             }
-            // §170（用户 2026-11-11 23:28 亲定）：底部导
-            // 航栏同档收边（与输入框下方收边同档）——本页根 List 底
-            // 缘挂 .hard，口径与映射见 FeedView 同注与
-            // DESIGN §170.2
-            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
             .scrollEdgeEffectStyle(.soft, for: .bottom)
         }
     }
@@ -336,7 +347,7 @@ struct IdeasView: View {
         // 反馈——与目标页同式走公用按压件；行点击
         // 按表 D 防腻清单不配触感
         .buttonStyle(.odPressable)
-        .listRowBackground(Palette.pageBG)
+        .listRowBackground(Color.clear)
         .contextMenu {
             rowActions(for: idea)
         }
@@ -414,7 +425,7 @@ struct IdeaRowView: View {
     var body: some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
             Image(systemName: kickerSymbol)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 28, height: 28)
                 .background(kickerColor)
@@ -668,7 +679,7 @@ struct IdeaDetailView: View {
                     .foregroundStyle(Palette.bodyInk)
                 Spacer()
                 Image(systemName: "list.clipboard")
-                    .font(.system(size: 17))
+                    .font(.system(size: FrameworkIcon.fileGlyphSize))
                     .foregroundStyle(Palette.inkSecondary)
             }
             ForEach(
@@ -692,7 +703,7 @@ struct IdeaDetailView: View {
                     }
                     Spacer()
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22))
+                        .font(.system(size: FrameworkIcon.tabGlyphSize))
                         .foregroundStyle(Palette.primary)
                 }
             }
@@ -732,7 +743,7 @@ struct IdeaDetailView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.moreGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 48, height: 48)
                     .background(Palette.surface, in: Circle())

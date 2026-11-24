@@ -209,6 +209,10 @@ struct SettingsView: View {
                     LogsView()
                 case .appearance:
                     AppearanceView()
+                case .language:
+                    LanguageSettingsView()
+                case .interaction:
+                    ReactionSettingsView()
                 case .identity:
                     IdentityDetailView(
                         serverStatusText: identityServerStatusText,
@@ -268,6 +272,7 @@ struct SettingsView: View {
                 Text("将清除这台手机上保存的服务器凭据与登录会话。本地聊天记录保留。")
             }
         }
+        .fullscreenPopBridge()
     }
 
     @ViewBuilder
@@ -585,6 +590,22 @@ struct SettingsView: View {
                     catalogRow(row)
                 }
             }
+            Toggle(isOn: Binding(
+                get: { Haptics.isEnabled },
+                set: { UserDefaults.standard.set($0, forKey: Haptics.enabledStorageKey) }
+            )) {
+                HStack(spacing: OneDayMetrics.spacingSM) {
+                    Image(systemName: "iphone.radiowaves.left.and.right")
+                        .font(.system(size: FrameworkIcon.rowGlyphSize, weight: .regular))
+                        .foregroundStyle(Palette.ink)
+                        .frame(width: OneDayMetrics.iconSlot)
+                        .accessibilityHidden(true)
+                    Text("触感反馈")
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
+                }
+            }
+            .frame(minHeight: OneDayMetrics.settingsRowHeight)
         } header: {
             sectionHeader("偏好")
         }
@@ -674,15 +695,9 @@ struct SettingsView: View {
         } label: {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 rowIcon(iconName(for: entry))
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                    Text(L10n.string(entry.title))
-                        .font(.rowTitleL)
-                        .foregroundStyle(Palette.ink)
-                    Text(L10n.string(entry.summary))
-                        .font(.rowSubtitle)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
+                Text(L10n.string(entry.title))
+                    .font(.rowTitleL)
+                    .foregroundStyle(Palette.ink)
                 Spacer(minLength: OneDayMetrics.spacingS)
                 DisclosureChevron(font: .system(size: FrameworkIcon.composerGlyphSize))
             }
@@ -742,6 +757,8 @@ struct SettingsView: View {
         case "envVars": return "key"
         case "usage": return "chart.bar"
         case "appearance": return "sun.max"
+        case "language": return "globe"
+        case "interaction": return "face.smiling"
         case "help": return "questionmark.circle"
         case "about": return "info.circle"
         // 台账 198 收敛 S11：与体检行同为 stethoscope

@@ -45,7 +45,7 @@ struct NotificationGuideView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: "bell")
-                .font(.system(size: 28))
+                .font(.system(size: FrameworkIcon.largeGlyphSize))
                 .foregroundStyle(Palette.primary)
                 .frame(width: 70, height: 70)
                 .background(
@@ -72,7 +72,7 @@ struct NotificationGuideView: View {
                 ) { _, use in
                     HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
                         Image(systemName: use.symbol)
-                            .font(.system(size: 17))
+                            .font(.system(size: FrameworkIcon.fileGlyphSize))
                             .foregroundStyle(Palette.primary)
                         VStack(
                             alignment: .leading,
@@ -93,7 +93,7 @@ struct NotificationGuideView: View {
             if isEnabled {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 15))
+                        .font(.system(size: FrameworkIcon.actionGlyphSize))
                         .foregroundStyle(Palette.success)
                     Text(NotificationGuideSegment.enabledNote())
                         .font(.callout.weight(.medium))

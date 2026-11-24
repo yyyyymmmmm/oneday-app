@@ -68,6 +68,7 @@ struct EnvVarEditorView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func save() async {

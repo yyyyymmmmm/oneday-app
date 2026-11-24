@@ -87,6 +87,7 @@ struct FileFallbackView: View {
                 FileShareSheet(url: item.url)
             }
         }
+        .fullscreenPopBridge()
     }
 
     private var mainButton: some View {

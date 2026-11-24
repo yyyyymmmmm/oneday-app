@@ -41,9 +41,6 @@ struct SoulEditorView: View {
                         .font(.footnote)
                         .foregroundStyle(Palette.inkSecondary)
                 }
-                Text("改的是智能体的人设，会保存在服务器上。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
             }
 
             TextEditor(text: $draft)

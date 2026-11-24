@@ -193,8 +193,6 @@ struct ToolsetsSettingsView: View {
             }
         } header: {
             Text("终端后端")
-        } footer: {
-            Text("终端工具实际在哪台机器上跑命令。只有状态为「就绪」的后端能选；切换对全局生效（所有平台的会话都跟着换）。")
         }
     }
 
@@ -394,8 +392,6 @@ struct ToolsetDetailView: View {
                 }
             } header: {
                 Text("服务商")
-            } footer: {
-                Text("服务商写的是服务器全局配置，所有平台的会话都跟着换。")
             }
         } else if store.detail.panelFailed {
             Section {
@@ -485,8 +481,6 @@ struct ToolsetDetailView: View {
                 }
             } header: {
                 Text("后端模型")
-            } footer: {
-                Text("模型写的是服务器全局配置，所有平台的会话都跟着换。")
             }
         } else if store.detail.catalogFailed {
             Section {

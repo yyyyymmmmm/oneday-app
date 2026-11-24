@@ -24,7 +24,6 @@ import SwiftUI
 private enum GoalCreateSheet: Identifiable {
     case categories
     case intro(GoalCategory)
-    case form(GoalCategory?)
 
     var id: String {
         switch self {
@@ -32,8 +31,6 @@ private enum GoalCreateSheet: Identifiable {
             return "categories"
         case .intro(let category):
             return "intro-\(category.rawValue)"
-        case .form(let category):
-            return "form-\(category?.rawValue ?? "none")"
         }
     }
 }
@@ -77,6 +74,8 @@ struct GoalFoldHandleGlyph: View {
 struct GoalsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
     /// 台账 199：目标店走 AppState 共享单例（§259
     /// 先例补齐），与动态格同一份，不再私建
     private var store: GoalsStore {
@@ -88,6 +87,7 @@ struct GoalsView: View {
     @State private var expandedCompleted = false
     @State private var editTarget: BridgeGoal?
     @State private var deleteTarget: BridgeGoal?
+    @State private var snapshotCache = GoalSnapshotCache()
 
     /// 身份簇点按进中枢（§498：ContentPageHeader 的
     /// onOpenHub 落点，与动态/点子同式——原 §485 小
@@ -96,9 +96,7 @@ struct GoalsView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                identityHeader
-                pageTitleRow
+            ZStack(alignment: .top) {
                 Group {
                     switch store.loadState {
                     case .loading:
@@ -131,6 +129,7 @@ struct GoalsView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                identityHeader
             }
             .background {
                 Palette.pageBG
@@ -141,9 +140,9 @@ struct GoalsView: View {
             // 由目的地自理（GoalDetailView/Ungrou-
             // pedTasksView 均自带 navigationTitle）
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $showHub) {
-                AgentHubView()
-            }
+            // H2 收编：中枢改 cover 呈现（与聊天页
+            // 同一宿主），原 push 入中枢退役
+            .hubCover(isPresented: $showHub)
             .task {
                 await store.loadIfNeeded(appState: appState)
             }
@@ -168,12 +167,7 @@ struct GoalsView: View {
                 case .intro(let category):
                     GoalIntroView(
                         category: category,
-                        onStart: { openGoalChat(category) },
-                        onForm: { createSheet = .form(category) }
-                    )
-                case .form(let category):
-                    GoalCreateView(
-                        store: store, presetCategory: category
+                        onStart: { openGoalChat(category) }
                     )
                 }
             }
@@ -201,6 +195,7 @@ struct GoalsView: View {
                 Text("子目标、进展记录与简报会一并删除。挂在这个目标上的点子会解除关联（点子本身保留）。")
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 开目标旁聊（GA-1/GA-2 终局，§238）：新建一条旁
@@ -228,7 +223,13 @@ struct GoalsView: View {
     /// 钮（···）功能单帧未验证（审计 §六），造空菜
     /// 单违僵尸禁令——§498 右位登记为空
     private var identityHeader: some View {
-        ContentPageHeader(onOpenHub: { showHub = true }) {
+        ContentPageHeader(
+            onOpenHub: {
+                HubCoverPresenter.present(
+                    $showHub, reduceMotion: reduceMotion
+                )
+            }
+        ) {
             EmptyView()
         }
     }
@@ -250,11 +251,13 @@ struct GoalsView: View {
         if store.goals.isEmpty {
             categoryCreateFlow
         } else {
-            let groups = GoalBoard.grouped(store.goals)
+            let groups = snapshotCache.snapshot(goals: store.goals)
             ScrollView {
                 LazyVStack(
                     alignment: .leading, spacing: OneDayMetrics.spacingL
                 ) {
+                    GoalsPageTitle()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     if !groups.active.isEmpty {
                         goalGroup(
                             // §485：段名「进行中」→
@@ -277,14 +280,11 @@ struct GoalsView: View {
                 .padding(.horizontal, OneDayMetrics.pageGutter)
                 .padding(.vertical, OneDayMetrics.spacingM)
             }
+            .contentMargins(.top, 112, for: .scrollContent)
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .refreshable {
                 await store.load(appState: appState)
             }
-            // §170（用户 2026-11-11 23:28 亲定）：底部导
-            // 航栏同档收边（与输入框下方收边同档）——本页根 Scroll-
-            // View 底缘挂 .hard，口径与映射见 FeedView
-            // 同注与 DESIGN §170.2
-            // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
             .scrollEdgeEffectStyle(.soft, for: .bottom)
         }
     }
@@ -300,6 +300,8 @@ struct GoalsView: View {
             VStack(
                 alignment: .leading, spacing: OneDayMetrics.spacingL
             ) {
+                GoalsPageTitle()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(
                     alignment: .leading, spacing: OneDayMetrics.spacingS
                 ) {
@@ -317,13 +319,11 @@ struct GoalsView: View {
             .padding(.horizontal, OneDayMetrics.pageGutter)
             .padding(.vertical, OneDayMetrics.spacingM)
         }
+        .contentMargins(.top, 112, for: .scrollContent)
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .refreshable {
             await store.load(appState: appState)
         }
-        // §170：无目标态（分类创建流）与有目标态同为本
-        // 格根滚动面，底缘同挂 .hard（口径见 ready-
-        // Content 同注）
-        // §185 按裁决改 .soft：该边缘内容可流到坞下、.hard 官方定义近乎不透明本身制造色带（solidband 裁决第四节）；§170 的 .hard 口径就此点被 §185 覆盖。
         .scrollEdgeEffectStyle(.soft, for: .bottom)
     }
 
@@ -484,7 +484,7 @@ struct GoalsView: View {
                 }
                 Spacer()
                 DisclosureChevron(
-                    font: .system(size: 14, weight: .regular)
+                    font: .system(size: FrameworkIcon.inlineGlyphSize, weight: .regular)
                 )
             }
             .contentShape(Rectangle())

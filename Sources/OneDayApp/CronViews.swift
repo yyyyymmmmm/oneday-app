@@ -64,8 +64,7 @@ struct CronJobsView: View {
                 } else {
                     ODEmptyState(
                         "还没有定时任务",
-                        systemImage: "clock.arrow.2.circlepath",
-                        description: "点右上角新建，让 Hermes 按计划自动干活。"
+                        systemImage: "clock.arrow.2.circlepath"
                     )
                     .padding(.top, OneDayMetrics.spacingXXL)
                 }
@@ -807,6 +806,7 @@ struct CronJobFormView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func presetButton(_ title: String, _ expression: String) -> some View {

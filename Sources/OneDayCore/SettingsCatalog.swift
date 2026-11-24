@@ -102,6 +102,14 @@ public enum SettingsDestination: Equatable, Sendable {
     case computer
     case serverFiles
     case appearance
+    /// 语言（§503）：原外观页语言节整节迁出独立叶
+    /// 子页——语言是全局偏好、与聊天呈现分家（归位
+    /// 依据见 §503）
+    case language
+    /// 互动（§503）：长按反应浮排与 AI 反应两开关的
+    /// 家——原外观页「回复呈现」节随节退役、两开关
+    /// 迁入本页（行为类偏好、与语音同族）
+    case interaction
     // 侧边栏目的地已撤（归位合流 2026-11-20 对接
     // 点）：分区管理面整套退役——抽屉已断显隐账消
     // 费，管理面留着只是 phantom 开关（纲要原则 8）
@@ -416,9 +424,18 @@ public enum SettingsCatalog {
         SettingsCatalogEntry(
             id: "appearance", group: .preferences,
             title: "外观",
-            summary: "聊天配色、形象大小、模式与语言",
-            keywords: ["主题", "配色", "形象大小", "语言", "深色", "浅色", "theme", "language"],
+            summary: "聊天配色、形象大小与模式",
+            keywords: ["主题", "配色", "形象大小", "深色", "浅色", "theme"],
             destination: .appearance
+        ),
+        // 语言（§503）：外观页语言节迁出独立页，紧
+        // 随外观行（同为呈现偏好族、语言辖区全局）
+        SettingsCatalogEntry(
+            id: "language", group: .preferences,
+            title: "语言",
+            summary: "应用语言与回复语言",
+            keywords: ["语言", "中文", "英文", "language", "locale"],
+            destination: .language
         ),
         // 语音（H2-a，台账 159）：台账 198 收敛 S13
         // 归组再裁自服务器组维护尾段迁入本组——朗读
@@ -438,6 +455,15 @@ public enum SettingsCatalog {
             summary: "分类提醒与实时活动",
             keywords: ["通知", "提醒", "分级", "实时活动", "灵动岛", "notification", "alert"],
             destination: .notifications
+        ),
+        // 互动（§503）：反应浮排＋AI 反应两开关迁入
+        // ——行为类偏好，置通知后、连接器前
+        SettingsCatalogEntry(
+            id: "interaction", group: .preferences,
+            title: "互动",
+            summary: "长按反应与助手反应",
+            keywords: ["反应", "表情", "长按", "互动", "reaction", "emoji"],
+            destination: .interaction
         ),
         SettingsCatalogEntry(
             id: "connectors", group: .preferences,

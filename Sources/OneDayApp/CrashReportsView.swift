@@ -27,13 +27,6 @@ struct CrashReportsView: View {
         let _ = refreshTick
         let records = CrashReportStore.shared.all()
         List {
-            Section {
-                Text("崩溃与卡死由系统在事后回传到本机（通常下次打开 App 时到达），只保存在这台手机上、经过脱敏，不会自动上传。需要时可用右上角分享把报告发给支持。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .listRowBackground(Palette.surface)
-
             if records.isEmpty {
                 Section {
                     Text("暂无崩溃报告")

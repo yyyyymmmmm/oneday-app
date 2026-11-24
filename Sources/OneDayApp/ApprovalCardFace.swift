@@ -36,12 +36,12 @@ struct ApprovalCardFace<DetailArea: View>: View {
     /// 裁决失败的人话提示（宿主 store.cardNotes），
     /// 无则 nil
     let note: String?
+    /// 多条排队时的进度文案（如「待批 1/3」），单条为 nil
+    var queueProgress: String? = nil
     /// 详情链文案（宿主按入口形态与展开态给）
     let detailLinkTitle: String
     let onDetail: () -> Void
-    /// 三档裁决的出口：确认弹窗与 store 调用由宿主
-    /// 接（聊天自持弹窗、枢纽走段级 target，两面既有
-    /// 裁决路径不变）
+    /// 三档裁决的出口：一次点按直接落账
     let onAction: (ApprovalCardAction) -> Void
     /// 详情展开区（聊天注入 SmoothExpand 内容体；
     /// 枢纽传 EmptyView）
@@ -49,10 +49,6 @@ struct ApprovalCardFace<DetailArea: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
-            // 徽章行已删（S2-02）：子系统胶囊与「待审
-            // 批」橙字都与问句/头条重复表意，只留时间。
-            // §245：行首补工具图标（对标 Muse 审
-            // 批卡的工具图标位，符号走 Core 单源映射）
             HStack(spacing: OneDayMetrics.spacingXS) {
                 Image(
                     systemName: ApprovalCardSpec.toolIconName(
@@ -61,35 +57,34 @@ struct ApprovalCardFace<DetailArea: View>: View {
                 )
                 .font(.caption)
                 .foregroundStyle(Palette.inkSecondary)
+                if let queueProgress {
+                    Text(queueProgress)
+                        .font(.caption.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(Palette.primary)
+                        .lineLimit(1)
+                }
                 Spacer()
                 if let createdAt = record.createdAt {
                     Text(ApprovalTimeText.relative(createdAt))
                         .font(.caption)
                         .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
                 }
             }
 
             Text(ApprovalCardCopy.question(for: record))
                 .font(.headline)
                 .foregroundStyle(Palette.ink)
+                .lineLimit(2)
 
             summaryRow
 
-            // 防呆呈现（§245，一套口径）：桥侧预检判
-            // 定这条确定性批不了时，原因原文上卡面
-            // （措辞与伴生查案报告定案一致），动作区
-            // 只给驳回（见 actionArea）——与裁决失败
-            // 回执原因共用「原因上卡面」这一条通道，
-            // 不许两套并存。B-05（§301）：整行只经
-            // Core reasonLine 单读口（reason＋阶段标
-            // 拼句），本面不直读字段
             if let reasonLine = ApprovalCardCopy.reasonLine(for: record) {
                 Label {
                     Text(reasonLine)
-                        // 第 85 条（BC-2）：整句是可读文字，
-                        // 走 warningText（浅档 5.56）；图标
-                        // 仍走 warning 本色
                         .foregroundStyle(Palette.warningText)
+                        .lineLimit(2)
                 } icon: {
                     Image(systemName: "exclamationmark.triangle")
                         .foregroundStyle(Palette.warning)
@@ -101,6 +96,7 @@ struct ApprovalCardFace<DetailArea: View>: View {
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(Palette.danger)
+                    .lineLimit(2)
             }
 
             detailArea()
@@ -129,10 +125,8 @@ struct ApprovalCardFace<DetailArea: View>: View {
         }
     }
 
-    /// 动作区：提交中换进度行；可裁决出通栏钮栈（构
-    /// 成与次序＝Core ApprovalCardSpec 单源，§245 起
-    /// 防呆记录只出驳回一档）；不可裁决只留去向说
-    /// 明，不摆假按钮
+    /// 动作区：提交中换进度行；可裁决出通栏钮栈（高
+    /// 风险写操作只给允许／拒绝两钮；防呆记录只给驳回）
     @ViewBuilder
     private var actionArea: some View {
         if isDeciding {
@@ -141,16 +135,26 @@ struct ApprovalCardFace<DetailArea: View>: View {
                 Text("正在提交裁决…")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
             }
         } else if record.canDecide {
+            let scopeText = ApprovalCardCopy.alwaysAllowScope(
+                for: record
+            )
             VStack(spacing: ApprovalCardSpec.buttonSpacing) {
                 ForEach(
                     ApprovalCardSpec.actionStack(
-                        canDecide: true, blocked: record.isBlocked
+                        canDecide: true,
+                        blocked: record.isBlocked,
+                        highRisk: record.isHighRisk
                     ),
                     id: \.self
                 ) { action in
-                    ApprovalCardButton(action: action) {
+                    ApprovalCardButton(
+                        action: action,
+                        scopeText: action == .alwaysAllow
+                            ? scopeText : nil
+                    ) {
                         onAction(action)
                     }
                 }
@@ -159,26 +163,15 @@ struct ApprovalCardFace<DetailArea: View>: View {
             Text("这类写入暂不支持在 App 内审批，请在 Hermes 中处理")
                 .font(.caption)
                 .foregroundStyle(Palette.inkSecondary)
+                .lineLimit(2)
         }
     }
 }
 
-/// 审批卡裁决钮（D10 定版④三档形态，角色走
-/// Core ApprovalCardButtonRole 单源）：批准＝
-/// 填充主钮（饱和蓝 primarySaturated＋白字——
-/// 2026-11-24 主按钮统一口径：主线裁决承接
-/// §453 改判，用户口味定主钮为饱和蓝底白字，
-/// 推翻 2026-11-15 第 85 条 BC-1 在主钮上的
-/// primaryPale＋onPrimary 收口）；总是允许＝
-/// 描边次钮（hairline
-/// 描边、无填充、墨字，与主钮拉开层级）；驳
-/// 回＝文字级（.plain、无背景、次色字，高走
-/// Spec textButtonHeight；不预红、危险语义靠
-/// 宿主既有 confirmationDialog 承接，与参照
-/// 「拒绝」中性同口径）。三钮同宽满卡宽，高
-/// 由 Spec 按角色给值（buttonHeight(for:)）
+/// 审批卡裁决钮（D10 定版④三档形态，高由 Spec 锁死）
 private struct ApprovalCardButton: View {
     let action: ApprovalCardAction
+    let scopeText: String?
     let onTap: () -> Void
 
     var body: some View {
@@ -188,6 +181,7 @@ private struct ApprovalCardButton: View {
                 Text(action.title())
                     .font(.headline)
                     .foregroundStyle(Color.white)
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity)
                     .frame(
                         height: ApprovalCardSpec.buttonHeight(
@@ -202,21 +196,31 @@ private struct ApprovalCardButton: View {
             .buttonStyle(.odPressable)
         case .outlinedSecondary:
             Button(action: onTap) {
-                Text(action.title())
-                    .font(.headline)
-                    .foregroundStyle(Palette.ink)
-                    .frame(maxWidth: .infinity)
-                    .frame(
-                        height: ApprovalCardSpec.buttonHeight(
-                            for: action
-                        )
+                VStack(spacing: 1) {
+                    Text(action.title())
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    if let scopeText, !scopeText.isEmpty {
+                        Text(L10n.format("仅限 %@", scopeText))
+                            .font(.caption2)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .frame(maxWidth: .infinity)
+                .frame(
+                    height: ApprovalCardSpec.buttonHeight(
+                        for: action
                     )
-                    .background(
-                        Capsule().strokeBorder(
-                            Palette.hairline, lineWidth: 1
-                        )
+                )
+                .background(
+                    Capsule().strokeBorder(
+                        Palette.hairline, lineWidth: 1
                     )
-                    .contentShape(Capsule())
+                )
+                .contentShape(Capsule())
             }
             .buttonStyle(.odPressable)
         case .text:
@@ -224,6 +228,7 @@ private struct ApprovalCardButton: View {
                 Text(action.title())
                     .font(.headline)
                     .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity)
                     .frame(
                         height: ApprovalCardSpec.buttonHeight(

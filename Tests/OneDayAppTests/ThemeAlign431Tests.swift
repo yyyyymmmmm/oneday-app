@@ -68,17 +68,20 @@ final class ThemeAlign431Tests: XCTestCase {
     /// 全仓行尾附件箭头收口：字面量直写只许剩
     /// ChatView 强调色链接箭头一处（Palette.primary、
     /// 非披露附件，§431 登记不收）；上下双箭直写零；
-    /// 共用件落点数与 §431 落码清单一致（45 起、随版本增至 47；§476 组版改钉：§470 网关页新增「用量」行用共用件 +1，46→47，归因亲验；§493 改钉：StatusView 整页退役 −3，47→44，归因亲验）
+    /// 共用件落点数与 §431 落码清单一致（45 起、随版本增至 47；§476 组版改钉：§470 网关页新增「用量」行用共用件 +1，46→47，归因亲验；§493 改钉：StatusView 整页退役 −3，47→44，归因亲验；§503 改钉：外观页 Menu 行共用件 menuRowLabel 新增一落点 +1，44→45，归因亲验）
     func testAccessoryChevronsUnifiedIntoComponent() throws {
         let all = try allSourceText()
         XCTAssertEqual(
             count(of: "Image(systemName: \"chevron.right\")", in: all), 1)
         XCTAssertEqual(
             count(of: "Image(systemName: \"chevron.up.chevron.down\")", in: all), 0)
-        XCTAssertEqual(count(of: "DisclosureChevron(", in: all), 44)
+        XCTAssertEqual(count(of: "DisclosureChevron(", in: all), 45)
     }
 
-    /// 外观页五触点逐点在位（四 selection＋一 impact）
+    /// 外观页触点逐点在位（§503 后：主题/模式/形象
+    /// 大小三 selection＋形象 impact 沿旧；背景/强调/
+    /// 文字/圆角四新点随 §503 分区同落；语言触点随
+    /// 语言节迁 LanguageSettingsView、由下一用例钉）
     func testAppearanceHapticPointsPresent() throws {
         let appearance = try fileText("OneDayApp/AppearanceView.swift")
         XCTAssertTrue(appearance.contains(
@@ -86,10 +89,26 @@ final class ThemeAlign431Tests: XCTestCase {
         XCTAssertTrue(appearance.contains(
             ".sensoryFeedback(.selection, trigger: appearanceModeRaw)"))
         XCTAssertTrue(appearance.contains(
-            ".sensoryFeedback(.selection, trigger: appLanguageRaw)"))
-        XCTAssertTrue(appearance.contains(
             ".sensoryFeedback(.selection, trigger: avatarSizeRaw)"))
         XCTAssertTrue(appearance.contains(
+            ".sensoryFeedback(.selection, trigger: chatBackgroundRaw)"))
+        XCTAssertTrue(appearance.contains(
+            ".sensoryFeedback(.selection, trigger: accentOverrideRaw)"))
+        XCTAssertTrue(appearance.contains(
+            ".sensoryFeedback(.selection, trigger: chatTextSizeRaw)"))
+        XCTAssertTrue(appearance.contains(
+            ".sensoryFeedback(.selection, trigger: bubbleStyleRaw)"))
+        XCTAssertTrue(appearance.contains(
             ".impact(weight: .light), trigger: avatarMenuTapCount"))
+        XCTAssertFalse(appearance.contains("appLanguageRaw"))
+    }
+
+    /// §503：语言触点随语言节迁出——新页在位、外观
+    /// 页不再有语言写口
+    func testLanguageHapticPointMoved503() throws {
+        let language = try fileText("OneDayApp/LanguageSettingsView.swift")
+        XCTAssertTrue(language.contains(
+            ".sensoryFeedback(.selection, trigger: appLanguageRaw)"))
+        XCTAssertTrue(language.contains("LanguageStorageKeys.appLanguage"))
     }
 }

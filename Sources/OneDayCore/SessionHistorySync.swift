@@ -52,8 +52,12 @@ public enum SeedSyncState: String, Equatable, Sendable {
 /// 键）：角色＋服务端时刻（epoch 秒取整）＋正文＋
 /// 附件路径集＋工具卡 id。拉回的富内容项（Session-
 /// HistoryImport.RichItem）与本地已落盘条目（Chat-
-/// Entry）两侧按同一口径组装才可比——组装函数只
-/// 收零件、两侧各自喂入，口径漂移无处藏。
+/// Entry）两侧按同一口径组装才可比——组装单点在
+/// SessionHistorySync.fingerprint(role:…)：两侧只
+/// 许喂零件（干净正文＋引用槽位），content 在组装
+/// 点收敛为规范线格式（MessageQuote.outgoing-
+/// Content 重组），不许两侧各喂原文（收敛包，
+/// 2026-11-24，P4-1）。
 public struct HistoryFingerprint: Hashable, Sendable {
     public let role: String
     public let epochSeconds: Int
@@ -81,14 +85,39 @@ public struct HistoryFingerprint: Hashable, Sendable {
 }
 
 public enum SessionHistorySync {
+    /// 指纹组装单点（收敛包，2026-11-24，P4-1）：两
+    /// 侧（拉回项／本地条目）只许经本函数组装——
+    /// content 口径在此一处定死为规范线格式：由
+    /// MessageQuote.outgoingContent 从（干净正文，
+    /// 引用槽位）重组。旧口径两侧各喂原文：拉回项
+    /// 喂含引用块的线格式、本地条目喂干净正文，带
+    /// 引用消息指纹恒不等、回补必再插一行（P4-1
+    /// 原病）。走重组后，导入侧解析的切分歧义不入
+    /// 指纹：任何切法拼回去都是同一线格式（见
+    /// MessageQuote.parse 注），判同稳、呈现另议
+    public static func fingerprint(
+        role: String, date: Date?, content: String,
+        quote: MessageQuote?,
+        attachmentPaths: [String], toolCardID: String?
+    ) -> HistoryFingerprint {
+        HistoryFingerprint(
+            role: role, date: date,
+            content: MessageQuote.outgoingContent(
+                userText: content, quote: quote
+            ),
+            attachmentPaths: attachmentPaths,
+            toolCardID: toolCardID
+        )
+    }
+
     /// 拉回项 → 指纹（富内容项口径：附件集＝图片＋
     /// 文件引用，工具卡以其稳定 id 记）
     public static func fingerprint(
         of item: SessionHistoryImport.RichItem
     ) -> HistoryFingerprint {
-        HistoryFingerprint(
+        fingerprint(
             role: item.role, date: item.date,
-            content: item.content,
+            content: item.content, quote: item.quote,
             attachmentPaths: item.imagePaths + item.fileRefs,
             toolCardID: item.toolCard?.id
         )

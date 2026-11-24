@@ -18,6 +18,19 @@ public enum ChatSendState: String, Codable, CaseIterable, Equatable, Sendable {
     case uploading
     case linking
     case sending
+    /// 已受理（发送失败机制包·双轴语义，DESIGN 审
+    /// 查 2026-11-24 第四节语义 1）：服务端 202 确
+    /// 认收到——提交轴到此为止，但运行轴（生成）
+    /// 未落定，条目仍在发件箱语义内（重试记账不
+    /// 清、泵车道归账本管辖）。旧口径受理即标
+    /// delivered 是死循环的根：delivered 的
+    /// remainsInQueue=false 让条目在 run 真终态前
+    /// 脱离发件箱，清账按「非发件箱」整批扫，计数
+    /// 恒归零。delivered 自此只许运行轴落定成功时
+    /// 置位。呈现与 delivered 同（满色、无时钟）：
+    /// 已确认收到即发送成功呈现（§426 用户口径不
+    /// 变），差别只在记账语义
+    case accepted
     case failed
     case delivered
 
@@ -39,7 +52,8 @@ public enum ChatSendState: String, Codable, CaseIterable, Equatable, Sendable {
     /// 状态可由恢复逻辑重新接管。
     public var remainsInQueue: Bool {
         switch self {
-        case .queued, .uploading, .linking, .sending, .failed:
+        case .queued, .uploading, .linking, .sending,
+             .accepted, .failed:
             return true
         case .delivered:
             return false
@@ -50,7 +64,7 @@ public enum ChatSendState: String, Codable, CaseIterable, Equatable, Sendable {
         switch self {
         case .queued, .uploading, .linking:
             return true
-        case .sending, .failed, .delivered:
+        case .sending, .accepted, .failed, .delivered:
             return false
         }
     }

@@ -21,9 +21,10 @@ final class ChatThemeTests: XCTestCase {
         super.tearDown()
     }
 
-    /// 注册表：8 款、id 唯一非空、默认款居首、名非空
+    /// 注册表：9 款（§503 新增「微信」款）、id 唯一
+    /// 非空、默认款居首、名非空
     func testRegistryShape() {
-        XCTAssertEqual(ChatThemes.all.count, 8)
+        XCTAssertEqual(ChatThemes.all.count, 9)
         XCTAssertEqual(ChatThemes.all.first?.id, ChatThemes.defaultID)
         XCTAssertEqual(ChatThemes.defaultID, "sangou")
         XCTAssertEqual(
@@ -261,24 +262,147 @@ extension ChatThemeTests {
         }
     }
 
-    /// 对比闸⑥（2026-11-15，第 85 条对比度收口）：
-    /// 全款浅档强调对助手泡面（#EEEEF0＝Palette.
-    /// bubbleFill 浅档）≥4.5——泡内链接/强调字可读。
-    /// 立闸前实算：sangou 4.45／iceBlue 4.39 两款差
-    /// 线（审计原稿只报默认款），均已同色相深一档
-    /// （0x1268B8／0x1B6AB9）；余款本已过闸（最低
-    /// pink 4.51、peach 4.60）。暗档同组合由闸④
-    /// （对 #2C2C2E）辖，不在此重复
+    /// 对比闸⑥（2026-11-15，第 85 条对比度收口；
+    /// §503 改判口径）：全款浅档强调对**自家 AI 卡
+    /// 面**（theme.aiCardLight）≥4.5——卡内链接/强
+    /// 调字可读。旧口径对 #EEEEF0 设闸（Palette.
+    /// bubbleFill 旧浅档）；§503 卡面归主题整包辖
+    /// （默认款 #E9EAEC、微信款 #FFFFFF），闸随辖
+    /// 区改对自家卡面。改判实算：pink 旧强调对新卡
+    /// 面 4.35、peach 约 4.0 双双差线——已按 §66.1
+    /// 先例同色相加深一档（0xB03670／0xA14F11，
+    /// 对卡面 4.84／4.79）；余款本已过闸。暗档同
+    /// 组合由闸④（对 #2C2C2E）辖，不在此重复
     func testAccentContrastOnBubbleLightGate() {
         for theme in ChatThemes.all {
             let ratio = WCAGContrast.ratio(
                 hexForeground: theme.accentLight,
-                hexBackground: 0xEEEEF0
+                hexBackground: theme.aiCardLight
             )
             XCTAssertGreaterThanOrEqual(
-                ratio, 4.5, "\(theme.id) 浅档强调对助手泡面对比 \(ratio)"
+                ratio, 4.5, "\(theme.id) 浅档强调对 AI 卡面对比 \(ratio)"
             )
         }
+    }
+
+    /// 对比闸⑨（§503 新立，AI 全宽卡）：全款——正
+    /// 文墨（浅 #11191C＝Palette.bodyInk 浅档定值
+    /// ／暗 #FFFFFF）对自家 AI 卡面 ≥4.5；卡面对
+    /// 自家主题背景 ∈[1.10, 1.60]（与用户泡闸⑦浅
+    /// 档同带：可辨靠形不靠对比，Muse 卡/页实测
+    /// 1.17）。逐值实算（2026-11-24）：字/卡浅
+    /// 14.79–17.80、暗 13.94；卡/背景浅 1.17、暗
+    /// 1.35–1.51，全款过线
+    func testAICardContrastGate503() {
+        for theme in ChatThemes.all {
+            for dark in [false, true] {
+                let card = theme.aiCardFill(dark: dark)
+                let ink: UInt32 = dark ? 0xFFFFFF : 0x11191C
+                let textRatio = WCAGContrast.ratio(
+                    hexForeground: ink, hexBackground: card
+                )
+                XCTAssertGreaterThanOrEqual(
+                    textRatio, 4.5,
+                    "\(theme.id) dark=\(dark) 卡字对比 \(textRatio)"
+                )
+                let bg = theme.chatBackground(dark: dark)
+                let cardRatio = WCAGContrast.ratio(
+                    hexForeground: card, hexBackground: bg
+                )
+                XCTAssertGreaterThanOrEqual(
+                    cardRatio, 1.10,
+                    "\(theme.id) dark=\(dark) 卡对背景 \(cardRatio)＜带下限"
+                )
+                XCTAssertLessThanOrEqual(
+                    cardRatio, 1.60,
+                    "\(theme.id) dark=\(dark) 卡对背景 \(cardRatio)＞带上限"
+                )
+            }
+        }
+    }
+
+    /// §503 整包定值钉：默认款＝Muse 构图（AI 卡
+    /// #E9EAEC/#2C2C2E、背景页底 #FCFCFC/#000000）；
+    /// 微信款逐值＝取样表（发泡 #95EC69、卡浅
+    /// #FFFFFF＝收泡、背景浅 #EDEDED＝WeUI BG-0）
+    /// ＋无取样半边的在册落值（卡暗 #2C2C2E、背景
+    /// 暗 #111113），防逐款漂移
+    func testThemePackageValues503() {
+        let sangou = ChatThemes.defaultTheme
+        XCTAssertEqual(sangou.aiCardLight, 0xE9EAEC)
+        XCTAssertEqual(sangou.aiCardDark, 0x2C2C2E)
+        XCTAssertEqual(sangou.backgroundLight, 0xFCFCFC)
+        XCTAssertEqual(sangou.backgroundDark, 0x000000)
+        let wechat = ChatThemes.theme(forID: "wechat")
+        XCTAssertEqual(wechat.bubbleLight, 0x95EC69)
+        XCTAssertEqual(wechat.aiCardLight, 0xFFFFFF)
+        XCTAssertEqual(wechat.aiCardDark, 0x2C2C2E)
+        XCTAssertEqual(wechat.backgroundLight, 0xEDEDED)
+        XCTAssertEqual(wechat.backgroundDark, 0x111113)
+        // 解析出口成对钉（与 bubbleFill/bubbleText 同式）
+        for theme in ChatThemes.all {
+            XCTAssertEqual(theme.aiCardFill(dark: false), theme.aiCardLight, theme.id)
+            XCTAssertEqual(theme.aiCardFill(dark: true), theme.aiCardDark, theme.id)
+            XCTAssertEqual(theme.chatBackground(dark: false), theme.backgroundLight, theme.id)
+            XCTAssertEqual(theme.chatBackground(dark: true), theme.backgroundDark, theme.id)
+        }
+    }
+
+    /// §503 新键与新档：文字大小（未设回跟随系统、
+    /// round-trip、脏值回落）、强调覆盖（未设 nil、
+    /// 写读 round-trip、nil 复位删键、脏值回 nil）、
+    /// 背景扩容（新档 round-trip、图案映射、脏值仍
+    /// 回 standard）、强调预设盘＝TG 出厂 11 色逐值
+    func testTextSizeAccentAndBackground503() {
+        XCTAssertEqual(
+            AppearancePreferences.textSizeTier(in: defaults), .system
+        )
+        AppearancePreferences.setTextSizeTier(.large, in: defaults)
+        XCTAssertEqual(
+            AppearancePreferences.textSizeTier(in: defaults), .large
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: AppearanceStorageKeys.chatTextSize),
+            "large"
+        )
+        defaults.set("junk", forKey: AppearanceStorageKeys.chatTextSize)
+        XCTAssertEqual(
+            AppearancePreferences.textSizeTier(in: defaults), .system
+        )
+
+        XCTAssertNil(AppearancePreferences.accentOverride(in: defaults))
+        AppearancePreferences.setAccentOverride(0x0088FF, in: defaults)
+        XCTAssertEqual(
+            AppearancePreferences.accentOverride(in: defaults), 0x0088FF
+        )
+        AppearancePreferences.setAccentOverride(nil, in: defaults)
+        XCTAssertNil(AppearancePreferences.accentOverride(in: defaults))
+        // 哨兵 -1（外观页「跟随主题」落盘值）＝未设
+        defaults.set(-1, forKey: AppearanceStorageKeys.chatAccentOverride)
+        XCTAssertNil(AppearancePreferences.accentOverride(in: defaults))
+
+        AppearancePreferences.setBackgroundStyle(.wechatGray, in: defaults)
+        XCTAssertEqual(
+            AppearancePreferences.backgroundStyle(in: defaults), .wechatGray
+        )
+        AppearancePreferences.setBackgroundStyle(.theme, in: defaults)
+        XCTAssertEqual(
+            AppearancePreferences.backgroundStyle(in: defaults), .theme
+        )
+        XCTAssertEqual(ChatBackgroundStyle.dots.patternKind, .dots)
+        XCTAssertEqual(ChatBackgroundStyle.grid.patternKind, .grid)
+        XCTAssertEqual(ChatBackgroundStyle.diagonal.patternKind, .diagonal)
+        XCTAssertNil(ChatBackgroundStyle.standard.patternKind)
+        XCTAssertNil(ChatBackgroundStyle.theme.patternKind)
+        XCTAssertEqual(ChatBackgroundStyle.allCases.count, 9)
+        XCTAssertEqual(ChatTextSizeTier.allCases.count, 5)
+
+        XCTAssertEqual(
+            ChatAccentPresets.values,
+            [0x0088FF, 0x00C2ED, 0x29B327, 0xEB6CA4, 0xF08200,
+             0x9472EE, 0xD33213, 0xEDB400, 0x6D839E, 0x000000,
+             0xFFFFFF]
+        )
     }
 
     // MARK: - 气泡浅填深字定版（台账 197）
@@ -379,6 +503,8 @@ extension ChatThemeTests {
             "lavender": 0xDBC6F1,
             "pink": 0xFDB9DE,
             "peach": 0xFFD7B5,
+            // §503 新增：微信款发泡＝取样表 #95EC69
+            "wechat": 0x95EC69,
         ]
         XCTAssertEqual(Set(ChatThemes.all.map(\.id)), Set(expected.keys))
         for theme in ChatThemes.all {

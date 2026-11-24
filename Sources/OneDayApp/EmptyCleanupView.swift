@@ -77,6 +77,7 @@ struct EmptyCleanupSheet: View {
                     }
                 }
         }
+        .fullscreenPopBridge()
         .task { await scan() }
     }
 

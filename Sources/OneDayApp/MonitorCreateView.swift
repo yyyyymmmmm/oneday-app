@@ -63,9 +63,6 @@ struct MonitorCreateView: View {
                                 }
                             }
                             .pickerStyle(.segmented)
-                            Text(frequencyNote)
-                                .font(.footnote)
-                                .foregroundStyle(Palette.inkSecondary)
                         }
                         .padding(OneDayMetrics.spacingM)
                         .odGroup()
@@ -107,16 +104,7 @@ struct MonitorCreateView: View {
                 store.clearCreateError()
             }
         }
+        .fullscreenPopBridge()
     }
 
-    /// 频率说明：手动档说清只在点检查时跑；自动档
-    /// 说清先抓基线（基线本身不算变化，与桥口径一致）
-    private var frequencyNote: String {
-        switch frequency {
-        case .manual:
-            return "手动检查：只在你点「立即检查」时才会去看一次。"
-        case .hourly, .daily:
-            return "到点自动检查。新建时会先抓一次当前内容作基线，基线本身不算变化。"
-        }
-    }
 }

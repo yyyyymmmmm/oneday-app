@@ -68,6 +68,7 @@ struct ReactionPillView: View {
         if reaction.isOwn {
             Button(action: onClearOwn) {
                 Text(reaction.emoji)
+                    // P2-01 登记保留：反应 emoji 为内容层字形定点（非界面文字、不随 Dynamic Type 缩放）
                     .font(.system(size: 14))
                     .padding(.horizontal, OneDayMetrics.spacingXS)
                     .background(
@@ -82,6 +83,7 @@ struct ReactionPillView: View {
             )
         } else {
             Text(reaction.emoji)
+                // P2-01 登记保留：反应 emoji 为内容层字形定点（非界面文字、不随 Dynamic Type 缩放）
                 .font(.system(size: 14))
                 .padding(.horizontal, OneDayMetrics.spacingXS)
                 .accessibilityLabel(
@@ -107,6 +109,7 @@ struct AgentReactionBadgeView: View {
 
     var body: some View {
         Text(emoji)
+            // P2-01 登记保留：反应 emoji 为内容层字形定点（非界面文字、不随 Dynamic Type 缩放）
             .font(.system(size: 13))
             .padding(.horizontal, 6)
             .frame(height: ChatReactionMetrics.badgeHeight)

@@ -36,6 +36,58 @@ struct HubAuditSection: View {
     /// 认无后果说明；改走确认门（与技能商店卸载确认
     /// 同式：destructive 角色＋后果文案）
     @State private var pendingRevoke: AuditEntry?
+    @State private var auditSnapshotCache = AuditSnapshotCache()
+
+    private final class AuditSnapshotCache {
+        private var key: String?
+        private var cached: [AuditEntry] = []
+
+        func entries(
+            grantsState: AgentHubStore.GrantsState,
+            decisionHistory: [WriteGateDecisionRecord],
+            resolvedLines: [ApprovalResolvedLine]
+        ) -> [AuditEntry] {
+            let grantCount: Int
+            let grantFirst: String
+            if case .ready(let resp) = grantsState {
+                grantCount = resp.grants.count
+                grantFirst = resp.grants.first?.grantKey ?? ""
+            } else {
+                grantCount = -1
+                grantFirst = ""
+            }
+            let fingerprint = "\(grantCount)|\(grantFirst)|\(decisionHistory.count)|\(decisionHistory.first?.id ?? "")|\(resolvedLines.count)|\(resolvedLines.first?.id ?? "")"
+            if fingerprint == key {
+                return cached
+            }
+            var entries: [AuditEntry] = []
+            if case .ready(let response) = grantsState {
+                entries += response.grants.map(AuditEntry.grant)
+            }
+            let decisionIDs = Set(decisionHistory.map(\.id))
+            entries += decisionHistory.map(AuditEntry.decision)
+            entries += resolvedLines
+                .filter { !decisionIDs.contains($0.id) }
+                .map(AuditEntry.resolved)
+            let sorted = entries.enumerated()
+                .sorted { a, b in
+                    switch (a.element.sortDate, b.element.sortDate) {
+                    case let (x?, y?):
+                        return x != y ? x > y : a.offset < b.offset
+                    case (_?, nil):
+                        return true
+                    case (nil, _?):
+                        return false
+                    case (nil, nil):
+                        return a.offset < b.offset
+                    }
+                }
+                .map(\.element)
+            key = fingerprint
+            cached = sorted
+            return sorted
+        }
+    }
 
     var body: some View {
         List {
@@ -141,47 +193,21 @@ struct HubAuditSection: View {
         }
     }
 
-    /// 三源混排：时间倒序；无时刻者沉底、保持来源内
-    /// 原序（稳定排序）。就地结果行与决定账同 id 时
-    /// 只留账本行——账本是权威单源，就地行只是呈现
-    /// 层痕迹（与 AgentHubStore 的定位一致），不许同
-    /// 一裁决在合并表里出现两遍
     private var mergedEntries: [AuditEntry] {
-        var entries: [AuditEntry] = []
-        if case .ready(let response) = hubStore.grantsState {
-            entries += response.grants.map(AuditEntry.grant)
-        }
-        let decisionIDs = Set(hubStore.decisionHistory.map(\.id))
-        entries += hubStore.decisionHistory.map(AuditEntry.decision)
-        entries += hubStore.resolvedLines
-            .filter { !decisionIDs.contains($0.id) }
-            .map(AuditEntry.resolved)
-        return entries.enumerated()
-            .sorted { a, b in
-                switch (a.element.sortDate, b.element.sortDate) {
-                case let (x?, y?):
-                    return x != y ? x > y : a.offset < b.offset
-                case (_?, nil):
-                    return true
-                case (nil, _?):
-                    return false
-                case (nil, nil):
-                    return a.offset < b.offset
-                }
-            }
-            .map(\.element)
+        auditSnapshotCache.entries(
+            grantsState: hubStore.grantsState,
+            decisionHistory: hubStore.decisionHistory,
+            resolvedLines: hubStore.resolvedLines
+        )
     }
 
     @ViewBuilder
     private var recordsSection: some View {
+        let entries = mergedEntries
         Section {
-            HubSectionHeader(title: "审核记录")
-                .listRowSeparator(.hidden)
-                .listRowInsets(rowInsets)
-                .listRowBackground(Color.clear)
             switch hubStore.grantsState {
             case .loading:
-                if mergedEntries.isEmpty {
+                if entries.isEmpty {
                     ProgressView()
                         .listRowSeparator(.hidden)
                         .listRowInsets(rowInsets)
@@ -196,13 +222,21 @@ struct HubAuditSection: View {
                     quietRow(note)
                 }
             }
-            if !mergedEntries.isEmpty {
-                ForEach(mergedEntries) { entry in
+            if !entries.isEmpty {
+                ForEach(entries) { entry in
                     entryRow(entry)
                 }
             } else if case .ready = hubStore.grantsState {
                 quietRow("暂无审核记录")
             }
+        } header: {
+            Text("审核记录")
+                .font(.system(
+                    size: OneDayMetrics.hubTitleSize,
+                    weight: .semibold
+                ))
+                .foregroundStyle(Palette.ink)
+                .textCase(nil)
         }
     }
 

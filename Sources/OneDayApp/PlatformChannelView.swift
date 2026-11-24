@@ -51,8 +51,7 @@ struct PlatformChannelView: View {
                 } else if channelRows.isEmpty {
                     ContentUnavailableView(
                         "这个频道里还没有对话",
-                        systemImage: "tray",
-                        description: Text("连上之后，在那边开始的对话会出现在这里，点开就能接着聊。")
+                        systemImage: "tray"
                     )
                     .listRowSeparator(.hidden)
                 } else {
@@ -109,6 +108,7 @@ struct PlatformChannelView: View {
             // §232 恢复回行：本页直读账本投影，引擎恢
             // 复时账本名单回行即自动呈现（第 67 条包二）
         }
+        .fullscreenPopBridge()
         .task {
             await store.load(
                 appState: appState, localThreads: threads

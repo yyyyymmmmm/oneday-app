@@ -493,6 +493,7 @@ struct CreateProfileSheet: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func submit() async {
@@ -639,6 +640,7 @@ struct ImportProfileSheet: View {
                 )
             }
         }
+        .fullscreenPopBridge()
     }
 
     // MARK: 服务器路径模式（P10 原形态）
@@ -975,6 +977,7 @@ struct ProfileExportSheet: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 下载到手机（§393）：文件面 download 端点
@@ -1065,7 +1068,7 @@ private struct PersonaEntryRow: View {
                 .font(.body)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
-            DisclosureChevron(font: .system(size: 13, weight: .regular))
+            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: OneDayMetrics.rowHeight)

@@ -212,7 +212,7 @@ struct AttachmentPanelView: View {
             onCamera()
         } label: {
             Image(systemName: "camera")
-                .font(.system(size: 30, weight: .regular))
+                .font(.system(size: FrameworkIcon.attachmentGlyphSize, weight: .regular))
                 .foregroundStyle(Palette.ink)
                 .frame(
                     width: AttachmentPanel.Layout.cellSize,
@@ -265,7 +265,7 @@ struct AttachmentPanelView: View {
                 )
                 if selected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(.system(size: FrameworkIcon.tabGlyphSize, weight: .semibold))
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(.white, Palette.primary)
                         .padding(OneDayMetrics.spacingXS)
@@ -340,7 +340,7 @@ struct AttachmentPanelView: View {
         Button(action: action) {
             HStack(spacing: OneDayMetrics.spacingSM) {
                 Image(systemName: icon)
-                    .font(.system(size: 20, weight: .regular))
+                    .font(.system(size: FrameworkIcon.rowGlyphSize, weight: .regular))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 28)
                 Text(title)

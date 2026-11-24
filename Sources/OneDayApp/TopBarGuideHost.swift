@@ -490,9 +490,8 @@ final class TopBarGuideHostController: UIViewController {
         // 场现算，不再经布局拍缓存）
         (view as? TopBarPassthroughView)?.barView =
             barHost.view
-        // §213：顶缘效果注册到顶簇宿主视图本体——效
-        // 果由系统插在容器之后、按内容滚过与否自适
-        // 应；本视图层级内不再垫任何常驻材质片
+        // §213：顶缘效果必须直接挂到含真实玻璃子视图的 barHost.view 本体，
+        // 挂空子视图会导致 iOS 26 UIScrollEdgeElementContainerInteraction 不生成朦胧效果
         edgeInteraction.edge = .top
         barHost.view.addInteraction(edgeInteraction)
         refreshEdgeBinding()

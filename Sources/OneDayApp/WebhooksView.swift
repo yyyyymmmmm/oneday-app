@@ -47,13 +47,6 @@ struct WebhooksView: View {
 
     var body: some View {
         List {
-            Section {
-                Text("外面的系统（GitHub、监控、表单）有事发生时，按订阅地址把事件打进来，Hermes 立刻被触发去处理——不用等它轮询。")
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .listRowBackground(Color.clear)
-
             if let note = store.note {
                 Section {
                     Text(note)
@@ -328,5 +321,6 @@ struct WebhookCreateForm: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }

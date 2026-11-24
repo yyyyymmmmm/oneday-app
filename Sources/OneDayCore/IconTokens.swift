@@ -99,6 +99,30 @@ public enum FrameworkIcon {
     public static let largeGlyphSize: CGFloat = 28
     /// 身份区超大字形：46pt（全仓最大字形，HubIdentitySection 专用）
     public static let identityGlyphSize: CGFloat = 46
+    // MARK: - 收编二期补充令牌（2026-11-24，P2-01 字号收编续批）
+    // 审计 P2-01 余量分拣：以下八档是字面量收编时令牌
+    // 表无档的在用字形尺寸，按收编一期先例补齐（等值
+    // 收编、渲染不变），逐处分拣表见 hig-p201-font-
+    // sort-table-20261124.md。新写字形不许再用字面量，
+    // 无档尺寸先在本表补档再消费。
+
+    /// 行内伴随字形：14pt（披露 chevron、刷新、行内状态/动作字形）
+    public static let inlineGlyphSize: CGFloat = 14
+    /// 行内动作与状态字形：15pt（弹层/面板内动作、状态提示字形）
+    public static let actionGlyphSize: CGFloat = 15
+    /// 卡面与浮层重点字形：16pt（类别字形、工具卡、圆盘钮、卡头 ellipsis）
+    public static let cardGlyphSize: CGFloat = 16
+    /// 「更多」字形：18pt（卡头 ellipsis 专用；审核页 iconBox 18 为
+    /// §434 量测光学值、属另一语义，不共用本档）
+    public static let moreGlyphSize: CGFloat = 18
+    /// 浮层大字形：26pt（媒体播放钮、查看器空态图）
+    public static let overlayGlyphSize: CGFloat = 26
+    /// 附件面板大动作字形：30pt（相机入口）
+    public static let attachmentGlyphSize: CGFloat = 30
+    /// 设计库 EmptyState 主字形：34pt
+    public static let emptyStateGlyphSize: CGFloat = 34
+    /// 空态大字形：44pt（EmptyState.swift 空态主图）
+    public static let emptyStateLargeGlyphSize: CGFloat = 44
     /// 框架图标墨迹密度目标带（紧致 alpha 包围盒口径，
     /// RenderMeasureTests 同口径复量）：Muse 同位 13–21%
     /// ——注意本带是 17–18pt 小字形口径（0.3.6 定）；字

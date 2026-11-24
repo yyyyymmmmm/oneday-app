@@ -521,9 +521,9 @@ public extension ButtonStyle where Self == PressableButtonStyle {
 public struct EmptyState: View {
     private let icon: String
     private let title: String
-    private let message: String
+    private let message: String?
 
-    public init(icon: String, title: String, message: String) {
+    public init(icon: String, title: String, message: String? = nil) {
         self.icon = icon
         self.title = title
         self.message = message
@@ -532,16 +532,18 @@ public struct EmptyState: View {
     public var body: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             Image(systemName: icon)
-                .font(.system(size: 34, weight: .light))
+                .font(.system(size: FrameworkIcon.emptyStateGlyphSize, weight: .light))
                 .foregroundStyle(Palette.inkMuted)
                 .accessibilityHidden(true)
             Text(title)
                 .font(.headline)
                 .foregroundStyle(Palette.ink)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.center)
+            if let message {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -559,7 +561,7 @@ public struct InlineError: View {
     public var body: some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 15))
+                .font(.system(size: FrameworkIcon.actionGlyphSize))
                 .foregroundStyle(Palette.danger)
                 .accessibilityHidden(true)
             Text(message)
@@ -816,7 +818,7 @@ public struct IdentityAnchor: View {
                     Circle().fill(Palette.chatSurface)
                     Circle().stroke(Palette.hairline, lineWidth: 0.5)
                     Image(systemName: "sparkles")
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                         .foregroundStyle(Palette.ink)
                         .accessibilityHidden(true)
                 }
@@ -940,7 +942,7 @@ public struct UnifiedRow: View {
                 StatusDot(color: statusColor)
             }
             if showsChevron {
-                DisclosureChevron(font: .system(size: 13, weight: .regular))
+                DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingM)

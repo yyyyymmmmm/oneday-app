@@ -59,6 +59,21 @@ final class ChatFileStore {
         return url
     }
 
+    /// 本地发送文件上传拿到远端路径后立即写入本地缓存，点开秒开、免重复下载
+    func seedLocal(path: String, data: Data) {
+        let url = Self.cacheURL(for: path)
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: url, options: .atomic)
+            states[path] = .ready
+        } catch {
+            // 缓存写入失败不阻断发送主流程，后续按需下载兜底
+        }
+    }
+
     // MARK: 下载
 
     /// 单飞下载：已在飞回同一任务；成功落盘回本地

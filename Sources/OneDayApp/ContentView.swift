@@ -205,7 +205,16 @@ struct ContentView: View {
             presented: appState.router.drawerPresented,
             onOpenChannel: { channelRoute = ChannelRoute(id: $0) }
         ) {
-            tabView
+            // §502 灰底根治：中枢卡拖动时底层处理挂本
+            // 体——TabView（底栏同层）经 HubUnderlay-
+            // Treatment 按共享进度糊化＋压暗，拖动露
+            // 出的是聊天页自己的形态；进度写端在
+            // HubCardHost、持有者 AppState 单例一份
+            HubUnderlayTreatment(
+                progress: appState.hubCardProgress
+            ) {
+                tabView
+            }
         }
         // 症三定因修复（2026-11-12，探针实证 docs/
         // shell-float-fix/FLOAT-FIX-REPORT.md）：桥默
@@ -421,6 +430,7 @@ struct ContentView: View {
                 NavigationStack {
                     ChatView(overviewStore: overviewStore)
                 }
+                .fullscreenPopBridge()
                 .tint(.primary)
             } label: {
                 tabLabel(TabBarSymbols.chat)

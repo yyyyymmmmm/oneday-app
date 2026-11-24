@@ -472,6 +472,13 @@ final class AppState {
     /// 呈现态，突变随条目/线程变更的重建趟消费
     let optionsOverlay = OptionsCardOverlay()
 
+    /// 中枢卡片底层处理进度（§502 灰底根治）：写端
+    /// HubCardHost、读端壳层 HubUnderlayTreatment 的
+    /// 共享持有者（与 optionsOverlay 同式单例持有、
+    /// 全 App 一份）；ChatView 呈现路径驱动——开页
+    /// 置满格、关页落账同事务归零
+    let hubCardProgress = HubCardProgress()
+
     func sharedHubStore() -> AgentHubStore {
         if let hubStoreInstance { return hubStoreInstance }
         let store = AgentHubStore(

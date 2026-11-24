@@ -316,6 +316,24 @@ public struct WriteGateRecord: Decodable, Sendable, Equatable, Identifiable {
     /// 是否可裁决：未知子系统不开批准/驳回口（契约红线）
     public var canDecide: Bool { subsystem != .unknown }
 
+    /// 高风险写操作判定（删除长期记忆、删除整个技能、
+    /// 删除技能文件、批量修改技能文件）：此类操作只给
+    /// 「允许／拒绝」两钮，不提供「总是允许」
+    public var isHighRisk: Bool {
+        let normalized = effectiveOp.lowercased()
+        switch subsystem {
+        case .memory:
+            return normalized == "remove" || normalized == "delete"
+        case .skills:
+            return normalized == "delete"
+                || normalized == "remove"
+                || normalized == "remove_file"
+                || normalized == "batch"
+        case .unknown:
+            return true
+        }
+    }
+
     /// 是否被桥侧预检判定为确定性批不了（§245）：为
     /// 真时卡面不给批准/总是允许两档（点了必败），只
     /// 留驳回出路，原因原文上卡面（防呆呈现单源，见

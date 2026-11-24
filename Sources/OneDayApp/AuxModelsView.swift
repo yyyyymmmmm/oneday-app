@@ -18,10 +18,6 @@ struct AuxModelsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("每个用途用哪个模型，在这里分。没单独指定的用途，跟随主模型。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .padding(.bottom, OneDayMetrics.spacingS)
                 let sections = AuxSlotCatalog.sections(
                     assignments: store.auxAssignments,
                     activePresetUsesMoA: store.activePresetUsesMoA

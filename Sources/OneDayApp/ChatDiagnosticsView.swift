@@ -188,10 +188,9 @@ struct ChatDiagnosticsView: View {
                         .foregroundStyle(Palette.ink)
                         .frame(width: OneDayMetrics.iconSlot, alignment: .center)
                         .accessibilityHidden(true)
-                    labToggleLabel(
-                        title: "崩溃报告",
-                        subtitle: "本机崩溃与卡死诊断（已脱敏），仅供排障。"
-                    )
+                    Text(L10n.string("崩溃报告"))
+                        .font(.rowTitleL)
+                        .foregroundStyle(Palette.ink)
                     Spacer(minLength: OneDayMetrics.spacingS)
                 }
                 .frame(minHeight: OneDayMetrics.settingsRowHeight)
@@ -199,10 +198,6 @@ struct ChatDiagnosticsView: View {
             }
         } header: {
             Text("内部实验")
-        } footer: {
-            Text("内部开关：仅供开发与排障使用，与正式功能无关。")
-                .font(.rowSubtitle)
-                .foregroundStyle(Palette.inkSecondary)
         }
         .listRowBackground(Palette.surface)
     }

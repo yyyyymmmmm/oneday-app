@@ -159,6 +159,7 @@ struct ProviderEditorView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func toggle(_ model: String) {

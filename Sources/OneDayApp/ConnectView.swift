@@ -138,6 +138,7 @@ struct ConnectView: View {
                     }
                 }
             }
+            .fullscreenPopBridge()
         }
         .sheet(isPresented: $showSelfCheck) {
             NavigationStack {
@@ -148,6 +149,7 @@ struct ConnectView: View {
                         }
                     }
             }
+            .fullscreenPopBridge()
         }
         .onChange(of: scenePhase) { _, newPhase in
             // 通知段里去系统设置开完回来：现读真状态
@@ -180,9 +182,6 @@ struct ConnectView: View {
                     .font(.title)
                     .foregroundStyle(Palette.ink)
                     .padding(.top, OneDayMetrics.spacingS)
-                Text("你的智能体，随身继续。")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.inkSecondary)
                 // 三层分工句：与命名包连接页同词条同文案
                 Text("OneDay 是客户端，连接你自己部署的 Hermes 服务；智能体的名字以服务器上的人设为准。")
                     .font(.footnote)

@@ -70,6 +70,7 @@ struct GoalEditView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private var fieldsGroup: some View {
@@ -130,100 +131,6 @@ struct GoalEditView: View {
             }
         }
         dismiss()
-    }
-}
-
-/// 新建目标（sheet）：标题＋备注，创建走 GoalsStore
-/// 的回读确认——确认出现才关表单，未确认原因留表单
-/// 内。0.40.0：从分类流进来时类别已预置
-/// （presetCategory），表单里有类别行可改可清；不经
-/// 分类流的入口类别行为未分类
-struct GoalCreateView: View {
-    @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
-
-    let store: GoalsStore
-    let presetCategory: GoalCategory?
-
-    @State private var title = ""
-    @State private var note = ""
-    @State private var category: GoalCategory?
-
-    init(store: GoalsStore, presetCategory: GoalCategory? = nil) {
-        self.store = store
-        self.presetCategory = presetCategory
-        _category = State(initialValue: presetCategory)
-    }
-
-    private var isValid: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        SectionLabel("目标")
-                            .padding(.bottom, OneDayMetrics.spacingS)
-                        VStack(spacing: 0) {
-                            FieldRow(label: "标题") {
-                                TextField("如：婚礼筹备收尾", text: $title)
-                            }
-                            GroupDivider()
-                            FieldRow(label: "备注") {
-                                TextField("可选", text: $note, axis: .vertical)
-                                    .lineLimit(2...5)
-                            }
-                            GroupDivider()
-                            FieldRow(label: "类别") {
-                                Picker("类别", selection: $category) {
-                                    Text("未分类")
-                                        .tag(GoalCategory?.none)
-                                    ForEach(
-                                        GoalCategory.creationOrder,
-                                        id: \.self
-                                    ) { option in
-                                        Text(option.title)
-                                            .tag(GoalCategory?.some(option))
-                                    }
-                                }
-                                .labelsHidden()
-                            }
-                        }
-                        .odGroup()
-                    }
-                    if let error = store.createError {
-                        InlineError(error)
-                    }
-                }
-                .padding(.horizontal, OneDayMetrics.pageGutter)
-                .padding(.top, OneDayMetrics.spacingM)
-                .padding(.bottom, OneDayMetrics.spacingXL)
-            }
-            .background(Palette.pageBG)
-            .navigationTitle("新建目标")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(store.creating ? "创建中…" : "创建") {
-                        Task {
-                            if await store.create(
-                                appState: appState, title: title,
-                                note: note,
-                                category: category
-                            ) {
-                                dismiss()
-                            }
-                        }
-                    }
-                    .disabled(!isValid || store.creating)
-                }
-            }
-        }
     }
 }
 
@@ -293,6 +200,7 @@ struct GoalDelegateView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 进展对话绑定（§123 H1）：委派确认落定后给目标绑

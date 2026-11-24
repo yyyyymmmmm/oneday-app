@@ -77,6 +77,8 @@ struct HubLedgerSection: View {
     /// 监测＝monitor-change:<变化 id>）：置位后滚
     /// 动定位＋行底色点亮，与原审核段聚焦同形态
     @State private var focusItemID: String?
+    /// 派生快照缓存（第 3 项，照抄 FeedListSnapshot）
+    @State private var snapshotCache = LedgerSnapshotCache()
 
     var body: some View {
         Group {
@@ -206,26 +208,22 @@ struct HubLedgerSection: View {
         }
     }
 
+    private var ledgerSnapshot: LedgerListSnapshot {
+        snapshotCache.snapshot(
+            items: store.allItems,
+            now: Date(timeIntervalSince1970: store.serverNow)
+        )
+    }
+
     private var ledgerList: some View {
-        ScrollViewReader { proxy in
+        let snapshot = ledgerSnapshot
+        return ScrollViewReader { proxy in
             List {
-                // §434：预定任务折叠节（原定时段并入工
-                // 作格，对位参照大头态列表格的同名折叠
-                // 节）——数据走共享 CronStore、行走共
-                // 用 CronOverviewRow、点行下钻定时管理
-                // 页；未就绪/为空时整节不出，不占位
-                // §477：段头改段内首行（HubSectionHeader
-                // 单源件）＋手动折叠——系统 Section 头的
-                // 灰字灰带退役，两段同制式
+                // §434／第 3 项：预定任务折叠节——原生
+                // Section ＋ DisclosureGroup 带平滑动画
                 if cronStore.hasLoaded, !cronStore.hubGroups.isEmpty {
                     Section {
-                        sectionHeaderRow(
-                            title: "预定任务 · \(cronTotalCount) 项",
-                            isExpanded: cronExpanded
-                        ) {
-                            cronExpanded.toggle()
-                        }
-                        if cronExpanded {
+                        DisclosureGroup(isExpanded: $cronExpanded) {
                             ForEach(cronStore.hubGroups, id: \.kind) { group in
                                 ForEach(group.items) { item in
                                     NavigationLink {
@@ -236,29 +234,23 @@ struct HubLedgerSection: View {
                                     .listRowInsets(rowInsets)
                                 }
                             }
+                        } label: {
+                            sectionTitle("预定任务 · \(cronTotalCount) 项")
                         }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(rowInsets)
+                        .listRowBackground(Color.clear)
                     }
                 }
-                // §244：审批规则已归位设置页权限区，
-                // 本列表只剩台账记录本体（审批记录条
-                // 目即记录入口，点开有原文与锚点）
-                // §477：按天段同制式（令牌段头＋可折
-                // 叠）；段内按会话聚合一行（Ledger-
-                // Board.sessionGroups），代表行承标题/
-                // 状态/下钻，聚焦命中按成员判定
-                ForEach(store.dayGroups) { group in
+                // §244／§477／第 3 项：按天分段——原生
+                // Section ＋ DisclosureGroup，消费快照
+                // 中已聚合好的会话行，不再每帧重算
+                ForEach(snapshot.daySections) { section in
                     Section {
-                        sectionHeaderRow(
-                            title: group.title,
-                            isExpanded: !collapsedDayTitles
-                                .contains(group.title)
+                        DisclosureGroup(
+                            isExpanded: dayExpandedBinding(for: section.title)
                         ) {
-                            toggleDayGroup(group.title)
-                        }
-                        if !collapsedDayTitles.contains(group.title) {
-                            ForEach(
-                                LedgerBoard.sessionGroups(group.items)
-                            ) { sessionGroup in
+                            ForEach(section.sessionGroups) { sessionGroup in
                                 NavigationLink {
                                     destination(
                                         for: sessionGroup.representative
@@ -276,7 +268,12 @@ struct HubLedgerSection: View {
                                         : Color.clear
                                 )
                             }
+                        } label: {
+                            sectionTitle(section.title)
                         }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(rowInsets)
+                        .listRowBackground(Color.clear)
                     }
                 }
             }
@@ -329,16 +326,9 @@ struct HubLedgerSection: View {
         _ proxy: ScrollViewProxy, id: String?
     ) {
         guard let id else { return }
-        // §477：聚焦 id 可能是会话聚合组内任一成员，
-        // 落位到其代表行（成员不在任何组里＝目标已滚
-        // 出窗口，静默落空、与旧口径同）
-        let targetID = store.dayGroups
-            .flatMap { LedgerBoard.sessionGroups($0.items) }
-            .first { group in
-                group.members.contains { $0.id == id }
-            }?
-            .representative.id
-        guard let targetID else { return }
+        // 第 3 项：直接从快照索引 O(1) 查代表行 id
+        guard let targetID = ledgerSnapshot.representativeIDByMemberID[id]
+        else { return }
         withAnimation(
             MotionTokens.resolved(
                 MotionTokens.systemDefault, reduceMotion: reduceMotion
@@ -348,29 +338,30 @@ struct HubLedgerSection: View {
         }
     }
 
-    // MARK: - 段头（§477 单源件）
+    // MARK: - 段头（第 3 项：原生 Section + DisclosureGroup）
 
-    /// 段头行：HubSectionHeader 作段内首行（边距走行
-    /// insets 与数据行同线），分隔线不挂段头行
-    private func sectionHeaderRow(
-        title: String, isExpanded: Bool,
-        onToggle: @escaping () -> Void
-    ) -> some View {
-        HubSectionHeader(
-            title: title, isExpanded: isExpanded,
-            onToggle: onToggle
-        )
-        .listRowSeparator(.hidden)
-        .listRowInsets(rowInsets)
-        .listRowBackground(Color.clear)
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(
+                size: OneDayMetrics.hubTitleSize,
+                weight: .semibold
+            ))
+            .foregroundStyle(Palette.ink)
+            .lineLimit(1)
+            .padding(.vertical, OneDayMetrics.spacingXS)
     }
 
-    private func toggleDayGroup(_ title: String) {
-        if collapsedDayTitles.contains(title) {
-            collapsedDayTitles.remove(title)
-        } else {
-            collapsedDayTitles.insert(title)
-        }
+    private func dayExpandedBinding(for title: String) -> Binding<Bool> {
+        Binding(
+            get: { !collapsedDayTitles.contains(title) },
+            set: { expanded in
+                if expanded {
+                    collapsedDayTitles.remove(title)
+                } else {
+                    collapsedDayTitles.insert(title)
+                }
+            }
+        )
     }
 
     /// 列表行边距（§477：中枢局部 16，段头与数据行

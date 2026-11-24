@@ -67,6 +67,11 @@ public enum SessionHistoryImport {
         /// 体（v1 瞬态覆盖层口径），由导入侧按尾位规
         /// 则播种覆盖层；工具卡项恒 nil
         public let options: MessageOptions?
+        /// 收敛包（2026-11-24，P3-1）：user 消息正文
+        /// 首引用块拆出的引用槽位——落盘回填 Chat-
+        /// Entry.quoteRole/quoteContent，正文只存干
+        /// 净正文；非 user 项与无引用项恒 nil
+        public let quote: MessageQuote?
 
         public init(
             role: String, content: String, date: Date?,
@@ -74,7 +79,8 @@ public enum SessionHistoryImport {
             fileRefs: [String] = [],
             serverRowID: Int? = nil,
             reactions: [MessageReaction] = [],
-            options: MessageOptions? = nil
+            options: MessageOptions? = nil,
+            quote: MessageQuote? = nil
         ) {
             self.role = role
             self.content = content
@@ -85,25 +91,35 @@ public enum SessionHistoryImport {
             self.serverRowID = serverRowID
             self.reactions = reactions
             self.options = options
+            self.quote = quote
         }
     }
 
     /// user 消息规范化（0.46.1，§116 单点）：网关展开
     /// 块（AttachedContextRef）与图片标记（Attached
     /// ImageRef）一并剥离，还原（干净正文，图片路径，
-    /// 文件路径）。导入、对账补缺、对账判同三处同走
-    /// 本口径，不许各写一份
+    /// 文件路径）。收敛包（2026-11-24）补第三种剥离：
+    /// 正文首的引用块（MessageQuote 线格式）拆回引用
+    /// 槽位（quote），不再混在正文里。导入、对账补
+    /// 缺、对账判同三处同走本口径，不许各写一份
     public struct NormalizedUserContent: Equatable, Sendable {
         public let text: String
         public let imagePaths: [String]
         public let fileRefs: [String]
+        /// 收敛包（2026-11-24，P3-1）：正文首引用块
+        /// 拆出的引用槽位——与正文分开走，不再让
+        /// 「[引用 …]」线格式原文混进正文；无引用
+        /// 恒 nil
+        public let quote: MessageQuote?
 
         public init(
-            text: String, imagePaths: [String], fileRefs: [String]
+            text: String, imagePaths: [String], fileRefs: [String],
+            quote: MessageQuote? = nil
         ) {
             self.text = text
             self.imagePaths = imagePaths
             self.fileRefs = fileRefs
+            self.quote = quote
         }
 
         /// 附件路径全集（图片＋文件）——判同的路径集口径
@@ -111,7 +127,7 @@ public enum SessionHistoryImport {
     }
 
     public static func normalizedUserContent(
-        _ content: String
+        _ content: String, knownQuoteTexts: Set<String> = []
     ) -> NormalizedUserContent {
         let attached = AttachedContextRef.parse(content)
         let imageParsed = AttachedImageRef.parse(attached.text)
@@ -120,9 +136,20 @@ public enum SessionHistoryImport {
         where !imagePaths.contains(path) {
             imagePaths.append(path)
         }
+        // 收敛包（2026-11-24，P3-1）：引用块是第三种
+        // 脚手架——发送时由 MessageQuote.outgoing-
+        // Content 拼在线格式首、落服务端历史后随回
+        // 流进来；在此拆回（正文，引用槽位），不许
+        // 再让线格式原文混进正文直进气泡
+        let parsed = MessageQuote.parse(
+            wireContent: imageParsed.text,
+            knownQuoteTexts: knownQuoteTexts
+        )
         return NormalizedUserContent(
-            text: imageParsed.text, imagePaths: imagePaths,
-            fileRefs: attached.fileRefs
+            text: parsed?.body ?? imageParsed.text,
+            imagePaths: imagePaths,
+            fileRefs: attached.fileRefs,
+            quote: parsed?.quote
         )
     }
 
@@ -139,7 +166,15 @@ public enum SessionHistoryImport {
     public static func richItems(
         from messages: [SessionMessage]
     ) -> [RichItem] {
-        ToolCardBuilder.build(from: messages).compactMap { item in
+        // 收敛包：引用拆解的校验集＝本批消息的呈现正
+        // 文集——被引消息多半同批在场，拆解可据实校
+        // 验切点（MessageQuote.parse 的歧义口径）
+        let knownQuoteTexts = Set(messages.map { message in
+            message.role == "user"
+                ? normalizedUserContent(message.content).text
+                : AttachedImageRef.parse(message.content).text
+        })
+        return ToolCardBuilder.build(from: messages).compactMap { item in
             switch item {
             case .toolCard(let card, let date):
                 return RichItem(
@@ -153,11 +188,16 @@ public enum SessionHistoryImport {
                 // 渲染；assistant 维持图片标记旧口径
                 if message.role == "user" {
                     let normalized = normalizedUserContent(
-                        message.content
+                        message.content,
+                        knownQuoteTexts: knownQuoteTexts
                     )
+                    // 收敛包：纯引用发送（正文空、只有引
+                    // 用块）拆后正文为空——引用在位即算可
+                    // 导入，不许被空正文门吞掉整条
                     guard !normalized.text.isEmpty
                             || !normalized.imagePaths.isEmpty
                             || !normalized.fileRefs.isEmpty
+                            || normalized.quote != nil
                     else { return nil }
                     return RichItem(
                         role: message.role,
@@ -170,7 +210,8 @@ public enum SessionHistoryImport {
                             of: message
                         ),
                         reactions: message.reactions,
-                        options: message.options
+                        options: message.options,
+                        quote: normalized.quote
                     )
                 }
                 let parsed = AttachedImageRef.parse(message.content)

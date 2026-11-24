@@ -317,6 +317,18 @@ final class ComposerFocusHandle {
         }
     }
 
+    func focusAtEnd() {
+        if let textView {
+            textView.becomeFirstResponder()
+            DispatchQueue.main.async {
+                let len = (textView.text as NSString).length
+                textView.selectedRange = NSRange(location: len, length: 0)
+            }
+        } else {
+            pendingFocus = true
+        }
+    }
+
     func dismiss() {
         textView?.resignFirstResponder()
     }

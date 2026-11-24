@@ -77,7 +77,7 @@ struct BrowserFaceView: View {
     private var takeoverStrip: some View {
         HStack(spacing: OneDayMetrics.spacingS) {
             Image(systemName: "hand.tap")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
             Text("接管中 · 智能体已暂停")
                 .font(.subheadline.weight(.semibold))
             Spacer()
@@ -115,7 +115,7 @@ struct BrowserFaceView: View {
                     Task { await store.refreshStatus(appState: appState) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: FrameworkIcon.inlineGlyphSize, weight: .medium))
                         // 第 83 条（命中域收口）：字形不变、
                         // 命中域外扩 44；负内边距按字形名义
                         // 14 抵消（(44−14)/2），状态行高由同
@@ -251,7 +251,7 @@ struct BrowserFaceView: View {
             } else if store.status?.isRunning == false {
                 VStack(spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "moon.zzz")
-                        .font(.system(size: 22))
+                        .font(.system(size: FrameworkIcon.tabGlyphSize))
                         .foregroundStyle(Palette.inkMuted)
                     Text("云电脑休眠中")
                         .font(.footnote)

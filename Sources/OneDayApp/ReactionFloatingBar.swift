@@ -97,6 +97,7 @@ struct ReactionFloatingBarView: View {
                     onPick(emoji)
                 } label: {
                     Text(emoji)
+                        // P2-01 登记保留：反应 emoji 为内容层字形定点（非界面文字、不随 Dynamic Type 缩放）
                         .font(.system(size: 20))
                         .frame(
                             width: Self.pillSide,
@@ -145,7 +146,7 @@ struct ReactionFloatingBarView: View {
             ZStack {
                 Circle().fill(Palette.pageBG)
                 Image(systemName: "plus")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.actionGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.ink)
             }
             .frame(width: 34, height: 34)
@@ -205,6 +206,7 @@ struct ReactionEmojiPickerView: View {
                             onPick(emoji)
                         } label: {
                             Text(emoji)
+                                // P2-01 登记保留：反应 emoji 为内容层字形定点（非界面文字、不随 Dynamic Type 缩放）
                                 .font(.system(size: 26))
                                 .frame(width: 44, height: 44)
                                 .background(
@@ -265,10 +267,10 @@ struct ReactionActionCardView: View {
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         Image(systemName: item.systemImage)
-                            .font(.system(size: 17))
+                            .font(.system(size: FrameworkIcon.fileGlyphSize))
                             .frame(width: 24)
                         Text(item.title)
-                            .font(.system(size: 17))
+                            .font(.rowTitle)
                         Spacer(minLength: 0)
                     }
                     .foregroundStyle(

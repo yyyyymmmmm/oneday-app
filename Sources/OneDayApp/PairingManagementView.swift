@@ -58,16 +58,6 @@ struct PairingManagementView: View {
 
     var body: some View {
         List {
-            Section {
-                Text("在 Telegram、WhatsApp 等平台上第一次私聊网关的人，会拿到一个配对码；在这里批准后，他们才能开始和网关对话，随时可以撤销。这和「添加设备」不是一回事——那是让新手机连上服务器，这里管的是谁能跟网关说话。")
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(
-                EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)
-            )
-
             if let note = store.note {
                 Section {
                     Text(note)

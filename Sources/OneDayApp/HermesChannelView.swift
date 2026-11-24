@@ -93,8 +93,7 @@ struct HermesChannelView: View {
                 } else if channelRows.isEmpty {
                     ContentUnavailableView(
                         "还没有从其他地方来的对话",
-                        systemImage: "tray",
-                        description: Text("在这台 Hermes 的网页端或通过接口开始的对话会出现在这里，点开就能接着聊。")
+                        systemImage: "tray"
                     )
                     .listRowSeparator(.hidden)
                 } else {
@@ -161,6 +160,7 @@ struct HermesChannelView: View {
             // 擎恢复时账本名单回行即自动呈现，不再需
             // 要恢复信号重拉（第 67 条包二）
         }
+        .fullscreenPopBridge()
         .task {
             await store.load(
                 appState: appState, localThreads: threads

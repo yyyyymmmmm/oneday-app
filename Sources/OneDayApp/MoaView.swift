@@ -34,13 +34,6 @@ struct MoaView: View {
 
     var body: some View {
         List {
-            Section {
-                Text("重要问题可以让几个模型先各自想一遍，再由一个汇总模型综合成最终回答——这就是会商。一套会商方案叫一个预设；建好后，在聊天的模型选择器里选「多模型会商」下的预设就能用。")
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .listRowBackground(Color.clear)
-
             if let note = store.note {
                 Section {
                     Text(note)
@@ -146,8 +139,6 @@ struct MoaView: View {
                 .disabled(store.isWriting)
             } header: {
                 Text("会商预设")
-            } footer: {
-                Text("「默认」是没指定时用的预设；「使用中」是服务端当前生效的那套。在聊天里选预设是逐次的，不改这里的默认。")
             }
         }
     }
@@ -292,6 +283,7 @@ struct MoaPresetEditor: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 一个槽的服务商/模型：快捷菜单（默认服务商模型＋

@@ -170,6 +170,23 @@ final class AgentHubStore {
     /// 支消费后即除名）
     private var alwaysApproveMarks: Set<String> = []
 
+    /// 「总是允许」一次点按后的轻量撤销通知（5 秒自动收起）
+    struct AlwaysAllowToast: Identifiable, Equatable {
+        let id = UUID()
+        let rule: WriteGateRule
+        let scopeLabel: String
+    }
+    private(set) var alwaysAllowToast: AlwaysAllowToast?
+    private var alwaysAllowToastTask: Task<Void, Never>?
+
+    /// 是否存在未决待审批记录（聊天页拦截发送用）
+    var hasPendingApprovals: Bool {
+        if case .ready(let records) = approvalState {
+            return !records.isEmpty
+        }
+        return false
+    }
+
     // MARK: - 授权账本（§434 审核格；能力 #12 活证）
 
     /// grants 回读状态：ready 即端点在位且清单读回
@@ -739,8 +756,9 @@ final class AgentHubStore {
         }
         decidingIDs.insert(record.id)
         cardNotes.removeValue(forKey: record.id)
+        let createdRule: WriteGateRule
         do {
-            _ = try await gateClient.createRule(
+            createdRule = try await gateClient.createRule(
                 config: config, subsystem: record.subsystem,
                 origin: record.origin
             )
@@ -755,6 +773,37 @@ final class AgentHubStore {
         alwaysApproveMarks.insert(record.id)
         decidingIDs.remove(record.id)
         await decide(record, approve: true)
+        showAlwaysAllowToast(
+            rule: createdRule,
+            scopeLabel: ApprovalCardCopy.alwaysAllowScope(for: record)
+        )
+    }
+
+    private func showAlwaysAllowToast(
+        rule: WriteGateRule, scopeLabel: String
+    ) {
+        alwaysAllowToastTask?.cancel()
+        let toast = AlwaysAllowToast(rule: rule, scopeLabel: scopeLabel)
+        alwaysAllowToast = toast
+        alwaysAllowToastTask = Task {
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            if alwaysAllowToast?.id == toast.id {
+                alwaysAllowToast = nil
+            }
+        }
+    }
+
+    func dismissAlwaysAllowToast() {
+        alwaysAllowToastTask?.cancel()
+        alwaysAllowToastTask = nil
+        alwaysAllowToast = nil
+    }
+
+    func undoAlwaysAllowToast() async {
+        guard let toast = alwaysAllowToast else { return }
+        dismissAlwaysAllowToast()
+        await revokeRule(toast.rule)
     }
 
     /// 规则列表刷新：best-effort，失败保持旧值（与已

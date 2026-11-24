@@ -1,11 +1,10 @@
-import OneDayDesign
+import Charts
 import OneDayCore
+import OneDayDesign
 import SwiftUI
 
-/// 用量详情（设置·模型与密钥，IA §5.3）：从总览降下来的
-/// 趋势与分布住这里——近 7/30 天 Token 趋势（按日条）＋
-/// 按模型分布＋周期汇总。数据 /api/analytics/usage 与
-/// /api/analytics/models。
+/// 用量详情（设置·模型与密钥，IA §5.3）：对标 OpenBot / OpenAI / Claude 用量页——
+/// 今日 / 近 7 天 / 近 30 天分段 + 三格核心 KPI 卡 + 原生 Swift Charts 柱状趋势图 + 按模型占比分布。
 struct UsageDetailView: View {
     @Environment(AppState.self) private var appState
 
@@ -18,8 +17,9 @@ struct UsageDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingL) {
                 Picker("周期", selection: $days) {
+                    Text("今日").tag(1)
                     Text("近 7 天").tag(7)
                     Text("近 30 天").tag(30)
                 }
@@ -27,16 +27,16 @@ struct UsageDetailView: View {
                 .onChange(of: days) { _, _ in
                     Task { await load() }
                 }
+
                 if let usage {
-                    totalsGroup(usage)
-                    trendGroup(usage)
+                    kpiSummaryGrid(usage)
+                    dailyTrendChart(usage)
                 }
                 if let models, !models.models.isEmpty {
                     modelsGroup(models)
                 }
                 if let errorMessage {
                     InlineError(errorMessage)
-                        .padding(.top, OneDayMetrics.spacingL)
                 }
                 if usage == nil && errorMessage == nil {
                     HStack(spacing: OneDayMetrics.spacingS) {
@@ -45,7 +45,8 @@ struct UsageDetailView: View {
                             .font(.footnote)
                             .foregroundStyle(Palette.inkSecondary)
                     }
-                    .padding(.top, OneDayMetrics.spacingL)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, OneDayMetrics.spacingXL)
                 }
             }
             .padding(.horizontal, OneDayMetrics.pageGutter)
@@ -59,134 +60,162 @@ struct UsageDetailView: View {
         .task { await load() }
     }
 
-    private func totalsGroup(_ usage: UsageAnalytics) -> some View {
-        // 0.3.7 卡 10：周期汇总升摘要卡——总数大数字主位，
-        // 请求/会话/费用作卡内次级读数
-        VStack(alignment: .leading, spacing: 0) {
+    // MARK: - 核心 KPI 汇总卡
+
+    private func kpiSummaryGrid(_ usage: UsageAnalytics) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
-                RollingNumberText(
-                    key: "usage.\(appState.config?.baseString ?? "").\(loadedDays).tokens",
-                    value: usage.totals.tokens, font: .title,
-                    format: { AdminFormat.count($0) }
-                )
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text("Token 总数（近 \(loadedDays) 天）")
+                Text(loadedDays == 1 ? "今日 Token 总消耗" : "近 \(loadedDays) 天 Token 总消耗")
                     .font(.caption)
                     .foregroundStyle(Palette.inkSecondary)
+                RollingNumberText(
+                    key: "usage.\(appState.config?.baseString ?? "").\(loadedDays).tokens",
+                    value: usage.totals.tokens,
+                    font: .largeTitle.weight(.bold),
+                    format: { AdminFormat.count($0) }
+                )
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             }
             .padding(.horizontal, OneDayMetrics.spacingM)
             .padding(.top, OneDayMetrics.spacingM)
-            .padding(.bottom, OneDayMetrics.spacingS)
+
             GroupDivider()
-            VStack(spacing: 0) {
-                // 键值行走 KeyValueRow（台账 198 收敛
-                // S5：本页是裸 LabeledContent 入组卡贴
-                // 边溢出的实锤页，自此只许共用件）
-                KeyValueRow("请求数", value: AdminFormat.count(usage.totals.totalAPICalls ?? 0))
-                GroupDivider()
-                KeyValueRow("会话数", value: AdminFormat.count(usage.totals.totalSessions ?? 0))
-                GroupDivider()
-                KeyValueRow("估算费用", value: AdminFormat.cost(usage.totals.totalEstimatedCost ?? 0))
+
+            HStack(spacing: 0) {
+                kpiCell(
+                    title: "估算费用",
+                    value: AdminFormat.cost(usage.totals.totalEstimatedCost ?? 0)
+                )
+                Divider().frame(height: 36)
+                kpiCell(
+                    title: "请求次数",
+                    value: AdminFormat.count(usage.totals.totalAPICalls ?? 0)
+                )
+                Divider().frame(height: 36)
+                kpiCell(
+                    title: "会话数",
+                    value: AdminFormat.count(usage.totals.totalSessions ?? 0)
+                )
             }
+            .padding(.vertical, OneDayMetrics.spacingSM)
         }
         .odGroup()
-        .padding(.top, OneDayMetrics.spacingL)
     }
 
-    private func trendGroup(_ usage: UsageAnalytics) -> some View {
-        let maxTokens = max(usage.daily.map(\.tokens).max() ?? 0, 1)
-        return VStack(alignment: .leading, spacing: 0) {
+    private func kpiCell(title: String, value: String) -> some View {
+        VStack(spacing: OneDayMetrics.spacingMicro) {
+            Text(value)
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - 按日趋势图（Swift Charts）
+
+    private func dailyTrendChart(_ usage: UsageAnalytics) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             SectionLabel("按日趋势")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
-            VStack(spacing: 0) {
-                ForEach(Array(usage.daily.enumerated()), id: \.element.id) { index, day in
-                    if index > 0 {
-                        GroupDivider()
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingSM) {
+                if usage.daily.isEmpty {
+                    Text("当前周期暂无用量记录")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 140, alignment: .center)
+                } else {
+                    Chart(usage.daily) { day in
+                        BarMark(
+                            x: .value("日期", AdminFormat.usageDay(day.day)),
+                            y: .value("Token", day.tokens)
+                        )
+                        .foregroundStyle(Palette.primary.gradient)
+                        .cornerRadius(4)
                     }
-                    HStack(spacing: OneDayMetrics.spacingSM) {
-                        Text(AdminFormat.usageDay(day.day))
-                            .font(.callout)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .frame(width: 64, alignment: .leading)
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                // 0.3.7 卡 10/17：趋势条中性口径
-                                // （轨道 fieldFill、填充恒墨，蓝退出）
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Palette.fieldFill)
-                                    .frame(height: 6)
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Palette.ink)
-                                    .frame(
-                                        width: max(
-                                            geo.size.width * CGFloat(day.tokens / maxTokens),
-                                            day.tokens > 0 ? 6 : 0
-                                        ),
-                                        height: 6
-                                    )
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                                .foregroundStyle(Palette.hairline)
+                            AxisValueLabel {
+                                if let v = value.as(Double.self) {
+                                    Text(AdminFormat.count(v))
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(Palette.inkSecondary)
+                                }
                             }
-                            .frame(maxHeight: .infinity)
                         }
-                        .frame(height: 20)
-                        Text(AdminFormat.count(day.tokens))
-                            .font(.system(.footnote, design: .monospaced))
-                            .foregroundStyle(Palette.ink)
-                            .frame(width: 64, alignment: .trailing)
                     }
-                    .padding(.horizontal, OneDayMetrics.spacingM)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    .chartXAxis {
+                        AxisMarks { value in
+                            AxisValueLabel {
+                                if let label = value.as(String.self) {
+                                    Text(label)
+                                        .font(.caption2)
+                                        .foregroundStyle(Palette.inkSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 180)
+                    .padding(.top, OneDayMetrics.spacingS)
                 }
             }
+            .padding(OneDayMetrics.spacingM)
             .odGroup()
         }
     }
 
+    // MARK: - 按模型分布（横向占比条）
+
     private func modelsGroup(_ models: ModelAnalytics) -> some View {
         let total = max(models.models.map(\.tokens).reduce(0, +), 1)
-        return VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
             SectionLabel("按模型分布")
-                .padding(.top, OneDayMetrics.sectionOuterSpacing)
-                .padding(.bottom, OneDayMetrics.spacingS)
             VStack(spacing: 0) {
                 ForEach(Array(models.models.enumerated()), id: \.element.id) { index, model in
                     if index > 0 {
                         GroupDivider()
                     }
-                    HStack(spacing: OneDayMetrics.spacingSM) {
-                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
-                            Text(model.model)
-                                .font(.system(.callout, design: .monospaced))
-                                .foregroundStyle(Palette.ink)
-                                .lineLimit(1)
-                            if let provider = model.provider, !provider.isEmpty {
-                                Text(provider)
-                                    .font(.caption)
+                    let ratio = min(max(model.tokens / total, 0), 1)
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                        HStack(alignment: .firstTextBaseline, spacing: OneDayMetrics.spacingS) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(model.model)
+                                    .font(.system(.callout, design: .monospaced))
+                                    .foregroundStyle(Palette.ink)
+                                    .lineLimit(1)
+                                if let provider = model.provider, !provider.isEmpty {
+                                    Text(provider)
+                                        .font(.caption)
+                                        .foregroundStyle(Palette.inkSecondary)
+                                }
+                            }
+                            Spacer(minLength: OneDayMetrics.spacingS)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(AdminFormat.count(model.tokens))
+                                    .font(.system(.callout, design: .monospaced))
+                                    .foregroundStyle(Palette.ink)
+                                Text(String(format: "%.0f%%", ratio * 100))
+                                    .font(.caption.monospacedDigit())
                                     .foregroundStyle(Palette.inkSecondary)
                             }
                         }
-                        Spacer(minLength: OneDayMetrics.spacingS)
-                        VStack(alignment: .trailing, spacing: OneDayMetrics.spacingMicro) {
-                            Text(AdminFormat.count(model.tokens))
-                                .font(.system(.callout, design: .monospaced))
-                                .foregroundStyle(Palette.ink)
-                            Text(String(format: "%.0f%%", model.tokens / total * 100))
-                                .font(.caption)
-                                .monospacedDigit()
-                                .foregroundStyle(Palette.inkSecondary)
-                        }
+                        ProgressView(value: ratio)
+                            .tint(Palette.primary)
                     }
                     .padding(.horizontal, OneDayMetrics.spacingM)
-                    .padding(.vertical, OneDayMetrics.spacingS)
-                    .frame(minHeight: OneDayMetrics.rowHeight)
+                    .padding(.vertical, OneDayMetrics.spacingSM)
                 }
             }
             .odGroup()
         }
     }
-
 
     private func load() async {
         guard !isLoading else { return }

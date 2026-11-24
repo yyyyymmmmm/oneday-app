@@ -123,7 +123,7 @@ struct SkillHubView: View {
             EmptyState(
                 icon: "bag",
                 title: "搜索技能库",
-                message: "输入关键词搜索可安装的技能。"
+                message: ""
             )
             .padding(.top, OneDayMetrics.spacingXXL)
         case .searching:

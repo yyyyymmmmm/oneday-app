@@ -88,7 +88,26 @@ struct ChatView: View {
     /// 字号档（0.43.0，A11Y-D1）：发送舱量测按档贯穿
     /// ——经 OneDayDesign 映射交给 ComposerBarLayout，
     /// 与文本视图自身 trait 档同源（量测≡排版）
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dynamicTypeSize)
+    private var systemDynamicTypeSize
+    /// §503 聊天文字大小档（外观页写、本页读）：未设
+    /// ＝「跟随系统」
+    @AppStorage(AppearanceStorageKeys.chatTextSize)
+    private var chatTextSizeRaw = ChatTextSizeTier.system.rawValue
+    /// 聊天面生效字阶（§503 单源）：档位覆盖优先、
+    /// 「跟随系统」恒等环境值。档位→DynamicType-
+    /// Size 的映射单源在 ChatTextSizeTier.fixed-
+    /// DynamicTypeSize（外观页文件）。本视图全部字阶消费点（量测喂入/
+    /// 行高合成/行样式键/原生面 facets）同读本口，
+    /// 量测≡排版不分叉；聊天根另以同值施 .dynamic-
+    /// TypeSize 环境覆盖（见 nativeListSurface 挂载
+    /// 点），SwiftUI 渲染与原生量测同源
+    private var dynamicTypeSize: DynamicTypeSize {
+        let tier = ChatTextSizeTier(
+            rawValue: chatTextSizeRaw
+        ) ?? .system
+        return tier.fixedDynamicTypeSize ?? systemDynamicTypeSize
+    }
     /// 0.20.0 恢复链：本页自此观察前后台（此前全页无
     /// scenePhase 观察——切后台杀流后回前台无人对账，
     /// 是「显示无网络」误报的生命周期半侧定因）
@@ -111,6 +130,7 @@ struct ChatView: View {
     /// 呈现不再读本缓冲（回响行读条目自带快照）；
     /// 拉取失败保留旧值（见 refreshEchoTraces）
     @State private var echoTraces: [BridgeTrace] = []
+    @State private var expandedTraceGroupIDs: Set<UUID> = []
     @State private var input = ""
     /// 语音输入控制器（0.36.6，§71）：端上识别、录音
     /// 条占住发送舱；文本经 onTextChange 回写 input
@@ -194,6 +214,10 @@ struct ChatView: View {
         case rejected
         case prepareFailed
         case offlineParked
+        /// 限流停泊（发送失败机制包·等待门）：服务
+        /// 端明示等待时长，条目折回待发、唤醒钟已
+        /// 在停泊点排好，到点自动续——不是失败
+        case rateLimitedParked
         case stopped
     }
     /// 本轮 run 的状态机（0.31.0）：相位与终态证据的
@@ -247,9 +271,11 @@ struct ChatView: View {
     /// 0.2.1：非错误提示条。§140 提示纪律起分档自消：
     /// 呈现状态与代号在 Core NoticePresentation，赋值
     /// 一律走 showNotice（中性 5s／重要 8s 自清）；错
-    /// 误族走 errorMessage、常驻不动（动作位原注记
-    /// 「归二包」，基础止血包 P2 已兑现：失败轮次的
-    /// 横幅带「重新发送」，见 failedResendTarget）
+    /// 误族走 errorMessage、常驻不动。发送失败机制
+    /// 包（语义 5）起横幅只投影全局状况（凭据失效/
+    /// 服务不可用）、无重发动作位——单条失败的呈
+    /// 现与恢复全在条目行内（叹号）＋小提示，见
+    /// presentSendFailure
     @State private var noticePresentation = NoticePresentation()
     @State private var noticeDismissTask: Task<Void, Never>?
     /// §119 未配模型引导卡：「先等等」点过后本次不再
@@ -456,11 +482,17 @@ struct ChatView: View {
     private var stagedSendStore: StagedSendAttachmentStore {
         StagedSendAttachmentStore.defaultStore()
     }
-    /// 基础止血包（P1/P2）：最近一轮失败的用户条目
-    /// id——错误横幅据此出「重新发送」动作位（仅当
-    /// 条目属当前线程且仍挂失败标记时呈现，呈现判定
-    /// 在 errorBanner 调用点）
-    @State private var failedResendEntryID: UUID?
+    /// 发送失败机制包：退避/等待门唤醒钟——退避只
+    /// 有闸没有钟是弱环 B3（到点靠偶然触发），本钟
+    /// 由提交泵在判退避/停泊时排下、到期踢泵续发；
+    /// 只留最早一记（更早的到期点后排者不覆盖）
+    @State private var outboxWakeTask: Task<Void, Never>?
+    @State private var outboxWakeAt: Date?
+    /// 发送失败机制包：App 启动排空发件箱的一次性
+    /// 标记——触发源正确集合（语义 4）里「进/切线
+    /// 程」只许对账、不许触发提交轴重投，drain 只
+    /// 在启动首拍与回前台/网络恢复走
+    @State private var launchDrainedThreadIDs: Set<UUID> = []
     /// 基础止血包（P7）：本轮正处文件上传段的事实位
     /// ——等待呈现据此说上传中、不再冒充生成中
     @State private var isUploadingFiles = false
@@ -605,18 +637,12 @@ struct ChatView: View {
     private func surfaceFocusEntry(_ id: UUID) {
         nativeHandle.focusEntry(id)
     }
-    /// §247（换代包 4）：流式呈现开关（Core Chat-
-    /// StreamingFeature，缺省 true＝块级增量新
-    /// 路；关＝流式行回 TokenFlow 逐词渐显旧路，
-    /// 回滚口、包 6 清理）与落定行键映射（流式行
-    /// 键→落定条目的同键沿用记账，会话内不落盘）
-    @AppStorage(ChatStreamingFeature.defaultsKey)
-    private var gen4StreamingEnabled = true
-    /// §494：打字动画开关读口（设置→外观写、本
-    /// 页直播行入场计划读；Core StreamingType-
-    /// writerFeature 单源，§409 后一度无消费方）
-    @AppStorage(StreamingTypewriterFeature.defaultsKey)
-    private var typewriterEnabled = true
+    /// §503：流式呈现与打字渐显两开关退役（原
+    /// §247 回滚口/§494 读口）——呈现定死常开：
+    /// 直播行恒走块级增量、入场计划恒启渐显（仍
+    /// 服从 Reduce Motion 恒压过）；两键存量值惰
+    /// 性不读（Core 侧 ChatStreamingFeature 已删、
+    /// StreamingTypewriterFeature 只留键名档案）
     /// 反应浮排开关（DESIGN §343；Core ChatReactions-
     /// FloatingBarFeature 单一事实源，缺省开）：设置
     /// →外观→回复呈现写、本页 messageMenu 读；关＝
@@ -1079,8 +1105,10 @@ struct ChatView: View {
         // 择模型」入口注入本会话模型账（§153 同组
         // 件同数据源），枢纽本体仍不自拉模型账、
         // 只消费注入包
-        .fullScreenCover(isPresented: $showHub) {
-            hubCover
+        .sheet(isPresented: $showHub) {
+            hubView(onCardClose: nil)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
@@ -1228,6 +1256,7 @@ struct ChatView: View {
                         }
                     }
             }
+            .fullscreenPopBridge()
         }
         .sheet(item: $chatFallbackTarget) { target in
             FileFallbackView(target: target)
@@ -1478,7 +1507,10 @@ struct ChatView: View {
                     // ——默认档与 chatSurface 逐值相同，
                     // 改选只动本层（抽屉等共用 chatSur-
                     // face 的面不跟随）
-                    Palette.chatBackground
+                    // §503：背景呈现走单源面（底色现
+                    // 读＋图案档叠绘）——与外观页预
+                    // 览同一消费面，改选同刻同变
+                    ChatBackgroundSurface()
                         .ignoresSafeArea()
                 }
                 // §186 配套（诊断 K1）：聚焦打字时隐藏导航坞——
@@ -1807,10 +1839,11 @@ struct ChatView: View {
                 Task {
                     await refreshEchoTraces()
                 }
-                // 台账 154（DESIGN §336）：一轮落定同
-                // 沿排发件箱——刚恢复的连接顺手把队里
-                // 的旧失败条目带走，不必等下个触发点
-                Task { drainOutboxIfNeeded() }
+                // 发送失败机制包（语义 4）：落定同沿
+                // 的 drain 删除——它是死循环的自激触
+                // 发源（落定失败→下降沿→drain 踢泵→
+                // 重投→再落定失败）；触发源只剩用户
+                // 手点、网络恢复、回前台、退避唤醒钟
             }
         }
         // 0.36.15：离开聊天页关预热总闸并弃置产物
@@ -1839,9 +1872,20 @@ struct ChatView: View {
         .task(id: currentThreadID) {
             await resumeRunIfNeeded()
             // 台账 154（DESIGN §336）：进/切对话排本
-            // 线程发件箱（对账收尾后同拍——账本轮落
-            // 定失败的条目正好接上自动重试）
-            drainOutboxIfNeeded()
+            // 线程发件箱。发送失败机制包（语义 4）：
+            // 收敛为每线程每会话一次——旧口径每次触
+            // 发都全量 drain（触发源之一），积压续发
+            // 改由提交泵＋唤醒钟＋网络/前台事件驱动。
+            // 一次性按线程 id 记账且只在真有当前线程
+            // 时落记：挂载初期视图先以无线程态触发过
+            // 一次 .task，无线程的空触发不许把额度耗
+            // 掉（钉测实证：额度被空触发吃掉后线程打
+            // 开再不 drain、泵永不启动）
+            if let thread = currentThread,
+               !launchDrainedThreadIDs.contains(thread.id) {
+                launchDrainedThreadIDs.insert(thread.id)
+                drainOutboxIfNeeded()
+            }
             // 0.36.21：进/切对话刷新待批（就地卡数据源，
             // 与枢纽共享同一 store）
             await appState.sharedHubStore().refreshApprovalForChat()
@@ -1970,7 +2014,7 @@ struct ChatView: View {
                 navigateToPreviousMatch()
             } label: {
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .medium))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 32, height: 32)
             }
@@ -1981,7 +2025,7 @@ struct ChatView: View {
                 navigateToNextMatch()
             } label: {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .medium))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 32, height: 32)
             }
@@ -2033,6 +2077,7 @@ struct ChatView: View {
             reduceMotion: reduceMotion
         ) == .card {
             HubCardHost(
+                progress: appState.hubCardProgress,
                 onDismissed: { dismissHubWithoutAnimation() }
             ) { requestClose in
                 hubView(onCardClose: requestClose)
@@ -2071,28 +2116,12 @@ struct ChatView: View {
     /// 走系统 cover 转场。各置位点统一走本点，不
     /// 许直写 showHub = true
     private func presentHub() {
-        if HubCardPolicy.decide(
-            reduceMotion: reduceMotion
-        ) == .card {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                showHub = true
-            }
-        } else {
-            showHub = true
-        }
+        showHub = true
     }
 
-    /// 关中枢落账（§502）：飞出动画已在 HubCard-
-    /// Host 内走完，此处以无动画事务落 showHub，
-    /// 防系统 cover 退场转场二次抢镜
     private func dismissHubWithoutAnimation() {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            showHub = false
-        }
+        showHub = false
+        appState.hubCardProgress.strength = 0
     }
 
     /// TopBarGuideHost），列表顶留位据此记账
@@ -2295,10 +2324,9 @@ struct ChatView: View {
                 // §449.9 立源、§474 收口：第二行＝当前
                 // 工具活动短语（与中枢状态行同读
                 // AppState.liveActivityPhrase、同源同
-                // 口径）；§474 起无活动不回落连接状态
-                // 词——第二行留空（用户亲令删「在线」、
-                // 小字只许工作状态）
+                // 口径）；有待批时亮蓝字「需要批准」
                 statusWord: appState.liveActivityPhrase,
+                needsApproval: appState.sharedHubStore().hasPendingApprovals,
                 onOpenHub: { presentHub() },
                 onFindInConversation: { showFind = true }
             )
@@ -2362,14 +2390,7 @@ struct ChatView: View {
             importRetrySessionID: importRetryContext?.sessionID,
             historySyncBarView: AnyView(historySyncBar),
             errorBannerView: errorMessage.map { message in
-                AnyView(
-                    errorBanner(
-                        message,
-                        onResend: failedResendTarget.map { target in
-                            { resendFailedEntry(target) }
-                        }
-                    )
-                )
+                AnyView(errorBanner(message))
             },
             errorMessageValue: errorMessage,
             noticeBarView: noticePresentation.current.map {
@@ -2580,7 +2601,7 @@ struct ChatView: View {
                 .frame(height: 1)
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: MessageActionSymbols.speak)
-                    .font(.system(size: 15))
+                    .font(.system(size: FrameworkIcon.actionGlyphSize))
                     .foregroundStyle(Palette.inkSecondary)
                     .accessibilityHidden(true)
                 Text(
@@ -2632,7 +2653,7 @@ struct ChatView: View {
         Button(action: action) {
             HStack(spacing: OneDayMetrics.spacingXS) {
                 Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .regular))
+                    .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                 Text(title)
                     .font(.subheadline)
             }
@@ -2666,7 +2687,7 @@ struct ChatView: View {
             awayUnread.reset()
         } label: {
             Image(systemName: "chevron.down")
-                .font(.system(size: 13, weight: .regular))
+                .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 34, height: 34)
                 // 台账 197（§335）：盘面由系统玻璃改
@@ -2832,6 +2853,9 @@ struct ChatView: View {
                 firstFrameSettle(for: id)
             }
         }
+        // §503：聊天文字大小档的环境覆盖（与量测 facets
+        // 同读 dynamicTypeSize 计算口、单源不分叉）
+        .dynamicTypeSize(dynamicTypeSize)
     }
 
     /// 原生面回调：与 carrierCallbacks 同式——几何
@@ -2937,6 +2961,7 @@ struct ChatView: View {
             displayScale: UIScreen.main.scale,
             ledger: rowStateLedger,
             hubStore: appState.sharedHubStore(),
+            outboxRetry: appState.outboxRetry,
             agentDisplayName: appState.agentDisplayName,
             emptyStateAvatarSize: avatarTier
                 .emptyStatePointSize
@@ -2964,6 +2989,19 @@ struct ChatView: View {
                             styleKey: styleKey
                         )
                     )
+                case .traceGroup(let entries):
+                    for entry in entries {
+                        seenEntryIDs.insert(entry.id)
+                    }
+                    if let first = entries.first {
+                        rows.append(
+                            nativeTraceGroupRow(
+                                entries,
+                                dividerText: plan.dividers[first.id],
+                                styleKey: styleKey
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -3923,17 +3961,17 @@ struct ChatView: View {
     /// 条目同键建行、承载侧原位 reconfigure＝落
     /// 定不换装，§247 身份桥）；高＝逐块估算
     /// （闭合块备忘命中、只尾块新算，见 Stream-
-    /// ingLiveText.estimatedHeight）＋气泡纵内
-    /// 距，标临界走布局量实回填（估算起步＋量
-    /// 实覆盖，§247 行高口径）。出 Nil 的四种
-    /// 情形：gen4 开关关（回占位行旧形态＝天然
-    /// 回滚路）／未武装（恢复轮）／尚无发布快
-    /// 照（首增量未到）／半截条目在屏（防双份）
+    /// ingLiveText.estimatedHeight）＋卡纵内距，
+    /// 标临界走布局量实回填（估算起步＋量实覆
+    /// 盖，§247 行高口径）。出 Nil 的三种情形：
+    /// 未武装（恢复轮）／尚无发布快照（首增量
+    /// 未到）／半截条目在屏（防双份）。§503 前
+    /// 尚有「gen4 开关关回占位行」的回滚路——开
+    /// 关退役后该路整条删除、呈现恒走本行
     private func liveStreamingRow(
         composer: ChatNativeRowHeightComposer
     ) -> ChatNativeRow? {
-        guard gen4StreamingEnabled,
-              streamPresentationArmed,
+        guard streamPresentationArmed,
               !livePublishedText.isEmpty,
               livePartialEntryIDs.isEmpty
         else { return nil }
@@ -3988,7 +4026,10 @@ struct ChatView: View {
             StreamingLiveText(
                 text: text,
                 entrancePlan: StreamingEntrance.plan(
-                    typewriterEnabled: typewriterEnabled,
+                    // §503：打字渐显定死常开（开关
+                    // 退役）；Reduce Motion 仍在计划
+                    // 层恒压过（下一行实参不变）
+                    typewriterEnabled: true,
                     reduceMotion: reduceMotion,
                     isFirstBatchOfGeneration:
                         streamPublishGate.publishCount <= 1
@@ -4245,7 +4286,7 @@ struct ChatView: View {
     /// 分工见 placeholderVisual；行恒高口径不变
     /// （合成器常量不读内容形态）
     private func livePlaceholderContent() -> some View {
-        assistantBubble {
+        HStack {
             HStack(spacing: OneDayMetrics.spacingS) {
                 if livePlaceholderVisual() == .typingDots {
                     TypingDots()
@@ -4256,11 +4297,20 @@ struct ChatView: View {
                         .lineLimit(1)
                 }
             }
-            .padding(.vertical, OneDayMetrics.spacingXS)
+            .padding(.horizontal, OneDayMetrics.bubblePaddingH)
+            .padding(.vertical, OneDayMetrics.bubblePaddingV + OneDayMetrics.spacingXS)
+            .background {
+                RoundedRectangle(
+                    cornerRadius: OneDayMetrics.assistantBubbleCorner,
+                    style: .continuous
+                )
+                .fill(Palette.bubbleFill)
+            }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
                 livePlaceholderStatusText()
             )
+            Spacer(minLength: 0)
         }
     }
 
@@ -4535,10 +4585,12 @@ struct ChatView: View {
     /// timelineDividers 独立计算）
     private enum EntryRenderItem: Identifiable {
         case entry(ChatEntry)
+        case traceGroup([ChatEntry])
 
         var id: UUID {
             switch self {
             case .entry(let entry): return entry.id
+            case .traceGroup(let entries): return entries.first?.id ?? UUID()
             }
         }
     }
@@ -4546,12 +4598,105 @@ struct ChatView: View {
     private func entryRenderItems(
         for entries: [ChatEntry]
     ) -> [EntryRenderItem] {
-        // §449.9：工具条目在计划层过滤（数据层条目
-        // 原样保留——来源聚合/历史回放/台账详情照旧
-        // 读），两承载（原生行/旧 Lazy 承载）同效
-        entries
-            .filter { $0.toolCard == nil }
-            .map(EntryRenderItem.entry)
+        // 同轮连续的留痕/工具活动条目折叠为单行安静活动行，避免刷屏
+        var result: [EntryRenderItem] = []
+        var traceBuffer: [ChatEntry] = []
+        func flushTraces() {
+            guard !traceBuffer.isEmpty else { return }
+            result.append(.traceGroup(traceBuffer))
+            traceBuffer.removeAll(keepingCapacity: true)
+        }
+        for entry in entries where entry.toolCard == nil {
+            if entry.traceKey != nil {
+                traceBuffer.append(entry)
+            } else {
+                flushTraces()
+                result.append(.entry(entry))
+            }
+        }
+        flushTraces()
+        return result
+    }
+
+    private func nativeTraceGroupRow(
+        _ entries: [ChatEntry],
+        dividerText: String?,
+        styleKey: String
+    ) -> ChatNativeRow {
+        let groupID = entries.first?.id ?? UUID()
+        let isExpanded = expandedTraceGroupIDs.contains(groupID)
+        let key = "trace-group-\(groupID.uuidString)"
+        var revision = ChatNativeRowRevision()
+        revision.addCount(entries.count)
+        revision.addFlag(isExpanded)
+        revision.addText(dividerText)
+        revision.addText(styleKey)
+        for e in entries {
+            revision.addText(e.id.uuidString)
+        }
+        let dividerHeight: CGFloat = dividerText != nil ? 28 : 0
+        let collapsedHeight: CGFloat = 34 + dividerHeight
+        let expandedHeight: CGFloat = collapsedHeight + CGFloat(entries.count) * 76 + 12
+        return ChatNativeRow(
+            key: key,
+            entryID: groupID,
+            revision: revision,
+            height: isExpanded ? expandedHeight : collapsedHeight,
+            heightIsProvisional: isExpanded,
+            makeView: {
+                AnyView(
+                    traceActivityGroupRow(
+                        entries,
+                        groupID: groupID,
+                        dividerText: dividerText,
+                        isExpanded: isExpanded
+                    )
+                )
+            }
+        )
+    }
+
+    private func traceActivityGroupRow(
+        _ entries: [ChatEntry],
+        groupID: UUID,
+        dividerText: String?,
+        isExpanded: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            if let dividerText {
+                timelineDivider(dividerText)
+            }
+            Button {
+                if expandedTraceGroupIDs.contains(groupID) {
+                    expandedTraceGroupIDs.remove(groupID)
+                } else {
+                    expandedTraceGroupIDs.insert(groupID)
+                }
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingXS) {
+                    Image(systemName: "wrench.and.screwdriver")
+                        .font(.system(size: FrameworkIcon.tinyGlyphSize))
+                        .foregroundStyle(Palette.inkMuted)
+                    Text("做了 \(entries.count) 件事")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: FrameworkIcon.badgeGlyphSize, weight: .semibold))
+                        .foregroundStyle(Palette.inkMuted)
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, OneDayMetrics.spacingXS)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isExpanded {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                    ForEach(entries, id: \.id) { entry in
+                        traceEchoRow(entry)
+                    }
+                }
+            }
+        }
     }
 
     /// 渲染计划缓存（§135 B 案）：存上轮的分隔映射
@@ -5148,30 +5293,28 @@ struct ChatView: View {
                 ledger: rowStateLedger
             )
         case .decided(let item):
-            HStack(spacing: OneDayMetrics.spacingS) {
+            HStack(spacing: OneDayMetrics.spacingXS) {
                 Image(systemName: item.isApproved
                     ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.footnote)
                     .foregroundStyle(item.isApproved
                         ? Palette.success : Palette.danger)
                 Text(item.headline)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Palette.ink)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
-                Spacer()
+                Text("·")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
                 Text(item.isRuleApproved
                     ? L10n.string("已按规则放行")
                     : item.decisionLabel)
                     .font(.footnote)
                     .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, OneDayMetrics.spacingM)
-            .padding(.vertical, OneDayMetrics.spacingS)
-            .background(
-                Palette.surface,
-                in: RoundedRectangle(
-                    cornerRadius: OneDayMetrics.containerCorner
-                )
-            )
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, OneDayMetrics.spacingXS)
         case .stale:
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "questionmark.circle")
@@ -5244,7 +5387,7 @@ struct ChatView: View {
     private func echoRow(_ entry: ChatEntry) -> some View {
         HStack(spacing: OneDayMetrics.spacingXS) {
             Image(systemName: "flag.checkered")
-                .font(.system(size: 11))
+                .font(.system(size: FrameworkIcon.tinyGlyphSize))
                 .foregroundStyle(Palette.inkSecondary)
                 .accessibilityHidden(true)
             Text(entry.content)
@@ -5277,7 +5420,7 @@ struct ChatView: View {
             alignment: .top, spacing: OneDayMetrics.spacingS
         ) {
             Image(systemName: "wrench.and.screwdriver")
-                .font(.system(size: 13, weight: .regular))
+                .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                 .foregroundStyle(
                     isFailed ? Palette.danger
                         : Palette.inkSecondary
@@ -5304,7 +5447,7 @@ struct ChatView: View {
                         if openableSessionID != nil {
                             Image(systemName: "chevron.right")
                                 .font(
-                                    .system(size: 10, weight: .semibold)
+                                    .system(size: FrameworkIcon.badgeGlyphSize, weight: .semibold)
                                 )
                                 .foregroundStyle(Palette.primary)
                                 .accessibilityHidden(true)
@@ -5406,7 +5549,7 @@ struct ChatView: View {
                 } label: {
                     HStack(spacing: OneDayMetrics.spacingSM) {
                         Image(systemName: suggestion.symbol)
-                            .font(.system(size: 15))
+                            .font(.system(size: FrameworkIcon.actionGlyphSize))
                             .foregroundStyle(Palette.inkSecondary)
                         Text(L10n.string(suggestion.text))
                             .font(.callout)
@@ -5523,29 +5666,12 @@ struct ChatView: View {
             sendFailed: entry.sendFailed,
             isUnconfirmedSend: entry.isUnconfirmedSend
         )
-        if markKind == .failure {
-            Button {
-                resendFailedEntry(entry)
-            } label: {
-                Image(
-                    systemName: "exclamationmark.circle.fill"
-                )
-                .font(.system(size: 20))
-                .foregroundStyle(Palette.danger)
-                .frame(
-                    width: OneDayMetrics.minTapTarget,
-                    height: OneDayMetrics.minTapTarget
-                )
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.odPressable)
-            .accessibilityLabel("发送失败，点按重新发送")
-        } else if markKind == .clock {
+        if markKind == .clock {
             Button {
                 resendPending(entry)
             } label: {
                 Image(systemName: "clock")
-                    .font(.system(size: 20))
+                    .font(.system(size: FrameworkIcon.rowGlyphSize))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(
                         width: OneDayMetrics.minTapTarget,
@@ -5559,6 +5685,32 @@ struct ChatView: View {
                 L10n.string("未发送 · 点按重发")
             )
         }
+    }
+
+    @ViewBuilder
+    private func failedStatusRow(
+        for entry: ChatEntry
+    ) -> some View {
+        let kind = appState.outboxRetry
+            .record(for: entry.id)?.lastFailureKind ?? .unknown
+        let copy = SendFailureCopy.message(kind: kind)
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Text(copy)
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.trailing)
+            Button {
+                resendFailedEntry(entry)
+            } label: {
+                Text("重新发送")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Palette.primary)
+            }
+            .buttonStyle(.odPressable)
+        }
+        .padding(.top, OneDayMetrics.spacingMicro)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(copy)，点按重新发送")
     }
 
     @ViewBuilder
@@ -5790,6 +5942,10 @@ struct ChatView: View {
                         // §265（S3）：文件牌组是铬件——整
                         // 行菜单挂载面之一
                         .modifier(messageMenu(for: entry))
+                    }
+                    if entry.sendFailed {
+                        failedStatusRow(for: entry)
+                            .modifier(messageMenu(for: entry))
                     }
                 }
                 // §265（S3）：整行菜单自此不在行根挂载
@@ -6245,15 +6401,9 @@ struct ChatView: View {
     private func sendOption(
         _ option: MessageOption, in thread: ChatThread
     ) {
-        guard unsentEditTargetID == nil, attachments.isEmpty,
-              pendingQuote == nil, pendingFeedQuote == nil,
-              pendingSourceQuote == nil
-        else { return }
-        appState.optionsOverlay.markSelected(
-            threadID: thread.id, label: option.label
-        )
+        guard unsentEditTargetID == nil else { return }
         input = option.sendText
-        send()
+        composerFocusHandle.focusAtEnd()
     }
 
     /// 反应铬件（台账 187＋§432 分工）：镜像非空才
@@ -6969,7 +7119,8 @@ struct ChatView: View {
         MessageMenuModifier(
             isEnabled: !entry.content.isEmpty
                 || !entry.allImageDatas.isEmpty
-                || !entry.remoteImagePaths.isEmpty,
+                || !entry.remoteImagePaths.isEmpty
+                || !entry.remoteFilePaths.isEmpty,
             floatingBarHook: ReactionBarRouting.route(
                 flagEnabled: floatingBarEnabled,
                 canReact: entry.canReact
@@ -7235,116 +7386,43 @@ struct ChatView: View {
         .accessibilityLabel("回到目标")
     }
 
-    /// 助手消息行（0.2.5 曾定浅灰软填充泡＋圆角卡，见下
-    /// 改判沿革）：左对齐、右侧留白上限与用户泡的 44pt
-    /// 让位同逻辑，内外边距沿旧泡口径。
-    /// 割裂感 A 止血档 A1 改判（2026-11-13，用户 17:02
-    /// 拍板提队）：撤 bubbleFill 背景——散文直落
-    /// chatSurface 大面（助手散文不成卡；代码块/表格/
-    /// 工具卡/文件卡等异构件保留各自承载，本函数只包
-    /// 散文与流式半截/等待点，两者同路落面）。泡内子件
-    /// 对比账当时按调研 A1 逐项复核：次级文字落面后两
-    /// 档均升（原泡面 #EEEEF0 上 5.04／5.29），子件无
-    /// 一因落面跌破原账，令牌零改动。
-    /// §225 再改判（2026-11-14，用户 09:46 点选三项
-    /// 全改＋亲口澄清形态）：**恢复气泡**——A1 撤泡口
-    /// 径作废。用户原话钉死形态：「气泡的内容是纯文
-    /// 字，不是把气泡颜色改没」：泡只是中性浅灰容
-    /// 器，正文维持现行纯文字呈现与排版，不做彩色
-    /// 卡、不加描边/阴影、不改字色字阶。落法＝恢复
-    /// A1 撤销的背景层（bubbleFill＋assistantBubble-
-    /// Corner 22），几何与 A1 前逐字一致；填充
-    /// #EEEEF0 与 Muse 真机实测 #E9EAEC 仅 Δ≈4–5
-    /// （muse-color-drawer-diff-20261114.md），用库
-    /// 存令牌不新造色。泡内子件对比回位 A1 前原账
-    /// （inkSecondaryOnFill 对 #EEEEF0＝5.04:1）。波
-    /// 及面：代码块/表格在 MarkdownText 内部以自身次
-    /// 档填充渲染、零改动，只随正文一同被泡面包住；
-    /// 异构件在本函数之外、不受影响。函数名沿旧名
-    /// 以保调用点零改动与沿革可追。
-    /// §321 三度改判（2026-11-17，用户真机录屏实报
-    /// 「回复消息怎么还是这种？大厂怎么做的？和大
-    /// 厂对齐」）：§225 恢复气泡口径**作废**——助手
-    /// 回复对齐 Muse/Muse 式无气泡呈现：撤
-    /// bubbleFill 填充，散文直落 chatSurface（与 A1
-    /// 同形），§225「内容是纯文字」的本意保留（正
-    /// 文排版/字阶/字色逐字不动，被撤的只是承载
-    /// 面）。与 A1 的差别：§265 整行菜单的宿主背
-    /// 景层保留（填充改 .clear——菜单挂载面与内边
-    /// 距带命中不依赖填充色），几何 §263 逐值不动
-    /// （列宽/左缘/内边距全保留，量测喂入同值、行
-    /// 高产物零失效）；代码块/表格等异构件自有填
-    /// 充逐字不动、只不再被泡面包住。原生散文
-    /// cell 当时同步撤填充（§321 注）；§325 起散
-    /// 文 cell 整件退役、本函数即唯一呈现口径。
-    /// 全档 reply-rendering-alignment-20261117.md。
-    /// §334 四度改判（2026-11-21，台账 191，用户
-    /// 00:36 纠正＋00:38 拍板「AI 气泡也上底色、
-    /// 双边都有泡」）：§321 无气泡口径**作废**——
-    /// 背景层填充恢复 Palette.bubbleFill（浅
-    /// #EEEEF0／暗 #2C2C2E，令牌本体零改动、本函
-    /// 数是助手正文唯一填充口：落定/流式/等待点
-    /// 四态同宿主，grep 全量核对无第二填充口）。
-    /// §321 的正文排版口径（17/22、段距 16、字阶
-    /// 字色）保留不动、只改判容器；§263 几何逐值
-    /// 不动（列宽/左缘/内边距），行高产物零失效；
-    /// 进泡＝正文/引用/代码块（泡内 codeFill 次
-    /// 档）/表格（泡内横滚），推理块/工具卡/图
-    /// 片/文件牌/交付项维持独立承载。AI 泡对比走
-    /// 新立闸⑧（字/泡 ≥4.5、泡/页 ∈[1.10,1.60]，
-    /// 与用户泡闸⑦成套）；登记 DESIGN §334，出
-    /// 图 pkg-191-ai-bubble-design-20261121.md。
+    /// 助手正文承载（§321 起沿革）：§321 无气泡裸
+    /// 排→§334（台账 191）恢复底色成泡（双边都有
+    /// 泡）→**§503 五度改判（2026-11-24 用户 18:36
+    /// 终裁）：改 Muse 式全宽底衬卡**——卡缘对齐
+    /// 自家 pageGutter（行容器既有内距、卡满行宽）、
+    /// 卡面走 Palette.bubbleFill（主题整包 aiCard
+    /// 行：默认 #E9EAEC/#2C2C2E＝Muse 本 App 实测
+    /// ＋在册暗值）；§263 的窄列几何（左缘占屏比/
+    /// 文宽占屏比/侧让位）整套退役，文宽单源改
+    /// OneDayMetrics.assistantTextWidth（屏宽−2×
+    /// pageGutter−2×内距，@402＝330）。卡内距维持
+    /// 16/13、圆角走 assistantBubbleCorner（圆角参
+    /// 数辖区）；菜单宿主口径沿 §265：落定行传
+    /// menuEntry 时菜单挂卡身（含内边距带）、流式
+    /// 卡不传（无菜单、形态同此）。进卡＝正文/引
+    /// 用/代码块/表格（沿 §334 归属）；推理块/工
+    /// 具卡/图片/文件牌/交付项维持泡外独立承载、
+    /// 层级秩序不动。按段拆分（splitBubbles）时一
+    /// 段一卡、卡与卡仍走行间 H1 均匀距——per-pair
+    /// 紧凑距须改列表布局匣间距模型、属列表引擎领
+    /// 地，本包明示缺件登记 §503（卡同宽同色成组
+    /// 衔接先行）
     private func assistantBubble<Content: View>(
         menuEntry: ChatEntry? = nil,
         @ViewBuilder _ content: () -> Content
     ) -> some View {
-        // §263：正文列几何对齐 Muse 同机实测——左缘
-        // ＝屏宽×左缘占屏比（402pt 屏上 33pt）、文宽
-        // ＝屏宽×文宽占屏比（≈309pt）。旧账左缘＝
-        // pageGutter＋bubblePaddingH＝36、列宽被侧让
-        // 位 44 封在 W−116；新落法：左缘差额以负
-        // leading 收（按比例、随屏宽变），列宽以气
-        // 泡 maxWidth 封顶（短文仍可抱合、长文封顶
-        // 换行），量测喂入同值（LayoutProductService
-        // .textWidth 单源）。用户泡几何不动
-        let screenWidth = UIScreen.main.bounds.width
-        let columnCap = screenWidth
-            * OneDayMetrics.assistantTextWidthFraction
-            + OneDayMetrics.bubblePaddingH * 2
-        let leading = screenWidth
-            * OneDayMetrics.assistantTextLeadingFraction
-            - OneDayMetrics.pageGutter
-            - OneDayMetrics.bubblePaddingH
-        let base = HStack(alignment: .top) {
-            content()
-                .padding(.horizontal, OneDayMetrics.bubblePaddingH)
-                .padding(.vertical, OneDayMetrics.bubblePaddingV)
-                .background {
-                    // §265（换代包 5·S3）：落定行传
-                    // menuEntry 时整行菜单挂本背景层
-                    // （气泡背景＋内边距带）——与用户泡
-                    // 同口径：背景层不是文本视图的祖
-                    // 先，长按文本归 UITextView 原生；
-                    // 流式泡不传（无菜单、形态逐字不变）
-                    // §321：填充改 .clear——本层自此只
-                    // 作菜单宿主、不再是可见气泡面（助
-                    // 手散文直落 chatSurface）；形状与
-                    // 挂载点逐字不动，菜单命中带不变
-                    // §334（台账 191）：填充恢复
-                    // Palette.bubbleFill——双边都有泡；
-                    // 本层仍是 §265 菜单宿主，形状/挂载
-                    // 点/命中带逐字不动，只恢复填充
-                    RoundedRectangle(
-                        cornerRadius:
-                            OneDayMetrics.assistantBubbleCorner
-                    )
-                    .fill(Palette.bubbleFill)
-                }
-                .frame(maxWidth: columnCap, alignment: .leading)
-            Spacer(minLength: 0)
-        }
-        .padding(.leading, leading)
-
+        let base = content()
+            .padding(.horizontal, OneDayMetrics.bubblePaddingH)
+            .padding(.vertical, OneDayMetrics.bubblePaddingV)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(
+                    cornerRadius:
+                        OneDayMetrics.assistantBubbleCorner
+                )
+                .fill(Palette.bubbleFill)
+            }
         if let menuEntry {
             return AnyView(base.modifier(messageMenu(for: menuEntry)))
         } else {
@@ -7424,7 +7502,7 @@ struct ChatView: View {
             } label: {
                 HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "bell.badge")
-                        .font(.system(size: 15, weight: .regular))
+                        .font(.system(size: FrameworkIcon.actionGlyphSize, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -7463,7 +7541,7 @@ struct ChatView: View {
                 Task { await store.markRead(appState: appState, id: item.id) }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .regular))
+                    .font(.system(size: FrameworkIcon.tinyGlyphSize, weight: .regular))
                     // 0.23.0：功能字形随条内 ✕ 同档归
                     // inkSecondary（原 inkMuted）
                     .foregroundStyle(Palette.inkSecondary)
@@ -7551,7 +7629,7 @@ struct ChatView: View {
            let text = historySyncText(for: thread) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 12))
+                    .font(.system(size: FrameworkIcon.miniGlyphSize))
                     .foregroundStyle(Palette.inkSecondary)
                     .accessibilityHidden(true)
                 Text(text)
@@ -7598,7 +7676,7 @@ struct ChatView: View {
                 .frame(height: 1)
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "arrow.clockwise.circle")
-                    .font(.system(size: 15))
+                    .font(.system(size: FrameworkIcon.actionGlyphSize))
                     .foregroundStyle(Palette.inkSecondary)
                     .accessibilityHidden(true)
                 Text("这段对话没能载入")
@@ -7625,7 +7703,7 @@ struct ChatView: View {
                     importRetryContext = nil
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
                         .frame(
                             width: OneDayMetrics.minTapTarget,
@@ -7642,36 +7720,63 @@ struct ChatView: View {
         .background(Palette.pageBG)
     }
 
-    /// 错误横幅的「重新发送」目标（基础止血包 P2 横
-    /// 幅动作位）：最近失败条目仍在当前线程且仍挂失
-    /// 败标记时才有——§140 注记里欠的「动作位归二
-    /// 包」在此兑现（气泡旁叹号是同一动作的另一入
-    /// 口，两处同走 resendFailedEntry）
-    private var failedResendTarget: ChatEntry? {
-        guard let id = failedResendEntryID,
-              let thread = currentThread,
-              let entry = thread.entries.first(
-                  where: { $0.id == id }
-              ), entry.sendFailed else { return nil }
-        return entry
-    }
-
     /// G-03 错误横幅赋值口（§389）：HermesError 驱
     /// 动的失败一律走此口——主文案＝userMessage
     /// （人话、无状态码/子系统名）、详情＝
     /// diagnosticDetail（技术原文只许在此，缺省
     /// nil 时横幅不显详情钮）、时刻＝当下。字面文
     /// 案赋值点不走此口（本就人话、无技术原文可
-    /// 收），其时刻由组装口 onChange 补记
+    /// 收），其时刻由组装口 onChange 补记。
+    /// 发送失败机制包补同文去抖：同文案同详情已在
+    /// 席时不刷新时刻不重建——旧口径无条件覆写，
+    /// 失败环里横幅以失败周期整条重建（录屏叠字
+    /// 的呈现一环）
     private func presentError(_ error: HermesError) {
+        if errorMessage == error.userMessage,
+           errorDetail == error.diagnosticDetail {
+            return
+        }
         errorMessage = error.userMessage
         errorDetail = error.diagnosticDetail
         errorOccurredAt = Date()
         errorDetailExpanded = false
     }
 
+    /// 发送失败呈现投影（发送失败机制包·语义 5，
+    /// 单一数据源）：发送链的失败呈现只许走本口，
+    /// 投影规则只认成因 kind——全局状况（kind.
+    /// presentsGlobally：凭据失效/服务不可用）进横
+    /// 幅（无重发钮、无单条指向）；单条失败不进横
+    /// 幅：行内叹号（状态投影）＋一条常驻小提示承
+    /// 载文案（单槽换代、不叠字）。旧形态是调用点
+    /// 各自直写 errorMessage＋横幅单槽指向最近失败
+    /// 条（B6：连环失败时重发钮指错条），呈现与成
+    /// 因两本账
+    private func presentSendFailure(
+        kind: SendFailureKind,
+        message: String? = nil,
+        detail: String? = nil
+    ) {
+        let copy = message ?? SendFailureCopy.message(kind: kind)
+        if kind.presentsGlobally {
+            if errorMessage == copy, errorDetail == detail {
+                return
+            }
+            errorMessage = copy
+            errorDetail = detail
+            errorOccurredAt = Date()
+            errorDetailExpanded = false
+        } else {
+            showNotice(copy, tier: .persistent)
+        }
+    }
+
+    /// 错误横幅（发送失败机制包·语义 5 后形态）：
+    /// 只投影全局状况——无「重新发送」动作位（单
+    /// 条失败的恢复只在条目行内，旧横幅重发钮指向
+    /// 最近失败条、连环失败时指错条，B6 退役）
     private func errorBanner(
-        _ message: String, onResend: (() -> Void)? = nil
+        _ message: String
     ) -> some View {
         VStack(spacing: 0) {
             Rectangle()
@@ -7679,7 +7784,7 @@ struct ChatView: View {
                 .frame(height: 1)
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "exclamationmark.circle")
-                    .font(.system(size: 15))
+                    .font(.system(size: FrameworkIcon.actionGlyphSize))
                     .foregroundStyle(Palette.danger)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -7715,26 +7820,11 @@ struct ChatView: View {
                     .buttonStyle(.odPressable)
                     .accessibilityLabel("错误详情")
                 }
-                if let onResend {
-                    Button {
-                        onResend()
-                    } label: {
-                        Text("重新发送")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(Palette.primary)
-                            .frame(
-                                minHeight: OneDayMetrics.minTapTarget
-                            )
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.odPressable)
-                }
                 Button {
                     errorMessage = nil
-                    failedResendEntryID = nil
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
                         // 0.23.0（命中域审计）：字形不变、命
                         // 中域外扩 44（条高随之由内容撑至 44）
@@ -7815,7 +7905,7 @@ struct ChatView: View {
                 .frame(height: 1)
             HStack(spacing: OneDayMetrics.spacingS) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 15))
+                    .font(.system(size: FrameworkIcon.actionGlyphSize))
                     .foregroundStyle(Palette.inkSecondary)
                     .accessibilityHidden(true)
                 Text(message)
@@ -7826,7 +7916,7 @@ struct ChatView: View {
                     dismissNotice()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
                         // 0.23.0（命中域审计）：字形不变、命
                         // 中域外扩 44（条高随之由内容撑至 44）
@@ -7886,7 +7976,7 @@ struct ChatView: View {
     ) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 14))
+                .font(.system(size: FrameworkIcon.inlineGlyphSize))
                 .foregroundStyle(Palette.warning)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -7910,7 +8000,7 @@ struct ChatView: View {
                 dictation.clearFailure()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.tinyGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 24, height: 24)
                     // 第 83 条（命中域收口）：视觉 24 不变、
@@ -7940,7 +8030,7 @@ struct ChatView: View {
     private func dictationNoticeBar(_ notice: String) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingS) {
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 14))
+                .font(.system(size: FrameworkIcon.inlineGlyphSize))
                 .foregroundStyle(Palette.inkSecondary)
                 .padding(.top, 1)
             Text(notice)
@@ -7993,7 +8083,7 @@ struct ChatView: View {
                 pendingQuoteIsFork = false
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 28, height: 28)
                     // 0.23.0（审计 C3）：视觉 28 不变、命
@@ -8067,7 +8157,7 @@ struct ChatView: View {
                 pendingFeedQuote = nil
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 28, height: 28)
                     .frame(
@@ -8143,7 +8233,7 @@ struct ChatView: View {
                 pendingSourceQuote = nil
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 28, height: 28)
                     .frame(
@@ -8183,7 +8273,7 @@ struct ChatView: View {
                 pendingSourceQuote = nil
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 28, height: 28)
                     .frame(
@@ -8223,7 +8313,7 @@ struct ChatView: View {
                 pendingSourceQuote = nil
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 28, height: 28)
                     .frame(
@@ -8490,7 +8580,7 @@ private struct ComposerBarLayout: Layout {
             }
         } label: {
             Image(systemName: isStopDisc ? "stop.fill" : "arrow.up")
-                .font(.system(size: isStopDisc ? 12 : 13, weight: .bold))
+                .font(.system(size: isStopDisc ? FrameworkIcon.miniGlyphSize : FrameworkIcon.smallGlyphSize, weight: .bold))
                 // 0.6.1：发送钮改 OpenMuse 原貌——浅蓝圆
                 // primaryPale＋深墨箭头 onPrimary（chat.tsx:
                 // 985/996），取代旧深蓝圆＋白箭头
@@ -8710,7 +8800,7 @@ private struct ComposerBarLayout: Layout {
                 attachments.removeAll { $0.id == attachment.id }
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 17))
+                    .font(.system(size: FrameworkIcon.fileGlyphSize))
                     .foregroundStyle(Palette.inkMuted, Palette.surface)
                     // 0.23.0（命中域审计）：命中域外扩 44；
                     // offset 补偿 13.5 使字形中心与旧 17 帧
@@ -10398,6 +10488,27 @@ private struct ComposerBarLayout: Layout {
         // 至多一轮在飞」改由出口 drain 守卫把守，
         // 入口不再禁止
         guard !text.isEmpty || !pending.isEmpty else { return }
+        // 有待批审批卡时拦截发送，给轻量浮条提示并自动滚回审批卡位置
+        if appState.sharedHubStore().hasPendingApprovals {
+            showNotice(
+                L10n.string("先处理上面的批准请求"),
+                tier: .brief
+            )
+            if let pendingAnchor = currentThread?.sortedEntries.last(where: { entry in
+                guard let key = entry.approvalKey,
+                      let recordID = ApprovalAnchor.recordID(fromKey: key)
+                else { return false }
+                if case .pending = appState.sharedHubStore().anchorRowState(recordID: recordID) {
+                    return true
+                }
+                return false
+            }) {
+                surfaceScrollToEntry(pendingAnchor.id, animated: true)
+            } else {
+                scrollToBottom(animated: true)
+            }
+            return
+        }
         // D3（DESIGN §352）：编辑态在武装时发送分
         // 流——target 之后还有已落定轮次（rounds-
         // After>0）先弹破坏性确认：稿快照暂存、发
@@ -10574,7 +10685,7 @@ private struct ComposerBarLayout: Layout {
         // 本条不再等上一轮落定：下方 launchTurn 登
         // 记工单入提交泵，本条立即提交、服务端 FIFO
         // 排班（§419 的客户端排队形态就此作废）；变
-        // 色只挂受理回执（markAcceptedEntryDelivered
+        // 色只挂受理回执（markAcceptedEntryAccepted
         // 在 POST 202 同点），上一轮还在生成不挡本
         // 条满色
         // 上下文组装走共用出口 outgoingContext（组装
@@ -10674,17 +10785,26 @@ private struct ComposerBarLayout: Layout {
 
     /// 本轮失败的统一落点（基础止血包 P1/P2）：条目
     /// 留原地挂失败标记——不删条目、不回退输入框；
-    /// 文件载荷在场时暂存供重发补传；横幅「重新发
-    /// 送」动作位的目标 id 同步记账。成功落定清标记
+    /// 文件载荷在场时暂存供重发补传。成功落定清标记
     /// 在 applySettledTurn，重发启动清标记在 resend-
-    /// FailedEntry
+    /// FailedEntry。
+    /// 发送失败机制包：成因同点落账（outboxRetry.
+    /// setFailureKind）——政策准入与呈现投影的唯一
+    /// 材料；旧落点不记成因，成因只活在各出口的局
+    /// 部变量里，政策只能看状态、呈现只能拼整句。
+    /// 横幅单槽指向（failedResendEntryID）随语义 5
+    /// 退役：横幅不再指向任何单条
     private func markTurnFailed(
         entry: ChatEntry,
-        filePayloads: [(name: String, data: Data)] = []
+        filePayloads: [(name: String, data: Data)] = [],
+        failureKind: SendFailureKind
     ) {
         // §237：失败标记走统一状态写口（sendStateRaw
         // 与 sendFailed 同步落盘，不许再散写）
         entry.markSendState(.failed, in: modelContext)
+        appState.outboxRetry.setFailureKind(
+            entryID: entry.id, kind: failureKind
+        )
         if !filePayloads.isEmpty {
             failedFilePayloads[entry.id] = filePayloads
             // §237 P1：载荷同步落盘暂存——进程重启后
@@ -10696,7 +10816,6 @@ private struct ComposerBarLayout: Layout {
                 }
             )
         }
-        failedResendEntryID = entry.id
     }
 
     /// §237 P1：重发载荷的统一取数——同次运行先查
@@ -10717,14 +10836,19 @@ private struct ComposerBarLayout: Layout {
 
     /// run 落定失败的标记落点（P2）：按账本里的用户
     /// 条目 id 回找条目挂标记——条目已不在（线程被
-    /// 清）则静默跳过
+    /// 清）则静默跳过。成因走运行面分类（语义 3：
+    /// 生成失败永不自动重发，kind 落账即钉死）
     private func markRunFailure(
-        entry: RunLedgerEntry, in thread: ChatThread
+        entry: RunLedgerEntry, in thread: ChatThread,
+        failure: HermesError
     ) {
         guard let userEntry = thread.entries.first(
             where: { $0.id.uuidString == entry.userEntryID }
         ) else { return }
-        markTurnFailed(entry: userEntry)
+        markTurnFailed(
+            entry: userEntry,
+            failureKind: SendFailureKind.classify(run: failure)
+        )
     }
 
     /// 失败条目重发（基础止血包 P1/P2，微信点感叹号
@@ -10749,11 +10873,11 @@ private struct ComposerBarLayout: Layout {
         // §451：在飞闸退役——重发只登记工单入泵，
         // 同线程有未落定轮次不再挡（服务端 FIFO 排
         // 班），本条按线程内序位提交；若本条正是堵
-        // 泵的失败头条，手点重发即解堵口
+        // 泵的失败头条，手点重发即解堵口。发送失败
+        // 机制包：手点重发不清重试记账（清账点全集
+        // 只有落定成功/撤回/编辑重投——预算是条目
+        // 一生的账，用户意志重置只认编辑重投）
         errorMessage = nil
-        if failedResendEntryID == entry.id {
-            failedResendEntryID = nil
-        }
         sendFrameStartedAt = Date()
         sendFrameRestickLogged = false
         entry.sendFailed = false
@@ -10851,6 +10975,15 @@ private struct ComposerBarLayout: Layout {
                 forUserEntryID: entry.id
             ) == nil
                 && !pumpInFlightEntryIDs.contains(entry.id)
+        case .accepted:
+            // 发送失败机制包（双轴语义）：已受理条目
+            // 恒有账本、对账链管辖，不进发件箱动作
+            // 面；账本缺失的受理态是孤儿变体（账本被
+            // 异常清走）——浮回发件箱面交用户裁决，
+            // 不许无声卡死
+            return appState.runLedger.entry(
+                forUserEntryID: entry.id
+            ) == nil
         case .delivered:
             return false
         }
@@ -10901,10 +11034,6 @@ private struct ComposerBarLayout: Layout {
         if unsentEditTargetID == entryID {
             unsentEditTargetID = nil
             unsentEditFilesRepresented = false
-        }
-        if failedResendEntryID == entryID {
-            failedResendEntryID = nil
-            errorMessage = nil
         }
         failedFilePayloads[entryID] = nil
         pendingResendAttachments[entryID] = nil
@@ -11029,6 +11158,11 @@ private struct ComposerBarLayout: Layout {
             target.remoteFilePathsData = nil
             try? modelContext.save()
         }
+        // 发送失败机制包（语义 1 清账点③）：编辑重
+        // 投＝用户显式新尝试——重试记账在此清零（预
+        // 算由用户意志重置）；手点原样重发不清（见
+        // resendFailedEntry 注）
+        appState.outboxRetry.clear(entryID: target.id)
         resumeOutboxEntry(target)
     }
 
@@ -11125,6 +11259,9 @@ private struct ComposerBarLayout: Layout {
             )
             var laneEntries: [SubmissionLane.Entry] = []
             var byID: [UUID: ChatEntry] = [:]
+            // 本趟见到的最早退避到期点：泵退出时排唤
+            // 醒钟（语义 4——闸与钟同源，B3 关账）
+            var earliestBackoff: Date?
             for entry in thread.sortedEntries
             where isOutboxEntry(entry)
                 || ledgerIDs.contains(entry.id.uuidString) {
@@ -11136,21 +11273,48 @@ private struct ComposerBarLayout: Layout {
                     state: entry.sendState, record: record,
                     now: Date()
                 )
+                if case .backoff(let until) = policy {
+                    earliestBackoff = min(
+                        earliestBackoff ?? until, until
+                    )
+                }
                 let hasLedger = ledgerIDs.contains(
                     entry.id.uuidString
                 )
                 let failed = entry.sendState == .failed
                     && !hasLedger
+                // 准备段条目在退避中（P1-2 记账后）：与
+                // 未受理失败同格堵泵等到点——不许被车
+                // 道当残影跳过、更不许越过它先发后条
+                // （严格保序）；有登记工单（用户编辑重
+                // 投/手点）在场时不走此格、走提交格
+                let prepInBackoff = !hasLedger && !failed
+                    && submitJobs[entry.id] == nil
+                    && (entry.sendState == .queued
+                        || entry.sendState == .uploading
+                        || entry.sendState == .linking)
+                    && policy != .autoNow
+                    && policy != .manualOnly
+                    && policy != .notInQueue
                 laneEntries.append(SubmissionLane.Entry(
                     entryID: entry.id,
                     hasLedgerEntry: hasLedger,
-                    manualOnly: policy == .manualOnly,
-                    unacceptedFailure: failed,
+                    // 登记工单在场＝用户显式意志（手点
+                    // 重发/编辑重投）：压过政策的人工接
+                    // 管与成因钉死——否则钉死类成因的
+                    // 条目点重发会被车道先堵死、工单永
+                    // 不消费（钉测实证的生产缺陷）
+                    manualOnly: policy == .manualOnly
+                        && submitJobs[entry.id] == nil,
+                    unacceptedFailure: failed || prepInBackoff,
                     failureRetryDue: failed
-                        && policy == .autoNow,
+                        && (policy == .autoNow
+                            || submitJobs[entry.id] != nil),
                     awaitingSubmission: !hasLedger && !failed
                         && entry.sendState != .sending
-                        && policy != .manualOnly
+                        && entry.sendState != .accepted
+                        && (submitJobs[entry.id] != nil
+                            || policy == .autoNow)
                 ))
             }
             switch SubmissionLane.decision(
@@ -11164,27 +11328,105 @@ private struct ComposerBarLayout: Layout {
                         thread: thread, entry: entry
                     )
                 submitJobs[entryID] = nil
-                // 车道重组工单提交一条已失败条目＝自动
-                // 重试、先记账（退避/上限由策略管辖）；
-                // 登记工单（本会话主动发送/手点重发）
-                // 是首投/人工投递，不计自动尝试
-                if registeredJob == nil,
-                   entry.sendState == .failed {
-                    appState.outboxRetry.noteAutoAttempt(
-                        entryID: entryID, at: Date()
-                    )
-                }
+                // 派发前状态快照：记账只认「已失败条目
+                // 的再投」——首投（待发条目进程重启后
+                // 被泵重建工单派发）不是重试、不记账
+                // （ChatFailKeepPinTests 存储面钉）
+                let wasFailed = entry.sendState == .failed
                 let outcome = await performSubmission(job: job)
+                // 自动重投记账（语义 2）：无登记工单＋
+                // 派发前已失败＝策略批准的自动重投，
+                // 执行完毕才记一笔（与成因同落——成因
+                // 已在失败落点写入）；登记工单（本会话
+                // 主动发送/手点重发/编辑重投）不计。
+                // 离线停泊（没出门）与停止不计。旧口径
+                // 执行前记账＋受理清账，两头夹击把账
+                // 扫没
+                if registeredJob == nil, wasFailed {
+                    switch outcome {
+                    case .accepted, .rejected, .prepareFailed:
+                        // 抖动手本点一次抽定（语义 4）：
+                        // 退避到期点须全程同值；泵每秒一轮
+                        // 重算，若在判定处重抽会翻面
+                        appState.outboxRetry.noteAutoAttempt(
+                            entryID: entryID, at: Date(),
+                            jitterUnit: Double.random(in: 0...1)
+                        )
+                    case .offlineParked, .rateLimitedParked,
+                         .stopped:
+                        break
+                    }
+                }
                 switch outcome {
                 case .accepted:
+                    // 受理不清账（语义 1）：重试账活到
+                    // run 真终态——落定成功在 applySet-
+                    // tledTurn 清、落定失败留账钉死。
+                    // 旧口径在此整线程扫清非发件箱条目
+                    // 的账，是死循环的清账入口之一
                     kickConsumer()
-                    clearDeliveredOutboxRecords(in: thread)
+                case .offlineParked:
+                    if registeredJob != nil {
+                        presentSendFailure(kind: .offlineNotSent)
+                    }
+                    armOutboxWake(
+                        earliestBackoff, threadID: thread.id
+                    )
+                    return
                 case .rejected, .prepareFailed,
-                     .offlineParked, .stopped:
+                     .rateLimitedParked,
+                     .stopped:
+                    armOutboxWake(
+                        earliestBackoff, threadID: thread.id
+                    )
                     return
                 }
             case .blocked, .blockedManual, .idle:
+                armOutboxWake(
+                    earliestBackoff, threadID: thread.id
+                )
                 return
+            }
+        }
+    }
+
+    /// 退避唤醒钟排布（语义 4）：泵退出时若本线程有
+    /// 条目在退避中，把最早到期点排给调度器——到期
+    /// 由 scheduleOutboxWake 踢泵续发，不许有闸无钟
+    /// 靠下一次偶然触发（B3）
+    private func armOutboxWake(
+        _ earliestBackoff: Date?, threadID: UUID
+    ) {
+        guard let earliestBackoff else { return }
+        scheduleOutboxWake(at: earliestBackoff, threadID: threadID)
+    }
+
+    /// 唤醒调度器：只留最早一记（已有更早的到期点
+    /// 在排时不覆盖）；到期先踢本线程提交泵、在看
+    /// 线程同走 drain 记账卫生。回前台/网络恢复仍
+    /// 是触发源（drain），本钟只补退避/等待门到期
+    /// 这一类「时间到了」的事件
+    private func scheduleOutboxWake(
+        at date: Date, threadID: UUID
+    ) {
+        if let scheduled = outboxWakeAt, scheduled <= date {
+            return
+        }
+        outboxWakeTask?.cancel()
+        outboxWakeAt = date
+        outboxWakeTask = Task { @MainActor in
+            let delay = date.timeIntervalSinceNow
+            if delay > 0 {
+                try? await Task.sleep(for: .seconds(delay))
+            }
+            guard !Task.isCancelled else { return }
+            outboxWakeAt = nil
+            guard let thread = threads.first(
+                where: { $0.id == threadID }
+            ) else { return }
+            kickSubmitPump(thread: thread)
+            if thread.id == currentThreadID {
+                drainOutboxIfNeeded()
             }
         }
     }
@@ -11218,11 +11460,20 @@ private struct ComposerBarLayout: Layout {
                 if showsUploadUI { isUploadingFiles = false }
                 markTurnFailed(
                     entry: userEntry,
-                    filePayloads: job.filePayloads
+                    filePayloads: job.filePayloads,
+                    failureKind: .prepareFailed
                 )
-                errorMessage = "文件「\(failure.fileName)」没能上传，这条还没发出去："
-                    + failure.reason
-                    + "处理后点这条消息旁的感叹号重新发送。"
+                // 拼接走收尾归一（P2-2）：reason 是服
+                // 务端/系统自由文本、自带尾标点时旧拼
+                // 法出双句号
+                presentSendFailure(
+                    kind: .prepareFailed,
+                    message: SendFailureCopy.joiningReason(
+                        head: "文件「\(failure.fileName)」没能上传，这条还没发出去：",
+                        reason: failure.reason,
+                        tail: "处理后点这条消息旁的感叹号重新发送。"
+                    )
+                )
                 Haptics.error()
                 return .prepareFailed
             } catch is CancellationError {
@@ -11230,11 +11481,33 @@ private struct ComposerBarLayout: Layout {
                 return .stopped
             } catch {
                 if showsUploadUI { isUploadingFiles = false }
+                // 未知上传异常的文案也走分类（P5-1）：
+                // 旧口径一句「文件上传失败…请稍后再
+                // 试」包打天下，网络/服务端/解码不分。
+                // 成因落账恒 .prepareFailed（语义 3：
+                // 准备段失败钉死），分类只供呈现取词
+                let presentKind = (error as? HermesError).map {
+                    SendFailureKind.classify(submit: $0)
+                } ?? .prepareFailed
+                if presentKind == .offlineNotSent {
+                    if !job.filePayloads.isEmpty {
+                        failedFilePayloads[userEntry.id] = job.filePayloads
+                        stagedSendStore.stageDetached(
+                            entryID: userEntry.id,
+                            payloads: job.filePayloads.map {
+                                StagedSendPayload(name: $0.name, data: $0.data)
+                            }
+                        )
+                    }
+                    userEntry.markPendingSend(in: modelContext)
+                    return .offlineParked
+                }
                 markTurnFailed(
                     entry: userEntry,
-                    filePayloads: job.filePayloads
+                    filePayloads: job.filePayloads,
+                    failureKind: presentKind == .prepareFailed ? .prepareFailed : presentKind
                 )
-                errorMessage = "文件上传失败，这条还没发出去，请稍后再试。"
+                presentSendFailure(kind: presentKind)
                 Haptics.error()
                 return .prepareFailed
             }
@@ -11271,11 +11544,36 @@ private struct ComposerBarLayout: Layout {
             return .stopped
         } catch {
             if Task.isCancelled { return .stopped }
-            markTurnFailed(entry: userEntry)
-            errorMessage = "会话链接失败，这条还没发出去："
-                + ((error as? HermesError)?.userMessage
-                    ?? "服务端会话建立失败")
-                + "。链接恢复后，点这条消息旁的感叹号重新发送。"
+            if let hermesError = error as? HermesError {
+                let kind = SendFailureKind.classify(submit: hermesError)
+                if kind == .offlineNotSent {
+                    userEntry.markPendingSend(in: modelContext)
+                    return .offlineParked
+                }
+                markTurnFailed(
+                    entry: userEntry, failureKind: kind
+                )
+                presentSendFailure(
+                    kind: kind,
+                    detail: hermesError.diagnosticDetail
+                )
+                Haptics.error()
+                return .prepareFailed
+            }
+            markTurnFailed(
+                entry: userEntry, failureKind: .prepareFailed
+            )
+            // 拼接走收尾归一（P2-1）：userMessage 自
+            // 带「。」时旧拼出「请稍后再试。。链接恢
+            // 复后…」双句号叠字
+            presentSendFailure(
+                kind: .prepareFailed,
+                message: SendFailureCopy.joiningReason(
+                    head: "会话链接失败，这条还没发出去：",
+                    reason: "服务端会话建立失败",
+                    tail: "链接恢复后，点这条消息旁的感叹号重新发送。"
+                )
+            )
             Haptics.error()
             return .prepareFailed
         }
@@ -11315,8 +11613,10 @@ private struct ComposerBarLayout: Layout {
         guard let config = appState.config,
               let apiKey = appState.apiKey, !apiKey.isEmpty
         else {
-            markTurnFailed(entry: userEntry)
-            presentError(.sessionExpired)
+            markTurnFailed(
+                entry: userEntry, failureKind: .authRejected
+            )
+            presentSendFailure(kind: .authRejected)
             return .rejected
         }
         let input: RunInput = tail.parts == nil
@@ -11336,6 +11636,8 @@ private struct ComposerBarLayout: Layout {
             submittedAt: Date()
         ))
         var attempt = 0
+        var unknownAttempts = 0
+        var gateWaits = 0
         while true {
             attempt += 1
             do {
@@ -11355,7 +11657,7 @@ private struct ComposerBarLayout: Layout {
                     userEntryID: userEntry.id.uuidString,
                     submittedAt: Date()
                 ))
-                markAcceptedEntryDelivered(
+                markAcceptedEntryAccepted(
                     thread: thread,
                     userEntryID: userEntry.id.uuidString
                 )
@@ -11367,6 +11669,39 @@ private struct ComposerBarLayout: Layout {
                         userEntryID: userEntry.id
                     )
                     return .stopped
+                }
+                // 限流等待门（语义 3）：服务端明示等
+                // 多久就等多久——不落失败、不计账；门
+                // 内等满两轮仍被限，折回待发停泊＋排
+                // 唤醒钟，到点自动续（仍不是失败）
+                if let hermesError = submitError as? HermesError,
+                   case .rateLimited(let retryAfter) = hermesError {
+                    if gateWaits < 2 {
+                        gateWaits += 1
+                        try? await Task.sleep(
+                            for: .seconds(min(retryAfter ?? 1, 30))
+                        )
+                        if Task.isCancelled {
+                            markLedgerStopRequested(
+                                userEntryID: userEntry.id
+                            )
+                            return .stopped
+                        }
+                        continue
+                    }
+                    appState.runLedger.remove(
+                        userEntryID: userEntry.id
+                    )
+                    userEntry.markPendingSend(
+                        in: modelContext
+                    )
+                    scheduleOutboxWake(
+                        at: Date().addingTimeInterval(
+                            min(retryAfter ?? 1, 300)
+                        ),
+                        threadID: thread.id
+                    )
+                    return .rateLimitedParked
                 }
                 switch RunSubmitRetry.classify(submitError) {
                 case .notSentOffline:
@@ -11380,8 +11715,16 @@ private struct ComposerBarLayout: Layout {
                 case .transient:
                     if attempt
                         <= RunSubmitRetry.maxTransientRetries {
+                        // 间隔走 RetryBackoff 同源退避＋
+                        // 全抖动（P1-1）：旧固定 1.2s 无抖
+                        // 动，多条同拍重撞
                         try? await Task.sleep(
-                            nanoseconds: 1_200_000_000
+                            for: .seconds(RetryBackoff.delay(
+                                afterFailure: attempt,
+                                jitterUnit: Double.random(
+                                    in: 0...1
+                                )
+                            ))
                         )
                         if Task.isCancelled {
                             markLedgerStopRequested(
@@ -11396,20 +11739,63 @@ private struct ComposerBarLayout: Layout {
                     // 回（不定性为错误、不双跑）
                     clearPendingDeliveryMark(entry: userEntry)
                     return .accepted
+                case .unknown:
+                    // 判不出成因（P1-1）：只许再试 1
+                    // 次，耗尽同走结果未知交对账——旧
+                    // 口径非 HermesError 一律判瞬态全额
+                    // 重试，把未知错误当网络抖动
+                    unknownAttempts += 1
+                    if unknownAttempts
+                        <= RunSubmitRetry.maxUnknownRetries {
+                        try? await Task.sleep(
+                            for: .seconds(RetryBackoff.delay(
+                                afterFailure: unknownAttempts,
+                                jitterUnit: Double.random(
+                                    in: 0...1
+                                )
+                            ))
+                        )
+                        if Task.isCancelled {
+                            markLedgerStopRequested(
+                                userEntryID: userEntry.id
+                            )
+                            return .stopped
+                        }
+                        continue
+                    }
+                    clearPendingDeliveryMark(entry: userEntry)
+                    return .accepted
                 case .rejected:
                     appState.runLedger.remove(
                         userEntryID: userEntry.id
                     )
-                    markTurnFailed(entry: userEntry)
                     let hermesError =
                         (submitError as? HermesError)
                         ?? .unreachable(
                             submitError.localizedDescription
                         )
                     if hermesError.isSessionNotFound {
-                        presentError(.sessionExpired)
+                        // 会话已在服务端消失（§223）：按
+                        // 凭据面收口呈现，成因记 auth
+                        markTurnFailed(
+                            entry: userEntry,
+                            failureKind: .authRejected
+                        )
+                        presentSendFailure(kind: .authRejected)
                     } else {
-                        presentError(hermesError)
+                        // 成因落账＋分类呈现（语义 3/5）：
+                        // 旧口径落 .failed 时成因只剩一句
+                        // 兜底文案，政策无从分档
+                        let kind = SendFailureKind.classify(
+                            submit: hermesError
+                        )
+                        markTurnFailed(
+                            entry: userEntry, failureKind: kind
+                        )
+                        presentSendFailure(
+                            kind: kind,
+                            detail: hermesError.diagnosticDetail
+                        )
                     }
                     return .rejected
                 }
@@ -11506,7 +11892,7 @@ private struct ComposerBarLayout: Layout {
             // 周期已确立＝服务器早已确认收到——恢
             // 复同点补记送达，不许条目在本进程里继
             // 续挂未确认态
-            markAcceptedEntryDelivered(
+            markAcceptedEntryAccepted(
                 thread: thread,
                 userEntryID: entry.userEntryID
             )
@@ -11608,11 +11994,17 @@ private struct ComposerBarLayout: Layout {
         )
         isDrivingRun = false
         await RunLiveActivityCenter.shared.end()
-        // §414（修复包一·路一）：对账落定收尾后排发
-        // 件箱——滞留账本期落位的待发条目在旧轮结
-        // 清后按落盘序真发（账本未清/对账未落定时
-        // drain 自守卫不发）
-        drainOutboxIfNeeded()
+        // 发送失败机制包（语义 4）：对账收尾的全
+        // 量 drain 删除（触发源收敛），只留定向踢
+        // 泵一脚——泵已退出时排进来的条目要等本轮
+        // 落定才成车道头条，没有这一脚只能等无关
+        // 的外部事件。这一脚不可能自激成环：落定
+        // 失败的头条在新记账口径下被车道堵住等手
+        // 点（准入看成因＋退避带钟），踢泵只让车道
+        // 重新判定一次、不会把失败条重投出去（死
+        // 循环的必要条件是清账重置、已在语义 1/2
+        // 切断；钉测 ChatFailKeepPinTests 钉此面）
+        kickSubmitPump(thread: thread)
     }
 
     /// §451（App-4）落定锚解析：条目已钉 server-
@@ -11699,10 +12091,6 @@ private struct ComposerBarLayout: Layout {
             unsentEditTargetID = nil
             unsentEditFilesRepresented = false
         }
-        if failedResendEntryID == entryID {
-            failedResendEntryID = nil
-            errorMessage = nil
-        }
         failedFilePayloads[entryID] = nil
         pendingResendAttachments[entryID] = nil
         try? stagedSendStore.remove(entryID: entryID)
@@ -11730,9 +12118,15 @@ private struct ComposerBarLayout: Layout {
         kickConsumer()
     }
 
-    /// 记账卫生（原 drain 趟首两件）：清条目已不存
-    /// 在的残账；已落定条目的旧重试账同清（投递成
-    /// 功后次数账使命结束，下次失败从零起算）
+    /// 记账卫生（原 drain 趟首两件）：只清条目已不
+    /// 存在的残账。
+    /// 发送失败机制包（语义 1）：旧第二件「已落定
+    /// 条目的旧重试账同清」（clearDeliveredOutbox-
+    /// Records）整体退役——它按 !isOutboxEntry 在
+    /// 受理后立刻把在飞条目的账扫掉，是 B1 清账错
+    /// 位与死循环的一环；清账点全集只剩三处：落
+    /// 定成功（applySettledTurn 按条）、用户撤
+    /// 回、编辑重投
     private func outboxHousekeeping(in thread: ChatThread) {
         let validIDs = Set(
             threads.flatMap {
@@ -11740,7 +12134,6 @@ private struct ComposerBarLayout: Layout {
             }
         )
         appState.outboxRetry.prune(validEntryIDs: validIDs)
-        clearDeliveredOutboxRecords(in: thread)
     }
 
     /// 提交段孤儿浮现（DESIGN §336）：状态 sending
@@ -11770,18 +12163,6 @@ private struct ComposerBarLayout: Layout {
             appState.outboxRetry.markManualOnly(
                 entryID: entry.id
             )
-        }
-    }
-
-    /// 已落定条目的重试记账清账：投递成功（自动或
-    /// 手点）后次数账使命结束，下次失败从零起算，
-    /// 不许旧账把新失败直接顶到次数上限
-    private func clearDeliveredOutboxRecords(
-        in thread: ChatThread
-    ) {
-        for entry in thread.entries
-        where entry.role == "user" && !isOutboxEntry(entry) {
-            appState.outboxRetry.clear(entryID: entry.id)
         }
     }
 
@@ -11848,6 +12229,7 @@ private struct ComposerBarLayout: Layout {
                     reason: "服务端没有返回文件落点。"
                 )
             }
+            ChatFileStore.shared.seedLocal(path: serverPath, data: payload.data)
             paths.append(serverPath)
         }
         return paths
@@ -12136,13 +12518,15 @@ private struct ComposerBarLayout: Layout {
             streamingText = nil
             resetStreamPresentation()
             reasoningStartedAt = nil
-            presentError(.sessionExpired)
+            presentSendFailure(kind: .authRejected)
             // 基础止血包（P1）：连接态缺失同样是本轮
             // 失败——条目留痕挂标记，恢复连接后点标
             // 记重发（演示态不挂，种子条目不是用户真
             // 发送）
             if !demoMode {
-                markTurnFailed(entry: userEntry)
+                markTurnFailed(
+                    entry: userEntry, failureKind: .authRejected
+                )
             }
             // 失败改判 error（0.36.2，表 D 语义归位）
             Haptics.error()
@@ -12218,6 +12602,7 @@ private struct ComposerBarLayout: Layout {
         // 仍不明＝结果未知，进对账不定性为错误
         var submitError: HermesError?
         var attempts = 0
+        var gateWaits = 0
         while true {
             do {
                 let response = try await appState.client.submitRun(
@@ -12233,7 +12618,7 @@ private struct ComposerBarLayout: Layout {
                 }
                 runMachine.apply(.submitAccepted)
                 if !demoMode {
-                    markAcceptedEntryDelivered(
+                    markAcceptedEntryAccepted(
                         thread: thread,
                         userEntryID: userEntry.id.uuidString
                     )
@@ -12277,10 +12662,36 @@ private struct ComposerBarLayout: Layout {
                     finishRunPresentation(failed: false)
                     return
                 }
+                if case .rateLimited(let retryAfter) = error,
+                   gateWaits < 2 {
+                    // 限流等待门（语义 3，与提交泵同
+                    // 规）：按服务端等待值等、不落失
+                    // 败；等满两轮仍被限才落下方拒绝
+                    // 收口（成因 .rateLimited 钉死）
+                    gateWaits += 1
+                    try? await Task.sleep(
+                        for: .seconds(min(retryAfter ?? 1, 30))
+                    )
+                    if Task.isCancelled {
+                        ledgerEntry.stopRequested = true
+                        if !demoMode {
+                            appState.runLedger.upsert(ledgerEntry)
+                        }
+                        runMachine.apply(.stopRequested)
+                        finishRunPresentation(failed: false)
+                        return
+                    }
+                    continue
+                }
                 if error.isTransient, attempts < 2 {
                     attempts += 1
+                    // 间隔走 RetryBackoff 同源退避
+                    // （P1-1，与提交泵同口径）
                     try? await Task.sleep(
-                        for: .milliseconds(1200)
+                        for: .seconds(RetryBackoff.delay(
+                            afterFailure: attempts,
+                            jitterUnit: Double.random(in: 0...1)
+                        ))
                     )
                     continue
                 }
@@ -12313,9 +12724,19 @@ private struct ComposerBarLayout: Layout {
             // 与重发入口（旧口径只有横幅、再试只能重打）
             if !demoMode {
                 appState.runLedger.remove(threadID: thread.id)
-                markTurnFailed(entry: userEntry)
+                markTurnFailed(
+                    entry: userEntry,
+                    failureKind: SendFailureKind.classify(
+                        submit: submitError
+                    )
+                )
             }
-            presentError(submitError)
+            presentSendFailure(
+                kind: SendFailureKind.classify(
+                    submit: submitError
+                ),
+                detail: submitError.diagnosticDetail
+            )
             finishRunPresentation(failed: true)
             return
         }
@@ -12585,6 +13006,50 @@ private struct ComposerBarLayout: Layout {
     /// 记录缺失时 transcript 单独定性）。预算（10 分
     /// 钟）耗尽停在未知：账本保留、下次进本线程续对
     /// 账，不报错、不重发。
+    /// run 丢失的访问记账＋终局裁决（发送失败机制
+    /// 包·语义 6）：记一次「查无此 run」的访问——计
+    /// 数＋首查时刻回写账本（跨访问累计，旧口径每
+    /// 次访问从零磨 600s、账本永不终局）；累计达
+    /// 标（访问 ≥3 次或首查距今 ≥24h，双闸取或，RunLedger.
+    /// missingRunIsLost）→ 摘账本＋条目判失败可重
+    /// 发（成因 .runResultLost 落账钉死、不自动重
+    /// 发）＋终局呈现，返回 true；未达标返回 false
+    /// （账本保留、下次访问续查）。极少数同访双记
+    /// （观察窗与耗尽段同访各记一次）至多让次数闸
+    /// 提前一次访问触发——run 持续查不到本身已是
+    /// 强证据，口径可接受
+    private func recordMissingRunVisit(
+        thread: ChatThread, entry: inout RunLedgerEntry,
+        demoMode: Bool
+    ) -> Bool {
+        entry.missingReconcileCount += 1
+        if entry.firstMissingAt == nil {
+            entry.firstMissingAt = Date()
+        }
+        if !demoMode {
+            appState.runLedger.upsert(entry)
+        }
+        guard RunLedger.missingRunIsLost(
+            missingCount: entry.missingReconcileCount,
+            firstMissingAt: entry.firstMissingAt,
+            now: Date()
+        ) else { return false }
+        if !demoMode,
+           let uid = UUID(uuidString: entry.userEntryID) {
+            appState.runLedger.remove(userEntryID: uid)
+        }
+        if let userEntry = thread.entries.first(
+            where: { $0.id.uuidString == entry.userEntryID }
+        ) {
+            markTurnFailed(
+                entry: userEntry, failureKind: .runResultLost
+            )
+        }
+        presentSendFailure(kind: .runResultLost)
+        Haptics.error()
+        return true
+    }
+
     private func reconcileRun(
         thread: ChatThread, entry: inout RunLedgerEntry,
         demoMode: Bool
@@ -12594,7 +13059,17 @@ private struct ComposerBarLayout: Layout {
         if runMachine.phase == .unknown {
             runMachine.apply(.foregrounded)
         }
-        let deadline = Date().addingTimeInterval(600)
+        var deadline = Date().addingTimeInterval(600)
+        // 对账分型（发送失败机制包·语义 7）：查询失
+        // 败＝无证据，不烧 600s 预算——每次无证据轮
+        // 询顺延期限，总顺延封顶 600s 防死服务端无
+        // 限续命
+        var deadlineExtensions: TimeInterval = 0
+        // 本次访问首次见真 missing（状态端点 404）
+        // 的时刻：持续 60s 仍无 transcript 证据才记
+        // 一次「丢失访问」（跨访问累计见 RunLedger-
+        // Entry.missingReconcileCount）
+        var missingPollsStartedAt: Date?
         // §153：重演取回用本会话当前执行选择（与首提同源）
         let replayChoice = appState.sessionModelChoice(
             serverSessionID: entry.sessionID, threadID: thread.id
@@ -12638,15 +13113,61 @@ private struct ComposerBarLayout: Layout {
                     }
                     runMachine.apply(.submitAccepted)
                     if !demoMode {
-                        markAcceptedEntryDelivered(
+                        markAcceptedEntryAccepted(
                             thread: thread,
                             userEntryID: entry.userEntryID
                         )
                     }
-                } catch {
-                    if Date() > deadline { break }
-                    try? await Task.sleep(for: .seconds(3))
-                    continue
+                } catch let replayError {
+                    if let hermesError = replayError as? HermesError,
+                       case .rateLimited(let retryAfter) = hermesError {
+                        try? await Task.sleep(
+                            for: .seconds(min(retryAfter ?? 1, 30))
+                        )
+                        continue
+                    }
+                    switch RunSubmitRetry.classify(replayError) {
+                    case .notSentOffline:
+                        if !demoMode,
+                           let uid = UUID(uuidString: entry.userEntryID),
+                           let userEntry = thread.entries.first(where: { $0.id == uid }) {
+                            appState.runLedger.remove(userEntryID: uid)
+                            userEntry.markPendingSend(in: modelContext)
+                        }
+                        presentSendFailure(kind: .offlineNotSent)
+                        finishRunPresentation(failed: false)
+                        return
+                    case .rejected:
+                        let hermesError = (replayError as? HermesError)
+                            ?? .unreachable(replayError.localizedDescription)
+                        let kind: SendFailureKind = hermesError.isSessionNotFound
+                            ? .authRejected
+                            : SendFailureKind.classify(submit: hermesError)
+                        if !demoMode,
+                           let uid = UUID(uuidString: entry.userEntryID) {
+                            appState.runLedger.remove(userEntryID: uid)
+                            if let userEntry = thread.entries.first(where: { $0.id == uid }) {
+                                markTurnFailed(entry: userEntry, failureKind: kind)
+                            }
+                        }
+                        presentSendFailure(
+                            kind: kind,
+                            detail: hermesError.diagnosticDetail
+                        )
+                        finishRunPresentation(failed: true)
+                        return
+                    case .transient, .unknown:
+                        // 重演提交抛错同属无证据（传输/服务
+                        // 端问题）：顺延期限、不烧预算
+                        if deadlineExtensions < 600 {
+                            deadline = deadline
+                                .addingTimeInterval(3)
+                            deadlineExtensions += 3
+                        }
+                        if Date() > deadline { break }
+                        try? await Task.sleep(for: .seconds(3))
+                        continue
+                    }
                 }
             }
             guard let runID = entry.runID else { continue }
@@ -12679,10 +13200,25 @@ private struct ComposerBarLayout: Layout {
                 try? await Task.sleep(for: .milliseconds(1500))
                 continue
             }
-            // 状态轮询
-            let status = try? await appState.client.runStatus(
-                config: config, apiKey: apiKey, runID: runID
-            )
+            // 状态轮询（对账分型，语义 7）：抛错＝查
+            // 询失败＝无证据——旧口径 try? 把抛错与
+            // 404 一并压成 nil 判 missing，网络抖动/
+            // 鉴权失败/5xx 全被记成「run 不见了」，
+            // 600s 磨完给假终局；现只有客户端明确
+            // 404（runStatus 返 nil）才是真 missing
+            let status: RunStatusResponse?
+            do {
+                status = try await appState.client.runStatus(
+                    config: config, apiKey: apiKey, runID: runID
+                )
+            } catch {
+                if deadlineExtensions < 600 {
+                    deadline = deadline.addingTimeInterval(3)
+                    deadlineExtensions += 3
+                }
+                try? await Task.sleep(for: .seconds(3))
+                continue
+            }
             switch status {
             case .some(let value) where value.status.isTerminal:
                 terminalStatusHint = value
@@ -12704,12 +13240,33 @@ private struct ComposerBarLayout: Layout {
                 // 状态词无法归类：无证据，继续轮询
                 try? await Task.sleep(for: .seconds(3))
             case .none:
-                // 状态记录查不到（过期/未持久化）：转
-                // transcript 单独定性
+                // 真 missing（状态端点 404）：转 trans-
+                // cript 单独定性；transcript 也无证据且
+                // missing 持续 60s → 本次访问记账＋裁
+                // 决（终局判失败，或留账下次续查）
+                if missingPollsStartedAt == nil {
+                    missingPollsStartedAt = Date()
+                }
                 runMachine.apply(.statusMissing)
                 if await settleRunFromTranscript(
                     thread: thread, entry: entry
                 ) {
+                    return
+                }
+                if let started = missingPollsStartedAt,
+                   Date().timeIntervalSince(started) > 60 {
+                    if recordMissingRunVisit(
+                        thread: thread, entry: &entry,
+                        demoMode: demoMode
+                    ) {
+                        finishRunPresentation(failed: true)
+                    } else {
+                        showNotice(
+                            "这条的生成结果暂时没查到，稍后回到本对话会继续确认。",
+                            tier: .extended
+                        )
+                        finishRunPresentation(failed: false)
+                    }
                     return
                 }
                 try? await Task.sleep(for: .seconds(3))
@@ -12750,6 +13307,24 @@ private struct ComposerBarLayout: Layout {
                     "这条还没发出去，网络恢复后会自动发送，也可以点按消息旁的时钟重发。",
                     tier: .extended
                 )
+                finishRunPresentation(failed: false)
+            } else if missingPollsStartedAt != nil {
+                // 本次访问见过真 missing、预算先磨完
+                // （未满 60s 观察窗）：同样记一次访问
+                // ＋裁决，不许带「还在生成」的假话退
+                // 场（语义 6）
+                if recordMissingRunVisit(
+                    thread: thread, entry: &entry,
+                    demoMode: demoMode
+                ) {
+                    finishRunPresentation(failed: true)
+                } else {
+                    showNotice(
+                        "这条的生成结果暂时没查到，稍后回到本对话会继续确认。",
+                        tier: .extended
+                    )
+                    finishRunPresentation(failed: false)
+                }
             } else {
                 // 体面出口：生成仍在服务端进行（或结
                 // 果待查），账本保留、下次进本线程自
@@ -12759,8 +13334,8 @@ private struct ComposerBarLayout: Layout {
                     "生成仍在服务器进行中，稍后回到本对话会自动补齐结果。",
                     tier: .extended
                 )
+                finishRunPresentation(failed: false)
             }
-            finishRunPresentation(failed: false)
         }
     }
 
@@ -12983,9 +13558,14 @@ private struct ComposerBarLayout: Layout {
                     + " run=\(entry.runID ?? "-")"
             )
             if !appState.isDemo {
-                markRunFailure(entry: entry, in: thread)
+                markRunFailure(
+                    entry: entry, in: thread, failure: failure
+                )
             }
-            presentError(failure)
+            presentSendFailure(
+                kind: SendFailureKind.classify(run: failure),
+                detail: failure.diagnosticDetail
+            )
             runMachine.apply(.transcriptSettled)
             finishRunPresentation(failed: true)
             return
@@ -13022,9 +13602,9 @@ private struct ComposerBarLayout: Layout {
     /// 号；落定点的既有写点保留作兜底（幂等同
     /// 值）。已送达/无状态条目不动（remainsIn-
     /// Queue 守卫），失败态条目在重发受理时经此
-    /// 清失败标记（markSendState 的 delivered
-    /// 语义自带）
-    private func markAcceptedEntryDelivered(
+    /// 清失败标记（markSendState 的 accepted/
+    /// delivered 同组语义自带）
+    private func markAcceptedEntryAccepted(
         thread: ChatThread, userEntryID: String
     ) {
         guard let userEntry = thread.entries.first(
@@ -13032,7 +13612,14 @@ private struct ComposerBarLayout: Layout {
               ),
               userEntry.sendState?.remainsInQueue == true
         else { return }
-        userEntry.markSendState(.delivered, in: modelContext)
+        // 发送失败机制包（语义 1 双轴）：内部状态落
+        // .accepted 而非 .delivered——呈现与 §426 不
+        // 变（markSendState 的 accepted 组合同 deliv-
+        // ered：清失败标记＋送达投影，气泡全色、时钟
+        // 离席），但条目在 run 真终态前不脱离发件箱
+        // 语义：重试记账活到落定、发件箱判定不再把
+        // 在飞条目当已完成（B1 清账错位的根）
+        userEntry.markSendState(.accepted, in: modelContext)
     }
 
     /// 落定入账：整段替换本轮半截条目（工具卡＋带思
@@ -13086,9 +13673,14 @@ private struct ComposerBarLayout: Layout {
                         userEntryID: uid
                     )
                 }
-                markRunFailure(entry: entry, in: thread)
+                markRunFailure(
+                    entry: entry, in: thread, failure: failure
+                )
             }
-            presentError(failure)
+            presentSendFailure(
+                kind: SendFailureKind.classify(run: failure),
+                detail: failure.diagnosticDetail
+            )
             finishRunPresentation(failed: true)
             return
         }
@@ -13110,6 +13702,11 @@ private struct ComposerBarLayout: Layout {
                 userEntry.serverRowID = rowID
             }
             userEntry.markSendState(.delivered, in: modelContext)
+            // 发送失败机制包（语义 1 清账点①）：run
+            // 真终态落定成功——本条重试记账在此单点
+            // 清（按条目 id、不扫线程）；失败支不许
+            // 清（账留着钉死准入）
+            appState.outboxRetry.clear(entryID: userEntry.id)
         }
         let endDate = Date()
         for (index, card) in settled.toolCards.enumerated() {
@@ -13412,7 +14009,7 @@ private struct ComposerBarLayout: Layout {
     /// ipt 呈现；提交窗口内则取消本地提交任务（账本
     /// 已留停止意图，下次对账执行真停止）
     private func requestRunStop() {
-        guard isStreaming else { return }
+        guard isStreaming || activeRunThreadID != nil || sendTask != nil else { return }
         if runMachine.phase == .submitting {
             sendTask?.cancel()
             // §451：提交窗已迁提交泵——同点取消当前
@@ -13539,18 +14136,10 @@ struct MessageMenuModifier: ViewModifier {
                 content.contextMenu { menuContent() }
             }
         }
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: MessageMenuFrameKey.self,
-                    value: proxy.frame(in: .global)
-                )
-            }
-            .onPreferenceChange(
-                MessageMenuFrameKey.self
-            ) { frame in
-                mountFrame = frame
-            }
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { frame in
+            mountFrame = frame
         }
         .simultaneousGesture(
             LongPressGesture(
@@ -13772,7 +14361,7 @@ struct SwipeReplyModifier: ViewModifier {
             offset: dragOffset
         )
         return Image(systemName: MessageActionSymbols.reply)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: FrameworkIcon.inlineGlyphSize, weight: .semibold))
             .foregroundStyle(
                 armed ? Palette.onPrimary : Palette.inkSecondary
             )
@@ -13838,7 +14427,7 @@ struct EditSentBannerSlot: View {
             VStack(spacing: 0) {
                 HStack(spacing: OneDayMetrics.spacingS) {
                     Image(systemName: "pencil")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                         .foregroundStyle(Palette.inkSecondary)
                     Text("正在编辑较早的一条消息")
                         .font(.footnote)
@@ -13849,7 +14438,7 @@ struct EditSentBannerSlot: View {
                         onCancel()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                             .foregroundStyle(Palette.inkSecondary)
                             .frame(width: 28, height: 28)
                             .frame(
@@ -13942,6 +14531,7 @@ private struct SelectableTextSheet: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }
 

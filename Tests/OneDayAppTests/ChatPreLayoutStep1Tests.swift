@@ -83,12 +83,12 @@ final class ChatPreLayoutStep1Tests: XCTestCase {
                 role: "user", content: content, thread: nil
             )
             failed.sendFailed = true
-            XCTAssertEqual(
+            XCTAssertGreaterThan(
                 composer.entryHeight(
                     failed, dividerText: nil
                 ),
                 base,
-                "失败翻转换高（内容前 10 字：\(content.prefix(10))）"
+                "失败行应包含行内状态行与重发入口（内容前 10 字：\(content.prefix(10))）"
             )
             let pendingFailed = ChatEntry(
                 role: "user", content: content, thread: nil
@@ -99,8 +99,10 @@ final class ChatPreLayoutStep1Tests: XCTestCase {
                 composer.entryHeight(
                     pendingFailed, dividerText: nil
                 ),
-                base,
-                "待发＋失败叠态换高"
+                composer.entryHeight(
+                    failed, dividerText: nil
+                ),
+                "待发＋失败叠态只按失败行内状态行计高"
             )
         }
     }
@@ -339,7 +341,8 @@ final class ChatPreLayoutStep1Tests: XCTestCase {
             composerSrc.contains("var livePlaceholderHeight"),
             "合成器缺占位行高常量 livePlaceholderHeight"
         )
-        // 状态摘除：userEntryHeight 不读发送状态
+        // 状态摘除：userEntryHeight 不读待发状态；
+        // 失败行按收敛形态计入行内状态行与重发入口
         let userSeg = try segment(
             composerSrc,
             from: "func userEntryHeight",
@@ -349,9 +352,9 @@ final class ChatPreLayoutStep1Tests: XCTestCase {
             userSeg.contains("isPendingSend"),
             "userEntryHeight 仍读 isPendingSend（待发进高）"
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             userSeg.contains("sendFailed"),
-            "userEntryHeight 仍读 sendFailed（失败进高）"
+            "userEntryHeight 未计入失败行内状态行"
         )
         // 封面形态公式单源：活读与快照两处不 peek
         // 缓存

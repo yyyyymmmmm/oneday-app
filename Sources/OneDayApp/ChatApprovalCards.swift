@@ -38,42 +38,54 @@ struct ChatApprovalZone: View {
                 recordIDs: records.map(\.id),
                 anchoredIDs: anchoredRecordIDs
             )
-            VStack(spacing: OneDayMetrics.spacingM) {
+            let unanchoredResolved = store.resolvedLines.filter {
+                !anchoredRecordIDs.contains($0.id)
+            }
+            VStack(spacing: OneDayMetrics.spacingS) {
+                if let toast = store.alwaysAllowToast {
+                    alwaysAllowToastRow(toast)
+                }
                 if let activeID = queue.activeRecordID,
                    let record = records.first(
                        where: { $0.id == activeID }
                    ) {
+                    let progressText: String? = queue.queuedCount > 0
+                        ? L10n.format(
+                            "待批 1/%lld",
+                            Int64(queue.queuedCount + 1)
+                        )
+                        : nil
                     ChatApprovalCard(
-                        store: store, record: record,
+                        store: store,
+                        record: record,
+                        queueProgress: progressText,
                         ledger: ledger
                     )
-                }
-                if queue.queuedCount > 0 {
-                    queuedRow(count: queue.queuedCount)
-                }
-                ForEach(store.resolvedLines) { line in
-                    if !anchoredRecordIDs.contains(line.id) {
-                        resolvedRow(line)
-                    }
+                } else if !unanchoredResolved.isEmpty {
+                    resolvedSummaryRow(unanchoredResolved)
                 }
             }
         }
     }
 
-    /// 待批收纳计数行（D10 定版②）：与回执行同
-    /// 族形态（surface 底＋footnote），只报数、
-    /// 不出钮、不可点——点开若出带钮的卡即破
-    /// 「只活一张」（定版字面口径，不做展开预览）
-    private func queuedRow(count: Int) -> some View {
+    /// 「总是允许」一次点按后的轻量可撤销通知（5 秒自动消失）
+    private func alwaysAllowToastRow(
+        _ toast: AgentHubStore.AlwaysAllowToast
+    ) -> some View {
         HStack(spacing: OneDayMetrics.spacingS) {
-            Image(systemName: "tray.full")
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
-            Text(L10n.format("还有 %lld 件待批", Int64(count)))
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Palette.success)
+            Text(L10n.format("已允许并记住（%@）", toast.scopeLabel))
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
             Spacer()
+            Button("撤销") {
+                Task { await store.undoAlwaysAllowToast() }
+            }
+            .buttonStyle(.plain)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Palette.primary)
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .padding(.vertical, OneDayMetrics.spacingS)
@@ -83,59 +95,69 @@ struct ChatApprovalZone: View {
         )
     }
 
-    /// 裁决结果行：卡收起后的原地痕迹——结论图标＋标
-    /// 题＋结果措辞；带走由下一轮新卡顶上（上限与去重
-    /// 在 store 侧守）
-    private func resolvedRow(_ line: ApprovalResolvedLine) -> some View {
-        HStack(spacing: OneDayMetrics.spacingS) {
-            Image(systemName: line.outcome.isPositive
-                ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundStyle(line.outcome.isPositive
-                    ? Palette.success : Palette.danger)
-            Text(line.summary)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Palette.ink)
-                .lineLimit(1)
-            Spacer()
-            Text(line.outcome.label)
-                .font(.footnote)
-                .foregroundStyle(Palette.inkSecondary)
+    /// 全部批完后的静态普通回执行（非卡，不堆叠已决行）
+    private func resolvedSummaryRow(
+        _ lines: [ApprovalResolvedLine]
+    ) -> some View {
+        HStack(spacing: OneDayMetrics.spacingXS) {
+            if lines.count == 1, let only = lines.first {
+                Image(systemName: only.outcome.isPositive
+                    ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(only.outcome.isPositive
+                        ? Palette.success : Palette.danger)
+                Text(only.summary)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                Text("·")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkMuted)
+                Text(only.outcome.label)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.success)
+                Text(L10n.format("已处理 %lld 项", Int64(lines.count)))
+                    .font(.footnote)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
         }
-        .padding(.horizontal, OneDayMetrics.spacingM)
-        .padding(.vertical, OneDayMetrics.spacingS)
-        .background(
-            Palette.surface,
-            in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
-        )
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, OneDayMetrics.spacingXS)
     }
 }
 
 /// 单张就地审批卡：卡面本体走共用组件
 /// ApprovalCardFace（样式二期 S2-01/02/03，与枢纽待
 /// 批卡同一实现、同一几何与句式）；本宿主只持有卡
-/// 体外框、详情的就地展开（SmoothExpand）与两只确
-/// 认弹窗。卡面零原始 JSON、零英文运维串（宪法
-/// §8）；材质与枢纽卡同为实色面内容卡
-/// （Palette.surface），与玻璃消息面分工一致。
+/// 体外框与详情的就地展开（SmoothExpand）。卡面零原
+/// 始 JSON、零英文运维串（宪法 §8）；材质与枢纽卡
+/// 同为实色面内容卡（Palette.surface），与玻璃消息
+/// 面分工一致。
 /// §165 起两个宿主共用：流末尾区（ChatApprovalZone）
 /// 与锚定行（ChatView.approvalAnchorRow）——同一张
 /// 卡、同一裁决路径，落位不同而已
 struct ChatApprovalCard: View {
     let store: AgentHubStore
     let record: WriteGateRecord
+    /// 多条排队时的进度文案（如「待批 1/3」），单条为 nil
+    var queueProgress: String? = nil
     /// §329 行状态账本（聊天列表面传入）：详情四
     /// 态（展开/详情/错误/加载中）改存账本——详情
     /// 区高度对行高合成器可见（.absolute 回喂）；
     /// 无账本环境回落本地 @State、四态语义逐字不
-    /// 变（确认弹窗两件与详情无关、恒本地）
+    /// 变
     var ledger: ChatRowStateLedger? = nil
 
     @State private var localDetail: WriteGateDetail?
     @State private var localDetailError: String?
     @State private var localDetailExpanded = false
     @State private var localDetailLoading = false
-    @State private var showRejectConfirm = false
-    @State private var showAlwaysConfirm = false
 
     private var detail: WriteGateDetail? {
         if let ledger {
@@ -218,6 +240,7 @@ struct ChatApprovalCard: View {
             record: record,
             isDeciding: store.decidingIDs.contains(record.id),
             note: store.cardNotes[record.id],
+            queueProgress: queueProgress,
             detailLinkTitle: detailExpanded ? "收起详情" : "查看详情",
             onDetail: toggleDetail,
             onAction: handleAction
@@ -231,30 +254,6 @@ struct ChatApprovalCard: View {
             Palette.surface,
             in: RoundedRectangle(cornerRadius: OneDayMetrics.containerCorner)
         )
-        .confirmationDialog(
-            "驳回这条写入？",
-            isPresented: $showRejectConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("驳回", role: .destructive) {
-                Task { await store.decide(record, approve: false) }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("驳回后这条写入不会生效。")
-        }
-        .confirmationDialog(
-            "总是允许这一类？",
-            isPresented: $showAlwaysConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("总是允许") {
-                Task { await store.decideAlways(record) }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("这条会立即批准；以后「\(ApprovalCardCopy.alwaysAllowScope(for: record))」的写入将直接通过，不再逐条询问。规则可以在设置「偏好与权限」的「审批规则」里随时撤销。")
-        }
     }
 
     /// 详情展开区：按需拉桥 detail，内容与枢纽 sheet
@@ -274,9 +273,12 @@ struct ChatApprovalCard: View {
                     .foregroundStyle(Palette.inkSecondary)
             }
         } else if let detail {
-            ApprovalReviewContent(
-                detail: detail, record: record, embedded: true
-            )
+            ScrollView {
+                ApprovalReviewContent(
+                    detail: detail, record: record, embedded: true
+                )
+            }
+            .frame(maxHeight: 260)
             .padding(.top, OneDayMetrics.spacingS)
             collapseButtonRow
         } else if let detailError {
@@ -303,16 +305,16 @@ struct ChatApprovalCard: View {
         .padding(.top, OneDayMetrics.spacingS)
     }
 
-    /// 三档裁决出口（钮面在共用卡面组件内）：批准直
-    /// 接提交；总是允许/驳回先过本宿主既有确认弹窗
+    /// 三档裁决出口：全部一次点按直接提交（总是允许
+    /// 落定后出带「撤销」的轻量通知，不弹二次确认框）
     private func handleAction(_ action: ApprovalCardAction) {
         switch action {
         case .approve:
             Task { await store.decide(record, approve: true) }
         case .alwaysAllow:
-            showAlwaysConfirm = true
+            Task { await store.decideAlways(record) }
         case .reject:
-            showRejectConfirm = true
+            Task { await store.decide(record, approve: false) }
         }
     }
 

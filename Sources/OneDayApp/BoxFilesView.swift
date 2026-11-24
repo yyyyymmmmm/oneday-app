@@ -91,7 +91,7 @@ struct BoxFilesView: View {
                     ForEach(Array(crumbs.enumerated()), id: \.element.id) {
                         index, crumb in
                         if index > 0 {
-                            DisclosureChevron(font: .system(size: 10))
+                            DisclosureChevron(font: .system(size: FrameworkIcon.badgeGlyphSize))
                         }
                         Button {
                             currentPath = crumb.path
@@ -114,8 +114,7 @@ struct BoxFilesView: View {
                 if listing.entries.isEmpty {
                     EmptyState(
                         icon: "folder",
-                        title: "这个文件夹是空的",
-                        message: "智能体在电脑里生成的文件会出现在这里。"
+                        title: "这个文件夹是空的"
                     )
                     .padding(.top, OneDayMetrics.spacingXXL)
                 } else {

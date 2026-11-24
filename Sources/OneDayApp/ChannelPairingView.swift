@@ -139,6 +139,7 @@ struct ChannelPairingView: View {
                 await store.load(appState: appState)
             }
         }
+        .fullscreenPopBridge()
     }
 
     // MARK: - 页头（骨架走 ChannelPairingScaffold 共用件）

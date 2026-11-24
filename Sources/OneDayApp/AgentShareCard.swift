@@ -74,6 +74,7 @@ struct AgentShareCardView: View {
     var body: some View {
         // 名片成图构图值（头像 132 与文字区的固定间距，
         // 导出图版式自洽、不随 App 间距梯队走，C5 清点注记）
+        // 卡面文字字号（44/26/22）同属成图定点，P2-01 登记保留、不归 FontRoles
         HStack(spacing: 28) {
             avatarImage
                 .resizable()

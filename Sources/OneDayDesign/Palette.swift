@@ -107,12 +107,20 @@ public enum Palette {
     public static let surface = appleColor(
         light: 0xFFFFFF, dark: .secondarySystemBackground
     )
-    /// 助手泡（OpenMuse 助手泡 #EEEEF0，chat.tsx:593；
-    /// 暗档 tertiarySystemBackground #2C2C2E——背景三
-    /// 级梯的第三级，旧派生 #272E33 让位）
-    public static let bubbleFill = appleColor(
-        light: 0xEEEEF0, dark: .tertiarySystemBackground
-    )
+    /// AI 底衬卡面（§503 改判：原「助手泡」#EEEEF0——
+    /// OpenMuse chat.tsx:593 旧值自本版让位给用户
+    /// 18:36 终裁的 Muse 式全宽卡：浅 #E9EAEC＝Muse
+    /// 本 App 逐像素实测、暗 #2C2C2E＝原语义三级面定
+    /// 值）。§503 起本令牌归当前主题整包辖（读主题
+    /// aiCard 行：默认款即上述两值、微信款浅档为收泡
+    /// 取样 #FFFFFF）；消费面＝助手卡本体及一切助手
+    /// 承载面（附件面板/交付卡/图片行衬底同源跟随）
+    public static var bubbleFill: Color {
+        let theme = currentChatTheme
+        return themedColor(
+            light: theme.aiCardLight, dark: theme.aiCardDark
+        )
+    }
     /// 字段面（OpenMuse input 底 #FFF，ui.tsx:62；暗档
     /// 同取三级面 #2C2C2E——字段恒落在页底/卡面上、
     /// 取高一级使输入区在两面都可辨）
@@ -130,24 +138,31 @@ public enum Palette {
     /// 接缝等共用 chatSurface 的面不读本口、恒守定版
     public static var chatBackground: Color {
         switch AppearancePreferences.backgroundStyle() {
+        case .theme:
+            // §503「跟随主题」：当前主题整包的背景行
+            let theme = currentChatTheme
+            return themedColor(
+                light: theme.backgroundLight,
+                dark: theme.backgroundDark
+            )
         case .standard:
             return chatSurface
         case .mist:
-            return appleColor(
-                light: 0xF0F0F2,
-                dark: UIColor(
-                    red: 0x11 / 255.0, green: 0x11 / 255.0,
-                    blue: 0x13 / 255.0, alpha: 1
-                )
-            )
+            return themedColor(light: 0xF0F0F2, dark: 0x111113)
         case .slate:
-            return appleColor(
-                light: 0xE6E6EA,
-                dark: UIColor(
-                    red: 0x1A / 255.0, green: 0x1A / 255.0,
-                    blue: 0x1E / 255.0, alpha: 1
-                )
-            )
+            return themedColor(light: 0xE6E6EA, dark: 0x1A1A1E)
+        case .wechatGray:
+            // §503 取样值：浅 #EDEDED（WeUI --weui-
+            // BG-0）；暗档无取样、沿用雾灰暗值
+            return themedColor(light: 0xEDEDED, dark: 0x111113)
+        case .gptGray:
+            // §503 取样值：浅 #F4F4F4（ChatGPT 浅面）；
+            // 暗档无取样、沿用石板暗值
+            return themedColor(light: 0xF4F4F4, dark: 0x1A1A1E)
+        case .dots, .grid, .diagonal:
+            // 图案档的底色＝定版面；纹理由 ChatBack-
+            // groundSurface 在本色之上叠绘（单源）
+            return chatSurface
         }
     }
     /// 抽屉接缝中间层底（§351）：深色开态卡面横向
@@ -407,6 +422,13 @@ public enum Palette {
     /// 线 0.05，见 ChatTheme 注），与上述旧值脱钩是
     /// 本意；暗档仍逐字相同。
     public static var primary: Color {
+        // §503 强调覆盖（TG accent 参数同构）：用户在
+        // 外观页选了预设色点时覆盖优先（明暗同值——
+        // TG 单值口径，特例见 ChatAccentPresets 注）；
+        // 未设/复位＝当前主题强调行
+        if let override = AppearancePreferences.accentOverride() {
+            return themedColor(light: override, dark: override)
+        }
         let theme = currentChatTheme
         return themedColor(
             light: theme.accentLight, dark: theme.accentDark
@@ -874,12 +896,22 @@ public enum OneDayMetrics {
     /// 16pt；消费单源＝MarkdownText.proseParagraphs 的
     /// 段后距，不再借间距梯队的 spacingSM）
     public static let paragraphSpacing: CGFloat = 16
-    /// 助手正文左缘占屏比（§263：Muse 同机实测左缘
-    /// 33pt／402pt 屏宽；气泡布局与量测喂入同源消费）
+    /// 助手正文左缘占屏比（§263 沿革值）：§503 起助
+    /// 手面改全宽卡（卡缘＝pageGutter），本比不再有
+    /// 布局消费方——保留仅作 §263 量测沿革档案，新
+    /// 代码禁读（文宽走 assistantTextWidth 单源）
     public static let assistantTextLeadingFraction: CGFloat = 0.082
-    /// 助手正文文宽占屏比（§263：Muse 同机实测文宽
-    /// ≈309pt／402pt 屏宽；气泡列宽封顶与量测喂入同值）
-    public static let assistantTextWidthFraction: CGFloat = 0.769
+    /// 助手正文文宽（§503 单源）：全宽卡内正文宽＝
+    /// 屏宽 − 2×pageGutter（卡缘）− 2×bubblePaddingH
+    /// （卡内距）；@402 ＝ 330（§263 旧口径 309 系窄
+    /// 列时代值、随 §503 改判）。气泡布局与量测喂入
+    /// （LayoutProductService/ChatNativeRowHeight/
+    /// ChatView）同源消费本函数、不许再各自拼算
+    public static func assistantTextWidth(
+        screenWidth: CGFloat
+    ) -> CGFloat {
+        screenWidth - pageGutter * 2 - bubblePaddingH * 2
+    }
 
     // —— 梯外具名值（审查 T-4 收编：光学/手势/设备驱动）——
     /// 流式词元流布局的词间/行间距（光学值，TokenFlow 用）
@@ -925,4 +957,90 @@ public enum OneDayMetrics {
     public static let rowInnerGap: CGFloat = 6
     /// 卡内一组（横幅行/卡内图标与文字列的间距）
     public static let cardInnerGap: CGFloat = 10
+}
+
+/// 聊天背景呈现面（§503）：聊天页背景层与外观页预
+/// 览的**同一消费面**——底色走 Palette.chatBack-
+/// ground 现读；图案档（点阵/网格/斜纹）再以主墨低
+/// 对比叠绘骨架纹理（浅 4%/暗 6% 不透明度——纹理对
+/// 底色对比 ≤1.15、正文可读性不受影响，口径钉在
+/// ThemePackage503Tests）。间距定死：点阵 22pt 错
+/// 格圆点 r1.2、网格 26pt 线宽 0.75、斜纹 14pt 线
+/// 宽 0.75（45°）。非图案档只出底色、与旧背景层逐
+/// 像素同
+public struct ChatBackgroundSurface: View {
+    public init() {}
+
+    public var body: some View {
+        ZStack {
+            Palette.chatBackground
+            if let kind = AppearancePreferences
+                .backgroundStyle().patternKind {
+                Canvas { context, size in
+                    draw(kind, in: &context, size: size)
+                }
+                .opacity(Self.patternOpacity)
+            }
+        }
+    }
+
+    /// 纹理不透明度（浅/暗在解析时同值取舍：取对底
+    /// 色对比的保守侧——以浅档 4% 为准、暗档同值；
+    /// 暗底上主墨（白）4% 的对比 ≈1.10、同在 ≤1.15
+    /// 线内，两档一值不分叉）
+    private static let patternOpacity: Double = 0.04
+
+    private func draw(
+        _ kind: ChatBackgroundPattern,
+        in context: inout GraphicsContext, size: CGSize
+    ) {
+        let ink = GraphicsContext.Shading.color(.primary)
+        switch kind {
+        case .dots:
+            let step: CGFloat = 22, r: CGFloat = 1.2
+            var row = 0
+            var y: CGFloat = step / 2
+            while y < size.height + step {
+                var x: CGFloat = row % 2 == 0 ? step / 2 : step
+                while x < size.width + step {
+                    let rect = CGRect(
+                        x: x - r, y: y - r,
+                        width: r * 2, height: r * 2
+                    )
+                    context.fill(Path(ellipseIn: rect), with: ink)
+                    x += step
+                }
+                y += step
+                row += 1
+            }
+        case .grid:
+            let step: CGFloat = 26
+            var path = Path()
+            var x: CGFloat = 0
+            while x <= size.width {
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+                x += step
+            }
+            var y: CGFloat = 0
+            while y <= size.height {
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+                y += step
+            }
+            context.stroke(path, with: ink, lineWidth: 0.75)
+        case .diagonal:
+            let step: CGFloat = 14
+            var path = Path()
+            var offset: CGFloat = -size.height
+            while offset < size.width {
+                path.move(to: CGPoint(x: offset, y: 0))
+                path.addLine(
+                    to: CGPoint(x: offset + size.height, y: size.height)
+                )
+                offset += step
+            }
+            context.stroke(path, with: ink, lineWidth: 0.75)
+        }
+    }
 }

@@ -219,6 +219,7 @@ struct AllConversationsView: View {
                         onCloseHost: onClose
                     )
                 }
+                .fullscreenPopBridge()
             }
             .navigationDestination(isPresented: $showMaintenance) {
                 ConversationMaintenanceView(
@@ -227,6 +228,7 @@ struct AllConversationsView: View {
                 )
             }
         }
+        .fullscreenPopBridge()
         .task {
             await reload()
             // 存量迁移：挂载点已迁账本（第 90 条收
@@ -428,7 +430,7 @@ struct AllConversationsView: View {
                     .foregroundStyle(Palette.inkSecondary)
             } else if mineRows.isEmpty {
                 ContentUnavailableView(
-                    "我的对话里还没有服务端会话。在 App 里开的旁聊连上服务端、或从频道收进来的对话会出现在这里。",
+                    "我的对话里还没有服务端会话。",
                     systemImage: "bubble.left.and.bubble.right"
                 )
             } else {
@@ -494,7 +496,7 @@ struct AllConversationsView: View {
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 0)
-                        DisclosureChevron(font: .system(size: 14, weight: .regular))
+                        DisclosureChevron(font: .system(size: FrameworkIcon.inlineGlyphSize, weight: .regular))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -523,7 +525,7 @@ struct AllConversationsView: View {
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 0)
-                            DisclosureChevron(font: .system(size: 14, weight: .regular))
+                            DisclosureChevron(font: .system(size: FrameworkIcon.inlineGlyphSize, weight: .regular))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())

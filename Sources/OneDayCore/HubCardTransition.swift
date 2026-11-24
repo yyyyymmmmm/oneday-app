@@ -65,6 +65,41 @@ public enum HubCardTransition {
         underlayMaxDimOpacity * Double(underlayStrength(forScale: scale))
     }
 
+    /// 底层强模糊半径上限（施工图 §6：0→≈12–16，
+    /// 初值取中值 14、真机对账）：灰底根治后底层改
+    /// 治本体——模糊直接挂呈现方壳层，半径由共享
+    /// 进度（underlayStrength 派生）驱动
+    public static let underlayMaxBlurRadius: CGFloat = 14
+
+    /// 底层模糊降级开关（灰底根治留档）：真机拖动
+    /// 帧率验收不过时把本常量改 false 重编——全链
+    /// 只压暗不模糊（壳层亮度驱动、开销近零）；不
+    /// 许回退合成背板替身。常量式（非可变全局）守
+    /// Swift 6 并发口径，派生函数留 blurEnabled 形
+    /// 参供钉测直验降级档
+    public static let underlayBlurEnabled = true
+
+    /// 底层模糊半径：强度 0 即 0（静止无处理）、满
+    /// 强度达上限；降级档（blurEnabled=false）恒 0
+    public static func underlayBlurRadius(
+        forStrength strength: CGFloat,
+        blurEnabled: Bool = underlayBlurEnabled
+    ) -> CGFloat {
+        guard blurEnabled else { return 0 }
+        let t = min(1, max(0, strength))
+        return underlayMaxBlurRadius * t
+    }
+
+    /// 底层亮度增量（SwiftUI .brightness 口径）：
+    /// 满强度 −0.20 ≈ 亮度 ×0.80（§2.5 带内，与
+    /// underlayMaxDimOpacity 同源同值、换呈现载体）
+    public static func underlayBrightnessDelta(
+        forStrength strength: CGFloat
+    ) -> Double {
+        let t = min(1, max(0, Double(strength)))
+        return -underlayMaxDimOpacity * t
+    }
+
     /// 松手判定（投影模型）：predictedEndTransla-
     /// tion.x 已含速度投影，与屏宽 50% 比
     public static func shouldFinish(
@@ -92,6 +127,18 @@ public enum HubCardTransition {
             return .undecided
         }
         return ax >= ay ? .horizontal : .vertical
+    }
+
+    /// 卡级拖动让行裁决（H1，呈现与导航手势审计
+    /// 2026-11-24 问题二）：卡内任一导航栈已下钻
+    /// （深度 >1）时，右滑先归卡内 pop、卡片关
+    /// 卡手势全程让行；全卡回到根层才轮到关卡。
+    /// 深度事实由宿主在手势起手一拍自层级采集
+    /// （抽屉门 D 同源口径：层级内最大导航深度）
+    public static func allowsCardDrag(
+        innerStackDepth: Int
+    ) -> Bool {
+        innerStackDepth <= 1
     }
 }
 

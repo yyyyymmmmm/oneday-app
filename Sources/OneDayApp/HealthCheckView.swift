@@ -98,8 +98,7 @@ struct HealthCheckView: View {
             } else {
                 OneDayDesign.EmptyState(
                     icon: "stethoscope",
-                    title: "还没做过体检",
-                    message: "跑一次体检，看看服务器的健康与安全状况。"
+                    title: "还没做过体检"
                 )
                 .padding(.vertical, OneDayMetrics.spacingM)
             }

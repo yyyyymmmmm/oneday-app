@@ -197,9 +197,9 @@ struct DeliverablesView: View {
                     .ignoresSafeArea()
             }
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $showHub) {
-                AgentHubView()
-            }
+            // H2 收编：中枢改 cover 呈现（与聊天页
+            // 同一宿主），原 push 入中枢退役
+            .hubCover(isPresented: $showHub)
             // §125：打开分流收口——非图条目一律落文
             // 件打开页（中间页），文本类的阅读在其页
             // 内主钮进阅读页；旧 previewEntry/
@@ -292,6 +292,7 @@ struct DeliverablesView: View {
                 FileShareSheet(url: item.url)
             }
         }
+        .fullscreenPopBridge()
     }
 
     // MARK: - 页大标题（§473 件四②）
@@ -319,7 +320,13 @@ struct DeliverablesView: View {
     /// 胶囊＋headerCircleButton 私有副本。右位登记
     /// ＝放大镜（开搜索行）＋菜单钮（下四组功能）
     private var identityHeader: some View {
-        ContentPageHeader(onOpenHub: { showHub = true }) {
+        ContentPageHeader(
+            onOpenHub: {
+                HubCoverPresenter.present(
+                    $showHub, reduceMotion: reduceMotion
+                )
+            }
+        ) {
             HStack(spacing: OneDayMetrics.spacingS) {
                 // §452.9：搜索钮——放大镜图标钮与菜单
                 // 钮同排同级（点开顶栏下原地展开搜索
@@ -460,14 +467,19 @@ struct DeliverablesView: View {
                     .buttonStyle(.odPressable)
                 }
                 Menu {
-                    Button("全部来源") { sourceFilter = "" }
-                    ForEach(availableSources, id: \.self) { source in
-                        Button(source) { sourceFilter = source }
+                    Button(LibrarySourceFilter.all.label) {
+                        sourceFilter = LibrarySourceFilter.all.rawValue
+                    }
+                    Button(LibrarySourceFilter.agent.label) {
+                        sourceFilter = LibrarySourceFilter.agent.rawValue
+                    }
+                    Button(LibrarySourceFilter.user.label) {
+                        sourceFilter = LibrarySourceFilter.user.rawValue
                     }
                 } label: {
                     chipLabel(
                         title: sourceFilter.isEmpty
-                            ? "来源" : sourceFilter,
+                            ? "全部来源" : sourceFilter,
                         selected: !sourceFilter.isEmpty
                     )
                 }
@@ -476,12 +488,6 @@ struct DeliverablesView: View {
         }
         .padding(.vertical, OneDayMetrics.spacingS)
         .sensoryFeedback(.selection, trigger: category)
-    }
-
-    private var availableSources: [String] {
-        Set((deliverables ?? []).map(\.source).filter {
-            !$0.isEmpty
-        }).sorted()
     }
 
     private func chipLabel(
@@ -678,7 +684,7 @@ struct DeliverablesView: View {
                     ? "doc.text.magnifyingglass" : "magnifyingglass",
                 message: query.isEmpty
                     ? (category == .all && sourceFilter.isEmpty
-                        ? "智能体生成的文件与定时任务产出会出现在这里。"
+                        ? "在聊天中智能体发给你的和你发送的文件会出现在这里。"
                         : "换个筛选试试。")
                     : "换个关键词试试。"
             )
@@ -858,7 +864,7 @@ struct DeliverablesView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .rotationEffect(.degrees(90))
-                    .font(.system(size: 18, weight: .regular))
+                    .font(.system(size: FrameworkIcon.moreGlyphSize, weight: .regular))
                     .foregroundStyle(Palette.inkSecondary)
                     // 命中域 44（0.22.0 审计 F4，字形不变）
                     .frame(width: 44, height: 44)
@@ -1029,7 +1035,7 @@ struct DeliverablesView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .rotationEffect(.degrees(90))
-                    .font(.system(size: 16, weight: .regular))
+                    .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .regular))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 40, height: 40)
                     // 第 83 条（命中域收口）：与同文件媒
@@ -1064,20 +1070,22 @@ struct DeliverablesView: View {
         for entry: WorkspaceFileEntry,
         snapshot: LibraryListSnapshot
     ) -> String {
-        let source = snapshot.deliverable(for: entry).source
+        let deliverable = snapshot.deliverable(for: entry)
+        let source = LibrarySourceFilter.displayLabel(for: deliverable)
         let tag = typeTag(for: entry)
-        return source.isEmpty ? tag : "\(tag) · \(source)"
+        return "\(tag) · \(source)"
     }
 
     private func rowMetaLine(
         for entry: WorkspaceFileEntry,
         snapshot: LibraryListSnapshot
     ) -> String {
-        let source = snapshot.deliverable(for: entry).source
+        let deliverable = snapshot.deliverable(for: entry)
+        let source = LibrarySourceFilter.displayLabel(for: deliverable)
         let label = DeliverableFileType.label(
             forFileName: entry.name
         )
-        return source.isEmpty ? label : "\(label) · \(source)"
+        return "\(label) · \(source)"
     }
 
     /// 类型签（§4.3）：媒体给人话词（图片/视频/音

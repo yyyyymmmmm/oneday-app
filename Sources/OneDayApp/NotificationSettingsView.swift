@@ -30,16 +30,6 @@ struct NotificationSettingsView: View {
     var body: some View {
         List {
             Section {
-                Text("新通知按重要程度分三级提醒：即时打断会响铃并穿透专注模式，静默入盒只进通知列表、不响铃，仅角标不发提醒、只在图标角标和通知页里留数。关掉某一类，只是关它的提醒，通知本身仍在通知页里。")
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(
-                EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)
-            )
-
-            Section {
                 categoryToggle(
                     category: .approval, isOn: $approvalEnabled
                 )
@@ -55,10 +45,6 @@ struct NotificationSettingsView: View {
                 )
             } header: {
                 sectionHeader("分类提醒")
-            } footer: {
-                Text("审批结果与失败是即时打断级，运行完成是静默入盒级，系统与监测是仅角标级。分类开关只管手机上的本地提醒；通知的记录与已读状态仍以服务端为准。")
-                    .font(.rowSubtitle)
-                    .foregroundStyle(Palette.inkSecondary)
             }
             .listRowBackground(Palette.surface)
             .listRowInsets(settingsRowInsets)

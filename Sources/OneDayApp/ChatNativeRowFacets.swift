@@ -121,6 +121,9 @@ struct ChatNativeRowFacets {
     var optionsCards: [UUID: OptionsCardHeightInput] = [:]
     var zoneAnchoredIDs: Set<String> = []
     var zoneResolvedLineIDs: [String] = []
+    /// 第 6 项：失败条目的分类成因快照（供后台量测
+    /// 与同步合成同源读取 SendFailureCopy 行高）
+    var failureKinds: [UUID: SendFailureKind] = [:]
 }
 
 /// facet 快照器（§331）：主线程执行——把合成器
@@ -135,9 +138,15 @@ enum ChatNativeRowFacetSnapshotter {
         for entry: ChatEntry,
         ledger: ChatRowStateLedger,
         hubStore: AgentHubStore,
+        outboxRetry: OutboxRetryStore? = nil,
         optionsCard: OptionsCardHeightInput? = nil
     ) -> ChatNativeRowFacets {
         var facets = ChatNativeRowFacets()
+        if entry.sendFailed,
+           let kind = outboxRetry?.record(for: entry.id)?
+            .lastFailureKind {
+            facets.failureKinds[entry.id] = kind
+        }
         if let optionsCard {
             facets.optionsCards[entry.id] = optionsCard
         }

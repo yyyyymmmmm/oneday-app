@@ -249,6 +249,7 @@ struct MCPCatalogDetailView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 信任信息：命令/地址/自举步骤全量摊开（服务端信任
