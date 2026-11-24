@@ -73,6 +73,7 @@ struct TokenChannelPairingView: View {
                 await store.load(appState: appState)
             }
         }
+        .fullscreenPopBridge()
     }
 
     // MARK: - 步骤显隐门（页头/状态带本体走共用件）

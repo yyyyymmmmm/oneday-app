@@ -1381,6 +1381,7 @@ private struct AddReminderView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func save() {
@@ -1440,7 +1441,7 @@ struct ContactsDetailView: View {
         )
         .onChange(of: query) { _, _ in load() }
         .sheet(item: $selected) { contact in
-            NavigationStack { contactDetail(contact) }
+            NavigationStack { contactDetail(contact) }.fullscreenPopBridge()
         }
         .task { load() }
         .modifier(

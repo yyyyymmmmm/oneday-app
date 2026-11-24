@@ -99,7 +99,10 @@ struct ImageViewerView: View {
             (state.mode == .card ? Palette.pageBG : Color.black)
                 .ignoresSafeArea()
             if state.hasContent {
+                // 全屏 pop 豁免：分页横滚与放大平移是
+                // 本面自有横向手势，右滑不归返回
                 pagingScroll
+                    .fullscreenPopExempt()
             } else {
                 Text("没有可显示的图片。")
                     .font(.callout)

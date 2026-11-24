@@ -107,6 +107,7 @@ struct PresetEditorView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private var mainModelOptions: [String] {

@@ -120,6 +120,7 @@ struct AgentAvatarEditorView: View {
                 Task { await loadPickedPhoto(item) }
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 预置行（自含成件：整行表达式曾触发类型检查超
@@ -289,6 +290,7 @@ struct AgentNameEditorView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func save() {

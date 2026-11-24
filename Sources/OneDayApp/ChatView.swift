@@ -1228,6 +1228,7 @@ struct ChatView: View {
                         }
                     }
             }
+            .fullscreenPopBridge()
         }
         .sheet(item: $chatFallbackTarget) { target in
             FileFallbackView(target: target)
@@ -13942,6 +13943,7 @@ private struct SelectableTextSheet: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }
 

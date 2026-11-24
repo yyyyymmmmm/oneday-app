@@ -70,6 +70,7 @@ struct GoalEditView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private var fieldsGroup: some View {
@@ -224,6 +225,7 @@ struct GoalCreateView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }
 
@@ -293,6 +295,7 @@ struct GoalDelegateView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     /// 进展对话绑定（§123 H1）：委派确认落定后给目标绑

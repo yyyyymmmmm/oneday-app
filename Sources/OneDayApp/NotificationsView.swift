@@ -114,6 +114,7 @@ struct NotificationsView: View {
                 Text("有几条通知的已读状态还没同步成功，下拉刷新后再确认一次。")
             }
         }
+        .fullscreenPopBridge()
         .presentationDragIndicator(.visible)
     }
 

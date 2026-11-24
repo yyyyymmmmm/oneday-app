@@ -99,6 +99,7 @@ struct LedgerDetailView: View {
             NavigationStack {
                 HubDiffView(store: hubStore, record: record)
             }
+            .fullscreenPopBridge()
         }
     }
 

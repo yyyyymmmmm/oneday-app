@@ -138,6 +138,7 @@ struct ConnectView: View {
                     }
                 }
             }
+            .fullscreenPopBridge()
         }
         .sheet(isPresented: $showSelfCheck) {
             NavigationStack {
@@ -148,6 +149,7 @@ struct ConnectView: View {
                         }
                     }
             }
+            .fullscreenPopBridge()
         }
         .onChange(of: scenePhase) { _, newPhase in
             // 通知段里去系统设置开完回来：现读真状态

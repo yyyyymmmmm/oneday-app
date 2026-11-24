@@ -353,6 +353,7 @@ struct DelegationModelRoutesEditor: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }
 
@@ -448,5 +449,6 @@ struct DelegationProfileRoutesEditor: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }

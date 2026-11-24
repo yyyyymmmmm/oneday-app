@@ -45,6 +45,7 @@ struct FileOpenView: View {
                 onRequestResend: onRequestResend
             )
         }
+        .fullscreenPopBridge()
     }
 }
 
@@ -1016,6 +1017,7 @@ struct FileOpenDetailsView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     private func row(_ title: String, _ value: String) -> some View {

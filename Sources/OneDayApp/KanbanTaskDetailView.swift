@@ -463,6 +463,7 @@ struct KanbanCreateTaskView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
         .presentationDragIndicator(.visible)
     }
 }

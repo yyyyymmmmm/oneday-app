@@ -248,6 +248,7 @@ struct ComputerFaceView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }
 

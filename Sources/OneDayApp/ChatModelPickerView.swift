@@ -116,6 +116,7 @@ struct ChatModelPickerView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
         .presentationDetents([.medium, .large])
         // §489（HIG 批 A／P1-02）：可调 sheet 补抓手
         //（HIG Sheets：Include a grabber in a resizable sheet）

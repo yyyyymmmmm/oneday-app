@@ -139,6 +139,7 @@ struct CronBlueprintPickerView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
         .task { await load() }
     }
 

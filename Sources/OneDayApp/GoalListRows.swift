@@ -202,6 +202,7 @@ struct GoalCategorySheetView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 }
 

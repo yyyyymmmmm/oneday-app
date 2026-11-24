@@ -845,6 +845,7 @@ struct ConnectorsView: View {
                     }
                 }
         }
+        .fullscreenPopBridge()
         .presentationDragIndicator(.visible)
     }
 

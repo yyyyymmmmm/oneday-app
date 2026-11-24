@@ -1,5 +1,6 @@
 import OneDayCore
 import SwiftUI
+import UIKit
 
 /// 中枢卡片呈现宿主（DESIGN-V4 §502）：fullScreen-
 /// Cover 内的整页卡片容器——与 TopAnchoredPanel 同
@@ -32,6 +33,13 @@ struct HubCardHost<Content: View>: View {
     @State private var entered = false
     @State private var closing = false
     @State private var closeTranslation: CGSize = .zero
+    /// 卡内让行闩（H1）：手势起手一拍采集到卡内
+    /// 已下钻时置位、本手势全程不接管（右滑归卡
+    /// 内 pop），松手复位
+    @State private var yieldedToInnerStack = false
+    /// 深度采集锚点盒：锚点视图注册于此，手势判
+    /// 定时刻自其层级现采卡内导航深度
+    @State private var hierarchyAnchor = HubCardAnchorBox()
 
     /// 入场弹簧（量测拟合 §2.7：response 0.35–0.45、
     /// 阻尼 0.75–0.85 一族）
@@ -56,6 +64,9 @@ struct HubCardHost<Content: View>: View {
             ZStack {
                 backdrop(scale: scale)
                 card(size: size, scale: scale)
+            }
+            .background {
+                HubCardHierarchyAnchor(box: hierarchyAnchor)
             }
             .onAppear {
                 withAnimation(Self.entrySpring) {
@@ -142,6 +153,18 @@ struct HubCardHost<Content: View>: View {
         DragGesture(minimumDistance: 6, coordinateSpace: .global)
             .onChanged { value in
                 guard !closing else { return }
+                // H1 让行：方向未定锁前先判卡内深度
+                // ——卡内已下钻（任一栈深 >1）则本手
+                // 势全程让行，右滑归卡内 pop（全屏
+                // pop 桥），卡片不许抢关卡
+                if direction == .undecided,
+                   !yieldedToInnerStack,
+                   !HubCardTransition.allowsCardDrag(
+                       innerStackDepth: currentInnerDepth()
+                   ) {
+                    yieldedToInnerStack = true
+                }
+                guard !yieldedToInnerStack else { return }
                 direction = HubCardTransition.classifyDrag(
                     translation: value.translation,
                     current: direction)
@@ -151,6 +174,8 @@ struct HubCardHost<Content: View>: View {
             }
             .onEnded { value in
                 guard !closing else { return }
+                defer { yieldedToInnerStack = false }
+                guard !yieldedToInnerStack else { return }
                 if direction == .horizontal {
                     if HubCardTransition.shouldFinish(
                         predictedEndX:
@@ -169,6 +194,16 @@ struct HubCardHost<Content: View>: View {
                     direction = .undecided
                 }
             }
+    }
+
+    /// 卡内当前最大导航深度（H1 事实采集）：自锚
+    /// 点层级现采（HubCardDepthProbe，抽屉门 D 同
+    /// 源）；锚点未入层级时按根层 1 计、不误锁关卡
+    private func currentInnerDepth() -> Int {
+        guard let anchor = hierarchyAnchor.view else { return 1 }
+        return HubCardDepthProbe.maxNavigationDepth(
+            fromAnchor: anchor
+        )
     }
 
     // MARK: - 关闭（飞出→真关闭）
@@ -191,5 +226,29 @@ struct HubCardHost<Content: View>: View {
         } completion: {
             onDismissed()
         }
+    }
+}
+
+/// 深度采集锚点盒（H1）：锚点视图的弱引用注册
+/// 处，宿主手势判定时刻经此取视图现采深度
+final class HubCardAnchorBox {
+    weak var view: UIView?
+}
+
+/// 深度采集锚点：零尺寸、不可命中，只为给宿主
+/// 一个卡内层级的立足点（与卡片内容同在呈现宿
+/// 主层级内，采集范围恰是本卡）
+private struct HubCardHierarchyAnchor: UIViewRepresentable {
+    let box: HubCardAnchorBox
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        box.view = view
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        box.view = uiView
     }
 }

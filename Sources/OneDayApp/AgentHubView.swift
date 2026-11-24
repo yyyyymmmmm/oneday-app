@@ -240,12 +240,18 @@ struct AgentHubView: View {
             // 的 path 绑定深度门控已被真机证伪（path
             // 不追踪目标式推入、恒空），整桥退役后栈内
             // 页右滑返回全归系统 pop，不再需要栈深
+            // 2026-11-24（手势审计问题二）：栈根挂全
+            // 屏 pop 桥——卡内下钻页右滑走全屏 pop；
+            // 卡级关卡手势的让行由宿主 HubCardHost
+            // 按层级现采深度裁决（H1），path 绑定仍
+            // 不复活
             NavigationStack {
                 Group {
                     content(hubStore)
                 }
                 .background(Palette.pageBG)
             }
+            .fullscreenPopBridge()
         }
         .sheet(isPresented: $showAvatarEditor) {
             AgentAvatarEditorView()

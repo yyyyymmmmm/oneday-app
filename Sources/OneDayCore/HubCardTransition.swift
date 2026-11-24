@@ -93,6 +93,18 @@ public enum HubCardTransition {
         }
         return ax >= ay ? .horizontal : .vertical
     }
+
+    /// 卡级拖动让行裁决（H1，呈现与导航手势审计
+    /// 2026-11-24 问题二）：卡内任一导航栈已下钻
+    /// （深度 >1）时，右滑先归卡内 pop、卡片关
+    /// 卡手势全程让行；全卡回到根层才轮到关卡。
+    /// 深度事实由宿主在手势起手一拍自层级采集
+    /// （抽屉门 D 同源口径：层级内最大导航深度）
+    public static func allowsCardDrag(
+        innerStackDepth: Int
+    ) -> Bool {
+        innerStackDepth <= 1
+    }
 }
 
 /// 中枢卡片呈现裁决（§502，照 ZoomTransitionPolicy

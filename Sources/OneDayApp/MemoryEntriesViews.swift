@@ -550,6 +550,7 @@ struct MemoryEntryEditorView: View {
                 }
             }
         }
+        .fullscreenPopBridge()
     }
 
     @ViewBuilder
