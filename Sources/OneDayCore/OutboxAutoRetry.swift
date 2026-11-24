@@ -13,12 +13,25 @@ import Foundation
 /// 改判为补自动重发——本策略承接改判：失败态可自
 /// 动重试，但必须有界（次数上限＋指数退避），耗尽
 /// 后回落手点，不许无限敲服务端。
+///
+/// 发送失败机制包（2026-11-24）再收敛：准入先看
+/// 成因（SendFailureKind，记在 record.lastFailure-
+/// Kind）——只有传输类成因准自动，明确拒绝/准备
+/// 段/运行面失败一律钉死；记账点在自动重投执行完
+/// 毕后（App 层泵落点），清账点只在运行轴落定成
+/// 功/撤回/编辑重投（受理不清账）。
 public struct OutboxRetryRecord: Codable, Equatable, Sendable {
-    /// 已执行的自动重试次数（手点重发不计、不清——
-    /// 清零只发生在投递成功/撤回/编辑回收时，由
-    /// App 层在落定点清账）
+    /// 已执行的自动重试次数（手点重发不计、不清）。
+    /// 清账点全集（发送失败机制包·语义 1 收敛）：
+    /// ①运行轴落定成功 ②用户撤回/删除 ③用户编辑
+    /// 重投——受理、落定失败、进程恢复都不清。旧
+    /// 口径把清账挂在「投递成功」且由 App 层在受
+    /// 理后按整线程扫非发件箱条目：受理即脱离发
+    /// 件箱 → 账在 run 真终态前被清零、退避永不
+    /// 生效，即 2026-11-24 录屏死循环的根
     public var attempts: Int
-    /// 最近一次自动重试的发起时刻（退避起算点）
+    /// 最近一次自动重试的执行时刻（退避起算点；
+    /// 记账点在自动重投执行完毕后，见政策注）
     public var lastAttemptAt: Date?
     /// 人工接管标记：本条只许用户手点，自动链永不
     /// 碰。落点＝「提交段孤儿」（状态 sending 但 run
@@ -26,15 +39,24 @@ public struct OutboxRetryRecord: Codable, Equatable, Sendable {
     /// 已受理不可知）：自动重发有重复投递风险，先
     /// 浮现为可见待发、交用户裁决
     public var manualOnly: Bool
+    /// 最近一次失败的成因（发送失败机制包·语义
+    /// 3）：失败落点必写、与记账同落。政策准入只
+    /// 认它——旧政策只看状态不看成因，硬失败（5xx/
+    /// 凭据/模型拒）与软失败同进自动重试名单。存
+    /// 量旧账无此字段（nil）：按无成因走次数/退避
+    /// 老口径，新失败落点起一律有值
+    public var lastFailureKind: SendFailureKind?
 
     public init(
         attempts: Int = 0,
         lastAttemptAt: Date? = nil,
-        manualOnly: Bool = false
+        manualOnly: Bool = false,
+        lastFailureKind: SendFailureKind? = nil
     ) {
         self.attempts = attempts
         self.lastAttemptAt = lastAttemptAt
         self.manualOnly = manualOnly
+        self.lastFailureKind = lastFailureKind
     }
 }
 
@@ -70,7 +92,11 @@ public enum OutboxAutoRetryPolicy {
         guard let state, state.remainsInQueue else {
             return .notInQueue
         }
-        if state == .sending {
+        if state == .sending || state == .accepted {
+            // 提交在飞/已受理未落定：run 账本与对账
+            // 链管辖，自动链不许插手（已受理条目仍在
+            // 发件箱记账内，但那是记账语义、不是提交
+            // 轴管辖——双轴语义 1）
             return .ownedByRunLedger
         }
         if record?.manualOnly == true {
@@ -78,11 +104,31 @@ public enum OutboxAutoRetryPolicy {
         }
         switch state {
         case .queued, .uploading, .linking:
-            // 准备段瞬态（上传/链接中被进程中断）：从
-            // 未抵达提交段，恢复逻辑无条件接管（§237
-            // mayAutoResume 的消费点在此）
-            return .autoNow
+            // 准备段接管（横扫 P1-2 关账）：首次接管
+            // 立即（进程中断孤儿从未抵达提交段，§237
+            // mayAutoResume 口径）；已有自动记账在身
+            // 的（反复中断/回队条目）与失败态同账——
+            // 查 attempts、等退避。旧口径恒 autoNow
+            // 不记账：任何「失败后状态停在准备段」的
+            // 出口都会变成无上限立即重投
+            let attempts = record?.attempts ?? 0
+            guard attempts > 0, let last = record?.lastAttemptAt
+            else {
+                return .autoNow
+            }
+            let until = last.addingTimeInterval(
+                backoffSeconds(afterAttempts: attempts)
+            )
+            return now >= until ? .autoNow : .backoff(until: until)
         case .failed:
+            // 成因准入（语义 3）：成因在账且不准自动
+            // 的（明确拒绝/准备段/运行面/未知）直接
+            // 钉死等手点，与次数无关——旧口径只看状
+            // 态，硬失败被当软失败反复自动重投
+            if let kind = record?.lastFailureKind,
+               !kind.allowsAutoRetry {
+                return .manualOnly
+            }
             let attempts = record?.attempts ?? 0
             if attempts >= maxAutoAttempts {
                 return .manualOnly
@@ -98,10 +144,10 @@ public enum OutboxAutoRetryPolicy {
                 backoffSeconds(afterAttempts: attempts)
             )
             return now >= until ? .autoNow : .backoff(until: until)
-        case .sending, .delivered:
-            // .sending 已在上方裁决；.delivered 被
-            // remainsInQueue 守卫挡下，两臂不可达，
-            // 为穷尽 switch 而留
+        case .sending, .accepted, .delivered:
+            // .sending/.accepted 已在上方裁决；.deli-
+            // vered 被 remainsInQueue 守卫挡下，三臂
+            // 不可达，为穷尽 switch 而留
             return .notInQueue
         }
     }

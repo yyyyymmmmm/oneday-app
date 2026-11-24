@@ -1441,6 +1441,17 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
             break
         case 401, 403:
             throw HermesError.apiKeyRejected
+        case 429:
+            // 发送失败机制包：限流是等待门不是失败
+            // ——Retry-After 随错误上行，提交段按值
+            // 等待自动续（旧形态与其它状态码同走
+            // unexpectedStatus，等待值被丢弃、用户
+            // 把限流看成发送失败）
+            throw HermesError.rateLimited(
+                retryAfterSeconds: Self.retryAfterSeconds(
+                    from: http
+                )
+            )
         default:
             throw HermesError.unexpectedStatus(
                 endpoint: L10n.string("发送接口"), status: http.statusCode
@@ -1453,6 +1464,18 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
         } catch {
             throw HermesError.decodingFailed(endpoint: L10n.string("发送接口"))
         }
+    }
+
+    /// Retry-After 头解析（秒数形；HTTP 日期形不解、
+    /// 回 nil 由调用方走缺省等待）
+    private static func retryAfterSeconds(
+        from http: HTTPURLResponse
+    ) -> Double? {
+        guard let raw = http.value(
+            forHTTPHeaderField: "Retry-After"
+        ), let seconds = Double(raw), seconds >= 0
+        else { return nil }
+        return seconds
     }
 
     func runStatus(

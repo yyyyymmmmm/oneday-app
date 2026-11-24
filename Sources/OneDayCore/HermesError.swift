@@ -38,6 +38,13 @@ public enum HermesError: Error, Sendable {
     case apiKeyRejected
     /// 接口返回非预期状态（附接口名与状态码）
     case unexpectedStatus(endpoint: String, status: Int)
+    /// 限流（429，发送失败机制包）：服务端明示等
+    /// 多久（Retry-After）——这不是失败、是等待门
+    /// （对位 TG send gate）：提交段按值等待自动
+    /// 续，不落失败面。旧形态 429 与其它状态码同
+    /// 走 unexpectedStatus 一句兜底，用户把「等一
+    /// 下」看成「失败了」
+    case rateLimited(retryAfterSeconds: Double?)
     /// 会话删除被服务端以 session_busy 拒（有 turn 在
     /// 跑或排队，围栏契约下不许删，见删除 409 热修
     /// 报告 §1.3）：与裸状态码是两回事——文案必须让
@@ -158,15 +165,34 @@ public enum HermesError: Error, Sendable {
                 "API 密钥被拒：检查密钥是否填对、是否已被撤销。", locale: locale
             )
         case .unexpectedStatus:
+            // 发送失败机制包（横扫 P5-1 关账）：与
+            // serverError 分句——旧口径两 case 共用
+            // 一句「服务器没能处理这个请求」，5xx 与
+            // 其它状态码在文案层被抹平
             return L10n.string(
-                "服务器没能处理这个请求，请稍后再试。",
+                "服务器返回了没预料到的结果，请稍后再试。",
+                locale: locale
+            )
+        case .rateLimited:
+            return L10n.string(
+                "发送太频繁了，服务器让稍等一下，会自动继续。",
                 locale: locale
             )
         case .sessionBusy:
             return L10n.string(
                 "这条会话还在运行中，等它跑完再删。", locale: locale
             )
-        case .serverError:
+        case .serverError(_, let status, _):
+            // 5xx 带可分性短语（服务器内部错误），与
+            // unexpectedStatus 不共句（P5-1）；非 5xx
+            // 的结构化拒绝仍走通用句，但与 unexpected-
+            // Status 的新句已分家
+            if (500...599).contains(status) {
+                return L10n.string(
+                    "服务器内部错误，请稍后再试。",
+                    locale: locale
+                )
+            }
             return L10n.string(
                 "服务器没能处理这个请求，请稍后再试。",
                 locale: locale
@@ -371,7 +397,7 @@ extension HermesError {
              .enrollmentLocked, .enrollmentTooManyPending:
             return .authentication
         case .healthCheckFailed, .unexpectedStatus, .serverError,
-             .decodingFailed, .sessionBusy,
+             .rateLimited, .decodingFailed, .sessionBusy,
              .speechProviderUnavailable, .reactionTargetGone,
              .modelNotUpstream,
              .runBillingExhausted, .runServiceUnavailable,
@@ -397,6 +423,12 @@ extension HermesError {
             return "\(endpoint) · HTTP \(status)"
         case .serverError(let endpoint, let status, let code):
             return "\(endpoint) · HTTP \(status) · \(code)"
+        case .rateLimited(let retryAfterSeconds):
+            if let retryAfterSeconds {
+                return "发送接口 · HTTP 429 · Retry-After "
+                    + "\(Int(retryAfterSeconds.rounded()))s"
+            }
+            return "发送接口 · HTTP 429"
         case .decodingFailed(let endpoint):
             return "\(endpoint) · 响应解码失败"
         case .unreachable(let detail):
