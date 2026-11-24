@@ -207,7 +207,7 @@ public enum SendFailureCopy {
             )
         case .transportInterrupted:
             return L10n.string(
-                "网络好像断了一下，这条没发出去。网络恢复后会自动再试，也可以点这条消息旁的感叹号重新发送。",
+                "网络好像断了一下，这条没发出去。网络恢复后会自动再试，也可以点「重新发送」再试。",
                 locale: locale
             )
         case .hostUnreachable:
@@ -222,7 +222,7 @@ public enum SendFailureCopy {
             )
         case .queueFull:
             return L10n.string(
-                "这条会话的排队已满，这条还没发出去。等前面的处理完，再点这条消息旁的感叹号重新发送。",
+                "这条会话的排队已满，这条还没发出去。等前面的处理完，再点「重新发送」再试。",
                 locale: locale
             )
         case .authRejected:
@@ -252,7 +252,7 @@ public enum SendFailureCopy {
             )
         case .prepareFailed:
             return L10n.string(
-                "这条的准备步骤没完成，还没发出去。处理后点这条消息旁的感叹号重新发送。",
+                "这条的准备步骤没完成，还没发出去。处理后点「重新发送」再试。",
                 locale: locale
             )
         case .runBilling:
@@ -282,7 +282,7 @@ public enum SendFailureCopy {
             )
         case .runResultLost:
             return L10n.string(
-                "这条的生成结果没能找回——服务器上已经查不到这一轮。可以点这条消息旁的感叹号重新发送。",
+                "这条的生成结果没能找回——服务器上已经查不到这一轮。可以点「重新发送」再试。",
                 locale: locale
             )
         case .unknown:

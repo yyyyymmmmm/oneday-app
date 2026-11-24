@@ -2986,6 +2986,7 @@ struct ChatView: View {
             displayScale: UIScreen.main.scale,
             ledger: rowStateLedger,
             hubStore: appState.sharedHubStore(),
+            outboxRetry: appState.outboxRetry,
             agentDisplayName: appState.agentDisplayName,
             emptyStateAvatarSize: avatarTier
                 .emptyStatePointSize
@@ -5575,24 +5576,7 @@ struct ChatView: View {
             sendFailed: entry.sendFailed,
             isUnconfirmedSend: entry.isUnconfirmedSend
         )
-        if markKind == .failure {
-            Button {
-                resendFailedEntry(entry)
-            } label: {
-                Image(
-                    systemName: "exclamationmark.circle.fill"
-                )
-                .font(.system(size: FrameworkIcon.rowGlyphSize))
-                .foregroundStyle(Palette.danger)
-                .frame(
-                    width: OneDayMetrics.minTapTarget,
-                    height: OneDayMetrics.minTapTarget
-                )
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.odPressable)
-            .accessibilityLabel("发送失败，点按重新发送")
-        } else if markKind == .clock {
+        if markKind == .clock {
             Button {
                 resendPending(entry)
             } label: {
@@ -5611,6 +5595,32 @@ struct ChatView: View {
                 L10n.string("未发送 · 点按重发")
             )
         }
+    }
+
+    @ViewBuilder
+    private func failedStatusRow(
+        for entry: ChatEntry
+    ) -> some View {
+        let kind = appState.outboxRetry
+            .record(for: entry.id)?.lastFailureKind ?? .unknown
+        let copy = SendFailureCopy.message(kind: kind)
+        HStack(spacing: OneDayMetrics.spacingS) {
+            Text(copy)
+                .font(.caption)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.trailing)
+            Button {
+                resendFailedEntry(entry)
+            } label: {
+                Text("重新发送")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Palette.primary)
+            }
+            .buttonStyle(.odPressable)
+        }
+        .padding(.top, OneDayMetrics.spacingMicro)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(copy)，点按重新发送")
     }
 
     @ViewBuilder
@@ -5842,6 +5852,10 @@ struct ChatView: View {
                         // §265（S3）：文件牌组是铬件——整
                         // 行菜单挂载面之一
                         .modifier(messageMenu(for: entry))
+                    }
+                    if entry.sendFailed {
+                        failedStatusRow(for: entry)
+                            .modifier(messageMenu(for: entry))
                     }
                 }
                 // §265（S3）：整行菜单自此不在行根挂载
@@ -7021,7 +7035,8 @@ struct ChatView: View {
         MessageMenuModifier(
             isEnabled: !entry.content.isEmpty
                 || !entry.allImageDatas.isEmpty
-                || !entry.remoteImagePaths.isEmpty,
+                || !entry.remoteImagePaths.isEmpty
+                || !entry.remoteFilePaths.isEmpty,
             floatingBarHook: ReactionBarRouting.route(
                 flagEnabled: floatingBarEnabled,
                 canReact: entry.canReact
