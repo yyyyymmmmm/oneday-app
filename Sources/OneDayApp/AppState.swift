@@ -724,9 +724,6 @@ final class AppState {
     /// 经下方收敛口读缓存，不再各自拼回落链、更不许
     /// 写死字面名
     let agentProfileStore = AgentProfileStore()
-    /// 活头像控制器（§479）：状态机＋片段目录持有；
-    /// 绑定读口在 init 末尾回接档案仓（现读不缓存）
-    let livingAvatar = LivingAvatarController()
 
     /// 伴生探测（本包，DESIGN §110）：登录后自动探
     /// 测伴生存在与版本（/api/companion/info），派生
@@ -1097,11 +1094,6 @@ final class AppState {
             Task { @MainActor in
                 signalBox.value?.noteNetworkPathRecovered()
             }
-        }
-        // §479：活头像绑定读口回接档案仓（呈现时现
-        // 读当前条目 id，不缓存第二份真值）
-        livingAvatar.avatarItemIDProvider = { [weak self] in
-            self?.agentProfileStore.avatarCache?.itemID
         }
     }
 

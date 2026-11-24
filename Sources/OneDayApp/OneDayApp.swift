@@ -216,23 +216,11 @@ struct OneDayApp: App {
 
     var body: some Scene {
         WindowGroup {
-            #if DEBUG
-            if ProcessInfo.processInfo.arguments
-                .contains("-livingAvatarGallery") {
-                // §479 验收画廊（仅 DEBUG）：活头像
-                // 逐状态实跑截图直达面，发布包无此路
-                LivingAvatarGalleryView()
-            } else {
-                rootSceneContent
-            }
-            #else
             rootSceneContent
-            #endif
         }
     }
 
-    /// 根内容（容器分叉＋存储降级条）：画廊分支与
-    /// 正常路径共用一口，不留两处漂移。
+    /// 根内容（容器分叉＋存储降级条）。
     @ViewBuilder
     private var rootSceneContent: some View {
         if let container = modelBootstrap.container {
@@ -387,9 +375,6 @@ struct RootView: View {
         // 动判离线兜底，杀进程也不会留假在线
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                // §479：回前台＝用户交互（活头像睡眠/
-                // 醒来的本地计时喂食点，状态机单点合成）
-                appState.livingAvatar.note(.interaction)
                 appState.deviceSession.activate(
                     config: appState.config, isDemo: appState.isDemo
                 )
