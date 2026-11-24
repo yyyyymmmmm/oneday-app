@@ -1068,7 +1068,7 @@ private struct PersonaEntryRow: View {
                 .font(.body)
                 .foregroundStyle(Palette.ink)
             Spacer(minLength: OneDayMetrics.spacingS)
-            DisclosureChevron(font: .system(size: 13, weight: .regular))
+            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
         .frame(minHeight: OneDayMetrics.rowHeight)

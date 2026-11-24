@@ -545,7 +545,7 @@ struct FeedView: View {
     private func postRow(_ post: BridgeFeedPost) -> some View {
         HStack(alignment: .top, spacing: OneDayMetrics.spacingM) {
             Image(systemName: post.kind.symbolName)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 28, height: 28)
                 .background(post.kind.kickerColor)

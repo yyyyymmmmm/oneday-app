@@ -51,7 +51,7 @@ struct DictationBar: View {
             controller.cancel()
         } label: {
             Image(systemName: "trash")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(
                     width: ComposerLayout.buttonHeight,
@@ -83,7 +83,7 @@ struct DictationBar: View {
             controller.stopAndCommit()
         } label: {
             Image(systemName: "stop.fill")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(
                     width: ComposerLayout.buttonHeight,
@@ -115,7 +115,7 @@ struct DictationBar: View {
             controller.stopAndSend()
         } label: {
             Image(systemName: "arrow.up")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .bold))
                 .foregroundStyle(Palette.onPrimary)
                 .frame(
                     width: ComposerLayout.buttonHeight,
@@ -225,7 +225,7 @@ struct DictationPrepSheet: View {
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
                 VStack(spacing: OneDayMetrics.spacingSM) {
                     Image(systemName: "mic.fill")
-                        .font(.system(size: 28, weight: .regular))
+                        .font(.system(size: FrameworkIcon.largeGlyphSize, weight: .regular))
                         .foregroundStyle(Palette.onPrimary)
                         .frame(width: 64, height: 64)
                         .background(Palette.primaryPale, in: Circle())

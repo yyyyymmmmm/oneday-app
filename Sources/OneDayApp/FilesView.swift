@@ -666,7 +666,7 @@ struct FilesBrowserView: View {
                 mkdirPresented = true
             } label: {
                 Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 17))
+                    .font(.system(size: FrameworkIcon.fileGlyphSize))
                     .foregroundStyle(Palette.ink)
                     .frame(width: 32, height: 32)
                     // 第 83 条（命中域收口）：字形不变、命
@@ -688,7 +688,7 @@ struct FilesBrowserView: View {
                     systemName: sortAscending
                         ? "arrow.up" : "arrow.down"
                 )
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: FrameworkIcon.actionGlyphSize, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 32, height: 32)
                 // 第 83 条（命中域收口）：字形不变、命中
@@ -839,7 +839,7 @@ struct FilesBrowserView: View {
                 ForEach(Array(crumbs.enumerated()), id: \.element.id) {
                     index, crumb in
                     if index > 0 {
-                        DisclosureChevron(font: .system(size: 10))
+                        DisclosureChevron(font: .system(size: FrameworkIcon.badgeGlyphSize))
                     }
                     Button {
                         currentPath = crumb.path
@@ -1080,11 +1080,11 @@ struct FileBrowserRow: View {
             Spacer(minLength: OneDayMetrics.spacingS)
             if isLocked {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 13, weight: .regular))
+                    .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                     .foregroundStyle(Palette.inkMuted)
                     .accessibilityLabel("受保护文件")
             } else {
-                DisclosureChevron(font: .system(size: 13, weight: .regular))
+                DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
             }
         }
         .padding(.horizontal, OneDayMetrics.spacingM)
@@ -1126,12 +1126,12 @@ struct MediaCell: View {
                         // 成图名多为哈希串、属面向用户的
                         // 原始名漏出，本版撤除
                         Image(systemName: entry.odIconName)
-                            .font(.system(size: 22))
+                            .font(.system(size: FrameworkIcon.tabGlyphSize))
                             .foregroundStyle(Palette.inkSecondary)
                     }
                     if entry.mediaKind == .video {
                         Image(systemName: "play.circle.fill")
-                            .font(.system(size: 26))
+                            .font(.system(size: FrameworkIcon.overlayGlyphSize))
                             // 媒体面上的纯白符号恒白字面
                             // （0.6.1：onPrimary 已改深字
                             // 口径、不再借作白字）

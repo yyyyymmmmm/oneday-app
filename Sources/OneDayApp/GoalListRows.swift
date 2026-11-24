@@ -353,7 +353,7 @@ struct GoalCheckBox: View {
                     )
                 if done {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .bold))
                         .foregroundStyle(.white)
                 }
             }

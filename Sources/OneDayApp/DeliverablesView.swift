@@ -865,7 +865,7 @@ struct DeliverablesView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .rotationEffect(.degrees(90))
-                    .font(.system(size: 18, weight: .regular))
+                    .font(.system(size: FrameworkIcon.moreGlyphSize, weight: .regular))
                     .foregroundStyle(Palette.inkSecondary)
                     // 命中域 44（0.22.0 审计 F4，字形不变）
                     .frame(width: 44, height: 44)
@@ -1036,7 +1036,7 @@ struct DeliverablesView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .rotationEffect(.degrees(90))
-                    .font(.system(size: 16, weight: .regular))
+                    .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .regular))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(width: 40, height: 40)
                     // 第 83 条（命中域收口）：与同文件媒

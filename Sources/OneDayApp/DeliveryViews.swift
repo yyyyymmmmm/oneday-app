@@ -261,7 +261,7 @@ struct DeliveryFileCard: View {
                         actionItems
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .semibold))
                             .foregroundStyle(Palette.inkSecondary)
                             .frame(width: 40, height: 40)
                             .contentShape(Rectangle())

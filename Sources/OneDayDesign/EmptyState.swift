@@ -1,3 +1,4 @@
+import OneDayCore
 import SwiftUI
 
 /// 空状态编排（台账 177，OB-U5；DESIGN §391）：空状态
@@ -49,7 +50,7 @@ public struct ODEmptyState<Actions: View>: View {
     public var body: some View {
         VStack(spacing: OneDayMetrics.spacingS) {
             staged(0, content: Image(systemName: systemImage)
-                .font(.system(size: 44, weight: .regular))
+                .font(.system(size: FrameworkIcon.emptyStateLargeGlyphSize, weight: .regular))
                 .foregroundStyle(Palette.inkMuted)
                 .accessibilityHidden(true))
             staged(1, content: Text(title)

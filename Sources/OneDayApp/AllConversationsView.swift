@@ -496,7 +496,7 @@ struct AllConversationsView: View {
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 0)
-                        DisclosureChevron(font: .system(size: 14, weight: .regular))
+                        DisclosureChevron(font: .system(size: FrameworkIcon.inlineGlyphSize, weight: .regular))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -525,7 +525,7 @@ struct AllConversationsView: View {
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 0)
-                            DisclosureChevron(font: .system(size: 14, weight: .regular))
+                            DisclosureChevron(font: .system(size: FrameworkIcon.inlineGlyphSize, weight: .regular))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())

@@ -116,7 +116,7 @@ struct ComputerFaceView: View {
                     Task { await store.refreshStatus(appState: appState) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: FrameworkIcon.inlineGlyphSize, weight: .medium))
                         // 第 83 条（命中域收口）：字形不变、
                         // 命中域外扩 44；负内边距按字形名义
                         // 14 抵消（(44−14)/2），状态行高由同

@@ -445,7 +445,7 @@ struct GoalDetailView: View {
                                 .font(.body)
                                 .foregroundStyle(Palette.bodyInk)
                             Spacer()
-                            DisclosureChevron(font: .system(size: 13, weight: .regular))
+                            DisclosureChevron(font: .system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                         }
                         .contentShape(Rectangle())
                         .padding(.horizontal, OneDayMetrics.spacingM)

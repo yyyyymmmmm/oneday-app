@@ -296,7 +296,7 @@ private struct LocalStoreFallbackBanner: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .regular))
+                    .font(.system(size: FrameworkIcon.smallGlyphSize, weight: .regular))
                     .foregroundStyle(Palette.inkSecondary)
                     .frame(
                         width: OneDayMetrics.minTapTarget,

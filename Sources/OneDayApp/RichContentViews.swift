@@ -157,7 +157,7 @@ struct ToolCardView: View {
             Image(
                 systemName: expanded ? "chevron.up" : "chevron.down"
             )
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
             .foregroundStyle(Palette.inkSecondary)
             .accessibilityHidden(true)
         }
@@ -217,7 +217,7 @@ struct ToolCardView: View {
                 .frame(width: 36, height: 36)
                 .overlay {
                     Image(systemName: card.category.symbol)
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.system(size: FrameworkIcon.cardGlyphSize, weight: .regular))
                         .foregroundStyle(Palette.ink)
                 }
             VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
@@ -285,7 +285,7 @@ struct ToolCardView: View {
             Image(
                 systemName: expanded ? "chevron.up" : "chevron.down"
             )
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
             .foregroundStyle(Palette.inkSecondary)
             .accessibilityHidden(true)
         }
@@ -433,7 +433,7 @@ struct ToolCardGroupView: View {
                                 systemName: "wrench.and.screwdriver"
                             )
                             .font(
-                                .system(size: 16, weight: .regular)
+                                .system(size: FrameworkIcon.cardGlyphSize, weight: .regular)
                             )
                             .foregroundStyle(Palette.ink)
                         }
@@ -450,7 +450,7 @@ struct ToolCardGroupView: View {
                         systemName: expanded
                             ? "chevron.up" : "chevron.down"
                     )
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: FrameworkIcon.miniGlyphSize, weight: .semibold))
                     .foregroundStyle(Palette.inkSecondary)
                     .accessibilityHidden(true)
                 }
@@ -1126,7 +1126,7 @@ struct FileChip: View {
         ZStack {
             background()
             Image(systemName: symbol)
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: FrameworkIcon.badgeGlyphSize, weight: .bold))
                 .foregroundStyle(.white)
         }
         .frame(width: 20, height: 20)

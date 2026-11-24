@@ -91,7 +91,7 @@ struct BoxFilesView: View {
                     ForEach(Array(crumbs.enumerated()), id: \.element.id) {
                         index, crumb in
                         if index > 0 {
-                            DisclosureChevron(font: .system(size: 10))
+                            DisclosureChevron(font: .system(size: FrameworkIcon.badgeGlyphSize))
                         }
                         Button {
                             currentPath = crumb.path

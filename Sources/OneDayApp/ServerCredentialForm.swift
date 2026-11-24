@@ -1,3 +1,4 @@
+import OneDayCore
 import OneDayDesign
 import SwiftUI
 
@@ -64,7 +65,7 @@ struct ServerSecretFieldRow: View {
                         isRevealed.toggle()
                     } label: {
                         Image(systemName: isRevealed ? "eye.slash" : "eye")
-                            .font(.system(size: 15))
+                            .font(.system(size: FrameworkIcon.actionGlyphSize))
                             .foregroundStyle(Palette.inkSecondary)
                             .frame(
                                 width: OneDayMetrics.minTapTarget,
