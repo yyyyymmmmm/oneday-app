@@ -130,6 +130,7 @@ struct ChatView: View {
     /// 呈现不再读本缓冲（回响行读条目自带快照）；
     /// 拉取失败保留旧值（见 refreshEchoTraces）
     @State private var echoTraces: [BridgeTrace] = []
+    @State private var expandedTraceGroupIDs: Set<UUID> = []
     @State private var input = ""
     /// 语音输入控制器（0.36.6，§71）：端上识别、录音
     /// 条占住发送舱；文本经 onTextChange 回写 input
@@ -2988,6 +2989,19 @@ struct ChatView: View {
                             styleKey: styleKey
                         )
                     )
+                case .traceGroup(let entries):
+                    for entry in entries {
+                        seenEntryIDs.insert(entry.id)
+                    }
+                    if let first = entries.first {
+                        rows.append(
+                            nativeTraceGroupRow(
+                                entries,
+                                dividerText: plan.dividers[first.id],
+                                styleKey: styleKey
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -4272,7 +4286,7 @@ struct ChatView: View {
     /// 分工见 placeholderVisual；行恒高口径不变
     /// （合成器常量不读内容形态）
     private func livePlaceholderContent() -> some View {
-        assistantBubble {
+        HStack {
             HStack(spacing: OneDayMetrics.spacingS) {
                 if livePlaceholderVisual() == .typingDots {
                     TypingDots()
@@ -4283,11 +4297,20 @@ struct ChatView: View {
                         .lineLimit(1)
                 }
             }
-            .padding(.vertical, OneDayMetrics.spacingXS)
+            .padding(.horizontal, OneDayMetrics.bubblePaddingH)
+            .padding(.vertical, OneDayMetrics.bubblePaddingV + OneDayMetrics.spacingXS)
+            .background {
+                RoundedRectangle(
+                    cornerRadius: OneDayMetrics.assistantBubbleCorner,
+                    style: .continuous
+                )
+                .fill(Palette.bubbleFill)
+            }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
                 livePlaceholderStatusText()
             )
+            Spacer(minLength: 0)
         }
     }
 
@@ -4562,10 +4585,12 @@ struct ChatView: View {
     /// timelineDividers 独立计算）
     private enum EntryRenderItem: Identifiable {
         case entry(ChatEntry)
+        case traceGroup([ChatEntry])
 
         var id: UUID {
             switch self {
             case .entry(let entry): return entry.id
+            case .traceGroup(let entries): return entries.first?.id ?? UUID()
             }
         }
     }
@@ -4573,12 +4598,105 @@ struct ChatView: View {
     private func entryRenderItems(
         for entries: [ChatEntry]
     ) -> [EntryRenderItem] {
-        // §449.9：工具条目在计划层过滤（数据层条目
-        // 原样保留——来源聚合/历史回放/台账详情照旧
-        // 读），两承载（原生行/旧 Lazy 承载）同效
-        entries
-            .filter { $0.toolCard == nil }
-            .map(EntryRenderItem.entry)
+        // 同轮连续的留痕/工具活动条目折叠为单行安静活动行，避免刷屏
+        var result: [EntryRenderItem] = []
+        var traceBuffer: [ChatEntry] = []
+        func flushTraces() {
+            guard !traceBuffer.isEmpty else { return }
+            result.append(.traceGroup(traceBuffer))
+            traceBuffer.removeAll(keepingCapacity: true)
+        }
+        for entry in entries where entry.toolCard == nil {
+            if entry.traceKey != nil {
+                traceBuffer.append(entry)
+            } else {
+                flushTraces()
+                result.append(.entry(entry))
+            }
+        }
+        flushTraces()
+        return result
+    }
+
+    private func nativeTraceGroupRow(
+        _ entries: [ChatEntry],
+        dividerText: String?,
+        styleKey: String
+    ) -> ChatNativeRow {
+        let groupID = entries.first?.id ?? UUID()
+        let isExpanded = expandedTraceGroupIDs.contains(groupID)
+        let key = "trace-group-\(groupID.uuidString)"
+        var revision = ChatNativeRowRevision()
+        revision.addCount(entries.count)
+        revision.addFlag(isExpanded)
+        revision.addText(dividerText)
+        revision.addText(styleKey)
+        for e in entries {
+            revision.addText(e.id.uuidString)
+        }
+        let dividerHeight: CGFloat = dividerText != nil ? 28 : 0
+        let collapsedHeight: CGFloat = 34 + dividerHeight
+        let expandedHeight: CGFloat = collapsedHeight + CGFloat(entries.count) * 76 + 12
+        return ChatNativeRow(
+            key: key,
+            entryID: groupID,
+            revision: revision,
+            height: isExpanded ? expandedHeight : collapsedHeight,
+            heightIsProvisional: isExpanded,
+            makeView: {
+                AnyView(
+                    traceActivityGroupRow(
+                        entries,
+                        groupID: groupID,
+                        dividerText: dividerText,
+                        isExpanded: isExpanded
+                    )
+                )
+            }
+        )
+    }
+
+    private func traceActivityGroupRow(
+        _ entries: [ChatEntry],
+        groupID: UUID,
+        dividerText: String?,
+        isExpanded: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
+            if let dividerText {
+                timelineDivider(dividerText)
+            }
+            Button {
+                if expandedTraceGroupIDs.contains(groupID) {
+                    expandedTraceGroupIDs.remove(groupID)
+                } else {
+                    expandedTraceGroupIDs.insert(groupID)
+                }
+            } label: {
+                HStack(spacing: OneDayMetrics.spacingXS) {
+                    Image(systemName: "wrench.and.screwdriver")
+                        .font(.system(size: FrameworkIcon.tinyGlyphSize))
+                        .foregroundStyle(Palette.inkMuted)
+                    Text("做了 \(entries.count) 件事")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.inkSecondary)
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: FrameworkIcon.badgeGlyphSize, weight: .semibold))
+                        .foregroundStyle(Palette.inkMuted)
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, OneDayMetrics.spacingXS)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isExpanded {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
+                    ForEach(entries, id: \.id) { entry in
+                        traceEchoRow(entry)
+                    }
+                }
+            }
+        }
     }
 
     /// 渲染计划缓存（§135 B 案）：存上轮的分隔映射
@@ -6283,15 +6401,9 @@ struct ChatView: View {
     private func sendOption(
         _ option: MessageOption, in thread: ChatThread
     ) {
-        guard unsentEditTargetID == nil, attachments.isEmpty,
-              pendingQuote == nil, pendingFeedQuote == nil,
-              pendingSourceQuote == nil
-        else { return }
-        appState.optionsOverlay.markSelected(
-            threadID: thread.id, label: option.label
-        )
+        guard unsentEditTargetID == nil else { return }
         input = option.sendText
-        send()
+        composerFocusHandle.focusAtEnd()
     }
 
     /// 反应铬件（台账 187＋§432 分工）：镜像非空才
@@ -13897,7 +14009,7 @@ private struct ComposerBarLayout: Layout {
     /// ipt 呈现；提交窗口内则取消本地提交任务（账本
     /// 已留停止意图，下次对账执行真停止）
     private func requestRunStop() {
-        guard isStreaming else { return }
+        guard isStreaming || activeRunThreadID != nil || sendTask != nil else { return }
         if runMachine.phase == .submitting {
             sendTask?.cancel()
             // §451：提交窗已迁提交泵——同点取消当前
@@ -14024,18 +14136,10 @@ struct MessageMenuModifier: ViewModifier {
                 content.contextMenu { menuContent() }
             }
         }
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: MessageMenuFrameKey.self,
-                    value: proxy.frame(in: .global)
-                )
-            }
-            .onPreferenceChange(
-                MessageMenuFrameKey.self
-            ) { frame in
-                mountFrame = frame
-            }
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { frame in
+            mountFrame = frame
         }
         .simultaneousGesture(
             LongPressGesture(

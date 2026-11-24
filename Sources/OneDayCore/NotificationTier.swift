@@ -176,3 +176,103 @@ public enum NotificationAlertPlanner {
         return Plan(directives: directives, seenIDs: newSeen)
     }
 }
+
+// MARK: - 按服务器/每智能体三档通知与继承（第五批 #17）
+
+/// 三档通知模式（学 OpenBot）：全部提醒 / 只提醒需要我的（审批、失败） / 静默
+public enum NotificationDeliveryMode: String, CaseIterable, Codable, Equatable, Sendable {
+    case all
+    case needsMeOnly
+    case muted
+
+    public func label(locale: Locale = AppLocale.uiLocale) -> String {
+        switch self {
+        case .all: return L10n.string("全部提醒", locale: locale)
+        case .needsMeOnly: return L10n.string("只提醒需要我的", locale: locale)
+        case .muted: return L10n.string("静默", locale: locale)
+        }
+    }
+
+    /// 给定通知级别在该模式下是否允许发本地提醒
+    public func allows(_ tier: NotificationTier.Tier) -> Bool {
+        switch self {
+        case .all:
+            return tier != .badgeOnly
+        case .needsMeOnly:
+            return tier == .interrupt
+        case .muted:
+            return false
+        }
+    }
+}
+
+/// 服务器默认 + 每智能体覆盖的通知分档存储（支持继承：智能体未单独设置时继承所属服务器档位，服务器未设时默认 `.all`）
+public enum NotificationScopePreferences {
+    private static func serverKey(_ serverID: String) -> String {
+        "notify.scope.server.\(serverID).mode"
+    }
+
+    private static func agentKey(_ serverID: String, _ agentID: String) -> String {
+        "notify.scope.agent.\(serverID).\(agentID).mode"
+    }
+
+    public static func serverMode(
+        serverID: String,
+        defaults: UserDefaults = .standard
+    ) -> NotificationDeliveryMode {
+        guard let raw = defaults.string(forKey: serverKey(serverID)),
+              let mode = NotificationDeliveryMode(rawValue: raw) else {
+            return .all
+        }
+        return mode
+    }
+
+    public static func setServerMode(
+        _ mode: NotificationDeliveryMode,
+        serverID: String,
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.set(mode.rawValue, forKey: serverKey(serverID))
+    }
+
+    /// 智能体覆盖档位（nil 表示继承服务器档位）
+    public static func agentOverrideMode(
+        serverID: String,
+        agentID: String,
+        defaults: UserDefaults = .standard
+    ) -> NotificationDeliveryMode? {
+        guard let raw = defaults.string(forKey: agentKey(serverID, agentID)) else {
+            return nil
+        }
+        return NotificationDeliveryMode(rawValue: raw)
+    }
+
+    public static func setAgentOverrideMode(
+        _ mode: NotificationDeliveryMode?,
+        serverID: String,
+        agentID: String,
+        defaults: UserDefaults = .standard
+    ) {
+        let key = agentKey(serverID, agentID)
+        if let mode {
+            defaults.set(mode.rawValue, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    /// 生效档位：智能体覆盖优先 → 服务器默认 → `.all`
+    public static func resolvedMode(
+        serverID: String,
+        agentID: String?,
+        defaults: UserDefaults = .standard
+    ) -> NotificationDeliveryMode {
+        if let agentID, !agentID.isEmpty,
+           let override = agentOverrideMode(
+               serverID: serverID, agentID: agentID, defaults: defaults
+           ) {
+            return override
+        }
+        return serverMode(serverID: serverID, defaults: defaults)
+    }
+}
