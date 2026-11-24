@@ -1927,7 +1927,7 @@ final class DeviceInfoEngine: @unchecked Sendable {
             }
             monitor.start(
                 queue: DispatchQueue(
-                    label: "com.example.oneday.deviceinfo.network"
+                    label: "site.didichou.oneday.deviceinfo.network"
                 )
             )
             Task {

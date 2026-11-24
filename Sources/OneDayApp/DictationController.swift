@@ -129,7 +129,7 @@ final class DictationController {
     private let defaults: UserDefaults
     private static let languageKey = "dictation.language"
     private static let log = Logger(
-        subsystem: "com.example.oneday", category: "dictation")
+        subsystem: "site.didichou.oneday", category: "dictation")
 
     /// 阶段打点：只走 os.Logger 系统日志（0.36.8 起
     /// 的阶段记号沿用）；原末阶段/诊断串落盘＋上屏

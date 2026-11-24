@@ -4,7 +4,7 @@ let iOS26 = DeploymentTargets.iOS("26.0")
 
 let project = Project(
     name: "OneDay",
-    organizationName: "com.example",
+    organizationName: "site.didichou",
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
         "TARGETED_DEVICE_FAMILY": "1",
@@ -16,7 +16,7 @@ let project = Project(
             name: "OneDayCore",
             destinations: .iOS,
             product: .framework,
-            bundleId: "com.example.oneday.core",
+            bundleId: "site.didichou.oneday.core",
             deploymentTargets: iOS26,
             infoPlist: .default,
             sources: ["Sources/OneDayCore/**"],
@@ -27,7 +27,7 @@ let project = Project(
             name: "OneDayDesign",
             destinations: .iOS,
             product: .framework,
-            bundleId: "com.example.oneday.design",
+            bundleId: "site.didichou.oneday.design",
             deploymentTargets: iOS26,
             infoPlist: .default,
             sources: ["Sources/OneDayDesign/**"],
@@ -37,7 +37,7 @@ let project = Project(
             name: "OneDayApp",
             destinations: .iOS,
             product: .app,
-            bundleId: "com.example.oneday",
+            bundleId: "site.didichou.oneday",
             deploymentTargets: iOS26,
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "OneDay",
@@ -116,7 +116,7 @@ let project = Project(
                 // 来对不上就安静忽略
                 "CFBundleURLTypes": [
                     [
-                        "CFBundleURLName": "com.example.oneday.shortcut-callback",
+                        "CFBundleURLName": "site.didichou.oneday.shortcut-callback",
                         "CFBundleURLSchemes": ["oneday"],
                     ],
                 ],
@@ -160,7 +160,7 @@ let project = Project(
             name: "OneDayCoreTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "com.example.oneday.core.tests",
+            bundleId: "site.didichou.oneday.core.tests",
             deploymentTargets: iOS26,
             infoPlist: .default,
             sources: ["Tests/OneDayCoreTests/**"],
@@ -176,7 +176,7 @@ let project = Project(
             name: "OneDayAppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "com.example.oneday.app.tests",
+            bundleId: "site.didichou.oneday.app.tests",
             deploymentTargets: iOS26,
             infoPlist: .default,
             sources: ["Tests/OneDayAppTests/**"],
@@ -195,7 +195,7 @@ let project = Project(
             name: "OneDayUITests",
             destinations: .iOS,
             product: .uiTests,
-            bundleId: "com.example.oneday.app.uitests",
+            bundleId: "site.didichou.oneday.app.uitests",
             deploymentTargets: iOS26,
             infoPlist: .default,
             sources: ["Tests/OneDayUITests/**"],

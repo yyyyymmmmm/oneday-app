@@ -32,7 +32,7 @@ final class NetworkPathObserver: @unchecked Sendable {
     )
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(
-        label: "com.example.oneday.path-observer"
+        label: "site.didichou.oneday.path-observer"
     )
 
     private init() {}

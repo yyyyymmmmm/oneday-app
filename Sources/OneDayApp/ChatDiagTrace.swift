@@ -9,7 +9,7 @@ import os
 /// 失败原文（题 C）共用此一处，不再各起炉灶
 enum ChatDiagTrace {
     private static let log = Logger(
-        subsystem: "com.example.oneday", category: "chat-diag"
+        subsystem: "site.didichou.oneday", category: "chat-diag"
     )
     private static let key = "chat.diag.traces"
     private static let cap = 20

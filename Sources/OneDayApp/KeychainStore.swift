@@ -68,7 +68,7 @@ enum RetiredBridgeKeyCleanup {
 /// 服务器地址、面板账号密码、API 密钥只许存这里，不进
 /// UserDefaults / SwiftData / 文件（沿礼记凭据纪律）。
 enum KeychainStore {
-    private static let service = "com.example.oneday"
+    private static let service = "site.didichou.oneday"
 
     static func save(_ value: String, account: String) {
         guard let data = value.data(using: .utf8) else { return }
