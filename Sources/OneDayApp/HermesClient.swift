@@ -967,30 +967,15 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
     /// /health 不在此列（探活有自己的记账，别让探活
     /// 的响应先把失败计数洗掉）。回调在 URLSession 队
     /// 列触发、非隔离，转手方须自行跳回主隔离
-    var onTransportSuccess: (@Sendable () -> Void)?
+    var onTransportSuccess: (@Sendable () -> Void)? {
+        get { OneDayNetworkTransport.shared.onTransportSuccess }
+        set { OneDayNetworkTransport.shared.onTransportSuccess = newValue }
+    }
 
     init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.httpCookieStorage = .shared
-        configuration.httpShouldSetCookies = true
-        configuration.httpCookieAcceptPolicy = .always
-        configuration.timeoutIntervalForRequest = 30
-        // 短请求开 waitsForConnectivity（0.36.20，
-        // §86.4）：无路径时先等连通再开始、别立刻失败
-        // （苹果 WWDC17-709 推荐口径）；只解决「开始
-        // 之前没网」，进行中掉线不在其覆盖内。流式长
-        // 连接不开——开始前等连通会把订阅的失败/重挂
-        // 时机搅乱，流的生死归对账管
-        configuration.waitsForConnectivity = true
-        session = URLSession(configuration: configuration)
-
-        let streamConfiguration = URLSessionConfiguration.default
-        streamConfiguration.httpCookieStorage = .shared
-        streamConfiguration.httpShouldSetCookies = true
-        streamConfiguration.httpCookieAcceptPolicy = .always
-        streamConfiguration.timeoutIntervalForRequest = 600
-        streamConfiguration.waitsForConnectivity = false
-        streamSession = URLSession(configuration: streamConfiguration)
+        // 第五批 #2：HermesClient 与所有 BridgeClient 共用同一 OneDayNetworkTransport 连接池与传输通道
+        session = OneDayNetworkTransport.shared.standardSession
+        streamSession = OneDayNetworkTransport.shared.streamSession
     }
 
     // MARK: - 基础请求
@@ -1015,16 +1000,9 @@ final class HermesClient: HermesClientProtocol, @unchecked Sendable {
 
     private func dataRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw HermesError.unreachable(L10n.string("无响应"))
-            }
-            // 业务成功即通道可达的实证（§86.2）：通知
-            // 在线判定清零；/health 除外（见属性头注）
-            if request.url?.path != "/health" {
-                onTransportSuccess?()
-            }
-            return (data, http)
+            return try await OneDayNetworkTransport.shared.performHTTP(
+                request, using: session
+            )
         } catch let error as HermesError {
             throw error
         } catch {

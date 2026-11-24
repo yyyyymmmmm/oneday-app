@@ -27,16 +27,77 @@ import OneDayCore
 ///    设备长轮询这类「取消即停」的通道显式传
 ///    propagateCancellation（URLError.cancelled 一并
 ///    归一成 CancellationError 上抛）。
+/// 统一网络传输基座（第五批 #2：HermesClient 直连与全量桥客户端两套传输家族收敛为一套）
+/// 统一共享 HTTP/2 连接池、Cookie 存储、请求执行与通道可达性回执，避免每个 Client 各自新建孤立 URLSession。
+final class OneDayNetworkTransport: @unchecked Sendable {
+    static let shared = OneDayNetworkTransport()
+
+    /// 统一短请求会话（Hermes 与标准桥请求共用同一连接池与共享 Cookie）
+    let standardSession: URLSession
+    /// 统一长连接/流式会话（SSE 与流式生成专用，600s 空闲超时，不等待连通）
+    let streamSession: URLSession
+
+    private let lock = NSLock()
+    private var _onTransportSuccess: (@Sendable () -> Void)?
+
+    var onTransportSuccess: (@Sendable () -> Void)? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _onTransportSuccess
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _onTransportSuccess = newValue
+        }
+    }
+
+    private init() {
+        standardSession = Self.makeSession(timeout: 30, waitsForConnectivity: true)
+        streamSession = Self.makeSession(timeout: 600, waitsForConnectivity: false)
+    }
+
+    static func makeSession(
+        timeout: TimeInterval,
+        waitsForConnectivity: Bool = false
+    ) -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.httpCookieStorage = .shared
+        configuration.httpShouldSetCookies = true
+        configuration.httpCookieAcceptPolicy = .always
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.waitsForConnectivity = waitsForConnectivity
+        return URLSession(configuration: configuration)
+    }
+
+    /// 统一 HTTP 执行入口：统一发起请求、校验 HTTPURLResponse 并在非 /health 响应时上报通道可达
+    func performHTTP(
+        _ request: URLRequest,
+        using customSession: URLSession? = nil
+    ) async throws -> (Data, HTTPURLResponse) {
+        let activeSession = customSession ?? standardSession
+        let (data, response) = try await activeSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        if request.url?.path != "/health" {
+            onTransportSuccess?()
+        }
+        return (data, http)
+    }
+}
+
 final class BridgeClientBase<Failure: Error>: @unchecked Sendable {
     /// 桥路径前缀（如 "/api/oneday-bridge"）
     let pathPrefix: String
-    /// 主会话（分档桥的第二会话经 makeSession 自建、
-    /// 调用时以 using: 传入）
+    /// 主会话（默认复用统一传输基座 standardSession；特殊超时/长轮询按需指定）
     let session: URLSession
     let decoder = JSONDecoder()
     let encoder = JSONEncoder()
     private let noKeyError: Failure
     private let failedError: (String) -> Failure
+    private let defaultTimeout: TimeInterval
 
     init(
         pathPrefix: String, timeout: TimeInterval,
@@ -44,9 +105,14 @@ final class BridgeClientBase<Failure: Error>: @unchecked Sendable {
         noKey: Failure, failed: @escaping (String) -> Failure
     ) {
         self.pathPrefix = pathPrefix
-        self.session = Self.makeSession(
-            timeout: timeout, waitsForConnectivity: waitsForConnectivity
-        )
+        self.defaultTimeout = timeout
+        if !waitsForConnectivity && timeout <= 30 {
+            self.session = OneDayNetworkTransport.shared.standardSession
+        } else {
+            self.session = OneDayNetworkTransport.makeSession(
+                timeout: timeout, waitsForConnectivity: waitsForConnectivity
+            )
+        }
         self.noKeyError = noKey
         self.failedError = failed
     }
@@ -54,10 +120,9 @@ final class BridgeClientBase<Failure: Error>: @unchecked Sendable {
     static func makeSession(
         timeout: TimeInterval, waitsForConnectivity: Bool = false
     ) -> URLSession {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = timeout
-        configuration.waitsForConnectivity = waitsForConnectivity
-        return URLSession(configuration: configuration)
+        OneDayNetworkTransport.makeSession(
+            timeout: timeout, waitsForConnectivity: waitsForConnectivity
+        )
     }
 
     // MARK: - 单钥
@@ -122,39 +187,36 @@ final class BridgeClientBase<Failure: Error>: @unchecked Sendable {
         case underlying(Error)
     }
 
-    /// 原始传输：不做任何文案收敛，失败原样分型上抛
+    /// 原始传输：经统一 OneDayNetworkTransport 发起请求，失败原样分型上抛
     func performRaw(
         _ request: URLRequest, using session: URLSession? = nil
     ) async throws -> (Data, HTTPURLResponse) {
+        var req = request
+        if req.timeoutInterval == 60 { req.timeoutInterval = defaultTimeout }
         do {
-            let (data, response) = try await (session ?? self.session)
-                .data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw TransportError.notHTTPResponse
-            }
-            return (data, http)
-        } catch let error as TransportError {
-            throw error
+            return try await OneDayNetworkTransport.shared.performHTTP(
+                req, using: session ?? self.session
+            )
+        } catch let error as URLError where error.code == .badServerResponse {
+            throw TransportError.notHTTPResponse
         } catch {
             throw TransportError.underlying(error)
         }
     }
 
-    /// 标准传输：无响应/网络不可达收敛成 failed 人话；
-    /// 自家 Failure 原样透传；取消按 propagateCancell-
-    /// ation 分流（见文件头第 4 条）
+    /// 标准传输：经统一 OneDayNetworkTransport 发起请求；
+    /// 无响应/网络不可达收敛成 failed 人话；取消按 propagateCancellation 分流
     func data(
         for request: URLRequest, endpoint: String,
         using session: URLSession? = nil,
         propagateCancellation: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
+        var req = request
+        if req.timeoutInterval == 60 { req.timeoutInterval = defaultTimeout }
         do {
-            let (data, response) = try await (session ?? self.session)
-                .data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw failedError(L10n.format("%@无响应", endpoint))
-            }
-            return (data, http)
+            return try await OneDayNetworkTransport.shared.performHTTP(
+                req, using: session ?? self.session
+            )
         } catch let error as Failure {
             throw error
         } catch is CancellationError {
