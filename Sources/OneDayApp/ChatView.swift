@@ -474,7 +474,7 @@ struct ChatView: View {
     /// 标记——触发源正确集合（语义 4）里「进/切线
     /// 程」只许对账、不许触发提交轴重投，drain 只
     /// 在启动首拍与回前台/网络恢复走
-    @State private var didRunLaunchOutboxDrain = false
+    @State private var launchDrainedThreadIDs: Set<UUID> = []
     /// 基础止血包（P7）：本轮正处文件上传段的事实位
     /// ——等待呈现据此说上传中、不再冒充生成中
     @State private var isUploadingFiles = false
@@ -1848,11 +1848,17 @@ struct ChatView: View {
             await resumeRunIfNeeded()
             // 台账 154（DESIGN §336）：进/切对话排本
             // 线程发件箱。发送失败机制包（语义 4）：
-            // 收敛为启动一次性——旧口径每次切线程都
-            // 全量 drain（触发源之一），积压续发改
-            // 由提交泵＋唤醒钟＋网络/前台事件驱动
-            if !didRunLaunchOutboxDrain {
-                didRunLaunchOutboxDrain = true
+            // 收敛为每线程每会话一次——旧口径每次触
+            // 发都全量 drain（触发源之一），积压续发
+            // 改由提交泵＋唤醒钟＋网络/前台事件驱动。
+            // 一次性按线程 id 记账且只在真有当前线程
+            // 时落记：挂载初期视图先以无线程态触发过
+            // 一次 .task，无线程的空触发不许把额度耗
+            // 掉（钉测实证：额度被空触发吃掉后线程打
+            // 开再不 drain、泵永不启动）
+            if let thread = currentThread,
+               !launchDrainedThreadIDs.contains(thread.id) {
+                launchDrainedThreadIDs.insert(thread.id)
                 drainOutboxIfNeeded()
             }
             // 0.36.21：进/切对话刷新待批（就地卡数据源，
@@ -11174,10 +11180,17 @@ private struct ComposerBarLayout: Layout {
                 laneEntries.append(SubmissionLane.Entry(
                     entryID: entry.id,
                     hasLedgerEntry: hasLedger,
-                    manualOnly: policy == .manualOnly,
+                    // 登记工单在场＝用户显式意志（手点
+                    // 重发/编辑重投）：压过政策的人工接
+                    // 管与成因钉死——否则钉死类成因的
+                    // 条目点重发会被车道先堵死、工单永
+                    // 不消费（钉测实证的生产缺陷）
+                    manualOnly: policy == .manualOnly
+                        && submitJobs[entry.id] == nil,
                     unacceptedFailure: failed || prepInBackoff,
                     failureRetryDue: failed
-                        && policy == .autoNow,
+                        && (policy == .autoNow
+                            || submitJobs[entry.id] != nil),
                     awaitingSubmission: !hasLedger && !failed
                         && entry.sendState != .sending
                         && entry.sendState != .accepted
@@ -11816,10 +11829,17 @@ private struct ComposerBarLayout: Layout {
         )
         isDrivingRun = false
         await RunLiveActivityCenter.shared.end()
-        // 发送失败机制包（语义 4）：对账收尾的
-        // drain 删除（触发源收敛）——待发条目由提
-        // 交泵在账本摘除后的下一趟车道判定放行，
-        // 不靠消费环尾巴踢
+        // 发送失败机制包（语义 4）：对账收尾的全
+        // 量 drain 删除（触发源收敛），只留定向踢
+        // 泵一脚——泵已退出时排进来的条目要等本轮
+        // 落定才成车道头条，没有这一脚只能等无关
+        // 的外部事件。这一脚不可能自激成环：落定
+        // 失败的头条在新记账口径下被车道堵住等手
+        // 点（准入看成因＋退避带钟），踢泵只让车道
+        // 重新判定一次、不会把失败条重投出去（死
+        // 循环的必要条件是清账重置、已在语义 1/2
+        // 切断；钉测 ChatFailKeepPinTests 钉此面）
+        kickSubmitPump(thread: thread)
     }
 
     /// §451（App-4）落定锚解析：条目已钉 server-
