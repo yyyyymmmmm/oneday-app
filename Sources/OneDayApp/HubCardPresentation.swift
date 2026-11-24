@@ -1,6 +1,19 @@
 import OneDayCore
 import SwiftUI
 
+/// 中枢卡片底层处理进度（§502 灰底根治）：0–1 共
+/// 享持有者，值由 HubCardTransition.underlay-
+/// Strength 派生。写端＝HubCardHost（入场/拖动/飞
+/// 出/弹回四态与卡片同弹簧、同事务写）；读端＝呈
+/// 现方壳层 HubUnderlayTreatment（对聊天页本体挂
+/// 模糊＋压暗）；ChatView 呈现路径注入两端、关页
+/// 落账时同事务归零。实例由 AppState 单例持有
+/// （optionsOverlay 同式），全 App 一份
+@Observable
+final class HubCardProgress {
+    var strength: CGFloat = 0
+}
+
 /// 中枢卡片呈现宿主（DESIGN-V4 §502）：fullScreen-
 /// Cover 内的整页卡片容器——与 TopAnchoredPanel 同
 /// 族同纪律（呈现组件单源、数值走令牌/量测、平台弹
@@ -9,8 +22,11 @@ import SwiftUI
 ///   （量测 §2.7：≈0.36s、小过冲）；
 /// - 拖动：方向锁仲裁（横向主导归卡片、纵向归内
 ///   层列表滚动，量测 §2.8），卡片平移＋缩放＋圆
-///   角＋阴影实时跟手，底层背板同步压暗＋强模糊
-///   （量测 §2.5）；横向锁定时冻结内层滚动；
+///   角＋阴影实时跟手，底层处理进度同步写共享持
+///   有者、由呈现方壳层对聊天页本体压暗＋强模糊
+///   （量测 §2.5；灰底根治——宿主内无合成背板，
+///   审计 nav-gesture-coverage-audit 问题一）；
+///   横向锁定时冻结内层滚动；
 /// - 松手：投影判定（Core HubCardTransition）→
 ///   沿拖动方向飞出关闭（≈0.43s）或弹簧弹回；
 /// - ✕ 关闭：内容经 requestClose 回调走同款飞出。
@@ -19,6 +35,8 @@ import SwiftUI
 /// 关闭（宿主以无动画事务落 showHub，防系统 cover
 /// 转场二次抢镜、即 §472 迟滞的结构性退场）。
 struct HubCardHost<Content: View>: View {
+    /// 底层处理进度共享持有者（本件为写端）
+    let progress: HubCardProgress
     /// 飞出动画完成后的真关闭回调
     let onDismissed: () -> Void
     /// 内容构造：入参为「请求动画关闭」回调（✕ 接缝）
@@ -53,18 +71,27 @@ struct HubCardHost<Content: View>: View {
         GeometryReader { geo in
             let size = geo.size
             let scale = currentScale
-            ZStack {
-                backdrop(scale: scale)
-                card(size: size, scale: scale)
-            }
-            .onAppear {
-                withAnimation(Self.entrySpring) {
-                    entered = true
-                }
-            }
+            card(size: size, scale: scale)
         }
         .ignoresSafeArea()
         .presentationBackground(.clear)
+        .onAppear {
+            // 灰底根治：底层进度与入场同弹簧回零——
+            // presentHub 已在盖落前置满格，此处先补同
+            // 值（直达本宿主的装配路径不漏帧）再动画
+            progress.strength = HubCardTransition
+                .underlayStrength(forScale: 0.75)
+            withAnimation(Self.entrySpring) {
+                entered = true
+                progress.strength = 0
+            }
+        }
+        .onDisappear {
+            // 收口兜底：宿主退场时底层进度必归零（正
+            // 常路径已由 ChatView 关页落账同事务归零，
+            // 此处防异常拆解留糊/留暗）
+            progress.strength = 0
+        }
     }
 
     // MARK: - 变换口径（当前帧）
@@ -92,25 +119,14 @@ struct HubCardHost<Content: View>: View {
             forDeltaX: dragTranslation.width)
     }
 
-    // MARK: - 背板（底层聊天页的压暗＋强模糊替身）
+    // MARK: - 底层处理（灰底根治后不在本件）
 
-    /// cover 背景透明、底层聊天页透出；背板以系统
-    /// material 强模糊＋黑罩压暗模拟量测 §2.5 的底
-    /// 层形态，强度由卡片缩放反推（入场/拖动/飞出
-    /// 三态同口径），静止归零不可见
-    private func backdrop(scale: CGFloat) -> some View {
-        let strength = HubCardTransition.underlayStrength(
-            forScale: scale)
-        return ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(Double(strength))
-            Color.black.opacity(
-                HubCardTransition.underlayDimOpacity(
-                    forScale: scale))
-        }
-        .allowsHitTesting(false)
-    }
+    // 底层形态改治本体：本件只写进度（HubCard-
+    // Progress），呈现方壳层 HubUnderlayTreatment
+    // 据此对聊天页本体挂模糊＋压暗。旧合成背板
+    // （ultraThinMaterial＋黑罩替身）整幅盖换聊天
+    // 页、饱和后只剩均匀灰场＝用户真机所见灰底，
+    // 审计问题一定案退役、本件不再造任何底层视图
 
     // MARK: - 卡片本体
 
@@ -147,6 +163,12 @@ struct HubCardHost<Content: View>: View {
                     current: direction)
                 if direction == .horizontal {
                     dragTranslation = value.translation
+                    // 灰底根治：底层进度跟手写共享持有
+                    // 者（壳层据此糊化＋压暗聊天页本体）
+                    progress.strength = HubCardTransition
+                        .underlayStrength(forScale:
+                            HubCardTransition.scale(
+                                forDeltaX: value.translation.width))
                 }
             }
             .onEnded { value in
@@ -163,6 +185,7 @@ struct HubCardHost<Content: View>: View {
                         withAnimation(Self.cancelSpring) {
                             dragTranslation = .zero
                             direction = .undecided
+                            progress.strength = 0
                         }
                     }
                 } else {
@@ -188,8 +211,36 @@ struct HubCardHost<Content: View>: View {
             completionCriteria: .logicallyComplete
         ) {
             closing = true
+            // 灰底根治：飞出段底层进度随卡同弹簧升满
+            // （飞出终点缩放口径）；completion 落真关
+            // 闭时由 ChatView 同事务归零、本体同帧复原
+            progress.strength = HubCardTransition
+                .underlayStrength(forScale: Self.flyOutScale)
         } completion: {
             onDismissed()
         }
+    }
+}
+
+/// 呈现方壳层底层处理包装（§502 灰底根治）：包住
+/// TabView（底栏同层、随本体同步进出），按共享进
+/// 度对**本体**挂强模糊＋压暗——拖动时露出的就是
+/// 聊天页自己的糊化形态，不再有合成背板替身。进
+/// 度每帧变化只重算本包装自身：内容以 closure 传
+/// 入、子视图输入不变则其 body 不重跑（ChatView
+/// 大 body 不随拖动帧重演）。动画不在本件自拼：
+/// 写端各态写入时所带事务/弹簧即本件的动画来源
+struct HubUnderlayTreatment<Content: View>: View {
+    let progress: HubCardProgress
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .blur(radius: HubCardTransition
+                .underlayBlurRadius(
+                    forStrength: progress.strength))
+            .brightness(HubCardTransition
+                .underlayBrightnessDelta(
+                    forStrength: progress.strength))
     }
 }

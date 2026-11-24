@@ -117,6 +117,51 @@ final class HubCardTransitionTests: XCTestCase {
         XCTAssertEqual(HubCardTransition.underlayDimOpacity(forScale: 0.75), 0.20, accuracy: 0.001)
     }
 
+    // MARK: - 底层本体处理（灰底根治）
+
+    func testUnderlayBlurRadiusZeroAtRest() {
+        XCTAssertEqual(
+            HubCardTransition.underlayBlurRadius(forStrength: 0),
+            0, accuracy: 0.0001)
+    }
+
+    func testUnderlayBlurRadiusFullAtMaxStrength() {
+        // 满强度达上限，上限本身在施工图 §6 口径带内
+        XCTAssertEqual(
+            HubCardTransition.underlayBlurRadius(forStrength: 1),
+            HubCardTransition.underlayMaxBlurRadius,
+            accuracy: 0.0001)
+        XCTAssertTrue(
+            (12...16).contains(
+                HubCardTransition.underlayMaxBlurRadius))
+    }
+
+    func testUnderlayBrightnessDeltaFollowsDimSource() {
+        XCTAssertEqual(
+            HubCardTransition.underlayBrightnessDelta(
+                forStrength: 0),
+            0, accuracy: 0.0001)
+        // 满强度 −0.20 ≈ 亮度 ×0.80（§2.5 带内、与
+        // underlayMaxDimOpacity 同源同值）
+        XCTAssertEqual(
+            HubCardTransition.underlayBrightnessDelta(
+                forStrength: 1),
+            -0.20, accuracy: 0.001)
+    }
+
+    func testUnderlayBlurDegradeSwitchKeepsDimOnly() {
+        // 降级档（真机帧率留档开关）：关模糊、只压暗
+        HubCardTransition.underlayBlurEnabled = false
+        defer { HubCardTransition.underlayBlurEnabled = true }
+        XCTAssertEqual(
+            HubCardTransition.underlayBlurRadius(forStrength: 1),
+            0, accuracy: 0.0001)
+        XCTAssertEqual(
+            HubCardTransition.underlayBrightnessDelta(
+                forStrength: 1),
+            -0.20, accuracy: 0.001)
+    }
+
     // MARK: - 降级裁决
 
     func testPolicyReduceMotionDegradesToStandard() {

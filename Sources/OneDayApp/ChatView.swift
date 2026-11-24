@@ -2033,6 +2033,7 @@ struct ChatView: View {
             reduceMotion: reduceMotion
         ) == .card {
             HubCardHost(
+                progress: appState.hubCardProgress,
                 onDismissed: { dismissHubWithoutAnimation() }
             ) { requestClose in
                 hubView(onCardClose: requestClose)
@@ -2077,6 +2078,13 @@ struct ChatView: View {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
+                // 灰底根治：底层处理进度先行满格（入
+                // 场起始缩放 0.75 的 underlayStrength
+                // 口径）——盖落首帧起壳层即已糊化压
+                // 暗，宿主入场弹簧再同口径驱动回零
+                appState.hubCardProgress.strength =
+                    HubCardTransition.underlayStrength(
+                        forScale: 0.75)
                 showHub = true
             }
         } else {
@@ -2092,6 +2100,10 @@ struct ChatView: View {
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             showHub = false
+            // 灰底根治收口：底层处理进度与关页同事务
+            // 归零——盖走的同一帧聊天页本体完全复原，
+            // 不许留糊/留暗的二次跳动（spec §2.5）
+            appState.hubCardProgress.strength = 0
         }
     }
 
