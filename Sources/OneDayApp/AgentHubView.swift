@@ -262,6 +262,9 @@ struct AgentHubView: View {
             )
         }
         .task(id: shareRenderKey) {
+            // 错开入场弹簧（≈0.38s），避免首帧动画期离屏渲染名片图抢占主线程
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
             shareItem = AgentShareItem.make(
                 name: hubStore.displayName,
                 host: appState.serverShareHost,
@@ -269,35 +272,17 @@ struct AgentHubView: View {
             )
         }
         .task {
-            // 身份呈现跟随（末写胜包）：枢纽是看身份的
-            // 面——每次打开先重拉名字与头像，服务器刚
-            // 被 AI 改过当场跟上（节流在 AppState 内）
-            // 0.36.21：store 走 AppState 共享单例（就
-            // 地审批卡与枢纽共用同一份 /pending 数据
-            // 与裁决路径，规格 §6）；审批终态回调在此
-            // 注入（本视图是全 App 唯一呈现枢纽的入
-            // 口）。§449：注入后先按共享 store 现行回
-            // 读态刷一次分格输入（热态重开不等本轮网
-            // 络、第一帧即全格），再走刷新链
             hubStore.onApprovalChanged = onApprovalChanged
             refreshSegmentInputs()
-            await appState.refreshIdentitySurfaces()
-            await hubStore.loadInitial()
-            // 页头状态行消费台账进行中集（结构归位
-            // 包，§3.2）：开枢纽时先踢一脚共享台账店
-            // 加载——与活动段 .task 的加载同店同守卫
-            // （在飞即跳过），不新增轮询回路；后续新
-            // 鲜度由活动段可见轮询同拍供给
-            await appState.sharedLedgerStore()
+            // 并发拉取首屏数据并合并一次落账，避免 5 路串行网络回包
+            // 在入场动画期连环触发主线程整页重绘
+            async let identity: Void = appState.refreshIdentitySurfaces()
+            async let initial: Void = hubStore.loadInitial()
+            async let ledger: Void = appState.sharedLedgerStore()
                 .load(appState: appState)
-            // 共享 store 后 loadApproval 默认可复用缓存
-            // （chat 刷新刚拉过会跳过），枢纽语义是「每
-            // 次打开必刷新」——强制重拉保住（§155 起全
-            // 量模式同口径，不再只限 .activity）
-            await hubStore.loadApproval(force: true)
-            // §434：授权账本同轮回读（审核格数据＋注
-            // 册表活证），随后按真回读刷新分格输入
-            await hubStore.loadGrants()
+            async let approval: Void = hubStore.loadApproval(force: true)
+            async let grants: Void = hubStore.loadGrants()
+            _ = await (identity, initial, ledger, approval, grants)
             refreshSegmentInputs()
             // §123（H2）：通知落点消费——按落点切到对
             // 应段（聚焦字段由对应段自己消费），消费后

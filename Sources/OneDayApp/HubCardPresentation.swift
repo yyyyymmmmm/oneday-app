@@ -83,11 +83,6 @@ struct HubCardHost<Content: View>: View {
                 .background {
                     HubCardHierarchyAnchor(box: hierarchyAnchor)
                 }
-                .onAppear {
-                    withAnimation(Self.entrySpring) {
-                        entered = true
-                    }
-                }
         }
         .ignoresSafeArea()
         .presentationBackground(.clear)
@@ -149,16 +144,23 @@ struct HubCardHost<Content: View>: View {
     private func card(size: CGSize, scale: CGFloat) -> some View {
         let strength = HubCardTransition.underlayStrength(
             forScale: scale)
+        let cardShape = RoundedRectangle(
+            cornerRadius: currentCornerRadius,
+            style: .continuous
+        )
         return content {
             beginClose(fromDrag: false, screenWidth: size.width)
         }
         .frame(width: size.width, height: size.height)
-        .clipShape(RoundedRectangle(
-            cornerRadius: currentCornerRadius,
-            style: .continuous))
-        .shadow(
-            color: .black.opacity(0.18 * Double(strength)),
-            radius: 24, x: 0, y: 10)
+        .clipShape(cardShape)
+        .background {
+            cardShape
+                .fill(Color.clear)
+                .shadow(
+                    color: .black.opacity(0.18 * Double(strength)),
+                    radius: 24, x: 0, y: 10
+                )
+        }
         .scaleEffect(scale)
         .offset(x: currentOffset.width, y: currentOffset.height)
         .scrollDisabled(direction == .horizontal || closing)
@@ -275,13 +277,18 @@ struct HubUnderlayTreatment<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
+        // 大厂标准合成器路线：禁止对整棵底层 TabView 逐帧驱动可变
+        // .blur(radius:)（会触发每帧全屏离屏卷积导致掉帧），改为纯
+        // GPU 合成属性（微缩放＋固定黑罩不透明度），稳定 120fps
+        let s = max(0, min(1, progress.strength))
         content()
-            .blur(radius: HubCardTransition
-                .underlayBlurRadius(
-                    forStrength: progress.strength))
-            .brightness(HubCardTransition
-                .underlayBrightnessDelta(
-                    forStrength: progress.strength))
+            .scaleEffect(1 - 0.04 * s)
+            .overlay {
+                Color.black
+                    .opacity(0.28 * Double(s))
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
     }
 }
 
