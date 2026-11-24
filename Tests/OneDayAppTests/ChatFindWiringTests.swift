@@ -35,6 +35,14 @@ final class ChatFindWiringTests: XCTestCase {
         win.makeKeyAndVisible()
         let listHandle = ChatNativeListHandle()
         let list = ChatRootViewController()
+        // 0.51.0 修复轮（C 簇根因）：本台按逐行 sec-
+        // tion 构造拼索引路径，而单 section 旗缺省为
+        // 开（ChatListSingleSectionFeature）——擦除后
+        // 的模拟器无存量键即走单 section、本台查询全
+        // 落空。经产品测试覆盖口钉死逐行构造（与
+        // ChatSwapStep3 两套同式）；落点消费行为与构
+        // 造无关、照旧全验
+        list.testSingleSectionOverride = false
         list.handle = listHandle
         list.callbacks = ChatNativeListCallbacks(
             onScrollGeometry: {},
@@ -118,6 +126,45 @@ final class ChatFindWiringTests: XCTestCase {
         return attrs.frame.minY - cv.contentOffset.y
     }
 
+    /// 让目标行进入布局备出区：合成布局只为视口附
+    /// 近行备布局属性，远行在 focusEntry 读属性前先
+    /// 驱视口到目标区（与 ChatSearchFocusAssembly-
+    /// Tests 手动 setContentOffset 同式装配前提）——
+    /// 落点本身仍由产品收敛环施工、断言照旧量产品
+    /// 落点；不先备出，收敛环首拍读不到属性即弃权
+    private func materialize(_ index: Int) {
+        controller.collectionView.scrollToItem(
+            at: IndexPath(item: 0, section: index),
+            at: .centeredVertically, animated: false
+        )
+        window?.layoutIfNeeded()
+    }
+
+    /// 目标行屏上位置（等布局物化＋落稳版）：固定
+    /// drain 赌布局物化在 27.2 运行时下不再成立
+    /// （0.51.0 修复轮判读 C 簇）——poll-until 非 nil
+    /// 且连续两读同值（收敛环落稳），未物化时顺手
+    /// 再驱视口；超时返回最后一读／nil、由调用方
+    /// 照常判
+    private func polledShownPosition(
+        of index: Int, timeout: TimeInterval = 10
+    ) -> CGFloat? {
+        let deadline = Date().addingTimeInterval(timeout)
+        var last: CGFloat?
+        while true {
+            if let shown = shownPosition(of: index) {
+                if let last, abs(last - shown) < 0.5 {
+                    return shown
+                }
+                last = shown
+            } else if Date() < deadline {
+                materialize(index)
+            }
+            if Date() >= deadline { return last }
+            drain(0.3)
+        }
+    }
+
     /// 期望落点：顶内边距＋topGap
     private var expectedLanding: CGFloat {
         controller.collectionView.contentInset.top
@@ -140,9 +187,10 @@ final class ChatFindWiringTests: XCTestCase {
         )
         XCTAssertEqual(target, ids[10])
         XCTAssertEqual(session.currentMatchID, target)
+        materialize(10)
         handle.focusEntry(try XCTUnwrap(target))
         drain(1.0)
-        let shown = try XCTUnwrap(shownPosition(of: 10))
+        let shown = try XCTUnwrap(polledShownPosition(of: 10))
         XCTAssertEqual(
             shown, expectedLanding, accuracy: 2,
             "查找落点须停在顶留位，实测 \(shown) 期望 \(expectedLanding)"
@@ -161,9 +209,10 @@ final class ChatFindWiringTests: XCTestCase {
         )
         let next = try XCTUnwrap(session.moveNext())
         XCTAssertEqual(next, ids[25])
+        materialize(25)
         handle.focusEntry(next)
         drain(1.0)
-        let shown = try XCTUnwrap(shownPosition(of: 25))
+        let shown = try XCTUnwrap(polledShownPosition(of: 25))
         XCTAssertEqual(
             shown, expectedLanding, accuracy: 2,
             "翻页落点须停在顶留位，实测 \(shown) 期望 \(expectedLanding)"
@@ -171,9 +220,10 @@ final class ChatFindWiringTests: XCTestCase {
         // 环绕回首条
         let wrapped = try XCTUnwrap(session.moveNext())
         XCTAssertEqual(wrapped, ids[5])
+        materialize(5)
         handle.focusEntry(wrapped)
         drain(1.0)
-        let shownBack = try XCTUnwrap(shownPosition(of: 5))
+        let shownBack = try XCTUnwrap(polledShownPosition(of: 5))
         XCTAssertEqual(
             shownBack, expectedLanding, accuracy: 2,
             "环绕落点须停在顶留位，实测 \(shownBack) 期望 \(expectedLanding)"
