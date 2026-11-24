@@ -49,6 +49,7 @@ enum HubCoverPresenter {
 /// 主与聊天页同一 HubCardHost（同一呈现宿主）
 struct HubCoverModifier: ViewModifier {
     @Binding var isPresented: Bool
+    @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
@@ -58,7 +59,9 @@ struct HubCoverModifier: ViewModifier {
                 reduceMotion: reduceMotion
             ) == .card {
                 HubCardHost(
+                    progress: appState.hubCardProgress,
                     onDismissed: {
+                        appState.hubCardProgress.strength = 0
                         HubCoverPresenter.dismiss($isPresented)
                     }
                 ) { requestClose in

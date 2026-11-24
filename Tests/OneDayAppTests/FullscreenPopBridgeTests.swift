@@ -106,6 +106,7 @@ final class FullscreenPopBridgeTests: XCTestCase {
 
     // MARK: - 豁免区
 
+    @MainActor
     func testExemptionHitTestUsesMarkerFrames() {
         let root = UIView(
             frame: CGRect(x: 0, y: 0, width: 402, height: 874)
