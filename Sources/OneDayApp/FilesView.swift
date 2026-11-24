@@ -760,16 +760,20 @@ struct FilesBrowserView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if snapshot.entries.isEmpty {
-                        ContentUnavailableView(
-                            query.isEmpty
-                                ? "这个文件夹是空的" : "没有匹配的文件",
-                            systemImage: query.isEmpty
-                                ? "folder" : "magnifyingglass",
-                            description: Text(query.isEmpty
-                                ? "可以上传文件或新建文件夹。"
-                                : "换个关键词试试。")
-                        )
-                        .padding(.top, OneDayMetrics.spacingXXL)
+                        if query.isEmpty {
+                            ContentUnavailableView(
+                                "这个文件夹是空的",
+                                systemImage: "folder"
+                            )
+                            .padding(.top, OneDayMetrics.spacingXXL)
+                        } else {
+                            ContentUnavailableView(
+                                "没有匹配的文件",
+                                systemImage: "magnifyingglass",
+                                description: Text("换个关键词试试。")
+                            )
+                            .padding(.top, OneDayMetrics.spacingXXL)
+                        }
                     } else {
                         LazyVStack(spacing: 0) {
                             ForEach(
