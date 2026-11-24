@@ -161,10 +161,9 @@ struct AgentHubView: View {
             mailAdvertised: false
         )
     }
-    /// 分享名片（0.36.22）：名片图离屏渲染产物，随档
-    /// 案修订/页头名/域名变化重算；未就绪时分享钮回
-    /// 落纯文本名片
-    @State private var shareItem: AgentShareItem?
+    /// 分享名片懒生成载荷：点分享按钮时才离屏渲染名片图
+    /// 并弹出系统分享面板，不在进页时预渲染
+    @State private var shareSheetPayload: HubShareSheetPayload?
 
     /// 可见段（§434 注册表驱动）：格集＝注册表按
     /// 当前输入的裁决（工作/审核/电脑/身份/邮箱
@@ -215,13 +214,7 @@ struct AgentHubView: View {
         }
     }
 
-    /// 分享名片重算键：档案修订（改名/换头像）＋页头
-    /// 名＋域名任一变，名片图就重渲染
-    private var shareRenderKey: String {
-        "\(appState.agentProfileStore.revision)"
-            + "|\(hubStore.displayName)"
-            + "|\(appState.serverShareHost ?? "")"
-    }
+
 
     /// （根页左缘右滑退出手势 HubEdgeSwipe 已随
     /// §434 退役：中枢呈现由 sheet 改导航 push 后，
@@ -261,42 +254,23 @@ struct AgentHubView: View {
                 initialName: appState.identityName ?? ""
             )
         }
-        .task(id: shareRenderKey) {
-            // 错开入场弹簧（≈0.38s），避免首帧动画期离屏渲染名片图抢占主线程
-            try? await Task.sleep(for: .milliseconds(450))
-            guard !Task.isCancelled else { return }
-            shareItem = AgentShareItem.make(
-                name: hubStore.displayName,
-                host: appState.serverShareHost,
-                avatarImage: appState.agentAvatarImage
-            )
+        .sheet(item: $shareSheetPayload) { payload in
+            HubShareActivitySheet(items: payload.items)
         }
         .task {
             hubStore.onApprovalChanged = onApprovalChanged
             refreshSegmentInputs()
-            // 并发拉取首屏数据并合并一次落账，避免 5 路串行网络回包
-            // 在入场动画期连环触发主线程整页重绘
-            async let identity: Void = appState.refreshIdentitySurfaces()
+            // 阶段 1：首屏必需数据并发先行
             async let initial: Void = hubStore.loadInitial()
             async let ledger: Void = appState.sharedLedgerStore()
                 .load(appState: appState)
             async let approval: Void = hubStore.loadApproval(force: true)
-            async let grants: Void = hubStore.loadGrants()
-            _ = await (identity, initial, ledger, approval, grants)
+            _ = await (initial, ledger, approval)
             refreshSegmentInputs()
-            // §123（H2）：通知落点消费——按落点切到对
-            // 应段（聚焦字段由对应段自己消费），消费后
-            // 清零，不许陈年请求在下次手动开枢纽时复
-            // 活。§217 收段后落点改道走 segment(for:)
-            // 单点映射：原任务/审核/监测落点全部落活
-            // 动段，聚焦字段（hubApprovalFocusID/
-            // monitorDeepLink）由活动段对号消费
+            // §123（H2）：通知落点消费
             if let destination = appState.router.hubDestinationRequest {
                 switch destination {
                 case .approvalAnchor, .approvalThread:
-                    // §165：锚点落点不在枢纽（在原对话
-                    // 里），本请求恒不经枢纽分发——防御
-                    // 性落空，不切段
                     break
                 case .none:
                     break
@@ -305,6 +279,13 @@ struct AgentHubView: View {
                 }
                 appState.router.hubDestinationRequest = nil
             }
+            // 阶段 2：非必需后台请求延后到入场弹簧（≈0.38s）结束后再并发拉取
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            async let identity: Void = appState.refreshIdentitySurfaces()
+            async let grants: Void = hubStore.loadGrants()
+            _ = await (identity, grants)
+            refreshSegmentInputs()
         }
     }
 
@@ -459,48 +440,41 @@ struct AgentHubView: View {
     /// 何凭据（AgentShareCard）；名片图未渲染就绪时
     /// 回落纯文本名片，按钮永不假装。旧 shareText
     /// （含当前模型、无域名）自此退出分享面
-    @ViewBuilder
     private func shareButton(_ store: AgentHubStore) -> some View {
-        if let shareItem {
-            ShareLink(item: shareItem.fileURL) {
-                Image(systemName: "square.and.arrow.up")
-                    .frame(width: 36, height: 36)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            // 第 83 条（命中域收口）：玻璃盘 36 不变（样
-            // 式按标签帧成盘）、命中域在钮外层外扩 44；
-            // 负内边距抵消外扩、页头行布局不动
-            .frame(
-                width: OneDayMetrics.minTapTarget,
-                height: OneDayMetrics.minTapTarget
-            )
-            .contentShape(Rectangle())
-            .padding(-(OneDayMetrics.minTapTarget - 36) / 2)
-            .accessibilityLabel("分享智能体名片")
-        } else {
-            ShareLink(
-                item: AgentShareCardText.make(
-                    name: store.displayName,
-                    host: appState.serverShareHost
-                )
+        Button {
+            // 分享图懒生成：点分享时才离屏渲染名片图，渲染失败回落纯文本
+            if let rendered = AgentShareItem.make(
+                name: store.displayName,
+                host: appState.serverShareHost,
+                avatarImage: appState.agentAvatarImage
             ) {
-                Image(systemName: "square.and.arrow.up")
-                    .frame(width: 36, height: 36)
+                shareSheetPayload = HubShareSheetPayload(
+                    items: [rendered.fileURL]
+                )
+            } else {
+                shareSheetPayload = HubShareSheetPayload(
+                    items: [AgentShareCardText.make(
+                        name: store.displayName,
+                        host: appState.serverShareHost
+                    )]
+                )
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            // 第 83 条（命中域收口）：玻璃盘 36 不变（样
-            // 式按标签帧成盘）、命中域在钮外层外扩 44；
-            // 负内边距抵消外扩、页头行布局不动
-            .frame(
-                width: OneDayMetrics.minTapTarget,
-                height: OneDayMetrics.minTapTarget
-            )
-            .contentShape(Rectangle())
-            .padding(-(OneDayMetrics.minTapTarget - 36) / 2)
-            .accessibilityLabel("分享智能体名片")
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .frame(width: 36, height: 36)
         }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        // 第 83 条（命中域收口）：玻璃盘 36 不变（样
+        // 式按标签帧成盘）、命中域在钮外层外扩 44；
+        // 负内边距抵消外扩、页头行布局不动
+        .frame(
+            width: OneDayMetrics.minTapTarget,
+            height: OneDayMetrics.minTapTarget
+        )
+        .contentShape(Rectangle())
+        .padding(-(OneDayMetrics.minTapTarget - 36) / 2)
+        .accessibilityLabel("分享智能体名片")
     }
 
     private func header(_ store: AgentHubStore) -> some View {
@@ -821,5 +795,23 @@ struct AgentHubView: View {
     }
 }
 
+
+/// 分享名片系统分享单载荷（点分享时懒生成，不在进页预渲染）
+private struct HubShareSheetPayload: Identifiable {
+    let id = UUID()
+    let items: [Any]
+}
+
+private struct HubShareActivitySheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(
+        _ uiViewController: UIActivityViewController, context: Context
+    ) {}
+}
 
 /// （§502 沿革：hubFullPageChrome 随 push 呈现退役——卡片呈现走 fullScreenCover、覆盖层自带全屏 chrome，藏栏修饰不再需要。）

@@ -142,8 +142,6 @@ struct HubCardHost<Content: View>: View {
     // MARK: - 卡片本体
 
     private func card(size: CGSize, scale: CGFloat) -> some View {
-        let strength = HubCardTransition.underlayStrength(
-            forScale: scale)
         let cardShape = RoundedRectangle(
             cornerRadius: currentCornerRadius,
             style: .continuous
@@ -154,11 +152,12 @@ struct HubCardHost<Content: View>: View {
         .frame(width: size.width, height: size.height)
         .clipShape(cardShape)
         .background {
+            // 静态阴影参数写死，不随动画逐帧变化，避免离屏阴影重算掉帧
             cardShape
                 .fill(Color.clear)
                 .shadow(
-                    color: .black.opacity(0.18 * Double(strength)),
-                    radius: 24, x: 0, y: 10
+                    color: .black.opacity(0.16),
+                    radius: 20, x: 0, y: 8
                 )
         }
         .scaleEffect(scale)
