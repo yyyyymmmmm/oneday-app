@@ -123,8 +123,10 @@ public struct MessageQuote: Equatable, Sendable {
         guard header.hasPrefix(headerPrefix),
               header.hasSuffix(headerSuffix)
         else { return nil }
-        let name = header.dropFirst(headerPrefix.count)
-            .dropLast(headerSuffix.count)
+        let name = String(
+            header.dropFirst(headerPrefix.count)
+                .dropLast(headerSuffix.count)
+        )
         guard !name.isEmpty else { return nil }
         let role = name == "我" ? "user" : "assistant"
         let rest = String(

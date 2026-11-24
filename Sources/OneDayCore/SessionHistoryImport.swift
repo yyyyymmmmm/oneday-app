@@ -191,9 +191,13 @@ public enum SessionHistoryImport {
                         message.content,
                         knownQuoteTexts: knownQuoteTexts
                     )
+                    // 收敛包：纯引用发送（正文空、只有引
+                    // 用块）拆后正文为空——引用在位即算可
+                    // 导入，不许被空正文门吞掉整条
                     guard !normalized.text.isEmpty
                             || !normalized.imagePaths.isEmpty
                             || !normalized.fileRefs.isEmpty
+                            || normalized.quote != nil
                     else { return nil }
                     return RichItem(
                         role: message.role,
