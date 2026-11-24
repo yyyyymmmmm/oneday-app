@@ -60,7 +60,7 @@ struct ConnectionSelfCheckView: View {
             if let report = store.report {
                 Section {
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                             Text(report.overallWord)
                                 .font(.headline)
                                 .foregroundStyle(
@@ -142,7 +142,7 @@ struct ConnectionSelfCheckView: View {
                 .frame(width: 9, height: 9)
                 .padding(.top, 6)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 Text(status.phaseWord)
                     .font(.body)
                     .foregroundStyle(Palette.ink)
@@ -187,7 +187,7 @@ struct ConnectionSelfCheckView: View {
                 .frame(width: 9, height: 9)
                 .padding(.top, 6)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(row.title)
                         .font(.body)

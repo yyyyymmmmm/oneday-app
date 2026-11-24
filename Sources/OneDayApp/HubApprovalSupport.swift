@@ -435,7 +435,7 @@ struct ApprovalReviewContent: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
             DisclosureGroup("原始信息（排障用）") {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                     Text("服务端摘要：\(record.summary)")
                     Text("来源原值：\(record.origin)")
                     Text("记录编号：\(record.id)")
@@ -444,7 +444,7 @@ struct ApprovalReviewContent: View {
                 .foregroundStyle(Palette.inkSecondary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 4)
+                .padding(.top, OneDayMetrics.spacingXS)
             }
             .font(.footnote)
             .foregroundStyle(Palette.inkSecondary)

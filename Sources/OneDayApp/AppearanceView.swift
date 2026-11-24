@@ -326,8 +326,8 @@ struct AppearanceView: View {
                         themeSwatch(item)
                     }
                 }
-                .padding(.vertical, 4)
-                .padding(.trailing, 20)
+                .padding(.vertical, OneDayMetrics.spacingXS)
+                .padding(.trailing, OneDayMetrics.pageGutter)
             }
             .listRowInsets(
                 EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 0)

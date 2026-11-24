@@ -116,7 +116,7 @@ struct KanbanTaskDetailView: View {
                 HStack(spacing: OneDayMetrics.rowInnerGap) {
                     Text(task.presentation.label)
                         .font(.caption.weight(.medium))
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, OneDayMetrics.spacingS)
                         .padding(.vertical, OneDayMetrics.stackGap)
                         .background(Palette.fieldFill, in: Capsule())
                         .foregroundStyle(Palette.inkSecondary)

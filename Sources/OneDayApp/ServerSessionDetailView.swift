@@ -151,7 +151,7 @@ struct ServerSessionDetailView: View {
     @ViewBuilder
     private func recordRow(_ message: SessionMessage) -> some View {
         if message.role == "user" || message.role == "assistant" {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                 Text(message.role == "user" ? "用户" : "助手")
                     .font(.caption)
                     .foregroundStyle(.secondary)

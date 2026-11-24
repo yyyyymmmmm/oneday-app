@@ -267,7 +267,7 @@ struct DeliveryFileCard: View {
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("更多操作")
-                    .padding(.trailing, 2)
+                    .padding(.trailing, OneDayMetrics.spacingMicro)
                     .padding(.bottom, 11)
                 }
             }

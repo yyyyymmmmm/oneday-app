@@ -270,6 +270,7 @@ struct LedgerDetailView: View {
                         ) {
                             Text(summary)
                                 .font(.subheadline)
+                                .monospacedDigit()
                                 .foregroundStyle(Palette.inkSecondary)
                         }
                     }
@@ -278,6 +279,7 @@ struct LedgerDetailView: View {
                 ) {
                     Text(summary)
                         .font(.subheadline)
+                        .monospacedDigit()
                         .foregroundStyle(Palette.inkSecondary)
                 }
                 if current.isReconciled {
@@ -469,6 +471,7 @@ struct LedgerDetailView: View {
             Spacer()
             Text(value)
                 .font(.subheadline)
+                .monospacedDigit()
                 .foregroundStyle(Palette.ink)
                 .multilineTextAlignment(.trailing)
         }

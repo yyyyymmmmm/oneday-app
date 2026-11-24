@@ -116,7 +116,7 @@ struct ReactionFloatingBarView: View {
             plusButton
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.vertical, OneDayMetrics.spacingXS)
         .background(Palette.surface, in: Capsule())
         .overlay {
             Capsule().strokeBorder(
@@ -184,7 +184,7 @@ struct ReactionEmojiPickerView: View {
     let onPick: (String) -> Void
 
     private let columns = [
-        GridItem(.adaptive(minimum: 44), spacing: 4)
+        GridItem(.adaptive(minimum: 44), spacing: OneDayMetrics.spacingXS)
     ]
 
     var body: some View {
@@ -192,11 +192,11 @@ struct ReactionEmojiPickerView: View {
             Text(L10n.string("全部反应"))
                 .font(.headline)
                 .foregroundStyle(Palette.ink)
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 4)
+                .padding(.horizontal, OneDayMetrics.spacingM)
+                .padding(.top, OneDayMetrics.spacingM)
+                .padding(.bottom, OneDayMetrics.spacingXS)
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 4) {
+                LazyVGrid(columns: columns, spacing: OneDayMetrics.spacingXS) {
                     ForEach(
                         ReactionEmojiCatalog.morePalette,
                         id: \.self
@@ -219,7 +219,7 @@ struct ReactionEmojiPickerView: View {
                         .accessibilityLabel(label(for: emoji))
                     }
                 }
-                .padding(12)
+                .padding(OneDayMetrics.spacingSM)
             }
         }
     }
@@ -263,7 +263,7 @@ struct ReactionActionCardView: View {
                 Button {
                     onPick(item)
                 } label: {
-                    HStack(spacing: 12) {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
                         Image(systemName: item.systemImage)
                             .font(.system(size: 17))
                             .frame(width: 24)
@@ -276,7 +276,7 @@ struct ReactionActionCardView: View {
                             ? Palette.danger
                             : Palette.ink
                     )
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, OneDayMetrics.spacingM)
                     .frame(height: Self.rowHeight)
                     .contentShape(Rectangle())
                 }
@@ -287,12 +287,12 @@ struct ReactionActionCardView: View {
         .background(
             Palette.surface,
             in: RoundedRectangle(
-                cornerRadius: 24, style: .continuous
+                cornerRadius: OneDayMetrics.buttonCorner, style: .continuous
             )
         )
         .overlay {
             RoundedRectangle(
-                cornerRadius: 24, style: .continuous
+                cornerRadius: OneDayMetrics.buttonCorner, style: .continuous
             )
             .strokeBorder(Palette.pageBG, lineWidth: 1.5)
         }

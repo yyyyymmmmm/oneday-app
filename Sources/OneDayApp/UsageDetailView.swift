@@ -174,6 +174,7 @@ struct UsageDetailView: View {
                                 .foregroundStyle(Palette.ink)
                             Text(String(format: "%.0f%%", model.tokens / total * 100))
                                 .font(.caption)
+                                .monospacedDigit()
                                 .foregroundStyle(Palette.inkSecondary)
                         }
                     }

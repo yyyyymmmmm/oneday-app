@@ -952,7 +952,7 @@ struct FeedView: View {
                             // 已不在（删除/过期）——帖仍
                             // 在，来源置灰标已删除、不给
                             // 假链接
-                            HStack(spacing: 4) {
+                            HStack(spacing: OneDayMetrics.spacingXS) {
                                 Image(
                                     systemName: type.symbolName
                                 )
@@ -966,7 +966,7 @@ struct FeedView: View {
                             Button {
                                 path.append(Route.ref(ref))
                             } label: {
-                                HStack(spacing: 4) {
+                                HStack(spacing: OneDayMetrics.spacingXS) {
                                     Image(
                                         systemName: type.symbolName
                                     )
@@ -1109,8 +1109,8 @@ struct FeedPostDetailView: View {
         Group {
             if let post = store.post(id: postID) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingM) {
+                        HStack(spacing: OneDayMetrics.spacingS) {
                             Image(systemName: post.kind.symbolName)
                                 .font(.subheadline)
                                 .foregroundStyle(Palette.inkSecondary)
@@ -1225,7 +1225,7 @@ struct FeedPostDetailView: View {
                             FeedSourceCardView(card: card)
                         }
                         if !post.links.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
                                 Text("链接")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(Palette.inkSecondary)
@@ -1254,7 +1254,7 @@ struct FeedPostDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         if !post.refs.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: OneDayMetrics.spacingS) {
                                 Text("引用")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(Palette.inkSecondary)
@@ -1309,7 +1309,7 @@ struct FeedPostDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .padding(16)
+                    .padding(OneDayMetrics.spacingM)
                 }
                 .background(Palette.pageBG)
                 .task {
@@ -1399,7 +1399,7 @@ struct FeedSourceCardView: View {
                         .lineLimit(2)
                 }
                 if !card.facts.isEmpty {
-                    HStack(spacing: 12) {
+                    HStack(spacing: OneDayMetrics.spacingSM) {
                         ForEach(
                             Array(card.facts.enumerated()),
                             id: \.offset
@@ -1416,7 +1416,7 @@ struct FeedSourceCardView: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(Palette.inkSecondary)
         }
-        .padding(12)
+        .padding(OneDayMetrics.spacingSM)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Palette.surface,

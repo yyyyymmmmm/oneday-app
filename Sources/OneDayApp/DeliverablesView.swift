@@ -598,7 +598,7 @@ struct DeliverablesView: View {
             .font(.subheadline)
             .foregroundStyle(Palette.ink)
             .padding(.horizontal, OneDayMetrics.spacingSM)
-            .padding(.vertical, 8)
+            .padding(.vertical, OneDayMetrics.spacingS)
             .background(Palette.surface, in: Capsule())
             .overlay {
                 Capsule().strokeBorder(

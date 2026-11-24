@@ -955,7 +955,7 @@ struct ConnectorsView: View {
                 .disabled(facade.testing.contains(server.name))
                 if let result = facade.testResults[server.name],
                    !facade.testing.contains(server.name) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: OneDayMetrics.spacingXS) {
                         Image(
                             systemName: result.succeeded
                                 ? "checkmark.circle.fill"

@@ -321,7 +321,7 @@ struct MonitorChangeDetailView: View {
                 let rows = MonitorChangeDetail.rows(for: change)
                 List {
                     Section {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                             Text(rows.summary)
                                 .font(.body)
                                 .foregroundStyle(Palette.bodyInk)

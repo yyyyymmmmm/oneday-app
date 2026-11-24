@@ -69,7 +69,7 @@ struct ReactionPillView: View {
             Button(action: onClearOwn) {
                 Text(reaction.emoji)
                     .font(.system(size: 14))
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, OneDayMetrics.spacingXS)
                     .background(
                         Palette.primaryTint, in: Capsule()
                     )
@@ -83,7 +83,7 @@ struct ReactionPillView: View {
         } else {
             Text(reaction.emoji)
                 .font(.system(size: 14))
-                .padding(.horizontal, 4)
+                .padding(.horizontal, OneDayMetrics.spacingXS)
                 .accessibilityLabel(
                     L10n.format("助手反应：%@", reaction.emoji)
                 )

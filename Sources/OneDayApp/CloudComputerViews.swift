@@ -24,7 +24,7 @@ struct CloudComputerDetailView: View {
         List {
             if let connection {
                 Section {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingXS) {
                         Text(connection.name)
                             .font(.title3)
                             .foregroundStyle(Palette.ink)

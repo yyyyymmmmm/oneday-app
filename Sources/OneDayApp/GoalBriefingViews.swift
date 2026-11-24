@@ -27,8 +27,8 @@ struct GoalStatusChip: View {
                         ? Palette.inkSecondary : Palette.successText
                 )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, OneDayMetrics.spacingS)
+        .padding(.vertical, OneDayMetrics.spacingXS)
         .background(
             goal.status == .completed ? Palette.surface : Palette.tintGreen,
             in: Capsule()

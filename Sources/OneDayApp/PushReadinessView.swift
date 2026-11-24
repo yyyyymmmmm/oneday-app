@@ -26,7 +26,7 @@ struct PushReadinessView: View {
                     Image(systemName: symbol(for: row.tone))
                         .foregroundStyle(color(for: row.tone))
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                         Text(row.title)
                             .font(.subheadline)
                             .foregroundStyle(Palette.ink)

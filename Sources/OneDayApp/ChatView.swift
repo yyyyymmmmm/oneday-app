@@ -2243,7 +2243,7 @@ struct ChatView: View {
                         // （第 85 条 BC-6：dangerFill 暗档
                         // 深红实算 4.87、白字可读）
                         .foregroundStyle(Color.white)
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, OneDayMetrics.spacingXS)
                         .frame(minWidth: 18, minHeight: 18)
                         .background(Palette.dangerFill, in: Capsule())
                         .offset(x: 4, y: -4)
@@ -2685,7 +2685,7 @@ struct ChatView: View {
                             // 正道配对 primaryPale＋onPrimary
                             // （旧白字压 primaryFill 暗档 2.33）
                             .foregroundStyle(Palette.onPrimary)
-                            .padding(.horizontal, 4)
+                            .padding(.horizontal, OneDayMetrics.spacingXS)
                             .frame(minWidth: 17, minHeight: 17)
                             .background(
                                 Palette.primaryPale, in: Capsule()
@@ -7521,7 +7521,7 @@ struct ChatView: View {
             maxWidth: .infinity, maxHeight: .infinity,
             alignment: .top
         )
-        .padding(.top, 140)
+        .padding(.top, 140)  // §507 登记保留：导入等待卡顶部落位（全屏顶对齐下推、避顶栏簇、居中偏上），无等值令牌不改值
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.string("正在载入这段对话"))
@@ -7682,7 +7682,7 @@ struct ChatView: View {
                     .font(.system(size: 15))
                     .foregroundStyle(Palette.danger)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: OneDayMetrics.spacingMicro) {
                     Text(message)
                         .font(.subheadline)
                         .foregroundStyle(Palette.ink)
@@ -13783,7 +13783,7 @@ struct SwipeReplyModifier: ViewModifier {
             )
             .opacity(progress)
             .scaleEffect(0.6 + 0.4 * progress)
-            .padding(.leading, 4)
+            .padding(.leading, OneDayMetrics.spacingXS)
             .accessibilityHidden(true)
     }
 }

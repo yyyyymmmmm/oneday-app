@@ -223,7 +223,7 @@ struct MemoryEntriesSection: View {
         Text(text)
             .font(.caption.weight(.semibold))
             .foregroundStyle(Palette.primary)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, OneDayMetrics.spacingS)
             .padding(.vertical, OneDayMetrics.stackGap)
             .background(
                 Palette.primaryTint,

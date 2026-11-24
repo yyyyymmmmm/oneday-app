@@ -17962,3 +17962,16 @@ TG 出处（ChatMessageInteractiveFileNode.updateStatus/progressPressed）：未
 - **打包**：Release BUILD SUCCEEDED（dd-05124-release、CODE_SIGNING_ALLOWED=NO）；IPA OneDay-0.50.124-252.ipa，28,071,523 字节，md5 1079fa264e2ee0cac00aaf0d627540dc（Mac/VM 双边一致）；unzip 直验主 App 本体 plist 三值 0.50.124／252／site.didichou.oneday；已回传 VM ~/workspace/。
 - **节号对照**：§502 卡片呈现（本版合入、保留其自占号）；§503 查找（123 已入）；§504＝123 组版节；§505 已被中枢行型线（feat/hub-rows-consume）在其分支自占、待 128 组版并入；本组版节取 §506。
 - **真机门**：沿用 §502 八项，归用户 verdict。
+
+## §507 规范小分拣批（P3-02／P3-03／P3-04 余量收口）
+
+- 分支 feat/hig-sort-batch（基线 rel-05116 278f13d），审计正本 hig-compliance-audit-20261124.md 第三部分；改动总账 hig-sort-batch-ledger-20261124.md（逐处原值→令牌→等值标记＋登记全文）。
+- 普查（116 树实数）：圆角字面 14、spacing 非零字面 36、padding 字面 53，合计 103。分拣规则：与既有令牌等值才收编（零视觉差），无等值令牌登记保留、不新造、不改值。radiusBadge 系 wave1 分支新建、不在本基线，按 116 令牌表对位。
+- 收编 52 处全等值：spacing 22（4→spacingXS×11、8→spacingS×3、12→spacingSM×2、16→spacingM×1、2→spacingMicro×5）、padding 28（4→XS×13、8→S×6、12→SM×3、16→M×4、2→Micro×1、尾距 20→pageGutter×1）、圆角 2（ReactionFloatingBar 浮排底/描边 24→buttonCorner）。
+- P3-03 等宽补 6 处 .monospacedDigit()：HubLedgerSection 副题双支（逐秒已耗时＋计数）、LedgerDetailView 页首摘要双支＋row() 值列、UsageDetailView 百分比。核查已覆盖未动：NumberText 组件自带（录音计时/RollingNumberText 等）、用量页 token 数走 .monospaced 设计字体、监测/定时/通知 meta/导入计数已在位。
+- ChatView:7087 `.padding(.top, 140)` 核实：importingOverlay 导入等待卡的全屏顶对齐落位偏移（避顶栏簇、居中偏上），与键盘/舱位/锚点无关；无等值令牌且改值即移卡位——登记保留、值不动、原处已加注记。
+- 登记保留共 51 处：微光学值 33（1/3/6/7/10/11/15 无梯队档）、非梯队结构值 5（活头像 spacing 20、ChatView .bottom 36、分享卡 artwork 28/36、Widgets 扩展令牌不可达）、140 落位 1、圆角微形/比例值 12（图标比例 5/17、轨道 3、代码片 1.5/2、缩略 clip 6/8；radiusCheckbox 语义不挪用）。
+- 验收：build-for-testing exit 0（Xcode 27.2、独立模拟器＋dd-higsort）；两测试目标全量 233 套 2641 过／3 红／0 跳——3 红定性：#13 性能门逐版同红、LibraryOrdering 基线老红、BasicsStopgap testLedgerUpsertKeepsOneEntryPerThread 在纯基线 rel-05116 同签名复现（基线同红、非本包回归，疑不在 116 发布集名单内，提请主线登记）。残量回读 51 与登记逐行对账一致。
+- 真机门（等值抽查）：反应浮排形态、动态页卡内距、台账副题秒跳行宽不抖、工作详情值列、用量百分比列、主题行尾留白——预期全零变化。
+- 节号注记：本树 DESIGN 最大节为 §484（组版 116）；§485 预留 117 组版线，本批取 §486，组版合并时如撞号按并集连排顺延。
+- **组版顺延（0.50.125 亲解）**：本节原自占 §486 与主线既有 §486（动态＋点子两页全抄修复）撞号，按并集连排顺延为 §507；代码自指（ChatView 140 落位注记）同步改 §507。合并亲解三处：①FeedView 分类 chip 内距取主线后续升档值（horizontal spacingSM／vertical spacingXS），不采分拣对旧值的令牌化；②IdeasView「依据」行与 categoryLabel chip 已被主线 §486.6 撤出卡面，分拣对已删代码的令牌化作废——两处合计收编 52 中 2 处未入合并树，实收 50；③HubLedgerSection 副题活跃支合并双方：字体取 §500 rowSubtitle、等宽补 .monospacedDigit() 保留（静态支自动合并同）。
