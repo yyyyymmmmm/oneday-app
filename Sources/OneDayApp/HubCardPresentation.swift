@@ -276,18 +276,9 @@ struct HubUnderlayTreatment<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        // 大厂标准合成器路线：禁止对整棵底层 TabView 逐帧驱动可变
-        // .blur(radius:)（会触发每帧全屏离屏卷积导致掉帧），改为纯
-        // GPU 合成属性（微缩放＋固定黑罩不透明度），稳定 120fps
-        let s = max(0, min(1, progress.strength))
+        // 中枢已切换为 iOS 原生 Sheet，由系统合成器自带底层缩放压暗；
+        // 本包装退为零开销直通，不再对整棵底层 TabView 施加额外变换或重绘
         content()
-            .scaleEffect(1 - 0.04 * s)
-            .overlay {
-                Color.black
-                    .opacity(0.28 * Double(s))
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-            }
     }
 }
 

@@ -467,14 +467,19 @@ struct DeliverablesView: View {
                     .buttonStyle(.odPressable)
                 }
                 Menu {
-                    Button("全部来源") { sourceFilter = "" }
-                    ForEach(availableSources, id: \.self) { source in
-                        Button(source) { sourceFilter = source }
+                    Button(LibrarySourceFilter.all.label) {
+                        sourceFilter = LibrarySourceFilter.all.rawValue
+                    }
+                    Button(LibrarySourceFilter.agent.label) {
+                        sourceFilter = LibrarySourceFilter.agent.rawValue
+                    }
+                    Button(LibrarySourceFilter.user.label) {
+                        sourceFilter = LibrarySourceFilter.user.rawValue
                     }
                 } label: {
                     chipLabel(
                         title: sourceFilter.isEmpty
-                            ? "来源" : sourceFilter,
+                            ? "全部来源" : sourceFilter,
                         selected: !sourceFilter.isEmpty
                     )
                 }
@@ -483,12 +488,6 @@ struct DeliverablesView: View {
         }
         .padding(.vertical, OneDayMetrics.spacingS)
         .sensoryFeedback(.selection, trigger: category)
-    }
-
-    private var availableSources: [String] {
-        Set((deliverables ?? []).map(\.source).filter {
-            !$0.isEmpty
-        }).sorted()
     }
 
     private func chipLabel(
@@ -685,7 +684,7 @@ struct DeliverablesView: View {
                     ? "doc.text.magnifyingglass" : "magnifyingglass",
                 message: query.isEmpty
                     ? (category == .all && sourceFilter.isEmpty
-                        ? "智能体生成的文件与定时任务产出会出现在这里。"
+                        ? "智能体产出的文件和你发送的文件会出现在这里。"
                         : "换个筛选试试。")
                     : "换个关键词试试。"
             )
@@ -1071,20 +1070,22 @@ struct DeliverablesView: View {
         for entry: WorkspaceFileEntry,
         snapshot: LibraryListSnapshot
     ) -> String {
-        let source = snapshot.deliverable(for: entry).source
+        let deliverable = snapshot.deliverable(for: entry)
+        let source = LibrarySourceFilter.displayLabel(for: deliverable)
         let tag = typeTag(for: entry)
-        return source.isEmpty ? tag : "\(tag) · \(source)"
+        return "\(tag) · \(source)"
     }
 
     private func rowMetaLine(
         for entry: WorkspaceFileEntry,
         snapshot: LibraryListSnapshot
     ) -> String {
-        let source = snapshot.deliverable(for: entry).source
+        let deliverable = snapshot.deliverable(for: entry)
+        let source = LibrarySourceFilter.displayLabel(for: deliverable)
         let label = DeliverableFileType.label(
             forFileName: entry.name
         )
-        return source.isEmpty ? label : "\(label) · \(source)"
+        return "\(label) · \(source)"
     }
 
     /// 类型签（§4.3）：媒体给人话词（图片/视频/音

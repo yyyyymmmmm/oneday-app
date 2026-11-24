@@ -98,7 +98,6 @@ struct GoalsView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 identityHeader
-                pageTitleRow
                 Group {
                     switch store.loadState {
                     case .loading:
@@ -257,6 +256,8 @@ struct GoalsView: View {
                 LazyVStack(
                     alignment: .leading, spacing: OneDayMetrics.spacingL
                 ) {
+                    GoalsPageTitle()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     if !groups.active.isEmpty {
                         goalGroup(
                             // §485：段名「进行中」→
@@ -302,6 +303,8 @@ struct GoalsView: View {
             VStack(
                 alignment: .leading, spacing: OneDayMetrics.spacingL
             ) {
+                GoalsPageTitle()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(
                     alignment: .leading, spacing: OneDayMetrics.spacingS
                 ) {

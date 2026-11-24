@@ -134,38 +134,39 @@ struct FeedView: View {
         )
         return NavigationStack(path: $path) {
             VStack(spacing: 0) {
-                feedPageHead
+                feedTopHeader
                 Group {
-                switch store.loadState {
-                case .loading:
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .notConnected(let message):
-                    ContentUnavailableView {
-                        Label("还没连上你的服务", systemImage: "link.badge.plus")
-                    } description: {
-                        Text(message)
-                    } actions: {
-                        Button("重新检查") {
-                            Task { await reload() }
+                    switch store.loadState {
+                    case .loading:
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .notConnected(let message):
+                        ContentUnavailableView {
+                            Label("还没连上你的服务", systemImage: "link.badge.plus")
+                        } description: {
+                            Text(message)
+                        } actions: {
+                            Button("重新检查") {
+                                Task { await reload() }
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
-                    }
-                case .failed(let message):
-                    ContentUnavailableView {
-                        Label("动态没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
-                    } description: {
-                        Text(message)
-                    } actions: {
-                        Button("重试") {
-                            Task { await reload() }
+                    case .failed(let message):
+                        ContentUnavailableView {
+                            Label("动态没读出来，可能是网络或服务暂时没响应", systemImage: "exclamationmark.triangle")
+                        } description: {
+                            Text(message)
+                        } actions: {
+                            Button("重试") {
+                                Task { await reload() }
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
+                    case .ready:
+                        readyContent(snapshot)
                     }
-                case .ready:
-                    readyContent(snapshot)
                 }
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background {
                 Palette.pageBG
@@ -273,27 +274,28 @@ struct FeedView: View {
 
     // MARK: - 页头（§486）
 
-    /// 页头整簇：身份簇（ContentPageHeader，滑杆钮
-    /// 归其右位）＋大标题（pageTitle 34，与参照同
-    /// 档）＋标题下字段槽。本簇在列表之外——滚动时
-    /// 天然钉顶；§498 起簇与标题恒常驻，滚动只切
-    /// 字段槽形态（见 fieldMode）
-    private var feedPageHead: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ContentPageHeader(
-                onOpenHub: {
-                    HubCoverPresenter.present(
-                        $showHub, reduceMotion: reduceMotion
-                    )
-                }
-            ) {
-                PageHeaderCircleButton(
-                    symbol: "slider.horizontal.3",
-                    label: "编辑简报"
-                ) {
-                    briefEditorShown = true
-                }
+    /// 顶部固定身份簇：只固定圆钮、头像与身份胶囊，
+    /// 大标题与简报/搜索槽随列表上下滑动
+    private var feedTopHeader: some View {
+        ContentPageHeader(
+            onOpenHub: {
+                HubCoverPresenter.present(
+                    $showHub, reduceMotion: reduceMotion
+                )
             }
+        ) {
+            PageHeaderCircleButton(
+                symbol: "slider.horizontal.3",
+                label: "编辑简报"
+            ) {
+                briefEditorShown = true
+            }
+        }
+    }
+
+    /// 随列表滑动的大标题与字段槽
+    private var feedScrollTitleBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
             Text("动态")
                 .font(.pageTitle)
                 .foregroundStyle(Palette.ink)
@@ -428,11 +430,12 @@ struct FeedView: View {
         _ snapshot: FeedListSnapshot
     ) -> some View {
         if store.posts.isEmpty, !store.seedPosts.isEmpty {
-            // FA-2：从未产出且无真帖时，种子帖垫底——
-            // 与真帖同列表形态呈现（行本体共用 postRow，
-            // 动作行走种子分支：讨论/删除＋「上手指南」）
             List {
                 Section {
+                    feedScrollTitleBlock
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     ForEach(store.seedPosts) { post in
                         postRow(post)
                     }
@@ -440,7 +443,7 @@ struct FeedView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Palette.pageBG)
+            .background(Color.clear)
             .listSectionSpacing(OneDayMetrics.spacingM)
             .contentMargins(.top, topMargin, for: .scrollContent)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
@@ -452,41 +455,45 @@ struct FeedView: View {
                 await reload()
             }
         } else if store.posts.isEmpty {
-            switch store.emptyKind {
-            case .neverProduced:
-                ODEmptyState(
-                    "动态刚上线",
-                    systemImage: "doc.text",
-                    description: "写下你感兴趣什么，我每天替你去看；第一轮明早 8:30 到。站内的新点子、新简报也会汇编到这里。"
-                )
-            case .quiet:
-                ODEmptyState(
-                    "近来没有新动态",
-                    systemImage: "moon.zzz",
-                    description: "今天没有值得一提的新发现；有动静时这里会先更新。"
-                )
+            VStack(spacing: 0) {
+                feedScrollTitleBlock
+                Group {
+                    switch store.emptyKind {
+                    case .neverProduced:
+                        ODEmptyState(
+                            "动态刚上线",
+                            systemImage: "doc.text",
+                            description: "写下你感兴趣什么，我每天替你去看；第一轮明早 8:30 到。站内的新点子、新简报也会汇编到这里。"
+                        )
+                    case .quiet:
+                        ODEmptyState(
+                            "近来没有新动态",
+                            systemImage: "moon.zzz",
+                            description: "今天没有值得一提的新发现；有动静时这里会先更新。"
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List {
-                // 简报胶囊行已整行删除（§126）：简报
-                // 入口只剩工具栏滑杆钮；动态不再有占
-                // 行的页头横幅，标题之下直接是帖流
+                Section {
+                    feedScrollTitleBlock
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
                 if isSearching, snapshot.visiblePosts.isEmpty {
                     Section {
                         ContentUnavailableView(
                             "没有找到相关动态",
                             systemImage: "magnifyingglass"
                         )
-                        .listRowBackground(Palette.pageBG)
+                        .listRowBackground(Color.clear)
                     }
                 }
 
-                // §177：单条时间流——一个无头 Section
-                // 盛全部帖；日期分组与分组头整套撤下
-                // （用户亲定「不要今天、昨天这些时
-                // 间」）。顺序 §459 改判：照单全收服务
-                // 端序（近三日 usefulness 序），快照只
-                // 过滤不重排（见 FeedListSnapshot）
                 if !snapshot.visiblePosts.isEmpty {
                     Section {
                         ForEach(snapshot.visiblePosts) { post in
@@ -496,12 +503,8 @@ struct FeedView: View {
                 }
             }
             .listStyle(.plain)
-            // §177：帖面与页面同色——与点子页同口径
-            // 隐藏 List 系统滚动底、透出页面底（外层
-            // Group 已挂 pageBG），帖行再以
-            // listRowBackground 同色钉死（postRow）
             .scrollContentBackground(.hidden)
-            .background(Palette.pageBG)
+            .background(Color.clear)
             // 分区间距（§126 令牌口径保留）：现行只
             // 余搜索空态段与帖流段两段，段距仍走令牌
             // spacingM，不回系统默认
@@ -668,14 +671,6 @@ struct FeedView: View {
                     .id(url)
                     .accessibilityHidden(true)
                 }
-                if let card = post.sourceCard {
-                    FeedSourceCardView(card: card)
-                } else if let link = post.links.first {
-                    // §486.3：无来源卡时首链走 OG 式预
-                    // 览卡（站点名＋标题＋域名）；余下链
-                    // 接仍在详情页全量呈现
-                    FeedLinkPreviewCard(link: link)
-                }
                 if !post.refs.isEmpty {
                     refsRow(post)
                 }
@@ -686,9 +681,7 @@ struct FeedView: View {
             }
         }
         .padding(.vertical, OneDayMetrics.spacingS)
-        // §177：帖面与页面同色（与列表滚动底口径成
-        // 对，见 readyContent 注）
-        .listRowBackground(Palette.pageBG)
+        .listRowBackground(Color.clear)
         .onAppear {
             markRead(post)
         }

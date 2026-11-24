@@ -1104,8 +1104,10 @@ struct ChatView: View {
         // 择模型」入口注入本会话模型账（§153 同组
         // 件同数据源），枢纽本体仍不自拉模型账、
         // 只消费注入包
-        .fullScreenCover(isPresented: $showHub) {
-            hubCover
+        .sheet(isPresented: $showHub) {
+            hubView(onCardClose: nil)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         // 0.36.6：语音输入权限预备页（问前先讲用途，
         // 续编 S1–S4；点麦克风且权限未定时才出现）
@@ -2113,39 +2115,12 @@ struct ChatView: View {
     /// 走系统 cover 转场。各置位点统一走本点，不
     /// 许直写 showHub = true
     private func presentHub() {
-        if HubCardPolicy.decide(
-            reduceMotion: reduceMotion
-        ) == .card {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                // 灰底根治：底层处理进度先行满格（入
-                // 场起始缩放 0.75 的 underlayStrength
-                // 口径）——盖落首帧起壳层即已糊化压
-                // 暗，宿主入场弹簧再同口径驱动回零
-                appState.hubCardProgress.strength =
-                    HubCardTransition.underlayStrength(
-                        forScale: 0.75)
-                showHub = true
-            }
-        } else {
-            showHub = true
-        }
+        showHub = true
     }
 
-    /// 关中枢落账（§502）：飞出动画已在 HubCard-
-    /// Host 内走完，此处以无动画事务落 showHub，
-    /// 防系统 cover 退场转场二次抢镜
     private func dismissHubWithoutAnimation() {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            showHub = false
-            // 灰底根治收口：底层处理进度与关页同事务
-            // 归零——盖走的同一帧聊天页本体完全复原，
-            // 不许留糊/留暗的二次跳动（spec §2.5）
-            appState.hubCardProgress.strength = 0
-        }
+        showHub = false
+        appState.hubCardProgress.strength = 0
     }
 
     /// TopBarGuideHost），列表顶留位据此记账
@@ -12142,6 +12117,7 @@ private struct ComposerBarLayout: Layout {
                     reason: "服务端没有返回文件落点。"
                 )
             }
+            ChatFileStore.shared.seedLocal(path: serverPath, data: payload.data)
             paths.append(serverPath)
         }
         return paths

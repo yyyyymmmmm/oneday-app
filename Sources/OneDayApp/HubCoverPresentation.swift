@@ -17,67 +17,34 @@ import SwiftUI
 /// 不变）。通知落点与聚焦字段的消费在 AgentHub-
 /// View 本体内、与呈现形态无关，收编不丢落点。
 enum HubCoverPresenter {
-    /// 开中枢：卡片口径走无动画事务置位（入场弹
-    /// 簧由 HubCardHost 自理）
+    /// 开中枢：走 iOS 原生 Sheet 呈现（系统 120fps 合成自带底层缩放压暗）
     static func present(
         _ isPresented: Binding<Bool>, reduceMotion: Bool
     ) {
-        if HubCardPolicy.decide(reduceMotion: reduceMotion)
-            == .card {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                isPresented.wrappedValue = true
-            }
-        } else {
-            isPresented.wrappedValue = true
-        }
+        isPresented.wrappedValue = true
     }
 
-    /// 关中枢落账：飞出动画已在 HubCardHost 内走
-    /// 完，无动画事务落位防系统退场转场二次抢镜
+    /// 关中枢
     static func dismiss(_ isPresented: Binding<Bool>) {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            isPresented.wrappedValue = false
-        }
+        isPresented.wrappedValue = false
     }
 }
 
-/// 标准中枢 cover 修饰位：四格各挂一处，呈现宿
-/// 主与聊天页同一 HubCardHost（同一呈现宿主）
+/// 标准中枢 Sheet 修饰位：与聊天页同走 iOS 原生大档 Sheet
 struct HubCoverModifier: ViewModifier {
     @Binding var isPresented: Bool
-    @Environment(AppState.self) private var appState
-    @Environment(\.accessibilityReduceMotion)
-    private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.fullScreenCover(isPresented: $isPresented) {
-            if HubCardPolicy.decide(
-                reduceMotion: reduceMotion
-            ) == .card {
-                HubCardHost(
-                    progress: appState.hubCardProgress,
-                    onDismissed: {
-                        appState.hubCardProgress.strength = 0
-                        HubCoverPresenter.dismiss($isPresented)
-                    }
-                ) { requestClose in
-                    AgentHubView(onCardClose: requestClose)
-                }
-            } else {
-                AgentHubView()
-            }
+        content.sheet(isPresented: $isPresented) {
+            AgentHubView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }
 
 extension View {
-    /// 中枢 cover 呈现（H2 收编单源）：非聊天宿主
-    /// 开中枢只许走本修饰位＋HubCoverPresenter
-    /// .present 置位，不许再 push 入中枢
+    /// 中枢原生 Sheet 呈现
     func hubCover(isPresented: Binding<Bool>) -> some View {
         modifier(HubCoverModifier(isPresented: isPresented))
     }

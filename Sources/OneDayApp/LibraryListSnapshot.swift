@@ -59,6 +59,16 @@ struct LibraryListSnapshot {
             trimmed.isEmpty
                 || item.entry.name.localizedCaseInsensitiveContains(trimmed)
         }
+        func matchesSource(_ item: Deliverable) -> Bool {
+            if source.isEmpty { return true }
+            if source == LibrarySourceFilter.agent.rawValue {
+                return LibrarySourceFilter.classify(deliverable: item) == .agent
+            }
+            if source == LibrarySourceFilter.user.rawValue {
+                return LibrarySourceFilter.classify(deliverable: item) == .user
+            }
+            return item.source == source
+        }
         var byPath: [String: Deliverable] = [:]
         byPath.reserveCapacity(all.count)
         for item in all where byPath[item.entry.path] == nil {
@@ -74,7 +84,7 @@ struct LibraryListSnapshot {
             items: all.filter {
                 matches($0)
                     && category.includes($0.entry)
-                    && (source.isEmpty || $0.source == source)
+                    && matchesSource($0)
             },
             byPath: byPath
         )
@@ -206,5 +216,35 @@ final class LibrarySnapshotCache {
         default:
             return false
         }
+    }
+}
+
+/// 资源库来源三档筛选（精简内部目录来源，统一归类）
+enum LibrarySourceFilter: String, CaseIterable, Equatable, Hashable {
+    case all = ""
+    case agent = "智能体产出"
+    case user = "用户发送"
+
+    var label: String {
+        switch self {
+        case .all: return "全部来源"
+        case .agent: return "智能体产出"
+        case .user: return "用户发送"
+        }
+    }
+
+    static func classify(deliverable: Deliverable) -> LibrarySourceFilter {
+        let s = deliverable.source.lowercased()
+        let p = deliverable.entry.path.lowercased()
+        if s.contains("用户") || s.contains("上传") || s.contains("附件")
+            || s.contains("upload") || s.contains("attachment")
+            || p.contains("/uploads/") || p.contains("/attachments/") {
+            return .user
+        }
+        return .agent
+    }
+
+    static func displayLabel(for deliverable: Deliverable) -> String {
+        classify(deliverable: deliverable).label
     }
 }
