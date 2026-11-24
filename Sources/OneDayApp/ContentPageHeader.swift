@@ -15,8 +15,7 @@ import SwiftUI
 /// 上方 ≈8，§449.3）、hero 顶距 spacingXS、带高 107
 /// （头像 67＋胶囊 44－重叠 8＋顶距 4）。胶囊状态词
 /// 与聊天同源（§474：liveActivityPhrase 直读、无活
-/// 动留空，不回落连接词）；头像钮接活头像（§479，
-/// 与聊天同路）。
+/// 动留空，不回落连接词）；头像钮与聊天同路。
 struct ContentPageHeader<Trailing: View>: View {
     @Environment(AppState.self) private var appState
 
@@ -55,7 +54,6 @@ struct ContentPageHeader<Trailing: View>: View {
         ZStack(alignment: .bottom) {
             HubAvatarButton(
                 avatar: appState.agentAvatarImage,
-                livingAvatar: appState.livingAvatar,
                 displayName: appState.agentDisplayName,
                 statusWord: statusWord,
                 statusColor: statusColor,

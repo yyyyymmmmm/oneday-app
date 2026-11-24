@@ -2306,7 +2306,6 @@ struct ChatView: View {
         ZStack(alignment: .bottom) {
             HubAvatarButton(
                 avatar: appState.agentAvatarImage,
-                livingAvatar: appState.livingAvatar,
                 displayName: appState.agentDisplayName,
                 statusWord: overviewStatusWord,
                 statusColor: overviewStatusColor,
@@ -12782,9 +12781,6 @@ private struct ComposerBarLayout: Layout {
         // §449.9：新一轮跟随起手先清活动短语（上一轮
         // 残值不许串轮）；工具在飞栈为本趟局部账
         appState.liveActivityPhrase = nil
-        // §479：活头像状态机同位喂食（与活动短语
-        // 同源同点，本函数内下同）
-        appState.livingAvatar.note(.runStarted)
         var liveToolStack: [(id: String, phrase: String)] = []
         guard let runID = entry.runID,
               let config = appState.config,
@@ -12799,7 +12795,6 @@ private struct ComposerBarLayout: Layout {
             case .contentDelta(let delta),
                  .interim(let delta):
                 if !delta.isEmpty {
-                    appState.livingAvatar.note(.textDelta)
                     // 0.36.10：正文首达记位（事件序编排）
                     // 第 93 条：封段后 .text 标记已被换成
                     // .sealedText，新段首增量在此重新记位
@@ -12812,7 +12807,6 @@ private struct ComposerBarLayout: Layout {
                     offerStreamPublish()
                 }
             case .reasoningPreview(let text):
-                appState.livingAvatar.note(.reasoning)
                 if reasoningStartedAt == nil {
                     reasoningStartedAt = Date()
                 }
@@ -12822,13 +12816,6 @@ private struct ComposerBarLayout: Layout {
                 // （落盘源头），不再发布快照
                 reasoningPublishGate.offer(text)
             case .toolStarted(let id, let name, let preview):
-                appState.livingAvatar.note(
-                    .toolStarted(
-                        LivingToolFamilyClassifier.classify(
-                            toolName: name
-                        )
-                    )
-                )
                 // 第 93 条：工具开始＝服务端段边界——
                 // 先封当前正文段再落卡，卡后的新段增量
                 // 进新缓冲，不许再拼回本段
@@ -12850,13 +12837,6 @@ private struct ComposerBarLayout: Layout {
             case .toolCompleted(
                 let id, let name, let preview, let failed
             ):
-                appState.livingAvatar.note(
-                    .toolCompleted(
-                        family: LivingToolFamilyClassifier
-                            .classify(toolName: name),
-                        failed: failed
-                    )
-                )
                 completeLiveToolCard(
                     id: id, name: name, preview: preview,
                     failed: failed
@@ -12866,20 +12846,6 @@ private struct ComposerBarLayout: Layout {
                     liveToolStack.last?.phrase
             case .terminal(let kind, let output):
                 appState.liveActivityPhrase = nil
-                switch kind {
-                case .completed:
-                    appState.livingAvatar.note(
-                        .terminalCompleted
-                    )
-                case .failed:
-                    appState.livingAvatar.note(
-                        .terminalFailed
-                    )
-                default:
-                    appState.livingAvatar.note(
-                        .terminalCancelled
-                    )
-                }
                 terminalOutputHint = output
                 // §494：终态拍全量发布——对账落定
                 // 前直播行先呈全文（与装配器兜底逐
@@ -12887,27 +12853,13 @@ private struct ComposerBarLayout: Layout {
                 flushStreamPublish()
                 runMachine.apply(.statusTerminal(kind))
                 return
-            case .other(let name):
-                // 子智能体起落是干活·委派族的独立事
-                // 件名（规格 §1.2 W4）；其余 .other 不喂
-                if name == "subagent.start" {
-                    appState.livingAvatar.note(
-                        .toolStarted(.delegate)
-                    )
-                } else if name == "subagent.complete" {
-                    appState.livingAvatar.note(
-                        .toolCompleted(
-                            family: .delegate, failed: false
-                        )
-                    )
-                }
+            case .other(_):
                 continue
             }
         }
         // 流结束而未见终态：结果未知（非错误）。半截
         // 先落盘，进程被回收也不凭空消失
         appState.liveActivityPhrase = nil
-        appState.livingAvatar.note(.streamLost)
         if !runMachine.isSettled,
            case .generating(_) = runMachine.phase {
             runMachine.apply(.streamLost)
